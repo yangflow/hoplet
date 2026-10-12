@@ -12,6 +12,9 @@ permissions:
 jobs:
   title:
     name: Conventional Commit title
+    # Dependabot's titles take their type and scope from .github/dependabot.yml but not their length; a skipped
+    # required check counts as passed.
+    if: github.event.pull_request.user.login != 'dependabot[bot]'
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
