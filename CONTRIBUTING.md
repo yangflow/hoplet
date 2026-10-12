@@ -3,6 +3,12 @@
 Thank you for helping. Hoplet is built mostly by its maintainer working with AI coding agents; contributions from
 anyone are welcome, and this page is all you need to make one.
 
+## Languages
+
+Issues, discussions, pull requests, commit messages and reviews may be in English or Simplified Chinese; write in
+the one you are comfortable with, and replies follow the language of the thread.
+欢迎使用中文或英文提交 issue、参与讨论、提交 PR 和撰写提交信息，回复会跟随所在讨论使用的语言。
+
 ## Before you write code
 
 - **Bugs**: open an issue with the Bug form: what you did, what happened, what you expected, and the versions.
@@ -29,8 +35,8 @@ anyone are welcome, and this page is all you need to make one.
 
 5. Title the pull request as a [Conventional Commit](https://www.conventionalcommits.org/): `type(scope): Subject`,
    with the type `feat`, `fix`, `perf`, `refactor`, `docs`, `test`, `build`, `ci` or `chore`, the scope one of
-   `core`, `shared`, `web`, `agent`, `image` or `scripts` (`deps` for dependency updates), and the subject an imperative sentence of at most 50
-   characters. Pull requests are squash-merged, so the title becomes the commit, and the changelog and the next
+   `core`, `shared`, `web`, `agent`, `image` or `scripts` (`deps` for dependency updates), and a subject of at most 50 characters,
+   in English (an imperative sentence starting with a capital letter) or in Chinese. Pull requests are squash-merged, so the title becomes the commit, and the changelog and the next
    version are made from those titles.
 6. Fill in the template: what, why, how you verified it, what you did not run. Leave "Allow edits by maintainers"
    on.

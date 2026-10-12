@@ -42,7 +42,9 @@ jobs:
             scripts
             deps
           requireScope: false
-          subjectPattern: ^[A-Z].{0,49}$
+          # English or Chinese: at most 50 characters, an English subject starting with a capital letter.
+          subjectPattern: ^(?![a-z])\S.{0,49}$
           subjectPatternError: |
-            The subject "{subject}" must start with a capital letter and be at most 50 characters,
-            an imperative sentence such as "Stop the process on external writes" (CONTRIBUTING.md).
+            The subject "{subject}" must be at most 50 characters; in English it starts with a capital letter, such
+            as "Stop the process on external writes" (CONTRIBUTING.md).
+            标题主题最多 50 个字符；英文主题需以大写字母开头，中文例如"修复交接后侧边栏不刷新的问题"。
