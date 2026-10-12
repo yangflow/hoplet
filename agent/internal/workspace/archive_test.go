@@ -130,8 +130,9 @@ func TestUncompressedLimitIsExact(t *testing.T) {
 	}
 }
 
+// Not parallel: TotalAlloc counts the whole process, and the parallel tests of this package allocate hundreds of
+// MiB while they build their archives.
 func TestGzipBombIsRefusedWithBoundedMemory(t *testing.T) {
-	t.Parallel()
 	bomb := archiveOf(t, base(entry{h: tar.Header{Name: bundleName, Typeflag: tar.TypeReg, Mode: 0o600}, zeros: 3 * MaxSnapshotUncompressed / 2}))
 	if info, _ := os.Stat(bomb); info.Size() > 8<<20 {
 		t.Fatalf("test archive is not a bomb: %d bytes", info.Size())
