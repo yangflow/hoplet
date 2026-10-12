@@ -29,7 +29,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 )
 
@@ -125,6 +124,7 @@ func findSession(id string) string {
 }
 
 type turn struct {
+	text      string
 	interrupt chan struct{}
 	answers   chan obj
 }
@@ -170,7 +170,16 @@ func main() {
 
 	var cur *turn
 	var curMu sync.Mutex
-	var running atomic.Bool
+	// Turns run one at a time in the order they arrive. A prompt that arrives while a turn runs waits, as Claude
+	// Code queues it; it is never dropped, however soon after the previous result it comes. The newest turn is
+	// the one interrupts and answers go to from the moment it arrives, before it starts: an interrupt sent at once
+	// waits in its channel.
+	turns := make(chan *turn, 64)
+	go func() {
+		for t := range turns {
+			runTurn(t, t.text)
+		}
+	}()
 
 	in := bufio.NewReaderSize(os.Stdin, 1<<20)
 	for {
@@ -225,16 +234,11 @@ func main() {
 					if len(m.Message.Content) > 0 {
 						text = m.Message.Content[0].Text
 					}
-					t := &turn{interrupt: make(chan struct{}, 1), answers: make(chan obj, 4)}
+					t := &turn{text: text, interrupt: make(chan struct{}, 1), answers: make(chan obj, 4)}
 					curMu.Lock()
 					cur = t
 					curMu.Unlock()
-					if running.CompareAndSwap(false, true) {
-						go func() {
-							runTurn(t, text)
-							running.Store(false)
-						}()
-					}
+					turns <- t
 				}
 			}
 		}
