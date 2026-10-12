@@ -18,7 +18,7 @@ type Config struct {
 	PollInterval    time.Duration `json:"-"`
 	PollIntervalMS  int           `json:"poll_interval_ms"`
 	ExcludePrefixes []string      `json:"exclude_prefixes"`
-	HopletHome       string        `json:"hoplet_home"`
+	HopletHome      string        `json:"hoplet_home"`
 	BrowseRoot      string        `json:"browse_root"`
 
 	ClaudeBin               string `json:"claude_bin"`
@@ -30,7 +30,7 @@ func Load(path string) (*Config, error) {
 	cfg := &Config{
 		PollIntervalMS:  1000,
 		ExcludePrefixes: []string{"/private/var/folders", "/var/folders", "/tmp/"},
-		HopletHome:       DefaultHome(),
+		HopletHome:      DefaultHome(),
 
 		ClaudeBin:               "claude",
 		RuntimeIdleMinutes:      30,

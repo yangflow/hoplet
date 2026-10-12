@@ -26,7 +26,7 @@ func newStartEnv(t *testing.T) (b *bridge, s *sink, st *store, watched string, s
 	cfg := &config.Config{
 		ClaudeBin:               bin,
 		ClaudeProjects:          root,
-		HopletHome:               home,
+		HopletHome:              home,
 		RuntimeIdleMinutes:      30,
 		RuntimeMaxIdleProcesses: 3,
 	}

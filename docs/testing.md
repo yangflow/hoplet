@@ -4,7 +4,7 @@
 
 `pnpm check` runs Biome, `tsc`, Vitest (core, shared, web and the scripts' tests), the import boundaries
 (`scripts/boundaries.ts`, docs/architecture.md#boundaries), the version check, the design tokens check
-(`design/check-tokens.py`), `go vet` and `go test -race`. `.github/workflows/ci.yml` runs it on every pull request,
+(`design/check-tokens.py`), `gofmt`, `go vet` and `go test -race`. `.github/workflows/ci.yml` runs it on every pull request,
 together with the end-to-end tests below and a check of the links between the repository's documents.
 
 ## End-to-end tests

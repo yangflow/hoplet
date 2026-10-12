@@ -15,7 +15,7 @@
     "format": "biome check --write core shared scripts web package.json biome.json tsconfig.json tsconfig.base.json vitest.config.ts",
     "typecheck": "tsc -p . && pnpm -r typecheck",
     "test": "vitest run",
-    "agent:check": "cd agent && go vet ./... && go test ./...",
+    "agent:check": "cd agent && test -z \"$(gofmt -l .)\" && go vet ./... && go test ./...",
     "check": "pnpm lint && pnpm typecheck && pnpm test && node scripts/boundaries.ts && scripts/check-version.sh && python3 design/check-tokens.py && pnpm agent:check",
     "dev:core": "node core/src/main.ts",
     "dev:web": "pnpm --filter @hoplet/web dev",

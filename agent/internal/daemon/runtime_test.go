@@ -68,7 +68,7 @@ func newTestBridge(t *testing.T) (*bridge, *sink, string, string) {
 	cfg := &config.Config{
 		ClaudeBin:               bin,
 		ClaudeProjects:          projects,
-		HopletHome:               t.TempDir(),
+		HopletHome:              t.TempDir(),
 		RuntimeIdleMinutes:      30,
 		RuntimeMaxIdleProcesses: 3,
 	}
