@@ -200,8 +200,8 @@ importers:
         specifier: workspace:*
         version: link:../shared
       ws:
-        specifier: 8.18.3
-        version: 8.18.3
+        specifier: 8.22.0
+        version: 8.22.0
     devDependencies:
       '@types/node':
         specifier: 26.6.4
@@ -1244,8 +1244,8 @@ packages:
     engines: {node: '>=20.11'}
     hasBin: true
 
-  ws@8.18.3:
-    resolution: {integrity: sha512-PEIGCY5tSlUt50cqyMXfCzX+oOPqN0vuGqWzbcJ2xvnkzkq46oOpz7dQaTDBdfICb4N14+GARUDw2XV2N4tvzg==}
+  ws@8.22.0:
+    resolution: {integrity: sha512-Ydggc987+RO0AnWtZ/7Wq9FtNvcrL1b/RO0ud9mWjUPgDrsAAwQSF51sm2hm1XofbU/4jkpGEsLFsZZxU+1DOg==}
     engines: {node: '>=10.0.0'}
     peerDependencies:
       bufferutil: ^4.0.1
@@ -2056,7 +2056,7 @@ snapshots:
 
   why-is-node-running@3.2.1: {}
 
-  ws@8.18.3: {}
+  ws@8.22.0: {}
 
   xml-name-validator@5.0.0: {}
 
