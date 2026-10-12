@@ -86,7 +86,7 @@ describe('sidebar folding', () => {
   it('lists the directories open, each a button with aria-expanded', async () => {
     await show();
     expect(
-      toggles().map((b) => [b.getAttribute('aria-label'), b.getAttribute('aria-expanded')]),
+      toggles().map((b) => [b.querySelector('.dn')?.textContent, b.getAttribute('aria-expanded')]),
     ).toEqual([
       ['app', 'true'],
       ['notes', 'true'],
@@ -174,7 +174,7 @@ describe('the sidebar follows the selected session', () => {
     );
     await show({}, undefined, 'a');
     expect(
-      toggles().map((b) => [b.getAttribute('aria-label'), b.getAttribute('aria-expanded')]),
+      toggles().map((b) => [b.querySelector('.dn')?.textContent, b.getAttribute('aria-expanded')]),
     ).toEqual([
       ['app', 'false'],
       ['notes', 'true'],

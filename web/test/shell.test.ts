@@ -90,7 +90,8 @@ describe('Select', () => {
       }),
     );
     const trigger = document.querySelector('button[aria-haspopup="listbox"]') as HTMLElement;
-    expect(trigger.getAttribute('aria-label')).toBe('Model');
+    // The trigger's name holds the field and the value it shows (the visible text is part of the name).
+    expect(trigger.getAttribute('aria-label')).toBe('Model, Alpha');
     await act(async () => key(trigger, 'ArrowDown'));
     const list = document.querySelector('[role="listbox"]') as HTMLElement;
     expect(list).not.toBeNull();

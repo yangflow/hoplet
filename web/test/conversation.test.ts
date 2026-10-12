@@ -273,7 +273,7 @@ it('opens an elided block in place by fetching it', async () => {
   });
   await show({ state: 'idle' });
   expect(q('cockpit.elided')?.textContent).toContain('first rows');
-  expect(q('cockpit.block-open')?.getAttribute('aria-label')).toContain('20 KiB');
+  expect(q('cockpit.block-open')?.textContent).toContain('20 KiB');
   await act(async () => {
     (q('cockpit.block-open') as HTMLButtonElement).click();
   });

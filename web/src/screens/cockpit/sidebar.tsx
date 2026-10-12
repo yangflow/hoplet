@@ -121,7 +121,6 @@ function FolderRow(props: {
         type="button"
         className="sdir-toggle"
         aria-expanded={!folded}
-        aria-label={props.name}
         onClick={props.onToggle}
         data-testid={props.testid}
       >
@@ -347,7 +346,6 @@ export function Sidebar(props: {
       <button
         type="button"
         className="search"
-        aria-label={t('Search')}
         aria-keyshortcuts="Meta+K"
         title={`${t('Search')} · ⌘K`}
         onClick={props.onSearch}
@@ -355,7 +353,9 @@ export function Sidebar(props: {
       >
         {Icon.search()}
         <span className="search-label">{t('Search')}</span>
-        <Badge kind="key">⌘K</Badge>
+        <span aria-hidden="true">
+          <Badge kind="key">⌘K</Badge>
+        </span>
       </button>
       <nav ref={treeRef} className="tree" aria-label={t('Sessions')} data-testid="cockpit.tree">
         {groups.length === 0 ? (

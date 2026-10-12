@@ -146,7 +146,6 @@ export function ElidedPanel(props: {
       <button
         type="button"
         className="wopen"
-        aria-label={`${t('Open the whole block')} · ${size}`}
         title={`${t('Open the whole block')} · ${size}`}
         disabled={state === 'loading'}
         onClick={() => view.setOpen(`blk:${id}`, true)}

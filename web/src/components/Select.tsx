@@ -78,7 +78,7 @@ export function Select(props: {
         ref={triggerRef}
         type="button"
         className="sel"
-        aria-label={label}
+        aria-label={current?.label ? `${label}, ${current.label}` : label}
         aria-haspopup="listbox"
         aria-expanded={open}
         title={detail ?? label}
