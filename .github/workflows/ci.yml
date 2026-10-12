@@ -43,6 +43,9 @@ jobs:
       - run: node scripts/boundaries.ts
       - run: scripts/check-version.sh
       - run: python3 design/check-tokens.py
+      - name: gofmt
+        run: test -z "$(gofmt -l . | tee /dev/stderr)"
+        working-directory: agent
       - run: go vet ./...
         working-directory: agent
       - run: go test ./...

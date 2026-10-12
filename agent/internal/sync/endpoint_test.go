@@ -14,11 +14,11 @@ import (
 
 func TestWsEndpoint(t *testing.T) {
 	cases := map[string]string{
-		"http://core:7788":               "ws://core:7788/ws/agent",
+		"http://core:7788":                "ws://core:7788/ws/agent",
 		"https://hoplet.example.internal": "wss://hoplet.example.internal/ws/agent",
 		"https://example.internal/hoplet": "wss://example.internal/hoplet/ws/agent",
-		"http://core:7788/":              "ws://core:7788/ws/agent",
-		"ws://core:7788/ws/agent":        "ws://core:7788/ws/agent",
+		"http://core:7788/":               "ws://core:7788/ws/agent",
+		"ws://core:7788/ws/agent":         "ws://core:7788/ws/agent",
 	}
 	for in, want := range cases {
 		got, err := wsEndpoint(in)
