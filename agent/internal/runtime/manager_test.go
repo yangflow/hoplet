@@ -110,7 +110,8 @@ func (r *recorder) waitFor(t *testing.T, what string, cond func() bool) {
 			return
 		}
 		if time.Now().After(deadline) {
-			r.mu.Unlock()
+			// The deferred Unlock runs as Fatalf exits the goroutine; unlocking here as well is a fatal error that
+			// hides the timeout.
 			t.Fatalf("timed out waiting for %s", what)
 		}
 		r.cond.Wait()
