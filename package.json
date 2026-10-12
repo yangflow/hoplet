@@ -28,7 +28,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.15",
-    "@playwright/test": "1.63.0",
+    "@playwright/test": "1.64.0",
     "@types/jsdom": "30.0.0",
     "@types/node": "26.6.4",
     "@valibot/to-json-schema": "1.8.0",
