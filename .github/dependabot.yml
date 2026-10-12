@@ -1,0 +1,23 @@
+# Version updates for every ecosystem Hoplet uses (THIRD_PARTY.md). Titles are Conventional Commits: a runtime
+# dependency's update is a fix and shows in the release notes, a development dependency's is a build change.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directories: ["/", "/core", "/shared", "/web"]
+    schedule: { interval: weekly }
+    commit-message: { prefix: fix, prefix-development: build, include: scope }
+    groups:
+      development:
+        dependency-type: development
+  - package-ecosystem: gomod
+    directory: /agent
+    schedule: { interval: weekly }
+    commit-message: { prefix: fix, include: scope }
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: monthly }
+    commit-message: { prefix: ci, include: scope }
+  - package-ecosystem: docker
+    directory: /image
+    schedule: { interval: monthly }
+    commit-message: { prefix: build, include: scope }

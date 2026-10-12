@@ -29,7 +29,7 @@ anyone are welcome, and this page is all you need to make one.
 
 5. Title the pull request as a [Conventional Commit](https://www.conventionalcommits.org/): `type(scope): Subject`,
    with the type `feat`, `fix`, `perf`, `refactor`, `docs`, `test`, `build`, `ci` or `chore`, the scope one of
-   `core`, `shared`, `web`, `agent`, `image` or `scripts`, and the subject an imperative sentence of at most 50
+   `core`, `shared`, `web`, `agent`, `image` or `scripts` (`deps` for dependency updates), and the subject an imperative sentence of at most 50
    characters. Pull requests are squash-merged, so the title becomes the commit, and the changelog and the next
    version are made from those titles.
 6. Fill in the template: what, why, how you verified it, what you did not run. Leave "Allow edits by maintainers"
