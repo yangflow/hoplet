@@ -3,7 +3,8 @@
 version: 2
 updates:
   - package-ecosystem: npm
-    directories: ["/", "/core", "/shared", "/web"]
+    # One pnpm workspace with one lockfile at the root: updated from the root, never per package.
+    directory: /
     schedule: { interval: weekly }
     commit-message: { prefix: fix, prefix-development: build, include: scope }
     groups:
