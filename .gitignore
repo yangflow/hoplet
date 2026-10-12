@@ -6,3 +6,4 @@ data/
 /tmp/
 web/public/preview-*.json
 agent/hoplet-agent
+.env

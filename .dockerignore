@@ -9,3 +9,4 @@ agent/hoplet-agent
 docs
 design
 web/e2e
+**/.env
