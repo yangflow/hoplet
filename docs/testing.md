@@ -28,6 +28,9 @@ Playwright (`web/e2e/`, Chromium) runs in two modes, both part of the image job:
   `image/compose.yaml`, on a port of its own, until the health check passes, then `down -v`). The time and
   memory budgets of the checklist are not measured here.
 
+The evidence per checklist item, with what remains to be checked by hand, is in
+`docs/benchmarks/v0.2-acceptance.md`.
+
 Locally both need a Chromium for Playwright (`pnpm exec playwright install chromium`); `pnpm e2e:image` also needs
 Docker and Go.
 `pnpm e2e:image` builds `hoplet:e2e` unless `E2E_IMAGE` names an image that already exists, as the CI job does with
