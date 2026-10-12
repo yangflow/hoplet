@@ -243,4 +243,4 @@ copy of the data directory; erase is deleting it and each agent's state root (do
 
 ## Evolution
 
-What comes next, version by version, is in `ROADMAP.md`; why the architecture is the way it is, in `docs/adr/`.
+What comes next, version by version, is in `docs/roadmap.md`; why the architecture is the way it is, in `docs/adr/`.
