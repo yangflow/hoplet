@@ -1721,10 +1721,10 @@ if (q.get('state') && !solo) {
 } else {
   document.body.className = 'stacked';
   const keys = Object.keys(T.dark);
-  const c = v => /^#|^rgba/.test(v) ? `<span class="sw" style="background:${v}"></span>${v}` : v;
-  const rows = keys.map(k => `<tr><td>${k}</td><td>${c(T.dark[k])}</td><td>${c(T.light[k])}</td></tr>`).join('') +
-    Object.entries(T.shared).map(([k, v]) => `<tr><td>${k}</td><td colspan="2">${v.replace(/</g, '&lt;')}</td></tr>`).join('');
-  const chip = v => `<span class="chip" style="background:${v}"></span>`;
+  const c = v => (/^#|^rgba/.test(v) ? `<span class="sw" style="background:${esc(v)}"></span>` : '') + esc(v);
+  const rows = keys.map(k => `<tr><td>${esc(k)}</td><td>${c(T.dark[k])}</td><td>${c(T.light[k])}</td></tr>`).join('') +
+    Object.entries(T.shared).map(([k, v]) => `<tr><td>${esc(k)}</td><td colspan="2">${esc(v)}</td></tr>`).join('');
+  const chip = v => `<span class="chip" style="background:${esc(v)}"></span>`;
   root.innerHTML = `<header class="intro"><h1>${SCREEN.name} <span>Relay + Blocks</span></h1>
     <p>${SCREEN.blurb} Relay’s shell, Blocks’ conversation. A native-feeling sidebar, top bar and inspector frame a centred column where each prompt and everything it caused forms one turn. Finished turns rest flat on the warm canvas with a hairline between them and a terse summary, so a long session can be skimmed turn by turn. The live turn is the only elevated object on screen; a permission request opens inside it. State is carried by glyph shape and colour, with words only where a state blocks or changes what the user can do; actions are icon buttons with titles, and only decisions keep text.</p>
     <div class="cols">
