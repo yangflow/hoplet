@@ -1,0 +1,847 @@
+/* The workspace inspector (design/screens/workspace.html): tabs, Changes, Files, the viewer and Hand off. */
+
+.ws {
+  position: relative;
+  z-index: 4;
+  flex: none;
+  width: var(--layout-inspector);
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-sidebar);
+  box-shadow: var(--shadow-drawer);
+  font-size: var(--text-ui);
+  line-height: var(--leading-ui);
+}
+.ws.wide {
+  width: var(--layout-inspector-wide);
+}
+
+/* header: the tools as tabs, + for the tools menu, and the inspector's own toggle */
+.ws-h {
+  position: relative;
+  flex: none;
+  height: var(--layout-topbar);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-3);
+  box-shadow: inset 0 -1px 0 var(--color-line);
+}
+.ws-tabs {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.ws-tablist {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+.ws-tab {
+  position: relative;
+  flex: none;
+  height: var(--control-icon);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-2);
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+}
+.ws-tab:hover:not(.on):not(.off) {
+  background: var(--color-hover);
+}
+.ws-tab:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+.ws-tab.on {
+  padding-right: var(--space-1);
+  background: var(--color-selected);
+  color: var(--color-text);
+  box-shadow:
+    inset 0 1px 0 var(--color-highlight),
+    0 0 0 1px var(--color-line);
+}
+:root[data-scheme="light"] .ws-tab.on {
+  background: var(--color-raised);
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-scheme="dark"]) .ws-tab.on {
+    background: var(--color-raised);
+  }
+}
+.ws-tab.off {
+  color: var(--color-text-3);
+  cursor: default;
+}
+.ws-tab-c {
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  font-weight: var(--weight-regular);
+  color: var(--color-text-3);
+  font-variant-numeric: tabular-nums;
+}
+.ws-tab.on .ws-tab-c {
+  color: var(--color-text-2);
+}
+.ws-tab-x {
+  width: 20px;
+  height: 20px;
+  display: none;
+  place-items: center;
+  border-radius: var(--space-1);
+  color: var(--color-text-3);
+}
+.ws-tab-x .icon {
+  width: 14px;
+  height: 14px;
+}
+.ws-tab-x:hover {
+  color: var(--color-text);
+  background: var(--color-hover);
+}
+.ws-tab.on .ws-tab-x,
+.ws-tab:not(.off):hover .ws-tab-x {
+  display: grid;
+}
+.ws-tab:not(.on):not(.off):hover {
+  padding-right: var(--space-1);
+}
+.ws-tools {
+  display: contents;
+}
+.ws-h .ws-menu {
+  top: calc(100% - var(--space-2));
+  left: auto;
+  right: 44px;
+  width: 232px;
+}
+.ws-menu-l {
+  flex: 1;
+}
+.ws-menu .menu-item.ws-later:hover {
+  background: none;
+}
+.ws-meta {
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  color: var(--color-text-3);
+  font-variant-numeric: tabular-nums;
+}
+.ws-mono {
+  font-family: var(--font-mono);
+  font-size: var(--text-code);
+  letter-spacing: 0;
+}
+
+/* narrow body: the list over Hand off; wide body: the viewer left of the list */
+.ws-body,
+.ws-pane,
+.ws-mlist {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.ws-md {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--layout-inspector-list);
+}
+.ws-mlist {
+  min-width: 0;
+  box-shadow: inset 1px 0 0 var(--color-line);
+}
+
+/* Changes and Files: 24 px rows, a 12 px indent per tree level */
+.ws-list {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--space-1) var(--space-2) var(--space-2);
+  scrollbar-width: thin;
+}
+.ws-list ul,
+ul.ws-list {
+  list-style: none;
+  margin: 0;
+}
+.ws-sum {
+  height: var(--layout-row-tree);
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0 var(--space-2);
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  color: var(--color-text-2);
+  font-variant-numeric: tabular-nums;
+}
+.ws-sum i {
+  font-style: normal;
+  color: var(--color-text-3);
+}
+.ws-row {
+  width: 100%;
+  height: var(--layout-row-tree);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-2);
+  text-align: left;
+  white-space: nowrap;
+}
+.ws-row:hover:not(.on) {
+  background: var(--color-hover);
+}
+.ws-row.on {
+  background: var(--color-selected);
+  box-shadow: inset 0 1px 0 var(--color-highlight);
+}
+.ws-file {
+  padding-right: var(--space-2);
+}
+.ws-chev {
+  width: var(--icon-size);
+  height: var(--icon-size);
+  display: grid;
+  place-items: center;
+  flex: none;
+  color: var(--color-text-3);
+}
+.ws-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ws-file .ws-name {
+  flex: 1;
+}
+.ws-change .ws-name {
+  flex: none;
+  max-width: 60%;
+}
+.ws-dir {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  color: var(--color-text-3);
+}
+.ws-counts {
+  flex: none;
+  display: flex;
+  gap: var(--space-1);
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  font-variant-numeric: tabular-nums;
+}
+.ws-bin {
+  color: var(--color-text-3);
+}
+.ws-tag {
+  flex: none;
+  width: var(--icon-size);
+  text-align: center;
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+.ws-holds::after {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-git-modified);
+  vertical-align: 1px;
+}
+.g-modified .ws-name,
+.ws-tag.g-modified {
+  color: var(--color-git-modified);
+}
+.g-added .ws-name,
+.g-untracked .ws-name,
+.ws-tag.g-added,
+.ws-tag.g-untracked {
+  color: var(--color-git-untracked);
+}
+.g-deleted .ws-name,
+.ws-tag.g-deleted {
+  color: var(--color-git-deleted);
+}
+.g-deleted .ws-name {
+  text-decoration: line-through;
+  text-decoration-color: var(--color-text-3);
+}
+/* on the selected row the letter carries the status: the git tints lack contrast on the selection */
+.ws-row.on .ws-name {
+  color: var(--color-text);
+}
+
+/* notes above or below a list */
+.ws-snap {
+  flex: none;
+  display: flex;
+  gap: var(--space-2);
+  margin: var(--space-2) var(--space-2) 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  box-shadow: inset 0 0 0 1px var(--color-line);
+  color: var(--color-text-2);
+}
+.ws-snap > .icon {
+  margin-top: 2px;
+  color: var(--color-text-3);
+}
+.ws-trunc {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 var(--space-2);
+  padding: var(--space-2);
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  color: var(--color-text-2);
+  box-shadow: inset 0 1px 0 var(--color-line);
+}
+.ws-trunc > .icon {
+  color: var(--color-text-3);
+}
+
+/* a message in place of a list or a viewer: glyph, one line, one sentence, at most one action */
+.ws-quiet {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-5) var(--space-6);
+  text-align: center;
+  color: var(--color-text-2);
+}
+.ws-quiet > .icon {
+  margin-bottom: var(--space-1);
+  color: var(--color-text-3);
+}
+.ws-quiet > .spin {
+  --spin-color: var(--color-text-3);
+}
+.ws-quiet b {
+  color: var(--color-text);
+  font-weight: var(--weight-semibold);
+}
+.ws-quiet .btn {
+  margin-top: var(--space-2);
+}
+
+/* Hand off: one row at the foot that opens into the panel */
+.ws-hrow {
+  flex: none;
+  margin-top: auto;
+  padding: var(--space-2);
+  box-shadow: inset 0 1px 0 var(--color-line);
+}
+.ws-hrow .btn {
+  width: 100%;
+  justify-content: flex-start;
+}
+/* the viewer: header over a body that scrolls both ways */
+.ws-viewer {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-bg);
+}
+.ws-vh {
+  flex: none;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-2) 0 var(--space-3);
+  box-shadow: inset 0 -1px 0 var(--color-line);
+  white-space: nowrap;
+}
+.ws-vname {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  overflow: hidden;
+}
+.ws-vname b {
+  flex: none;
+  font-weight: var(--weight-semibold);
+}
+.ws-vname span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  color: var(--color-text-3);
+}
+.ws-gap {
+  flex: 1;
+}
+.ws-ro {
+  display: grid;
+  place-items: center;
+  margin-right: var(--space-1);
+  color: var(--color-text-3);
+}
+.ws-nav {
+  display: flex;
+}
+.ws-seg {
+  position: relative;
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--space-2);
+  background: var(--color-bg);
+  box-shadow: inset 0 0 0 1px var(--color-line);
+}
+:root[data-scheme="light"] .ws-seg {
+  background: var(--color-hover);
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-scheme="dark"]) .ws-seg {
+    background: var(--color-hover);
+  }
+}
+.ws-seg button {
+  height: 24px;
+  display: flex;
+  align-items: center;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-sm);
+  font-weight: var(--weight-medium);
+  color: var(--color-text-2);
+  white-space: nowrap;
+}
+.ws-seg button.on {
+  background: var(--color-selected);
+  color: var(--color-text);
+  box-shadow:
+    inset 0 1px 0 var(--color-highlight),
+    0 0 0 1px var(--color-line);
+}
+:root[data-scheme="light"] .ws-seg button.on {
+  background: var(--color-raised);
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-scheme="dark"]) .ws-seg button.on {
+    background: var(--color-raised);
+  }
+}
+.ws-seg button:disabled {
+  color: var(--color-text-3);
+  cursor: default;
+}
+.ws-vb {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
+  outline: none;
+  container-type: inline-size;
+}
+.ws-vb:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--color-accent);
+}
+
+/* diffs and files: long lines scroll sideways and keep their columns; Wrap breaks them under their number */
+.ws-diff,
+.ws-code {
+  flex: none;
+  min-width: max-content;
+  padding: var(--space-2) 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-code);
+  line-height: var(--leading-code);
+  letter-spacing: 0;
+}
+.ws-vb.wrap .ws-diff,
+.ws-vb.wrap .ws-code {
+  min-width: 0;
+}
+.ws-dl {
+  display: grid;
+  grid-template-columns: var(--ws-gutter, var(--layout-gutter)) var(
+      --ws-gutter,
+      var(--layout-gutter)
+    ) var(--icon-size) minmax(0, 1fr);
+  padding-right: var(--space-3);
+  color: var(--color-text);
+}
+.ws-dl .n,
+.ws-l .n {
+  align-self: start;
+  font-family: var(--font-ui);
+  font-size: var(--text-meta);
+  color: var(--color-text-3);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.ws-dl .n {
+  padding-right: var(--space-2);
+}
+.ws-dl .s {
+  text-align: center;
+}
+.ws-dl .c,
+.ws-l .c {
+  white-space: pre;
+}
+.ws-vb.wrap .ws-dl .c,
+.ws-vb.wrap .ws-l .c {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.ws-dl.add {
+  background: var(--color-add-bg);
+}
+.ws-dl.del {
+  background: var(--color-del-bg);
+}
+.ws-dl.add .s,
+.ws-dl.add .n {
+  color: var(--color-add-text);
+}
+.ws-dl.del .s,
+.ws-dl.del .n {
+  color: var(--color-del-text);
+}
+/* comments keep their contrast on the added and removed tints */
+.ws-dl.add .sx-cm,
+.ws-dl.del .sx-cm {
+  color: var(--color-text-3);
+}
+.ws-dl.hunk {
+  color: var(--color-text-3);
+}
+.ws-dl.hunk .c b {
+  font-weight: var(--weight-regular);
+  color: var(--color-text-2);
+}
+.ws-fold {
+  width: 100%;
+  height: var(--control-icon);
+  margin: var(--space-1) 0;
+  display: grid;
+  grid-template-columns: calc(2 * var(--ws-gutter, var(--layout-gutter))) minmax(0, 1fr);
+  align-items: center;
+  background: var(--color-surface);
+  box-shadow:
+    inset 0 1px 0 var(--color-line),
+    inset 0 -1px 0 var(--color-line);
+  color: var(--color-text-3);
+  font-family: var(--font-ui);
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  text-align: left;
+}
+.ws-fold:hover:not(:disabled) {
+  color: var(--color-text-2);
+}
+.ws-fold:disabled {
+  cursor: default;
+}
+.ws-fold > span {
+  padding-left: var(--space-4);
+}
+.ws-fold-i {
+  display: grid;
+  place-items: center;
+  --spin-color: var(--color-text-3);
+}
+.ws-l {
+  display: grid;
+  grid-template-columns: var(--ws-gutter, var(--layout-gutter)) minmax(0, 1fr);
+  column-gap: var(--space-3);
+  padding-right: var(--space-3);
+  color: var(--color-text);
+}
+.ws-cut {
+  flex: none;
+  position: sticky;
+  left: 0;
+  width: calc(100cqw - 2 * var(--space-3));
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: var(--space-2) var(--space-3) var(--space-3);
+  padding: var(--space-1) var(--space-2) var(--space-1) var(--space-3);
+  min-height: 40px;
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: inset 0 0 0 1px var(--color-line);
+  color: var(--color-text-2);
+  font-variant-numeric: tabular-nums;
+}
+.ws-cut > .icon {
+  color: var(--color-text-3);
+}
+
+/* images on the checkerboard */
+.ws-checker {
+  display: grid;
+  grid-template: minmax(0, 1fr) / minmax(0, 1fr);
+  place-items: center;
+  border-radius: var(--radius-md);
+  box-shadow: inset 0 0 0 1px var(--color-line);
+  background:
+    repeating-conic-gradient(var(--color-hover) 0 25%, var(--color-surface) 0 50%) 0 0 /
+    var(--space-4) var(--space-4);
+  overflow: hidden;
+}
+.ws-checker img {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  object-fit: contain;
+}
+.ws-checker.large {
+  width: 280px;
+  height: 280px;
+  padding: var(--space-6);
+}
+.ws-checker.side {
+  width: 100%;
+  min-width: 0;
+  height: 200px;
+  padding: var(--space-6);
+}
+.ws-image {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  padding: var(--space-5);
+}
+.ws-cap {
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  color: var(--color-text-3);
+  font-variant-numeric: tabular-nums;
+}
+.ws-sides {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-4);
+  padding: var(--space-5) var(--space-4);
+}
+.ws-side {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.ws-side-h {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  color: var(--color-text-2);
+}
+.ws-side.was .ws-checker {
+  box-shadow:
+    inset 0 0 0 1px var(--color-line),
+    0 0 0 2px var(--color-del-bg);
+}
+.ws-side.now .ws-checker {
+  box-shadow:
+    inset 0 0 0 1px var(--color-line),
+    0 0 0 2px var(--color-add-bg);
+}
+
+/* glyphs inside shared controls: last, as they are the most specific */
+.ws-hrow .btn .icon {
+  color: var(--color-text-3);
+}
+.ws-menu .menu-item > .icon {
+  color: var(--color-text-2);
+}
+.ws-menu .menu-item.ws-later,
+.ws-menu .menu-item.ws-later > .icon {
+  color: var(--color-text-3);
+  cursor: default;
+}
+
+/* the handoff panel: a raised card at the foot in place of the row; steps and the result while it runs and after */
+.ws-ho {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: auto var(--space-3) var(--space-3);
+  padding: var(--space-4);
+  border-radius: var(--radius-lg);
+  background: var(--color-raised);
+  box-shadow: var(--shadow-live);
+}
+.ws-ho.focus {
+  box-shadow:
+    var(--shadow-live),
+    0 0 0 1.5px var(--color-accent);
+}
+.ws-ho-h {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--control-icon);
+  margin: calc(-1 * var(--space-1)) calc(-1 * var(--space-2)) calc(-1 * var(--space-1)) 0;
+}
+.ws-ho-h h2 {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--text-title);
+  line-height: var(--leading-title);
+  font-weight: var(--weight-semibold);
+  color: var(--color-text);
+}
+.ws-ho-meta {
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  color: var(--color-text-3);
+  font-variant-numeric: tabular-nums;
+  margin-right: var(--space-2);
+}
+.ws-ho-lede {
+  margin-top: calc(-1 * var(--space-1));
+  color: var(--color-text-2);
+}
+.ws-ho-l {
+  color: var(--color-text-2);
+  overflow-wrap: anywhere;
+}
+.ws-ho .btn {
+  justify-content: center;
+}
+.ws-ho-why {
+  display: flex;
+  gap: var(--space-2);
+  color: var(--color-text-2);
+  overflow-wrap: anywhere;
+}
+.ws-ho-note {
+  display: flex;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+.ws-ho-g {
+  flex: none;
+  display: grid;
+  height: 16px;
+  margin-top: 2px;
+  color: var(--color-text-3);
+  --spin-color: var(--color-text-3);
+}
+.ws-ho-note.bad {
+  background: var(--color-del-bg);
+}
+.ws-ho-note.bad .ws-ho-g {
+  color: var(--color-danger);
+}
+.ws-ho-note.ok .ws-ho-g {
+  color: var(--color-success);
+}
+.ws-ho-note.ok {
+  background: var(--color-add-bg);
+}
+.ws-ho-note.snap {
+  margin-top: calc(-1 * var(--space-1));
+  background: var(--color-bg);
+  box-shadow: inset 0 0 0 1px var(--color-line);
+  color: var(--color-text-2);
+}
+.ws-steps {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ws-step {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  column-gap: var(--space-2);
+  align-items: center;
+  min-height: var(--layout-row);
+  color: var(--color-text);
+}
+.ws-step-i {
+  display: grid;
+  place-items: center;
+  color: var(--color-text-3);
+  --spin-color: var(--color-accent);
+}
+.ws-step-m {
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  color: var(--color-text-2);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.ws-step.ok .ws-step-i {
+  color: var(--color-success);
+}
+.ws-step.bad,
+.ws-step.bad .ws-step-i,
+.ws-step.bad .ws-step-m {
+  color: var(--color-danger);
+}
+.ws-step.todo {
+  color: var(--color-text-2);
+}
+.ws-pend {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1.5px var(--color-text-3);
+}
+.ws-bar {
+  grid-column: 2 / 4;
+  height: 4px;
+  margin: 0 0 var(--space-2);
+  border-radius: 2px;
+  background: var(--color-line);
+  overflow: hidden;
+}
+.ws-bar > i {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--color-accent);
+  transition: width 0.2s linear;
+}

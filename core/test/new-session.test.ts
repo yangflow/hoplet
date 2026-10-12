@@ -1,0 +1,425 @@
+import { mkdtempSync, rmSync } from 'node:fs';
+import { createServer, type Server } from 'node:http';
+import type { AddressInfo } from 'node:net';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { PROTOCOL_VERSION } from '@hoplet/shared';
+import { afterEach, describe, expect, it } from 'vitest';
+import { WebSocket } from 'ws';
+import { createApi } from '../src/api/index.ts';
+import { createControl } from '../src/control/index.ts';
+import { attachIngest } from '../src/ingest/index.ts';
+import { Store } from '../src/store/index.ts';
+
+const HOST = 'host-token-0123456789abcdef';
+const CAPS = {
+  permissions: true,
+  interrupt: true,
+  thinking: true,
+  fast: true,
+  models: ['opus', 'sonnet'],
+};
+const PROVIDERS = [{ provider: 'claude', capabilities: CAPS }];
+const PROJECT = '/work/app';
+const NEW_ID = '3b1f1b0e-3c1a-4d6e-9a53-0c6f0f3f2a11';
+
+const dirs: string[] = [];
+const servers: Server[] = [];
+const sockets: Peer[] = [];
+
+afterEach(async () => {
+  for (const p of sockets.splice(0)) p.ws.terminate();
+  for (const s of servers.splice(0)) await new Promise<void>((r) => s.close(() => r()));
+  for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
+});
+
+type Msg = Record<string, unknown>;
+
+class Peer {
+  readonly ws: WebSocket;
+  readonly got: Msg[] = [];
+  constructor(ws: WebSocket) {
+    this.ws = ws;
+    ws.on('message', (data) => this.got.push(JSON.parse(String(data)) as Msg));
+  }
+  send(msg: Msg): void {
+    this.ws.send(JSON.stringify({ v: PROTOCOL_VERSION, ...msg }));
+  }
+  async waitFor(predicate: (m: Msg) => boolean, what: string): Promise<Msg> {
+    for (let i = 0; i < 100; i++) {
+      const found = this.got.find(predicate);
+      if (found) return found;
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    throw new Error(
+      `timed out waiting for ${what}; got ${JSON.stringify(this.got.map((m) => m.type))}`,
+    );
+  }
+  ofType(type: string): Msg[] {
+    return this.got.filter((m) => m.type === type);
+  }
+  /** Answers every project listing with one watched project. */
+  listProjects(paths: string[] = [PROJECT]): void {
+    this.ws.on('message', (data) => {
+      const m = JSON.parse(String(data)) as Msg;
+      if (m.type !== 'device.projects.list') return;
+      this.send({
+        type: 'device.projects',
+        requestId: m.requestId,
+        candidates: [],
+        projects: paths.map((p) => ({ path: p, sessions: [] })),
+      });
+    });
+  }
+}
+
+function open(url: string, headers: Record<string, string>): Promise<Peer> {
+  return new Promise((resolve, reject) => {
+    const ws = new WebSocket(url, { headers });
+    const peer = new Peer(ws);
+    sockets.push(peer);
+    ws.once('open', () => resolve(peer));
+    ws.once('error', reject);
+  });
+}
+
+async function boot(options: { startTimeoutMs?: number } = {}) {
+  const dir = mkdtempSync(path.join(tmpdir(), 'hoplet-new-session-'));
+  dirs.push(dir);
+  const store = new Store(dir);
+  const control = createControl(store, { startTimeoutMs: 400, ...options });
+  const server = createServer();
+  attachIngest(server, store, control);
+  createApi(store, { port: 0, dataDir: dir, token: HOST, webDir: null }, control).attach(server);
+  await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+  servers.push(server);
+  const port = (server.address() as AddressInfo).port;
+  const base = `http://127.0.0.1:${port}`;
+  const call = async (method: string, p: string, body?: unknown) => {
+    const res = await fetch(base + p, {
+      method,
+      headers: { authorization: `Bearer ${HOST}`, 'content-type': 'application/json' },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
+    return { status: res.status, body: (await res.json()) as Msg };
+  };
+  const agent = async (deviceId: string, providers: unknown[] | null = PROVIDERS) => {
+    const { token } = store.mintDevice(deviceId, deviceId);
+    const peer = await open(`ws://127.0.0.1:${port}/ws/agent`, {
+      authorization: `Bearer ${token}`,
+    });
+    peer.send({
+      type: 'device.hello',
+      deviceId,
+      name: deviceId,
+      version: 'test',
+      ...(providers === null ? {} : { providers }),
+    });
+    await peer.waitFor((m) => m.type === 'welcome', 'welcome');
+    return peer;
+  };
+  return {
+    base,
+    store,
+    control,
+    post: (p: string, b?: unknown) => call('POST', p, b),
+    get: (p: string) => call('GET', p),
+    agent,
+  };
+}
+
+const request = (over: Msg = {}) => ({
+  deviceId: 'dev-a',
+  projectPath: PROJECT,
+  provider: 'claude',
+  options: {},
+  text: 'build the thing',
+  promptId: 'n1',
+  ...over,
+});
+
+describe('the session listing carries the runtime state', () => {
+  it('is offline without the owner, idle with it, and what the owner reports', async () => {
+    const { store, get, agent } = await boot();
+    store.append({ sessionId: 's1', projectDir: 'p', filePath: '/s1', deviceId: 'dev-a' }, [
+      '{"type":"user"}',
+    ]);
+    const listed = async () => ((await get('/api/sessions')).body.sessions as Msg[])[0];
+
+    expect((await listed())?.runtime).toEqual({ state: 'offline' });
+    const owner = await agent('dev-a');
+    expect((await listed())?.runtime).toEqual({ state: 'idle' });
+    owner.send({ type: 'runtime.state', sessionId: 's1', state: 'running', capabilities: CAPS });
+    await new Promise((r) => setTimeout(r, 100));
+    expect((await listed())?.runtime).toEqual({ state: 'running', capabilities: CAPS });
+    owner.send({
+      type: 'runtime.state',
+      sessionId: 's1',
+      state: 'failed',
+      error: 'boom',
+      capabilities: CAPS,
+    });
+    await new Promise((r) => setTimeout(r, 100));
+    expect((await listed())?.runtime).toEqual({
+      state: 'failed',
+      error: 'boom',
+      capabilities: CAPS,
+    });
+    owner.ws.close();
+    await new Promise((r) => setTimeout(r, 100));
+    expect((await listed())?.runtime).toEqual({ state: 'offline', capabilities: CAPS });
+    expect((await get('/api/sessions/s1')).body.runtime).toMatchObject({ state: 'offline' });
+  });
+});
+
+describe('GET /api/devices', () => {
+  it('lists the providers a connected agent announced and none for an offline device', async () => {
+    const { get, agent } = await boot();
+    const owner = await agent('dev-a');
+    await agent('dev-b', null);
+    const devices = (await get('/api/devices')).body.devices as Msg[];
+    expect(devices.find((d) => d.deviceId === 'dev-a')?.providers).toEqual(PROVIDERS);
+    expect(devices.find((d) => d.deviceId === 'dev-b')?.providers).toEqual([]);
+    owner.ws.close();
+    await new Promise((r) => setTimeout(r, 100));
+    const after = (await get('/api/devices')).body.devices as Msg[];
+    expect(after.find((d) => d.deviceId === 'dev-a')).toMatchObject({
+      connected: false,
+      providers: [],
+    });
+  });
+});
+
+describe('POST /api/sessions', () => {
+  it('refuses a malformed body, an unknown provider and an oversized prompt', async () => {
+    const { post, agent } = await boot();
+    const owner = await agent('dev-a');
+    owner.listProjects();
+    for (const bad of [
+      { ...request(), text: '   ' },
+      { ...request(), promptId: '' },
+      { ...request(), provider: 'codex' },
+      { ...request(), options: { thinking: 'yes' } },
+      { ...request(), options: { model: '' } },
+      { deviceId: 'dev-a' },
+    ]) {
+      expect(await post('/api/sessions', bad), JSON.stringify(bad)).toEqual({
+        status: 400,
+        body: { code: 'invalid-request' },
+      });
+    }
+    expect((await post('/api/sessions', request({ text: 'x'.repeat(8001) }))).status).toBe(413);
+    expect(owner.ofType('runtime.start')).toEqual([]);
+  });
+
+  it('refuses target-offline when the device is not connected', async () => {
+    const { post, store } = await boot();
+    store.mintDevice('dev-a', 'dev-a');
+    expect(await post('/api/sessions', request())).toEqual({
+      status: 409,
+      body: { code: 'target-offline', promptId: 'n1' },
+    });
+  });
+
+  it('refuses a path that is not a watched project and options the device did not declare', async () => {
+    const { post, agent } = await boot();
+    const owner = await agent('dev-a');
+    owner.listProjects();
+    expect(await post('/api/sessions', request({ projectPath: '/elsewhere' }))).toEqual({
+      status: 400,
+      body: { code: 'invalid-request', promptId: 'n1', reason: 'projectPath' },
+    });
+    expect(
+      await post('/api/sessions', request({ options: { model: 'gpt-9' }, promptId: 'n2' })),
+    ).toEqual({
+      status: 400,
+      body: { code: 'invalid-request', promptId: 'n2', reason: 'model' },
+    });
+
+    // A device whose driver declares nothing accepts no option.
+    const bare = await agent('dev-b', [
+      {
+        provider: 'claude',
+        capabilities: {
+          permissions: true,
+          interrupt: true,
+          thinking: false,
+          fast: false,
+          models: [],
+        },
+      },
+    ]);
+    bare.listProjects();
+    for (const [i, options] of [{ thinking: true }, { fast: false }].entries()) {
+      const res = await post(
+        '/api/sessions',
+        request({ deviceId: 'dev-b', options, promptId: `b${i}` }),
+      );
+      expect(res.status).toBe(400);
+      expect(res.body).toMatchObject({ code: 'invalid-request' });
+    }
+
+    // A device that announced no providers cannot start anything.
+    const silent = await agent('dev-c', null);
+    silent.listProjects();
+    expect(await post('/api/sessions', request({ deviceId: 'dev-c', promptId: 'c' }))).toEqual({
+      status: 400,
+      body: { code: 'invalid-request', promptId: 'c', reason: 'provider' },
+    });
+    expect(owner.ofType('runtime.start')).toEqual([]);
+    expect(bare.ofType('runtime.start')).toEqual([]);
+  });
+
+  it('forwards runtime.start and answers with the session the agent reports', async () => {
+    const { post, get, agent, store, control } = await boot();
+    const owner = await agent('dev-a');
+    owner.listProjects(['/other', `${PROJECT}/`]);
+    const options = { model: 'opus', thinking: false, fast: true };
+    const pending = post('/api/sessions', request({ options }));
+    const start = await owner.waitFor((m) => m.type === 'runtime.start', 'runtime.start');
+    expect(start).toMatchObject({
+      v: PROTOCOL_VERSION,
+      projectPath: `${PROJECT}/`,
+      provider: 'claude',
+      options,
+      text: 'build the thing',
+      promptId: 'n1',
+    });
+    expect(typeof start.requestId).toBe('string');
+
+    owner.send({ type: 'runtime.started', requestId: start.requestId, sessionId: NEW_ID });
+    expect(await pending).toEqual({
+      status: 200,
+      body: { ok: true, sessionId: NEW_ID, promptId: 'n1' },
+    });
+
+    // The agent reports the new session's state before the store has it, then syncs it.
+    expect(control.providerOf(NEW_ID)).toBe('claude');
+    owner.send({ type: 'runtime.state', sessionId: NEW_ID, state: 'running', capabilities: CAPS });
+    store.append(
+      { sessionId: NEW_ID, projectDir: 'p', filePath: `/${NEW_ID}`, deviceId: 'dev-a' },
+      ['{"type":"user"}'],
+    );
+    await new Promise((r) => setTimeout(r, 100));
+    expect((await get(`/api/sessions/${NEW_ID}`)).body.runtime).toEqual({
+      state: 'running',
+      capabilities: CAPS,
+    });
+  });
+
+  it('ignores runtime messages of a device that did not start the session', async () => {
+    const { post, get, agent, store } = await boot();
+    const owner = await agent('dev-a');
+    const other = await agent('dev-b');
+    owner.listProjects();
+    const pending = post('/api/sessions', request());
+    const start = await owner.waitFor((m) => m.type === 'runtime.start', 'runtime.start');
+    other.send({
+      type: 'runtime.state',
+      sessionId: NEW_ID,
+      state: 'failed',
+      error: 'x',
+      capabilities: CAPS,
+    });
+    owner.send({ type: 'runtime.started', requestId: start.requestId, sessionId: NEW_ID });
+    await pending;
+    other.send({
+      type: 'runtime.state',
+      sessionId: NEW_ID,
+      state: 'failed',
+      error: 'x',
+      capabilities: CAPS,
+    });
+    owner.send({ type: 'runtime.state', sessionId: NEW_ID, state: 'ready', capabilities: CAPS });
+    store.append(
+      { sessionId: NEW_ID, projectDir: 'p', filePath: `/${NEW_ID}`, deviceId: 'dev-a' },
+      ['{"type":"user"}'],
+    );
+    await new Promise((r) => setTimeout(r, 100));
+    expect((await get(`/api/sessions/${NEW_ID}`)).body.runtime).toMatchObject({ state: 'ready' });
+  });
+
+  it('returns the first result for a repeated promptId and forwards once', async () => {
+    const { post, agent } = await boot();
+    const owner = await agent('dev-a');
+    owner.listProjects();
+    const first = post('/api/sessions', request());
+    const repeat = post('/api/sessions', request());
+    const start = await owner.waitFor((m) => m.type === 'runtime.start', 'runtime.start');
+    owner.send({ type: 'runtime.started', requestId: start.requestId, sessionId: NEW_ID });
+    const expected = { status: 200, body: { ok: true, sessionId: NEW_ID, promptId: 'n1' } };
+    expect(await first).toEqual(expected);
+    expect(await repeat).toEqual(expected);
+    expect(await post('/api/sessions', request())).toEqual(expected);
+    expect(owner.ofType('runtime.start')).toHaveLength(1);
+  });
+
+  it('relays a rejection with the agent reason and lets the same promptId retry', async () => {
+    const { post, agent } = await boot();
+    const owner = await agent('dev-a');
+    owner.listProjects();
+    const first = post('/api/sessions', request());
+    const start = await owner.waitFor((m) => m.type === 'runtime.start', 'runtime.start');
+    owner.send({
+      type: 'runtime.start.rejected',
+      requestId: start.requestId,
+      reason: 'the process exited',
+    });
+    expect(await first).toEqual({
+      status: 502,
+      body: { code: 'rejected', reason: 'the process exited', promptId: 'n1' },
+    });
+
+    const retry = post('/api/sessions', request());
+    await owner.waitFor((m) => m.type === 'runtime.start' && m !== start, 'second runtime.start');
+    const second = owner.ofType('runtime.start')[1] as Msg;
+    owner.send({ type: 'runtime.started', requestId: second.requestId, sessionId: NEW_ID });
+    expect((await retry).status).toBe(200);
+  });
+
+  it('ignores an answer that comes from another connection', async () => {
+    const { post, agent } = await boot({ startTimeoutMs: 300 });
+    const owner = await agent('dev-a');
+    const other = await agent('dev-b');
+    owner.listProjects();
+    const pending = post('/api/sessions', request());
+    const start = await owner.waitFor((m) => m.type === 'runtime.start', 'runtime.start');
+    other.send({ type: 'runtime.started', requestId: start.requestId, sessionId: NEW_ID });
+    expect((await pending).status).toBe(504);
+  });
+
+  it('times out when the agent never answers, and repeats that result for the promptId', async () => {
+    const { post, agent } = await boot();
+    const owner = await agent('dev-a');
+    owner.listProjects();
+    expect(await post('/api/sessions', request())).toEqual({
+      status: 504,
+      body: { code: 'timeout', promptId: 'n1' },
+    });
+    expect((await post('/api/sessions', request())).status).toBe(504);
+    expect(owner.ofType('runtime.start')).toHaveLength(1);
+  });
+
+  it('answers target-offline when the agent disconnects while starting', async () => {
+    const { post, agent } = await boot({ startTimeoutMs: 5000 });
+    const owner = await agent('dev-a');
+    owner.listProjects();
+    const pending = post('/api/sessions', request());
+    await owner.waitFor((m) => m.type === 'runtime.start', 'runtime.start');
+    owner.ws.close();
+    expect(await pending).toEqual({
+      status: 409,
+      body: { code: 'target-offline', promptId: 'n1' },
+    });
+  });
+
+  it('requires the host token', async () => {
+    const { base } = await boot();
+    const res = await fetch(`${base}/api/sessions`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(request()),
+    });
+    expect(res.status).toBe(401);
+  });
+});

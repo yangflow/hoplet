@@ -1,0 +1,207 @@
+/* Design tokens: the only place raw values live (docs/design.md). The set is the JSON block of
+   design/screens/cockpit.html; design/tokens.html mirrors this file and design/check-tokens.py compares
+   the two. Dark is authored first, light follows the system and is forced by data-scheme. */
+:root,
+:root[data-scheme="dark"] {
+  color-scheme: dark;
+
+  --color-bg: #131210;
+  --color-sidebar: #191715;
+  --color-surface: #1c1a17;
+  --color-raised: #211e1b;
+  --color-hover: #28241f;
+  --color-selected: #2c2823;
+  --color-line: rgba(255, 238, 220, 0.075);
+  --color-highlight: rgba(255, 244, 232, 0.06);
+  --color-text: #efe9e2;
+  --color-text-2: #b8b0a6;
+  --color-text-3: #988f85;
+  --color-accent: #ff7a1a;
+  --color-accent-text: #ff9142;
+  --color-on-accent: #1c0d02;
+  --color-accent-soft: rgba(255, 122, 26, 0.1);
+  --color-attention: #e8b31a;
+  --color-attention-text: #f0c142;
+  --color-attention-soft: rgba(232, 179, 26, 0.075);
+  --color-attention-ring: rgba(232, 179, 26, 0.32);
+  --color-success: #4cc38a;
+  --color-danger: #ff7366;
+  --color-add-bg: rgba(76, 195, 138, 0.1);
+  --color-add-text: #86dcae;
+  --color-del-bg: rgba(255, 115, 102, 0.1);
+  --color-del-text: #ffa49b;
+  --color-git-modified: #d9b77e;
+  --color-git-untracked: #6fcf97;
+  --color-git-deleted: #ff8a7d;
+  --color-syntax-keyword: #d3a6ee;
+  --color-syntax-string: #b0d58c;
+  --color-syntax-comment: #8f877d;
+  --color-syntax-number: #efb57c;
+  --color-syntax-type: #7ec3e3;
+  --color-syntax-function: #e8d7a4;
+  --shadow-live:
+    inset 0 1px 0 rgba(255, 244, 232, 0.06), 0 0 0 1px rgba(0, 0, 0, 0.45),
+    0 14px 36px rgba(0, 0, 0, 0.42), 0 2px 6px rgba(0, 0, 0, 0.3);
+  --shadow-float:
+    inset 0 1px 0 rgba(255, 244, 232, 0.07), 0 0 0 1px rgba(0, 0, 0, 0.5),
+    0 18px 40px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.35);
+  --shadow-drawer: inset 1px 0 0 rgba(255, 238, 220, 0.06), -18px 0 40px rgba(0, 0, 0, 0.3);
+  --fade-bg: rgba(19, 18, 16, 0);
+  --color-scrim: rgba(8, 6, 4, 0.42);
+  --shadow-accent: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 1px 2px rgba(0, 0, 0, 0.2);
+
+  --font-ui: "Inter Variable", -apple-system, system-ui, "PingFang SC", sans-serif;
+  --font-prose: var(--font-ui);
+  --font-mono: "JetBrains Mono Variable", ui-monospace, "SF Mono", Menlo, monospace;
+  --text-meta: 11px;
+  --leading-meta: 16px;
+  --text-ui: 13px;
+  --leading-ui: 20px;
+  --text-code: 12.5px;
+  --leading-code: 20px;
+  --text-body: 15px;
+  --leading-body: 24px;
+  --text-title: 15px;
+  --leading-title: 20px;
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --measure-prose: 68ch;
+  --icon-size: 16px;
+  --icon-stroke: 1.5;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
+  --layout-sidebar: 248px;
+  --layout-inspector: 296px;
+  --layout-inspector-wide: 720px;
+  --layout-inspector-list: 220px;
+  --layout-settings-nav: 208px;
+  --layout-column: 760px;
+  --layout-topbar: 52px;
+  --layout-foot: 44px;
+  --layout-row-device: 32px;
+  --layout-row: 28px;
+  --layout-row-tree: 24px;
+  --layout-act-verb: 64px;
+  --layout-gutter: 32px;
+  --layout-well-max: 240px;
+  --layout-palette: 560px;
+  --layout-dialog: 480px;
+  --layout-modal-top: 96px;
+  --motion-pulse: 1.6s;
+  --motion-blink: 1s;
+  --motion-spin: 0.8s;
+  --control-icon: 28px;
+  --control-field: 32px;
+  --layout-gate: 320px;
+  --layout-viewport-min: 1024px;
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-scheme="dark"]) {
+    color-scheme: light;
+
+    --color-bg: #f8f5f0;
+    --color-sidebar: #efebe4;
+    --color-surface: #f0ebe4;
+    --color-raised: #fffdfa;
+    --color-hover: #e8e2d9;
+    --color-selected: #e2dbd1;
+    --color-line: rgba(60, 40, 20, 0.1);
+    --color-highlight: rgba(255, 255, 255, 0.85);
+    --color-text: #1c1915;
+    --color-text-2: #534c44;
+    --color-text-3: #675f55;
+    --color-accent: #c24e00;
+    --color-accent-text: #a64100;
+    --color-on-accent: #ffffff;
+    --color-accent-soft: rgba(194, 78, 0, 0.08);
+    --color-attention: #c08a00;
+    --color-attention-text: #8f6200;
+    --color-attention-soft: rgba(192, 138, 0, 0.075);
+    --color-attention-ring: rgba(154, 106, 0, 0.3);
+    --color-success: #1d8550;
+    --color-danger: #c3352a;
+    --color-add-bg: rgba(29, 133, 80, 0.09);
+    --color-add-text: #156b3d;
+    --color-del-bg: rgba(195, 53, 42, 0.08);
+    --color-del-text: #a82a1f;
+    --color-git-modified: #86621c;
+    --color-git-untracked: #1a7a47;
+    --color-git-deleted: #b42f24;
+    --color-syntax-keyword: #8433b5;
+    --color-syntax-string: #3f7514;
+    --color-syntax-comment: #736b61;
+    --color-syntax-number: #9c4f00;
+    --color-syntax-type: #17698f;
+    --color-syntax-function: #6b5000;
+    --shadow-live:
+      inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 0 0 1px rgba(60, 40, 20, 0.08),
+      0 12px 32px rgba(60, 40, 20, 0.1), 0 2px 6px rgba(60, 40, 20, 0.06);
+    --shadow-float:
+      inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 0 0 1px rgba(60, 40, 20, 0.09),
+      0 16px 36px rgba(60, 40, 20, 0.12), 0 2px 6px rgba(60, 40, 20, 0.07);
+    --shadow-drawer: inset 1px 0 0 rgba(60, 40, 20, 0.08), -16px 0 36px rgba(60, 40, 20, 0.06);
+    --fade-bg: rgba(248, 245, 240, 0);
+    --color-scrim: rgba(40, 28, 15, 0.13);
+    --shadow-accent: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 1px 2px rgba(60, 40, 20, 0.2);
+  }
+}
+
+:root[data-scheme="light"] {
+  color-scheme: light;
+
+  --color-bg: #f8f5f0;
+  --color-sidebar: #efebe4;
+  --color-surface: #f0ebe4;
+  --color-raised: #fffdfa;
+  --color-hover: #e8e2d9;
+  --color-selected: #e2dbd1;
+  --color-line: rgba(60, 40, 20, 0.1);
+  --color-highlight: rgba(255, 255, 255, 0.85);
+  --color-text: #1c1915;
+  --color-text-2: #534c44;
+  --color-text-3: #675f55;
+  --color-accent: #c24e00;
+  --color-accent-text: #a64100;
+  --color-on-accent: #ffffff;
+  --color-accent-soft: rgba(194, 78, 0, 0.08);
+  --color-attention: #c08a00;
+  --color-attention-text: #8f6200;
+  --color-attention-soft: rgba(192, 138, 0, 0.075);
+  --color-attention-ring: rgba(154, 106, 0, 0.3);
+  --color-success: #1d8550;
+  --color-danger: #c3352a;
+  --color-add-bg: rgba(29, 133, 80, 0.09);
+  --color-add-text: #156b3d;
+  --color-del-bg: rgba(195, 53, 42, 0.08);
+  --color-del-text: #a82a1f;
+  --color-git-modified: #86621c;
+  --color-git-untracked: #1a7a47;
+  --color-git-deleted: #b42f24;
+  --color-syntax-keyword: #8433b5;
+  --color-syntax-string: #3f7514;
+  --color-syntax-comment: #736b61;
+  --color-syntax-number: #9c4f00;
+  --color-syntax-type: #17698f;
+  --color-syntax-function: #6b5000;
+  --shadow-live:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 0 0 1px rgba(60, 40, 20, 0.08),
+    0 12px 32px rgba(60, 40, 20, 0.1), 0 2px 6px rgba(60, 40, 20, 0.06);
+  --shadow-float:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 0 0 1px rgba(60, 40, 20, 0.09),
+    0 16px 36px rgba(60, 40, 20, 0.12), 0 2px 6px rgba(60, 40, 20, 0.07);
+  --shadow-drawer: inset 1px 0 0 rgba(60, 40, 20, 0.08), -16px 0 36px rgba(60, 40, 20, 0.06);
+  --fade-bg: rgba(248, 245, 240, 0);
+  --color-scrim: rgba(40, 28, 15, 0.13);
+  --shadow-accent: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 1px 2px rgba(60, 40, 20, 0.2);
+}

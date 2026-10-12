@@ -1,0 +1,40 @@
+{
+  "name": "hoplet",
+  "private": true,
+  "type": "module",
+  "version": "0.1.0",
+  "packageManager": "pnpm@12.9.1",
+  "engines": {
+    "node": ">=26.8.2 <27"
+  },
+  "bin": {
+    "hoplet": "./scripts/hoplet/cli.ts"
+  },
+  "scripts": {
+    "lint": "biome ci --error-on-warnings core shared scripts web package.json biome.json tsconfig.json tsconfig.base.json vitest.config.ts",
+    "format": "biome check --write core shared scripts web package.json biome.json tsconfig.json tsconfig.base.json vitest.config.ts",
+    "typecheck": "tsc -p . && pnpm -r typecheck",
+    "test": "vitest run",
+    "agent:check": "cd agent && go vet ./... && go test ./...",
+    "check": "pnpm lint && pnpm typecheck && pnpm test && node scripts/boundaries.ts && scripts/check-version.sh && python3 design/check-tokens.py && pnpm agent:check",
+    "dev:core": "node core/src/main.ts",
+    "dev:web": "pnpm --filter @hoplet/web dev",
+    "hoplet": "node scripts/hoplet/cli.ts",
+    "schema": "node scripts/api-schema.ts",
+    "smoke": "./scripts/smoke.sh",
+    "bench": "node scripts/bench/run.ts",
+    "e2e": "playwright test -c web/e2e/playwright.config.ts",
+    "e2e:image": "E2E_TARGET=image playwright test -c web/e2e/playwright.config.ts"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.15",
+    "@playwright/test": "1.63.0",
+    "@types/jsdom": "30.0.0",
+    "@types/node": "26.6.4",
+    "@valibot/to-json-schema": "1.8.0",
+    "axe-core": "4.13.0",
+    "jsdom": "30.1.2",
+    "typescript": "5.9.3",
+    "vitest": "5.0.3"
+  }
+}

@@ -1,0 +1,197 @@
+import { randomUUID } from 'node:crypto';
+import type {
+  DeviceCloneFind,
+  DeviceDirsList,
+  DeviceProjectsAdd,
+  DeviceProjectsList,
+  DeviceProjectsRemove,
+  DeviceSessionsImport,
+  DeviceSessionsRemove,
+  SessionWorkspaceDiffRead,
+  SessionWorkspaceFileRead,
+  SessionWorkspaceList,
+} from '@hoplet/shared';
+import { PROTOCOL_VERSION } from '@hoplet/shared';
+import { askWaiter } from './pending.ts';
+import { type ControlState, onlineLink } from './state.ts';
+import type { Control, DeviceControlOutcome } from './types.ts';
+
+type DeviceRequest =
+  | DeviceProjectsList
+  | DeviceProjectsAdd
+  | DeviceProjectsRemove
+  | DeviceSessionsImport
+  | DeviceSessionsRemove;
+
+type Rpc = Pick<
+  Control,
+  | 'workspace'
+  | 'workspaceFile'
+  | 'workspaceDiff'
+  | 'listDirs'
+  | 'findClone'
+  | 'listProjects'
+  | 'addProject'
+  | 'removeProject'
+  | 'importSessions'
+  | 'removeSessions'
+>;
+
+/** Workspace reads and device project control: one request out, one answer or a timeout. */
+export function createRpc(state: ControlState): Rpc {
+  const { pendingWs, pendingFile, pendingDiff, pendingDeviceControl, pendingDirs, pendingClone } =
+    state;
+
+  function askDevice(
+    deviceId: string,
+    build: (requestId: string) => DeviceRequest,
+  ): Promise<DeviceControlOutcome> {
+    const link = onlineLink(state, deviceId);
+    if (!link) return Promise.resolve({ ok: false, error: 'owner-offline' });
+    const requestId = randomUUID();
+    return askWaiter(
+      pendingDeviceControl,
+      requestId,
+      state.workspaceTimeoutMs,
+      { ok: false, error: 'timeout' },
+      () => link.send(build(requestId)),
+    );
+  }
+
+  return {
+    workspace(sessionId, ownerDeviceId) {
+      const link = onlineLink(state, ownerDeviceId);
+      if (!link) return Promise.resolve({ ok: false, error: 'owner-offline' });
+      const requestId = randomUUID();
+      const msg: SessionWorkspaceList = {
+        v: PROTOCOL_VERSION,
+        type: 'session.workspace.list',
+        sessionId,
+        requestId,
+      };
+      return askWaiter(
+        pendingWs,
+        requestId,
+        state.workspaceTimeoutMs,
+        { ok: false, error: 'timeout' },
+        () => link.send(msg),
+      );
+    },
+    workspaceFile(sessionId, ownerDeviceId, path, at) {
+      const link = onlineLink(state, ownerDeviceId);
+      if (!link) return Promise.resolve({ ok: false, error: 'owner-offline' });
+      const requestId = randomUUID();
+      const msg: SessionWorkspaceFileRead = {
+        v: PROTOCOL_VERSION,
+        type: 'session.workspace.file.read',
+        sessionId,
+        requestId,
+        path,
+        ...(at !== undefined ? { at } : {}),
+      };
+      return askWaiter(
+        pendingFile,
+        requestId,
+        state.workspaceTimeoutMs,
+        { ok: false, error: 'timeout' },
+        () => link.send(msg),
+      );
+    },
+    workspaceDiff(sessionId, ownerDeviceId, path) {
+      const link = onlineLink(state, ownerDeviceId);
+      if (!link) return Promise.resolve({ ok: false, error: 'owner-offline' });
+      const requestId = randomUUID();
+      const msg: SessionWorkspaceDiffRead = {
+        v: PROTOCOL_VERSION,
+        type: 'session.workspace.diff.read',
+        sessionId,
+        requestId,
+        path,
+      };
+      return askWaiter(
+        pendingDiff,
+        requestId,
+        state.workspaceTimeoutMs,
+        { ok: false, error: 'timeout' },
+        () => link.send(msg),
+      );
+    },
+    listDirs(deviceId, path) {
+      const link = onlineLink(state, deviceId);
+      if (!link) return Promise.resolve({ ok: false, error: 'target-offline' });
+      const requestId = randomUUID();
+      const msg: DeviceDirsList = {
+        v: PROTOCOL_VERSION,
+        type: 'device.dirs.list',
+        requestId,
+        path,
+      };
+      return askWaiter(
+        pendingDirs,
+        requestId,
+        state.workspaceTimeoutMs,
+        { ok: false, error: 'timeout' },
+        () => link.send(msg),
+      );
+    },
+    findClone(deviceId, origin) {
+      const link = onlineLink(state, deviceId);
+      if (!link) return Promise.resolve({ ok: false, error: 'target-offline' });
+      const requestId = randomUUID();
+      const msg: DeviceCloneFind = {
+        v: PROTOCOL_VERSION,
+        type: 'device.clone.find',
+        requestId,
+        origin,
+      };
+      return askWaiter(
+        pendingClone,
+        requestId,
+        state.workspaceTimeoutMs,
+        { ok: false, error: 'timeout' },
+        () => link.send(msg),
+      );
+    },
+    listProjects(deviceId) {
+      return askDevice(deviceId, (requestId) => ({
+        v: PROTOCOL_VERSION,
+        type: 'device.projects.list',
+        requestId,
+      }));
+    },
+    addProject(deviceId, path) {
+      return askDevice(deviceId, (requestId) => ({
+        v: PROTOCOL_VERSION,
+        type: 'device.projects.add',
+        requestId,
+        path,
+      }));
+    },
+    removeProject(deviceId, path) {
+      return askDevice(deviceId, (requestId) => ({
+        v: PROTOCOL_VERSION,
+        type: 'device.projects.remove',
+        requestId,
+        path,
+      }));
+    },
+    importSessions(deviceId, path, sessionIds) {
+      return askDevice(deviceId, (requestId) => ({
+        v: PROTOCOL_VERSION,
+        type: 'device.sessions.import',
+        requestId,
+        path,
+        sessionIds,
+      }));
+    },
+    removeSessions(deviceId, path, sessionIds) {
+      return askDevice(deviceId, (requestId) => ({
+        v: PROTOCOL_VERSION,
+        type: 'device.sessions.remove',
+        requestId,
+        path,
+        sessionIds,
+      }));
+    },
+  };
+}

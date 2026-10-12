@@ -1,0 +1,268 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>hoplet · design tokens</title>
+<!-- Every token of docs/design.md. check-tokens.py compares the JSON block below with
+  web/src/design/tokens.css; design/screens/cockpit.html carries the same set. -->
+<style>
+@font-face{font-family:"Inter Variable";src:url(fonts/inter-latin-wght-normal.woff2) format("woff2");font-weight:100 900;font-display:swap}
+@font-face{font-family:"JetBrains Mono Variable";src:url(fonts/jetbrains-mono-latin-wght-normal.woff2) format("woff2");font-weight:100 800;font-display:swap}
+
+body { margin: 0; padding: 24px 32px; font: 14px/20px -apple-system, system-ui, sans-serif; color: #1c1915; background: #fff; }
+h1 { font: 650 26px/32px -apple-system, sans-serif; margin: 0 0 4px; }
+h2 { font: 600 12px/16px -apple-system, sans-serif; text-transform: uppercase; letter-spacing: .05em; color: #6b6359; margin: 28px 0 8px; }
+table { border-collapse: collapse; width: 100%; max-width: 1100px; }
+td { border-bottom: 1px solid #d9d2c8; padding: 8px 10px; vertical-align: middle; }
+code { font: 12px/16px ui-monospace, Menlo, monospace; word-break: break-all; }
+.sw { display: inline-block; width: 22px; height: 22px; border-radius: 6px; border: 1px solid #0002; vertical-align: middle; margin-right: 8px; }
+p.note { color: #6b6359; margin: 0; }
+</style></head><body>
+<h1>hoplet design tokens</h1>
+<p class="note">Warm near-black and warm paper, one hoplet orange. Source: <code>docs/design.md</code>; checked against
+  <code>web/src/design/tokens.css</code> by <code>check-tokens.py</code>.
+</p>
+<h2>Color</h2>
+<table>
+  <tr><td><b>Token</b></td><td><b>Light</b></td><td><b>Dark</b></td></tr>
+  <tr><td><code>--color-bg</code></td><td><span class="sw" style="background:#f8f5f0"></span><code>#f8f5f0</code></td><td><span class="sw" style="background:#131210"></span><code>#131210</code></td></tr>
+  <tr><td><code>--color-sidebar</code></td><td><span class="sw" style="background:#efebe4"></span><code>#efebe4</code></td><td><span class="sw" style="background:#191715"></span><code>#191715</code></td></tr>
+  <tr><td><code>--color-surface</code></td><td><span class="sw" style="background:#f0ebe4"></span><code>#f0ebe4</code></td><td><span class="sw" style="background:#1c1a17"></span><code>#1c1a17</code></td></tr>
+  <tr><td><code>--color-raised</code></td><td><span class="sw" style="background:#fffdfa"></span><code>#fffdfa</code></td><td><span class="sw" style="background:#211e1b"></span><code>#211e1b</code></td></tr>
+  <tr><td><code>--color-hover</code></td><td><span class="sw" style="background:#e8e2d9"></span><code>#e8e2d9</code></td><td><span class="sw" style="background:#28241f"></span><code>#28241f</code></td></tr>
+  <tr><td><code>--color-selected</code></td><td><span class="sw" style="background:#e2dbd1"></span><code>#e2dbd1</code></td><td><span class="sw" style="background:#2c2823"></span><code>#2c2823</code></td></tr>
+  <tr><td><code>--color-line</code></td><td><span class="sw" style="background:rgba(60, 40, 20, 0.10)"></span><code>rgba(60, 40, 20, 0.10)</code></td><td><span class="sw" style="background:rgba(255, 238, 220, 0.075)"></span><code>rgba(255, 238, 220, 0.075)</code></td></tr>
+  <tr><td><code>--color-highlight</code></td><td><span class="sw" style="background:rgba(255, 255, 255, 0.85)"></span><code>rgba(255, 255, 255, 0.85)</code></td><td><span class="sw" style="background:rgba(255, 244, 232, 0.06)"></span><code>rgba(255, 244, 232, 0.06)</code></td></tr>
+  <tr><td><code>--color-text</code></td><td><span class="sw" style="background:#1c1915"></span><code>#1c1915</code></td><td><span class="sw" style="background:#efe9e2"></span><code>#efe9e2</code></td></tr>
+  <tr><td><code>--color-text-2</code></td><td><span class="sw" style="background:#534c44"></span><code>#534c44</code></td><td><span class="sw" style="background:#b8b0a6"></span><code>#b8b0a6</code></td></tr>
+  <tr><td><code>--color-text-3</code></td><td><span class="sw" style="background:#675f55"></span><code>#675f55</code></td><td><span class="sw" style="background:#988f85"></span><code>#988f85</code></td></tr>
+  <tr><td><code>--color-accent</code></td><td><span class="sw" style="background:#c24e00"></span><code>#c24e00</code></td><td><span class="sw" style="background:#ff7a1a"></span><code>#ff7a1a</code></td></tr>
+  <tr><td><code>--color-accent-text</code></td><td><span class="sw" style="background:#a64100"></span><code>#a64100</code></td><td><span class="sw" style="background:#ff9142"></span><code>#ff9142</code></td></tr>
+  <tr><td><code>--color-on-accent</code></td><td><span class="sw" style="background:#ffffff"></span><code>#ffffff</code></td><td><span class="sw" style="background:#1c0d02"></span><code>#1c0d02</code></td></tr>
+  <tr><td><code>--color-accent-soft</code></td><td><span class="sw" style="background:rgba(194, 78, 0, 0.08)"></span><code>rgba(194, 78, 0, 0.08)</code></td><td><span class="sw" style="background:rgba(255, 122, 26, 0.10)"></span><code>rgba(255, 122, 26, 0.10)</code></td></tr>
+  <tr><td><code>--color-attention</code></td><td><span class="sw" style="background:#c08a00"></span><code>#c08a00</code></td><td><span class="sw" style="background:#e8b31a"></span><code>#e8b31a</code></td></tr>
+  <tr><td><code>--color-attention-text</code></td><td><span class="sw" style="background:#8f6200"></span><code>#8f6200</code></td><td><span class="sw" style="background:#f0c142"></span><code>#f0c142</code></td></tr>
+  <tr><td><code>--color-attention-soft</code></td><td><span class="sw" style="background:rgba(192, 138, 0, 0.075)"></span><code>rgba(192, 138, 0, 0.075)</code></td><td><span class="sw" style="background:rgba(232, 179, 26, 0.075)"></span><code>rgba(232, 179, 26, 0.075)</code></td></tr>
+  <tr><td><code>--color-attention-ring</code></td><td><span class="sw" style="background:rgba(154, 106, 0, 0.30)"></span><code>rgba(154, 106, 0, 0.30)</code></td><td><span class="sw" style="background:rgba(232, 179, 26, 0.32)"></span><code>rgba(232, 179, 26, 0.32)</code></td></tr>
+  <tr><td><code>--color-success</code></td><td><span class="sw" style="background:#1d8550"></span><code>#1d8550</code></td><td><span class="sw" style="background:#4cc38a"></span><code>#4cc38a</code></td></tr>
+  <tr><td><code>--color-danger</code></td><td><span class="sw" style="background:#c3352a"></span><code>#c3352a</code></td><td><span class="sw" style="background:#ff7366"></span><code>#ff7366</code></td></tr>
+  <tr><td><code>--color-add-bg</code></td><td><span class="sw" style="background:rgba(29, 133, 80, 0.09)"></span><code>rgba(29, 133, 80, 0.09)</code></td><td><span class="sw" style="background:rgba(76, 195, 138, 0.10)"></span><code>rgba(76, 195, 138, 0.10)</code></td></tr>
+  <tr><td><code>--color-add-text</code></td><td><span class="sw" style="background:#156b3d"></span><code>#156b3d</code></td><td><span class="sw" style="background:#86dcae"></span><code>#86dcae</code></td></tr>
+  <tr><td><code>--color-del-bg</code></td><td><span class="sw" style="background:rgba(195, 53, 42, 0.08)"></span><code>rgba(195, 53, 42, 0.08)</code></td><td><span class="sw" style="background:rgba(255, 115, 102, 0.10)"></span><code>rgba(255, 115, 102, 0.10)</code></td></tr>
+  <tr><td><code>--color-del-text</code></td><td><span class="sw" style="background:#a82a1f"></span><code>#a82a1f</code></td><td><span class="sw" style="background:#ffa49b"></span><code>#ffa49b</code></td></tr>
+  <tr><td><code>--color-git-modified</code></td><td><span class="sw" style="background:#86621c"></span><code>#86621c</code></td><td><span class="sw" style="background:#d9b77e"></span><code>#d9b77e</code></td></tr>
+  <tr><td><code>--color-git-untracked</code></td><td><span class="sw" style="background:#1a7a47"></span><code>#1a7a47</code></td><td><span class="sw" style="background:#6fcf97"></span><code>#6fcf97</code></td></tr>
+  <tr><td><code>--color-git-deleted</code></td><td><span class="sw" style="background:#b42f24"></span><code>#b42f24</code></td><td><span class="sw" style="background:#ff8a7d"></span><code>#ff8a7d</code></td></tr>
+  <tr><td><code>--color-syntax-keyword</code></td><td><span class="sw" style="background:#8433b5"></span><code>#8433b5</code></td><td><span class="sw" style="background:#d3a6ee"></span><code>#d3a6ee</code></td></tr>
+  <tr><td><code>--color-syntax-string</code></td><td><span class="sw" style="background:#3f7514"></span><code>#3f7514</code></td><td><span class="sw" style="background:#b0d58c"></span><code>#b0d58c</code></td></tr>
+  <tr><td><code>--color-syntax-comment</code></td><td><span class="sw" style="background:#736b61"></span><code>#736b61</code></td><td><span class="sw" style="background:#8f877d"></span><code>#8f877d</code></td></tr>
+  <tr><td><code>--color-syntax-number</code></td><td><span class="sw" style="background:#9c4f00"></span><code>#9c4f00</code></td><td><span class="sw" style="background:#efb57c"></span><code>#efb57c</code></td></tr>
+  <tr><td><code>--color-syntax-type</code></td><td><span class="sw" style="background:#17698f"></span><code>#17698f</code></td><td><span class="sw" style="background:#7ec3e3"></span><code>#7ec3e3</code></td></tr>
+  <tr><td><code>--color-syntax-function</code></td><td><span class="sw" style="background:#6b5000"></span><code>#6b5000</code></td><td><span class="sw" style="background:#e8d7a4"></span><code>#e8d7a4</code></td></tr>
+  <tr><td><code>--color-scrim</code></td><td><span class="sw" style="background:rgba(40, 28, 15, 0.13)"></span><code>rgba(40, 28, 15, 0.13)</code></td><td><span class="sw" style="background:rgba(8, 6, 4, 0.42)"></span><code>rgba(8, 6, 4, 0.42)</code></td></tr>
+</table>
+<h2>Shadows and fades</h2>
+<table>
+  <tr><td><code>--shadow-live</code></td><td colspan="2"><code>inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 0 0 1px rgba(60, 40, 20, 0.08), 0 12px 32px rgba(60, 40, 20, 0.10), 0 2px 6px rgba(60, 40, 20, 0.06)</code> (light) · <code>inset 0 1px 0 rgba(255, 244, 232, 0.06), 0 0 0 1px rgba(0, 0, 0, 0.45), 0 14px 36px rgba(0, 0, 0, 0.42), 0 2px 6px rgba(0, 0, 0, 0.3)</code> (dark)</td></tr>
+  <tr><td><code>--shadow-float</code></td><td colspan="2"><code>inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 0 0 1px rgba(60, 40, 20, 0.09), 0 16px 36px rgba(60, 40, 20, 0.12), 0 2px 6px rgba(60, 40, 20, 0.07)</code> (light) · <code>inset 0 1px 0 rgba(255, 244, 232, 0.07), 0 0 0 1px rgba(0, 0, 0, 0.5), 0 18px 40px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.35)</code> (dark)</td></tr>
+  <tr><td><code>--shadow-drawer</code></td><td colspan="2"><code>inset 1px 0 0 rgba(60, 40, 20, 0.08), -16px 0 36px rgba(60, 40, 20, 0.06)</code> (light) · <code>inset 1px 0 0 rgba(255, 238, 220, 0.06), -18px 0 40px rgba(0, 0, 0, 0.3)</code> (dark)</td></tr>
+  <tr><td><code>--fade-bg</code></td><td colspan="2"><code>rgba(248, 245, 240, 0)</code> (light) · <code>rgba(19, 18, 16, 0)</code> (dark)</td></tr>
+  <tr><td><code>--shadow-accent</code></td><td colspan="2"><code>inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 1px 2px rgba(60, 40, 20, 0.2)</code> (light) · <code>inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 1px 2px rgba(0, 0, 0, 0.2)</code> (dark)</td></tr>
+</table>
+<h2>Typography, spacing, radius, layout, motion</h2>
+<table>
+  <tr><td><code>--font-ui</code></td><td><code>-apple-system, &quot;SF Pro Text&quot;, system-ui, &quot;PingFang SC&quot;, sans-serif</code></td></tr>
+  <tr><td><code>--font-serif</code></td><td><code>ui-serif, &quot;New York&quot;, Georgia, serif</code></td></tr>
+  <tr><td><code>--font-mono</code></td><td><code>ui-monospace, &quot;SF Mono&quot;, Menlo, monospace</code></td></tr>
+  <tr><td><code>--text-meta</code></td><td><code>11px</code></td></tr>
+  <tr><td><code>--leading-meta</code></td><td><code>16px</code></td></tr>
+  <tr><td><code>--text-ui</code></td><td><code>13px</code></td></tr>
+  <tr><td><code>--leading-ui</code></td><td><code>20px</code></td></tr>
+  <tr><td><code>--text-code</code></td><td><code>12.5px</code></td></tr>
+  <tr><td><code>--leading-code</code></td><td><code>20px</code></td></tr>
+  <tr><td><code>--text-body</code></td><td><code>15px</code></td></tr>
+  <tr><td><code>--leading-body</code></td><td><code>24px</code></td></tr>
+  <tr><td><code>--text-title</code></td><td><code>15px</code></td></tr>
+  <tr><td><code>--leading-title</code></td><td><code>20px</code></td></tr>
+  <tr><td><code>--weight-regular</code></td><td><code>400</code></td></tr>
+  <tr><td><code>--weight-medium</code></td><td><code>500</code></td></tr>
+  <tr><td><code>--weight-semibold</code></td><td><code>600</code></td></tr>
+  <tr><td><code>--measure-prose</code></td><td><code>68ch</code></td></tr>
+  <tr><td><code>--icon-size</code></td><td><code>16px</code></td></tr>
+  <tr><td><code>--icon-stroke</code></td><td><code>1.5</code></td></tr>
+  <tr><td><code>--space-1</code></td><td><code>4px</code></td></tr>
+  <tr><td><code>--space-2</code></td><td><code>8px</code></td></tr>
+  <tr><td><code>--space-3</code></td><td><code>12px</code></td></tr>
+  <tr><td><code>--space-4</code></td><td><code>16px</code></td></tr>
+  <tr><td><code>--space-5</code></td><td><code>24px</code></td></tr>
+  <tr><td><code>--space-6</code></td><td><code>32px</code></td></tr>
+  <tr><td><code>--space-7</code></td><td><code>48px</code></td></tr>
+  <tr><td><code>--radius-sm</code></td><td><code>6px</code></td></tr>
+  <tr><td><code>--radius-md</code></td><td><code>10px</code></td></tr>
+  <tr><td><code>--radius-lg</code></td><td><code>14px</code></td></tr>
+  <tr><td><code>--radius-xl</code></td><td><code>18px</code></td></tr>
+  <tr><td><code>--layout-sidebar</code></td><td><code>248px</code></td></tr>
+  <tr><td><code>--layout-inspector</code></td><td><code>296px</code></td></tr>
+  <tr><td><code>--layout-inspector-wide</code></td><td><code>720px</code></td></tr>
+  <tr><td><code>--layout-inspector-list</code></td><td><code>220px</code></td></tr>
+  <tr><td><code>--layout-settings-nav</code></td><td><code>208px</code></td></tr>
+  <tr><td><code>--layout-column</code></td><td><code>760px</code></td></tr>
+  <tr><td><code>--layout-topbar</code></td><td><code>52px</code></td></tr>
+  <tr><td><code>--layout-foot</code></td><td><code>44px</code></td></tr>
+  <tr><td><code>--layout-row-device</code></td><td><code>32px</code></td></tr>
+  <tr><td><code>--layout-row</code></td><td><code>28px</code></td></tr>
+  <tr><td><code>--layout-act-verb</code></td><td><code>64px</code></td></tr>
+  <tr><td><code>--layout-gutter</code></td><td><code>32px</code></td></tr>
+  <tr><td><code>--layout-well-max</code></td><td><code>240px</code></td></tr>
+  <tr><td><code>--layout-palette</code></td><td><code>560px</code></td></tr>
+  <tr><td><code>--layout-dialog</code></td><td><code>480px</code></td></tr>
+  <tr><td><code>--layout-modal-top</code></td><td><code>96px</code></td></tr>
+  <tr><td><code>--motion-pulse</code></td><td><code>1.6s</code></td></tr>
+  <tr><td><code>--motion-blink</code></td><td><code>1s</code></td></tr>
+  <tr><td><code>--motion-spin</code></td><td><code>0.8s</code></td></tr>
+  <tr><td><code>--control-icon</code></td><td><code>28px</code></td></tr>
+  <tr><td><code>--control-field</code></td><td><code>32px</code></td></tr>
+  <tr><td><code>--layout-gate</code></td><td><code>320px</code></td></tr>
+  <tr><td><code>--layout-viewport-min</code></td><td><code>1024px</code></td></tr>
+</table>
+<script type="application/json" id="tokens">
+{
+  "dark": {
+    "--color-bg": "#131210",
+    "--color-sidebar": "#191715",
+    "--color-surface": "#1c1a17",
+    "--color-raised": "#211e1b",
+    "--color-hover": "#28241f",
+    "--color-selected": "#2c2823",
+    "--color-line": "rgba(255, 238, 220, 0.075)",
+    "--color-highlight": "rgba(255, 244, 232, 0.06)",
+    "--color-text": "#efe9e2",
+    "--color-text-2": "#b8b0a6",
+    "--color-text-3": "#988f85",
+    "--color-accent": "#ff7a1a",
+    "--color-accent-text": "#ff9142",
+    "--color-on-accent": "#1c0d02",
+    "--color-accent-soft": "rgba(255, 122, 26, 0.10)",
+    "--color-attention": "#e8b31a",
+    "--color-attention-text": "#f0c142",
+    "--color-attention-soft": "rgba(232, 179, 26, 0.075)",
+    "--color-attention-ring": "rgba(232, 179, 26, 0.32)",
+    "--color-success": "#4cc38a",
+    "--color-danger": "#ff7366",
+    "--color-add-bg": "rgba(76, 195, 138, 0.10)",
+    "--color-add-text": "#86dcae",
+    "--color-del-bg": "rgba(255, 115, 102, 0.10)",
+    "--color-del-text": "#ffa49b",
+    "--color-git-modified": "#d9b77e",
+    "--color-git-untracked": "#6fcf97",
+    "--color-git-deleted": "#ff8a7d",
+    "--color-syntax-keyword": "#d3a6ee",
+    "--color-syntax-string": "#b0d58c",
+    "--color-syntax-comment": "#8f877d",
+    "--color-syntax-number": "#efb57c",
+    "--color-syntax-type": "#7ec3e3",
+    "--color-syntax-function": "#e8d7a4",
+    "--shadow-live": "inset 0 1px 0 rgba(255, 244, 232, 0.06), 0 0 0 1px rgba(0, 0, 0, 0.45), 0 14px 36px rgba(0, 0, 0, 0.42), 0 2px 6px rgba(0, 0, 0, 0.3)",
+    "--shadow-float": "inset 0 1px 0 rgba(255, 244, 232, 0.07), 0 0 0 1px rgba(0, 0, 0, 0.5), 0 18px 40px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.35)",
+    "--shadow-drawer": "inset 1px 0 0 rgba(255, 238, 220, 0.06), -18px 0 40px rgba(0, 0, 0, 0.3)",
+    "--fade-bg": "rgba(19, 18, 16, 0)",
+    "--color-scrim": "rgba(8, 6, 4, 0.42)",
+    "--shadow-accent": "inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 1px 2px rgba(0, 0, 0, 0.2)"
+  },
+  "light": {
+    "--color-bg": "#f8f5f0",
+    "--color-sidebar": "#efebe4",
+    "--color-surface": "#f0ebe4",
+    "--color-raised": "#fffdfa",
+    "--color-hover": "#e8e2d9",
+    "--color-selected": "#e2dbd1",
+    "--color-line": "rgba(60, 40, 20, 0.10)",
+    "--color-highlight": "rgba(255, 255, 255, 0.85)",
+    "--color-text": "#1c1915",
+    "--color-text-2": "#534c44",
+    "--color-text-3": "#675f55",
+    "--color-accent": "#c24e00",
+    "--color-accent-text": "#a64100",
+    "--color-on-accent": "#ffffff",
+    "--color-accent-soft": "rgba(194, 78, 0, 0.08)",
+    "--color-attention": "#c08a00",
+    "--color-attention-text": "#8f6200",
+    "--color-attention-soft": "rgba(192, 138, 0, 0.075)",
+    "--color-attention-ring": "rgba(154, 106, 0, 0.30)",
+    "--color-success": "#1d8550",
+    "--color-danger": "#c3352a",
+    "--color-add-bg": "rgba(29, 133, 80, 0.09)",
+    "--color-add-text": "#156b3d",
+    "--color-del-bg": "rgba(195, 53, 42, 0.08)",
+    "--color-del-text": "#a82a1f",
+    "--color-git-modified": "#86621c",
+    "--color-git-untracked": "#1a7a47",
+    "--color-git-deleted": "#b42f24",
+    "--color-syntax-keyword": "#8433b5",
+    "--color-syntax-string": "#3f7514",
+    "--color-syntax-comment": "#736b61",
+    "--color-syntax-number": "#9c4f00",
+    "--color-syntax-type": "#17698f",
+    "--color-syntax-function": "#6b5000",
+    "--shadow-live": "inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 0 0 1px rgba(60, 40, 20, 0.08), 0 12px 32px rgba(60, 40, 20, 0.10), 0 2px 6px rgba(60, 40, 20, 0.06)",
+    "--shadow-float": "inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 0 0 1px rgba(60, 40, 20, 0.09), 0 16px 36px rgba(60, 40, 20, 0.12), 0 2px 6px rgba(60, 40, 20, 0.07)",
+    "--shadow-drawer": "inset 1px 0 0 rgba(60, 40, 20, 0.08), -16px 0 36px rgba(60, 40, 20, 0.06)",
+    "--fade-bg": "rgba(248, 245, 240, 0)",
+    "--color-scrim": "rgba(40, 28, 15, 0.13)",
+    "--shadow-accent": "inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 1px 2px rgba(60, 40, 20, 0.2)"
+  },
+  "shared": {
+    "--font-ui": "\"Inter Variable\", -apple-system, system-ui, \"PingFang SC\", sans-serif",
+    "--font-prose": "var(--font-ui)",
+    "--font-mono": "\"JetBrains Mono Variable\", ui-monospace, \"SF Mono\", Menlo, monospace",
+    "--text-meta": "11px",
+    "--leading-meta": "16px",
+    "--text-ui": "13px",
+    "--leading-ui": "20px",
+    "--text-code": "12.5px",
+    "--leading-code": "20px",
+    "--text-body": "15px",
+    "--leading-body": "24px",
+    "--text-title": "15px",
+    "--leading-title": "20px",
+    "--weight-regular": "400",
+    "--weight-medium": "500",
+    "--weight-semibold": "600",
+    "--measure-prose": "68ch",
+    "--icon-size": "16px",
+    "--icon-stroke": "1.5",
+    "--space-1": "4px",
+    "--space-2": "8px",
+    "--space-3": "12px",
+    "--space-4": "16px",
+    "--space-5": "24px",
+    "--space-6": "32px",
+    "--space-7": "48px",
+    "--radius-sm": "6px",
+    "--radius-md": "10px",
+    "--radius-lg": "14px",
+    "--radius-xl": "18px",
+    "--layout-sidebar": "248px",
+    "--layout-inspector": "296px",
+    "--layout-inspector-wide": "720px",
+    "--layout-inspector-list": "220px",
+    "--layout-settings-nav": "208px",
+    "--layout-column": "760px",
+    "--layout-topbar": "52px",
+    "--layout-foot": "44px",
+    "--layout-row-device": "32px",
+    "--layout-row": "28px",
+    "--layout-row-tree": "24px",
+    "--layout-act-verb": "64px",
+    "--layout-gutter": "32px",
+    "--layout-well-max": "240px",
+    "--layout-palette": "560px",
+    "--layout-dialog": "480px",
+    "--layout-modal-top": "96px",
+    "--motion-pulse": "1.6s",
+    "--motion-blink": "1s",
+    "--motion-spin": "0.8s",
+    "--control-icon": "28px",
+    "--control-field": "32px",
+    "--layout-gate": "320px",
+    "--layout-viewport-min": "1024px"
+  }
+}
+</script>
+</body></html>

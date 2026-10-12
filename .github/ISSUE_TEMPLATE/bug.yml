@@ -1,0 +1,34 @@
+name: Bug
+description: Hoplet does not behave as docs/spec.md says
+labels: ["fix", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Report vulnerabilities privately (SECURITY.md), not here. Do not include tokens, private host names or
+        session content you would not publish.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: One or two sentences; attach a screenshot or recording for UI issues.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What should happen
+      description: Link the part of docs/spec.md or docs/api.md that says so, when there is one.
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      render: markdown
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: Core (GET /api/health), agent, Claude Code, host OS and browser.
+      placeholder: "core 0.1.0 · agent 0.1.0 · Claude Code 2.1.x · macOS 27 · Chrome"
+    validations:
+      required: true

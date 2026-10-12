@@ -1,0 +1,258 @@
+import type {
+  SnapshotChanges,
+  WorkspaceChange,
+  WorkspaceDiff,
+  WorkspaceFile,
+  WorkspaceListing,
+} from '@hoplet/shared';
+import type { WorkspaceData } from './use-workspace.ts';
+
+// Fixtures for /__states/workspace/<state>, built for the design's states (design/screens/workspace.html), not
+// copied from a session. Nothing here is read by the real screen.
+
+export const SESSION = '11111111-2222-4333-8444-555555555555';
+const COMMIT = '56d5a0e3b9c14f7a8d2e6b0c1f4a9e7d3c5b8a21';
+export const ORIGIN = 'git@github.com:yangflow/hoplet.git';
+
+export const CHANGES: WorkspaceChange[] = [
+  { path: 'core/src/store/chunks.ts', status: 'modified', added: 9, removed: 3 },
+  { path: 'docs/hosting.md', status: 'modified', added: 9214, removed: 1 },
+  { path: 'notes.txt', status: 'untracked', added: 5, removed: 0 },
+  { path: 'design/icon.png', status: 'modified', binary: true },
+];
+
+const PATHS = [
+  'core/src/index.ts',
+  'core/src/store/chunks.ts',
+  'design/hoplet.sketch',
+  'design/icon.png',
+  'docs/hosting.md',
+  'web/index.html',
+  'web/src/main.tsx',
+  'package.json',
+  'README.md',
+  'notes.txt',
+];
+
+export function listing(over: Partial<WorkspaceListing> = {}): WorkspaceListing {
+  return {
+    sessionId: SESSION,
+    git: true,
+    commit: COMMIT,
+    origin: ORIGIN,
+    paths: PATHS,
+    truncated: false,
+    changes: CHANGES,
+    ...over,
+  };
+}
+
+export const live = (over: Partial<WorkspaceListing> = {}): WorkspaceData => ({
+  phase: 'live',
+  listing: listing(over),
+});
+
+/** A working tree past the listing limit: 400 paths, most of them under web/. */
+export function truncatedListing(): WorkspaceData {
+  const web = Array.from({ length: 400 - PATHS.length }, (_, i) => `web/src/gen/part-${i}.ts`);
+  return live({ paths: [...PATHS, ...web].slice(0, 400), truncated: true });
+}
+
+/** The last snapshot, taken at 14:02 local time. */
+export const snapshot: SnapshotChanges = {
+  sessionId: SESSION,
+  snapshotAt: new Date(2026, 9, 8, 14, 2).getTime(),
+  baseCommit: COMMIT,
+  origin: ORIGIN,
+  byteSize: 1_258_291,
+  changes: CHANGES,
+};
+
+/** core/src/store/chunks.ts as it is now: the index row is committed before the rename. */
+export const CHUNKS_NOW = [
+  'import { open, rename } from "node:fs/promises";',
+  'import { join } from "node:path";',
+  'import { commitIndex } from "./index-rows.ts";',
+  'import type { ChunkRow, Store } from "./types.ts";',
+  '',
+  'const GZ = ".ndjson.gz";',
+  'const MAX_CHUNK = 8_388_608;',
+  '',
+  '// A chunk holds session bytes verbatim. It is appended',
+  '// as .tmp and renamed to .gz once its index row is',
+  '// committed, so byte_size never drifts from the bytes.',
+  '',
+  'export async function readChunk(',
+  '  store: Store,',
+  '  row: ChunkRow,',
+  '): Promise<Uint8Array> {',
+  '  const fh = await open(join(store.dir, row.id + GZ));',
+  '  try {',
+  '    return await fh.readFile();',
+  '  } finally {',
+  '    await fh.close();',
+  '  }',
+  '}',
+  '',
+  'export function chunkPath(store: Store, row: ChunkRow): string {',
+  '  return join(store.dir, row.id + GZ);',
+  '}',
+  '',
+  'export const isFull = (row: ChunkRow) => row.byteSize >= MAX_CHUNK;',
+  '',
+  'export async function appendChunk(',
+  '  store: Store,',
+  '  row: ChunkRow,',
+  '  bytes: Uint8Array,',
+  '): Promise<number> {',
+  '  const at = row.byteSize;',
+  '  // The byte size is the cursor: append the bytes,',
+  '  // commit the index row, only then rename to .gz.',
+  '  const fh = await open(row.tmp, "a");',
+  '  await fh.write(bytes);',
+  '  await fh.close();',
+  '  await commitIndex(store, row, at + bytes.length);',
+  '  await rename(row.tmp, join(store.dir, row.id + GZ));',
+  '  // A crash before the rename leaves the .tmp.',
+  '  return at + bytes.length;',
+  '}',
+].join('\n');
+
+const CHUNKS_DIFF = [
+  '@@ -1,5 +1,6 @@',
+  ' import { open, rename } from "node:fs/promises";',
+  ' import { join } from "node:path";',
+  '+import { commitIndex } from "./index-rows.ts";',
+  ' import type { ChunkRow, Store } from "./types.ts";',
+  ' ',
+  ' const GZ = ".ndjson.gz";',
+  '@@ -30,11 +31,16 @@ appendChunk',
+  ' export async function appendChunk(',
+  '   store: Store,',
+  '   row: ChunkRow,',
+  '   bytes: Uint8Array,',
+  ' ): Promise<number> {',
+  '   const at = row.byteSize;',
+  '-  await rename(row.tmp, join(store.dir, row.id + GZ));',
+  '-  await store.write(row.id, bytes);',
+  '-  await store.commit(row);',
+  '+  // The byte size is the cursor: append the bytes,',
+  '+  // commit the index row, only then rename to .gz.',
+  '+  const fh = await open(row.tmp, "a");',
+  '+  await fh.write(bytes);',
+  '+  await fh.close();',
+  '+  await commitIndex(store, row, at + bytes.length);',
+  '+  await rename(row.tmp, join(store.dir, row.id + GZ));',
+  '+  // A crash before the rename leaves the .tmp.',
+  '   return at + bytes.length;',
+  ' }',
+  '',
+].join('\n');
+
+const HOSTING_DIFF = [
+  '@@ -88,8 +88,11 @@ Resources',
+  ' ## Resources',
+  ' ',
+  ' | Resource | Default | Limit |',
+  ' | --- | --- | --- |',
+  ' | Session store | none | the disk |',
+  '-| Snapshot | 64 MiB | per session |',
+  '+| Snapshot | 64 MiB | per turn |',
+  '+| Snapshot store | 2 GiB | per device |',
+  '+| Bundle | 256 MiB | per handoff |',
+  '+',
+  ' Snapshots older than the last handoff are pruned when the next snapshot of the same session is stored; `hoplet prune --dry-run` lists what would go.',
+  ' ',
+  '',
+].join('\n');
+
+export const chunksDiff: WorkspaceDiff = {
+  kind: 'text',
+  sessionId: SESSION,
+  path: 'core/src/store/chunks.ts',
+  status: 'modified',
+  diff: CHUNKS_DIFF,
+  truncated: false,
+  size: CHUNKS_DIFF.length,
+};
+
+export const hostingDiff: WorkspaceDiff = {
+  kind: 'text',
+  sessionId: SESSION,
+  path: 'docs/hosting.md',
+  status: 'modified',
+  diff: HOSTING_DIFF,
+  truncated: true,
+  size: 1_468_006,
+};
+
+const NOTES = [
+  'Byte cursor checks',
+  '- tail page of the 23 MB fixture: about a second',
+  '- 256 MB fixture next',
+  '- restart resumes at the index row',
+  '- handoff keeps the cursor',
+];
+
+export const notesDiff: WorkspaceDiff = {
+  kind: 'text',
+  sessionId: SESSION,
+  path: 'notes.txt',
+  status: 'untracked',
+  diff: `@@ -0,0 +1,5 @@\n${NOTES.map((l) => `+${l}`).join('\n')}\n`,
+  truncated: false,
+  size: 140,
+};
+
+export const notesFile: WorkspaceFile = {
+  kind: 'text',
+  sessionId: SESSION,
+  path: 'notes.txt',
+  size: 140,
+  text: `${NOTES.join('\n')}\n`,
+  truncated: false,
+};
+
+export const iconDiff: WorkspaceDiff = {
+  kind: 'binary',
+  sessionId: SESSION,
+  path: 'design/icon.png',
+  status: 'modified',
+  oldSize: 18_842,
+  newSize: 21_504,
+};
+
+export const chunksFile: WorkspaceFile = {
+  kind: 'text',
+  sessionId: SESSION,
+  path: 'core/src/store/chunks.ts',
+  size: 2150,
+  text: `${CHUNKS_NOW}\n`,
+  truncated: false,
+};
+
+/** The app icon drawn as it is now, and as HEAD has it: a 512 px SVG standing in for the PNG. */
+function iconArt(now: boolean): string {
+  const svg = now
+    ? '<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 64 64"><rect x="4" y="4" width="56" height="56" rx="13" fill="#ff7a1a"/><path d="M21 43L43 21" stroke="#1c0d02" stroke-width="6" stroke-linecap="round"/><circle cx="43" cy="21" r="3.6" fill="#fff4e6"/></svg>'
+    : '<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 64 64"><rect x="4" y="4" width="56" height="56" rx="10" fill="#d9620d"/><path d="M21 43L43 21" stroke="#1c0d02" stroke-width="4.5" stroke-linecap="round"/></svg>';
+  return btoa(svg);
+}
+
+export const iconNow: WorkspaceFile = {
+  kind: 'image',
+  sessionId: SESSION,
+  path: 'design/icon.png',
+  size: 21_504,
+  mediaType: 'image/svg+xml',
+  data: iconArt(true),
+};
+
+export const iconHead: WorkspaceFile = { ...iconNow, size: 18_842, data: iconArt(false) };
+
+export const sketchFile: WorkspaceFile = {
+  kind: 'binary',
+  sessionId: SESSION,
+  path: 'design/hoplet.sketch',
+  size: 1_887_437,
+};

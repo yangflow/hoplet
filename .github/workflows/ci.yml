@@ -1,0 +1,86 @@
+# Checks, end-to-end tests and the links between documents (docs/testing.md).
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  links:
+    name: links
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - name: Links and anchors between the repository's documents
+        uses: lycheeverse/lychee-action@v2
+        with:
+          args: --offline --include-fragments --no-progress --exclude-path node_modules './**/*.md'
+          fail: true
+
+  check:
+    name: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: agent/go.mod
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: node scripts/boundaries.ts
+      - run: scripts/check-version.sh
+      - run: python3 design/check-tokens.py
+      - run: go vet ./...
+        working-directory: agent
+      - run: go test ./...
+        working-directory: agent
+
+  image:
+    name: image
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: agent/go.mod
+      - name: Build the image
+        run: docker build -f image/Dockerfile -t hoplet:ci .
+      - name: Report image size
+        run: |
+          docker image inspect hoplet:ci --format 'image size: {{.Size}} bytes'
+      - name: Start with compose and check health
+        env:
+          HOPLET_TOKEN: ci-token
+        run: |
+          docker compose -f image/compose.yaml up -d --wait
+          curl -sf -H "Authorization: Bearer ci-token" http://127.0.0.1:7788/api/health
+          docker compose -f image/compose.yaml down -v
+      - name: Install Playwright and its Chromium
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm exec playwright install --with-deps chromium
+      - name: States and accessibility (dev server, axe on every state in both schemes)
+        run: pnpm e2e
+      - name: Cockpit end to end against the built image
+        env:
+          E2E_IMAGE: hoplet:ci
+        run: pnpm e2e:image

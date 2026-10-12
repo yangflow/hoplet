@@ -1,0 +1,44 @@
+# A pull request's title becomes its squash commit and a line of the changelog, so it must be a Conventional
+# Commit (CONTRIBUTING.md). Reads only the pull request's metadata; never checks out its code.
+name: pr-title
+
+on:
+  pull_request_target:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  pull-requests: read
+
+jobs:
+  title:
+    name: Conventional Commit title
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - uses: amannn/action-semantic-pull-request@v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            feat
+            fix
+            perf
+            refactor
+            docs
+            test
+            build
+            ci
+            chore
+            design
+          scopes: |
+            core
+            shared
+            web
+            agent
+            image
+            scripts
+          requireScope: false
+          subjectPattern: ^[A-Z].{0,49}$
+          subjectPatternError: |
+            The subject "{subject}" must start with a capital letter and be at most 50 characters,
+            an imperative sentence such as "Stop the process on external writes" (CONTRIBUTING.md).

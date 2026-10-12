@@ -1,0 +1,22 @@
+# Keeps a release pull request open with the next version and its changelog, made from the Conventional Commit
+# titles merged into main (release-please-config.json). Merging it, which only the maintainer does, tags the
+# release and publishes its notes as a GitHub Release (GOVERNANCE.md, Releases).
+name: release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: googleapis/release-please-action@v4
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json

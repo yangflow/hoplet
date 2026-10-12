@@ -1,0 +1,6 @@
+packages:
+  - core
+  - shared
+  - web
+allowBuilds:
+  esbuild: true

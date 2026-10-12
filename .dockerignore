@@ -1,0 +1,11 @@
+.git
+node_modules
+**/node_modules
+dist
+data
+agent/hoplet-agent
+*.log
+.DS_Store
+docs
+design
+web/e2e

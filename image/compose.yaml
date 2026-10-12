@@ -1,0 +1,28 @@
+# What a Linux host runs (and development too). The port binds to localhost only; remote access goes
+# through a TLS reverse proxy that terminates WSS (docs/hosting.md).
+services:
+  hoplet:
+    image: hoplet:local
+    build:
+      context: ..
+      dockerfile: image/Dockerfile
+    environment:
+      HOPLET_PORT: "7788"
+      HOPLET_TOKEN: ${HOPLET_TOKEN:?set HOPLET_TOKEN in .env}
+    ports:
+      - "127.0.0.1:7788:7788"
+    volumes:
+      - hoplet-data:/data
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options: { max-size: 10m, max-file: "3" }
+    restart: unless-stopped
+
+volumes:
+  hoplet-data:

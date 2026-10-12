@@ -1,0 +1,29 @@
+name: Feature idea
+description: A new capability, for triage; it does not join the iteration in progress
+labels: ["feat", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        New ideas are triaged at the start of each iteration into a planned version or Later
+        (GOVERNANCE.md). Please wait for an answer before opening a pull request.
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: What is different for you when this exists, in one or two sentences.
+    validations:
+      required: true
+  - type: textarea
+    id: fit
+    attributes:
+      label: Which goal it serves
+      description: Opening a large session at once and driving it, or moving a session to another machine (docs/spec.md#decisions).
+    validations:
+      required: true
+  - type: textarea
+    id: options
+    attributes:
+      label: Options you considered
+    validations:
+      required: false

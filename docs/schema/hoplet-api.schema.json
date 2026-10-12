@@ -1,0 +1,2616 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Hoplet client API",
+  "description": "Generated from shared/ and the route table by `pnpm schema`; do not edit. Each name under $defs is a schema that docs/api.md names for a route or a message. Parse a body against the schema its route names.",
+  "protocolVersion": 5,
+  "routes": [
+    {
+      "method": "POST",
+      "path": "/api/ws-tickets",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": null,
+      "response": "WsTicketResponseSchema"
+    },
+    {
+      "method": "GET",
+      "path": "/api/health",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": null,
+      "response": "HealthResponseSchema"
+    },
+    {
+      "method": "GET",
+      "path": "/api/sessions",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": null,
+      "response": "SessionListResponseSchema"
+    },
+    {
+      "method": "POST",
+      "path": "/api/sessions",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": "NewSessionRequestSchema",
+      "response": "NewSessionResultSchema"
+    },
+    {
+      "method": "GET",
+      "path": "/api/sessions/:sessionId",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": null,
+      "response": "LiveSessionMetaSchema"
+    },
+    {
+      "method": "GET",
+      "path": "/api/sessions/:sessionId/lines",
+      "auth": "host",
+      "lane": "bulk",
+      "status": 200,
+      "query": "LinesQuerySchema",
+      "body": null,
+      "response": "LinesPageSchema"
+    },
+    {
+      "method": "GET",
+      "path": "/api/sessions/:sessionId/blocks/:line/:block",
+      "auth": "host",
+      "lane": "bulk",
+      "status": 200,
+      "query": null,
+      "body": null,
+      "response": "FullBlockSchema"
+    },
+    {
+      "method": "GET",
+      "path": "/api/sessions/:sessionId/search",
+      "auth": "host",
+      "lane": "bulk",
+      "status": 200,
+      "query": "SessionSearchQuerySchema",
+      "body": null,
+      "response": "SearchResultSchema"
+    },
+    {
+      "method": "GET",
+      "path": "/api/search",
+      "auth": "host",
+      "lane": "bulk",
+      "status": 200,
+      "query": "GlobalSearchQuerySchema",
+      "body": null,
+      "response": "GlobalSearchResultSchema"
+    },
+    {
+      "method": "POST",
+      "path": "/api/sessions/:sessionId/prompt",
+      "auth": "host",
+      "lane": "control",
+      "status": 202,
+      "query": null,
+      "body": "PromptRequestSchema",
+      "response": "PromptResultSchema"
+    },
+    {
+      "method": "POST",
+      "path": "/api/sessions/:sessionId/permission",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": "PermissionRequestSchema",
+      "response": "RuntimeCommandResultSchema"
+    },
+    {
+      "method": "POST",
+      "path": "/api/sessions/:sessionId/interrupt",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": null,
+      "response": "RuntimeCommandResultSchema"
+    },
+    {
+      "method": "POST",
+      "path": "/api/sessions/:sessionId/stop",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": null,
+      "response": "RuntimeCommandResultSchema"
+    },
+    {
+      "method": "GET",
+      "path": "/api/sessions/:sessionId/workspace",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": null,
+      "response": "WorkspaceListingSchema"
+    },
+    {
+      "method": "GET",
+      "path": "/api/sessions/:sessionId/workspace/file",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": "WorkspaceFileQuerySchema",
+      "body": null,
+      "response": "WorkspaceFileSchema"
+    },
+    {
+      "method": "GET",
+      "path": "/api/sessions/:sessionId/workspace/diff",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": "WorkspaceDiffQuerySchema",
+      "body": null,
+      "response": "WorkspaceDiffSchema"
+    },
+    {
+      "method": "GET",
+      "path": "/api/sessions/:sessionId/snapshot/changes",
+      "auth": "host",
+      "lane": "bulk",
+      "status": 200,
+      "query": null,
+      "body": null,
+      "response": "SnapshotChangesSchema"
+    },
+    {
+      "method": "GET",
+      "path": "/api/sessions/:sessionId/snapshot/diff",
+      "auth": "host",
+      "lane": "bulk",
+      "status": 200,
+      "query": "WorkspaceDiffQuerySchema",
+      "body": null,
+      "response": "SnapshotDiffSchema"
+    },
+    {
+      "method": "POST",
+      "path": "/api/sessions/:sessionId/handoff",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": "HandoffRequestSchema",
+      "response": "HandoffResultSchema"
+    },
+    {
+      "method": "GET",
+      "path": "/api/devices",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": null,
+      "response": "DeviceListResponseSchema"
+    },
+    {
+      "method": "POST",
+      "path": "/api/devices",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": "DeviceMintRequestSchema",
+      "response": "DeviceMintResultSchema"
+    },
+    {
+      "method": "GET",
+      "path": "/api/devices/:deviceId/dirs",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": "DeviceDirsQuerySchema",
+      "body": null,
+      "response": "DeviceDirsResultSchema"
+    },
+    {
+      "method": "GET",
+      "path": "/api/devices/:deviceId/clone",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": "DeviceCloneQuerySchema",
+      "body": null,
+      "response": "DeviceCloneResultSchema"
+    },
+    {
+      "method": "GET",
+      "path": "/api/devices/:deviceId/projects",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": null,
+      "response": "DeviceProjectsResultSchema"
+    },
+    {
+      "method": "POST",
+      "path": "/api/devices/:deviceId/projects",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": "DeviceProjectsAddRequestSchema",
+      "response": "DeviceProjectsResultSchema"
+    },
+    {
+      "method": "POST",
+      "path": "/api/devices/:deviceId/projects/remove",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": "DeviceProjectsRemoveRequestSchema",
+      "response": "DeviceProjectsResultSchema"
+    },
+    {
+      "method": "POST",
+      "path": "/api/devices/:deviceId/sessions/import",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": "DeviceSessionsImportRequestSchema",
+      "response": "DeviceProjectsResultSchema"
+    },
+    {
+      "method": "POST",
+      "path": "/api/devices/:deviceId/sessions/remove",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": "DeviceSessionsRemoveRequestSchema",
+      "response": "DeviceProjectsResultSchema"
+    }
+  ],
+  "browserMessages": [
+    {
+      "type": "session.appended",
+      "direction": "core-to-web",
+      "lane": "control",
+      "schema": "SessionAppendedMessage"
+    },
+    {
+      "type": "device.presence",
+      "direction": "core-to-web",
+      "lane": "control",
+      "schema": "DevicePresenceMessage"
+    },
+    {
+      "type": "subscribe",
+      "direction": "web-to-core",
+      "lane": "control",
+      "schema": "SubscribeMessage"
+    },
+    {
+      "type": "unsubscribe",
+      "direction": "web-to-core",
+      "lane": "control",
+      "schema": "UnsubscribeMessage"
+    },
+    {
+      "type": "session.runtime",
+      "direction": "core-to-web",
+      "lane": "control",
+      "schema": "SessionRuntimeMessage"
+    },
+    {
+      "type": "session.output",
+      "direction": "core-to-web",
+      "lane": "control",
+      "schema": "SessionOutputMessage"
+    },
+    {
+      "type": "session.permission",
+      "direction": "core-to-web",
+      "lane": "control",
+      "schema": "SessionPermissionMessage"
+    },
+    {
+      "type": "handoff.progress",
+      "direction": "core-to-web",
+      "lane": "control",
+      "schema": "HandoffProgressMessage"
+    },
+    {
+      "type": "error",
+      "direction": "core-to-web",
+      "lane": "control",
+      "schema": "ErrorMessage"
+    }
+  ],
+  "errorResponse": "ErrorResponseSchema",
+  "errorStatus": {
+    "unauthorized": 401,
+    "not-found": 404,
+    "method-not-allowed": 405,
+    "session-not-found": 404,
+    "invalid-json": 400,
+    "invalid-request": 400,
+    "same-device": 400,
+    "too-large": 413,
+    "owner-offline": 409,
+    "target-offline": 409,
+    "busy": 409,
+    "starting": 409,
+    "external": 409,
+    "not-running": 409,
+    "request-closed": 409,
+    "cancelled": 409,
+    "handoff-in-progress": 409,
+    "no-clone": 409,
+    "no-snapshot": 409,
+    "session-changed": 409,
+    "verify-failed": 502,
+    "rejected": 502,
+    "timeout": 504,
+    "internal": 500
+  },
+  "excluded": [
+    {
+      "schema": "LinesQuerySchema",
+      "routes": [
+        "GET /api/sessions/:sessionId/lines"
+      ],
+      "reason": "The \"transform\" action cannot be converted to JSON Schema."
+    },
+    {
+      "schema": "SessionSearchQuerySchema",
+      "routes": [
+        "GET /api/sessions/:sessionId/search"
+      ],
+      "reason": "The \"check\" action cannot be converted to JSON Schema."
+    },
+    {
+      "schema": "GlobalSearchQuerySchema",
+      "routes": [
+        "GET /api/search"
+      ],
+      "reason": "The \"check\" action cannot be converted to JSON Schema."
+    }
+  ],
+  "$defs": {
+    "DeviceCloneQuerySchema": {
+      "type": "object",
+      "properties": {
+        "origin": {
+          "type": "string",
+          "pattern": "^\\s*\\S(?:[\\s\\S]{0,2046}\\S)?\\s*$"
+        }
+      },
+      "required": [
+        "origin"
+      ]
+    },
+    "DeviceCloneResultSchema": {
+      "type": "object",
+      "properties": {
+        "deviceId": {
+          "type": "string"
+        },
+        "path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "deviceId",
+        "path"
+      ]
+    },
+    "DeviceDirsQuerySchema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "pattern": "\\S",
+          "minLength": 1
+        }
+      },
+      "required": []
+    },
+    "DeviceDirsResultSchema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "parent": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "root": {
+          "type": "string"
+        },
+        "entries": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "git": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "name",
+              "git"
+            ]
+          }
+        },
+        "truncated": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "path",
+        "parent",
+        "root",
+        "entries",
+        "truncated"
+      ]
+    },
+    "DeviceListResponseSchema": {
+      "type": "object",
+      "properties": {
+        "devices": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "deviceId": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "connected": {
+                "type": "boolean"
+              },
+              "providers": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "provider": {
+                      "enum": [
+                        "claude"
+                      ],
+                      "type": "string"
+                    },
+                    "capabilities": {
+                      "type": "object",
+                      "properties": {
+                        "permissions": {
+                          "type": "boolean"
+                        },
+                        "interrupt": {
+                          "type": "boolean"
+                        },
+                        "thinking": {
+                          "type": "boolean"
+                        },
+                        "fast": {
+                          "type": "boolean"
+                        },
+                        "models": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      },
+                      "required": [
+                        "permissions",
+                        "interrupt",
+                        "thinking",
+                        "fast",
+                        "models"
+                      ]
+                    },
+                    "version": {
+                      "type": "string"
+                    },
+                    "tested": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "provider",
+                    "capabilities"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "deviceId",
+              "name",
+              "connected",
+              "providers"
+            ]
+          }
+        }
+      },
+      "required": [
+        "devices"
+      ]
+    },
+    "DeviceMintRequestSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "\\S",
+          "minLength": 1
+        },
+        "deviceId": {
+          "type": "string",
+          "pattern": "\\S",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "name"
+      ]
+    },
+    "DeviceMintResultSchema": {
+      "type": "object",
+      "properties": {
+        "deviceId": {
+          "type": "string"
+        },
+        "token": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "deviceId",
+        "token",
+        "name"
+      ]
+    },
+    "DevicePresenceMessage": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 5
+        },
+        "type": {
+          "const": "device.presence"
+        },
+        "deviceId": {
+          "type": "string"
+        },
+        "connected": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "deviceId",
+        "connected"
+      ]
+    },
+    "DeviceProjectsAddRequestSchema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "pattern": "\\S",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "path"
+      ]
+    },
+    "DeviceProjectsRemoveRequestSchema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "pattern": "\\S",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "path"
+      ]
+    },
+    "DeviceProjectsResultSchema": {
+      "type": "object",
+      "properties": {
+        "deviceId": {
+          "type": "string"
+        },
+        "candidates": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "projects": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string"
+              },
+              "sessions": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "sessionId": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9_-]+$"
+                    },
+                    "cwd": {
+                      "type": "string"
+                    },
+                    "imported": {
+                      "type": "boolean"
+                    },
+                    "title": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "sessionId",
+                    "cwd",
+                    "imported"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "path",
+              "sessions"
+            ]
+          }
+        }
+      },
+      "required": [
+        "deviceId",
+        "candidates",
+        "projects"
+      ]
+    },
+    "DeviceSessionsImportRequestSchema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "pattern": "\\S",
+          "minLength": 1
+        },
+        "sessionIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]+$"
+          },
+          "minItems": 1
+        }
+      },
+      "required": [
+        "path",
+        "sessionIds"
+      ]
+    },
+    "DeviceSessionsRemoveRequestSchema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "pattern": "\\S",
+          "minLength": 1
+        },
+        "sessionIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]+$"
+          },
+          "minItems": 1
+        }
+      },
+      "required": [
+        "path",
+        "sessionIds"
+      ]
+    },
+    "ErrorMessage": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 5
+        },
+        "type": {
+          "const": "error"
+        },
+        "code": {
+          "enum": [
+            "unauthorized",
+            "not-found",
+            "method-not-allowed",
+            "session-not-found",
+            "invalid-json",
+            "invalid-request",
+            "same-device",
+            "too-large",
+            "owner-offline",
+            "target-offline",
+            "busy",
+            "starting",
+            "external",
+            "not-running",
+            "request-closed",
+            "cancelled",
+            "handoff-in-progress",
+            "no-clone",
+            "no-snapshot",
+            "session-changed",
+            "verify-failed",
+            "rejected",
+            "timeout",
+            "internal",
+            "invalid-message",
+            "invalid-session-id",
+            "unknown-type",
+            "hello-first",
+            "device-mismatch",
+            "protocol-version-mismatch",
+            "snapshot-rejected"
+          ],
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "sessionId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "code",
+        "message"
+      ]
+    },
+    "ErrorResponseSchema": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "enum": [
+            "unauthorized",
+            "not-found",
+            "method-not-allowed",
+            "session-not-found",
+            "invalid-json",
+            "invalid-request",
+            "same-device",
+            "too-large",
+            "owner-offline",
+            "target-offline",
+            "busy",
+            "starting",
+            "external",
+            "not-running",
+            "request-closed",
+            "cancelled",
+            "handoff-in-progress",
+            "no-clone",
+            "no-snapshot",
+            "session-changed",
+            "verify-failed",
+            "rejected",
+            "timeout",
+            "internal"
+          ],
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "promptId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "code"
+      ]
+    },
+    "FullBlockSchema": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "text"
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "text"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "thinking"
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "text"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "tool-call"
+            },
+            "id": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "kind": {
+              "enum": [
+                "read",
+                "edit",
+                "write",
+                "run",
+                "search",
+                "list",
+                "fetch",
+                "call",
+                "view",
+                "other"
+              ],
+              "type": "string"
+            },
+            "mcp": {
+              "type": "object",
+              "properties": {
+                "server": {
+                  "type": "string"
+                },
+                "tool": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "server",
+                "tool"
+              ]
+            },
+            "input": {}
+          },
+          "required": [
+            "type",
+            "id",
+            "name",
+            "kind",
+            "input"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "tool-result"
+            },
+            "id": {
+              "type": "string"
+            },
+            "content": {
+              "type": "string"
+            },
+            "isError": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "type",
+            "id",
+            "content"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "image"
+            },
+            "mediaType": {
+              "type": "string"
+            },
+            "data": {
+              "type": "string"
+            },
+            "url": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "mediaType"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "other"
+            },
+            "kind": {
+              "type": "string"
+            },
+            "label": {
+              "type": "string"
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "kind"
+          ]
+        }
+      ]
+    },
+    "GlobalSearchResultSchema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string"
+        },
+        "start": {
+          "type": "number"
+        },
+        "results": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "sessionId": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_-]+$"
+              },
+              "lineNo": {
+                "type": "number"
+              },
+              "excerpt": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "sessionId",
+              "lineNo",
+              "excerpt"
+            ]
+          }
+        },
+        "exhausted": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "query",
+        "start",
+        "results",
+        "exhausted"
+      ]
+    },
+    "HandoffProgressMessage": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 5
+        },
+        "type": {
+          "const": "handoff.progress"
+        },
+        "sessionId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "handoffId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,64}$"
+        },
+        "step": {
+          "enum": [
+            "prepare",
+            "transfer",
+            "install",
+            "verify",
+            "commit",
+            "done",
+            "failed"
+          ],
+          "type": "string"
+        },
+        "targetDeviceId": {
+          "type": "string"
+        },
+        "snapshotAt": {
+          "type": "number"
+        },
+        "sent": {
+          "type": "number"
+        },
+        "total": {
+          "type": "number"
+        },
+        "worktree": {
+          "type": "string"
+        },
+        "branch": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "sessionId",
+        "handoffId",
+        "step",
+        "targetDeviceId"
+      ]
+    },
+    "HandoffRequestSchema": {
+      "type": "object",
+      "properties": {
+        "targetDeviceId": {
+          "type": "string",
+          "pattern": "\\S",
+          "minLength": 1
+        },
+        "targetPath": {
+          "type": "string",
+          "pattern": "^\\s*\\S(?:[\\s\\S]{0,4094}\\S)?\\s*$"
+        }
+      },
+      "required": [
+        "targetDeviceId"
+      ]
+    },
+    "HandoffResultSchema": {
+      "type": "object",
+      "properties": {
+        "ok": {
+          "const": true
+        },
+        "ownerDeviceId": {
+          "type": "string"
+        },
+        "ownerEpoch": {
+          "type": "number"
+        },
+        "worktree": {
+          "type": "string"
+        },
+        "branch": {
+          "type": "string"
+        },
+        "snapshotAt": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "ok",
+        "ownerDeviceId",
+        "ownerEpoch",
+        "worktree",
+        "branch"
+      ]
+    },
+    "HealthResponseSchema": {
+      "type": "object",
+      "properties": {
+        "ok": {
+          "const": true
+        },
+        "sessions": {
+          "type": "number"
+        },
+        "uptimeSec": {
+          "type": "number"
+        },
+        "coreVersion": {
+          "type": "string"
+        },
+        "protocolVersion": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "ok",
+        "sessions",
+        "uptimeSec",
+        "coreVersion",
+        "protocolVersion"
+      ]
+    },
+    "LinesPageSchema": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "start": {
+          "type": "number"
+        },
+        "end": {
+          "type": "number"
+        },
+        "total": {
+          "type": "number"
+        },
+        "entries": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "lineNo": {
+                "type": "number"
+              },
+              "role": {
+                "enum": [
+                  "user",
+                  "assistant",
+                  "system"
+                ],
+                "type": "string"
+              },
+              "ts": {
+                "type": "string"
+              },
+              "blocks": {
+                "type": "array",
+                "items": {
+                  "anyOf": [
+                    {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "type": {
+                              "const": "text"
+                            },
+                            "text": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "type",
+                            "text"
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "type": {
+                              "const": "thinking"
+                            },
+                            "text": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "type",
+                            "text"
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "type": {
+                              "const": "tool-call"
+                            },
+                            "id": {
+                              "type": "string"
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "kind": {
+                              "enum": [
+                                "read",
+                                "edit",
+                                "write",
+                                "run",
+                                "search",
+                                "list",
+                                "fetch",
+                                "call",
+                                "view",
+                                "other"
+                              ],
+                              "type": "string"
+                            },
+                            "mcp": {
+                              "type": "object",
+                              "properties": {
+                                "server": {
+                                  "type": "string"
+                                },
+                                "tool": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "server",
+                                "tool"
+                              ]
+                            },
+                            "input": {}
+                          },
+                          "required": [
+                            "type",
+                            "id",
+                            "name",
+                            "kind",
+                            "input"
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "type": {
+                              "const": "tool-result"
+                            },
+                            "id": {
+                              "type": "string"
+                            },
+                            "content": {
+                              "type": "string"
+                            },
+                            "isError": {
+                              "type": "boolean"
+                            }
+                          },
+                          "required": [
+                            "type",
+                            "id",
+                            "content"
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "type": {
+                              "const": "image"
+                            },
+                            "mediaType": {
+                              "type": "string"
+                            },
+                            "data": {
+                              "type": "string"
+                            },
+                            "url": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "type",
+                            "mediaType"
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "type": {
+                              "const": "other"
+                            },
+                            "kind": {
+                              "type": "string"
+                            },
+                            "label": {
+                              "type": "string"
+                            },
+                            "text": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "type",
+                            "kind"
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "elided": {
+                          "const": true
+                        },
+                        "type": {
+                          "enum": [
+                            "text",
+                            "thinking",
+                            "tool-call",
+                            "tool-result",
+                            "image",
+                            "other"
+                          ],
+                          "type": "string"
+                        },
+                        "bytes": {
+                          "type": "number"
+                        },
+                        "preview": {
+                          "type": "string"
+                        },
+                        "ref": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "elided",
+                        "type",
+                        "bytes",
+                        "preview",
+                        "ref"
+                      ]
+                    }
+                  ]
+                }
+              }
+            },
+            "required": [
+              "lineNo",
+              "role",
+              "blocks"
+            ]
+          }
+        }
+      },
+      "required": [
+        "sessionId",
+        "start",
+        "end",
+        "total",
+        "entries"
+      ]
+    },
+    "LiveSessionMetaSchema": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "projectPath": {
+          "type": "string"
+        },
+        "projectDir": {
+          "type": "string"
+        },
+        "deviceName": {
+          "type": "string"
+        },
+        "ownerDeviceId": {
+          "type": "string"
+        },
+        "ownerEpoch": {
+          "type": "number"
+        },
+        "title": {
+          "type": "string"
+        },
+        "provider": {
+          "enum": [
+            "claude"
+          ],
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "number"
+        },
+        "updatedAt": {
+          "type": "number"
+        },
+        "lineCount": {
+          "type": "number"
+        },
+        "byteSize": {
+          "type": "number"
+        },
+        "ownerConnected": {
+          "type": "boolean"
+        },
+        "runtime": {
+          "type": "object",
+          "properties": {
+            "state": {
+              "enum": [
+                "offline",
+                "external",
+                "idle",
+                "starting",
+                "ready",
+                "running",
+                "waiting-permission",
+                "failed"
+              ],
+              "type": "string"
+            },
+            "capabilities": {
+              "type": "object",
+              "properties": {
+                "permissions": {
+                  "type": "boolean"
+                },
+                "interrupt": {
+                  "type": "boolean"
+                },
+                "thinking": {
+                  "type": "boolean"
+                },
+                "fast": {
+                  "type": "boolean"
+                },
+                "models": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "permissions",
+                "interrupt",
+                "thinking",
+                "fast",
+                "models"
+              ]
+            },
+            "error": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "state"
+          ]
+        }
+      },
+      "required": [
+        "sessionId",
+        "projectPath",
+        "projectDir",
+        "deviceName",
+        "ownerEpoch",
+        "title",
+        "provider",
+        "createdAt",
+        "updatedAt",
+        "lineCount",
+        "byteSize",
+        "ownerConnected",
+        "runtime"
+      ]
+    },
+    "NewSessionRequestSchema": {
+      "type": "object",
+      "properties": {
+        "deviceId": {
+          "type": "string",
+          "pattern": "\\S",
+          "minLength": 1
+        },
+        "projectPath": {
+          "type": "string",
+          "pattern": "^\\s*\\S(?:[\\s\\S]{0,4094}\\S)?\\s*$"
+        },
+        "provider": {
+          "enum": [
+            "claude"
+          ],
+          "type": "string"
+        },
+        "options": {
+          "type": "object",
+          "properties": {
+            "model": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "thinking": {
+              "type": "boolean"
+            },
+            "fast": {
+              "type": "boolean"
+            }
+          },
+          "required": []
+        },
+        "text": {
+          "type": "string",
+          "pattern": "\\S",
+          "minLength": 1
+        },
+        "promptId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "deviceId",
+        "projectPath",
+        "provider",
+        "options",
+        "text",
+        "promptId"
+      ]
+    },
+    "NewSessionResultSchema": {
+      "type": "object",
+      "properties": {
+        "ok": {
+          "const": true
+        },
+        "sessionId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "promptId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "ok",
+        "sessionId",
+        "promptId"
+      ]
+    },
+    "PermissionRequestSchema": {
+      "type": "object",
+      "properties": {
+        "requestId": {
+          "type": "string",
+          "pattern": "\\S",
+          "minLength": 1
+        },
+        "decision": {
+          "enum": [
+            "allow",
+            "deny"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "requestId",
+        "decision"
+      ]
+    },
+    "PromptRequestSchema": {
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string",
+          "pattern": "\\S",
+          "minLength": 1
+        },
+        "promptId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "text",
+        "promptId"
+      ]
+    },
+    "PromptResultSchema": {
+      "type": "object",
+      "properties": {
+        "ok": {
+          "const": true
+        },
+        "promptId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "ok",
+        "promptId"
+      ]
+    },
+    "RuntimeCommandResultSchema": {
+      "type": "object",
+      "properties": {
+        "ok": {
+          "const": true
+        }
+      },
+      "required": [
+        "ok"
+      ]
+    },
+    "SearchResultSchema": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "query": {
+          "type": "string"
+        },
+        "start": {
+          "type": "number"
+        },
+        "total": {
+          "type": "number"
+        },
+        "hits": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "lineNo": {
+                "type": "number"
+              },
+              "excerpt": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "lineNo",
+              "excerpt"
+            ]
+          }
+        }
+      },
+      "required": [
+        "sessionId",
+        "query",
+        "start",
+        "total",
+        "hits"
+      ]
+    },
+    "SessionAppendedMessage": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 5
+        },
+        "type": {
+          "const": "session.appended"
+        },
+        "sessionId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "appendedLines": {
+          "type": "number"
+        },
+        "totalLines": {
+          "type": "number"
+        },
+        "byteSize": {
+          "type": "number"
+        },
+        "updatedAt": {
+          "type": "number"
+        },
+        "isNew": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "sessionId",
+        "appendedLines",
+        "totalLines",
+        "byteSize",
+        "updatedAt"
+      ]
+    },
+    "SessionListResponseSchema": {
+      "type": "object",
+      "properties": {
+        "sessions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "sessionId": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_-]+$"
+              },
+              "projectPath": {
+                "type": "string"
+              },
+              "projectDir": {
+                "type": "string"
+              },
+              "deviceName": {
+                "type": "string"
+              },
+              "ownerDeviceId": {
+                "type": "string"
+              },
+              "ownerEpoch": {
+                "type": "number"
+              },
+              "title": {
+                "type": "string"
+              },
+              "provider": {
+                "enum": [
+                  "claude"
+                ],
+                "type": "string"
+              },
+              "createdAt": {
+                "type": "number"
+              },
+              "updatedAt": {
+                "type": "number"
+              },
+              "lineCount": {
+                "type": "number"
+              },
+              "byteSize": {
+                "type": "number"
+              },
+              "ownerConnected": {
+                "type": "boolean"
+              },
+              "runtime": {
+                "type": "object",
+                "properties": {
+                  "state": {
+                    "enum": [
+                      "offline",
+                      "external",
+                      "idle",
+                      "starting",
+                      "ready",
+                      "running",
+                      "waiting-permission",
+                      "failed"
+                    ],
+                    "type": "string"
+                  },
+                  "capabilities": {
+                    "type": "object",
+                    "properties": {
+                      "permissions": {
+                        "type": "boolean"
+                      },
+                      "interrupt": {
+                        "type": "boolean"
+                      },
+                      "thinking": {
+                        "type": "boolean"
+                      },
+                      "fast": {
+                        "type": "boolean"
+                      },
+                      "models": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "required": [
+                      "permissions",
+                      "interrupt",
+                      "thinking",
+                      "fast",
+                      "models"
+                    ]
+                  },
+                  "error": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "state"
+                ]
+              }
+            },
+            "required": [
+              "sessionId",
+              "projectPath",
+              "projectDir",
+              "deviceName",
+              "ownerEpoch",
+              "title",
+              "provider",
+              "createdAt",
+              "updatedAt",
+              "lineCount",
+              "byteSize",
+              "ownerConnected",
+              "runtime"
+            ]
+          }
+        }
+      },
+      "required": [
+        "sessions"
+      ]
+    },
+    "SessionOutputMessage": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 5
+        },
+        "type": {
+          "const": "session.output"
+        },
+        "sessionId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "kind": {
+          "enum": [
+            "text",
+            "thinking",
+            "tool-call",
+            "tool-result"
+          ],
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "tokens": {
+          "type": "number"
+        },
+        "tool": {
+          "type": "string"
+        },
+        "toolKind": {
+          "enum": [
+            "read",
+            "edit",
+            "write",
+            "run",
+            "search",
+            "list",
+            "fetch",
+            "call",
+            "view",
+            "other"
+          ],
+          "type": "string"
+        },
+        "mcp": {
+          "type": "object",
+          "properties": {
+            "server": {
+              "type": "string"
+            },
+            "tool": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "server",
+            "tool"
+          ]
+        },
+        "toolUseId": {
+          "type": "string"
+        },
+        "input": {},
+        "isError": {
+          "type": "boolean"
+        },
+        "truncated": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "sessionId",
+        "kind"
+      ]
+    },
+    "SessionPermissionMessage": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 5
+        },
+        "type": {
+          "const": "session.permission"
+        },
+        "sessionId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "requestId": {
+          "type": "string"
+        },
+        "tool": {
+          "type": "string"
+        },
+        "toolKind": {
+          "enum": [
+            "read",
+            "edit",
+            "write",
+            "run",
+            "search",
+            "list",
+            "fetch",
+            "call",
+            "view",
+            "other"
+          ],
+          "type": "string"
+        },
+        "mcp": {
+          "type": "object",
+          "properties": {
+            "server": {
+              "type": "string"
+            },
+            "tool": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "server",
+            "tool"
+          ]
+        },
+        "toolUseId": {
+          "type": "string"
+        },
+        "input": {}
+      },
+      "required": [
+        "v",
+        "type",
+        "sessionId",
+        "requestId",
+        "tool",
+        "input"
+      ]
+    },
+    "SessionRuntimeMessage": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 5
+        },
+        "type": {
+          "const": "session.runtime"
+        },
+        "sessionId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "state": {
+          "enum": [
+            "offline",
+            "external",
+            "idle",
+            "starting",
+            "ready",
+            "running",
+            "waiting-permission",
+            "failed"
+          ],
+          "type": "string"
+        },
+        "error": {
+          "type": "string"
+        },
+        "capabilities": {
+          "type": "object",
+          "properties": {
+            "permissions": {
+              "type": "boolean"
+            },
+            "interrupt": {
+              "type": "boolean"
+            },
+            "thinking": {
+              "type": "boolean"
+            },
+            "fast": {
+              "type": "boolean"
+            },
+            "models": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "permissions",
+            "interrupt",
+            "thinking",
+            "fast",
+            "models"
+          ]
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "sessionId",
+        "state"
+      ]
+    },
+    "SnapshotChangesSchema": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "snapshotAt": {
+          "type": "number"
+        },
+        "baseCommit": {
+          "type": "string"
+        },
+        "origin": {
+          "type": "string"
+        },
+        "byteSize": {
+          "type": "number"
+        },
+        "changes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string"
+              },
+              "status": {
+                "enum": [
+                  "modified",
+                  "added",
+                  "deleted",
+                  "untracked"
+                ],
+                "type": "string"
+              },
+              "added": {
+                "type": "number"
+              },
+              "removed": {
+                "type": "number"
+              },
+              "binary": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "path",
+              "status"
+            ]
+          }
+        }
+      },
+      "required": [
+        "sessionId",
+        "snapshotAt",
+        "baseCommit",
+        "origin",
+        "byteSize",
+        "changes"
+      ]
+    },
+    "SnapshotDiffSchema": {
+      "allOf": [
+        {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "const": "text"
+                },
+                "sessionId": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9_-]+$"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "status": {
+                  "enum": [
+                    "modified",
+                    "added",
+                    "deleted",
+                    "untracked"
+                  ],
+                  "type": "string"
+                },
+                "diff": {
+                  "type": "string"
+                },
+                "truncated": {
+                  "type": "boolean"
+                },
+                "size": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "kind",
+                "sessionId",
+                "path",
+                "status",
+                "diff",
+                "truncated",
+                "size"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "const": "binary"
+                },
+                "sessionId": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9_-]+$"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "status": {
+                  "enum": [
+                    "modified",
+                    "added",
+                    "deleted",
+                    "untracked"
+                  ],
+                  "type": "string"
+                },
+                "oldSize": {
+                  "type": "number"
+                },
+                "newSize": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "kind",
+                "sessionId",
+                "path",
+                "status"
+              ]
+            }
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "snapshotAt": {
+              "type": "number"
+            },
+            "baseCommit": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "snapshotAt",
+            "baseCommit"
+          ]
+        }
+      ]
+    },
+    "SubscribeMessage": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 5
+        },
+        "type": {
+          "const": "subscribe"
+        },
+        "sessionId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]+$"
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "sessionId"
+      ]
+    },
+    "UnsubscribeMessage": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 5
+        },
+        "type": {
+          "const": "unsubscribe"
+        },
+        "sessionId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]+$"
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "sessionId"
+      ]
+    },
+    "WorkspaceDiffQuerySchema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "pattern": "\\S",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "path"
+      ]
+    },
+    "WorkspaceDiffSchema": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "text"
+            },
+            "sessionId": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]+$"
+            },
+            "path": {
+              "type": "string"
+            },
+            "status": {
+              "enum": [
+                "modified",
+                "added",
+                "deleted",
+                "untracked"
+              ],
+              "type": "string"
+            },
+            "diff": {
+              "type": "string"
+            },
+            "truncated": {
+              "type": "boolean"
+            },
+            "size": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "kind",
+            "sessionId",
+            "path",
+            "status",
+            "diff",
+            "truncated",
+            "size"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "binary"
+            },
+            "sessionId": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]+$"
+            },
+            "path": {
+              "type": "string"
+            },
+            "status": {
+              "enum": [
+                "modified",
+                "added",
+                "deleted",
+                "untracked"
+              ],
+              "type": "string"
+            },
+            "oldSize": {
+              "type": "number"
+            },
+            "newSize": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "kind",
+            "sessionId",
+            "path",
+            "status"
+          ]
+        }
+      ]
+    },
+    "WorkspaceFileQuerySchema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "pattern": "\\S",
+          "minLength": 1
+        },
+        "at": {
+          "enum": [
+            "worktree",
+            "head"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "path"
+      ]
+    },
+    "WorkspaceFileSchema": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "text"
+            },
+            "sessionId": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]+$"
+            },
+            "path": {
+              "type": "string"
+            },
+            "size": {
+              "type": "number"
+            },
+            "text": {
+              "type": "string"
+            },
+            "truncated": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "kind",
+            "sessionId",
+            "path",
+            "size",
+            "text",
+            "truncated"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "image"
+            },
+            "sessionId": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]+$"
+            },
+            "path": {
+              "type": "string"
+            },
+            "size": {
+              "type": "number"
+            },
+            "mediaType": {
+              "enum": [
+                "image/png",
+                "image/jpeg",
+                "image/gif",
+                "image/webp",
+                "image/svg+xml"
+              ],
+              "type": "string"
+            },
+            "data": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "sessionId",
+            "path",
+            "size",
+            "mediaType",
+            "data"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "binary"
+            },
+            "sessionId": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]+$"
+            },
+            "path": {
+              "type": "string"
+            },
+            "size": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "kind",
+            "sessionId",
+            "path",
+            "size"
+          ]
+        }
+      ]
+    },
+    "WorkspaceListingSchema": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "git": {
+          "type": "boolean"
+        },
+        "commit": {
+          "type": "string"
+        },
+        "origin": {
+          "type": "string"
+        },
+        "paths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "changes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string"
+              },
+              "status": {
+                "enum": [
+                  "modified",
+                  "added",
+                  "deleted",
+                  "untracked"
+                ],
+                "type": "string"
+              },
+              "added": {
+                "type": "number"
+              },
+              "removed": {
+                "type": "number"
+              },
+              "binary": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "path",
+              "status"
+            ]
+          }
+        }
+      },
+      "required": [
+        "sessionId",
+        "git",
+        "commit",
+        "origin",
+        "paths",
+        "truncated",
+        "changes"
+      ]
+    },
+    "WsTicketResponseSchema": {
+      "type": "object",
+      "properties": {
+        "ticket": {
+          "type": "string"
+        },
+        "expiresInSec": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "ticket",
+        "expiresInSec"
+      ]
+    }
+  }
+}
