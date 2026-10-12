@@ -37,6 +37,7 @@ jobs:
             agent
             image
             scripts
+            deps
           requireScope: false
           subjectPattern: ^[A-Z].{0,49}$
           subjectPatternError: |

@@ -1,5 +1,6 @@
 # Every commit of a pull request carries a Signed-off-by line for its author (CONTRIBUTING.md, Developer
-# Certificate of Origin). No third-party app: the check reads the commits with the default read-only token.
+# Certificate of Origin), except commits by GitHub's own bots (Dependabot, the release pull request), which cannot
+# sign off. No third-party app: the check reads the commits with the default read-only token.
 name: DCO
 
 on:
@@ -25,6 +26,9 @@ jobs:
           missing=0
           for c in $(git rev-list --no-merges "$BASE..$HEAD"); do
             author=$(git log -1 --format='%an <%ae>' "$c")
+            case "$(git log -1 --format='%ae' "$c")" in
+              *'[bot]@users.noreply.github.com') continue ;;
+            esac
             if ! git log -1 --format=%B "$c" | grep -qiF "Signed-off-by: $author"; then
               echo "::error::$(git log -1 --format='%h %s' "$c") has no 'Signed-off-by: $author' (git commit -s)"
               missing=1
