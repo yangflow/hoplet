@@ -1,34 +1,35 @@
 name: Bug
-description: Hoplet does not behave as docs/spec.md says
+description: Hoplet does not behave as docs/spec.md says · Hoplet 的行为与 docs/spec.md 不符
 labels: ["fix", "needs-triage"]
 body:
   - type: markdown
     attributes:
       value: |
-        Report vulnerabilities privately (SECURITY.md), not here. Do not include tokens, private host names or
-        session content you would not publish.
+        Write in English or Chinese. Report vulnerabilities privately (SECURITY.md), not here. Do not include
+        tokens, private host names or session content you would not publish.
+        可以用中文填写。安全漏洞请按 SECURITY.md 私下报告，不要在这里提交；请勿包含令牌、私有主机名或不便公开的会话内容。
   - type: textarea
     id: what
     attributes:
-      label: What happened
-      description: One or two sentences; attach a screenshot or recording for UI issues.
+      label: What happened · 发生了什么
+      description: One or two sentences; attach a screenshot or recording for UI issues. 一两句话；界面问题请附截图或录屏。
     validations:
       required: true
   - type: textarea
     id: expected
     attributes:
-      label: What should happen
-      description: Link the part of docs/spec.md or docs/api.md that says so, when there is one.
+      label: What should happen · 期望的行为
+      description: Link the part of docs/spec.md or docs/api.md that says so, when there is one. 如有对应说明，请附上链接。
   - type: textarea
     id: steps
     attributes:
-      label: Steps to reproduce
+      label: Steps to reproduce · 复现步骤
       render: markdown
   - type: input
     id: versions
     attributes:
-      label: Versions
-      description: Core (GET /api/health), agent, Claude Code, host OS and browser.
+      label: Versions · 版本
+      description: Core (GET /api/health), agent, Claude Code, host OS and browser. 服务端、agent、Claude Code、系统和浏览器的版本。
       placeholder: "core 0.1.0 · agent 0.1.0 · Claude Code 2.1.x · macOS 27 · Chrome"
     validations:
       required: true

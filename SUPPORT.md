@@ -5,4 +5,6 @@
 - **Feature requests**: an issue with the Feature idea form (`CONTRIBUTING.md`).
 - **Vulnerabilities**: privately, as `SECURITY.md` says; never in a public issue.
 
+Write in English or Simplified Chinese (欢迎使用中文).
+
 Hoplet is maintained by one person in their own time; there is no paid support and no response time.

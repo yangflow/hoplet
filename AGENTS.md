@@ -83,6 +83,8 @@ scripts/check-version.sh            # VERSION, the package.json files and the ag
   `Co-Authored-By` for the agent.
 - **A decision that changes the architecture is an ADR**; a decision only the maintainer can make is an issue
   labelled `needs-decision` with the options, their cost and a recommendation.
+- **Follow the language of the thread**: issues, pull requests and replies may be in English or Simplified
+  Chinese (`CONTRIBUTING.md`); answer in the language the maintainer or contributor wrote in.
 - **Say what was verified**: report the commands run and their results, and what was not run, as they are.
 - **Do not fake what the environment forbids**: if a step cannot be done, stop and report.
 - **Never change the maintainer's saved settings** while testing; use flags and environment variables.
