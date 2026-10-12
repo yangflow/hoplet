@@ -1,8 +1,8 @@
 # Changelog
 
 Each release's notes are made from the titles of the pull requests merged since the previous one (Conventional
-Commits: `feat` under Added, `fix` under Fixed, `perf` under Performance; `GOVERNANCE.md`). Versions follow
-Semantic Versioning.
+Commits: `feat` under Added, `fix` under Fixed, `perf` under Performance; `release-please-config.json`).
+Versions follow Semantic Versioning.
 
 ## [0.1.1](https://github.com/yangflow/hoplet/compare/v0.1.0...v0.1.1) (2026-10-12)
 

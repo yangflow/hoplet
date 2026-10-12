@@ -2,7 +2,7 @@
 
 - Status: accepted
 - Date: 2026-10-12
-- Related: docs/threat-model.md, SECURITY.md, CONTRIBUTING.md, GOVERNANCE.md
+- Related: docs/threat-model.md, SECURITY.md, CONTRIBUTING.md
 
 ## Context
 
@@ -17,9 +17,9 @@ and their names must stay secret.
 
 The source is public under the Apache License 2.0 with a `NOTICE`, in `yangflow/hoplet` under the maintainer's
 personal account. It starts from one commit of the prepared tree; the earlier private history, issues and pull
-requests are not published. Contributions come under the same license with a Developer Certificate of Origin sign-off, without a
-contributor licence agreement. Features are proposed as issues before code and triaged like the maintainer's own
-(`GOVERNANCE.md`).
+requests are not published. Contributions come under the same license (Apache-2.0, section 5), without a
+contributor licence agreement or a sign-off. Features are proposed as issues before code and wait for the
+maintainer's agreement, like the maintainer's own (`CONTRIBUTING.md`).
 
 ## Cost
 

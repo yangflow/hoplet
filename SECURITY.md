@@ -3,7 +3,7 @@
 ## Reporting a vulnerability
 
 Report it privately through GitHub's private vulnerability reporting on this repository:
-https://github.com/yangflow/hoplet/security/advisories/new. Do not open a public issue, discussion or pull request
+https://github.com/yangflow/hoplet/security/advisories/new. Do not open a public issue or pull request
 for it.
 
 Include what is affected (core, agent or web UI, and the versions), how to reproduce it, and what an attacker
