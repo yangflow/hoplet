@@ -1,11 +1,11 @@
 # Keeps a release pull request open with the next version and its changelog, made from the Conventional Commit
 # titles merged into main (release-please-config.json). Merging it, which only the maintainer does, tags the
-# release and publishes its notes as a GitHub Release (GOVERNANCE.md, Releases).
+# release and publishes its notes as a GitHub Release (AGENTS.md, Releases).
 #
 # release-please acts with a token of the repository's release GitHub App (secrets RELEASE_APP_CLIENT_ID and
 # RELEASE_APP_PRIVATE_KEY), minted for this run and limited to this repository's contents and pull requests. A
 # pull request opened with the workflow's own token starts no workflows; one opened by the App runs CI like any
-# other, and its commits, authored by the App's bot, pass the DCO check.
+# other, so the required checks report on it.
 name: release
 
 on:
