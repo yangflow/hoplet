@@ -23,5 +23,5 @@ updates:
     commit-message: { prefix: ci, include: scope }
   - package-ecosystem: docker
     directory: /image
-    schedule: { interval: monthly }
+    schedule: { interval: weekly }
     commit-message: { prefix: build, include: scope }
