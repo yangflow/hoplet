@@ -1638,7 +1638,8 @@ function mintCard(state) {
 }
 
 function themeMini(s) {
-  const c = T[s];
+  // Escaped like any text that becomes markup, although the tokens are this file's own.
+  const c = Object.fromEntries(Object.entries(T[s]).map(([k, v]) => [k, esc(v)]));
   return `<div class="mini" style="background:${c['--color-bg']}">
     <div class="ms" style="background:${c['--color-sidebar']}"><i style="width:70%;background:${c['--color-accent']}"></i><i style="width:85%;background:${c['--color-line']}"></i><i style="width:60%;background:${c['--color-line']}"></i><i style="width:75%;background:${c['--color-line']}"></i></div>
     <div class="mc"><i style="width:70%;background:${c['--color-text']};opacity:.85"></i><i style="width:90%;background:${c['--color-text-3']};opacity:.5"></i><i style="width:55%;background:${c['--color-text-3']};opacity:.5"></i><span class="cb" style="background:${c['--color-raised']};box-shadow:${c['--shadow-float']}"></span></div>
