@@ -892,7 +892,7 @@ const iconArt = (v, s) => v === 'now'
   ? `<svg width="${s}" height="${s}" viewBox="0 0 64 64" aria-hidden="true"><rect x="4" y="4" width="56" height="56" rx="13" fill="#ff7a1a"/><path d="M21 43L43 21" stroke="#1c0d02" stroke-width="6" stroke-linecap="round"/><circle cx="43" cy="21" r="3.6" fill="#fff4e6"/></svg>`
   : `<svg width="${s}" height="${s}" viewBox="0 0 64 64" aria-hidden="true"><rect x="4" y="4" width="56" height="56" rx="10" fill="#d9620d"/><path d="M21 43L43 21" stroke="#1c0d02" stroke-width="4.5" stroke-linecap="round"/></svg>`;
 
-const esc = t => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const esc = t => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 const tip = t => ` title="${t}" aria-label="${t}"`;
 const ib = (icon, t, cls = '', off = false) => `<button class="ib ${cls}"${tip(t)}${off ? ' disabled' : ''}>${icon}</button>`;
 const glyph = (inner, t) => `<span class="gl" role="img"${tip(t)}>${inner}</span>`;
@@ -1542,7 +1542,8 @@ function mintCard(state) {
 }
 
 function themeMini(s) {
-  const c = T[s];
+  // Escaped like any text that becomes markup, although the tokens are this file's own.
+  const c = Object.fromEntries(Object.entries(T[s]).map(([k, v]) => [k, esc(v)]));
   return `<div class="mini" style="background:${c['--color-bg']}">
     <div class="ms" style="background:${c['--color-sidebar']}"><i style="width:70%;background:${c['--color-accent']}"></i><i style="width:85%;background:${c['--color-line']}"></i><i style="width:60%;background:${c['--color-line']}"></i><i style="width:75%;background:${c['--color-line']}"></i></div>
     <div class="mc"><i style="width:70%;background:${c['--color-text']};opacity:.85"></i><i style="width:90%;background:${c['--color-text-3']};opacity:.5"></i><i style="width:55%;background:${c['--color-text-3']};opacity:.5"></i><span class="cb" style="background:${c['--color-raised']};box-shadow:${c['--shadow-float']}"></span></div>
@@ -1725,9 +1726,14 @@ function systemSection() {
 
 const q = new URLSearchParams(location.search);
 const root = document.getElementById('root');
-if (q.get('state')) {
+// ?state= picks one of STATES; only the matching entry's own name reaches the markup, never the address's text.
+const solo = STATES.find(([s]) => s === q.get('state'));
+if (q.get('state') && !solo) {
   document.body.className = 'solo';
-  root.innerHTML = frame(q.get('state'), q.get('scheme') === 'light' ? 'light' : 'dark');
+  root.textContent = `Unknown state: ${q.get('state')}`;
+} else if (solo) {
+  document.body.className = 'solo';
+  root.innerHTML = frame(solo[0], q.get('scheme') === 'light' ? 'light' : 'dark');
 } else {
   document.body.className = 'stacked';
   const keys = Object.keys(T.dark);
