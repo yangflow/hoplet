@@ -4,6 +4,13 @@ Each release's notes are made from the titles of the pull requests merged since 
 Commits: `feat` under Added, `fix` under Fixed, `perf` under Performance; `release-please-config.json`).
 Versions follow Semantic Versioning.
 
+## [0.1.2](https://github.com/yangflow/hoplet/compare/v0.1.1...v0.1.2) (2026-10-12)
+
+
+### Fixed
+
+* **deps:** Bump lucide-react from 1.53.0 to 1.54.0 ([#59](https://github.com/yangflow/hoplet/issues/59)) ([f4ebabf](https://github.com/yangflow/hoplet/commit/f4ebabf9d9ee6d923479dee2344e912ba7f21670))
+
 ## [0.1.1](https://github.com/yangflow/hoplet/compare/v0.1.0...v0.1.1) (2026-10-12)
 
 
