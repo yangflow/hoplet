@@ -249,6 +249,12 @@ export function AddProject(props: {
         tabIndex={-1}
         aria-selected={row.path === selected}
         className={`dir${row.path === selected ? ' on' : ''}`}
+        onMouseDown={(e) => {
+          // The list keeps the focus (aria-activedescendant): a focused row would vanish when a folder opens,
+          // taking the focus to the page, and the next key would miss the dialog.
+          e.preventDefault();
+          listRef.current?.focus();
+        }}
         onClick={() => setSelected(row.path)}
         onDoubleClick={() => void openDir(row.path)}
         data-testid={row.group === 'recent' ? 'cockpit.add-recent' : 'cockpit.add-dir'}
