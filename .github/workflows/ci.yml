@@ -33,7 +33,7 @@ jobs:
         with:
           node-version-file: .node-version
           cache: pnpm
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v7
         with:
           go-version-file: agent/go.mod
       - run: pnpm install --frozen-lockfile
@@ -62,7 +62,7 @@ jobs:
         with:
           node-version-file: .node-version
           cache: pnpm
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v7
         with:
           go-version-file: agent/go.mod
       - name: Build the image
