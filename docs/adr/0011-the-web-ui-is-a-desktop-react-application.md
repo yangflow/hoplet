@@ -7,7 +7,7 @@
 ## Context
 
 The web UI is served by the core and used from desktop browsers on any machine, including Linux. Phones need
-notifications for permission requests and a native feel; a native client comes later (`ROADMAP.md`) and will use
+notifications for permission requests and a native feel; a native client comes later (`docs/roadmap.md`) and will use
 the same REST and WebSocket API.
 
 ## Decision

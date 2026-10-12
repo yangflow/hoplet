@@ -1,22 +1,12 @@
-<p align="center">
-  <img src="web/public/icon.svg" width="96" height="96" alt="Hoplet">
-</p>
+English | [中文](README.zh-CN.md)
 
-<h1 align="center">Hoplet</h1>
+# Hoplet
 
-<p align="center">
-  Self-hosted remote control and cross-machine handoff for coding-agent sessions, Claude Code first.
-</p>
+Self-hosted remote control and cross-machine handoff for coding-agent sessions, Claude Code first.
 
-<p align="center">
-  <a href="https://github.com/yangflow/hoplet/actions/workflows/ci.yml"><img src="https://github.com/yangflow/hoplet/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/github/license/yangflow/hoplet" alt="License: Apache-2.0"></a>
-  <a href="https://github.com/yangflow/hoplet/releases"><img src="https://img.shields.io/github/v/tag/yangflow/hoplet?label=version" alt="Version"></a>
-</p>
-
-<p align="center">
-  <b>English</b> · <a href="README.zh-CN.md">简体中文</a>
-</p>
+[![CI](https://github.com/yangflow/hoplet/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/yangflow/hoplet/actions/workflows/ci.yml)
+[![License: Apache-2.0](https://img.shields.io/github/license/yangflow/hoplet)](LICENSE)
+[![Latest release](https://img.shields.io/github/v/release/yangflow/hoplet)](https://github.com/yangflow/hoplet/releases/latest)
 
 ## Why Hoplet
 
@@ -73,7 +63,7 @@ formats and APIs may change without notice before 1.0.
   Claude Code 2.1.289 or newer.
 - The web UI is for desktop browsers. A native client for phones and the Mac comes later.
 
-What comes next is in [ROADMAP.md](ROADMAP.md).
+What comes next is in [docs/roadmap.md](docs/roadmap.md).
 
 ## Quick start
 
@@ -116,6 +106,15 @@ sessions Hoplet should sync, then open a session, or start a new one with **New 
 
 Every setting, the data on the host, upgrades and backups are in [docs/hosting.md](docs/hosting.md).
 
+## Usage
+
+- **Web UI**: open your Hoplet address in a desktop browser, enter the host token, pick a machine and a session,
+  and prompt, answer permission requests, interrupt or hand the session off from there ([docs/spec.md](docs/spec.md)).
+- **Host CLI**: `pnpm hoplet --help` lists the commands to list sessions and machines, prompt, interrupt, hand off
+  and add a machine; it reads `HOPLET_URL` and `HOPLET_TOKEN`.
+- **Agent CLI**: `hoplet-agent --help` lists the agent's commands: `daemon`, `projects` and `sessions`.
+- **Other clients**: the HTTP API and the browser WebSocket are in [docs/api.md](docs/api.md).
+
 ## Security
 
 Hoplet runs on your host and your machines and calls no outside service. The web UI and the CLI use the host
@@ -123,6 +122,20 @@ token; each agent has its own device token, stored hashed on the server. Claude 
 that owns the session, and only processes Hoplet started are controlled. What is protected, from whom and how is
 in [docs/threat-model.md](docs/threat-model.md). Please report vulnerabilities privately, as
 [SECURITY.md](SECURITY.md) explains.
+
+## Development
+
+You need Node.js 26 with pnpm 12, Go 1.27, Python 3 and Docker.
+
+```bash
+pnpm install --frozen-lockfile
+pnpm check                          # Biome, tsc, Vitest, boundaries, version, tokens, gofmt, go vet, go test
+pnpm e2e                            # every web UI state in both schemes, with axe
+pnpm e2e:image                      # end-to-end flows against the built image
+docker build -f image/Dockerfile -t hoplet:local .
+```
+
+[AGENTS.md](AGENTS.md) has the layout and every command; [docs/testing.md](docs/testing.md) explains the checks.
 
 ## Documentation
 
@@ -135,20 +148,15 @@ in [docs/threat-model.md](docs/threat-model.md). Please report vulnerabilities p
 | [docs/threat-model.md](docs/threat-model.md) | What is protected and how |
 | [docs/testing.md](docs/testing.md) | Checks, end-to-end tests and benchmarks |
 | [docs/adr/](docs/adr/README.md) | Architecture decisions and why |
+| [docs/roadmap.md](docs/roadmap.md) | What comes next |
 | [CHANGELOG.md](CHANGELOG.md) | Changes by release |
 
 ## Contributing
 
-Bug reports, ideas and pull requests are welcome. Please open an issue before working on a feature, sign off
-your commits (`git commit -s`, the Developer Certificate of Origin) and say whether an AI tool helped.
-[CONTRIBUTING.md](CONTRIBUTING.md) has the details and the development setup; [GOVERNANCE.md](GOVERNANCE.md)
-explains how decisions, triage and releases work. Hoplet is mostly built by its maintainer working with AI coding
-agents, which follow [AGENTS.md](AGENTS.md).
-
-## Support
-
-Questions go to [GitHub Discussions](https://github.com/yangflow/hoplet/discussions); bugs to
-[issues](https://github.com/yangflow/hoplet/issues). See [SUPPORT.md](SUPPORT.md).
+Bug reports, questions, ideas and pull requests are welcome, in English or Simplified Chinese, through
+[issues](https://github.com/yangflow/hoplet/issues). Please open an issue before working on a feature and say
+whether an AI tool helped. [CONTRIBUTING.md](CONTRIBUTING.md) has the details. Hoplet is mostly built by its
+maintainer working with AI coding agents, which follow [AGENTS.md](AGENTS.md).
 
 ## License
 

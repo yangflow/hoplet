@@ -1,7 +1,7 @@
 # AGENTS.md
 
-The brief for AI coding agents working on Hoplet for its maintainer. Contributors start at `CONTRIBUTING.md`; this
-file adds what an agent working on the maintainer's behalf must also do.
+The brief for AI coding agents working on Hoplet for its maintainer: what it is, where things are, the commands,
+the conventions and the red lines.
 
 ## What it is
 
@@ -20,8 +20,7 @@ a TypeScript core (one container image with the web UI) and a Go agent on each d
 - The contract with the user's host: [`docs/hosting.md`](docs/hosting.md).
 - What is protected and how: [`docs/threat-model.md`](docs/threat-model.md).
 - Design language: [`docs/design.md`](docs/design.md); screens and mockups: [`design/README.md`](design/README.md).
-- Why: [`docs/adr/`](docs/adr/README.md). What next: [`ROADMAP.md`](ROADMAP.md) and the GitHub milestones.
-- How decisions, triage and releases work: [`GOVERNANCE.md`](GOVERNANCE.md).
+- Why: [`docs/adr/`](docs/adr/README.md). What next: [`docs/roadmap.md`](docs/roadmap.md).
 
 Documents win over code: if they disagree, fix the document first and say so in the pull request.
 
@@ -34,7 +33,7 @@ web/       the web UI: screens/, components/, lib/, design tokens, i18n
 agent/     the Go daemon: cmd/hoplet-agent + internal/{config,provider,projects,sessions,locate,daemon,sync,runtime,workspace}
 image/     the Dockerfile and the compose file
 scripts/   repository checks, fixtures, benchmarks, smoke test, host CLI `hoplet`, and their tests
-docs/      spec, architecture, API, hosting, threat model, design language, testing, ADRs, benchmarks
+docs/      spec, architecture, API, hosting, threat model, design language, testing, roadmap, ADRs, benchmarks
 design/    mockups, design tokens and the app icon
 ```
 
@@ -53,7 +52,7 @@ pnpm hoplet --help                  # host CLI (HOPLET_URL + HOPLET_TOKEN)
 pnpm schema                         # regenerate docs/schema/hoplet-api.schema.json; pnpm check fails when it is stale
 docker build -f image/Dockerfile -t hoplet:local .
 ./scripts/smoke.sh                  # end to end: core + agent + generated fixture sessions
-scripts/check-version.sh            # VERSION, the package.json files and the agent agree (releases: GOVERNANCE.md)
+scripts/check-version.sh            # VERSION, the package.json files and the agent agree
 ```
 
 ## Project rules
@@ -70,28 +69,36 @@ scripts/check-version.sh            # VERSION, the package.json files and the ag
 - Documents and code state what is true now. No notes about earlier behaviour, compatibility shims or
   "previously" wording; history is in Git.
 
-## How an agent works here
+## Conventions
 
-- **Start from the documents** above, then the code. A feature starts from an accepted issue and its text in
-  `docs/spec.md`; a new screen or a redesign starts as a mockup in `design/screens/` with two or three directions.
-  No UI code before the maintainer signs the mockup off; never record a sign-off or an acceptance the maintainer
-  did not state.
+- **Start from the documents** above, then the code. A feature starts from an issue the maintainer agreed to and
+  its text in `docs/spec.md`.
+- A UI change starts from the mockup in design/; the maintainer confirms the visual direction before UI code is
+  written. A new screen or a redesign gets two or three directions in `design/screens/`; never claim a
+  confirmation the maintainer did not give.
 - **Complete what contributors may leave out**: in the maintainer's pull requests, documents, Simplified Chinese
   strings (`web/src/i18n/zh-Hans.json`) and tests change with the code. Before an outside pull request merges,
   add what it left out.
-- **Small pull requests**, one concern each, titled as Conventional Commits (`CONTRIBUTING.md`); commits carry
-  `Co-Authored-By` for the agent.
-- **A decision that changes the architecture is an ADR**; a decision only the maintainer can make is an issue
-  labelled `needs-decision` with the options, their cost and a recommendation.
+- **Small pull requests**, one concern each, on a branch named `<type>/<issue>-<slug>`. Commit messages and pull
+  request titles are Conventional Commits: `feat|fix|docs|refactor|perf|test|build|ci|chore|revert(scope)!: subject`,
+  with the scope `core`, `shared`, `web`, `agent`, `image`, `scripts` or `deps` when one fits. The maintainer
+  squash-merges, so the title becomes the commit and the changelog line. Commits carry `Co-Authored-By` for the
+  agent; no sign-off.
+- **Releases**: release-please keeps a release pull request open on `main` and computes the version from the
+  merged titles (`feat` raises the minor version before 1.0, `fix` and `perf` the patch), writing `VERSION`, the
+  `package.json` files, the agent and `CHANGELOG.md` (`release-please-config.json`). Do not edit `CHANGELOG.md` or
+  the version by hand; only the maintainer merges the release pull request.
+- **A decision that changes the architecture is an ADR** in `docs/adr/`; a decision only the maintainer can make
+  goes into an issue with the options, their cost and a recommendation.
 - **Follow the language of the thread**: issues, pull requests and replies may be in English or Simplified
-  Chinese (`CONTRIBUTING.md`); answer in the language the maintainer or contributor wrote in.
+  Chinese; answer in the language the maintainer or contributor wrote in.
 - **Say what was verified**: report the commands run and their results, and what was not run, as they are.
 - **Do not fake what the environment forbids**: if a step cannot be done, stop and report.
 - **Never change the maintainer's saved settings** while testing; use flags and environment variables.
 
 ## Red lines
 
-- Credentials never appear in code, pull requests, issues, logs, reports or chat.
-- Sending anything to an external service, publishing, releasing, signing and deleting anything that is not your
-  own need the maintainer's confirmation each time.
-- No blind staging (`git add -A`, `git commit -a`): check the file list.
+- Credentials never go into code, pull requests, issues, logs, reports or chat.
+- Releases, signing, publishing, anything sent to an external service and deleting anything that is not your own
+  need the maintainer's confirmation each time.
+- No blind `git add -A` or `git commit -a` of unknown files: stage explicit paths and check the file list.

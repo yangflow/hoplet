@@ -1,22 +1,12 @@
-<p align="center">
-  <img src="web/public/icon.svg" width="96" height="96" alt="Hoplet">
-</p>
+[English](README.md) | 中文
 
-<h1 align="center">Hoplet</h1>
+# Hoplet
 
-<p align="center">
-  自托管的编程 agent 会话远程控制与跨机器交接工具，首先支持 Claude Code。
-</p>
+自托管的编程 agent 会话远程控制与跨机器交接工具，首先支持 Claude Code。
 
-<p align="center">
-  <a href="https://github.com/yangflow/hoplet/actions/workflows/ci.yml"><img src="https://github.com/yangflow/hoplet/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/github/license/yangflow/hoplet" alt="License: Apache-2.0"></a>
-  <a href="https://github.com/yangflow/hoplet/releases"><img src="https://img.shields.io/github/v/tag/yangflow/hoplet?label=version" alt="Version"></a>
-</p>
-
-<p align="center">
-  <a href="README.md">English</a> · <b>简体中文</b>
-</p>
+[![CI](https://github.com/yangflow/hoplet/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/yangflow/hoplet/actions/workflows/ci.yml)
+[![License: Apache-2.0](https://img.shields.io/github/license/yangflow/hoplet)](LICENSE)
+[![Latest release](https://img.shields.io/github/v/release/yangflow/hoplet)](https://github.com/yangflow/hoplet/releases/latest)
 
 ## 为什么做 Hoplet
 
@@ -57,7 +47,7 @@ Hoplet 在你的每台开发机上运行一个 agent，在你自己的主机上�
 - 服务端运行在装有 Docker 的 Linux 或 macOS 上（x86_64 或 arm64）。agent 运行在 macOS（已测试）和 Linux 上，需要 Claude Code 2.1.289 或更新的版本。
 - 网页界面面向桌面浏览器。手机和 Mac 的原生客户端以后再做。
 
-接下来的计划见 [ROADMAP.md](ROADMAP.md)。
+接下来的计划见 [docs/roadmap.md](docs/roadmap.md)。
 
 ## 快速开始
 
@@ -95,9 +85,30 @@ mkdir -p ~/.hoplet && $EDITOR ~/.hoplet/config.json   # 粘贴上一步打印出
 
 所有配置项、主机上存储的数据、升级和备份，见 [docs/hosting.md](docs/hosting.md)。
 
+## 使用
+
+- **网页界面**：在桌面浏览器里打开你的 Hoplet 地址，输入主机令牌，选择机器和会话，就可以发送提示、回答权限请求、中断或交接会话（见 [docs/spec.md](docs/spec.md)）。
+- **主机命令行**：`pnpm hoplet --help` 列出相关命令：列出会话和机器、发送提示、中断、交接、添加机器；它读取 `HOPLET_URL` 和 `HOPLET_TOKEN`。
+- **agent 命令行**：`hoplet-agent --help` 列出 agent 的命令：`daemon`、`projects` 和 `sessions`。
+- **其他客户端**：HTTP API 和浏览器 WebSocket 见 [docs/api.md](docs/api.md)。
+
 ## 安全
 
 Hoplet 只运行在你的主机和你的机器上，不调用任何外部服务。网页界面和命令行工具使用主机令牌；每个 agent 有自己的设备令牌，服务端只保存它的哈希值。Claude Code 只在拥有该会话的机器上运行，而且 Hoplet 只控制它自己启动的进程。保护了什么、防范谁、怎么防范，见 [docs/threat-model.md](docs/threat-model.md)。发现漏洞请按 [SECURITY.md](SECURITY.md) 的说明私下报告。
+
+## 开发
+
+需要 Node.js 26 和 pnpm 12、Go 1.27、Python 3 以及 Docker。
+
+```bash
+pnpm install --frozen-lockfile
+pnpm check                          # Biome、tsc、Vitest、边界、版本、设计令牌、gofmt、go vet、go test
+pnpm e2e                            # 网页界面的每个状态，两种配色，带 axe
+pnpm e2e:image                      # 针对构建出的镜像运行端到端流程
+docker build -f image/Dockerfile -t hoplet:local .
+```
+
+目录结构和全部命令见 [AGENTS.md](AGENTS.md)；各项检查的说明见 [docs/testing.md](docs/testing.md)。
 
 ## 文档
 
@@ -112,15 +123,12 @@ Hoplet 只运行在你的主机和你的机器上，不调用任何外部服务�
 | [docs/threat-model.md](docs/threat-model.md) | 保护了什么、怎么保护 |
 | [docs/testing.md](docs/testing.md) | 检查、端到端测试和性能基准 |
 | [docs/adr/](docs/adr/README.md) | 架构决策及其理由 |
+| [docs/roadmap.md](docs/roadmap.md) | 接下来的计划 |
 | [CHANGELOG.md](CHANGELOG.md) | 各版本的变更 |
 
 ## 参与贡献
 
-欢迎提交 bug、想法和 pull request。动手做新功能之前请先开 issue 讨论；每个提交都需要签名（`git commit -s`，即开发者原创声明 DCO）；如果用了 AI 工具，请在 PR 里说明。详细要求和开发环境搭建见 [CONTRIBUTING.md](CONTRIBUTING.md)；怎么做决定、怎么分诊、怎么发布，见 [GOVERNANCE.md](GOVERNANCE.md)。Hoplet 主要由维护者和 AI 编程 agent 协作开发，AI 遵循的规则写在 [AGENTS.md](AGENTS.md) 里。
-
-## 获取帮助
-
-提问请到 [GitHub Discussions](https://github.com/yangflow/hoplet/discussions)；报告 bug 请开 [issue](https://github.com/yangflow/hoplet/issues)。详见 [SUPPORT.md](SUPPORT.md)。
+欢迎通过 [issue](https://github.com/yangflow/hoplet/issues) 提交 bug、问题、想法，也欢迎提交 pull request，中英文均可。动手做新功能之前请先开 issue 讨论；如果用了 AI 工具，请在 PR 里说明。详细要求见 [CONTRIBUTING.md](CONTRIBUTING.md)。Hoplet 主要由维护者和 AI 编程 agent 协作开发，AI 遵循的规则写在 [AGENTS.md](AGENTS.md) 里。
 
 ## 许可证
 

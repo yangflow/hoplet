@@ -1,27 +1,26 @@
 # Design
 
-## Viewing
+The mockups, design tokens and app icon behind Hoplet's web UI. The design language is described in
+[docs/design.md](../docs/design.md); what each screen does is in [docs/spec.md](../docs/spec.md).
 
-Open a mockup in a browser (`design/screens/<screen>.html`, or `<screen>.direction-<x>.html` while directions are
-compared): it shows every state stacked, in light and dark; `?state=<id>&scheme=light|dark` shows one window at
-real size. `design/tokens.html` shows the design tokens, which `design/check-tokens.py` keeps in step with
-`web/src/design/tokens.css`; `design/mark.html` is the app icon and the web UI's mark.
+## What is here
 
-## Screens
+- `screens/<screen>.html`: one mockup per screen (`cockpit`, `workspace`, `settings`) with every state, in light
+  and dark. The built screens live in `web/src/screens/<screen>/`.
+- `tokens.html`: every design token, with the JSON block that `check-tokens.py` compares with
+  `web/src/design/tokens.css`.
+- `mark.html`: the app icon and the web UI's mark; the exported icon is `web/public/icon.svg`.
+- `fonts/`: Inter and JetBrains Mono with their licenses, used by the mockups.
 
-| Screen | Spec | Mockup | Code | State |
-|---|---|---|---|---|
-| cockpit | `docs/spec.md#hoplet` | `screens/cockpit.html` | `web/src/screens/cockpit/` | built |
-| workspace | `docs/spec.md#workspace-inspector` | `screens/workspace.html` | `web/src/screens/workspace/` | built |
-| settings | `docs/spec.md#settings` | `screens/settings.html` | | designed |
+## Previewing
 
-## How a screen is made
+Open a mockup in a browser. It shows every state stacked; `?state=<id>&scheme=light|dark` shows one window at real
+size. In the running app, every state of a built screen renders at `/__states/<screen>/<state>` (`pnpm dev:web`).
 
-1. The screen and its states are written in `docs/spec.md`.
-2. A new screen or a redesign gets two or three directions as mockups; a small change edits the mockup in place.
-   The maintainer chooses one in a pull request that contains only the mockup.
-3. The screen is built in its code directory, with every state renderable at `/__states/<screen>/<state>` and
-   covered by `pnpm e2e` with axe in both schemes (`docs/testing.md`).
-4. The maintainer checks it in the running product before the pull request merges. No captures are kept.
+## Checking and regenerating
 
-Mockups, code and spec change together: when one changes, the others follow in the same pull request.
+- `python3 design/check-tokens.py` checks that the tokens in `tokens.html` match `web/src/design/tokens.css`;
+  `pnpm check` runs it.
+- The icon is drawn in `mark.html`; when it changes, update `web/public/icon.svg` from it by hand.
+
+A UI change starts from the mockup here; mockups, code and spec change together in the same pull request.

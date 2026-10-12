@@ -5,41 +5,49 @@ anyone are welcome, and this page is all you need to make one.
 
 ## Languages
 
-Issues, discussions, pull requests, commit messages and reviews may be in English or Simplified Chinese; write in
-the one you are comfortable with, and replies follow the language of the thread.
-欢迎使用中文或英文提交 issue、参与讨论、提交 PR 和撰写提交信息，回复会跟随所在讨论使用的语言。
+Issues, pull requests, commit messages and reviews may be in English or Simplified Chinese; write in the one you
+are comfortable with, and replies follow the language of the thread.
+欢迎使用中文或英文提交 issue、PR 和撰写提交信息，回复会跟随所在讨论使用的语言。
 
 ## Before you write code
 
-- **Bugs**: open an issue with the Bug form: what you did, what happened, what you expected, and the versions.
-- **Features**: open an issue with the Feature idea form first and wait for it to be accepted (`GOVERNANCE.md`).
-  Hoplet builds only what serves its two goals (docs/spec.md#decisions); a pull request for a feature nobody agreed
-  on may be closed.
-- **Questions**: GitHub Discussions (`SUPPORT.md`).
-- **Vulnerabilities**: never in public (`SECURITY.md`).
+- Search the existing [issues](https://github.com/yangflow/hoplet/issues) and pull requests first.
+- **Bugs**: open an issue: what you did, what happened, what you expected, and the versions of the core, the agent
+  and Claude Code.
+- **Features and large changes**: open an issue first and wait for the maintainer to agree before you build it.
+  Hoplet builds only what serves its two goals ([docs/spec.md](docs/spec.md#decisions)); a pull request for a
+  feature nobody agreed on may be closed. Small fixes can go straight to a pull request.
+- **Questions**: open an issue.
+- **Vulnerabilities**: never in public; report them privately as [SECURITY.md](SECURITY.md) explains.
+
+## Development setup
+
+You need Node.js 26 (`.node-version`) with pnpm 12, Go 1.27 (`agent/go.mod`), Python 3 for the design tokens check,
+and Docker for the image and its end-to-end tests. `AGENTS.md` has the layout, every command and the rules the code
+must keep (the byte cursor, pages and blocks, control before bulk, the wire protocol on both sides).
 
 ## Making a change
 
-1. Read `AGENTS.md` for the layout, the commands and the rules the code must keep (the byte cursor, pages and
-   blocks, control before bulk, the wire protocol on both sides).
-2. Branch from `main`; keep the pull request to one concern, ideally under 400 changed lines.
-3. Sign off every commit with `git commit -s`: the `Signed-off-by` line certifies the
-   [Developer Certificate of Origin](https://developercertificate.org/). The DCO check fails without it.
-4. Run the checks (`docs/testing.md`):
+1. Fork the repository and branch from `main`, named `<type>/<issue>-<slug>`, for example
+   `fix/42-sidebar-refresh`.
+2. Keep the pull request to one concern, ideally under 400 changed lines.
+3. Run the checks (`docs/testing.md`) and make sure they pass:
 
    ```bash
    pnpm install --frozen-lockfile
-   pnpm check      # Biome, tsc, Vitest, boundaries, version, tokens, go vet and test
+   pnpm check      # Biome, tsc, Vitest, boundaries, version, tokens, gofmt, go vet and go test
    pnpm e2e        # every web UI state in both schemes, with axe
    ```
 
-5. Title the pull request as a [Conventional Commit](https://www.conventionalcommits.org/): `type(scope): Subject`,
-   with the type `feat`, `fix`, `perf`, `refactor`, `docs`, `test`, `build`, `ci` or `chore`, the scope one of
-   `core`, `shared`, `web`, `agent`, `image` or `scripts` (`deps` for dependency updates), and a subject of at most 50 characters,
-   in English (an imperative sentence starting with a capital letter) or in Chinese. Pull requests are squash-merged, so the title becomes the commit, and the changelog and the next
-   version are made from those titles.
-6. Fill in the template: what, why, how you verified it, what you did not run. Leave "Allow edits by maintainers"
-   on.
+4. Use [Conventional Commits](https://www.conventionalcommits.org/) for commit messages and the pull request title:
+   `feat|fix|docs|refactor|perf|test|build|ci|chore|revert(scope)!: subject`. Scopes in use are `core`, `shared`,
+   `web`, `agent`, `image` and `scripts` (`deps` for dependency updates); the scope is optional. Write the subject
+   as a short imperative sentence, for example `fix(web): Keep the focus on the folder list`.
+5. Open the pull request, link the issue with `Closes #<n>`, and say what changed, why, how you verified it and
+   what you did not run. Leave "Allow edits by maintainers" on.
+
+Pull requests are squash-merged by the maintainer, so the title becomes the commit, and the changelog and the next
+version are made from those titles. No DCO or sign-off is required.
 
 ## What the maintainer finishes for you
 
@@ -60,5 +68,4 @@ have run every line you submit. You are responsible for the change as its author
 
 ## License
 
-By contributing you agree that your contribution is licensed under the Apache License 2.0 (`LICENSE`), as the
-sign-off certifies.
+By contributing you agree that your contribution is licensed under the Apache License 2.0 ([LICENSE](LICENSE)).

@@ -47,11 +47,6 @@
       "type": "chore",
       "section": "Chores",
       "hidden": true
-    },
-    {
-      "type": "design",
-      "section": "Design",
-      "hidden": true
     }
   ],
   "packages": {

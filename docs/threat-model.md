@@ -47,7 +47,7 @@
 | Secrets in logs | core, agent | Logs carry IDs, sizes and codes, never content or tokens; a test feeds known secrets through every log path | `core/test/log.test.ts` |
 | Container escape | proxy ↔ core | UID 10001, read-only root, `cap_drop: ALL`, `no-new-privileges`, only `/data` and `/tmp` writable | `image/compose.yaml` review |
 | A weakness found by reading the public source | every boundary | No secret in the design: tokens are minted per install and stored hashed, no key is in the tree (secret scan before publication); vulnerabilities are reported privately (`SECURITY.md`) | gitleaks over the published tree; `SECURITY.md` |
-| A contribution that adds a backdoor or a hostile dependency | repository | The maintainer reviews every pull request (`.github/CODEOWNERS`); dependencies are pinned to exact versions in the lockfile and `go.mod` and listed in `THIRD_PARTY.md`; commits carry a DCO sign-off; workflows of pull requests from forks get no secrets and a read-only token | review; `pnpm install --frozen-lockfile` in CI; `.github/workflows/dco.yml` |
+| A contribution that adds a backdoor or a hostile dependency | repository | The maintainer reviews every pull request (`.github/CODEOWNERS`); dependencies are pinned to exact versions in the lockfile and `go.mod` and listed in `THIRD_PARTY.md`; workflows of pull requests from forks get no secrets and a read-only token | review; `pnpm install --frozen-lockfile` in CI |
 
 ## Accepted risks
 
