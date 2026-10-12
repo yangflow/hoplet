@@ -38,8 +38,9 @@ keeps its file and points to the one that replaced it.
 release-please keeps a pull request titled `chore: Release <version>` open on `main`: from the Conventional Commit
 titles merged since the last release it computes the next version (`feat` raises the minor version before 1.0,
 `fix` and `perf` the patch), writes it to `VERSION`, the `package.json` files and the agent, and adds the release's
-notes to `CHANGELOG.md` (`release-please-config.json`). The maintainer merges that pull request to release: the
-merge tags `v<version>` and publishes the GitHub Release. Publishing an image needs the maintainer each time.
+notes to `CHANGELOG.md` (`release-please-config.json`). It acts as the repository's release GitHub App, so the
+release pull request runs the same checks as any other. The maintainer merges it to release: the merge tags
+`v<version>` and publishes the GitHub Release. Publishing an image needs the maintainer each time.
 
 ## Conduct
 

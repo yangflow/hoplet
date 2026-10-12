@@ -1,6 +1,11 @@
 # Keeps a release pull request open with the next version and its changelog, made from the Conventional Commit
 # titles merged into main (release-please-config.json). Merging it, which only the maintainer does, tags the
 # release and publishes its notes as a GitHub Release (GOVERNANCE.md, Releases).
+#
+# release-please acts with a token of the repository's release GitHub App (secrets RELEASE_APP_ID and
+# RELEASE_APP_PRIVATE_KEY), minted for this run and limited to this repository's contents and pull requests. A
+# pull request opened with the workflow's own token starts no workflows; one opened by the App runs CI like any
+# other, and its commits, authored by the App's bot, pass the DCO check.
 name: release
 
 on:
@@ -8,15 +13,23 @@ on:
     branches: [main]
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
 
 jobs:
   release-please:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      - id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          repositories: hoplet
+          permission-contents: write
+          permission-pull-requests: write
       - uses: googleapis/release-please-action@v5
         with:
+          token: ${{ steps.app-token.outputs.token }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
