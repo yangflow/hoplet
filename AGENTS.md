@@ -96,6 +96,26 @@ scripts/check-version.sh            # VERSION, the package.json files and the ag
 - **Do not fake what the environment forbids**: if a step cannot be done, stop and report.
 - **Never change the maintainer's saved settings** while testing; use flags and environment variables.
 
+## Issues and pull requests
+
+`gh issue create` and `gh pr create --body` skip the issue forms and the pull request template, so write their
+structure yourself. Search open issues first; one issue is one problem.
+
+- Issue title: one short sentence that says the problem or the outcome, in English or Simplified Chinese. No type
+  prefix such as `[feat]`; the label carries the type.
+- Bug, `--label bug`: `## What happened`, `## What you expected`, `## Steps to reproduce`,
+  `## Version and environment`.
+- Feature or improvement, `--label enhancement`: `## Problem`, `## Proposed solution`,
+  `## Alternatives considered` (when there were any), `## Done when`.
+- Documentation, `--label documentation`: `## Where`, `## What is missing, unclear or wrong`, `## Suggested change`.
+- Labels: add the `scope:*` label of each area touched (`scope:core`, `scope:shared`, `scope:web`, `scope:agent`,
+  `scope:image`, `scope:scripts`); `security` marks trust-boundary work; `overview` is only for the roadmap issues.
+- Pull request: the title is the Conventional Commits subject (it becomes the squash commit). The body has
+  `## Summary` (what changes and why), `## Related issue` (`Closes #<n>`), `## How tested` (the commands run and
+  their results, and what was not run) and `## Checklist`:
+  `- [ ] PR title follows Conventional Commits`, `- [ ] Tests pass`,
+  `- [ ] Documentation updated where behavior changed`, ticked only when true.
+
 ## Red lines
 
 - Credentials never go into code, pull requests, issues, logs, reports or chat.
