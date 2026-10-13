@@ -12,7 +12,7 @@ import {
   sortSessions,
   VIEWS_KEY,
   viewKey,
-} from '../src/screens/cockpit/sidebar-view.ts';
+} from '../src/screens/cockpit/sidebar/sidebar-view.ts';
 import { TopBar } from '../src/screens/cockpit/topbar.tsx';
 
 const memory = () => {

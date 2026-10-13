@@ -1,8 +1,8 @@
 import { type KeyboardEvent, useCallback, useEffect, useId, useRef, useState } from 'react';
-import { IconButton } from '../../components/IconButton.tsx';
-import { Icon } from '../../components/icons.tsx';
-import { Popover } from '../../components/Popover.tsx';
-import { t } from '../../lib/i18n.ts';
+import { IconButton } from '../../../components/IconButton.tsx';
+import { Icon } from '../../../components/icons.tsx';
+import { Popover } from '../../../components/Popover.tsx';
+import { t } from '../../../lib/i18n.ts';
 import { type MachineView, ORGANIZE, type Organize, SORTS, type Sort } from './sidebar-view.ts';
 
 const organizeLabel = (o: Organize): string => ({ folder: t('By folder'), flat: t('Flat') })[o];

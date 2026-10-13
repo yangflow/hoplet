@@ -6,7 +6,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { ApiError } from '../src/lib/errors.ts';
 import { emitLive } from '../src/lib/live.ts';
-import { Conversation } from '../src/screens/cockpit/conversation.tsx';
+import { Conversation } from '../src/screens/cockpit/conversation/conversation.tsx';
 
 const api = vi.hoisted(() => ({
   fetchLines: vi.fn(),

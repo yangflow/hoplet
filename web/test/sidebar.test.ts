@@ -3,11 +3,11 @@ import type { LiveSessionMeta } from '@hoplet/shared';
 import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { FOLDED_KEY } from '../src/screens/cockpit/folded-dirs.ts';
 import { buildTree } from '../src/screens/cockpit/group.ts';
 import type { RuntimeState } from '../src/screens/cockpit/model.ts';
-import { Sidebar } from '../src/screens/cockpit/sidebar.tsx';
-import { VIEWS_KEY } from '../src/screens/cockpit/sidebar-view.ts';
+import { FOLDED_KEY } from '../src/screens/cockpit/sidebar/folded-dirs.ts';
+import { Sidebar } from '../src/screens/cockpit/sidebar/sidebar.tsx';
+import { VIEWS_KEY } from '../src/screens/cockpit/sidebar/sidebar-view.ts';
 
 let root: Root;
 let host: HTMLDivElement;

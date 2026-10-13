@@ -1,10 +1,10 @@
 import type { FullBlock } from '@hoplet/shared';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { IconButton } from '../../components/IconButton.tsx';
-import { Icon, Spinner } from '../../components/icons.tsx';
-import { fetchBlock } from '../../lib/api.ts';
-import { errorText } from '../../lib/errors.ts';
-import { t } from '../../lib/i18n.ts';
+import { IconButton } from '../../../components/IconButton.tsx';
+import { Icon, Spinner } from '../../../components/icons.tsx';
+import { fetchBlock } from '../../../lib/api.ts';
+import { errorText } from '../../../lib/errors.ts';
+import { t } from '../../../lib/i18n.ts';
 import { formatBytes } from './format.ts';
 import { linesOf, OutputWell } from './OutputWell.tsx';
 import type { Elided } from './turns.ts';

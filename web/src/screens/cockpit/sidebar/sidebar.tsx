@@ -1,17 +1,17 @@
 import type { LiveSessionMeta } from '@hoplet/shared';
 import { type ReactNode, useEffect, useMemo, useRef } from 'react';
-import { Badge } from '../../components/Badge.tsx';
-import { IconButton } from '../../components/IconButton.tsx';
-import { HopletMark, Icon, Spinner } from '../../components/icons.tsx';
-import { ProviderMark } from '../../components/provider-marks.tsx';
-import { Row } from '../../components/Row.tsx';
-import { t } from '../../lib/i18n.ts';
+import { Badge } from '../../../components/Badge.tsx';
+import { IconButton } from '../../../components/IconButton.tsx';
+import { HopletMark, Icon, Spinner } from '../../../components/icons.tsx';
+import { ProviderMark } from '../../../components/provider-marks.tsx';
+import { Row } from '../../../components/Row.tsx';
+import { t } from '../../../lib/i18n.ts';
+import type { DeviceGroup } from '../group.ts';
+import { type GlyphState, glyphState, type RuntimeState } from '../model.ts';
+import { stateName } from '../runtime.ts';
 import { DEVICE_ROW, dirKey, useFoldedDirs } from './folded-dirs.ts';
-import type { DeviceGroup } from './group.ts';
 import { MachineMenu } from './machine-menu.tsx';
-import { type GlyphState, glyphState, type RuntimeState } from './model.ts';
 import { compactRel } from './rel.ts';
-import { stateName } from './runtime.ts';
 import {
   flatList,
   type MachineViews,

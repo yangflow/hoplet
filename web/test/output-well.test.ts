@@ -2,7 +2,11 @@
 import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { linesOf, OutputWell, WELL_LINES } from '../src/screens/cockpit/OutputWell.tsx';
+import {
+  linesOf,
+  OutputWell,
+  WELL_LINES,
+} from '../src/screens/cockpit/conversation/OutputWell.tsx';
 
 let root: Root;
 let host: HTMLDivElement;

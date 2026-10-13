@@ -1,7 +1,7 @@
 import type { Entry, LinesPage } from '@hoplet/shared';
 import { describe, expect, it, vi } from 'vitest';
-import { LIMITS } from '../src/screens/cockpit/page-cache.ts';
-import { type Fetcher, SessionReader } from '../src/screens/cockpit/reader.ts';
+import { LIMITS } from '../src/screens/cockpit/conversation/page-cache.ts';
+import { type Fetcher, SessionReader } from '../src/screens/cockpit/conversation/reader.ts';
 
 const SID = '11111111-2222-4333-8444-555555555555';
 

@@ -9,7 +9,7 @@ import {
   saveFolded,
   toggled,
   useFoldedDirs,
-} from '../src/screens/cockpit/folded-dirs.ts';
+} from '../src/screens/cockpit/sidebar/folded-dirs.ts';
 
 const memory = () => {
   const data = new Map<string, string>();

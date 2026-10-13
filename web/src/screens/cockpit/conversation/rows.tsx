@@ -1,7 +1,7 @@
 import { Fragment, type ReactNode } from 'react';
-import { IconButton } from '../../components/IconButton.tsx';
-import { Icon, Spinner } from '../../components/icons.tsx';
-import { t } from '../../lib/i18n.ts';
+import { IconButton } from '../../../components/IconButton.tsx';
+import { Icon, Spinner } from '../../../components/icons.tsx';
+import { t } from '../../../lib/i18n.ts';
 import { StoredElided } from './blocks.tsx';
 import { Tokens } from './code.tsx';
 import { clock, formatBytes, formatDuration } from './format.ts';

@@ -14,7 +14,7 @@ import { IconButton } from '../../components/IconButton.tsx';
 import { Icon, Spinner } from '../../components/icons.tsx';
 import { Popover } from '../../components/Popover.tsx';
 import { t } from '../../lib/i18n.ts';
-import { clock } from '../cockpit/format.ts';
+import { clock } from '../cockpit/conversation/format.ts';
 import type { Handoff, HandoffFixture } from './handoff.ts';
 import { HandoffPanel } from './handoff-panel.tsx';
 import { ChangesList, FilesTree } from './lists.tsx';

@@ -6,10 +6,10 @@ import {
   useRef,
   useState,
 } from 'react';
-import { IconButton } from '../../components/IconButton.tsx';
-import { Icon } from '../../components/icons.tsx';
-import { t } from '../../lib/i18n.ts';
-import type { ComposerView } from './runtime.ts';
+import { IconButton } from '../../../components/IconButton.tsx';
+import { Icon } from '../../../components/icons.tsx';
+import { t } from '../../../lib/i18n.ts';
+import type { ComposerView } from '../runtime.ts';
 
 const MAX_ROWS_PX = 168;
 

@@ -15,21 +15,22 @@ import {
   useWorkspaceData,
   type WorkspaceFixture,
 } from '../workspace/index.tsx';
-import { AddProject, type AddProjectFixture } from './add-project.tsx';
-import { Conversation, type ConversationFixture } from './conversation.tsx';
+import { Conversation, type ConversationFixture } from './conversation/conversation.tsx';
 import { buildTree, sessionTargets } from './group.ts';
 import type { NewSessionRequest, RuntimeState } from './model.ts';
 import { NewSession } from './new-session.tsx';
 import { Palette } from './palette.tsx';
-import { Sidebar } from './sidebar.tsx';
-import type { MachineViews } from './sidebar-view.ts';
+import { AddProject, type AddProjectFixture } from './sidebar/add-project.tsx';
+import { Sidebar } from './sidebar/sidebar.tsx';
+import type { MachineViews } from './sidebar/sidebar-view.ts';
+import { useWatchedProjects } from './sidebar/use-watched-projects.ts';
 import { EmptyState, TopBar } from './topbar.tsx';
 import { useDevices } from './use-devices.ts';
 import type { SearchState } from './use-search.ts';
-import { useWatchedProjects } from './use-watched-projects.ts';
 import '../../components/components.css';
 import './shell.css';
-import './conversation.css';
+import './conversation/conversation.css';
+import './composer/composer.css';
 
 /** Development fixtures for /__states: they replace what the API would serve. */
 export type CockpitFixture = {

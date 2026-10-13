@@ -1,7 +1,7 @@
 import { type CSSProperties, type ReactNode, useState } from 'react';
-import { IconButton } from '../../components/IconButton.tsx';
-import { Icon } from '../../components/icons.tsx';
-import { t } from '../../lib/i18n.ts';
+import { IconButton } from '../../../components/IconButton.tsx';
+import { Icon } from '../../../components/icons.tsx';
+import { t } from '../../../lib/i18n.ts';
 
 /** One line of a well; `kind` colours the command line and the lines a caller knows to be fine, failed or quiet. */
 export type WellLine = {

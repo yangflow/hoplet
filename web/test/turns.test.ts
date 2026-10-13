@@ -1,6 +1,10 @@
 import type { Entry, ToolKind } from '@hoplet/shared';
 import { describe, expect, it } from 'vitest';
-import { buildTurns, type EditRow, type ToolRow } from '../src/screens/cockpit/turns.ts';
+import {
+  buildTurns,
+  type EditRow,
+  type ToolRow,
+} from '../src/screens/cockpit/conversation/turns.ts';
 
 const ts = (s: string) => `2026-10-05T09:${s}`;
 const user = (lineNo: number, text: string, at = '00:00'): Entry => ({

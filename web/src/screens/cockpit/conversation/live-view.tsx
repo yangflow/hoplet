@@ -1,8 +1,9 @@
 import { Fragment, type ReactNode } from 'react';
-import { Button } from '../../components/Button.tsx';
-import { IconButton } from '../../components/IconButton.tsx';
-import { Icon, Spinner } from '../../components/icons.tsx';
-import { t } from '../../lib/i18n.ts';
+import { Button } from '../../../components/Button.tsx';
+import { IconButton } from '../../../components/IconButton.tsx';
+import { Icon, Spinner } from '../../../components/icons.tsx';
+import { t } from '../../../lib/i18n.ts';
+import type { RuntimeState } from '../model.ts';
 import { ElidedPanel } from './blocks.tsx';
 import { clock, formatCountdown, formatTimer } from './format.ts';
 import { languageOfPath } from './highlight.ts';
@@ -16,7 +17,6 @@ import {
   permissionInput,
 } from './live-turn.ts';
 import { Markdown } from './markdown.tsx';
-import type { RuntimeState } from './model.ts';
 import { linesOf, OutputWell } from './OutputWell.tsx';
 import { ActCells, EditActivity, Meta, NoteActivity, RowView, ToolActivity } from './rows.tsx';
 import { toolRefOf } from './tools.ts';

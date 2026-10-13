@@ -3,7 +3,7 @@ import type { DeviceDirsResult } from '@hoplet/shared';
 import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it } from 'vitest';
-import { AddProject, type AddProjectFixture } from '../src/screens/cockpit/add-project.tsx';
+import { AddProject, type AddProjectFixture } from '../src/screens/cockpit/sidebar/add-project.tsx';
 
 const ROOT = '/home/me';
 const listing = (path: string, parent: string | null, names: string[]): DeviceDirsResult => ({

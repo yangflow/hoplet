@@ -8,7 +8,7 @@ import {
   sessionPath,
   sessionTargets,
 } from '../src/screens/cockpit/group.ts';
-import { compactRel } from '../src/screens/cockpit/rel.ts';
+import { compactRel } from '../src/screens/cockpit/sidebar/rel.ts';
 
 function session(
   over: Partial<LiveSessionMeta> & Pick<LiveSessionMeta, 'sessionId' | 'projectPath'>,

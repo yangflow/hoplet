@@ -1,14 +1,15 @@
 import type { DeviceDirsResult } from '@hoplet/shared';
 import { type KeyboardEvent, useEffect, useMemo, useRef, useState } from 'react';
-import { Button } from '../../components/Button.tsx';
-import { Dialog } from '../../components/Dialog.tsx';
-import { IconButton } from '../../components/IconButton.tsx';
-import { Icon, Spinner } from '../../components/icons.tsx';
-import { Select } from '../../components/Select.tsx';
-import { TextField } from '../../components/TextField.tsx';
-import { fetchDeviceDirs, fetchDeviceProjects } from '../../lib/api.ts';
-import { ApiError, addProjectErrorText, browseErrorText } from '../../lib/errors.ts';
-import { t } from '../../lib/i18n.ts';
+import { Button } from '../../../components/Button.tsx';
+import { Dialog } from '../../../components/Dialog.tsx';
+import { IconButton } from '../../../components/IconButton.tsx';
+import { Icon, Spinner } from '../../../components/icons.tsx';
+import { Select } from '../../../components/Select.tsx';
+import { TextField } from '../../../components/TextField.tsx';
+import { fetchDeviceDirs, fetchDeviceProjects } from '../../../lib/api.ts';
+import { ApiError, addProjectErrorText, browseErrorText } from '../../../lib/errors.ts';
+import { t } from '../../../lib/i18n.ts';
+import { pathLeaf } from '../group.ts';
 import {
   breadcrumbs,
   childPath,
@@ -17,7 +18,6 @@ import {
   type NavKey,
   resolveTyped,
 } from './browse.ts';
-import { pathLeaf } from './group.ts';
 import { ROOT_PATH, useDirBrowser } from './use-dir-browser.ts';
 
 /** How many of a machine's candidates the Recent group shows. */

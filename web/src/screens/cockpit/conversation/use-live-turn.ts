@@ -1,6 +1,8 @@
 import type { SessionOutput, SessionPermission } from '@hoplet/shared';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { onLive } from '../../lib/live.ts';
+import { onLive } from '../../../lib/live.ts';
+import type { RuntimeState } from '../model.ts';
+import { isTurnState } from '../runtime.ts';
 import {
   addPermission,
   applyOutput,
@@ -11,9 +13,7 @@ import {
   SETTLE_QUIET_MS,
   SETTLE_QUIET_PROMPT_ONLY_MS,
 } from './live-turn.ts';
-import type { RuntimeState } from './model.ts';
 import type { ReaderSnapshot, SessionReader } from './reader.ts';
-import { isTurnState } from './runtime.ts';
 
 export type LiveFixture = { turn: LiveTurn | null; permissions?: OpenPermission[] };
 

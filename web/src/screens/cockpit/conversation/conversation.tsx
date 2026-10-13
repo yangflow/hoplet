@@ -1,7 +1,7 @@
 import type { Entry, LiveSessionMeta, SessionRuntimeInfo } from '@hoplet/shared';
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { Icon } from '../../components/icons.tsx';
-import { providerName } from '../../components/provider-marks.tsx';
+import { Icon } from '../../../components/icons.tsx';
+import { providerName } from '../../../components/provider-marks.tsx';
 import {
   ApiError,
   fetchLines,
@@ -9,15 +9,15 @@ import {
   postPermission,
   postPrompt,
   postStop,
-} from '../../lib/api.ts';
-import { errorText } from '../../lib/errors.ts';
-import { t } from '../../lib/i18n.ts';
-import { onLive, subscribeSession } from '../../lib/live.ts';
-import { usePageVisible } from '../../lib/visibility.ts';
-import { Composer } from './composer.tsx';
+} from '../../../lib/api.ts';
+import { errorText } from '../../../lib/errors.ts';
+import { t } from '../../../lib/i18n.ts';
+import { onLive, subscribeSession } from '../../../lib/live.ts';
+import { usePageVisible } from '../../../lib/visibility.ts';
+import { Composer } from '../composer/composer.tsx';
+import { composerView, stateName } from '../runtime.ts';
 import { LiveTurnView } from './live-view.tsx';
 import { SessionReader } from './reader.ts';
-import { composerView, stateName } from './runtime.ts';
 import { Transcript, type TranscriptHandle } from './transcript.tsx';
 import { buildTurns } from './turns.ts';
 import { type LiveFixture, useLiveTurn } from './use-live-turn.ts';

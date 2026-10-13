@@ -1,4 +1,4 @@
-import { t } from '../../lib/i18n.ts';
+import { t } from '../../../lib/i18n.ts';
 
 /** The age of a moment as the sidebar shows it: now, 5m, 3h, 4d. */
 export function compactRel(ms: number, now = Date.now()): string {

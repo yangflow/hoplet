@@ -3,9 +3,9 @@ import type { Entry, ToolKind } from '@hoplet/shared';
 import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { RowView } from '../src/screens/cockpit/rows.tsx';
-import { buildTurns } from '../src/screens/cockpit/turns.ts';
-import { ViewContext, type ViewState } from '../src/screens/cockpit/view-context.tsx';
+import { RowView } from '../src/screens/cockpit/conversation/rows.tsx';
+import { buildTurns } from '../src/screens/cockpit/conversation/turns.ts';
+import { ViewContext, type ViewState } from '../src/screens/cockpit/conversation/view-context.tsx';
 
 let root: Root;
 let host: HTMLDivElement;
