@@ -54,7 +54,6 @@
   "External, read only": "外部会话，只读",
   "Failed": "失败",
   "Fast": "快速",
-  "First prompt": "第一条提示",
   "Hide sidebar": "隐藏侧边栏",
   "Lines": "对话行",
   "Machine": "机器",
@@ -296,5 +295,13 @@
   "{target} has no clone of {origin}.": "{target} 上没有 {origin} 的克隆。",
   "{target} owns the session now.": "会话现在归 {target} 所有。",
   "{target} went offline.": "{target} 已离线。",
-  "{target}'s copy did not match the session or the working tree.": "{target} 上的副本与会话或工作区不一致。"
+  "{target}'s copy did not match the session or the working tree.": "{target} 上的副本与会话或工作区不一致。",
+  "Add a project to start": "添加一个项目后开始",
+  "Add project…": "添加项目…",
+  "Composer height": "输入框高度",
+  "Drag to resize · double-click resets": "拖动调整高度 · 双击恢复",
+  "Model and options": "模型和选项",
+  "No machine online": "没有在线的机器",
+  "No provider on {device}": "{device} 上没有可用的提供方",
+  "The first prompt starts the session": "发出第一条消息即开始会话"
 }

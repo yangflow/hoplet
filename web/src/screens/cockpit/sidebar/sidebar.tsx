@@ -97,6 +97,21 @@ function SessionRow(props: {
   );
 }
 
+/** A draft (New session): the selected row at the top of its directory until its first prompt starts it. */
+function DraftRow() {
+  return (
+    <Row
+      leading={Icon.compose()}
+      selected
+      aria-current="true"
+      className="sess draft"
+      data-testid="cockpit.draft-row"
+    >
+      {t('New session')}
+    </Row>
+  );
+}
+
 /** A folder row that folds what it holds: the whole row is the button, the folder glyph says which. */
 function FolderRow(props: {
   name: string;
@@ -161,7 +176,8 @@ export function Sidebar(props: {
   now: number;
   host: string;
   live: boolean;
-  newSessionOpen: boolean;
+  /** An open draft and where it will start; its row shows in that directory. */
+  draft: { deviceName?: string; path?: string } | null;
   settingsOpen?: boolean;
   /** Shows the hover affordance of one directory (the design's empty state). */
   hoverDir?: string;
@@ -180,7 +196,7 @@ export function Sidebar(props: {
   onFold: () => void;
   onSettings: () => void;
 }) {
-  const { selected, runtime, now, host, live } = props;
+  const { selected, runtime, now, host, live, draft } = props;
   const folding = useFoldedDirs(props.foldedDirs);
   const { viewOf, setView } = useMachineViews(props.views);
   const groups = props.groups;
@@ -197,6 +213,14 @@ export function Sidebar(props: {
     scrollPending.current = selected !== null;
     if (at) reveal(dirKey(at.device, DEVICE_ROW), ...(atFlat ? [] : [dirKey(at.device, at.path)]));
   }, [selected, at?.device, at?.path, atFlat, reveal]);
+  // A draft's directory opens as well, so its row shows.
+  useEffect(() => {
+    if (!draft?.deviceName) return;
+    reveal(
+      dirKey(draft.deviceName, DEVICE_ROW),
+      ...(draft.path ? [dirKey(draft.deviceName, draft.path)] : []),
+    );
+  }, [draft?.deviceName, draft?.path, reveal]);
   useEffect(() => {
     if (!scrollPending.current) return;
     const row = treeRef.current?.querySelector('[aria-current="true"]');
@@ -244,7 +268,12 @@ export function Sidebar(props: {
               />
             ) : null}
           </FolderRow>
-          {folded ? null : d.sessions.map((s) => row(s, g.online))}
+          {folded ? null : (
+            <>
+              {draft?.deviceName === g.name && draft.path === d.path ? <DraftRow /> : null}
+              {d.sessions.map((s) => row(s, g.online))}
+            </>
+          )}
         </div>
       );
     });
@@ -254,6 +283,7 @@ export function Sidebar(props: {
   function flat(g: DeviceGroup, sort: Sort) {
     return (
       <div className="grp flat">
+        {draft?.deviceName === g.name ? <DraftRow /> : null}
         {flatList(g, sort).map((p) => row(p.session, g.online, p.dir))}
       </div>
     );
@@ -330,7 +360,7 @@ export function Sidebar(props: {
             label={t('New session')}
             hint="⌘N"
             icon={Icon.compose()}
-            on={props.newSessionOpen}
+            on={draft !== null}
             onClick={() => props.onNewSession()}
             data-testid="cockpit.new-session"
           />

@@ -16,9 +16,9 @@ import {
   type WorkspaceFixture,
 } from '../workspace/index.tsx';
 import { Conversation, type ConversationFixture } from './conversation/conversation.tsx';
+import { Draft, type DraftFixture, type DraftWhere } from './draft.tsx';
 import { buildTree, sessionTargets } from './group.ts';
 import type { NewSessionRequest, RuntimeState } from './model.ts';
-import { NewSession } from './new-session.tsx';
 import { Palette } from './palette.tsx';
 import { AddProject, type AddProjectFixture } from './sidebar/add-project.tsx';
 import { Sidebar } from './sidebar/sidebar.tsx';
@@ -44,8 +44,8 @@ export type CockpitFixture = {
   workspace?: WorkspaceFixture;
   sidebarFolded?: boolean;
   paletteOpen?: boolean;
-  newSessionOpen?: boolean;
-  newSessionPrompt?: string;
+  /** Opens New session as a draft, here or in the first watched directory. */
+  draft?: DraftFixture & Partial<DraftWhere>;
   inspectorOpen?: boolean;
   hoverDir?: string;
   hoverDevice?: string;
@@ -78,8 +78,16 @@ export function Cockpit(props: {
   const host = props.host ?? (typeof location === 'undefined' ? '' : location.host);
   const [sidebarFolded, setSidebarFolded] = useState(fixture?.sidebarFolded ?? false);
   const [paletteOpen, setPaletteOpen] = useState(fixture?.paletteOpen ?? false);
-  const [newOpen, setNewOpen] = useState(fixture?.newSessionOpen ?? false);
-  const [preset, setPreset] = useState<{ deviceName: string; path: string } | undefined>();
+  // New session is a draft in place of the conversation; it holds where the session will start.
+  const [draft, setDraft] = useState<Partial<DraftWhere> | null>(
+    fixture?.draft
+      ? {
+          ...(fixture.draft.deviceName ? { deviceName: fixture.draft.deviceName } : {}),
+          ...(fixture.draft.path ? { path: fixture.draft.path } : {}),
+        }
+      : null,
+  );
+  const [dirsVersion, setDirsVersion] = useState(0);
   const [addFor, setAddFor] = useState<string | null>(fixture?.addProject?.deviceName ?? null);
   const [inspectorOpen, setInspectorOpen] = useState(fixture?.inspectorOpen ?? false);
   const [aroundLine, setAroundLine] = useState<number | null>(fixture?.aroundLine ?? null);
@@ -144,27 +152,33 @@ export function Cockpit(props: {
   const targets = useMemo(() => sessionTargets(groups), [groups]);
 
   function pickSession(id: string) {
+    setDraft(null);
     setAroundLine(null);
     inspector.reset();
     onSelect(id);
   }
 
   function pickHit(hit: GlobalSearchHit) {
+    setDraft(null);
     inspector.reset();
     setAroundLine(hit.lineNo);
     onSelect(hit.sessionId);
   }
 
-  const openNewSession = useCallback((target?: { deviceName: string; path: string }) => {
-    setPreset(target);
-    setAddFor(null);
-    setPaletteOpen(false);
-    setNewOpen(true);
-  }, []);
+  // A directory row's button presets the draft; ⌘N starts where the open session runs.
+  const openNewSession = useCallback(
+    (target?: DraftWhere) => {
+      setAddFor(null);
+      setPaletteOpen(false);
+      setDraft(
+        target ?? (session ? { deviceName: session.deviceName, path: session.projectPath } : {}),
+      );
+    },
+    [session],
+  );
 
   const openAddProject = useCallback((deviceName: string) => {
     setPaletteOpen(false);
-    setNewOpen(false);
     setAddFor(deviceName);
   }, []);
   const addTarget = groups.find((g) => g.name === addFor) ?? null;
@@ -187,7 +201,6 @@ export function Cockpit(props: {
       }
       if (e.key === 'k') {
         e.preventDefault();
-        setNewOpen(false);
         setAddFor(null);
         setPaletteOpen((v) => !v);
       } else if (e.key === 'n') {
@@ -210,12 +223,12 @@ export function Cockpit(props: {
       {sidebarHidden ? null : (
         <Sidebar
           groups={groups}
-          selected={selected}
+          selected={draft ? null : selected}
           runtime={states}
           now={now}
           host={host}
           live={live}
-          newSessionOpen={newOpen}
+          draft={draft}
           {...(fixture?.hoverDir ? { hoverDir: fixture.hoverDir } : {})}
           {...(fixture?.hoverDevice ? { hoverDevice: fixture.hoverDevice } : {})}
           {...(fixture?.foldedDirs ? { foldedDirs: fixture.foldedDirs } : {})}
@@ -233,7 +246,8 @@ export function Cockpit(props: {
       )}
       <main className="main">
         <TopBar
-          session={session}
+          session={draft ? null : session}
+          {...(draft ? { title: t('New session') } : {})}
           sidebarFolded={sidebarHidden}
           inspectorOpen={inspectorOpen}
           changes={changes.length}
@@ -248,14 +262,29 @@ export function Cockpit(props: {
             {error}
           </div>
         ) : null}
-        {session ? (
+        {draft ? (
+          <Draft
+            targets={targets}
+            where={draft}
+            onWhere={setDraft}
+            loadDirectories={!fixture}
+            dirsVersion={dirsVersion}
+            voiceAvailable={fixture?.voiceAvailable ?? false}
+            {...(fixture?.draft ? { fixture: fixture.draft } : {})}
+            onAddProject={openAddProject}
+            onSubmit={async (request) => {
+              await props.onCreateSession?.(request);
+              setDraft(null);
+            }}
+          />
+        ) : session ? (
           <Conversation
             key={session.sessionId}
             session={session}
             runtime={runtimeOf(session)}
             live={live}
             aroundLine={aroundLine}
-            shortcuts={!paletteOpen && !newOpen && !addFor}
+            shortcuts={!paletteOpen && !addFor}
             voiceAvailable={fixture?.voiceAvailable ?? false}
             onHandoff={() => {
               setInspectorOpen(true);
@@ -272,7 +301,7 @@ export function Cockpit(props: {
           <EmptyState />
         )}
       </main>
-      {inspectorOpen && session ? (
+      {inspectorOpen && session && !draft ? (
         <Inspector
           key={session.sessionId}
           session={session}
@@ -313,19 +342,11 @@ export function Cockpit(props: {
               listing.projects.map((p) => p.path),
             );
             setAddFor(null);
-          }}
-        />
-      ) : null}
-      {newOpen ? (
-        <NewSession
-          targets={targets}
-          preset={preset}
-          loadDirectories={!fixture}
-          {...(fixture?.newSessionPrompt ? { initialPrompt: fixture.newSessionPrompt } : {})}
-          onClose={() => setNewOpen(false)}
-          onSubmit={async (request) => {
-            await props.onCreateSession?.(request);
-            setNewOpen(false);
+            // Adding a project from a draft starts the draft there.
+            if (draft) {
+              setDraft({ deviceName: addTarget?.name ?? '', path });
+              setDirsVersion((v) => v + 1);
+            }
           }}
         />
       ) : null}

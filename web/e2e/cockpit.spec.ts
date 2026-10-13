@@ -171,14 +171,15 @@ test('a permission request is answered with Allow', async () => {
   await expect(conv.getByText('DONE', { exact: true })).toBeVisible();
 });
 
-test('New session creates a session in a watched directory', async () => {
+test('New session drafts in place and its first prompt creates the session', async () => {
   await page.getByTestId('cockpit.new-session').click();
-  const dialog = page.getByTestId('cockpit.new-dialog');
-  await expect(dialog).toBeVisible();
-  await expect(dialog.getByTestId('cockpit.new-start')).toBeDisabled();
-  await dialog.getByTestId('cockpit.new-prompt').fill('say hello from a new session');
-  await dialog.getByTestId('cockpit.new-start').click();
-  await expect(dialog).toHaveCount(0);
+  const draft = page.getByTestId('cockpit.draft');
+  await expect(draft).toBeVisible();
+  await expect(page.getByTestId('cockpit.draft-row')).toBeVisible();
+  await expect(draft.getByTestId('cockpit.send')).toBeDisabled();
+  await draft.getByTestId('cockpit.composer-input').fill('say hello from a new session');
+  await draft.getByTestId('cockpit.send').click();
+  await expect(draft).toHaveCount(0);
   const conv = page.getByTestId('cockpit.conversation');
   await expect(conv.getByText('hello from a new session', { exact: true })).toBeVisible();
   await expect(page.getByTestId('cockpit.session')).toHaveCount(4);

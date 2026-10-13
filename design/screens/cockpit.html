@@ -137,6 +137,7 @@
     "--layout-well-max": "240px",
     "--layout-palette": "560px",
     "--layout-dialog": "480px",
+    "--layout-popover": "248px",
     "--layout-modal-top": "96px",
     "--motion-pulse": "1.6s",
     "--motion-blink": "1s",
@@ -433,6 +434,43 @@ svg{display:block;flex:none}
 .recrow .el{font-size:var(--text-body);line-height:var(--leading-body);color:var(--color-text);font-variant-numeric:tabular-nums;width:36px;flex:none}
 .wave{flex:1;display:flex;align-items:center;justify-content:flex-end;gap:2px;height:24px;overflow:hidden;-webkit-mask-image:linear-gradient(to right,transparent,#000 18%);mask-image:linear-gradient(to right,transparent,#000 18%)}
 .wave i{flex:none;width:3px;border-radius:2px;background:var(--color-accent-text)}
+.composer{position:relative}
+.cv{display:grid;place-items:center;color:var(--color-text-3);margin:0 -2px}
+.loc{display:flex;align-items:center;gap:2px;min-width:0;margin:calc(-1 * var(--space-1)) var(--space-2) 0 calc(-1 * var(--space-2));padding-bottom:var(--space-2);box-shadow:inset 0 -1px 0 var(--color-line)}
+.loc .sl{color:var(--color-text-3);opacity:.7;padding:0 1px}
+.chip{position:relative;height:24px;display:inline-flex;align-items:center;gap:var(--space-2);padding:0 6px;border-radius:var(--radius-sm);color:var(--color-text-2);white-space:nowrap;min-width:0}
+.chip > svg{color:var(--color-text-3)}
+.chip.ro{cursor:default}
+.chip.on{background:var(--color-selected);color:var(--color-text);box-shadow:inset 0 1px 0 var(--color-highlight)}
+.thumbs{display:flex;gap:var(--space-2);padding-top:var(--space-1)}
+.thumb{position:relative;width:64px;height:64px;flex:none}
+.thumb .ckr{width:100%;height:100%;overflow:hidden}
+.thumb .x{position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;display:grid;place-items:center;background:var(--color-raised);color:var(--color-text-2);box-shadow:var(--shadow-float),0 0 0 1px var(--color-line)}
+.thumb .x svg{width:12px;height:12px}
+.shot{width:100%;height:100%;display:grid;grid-template-columns:14px 1fr;background:var(--color-bg)}
+.shot b{background:var(--color-sidebar)}
+.shot span{display:flex;flex-direction:column;gap:4px;padding:8px 6px}
+.shot i{display:block;height:3px;border-radius:2px;background:var(--color-text-3);opacity:.5}
+.shot i.a{background:var(--color-accent);opacity:1;width:60%}
+.ta{font-size:var(--text-body);line-height:var(--leading-body);color:var(--color-text);white-space:pre-wrap;max-height:calc(var(--leading-body) * 8);overflow:hidden}
+.ta .cr2,.ph .cr2{display:inline-block;width:1.5px;height:20px;background:var(--color-accent);vertical-align:-4px;margin-left:1px}
+.ph .cr2{margin:0 1px 0 0}
+.grip{position:absolute;top:-1px;left:50%;width:48px;height:12px;transform:translate(-50%,-50%);display:grid;place-items:center;cursor:ns-resize;z-index:1}
+.grip::before{content:"";width:36px;height:4px;border-radius:2px;background:var(--color-text-2)}
+.tb2{height:28px;display:inline-flex;align-items:center;gap:var(--space-1);padding:0 var(--space-2);border-radius:var(--radius-sm);color:var(--color-text-2);white-space:nowrap;position:relative;flex:none}
+.tb2 > svg{color:var(--color-text-3)}
+.tb2.on{background:var(--color-selected);color:var(--color-text);box-shadow:inset 0 1px 0 var(--color-highlight)}
+.tb2 i{font-style:normal;color:var(--color-text-3)}
+.tb2[disabled]{opacity:.4;cursor:default}
+.anc{position:relative;display:inline-flex}
+.cpop{position:absolute;z-index:30;bottom:calc(100% + var(--space-2));left:0;width:var(--layout-popover);padding:var(--space-1);border-radius:var(--radius-md);background:var(--color-raised);box-shadow:var(--shadow-float),0 0 0 1px var(--color-line);pointer-events:auto;text-align:left}
+.cpop.end{left:auto;right:0}
+.cpop .menu-item .sub{margin-left:auto;font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3)}
+.cpop .menu-item .switch{margin-left:auto}
+.cpop .menu-item > svg{color:var(--color-text-3)}
+.conv.tall{padding-bottom:300px}
+.draft-note{position:absolute;left:0;right:0;top:38%;text-align:center;color:var(--color-text-3)}
+.sess.draft .t{font-style:italic}
 .cf .note{display:flex;align-items:center;gap:var(--space-2);color:var(--color-text-3);margin-left:var(--space-3)}
 
 /* floating pills, loading */
@@ -594,15 +632,10 @@ svg{display:block;flex:none}
 .sel > svg{color:var(--color-text-3)}
 .sel .pm{color:var(--color-text-2)}
 .sel .sl{width:16px;height:16px;display:grid;place-items:center;flex:none}
-.tgls{display:flex;gap:var(--space-4);align-items:center;height:var(--control-field)}
-.tgl{display:flex;align-items:center;gap:var(--space-2);color:var(--color-text-2)}
 .switch{width:28px;height:16px;border-radius:8px;background:var(--color-hover);box-shadow:inset 0 0 0 1px var(--color-line);position:relative;flex:none}
 .switch::after{content:"";position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:50%;background:var(--color-text-3)}
 .switch.on{background:var(--color-accent);box-shadow:none}
 .switch.on::after{left:14px;background:var(--color-on-accent)}
-.nsp{display:flex;align-items:flex-end;gap:var(--space-2);height:108px;padding:var(--space-2) var(--space-2) var(--space-2) var(--space-3);border-radius:var(--radius-md);background:var(--color-bg);box-shadow:inset 0 0 0 1.5px var(--color-accent);margin-top:var(--space-1)}
-.nsp .ph{flex:1;align-self:flex-start;display:flex;align-items:center}
-.nsp .cr2{width:1.5px;height:20px;background:var(--color-accent);margin-right:2px}
 .ns.wide{width:var(--layout-palette)}
 .ns-hint{margin:0;font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-2)}
 .pathbar{flex:none;display:flex;align-items:center;height:var(--control-field);padding:var(--space-1)}
@@ -785,6 +818,8 @@ const L = {
   contrast: '<circle cx="12" cy="12" r="10"/><path d="M12 18a6 6 0 0 0 0-12v12z"/>',
   ellipsis: '<circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>',
   'loader-circle': '<path d="M21 12a9 9 0 1 1-6.219-8.56"/>',
+  'git-branch': '<line x1="6" x2="6" y1="3" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/>',
+  zap: '<path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/>',
   'text-wrap': '<path d="m16 16-3 3 3 3"/><path d="M3 12h14.5a1 1 0 0 1 0 7H13"/><path d="M3 19h6"/><path d="M3 5h18"/>',
 };
 /* the curated set, in the order the intro lists it: [Lucide name, uses] */
@@ -798,7 +833,7 @@ const ICON_SET = [
   ['paperclip', 'Attach'], ['mic', 'Dictate'], ['hand', 'Permission request'], ['clock', 'Timer, snapshot'],
   ['x', 'Close, failed step'], ['check', 'Done step'], ['circle-alert', 'Error'], ['info', 'Note'],
   ['rotate-cw', 'Retry'], ['copy', 'Copy'], ['settings', 'Settings'], ['laptop', 'Machines'], ['contrast', 'Appearance'], ['ellipsis', 'Sidebar view'],
-  ['text-wrap', 'Wrap long lines'], ['loader-circle', 'Running, starting, loading'],
+  ['text-wrap', 'Wrap long lines'], ['loader-circle', 'Running, starting, loading'], ['git-branch', 'Git branch'], ['zap', 'Fast'],
 ];
 const I = {
   search: () => sv(L.search),
@@ -845,6 +880,8 @@ const I = {
   laptop: () => sv(L.laptop),
   contrast: () => sv(L.contrast),
   more: () => sv(L.ellipsis),
+  branch: () => sv(L['git-branch']),
+  zap: () => sv(L.zap),
 };
 const spin = () => sv(L['loader-circle'], 'spin');
 const mark = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--color-on-accent)" stroke-width="3.2" stroke-linecap="round" aria-hidden="true"><path d="M6 18L18 6"/><circle cx="18" cy="6" r=".6" fill="var(--color-on-accent)"/></svg>`;
@@ -958,7 +995,8 @@ function sidebar(state) {
   const moved = state === 'handoff-done';
   const settings = SETTINGS.includes(state);
   const lost = state === 'disconnected';
-  const sel = !(state === 'empty' || settings);
+  const draft = DRAFT.includes(state);
+  const sel = !(state === 'empty' || settings || draft);
   /* view options are per machine: by folder (default) or flat, sorted by recent activity; MacBook Pro is flat in sidebar-flat */
   const menuOpen = state === 'sidebar-menu';
   const S = (t, kind, time, on = false) => ({ t, kind, time, on });
@@ -967,7 +1005,7 @@ function sidebar(state) {
   const other = S('Hand off sessions with snapshots', off ? '' : 'run', '3h');
   /* folding is remembered per directory: office-mini › hoplet-app stays folded; notes is folded in ready */
   const DEVS = [
-    { n: 'MacBook Pro', hov: state.startsWith('add-project'), flat: state === 'sidebar-flat', menu: menuOpen, on: !off, dirs: [{ n: 'hoplet', open: true, ss: moved ? [other] : [open, other] }] },
+    { n: 'MacBook Pro', hov: state.startsWith('add-project'), flat: state === 'sidebar-flat', menu: menuOpen, on: !off, dirs: [{ n: 'hoplet', open: true, ss: moved ? [other] : draft ? [{ t: 'New session', draft: true, on: true }, open, other] : [open, other] }] },
     { n: 'office-mini', on: false, dirs: [{ n: 'hoplet-app', open: false, ss: [S('Liquid Glass tab bar', '', '4d')] }] },
     { n: 'studio', on: true, dirs: [
       ...(moved ? [{ n: 'hoplet-11111111', open: true, ss: [open] }] : []),
@@ -975,7 +1013,7 @@ function sidebar(state) {
     ...(state === 'mint-online' ? [{ n: 'studio-2', on: true, dirs: [] }] : []),
   ];
   /* provider mark | title | runtime state, or the last-activity time when idle */
-  const sess = (s, o = {}) => `<div class="sess${o.two ? ' two' : ''}${s.on ? ' on' : ''}${o.dim ? ' dim' : ''}">${pmark('claude')}${o.two ? `<span class="t tt"><span class="t1">${s.t}</span><span class="t2">${o.two}</span></span>` : `<span class="t">${s.t}</span>`}<span class="m">${s.kind ? GL[s.kind]() : s.time}</span></div>`;
+  const sess = (s, o = {}) => s.draft ? `<div class="sess on draft"><span class="pm">${I.compose()}</span><span class="t">${s.t}</span><span class="m"></span></div>` : `<div class="sess${o.two ? ' two' : ''}${s.on ? ' on' : ''}${o.dim ? ' dim' : ''}">${pmark('claude')}${o.two ? `<span class="t tt"><span class="t1">${s.t}</span><span class="t2">${o.two}</span></span>` : `<span class="t">${s.t}</span>`}<span class="m">${s.kind ? GL[s.kind]() : s.time}</span></div>`;
   const folder = (n, isOpen, ss, hov, title, plus) => {
     const strongest = ATTENTION.find(k => ss.some(s => s.kind === k));
     const folded = isOpen ? '' : `<span class="cnt"${tip(`${ss.length} session${ss.length > 1 ? 's' : ''}`)}>${ss.length}</span>${strongest ? GL[strongest]() : ''}`;
@@ -997,7 +1035,7 @@ function sidebar(state) {
     : `<span class="conn" role="status" title="Connected to hoplet.local · 24 ms"><span class="lead"><span class="dot"></span></span>hoplet.local</span>`;
   return `<aside class="side">
     <div class="brand"><span class="mark" aria-hidden="true">${mark}</span><b>Hoplet</b><span class="sp"></span>
-      <span class="hb">${ib(I.compose(), 'New session · ⌘N', state === 'new-session' ? 'on' : '')}${ib(I.sidebar(), 'Hide sidebar · ⌘\\')}</span></div>
+      <span class="hb">${ib(I.compose(), 'New session · ⌘N', draft ? 'on' : '')}${ib(I.sidebar(), 'Hide sidebar · ⌘\\')}</span></div>
     <button class="search"${tip('Search · ⌘K')}>${I.search()}<span class="lbl">Search</span><span class="kbd">⌘K</span></button>
     <div class="tree${lost ? ' frozen-side' : ''}">${tree}</div>
     <div class="side-foot">${conn}${ib(I.gear(), 'Settings · ⌘,', settings ? 'on' : '')}</div>
@@ -1176,15 +1214,45 @@ function liveTurn(state) {
     </div></section>`;
 }
 
+/* the composer: where the session runs, the field, and a toolbar of attach, model, dictate and send */
+const DRAFT = ['draft', 'draft-directory'];
+const cv = () => `<span class="cv">${I.down()}</span>`;
+const PROMPT = 'The composer forgets its height after a reload. The first screenshot is after a reload, the second before it.\n\nKeep the height per browser, not per session, and clamp it to the window so the conversation keeps at least 240 px.';
+const item2 = (label, on, sub = '') => `<div class="menu-item" role="menuitemradio" aria-checked="${on}"><span class="menu-check">${on ? I.check() : ''}</span>${label}${sub ? `<span class="sub">${sub}</span>` : ''}</div>`;
+const sw = (icon, label, on) => `<div class="menu-item" role="menuitemcheckbox" aria-checked="${on}">${icon}${label}<span class="switch${on ? ' on' : ''}" aria-hidden="true"></span></div>`;
+function whereRow(state) {
+  const pick = DRAFT.includes(state);
+  const sl = '<span class="sl">/</span>';
+  const menu = `<div class="cpop" role="menu" aria-label="Directory on MacBook Pro"><div class="menu-title">MacBook Pro</div>
+    ${item2('hoplet', true, '~/github/repopro')}${item2('website', false, '~/github')}${item2('thesis', false, '~/Documents')}
+    <div class="menu-sep"></div><div class="menu-item">${I.plus()}Add project…</div></div>`;
+  return `<div class="loc">
+    <button class="chip${pick ? '' : ' ro'}"${tip(pick ? 'Machine' : 'MacBook Pro · online')}><span class="dot"></span>MacBook Pro${pick ? cv() : ''}</button>${sl}
+    <span class="anc"><button class="chip${pick ? '' : ' ro'}${state === 'draft-directory' ? ' on' : ''}"${tip(pick ? 'Directory' : '~/github/repopro/hoplet')}>${I.folder()}hoplet${pick ? cv() : ''}</button>${state === 'draft-directory' ? menu : ''}</span>${sl}
+    <span class="chip ro"${tip('Git branch of ~/github/repopro/hoplet')}>${I.branch()}main</span></div>`;
+}
 function composer(state) {
   const send = (on, t = 'Send · ↩') => `<button class="send"${on ? '' : ' disabled'}${tip(t)}>${I.up()}</button>`;
-  const tools = on => `${ib(I.clip(), 'Attach', '', !on)}`;
   const mic = on => ib(I.mic(), 'Dictate · transcribed on your machines', '', !on);
-  const full = (ph, on, left = '', inputOn = on) => `<div class="composer"><div class="ph">${ph}</div>
-    <div class="cf">${tools(inputOn)}${left}<span class="r">${mic(inputOn)}${send(on)}</span></div></div>`;
+  const menu = `<div class="cpop end" role="menu" aria-label="Model"><div class="menu-label">Model</div>
+    ${item2('Opus 5.5', true)}${item2('Sonnet 5.5', false)}${item2('Haiku 4.5', false)}
+    <div class="menu-sep"></div>${sw(I.think(), 'Thinking', true)}${sw(I.zap(), 'Fast', false)}</div>`;
+  const model = on => `<span class="anc"><button class="tb2${state === 'model-menu' ? ' on' : ''}"${tip('Model and options')}${on ? '' : ' disabled'}>Opus 5.5<i>·</i>${I.think()}${cv()}</button>${state === 'model-menu' ? menu : ''}</span>`;
+  const full = (ph, on, left = '', inputOn = on, sendTip) => `<div class="composer">${state === 'compose' ? `<span class="grip"${tip('Drag to resize · double-click resets')}></span>` : ''}${whereRow(state)}
+    ${state === 'compose' ? `<div class="thumbs">
+      <span class="thumb"><span class="ckr">${iconArt('now', 44)}</span><button class="x"${tip('Remove icon.png')}>${I.x()}</button></span>
+      <span class="thumb"><span class="ckr"><span class="shot"><b></b><span><i class="a"></i><i></i><i style="width:70%"></i><i></i><i style="width:40%"></i></span></span></span></span></div>
+      <div class="ta">${esc(PROMPT)}<span class="cr2"></span></div>`
+    : state === 'model-menu' ? '<div class="ta">Use the smaller model for the docs pass</div>'
+    : `<div class="ph">${DRAFT.includes(state) ? '<span class="cr2"></span>' : ''}${ph}</div>`}
+    <div class="cf">${ib(I.plus(), 'Attach images or files · paste works too', '', !inputOn)}${left}<span class="r">${model(inputOn)}${mic(inputOn)}${send(on, sendTip)}</span></div></div>`;
   let box, pill = '';
   switch (state) {
-    case 'ready': case 'new-session': case 'add-project': case 'add-project-recent': case 'add-project-error':
+    case 'draft': case 'draft-directory':
+      box = full('Ask Claude Code…', false, '', true, 'Start · ↩'); break;
+    case 'compose': case 'model-menu':
+      box = full('', true); break;
+    case 'ready': case 'add-project': case 'add-project-recent': case 'add-project-error':
       box = state === 'ready'
         ? full('Ask Claude Code…', true, `<span class="cst" role="img"${tip('Ready · Claude Code is running')}><span class="ready-dot"></span></span>${ib(I.stop(), 'Stop Claude Code')}`)
         : full('Ask Claude Code…', true); break;
@@ -1446,21 +1514,6 @@ function inspector(state) {
   return `<aside class="insp">${head}${body}${card}</aside>`;
 }
 
-function newSessionModal() {
-  const sel = (inner, t) => `<div class="sel" role="button"${tip(t)}>${inner}${I.down()}</div>`;
-  return `<div class="scrim"></div><div class="modal ns" role="dialog" aria-modal="true" aria-label="New session">
-    <div class="ns-h"><b>New session</b>${ib(I.close(), 'Close · Esc')}</div>
-    <div class="ns-g">
-      <span class="l">Machine</span>${sel('<span class="sl"><span class="dot"></span></span><span class="v">MacBook Pro</span>', 'Machine · online')}
-      <span class="l">Directory</span>${sel(`<span class="sl">${FT.folder()}</span><span class="v">hoplet</span>`, 'Directory · ~/github/repopro/hoplet')}
-      <span class="l">Provider</span>${sel(`<span class="sl">${pmark('claude')}</span><span class="v">Claude Code</span>`, 'Provider')}
-      <span class="l">Model</span>${sel('<span class="v">Opus 5.5</span>', 'Model')}
-      <span class="l"></span><div class="tgls"><span class="tgl"><span class="switch on" role="switch" aria-checked="true" aria-label="Thinking"></span>Thinking</span><span class="tgl"><span class="switch" role="switch" aria-checked="false" aria-label="Fast"></span>Fast</span></div>
-    </div>
-    <div class="nsp"><span class="ph"><span class="cr2"></span>First prompt</span><button class="send"${tip('Start · ↩')}>${I.up()}</button></div>
-  </div>`;
-}
-
 function addProjectModal(state) {
   const HOME = '/Users/mark';
   const dirs = {
@@ -1592,16 +1645,18 @@ function frame(state, scheme) {
   if (settings) main = settingsMain(state);
   else {
     const top = `<header class="top">${nosb ? ib(I.sidebar(), 'Show sidebar · ⌘\\') : ''}
-      ${empty ? '' : `<span class="title">byte cursor catalog</span>`}
+      ${empty ? '' : `<span class="title">${DRAFT.includes(state) ? 'New session' : 'byte cursor catalog'}</span>`}
       <span class="sp"></span>
-      ${!empty && !insp ? `<button class="ib"${tip('Show workspace · 4 changed · ⌘I')}>${I.panel()}<span class="cdg"></span></button>` : ''}
+      ${!empty && !insp && !DRAFT.includes(state) ? `<button class="ib"${tip('Show workspace · 4 changed · ⌘I')}>${I.panel()}<span class="cdg"></span></button>` : ''}
     </header>`;
     let body;
-    if (empty) {
+    if (DRAFT.includes(state)) {
+      body = `<div class="conv"><p class="draft-note">The first prompt starts the session</p></div>${composer(state)}`;
+    } else if (empty) {
       body = `<div class="empty"><div class="in"><span class="tile">${bigMark}</span><p>Pick a session, or start a new one</p><span class="k"><span><span class="kbd">⌘K</span>search</span><span><span class="kbd">⌘N</span>new session</span></span></div></div>`;
     } else {
       const live = LIVE.includes(state) ? liveTurn(state === 'scrolled' ? 'running' : state) : '';
-      body = `<div class="conv${state === 'scrolled' ? ' loading' : ''}"><div class="col">
+      body = `<div class="conv${state === 'scrolled' ? ' loading' : ''}${state === 'compose' ? ' tall' : ''}"><div class="col">
           ${firstTurn(state)}
           ${state === 'external' ? terminalTurn() : ''}
           ${live}
@@ -1616,7 +1671,7 @@ function frame(state, scheme) {
     ${nosb ? '' : sidebar(state)}
     <main class="main">${main}</main>
     ${insp ? inspector(state) : ''}
-    ${state === 'new-session' ? newSessionModal() : state.startsWith('add-project') ? addProjectModal(state) : state === 'search' ? palette() : ''}
+    ${state.startsWith('add-project') ? addProjectModal(state) : state === 'search' ? palette() : ''}
   </div>`;
 }
 
@@ -1624,16 +1679,19 @@ function frame(state, scheme) {
 const SCREEN = {
   name: 'Cockpit',
   system: true,
-  blurb: 'The main window: the session sidebar, the conversation as turns, the composer, runtime states and permission requests, the command palette and New session. Each session row starts with its provider’s mark, drawn in the row’s text colour and never in brand colour, and ends with its runtime state when it is not idle, else its last-activity time. The sidebar footer names this window’s connection to the core (a dot and the host, “Reconnecting…” in red when lost) beside an icon-only Settings button. Search is a quiet field that opens the command palette (⌘K): sessions, line hits across sessions and actions in one centred list. A machine row folds its directories and shows a plus (Add project) on hover, which opens a dialog with the same chrome: a machine select (every machine with its presence dot, offline ones disabled, an Add a machine item that points to the host CLI), a path bar of clickable segments that turns into a field for a typed path, and the folders under the agent’s browse root with recent folders on top, in one frame whose first row is that path bar; the primary button names the selected folder. A directory row has no chevron and no indent: it is one button that folds it, led by a folder glyph that is open while the directory is, on the machine row’s glyph and name columns. Each machine row also shows an ellipsis on hover, next to the plus, that opens that machine’s view options under its name: Organize (By folder, the default, or Flat) and Sort (Recent activity, Created, Title). Flat lists the machine’s sessions as one list with a second line for each session’s directory and hides its directories; the choice is kept per machine in the browser and an offline machine keeps the menu. The sidebar follows the selected session: its machine and directory open and it scrolls into view. The top bar holds the title and the workspace toggle only. New session (⌘N) is a centred dialog with the same chrome. The workspace inspector and Settings are their own screens (<code>workspace.html</code>, <code>settings.html</code>); here the inspector stays closed.',
+  blurb: 'The main window: the session sidebar, the conversation as turns, the composer, runtime states and permission requests, the command palette and New session. Each session row starts with its provider’s mark, drawn in the row’s text colour and never in brand colour, and ends with its runtime state when it is not idle, else its last-activity time. The sidebar footer names this window’s connection to the core (a dot and the host, “Reconnecting…” in red when lost) beside an icon-only Settings button. Search is a quiet field that opens the command palette (⌘K): sessions, line hits across sessions and actions in one centred list. A machine row folds its directories and shows a plus (Add project) on hover, which opens a dialog with the same chrome: a machine select (every machine with its presence dot, offline ones disabled, an Add a machine item that points to the host CLI), a path bar of clickable segments that turns into a field for a typed path, and the folders under the agent’s browse root with recent folders on top, in one frame whose first row is that path bar; the primary button names the selected folder. A directory row has no chevron and no indent: it is one button that folds it, led by a folder glyph that is open while the directory is, on the machine row’s glyph and name columns. Each machine row also shows an ellipsis on hover, next to the plus, that opens that machine’s view options under its name: Organize (By folder, the default, or Flat) and Sort (Recent activity, Created, Title). Flat lists the machine’s sessions as one list with a second line for each session’s directory and hides its directories; the choice is kept per machine in the browser and an offline machine keeps the menu. The sidebar follows the selected session: its machine and directory open and it scrolls into view. The top bar holds the title and the workspace toggle only. New session (⌘N) opens a draft: an empty conversation whose composer chooses the machine and the directory, and whose first prompt starts the session. The composer’s first row says where the session runs (machine / directory / git branch), read only once the session exists; its toolbar holds attach, the model with Thinking and Fast, dictate and send. The text grows to 8 lines, then scrolls; dragging the top edge sets a height the browser remembers, and a double-click resets it. Pasted and attached images sit as thumbnails above the text. The workspace inspector and Settings are their own screens (<code>workspace.html</code>, <code>settings.html</code>); here the inspector stays closed.',
 };
 const STATES = [
   ['empty', 'no session selected; hover shows a directory’s +'],
   ['loaded', 'idle, workspace closed; office-mini › hoplet-app folded'],
-  ['new-session', 'New session as a centred dialog, opened by ⌘N or the header button'],
+  ['draft', 'New session (⌘N) as a draft: an empty conversation, the composer picks machine and directory'],
+  ['draft-directory', 'the draft’s directory picker: the machine’s projects and Add project'],
   ['add-project', 'Add project: the machine and a folder browser, here in ~/github with a repository selected'],
   ['add-project-recent', 'Add project at the browse root: recent folders, then the folders under it'],
   ['add-project-error', 'a typed path the agent refused, the reason inline'],
   ['ready', 'process running, no turn; studio › notes folded, showing its waiting session'],
+  ['compose', 'a long prompt with two pasted images; the top edge is being dragged'],
+  ['model-menu', 'the model and its options, switched for the next turn'],
   ['recording', 'dictating the next prompt'],
   ['starting', 'the first prompt starts Claude Code'],
   ['running', 'live turn: a failed run, its output, a search, an edit and a running run'],

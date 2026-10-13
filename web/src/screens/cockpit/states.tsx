@@ -593,11 +593,31 @@ const browseFixture: AddProjectFixture = {
   },
 };
 
+/** A prompt longer than the field grows to, so it scrolls. */
+const COMPOSE_TEXT = [
+  'The composer forgets its height after a reload. Keep the height per browser, not per session, and clamp it',
+  'to the window so the conversation keeps at least 240 px.',
+  '',
+  'Then check both schemes:',
+  '- the grip shows on hover and on focus',
+  '- a double-click on the edge resets the height',
+  '- the arrow keys move it a line at a time',
+  '- Enter on the grip resets it as well',
+  '- a reload keeps the height',
+  '- a narrow window clamps it',
+].join('\n');
+
 /** Every state the design shows, rendered at /__states/cockpit/<state> in development builds. */
 export const states: Record<string, () => ReactNode> = {
   empty: () => <Scene selected={null} fixture={{ hoverDir: 'notes' }} />,
   loaded: () => <Scene />,
-  'new-session': () => <Scene fixture={{ newSessionOpen: true }} />,
+  draft: () => <Scene fixture={{ draft: {} }} />,
+  'draft-directory': () => <Scene fixture={{ draft: { open: 'directory' } }} />,
+  'draft-model': () => (
+    <Scene
+      fixture={{ draft: { open: 'model', prompt: 'Use the smaller model for the docs pass' } }}
+    />
+  ),
   'add-project': () => (
     <Scene
       fixture={{
@@ -632,6 +652,14 @@ export const states: Record<string, () => ReactNode> = {
     />
   ),
   ready: () => <Scene variant={{ runtime: { state: 'ready', capabilities }, foldNotes: true }} />,
+  compose: () => (
+    <Scene
+      variant={{
+        runtime: { state: 'idle', capabilities },
+        conversation: { composerText: COMPOSE_TEXT },
+      }}
+    />
+  ),
   recording: () => (
     <Scene
       variant={{

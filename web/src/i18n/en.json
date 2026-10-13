@@ -54,7 +54,6 @@
   "External, read only": "External, read only",
   "Failed": "Failed",
   "Fast": "Fast",
-  "First prompt": "First prompt",
   "Hide sidebar": "Hide sidebar",
   "Lines": "Lines",
   "Machine": "Machine",
@@ -296,5 +295,13 @@
   "{target} has no clone of {origin}.": "{target} has no clone of {origin}.",
   "{target} owns the session now.": "{target} owns the session now.",
   "{target} went offline.": "{target} went offline.",
-  "{target}'s copy did not match the session or the working tree.": "{target}'s copy did not match the session or the working tree."
+  "{target}'s copy did not match the session or the working tree.": "{target}'s copy did not match the session or the working tree.",
+  "Add a project to start": "Add a project to start",
+  "Add project…": "Add project…",
+  "Composer height": "Composer height",
+  "Drag to resize · double-click resets": "Drag to resize · double-click resets",
+  "Model and options": "Model and options",
+  "No machine online": "No machine online",
+  "No provider on {device}": "No provider on {device}",
+  "The first prompt starts the session": "The first prompt starts the session"
 }

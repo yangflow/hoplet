@@ -12,10 +12,13 @@ export function useDeviceDirs(
   deviceId: string | null,
   fallback: Dir[],
   enabled: boolean,
+  /** Read again when this changes (a project was added). */
+  version = 0,
 ): { dirs: Dir[]; loading: boolean } {
   const [loaded, setLoaded] = useState<{ deviceId: string; dirs: Dir[] } | null>(null);
   const [loading, setLoading] = useState(false);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: a new version reads the catalog again
   useEffect(() => {
     if (!enabled || !deviceId) return;
     let cancelled = false;
@@ -43,7 +46,7 @@ export function useDeviceDirs(
     return () => {
       cancelled = true;
     };
-  }, [deviceId, enabled]);
+  }, [deviceId, enabled, version]);
 
   return {
     dirs: loaded && loaded.deviceId === deviceId ? loaded.dirs : fallback,

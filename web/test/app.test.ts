@@ -280,7 +280,17 @@ it('subscribes the selected session to the socket, again after a reconnect', asy
   }
 });
 
-it('starts a session from New session with the options its machine declares, then selects it', async () => {
+/** Types into the composer's field as a user would. */
+async function type(text: string) {
+  const field = q('cockpit.composer-input') as HTMLTextAreaElement;
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set?.call(field, text);
+    field.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+}
+const click = async (el: Element | null) => act(async () => (el as HTMLElement).click());
+
+it('starts a session from a draft with the options its machine declares, then selects it', async () => {
   api.postNewSession.mockImplementation(async () => {
     api.fetchSessions.mockResolvedValue({
       sessions: [
@@ -293,50 +303,66 @@ it('starts a session from New session with the options its machine declares, the
   });
   await mount();
   await open();
-  await act(async () => (q('cockpit.new-session') as HTMLElement).click());
-  // Only what the machine declares is offered: a model list, thinking and fast.
-  expect(q('cockpit.new-model')).not.toBeNull();
-  expect(q('cockpit.new-thinking')).not.toBeNull();
-  expect(q('cockpit.new-fast')).not.toBeNull();
+  await click(q('cockpit.new-session'));
+  // New session is a draft in place of the conversation, with its own row and title.
+  expect(q('cockpit.draft')).not.toBeNull();
+  expect(q('cockpit.draft-row')?.textContent).toBe('New session');
+  expect(q('cockpit.topbar')?.textContent).toContain('New session');
   expect(api.fetchDeviceProjects).toHaveBeenCalledWith('dev-mac');
-  const prompt = q('cockpit.new-prompt') as HTMLTextAreaElement;
-  await act(async () => {
-    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set?.call(
-      prompt,
-      'build it',
-    );
-    prompt.dispatchEvent(new Event('input', { bubbles: true }));
-  });
-  await act(async () => (q('cockpit.new-start') as HTMLElement).click());
+  expect(q('cockpit.draft-directory')?.getAttribute('aria-label')).toBe('Directory, hoplet');
+  // Only what the machine declares is offered: a model list, thinking and fast.
+  await click(q('cockpit.model'));
+  const models = [...host.querySelectorAll('[data-testid="cockpit.model-option"]')];
+  expect(models.map((m) => m.textContent)).toEqual(['opus-5.5', 'haiku-5']);
+  await click(models[1] ?? null);
+  await click(q('cockpit.fast'));
+  expect(q('cockpit.thinking')?.getAttribute('aria-checked')).toBe('true');
+  expect(q('cockpit.fast')?.getAttribute('aria-checked')).toBe('true');
+  await type('build it');
+  await click(q('cockpit.send'));
   expect(api.postNewSession).toHaveBeenCalledWith({
     deviceId: 'dev-mac',
-    projectPath: expect.stringMatching(/^\/repo\//),
+    projectPath: '/repo/hoplet',
     provider: 'claude',
-    options: { model: 'opus-5.5', thinking: true, fast: false },
+    options: { model: 'haiku-5', thinking: true, fast: true },
     text: 'build it',
   });
   expect(new URLSearchParams(location.search).get('session')).toBe(
     'cccccccc-2222-4333-8444-555555555555',
   );
-  expect(q('cockpit.new-dialog')).toBeNull();
+  expect(q('cockpit.draft')).toBeNull();
+  expect(q('cockpit.draft-row')).toBeNull();
 });
 
-it('keeps the dialog open and says why when the session could not start', async () => {
+it('keeps the draft and its text and says why when the session could not start', async () => {
   const { ApiError } = await import('../src/lib/errors.ts');
   api.postNewSession.mockRejectedValue(new ApiError(502, 'rejected', 'claude not found in PATH'));
   await mount();
-  await act(async () => (q('cockpit.new-session') as HTMLElement).click());
-  const prompt = q('cockpit.new-prompt') as HTMLTextAreaElement;
-  await act(async () => {
-    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set?.call(
-      prompt,
-      'go',
-    );
-    prompt.dispatchEvent(new Event('input', { bubbles: true }));
+  await click(q('cockpit.new-session'));
+  await type('go');
+  await click(q('cockpit.send'));
+  expect(q('cockpit.composer-error')?.textContent).toContain('claude not found in PATH');
+  expect(q('cockpit.draft')).not.toBeNull();
+  expect((q('cockpit.composer-input') as HTMLTextAreaElement).value).toBe('go');
+});
+
+it('starts a draft where the open session runs, and selecting a session leaves it', async () => {
+  history.replaceState(null, '', `/?session=${B}`);
+  api.fetchSessions.mockResolvedValue({
+    sessions: [meta(A, 'first'), meta(B, 'second', { projectPath: '/repo/other' })],
   });
-  await act(async () => (q('cockpit.new-start') as HTMLElement).click());
-  expect(q('cockpit.new-error')?.textContent).toContain('claude not found in PATH');
-  expect(q('cockpit.new-dialog')).not.toBeNull();
+  await mount();
+  await open();
+  // The open session's composer says where it runs, read only.
+  expect(q('cockpit.where')?.textContent).toBe('MacBook Pro/other');
+  await act(async () => {
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'n', metaKey: true }));
+  });
+  expect(q('cockpit.draft')).not.toBeNull();
+  expect(q('cockpit.draft-directory')?.getAttribute('aria-label')).toBe('Directory, other');
+  await click(rows()[0] ?? null);
+  expect(q('cockpit.draft')).toBeNull();
+  expect(new URLSearchParams(location.search).get('session')).toBe(A);
 });
 
 it('pauses polling while the tab is hidden', async () => {

@@ -125,9 +125,12 @@ optional line numbers, a fade past `--layout-well-max`, a copy button): Read pre
 under its `$ command` line, search hits as `path:line  excerpt`, web and MCP results, errors and the elided
 block's preview with an open button showing its size. The diff shares the well's frame and gutter, and its
 path opens the file's full diff in the inspector. Three or more consecutive rows without an open well fold
-into one row naming their verbs; expanded thinking is dim italic UI type. The composer floats at the foot of the column with
-attach, voice and send icon buttons, and a status line only for session states that block or change what
-the user can do. Workspace paths carry a file-type glyph; code in diffs and files is highlighted with the
+into one row naming their verbs; expanded thinking is dim italic UI type. The composer floats at the foot of the column: a
+first row ruled off from the field that says where the session runs (machine / directory / git branch as quiet
+chips, pickers with a chevron only in a draft), the field, and a toolbar with attach, a model button (the
+model's name and the Thinking glyph, opening model, Thinking and Fast), voice and send, and a status line only for
+session states that block or change what the user can do. A grip on its top edge sets its height; pasted
+images sit above the text as 64 px thumbnails on the checkerboard. Workspace paths carry a file-type glyph; code in diffs and files is highlighted with the
 syntax tokens; images are previewed on a checkerboard. The development fixtures are built for the states (one turn with a prompt, thinking, prose, a read, an
 edit and a run of tools, then the live turn), not copied from a session.
 
@@ -136,7 +139,7 @@ edit and a run of tools, then the live turn), not copied from a session.
 Shared components live in `web/src/components/` and screens compose them; a screen never styles its own
 variant of a shared component. Set: `TokenGate`, `Button`, `IconButton` (icon only, its accessible name is its
 tooltip), `TextField`, `Row`, `Fold`, `Badge` (state labels and keycaps), `Panel`, `Popover`, `Select`, `Switch`,
-`Dialog` (a centred modal over a scrim with a focus trap: the command palette, New session, Add project). Icons are
+`Dialog` (a centred modal over a scrim with a focus trap: the command palette, Add project). Icons are
 `components/icons.tsx`; provider marks are `components/provider-marks.tsx`. Screen-owned pieces
 (sidebar rows, turn blocks, activity rows, composer, inspector, handoff steps)
 live in the Hoplet screen directory.
@@ -147,7 +150,7 @@ One family, Lucide (ISC), bundled and never fetched: every glyph on a 24-unit gr
 `--icon-stroke` 1.5, round caps and joins, centred on the line of the text beside it. The set is closed:
 search, panel-left, panel-right, square-pen, plus, chevron-right, arrow-up, arrow-up-right,
 arrow-right-left, file, folder, folder-open, book-open, pencil, file-plus, terminal, plug, globe, lightbulb, image,
-layers, eye, square, lock, paperclip, mic, hand, clock, x, check, circle-alert, info, rotate-cw, copy,
+layers, eye, square, git-branch, zap, lock, paperclip, mic, hand, clock, x, check, circle-alert, info, rotate-cw, copy,
 settings, laptop, contrast, ellipsis, text-wrap, loader-circle; turned glyphs (a chevron, an arrow) cover the other directions.
 File-type badges (TypeScript, Markdown, JSON, image, text, other) use the same page and stroke with a tint.
 Provider marks (the Claude mark for Claude Code) are drawn monochrome in the dim text colour, never in brand

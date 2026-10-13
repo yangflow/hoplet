@@ -1,4 +1,4 @@
-/* The cockpit shell: sidebar, top bar, command palette, New session, empty state. */
+/* The cockpit shell: sidebar, top bar, command palette, Add project, a draft, empty state. */
 
 .cockpit {
   display: flex;
@@ -559,7 +559,7 @@
   gap: var(--space-1);
 }
 
-/* New session */
+/* Dialog chrome: Add project */
 .ns {
   padding: var(--space-3) var(--space-4) var(--space-4);
   display: flex;
@@ -587,40 +587,6 @@
 }
 .ns-label {
   color: var(--color-text-2);
-}
-.ns-toggles {
-  display: flex;
-  align-items: center;
-  gap: var(--space-4);
-  height: var(--control-field);
-}
-.ns-prompt {
-  display: flex;
-  align-items: flex-end;
-  gap: var(--space-2);
-  height: 108px;
-  margin-top: var(--space-1);
-  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-3);
-  overflow: visible;
-}
-.ns-prompt textarea {
-  flex: 1;
-  align-self: stretch;
-  min-height: 0;
-  caret-color: var(--color-accent);
-}
-.ns-machine {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.ns-actions {
-  display: flex;
-  justify-content: flex-end;
 }
 .ns-hint {
   grid-column: 2;
@@ -829,4 +795,17 @@
   font-size: var(--text-meta);
   line-height: var(--leading-meta);
   color: var(--color-del-text);
+}
+
+/* A draft (New session): an empty conversation over the docked composer, and its row in the sidebar */
+.draft-note {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 38%;
+  text-align: center;
+  color: var(--color-text-3);
+}
+.sess.draft .row-label {
+  font-style: italic;
 }

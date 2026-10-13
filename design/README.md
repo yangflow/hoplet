@@ -7,8 +7,6 @@ The mockups, design tokens and app icon behind Hoplet's web UI. The design langu
 
 - `screens/<screen>.html`: one mockup per screen (`cockpit`, `workspace`, `settings`) with every state, in light
   and dark. The built screens live in `web/src/screens/<screen>/`.
-- `screens/composer.html`: three directions for Composer v2 and draft sessions (#10); the chosen one moves into
-  `cockpit.html` and this file goes.
 - `tokens.html`: every design token, with the JSON block that `check-tokens.py` compares with
   `web/src/design/tokens.css`.
 - `mark.html`: the app icon and the web UI's mark; the exported icon is `web/public/icon.svg`.

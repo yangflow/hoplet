@@ -15,6 +15,7 @@ import {
   FilePlus,
   Folder,
   FolderOpen,
+  GitBranch,
   Globe,
   Hand,
   Image,
@@ -39,6 +40,7 @@ import {
   Terminal,
   TextWrap,
   X,
+  Zap,
 } from 'lucide-react';
 import type { ReactNode } from 'react';
 
@@ -76,6 +78,8 @@ export const Icon = {
   plug: draw(Plug),
   globe: draw(Globe),
   thinking: draw(Lightbulb),
+  fast: draw(Zap),
+  branch: draw(GitBranch),
   image: draw(Image),
   tools: draw(Layers),
   eye: draw(Eye),
