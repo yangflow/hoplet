@@ -7,11 +7,11 @@ import type {
 } from '@hoplet/shared';
 import { type ReactNode, useState } from 'react';
 import { live as liveWorkspace, snapshot } from '../workspace/fixtures.ts';
-import type { AddProjectFixture } from './add-project.tsx';
-import { rememberBlock } from './blocks.tsx';
-import { dirKey } from './folded-dirs.ts';
+import { rememberBlock } from './conversation/blocks.tsx';
+import type { LiveTurn, OpenPermission } from './conversation/live-turn.ts';
 import { Cockpit, type CockpitFixture } from './index.tsx';
-import type { LiveTurn, OpenPermission } from './live-turn.ts';
+import type { AddProjectFixture } from './sidebar/add-project.tsx';
+import { dirKey } from './sidebar/folded-dirs.ts';
 import type { SearchState } from './use-search.ts';
 
 // Fixtures for /__states/cockpit/<state>: every state of the design with its conversation and composer.

@@ -7,7 +7,7 @@ import {
   moveIndex,
   parentOf,
   resolveTyped,
-} from '../src/screens/cockpit/browse.ts';
+} from '../src/screens/cockpit/sidebar/browse.ts';
 
 const ROOT = '/Users/mark';
 

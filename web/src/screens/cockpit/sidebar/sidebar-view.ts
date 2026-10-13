@@ -1,6 +1,6 @@
 import type { LiveSessionMeta } from '@hoplet/shared';
 import { useCallback, useState } from 'react';
-import type { DeviceGroup } from './group.ts';
+import type { DeviceGroup } from '../group.ts';
 
 /**
  * How one machine lists its sessions (docs/spec.md#hoplet): remembered in the browser per device, never sent to

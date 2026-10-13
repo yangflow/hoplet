@@ -31,13 +31,13 @@ describe('checkBoundaries', () => {
     expect(ok).toEqual([]);
     const bad = checkBoundaries(
       files({
-        'web/src/screens/cockpit/rows.tsx': 'import { Search } from "lucide-react";',
+        'web/src/screens/cockpit/conversation/rows.tsx': 'import { Search } from "lucide-react";',
         'web/src/components/file-types.tsx':
           'import Search from "lucide-react/dist/esm/icons/search";',
       }),
     );
     expect(bad.map((v) => v.file)).toEqual([
-      'web/src/screens/cockpit/rows.tsx',
+      'web/src/screens/cockpit/conversation/rows.tsx',
       'web/src/components/file-types.tsx',
     ]);
     expect(bad[0]?.rule).toContain('web/src/components/icons.tsx');

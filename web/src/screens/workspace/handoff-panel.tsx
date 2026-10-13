@@ -6,7 +6,7 @@ import { Icon, Spinner } from '../../components/icons.tsx';
 import { Select } from '../../components/Select.tsx';
 import { TextField } from '../../components/TextField.tsx';
 import { t } from '../../lib/i18n.ts';
-import { clock, formatBytes } from '../cockpit/format.ts';
+import { clock, formatBytes } from '../cockpit/conversation/format.ts';
 import {
   failureCode,
   failureText,

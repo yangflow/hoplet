@@ -9,8 +9,8 @@ import {
   useRef,
   useState,
 } from 'react';
-import { Spinner } from '../../components/icons.tsx';
-import { t } from '../../lib/i18n.ts';
+import { Spinner } from '../../../components/icons.tsx';
+import { t } from '../../../lib/i18n.ts';
 import { RowView, TurnHeader } from './rows.tsx';
 import type { NoteRow, Row, Turn } from './turns.ts';
 import { ViewContext, type ViewState } from './view-context.tsx';

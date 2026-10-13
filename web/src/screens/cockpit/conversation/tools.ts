@@ -4,8 +4,8 @@
  * call picks its verb and icon; the meta holds only what the call and its result carry, never a guess.
  */
 import type { ToolKind, ToolMcp } from '@hoplet/shared';
-import type { IconName } from '../../components/icons.tsx';
-import { t } from '../../lib/i18n.ts';
+import type { IconName } from '../../../components/icons.tsx';
+import { t } from '../../../lib/i18n.ts';
 import { formatBytes, formatDuration } from './format.ts';
 
 export type { ToolKind } from '@hoplet/shared';

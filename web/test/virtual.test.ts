@@ -5,7 +5,7 @@ import {
   restoreScroll,
   rowAt,
   visibleRange,
-} from '../src/screens/cockpit/virtual.ts';
+} from '../src/screens/cockpit/conversation/virtual.ts';
 
 describe('virtual layout', () => {
   const heights = [30, 100, 30, 50, 200];

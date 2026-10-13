@@ -8,7 +8,7 @@ import {
   toolObject,
   toolSpec,
   verbsOf,
-} from '../src/screens/cockpit/tools.ts';
+} from '../src/screens/cockpit/conversation/tools.ts';
 
 const tool = (name: string, kind: ToolKind): ToolRef => ({ name, kind });
 

@@ -6,7 +6,7 @@ import {
   formatCountdown,
   formatDuration,
   formatTimer,
-} from '../src/screens/cockpit/format.ts';
+} from '../src/screens/cockpit/conversation/format.ts';
 import {
   addPermission,
   applyOutput,
@@ -15,7 +15,7 @@ import {
   MAX_LIVE_ROWS,
   PERMISSION_OPEN_MS,
   permissionInput,
-} from '../src/screens/cockpit/live-turn.ts';
+} from '../src/screens/cockpit/conversation/live-turn.ts';
 import { composerView, startErrorName } from '../src/screens/cockpit/runtime.ts';
 
 const out = (over: Partial<SessionOutput> & Pick<SessionOutput, 'kind'>): SessionOutput => ({

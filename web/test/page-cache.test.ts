@@ -7,7 +7,7 @@ import {
   type Limits,
   PageCache,
   pageOf,
-} from '../src/screens/cockpit/page-cache.ts';
+} from '../src/screens/cockpit/conversation/page-cache.ts';
 
 const entry = (lineNo: number, blocks = 1, text = 'x'): Entry => ({
   lineNo,

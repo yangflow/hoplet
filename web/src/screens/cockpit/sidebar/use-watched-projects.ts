@@ -1,7 +1,7 @@
 import type { DeviceInfo } from '@hoplet/shared';
 import { useCallback, useEffect, useState } from 'react';
-import { fetchDeviceProjects } from '../../lib/api.ts';
-import { onLive } from '../../lib/live.ts';
+import { fetchDeviceProjects } from '../../../lib/api.ts';
+import { onLive } from '../../../lib/live.ts';
 
 /**
  * The watched project paths of every connected device, from its catalog, so a project with no session yet

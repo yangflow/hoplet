@@ -1,0 +1,161 @@
+/* The composer: the prompt field, its footer line, the read-only bar and the recording row (design/screens/cockpit.html). */
+.composer {
+  pointer-events: auto;
+  border-radius: var(--radius-xl);
+  background: var(--color-raised);
+  box-shadow: var(--shadow-float);
+  padding: var(--space-3) var(--space-2) var(--space-2) var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.ph-field {
+  width: 100%;
+  border: 0;
+  outline: 0;
+  resize: none;
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-body);
+  line-height: var(--leading-body);
+  min-height: var(--leading-body);
+  overflow-y: auto;
+  padding: 0;
+}
+.ph-field::placeholder {
+  color: var(--color-text-3);
+}
+.ph-field:focus-visible {
+  outline: 0;
+}
+.ph-field:disabled {
+  cursor: default;
+}
+.cerr {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  color: var(--color-danger);
+}
+.cf {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: var(--control-field);
+}
+.cf .cst {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 20px;
+  color: var(--color-text-2);
+  margin: 0 0 0 var(--space-1);
+  padding-left: var(--space-3);
+  box-shadow: inset 1px 0 0 var(--color-line);
+}
+.cf .cst:first-child {
+  margin-left: 0;
+  padding-left: 0;
+  box-shadow: none;
+}
+.cf .cst.bad {
+  color: var(--color-danger);
+}
+.cf .r {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.cf .note {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-3);
+}
+.composer.cbar {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-3) var(--space-3) var(--space-5);
+  min-height: 56px;
+}
+.composer.cbar .cst {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-2);
+  flex: 1;
+  height: auto;
+  margin: 0;
+  padding: 0;
+  box-shadow: none;
+}
+.composer.cbar .cst svg {
+  color: var(--color-text-3);
+}
+.composer.ro {
+  background: var(--color-surface);
+  box-shadow: inset 0 0 0 1px var(--color-line);
+}
+.ready-dot,
+.bad-dot,
+.off-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+}
+.ready-dot {
+  background: var(--color-accent);
+}
+.bad-dot {
+  background: var(--color-danger);
+}
+.off-dot {
+  box-shadow: inset 0 0 0 1.5px var(--color-text-3);
+}
+.recrow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  height: 24px;
+  padding-right: var(--space-2);
+}
+.recrow .rdot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  box-shadow: 0 0 0 4px var(--color-accent-soft);
+  animation: pulse var(--motion-pulse) ease-in-out infinite;
+  flex: none;
+}
+.recrow .el {
+  font-size: var(--text-body);
+  line-height: var(--leading-body);
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+  width: 36px;
+  flex: none;
+}
+.wave {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+  height: 24px;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to right, transparent, var(--color-bg) 18%);
+  mask-image: linear-gradient(to right, transparent, var(--color-bg) 18%);
+}
+.wave i {
+  flex: none;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--color-accent-text);
+}
