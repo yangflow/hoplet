@@ -266,21 +266,25 @@ func (c *Client) handleDirs(cs *connState, requestID, path string) {
 	})
 }
 
-// handleAttachment stores the image of attachment.put and answers on the control lane.
+// handleAttachment takes a chunk of attachment.put and answers on the control lane once the image is stored,
+// or when a chunk is refused. Chunks are handled in the order they arrive, in the read loop.
 func (c *Client) handleAttachment(cs *connState, raw json.RawMessage) {
 	var req AttachmentPut
 	if err := json.Unmarshal(raw, &req); err != nil {
 		return
 	}
-	err := errors.New("not-implemented")
+	done, err := false, errors.New("not-implemented")
 	if c.hooks.AttachmentPut != nil {
-		err = c.hooks.AttachmentPut(req.AttachmentID, req.MediaType, req.Data)
+		done, err = c.hooks.AttachmentPut(req)
 	}
 	if err != nil {
 		log.Printf("[agent] attachment refused: %v", err)
 		_ = c.writeMsg(cs, AttachmentRejected{
 			V: ProtocolVersion, Type: TypeAttachmentRejected, RequestID: req.RequestID, Reason: err.Error(),
 		})
+		return
+	}
+	if !done {
 		return
 	}
 	_ = c.writeMsg(cs, AttachmentStored{

@@ -553,7 +553,10 @@ export const WIRE_MESSAGES = defineWire({
   },
 
   // Directory browsing under the agent's browse root
-  // Images for a coming prompt (ADR 0017): the bytes go on the bulk lane, the answer is control.
+  /**
+   * An image for a coming prompt (ADR 0017), in chunks of at most `SNAPSHOT_CHUNK_BYTES` like a snapshot: `seq`
+   * counts from 0, `last` marks the final chunk, after which the device answers once.
+   */
   'attachment.put': {
     lane: 'bulk',
     direction: 'core-to-device',
@@ -561,7 +564,9 @@ export const WIRE_MESSAGES = defineWire({
       requestId,
       attachmentId: AttachmentIdSchema,
       mediaType: v.picklist(PROMPT_IMAGE_TYPES),
-      data: v.string(),
+      seq: cursor,
+      last: v.boolean(),
+      data: v.pipe(v.string(), v.maxLength(SNAPSHOT_CHUNK_CHARS)),
     },
   },
   'attachment.stored': {

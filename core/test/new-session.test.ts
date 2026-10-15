@@ -438,7 +438,7 @@ describe('images for a prompt (ADR 0017)', () => {
   function storing(peer: Peer, refuse?: string): void {
     peer.ws.on('message', (data) => {
       const m = JSON.parse(String(data)) as Msg;
-      if (m.type !== 'attachment.put') return;
+      if (m.type !== 'attachment.put' || (!m.last && !refuse)) return;
       peer.send(
         refuse
           ? { type: 'attachment.rejected', requestId: m.requestId, reason: refuse }
@@ -457,8 +457,23 @@ describe('images for a prompt (ADR 0017)', () => {
     });
     expect(res.status).toBe(200);
     const put = owner.ofType('attachment.put')[0];
-    expect(put).toMatchObject({ mediaType: 'image/png', data: png() });
+    expect(put).toMatchObject({ mediaType: 'image/png', seq: 0, last: true, data: png() });
     expect(res.body).toEqual({ attachmentId: put?.attachmentId });
+
+    // A larger image goes in chunks of 1 MiB, as a snapshot does, under one ID and in order.
+    const big = png(2.5 * MiB);
+    await post('/api/devices/dev-a/attachments', { mediaType: 'image/png', data: big });
+    const chunks = owner.ofType('attachment.put').slice(1);
+    expect(chunks.map((c) => [c.seq, c.last])).toEqual([
+      [0, false],
+      [1, false],
+      [2, true],
+    ]);
+    expect(new Set(chunks.map((c) => c.attachmentId)).size).toBe(1);
+    expect(chunks.every((c) => Buffer.from(String(c.data), 'base64').length <= MiB)).toBe(true);
+    expect(Buffer.concat(chunks.map((c) => Buffer.from(String(c.data), 'base64')))).toEqual(
+      Buffer.from(big, 'base64'),
+    );
   });
 
   it('refuses an upload that is not what it claims, too large, unwanted or refused', async () => {

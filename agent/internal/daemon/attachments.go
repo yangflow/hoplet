@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/yangflow/hoplet/agent/internal/runtime"
+	"github.com/yangflow/hoplet/agent/internal/sync"
 )
 
 // The limits of prompt images (docs/spec.md#hoplet, ADR 0017); shared/src/runtime.ts holds the same numbers
@@ -40,39 +41,92 @@ var (
 )
 
 // attachments keeps the images uploaded for coming prompts in <hoplet_home>/attachments, one file per image
-// named by its ID and type, readable by the agent's user only.
+// named by its ID and type, readable by the agent's user only. An image arrives in chunks and is written to a
+// hidden file until its last chunk.
 type attachments struct {
-	dir string
-	now func() time.Time
-	mu  gosync.Mutex
+	dir     string
+	now     func() time.Time
+	mu      gosync.Mutex
+	pending map[string]*upload // images whose last chunk has not arrived, by ID
+}
+
+// upload is an image being received: the chunk expected next and the bytes so far.
+type upload struct {
+	mediaType string
+	next      int64
+	size      int
+	started   time.Time
 }
 
 func newAttachments(dir string) *attachments {
-	return &attachments{dir: dir, now: time.Now}
+	return &attachments{dir: dir, now: time.Now, pending: map[string]*upload{}}
 }
 
-// put checks one uploaded image as the core did (base64, at most 4 MiB, first bytes of the declared type) and
-// stores it under id, after pruning what is expired or beyond the store's limits.
-func (a *attachments) put(id, mediaType, data string) error {
+// put takes one chunk of an image (sync.SnapshotChunkBytes at most, in order from 0) and reports whether the
+// image is complete: after the last chunk it checks the whole image as the core did (at most 4 MiB, first
+// bytes of the declared type) and stores it under id. Any failure drops what was received of the image.
+func (a *attachments) put(id, mediaType string, seq int64, last bool, data string) (done bool, err error) {
 	ext, ok := extOf[mediaType]
 	if !ok || !attachmentID.MatchString(id) {
-		return errInvalidImage
-	}
-	raw, err := base64.StdEncoding.DecodeString(data)
-	if err != nil || len(raw) == 0 || len(raw) > maxPromptImageBytes || http.DetectContentType(raw) != mediaType {
-		return errInvalidImage
+		return false, errInvalidImage
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if err := os.MkdirAll(a.dir, 0o700); err != nil {
-		return err
-	}
-	a.prune(len(raw))
 	tmp := filepath.Join(a.dir, "."+id+ext)
-	if err := os.WriteFile(tmp, raw, 0o600); err != nil {
-		return err
+	defer func() {
+		if err != nil || done {
+			delete(a.pending, id)
+		}
+		if err != nil {
+			_ = os.Remove(tmp)
+		}
+	}()
+	chunk, err := base64.StdEncoding.DecodeString(data)
+	if err != nil || len(chunk) > sync.SnapshotChunkBytes {
+		return false, errInvalidImage
 	}
-	return os.Rename(tmp, filepath.Join(a.dir, id+ext))
+	up := a.pending[id]
+	if seq == 0 {
+		if err := os.MkdirAll(a.dir, 0o700); err != nil {
+			return false, err
+		}
+		a.prune()
+		up = &upload{mediaType: mediaType, started: a.now()}
+		a.pending[id] = up
+		if err := os.WriteFile(tmp, nil, 0o600); err != nil {
+			return false, err
+		}
+	}
+	if up == nil || up.next != seq || up.mediaType != mediaType {
+		return false, errInvalidImage
+	}
+	up.next++
+	up.size += len(chunk)
+	if up.size > maxPromptImageBytes {
+		return false, errInvalidImage
+	}
+	f, err := os.OpenFile(tmp, os.O_WRONLY|os.O_APPEND, 0o600)
+	if err != nil {
+		return false, err
+	}
+	_, werr := f.Write(chunk)
+	if cerr := f.Close(); werr == nil {
+		werr = cerr
+	}
+	if werr != nil || !last {
+		return false, werr
+	}
+	head := make([]byte, 512)
+	f, err = os.Open(tmp)
+	if err != nil {
+		return false, err
+	}
+	n, _ := f.Read(head)
+	_ = f.Close()
+	if up.size == 0 || http.DetectContentType(head[:n]) != mediaType {
+		return false, errInvalidImage
+	}
+	return true, os.Rename(tmp, filepath.Join(a.dir, id+ext))
 }
 
 // take reads the images of a prompt in order and checks their count and total size. The files stay until they
@@ -118,9 +172,14 @@ func (a *attachments) find(id string) (string, string) {
 	return "", ""
 }
 
-// prune removes expired images and leftovers of interrupted writes, then the oldest until one more image of
-// size incoming fits the limits. The caller holds the lock.
-func (a *attachments) prune(incoming int) {
+// prune removes expired images, uploads that stalled for longer than the TTL and their leftovers, then the
+// oldest images until one more of the largest size fits the limits. The caller holds the lock.
+func (a *attachments) prune() {
+	for id, up := range a.pending {
+		if a.now().Sub(up.started) > storeTTL {
+			delete(a.pending, id)
+		}
+	}
 	entries, err := os.ReadDir(a.dir)
 	if err != nil {
 		return
@@ -138,7 +197,14 @@ func (a *attachments) prune(incoming int) {
 			continue
 		}
 		path := filepath.Join(a.dir, e.Name())
-		if strings.HasPrefix(e.Name(), ".") || a.now().Sub(info.ModTime()) > storeTTL {
+		if strings.HasPrefix(e.Name(), ".") {
+			id := strings.TrimSuffix(strings.TrimPrefix(e.Name(), "."), filepath.Ext(e.Name()))
+			if a.pending[id] == nil {
+				_ = os.Remove(path)
+			}
+			continue
+		}
+		if a.now().Sub(info.ModTime()) > storeTTL {
 			_ = os.Remove(path)
 			continue
 		}
@@ -146,7 +212,7 @@ func (a *attachments) prune(incoming int) {
 		total += info.Size()
 	}
 	sort.Slice(kept, func(i, j int) bool { return kept[i].at.Before(kept[j].at) })
-	for len(kept) > 0 && (len(kept)+1 > storeMaxFiles || total+int64(incoming) > storeMaxBytes) {
+	for len(kept) > 0 && (len(kept)+1 > storeMaxFiles || total+maxPromptImageBytes > storeMaxBytes) {
 		_ = os.Remove(kept[0].path)
 		total -= kept[0].size
 		kept = kept[1:]

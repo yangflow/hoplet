@@ -219,14 +219,17 @@ type RuntimePrompt struct {
 	Attachments []string `json:"attachments,omitempty"`
 }
 
-// AttachmentPut (core → device, bulk) carries one image for a coming prompt, as base64; the device answers
-// with AttachmentStored or AttachmentRejected.
+// AttachmentPut (core → device, bulk) carries one chunk of an image for a coming prompt, as base64, at most
+// SnapshotChunkBytes; Seq counts from 0 and Last marks the final chunk, after which the device answers with
+// AttachmentStored. Any chunk that fails is answered with AttachmentRejected.
 type AttachmentPut struct {
 	V            int    `json:"v"`
 	Type         string `json:"type"`
 	RequestID    string `json:"requestId"`
 	AttachmentID string `json:"attachmentId"`
 	MediaType    string `json:"mediaType"`
+	Seq          int64  `json:"seq"`
+	Last         bool   `json:"last"`
 	Data         string `json:"data"`
 }
 

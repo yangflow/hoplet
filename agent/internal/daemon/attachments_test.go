@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/yangflow/hoplet/agent/internal/sync"
 )
 
 // The first bytes of each image type a prompt may carry.
@@ -28,6 +30,25 @@ func pngOf(size int) []byte {
 	return out
 }
 
+// putAll sends an image in chunks of at most sync.SnapshotChunkBytes, as the core does.
+func putAll(a *attachments, id, mediaType string, raw []byte) error {
+	n := (len(raw) + sync.SnapshotChunkBytes - 1) / sync.SnapshotChunkBytes
+	if n == 0 {
+		n = 1
+	}
+	for seq := 0; seq < n; seq++ {
+		end := min((seq+1)*sync.SnapshotChunkBytes, len(raw))
+		done, err := a.put(id, mediaType, int64(seq), seq == n-1, b64(raw[seq*sync.SnapshotChunkBytes:end]))
+		if err != nil {
+			return err
+		}
+		if done != (seq == n-1) {
+			return fmt.Errorf("chunk %d of %d: done = %v", seq, n, done)
+		}
+	}
+	return nil
+}
+
 func newTestAttachments(t *testing.T) (*attachments, *time.Time) {
 	t.Helper()
 	now := time.Now()
@@ -42,7 +63,7 @@ func TestAttachmentsStoreTheFourTypesAndBuildAPrompt(t *testing.T) {
 		mt   string
 		data []byte
 	}{"p": {"image/png", pngBytes}, "j": {"image/jpeg", jpegBytes}, "g": {"image/gif", gifBytes}, "w": {"image/webp", webpBytes}} {
-		if err := a.put(id, img.mt, b64(img.data)); err != nil {
+		if err := putAll(a, id, img.mt, img.data); err != nil {
 			t.Fatalf("%s: %v", id, err)
 		}
 	}
@@ -65,21 +86,26 @@ func TestAttachmentsStoreTheFourTypesAndBuildAPrompt(t *testing.T) {
 
 func TestAttachmentsRefuseWhatTheLimitsExclude(t *testing.T) {
 	a, _ := newTestAttachments(t)
-	refused := map[string][3]string{
-		"a type not taken":     {"x", "image/svg+xml", b64([]byte("<svg/>"))},
-		"bytes of another":     {"x", "image/png", b64(jpegBytes)},
-		"not base64":           {"x", "image/png", "%%%"},
-		"empty":                {"x", "image/png", ""},
-		"over 4 MiB":           {"x", "image/png", b64(pngOf(maxPromptImageBytes + 1))},
-		"an ID that is a path": {"../x", "image/png", b64(pngBytes)},
+	refused := map[string]struct {
+		id, mediaType string
+		raw           []byte
+	}{
+		"a type not taken":     {"x", "image/svg+xml", []byte("<svg/>")},
+		"bytes of another":     {"x", "image/png", jpegBytes},
+		"empty":                {"x", "image/png", nil},
+		"over 4 MiB":           {"x", "image/png", pngOf(maxPromptImageBytes + 1)},
+		"an ID that is a path": {"../x", "image/png", pngBytes},
 	}
 	for name, c := range refused {
-		if err := a.put(c[0], c[1], c[2]); !errors.Is(err, errInvalidImage) {
+		if err := putAll(a, c.id, c.mediaType, c.raw); !errors.Is(err, errInvalidImage) {
 			t.Errorf("%s: err = %v", name, err)
 		}
 	}
+	if _, err := a.put("x", "image/png", 0, true, "%%%"); !errors.Is(err, errInvalidImage) {
+		t.Errorf("not base64: %v", err)
+	}
 	for _, id := range []string{"a", "b", "c", "d", "e"} {
-		if err := a.put(id, "image/png", b64(pngOf(3<<20))); err != nil {
+		if err := putAll(a, id, "image/png", pngOf(3<<20)); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -99,7 +125,7 @@ func TestAttachmentsRefuseWhatTheLimitsExclude(t *testing.T) {
 
 func TestAttachmentsExpireAndKeepWithinTheStoreLimits(t *testing.T) {
 	a, now := newTestAttachments(t)
-	if err := a.put("old", "image/png", b64(pngBytes)); err != nil {
+	if err := putAll(a, "old", "image/png", pngBytes); err != nil {
 		t.Fatal(err)
 	}
 	// An image older than the TTL is gone, for a prompt and from the disk at the next upload.
@@ -107,7 +133,7 @@ func TestAttachmentsExpireAndKeepWithinTheStoreLimits(t *testing.T) {
 	if _, err := a.prompt("x", []string{"old"}); !errors.Is(err, errMissingAttachment) {
 		t.Fatalf("expired: %v", err)
 	}
-	if err := a.put("new", "image/png", b64(pngBytes)); err != nil {
+	if err := putAll(a, "new", "image/png", pngBytes); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(filepath.Join(a.dir, "old.png")); !os.IsNotExist(err) {
@@ -121,7 +147,7 @@ func TestAttachmentsExpireAndKeepWithinTheStoreLimits(t *testing.T) {
 	for i := 0; i < storeMaxFiles+3; i++ {
 		*now = now.Add(time.Second)
 		id := fmt.Sprintf("img%d", i)
-		if err := a.put(id, "image/png", b64(pngBytes)); err != nil {
+		if err := putAll(a, id, "image/png", pngBytes); err != nil {
 			t.Fatal(err)
 		}
 		if err := os.Chtimes(filepath.Join(a.dir, id+".png"), *now, *now); err != nil {
@@ -134,5 +160,48 @@ func TestAttachmentsExpireAndKeepWithinTheStoreLimits(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(a.dir, "new.png")); !os.IsNotExist(err) {
 		t.Fatal("the oldest image was kept")
+	}
+}
+
+func TestAttachmentsArriveInChunksInOrder(t *testing.T) {
+	a, _ := newTestAttachments(t)
+	big := pngOf(3*sync.SnapshotChunkBytes + 5)
+	// Another image uploaded meanwhile leaves this one's chunks alone.
+	if _, err := a.put("big", "image/png", 0, false, b64(big[:sync.SnapshotChunkBytes])); err != nil {
+		t.Fatal(err)
+	}
+	if err := putAll(a, "small", "image/png", pngBytes); err != nil {
+		t.Fatal(err)
+	}
+	for seq := 1; seq <= 3; seq++ {
+		end := min((seq+1)*sync.SnapshotChunkBytes, len(big))
+		done, err := a.put("big", "image/png", int64(seq), seq == 3, b64(big[seq*sync.SnapshotChunkBytes:end]))
+		if err != nil || done != (seq == 3) {
+			t.Fatalf("chunk %d: done %v err %v", seq, done, err)
+		}
+	}
+	p, err := a.prompt("x", []string{"big", "small"})
+	if err != nil || !bytes.Equal(p.Images[0].Data, big) {
+		t.Fatalf("assembled image: %v", err)
+	}
+
+	// A chunk out of order, a chunk larger than a snapshot chunk, or a chunk without a start drops the image.
+	if _, err := a.put("o", "image/png", 0, false, b64(pngBytes)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.put("o", "image/png", 2, true, b64(pngBytes)); !errors.Is(err, errInvalidImage) {
+		t.Fatalf("out of order: %v", err)
+	}
+	if _, err := a.put("o", "image/png", 1, true, b64(pngBytes)); !errors.Is(err, errInvalidImage) {
+		t.Fatalf("after a refusal the image is gone: %v", err)
+	}
+	if _, err := a.put("l", "image/png", 0, true, b64(pngOf(sync.SnapshotChunkBytes+1))); !errors.Is(err, errInvalidImage) {
+		t.Fatalf("oversized chunk: %v", err)
+	}
+	entries, _ := os.ReadDir(a.dir)
+	for _, e := range entries {
+		if e.Name()[0] == '.' {
+			t.Fatalf("leftover %s", e.Name())
+		}
 	}
 }

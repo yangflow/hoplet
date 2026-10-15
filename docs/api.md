@@ -103,8 +103,8 @@ Behavior a client relies on:
 - `POST /api/devices/:deviceId/attachments` uploads one image (`mediaType`, base64 `data`; a body of at most
   6 MiB) on the bulk lane: PNG, JPEG, GIF or WebP of at most 4 MiB (`too-large` beyond) whose first bytes are
   the declared type, for a connected device with a provider that declares `images` (`invalid-request` with
-  `reason: images` otherwise, `target-offline` when the device is not connected). It answers with the
-  `attachmentId` once the device has stored it (ADR 0017). The `promptId` is chosen by the client; the same one sent again within
+  `reason: images` otherwise, `target-offline` when the device is not connected). The core sends it to the device in
+  chunks of at most 1 MiB and answers with the `attachmentId` once the device has stored it (ADR 0017). The `promptId` is chosen by the client; the same one sent again within
   10 minutes returns the first result, so a retry after a lost response does not run the prompt twice. The output
   of the turn arrives on the browser WebSocket.
 - A session's `gitBranch` is the branch its lines last recorded (Claude Code's `gitBranch`), and the branch of the

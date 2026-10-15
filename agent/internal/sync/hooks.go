@@ -91,8 +91,9 @@ type Hooks struct {
 	// with its text as the reason.
 	DirsList func(ctx context.Context, path string) (DirListing, error)
 
-	// AttachmentPut stores an image for a coming prompt; an error becomes attachment.rejected with its text.
-	AttachmentPut func(attachmentID, mediaType, data string) error
+	// AttachmentPut takes one chunk of an image for a coming prompt and reports whether the image is complete
+	// and stored; an error becomes attachment.rejected with its text.
+	AttachmentPut func(put AttachmentPut) (done bool, err error)
 
 	// CloneFind names the clone a handoff of a repository with this origin would use, "" when there is none.
 	CloneFind func(ctx context.Context, origin string) (string, error)

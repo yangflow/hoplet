@@ -212,31 +212,33 @@ func TestRefusedStartIsRejectedWithItsReason(t *testing.T) {
 	}
 }
 
-func TestAttachmentPutIsAnsweredStoredOrRejected(t *testing.T) {
+func TestAttachmentPutIsAnsweredOnceStoredOrWhenRejected(t *testing.T) {
 	c, cs, read := dialTestConn(t)
-	var got [3]string
-	c.hooks.AttachmentPut = func(id, mediaType, data string) error {
-		got = [3]string{id, mediaType, data}
-		if id == "bad" {
-			return errors.New("invalid-image")
+	var seen []AttachmentPut
+	c.hooks.AttachmentPut = func(p AttachmentPut) (bool, error) {
+		seen = append(seen, p)
+		if p.AttachmentID == "bad" {
+			return false, errors.New("invalid-image")
 		}
-		return nil
+		return p.Last, nil
 	}
-	put := func(requestID, id string) json.RawMessage {
+	put := func(requestID, id string, seq int64, last bool) json.RawMessage {
 		raw, _ := json.Marshal(AttachmentPut{
 			V: ProtocolVersion, Type: TypeAttachmentPut, RequestID: requestID, AttachmentID: id,
-			MediaType: "image/png", Data: "iVBORw0K",
+			MediaType: "image/png", Seq: seq, Last: last, Data: "iVBORw0K",
 		})
 		return raw
 	}
-	c.handleAttachment(cs, put("r1", "a1"))
+	// A chunk that is not the last is not answered.
+	c.handleAttachment(cs, put("r1", "a1", 0, false))
+	c.handleAttachment(cs, put("r1", "a1", 1, true))
 	if msg := read(); msg["type"] != TypeAttachmentStored || msg["requestId"] != "r1" || msg["attachmentId"] != "a1" {
 		t.Fatalf("got %#v", msg)
 	}
-	if got != [3]string{"a1", "image/png", "iVBORw0K"} {
-		t.Fatalf("hook saw %v", got)
+	if len(seen) != 2 || seen[1].Seq != 1 || !seen[1].Last || seen[0].Data != "iVBORw0K" {
+		t.Fatalf("hook saw %+v", seen)
 	}
-	c.handleAttachment(cs, put("r2", "bad"))
+	c.handleAttachment(cs, put("r2", "bad", 0, true))
 	if msg := read(); msg["type"] != TypeAttachmentRejected || msg["requestId"] != "r2" || msg["reason"] != "invalid-image" {
 		t.Fatalf("got %#v", msg)
 	}
