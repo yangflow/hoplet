@@ -23,7 +23,7 @@ record and mark the old one "superseded by NNNN".
 | [0014](0014-native-vendors-and-acp-vendors.md) | Native vendors and ACP vendors | superseded by 0015 |
 | [0015](0015-control-protocol-and-history-source-are-chosen-separately.md) | Control protocol and history source are chosen separately | accepted |
 | [0016](0016-the-source-is-public-under-apache-2-0.md) | The source is public under Apache-2.0 | accepted |
-| [0017](0017-prompt-images-ride-the-control-lane-bounded.md) | Prompt images ride the control lane, bounded | accepted |
+| [0017](0017-prompt-images-are-uploaded-before-the-prompt.md) | Prompt images are uploaded before the prompt | accepted |
 
 ## Record template
 

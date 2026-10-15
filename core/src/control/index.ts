@@ -38,6 +38,8 @@ const DEFAULT_BULK = { concurrency: 4, maxWaiting: 64 };
 const DEFAULT_PROMPT_TIMEOUT_MS = 20_000;
 const DEFAULT_START_TIMEOUT_MS = 75_000;
 const DEFAULT_WORKSPACE_TIMEOUT_MS = 8_000;
+/** An upload waits behind at most the bulk messages already queued for the device. */
+const DEFAULT_ATTACHMENT_TIMEOUT_MS = 60_000;
 const DEFAULT_HANDOFF_TIMEOUT_MS = 120_000;
 const DEFAULT_TRANSFER_TIMEOUT_MS = 600_000;
 
@@ -70,9 +72,11 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
     pendingDeviceControl: new Map(),
     pendingDirs: new Map(),
     pendingClone: new Map(),
+    pendingAttachments: new Map(),
     promptTimeoutMs: options.promptTimeoutMs ?? DEFAULT_PROMPT_TIMEOUT_MS,
     startTimeoutMs: options.startTimeoutMs ?? DEFAULT_START_TIMEOUT_MS,
     workspaceTimeoutMs: options.workspaceTimeoutMs ?? DEFAULT_WORKSPACE_TIMEOUT_MS,
+    attachmentTimeoutMs: options.attachmentTimeoutMs ?? DEFAULT_ATTACHMENT_TIMEOUT_MS,
     handoffTimeoutMs: options.handoffTimeoutMs ?? DEFAULT_HANDOFF_TIMEOUT_MS,
     transferTimeoutMs: options.transferTimeoutMs ?? DEFAULT_TRANSFER_TIMEOUT_MS,
   };

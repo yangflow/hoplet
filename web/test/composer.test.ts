@@ -1,6 +1,14 @@
+// @vitest-environment jsdom
 import { sniffImageType } from '@hoplet/shared';
 import { describe, expect, it } from 'vitest';
-import { refusal, sizeOf, toBase64 } from '../src/screens/cockpit/composer/attachments.ts';
+import {
+  MAX_EDGE,
+  readImage,
+  refusal,
+  shrunkSize,
+  sizeOf,
+  toBase64,
+} from '../src/screens/cockpit/composer/attachments.ts';
 import {
   AUTO_MAX_PX,
   CONVERSATION_MIN_PX,
@@ -97,5 +105,36 @@ describe('images for a prompt', () => {
     expect(refusal([one(4 * 1024 * 1024)], one(4 * 1024 * 1024 + 1))).toBe(
       'The images are larger than 8 MiB together',
     );
+  });
+});
+
+describe('shrinking before upload', () => {
+  it('draws an image larger than the long edge at the long edge, proportions kept', () => {
+    expect(MAX_EDGE).toBe(1568);
+    expect(shrunkSize(3136, 1000)).toEqual({ width: 1568, height: 500 });
+    expect(shrunkSize(1000, 4704)).toEqual({ width: 333, height: 1568 });
+    expect(shrunkSize(1568, 1200)).toBeNull();
+    expect(shrunkSize(640, 480)).toBeNull();
+  });
+});
+
+describe('reading an image', () => {
+  it('says so when the browser cannot decode a file with an image signature', async () => {
+    const restore = { bitmap: globalThis.createImageBitmap, canvas: globalThis.OffscreenCanvas };
+    Object.assign(globalThis, {
+      createImageBitmap: () => Promise.reject(new Error('InvalidStateError')),
+      OffscreenCanvas: class {},
+    });
+    try {
+      const bytes = new Uint8Array(64);
+      bytes.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+      const read = await readImage(new File([bytes], 'broken.png', { type: 'image/png' }));
+      expect(read).toBe('broken.png cannot be read as an image');
+    } finally {
+      Object.assign(globalThis, {
+        createImageBitmap: restore.bitmap,
+        OffscreenCanvas: restore.canvas,
+      });
+    }
   });
 });

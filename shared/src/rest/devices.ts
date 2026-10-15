@@ -1,6 +1,6 @@
 import * as v from 'valibot';
 import { DeviceProjectSchema, DirEntrySchema } from '../catalog.ts';
-import { SessionIdSchema } from '../ids.ts';
+import { AttachmentIdSchema, SessionIdSchema } from '../ids.ts';
 import { ProviderInfoSchema } from '../runtime.ts';
 import { TrimmedSchema } from './common.ts';
 
@@ -83,3 +83,10 @@ export const DeviceDirsResultSchema = v.object({
   truncated: v.boolean(),
 });
 export type DeviceDirsResult = v.InferOutput<typeof DeviceDirsResultSchema>;
+
+/**
+ * POST /api/devices/:id/attachments: one image for a coming prompt (ADR 0017), the body a `PromptImage`. The
+ * device keeps it until a prompt uses it or for an hour; the answer names it.
+ */
+export const AttachmentResultSchema = v.object({ attachmentId: AttachmentIdSchema });
+export type AttachmentResult = v.InferOutput<typeof AttachmentResultSchema>;

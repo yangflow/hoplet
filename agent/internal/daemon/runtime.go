@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log"
 	"os"
+	"path/filepath"
 	gosync "sync"
 	"time"
 
@@ -32,6 +33,7 @@ const kickEvery = 250 * time.Millisecond
 // the core's commands come in through sync.RuntimeHooks.
 type bridge struct {
 	cfg    *config.Config
+	att    *attachments // images uploaded for coming prompts
 	locate runtime.Locator
 	mgr    *runtime.Manager
 	send   func(any) error
@@ -48,7 +50,10 @@ type bridge struct {
 
 // turnDone is told when a session's turn ended, from the Manager's goroutine; it must not block.
 func newBridge(cfg *config.Config, send func(any) error, kick func(), turnDone func(sessionID string)) *bridge {
-	b := &bridge{cfg: cfg, locate: locator(cfg), send: send, kick: kick, done: make(chan struct{})}
+	b := &bridge{
+		cfg: cfg, att: newAttachments(filepath.Join(cfg.HopletHome, "attachments")),
+		locate: locator(cfg), send: send, kick: kick, done: make(chan struct{}),
+	}
 	b.cond = gosync.NewCond(&b.mu)
 	b.mgr = runtime.NewManager(runtime.Config{
 		Driver: claude.New(claude.Options{Bin: cfg.ClaudeBin, Model: os.Getenv(modelEnv)}),
@@ -183,8 +188,8 @@ func wireMessage(ev runtime.Event) any {
 // hooks are the handlers of the core's remote control messages.
 func (b *bridge) hooks() sync.RuntimeHooks {
 	return sync.RuntimeHooks{
-		Prompt: func(sessionID, text string, images []sync.PromptImage) error {
-			p, err := promptOf(text, images)
+		Prompt: func(sessionID, text string, ids []string) error {
+			p, err := b.att.prompt(text, ids)
 			if err != nil {
 				return err
 			}

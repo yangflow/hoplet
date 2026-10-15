@@ -314,5 +314,8 @@
   "Pasted image": "粘贴的图片",
   "Remove {name}": "移除 {name}",
   "The images are larger than 8 MiB together": "图片总大小超过了 8 MiB",
-  "{name} is larger than 4 MiB": "{name} 超过了 4 MiB"
+  "{name} is larger than 4 MiB": "{name} 超过了 4 MiB",
+  "{name} was not uploaded": "{name} 没有上传成功",
+  "Uploading": "正在上传",
+  "{name} cannot be read as an image": "{name} 无法作为图片读取"
 }

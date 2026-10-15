@@ -39,7 +39,7 @@ export interface StartRequest {
   provider: Provider;
   options: StartOptions;
   text: string;
-  images?: PromptImage[] | undefined;
+  attachments?: string[] | undefined;
   promptId: string;
 }
 
@@ -169,6 +169,11 @@ export type DirsOutcome =
   | { ok: true; listing: DeviceDirsResult }
   | { ok: false; error: 'target-offline' | 'timeout' | 'rejected'; reason?: string };
 
+/** Outcome of an attachment.put round-trip: the ID the image is stored under on the device. */
+export type AttachmentOutcome =
+  | { ok: true; attachmentId: string }
+  | { ok: false; error: 'target-offline' | 'timeout' | 'rejected'; reason?: string };
+
 /** Outcome of a device.clone.find round-trip: the clone a handoff would use, or null. */
 export type CloneOutcome =
   | { ok: true; path: string | null }
@@ -187,7 +192,7 @@ export interface Control {
     ownerDeviceId: string,
     text: string,
     promptId: string,
-    images?: PromptImage[],
+    attachments?: string[],
   ): Promise<PromptOutcome>;
   /** Answers an open permission request; the first answer wins. */
   answerPermission(
@@ -231,6 +236,8 @@ export interface Control {
   handoff(request: HandoffRequest): Promise<HandoffOutcome>;
   /** Lists the directories of `path` under the browse root of a connected device. */
   listDirs(deviceId: string, path: string): Promise<DirsOutcome>;
+  /** Uploads an image for a coming prompt to a connected device on the bulk lane (ADR 0017). */
+  putAttachment(deviceId: string, image: PromptImage): Promise<AttachmentOutcome>;
   /** Names the clone among a connected device's watched projects whose remote `origin` is `origin`. */
   findClone(deviceId: string, origin: string): Promise<CloneOutcome>;
   listProjects(deviceId: string): Promise<DeviceControlOutcome>;
@@ -269,6 +276,8 @@ export interface ControlOptions {
   /** The clock prompt deduplication and permission requests expire by. */
   now?: () => number;
   workspaceTimeoutMs?: number;
+  /** How long an image upload may wait for the device, behind bulk work. */
+  attachmentTimeoutMs?: number;
   /** How long one handoff step waits for an agent's answer. */
   handoffTimeoutMs?: number;
   /** How long the transfer of the snapshot and the session stream to the target may take. */

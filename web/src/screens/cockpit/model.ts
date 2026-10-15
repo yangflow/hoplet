@@ -1,10 +1,4 @@
-import type {
-  PromptImage,
-  Provider,
-  ProviderInfo,
-  RuntimeState,
-  StartOptions,
-} from '@hoplet/shared';
+import type { Provider, ProviderInfo, RuntimeState, StartOptions } from '@hoplet/shared';
 
 export type { ProviderInfo, RuntimeState };
 
@@ -23,7 +17,8 @@ export type NewSessionRequest = {
   provider: Provider;
   options: StartOptions;
   prompt: string;
-  images: PromptImage[];
+  /** The IDs of the images uploaded to the device for the first prompt. */
+  attachments: string[];
 };
 
 /** Where a new session can start: a machine, the providers its agent runs and the directories known on it. */

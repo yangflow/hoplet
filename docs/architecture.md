@@ -11,8 +11,8 @@
 - **Control before bulk.** Prompts, permission answers, interrupts, runtime events and handoff steps are never
   queued behind sync batches, search, snapshots or history pages. Rule: every core task and every agent
   message belongs to the control or the bulk class, and each class has its own queue. Control messages stay
-  small; the one exception, a prompt's images, is bounded to about 11 MB
-  ([ADR 0017](adr/0017-prompt-images-ride-the-control-lane-bounded.md)).
+  small: a prompt's images are uploaded on the bulk lane first and the prompt names them
+  ([ADR 0017](adr/0017-prompt-images-are-uploaded-before-the-prompt.md)).
 - **Runtime is transient, the session file is durable.** Rule: runtime events are forwarded and dropped;
   anything that must survive a restart is in the session file, the index or a snapshot
   ([ADR 0008](adr/0008-remote-control-runs-a-hoplet-managed-claude-code-process.md)).

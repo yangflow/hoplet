@@ -3,6 +3,7 @@
  * body limit, request and response schemas from shared/src/rest/ and its handler; router.ts does the rest.
  */
 import {
+  AttachmentResultSchema,
   BlockParamsSchema,
   DeviceCloneQuerySchema,
   DeviceCloneResultSchema,
@@ -31,6 +32,7 @@ import {
   NewSessionResultSchema,
   PermissionRequestSchema,
   PROTOCOL_VERSION,
+  PromptImageSchema,
   PromptRequestSchema,
   PromptResultSchema,
   type Provider,
@@ -52,13 +54,13 @@ import {
 import corePackage from '../../package.json' with { type: 'json' };
 import type { DeviceControlOutcome } from '../control/index.ts';
 import { ApiError, relayError } from './http.ts';
-import { checkPromptImages } from './images.ts';
+import { checkPromptImage } from './images.ts';
 import { blockOfLine, excerptOf, projectLine } from './projection/index.ts';
 import { type ApiDeps, defineRoute, type Route } from './router.ts';
 
 const MAX_PROMPT_CHARS = 8_000;
-/** A prompt with its images: 8 MiB of images as base64 and the text (ADR 0017). */
-const PROMPT_BODY_LIMIT = 12 * 1024 * 1024;
+/** One uploaded image: 4 MiB as base64 and its media type (ADR 0017). */
+const ATTACHMENT_BODY_LIMIT = 6 * 1024 * 1024;
 
 /** Whether the provider the owner runs for a session declares images; unknown while the owner is offline. */
 function takesImages(deps: ApiDeps, owner: string, provider: Provider): boolean | null {
@@ -137,12 +139,11 @@ export const routes: readonly Route[] = [
     path: '/api/sessions',
     auth: 'host',
     lane: 'control',
-    bodyLimit: PROMPT_BODY_LIMIT,
+    bodyLimit: 32 * 1024,
     body: NewSessionRequestSchema,
     response: NewSessionResultSchema,
     handler: async (d) => {
       if (d.body.text.length > MAX_PROMPT_CHARS) throw new ApiError('too-large');
-      checkPromptImages(d.body.images);
       const outcome = await d.control.startSession(d.body);
       if (outcome.ok) {
         return { ok: true, sessionId: outcome.sessionId, promptId: outcome.promptId };
@@ -249,7 +250,7 @@ export const routes: readonly Route[] = [
     path: '/api/sessions/:sessionId/prompt',
     auth: 'host',
     lane: 'control',
-    bodyLimit: PROMPT_BODY_LIMIT,
+    bodyLimit: 32 * 1024,
     body: PromptRequestSchema,
     status: 202,
     response: PromptResultSchema,
@@ -257,19 +258,19 @@ export const routes: readonly Route[] = [
       const sessionId = d.params.sessionId ?? '';
       const owner = ownerOf(d, sessionId);
       if (d.body.text.length > MAX_PROMPT_CHARS) throw new ApiError('too-large');
-      const images = d.body.images ?? [];
-      if (images.length > 0) {
-        checkPromptImages(images);
-        if (takesImages(d, owner, providerOf(d.store, sessionId)) === false) {
-          throw new ApiError('invalid-request', { reason: 'images' });
-        }
+      const attachments = d.body.attachments ?? [];
+      if (
+        attachments.length > 0 &&
+        takesImages(d, owner, providerOf(d.store, sessionId)) === false
+      ) {
+        throw new ApiError('invalid-request', { reason: 'images' });
       }
       const outcome = await d.control.prompt(
         sessionId,
         owner,
         d.body.text,
         d.body.promptId,
-        images,
+        attachments,
       );
       if (outcome.ok) return { ok: true, promptId: outcome.promptId };
       throw relayError(
@@ -459,6 +460,30 @@ export const routes: readonly Route[] = [
       if (outcome.ok) return outcome.listing;
       if (outcome.error === 'rejected') {
         throw new ApiError('invalid-request', { reason: outcome.reason ?? 'rejected' });
+      }
+      throw relayError(outcome);
+    },
+  }),
+  defineRoute({
+    method: 'POST',
+    path: '/api/devices/:deviceId/attachments',
+    auth: 'host',
+    lane: 'bulk',
+    bodyLimit: ATTACHMENT_BODY_LIMIT,
+    body: PromptImageSchema,
+    response: AttachmentResultSchema,
+    handler: async (d) => {
+      const deviceId = d.params.deviceId ?? '';
+      checkPromptImage(d.body);
+      const device = d.control.devices().find((x) => x.deviceId === deviceId);
+      if (!device?.connected) throw new ApiError('target-offline');
+      if (!device.providers.some((p) => p.capabilities.images === true)) {
+        throw new ApiError('invalid-request', { reason: 'images' });
+      }
+      const outcome = await d.control.putAttachment(deviceId, d.body);
+      if (outcome.ok) return { attachmentId: outcome.attachmentId };
+      if (outcome.error === 'rejected') {
+        throw new ApiError('invalid-request', { reason: outcome.reason ?? 'images' });
       }
       throw relayError(outcome);
     },

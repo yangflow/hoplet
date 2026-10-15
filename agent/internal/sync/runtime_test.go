@@ -32,7 +32,7 @@ func TestSendWithoutAConnection(t *testing.T) {
 
 func TestRefusedPromptIsReportedWithItsReason(t *testing.T) {
 	c, cs, read := dialTestConn(t)
-	c.hooks.Runtime.Prompt = func(sessionID, text string, _ []PromptImage) error {
+	c.hooks.Runtime.Prompt = func(sessionID, text string, _ []string) error {
 		if sessionID != "s1" || text != "go" {
 			t.Fatalf("prompt = %q %q", sessionID, text)
 		}
@@ -47,7 +47,7 @@ func TestRefusedPromptIsReportedWithItsReason(t *testing.T) {
 
 func TestAcceptedPromptSendsNothing(t *testing.T) {
 	c, cs, read := dialTestConn(t)
-	c.hooks.Runtime.Prompt = func(string, string, []PromptImage) error { return nil }
+	c.hooks.Runtime.Prompt = func(string, string, []string) error { return nil }
 	c.handleRuntimePrompt(cs, promptMsg("s1", "p1", "go"))
 	// The next message the server sees is the one sent after it: the accepted prompt wrote none.
 	if err := c.writeMsg(cs, PingMsg{V: ProtocolVersion, Type: TypePingMsg}); err != nil {
@@ -107,7 +107,7 @@ func TestCoreCommandsReachTheHooks(t *testing.T) {
 
 	var c *Client
 	hooks := Hooks{Runtime: RuntimeHooks{
-		Prompt: func(s, text string, _ []PromptImage) error {
+		Prompt: func(s, text string, _ []string) error {
 			record(call{kind: "prompt", session: s, id: text})
 			return nil
 		},
@@ -208,6 +208,36 @@ func TestRefusedStartIsRejectedWithItsReason(t *testing.T) {
 	c.hooks.Runtime.Start = nil
 	c.handleRuntimeStart(cs, []byte(`{"type":"runtime.start","requestId":"r3","options":{}}`))
 	if msg := read(); msg["type"] != TypeRuntimeStartRejected || msg["requestId"] != "r3" {
+		t.Fatalf("got %#v", msg)
+	}
+}
+
+func TestAttachmentPutIsAnsweredStoredOrRejected(t *testing.T) {
+	c, cs, read := dialTestConn(t)
+	var got [3]string
+	c.hooks.AttachmentPut = func(id, mediaType, data string) error {
+		got = [3]string{id, mediaType, data}
+		if id == "bad" {
+			return errors.New("invalid-image")
+		}
+		return nil
+	}
+	put := func(requestID, id string) json.RawMessage {
+		raw, _ := json.Marshal(AttachmentPut{
+			V: ProtocolVersion, Type: TypeAttachmentPut, RequestID: requestID, AttachmentID: id,
+			MediaType: "image/png", Data: "iVBORw0K",
+		})
+		return raw
+	}
+	c.handleAttachment(cs, put("r1", "a1"))
+	if msg := read(); msg["type"] != TypeAttachmentStored || msg["requestId"] != "r1" || msg["attachmentId"] != "a1" {
+		t.Fatalf("got %#v", msg)
+	}
+	if got != [3]string{"a1", "image/png", "iVBORw0K"} {
+		t.Fatalf("hook saw %v", got)
+	}
+	c.handleAttachment(cs, put("r2", "bad"))
+	if msg := read(); msg["type"] != TypeAttachmentRejected || msg["requestId"] != "r2" || msg["reason"] != "invalid-image" {
 		t.Fatalf("got %#v", msg)
 	}
 }

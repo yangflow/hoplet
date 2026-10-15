@@ -17,6 +17,8 @@ export function isSessionId(value: unknown): value is string {
 export const OPAQUE_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
 
 export const SnapshotIdSchema = v.pipe(v.string(), v.regex(OPAQUE_ID_PATTERN));
+/** An image uploaded to a machine for a prompt, chosen by the core (ADR 0017). */
+export const AttachmentIdSchema = v.pipe(v.string(), v.regex(OPAQUE_ID_PATTERN));
 export const HandoffIdSchema = v.pipe(v.string(), v.regex(OPAQUE_ID_PATTERN));
 
 export function isOpaqueId(value: unknown): value is string {

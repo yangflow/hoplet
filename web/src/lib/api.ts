@@ -1,4 +1,5 @@
 import {
+  AttachmentResultSchema,
   DeviceCloneResultSchema,
   DeviceDirsResultSchema,
   DeviceListResponseSchema,
@@ -201,14 +202,24 @@ export function fetchBlock(sessionId: string, line: number, block: number) {
 export function postPrompt(
   sessionId: string,
   text: string,
-  images: PromptImage[] = [],
+  attachments: string[] = [],
   promptId: string = crypto.randomUUID(),
 ) {
   return call(`/api/sessions/${sessionId}/prompt`, PromptResultSchema, {
     text,
     promptId,
-    ...(images.length > 0 ? { images } : {}),
+    ...(attachments.length > 0 ? { attachments } : {}),
   });
+}
+
+/** Uploads an image for a coming prompt to a machine; the prompt names it by the ID (ADR 0017). */
+export async function postAttachment(deviceId: string, image: PromptImage): Promise<string> {
+  const result = await call(
+    `/api/devices/${encodeURIComponent(deviceId)}/attachments`,
+    AttachmentResultSchema,
+    image,
+  );
+  return result.attachmentId;
 }
 
 export function postPermission(sessionId: string, requestId: string, decision: PermissionDecision) {
@@ -233,13 +244,13 @@ export function postNewSession(request: {
   provider: ProviderInfo['provider'];
   options: StartOptions;
   text: string;
-  images?: PromptImage[];
+  attachments?: string[];
   promptId?: string;
 }) {
-  const { images, ...rest } = request;
+  const { attachments, ...rest } = request;
   return call('/api/sessions', NewSessionResultSchema, {
     ...rest,
-    ...(images && images.length > 0 ? { images } : {}),
+    ...(attachments && attachments.length > 0 ? { attachments } : {}),
     promptId: request.promptId ?? crypto.randomUUID(),
   });
 }

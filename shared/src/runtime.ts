@@ -1,4 +1,5 @@
 import * as v from 'valibot';
+import { AttachmentIdSchema } from './ids.ts';
 import { ProviderSchema } from './session.ts';
 
 /**
@@ -71,8 +72,9 @@ export const PermissionDecisionSchema = v.picklist(['allow', 'deny']);
 export type PermissionDecision = v.InferOutput<typeof PermissionDecisionSchema>;
 
 /**
- * Images that go with a prompt (docs/spec.md#hoplet, ADR 0017): at most 4, each at most 4 MiB and together at
- * most 8 MiB, of these types. The agent holds the same numbers in agent/internal/daemon/images.go.
+ * Images that go with a prompt (docs/spec.md#hoplet, ADR 0017): uploaded one by one to the machine first, then
+ * referred to by ID. Each is PNG, JPEG, GIF or WebP of at most 4 MiB; a prompt takes at most 4 and together at
+ * most 8 MiB. The agent holds the same numbers in agent/internal/daemon/attachments.go.
  */
 export const PROMPT_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'] as const;
 export type PromptImageType = (typeof PROMPT_IMAGE_TYPES)[number];
@@ -80,18 +82,12 @@ export const PROMPT_IMAGES_MAX = 4;
 export const PROMPT_IMAGE_MAX_BYTES = 4 * 1024 * 1024;
 export const PROMPT_IMAGES_MAX_BYTES = 8 * 1024 * 1024;
 
-/** One image of a prompt: its media type and its bytes as base64. */
+/** One image to upload: its media type and its bytes as base64. */
 export const PromptImageSchema = v.object({
   mediaType: v.picklist(PROMPT_IMAGE_TYPES),
   data: v.pipe(v.string(), v.maxLength(Math.ceil(PROMPT_IMAGE_MAX_BYTES / 3) * 4)),
 });
 export type PromptImage = v.InferOutput<typeof PromptImageSchema>;
-
-/** The images of a prompt, at most `PROMPT_IMAGES_MAX`. */
-export const PromptImagesSchema = v.pipe(
-  v.array(PromptImageSchema),
-  v.maxLength(PROMPT_IMAGES_MAX),
-);
 
 /**
  * The image type the first bytes of a file show, or null: PNG, JPEG, GIF and WebP by the signatures Go's
@@ -107,3 +103,9 @@ export function sniffImageType(head: Uint8Array): PromptImageType | null {
     return 'image/webp';
   return null;
 }
+
+/** The images of a prompt, by the IDs their upload returned: at most `PROMPT_IMAGES_MAX`. */
+export const PromptAttachmentsSchema = v.pipe(
+  v.array(AttachmentIdSchema),
+  v.maxLength(PROMPT_IMAGES_MAX),
+);

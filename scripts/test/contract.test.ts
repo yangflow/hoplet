@@ -196,13 +196,11 @@ describe('wire contract', () => {
       provider: { optional: false },
       options: { optional: false },
       text: { optional: false },
-      images: { optional: true },
+      attachments: { optional: true },
       promptId: { optional: false },
     });
-    expect(go.structs.PromptImage).toEqual({
-      mediaType: { optional: false },
-      data: { optional: false },
-    });
+    expect(go.types['attachment.put']).toBe('AttachmentPut');
+    expect(go.structs.RuntimePrompt?.attachments).toEqual({ optional: true });
     expect(go.structs.RuntimeStartOptions).toEqual({
       model: { optional: true },
       thinking: { optional: true },
@@ -346,12 +344,13 @@ describe('lanes', () => {
     expect(goBulk).toEqual(sharedBulk);
   });
 
-  it('puts the sync stream, the workspace transfer and file and diff answers on the bulk lane, the rest on control', () => {
+  it('puts the sync stream, the workspace transfer, file and diff answers and prompt images on the bulk lane, the rest on control', () => {
     const bulk = Object.entries(WIRE_MESSAGES)
       .filter(([, spec]) => spec.lane === 'bulk')
       .map(([type]) => type)
       .sort();
     expect(bulk).toEqual([
+      'attachment.put',
       'handoff.data',
       'session.ack',
       'session.append',

@@ -1,3 +1,4 @@
+import { deflateSync } from 'node:zlib';
 import { expect, type Page, test } from '@playwright/test';
 import {
   DEVICE,
@@ -161,14 +162,67 @@ test('a prompt runs, can be interrupted, and the next turn is stored', async () 
 
 test('an attached image goes with the prompt to Claude Code', async () => {
   const conv = page.getByTestId('cockpit.conversation');
-  const png = Buffer.alloc(64);
-  Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).copy(png);
+  // A real 1 x 1 PNG: the browser decodes it before the upload.
+  const png = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+    'base64',
+  );
   await page
     .getByTestId('cockpit.attach-input')
     .setInputFiles({ name: 'shot.png', mimeType: 'image/png', buffer: png });
   await expect(page.getByTestId('cockpit.thumbs').locator('li')).toHaveCount(1);
+  // Uploaded to the owner on the bulk lane before the prompt can go.
+  await expect(page.locator('[data-status="ready"]')).toHaveCount(1);
   await send('images');
   await expect(conv.getByText('1 images: image/png', { exact: true })).toBeVisible();
+  await expect(page.getByTestId('cockpit.thumbs')).toHaveCount(0);
+});
+
+/** A PNG of one colour, `width` x `height`, as a real browser can decode it. */
+function solidPng(width: number, height: number): Buffer {
+  const crcTable = Array.from({ length: 256 }, (_, n) => {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    return c >>> 0;
+  });
+  const crc = (b: Buffer) => {
+    let c = 0xffffffff;
+    for (const x of b) c = (crcTable[(c ^ x) & 0xff] ?? 0) ^ (c >>> 8);
+    return (c ^ 0xffffffff) >>> 0;
+  };
+  const chunk = (type: string, data: Buffer) => {
+    const head = Buffer.alloc(4);
+    head.writeUInt32BE(data.length);
+    const body = Buffer.concat([Buffer.from(type, 'ascii'), data]);
+    const tail = Buffer.alloc(4);
+    tail.writeUInt32BE(crc(body));
+    return Buffer.concat([head, body, tail]);
+  };
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(width, 0);
+  ihdr.writeUInt32BE(height, 4);
+  ihdr.set([8, 2, 0, 0, 0], 8);
+  const row = Buffer.concat([Buffer.from([0]), Buffer.alloc(width * 3, 0x80)]);
+  const raw = Buffer.concat(Array.from({ length: height }, () => row));
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk('IHDR', ihdr),
+    chunk('IDAT', deflateSync(raw)),
+    chunk('IEND', Buffer.alloc(0)),
+  ]);
+}
+
+test('a large image is shrunk to 1568 px before it is uploaded', async () => {
+  const uploaded = page.waitForRequest((r) => r.url().endsWith('/attachments'));
+  await page
+    .getByTestId('cockpit.attach-input')
+    .setInputFiles({ name: 'wide.png', mimeType: 'image/png', buffer: solidPng(2400, 300) });
+  const body = (await uploaded).postDataJSON() as { mediaType: string; data: string };
+  const png = Buffer.from(body.data, 'base64');
+  expect(body.mediaType).toBe('image/png');
+  expect([png.readUInt32BE(16), png.readUInt32BE(20)]).toEqual([1568, 196]);
+  await expect(page.locator('[data-status="ready"]')).toHaveCount(1);
+  await page.getByTestId('cockpit.thumb-remove').click();
   await expect(page.getByTestId('cockpit.thumbs')).toHaveCount(0);
 });
 

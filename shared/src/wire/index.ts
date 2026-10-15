@@ -7,12 +7,12 @@ import * as v from 'valibot';
 import { DeviceProjectSchema, DeviceProjectSessionSchema, DirEntrySchema } from '../catalog.ts';
 import { ToolKindSchema, ToolMcpSchema } from '../conversation.ts';
 import { ErrorCodeSchema } from '../errors.ts';
-import { HandoffIdSchema, SessionIdSchema, SnapshotIdSchema } from '../ids.ts';
+import { AttachmentIdSchema, HandoffIdSchema, SessionIdSchema, SnapshotIdSchema } from '../ids.ts';
 import { ChangeStatusSchema, WorkspaceChangeSchema } from '../rest/workspace.ts';
 import {
   AgentRuntimeStateSchema,
   PermissionDecisionSchema,
-  PromptImageSchema,
+  PROMPT_IMAGE_TYPES,
   ProviderInfoSchema,
   RuntimeCapabilitiesSchema,
   RuntimeOutputKindSchema,
@@ -177,7 +177,7 @@ export const WIRE_MESSAGES = defineWire({
       sessionId,
       promptId: v.string(),
       text: v.string(),
-      images: v.optional(list(PromptImageSchema)),
+      attachments: v.optional(list(AttachmentIdSchema)),
     },
   },
   'runtime.permission.answer': {
@@ -199,7 +199,7 @@ export const WIRE_MESSAGES = defineWire({
       provider: ProviderSchema,
       options: StartOptionsSchema,
       text: v.string(),
-      images: v.optional(list(PromptImageSchema)),
+      attachments: v.optional(list(AttachmentIdSchema)),
       promptId: v.string(),
     },
   },
@@ -553,6 +553,28 @@ export const WIRE_MESSAGES = defineWire({
   },
 
   // Directory browsing under the agent's browse root
+  // Images for a coming prompt (ADR 0017): the bytes go on the bulk lane, the answer is control.
+  'attachment.put': {
+    lane: 'bulk',
+    direction: 'core-to-device',
+    fields: {
+      requestId,
+      attachmentId: AttachmentIdSchema,
+      mediaType: v.picklist(PROMPT_IMAGE_TYPES),
+      data: v.string(),
+    },
+  },
+  'attachment.stored': {
+    lane: 'control',
+    direction: 'device-to-core',
+    fields: { requestId, attachmentId: AttachmentIdSchema },
+  },
+  'attachment.rejected': {
+    lane: 'control',
+    direction: 'device-to-core',
+    fields: { requestId, reason: v.string() },
+  },
+
   'device.dirs.list': {
     lane: 'control',
     direction: 'core-to-device',
@@ -661,6 +683,9 @@ export type DeviceSessionsImport = WireMessageOf<'device.sessions.import'>;
 export type DeviceSessionsRemove = WireMessageOf<'device.sessions.remove'>;
 export type DeviceProjects = WireMessageOf<'device.projects'>;
 export type DeviceProjectsRejected = WireMessageOf<'device.projects.rejected'>;
+export type AttachmentPut = WireMessageOf<'attachment.put'>;
+export type AttachmentStored = WireMessageOf<'attachment.stored'>;
+export type AttachmentRejected = WireMessageOf<'attachment.rejected'>;
 export type DeviceDirsList = WireMessageOf<'device.dirs.list'>;
 export type DeviceDirs = WireMessageOf<'device.dirs'>;
 export type DeviceDirsRejected = WireMessageOf<'device.dirs.rejected'>;
@@ -701,6 +726,8 @@ export const ClientMessageSchema = v.variant('type', [
   WIRE_MESSAGES['device.projects'].schema,
   WIRE_MESSAGES['device.projects.rejected'].schema,
   WIRE_MESSAGES['device.dirs'].schema,
+  WIRE_MESSAGES['attachment.stored'].schema,
+  WIRE_MESSAGES['attachment.rejected'].schema,
   WIRE_MESSAGES['device.dirs.rejected'].schema,
   WIRE_MESSAGES['device.clone'].schema,
 ]);
@@ -720,6 +747,5 @@ export const WIRE_OBJECTS = {
   RuntimeCapabilities: RuntimeCapabilitiesSchema,
   ProviderInfo: ProviderInfoSchema,
   RuntimeStartOptions: StartOptionsSchema,
-  PromptImage: PromptImageSchema,
   WorkspaceChange: WorkspaceChangeSchema,
 } as const;

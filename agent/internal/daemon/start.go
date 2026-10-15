@@ -77,7 +77,7 @@ func (b *bridge) starter(st *store) func(context.Context, sync.RuntimeStart) (st
 		if req.Options.Fast != nil {
 			opts.Fast = *req.Options.Fast
 		}
-		p, err := promptOf(req.Text, req.Images)
+		p, err := b.att.prompt(req.Text, req.Attachments)
 		if err != nil {
 			return "", err
 		}

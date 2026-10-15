@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type {
+  AttachmentPut,
   DeviceCloneFind,
   DeviceDirsList,
   DeviceProjectsAdd,
@@ -29,6 +30,7 @@ type Rpc = Pick<
   | 'workspaceFile'
   | 'workspaceDiff'
   | 'listDirs'
+  | 'putAttachment'
   | 'findClone'
   | 'listProjects'
   | 'addProject'
@@ -39,8 +41,15 @@ type Rpc = Pick<
 
 /** Workspace reads and device project control: one request out, one answer or a timeout. */
 export function createRpc(state: ControlState): Rpc {
-  const { pendingWs, pendingFile, pendingDiff, pendingDeviceControl, pendingDirs, pendingClone } =
-    state;
+  const {
+    pendingWs,
+    pendingFile,
+    pendingDiff,
+    pendingDeviceControl,
+    pendingDirs,
+    pendingClone,
+    pendingAttachments,
+  } = state;
 
   function askDevice(
     deviceId: string,
@@ -112,6 +121,26 @@ export function createRpc(state: ControlState): Rpc {
         pendingDiff,
         requestId,
         state.workspaceTimeoutMs,
+        { ok: false, error: 'timeout' },
+        () => link.send(msg),
+      );
+    },
+    putAttachment(deviceId, image) {
+      const link = onlineLink(state, deviceId);
+      if (!link) return Promise.resolve({ ok: false, error: 'target-offline' });
+      const requestId = randomUUID();
+      const msg: AttachmentPut = {
+        v: PROTOCOL_VERSION,
+        type: 'attachment.put',
+        requestId,
+        attachmentId: randomUUID(),
+        mediaType: image.mediaType,
+        data: image.data,
+      };
+      return askWaiter(
+        pendingAttachments,
+        requestId,
+        state.attachmentTimeoutMs,
         { ok: false, error: 'timeout' },
         () => link.send(msg),
       );

@@ -63,6 +63,9 @@ const (
 	TypeDeviceDirsList           = "device.dirs.list"
 	TypeDeviceDirs               = "device.dirs"
 	TypeDeviceDirsRejected       = "device.dirs.rejected"
+	TypeAttachmentPut            = "attachment.put"
+	TypeAttachmentStored         = "attachment.stored"
+	TypeAttachmentRejected       = "attachment.rejected"
 	TypeDeviceCloneFind          = "device.clone.find"
 	TypeDeviceClone              = "device.clone"
 )
@@ -206,20 +209,39 @@ type PongMsg struct {
 
 // Remote control (ADR 0008). core → device:
 
-// PromptImage is an image that goes with a prompt: its media type and its bytes as base64. The core has
-// checked the limits; the agent checks them again before the image reaches the vendor.
-type PromptImage struct {
-	MediaType string `json:"mediaType"`
-	Data      string `json:"data"`
+// RuntimePrompt is a turn for a session; Attachments are the IDs of images uploaded for it (ADR 0017).
+type RuntimePrompt struct {
+	V           int      `json:"v"`
+	Type        string   `json:"type"`
+	SessionID   string   `json:"sessionId"`
+	PromptID    string   `json:"promptId"`
+	Text        string   `json:"text"`
+	Attachments []string `json:"attachments,omitempty"`
 }
 
-type RuntimePrompt struct {
-	V         int           `json:"v"`
-	Type      string        `json:"type"`
-	SessionID string        `json:"sessionId"`
-	PromptID  string        `json:"promptId"`
-	Text      string        `json:"text"`
-	Images    []PromptImage `json:"images,omitempty"`
+// AttachmentPut (core → device, bulk) carries one image for a coming prompt, as base64; the device answers
+// with AttachmentStored or AttachmentRejected.
+type AttachmentPut struct {
+	V            int    `json:"v"`
+	Type         string `json:"type"`
+	RequestID    string `json:"requestId"`
+	AttachmentID string `json:"attachmentId"`
+	MediaType    string `json:"mediaType"`
+	Data         string `json:"data"`
+}
+
+type AttachmentStored struct {
+	V            int    `json:"v"`
+	Type         string `json:"type"`
+	RequestID    string `json:"requestId"`
+	AttachmentID string `json:"attachmentId"`
+}
+
+type AttachmentRejected struct {
+	V         int    `json:"v"`
+	Type      string `json:"type"`
+	RequestID string `json:"requestId"`
+	Reason    string `json:"reason"`
 }
 
 type RuntimePermissionAnswer struct {
@@ -272,7 +294,7 @@ type RuntimeStart struct {
 	Provider    string              `json:"provider"`
 	Options     RuntimeStartOptions `json:"options"`
 	Text        string              `json:"text"`
-	Images      []PromptImage       `json:"images,omitempty"`
+	Attachments []string            `json:"attachments,omitempty"`
 	PromptID    string              `json:"promptId"`
 }
 

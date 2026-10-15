@@ -5,6 +5,7 @@ import { providerName } from '../../../components/provider-marks.tsx';
 import {
   ApiError,
   fetchLines,
+  postAttachment,
   postInterrupt,
   postPermission,
   postPrompt,
@@ -163,31 +164,31 @@ export function Conversation(props: {
   const [sendError, setSendError] = useState<string | null>(null);
   const [restore, setRestore] = useState<{
     text: string;
-    images?: PromptImage[];
+    withImages?: boolean;
     n: number;
   } | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [answering, setAnswering] = useState(false);
-  const lastPrompt = useRef<{ text: string; images: PromptImage[] } | null>(null);
-  const pending = useRef<{ text: string; images: PromptImage[] } | null>(null);
+  const lastPrompt = useRef<{ text: string; attachments: string[] } | null>(null);
+  const pending = useRef<{ text: string; attachments: string[] } | null>(null);
   const root = useRef<HTMLDivElement>(null);
 
   const send = useCallback(
-    async (text: string, images: PromptImage[] = []) => {
+    async (text: string, attachments: string[] = []) => {
       setBusy(true);
       setSendError(null);
       setNotice(null);
-      lastPrompt.current = { text, images };
-      pending.current = { text, images };
+      lastPrompt.current = { text, attachments };
+      pending.current = { text, attachments };
       lt.begin(text);
       followRef.current = true;
       transcript.current?.scrollToBottom();
       try {
-        await postPrompt(sessionId, text, images);
+        await postPrompt(sessionId, text, attachments);
       } catch (err) {
         pending.current = null;
         lt.cancel();
-        setRestore((r) => ({ text, images, n: (r?.n ?? 0) + 1 }));
+        setRestore((r) => ({ text, withImages: attachments.length > 0, n: (r?.n ?? 0) + 1 }));
         setSendError(errorText(err));
       } finally {
         setBusy(false);
@@ -200,15 +201,15 @@ export function Conversation(props: {
   useEffect(() => {
     if (state === 'running') pending.current = null;
     if (state === 'failed' && pending.current) {
-      const { text, images } = pending.current;
+      const { text, attachments } = pending.current;
       pending.current = null;
-      setRestore((r) => ({ text, images, n: (r?.n ?? 0) + 1 }));
+      setRestore((r) => ({ text, withImages: attachments.length > 0, n: (r?.n ?? 0) + 1 }));
     }
     setNotice(null);
   }, [state]);
 
   const retry = useCallback(() => {
-    if (lastPrompt.current) void send(lastPrompt.current.text, lastPrompt.current.images);
+    if (lastPrompt.current) void send(lastPrompt.current.text, lastPrompt.current.attachments);
     else root.current?.querySelector('textarea')?.focus();
   }, [send]);
 
@@ -396,8 +397,15 @@ export function Conversation(props: {
               voiceAvailable={props.voiceAvailable ?? false}
               {...(fixture?.recording ? { recording: true } : {})}
               {...(fixture?.composerText ? { initialText: fixture.composerText } : {})}
-              onSend={(text, images) => void send(text, images)}
+              onSend={(text, attachments) => void send(text, attachments)}
               acceptsImages={props.acceptsImages ?? false}
+              {...(session.ownerDeviceId
+                ? {
+                    upload: (image: PromptImage) =>
+                      postAttachment(session.ownerDeviceId ?? '', image),
+                    uploadKey: session.ownerDeviceId,
+                  }
+                : {})}
               {...(fixture?.composerImages ? { initialImages: fixture.composerImages } : {})}
               onStop={stop}
               onRetry={retry}

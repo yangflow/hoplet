@@ -210,7 +210,7 @@ export default function App() {
         provider: request.provider,
         options: request.options,
         text: request.prompt,
-        images: request.images,
+        attachments: request.attachments,
       });
       pending.current = started.sessionId;
       select(started.sessionId);

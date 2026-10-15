@@ -225,6 +225,16 @@
       "response": "DeviceDirsResultSchema"
     },
     {
+      "method": "POST",
+      "path": "/api/devices/:deviceId/attachments",
+      "auth": "host",
+      "lane": "bulk",
+      "status": 200,
+      "query": null,
+      "body": "PromptImageSchema",
+      "response": "AttachmentResultSchema"
+    },
+    {
       "method": "GET",
       "path": "/api/devices/:deviceId/clone",
       "auth": "host",
@@ -392,6 +402,18 @@
     }
   ],
   "$defs": {
+    "AttachmentResultSchema": {
+      "type": "object",
+      "properties": {
+        "attachmentId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,64}$"
+        }
+      },
+      "required": [
+        "attachmentId"
+      ]
+    },
     "DeviceCloneQuerySchema": {
       "type": "object",
       "properties": {
@@ -1603,29 +1625,11 @@
           "pattern": "\\S",
           "minLength": 1
         },
-        "images": {
+        "attachments": {
           "type": "array",
           "items": {
-            "type": "object",
-            "properties": {
-              "mediaType": {
-                "enum": [
-                  "image/png",
-                  "image/jpeg",
-                  "image/gif",
-                  "image/webp"
-                ],
-                "type": "string"
-              },
-              "data": {
-                "type": "string",
-                "maxLength": 5592408
-              }
-            },
-            "required": [
-              "mediaType",
-              "data"
-            ]
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,64}$"
           },
           "maxItems": 4
         },
@@ -1685,6 +1689,28 @@
         "decision"
       ]
     },
+    "PromptImageSchema": {
+      "type": "object",
+      "properties": {
+        "mediaType": {
+          "enum": [
+            "image/png",
+            "image/jpeg",
+            "image/gif",
+            "image/webp"
+          ],
+          "type": "string"
+        },
+        "data": {
+          "type": "string",
+          "maxLength": 5592408
+        }
+      },
+      "required": [
+        "mediaType",
+        "data"
+      ]
+    },
     "PromptRequestSchema": {
       "type": "object",
       "properties": {
@@ -1693,29 +1719,11 @@
           "pattern": "\\S",
           "minLength": 1
         },
-        "images": {
+        "attachments": {
           "type": "array",
           "items": {
-            "type": "object",
-            "properties": {
-              "mediaType": {
-                "enum": [
-                  "image/png",
-                  "image/jpeg",
-                  "image/gif",
-                  "image/webp"
-                ],
-                "type": "string"
-              },
-              "data": {
-                "type": "string",
-                "maxLength": 5592408
-              }
-            },
-            "required": [
-              "mediaType",
-              "data"
-            ]
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,64}$"
           },
           "maxItems": 4
         },

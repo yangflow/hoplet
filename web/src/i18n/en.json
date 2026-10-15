@@ -314,5 +314,8 @@
   "Pasted image": "Pasted image",
   "Remove {name}": "Remove {name}",
   "The images are larger than 8 MiB together": "The images are larger than 8 MiB together",
-  "{name} is larger than 4 MiB": "{name} is larger than 4 MiB"
+  "{name} is larger than 4 MiB": "{name} is larger than 4 MiB",
+  "{name} was not uploaded": "{name} was not uploaded",
+  "Uploading": "Uploading",
+  "{name} cannot be read as an image": "{name} cannot be read as an image"
 }

@@ -18,7 +18,7 @@ func (c *Client) handleRuntimePrompt(cs *connState, raw json.RawMessage) {
 	if c.hooks.Runtime.Prompt == nil {
 		err = errors.New("not-implemented")
 	} else {
-		err = c.hooks.Runtime.Prompt(sessionID, req.Text, req.Images)
+		err = c.hooks.Runtime.Prompt(sessionID, req.Text, req.Attachments)
 	}
 	if err != nil {
 		log.Printf("[agent] prompt refused for %s: %v", shortID(sessionID), err)
@@ -263,6 +263,28 @@ func (c *Client) handleDirs(cs *connState, requestID, path string) {
 		Root:      listing.Root,
 		Entries:   listing.Entries,
 		Truncated: listing.Truncated,
+	})
+}
+
+// handleAttachment stores the image of attachment.put and answers on the control lane.
+func (c *Client) handleAttachment(cs *connState, raw json.RawMessage) {
+	var req AttachmentPut
+	if err := json.Unmarshal(raw, &req); err != nil {
+		return
+	}
+	err := errors.New("not-implemented")
+	if c.hooks.AttachmentPut != nil {
+		err = c.hooks.AttachmentPut(req.AttachmentID, req.MediaType, req.Data)
+	}
+	if err != nil {
+		log.Printf("[agent] attachment refused: %v", err)
+		_ = c.writeMsg(cs, AttachmentRejected{
+			V: ProtocolVersion, Type: TypeAttachmentRejected, RequestID: req.RequestID, Reason: err.Error(),
+		})
+		return
+	}
+	_ = c.writeMsg(cs, AttachmentStored{
+		V: ProtocolVersion, Type: TypeAttachmentStored, RequestID: req.RequestID, AttachmentID: req.AttachmentID,
 	})
 }
 

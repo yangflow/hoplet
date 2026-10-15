@@ -285,6 +285,9 @@ func (c *Client) readLoop(cs *connState) {
 		case TypeDeviceProjectsList, TypeDeviceProjectsAdd, TypeDeviceProjectsRemove:
 			go c.handleProjects(cs, raw)
 			continue
+		case TypeAttachmentPut:
+			go c.handleAttachment(cs, raw)
+			continue
 		case TypeDeviceDirsList:
 			go c.handleDirs(cs, head.RequestID, head.Path)
 			continue

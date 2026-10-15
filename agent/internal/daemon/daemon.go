@@ -107,6 +107,7 @@ func Run(cfg *config.Config, version string) error {
 		ProjectsAdd:    st.projectsAdd,
 		ProjectsRemove: st.projectsRemove,
 		DirsList:       dirsList(cfg),
+		AttachmentPut:  rt.att.put,
 		CloneFind:      cloneFind(st),
 		SessionsImport: st.sessionsImport,
 		SessionsRemove: st.sessionsRemove,
