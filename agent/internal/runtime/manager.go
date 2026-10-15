@@ -42,6 +42,8 @@ type StateEvent struct {
 	Error        string // set in StateFailed
 	Capabilities []Capability
 	Models       []string
+	// Model is the model the session's processes start with or were switched to; "" is the vendor's default.
+	Model string
 }
 
 // OutputEvent is streamed content of a session's running turn.
@@ -172,6 +174,7 @@ func (m *Manager) stateEvent(s *session) StateEvent {
 	return StateEvent{
 		SessionID: s.id, State: s.state, Error: s.err,
 		Capabilities: m.cfg.Driver.Capabilities(), Models: m.cfg.Driver.Models(),
+		Model: s.opts.Model,
 	}
 }
 
@@ -301,6 +304,9 @@ func (m *Manager) PromptWith(sessionID string, p Prompt) error {
 	if err := m.checkImages(p); err != nil {
 		return err
 	}
+	if err := m.checkModel(p.Model); err != nil {
+		return err
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.closed {
@@ -324,11 +330,21 @@ func (m *Manager) PromptWith(sessionID string, p Prompt) error {
 			return ErrExternal
 		}
 	}
-	if s.proc != nil && !s.stopped {
-		return m.writePrompt(s, p)
-	}
-	if s.proc != nil { // an earlier process is still exiting
+	if s.proc != nil && s.stopped { // an earlier process is still exiting
 		return ErrStarting
+	}
+	// A new model holds from this turn on: a running process switches, a new one starts with it.
+	if p.Model != "" && p.Model != s.opts.Model {
+		if s.proc != nil {
+			if err := s.proc.SetModel(p.Model); err != nil {
+				m.fail(s, fmt.Sprintf("set model: %v", err))
+				return nil
+			}
+		}
+		s.opts.Model = p.Model
+	}
+	if s.proc != nil {
+		return m.writePrompt(s, p)
 	}
 	m.startProcess(s, p)
 	return nil
@@ -363,6 +379,25 @@ func (m *Manager) CreateWith(dir string, p Prompt, opts StartOptions) (string, e
 	s.fresh, s.opts = true, opts
 	m.startProcess(s, p)
 	return id, nil
+}
+
+// checkModel refuses a model change unless the driver declares it and lists the model.
+func (m *Manager) checkModel(model string) error {
+	if model == "" {
+		return nil
+	}
+	declared := false
+	for _, c := range m.cfg.Driver.Capabilities() {
+		declared = declared || c == CapSetModel
+	}
+	if declared {
+		for _, id := range m.cfg.Driver.Models() {
+			if id == model {
+				return nil
+			}
+		}
+	}
+	return fmt.Errorf("%w: model %q", ErrOptionNotDeclared, model)
 }
 
 // checkImages refuses images unless the driver declares them.

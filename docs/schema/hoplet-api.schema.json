@@ -559,6 +559,9 @@
                         },
                         "images": {
                           "type": "boolean"
+                        },
+                        "setModel": {
+                          "type": "boolean"
                         }
                       },
                       "required": [
@@ -1550,6 +1553,9 @@
                 },
                 "images": {
                   "type": "boolean"
+                },
+                "setModel": {
+                  "type": "boolean"
                 }
               },
               "required": [
@@ -1562,6 +1568,11 @@
             },
             "error": {
               "type": "string"
+            },
+            "model": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
             }
           },
           "required": [
@@ -1726,6 +1737,11 @@
             "pattern": "^[A-Za-z0-9_-]{1,64}$"
           },
           "maxItems": 4
+        },
+        "model": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
         },
         "promptId": {
           "type": "string",
@@ -1939,6 +1955,9 @@
                       },
                       "images": {
                         "type": "boolean"
+                      },
+                      "setModel": {
+                        "type": "boolean"
                       }
                     },
                     "required": [
@@ -1951,6 +1970,11 @@
                   },
                   "error": {
                     "type": "string"
+                  },
+                  "model": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
                   }
                 },
                 "required": [
@@ -2174,6 +2198,9 @@
             },
             "images": {
               "type": "boolean"
+            },
+            "setModel": {
+              "type": "boolean"
             }
           },
           "required": [
@@ -2183,6 +2210,11 @@
             "fast",
             "models"
           ]
+        },
+        "model": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
         }
       },
       "required": [

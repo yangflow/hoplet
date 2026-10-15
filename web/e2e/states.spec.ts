@@ -25,6 +25,7 @@ const subject: Record<string, Record<string, string>> = {
     'draft-directory': 'cockpit.draft-add-project',
     'draft-model': 'cockpit.model-menu',
     compose: 'cockpit.thumbs',
+    'model-menu': 'cockpit.model-menu',
     'add-project': 'cockpit.add-dialog',
     'add-project-recent': 'cockpit.add-recent',
     'add-project-error': 'cockpit.add-error',
@@ -66,8 +67,8 @@ const subject: Record<string, Record<string, string>> = {
   },
 };
 
-test('the registries list 25 cockpit and 26 workspace states', () => {
-  expect(screens.cockpit).toHaveLength(25);
+test('the registries list 26 cockpit and 26 workspace states', () => {
+  expect(screens.cockpit).toHaveLength(26);
   expect(screens.workspace).toHaveLength(26);
 });
 

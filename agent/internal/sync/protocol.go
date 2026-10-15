@@ -217,6 +217,8 @@ type RuntimePrompt struct {
 	PromptID    string   `json:"promptId"`
 	Text        string   `json:"text"`
 	Attachments []string `json:"attachments,omitempty"`
+	// Model switches the session to one of the driver's models from this turn on.
+	Model string `json:"model,omitempty"`
 }
 
 // AttachmentPut (core → device, bulk) carries one chunk of an image for a coming prompt, as base64, at most
@@ -278,6 +280,7 @@ type RuntimeCapabilities struct {
 	Fast        bool     `json:"fast"`
 	Models      []string `json:"models"`
 	Images      bool     `json:"images,omitempty"`
+	SetModel    bool     `json:"setModel,omitempty"`
 }
 
 // RuntimeStartOptions are the options of a new session; each is set only when the driver declares it.
@@ -323,6 +326,8 @@ type RuntimeState struct {
 	State        string              `json:"state"` // external | idle | starting | ready | running | waiting-permission | failed
 	Error        string              `json:"error,omitempty"`
 	Capabilities RuntimeCapabilities `json:"capabilities"`
+	// Model is the session's model when Hoplet chose one; empty is the vendor's default.
+	Model string `json:"model,omitempty"`
 }
 
 type RuntimeOutput struct {

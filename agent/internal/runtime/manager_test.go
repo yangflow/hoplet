@@ -248,7 +248,7 @@ func TestPromptRunsATurn(t *testing.T) {
 	e.expectStates("s1", runtime.StateStarting, runtime.StateRunning, runtime.StateReady)
 
 	last, _ := e.rec.lastState("s1")
-	if len(last.Capabilities) != 6 {
+	if len(last.Capabilities) != 7 {
 		t.Fatalf("capabilities = %v", last.Capabilities)
 	}
 	var text string
@@ -329,6 +329,56 @@ func TestPromptImagesReachTheVendorBeforeTheText(t *testing.T) {
 	}
 	if !strings.Contains(string(raw), base64.StdEncoding.EncodeToString(png)) {
 		t.Fatal("the user line does not carry the image")
+	}
+}
+
+// textOf joins the streamed text of a session's outputs from index from on.
+func textOf(e *env, sessionID string, from int) string {
+	var text string
+	for _, o := range e.rec.outputs(sessionID)[from:] {
+		if o.Kind == runtime.OutputText {
+			text += o.Text
+		}
+	}
+	return text
+}
+
+func TestThePromptSwitchesTheModelFromItsTurnOn(t *testing.T) {
+	e := newEnv(t, nil)
+	e.session("s1")
+	turn := func(p runtime.Prompt) string {
+		t.Helper()
+		from := len(e.rec.outputs("s1"))
+		n := len(e.rec.states("s1"))
+		if err := e.m.PromptWith("s1", p); err != nil {
+			t.Fatal(err)
+		}
+		e.rec.waitFor(t, "the turn", func() bool {
+			s := e.rec.states("s1")
+			return len(s) > n+1 && s[len(s)-1] == runtime.StateReady
+		})
+		return textOf(e, "s1", from)
+	}
+	// A new process starts with the model of its first prompt.
+	if got := turn(runtime.Prompt{Text: "model", Model: "sonnet"}); got != "model: sonnet" {
+		t.Fatalf("first turn ran on %q", got)
+	}
+	if last, _ := e.rec.lastState("s1"); last.Model != "sonnet" {
+		t.Fatalf("state reports %q", last.Model)
+	}
+	// The running process switches before the turn; a prompt without a model keeps it.
+	if got := turn(runtime.Prompt{Text: "model", Model: "opus"}); got != "model: opus" {
+		t.Fatalf("switched turn ran on %q", got)
+	}
+	if got := turn(runtime.Prompt{Text: "model"}); got != "model: opus" {
+		t.Fatalf("next turn ran on %q", got)
+	}
+	if n := len(e.starts()); n != 1 {
+		t.Fatalf("switching restarted the process: %d starts", n)
+	}
+	// A model the driver does not list is refused before anything is written.
+	if err := e.m.PromptWith("s1", runtime.Prompt{Text: "x", Model: "gpt-9"}); !errors.Is(err, runtime.ErrOptionNotDeclared) {
+		t.Fatalf("undeclared model: %v", err)
 	}
 }
 
@@ -831,7 +881,7 @@ func TestStatesReportsRunningProcesses(t *testing.T) {
 	if len(got) != 2 || got[0].SessionID != "s1" || got[0].State != runtime.StateReady || got[1].State != runtime.StateRunning {
 		t.Fatalf("States = %+v", got)
 	}
-	if len(got[0].Capabilities) != 6 {
+	if len(got[0].Capabilities) != 7 {
 		t.Fatalf("capabilities = %v", got[0].Capabilities)
 	}
 }

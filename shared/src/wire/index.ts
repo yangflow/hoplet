@@ -11,6 +11,7 @@ import { AttachmentIdSchema, HandoffIdSchema, SessionIdSchema, SnapshotIdSchema 
 import { ChangeStatusSchema, WorkspaceChangeSchema } from '../rest/workspace.ts';
 import {
   AgentRuntimeStateSchema,
+  ModelIdSchema,
   PermissionDecisionSchema,
   PROMPT_IMAGE_TYPES,
   ProviderInfoSchema,
@@ -178,6 +179,8 @@ export const WIRE_MESSAGES = defineWire({
       promptId: v.string(),
       text: v.string(),
       attachments: v.optional(list(AttachmentIdSchema)),
+      /** Switches the session to this of the driver's `models` from this turn on. */
+      model: v.optional(ModelIdSchema),
     },
   },
   'runtime.permission.answer': {
@@ -225,6 +228,8 @@ export const WIRE_MESSAGES = defineWire({
       state: AgentRuntimeStateSchema,
       error: v.optional(v.string()),
       capabilities: RuntimeCapabilitiesSchema,
+      /** The model Hoplet started or switched the session to; absent for the vendor's default. */
+      model: v.optional(ModelIdSchema),
     },
   },
   /** Streamed content of the running turn; transient, the session file is the record. */
@@ -279,6 +284,7 @@ export const WIRE_MESSAGES = defineWire({
       state: RuntimeStateSchema,
       error: v.optional(v.string()),
       capabilities: v.optional(RuntimeCapabilitiesSchema),
+      model: v.optional(ModelIdSchema),
     },
   },
   /**

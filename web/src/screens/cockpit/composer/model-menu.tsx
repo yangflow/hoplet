@@ -21,12 +21,15 @@ export function hasChoices(providers: ProviderInfo[], chosen: ProviderInfo | und
 
 /**
  * The composer's model button and its menu: the model's name and the Thinking glyph, opening the provider
- * (when the machine runs more than one), the model, Thinking and Fast.
+ * (when the machine runs more than one), the model, Thinking and Fast. In a session only the model can change
+ * (`modelOnly`), and a session on the vendor's default model reads as Default.
  */
 export function ModelMenu(props: {
   providers: ProviderInfo[];
   value: ModelChoice;
   onChange: (next: ModelChoice) => void;
+  /** Offer the model only: an existing session keeps its Thinking and Fast. */
+  modelOnly?: boolean;
   disabled?: boolean;
   /** Starts open (development fixtures). */
   initialOpen?: boolean;
@@ -39,7 +42,8 @@ export function ModelMenu(props: {
   const id = useId();
   const chosen = providers.find((p) => p.provider === value.provider);
   const caps = chosen?.capabilities;
-  const label = value.model || providerName(value.provider);
+  const label =
+    value.model || (props.modelOnly ? t('Default model') : providerName(value.provider));
   const detail = [
     label,
     caps?.thinking && value.thinking ? t('Thinking') : '',
@@ -188,7 +192,7 @@ export function ModelMenu(props: {
               )}
             </div>
           ) : null}
-          {caps?.thinking || caps?.fast ? (
+          {!props.modelOnly && (caps?.thinking || caps?.fast) ? (
             <>
               <div className="popover-sep" aria-hidden="true" />
               {caps.thinking

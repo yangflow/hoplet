@@ -5,7 +5,8 @@ import { ProviderSchema } from './session.ts';
 /**
  * What a runtime driver declares it can do; the UI shows only the controls a session's driver supports.
  * `fast` and `thinking` are start options of a new session; `models` lists the model IDs a new session can
- * choose from and is empty when the driver cannot choose; `images` says a prompt may carry images.
+ * choose from and is empty when the driver cannot choose; `images` says a prompt may carry images; `setModel`
+ * says a prompt to an existing session may switch it to another of `models`.
  */
 export const RuntimeCapabilitiesSchema = v.object({
   permissions: v.boolean(),
@@ -14,7 +15,11 @@ export const RuntimeCapabilitiesSchema = v.object({
   fast: v.boolean(),
   models: v.array(v.string()),
   images: v.optional(v.boolean()),
+  setModel: v.optional(v.boolean()),
 });
+
+/** A model ID as a driver lists it in `models`. */
+export const ModelIdSchema = v.pipe(v.string(), v.minLength(1), v.maxLength(128));
 export type RuntimeCapabilities = v.InferOutput<typeof RuntimeCapabilitiesSchema>;
 
 /**
@@ -33,7 +38,7 @@ export type ProviderInfo = v.InferOutput<typeof ProviderInfoSchema>;
 
 /** The options of a new session; only what the provider's capabilities declare is accepted. */
 export const StartOptionsSchema = v.object({
-  model: v.optional(v.pipe(v.string(), v.minLength(1), v.maxLength(128))),
+  model: v.optional(ModelIdSchema),
   thinking: v.optional(v.boolean()),
   fast: v.optional(v.boolean()),
 });

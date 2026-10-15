@@ -90,6 +90,7 @@ const capabilities: RuntimeCapabilities = {
   fast: true,
   models: ['opus-5.5', 'sonnet-5.5', 'haiku-5'],
   images: true,
+  setModel: true,
 };
 
 /** Two pasted images: a 48 px app tile and a screenshot. */
@@ -684,6 +685,17 @@ export const states: Record<string, () => ReactNode> = {
       variant={{
         runtime: { state: 'idle', capabilities },
         conversation: { composerText: COMPOSE_TEXT, composerImages: COMPOSE_IMAGES },
+      }}
+    />
+  ),
+  'model-menu': () => (
+    <Scene
+      variant={{
+        runtime: { state: 'ready', capabilities, model: 'opus-5.5' },
+        conversation: {
+          composerText: 'Use the smaller model for the docs pass',
+          modelMenuOpen: true,
+        },
       }}
     />
   ),

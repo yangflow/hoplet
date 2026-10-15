@@ -559,3 +559,54 @@ describe('images for a prompt (ADR 0017)', () => {
     });
   });
 });
+
+describe('the model of a session', () => {
+  const SWITCHING = [{ provider: 'claude', capabilities: { ...CAPS, setModel: true } }];
+
+  async function owned(providers: unknown[]) {
+    const env = await boot();
+    const owner = await env.agent('dev-a', providers);
+    env.store.append({ sessionId: 's1', projectDir: 'p', filePath: '/s1', deviceId: 'dev-a' }, [
+      '{"type":"user"}',
+    ]);
+    return { ...env, owner };
+  }
+
+  it('goes with a prompt to a driver that switches models, and comes back with the state', async () => {
+    const { post, get, owner } = await owned(SWITCHING);
+    const pending = post('/api/sessions/s1/prompt', { text: 'x', promptId: 'p1', model: 'sonnet' });
+    const forwarded = await owner.waitFor((m) => m.type === 'runtime.prompt', 'runtime.prompt');
+    expect(forwarded).toMatchObject({ sessionId: 's1', model: 'sonnet' });
+    owner.send({
+      type: 'runtime.state',
+      sessionId: 's1',
+      state: 'running',
+      capabilities: SWITCHING[0]?.capabilities,
+      model: 'sonnet',
+    });
+    expect((await pending).status).toBe(202);
+    expect((await get('/api/sessions/s1')).body.runtime).toMatchObject({
+      state: 'running',
+      model: 'sonnet',
+    });
+  });
+
+  it('is refused for a model the driver does not list or a driver that cannot switch', async () => {
+    const switching = await owned(SWITCHING);
+    expect(
+      await switching.post('/api/sessions/s1/prompt', {
+        text: 'x',
+        promptId: 'p1',
+        model: 'gpt-9',
+      }),
+    ).toMatchObject({ status: 400, body: { reason: 'model' } });
+    const fixed = await owned(PROVIDERS);
+    expect(
+      await fixed.post('/api/sessions/s1/prompt', { text: 'x', promptId: 'p1', model: 'opus' }),
+    ).toMatchObject({ status: 400, body: { reason: 'model' } });
+    expect([
+      ...switching.owner.ofType('runtime.prompt'),
+      ...fixed.owner.ofType('runtime.prompt'),
+    ]).toEqual([]);
+  });
+});

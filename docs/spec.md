@@ -86,9 +86,11 @@ new lines and runtime output appear live; otherwise a pill counts new messages a
 composer at the foot sends a prompt, typed or spoken; speech is transcribed on the user's own machines and
 no audio leaves them (#17). Its first row says where the session runs, machine / directory / git branch (for a
 session the branch its lines last recorded, for a draft the one checked out in the directory), read only once
-the session exists; its toolbar holds attach (when the driver declares `images`), the model
-with Thinking and Fast in one menu (changing them for a running session needs its driver to declare it, #10),
-dictate and send. The text grows to 8 lines, then scrolls; dragging the composer's top edge sets a height the
+the session exists; its toolbar holds attach (when the driver declares `images`), the model menu, dictate
+and send. In a draft the menu chooses the model with Thinking and Fast. In a session whose driver declares
+`setModel` it lists the models only and shows the session's model (Default for the vendor's own); the model
+picked there goes with the next prompt, a running process switches to it before that turn, and later turns
+keep it. Thinking and Fast stay as the session started. The text grows to 8 lines, then scrolls; dragging the composer's top edge sets a height the
 browser remembers, at most what leaves the conversation 240 px, and a double-click on the edge resets it.
 When the session's driver declares `images`, images pasted, dropped or attached go with the prompt: each is
 shrunk to at most 1568 px on its long edge (a GIF is left as it is), must then be PNG, JPEG, GIF or WebP of at
@@ -117,7 +119,7 @@ a state of the session appears under the composer when it blocks or changes what
 
 A permission request shows the tool name and its input (elided above 8 KiB like any block). A control appears
 only when the session's runtime driver declares its capability (`permissions`, `interrupt`, `thinking`,
-`fast`, `models`).
+`fast`, `models`, `images`, `setModel`).
 
 ### Workspace inspector
 

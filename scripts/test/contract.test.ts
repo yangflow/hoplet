@@ -213,7 +213,10 @@ describe('wire contract', () => {
       fast: { optional: false },
       models: { optional: false },
       images: { optional: true },
+      setModel: { optional: true },
     });
+    expect(go.structs.RuntimePrompt?.model).toEqual({ optional: true });
+    expect(go.structs.RuntimeState?.model).toEqual({ optional: true });
     expect(go.structs.DeviceHello?.providers).toEqual({ optional: true });
     expect(shared.messages['runtime.start']).toMatchObject({ webOnly: false });
     expect(go.version).toBe(PROTOCOL_VERSION);

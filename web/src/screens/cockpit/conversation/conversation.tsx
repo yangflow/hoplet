@@ -1,4 +1,10 @@
-import type { Entry, LiveSessionMeta, PromptImage, SessionRuntimeInfo } from '@hoplet/shared';
+import type {
+  Entry,
+  LiveSessionMeta,
+  PromptImage,
+  RuntimeCapabilities,
+  SessionRuntimeInfo,
+} from '@hoplet/shared';
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { Icon } from '../../../components/icons.tsx';
 import { providerName } from '../../../components/provider-marks.tsx';
@@ -16,6 +22,7 @@ import { t } from '../../../lib/i18n.ts';
 import { onLive, subscribeSession } from '../../../lib/live.ts';
 import { usePageVisible } from '../../../lib/visibility.ts';
 import { Composer } from '../composer/composer.tsx';
+import { ModelMenu } from '../composer/model-menu.tsx';
 import { SessionWhere } from '../composer/where.tsx';
 import { composerView, stateName } from '../runtime.ts';
 import { LiveTurnView } from './live-view.tsx';
@@ -38,6 +45,8 @@ export type ConversationFixture = {
   composerText?: string;
   /** Images waiting in the composer. */
   composerImages?: PromptImage[];
+  /** The session's model menu starts open. */
+  modelMenuOpen?: boolean;
   scrollTo?: number;
   openBlocks?: string[];
 };
@@ -64,8 +73,8 @@ export function Conversation(props: {
   shortcuts?: boolean;
   /** The microphone shows only when transcription is available (#17). */
   voiceAvailable?: boolean;
-  /** The session's driver takes images with a prompt. */
-  acceptsImages?: boolean;
+  /** What the session's driver can do, as reported or announced: images, switching the model. */
+  capabilities?: RuntimeCapabilities | undefined;
   onHandoff: () => void;
   openDiff?: (path: string) => void;
   fixture?: ConversationFixture;
@@ -170,6 +179,11 @@ export function Conversation(props: {
   const [notice, setNotice] = useState<string | null>(null);
   const [answering, setAnswering] = useState(false);
   const lastPrompt = useRef<{ text: string; attachments: string[] } | null>(null);
+  // The model picked for the coming turns; the state reports it once the agent has switched.
+  const caps = props.capabilities;
+  const switchable = caps?.setModel === true && caps.models.length > 0;
+  const [picked, setPicked] = useState<string | null>(null);
+  const model = picked ?? runtime.model ?? '';
   const pending = useRef<{ text: string; attachments: string[] } | null>(null);
   const root = useRef<HTMLDivElement>(null);
 
@@ -184,7 +198,12 @@ export function Conversation(props: {
       followRef.current = true;
       transcript.current?.scrollToBottom();
       try {
-        await postPrompt(sessionId, text, attachments);
+        await postPrompt(
+          sessionId,
+          text,
+          attachments,
+          switchable && model !== (runtime.model ?? '') && model !== '' ? model : undefined,
+        );
       } catch (err) {
         pending.current = null;
         lt.cancel();
@@ -194,7 +213,7 @@ export function Conversation(props: {
         setBusy(false);
       }
     },
-    [sessionId, lt.begin, lt.cancel],
+    [sessionId, lt.begin, lt.cancel, switchable, model, runtime.model],
   );
 
   // A start that failed gives the prompt back.
@@ -398,7 +417,21 @@ export function Conversation(props: {
               {...(fixture?.recording ? { recording: true } : {})}
               {...(fixture?.composerText ? { initialText: fixture.composerText } : {})}
               onSend={(text, attachments) => void send(text, attachments)}
-              acceptsImages={props.acceptsImages ?? false}
+              acceptsImages={caps?.images === true}
+              {...(switchable && caps
+                ? {
+                    options: (
+                      <ModelMenu
+                        modelOnly
+                        providers={[{ provider: session.provider, capabilities: caps }]}
+                        value={{ provider: session.provider, model, thinking: false, fast: false }}
+                        onChange={(next) => setPicked(next.model)}
+                        disabled={busy}
+                        {...(fixture?.modelMenuOpen ? { initialOpen: true } : {})}
+                      />
+                    ),
+                  }
+                : {})}
               {...(session.ownerDeviceId
                 ? {
                     upload: (image: PromptImage) =>

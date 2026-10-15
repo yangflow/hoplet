@@ -65,7 +65,7 @@ func TestCapabilities(t *testing.T) {
 	caps := New(Options{}).Capabilities()
 	want := []runtime.Capability{
 		runtime.CapPermissions, runtime.CapInterrupt, runtime.CapThinking, runtime.CapFast, runtime.CapModels,
-		runtime.CapImages,
+		runtime.CapImages, runtime.CapSetModel,
 	}
 	if len(caps) != len(want) {
 		t.Fatalf("caps = %v", caps)

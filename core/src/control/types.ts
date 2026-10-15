@@ -71,6 +71,8 @@ export interface RuntimeView {
   state: RuntimeState;
   error?: string;
   capabilities?: RuntimeCapabilities;
+  /** The model Hoplet started or switched the session to. */
+  model?: string;
 }
 
 export type RuntimeCommandOutcome =
@@ -193,6 +195,7 @@ export interface Control {
     text: string,
     promptId: string,
     attachments?: string[],
+    model?: string,
   ): Promise<PromptOutcome>;
   /** Answers an open permission request; the first answer wins. */
   answerPermission(

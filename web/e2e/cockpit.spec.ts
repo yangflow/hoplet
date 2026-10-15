@@ -226,6 +226,19 @@ test('a large image is shrunk to 1568 px before it is uploaded', async () => {
   await expect(page.getByTestId('cockpit.thumbs')).toHaveCount(0);
 });
 
+test('the model picked in a session runs from the next turn on', async () => {
+  const conv = page.getByTestId('cockpit.conversation');
+  await page.getByTestId('cockpit.model').click();
+  await page.getByTestId('cockpit.model-option').filter({ hasText: 'sonnet' }).click();
+  await expect(page.getByTestId('cockpit.model')).toContainText('sonnet');
+  await send('model');
+  await expect(conv.getByText('model: sonnet', { exact: true })).toBeVisible();
+  await expect(page.getByTestId('cockpit.live-turn')).toHaveCount(0);
+  // The next turn keeps it without asking again.
+  await send('model');
+  await expect(conv.getByText('model: sonnet', { exact: true })).toHaveCount(2);
+});
+
 test('a permission request is answered with Allow', async () => {
   const conv = page.getByTestId('cockpit.conversation');
   await send('tool echo permitted');

@@ -100,6 +100,10 @@ Behavior a client relies on:
   the driver must declare `images` (`invalid-request` with `reason: images` otherwise). The agent refuses the
   prompt with `attachment-missing` when an ID is unknown or older than an hour, and with `invalid-image` when the
   images are more than 8 MiB together.
+- `POST /api/sessions/:sessionId/prompt` takes an optional `model`, one of the `models` of a driver that
+  declares `setModel` (`invalid-request` with `reason: model` otherwise); the session runs on it from that turn
+  on, and its runtime state (`GET /api/sessions`, `session.runtime`) reports it as `model`, absent while the
+  session runs on the vendor's default.
 - `POST /api/devices/:deviceId/attachments` uploads one image (`mediaType`, base64 `data`; a body of at most
   6 MiB) on the bulk lane: PNG, JPEG, GIF or WebP of at most 4 MiB (`too-large` beyond) whose first bytes are
   the declared type, for a connected device with a provider that declares `images` (`invalid-request` with

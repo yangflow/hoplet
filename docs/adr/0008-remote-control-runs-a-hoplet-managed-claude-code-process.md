@@ -25,7 +25,9 @@ Prompts are `user` messages on standard input. Control uses Claude Code's contro
 streams: the agent sends `control_request` `initialize` after start, and the process is `ready` when that
 request is answered; `control_request` `interrupt` ends the running turn and keeps the process; a
 `control_request` `can_use_tool` from Claude Code is a permission request, answered with a `control_response`
-whose `behavior` is `allow` or `deny`. Claude Code waits for an answer without limit; the agent denies a
+whose `behavior` is `allow` or `deny`; `control_request` `set_model` switches the model of the running process
+from the next turn on, and is written just before the prompt that asked for it (verified on 2.1.299: an alias
+is accepted, an unknown model is refused with `catalog_unknown`). Claude Code waits for an answer without limit; the agent denies a
 request after 10 minutes. Closing standard input stops the process; the agent kills it when it has not exited
 after 10 seconds. The runtime states `running`, `waiting-permission` and `ready` follow Claude Code's
 `session_state_changed` events (`running`, `requires_action`, `idle`).

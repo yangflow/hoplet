@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"os/exec"
 	"strings"
 	"sync"
@@ -18,6 +19,9 @@ import (
 )
 
 const initRequestID = "hoplet-init"
+
+// setModelPrefix starts the request ID of a set_model control request.
+const setModelPrefix = "hoplet-model-"
 
 // maxLineBytes bounds one line of Claude Code output; a longer line ends the process as a protocol error.
 const maxLineBytes = 64 << 20
@@ -114,6 +118,14 @@ func (p *process) Answer(requestID string, allow bool, message string) error {
 			"response":   resp,
 		},
 	})
+}
+
+// SetModel asks Claude Code to use model from the next turn on. The request goes before the prompt that
+// follows it on the same input, so that turn already runs on the new model; a refusal is only logged.
+func (p *process) SetModel(model string) error {
+	req := controlRequest(fmt.Sprintf("%s%d", setModelPrefix, p.reqSeq.Add(1)), "set_model")
+	req["request"].(map[string]any)["model"] = model
+	return p.send(req)
 }
 
 func (p *process) Interrupt() error {
@@ -278,6 +290,10 @@ func (p *process) handleLine(line []byte) {
 		p.mu.Unlock()
 		p.emit(runtime.PermissionCancelled{RequestID: m.RequestID})
 	case "control_response":
+		if strings.HasPrefix(m.Response.RequestID, setModelPrefix) && m.Response.Subtype != "success" {
+			log.Printf("[agent] claude refused a model switch: %s", m.Response.Error)
+			return
+		}
 		if m.Response.RequestID != initRequestID {
 			return
 		}

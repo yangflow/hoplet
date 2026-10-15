@@ -26,6 +26,7 @@ export interface RuntimeEntry {
   state: AgentRuntimeState;
   error?: string;
   capabilities: RuntimeCapabilities;
+  model?: string;
 }
 
 /** A permission request waiting for an answer. */
@@ -106,6 +107,7 @@ export function createRuntime(state: ControlState): Runtime {
       state: entry.state,
       ...(entry.error !== undefined ? { error: entry.error } : {}),
       capabilities: entry.capabilities,
+      ...(entry.model !== undefined ? { model: entry.model } : {}),
     };
   }
 
@@ -123,6 +125,7 @@ export function createRuntime(state: ControlState): Runtime {
       state: v.state,
       ...(v.error !== undefined ? { error: v.error } : {}),
       ...(v.capabilities ? { capabilities: v.capabilities } : {}),
+      ...(v.model !== undefined ? { model: v.model } : {}),
     });
   }
 
@@ -164,7 +167,7 @@ export function createRuntime(state: ControlState): Runtime {
   }
 
   return {
-    prompt(sessionId, ownerDeviceId, text, promptId, attachments = []) {
+    prompt(sessionId, ownerDeviceId, text, promptId, attachments = [], model) {
       const now = state.now();
       sweepPrompts(now);
       const key = permissionKey(sessionId, promptId);
@@ -199,6 +202,7 @@ export function createRuntime(state: ControlState): Runtime {
         promptId,
         text,
         ...(attachments.length > 0 ? { attachments } : {}),
+        ...(model !== undefined ? { model } : {}),
       };
       const outcome = askWaiter(
         pendingPrompt,
@@ -297,6 +301,7 @@ export function createRuntime(state: ControlState): Runtime {
             state: msg.state,
             ...(msg.error !== undefined ? { error: msg.error } : {}),
             capabilities: msg.capabilities,
+            ...(msg.model !== undefined ? { model: msg.model } : {}),
           });
           if (TURN_OVER.has(msg.state)) dropPermissions(msg.sessionId);
           if (msg.state === 'starting' || msg.state === 'running') acceptPrompt(msg.sessionId);
