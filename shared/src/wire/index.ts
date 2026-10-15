@@ -178,6 +178,8 @@ export const WIRE_MESSAGES = defineWire({
       promptId: v.string(),
       text: v.string(),
       attachments: v.optional(list(AttachmentIdSchema)),
+      /** Changes the session's options from this turn on, as a new session's options are given. */
+      options: v.optional(StartOptionsSchema),
     },
   },
   'runtime.permission.answer': {
@@ -225,6 +227,8 @@ export const WIRE_MESSAGES = defineWire({
       state: AgentRuntimeStateSchema,
       error: v.optional(v.string()),
       capabilities: RuntimeCapabilitiesSchema,
+      /** What the session's processes run with: the model (absent for the vendor's default), Thinking, Fast. */
+      options: v.optional(StartOptionsSchema),
     },
   },
   /** Streamed content of the running turn; transient, the session file is the record. */
@@ -279,6 +283,7 @@ export const WIRE_MESSAGES = defineWire({
       state: RuntimeStateSchema,
       error: v.optional(v.string()),
       capabilities: v.optional(RuntimeCapabilitiesSchema),
+      options: v.optional(StartOptionsSchema),
     },
   },
   /**

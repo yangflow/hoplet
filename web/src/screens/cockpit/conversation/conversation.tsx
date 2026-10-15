@@ -1,4 +1,10 @@
-import type { Entry, LiveSessionMeta, PromptImage, SessionRuntimeInfo } from '@hoplet/shared';
+import type {
+  Entry,
+  LiveSessionMeta,
+  PromptImage,
+  RuntimeCapabilities,
+  SessionRuntimeInfo,
+} from '@hoplet/shared';
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { Icon } from '../../../components/icons.tsx';
 import { providerName } from '../../../components/provider-marks.tsx';
@@ -16,6 +22,13 @@ import { t } from '../../../lib/i18n.ts';
 import { onLive, subscribeSession } from '../../../lib/live.ts';
 import { usePageVisible } from '../../../lib/visibility.ts';
 import { Composer } from '../composer/composer.tsx';
+import {
+  hasChoices,
+  type ModelChoice,
+  ModelMenu,
+  optionsChange,
+  sessionChoice,
+} from '../composer/model-menu.tsx';
 import { SessionWhere } from '../composer/where.tsx';
 import { composerView, stateName } from '../runtime.ts';
 import { LiveTurnView } from './live-view.tsx';
@@ -38,6 +51,8 @@ export type ConversationFixture = {
   composerText?: string;
   /** Images waiting in the composer. */
   composerImages?: PromptImage[];
+  /** The session's model menu starts open. */
+  modelMenuOpen?: boolean;
   scrollTo?: number;
   openBlocks?: string[];
 };
@@ -64,8 +79,8 @@ export function Conversation(props: {
   shortcuts?: boolean;
   /** The microphone shows only when transcription is available (#17). */
   voiceAvailable?: boolean;
-  /** The session's driver takes images with a prompt. */
-  acceptsImages?: boolean;
+  /** What the session's driver can do, as reported or announced: images, switching the model. */
+  capabilities?: RuntimeCapabilities | undefined;
   onHandoff: () => void;
   openDiff?: (path: string) => void;
   fixture?: ConversationFixture;
@@ -170,6 +185,14 @@ export function Conversation(props: {
   const [notice, setNotice] = useState<string | null>(null);
   const [answering, setAnswering] = useState(false);
   const lastPrompt = useRef<{ text: string; attachments: string[] } | null>(null);
+  // The options picked for the coming turns, over what the session runs with; the state reports them once
+  // the agent has applied them, and a prompt sends only what differs.
+  const caps = props.capabilities;
+  const providers = caps ? [{ provider: session.provider, capabilities: caps }] : [];
+  const choosable = caps !== undefined && hasChoices(providers, providers[0]);
+  const [picked, setPicked] = useState<Partial<ModelChoice>>({});
+  const current = sessionChoice(session.provider, runtime.options);
+  const choice = sessionChoice(session.provider, runtime.options, picked);
   const pending = useRef<{ text: string; attachments: string[] } | null>(null);
   const root = useRef<HTMLDivElement>(null);
 
@@ -184,7 +207,12 @@ export function Conversation(props: {
       followRef.current = true;
       transcript.current?.scrollToBottom();
       try {
-        await postPrompt(sessionId, text, attachments);
+        await postPrompt(
+          sessionId,
+          text,
+          attachments,
+          caps ? optionsChange(caps, current, choice) : undefined,
+        );
       } catch (err) {
         pending.current = null;
         lt.cancel();
@@ -194,7 +222,7 @@ export function Conversation(props: {
         setBusy(false);
       }
     },
-    [sessionId, lt.begin, lt.cancel],
+    [sessionId, lt.begin, lt.cancel, caps, current, choice],
   );
 
   // A start that failed gives the prompt back.
@@ -398,7 +426,22 @@ export function Conversation(props: {
               {...(fixture?.recording ? { recording: true } : {})}
               {...(fixture?.composerText ? { initialText: fixture.composerText } : {})}
               onSend={(text, attachments) => void send(text, attachments)}
-              acceptsImages={props.acceptsImages ?? false}
+              acceptsImages={caps?.images === true}
+              {...(choosable
+                ? {
+                    options: (
+                      <ModelMenu
+                        providers={providers}
+                        value={choice}
+                        onChange={(next) =>
+                          setPicked({ model: next.model, thinking: next.thinking, fast: next.fast })
+                        }
+                        disabled={busy}
+                        {...(fixture?.modelMenuOpen ? { initialOpen: true } : {})}
+                      />
+                    ),
+                  }
+                : {})}
               {...(session.ownerDeviceId
                 ? {
                     upload: (image: PromptImage) =>

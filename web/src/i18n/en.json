@@ -317,5 +317,6 @@
   "{name} is larger than 4 MiB": "{name} is larger than 4 MiB",
   "{name} was not uploaded": "{name} was not uploaded",
   "Uploading": "Uploading",
-  "{name} cannot be read as an image": "{name} cannot be read as an image"
+  "{name} cannot be read as an image": "{name} cannot be read as an image",
+  "Default model": "Default model"
 }

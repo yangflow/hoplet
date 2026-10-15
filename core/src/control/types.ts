@@ -71,6 +71,8 @@ export interface RuntimeView {
   state: RuntimeState;
   error?: string;
   capabilities?: RuntimeCapabilities;
+  /** What the session's processes run with, as the owner reported. */
+  options?: StartOptions;
 }
 
 export type RuntimeCommandOutcome =
@@ -193,6 +195,7 @@ export interface Control {
     text: string,
     promptId: string,
     attachments?: string[],
+    options?: StartOptions,
   ): Promise<PromptOutcome>;
   /** Answers an open permission request; the first answer wins. */
   answerPermission(

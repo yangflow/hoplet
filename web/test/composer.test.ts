@@ -19,6 +19,7 @@ import {
   maxFieldHeight,
   saveHeight,
 } from '../src/screens/cockpit/composer/height.ts';
+import { optionsChange, sessionChoice } from '../src/screens/cockpit/composer/model-menu.tsx';
 import { folderOf } from '../src/screens/cockpit/draft.tsx';
 
 function memory() {
@@ -136,5 +137,35 @@ describe('reading an image', () => {
         OffscreenCanvas: restore.canvas,
       });
     }
+  });
+});
+
+describe('the options of a session', () => {
+  const caps = {
+    permissions: true,
+    interrupt: true,
+    thinking: true,
+    fast: false,
+    models: ['opus'],
+  };
+  it('reads what the session runs with, Thinking on and Fast off until a process reported', () => {
+    expect(sessionChoice('claude', undefined)).toEqual({
+      provider: 'claude',
+      model: '',
+      thinking: true,
+      fast: false,
+    });
+    expect(
+      sessionChoice('claude', { model: 'opus', thinking: false }, { thinking: true }),
+    ).toMatchObject({ model: 'opus', thinking: true });
+  });
+
+  it('changes only what the driver declares and what differs', () => {
+    const now = sessionChoice('claude', { model: 'opus', thinking: true, fast: false });
+    expect(optionsChange(caps, now, now)).toBeUndefined();
+    expect(optionsChange(caps, now, { ...now, thinking: false, fast: true })).toEqual({
+      thinking: false,
+    });
+    expect(optionsChange(caps, { ...now, model: '' }, { ...now, model: '' })).toBeUndefined();
   });
 });

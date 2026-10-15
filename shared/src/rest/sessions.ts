@@ -30,6 +30,8 @@ export const SessionRuntimeInfoSchema = v.object({
   state: RuntimeStateSchema,
   capabilities: v.optional(RuntimeCapabilitiesSchema),
   error: v.optional(v.string()),
+  /** What the session's processes run with: the model (absent for the vendor's default), Thinking, Fast. */
+  options: v.optional(StartOptionsSchema),
 });
 export type SessionRuntimeInfo = v.InferOutput<typeof SessionRuntimeInfoSchema>;
 
@@ -120,6 +122,8 @@ export const PromptRequestSchema = v.object({
   text: TrimmedSchema,
   /** Images uploaded to the owner for this prompt; the session's driver must declare `images`. */
   attachments: v.optional(PromptAttachmentsSchema),
+  /** Changes the session's options from this turn on: only what its driver declares, as for a new session. */
+  options: v.optional(StartOptionsSchema),
   /** Chosen by the client; a repeated one within 10 minutes returns the first result. */
   promptId: v.pipe(v.string(), v.minLength(1), v.maxLength(128)),
 });

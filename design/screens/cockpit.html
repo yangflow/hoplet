@@ -1234,6 +1234,7 @@ function whereRow(state) {
 function composer(state) {
   const send = (on, t = 'Send · ↩') => `<button class="send"${on ? '' : ' disabled'}${tip(t)}>${I.up()}</button>`;
   const mic = on => ib(I.mic(), 'Dictate · transcribed on your machines', '', !on);
+  // A draft and a session have the same menu: the model, Thinking and Fast, from the next turn on.
   const menu = `<div class="cpop end" role="menu" aria-label="Model"><div class="menu-label">Model</div>
     ${item2('Opus 5.5', true)}${item2('Sonnet 5.5', false)}${item2('Haiku 4.5', false)}
     <div class="menu-sep"></div>${sw(I.think(), 'Thinking', true)}${sw(I.zap(), 'Fast', false)}</div>`;
@@ -1691,7 +1692,7 @@ const STATES = [
   ['add-project-error', 'a typed path the agent refused, the reason inline'],
   ['ready', 'process running, no turn; studio › notes folded, showing its waiting session'],
   ['compose', 'a long prompt with two pasted images; the top edge is being dragged'],
-  ['model-menu', 'the model and its options, switched for the next turn'],
+  ['model-menu', 'a session’s model and options, which hold from the next turn on'],
   ['recording', 'dictating the next prompt'],
   ['starting', 'the first prompt starts Claude Code'],
   ['running', 'live turn: a failed run, its output, a search, an edit and a running run'],

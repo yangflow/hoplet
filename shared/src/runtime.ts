@@ -5,7 +5,8 @@ import { ProviderSchema } from './session.ts';
 /**
  * What a runtime driver declares it can do; the UI shows only the controls a session's driver supports.
  * `fast` and `thinking` are start options of a new session; `models` lists the model IDs a new session can
- * choose from and is empty when the driver cannot choose; `images` says a prompt may carry images.
+ * choose from and is empty when the driver cannot choose; `images` says a prompt may carry images. A prompt to
+ * an existing session may change the same options a new session starts with.
  */
 export const RuntimeCapabilitiesSchema = v.object({
   permissions: v.boolean(),
@@ -15,6 +16,9 @@ export const RuntimeCapabilitiesSchema = v.object({
   models: v.array(v.string()),
   images: v.optional(v.boolean()),
 });
+
+/** A model ID as a driver lists it in `models`. */
+export const ModelIdSchema = v.pipe(v.string(), v.minLength(1), v.maxLength(128));
 export type RuntimeCapabilities = v.InferOutput<typeof RuntimeCapabilitiesSchema>;
 
 /**
@@ -33,11 +37,25 @@ export type ProviderInfo = v.InferOutput<typeof ProviderInfoSchema>;
 
 /** The options of a new session; only what the provider's capabilities declare is accepted. */
 export const StartOptionsSchema = v.object({
-  model: v.optional(v.pipe(v.string(), v.minLength(1), v.maxLength(128))),
+  model: v.optional(ModelIdSchema),
   thinking: v.optional(v.boolean()),
   fast: v.optional(v.boolean()),
 });
 export type StartOptions = v.InferOutput<typeof StartOptionsSchema>;
+
+/**
+ * The option a driver with `caps` does not declare, or null: a model outside `models`, Thinking without
+ * `thinking`, Fast without `fast`. A new session's options and a prompt's changes are checked alike.
+ */
+export function undeclaredOption(
+  options: StartOptions,
+  caps: RuntimeCapabilities,
+): 'model' | 'thinking' | 'fast' | null {
+  if (options.model !== undefined && !caps.models.includes(options.model)) return 'model';
+  if (options.thinking !== undefined && !caps.thinking) return 'thinking';
+  if (options.fast !== undefined && !caps.fast) return 'fast';
+  return null;
+}
 
 /** The runtime state of a session an agent reports (docs/spec.md, runtime states). */
 export const AgentRuntimeStateSchema = v.picklist([

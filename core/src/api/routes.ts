@@ -36,6 +36,7 @@ import {
   PromptRequestSchema,
   PromptResultSchema,
   type Provider,
+  type RuntimeCapabilities,
   RuntimeCommandResultSchema,
   SearchResultSchema,
   SessionListResponseSchema,
@@ -44,6 +45,7 @@ import {
   SnapshotChangesSchema,
   SnapshotDiffSchema,
   safeParse,
+  undeclaredOption,
   WorkspaceDiffQuerySchema,
   WorkspaceDiffSchema,
   WorkspaceFileQuerySchema,
@@ -62,11 +64,18 @@ const MAX_PROMPT_CHARS = 8_000;
 /** One uploaded image: 4 MiB as base64 and its media type (ADR 0017). */
 const ATTACHMENT_BODY_LIMIT = 6 * 1024 * 1024;
 
-/** Whether the provider the owner runs for a session declares images; unknown while the owner is offline. */
-function takesImages(deps: ApiDeps, owner: string, provider: Provider): boolean | null {
+/**
+ * The capabilities of the provider the owner runs for a session: `undefined` while the owner is offline (the
+ * prompt then answers `owner-offline`), `null` when the connected owner does not run that provider.
+ */
+function ownerCapabilities(
+  deps: ApiDeps,
+  owner: string,
+  provider: Provider,
+): RuntimeCapabilities | null | undefined {
   const device = deps.control.devices().find((d) => d.deviceId === owner);
-  if (!device?.connected) return null;
-  return device.providers.find((p) => p.provider === provider)?.capabilities.images === true;
+  if (!device?.connected) return undefined;
+  return device.providers.find((p) => p.provider === provider)?.capabilities ?? null;
 }
 
 /** The session's owner device, or the 404 when the session is unknown. */
@@ -259,11 +268,15 @@ export const routes: readonly Route[] = [
       const owner = ownerOf(d, sessionId);
       if (d.body.text.length > MAX_PROMPT_CHARS) throw new ApiError('too-large');
       const attachments = d.body.attachments ?? [];
-      if (
-        attachments.length > 0 &&
-        takesImages(d, owner, providerOf(d.store, sessionId)) === false
-      ) {
-        throw new ApiError('invalid-request', { reason: 'images' });
+      const options = d.body.options;
+      const caps = ownerCapabilities(d, owner, providerOf(d.store, sessionId));
+      if (caps !== undefined) {
+        if (attachments.length > 0 && !caps?.images) {
+          throw new ApiError('invalid-request', { reason: 'images' });
+        }
+        // A prompt changes the options a new session starts with, and only what the driver declares.
+        const option = options && (caps ? undeclaredOption(options, caps) : 'provider');
+        if (option) throw new ApiError('invalid-request', { reason: option });
       }
       const outcome = await d.control.prompt(
         sessionId,
@@ -271,6 +284,7 @@ export const routes: readonly Route[] = [
         d.body.text,
         d.body.promptId,
         attachments,
+        options,
       );
       if (outcome.ok) return { ok: true, promptId: outcome.promptId };
       throw relayError(

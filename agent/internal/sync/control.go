@@ -18,7 +18,7 @@ func (c *Client) handleRuntimePrompt(cs *connState, raw json.RawMessage) {
 	if c.hooks.Runtime.Prompt == nil {
 		err = errors.New("not-implemented")
 	} else {
-		err = c.hooks.Runtime.Prompt(sessionID, req.Text, req.Attachments)
+		err = c.hooks.Runtime.Prompt(sessionID, req.Text, req.Attachments, req.Options)
 	}
 	if err != nil {
 		log.Printf("[agent] prompt refused for %s: %v", shortID(sessionID), err)

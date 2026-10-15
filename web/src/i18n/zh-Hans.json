@@ -317,5 +317,6 @@
   "{name} is larger than 4 MiB": "{name} 超过了 4 MiB",
   "{name} was not uploaded": "{name} 没有上传成功",
   "Uploading": "正在上传",
-  "{name} cannot be read as an image": "{name} 无法作为图片读取"
+  "{name} cannot be read as an image": "{name} 无法作为图片读取",
+  "Default model": "默认模型"
 }

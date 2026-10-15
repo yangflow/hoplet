@@ -1562,6 +1562,23 @@
             },
             "error": {
               "type": "string"
+            },
+            "options": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "thinking": {
+                  "type": "boolean"
+                },
+                "fast": {
+                  "type": "boolean"
+                }
+              },
+              "required": []
             }
           },
           "required": [
@@ -1726,6 +1743,23 @@
             "pattern": "^[A-Za-z0-9_-]{1,64}$"
           },
           "maxItems": 4
+        },
+        "options": {
+          "type": "object",
+          "properties": {
+            "model": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "thinking": {
+              "type": "boolean"
+            },
+            "fast": {
+              "type": "boolean"
+            }
+          },
+          "required": []
         },
         "promptId": {
           "type": "string",
@@ -1951,6 +1985,23 @@
                   },
                   "error": {
                     "type": "string"
+                  },
+                  "options": {
+                    "type": "object",
+                    "properties": {
+                      "model": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 128
+                      },
+                      "thinking": {
+                        "type": "boolean"
+                      },
+                      "fast": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": []
                   }
                 },
                 "required": [
@@ -2183,6 +2234,23 @@
             "fast",
             "models"
           ]
+        },
+        "options": {
+          "type": "object",
+          "properties": {
+            "model": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "thinking": {
+              "type": "boolean"
+            },
+            "fast": {
+              "type": "boolean"
+            }
+          },
+          "required": []
         }
       },
       "required": [

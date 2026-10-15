@@ -10,6 +10,8 @@
 //	fail           end the turn with an error result
 //	crash          exit with status 3
 //	images         answer `<n> images: <media types>` for the images that came with the prompt
+//	model          answer `model: <model>`, the --model it started with or the last set_model ("default")
+//	options        answer `model: <model> thinking: <--thinking or default> fast: <true when --settings fastMode>`
 //	anything else  behaves like `say`
 //
 // A prompt's images are written into its user line before the text, as Claude Code records them.
@@ -149,6 +151,15 @@ func main() {
 		if a == "--resume" && i+1 < len(args) {
 			session = args[i+1]
 		}
+		if a == "--model" && i+1 < len(args) {
+			model = args[i+1]
+		}
+		if a == "--thinking" && i+1 < len(args) {
+			thinking = args[i+1]
+		}
+		if a == "--settings" && i+1 < len(args) && strings.Contains(args[i+1], `"fastMode":true`) {
+			fast = true
+		}
 		if a == "--session-id" && i+1 < len(args) {
 			session, fresh = args[i+1], true
 		}
@@ -195,6 +206,7 @@ func main() {
 				RequestID string `json:"request_id"`
 				Request   struct {
 					Subtype string `json:"subtype"`
+					Model   string `json:"model"`
 				} `json:"request"`
 				Message struct {
 					Content []obj `json:"content"`
@@ -213,6 +225,18 @@ func main() {
 							time.Sleep(time.Duration(ms) * time.Millisecond)
 						}
 						emit(obj{"type": "control_response", "response": obj{"subtype": "success", "request_id": m.RequestID, "response": obj{"commands": []any{}}}})
+					case "set_model":
+						// As Claude Code 2.1.299 answers: the aliases it knows, an error for any other.
+						switch m.Request.Model {
+						case "default", "fable", "opus", "sonnet", "haiku":
+							modelMu.Lock()
+							model = m.Request.Model
+							modelMu.Unlock()
+							emit(obj{"type": "control_response", "response": obj{"subtype": "success", "request_id": m.RequestID}})
+						default:
+							emit(obj{"type": "control_response", "response": obj{"subtype": "error", "request_id": m.RequestID,
+								"error": "Model '" + m.Request.Model + "' not found", "error_code": "catalog_unknown"}})
+						}
 					case "interrupt":
 						curMu.Lock()
 						t := cur
@@ -259,6 +283,14 @@ func main() {
 		}
 	}
 }
+
+// model is the model the process runs on: --model, then the last set_model.
+var (
+	modelMu  sync.Mutex
+	model    = "default"
+	thinking = "default" // --thinking as given
+	fast     = false     // --settings with fastMode true
+)
 
 // turnImages are the image blocks of the turn that runs; its user line carries them before the text.
 var turnImages []obj
@@ -364,6 +396,14 @@ func runTurn(t *turn, prompt string) {
 		text := prompt
 		if cmd == "say" {
 			text = rest
+		}
+		if cmd == "model" || cmd == "options" {
+			modelMu.Lock()
+			text = "model: " + model
+			if cmd == "options" {
+				text += fmt.Sprintf(" thinking: %s fast: %v", thinking, fast)
+			}
+			modelMu.Unlock()
 		}
 		if cmd == "images" {
 			types := make([]string, 0, len(t.images))

@@ -217,6 +217,8 @@ type RuntimePrompt struct {
 	PromptID    string   `json:"promptId"`
 	Text        string   `json:"text"`
 	Attachments []string `json:"attachments,omitempty"`
+	// Options change the session's options from this turn on, as a new session's options are given.
+	Options *RuntimeStartOptions `json:"options,omitempty"`
 }
 
 // AttachmentPut (core → device, bulk) carries one chunk of an image for a coming prompt, as base64, at most
@@ -323,6 +325,9 @@ type RuntimeState struct {
 	State        string              `json:"state"` // external | idle | starting | ready | running | waiting-permission | failed
 	Error        string              `json:"error,omitempty"`
 	Capabilities RuntimeCapabilities `json:"capabilities"`
+	// Options are what the session's processes run with: the model (absent for the vendor's default),
+	// Thinking once a process started, and Fast.
+	Options *RuntimeStartOptions `json:"options,omitempty"`
 }
 
 type RuntimeOutput struct {

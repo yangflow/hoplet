@@ -8,6 +8,7 @@ import {
   type RuntimePrompt,
   type RuntimeStop,
   type SessionPermission,
+  type StartOptions,
 } from '@hoplet/shared';
 import { log } from '../log/index.ts';
 import { askWaiter } from './pending.ts';
@@ -26,6 +27,7 @@ export interface RuntimeEntry {
   state: AgentRuntimeState;
   error?: string;
   capabilities: RuntimeCapabilities;
+  options?: StartOptions;
 }
 
 /** A permission request waiting for an answer. */
@@ -106,6 +108,7 @@ export function createRuntime(state: ControlState): Runtime {
       state: entry.state,
       ...(entry.error !== undefined ? { error: entry.error } : {}),
       capabilities: entry.capabilities,
+      ...(entry.options !== undefined ? { options: entry.options } : {}),
     };
   }
 
@@ -123,6 +126,7 @@ export function createRuntime(state: ControlState): Runtime {
       state: v.state,
       ...(v.error !== undefined ? { error: v.error } : {}),
       ...(v.capabilities ? { capabilities: v.capabilities } : {}),
+      ...(v.options !== undefined ? { options: v.options } : {}),
     });
   }
 
@@ -164,7 +168,7 @@ export function createRuntime(state: ControlState): Runtime {
   }
 
   return {
-    prompt(sessionId, ownerDeviceId, text, promptId, attachments = []) {
+    prompt(sessionId, ownerDeviceId, text, promptId, attachments = [], options) {
       const now = state.now();
       sweepPrompts(now);
       const key = permissionKey(sessionId, promptId);
@@ -199,6 +203,7 @@ export function createRuntime(state: ControlState): Runtime {
         promptId,
         text,
         ...(attachments.length > 0 ? { attachments } : {}),
+        ...(options !== undefined ? { options } : {}),
       };
       const outcome = askWaiter(
         pendingPrompt,
@@ -297,6 +302,7 @@ export function createRuntime(state: ControlState): Runtime {
             state: msg.state,
             ...(msg.error !== undefined ? { error: msg.error } : {}),
             capabilities: msg.capabilities,
+            ...(msg.options !== undefined ? { options: msg.options } : {}),
           });
           if (TURN_OVER.has(msg.state)) dropPermissions(msg.sessionId);
           if (msg.state === 'starting' || msg.state === 'running') acceptPrompt(msg.sessionId);

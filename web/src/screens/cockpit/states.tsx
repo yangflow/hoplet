@@ -687,6 +687,21 @@ export const states: Record<string, () => ReactNode> = {
       }}
     />
   ),
+  'model-menu': () => (
+    <Scene
+      variant={{
+        runtime: {
+          state: 'ready',
+          capabilities,
+          options: { model: 'opus-5.5', thinking: true, fast: false },
+        },
+        conversation: {
+          composerText: 'Use the smaller model for the docs pass',
+          modelMenuOpen: true,
+        },
+      }}
+    />
+  ),
   recording: () => (
     <Scene
       variant={{

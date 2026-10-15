@@ -214,6 +214,8 @@ describe('wire contract', () => {
       models: { optional: false },
       images: { optional: true },
     });
+    expect(go.structs.RuntimePrompt?.options).toEqual({ optional: true });
+    expect(go.structs.RuntimeState?.options).toEqual({ optional: true });
     expect(go.structs.DeviceHello?.providers).toEqual({ optional: true });
     expect(shared.messages['runtime.start']).toMatchObject({ webOnly: false });
     expect(go.version).toBe(PROTOCOL_VERSION);
