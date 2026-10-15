@@ -837,6 +837,9 @@ const L = {
   zap: '<path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/>',
   shield: '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/>',
   'shield-alert': '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="M12 8v4"/><path d="M12 16h.01"/>',
+  'file-pen': '<path d="M12.659 22H18a2 2 0 0 0 2-2V8a2.4 2.4 0 0 0-.706-1.706l-3.588-3.588A2.4 2.4 0 0 0 14 2H6a2 2 0 0 0-2 2v9.34"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="M10.378 12.622a1 1 0 0 1 3 3.003L8.36 20.637a2 2 0 0 1-.854.506l-2.867.837a.5.5 0 0 1-.62-.62l.836-2.869a2 2 0 0 1 .506-.853z"/>',
+  'list-checks': '<path d="M13 5h8"/><path d="M13 12h8"/><path d="M13 19h8"/><path d="m3 17 2 2 4-4"/><path d="m3 7 2 2 4-4"/>',
+  sparkles: '<path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z"/><path d="M20 2v4"/><path d="M22 4h-4"/><circle cx="4" cy="20" r="2"/>',
   'text-wrap': '<path d="m16 16-3 3 3 3"/><path d="M3 12h14.5a1 1 0 0 1 0 7H13"/><path d="M3 19h6"/><path d="M3 5h18"/>',
 };
 /* the curated set, in the order the intro lists it: [Lucide name, uses] */
@@ -852,6 +855,7 @@ const ICON_SET = [
   ['rotate-cw', 'Retry'], ['copy', 'Copy'], ['settings', 'Settings'], ['laptop', 'Machines'], ['contrast', 'Appearance'], ['ellipsis', 'Sidebar view'],
   ['text-wrap', 'Wrap long lines'], ['loader-circle', 'Running, starting, loading'], ['git-branch', 'Git branch'], ['zap', 'Fast'],
   ['shield', 'Permission mode'], ['shield-alert', 'Permission mode, high risk'],
+  ['file-pen', 'Mode: accept edits'], ['list-checks', 'Mode: plan'], ['sparkles', 'Mode: auto'],
 ];
 const I = {
   search: () => sv(L.search),
@@ -901,6 +905,9 @@ const I = {
   branch: () => sv(L['git-branch']),
   shield: () => sv(L.shield),
   shieldAlert: () => sv(L['shield-alert']),
+  filePen: () => sv(L['file-pen']),
+  listChecks: () => sv(L['list-checks']),
+  sparkles: () => sv(L.sparkles),
   zap: () => sv(L.zap),
 };
 const spin = () => sv(L['loader-circle'], 'spin');
@@ -1258,12 +1265,12 @@ function composer(state) {
   const menu = `<div class="cpop end" role="menu" aria-label="Model"><div class="menu-label">Model</div>
     ${item2('Opus 5.5', true)}${item2('Sonnet 5.5', false)}${item2('Haiku 4.5', false)}
     <div class="menu-sep"></div>${sw(I.think(), 'Thinking', true)}${sw(I.zap(), 'Fast', false)}</div>`;
-  const modes = [['Manual', 'Ask before edits and commands.'], ['Accept edits', 'Edit files without asking; ask before commands.'], ['Plan', 'Explore and plan; no edits or commands.'], ['Auto', 'Claude decides when to ask, with safety checks.'], ['Bypass permissions', 'Run everything without asking.', true]];
+  const modes = [['Manual', 'Ask before edits and commands.', false, 'shield'], ['Accept edits', 'Edit files without asking; ask before commands.', false, 'filePen'], ['Plan', 'Explore and plan; no edits or commands.', false, 'listChecks'], ['Auto', 'Claude decides when to ask, with safety checks.', false, 'sparkles'], ['Bypass permissions', 'Run everything without asking.', true, 'shieldAlert']];
   const curMode = state === 'mode-bypass' ? 4 : state === 'mode-plan' ? 2 : 0;
-  const mrow = ([n, d, risk], i) => `${risk ? '<div class="menu-sep"></div>' : ''}<div class="mi${i === curMode ? ' cur' : ''}${risk ? ' risk' : ''}" role="menuitemradio" aria-checked="${i === curMode}"><span class="ck">${risk ? I.shieldAlert() : ''}</span><span class="t"><span class="n">${n}</span><span class="d">${d}</span></span>${risk ? '<span class="risk-b">High risk</span>' : ''}<span class="ck">${i === curMode ? I.check() : ''}</span></div>`;
+  const mrow = ([n, d, risk, ic], i) => `${risk ? '<div class="menu-sep"></div>' : ''}<div class="mi${i === curMode ? ' cur' : ''}${risk ? ' risk' : ''}" role="menuitemradio" aria-checked="${i === curMode}"><span class="ck">${I[ic]()}</span><span class="t"><span class="n">${n}</span><span class="d">${d}</span></span>${risk ? '<span class="risk-b">High risk</span>' : ''}<span class="ck">${i === curMode ? I.check() : ''}</span></div>`;
   const modeMenu = `<div class="cpop wide end" role="menu" aria-label="Permission mode"><div class="menu-label">Permission mode</div>${modes.map(mrow).join('')}<div class="menu-sep"></div><div class="mfoot"><span class="kbd">⇧ ⇥</span>Cycle modes</div></div>`;
   const hot = curMode === 4;
-  const mode = on => `<span class="anc"><button class="tb2${hot ? ' warn' : ''}${state === 'mode-menu' ? ' on' : ''}"${tip('Permission mode: ' + modes[curMode][0])}${on ? '' : ' disabled'}>${hot ? I.shieldAlert() : I.shield()}${modes[curMode][0]}${cv()}</button>${state === 'mode-menu' ? modeMenu : ''}</span>`;
+  const mode = on => `<span class="anc"><button class="tb2${hot ? ' warn' : ''}${state === 'mode-menu' ? ' on' : ''}"${tip('Permission mode: ' + modes[curMode][0])}${on ? '' : ' disabled'}>${I[modes[curMode][3]]()}${modes[curMode][0]}${cv()}</button>${state === 'mode-menu' ? modeMenu : ''}</span>`;
   const model = on => `<span class="anc"><button class="tb2${state === 'model-menu' ? ' on' : ''}"${tip('Model and options')}${on ? '' : ' disabled'}>Opus 5.5<i>·</i>${I.think()}${cv()}</button>${state === 'model-menu' ? menu : ''}</span>`;
   const full = (ph, on, left = '', inputOn = on, sendTip) => `<div class="composer">${state === 'compose' ? `<span class="grip"${tip('Drag to resize · double-click resets')}></span>` : ''}${whereRow(state)}
     ${state === 'compose' ? `<div class="thumbs">

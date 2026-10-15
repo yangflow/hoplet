@@ -72,6 +72,7 @@ type ConfigValue struct {
 	Name        string
 	Description string
 	Risk        string // "high" or empty
+	Icon        string // a name of the shared icon vocabulary (shared/src/runtime.ts), or empty
 }
 
 // ConfigOption is one setting a driver declares, shaped as an ACP session config option. Current is the

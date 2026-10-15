@@ -69,11 +69,11 @@ func (d *Driver) Config() []runtime.ConfigOption {
 			ID: optMode, Name: "Permission mode", Category: "mode", Type: runtime.ConfigSelect, Current: modeDefault,
 			Apply: runtime.ApplyNow,
 			Options: []runtime.ConfigValue{
-				{Value: modeDefault, Name: "Manual", Description: "Ask before edits and commands."},
-				{Value: "acceptEdits", Name: "Accept edits", Description: "Edit files without asking; ask before commands."},
-				{Value: "plan", Name: "Plan", Description: "Explore and plan; no edits or commands."},
-				{Value: "auto", Name: "Auto", Description: "Claude decides when to ask, with safety checks."},
-				{Value: modeBypass, Name: "Bypass permissions", Description: "Run everything without asking.", Risk: "high"},
+				{Value: modeDefault, Name: "Manual", Description: "Ask before edits and commands.", Icon: "shield"},
+				{Value: "acceptEdits", Name: "Accept edits", Description: "Edit files without asking; ask before commands.", Icon: "file-pen"},
+				{Value: "plan", Name: "Plan", Description: "Explore and plan; no edits or commands.", Icon: "list-checks"},
+				{Value: "auto", Name: "Auto", Description: "Claude decides when to ask, with safety checks.", Icon: "sparkles"},
+				{Value: modeBypass, Name: "Bypass permissions", Description: "Run everything without asking.", Risk: "high", Icon: "shield-alert"},
 			},
 		},
 		{

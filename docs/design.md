@@ -127,7 +127,7 @@ block's preview with an open button showing its size. The diff shares the well's
 path opens the file's full diff in the inspector. Three or more consecutive rows without an open well fold
 into one row naming their verbs; expanded thinking is dim italic UI type. The composer floats at the foot of the column: a
 first row ruled off from the field that says where the session runs (machine / directory / git branch as quiet
-chips, pickers with a chevron only in a draft), the field, and a toolbar with attach (only for a driver that takes images), a permission-mode pill (the shield glyph, the current mode's name and a chevron, always shown when the driver declares a `mode` option; it opens a `--layout-popover-wide` 328 px menu of the modes in the driver's order, each as its name over its description with a check on the current one, a value the driver marks high risk after a rule with a `High risk` tag, and a footer naming Shift+Tab, which with the field focused cycles the modes and applies the next at once, while a turn runs too (not while an input method is composing), announcing the new mode to assistive technology; Shift+Tab takes the key from backward focus movement in the field, so the pill is the keyboard way to reach the mode from elsewhere: Tab moves focus out of the field to it, and Enter or Space opens the menu; while the mode is high risk the pill takes the amber attention colours, its tint and ring and the shield-alert glyph, so colour is not the only signal), a model button (the model's
+chips, pickers with a chevron only in a draft), the field, and a toolbar with attach (only for a driver that takes images), a permission-mode pill (the current mode's declared icon, else the shield glyph, then the mode's name and a chevron, always shown when the driver declares a `mode` option; it opens a `--layout-popover-wide` 328 px menu of the modes in the driver's order, each as its icon, its name over its description with a check on the current one, a value the driver marks high risk after a rule with a `High risk` tag, and a footer naming Shift+Tab, which with the field focused cycles the modes and applies the next at once, while a turn runs too (not while an input method is composing), announcing the new mode to assistive technology; Shift+Tab takes the key from backward focus movement in the field, so the pill is the keyboard way to reach the mode from elsewhere: Tab moves focus out of the field to it, and Enter or Space opens the menu; while the mode is high risk the pill takes the amber attention colours, its tint and ring and the shield-alert glyph when the mode declares no icon, so colour is not the only signal), a model button (the model's
 name and the Thinking glyph, opening the driver's config options as radio lists and switches, in a draft and a session alike), voice and send, and a status line only for
 session states that block or change what the user can do. A grip on its top edge sets its height; pasted,
 dropped and attached images sit above the text as 64 px thumbnails on the checkerboard, each with a round remove
@@ -151,12 +151,18 @@ One family, Lucide (ISC), bundled and never fetched: every glyph on a 24-unit gr
 `--icon-stroke` 1.5, round caps and joins, centred on the line of the text beside it. The set is closed:
 search, panel-left, panel-right, square-pen, plus, chevron-right, arrow-up, arrow-up-right,
 arrow-right-left, file, folder, folder-open, book-open, pencil, file-plus, terminal, plug, globe, lightbulb, image,
-layers, eye, square, git-branch, zap, lock, paperclip, mic, hand, clock, x, check, circle-alert, shield, shield-alert, info, rotate-cw, copy,
+layers, eye, square, git-branch, zap, lock, paperclip, mic, hand, clock, x, check, circle-alert, shield, shield-alert, file-pen, list-checks, sparkles, info, rotate-cw, copy,
 settings, laptop, contrast, ellipsis, text-wrap, loader-circle; turned glyphs (a chevron, an arrow) cover the other directions.
 File-type badges (TypeScript, Markdown, JSON, image, text, other) use the same page and stroke with a tint.
 Provider marks (the Claude mark for Claude Code) are drawn monochrome in the dim text colour, never in brand
 colour, and lead each session row. Icons sit in labels, tool rows and empty states and do not decorate. The
 app mark remains `web/public/icon.svg`.
+
+**Config value icons.** A config value may declare an `icon`, a name of the closed shared vocabulary exported as
+`CONFIG_ICONS` from `shared/` (shield, shield-alert, file-pen, list-checks, sparkles). A client maps each name to
+its own glyph and never learns vendor IDs; a value with no icon, or a name the client does not know, takes the
+generic icon of its option's category (the shield for `mode`, shield-alert when the value is high risk) and
+rendering never fails.
 
 ## Motion
 

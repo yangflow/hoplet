@@ -1,7 +1,7 @@
 import type { ConfigOption, ConfigSetting } from '@hoplet/shared';
 import { type KeyboardEvent, useEffect, useId, useRef, useState } from 'react';
 import { Badge } from '../../../components/Badge.tsx';
-import { Icon } from '../../../components/icons.tsx';
+import { configIcon, Icon } from '../../../components/icons.tsx';
 import { Popover } from '../../../components/Popover.tsx';
 import { t } from '../../../lib/i18n.ts';
 
@@ -116,7 +116,9 @@ export function ModeMenu(props: {
         }}
         data-testid="cockpit.mode-option"
       >
-        <span className="sel-lead">{v.risk === 'high' ? Icon.shieldAlert() : null}</span>
+        <span className="sel-lead">
+          {configIcon(v.icon) ?? (v.risk === 'high' ? Icon.shieldAlert() : null)}
+        </span>
         <span className="mode-text">
           <span className="mode-name">{modeName(option, v.value, v.name)}</span>
           {description ? <span className="mode-desc">{description}</span> : null}
@@ -155,7 +157,7 @@ export function ModeMenu(props: {
         data-testid="cockpit.mode"
         data-risk={risky ? 'high' : 'normal'}
       >
-        {risky ? Icon.shieldAlert() : Icon.shield()}
+        {configIcon(current?.icon) ?? (risky ? Icon.shieldAlert() : Icon.shield())}
         {label}
         {Icon.down()}
       </button>

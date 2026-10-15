@@ -97,22 +97,35 @@ function capabilitiesOn(model = 'default', mode = 'default'): RuntimeCapabilitie
         category: 'mode',
         currentValue: mode,
         options: [
-          { value: 'default', name: 'Manual', description: 'Ask before edits and commands.' },
+          {
+            value: 'default',
+            name: 'Manual',
+            description: 'Ask before edits and commands.',
+            icon: 'shield',
+          },
           {
             value: 'acceptEdits',
             name: 'Accept edits',
+            icon: 'file-pen',
             description: 'Edit files without asking; ask before commands.',
           },
-          { value: 'plan', name: 'Plan', description: 'Explore and plan; no edits or commands.' },
+          {
+            value: 'plan',
+            name: 'Plan',
+            description: 'Explore and plan; no edits or commands.',
+            icon: 'list-checks',
+          },
           {
             value: 'auto',
             name: 'Auto',
+            icon: 'sparkles',
             description: 'Claude decides when to ask, with safety checks.',
           },
           {
             value: 'bypassPermissions',
             name: 'Bypass permissions',
             description: 'Run everything without asking.',
+            icon: 'shield-alert',
             risk: 'high',
           },
         ],

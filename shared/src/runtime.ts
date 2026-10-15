@@ -2,6 +2,21 @@ import * as v from 'valibot';
 import { AttachmentIdSchema } from './ids.ts';
 import { ProviderSchema } from './session.ts';
 
+/**
+ * The shared icon vocabulary of config values (docs/design.md#icons): semantic names, not assets. Each client maps
+ * a name to an icon of its own platform and falls back to the generic icon of the option's category when a value
+ * names none or a name the client does not know.
+ */
+export const CONFIG_ICONS = [
+  'shield',
+  'shield-alert',
+  'file-pen',
+  'list-checks',
+  'sparkles',
+] as const;
+export const ConfigIconSchema = v.picklist(CONFIG_ICONS);
+export type ConfigIcon = v.InferOutput<typeof ConfigIconSchema>;
+
 /** One value of a `select` option: what a session's setting is set to, with the name a client shows. */
 export const ConfigValueSchema = v.object({
   value: v.pipe(v.string(), v.minLength(1), v.maxLength(128)),
@@ -9,6 +24,8 @@ export const ConfigValueSchema = v.object({
   description: v.optional(v.string()),
   /** `high` marks a value with a high risk (ADR 0018); clients mark it. */
   risk: v.optional(v.picklist(['high'])),
+  /** A name of the shared icon vocabulary; a client without it for a value draws its category's generic icon. */
+  icon: v.optional(ConfigIconSchema),
 });
 export type ConfigValue = v.InferOutput<typeof ConfigValueSchema>;
 

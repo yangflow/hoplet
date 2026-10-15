@@ -309,6 +309,7 @@ type ConfigValue struct {
 	Name        string `json:"name"`
 	Description string `json:"description,omitempty"`
 	Risk        string `json:"risk,omitempty"`
+	Icon        string `json:"icon,omitempty"` // a name of the shared icon vocabulary (shared/src/runtime.ts)
 }
 
 // RuntimeStart (core → device) starts a new session in ProjectPath, a watched project of the device. The

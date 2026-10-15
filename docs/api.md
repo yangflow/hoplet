@@ -102,7 +102,7 @@ Behavior a client relies on:
   prompt with `attachment-missing` when an ID is unknown or older than an hour, and with `invalid-image` when the
   images are more than 8 MiB together.
 - A session's settings are config options (ADR 0018): the driver declares them in `capabilities.config` (ACP's
-  shape: `select` or `boolean`, `id`, `name`, `category`, `currentValue`). `POST /api/sessions` takes optional
+  shape: `select` or `boolean`, `id`, `name`, `category`, `currentValue`; a select value may declare `risk: "high"` and an `icon` from the shared vocabulary `CONFIG_ICONS`). `POST /api/sessions` takes optional
   `config`, option ID to value, for the options it sets; `POST /api/sessions/:sessionId/config` takes one
   `{configId, value}` and answers `200` once the owner has it. A setting or value the driver does not declare is
   `invalid-request` with `reason: config`. The runtime state (`GET /api/sessions`, `session.runtime`) reports the

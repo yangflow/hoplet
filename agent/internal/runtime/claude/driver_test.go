@@ -59,9 +59,16 @@ func TestConfigDeclaresModeModelThinkingAndFastInOrder(t *testing.T) {
 		mode.Apply != runtime.ApplyNow || mode.Current != "default" {
 		t.Fatalf("mode = %+v", mode)
 	}
+	icons := map[string]string{
+		"default": "shield", "acceptEdits": "file-pen", "plan": "list-checks", "auto": "sparkles",
+		"bypassPermissions": "shield-alert",
+	}
 	var modes []string
 	for _, v := range mode.Options {
 		modes = append(modes, v.Value)
+		if v.Icon != icons[v.Value] {
+			t.Fatalf("icon of %s = %q, want %q", v.Value, v.Icon, icons[v.Value])
+		}
 		if (v.Value == "bypassPermissions") != (v.Risk == "high") || v.Name == "" || v.Description == "" {
 			t.Fatalf("mode value = %+v", v)
 		}

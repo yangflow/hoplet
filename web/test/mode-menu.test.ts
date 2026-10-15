@@ -20,7 +20,7 @@ function option(current: string): ConfigOption & { type: 'select' } {
     category: 'mode',
     currentValue: current,
     options: [
-      { value: 'a', name: 'A', description: 'first' },
+      { value: 'a', name: 'A', description: 'first', icon: 'file-pen' },
       { value: 'b', name: 'B' },
       { value: 'c', name: 'C', risk: 'high' },
     ],
@@ -82,6 +82,26 @@ describe('the mode menu', () => {
       true,
     );
     expect(host?.querySelector('[data-testid="cockpit.mode-live"]')?.textContent).toContain('C');
+  });
+
+  it('shows the declared icon on the pill and the rows, and falls back to the shield', () => {
+    const glyph = (el: Element | null | undefined) =>
+      el?.querySelector('svg')?.getAttribute('class');
+    mount('a', vi.fn(), true);
+    const pill = host?.querySelector('[data-testid="cockpit.mode"]');
+    expect(glyph(pill)).toContain('lucide-file-pen');
+    const rows = [
+      ...(host?.querySelectorAll<HTMLElement>('[data-testid="cockpit.mode-option"]') ?? []),
+    ];
+    expect(glyph(rows[0])).toContain('lucide-file-pen');
+    expect(glyph(rows[2])).toContain('lucide-shield-alert');
+    act(() => root?.render(createElement(ModeMenu, { option: option('b'), onChange: vi.fn() })));
+    expect(glyph(host?.querySelector('[data-testid="cockpit.mode"]'))).toContain('lucide-shield');
+    expect(glyph(host?.querySelector('[data-testid="cockpit.mode"]'))).not.toContain('alert');
+    const unknown = option('a');
+    unknown.options[0] = { value: 'a', name: 'A', icon: 'rocket' as never };
+    act(() => root?.render(createElement(ModeMenu, { option: unknown, onChange: vi.fn() })));
+    expect(glyph(host?.querySelector('[data-testid="cockpit.mode"]'))).toContain('lucide-shield');
   });
 
   it('lists every mode, the high-risk one last with its badge, and applies a pick at once', () => {
