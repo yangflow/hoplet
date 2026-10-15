@@ -96,6 +96,7 @@
   --layout-well-max: 240px;
   --layout-palette: 560px;
   --layout-dialog: 480px;
+  --layout-popover: 248px;
   --layout-modal-top: 96px;
   --motion-pulse: 1.6s;
   --motion-blink: 1s;

@@ -385,6 +385,76 @@ button.row:not(.selected):hover {
   flex: none;
   color: var(--color-text-2);
 }
+.option-detail {
+  margin-left: auto;
+  padding-left: var(--space-3);
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  color: var(--color-text-3);
+}
+.popover-title {
+  padding: var(--space-2) var(--space-2) var(--space-1);
+  font-weight: var(--weight-semibold);
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.popover-label {
+  padding: var(--space-2) var(--space-2) var(--space-1);
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  font-weight: var(--weight-medium);
+  color: var(--color-text-3);
+}
+.popover-sep {
+  height: 1px;
+  margin: var(--space-1) var(--space-2);
+  background: var(--color-line);
+}
+.option-action {
+  width: 100%;
+  text-align: left;
+}
+.option-action:hover,
+.option-action:focus-visible {
+  background: var(--color-selected);
+}
+.popover-above {
+  top: auto;
+  bottom: calc(100% + var(--space-2));
+  right: auto;
+  width: var(--layout-popover);
+  box-shadow:
+    var(--shadow-float),
+    0 0 0 1px var(--color-line);
+}
+.popover-above.popover-end {
+  left: auto;
+  right: 0;
+}
+/* A chip: a quiet inline Select, the composer's location row */
+.select-chip {
+  flex: none;
+  max-width: 100%;
+}
+.sel.chip {
+  width: auto;
+  height: 24px;
+  padding: 0 var(--space-1) 0 6px;
+  gap: var(--space-2);
+  background: transparent;
+  box-shadow: none;
+  color: var(--color-text-2);
+}
+.sel.chip:hover:not(:disabled),
+.sel.chip.open {
+  background: var(--color-selected);
+  color: var(--color-text);
+}
+.sel.chip .sel-lead {
+  color: var(--color-text-3);
+}
 
 /* Switch */
 .switch-row {

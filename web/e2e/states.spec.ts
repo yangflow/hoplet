@@ -21,7 +21,10 @@ const screens = { cockpit: stateNames('cockpit'), workspace: stateNames('workspa
 // What each state shows that axe must have seen: a state that lost its subject would pass for nothing.
 const subject: Record<string, Record<string, string>> = {
   cockpit: {
-    'new-session': 'cockpit.new-dialog',
+    draft: 'cockpit.draft-row',
+    'draft-directory': 'cockpit.draft-add-project',
+    'draft-model': 'cockpit.model-menu',
+    compose: 'cockpit.where',
     'add-project': 'cockpit.add-dialog',
     'add-project-recent': 'cockpit.add-recent',
     'add-project-error': 'cockpit.add-error',
@@ -63,8 +66,8 @@ const subject: Record<string, Record<string, string>> = {
   },
 };
 
-test('the registries list 22 cockpit and 26 workspace states', () => {
-  expect(screens.cockpit).toHaveLength(22);
+test('the registries list 25 cockpit and 26 workspace states', () => {
+  expect(screens.cockpit).toHaveLength(25);
   expect(screens.workspace).toHaveLength(26);
 });
 

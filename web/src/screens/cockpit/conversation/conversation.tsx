@@ -15,6 +15,7 @@ import { t } from '../../../lib/i18n.ts';
 import { onLive, subscribeSession } from '../../../lib/live.ts';
 import { usePageVisible } from '../../../lib/visibility.ts';
 import { Composer } from '../composer/composer.tsx';
+import { SessionWhere } from '../composer/where.tsx';
 import { composerView, stateName } from '../runtime.ts';
 import { LiveTurnView } from './live-view.tsx';
 import { SessionReader } from './reader.ts';
@@ -32,6 +33,8 @@ export type ConversationFixture = {
   loadingOlder?: boolean;
   /** New lines to show on the jump pill. */
   unread?: number;
+  /** Text in the composer's field. */
+  composerText?: string;
   scrollTo?: number;
   openBlocks?: string[];
 };
@@ -370,12 +373,20 @@ export function Conversation(props: {
             <Composer
               key={sessionId}
               view={view}
+              where={
+                <SessionWhere
+                  deviceName={session.deviceName}
+                  online={session.ownerConnected}
+                  path={session.projectPath}
+                />
+              }
               providerName={provider}
               busy={busy}
               error={sendError}
               restore={restore}
               voiceAvailable={props.voiceAvailable ?? false}
               {...(fixture?.recording ? { recording: true } : {})}
+              {...(fixture?.composerText ? { initialText: fixture.composerText } : {})}
               onSend={(text) => void send(text)}
               onStop={stop}
               onRetry={retry}

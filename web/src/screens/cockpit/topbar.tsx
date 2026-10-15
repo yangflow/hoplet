@@ -7,6 +7,8 @@ import { t } from '../../lib/i18n.ts';
 /** The session's title and the inspector toggle, which moves into the inspector while it is open. */
 export function TopBar(props: {
   session: LiveSessionMeta | null;
+  /** A title when no session is shown: New session for a draft. */
+  title?: string;
   sidebarFolded: boolean;
   inspectorOpen: boolean;
   changes: number;
@@ -25,7 +27,11 @@ export function TopBar(props: {
           data-testid="cockpit.sidebar-show"
         />
       ) : null}
-      {session ? <h1 className="title">{session.title || t('Untitled session')}</h1> : null}
+      {session ? (
+        <h1 className="title">{session.title || t('Untitled session')}</h1>
+      ) : props.title ? (
+        <h1 className="title">{props.title}</h1>
+      ) : null}
       <span className="top-gap" />
       {session && !props.inspectorOpen ? (
         <IconButton
