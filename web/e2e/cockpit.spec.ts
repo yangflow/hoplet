@@ -159,6 +159,19 @@ test('a prompt runs, can be interrupted, and the next turn is stored', async () 
   await expect(page.getByTestId('cockpit.composer-input')).toBeEnabled();
 });
 
+test('an attached image goes with the prompt to Claude Code', async () => {
+  const conv = page.getByTestId('cockpit.conversation');
+  const png = Buffer.alloc(64);
+  Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).copy(png);
+  await page
+    .getByTestId('cockpit.attach-input')
+    .setInputFiles({ name: 'shot.png', mimeType: 'image/png', buffer: png });
+  await expect(page.getByTestId('cockpit.thumbs').locator('li')).toHaveCount(1);
+  await send('images');
+  await expect(conv.getByText('1 images: image/png', { exact: true })).toBeVisible();
+  await expect(page.getByTestId('cockpit.thumbs')).toHaveCount(0);
+});
+
 test('a permission request is answered with Allow', async () => {
   const conv = page.getByTestId('cockpit.conversation');
   await send('tool echo permitted');

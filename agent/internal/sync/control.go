@@ -8,12 +8,17 @@ import (
 	"log"
 )
 
-func (c *Client) handleRuntimePrompt(cs *connState, sessionID, promptID, text string) {
+func (c *Client) handleRuntimePrompt(cs *connState, raw json.RawMessage) {
+	var req RuntimePrompt
+	if err := json.Unmarshal(raw, &req); err != nil {
+		return
+	}
+	sessionID, promptID := req.SessionID, req.PromptID
 	var err error
 	if c.hooks.Runtime.Prompt == nil {
 		err = errors.New("not-implemented")
 	} else {
-		err = c.hooks.Runtime.Prompt(sessionID, text)
+		err = c.hooks.Runtime.Prompt(sessionID, req.Text, req.Images)
 	}
 	if err != nil {
 		log.Printf("[agent] prompt refused for %s: %v", shortID(sessionID), err)

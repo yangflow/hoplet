@@ -13,6 +13,7 @@ import {
   LinesPageSchema,
   NewSessionResultSchema,
   type PermissionDecision,
+  type PromptImage,
   PromptResultSchema,
   type ProviderInfo,
   RuntimeCommandResultSchema,
@@ -200,9 +201,14 @@ export function fetchBlock(sessionId: string, line: number, block: number) {
 export function postPrompt(
   sessionId: string,
   text: string,
+  images: PromptImage[] = [],
   promptId: string = crypto.randomUUID(),
 ) {
-  return call(`/api/sessions/${sessionId}/prompt`, PromptResultSchema, { text, promptId });
+  return call(`/api/sessions/${sessionId}/prompt`, PromptResultSchema, {
+    text,
+    promptId,
+    ...(images.length > 0 ? { images } : {}),
+  });
 }
 
 export function postPermission(sessionId: string, requestId: string, decision: PermissionDecision) {
@@ -227,10 +233,13 @@ export function postNewSession(request: {
   provider: ProviderInfo['provider'];
   options: StartOptions;
   text: string;
+  images?: PromptImage[];
   promptId?: string;
 }) {
+  const { images, ...rest } = request;
   return call('/api/sessions', NewSessionResultSchema, {
-    ...request,
+    ...rest,
+    ...(images && images.length > 0 ? { images } : {}),
     promptId: request.promptId ?? crypto.randomUUID(),
   });
 }

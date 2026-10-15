@@ -12,6 +12,7 @@ import { ChangeStatusSchema, WorkspaceChangeSchema } from '../rest/workspace.ts'
 import {
   AgentRuntimeStateSchema,
   PermissionDecisionSchema,
+  PromptImageSchema,
   ProviderInfoSchema,
   RuntimeCapabilitiesSchema,
   RuntimeOutputKindSchema,
@@ -172,7 +173,12 @@ export const WIRE_MESSAGES = defineWire({
   'runtime.prompt': {
     lane: 'control',
     direction: 'core-to-device',
-    fields: { sessionId, promptId: v.string(), text: v.string() },
+    fields: {
+      sessionId,
+      promptId: v.string(),
+      text: v.string(),
+      images: v.optional(list(PromptImageSchema)),
+    },
   },
   'runtime.permission.answer': {
     lane: 'control',
@@ -193,6 +199,7 @@ export const WIRE_MESSAGES = defineWire({
       provider: ProviderSchema,
       options: StartOptionsSchema,
       text: v.string(),
+      images: v.optional(list(PromptImageSchema)),
       promptId: v.string(),
     },
   },
@@ -713,5 +720,6 @@ export const WIRE_OBJECTS = {
   RuntimeCapabilities: RuntimeCapabilitiesSchema,
   ProviderInfo: ProviderInfoSchema,
   RuntimeStartOptions: StartOptionsSchema,
+  PromptImage: PromptImageSchema,
   WorkspaceChange: WorkspaceChangeSchema,
 } as const;

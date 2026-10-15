@@ -24,7 +24,7 @@ const subject: Record<string, Record<string, string>> = {
     draft: 'cockpit.draft-row',
     'draft-directory': 'cockpit.draft-add-project',
     'draft-model': 'cockpit.model-menu',
-    compose: 'cockpit.where',
+    compose: 'cockpit.thumbs',
     'add-project': 'cockpit.add-dialog',
     'add-project-recent': 'cockpit.add-recent',
     'add-project-error': 'cockpit.add-error',

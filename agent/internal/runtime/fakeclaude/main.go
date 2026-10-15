@@ -9,7 +9,10 @@
 //	sleep          a turn that ends only when interrupted
 //	fail           end the turn with an error result
 //	crash          exit with status 3
+//	images         answer `<n> images: <media types>` for the images that came with the prompt
 //	anything else  behaves like `say`
+//
+// A prompt's images are written into its user line before the text, as Claude Code records them.
 //
 // Started with --session-id the session is new: its file is created, in the store directory of the working
 // directory under FAKE_CLAUDE_PROJECTS, when the first turn writes it, as Claude Code does.
@@ -125,6 +128,7 @@ func findSession(id string) string {
 
 type turn struct {
 	text      string
+	images    []obj // the prompt's image blocks, as they arrived
 	interrupt chan struct{}
 	answers   chan obj
 }
@@ -177,6 +181,7 @@ func main() {
 	turns := make(chan *turn, 64)
 	go func() {
 		for t := range turns {
+			turnImages = t.images
 			runTurn(t, t.text)
 		}
 	}()
@@ -192,9 +197,7 @@ func main() {
 					Subtype string `json:"subtype"`
 				} `json:"request"`
 				Message struct {
-					Content []struct {
-						Text string `json:"text"`
-					} `json:"content"`
+					Content []obj `json:"content"`
 				} `json:"message"`
 				Response struct {
 					RequestID string `json:"request_id"`
@@ -231,10 +234,16 @@ func main() {
 					}
 				case "user":
 					text := ""
-					if len(m.Message.Content) > 0 {
-						text = m.Message.Content[0].Text
+					var images []obj
+					for _, block := range m.Message.Content {
+						switch block["type"] {
+						case "text":
+							text, _ = block["text"].(string)
+						case "image":
+							images = append(images, block)
+						}
 					}
-					t := &turn{text: text, interrupt: make(chan struct{}, 1), answers: make(chan obj, 4)}
+					t := &turn{text: text, images: images, interrupt: make(chan struct{}, 1), answers: make(chan obj, 4)}
 					curMu.Lock()
 					cur = t
 					curMu.Unlock()
@@ -251,7 +260,14 @@ func main() {
 	}
 }
 
+// turnImages are the image blocks of the turn that runs; its user line carries them before the text.
+var turnImages []obj
+
 func userLine(text string) obj {
+	if len(turnImages) > 0 {
+		content := append(append([]obj(nil), turnImages...), obj{"type": "text", "text": text})
+		return obj{"type": "user", "cwd": cwd, "sessionId": session, "message": obj{"role": "user", "content": content}}
+	}
 	return obj{"type": "user", "cwd": cwd, "sessionId": session, "message": obj{"role": "user", "content": text}}
 }
 
@@ -348,6 +364,15 @@ func runTurn(t *turn, prompt string) {
 		text := prompt
 		if cmd == "say" {
 			text = rest
+		}
+		if cmd == "images" {
+			types := make([]string, 0, len(t.images))
+			for _, img := range t.images {
+				src, _ := img["source"].(obj)
+				mt, _ := src["media_type"].(string)
+				types = append(types, mt)
+			}
+			text = fmt.Sprintf("%d images: %s", len(t.images), strings.Join(types, ","))
 		}
 		streamText(text)
 		emit(obj{"type": "assistant", "message": obj{"role": "assistant", "content": []obj{{"type": "text", "text": text}}}, "session_id": session, "parent_tool_use_id": nil})

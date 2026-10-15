@@ -22,8 +22,9 @@ function sameDir(a: string, b: string): boolean {
 }
 
 /** The first option the provider's capabilities do not declare, or null when all are. */
-function undeclared(options: StartOptions, info: ProviderInfo): string | null {
+function undeclared(options: StartOptions, info: ProviderInfo, images: number): string | null {
   const caps = info.capabilities;
+  if (images > 0 && !caps.images) return 'images';
   if (options.model !== undefined && !caps.models.includes(options.model)) return 'model';
   if (options.thinking !== undefined && !caps.thinking) return 'thinking';
   if (options.fast !== undefined && !caps.fast) return 'fast';
@@ -56,7 +57,7 @@ export function createStart(state: ControlState, listProjects: Control['listProj
     });
     const info = state.providers.get(req.deviceId)?.find((p) => p.provider === req.provider);
     if (!info) return refuse('provider');
-    const option = undeclared(req.options, info);
+    const option = undeclared(req.options, info, req.images?.length ?? 0);
     if (option) return refuse(option);
 
     const listing = await listProjects(req.deviceId);
@@ -78,6 +79,7 @@ export function createStart(state: ControlState, listProjects: Control['listProj
       device: req.deviceId,
       projectPath: project.path,
       promptId,
+      images: req.images?.length ?? 0,
     });
     const requestId = randomUUID();
     const msg: RuntimeStart = {
@@ -88,6 +90,7 @@ export function createStart(state: ControlState, listProjects: Control['listProj
       provider: req.provider,
       options: req.options,
       text: req.text,
+      ...(req.images && req.images.length > 0 ? { images: req.images } : {}),
       promptId,
     };
     const answer = await askWaiter<StartAnswer>(

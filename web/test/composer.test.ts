@@ -1,4 +1,6 @@
+import { sniffImageType } from '@hoplet/shared';
 import { describe, expect, it } from 'vitest';
+import { refusal, sizeOf, toBase64 } from '../src/screens/cockpit/composer/attachments.ts';
 import {
   AUTO_MAX_PX,
   CONVERSATION_MIN_PX,
@@ -59,5 +61,41 @@ describe('the draft directory picker', () => {
     expect(folderOf('/home/mark/notes')).toBe('~');
     expect(folderOf('/srv/app')).toBe('/srv');
     expect(folderOf('/app')).toBe('/');
+  });
+});
+
+describe('images for a prompt', () => {
+  const head = (...bytes: number[]) => {
+    const out = new Uint8Array(16);
+    out.set(bytes);
+    return out;
+  };
+
+  it('recognizes the four types by their first bytes, as the agent does', () => {
+    expect(sniffImageType(head(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a))).toBe('image/png');
+    expect(sniffImageType(head(0xff, 0xd8, 0xff, 0xe0))).toBe('image/jpeg');
+    expect(sniffImageType(head(...[...'GIF89a'].map((c) => c.charCodeAt(0))))).toBe('image/gif');
+    expect(sniffImageType(head(...[...'RIFF\0\0\0\0WEBPVP8 '].map((c) => c.charCodeAt(0))))).toBe(
+      'image/webp',
+    );
+    expect(sniffImageType(head(...[...'GIF8xx'].map((c) => c.charCodeAt(0))))).toBeNull();
+    expect(sniffImageType(head(...[...'<svg'].map((c) => c.charCodeAt(0))))).toBeNull();
+  });
+
+  it('counts base64 sizes and refuses a fifth image or more than 8 MiB together', () => {
+    expect(sizeOf(toBase64(new Uint8Array(5)))).toBe(5);
+    expect(sizeOf(toBase64(new Uint8Array(6)))).toBe(6);
+    const one = (size: number) => ({
+      id: 'x',
+      name: 'x',
+      mediaType: 'image/png' as const,
+      data: '',
+      size,
+    });
+    expect(refusal([one(1), one(1), one(1)], one(1))).toBeNull();
+    expect(refusal([one(1), one(1), one(1), one(1)], one(1))).toBe('At most 4 images');
+    expect(refusal([one(4 * 1024 * 1024)], one(4 * 1024 * 1024 + 1))).toBe(
+      'The images are larger than 8 MiB together',
+    );
   });
 });

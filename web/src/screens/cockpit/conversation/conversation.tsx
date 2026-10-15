@@ -1,4 +1,4 @@
-import type { Entry, LiveSessionMeta, SessionRuntimeInfo } from '@hoplet/shared';
+import type { Entry, LiveSessionMeta, PromptImage, SessionRuntimeInfo } from '@hoplet/shared';
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { Icon } from '../../../components/icons.tsx';
 import { providerName } from '../../../components/provider-marks.tsx';
@@ -35,6 +35,8 @@ export type ConversationFixture = {
   unread?: number;
   /** Text in the composer's field. */
   composerText?: string;
+  /** Images waiting in the composer. */
+  composerImages?: PromptImage[];
   scrollTo?: number;
   openBlocks?: string[];
 };
@@ -61,6 +63,8 @@ export function Conversation(props: {
   shortcuts?: boolean;
   /** The microphone shows only when transcription is available (#17). */
   voiceAvailable?: boolean;
+  /** The session's driver takes images with a prompt. */
+  acceptsImages?: boolean;
   onHandoff: () => void;
   openDiff?: (path: string) => void;
   fixture?: ConversationFixture;
@@ -157,29 +161,33 @@ export function Conversation(props: {
   // Sending, interrupting, stopping and answering.
   const [busy, setBusy] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
-  const [restore, setRestore] = useState<{ text: string; n: number } | null>(null);
+  const [restore, setRestore] = useState<{
+    text: string;
+    images?: PromptImage[];
+    n: number;
+  } | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [answering, setAnswering] = useState(false);
-  const lastPrompt = useRef<string | null>(null);
-  const pending = useRef<string | null>(null);
+  const lastPrompt = useRef<{ text: string; images: PromptImage[] } | null>(null);
+  const pending = useRef<{ text: string; images: PromptImage[] } | null>(null);
   const root = useRef<HTMLDivElement>(null);
 
   const send = useCallback(
-    async (text: string) => {
+    async (text: string, images: PromptImage[] = []) => {
       setBusy(true);
       setSendError(null);
       setNotice(null);
-      lastPrompt.current = text;
-      pending.current = text;
+      lastPrompt.current = { text, images };
+      pending.current = { text, images };
       lt.begin(text);
       followRef.current = true;
       transcript.current?.scrollToBottom();
       try {
-        await postPrompt(sessionId, text);
+        await postPrompt(sessionId, text, images);
       } catch (err) {
         pending.current = null;
         lt.cancel();
-        setRestore((r) => ({ text, n: (r?.n ?? 0) + 1 }));
+        setRestore((r) => ({ text, images, n: (r?.n ?? 0) + 1 }));
         setSendError(errorText(err));
       } finally {
         setBusy(false);
@@ -192,15 +200,15 @@ export function Conversation(props: {
   useEffect(() => {
     if (state === 'running') pending.current = null;
     if (state === 'failed' && pending.current) {
-      const text = pending.current;
+      const { text, images } = pending.current;
       pending.current = null;
-      setRestore((r) => ({ text, n: (r?.n ?? 0) + 1 }));
+      setRestore((r) => ({ text, images, n: (r?.n ?? 0) + 1 }));
     }
     setNotice(null);
   }, [state]);
 
   const retry = useCallback(() => {
-    if (lastPrompt.current) void send(lastPrompt.current);
+    if (lastPrompt.current) void send(lastPrompt.current.text, lastPrompt.current.images);
     else root.current?.querySelector('textarea')?.focus();
   }, [send]);
 
@@ -388,7 +396,9 @@ export function Conversation(props: {
               voiceAvailable={props.voiceAvailable ?? false}
               {...(fixture?.recording ? { recording: true } : {})}
               {...(fixture?.composerText ? { initialText: fixture.composerText } : {})}
-              onSend={(text) => void send(text)}
+              onSend={(text, images) => void send(text, images)}
+              acceptsImages={props.acceptsImages ?? false}
+              {...(fixture?.composerImages ? { initialImages: fixture.composerImages } : {})}
               onStop={stop}
               onRetry={retry}
               onHandoff={props.onHandoff}

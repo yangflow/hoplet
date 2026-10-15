@@ -206,12 +206,20 @@ type PongMsg struct {
 
 // Remote control (ADR 0008). core → device:
 
+// PromptImage is an image that goes with a prompt: its media type and its bytes as base64. The core has
+// checked the limits; the agent checks them again before the image reaches the vendor.
+type PromptImage struct {
+	MediaType string `json:"mediaType"`
+	Data      string `json:"data"`
+}
+
 type RuntimePrompt struct {
-	V         int    `json:"v"`
-	Type      string `json:"type"`
-	SessionID string `json:"sessionId"`
-	PromptID  string `json:"promptId"`
-	Text      string `json:"text"`
+	V         int           `json:"v"`
+	Type      string        `json:"type"`
+	SessionID string        `json:"sessionId"`
+	PromptID  string        `json:"promptId"`
+	Text      string        `json:"text"`
+	Images    []PromptImage `json:"images,omitempty"`
 }
 
 type RuntimePermissionAnswer struct {
@@ -244,6 +252,7 @@ type RuntimeCapabilities struct {
 	Thinking    bool     `json:"thinking"`
 	Fast        bool     `json:"fast"`
 	Models      []string `json:"models"`
+	Images      bool     `json:"images,omitempty"`
 }
 
 // RuntimeStartOptions are the options of a new session; each is set only when the driver declares it.
@@ -263,6 +272,7 @@ type RuntimeStart struct {
 	Provider    string              `json:"provider"`
 	Options     RuntimeStartOptions `json:"options"`
 	Text        string              `json:"text"`
+	Images      []PromptImage       `json:"images,omitempty"`
 	PromptID    string              `json:"promptId"`
 }
 

@@ -104,7 +104,7 @@ type session struct {
 	fresh bool
 	opts  StartOptions // chosen when the session was created; every process of the session starts with them
 
-	pendingPrompt *string
+	pendingPrompt *Prompt
 	interrupted   bool
 	turnErr       string
 
@@ -292,6 +292,15 @@ func (m *Manager) record(s *session) {
 // Prompt sends a turn to the session's process, starting one when there is none. It returns when the
 // request is accepted; progress is reported through Emit.
 func (m *Manager) Prompt(sessionID, text string) error {
+	return m.PromptWith(sessionID, Prompt{Text: text})
+}
+
+// PromptWith is Prompt with images; a driver that does not declare images refuses them with
+// ErrOptionNotDeclared.
+func (m *Manager) PromptWith(sessionID string, p Prompt) error {
+	if err := m.checkImages(p); err != nil {
+		return err
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.closed {
@@ -316,12 +325,12 @@ func (m *Manager) Prompt(sessionID, text string) error {
 		}
 	}
 	if s.proc != nil && !s.stopped {
-		return m.writePrompt(s, text)
+		return m.writePrompt(s, p)
 	}
 	if s.proc != nil { // an earlier process is still exiting
 		return ErrStarting
 	}
-	m.startProcess(s, text)
+	m.startProcess(s, p)
 	return nil
 }
 
@@ -329,7 +338,15 @@ func (m *Manager) Prompt(sessionID, text string) error {
 // creates the session's file when it takes the prompt; progress is reported through Emit like any session's.
 // An option the driver does not declare is ErrOptionNotDeclared.
 func (m *Manager) Create(dir, text string, opts StartOptions) (string, error) {
+	return m.CreateWith(dir, Prompt{Text: text}, opts)
+}
+
+// CreateWith is Create with images in the first prompt.
+func (m *Manager) CreateWith(dir string, p Prompt, opts StartOptions) (string, error) {
 	if err := m.checkOptions(opts); err != nil {
+		return "", err
+	}
+	if err := m.checkImages(p); err != nil {
 		return "", err
 	}
 	id, err := newSessionID()
@@ -344,8 +361,21 @@ func (m *Manager) Create(dir, text string, opts StartOptions) (string, error) {
 	s := m.get(id)
 	s.loc = Location{Dir: dir}
 	s.fresh, s.opts = true, opts
-	m.startProcess(s, text)
+	m.startProcess(s, p)
 	return id, nil
+}
+
+// checkImages refuses images unless the driver declares them.
+func (m *Manager) checkImages(p Prompt) error {
+	if len(p.Images) == 0 {
+		return nil
+	}
+	for _, c := range m.cfg.Driver.Capabilities() {
+		if c == CapImages {
+			return nil
+		}
+	}
+	return fmt.Errorf("%w: images", ErrOptionNotDeclared)
 }
 
 func (m *Manager) checkOptions(o StartOptions) error {
@@ -403,9 +433,9 @@ func (m *Manager) Discard(sessionID string, timeout time.Duration) bool {
 	return gone
 }
 
-func (m *Manager) writePrompt(s *session, text string) error {
+func (m *Manager) writePrompt(s *session, p Prompt) error {
 	s.interrupted, s.turnErr = false, ""
-	if err := s.proc.Prompt(text); err != nil {
+	if err := s.proc.Prompt(p); err != nil {
 		m.fail(s, fmt.Sprintf("write prompt: %v", err))
 		return nil
 	}
@@ -415,11 +445,11 @@ func (m *Manager) writePrompt(s *session, text string) error {
 	return nil
 }
 
-func (m *Manager) startProcess(s *session, text string) {
+func (m *Manager) startProcess(s *session, p Prompt) {
 	s.gen++
 	gen := s.gen
 	s.stopped = false
-	s.pendingPrompt = &text
+	s.pendingPrompt = &p
 	s.interrupted, s.turnErr = false, ""
 	m.setState(s, StateStarting, "")
 	ctx, cancel := context.WithCancel(context.Background())
@@ -482,9 +512,9 @@ func (m *Manager) handle(s *session, ev ProcessEvent) {
 			return
 		}
 		if s.pendingPrompt != nil {
-			text := *s.pendingPrompt
+			p := *s.pendingPrompt
 			s.pendingPrompt = nil
-			_ = m.writePrompt(s, text)
+			_ = m.writePrompt(s, p)
 			return
 		}
 		m.becomeReady(s)

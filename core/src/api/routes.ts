@@ -52,10 +52,20 @@ import {
 import corePackage from '../../package.json' with { type: 'json' };
 import type { DeviceControlOutcome } from '../control/index.ts';
 import { ApiError, relayError } from './http.ts';
+import { checkPromptImages } from './images.ts';
 import { blockOfLine, excerptOf, projectLine } from './projection/index.ts';
 import { type ApiDeps, defineRoute, type Route } from './router.ts';
 
 const MAX_PROMPT_CHARS = 8_000;
+/** A prompt with its images: 8 MiB of images as base64 and the text (ADR 0017). */
+const PROMPT_BODY_LIMIT = 12 * 1024 * 1024;
+
+/** Whether the provider the owner runs for a session declares images; unknown while the owner is offline. */
+function takesImages(deps: ApiDeps, owner: string, provider: Provider): boolean | null {
+  const device = deps.control.devices().find((d) => d.deviceId === owner);
+  if (!device?.connected) return null;
+  return device.providers.find((p) => p.provider === provider)?.capabilities.images === true;
+}
 
 /** The session's owner device, or the 404 when the session is unknown. */
 function ownerOf(deps: ApiDeps, sessionId: string): string {
@@ -127,11 +137,12 @@ export const routes: readonly Route[] = [
     path: '/api/sessions',
     auth: 'host',
     lane: 'control',
-    bodyLimit: 32 * 1024,
+    bodyLimit: PROMPT_BODY_LIMIT,
     body: NewSessionRequestSchema,
     response: NewSessionResultSchema,
     handler: async (d) => {
       if (d.body.text.length > MAX_PROMPT_CHARS) throw new ApiError('too-large');
+      checkPromptImages(d.body.images);
       const outcome = await d.control.startSession(d.body);
       if (outcome.ok) {
         return { ok: true, sessionId: outcome.sessionId, promptId: outcome.promptId };
@@ -238,7 +249,7 @@ export const routes: readonly Route[] = [
     path: '/api/sessions/:sessionId/prompt',
     auth: 'host',
     lane: 'control',
-    bodyLimit: 32 * 1024,
+    bodyLimit: PROMPT_BODY_LIMIT,
     body: PromptRequestSchema,
     status: 202,
     response: PromptResultSchema,
@@ -246,7 +257,20 @@ export const routes: readonly Route[] = [
       const sessionId = d.params.sessionId ?? '';
       const owner = ownerOf(d, sessionId);
       if (d.body.text.length > MAX_PROMPT_CHARS) throw new ApiError('too-large');
-      const outcome = await d.control.prompt(sessionId, owner, d.body.text, d.body.promptId);
+      const images = d.body.images ?? [];
+      if (images.length > 0) {
+        checkPromptImages(images);
+        if (takesImages(d, owner, providerOf(d.store, sessionId)) === false) {
+          throw new ApiError('invalid-request', { reason: 'images' });
+        }
+      }
+      const outcome = await d.control.prompt(
+        sessionId,
+        owner,
+        d.body.text,
+        d.body.promptId,
+        images,
+      );
       if (outcome.ok) return { ok: true, promptId: outcome.promptId };
       throw relayError(
         outcome,

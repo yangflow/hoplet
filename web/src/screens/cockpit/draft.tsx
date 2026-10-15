@@ -1,3 +1,4 @@
+import type { PromptImage } from '@hoplet/shared';
 import { useEffect, useMemo, useState } from 'react';
 import { Icon } from '../../components/icons.tsx';
 import { providerName } from '../../components/provider-marks.tsx';
@@ -87,7 +88,11 @@ export function Draft(props: {
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [restore, setRestore] = useState<{ text: string; n: number } | null>(null);
+  const [restore, setRestore] = useState<{
+    text: string;
+    images?: PromptImage[];
+    n: number;
+  } | null>(null);
 
   const name = providerName(provider?.provider ?? 'claude');
   const view: ComposerView = useMemo(() => {
@@ -107,7 +112,7 @@ export function Draft(props: {
     };
   }, [target?.online, path, provider, busy, machine, name]);
 
-  async function start(text: string) {
+  async function start(text: string, images: PromptImage[]) {
     if (!target?.deviceId || !provider || !caps || path === '') return;
     setBusy(true);
     setError(null);
@@ -123,10 +128,11 @@ export function Draft(props: {
           ...(caps.fast ? { fast: choice.fast } : {}),
         },
         prompt: text,
+        images,
       });
     } catch (err) {
       setError(errorText(err));
-      setRestore((r) => ({ text, n: (r?.n ?? 0) + 1 }));
+      setRestore((r) => ({ text, images, n: (r?.n ?? 0) + 1 }));
       setBusy(false);
     }
   }
@@ -208,7 +214,8 @@ export function Draft(props: {
             restore={restore}
             voiceAvailable={props.voiceAvailable}
             {...(props.fixture?.prompt ? { initialText: props.fixture.prompt } : {})}
-            onSend={(text) => void start(text)}
+            onSend={(text, images) => void start(text, images)}
+            acceptsImages={caps?.images === true}
             onStop={() => {}}
             onRetry={() => {}}
             onHandoff={() => {}}

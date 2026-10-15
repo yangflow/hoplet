@@ -423,3 +423,84 @@ describe('POST /api/sessions', () => {
     expect(res.status).toBe(401);
   });
 });
+
+describe('images with a prompt (ADR 0017)', () => {
+  const IMAGE_PROVIDERS = [{ provider: 'claude', capabilities: { ...CAPS, images: true } }];
+  const png = (size = 32) => {
+    const bytes = Buffer.alloc(size);
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).copy(bytes);
+    return bytes.toString('base64');
+  };
+  const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 0x10]).toString('base64');
+  const MiB = 1024 * 1024;
+
+  /** A session owned by dev-a and a prompt to it. */
+  async function owned(providers: unknown[]) {
+    const env = await boot();
+    const owner = await env.agent('dev-a', providers);
+    env.store.append({ sessionId: 's1', projectDir: 'p', filePath: '/s1', deviceId: 'dev-a' }, [
+      '{"type":"user"}',
+    ]);
+    const prompt = (images: unknown, promptId = 'p1') =>
+      env.post('/api/sessions/s1/prompt', { text: 'look at this', promptId, images });
+    return { ...env, owner, prompt };
+  }
+
+  it('forwards the images of a prompt to the owner', async () => {
+    const { owner, prompt } = await owned(IMAGE_PROVIDERS);
+    const images = [
+      { mediaType: 'image/png', data: png() },
+      { mediaType: 'image/jpeg', data: jpeg },
+    ];
+    const pending = prompt(images);
+    const forwarded = await owner.waitFor((m) => m.type === 'runtime.prompt', 'runtime.prompt');
+    expect(forwarded).toMatchObject({ sessionId: 's1', text: 'look at this', images });
+    owner.send({ type: 'runtime.state', sessionId: 's1', state: 'running', capabilities: CAPS });
+    expect((await pending).status).toBe(202);
+  });
+
+  it('refuses images that are not what they claim, too many, too large or not declared', async () => {
+    const { owner, prompt } = await owned(IMAGE_PROVIDERS);
+    const refused = async (images: unknown, status: number, reason?: string) => {
+      const res = await prompt(images);
+      expect(res.status).toBe(status);
+      if (reason) expect(res.body.reason).toBe(reason);
+    };
+    await refused([{ mediaType: 'image/png', data: jpeg }], 400, 'images');
+    await refused([{ mediaType: 'image/png', data: 'not base64!' }], 400, 'images');
+    await refused([{ mediaType: 'image/svg+xml', data: png() }], 400);
+    await refused(
+      Array.from({ length: 5 }, () => ({ mediaType: 'image/png', data: png() })),
+      400,
+    );
+    await refused([{ mediaType: 'image/png', data: png(4 * MiB + 1) }], 413);
+    await refused(
+      Array.from({ length: 3 }, () => ({ mediaType: 'image/png', data: png(3 * MiB) })),
+      413,
+    );
+    expect(owner.ofType('runtime.prompt')).toEqual([]);
+
+    const plain = await owned(PROVIDERS);
+    const res = await plain.prompt([{ mediaType: 'image/png', data: png() }]);
+    expect(res).toMatchObject({ status: 400, body: { reason: 'images' } });
+    expect(plain.owner.ofType('runtime.prompt')).toEqual([]);
+  });
+
+  it('forwards the images of a first prompt when the provider declares them', async () => {
+    const { post, agent } = await boot();
+    const owner = await agent('dev-a', IMAGE_PROVIDERS);
+    owner.listProjects();
+    const images = [{ mediaType: 'image/png', data: png() }];
+    void post('/api/sessions', request({ images }));
+    const start = await owner.waitFor((m) => m.type === 'runtime.start', 'runtime.start');
+    expect(start.images).toEqual(images);
+
+    const plain = await boot();
+    const other = await plain.agent('dev-a');
+    other.listProjects();
+    expect(await plain.post('/api/sessions', request({ images }))).toMatchObject({
+      status: 400,
+      body: { code: 'invalid-request', reason: 'images' },
+    });
+  });
+});

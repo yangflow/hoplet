@@ -94,7 +94,10 @@ Behavior a client relies on:
 - `POST /api/sessions` answers when the agent has created and imported the session. Its error body carries the
   `promptId` that was sent, and a `reason` where the agent gave one.
 - `POST /api/sessions/:sessionId/prompt` answers `202` when the prompt reached the owner. A prompt is at most
-  8,000 characters (`too-large` beyond). The `promptId` is chosen by the client; the same one sent again within
+  8,000 characters (`too-large` beyond). Both prompt routes take optional `images` (`mediaType` and base64
+  `data`): at most 4 PNG, JPEG, GIF or WebP images, each at most 4 MiB and together at most 8 MiB (`too-large`
+  beyond), whose first bytes must be the declared type and whose session's driver must declare `images`
+  (`invalid-request` with `reason: images` otherwise); the two routes take bodies up to 12 MiB. The `promptId` is chosen by the client; the same one sent again within
   10 minutes returns the first result, so a retry after a lost response does not run the prompt twice. The output
   of the turn arrives on the browser WebSocket.
 - A session's `gitBranch` is the branch its lines last recorded (Claude Code's `gitBranch`), and the branch of the
@@ -149,7 +152,7 @@ takes an optional `path` (absent or `~` is the browse root).
 | `invalid-json` | 400 | The request body is not JSON |
 | `invalid-request` | 400 | The body, the query or a path parameter does not match its schema, or the agent refused the request (`reason` says what) |
 | `same-device` | 400 | The handoff target already owns the session |
-| `too-large` | 413 | The body is over the route's limit, or a prompt is over 8,000 characters |
+| `too-large` | 413 | The body is over the route's limit, a prompt is over 8,000 characters, or its images are over their limits |
 | `owner-offline` | 409 | The agent of the session's owner (or of the addressed device) is not connected |
 | `target-offline` | 409 | The device the request goes to is not connected: the device of a new session, the target of a handoff, the device to browse |
 | `busy` | 409 | The request cannot run now: the bulk queue is full, or the session's process is running a turn, or a running session cannot be handed off. Retry later |

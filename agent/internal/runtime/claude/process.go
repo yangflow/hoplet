@@ -3,6 +3,7 @@ package claude
 import (
 	"bufio"
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -66,16 +67,26 @@ func controlRequest(id, subtype string) map[string]any {
 	}
 }
 
-func (p *process) Prompt(text string) error {
+// Prompt writes one user message: its images first, as base64 image content, then its text.
+func (p *process) Prompt(prompt runtime.Prompt) error {
 	p.mu.Lock()
 	p.seen = nil
 	p.mu.Unlock()
+	content := make([]map[string]any, 0, len(prompt.Images)+1)
+	for _, img := range prompt.Images {
+		content = append(content, map[string]any{
+			"type": "image",
+			"source": map[string]any{
+				"type":       "base64",
+				"media_type": img.MediaType,
+				"data":       base64.StdEncoding.EncodeToString(img.Data),
+			},
+		})
+	}
+	content = append(content, map[string]any{"type": "text", "text": prompt.Text})
 	return p.send(map[string]any{
-		"type": "user",
-		"message": map[string]any{
-			"role":    "user",
-			"content": []map[string]any{{"type": "text", "text": text}},
-		},
+		"type":    "user",
+		"message": map[string]any{"role": "user", "content": content},
 	})
 }
 

@@ -3,6 +3,7 @@ package runtime_test
 import (
 	"bufio"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"os"
@@ -247,7 +248,7 @@ func TestPromptRunsATurn(t *testing.T) {
 	e.expectStates("s1", runtime.StateStarting, runtime.StateRunning, runtime.StateReady)
 
 	last, _ := e.rec.lastState("s1")
-	if len(last.Capabilities) != 5 {
+	if len(last.Capabilities) != 6 {
 		t.Fatalf("capabilities = %v", last.Capabilities)
 	}
 	var text string
@@ -294,6 +295,40 @@ func TestPromptRunsATurn(t *testing.T) {
 	e.rec.waitState(t, "s1", runtime.StateReady)
 	if n := len(e.starts()); n != 1 {
 		t.Fatalf("starts after the second prompt = %d", n)
+	}
+}
+
+func TestPromptImagesReachTheVendorBeforeTheText(t *testing.T) {
+	e := newEnv(t, nil)
+	file := e.session("s1")
+	png := []byte("\x89PNG\r\n\x1a\n-png")
+	jpeg := []byte("\xff\xd8\xff-jpeg")
+	err := e.m.PromptWith("s1", runtime.Prompt{Text: "images", Images: []runtime.Image{
+		{MediaType: "image/png", Data: png}, {MediaType: "image/jpeg", Data: jpeg},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.rec.waitFor(t, "ready after the turn", func() bool {
+		s := e.rec.states("s1")
+		return len(s) >= 3 && s[len(s)-1] == runtime.StateReady
+	})
+	var text string
+	for _, o := range e.rec.outputs("s1") {
+		if o.Kind == runtime.OutputText {
+			text += o.Text
+		}
+	}
+	if text != "2 images: image/png,image/jpeg" {
+		t.Fatalf("the vendor saw %q", text)
+	}
+	// The vendor records the images in the user line, as base64 image content.
+	raw, err := os.ReadFile(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), base64.StdEncoding.EncodeToString(png)) {
+		t.Fatal("the user line does not carry the image")
 	}
 }
 
@@ -796,7 +831,7 @@ func TestStatesReportsRunningProcesses(t *testing.T) {
 	if len(got) != 2 || got[0].SessionID != "s1" || got[0].State != runtime.StateReady || got[1].State != runtime.StateRunning {
 		t.Fatalf("States = %+v", got)
 	}
-	if len(got[0].Capabilities) != 5 {
+	if len(got[0].Capabilities) != 6 {
 		t.Fatalf("capabilities = %v", got[0].Capabilities)
 	}
 }

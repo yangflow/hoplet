@@ -5,8 +5,9 @@ import "context"
 // RuntimeHooks handle the remote control messages of the core (docs/spec.md#remote-control). The vendor
 // process, not Hoplet, writes the session file.
 type RuntimeHooks struct {
-	// Prompt accepts a prompt or refuses it; the error text is the reason sent as runtime.rejected.
-	Prompt    func(sessionID, text string) error
+	// Prompt accepts a prompt and its images or refuses it; the error text is the reason sent as
+	// runtime.rejected.
+	Prompt    func(sessionID, text string, images []PromptImage) error
 	Answer    func(sessionID, requestID string, allow bool) error
 	Interrupt func(sessionID string) error
 	Stop      func(sessionID string)

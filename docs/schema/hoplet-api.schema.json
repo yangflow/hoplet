@@ -534,6 +534,9 @@
                           "items": {
                             "type": "string"
                           }
+                        },
+                        "images": {
+                          "type": "boolean"
                         }
                       },
                       "required": [
@@ -1522,6 +1525,9 @@
                   "items": {
                     "type": "string"
                   }
+                },
+                "images": {
+                  "type": "boolean"
                 }
               },
               "required": [
@@ -1597,6 +1603,32 @@
           "pattern": "\\S",
           "minLength": 1
         },
+        "images": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "mediaType": {
+                "enum": [
+                  "image/png",
+                  "image/jpeg",
+                  "image/gif",
+                  "image/webp"
+                ],
+                "type": "string"
+              },
+              "data": {
+                "type": "string",
+                "maxLength": 5592408
+              }
+            },
+            "required": [
+              "mediaType",
+              "data"
+            ]
+          },
+          "maxItems": 4
+        },
         "promptId": {
           "type": "string",
           "minLength": 1,
@@ -1660,6 +1692,32 @@
           "type": "string",
           "pattern": "\\S",
           "minLength": 1
+        },
+        "images": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "mediaType": {
+                "enum": [
+                  "image/png",
+                  "image/jpeg",
+                  "image/gif",
+                  "image/webp"
+                ],
+                "type": "string"
+              },
+              "data": {
+                "type": "string",
+                "maxLength": 5592408
+              }
+            },
+            "required": [
+              "mediaType",
+              "data"
+            ]
+          },
+          "maxItems": 4
         },
         "promptId": {
           "type": "string",
@@ -1870,6 +1928,9 @@
                         "items": {
                           "type": "string"
                         }
+                      },
+                      "images": {
+                        "type": "boolean"
                       }
                     },
                     "required": [
@@ -2102,6 +2163,9 @@
               "items": {
                 "type": "string"
               }
+            },
+            "images": {
+              "type": "boolean"
             }
           },
           "required": [

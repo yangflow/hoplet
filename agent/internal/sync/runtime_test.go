@@ -2,6 +2,7 @@ package sync
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -14,6 +15,14 @@ import (
 	"github.com/yangflow/hoplet/agent/internal/config"
 )
 
+// promptMsg is a runtime.prompt as the core sends it.
+func promptMsg(sessionID, promptID, text string) json.RawMessage {
+	raw, _ := json.Marshal(RuntimePrompt{
+		V: ProtocolVersion, Type: TypeRuntimePrompt, SessionID: sessionID, PromptID: promptID, Text: text,
+	})
+	return raw
+}
+
 func TestSendWithoutAConnection(t *testing.T) {
 	c := NewClient(&config.Config{ServerURL: "http://127.0.0.1", Token: "t"}, "dev", "test", Hooks{})
 	if err := c.Send(RuntimeState{}); !errors.Is(err, ErrNotConnected) {
@@ -23,13 +32,13 @@ func TestSendWithoutAConnection(t *testing.T) {
 
 func TestRefusedPromptIsReportedWithItsReason(t *testing.T) {
 	c, cs, read := dialTestConn(t)
-	c.hooks.Runtime.Prompt = func(sessionID, text string) error {
+	c.hooks.Runtime.Prompt = func(sessionID, text string, _ []PromptImage) error {
 		if sessionID != "s1" || text != "go" {
 			t.Fatalf("prompt = %q %q", sessionID, text)
 		}
 		return errors.New("busy")
 	}
-	c.handleRuntimePrompt(cs, "s1", "p1", "go")
+	c.handleRuntimePrompt(cs, promptMsg("s1", "p1", "go"))
 	msg := read()
 	if msg["type"] != TypeRuntimeRejected || msg["promptId"] != "p1" || msg["reason"] != "busy" || msg["sessionId"] != "s1" {
 		t.Fatalf("got %#v", msg)
@@ -38,8 +47,8 @@ func TestRefusedPromptIsReportedWithItsReason(t *testing.T) {
 
 func TestAcceptedPromptSendsNothing(t *testing.T) {
 	c, cs, read := dialTestConn(t)
-	c.hooks.Runtime.Prompt = func(string, string) error { return nil }
-	c.handleRuntimePrompt(cs, "s1", "p1", "go")
+	c.hooks.Runtime.Prompt = func(string, string, []PromptImage) error { return nil }
+	c.handleRuntimePrompt(cs, promptMsg("s1", "p1", "go"))
 	// The next message the server sees is the one sent after it: the accepted prompt wrote none.
 	if err := c.writeMsg(cs, PingMsg{V: ProtocolVersion, Type: TypePingMsg}); err != nil {
 		t.Fatal(err)
@@ -98,7 +107,10 @@ func TestCoreCommandsReachTheHooks(t *testing.T) {
 
 	var c *Client
 	hooks := Hooks{Runtime: RuntimeHooks{
-		Prompt: func(s, text string) error { record(call{kind: "prompt", session: s, id: text}); return nil },
+		Prompt: func(s, text string, _ []PromptImage) error {
+			record(call{kind: "prompt", session: s, id: text})
+			return nil
+		},
 		Answer: func(s, id string, allow bool) error {
 			record(call{kind: "answer", session: s, id: id, allow: allow})
 			return nil

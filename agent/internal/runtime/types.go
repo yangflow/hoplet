@@ -31,7 +31,22 @@ const (
 	CapThinking    Capability = "thinking"
 	CapFast        Capability = "fast"
 	CapModels      Capability = "models"
+	// CapImages: a prompt may carry images, which the driver passes to the vendor as image content.
+	CapImages Capability = "images"
 )
+
+// Image is a picture that goes with a prompt: its media type (image/png, image/jpeg, image/gif or
+// image/webp) and its bytes, checked before they reach a driver.
+type Image struct {
+	MediaType string
+	Data      []byte
+}
+
+// Prompt is one user turn: its text and the images that go with it.
+type Prompt struct {
+	Text   string
+	Images []Image
+}
 
 // StartOptions are what a new session can choose (docs/spec.md#new-session). A driver applies an option only
 // when it declares the matching capability (thinking, fast, models); the zero value leaves the vendor's
@@ -74,7 +89,7 @@ type Versioned interface {
 type Process interface {
 	// Events delivers the process's events in order and is closed after the final Exited.
 	Events() <-chan ProcessEvent
-	Prompt(text string) error
+	Prompt(p Prompt) error
 	// Answer responds to a permission request; message explains a denial to the model.
 	Answer(requestID string, allow bool, message string) error
 	// Interrupt ends the running turn and keeps the process.

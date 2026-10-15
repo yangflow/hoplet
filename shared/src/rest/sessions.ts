@@ -1,7 +1,12 @@
 import * as v from 'valibot';
 import { EntrySchema } from '../conversation.ts';
 import { SessionIdSchema } from '../ids.ts';
-import { RuntimeCapabilitiesSchema, RuntimeStateSchema, StartOptionsSchema } from '../runtime.ts';
+import {
+  PromptImagesSchema,
+  RuntimeCapabilitiesSchema,
+  RuntimeStateSchema,
+  StartOptionsSchema,
+} from '../runtime.ts';
 import { ProviderSchema, SessionMetaSchema } from '../session.ts';
 import { QuerySchema, queryInt, TrimmedSchema } from './common.ts';
 
@@ -113,6 +118,8 @@ export type GlobalSearchResult = v.InferOutput<typeof GlobalSearchResultSchema>;
 /** POST /api/sessions/:id/prompt */
 export const PromptRequestSchema = v.object({
   text: TrimmedSchema,
+  /** Pasted or attached images; the session's driver must declare `images`. */
+  images: v.optional(PromptImagesSchema),
   /** Chosen by the client; a repeated one within 10 minutes returns the first result. */
   promptId: v.pipe(v.string(), v.minLength(1), v.maxLength(128)),
 });
@@ -131,6 +138,8 @@ export const NewSessionRequestSchema = v.object({
   provider: ProviderSchema,
   options: StartOptionsSchema,
   text: TrimmedSchema,
+  /** Images of the first prompt; the provider's driver must declare `images`. */
+  images: v.optional(PromptImagesSchema),
   /** Chosen by the client; a repeated one within 10 minutes returns the first result. */
   promptId: v.pipe(v.string(), v.minLength(1), v.maxLength(128)),
 });

@@ -164,7 +164,7 @@ export function createRuntime(state: ControlState): Runtime {
   }
 
   return {
-    prompt(sessionId, ownerDeviceId, text, promptId) {
+    prompt(sessionId, ownerDeviceId, text, promptId, images = []) {
       const now = state.now();
       sweepPrompts(now);
       const key = permissionKey(sessionId, promptId);
@@ -187,13 +187,14 @@ export function createRuntime(state: ControlState): Runtime {
       }
 
       // The audit trail: who was asked to run what, never the text itself (docs/threat-model.md).
-      log('info', 'control', 'prompt forwarded', { sessionId, promptId });
+      log('info', 'control', 'prompt forwarded', { sessionId, promptId, images: images.length });
       const msg: RuntimePrompt = {
         v: PROTOCOL_VERSION,
         type: 'runtime.prompt',
         sessionId,
         promptId,
         text,
+        ...(images.length > 0 ? { images } : {}),
       };
       const outcome = askWaiter(
         pendingPrompt,

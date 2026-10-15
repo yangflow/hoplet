@@ -4,6 +4,7 @@ import type {
   DeviceInfo,
   DeviceProject,
   PermissionDecision,
+  PromptImage,
   Provider,
   ProviderInfo,
   RuntimeCapabilities,
@@ -38,6 +39,7 @@ export interface StartRequest {
   provider: Provider;
   options: StartOptions;
   text: string;
+  images?: PromptImage[] | undefined;
   promptId: string;
 }
 
@@ -185,6 +187,7 @@ export interface Control {
     ownerDeviceId: string,
     text: string,
     promptId: string,
+    images?: PromptImage[],
   ): Promise<PromptOutcome>;
   /** Answers an open permission request; the first answer wins. */
   answerPermission(

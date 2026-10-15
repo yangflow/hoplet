@@ -77,7 +77,11 @@ func (b *bridge) starter(st *store) func(context.Context, sync.RuntimeStart) (st
 		if req.Options.Fast != nil {
 			opts.Fast = *req.Options.Fast
 		}
-		id, err := b.mgr.Create(path, req.Text, opts)
+		p, err := promptOf(req.Text, req.Images)
+		if err != nil {
+			return "", err
+		}
+		id, err := b.mgr.CreateWith(path, p, opts)
 		if err != nil {
 			return "", err
 		}

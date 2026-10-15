@@ -328,6 +328,7 @@ it('starts a session from a draft with the options its machine declares, then se
     provider: 'claude',
     options: { model: 'haiku-5', thinking: true, fast: true },
     text: 'build it',
+    images: [],
   });
   expect(new URLSearchParams(location.search).get('session')).toBe(
     'cccccccc-2222-4333-8444-555555555555',

@@ -196,7 +196,12 @@ describe('wire contract', () => {
       provider: { optional: false },
       options: { optional: false },
       text: { optional: false },
+      images: { optional: true },
       promptId: { optional: false },
+    });
+    expect(go.structs.PromptImage).toEqual({
+      mediaType: { optional: false },
+      data: { optional: false },
     });
     expect(go.structs.RuntimeStartOptions).toEqual({
       model: { optional: true },
@@ -209,6 +214,7 @@ describe('wire contract', () => {
       thinking: { optional: false },
       fast: { optional: false },
       models: { optional: false },
+      images: { optional: true },
     });
     expect(go.structs.DeviceHello?.providers).toEqual({ optional: true });
     expect(shared.messages['runtime.start']).toMatchObject({ webOnly: false });

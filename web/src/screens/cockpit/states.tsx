@@ -89,7 +89,20 @@ const capabilities: RuntimeCapabilities = {
   thinking: true,
   fast: true,
   models: ['opus-5.5', 'sonnet-5.5', 'haiku-5'],
+  images: true,
 };
+
+/** Two pasted images: a 48 px app tile and a screenshot. */
+const COMPOSE_IMAGES = [
+  {
+    mediaType: 'image/png' as const,
+    data: 'iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAIAAADYYG7QAAAAo0lEQVR42u3YwQmAYAyDUfHuAuKkLq+CIOJ/sW3S9hD4BnjXZDr2tVWTQAIJJBCxbZkbgS5NI9Ct6QJ6NC1Ab0096KMpBo2aSpBPwwK5NRRQRIMHBTVgUFyDBEE0MBBKgwEBNQAQVhMFwTUhEEPjB5E0ThBP4wFRNWYQW2MDJWgMoBzNX1Caxg8qXq5pGg+oxbZP09hAjd6PNI0OK4EEEkigsRMQfjWs1GRa2AAAAABJRU5ErkJggg==',
+  },
+  {
+    mediaType: 'image/png' as const,
+    data: 'iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAIAAADYYG7QAAAAYElEQVR42u3VsQmAMBgF4YwgSgg6qr21bbZNNtAiGPjlgzfAFXe8tJf8sG1dJi8FBqr39d1+AcShN6B2HiMDNB9I9rIH5O1lzyFAspc9hwDJXvYcAiR72ZMakOxlH9+hDrvGzR3AkyXYAAAAAElFTkSuQmCC',
+  },
+];
 
 function fixtureDevices(macbookOnline: boolean): DeviceInfo[] {
   const providers = [{ provider: 'claude' as const, capabilities }];
@@ -670,7 +683,7 @@ export const states: Record<string, () => ReactNode> = {
     <Scene
       variant={{
         runtime: { state: 'idle', capabilities },
-        conversation: { composerText: COMPOSE_TEXT },
+        conversation: { composerText: COMPOSE_TEXT, composerImages: COMPOSE_IMAGES },
       }}
     />
   ),

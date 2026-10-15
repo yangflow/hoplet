@@ -145,6 +145,8 @@ func capabilities(caps []runtime.Capability, models []string) sync.RuntimeCapabi
 			out.Thinking = true
 		case runtime.CapFast:
 			out.Fast = true
+		case runtime.CapImages:
+			out.Images = true
 		}
 	}
 	return out
@@ -181,7 +183,13 @@ func wireMessage(ev runtime.Event) any {
 // hooks are the handlers of the core's remote control messages.
 func (b *bridge) hooks() sync.RuntimeHooks {
 	return sync.RuntimeHooks{
-		Prompt: func(sessionID, text string) error { return b.mgr.Prompt(sessionID, text) },
+		Prompt: func(sessionID, text string, images []sync.PromptImage) error {
+			p, err := promptOf(text, images)
+			if err != nil {
+				return err
+			}
+			return b.mgr.PromptWith(sessionID, p)
+		},
 		Answer: func(sessionID, requestID string, allow bool) error {
 			return b.mgr.Permission(sessionID, requestID, allow)
 		},
