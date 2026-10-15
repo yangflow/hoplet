@@ -63,7 +63,7 @@ it('refuses a future schema without changing its data', () => {
   dirs.push(dir);
   new Store(dir);
   const db = new DatabaseSync(path.join(dir, 'hoplet.db'));
-  db.prepare('INSERT INTO schema_migrations VALUES(10, ?)').run('future');
+  db.prepare('INSERT INTO schema_migrations VALUES(999, ?)').run('future');
   db.close();
   expect(() => new Store(dir)).toThrow('data schema is newer');
 });

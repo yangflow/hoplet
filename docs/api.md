@@ -97,6 +97,10 @@ Behavior a client relies on:
   8,000 characters (`too-large` beyond). The `promptId` is chosen by the client; the same one sent again within
   10 minutes returns the first result, so a retry after a lost response does not run the prompt twice. The output
   of the turn arrives on the browser WebSocket.
+- A session's `gitBranch` is the branch its lines last recorded (Claude Code's `gitBranch`), and the branch of the
+  new worktree once a handoff commits; it is absent until a line names one. A watched project in
+  `GET /api/devices/:deviceId/projects` carries the `branch` checked out there, read from its git `HEAD` (the
+  commit's first 7 hex digits when detached), and none outside a repository.
 - `POST /api/sessions/:sessionId/permission` answers a `session.permission` request; the first answer wins.
 - `POST /api/sessions/:sessionId/handoff` answers when the handoff is over, naming the new worktree and branch;
   `handoff.progress` reports its steps meanwhile. A failed handoff leaves the owner and the cursor where they were.

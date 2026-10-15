@@ -6,16 +6,21 @@ import { errorText } from '../../lib/errors.ts';
 import { t } from '../../lib/i18n.ts';
 import { Composer } from './composer/composer.tsx';
 import { hasChoices, type ModelChoice, ModelMenu } from './composer/model-menu.tsx';
-import { WhereRow } from './composer/where.tsx';
+import { BranchPart, WhereRow } from './composer/where.tsx';
 import type { NewSessionRequest, SessionTarget } from './model.ts';
 import type { ComposerView } from './runtime.ts';
-import { useDeviceDirs } from './use-device-dirs.ts';
+import { type Dir, useDeviceDirs } from './use-device-dirs.ts';
 
 /** Where a draft starts its session: a machine and one of its watched project directories. */
 export type DraftWhere = { deviceName: string; path: string };
 
 /** What development fixtures set: the text, and a picker or the model menu open. */
-export type DraftFixture = { prompt?: string; open?: 'machine' | 'directory' | 'model' };
+export type DraftFixture = {
+  prompt?: string;
+  open?: 'machine' | 'directory' | 'model';
+  /** The machine's directories as its catalog would list them. */
+  dirs?: Dir[];
+};
 
 /** The folder a directory sits in, as the picker shows it: the home directory reads `~`. */
 export function folderOf(path: string): string {
@@ -50,12 +55,13 @@ export function Draft(props: {
     firstOnline?.deviceName ??
     '';
   const target = targets.find((x) => x.deviceName === machine);
-  const { dirs } = useDeviceDirs(
+  const catalog = useDeviceDirs(
     target?.deviceId ?? null,
     target?.dirs ?? [],
     props.loadDirectories,
     props.dirsVersion ?? 0,
   );
+  const dirs = props.fixture?.dirs ?? catalog.dirs;
   const path = dirs.some((d) => d.path === where.path) ? (where.path ?? '') : (dirs[0]?.path ?? '');
 
   useEffect(() => {
@@ -126,6 +132,7 @@ export function Draft(props: {
   }
 
   const open = props.fixture?.open;
+  const branch = dirs.find((d) => d.path === path)?.branch;
   const whereRow = (
     <WhereRow>
       {[
@@ -170,6 +177,7 @@ export function Draft(props: {
           initialOpen={open === 'directory'}
           data-testid="cockpit.draft-directory"
         />,
+        branch ? <BranchPart key="branch" branch={branch} path={path} /> : null,
       ]}
     </WhereRow>
   );

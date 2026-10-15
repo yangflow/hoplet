@@ -95,6 +95,7 @@ export function append(ctx: StoreContext, input: AppendInput, rawLines: string[]
   const found = extractMeta(lines);
   const projectPath = row.project_path || found.projectPath;
   const title = peekTitle || found.aiTitle || row.title || found.title;
+  const gitBranch = found.gitBranch || row.git_branch;
 
   const dir = sessionDir(ctx, input.sessionId);
   mkdirSync(dir, { recursive: true });
@@ -156,9 +157,19 @@ export function append(ctx: StoreContext, input: AppendInput, rawLines: string[]
     syncDirectory(dir);
     db.exec('BEGIN IMMEDIATE');
     db.prepare(
-      `UPDATE sessions SET project_path=?, title=?, updated_at=?, line_count=?, byte_size=?,
+      `UPDATE sessions SET project_path=?, title=?, git_branch=?, updated_at=?, line_count=?, byte_size=?,
        chunk_count=?, cur_chunk_lines=? WHERE session_id=?`,
-    ).run(projectPath, title, now, lineCount, byteSize, chunkCount, curLines, input.sessionId);
+    ).run(
+      projectPath,
+      title,
+      gitBranch,
+      now,
+      lineCount,
+      byteSize,
+      chunkCount,
+      curLines,
+      input.sessionId,
+    );
 
     for (let sealed = firstSeq; sealed < chunkCount - 1; sealed++) {
       db.prepare('INSERT OR IGNORE INTO compression_pending VALUES(?, ?)').run(

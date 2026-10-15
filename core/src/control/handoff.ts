@@ -336,6 +336,7 @@ export function createHandoff(state: ControlState): HandoffControl {
       cursor,
       epoch,
       worktree,
+      branch,
     );
     if (newEpoch === null) throw new HandoffFailure('session-changed');
     const commit = {

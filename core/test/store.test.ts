@@ -95,7 +95,15 @@ describe('Store.append', () => {
     const { store } = newStore();
     store.append({ sessionId: 's-ho', projectDir: 'p', filePath: '/x', deviceId: 'd1' }, [line(0)]);
     expect(
-      store.handoffOwner('s-ho', 'd1', 'd2', store.getSession('s-ho')?.byteSize ?? -1, 0, '/w'),
+      store.handoffOwner(
+        's-ho',
+        'd1',
+        'd2',
+        store.getSession('s-ho')?.byteSize ?? -1,
+        0,
+        '/w',
+        'hoplet/w',
+      ),
     ).toBe(1);
     expect(store.ownerDeviceId('s-ho')).toBe('d2');
     expect(() =>
@@ -345,6 +353,28 @@ describe('Store.readStream', () => {
   });
 });
 
+describe('the git branch of a session', () => {
+  const branched = (i: number, gitBranch?: string) =>
+    JSON.stringify({
+      type: 'user',
+      cwd: '/tmp/proj',
+      gitBranch,
+      message: { role: 'user', content: `${i}` },
+    });
+
+  it('is the last branch the lines record, kept across appends and restarts', () => {
+    const { store, dir } = newStore();
+    const at = { sessionId: 'gb', projectDir: 'p', filePath: '/x', deviceId: 'd' };
+    store.append(at, [line(0)]);
+    expect(store.getSession('gb')?.gitBranch).toBeUndefined();
+    store.append(at, [branched(1, 'main'), branched(2, 'feat/x')]);
+    expect(store.getSession('gb')?.gitBranch).toBe('feat/x');
+    // A line without a branch keeps the last one.
+    store.append(at, [line(3)]);
+    expect(new Store(dir).getSession('gb')?.gitBranch).toBe('feat/x');
+  });
+});
+
 describe('Store.handoffOwner', () => {
   const seed = (store: Store) =>
     store.append({ sessionId: 'ho', projectDir: 'p', filePath: '/x', deviceId: 'a' }, [line(0)]);
@@ -353,23 +383,24 @@ describe('Store.handoffOwner', () => {
     const { store } = newStore();
     seed(store);
     const cursor = store.getSession('ho')?.byteSize ?? 0;
-    expect(store.handoffOwner('ho', 'b', 'c', cursor, 0, '/w')).toBeNull(); // not the owner
-    expect(store.handoffOwner('ho', 'a', 'b', cursor + 1, 0, '/w')).toBeNull(); // the cursor moved
-    expect(store.handoffOwner('ho', 'a', 'b', cursor, 5, '/w')).toBeNull(); // another epoch
-    expect(store.handoffOwner('absent', 'a', 'b', 0, 0, '/w')).toBeNull();
-    expect(store.handoffOwner('../ho', 'a', 'b', cursor, 0, '/w')).toBeNull();
+    expect(store.handoffOwner('ho', 'b', 'c', cursor, 0, '/w', 'hoplet/w')).toBeNull(); // not the owner
+    expect(store.handoffOwner('ho', 'a', 'b', cursor + 1, 0, '/w', 'hoplet/w')).toBeNull(); // the cursor moved
+    expect(store.handoffOwner('ho', 'a', 'b', cursor, 5, '/w', 'hoplet/w')).toBeNull(); // another epoch
+    expect(store.handoffOwner('absent', 'a', 'b', 0, 0, '/w', 'hoplet/w')).toBeNull();
+    expect(store.handoffOwner('../ho', 'a', 'b', cursor, 0, '/w', 'hoplet/w')).toBeNull();
     expect(store.getSession('ho')).toMatchObject({ ownerDeviceId: 'a', ownerEpoch: 0 });
 
-    expect(store.handoffOwner('ho', 'a', 'b', cursor, 0, '/w')).toBe(1);
+    expect(store.handoffOwner('ho', 'a', 'b', cursor, 0, '/w', 'hoplet/w')).toBe(1);
     expect(store.getSession('ho')).toMatchObject({
       ownerDeviceId: 'b',
       ownerEpoch: 1,
       byteSize: cursor,
     });
     expect(store.getSession('ho')?.projectPath).toBe('/w');
+    expect(store.getSession('ho')?.gitBranch).toBe('hoplet/w');
     // The same request cannot be applied twice.
-    expect(store.handoffOwner('ho', 'a', 'b', cursor, 0, '/w')).toBeNull();
-    expect(store.handoffOwner('ho', 'b', 'a', cursor, 1, '/w')).toBe(2);
+    expect(store.handoffOwner('ho', 'a', 'b', cursor, 0, '/w', 'hoplet/w')).toBeNull();
+    expect(store.handoffOwner('ho', 'b', 'a', cursor, 1, '/w', 'hoplet/w')).toBe(2);
     // Lines appended afterwards carry the old cwd and do not move the project back.
     store.append({ sessionId: 'ho', projectDir: 'p', filePath: '/x', deviceId: 'a' }, [line(1)]);
     expect(store.getSession('ho')?.projectPath).toBe('/w');
@@ -378,7 +409,7 @@ describe('Store.handoffOwner', () => {
   it('survives a restart', () => {
     const { store, dir } = newStore();
     seed(store);
-    store.handoffOwner('ho', 'a', 'b', store.getSession('ho')?.byteSize ?? 0, 0, '/w');
+    store.handoffOwner('ho', 'a', 'b', store.getSession('ho')?.byteSize ?? 0, 0, '/w', 'hoplet/w');
     expect(new Store(dir).getSession('ho')).toMatchObject({ ownerDeviceId: 'b', ownerEpoch: 1 });
   });
 });

@@ -303,5 +303,6 @@
   "Model and options": "Model and options",
   "No machine online": "No machine online",
   "No provider on {device}": "No provider on {device}",
-  "The first prompt starts the session": "The first prompt starts the session"
+  "The first prompt starts the session": "The first prompt starts the session",
+  "Git branch of {path}": "Git branch of {path}"
 }

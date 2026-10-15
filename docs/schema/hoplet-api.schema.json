@@ -677,6 +677,9 @@
               "path": {
                 "type": "string"
               },
+              "branch": {
+                "type": "string"
+              },
               "sessions": {
                 "type": "array",
                 "items": {
@@ -1477,6 +1480,9 @@
         "byteSize": {
           "type": "number"
         },
+        "gitBranch": {
+          "type": "string"
+        },
         "ownerConnected": {
           "type": "boolean"
         },
@@ -1821,6 +1827,9 @@
               },
               "byteSize": {
                 "type": "number"
+              },
+              "gitBranch": {
+                "type": "string"
               },
               "ownerConnected": {
                 "type": "boolean"

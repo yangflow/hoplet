@@ -10,8 +10,10 @@ export const DeviceProjectSessionSchema = v.object({
   title: v.optional(v.string()),
 });
 
+/** A watched project: its path, the git branch checked out there (absent outside a repository), its sessions. */
 export const DeviceProjectSchema = v.object({
   path: v.string(),
+  branch: v.optional(v.string()),
   sessions: v.array(DeviceProjectSessionSchema),
 });
 

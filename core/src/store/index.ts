@@ -79,7 +79,7 @@ export class Store {
 
   /**
    * The handoff commit: owner `from` becomes `to`, the session's project becomes `projectPath` (the target's
-   * worktree) and the epoch increases, provided the session still has the cursor `byteSize` and the epoch
+   * worktree) on `branch` and the epoch increases, provided the session still has the cursor `byteSize` and the epoch
    * `epoch`. Returns the new epoch, or null when anything differs.
    */
   handoffOwner(
@@ -89,8 +89,18 @@ export class Store {
     byteSize: number,
     epoch: number,
     projectPath: string,
+    branch: string,
   ): number | null {
-    return sessions.handoffOwner(this.ctx, sessionId, from, to, byteSize, epoch, projectPath);
+    return sessions.handoffOwner(
+      this.ctx,
+      sessionId,
+      from,
+      to,
+      byteSize,
+      epoch,
+      projectPath,
+      branch,
+    );
   }
 
   /**

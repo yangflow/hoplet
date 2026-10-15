@@ -26,5 +26,7 @@ export const SessionMetaSchema = v.object({
   updatedAt: v.number(),
   lineCount: v.number(),
   byteSize: v.number(),
+  /** The git branch the session works on, as the vendor last recorded it in its lines; absent until known. */
+  gitBranch: v.optional(v.string()),
 });
 export type SessionMeta = v.InferOutput<typeof SessionMetaSchema>;

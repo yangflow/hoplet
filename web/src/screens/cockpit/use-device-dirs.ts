@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { fetchDeviceProjects } from '../../lib/api.ts';
 import { pathLeaf } from './group.ts';
 
-export type Dir = { path: string; name: string };
+/** A watched project directory; `branch` is the git branch checked out there, when the catalog says. */
+export type Dir = { path: string; name: string; branch?: string };
 
 /**
  * The watched project directories of a device, from its catalog (`GET /api/devices/:id/projects`). Until
@@ -31,7 +32,11 @@ export function useDeviceDirs(
             ? {
                 deviceId,
                 dirs: catalog.projects
-                  .map((p) => ({ path: p.path, name: pathLeaf(p.path) }))
+                  .map((p) => ({
+                    path: p.path,
+                    name: pathLeaf(p.path),
+                    ...(p.branch ? { branch: p.branch } : {}),
+                  }))
                   .sort((a, b) => a.name.localeCompare(b.name)),
               }
             : null,
