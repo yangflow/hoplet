@@ -471,9 +471,9 @@ describe('images for a prompt (ADR 0017)', () => {
     ]);
     expect(new Set(chunks.map((c) => c.attachmentId)).size).toBe(1);
     expect(chunks.every((c) => Buffer.from(String(c.data), 'base64').length <= MiB)).toBe(true);
-    expect(Buffer.concat(chunks.map((c) => Buffer.from(String(c.data), 'base64')))).toEqual(
-      Buffer.from(big, 'base64'),
-    );
+    // Buffer.equals, not toEqual: a deep compare of megabytes takes seconds.
+    const joined = Buffer.concat(chunks.map((c) => Buffer.from(String(c.data), 'base64')));
+    expect(joined.equals(Buffer.from(big, 'base64'))).toBe(true);
   });
 
   it('refuses an upload that is not what it claims, too large, unwanted or refused', async () => {
