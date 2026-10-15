@@ -64,11 +64,10 @@ func importedIn(t *testing.T, st *store, path string) []string {
 
 func TestStartCreatesAndImportsANewSession(t *testing.T) {
 	b, s, st, watched, start := newStartEnv(t)
-	on := true
 	id, err := start(sync.RuntimeStart{
 		ProjectPath: watched,
 		Provider:    "claude",
-		Options:     sync.RuntimeStartOptions{Model: "sonnet", Thinking: &on},
+		Config:      map[string]any{"model": "sonnet", "thinking": true},
 		Text:        "say first prompt",
 		PromptID:    "p1",
 	})
@@ -106,7 +105,7 @@ func TestStartCreatesAndImportsANewSession(t *testing.T) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	st0, ok := s.msgs[0].(sync.RuntimeState)
-	if !ok || st0.Capabilities.Models == nil || !st0.Capabilities.Fast {
+	if !ok || len(st0.Capabilities.Config) != 3 || st0.Capabilities.Config[0].CurrentValue != "sonnet" {
 		t.Fatalf("report = %#v", s.msgs[0])
 	}
 }
@@ -120,7 +119,7 @@ func TestStartRefusesWhatTheAgentCannotDo(t *testing.T) {
 		"empty prompt":        {ProjectPath: watched, Provider: "claude", Text: "  "},
 		"undeclared model": {
 			ProjectPath: watched, Provider: "claude", Text: "say x",
-			Options: sync.RuntimeStartOptions{Model: "gpt-9"},
+			Config: map[string]any{"model": "gpt-9"},
 		},
 	} {
 		if id, err := start(req); err == nil || id != "" {
@@ -174,7 +173,8 @@ func TestProvidersAnnounceTheDriverCapabilities(t *testing.T) {
 		t.Fatalf("providers = %+v", got)
 	}
 	c := got[0].Capabilities
-	if !c.Permissions || !c.Interrupt || !c.Thinking || !c.Fast || strings.Join(c.Models, ",") != "fable,opus,sonnet" {
+	if !c.Permissions || !c.Interrupt || len(c.Config) != 3 || c.Config[0].ID != "model" || len(c.Config[0].Options) != 4 ||
+		c.Config[0].CurrentValue != "default" {
 		t.Fatalf("capabilities = %+v", c)
 	}
 	if got[0].Version != "2.1.289" || got[0].Tested == nil || !*got[0].Tested {

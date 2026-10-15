@@ -73,15 +73,11 @@ func (b *bridge) starter(st *store) func(context.Context, sync.RuntimeStart) (st
 		if err != nil {
 			return "", err
 		}
-		opts := runtime.StartOptions{Model: req.Options.Model, Thinking: req.Options.Thinking}
-		if req.Options.Fast != nil {
-			opts.Fast = *req.Options.Fast
-		}
 		p, err := b.att.prompt(req.Text, req.Attachments)
 		if err != nil {
 			return "", err
 		}
-		id, err := b.mgr.CreateWith(path, p, opts)
+		id, err := b.mgr.CreateWith(path, p, req.Config)
 		if err != nil {
 			return "", err
 		}

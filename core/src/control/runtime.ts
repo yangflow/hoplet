@@ -1,14 +1,15 @@
 import {
   type AgentRuntimeState,
+  type ConfigSetting,
   type PermissionDecision,
   PROTOCOL_VERSION,
   type RuntimeCapabilities,
+  type RuntimeConfig,
   type RuntimeInterrupt,
   type RuntimePermissionAnswer,
   type RuntimePrompt,
   type RuntimeStop,
   type SessionPermission,
-  type StartOptions,
 } from '@hoplet/shared';
 import { log } from '../log/index.ts';
 import { askWaiter } from './pending.ts';
@@ -26,8 +27,8 @@ export interface RuntimeEntry {
   deviceId: string;
   state: AgentRuntimeState;
   error?: string;
+  /** `capabilities.config` carries the session's values. */
   capabilities: RuntimeCapabilities;
-  options?: StartOptions;
 }
 
 /** A permission request waiting for an answer. */
@@ -47,7 +48,7 @@ export const PERMISSION_OPEN_MS = 10 * 60_000;
 
 export type Runtime = Pick<
   Control,
-  'prompt' | 'answerPermission' | 'interrupt' | 'stop' | 'runtimeOf' | 'openPermissions'
+  'prompt' | 'answerPermission' | 'interrupt' | 'stop' | 'config' | 'runtimeOf' | 'openPermissions'
 > & {
   receive(
     link: DeviceLink,
@@ -108,7 +109,6 @@ export function createRuntime(state: ControlState): Runtime {
       state: entry.state,
       ...(entry.error !== undefined ? { error: entry.error } : {}),
       capabilities: entry.capabilities,
-      ...(entry.options !== undefined ? { options: entry.options } : {}),
     };
   }
 
@@ -126,7 +126,6 @@ export function createRuntime(state: ControlState): Runtime {
       state: v.state,
       ...(v.error !== undefined ? { error: v.error } : {}),
       ...(v.capabilities ? { capabilities: v.capabilities } : {}),
-      ...(v.options !== undefined ? { options: v.options } : {}),
     });
   }
 
@@ -168,7 +167,7 @@ export function createRuntime(state: ControlState): Runtime {
   }
 
   return {
-    prompt(sessionId, ownerDeviceId, text, promptId, attachments = [], options) {
+    prompt(sessionId, ownerDeviceId, text, promptId, attachments = []) {
       const now = state.now();
       sweepPrompts(now);
       const key = permissionKey(sessionId, promptId);
@@ -203,7 +202,6 @@ export function createRuntime(state: ControlState): Runtime {
         promptId,
         text,
         ...(attachments.length > 0 ? { attachments } : {}),
-        ...(options !== undefined ? { options } : {}),
       };
       const outcome = askWaiter(
         pendingPrompt,
@@ -265,6 +263,22 @@ export function createRuntime(state: ControlState): Runtime {
       return { ok: true };
     },
 
+    config(sessionId, ownerDeviceId, configId, value: ConfigSetting): RuntimeCommandOutcome {
+      const link = onlineLink(state, ownerDeviceId);
+      if (!link) return { ok: false, error: 'owner-offline' };
+      if (view(sessionId).state === 'external') return { ok: false, error: 'external' };
+      log('info', 'control', 'config forwarded', { sessionId, configId, value });
+      const msg: RuntimeConfig = {
+        v: PROTOCOL_VERSION,
+        type: 'runtime.config',
+        sessionId,
+        configId,
+        value,
+      };
+      link.send(msg);
+      return { ok: true };
+    },
+
     runtimeOf: view,
 
     openPermissions(sessionId) {
@@ -302,7 +316,6 @@ export function createRuntime(state: ControlState): Runtime {
             state: msg.state,
             ...(msg.error !== undefined ? { error: msg.error } : {}),
             capabilities: msg.capabilities,
-            ...(msg.options !== undefined ? { options: msg.options } : {}),
           });
           if (TURN_OVER.has(msg.state)) dropPermissions(msg.sessionId);
           if (msg.state === 'starting' || msg.state === 'running') acceptPrompt(msg.sessionId);

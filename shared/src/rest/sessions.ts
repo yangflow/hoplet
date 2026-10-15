@@ -2,10 +2,11 @@ import * as v from 'valibot';
 import { EntrySchema } from '../conversation.ts';
 import { SessionIdSchema } from '../ids.ts';
 import {
+  ConfigChangeSchema,
   PromptAttachmentsSchema,
   RuntimeCapabilitiesSchema,
   RuntimeStateSchema,
-  StartOptionsSchema,
+  SessionConfigSchema,
 } from '../runtime.ts';
 import { ProviderSchema, SessionMetaSchema } from '../session.ts';
 import { QuerySchema, queryInt, TrimmedSchema } from './common.ts';
@@ -24,14 +25,13 @@ export type HealthResponse = v.InferOutput<typeof HealthResponseSchema>;
 
 /**
  * The runtime state of a session as browsers see it (the same values `session.runtime` carries):
- * `offline` when the owner is not connected; `capabilities` once the owner has reported them.
+ * `offline` when the owner is not connected; `capabilities` once the owner has reported them,
+ * with the session's values in `capabilities.config`.
  */
 export const SessionRuntimeInfoSchema = v.object({
   state: RuntimeStateSchema,
   capabilities: v.optional(RuntimeCapabilitiesSchema),
   error: v.optional(v.string()),
-  /** What the session's processes run with: the model (absent for the vendor's default), Thinking, Fast. */
-  options: v.optional(StartOptionsSchema),
 });
 export type SessionRuntimeInfo = v.InferOutput<typeof SessionRuntimeInfoSchema>;
 
@@ -122,8 +122,6 @@ export const PromptRequestSchema = v.object({
   text: TrimmedSchema,
   /** Images uploaded to the owner for this prompt; the session's driver must declare `images`. */
   attachments: v.optional(PromptAttachmentsSchema),
-  /** Changes the session's options from this turn on: only what its driver declares, as for a new session. */
-  options: v.optional(StartOptionsSchema),
   /** Chosen by the client; a repeated one within 10 minutes returns the first result. */
   promptId: v.pipe(v.string(), v.minLength(1), v.maxLength(128)),
 });
@@ -132,15 +130,19 @@ export type PromptRequest = v.InferOutput<typeof PromptRequestSchema>;
 export const PromptResultSchema = v.object({ ok: v.literal(true), promptId: v.string() });
 export type PromptResult = v.InferOutput<typeof PromptResultSchema>;
 
+/** POST /api/sessions/:id/config: sets one setting of the session; the session's driver must declare it. */
+export const ConfigRequestSchema = ConfigChangeSchema;
+export type ConfigRequest = v.InferOutput<typeof ConfigRequestSchema>;
+
 /**
- * POST /api/sessions: starts a session in a watched project of a connected device. `options` holds only what
- * the provider's capabilities declare. The response comes when the agent has created and imported the session.
+ * POST /api/sessions: starts a session in a watched project of a connected device. `config` holds the settings
+ * to start with, only what the provider's capabilities declare; an option left out keeps its default. The response comes when the agent has created and imported the session.
  */
 export const NewSessionRequestSchema = v.object({
   deviceId: TrimmedSchema,
   projectPath: v.pipe(TrimmedSchema, v.maxLength(4096)),
   provider: ProviderSchema,
-  options: StartOptionsSchema,
+  config: v.optional(SessionConfigSchema),
   text: TrimmedSchema,
   /** Images uploaded to the device for the first prompt; the provider's driver must declare `images`. */
   attachments: v.optional(PromptAttachmentsSchema),

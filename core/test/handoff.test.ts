@@ -371,9 +371,7 @@ describe('refusals', () => {
         capabilities: {
           permissions: true,
           interrupt: true,
-          thinking: true,
-          fast: false,
-          models: [],
+          config: [],
         },
       });
       expect(await ask()).toMatchObject({ ok: false, error: 'busy' });

@@ -5,6 +5,7 @@
 import {
   AttachmentResultSchema,
   BlockParamsSchema,
+  ConfigRequestSchema,
   DeviceCloneQuerySchema,
   DeviceCloneResultSchema,
   DeviceDirsQuerySchema,
@@ -45,7 +46,7 @@ import {
   SnapshotChangesSchema,
   SnapshotDiffSchema,
   safeParse,
-  undeclaredOption,
+  undeclaredConfig,
   WorkspaceDiffQuerySchema,
   WorkspaceDiffSchema,
   WorkspaceFileQuerySchema,
@@ -268,15 +269,11 @@ export const routes: readonly Route[] = [
       const owner = ownerOf(d, sessionId);
       if (d.body.text.length > MAX_PROMPT_CHARS) throw new ApiError('too-large');
       const attachments = d.body.attachments ?? [];
-      const options = d.body.options;
       const caps = ownerCapabilities(d, owner, providerOf(d.store, sessionId));
       if (caps !== undefined) {
         if (attachments.length > 0 && !caps?.images) {
           throw new ApiError('invalid-request', { reason: 'images' });
         }
-        // A prompt changes the options a new session starts with, and only what the driver declares.
-        const option = options && (caps ? undeclaredOption(options, caps) : 'provider');
-        if (option) throw new ApiError('invalid-request', { reason: option });
       }
       const outcome = await d.control.prompt(
         sessionId,
@@ -284,13 +281,36 @@ export const routes: readonly Route[] = [
         d.body.text,
         d.body.promptId,
         attachments,
-        options,
       );
       if (outcome.ok) return { ok: true, promptId: outcome.promptId };
       throw relayError(
         outcome,
         outcome.error === 'owner-offline' ? {} : { promptId: outcome.promptId },
       );
+    },
+  }),
+  defineRoute({
+    method: 'POST',
+    path: '/api/sessions/:sessionId/config',
+    auth: 'host',
+    lane: 'control',
+    bodyLimit: 4096,
+    body: ConfigRequestSchema,
+    response: RuntimeCommandResultSchema,
+    handler: (d) => {
+      const sessionId = d.params.sessionId ?? '';
+      const owner = ownerOf(d, sessionId);
+      const online = ownerCapabilities(d, owner, providerOf(d.store, sessionId));
+      if (online !== undefined) {
+        // The session's own capabilities carry its values; before it reported, the provider's declare the options.
+        const caps = d.control.runtimeOf(sessionId).capabilities ?? online;
+        if (!caps || undeclaredConfig({ [d.body.configId]: d.body.value }, caps) !== null) {
+          throw new ApiError('invalid-request', { reason: 'config' });
+        }
+      }
+      const outcome = d.control.config(sessionId, owner, d.body.configId, d.body.value);
+      if (outcome.ok) return { ok: true };
+      throw new ApiError(outcome.error);
     },
   }),
   defineRoute({

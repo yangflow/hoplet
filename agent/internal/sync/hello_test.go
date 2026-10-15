@@ -87,8 +87,11 @@ func TestProtocolVersionMismatchErrorDecodes(t *testing.T) {
 func TestHelloAnnouncesTheProviders(t *testing.T) {
 	url, hello := serveCore(t, ProtocolVersion)
 	providers := []ProviderInfo{{
-		Provider:     "claude",
-		Capabilities: RuntimeCapabilities{Permissions: true, Fast: true, Models: []string{"opus"}},
+		Provider: "claude",
+		Capabilities: RuntimeCapabilities{Permissions: true, Config: []ConfigOption{{
+			Type: "select", ID: "model", Name: "Model", Category: "model", CurrentValue: "opus",
+			Options: []ConfigValue{{Value: "opus", Name: "opus"}},
+		}}},
 	}}
 	c := NewClient(&config.Config{ServerURL: url, Token: "t", DeviceName: "box"}, "dev-1", "9.9", Hooks{Providers: providers})
 	ctx, cancel := context.WithCancel(context.Background())
@@ -102,8 +105,10 @@ func TestHelloAnnouncesTheProviders(t *testing.T) {
 		}
 		p, _ := list[0].(map[string]any)
 		caps, _ := p["capabilities"].(map[string]any)
-		models, _ := caps["models"].([]any)
-		if p["provider"] != "claude" || caps["fast"] != true || caps["interrupt"] != false || len(models) != 1 || models[0] != "opus" {
+		config, _ := caps["config"].([]any)
+		first, _ := config[0].(map[string]any)
+		if p["provider"] != "claude" || caps["interrupt"] != false || len(config) != 1 || first["id"] != "model" ||
+			first["currentValue"] != "opus" {
 			t.Fatalf("provider = %#v", p)
 		}
 	case <-time.After(3 * time.Second):

@@ -263,6 +263,10 @@ func (c *Client) readLoop(cs *connState) {
 		case TypeRuntimeInterrupt:
 			go c.handleRuntimeInterrupt(head.SessionID)
 			continue
+		case TypeRuntimeConfig:
+			// In order with the prompt that follows it: a setting changed before a prompt holds for that turn.
+			c.handleRuntimeConfig(raw)
+			continue
 		case TypeRuntimeStop:
 			if c.hooks.Runtime.Stop != nil {
 				go c.hooks.Runtime.Stop(head.SessionID)

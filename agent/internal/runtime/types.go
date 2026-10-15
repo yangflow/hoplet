@@ -28,9 +28,6 @@ type Capability string
 const (
 	CapPermissions Capability = "permissions"
 	CapInterrupt   Capability = "interrupt"
-	CapThinking    Capability = "thinking"
-	CapFast        Capability = "fast"
-	CapModels      Capability = "models"
 	// CapImages: a prompt may carry images, which the driver passes to the vendor as image content.
 	CapImages Capability = "images"
 )
@@ -42,29 +39,53 @@ type Image struct {
 	Data      []byte
 }
 
-// Prompt is one user turn: its text, the images that go with it, and what it changes of the session's
-// options from this turn on.
+// Prompt is one user turn: its text and the images that go with it.
 type Prompt struct {
-	Text    string
-	Images  []Image
-	Options Change
+	Text   string
+	Images []Image
 }
 
-// Change is what a prompt changes of a session's StartOptions; a zero field keeps the option. A driver applies
-// only what it declares (models, thinking, fast).
-type Change struct {
-	Model    string
-	Thinking *bool
-	Fast     *bool
+// ConfigType is the kind of a setting (ADR 0018).
+type ConfigType string
+
+const (
+	ConfigSelect  ConfigType = "select"  // one of Options; the value is a string
+	ConfigBoolean ConfigType = "boolean" // the value is a bool
+)
+
+// Apply says when a change of a setting takes effect on a session that has a process; a session without one
+// starts its next process with the value.
+type Apply string
+
+const (
+	// ApplyNow: the process switches at once (Process.Set).
+	ApplyNow Apply = "now"
+	// ApplyNextTurn: the process switches before the next prompt is written (Process.Set).
+	ApplyNextTurn Apply = "next-turn"
+	// ApplyRestart: the process restarts between turns with the values as flags.
+	ApplyRestart Apply = "restart"
+)
+
+// ConfigValue is one value of a select setting.
+type ConfigValue struct {
+	Value       string
+	Name        string
+	Description string
+	Risk        string // "high" or empty
 }
 
-// StartOptions are what a new session can choose (docs/spec.md#new-session). A driver applies an option only
-// when it declares the matching capability (thinking, fast, models); the zero value leaves the vendor's
-// defaults.
-type StartOptions struct {
-	Model    string // one of Driver.Models()
-	Thinking *bool  // nil leaves the vendor's default
-	Fast     bool
+// ConfigOption is one setting a driver declares, shaped as an ACP session config option. Current is the
+// default of a new session: a string for a select, a bool for a boolean. Apply is the driver's own and is not
+// sent on the wire.
+type ConfigOption struct {
+	ID          string
+	Name        string
+	Description string
+	Category    string
+	Type        ConfigType
+	Options     []ConfigValue
+	Current     any
+	Apply       Apply
 }
 
 // StartSpec says which session a driver starts and where.
@@ -73,16 +94,18 @@ type StartSpec struct {
 	Dir       string // the session's working directory
 	// New starts the session under SessionID instead of resuming it; the vendor creates its file with the
 	// first prompt.
-	New     bool
-	Options StartOptions
+	New bool
+	// Config holds the session's value of every setting of Driver.Config(), by option ID.
+	Config map[string]any
 }
 
 // Driver starts processes of one vendor.
 type Driver interface {
 	Name() string
 	Capabilities() []Capability
-	// Models lists the model IDs a new session can choose from; empty when the driver cannot choose.
-	Models() []string
+	// Config lists the settings of a session in the driver's order of priority, each with the default of a
+	// new session as its Current value.
+	Config() []ConfigOption
 	// Start launches a process that resumes the session, or creates it when spec.New is set, and begins its
 	// initialization; the process reports Ready when the vendor answered. A refused vendor version is an error.
 	Start(ctx context.Context, spec StartSpec) (Process, error)
@@ -100,9 +123,9 @@ type Process interface {
 	// Events delivers the process's events in order and is closed after the final Exited.
 	Events() <-chan ProcessEvent
 	Prompt(p Prompt) error
-	// SetModel switches the model of the running process from the next turn on; a change of any other option
-	// restarts the process.
-	SetModel(model string) error
+	// Set switches a setting of the running process (an ApplyNow or ApplyNextTurn option); a setting the
+	// process cannot switch is an error.
+	Set(id string, value any) error
 	// Answer responds to a permission request; message explains a denial to the model.
 	Answer(requestID string, allow bool, message string) error
 	// Interrupt ends the running turn and keeps the process.

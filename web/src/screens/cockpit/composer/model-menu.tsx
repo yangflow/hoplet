@@ -1,87 +1,103 @@
-import type { ProviderInfo, StartOptions } from '@hoplet/shared';
-import { type KeyboardEvent, type ReactNode, useEffect, useId, useRef, useState } from 'react';
+import type { ConfigOption, ConfigSetting, ProviderInfo, SessionConfig } from '@hoplet/shared';
+import {
+  Fragment,
+  type KeyboardEvent,
+  type ReactNode,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+} from 'react';
 import { Icon } from '../../../components/icons.tsx';
 import { Popover } from '../../../components/Popover.tsx';
 import { ProviderMark, providerName } from '../../../components/provider-marks.tsx';
 import { t } from '../../../lib/i18n.ts';
 
-/** The choices a session starts with: only what the provider's runtime driver declares is offered. */
-export type ModelChoice = {
-  provider: ProviderInfo['provider'];
-  model: string;
-  thinking: boolean;
-  fast: boolean;
-};
-
 /**
- * The options a session runs with, as its runtime state reports them, with what this window picked on top. Until
- * a process reported, Thinking reads on and Fast off: what the agent starts the next process with.
+ * The options the menu shows: the driver's, in its order, without the `mode` category (the permission-mode
+ * control shows those) and without a type this client does not know.
  */
-export function sessionChoice(
-  provider: ModelChoice['provider'],
-  reported: StartOptions | undefined,
-  picked: Partial<ModelChoice> = {},
-): ModelChoice {
-  return {
-    provider,
-    model: picked.model ?? reported?.model ?? '',
-    thinking: picked.thinking ?? reported?.thinking ?? true,
-    fast: picked.fast ?? reported?.fast ?? false,
-  };
+export function menuConfig(config: readonly ConfigOption[] | undefined): ConfigOption[] {
+  return (config ?? []).filter(
+    (o) => o.category !== 'mode' && (o.type === 'select' || o.type === 'boolean'),
+  );
 }
 
-/** What a prompt changes: the declared options of `next` that differ from `current`, or undefined. */
-export function optionsChange(
-  caps: ProviderInfo['capabilities'],
-  current: ModelChoice,
-  next: ModelChoice,
-): StartOptions | undefined {
-  const change: StartOptions = {
-    ...(caps.models.length > 0 && next.model !== '' && next.model !== current.model
-      ? { model: next.model }
-      : {}),
-    ...(caps.thinking && next.thinking !== current.thinking ? { thinking: next.thinking } : {}),
-    ...(caps.fast && next.fast !== current.fast ? { fast: next.fast } : {}),
-  };
-  return Object.keys(change).length > 0 ? change : undefined;
+/** The driver's options with `values` (option ID to setting) laid over their current values. */
+export function withValues(
+  config: readonly ConfigOption[] | undefined,
+  values: SessionConfig,
+): ConfigOption[] {
+  return (config ?? []).map((o) => {
+    const v = values[o.id];
+    if (o.type === 'select' && typeof v === 'string') return { ...o, currentValue: v };
+    if (o.type === 'boolean' && typeof v === 'boolean') return { ...o, currentValue: v };
+    return o;
+  });
 }
 
-/** Whether a machine offers anything for the menu to choose: a second provider, models, thinking or fast. */
+/** Whether a machine offers anything for the menu to choose: a second provider or an option. */
 export function hasChoices(providers: ProviderInfo[], chosen: ProviderInfo | undefined): boolean {
-  const caps = chosen?.capabilities;
-  return providers.length > 1 || !!caps?.thinking || !!caps?.fast || (caps?.models.length ?? 0) > 0;
+  return providers.length > 1 || menuConfig(chosen?.capabilities.config).length > 0;
+}
+
+/** An option's name: the strings' entry for its ID when there is one, else the driver's name. */
+function optionName(o: ConfigOption): string {
+  const key = `config.${o.id}`;
+  const known = t(key);
+  return known !== key ? known : o.name;
+}
+
+/** A value's name: the strings' entry for the option and value when there is one, else the driver's name. */
+function valueName(o: ConfigOption, value: string, name: string): string {
+  const key = `config.${o.id}.${value}`;
+  const known = t(key);
+  return known !== key ? known : name;
+}
+
+/** The name of a select's current value. */
+function currentName(o: ConfigOption): string | undefined {
+  if (o.type !== 'select') return undefined;
+  const v = o.options.find((c) => c.value === o.currentValue);
+  return v ? valueName(o, v.value, v.name) : undefined;
+}
+
+/** The glyph of a switch that is on, by ACP's reserved categories. */
+function glyph(o: ConfigOption): ReactNode {
+  if (o.category === 'thought_level') return Icon.thinking();
+  if (o.category === 'model_config') return Icon.fast();
+  return null;
 }
 
 /**
- * The composer's model button and its menu: the model's name and the Thinking glyph, opening the provider
- * (when the machine runs more than one), the model, Thinking and Fast; a draft and a session alike. A session on
- * the vendor's default model reads as Default.
+ * The composer's model button and its menu, drawn from the driver's config options (ADR 0018): the provider
+ * (when the machine runs more than one), then every option in the driver's order, a choice as a radio list and
+ * a yes or no as a switch. The button reads the model category's current value and the glyph of each switch
+ * that is on.
  */
 export function ModelMenu(props: {
   providers: ProviderInfo[];
-  value: ModelChoice;
-  onChange: (next: ModelChoice) => void;
+  provider: ProviderInfo['provider'];
+  /** The options with the values to show. */
+  config: ConfigOption[];
+  onProvider: (provider: ProviderInfo['provider']) => void;
+  onChange: (id: string, value: ConfigSetting) => void;
   disabled?: boolean;
   /** Starts open (development fixtures). */
   initialOpen?: boolean;
 }) {
-  const { providers, value, onChange } = props;
+  const { providers, provider, onProvider, onChange } = props;
   const [open, setOpen] = useState(props.initialOpen ?? false);
   const trigger = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const focusOnOpen = useRef(false);
   const id = useId();
-  const chosen = providers.find((p) => p.provider === value.provider);
-  const caps = chosen?.capabilities;
-  const label =
-    value.model || (caps?.models.length ? t('Default model') : providerName(value.provider));
-  const detail = [
-    label,
-    caps?.thinking && value.thinking ? t('Thinking') : '',
-    caps?.fast && value.fast ? t('Fast') : '',
-  ]
-    .filter(Boolean)
-    .join(' · ');
+  const options = menuConfig(props.config);
+  const modelOption = options.find((o) => o.type === 'select' && o.category === 'model');
+  const label = (modelOption && currentName(modelOption)) || providerName(provider);
+  const on = options.filter((o) => o.type === 'boolean' && o.currentValue === true);
+  const glyphs = on.filter((o) => glyph(o) !== null);
+  const detail = [label, ...on.map(optionName)].filter(Boolean).join(' · ');
 
   function close() {
     setOpen(false);
@@ -113,33 +129,40 @@ export function ModelMenu(props: {
     }
   }
 
-  const radio = (key: string, on: boolean, text: string, pick: () => void, lead?: ReactNode) => (
+  const radio = (
+    key: string,
+    checked: boolean,
+    text: string,
+    pick: () => void,
+    lead?: ReactNode,
+  ) => (
     <button
       key={key}
       type="button"
       role="menuitemradio"
-      aria-checked={on}
+      aria-checked={checked}
       tabIndex={-1}
       className="option"
       onClick={pick}
       data-testid="cockpit.model-option"
     >
-      <span className="sel-lead">{on ? Icon.check() : (lead ?? null)}</span>
+      <span className="sel-lead">{checked ? Icon.check() : (lead ?? null)}</span>
       <span className="sel-value">{text}</span>
     </button>
   );
-  const toggle = (on: boolean, text: string, icon: ReactNode, flip: () => void, testid: string) => (
+  const toggle = (o: ConfigOption & { type: 'boolean' }) => (
     <button
+      key={o.id}
       type="button"
       role="menuitemcheckbox"
-      aria-checked={on}
+      aria-checked={o.currentValue}
       tabIndex={-1}
-      className={`option switch-row${on ? ' on' : ''}`}
-      onClick={flip}
-      data-testid={testid}
+      className={`option switch-row${o.currentValue ? ' on' : ''}`}
+      onClick={() => onChange(o.id, !o.currentValue)}
+      data-testid={`cockpit.config.${o.id}`}
     >
-      <span className="sel-lead">{icon}</span>
-      <span className="sel-value">{text}</span>
+      <span className="sel-lead">{glyph(o)}</span>
+      <span className="sel-value">{optionName(o)}</span>
       <span className="switch" aria-hidden="true" />
     </button>
   );
@@ -172,13 +195,10 @@ export function ModelMenu(props: {
         data-testid="cockpit.model"
       >
         {label}
-        {caps?.thinking && value.thinking ? (
-          <>
-            <i aria-hidden="true">·</i>
-            {Icon.thinking()}
-          </>
-        ) : null}
-        {caps?.fast && value.fast ? Icon.fast() : null}
+        {glyphs.length > 0 ? <i aria-hidden="true">·</i> : null}
+        {glyphs.map((o) => (
+          <Fragment key={o.id}>{glyph(o)}</Fragment>
+        ))}
         {Icon.down()}
       </button>
       <Popover open={open} onClose={() => setOpen(false)} className="popover-above popover-end">
@@ -199,53 +219,40 @@ export function ModelMenu(props: {
               {providers.map((p) =>
                 radio(
                   p.provider,
-                  p.provider === value.provider,
+                  p.provider === provider,
                   providerName(p.provider),
-                  () =>
-                    onChange({
-                      ...value,
-                      provider: p.provider,
-                      model: p.capabilities.models[0] ?? '',
-                    }),
+                  () => onProvider(p.provider),
                   <ProviderMark provider={p.provider} />,
                 ),
               )}
             </div>
           ) : null}
-          {caps && caps.models.length > 0 ? (
-            // biome-ignore lint/a11y/useSemanticElements: a menu's groups are role=group, a fieldset is not a menu child
-            <div role="group" aria-labelledby={`${id}-model`}>
-              <div className="popover-label" id={`${id}-model`}>
-                {t('Model')}
+          {options.map((o, i) => {
+            const before = options[i - 1];
+            if (o.type === 'boolean') {
+              return (
+                <Fragment key={o.id}>
+                  {before?.type !== 'boolean' && (i > 0 || providers.length > 1) ? (
+                    <div className="popover-sep" aria-hidden="true" />
+                  ) : null}
+                  {toggle(o)}
+                </Fragment>
+              );
+            }
+            return (
+              // biome-ignore lint/a11y/useSemanticElements: a menu's groups are role=group, a fieldset is not a menu child
+              <div key={o.id} role="group" aria-labelledby={`${id}-${o.id}`}>
+                <div className="popover-label" id={`${id}-${o.id}`}>
+                  {optionName(o)}
+                </div>
+                {o.options.map((c) =>
+                  radio(c.value, c.value === o.currentValue, valueName(o, c.value, c.name), () =>
+                    onChange(o.id, c.value),
+                  ),
+                )}
               </div>
-              {caps.models.map((m) =>
-                radio(m, m === value.model, m, () => onChange({ ...value, model: m })),
-              )}
-            </div>
-          ) : null}
-          {caps?.thinking || caps?.fast ? (
-            <>
-              <div className="popover-sep" aria-hidden="true" />
-              {caps.thinking
-                ? toggle(
-                    value.thinking,
-                    t('Thinking'),
-                    Icon.thinking(),
-                    () => onChange({ ...value, thinking: !value.thinking }),
-                    'cockpit.thinking',
-                  )
-                : null}
-              {caps.fast
-                ? toggle(
-                    value.fast,
-                    t('Fast'),
-                    Icon.fast(),
-                    () => onChange({ ...value, fast: !value.fast }),
-                    'cockpit.fast',
-                  )
-                : null}
-            </>
-          ) : null}
+            );
+          })}
         </div>
       </Popover>
     </span>

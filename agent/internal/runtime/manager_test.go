@@ -248,7 +248,7 @@ func TestPromptRunsATurn(t *testing.T) {
 	e.expectStates("s1", runtime.StateStarting, runtime.StateRunning, runtime.StateReady)
 
 	last, _ := e.rec.lastState("s1")
-	if len(last.Capabilities) != 6 {
+	if len(last.Capabilities) != 3 {
 		t.Fatalf("capabilities = %v", last.Capabilities)
 	}
 	var text string
@@ -344,15 +344,14 @@ func textOf(e *env, sessionID string, from int) string {
 	return text
 }
 
-func TestThePromptChangesTheOptionsFromItsTurnOn(t *testing.T) {
+func TestSetConfigAppliesEachKindAndReportsTheValues(t *testing.T) {
 	e := newEnv(t, nil)
 	e.session("s1")
-	off, on := false, true
-	turn := func(p runtime.Prompt) string {
+	turn := func(text string) string {
 		t.Helper()
 		from := len(e.rec.outputs("s1"))
 		n := len(e.rec.states("s1"))
-		if err := e.m.PromptWith("s1", p); err != nil {
+		if err := e.m.Prompt("s1", text); err != nil {
 			t.Fatal(err)
 		}
 		e.rec.waitFor(t, "the turn", func() bool {
@@ -362,26 +361,55 @@ func TestThePromptChangesTheOptionsFromItsTurnOn(t *testing.T) {
 		return textOf(e, "s1", from)
 	}
 	args := func(i int) string { return strings.Join(e.starts()[i].Args, " ") }
+	current := func(id string) any {
+		last, _ := e.rec.lastState("s1")
+		for _, o := range last.Config {
+			if o.ID == id {
+				return o.Current
+			}
+		}
+		t.Fatalf("no option %s in %+v", id, last.Config)
+		return nil
+	}
 
-	// A new process starts with the prompt's options.
-	if got := turn(runtime.Prompt{Text: "model", Options: runtime.Change{Model: "sonnet"}}); got != "model: sonnet" {
+	// Before any process, a setting is kept and the next process starts with it.
+	if err := e.m.SetConfig("s1", "model", "sonnet"); err != nil {
+		t.Fatal(err)
+	}
+	if current("model") != "sonnet" || current("thinking") != true || current("fast") != false {
+		last, _ := e.rec.lastState("s1")
+		t.Fatalf("state reports %+v", last.Config)
+	}
+	if n := len(e.starts()); n != 0 {
+		t.Fatalf("setting a value started %d processes", n)
+	}
+	if got := turn("model"); got != "model: sonnet" {
 		t.Fatalf("first turn ran on %q", got)
 	}
-	if last, _ := e.rec.lastState("s1"); last.Options.Model != "sonnet" || last.Options.Thinking == nil || !*last.Options.Thinking {
-		t.Fatalf("state reports %+v", last.Options)
+	// ApplyNextTurn: the model switches in place before the next prompt; nothing restarts.
+	if err := e.m.SetConfig("s1", "model", "opus"); err != nil {
+		t.Fatal(err)
 	}
-	// The model switches in place; a prompt that changes nothing keeps it.
-	if got := turn(runtime.Prompt{Text: "model", Options: runtime.Change{Model: "opus"}}); got != "model: opus" {
+	if got := turn("model"); got != "model: opus" {
 		t.Fatalf("switched turn ran on %q", got)
 	}
-	if got := turn(runtime.Prompt{Text: "model"}); got != "model: opus" {
+	if got := turn("model"); got != "model: opus" {
 		t.Fatalf("next turn ran on %q", got)
 	}
 	if n := len(e.starts()); n != 1 {
 		t.Fatalf("a model switch restarted the process: %d starts", n)
 	}
-	// Thinking and Fast restart the process between turns, with every option as it now stands.
-	if got := turn(runtime.Prompt{Text: "model", Options: runtime.Change{Thinking: &off, Fast: &on}}); got != "model: opus" {
+	// ApplyRestart: the process restarts between turns with every value as it now stands.
+	if err := e.m.SetConfig("s1", "thinking", false); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.m.SetConfig("s1", "fast", true); err != nil {
+		t.Fatal(err)
+	}
+	if n := len(e.starts()); n != 1 {
+		t.Fatalf("a restart setting restarted at once: %d starts", n)
+	}
+	if got := turn("model"); got != "model: opus" {
 		t.Fatalf("restarted turn ran on %q", got)
 	}
 	if n := len(e.starts()); n != 2 {
@@ -394,9 +422,209 @@ func TestThePromptChangesTheOptionsFromItsTurnOn(t *testing.T) {
 	if states[len(states)-3] != runtime.StateStarting {
 		t.Fatalf("the restart is not reported as starting: %v", states)
 	}
-	// An option the driver does not declare is refused before anything is written.
-	if err := e.m.PromptWith("s1", runtime.Prompt{Text: "x", Options: runtime.Change{Model: "gpt-9"}}); !errors.Is(err, runtime.ErrOptionNotDeclared) {
-		t.Fatalf("undeclared model: %v", err)
+	// A setting or value the driver does not declare is refused.
+	for _, c := range []struct {
+		id    string
+		value any
+	}{{"model", "gpt-9"}, {"model", true}, {"thinking", "yes"}, {"mode", "plan"}} {
+		if err := e.m.SetConfig("s1", c.id, c.value); !errors.Is(err, runtime.ErrOptionNotDeclared) {
+			t.Fatalf("%s=%v: %v", c.id, c.value, err)
+		}
+	}
+}
+
+// gatedDriver holds Start until the gate opens, so a test can change a value while the process is not
+// returned yet.
+type gatedDriver struct {
+	*claude.Driver
+	gate chan struct{}
+}
+
+func (g gatedDriver) Start(ctx context.Context, spec runtime.StartSpec) (runtime.Process, error) {
+	<-g.gate
+	return g.Driver.Start(ctx, spec)
+}
+
+// A value set while the process starts reaches the first turn: a model switches in place before the prompt, a
+// restart setting restarts before it.
+func TestValuesSetWhileTheProcessStartsReachTheFirstTurn(t *testing.T) {
+	for name, gated := range map[string]bool{"process not returned": true, "waiting for ready": false} {
+		t.Run(name, func(t *testing.T) {
+			var gate chan struct{}
+			if gated {
+				gate = make(chan struct{})
+			} else {
+				t.Setenv("FAKE_CLAUDE_INIT_DELAY_MS", "500")
+			}
+			e := newEnv(t, func(c *runtime.Config) {
+				if gated {
+					c.Driver = gatedDriver{Driver: c.Driver.(*claude.Driver), gate: gate}
+				}
+			})
+			e.session("s1")
+			if err := e.m.Prompt("s1", "options"); err != nil {
+				t.Fatal(err)
+			}
+			e.rec.waitState(t, "s1", runtime.StateStarting)
+			if err := e.m.SetConfig("s1", "model", "opus"); err != nil {
+				t.Fatal(err)
+			}
+			if err := e.m.SetConfig("s1", "fast", true); err != nil {
+				t.Fatal(err)
+			}
+			if gated {
+				close(gate)
+			}
+			e.rec.waitFor(t, "the turn", func() bool {
+				s := e.rec.states("s1")
+				return len(s) > 2 && s[len(s)-1] == runtime.StateReady
+			})
+			if got := textOf(e, "s1", 0); got != "model: opus thinking: enabled fast: true" {
+				t.Fatalf("the first turn ran on %q", got)
+			}
+			starts := e.starts()
+			if gated {
+				// The values were snapshotted before the change, so the first process is replaced.
+				if len(starts) != 2 || !strings.Contains(strings.Join(starts[1].Args, " "), "--model opus") {
+					t.Fatalf("starts = %+v", starts)
+				}
+			} else if len(starts) != 2 {
+				t.Fatalf("starts = %d, want the restart for fast", len(starts))
+			}
+			last, _ := e.rec.lastState("s1")
+			for _, o := range last.Config {
+				if o.ID == "model" && o.Current != "opus" {
+					t.Fatalf("reported %v", o.Current)
+				}
+			}
+		})
+	}
+}
+
+// Switching a running process to `default` goes to the configured model, as starting a process does.
+func TestTheDefaultModelIsTheConfiguredOneWhenSwitchingToo(t *testing.T) {
+	e := newEnv(t, func(c *runtime.Config) {
+		c.Driver = claude.New(claude.Options{Bin: runtimetest.Build(t), Model: "haiku"})
+	})
+	e.session("s1")
+	turn := func() string {
+		t.Helper()
+		from, n := len(e.rec.outputs("s1")), len(e.rec.states("s1"))
+		if err := e.m.Prompt("s1", "model"); err != nil {
+			t.Fatal(err)
+		}
+		e.rec.waitFor(t, "the turn", func() bool {
+			s := e.rec.states("s1")
+			return len(s) > n+1 && s[len(s)-1] == runtime.StateReady
+		})
+		return textOf(e, "s1", from)
+	}
+	if got := turn(); got != "model: haiku" {
+		t.Fatalf("first turn ran on %q", got)
+	}
+	for model, want := range map[string]string{"opus": "model: opus", "default": "model: haiku"} {
+		if err := e.m.SetConfig("s1", "model", model); err != nil {
+			t.Fatal(err)
+		}
+		if got := turn(); got != want {
+			t.Fatalf("after %s the turn ran on %q, want %q", model, got, want)
+		}
+	}
+}
+
+func TestAModelSetWhileTheProcessStartsSwitchesInPlace(t *testing.T) {
+	t.Setenv("FAKE_CLAUDE_INIT_DELAY_MS", "500")
+	e := newEnv(t, nil)
+	e.session("s1")
+	if err := e.m.Prompt("s1", "model"); err != nil {
+		t.Fatal(err)
+	}
+	e.rec.waitState(t, "s1", runtime.StateStarting)
+	if err := e.m.SetConfig("s1", "model", "sonnet"); err != nil {
+		t.Fatal(err)
+	}
+	e.rec.waitFor(t, "the turn", func() bool {
+		s := e.rec.states("s1")
+		return len(s) > 2 && s[len(s)-1] == runtime.StateReady
+	})
+	if got := textOf(e, "s1", 0); got != "model: sonnet" {
+		t.Fatalf("the first turn ran on %q", got)
+	}
+	if n := len(e.starts()); n != 1 {
+		t.Fatalf("starts = %d, want the model switched in place", n)
+	}
+}
+
+// nowDriver declares one ApplyNow setting whose process refuses every switch.
+type nowDriver struct{}
+
+func (nowDriver) Name() string                       { return "now" }
+func (nowDriver) Capabilities() []runtime.Capability { return nil }
+func (nowDriver) Config() []runtime.ConfigOption {
+	return []runtime.ConfigOption{{
+		ID: "mode", Name: "Mode", Type: runtime.ConfigSelect, Current: "a", Apply: runtime.ApplyNow,
+		Options: []runtime.ConfigValue{{Value: "a", Name: "a"}, {Value: "b", Name: "b"}},
+	}}
+}
+func (nowDriver) Start(context.Context, runtime.StartSpec) (runtime.Process, error) {
+	p := &refusingProcess{events: make(chan runtime.ProcessEvent, 4)}
+	p.events <- runtime.Ready{}
+	return p, nil
+}
+
+type refusingProcess struct{ events chan runtime.ProcessEvent }
+
+func (p *refusingProcess) Events() <-chan runtime.ProcessEvent { return p.events }
+func (p *refusingProcess) Prompt(runtime.Prompt) error {
+	p.events <- runtime.StateChanged{State: runtime.StateRunning}
+	p.events <- runtime.TurnResult{}
+	p.events <- runtime.StateChanged{State: runtime.StateReady}
+	return nil
+}
+func (p *refusingProcess) Set(string, any) error             { return errors.New("refused") }
+func (p *refusingProcess) Answer(string, bool, string) error { return nil }
+func (p *refusingProcess) Interrupt() error                  { return nil }
+func (p *refusingProcess) Close() error                      { close(p.events); return nil }
+func (p *refusingProcess) Kill() error                       { return nil }
+
+func TestAnApplyNowSettingTheProcessRefusesKeepsItsOldValue(t *testing.T) {
+	rec := newRecorder()
+	m := runtime.NewManager(runtime.Config{
+		Driver: nowDriver{},
+		Locate: func(string) (runtime.Location, error) { return runtime.Location{Dir: t.TempDir()}, nil },
+		Emit:   rec.emit, MaxIdle: 5,
+	})
+	t.Cleanup(func() { m.Shutdown(context.Background()) })
+	if err := m.Prompt("s1", "x"); err != nil {
+		t.Fatal(err)
+	}
+	rec.waitFor(t, "ready", func() bool {
+		s := rec.states("s1")
+		return len(s) >= 3 && s[len(s)-1] == runtime.StateReady
+	})
+	if err := m.SetConfig("s1", "mode", "b"); err == nil {
+		t.Fatalf("a refused switch was reported as done; states %v", rec.states("s1"))
+	}
+	last, _ := rec.lastState("s1")
+	if last.Config[0].Current != "a" {
+		t.Fatalf("reported %v, but the process still has a", last.Config[0].Current)
+	}
+}
+
+func TestAnIdleSessionWithAChangedValueIsReported(t *testing.T) {
+	e := newEnv(t, nil)
+	e.session("s1")
+	if err := e.m.SetConfig("s1", "fast", true); err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, st := range e.m.States() {
+		if st.SessionID == "s1" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("States omits a session whose value was set")
 	}
 }
 
@@ -899,7 +1127,7 @@ func TestStatesReportsRunningProcesses(t *testing.T) {
 	if len(got) != 2 || got[0].SessionID != "s1" || got[0].State != runtime.StateReady || got[1].State != runtime.StateRunning {
 		t.Fatalf("States = %+v", got)
 	}
-	if len(got[0].Capabilities) != 6 {
+	if len(got[0].Capabilities) != 3 {
 		t.Fatalf("capabilities = %v", got[0].Capabilities)
 	}
 }
@@ -919,8 +1147,7 @@ func newSessionFile(t *testing.T, e *env, id string) string {
 
 func TestCreateStartsANewSessionWithoutResuming(t *testing.T) {
 	e := newEnv(t, nil)
-	on := true
-	id, err := e.m.Create(e.workdir, "say hello", runtime.StartOptions{Model: "opus", Thinking: &on, Fast: true})
+	id, err := e.m.Create(e.workdir, "say hello", map[string]any{"model": "opus", "thinking": true, "fast": true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -944,8 +1171,8 @@ func TestCreateStartsANewSessionWithoutResuming(t *testing.T) {
 		t.Fatalf("a new session resumes nothing: %q", args)
 	}
 	last, _ := e.rec.lastState(id)
-	if len(last.Models) != 3 {
-		t.Fatalf("models = %v", last.Models)
+	if len(last.Config) != 3 || last.Config[0].Current != "opus" || last.Config[2].Current != true {
+		t.Fatalf("config = %+v", last.Config)
 	}
 
 	// The prompt is in the file Claude Code created, and the session is driven like any other.
@@ -969,7 +1196,7 @@ func TestCreateStartsANewSessionWithoutResuming(t *testing.T) {
 
 func TestCreateRefusesOptionsTheDriverDoesNotDeclare(t *testing.T) {
 	e := newEnv(t, nil)
-	if _, err := e.m.Create(e.workdir, "say x", runtime.StartOptions{Model: "gpt-9"}); !errors.Is(err, runtime.ErrOptionNotDeclared) {
+	if _, err := e.m.Create(e.workdir, "say x", map[string]any{"model": "gpt-9"}); !errors.Is(err, runtime.ErrOptionNotDeclared) {
 		t.Fatalf("model: %v", err)
 	}
 	if n := len(e.starts()); n != 0 {
@@ -980,7 +1207,7 @@ func TestCreateRefusesOptionsTheDriverDoesNotDeclare(t *testing.T) {
 func TestNewSessionWhoseProcessExitsFailsWithoutAFile(t *testing.T) {
 	t.Setenv("FAKE_CLAUDE_EXIT_ON_START", "1")
 	e := newEnv(t, nil)
-	id, err := e.m.Create(e.workdir, "say x", runtime.StartOptions{})
+	id, err := e.m.Create(e.workdir, "say x", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

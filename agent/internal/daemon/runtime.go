@@ -137,19 +137,14 @@ func isState(ev runtime.Event) bool {
 	return ok
 }
 
-func capabilities(caps []runtime.Capability, models []string) sync.RuntimeCapabilities {
-	out := sync.RuntimeCapabilities{Models: []string{}}
-	out.Models = append(out.Models, models...)
+func capabilities(caps []runtime.Capability, config []runtime.ConfigOption) sync.RuntimeCapabilities {
+	out := sync.RuntimeCapabilities{Config: wireConfig(config)}
 	for _, c := range caps {
 		switch c {
 		case runtime.CapPermissions:
 			out.Permissions = true
 		case runtime.CapInterrupt:
 			out.Interrupt = true
-		case runtime.CapThinking:
-			out.Thinking = true
-		case runtime.CapFast:
-			out.Fast = true
 		case runtime.CapImages:
 			out.Images = true
 		}
@@ -157,10 +152,20 @@ func capabilities(caps []runtime.Capability, models []string) sync.RuntimeCapabi
 	return out
 }
 
-// wireOptions are a session's options as runtime.state reports them; Fast is always said.
-func wireOptions(o runtime.StartOptions) *sync.RuntimeStartOptions {
-	fast := o.Fast
-	return &sync.RuntimeStartOptions{Model: o.Model, Thinking: o.Thinking, Fast: &fast}
+// wireConfig is the driver's settings as the wire says them; the list is never null.
+func wireConfig(config []runtime.ConfigOption) []sync.ConfigOption {
+	out := make([]sync.ConfigOption, 0, len(config))
+	for _, o := range config {
+		w := sync.ConfigOption{
+			Type: string(o.Type), ID: o.ID, Name: o.Name, Description: o.Description, Category: o.Category,
+			CurrentValue: o.Current,
+		}
+		for _, v := range o.Options {
+			w.Options = append(w.Options, sync.ConfigValue{Value: v.Value, Name: v.Name, Description: v.Description, Risk: v.Risk})
+		}
+		out = append(out, w)
+	}
+	return out
 }
 
 func wireMessage(ev runtime.Event) any {
@@ -168,8 +173,7 @@ func wireMessage(ev runtime.Event) any {
 	case runtime.StateEvent:
 		return sync.RuntimeState{
 			V: sync.ProtocolVersion, Type: sync.TypeRuntimeState, SessionID: ev.SessionID,
-			State: string(ev.State), Error: ev.Error, Capabilities: capabilities(ev.Capabilities, ev.Models),
-			Options: wireOptions(ev.Options),
+			State: string(ev.State), Error: ev.Error, Capabilities: capabilities(ev.Capabilities, ev.Config),
 		}
 	case runtime.OutputEvent:
 		o := ev.Output
@@ -195,15 +199,15 @@ func wireMessage(ev runtime.Event) any {
 // hooks are the handlers of the core's remote control messages.
 func (b *bridge) hooks() sync.RuntimeHooks {
 	return sync.RuntimeHooks{
-		Prompt: func(sessionID, text string, ids []string, options *sync.RuntimeStartOptions) error {
+		Prompt: func(sessionID, text string, ids []string) error {
 			p, err := b.att.prompt(text, ids)
 			if err != nil {
 				return err
 			}
-			if options != nil {
-				p.Options = runtime.Change{Model: options.Model, Thinking: options.Thinking, Fast: options.Fast}
-			}
 			return b.mgr.PromptWith(sessionID, p)
+		},
+		Config: func(sessionID, configID string, value any) error {
+			return b.mgr.SetConfig(sessionID, configID, value)
 		},
 		Answer: func(sessionID, requestID string, allow bool) error {
 			return b.mgr.Permission(sessionID, requestID, allow)
@@ -219,7 +223,7 @@ func (b *bridge) hooks() sync.RuntimeHooks {
 // options of a new session before any session exists.
 func (b *bridge) providers() []sync.ProviderInfo {
 	d := b.mgr.Driver()
-	info := sync.ProviderInfo{Provider: d.Name(), Capabilities: capabilities(d.Capabilities(), d.Models())}
+	info := sync.ProviderInfo{Provider: d.Name(), Capabilities: capabilities(d.Capabilities(), d.Config())}
 	if vd, ok := d.(runtime.Versioned); ok {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()

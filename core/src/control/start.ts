@@ -3,8 +3,7 @@ import {
   PROTOCOL_VERSION,
   type ProviderInfo,
   type RuntimeStart,
-  type StartOptions,
-  undeclaredOption,
+  undeclaredConfig,
 } from '@hoplet/shared';
 import { log } from '../log/index.ts';
 import { askWaiter } from './pending.ts';
@@ -22,10 +21,11 @@ function sameDir(a: string, b: string): boolean {
   return trim(a) === trim(b);
 }
 
-/** The first option the provider's capabilities do not declare, or null when all are. */
-function undeclared(options: StartOptions, info: ProviderInfo, images: number): string | null {
-  if (images > 0 && !info.capabilities.images) return 'images';
-  return undeclaredOption(options, info.capabilities);
+/** What the provider's capabilities do not declare in the request (`images` or `config`), or null. */
+function undeclared(req: StartRequest, info: ProviderInfo): 'images' | 'config' | null {
+  if ((req.attachments?.length ?? 0) > 0 && !info.capabilities.images) return 'images';
+  if (req.config && undeclaredConfig(req.config, info.capabilities) !== null) return 'config';
+  return null;
 }
 
 /**
@@ -54,8 +54,8 @@ export function createStart(state: ControlState, listProjects: Control['listProj
     });
     const info = state.providers.get(req.deviceId)?.find((p) => p.provider === req.provider);
     if (!info) return refuse('provider');
-    const option = undeclared(req.options, info, req.attachments?.length ?? 0);
-    if (option) return refuse(option);
+    const missing = undeclared(req, info);
+    if (missing) return refuse(missing);
 
     const listing = await listProjects(req.deviceId);
     if (!listing.ok) {
@@ -85,7 +85,7 @@ export function createStart(state: ControlState, listProjects: Control['listProj
       requestId,
       projectPath: project.path,
       provider: req.provider,
-      options: req.options,
+      ...(req.config && Object.keys(req.config).length > 0 ? { config: req.config } : {}),
       text: req.text,
       ...(req.attachments && req.attachments.length > 0 ? { attachments: req.attachments } : {}),
       promptId,

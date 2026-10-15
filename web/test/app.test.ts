@@ -23,9 +23,33 @@ const B = 'bbbbbbbb-2222-4333-8444-555555555555';
 const caps = {
   permissions: true,
   interrupt: true,
-  thinking: true,
-  fast: true,
-  models: ['opus-5.5', 'haiku-5'],
+  config: [
+    {
+      type: 'select' as const,
+      id: 'model',
+      name: 'Model',
+      category: 'model',
+      currentValue: 'opus-5.5',
+      options: [
+        { value: 'opus-5.5', name: 'opus-5.5' },
+        { value: 'haiku-5', name: 'haiku-5' },
+      ],
+    },
+    {
+      type: 'boolean' as const,
+      id: 'thinking',
+      name: 'Thinking',
+      category: 'thought_level',
+      currentValue: true,
+    },
+    {
+      type: 'boolean' as const,
+      id: 'fast',
+      name: 'Fast',
+      category: 'model_config',
+      currentValue: false,
+    },
+  ],
 };
 const meta = (sessionId: string, title: string, over: Partial<LiveSessionMeta> = {}) =>
   ({
@@ -290,7 +314,7 @@ async function type(text: string) {
 }
 const click = async (el: Element | null) => act(async () => (el as HTMLElement).click());
 
-it('starts a session from a draft with the options its machine declares, then selects it', async () => {
+it('starts a session from a draft with the config its machine declares, then selects it', async () => {
   api.postNewSession.mockImplementation(async () => {
     api.fetchSessions.mockResolvedValue({
       sessions: [
@@ -312,21 +336,21 @@ it('starts a session from a draft with the options its machine declares, then se
   expect(q('cockpit.draft-directory')?.getAttribute('aria-label')).toBe('Directory, hoplet');
   // The branch is the one the catalog reads in the directory.
   expect(q('cockpit.where-branch')?.textContent).toBe('main');
-  // Only what the machine declares is offered: a model list, thinking and fast.
+  // Only what the machine declares is offered: the options of the driver, as radio lists and switches.
   await click(q('cockpit.model'));
   const models = [...host.querySelectorAll('[data-testid="cockpit.model-option"]')];
   expect(models.map((m) => m.textContent)).toEqual(['opus-5.5', 'haiku-5']);
   await click(models[1] ?? null);
-  await click(q('cockpit.fast'));
-  expect(q('cockpit.thinking')?.getAttribute('aria-checked')).toBe('true');
-  expect(q('cockpit.fast')?.getAttribute('aria-checked')).toBe('true');
+  await click(q('cockpit.config.fast'));
+  expect(q('cockpit.config.thinking')?.getAttribute('aria-checked')).toBe('true');
+  expect(q('cockpit.config.fast')?.getAttribute('aria-checked')).toBe('true');
   await type('build it');
   await click(q('cockpit.send'));
   expect(api.postNewSession).toHaveBeenCalledWith({
     deviceId: 'dev-mac',
     projectPath: '/repo/hoplet',
     provider: 'claude',
-    options: { model: 'haiku-5', thinking: true, fast: true },
+    config: { model: 'haiku-5', fast: true },
     text: 'build it',
     attachments: [],
   });

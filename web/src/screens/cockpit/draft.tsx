@@ -1,4 +1,4 @@
-import type { PromptImage } from '@hoplet/shared';
+import type { PromptImage, SessionConfig } from '@hoplet/shared';
 import { useEffect, useMemo, useState } from 'react';
 import { Icon } from '../../components/icons.tsx';
 import { providerName } from '../../components/provider-marks.tsx';
@@ -7,7 +7,7 @@ import { postAttachment } from '../../lib/api.ts';
 import { errorText } from '../../lib/errors.ts';
 import { t } from '../../lib/i18n.ts';
 import { Composer } from './composer/composer.tsx';
-import { hasChoices, type ModelChoice, ModelMenu } from './composer/model-menu.tsx';
+import { hasChoices, ModelMenu, withValues } from './composer/model-menu.tsx';
 import { BranchPart, WhereRow } from './composer/where.tsx';
 import type { NewSessionRequest, SessionTarget } from './model.ts';
 import type { ComposerView } from './runtime.ts';
@@ -73,19 +73,15 @@ export function Draft(props: {
   }, [machine, path, where.deviceName, where.path, onWhere]);
 
   const providers = target?.providers ?? [];
-  const [picked, setPicked] = useState<ModelChoice>({
-    provider: providers[0]?.provider ?? 'claude',
-    model: '',
-    thinking: true,
-    fast: false,
-  });
-  const provider = providers.find((p) => p.provider === picked.provider) ?? providers[0];
+  // The provider and the option values this window picked; an option left alone keeps the driver's default.
+  const [pickedProvider, setPickedProvider] = useState(providers[0]?.provider ?? 'claude');
+  const [picked, setPicked] = useState<SessionConfig>({});
+  const provider = providers.find((p) => p.provider === pickedProvider) ?? providers[0];
   const caps = provider?.capabilities;
-  const choice: ModelChoice = {
-    ...picked,
-    provider: provider?.provider ?? picked.provider,
-    model: caps?.models.includes(picked.model) ? picked.model : (caps?.models[0] ?? ''),
-  };
+  // Only picks the provider declares still hold.
+  const config: SessionConfig = Object.fromEntries(
+    Object.entries(picked).filter(([id]) => caps?.config.some((o) => o.id === id)),
+  );
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -123,11 +119,7 @@ export function Draft(props: {
         deviceName: target.deviceName,
         path,
         provider: provider.provider,
-        options: {
-          ...(caps.models.length > 0 ? { model: choice.model } : {}),
-          ...(caps.thinking ? { thinking: choice.thinking } : {}),
-          ...(caps.fast ? { fast: choice.fast } : {}),
-        },
+        config,
         prompt: text,
         attachments,
       });
@@ -201,8 +193,13 @@ export function Draft(props: {
               hasChoices(providers, provider) ? (
                 <ModelMenu
                   providers={providers}
-                  value={choice}
-                  onChange={setPicked}
+                  provider={provider?.provider ?? pickedProvider}
+                  config={withValues(caps?.config, config)}
+                  onProvider={(next) => {
+                    setPickedProvider(next);
+                    setPicked({});
+                  }}
+                  onChange={(id, value) => setPicked((cur) => ({ ...cur, [id]: value }))}
                   disabled={busy}
                   initialOpen={open === 'model'}
                 />

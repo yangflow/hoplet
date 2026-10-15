@@ -166,7 +166,6 @@ export default function App() {
             state: msg.state,
             ...(msg.capabilities ? { capabilities: msg.capabilities } : {}),
             ...(msg.error !== undefined ? { error: msg.error } : {}),
-            ...(msg.options !== undefined ? { options: msg.options } : {}),
           };
           socketRuntime.current.set(msg.sessionId, { info, at: Date.now() });
           setRuntime((cur) => ({ ...cur, [msg.sessionId]: info }));
@@ -209,7 +208,7 @@ export default function App() {
         deviceId: request.deviceId,
         projectPath: request.path,
         provider: request.provider,
-        options: request.options,
+        config: request.config,
         text: request.prompt,
         attachments: request.attachments,
       });

@@ -2,23 +2,70 @@ import * as v from 'valibot';
 import { AttachmentIdSchema } from './ids.ts';
 import { ProviderSchema } from './session.ts';
 
+/** One value of a `select` option: what a session's setting is set to, with the name a client shows. */
+export const ConfigValueSchema = v.object({
+  value: v.pipe(v.string(), v.minLength(1), v.maxLength(128)),
+  name: v.string(),
+  description: v.optional(v.string()),
+  /** `high` marks a value with a high risk (ADR 0018); clients mark it. */
+  risk: v.optional(v.picklist(['high'])),
+});
+export type ConfigValue = v.InferOutput<typeof ConfigValueSchema>;
+
+const configOptionFields = {
+  id: v.pipe(v.string(), v.minLength(1), v.maxLength(64)),
+  name: v.string(),
+  description: v.optional(v.string()),
+  /** Free text; ACP reserves `mode`, `model`, `model_config` and `thought_level`. */
+  category: v.optional(v.string()),
+};
+
+/**
+ * A setting of a session as its runtime driver declares it (ADR 0018), shaped as an ACP session config option.
+ * In a provider's capabilities `currentValue` is the default of a new session; in a session's runtime state it
+ * is that session's value. The list's order is the driver's priority.
+ */
+export const ConfigOptionSchema = v.variant('type', [
+  v.object({
+    type: v.literal('select'),
+    ...configOptionFields,
+    options: v.array(ConfigValueSchema),
+    currentValue: v.string(),
+  }),
+  v.object({
+    type: v.literal('boolean'),
+    ...configOptionFields,
+    currentValue: v.boolean(),
+  }),
+]);
+export type ConfigOption = v.InferOutput<typeof ConfigOptionSchema>;
+
+/** The value of one option: a value of a `select`, or the state of a `boolean`. */
+export const ConfigSettingSchema = v.union([ConfigValueSchema.entries.value, v.boolean()]);
+export type ConfigSetting = v.InferOutput<typeof ConfigSettingSchema>;
+
+/** The values a new session starts with, by option ID; an option left out keeps its default. */
+export const SessionConfigSchema = v.record(configOptionFields.id, ConfigSettingSchema);
+export type SessionConfig = v.InferOutput<typeof SessionConfigSchema>;
+
+/** One change of a running session's setting. */
+export const ConfigChangeSchema = v.object({
+  configId: configOptionFields.id,
+  value: ConfigSettingSchema,
+});
+export type ConfigChange = v.InferOutput<typeof ConfigChangeSchema>;
+
 /**
  * What a runtime driver declares it can do; the UI shows only the controls a session's driver supports.
- * `fast` and `thinking` are start options of a new session; `models` lists the model IDs a new session can
- * choose from and is empty when the driver cannot choose; `images` says a prompt may carry images. A prompt to
- * an existing session may change the same options a new session starts with.
+ * `permissions` and `interrupt` are the controls of a turn, `images` says a prompt may carry images, and
+ * `config` lists the settings of a session (ADR 0018).
  */
 export const RuntimeCapabilitiesSchema = v.object({
   permissions: v.boolean(),
   interrupt: v.boolean(),
-  thinking: v.boolean(),
-  fast: v.boolean(),
-  models: v.array(v.string()),
   images: v.optional(v.boolean()),
+  config: v.array(ConfigOptionSchema),
 });
-
-/** A model ID as a driver lists it in `models`. */
-export const ModelIdSchema = v.pipe(v.string(), v.minLength(1), v.maxLength(128));
 export type RuntimeCapabilities = v.InferOutput<typeof RuntimeCapabilitiesSchema>;
 
 /**
@@ -35,25 +82,25 @@ export const ProviderInfoSchema = v.object({
 });
 export type ProviderInfo = v.InferOutput<typeof ProviderInfoSchema>;
 
-/** The options of a new session; only what the provider's capabilities declare is accepted. */
-export const StartOptionsSchema = v.object({
-  model: v.optional(ModelIdSchema),
-  thinking: v.optional(v.boolean()),
-  fast: v.optional(v.boolean()),
-});
-export type StartOptions = v.InferOutput<typeof StartOptionsSchema>;
+/** Whether `value` is a setting `option` accepts: a declared value of a `select`, a boolean for a `boolean`. */
+function accepts(option: ConfigOption, value: ConfigSetting): boolean {
+  if (option.type === 'boolean') return typeof value === 'boolean';
+  return typeof value === 'string' && option.options.some((o) => o.value === value);
+}
 
 /**
- * The option a driver with `caps` does not declare, or null: a model outside `models`, Thinking without
- * `thinking`, Fast without `fast`. A new session's options and a prompt's changes are checked alike.
+ * The ID of the first setting of `values` that `caps` does not declare, or null: an unknown option, a value
+ * of the wrong type or a `select` value outside its options. A new session's config and a change are checked
+ * alike (pass a change as `{ [configId]: value }`).
  */
-export function undeclaredOption(
-  options: StartOptions,
+export function undeclaredConfig(
+  values: Record<string, ConfigSetting>,
   caps: RuntimeCapabilities,
-): 'model' | 'thinking' | 'fast' | null {
-  if (options.model !== undefined && !caps.models.includes(options.model)) return 'model';
-  if (options.thinking !== undefined && !caps.thinking) return 'thinking';
-  if (options.fast !== undefined && !caps.fast) return 'fast';
+): string | null {
+  for (const [id, value] of Object.entries(values)) {
+    const option = caps.config.find((o) => o.id === id);
+    if (!option || !accepts(option, value)) return id;
+  }
   return null;
 }
 

@@ -1,4 +1,4 @@
-import type { Provider, ProviderInfo, RuntimeState, StartOptions } from '@hoplet/shared';
+import type { Provider, ProviderInfo, RuntimeState, SessionConfig } from '@hoplet/shared';
 
 export type { ProviderInfo, RuntimeState };
 
@@ -9,13 +9,13 @@ export function glyphState(state: RuntimeState): GlyphState | null {
   return state === 'idle' || state === 'offline' ? null : state;
 }
 
-/** What New session submits: the options hold only what the provider's capabilities declare. */
+/** What New session submits: `config` holds only the options the user picked. */
 export type NewSessionRequest = {
   deviceId: string;
   deviceName: string;
   path: string;
   provider: Provider;
-  options: StartOptions;
+  config: SessionConfig;
   prompt: string;
   /** The IDs of the images uploaded to the device for the first prompt. */
   attachments: string[];

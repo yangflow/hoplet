@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"sort"
 	"sync"
@@ -41,10 +42,8 @@ type StateEvent struct {
 	State        State
 	Error        string // set in StateFailed
 	Capabilities []Capability
-	Models       []string
-	// Options are what the session's processes run with: the model ("" is the vendor's default), Thinking
-	// once a process started, and Fast.
-	Options StartOptions
+	// Config is the driver's settings, each with this session's value as Current.
+	Config []ConfigOption
 }
 
 // OutputEvent is streamed content of a session's running turn.
@@ -105,10 +104,17 @@ type session struct {
 
 	// fresh: the vendor has not created the session yet, so the first process creates it instead of resuming.
 	fresh bool
-	opts  StartOptions // chosen when the session was created; every process of the session starts with them
+	// vals are the session's value of every setting by option ID, nil until the session first needs them; every
+	// process of the session starts with them. changed says a value was set, so the session is reported even
+	// when idle.
+	vals    map[string]any
+	changed bool
+	// started holds the values the current process has: those it started with, then those it switched to. What
+	// differs from vals is a change the process has not taken yet.
+	started map[string]any
 
 	pendingPrompt *Prompt
-	// restartWith is the prompt that waits for the process to exit and a new one to start with new options.
+	// restartWith is the prompt that waits for the process to exit and a new one to start with the new values.
 	restartWith *Prompt
 	interrupted bool
 	turnErr     string
@@ -176,21 +182,85 @@ func (m *Manager) setState(s *session, st State, errText string) {
 func (m *Manager) stateEvent(s *session) StateEvent {
 	return StateEvent{
 		SessionID: s.id, State: s.state, Error: s.err,
-		Capabilities: m.cfg.Driver.Capabilities(), Models: m.cfg.Driver.Models(),
-		Options: s.opts,
+		Capabilities: m.cfg.Driver.Capabilities(), Config: m.configOf(s),
 	}
+}
+
+// configOf is the driver's settings with the session's values as Current.
+func (m *Manager) configOf(s *session) []ConfigOption {
+	out := m.cfg.Driver.Config()
+	for i := range out {
+		if v, ok := s.vals[out[i].ID]; ok {
+			out[i].Current = v
+		}
+	}
+	return out
+}
+
+// valuesOf is the session's values, starting from the driver's defaults.
+func (m *Manager) valuesOf(s *session) map[string]any {
+	if s.vals == nil {
+		s.vals = map[string]any{}
+		for _, o := range m.cfg.Driver.Config() {
+			s.vals[o.ID] = o.Current
+		}
+	}
+	return s.vals
+}
+
+// option is the driver's declaration of a setting.
+func (m *Manager) option(id string) (ConfigOption, bool) {
+	for _, o := range m.cfg.Driver.Config() {
+		if o.ID == id {
+			return o, true
+		}
+	}
+	return ConfigOption{}, false
+}
+
+// checkValue refuses a value the driver's declaration of the setting does not accept.
+func checkValue(o ConfigOption, value any) error {
+	switch o.Type {
+	case ConfigBoolean:
+		if _, ok := value.(bool); ok {
+			return nil
+		}
+	case ConfigSelect:
+		if v, ok := value.(string); ok {
+			for _, c := range o.Options {
+				if c.Value == v {
+					return nil
+				}
+			}
+		}
+	}
+	return fmt.Errorf("%w: %s=%v", ErrOptionNotDeclared, o.ID, value)
+}
+
+// checkConfig refuses values for settings the driver does not declare or declares otherwise.
+func (m *Manager) checkConfig(values map[string]any) error {
+	for id, value := range values {
+		o, ok := m.option(id)
+		if !ok {
+			return fmt.Errorf("%w: %s", ErrOptionNotDeclared, id)
+		}
+		if err := checkValue(o, value); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Driver is the vendor driver the Manager starts processes with.
 func (m *Manager) Driver() Driver { return m.cfg.Driver }
 
-// States lists the sessions that are not plainly idle, for the report after a reconnect.
+// States lists the sessions that are not plainly idle (or have a value set), for the report after a reconnect.
 func (m *Manager) States() []StateEvent {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	var out []StateEvent
 	for _, s := range m.sessions {
-		if s.state == StateIdle {
+		if s.state == StateIdle && !s.changed {
 			continue
 		}
 		out = append(out, m.stateEvent(s))
@@ -307,9 +377,6 @@ func (m *Manager) PromptWith(sessionID string, p Prompt) error {
 	if err := m.checkImages(p); err != nil {
 		return err
 	}
-	if err := m.checkChange(p.Options); err != nil {
-		return err
-	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.closed {
@@ -336,61 +403,101 @@ func (m *Manager) PromptWith(sessionID string, p Prompt) error {
 	if s.proc != nil && s.stopped { // an earlier process is still exiting
 		return ErrStarting
 	}
-	// The options hold from this turn on. A running process switches its model in place; any other change
-	// restarts it with the new options between turns, as a new session would start.
-	next := applyChange(s.opts, p.Options)
-	if s.proc != nil && !sameFlags(s.opts, next) {
-		s.opts = next
-		s.restartWith = &p
-		m.setState(s, StateStarting, "")
-		m.stopProcess(s)
-		return nil
-	}
-	if s.proc != nil && next.Model != s.opts.Model {
-		if err := s.proc.SetModel(next.Model); err != nil {
-			m.fail(s, fmt.Sprintf("set model: %v", err))
-			return nil
-		}
-	}
-	s.opts = next
 	if s.proc != nil {
-		return m.writePrompt(s, p)
+		return m.promptRunning(s, p)
 	}
 	m.startProcess(s, p)
 	return nil
 }
 
-// applyChange is opts with what a prompt changes.
-func applyChange(opts StartOptions, c Change) StartOptions {
-	if c.Model != "" {
-		opts.Model = c.Model
+// promptRunning writes a prompt to the session's ready process. The values hold from this turn on: a change an
+// ApplyRestart setting made restarts the process between turns with the values as flags, and the others are
+// switched in place before the prompt.
+func (m *Manager) promptRunning(s *session, p Prompt) error {
+	restart, err := m.reconcile(s)
+	if err != nil {
+		m.fail(s, fmt.Sprintf("set %v", err))
+		return nil
 	}
-	if c.Thinking != nil {
-		on := *c.Thinking
-		opts.Thinking = &on
+	if restart {
+		s.restartWith = &p
+		m.setState(s, StateStarting, "")
+		m.stopProcess(s)
+		return nil
 	}
-	if c.Fast != nil {
-		opts.Fast = *c.Fast
-	}
-	return opts
+	return m.writePrompt(s, p)
 }
 
-// sameFlags reports whether two option sets start a process alike apart from the model.
-func sameFlags(a, b StartOptions) bool {
-	return a.Fast == b.Fast && (a.Thinking == nil) == (b.Thinking == nil) &&
-		(a.Thinking == nil || *a.Thinking == *b.Thinking)
+// reconcile brings the process up to the session's values: it switches the ApplyNow and ApplyNextTurn settings
+// that differ, in the driver's order, and says whether an ApplyRestart setting differs, which only a restart
+// applies.
+func (m *Manager) reconcile(s *session) (restart bool, err error) {
+	var switches []ConfigOption
+	for _, o := range m.cfg.Driver.Config() {
+		if s.vals[o.ID] == s.started[o.ID] {
+			continue
+		}
+		if o.Apply == ApplyRestart {
+			return true, nil
+		}
+		switches = append(switches, o)
+	}
+	for _, o := range switches {
+		if err := s.proc.Set(o.ID, s.vals[o.ID]); err != nil {
+			return false, fmt.Errorf("%s: %w", o.ID, err)
+		}
+		s.started[o.ID] = s.vals[o.ID]
+	}
+	return false, nil
 }
 
-// Create starts a new session in dir with the options and the first prompt, and returns its ID. The vendor
-// creates the session's file when it takes the prompt; progress is reported through Emit like any session's.
-// An option the driver does not declare is ErrOptionNotDeclared.
-func (m *Manager) Create(dir, text string, opts StartOptions) (string, error) {
-	return m.CreateWith(dir, Prompt{Text: text}, opts)
+// SetConfig sets one setting of a session (ADR 0018) and reports the session's values. It works whatever the
+// session's state and with or without a process. With a process, an ApplyNow setting is switched at once, an
+// ApplyNextTurn one before the next prompt is written, and an ApplyRestart one restarts the process when the
+// next prompt arrives; without one, the next process starts with the value.
+func (m *Manager) SetConfig(sessionID, id string, value any) error {
+	o, ok := m.option(id)
+	if !ok {
+		return fmt.Errorf("%w: %s", ErrOptionNotDeclared, id)
+	}
+	if err := checkValue(o, value); err != nil {
+		return err
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.closed {
+		return errors.New("runtime is shutting down")
+	}
+	s := m.get(sessionID)
+	vals := m.valuesOf(s)
+	old := vals[id]
+	vals[id] = value
+	s.changed = true
+	// Every other change waits in vals for the process to take it: before the next prompt, or when a process
+	// that is still starting is ready.
+	if o.Apply == ApplyNow && s.proc != nil && !s.stopped && s.state != StateStarting {
+		if err := s.proc.Set(id, value); err != nil {
+			vals[id] = old // the reported value stays the process's
+			m.cfg.Emit(m.stateEvent(s))
+			return fmt.Errorf("set %s: %w", id, err)
+		}
+		s.started[id] = value
+	}
+	m.cfg.Emit(m.stateEvent(s))
+	return nil
+}
+
+// Create starts a new session in dir with the settings in config (an option left out keeps its default) and
+// the first prompt, and returns its ID. The vendor creates the session's file when it takes the prompt;
+// progress is reported through Emit like any session's. A setting the driver does not declare is
+// ErrOptionNotDeclared.
+func (m *Manager) Create(dir, text string, config map[string]any) (string, error) {
+	return m.CreateWith(dir, Prompt{Text: text}, config)
 }
 
 // CreateWith is Create with images in the first prompt.
-func (m *Manager) CreateWith(dir string, p Prompt, opts StartOptions) (string, error) {
-	if err := m.checkOptions(opts); err != nil {
+func (m *Manager) CreateWith(dir string, p Prompt, config map[string]any) (string, error) {
+	if err := m.checkConfig(config); err != nil {
 		return "", err
 	}
 	if err := m.checkImages(p); err != nil {
@@ -407,17 +514,13 @@ func (m *Manager) CreateWith(dir string, p Prompt, opts StartOptions) (string, e
 	}
 	s := m.get(id)
 	s.loc = Location{Dir: dir}
-	s.fresh, s.opts = true, opts
+	s.fresh = true
+	for k, v := range config {
+		m.valuesOf(s)[k] = v
+	}
+	m.valuesOf(s)
 	m.startProcess(s, p)
 	return id, nil
-}
-
-// checkChange refuses a change of an option the driver does not declare, as a new session's options are.
-func (m *Manager) checkChange(c Change) error {
-	if c.Fast != nil && !m.declares(CapFast) {
-		return fmt.Errorf("%w: fast", ErrOptionNotDeclared)
-	}
-	return m.checkOptions(StartOptions{Model: c.Model, Thinking: c.Thinking})
 }
 
 func (m *Manager) declares(c Capability) bool {
@@ -440,28 +543,6 @@ func (m *Manager) checkImages(p Prompt) error {
 		}
 	}
 	return fmt.Errorf("%w: images", ErrOptionNotDeclared)
-}
-
-func (m *Manager) checkOptions(o StartOptions) error {
-	declared := map[Capability]bool{}
-	for _, c := range m.cfg.Driver.Capabilities() {
-		declared[c] = true
-	}
-	if o.Thinking != nil && !declared[CapThinking] {
-		return fmt.Errorf("%w: thinking", ErrOptionNotDeclared)
-	}
-	if o.Fast && !declared[CapFast] {
-		return fmt.Errorf("%w: fast", ErrOptionNotDeclared)
-	}
-	if o.Model != "" {
-		for _, id := range m.cfg.Driver.Models() {
-			if id == o.Model {
-				return nil
-			}
-		}
-		return fmt.Errorf("%w: model %q", ErrOptionNotDeclared, o.Model)
-	}
-	return nil
 }
 
 // newSessionID makes a random version 4 UUID, the form Claude Code accepts for --session-id.
@@ -515,15 +596,13 @@ func (m *Manager) startProcess(s *session, p Prompt) {
 	s.stopped = false
 	s.pendingPrompt = &p
 	s.interrupted, s.turnErr = false, ""
-	// Thinking is always explicit, so every window knows it: on unless the session chose it off.
-	if s.opts.Thinking == nil && m.declares(CapThinking) {
-		on := true
-		s.opts.Thinking = &on
-	}
 	m.setState(s, StateStarting, "")
 	ctx, cancel := context.WithCancel(context.Background())
 	s.cancel = cancel
-	spec := StartSpec{SessionID: s.id, Dir: s.loc.Dir, New: s.fresh, Options: s.opts}
+	// The new process starts with every value as it stands now; a change made while it starts is applied when
+	// it is ready.
+	s.started = maps.Clone(m.valuesOf(s))
+	spec := StartSpec{SessionID: s.id, Dir: s.loc.Dir, New: s.fresh, Config: maps.Clone(s.started)}
 	m.wg.Add(1)
 	go func() {
 		defer m.wg.Done()
@@ -583,7 +662,7 @@ func (m *Manager) handle(s *session, ev ProcessEvent) {
 		if s.pendingPrompt != nil {
 			p := *s.pendingPrompt
 			s.pendingPrompt = nil
-			_ = m.writePrompt(s, p)
+			_ = m.promptRunning(s, p)
 			return
 		}
 		m.becomeReady(s)

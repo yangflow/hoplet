@@ -11,13 +11,16 @@ import { AttachmentIdSchema, HandoffIdSchema, SessionIdSchema, SnapshotIdSchema 
 import { ChangeStatusSchema, WorkspaceChangeSchema } from '../rest/workspace.ts';
 import {
   AgentRuntimeStateSchema,
+  ConfigOptionSchema,
+  ConfigSettingSchema,
+  ConfigValueSchema,
   PermissionDecisionSchema,
   PROMPT_IMAGE_TYPES,
   ProviderInfoSchema,
   RuntimeCapabilitiesSchema,
   RuntimeOutputKindSchema,
   RuntimeStateSchema,
-  StartOptionsSchema,
+  SessionConfigSchema,
 } from '../runtime.ts';
 import { ProviderSchema, SessionMetaSchema } from '../session.ts';
 import { type Direction, defineWire, type Lane, list } from './define.ts';
@@ -178,9 +181,17 @@ export const WIRE_MESSAGES = defineWire({
       promptId: v.string(),
       text: v.string(),
       attachments: v.optional(list(AttachmentIdSchema)),
-      /** Changes the session's options from this turn on, as a new session's options are given. */
-      options: v.optional(StartOptionsSchema),
     },
+  },
+  /**
+   * Sets one setting of a session (ADR 0018). The agent applies it as the driver says (at once, before the next
+   * turn or by restarting the process between turns) and reports the session's settings in its next
+   * `runtime.state`. The core sends only declared settings; the agent drops one its driver does not declare.
+   */
+  'runtime.config': {
+    lane: 'control',
+    direction: 'core-to-device',
+    fields: { sessionId, configId: v.string(), value: ConfigSettingSchema },
   },
   'runtime.permission.answer': {
     lane: 'control',
@@ -189,7 +200,7 @@ export const WIRE_MESSAGES = defineWire({
   },
   /**
    * Starts a new session in `projectPath`, a watched project of the device: the agent starts the provider's
-   * process there with `options`, writes the prompt, imports the session the process creates and answers
+   * process there with `config`, writes the prompt, imports the session the process creates and answers
    * with `runtime.started`, or with `runtime.start.rejected`.
    */
   'runtime.start': {
@@ -199,7 +210,7 @@ export const WIRE_MESSAGES = defineWire({
       requestId,
       projectPath: v.string(),
       provider: ProviderSchema,
-      options: StartOptionsSchema,
+      config: v.optional(SessionConfigSchema),
       text: v.string(),
       attachments: v.optional(list(AttachmentIdSchema)),
       promptId: v.string(),
@@ -226,9 +237,8 @@ export const WIRE_MESSAGES = defineWire({
       sessionId,
       state: AgentRuntimeStateSchema,
       error: v.optional(v.string()),
+      /** `capabilities.config` carries this session's values. */
       capabilities: RuntimeCapabilitiesSchema,
-      /** What the session's processes run with: the model (absent for the vendor's default), Thinking, Fast. */
-      options: v.optional(StartOptionsSchema),
     },
   },
   /** Streamed content of the running turn; transient, the session file is the record. */
@@ -283,7 +293,6 @@ export const WIRE_MESSAGES = defineWire({
       state: RuntimeStateSchema,
       error: v.optional(v.string()),
       capabilities: v.optional(RuntimeCapabilitiesSchema),
-      options: v.optional(StartOptionsSchema),
     },
   },
   /**
@@ -652,6 +661,7 @@ export type SessionRejected = WireMessageOf<'session.rejected'>;
 export type WorkspaceSnapshot = WireMessageOf<'workspace.snapshot'>;
 export type SessionAppended = WireMessageOf<'session.appended'>;
 export type RuntimePrompt = WireMessageOf<'runtime.prompt'>;
+export type RuntimeConfig = WireMessageOf<'runtime.config'>;
 export type RuntimePermissionAnswer = WireMessageOf<'runtime.permission.answer'>;
 export type RuntimeStart = WireMessageOf<'runtime.start'>;
 export type RuntimeStarted = WireMessageOf<'runtime.started'>;
@@ -756,6 +766,7 @@ export const WIRE_OBJECTS = {
   DirEntry: DirEntrySchema,
   RuntimeCapabilities: RuntimeCapabilitiesSchema,
   ProviderInfo: ProviderInfoSchema,
-  RuntimeStartOptions: StartOptionsSchema,
+  ConfigOption: ConfigOptionSchema,
+  ConfigValue: ConfigValueSchema,
   WorkspaceChange: WorkspaceChangeSchema,
 } as const;

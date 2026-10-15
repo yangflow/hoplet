@@ -40,6 +40,9 @@ type process struct {
 	closed  bool
 
 	reqSeq atomic.Int64
+	// model is the model the driver is configured with; `default` switches to it rather than to Claude Code's
+	// own default, as a start without --model does.
+	model string
 
 	mu      sync.Mutex
 	pending map[string]pendingRequest // permission requests by request id, with the input to echo on allow
@@ -120,9 +123,17 @@ func (p *process) Answer(requestID string, allow bool, message string) error {
 	})
 }
 
-// SetModel asks Claude Code to use model from the next turn on. The request goes before the prompt that
-// follows it on the same input, so that turn already runs on the new model; a refusal is only logged.
-func (p *process) SetModel(model string) error {
+// Set switches the model with set_model (Claude Code accepts `default` and returns to its own default model); no other setting can change in a running process. The request goes
+// before the prompt that follows it on the same input, so that turn already runs on the new model; a refusal is
+// only logged.
+func (p *process) Set(id string, value any) error {
+	model, ok := value.(string)
+	if id != optModel || !ok {
+		return fmt.Errorf("claude cannot change %q in a running process", id)
+	}
+	if model == modelDefault && p.model != "" {
+		model = p.model
+	}
 	req := controlRequest(fmt.Sprintf("%s%d", setModelPrefix, p.reqSeq.Add(1)), "set_model")
 	req["request"].(map[string]any)["model"] = model
 	return p.send(req)

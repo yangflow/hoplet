@@ -1,8 +1,10 @@
 import type {
+  ConfigSetting,
   Entry,
   LiveSessionMeta,
   PromptImage,
   RuntimeCapabilities,
+  SessionConfig,
   SessionRuntimeInfo,
 } from '@hoplet/shared';
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
@@ -12,6 +14,7 @@ import {
   ApiError,
   fetchLines,
   postAttachment,
+  postConfig,
   postInterrupt,
   postPermission,
   postPrompt,
@@ -22,13 +25,7 @@ import { t } from '../../../lib/i18n.ts';
 import { onLive, subscribeSession } from '../../../lib/live.ts';
 import { usePageVisible } from '../../../lib/visibility.ts';
 import { Composer } from '../composer/composer.tsx';
-import {
-  hasChoices,
-  type ModelChoice,
-  ModelMenu,
-  optionsChange,
-  sessionChoice,
-} from '../composer/model-menu.tsx';
+import { hasChoices, ModelMenu, withValues } from '../composer/model-menu.tsx';
 import { SessionWhere } from '../composer/where.tsx';
 import { composerView, stateName } from '../runtime.ts';
 import { LiveTurnView } from './live-view.tsx';
@@ -185,14 +182,34 @@ export function Conversation(props: {
   const [notice, setNotice] = useState<string | null>(null);
   const [answering, setAnswering] = useState(false);
   const lastPrompt = useRef<{ text: string; attachments: string[] } | null>(null);
-  // The options picked for the coming turns, over what the session runs with; the state reports them once
-  // the agent has applied them, and a prompt sends only what differs.
+  // The config options the session offers. A pick is sent at once; until the runtime state reports that value
+  // (or the request failed), the menu shows the picked value.
   const caps = props.capabilities;
   const providers = caps ? [{ provider: session.provider, capabilities: caps }] : [];
   const choosable = caps !== undefined && hasChoices(providers, providers[0]);
-  const [picked, setPicked] = useState<Partial<ModelChoice>>({});
-  const current = sessionChoice(session.provider, runtime.options);
-  const choice = sessionChoice(session.provider, runtime.options, picked);
+  const [picked, setPicked] = useState<SessionConfig>({});
+  useEffect(() => {
+    const reported = caps?.config ?? [];
+    setPicked((cur) => {
+      const kept = Object.entries(cur).filter(
+        ([id, value]) => reported.find((o) => o.id === id)?.currentValue !== value,
+      );
+      return kept.length === Object.keys(cur).length ? cur : Object.fromEntries(kept);
+    });
+  }, [caps]);
+  const setConfig = useCallback(
+    (id: string, value: ConfigSetting) => {
+      setPicked((cur) => ({ ...cur, [id]: value }));
+      postConfig(sessionId, id, value).catch((err) => {
+        setPicked((cur) => {
+          const { [id]: _dropped, ...rest } = cur;
+          return rest;
+        });
+        setSendError(errorText(err));
+      });
+    },
+    [sessionId],
+  );
   const pending = useRef<{ text: string; attachments: string[] } | null>(null);
   const root = useRef<HTMLDivElement>(null);
 
@@ -207,12 +224,7 @@ export function Conversation(props: {
       followRef.current = true;
       transcript.current?.scrollToBottom();
       try {
-        await postPrompt(
-          sessionId,
-          text,
-          attachments,
-          caps ? optionsChange(caps, current, choice) : undefined,
-        );
+        await postPrompt(sessionId, text, attachments);
       } catch (err) {
         pending.current = null;
         lt.cancel();
@@ -222,7 +234,7 @@ export function Conversation(props: {
         setBusy(false);
       }
     },
-    [sessionId, lt.begin, lt.cancel, caps, current, choice],
+    [sessionId, lt.begin, lt.cancel],
   );
 
   // A start that failed gives the prompt back.
@@ -432,11 +444,10 @@ export function Conversation(props: {
                     options: (
                       <ModelMenu
                         providers={providers}
-                        value={choice}
-                        onChange={(next) =>
-                          setPicked({ model: next.model, thinking: next.thinking, fast: next.fast })
-                        }
-                        disabled={busy}
+                        provider={session.provider}
+                        config={withValues(caps?.config, picked)}
+                        onProvider={() => {}}
+                        onChange={setConfig}
                         {...(fixture?.modelMenuOpen ? { initialOpen: true } : {})}
                       />
                     ),

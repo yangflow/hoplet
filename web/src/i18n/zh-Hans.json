@@ -318,5 +318,9 @@
   "{name} was not uploaded": "{name} 没有上传成功",
   "Uploading": "正在上传",
   "{name} cannot be read as an image": "{name} 无法作为图片读取",
-  "Default model": "默认模型"
+  "Default model": "默认模型",
+  "config.model": "模型",
+  "config.thinking": "思考过程",
+  "config.fast": "快速",
+  "config.model.default": "默认模型"
 }

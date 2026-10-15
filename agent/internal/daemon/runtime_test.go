@@ -81,7 +81,7 @@ func newTestBridge(t *testing.T) (*bridge, *sink, string, string) {
 func TestBridgeRelaysAPromptAsRuntimeMessages(t *testing.T) {
 	b, s, _, _ := newTestBridge(t)
 	h := b.hooks()
-	if err := h.Prompt("s1", "say hello", nil, nil); err != nil {
+	if err := h.Prompt("s1", "say hello", nil); err != nil {
 		t.Fatal(err)
 	}
 	s.waitState(t, "s1", "ready")
@@ -95,7 +95,7 @@ func TestBridgeRelaysAPromptAsRuntimeMessages(t *testing.T) {
 		case sync.RuntimeState:
 			states = append(states, m.State)
 			if m.V != sync.ProtocolVersion || m.Type != sync.TypeRuntimeState || !m.Capabilities.Permissions ||
-				!m.Capabilities.Interrupt || !m.Capabilities.Thinking {
+				!m.Capabilities.Interrupt || len(m.Capabilities.Config) != 3 {
 				t.Fatalf("state message = %+v", m)
 			}
 		case sync.RuntimeOutput:
@@ -118,14 +118,14 @@ func TestBridgeRelaysAPromptAsRuntimeMessages(t *testing.T) {
 func TestBridgeRefusesAndAnswers(t *testing.T) {
 	b, s, _, _ := newTestBridge(t)
 	h := b.hooks()
-	if err := h.Prompt("nope", "say x", nil, nil); err == nil {
+	if err := h.Prompt("nope", "say x", nil); err == nil {
 		t.Fatal("a session that is not on this device was accepted")
 	}
-	if err := h.Prompt("s1", "tool echo hi", nil, nil); err != nil {
+	if err := h.Prompt("s1", "tool echo hi", nil); err != nil {
 		t.Fatal(err)
 	}
 	s.waitState(t, "s1", "waiting-permission")
-	if err := h.Prompt("s1", "say again", nil, nil); err == nil || err.Error() != "busy" {
+	if err := h.Prompt("s1", "say again", nil); err == nil || err.Error() != "busy" {
 		t.Fatalf("second prompt: %v", err)
 	}
 	var req sync.RuntimePermission
@@ -169,7 +169,7 @@ func TestBridgeRefusesAndAnswers(t *testing.T) {
 func TestBridgeReportsRunningProcessesAfterAReconnect(t *testing.T) {
 	b, s, _, _ := newTestBridge(t)
 	h := b.hooks()
-	if err := h.Prompt("s1", "say hi", nil, nil); err != nil {
+	if err := h.Prompt("s1", "say hi", nil); err != nil {
 		t.Fatal(err)
 	}
 	s.waitState(t, "s1", "ready")
@@ -186,7 +186,7 @@ func TestBridgeReportsRunningProcessesAfterAReconnect(t *testing.T) {
 func TestBridgeNoticesForeignWritesFromScannedSizes(t *testing.T) {
 	b, s, file, _ := newTestBridge(t)
 	h := b.hooks()
-	if err := h.Prompt("s1", "say hi", nil, nil); err != nil {
+	if err := h.Prompt("s1", "say hi", nil); err != nil {
 		t.Fatal(err)
 	}
 	s.waitState(t, "s1", "ready")
@@ -203,14 +203,14 @@ func TestBridgeNoticesForeignWritesFromScannedSizes(t *testing.T) {
 	_ = f.Close()
 	b.observe(context.Background(), []provider.Source{src})
 	s.waitState(t, "s1", "external")
-	if err := h.Prompt("s1", "say no", nil, nil); !errors.Is(err, runtime.ErrExternal) {
+	if err := h.Prompt("s1", "say no", nil); !errors.Is(err, runtime.ErrExternal) {
 		t.Fatalf("prompt: %v", err)
 	}
 }
 
 func TestBridgeStopsAProcessBeforeHandoff(t *testing.T) {
 	b, s, _, _ := newTestBridge(t)
-	if err := b.hooks().Prompt("s1", "say hi", nil, nil); err != nil {
+	if err := b.hooks().Prompt("s1", "say hi", nil); err != nil {
 		t.Fatal(err)
 	}
 	s.waitState(t, "s1", "ready")
