@@ -4,6 +4,7 @@ import type { ActiveHandoff } from './handoff.ts';
 import type { Waiter } from './pending.ts';
 import type { OpenPermission, RuntimeEntry } from './runtime.ts';
 import type {
+  AttachmentOutcome,
   CloneOutcome,
   DeviceControlOutcome,
   DeviceLink,
@@ -60,9 +61,11 @@ export interface ControlState {
   pendingDeviceControl: Map<string, Waiter<DeviceControlOutcome>>;
   pendingDirs: Map<string, Waiter<DirsOutcome>>;
   pendingClone: Map<string, Waiter<CloneOutcome>>;
+  pendingAttachments: Map<string, Waiter<AttachmentOutcome>>;
   promptTimeoutMs: number;
   startTimeoutMs: number;
   workspaceTimeoutMs: number;
+  attachmentTimeoutMs: number;
   handoffTimeoutMs: number;
   transferTimeoutMs: number;
 }

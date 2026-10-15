@@ -81,6 +81,7 @@ Response column names the schema of the success body and its status when it is n
 | POST | `/api/sessions/:sessionId/handoff` | host | control | — | `HandoffRequestSchema` | `HandoffResultSchema` | `invalid-json`, `invalid-request`, `too-large`, `session-not-found`, `same-device`, `target-offline`, `owner-offline`, `handoff-in-progress`, `busy`, `no-snapshot`, `no-clone`, `session-changed`, `verify-failed`, `cancelled`, `timeout`, `rejected` |
 | GET | `/api/devices` | host | control | — | — | `DeviceListResponseSchema` | — |
 | POST | `/api/devices` | host | control | — | `DeviceMintRequestSchema` | `DeviceMintResultSchema` | `invalid-json`, `invalid-request`, `too-large` |
+| POST | `/api/devices/:deviceId/attachments` | host | bulk | — | `PromptImageSchema` | `AttachmentResultSchema` | `invalid-json`, `invalid-request`, `too-large`, `target-offline`, `timeout` |
 | GET | `/api/devices/:deviceId/clone` | host | control | `DeviceCloneQuerySchema` | — | `DeviceCloneResultSchema` | `invalid-request`, `target-offline`, `timeout` |
 | GET | `/api/devices/:deviceId/dirs` | host | control | `DeviceDirsQuerySchema` | — | `DeviceDirsResultSchema` | `invalid-request`, `target-offline`, `timeout` |
 | GET | `/api/devices/:deviceId/projects` | host | control | — | — | `DeviceProjectsResultSchema` | `owner-offline`, `timeout`, `rejected`, `cancelled` |
@@ -94,7 +95,16 @@ Behavior a client relies on:
 - `POST /api/sessions` answers when the agent has created and imported the session. Its error body carries the
   `promptId` that was sent, and a `reason` where the agent gave one.
 - `POST /api/sessions/:sessionId/prompt` answers `202` when the prompt reached the owner. A prompt is at most
-  8,000 characters (`too-large` beyond). The `promptId` is chosen by the client; the same one sent again within
+  8,000 characters (`too-large` beyond). Both prompt routes take optional `attachments`, at most 4 IDs
+  returned by `POST /api/devices/:deviceId/attachments` for the session's owner (or the new session's device);
+  the driver must declare `images` (`invalid-request` with `reason: images` otherwise). The agent refuses the
+  prompt with `attachment-missing` when an ID is unknown or older than an hour, and with `invalid-image` when the
+  images are more than 8 MiB together.
+- `POST /api/devices/:deviceId/attachments` uploads one image (`mediaType`, base64 `data`; a body of at most
+  6 MiB) on the bulk lane: PNG, JPEG, GIF or WebP of at most 4 MiB (`too-large` beyond) whose first bytes are
+  the declared type, for a connected device with a provider that declares `images` (`invalid-request` with
+  `reason: images` otherwise, `target-offline` when the device is not connected). The core sends it to the device in
+  chunks of at most 1 MiB and answers with the `attachmentId` once the device has stored it (ADR 0017). The `promptId` is chosen by the client; the same one sent again within
   10 minutes returns the first result, so a retry after a lost response does not run the prompt twice. The output
   of the turn arrives on the browser WebSocket.
 - A session's `gitBranch` is the branch its lines last recorded (Claude Code's `gitBranch`), and the branch of the
@@ -149,7 +159,7 @@ takes an optional `path` (absent or `~` is the browse root).
 | `invalid-json` | 400 | The request body is not JSON |
 | `invalid-request` | 400 | The body, the query or a path parameter does not match its schema, or the agent refused the request (`reason` says what) |
 | `same-device` | 400 | The handoff target already owns the session |
-| `too-large` | 413 | The body is over the route's limit, or a prompt is over 8,000 characters |
+| `too-large` | 413 | The body is over the route's limit, a prompt is over 8,000 characters, or an uploaded image is over 4 MiB |
 | `owner-offline` | 409 | The agent of the session's owner (or of the addressed device) is not connected |
 | `target-offline` | 409 | The device the request goes to is not connected: the device of a new session, the target of a handoff, the device to browse |
 | `busy` | 409 | The request cannot run now: the bulk queue is full, or the session's process is running a turn, or a running session cannot be handed off. Retry later |

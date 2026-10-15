@@ -63,6 +63,9 @@ const (
 	TypeDeviceDirsList           = "device.dirs.list"
 	TypeDeviceDirs               = "device.dirs"
 	TypeDeviceDirsRejected       = "device.dirs.rejected"
+	TypeAttachmentPut            = "attachment.put"
+	TypeAttachmentStored         = "attachment.stored"
+	TypeAttachmentRejected       = "attachment.rejected"
 	TypeDeviceCloneFind          = "device.clone.find"
 	TypeDeviceClone              = "device.clone"
 )
@@ -206,12 +209,42 @@ type PongMsg struct {
 
 // Remote control (ADR 0008). core → device:
 
+// RuntimePrompt is a turn for a session; Attachments are the IDs of images uploaded for it (ADR 0017).
 type RuntimePrompt struct {
+	V           int      `json:"v"`
+	Type        string   `json:"type"`
+	SessionID   string   `json:"sessionId"`
+	PromptID    string   `json:"promptId"`
+	Text        string   `json:"text"`
+	Attachments []string `json:"attachments,omitempty"`
+}
+
+// AttachmentPut (core → device, bulk) carries one chunk of an image for a coming prompt, as base64, at most
+// SnapshotChunkBytes; Seq counts from 0 and Last marks the final chunk, after which the device answers with
+// AttachmentStored. Any chunk that fails is answered with AttachmentRejected.
+type AttachmentPut struct {
+	V            int    `json:"v"`
+	Type         string `json:"type"`
+	RequestID    string `json:"requestId"`
+	AttachmentID string `json:"attachmentId"`
+	MediaType    string `json:"mediaType"`
+	Seq          int64  `json:"seq"`
+	Last         bool   `json:"last"`
+	Data         string `json:"data"`
+}
+
+type AttachmentStored struct {
+	V            int    `json:"v"`
+	Type         string `json:"type"`
+	RequestID    string `json:"requestId"`
+	AttachmentID string `json:"attachmentId"`
+}
+
+type AttachmentRejected struct {
 	V         int    `json:"v"`
 	Type      string `json:"type"`
-	SessionID string `json:"sessionId"`
-	PromptID  string `json:"promptId"`
-	Text      string `json:"text"`
+	RequestID string `json:"requestId"`
+	Reason    string `json:"reason"`
 }
 
 type RuntimePermissionAnswer struct {
@@ -244,6 +277,7 @@ type RuntimeCapabilities struct {
 	Thinking    bool     `json:"thinking"`
 	Fast        bool     `json:"fast"`
 	Models      []string `json:"models"`
+	Images      bool     `json:"images,omitempty"`
 }
 
 // RuntimeStartOptions are the options of a new session; each is set only when the driver declares it.
@@ -263,6 +297,7 @@ type RuntimeStart struct {
 	Provider    string              `json:"provider"`
 	Options     RuntimeStartOptions `json:"options"`
 	Text        string              `json:"text"`
+	Attachments []string            `json:"attachments,omitempty"`
 	PromptID    string              `json:"promptId"`
 }
 

@@ -147,6 +147,14 @@ export function Cockpit(props: {
     return out;
   }, [sessions, runtimeOf]);
 
+  /** Whether a session's driver takes images: as its process reported, else as its machine announced. */
+  const acceptsImages = (s: LiveSessionMeta): boolean => {
+    const reported = runtimeOf(s).capabilities;
+    if (reported) return reported.images === true;
+    const owner = devices.find((d) => d.deviceId === s.ownerDeviceId);
+    return owner?.providers.find((p) => p.provider === s.provider)?.capabilities.images === true;
+  };
+
   const { watched, remember } = useWatchedProjects(devices, !fixture);
   const groups = useMemo(() => buildTree(sessions, devices, watched), [sessions, devices, watched]);
   const targets = useMemo(() => sessionTargets(groups), [groups]);
@@ -286,6 +294,7 @@ export function Cockpit(props: {
             aroundLine={aroundLine}
             shortcuts={!paletteOpen && !addFor}
             voiceAvailable={fixture?.voiceAvailable ?? false}
+            acceptsImages={acceptsImages(session)}
             onHandoff={() => {
               setInspectorOpen(true);
               inspector.setHandoffOpen(true);

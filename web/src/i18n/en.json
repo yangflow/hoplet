@@ -304,5 +304,18 @@
   "No machine online": "No machine online",
   "No provider on {device}": "No provider on {device}",
   "The first prompt starts the session": "The first prompt starts the session",
-  "Git branch of {path}": "Git branch of {path}"
+  "Git branch of {path}": "Git branch of {path}",
+  "At most 4 images": "At most 4 images",
+  "Attach images": "Attach images",
+  "Attach images · paste and drop work too": "Attach images · paste and drop work too",
+  "Image": "Image",
+  "Images": "Images",
+  "Only PNG, JPEG, GIF and WebP images": "Only PNG, JPEG, GIF and WebP images",
+  "Pasted image": "Pasted image",
+  "Remove {name}": "Remove {name}",
+  "The images are larger than 8 MiB together": "The images are larger than 8 MiB together",
+  "{name} is larger than 4 MiB": "{name} is larger than 4 MiB",
+  "{name} was not uploaded": "{name} was not uploaded",
+  "Uploading": "Uploading",
+  "{name} cannot be read as an image": "{name} cannot be read as an image"
 }

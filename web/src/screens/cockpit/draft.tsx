@@ -1,7 +1,9 @@
+import type { PromptImage } from '@hoplet/shared';
 import { useEffect, useMemo, useState } from 'react';
 import { Icon } from '../../components/icons.tsx';
 import { providerName } from '../../components/provider-marks.tsx';
 import { Select } from '../../components/Select.tsx';
+import { postAttachment } from '../../lib/api.ts';
 import { errorText } from '../../lib/errors.ts';
 import { t } from '../../lib/i18n.ts';
 import { Composer } from './composer/composer.tsx';
@@ -87,7 +89,11 @@ export function Draft(props: {
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [restore, setRestore] = useState<{ text: string; n: number } | null>(null);
+  const [restore, setRestore] = useState<{
+    text: string;
+    withImages?: boolean;
+    n: number;
+  } | null>(null);
 
   const name = providerName(provider?.provider ?? 'claude');
   const view: ComposerView = useMemo(() => {
@@ -107,7 +113,7 @@ export function Draft(props: {
     };
   }, [target?.online, path, provider, busy, machine, name]);
 
-  async function start(text: string) {
+  async function start(text: string, attachments: string[]) {
     if (!target?.deviceId || !provider || !caps || path === '') return;
     setBusy(true);
     setError(null);
@@ -123,10 +129,11 @@ export function Draft(props: {
           ...(caps.fast ? { fast: choice.fast } : {}),
         },
         prompt: text,
+        attachments,
       });
     } catch (err) {
       setError(errorText(err));
-      setRestore((r) => ({ text, n: (r?.n ?? 0) + 1 }));
+      setRestore((r) => ({ text, withImages: attachments.length > 0, n: (r?.n ?? 0) + 1 }));
       setBusy(false);
     }
   }
@@ -208,7 +215,14 @@ export function Draft(props: {
             restore={restore}
             voiceAvailable={props.voiceAvailable}
             {...(props.fixture?.prompt ? { initialText: props.fixture.prompt } : {})}
-            onSend={(text) => void start(text)}
+            onSend={(text, attachments) => void start(text, attachments)}
+            acceptsImages={caps?.images === true}
+            {...(target?.deviceId
+              ? {
+                  upload: (image: PromptImage) => postAttachment(target.deviceId ?? '', image),
+                  uploadKey: target.deviceId,
+                }
+              : {})}
             onStop={() => {}}
             onRetry={() => {}}
             onHandoff={() => {}}

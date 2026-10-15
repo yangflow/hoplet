@@ -107,6 +107,9 @@ func Run(cfg *config.Config, version string) error {
 		ProjectsAdd:    st.projectsAdd,
 		ProjectsRemove: st.projectsRemove,
 		DirsList:       dirsList(cfg),
+		AttachmentPut: func(p sync.AttachmentPut) (bool, error) {
+			return rt.att.put(p.AttachmentID, p.MediaType, p.Seq, p.Last, p.Data)
+		},
 		CloneFind:      cloneFind(st),
 		SessionsImport: st.sessionsImport,
 		SessionsRemove: st.sessionsRemove,

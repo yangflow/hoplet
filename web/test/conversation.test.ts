@@ -12,6 +12,7 @@ const api = vi.hoisted(() => ({
   fetchLines: vi.fn(),
   fetchBlock: vi.fn(),
   postPrompt: vi.fn(),
+  postAttachment: vi.fn(),
   postPermission: vi.fn(),
   postInterrupt: vi.fn(),
   postStop: vi.fn(),
@@ -26,6 +27,7 @@ const session = {
   projectPath: '/repo',
   provider: 'claude',
   ownerConnected: true,
+  ownerDeviceId: 'dev-mac',
   lineCount: 4,
 } as LiveSessionMeta;
 const caps = { permissions: true, interrupt: true, thinking: true, fast: false, models: [] };
@@ -112,13 +114,96 @@ it('sends a prompt with a client id, shows its turn at once and maps errors to c
   await act(async () => {
     (q('cockpit.send') as HTMLButtonElement).click();
   });
-  expect(api.postPrompt).toHaveBeenCalledWith(SID, 'run the tests');
+  expect(api.postPrompt).toHaveBeenCalledWith(SID, 'run the tests', []);
   expect(q('cockpit.live-turn')?.textContent).toContain('run the tests');
   await act(async () => refuse?.(new ApiError(409, 'busy')));
   expect(q('cockpit.live-turn')).toBeNull();
   expect(q('cockpit.composer-error')?.textContent).toContain('busy');
   // The refused prompt is back in the field.
   expect((q('cockpit.composer-input') as HTMLTextAreaElement).value).toBe('run the tests');
+});
+
+const PNG_HEAD = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+/** A PNG file of `size` bytes: the signature, then zeros. */
+function pngFile(name: string, size = 16): File {
+  const bytes = new Uint8Array(size);
+  bytes.set(PNG_HEAD);
+  return new File([bytes], name, { type: 'image/png' });
+}
+async function attach(...files: File[]) {
+  const input = q('cockpit.attach-input') as HTMLInputElement;
+  Object.defineProperty(input, 'files', { configurable: true, value: files });
+  await act(async () => {
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    await new Promise((r) => setTimeout(r, 0));
+  });
+}
+const thumbs = () => host.querySelectorAll('[data-testid="cockpit.thumbs"] li').length;
+
+it('uploads images to the owner as they are attached, sends their IDs, and gives them back when refused', async () => {
+  await show({ state: 'idle', capabilities: caps });
+  expect(q('cockpit.attach')).toBeNull();
+  await show({ state: 'idle', capabilities: { ...caps, images: true } }, { acceptsImages: true });
+  expect(q('cockpit.attach')).not.toBeNull();
+
+  const uploads: ((id: string) => void)[] = [];
+  api.postAttachment.mockImplementation(
+    () => new Promise<string>((resolve) => uploads.push(resolve)),
+  );
+  await attach(pngFile('one.png'), pngFile('two.png'));
+  expect(thumbs()).toBe(2);
+  const bytes = new Uint8Array(16);
+  bytes.set(PNG_HEAD);
+  expect(api.postAttachment).toHaveBeenCalledWith('dev-mac', {
+    mediaType: 'image/png',
+    data: btoa(String.fromCharCode(...bytes)),
+  });
+  // While an upload runs the prompt waits.
+  await act(async () => type('what is wrong here'));
+  expect((q('cockpit.send') as HTMLButtonElement).disabled).toBe(true);
+  expect(host.querySelectorAll('[data-status="uploading"]')).toHaveLength(2);
+  await act(async () => {
+    uploads[0]?.('att-1');
+    uploads[1]?.('att-2');
+  });
+  expect((q('cockpit.send') as HTMLButtonElement).disabled).toBe(false);
+  await act(async () => (q('cockpit.thumb-remove') as HTMLButtonElement).click());
+  expect(thumbs()).toBe(1);
+
+  api.postPrompt.mockRejectedValue(new ApiError(409, 'busy'));
+  await act(async () => (q('cockpit.send') as HTMLButtonElement).click());
+  expect(api.postPrompt).toHaveBeenCalledWith(SID, 'what is wrong here', ['att-2']);
+  // The refused prompt comes back with its image, still uploaded.
+  expect(thumbs()).toBe(1);
+  expect(api.postAttachment).toHaveBeenCalledTimes(2);
+});
+
+it('says when an upload failed and keeps the prompt from going', async () => {
+  await show({ state: 'idle', capabilities: { ...caps, images: true } }, { acceptsImages: true });
+  api.postAttachment.mockRejectedValue(new ApiError(409, 'target-offline'));
+  await attach(pngFile('one.png'));
+  await act(async () => type('look'));
+  expect(host.querySelector('[data-status="failed"]')).not.toBeNull();
+  expect(q('cockpit.composer-error')).not.toBeNull();
+  expect((q('cockpit.send') as HTMLButtonElement).disabled).toBe(true);
+});
+
+it('says why a file cannot be attached', async () => {
+  api.postAttachment.mockResolvedValue('att');
+  await show({ state: 'idle', capabilities: { ...caps, images: true } }, { acceptsImages: true });
+  await attach(new File(['hello'], 'notes.txt', { type: 'image/png' }));
+  expect(q('cockpit.composer-error')?.textContent).toContain('Only PNG, JPEG, GIF and WebP images');
+  await attach(pngFile('huge.png', 4 * 1024 * 1024 + 1));
+  expect(q('cockpit.composer-error')?.textContent).toContain('huge.png is larger than 4 MiB');
+  await attach(
+    pngFile('1.png'),
+    pngFile('2.png'),
+    pngFile('3.png'),
+    pngFile('4.png'),
+    pngFile('5.png'),
+  );
+  expect(thumbs()).toBe(4);
+  expect(q('cockpit.composer-error')?.textContent).toContain('At most 4 images');
 });
 
 it('streams a running turn into the live turn and holds the stored lines until it settles', async () => {

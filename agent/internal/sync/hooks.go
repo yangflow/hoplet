@@ -5,8 +5,9 @@ import "context"
 // RuntimeHooks handle the remote control messages of the core (docs/spec.md#remote-control). The vendor
 // process, not Hoplet, writes the session file.
 type RuntimeHooks struct {
-	// Prompt accepts a prompt or refuses it; the error text is the reason sent as runtime.rejected.
-	Prompt    func(sessionID, text string) error
+	// Prompt accepts a prompt and the uploaded images it names or refuses it; the error text is the reason
+	// sent as runtime.rejected.
+	Prompt    func(sessionID, text string, attachments []string) error
 	Answer    func(sessionID, requestID string, allow bool) error
 	Interrupt func(sessionID string) error
 	Stop      func(sessionID string)
@@ -89,6 +90,10 @@ type Hooks struct {
 	// DirsList lists the directories of path under the browse root; an error becomes device.dirs.rejected
 	// with its text as the reason.
 	DirsList func(ctx context.Context, path string) (DirListing, error)
+
+	// AttachmentPut takes one chunk of an image for a coming prompt and reports whether the image is complete
+	// and stored; an error becomes attachment.rejected with its text.
+	AttachmentPut func(put AttachmentPut) (done bool, err error)
 
 	// CloneFind names the clone a handoff of a repository with this origin would use, "" when there is none.
 	CloneFind func(ctx context.Context, origin string) (string, error)

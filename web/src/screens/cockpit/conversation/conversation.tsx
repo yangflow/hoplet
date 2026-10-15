@@ -1,10 +1,11 @@
-import type { Entry, LiveSessionMeta, SessionRuntimeInfo } from '@hoplet/shared';
+import type { Entry, LiveSessionMeta, PromptImage, SessionRuntimeInfo } from '@hoplet/shared';
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { Icon } from '../../../components/icons.tsx';
 import { providerName } from '../../../components/provider-marks.tsx';
 import {
   ApiError,
   fetchLines,
+  postAttachment,
   postInterrupt,
   postPermission,
   postPrompt,
@@ -35,6 +36,8 @@ export type ConversationFixture = {
   unread?: number;
   /** Text in the composer's field. */
   composerText?: string;
+  /** Images waiting in the composer. */
+  composerImages?: PromptImage[];
   scrollTo?: number;
   openBlocks?: string[];
 };
@@ -61,6 +64,8 @@ export function Conversation(props: {
   shortcuts?: boolean;
   /** The microphone shows only when transcription is available (#17). */
   voiceAvailable?: boolean;
+  /** The session's driver takes images with a prompt. */
+  acceptsImages?: boolean;
   onHandoff: () => void;
   openDiff?: (path: string) => void;
   fixture?: ConversationFixture;
@@ -157,29 +162,33 @@ export function Conversation(props: {
   // Sending, interrupting, stopping and answering.
   const [busy, setBusy] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
-  const [restore, setRestore] = useState<{ text: string; n: number } | null>(null);
+  const [restore, setRestore] = useState<{
+    text: string;
+    withImages?: boolean;
+    n: number;
+  } | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [answering, setAnswering] = useState(false);
-  const lastPrompt = useRef<string | null>(null);
-  const pending = useRef<string | null>(null);
+  const lastPrompt = useRef<{ text: string; attachments: string[] } | null>(null);
+  const pending = useRef<{ text: string; attachments: string[] } | null>(null);
   const root = useRef<HTMLDivElement>(null);
 
   const send = useCallback(
-    async (text: string) => {
+    async (text: string, attachments: string[] = []) => {
       setBusy(true);
       setSendError(null);
       setNotice(null);
-      lastPrompt.current = text;
-      pending.current = text;
+      lastPrompt.current = { text, attachments };
+      pending.current = { text, attachments };
       lt.begin(text);
       followRef.current = true;
       transcript.current?.scrollToBottom();
       try {
-        await postPrompt(sessionId, text);
+        await postPrompt(sessionId, text, attachments);
       } catch (err) {
         pending.current = null;
         lt.cancel();
-        setRestore((r) => ({ text, n: (r?.n ?? 0) + 1 }));
+        setRestore((r) => ({ text, withImages: attachments.length > 0, n: (r?.n ?? 0) + 1 }));
         setSendError(errorText(err));
       } finally {
         setBusy(false);
@@ -192,15 +201,15 @@ export function Conversation(props: {
   useEffect(() => {
     if (state === 'running') pending.current = null;
     if (state === 'failed' && pending.current) {
-      const text = pending.current;
+      const { text, attachments } = pending.current;
       pending.current = null;
-      setRestore((r) => ({ text, n: (r?.n ?? 0) + 1 }));
+      setRestore((r) => ({ text, withImages: attachments.length > 0, n: (r?.n ?? 0) + 1 }));
     }
     setNotice(null);
   }, [state]);
 
   const retry = useCallback(() => {
-    if (lastPrompt.current) void send(lastPrompt.current);
+    if (lastPrompt.current) void send(lastPrompt.current.text, lastPrompt.current.attachments);
     else root.current?.querySelector('textarea')?.focus();
   }, [send]);
 
@@ -388,7 +397,16 @@ export function Conversation(props: {
               voiceAvailable={props.voiceAvailable ?? false}
               {...(fixture?.recording ? { recording: true } : {})}
               {...(fixture?.composerText ? { initialText: fixture.composerText } : {})}
-              onSend={(text) => void send(text)}
+              onSend={(text, attachments) => void send(text, attachments)}
+              acceptsImages={props.acceptsImages ?? false}
+              {...(session.ownerDeviceId
+                ? {
+                    upload: (image: PromptImage) =>
+                      postAttachment(session.ownerDeviceId ?? '', image),
+                    uploadKey: session.ownerDeviceId,
+                  }
+                : {})}
+              {...(fixture?.composerImages ? { initialImages: fixture.composerImages } : {})}
               onStop={stop}
               onRetry={retry}
               onHandoff={props.onHandoff}

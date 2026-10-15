@@ -127,10 +127,11 @@ block's preview with an open button showing its size. The diff shares the well's
 path opens the file's full diff in the inspector. Three or more consecutive rows without an open well fold
 into one row naming their verbs; expanded thinking is dim italic UI type. The composer floats at the foot of the column: a
 first row ruled off from the field that says where the session runs (machine / directory / git branch as quiet
-chips, pickers with a chevron only in a draft), the field, and a toolbar with attach, a model button (the
+chips, pickers with a chevron only in a draft), the field, and a toolbar with attach (only for a driver that takes images), a model button (the
 model's name and the Thinking glyph, opening model, Thinking and Fast), voice and send, and a status line only for
-session states that block or change what the user can do. A grip on its top edge sets its height; pasted
-images sit above the text as 64 px thumbnails on the checkerboard. Workspace paths carry a file-type glyph; code in diffs and files is highlighted with the
+session states that block or change what the user can do. A grip on its top edge sets its height; pasted,
+dropped and attached images sit above the text as 64 px thumbnails on the checkerboard, each with a round remove
+button on its corner, dimmed under a spinner while it uploads and outlined in danger when the upload failed. Workspace paths carry a file-type glyph; code in diffs and files is highlighted with the
 syntax tokens; images are previewed on a checkerboard. The development fixtures are built for the states (one turn with a prompt, thinking, prose, a read, an
 edit and a run of tools, then the live turn), not copied from a session.
 

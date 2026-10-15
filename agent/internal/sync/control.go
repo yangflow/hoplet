@@ -8,12 +8,17 @@ import (
 	"log"
 )
 
-func (c *Client) handleRuntimePrompt(cs *connState, sessionID, promptID, text string) {
+func (c *Client) handleRuntimePrompt(cs *connState, raw json.RawMessage) {
+	var req RuntimePrompt
+	if err := json.Unmarshal(raw, &req); err != nil {
+		return
+	}
+	sessionID, promptID := req.SessionID, req.PromptID
 	var err error
 	if c.hooks.Runtime.Prompt == nil {
 		err = errors.New("not-implemented")
 	} else {
-		err = c.hooks.Runtime.Prompt(sessionID, text)
+		err = c.hooks.Runtime.Prompt(sessionID, req.Text, req.Attachments)
 	}
 	if err != nil {
 		log.Printf("[agent] prompt refused for %s: %v", shortID(sessionID), err)
@@ -258,6 +263,32 @@ func (c *Client) handleDirs(cs *connState, requestID, path string) {
 		Root:      listing.Root,
 		Entries:   listing.Entries,
 		Truncated: listing.Truncated,
+	})
+}
+
+// handleAttachment takes a chunk of attachment.put and answers on the control lane once the image is stored,
+// or when a chunk is refused. Chunks are handled in the order they arrive, in the read loop.
+func (c *Client) handleAttachment(cs *connState, raw json.RawMessage) {
+	var req AttachmentPut
+	if err := json.Unmarshal(raw, &req); err != nil {
+		return
+	}
+	done, err := false, errors.New("not-implemented")
+	if c.hooks.AttachmentPut != nil {
+		done, err = c.hooks.AttachmentPut(req)
+	}
+	if err != nil {
+		log.Printf("[agent] attachment refused: %v", err)
+		_ = c.writeMsg(cs, AttachmentRejected{
+			V: ProtocolVersion, Type: TypeAttachmentRejected, RequestID: req.RequestID, Reason: err.Error(),
+		})
+		return
+	}
+	if !done {
+		return
+	}
+	_ = c.writeMsg(cs, AttachmentStored{
+		V: ProtocolVersion, Type: TypeAttachmentStored, RequestID: req.RequestID, AttachmentID: req.AttachmentID,
 	})
 }
 

@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type {
+  AttachmentPut,
   DeviceCloneFind,
   DeviceDirsList,
   DeviceProjectsAdd,
@@ -11,7 +12,7 @@ import type {
   SessionWorkspaceFileRead,
   SessionWorkspaceList,
 } from '@hoplet/shared';
-import { PROTOCOL_VERSION } from '@hoplet/shared';
+import { PROTOCOL_VERSION, SNAPSHOT_CHUNK_BYTES } from '@hoplet/shared';
 import { askWaiter } from './pending.ts';
 import { type ControlState, onlineLink } from './state.ts';
 import type { Control, DeviceControlOutcome } from './types.ts';
@@ -29,6 +30,7 @@ type Rpc = Pick<
   | 'workspaceFile'
   | 'workspaceDiff'
   | 'listDirs'
+  | 'putAttachment'
   | 'findClone'
   | 'listProjects'
   | 'addProject'
@@ -39,8 +41,15 @@ type Rpc = Pick<
 
 /** Workspace reads and device project control: one request out, one answer or a timeout. */
 export function createRpc(state: ControlState): Rpc {
-  const { pendingWs, pendingFile, pendingDiff, pendingDeviceControl, pendingDirs, pendingClone } =
-    state;
+  const {
+    pendingWs,
+    pendingFile,
+    pendingDiff,
+    pendingDeviceControl,
+    pendingDirs,
+    pendingClone,
+    pendingAttachments,
+  } = state;
 
   function askDevice(
     deviceId: string,
@@ -114,6 +123,39 @@ export function createRpc(state: ControlState): Rpc {
         state.workspaceTimeoutMs,
         { ok: false, error: 'timeout' },
         () => link.send(msg),
+      );
+    },
+    putAttachment(deviceId, image) {
+      const link = onlineLink(state, deviceId);
+      if (!link) return Promise.resolve({ ok: false, error: 'target-offline' });
+      const requestId = randomUUID();
+      const attachmentId = randomUUID();
+      // Chunks of at most SNAPSHOT_CHUNK_BYTES, as a snapshot travels, so no bulk message holds the
+      // connection longer than one chunk; the bulk queue keeps their order.
+      const bytes = Buffer.from(image.data, 'base64');
+      const chunks = Math.max(1, Math.ceil(bytes.length / SNAPSHOT_CHUNK_BYTES));
+      return askWaiter(
+        pendingAttachments,
+        requestId,
+        state.attachmentTimeoutMs,
+        { ok: false, error: 'timeout' },
+        () => {
+          for (let seq = 0; seq < chunks; seq++) {
+            const msg: AttachmentPut = {
+              v: PROTOCOL_VERSION,
+              type: 'attachment.put',
+              requestId,
+              attachmentId,
+              mediaType: image.mediaType,
+              seq,
+              last: seq === chunks - 1,
+              data: bytes
+                .subarray(seq * SNAPSHOT_CHUNK_BYTES, (seq + 1) * SNAPSHOT_CHUNK_BYTES)
+                .toString('base64'),
+            };
+            link.send(msg);
+          }
+        },
       );
     },
     listDirs(deviceId, path) {

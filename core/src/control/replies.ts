@@ -27,6 +27,7 @@ export function receiveReply(
     pendingDirs,
     pendingClone,
     pendingStart,
+    pendingAttachments,
   } = state;
   switch (msg.type) {
     case 'runtime.state':
@@ -140,6 +141,19 @@ export function receiveReply(
           entries: msg.entries,
           truncated: msg.truncated,
         },
+      });
+      return;
+    case 'attachment.stored':
+      settleWaiter(pendingAttachments, msg.requestId, {
+        ok: true,
+        attachmentId: msg.attachmentId,
+      });
+      return;
+    case 'attachment.rejected':
+      settleWaiter(pendingAttachments, msg.requestId, {
+        ok: false,
+        error: 'rejected',
+        reason: msg.reason,
       });
       return;
     case 'device.clone':

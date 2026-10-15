@@ -304,5 +304,18 @@
   "No machine online": "没有在线的机器",
   "No provider on {device}": "{device} 上没有可用的提供方",
   "The first prompt starts the session": "发出第一条消息即开始会话",
-  "Git branch of {path}": "{path} 的 git 分支"
+  "Git branch of {path}": "{path} 的 git 分支",
+  "At most 4 images": "最多 4 张图片",
+  "Attach images": "附加图片",
+  "Attach images · paste and drop work too": "附加图片 · 也可以粘贴或拖入",
+  "Image": "图片",
+  "Images": "图片",
+  "Only PNG, JPEG, GIF and WebP images": "只支持 PNG、JPEG、GIF 和 WebP 图片",
+  "Pasted image": "粘贴的图片",
+  "Remove {name}": "移除 {name}",
+  "The images are larger than 8 MiB together": "图片总大小超过了 8 MiB",
+  "{name} is larger than 4 MiB": "{name} 超过了 4 MiB",
+  "{name} was not uploaded": "{name} 没有上传成功",
+  "Uploading": "正在上传",
+  "{name} cannot be read as an image": "{name} 无法作为图片读取"
 }

@@ -423,3 +423,139 @@ describe('POST /api/sessions', () => {
     expect(res.status).toBe(401);
   });
 });
+
+describe('images for a prompt (ADR 0017)', () => {
+  const IMAGE_PROVIDERS = [{ provider: 'claude', capabilities: { ...CAPS, images: true } }];
+  const png = (size = 32) => {
+    const bytes = Buffer.alloc(size);
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).copy(bytes);
+    return bytes.toString('base64');
+  };
+  const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 0x10]).toString('base64');
+  const MiB = 1024 * 1024;
+
+  /** Answers every attachment.put as stored, or as rejected when `refuse` is set. */
+  function storing(peer: Peer, refuse?: string): void {
+    peer.ws.on('message', (data) => {
+      const m = JSON.parse(String(data)) as Msg;
+      if (m.type !== 'attachment.put' || (!m.last && !refuse)) return;
+      peer.send(
+        refuse
+          ? { type: 'attachment.rejected', requestId: m.requestId, reason: refuse }
+          : { type: 'attachment.stored', requestId: m.requestId, attachmentId: m.attachmentId },
+      );
+    });
+  }
+
+  it('uploads an image to the device on the bulk lane and names it', async () => {
+    const { post, agent } = await boot();
+    const owner = await agent('dev-a', IMAGE_PROVIDERS);
+    storing(owner);
+    const res = await post('/api/devices/dev-a/attachments', {
+      mediaType: 'image/png',
+      data: png(),
+    });
+    expect(res.status).toBe(200);
+    const put = owner.ofType('attachment.put')[0];
+    expect(put).toMatchObject({ mediaType: 'image/png', seq: 0, last: true, data: png() });
+    expect(res.body).toEqual({ attachmentId: put?.attachmentId });
+
+    // A larger image goes in chunks of 1 MiB, as a snapshot does, under one ID and in order.
+    const big = png(2.5 * MiB);
+    await post('/api/devices/dev-a/attachments', { mediaType: 'image/png', data: big });
+    const chunks = owner.ofType('attachment.put').slice(1);
+    expect(chunks.map((c) => [c.seq, c.last])).toEqual([
+      [0, false],
+      [1, false],
+      [2, true],
+    ]);
+    expect(new Set(chunks.map((c) => c.attachmentId)).size).toBe(1);
+    expect(chunks.every((c) => Buffer.from(String(c.data), 'base64').length <= MiB)).toBe(true);
+    // Buffer.equals, not toEqual: a deep compare of megabytes takes seconds.
+    const joined = Buffer.concat(chunks.map((c) => Buffer.from(String(c.data), 'base64')));
+    expect(joined.equals(Buffer.from(big, 'base64'))).toBe(true);
+  });
+
+  it('refuses an upload that is not what it claims, too large, unwanted or refused', async () => {
+    const { post, agent } = await boot();
+    const owner = await agent('dev-a', IMAGE_PROVIDERS);
+    storing(owner, 'invalid-image');
+    const upload = (image: unknown, device = 'dev-a') =>
+      post(`/api/devices/${device}/attachments`, image);
+    expect(await upload({ mediaType: 'image/png', data: jpeg })).toMatchObject({
+      status: 400,
+      body: { reason: 'images' },
+    });
+    expect((await upload({ mediaType: 'image/png', data: 'not base64!' })).status).toBe(400);
+    expect((await upload({ mediaType: 'image/svg+xml', data: png() })).status).toBe(400);
+    expect((await upload({ mediaType: 'image/png', data: png(4 * MiB + 1) })).status).toBe(413);
+    expect((await upload({ mediaType: 'image/png', data: png() }, 'dev-x')).status).toBe(409);
+    // The device refused it: the reason comes back.
+    expect(await upload({ mediaType: 'image/png', data: png() })).toMatchObject({
+      status: 400,
+      body: { reason: 'invalid-image' },
+    });
+    // A device whose providers take no images gets none.
+    const plain = await boot();
+    await plain.agent('dev-a');
+    expect(
+      await plain.post('/api/devices/dev-a/attachments', { mediaType: 'image/png', data: png() }),
+    ).toMatchObject({ status: 400, body: { reason: 'images' } });
+  });
+
+  it('forwards the attachments a prompt names, only to a driver that takes images', async () => {
+    const env = await boot();
+    const owner = await env.agent('dev-a', IMAGE_PROVIDERS);
+    env.store.append({ sessionId: 's1', projectDir: 'p', filePath: '/s1', deviceId: 'dev-a' }, [
+      '{"type":"user"}',
+    ]);
+    const pending = env.post('/api/sessions/s1/prompt', {
+      text: 'look at this',
+      promptId: 'p1',
+      attachments: ['a1', 'a2'],
+    });
+    const forwarded = await owner.waitFor((m) => m.type === 'runtime.prompt', 'runtime.prompt');
+    expect(forwarded).toMatchObject({ sessionId: 's1', attachments: ['a1', 'a2'] });
+    expect(JSON.stringify(forwarded).length).toBeLessThan(512);
+    owner.send({ type: 'runtime.state', sessionId: 's1', state: 'running', capabilities: CAPS });
+    expect((await pending).status).toBe(202);
+
+    const tooMany = await env.post('/api/sessions/s1/prompt', {
+      text: 'x',
+      promptId: 'p2',
+      attachments: ['a', 'b', 'c', 'd', 'e'],
+    });
+    expect(tooMany.status).toBe(400);
+
+    const plain = await boot();
+    const other = await plain.agent('dev-a');
+    plain.store.append({ sessionId: 's1', projectDir: 'p', filePath: '/s1', deviceId: 'dev-a' }, [
+      '{"type":"user"}',
+    ]);
+    expect(
+      await plain.post('/api/sessions/s1/prompt', {
+        text: 'x',
+        promptId: 'p3',
+        attachments: ['a1'],
+      }),
+    ).toMatchObject({ status: 400, body: { reason: 'images' } });
+    expect(other.ofType('runtime.prompt')).toEqual([]);
+  });
+
+  it('forwards the attachments of a first prompt when the provider declares images', async () => {
+    const { post, agent } = await boot();
+    const owner = await agent('dev-a', IMAGE_PROVIDERS);
+    owner.listProjects();
+    void post('/api/sessions', request({ attachments: ['a1'] }));
+    const start = await owner.waitFor((m) => m.type === 'runtime.start', 'runtime.start');
+    expect(start.attachments).toEqual(['a1']);
+
+    const plain = await boot();
+    const other = await plain.agent('dev-a');
+    other.listProjects();
+    expect(await plain.post('/api/sessions', request({ attachments: ['a1'] }))).toMatchObject({
+      status: 400,
+      body: { code: 'invalid-request', reason: 'images' },
+    });
+  });
+});

@@ -86,11 +86,17 @@ new lines and runtime output appear live; otherwise a pill counts new messages a
 composer at the foot sends a prompt, typed or spoken; speech is transcribed on the user's own machines and
 no audio leaves them (#17). Its first row says where the session runs, machine / directory / git branch (for a
 session the branch its lines last recorded, for a draft the one checked out in the directory), read only once
-the session exists; its toolbar holds attach, the model
+the session exists; its toolbar holds attach (when the driver declares `images`), the model
 with Thinking and Fast in one menu (changing them for a running session needs its driver to declare it, #10),
 dictate and send. The text grows to 8 lines, then scrolls; dragging the composer's top edge sets a height the
 browser remembers, at most what leaves the conversation 240 px, and a double-click on the edge resets it.
-Images pasted or attached go with the prompt (#10). Actions whose icon carries the intent are icon buttons with an accessible name and a
+When the session's driver declares `images`, images pasted, dropped or attached go with the prompt: each is
+shrunk to at most 1568 px on its long edge (a GIF is left as it is), must then be PNG, JPEG, GIF or WebP of at
+most 4 MiB, and is uploaded to the session's machine at once; a prompt takes at most 4, together at most 8 MiB.
+Each shows as a thumbnail above the text, dimmed with a spinner while it uploads; Send waits for the uploads,
+and a file that is refused or an upload that failed says why under the field. The machine keeps an uploaded
+image for an hour, so a refused prompt comes back with its images
+([ADR 0017](adr/0017-prompt-images-are-uploaded-before-the-prompt.md)). Actions whose icon carries the intent are icon buttons with an accessible name and a
 tooltip; the answers to a permission request and the handoff confirmation stay worded.
 
 The runtime state is always shown, with only the controls its state allows. A state of the current turn
@@ -329,8 +335,9 @@ refused and carry neither).
 
 The core refuses with `target-offline` when the device is not connected, with `invalid-request` when the body
 is malformed, the device announced no such provider, an option is not declared (`reason` names the option) or
-`projectPath` is not one of the device's watched projects (`reason: projectPath`), and with `too-large` for a
-prompt over 8,000 characters. Otherwise it forwards `runtime.start` to the device on the control lane. The
+`projectPath` is not one of the device's watched projects (`reason: projectPath`), with `invalid-request` and
+`reason: images` for `attachments` when the provider's driver does not declare images, and with `too-large` for
+a prompt over 8,000 characters. Otherwise it forwards `runtime.start` to the device on the control lane. The
 agent checks the same again, starts Claude Code in that directory with streaming input and output and no
 session to resume (`--session-id` with a new ID, `--model`, `--thinking enabled|disabled` and, for `fast`, the
 setting `fastMode` of that one process), writes the prompt, waits until Claude Code has created the session

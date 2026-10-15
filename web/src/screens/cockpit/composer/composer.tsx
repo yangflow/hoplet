@@ -1,4 +1,7 @@
+import type { PromptImage } from '@hoplet/shared';
 import {
+  type ClipboardEvent,
+  type DragEvent,
   type FormEvent,
   type KeyboardEvent,
   type PointerEvent,
@@ -9,9 +12,11 @@ import {
   useState,
 } from 'react';
 import { IconButton } from '../../../components/IconButton.tsx';
-import { Icon } from '../../../components/icons.tsx';
+import { Icon, Spinner } from '../../../components/icons.tsx';
+import { errorText } from '../../../lib/errors.ts';
 import { t } from '../../../lib/i18n.ts';
 import type { ComposerView } from '../runtime.ts';
+import { type Attachment, dataUrl, fromImages, readImage, refusal } from './attachments.ts';
 import {
   AUTO_MAX_PX,
   clampHeight,
@@ -117,13 +122,25 @@ export function Composer(props: {
   /** Whether a prompt is being sent. */
   busy: boolean;
   error: string | null;
-  /** Text to put back in the field (a prompt that was refused), with a counter to say it is new. */
-  restore: { text: string; n: number } | null;
+  /**
+   * A prompt to put back (one that was refused), with a counter to say it is new; `withImages` gives back the
+   * images it was sent with, still uploaded.
+   */
+  restore: { text: string; withImages?: boolean; n: number } | null;
+  /** The driver takes images with a prompt: attach, paste and drop add them. */
+  acceptsImages?: boolean;
+  /** Uploads an image to the machine the prompt goes to and resolves with its attachment ID (ADR 0017). */
+  upload?: (image: PromptImage) => Promise<string>;
+  /** The machine uploads go to; when it changes, the images waiting are uploaded again. */
+  uploadKey?: string;
+  /** Images the composer starts with (development fixtures). */
+  initialImages?: PromptImage[];
   /** Transcription is available (#17); until then the microphone is hidden. */
   voiceAvailable: boolean;
   /** Start in the recording state (fixtures). */
   recording?: boolean;
-  onSend: (text: string) => void;
+  /** Sends the text with the attachment IDs of its images. */
+  onSend: (text: string, attachments: string[]) => void;
   onStop: () => void;
   onRetry: () => void;
   onHandoff: () => void;
@@ -131,6 +148,13 @@ export function Composer(props: {
 }) {
   const { view } = props;
   const [draft, setDraft] = useState(props.initialText ?? '');
+  const [attachments, setAttachments] = useState<Attachment[]>(() =>
+    fromImages(props.initialImages ?? []),
+  );
+  const [attachError, setAttachError] = useState<string | null>(null);
+  const picker = useRef<HTMLInputElement>(null);
+  // The images of the last prompt sent, given back with it when it is refused.
+  const sent = useRef<Attachment[]>([]);
   const [recording, setRecording] = useState(props.recording ?? false);
   const [seconds, setSeconds] = useState(props.recording ? 7 : 0);
   const field = useRef<HTMLTextAreaElement>(null);
@@ -141,8 +165,79 @@ export function Composer(props: {
   fixedRef.current = fixed;
 
   useEffect(() => {
-    if (props.restore) setDraft((d) => (d === '' ? (props.restore as { text: string }).text : d));
+    const back = props.restore;
+    if (!back) return;
+    setDraft((d) => (d === '' ? back.text : d));
+    if (back.withImages) setAttachments((a) => (a.length === 0 ? sent.current : a));
   }, [props.restore]);
+
+  /** Uploads one image; its thumbnail shows the upload, a failure says why under the field. */
+  function uploadOne(a: Attachment) {
+    const upload = props.upload;
+    if (!upload) return;
+    const patch = (next: Partial<Attachment>) =>
+      setAttachments((all) => all.map((x) => (x.id === a.id ? { ...x, ...next } : x)));
+    upload({ mediaType: a.mediaType, data: a.data }).then(
+      (attachmentId) => patch({ status: 'ready', attachmentId }),
+      (err: unknown) => {
+        patch({ status: 'failed' });
+        setAttachError(errorText(err));
+      },
+    );
+  }
+
+  // A draft that changes machine uploads its images again, to the new one.
+  const uploadKey = props.uploadKey;
+  const firstKey = useRef(uploadKey);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: only a new machine uploads again
+  useEffect(() => {
+    if (uploadKey === firstKey.current) return;
+    firstKey.current = uploadKey;
+    setAttachments((all) => {
+      const again = all.map((a) => ({ ...a, status: 'uploading' as const }));
+      for (const a of again) uploadOne(a);
+      return again;
+    });
+  }, [uploadKey]);
+
+  /** Adds image files, one by one, until a limit refuses one; the reason shows under the field. */
+  async function addFiles(files: readonly File[]) {
+    setAttachError(null);
+    props.onDirty();
+    let current = attachments;
+    for (const file of files) {
+      const read = await readImage(file).catch(() =>
+        t('{name} cannot be read as an image').replace('{name}', file.name),
+      );
+      const why = typeof read === 'string' ? read : refusal(current, read);
+      if (why !== null || typeof read === 'string') {
+        setAttachError(why);
+        break;
+      }
+      current = [...current, read];
+    }
+    const added = current.filter((a) => !attachments.includes(a));
+    setAttachments(current);
+    for (const a of added) uploadOne(a);
+  }
+
+  const takesImages = props.acceptsImages === true && view.inputEnabled;
+  const imageFiles = (list: FileList | null | undefined) =>
+    [...(list ?? [])].filter((f) => f.type.startsWith('image/'));
+
+  function onPaste(e: ClipboardEvent<HTMLTextAreaElement>) {
+    const files = imageFiles(e.clipboardData?.files);
+    if (!takesImages || files.length === 0) return;
+    e.preventDefault();
+    void addFiles(files);
+  }
+
+  function onDrop(e: DragEvent<HTMLFormElement>) {
+    const files = imageFiles(e.dataTransfer?.files);
+    if (!takesImages || files.length === 0) return;
+    e.preventDefault();
+    void addFiles(files);
+  }
 
   useEffect(() => {
     if (!recording || props.recording) return;
@@ -215,13 +310,20 @@ export function Composer(props: {
   }
 
   const text = draft.trim();
-  const canSend = view.inputEnabled && text !== '' && !props.busy;
+  const uploading = attachments.some((a) => a.status !== 'ready');
+  const canSend = view.inputEnabled && text !== '' && !props.busy && !uploading;
 
   function submit(e?: FormEvent) {
     e?.preventDefault();
     if (!canSend) return;
-    props.onSend(text);
+    sent.current = attachments;
+    props.onSend(
+      text,
+      attachments.map((a) => a.attachmentId ?? ''),
+    );
     setDraft('');
+    setAttachments([]);
+    setAttachError(null);
   }
 
   if (view.layout === 'bar') {
@@ -269,7 +371,16 @@ export function Composer(props: {
   const line = view.line;
   const sendLabel = props.sendLabel ?? t('Send');
   return (
-    <form ref={form} className="composer" onSubmit={submit} data-testid="cockpit.composer">
+    <form
+      ref={form}
+      className="composer"
+      onSubmit={submit}
+      onDragOver={(e) => {
+        if (takesImages && e.dataTransfer?.types.includes('Files')) e.preventDefault();
+      }}
+      onDrop={onDrop}
+      data-testid="cockpit.composer"
+    >
       {/* biome-ignore lint/a11y/useSemanticElements: a focusable splitter that moves; an hr cannot take focus or a value */}
       <span
         className="grip"
@@ -287,6 +398,40 @@ export function Composer(props: {
         data-testid="cockpit.composer-grip"
       />
       {props.where}
+      {attachments.length > 0 ? (
+        <ul className="thumbs" aria-label={t('Images')} data-testid="cockpit.thumbs">
+          {attachments.map((a) => (
+            <li
+              key={a.id}
+              className={`thumb${a.status === 'ready' ? '' : ` ${a.status}`}`}
+              title={
+                a.status === 'failed'
+                  ? t('{name} was not uploaded').replace('{name}', a.name)
+                  : a.name
+              }
+              aria-busy={a.status === 'uploading'}
+              data-status={a.status}
+            >
+              <img src={dataUrl(a)} alt={a.name} />
+              {a.status === 'uploading' ? (
+                <span className="thumb-wait" role="img" aria-label={t('Uploading')}>
+                  <Spinner />
+                </span>
+              ) : null}
+              <button
+                type="button"
+                className="thumb-x"
+                aria-label={t('Remove {name}').replace('{name}', a.name)}
+                title={t('Remove {name}').replace('{name}', a.name)}
+                onClick={() => setAttachments((all) => all.filter((x) => x.id !== a.id))}
+                data-testid="cockpit.thumb-remove"
+              >
+                {Icon.close()}
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
       <textarea
         ref={field}
         className="ph-field"
@@ -305,15 +450,41 @@ export function Composer(props: {
             submit();
           }
         }}
+        onPaste={onPaste}
         data-testid="cockpit.composer-input"
       />
-      {props.error ? (
+      {props.error || attachError ? (
         <p className="cerr" role="alert" data-testid="cockpit.composer-error">
           {Icon.alert()}
-          {props.error}
+          {props.error ?? attachError}
         </p>
       ) : null}
       <div className="cf">
+        {props.acceptsImages ? (
+          <>
+            <IconButton
+              label={t('Attach images')}
+              detail={t('Attach images · paste and drop work too')}
+              icon={Icon.plus()}
+              disabled={!view.inputEnabled}
+              onClick={() => picker.current?.click()}
+              data-testid="cockpit.attach"
+            />
+            <input
+              ref={picker}
+              type="file"
+              accept="image/png,image/jpeg,image/gif,image/webp"
+              multiple
+              hidden
+              onChange={(e) => {
+                const files = [...(e.target.files ?? [])];
+                e.target.value = '';
+                void addFiles(files);
+              }}
+              data-testid="cockpit.attach-input"
+            />
+          </>
+        ) : null}
         {line ? (
           <span
             className={`cst${line.tone === 'bad' ? ' bad' : ''}`}

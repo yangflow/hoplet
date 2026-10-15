@@ -66,7 +66,7 @@ place of the proxy. Never publish port 7788 on `0.0.0.0`.
 | Where | What |
 |---|---|
 | Docker volume `hoplet-data` (`/data` in the container) | `hoplet.db` (SQLite index), `sessions/<sessionId>/c-<seq>.ndjson[.gz]` (session lines), `snapshots/<sessionId>/<snapshotId>.tar.gz` (latest workspace snapshot per session) |
-| Agent state root (`~/.hoplet/` by default) | `device-id`, `config.json`, `projects.json`, `runtime/` (running processes), `handoff/` (installation records) |
+| Agent state root (`~/.hoplet/` by default) | `device-id`, `config.json`, `projects.json`, `runtime/` (running processes), `handoff/` (installation records), `attachments/` (images uploaded for prompts: at most 64 files and 64 MiB, each kept at most an hour) |
 | Development machine | Claude Code's store and working trees; worktrees created by handoff, next to the clone they belong to |
 
 Back up the stopped data directory, including SQLite WAL and SHM files. Restore by putting it back and
