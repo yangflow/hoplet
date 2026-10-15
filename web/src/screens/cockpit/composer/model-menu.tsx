@@ -1,4 +1,4 @@
-import type { ProviderInfo } from '@hoplet/shared';
+import type { ProviderInfo, StartOptions } from '@hoplet/shared';
 import { type KeyboardEvent, type ReactNode, useEffect, useId, useRef, useState } from 'react';
 import { Icon } from '../../../components/icons.tsx';
 import { Popover } from '../../../components/Popover.tsx';
@@ -13,6 +13,39 @@ export type ModelChoice = {
   fast: boolean;
 };
 
+/**
+ * The options a session runs with, as its runtime state reports them, with what this window picked on top. Until
+ * a process reported, Thinking reads on and Fast off: what the agent starts the next process with.
+ */
+export function sessionChoice(
+  provider: ModelChoice['provider'],
+  reported: StartOptions | undefined,
+  picked: Partial<ModelChoice> = {},
+): ModelChoice {
+  return {
+    provider,
+    model: picked.model ?? reported?.model ?? '',
+    thinking: picked.thinking ?? reported?.thinking ?? true,
+    fast: picked.fast ?? reported?.fast ?? false,
+  };
+}
+
+/** What a prompt changes: the declared options of `next` that differ from `current`, or undefined. */
+export function optionsChange(
+  caps: ProviderInfo['capabilities'],
+  current: ModelChoice,
+  next: ModelChoice,
+): StartOptions | undefined {
+  const change: StartOptions = {
+    ...(caps.models.length > 0 && next.model !== '' && next.model !== current.model
+      ? { model: next.model }
+      : {}),
+    ...(caps.thinking && next.thinking !== current.thinking ? { thinking: next.thinking } : {}),
+    ...(caps.fast && next.fast !== current.fast ? { fast: next.fast } : {}),
+  };
+  return Object.keys(change).length > 0 ? change : undefined;
+}
+
 /** Whether a machine offers anything for the menu to choose: a second provider, models, thinking or fast. */
 export function hasChoices(providers: ProviderInfo[], chosen: ProviderInfo | undefined): boolean {
   const caps = chosen?.capabilities;
@@ -21,15 +54,13 @@ export function hasChoices(providers: ProviderInfo[], chosen: ProviderInfo | und
 
 /**
  * The composer's model button and its menu: the model's name and the Thinking glyph, opening the provider
- * (when the machine runs more than one), the model, Thinking and Fast. In a session only the model can change
- * (`modelOnly`), and a session on the vendor's default model reads as Default.
+ * (when the machine runs more than one), the model, Thinking and Fast; a draft and a session alike. A session on
+ * the vendor's default model reads as Default.
  */
 export function ModelMenu(props: {
   providers: ProviderInfo[];
   value: ModelChoice;
   onChange: (next: ModelChoice) => void;
-  /** Offer the model only: an existing session keeps its Thinking and Fast. */
-  modelOnly?: boolean;
   disabled?: boolean;
   /** Starts open (development fixtures). */
   initialOpen?: boolean;
@@ -43,7 +74,7 @@ export function ModelMenu(props: {
   const chosen = providers.find((p) => p.provider === value.provider);
   const caps = chosen?.capabilities;
   const label =
-    value.model || (props.modelOnly ? t('Default model') : providerName(value.provider));
+    value.model || (caps?.models.length ? t('Default model') : providerName(value.provider));
   const detail = [
     label,
     caps?.thinking && value.thinking ? t('Thinking') : '',
@@ -192,7 +223,7 @@ export function ModelMenu(props: {
               )}
             </div>
           ) : null}
-          {!props.modelOnly && (caps?.thinking || caps?.fast) ? (
+          {caps?.thinking || caps?.fast ? (
             <>
               <div className="popover-sep" aria-hidden="true" />
               {caps.thinking

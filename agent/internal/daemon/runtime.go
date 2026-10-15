@@ -152,11 +152,15 @@ func capabilities(caps []runtime.Capability, models []string) sync.RuntimeCapabi
 			out.Fast = true
 		case runtime.CapImages:
 			out.Images = true
-		case runtime.CapSetModel:
-			out.SetModel = true
 		}
 	}
 	return out
+}
+
+// wireOptions are a session's options as runtime.state reports them; Fast is always said.
+func wireOptions(o runtime.StartOptions) *sync.RuntimeStartOptions {
+	fast := o.Fast
+	return &sync.RuntimeStartOptions{Model: o.Model, Thinking: o.Thinking, Fast: &fast}
 }
 
 func wireMessage(ev runtime.Event) any {
@@ -165,7 +169,7 @@ func wireMessage(ev runtime.Event) any {
 		return sync.RuntimeState{
 			V: sync.ProtocolVersion, Type: sync.TypeRuntimeState, SessionID: ev.SessionID,
 			State: string(ev.State), Error: ev.Error, Capabilities: capabilities(ev.Capabilities, ev.Models),
-			Model: ev.Model,
+			Options: wireOptions(ev.Options),
 		}
 	case runtime.OutputEvent:
 		o := ev.Output
@@ -191,12 +195,14 @@ func wireMessage(ev runtime.Event) any {
 // hooks are the handlers of the core's remote control messages.
 func (b *bridge) hooks() sync.RuntimeHooks {
 	return sync.RuntimeHooks{
-		Prompt: func(sessionID, text string, ids []string, model string) error {
+		Prompt: func(sessionID, text string, ids []string, options *sync.RuntimeStartOptions) error {
 			p, err := b.att.prompt(text, ids)
 			if err != nil {
 				return err
 			}
-			p.Model = model
+			if options != nil {
+				p.Options = runtime.Change{Model: options.Model, Thinking: options.Thinking, Fast: options.Fast}
+			}
 			return b.mgr.PromptWith(sessionID, p)
 		},
 		Answer: func(sessionID, requestID string, allow bool) error {

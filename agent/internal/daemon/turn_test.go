@@ -24,7 +24,7 @@ func TestBridgeReportsEveryCompletedTurn(t *testing.T) {
 
 	h := b.hooks()
 	for _, prompt := range []string{"say one", "fail now"} {
-		if err := h.Prompt("s1", prompt, nil, ""); err != nil {
+		if err := h.Prompt("s1", prompt, nil, nil); err != nil {
 			t.Fatal(err)
 		}
 		select {

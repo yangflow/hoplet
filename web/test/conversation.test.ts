@@ -194,41 +194,52 @@ it('says when an upload failed and keeps the prompt from going', async () => {
   expect((q('cockpit.send') as HTMLButtonElement).disabled).toBe(true);
 });
 
-it('offers the model of a session only when its driver switches models, and sends a change once', async () => {
-  const switching = { ...caps, models: ['fable', 'opus', 'sonnet'], setModel: true };
-  await show({ state: 'idle', capabilities: caps }, { capabilities: caps });
+it('offers the options of a session and sends only what changed', async () => {
+  const fixed = { ...caps, thinking: false, fast: false, models: [] };
+  await show({ state: 'idle', capabilities: fixed }, { capabilities: fixed });
   expect(q('cockpit.model')).toBeNull();
+  const all = { ...caps, models: ['fable', 'opus', 'sonnet'], thinking: true, fast: true };
   await show(
-    { state: 'idle', capabilities: switching, model: 'opus' },
-    { capabilities: switching },
+    { state: 'idle', capabilities: all, options: { model: 'opus', thinking: true, fast: false } },
+    { capabilities: all },
   );
   expect(q('cockpit.model')?.textContent).toContain('opus');
   await act(async () => (q('cockpit.model') as HTMLButtonElement).click());
-  // In a session the menu holds the models only.
-  expect(q('cockpit.thinking')).toBeNull();
+  // The same menu as a draft: the models, then Thinking and Fast as the session runs them.
   const options = [...host.querySelectorAll('[data-testid="cockpit.model-option"]')];
   expect(options.map((o) => o.textContent)).toEqual(['fable', 'opus', 'sonnet']);
+  expect(q('cockpit.thinking')?.getAttribute('aria-checked')).toBe('true');
+  expect(q('cockpit.fast')?.getAttribute('aria-checked')).toBe('false');
   await act(async () => (options[2] as HTMLButtonElement).click());
-  expect(q('cockpit.model')?.textContent).toContain('sonnet');
+  await act(async () => (q('cockpit.thinking') as HTMLButtonElement).click());
 
   api.postPrompt.mockResolvedValue({ ok: true, promptId: 'p' });
   await act(async () => type('go on'));
   await act(async () => (q('cockpit.send') as HTMLButtonElement).click());
-  expect(api.postPrompt).toHaveBeenLastCalledWith(SID, 'go on', [], 'sonnet');
-  // Once the state reports the switch, the next prompt carries no model.
+  expect(api.postPrompt).toHaveBeenLastCalledWith(SID, 'go on', [], {
+    model: 'sonnet',
+    thinking: false,
+  });
+  // Once the state reports them, the next prompt changes nothing.
   await show(
-    { state: 'ready', capabilities: switching, model: 'sonnet' },
-    { capabilities: switching },
+    {
+      state: 'ready',
+      capabilities: all,
+      options: { model: 'sonnet', thinking: false, fast: false },
+    },
+    { capabilities: all },
   );
   await act(async () => type('again'));
   await act(async () => (q('cockpit.send') as HTMLButtonElement).click());
   expect(api.postPrompt).toHaveBeenLastCalledWith(SID, 'again', [], undefined);
 });
 
-it('reads a session on the vendor default model as Default', async () => {
-  const switching = { ...caps, models: ['opus', 'sonnet'], setModel: true };
-  await show({ state: 'idle', capabilities: switching }, { capabilities: switching });
+it('reads a session on the vendor default model as Default, with Thinking on until a process says', async () => {
+  const all = { ...caps, models: ['opus', 'sonnet'], thinking: true, fast: true };
+  await show({ state: 'idle', capabilities: all }, { capabilities: all });
   expect(q('cockpit.model')?.textContent).toContain('Default model');
+  await act(async () => (q('cockpit.model') as HTMLButtonElement).click());
+  expect(q('cockpit.thinking')?.getAttribute('aria-checked')).toBe('true');
 });
 
 it('says why a file cannot be attached', async () => {

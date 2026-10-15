@@ -32,7 +32,7 @@ func TestSendWithoutAConnection(t *testing.T) {
 
 func TestRefusedPromptIsReportedWithItsReason(t *testing.T) {
 	c, cs, read := dialTestConn(t)
-	c.hooks.Runtime.Prompt = func(sessionID, text string, _ []string, _ string) error {
+	c.hooks.Runtime.Prompt = func(sessionID, text string, _ []string, _ *RuntimeStartOptions) error {
 		if sessionID != "s1" || text != "go" {
 			t.Fatalf("prompt = %q %q", sessionID, text)
 		}
@@ -47,7 +47,7 @@ func TestRefusedPromptIsReportedWithItsReason(t *testing.T) {
 
 func TestAcceptedPromptSendsNothing(t *testing.T) {
 	c, cs, read := dialTestConn(t)
-	c.hooks.Runtime.Prompt = func(string, string, []string, string) error { return nil }
+	c.hooks.Runtime.Prompt = func(string, string, []string, *RuntimeStartOptions) error { return nil }
 	c.handleRuntimePrompt(cs, promptMsg("s1", "p1", "go"))
 	// The next message the server sees is the one sent after it: the accepted prompt wrote none.
 	if err := c.writeMsg(cs, PingMsg{V: ProtocolVersion, Type: TypePingMsg}); err != nil {
@@ -107,7 +107,7 @@ func TestCoreCommandsReachTheHooks(t *testing.T) {
 
 	var c *Client
 	hooks := Hooks{Runtime: RuntimeHooks{
-		Prompt: func(s, text string, _ []string, _ string) error {
+		Prompt: func(s, text string, _ []string, _ *RuntimeStartOptions) error {
 			record(call{kind: "prompt", session: s, id: text})
 			return nil
 		},

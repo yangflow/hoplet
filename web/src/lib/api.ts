@@ -203,14 +203,14 @@ export function postPrompt(
   sessionId: string,
   text: string,
   attachments: string[] = [],
-  model?: string,
+  options?: StartOptions,
   promptId: string = crypto.randomUUID(),
 ) {
   return call(`/api/sessions/${sessionId}/prompt`, PromptResultSchema, {
     text,
     promptId,
     ...(attachments.length > 0 ? { attachments } : {}),
-    ...(model ? { model } : {}),
+    ...(options ? { options } : {}),
   });
 }
 

@@ -1234,12 +1234,11 @@ function whereRow(state) {
 function composer(state) {
   const send = (on, t = 'Send · ↩') => `<button class="send"${on ? '' : ' disabled'}${tip(t)}>${I.up()}</button>`;
   const mic = on => ib(I.mic(), 'Dictate · transcribed on your machines', '', !on);
-  // A draft chooses the model with Thinking and Fast; a session switches only its model, from the next turn on.
-  const draft = DRAFT.includes(state);
+  // A draft and a session have the same menu: the model, Thinking and Fast, from the next turn on.
   const menu = `<div class="cpop end" role="menu" aria-label="Model"><div class="menu-label">Model</div>
     ${item2('Opus 5.5', true)}${item2('Sonnet 5.5', false)}${item2('Haiku 4.5', false)}
-    ${draft ? `<div class="menu-sep"></div>${sw(I.think(), 'Thinking', true)}${sw(I.zap(), 'Fast', false)}` : ''}</div>`;
-  const model = on => `<span class="anc"><button class="tb2${state === 'model-menu' ? ' on' : ''}"${tip(draft ? 'Model and options' : 'Model')}${on ? '' : ' disabled'}>Opus 5.5${draft ? `<i>·</i>${I.think()}` : ''}${cv()}</button>${state === 'model-menu' ? menu : ''}</span>`;
+    <div class="menu-sep"></div>${sw(I.think(), 'Thinking', true)}${sw(I.zap(), 'Fast', false)}</div>`;
+  const model = on => `<span class="anc"><button class="tb2${state === 'model-menu' ? ' on' : ''}"${tip('Model and options')}${on ? '' : ' disabled'}>Opus 5.5<i>·</i>${I.think()}${cv()}</button>${state === 'model-menu' ? menu : ''}</span>`;
   const full = (ph, on, left = '', inputOn = on, sendTip) => `<div class="composer">${state === 'compose' ? `<span class="grip"${tip('Drag to resize · double-click resets')}></span>` : ''}${whereRow(state)}
     ${state === 'compose' ? `<div class="thumbs">
       <span class="thumb"><span class="ckr">${iconArt('now', 44)}</span><button class="x"${tip('Remove icon.png')}>${I.x()}</button></span>
@@ -1693,7 +1692,7 @@ const STATES = [
   ['add-project-error', 'a typed path the agent refused, the reason inline'],
   ['ready', 'process running, no turn; studio › notes folded, showing its waiting session'],
   ['compose', 'a long prompt with two pasted images; the top edge is being dragged'],
-  ['model-menu', 'a session’s model, switched from the next turn on; Thinking and Fast stay as the session started'],
+  ['model-menu', 'a session’s model and options, which hold from the next turn on'],
   ['recording', 'dictating the next prompt'],
   ['starting', 'the first prompt starts Claude Code'],
   ['running', 'live turn: a failed run, its output, a search, an edit and a running run'],

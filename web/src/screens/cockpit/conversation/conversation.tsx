@@ -22,7 +22,13 @@ import { t } from '../../../lib/i18n.ts';
 import { onLive, subscribeSession } from '../../../lib/live.ts';
 import { usePageVisible } from '../../../lib/visibility.ts';
 import { Composer } from '../composer/composer.tsx';
-import { ModelMenu } from '../composer/model-menu.tsx';
+import {
+  hasChoices,
+  type ModelChoice,
+  ModelMenu,
+  optionsChange,
+  sessionChoice,
+} from '../composer/model-menu.tsx';
 import { SessionWhere } from '../composer/where.tsx';
 import { composerView, stateName } from '../runtime.ts';
 import { LiveTurnView } from './live-view.tsx';
@@ -179,11 +185,14 @@ export function Conversation(props: {
   const [notice, setNotice] = useState<string | null>(null);
   const [answering, setAnswering] = useState(false);
   const lastPrompt = useRef<{ text: string; attachments: string[] } | null>(null);
-  // The model picked for the coming turns; the state reports it once the agent has switched.
+  // The options picked for the coming turns, over what the session runs with; the state reports them once
+  // the agent has applied them, and a prompt sends only what differs.
   const caps = props.capabilities;
-  const switchable = caps?.setModel === true && caps.models.length > 0;
-  const [picked, setPicked] = useState<string | null>(null);
-  const model = picked ?? runtime.model ?? '';
+  const providers = caps ? [{ provider: session.provider, capabilities: caps }] : [];
+  const choosable = caps !== undefined && hasChoices(providers, providers[0]);
+  const [picked, setPicked] = useState<Partial<ModelChoice>>({});
+  const current = sessionChoice(session.provider, runtime.options);
+  const choice = sessionChoice(session.provider, runtime.options, picked);
   const pending = useRef<{ text: string; attachments: string[] } | null>(null);
   const root = useRef<HTMLDivElement>(null);
 
@@ -202,7 +211,7 @@ export function Conversation(props: {
           sessionId,
           text,
           attachments,
-          switchable && model !== (runtime.model ?? '') && model !== '' ? model : undefined,
+          caps ? optionsChange(caps, current, choice) : undefined,
         );
       } catch (err) {
         pending.current = null;
@@ -213,7 +222,7 @@ export function Conversation(props: {
         setBusy(false);
       }
     },
-    [sessionId, lt.begin, lt.cancel, switchable, model, runtime.model],
+    [sessionId, lt.begin, lt.cancel, caps, current, choice],
   );
 
   // A start that failed gives the prompt back.
@@ -418,14 +427,15 @@ export function Conversation(props: {
               {...(fixture?.composerText ? { initialText: fixture.composerText } : {})}
               onSend={(text, attachments) => void send(text, attachments)}
               acceptsImages={caps?.images === true}
-              {...(switchable && caps
+              {...(choosable
                 ? {
                     options: (
                       <ModelMenu
-                        modelOnly
-                        providers={[{ provider: session.provider, capabilities: caps }]}
-                        value={{ provider: session.provider, model, thinking: false, fast: false }}
-                        onChange={(next) => setPicked(next.model)}
+                        providers={providers}
+                        value={choice}
+                        onChange={(next) =>
+                          setPicked({ model: next.model, thinking: next.thinking, fast: next.fast })
+                        }
                         disabled={busy}
                         {...(fixture?.modelMenuOpen ? { initialOpen: true } : {})}
                       />

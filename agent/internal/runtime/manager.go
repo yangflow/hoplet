@@ -42,8 +42,9 @@ type StateEvent struct {
 	Error        string // set in StateFailed
 	Capabilities []Capability
 	Models       []string
-	// Model is the model the session's processes start with or were switched to; "" is the vendor's default.
-	Model string
+	// Options are what the session's processes run with: the model ("" is the vendor's default), Thinking
+	// once a process started, and Fast.
+	Options StartOptions
 }
 
 // OutputEvent is streamed content of a session's running turn.
@@ -107,8 +108,10 @@ type session struct {
 	opts  StartOptions // chosen when the session was created; every process of the session starts with them
 
 	pendingPrompt *Prompt
-	interrupted   bool
-	turnErr       string
+	// restartWith is the prompt that waits for the process to exit and a new one to start with new options.
+	restartWith *Prompt
+	interrupted bool
+	turnErr     string
 
 	perms map[string]*time.Timer // open permission requests by id, each with its auto-deny timer
 	reqs  map[string]PermissionRequest
@@ -174,7 +177,7 @@ func (m *Manager) stateEvent(s *session) StateEvent {
 	return StateEvent{
 		SessionID: s.id, State: s.state, Error: s.err,
 		Capabilities: m.cfg.Driver.Capabilities(), Models: m.cfg.Driver.Models(),
-		Model: s.opts.Model,
+		Options: s.opts,
 	}
 }
 
@@ -304,7 +307,7 @@ func (m *Manager) PromptWith(sessionID string, p Prompt) error {
 	if err := m.checkImages(p); err != nil {
 		return err
 	}
-	if err := m.checkModel(p.Model); err != nil {
+	if err := m.checkChange(p.Options); err != nil {
 		return err
 	}
 	m.mu.Lock()
@@ -333,21 +336,49 @@ func (m *Manager) PromptWith(sessionID string, p Prompt) error {
 	if s.proc != nil && s.stopped { // an earlier process is still exiting
 		return ErrStarting
 	}
-	// A new model holds from this turn on: a running process switches, a new one starts with it.
-	if p.Model != "" && p.Model != s.opts.Model {
-		if s.proc != nil {
-			if err := s.proc.SetModel(p.Model); err != nil {
-				m.fail(s, fmt.Sprintf("set model: %v", err))
-				return nil
-			}
-		}
-		s.opts.Model = p.Model
+	// The options hold from this turn on. A running process switches its model in place; any other change
+	// restarts it with the new options between turns, as a new session would start.
+	next := applyChange(s.opts, p.Options)
+	if s.proc != nil && !sameFlags(s.opts, next) {
+		s.opts = next
+		s.restartWith = &p
+		m.setState(s, StateStarting, "")
+		m.stopProcess(s)
+		return nil
 	}
+	if s.proc != nil && next.Model != s.opts.Model {
+		if err := s.proc.SetModel(next.Model); err != nil {
+			m.fail(s, fmt.Sprintf("set model: %v", err))
+			return nil
+		}
+	}
+	s.opts = next
 	if s.proc != nil {
 		return m.writePrompt(s, p)
 	}
 	m.startProcess(s, p)
 	return nil
+}
+
+// applyChange is opts with what a prompt changes.
+func applyChange(opts StartOptions, c Change) StartOptions {
+	if c.Model != "" {
+		opts.Model = c.Model
+	}
+	if c.Thinking != nil {
+		on := *c.Thinking
+		opts.Thinking = &on
+	}
+	if c.Fast != nil {
+		opts.Fast = *c.Fast
+	}
+	return opts
+}
+
+// sameFlags reports whether two option sets start a process alike apart from the model.
+func sameFlags(a, b StartOptions) bool {
+	return a.Fast == b.Fast && (a.Thinking == nil) == (b.Thinking == nil) &&
+		(a.Thinking == nil || *a.Thinking == *b.Thinking)
 }
 
 // Create starts a new session in dir with the options and the first prompt, and returns its ID. The vendor
@@ -381,23 +412,21 @@ func (m *Manager) CreateWith(dir string, p Prompt, opts StartOptions) (string, e
 	return id, nil
 }
 
-// checkModel refuses a model change unless the driver declares it and lists the model.
-func (m *Manager) checkModel(model string) error {
-	if model == "" {
-		return nil
+// checkChange refuses a change of an option the driver does not declare, as a new session's options are.
+func (m *Manager) checkChange(c Change) error {
+	if c.Fast != nil && !m.declares(CapFast) {
+		return fmt.Errorf("%w: fast", ErrOptionNotDeclared)
 	}
-	declared := false
-	for _, c := range m.cfg.Driver.Capabilities() {
-		declared = declared || c == CapSetModel
-	}
-	if declared {
-		for _, id := range m.cfg.Driver.Models() {
-			if id == model {
-				return nil
-			}
+	return m.checkOptions(StartOptions{Model: c.Model, Thinking: c.Thinking})
+}
+
+func (m *Manager) declares(c Capability) bool {
+	for _, d := range m.cfg.Driver.Capabilities() {
+		if d == c {
+			return true
 		}
 	}
-	return fmt.Errorf("%w: model %q", ErrOptionNotDeclared, model)
+	return false
 }
 
 // checkImages refuses images unless the driver declares them.
@@ -486,6 +515,11 @@ func (m *Manager) startProcess(s *session, p Prompt) {
 	s.stopped = false
 	s.pendingPrompt = &p
 	s.interrupted, s.turnErr = false, ""
+	// Thinking is always explicit, so every window knows it: on unless the session chose it off.
+	if s.opts.Thinking == nil && m.declares(CapThinking) {
+		on := true
+		s.opts.Thinking = &on
+	}
 	m.setState(s, StateStarting, "")
 	ctx, cancel := context.WithCancel(context.Background())
 	s.cancel = cancel
@@ -691,6 +725,12 @@ func (m *Manager) exited(s *session, ev Exited) {
 	s.proc, s.stopped, s.pendingPrompt = nil, false, nil
 	s.interrupted = false
 	m.record(s)
+	if wasStopped && s.restartWith != nil {
+		p := *s.restartWith
+		s.restartWith = nil
+		m.startProcess(s, p)
+		return
+	}
 	switch {
 	case s.state == StateExternal || (wasStopped && s.state == StateFailed):
 		// the state already says why the process ended
@@ -781,6 +821,7 @@ func (m *Manager) Stop(sessionID string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if s := m.sessions[sessionID]; s != nil {
+		s.restartWith = nil
 		m.stopProcess(s)
 	}
 }

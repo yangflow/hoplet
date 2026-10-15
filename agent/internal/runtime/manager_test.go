@@ -248,7 +248,7 @@ func TestPromptRunsATurn(t *testing.T) {
 	e.expectStates("s1", runtime.StateStarting, runtime.StateRunning, runtime.StateReady)
 
 	last, _ := e.rec.lastState("s1")
-	if len(last.Capabilities) != 7 {
+	if len(last.Capabilities) != 6 {
 		t.Fatalf("capabilities = %v", last.Capabilities)
 	}
 	var text string
@@ -278,8 +278,9 @@ func TestPromptRunsATurn(t *testing.T) {
 	if len(starts) != 1 {
 		t.Fatalf("starts = %d", len(starts))
 	}
+	// Thinking is explicit, on unless the session chose it off.
 	want := []string{"-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose",
-		"--include-partial-messages", "--permission-prompt-tool", "stdio", "--resume", "s1"}
+		"--include-partial-messages", "--permission-prompt-tool", "stdio", "--thinking", "enabled", "--resume", "s1"}
 	if strings.Join(starts[0].Args, " ") != strings.Join(want, " ") {
 		t.Fatalf("args = %v", starts[0].Args)
 	}
@@ -343,9 +344,10 @@ func textOf(e *env, sessionID string, from int) string {
 	return text
 }
 
-func TestThePromptSwitchesTheModelFromItsTurnOn(t *testing.T) {
+func TestThePromptChangesTheOptionsFromItsTurnOn(t *testing.T) {
 	e := newEnv(t, nil)
 	e.session("s1")
+	off, on := false, true
 	turn := func(p runtime.Prompt) string {
 		t.Helper()
 		from := len(e.rec.outputs("s1"))
@@ -359,25 +361,41 @@ func TestThePromptSwitchesTheModelFromItsTurnOn(t *testing.T) {
 		})
 		return textOf(e, "s1", from)
 	}
-	// A new process starts with the model of its first prompt.
-	if got := turn(runtime.Prompt{Text: "model", Model: "sonnet"}); got != "model: sonnet" {
+	args := func(i int) string { return strings.Join(e.starts()[i].Args, " ") }
+
+	// A new process starts with the prompt's options.
+	if got := turn(runtime.Prompt{Text: "model", Options: runtime.Change{Model: "sonnet"}}); got != "model: sonnet" {
 		t.Fatalf("first turn ran on %q", got)
 	}
-	if last, _ := e.rec.lastState("s1"); last.Model != "sonnet" {
-		t.Fatalf("state reports %q", last.Model)
+	if last, _ := e.rec.lastState("s1"); last.Options.Model != "sonnet" || last.Options.Thinking == nil || !*last.Options.Thinking {
+		t.Fatalf("state reports %+v", last.Options)
 	}
-	// The running process switches before the turn; a prompt without a model keeps it.
-	if got := turn(runtime.Prompt{Text: "model", Model: "opus"}); got != "model: opus" {
+	// The model switches in place; a prompt that changes nothing keeps it.
+	if got := turn(runtime.Prompt{Text: "model", Options: runtime.Change{Model: "opus"}}); got != "model: opus" {
 		t.Fatalf("switched turn ran on %q", got)
 	}
 	if got := turn(runtime.Prompt{Text: "model"}); got != "model: opus" {
 		t.Fatalf("next turn ran on %q", got)
 	}
 	if n := len(e.starts()); n != 1 {
-		t.Fatalf("switching restarted the process: %d starts", n)
+		t.Fatalf("a model switch restarted the process: %d starts", n)
 	}
-	// A model the driver does not list is refused before anything is written.
-	if err := e.m.PromptWith("s1", runtime.Prompt{Text: "x", Model: "gpt-9"}); !errors.Is(err, runtime.ErrOptionNotDeclared) {
+	// Thinking and Fast restart the process between turns, with every option as it now stands.
+	if got := turn(runtime.Prompt{Text: "model", Options: runtime.Change{Thinking: &off, Fast: &on}}); got != "model: opus" {
+		t.Fatalf("restarted turn ran on %q", got)
+	}
+	if n := len(e.starts()); n != 2 {
+		t.Fatalf("starts = %d, want a restart", n)
+	}
+	if a := args(1); !strings.Contains(a, "--model opus --thinking disabled --settings") || !strings.Contains(a, "--resume s1") {
+		t.Fatalf("restart args = %s", a)
+	}
+	states := e.rec.states("s1")
+	if states[len(states)-3] != runtime.StateStarting {
+		t.Fatalf("the restart is not reported as starting: %v", states)
+	}
+	// An option the driver does not declare is refused before anything is written.
+	if err := e.m.PromptWith("s1", runtime.Prompt{Text: "x", Options: runtime.Change{Model: "gpt-9"}}); !errors.Is(err, runtime.ErrOptionNotDeclared) {
 		t.Fatalf("undeclared model: %v", err)
 	}
 }
@@ -881,7 +899,7 @@ func TestStatesReportsRunningProcesses(t *testing.T) {
 	if len(got) != 2 || got[0].SessionID != "s1" || got[0].State != runtime.StateReady || got[1].State != runtime.StateRunning {
 		t.Fatalf("States = %+v", got)
 	}
-	if len(got[0].Capabilities) != 7 {
+	if len(got[0].Capabilities) != 6 {
 		t.Fatalf("capabilities = %v", got[0].Capabilities)
 	}
 }

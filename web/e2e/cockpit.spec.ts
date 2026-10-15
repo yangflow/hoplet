@@ -226,17 +226,27 @@ test('a large image is shrunk to 1568 px before it is uploaded', async () => {
   await expect(page.getByTestId('cockpit.thumbs')).toHaveCount(0);
 });
 
-test('the model picked in a session runs from the next turn on', async () => {
+test('the options picked in a session hold from the next turn on', async () => {
   const conv = page.getByTestId('cockpit.conversation');
+  // The model switches the running process in place.
   await page.getByTestId('cockpit.model').click();
   await page.getByTestId('cockpit.model-option').filter({ hasText: 'sonnet' }).click();
+  await page.keyboard.press('Escape');
   await expect(page.getByTestId('cockpit.model')).toContainText('sonnet');
-  await send('model');
-  await expect(conv.getByText('model: sonnet', { exact: true })).toBeVisible();
+  await send('options');
+  await expect(
+    conv.getByText('model: sonnet thinking: enabled fast: false', { exact: true }),
+  ).toBeVisible();
+  // Thinking and Fast restart it between turns with the new flags; the model stays.
+  await page.getByTestId('cockpit.model').click();
+  await page.getByTestId('cockpit.thinking').click();
+  await page.getByTestId('cockpit.fast').click();
+  await page.keyboard.press('Escape');
+  await send('options');
+  await expect(
+    conv.getByText('model: sonnet thinking: disabled fast: true', { exact: true }),
+  ).toBeVisible();
   await expect(page.getByTestId('cockpit.live-turn')).toHaveCount(0);
-  // The next turn keeps it without asking again.
-  await send('model');
-  await expect(conv.getByText('model: sonnet', { exact: true })).toHaveCount(2);
 });
 
 test('a permission request is answered with Allow', async () => {

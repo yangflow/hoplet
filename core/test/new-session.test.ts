@@ -560,10 +560,8 @@ describe('images for a prompt (ADR 0017)', () => {
   });
 });
 
-describe('the model of a session', () => {
-  const SWITCHING = [{ provider: 'claude', capabilities: { ...CAPS, setModel: true } }];
-
-  async function owned(providers: unknown[]) {
+describe('the options of a session', () => {
+  async function owned(providers: unknown[] = PROVIDERS) {
     const env = await boot();
     const owner = await env.agent('dev-a', providers);
     env.store.append({ sessionId: 's1', projectDir: 'p', filePath: '/s1', deviceId: 'dev-a' }, [
@@ -571,42 +569,38 @@ describe('the model of a session', () => {
     ]);
     return { ...env, owner };
   }
+  const prompt = (options: unknown) => ({ text: 'x', promptId: 'p1', options });
 
-  it('goes with a prompt to a driver that switches models, and comes back with the state', async () => {
-    const { post, get, owner } = await owned(SWITCHING);
-    const pending = post('/api/sessions/s1/prompt', { text: 'x', promptId: 'p1', model: 'sonnet' });
+  it('go with a prompt as a new session gives them, and come back with the state', async () => {
+    const { post, get, owner } = await owned();
+    const options = { model: 'sonnet', thinking: false };
+    const pending = post('/api/sessions/s1/prompt', prompt(options));
     const forwarded = await owner.waitFor((m) => m.type === 'runtime.prompt', 'runtime.prompt');
-    expect(forwarded).toMatchObject({ sessionId: 's1', model: 'sonnet' });
+    expect(forwarded).toMatchObject({ sessionId: 's1', options });
+    const now = { model: 'sonnet', thinking: false, fast: false };
     owner.send({
       type: 'runtime.state',
       sessionId: 's1',
-      state: 'running',
-      capabilities: SWITCHING[0]?.capabilities,
-      model: 'sonnet',
+      state: 'starting',
+      capabilities: CAPS,
+      options: now,
     });
     expect((await pending).status).toBe(202);
-    expect((await get('/api/sessions/s1')).body.runtime).toMatchObject({
-      state: 'running',
-      model: 'sonnet',
-    });
+    expect((await get('/api/sessions/s1')).body.runtime).toMatchObject({ options: now });
   });
 
-  it('is refused for a model the driver does not list or a driver that cannot switch', async () => {
-    const switching = await owned(SWITCHING);
-    expect(
-      await switching.post('/api/sessions/s1/prompt', {
-        text: 'x',
-        promptId: 'p1',
-        model: 'gpt-9',
-      }),
-    ).toMatchObject({ status: 400, body: { reason: 'model' } });
-    const fixed = await owned(PROVIDERS);
-    expect(
-      await fixed.post('/api/sessions/s1/prompt', { text: 'x', promptId: 'p1', model: 'opus' }),
-    ).toMatchObject({ status: 400, body: { reason: 'model' } });
-    expect([
-      ...switching.owner.ofType('runtime.prompt'),
-      ...fixed.owner.ofType('runtime.prompt'),
-    ]).toEqual([]);
+  it('are refused as a new session refuses them: only what the driver declares', async () => {
+    const { post, owner } = await owned([
+      { provider: 'claude', capabilities: { ...CAPS, fast: false } },
+    ]);
+    expect(await post('/api/sessions/s1/prompt', prompt({ model: 'gpt-9' }))).toMatchObject({
+      status: 400,
+      body: { reason: 'model' },
+    });
+    expect(await post('/api/sessions/s1/prompt', prompt({ fast: true }))).toMatchObject({
+      status: 400,
+      body: { reason: 'fast' },
+    });
+    expect(owner.ofType('runtime.prompt')).toEqual([]);
   });
 });

@@ -48,7 +48,7 @@ func (d *Driver) Name() string { return "claude" }
 func (d *Driver) Capabilities() []runtime.Capability {
 	return []runtime.Capability{
 		runtime.CapPermissions, runtime.CapInterrupt, runtime.CapThinking, runtime.CapFast, runtime.CapModels,
-		runtime.CapImages, runtime.CapSetModel,
+		runtime.CapImages,
 	}
 }
 

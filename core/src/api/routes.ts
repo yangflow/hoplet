@@ -45,6 +45,7 @@ import {
   SnapshotChangesSchema,
   SnapshotDiffSchema,
   safeParse,
+  undeclaredOption,
   WorkspaceDiffQuerySchema,
   WorkspaceDiffSchema,
   WorkspaceFileQuerySchema,
@@ -267,15 +268,15 @@ export const routes: readonly Route[] = [
       const owner = ownerOf(d, sessionId);
       if (d.body.text.length > MAX_PROMPT_CHARS) throw new ApiError('too-large');
       const attachments = d.body.attachments ?? [];
-      const model = d.body.model;
+      const options = d.body.options;
       const caps = ownerCapabilities(d, owner, providerOf(d.store, sessionId));
       if (caps !== undefined) {
         if (attachments.length > 0 && !caps?.images) {
           throw new ApiError('invalid-request', { reason: 'images' });
         }
-        if (model !== undefined && !(caps?.setModel && caps.models.includes(model))) {
-          throw new ApiError('invalid-request', { reason: 'model' });
-        }
+        // A prompt changes the options a new session starts with, and only what the driver declares.
+        const option = options && (caps ? undeclaredOption(options, caps) : 'provider');
+        if (option) throw new ApiError('invalid-request', { reason: option });
       }
       const outcome = await d.control.prompt(
         sessionId,
@@ -283,7 +284,7 @@ export const routes: readonly Route[] = [
         d.body.text,
         d.body.promptId,
         attachments,
-        model,
+        options,
       );
       if (outcome.ok) return { ok: true, promptId: outcome.promptId };
       throw relayError(

@@ -26,8 +26,13 @@ streams: the agent sends `control_request` `initialize` after start, and the pro
 request is answered; `control_request` `interrupt` ends the running turn and keeps the process; a
 `control_request` `can_use_tool` from Claude Code is a permission request, answered with a `control_response`
 whose `behavior` is `allow` or `deny`; `control_request` `set_model` switches the model of the running process
-from the next turn on, and is written just before the prompt that asked for it (verified on 2.1.299: an alias
-is accepted, an unknown model is refused with `catalog_unknown`). Claude Code waits for an answer without limit; the agent denies a
+from the next turn on, and is written just before the prompt that asked for it. A change of Thinking or Fast
+restarts the process between turns with the session's options as flags (`--thinking enabled|disabled`,
+`--settings` with `fastMode`), the way a new session starts; every process gets an explicit `--thinking`, on
+unless the session chose it off. Verified on 2.1.299 with real turns: after `set_model sonnet` the next turn's
+messages name `claude-sonnet-5-5`; an unknown model is refused with `catalog_unknown`. Claude Code has no
+control request for Fast, and `set_max_thinking_tokens` does switch thinking but its budget for "enabled" is
+not documented, so Thinking and Fast go through the restart. Claude Code waits for an answer without limit; the agent denies a
 request after 10 minutes. Closing standard input stops the process; the agent kills it when it has not exited
 after 10 seconds. The runtime states `running`, `waiting-permission` and `ready` follow Claude Code's
 `session_state_changed` events (`running`, `requires_action`, `idle`).

@@ -559,9 +559,6 @@
                         },
                         "images": {
                           "type": "boolean"
-                        },
-                        "setModel": {
-                          "type": "boolean"
                         }
                       },
                       "required": [
@@ -1553,9 +1550,6 @@
                 },
                 "images": {
                   "type": "boolean"
-                },
-                "setModel": {
-                  "type": "boolean"
                 }
               },
               "required": [
@@ -1569,10 +1563,22 @@
             "error": {
               "type": "string"
             },
-            "model": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 128
+            "options": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "thinking": {
+                  "type": "boolean"
+                },
+                "fast": {
+                  "type": "boolean"
+                }
+              },
+              "required": []
             }
           },
           "required": [
@@ -1738,10 +1744,22 @@
           },
           "maxItems": 4
         },
-        "model": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 128
+        "options": {
+          "type": "object",
+          "properties": {
+            "model": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "thinking": {
+              "type": "boolean"
+            },
+            "fast": {
+              "type": "boolean"
+            }
+          },
+          "required": []
         },
         "promptId": {
           "type": "string",
@@ -1955,9 +1973,6 @@
                       },
                       "images": {
                         "type": "boolean"
-                      },
-                      "setModel": {
-                        "type": "boolean"
                       }
                     },
                     "required": [
@@ -1971,10 +1986,22 @@
                   "error": {
                     "type": "string"
                   },
-                  "model": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 128
+                  "options": {
+                    "type": "object",
+                    "properties": {
+                      "model": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 128
+                      },
+                      "thinking": {
+                        "type": "boolean"
+                      },
+                      "fast": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": []
                   }
                 },
                 "required": [
@@ -2198,9 +2225,6 @@
             },
             "images": {
               "type": "boolean"
-            },
-            "setModel": {
-              "type": "boolean"
             }
           },
           "required": [
@@ -2211,10 +2235,22 @@
             "models"
           ]
         },
-        "model": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 128
+        "options": {
+          "type": "object",
+          "properties": {
+            "model": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "thinking": {
+              "type": "boolean"
+            },
+            "fast": {
+              "type": "boolean"
+            }
+          },
+          "required": []
         }
       },
       "required": [

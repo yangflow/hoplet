@@ -87,10 +87,12 @@ composer at the foot sends a prompt, typed or spoken; speech is transcribed on t
 no audio leaves them (#17). Its first row says where the session runs, machine / directory / git branch (for a
 session the branch its lines last recorded, for a draft the one checked out in the directory), read only once
 the session exists; its toolbar holds attach (when the driver declares `images`), the model menu, dictate
-and send. In a draft the menu chooses the model with Thinking and Fast. In a session whose driver declares
-`setModel` it lists the models only and shows the session's model (Default for the vendor's own); the model
-picked there goes with the next prompt, a running process switches to it before that turn, and later turns
-keep it. Thinking and Fast stay as the session started. The text grows to 8 lines, then scrolls; dragging the composer's top edge sets a height the
+and send. In a draft and in a session alike the menu holds the model with Thinking and Fast, as the
+driver declares them, and shows what the session runs with (Default for the vendor's own model; Thinking is
+on unless the session chose it off). What is picked goes with the next prompt as `options`, the way a new
+session's options do, and holds from that turn on: a running Claude Code process switches its model in
+place (`set_model`), and a change of Thinking or Fast restarts it between turns with the new options, which
+shows as `starting`. The text grows to 8 lines, then scrolls; dragging the composer's top edge sets a height the
 browser remembers, at most what leaves the conversation 240 px, and a double-click on the edge resets it.
 When the session's driver declares `images`, images pasted, dropped or attached go with the prompt: each is
 shrunk to at most 1568 px on its long edge (a GIF is left as it is), must then be PNG, JPEG, GIF or WebP of at
@@ -119,7 +121,7 @@ a state of the session appears under the composer when it blocks or changes what
 
 A permission request shows the tool name and its input (elided above 8 KiB like any block). A control appears
 only when the session's runtime driver declares its capability (`permissions`, `interrupt`, `thinking`,
-`fast`, `models`, `images`, `setModel`).
+`fast`, `models`, `images`).
 
 ### Workspace inspector
 

@@ -11,6 +11,7 @@
 //	crash          exit with status 3
 //	images         answer `<n> images: <media types>` for the images that came with the prompt
 //	model          answer `model: <model>`, the --model it started with or the last set_model ("default")
+//	options        answer `model: <model> thinking: <--thinking or default> fast: <true when --settings fastMode>`
 //	anything else  behaves like `say`
 //
 // A prompt's images are written into its user line before the text, as Claude Code records them.
@@ -153,6 +154,12 @@ func main() {
 		if a == "--model" && i+1 < len(args) {
 			model = args[i+1]
 		}
+		if a == "--thinking" && i+1 < len(args) {
+			thinking = args[i+1]
+		}
+		if a == "--settings" && i+1 < len(args) && strings.Contains(args[i+1], `"fastMode":true`) {
+			fast = true
+		}
 		if a == "--session-id" && i+1 < len(args) {
 			session, fresh = args[i+1], true
 		}
@@ -279,8 +286,10 @@ func main() {
 
 // model is the model the process runs on: --model, then the last set_model.
 var (
-	modelMu sync.Mutex
-	model   = "default"
+	modelMu  sync.Mutex
+	model    = "default"
+	thinking = "default" // --thinking as given
+	fast     = false     // --settings with fastMode true
 )
 
 // turnImages are the image blocks of the turn that runs; its user line carries them before the text.
@@ -388,9 +397,12 @@ func runTurn(t *turn, prompt string) {
 		if cmd == "say" {
 			text = rest
 		}
-		if cmd == "model" {
+		if cmd == "model" || cmd == "options" {
 			modelMu.Lock()
 			text = "model: " + model
+			if cmd == "options" {
+				text += fmt.Sprintf(" thinking: %s fast: %v", thinking, fast)
+			}
 			modelMu.Unlock()
 		}
 		if cmd == "images" {

@@ -4,6 +4,7 @@ import {
   type ProviderInfo,
   type RuntimeStart,
   type StartOptions,
+  undeclaredOption,
 } from '@hoplet/shared';
 import { log } from '../log/index.ts';
 import { askWaiter } from './pending.ts';
@@ -23,12 +24,8 @@ function sameDir(a: string, b: string): boolean {
 
 /** The first option the provider's capabilities do not declare, or null when all are. */
 function undeclared(options: StartOptions, info: ProviderInfo, images: number): string | null {
-  const caps = info.capabilities;
-  if (images > 0 && !caps.images) return 'images';
-  if (options.model !== undefined && !caps.models.includes(options.model)) return 'model';
-  if (options.thinking !== undefined && !caps.thinking) return 'thinking';
-  if (options.fast !== undefined && !caps.fast) return 'fast';
-  return null;
+  if (images > 0 && !info.capabilities.images) return 'images';
+  return undeclaredOption(options, info.capabilities);
 }
 
 /**

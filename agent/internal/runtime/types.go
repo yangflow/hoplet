@@ -33,8 +33,6 @@ const (
 	CapModels      Capability = "models"
 	// CapImages: a prompt may carry images, which the driver passes to the vendor as image content.
 	CapImages Capability = "images"
-	// CapSetModel: the model of an existing session can change between turns, to one of Driver.Models().
-	CapSetModel Capability = "setModel"
 )
 
 // Image is a picture that goes with a prompt: its media type (image/png, image/jpeg, image/gif or
@@ -44,12 +42,20 @@ type Image struct {
 	Data      []byte
 }
 
-// Prompt is one user turn: its text, the images that go with it, and the model it runs on ("" keeps the
-// session's model).
+// Prompt is one user turn: its text, the images that go with it, and what it changes of the session's
+// options from this turn on.
 type Prompt struct {
-	Text   string
-	Images []Image
-	Model  string
+	Text    string
+	Images  []Image
+	Options Change
+}
+
+// Change is what a prompt changes of a session's StartOptions; a zero field keeps the option. A driver applies
+// only what it declares (models, thinking, fast).
+type Change struct {
+	Model    string
+	Thinking *bool
+	Fast     *bool
 }
 
 // StartOptions are what a new session can choose (docs/spec.md#new-session). A driver applies an option only
@@ -94,7 +100,8 @@ type Process interface {
 	// Events delivers the process's events in order and is closed after the final Exited.
 	Events() <-chan ProcessEvent
 	Prompt(p Prompt) error
-	// SetModel switches the model of the running process from the next turn on.
+	// SetModel switches the model of the running process from the next turn on; a change of any other option
+	// restarts the process.
 	SetModel(model string) error
 	// Answer responds to a permission request; message explains a denial to the model.
 	Answer(requestID string, allow bool, message string) error

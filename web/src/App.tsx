@@ -166,7 +166,7 @@ export default function App() {
             state: msg.state,
             ...(msg.capabilities ? { capabilities: msg.capabilities } : {}),
             ...(msg.error !== undefined ? { error: msg.error } : {}),
-            ...(msg.model !== undefined ? { model: msg.model } : {}),
+            ...(msg.options !== undefined ? { options: msg.options } : {}),
           };
           socketRuntime.current.set(msg.sessionId, { info, at: Date.now() });
           setRuntime((cur) => ({ ...cur, [msg.sessionId]: info }));
