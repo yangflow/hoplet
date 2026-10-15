@@ -26,7 +26,14 @@ streams: the agent sends `control_request` `initialize` after start, and the pro
 request is answered; `control_request` `interrupt` ends the running turn and keeps the process; a
 `control_request` `can_use_tool` from Claude Code is a permission request, answered with a `control_response`
 whose `behavior` is `allow` or `deny`; `control_request` `set_model` switches the model of the running process
-from the next turn on, and is written before the next turn after the change. A change of Thinking or Fast
+from the next turn on, and is written before the next turn after the change. The permission mode is set at
+once: every process starts with `--permission-mode <mode>` and `--allow-dangerously-skip-permissions`, which makes
+Bypass reachable without a restart, and `control_request` `set_permission_mode` changes it in the running process,
+also during a turn. The agent waits for the `control_response` (10 seconds, or the process ending) before it reports
+the mode; a refusal (`invalid_mode`, or `bypass_not_launched` for a process started without the flag) leaves the
+mode as it was. Claude Code reports the mode it has in the `init` message and in
+`system` `status` events with `permissionMode`, which is also how a change the process makes itself (leaving plan
+mode) reaches the session; `ExitPlanMode` arrives as an ordinary `can_use_tool`. A change of Thinking or Fast
 restarts the process between turns with the session's values as flags (`--thinking enabled|disabled`,
 `--settings` with `fastMode`), the way a new session starts; every process gets an explicit `--thinking`, on
 unless the session chose it off. Verified on 2.1.299 with real turns: after `set_model sonnet` the next turn's
@@ -38,7 +45,10 @@ control request for Fast, and `set_max_thinking_tokens` does switch thinking but
 not documented, so Thinking and Fast go through the restart. Claude Code waits for an answer without limit; the agent denies a
 request after 10 minutes. Closing standard input stops the process; the agent kills it when it has not exited
 after 10 seconds. The runtime states `running`, `waiting-permission` and `ready` follow Claude Code's
-`session_state_changed` events (`running`, `requires_action`, `idle`).
+`session_state_changed` events (`running`, `requires_action`, `idle`). Verified on 2.1.299: `--permission-mode`
+accepts `default` (also `manual`), `acceptEdits`, `plan`, `auto`, `bypassPermissions` and `dontAsk`, and the `init`
+message names the mode normalised; `set_permission_mode` answers `{ "mode": ... }`; every change emits
+`{"type":"system","subtype":"status","status":null,"permissionMode":...}`.
 
 The process is started by Hoplet (the first prompt to an idle session starts it) and stops after 30 minutes
 without a turn, on an explicit stop, before handoff and when the agent exits. The number of processes in a

@@ -86,13 +86,19 @@ new lines and runtime output appear live; otherwise a pill counts new messages a
 composer at the foot sends a prompt, typed or spoken; speech is transcribed on the user's own machines and
 no audio leaves them (#17). Its first row says where the session runs, machine / directory / git branch (for a
 session the branch its lines last recorded, for a draft the one checked out in the directory), read only once
-the session exists; its toolbar holds attach (when the driver declares `images`), the model menu, dictate
+the session exists; its toolbar holds attach (when the driver declares `images`), a permission-mode pill, the model menu, dictate
 and send. In a draft and in a session alike the menu lists the config options the driver declares, in its order,
 as radio lists for a choice and switches for a yes or no, and shows each option's current value. In a
 session a pick is sent at once (`POST /api/sessions/:id/config`) and holds from the next turn on: the driver says
 how it applies, and a running Claude Code process switches its model in place (`set_model`, before the next
 turn) while a change of Thinking or Fast restarts it between turns with the session's values, which
-shows as `starting`. The text grows to 8 lines, then scrolls; dragging the composer's top edge sets a height the
+shows as `starting`. The permission mode is the driver's config option of the category `mode`, shown as the pill
+left of the model button: a session starts in Manual and each mode is picked from the pill's menu or, with the
+field focused, by Shift+Tab, which moves to the next mode in the driver's order and wraps. The mode is a setting
+of the one session, not of the machine or the browser; a pick applies at once, also while a turn runs or waits for a
+permission, and the pill follows what the process reports, so a change Claude Code makes itself (leaving plan mode)
+shows too. Every mode is selectable remotely, Bypass permissions included, with no confirmation; while it is on
+the pill is amber and carries the shield-alert glyph. In a draft the pick goes into the new session's `config`. The text grows to 8 lines, then scrolls; dragging the composer's top edge sets a height the
 browser remembers, at most what leaves the conversation 240 px, and a double-click on the edge resets it.
 When the session's driver declares `images`, images pasted, dropped or attached go with the prompt: each is
 shrunk to at most 1568 px on its long edge (a GIF is left as it is), must then be PNG, JPEG, GIF or WebP of at
@@ -342,7 +348,7 @@ is malformed, the device announced no such provider, a config option or value is
 `reason: images` for `attachments` when the provider's driver does not declare images, and with `too-large` for
 a prompt over 8,000 characters. Otherwise it forwards `runtime.start` to the device on the control lane. The
 agent checks the same again, starts Claude Code in that directory with streaming input and output and no
-session to resume (`--session-id` with a new ID and the config as flags: `--model`, `--thinking enabled|disabled` and, for `fast`, the
+session to resume (`--session-id` with a new ID and the config as flags: `--permission-mode`, `--model`, `--thinking enabled|disabled` and, for `fast`, the
 setting `fastMode` of that one process), writes the prompt, waits until Claude Code has created the session
 file, adds the session to `imported` in `projects.json`, and answers `runtime.started` with the session ID. If
 Claude Code exits or does not create the file within 60 seconds, the agent stops the process and answers

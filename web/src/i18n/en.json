@@ -322,5 +322,13 @@
   "config.model": "Model",
   "config.thinking": "Thinking",
   "config.fast": "Fast",
-  "config.model.default": "Default model"
+  "config.model.default": "Default model",
+  "High risk": "High risk",
+  "Cycle modes": "Cycle modes",
+  "config.mode": "Permission mode",
+  "config.mode.default": "Manual",
+  "config.mode.acceptEdits": "Accept edits",
+  "config.mode.plan": "Plan",
+  "config.mode.auto": "Auto",
+  "config.mode.bypassPermissions": "Bypass permissions"
 }

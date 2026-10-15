@@ -14,6 +14,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"syscall"
+	"time"
 
 	"github.com/yangflow/hoplet/agent/internal/runtime"
 )
@@ -22,6 +23,18 @@ const initRequestID = "hoplet-init"
 
 // setModelPrefix starts the request ID of a set_model control request.
 const setModelPrefix = "hoplet-model-"
+
+// setModePrefix starts the request ID of a set_permission_mode control request.
+const setModePrefix = "hoplet-mode-"
+
+// setModeTimeout bounds the wait for Claude Code's answer to set_permission_mode.
+const setModeTimeout = 10 * time.Second
+
+// controlReply is Claude Code's answer to a control request Hoplet waits for.
+type controlReply struct {
+	ok  bool
+	err string
+}
 
 // maxLineBytes bounds one line of Claude Code output; a longer line ends the process as a protocol error.
 const maxLineBytes = 64 << 20
@@ -45,9 +58,11 @@ type process struct {
 	model string
 
 	mu      sync.Mutex
-	pending map[string]pendingRequest // permission requests by request id, with the input to echo on allow
-	seen    map[string]bool           // tool_use ids already reported in this turn
-	initErr error                     // the vendor refused initialization
+	pending map[string]pendingRequest    // permission requests by request id, with the input to echo on allow
+	seen    map[string]bool              // tool_use ids already reported in this turn
+	initErr error                        // the vendor refused initialization
+	waiting map[string]chan controlReply // control requests Set waits for, by request id
+	done    chan struct{}                // closed when the output ended, which ends every wait
 }
 
 func (p *process) Events() <-chan runtime.ProcessEvent { return p.events }
@@ -123,20 +138,60 @@ func (p *process) Answer(requestID string, allow bool, message string) error {
 	})
 }
 
-// Set switches the model with set_model (Claude Code accepts `default` and returns to its own default model); no other setting can change in a running process. The request goes
-// before the prompt that follows it on the same input, so that turn already runs on the new model; a refusal is
-// only logged.
+// Set switches a setting of the running process. The model goes with set_model (Claude Code accepts `default`
+// and returns to its own default model); the request goes before the prompt that follows it on the same input,
+// so that turn already runs on the new model, and a refusal is only logged. The permission mode goes with
+// set_permission_mode, applies at once, and Set waits for Claude Code's answer so that a refusal (invalid_mode,
+// bypass_not_launched) is its error. No other setting can change in a running process.
 func (p *process) Set(id string, value any) error {
-	model, ok := value.(string)
-	if id != optModel || !ok {
+	v, ok := value.(string)
+	if !ok {
 		return fmt.Errorf("claude cannot change %q in a running process", id)
 	}
-	if model == modelDefault && p.model != "" {
-		model = p.model
+	switch id {
+	case optMode:
+		return p.setMode(v)
+	case optModel:
+		if v == modelDefault && p.model != "" {
+			v = p.model
+		}
+		req := controlRequest(fmt.Sprintf("%s%d", setModelPrefix, p.reqSeq.Add(1)), "set_model")
+		req["request"].(map[string]any)["model"] = v
+		return p.send(req)
 	}
-	req := controlRequest(fmt.Sprintf("%s%d", setModelPrefix, p.reqSeq.Add(1)), "set_model")
-	req["request"].(map[string]any)["model"] = model
-	return p.send(req)
+	return fmt.Errorf("claude cannot change %q in a running process", id)
+}
+
+func (p *process) setMode(mode string) error {
+	id := fmt.Sprintf("%s%d", setModePrefix, p.reqSeq.Add(1))
+	reply := make(chan controlReply, 1)
+	p.mu.Lock()
+	p.waiting[id] = reply
+	p.mu.Unlock()
+	defer func() {
+		p.mu.Lock()
+		delete(p.waiting, id)
+		p.mu.Unlock()
+	}()
+	req := controlRequest(id, "set_permission_mode")
+	req["request"].(map[string]any)["mode"] = mode
+	if err := p.send(req); err != nil {
+		return err
+	}
+	select {
+	case r := <-reply:
+		if !r.ok {
+			if r.err == "" {
+				r.err = "refused"
+			}
+			return errors.New(r.err)
+		}
+		return nil
+	case <-p.done:
+		return errors.New("the process ended")
+	case <-time.After(setModeTimeout):
+		return errors.New("claude did not answer set_permission_mode in time")
+	}
 }
 
 func (p *process) Interrupt() error {
@@ -170,6 +225,7 @@ func (p *process) emit(ev runtime.ProcessEvent) { p.events <- ev }
 // read translates Claude Code's stdout into events until it ends, then reports the exit.
 func (p *process) read(stdout io.Reader) {
 	defer close(p.events)
+	defer close(p.done)
 	r := bufio.NewReaderSize(stdout, 64<<10)
 	var readErr error
 	for {
@@ -249,6 +305,9 @@ type message struct {
 		Error     string `json:"error"`
 	} `json:"response"`
 
+	// PermissionMode is the mode a `system` init or status message reports.
+	PermissionMode string `json:"permissionMode"`
+
 	IsError bool            `json:"is_error"`
 	Result  json.RawMessage `json:"result"`
 	Errors  []string        `json:"errors"`
@@ -301,6 +360,15 @@ func (p *process) handleLine(line []byte) {
 		p.mu.Unlock()
 		p.emit(runtime.PermissionCancelled{RequestID: m.RequestID})
 	case "control_response":
+		if strings.HasPrefix(m.Response.RequestID, setModePrefix) {
+			p.mu.Lock()
+			reply := p.waiting[m.Response.RequestID]
+			p.mu.Unlock()
+			if reply != nil {
+				reply <- controlReply{ok: m.Response.Subtype == "success", err: m.Response.Error}
+			}
+			return
+		}
 		if strings.HasPrefix(m.Response.RequestID, setModelPrefix) && m.Response.Subtype != "success" {
 			log.Printf("[agent] claude refused a model switch: %s", m.Response.Error)
 			return
@@ -325,6 +393,15 @@ func (p *process) handleLine(line []byte) {
 
 func (p *process) handleSystem(m *message) {
 	switch m.Subtype {
+	case "init", "status":
+		// The mode the process runs in: at start, and when it changes by a request or by Claude itself, such
+		// as after ExitPlanMode is allowed. `manual` is the alias of `default`.
+		if mode := m.PermissionMode; mode != "" {
+			if mode == "manual" {
+				mode = modeDefault
+			}
+			p.emit(runtime.ConfigChanged{ID: optMode, Value: mode})
+		}
 	case "session_state_changed":
 		switch m.State {
 		case "running":

@@ -35,6 +35,8 @@ import {
   RotateCw,
   Search,
   Settings,
+  Shield,
+  ShieldAlert,
   Square,
   SquarePen,
   Terminal,
@@ -101,6 +103,8 @@ export const Icon = {
   contrast: draw(Contrast),
   ellipsis: draw(Ellipsis),
   wrap: draw(TextWrap),
+  shield: draw(Shield),
+  shieldAlert: draw(ShieldAlert),
 };
 
 export type IconName = keyof typeof Icon;

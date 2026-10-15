@@ -95,7 +95,7 @@ func TestBridgeRelaysAPromptAsRuntimeMessages(t *testing.T) {
 		case sync.RuntimeState:
 			states = append(states, m.State)
 			if m.V != sync.ProtocolVersion || m.Type != sync.TypeRuntimeState || !m.Capabilities.Permissions ||
-				!m.Capabilities.Interrupt || len(m.Capabilities.Config) != 3 {
+				!m.Capabilities.Interrupt || len(m.Capabilities.Config) != 4 {
 				t.Fatalf("state message = %+v", m)
 			}
 		case sync.RuntimeOutput:

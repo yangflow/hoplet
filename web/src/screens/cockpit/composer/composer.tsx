@@ -113,6 +113,8 @@ export function Composer(props: {
   where?: ReactNode;
   /** The toolbar's choices before dictate and send: the model menu. */
   options?: ReactNode;
+  /** Shift+Tab in the field: cycles the permission mode. Absent when the session has no mode to cycle. */
+  onCycleMode?: () => void;
   /** The send button's name: Send, or Start in a draft. */
   sendLabel?: string;
   /** Text the field starts with (development fixtures). */
@@ -445,6 +447,11 @@ export function Composer(props: {
           props.onDirty();
         }}
         onKeyDown={(e) => {
+          if (e.key === 'Tab' && e.shiftKey && props.onCycleMode && !e.nativeEvent.isComposing) {
+            e.preventDefault();
+            props.onCycleMode();
+            return;
+          }
           if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
             e.preventDefault();
             submit();

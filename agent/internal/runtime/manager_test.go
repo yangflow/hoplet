@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -280,7 +281,8 @@ func TestPromptRunsATurn(t *testing.T) {
 	}
 	// Thinking is explicit, on unless the session chose it off.
 	want := []string{"-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose",
-		"--include-partial-messages", "--permission-prompt-tool", "stdio", "--thinking", "enabled", "--resume", "s1"}
+		"--include-partial-messages", "--permission-prompt-tool", "stdio", "--permission-mode", "default", "--allow-dangerously-skip-permissions",
+		"--thinking", "enabled", "--resume", "s1"}
 	if strings.Join(starts[0].Args, " ") != strings.Join(want, " ") {
 		t.Fatalf("args = %v", starts[0].Args)
 	}
@@ -426,7 +428,7 @@ func TestSetConfigAppliesEachKindAndReportsTheValues(t *testing.T) {
 	for _, c := range []struct {
 		id    string
 		value any
-	}{{"model", "gpt-9"}, {"model", true}, {"thinking", "yes"}, {"mode", "plan"}} {
+	}{{"model", "gpt-9"}, {"model", true}, {"thinking", "yes"}, {"mode", "dontAsk"}, {"mode", true}, {"permission", "plan"}} {
 		if err := e.m.SetConfig("s1", c.id, c.value); !errors.Is(err, runtime.ErrOptionNotDeclared) {
 			t.Fatalf("%s=%v: %v", c.id, c.value, err)
 		}
@@ -1171,7 +1173,7 @@ func TestCreateStartsANewSessionWithoutResuming(t *testing.T) {
 		t.Fatalf("a new session resumes nothing: %q", args)
 	}
 	last, _ := e.rec.lastState(id)
-	if len(last.Config) != 3 || last.Config[0].Current != "opus" || last.Config[2].Current != true {
+	if len(last.Config) != 4 || last.Config[1].Current != "opus" || last.Config[3].Current != true {
 		t.Fatalf("config = %+v", last.Config)
 	}
 
@@ -1225,5 +1227,259 @@ func TestNewSessionWhoseProcessExitsFailsWithoutAFile(t *testing.T) {
 		if st.SessionID == id {
 			t.Fatalf("a discarded session is still reported: %+v", st)
 		}
+	}
+}
+
+// modeOf is the permission mode the session's last reported state carries.
+func modeOf(e *env, id string) any {
+	last, _ := e.rec.lastState(id)
+	for _, o := range last.Config {
+		if o.ID == "mode" {
+			return o.Current
+		}
+	}
+	return nil
+}
+
+func TestThePermissionModeAppliesAtOnceAndEveryProcessStartsWithIt(t *testing.T) {
+	e := newEnv(t, nil)
+	e.session("s1")
+	if err := e.m.SetConfig("s1", "mode", "plan"); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.m.Prompt("s1", "mode"); err != nil {
+		t.Fatal(err)
+	}
+	e.rec.waitFor(t, "the first turn", func() bool {
+		s := e.rec.states("s1")
+		return len(s) > 2 && s[len(s)-1] == runtime.StateReady
+	})
+	if a := strings.Join(e.starts()[0].Args, " "); !strings.Contains(a, "--permission-mode plan --allow-dangerously-skip-permissions") {
+		t.Fatalf("args = %s", a)
+	}
+	if got := textOf(e, "s1", 0); got != "mode: plan" {
+		t.Fatalf("the first turn ran in %q", got)
+	}
+	// Switching an idle process takes effect before any prompt, so the next process is not needed.
+	if err := e.m.SetConfig("s1", "mode", "bypassPermissions"); err != nil {
+		t.Fatal(err)
+	}
+	from := len(e.rec.outputs("s1"))
+	n := len(e.rec.states("s1"))
+	if err := e.m.Prompt("s1", "mode"); err != nil {
+		t.Fatal(err)
+	}
+	e.rec.waitFor(t, "the second turn", func() bool {
+		s := e.rec.states("s1")
+		return len(s) > n+1 && s[len(s)-1] == runtime.StateReady
+	})
+	if got := textOf(e, "s1", from); got != "mode: bypassPermissions" || modeOf(e, "s1") != "bypassPermissions" {
+		t.Fatalf("the second turn ran in %q, reported %v", got, modeOf(e, "s1"))
+	}
+	if len(e.starts()) != 1 {
+		t.Fatalf("a mode switch started %d processes", len(e.starts()))
+	}
+}
+
+func TestThePermissionModeSwitchesWhileATurnRuns(t *testing.T) {
+	e := newEnv(t, nil)
+	e.session("s1")
+	if err := e.m.Prompt("s1", "sleep"); err != nil {
+		t.Fatal(err)
+	}
+	e.rec.waitState(t, "s1", runtime.StateRunning)
+	if err := e.m.SetConfig("s1", "mode", "acceptEdits"); err != nil {
+		t.Fatal(err)
+	}
+	if modeOf(e, "s1") != "acceptEdits" {
+		t.Fatalf("reported %v", modeOf(e, "s1"))
+	}
+	if err := e.m.Interrupt("s1"); err != nil {
+		t.Fatal(err)
+	}
+	e.rec.waitFor(t, "the interrupted turn", func() bool {
+		s := e.rec.states("s1")
+		return s[len(s)-1] == runtime.StateReady || s[len(s)-1] == runtime.StateFailed
+	})
+	if err := e.m.Prompt("s1", "mode"); err != nil {
+		t.Fatal(err)
+	}
+	e.rec.waitFor(t, "the next turn", func() bool {
+		return strings.Contains(textOf(e, "s1", 0), "mode: acceptEdits")
+	})
+}
+
+// Claude leaving plan mode itself (ExitPlanMode allowed) is a permission request like any other, and the
+// session's value follows it.
+func TestAVendorInitiatedModeChangeIsReported(t *testing.T) {
+	e := newEnv(t, nil)
+	e.session("s1")
+	if err := e.m.SetConfig("s1", "mode", "plan"); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.m.Prompt("s1", "exitplan 1. do it"); err != nil {
+		t.Fatal(err)
+	}
+	e.rec.waitState(t, "s1", runtime.StateWaitingPermission)
+	e.rec.waitFor(t, "permission request", func() bool { return len(e.rec.permissions("s1")) == 1 })
+	reqs := e.rec.permissions("s1")
+	if len(reqs) != 1 || reqs[0].Tool != "ExitPlanMode" || !strings.Contains(string(reqs[0].Input), "1. do it") {
+		t.Fatalf("permission requests = %+v", reqs)
+	}
+	if modeOf(e, "s1") != "plan" {
+		t.Fatalf("mode before the answer = %v", modeOf(e, "s1"))
+	}
+	if err := e.m.Permission("s1", reqs[0].RequestID, true); err != nil {
+		t.Fatal(err)
+	}
+	e.rec.waitFor(t, "the mode to change", func() bool { return modeOf(e, "s1") == "default" })
+	e.rec.waitState(t, "s1", runtime.StateReady)
+	// A denied ExitPlanMode keeps the mode.
+	if err := e.m.SetConfig("s1", "mode", "plan"); err != nil {
+		t.Fatal(err)
+	}
+	n := len(e.rec.permissions("s1"))
+	if err := e.m.Prompt("s1", "exitplan again"); err != nil {
+		t.Fatal(err)
+	}
+	e.rec.waitFor(t, "the second request", func() bool { return len(e.rec.permissions("s1")) > n })
+	if err := e.m.Permission("s1", e.rec.permissions("s1")[n].RequestID, false); err != nil {
+		t.Fatal(err)
+	}
+	e.rec.waitState(t, "s1", runtime.StateReady)
+	if modeOf(e, "s1") != "plan" {
+		t.Fatalf("mode after a denial = %v", modeOf(e, "s1"))
+	}
+}
+
+// changingDriver's process reports a mode change the driver does not declare, and one it does.
+type changingDriver struct{ nowDriver }
+
+func (changingDriver) Start(context.Context, runtime.StartSpec) (runtime.Process, error) {
+	events := make(chan runtime.ProcessEvent, 8)
+	events <- runtime.Ready{}
+	events <- runtime.ConfigChanged{ID: "x", Value: "bogus"}
+	events <- runtime.ConfigChanged{ID: "nope", Value: "a"}
+	return &refusingProcess{events: events}, nil
+}
+
+func TestAVendorChangeToAnUndeclaredValueIsIgnored(t *testing.T) {
+	e := newEnv(t, func(c *runtime.Config) { c.Driver = changingDriver{} })
+	e.session("s1")
+	if err := e.m.Prompt("s1", "x"); err != nil {
+		t.Fatal(err)
+	}
+	e.rec.waitState(t, "s1", runtime.StateReady) // the turn is over: every event of the process was handled
+	last, _ := e.rec.lastState("s1")
+	if last.Config[0].Current != "a" {
+		t.Fatalf("config = %+v", last.Config)
+	}
+}
+
+// setDriver starts processes whose Set is the test's function, to hold a switch open.
+type setDriver struct {
+	nowDriver
+	set func(p *setProcess, id string, value any) error
+	got chan *setProcess
+}
+
+func (d setDriver) Start(context.Context, runtime.StartSpec) (runtime.Process, error) {
+	p := &setProcess{events: make(chan runtime.ProcessEvent, 1), set: d.set}
+	p.events <- runtime.Ready{}
+	d.got <- p
+	return p, nil
+}
+
+type setProcess struct {
+	refusingProcess
+	events chan runtime.ProcessEvent
+	set    func(p *setProcess, id string, value any) error
+}
+
+func (p *setProcess) Events() <-chan runtime.ProcessEvent { return p.events }
+func (p *setProcess) Prompt(runtime.Prompt) error {
+	go func() {
+		p.events <- runtime.StateChanged{State: runtime.StateRunning}
+		p.events <- runtime.TurnResult{}
+		p.events <- runtime.StateChanged{State: runtime.StateReady}
+	}()
+	return nil
+}
+func (p *setProcess) Set(id string, v any) error { return p.set(p, id, v) }
+func (p *setProcess) Close() error               { close(p.events); return nil }
+
+func newSetEnv(t *testing.T, set func(p *setProcess, id string, value any) error) (*runtime.Manager, *recorder, *setProcess) {
+	t.Helper()
+	rec := newRecorder()
+	d := setDriver{set: set, got: make(chan *setProcess, 1)}
+	m := runtime.NewManager(runtime.Config{
+		Driver: d,
+		Locate: func(string) (runtime.Location, error) { return runtime.Location{Dir: t.TempDir()}, nil },
+		Emit:   rec.emit, MaxIdle: 5,
+	})
+	t.Cleanup(func() { m.Shutdown(context.Background()) })
+	if err := m.Prompt("s1", "x"); err != nil {
+		t.Fatal(err)
+	}
+	p := <-d.got
+	rec.waitFor(t, "ready", func() bool {
+		s := rec.states("s1")
+		return len(s) > 0 && s[len(s)-1] == runtime.StateReady
+	})
+	return m, rec, p
+}
+
+// A switch waits for the process's answer, and the process sends the answer after the events it was streaming:
+// the manager must keep taking events meanwhile, or the switch times out and every session stalls behind it.
+func TestASwitchDoesNotBlockTheEventsTheProcessSendsBeforeItsAnswer(t *testing.T) {
+	m, _, _ := newSetEnv(t, func(p *setProcess, id string, value any) error {
+		for i := 0; i < 600; i++ { // far more than the event channel holds
+			p.events <- runtime.Output{Kind: runtime.OutputText, Text: "x"}
+		}
+		return nil
+	})
+	done := make(chan error, 1)
+	go func() { done <- m.SetConfig("s1", "mode", "b") }()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("the switch never returned while the process streamed events")
+	}
+	other := make(chan struct{})
+	go func() { _ = m.SetConfig("s2", "mode", "b"); close(other) }()
+	select {
+	case <-other:
+	case <-time.After(3 * time.Second):
+		t.Fatal("another session stalled")
+	}
+}
+
+// A refused switch rolls back only while the value is still its own: a newer change of the setting stands.
+func TestARefusedSwitchDoesNotRollBackANewerChange(t *testing.T) {
+	release := make(chan struct{})
+	var calls atomic.Int32
+	m, rec, _ := newSetEnv(t, func(p *setProcess, id string, value any) error {
+		if calls.Add(1) == 1 {
+			<-release
+			return errors.New("refused")
+		}
+		return nil
+	})
+	first := make(chan error, 1)
+	go func() { first <- m.SetConfig("s1", "mode", "b") }()
+	for calls.Load() == 0 {
+		time.Sleep(5 * time.Millisecond)
+	}
+	if err := m.SetConfig("s1", "mode", "b"); err != nil { // the newer change, taken by the process
+		t.Fatal(err)
+	}
+	close(release)
+	<-first
+	last, _ := rec.lastState("s1")
+	if last.Config[0].Current != "b" {
+		t.Fatalf("the newer change was rolled back to %v", last.Config[0].Current)
 	}
 }

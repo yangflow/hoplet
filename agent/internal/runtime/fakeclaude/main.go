@@ -11,6 +11,8 @@
 //	crash          exit with status 3
 //	images         answer `<n> images: <media types>` for the images that came with the prompt
 //	model          answer `model: <model>`, the --model it started with or the last set_model ("default")
+//	mode           answer `mode: <permission mode>`, the --permission-mode it started with or the last set_permission_mode
+//	exitplan <p>   ask permission for ExitPlanMode with the plan <p>; allow switches to the default mode and reports it
 //	options        answer `model: <model> thinking: <--thinking or default> fast: <true when --settings fastMode>`
 //	anything else  behaves like `say`
 //
@@ -154,6 +156,18 @@ func main() {
 		if a == "--model" && i+1 < len(args) {
 			model = args[i+1]
 		}
+		if a == "--permission-mode" && i+1 < len(args) {
+			mode = args[i+1]
+			if mode == "manual" {
+				mode = "default"
+			}
+			if mode == "bypassPermissions" {
+				bypassAllowed = true
+			}
+		}
+		if a == "--allow-dangerously-skip-permissions" || a == "--dangerously-skip-permissions" {
+			bypassAllowed = true
+		}
 		if a == "--thinking" && i+1 < len(args) {
 			thinking = args[i+1]
 		}
@@ -207,6 +221,7 @@ func main() {
 				Request   struct {
 					Subtype string `json:"subtype"`
 					Model   string `json:"model"`
+					Mode    string `json:"mode"`
 				} `json:"request"`
 				Message struct {
 					Content []obj `json:"content"`
@@ -236,6 +251,22 @@ func main() {
 						default:
 							emit(obj{"type": "control_response", "response": obj{"subtype": "error", "request_id": m.RequestID,
 								"error": "Model '" + m.Request.Model + "' not found", "error_code": "catalog_unknown"}})
+						}
+					case "set_permission_mode":
+						// As Claude Code 2.1.299 answers: an error for a mode it does not know, and for bypass
+						// when the process was not launched to allow it; a change is reported as a status event.
+						switch m.Request.Mode {
+						case "default", "acceptEdits", "plan", "auto", "dontAsk", "bypassPermissions":
+							if m.Request.Mode == "bypassPermissions" && !bypassAllowed {
+								emit(obj{"type": "control_response", "response": obj{"subtype": "error", "request_id": m.RequestID,
+									"error": "Cannot set permission mode to bypassPermissions because the session was not launched with --dangerously-skip-permissions", "error_code": "bypass_not_launched"}})
+								break
+							}
+							setMode(m.Request.Mode)
+							emit(obj{"type": "control_response", "response": obj{"subtype": "success", "request_id": m.RequestID, "response": obj{"mode": m.Request.Mode}}})
+						default:
+							emit(obj{"type": "control_response", "response": obj{"subtype": "error", "request_id": m.RequestID,
+								"error": "Cannot set permission mode: must be one of default, acceptEdits, plan, auto, dontAsk, bypassPermissions", "error_code": "invalid_mode"}})
 						}
 					case "interrupt":
 						curMu.Lock()
@@ -284,6 +315,25 @@ func main() {
 	}
 }
 
+// mode is the permission mode: --permission-mode, then the last set_permission_mode or ExitPlanMode.
+// bypassAllowed says the process may switch to bypassPermissions.
+var (
+	modeMu        sync.Mutex
+	mode          = "default"
+	bypassAllowed bool
+)
+
+// setMode switches the mode and, when it changed, reports it as Claude Code does.
+func setMode(to string) {
+	modeMu.Lock()
+	changed := mode != to
+	mode = to
+	modeMu.Unlock()
+	if changed {
+		emit(obj{"type": "system", "subtype": "status", "status": nil, "permissionMode": to, "uuid": uuid(), "session_id": session})
+	}
+}
+
 // model is the model the process runs on: --model, then the last set_model.
 var (
 	modelMu  sync.Mutex
@@ -323,7 +373,10 @@ func think() {
 
 func start() {
 	state("running")
-	emit(obj{"type": "system", "subtype": "init", "cwd": cwd, "session_id": session})
+	modeMu.Lock()
+	current := mode
+	modeMu.Unlock()
+	emit(obj{"type": "system", "subtype": "init", "cwd": cwd, "session_id": session, "permissionMode": current})
 }
 
 func result(subtype string, isErr bool, terminal, text string) {
@@ -358,6 +411,31 @@ func runTurn(t *turn, prompt string) {
 		emit(obj{"type": "assistant", "message": obj{"role": "assistant", "content": []obj{{"type": "text", "text": text}}}, "session_id": session, "parent_tool_use_id": nil})
 		appendLines(userLine(prompt), assistantLine(text))
 		result("success", false, "completed", text)
+	case "exitplan":
+		start()
+		id := "toolu_" + strconv.FormatInt(time.Now().UnixNano()%1e9, 10)
+		input := obj{"plan": rest}
+		emit(obj{"type": "assistant", "message": obj{"role": "assistant", "content": []obj{{"type": "tool_use", "id": id, "name": "ExitPlanMode", "input": input}}}, "session_id": session, "parent_tool_use_id": nil})
+		state("requires_action")
+		reqID := "req-" + id
+		emit(obj{"type": "control_request", "request_id": reqID, "request": obj{"subtype": "can_use_tool", "tool_name": "ExitPlanMode", "input": input, "tool_use_id": id, "requires_user_interaction": true}})
+		select {
+		case <-t.interrupt:
+			emit(obj{"type": "control_cancel_request", "request_id": reqID})
+			state("running")
+			appendLines(userLine(prompt))
+			result("error_during_execution", true, "aborted_tools", "")
+		case ans := <-t.answers:
+			text := "REFUSED"
+			if ans["behavior"] == "allow" {
+				setMode("default")
+				text = "LEFT PLAN"
+			}
+			state("running")
+			streamText(text)
+			appendLines(userLine(prompt), assistantLine(text))
+			result("success", false, "completed", "")
+		}
 	case "fail":
 		start()
 		appendLines(userLine(prompt))
@@ -404,6 +482,11 @@ func runTurn(t *turn, prompt string) {
 				text += fmt.Sprintf(" thinking: %s fast: %v", thinking, fast)
 			}
 			modelMu.Unlock()
+		}
+		if cmd == "mode" {
+			modeMu.Lock()
+			text = "mode: " + mode
+			modeMu.Unlock()
 		}
 		if cmd == "images" {
 			types := make([]string, 0, len(t.images))

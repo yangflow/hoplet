@@ -58,7 +58,7 @@ const (
 type Apply string
 
 const (
-	// ApplyNow: the process switches at once (Process.Set).
+	// ApplyNow: the process switches at once (Process.Set, which returns when the vendor answered).
 	ApplyNow Apply = "now"
 	// ApplyNextTurn: the process switches before the next prompt is written (Process.Set).
 	ApplyNextTurn Apply = "next-turn"
@@ -124,7 +124,8 @@ type Process interface {
 	Events() <-chan ProcessEvent
 	Prompt(p Prompt) error
 	// Set switches a setting of the running process (an ApplyNow or ApplyNextTurn option); a setting the
-	// process cannot switch is an error.
+	// process cannot switch is an error. An ApplyNow setting returns when the vendor accepted the value, and
+	// the vendor's refusal is the error.
 	Set(id string, value any) error
 	// Answer responds to a permission request; message explains a denial to the model.
 	Answer(requestID string, allow bool, message string) error
@@ -144,6 +145,13 @@ type Ready struct{}
 
 // StateChanged carries the vendor's own state, mapped to Running, WaitingPermission or Ready.
 type StateChanged struct{ State State }
+
+// ConfigChanged: the vendor changed a setting itself (Claude Code leaving plan mode, a terminal switching
+// mode); Value is the new value of option ID. A value the driver does not declare is ignored.
+type ConfigChanged struct {
+	ID    string
+	Value any
+}
 
 // OutputKind names what an Output carries.
 type OutputKind string
@@ -192,6 +200,7 @@ type Exited struct{ Err error }
 
 func (Ready) processEvent()               {}
 func (StateChanged) processEvent()        {}
+func (ConfigChanged) processEvent()       {}
 func (Output) processEvent()              {}
 func (PermissionRequest) processEvent()   {}
 func (PermissionCancelled) processEvent() {}

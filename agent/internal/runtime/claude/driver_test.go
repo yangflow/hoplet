@@ -14,7 +14,7 @@ import (
 func TestArgsAreTheDocumentedFlags(t *testing.T) {
 	got := strings.Join(New(Options{}).Args(runtime.StartSpec{SessionID: "abc"}), " ")
 	want := "-p --input-format stream-json --output-format stream-json --verbose --include-partial-messages " +
-		"--permission-prompt-tool stdio --thinking enabled --resume abc"
+		"--permission-prompt-tool stdio --permission-mode default --allow-dangerously-skip-permissions --thinking enabled --resume abc"
 	if got != want {
 		t.Fatalf("args = %q", got)
 	}
@@ -30,11 +30,11 @@ func TestModelOptionAddsTheModelFlag(t *testing.T) {
 func TestNewSessionArgsCreateTheSessionAndApplyTheConfig(t *testing.T) {
 	spec := runtime.StartSpec{
 		SessionID: "abc", New: true,
-		Config: map[string]any{"model": "opus", "thinking": true, "fast": true},
+		Config: map[string]any{"mode": "plan", "model": "opus", "thinking": true, "fast": true},
 	}
 	got := strings.Join(New(Options{Model: "haiku"}).Args(spec), " ")
 	want := "-p --input-format stream-json --output-format stream-json --verbose --include-partial-messages " +
-		"--permission-prompt-tool stdio --model opus --thinking enabled " +
+		"--permission-prompt-tool stdio --permission-mode plan --allow-dangerously-skip-permissions --model opus --thinking enabled " +
 		`--settings {"fastMode":true} --session-id abc`
 	if got != want {
 		t.Fatalf("args = %q", got)
@@ -49,12 +49,26 @@ func TestNewSessionArgsCreateTheSessionAndApplyTheConfig(t *testing.T) {
 	}
 }
 
-func TestConfigDeclaresModelThinkingAndFastInOrder(t *testing.T) {
+func TestConfigDeclaresModeModelThinkingAndFastInOrder(t *testing.T) {
 	cfg := New(Options{}).Config()
-	if len(cfg) != 3 {
+	if len(cfg) != 4 {
 		t.Fatalf("config = %+v", cfg)
 	}
-	model, thinking, fast := cfg[0], cfg[1], cfg[2]
+	mode, model, thinking, fast := cfg[0], cfg[1], cfg[2], cfg[3]
+	if mode.ID != "mode" || mode.Type != runtime.ConfigSelect || mode.Category != "mode" ||
+		mode.Apply != runtime.ApplyNow || mode.Current != "default" {
+		t.Fatalf("mode = %+v", mode)
+	}
+	var modes []string
+	for _, v := range mode.Options {
+		modes = append(modes, v.Value)
+		if (v.Value == "bypassPermissions") != (v.Risk == "high") || v.Name == "" || v.Description == "" {
+			t.Fatalf("mode value = %+v", v)
+		}
+	}
+	if strings.Join(modes, ",") != "default,acceptEdits,plan,auto,bypassPermissions" {
+		t.Fatalf("mode values = %v", modes)
+	}
 	if model.ID != "model" || model.Type != runtime.ConfigSelect || model.Category != "model" ||
 		model.Apply != runtime.ApplyNextTurn || model.Current != "default" {
 		t.Fatalf("model = %+v", model)
@@ -74,9 +88,74 @@ func TestConfigDeclaresModelThinkingAndFastInOrder(t *testing.T) {
 		fast.Apply != runtime.ApplyRestart || fast.Current != false {
 		t.Fatalf("fast = %+v", fast)
 	}
-	cfg[0].Options[0].Value = "x" // a copy
-	if New(Options{}).Config()[0].Options[0].Value != "default" {
+	cfg[1].Options[0].Value = "x" // a copy
+	if New(Options{}).Config()[1].Options[0].Value != "default" {
 		t.Fatal("Config returned its own slice")
+	}
+}
+
+// A process that answers set_permission_mode like Claude Code and reports a change as a status event.
+const modeScript = `
+read init
+echo '{"type":"control_response","response":{"subtype":"success","request_id":"hoplet-init","response":{}}}'
+echo '{"type":"system","subtype":"init","permissionMode":"manual"}'
+while read line; do
+  id=$(echo "$line" | sed 's/.*"request_id":"\([^"]*\)".*/\1/')
+  case "$line" in
+    *'"mode":"plan"'*)
+      echo '{"type":"control_response","response":{"subtype":"success","request_id":"'$id'","response":{"mode":"plan"}}}'
+      echo '{"type":"system","subtype":"status","status":null,"permissionMode":"plan"}' ;;
+    *'"mode":"bypassPermissions"'*)
+      echo '{"type":"control_response","response":{"subtype":"error","request_id":"'$id'","error":"not launched","error_code":"bypass_not_launched"}}' ;;
+    *'"mode":"dontAsk"'*)
+      echo '{"type":"control_response","response":{"subtype":"success","request_id":"'$id'","response":{"mode":"dontAsk"}}}'
+      echo '{"type":"system","subtype":"status","status":null,"permissionMode":"dontAsk"}' ;;
+  esac
+done
+`
+
+func TestSetModeWaitsForTheAnswerAndReturnsARefusal(t *testing.T) {
+	p := start(t, script(t, modeScript))
+	if err := p.Set("mode", "bypassPermissions"); err == nil || !strings.Contains(err.Error(), "not launched") {
+		t.Fatalf("a refused switch: %v", err)
+	}
+	if err := p.Set("mode", "plan"); err != nil {
+		t.Fatal(err)
+	}
+	if err := p.Set("fast", true); err == nil {
+		t.Fatal("a setting the process cannot switch was accepted")
+	}
+	if err := p.Close(); err != nil {
+		t.Fatal(err)
+	}
+	var changes []runtime.ConfigChanged
+	for _, ev := range collect(t, p) {
+		if c, ok := ev.(runtime.ConfigChanged); ok {
+			changes = append(changes, c)
+		}
+	}
+	// The init message reports the mode (`manual` is `default`), and a status event the change to plan.
+	if len(changes) != 2 || changes[0] != (runtime.ConfigChanged{ID: "mode", Value: "default"}) ||
+		changes[1] != (runtime.ConfigChanged{ID: "mode", Value: "plan"}) {
+		t.Fatalf("changes = %+v", changes)
+	}
+}
+
+func TestSetModeEndsWhenTheProcessExits(t *testing.T) {
+	p := start(t, script(t, `
+read init
+echo '{"type":"control_response","response":{"subtype":"success","request_id":"hoplet-init","response":{}}}'
+read request
+`))
+	done := make(chan error, 1)
+	go func() { done <- p.Set("mode", "plan") }()
+	select {
+	case err := <-done:
+		if err == nil {
+			t.Fatal("a switch the process never answered succeeded")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Set did not return when the process exited")
 	}
 }
 

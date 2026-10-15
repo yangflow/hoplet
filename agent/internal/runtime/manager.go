@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"log"
 	"maps"
 	"os"
 	"sort"
@@ -112,6 +113,11 @@ type session struct {
 	// started holds the values the current process has: those it started with, then those it switched to. What
 	// differs from vals is a change the process has not taken yet.
 	started map[string]any
+	// setSeq is the number of the latest user change of each setting and inflight the changes of it a process
+	// has not answered yet; seq numbers them.
+	setSeq   map[string]int
+	inflight map[string]int
+	seq      int
 
 	pendingPrompt *Prompt
 	// restartWith is the prompt that waits for the process to exit and a new one to start with the new values.
@@ -456,6 +462,14 @@ func (m *Manager) reconcile(s *session) (restart bool, err error) {
 // ApplyNextTurn one before the next prompt is written, and an ApplyRestart one restarts the process when the
 // next prompt arrives; without one, the next process starts with the value.
 func (m *Manager) SetConfig(sessionID, id string, value any) error {
+	err := m.setConfig(sessionID, id, value)
+	if err != nil {
+		log.Printf("[agent] session %s: set %s=%v failed: %v", sessionID, id, value, err)
+	}
+	return err
+}
+
+func (m *Manager) setConfig(sessionID, id string, value any) error {
 	o, ok := m.option(id)
 	if !ok {
 		return fmt.Errorf("%w: %s", ErrOptionNotDeclared, id)
@@ -464,8 +478,8 @@ func (m *Manager) SetConfig(sessionID, id string, value any) error {
 		return err
 	}
 	m.mu.Lock()
-	defer m.mu.Unlock()
 	if m.closed {
+		m.mu.Unlock()
 		return errors.New("runtime is shutting down")
 	}
 	s := m.get(sessionID)
@@ -475,16 +489,75 @@ func (m *Manager) SetConfig(sessionID, id string, value any) error {
 	s.changed = true
 	// Every other change waits in vals for the process to take it: before the next prompt, or when a process
 	// that is still starting is ready.
-	if o.Apply == ApplyNow && s.proc != nil && !s.stopped && s.state != StateStarting {
-		if err := s.proc.Set(id, value); err != nil {
-			vals[id] = old // the reported value stays the process's
-			m.cfg.Emit(m.stateEvent(s))
-			return fmt.Errorf("set %s: %w", id, err)
-		}
-		s.started[id] = value
+	if o.Apply != ApplyNow || s.proc == nil || s.stopped || s.state == StateStarting {
+		log.Printf("[agent] session %s: set %s=%v", sessionID, id, value)
+		m.cfg.Emit(m.stateEvent(s))
+		m.mu.Unlock()
+		return nil
 	}
+	// The process answers an ApplyNow switch only after the manager has taken the events it sent before, so
+	// the wait is outside the lock: a lock held across it stalls every session behind a busy stream.
+	proc, gen := s.proc, s.gen
+	s.seq++
+	mine := s.seq
+	if s.setSeq == nil {
+		s.setSeq = map[string]int{}
+		s.inflight = map[string]int{}
+	}
+	s.setSeq[id] = mine
+	s.inflight[id]++
+	m.mu.Unlock()
+
+	err := proc.Set(id, value)
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	s.inflight[id]--
+	if s.gen != gen || s.proc != proc {
+		return nil // the process was replaced: the next one starts with the session's values
+	}
+	if s.setSeq[id] != mine {
+		if err != nil {
+			return fmt.Errorf("set %s: %w", id, err) // a newer change of the setting decides the value
+		}
+		return nil
+	}
+	if err != nil {
+		// The reported value is the one the process has.
+		if cur, ok := s.started[id]; ok {
+			old = cur
+		}
+		s.vals[id] = old
+		m.cfg.Emit(m.stateEvent(s))
+		return fmt.Errorf("set %s: %w", id, err)
+	}
+	s.started[id] = value
+	log.Printf("[agent] session %s: set %s=%v", sessionID, id, value)
 	m.cfg.Emit(m.stateEvent(s))
 	return nil
+}
+
+// configChanged takes a setting the vendor changed itself. The value becomes the session's unless a change of
+// the user waits for the process to take it; either way it is what the process has now.
+func (m *Manager) configChanged(s *session, ev ConfigChanged) {
+	o, ok := m.option(ev.ID)
+	if !ok || checkValue(o, ev.Value) != nil {
+		log.Printf("[agent] session %s: ignored %s=%v, which the driver does not declare", s.id, ev.ID, ev.Value)
+		return
+	}
+	vals := m.valuesOf(s)
+	if s.started == nil {
+		s.started = map[string]any{}
+	}
+	pending := vals[ev.ID] != s.started[ev.ID] || s.inflight[ev.ID] > 0
+	s.started[ev.ID] = ev.Value
+	if pending || vals[ev.ID] == ev.Value {
+		return
+	}
+	vals[ev.ID] = ev.Value
+	s.changed = true
+	log.Printf("[agent] session %s: vendor set %s=%v", s.id, ev.ID, ev.Value)
+	m.cfg.Emit(m.stateEvent(s))
 }
 
 // Create starts a new session in dir with the settings in config (an option left out keeps its default) and
@@ -687,6 +760,8 @@ func (m *Manager) handle(s *session, ev ProcessEvent) {
 			}
 			m.becomeReady(s)
 		}
+	case ConfigChanged:
+		m.configChanged(s, ev)
 	case Output:
 		m.cfg.Emit(OutputEvent{SessionID: s.id, Output: ev})
 	case PermissionRequest:

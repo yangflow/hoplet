@@ -465,6 +465,21 @@ svg{display:block;flex:none}
 .anc{position:relative;display:inline-flex}
 .cpop{position:absolute;z-index:30;bottom:calc(100% + var(--space-2));left:0;width:var(--layout-popover);padding:var(--space-1);border-radius:var(--radius-md);background:var(--color-raised);box-shadow:var(--shadow-float),0 0 0 1px var(--color-line);pointer-events:auto;text-align:left}
 .cpop.end{left:auto;right:0}
+.cpop.wide{width:var(--layout-popover-wide)}
+/* permission mode: the pill (amber while a high-risk mode is on) and the menu rows */
+.tb2.warn{color:var(--color-attention-text);background:var(--color-attention-soft);box-shadow:inset 0 0 0 1px var(--color-attention-ring)}
+.tb2.warn > svg{color:var(--color-attention-text)}
+.tb2.warn.on{background:var(--color-attention-soft);box-shadow:inset 0 0 0 1px var(--color-attention)}
+.mi{min-height:44px;display:flex;align-items:center;gap:var(--space-2);padding:var(--space-1) var(--space-2);border-radius:var(--radius-sm);color:var(--color-text)}
+.mi > svg{color:var(--color-attention-text)}
+.mi .t{display:flex;flex-direction:column;min-width:0;flex:1}
+.mi .n{line-height:20px}
+.mi .d{font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3);white-space:nowrap}
+.mi.cur .n{font-weight:var(--weight-medium)}
+.mi.risk .n{color:var(--color-attention-text)}
+.mi .ck{width:16px;height:16px;display:grid;place-items:center;flex:none;color:var(--color-text-2)}
+.risk-b{font-size:var(--text-meta);line-height:var(--leading-meta);font-weight:var(--weight-medium);color:var(--color-attention-text);padding:0 6px;border-radius:4px;box-shadow:inset 0 0 0 1px var(--color-attention-ring);background:var(--color-attention-soft);white-space:nowrap}
+.mfoot{display:flex;align-items:center;gap:var(--space-2);padding:var(--space-1) var(--space-2);font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3)}
 .cpop .menu-item .sub{margin-left:auto;font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3)}
 .cpop .menu-item .switch{margin-left:auto}
 .cpop .menu-item > svg{color:var(--color-text-3)}
@@ -820,6 +835,8 @@ const L = {
   'loader-circle': '<path d="M21 12a9 9 0 1 1-6.219-8.56"/>',
   'git-branch': '<line x1="6" x2="6" y1="3" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/>',
   zap: '<path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/>',
+  shield: '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/>',
+  'shield-alert': '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="M12 8v4"/><path d="M12 16h.01"/>',
   'text-wrap': '<path d="m16 16-3 3 3 3"/><path d="M3 12h14.5a1 1 0 0 1 0 7H13"/><path d="M3 19h6"/><path d="M3 5h18"/>',
 };
 /* the curated set, in the order the intro lists it: [Lucide name, uses] */
@@ -834,6 +851,7 @@ const ICON_SET = [
   ['x', 'Close, failed step'], ['check', 'Done step'], ['circle-alert', 'Error'], ['info', 'Note'],
   ['rotate-cw', 'Retry'], ['copy', 'Copy'], ['settings', 'Settings'], ['laptop', 'Machines'], ['contrast', 'Appearance'], ['ellipsis', 'Sidebar view'],
   ['text-wrap', 'Wrap long lines'], ['loader-circle', 'Running, starting, loading'], ['git-branch', 'Git branch'], ['zap', 'Fast'],
+  ['shield', 'Permission mode'], ['shield-alert', 'Permission mode, high risk'],
 ];
 const I = {
   search: () => sv(L.search),
@@ -881,6 +899,8 @@ const I = {
   contrast: () => sv(L.contrast),
   more: () => sv(L.ellipsis),
   branch: () => sv(L['git-branch']),
+  shield: () => sv(L.shield),
+  shieldAlert: () => sv(L['shield-alert']),
   zap: () => sv(L.zap),
 };
 const spin = () => sv(L['loader-circle'], 'spin');
@@ -1238,6 +1258,12 @@ function composer(state) {
   const menu = `<div class="cpop end" role="menu" aria-label="Model"><div class="menu-label">Model</div>
     ${item2('Opus 5.5', true)}${item2('Sonnet 5.5', false)}${item2('Haiku 4.5', false)}
     <div class="menu-sep"></div>${sw(I.think(), 'Thinking', true)}${sw(I.zap(), 'Fast', false)}</div>`;
+  const modes = [['Manual', 'Ask before edits and commands.'], ['Accept edits', 'Edit files without asking; ask before commands.'], ['Plan', 'Explore and plan; no edits or commands.'], ['Auto', 'Claude decides when to ask, with safety checks.'], ['Bypass permissions', 'Run everything without asking.', true]];
+  const curMode = state === 'mode-bypass' ? 4 : state === 'mode-plan' ? 2 : 0;
+  const mrow = ([n, d, risk], i) => `${risk ? '<div class="menu-sep"></div>' : ''}<div class="mi${i === curMode ? ' cur' : ''}${risk ? ' risk' : ''}" role="menuitemradio" aria-checked="${i === curMode}"><span class="ck">${risk ? I.shieldAlert() : ''}</span><span class="t"><span class="n">${n}</span><span class="d">${d}</span></span>${risk ? '<span class="risk-b">High risk</span>' : ''}<span class="ck">${i === curMode ? I.check() : ''}</span></div>`;
+  const modeMenu = `<div class="cpop wide end" role="menu" aria-label="Permission mode"><div class="menu-label">Permission mode</div>${modes.map(mrow).join('')}<div class="menu-sep"></div><div class="mfoot"><span class="kbd">⇧ ⇥</span>Cycle modes</div></div>`;
+  const hot = curMode === 4;
+  const mode = on => `<span class="anc"><button class="tb2${hot ? ' warn' : ''}${state === 'mode-menu' ? ' on' : ''}"${tip('Permission mode: ' + modes[curMode][0])}${on ? '' : ' disabled'}>${hot ? I.shieldAlert() : I.shield()}${modes[curMode][0]}${cv()}</button>${state === 'mode-menu' ? modeMenu : ''}</span>`;
   const model = on => `<span class="anc"><button class="tb2${state === 'model-menu' ? ' on' : ''}"${tip('Model and options')}${on ? '' : ' disabled'}>Opus 5.5<i>·</i>${I.think()}${cv()}</button>${state === 'model-menu' ? menu : ''}</span>`;
   const full = (ph, on, left = '', inputOn = on, sendTip) => `<div class="composer">${state === 'compose' ? `<span class="grip"${tip('Drag to resize · double-click resets')}></span>` : ''}${whereRow(state)}
     ${state === 'compose' ? `<div class="thumbs">
@@ -1246,12 +1272,12 @@ function composer(state) {
       <div class="ta">${esc(PROMPT)}<span class="cr2"></span></div>`
     : state === 'model-menu' ? '<div class="ta">Use the smaller model for the docs pass</div>'
     : `<div class="ph">${DRAFT.includes(state) ? '<span class="cr2"></span>' : ''}${ph}</div>`}
-    <div class="cf">${ib(I.plus(), 'Attach images or files · paste works too', '', !inputOn)}${left}<span class="r">${model(inputOn)}${mic(inputOn)}${send(on, sendTip)}</span></div></div>`;
+    <div class="cf">${ib(I.plus(), 'Attach images or files · paste works too', '', !inputOn)}${left}<span class="r">${mode(inputOn)}${model(inputOn)}${mic(inputOn)}${send(on, sendTip)}</span></div></div>`;
   let box, pill = '';
   switch (state) {
     case 'draft': case 'draft-directory':
       box = full('Ask Claude Code…', false, '', true, 'Start · ↩'); break;
-    case 'compose': case 'model-menu':
+    case 'compose': case 'model-menu': case 'mode-menu': case 'mode-bypass': case 'mode-plan':
       box = full('', true); break;
     case 'ready': case 'add-project': case 'add-project-recent': case 'add-project-error':
       box = state === 'ready'
@@ -1693,6 +1719,9 @@ const STATES = [
   ['ready', 'process running, no turn; studio › notes folded, showing its waiting session'],
   ['compose', 'a long prompt with two pasted images; the top edge is being dragged'],
   ['model-menu', 'a session’s model and options, which hold from the next turn on'],
+  ['mode-menu', 'the permission mode: every mode with its description, the high-risk one apart and tagged; Shift+Tab cycles'],
+  ['mode-bypass', 'Bypass permissions: the pill turns amber with a shield-alert glyph'],
+  ['mode-plan', 'Plan mode: the pill names the mode'],
   ['recording', 'dictating the next prompt'],
   ['starting', 'the first prompt starts Claude Code'],
   ['running', 'live turn: a failed run, its output, a search, an edit and a running run'],

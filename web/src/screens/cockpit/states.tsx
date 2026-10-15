@@ -83,13 +83,40 @@ function fixtureSessions(macbookOnline: boolean): LiveSessionMeta[] {
   ];
 }
 
-/** What a driver declares: a model, Thinking and Fast, with the model `model` (the default until a session picks). */
-function capabilitiesOn(model = 'default'): RuntimeCapabilities {
+/** What a driver declares: the permission mode, a model, Thinking and Fast, with the model `model` (the default until a session picks) and the mode `mode`. */
+function capabilitiesOn(model = 'default', mode = 'default'): RuntimeCapabilities {
   return {
     permissions: true,
     interrupt: true,
     images: true,
     config: [
+      {
+        type: 'select',
+        id: 'mode',
+        name: 'Permission mode',
+        category: 'mode',
+        currentValue: mode,
+        options: [
+          { value: 'default', name: 'Manual', description: 'Ask before edits and commands.' },
+          {
+            value: 'acceptEdits',
+            name: 'Accept edits',
+            description: 'Edit files without asking; ask before commands.',
+          },
+          { value: 'plan', name: 'Plan', description: 'Explore and plan; no edits or commands.' },
+          {
+            value: 'auto',
+            name: 'Auto',
+            description: 'Claude decides when to ask, with safety checks.',
+          },
+          {
+            value: 'bypassPermissions',
+            name: 'Bypass permissions',
+            description: 'Run everything without asking.',
+            risk: 'high',
+          },
+        ],
+      },
       {
         type: 'select',
         id: 'model',
@@ -723,6 +750,34 @@ export const states: Record<string, () => ReactNode> = {
           composerText: 'Use the smaller model for the docs pass',
           modelMenuOpen: true,
         },
+      }}
+    />
+  ),
+  'mode-manual': () => (
+    <Scene variant={{ runtime: { state: 'ready', capabilities: capabilitiesOn('opus-5.5') } }} />
+  ),
+  'mode-menu': () => (
+    <Scene
+      variant={{
+        runtime: { state: 'ready', capabilities: capabilitiesOn('opus-5.5') },
+        conversation: { modeMenuOpen: true },
+      }}
+    />
+  ),
+  'mode-bypass': () => (
+    <Scene
+      variant={{
+        runtime: {
+          state: 'ready',
+          capabilities: capabilitiesOn('opus-5.5', 'bypassPermissions'),
+        },
+      }}
+    />
+  ),
+  'mode-plan': () => (
+    <Scene
+      variant={{
+        runtime: { state: 'ready', capabilities: capabilitiesOn('opus-5.5', 'plan') },
       }}
     />
   ),
