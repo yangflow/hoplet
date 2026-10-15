@@ -84,8 +84,9 @@ finished turn's header summarizes it (files, tools, duration). Consecutive tool 
 Elided blocks show a preview and their size, and open in place on request. While the view is at the bottom,
 new lines and runtime output appear live; otherwise a pill counts new messages and jumps to the end. The
 composer at the foot sends a prompt, typed or spoken; speech is transcribed on the user's own machines and
-no audio leaves them (#17). Its first row says where the session runs, machine / directory / git branch (the
-branch as the agent reports it, #10), read only once the session exists; its toolbar holds attach, the model
+no audio leaves them (#17). Its first row says where the session runs, machine / directory / git branch (for a
+session the branch its lines last recorded, for a draft the one checked out in the directory), read only once
+the session exists; its toolbar holds attach, the model
 with Thinking and Fast in one menu (changing them for a running session needs its driver to declare it, #10),
 dictate and send. The text grows to 8 lines, then scrolls; dragging the composer's top edge sets a height the
 browser remembers, at most what leaves the conversation 240 px, and a double-click on the edge resets it.

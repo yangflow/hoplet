@@ -303,5 +303,6 @@
   "Model and options": "模型和选项",
   "No machine online": "没有在线的机器",
   "No provider on {device}": "{device} 上没有可用的提供方",
-  "The first prompt starts the session": "发出第一条消息即开始会话"
+  "The first prompt starts the session": "发出第一条消息即开始会话",
+  "Git branch of {path}": "{path} 的 git 分支"
 }

@@ -113,7 +113,7 @@ beforeEach(() => {
     deviceId: 'dev-mac',
     candidates: [],
     projects: [
-      { path: '/repo/hoplet', sessions: [] },
+      { path: '/repo/hoplet', branch: 'main', sessions: [] },
       { path: '/repo/other', sessions: [] },
     ],
   });
@@ -310,6 +310,8 @@ it('starts a session from a draft with the options its machine declares, then se
   expect(q('cockpit.topbar')?.textContent).toContain('New session');
   expect(api.fetchDeviceProjects).toHaveBeenCalledWith('dev-mac');
   expect(q('cockpit.draft-directory')?.getAttribute('aria-label')).toBe('Directory, hoplet');
+  // The branch is the one the catalog reads in the directory.
+  expect(q('cockpit.where-branch')?.textContent).toBe('main');
   // Only what the machine declares is offered: a model list, thinking and fast.
   await click(q('cockpit.model'));
   const models = [...host.querySelectorAll('[data-testid="cockpit.model-option"]')];
@@ -349,17 +351,23 @@ it('keeps the draft and its text and says why when the session could not start',
 it('starts a draft where the open session runs, and selecting a session leaves it', async () => {
   history.replaceState(null, '', `/?session=${B}`);
   api.fetchSessions.mockResolvedValue({
-    sessions: [meta(A, 'first'), meta(B, 'second', { projectPath: '/repo/other' })],
+    sessions: [
+      meta(A, 'first'),
+      meta(B, 'second', { projectPath: '/repo/other', gitBranch: 'feat/x' }),
+    ],
   });
   await mount();
   await open();
   // The open session's composer says where it runs, read only.
-  expect(q('cockpit.where')?.textContent).toBe('MacBook Pro/other');
+  expect(q('cockpit.where')?.textContent).toBe('MacBook Pro/other/feat/x');
   await act(async () => {
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'n', metaKey: true }));
   });
   expect(q('cockpit.draft')).not.toBeNull();
   expect(q('cockpit.draft-directory')?.getAttribute('aria-label')).toBe('Directory, other');
+  // A directory that is not in a repository has no branch, and no separator for one.
+  expect(q('cockpit.where-branch')).toBeNull();
+  expect(q('cockpit.where')?.textContent).toBe('MacBook Pro/other');
   await click(rows()[0] ?? null);
   expect(q('cockpit.draft')).toBeNull();
   expect(new URLSearchParams(location.search).get('session')).toBe(A);

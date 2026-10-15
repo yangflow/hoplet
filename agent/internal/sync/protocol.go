@@ -90,6 +90,7 @@ type SessionMeta struct {
 	DeviceName    string `json:"deviceName"`
 	OwnerDeviceID string `json:"ownerDeviceId,omitempty"`
 	OwnerEpoch    int64  `json:"ownerEpoch"`
+	GitBranch     string `json:"gitBranch,omitempty"`
 }
 
 // device → server
@@ -530,8 +531,11 @@ type DeviceProjectSession struct {
 	Title     string `json:"title,omitempty"`
 }
 
+// DeviceProject is a watched project: its path, the git branch checked out there (empty outside a
+// repository) and the sessions found in it.
 type DeviceProject struct {
 	Path     string                 `json:"path"`
+	Branch   string                 `json:"branch,omitempty"`
 	Sessions []DeviceProjectSession `json:"sessions"`
 }
 

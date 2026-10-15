@@ -16,6 +16,7 @@ export interface SessionRow {
   device_id: string;
   owner_epoch: number;
   provider: string;
+  git_branch: string;
   device_name?: string;
 }
 
@@ -40,6 +41,7 @@ export function toMeta(row: SessionRow): SessionMeta {
     byteSize: Number(row.byte_size),
     ownerEpoch: Number(row.owner_epoch),
     ...(row.device_id ? { ownerDeviceId: row.device_id } : {}),
+    ...(row.git_branch ? { gitBranch: row.git_branch } : {}),
   };
 }
 
@@ -79,7 +81,7 @@ export function ownerDeviceId(ctx: StoreContext, sessionId: string): string | nu
 }
 
 /**
- * Moves a session to `to`, under `projectPath` (the worktree the target installed it in), and returns the
+ * Moves a session to `to`, under `projectPath` (the worktree the target installed it in) on `branch`, and returns the
  * new owner epoch, or null when the session is no longer as the handoff saw it: still owned by `from`, with
  * the cursor at `byteSize` and the owner epoch at `epoch`. The check and the change are one statement, so
  * nothing can slip in between.
@@ -92,14 +94,15 @@ export function handoffOwner(
   byteSize: number,
   epoch: number,
   projectPath: string,
+  branch: string,
 ): number | null {
   if (!isSessionId(sessionId)) return null;
   const result = ctx.db
     .prepare(
-      `UPDATE sessions SET device_id = ?, project_path = ?, owner_epoch = owner_epoch + 1
+      `UPDATE sessions SET device_id = ?, project_path = ?, git_branch = ?, owner_epoch = owner_epoch + 1
        WHERE session_id = ? AND device_id = ? AND byte_size = ? AND owner_epoch = ?`,
     )
-    .run(to, projectPath, sessionId, from, byteSize, epoch);
+    .run(to, projectPath, branch, sessionId, from, byteSize, epoch);
   return Number(result.changes) === 1 ? epoch + 1 : null;
 }
 

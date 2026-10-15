@@ -9,6 +9,7 @@ import { storageRecovery } from './0006-storage-recovery.ts';
 import { removeLinksAndZcode } from './0007-remove-links-and-zcode.ts';
 import { sessionProviderColumn } from './0008-session-provider.ts';
 import { snapshotsAndOwnerEpoch } from './0009-snapshots-and-owner-epoch.ts';
+import { sessionGitBranch } from './0010-session-git-branch.ts';
 
 export interface Migration {
   readonly id: number;
@@ -26,6 +27,7 @@ const MIGRATIONS: readonly Migration[] = [
   removeLinksAndZcode,
   sessionProviderColumn,
   snapshotsAndOwnerEpoch,
+  sessionGitBranch,
 ];
 
 export function migrate(db: DatabaseSync): void {

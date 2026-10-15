@@ -378,6 +378,7 @@ export function Conversation(props: {
                   deviceName={session.deviceName}
                   online={session.ownerConnected}
                   path={session.projectPath}
+                  branch={session.gitBranch}
                 />
               }
               providerName={provider}

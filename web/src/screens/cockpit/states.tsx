@@ -38,6 +38,7 @@ function session(
     lineCount: 18_302,
     byteSize: 12_000,
     ownerEpoch: 0,
+    gitBranch: 'main',
     runtime: { state: over.ownerConnected === false ? 'offline' : 'idle' },
     ...over,
   };
@@ -607,15 +608,28 @@ const COMPOSE_TEXT = [
   '- a narrow window clamps it',
 ].join('\n');
 
+/** MacBook Pro's watched projects as its catalog lists them; thesis is not a repository. */
+const DRAFT_DIRS = [
+  { path: '/Users/mark/github/repopro/hoplet', name: 'hoplet', branch: 'main' },
+  { path: '/Users/mark/github/website', name: 'website', branch: 'redesign' },
+  { path: '/Users/mark/Documents/thesis', name: 'thesis' },
+];
+
 /** Every state the design shows, rendered at /__states/cockpit/<state> in development builds. */
 export const states: Record<string, () => ReactNode> = {
   empty: () => <Scene selected={null} fixture={{ hoverDir: 'notes' }} />,
   loaded: () => <Scene />,
-  draft: () => <Scene fixture={{ draft: {} }} />,
-  'draft-directory': () => <Scene fixture={{ draft: { open: 'directory' } }} />,
+  draft: () => <Scene fixture={{ draft: { dirs: DRAFT_DIRS } }} />,
+  'draft-directory': () => <Scene fixture={{ draft: { dirs: DRAFT_DIRS, open: 'directory' } }} />,
   'draft-model': () => (
     <Scene
-      fixture={{ draft: { open: 'model', prompt: 'Use the smaller model for the docs pass' } }}
+      fixture={{
+        draft: {
+          dirs: DRAFT_DIRS,
+          open: 'model',
+          prompt: 'Use the smaller model for the docs pass',
+        },
+      }}
     />
   ),
   'add-project': () => (

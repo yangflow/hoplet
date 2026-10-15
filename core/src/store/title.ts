@@ -19,12 +19,18 @@ export function summarizeTitle(text: string): string | null {
   return `${window.trimEnd()}…`;
 }
 
+/**
+ * What the index reads from appended lines, without changing them: the project path (the first `cwd`), the
+ * title, and the git branch (the last `gitBranch`, so a checkout during the session shows).
+ */
 export function extractMeta(lines: string[]): {
   projectPath: string;
   title: string;
   aiTitle: string;
+  gitBranch: string;
 } {
   let projectPath = '';
+  let gitBranch = '';
   let title = '';
   let fallback = '';
   let aiTitle = '';
@@ -36,6 +42,7 @@ export function extractMeta(lines: string[]): {
       continue;
     }
     if (!projectPath && typeof o.cwd === 'string' && o.cwd) projectPath = o.cwd;
+    if (typeof o.gitBranch === 'string' && o.gitBranch) gitBranch = o.gitBranch;
     if (o.type === 'ai-title' && typeof o.aiTitle === 'string') {
       const t = o.aiTitle.replace(/\s+/g, ' ').trim();
       if (t) {
@@ -61,5 +68,5 @@ export function extractMeta(lines: string[]): {
       }
     }
   }
-  return { projectPath, title: title || fallback, aiTitle };
+  return { projectPath, title: title || fallback, aiTitle, gitBranch };
 }

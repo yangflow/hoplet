@@ -9,6 +9,7 @@ import (
 	"github.com/yangflow/hoplet/agent/internal/projects"
 	"github.com/yangflow/hoplet/agent/internal/provider"
 	"github.com/yangflow/hoplet/agent/internal/sync"
+	"github.com/yangflow/hoplet/agent/internal/workspace"
 )
 
 // store is the locked view of ~/.hoplet/projects.json shared by projects and sessions control.
@@ -59,7 +60,8 @@ func (s *store) listing() ([]string, []sync.DeviceProject) {
 				Title:     title,
 			})
 		}
-		out = append(out, sync.DeviceProject{Path: projects.Real(it.Path), Sessions: sess})
+		dir := projects.Real(it.Path)
+		out = append(out, sync.DeviceProject{Path: dir, Branch: workspace.Branch(dir), Sessions: sess})
 	}
 	if cands == nil {
 		cands = []string{}
