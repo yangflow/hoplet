@@ -18,6 +18,13 @@
   ([ADR 0008](adr/0008-remote-control-runs-a-hoplet-managed-claude-code-process.md)).
 - **One owner, verified moves.** Rule: ownership changes only in the handoff commit, after the target has
   proven its copy ([ADR 0009](adr/0009-handoff-moves-a-workspace-snapshot-into-the-target-clone.md)).
+- **The web UI is one client of the API.** A native Mac client follows it on the same API
+  ([ADR 0022](adr/0022-the-mac-client-is-native-appkit-with-the-agent-bundled.md)). Rule: anything another
+  client must see or the core acts on (queued messages, notification preferences, a session's title or pin)
+  lives in the core behind REST or the browser WebSocket; only the view state of one device (scheme, pane
+  sizes, folded folders) stays in the client. An API route returns data, not a rendered page, and takes
+  the bearer token a native client holds; the contract is `shared/` and the schema generated from it
+  (docs/api.md#native-clients).
 
 ## Layers
 
