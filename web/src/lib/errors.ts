@@ -1,4 +1,4 @@
-import type { HttpErrorCode } from '@hoplet/shared';
+import type { DeletionStep, HttpErrorCode } from '@hoplet/shared';
 import { t } from './i18n.ts';
 
 /** A non-2xx REST response. `code` is null when the body was not a Hoplet error response. */
@@ -6,12 +6,15 @@ export class ApiError extends Error {
   readonly status: number;
   readonly code: HttpErrorCode | null;
   readonly reason: string | undefined;
+  /** The steps of a deletion that failed half way (`delete-partial`). */
+  readonly steps: DeletionStep[] | undefined;
 
-  constructor(status: number, code: HttpErrorCode | null, reason?: string) {
+  constructor(status: number, code: HttpErrorCode | null, reason?: string, steps?: DeletionStep[]) {
     super(code ?? `HTTP ${status}`);
     this.status = status;
     this.code = code;
     this.reason = reason;
+    this.steps = steps;
   }
 }
 

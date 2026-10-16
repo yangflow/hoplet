@@ -1,5 +1,6 @@
 import type {
   CommandsResult,
+  DeletionPreview,
   DeviceInfo,
   Entry,
   LiveSessionMeta,
@@ -13,6 +14,7 @@ import type { PathsState } from './composer/use-completions.ts';
 import { rememberBlock } from './conversation/blocks.tsx';
 import type { LiveTurn, OpenPermission, PlanResolution } from './conversation/live-turn.ts';
 import type { PlanView } from './conversation/plan-card.tsx';
+import type { DeleteFixture } from './delete-dialog.tsx';
 import { Cockpit, type CockpitFixture } from './index.tsx';
 import type { AddProjectFixture } from './sidebar/add-project.tsx';
 import { dirKey } from './sidebar/folded-dirs.ts';
@@ -752,6 +754,28 @@ export const running = (elapsed: number, over?: Partial<LiveTurn>): Variant => (
   live: { turn: liveTurn({ rows: runningRows, ...over }), elapsed },
 });
 
+/** What the owner answers about deleting a session (ADR 0023); the variants below change one part of it. */
+const deletionOf = (over: Partial<DeletionPreview> = {}): DeletionPreview => ({
+  owner: { deviceId: 'dev-macbook', name: 'MacBook Pro', online: true },
+  running: false,
+  vendorFile: { path: '~/.claude/projects/-Users-me-code-hoplet/3f9a1c2e-….jsonl' },
+  worktree: null,
+  previousOwner: null,
+  ...over,
+});
+const studio = { deviceId: 'dev-studio', name: 'studio', online: true };
+const handedOff = (dirty: { modified: number; untracked: number }, unpushed: number) => ({
+  path: '~/code/hoplet-3f9a1c2e',
+  branch: 'hoplet/3f9a1c2e',
+  dirty,
+  unpushed,
+});
+const deleteWorktree = deletionOf({
+  owner: studio,
+  worktree: handedOff({ modified: 0, untracked: 0 }, 0),
+});
+const deleteFixture = (delete_: DeleteFixture): CockpitFixture => ({ delete: delete_ });
+
 /** The studio's note is pinned and the handoff session renamed. */
 const pinned = (base: LiveSessionMeta[]) =>
   base.map((s) =>
@@ -1257,6 +1281,70 @@ export const states: Record<string, () => ReactNode> = {
   ),
   archived: () => <Scene sessions={archivedSessions} fixture={{ archived: true }} />,
   'archived-empty': () => <Scene fixture={{ archived: true }} />,
+  'session-menu-delete': () => <Scene fixture={{ actionsMenu: { item: 'delete' } }} />,
+  delete: () => <Scene fixture={deleteFixture({ preview: deletionOf() })} />,
+  'delete-worktree': () => (
+    <Scene
+      fixture={deleteFixture({
+        preview: deletionOf({
+          owner: studio,
+          worktree: handedOff({ modified: 0, untracked: 0 }, 0),
+        }),
+      })}
+    />
+  ),
+  'delete-dirty': () => (
+    <Scene
+      fixture={deleteFixture({
+        preview: deletionOf({
+          owner: studio,
+          worktree: handedOff({ modified: 3, untracked: 2 }, 2),
+        }),
+      })}
+    />
+  ),
+  'delete-offline': () => (
+    <Scene
+      fixture={deleteFixture({
+        preview: deletionOf({
+          owner: { ...studio, online: false },
+          vendorFile: null,
+          previousOwner: { deviceId: 'dev-macbook', name: 'MacBook Pro' },
+        }),
+      })}
+    />
+  ),
+  'delete-running': () => (
+    <Scene fixture={deleteFixture({ preview: deletionOf({ running: true }) })} />
+  ),
+  'delete-progress': () => (
+    <Scene
+      fixture={deleteFixture({
+        preview: deleteWorktree,
+        phase: 'progress',
+        rows: [
+          { step: 'stop-syncing', state: 'ok' },
+          { step: 'vendor-file', state: 'ok' },
+          { step: 'worktree-branch', state: 'run' },
+          { step: 'core-copy', state: 'wait' },
+        ],
+      })}
+    />
+  ),
+  'delete-partial': () => (
+    <Scene
+      fixture={deleteFixture({
+        preview: deleteWorktree,
+        phase: 'partial',
+        rows: [
+          { step: 'stop-syncing', state: 'ok' },
+          { step: 'vendor-file', state: 'ok' },
+          { step: 'worktree', state: 'bad', reason: 'dirty' },
+          { step: 'core-copy', state: 'skip' },
+        ],
+      })}
+    />
+  ),
   'copy-toast': () => <Scene fixture={{ toast: { text: 'Session ID copied' } }} />,
   disconnected: () => <Scene connected={false} variant={running(48_000)} />,
 };

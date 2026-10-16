@@ -23,6 +23,7 @@ import {
 } from '../workspace/index.tsx';
 import { ArchivedPage, archivedCount, withSessions } from './archived.tsx';
 import { Conversation, type ConversationFixture } from './conversation/conversation.tsx';
+import { DeleteDialog, type DeleteFixture } from './delete-dialog.tsx';
 import { Draft, type DraftFixture, type DraftWhere } from './draft.tsx';
 import { buildTree, isArchived, sessionTargets } from './group.ts';
 import type { NewSessionRequest, RuntimeState } from './model.ts';
@@ -68,9 +69,11 @@ export type CockpitFixture = {
   /** The machine whose view menu starts open. */
   menuDevice?: string;
   /** Opens the session actions menu in the top bar, with this submenu open. */
-  actionsMenu?: { sub?: string };
+  actionsMenu?: { sub?: string; item?: string };
   /** Opens the rename dialog for the open session, with this text in the field. */
   rename?: string;
+  /** Opens the delete dialog for the open session, with the owner's answer to what exists. */
+  delete?: DeleteFixture;
   /** Shows the Archived page. */
   archived?: boolean;
   toast?: ToastState;
@@ -93,6 +96,8 @@ export function Cockpit(props: {
   onCreateSession?: (request: NewSessionRequest) => Promise<void>;
   /** Opens the Settings page, which replaces this screen. */
   onSettings?: () => void;
+  /** A session is gone from the core: the app drops it from its lists. */
+  onSessionDeleted?: (sessionId: string) => void;
   /** Opens Settings > Notifications, where a blocked browser is explained. */
   onNotifySettings?: () => void;
   fixture?: CockpitFixture;
@@ -117,6 +122,11 @@ export function Cockpit(props: {
   const [aroundLine, setAroundLine] = useState<number | null>(fixture?.aroundLine ?? null);
   const [archivedOpen, setArchivedOpen] = useState(fixture?.archived ?? false);
   const [renaming, setRenaming] = useState<LiveSessionMeta | null>(null);
+  // The session being deleted, and the one to open when it was the open one.
+  const [deleting, setDeleting] = useState<{
+    session: LiveSessionMeta;
+    next: string | null;
+  } | null>(null);
   const [toast, say] = useToast(fixture?.toast ?? null);
   const devices = useDevices(fixture?.devices);
   const now = useNow(fixture?.now);
@@ -247,9 +257,17 @@ export function Cockpit(props: {
     },
     [apply, say],
   );
+  const askDelete = useCallback(
+    (s: LiveSessionMeta) => {
+      const at = visible.findIndex((v) => v.sessionId === s.sessionId);
+      const rest = visible.filter((v) => v.sessionId !== s.sessionId);
+      setDeleting({ session: s, next: (rest[at] ?? rest[at - 1] ?? null)?.sessionId ?? null });
+    },
+    [visible],
+  );
   const actions: SessionActions = useMemo(
-    () => ({ patch, rename: setRenaming, say }),
-    [patch, say],
+    () => ({ patch, rename: setRenaming, remove: askDelete, say }),
+    [patch, askDelete, say],
   );
 
   function pickSession(id: string) {
@@ -296,7 +314,17 @@ export function Cockpit(props: {
     if (pageKeysSuspended()) return;
     if (!(e.metaKey || e.ctrlKey) || e.repeat || e.isComposing || e.getModifierState('AltGraph'))
       return;
-    if (!session || draft || archivedOpen || renaming || paletteOpen || addFor) return;
+    if (
+      !session ||
+      draft ||
+      archivedOpen ||
+      renaming ||
+      deleting ||
+      fixture?.delete ||
+      paletteOpen ||
+      addFor
+    )
+      return;
     if (e.altKey && !e.shiftKey && e.code === 'KeyR') {
       e.preventDefault();
       setRenaming(session);
@@ -389,6 +417,7 @@ export function Cockpit(props: {
             groups={archivedGroups}
             now={now}
             onRestore={(ids) => void restore(ids)}
+            onDelete={askDelete}
             onBack={() => setArchivedOpen(false)}
           />
         ) : (
@@ -398,6 +427,7 @@ export function Cockpit(props: {
               {...(session && !draft ? { actions: sessionMenu(session, actions) } : {})}
               {...(fixture?.actionsMenu ? { menuOpen: true } : {})}
               {...(fixture?.actionsMenu?.sub ? { menuSub: fixture.actionsMenu.sub } : {})}
+              {...(fixture?.actionsMenu?.item ? { menuItem: fixture.actionsMenu.item } : {})}
               {...(draft ? { title: t('New session') } : {})}
               sidebarFolded={sidebarHidden}
               inspectorOpen={inspectorOpen}
@@ -483,6 +513,20 @@ export function Cockpit(props: {
             if (target) void patch(target.sessionId, { title });
           }}
           onClose={() => setRenaming(null)}
+        />
+      ) : null}
+      {deleting || fixture?.delete ? (
+        <DeleteDialog
+          session={(deleting?.session ?? session) as LiveSessionMeta}
+          {...(fixture?.delete ? { fixture: fixture.delete } : {})}
+          onDeleted={(id) => {
+            const next = deleting?.next ?? null;
+            setDeleting(null);
+            props.onSessionDeleted?.(id);
+            if (id === selected) onSelect(next);
+            say(t('Session deleted'));
+          }}
+          onClose={() => setDeleting(null)}
         />
       ) : null}
       {paletteOpen ? (

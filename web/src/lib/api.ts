@@ -4,6 +4,9 @@ import {
   AttachmentResultSchema,
   CommandsResultSchema,
   type ConfigSetting,
+  type DeleteSessionRequest,
+  DeleteSessionResponseSchema,
+  DeletionPreviewSchema,
   DeviceCloneResultSchema,
   DeviceDirsResultSchema,
   DeviceListResponseSchema,
@@ -96,7 +99,7 @@ async function call<S extends GenericSchema>(
   if (!res.ok) {
     const error = safeParse(ErrorResponseSchema, payload);
     throw error.success
-      ? new ApiError(res.status, error.output.code, error.output.reason)
+      ? new ApiError(res.status, error.output.code, error.output.reason, error.output.steps)
       : new ApiError(res.status, null);
   }
   const parsed = safeParse(schema, payload);
@@ -284,6 +287,22 @@ export function postPermission(
 
 export function postInterrupt(sessionId: string) {
   return call(`/api/sessions/${sessionId}/interrupt`, RuntimeCommandResultSchema, {});
+}
+
+/** What deleting a session would remove, read from the owner (ADR 0023). */
+export function fetchDeletionPreview(sessionId: string) {
+  return call(`/api/sessions/${sessionId}/deletion`, DeletionPreviewSchema);
+}
+
+/** Deletes a session and what was asked for; a half-done deletion rejects with an `ApiError` carrying `steps`. */
+export function deleteSession(sessionId: string, request: DeleteSessionRequest) {
+  return call(
+    `/api/sessions/${sessionId}`,
+    DeleteSessionResponseSchema,
+    request,
+    undefined,
+    'DELETE',
+  );
 }
 
 export function postStop(sessionId: string) {

@@ -21,7 +21,12 @@ export function withSessions(groups: DeviceGroup[]): DeviceGroup[] {
     .filter((g) => g.dirs.length > 0);
 }
 
-function Row(props: { session: LiveSessionMeta; now: number; onRestore: (ids: string[]) => void }) {
+function Row(props: {
+  session: LiveSessionMeta;
+  now: number;
+  onRestore: (ids: string[]) => void;
+  onDelete: (session: LiveSessionMeta) => void;
+}) {
   const { session } = props;
   const title = displayTitle(session);
   return (
@@ -36,6 +41,13 @@ function Row(props: { session: LiveSessionMeta; now: number; onRestore: (ids: st
         onClick={() => props.onRestore([session.sessionId])}
         data-testid="cockpit.restore"
       />
+      <IconButton
+        label={t('Delete…')}
+        icon={Icon.trash()}
+        className="dng"
+        onClick={() => props.onDelete(session)}
+        data-testid="cockpit.delete-row"
+      />
       <span className="m">{compactRel(session.updatedAt, props.now)}</span>
     </div>
   );
@@ -43,13 +55,14 @@ function Row(props: { session: LiveSessionMeta; now: number; onRestore: (ids: st
 
 /**
  * The Archived page in place of the conversation: every archived session by machine, then folder (name, path,
- * count), newest first. Offline machines are listed and restorable. Restoring needs no confirmation.
+ * count), newest first. Offline machines are listed and restorable. Restoring needs no confirmation; Delete opens the delete dialog.
  */
 export function ArchivedPage(props: {
   /** Machines with their folders; only the archived sessions. */
   groups: DeviceGroup[];
   now: number;
   onRestore: (ids: string[]) => void;
+  onDelete: (session: LiveSessionMeta) => void;
   onBack: () => void;
 }) {
   const { groups, onBack } = props;
@@ -129,6 +142,7 @@ export function ArchivedPage(props: {
                         session={s}
                         now={props.now}
                         onRestore={props.onRestore}
+                        onDelete={props.onDelete}
                       />
                     ))}
                   </div>

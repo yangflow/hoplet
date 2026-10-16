@@ -12,6 +12,7 @@ export function Dialog(props: {
   onClose: () => void;
   size?: 'palette' | 'dialog' | 'wide';
   children: ReactNode;
+  className?: string;
   'data-testid'?: string;
 }) {
   const { label, onClose, size = 'dialog', children } = props;
@@ -59,7 +60,7 @@ export function Dialog(props: {
         aria-modal="true"
         aria-label={label}
         tabIndex={-1}
-        className={`modal modal-${size}`}
+        className={`modal modal-${size}${props.className ? ` ${props.className}` : ''}`}
         onKeyDown={onKeyDown}
         data-testid={props['data-testid']}
       >

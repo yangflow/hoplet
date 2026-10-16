@@ -1107,3 +1107,225 @@
 .toast.failed svg {
   color: var(--color-danger);
 }
+
+.dx .xnote svg {
+  width: 14px;
+  height: 14px;
+  margin-top: 2px;
+  flex: none;
+  color: var(--color-text-3);
+}
+.mn .menu-item.danger,
+.mn .menu-item.danger > svg {
+  color: var(--color-danger);
+}
+.mn .menu-item.danger.on,
+.mn .menu-item.danger:hover,
+.mn[data-kb] .menu-item.danger:focus-visible {
+  background: var(--color-del-bg);
+  box-shadow: none;
+}
+.arow .ib.dng {
+  color: var(--color-danger);
+}
+
+/* Delete session: one checklist, then the steps */
+.modal.dx {
+  top: 56px;
+}
+.dx .dlg-h {
+  padding-bottom: var(--space-1);
+}
+.dx .dlg-sub {
+  padding: 0 var(--space-4) var(--space-3);
+  color: var(--color-text-3);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+.dx .dlg-sub .tag {
+  flex: none;
+}
+.dx .dlg-b {
+  gap: var(--space-1);
+}
+.dx .dlg-f {
+  align-items: center;
+}
+.dx .dlg-f .l {
+  margin-right: auto;
+}
+.dx .opt {
+  position: relative;
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  column-gap: var(--space-3);
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+  align-items: start;
+  cursor: pointer;
+}
+.dx .opt.lock,
+.dx .opt.dis {
+  cursor: default;
+}
+.dx .opt .opt-in {
+  position: absolute;
+  opacity: 0;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  pointer-events: none;
+}
+.dx .opt .opt-t {
+  display: block;
+  min-width: 0;
+}
+.dx .opt .ol,
+.dx .opt .od,
+.dx .opt .rsn {
+  display: block;
+}
+.dx .opt .cbx {
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  border-radius: 4px;
+  box-shadow: inset 0 0 0 1.5px var(--color-text-3);
+  display: grid;
+  place-items: center;
+  color: var(--color-on-accent);
+}
+.dx .opt .cbx svg {
+  width: 12px;
+  height: 12px;
+}
+.dx .opt.on .cbx {
+  background: var(--color-accent);
+  box-shadow: none;
+}
+.dx .opt.lock .cbx {
+  background: var(--color-text-3);
+  box-shadow: none;
+  color: var(--color-raised);
+}
+.dx .opt.dis {
+  opacity: 0.55;
+}
+.dx .opt.dis .cbx {
+  box-shadow: inset 0 0 0 1.5px var(--color-line);
+}
+.dx .opt .opt-in:focus-visible + .cbx {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+.dx .opt .ol {
+  font-weight: var(--weight-medium);
+}
+.dx .opt .od {
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  color: var(--color-text-3);
+  margin-top: 2px;
+}
+.dx .opt .od .mono,
+.dx .xs .od .mono {
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--color-text-2);
+}
+.dx .opt .rsn {
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  color: var(--color-text-2);
+  margin-top: 2px;
+  display: flex;
+  gap: var(--space-1);
+  align-items: flex-start;
+}
+.dx .opt .rsn svg {
+  width: 12px;
+  height: 12px;
+  margin-top: 2px;
+  flex: none;
+}
+.dx .opt.warn {
+  background: var(--color-attention-soft);
+  box-shadow: inset 0 0 0 1px var(--color-attention-ring);
+}
+.dx .opt.warn .rsn {
+  color: var(--color-attention-text);
+}
+.dx .xnote {
+  margin: var(--space-2) var(--space-4) 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--color-hover);
+  color: var(--color-text-2);
+  display: flex;
+  gap: var(--space-2);
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+}
+.light .dx .xnote {
+  background: var(--color-selected);
+}
+.dx .xnote.att {
+  background: var(--color-attention-soft);
+  box-shadow: inset 0 0 0 1px var(--color-attention-ring);
+}
+.dx .xnote.att svg {
+  color: var(--color-attention-text);
+}
+.dx .xnote.bad {
+  background: var(--color-del-bg);
+  color: var(--color-del-text);
+}
+.dx .xnote.bad svg {
+  color: var(--color-danger);
+}
+.light .dx .xnote.bad {
+  color: var(--color-danger);
+}
+.dx .xs {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  column-gap: var(--space-3);
+  padding: var(--space-2);
+  align-items: start;
+}
+.dx .xs .xl {
+  color: var(--color-text);
+}
+.dx .xs .od {
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  color: var(--color-text-3);
+  margin-top: 2px;
+}
+.dx .xs.wait .xl,
+.dx .xs .skip {
+  color: var(--color-text-3);
+}
+.dx .xs .ok {
+  color: var(--color-success);
+}
+.dx .xs .bad {
+  color: var(--color-danger);
+}
+.dx .xs .run {
+  color: var(--color-accent-text);
+}
+.dx .xs.badrow {
+  background: var(--color-del-bg);
+  border-radius: var(--radius-sm);
+}
+.dx .xs.badrow .od {
+  color: var(--color-text-2);
+}
+.btn.sm {
+  height: 24px;
+  padding: 0 var(--space-2);
+  gap: var(--space-1);
+}

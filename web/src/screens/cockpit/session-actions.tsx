@@ -18,11 +18,13 @@ export type SessionActions = {
   /** Applies a change to the session's state; resolves when the core has it. */
   patch: (sessionId: string, patch: SessionPatchRequest) => Promise<void>;
   rename: (session: LiveSessionMeta) => void;
+  /** Opens the delete dialog (ADR 0023). */
+  remove: (session: LiveSessionMeta) => void;
   /** Says what happened: a copy was made, or it could not be. */
   say: (text: string, failed?: boolean) => void;
 };
 
-/** The session actions menu: Rename and Pin | Copy and Open in new window | Archive. */
+/** The session actions menu: Rename and Pin | Copy and Open in new window | Archive | Delete. */
 export function sessionMenu(session: LiveSessionMeta, actions: SessionActions): MenuEntry[] {
   const id = session.sessionId;
   const pinned = isPinned(session);
@@ -101,6 +103,15 @@ export function sessionMenu(session: LiveSessionMeta, actions: SessionActions): 
       icon: archived ? Icon.restore() : Icon.archive(),
       shortcut: SHORTCUT.archive,
       onSelect: () => void actions.patch(id, { archived: !archived }),
+    },
+    { kind: 'separator', id: 'sep-3' },
+    {
+      kind: 'item',
+      id: 'delete',
+      label: t('Delete…'),
+      icon: Icon.trash(),
+      danger: true,
+      onSelect: () => actions.remove(session),
     },
   ];
 }
