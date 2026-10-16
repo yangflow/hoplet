@@ -140,6 +140,7 @@ async function fixture(options: ControlOptions = {}): Promise<Fixture> {
         handoffId: msg.handoffId,
         worktree: '/home/b/r-sess1234',
         branch: 'hoplet/sess1234',
+        clone: '/home/b/r',
       });
     }
     if (msg.type === 'handoff.verify') {

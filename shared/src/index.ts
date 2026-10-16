@@ -8,6 +8,7 @@ export { type GenericSchema, type InferOutput, is, parse, safeParse } from 'vali
 export * from './catalog.ts';
 export * from './commands.ts';
 export * from './conversation.ts';
+export * from './deletion.ts';
 export * from './errors.ts';
 export * from './ids.ts';
 export * from './rest/index.ts';

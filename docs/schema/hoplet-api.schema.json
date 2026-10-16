@@ -246,6 +246,26 @@
     },
     {
       "method": "GET",
+      "path": "/api/sessions/:sessionId/deletion",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": null,
+      "response": "DeletionPreviewSchema"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/sessions/:sessionId",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": "DeleteSessionRequestSchema",
+      "response": "DeleteSessionResponseSchema"
+    },
+    {
+      "method": "GET",
       "path": "/api/sessions/:sessionId/workspace",
       "auth": "host",
       "lane": "control",
@@ -573,6 +593,12 @@
       "schema": "SessionAppendedMessage"
     },
     {
+      "type": "session.deleted",
+      "direction": "core-to-web",
+      "lane": "control",
+      "schema": "SessionDeletedMessage"
+    },
+    {
       "type": "session.updated",
       "direction": "core-to-web",
       "lane": "control",
@@ -659,6 +685,7 @@
     "too-large": 413,
     "owner-offline": 409,
     "target-offline": 409,
+    "session-running": 409,
     "busy": 409,
     "starting": 409,
     "external": 409,
@@ -673,6 +700,7 @@
     "no-snapshot": 409,
     "session-changed": 409,
     "verify-failed": 502,
+    "delete-partial": 502,
     "rejected": 502,
     "timeout": 504,
     "internal": 500
@@ -911,6 +939,182 @@
       "required": [
         "configId",
         "value"
+      ]
+    },
+    "DeleteSessionRequestSchema": {
+      "type": "object",
+      "properties": {
+        "vendorFile": {
+          "type": "boolean"
+        },
+        "worktree": {
+          "type": "boolean"
+        },
+        "worktreeDirty": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "vendorFile",
+        "worktree",
+        "worktreeDirty"
+      ]
+    },
+    "DeleteSessionResponseSchema": {
+      "type": "object",
+      "properties": {
+        "steps": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "step": {
+                "enum": [
+                  "stop-syncing",
+                  "worktree",
+                  "branch",
+                  "vendor-file",
+                  "core-copy"
+                ],
+                "type": "string"
+              },
+              "status": {
+                "enum": [
+                  "done",
+                  "failed",
+                  "skipped"
+                ],
+                "type": "string"
+              },
+              "reason": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "step",
+              "status"
+            ]
+          }
+        }
+      },
+      "required": [
+        "steps"
+      ]
+    },
+    "DeletionPreviewSchema": {
+      "type": "object",
+      "properties": {
+        "owner": {
+          "type": "object",
+          "properties": {
+            "deviceId": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "online": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "deviceId",
+            "name",
+            "online"
+          ]
+        },
+        "running": {
+          "type": "boolean"
+        },
+        "vendorFile": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "path"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "worktree": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string"
+                },
+                "branch": {
+                  "type": "string"
+                },
+                "dirty": {
+                  "type": "object",
+                  "properties": {
+                    "modified": {
+                      "type": "number"
+                    },
+                    "untracked": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "modified",
+                    "untracked"
+                  ]
+                },
+                "unpushed": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "path",
+                "branch",
+                "dirty",
+                "unpushed"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "previousOwner": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "deviceId": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "deviceId",
+                "name"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "owner",
+        "running",
+        "vendorFile",
+        "worktree",
+        "previousOwner"
       ]
     },
     "DeviceCloneQuerySchema": {
@@ -1425,6 +1629,7 @@
             "too-large",
             "owner-offline",
             "target-offline",
+            "session-running",
             "busy",
             "starting",
             "external",
@@ -1439,6 +1644,7 @@
             "no-snapshot",
             "session-changed",
             "verify-failed",
+            "delete-partial",
             "rejected",
             "timeout",
             "internal",
@@ -1483,6 +1689,7 @@
             "too-large",
             "owner-offline",
             "target-offline",
+            "session-running",
             "busy",
             "starting",
             "external",
@@ -1497,6 +1704,7 @@
             "no-snapshot",
             "session-changed",
             "verify-failed",
+            "delete-partial",
             "rejected",
             "timeout",
             "internal"
@@ -1508,6 +1716,39 @@
         },
         "promptId": {
           "type": "string"
+        },
+        "steps": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "step": {
+                "enum": [
+                  "stop-syncing",
+                  "worktree",
+                  "branch",
+                  "vendor-file",
+                  "core-copy"
+                ],
+                "type": "string"
+              },
+              "status": {
+                "enum": [
+                  "done",
+                  "failed",
+                  "skipped"
+                ],
+                "type": "string"
+              },
+              "reason": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "step",
+              "status"
+            ]
+          }
         }
       },
       "required": [
@@ -3187,6 +3428,26 @@
         },
         "type": {
           "const": "session.commands"
+        },
+        "sessionId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]+$"
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "sessionId"
+      ]
+    },
+    "SessionDeletedMessage": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 5
+        },
+        "type": {
+          "const": "session.deleted"
         },
         "sessionId": {
           "type": "string",

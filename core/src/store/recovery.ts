@@ -7,7 +7,6 @@ import {
   openSync,
   readFileSync,
   renameSync,
-  rmSync,
   unlinkSync,
   writeFileSync,
 } from 'node:fs';
@@ -15,6 +14,7 @@ import { readFile } from 'node:fs/promises';
 import { promisify } from 'node:util';
 import { gunzipSync, gzip as gzipCallback, gzipSync } from 'node:zlib';
 import { isSessionId } from '@hoplet/shared';
+import { removePurged } from './deletion.ts';
 import { chunkPath, type StoreContext, sessionDir, syncDirectory } from './layout.ts';
 
 /** An append in flight: enough to cut the chunk files back to the last committed byte. */
@@ -54,8 +54,8 @@ function purgeQueued(ctx: StoreContext): void {
   }[];
   for (const { session_id: id } of queued) {
     // An id that is not a valid key never named a directory, so there is nothing to remove.
-    if (isSessionId(id)) rmSync(sessionDir(ctx, id), { recursive: true, force: true });
-    ctx.db.prepare('DELETE FROM session_purge WHERE session_id=?').run(id);
+    if (isSessionId(id)) removePurged(ctx, id);
+    else ctx.db.prepare('DELETE FROM session_purge WHERE session_id=?').run(id);
   }
 }
 

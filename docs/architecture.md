@@ -185,6 +185,13 @@ same pull request, and `scripts/test/contract.test.ts` compares them. `device.he
 or the bulk lane (docs/architecture.md#principles). The sync cursor is the server's per-session byte count
 (`byte_size`), equal to the device file offset ([ADR 0002](adr/0002-the-byte-offset-is-the-sync-cursor.md)).
 
+Deleting a session ([ADR 0023](adr/0023-deleting-a-session-and-what-hoplet-made-for-it.md)) uses control-lane
+messages that name the session by ID and never a path: `device.session.inspect|inspected|rejected`,
+`device.session.delete|deleted` and `device.session.forget|forgotten`. A deleted ID is a tombstone in the core;
+`session.append` and a resync of it are answered with `session.rejected` reason `deleted`, and the core sends
+`device.session.forget` for the tombstones of a device when it connects. `handoff.installed` carries `clone`, the
+clone the new worktree belongs to, which the core keeps in `session_worktrees`.
+
 ### Session chunk files
 
 `<data>/sessions/<sessionId>/c-<seq>.ndjson` holds at most 500 raw JSONL lines. A full chunk is compressed

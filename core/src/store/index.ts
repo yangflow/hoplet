@@ -27,6 +27,7 @@ import {
   streamFingerprint,
 } from './chunks.ts';
 import * as commands from './commands.ts';
+import * as deletion from './deletion.ts';
 import * as devices from './devices.ts';
 import type { StoreContext } from './layout.ts';
 import * as notify from './notify.ts';
@@ -38,6 +39,7 @@ import * as sessions from './sessions.ts';
 import * as snapshotRead from './snapshot-read.ts';
 import * as snapshots from './snapshots.ts';
 
+export type { Tombstone, WorktreeRecord } from './deletion.ts';
 export type { PushSubscriptionRecord, WebhookRecord } from './notify.ts';
 export type { QueueOutcome } from './queue.ts';
 export type { NotifySecrets, VapidKeys } from './secrets.ts';
@@ -281,6 +283,7 @@ export class Store {
     epoch: number,
     projectPath: string,
     branch: string,
+    clone: string | null = null,
   ): number | null {
     return sessions.handoffOwner(
       this.ctx,
@@ -291,7 +294,52 @@ export class Store {
       epoch,
       projectPath,
       branch,
+      clone,
+      Date.now(),
     );
+  }
+
+  /** The worktree a handoff created for the session on its current owner, or null (ADR 0023). */
+  sessionWorktree(sessionId: string): deletion.WorktreeRecord | null {
+    return deletion.worktreeOf(this.ctx, sessionId);
+  }
+
+  /** The owner of a session including one being deleted; only the deletion reads it. */
+  deletingOwner(sessionId: string): string | null {
+    return sessions.getRowAny(this.ctx, sessionId)?.device_id || null;
+  }
+
+  tombstoneOf(sessionId: string): deletion.Tombstone | null {
+    return deletion.tombstoneOf(this.ctx, sessionId);
+  }
+
+  isTombstoned(sessionId: string): boolean {
+    return deletion.isTombstoned(this.ctx, sessionId);
+  }
+
+  /** Marks the session deleted: it leaves every list and ingest refuses it. A repeated call changes nothing. */
+  tombstone(sessionId: string, deviceId: string, now: number = Date.now()): void {
+    deletion.tombstone(this.ctx, sessionId, deviceId, now);
+  }
+
+  /** Records that the owner's agent stopped syncing a deleted session. */
+  markForgotten(sessionId: string): void {
+    deletion.markForgotten(this.ctx, sessionId);
+  }
+
+  /** Lifts a tombstone (an explicit import asked for the session back); true when there was one. */
+  clearTombstone(sessionId: string): boolean {
+    return deletion.clearTombstone(this.ctx, sessionId);
+  }
+
+  /** The deleted sessions whose agent has not confirmed it stopped syncing them. */
+  unforgottenTombstones(deviceId: string): string[] {
+    return deletion.unforgotten(this.ctx, deviceId);
+  }
+
+  /** Removes the core's rows, directories and queued messages of a session. */
+  purgeSession(sessionId: string): void {
+    deletion.purgeSession(this.ctx, sessionId);
   }
 
   /**

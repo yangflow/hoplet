@@ -311,7 +311,7 @@ export function createHandoff(state: ControlState): HandoffControl {
     progress(sessionId, active, 'install', { snapshotAt });
     const installedOutcome = await answer.promise;
     if (!installedOutcome.ok) throw failureOf(installedOutcome, 'target');
-    const { worktree, branch } = installedOutcome.value;
+    const { worktree, branch, clone } = installedOutcome.value;
 
     // Verify: the target proves its copy before ownership moves.
     progress(sessionId, active, 'verify');
@@ -337,6 +337,7 @@ export function createHandoff(state: ControlState): HandoffControl {
       epoch,
       worktree,
       branch,
+      clone || null,
     );
     if (newEpoch === null) throw new HandoffFailure('session-changed');
     const commit = {

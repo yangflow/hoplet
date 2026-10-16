@@ -254,6 +254,23 @@ func (f *File) ClearImports(path string, ids []string) error {
 	return nil
 }
 
+// ForgetSession drops the session from the imported list of every project and reports whether it was in one.
+func (f *File) ForgetSession(id string) bool {
+	changed := false
+	for i := range f.Items {
+		kept := make([]string, 0, len(f.Items[i].Imported))
+		for _, have := range f.Items[i].Imported {
+			if have == id {
+				changed = true
+				continue
+			}
+			kept = append(kept, have)
+		}
+		f.Items[i].Imported = kept
+	}
+	return changed
+}
+
 // CwdOf is the directory the session runs in, trimmed.
 func CwdOf(src provider.Source) string {
 	return strings.TrimSpace(src.Cwd())

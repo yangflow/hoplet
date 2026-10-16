@@ -361,6 +361,14 @@ func (c *Client) handleSessions(cs *connState, raw json.RawMessage) {
 			err = errors.New("not-implemented")
 		} else {
 			cands, listing, err = c.hooks.SessionsImport(ctx, head.Path, head.SessionIDs)
+			if err == nil {
+				// An import is the user asking for the session back, also after a deletion.
+				c.mu.Lock()
+				for _, id := range head.SessionIDs {
+					delete(c.suppressed, id)
+				}
+				c.mu.Unlock()
+			}
 		}
 	case TypeDeviceSessionsRemove:
 		label = "sessions remove"
@@ -405,4 +413,75 @@ func (c *Client) replyDeviceControl(
 		Candidates: cands,
 		Projects:   listing,
 	})
+}
+
+// handleSessionDeletion answers the messages of a session deletion (ADR 0023). Deleting and forgetting stop
+// syncing the session first, so no round writes a delta of a file that is about to go.
+func (c *Client) handleSessionDeletion(cs *connState, kind string, raw json.RawMessage) {
+	var req struct {
+		RequestID     string `json:"requestId"`
+		SessionID     string `json:"sessionId"`
+		VendorFile    bool   `json:"vendorFile"`
+		Worktree      bool   `json:"worktree"`
+		WorktreeDirty bool   `json:"worktreeDirty"`
+	}
+	if err := json.Unmarshal(raw, &req); err != nil {
+		return
+	}
+	ctx := context.Background()
+	reject := func(reason string) {
+		log.Printf("[agent] session %s %s rejected: %s", shortID(req.SessionID), kind, reason)
+		_ = c.writeMsg(cs, DeviceSessionRejected{
+			V: ProtocolVersion, Type: TypeDeviceSessionRejected, RequestID: req.RequestID, Reason: reason,
+		})
+	}
+	switch kind {
+	case TypeDeviceSessionInspect:
+		if c.hooks.SessionInspect == nil {
+			reject("not-implemented")
+			return
+		}
+		found, err := c.hooks.SessionInspect(ctx, req.SessionID)
+		if err != nil {
+			reject(err.Error())
+			return
+		}
+		_ = c.writeMsg(cs, DeviceSessionInspected{
+			V: ProtocolVersion, Type: TypeDeviceSessionInspected, RequestID: req.RequestID,
+			VendorFile: found.VendorFile, Worktree: found.Worktree,
+		})
+	case TypeDeviceSessionDelete:
+		if c.hooks.SessionDelete == nil {
+			reject("not-implemented")
+			return
+		}
+		c.suppress(req.SessionID)
+		steps := c.hooks.SessionDelete(ctx, req.SessionID, req.VendorFile, req.Worktree, req.WorktreeDirty)
+		if steps == nil {
+			steps = []DeletionStep{}
+		}
+		_ = c.writeMsg(cs, DeviceSessionDeleted{
+			V: ProtocolVersion, Type: TypeDeviceSessionDeleted, RequestID: req.RequestID, Steps: steps,
+		})
+	case TypeDeviceSessionForget:
+		if c.hooks.SessionForget == nil {
+			reject("not-implemented")
+			return
+		}
+		c.suppress(req.SessionID)
+		if err := c.hooks.SessionForget(ctx, req.SessionID); err != nil {
+			reject(err.Error())
+			return
+		}
+		_ = c.writeMsg(cs, DeviceSessionForgotten{
+			V: ProtocolVersion, Type: TypeDeviceSessionForgotten, RequestID: req.RequestID, SessionID: req.SessionID,
+		})
+	}
+}
+
+// suppress stops syncing a session until the process restarts or the session is accepted again.
+func (c *Client) suppress(sessionID string) {
+	c.mu.Lock()
+	c.suppressed[sessionID] = true
+	c.mu.Unlock()
 }

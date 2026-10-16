@@ -113,6 +113,9 @@ func Run(cfg *config.Config, version string) error {
 		CloneFind:      cloneFind(st),
 		SessionsImport: st.sessionsImport,
 		SessionsRemove: st.sessionsRemove,
+		SessionInspect: sessionInspect(cfg),
+		SessionDelete:  sessionDelete(cfg, st),
+		SessionForget:  func(_ context.Context, id string) error { return st.forgetSession(id) },
 	})
 	st.setKick(client.Kick)
 	moves.client = client

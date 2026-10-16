@@ -7,6 +7,12 @@ import * as v from 'valibot';
 import { DeviceProjectSchema, DeviceProjectSessionSchema, DirEntrySchema } from '../catalog.ts';
 import { CommandSchema, MAX_COMMANDS } from '../commands.ts';
 import { ToolKindSchema, ToolMcpSchema } from '../conversation.ts';
+import {
+  DeletionDirtySchema,
+  DeletionFileSchema,
+  DeletionStepSchema,
+  DeletionWorktreeSchema,
+} from '../deletion.ts';
 import { ErrorCodeSchema } from '../errors.ts';
 import { AttachmentIdSchema, HandoffIdSchema, SessionIdSchema, SnapshotIdSchema } from '../ids.ts';
 import { NotifyEventKindSchema } from '../rest/notify.ts';
@@ -132,7 +138,10 @@ export const WIRE_MESSAGES = defineWire({
     direction: 'core-to-device',
     fields: { sessionId, byteSize: v.number() },
   },
-  /** One writer per session: appends from a non-owner device are rejected. */
+  /**
+   * One writer per session: appends from a non-owner device are rejected. `reason` is `not-owner`, or `deleted`
+   * for a session that was deleted (ADR 0023); the agent suppresses the session in both cases.
+   */
   'session.rejected': {
     lane: 'bulk',
     direction: 'core-to-device',
@@ -150,6 +159,13 @@ export const WIRE_MESSAGES = defineWire({
       updatedAt: v.number(),
       isNew: v.optional(v.boolean()),
     },
+  },
+
+  /** A session was deleted (ADR 0023): drop it from every list. Broadcast to every authenticated connection. */
+  'session.deleted': {
+    lane: 'control',
+    direction: 'core-to-web',
+    fields: { sessionId },
   },
 
   /**
@@ -548,7 +564,7 @@ export const WIRE_MESSAGES = defineWire({
   'handoff.installed': {
     lane: 'control',
     direction: 'device-to-core',
-    fields: { sessionId, handoffId, worktree: v.string(), branch: v.string() },
+    fields: { sessionId, handoffId, worktree: v.string(), branch: v.string(), clone: v.string() },
   },
   'handoff.verify': {
     lane: 'control',
@@ -656,6 +672,53 @@ export const WIRE_MESSAGES = defineWire({
     lane: 'control',
     direction: 'core-to-device',
     fields: { requestId, path: v.string(), sessionIds: v.array(sessionId) },
+  },
+  /** Deleting a session (ADR 0023): the agent finds the vendor file and the worktree itself from the ID. */
+  'device.session.inspect': {
+    lane: 'control',
+    direction: 'core-to-device',
+    fields: { requestId, sessionId },
+  },
+  'device.session.inspected': {
+    lane: 'control',
+    direction: 'device-to-core',
+    fields: {
+      requestId,
+      vendorFile: v.optional(DeletionFileSchema),
+      worktree: v.optional(DeletionWorktreeSchema),
+    },
+  },
+  'device.session.rejected': {
+    lane: 'control',
+    direction: 'device-to-core',
+    fields: { requestId, reason: v.string() },
+  },
+  'device.session.delete': {
+    lane: 'control',
+    direction: 'core-to-device',
+    fields: {
+      requestId,
+      sessionId,
+      vendorFile: v.boolean(),
+      worktree: v.boolean(),
+      worktreeDirty: v.boolean(),
+    },
+  },
+  'device.session.deleted': {
+    lane: 'control',
+    direction: 'device-to-core',
+    fields: { requestId, steps: list(DeletionStepSchema) },
+  },
+  /** Stop syncing the session and forget it: the first step of a deletion alone, for a tombstone. */
+  'device.session.forget': {
+    lane: 'control',
+    direction: 'core-to-device',
+    fields: { requestId, sessionId },
+  },
+  'device.session.forgotten': {
+    lane: 'control',
+    direction: 'device-to-core',
+    fields: { requestId, sessionId },
   },
   'device.projects': {
     lane: 'control',
@@ -810,6 +873,14 @@ export type DeviceProjectsAdd = WireMessageOf<'device.projects.add'>;
 export type DeviceProjectsRemove = WireMessageOf<'device.projects.remove'>;
 export type DeviceSessionsImport = WireMessageOf<'device.sessions.import'>;
 export type DeviceSessionsRemove = WireMessageOf<'device.sessions.remove'>;
+export type DeviceSessionInspect = WireMessageOf<'device.session.inspect'>;
+export type DeviceSessionInspected = WireMessageOf<'device.session.inspected'>;
+export type DeviceSessionRejected = WireMessageOf<'device.session.rejected'>;
+export type DeviceSessionDelete = WireMessageOf<'device.session.delete'>;
+export type DeviceSessionDeleted = WireMessageOf<'device.session.deleted'>;
+export type DeviceSessionForget = WireMessageOf<'device.session.forget'>;
+export type DeviceSessionForgotten = WireMessageOf<'device.session.forgotten'>;
+export type SessionDeleted = WireMessageOf<'session.deleted'>;
 export type DeviceProjects = WireMessageOf<'device.projects'>;
 export type DeviceProjectsRejected = WireMessageOf<'device.projects.rejected'>;
 export type AttachmentPut = WireMessageOf<'attachment.put'>;
@@ -856,6 +927,10 @@ export const ClientMessageSchema = v.variant('type', [
   WIRE_MESSAGES['handoff.failed'].schema,
   WIRE_MESSAGES['device.projects'].schema,
   WIRE_MESSAGES['device.projects.rejected'].schema,
+  WIRE_MESSAGES['device.session.inspected'].schema,
+  WIRE_MESSAGES['device.session.rejected'].schema,
+  WIRE_MESSAGES['device.session.deleted'].schema,
+  WIRE_MESSAGES['device.session.forgotten'].schema,
   WIRE_MESSAGES['device.dirs'].schema,
   WIRE_MESSAGES['attachment.stored'].schema,
   WIRE_MESSAGES['attachment.rejected'].schema,
@@ -882,4 +957,8 @@ export const WIRE_OBJECTS = {
   Command: CommandSchema,
   PlanExit: PlanExitSchema,
   WorkspaceChange: WorkspaceChangeSchema,
+  DeletionFile: DeletionFileSchema,
+  DeletionDirty: DeletionDirtySchema,
+  DeletionWorktree: DeletionWorktreeSchema,
+  DeletionStep: DeletionStepSchema,
 } as const;

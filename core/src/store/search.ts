@@ -59,7 +59,9 @@ export async function searchAll(
   limit: number,
 ): Promise<RawGlobalSearchResult> {
   const sessions = ctx.db
-    .prepare('SELECT * FROM sessions ORDER BY updated_at DESC LIMIT 200')
+    .prepare(`SELECT * FROM sessions s
+       WHERE NOT EXISTS (SELECT 1 FROM session_tombstones t WHERE t.session_id = s.session_id)
+       ORDER BY updated_at DESC LIMIT 200`)
     .all() as unknown as SessionRow[];
   const needle = query.toLowerCase();
   const results: RawGlobalSearchResult['results'] = [];

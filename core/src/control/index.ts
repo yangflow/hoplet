@@ -5,6 +5,7 @@ import { PROTOCOL_VERSION, type ServerMessage } from '@hoplet/shared';
 import { log } from '../log/index.ts';
 import type { Store } from '../store/index.ts';
 import { createBulkQueue } from './bulk.ts';
+import { createDeletion } from './deletion.ts';
 import { createHandoff } from './handoff.ts';
 import { createQueue } from './queue.ts';
 import { receiveReply } from './replies.ts';
@@ -21,6 +22,8 @@ export type {
   ControlEvent,
   ControlOptions,
   ControlReply,
+  DeleteSessionOutcome,
+  DeletionPreviewOutcome,
   DeviceControlOutcome,
   DeviceLink,
   HandoffOutcome,
@@ -112,6 +115,7 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
     pendingInstalled: new Map(),
     pendingVerified: new Map(),
     pendingDeviceControl: new Map(),
+    pendingSession: new Map(),
     pendingDirs: new Map(),
     pendingClone: new Map(),
     pendingAttachments: new Map(),
@@ -129,6 +133,7 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
   state.runtimeChanged = queue.runtimeChanged;
   const handoff = createHandoff(state);
   const rpc = createRpc(state);
+  const deletion = createDeletion(state, runtime.runtimeOf);
   const start = createStart(state, rpc.listProjects);
 
   return {
@@ -145,6 +150,7 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
       state.byDevice.set(deviceId, link);
       state.providers.set(deviceId, providers ?? []);
       runtime.attached(deviceId);
+      deletion.attached(deviceId);
       publish({ v: PROTOCOL_VERSION, type: 'device.presence', deviceId, connected: true });
     },
     subscribe(listener) {
@@ -230,6 +236,8 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
       return out;
     },
     ...rpc,
+    deletionPreview: deletion.deletionPreview,
+    deleteSession: deletion.deleteSession,
     startSession: start.startSession,
     async handoff(request) {
       const outcome = await handoff.handoff(request);

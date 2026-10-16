@@ -12,6 +12,9 @@ import {
   BUILTIN_COMMANDS,
   CommandsResultSchema,
   ConfigRequestSchema,
+  DeleteSessionRequestSchema,
+  DeleteSessionResponseSchema,
+  DeletionPreviewSchema,
   DeviceCloneQuerySchema,
   DeviceCloneResultSchema,
   DeviceCommandsQuerySchema,
@@ -643,6 +646,35 @@ export const routes: readonly Route[] = [
       const outcome = d.control.stop(sessionId, ownerOf(d, sessionId));
       if (outcome.ok) return { ok: true };
       throw new ApiError(outcome.error);
+    },
+  }),
+  defineRoute({
+    method: 'GET',
+    path: '/api/sessions/:sessionId/deletion',
+    auth: 'host',
+    lane: 'control',
+    response: DeletionPreviewSchema,
+    handler: async (d) => {
+      const outcome = await d.control.deletionPreview(d.params.sessionId ?? '');
+      if (outcome.ok) return outcome.preview;
+      throw relayError(outcome);
+    },
+  }),
+  defineRoute({
+    method: 'DELETE',
+    path: '/api/sessions/:sessionId',
+    auth: 'host',
+    lane: 'control',
+    bodyLimit: 1024,
+    body: DeleteSessionRequestSchema,
+    response: DeleteSessionResponseSchema,
+    handler: async (d) => {
+      const outcome = await d.control.deleteSession(d.params.sessionId ?? '', d.body);
+      if (outcome.ok) return { steps: outcome.steps };
+      if (outcome.error === 'delete-partial') {
+        throw new ApiError('delete-partial', { steps: outcome.steps });
+      }
+      throw relayError(outcome);
     },
   }),
   defineRoute({

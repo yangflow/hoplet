@@ -1,4 +1,5 @@
 import * as v from 'valibot';
+import { DeletionStepSchema } from './deletion.ts';
 
 /**
  * Stable error codes. A REST error response is `{ code }` (plus `reason` and `promptId` where the endpoint
@@ -18,6 +19,7 @@ export const HTTP_ERROR_STATUS = {
   'too-large': 413,
   'owner-offline': 409,
   'target-offline': 409,
+  'session-running': 409,
   busy: 409,
   starting: 409,
   external: 409,
@@ -32,6 +34,7 @@ export const HTTP_ERROR_STATUS = {
   'no-snapshot': 409,
   'session-changed': 409,
   'verify-failed': 502,
+  'delete-partial': 502,
   rejected: 502,
   timeout: 504,
   internal: 500,
@@ -66,5 +69,7 @@ export const ErrorResponseSchema = v.object({
   code: HttpErrorCodeSchema,
   reason: v.optional(v.string()),
   promptId: v.optional(v.string()),
+  /** The steps of a deletion that failed half way (`delete-partial`). */
+  steps: v.optional(v.array(DeletionStepSchema)),
 });
 export type ErrorResponse = v.InferOutput<typeof ErrorResponseSchema>;

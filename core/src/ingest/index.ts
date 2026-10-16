@@ -81,6 +81,15 @@ export function attachIngest(server: Server, store: Store, control: AgentControl
           sendError(conn, 'busy', 'snapshot chunk dropped');
           return;
         }
+        if (store.isTombstoned(msg.sessionId)) {
+          send(conn, {
+            v: PROTOCOL_VERSION,
+            type: 'session.rejected',
+            sessionId: msg.sessionId,
+            reason: 'deleted',
+          });
+          return;
+        }
         send(conn, {
           v: PROTOCOL_VERSION,
           type: 'session.resync',

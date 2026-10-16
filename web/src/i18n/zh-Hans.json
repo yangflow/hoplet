@@ -37,6 +37,8 @@
   "No turn is running.": "当前没有进行中的回合。",
   "That permission request was already answered or has expired.": "该权限请求已被回答或已过期。",
   "The request was cancelled.": "请求已取消。",
+  "Stop the session before deleting it.": "请先停止该会话再删除。",
+  "Some steps failed. Nothing more was removed; delete again to continue.": "部分步骤失败，其余内容未删除；再次删除即可继续。",
   "The machine refused the request.": "机器拒绝了该请求。",
   "The machine did not answer in time.": "机器未在时限内响应。",
   "Something went wrong on the server.": "服务器出现问题。",

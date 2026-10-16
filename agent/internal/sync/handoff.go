@@ -17,6 +17,7 @@ type HandoffVerification struct {
 
 // HandoffWorktree is where a target installed a handed-off session: the worktree and its branch.
 type HandoffWorktree struct {
+	Clone    string
 	Worktree string
 	Branch   string
 }
@@ -142,7 +143,7 @@ func (c *Client) handleHandoff(cs *connState, typ string, raw json.RawMessage) {
 		if installed != nil {
 			_ = c.writeMsg(cs, HandoffInstalled{
 				V: ProtocolVersion, Type: TypeHandoffInstalled, SessionID: m.SessionID, HandoffID: m.HandoffID,
-				Worktree: installed.Worktree, Branch: installed.Branch,
+				Clone: installed.Clone, Worktree: installed.Worktree, Branch: installed.Branch,
 			})
 		}
 	case TypeHandoffVerify:

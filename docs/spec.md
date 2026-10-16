@@ -81,13 +81,20 @@ sidebar row: right click, the context-menu key or Shift+F10) acts on one session
 **Rename** (⌥⌘R) and **Pin** or **Unpin** (⌥⌘P); **Copy**, a submenu of Session ID, Link (the address that
 opens the session in this web UI) and Last answer as Markdown (the text of the session's last assistant
 message, as Markdown), and **Open in new window**; **Archive** or **Unarchive** (⇧⌘A). A copy is confirmed by a
-toast that fades after a few seconds. The shortcuts act on the selected session. There is no Fork and no
-Delete here.
+toast that fades after a few seconds. The shortcuts act on the selected session. A last group holds **Delete…**. There
+is no Fork here.
 
 - **Rename** opens a dialog with the title field, the vendor's title ("Claude's title: ...") and a Use Claude's
   title action. The name is the session's title in Hoplet: the sidebar, the top bar and the palette show it, and
   clearing the field shows the vendor's title again. It is stored beside the vendor's title and rewrites no
   line.
+- **Delete…** ([ADR 0023](adr/0023-deleting-a-session-and-what-hoplet-made-for-it.md)) opens one confirmation that lists
+  what goes. Hoplet's copy is always deleted. The session file on the owning machine, and the worktree and branch a
+  handoff made for it, are optional and unticked; a worktree with uncommitted changes or commits no remote has
+  shows how many. A session with a running Hoplet process is not deleted until it is stopped. With the owner offline
+  only Hoplet's copy goes, and the machine stops syncing the session when it reconnects. A step that fails keeps
+  Hoplet's copy hidden and the same request continues it. A deleted session does not come back from a sync;
+  importing it again does. Copies on a previous owner stay, and the dialog says so. There is no undo.
 - **Pin** keeps a session at the top. By folder, a Pinned group opens each machine's sessions, and its rows show
   their folder as a second line; Flat lists pinned sessions first, each with a pin mark, a hairline closing
   them. Pinned sessions are ordered by the machine's sort.
@@ -280,9 +287,11 @@ API, in `shared/src/` (schemas, types and error codes) and `agent/internal/sync/
   `POST /api/devices/:id/projects` (`{ path }`, an absolute path on the machine: the agent resolves symlinks, refuses a path that is not an existing directory, adds the resolved path as `hoplet-agent projects add`
   does and answers with the updated listing; `target-offline` when the agent is not connected); `POST /api/devices/:id/projects/remove`;
   `POST /api/devices/:id/sessions/import|remove`; `POST /api/ws-tickets`;
-  `PATCH /api/sessions/:id` (`{ title?, pinned?, archived? }`: the session actions above; `session-not-found`).
+  `PATCH /api/sessions/:id` (`{ title?, pinned?, archived? }`: the session actions above; `session-not-found`);
+  `GET /api/sessions/:id/deletion` (what a deletion would remove) and `DELETE /api/sessions/:id` (`{ vendorFile, worktree }`;
+  `session-running`, `owner-offline`, `delete-partial`).
 - Browser WebSocket `/ws?ticket=`: `subscribe`/`unsubscribe` a session; events `session.appended`,
-  `session.updated` (title, pin and archive state), `session.runtime` (state), `session.output` (streamed deltas of a subscribed session),
+  `session.deleted`, `session.updated` (title, pin and archive state), `session.runtime` (state), `session.output` (streamed deltas of a subscribed session),
   `session.permission`, `handoff.progress`, `device.presence`.
 - Agent WebSocket `/ws/agent`, device token: sync (`device.hello` with the providers and their capabilities,
   `welcome`, `session.append`, `session.ack`, `session.resync`, `session.rejected`), control
@@ -466,7 +475,7 @@ four times a second), and on `done` the new worktree and branch, which the respo
    `<clone directory>-<first 8 characters of the session ID>`, on branch `hoplet/<first 8 characters>`, at the
    base commit, applies the diff and untracked files, writes the session file into the Claude Code store for
    the worktree path, adds the worktree to `projects.json` with the session imported, and answers
-   `handoff.installed` with the worktree and its branch. The store directory
+   `handoff.installed` with the worktree, its branch and the clone it belongs to. The store directory
    is the realpath of the worktree with every character other than ASCII letters and digits replaced by `-`
    (one `-` per UTF-16 unit); if the result is longer than 200 characters, it is truncated to 200 characters
    followed by `-` and the base-36 absolute value of a 32-bit hash of the realpath over its UTF-16 units.

@@ -305,6 +305,9 @@ func (c *Client) readLoop(cs *connState) {
 		case TypeDeviceSessionsImport, TypeDeviceSessionsRemove:
 			go c.handleSessions(cs, raw)
 			continue
+		case TypeDeviceSessionInspect, TypeDeviceSessionDelete, TypeDeviceSessionForget:
+			go c.handleSessionDeletion(cs, head.Type, raw)
+			continue
 		}
 		r := reply{sessionID: head.SessionID, byteSize: head.ByteSize, reason: head.Reason}
 		switch head.Type {

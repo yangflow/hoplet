@@ -37,7 +37,8 @@ knows of them.
 { owner: { deviceId, name, online },
   running: boolean,
   vendorFile: { path } | null,
-  worktree: { path, branch, dirty: { modified, untracked }, unpushed } | null }
+  worktree: { path, branch, dirty: { modified, untracked }, unpushed } | null,
+  previousOwner: { deviceId, name } | null }
 ```
 
 `vendorFile` is `null` when the agent finds no file; `worktree` is `null` when the session has no record in
@@ -45,9 +46,12 @@ knows of them.
 does before every removal). With the owner offline the preview answers from the core: `owner.online` is false and
 the two optional fields are `null`. `dirty` comes from `git status --porcelain --untracked-files=all`; a dirty
 worktree is unticked with a warning (it is unticked anyway), and `unpushed` is the count of commits on the
-branch that no remote has.
+branch that no remote and no other local branch has. A worktree whose directory is gone but whose branch remains is
+reported with zero dirty counts. `previousOwner` is the device that handed the session over when that handoff
+created a worktree (`session_worktrees.from_device_id`); it tells the client that copies stay elsewhere, and is
+`null` when Hoplet knows of none.
 
-**Delete.** `DELETE /api/sessions/:id` with the body `{ vendorFile: boolean, worktree: boolean }` (the branch is
+**Delete.** `DELETE /api/sessions/:id` with the body `{ vendorFile: boolean, worktree: boolean, worktreeDirty: boolean }` (the branch is
 part of `worktree`, deleted with `git branch -D` so that an unmerged branch goes). Errors:
 
 | Code | Status | When |
@@ -55,11 +59,15 @@ part of `worktree`, deleted with `git branch -D` so that an unmerged branch goes
 | `session-not-found` | 404 | no such session, or already deleted |
 | `session-running` | 409 | a Hoplet-managed process is alive; stop it first |
 | `owner-offline` | 409 | an optional item is asked for and the owner is offline |
-| `session-changed` | 409 | the owner changed since the preview, or the worktree turned dirty |
 | `delete-partial` | 502 | a step failed; the body lists each step as `done`, `failed` or `skipped` |
 | `timeout` | 504 | the agent did not answer in the workspace timeout |
 
-`session-running`, `delete-partial` and the step list are new in `shared/src/errors.ts`; the others exist. With
+`session-running` and `delete-partial` are new in `shared/src/errors.ts`; the others exist. The body of
+`delete-partial` is `{ code, steps }`, each step `{ step, status, reason? }` with `step` one of `stop-syncing`,
+`worktree`, `branch`, `vendor-file`, `core-copy`. `worktreeDirty` is true only when the preview showed the worktree dirty and the user ticked it anyway. The agent checks
+`git status --porcelain --untracked-files=all` right before removing; a dirty worktree with `worktreeDirty` false fails the
+`worktree` step with reason `dirty` and the later steps are skipped, so a worktree that turned dirty after the preview is
+never deleted silently. The user sees the partial state and can delete again with it ticked. With
 the owner offline and no optional item asked for, the request succeeds and deletes the core copy (see
 *Offline owner*).
 
@@ -68,9 +76,13 @@ of every list and the ingest refuses it. Then each step runs; each is idempotent
 success:
 
 1. Stop syncing: the agent removes the session from the `imported` list of every project and forgets it.
-2. The vendor file, every copy of it in the vendor store (a session can exist twice).
-3. The worktree, then the branch, only when `worktreeIsOurs` still holds.
+2. The worktree, then the branch, only when `worktreeIsOurs` still holds. The agent derives both from the session ID
+   (the handoff naming), and the core's `session_worktrees` record decides whether they are offered.
+3. The vendor file, every copy of it in the vendor store (a session can exist twice, up to 8 are removed). It goes
+   after the worktree because its working directory is what finds the worktree again on a retry.
 4. The core copy last: its rows, the session and snapshot directories.
+
+The agent reports only the steps asked for; the core adds `core-copy`.
 
 On a failure the later steps are `skipped`, the session stays tombstoned (hidden and not synced), and `DELETE`
 can be sent again; it continues at the first step that is not done. The core copy is kept until all
@@ -82,10 +94,12 @@ removes one import):
 
 - `device.session.inspect` `{ requestId, sessionId }` → `device.session.inspected` `{ requestId, vendorFile, worktree }`
   with the shape of the preview, or `device.session.rejected` `{ requestId, reason }`.
-- `device.session.delete` `{ requestId, sessionId, vendorFile, worktree }` →
+- `device.session.delete` `{ requestId, sessionId, vendorFile, worktree, worktreeDirty }` →
   `device.session.deleted` `{ requestId, steps }`, each step `done`, `failed` (with a reason code) or `skipped`.
-- `device.session.forget` `{ requestId, sessionId }` → `device.session.forgotten` `{ requestId }`: step 1 alone, used
-  for a tombstone.
+- `device.session.forget` `{ requestId, sessionId }` → `device.session.forgotten` `{ requestId, sessionId }`: step 1 alone,
+  used for a tombstone.
+
+A reason code is one of `not-ours`, `dirty`, `remove-failed`, `forget-failed`, `invalid-session-id`.
 
 They are control-lane messages (ADR 0007's bulk lane stays free for sync). A change updates `shared/src/wire/` and
 `agent/internal/sync/protocol.go` in the same pull request. The worktree step uses a new variant of
@@ -95,21 +109,22 @@ They are control-lane messages (ADR 0007's bulk lane stays free for sync). A cha
 `handoff.installed` message gains `clone`, the path of the clone the worktree belongs to, and the core stores a
 row when the handoff commits:
 
-- `session_worktrees` (`session_id` primary key, `device_id`, `clone`, `worktree`, `branch`, `created_at`),
+- `session_worktrees` (`session_id` primary key, `device_id`, `from_device_id`, `clone`, `worktree`, `branch`, `created_at`),
   written in the same transaction as `handoffOwner`, and only when the handoff created a worktree. A session with
   no row has no worktree to offer.
 - Migration `0015` creates this table and the tombstone table.
 
-**Tombstones.** `session_tombstones` (`session_id` primary key, `deleted_at`) holds the ID of a deleted session.
+**Tombstones.** `session_tombstones` (`session_id` primary key, `device_id`, `deleted_at`, `forgotten`) holds the ID of a deleted
+session, the owner at that time, and whether that owner's agent confirmed it forgot the session.
 `session.append` and the resync of a tombstoned ID are answered with `session.rejected` with the new reason
 `deleted`, and the agent suppresses the session in memory like it does for `not-owner`, so a deleted session is
 not recreated and, after an agent restart, costs one rejection. An explicit import of that session
 (`device.sessions.import`) removes the tombstone; the user asked for it back. The startup purge (`session_purge`)
 that removes the data of a session also covers a core that was stopped half way through step 4.
 
-**Offline owner.** Only the core copy and a tombstone are deleted. The owner agent's welcome (and the
-reconnect) carries the tombstoned IDs and the core sends `device.session.forget` for each of them, which
-clears the import; the file and the worktree are untouched, and the dialog says so. The tombstone is kept: it
+**Offline owner.** Only the core copy and a tombstone are deleted, and the stop-syncing step is reported `skipped` with
+reason `owner-offline`. When the owner agent attaches, the core sends `device.session.forget` for each unforgotten
+tombstone of that device, which clears the import; the file and the worktree are untouched, and the dialog says so. The tombstone is kept: it
 is what keeps the file from coming back.
 
 **Browser WebSocket.** `session.deleted` `{ sessionId }`, sent to every browser when the tombstone is written, so
@@ -132,7 +147,7 @@ A migration and two tables, a deletion module in the core, a preview and a delet
 and `clone` on `handoff.installed`, a rejection reason, three agent handlers, an inspect step with `git status`
 and a count of unpushed commits, a web dialog with its progress and partial states, and the tombstone check on the
 ingest hot path (one primary-key lookup per append batch). A handoff that created a worktree before this version
-has no row, so its worktree is never offered. A session that exists twice on the owner is fully deleted, which
+has no row, so its worktree is never offered. A handoff in progress counts as running. A session that exists twice on the owner is fully deleted, which
 a user who copied a file by hand may not expect. Documents that change with it: `docs/api.md`,
 `docs/threat-model.md`, `docs/hosting.md`, `docs/architecture.md` (wire protocol), `docs/spec.md` and `design/`.
 

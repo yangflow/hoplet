@@ -67,6 +67,8 @@ Response column names the schema of the success body and its status when it is n
 | POST | `/api/sessions` | host | control | — | `NewSessionRequestSchema` | `NewSessionResultSchema` | `invalid-json`, `invalid-request`, `too-large`, `target-offline`, `timeout`, `rejected` |
 | GET | `/api/sessions/:sessionId` | host | control | — | — | `LiveSessionMetaSchema` | `session-not-found` |
 | PATCH | `/api/sessions/:sessionId` | host | control | — | `SessionPatchRequestSchema` | `LiveSessionMetaSchema` | `invalid-json`, `invalid-request`, `too-large`, `session-not-found` |
+| DELETE | `/api/sessions/:sessionId` | host | control | — | `DeleteSessionRequestSchema` | `DeleteSessionResponseSchema` | `invalid-json`, `invalid-request`, `too-large`, `session-not-found`, `session-running`, `owner-offline`, `delete-partial`, `timeout`, `rejected` |
+| GET | `/api/sessions/:sessionId/deletion` | host | control | — | — | `DeletionPreviewSchema` | `session-not-found`, `owner-offline`, `timeout`, `rejected` |
 | GET | `/api/sessions/:sessionId/lines` | host | bulk | `LinesQuerySchema` | — | `LinesPageSchema` | `session-not-found`, `busy` |
 | GET | `/api/sessions/:sessionId/blocks/:line/:block` | host | bulk | — | — | `FullBlockSchema` | `invalid-request`, `session-not-found`, `not-found`, `busy` |
 | GET | `/api/sessions/:sessionId/search` | host | bulk | `SessionSearchQuerySchema` | — | `SearchResultSchema` | `invalid-request`, `session-not-found`, `busy` |
@@ -185,6 +187,22 @@ Behavior a client relies on:
   `handoff.progress` reports its steps meanwhile. A failed handoff leaves the owner and the cursor where they were.
   Before one, `GET /api/devices/:deviceId/clone?origin=` with the `origin` of the workspace listing or the snapshot
   changes names the clone the target would use, or `path: null` when the request needs a `targetPath`.
+- `GET /api/sessions/:sessionId/deletion` previews a deletion (ADR 0023): `owner` (`deviceId`, `name`, `online`), `running`,
+  `vendorFile` (`path`, or `null` when the agent finds none), `worktree` (`path`, `branch`, `dirty` with `modified` and
+  `untracked`, `unpushed` commits that no remote and no other local branch has; `null` when Hoplet made none for
+  the session or the agent no longer finds it) and `previousOwner` (`deviceId`, `name`, or `null`): a machine whose
+  worktree Hoplet created and that stays untouched. With the owner offline the core answers alone: `online` is
+  false, `vendorFile` and `worktree` are `null`.
+- `DELETE /api/sessions/:sessionId` with `{vendorFile, worktree, worktreeDirty}` deletes the core's copy of the session and, when
+  asked, the owner's vendor file and the worktree Hoplet made with its branch. It answers `{steps}`, each step
+  `{step, status, reason?}` with `step` one of `stop-syncing`, `worktree`, `branch`, `vendor-file`, `core-copy` and
+  `status` `done`, `failed` or `skipped`. The core hides the session at once (a tombstone) and ingest refuses it
+  with `session.rejected` reason `deleted`. A running session is `session-running`; an optional item with the owner
+  offline is `owner-offline`; with nothing optional asked for, the core copy goes and the agent forgets the session
+  when it reconnects. A failed step is `delete-partial` with `steps` in the body, the core copy and the tombstone
+  are kept and the same request continues. `worktreeDirty` is true only when the preview showed the worktree dirty
+  and the user ticked it anyway; the agent checks right before removing, and a dirty worktree without it fails the
+  `worktree` step with reason `dirty` (the `branch` step is skipped), so nothing with uncommitted changes goes silently. Importing the session again lifts the tombstone.
 - `GET /api/sessions/:sessionId/lines` returns the stored lines `[start, end)` as conversation entries; a line
   without conversation has no entry, so `entries` can be shorter than the range. Large content blocks are
   elided in a page and read whole with `GET /api/sessions/:sessionId/blocks/:line/:block`; `:line` and `:block`
@@ -262,6 +280,8 @@ archived sessions too; the client decides what to show.
 | `no-snapshot` | 409 | No workspace snapshot is stored for the session |
 | `session-changed` | 409 | The session changed while the handoff ran |
 | `verify-failed` | 502 | What the target installed did not match what was sent |
+| `session-running` | 409 | A process Hoplet started is alive in the session; stop it before deleting |
+| `delete-partial` | 502 | A step of a deletion failed; `steps` lists each step and the request can be sent again |
 | `rejected` | 502 | The agent refused or failed the request; `reason` is its diagnostic text |
 | `timeout` | 504 | The agent did not answer in time |
 | `internal` | 500 | The core failed |
@@ -285,6 +305,7 @@ over REST.
 | `subscribe` | browser → core | control | `SubscribeMessage` | Receive the streamed output of a session. The core answers with its `session.runtime` and each open `session.permission` |
 | `unsubscribe` | browser → core | control | `UnsubscribeMessage` | Stop receiving the output of a session |
 | `session.appended` | core → browser | control | `SessionAppendedMessage` | Lines were appended to a session, or a session is new (`isNew`). Sent to every connection |
+| `session.deleted` | core → browser | control | `SessionDeletedMessage` | A session was deleted (its tombstone is written). Carries `sessionId`; drop it from every list. Sent to every connection |
 | `session.updated` | core → browser | control | `SessionUpdatedMessage` | The user renamed, pinned, unpinned, archived or restored a session. Carries the state after the change (`titleOverride`, `pinnedAt`, `archivedAt`; absent means cleared). Sent to every connection |
 | `device.presence` | core → browser | control | `DevicePresenceMessage` | A device connected or disconnected. Sent to every connection, followed by `session.runtime` for each session the connection is subscribed to |
 | `session.runtime` | core → browser | control | `SessionRuntimeMessage` | The runtime state of a session and its capabilities. Sent to every connection |

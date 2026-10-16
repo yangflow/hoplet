@@ -23,7 +23,19 @@ export interface SessionRow {
   device_name?: string;
 }
 
+/** A deleted session is invisible: its row stays only until the deletion has removed the core copy (ADR 0023). */
+const NOT_DELETED =
+  'NOT EXISTS (SELECT 1 FROM session_tombstones t WHERE t.session_id = s.session_id)';
+
 export function getRow(ctx: StoreContext, sessionId: string): SessionRow | undefined {
+  if (!isSessionId(sessionId)) return undefined;
+  return ctx.db
+    .prepare(`SELECT s.* FROM sessions s WHERE s.session_id = ? AND ${NOT_DELETED}`)
+    .get(sessionId) as SessionRow | undefined;
+}
+
+/** The row of a session whether or not it is deleted; only the deletion itself reads it. */
+export function getRowAny(ctx: StoreContext, sessionId: string): SessionRow | undefined {
   if (!isSessionId(sessionId)) return undefined;
   return ctx.db.prepare('SELECT * FROM sessions WHERE session_id = ?').get(sessionId) as
     | SessionRow
@@ -49,7 +61,9 @@ export function toMeta(row: SessionRow): SessionMeta {
 }
 
 export function sessionCount(ctx: StoreContext): number {
-  const r = ctx.db.prepare('SELECT COUNT(*) AS n FROM sessions').get() as { n: number };
+  const r = ctx.db.prepare(`SELECT COUNT(*) AS n FROM sessions s WHERE ${NOT_DELETED}`).get() as {
+    n: number;
+  };
   return Number(r.n);
 }
 
@@ -59,6 +73,7 @@ export function listSessions(ctx: StoreContext, limit: number): SessionMeta[] {
       `SELECT s.*, COALESCE(d.name, '') AS device_name
        FROM sessions s
        LEFT JOIN devices d ON d.device_id = s.device_id
+       WHERE ${NOT_DELETED}
        ORDER BY s.updated_at DESC LIMIT ?`,
     )
     .all(limit) as unknown as SessionRow[];
@@ -72,7 +87,7 @@ export function getSession(ctx: StoreContext, sessionId: string): SessionMeta | 
       `SELECT s.*, COALESCE(d.name, '') AS device_name
        FROM sessions s
        LEFT JOIN devices d ON d.device_id = s.device_id
-       WHERE s.session_id = ?`,
+       WHERE s.session_id = ? AND ${NOT_DELETED}`,
     )
     .get(sessionId) as SessionRow | undefined;
   return row ? toMeta(row) : null;
@@ -85,7 +100,7 @@ export function ownerDeviceId(ctx: StoreContext, sessionId: string): string | nu
 
 /**
  * Moves a session to `to`, under `projectPath` (the worktree the target installed it in) on `branch`, and returns the
- * new owner epoch, or null when the session is no longer as the handoff saw it: still owned by `from`, with
+ * new owner epoch (and records the `clone` the target installed in, when it created a worktree), or null when the session is no longer as the handoff saw it: still owned by `from`, with
  * the cursor at `byteSize` and the owner epoch at `epoch`. The check and the change are one statement, so
  * nothing can slip in between.
  */
@@ -98,15 +113,40 @@ export function handoffOwner(
   epoch: number,
   projectPath: string,
   branch: string,
+  clone: string | null,
+  now: number,
 ): number | null {
   if (!isSessionId(sessionId)) return null;
-  const result = ctx.db
-    .prepare(
-      `UPDATE sessions SET device_id = ?, project_path = ?, git_branch = ?, owner_epoch = owner_epoch + 1
-       WHERE session_id = ? AND device_id = ? AND byte_size = ? AND owner_epoch = ?`,
-    )
-    .run(to, projectPath, branch, sessionId, from, byteSize, epoch);
-  return Number(result.changes) === 1 ? epoch + 1 : null;
+  ctx.db.exec('BEGIN IMMEDIATE');
+  try {
+    const result = ctx.db
+      .prepare(
+        `UPDATE sessions SET device_id = ?, project_path = ?, git_branch = ?, owner_epoch = owner_epoch + 1
+         WHERE session_id = ? AND device_id = ? AND byte_size = ? AND owner_epoch = ?
+           AND NOT EXISTS (SELECT 1 FROM session_tombstones t WHERE t.session_id = ?)`,
+      )
+      .run(to, projectPath, branch, sessionId, from, byteSize, epoch, sessionId);
+    if (Number(result.changes) !== 1) {
+      ctx.db.exec('ROLLBACK');
+      return null;
+    }
+    // The worktree the target made for the session, for its deletion later (ADR 0023).
+    if (clone) {
+      ctx.db
+        .prepare(
+          `INSERT OR REPLACE INTO session_worktrees(session_id, device_id, from_device_id, clone, worktree, branch, created_at)
+           VALUES(?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .run(sessionId, to, from, clone, projectPath, branch, now);
+    } else {
+      ctx.db.prepare('DELETE FROM session_worktrees WHERE session_id = ?').run(sessionId);
+    }
+    ctx.db.exec('COMMIT');
+    return epoch + 1;
+  } catch (err) {
+    ctx.db.exec('ROLLBACK');
+    throw err;
+  }
 }
 
 /** Lines of chunk `seq` as of `row`: a sealed chunk is full, the open one holds what was committed. */
@@ -146,8 +186,9 @@ function stateOf(
 export function sessionStates(ctx: StoreContext): Map<string, SessionStateRecord> {
   const rows = ctx.db
     .prepare(
-      `SELECT session_id, title_override, pinned_at, archived_at FROM sessions
-       WHERE title_override IS NOT NULL OR pinned_at IS NOT NULL OR archived_at IS NOT NULL`,
+      `SELECT session_id, title_override, pinned_at, archived_at FROM sessions s
+       WHERE (title_override IS NOT NULL OR pinned_at IS NOT NULL OR archived_at IS NOT NULL)
+         AND ${NOT_DELETED}`,
     )
     .all() as unknown as SessionRow[];
   return new Map(rows.map((r) => [r.session_id, stateOf(r)]));

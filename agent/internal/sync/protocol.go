@@ -62,6 +62,13 @@ const (
 	TypeDeviceProjectsRemove     = "device.projects.remove"
 	TypeDeviceSessionsImport     = "device.sessions.import"
 	TypeDeviceSessionsRemove     = "device.sessions.remove"
+	TypeDeviceSessionInspect     = "device.session.inspect"
+	TypeDeviceSessionInspected   = "device.session.inspected"
+	TypeDeviceSessionRejected    = "device.session.rejected"
+	TypeDeviceSessionDelete      = "device.session.delete"
+	TypeDeviceSessionDeleted     = "device.session.deleted"
+	TypeDeviceSessionForget      = "device.session.forget"
+	TypeDeviceSessionForgotten   = "device.session.forgotten"
 	TypeDeviceProjects           = "device.projects"
 	TypeDeviceProjectsRejected   = "device.projects.rejected"
 	TypeDeviceDirsList           = "device.dirs.list"
@@ -618,6 +625,7 @@ type HandoffInstalled struct {
 	HandoffID string `json:"handoffId"`
 	Worktree  string `json:"worktree"`
 	Branch    string `json:"branch"`
+	Clone     string `json:"clone"`
 }
 
 type HandoffVerified struct {
@@ -690,6 +698,110 @@ type DeviceSessionsRemove struct {
 	RequestID  string   `json:"requestId"`
 	Path       string   `json:"path"`
 	SessionIDs []string `json:"sessionIds"`
+}
+
+// Deleting a session (ADR 0023). The core names the session; the agent finds the vendor file and the
+// worktree itself and never takes a path from the wire.
+
+// ReasonDeleted is the reason of a session.rejected for a session that was deleted.
+const ReasonDeleted = "deleted"
+
+// DeletionFile is the vendor's session file on this machine.
+type DeletionFile struct {
+	Path string `json:"path"`
+}
+
+// DeletionDirty counts uncommitted work in a worktree: changed tracked files and untracked files.
+type DeletionDirty struct {
+	Modified  int `json:"modified"`
+	Untracked int `json:"untracked"`
+}
+
+// DeletionWorktree is the worktree and branch a handoff made; Unpushed counts commits no remote has.
+type DeletionWorktree struct {
+	Path     string        `json:"path"`
+	Branch   string        `json:"branch"`
+	Dirty    DeletionDirty `json:"dirty"`
+	Unpushed int           `json:"unpushed"`
+}
+
+// DeletionStep is one step of a deletion: Step is stop-syncing, worktree, branch or vendor-file, Status is
+// done, failed or skipped, and Reason says why a step failed.
+type DeletionStep struct {
+	Step   string `json:"step"`
+	Status string `json:"status"`
+	Reason string `json:"reason,omitempty"`
+}
+
+// Step names and statuses of a DeletionStep.
+const (
+	StepStopSyncing = "stop-syncing"
+	StepWorktree    = "worktree"
+	StepBranch      = "branch"
+	StepVendorFile  = "vendor-file"
+
+	StatusDone    = "done"
+	StatusFailed  = "failed"
+	StatusSkipped = "skipped"
+)
+
+// core → device:
+
+type DeviceSessionInspect struct {
+	V         int    `json:"v"`
+	Type      string `json:"type"`
+	RequestID string `json:"requestId"`
+	SessionID string `json:"sessionId"`
+}
+
+type DeviceSessionDelete struct {
+	V          int    `json:"v"`
+	Type       string `json:"type"`
+	RequestID  string `json:"requestId"`
+	SessionID  string `json:"sessionId"`
+	VendorFile bool   `json:"vendorFile"`
+	Worktree   bool   `json:"worktree"`
+	// WorktreeDirty: the user ticked a worktree the preview showed dirty.
+	WorktreeDirty bool `json:"worktreeDirty"`
+}
+
+// DeviceSessionForget is the first step of a deletion alone: stop syncing the session and forget it.
+type DeviceSessionForget struct {
+	V         int    `json:"v"`
+	Type      string `json:"type"`
+	RequestID string `json:"requestId"`
+	SessionID string `json:"sessionId"`
+}
+
+// device → core:
+
+type DeviceSessionInspected struct {
+	V          int               `json:"v"`
+	Type       string            `json:"type"`
+	RequestID  string            `json:"requestId"`
+	VendorFile *DeletionFile     `json:"vendorFile,omitempty"`
+	Worktree   *DeletionWorktree `json:"worktree,omitempty"`
+}
+
+type DeviceSessionRejected struct {
+	V         int    `json:"v"`
+	Type      string `json:"type"`
+	RequestID string `json:"requestId"`
+	Reason    string `json:"reason"`
+}
+
+type DeviceSessionDeleted struct {
+	V         int            `json:"v"`
+	Type      string         `json:"type"`
+	RequestID string         `json:"requestId"`
+	Steps     []DeletionStep `json:"steps"`
+}
+
+type DeviceSessionForgotten struct {
+	V         int    `json:"v"`
+	Type      string `json:"type"`
+	RequestID string `json:"requestId"`
+	SessionID string `json:"sessionId"`
 }
 
 type DeviceProjects struct {
