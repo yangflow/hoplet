@@ -18,7 +18,7 @@ import { type Anchor, anchorAt, offsetsOf, restoreScroll, rowAt, visibleRange } 
 
 /** One mounted unit of the virtual list: a turn header or one row of a turn's body. */
 export type VRow =
-  | { key: string; type: 'head'; turn: Turn; first: boolean }
+  | { key: string; type: 'head'; turn: Turn; first: boolean; joined: boolean }
   | { key: string; type: 'row'; turn: Turn; row: Row; last: boolean; gap: number };
 
 /**
@@ -36,7 +36,9 @@ function gapBefore(previous: Row | undefined, row: Row): number {
 export function flatten(turns: Turn[]): VRow[] {
   const out: VRow[] = [];
   turns.forEach((turn, index) => {
-    out.push({ key: `head-${turn.key}`, type: 'head', turn, first: index === 0 });
+    // A turn that follows a compaction boundary continues under the boundary's own rule.
+    const joined = turns[index - 1]?.rows.at(-1)?.kind === 'boundary';
+    out.push({ key: `head-${turn.key}`, type: 'head', turn, first: index === 0, joined });
     const rows: Row[] = turn.prompt?.elided
       ? [
           {
@@ -70,7 +72,7 @@ export function flatten(turns: Turn[]): VRow[] {
 }
 
 function estimate(v: VRow): number {
-  if (v.type === 'head') return v.first ? 76 : 84;
+  if (v.type === 'head') return v.first || v.joined ? 76 : 84;
   const pad = (v.last ? 32 : 0) + v.gap;
   const { row } = v;
   switch (row.kind) {
@@ -80,6 +82,8 @@ function estimate(v: VRow): number {
       return 28 + row.rows.length * 20 + 24 + pad;
     case 'tool':
       return (row.result?.elided ? 120 : 28) + pad;
+    case 'command':
+      return 60 + row.text.split('\n').length * 24 + pad;
     default:
       return 28 + pad;
   }
@@ -359,7 +363,7 @@ export function Transcript(props: {
               return (
                 <div
                   key={v.key}
-                  className={`vrow${v.type === 'head' && !v.first ? ' sep' : ''}${v.type === 'row' && v.last ? ' last' : ''}${v.type === 'row' && v.row.kind === 'text' ? ' prose' : ''}${hit !== null && holdsLine(v, hit) ? ' hit' : ''}`}
+                  className={`vrow${v.type === 'head' && !v.first && !v.joined ? ' sep' : ''}${v.type === 'row' && v.last ? ' last' : ''}${v.type === 'row' && v.row.kind === 'text' ? ' prose' : ''}${v.type === 'row' && v.row.kind === 'boundary' ? ' bound' : ''}${hit !== null && holdsLine(v, hit) ? ' hit' : ''}`}
                   style={{
                     top: offsets[index] ?? 0,
                     ...(v.type === 'row' ? { paddingTop: v.gap } : {}),

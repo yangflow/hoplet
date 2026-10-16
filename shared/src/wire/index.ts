@@ -5,6 +5,7 @@
  */
 import * as v from 'valibot';
 import { DeviceProjectSchema, DeviceProjectSessionSchema, DirEntrySchema } from '../catalog.ts';
+import { CommandSchema, MAX_COMMANDS } from '../commands.ts';
 import { ToolKindSchema, ToolMcpSchema } from '../conversation.ts';
 import { ErrorCodeSchema } from '../errors.ts';
 import { AttachmentIdSchema, HandoffIdSchema, SessionIdSchema, SnapshotIdSchema } from '../ids.ts';
@@ -284,6 +285,20 @@ export const WIRE_MESSAGES = defineWire({
       input: v.unknown(),
     },
   },
+  /**
+   * The commands and skills of a session's process, with `cwd`, the directory it runs in. Sent when they
+   * first become known and whenever they change (a file of the project or the user changed), and again after
+   * a reconnect. At most `MAX_COMMANDS` entries, in the order clients show them.
+   */
+  'session.commands': {
+    lane: 'bulk',
+    direction: 'device-to-core',
+    fields: {
+      sessionId,
+      cwd: v.pipe(v.string(), v.maxLength(4096)),
+      commands: v.pipe(list(CommandSchema), v.maxLength(MAX_COMMANDS)),
+    },
+  },
   /** A prompt the agent refused; `reason` is `busy`, `starting`, `external` or diagnostic text. */
   'runtime.rejected': {
     lane: 'control',
@@ -309,6 +324,12 @@ export const WIRE_MESSAGES = defineWire({
       error: v.optional(v.string()),
       capabilities: v.optional(RuntimeCapabilitiesSchema),
     },
+  },
+  /** The commands of a session changed; the browser reads `GET /api/sessions/:id/commands` again. */
+  'session.commands.changed': {
+    lane: 'control',
+    direction: 'core-to-web',
+    fields: { sessionId },
   },
   /**
    * Delivered only to browsers subscribed to the session. A `tool-call` carries the kind of its tool (and
@@ -688,6 +709,8 @@ export type RuntimeStateMsg = WireMessageOf<'runtime.state'>;
 export type RuntimeOutputMsg = WireMessageOf<'runtime.output'>;
 export type RuntimePermissionMsg = WireMessageOf<'runtime.permission'>;
 export type RuntimeRejected = WireMessageOf<'runtime.rejected'>;
+export type SessionCommands = WireMessageOf<'session.commands'>;
+export type SessionCommandsChanged = WireMessageOf<'session.commands.changed'>;
 export type SubscribeMsg = WireMessageOf<'subscribe'>;
 export type UnsubscribeMsg = WireMessageOf<'unsubscribe'>;
 export type DevicePresence = WireMessageOf<'device.presence'>;
@@ -749,6 +772,7 @@ export const ClientMessageSchema = v.variant('type', [
   WIRE_MESSAGES['runtime.output'].schema,
   WIRE_MESSAGES['runtime.permission'].schema,
   WIRE_MESSAGES['runtime.rejected'].schema,
+  WIRE_MESSAGES['session.commands'].schema,
   WIRE_MESSAGES['runtime.started'].schema,
   WIRE_MESSAGES['runtime.start.rejected'].schema,
   WIRE_MESSAGES['session.workspace'].schema,
@@ -784,5 +808,6 @@ export const WIRE_OBJECTS = {
   ProviderInfo: ProviderInfoSchema,
   ConfigOption: ConfigOptionSchema,
   ConfigValue: ConfigValueSchema,
+  Command: CommandSchema,
   WorkspaceChange: WorkspaceChangeSchema,
 } as const;

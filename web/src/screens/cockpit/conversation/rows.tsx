@@ -20,6 +20,8 @@ import {
   verbsOf,
 } from './tools.ts';
 import type {
+  BoundaryRow,
+  CommandRow,
   EditRow,
   FoldRow,
   NoteRow,
@@ -71,7 +73,18 @@ export function TurnHeader(props: { turn: Turn; stuck?: boolean }) {
       data-turn={turn.key}
     >
       <div className={`tp${turn.prompt ? '' : ' none'}`}>
-        {turn.prompt ? turn.prompt.text : t('Earlier in this turn')}
+        {turn.prompt?.command ? (
+          <span className="cmd-chip" data-testid="cockpit.command-chip">
+            <span className="cn">/{turn.prompt.command.name}</span>
+            {turn.prompt.command.args ? (
+              <span className="ca">{turn.prompt.command.args}</span>
+            ) : null}
+          </span>
+        ) : turn.prompt ? (
+          turn.prompt.text
+        ) : (
+          t('Earlier in this turn')
+        )}
       </div>
       <Summary parts={summaryParts(turn.summary)} />
       <div className="meta">
@@ -614,6 +627,59 @@ function TextView({ row }: { row: TextRow }) {
   );
 }
 
+/** What a local command printed, as a quiet block under the prompt that ran it. */
+function CommandView({ row }: { row: CommandRow }) {
+  return (
+    <div className="cmd-out" data-testid="cockpit.command-output">
+      <div className="coh meta">
+        {Icon.terminal()}
+        <span>{t('Command output')}</span>
+        {row.command ? <span className="mono">/{row.command}</span> : null}
+      </div>
+      {row.compact ? (
+        <div className="cob ok">
+          {Icon.check()}
+          {t('Compacted')}
+          {row.compact.from && row.compact.to ? (
+            <span className="meta">
+              {t('{from} tokens summarised to {to}')
+                .replace('{from}', row.compact.from)
+                .replace('{to}', row.compact.to)}
+            </span>
+          ) : null}
+        </div>
+      ) : (
+        <div className="cob">
+          <Markdown text={row.text} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Where the conversation was compacted. */
+function BoundaryView({ row }: { row: BoundaryRow }) {
+  const label = t('Conversation compacted');
+  return (
+    // biome-ignore lint/a11y/useSemanticElements: a labelled separator is the divider's role; <hr> cannot hold the label
+    <div
+      className="cmd-bound meta"
+      role="separator"
+      aria-label={label}
+      data-testid="cockpit.compact-boundary"
+    >
+      {label}
+      {row.sizes ? (
+        <span>
+          {t('{from} tokens summarised to {to}')
+            .replace('{from}', row.sizes.from)
+            .replace('{to}', row.sizes.to)}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
 /** One row of a turn's body. */
 export function RowView({ row }: { row: Row }) {
   switch (row.kind) {
@@ -627,6 +693,10 @@ export function RowView({ row }: { row: Row }) {
       return <EditView row={row} />;
     case 'note':
       return <NoteView row={row} />;
+    case 'command':
+      return <CommandView row={row} />;
+    case 'boundary':
+      return <BoundaryView row={row} />;
     case 'fold':
       return <FoldView row={row} />;
   }

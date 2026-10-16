@@ -14,6 +14,7 @@
 //	mode           answer `mode: <permission mode>`, the --permission-mode it started with or the last set_permission_mode
 //	exitplan <p>   ask permission for ExitPlanMode with the plan <p>; allow switches to the default mode and reports it
 //	options        answer `model: <model> thinking: <--thinking or default> fast: <true when --settings fastMode>`
+//	newcmd         emit commands_changed with one more project command, then answer like `say`
 //	anything else  behaves like `say`
 //
 // A prompt's images are written into its user line before the text, as Claude Code records them.
@@ -24,6 +25,7 @@
 // Environment: FAKE_CLAUDE_VERSION (default 2.1.289), FAKE_CLAUDE_PROJECTS (directory searched for
 // <session>.jsonl, one level deep), FAKE_CLAUDE_LOG (file receiving one JSON line per start with the
 // arguments), FAKE_CLAUDE_INIT_DELAY_MS, FAKE_CLAUDE_EXIT_ON_START (exit 4 before answering initialize),
+// FAKE_CLAUDE_COMMANDS (set: initialize lists commands and skills, and the init message names the skills),
 // FAKE_CLAUDE_IGNORE_STDIN_CLOSE (keep running after stdin closes, to exercise the kill fallback).
 package main
 
@@ -239,7 +241,7 @@ func main() {
 						if ms, _ := strconv.Atoi(os.Getenv("FAKE_CLAUDE_INIT_DELAY_MS")); ms > 0 {
 							time.Sleep(time.Duration(ms) * time.Millisecond)
 						}
-						emit(obj{"type": "control_response", "response": obj{"subtype": "success", "request_id": m.RequestID, "response": obj{"commands": []any{}}}})
+						emit(obj{"type": "control_response", "response": obj{"subtype": "success", "request_id": m.RequestID, "response": obj{"commands": initialCommands()}}})
 					case "set_model":
 						// As Claude Code 2.1.299 answers: the aliases it knows, an error for any other.
 						switch m.Request.Model {
@@ -376,7 +378,27 @@ func start() {
 	modeMu.Lock()
 	current := mode
 	modeMu.Unlock()
-	emit(obj{"type": "system", "subtype": "init", "cwd": cwd, "session_id": session, "permissionMode": current})
+	init := obj{"type": "system", "subtype": "init", "cwd": cwd, "session_id": session, "permissionMode": current}
+	if os.Getenv("FAKE_CLAUDE_COMMANDS") != "" {
+		init["skills"] = []string{"fix-bug", "pdf:extract"}
+	}
+	emit(init)
+}
+
+// initialCommands is what initialize lists as Claude Code 2.1.300 does: built-ins, custom commands and skills
+// together, the source only in the description's suffix.
+func initialCommands() []obj {
+	if os.Getenv("FAKE_CLAUDE_COMMANDS") == "" {
+		return []obj{}
+	}
+	return []obj{
+		{"name": "model", "description": "Set the model", "argumentHint": "[model]", "builtin": true},
+		{"name": "compact", "description": "Summarize the conversation", "argumentHint": "[instructions]", "builtin": true},
+		{"name": "context", "description": "Show context usage", "builtin": true},
+		{"name": "deploy", "description": "Deploy the app (project)", "argumentHint": "<env>"},
+		{"name": "fix-bug", "description": "Fix a bug (user)"},
+		{"name": "pdf:extract", "description": "Extract text (plugin)"},
+	}
 }
 
 func result(subtype string, isErr bool, terminal, text string) {
@@ -387,6 +409,9 @@ func result(subtype string, isErr bool, terminal, text string) {
 func runTurn(t *turn, prompt string) {
 	cmd, rest, _ := strings.Cut(prompt, " ")
 	switch cmd {
+	case "newcmd":
+		emit(obj{"type": "system", "subtype": "commands_changed", "commands": append(initialCommands(), obj{"name": "lint", "description": "Run the linter (project)"})})
+		runTurn(t, "say "+rest)
 	case "crash":
 		fmt.Fprintln(os.Stderr, "fakeclaude: crashed")
 		os.Exit(3)

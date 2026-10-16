@@ -37,6 +37,7 @@ const (
 	TypeRuntimeOutput            = "runtime.output"
 	TypeRuntimePermission        = "runtime.permission"
 	TypeRuntimeRejected          = "runtime.rejected"
+	TypeSessionCommands          = "session.commands"
 	TypeSessionWorkspaceList     = "session.workspace.list"
 	TypeSessionWorkspace         = "session.workspace"
 	TypeSessionWorkspaceRejected = "session.workspace.rejected"
@@ -382,6 +383,26 @@ type RuntimeRejected struct {
 	SessionID string `json:"sessionId"`
 	PromptID  string `json:"promptId"`
 	Reason    string `json:"reason"` // busy | starting | external | diagnostic text
+}
+
+// Command is one slash command or skill a session offers (shared/src/commands.ts).
+type Command struct {
+	Name         string `json:"name"`
+	Description  string `json:"description"`
+	ArgumentHint string `json:"argumentHint,omitempty"`
+	Kind         string `json:"kind"`   // command | skill
+	Source       string `json:"source"` // builtin | project | user | plugin
+	Plugin       string `json:"plugin,omitempty"`
+}
+
+// SessionCommands is the complete list of commands and skills a running session offers, with the directory it
+// runs in; it is sent whenever the list changes and again after a reconnect.
+type SessionCommands struct {
+	V         int       `json:"v"`
+	Type      string    `json:"type"`
+	SessionID string    `json:"sessionId"`
+	Cwd       string    `json:"cwd"`
+	Commands  []Command `json:"commands"`
 }
 
 // Workspace reads (docs/spec.md#workspace). core → device:

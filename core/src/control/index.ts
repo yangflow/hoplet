@@ -55,6 +55,7 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
     pendingPrompt: new Map(),
     promptCache: new Map(),
     runtime: new Map(),
+    commands: new Map(),
     providers: new Map(),
     pendingStart: new Map(),
     startCache: new Map(),
@@ -135,6 +136,7 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
       );
     },
     openPermissions: runtime.openPermissions,
+    commandsOf: runtime.commandsOf,
     ownerOnline(deviceId) {
       return state.byDevice.get(deviceId)?.isOpen() === true;
     },

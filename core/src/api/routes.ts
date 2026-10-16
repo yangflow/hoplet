@@ -5,9 +5,12 @@
 import {
   AttachmentResultSchema,
   BlockParamsSchema,
+  BUILTIN_COMMANDS,
+  CommandsResultSchema,
   ConfigRequestSchema,
   DeviceCloneQuerySchema,
   DeviceCloneResultSchema,
+  DeviceCommandsQuerySchema,
   DeviceDirsQuerySchema,
   DeviceDirsResultSchema,
   DeviceListResponseSchema,
@@ -532,6 +535,35 @@ export const routes: readonly Route[] = [
     body: DeviceMintRequestSchema,
     response: DeviceMintResultSchema,
     handler: ({ store, body }) => store.mintDevice(body.name, body.deviceId),
+  }),
+  defineRoute({
+    method: 'GET',
+    path: '/api/sessions/:sessionId/commands',
+    auth: 'host',
+    lane: 'control',
+    response: CommandsResultSchema,
+    handler: (d) => {
+      const sessionId = d.params.sessionId ?? '';
+      ownerOf(d, sessionId);
+      const commands = d.control.commandsOf(sessionId);
+      return commands
+        ? { commands, source: 'session' as const }
+        : { commands: [...BUILTIN_COMMANDS], source: 'builtin' as const };
+    },
+  }),
+  defineRoute({
+    method: 'GET',
+    path: '/api/devices/:deviceId/commands',
+    auth: 'host',
+    lane: 'control',
+    query: DeviceCommandsQuerySchema,
+    response: CommandsResultSchema,
+    handler: ({ store, params, query }) => {
+      const commands = store.directoryCommands(params.deviceId ?? '', query.cwd);
+      return commands
+        ? { commands, source: 'directory' as const }
+        : { commands: [...BUILTIN_COMMANDS], source: 'builtin' as const };
+    },
   }),
   defineRoute({
     method: 'GET',

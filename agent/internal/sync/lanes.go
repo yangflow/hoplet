@@ -17,12 +17,12 @@ const (
 )
 
 // laneOf is the lane of a message the agent sends. The bulk messages of the device-to-core direction are
-// the sync stream, the snapshot transfer and the answers that carry file content or a diff;
+// the sync stream, the snapshot transfer, the answers that carry file content or a diff and the list of commands;
 // scripts/test/contract.test.ts compares this list with the lanes of shared/src/wire/. Everything else is
 // control.
 func laneOf(msg any) Lane {
 	switch msg.(type) {
-	case SessionAppend, WorkspaceSnapshot, SessionWorkspaceFile, SessionWorkspaceDiff:
+	case SessionAppend, WorkspaceSnapshot, SessionWorkspaceFile, SessionWorkspaceDiff, SessionCommands:
 		return LaneBulk
 	}
 	return LaneControl

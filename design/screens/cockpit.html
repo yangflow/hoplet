@@ -466,6 +466,45 @@ svg{display:block;flex:none}
 .cpop{position:absolute;z-index:30;bottom:calc(100% + var(--space-2));left:0;width:var(--layout-popover);padding:var(--space-1);border-radius:var(--radius-md);background:var(--color-raised);box-shadow:var(--shadow-float),0 0 0 1px var(--color-line);pointer-events:auto;text-align:left}
 .cpop.end{left:auto;right:0}
 .cpop.wide{width:var(--layout-popover-wide)}
+/* completions: the popover at the caret (/ commands and skills, @ files) and a sent command in the transcript */
+.cpop.cmp{left:var(--ax,0px);width:min(620px,100%)}
+.cpop.cmp.sm{width:min(380px,100%)}
+.cm-r{height:var(--control-field);display:flex;align-items:center;gap:var(--space-2);padding:0 var(--space-2);border-radius:var(--radius-sm);color:var(--color-text);white-space:nowrap;cursor:default}
+.cm-r .lead{width:16px;height:16px;display:grid;place-items:center;flex:none;color:var(--color-text-3)}
+.cm-r.on{background:var(--color-selected);box-shadow:inset 2px 0 0 var(--color-text-2),inset 0 1px 0 var(--color-highlight)}
+.cm-r.on .lead{color:var(--color-text-2)}
+.cm-r.hov{background:color-mix(in srgb,var(--color-hover) 45%,transparent)}
+.cm-hl{color:var(--color-accent-text);font-weight:var(--weight-semibold)}
+.cm-nm{font-weight:var(--weight-medium);flex:none;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.cm-nm .s{color:var(--color-text-3);font-weight:var(--weight-regular)}
+.cm-ah{color:var(--color-text-3);flex:none;white-space:nowrap}
+.cm-ds{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;color:var(--color-text-2)}
+.cm-src{flex:none;height:18px;padding:0 6px;border-radius:4px;display:inline-flex;align-items:center;font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3);box-shadow:inset 0 0 0 1px var(--color-line);white-space:nowrap}
+.cm-r .t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.cm-stat{display:flex;align-items:center;gap:var(--space-2);height:40px;padding:0 var(--space-3);color:var(--color-text-2)}
+.cm-stat > svg{color:var(--color-text-3)}
+.cm-stat.bad > svg{color:var(--color-attention-text)}
+.cm-note{display:flex;align-items:flex-start;gap:var(--space-2);padding:var(--space-2);color:var(--color-text-2)}
+.cm-note > svg{color:var(--color-text-3);margin-top:2px}
+.cm-f{height:36px;display:flex;align-items:center;gap:var(--space-4);padding:0 var(--space-4);font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3);box-shadow:inset 0 1px 0 var(--color-line)}
+.cm-f span{display:flex;align-items:center;gap:var(--space-1)}
+.cm-kc{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 4px;border-radius:4px;background:var(--color-hover);font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3);font-variant-numeric:tabular-nums;flex:none}
+.cmd-chip{display:inline-flex;align-items:center;gap:var(--space-2);height:24px;padding:0 var(--space-2);border-radius:var(--radius-sm);background:var(--color-surface);box-shadow:inset 0 0 0 1px var(--color-line);vertical-align:1px;white-space:nowrap;letter-spacing:0}
+.cmd-chip .cn{font-family:var(--font-mono);font-size:var(--text-code);font-weight:var(--weight-medium);color:var(--color-text)}
+.cmd-chip .ca{font-family:var(--font-mono);font-size:var(--text-code);font-weight:var(--weight-regular);color:var(--color-text-2)}
+.cmd-out{margin:var(--space-2) 0 var(--space-3);max-width:var(--measure-prose);border-radius:var(--radius-md);background:var(--color-surface);box-shadow:inset 0 0 0 1px var(--color-line);overflow:hidden}
+.cmd-out .coh{display:flex;align-items:center;gap:var(--space-2);height:28px;padding:0 var(--space-3);color:var(--color-text-3);box-shadow:inset 0 -1px 0 var(--color-line)}
+.cmd-out .cob{padding:var(--space-3);color:var(--color-text-2)}
+.cmd-out .cob.ok{display:flex;align-items:center;gap:var(--space-2);color:var(--color-text)}
+.cmd-out .cob.ok svg{color:var(--color-success)}
+.cmd-out table{border-collapse:collapse;width:100%;margin-top:var(--space-2)}
+.cmd-out th{text-align:left;font-size:var(--text-meta);line-height:var(--leading-meta);font-weight:var(--weight-medium);color:var(--color-text-3);padding:var(--space-1) var(--space-3) var(--space-1) 0;box-shadow:inset 0 -1px 0 var(--color-line)}
+.cmd-out td{padding:var(--space-1) var(--space-3) var(--space-1) 0;box-shadow:inset 0 -1px 0 var(--color-line);color:var(--color-text);font-variant-numeric:tabular-nums}
+.cmd-out tr:last-child td{box-shadow:none}
+.cmd-out th.r,.cmd-out td.r{text-align:right;padding-right:0}
+.cmd-out td.free{color:var(--color-text-2)}
+.cmd-bound{display:flex;align-items:center;gap:var(--space-3);margin:var(--space-2) 0 var(--space-4);color:var(--color-text-3)}
+.cmd-bound::before,.cmd-bound::after{content:"";flex:1;height:1px;background:var(--color-line)}
 /* permission mode: the pill (amber while a high-risk mode is on) and the menu rows */
 .tb2.warn{color:var(--color-attention-text);background:var(--color-attention-soft);box-shadow:inset 0 0 0 1px var(--color-attention-ring)}
 .tb2.warn > svg{color:var(--color-attention-text)}
@@ -1087,7 +1126,7 @@ function hlMd(src) {
 
 /* every state is a configuration of the same parts */
 const LIVE = ['starting', 'running', 'waiting-permission', 'failed-turn', 'scrolled', 'disconnected'];
-const OFFLINE = ['offline', 'handoff-offline', 'changes-offline', 'diff-offline'];
+const OFFLINE = ['offline', 'handoff-offline', 'changes-offline', 'diff-offline', 'mention-offline'];
 const HANDOFF = ['handoff', 'handoff-path', 'handoff-progress', 'handoff-failed', 'handoff-done', 'handoff-offline'];
 const WIDE = ['file-open', 'file-image', 'diff-open', 'diff-large', 'diff-binary', 'diff-offline'];
 const INSP = ['workspace', 'changes', 'changes-offline', ...WIDE, ...HANDOFF];
@@ -1343,11 +1382,99 @@ function liveTurn(state) {
 }
 
 /* the composer: where the session runs, the field, and a toolbar of attach, model, dictate and send */
-const DRAFT = ['draft', 'draft-directory'];
+const DRAFT = ['draft', 'draft-directory', 'completions-draft'];
 const cv = () => `<span class="cv">${I.down()}</span>`;
 const PROMPT = 'The composer forgets its height after a reload. The first screenshot is after a reload, the second before it.\n\nKeep the height per browser, not per session, and clamp it to the window so the conversation keeps at least 240 px.';
 const item2 = (label, on, sub = '') => `<div class="menu-item" role="menuitemradio" aria-checked="${on}"><span class="menu-check">${on ? I.check() : ''}</span>${label}${sub ? `<span class="sub">${sub}</span>` : ''}</div>`;
 const sw = (icon, label, on) => `<div class="menu-item" role="menuitemcheckbox" aria-checked="${on}">${icon}${label}<span class="switch${on ? ' on' : ''}" aria-hidden="true"></span></div>`;
+/* completions: one popover at the caret. `/` at the start of the message lists Commands and Skills, `@` anywhere lists files */
+const CM_LIST = [
+  { g: 'Commands', n: 'compact', a: '[focus instructions]', d: 'Clear conversation history but keep a summary in context', s: 'Built-in' },
+  { g: 'Commands', n: 'context', a: '', d: 'Show how the context window is being used', s: 'Built-in' },
+  { g: 'Commands', n: 'usage', a: '', d: 'Show plan usage and rate limits', s: 'Built-in' },
+  { g: 'Commands', n: 'init', a: '', d: 'Create a CLAUDE.md that documents this codebase', s: 'Built-in' },
+  { g: 'Commands', n: 'review', a: '[pull request]', d: 'Review a pull request', s: 'Built-in' },
+  { g: 'Commands', n: 'hello', a: '[name]', d: 'Say hello to someone by name', s: 'Project' },
+  { g: 'Skills', n: 'greet', a: '', d: 'Greet the user in the language of their last message', s: 'User' },
+  { g: 'Skills', n: 'dodopayments:checkout-integration', a: '', d: 'Add Dodo Payments checkout to a web app', s: 'Plugin dodopayments' },
+];
+const CM_FILES = [
+  { dir: true, n: 'core/src/config/' }, { dir: true, n: 'core/src/control/' },
+  { dir: false, n: 'core/src/config/index.ts' }, { dir: false, n: 'core/src/control/index.ts' },
+  { dir: false, n: 'web/src/screens/Conversation.tsx' },
+];
+const CM_NOTE = 'Project commands and skills show once the session has started';
+const CM_PRE = 'Compare the cursor reset with ';
+const CMP = {
+  'completions-commands': { trg: '/', q: '', kind: 'slash', sel: 0, hov: 3 },
+  'completions-filter': { trg: '/c', q: 'c', kind: 'slash', sel: 0 },
+  'completions-draft': { trg: '/', q: '', kind: 'slash', sel: 0, draft: true },
+  'mention-files': { pre: CM_PRE, trg: '@con', q: 'con', kind: 'at', sel: 0, hov: 3 },
+  'mention-loading': { pre: CM_PRE, trg: '@co', kind: 'load', status: [spin(), 'Searching MacBook Pro…'] },
+  'mention-empty': { pre: CM_PRE, trg: '@zq', kind: 'none', status: [I.search(), 'No files match “zq”'] },
+  'mention-offline': { pre: CM_PRE, trg: '@', kind: 'off', status: [I.laptop(), 'MacBook Pro is offline — file mentions need it online', true] },
+};
+/* a prefix of the name or of a segment after ':' or '-' for commands; a substring for paths */
+function cmMatch(n, q, path) {
+  const l = n.toLowerCase();
+  if (path) return l.indexOf(q);
+  if (l.startsWith(q)) return 0;
+  for (const m of n.matchAll(/[:-]/g)) if (l.startsWith(q, m.index + 1)) return m.index + 1;
+  return -1;
+}
+const cmHl = (n, q, path) => {
+  const i = q ? cmMatch(n, q, path) : -1;
+  return i < 0 ? esc(n) : `${esc(n.slice(0, i))}<span class="cm-hl">${esc(n.slice(i, i + q.length))}</span>${esc(n.slice(i + q.length))}`;
+};
+let cmUid = 0;
+/* the field and the popover of a completion state; the field is a div standing in for the textarea */
+function completion(state) {
+  const C = CMP[state];
+  const id = `cm${++cmUid}`;
+  const open = C.kind === 'slash' || C.kind === 'at';
+  const slash = C.kind === 'slash';
+  const list = !open ? [] : slash
+    ? (C.draft ? CM_LIST.filter(x => x.s === 'Built-in') : CM_LIST).filter(x => !C.q || cmMatch(x.n, C.q) >= 0)
+    : CM_FILES.filter(x => cmMatch(x.n, C.q, true) >= 0);
+  const field = `<div class="ta" role="combobox" aria-label="Message" aria-haspopup="listbox" aria-expanded="true"${open ? ` aria-controls="${id}-lb" aria-activedescendant="${id}-o${C.sel}"` : ''}>${esc(C.pre || '')}<span class="trg">${esc(C.trg)}</span><span class="cr2"></span></div>`;
+  let pop;
+  if (!open) {
+    const [ic, t, bad] = C.status;
+    pop = `<div class="cpop cmp sm" data-anchor><div class="cm-stat${bad ? ' bad' : ''}" role="status">${ic}${esc(t)}</div></div>`;
+  } else {
+    const cls = i => (i === C.sel ? ' on' : '') + (i === C.hov ? ' hov' : '');
+    const opt = i => `role="option" id="${id}-o${i}" aria-selected="${i === C.sel}"`;
+    const row = (x, i) => slash
+      ? `<div class="cm-r${cls(i)}" ${opt(i)}><span class="cm-nm"><span class="s">/</span>${cmHl(x.n, C.q)}</span>${x.a ? `<span class="cm-ah">${esc(x.a)}</span>` : ''}<span class="cm-ds">${esc(x.d)}</span><span class="cm-src">${esc(x.s)}</span></div>`
+      : `<div class="cm-r${cls(i)}" ${opt(i)}><span class="lead">${x.dir ? I.folder() : I.file()}</span><span class="t">${cmHl(x.n, C.q, true)}</span></div>`;
+    const groups = (slash ? ['Commands', 'Skills'] : ['Files and folders']).map(g => ({ g, rows: list.map((x, i) => ({ x, i })).filter(r => !slash || r.x.g === g) })).filter(g => g.rows.length);
+    const keys = '<span><span class="cm-kc">↑</span><span class="cm-kc">↓</span>Move</span><span><span class="cm-kc">⇥</span>or<span class="cm-kc">↩</span>Insert</span><span><span class="cm-kc">Esc</span>Close</span>';
+    pop = `<div class="cpop cmp" data-anchor><div role="listbox" id="${id}-lb" aria-label="${slash ? 'Commands and skills' : 'Files and folders'}">${groups.map((g, gi) =>
+      `<div role="group" aria-labelledby="${id}-g${gi}"><div class="menu-label" id="${id}-g${gi}">${g.g}</div>${g.rows.map(r => row(r.x, r.i)).join('')}</div>`).join('')}</div>${C.draft ? `<div class="cm-note" role="note">${I.info()}<span>${CM_NOTE}</span></div>` : ''}<div class="cm-f">${keys}</div></div>`;
+  }
+  return { field, pop };
+}
+
+/* a sent command in the transcript: a chip in the prompt row, local output as a quiet block, a compaction boundary */
+const cmdChip = (n, a = '') => `<span class="cmd-chip"><span class="cn">/${n}</span>${a ? `<span class="ca">${esc(a)}</span>` : ''}</span>`;
+const cmdTurn = (prompt, time, body) => `<section class="turn done"><header class="th"><div class="p">${prompt}</div><div class="tm"><span class="meta">${time}</span></div></header><div class="tb">${body}</div></section>`;
+const cmdOut = (c, body) => `<div class="cmd-out"><div class="coh meta">${I.term()}<span>Command output</span><span class="mono">${c}</span></div>${body}</div>`;
+function commandTurns(state) {
+  const plain = cmdTurn('Now check the reconnect path again', '12:52', '<p class="text">The reconnect path reads <code>byte_size</code> from the store, so the cursor survives.</p>');
+  if (state === 'command-sent') {
+    return cmdTurn(cmdChip('hello', 'world'), '12:40', '<p class="text">Hello, world! Ready when you are.</p>') +
+      cmdTurn(cmdChip('review', '147'), '12:44', '<p class="text">Pull request 147 adds the cockpit screen. The composer and the sidebar match the mockups; the diff view has one open question about large files.</p>') + plain;
+  }
+  if (state === 'command-output') {
+    const rows = [['System prompt', '3.1k', '2%'], ['Tools', '11.8k', '6%'], ['Memory files', '2.4k', '1%'], ['Messages', '45.1k', '23%'], ['Free space', '137.6k', '69%']];
+    return cmdTurn(cmdChip('context'), '12:44', cmdOut('/context', `<div class="cob">62.4k of 200k tokens used
+      <table><thead><tr><th scope="col">Category</th><th scope="col" class="r">Tokens</th><th scope="col" class="r">Share</th></tr></thead><tbody>${rows.map(r => { const f = r[0] === 'Free space' ? ' free' : ''; return `<tr><td class="${f.trim()}">${r[0]}</td><td class="r${f}">${r[1]}</td><td class="r${f}">${r[2]}</td></tr>`; }).join('')}</tbody></table></div>`));
+  }
+  return cmdTurn(cmdChip('compact', 'keep the cursor discussion'), '12:51', cmdOut('/compact', `<div class="cob ok">${I.check()}Compacted<span class="meta">45.1k tokens summarised to 3.2k</span></div>`)) +
+    `<div class="cmd-bound meta" role="separator" aria-label="Conversation compacted">Conversation compacted</div>` + plain;
+}
+const COMMAND_STATES = ['command-sent', 'command-output', 'command-compact'];
+
 function whereRow(state) {
   const pick = DRAFT.includes(state);
   const sl = '<span class="sl">/</span>';
@@ -1373,11 +1500,13 @@ function composer(state) {
   const hot = curMode === 4;
   const mode = on => `<span class="anc"><button class="tb2${hot ? ' warn' : ''}${state === 'mode-menu' ? ' on' : ''}"${tip('Permission mode: ' + modes[curMode][0])}${on ? '' : ' disabled'}>${I[modes[curMode][3]]()}${modes[curMode][0]}${cv()}</button>${state === 'mode-menu' ? modeMenu : ''}</span>`;
   const model = on => `<span class="anc"><button class="tb2${state === 'model-menu' ? ' on' : ''}"${tip('Model and options')}${on ? '' : ' disabled'}>Opus 5.5<i>·</i>${I.think()}${cv()}</button>${state === 'model-menu' ? menu : ''}</span>`;
-  const full = (ph, on, left = '', inputOn = on, sendTip) => `<div class="composer">${state === 'compose' ? `<span class="grip"${tip('Drag to resize · double-click resets')}></span>` : ''}${whereRow(state)}
+  const cm = CMP[state] ? completion(state) : null;
+  const full = (ph, on, left = '', inputOn = on, sendTip) => `<div class="composer">${cm ? cm.pop : ''}${state === 'compose' ? `<span class="grip"${tip('Drag to resize · double-click resets')}></span>` : ''}${whereRow(state)}
     ${state === 'compose' ? `<div class="thumbs">
       <span class="thumb"><span class="ckr">${iconArt('now', 44)}</span><button class="x"${tip('Remove icon.png')}>${I.x()}</button></span>
       <span class="thumb"><span class="ckr"><span class="shot"><b></b><span><i class="a"></i><i></i><i style="width:70%"></i><i></i><i style="width:40%"></i></span></span></span></span></div>
       <div class="ta">${esc(PROMPT)}<span class="cr2"></span></div>`
+    : cm ? cm.field
     : state === 'model-menu' ? '<div class="ta">Use the smaller model for the docs pass</div>'
     : `<div class="ph">${DRAFT.includes(state) ? '<span class="cr2"></span>' : ''}${ph}</div>`}
     <div class="cf">${ib(I.plus(), 'Attach images or files · paste works too', '', !inputOn)}${left}<span class="r">${mode(inputOn)}${model(inputOn)}${mic(inputOn)}${send(on, sendTip)}</span></div></div>`;
@@ -1385,6 +1514,12 @@ function composer(state) {
   switch (state) {
     case 'draft': case 'draft-directory':
       box = full('Ask Claude Code…', false, '', true, 'Start · ↩'); break;
+    case 'completions-draft':
+      box = full('', true, '', true, 'Start · ↩'); break;
+    case 'completions-commands': case 'completions-filter': case 'mention-files': case 'mention-loading': case 'mention-empty':
+      box = full('', true, `<span class="cst" role="img"${tip('Ready · Claude Code is running')}><span class="ready-dot"></span></span>`); break;
+    case 'mention-offline':
+      box = full('', false, `<span class="cst" role="img"${tip('MacBook Pro is offline')}><span class="off-dot"></span>MacBook Pro offline</span>`, false); break;
     case 'compose': case 'model-menu': case 'mode-menu': case 'mode-bypass': case 'mode-plan':
       box = full('', true); break;
     case 'ready': case 'add-project': case 'add-project-recent': case 'add-project-error':
@@ -1835,7 +1970,7 @@ function frame(state, scheme) {
     } else {
       const live = LIVE.includes(state) ? liveTurn(state === 'scrolled' ? 'running' : state) : '';
       body = `<div class="conv${state === 'scrolled' ? ' loading' : ''}${state === 'compose' ? ' tall' : ''}"><div class="col">
-          ${firstTurn(state)}
+          ${COMMAND_STATES.includes(state) ? commandTurns(state) : firstTurn(state)}
           ${state === 'external' ? terminalTurn() : ''}
           ${live}
         </div></div>
@@ -1857,7 +1992,7 @@ function frame(state, scheme) {
 const SCREEN = {
   name: 'Cockpit',
   system: true,
-  blurb: 'The main window: the session sidebar, the conversation as turns, the composer, runtime states and permission requests, the command palette and New session. Each session row starts with its provider’s mark, drawn in the row’s text colour and never in brand colour, and ends with its runtime state when it is not idle, else its last-activity time. The sidebar footer names this window’s connection to the core (a dot and the host, “Reconnecting…” in red when lost) beside an icon-only Settings button. Search is a quiet field that opens the command palette (⌘K): sessions, line hits across sessions and actions in one centred list. A machine row folds its directories and shows a plus (Add project) on hover, which opens a dialog with the same chrome: a machine select (every machine with its presence dot, offline ones disabled, an Add a machine item that points to the host CLI), a path bar of clickable segments that turns into a field for a typed path, and the folders under the agent’s browse root with recent folders on top, in one frame whose first row is that path bar; the primary button names the selected folder. A directory row has no chevron and no indent: it is one button that folds it, led by a folder glyph that is open while the directory is, on the machine row’s glyph and name columns. Each machine row also shows an ellipsis on hover, next to the plus, that opens that machine’s view options under its name: Organize (By folder, the default, or Flat) and Sort (Recent activity, Created, Title). Flat lists the machine’s sessions as one list with a second line for each session’s directory and hides its directories; the choice is kept per machine in the browser and an offline machine keeps the menu. The sidebar follows the selected session: its machine and directory open and it scrolls into view. The top bar holds the title and the workspace toggle only. New session (⌘N) opens a draft: an empty conversation whose composer chooses the machine and the directory, and whose first prompt starts the session. The composer’s first row says where the session runs (machine / directory / git branch), read only once the session exists; its toolbar holds attach, the model with Thinking and Fast, dictate and send. The text grows to 8 lines, then scrolls; dragging the top edge sets a height the browser remembers, and a double-click resets it. Pasted and attached images sit as thumbnails above the text. The workspace inspector and Settings are their own screens (<code>workspace.html</code>, <code>settings.html</code>); here the inspector stays closed. The top bar’s ··· opens the session menu, which a session row’s context menu repeats: Rename (a small dialog that shows Claude’s title and falls back to it when cleared), Pin, Copy ›, Open in new window and Archive. Pinned sessions form a Pinned group at the top of their machine (Flat: first, with a pin glyph). The sidebar footer’s archive icon opens the Archived page: machine, then folder, newest first, Restore on a row and Restore all on a folder. A copy is confirmed by a toast.',
+  blurb: 'The main window: the session sidebar, the conversation as turns, the composer, runtime states and permission requests, the command palette and New session. Each session row starts with its provider’s mark, drawn in the row’s text colour and never in brand colour, and ends with its runtime state when it is not idle, else its last-activity time. The sidebar footer names this window’s connection to the core (a dot and the host, “Reconnecting…” in red when lost) beside an icon-only Settings button. Search is a quiet field that opens the command palette (⌘K): sessions, line hits across sessions and actions in one centred list. A machine row folds its directories and shows a plus (Add project) on hover, which opens a dialog with the same chrome: a machine select (every machine with its presence dot, offline ones disabled, an Add a machine item that points to the host CLI), a path bar of clickable segments that turns into a field for a typed path, and the folders under the agent’s browse root with recent folders on top, in one frame whose first row is that path bar; the primary button names the selected folder. A directory row has no chevron and no indent: it is one button that folds it, led by a folder glyph that is open while the directory is, on the machine row’s glyph and name columns. Each machine row also shows an ellipsis on hover, next to the plus, that opens that machine’s view options under its name: Organize (By folder, the default, or Flat) and Sort (Recent activity, Created, Title). Flat lists the machine’s sessions as one list with a second line for each session’s directory and hides its directories; the choice is kept per machine in the browser and an offline machine keeps the menu. The sidebar follows the selected session: its machine and directory open and it scrolls into view. The top bar holds the title and the workspace toggle only. New session (⌘N) opens a draft: an empty conversation whose composer chooses the machine and the directory, and whose first prompt starts the session. The composer’s first row says where the session runs (machine / directory / git branch), read only once the session exists; its toolbar holds attach, the model with Thinking and Fast, dictate and send. The text grows to 8 lines, then scrolls; dragging the top edge sets a height the browser remembers, and a double-click resets it. Pasted and attached images sit as thumbnails above the text. The workspace inspector and Settings are their own screens (<code>workspace.html</code>, <code>settings.html</code>); here the inspector stays closed. The top bar’s ··· opens the session menu, which a session row’s context menu repeats: Rename (a small dialog that shows Claude’s title and falls back to it when cleared), Pin, Copy ›, Open in new window and Archive. Pinned sessions form a Pinned group at the top of their machine (Flat: first, with a pin glyph). The sidebar footer’s archive icon opens the Archived page: machine, then folder, newest first, Restore on a row and Restore all on a folder. A copy is confirmed by a toast. Typing in the composer opens completions in one popover at the caret. A / at the very start of the message lists Commands and Skills in two groups; picking a row inserts /name and a space, and the argument hint sits muted after the name. Each row is one line: name, hint, a description cut to what is left of the row, and a source tag (Project, User, Plugin plus the plugin’s name, Built-in). Built-ins are a whitelist, so /clear, /model and /help never appear. An @ anywhere lists paths of the session’s working tree, directories with a trailing / and a folder glyph, and inserts @path and a space; while the machine searches the popover says so, with no match it says that, and with the owner offline it says so and offers nothing. A draft has no process, so / shows the last list seen for that machine and directory, or the built-ins with a note that project commands and skills show once the session has started, and @ is not offered. Up and Down move, Tab or Enter insert, Esc closes. The popover is 620 px wide with its left edge at the caret, capped at the composer’s width and shifted left to stay inside it; the highlighted row (keyboard) has the selected fill, the top highlight and a 2 px left edge, a hovered row only a lighter fill, and the matched letters are accent and semibold. The field is a combobox with aria-activedescendant, the list a listbox of options in labelled groups, and status messages are role=status, so no cue is colour alone. In the transcript a sent command is a chip in the prompt row, its name in mono and its arguments muted mono; a local command’s output is a quiet block on the surface fill with a hairline and a 28 px header naming the command, its content in UI type (/context returns a table); /compact answers Compacted and the conversation gets a boundary divider.',
 };
 const STATES = [
   ['empty', 'no session selected; hover shows a directory’s +'],
@@ -1873,6 +2008,16 @@ const STATES = [
   ['mode-menu', 'the permission mode: every mode with its description, the high-risk one apart and tagged; Shift+Tab cycles'],
   ['mode-bypass', 'Bypass permissions: the pill turns amber with a shield-alert glyph'],
   ['mode-plan', 'Plan mode: the pill names the mode'],
+  ['completions-commands', '/ at the start of the message: Commands and Skills in two groups, each row a name, argument hint, one-line description and source tag; the first row is highlighted, a hovered row is lighter'],
+  ['completions-filter', '/c: the list filters by name prefix and the match is highlighted'],
+  ['completions-draft', 'a draft has no process: built-ins only, with a note that project commands and skills show once the session has started'],
+  ['mention-files', '@con mid-sentence: working-tree paths, directories first with a trailing /; the popover starts at the caret'],
+  ['mention-loading', '@ while the machine searches its working tree'],
+  ['mention-empty', '@zq matches no path'],
+  ['mention-offline', '@ with the owner offline: the popover says so and offers nothing'],
+  ['command-sent', 'sent commands in the transcript: the prompt row shows the name as a token and its arguments muted, both in mono'],
+  ['command-output', 'a local command’s output as a quiet block: a 28 px header naming the command, here /context’s table'],
+  ['command-compact', '/compact: “Compacted” in the same block, then a compaction boundary divider'],
   ['recording', 'dictating the next prompt'],
   ['starting', 'the first prompt starts Claude Code'],
   ['running', 'live turn: a failed run, its output, a search, an edit and a running run'],
@@ -2015,6 +2160,18 @@ if (q.get('state') && !solo) {
     STATES.map(([s, d]) => `<section class="st"><h2>${s}<span>${d}</span></h2><div class="pair">
       <div class="scaled">${frame(s, 'light')}</div><div class="scaled">${frame(s, 'dark')}</div></div></section>`).join('');
 }
+
+/* a completion popover starts at the caret: place it from the layout, not from the scaled box */
+function anchorCompletions() {
+  document.querySelectorAll('.cpop.cmp').forEach(pop => {
+    const box = pop.closest('.composer'), trg = box.querySelector('.trg');
+    if (!trg) return;
+    const x = Math.max(0, Math.min(trg.offsetLeft - 8, box.offsetWidth - pop.offsetWidth));
+    pop.style.setProperty('--ax', `${x}px`);
+  });
+}
+anchorCompletions();
+document.fonts.ready.then(anchorCompletions);
 
 /* scroll each conversation: to its anchor when the state names one, else to the end; then pin headers */
 document.querySelectorAll('.frame').forEach(f => {

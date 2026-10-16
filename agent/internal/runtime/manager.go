@@ -8,6 +8,7 @@ import (
 	"log"
 	"maps"
 	"os"
+	"reflect"
 	"sort"
 	"sync"
 	"time"
@@ -59,6 +60,15 @@ type PermissionEvent struct {
 	Request   PermissionRequest
 }
 
+// CommandsEvent is the complete list of commands and skills of a session, with its working directory. It is
+// reported when the list changes.
+type CommandsEvent struct {
+	SessionID string
+	Dir       string
+	Commands  []Command
+}
+
+func (CommandsEvent) runtimeEvent()   {}
 func (StateEvent) runtimeEvent()      {}
 func (OutputEvent) runtimeEvent()     {}
 func (PermissionEvent) runtimeEvent() {}
@@ -118,6 +128,9 @@ type session struct {
 	setSeq   map[string]int
 	inflight map[string]int
 	seq      int
+
+	// commands is the latest list the session's process reported; it stays after the process exits.
+	commands []Command
 
 	pendingPrompt *Prompt
 	// restartWith is the prompt that waits for the process to exit and a new one to start with the new values.
@@ -270,6 +283,24 @@ func (m *Manager) States() []StateEvent {
 			continue
 		}
 		out = append(out, m.stateEvent(s))
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].SessionID < out[j].SessionID })
+	return out
+}
+
+func (m *Manager) commandsEvent(s *session) CommandsEvent {
+	return CommandsEvent{SessionID: s.id, Dir: s.loc.Dir, Commands: s.commands}
+}
+
+// Commands lists the commands of every session that has reported some, for the report after a reconnect.
+func (m *Manager) Commands() []CommandsEvent {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var out []CommandsEvent
+	for _, s := range m.sessions {
+		if len(s.commands) > 0 {
+			out = append(out, m.commandsEvent(s))
+		}
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].SessionID < out[j].SessionID })
 	return out
@@ -762,6 +793,12 @@ func (m *Manager) handle(s *session, ev ProcessEvent) {
 		}
 	case ConfigChanged:
 		m.configChanged(s, ev)
+	case Commands:
+		if len(s.commands) == 0 && len(ev.List) == 0 || reflect.DeepEqual(s.commands, ev.List) {
+			return
+		}
+		s.commands = ev.List
+		m.cfg.Emit(m.commandsEvent(s))
 	case Output:
 		m.cfg.Emit(OutputEvent{SessionID: s.id, Output: ev})
 	case PermissionRequest:

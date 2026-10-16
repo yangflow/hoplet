@@ -138,6 +138,15 @@ export const claudeGrammar: { line: unknown; trace: string }[] = [
     trace: 'system:other',
   },
   { line: { type: 'system', timestamp: TS2, content: 'session started' }, trace: 'system:text' },
+  {
+    line: {
+      type: 'system',
+      timestamp: TS2,
+      subtype: 'compact_boundary',
+      content: 'Conversation compacted',
+    },
+    trace: 'system:other',
+  },
   { line: { type: 'progress', timestamp: TS2, elapsed: 1 }, trace: 'system:other' },
   { line: { raw: '{"broken', _parseError: true }, trace: 'system:other' },
   { line: 42, trace: 'system:other' },

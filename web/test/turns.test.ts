@@ -1,8 +1,13 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import type { Entry, ToolKind } from '@hoplet/shared';
 import { describe, expect, it } from 'vitest';
 import {
   buildTurns,
   type EditRow,
+  formatTokens,
+  parseCommand,
+  stripAnsi,
   type ToolRow,
 } from '../src/screens/cockpit/conversation/turns.ts';
 
@@ -223,5 +228,138 @@ describe('buildTurns', () => {
       },
     ]);
     expect(turn?.prompt).toMatchObject({ text: 'a very long prompt…', elided: { bytes: 20_000 } });
+  });
+});
+
+describe('command turns', () => {
+  it('reads the command from the tags and from typed text', () => {
+    expect(
+      parseCommand(
+        '<command-name>/review</command-name><command-message>review</command-message><command-args>147</command-args>',
+      ),
+    ).toEqual({ name: 'review', args: '147' });
+    expect(parseCommand('/hello world')).toEqual({ name: 'hello', args: 'world' });
+    expect(parseCommand('/context')).toEqual({ name: 'context', args: '' });
+    expect(parseCommand('see /tmp')).toBeNull();
+  });
+
+  it('strips terminal escapes and formats token counts', () => {
+    expect(stripAnsi('\u001b[2mCompacted \u001b[22m')).toBe('Compacted ');
+    expect(formatTokens(26208)).toBe('26.2k');
+    expect(formatTokens(840)).toBe('840');
+  });
+
+  it('turns a command prompt into a chip and its output into a command row', () => {
+    const turns = buildTurns([
+      user(1, '/context'),
+      user(2, '<local-command-stdout>62.4k of 200k</local-command-stdout>'),
+    ]);
+    expect(turns[0]?.prompt?.command).toEqual({ name: 'context', args: '' });
+    expect(turns[0]?.rows[0]).toMatchObject({
+      kind: 'command',
+      command: 'context',
+      text: '62.4k of 200k',
+    });
+  });
+
+  const boundary = (lineNo: number, trigger: string): Entry => ({
+    lineNo,
+    role: 'system',
+    blocks: [
+      {
+        type: 'other',
+        kind: 'compact_boundary',
+        label: 'Conversation compacted',
+        text: JSON.stringify({ trigger, preTokens: 45100, postTokens: 3200 }),
+      },
+    ],
+  });
+
+  it('moves the boundary written before /compact next to its output, with the sizes on the block', () => {
+    const turns = buildTurns([
+      user(1, 'a prompt'),
+      say(2, 'an answer'),
+      boundary(3, 'manual'),
+      user(4, '/compact'),
+      user(5, '<local-command-stdout>\u001b[2mCompacted \u001b[22m</local-command-stdout>'),
+    ]);
+    expect(turns.map((t) => t.rows.map((r) => r.kind))).toEqual([
+      ['text'],
+      ['command', 'boundary'],
+    ]);
+    expect(turns[1]?.rows[0]).toMatchObject({
+      kind: 'command',
+      text: 'Compacted',
+      compact: { from: '45.1k', to: '3.2k' },
+    });
+    expect(turns[1]?.rows[1]).not.toHaveProperty('sizes');
+  });
+
+  it('keeps an automatic compaction as one divider with the sizes', () => {
+    const turns = buildTurns([
+      user(1, 'a prompt'),
+      say(2, 'an answer'),
+      boundary(3, 'auto'),
+      user(4, 'next'),
+    ]);
+    expect(turns[0]?.rows[1]).toMatchObject({
+      kind: 'boundary',
+      sizes: { from: '45.1k', to: '3.2k' },
+    });
+    expect(turns).toHaveLength(2);
+  });
+});
+
+/** The entries the core projects from a real Claude Code 2.1.300 transcript (core/test/projection.test.ts pins them). */
+const realEntries = JSON.parse(
+  readFileSync(
+    path.resolve(import.meta.dirname, '../../shared/test/fixtures/claude-commands.entries.json'),
+    'utf8',
+  ),
+) as Entry[];
+
+describe('a real transcript with /context and /compact', () => {
+  const turns = buildTurns(realEntries);
+
+  it('has one turn per prompt and no turn for the hidden summary or caveats', () => {
+    expect(turns.map((t) => t.prompt?.text)).toEqual([
+      '/context',
+      'say hi in one word',
+      '/compact',
+    ]);
+  });
+
+  it('draws /context as a chip and a block holding the markdown table', () => {
+    expect(turns[0]?.prompt?.command).toEqual({ name: 'context', args: '' });
+    expect(turns[0]?.rows).toHaveLength(1);
+    const block = turns[0]?.rows[0];
+    expect(block).toMatchObject({ kind: 'command', command: 'context' });
+    const out = block?.kind === 'command' ? block.text : '';
+    expect(out).toMatch(/^## Context Usage/);
+    expect(out).toContain('| Category | Tokens | Percentage |');
+    expect(out).not.toContain('local-command-stdout');
+  });
+
+  it('draws /compact as a chip, a Compacted block with the sizes and one divider after it', () => {
+    expect(turns[2]?.prompt?.command).toEqual({ name: 'compact', args: '' });
+    const rows = turns[2]?.rows ?? [];
+    expect(rows.map((r) => r.kind)).toEqual(['command', 'boundary']);
+    expect(rows[0]).toMatchObject({
+      command: 'compact',
+      text: 'Compacted',
+      compact: { from: '26.2k', to: '1.2k' },
+    });
+    expect(turns.flatMap((t) => t.rows).filter((r) => r.kind === 'boundary')).toHaveLength(1);
+    expect(turns[1]?.rows.map((r) => r.kind)).toEqual(['text']);
+  });
+
+  it('shows the same boundary of an automatic compaction as a divider with the sizes', () => {
+    const auto = realEntries.filter((e) => e.lineNo <= 5);
+    const rows = buildTurns(auto).flatMap((t) => t.rows);
+    expect(rows.at(-1)).toMatchObject({
+      kind: 'boundary',
+      text: 'Conversation compacted',
+      sizes: { from: '26.2k', to: '1.2k' },
+    });
   });
 });

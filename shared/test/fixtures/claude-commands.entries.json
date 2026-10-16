@@ -1,0 +1,81 @@
+[
+  {
+    "lineNo": 1,
+    "role": "user",
+    "ts": "2026-10-16T05:42:01.614Z",
+    "blocks": [
+      {
+        "type": "text",
+        "text": "<command-name>/context</command-name>\n            <command-message>context</command-message>\n            <command-args></command-args>"
+      }
+    ]
+  },
+  {
+    "lineNo": 2,
+    "role": "system",
+    "ts": "2026-10-16T05:42:04.018Z",
+    "blocks": [
+      {
+        "type": "text",
+        "text": "<local-command-stdout>## Context Usage\n\n**Model:** claude-sonnet-5-5  \n**Tokens:** 12.8k / 130k (10%)\n\n### Estimated usage by category\n\n| Category | Tokens | Percentage |\n|----------|--------|------------|\n| System prompt | 2.4k | 1.8% |\n| System tools | 1.2k | 0.9% |\n| System tools (deferred) | 13.3k | 10.3% |\n| Memory files | 16 | 0.0% |\n| Skills | 9.1k | 7.0% |\n| Messages | 10 | 0.0% |\n| Free space | 84.2k | 64.8% |\n| Autocompact buffer | 33k | 25.4% |\n\n### Memory Files\n\n| Type | Path | Tokens |\n|------|------|--------|\n| User | /home/user/.claude/CLAUDE.md | 16 |\n\n### Skills\n\n| Skill | Source | Tokens |\n|-------|--------|--------|\n| example-skill | User | ~90 |\n</local-command-stdout>"
+      }
+    ]
+  },
+  {
+    "lineNo": 3,
+    "role": "user",
+    "ts": "2026-10-16T05:42:22.111Z",
+    "blocks": [
+      {
+        "type": "text",
+        "text": "say hi in one word"
+      }
+    ]
+  },
+  {
+    "lineNo": 4,
+    "role": "assistant",
+    "ts": "2026-10-16T05:42:24.124Z",
+    "blocks": [
+      {
+        "type": "text",
+        "text": "Hello"
+      }
+    ]
+  },
+  {
+    "lineNo": 5,
+    "role": "system",
+    "ts": "2026-10-16T05:42:34.058Z",
+    "blocks": [
+      {
+        "type": "other",
+        "kind": "compact_boundary",
+        "label": "Conversation compacted",
+        "text": "{\"trigger\":\"manual\",\"preTokens\":26208,\"postTokens\":1151}"
+      }
+    ]
+  },
+  {
+    "lineNo": 8,
+    "role": "user",
+    "ts": "2026-10-16T05:42:27.507Z",
+    "blocks": [
+      {
+        "type": "text",
+        "text": "<command-name>/compact</command-name>\n            <command-message>compact</command-message>\n            <command-args></command-args>"
+      }
+    ]
+  },
+  {
+    "lineNo": 9,
+    "role": "user",
+    "ts": "2026-10-16T05:42:34.164Z",
+    "blocks": [
+      {
+        "type": "text",
+        "text": "<local-command-stdout>\u001b[2mCompacted \u001b[22m</local-command-stdout>"
+      }
+    ]
+  }
+]

@@ -1,4 +1,4 @@
-import type { PromptImage } from '@hoplet/shared';
+import type { CommandsResult, PromptImage } from '@hoplet/shared';
 import {
   type ClipboardEvent,
   type DragEvent,
@@ -7,6 +7,7 @@ import {
   type PointerEvent,
   type ReactNode,
   useEffect,
+  useId,
   useLayoutEffect,
   useRef,
   useState,
@@ -17,6 +18,18 @@ import { errorText } from '../../../lib/errors.ts';
 import { t } from '../../../lib/i18n.ts';
 import type { ComposerView } from '../runtime.ts';
 import { type Attachment, dataUrl, fromImages, readImage, refusal } from './attachments.ts';
+import { xOfIndex } from './caret.ts';
+import { CompletionList, CompletionStatus, listId, optionId } from './completion-list.tsx';
+import {
+  anchorX,
+  filterCommands,
+  filterPaths,
+  type Item,
+  insertPick,
+  keyAction,
+  moveSelection,
+  triggerAt,
+} from './completions.ts';
 import {
   AUTO_MAX_PX,
   clampHeight,
@@ -25,6 +38,21 @@ import {
   maxFieldHeight,
   saveHeight,
 } from './height.ts';
+import { type PathsState, usePaths } from './use-completions.ts';
+
+/** What the field completes: `/` from the session's commands, `@` from its working tree. */
+export type CompletionSources = {
+  /** The commands and skills on offer; null until they are read. */
+  commands: CommandsResult | null;
+  /** The session whose working tree `@` lists; a draft has none and `@` offers nothing. */
+  sessionId?: string;
+  /** The owner answers: `@` needs it online. */
+  online: boolean;
+  /** The machine named while paths load and when it is offline. */
+  deviceName: string;
+  /** Development fixtures: the paths `@` shows, the selected row and the hovered one. */
+  fixture?: { paths?: PathsState; selected?: number; hovered?: number };
+};
 
 /** Bars of the recording waveform: fixed, since the real level meter arrives with transcription (#17). */
 const WAVE = Array.from({ length: 150 }, (_, i) => {
@@ -141,6 +169,8 @@ export function Composer(props: {
   voiceAvailable: boolean;
   /** Start in the recording state (fixtures). */
   recording?: boolean;
+  /** Where `/` and `@` take their lists from; without it the field completes nothing. */
+  completions?: CompletionSources;
   /** Sends the text with the attachment IDs of its images. */
   onSend: (text: string, attachments: string[]) => void;
   onStop: () => void;
@@ -161,6 +191,13 @@ export function Composer(props: {
   const [seconds, setSeconds] = useState(props.recording ? 7 : 0);
   const field = useRef<HTMLTextAreaElement>(null);
   const form = useRef<HTMLFormElement>(null);
+  const comboId = useId();
+  const popover = useRef<HTMLDivElement>(null);
+  // The caret and what is selected in the list; `closed` holds the token Esc closed the list for.
+  const [caret, setCaret] = useState((props.initialText ?? '').length);
+  const [selected, setSelected] = useState(props.completions?.fixture?.selected ?? 0);
+  const [closed, setClosed] = useState<string | null>(null);
+  const putCaret = useRef<number | null>(null);
   // A dragged height, remembered by the browser; null while the field sizes itself to its text.
   const [fixed, setFixed] = useState<number | null>(() => loadHeight());
   const fixedRef = useRef(fixed);
@@ -311,6 +348,91 @@ export function Composer(props: {
     }
   }
 
+  const sources = props.completions;
+  const trigger = view.inputEnabled || sources?.fixture?.paths ? triggerAt(draft, caret) : null;
+  const mentions = sources?.sessionId !== undefined;
+  const wantsPaths = trigger?.kind === 'at' && mentions;
+  const paths = usePaths(
+    sources?.sessionId ?? null,
+    sources?.online ?? false,
+    wantsPaths,
+    sources?.fixture?.paths,
+  );
+  const token = trigger ? `${trigger.kind}${trigger.start}` : null;
+  const shut = token !== null && token === closed;
+  let items: Item[] = [];
+  let status: { kind: 'loading' | 'none' | 'offline'; text: string } | null = null;
+  if (trigger && !shut && sources) {
+    if (trigger.kind === 'slash') {
+      if (view.inputEnabled && sources.commands) {
+        items = filterCommands(sources.commands.commands, trigger.query);
+      }
+    } else if (mentions) {
+      if (paths.phase === 'offline') {
+        status = {
+          kind: 'offline',
+          text: t('{device} is offline — file mentions need it online').replace(
+            '{device}',
+            sources.deviceName,
+          ),
+        };
+      } else if (view.inputEnabled && paths.phase === 'loading') {
+        status = {
+          kind: 'loading',
+          text: t('Searching {device}…').replace('{device}', sources.deviceName),
+        };
+      } else if (view.inputEnabled && paths.phase === 'ready') {
+        items = filterPaths(paths.paths, trigger.query);
+        if (items.length === 0) {
+          status = {
+            kind: 'none',
+            text: t('No files match “{query}”').replace('{query}', trigger.query),
+          };
+        }
+      }
+    }
+  }
+  const listOpen = items.length > 0;
+  const popOpen = listOpen || status !== null;
+  const at = Math.min(selected, Math.max(items.length - 1, 0));
+  // biome-ignore lint/correctness/useExhaustiveDependencies: a new token or query starts at the first row
+  useEffect(() => setSelected(0), [trigger?.kind, trigger?.query]);
+  useEffect(() => {
+    if (token === null) setClosed(null);
+  }, [token]);
+
+  // The list starts at the token, kept inside the composer.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the list's size and the token move it
+  useLayoutEffect(() => {
+    const pop = popover.current;
+    const el = field.current;
+    const box = form.current;
+    if (!pop || !el || !box || !trigger) return;
+    pop.style.setProperty(
+      '--ax',
+      `${anchorX(xOfIndex(el, trigger.start), box.offsetWidth, pop.offsetWidth)}px`,
+    );
+  }, [popOpen, trigger?.start, items.length, status?.kind]);
+
+  // After a pick the caret goes behind the inserted text.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: runs after each draft change
+  useLayoutEffect(() => {
+    const to = putCaret.current;
+    if (to === null) return;
+    putCaret.current = null;
+    field.current?.setSelectionRange(to, to);
+    setCaret(to);
+  }, [draft]);
+
+  function pick(item: Item) {
+    if (!trigger) return;
+    const next = insertPick(draft, trigger, item);
+    putCaret.current = next.caret;
+    setDraft(next.text);
+    props.onDirty();
+    field.current?.focus();
+  }
+
   const text = draft.trim();
   const uploading = attachments.some((a) => a.status !== 'ready');
   const canSend = view.inputEnabled && text !== '' && !props.busy && !uploading;
@@ -442,11 +564,38 @@ export function Composer(props: {
         placeholder={view.placeholder}
         aria-label={view.placeholder}
         disabled={!view.inputEnabled}
+        aria-haspopup="listbox"
+        aria-autocomplete="list"
+        {...(listOpen
+          ? { 'aria-controls': listId(comboId), 'aria-activedescendant': optionId(comboId, at) }
+          : {})}
         onChange={(e) => {
           setDraft(e.target.value);
+          setCaret(e.target.selectionStart);
           props.onDirty();
         }}
+        onSelect={(e) => setCaret(e.currentTarget.selectionStart)}
         onKeyDown={(e) => {
+          if (listOpen || status) {
+            const act = keyAction(e.key, e.shiftKey, e.nativeEvent.isComposing);
+            if (act === 'close') {
+              e.preventDefault();
+              e.nativeEvent.stopImmediatePropagation();
+              setClosed(token);
+              return;
+            }
+            if (listOpen && (act === 'down' || act === 'up')) {
+              e.preventDefault();
+              setSelected(moveSelection(at, items.length, act));
+              return;
+            }
+            const chosen = items[at];
+            if (listOpen && act === 'insert' && chosen) {
+              e.preventDefault();
+              pick(chosen);
+              return;
+            }
+          }
           if (e.key === 'Tab' && e.shiftKey && props.onCycleMode && !e.nativeEvent.isComposing) {
             e.preventDefault();
             props.onCycleMode();
@@ -460,6 +609,25 @@ export function Composer(props: {
         onPaste={onPaste}
         data-testid="cockpit.composer-input"
       />
+      {trigger && status ? (
+        <CompletionStatus anchor={popover} kind={status.kind} text={status.text} />
+      ) : null}
+      {trigger && listOpen ? (
+        <CompletionList
+          anchor={popover}
+          id={comboId}
+          items={items}
+          query={trigger.query}
+          selected={at}
+          hovered={sources?.fixture?.hovered}
+          note={
+            trigger.kind === 'slash' && sources?.commands?.source === 'builtin'
+              ? t('Project commands and skills show once the session has started')
+              : undefined
+          }
+          onPick={pick}
+        />
+      ) : null}
       {props.error || attachError ? (
         <p className="cerr" role="alert" data-testid="cockpit.composer-error">
           {Icon.alert()}
