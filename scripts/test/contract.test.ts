@@ -238,6 +238,7 @@ describe('wire contract', () => {
       permissions: { optional: false },
       interrupt: { optional: false },
       images: { optional: true },
+      steer: { optional: true },
       config: { optional: false },
     });
     expect(go.structs.RuntimePrompt?.options).toBeUndefined();
@@ -351,6 +352,7 @@ describe('wire contract', () => {
       'unsubscribe',
       'session.runtime',
       'session.commands',
+      'session.queue',
       'session.output',
       'session.permission',
       'handoff.progress',

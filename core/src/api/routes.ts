@@ -41,6 +41,12 @@ import {
   PromptRequestSchema,
   PromptResultSchema,
   type Provider,
+  QueueAddRequestSchema,
+  QueueEditRequestSchema,
+  QueueOrderRequestSchema,
+  QueueSchema,
+  QueueSteerRequestSchema,
+  QueueVersionQuerySchema,
   type RuntimeCapabilities,
   RuntimeCommandResultSchema,
   SearchResultSchema,
@@ -50,6 +56,8 @@ import {
   SessionSearchQuerySchema,
   SnapshotChangesSchema,
   SnapshotDiffSchema,
+  SteerRequestSchema,
+  SteerResultSchema,
   safeParse,
   undeclaredConfig,
   WorkspaceDiffQuerySchema,
@@ -60,7 +68,7 @@ import {
   WsTicketResponseSchema,
 } from '@hoplet/shared';
 import corePackage from '../../package.json' with { type: 'json' };
-import type { DeviceControlOutcome } from '../control/index.ts';
+import type { DeviceControlOutcome, QueueResult, SteerOutcome } from '../control/index.ts';
 import type { SessionStateRecord } from '../store/index.ts';
 import { ApiError, relayError } from './http.ts';
 import { checkPromptImage } from './images.ts';
@@ -97,6 +105,32 @@ function providerOf(store: ApiDeps['store'], sessionId: string): Provider {
   const meta = store.getSession(sessionId);
   if (!meta) throw new ApiError('session-not-found');
   return meta.provider;
+}
+
+/** A message for the queue or a steer obeys the limits of a prompt: its length and the images its driver takes. */
+function checkMessage(
+  deps: ApiDeps,
+  sessionId: string,
+  owner: string,
+  text: string,
+  attachments: string[],
+): void {
+  if (text.length > MAX_PROMPT_CHARS) throw new ApiError('too-large');
+  if (attachments.length === 0) return;
+  const caps = ownerCapabilities(deps, owner, providerOf(deps.store, sessionId));
+  if (caps !== undefined && !caps?.images) {
+    throw new ApiError('invalid-request', { reason: 'images' });
+  }
+}
+
+function queueResult(result: QueueResult) {
+  if (!result.ok) throw new ApiError(result.error === 'full' ? 'queue-full' : 'queue-conflict');
+  return result.queue;
+}
+
+function steerResult(outcome: SteerOutcome, steerId: string) {
+  if (outcome.ok) return { ok: true as const, steerId };
+  throw relayError(outcome);
 }
 
 /** The index entry plus whether the owner agent is connected. */
@@ -340,6 +374,151 @@ export const routes: readonly Route[] = [
       throw relayError(
         outcome,
         outcome.error === 'owner-offline' ? {} : { promptId: outcome.promptId },
+      );
+    },
+  }),
+  defineRoute({
+    method: 'GET',
+    path: '/api/sessions/:sessionId/queue',
+    auth: 'host',
+    lane: 'control',
+    response: QueueSchema,
+    handler: (d) => {
+      const sessionId = d.params.sessionId ?? '';
+      ownerOf(d, sessionId);
+      return d.control.queueOf(sessionId);
+    },
+  }),
+  defineRoute({
+    method: 'POST',
+    path: '/api/sessions/:sessionId/queue',
+    auth: 'host',
+    lane: 'control',
+    bodyLimit: 32 * 1024,
+    body: QueueAddRequestSchema,
+    status: 201,
+    response: QueueSchema,
+    handler: (d) => {
+      const sessionId = d.params.sessionId ?? '';
+      const owner = ownerOf(d, sessionId);
+      const attachments = d.body.attachments ?? [];
+      checkMessage(d, sessionId, owner, d.body.text, attachments);
+      return queueResult(
+        d.control.queueAdd(sessionId, { id: d.body.id, text: d.body.text, attachments }),
+      );
+    },
+  }),
+  defineRoute({
+    method: 'POST',
+    path: '/api/sessions/:sessionId/queue/order',
+    auth: 'host',
+    lane: 'control',
+    bodyLimit: 8 * 1024,
+    body: QueueOrderRequestSchema,
+    response: QueueSchema,
+    handler: (d) => {
+      const sessionId = d.params.sessionId ?? '';
+      ownerOf(d, sessionId);
+      return queueResult(d.control.queueReorder(sessionId, d.body.ids));
+    },
+  }),
+  defineRoute({
+    method: 'POST',
+    path: '/api/sessions/:sessionId/queue/resume',
+    auth: 'host',
+    lane: 'control',
+    response: QueueSchema,
+    handler: (d) => {
+      const sessionId = d.params.sessionId ?? '';
+      ownerOf(d, sessionId);
+      return d.control.queueResume(sessionId);
+    },
+  }),
+  defineRoute({
+    method: 'POST',
+    path: '/api/sessions/:sessionId/queue/clear',
+    auth: 'host',
+    lane: 'control',
+    response: QueueSchema,
+    handler: (d) => {
+      const sessionId = d.params.sessionId ?? '';
+      ownerOf(d, sessionId);
+      return d.control.queueClear(sessionId);
+    },
+  }),
+  defineRoute({
+    method: 'PATCH',
+    path: '/api/sessions/:sessionId/queue/:itemId',
+    auth: 'host',
+    lane: 'control',
+    bodyLimit: 32 * 1024,
+    body: QueueEditRequestSchema,
+    response: QueueSchema,
+    handler: (d) => {
+      const sessionId = d.params.sessionId ?? '';
+      const owner = ownerOf(d, sessionId);
+      const attachments = d.body.attachments ?? [];
+      checkMessage(d, sessionId, owner, d.body.text, attachments);
+      return queueResult(
+        d.control.queueEdit(sessionId, d.params.itemId ?? '', d.body.version, {
+          text: d.body.text,
+          attachments,
+        }),
+      );
+    },
+  }),
+  defineRoute({
+    method: 'DELETE',
+    path: '/api/sessions/:sessionId/queue/:itemId',
+    auth: 'host',
+    lane: 'control',
+    query: QueueVersionQuerySchema,
+    response: QueueSchema,
+    handler: (d) => {
+      const sessionId = d.params.sessionId ?? '';
+      ownerOf(d, sessionId);
+      return queueResult(d.control.queueRemove(sessionId, d.params.itemId ?? '', d.query.version));
+    },
+  }),
+  defineRoute({
+    method: 'POST',
+    path: '/api/sessions/:sessionId/queue/:itemId/steer',
+    auth: 'host',
+    lane: 'control',
+    bodyLimit: 1024,
+    body: QueueSteerRequestSchema,
+    response: QueueSchema,
+    handler: async (d) => {
+      const sessionId = d.params.sessionId ?? '';
+      const owner = ownerOf(d, sessionId);
+      const outcome = await d.control.queueSteer(
+        sessionId,
+        owner,
+        d.params.itemId ?? '',
+        d.body.version,
+      );
+      if (!outcome.ok) throw new ApiError('queue-conflict');
+      if (!outcome.steer.ok) throw relayError(outcome.steer);
+      return outcome.queue;
+    },
+  }),
+  defineRoute({
+    method: 'POST',
+    path: '/api/sessions/:sessionId/steer',
+    auth: 'host',
+    lane: 'control',
+    bodyLimit: 32 * 1024,
+    body: SteerRequestSchema,
+    status: 202,
+    response: SteerResultSchema,
+    handler: async (d) => {
+      const sessionId = d.params.sessionId ?? '';
+      const owner = ownerOf(d, sessionId);
+      const attachments = d.body.attachments ?? [];
+      checkMessage(d, sessionId, owner, d.body.text, attachments);
+      return steerResult(
+        await d.control.steer(sessionId, owner, d.body.steerId, d.body.text, attachments),
+        d.body.steerId,
       );
     },
   }),

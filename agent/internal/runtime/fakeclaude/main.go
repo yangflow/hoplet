@@ -7,6 +7,10 @@
 //	stream <n>     stream n text deltas 10 ms apart, each `<unix microseconds at emission>;`, then succeed
 //	tool <cmd>     ask permission for a Bash tool; allow runs it, deny is reported to the model
 //	sleep          a turn that ends only when interrupted
+//	work <n>       a turn of n tool gaps 100 ms apart; a user message written during it is absorbed at the next gap
+//	               (it joins the turn, which answers `worked <n>; steered: <texts joined by |>`); one that arrives
+//	               after the last gap, or is left when the turn is interrupted, runs as the next turn, as Claude
+//	               Code does
 //	fail           end the turn with an error result
 //	crash          exit with status 3
 //	images         answer `<n> images: <media types>` for the images that came with the prompt
@@ -137,7 +141,17 @@ type turn struct {
 	images    []obj // the prompt's image blocks, as they arrived
 	interrupt chan struct{}
 	answers   chan obj
+	steers    chan string // user messages written during a `work` turn
 }
+
+// gappy is the `work` turn that runs now, if any; a user message that arrives meanwhile is steered into it. It
+// is guarded by gappyMu.
+var (
+	gappyMu sync.Mutex
+	gappy   *turn
+)
+
+var turns chan *turn
 
 func main() {
 	args := os.Args[1:]
@@ -205,7 +219,7 @@ func main() {
 	// Code queues it; it is never dropped, however soon after the previous result it comes. The newest turn is
 	// the one interrupts and answers go to from the moment it arrives, before it starts: an interrupt sent at once
 	// waits in its channel.
-	turns := make(chan *turn, 64)
+	turns = make(chan *turn, 64)
 	go func() {
 		for t := range turns {
 			turnImages = t.images
@@ -300,7 +314,18 @@ func main() {
 							images = append(images, block)
 						}
 					}
-					t := &turn{text: text, images: images, interrupt: make(chan struct{}, 1), answers: make(chan obj, 4)}
+					gappyMu.Lock()
+					g := gappy
+					if g != nil {
+						select {
+						case g.steers <- text:
+							gappyMu.Unlock()
+							continue
+						default:
+						}
+					}
+					gappyMu.Unlock()
+					t := &turn{text: text, images: images, interrupt: make(chan struct{}, 1), answers: make(chan obj, 4), steers: make(chan string, 16)}
 					curMu.Lock()
 					cur = t
 					curMu.Unlock()
@@ -424,6 +449,8 @@ func runTurn(t *turn, prompt string) {
 		}
 		appendLines(userLine(prompt))
 		result("error_during_execution", true, "aborted_tools", "")
+	case "work":
+		runWork(t, prompt, rest)
 	case "stream":
 		start()
 		n, _ := strconv.Atoi(rest)
@@ -536,5 +563,68 @@ func runTurn(t *turn, prompt string) {
 		emit(obj{"type": "assistant", "message": obj{"role": "assistant", "content": []obj{{"type": "text", "text": text}}}, "session_id": session, "parent_tool_use_id": nil})
 		appendLines(userLine(prompt), assistantLine(text))
 		result("success", false, "completed", text)
+	}
+}
+
+// runWork is the `work` script: tool gaps at which a steer is absorbed.
+func runWork(t *turn, prompt, arg string) {
+	n, _ := strconv.Atoi(arg)
+	gappyMu.Lock()
+	gappy = t // before the state is reported: a message written after `running` is steered
+	gappyMu.Unlock()
+	start()
+	var steered []string
+	interrupted := false
+loop:
+	for i := 0; i < n; i++ {
+		id := "toolu_" + strconv.Itoa(i) + strconv.FormatInt(time.Now().UnixNano()%1e9, 10)
+		emit(obj{"type": "assistant", "message": obj{"role": "assistant", "content": []obj{{"type": "tool_use", "id": id, "name": "Bash", "input": obj{"command": "step"}}}}, "session_id": session, "parent_tool_use_id": nil})
+		select {
+		case <-t.interrupt:
+			interrupted = true
+			break loop
+		case <-time.After(100 * time.Millisecond):
+		}
+		emit(obj{"type": "user", "message": obj{"role": "user", "content": []obj{{"type": "tool_result", "tool_use_id": id, "content": "ok", "is_error": false}}}, "session_id": session, "parent_tool_use_id": nil})
+		for drained := false; !drained; {
+			select {
+			case m := <-t.steers:
+				steered = append(steered, m)
+			default:
+				drained = true
+			}
+		}
+	}
+	if !interrupted {
+		time.Sleep(300 * time.Millisecond) // writing the answer: no gap is left to absorb a message
+	}
+	gappyMu.Lock()
+	gappy = nil
+	var late []string
+	for drained := false; !drained; {
+		select {
+		case m := <-t.steers:
+			late = append(late, m)
+		default:
+			drained = true
+		}
+	}
+	gappyMu.Unlock()
+	appendLines(userLine(prompt))
+	for _, m := range steered {
+		appendLines(obj{"type": "user", "cwd": cwd, "sessionId": session, "message": obj{"role": "user", "content": m}})
+	}
+	if interrupted {
+		result("error_during_execution", true, "aborted_tools", "")
+	} else {
+		text := fmt.Sprintf("worked %d; steered: %s", n, strings.Join(steered, "|"))
+		streamText(text)
+		emit(obj{"type": "assistant", "message": obj{"role": "assistant", "content": []obj{{"type": "text", "text": text}}}, "session_id": session, "parent_tool_use_id": nil})
+		appendLines(assistantLine(text))
+		result("success", false, "completed", text)
+	}
+	// Messages that found no gap run as the next turn, one by one, as Claude Code runs what it queued.
+	for _, m := range late {
+		turns <- &turn{text: m, interrupt: make(chan struct{}, 1), answers: make(chan obj, 4), steers: make(chan string, 16)}
 	}
 }

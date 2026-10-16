@@ -5,6 +5,7 @@ import { PROTOCOL_VERSION, type ServerMessage } from '@hoplet/shared';
 import type { Store } from '../store/index.ts';
 import { createBulkQueue } from './bulk.ts';
 import { createHandoff } from './handoff.ts';
+import { createQueue } from './queue.ts';
 import { receiveReply } from './replies.ts';
 import { createRpc } from './rpc.ts';
 import { createRuntime } from './runtime.ts';
@@ -24,11 +25,14 @@ export type {
   HandoffRequest,
   PermissionOutcome,
   PromptOutcome,
+  QueueResult,
+  QueueSteerOutcome,
   RuntimeCommandOutcome,
   RuntimeView,
   StartAnswer,
   StartOutcome,
   StartRequest,
+  SteerOutcome,
   WorkspaceDiffOutcome,
   WorkspaceFileOutcome,
   WorkspaceOutcome,
@@ -57,12 +61,14 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
     runtime: new Map(),
     commands: new Map(),
     providers: new Map(),
+    pendingSteer: new Map(),
     pendingStart: new Map(),
     startCache: new Map(),
     startedSessions: new Map(),
     permissions: new Map(),
     publish,
     now: options.now ?? Date.now,
+    runtimeChanged: () => {},
     pendingWs: new Map(),
     pendingFile: new Map(),
     pendingDiff: new Map(),
@@ -84,6 +90,8 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
 
   const bulk = createBulkQueue(options.bulk ?? DEFAULT_BULK);
   const runtime = createRuntime(state);
+  const queue = createQueue(state, runtime);
+  state.runtimeChanged = queue.runtimeChanged;
   const handoff = createHandoff(state);
   const rpc = createRpc(state);
   const start = createStart(state, rpc.listProjects);
@@ -125,7 +133,20 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
     },
     prompt: runtime.prompt,
     answerPermission: runtime.answerPermission,
-    interrupt: runtime.interrupt,
+    interrupt(sessionId, ownerDeviceId) {
+      const result = runtime.interrupt(sessionId, ownerDeviceId);
+      if (result.ok) queue.interrupted(sessionId);
+      return result;
+    },
+    queueOf: queue.queueOf,
+    queueAdd: queue.queueAdd,
+    queueEdit: queue.queueEdit,
+    queueRemove: queue.queueRemove,
+    queueReorder: queue.queueReorder,
+    queueResume: queue.queueResume,
+    queueClear: queue.queueClear,
+    queueSteer: queue.queueSteer,
+    steer: queue.steer,
     stop: runtime.stop,
     config: runtime.config,
     runtimeOf: runtime.runtimeOf,
@@ -170,6 +191,10 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
     },
     ...rpc,
     startSession: start.startSession,
-    handoff: handoff.handoff,
+    async handoff(request) {
+      const outcome = await handoff.handoff(request);
+      queue.drain(request.sessionId);
+      return outcome;
+    },
   };
 }

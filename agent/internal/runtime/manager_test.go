@@ -250,7 +250,7 @@ func TestPromptRunsATurn(t *testing.T) {
 	e.expectStates("s1", runtime.StateStarting, runtime.StateRunning, runtime.StateReady)
 
 	last, _ := e.rec.lastState("s1")
-	if len(last.Capabilities) != 3 {
+	if len(last.Capabilities) != 4 {
 		t.Fatalf("capabilities = %v", last.Capabilities)
 	}
 	var text string
@@ -584,6 +584,7 @@ func (p *refusingProcess) Prompt(runtime.Prompt) error {
 	p.events <- runtime.StateChanged{State: runtime.StateReady}
 	return nil
 }
+func (p *refusingProcess) Steer(runtime.Prompt) error           { return nil }
 func (p *refusingProcess) Set(string, any) error                { return errors.New("refused") }
 func (p *refusingProcess) Answer(string, runtime.Verdict) error { return nil }
 func (p *refusingProcess) Interrupt() error                     { return nil }
@@ -1130,7 +1131,7 @@ func TestStatesReportsRunningProcesses(t *testing.T) {
 	if len(got) != 2 || got[0].SessionID != "s1" || got[0].State != runtime.StateReady || got[1].State != runtime.StateRunning {
 		t.Fatalf("States = %+v", got)
 	}
-	if len(got[0].Capabilities) != 3 {
+	if len(got[0].Capabilities) != 4 {
 		t.Fatalf("capabilities = %v", got[0].Capabilities)
 	}
 }

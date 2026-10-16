@@ -39,6 +39,14 @@ const subject: Record<string, Record<string, string>> = {
     'add-project-error': 'cockpit.add-error',
     running: 'cockpit.live-turn',
     'waiting-permission': 'cockpit.permission',
+    'queue-menu': 'cockpit.send-options',
+    'queue-queued': 'queue.tray',
+    'queue-editing': 'queue.edit-input',
+    'queue-dragging': 'queue.tray',
+    'queue-steered': 'cockpit.steer-pending',
+    'queue-paused-permission': 'queue.head',
+    'queue-paused-error': 'queue.resume',
+    'queue-paused-interrupted': 'queue.resume',
     'plan-pending': 'cockpit.plan',
     'plan-long': 'cockpit.plan-open',
     'plan-modes': 'cockpit.plan-mode-menu',
@@ -110,8 +118,8 @@ const subject: Record<string, Record<string, string>> = {
   },
 };
 
-test('the registries list 56 cockpit, 26 workspace and 7 settings states', () => {
-  expect(screens.cockpit).toHaveLength(56);
+test('the registries list 64 cockpit, 26 workspace and 7 settings states', () => {
+  expect(screens.cockpit).toHaveLength(64);
   expect(screens.workspace).toHaveLength(26);
   expect(screens.settings).toHaveLength(7);
 });

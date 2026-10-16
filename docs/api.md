@@ -71,6 +71,15 @@ Response column names the schema of the success body and its status when it is n
 | GET | `/api/sessions/:sessionId/search` | host | bulk | `SessionSearchQuerySchema` | — | `SearchResultSchema` | `invalid-request`, `session-not-found`, `busy` |
 | GET | `/api/search` | host | bulk | `GlobalSearchQuerySchema` | — | `GlobalSearchResultSchema` | `invalid-request`, `busy` |
 | POST | `/api/sessions/:sessionId/prompt` | host | control | — | `PromptRequestSchema` | `PromptResultSchema`, 202 | `invalid-json`, `invalid-request`, `too-large`, `session-not-found`, `owner-offline`, `external`, `starting`, `busy`, `timeout`, `rejected` |
+| GET | `/api/sessions/:sessionId/queue` | host | control | — | — | `QueueSchema` | `session-not-found` |
+| POST | `/api/sessions/:sessionId/queue` | host | control | — | `QueueAddRequestSchema` | `QueueSchema`, 201 | `invalid-json`, `invalid-request`, `too-large`, `session-not-found`, `queue-full` |
+| POST | `/api/sessions/:sessionId/queue/order` | host | control | — | `QueueOrderRequestSchema` | `QueueSchema` | `invalid-json`, `invalid-request`, `too-large`, `session-not-found`, `queue-conflict` |
+| POST | `/api/sessions/:sessionId/queue/resume` | host | control | — | — | `QueueSchema` | `session-not-found` |
+| POST | `/api/sessions/:sessionId/queue/clear` | host | control | — | — | `QueueSchema` | `session-not-found` |
+| PATCH | `/api/sessions/:sessionId/queue/:itemId` | host | control | — | `QueueEditRequestSchema` | `QueueSchema` | `invalid-json`, `invalid-request`, `too-large`, `session-not-found`, `queue-conflict` |
+| DELETE | `/api/sessions/:sessionId/queue/:itemId` | host | control | `QueueVersionQuerySchema` | — | `QueueSchema` | `invalid-request`, `session-not-found`, `queue-conflict` |
+| POST | `/api/sessions/:sessionId/queue/:itemId/steer` | host | control | — | `QueueSteerRequestSchema` | `QueueSchema` | `invalid-json`, `invalid-request`, `too-large`, `session-not-found`, `owner-offline`, `external`, `starting`, `not-running`, `steer-unavailable`, `queue-conflict`, `timeout`, `rejected` |
+| POST | `/api/sessions/:sessionId/steer` | host | control | — | `SteerRequestSchema` | `SteerResultSchema`, 202 | `invalid-json`, `invalid-request`, `too-large`, `session-not-found`, `owner-offline`, `external`, `starting`, `not-running`, `steer-unavailable`, `timeout`, `rejected` |
 | POST | `/api/sessions/:sessionId/config` | host | control | — | `ConfigRequestSchema` | `RuntimeCommandResultSchema` | `invalid-json`, `invalid-request`, `too-large`, `session-not-found`, `owner-offline`, `external` |
 | POST | `/api/sessions/:sessionId/permission` | host | control | — | `PermissionRequestSchema` | `RuntimeCommandResultSchema` | `invalid-json`, `invalid-request`, `too-large`, `session-not-found`, `owner-offline`, `request-closed` |
 | POST | `/api/sessions/:sessionId/interrupt` | host | control | — | — | `RuntimeCommandResultSchema` | `session-not-found`, `owner-offline`, `not-running` |
@@ -106,6 +115,20 @@ Behavior a client relies on:
   the driver must declare `images` (`invalid-request` with `reason: images` otherwise). The agent refuses the
   prompt with `attachment-missing` when an ID is unknown or older than an hour, and with `invalid-image` when the
   images are more than 8 MiB together.
+- A message written while a turn runs is queued or steered ([ADR 0020](adr/0020-queued-and-steered-messages.md)); `POST /prompt` still
+  answers `busy` then. The core holds a session's queue (at most 20 messages of at most 8,000 characters and 4
+  images): `GET /queue` returns it, head first, with `paused` (`error` or `interrupted`) and `error` when it does
+  not send. `POST /queue` appends `{id, text, attachments}` (a repeated `id` changes nothing), `PATCH` and `DELETE
+  /queue/:itemId` name the `version` the client read and answer `queue-conflict` for a stale version, a message
+  already `sending` or one that is gone, `POST /queue/order` takes the IDs not yet sending in their new order,
+  `POST /queue/resume` ends a pause and `POST /queue/clear` empties the queue. Every answer is the queue after the
+  change, and `session.queue` tells the other windows. The head message is sent as the next turn once the session
+  is idle, ready and not paused.
+- `POST /api/sessions/:sessionId/steer` `{steerId, text, attachments}` writes a message into the running turn,
+  which the model reads at its next tool gap; a repeated `steerId` within 10 minutes returns the first result.
+  `POST /queue/:itemId/steer` does the same with a queued message and removes it from the queue. Both answer
+  `steer-unavailable` when the provider does not declare `steer` in its capabilities or a permission request is
+  open, and `not-running` when no turn runs.
 - A session's settings are config options (ADR 0018): the driver declares them in `capabilities.config` (ACP's
   shape: `select` or `boolean`, `id`, `name`, `category`, `currentValue`; a select value may declare `risk: "high"` and an `icon` from the shared vocabulary `CONFIG_ICONS`). `POST /api/sessions` takes optional
   `config`, option ID to value, for the options it sets; `POST /api/sessions/:sessionId/config` takes one
@@ -191,6 +214,9 @@ archived sessions too; the client decides what to show.
 | `owner-offline` | 409 | The agent of the session's owner (or of the addressed device) is not connected |
 | `target-offline` | 409 | The device the request goes to is not connected: the device of a new session, the target of a handoff, the device to browse |
 | `busy` | 409 | The request cannot run now: the bulk queue is full, or the session's process is running a turn, or a running session cannot be handed off. Retry later |
+| `steer-unavailable` | 409 | The session's provider cannot take a message into a running turn, or a permission request is open |
+| `queue-conflict` | 409 | The queued message changed, is already sending or is gone; read the queue again |
+| `queue-full` | 409 | The session already holds 20 queued messages |
 | `starting` | 409 | The session's process is still starting |
 | `external` | 409 | The session's process was not started by Hoplet, so it cannot be controlled |
 | `not-running` | 409 | The session has no running process to interrupt or stop |
@@ -227,6 +253,7 @@ over REST.
 | `session.updated` | core → browser | control | `SessionUpdatedMessage` | The user renamed, pinned, unpinned, archived or restored a session. Carries the state after the change (`titleOverride`, `pinnedAt`, `archivedAt`; absent means cleared). Sent to every connection |
 | `device.presence` | core → browser | control | `DevicePresenceMessage` | A device connected or disconnected. Sent to every connection, followed by `session.runtime` for each session the connection is subscribed to |
 | `session.runtime` | core → browser | control | `SessionRuntimeMessage` | The runtime state of a session and its capabilities. Sent to every connection |
+| `session.queue` | core → browser | control | `SessionQueueMessage` | The queue of a session changed; fetch `GET /api/sessions/:sessionId/queue`. Sent to every connection |
 | `session.commands` | core → browser | control | `SessionCommandsMessage` | The commands and skills of a session changed; fetch `GET /api/sessions/:sessionId/commands`. Sent to every connection |
 | `session.output` | core → browser | control | `SessionOutputMessage` | Streamed content of the running turn: text, thinking, tool calls and results. Only to the connections subscribed to the session. Transient: the session's lines are the record |
 | `session.permission` | core → browser | control | `SessionPermissionMessage` | A tool wants permission; answer with `POST /api/sessions/:sessionId/permission`. `planExit` (`plan`, `planFile`, `option`, `modes`, `default`) marks a request to leave a plan. Sent to every connection |

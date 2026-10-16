@@ -27,6 +27,8 @@ const (
 	TypeSessionRejected          = "session.rejected"
 	TypeRuntimePrompt            = "runtime.prompt"
 	TypeRuntimeConfig            = "runtime.config"
+	TypeRuntimeSteer             = "runtime.steer"
+	TypeRuntimeSteered           = "runtime.steered"
 	TypeRuntimeStart             = "runtime.start"
 	TypeRuntimeStarted           = "runtime.started"
 	TypeRuntimeStartRejected     = "runtime.start.rejected"
@@ -221,6 +223,25 @@ type RuntimePrompt struct {
 	Attachments []string `json:"attachments,omitempty"`
 }
 
+// RuntimeSteer (core → device, control lane) writes a message into the running turn (ADR 0020). The agent answers
+// with RuntimeSteered, or RuntimeRejected carrying SteerID as PromptID.
+type RuntimeSteer struct {
+	V           int      `json:"v"`
+	Type        string   `json:"type"`
+	SessionID   string   `json:"sessionId"`
+	SteerID     string   `json:"steerId"`
+	Text        string   `json:"text"`
+	Attachments []string `json:"attachments,omitempty"`
+}
+
+// RuntimeSteered (device → core, control lane): the message was written into the running turn.
+type RuntimeSteered struct {
+	V         int    `json:"v"`
+	Type      string `json:"type"`
+	SessionID string `json:"sessionId"`
+	SteerID   string `json:"steerId"`
+}
+
 // RuntimeConfig (core → device, control lane) sets one setting of a session (ADR 0018). Value is a string for
 // a select option and a bool for a boolean one. The agent reports the session's settings in its next
 // RuntimeState.
@@ -290,6 +311,7 @@ type RuntimeCapabilities struct {
 	Permissions bool           `json:"permissions"`
 	Interrupt   bool           `json:"interrupt"`
 	Images      bool           `json:"images,omitempty"`
+	Steer       bool           `json:"steer,omitempty"`
 	Config      []ConfigOption `json:"config"`
 }
 
@@ -394,7 +416,7 @@ type RuntimeRejected struct {
 	Type      string `json:"type"`
 	SessionID string `json:"sessionId"`
 	PromptID  string `json:"promptId"`
-	Reason    string `json:"reason"` // busy | starting | external | diagnostic text
+	Reason    string `json:"reason"` // busy | starting | external | not-running | permission | unsupported | diagnostic text
 }
 
 // Command is one slash command or skill a session offers (shared/src/commands.ts).

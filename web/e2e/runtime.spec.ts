@@ -88,7 +88,8 @@ test('a permission request waits, Deny is reported to the model and the session 
   await expect(conv).toHaveAttribute('data-state', 'waiting-permission');
   const card = page.getByTestId('cockpit.permission');
   await expect(card).toContainText('echo denied');
-  await expect(page.getByTestId('cockpit.composer-input')).toBeDisabled();
+  // The composer stays open to queue a message; steering waits for the answer (ADR 0020).
+  await expect(page.getByTestId('cockpit.composer-input')).toBeEnabled();
   await card.getByTestId('cockpit.permission-deny').click();
   await expect(card).toHaveCount(0);
   await expect(conv.getByText('REFUSED', { exact: true })).toBeVisible();

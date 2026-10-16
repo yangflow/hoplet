@@ -12,7 +12,7 @@ import {
   type SessionPermission,
 } from '@hoplet/shared';
 import { log } from '../log/index.ts';
-import { askWaiter } from './pending.ts';
+import { askWaiter, settleWaiter } from './pending.ts';
 import { type ControlState, onlineLink } from './state.ts';
 import type {
   Control,
@@ -72,6 +72,7 @@ export type Runtime = Pick<
           | 'runtime.output'
           | 'runtime.permission'
           | 'runtime.rejected'
+          | 'runtime.steered'
           | 'runtime.commands';
       }
     >,
@@ -359,6 +360,7 @@ export function createRuntime(state: ControlState): Runtime {
           if (TURN_OVER.has(msg.state)) dropPermissions(msg.sessionId);
           if (msg.state === 'starting' || msg.state === 'running') acceptPrompt(msg.sessionId);
           publishRuntime(msg.sessionId);
+          state.runtimeChanged(msg.sessionId, msg.state, msg.error);
           return;
         }
         case 'runtime.output': {
@@ -380,9 +382,32 @@ export function createRuntime(state: ControlState): Runtime {
           state.publish({ v: PROTOCOL_VERSION, type: 'session.permission', ...rest });
           return;
         }
-        case 'runtime.rejected':
+        case 'runtime.rejected': {
           rejectPrompt(msg.sessionId, msg.promptId, msg.reason);
+          const key = permissionKey(msg.sessionId, msg.promptId);
+          const steer = state.pendingSteer.get(key);
+          if (steer?.link === link) {
+            const error =
+              msg.reason === 'permission' || msg.reason === 'unsupported'
+                ? 'steer-unavailable'
+                : msg.reason === 'not-running' || msg.reason === 'busy'
+                  ? 'not-running'
+                  : 'rejected';
+            settleWaiter(state.pendingSteer, key, {
+              ok: false,
+              error,
+              ...(error === 'rejected' ? { reason: msg.reason } : {}),
+            });
+          }
           return;
+        }
+        case 'runtime.steered': {
+          const key = permissionKey(msg.sessionId, msg.steerId);
+          if (state.pendingSteer.get(key)?.link === link) {
+            settleWaiter(state.pendingSteer, key, { ok: true });
+          }
+          return;
+        }
         case 'runtime.commands': {
           // Only counts are logged: descriptions come from files of the user's projects.
           state.commands.set(msg.sessionId, { deviceId, commands: msg.commands });
@@ -421,6 +446,10 @@ export function createRuntime(state: ControlState): Runtime {
         pendingPrompt.delete(key);
         clearTimeout(waiter.timer);
         waiter.resolve({ ok: false, error: 'owner-offline', promptId });
+      }
+      for (const [key, waiter] of [...state.pendingSteer]) {
+        if (waiter.link === link)
+          settleWaiter(state.pendingSteer, key, { ok: false, error: 'owner-offline' });
       }
       const gone = new Set(deviceIds);
       for (const [sessionId, entry] of runtime) {

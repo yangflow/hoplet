@@ -1,0 +1,250 @@
+/* The queue tray above the composer and the steered rows of the transcript (design/screens/cockpit.html, queue-*). */
+.qtray {
+  position: relative;
+  z-index: 0;
+  margin: 0 var(--space-4) calc(-1 * var(--space-4));
+  padding: var(--space-1) var(--space-2) var(--space-6);
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  background: var(--color-surface);
+  box-shadow: inset 0 0 0 1px var(--color-line);
+  pointer-events: auto;
+}
+[data-scheme="light"] .qtray {
+  background: var(--color-sidebar);
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-scheme="dark"]) .qtray {
+    background: var(--color-sidebar);
+  }
+}
+.qtray.need {
+  box-shadow: inset 0 0 0 1px var(--color-attention-ring);
+  background: var(--color-attention-soft);
+}
+.qtray.bad {
+  box-shadow: inset 0 0 0 1px var(--color-del-bg);
+}
+.dock .composer {
+  position: relative;
+  z-index: 1;
+}
+.qh {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 36px;
+  padding: 0 var(--space-2) 0 var(--space-3);
+  color: var(--color-text-2);
+  white-space: nowrap;
+}
+.qh b {
+  font-weight: var(--weight-semibold);
+  color: var(--color-text);
+}
+.qh .meta {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.qh .btn {
+  height: 26px;
+  padding: 0 var(--space-2);
+}
+.qh .num {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--color-hover);
+  color: var(--color-text-2);
+  font-size: var(--text-meta);
+  line-height: 18px;
+  text-align: center;
+  font-weight: var(--weight-medium);
+}
+.qh > .num {
+  margin-left: calc(-1 * var(--space-1));
+}
+.qh .qdot {
+  flex: none;
+}
+.qtray.need .qh b {
+  color: var(--color-attention-text);
+}
+.qtray.bad .qh b {
+  color: var(--color-danger);
+}
+.qr {
+  position: relative;
+  display: grid;
+  grid-template-columns: 16px 18px minmax(0, 1fr) auto;
+  column-gap: var(--space-2);
+  align-items: center;
+  height: 32px;
+  padding: 0 var(--space-2) 0 var(--space-3);
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  white-space: nowrap;
+}
+.qr .gr {
+  color: var(--color-text-3);
+  opacity: 0.55;
+  cursor: grab;
+  display: grid;
+  place-items: center;
+  touch-action: none;
+}
+.qr.lock .gr {
+  cursor: default;
+  opacity: 0.3;
+}
+.qr .n {
+  color: var(--color-text-3);
+  font-size: var(--text-meta);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+.qr .t {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--color-text);
+}
+.qr .ac {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  opacity: 0;
+}
+.qr:hover,
+.qr.hov {
+  background: var(--color-hover);
+}
+.qr:hover .ac,
+.qr.hov .ac,
+.qr:focus-within .ac,
+.qr.hov .gr,
+.qr:hover .gr,
+.qr .gr:focus-visible {
+  opacity: 1;
+}
+.qr .ac .ib {
+  width: 24px;
+  height: 24px;
+}
+.qr .ac .ib:hover {
+  color: var(--color-text);
+  background: var(--color-selected);
+}
+.qr .tag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--color-text-3);
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  margin-left: var(--space-2);
+}
+.qr.lock .t {
+  color: var(--color-text-2);
+}
+.qr.lock .ac {
+  opacity: 1;
+  color: var(--color-text-3);
+  gap: var(--space-2);
+  font-size: var(--text-meta);
+}
+.qr.lock .ac .spin {
+  color: var(--color-accent);
+}
+.qr.dim .t {
+  color: var(--color-text-2);
+}
+.qr.drag {
+  background: var(--color-raised);
+  box-shadow: var(--shadow-float);
+  z-index: 2;
+  transform: translateY(-2px);
+}
+.qr.drag .gr {
+  opacity: 1;
+  cursor: grabbing;
+  color: var(--color-text-2);
+}
+.qr.edit {
+  height: auto;
+  display: block;
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-bg);
+  box-shadow: inset 0 0 0 1px var(--color-line);
+  white-space: normal;
+  margin: var(--space-1) 0;
+}
+[data-scheme="light"] .qr.edit {
+  background: var(--color-raised);
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-scheme="dark"]) .qr.edit {
+    background: var(--color-raised);
+  }
+}
+.qe-t {
+  display: block;
+  width: 100%;
+  resize: none;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font: inherit;
+  font-size: var(--text-body);
+  line-height: var(--leading-body);
+  color: var(--color-text);
+  padding: var(--space-1) 0;
+  caret-color: var(--color-accent);
+}
+.qe-f {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+}
+.qe-f .btn {
+  height: 26px;
+  padding: 0 var(--space-2);
+}
+.qe-f .meta {
+  margin-right: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--color-text-3);
+  font-size: var(--text-meta);
+}
+
+/* a steer in the transcript, at the point in the turn where the message landed */
+.act.steer {
+  background: var(--color-accent-soft);
+}
+.act.steer .k {
+  color: var(--color-accent-text);
+  font-weight: var(--weight-medium);
+}
+.act.steer .a {
+  color: var(--color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.act.steer .i {
+  color: var(--color-accent-text);
+}
+.act.steer.pend {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--color-line);
+  margin-bottom: var(--space-2);
+}
+.act.steer.pend .a {
+  color: var(--color-text-2);
+}
+.act.steer.pend .i .spin {
+  color: var(--color-accent);
+}

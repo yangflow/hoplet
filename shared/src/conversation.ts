@@ -106,6 +106,8 @@ export const EntrySchema = v.object({
   role: RoleSchema,
   /** When the line was written, as the vendor recorded it (ISO 8601) */
   ts: v.optional(v.string()),
+  /** A user message the model took in the middle of a turn, at a tool gap (ADR 0020). */
+  steered: v.optional(v.literal(true)),
   blocks: v.array(BlockSchema),
 });
 

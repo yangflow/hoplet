@@ -355,6 +355,11 @@ does the same within one session. Search runs as background work and never delay
 1. `POST /api/sessions/:id/prompt` with `{ text, promptId }`. The core refuses with `owner-offline`,
    `external`, `busy` (a turn is running) or `starting`, and forwards `runtime.prompt` to the owner otherwise.
    Sessions run turns in parallel without a limit.
+   While a turn runs the user queues or steers a message instead ([ADR 0020](adr/0020-queued-and-steered-messages.md)):
+   a queued message is held by the core (at most 20 per session, kept through reloads, other windows and a
+   handoff) and sent as the next turn when the turn ends well; a steered message goes into the running turn and is
+   read at its next tool gap, when the provider declares `steer` and no permission request is open. The queue
+   pauses on an error or an interrupt until Resume or Clear, and waits while a permission request is open.
    A repeated `promptId` within 10 minutes returns the first result.
 2. With no process for the session, the agent starts Claude Code in the session's working directory with
    streaming JSON input and output, resuming that session (`starting`), and sends the control request

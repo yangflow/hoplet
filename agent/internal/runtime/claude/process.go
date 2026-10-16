@@ -96,6 +96,15 @@ func (p *process) Prompt(prompt runtime.Prompt) error {
 	p.mu.Lock()
 	p.seen = nil
 	p.mu.Unlock()
+	return p.writeUser(prompt)
+}
+
+// Steer writes a user message into the running turn. Claude Code absorbs it at the next tool-result gap of
+// that turn, or runs it as the next turn when the turn has no gap left. The turn's bookkeeping stays: the
+// tool calls already reported are not reported again.
+func (p *process) Steer(prompt runtime.Prompt) error { return p.writeUser(prompt) }
+
+func (p *process) writeUser(prompt runtime.Prompt) error {
 	content := make([]map[string]any, 0, len(prompt.Images)+1)
 	for _, img := range prompt.Images {
 		content = append(content, map[string]any{

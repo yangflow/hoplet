@@ -32,6 +32,29 @@ func (c *Client) handleRuntimePrompt(cs *connState, raw json.RawMessage) {
 	}
 }
 
+func (c *Client) handleRuntimeSteer(cs *connState, raw json.RawMessage) {
+	var req RuntimeSteer
+	if err := json.Unmarshal(raw, &req); err != nil {
+		return
+	}
+	var err error
+	if c.hooks.Runtime.Steer == nil {
+		err = errors.New("unsupported")
+	} else {
+		err = c.hooks.Runtime.Steer(req.SessionID, req.Text, req.Attachments)
+	}
+	if err != nil {
+		log.Printf("[agent] steer refused for %s: %v", shortID(req.SessionID), err)
+		_ = c.writeMsg(cs, RuntimeRejected{
+			V: ProtocolVersion, Type: TypeRuntimeRejected, SessionID: req.SessionID, PromptID: req.SteerID, Reason: err.Error(),
+		})
+		return
+	}
+	_ = c.writeMsg(cs, RuntimeSteered{
+		V: ProtocolVersion, Type: TypeRuntimeSteered, SessionID: req.SessionID, SteerID: req.SteerID,
+	})
+}
+
 func (c *Client) handleRuntimeStart(cs *connState, raw json.RawMessage) {
 	var req RuntimeStart
 	if err := json.Unmarshal(raw, &req); err != nil {

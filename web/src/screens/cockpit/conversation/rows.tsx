@@ -680,6 +680,29 @@ function BoundaryView({ row }: { row: BoundaryRow }) {
   );
 }
 
+/** A steered message: the row sits at the point of the turn where the model took it in. */
+export function SteerActivity(props: {
+  text: string;
+  /** Sent, and not yet taken in: it shows as "Steering" at the foot of the live turn. */
+  pending?: boolean;
+  elided?: ReactNode;
+  testid?: string;
+}) {
+  return (
+    <div data-testid={props.testid ?? 'cockpit.steer'}>
+      <div className={`act steer${props.pending ? ' pend' : ''}`}>
+        <ActCells
+          icon={props.pending ? <Spinner /> : Icon.steer()}
+          verb={props.pending ? t('Steering') : t('Steered')}
+          object={props.text}
+          meta={props.pending ? <span className="meta">{t('at the next tool call')}</span> : null}
+        />
+      </div>
+      {props.elided}
+    </div>
+  );
+}
+
 /** One row of a turn's body. */
 export function RowView({ row }: { row: Row }) {
   switch (row.kind) {
@@ -697,6 +720,13 @@ export function RowView({ row }: { row: Row }) {
       return <CommandView row={row} />;
     case 'boundary':
       return <BoundaryView row={row} />;
+    case 'steer':
+      return (
+        <SteerActivity
+          text={row.text}
+          {...(row.elided ? { elided: <StoredElided elided={row.elided} /> } : {})}
+        />
+      );
     case 'fold':
       return <FoldView row={row} />;
   }

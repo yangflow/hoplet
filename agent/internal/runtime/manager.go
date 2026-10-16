@@ -22,6 +22,8 @@ var (
 	ErrStarting          = errors.New("starting") // the process is starting
 	ErrExternal          = errors.New("external") // the session file was written by another process
 	ErrNotRunning        = errors.New("not-running")
+	ErrSteerUnsupported  = errors.New("unsupported") // the driver does not declare steer
+	ErrPermissionPending = errors.New("permission")  // a permission request waits for an answer
 	ErrUnknownRequest    = errors.New("unknown-permission-request")
 	ErrSessionNotFound   = errors.New("session-not-on-this-device")
 	ErrOptionNotDeclared = errors.New("an option the driver does not declare")
@@ -446,6 +448,40 @@ func (m *Manager) PromptWith(sessionID string, p Prompt) error {
 		return m.promptRunning(s, p)
 	}
 	m.startProcess(s, p)
+	return nil
+}
+
+// Steer injects a message into the running turn (ADR 0020). It needs the driver's steer capability and a
+// process in `running`: while a permission request waits, Claude Code does not process a message reliably,
+// so that is refused. The state stays as it is: the message is part of the turn, or the vendor runs it as the
+// next one, which the state events report.
+func (m *Manager) Steer(sessionID string, p Prompt) error {
+	if !slices.Contains(m.cfg.Driver.Capabilities(), CapSteer) {
+		return ErrSteerUnsupported
+	}
+	if err := m.checkImages(p); err != nil {
+		return err
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.closed {
+		return errors.New("runtime is shutting down")
+	}
+	s := m.sessions[sessionID]
+	if s == nil || s.proc == nil || s.stopped {
+		return ErrNotRunning
+	}
+	switch s.state {
+	case StateWaitingPermission:
+		return ErrPermissionPending
+	case StateRunning:
+	default:
+		return ErrNotRunning
+	}
+	if err := s.proc.Steer(p); err != nil {
+		return fmt.Errorf("write steer: %w", err)
+	}
+	s.lastUsed = time.Now()
 	return nil
 }
 

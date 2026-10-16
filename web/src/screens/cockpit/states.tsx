@@ -3,6 +3,7 @@ import type {
   DeviceInfo,
   Entry,
   LiveSessionMeta,
+  Queue,
   RuntimeCapabilities,
   SessionRuntimeInfo,
 } from '@hoplet/shared';
@@ -92,6 +93,7 @@ function capabilitiesOn(model = 'default', mode = 'default'): RuntimeCapabilitie
     permissions: true,
     interrupt: true,
     images: true,
+    steer: true,
     config: [
       {
         type: 'select',
@@ -626,6 +628,38 @@ const planScene = (permissions: OpenPermission[], plan?: PlanView, macbookOnline
   />
 );
 
+const QUEUE_TEXTS = [
+  'Then run the Go tests too: cd agent && go test ./...',
+  'Update docs/architecture.md if it describes the rename order',
+  'Open a draft pull request titled fix(core): commit the index before the gz rename',
+];
+const queueOf = (over: Partial<Queue> = {}, sending = false): Queue => ({
+  items: QUEUE_TEXTS.map((text, i) => ({
+    id: `q${i + 1}`,
+    text,
+    attachments: [],
+    version: 1,
+    state: sending && i === 0 ? ('sending' as const) : ('queued' as const),
+  })),
+  ...over,
+});
+const STEER_NOW = 'Also check the same order in the compaction path.';
+const STEER_PEND = 'Use the existing fixture; do not generate a new one.';
+
+/** The session of a queue state: the running turn (or the state `runtime` names) with the queue in its tray. */
+const queueScene = (
+  variant: Variant,
+  queue: Queue,
+  conversation: Partial<NonNullable<CockpitFixture['conversation']>> = {},
+) => (
+  <Scene
+    variant={{
+      ...variant,
+      conversation: { queue, composerText: 'Also run the Go tests after this', ...conversation },
+    }}
+  />
+);
+
 const planResolved = (over: Partial<PlanResolution>) => (
   <Scene
     variant={{
@@ -1106,6 +1140,53 @@ export const states: Record<string, () => ReactNode> = {
       }}
     />
   ),
+  'queue-menu': () => queueScene(running(72_000), { items: [] }, { sendMenuOpen: true }),
+  'queue-queued': () =>
+    queueScene(running(72_000), queueOf(), { tray: { hovered: 'q2' }, composerText: '' }),
+  'queue-editing': () =>
+    queueScene(running(72_000), queueOf({}, true), { tray: { editing: 'q2' }, composerText: '' }),
+  'queue-dragging': () =>
+    queueScene(running(72_000), queueOf({}, true), { tray: { dragging: 'q3' }, composerText: '' }),
+  'queue-steered': () =>
+    queueScene(
+      running(72_000),
+      { items: [] },
+      {
+        composerText: '',
+        steering: [{ text: STEER_NOW, taken: true }, { text: STEER_PEND }],
+      },
+    ),
+  'queue-paused-permission': () =>
+    queueScene(
+      {
+        runtime: { state: 'waiting-permission', capabilities },
+        live: {
+          turn: liveTurn({ rows: permissionRows }),
+          elapsed: 31_000,
+          permissions: [permission],
+        },
+      },
+      queueOf(),
+      { composerText: '' },
+    ),
+  'queue-paused-error': () => {
+    const error = 'claude exited with code 1\nENOENT /Users/mark/.local/bin/claude';
+    return queueScene(
+      {
+        runtime: { state: 'failed', capabilities, error },
+        live: {
+          turn: liveTurn({ phase: 'failed', endedAt: LIVE_START + 2000, error }),
+          elapsed: 2000,
+        },
+      },
+      queueOf({ paused: 'error' }),
+      { composerText: '' },
+    );
+  },
+  'queue-paused-interrupted': () =>
+    queueScene({ runtime: { state: 'ready', capabilities } }, queueOf({ paused: 'interrupted' }), {
+      composerText: '',
+    }),
   'plan-pending': () => planScene([planPermission()]),
   'plan-long': () => planScene([planPermission(LONG_PLAN_TEXT)]),
   'plan-modes': () => planScene([planPermission()], { menu: true }),

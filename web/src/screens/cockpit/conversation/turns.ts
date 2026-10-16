@@ -96,6 +96,14 @@ export type BoundaryRow = {
   text: string;
   sizes?: { from: string; to: string };
 };
+/** A message the user steered into the turn: where the model took it in, at a tool gap (ADR 0020). */
+export type SteerRow = {
+  kind: 'steer';
+  key: string;
+  lineNo: number;
+  text: string;
+  elided?: Elided;
+};
 export type FoldRow = { kind: 'fold'; key: string; lineNo: number; tools: ToolRow[] };
 
 export type Row =
@@ -106,6 +114,7 @@ export type Row =
   | NoteRow
   | CommandRow
   | BoundaryRow
+  | SteerRow
   | FoldRow;
 
 /** A slash command a prompt ran: its name without the slash, and what followed it. */
@@ -588,7 +597,8 @@ export function buildTurns(entries: readonly Entry[], opts: { cwd?: string } = {
     return draft;
   };
   for (const entry of entries) {
-    const prompt = promptOf(entry);
+    // A steered message belongs to the turn it landed in; it opens no turn of its own.
+    const prompt = entry.steered && current ? null : promptOf(entry);
     if (prompt) {
       const claimed = prompt.command?.name === 'compact' ? pending?.row : undefined;
       if (claimed && pending) {
@@ -612,7 +622,28 @@ export function buildTurns(entries: readonly Entry[], opts: { cwd?: string } = {
     if (entry.ts) current.lastTs = entry.ts;
     entry.blocks.forEach((block, i) => {
       if (prompt && i === prompt.index) return;
-      if (current) rowsOfBlock(current.ctx, entry, block, i);
+      if (!current) return;
+      if (entry.steered && block.type === 'text') {
+        const key = `${entry.lineNo}-b${i}`;
+        if ('elided' in block) {
+          current.ctx.rows.push({
+            kind: 'steer',
+            key,
+            lineNo: entry.lineNo,
+            text: block.preview,
+            elided: elidedOf(entry, block, i),
+          });
+        } else if (block.text.trim() !== '') {
+          current.ctx.rows.push({
+            kind: 'steer',
+            key,
+            lineNo: entry.lineNo,
+            text: block.text.trim(),
+          });
+        }
+        return;
+      }
+      rowsOfBlock(current.ctx, entry, block, i);
     });
     const fresh: BoundaryRow | undefined = current.ctx.fresh;
     current.ctx.fresh = undefined;

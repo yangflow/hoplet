@@ -363,3 +363,26 @@ describe('a real transcript with /context and /compact', () => {
     });
   });
 });
+
+describe('steered messages', () => {
+  const steered = (lineNo: number, text: string): Entry => ({
+    ...user(lineNo, text, '00:07'),
+    steered: true,
+  });
+
+  it('lands a steered message in the running turn as a steer row', () => {
+    const turns = buildTurns([user(1, 'go'), say(2, 'working'), steered(3, 'also this')]);
+    expect(turns).toHaveLength(1);
+    const rows = turns[0]?.rows ?? [];
+    expect(rows.find((r) => r.kind === 'steer')).toMatchObject({
+      kind: 'steer',
+      text: 'also this',
+    });
+  });
+
+  it('starts a turn when no turn is open', () => {
+    const turns = buildTurns([steered(1, 'first')]);
+    expect(turns).toHaveLength(1);
+    expect(turns[0]?.rows.some((r) => r.kind === 'steer')).toBe(false);
+  });
+});

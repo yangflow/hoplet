@@ -176,7 +176,7 @@ One family, Lucide (ISC), bundled and never fetched: every glyph on a 24-unit gr
 search, panel-left, panel-right, square-pen, plus, chevron-right, arrow-up, arrow-up-right,
 arrow-right-left, file, folder, folder-open, book-open, pencil, file-plus, terminal, plug, globe, lightbulb, image,
 layers, eye, square, git-branch, zap, lock, paperclip, mic, hand, clock, x, check, circle-alert, shield, shield-alert, file-pen, list-checks, sparkles, info, rotate-cw, copy,
-settings, laptop, contrast, ellipsis, text-wrap, loader-circle, pin, pin-off, archive, archive-restore; turned glyphs (a chevron, an arrow) cover the other directions.
+settings, laptop, contrast, ellipsis, text-wrap, loader-circle, pin, pin-off, archive, archive-restore, grip-vertical, trash-2, corner-down-right, arrow-right-to-line, play; turned glyphs (a chevron, an arrow) cover the other directions.
 File-type badges (TypeScript, Markdown, JSON, image, text, other) use the same page and stroke with a tint.
 Provider marks (the Claude mark for Claude Code) are drawn monochrome in the dim text colour, never in brand
 colour, and lead each session row. Icons sit in labels, tool rows and empty states and do not decorate. The
@@ -202,10 +202,23 @@ timer, tools tick in their columns and text streams with a caret; when the turn 
 flat onto the canvas and its header shows the turn summary, without a jump. A permission request turns the
 edge amber and opens inside the turn, and the session's sidebar row turns amber with it.
 
+Sending while a turn runs keeps the field open (`design/screens/cockpit.html`, the `queue-*` states). Send is a split
+button labelled with the default (Queue, with its icon) and a chevron whose menu offers Queue (`↩`) and Steer (`⌥↩`),
+a footer naming the setting; with a permission request pending, or for a driver that cannot steer, the button is plain
+Queue. The queued messages are the Up next tray, attached above the composer under the conversation so the list and
+the field read as one object: a 36 px header (Up next and the count, "One at a time, after this turn"), then one 32 px
+row per message with a grip (drag, or Alt with the arrow keys), its number, the text on one line and, on hover or focus,
+Edit, Steer now and Delete; the first row is tagged Next. The row being sent is locked and says Sending. Editing opens
+the row in place with Save (`↩`) and Cancel (`Esc`). While the queue is paused the tray says why in its header and its
+rows dim: a permission request takes the amber attention fill and goes on by itself after the answer; a failed turn takes
+the danger ring and an interrupted turn the plain tray, both with Resume and Clear. A steer is one transcript row in the
+tool-row grammar on the accent-soft fill (icon, "Steered", the message, the time); one not yet landed reads "Steering
+at the next tool call" with a spinner and keeps clear of the turn's bottom edge.
+
 ## Copy tone
 
 Terse, imperative, no exclamation marks. Labels are as short as their meaning allows ("MacBook Pro offline", "Read
-only"); a disabled input says why in a few words ("Turn running", "Waiting for permission"); errors say what
+only"); a disabled input says why in a few words ("Starting Claude Code", "Reconnecting"); errors say what
 happened and what to do. English is the source; `zh-Hans` is the first translation (`web/src/i18n/`).
 
 ## Accessibility

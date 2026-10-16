@@ -22,7 +22,15 @@ import {
 import { Markdown } from './markdown.tsx';
 import { linesOf, OutputWell } from './OutputWell.tsx';
 import { PlanCard, PlanResolved, type PlanView } from './plan-card.tsx';
-import { ActCells, EditActivity, Meta, NoteActivity, RowView, ToolActivity } from './rows.tsx';
+import {
+  ActCells,
+  EditActivity,
+  Meta,
+  NoteActivity,
+  RowView,
+  SteerActivity,
+  ToolActivity,
+} from './rows.tsx';
 import { toolRefOf } from './tools.ts';
 import { editDiff, type Turn, toolArgOf } from './turns.ts';
 
@@ -262,6 +270,8 @@ export function LiveTurnView(props: {
   deviceName: string;
   /** What a development fixture opens the plan card with. */
   planView?: PlanView | undefined;
+  /** Messages steered into this turn that the model has not taken in yet. */
+  steering?: { text: string; taken?: boolean }[];
 }) {
   const { turn, base, state, now, frozen } = props;
   const failed = turn.phase === 'failed';
@@ -357,6 +367,17 @@ export function LiveTurnView(props: {
             )
           }
         />
+        {live
+          ? (props.steering ?? []).map((steer, i) => (
+              <SteerActivity
+                // biome-ignore lint/suspicious/noArrayIndexKey: steers are an append-only list
+                key={i}
+                text={steer.text}
+                pending={!steer.taken}
+                testid={steer.taken ? 'cockpit.steer-taken' : 'cockpit.steer-pending'}
+              />
+            ))
+          : null}
         {failed ? (
           <div role="alert" data-testid="cockpit.live-error">
             <OutputWell solo error lines={linesOf(turn.error ?? t('Failed'))} label={t('Error')} />

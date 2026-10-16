@@ -18,6 +18,9 @@ export type CodeFont = (typeof CODE_FONTS)[number];
 export const SIZES = ['small', 'default', 'large'] as const;
 export type Size = (typeof SIZES)[number];
 
+export const SEND_MODES = ['queue', 'steer'] as const;
+export type SendMode = (typeof SEND_MODES)[number];
+
 export type Appearance = {
   scheme: Scheme;
   /** `null` follows the browser's language. */
@@ -29,6 +32,8 @@ export type Appearance = {
   wide: boolean;
   /** Ligatures in code and tool output. */
   ligatures: boolean;
+  /** What Enter does while a turn runs: queue the message for after the turn, or steer it into the turn. */
+  sendMode: SendMode;
 };
 
 export const DEFAULTS: Appearance = {
@@ -39,6 +44,7 @@ export const DEFAULTS: Appearance = {
   size: 'default',
   wide: false,
   ligatures: true,
+  sendMode: 'queue',
 };
 
 const SYSTEM_UI = '-apple-system, system-ui, "PingFang SC", sans-serif';
@@ -124,6 +130,7 @@ export function loadAppearance(store: Store | null = storage()): Appearance {
       size: oneOf(SIZES, o.size, DEFAULTS.size),
       wide: typeof o.wide === 'boolean' ? o.wide : DEFAULTS.wide,
       ligatures: typeof o.ligatures === 'boolean' ? o.ligatures : DEFAULTS.ligatures,
+      sendMode: oneOf(SEND_MODES, o.sendMode, DEFAULTS.sendMode),
     };
   } catch {
     return { ...DEFAULTS };

@@ -3,7 +3,14 @@
 import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import type { Command, SessionMeta, SnapshotChanges } from '@hoplet/shared';
+import type {
+  Command,
+  Queue,
+  QueueItem,
+  QueuePause,
+  SessionMeta,
+  SnapshotChanges,
+} from '@hoplet/shared';
 import { migrate } from '../migrations/index.ts';
 import {
   type AppendInput,
@@ -19,12 +26,14 @@ import {
 import * as commands from './commands.ts';
 import * as devices from './devices.ts';
 import type { StoreContext } from './layout.ts';
+import * as queue from './queue.ts';
 import { recoverOnStart } from './recovery.ts';
 import { type RawGlobalSearchResult, type RawSearchResult, search, searchAll } from './search.ts';
 import * as sessions from './sessions.ts';
 import * as snapshotRead from './snapshot-read.ts';
 import * as snapshots from './snapshots.ts';
 
+export type { QueueOutcome } from './queue.ts';
 export type { SessionStateChange, SessionStateRecord } from './sessions.ts';
 export { type SnapshotDiffResult, SnapshotReadError } from './snapshot-read.ts';
 export { type SnapshotChunk, SnapshotError, type SnapshotRecord } from './snapshots.ts';
@@ -52,6 +61,7 @@ export class Store {
       migrate(db);
       recoverOnStart(this.ctx);
       snapshots.recoverSnapshots(this.ctx);
+      queue.recoverQueues(this.ctx);
     } catch (err) {
       db.close();
       throw err;
@@ -70,6 +80,61 @@ export class Store {
 
   directoryCommands(deviceId: string, cwd: string): Command[] | null {
     return commands.directoryCommands(this.ctx, deviceId, cwd);
+  }
+
+  /** The queue of messages held for a session (ADR 0020). */
+  queueOf(sessionId: string): Queue {
+    return queue.queueOf(this.ctx, sessionId);
+  }
+
+  queueAdd(sessionId: string, input: { id: string; text: string; attachments: string[] }) {
+    return queue.queueAdd(this.ctx, sessionId, input);
+  }
+
+  queueEdit(
+    sessionId: string,
+    id: string,
+    version: number,
+    input: { text: string; attachments: string[] },
+  ) {
+    return queue.queueEdit(this.ctx, sessionId, id, version, input);
+  }
+
+  queueRemove(sessionId: string, id: string, version: number) {
+    return queue.queueRemove(this.ctx, sessionId, id, version);
+  }
+
+  queueReorder(sessionId: string, ids: string[]) {
+    return queue.queueReorder(this.ctx, sessionId, ids);
+  }
+
+  /** The head, when nothing of the session is sending. */
+  queueNext(sessionId: string): QueueItem | null {
+    return queue.queueNext(this.ctx, sessionId);
+  }
+
+  queueClaim(sessionId: string, id: string, version: number) {
+    return queue.queueClaim(this.ctx, sessionId, id, version);
+  }
+
+  queueSettle(sessionId: string, id: string): void {
+    queue.queueSettle(this.ctx, sessionId, id);
+  }
+
+  queueRestore(sessionId: string, id: string): void {
+    queue.queueRestore(this.ctx, sessionId, id);
+  }
+
+  queueSetPause(sessionId: string, pause: QueuePause | null, error?: string): void {
+    queue.queueSetPause(this.ctx, sessionId, pause, error);
+  }
+
+  queueClear(sessionId: string): void {
+    queue.queueClear(this.ctx, sessionId);
+  }
+
+  sessionsWithQueue(): string[] {
+    return queue.sessionsWithQueue(this.ctx);
   }
 
   sessionCount(): number {
