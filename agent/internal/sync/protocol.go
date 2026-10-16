@@ -26,6 +26,7 @@ const (
 	TypeSessionResync            = "session.resync"
 	TypeSessionRejected          = "session.rejected"
 	TypeRuntimePrompt            = "runtime.prompt"
+	TypeRuntimeConfig            = "runtime.config"
 	TypeRuntimeStart             = "runtime.start"
 	TypeRuntimeStarted           = "runtime.started"
 	TypeRuntimeStartRejected     = "runtime.start.rejected"
@@ -217,8 +218,17 @@ type RuntimePrompt struct {
 	PromptID    string   `json:"promptId"`
 	Text        string   `json:"text"`
 	Attachments []string `json:"attachments,omitempty"`
-	// Options change the session's options from this turn on, as a new session's options are given.
-	Options *RuntimeStartOptions `json:"options,omitempty"`
+}
+
+// RuntimeConfig (core → device, control lane) sets one setting of a session (ADR 0018). Value is a string for
+// a select option and a bool for a boolean one. The agent reports the session's settings in its next
+// RuntimeState.
+type RuntimeConfig struct {
+	V         int    `json:"v"`
+	Type      string `json:"type"`
+	SessionID string `json:"sessionId"`
+	ConfigID  string `json:"configId"`
+	Value     any    `json:"value"`
 }
 
 // AttachmentPut (core → device, bulk) carries one chunk of an image for a coming prompt, as base64, at most
@@ -271,36 +281,49 @@ type RuntimeStop struct {
 
 // device → core:
 
-// RuntimeCapabilities is what a runtime driver declares it can do. Models lists the model IDs a new session
-// can choose from; it is empty (never null) when the driver cannot choose.
+// RuntimeCapabilities is what a runtime driver declares it can do. Config lists the settings of a session
+// (ADR 0018); it is empty (never null) when the driver has none.
 type RuntimeCapabilities struct {
-	Permissions bool     `json:"permissions"`
-	Interrupt   bool     `json:"interrupt"`
-	Thinking    bool     `json:"thinking"`
-	Fast        bool     `json:"fast"`
-	Models      []string `json:"models"`
-	Images      bool     `json:"images,omitempty"`
+	Permissions bool           `json:"permissions"`
+	Interrupt   bool           `json:"interrupt"`
+	Images      bool           `json:"images,omitempty"`
+	Config      []ConfigOption `json:"config"`
 }
 
-// RuntimeStartOptions are the options of a new session; each is set only when the driver declares it.
-type RuntimeStartOptions struct {
-	Model    string `json:"model,omitempty"`
-	Thinking *bool  `json:"thinking,omitempty"`
-	Fast     *bool  `json:"fast,omitempty"`
+// ConfigOption is one setting of a session, shaped as an ACP session config option. Type is "select" (Options
+// and a string CurrentValue) or "boolean" (a bool CurrentValue). In a provider's capabilities CurrentValue is
+// the default of a new session; in a session's RuntimeState it is that session's value.
+type ConfigOption struct {
+	Type         string        `json:"type"`
+	ID           string        `json:"id"`
+	Name         string        `json:"name"`
+	Description  string        `json:"description,omitempty"`
+	Category     string        `json:"category,omitempty"`
+	Options      []ConfigValue `json:"options,omitempty"`
+	CurrentValue any           `json:"currentValue"`
+}
+
+// ConfigValue is one value of a select option; Risk is "high" for a value clients should mark.
+type ConfigValue struct {
+	Value       string `json:"value"`
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+	Risk        string `json:"risk,omitempty"`
 }
 
 // RuntimeStart (core → device) starts a new session in ProjectPath, a watched project of the device. The
 // agent answers with RuntimeStarted or RuntimeStartRejected for the same RequestID.
 type RuntimeStart struct {
-	V           int                 `json:"v"`
-	Type        string              `json:"type"`
-	RequestID   string              `json:"requestId"`
-	ProjectPath string              `json:"projectPath"`
-	Provider    string              `json:"provider"`
-	Options     RuntimeStartOptions `json:"options"`
-	Text        string              `json:"text"`
-	Attachments []string            `json:"attachments,omitempty"`
-	PromptID    string              `json:"promptId"`
+	V           int    `json:"v"`
+	Type        string `json:"type"`
+	RequestID   string `json:"requestId"`
+	ProjectPath string `json:"projectPath"`
+	Provider    string `json:"provider"`
+	// Config holds the settings of the new session by option ID; an option left out keeps its default.
+	Config      map[string]any `json:"config,omitempty"`
+	Text        string         `json:"text"`
+	Attachments []string       `json:"attachments,omitempty"`
+	PromptID    string         `json:"promptId"`
 }
 
 // RuntimeStarted (device → core): the session is created, imported and syncs from now on.
@@ -319,15 +342,13 @@ type RuntimeStartRejected struct {
 }
 
 type RuntimeState struct {
-	V            int                 `json:"v"`
-	Type         string              `json:"type"`
-	SessionID    string              `json:"sessionId"`
-	State        string              `json:"state"` // external | idle | starting | ready | running | waiting-permission | failed
-	Error        string              `json:"error,omitempty"`
+	V         int    `json:"v"`
+	Type      string `json:"type"`
+	SessionID string `json:"sessionId"`
+	State     string `json:"state"` // external | idle | starting | ready | running | waiting-permission | failed
+	Error     string `json:"error,omitempty"`
+	// Capabilities.Config carries this session's values.
 	Capabilities RuntimeCapabilities `json:"capabilities"`
-	// Options are what the session's processes run with: the model (absent for the vendor's default),
-	// Thinking once a process started, and Fast.
-	Options *RuntimeStartOptions `json:"options,omitempty"`
 }
 
 type RuntimeOutput struct {

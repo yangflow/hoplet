@@ -50,17 +50,34 @@ function fieldsOf(entries: Entries): Fields {
   );
 }
 
+// A variant has no entries of its own: its fields are the union of its branches', and one a branch lacks is
+// optional, which is how Go's single struct says it.
+type Schema = { entries?: Entries; options?: Schema[] };
+
+function fieldsOfSchema(schema: Schema): Fields {
+  if (schema.entries) return fieldsOf(schema.entries);
+  const branches = (schema.options ?? []).map(fieldsOfSchema);
+  const out: Fields = {};
+  for (const branch of branches) {
+    for (const [name, field] of Object.entries(branch)) {
+      const missing = branches.some((b) => !(name in b));
+      out[name] = { optional: field.optional || missing || (out[name]?.optional ?? false) };
+    }
+  }
+  return out;
+}
+
 function describeShared(): Contract {
   const messages: Contract['messages'] = {};
   for (const [type, spec] of Object.entries(WIRE_MESSAGES)) {
     messages[type] = {
-      fields: fieldsOf(spec.schema.entries as Entries),
+      fields: fieldsOfSchema(spec.schema as Schema),
       webOnly: spec.direction === 'core-to-web' || spec.direction === 'web-to-core',
     };
   }
   const objects: Contract['objects'] = {};
   for (const [name, schema] of Object.entries(WIRE_OBJECTS)) {
-    objects[name] = fieldsOf(schema.entries as Entries);
+    objects[name] = fieldsOfSchema(schema as Schema);
   }
   return { version: PROTOCOL_VERSION, messages, objects, errorCodes: [...ERROR_CODES] };
 }
@@ -194,28 +211,38 @@ describe('wire contract', () => {
       requestId: { optional: false },
       projectPath: { optional: false },
       provider: { optional: false },
-      options: { optional: false },
+      config: { optional: true },
       text: { optional: false },
       attachments: { optional: true },
       promptId: { optional: false },
     });
     expect(go.types['attachment.put']).toBe('AttachmentPut');
     expect(go.structs.RuntimePrompt?.attachments).toEqual({ optional: true });
-    expect(go.structs.RuntimeStartOptions).toEqual({
-      model: { optional: true },
-      thinking: { optional: true },
-      fast: { optional: true },
+    expect(go.structs.RuntimeConfig).toEqual({
+      v: { optional: false },
+      type: { optional: false },
+      sessionId: { optional: false },
+      configId: { optional: false },
+      value: { optional: false },
+    });
+    expect(go.structs.ConfigOption).toEqual({
+      type: { optional: false },
+      id: { optional: false },
+      name: { optional: false },
+      description: { optional: true },
+      category: { optional: true },
+      options: { optional: true },
+      currentValue: { optional: false },
     });
     expect(go.structs.RuntimeCapabilities).toEqual({
       permissions: { optional: false },
       interrupt: { optional: false },
-      thinking: { optional: false },
-      fast: { optional: false },
-      models: { optional: false },
       images: { optional: true },
+      config: { optional: false },
     });
-    expect(go.structs.RuntimePrompt?.options).toEqual({ optional: true });
-    expect(go.structs.RuntimeState?.options).toEqual({ optional: true });
+    expect(go.structs.RuntimePrompt?.options).toBeUndefined();
+    expect(go.structs.RuntimeState?.options).toBeUndefined();
+    expect(shared.messages['runtime.config']).toMatchObject({ webOnly: false });
     expect(go.structs.DeviceHello?.providers).toEqual({ optional: true });
     expect(shared.messages['runtime.start']).toMatchObject({ webOnly: false });
     expect(go.version).toBe(PROTOCOL_VERSION);

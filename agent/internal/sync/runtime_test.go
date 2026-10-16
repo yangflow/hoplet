@@ -32,7 +32,7 @@ func TestSendWithoutAConnection(t *testing.T) {
 
 func TestRefusedPromptIsReportedWithItsReason(t *testing.T) {
 	c, cs, read := dialTestConn(t)
-	c.hooks.Runtime.Prompt = func(sessionID, text string, _ []string, _ *RuntimeStartOptions) error {
+	c.hooks.Runtime.Prompt = func(sessionID, text string, _ []string) error {
 		if sessionID != "s1" || text != "go" {
 			t.Fatalf("prompt = %q %q", sessionID, text)
 		}
@@ -47,7 +47,7 @@ func TestRefusedPromptIsReportedWithItsReason(t *testing.T) {
 
 func TestAcceptedPromptSendsNothing(t *testing.T) {
 	c, cs, read := dialTestConn(t)
-	c.hooks.Runtime.Prompt = func(string, string, []string, *RuntimeStartOptions) error { return nil }
+	c.hooks.Runtime.Prompt = func(string, string, []string) error { return nil }
 	c.handleRuntimePrompt(cs, promptMsg("s1", "p1", "go"))
 	// The next message the server sees is the one sent after it: the accepted prompt wrote none.
 	if err := c.writeMsg(cs, PingMsg{V: ProtocolVersion, Type: TypePingMsg}); err != nil {
@@ -88,6 +88,7 @@ func TestCoreCommandsReachTheHooks(t *testing.T) {
 				{"type": TypeRuntimePrompt, "sessionId": "s1", "promptId": "p1", "text": "hi"},
 				{"type": TypeRuntimePermissionAnswer, "sessionId": "s1", "requestId": "r1", "decision": "allow"},
 				{"type": TypeRuntimePermissionAnswer, "sessionId": "s1", "requestId": "r2", "decision": "deny"},
+				{"type": TypeRuntimeConfig, "sessionId": "s1", "configId": "fast", "value": true},
 				{"type": TypeRuntimeInterrupt, "sessionId": "s1"},
 				{"type": TypeRuntimeStop, "sessionId": "s1"},
 			} {
@@ -107,8 +108,13 @@ func TestCoreCommandsReachTheHooks(t *testing.T) {
 
 	var c *Client
 	hooks := Hooks{Runtime: RuntimeHooks{
-		Prompt: func(s, text string, _ []string, _ *RuntimeStartOptions) error {
+		Prompt: func(s, text string, _ []string) error {
 			record(call{kind: "prompt", session: s, id: text})
+			return nil
+		},
+		Config: func(s, id string, value any) error {
+			on, _ := value.(bool)
+			record(call{kind: "config", session: s, id: id, allow: on})
 			return nil
 		},
 		Answer: func(s, id string, allow bool) error {
@@ -142,7 +148,7 @@ func TestCoreCommandsReachTheHooks(t *testing.T) {
 		mu.Lock()
 		n := len(calls)
 		mu.Unlock()
-		if n == 5 {
+		if n == 6 {
 			break
 		}
 		select {
@@ -154,11 +160,12 @@ func TestCoreCommandsReachTheHooks(t *testing.T) {
 	mu.Lock()
 	defer mu.Unlock()
 	want := map[call]bool{
-		{kind: "prompt", session: "s1", id: "hi"}:               true,
-		{kind: "answer", session: "s1", id: "r1", allow: true}:  true,
-		{kind: "answer", session: "s1", id: "r2", allow: false}: true,
-		{kind: "interrupt", session: "s1"}:                      true,
-		{kind: "stop", session: "s1"}:                           true,
+		{kind: "prompt", session: "s1", id: "hi"}:                true,
+		{kind: "answer", session: "s1", id: "r1", allow: true}:   true,
+		{kind: "answer", session: "s1", id: "r2", allow: false}:  true,
+		{kind: "config", session: "s1", id: "fast", allow: true}: true,
+		{kind: "interrupt", session: "s1"}:                       true,
+		{kind: "stop", session: "s1"}:                            true,
 	}
 	for _, got := range calls {
 		if !want[got] {
@@ -176,15 +183,14 @@ func TestStartedSessionIsAnsweredAndReported(t *testing.T) {
 	var started string
 	c.hooks.Runtime.Start = func(_ context.Context, req RuntimeStart) (string, error) {
 		if req.ProjectPath != "/work/a" || req.Provider != "claude" || req.Text != "go" || req.PromptID != "p1" ||
-			req.Options.Model != "opus" || req.Options.Thinking == nil || *req.Options.Thinking ||
-			req.Options.Fast == nil || !*req.Options.Fast {
+			req.Config["model"] != "opus" || req.Config["thinking"] != false || req.Config["fast"] != true {
 			t.Fatalf("start = %+v", req)
 		}
 		return "new-1", nil
 	}
 	c.hooks.Runtime.Started = func(id string) { started = id }
 	c.handleRuntimeStart(cs, []byte(`{"v":2,"type":"runtime.start","requestId":"r1","projectPath":"/work/a",`+
-		`"provider":"claude","options":{"model":"opus","thinking":false,"fast":true},"text":"go","promptId":"p1"}`))
+		`"provider":"claude","config":{"model":"opus","thinking":false,"fast":true},"text":"go","promptId":"p1"}`))
 	msg := read()
 	if msg["type"] != TypeRuntimeStarted || msg["requestId"] != "r1" || msg["sessionId"] != "new-1" {
 		t.Fatalf("got %#v", msg)

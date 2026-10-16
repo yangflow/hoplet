@@ -14,7 +14,7 @@ import (
 func TestArgsAreTheDocumentedFlags(t *testing.T) {
 	got := strings.Join(New(Options{}).Args(runtime.StartSpec{SessionID: "abc"}), " ")
 	want := "-p --input-format stream-json --output-format stream-json --verbose --include-partial-messages " +
-		"--permission-prompt-tool stdio --resume abc"
+		"--permission-prompt-tool stdio --thinking enabled --resume abc"
 	if got != want {
 		t.Fatalf("args = %q", got)
 	}
@@ -22,16 +22,15 @@ func TestArgsAreTheDocumentedFlags(t *testing.T) {
 
 func TestModelOptionAddsTheModelFlag(t *testing.T) {
 	got := strings.Join(New(Options{Model: "haiku"}).Args(runtime.StartSpec{SessionID: "abc"}), " ")
-	if !strings.Contains(got, "--model haiku --resume abc") {
+	if !strings.Contains(got, "--model haiku --thinking enabled --resume abc") {
 		t.Fatalf("args = %q", got)
 	}
 }
 
-func TestNewSessionArgsCreateTheSessionAndApplyTheOptions(t *testing.T) {
-	on, off := true, false
+func TestNewSessionArgsCreateTheSessionAndApplyTheConfig(t *testing.T) {
 	spec := runtime.StartSpec{
 		SessionID: "abc", New: true,
-		Options: runtime.StartOptions{Model: "opus", Thinking: &on, Fast: true},
+		Config: map[string]any{"model": "opus", "thinking": true, "fast": true},
 	}
 	got := strings.Join(New(Options{Model: "haiku"}).Args(spec), " ")
 	want := "-p --input-format stream-json --output-format stream-json --verbose --include-partial-messages " +
@@ -43,30 +42,47 @@ func TestNewSessionArgsCreateTheSessionAndApplyTheOptions(t *testing.T) {
 	if strings.Contains(got, "--resume") {
 		t.Fatalf("a new session resumes nothing: %q", got)
 	}
-	spec.Options = runtime.StartOptions{Thinking: &off}
+	spec.Config = map[string]any{"model": "default", "thinking": false, "fast": false}
 	if got := strings.Join(New(Options{}).Args(spec), " "); !strings.Contains(got, "--thinking disabled --session-id abc") ||
 		strings.Contains(got, "--model") || strings.Contains(got, "--settings") {
 		t.Fatalf("args = %q", got)
 	}
 }
 
-func TestModelsAreTheDocumentedAliases(t *testing.T) {
-	got := New(Options{}).Models()
-	if strings.Join(got, ",") != "fable,opus,sonnet" {
-		t.Fatalf("models = %v", got)
+func TestConfigDeclaresModelThinkingAndFastInOrder(t *testing.T) {
+	cfg := New(Options{}).Config()
+	if len(cfg) != 3 {
+		t.Fatalf("config = %+v", cfg)
 	}
-	got[0] = "x" // a copy
-	if New(Options{}).Models()[0] != "fable" {
-		t.Fatal("Models returned its own slice")
+	model, thinking, fast := cfg[0], cfg[1], cfg[2]
+	if model.ID != "model" || model.Type != runtime.ConfigSelect || model.Category != "model" ||
+		model.Apply != runtime.ApplyNextTurn || model.Current != "default" {
+		t.Fatalf("model = %+v", model)
+	}
+	var values []string
+	for _, v := range model.Options {
+		values = append(values, v.Value)
+	}
+	if strings.Join(values, ",") != "default,fable,opus,sonnet" {
+		t.Fatalf("model values = %v", values)
+	}
+	if thinking.ID != "thinking" || thinking.Type != runtime.ConfigBoolean || thinking.Category != "thought_level" ||
+		thinking.Apply != runtime.ApplyRestart || thinking.Current != true {
+		t.Fatalf("thinking = %+v", thinking)
+	}
+	if fast.ID != "fast" || fast.Type != runtime.ConfigBoolean || fast.Category != "model_config" ||
+		fast.Apply != runtime.ApplyRestart || fast.Current != false {
+		t.Fatalf("fast = %+v", fast)
+	}
+	cfg[0].Options[0].Value = "x" // a copy
+	if New(Options{}).Config()[0].Options[0].Value != "default" {
+		t.Fatal("Config returned its own slice")
 	}
 }
 
 func TestCapabilities(t *testing.T) {
 	caps := New(Options{}).Capabilities()
-	want := []runtime.Capability{
-		runtime.CapPermissions, runtime.CapInterrupt, runtime.CapThinking, runtime.CapFast, runtime.CapModels,
-		runtime.CapImages,
-	}
+	want := []runtime.Capability{runtime.CapPermissions, runtime.CapInterrupt, runtime.CapImages}
 	if len(caps) != len(want) {
 		t.Fatalf("caps = %v", caps)
 	}

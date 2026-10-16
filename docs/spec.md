@@ -71,7 +71,7 @@ command palette: sessions whose title matches, line hits across sessions (select
 that line) and actions (New session, Settings). New session (⌘N, in the sidebar header and on each directory
 row) opens a draft: an empty conversation, shown as the selected row at the top of its directory, whose
 composer chooses the machine (online ones) and the project directory (the machine's watched projects, and Add
-project), with the provider and the options its runtime driver declares (model, thinking, fast); a directory
+project), with the provider and the config options its runtime driver declares ([ADR 0018](adr/0018-session-settings-are-config-options.md)); a directory
 row's button presets both, and ⌘N starts where the open session runs. The draft's first prompt starts the session, which then replaces the draft; a
 refused start keeps the draft and its text and says why. Selecting another session discards the draft. The sidebar foot shows whether this
 window is connected to the core and opens Settings. The sidebar folds away.
@@ -87,11 +87,11 @@ composer at the foot sends a prompt, typed or spoken; speech is transcribed on t
 no audio leaves them (#17). Its first row says where the session runs, machine / directory / git branch (for a
 session the branch its lines last recorded, for a draft the one checked out in the directory), read only once
 the session exists; its toolbar holds attach (when the driver declares `images`), the model menu, dictate
-and send. In a draft and in a session alike the menu holds the model with Thinking and Fast, as the
-driver declares them, and shows what the session runs with (Default for the vendor's own model; Thinking is
-on unless the session chose it off). What is picked goes with the next prompt as `options`, the way a new
-session's options do, and holds from that turn on: a running Claude Code process switches its model in
-place (`set_model`), and a change of Thinking or Fast restarts it between turns with the new options, which
+and send. In a draft and in a session alike the menu lists the config options the driver declares, in its order,
+as radio lists for a choice and switches for a yes or no, and shows each option's current value. In a
+session a pick is sent at once (`POST /api/sessions/:id/config`) and holds from the next turn on: the driver says
+how it applies, and a running Claude Code process switches its model in place (`set_model`, before the next
+turn) while a change of Thinking or Fast restarts it between turns with the session's values, which
 shows as `starting`. The text grows to 8 lines, then scrolls; dragging the composer's top edge sets a height the
 browser remembers, at most what leaves the conversation 240 px, and a double-click on the edge resets it.
 When the session's driver declares `images`, images pasted, dropped or attached go with the prompt: each is
@@ -120,8 +120,7 @@ a state of the session appears under the composer when it blocks or changes what
 | `failed` | Start or the last turn failed; the error is named where the state is shown | turn or composer | Send (retries) |
 
 A permission request shows the tool name and its input (elided above 8 KiB like any block). A control appears
-only when the session's runtime driver declares its capability (`permissions`, `interrupt`, `thinking`,
-`fast`, `models`, `images`).
+only when the session's runtime driver declares its capability (`permissions`, `interrupt`, `images`); its settings are the config options it declares.
 
 ### Workspace inspector
 
@@ -330,20 +329,20 @@ when it reconnects, it reports the state of every process it still runs.
 
 ### New session
 
-`POST /api/sessions` with `{ deviceId, projectPath, provider, options, text, promptId }`, where `options` holds
-only what the provider's runtime driver declares: `model` (one of the driver's `models`), `thinking` (boolean,
-needs the `thinking` capability) and `fast` (boolean, needs `fast`). A browser reads the capabilities before any
+`POST /api/sessions` with `{ deviceId, projectPath, provider, config, text, promptId }`, where `config` maps
+option IDs to values and holds only options the provider's runtime driver declares, with a value it declares
+(a `select`'s value, a `boolean`'s true or false); an option left out has the driver's default. A browser reads the capabilities before any
 session exists from `providers` in `GET /api/devices`, which the agent announces in `device.hello`. Each provider also carries the
 installed vendor `version` and `tested`, false when that version is newer than the tested ones (older ones are
 refused and carry neither).
 
 The core refuses with `target-offline` when the device is not connected, with `invalid-request` when the body
-is malformed, the device announced no such provider, an option is not declared (`reason` names the option) or
+is malformed, the device announced no such provider, a config option or value is not declared (`reason: config`) or
 `projectPath` is not one of the device's watched projects (`reason: projectPath`), with `invalid-request` and
 `reason: images` for `attachments` when the provider's driver does not declare images, and with `too-large` for
 a prompt over 8,000 characters. Otherwise it forwards `runtime.start` to the device on the control lane. The
 agent checks the same again, starts Claude Code in that directory with streaming input and output and no
-session to resume (`--session-id` with a new ID, `--model`, `--thinking enabled|disabled` and, for `fast`, the
+session to resume (`--session-id` with a new ID and the config as flags: `--model`, `--thinking enabled|disabled` and, for `fast`, the
 setting `fastMode` of that one process), writes the prompt, waits until Claude Code has created the session
 file, adds the session to `imported` in `projects.json`, and answers `runtime.started` with the session ID. If
 Claude Code exits or does not create the file within 60 seconds, the agent stops the process and answers

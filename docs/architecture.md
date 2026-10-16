@@ -122,9 +122,18 @@ provider and mapping are built with the first ACP vendor.
 
 ### A runtime capability
 
-A new control (for example a model switch) is a `runtime.*` message, a capability name, an implementation in
-each runtime driver that supports it, and a control shown with the runtime state when the capability is
-declared. Drivers and vendor versions without it do not declare it.
+A new control is a `runtime.*` message, a capability name, an implementation in each runtime driver that
+supports it, and a control shown with the runtime state when the capability is declared. Drivers and vendor
+versions without it do not declare it.
+
+### A session setting
+
+A setting (the model, Thinking, Fast) is a config option in the driver's `Config()`, shaped as ACP's
+(`select` or `boolean`, [ADR 0018](adr/0018-session-settings-are-config-options.md)): the driver gives each
+option an `id`, a `category`, a default and when a change applies (at once, before the next turn, or by restart).
+Nothing else changes: `device.hello` announces it in `capabilities.config`, `runtime.start` carries values in
+`config`, `runtime.config` sets one on a session (`POST /api/sessions/:id/config`), the agent reports the
+session's values in the `capabilities.config` of `runtime.state`, and the web UI renders the list generically.
 
 ### A storage migration
 
@@ -170,7 +179,7 @@ agent reports `runtime.state` for every process it runs → control rebuilds run
 the cursors.
 
 **A session starts.** `POST /api/sessions` → control checks the announced capabilities and the device's watched
-projects (`device.projects.list`) → `runtime.start` on the control lane → the agent starts Claude Code with a new
+projects (`device.projects.list`) → `runtime.start` (with the `config` values) on the control lane → the agent starts Claude Code with a new
 session ID, writes the prompt, waits for the session file, imports the session into `projects.json` →
 `runtime.started` → the response carries the session ID → the agent reports `runtime.state` again, the next
 scan syncs the file and the session joins the index.

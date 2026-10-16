@@ -1,5 +1,6 @@
 import type {
   ClientMessage,
+  ConfigSetting,
   DeviceDirsResult,
   DeviceInfo,
   DeviceProject,
@@ -10,8 +11,8 @@ import type {
   RuntimeCapabilities,
   RuntimeState,
   ServerMessage,
+  SessionConfig,
   SessionPermission,
-  StartOptions,
   WorkspaceDiff,
   WorkspaceFile,
   WorkspaceListing,
@@ -37,7 +38,7 @@ export interface StartRequest {
   deviceId: string;
   projectPath: string;
   provider: Provider;
-  options: StartOptions;
+  config?: SessionConfig | undefined;
   text: string;
   attachments?: string[] | undefined;
   promptId: string;
@@ -70,14 +71,13 @@ export type PromptOutcome =
 export interface RuntimeView {
   state: RuntimeState;
   error?: string;
+  /** `capabilities.config` carries the session's values, as the owner reported. */
   capabilities?: RuntimeCapabilities;
-  /** What the session's processes run with, as the owner reported. */
-  options?: StartOptions;
 }
 
 export type RuntimeCommandOutcome =
   | { ok: true }
-  | { ok: false; error: 'owner-offline' | 'not-running' };
+  | { ok: false; error: 'owner-offline' | 'not-running' | 'external' };
 
 export type PermissionOutcome =
   | { ok: true }
@@ -195,7 +195,6 @@ export interface Control {
     text: string,
     promptId: string,
     attachments?: string[],
-    options?: StartOptions,
   ): Promise<PromptOutcome>;
   /** Answers an open permission request; the first answer wins. */
   answerPermission(
@@ -206,6 +205,13 @@ export interface Control {
   ): PermissionOutcome;
   interrupt(sessionId: string, ownerDeviceId: string): RuntimeCommandOutcome;
   stop(sessionId: string, ownerDeviceId: string): RuntimeCommandOutcome;
+  /** Forwards one setting change (ADR 0018); the caller has checked it against the session's capabilities. */
+  config(
+    sessionId: string,
+    ownerDeviceId: string,
+    configId: string,
+    value: ConfigSetting,
+  ): RuntimeCommandOutcome;
   /** The runtime state of a session; `offline` when its owner is not connected. */
   runtimeOf(sessionId: string): RuntimeView;
   /** The vendor of a session, also of one an agent just started; `null` for an unknown session. */

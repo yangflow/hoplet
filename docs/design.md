@@ -128,7 +128,7 @@ path opens the file's full diff in the inspector. Three or more consecutive rows
 into one row naming their verbs; expanded thinking is dim italic UI type. The composer floats at the foot of the column: a
 first row ruled off from the field that says where the session runs (machine / directory / git branch as quiet
 chips, pickers with a chevron only in a draft), the field, and a toolbar with attach (only for a driver that takes images), a model button (the model's
-name and the Thinking glyph, opening model, Thinking and Fast, in a draft and a session alike), voice and send, and a status line only for
+name and the Thinking glyph, opening the driver's config options as radio lists and switches, in a draft and a session alike), voice and send, and a status line only for
 session states that block or change what the user can do. A grip on its top edge sets its height; pasted,
 dropped and attached images sit above the text as 64 px thumbnails on the checkerboard, each with a round remove
 button on its corner, dimmed under a spinner while it uploads and outlined in danger when the upload failed. Workspace paths carry a file-type glyph; code in diffs and files is highlighted with the

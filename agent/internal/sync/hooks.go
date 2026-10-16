@@ -7,10 +7,13 @@ import "context"
 type RuntimeHooks struct {
 	// Prompt accepts a prompt and the uploaded images it names or refuses it; the error text is the reason
 	// sent as runtime.rejected.
-	Prompt    func(sessionID, text string, attachments []string, options *RuntimeStartOptions) error
+	Prompt    func(sessionID, text string, attachments []string) error
 	Answer    func(sessionID, requestID string, allow bool) error
 	Interrupt func(sessionID string) error
-	Stop      func(sessionID string)
+	// Config sets one setting of a session (ADR 0018); value is a string or a bool. The agent reports the
+	// session's settings in its next runtime.state.
+	Config func(sessionID, configID string, value any) error
+	Stop   func(sessionID string)
 	// Start creates a session as RuntimeStart asks and returns its ID once the session file exists and is
 	// imported, or the reason it could not. The error text is sent as runtime.start.rejected.
 	Start func(ctx context.Context, req RuntimeStart) (sessionID string, err error)

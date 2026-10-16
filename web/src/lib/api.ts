@@ -1,5 +1,6 @@
 import {
   AttachmentResultSchema,
+  type ConfigSetting,
   DeviceCloneResultSchema,
   DeviceDirsResultSchema,
   DeviceListResponseSchema,
@@ -18,10 +19,10 @@ import {
   PromptResultSchema,
   type ProviderInfo,
   RuntimeCommandResultSchema,
+  type SessionConfig,
   SessionListResponseSchema,
   SnapshotChangesSchema,
   SnapshotDiffSchema,
-  type StartOptions,
   safeParse,
   WorkspaceDiffSchema,
   WorkspaceFileSchema,
@@ -203,14 +204,20 @@ export function postPrompt(
   sessionId: string,
   text: string,
   attachments: string[] = [],
-  options?: StartOptions,
   promptId: string = crypto.randomUUID(),
 ) {
   return call(`/api/sessions/${sessionId}/prompt`, PromptResultSchema, {
     text,
     promptId,
     ...(attachments.length > 0 ? { attachments } : {}),
-    ...(options ? { options } : {}),
+  });
+}
+
+/** Sets one config option of a session; the next runtime state reports it (ADR 0018). */
+export function postConfig(sessionId: string, configId: string, value: ConfigSetting) {
+  return call(`/api/sessions/${sessionId}/config`, RuntimeCommandResultSchema, {
+    configId,
+    value,
   });
 }
 
@@ -244,7 +251,7 @@ export function postNewSession(request: {
   deviceId: string;
   projectPath: string;
   provider: ProviderInfo['provider'];
-  options: StartOptions;
+  config: SessionConfig;
   text: string;
   attachments?: string[];
   promptId?: string;

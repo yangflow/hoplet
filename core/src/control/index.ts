@@ -125,6 +125,7 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
     answerPermission: runtime.answerPermission,
     interrupt: runtime.interrupt,
     stop: runtime.stop,
+    config: runtime.config,
     runtimeOf: runtime.runtimeOf,
     providerOf(sessionId) {
       return (

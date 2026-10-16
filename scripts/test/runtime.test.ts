@@ -201,9 +201,11 @@ describe('remote control against a scripted Claude Code', () => {
       capabilities: {
         permissions: true,
         interrupt: true,
-        thinking: true,
-        fast: true,
-        models: ['fable', 'opus', 'sonnet'],
+        config: [
+          { id: 'model', currentValue: 'default' },
+          { id: 'thinking', currentValue: true },
+          { id: 'fast', currentValue: false },
+        ],
       },
     });
 

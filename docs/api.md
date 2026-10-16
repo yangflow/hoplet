@@ -70,6 +70,7 @@ Response column names the schema of the success body and its status when it is n
 | GET | `/api/sessions/:sessionId/search` | host | bulk | `SessionSearchQuerySchema` | — | `SearchResultSchema` | `invalid-request`, `session-not-found`, `busy` |
 | GET | `/api/search` | host | bulk | `GlobalSearchQuerySchema` | — | `GlobalSearchResultSchema` | `invalid-request`, `busy` |
 | POST | `/api/sessions/:sessionId/prompt` | host | control | — | `PromptRequestSchema` | `PromptResultSchema`, 202 | `invalid-json`, `invalid-request`, `too-large`, `session-not-found`, `owner-offline`, `external`, `starting`, `busy`, `timeout`, `rejected` |
+| POST | `/api/sessions/:sessionId/config` | host | control | — | `ConfigRequestSchema` | `RuntimeCommandResultSchema` | `invalid-json`, `invalid-request`, `too-large`, `session-not-found`, `owner-offline`, `external` |
 | POST | `/api/sessions/:sessionId/permission` | host | control | — | `PermissionRequestSchema` | `RuntimeCommandResultSchema` | `invalid-json`, `invalid-request`, `too-large`, `session-not-found`, `owner-offline`, `request-closed` |
 | POST | `/api/sessions/:sessionId/interrupt` | host | control | — | — | `RuntimeCommandResultSchema` | `session-not-found`, `owner-offline`, `not-running` |
 | POST | `/api/sessions/:sessionId/stop` | host | control | — | — | `RuntimeCommandResultSchema` | `session-not-found`, `owner-offline`, `not-running` |
@@ -100,10 +101,13 @@ Behavior a client relies on:
   the driver must declare `images` (`invalid-request` with `reason: images` otherwise). The agent refuses the
   prompt with `attachment-missing` when an ID is unknown or older than an hour, and with `invalid-image` when the
   images are more than 8 MiB together.
-- `POST /api/sessions/:sessionId/prompt` takes optional `options` (`model`, `thinking`, `fast`), checked as a
-  new session's are (`invalid-request` with `reason` naming the option the driver does not declare); they hold
-  from that turn on. The runtime state (`GET /api/sessions`, `session.runtime`) reports what the session runs
-  with as `options`, the model absent while it runs on the vendor's default.
+- A session's settings are config options (ADR 0018): the driver declares them in `capabilities.config` (ACP's
+  shape: `select` or `boolean`, `id`, `name`, `category`, `currentValue`). `POST /api/sessions` takes optional
+  `config`, option ID to value, for the options it sets; `POST /api/sessions/:sessionId/config` takes one
+  `{configId, value}` and answers `200` once the owner has it. A setting or value the driver does not declare is
+  `invalid-request` with `reason: config`. The runtime state (`GET /api/sessions`, `session.runtime`) reports the
+  session's values as `capabilities.config[].currentValue`; the capabilities in `device.hello` carry the defaults
+  of a new session. A prompt carries no settings.
 - `POST /api/devices/:deviceId/attachments` uploads one image (`mediaType`, base64 `data`; a body of at most
   6 MiB) on the bulk lane: PNG, JPEG, GIF or WebP of at most 4 MiB (`too-large` beyond) whose first bytes are
   the declared type, for a connected device with a provider that declares `images` (`invalid-request` with

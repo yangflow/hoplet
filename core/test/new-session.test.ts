@@ -12,13 +12,29 @@ import { attachIngest } from '../src/ingest/index.ts';
 import { Store } from '../src/store/index.ts';
 
 const HOST = 'host-token-0123456789abcdef';
-const CAPS = {
-  permissions: true,
-  interrupt: true,
-  thinking: true,
-  fast: true,
-  models: ['opus', 'sonnet'],
-};
+const CONFIG = [
+  {
+    type: 'select',
+    id: 'model',
+    name: 'Model',
+    category: 'model',
+    currentValue: 'default',
+    options: [
+      { value: 'default', name: 'Default model' },
+      { value: 'opus', name: 'opus' },
+      { value: 'sonnet', name: 'sonnet' },
+    ],
+  },
+  {
+    type: 'boolean',
+    id: 'thinking',
+    name: 'Thinking',
+    category: 'thought_level',
+    currentValue: true,
+  },
+  { type: 'boolean', id: 'fast', name: 'Fast', category: 'model_config', currentValue: false },
+];
+const CAPS = { permissions: true, interrupt: true, config: CONFIG };
 const PROVIDERS = [{ provider: 'claude', capabilities: CAPS }];
 const PROJECT = '/work/app';
 const NEW_ID = '3b1f1b0e-3c1a-4d6e-9a53-0c6f0f3f2a11';
@@ -132,7 +148,7 @@ const request = (over: Msg = {}) => ({
   deviceId: 'dev-a',
   projectPath: PROJECT,
   provider: 'claude',
-  options: {},
+  config: {},
   text: 'build the thing',
   promptId: 'n1',
   ...over,
@@ -199,8 +215,8 @@ describe('POST /api/sessions', () => {
       { ...request(), text: '   ' },
       { ...request(), promptId: '' },
       { ...request(), provider: 'codex' },
-      { ...request(), options: { thinking: 'yes' } },
-      { ...request(), options: { model: '' } },
+      { ...request(), config: 'x' },
+      { ...request(), config: { thinking: 1 } },
       { deviceId: 'dev-a' },
     ]) {
       expect(await post('/api/sessions', bad), JSON.stringify(bad)).toEqual({
@@ -221,7 +237,7 @@ describe('POST /api/sessions', () => {
     });
   });
 
-  it('refuses a path that is not a watched project and options the device did not declare', async () => {
+  it('refuses a path that is not a watched project and config the device did not declare', async () => {
     const { post, agent } = await boot();
     const owner = await agent('dev-a');
     owner.listProjects();
@@ -230,30 +246,31 @@ describe('POST /api/sessions', () => {
       body: { code: 'invalid-request', promptId: 'n1', reason: 'projectPath' },
     });
     expect(
-      await post('/api/sessions', request({ options: { model: 'gpt-9' }, promptId: 'n2' })),
+      await post('/api/sessions', request({ config: { model: 'gpt-9' }, promptId: 'n2' })),
     ).toEqual({
       status: 400,
-      body: { code: 'invalid-request', promptId: 'n2', reason: 'model' },
+      body: { code: 'invalid-request', promptId: 'n2', reason: 'config' },
     });
+    expect(
+      await post('/api/sessions', request({ config: { mode: 'plan' }, promptId: 'n3' })),
+    ).toMatchObject({ status: 400, body: { reason: 'config' } });
 
-    // A device whose driver declares nothing accepts no option.
+    // A device whose driver declares nothing accepts no config.
     const bare = await agent('dev-b', [
       {
         provider: 'claude',
         capabilities: {
           permissions: true,
           interrupt: true,
-          thinking: false,
-          fast: false,
-          models: [],
+          config: [],
         },
       },
     ]);
     bare.listProjects();
-    for (const [i, options] of [{ thinking: true }, { fast: false }].entries()) {
+    for (const [i, config] of [{ thinking: true }, { fast: false }].entries()) {
       const res = await post(
         '/api/sessions',
-        request({ deviceId: 'dev-b', options, promptId: `b${i}` }),
+        request({ deviceId: 'dev-b', config, promptId: `b${i}` }),
       );
       expect(res.status).toBe(400);
       expect(res.body).toMatchObject({ code: 'invalid-request' });
@@ -274,14 +291,14 @@ describe('POST /api/sessions', () => {
     const { post, get, agent, store, control } = await boot();
     const owner = await agent('dev-a');
     owner.listProjects(['/other', `${PROJECT}/`]);
-    const options = { model: 'opus', thinking: false, fast: true };
-    const pending = post('/api/sessions', request({ options }));
+    const config = { model: 'opus', thinking: false, fast: true };
+    const pending = post('/api/sessions', request({ config }));
     const start = await owner.waitFor((m) => m.type === 'runtime.start', 'runtime.start');
     expect(start).toMatchObject({
       v: PROTOCOL_VERSION,
       projectPath: `${PROJECT}/`,
       provider: 'claude',
-      options,
+      config,
       text: 'build the thing',
       promptId: 'n1',
     });
@@ -560,7 +577,7 @@ describe('images for a prompt (ADR 0017)', () => {
   });
 });
 
-describe('the options of a session', () => {
+describe('the config of a session', () => {
   async function owned(providers: unknown[] = PROVIDERS) {
     const env = await boot();
     const owner = await env.agent('dev-a', providers);
@@ -569,38 +586,88 @@ describe('the options of a session', () => {
     ]);
     return { ...env, owner };
   }
-  const prompt = (options: unknown) => ({ text: 'x', promptId: 'p1', options });
+  const change = (configId: string, value: unknown) => ({ configId, value });
 
-  it('go with a prompt as a new session gives them, and come back with the state', async () => {
+  it('is changed with one message, and comes back with the state', async () => {
     const { post, get, owner } = await owned();
-    const options = { model: 'sonnet', thinking: false };
-    const pending = post('/api/sessions/s1/prompt', prompt(options));
-    const forwarded = await owner.waitFor((m) => m.type === 'runtime.prompt', 'runtime.prompt');
-    expect(forwarded).toMatchObject({ sessionId: 's1', options });
-    const now = { model: 'sonnet', thinking: false, fast: false };
+    expect(await post('/api/sessions/s1/config', change('model', 'sonnet'))).toEqual({
+      status: 200,
+      body: { ok: true },
+    });
+    const forwarded = await owner.waitFor((m) => m.type === 'runtime.config', 'runtime.config');
+    expect(forwarded).toMatchObject({ sessionId: 's1', configId: 'model', value: 'sonnet' });
+    expect(await post('/api/sessions/s1/config', change('thinking', false))).toMatchObject({
+      status: 200,
+    });
+    expect(owner.ofType('runtime.config')).toHaveLength(2);
+
+    const now = CONFIG.map((o) => (o.id === 'model' ? { ...o, currentValue: 'sonnet' } : o));
     owner.send({
       type: 'runtime.state',
       sessionId: 's1',
-      state: 'starting',
-      capabilities: CAPS,
-      options: now,
+      state: 'ready',
+      capabilities: { ...CAPS, config: now },
     });
-    expect((await pending).status).toBe(202);
-    expect((await get('/api/sessions/s1')).body.runtime).toMatchObject({ options: now });
+    for (let i = 0; i < 50; i++) {
+      const rt = (await get('/api/sessions/s1')).body.runtime as { capabilities?: unknown };
+      if (rt?.capabilities && JSON.stringify(rt.capabilities).includes('"sonnet"')) break;
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    const runtime = (await get('/api/sessions/s1')).body.runtime as {
+      capabilities: { config: { id: string; currentValue: unknown }[] };
+      options?: unknown;
+    };
+    expect(runtime.capabilities.config.find((o) => o.id === 'model')?.currentValue).toBe('sonnet');
+    expect(runtime.options).toBeUndefined();
   });
 
-  it('are refused as a new session refuses them: only what the driver declares', async () => {
-    const { post, owner } = await owned([
-      { provider: 'claude', capabilities: { ...CAPS, fast: false } },
+  it('is refused when the driver does not declare the option or the value', async () => {
+    const { post, owner } = await owned();
+    for (const bad of [
+      change('model', 'gpt-9'),
+      change('model', true),
+      change('thinking', 'yes'),
+      change('mode', 'plan'),
+    ]) {
+      expect(await post('/api/sessions/s1/config', bad), JSON.stringify(bad)).toMatchObject({
+        status: 400,
+        body: { code: 'invalid-request', reason: 'config' },
+      });
+    }
+    expect(await post('/api/sessions/s1/config', { configId: '', value: 'x' })).toMatchObject({
+      status: 400,
+      body: { code: 'invalid-request' },
+    });
+    expect(owner.ofType('runtime.config')).toEqual([]);
+  });
+
+  it('is refused for an offline owner and for an external session', async () => {
+    const { post, owner } = await owned();
+    owner.send({ type: 'runtime.state', sessionId: 's1', state: 'external', capabilities: CAPS });
+    await new Promise((r) => setTimeout(r, 100));
+    expect((await post('/api/sessions/s1/config', change('fast', true))).status).toBeGreaterThan(
+      399,
+    );
+    expect(owner.ofType('runtime.config')).toEqual([]);
+
+    const { post: post2 } = await boot();
+    expect(await post2('/api/sessions/nope/config', change('fast', true))).toMatchObject({
+      status: 404,
+    });
+  });
+});
+
+describe('a prompt', () => {
+  it('carries no options', async () => {
+    const env = await boot();
+    const owner = await env.agent('dev-a', PROVIDERS);
+    env.store.append({ sessionId: 's1', projectDir: 'p', filePath: '/s1', deviceId: 'dev-a' }, [
+      '{"type":"user"}',
     ]);
-    expect(await post('/api/sessions/s1/prompt', prompt({ model: 'gpt-9' }))).toMatchObject({
-      status: 400,
-      body: { reason: 'model' },
-    });
-    expect(await post('/api/sessions/s1/prompt', prompt({ fast: true }))).toMatchObject({
-      status: 400,
-      body: { reason: 'fast' },
-    });
-    expect(owner.ofType('runtime.prompt')).toEqual([]);
+    const pending = env.post('/api/sessions/s1/prompt', { text: 'x', promptId: 'p1' });
+    const forwarded = await owner.waitFor((m) => m.type === 'runtime.prompt', 'runtime.prompt');
+    expect(forwarded.options).toBeUndefined();
+    owner.send({ type: 'runtime.state', sessionId: 's1', state: 'starting', capabilities: CAPS });
+    expect((await pending).status).toBe(202);
   });
 });

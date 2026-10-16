@@ -83,14 +83,39 @@ function fixtureSessions(macbookOnline: boolean): LiveSessionMeta[] {
   ];
 }
 
-const capabilities: RuntimeCapabilities = {
-  permissions: true,
-  interrupt: true,
-  thinking: true,
-  fast: true,
-  models: ['opus-5.5', 'sonnet-5.5', 'haiku-5'],
-  images: true,
-};
+/** What a driver declares: a model, Thinking and Fast, with the model `model` (the default until a session picks). */
+function capabilitiesOn(model = 'default'): RuntimeCapabilities {
+  return {
+    permissions: true,
+    interrupt: true,
+    images: true,
+    config: [
+      {
+        type: 'select',
+        id: 'model',
+        name: 'Model',
+        category: 'model',
+        currentValue: model,
+        options: [
+          { value: 'default', name: 'Default model' },
+          { value: 'opus-5.5', name: 'opus-5.5' },
+          { value: 'sonnet-5.5', name: 'sonnet-5.5' },
+          { value: 'haiku-5', name: 'haiku-5' },
+        ],
+      },
+      {
+        type: 'boolean',
+        id: 'thinking',
+        name: 'Thinking',
+        category: 'thought_level',
+        currentValue: true,
+      },
+      { type: 'boolean', id: 'fast', name: 'Fast', category: 'model_config', currentValue: false },
+    ],
+  };
+}
+
+const capabilities = capabilitiesOn();
 
 /** Two pasted images: a 48 px app tile and a screenshot. */
 const COMPOSE_IMAGES = [
@@ -692,8 +717,7 @@ export const states: Record<string, () => ReactNode> = {
       variant={{
         runtime: {
           state: 'ready',
-          capabilities,
-          options: { model: 'opus-5.5', thinking: true, fast: false },
+          capabilities: capabilitiesOn('opus-5.5'),
         },
         conversation: {
           composerText: 'Use the smaller model for the docs pass',

@@ -184,9 +184,7 @@ describe('POST /api/sessions/:id/prompt', () => {
         capabilities: {
           permissions: true,
           interrupt: true,
-          thinking: true,
-          fast: false,
-          models: [],
+          config: [],
         },
       }),
     );

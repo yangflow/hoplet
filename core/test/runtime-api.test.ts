@@ -13,7 +13,10 @@ import { attachIngest } from '../src/ingest/index.ts';
 import { Store } from '../src/store/index.ts';
 
 const HOST = 'host-token-0123456789abcdef';
-const CAPS = { permissions: true, interrupt: true, thinking: true, fast: false, models: [] };
+const CONFIG = [
+  { type: 'boolean', id: 'fast', name: 'Fast', category: 'model_config', currentValue: false },
+];
+const CAPS = { permissions: true, interrupt: true, config: CONFIG };
 
 const dirs: string[] = [];
 const servers: Server[] = [];

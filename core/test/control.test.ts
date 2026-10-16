@@ -31,7 +31,7 @@ function agentState(sessionId: string, state: string, error?: string) {
     sessionId,
     state,
     ...(error === undefined ? {} : { error }),
-    capabilities: { permissions: true, interrupt: true, thinking: true, fast: false, models: [] },
+    capabilities: { permissions: true, interrupt: true, config: [] },
   } as ControlReply;
 }
 
@@ -199,7 +199,7 @@ describe('the route table around the handlers', () => {
 });
 
 describe('remote control state', () => {
-  const caps = { permissions: true, interrupt: true, thinking: true, fast: false, models: [] };
+  const caps = { permissions: true, interrupt: true, config: [] };
 
   function runtimeSetup(now?: () => number) {
     const { store, control } = setup({

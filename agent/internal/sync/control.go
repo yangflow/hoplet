@@ -18,7 +18,7 @@ func (c *Client) handleRuntimePrompt(cs *connState, raw json.RawMessage) {
 	if c.hooks.Runtime.Prompt == nil {
 		err = errors.New("not-implemented")
 	} else {
-		err = c.hooks.Runtime.Prompt(sessionID, req.Text, req.Attachments, req.Options)
+		err = c.hooks.Runtime.Prompt(sessionID, req.Text, req.Attachments)
 	}
 	if err != nil {
 		log.Printf("[agent] prompt refused for %s: %v", shortID(sessionID), err)
@@ -78,6 +78,16 @@ func (c *Client) handleRuntimeInterrupt(sessionID string) {
 	}
 	if err := c.hooks.Runtime.Interrupt(sessionID); err != nil {
 		log.Printf("[agent] interrupt for %s not applied: %v", shortID(sessionID), err)
+	}
+}
+
+func (c *Client) handleRuntimeConfig(raw json.RawMessage) {
+	var req RuntimeConfig
+	if err := json.Unmarshal(raw, &req); err != nil || c.hooks.Runtime.Config == nil {
+		return
+	}
+	if err := c.hooks.Runtime.Config(req.SessionID, req.ConfigID, req.Value); err != nil {
+		log.Printf("[agent] config %s for %s not applied: %v", req.ConfigID, shortID(req.SessionID), err)
 	}
 }
 

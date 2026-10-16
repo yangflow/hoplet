@@ -46,19 +46,44 @@ func New(opts Options) *Driver {
 func (d *Driver) Name() string { return "claude" }
 
 func (d *Driver) Capabilities() []runtime.Capability {
-	return []runtime.Capability{
-		runtime.CapPermissions, runtime.CapInterrupt, runtime.CapThinking, runtime.CapFast, runtime.CapModels,
-		runtime.CapImages,
+	return []runtime.Capability{runtime.CapPermissions, runtime.CapInterrupt, runtime.CapImages}
+}
+
+// Option IDs and the value that leaves the model to Claude Code (ADR 0018).
+const (
+	optModel     = "model"
+	optThinking  = "thinking"
+	optFast      = "fast"
+	modelDefault = "default"
+)
+
+// Config declares the model, Thinking and Fast, in that order. The models are the aliases `claude --help`
+// documents for --model; Claude Code resolves each to its latest model, and `default` leaves the choice to it.
+func (d *Driver) Config() []runtime.ConfigOption {
+	return []runtime.ConfigOption{
+		{
+			ID: optModel, Name: "Model", Category: "model", Type: runtime.ConfigSelect, Current: modelDefault,
+			Apply: runtime.ApplyNextTurn,
+			Options: []runtime.ConfigValue{
+				{Value: modelDefault, Name: "Default model"},
+				{Value: "fable", Name: "fable"},
+				{Value: "opus", Name: "opus"},
+				{Value: "sonnet", Name: "sonnet"},
+			},
+		},
+		{
+			ID: optThinking, Name: "Thinking", Category: "thought_level", Type: runtime.ConfigBoolean, Current: true,
+			Apply: runtime.ApplyRestart,
+		},
+		{
+			ID: optFast, Name: "Fast", Category: "model_config", Type: runtime.ConfigBoolean, Current: false,
+			Apply: runtime.ApplyRestart,
+		},
 	}
 }
 
-// models are the aliases `claude --help` documents for --model; Claude Code resolves each to its latest model.
-var models = []string{"fable", "opus", "sonnet"}
-
-func (d *Driver) Models() []string { return append([]string(nil), models...) }
-
-// Args are the command line of a process for spec. Options map to Claude Code's own: --model, --thinking
-// (enabled or disabled) and fast mode through the settings of this one process (--settings
+// Args are the command line of a process for spec. The session's values map to Claude Code's own flags:
+// --model, --thinking (enabled or disabled) and fast mode through the settings of this one process (--settings
 // '{"fastMode":true}'). A new session gets --session-id; an existing one is resumed.
 func (d *Driver) Args(spec runtime.StartSpec) []string {
 	args := []string{
@@ -70,20 +95,18 @@ func (d *Driver) Args(spec runtime.StartSpec) []string {
 		"--permission-prompt-tool", "stdio",
 	}
 	model := d.model
-	if spec.Options.Model != "" {
-		model = spec.Options.Model
+	if m, _ := spec.Config[optModel].(string); m != "" && m != modelDefault {
+		model = m
 	}
 	if model != "" {
 		args = append(args, "--model", model)
 	}
-	if t := spec.Options.Thinking; t != nil {
-		mode := "disabled"
-		if *t {
-			mode = "enabled"
-		}
-		args = append(args, "--thinking", mode)
+	mode := "enabled"
+	if on, ok := spec.Config[optThinking].(bool); ok && !on {
+		mode = "disabled"
 	}
-	if spec.Options.Fast {
+	args = append(args, "--thinking", mode)
+	if on, _ := spec.Config[optFast].(bool); on {
 		args = append(args, "--settings", `{"fastMode":true}`)
 	}
 	if spec.New {
@@ -153,6 +176,7 @@ func (d *Driver) Start(ctx context.Context, spec runtime.StartSpec) (runtime.Pro
 		events:  make(chan runtime.ProcessEvent, 256),
 		stderr:  &stderr,
 		pending: map[string]pendingRequest{},
+		model:   d.model,
 	}
 	go p.read(stdout)
 	if err := p.send(controlRequest(initRequestID, "initialize")); err != nil {

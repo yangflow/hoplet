@@ -12,6 +12,7 @@ const api = vi.hoisted(() => ({
   fetchLines: vi.fn(),
   fetchBlock: vi.fn(),
   postPrompt: vi.fn(),
+  postConfig: vi.fn(),
   postAttachment: vi.fn(),
   postPermission: vi.fn(),
   postInterrupt: vi.fn(),
@@ -30,7 +31,7 @@ const session = {
   ownerDeviceId: 'dev-mac',
   lineCount: 4,
 } as LiveSessionMeta;
-const caps = { permissions: true, interrupt: true, thinking: true, fast: false, models: [] };
+const caps = { permissions: true, interrupt: true, config: [] };
 
 const entry = (lineNo: number, role: Entry['role'], text: string): Entry => ({
   lineNo,
@@ -114,7 +115,7 @@ it('sends a prompt with a client id, shows its turn at once and maps errors to c
   await act(async () => {
     (q('cockpit.send') as HTMLButtonElement).click();
   });
-  expect(api.postPrompt).toHaveBeenCalledWith(SID, 'run the tests', [], undefined);
+  expect(api.postPrompt).toHaveBeenCalledWith(SID, 'run the tests', []);
   expect(q('cockpit.live-turn')?.textContent).toContain('run the tests');
   await act(async () => refuse?.(new ApiError(409, 'busy')));
   expect(q('cockpit.live-turn')).toBeNull();
@@ -175,7 +176,7 @@ it('uploads images to the owner as they are attached, sends their IDs, and gives
 
   api.postPrompt.mockRejectedValue(new ApiError(409, 'busy'));
   await act(async () => (q('cockpit.send') as HTMLButtonElement).click());
-  expect(api.postPrompt).toHaveBeenCalledWith(SID, 'what is wrong here', ['att-2'], undefined);
+  expect(api.postPrompt).toHaveBeenCalledWith(SID, 'what is wrong here', ['att-2']);
   // The refused prompt comes back with its image, still uploaded.
   expect(thumbs()).toBe(1);
   expect(api.postAttachment).toHaveBeenCalledTimes(2);
@@ -194,52 +195,99 @@ it('says when an upload failed and keeps the prompt from going', async () => {
   expect((q('cockpit.send') as HTMLButtonElement).disabled).toBe(true);
 });
 
-it('offers the options of a session and sends only what changed', async () => {
-  const fixed = { ...caps, thinking: false, fast: false, models: [] };
+const configOptions = (model = 'opus') => [
+  {
+    type: 'select' as const,
+    id: 'model',
+    name: 'Model',
+    category: 'model',
+    currentValue: model,
+    options: [
+      { value: 'default', name: 'Default model' },
+      { value: 'fable', name: 'fable' },
+      { value: 'opus', name: 'opus' },
+      { value: 'sonnet', name: 'sonnet' },
+    ],
+  },
+  {
+    type: 'boolean' as const,
+    id: 'thinking',
+    name: 'Thinking',
+    category: 'thought_level',
+    currentValue: true,
+  },
+  {
+    type: 'boolean' as const,
+    id: 'fast',
+    name: 'Fast',
+    category: 'model_config',
+    currentValue: false,
+  },
+  // An option the web UI has never heard of is drawn from the driver's name alone.
+  { type: 'boolean' as const, id: 'sandbox', name: 'Sandboxed', currentValue: false },
+  {
+    type: 'select' as const,
+    id: 'mode',
+    name: 'Mode',
+    category: 'mode',
+    currentValue: 'a',
+    options: [{ value: 'a', name: 'Ask' }],
+  },
+];
+
+it('offers the config options of a session and sets one as soon as it is picked', async () => {
+  const fixed = { ...caps, config: [] };
   await show({ state: 'idle', capabilities: fixed }, { capabilities: fixed });
   expect(q('cockpit.model')).toBeNull();
-  const all = { ...caps, models: ['fable', 'opus', 'sonnet'], thinking: true, fast: true };
-  await show(
-    { state: 'idle', capabilities: all, options: { model: 'opus', thinking: true, fast: false } },
-    { capabilities: all },
-  );
+  const all = { ...caps, config: configOptions() };
+  await show({ state: 'idle', capabilities: all }, { capabilities: all });
   expect(q('cockpit.model')?.textContent).toContain('opus');
   await act(async () => (q('cockpit.model') as HTMLButtonElement).click());
-  // The same menu as a draft: the models, then Thinking and Fast as the session runs them.
+  // The same menu as a draft: every option in the driver's order, the mode category left to its own control.
   const options = [...host.querySelectorAll('[data-testid="cockpit.model-option"]')];
-  expect(options.map((o) => o.textContent)).toEqual(['fable', 'opus', 'sonnet']);
-  expect(q('cockpit.thinking')?.getAttribute('aria-checked')).toBe('true');
-  expect(q('cockpit.fast')?.getAttribute('aria-checked')).toBe('false');
-  await act(async () => (options[2] as HTMLButtonElement).click());
-  await act(async () => (q('cockpit.thinking') as HTMLButtonElement).click());
+  expect(options.map((o) => o.textContent)).toEqual(['Default model', 'fable', 'opus', 'sonnet']);
+  expect(q('cockpit.config.thinking')?.getAttribute('aria-checked')).toBe('true');
+  expect(q('cockpit.config.fast')?.getAttribute('aria-checked')).toBe('false');
+  expect(q('cockpit.config.sandbox')?.textContent).toContain('Sandboxed');
+  expect(q('cockpit.config.mode')).toBeNull();
 
-  api.postPrompt.mockResolvedValue({ ok: true, promptId: 'p' });
-  await act(async () => type('go on'));
-  await act(async () => (q('cockpit.send') as HTMLButtonElement).click());
-  expect(api.postPrompt).toHaveBeenLastCalledWith(SID, 'go on', [], {
-    model: 'sonnet',
-    thinking: false,
-  });
-  // Once the state reports them, the next prompt changes nothing.
+  api.postConfig.mockResolvedValue({ ok: true });
+  await act(async () => (options[3] as HTMLButtonElement).click());
+  expect(api.postConfig).toHaveBeenLastCalledWith(SID, 'model', 'sonnet');
+  // The pick shows at once, before the state reports it.
+  expect(q('cockpit.model')?.textContent).toContain('sonnet');
+  await act(async () => (q('cockpit.config.thinking') as HTMLButtonElement).click());
+  expect(api.postConfig).toHaveBeenLastCalledWith(SID, 'thinking', false);
+  expect(api.postPrompt).not.toHaveBeenCalled();
+
+  // A state that reports a pick ends that pick only: thinking is not reported yet, so it still shows off.
   await show(
-    {
-      state: 'ready',
-      capabilities: all,
-      options: { model: 'sonnet', thinking: false, fast: false },
-    },
-    { capabilities: all },
+    { state: 'ready', capabilities: { ...caps, config: configOptions('sonnet') } },
+    { capabilities: { ...caps, config: configOptions('sonnet') } },
   );
-  await act(async () => type('again'));
-  await act(async () => (q('cockpit.send') as HTMLButtonElement).click());
-  expect(api.postPrompt).toHaveBeenLastCalledWith(SID, 'again', [], undefined);
+  expect(q('cockpit.model')?.textContent).toContain('sonnet');
+  expect(q('cockpit.config.thinking')?.getAttribute('aria-checked')).toBe('false');
+  // The menu stays usable while a turn runs, and a state that does not report the pick does not drop it.
+  const running = { ...caps, config: configOptions('sonnet') };
+  await show({ state: 'running', capabilities: running }, { capabilities: running });
+  expect((q('cockpit.model') as HTMLButtonElement).disabled).toBe(false);
+  expect(q('cockpit.config.thinking')?.getAttribute('aria-checked')).toBe('false');
 });
 
-it('reads a session on the vendor default model as Default, with Thinking on until a process says', async () => {
-  const all = { ...caps, models: ['opus', 'sonnet'], thinking: true, fast: true };
+it('takes a refused pick back and says why', async () => {
+  const all = { ...caps, config: configOptions() };
+  await show({ state: 'idle', capabilities: all }, { capabilities: all });
+  await act(async () => (q('cockpit.model') as HTMLButtonElement).click());
+  api.postConfig.mockRejectedValue(new ApiError(409, 'owner-offline'));
+  await act(async () => (q('cockpit.config.fast') as HTMLButtonElement).click());
+  expect(q('cockpit.config.fast')?.getAttribute('aria-checked')).toBe('false');
+  expect(q('cockpit.composer-error')).not.toBeNull();
+});
+
+it('reads a session on the default model as Default model', async () => {
+  const all = { ...caps, config: configOptions('default') };
   await show({ state: 'idle', capabilities: all }, { capabilities: all });
   expect(q('cockpit.model')?.textContent).toContain('Default model');
-  await act(async () => (q('cockpit.model') as HTMLButtonElement).click());
-  expect(q('cockpit.thinking')?.getAttribute('aria-checked')).toBe('true');
 });
 
 it('says why a file cannot be attached', async () => {

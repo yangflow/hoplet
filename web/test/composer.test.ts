@@ -19,7 +19,7 @@ import {
   maxFieldHeight,
   saveHeight,
 } from '../src/screens/cockpit/composer/height.ts';
-import { optionsChange, sessionChoice } from '../src/screens/cockpit/composer/model-menu.tsx';
+import { hasChoices, menuConfig, withValues } from '../src/screens/cockpit/composer/model-menu.tsx';
 import { folderOf } from '../src/screens/cockpit/draft.tsx';
 
 function memory() {
@@ -140,32 +140,45 @@ describe('reading an image', () => {
   });
 });
 
-describe('the options of a session', () => {
-  const caps = {
-    permissions: true,
-    interrupt: true,
-    thinking: true,
-    fast: false,
-    models: ['opus'],
+describe('the config options of the menu', () => {
+  const model = {
+    type: 'select' as const,
+    id: 'model',
+    name: 'Model',
+    category: 'model',
+    currentValue: 'default',
+    options: [
+      { value: 'default', name: 'Default model' },
+      { value: 'opus', name: 'opus' },
+    ],
   };
-  it('reads what the session runs with, Thinking on and Fast off until a process reported', () => {
-    expect(sessionChoice('claude', undefined)).toEqual({
-      provider: 'claude',
-      model: '',
-      thinking: true,
-      fast: false,
-    });
-    expect(
-      sessionChoice('claude', { model: 'opus', thinking: false }, { thinking: true }),
-    ).toMatchObject({ model: 'opus', thinking: true });
+  const thinking = {
+    type: 'boolean' as const,
+    id: 'thinking',
+    name: 'Thinking',
+    currentValue: true,
+  };
+  const mode = { ...model, id: 'mode', name: 'Mode', category: 'mode' };
+  const caps = { permissions: true, interrupt: true };
+
+  it('lists the driver options in its order, without the mode category', () => {
+    expect(menuConfig([thinking, mode, model]).map((o) => o.id)).toEqual(['thinking', 'model']);
+    expect(menuConfig(undefined)).toEqual([]);
   });
 
-  it('changes only what the driver declares and what differs', () => {
-    const now = sessionChoice('claude', { model: 'opus', thinking: true, fast: false });
-    expect(optionsChange(caps, now, now)).toBeUndefined();
-    expect(optionsChange(caps, now, { ...now, thinking: false, fast: true })).toEqual({
-      thinking: false,
-    });
-    expect(optionsChange(caps, { ...now, model: '' }, { ...now, model: '' })).toBeUndefined();
+  it('lays picked values over the current ones and ignores a value of the wrong type', () => {
+    const got = withValues([model, thinking], { model: 'opus', thinking: 'no' });
+    expect(got.map((o) => o.currentValue)).toEqual(['opus', true]);
+    expect(withValues([model], {})).toEqual([model]);
+  });
+
+  it('offers a menu for a second provider or for an option, and otherwise none', () => {
+    const one = { provider: 'claude' as const, capabilities: { ...caps, config: [] } };
+    expect(hasChoices([one], one)).toBe(false);
+    expect(hasChoices([one, { ...one, provider: 'codex' as never }], one)).toBe(true);
+    const withOption = { ...one, capabilities: { ...caps, config: [thinking] } };
+    expect(hasChoices([withOption], withOption)).toBe(true);
+    const modeOnly = { ...one, capabilities: { ...caps, config: [mode] } };
+    expect(hasChoices([modeOnly], modeOnly)).toBe(false);
   });
 });
