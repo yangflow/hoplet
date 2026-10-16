@@ -743,6 +743,52 @@ body.stacked{background:#131210;color:#efe9e2;font-family:-apple-system,"SF Pro 
 .intro .frame p.text{color:var(--color-text);font-size:var(--text-body);line-height:var(--leading-body);max-width:var(--measure-prose)}
 .intro .frame p.thought{color:var(--color-text-3);font-size:var(--text-ui);line-height:var(--leading-ui);margin:0 0 var(--space-2) calc(16px + var(--space-2))}
 .icons .ic.wide{grid-column:span 2}
+.sub{display:block;font-weight:var(--weight-regular);color:var(--color-text-3);font-size:var(--text-meta);line-height:var(--leading-meta)}
+.pr.tall{height:56px}
+.pr .lead.ic{color:var(--color-text-2)}
+.pr .lead.ic.att{color:var(--color-attention-text)}
+.pr .lead.ic.bad{color:var(--color-del-text)}
+.pr .lead.ic.ok{color:var(--color-success)}
+.pr .dst{display:inline-flex;align-items:center;gap:var(--space-1);font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3)}
+.pr .dst.ok{color:var(--color-add-text)}
+.pr .dst.bad{color:var(--color-del-text)}
+.pr .acts{display:flex;gap:2px;flex:none}
+.pr .switch.off-dis{opacity:.4}
+.banner{display:flex;gap:var(--space-3);align-items:flex-start;padding:var(--space-3) var(--space-4);border-radius:var(--radius-md);background:var(--color-attention-soft);box-shadow:inset 0 0 0 1px var(--color-attention-ring)}
+.banner > svg{color:var(--color-attention-text);margin-top:2px;flex:none}
+.banner .bt{flex:1;min-width:0}
+.banner .bt b{font-weight:var(--weight-semibold)}
+.banner .bt p{margin:2px 0 0;color:var(--color-text-2)}
+.banner .ba{display:flex;gap:var(--space-2);margin-top:var(--space-2)}
+.nchip{display:inline-flex;align-items:center;gap:var(--space-1);height:24px;padding:0 var(--space-2);border-radius:var(--radius-sm);box-shadow:inset 0 0 0 1px var(--color-line);color:var(--color-text-3);font-weight:var(--weight-medium);white-space:nowrap}
+.nchip.on{background:var(--color-accent-soft);color:var(--color-accent-text);box-shadow:inset 0 0 0 1px var(--color-accent-soft)}
+.nchips{display:flex;gap:var(--space-2);flex:none}
+.evh{display:flex;align-items:center;gap:var(--space-2)}
+.evh svg{flex:none}
+.evh.att svg{color:var(--color-attention-text)}
+.evh.bad svg{color:var(--color-del-text)}
+.evh.ok svg{color:var(--color-success)}
+.evh.acc svg{color:var(--color-accent-text)}
+.presets{display:flex;flex-direction:column;gap:var(--space-2)}
+.preset{display:flex;gap:var(--space-3);align-items:flex-start;padding:var(--space-3) var(--space-4);border-radius:var(--radius-md);background:var(--color-surface);box-shadow:inset 0 0 0 1px var(--color-line)}
+.preset.on{box-shadow:inset 0 0 0 1.5px var(--color-accent)}
+.preset .radio{margin-top:2px}
+.preset b{font-weight:var(--weight-semibold)}
+.preset p{margin:0;color:var(--color-text-2)}
+.wh-card{margin-top:var(--space-3);padding:var(--space-4);border-radius:var(--radius-lg);background:var(--color-raised);box-shadow:var(--shadow-live);display:flex;flex-direction:column;gap:var(--space-3)}
+.wh-card .fl{display:grid;grid-template-columns:96px minmax(0,1fr);gap:var(--space-2) var(--space-3);align-items:center}
+.wh-card .fl .l{color:var(--color-text-2)}
+.wh-card .res{display:flex;gap:var(--space-2);align-items:center;color:var(--color-add-text)}
+.wh-card .fx{display:flex;gap:var(--space-2);align-items:center}
+.wh-card .fx .sp{flex:1}
+/* notifications: the per-project and per-event panel */
+.ovr{margin-top:var(--space-3);border-radius:var(--radius-md);background:var(--color-surface);box-shadow:inset 0 0 0 1px var(--color-line);overflow:hidden}
+.light .ovr{background:var(--color-raised)}
+.ovr .ovr-bar{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);padding:var(--space-2) var(--space-4);box-shadow:inset 0 1px 0 var(--color-line)}
+.ovr .ovr-bar .seg{flex:none}
+.ovr .pr.ovr-h .nm{display:block}
+.ovr .pr .ovd{width:64px;text-align:right;flex:none}
+.ovr .pr .ovd.on{color:var(--color-accent-text)}
 </style>
 </head>
 <body>
@@ -1550,8 +1596,87 @@ function textGroup(t) {
         <div class="pc mono">if (next !== size &amp;&amp; cursor &gt;= 0) =&gt; next  // != &lt;= ===</div></div></div>`;
 }
 
+/* ---- Settings › Notifications (#77, ADR 0021) ---- */
+const NL = {
+  bell: '<path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/>',
+  'bell-off': '<path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M17 17H4a1 1 0 0 1-.74-1.673C4.59 13.956 6 12.499 6 8a6 6 0 0 1 .258-1.742"/><path d="m2 2 20 20"/><path d="M8.668 3.01A6 6 0 0 1 18 8c0 2.687.77 4.653 1.707 6.05"/>',
+  webhook: '<path d="M18 16.98h-5.99c-1.1 0-1.95.94-2.48 1.9A4 4 0 0 1 2 17c.01-.7.2-1.4.57-2"/><path d="m6 17 3.13-5.78c.53-.97.1-2.18-.5-3.1a4 4 0 1 1 6.89-4.06"/><path d="m12 6 3.13 5.73C15.66 12.7 16.9 13 18 13a4 4 0 0 1 0 8"/>',
+  trash: '<path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>',
+  send: '<path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"/><path d="m21.854 2.147-10.94 10.939"/>',
+  list: '<path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/>',
+  moon: '<path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/>',
+};
+const nI = k => sv(NL[k]);
+const chevUp = () => sv(rot(270, L['chevron-right']));
+const sw = (name, on, dis) => `<span class="switch${on ? ' on' : ''}${dis ? ' off-dis' : ''}" role="switch" aria-checked="${on}" aria-label="${name}"></span>`;
+const NOTIFY = ['settings-notify', 'settings-notify-overrides', 'settings-notify-off', 'settings-notify-blocked', 'notify-hook'];
+const EVENTS = [
+  ['perm', 'att', I.lock, 'Needs your permission', 'Claude asks to run a tool'],
+  ['plan', 'att', () => nI('list'), 'Plan ready to review', 'Claude left Plan mode'],
+  ['done', 'ok', I.check, 'Turn finished', 'Only when no tab has the session open'],
+  ['fail', 'bad', I.alert, 'Failed', 'A session did not start, or a handoff failed'],
+];
+const BROWSER = {
+  on:      { ic: 'ic ok', icon: () => nI('bell'), sub: 'Chrome on MacBook Pro · permission granted', sw: true },
+  off:     { ic: 'ic', icon: () => nI('bell-off'), sub: 'Chrome on MacBook Pro · permission not asked yet', sw: false },
+  blocked: { ic: 'ic bad', icon: () => nI('bell-off'), sub: 'Chrome on MacBook Pro · blocked in the browser', sw: false, dis: true },
+};
+function browserGroup(k) {
+  const b = BROWSER[k];
+  const action = k === 'off' ? `<button class="btn primary">Enable</button>` : sw('Web Push on this browser', b.sw, b.dis);
+  const hint = k === 'blocked' ? `<div class="banner" role="note" style="margin-top:var(--space-3)">${I.info()}<div class="bt"><b>Notifications are blocked for this site.</b>
+      <p>Hoplet cannot ask again. Allow notifications in the site settings of your browser (the icon left of the address bar), then reload this page.</p></div></div>` : '';
+  return `<div class="sgrp"><div class="lb">This browser</div><div class="plist">
+    <div class="pr tall"><span class="lead ${b.ic}">${b.icon()}</span><span class="nm">Web Push<span class="sub">${b.sub}</span></span>${action}</div>
+  </div>${hint}<p class="meta" style="margin-top:var(--space-2)">Delivered through your browser vendor’s push service. Other browsers and devices enable their own.</p></div>`;
+}
+function presetsGroup(open) {
+  const p = (on, t, d) => `<div class="preset${on ? ' on' : ''}" role="radio" aria-checked="${on}"><span class="radio${on ? ' on' : ''}"></span><div><b>${t}</b><p>${d}</p></div></div>`;
+  return `<div class="sgrp"><div class="lb">What to tell me about</div><div class="presets" role="radiogroup" aria-label="Notification level">
+    ${p(true, 'Only when Claude needs me', 'A permission request, a plan to review, a failure. Nothing else.')}
+    ${p(false, 'Needs me, and when a turn finishes', 'Adds one notification when a turn ends while the session is not open in a tab.')}
+    ${p(false, 'Everything', 'Today the same as the level above; events added later arrive here first.')}
+    ${p(false, 'Off', 'No notifications from any channel.')}
+  </div>${open ? overridesOpen() : `<div class="ovr"><div class="pr ovr-h"><span class="nm">Per project and per event</span><span class="meta">3 overrides</span>${I.down()}</div></div>`}</div>
+  <div class="sgrp"><div class="lb">Quiet hours</div><div class="plist">
+    <div class="pr tall"><span class="lead ic">${nI('moon')}</span><span class="nm">22:00 – 08:00<span class="sub">Events where Claude needs you still arrive</span></span>${sw('Quiet hours', true)}</div>
+  </div></div>`;
+}
+/* an event is a row; its channels are chips; "Override" marks a choice that differs from the level */
+function overridesOpen() {
+  const cfg = { perm: [1, 1, 0], plan: [1, 1, 0], done: [1, 0, 1], fail: [1, 1, 0] };
+  const rows = EVENTS.map(([k, tone, ic, name, sub]) => {
+    const [p, w, o] = cfg[k];
+    return `<div class="pr tall"><span class="lead evh ${tone}">${ic()}</span><span class="nm">${name}<span class="sub">${sub}</span></span>
+      <span class="ovd meta${o ? ' on' : ''}">${o ? 'Override' : ''}</span>
+      <span class="nchips"><span class="nchip${p ? ' on' : ''}" role="switch" aria-checked="${!!p}">${sv(NL.bell)}Push</span><span class="nchip${w ? ' on' : ''}" role="switch" aria-checked="${!!w}">${sv(NL.webhook)}Webhook</span></span></div>`;
+  }).join('');
+  return `<div class="ovr"><div class="pr ovr-h"><span class="nm">Per project and per event</span><span class="meta">3 overrides</span>${chevUp()}</div>
+    <div class="ovr-bar"><div class="seg" role="radiogroup" aria-label="Project"><button role="radio" aria-checked="false">All projects</button><button role="radio" aria-checked="true" class="on">hoplet</button><button role="radio" aria-checked="false">docs-site</button><button role="radio" aria-checked="false">infra</button></div>
+      <button class="btn quiet">Reset this project</button></div>${rows}</div>`;
+}
+function hooksGroup(edit) {
+  const row = (n, host, last, bad) => `<div class="pr tall"><span class="lead ic">${nI('webhook')}</span><span class="nm">${n}<span class="sub mono" style="font-size:var(--text-meta);line-height:var(--leading-meta)">${host}</span></span>
+    <span class="dst ${bad ? 'bad' : 'ok'}">${bad ? I.alert() : I.check()}${last}</span><span class="acts">${ib(nI('send'), 'Send a test')}${ib(I.pen(), 'Edit')}${ib(nI('trash'), 'Remove')}</span></div>`;
+  const card = `<div class="wh-card"><div class="mcard-h"><b>Edit webhook</b>${ib(I.close(), 'Close')}</div>
+    <div class="fl"><span class="l">Name</span><div class="input ui">Team chat bridge</div>
+      <span class="l">URL</span><div class="input">https://hooks.example.com/hoplet/K3x…</div>
+      <span class="l">Signing secret</span><div class="input">••••••••••••••••<span style="margin-left:auto" class="meta">Optional · HMAC-SHA256 in X-Hoplet-Signature</span></div>
+      <span class="l">Events</span><div class="nchips"><span class="nchip on">${I.check()}Permission</span><span class="nchip on">${I.check()}Plan</span><span class="nchip on">${I.check()}Finished</span><span class="nchip">Failed</span></div></div>
+    <div class="fx"><span class="res">${I.check()}Test delivered · 204 · 180 ms</span><span class="sp"></span><button class="btn">${nI('send')}Send a test</button><button class="btn primary">Save</button></div></div>`;
+  return `<div class="sgrp"><div class="lb">Webhooks</div><div class="plist">
+    ${row('Team chat bridge', 'hooks.example.com/hoplet/…', 'Delivered 2m ago')}
+    ${row('Home Assistant', '192.168.1.20:8123/api/webhook/…', 'Failed · timeout', true)}
+  </div>${edit ? card : `<div class="sact"><button class="btn">${I.plus()}Add a webhook</button></div>`}
+  <p class="meta" style="margin-top:var(--space-2)">The core sends JSON with the event, the project, the session title and a link. Never the conversation.</p></div>`;
+}
+function notifyPage(state) {
+  const bk = state === 'settings-notify-off' ? 'off' : state === 'settings-notify-blocked' ? 'blocked' : 'on';
+  return `<h1>Notifications</h1>${presetsGroup(state === 'settings-notify-overrides')}${browserGroup(bk)}${hooksGroup(state === 'notify-hook')}`;
+}
+
 function settingsMain(state) {
-  const sec = APPEARANCE.includes(state) ? 'appearance' : 'machines';
+  const sec = APPEARANCE.includes(state) ? 'appearance' : NOTIFY.includes(state) ? 'notifications' : 'machines';
   const ni = (k, icon, label) => `<div class="ni${sec === k ? ' on' : ''}">${icon}${label}</div>`;
   let page;
   if (sec === 'appearance') {
@@ -1566,6 +1691,8 @@ function settingsMain(state) {
         <div class="pr"><span class="nm">Interface language</span><div class="seg" role="radiogroup" aria-label="Interface language"><button role="radio" aria-checked="true" class="on">English</button><button role="radio" aria-checked="false" lang="zh-Hans">简体中文</button></div></div>
       </div></div>
       ${textGroup(textOf(state))}`;
+  } else if (sec === 'notifications') {
+    page = notifyPage(state);
   } else {
     const m = (n, on, seen) => `<div class="pr${on ? '' : ' off'}"><span class="lead"><span class="dot${on ? '' : ' off'}" role="img"${tip(on ? 'Online' : 'Offline')}></span></span><span class="nm">${n}</span><span class="meta">${seen}</span></div>`;
     page = `<h1>Machines</h1>
@@ -1575,7 +1702,7 @@ function settingsMain(state) {
   }
   return `<header class="top">${ib(I.back(), 'Back to the conversation · Esc')}<span class="title">Settings</span></header>
     <div class="set"><nav class="snav" aria-label="Settings sections">
-      ${ni('appearance', I.contrast(), 'Appearance')}${ni('machines', I.laptop(), 'Machines')}
+      ${ni('appearance', I.contrast(), 'Appearance')}${ni('machines', I.laptop(), 'Machines')}${ni('notifications', nI('bell'), 'Notifications')}
     </nav><div class="spage"><div class="in">${page}</div></div></div>`;
 }
 
@@ -1591,7 +1718,7 @@ function frame(state, scheme) {
 const SCREEN = {
   name: 'Settings',
   system: false,
-  blurb: 'The Settings page, a full page that replaces the window (no sidebar, no status bar): a header with a back button (Esc also goes back) and the title, the section list on the left and the content on the right. Sections are Appearance (Theme, Language, Text) and Machines (with Add a machine); Memory (#18) and Model providers (#16) are added to the list later. Appearance, Language and the Text group (interface font, code font, size, full width, ligatures) are kept in the browser and each choice only swaps tokens; the preview follows them.',
+  blurb: 'The Settings page, a full page that replaces the window (no sidebar, no status bar): a header with a back button (Esc also goes back) and the title, the section list on the left and the content on the right. Sections are Appearance (Theme, Language, Text), Machines (with Add a machine) and Notifications (a level, per-project and per-event channels, Web Push for this browser, quiet hours, webhooks); Memory (#18) and Model providers (#16) are added to the list later. Appearance, Language and the Text group (interface font, code font, size, full width, ligatures) are kept in the browser and each choice only swaps tokens; the preview follows them.',
 };
 const STATES = [
   ['settings', 'Settings: Appearance'],
@@ -1601,6 +1728,11 @@ const STATES = [
   ['mint', 'Add a machine: token minted'],
   ['mint-waiting', 'waiting for the agent'],
   ['mint-online', 'the new machine is connected'],
+  ['settings-notify', 'Settings: Notifications; the default level, quiet hours, Web Push on, webhooks'],
+  ['settings-notify-overrides', 'Notifications: per project and per event, each event a row with channel chips'],
+  ['settings-notify-off', 'Notifications: permission not asked yet, Enable button'],
+  ['settings-notify-blocked', 'Notifications: the browser blocks them'],
+  ['notify-hook', 'Notifications: editing a webhook with an optional signing secret'],
 ];
 /* screen: end */
 
