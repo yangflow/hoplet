@@ -77,7 +77,8 @@ success:
 
 1. Stop syncing: the agent removes the session from the `imported` list of every project and forgets it.
 2. The worktree, then the branch, only when `worktreeIsOurs` still holds. The agent derives both from the session ID
-   (the handoff naming), and the core's `session_worktrees` record decides whether they are offered.
+   (the handoff naming), and the core's `session_worktrees` record decides whether they are offered. Removing the
+   worktree also drops its project from the agent's project list, which the core then receives.
 3. The vendor file, every copy of it in the vendor store (a session can exist twice, up to 8 are removed). It goes
    after the worktree because its working directory is what finds the worktree again on a retry.
 4. The core copy last: its rows, the session and snapshot directories.

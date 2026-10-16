@@ -50,7 +50,7 @@ func (c *Client) Reconcile(ctx context.Context, sources []provider.Source) {
 						c.suppressed[src.ID()] = true
 					}
 					c.mu.Unlock()
-					log.Printf("[agent] session %s belongs to another device; skipping", shortID(src.ID()))
+					logRejected(src.ID(), err)
 					continue
 				}
 				if errors.Is(err, errConnChanged) {
@@ -85,7 +85,7 @@ func (c *Client) Reconcile(ctx context.Context, sources []provider.Source) {
 					c.suppressed[src.ID()] = true
 				}
 				c.mu.Unlock()
-				log.Printf("[agent] session %s belongs to another device; skipping", shortID(src.ID()))
+				logRejected(src.ID(), err)
 				continue
 			}
 			if errors.Is(err, errConnChanged) {
@@ -98,6 +98,7 @@ func (c *Client) Reconcile(ctx context.Context, sources []provider.Source) {
 
 var (
 	errRejected    = errors.New("rejected")
+	errDeleted     = fmt.Errorf("%w: deleted", errRejected)
 	errConnChanged = errors.New("connection changed")
 	errResyncLoop  = errors.New("too many resyncs")
 )
@@ -168,7 +169,7 @@ func (c *Client) sendDelta(ctx context.Context, cs *connState, src provider.Sour
 		}
 		switch rep.kind {
 		case replyRejected:
-			return false, errRejected
+			return false, rejection(rep.reason)
 		case replyResync:
 			resyncs++
 			if resyncs > maxResyncTries {
@@ -252,7 +253,7 @@ wait:
 	}
 	switch rep.kind {
 	case replyRejected:
-		return errRejected
+		return rejection(rep.reason)
 	case replyResync:
 		// Title-only; next Reconcile will send real bytes from the new cursor.
 		return nil
@@ -293,4 +294,21 @@ func wsEndpoint(serverURL string) (string, error) {
 		u.Path = strings.TrimSuffix(u.Path, "/") + agentSocketPath
 	}
 	return u.String(), nil
+}
+
+// rejection is the error of a session.rejected: errDeleted when the session was deleted in Hoplet, errRejected otherwise.
+func rejection(reason string) error {
+	if reason == ReasonDeleted {
+		return errDeleted
+	}
+	return errRejected
+}
+
+// logRejected says why the core refused a session.
+func logRejected(id string, err error) {
+	if errors.Is(err, errDeleted) {
+		log.Printf("[agent] session %s deleted in Hoplet; not syncing", shortID(id))
+		return
+	}
+	log.Printf("[agent] session %s belongs to another device; skipping", shortID(id))
 }

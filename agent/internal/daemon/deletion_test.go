@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/yangflow/hoplet/agent/internal/config"
@@ -93,6 +94,9 @@ func TestSessionInspectAndDeleteEverything(t *testing.T) {
 	if exec.Command("git", "-C", clone, "show-ref", "--verify", "--quiet", "refs/heads/hoplet/0b7e1c52").Run() == nil {
 		t.Fatal("the branch is left")
 	}
+	if slices.Contains(st.watchedPaths(), worktree) {
+		t.Fatal("the removed worktree is still a project")
+	}
 	reloaded, _ := projects.Load(cfg.HopletHome)
 	for _, it := range reloaded.Items {
 		for _, id := range it.Imported {
@@ -172,6 +176,9 @@ func TestSessionDeleteKeepsADirtyWorktreeUnlessTicked(t *testing.T) {
 	}
 	if exec.Command("git", "-C", clone, "show-ref", "--verify", "--quiet", "refs/heads/hoplet/0b7e1c52").Run() != nil {
 		t.Fatal("the branch must stay")
+	}
+	if !slices.Contains(st.watchedPaths(), worktree) {
+		t.Fatal("a worktree that stays is still a project")
 	}
 	// Ticked knowing it is dirty: the retry removes it.
 	again := sessionDelete(cfg, st)(context.Background(), deleteSession, true, true, true)

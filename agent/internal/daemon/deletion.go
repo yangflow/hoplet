@@ -29,6 +29,27 @@ func (s *store) forgetSession(sessionID string) error {
 	return s.file.Save(s.cfg.HopletHome)
 }
 
+// dropProject removes the watched project of a worktree the deletion removed, and wakes the sync loop so the
+// core learns the new project list.
+func (s *store) dropProject(path string) error {
+	s.mu.Lock()
+	if err := s.reload(); err != nil {
+		s.mu.Unlock()
+		return err
+	}
+	if s.file.RemovePath(path) != nil {
+		s.mu.Unlock()
+		return nil // not a watched project
+	}
+	err := s.file.Save(s.cfg.HopletHome)
+	kick := s.kick
+	s.mu.Unlock()
+	if err == nil && kick != nil {
+		kick()
+	}
+	return err
+}
+
 // sessionCwd is the directory the session's file records, "" when this machine has no file for it.
 func sessionCwd(cfg *config.Config, sessionID string) string {
 	for _, f := range finders(cfg) {
@@ -147,6 +168,7 @@ func sessionDelete(cfg *config.Config, st *store) func(context.Context, string, 
 				if _, err := os.Lstat(found.Path); err == nil {
 					return "remove-failed"
 				}
+				_ = st.dropProject(found.Path)
 				return ""
 			})
 			run(sync.StepBranch, func() string {
