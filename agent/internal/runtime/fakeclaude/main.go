@@ -324,8 +324,12 @@ func main() {
 						default:
 						}
 					}
-					gappyMu.Unlock()
 					t := &turn{text: text, images: images, interrupt: make(chan struct{}, 1), answers: make(chan obj, 4), steers: make(chan string, 16)}
+					if strings.HasPrefix(text, "work ") {
+						// Set as it is read, not when the turn starts: a message right behind it is steered.
+						gappy = t
+					}
+					gappyMu.Unlock()
 					curMu.Lock()
 					cur = t
 					curMu.Unlock()
@@ -569,9 +573,6 @@ func runTurn(t *turn, prompt string) {
 // runWork is the `work` script: tool gaps at which a steer is absorbed.
 func runWork(t *turn, prompt, arg string) {
 	n, _ := strconv.Atoi(arg)
-	gappyMu.Lock()
-	gappy = t // before the state is reported: a message written after `running` is steered
-	gappyMu.Unlock()
 	start()
 	var steered []string
 	interrupted := false
