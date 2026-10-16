@@ -115,6 +115,96 @@
       "response": "PromptResultSchema"
     },
     {
+      "method": "GET",
+      "path": "/api/sessions/:sessionId/queue",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": null,
+      "response": "QueueSchema"
+    },
+    {
+      "method": "POST",
+      "path": "/api/sessions/:sessionId/queue",
+      "auth": "host",
+      "lane": "control",
+      "status": 201,
+      "query": null,
+      "body": "QueueAddRequestSchema",
+      "response": "QueueSchema"
+    },
+    {
+      "method": "POST",
+      "path": "/api/sessions/:sessionId/queue/order",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": "QueueOrderRequestSchema",
+      "response": "QueueSchema"
+    },
+    {
+      "method": "POST",
+      "path": "/api/sessions/:sessionId/queue/resume",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": null,
+      "response": "QueueSchema"
+    },
+    {
+      "method": "POST",
+      "path": "/api/sessions/:sessionId/queue/clear",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": null,
+      "response": "QueueSchema"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/sessions/:sessionId/queue/:itemId",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": "QueueEditRequestSchema",
+      "response": "QueueSchema"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/sessions/:sessionId/queue/:itemId",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": "QueueVersionQuerySchema",
+      "body": null,
+      "response": "QueueSchema"
+    },
+    {
+      "method": "POST",
+      "path": "/api/sessions/:sessionId/queue/:itemId/steer",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": "QueueSteerRequestSchema",
+      "response": "QueueSchema"
+    },
+    {
+      "method": "POST",
+      "path": "/api/sessions/:sessionId/steer",
+      "auth": "host",
+      "lane": "control",
+      "status": 202,
+      "query": null,
+      "body": "SteerRequestSchema",
+      "response": "SteerResultSchema"
+    },
+    {
       "method": "POST",
       "path": "/api/sessions/:sessionId/config",
       "auth": "host",
@@ -379,6 +469,12 @@
       "schema": "SessionCommandsMessage"
     },
     {
+      "type": "session.queue",
+      "direction": "core-to-web",
+      "lane": "control",
+      "schema": "SessionQueueMessage"
+    },
+    {
       "type": "session.output",
       "direction": "core-to-web",
       "lane": "control",
@@ -420,6 +516,9 @@
     "external": 409,
     "not-running": 409,
     "request-closed": 409,
+    "steer-unavailable": 409,
+    "queue-conflict": 409,
+    "queue-full": 409,
     "cancelled": 409,
     "handoff-in-progress": 409,
     "no-clone": 409,
@@ -451,6 +550,13 @@
         "GET /api/search"
       ],
       "reason": "The \"check\" action cannot be converted to JSON Schema."
+    },
+    {
+      "schema": "QueueVersionQuerySchema",
+      "routes": [
+        "DELETE /api/sessions/:sessionId/queue/:itemId"
+      ],
+      "reason": "The \"transform\" action cannot be converted to JSON Schema."
     }
   ],
   "$defs": {
@@ -704,6 +810,9 @@
                           "type": "boolean"
                         },
                         "images": {
+                          "type": "boolean"
+                        },
+                        "steer": {
                           "type": "boolean"
                         },
                         "config": {
@@ -1068,6 +1177,9 @@
             "external",
             "not-running",
             "request-closed",
+            "steer-unavailable",
+            "queue-conflict",
+            "queue-full",
             "cancelled",
             "handoff-in-progress",
             "no-clone",
@@ -1121,6 +1233,9 @@
             "external",
             "not-running",
             "request-closed",
+            "steer-unavailable",
+            "queue-conflict",
+            "queue-full",
             "cancelled",
             "handoff-in-progress",
             "no-clone",
@@ -1506,6 +1621,9 @@
               "ts": {
                 "type": "string"
               },
+              "steered": {
+                "const": true
+              },
               "blocks": {
                 "type": "array",
                 "items": {
@@ -1790,6 +1908,9 @@
                   "type": "boolean"
                 },
                 "images": {
+                  "type": "boolean"
+                },
+                "steer": {
                   "type": "boolean"
                 },
                 "config": {
@@ -2121,6 +2242,145 @@
         "promptId"
       ]
     },
+    "QueueAddRequestSchema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,64}$"
+        },
+        "text": {
+          "type": "string",
+          "pattern": "\\S",
+          "minLength": 1
+        },
+        "attachments": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,64}$"
+          },
+          "maxItems": 4
+        }
+      },
+      "required": [
+        "id",
+        "text"
+      ]
+    },
+    "QueueEditRequestSchema": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "text": {
+          "type": "string",
+          "pattern": "\\S",
+          "minLength": 1
+        },
+        "attachments": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,64}$"
+          },
+          "maxItems": 4
+        }
+      },
+      "required": [
+        "version",
+        "text"
+      ]
+    },
+    "QueueOrderRequestSchema": {
+      "type": "object",
+      "properties": {
+        "ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,64}$"
+          },
+          "maxItems": 20
+        }
+      },
+      "required": [
+        "ids"
+      ]
+    },
+    "QueueSchema": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_-]{1,64}$"
+              },
+              "text": {
+                "type": "string"
+              },
+              "attachments": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9_-]{1,64}$"
+                },
+                "maxItems": 4
+              },
+              "version": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "state": {
+                "enum": [
+                  "queued",
+                  "sending"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "text",
+              "attachments",
+              "version",
+              "state"
+            ]
+          }
+        },
+        "paused": {
+          "enum": [
+            "error",
+            "interrupted"
+          ],
+          "type": "string"
+        },
+        "error": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "items"
+      ]
+    },
+    "QueueSteerRequestSchema": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "version"
+      ]
+    },
     "RuntimeCommandResultSchema": {
       "type": "object",
       "properties": {
@@ -2314,6 +2574,9 @@
                         "type": "boolean"
                       },
                       "images": {
+                        "type": "boolean"
+                      },
+                      "steer": {
                         "type": "boolean"
                       },
                       "config": {
@@ -2666,6 +2929,26 @@
         "input"
       ]
     },
+    "SessionQueueMessage": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 5
+        },
+        "type": {
+          "const": "session.queue"
+        },
+        "sessionId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]+$"
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "sessionId"
+      ]
+    },
     "SessionRuntimeMessage": {
       "type": "object",
       "properties": {
@@ -2705,6 +2988,9 @@
               "type": "boolean"
             },
             "images": {
+              "type": "boolean"
+            },
+            "steer": {
               "type": "boolean"
             },
             "config": {
@@ -3021,6 +3307,48 @@
             "baseCommit"
           ]
         }
+      ]
+    },
+    "SteerRequestSchema": {
+      "type": "object",
+      "properties": {
+        "steerId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "text": {
+          "type": "string",
+          "pattern": "\\S",
+          "minLength": 1
+        },
+        "attachments": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,64}$"
+          },
+          "maxItems": 4
+        }
+      },
+      "required": [
+        "steerId",
+        "text"
+      ]
+    },
+    "SteerResultSchema": {
+      "type": "object",
+      "properties": {
+        "ok": {
+          "const": true
+        },
+        "steerId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "ok",
+        "steerId"
       ]
     },
     "SubscribeMessage": {

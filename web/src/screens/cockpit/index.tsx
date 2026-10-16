@@ -39,6 +39,7 @@ import '../../components/components.css';
 import './shell.css';
 import './conversation/conversation.css';
 import './composer/composer.css';
+import './queue/queue.css';
 
 /** Development fixtures for /__states: they replace what the API would serve. */
 export type CockpitFixture = {

@@ -17,6 +17,10 @@ export const ERROR_COPY: Record<HttpErrorCode, string> = {
   external: 'The session was written from a terminal. It can be read but not controlled.',
   'not-running': 'No turn is running.',
   'request-closed': 'That permission request was already answered or has expired.',
+  'steer-unavailable':
+    'A message cannot be steered into this turn now (no turn is running, a permission waits, or the provider cannot). Queue it instead.',
+  'queue-conflict': 'That queued message was already sent, changed or removed.',
+  'queue-full': 'The queue is full.',
   cancelled: 'The request was cancelled.',
   'handoff-in-progress': 'A hand-off of this session is already running.',
   'no-clone':

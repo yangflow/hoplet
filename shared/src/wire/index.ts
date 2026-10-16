@@ -201,6 +201,26 @@ export const WIRE_MESSAGES = defineWire({
     },
   },
   /**
+   * A message written while the session's turn runs, which the process takes at the turn's next tool gap (ADR 0020).
+   * The agent answers with `runtime.steered`, or with `runtime.rejected` carrying `steerId` as `promptId`.
+   */
+  'runtime.steer': {
+    lane: 'control',
+    direction: 'core-to-device',
+    fields: {
+      sessionId,
+      steerId: v.string(),
+      text: v.string(),
+      attachments: v.optional(list(AttachmentIdSchema)),
+    },
+  },
+  /** The agent wrote the steer to the process. */
+  'runtime.steered': {
+    lane: 'control',
+    direction: 'device-to-core',
+    fields: { sessionId, steerId: v.string() },
+  },
+  /**
    * Sets one setting of a session (ADR 0018). The agent applies it as the driver says (at once, before the next
    * turn or by restarting the process between turns) and reports the session's settings in its next
    * `runtime.state`. The core sends only declared settings; the agent drops one its driver does not declare.
@@ -314,7 +334,10 @@ export const WIRE_MESSAGES = defineWire({
       commands: v.pipe(list(CommandSchema), v.maxLength(MAX_COMMANDS)),
     },
   },
-  /** A prompt the agent refused; `reason` is `busy`, `starting`, `external` or diagnostic text. */
+  /**
+   * A prompt or steer the agent refused (`promptId` is the prompt's or the steer's ID); `reason` is `busy`,
+   * `starting`, `external`, `not-running`, `permission`, `unsupported` or diagnostic text.
+   */
   'runtime.rejected': {
     lane: 'control',
     direction: 'device-to-core',
@@ -342,6 +365,12 @@ export const WIRE_MESSAGES = defineWire({
   },
   /** The commands of a session changed; the browser reads `GET /api/sessions/:id/commands` again. */
   'session.commands': {
+    lane: 'control',
+    direction: 'core-to-web',
+    fields: { sessionId },
+  },
+  /** The session's queue of next messages changed; the browser reads `GET /api/sessions/:id/queue` again. */
+  'session.queue': {
     lane: 'control',
     direction: 'core-to-web',
     fields: { sessionId },
@@ -714,6 +743,8 @@ export type WorkspaceSnapshot = WireMessageOf<'workspace.snapshot'>;
 export type SessionAppended = WireMessageOf<'session.appended'>;
 export type SessionUpdated = WireMessageOf<'session.updated'>;
 export type RuntimePrompt = WireMessageOf<'runtime.prompt'>;
+export type RuntimeSteer = WireMessageOf<'runtime.steer'>;
+export type RuntimeSteered = WireMessageOf<'runtime.steered'>;
 export type RuntimeConfig = WireMessageOf<'runtime.config'>;
 export type RuntimePermissionAnswer = WireMessageOf<'runtime.permission.answer'>;
 export type RuntimeStart = WireMessageOf<'runtime.start'>;
@@ -727,6 +758,7 @@ export type RuntimePermissionMsg = WireMessageOf<'runtime.permission'>;
 export type RuntimeRejected = WireMessageOf<'runtime.rejected'>;
 export type RuntimeCommands = WireMessageOf<'runtime.commands'>;
 export type SessionCommands = WireMessageOf<'session.commands'>;
+export type SessionQueue = WireMessageOf<'session.queue'>;
 export type SubscribeMsg = WireMessageOf<'subscribe'>;
 export type UnsubscribeMsg = WireMessageOf<'unsubscribe'>;
 export type DevicePresence = WireMessageOf<'device.presence'>;
@@ -788,6 +820,7 @@ export const ClientMessageSchema = v.variant('type', [
   WIRE_MESSAGES['runtime.output'].schema,
   WIRE_MESSAGES['runtime.permission'].schema,
   WIRE_MESSAGES['runtime.rejected'].schema,
+  WIRE_MESSAGES['runtime.steered'].schema,
   WIRE_MESSAGES['runtime.commands'].schema,
   WIRE_MESSAGES['runtime.started'].schema,
   WIRE_MESSAGES['runtime.start.rejected'].schema,

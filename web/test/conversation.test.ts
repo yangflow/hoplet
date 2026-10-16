@@ -17,6 +17,8 @@ const api = vi.hoisted(() => ({
   postPermission: vi.fn(),
   postInterrupt: vi.fn(),
   postStop: vi.fn(),
+  postSteer: vi.fn(),
+  postQueueAdd: vi.fn(),
 }));
 vi.mock('../src/lib/api.ts', async (original) => ({ ...(await original()), ...api }));
 
@@ -331,8 +333,10 @@ it('streams a running turn into the live turn and holds the stored lines until i
   expect(q('cockpit.live-thinking')?.textContent).toContain('40 tokens');
   expect(q('cockpit.live-tool')?.textContent).toContain('pnpm check');
   expect(q('cockpit.live-state')?.getAttribute('aria-label')).toBe('Running');
-  expect(q('cockpit.composer-input')?.getAttribute('placeholder')).toBe('Turn running');
-  expect((q('cockpit.composer-input') as HTMLTextAreaElement).disabled).toBe(true);
+  expect(q('cockpit.composer-input')?.getAttribute('placeholder')).toBe(
+    'Queue a message for after this turn…',
+  );
+  expect((q('cockpit.composer-input') as HTMLTextAreaElement).disabled).toBe(false);
 });
 
 it('asks for permission inside the live turn and answers once', async () => {
@@ -554,6 +558,39 @@ it('leaves a turn that failed on screen with its error, and a failed start to th
   expect(q('cockpit.composer-state')?.textContent).toContain('Claude Code not found');
   expect(q('cockpit.retry')?.getAttribute('aria-label')).toBe('Retry start');
 });
+
+it('queues on Enter and steers on Alt+Enter while a turn runs, and only queues without the steer capability', async () => {
+  api.postQueueAdd.mockResolvedValue({ items: [] });
+  api.postSteer.mockResolvedValue({ ok: true });
+  const press = (init: Record<string, unknown>) =>
+    act(async () => {
+      const ev = new KeyboardEvent('keydown', {
+        key: 'Enter',
+        bubbles: true,
+        cancelable: true,
+        ...init,
+      });
+      q('cockpit.composer-input')?.dispatchEvent(ev);
+    });
+  const steerCaps = { ...caps, steer: true };
+  await show({ state: 'idle', capabilities: steerCaps }, { capabilities: steerCaps });
+  await show({ state: 'running', capabilities: steerCaps }, { capabilities: steerCaps });
+  await act(async () => type('also the Go tests'));
+  await press({});
+  expect(api.postQueueAdd).toHaveBeenCalledTimes(1);
+  expect(api.postSteer).not.toHaveBeenCalled();
+  await act(async () => type('and lint'));
+  await press({ altKey: true });
+  expect(api.postSteer).toHaveBeenCalledTimes(1);
+  expect(api.postSteer.mock.calls[0]?.slice(0, 2)).toEqual([SID, 'and lint']);
+
+  api.postSteer.mockClear();
+  api.postQueueAdd.mockClear();
+  await show({ state: 'running', capabilities: caps }, { capabilities: caps });
+  await act(async () => type('no steering here'));
+  await press({ altKey: true });
+  expect(api.postSteer).not.toHaveBeenCalled();
+}, 20_000);
 
 it('cycles the permission mode of an open session with Shift+Tab, also while a turn runs, never mid-composition', async () => {
   const modes = (current: string) => ({

@@ -4,6 +4,7 @@ import type {
   Entry,
   LiveSessionMeta,
   PromptImage,
+  Queue,
   RuntimeCapabilities,
   SessionConfig,
   SessionRuntimeInfo,
@@ -19,6 +20,8 @@ import {
   postInterrupt,
   postPermission,
   postPrompt,
+  postQueueAdd,
+  postSteer,
   postStop,
 } from '../../../lib/api.ts';
 import { errorText } from '../../../lib/errors.ts';
@@ -26,11 +29,15 @@ import { t } from '../../../lib/i18n.ts';
 import { onLive, subscribeSession } from '../../../lib/live.ts';
 import { pageKeysSuspended } from '../../../lib/page-keys.ts';
 import { usePageVisible } from '../../../lib/visibility.ts';
+import type { SendMode } from '../../settings/prefs.ts';
+import { loadAppearance } from '../../settings/prefs.ts';
 import { Composer } from '../composer/composer.tsx';
 import { ModeMenu, modeOption, nextMode } from '../composer/mode-menu.tsx';
 import { hasChoices, ModelMenu, withValues } from '../composer/model-menu.tsx';
 import { type PathsState, useCommands } from '../composer/use-completions.ts';
 import { SessionWhere } from '../composer/where.tsx';
+import { QueueTray, type TrayFixture } from '../queue/queue-tray.tsx';
+import { useQueue } from '../queue/use-queue.ts';
 import { type ComposerView, composerView, stateName } from '../runtime.ts';
 import { LiveTurnView } from './live-view.tsx';
 import { SessionReader } from './reader.ts';
@@ -65,6 +72,15 @@ export type ConversationFixture = {
   modelMenuOpen?: boolean;
   /** The session's permission-mode menu starts open. */
   modeMenuOpen?: boolean;
+  /** The queue the tray shows, and how its rows look. */
+  queue?: Queue;
+  tray?: TrayFixture;
+  /** The send menu next to the send button starts open. */
+  sendMenuOpen?: boolean;
+  /** Messages steered into the live turn that the model has not taken in yet. */
+  steering?: { text: string; taken?: boolean }[];
+  /** What a send does while a turn runs, when the user's setting is not the default. */
+  sendMode?: SendMode;
   scrollTo?: number;
   openBlocks?: string[];
 };
@@ -234,6 +250,52 @@ export function Conversation(props: {
   const pending = useRef<{ text: string; attachments: string[] } | null>(null);
   const root = useRef<HTMLDivElement>(null);
 
+  const { queue, apply: applyQueue, refresh: refreshQueue } = useQueue(sessionId, fixture?.queue);
+  const [steering, setSteering] = useState<string[]>(fixture?.steering?.map((s) => s.text) ?? []);
+  // Read at every render so a change made in Settings applies as soon as the overlay closes.
+  const sendMode: SendMode = fixture?.sendMode ?? loadAppearance().sendMode;
+  // Steers wait for the model to take them in; a turn that ends, or another session, drops them.
+  useEffect(() => {
+    if (!fixture && state !== 'running' && state !== 'waiting-permission') setSteering([]);
+  }, [state, fixture]);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: another session starts with no pending steers
+  useEffect(() => {
+    if (!fixture) setSteering([]);
+  }, [sessionId, fixture]);
+
+  // A steer the model has taken in is on disk as a steered entry; until then it waits at the next tool call.
+  const steeringShown = steering.map((text, i) => ({
+    text,
+    taken:
+      fixture?.steering?.[i]?.taken ??
+      snapshot.entries.some(
+        (e) =>
+          e.steered === true &&
+          e.blocks.some((b) => b.type === 'text' && 'text' in b && b.text.trim() === text.trim()),
+      ),
+  }));
+  const turnOpen = state === 'running' || state === 'waiting-permission';
+  const sendDuringTurn = useCallback(
+    async (text: string, attachments: string[], mode: SendMode) => {
+      setBusy(true);
+      setSendError(null);
+      try {
+        if (mode === 'steer') {
+          await postSteer(sessionId, text, attachments);
+          setSteering((list) => [...list, text]);
+        } else {
+          applyQueue(await postQueueAdd(sessionId, crypto.randomUUID(), text, attachments));
+        }
+      } catch (err) {
+        setRestore((r) => ({ text, withImages: attachments.length > 0, n: (r?.n ?? 0) + 1 }));
+        setSendError(errorText(err));
+      } finally {
+        setBusy(false);
+      }
+    },
+    [sessionId, applyQueue],
+  );
+
   const send = useCallback(
     async (text: string, attachments: string[] = []) => {
       setBusy(true);
@@ -385,6 +447,7 @@ export function Conversation(props: {
     error: runtime.error,
     turnFailed: turn?.phase === 'failed',
     planPending: lt.permissions.some((p) => p.planExit !== undefined),
+    canSteer: props.capabilities?.steer === true,
   });
   const view: ComposerView = fixture?.composerOffline
     ? {
@@ -455,6 +518,7 @@ export function Conversation(props: {
                 decidable={live && session.ownerConnected && !fixture?.composerOffline}
                 deviceName={session.deviceName}
                 planView={fixture?.live?.plan}
+                steering={steeringShown}
               />
             ) : null
           }
@@ -482,6 +546,16 @@ export function Conversation(props: {
             </div>
           ) : null}
           <div ref={composerBox}>
+            <QueueTray
+              sessionId={sessionId}
+              queue={queue}
+              apply={applyQueue}
+              refresh={refreshQueue}
+              waitingPermission={state === 'waiting-permission'}
+              canSteer={state === 'running' && props.capabilities?.steer === true}
+              onError={setSendError}
+              {...(fixture?.tray ? { fixture: fixture.tray } : {})}
+            />
             <Composer
               key={sessionId}
               view={view}
@@ -519,7 +593,11 @@ export function Conversation(props: {
               }}
               {...(fixture?.recording ? { recording: true } : {})}
               {...(fixture?.composerText ? { initialText: fixture.composerText } : {})}
-              onSend={(text, attachments) => void send(text, attachments)}
+              sendMode={sendMode}
+              {...(fixture?.sendMenuOpen ? { sendMenuOpen: true } : {})}
+              onSend={(text, attachments, mode) =>
+                void (turnOpen ? sendDuringTurn(text, attachments, mode) : send(text, attachments))
+              }
               acceptsImages={caps?.images === true}
               {...(mode ? { onCycleMode: cycleMode } : {})}
               {...(choosable || mode

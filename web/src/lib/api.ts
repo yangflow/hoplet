@@ -20,12 +20,14 @@ import {
   type PromptImage,
   PromptResultSchema,
   type ProviderInfo,
+  QueueSchema,
   RuntimeCommandResultSchema,
   type SessionConfig,
   SessionListResponseSchema,
   type SessionPatchRequest,
   SnapshotChangesSchema,
   SnapshotDiffSchema,
+  SteerResultSchema,
   safeParse,
   WorkspaceDiffSchema,
   WorkspaceFileSchema,
@@ -56,11 +58,12 @@ async function call<S extends GenericSchema>(
   schema: S,
   body?: unknown,
   signal?: AbortSignal,
-  method: 'POST' | 'PATCH' = 'POST',
+  method: 'POST' | 'PATCH' | 'DELETE' = 'POST',
 ): Promise<InferOutput<S>> {
   const headers: Record<string, string> = { Authorization: `Bearer ${getToken() ?? ''}` };
   const init: RequestInit = { headers };
   if (signal) init.signal = signal;
+  if (method === 'DELETE') init.method = method;
   if (body !== undefined) {
     init.method = method;
     headers['content-type'] = 'application/json';
@@ -308,4 +311,86 @@ export function patchSession(sessionId: string, patch: SessionPatchRequest) {
     undefined,
     'PATCH',
   );
+}
+
+const queuePath = (sessionId: string, tail = '') =>
+  `/api/sessions/${encodeURIComponent(sessionId)}/queue${tail}`;
+
+/** The queue of a session (ADR 0020). */
+export function fetchQueue(sessionId: string, signal?: AbortSignal) {
+  return call(queuePath(sessionId), QueueSchema, undefined, signal);
+}
+
+/** Appends a message to the queue; a repeated `id` changes nothing. */
+export function postQueueAdd(
+  sessionId: string,
+  id: string,
+  text: string,
+  attachments: string[] = [],
+) {
+  return call(queuePath(sessionId), QueueSchema, {
+    id,
+    text,
+    ...(attachments.length > 0 ? { attachments } : {}),
+  });
+}
+
+/** Replaces a queued message; `version` is the one the client read, a newer one answers `queue-conflict`. */
+export function patchQueueItem(
+  sessionId: string,
+  itemId: string,
+  version: number,
+  text: string,
+  attachments: string[] = [],
+) {
+  return call(
+    queuePath(sessionId, `/${encodeURIComponent(itemId)}`),
+    QueueSchema,
+    { version, text, ...(attachments.length > 0 ? { attachments } : {}) },
+    undefined,
+    'PATCH',
+  );
+}
+
+export function deleteQueueItem(sessionId: string, itemId: string, version: number) {
+  return call(
+    queuePath(sessionId, `/${encodeURIComponent(itemId)}?version=${version}`),
+    QueueSchema,
+    undefined,
+    undefined,
+    'DELETE',
+  );
+}
+
+export function postQueueOrder(sessionId: string, ids: string[]) {
+  return call(queuePath(sessionId, '/order'), QueueSchema, { ids });
+}
+
+export function postQueueResume(sessionId: string) {
+  return call(queuePath(sessionId, '/resume'), QueueSchema, {});
+}
+
+export function postQueueClear(sessionId: string) {
+  return call(queuePath(sessionId, '/clear'), QueueSchema, {});
+}
+
+/** Sends a queued message into the running turn instead of waiting for its end. */
+export function postQueueSteer(sessionId: string, itemId: string, version: number) {
+  return call(queuePath(sessionId, `/${encodeURIComponent(itemId)}/steer`), QueueSchema, {
+    version,
+  });
+}
+
+/** Sends a message into the running turn at its next tool gap. */
+export function postSteer(
+  sessionId: string,
+  text: string,
+  attachments: string[] = [],
+  steerId: string = crypto.randomUUID(),
+) {
+  return call(`/api/sessions/${encodeURIComponent(sessionId)}/steer`, SteerResultSchema, {
+    steerId,
+    text,
+    ...(attachments.length > 0 ? { attachments } : {}),
+  });
 }

@@ -219,3 +219,22 @@ it('adds the nullable session state columns and keeps the sessions it has', () =
   expect(store.sessionStates().size).toBe(0);
   expect(store.getSession('keep')).not.toBeNull();
 });
+
+it('creates the queue tables at schema 13 and keeps them across opens', () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'hoplet-migration-'));
+  dirs.push(dir);
+  new Store(dir);
+  new Store(dir);
+  const db = new DatabaseSync(path.join(dir, 'hoplet.db'));
+  const tables = db
+    .prepare(
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'session_queue%' ORDER BY name",
+    )
+    .all()
+    .map((r) => r.name);
+  expect(tables).toEqual(['session_queue', 'session_queue_state']);
+  expect(db.prepare('SELECT name FROM schema_migrations WHERE id = 13').get()).toEqual({
+    name: 'session-queue',
+  });
+  db.close();
+});

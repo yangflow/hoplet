@@ -30,6 +30,8 @@ const (
 	CapInterrupt   Capability = "interrupt"
 	// CapImages: a prompt may carry images, which the driver passes to the vendor as image content.
 	CapImages Capability = "images"
+	// CapSteer: a message written during a turn reaches the model at the turn's next tool gap (ADR 0020).
+	CapSteer Capability = "steer"
 )
 
 // Image is a picture that goes with a prompt: its media type (image/png, image/jpeg, image/gif or
@@ -124,6 +126,9 @@ type Process interface {
 	// Events delivers the process's events in order and is closed after the final Exited.
 	Events() <-chan ProcessEvent
 	Prompt(p Prompt) error
+	// Steer writes a message into the running turn; the vendor absorbs it at the next tool gap, or runs it as
+	// the next turn when the turn ends without one. It does not start a turn and leaves the turn's bookkeeping alone.
+	Steer(p Prompt) error
 	// Set switches a setting of the running process (an ApplyNow or ApplyNextTurn option); a setting the
 	// process cannot switch is an error. An ApplyNow setting returns when the vendor accepted the value, and
 	// the vendor's refusal is the error.

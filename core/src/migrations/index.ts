@@ -12,6 +12,7 @@ import { snapshotsAndOwnerEpoch } from './0009-snapshots-and-owner-epoch.ts';
 import { sessionGitBranch } from './0010-session-git-branch.ts';
 import { sessionActions } from './0011-session-actions.ts';
 import { directoryCommands } from './0012-directory-commands.ts';
+import { sessionQueue } from './0013-session-queue.ts';
 
 export interface Migration {
   readonly id: number;
@@ -32,6 +33,7 @@ const MIGRATIONS: readonly Migration[] = [
   sessionGitBranch,
   sessionActions,
   directoryCommands,
+  sessionQueue,
 ];
 
 export function migrate(db: DatabaseSync): void {

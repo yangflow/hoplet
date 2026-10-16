@@ -16,6 +16,7 @@ import { IconButton } from '../../../components/IconButton.tsx';
 import { Icon, Spinner } from '../../../components/icons.tsx';
 import { errorText } from '../../../lib/errors.ts';
 import { t } from '../../../lib/i18n.ts';
+import type { SendMode } from '../../settings/prefs.ts';
 import type { ComposerView } from '../runtime.ts';
 import { type Attachment, dataUrl, fromImages, readImage, refusal } from './attachments.ts';
 import { xOfIndex } from './caret.ts';
@@ -38,6 +39,7 @@ import {
   maxFieldHeight,
   saveHeight,
 } from './height.ts';
+import { SendWhileRunning } from './send-menu.tsx';
 import { type PathsState, usePaths } from './use-completions.ts';
 
 /** What the field completes: `/` from the session's commands, `@` from its working tree. */
@@ -171,8 +173,12 @@ export function Composer(props: {
   recording?: boolean;
   /** Where `/` and `@` take their lists from; without it the field completes nothing. */
   completions?: CompletionSources;
-  /** Sends the text with the attachment IDs of its images. */
-  onSend: (text: string, attachments: string[]) => void;
+  /** The way Enter sends while a turn runs (a preference); Alt+Enter sends the other way. */
+  sendMode?: SendMode;
+  /** The send menu starts open (development fixtures). */
+  sendMenuOpen?: boolean;
+  /** Sends the text with the attachment IDs of its images, the way chosen when a turn is running. */
+  onSend: (text: string, attachments: string[], mode: SendMode) => void;
   onStop: () => void;
   onRetry: () => void;
   onHandoff: () => void;
@@ -437,13 +443,21 @@ export function Composer(props: {
   const uploading = attachments.some((a) => a.status !== 'ready');
   const canSend = view.inputEnabled && text !== '' && !props.busy && !uploading;
 
-  function submit(e?: FormEvent) {
+  // While a turn runs the field stays open and sends one of two ways; a driver that cannot steer only queues.
+  const sending = view.sending;
+  const steerable = sending?.steer === true;
+  const defaultMode: SendMode = steerable ? (props.sendMode ?? 'queue') : 'queue';
+  const otherMode: SendMode = defaultMode === 'steer' ? 'queue' : 'steer';
+
+  function submit(e?: FormEvent, mode?: SendMode) {
     e?.preventDefault();
     if (!canSend) return;
+    const how = sending ? (mode ?? defaultMode) : 'queue';
     sent.current = attachments;
     props.onSend(
       text,
       attachments.map((a) => a.attachmentId ?? ''),
+      how,
     );
     setDraft('');
     setAttachments([]);
@@ -603,7 +617,8 @@ export function Composer(props: {
           }
           if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
             e.preventDefault();
-            submit();
+            if (!e.altKey) submit();
+            else if (sending && (otherMode === 'queue' || steerable)) submit(undefined, otherMode);
           }
         }}
         onPaste={onPaste}
@@ -700,15 +715,26 @@ export function Composer(props: {
               data-testid="cockpit.mic"
             />
           ) : null}
-          <IconButton
-            label={sendLabel}
-            hint="↩"
-            icon={Icon.send()}
-            primary
-            type="submit"
-            disabled={!canSend}
-            data-testid="cockpit.send"
-          />
+          {sending ? (
+            <SendWhileRunning
+              mode={defaultMode}
+              steer={steerable}
+              ready={canSend}
+              providerName={props.providerName}
+              onSend={(mode) => submit(undefined, mode)}
+              {...(props.sendMenuOpen ? { initialOpen: true } : {})}
+            />
+          ) : (
+            <IconButton
+              label={sendLabel}
+              hint="↩"
+              icon={Icon.send()}
+              primary
+              type="submit"
+              disabled={!canSend}
+              data-testid="cockpit.send"
+            />
+          )}
         </span>
       </div>
     </form>

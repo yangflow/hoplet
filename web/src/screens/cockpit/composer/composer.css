@@ -587,3 +587,28 @@
   font-variant-numeric: tabular-nums;
   flex: none;
 }
+.need-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+  background: var(--color-attention);
+  box-shadow: 0 0 0 3px var(--color-attention-ring);
+}
+.sendw {
+  align-items: center;
+}
+.sendw .btn {
+  gap: var(--space-2);
+}
+.kbs {
+  display: inline-flex;
+  gap: 2px;
+  margin-left: var(--space-2);
+}
+.qfoot {
+  padding: var(--space-2);
+  color: var(--color-text-3);
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+}

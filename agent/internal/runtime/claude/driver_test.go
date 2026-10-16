@@ -168,7 +168,7 @@ read request
 
 func TestCapabilities(t *testing.T) {
 	caps := New(Options{}).Capabilities()
-	want := []runtime.Capability{runtime.CapPermissions, runtime.CapInterrupt, runtime.CapImages}
+	want := []runtime.Capability{runtime.CapPermissions, runtime.CapInterrupt, runtime.CapImages, runtime.CapSteer}
 	if len(caps) != len(want) {
 		t.Fatalf("caps = %v", caps)
 	}

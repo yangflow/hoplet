@@ -8,6 +8,9 @@ type RuntimeHooks struct {
 	// Prompt accepts a prompt and the uploaded images it names or refuses it; the error text is the reason
 	// sent as runtime.rejected.
 	Prompt func(sessionID, text string, attachments []string) error
+	// Steer writes a message into the running turn or refuses it; the error text is the reason sent as
+	// runtime.rejected.
+	Steer func(sessionID, text string, attachments []string) error
 	// Answer answers a permission request: message explains a refusal, mode is the mode an approved plan
 	// switches to.
 	Answer    func(sessionID, requestID string, allow bool, message, mode string) error

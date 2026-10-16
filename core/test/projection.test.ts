@@ -181,6 +181,26 @@ describe('Claude Code internal records', () => {
     }
   });
 
+  it('shows a message the user steered into a turn as a steered user entry, and drops the rest of the queue records', () => {
+    const queued = (over: Record<string, unknown>) =>
+      attachment({
+        type: 'queued_command',
+        prompt: 'also run the Go tests',
+        commandMode: 'prompt',
+        ...over,
+      });
+    const steered = projectLine('claude', queued({}), 7);
+    expect(steered).toMatchObject({
+      lineNo: 7,
+      role: 'user',
+      steered: true,
+      blocks: [{ type: 'text', text: 'also run the Go tests' }],
+    });
+    expect(projectLine('claude', queued({ isMeta: true }), 8)).toBeNull();
+    expect(projectLine('claude', queued({ origin: { kind: 'task-notification' } }), 9)).toBeNull();
+    expect(projectLine('claude', { type: 'queue-operation', operation: 'enqueue' }, 10)).toBeNull();
+  });
+
   it('keeps a file or image the user attached', () => {
     const labels = [
       attachment({ type: 'file', file_path: '/w/a.ts' }),

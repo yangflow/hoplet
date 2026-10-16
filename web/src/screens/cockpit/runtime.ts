@@ -43,6 +43,11 @@ export type ComposerView = {
     tone: 'plain' | 'bad';
   };
   action?: ComposerAction;
+  /**
+   * Present while a turn runs and the field stays open: what is written goes to the queue, or, with `steer`, may
+   * also go into the running turn (ADR 0020).
+   */
+  sending?: { steer: boolean };
 };
 
 /** The short name of a start failure: the problem in a few words; the full text is the tooltip. */
@@ -66,6 +71,8 @@ export function composerView(input: {
   turnFailed: boolean;
   /** A plan waits for the user's decision. */
   planPending?: boolean;
+  /** The session's driver takes a steer (`capabilities.steer`). */
+  canSteer?: boolean;
 }): ComposerView {
   const ask = t('Ask {provider}…').replace('{provider}', input.providerName);
   const { state } = input;
@@ -104,15 +111,25 @@ export function composerView(input: {
         placeholder: t('Starting {provider}').replace('{provider}', input.providerName),
         inputEnabled: false,
       };
-    case 'running':
-      return { layout: 'field', placeholder: t('Turn running'), inputEnabled: false };
+    case 'running': {
+      const steer = input.canSteer === true;
+      return {
+        layout: 'field',
+        placeholder: steer
+          ? t('Queue or steer, without stopping the turn…')
+          : t('Queue a message for after this turn…'),
+        inputEnabled: true,
+        sending: { steer },
+      };
+    }
     case 'waiting-permission':
       return {
         layout: 'field',
         placeholder: input.planPending
           ? t('Waiting for your decision on the plan')
-          : t('Waiting for permission'),
-        inputEnabled: false,
+          : t('Queue a message for after this turn…'),
+        inputEnabled: true,
+        sending: { steer: false },
       };
     case 'failed':
       if (input.turnFailed) {

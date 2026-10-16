@@ -147,6 +147,8 @@ func capabilities(caps []runtime.Capability, config []runtime.ConfigOption) sync
 			out.Interrupt = true
 		case runtime.CapImages:
 			out.Images = true
+		case runtime.CapSteer:
+			out.Steer = true
 		}
 	}
 	return out
@@ -220,6 +222,13 @@ func (b *bridge) hooks() sync.RuntimeHooks {
 				return err
 			}
 			return b.mgr.PromptWith(sessionID, p)
+		},
+		Steer: func(sessionID, text string, ids []string) error {
+			p, err := b.att.prompt(text, ids)
+			if err != nil {
+				return err
+			}
+			return b.mgr.Steer(sessionID, p)
 		},
 		Config: func(sessionID, configID string, value any) error {
 			return b.mgr.SetConfig(sessionID, configID, value)

@@ -255,6 +255,9 @@ func (c *Client) readLoop(cs *connState) {
 		case TypeRuntimePrompt:
 			go c.handleRuntimePrompt(cs, raw)
 			continue
+		case TypeRuntimeSteer:
+			go c.handleRuntimeSteer(cs, raw)
+			continue
 		case TypeRuntimePermissionAnswer:
 			go c.handleRuntimeAnswer(head.SessionID, head.RequestID, head.Decision, head.Message, head.Mode)
 			continue

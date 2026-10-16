@@ -46,6 +46,7 @@ describe('appearance storage', () => {
       language: 'zh-Hans',
       size: 'large',
       wide: true,
+      sendMode: 'steer',
     } as const;
     saveAppearance(a, store);
     expect(loadAppearance(store)).toEqual(a);
@@ -69,6 +70,13 @@ describe('appearance storage', () => {
     };
     expect(loadAppearance(broken)).toEqual(DEFAULTS);
     expect(() => saveAppearance(DEFAULTS, broken)).not.toThrow();
+  });
+});
+
+describe('send mode', () => {
+  it('defaults to queue and ignores an unknown value', () => {
+    expect(DEFAULTS.sendMode).toBe('queue');
+    expect(loadAppearance(memory(JSON.stringify({ sendMode: 'shout' }))).sendMode).toBe('queue');
   });
 });
 

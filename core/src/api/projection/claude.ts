@@ -176,6 +176,12 @@ function attachmentLabel(att: Rec): string | undefined {
   return str(att.media_type)?.trim() || undefined;
 }
 
+/** A queued command the user typed, as opposed to a task notification or a coordinator's reminder. */
+function isHumanPrompt(att: Rec): boolean {
+  if (att.isMeta === true || att.commandMode !== 'prompt') return false;
+  return !isRec(att.origin) || att.origin.kind === 'human';
+}
+
 /** Maps one parsed stored line; `null` when the line holds nothing to show. */
 export function mapClaudeLine(line: unknown, lineNo: number): Entry | null {
   if (!isRec(line)) return entry(lineNo, 'system', {}, [other('unknown', JSON.stringify(line))]);
@@ -206,6 +212,11 @@ export function mapClaudeLine(line: unknown, lineNo: number): Entry | null {
     case 'attachment': {
       const att = isRec(line.attachment) ? line.attachment : {};
       const attType = str(att.type);
+      // A message the user wrote during a turn, which the model took at a tool gap (ADR 0020).
+      if (attType === 'queued_command' && isHumanPrompt(att)) {
+        const steered = entry(lineNo, 'user', line, messageBlocks(att.prompt));
+        return steered ? { ...steered, steered: true } : null;
+      }
       const label = attachmentLabel(att);
       // An attachment without a type is shown when it names something.
       if (attType === undefined ? !label : !USER_ATTACHMENTS.has(attType)) return null;

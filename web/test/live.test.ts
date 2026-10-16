@@ -139,10 +139,19 @@ describe('composerView', () => {
     const placeholder = (state: Parameters<typeof composerView>[0]['state'], over = {}) =>
       composerView({ ...base, state, ...over }).placeholder;
     expect(placeholder('starting')).toBe('Starting Claude Code');
-    expect(placeholder('running')).toBe('Turn running');
-    expect(placeholder('waiting-permission')).toBe('Waiting for permission');
     expect(placeholder('running', { live: false })).toBe('Reconnecting');
-    expect(composerView({ ...base, state: 'running' }).inputEnabled).toBe(false);
+    expect(composerView({ ...base, state: 'running', live: false }).inputEnabled).toBe(false);
+  });
+
+  it('keeps the field open during a turn and offers steer only to a driver that declares it', () => {
+    const running = composerView({ ...base, state: 'running' });
+    expect(running).toMatchObject({ inputEnabled: true, sending: { steer: false } });
+    expect(composerView({ ...base, state: 'running', canSteer: true }).sending).toEqual({
+      steer: true,
+    });
+    const waiting = composerView({ ...base, state: 'waiting-permission', canSteer: true });
+    expect(waiting).toMatchObject({ inputEnabled: true, sending: { steer: false } });
+    expect(composerView({ ...base, state: 'idle' }).sending).toBeUndefined();
   });
 
   it('names the session states that change what the user can do', () => {

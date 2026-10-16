@@ -30,6 +30,9 @@ describe('the route table', () => {
       'GET',
       'PATCH',
     ]);
+    expect(
+      routes.filter((r) => r.pattern.test('/api/sessions/s1/queue/q1')).map((r) => r.method),
+    ).toEqual(['PATCH', 'DELETE']);
     expect(match('/api/unknown')).toEqual([]);
   });
 });

@@ -2,6 +2,7 @@ import {
   Archive,
   ArchiveRestore,
   ArrowRightLeft,
+  ArrowRightToLine,
   ArrowUp,
   ArrowUpRight,
   BookOpen,
@@ -11,6 +12,7 @@ import {
   Clock,
   Contrast,
   Copy,
+  CornerDownRight,
   Ellipsis,
   Eye,
   File,
@@ -20,6 +22,7 @@ import {
   FolderOpen,
   GitBranch,
   Globe,
+  GripVertical,
   Hand,
   Image,
   Info,
@@ -36,6 +39,7 @@ import {
   Pencil,
   Pin,
   PinOff,
+  Play,
   Plug,
   Plus,
   RotateCw,
@@ -48,6 +52,7 @@ import {
   SquarePen,
   Terminal,
   TextWrap,
+  Trash2,
   X,
   Zap,
 } from 'lucide-react';
@@ -119,6 +124,11 @@ export const Icon = {
   unpin: draw(PinOff),
   archive: draw(Archive),
   restore: draw(ArchiveRestore),
+  grip: draw(GripVertical),
+  trash: draw(Trash2),
+  queue: draw(CornerDownRight),
+  steer: draw(ArrowRightToLine),
+  play: draw(Play),
 };
 
 /** The shared icon vocabulary of config values (`CONFIG_ICONS`) mapped to this client's glyphs. */

@@ -9,6 +9,7 @@ import type {
   PromptImage,
   Provider,
   ProviderInfo,
+  Queue,
   RuntimeCapabilities,
   RuntimeState,
   ServerMessage,
@@ -79,6 +80,23 @@ export interface RuntimeView {
 export type RuntimeCommandOutcome =
   | { ok: true }
   | { ok: false; error: 'owner-offline' | 'not-running' | 'external' };
+
+/** What a steer of a running turn comes to (ADR 0020). */
+export type SteerOutcome =
+  | { ok: true }
+  | {
+      ok: false;
+      error: 'owner-offline' | 'not-running' | 'steer-unavailable' | 'timeout' | 'rejected';
+      reason?: string;
+    };
+
+/** The queue after a change, or why the change did not apply: the message changed or went (`conflict`), or the queue is full. */
+export type QueueResult = { ok: true; queue: Queue } | { ok: false; error: 'conflict' | 'full' };
+
+/** Converting a queued message to a steer: the queue after it, and how the steer went. */
+export type QueueSteerOutcome =
+  | { ok: true; queue: Queue; steer: SteerOutcome }
+  | { ok: false; error: 'conflict' };
 
 export type PermissionOutcome =
   | { ok: true }
@@ -222,6 +240,42 @@ export interface Control {
     configId: string,
     value: ConfigSetting,
   ): RuntimeCommandOutcome;
+  /** The session's queue of next messages, held by the core (ADR 0020). */
+  queueOf(sessionId: string): Queue;
+  /** Appends a message to the queue; the session sends it when its turn is over. A repeated `id` changes nothing. */
+  queueAdd(
+    sessionId: string,
+    input: { id: string; text: string; attachments: string[] },
+  ): QueueResult;
+  /** Replaces a waiting message that is still at `version`. */
+  queueEdit(
+    sessionId: string,
+    id: string,
+    version: number,
+    input: { text: string; attachments: string[] },
+  ): QueueResult;
+  queueRemove(sessionId: string, id: string, version: number): QueueResult;
+  /** Orders the waiting messages; `ids` names exactly those. */
+  queueReorder(sessionId: string, ids: string[]): QueueResult;
+  /** Ends a pause: the queue sends again. */
+  queueResume(sessionId: string): Queue;
+  /** Removes the waiting messages and ends a pause. */
+  queueClear(sessionId: string): Queue;
+  /** Sends a queued message to the running turn instead of after it. */
+  queueSteer(
+    sessionId: string,
+    ownerDeviceId: string,
+    id: string,
+    version: number,
+  ): Promise<QueueSteerOutcome>;
+  /** Forwards a message to the running turn, which takes it at its next tool gap; a repeated `steerId` returns the first result. */
+  steer(
+    sessionId: string,
+    ownerDeviceId: string,
+    steerId: string,
+    text: string,
+    attachments?: string[],
+  ): Promise<SteerOutcome>;
   /** The runtime state of a session; `offline` when its owner is not connected. */
   runtimeOf(sessionId: string): RuntimeView;
   /** The vendor of a session, also of one an agent just started; `null` for an unknown session. */

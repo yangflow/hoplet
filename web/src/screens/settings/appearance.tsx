@@ -8,6 +8,8 @@ import {
   type CodeFont,
   SCHEMES,
   type Scheme,
+  SEND_MODES,
+  type SendMode,
   SIZES,
   type Size,
   UI_FONTS,
@@ -68,6 +70,11 @@ function ThemeCard(props: { scheme: Scheme; label: string; on: boolean; onPick: 
     </button>
   );
 }
+
+const SEND_MODE_LABEL: Record<SendMode, () => string> = {
+  queue: () => t('Queue'),
+  steer: () => t('Steer'),
+};
 
 const SCHEME_LABEL: Record<Scheme, () => string> = {
   system: () => t('System'),
@@ -154,6 +161,23 @@ export function AppearanceSection(props: {
               ]}
               onChange={(value) => onChange({ language: value })}
               data-testid="settings.language.choice"
+            />
+          </Row>
+        </div>
+      </div>
+      <div className="sgrp" data-testid="settings.sending">
+        <div className="lb">{t('Send')}</div>
+        <div className="plist">
+          <Row
+            name={t('Send while a turn runs')}
+            hint={t('Enter does this while a turn runs; Alt+Enter does the other')}
+          >
+            <Segmented
+              label={t('Send while a turn runs')}
+              value={a.sendMode}
+              options={SEND_MODES.map((value) => ({ value, label: SEND_MODE_LABEL[value]() }))}
+              onChange={(sendMode) => onChange({ sendMode })}
+              data-testid="settings.send-mode"
             />
           </Row>
         </div>

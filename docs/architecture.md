@@ -135,6 +135,14 @@ Nothing else changes: `device.hello` announces it in `capabilities.config`, `run
 `config`, `runtime.config` sets one on a session (`POST /api/sessions/:id/config`), the agent reports the
 session's values in the `capabilities.config` of `runtime.state`, and the web UI renders the list generically.
 
+### A message while a turn runs
+
+The core holds a session's queue ([ADR 0020](adr/0020-queued-and-steered-messages.md)) and sends its head with
+`runtime.prompt` once the session is idle or ready, so the agent and the driver know nothing of the queue. A
+driver that can take a message into a running turn declares `steer`; `runtime.steer` carries the message, the agent
+answers `runtime.steered` or `runtime.rejected`, and the driver writes it to the process. `session.queue` tells
+browsers to read the queue again.
+
 ### A plan the vendor asks to leave
 
 A driver whose vendor has a plan step sets `planExit` on the permission request it emits

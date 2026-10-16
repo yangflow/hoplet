@@ -46,7 +46,7 @@ func New(opts Options) *Driver {
 func (d *Driver) Name() string { return "claude" }
 
 func (d *Driver) Capabilities() []runtime.Capability {
-	return []runtime.Capability{runtime.CapPermissions, runtime.CapInterrupt, runtime.CapImages}
+	return []runtime.Capability{runtime.CapPermissions, runtime.CapInterrupt, runtime.CapImages, runtime.CapSteer}
 }
 
 // Option IDs and the value that leaves the model to Claude Code (ADR 0018).

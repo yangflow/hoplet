@@ -942,6 +942,66 @@ body.stacked{background:#131210;color:#efe9e2;font-family:-apple-system,"SF Pro 
 .agf.hov{background:var(--color-hover)}
 .arow.c{height:32px;padding-left:var(--space-4);margin:0}
 .agoff .arow .t1{color:var(--color-text-3)}
+/* queue and steer: the Up next tray above the composer, and the steer row in the transcript */
+.btn.sm{height:24px;padding:0 var(--space-2);gap:var(--space-1)}
+.btn.sm.danger{color:var(--color-danger)}
+.ql{display:flex;flex-direction:column}
+.qh{display:flex;align-items:center;gap:var(--space-2);height:36px;padding:0 var(--space-2) 0 var(--space-3);color:var(--color-text-2);white-space:nowrap}
+.qh b{font-weight:var(--weight-semibold);color:var(--color-text)}
+.qh .meta{margin-left:auto;display:flex;align-items:center;gap:var(--space-2)}
+.qh .meta.l{margin-left:var(--space-1)}
+.qh .num{min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--color-hover);color:var(--color-text-2);font-size:var(--text-meta);line-height:18px;text-align:center;font-weight:var(--weight-medium)}
+.light .qh .num{background:var(--color-selected)}
+.qh .qdot{flex:none}
+.q-pause.need .qh b{color:var(--color-attention-text)}
+.q-pause.bad .qh b{color:var(--color-danger)}
+.qr{position:relative;display:grid;grid-template-columns:16px 18px minmax(0,1fr) auto;column-gap:var(--space-2);align-items:center;height:32px;padding:0 var(--space-2) 0 var(--space-3);border-radius:var(--radius-sm);color:var(--color-text);white-space:nowrap}
+.qr .gr{color:var(--color-text-3);opacity:.55;cursor:grab}
+.qr .n{color:var(--color-text-3);font-size:var(--text-meta);font-variant-numeric:tabular-nums;text-align:center}
+.qr .t{overflow:hidden;text-overflow:ellipsis;color:var(--color-text)}
+.qr .ac{display:flex;align-items:center;gap:2px;opacity:0}
+.qr:hover,.qr.hov{background:var(--color-hover)}
+.qr:hover .ac,.qr.hov .ac,.qr.hov .gr{opacity:1}
+.qr:hover .gr{opacity:1}
+.qr .ac .ib{width:24px;height:24px}
+.qr .ac .ib:hover{color:var(--color-text);background:var(--color-selected)}
+.qr .tag{display:inline-flex;align-items:center;gap:var(--space-1);color:var(--color-text-3);font-size:var(--text-meta);line-height:var(--leading-meta);margin-left:var(--space-2)}
+.qr.lock .t{color:var(--color-text-2)}
+.qr.lock .ac{opacity:1;color:var(--color-text-3);gap:var(--space-2);font-size:var(--text-meta)}
+.qr.lock .ac .spin{color:var(--color-accent)}
+.qr.dim .t{color:var(--color-text-2)}
+.qr.drag{background:var(--color-raised);box-shadow:var(--shadow-float);z-index:2;transform:translateY(-2px)}
+.qr.drag .gr{opacity:1;cursor:grabbing;color:var(--color-text-2)}
+.qr.gap::before{content:"";position:absolute;left:var(--space-3);right:var(--space-2);top:-1px;height:2px;border-radius:1px;background:var(--color-accent)}
+.qr.edit{height:auto;display:block;padding:var(--space-2) var(--space-3);background:var(--color-bg);box-shadow:inset 0 0 0 1px var(--color-line);white-space:normal;margin:var(--space-1) 0}
+.light .qr.edit{background:var(--color-raised)}
+.qe-t{font-size:var(--text-body);line-height:var(--leading-body);color:var(--color-text);padding:var(--space-1) 0}
+.qe-f{display:flex;align-items:center;gap:var(--space-2);margin-top:var(--space-1)}
+.qe-f .meta{margin-right:auto;display:flex;align-items:center;gap:var(--space-1)}
+.qe-t .cr2{display:inline-block;width:1.5px;height:20px;background:var(--color-accent);vertical-align:-4px;margin-left:1px}
+
+.qtray{position:relative;z-index:0;margin:0 var(--space-4) calc(-1 * var(--space-4));padding:var(--space-1) var(--space-2) var(--space-6);border-radius:var(--radius-xl) var(--radius-xl) 0 0;background:var(--color-surface);box-shadow:inset 0 0 0 1px var(--color-line);pointer-events:auto}
+.light .qtray{background:var(--color-sidebar)}
+.qtray.need{box-shadow:inset 0 0 0 1px var(--color-attention-ring);background:var(--color-attention-soft)}
+.qtray.bad{box-shadow:inset 0 0 0 1px var(--color-del-bg)}
+.dock .composer{z-index:1}
+.sendw{display:inline-flex;align-items:center;gap:var(--space-2)}
+.split .btn.primary .kbd{color:var(--color-on-accent);opacity:.7;box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--color-on-accent) 35%,transparent)}
+.qfoot{display:flex;align-items:center;gap:var(--space-2);padding:var(--space-2);color:var(--color-text-3);font-size:var(--text-meta);line-height:var(--leading-meta)}
+.qfoot a{color:var(--color-accent-text);text-decoration:none;font-weight:var(--weight-medium)}
+.kbs{display:inline-flex;gap:2px}
+.hintrow{display:flex;align-items:center;gap:var(--space-3);color:var(--color-text-3);font-size:var(--text-meta);line-height:var(--leading-meta);white-space:nowrap}
+.hintrow span{display:inline-flex;align-items:center;gap:var(--space-1)}
+
+/* a steer in the transcript, at the point in the turn where the message landed; the pending one keeps clear of the card’s edge */
+.act.steer{background:var(--color-accent-soft)}
+.act.steer .k{color:var(--color-accent-text);font-weight:var(--weight-medium)}
+.act.steer .a{color:var(--color-text);overflow:hidden;text-overflow:ellipsis}
+.act.steer .i{color:var(--color-accent-text)}
+.act.steer.pend{background:transparent;box-shadow:inset 0 0 0 1px var(--color-line)}
+.act.steer.pend .a{color:var(--color-text-2)}
+.act.steer.pend .i .spin{color:var(--color-accent)}
+.act.steer.pend{margin-bottom:var(--space-2)}
 </style>
 </head>
 <body>
@@ -1169,7 +1229,7 @@ function hlMd(src) {
 }
 
 /* every state is a configuration of the same parts */
-const LIVE = ['starting', 'running', 'waiting-permission', 'failed-turn', 'scrolled', 'disconnected', 'plan-pending', 'plan-long', 'plan-modes', 'plan-feedback', 'plan-approved', 'plan-kept', 'plan-elsewhere', 'plan-offline'];
+const LIVE = ['queue-menu', 'queue-queued', 'queue-editing', 'queue-dragging', 'queue-steered', 'queue-paused-permission', 'queue-paused-error', 'queue-paused-interrupted', 'starting', 'running', 'waiting-permission', 'failed-turn', 'scrolled', 'disconnected', 'plan-pending', 'plan-long', 'plan-modes', 'plan-feedback', 'plan-approved', 'plan-kept', 'plan-elsewhere', 'plan-offline'];
 const OFFLINE = ['offline', 'plan-offline', 'handoff-offline', 'changes-offline', 'diff-offline', 'mention-offline'];
 const HANDOFF = ['handoff', 'handoff-path', 'handoff-progress', 'handoff-failed', 'handoff-done', 'handoff-offline'];
 const WIDE = ['file-open', 'file-image', 'diff-open', 'diff-large', 'diff-binary', 'diff-offline'];
@@ -1454,6 +1514,7 @@ function planTurn(state) {
 }
 
 function liveTurn(state) {
+  if (state.startsWith('queue-')) return queueTurn(state);
   if (state.startsWith('plan-')) return planTurn(state);
   const need = state === 'waiting-permission';
   const kind = state === 'starting' ? 'start' : state === 'failed-turn' ? 'fail' : need ? 'need' : 'run';
@@ -1606,6 +1667,90 @@ function whereRow(state) {
     <span class="anc"><button class="chip${pick ? '' : ' ro'}${state === 'draft-directory' ? ' on' : ''}"${tip(pick ? 'Directory' : '~/github/repopro/hoplet')}>${I.folder()}hoplet${pick ? cv() : ''}</button>${state === 'draft-directory' ? menu : ''}</span>${sl}
     <span class="chip ro"${tip('Git branch of ~/github/repopro/hoplet')}>${I.branch()}main</span></div>`;
 }
+
+/* ---- queue and steer: sending while a turn runs ------------------------------------------------
+   Queue: the message becomes the next turn when this one ends. Steer: it is added to the running turn at its next
+   tool call. The queue lives in the core: a tray attached above the composer, Send a split button whose menu
+   offers Steer. It pauses on a permission request (and resumes alone), on an error and on an interrupt (both wait
+   for Resume or Clear). */
+const QL = {
+  grip: sv('<circle cx="9" cy="12" r="1"/><circle cx="9" cy="5" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="19" r="1"/>'),
+  trash: sv('<path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>'),
+  queue: sv('<polyline points="15 10 20 15 15 20"/><path d="M4 4v7a4 4 0 0 0 4 4h12"/>'),
+  steer: sv('<path d="M17 12H3"/><path d="m11 18 6-6-6-6"/><path d="M21 5v14"/>'),
+  play: sv('<polygon points="6 3 20 12 6 21 6 3"/>'),
+};
+const QUEUE = [
+  'Then run the Go tests too: cd agent && go test ./...',
+  'Update docs/architecture.md if it describes the rename order',
+  'Open a draft pull request titled fix(core): commit the index before the gz rename',
+];
+const STEER_NOW = 'Also check the same order in the compaction path.';
+const STEER_PEND = 'Use the existing fixture; do not generate a new one.';
+const QSTATES = ['queue-menu', 'queue-queued', 'queue-editing', 'queue-dragging', 'queue-steered', 'queue-paused-permission', 'queue-paused-error', 'queue-paused-interrupted'];
+const QTRAY = ['queue-queued', 'queue-editing', 'queue-dragging', 'queue-paused-permission', 'queue-paused-error', 'queue-paused-interrupted'];
+/* the states where a turn is not running: Send is plain, the tray can only be resumed or cleared */
+const QIDLE = ['queue-paused-error', 'queue-paused-interrupted'];
+const kb = (...k) => `<span class="kbs">${k.map(x => `<span class="kbd">${x}</span>`).join('')}</span>`;
+
+function qhead(st) {
+  const n = 3;
+  if (st === 'queue-paused-permission') return `<div class="qh" role="status"><span class="need-dot qdot"></span><b>Paused</b><span>waiting for your answer to the permission request</span><span class="meta"><span class="num" title="${n} queued">${n}</span></span></div>`;
+  if (st === 'queue-paused-error') return `<div class="qh" role="status"><span class="bad-dot qdot"></span><b>Paused</b><span>the turn failed</span><span class="meta"><button class="btn sm">${QL.play}Resume</button><button class="btn sm quiet">Clear</button></span></div>`;
+  if (st === 'queue-paused-interrupted') return `<div class="qh" role="status"><b>Paused</b><span>you interrupted the turn</span><span class="meta"><button class="btn sm">${QL.play}Resume</button><button class="btn sm quiet">Clear</button></span></div>`;
+  return `<div class="qh"><b>Up next</b><span class="num" title="${n} queued">${n}</span><span class="meta"><span>One at a time, after this turn</span></span></div>`;
+}
+/* one queued message; o: hov (hover), lock (the head, being sent), drag, gap (the drop line), dim, steer (offer Steer now) */
+function qrow(text, i, o = {}) {
+  const cls = ['qr', o.hov && 'hov', o.lock && 'lock', o.drag && 'drag', o.gap && 'gap', o.dim && 'dim'].filter(Boolean).join(' ');
+  const acts = o.lock
+    ? `<span class="ac" title="Already handed to Claude Code">${spin()}<span>Sending</span></span>`
+    : `<span class="ac">${ib(I.pen(), 'Edit')}${o.steer ? ib(QL.steer, 'Steer now · add to the running turn') : ''}${ib(QL.trash, 'Delete')}</span>`;
+  const tag = i === 0 && !o.lock ? '<span class="tag">Next</span>' : '';
+  return `<div class="${cls}"${o.lock ? ' aria-disabled="true"' : ''}><span class="gr"${tip('Drag to reorder · Alt ↑ ↓')}>${QL.grip}</span><span class="n">${i + 1}</span><span class="t">${esc(text)}${tag}</span>${acts}</div>`;
+}
+function qEdit(text) {
+  return `<div class="qr edit"><div class="qe-t">${esc(text)}<span class="cr2"></span></div>
+    <div class="qe-f"><span class="meta">${kb('↩')} Save ${kb('Esc')} Cancel</span><button class="btn sm quiet">Cancel</button><button class="btn sm primary">Save</button></div></div>`;
+}
+function qrows(st) {
+  const steer = st !== 'queue-paused-permission' && !QIDLE.includes(st);
+  const dim = st.startsWith('queue-paused');
+  if (st === 'queue-editing') return qrow(QUEUE[0], 0, { lock: true }) + qEdit(QUEUE[1]) + qrow(QUEUE[2], 2, { steer });
+  if (st === 'queue-dragging') return qrow(QUEUE[0], 0, { steer }) + qrow(QUEUE[2], 1, { drag: true }) + qrow(QUEUE[1], 2, { gap: true, dim: true });
+  return QUEUE.map((t, i) => qrow(t, i, { hov: st === 'queue-queued' && i === 1, dim, steer })).join('');
+}
+const qtray = st => QTRAY.includes(st)
+  ? `<div class="qtray ql${st === 'queue-paused-permission' ? ' need' : st === 'queue-paused-error' ? ' bad' : ''}" aria-label="Queued messages">${qhead(st)}${qrows(st)}</div>` : '';
+const SENDMENU = `<div class="cpop wide end" role="menu" aria-label="Send while running"><div class="menu-label">Send while Claude Code works</div>
+  <div class="mi cur" role="menuitemradio" aria-checked="true"><span class="ck">${QL.queue}</span><span class="t"><span class="n">Queue</span><span class="d">Sent as the next turn, after this one ends</span></span>${kb('↩')}</div>
+  <div class="mi" role="menuitemradio" aria-checked="false"><span class="ck">${QL.steer}</span><span class="t"><span class="n">Steer</span><span class="d">Added to this turn at its next tool call</span></span>${kb('⌥', '↩')}</div>
+  <div class="menu-sep"></div><div class="qfoot">↩ sends as <b>Queue</b> · <a>Change in Settings</a></div></div>`;
+/* Send while a turn runs: Queue with a menu for Steer; with a permission pending only Queue is possible */
+function queueSend(on, menuOpen, queueOnly) {
+  const d = on ? '' : ' disabled';
+  if (queueOnly) return `<button class="btn primary"${d}${tip('Queue · ↩')}>${QL.queue}Queue</button>`;
+  return `<span class="split"><button class="btn primary"${d}${tip('Queue · ↩')}>${QL.queue}Queue</button><span class="anc"><button class="btn primary"${d}${tip('Queue or steer')} aria-label="Queue or steer" aria-haspopup="menu" aria-expanded="${menuOpen}">${I.down()}</button>${menuOpen ? SENDMENU : ''}</span></span>`;
+}
+/* the live turn of the queue states: a running turn with its steers, a permission request, a failure, or an interrupted turn */
+function queueTurn(st) {
+  const need = st === 'queue-paused-permission', fail = st === 'queue-paused-error';
+  const first = `${R.thought('Run the check, read the first failure, fix it at the source…', '1,204 tokens')}${R.ran('pnpm check', mt('exit 1', '42 s'), 'bad')}${R.edited('core/src/store/chunks.ts', 4, 3)}`;
+  if (st === 'queue-paused-interrupted') return `<section class="turn done"><header class="th"><div class="p">Run pnpm check and fix what fails.</div>${sum('1 file', '3 tools', '52 s')}<div class="tm"><span class="meta">14:06</span></div></header>
+    <div class="tb"><div class="acts">${first}</div><p class="text">Interrupted by you.</p></div></section>`;
+  const badge = fail ? `<span class="badge" role="img"${tip('Failed')}>${I.alert()}<span>00:52</span></span>`
+    : `<span class="badge" role="img"${tip(need ? 'Waiting for permission' : 'Running')}><span class="sdot"></span><span>${need ? '00:31' : '01:12'}</span></span>`;
+  const head = `<header class="th"><div class="p">Run pnpm check and fix what fails.</div><div class="rt">${badge}${fail ? '' : ib(I.stop(), 'Interrupt · Esc', 'bd')}</div><div class="tm"><span class="meta">14:06</span></div></header><div class="tsep"></div>`;
+  let tail;
+  if (need) tail = `<div class="acts">${first}</div><div class="ask"><div class="ask-h">${I.hand()}<span class="q">Claude Code asks to use Bash</span></div>
+      ${well({ lines: [['cmd', 'pnpm vitest run chunks']], cls: 'solo' })}
+      <div class="ask-f"><button class="btn primary">Allow</button><button class="btn">Deny</button><span class="meta">${I.clock()}<span>Auto-deny in 9:41</span></span></div></div>`;
+  else if (fail) tail = `<div class="acts">${first}</div>${well({ lines: ['claude exited with code 1', 'ENOENT /Users/mark/.local/bin/claude'], cls: 'err solo' })}`;
+  else if (st === 'queue-steered') tail = `<div class="acts">${first}${act(QL.steer, 'Steered', esc(STEER_NOW), '14:07', 'steer')}${R.searched('compact', '2 matches')}${R.ran('pnpm vitest run chunks', live('12 s'), 'run')}${act(spin(), 'Steering', esc(STEER_PEND), 'at the next tool call', 'steer pend')}</div>`;
+  else tail = `<div class="acts">${first}${R.ran('pnpm vitest run chunks', live('12 s'), 'run')}</div>`;
+  return `<section class="turn live${need ? ' need' : ''}${fail ? ' fail' : ''}">${head}<div class="tb">${tail}</div></section>`;
+}
+
 function composer(state) {
   const send = (on, t = 'Send · ↩') => `<button class="send"${on ? '' : ' disabled'}${tip(t)}>${I.up()}</button>`;
   const mic = on => ib(I.mic(), 'Dictate · transcribed on your machines', '', !on);
@@ -1621,7 +1766,7 @@ function composer(state) {
   const mode = on => `<span class="anc"><button class="tb2${hot ? ' warn' : ''}${state === 'mode-menu' ? ' on' : ''}"${tip('Permission mode: ' + modes[curMode][0])}${on ? '' : ' disabled'}>${I[modes[curMode][3]]()}${modes[curMode][0]}${cv()}</button>${state === 'mode-menu' ? modeMenu : ''}</span>`;
   const model = on => `<span class="anc"><button class="tb2${state === 'model-menu' ? ' on' : ''}"${tip('Model and options')}${on ? '' : ' disabled'}>Opus 5.5<i>·</i>${I.think()}${cv()}</button>${state === 'model-menu' ? menu : ''}</span>`;
   const cm = CMP[state] ? completion(state) : null;
-  const full = (ph, on, left = '', inputOn = on, sendTip) => `<div class="composer">${cm ? cm.pop : ''}${state === 'compose' ? `<span class="grip"${tip('Drag to resize · double-click resets')}></span>` : ''}${whereRow(state)}
+  const full = (ph, on, left = '', inputOn = on, sendTip, sendHtml) => `<div class="composer">${cm ? cm.pop : ''}${state === 'compose' ? `<span class="grip"${tip('Drag to resize · double-click resets')}></span>` : ''}${whereRow(state)}
     ${state === 'compose' ? `<div class="thumbs">
       <span class="thumb"><span class="ckr">${iconArt('now', 44)}</span><button class="x"${tip('Remove icon.png')}>${I.x()}</button></span>
       <span class="thumb"><span class="ckr"><span class="shot"><b></b><span><i class="a"></i><i></i><i style="width:70%"></i><i></i><i style="width:40%"></i></span></span></span></span></div>
@@ -1629,7 +1774,14 @@ function composer(state) {
     : cm ? cm.field
     : state === 'model-menu' ? '<div class="ta">Use the smaller model for the docs pass</div>'
     : `<div class="ph">${DRAFT.includes(state) ? '<span class="cr2"></span>' : ''}${ph}</div>`}
-    <div class="cf">${ib(I.plus(), 'Attach images or files · paste works too', '', !inputOn)}${left}<span class="r">${mode(inputOn)}${model(inputOn)}${mic(inputOn)}${send(on, sendTip)}</span></div></div>`;
+    <div class="cf">${ib(I.plus(), 'Attach images or files · paste works too', '', !inputOn)}${left}<span class="r">${mode(inputOn)}${model(inputOn)}${mic(inputOn)}${sendHtml || send(on, sendTip)}</span></div></div>`;
+  /* a turn runs: the field stays open and Send queues; with a permission pending Steer is not possible */
+  const runComposer = (queueOnly, menuOpen = false, typed = '') => {
+    const run = `<span class="cst" role="img"${tip('Running')}>${spin()}<span>Running</span></span>${ib(I.stop(), 'Interrupt Claude Code · Esc')}`;
+    const caret = '<span class="cr2"></span>';
+    const html = full(caret + (queueOnly ? 'Queue a message for after this turn…' : 'Queue or steer, without stopping the turn…'), !!typed, run, true, undefined, queueSend(!!typed, menuOpen, queueOnly));
+    return typed ? html.replace(/<div class="ph">.*?<\/div>/s, `<div class="ta">${esc(typed)}${caret}</div>`) : html;
+  };
   let box, pill = '';
   switch (state) {
     case 'draft': case 'draft-directory':
@@ -1667,18 +1819,20 @@ function composer(state) {
     case 'starting':
       box = full('Starting Claude Code', false, '', false); break;
     case 'running': case 'scrolled':
-      box = full('Turn running', false, '', false);
+      box = runComposer(false);
       if (state === 'scrolled') pill = `<div class="pillw"><span class="pill">${I.arrowDown()}3 new</span></div>`; break;
     case 'disconnected':
       box = full('Reconnecting', false, '', false); break;
-    case 'waiting-permission':
-      box = full('Waiting for permission', false, '', false); break;
-    case 'plan-pending': case 'plan-long': case 'plan-modes': case 'plan-feedback':
-      box = full('Waiting for your decision on the plan', false, '', false); break;
+    case 'waiting-permission': case 'plan-pending': case 'plan-long': case 'plan-modes': case 'plan-feedback':
+      box = runComposer(true); break;
     case 'plan-offline':
       box = `<div class="composer cbar"><span class="cst" title="Owner offline"><span class="off-dot"></span>MacBook Pro offline</span><button class="send"${tip('Hand off to another machine')}>${I.handoff()}</button></div>`; break;
     case 'plan-approved': case 'plan-kept': case 'plan-elsewhere':
-      box = full('Turn running', false, '', false); break;
+      box = runComposer(false); break;
+    case 'queue-menu': case 'queue-queued': case 'queue-editing': case 'queue-dragging': case 'queue-steered': case 'queue-paused-permission':
+      box = qtray(state) + runComposer(state === 'queue-paused-permission', state === 'queue-menu', state === 'queue-menu' ? 'Also run the Go tests after this' : ''); break;
+    case 'queue-paused-error': case 'queue-paused-interrupted':
+      box = qtray(state) + full('Send again to retry', true); break;
     case 'handoff-progress':
       box = full('Handing off to studio', false, '', false); break;
     default:
@@ -2095,7 +2249,7 @@ function frame(state, scheme) {
       body = `<div class="empty"><div class="in"><span class="tile">${bigMark}</span><p>Pick a session, or start a new one</p><span class="k"><span><span class="kbd">⌘K</span>search</span><span><span class="kbd">⌘N</span>new session</span></span></div></div>`;
     } else {
       const live = LIVE.includes(state) ? liveTurn(state === 'scrolled' ? 'running' : state) : '';
-      body = `<div class="conv${state === 'scrolled' ? ' loading' : ''}${state === 'compose' ? ' tall' : ''}"><div class="col">
+      body = `<div class="conv${state === 'scrolled' ? ' loading' : ''}${state === 'compose' ? ' tall' : ''}"${QTRAY.includes(state) || state === 'queue-steered' ? ` style="padding-bottom:${state === 'queue-editing' ? 400 : state === 'queue-steered' ? 190 : 340}px"` : ''}><div class="col">
           ${COMMAND_STATES.includes(state) ? commandTurns(state) : firstTurn(state)}
           ${state === 'external' ? terminalTurn() : ''}
           ${live}
@@ -2149,6 +2303,14 @@ const STATES = [
   ['running', 'live turn: a failed run, its output, a search, an edit and a running run'],
   ['waiting-permission', 'Claude Code asks to use Bash; the thought is expanded'],
   ...PLAN_STATES,
+  ['queue-menu', 'a turn runs and the composer stays open: Send is Queue with a menu for Steer, naming the default key'],
+  ['queue-queued', 'Up next: a tray attached above the composer, one row per queued message; the first is next, a row shows its actions'],
+  ['queue-editing', 'the first message is being sent and locked; the second is edited in place'],
+  ['queue-dragging', 'reordering: the row lifts and a line shows where it lands'],
+  ['queue-steered', 'a steer that landed in the transcript, and one still waiting for the next tool call'],
+  ['queue-paused-permission', 'the queue waits while Claude Code asks for a permission and goes on by itself after the answer; Steer is not possible'],
+  ['queue-paused-error', 'the turn failed: the queue is paused until the user resumes or clears it'],
+  ['queue-paused-interrupted', 'the turn was interrupted: the queue is paused until the user resumes or clears it'],
   ['failed-turn', 'the live turn ended with an error'],
   ['failed-start', 'start failed before any turn'],
   ['external', 'a terminal writes the session'],

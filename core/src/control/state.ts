@@ -1,4 +1,10 @@
-import type { Command, Provider, ProviderInfo, ServerMessage } from '@hoplet/shared';
+import type {
+  AgentRuntimeState,
+  Command,
+  Provider,
+  ProviderInfo,
+  ServerMessage,
+} from '@hoplet/shared';
 import type { Store } from '../store/index.ts';
 import type { ActiveHandoff } from './handoff.ts';
 import type { Waiter } from './pending.ts';
@@ -14,6 +20,7 @@ import type {
   PromptOutcome,
   StartAnswer,
   StartOutcome,
+  SteerOutcome,
   StepOutcome,
   VerifiedInfo,
   WorkspaceDiffOutcome,
@@ -33,6 +40,8 @@ export interface ControlState {
   promptCache: Map<string, { at: number; outcome: Promise<PromptOutcome> }>;
   /** The providers each connected agent announced in `device.hello`. */
   providers: Map<string, ProviderInfo[]>;
+  /** Steers forwarded and not yet taken by the agent, keyed `<sessionId>\n<steerId>`. */
+  pendingSteer: Map<string, Waiter<SteerOutcome>>;
   /** New sessions forwarded and not yet answered, by request ID. */
   pendingStart: Map<string, Waiter<StartAnswer>>;
   /** Results of new-session requests by `promptId`, repeated for 10 minutes. */
@@ -51,6 +60,8 @@ export interface ControlState {
   /** Hands an event for the browsers to whoever subscribed. */
   publish: (msg: ServerMessage) => void;
   now: () => number;
+  /** Set once the queue exists: a session's runtime state changed (ADR 0020). */
+  runtimeChanged: (sessionId: string, state: AgentRuntimeState, error?: string) => void;
   pendingWs: Map<string, Waiter<WorkspaceOutcome>>;
   pendingFile: Map<string, Waiter<WorkspaceFileOutcome>>;
   pendingDiff: Map<string, Waiter<WorkspaceDiffOutcome>>;
