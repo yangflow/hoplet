@@ -16,6 +16,7 @@ import {
   ConfigSettingSchema,
   ConfigValueSchema,
   PermissionDecisionSchema,
+  PlanExitSchema,
   PROMPT_IMAGE_TYPES,
   ProviderInfoSchema,
   RuntimeCapabilitiesSchema,
@@ -209,10 +210,20 @@ export const WIRE_MESSAGES = defineWire({
     direction: 'core-to-device',
     fields: { sessionId, configId: v.string(), value: ConfigSettingSchema },
   },
+  /**
+   * Answers a permission request. A `deny` may carry `message`, which the process tells the model; an `allow`
+   * of a plan exit may carry `mode`, one of the request's `planExit.modes`, to switch to as the plan is approved.
+   */
   'runtime.permission.answer': {
     lane: 'control',
     direction: 'core-to-device',
-    fields: { sessionId, requestId: v.string(), decision: PermissionDecisionSchema },
+    fields: {
+      sessionId,
+      requestId: v.string(),
+      decision: PermissionDecisionSchema,
+      message: v.optional(v.string()),
+      mode: v.optional(v.string()),
+    },
   },
   /**
    * Starts a new session in `projectPath`, a watched project of the device: the agent starts the provider's
@@ -273,7 +284,10 @@ export const WIRE_MESSAGES = defineWire({
       truncated: v.optional(v.boolean()),
     },
   },
-  /** The process asks to use a tool; answered with `runtime.permission.answer`. */
+  /**
+   * The process asks to use a tool; answered with `runtime.permission.answer`. `planExit` marks a request to
+   * leave a plan (ADR 0019): it has no time limit, and its answer may carry `mode`.
+   */
   'runtime.permission': {
     lane: 'control',
     direction: 'device-to-core',
@@ -283,6 +297,7 @@ export const WIRE_MESSAGES = defineWire({
       tool: v.string(),
       toolUseId: v.optional(v.string()),
       input: v.unknown(),
+      planExit: v.optional(PlanExitSchema),
     },
   },
   /**
@@ -352,7 +367,7 @@ export const WIRE_MESSAGES = defineWire({
       truncated: v.optional(v.boolean()),
     },
   },
-  /** A permission request; `toolKind` and `mcp` classify its tool as on `session.output`. */
+  /** A permission request; `toolKind` and `mcp` classify its tool as on `session.output`; `planExit` is as on `runtime.permission`. */
   'session.permission': {
     lane: 'control',
     direction: 'core-to-web',
@@ -364,6 +379,7 @@ export const WIRE_MESSAGES = defineWire({
       mcp: v.optional(ToolMcpSchema),
       toolUseId: v.optional(v.string()),
       input: v.unknown(),
+      planExit: v.optional(PlanExitSchema),
     },
   },
 
@@ -809,5 +825,6 @@ export const WIRE_OBJECTS = {
   ConfigOption: ConfigOptionSchema,
   ConfigValue: ConfigValueSchema,
   Command: CommandSchema,
+  PlanExit: PlanExitSchema,
   WorkspaceChange: WorkspaceChangeSchema,
 } as const;

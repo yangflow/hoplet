@@ -3,14 +3,17 @@ import { Button } from '../../../components/Button.tsx';
 import { IconButton } from '../../../components/IconButton.tsx';
 import { Icon, Spinner } from '../../../components/icons.tsx';
 import { t } from '../../../lib/i18n.ts';
+import type { Select } from '../composer/mode-menu.tsx';
 import type { RuntimeState } from '../model.ts';
 import { ElidedPanel } from './blocks.tsx';
 import { clock, formatCountdown, formatTimer } from './format.ts';
 import { languageOfPath } from './highlight.ts';
 import {
   ELIDED_PREVIEW_CHARS,
+  type LiveItem,
   type LiveRow,
   type LiveTurn,
+  liveItems,
   type OpenPermission,
   PERMISSION_ELIDE_BYTES,
   PERMISSION_OPEN_MS,
@@ -18,6 +21,7 @@ import {
 } from './live-turn.ts';
 import { Markdown } from './markdown.tsx';
 import { linesOf, OutputWell } from './OutputWell.tsx';
+import { PlanCard, PlanResolved, type PlanView } from './plan-card.tsx';
 import { ActCells, EditActivity, Meta, NoteActivity, RowView, ToolActivity } from './rows.tsx';
 import { toolRefOf } from './tools.ts';
 import { editDiff, type Turn, toolArgOf } from './turns.ts';
@@ -246,7 +250,18 @@ export function LiveTurnView(props: {
   notice: string | null;
   canInterrupt: boolean;
   onInterrupt: () => void;
-  onAnswer: (requestId: string, decision: 'allow' | 'deny') => void;
+  onAnswer: (
+    requestId: string,
+    decision: 'allow' | 'deny',
+    plan?: { mode?: string; feedback?: string },
+  ) => void;
+  /** The session's mode option, which names the modes of a plan's approval. */
+  modes: Select | undefined;
+  /** Deciding is possible: the owner is online and this window is connected. */
+  decidable: boolean;
+  deviceName: string;
+  /** What a development fixture opens the plan card with. */
+  planView?: PlanView | undefined;
 }) {
   const { turn, base, state, now, frozen } = props;
   const failed = turn.phase === 'failed';
@@ -321,22 +336,26 @@ export function LiveTurnView(props: {
             <span>{t('Starting {provider}').replace('{provider}', props.providerName)}</span>
           </div>
         ) : null}
-        <Segments
-          items={turn.rows}
-          isText={(row) => row.kind === 'text'}
-          keyOf={(row) => row.id}
-          render={(row) => (
-            <LiveRowView
-              row={row}
-              now={now}
-              caret={
-                live &&
-                state === 'running' &&
-                row === lastText &&
-                row === turn.rows[turn.rows.length - 1]
-              }
-            />
-          )}
+        <Segments<LiveItem>
+          items={liveItems(turn)}
+          isText={(item) => item.row?.kind === 'text'}
+          keyOf={(item) => item.key}
+          render={(item) =>
+            item.plan ? (
+              <PlanResolved plan={item.plan} modes={props.modes} />
+            ) : (
+              <LiveRowView
+                row={item.row}
+                now={now}
+                caret={
+                  live &&
+                  state === 'running' &&
+                  item.row === lastText &&
+                  item.row === turn.rows[turn.rows.length - 1]
+                }
+              />
+            )
+          }
         />
         {failed ? (
           <div role="alert" data-testid="cockpit.live-error">
@@ -350,16 +369,31 @@ export function LiveTurnView(props: {
           </div>
         ) : null}
         {live
-          ? props.permissions.map((request) => (
-              <PermissionCard
-                key={request.requestId}
-                request={request}
-                providerName={props.providerName}
-                now={now}
-                busy={props.answering}
-                onAnswer={(decision) => props.onAnswer(request.requestId, decision)}
-              />
-            ))
+          ? props.permissions.map((request) =>
+              request.planExit ? (
+                <PlanCard
+                  key={request.requestId}
+                  request={request}
+                  providerName={props.providerName}
+                  modes={props.modes}
+                  decidable={props.decidable}
+                  deviceName={props.deviceName}
+                  busy={props.answering}
+                  initial={props.planView}
+                  onApprove={(mode) => props.onAnswer(request.requestId, 'allow', { mode })}
+                  onKeep={(feedback) => props.onAnswer(request.requestId, 'deny', { feedback })}
+                />
+              ) : (
+                <PermissionCard
+                  key={request.requestId}
+                  request={request}
+                  providerName={props.providerName}
+                  now={now}
+                  busy={props.answering}
+                  onAnswer={(decision) => props.onAnswer(request.requestId, decision)}
+                />
+              ),
+            )
           : null}
       </div>
     </section>

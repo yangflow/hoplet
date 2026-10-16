@@ -128,8 +128,8 @@ type Process interface {
 	// process cannot switch is an error. An ApplyNow setting returns when the vendor accepted the value, and
 	// the vendor's refusal is the error.
 	Set(id string, value any) error
-	// Answer responds to a permission request; message explains a denial to the model.
-	Answer(requestID string, allow bool, message string) error
+	// Answer responds to a permission request (see Verdict).
+	Answer(requestID string, v Verdict) error
 	// Interrupt ends the running turn and keeps the process.
 	Interrupt() error
 	// Close closes the process's input, which makes it exit.
@@ -194,12 +194,34 @@ type Output struct {
 	Truncated bool
 }
 
-// PermissionRequest asks to use a tool.
+// PermissionRequest asks to use a tool. PlanExit is set when the request asks to leave a plan (ADR 0019).
 type PermissionRequest struct {
 	RequestID string
 	Tool      string
 	ToolUseID string
 	Input     json.RawMessage
+	PlanExit  *PlanExit
+}
+
+// PlanExit is a driver's declaration that a permission request asks to leave a plan: the plan to review and
+// the values of one of its select settings (Option, the permission mode) that approval may switch the session
+// to. Default is the value a client offers first; it is one of Modes. A request with a PlanExit waits for the
+// user as long as it takes.
+type PlanExit struct {
+	Plan    string
+	File    string
+	Option  string
+	Modes   []string
+	Default string
+}
+
+// Verdict answers a permission request. A refusal carries Message, which explains it to the model; the
+// manager fills a default text when it is empty. An approval of a plan exit may carry Mode, one of the
+// request's PlanExit.Modes, which the session switches to as the plan is approved.
+type Verdict struct {
+	Allow   bool
+	Message string
+	Mode    string
 }
 
 // PermissionCancelled: the vendor no longer waits for the request (the turn ended).

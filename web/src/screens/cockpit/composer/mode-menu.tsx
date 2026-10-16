@@ -5,7 +5,7 @@ import { configIcon, Icon } from '../../../components/icons.tsx';
 import { Popover } from '../../../components/Popover.tsx';
 import { t } from '../../../lib/i18n.ts';
 
-type Select = ConfigOption & { type: 'select' };
+export type Select = ConfigOption & { type: 'select' };
 
 /** The option the permission-mode control drives: the driver's first choice of the `mode` category. */
 export function modeOption(config: readonly ConfigOption[] | undefined): Select | undefined {
@@ -21,13 +21,13 @@ export function nextMode(option: Select): string | undefined {
 }
 
 /** A mode's name: the strings' entry for the option and value when there is one, else the driver's name. */
-function modeName(o: Select, value: string, name: string): string {
+export function modeName(o: Select, value: string, name: string): string {
   const key = `config.${o.id}.${value}`;
   const known = t(key);
   return known !== key ? known : name;
 }
 
-function modeDescription(o: Select, value: string, description: string | undefined): string {
+export function modeDescription(o: Select, value: string, description: string | undefined): string {
   const key = `config.${o.id}.${value}.description`;
   const known = t(key);
   return known !== key ? known : (description ?? '');

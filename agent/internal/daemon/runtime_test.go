@@ -157,10 +157,10 @@ func TestBridgeRefusesAndAnswers(t *testing.T) {
 	if before != 1 {
 		t.Fatalf("pending = %d", before)
 	}
-	if err := h.Answer("s1", req.RequestID, true); err != nil {
+	if err := h.Answer("s1", req.RequestID, true, "", ""); err != nil {
 		t.Fatal(err)
 	}
-	if err := h.Answer("s1", req.RequestID, true); !errors.Is(err, runtime.ErrUnknownRequest) {
+	if err := h.Answer("s1", req.RequestID, true, "", ""); !errors.Is(err, runtime.ErrUnknownRequest) {
 		t.Fatalf("second answer: %v", err)
 	}
 	s.waitState(t, "s1", "ready")

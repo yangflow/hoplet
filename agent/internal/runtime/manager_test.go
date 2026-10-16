@@ -8,6 +8,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -583,11 +584,11 @@ func (p *refusingProcess) Prompt(runtime.Prompt) error {
 	p.events <- runtime.StateChanged{State: runtime.StateReady}
 	return nil
 }
-func (p *refusingProcess) Set(string, any) error             { return errors.New("refused") }
-func (p *refusingProcess) Answer(string, bool, string) error { return nil }
-func (p *refusingProcess) Interrupt() error                  { return nil }
-func (p *refusingProcess) Close() error                      { close(p.events); return nil }
-func (p *refusingProcess) Kill() error                       { return nil }
+func (p *refusingProcess) Set(string, any) error                { return errors.New("refused") }
+func (p *refusingProcess) Answer(string, runtime.Verdict) error { return nil }
+func (p *refusingProcess) Interrupt() error                     { return nil }
+func (p *refusingProcess) Close() error                         { close(p.events); return nil }
+func (p *refusingProcess) Kill() error                          { return nil }
 
 func TestAnApplyNowSettingTheProcessRefusesKeepsItsOldValue(t *testing.T) {
 	rec := newRecorder()
@@ -1551,4 +1552,93 @@ func TestNoCommandsAreReportedWhenTheVendorListsNone(t *testing.T) {
 	if cs := e.rec.commands("s1"); len(cs) != 0 {
 		t.Fatalf("commands = %+v", cs)
 	}
+}
+
+func outputText(e *env, id string) string {
+	var b strings.Builder
+	for _, o := range e.rec.outputs(id) {
+		if o.Kind == runtime.OutputText {
+			b.WriteString(o.Text)
+		}
+	}
+	return b.String()
+}
+
+// openPlan puts a session in plan mode and has Claude ask to leave it.
+func openPlan(t *testing.T, e *env, id string) runtime.PermissionRequest {
+	t.Helper()
+	e.session(id)
+	if err := e.m.SetConfig(id, "mode", "plan"); err != nil {
+		t.Fatal(err)
+	}
+	n := len(e.rec.permissions(id))
+	if err := e.m.Prompt(id, "exitplan 1. do it"); err != nil {
+		t.Fatal(err)
+	}
+	e.rec.waitFor(t, "the plan request", func() bool { return len(e.rec.permissions(id)) > n })
+	return e.rec.permissions(id)[n]
+}
+
+// The driver declares ExitPlanMode as a plan exit with the plan and the modes approval may switch to, and
+// other tools declare nothing (ADR 0019).
+func TestTheDriverDeclaresAPlanExit(t *testing.T) {
+	e := newEnv(t, nil)
+	req := openPlan(t, e, "s1")
+	pe := req.PlanExit
+	if pe == nil || pe.Plan != "1. do it" || pe.Option != "mode" || pe.Default != "acceptEdits" ||
+		!reflect.DeepEqual(pe.Modes, []string{"acceptEdits", "default", "auto"}) {
+		t.Fatalf("plan exit = %+v", pe)
+	}
+	if err := e.m.Decide("s1", req.RequestID, runtime.Verdict{Allow: true, Mode: "acceptEdits"}); err != nil {
+		t.Fatal(err)
+	}
+	e.rec.waitState(t, "s1", runtime.StateReady)
+}
+
+func TestApprovingAPlanSwitchesToTheChosenMode(t *testing.T) {
+	e := newEnv(t, nil)
+	req := openPlan(t, e, "s1")
+	if err := e.m.Decide("s1", req.RequestID, runtime.Verdict{Allow: true, Mode: "bypassPermissions"}); !errors.Is(err, runtime.ErrInvalidMode) {
+		t.Fatalf("a mode the request does not offer: %v", err)
+	}
+	if err := e.m.Decide("s1", req.RequestID, runtime.Verdict{Mode: "auto"}); !errors.Is(err, runtime.ErrInvalidMode) {
+		t.Fatalf("a mode on a refusal: %v", err)
+	}
+	if len(e.m.Pending()) != 1 {
+		t.Fatalf("a rejected answer closed the request: %+v", e.m.Pending())
+	}
+	if err := e.m.Decide("s1", req.RequestID, runtime.Verdict{Allow: true, Mode: "acceptEdits"}); err != nil {
+		t.Fatal(err)
+	}
+	e.rec.waitFor(t, "the mode to change", func() bool { return modeOf(e, "s1") == "acceptEdits" })
+	e.rec.waitState(t, "s1", runtime.StateReady)
+}
+
+func TestKeepingPlanningSendsTheFeedbackAndStaysInPlan(t *testing.T) {
+	e := newEnv(t, nil)
+	req := openPlan(t, e, "s1")
+	if err := e.m.Decide("s1", req.RequestID, runtime.Verdict{Message: "split step 2"}); err != nil {
+		t.Fatal(err)
+	}
+	e.rec.waitState(t, "s1", runtime.StateReady)
+	if got := outputText(e, "s1"); !strings.Contains(got, "REFUSED: split step 2") {
+		t.Fatalf("the model was told %q", got)
+	}
+	if modeOf(e, "s1") != "plan" {
+		t.Fatalf("mode = %v", modeOf(e, "s1"))
+	}
+}
+
+// A plan waits for the user as long as it takes: the automatic denial of other requests does not apply.
+func TestAPlanRequestIsNeverDeniedByTheTimeout(t *testing.T) {
+	e := newEnv(t, func(c *runtime.Config) { c.PermissionTimeout = 200 * time.Millisecond })
+	req := openPlan(t, e, "s1")
+	time.Sleep(600 * time.Millisecond)
+	if len(e.m.Pending()) != 1 {
+		t.Fatalf("pending = %+v", e.m.Pending())
+	}
+	if err := e.m.Decide("s1", req.RequestID, runtime.Verdict{Allow: true}); err != nil {
+		t.Fatal(err)
+	}
+	e.rec.waitState(t, "s1", runtime.StateReady)
 }

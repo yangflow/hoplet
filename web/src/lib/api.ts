@@ -248,10 +248,18 @@ export async function postAttachment(deviceId: string, image: PromptImage): Prom
   return result.attachmentId;
 }
 
-export function postPermission(sessionId: string, requestId: string, decision: PermissionDecision) {
+/** Answers a permission request; a plan exit also takes the feedback of a denial and the mode of an approval. */
+export function postPermission(
+  sessionId: string,
+  requestId: string,
+  decision: PermissionDecision,
+  extra: { message?: string; mode?: string } = {},
+) {
   return call(`/api/sessions/${sessionId}/permission`, RuntimeCommandResultSchema, {
     requestId,
     decision,
+    ...(extra.message ? { message: extra.message } : {}),
+    ...(extra.mode ? { mode: extra.mode } : {}),
   });
 }
 

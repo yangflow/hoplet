@@ -2041,6 +2041,15 @@
             "deny"
           ],
           "type": "string"
+        },
+        "message": {
+          "type": "string",
+          "maxLength": 10000
+        },
+        "mode": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
         }
       },
       "required": [
@@ -2616,7 +2625,37 @@
         "toolUseId": {
           "type": "string"
         },
-        "input": {}
+        "input": {},
+        "planExit": {
+          "type": "object",
+          "properties": {
+            "plan": {
+              "type": "string"
+            },
+            "planFile": {
+              "type": "string"
+            },
+            "option": {
+              "type": "string"
+            },
+            "modes": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "minItems": 1
+            },
+            "default": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "plan",
+            "option",
+            "modes",
+            "default"
+          ]
+        }
       },
       "required": [
         "v",

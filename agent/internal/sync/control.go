@@ -63,11 +63,11 @@ func (c *Client) handleRuntimeStart(cs *connState, raw json.RawMessage) {
 	}
 }
 
-func (c *Client) handleRuntimeAnswer(sessionID, requestID, decision string) {
+func (c *Client) handleRuntimeAnswer(sessionID, requestID, decision, message, mode string) {
 	if c.hooks.Runtime.Answer == nil {
 		return
 	}
-	if err := c.hooks.Runtime.Answer(sessionID, requestID, decision == "allow"); err != nil {
+	if err := c.hooks.Runtime.Answer(sessionID, requestID, decision == "allow", message, mode); err != nil {
 		log.Printf("[agent] permission answer for %s not applied: %v", shortID(sessionID), err)
 	}
 }

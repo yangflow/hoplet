@@ -444,7 +444,9 @@ describe('remote control state', () => {
       });
       expect(control.openPermissions('s1')).toHaveLength(1);
 
-      expect(control.answerPermission('s1', 'dev-a', 'r1', 'allow')).toEqual({ ok: true });
+      expect(control.answerPermission('s1', 'dev-a', 'r1', { decision: 'allow' })).toEqual({
+        ok: true,
+      });
       expect(link.sent.at(-1)).toEqual({
         v: PROTOCOL_VERSION,
         type: 'runtime.permission.answer',
@@ -453,7 +455,7 @@ describe('remote control state', () => {
         decision: 'allow',
       });
       const sent = link.sent.length;
-      expect(control.answerPermission('s1', 'dev-a', 'r1', 'deny')).toEqual({
+      expect(control.answerPermission('s1', 'dev-a', 'r1', { decision: 'deny' })).toEqual({
         ok: false,
         error: 'request-closed',
       });
@@ -465,15 +467,86 @@ describe('remote control state', () => {
       let now = 5_000_000;
       const { control, link, report } = runtimeSetup(() => now);
       const closed = { ok: false, error: 'request-closed' };
-      expect(control.answerPermission('s1', 'dev-a', 'nope', 'allow')).toEqual(closed);
+      expect(control.answerPermission('s1', 'dev-a', 'nope', { decision: 'allow' })).toEqual(
+        closed,
+      );
       report('waiting-permission');
       control.receive(link, request('r1'));
-      expect(control.answerPermission('zz', 'dev-a', 'r1', 'allow')).toEqual(closed);
+      expect(control.answerPermission('zz', 'dev-a', 'r1', { decision: 'allow' })).toEqual(closed);
       control.receive(link, request('r2'));
       now += 10 * 60_000 + 1;
       expect(control.openPermissions('s1')).toEqual([]);
-      expect(control.answerPermission('s1', 'dev-a', 'r2', 'allow')).toEqual(closed);
+      expect(control.answerPermission('s1', 'dev-a', 'r2', { decision: 'allow' })).toEqual(closed);
       expect(link.sent).toEqual([]);
+    });
+
+    describe('a plan exit', () => {
+      const plan = {
+        plan: '1. do it',
+        option: 'mode',
+        modes: ['acceptEdits', 'default', 'auto'],
+        default: 'acceptEdits',
+      };
+      const exit = (id: string) => ({ ...request(id), tool: 'ExitPlanMode', planExit: plan });
+
+      it('is passed on to the browsers and replayed with its declaration', () => {
+        const { control, link, events, report } = runtimeSetup();
+        report('waiting-permission');
+        control.receive(link, exit('r1'));
+        expect(events.at(-1)).toMatchObject({ type: 'session.permission', planExit: plan });
+        expect(control.openPermissions('s1')[0]).toMatchObject({ planExit: plan });
+      });
+
+      it('never expires', () => {
+        let now = 5_000_000;
+        const { control, link, report } = runtimeSetup(() => now);
+        report('waiting-permission');
+        control.receive(link, exit('r1'));
+        now += 3 * 60 * 60_000;
+        expect(control.openPermissions('s1')).toHaveLength(1);
+        expect(control.answerPermission('s1', 'dev-a', 'r1', { decision: 'allow' })).toEqual({
+          ok: true,
+        });
+      });
+
+      it('forwards the mode of an approval and the feedback of a refusal', () => {
+        const { control, link, report } = runtimeSetup();
+        report('waiting-permission');
+        control.receive(link, exit('r1'));
+        control.receive(link, exit('r2'));
+        expect(
+          control.answerPermission('s1', 'dev-a', 'r1', { decision: 'allow', mode: 'auto' }),
+        ).toEqual({ ok: true });
+        expect(link.sent.at(-1)).toMatchObject({ decision: 'allow', mode: 'auto' });
+        expect(
+          control.answerPermission('s1', 'dev-a', 'r2', { decision: 'deny', message: 'split it' }),
+        ).toEqual({ ok: true });
+        const last = link.sent.at(-1);
+        expect(last).toMatchObject({ decision: 'deny', message: 'split it' });
+        expect(last).not.toHaveProperty('mode');
+      });
+
+      it('refuses a mode it did not offer, and a mode on a refusal, and stays open', () => {
+        const { control, link, report } = runtimeSetup();
+        report('waiting-permission');
+        control.receive(link, exit('r1'));
+        const bad = { ok: false, error: 'invalid-request' };
+        expect(
+          control.answerPermission('s1', 'dev-a', 'r1', {
+            decision: 'allow',
+            mode: 'bypassPermissions',
+          }),
+        ).toEqual(bad);
+        expect(
+          control.answerPermission('s1', 'dev-a', 'r1', { decision: 'deny', mode: 'auto' }),
+        ).toEqual(bad);
+        control.receive(link, request('r2'));
+        expect(
+          control.answerPermission('s1', 'dev-a', 'r2', { decision: 'allow', mode: 'auto' }),
+        ).toEqual(bad);
+        expect(link.sent).toEqual([]);
+        expect(control.openPermissions('s1')).toHaveLength(2);
+      });
     });
 
     it('drops the open requests when the turn is over', () => {
@@ -489,7 +562,7 @@ describe('remote control state', () => {
     it('refuses to answer when the owner is offline', () => {
       const { control, link } = runtimeSetup();
       link.open = false;
-      expect(control.answerPermission('s1', 'dev-a', 'r1', 'allow')).toEqual({
+      expect(control.answerPermission('s1', 'dev-a', 'r1', { decision: 'allow' })).toEqual({
         ok: false,
         error: 'owner-offline',
       });

@@ -156,7 +156,7 @@ a state of the session appears under the composer when it blocks or changes what
 | `waiting-permission` | Claude Code asks to use a tool; the request opens inside the turn | turn | Allow, Deny, Interrupt |
 | `failed` | Start or the last turn failed; the error is named where the state is shown | turn or composer | Send (retries) |
 
-A permission request shows the tool name and its input (elided above 8 KiB like any block). A control appears
+A permission request shows the tool name and its input (elided above 8 KiB like any block). A request the driver declares a plan exit (ADR 0019) shows the plan instead, as Markdown in the turn (collapsed above 4 KiB, with an Open button): one button approves into a mode (Accept edits by default, a menu for the others the driver offers, never Bypass permissions) and Keep planning sends the user's feedback to the model. A plan has no countdown; it waits for the answer, and a window that did not answer shows it as answered. A control appears
 only when the session's runtime driver declares its capability (`permissions`, `interrupt`, `images`); its settings are the config options it declares.
 
 ### Workspace inspector

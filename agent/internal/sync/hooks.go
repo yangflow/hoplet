@@ -7,8 +7,10 @@ import "context"
 type RuntimeHooks struct {
 	// Prompt accepts a prompt and the uploaded images it names or refuses it; the error text is the reason
 	// sent as runtime.rejected.
-	Prompt    func(sessionID, text string, attachments []string) error
-	Answer    func(sessionID, requestID string, allow bool) error
+	Prompt func(sessionID, text string, attachments []string) error
+	// Answer answers a permission request: message explains a refusal, mode is the mode an approved plan
+	// switches to.
+	Answer    func(sessionID, requestID string, allow bool, message, mode string) error
 	Interrupt func(sessionID string) error
 	// Config sets one setting of a session (ADR 0018); value is a string or a bool. The agent reports the
 	// session's settings in its next runtime.state.

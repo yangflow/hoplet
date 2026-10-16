@@ -117,7 +117,7 @@ func TestCoreCommandsReachTheHooks(t *testing.T) {
 			record(call{kind: "config", session: s, id: id, allow: on})
 			return nil
 		},
-		Answer: func(s, id string, allow bool) error {
+		Answer: func(s, id string, allow bool, _, _ string) error {
 			record(call{kind: "answer", session: s, id: id, allow: allow})
 			return nil
 		},
@@ -247,5 +247,111 @@ func TestAttachmentPutIsAnsweredOnceStoredOrWhenRejected(t *testing.T) {
 	c.handleAttachment(cs, put("r2", "bad", 0, true))
 	if msg := read(); msg["type"] != TypeAttachmentRejected || msg["requestId"] != "r2" || msg["reason"] != "invalid-image" {
 		t.Fatalf("got %#v", msg)
+	}
+}
+
+func TestPlanExitPermissionKeepsItsFieldsOnTheWire(t *testing.T) {
+	c, cs, read := dialTestConn(t)
+	err := c.writeMsg(cs, RuntimePermission{
+		V: ProtocolVersion, Type: TypeRuntimePermission, SessionID: "s1", RequestID: "r1", Tool: "ExitPlanMode",
+		Input: json.RawMessage(`{"plan":"# Plan"}`),
+		PlanExit: &PlanExit{
+			Plan: "# Plan", PlanFile: "/tmp/plan.md", Option: "approve",
+			Modes: []string{"default", "acceptEdits"}, Default: "acceptEdits",
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	msg := read()
+	pe, ok := msg["planExit"].(map[string]any)
+	if msg["type"] != TypeRuntimePermission || !ok {
+		t.Fatalf("got %#v", msg)
+	}
+	modes, _ := pe["modes"].([]any)
+	if pe["plan"] != "# Plan" || pe["planFile"] != "/tmp/plan.md" || pe["option"] != "approve" ||
+		pe["default"] != "acceptEdits" || len(modes) != 2 || modes[0] != "default" || modes[1] != "acceptEdits" {
+		t.Fatalf("planExit = %#v", pe)
+	}
+
+	// Without a plan exit the field is absent, and an empty planFile is omitted.
+	if err := c.writeMsg(cs, RuntimePermission{V: ProtocolVersion, Type: TypeRuntimePermission, SessionID: "s1", RequestID: "r2", Tool: "Bash", Input: json.RawMessage(`{}`)}); err != nil {
+		t.Fatal(err)
+	}
+	if _, has := read()["planExit"]; has {
+		t.Fatal("planExit present on an ordinary permission request")
+	}
+	if err := c.writeMsg(cs, RuntimePermission{
+		V: ProtocolVersion, Type: TypeRuntimePermission, SessionID: "s1", RequestID: "r3", Tool: "ExitPlanMode",
+		Input:    json.RawMessage(`{}`),
+		PlanExit: &PlanExit{Plan: "p", Option: "approve", Modes: []string{"default"}, Default: "default"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if pe := read()["planExit"].(map[string]any); pe["planFile"] != nil {
+		t.Fatalf("planFile = %#v", pe["planFile"])
+	}
+}
+
+// TestPermissionAnswerCarriesMessageAndMode sends answers in the new and the old shape through the read
+// loop and checks what reaches the Answer hook.
+func TestPermissionAnswerCarriesMessageAndMode(t *testing.T) {
+	type call struct {
+		id            string
+		allow         bool
+		message, mode string
+	}
+	got := make(chan call, 4)
+	up := websocket.Upgrader{}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := up.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		_ = conn.WriteJSON(map[string]any{"v": ProtocolVersion, "type": TypeWelcome, "serverTime": 1, "sessions": []any{}})
+		for _, m := range []map[string]any{
+			{"requestId": "deny", "decision": "deny", "message": "use a smaller step"},
+			{"requestId": "allow", "decision": "allow", "mode": "acceptEdits"},
+			{"requestId": "old", "decision": "allow"},
+		} {
+			m["v"], m["type"], m["sessionId"] = ProtocolVersion, TypeRuntimePermissionAnswer, "s1"
+			_ = conn.WriteJSON(m)
+		}
+		for {
+			if _, _, err := conn.ReadMessage(); err != nil {
+				return
+			}
+		}
+	}))
+	t.Cleanup(srv.Close)
+
+	hooks := Hooks{Runtime: RuntimeHooks{
+		Answer: func(_, id string, allow bool, message, mode string) error {
+			got <- call{id, allow, message, mode}
+			return nil
+		},
+	}}
+	c := NewClient(&config.Config{ServerURL: srv.URL, Token: "t", DeviceName: "box"}, "dev-1", "test", hooks)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func() { _ = c.runOnce(ctx) }()
+
+	want := map[string]call{
+		"deny":  {"deny", false, "use a smaller step", ""},
+		"allow": {"allow", true, "", "acceptEdits"},
+		"old":   {"old", true, "", ""},
+	}
+	deadline := time.After(5 * time.Second)
+	for len(want) > 0 {
+		select {
+		case g := <-got:
+			if w, ok := want[g.id]; !ok || w != g {
+				t.Fatalf("answer = %+v, want %+v", g, w)
+			}
+			delete(want, g.id)
+		case <-deadline:
+			t.Fatalf("answers missing: %+v", want)
+		}
 	}
 }

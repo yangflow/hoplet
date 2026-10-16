@@ -265,7 +265,9 @@ type RuntimePermissionAnswer struct {
 	Type      string `json:"type"`
 	SessionID string `json:"sessionId"`
 	RequestID string `json:"requestId"`
-	Decision  string `json:"decision"` // allow | deny
+	Decision  string `json:"decision"`          // allow | deny
+	Message   string `json:"message,omitempty"` // a refusal's reason, told to the model
+	Mode      string `json:"mode,omitempty"`    // the mode an approved plan switches the session to
 }
 
 type RuntimeInterrupt struct {
@@ -375,6 +377,16 @@ type RuntimePermission struct {
 	Tool      string          `json:"tool"`
 	ToolUseID string          `json:"toolUseId,omitempty"`
 	Input     json.RawMessage `json:"input"`
+	PlanExit  *PlanExit       `json:"planExit,omitempty"`
+}
+
+// PlanExit marks a permission request that asks to leave a plan (ADR 0019).
+type PlanExit struct {
+	Plan     string   `json:"plan"`
+	PlanFile string   `json:"planFile,omitempty"`
+	Option   string   `json:"option"`
+	Modes    []string `json:"modes"`
+	Default  string   `json:"default"`
 }
 
 type RuntimeRejected struct {
