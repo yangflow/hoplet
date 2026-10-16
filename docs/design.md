@@ -101,10 +101,10 @@ directory name, all on the 4 px grid the other panes use. A machine row also sho
 ellipsis button left of the plus that opens that machine's view options, a popover under the row titled with the
 machine's name and holding two radio groups, Organize (By folder, Flat) and Sort (Recent activity, Created, Title),
 a check marking each choice; Flat rows are 36 px with the directory name in meta type on a second line, and the
-machine's directories are not shown. The Add project folder frame draws its own 1 px border and a 2 px accent focus
+machine's directories are not shown. Pinned sessions: by folder, a Pinned group of 28 px header opens a machine's list and its rows are 36 px with the folder name in meta type on a second line; flat, they lead the list each with a pin glyph, and a hairline closes them. The session menu is a `Menu` of 220 px at least: Rename and Pin, Copy (submenu) and Open in new window, Archive, each group closed by a hairline, with a keycap per shortcut. The Archived page, opened from the archive icon in the sidebar foot, is a column of `--layout-column` width in the conversation's place: a page title with a back button, then a header per machine and, below it, a folder header (name, path, count) and its rows, newest first; a row shows Restore on hover or focus and a folder header shows Restore all. The Add project folder frame draws its own 1 px border and a 2 px accent focus
 ring outside it (offset 2 px); its header row is 32 px with the segment plates 4 px inside every edge, and only the
 list below clips, to the frame's radius. Conversation flex with a `--layout-column` 760 px column under a
-`--layout-topbar` 52 px top bar holding only the title and the inspector toggle; inspector
+`--layout-topbar` 52 px top bar holding the title, the session menu (an ellipsis button) and the inspector toggle; inspector
 `--layout-inspector` 296 px, opened from the top bar, widening to `--layout-inspector-wide` 720 px while a
 diff or a file is open, split into the viewer and a `--layout-inspector-list` 220 px list or tree on its right, at the window's edge. Rows of the Files tree and the Changes list are `--layout-row-tree` 24 px, a tree level indents 12 px. Below
 1408 px of window width the sidebar folds while the inspector is wide, so the conversation keeps at least
@@ -140,7 +140,10 @@ edit and a run of tools, then the live turn), not copied from a session.
 Shared components live in `web/src/components/` and screens compose them; a screen never styles its own
 variant of a shared component. Set: `TokenGate`, `Button`, `IconButton` (icon only, its accessible name is its
 tooltip), `TextField`, `Row`, `Fold`, `Badge` (state labels and keycaps), `Panel`, `Popover`, `Select`, `Switch`,
-`Dialog` (a centred modal over a scrim with a focus trap: the command palette, Add project). Icons are
+`Dialog` (a centred modal over a scrim with a focus trap: the command palette, Add project, Rename), `Menu` (a popover list of actions
+in groups with hairlines between them, a keycap on the right of an item and a submenu opening to the right of its
+parent: the session menu), `Toast` (a transient confirmation that rises from the foot of the conversation like
+the jump pill, with its shadow, and fades after a few seconds). Icons are
 `components/icons.tsx`; provider marks are `components/provider-marks.tsx`. Screen-owned pieces
 (sidebar rows, turn blocks, activity rows, composer, inspector, handoff steps)
 live in the Hoplet screen directory.
@@ -152,7 +155,7 @@ One family, Lucide (ISC), bundled and never fetched: every glyph on a 24-unit gr
 search, panel-left, panel-right, square-pen, plus, chevron-right, arrow-up, arrow-up-right,
 arrow-right-left, file, folder, folder-open, book-open, pencil, file-plus, terminal, plug, globe, lightbulb, image,
 layers, eye, square, git-branch, zap, lock, paperclip, mic, hand, clock, x, check, circle-alert, shield, shield-alert, file-pen, list-checks, sparkles, info, rotate-cw, copy,
-settings, laptop, contrast, ellipsis, text-wrap, loader-circle; turned glyphs (a chevron, an arrow) cover the other directions.
+settings, laptop, contrast, ellipsis, text-wrap, loader-circle, pin, pin-off, archive, archive-restore; turned glyphs (a chevron, an arrow) cover the other directions.
 File-type badges (TypeScript, Markdown, JSON, image, text, other) use the same page and stroke with a tint.
 Provider marks (the Claude mark for Claude Code) are drawn monochrome in the dim text colour, never in brand
 colour, and lead each session row. Icons sit in labels, tool rows and empty states and do not decorate. The

@@ -1,8 +1,11 @@
 import type { LiveSessionMeta } from '@hoplet/shared';
+import { useRef, useState } from 'react';
 import { Badge } from '../../components/Badge.tsx';
 import { IconButton } from '../../components/IconButton.tsx';
 import { HopletMark, Icon } from '../../components/icons.tsx';
+import { Menu, type MenuEntry } from '../../components/Menu.tsx';
 import { t } from '../../lib/i18n.ts';
+import { displayTitle } from './group.ts';
 
 /** The session's title and the inspector toggle, which moves into the inspector while it is open. */
 export function TopBar(props: {
@@ -12,10 +15,18 @@ export function TopBar(props: {
   sidebarFolded: boolean;
   inspectorOpen: boolean;
   changes: number;
+  /** The session's actions, for the ··· menu; without them the button is absent. */
+  actions?: MenuEntry[];
+  /** Starts with the actions menu open (development fixtures). */
+  menuOpen?: boolean;
+  menuSub?: string;
   onShowSidebar: () => void;
   onToggleInspector: () => void;
 }) {
   const { session } = props;
+  const [menu, setMenu] = useState(props.menuOpen ?? false);
+  const [byKey, setByKey] = useState(false);
+  const moreRef = useRef<HTMLSpanElement>(null);
   return (
     <header className="top" data-testid="cockpit.topbar">
       {props.sidebarFolded ? (
@@ -28,11 +39,42 @@ export function TopBar(props: {
         />
       ) : null}
       {session ? (
-        <h1 className="title">{session.title || t('Untitled session')}</h1>
+        <h1 className="title">{displayTitle(session)}</h1>
       ) : props.title ? (
         <h1 className="title">{props.title}</h1>
       ) : null}
       <span className="top-gap" />
+      {session && props.actions ? (
+        <span className="more" ref={moreRef}>
+          <IconButton
+            label={t('Session actions')}
+            icon={Icon.ellipsis()}
+            on={menu}
+            aria-haspopup="menu"
+            aria-expanded={menu}
+            onClick={(e) => {
+              // A click with no pointer (Enter or Space on the button) opens the menu for the keyboard.
+              setByKey(e.detail === 0);
+              setMenu((v) => !v);
+            }}
+            data-testid="cockpit.session-actions"
+          />
+          {menu ? (
+            <Menu
+              label={t('Session actions')}
+              entries={props.actions}
+              className="mn-top"
+              keyboard={byKey}
+              {...(props.menuSub ? { initialSub: props.menuSub } : {})}
+              onClose={(restore) => {
+                setMenu(false);
+                if (restore) moreRef.current?.querySelector('button')?.focus();
+              }}
+              data-testid="cockpit.actions-menu"
+            />
+          ) : null}
+        </span>
+      ) : null}
       {session && !props.inspectorOpen ? (
         <IconButton
           label={t('Workspace')}

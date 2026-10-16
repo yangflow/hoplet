@@ -13,6 +13,7 @@ import {
   HandoffResultSchema,
   type InferOutput,
   LinesPageSchema,
+  LiveSessionMetaSchema,
   NewSessionResultSchema,
   type PermissionDecision,
   type PromptImage,
@@ -21,6 +22,7 @@ import {
   RuntimeCommandResultSchema,
   type SessionConfig,
   SessionListResponseSchema,
+  type SessionPatchRequest,
   SnapshotChangesSchema,
   SnapshotDiffSchema,
   safeParse,
@@ -53,12 +55,13 @@ async function call<S extends GenericSchema>(
   schema: S,
   body?: unknown,
   signal?: AbortSignal,
+  method: 'POST' | 'PATCH' = 'POST',
 ): Promise<InferOutput<S>> {
   const headers: Record<string, string> = { Authorization: `Bearer ${getToken() ?? ''}` };
   const init: RequestInit = { headers };
   if (signal) init.signal = signal;
   if (body !== undefined) {
-    init.method = 'POST';
+    init.method = method;
     headers['content-type'] = 'application/json';
     init.body = JSON.stringify(body);
   }
@@ -272,4 +275,15 @@ export async function socketUrl(): Promise<string> {
   const { ticket } = await call('/api/ws-tickets', WsTicketResponseSchema, {});
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   return `${proto}://${location.host}/ws?ticket=${encodeURIComponent(ticket)}`;
+}
+
+/** Changes a session's title, pin or archive state (`PATCH /api/sessions/:id`); the core tells every browser. */
+export function patchSession(sessionId: string, patch: SessionPatchRequest) {
+  return call(
+    `/api/sessions/${encodeURIComponent(sessionId)}`,
+    LiveSessionMetaSchema,
+    patch,
+    undefined,
+    'PATCH',
+  );
 }

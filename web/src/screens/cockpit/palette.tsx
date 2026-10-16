@@ -7,7 +7,7 @@ import { ProviderMark } from '../../components/provider-marks.tsx';
 import { Row } from '../../components/Row.tsx';
 import { TextField } from '../../components/TextField.tsx';
 import { t } from '../../lib/i18n.ts';
-import { pathLeaf, sessionPath } from './group.ts';
+import { displayTitle, isArchived, pathLeaf, sessionPath } from './group.ts';
 import { type SearchState, useSearchHits } from './use-search.ts';
 
 const MAX_SESSIONS = 9;
@@ -61,12 +61,14 @@ export function Palette(props: {
 
   const entries = useMemo(() => {
     const byId = new Map(sessions.map((s) => [s.sessionId, s]));
-    const matching = [...sessions]
+    // Archived sessions are not offered as sessions; their matching lines still name them.
+    const matching = sessions
+      .filter((s) => !isArchived(s))
       .sort((a, b) => b.updatedAt - a.updatedAt)
       .filter(
         (s) =>
           !q ||
-          (s.title || '').toLowerCase().includes(q) ||
+          displayTitle(s).toLowerCase().includes(q) ||
           s.deviceName.toLowerCase().includes(q) ||
           pathLeaf(sessionPath(s)).toLowerCase().includes(q),
       )
@@ -179,7 +181,7 @@ export function Palette(props: {
                     }
                     {...rowProps(e)}
                   >
-                    <Highlight text={e.session.title || t('Untitled session')} query={query} />
+                    <Highlight text={displayTitle(e.session)} query={query} />
                   </Row>
                 ) : null,
               )}
@@ -196,7 +198,9 @@ export function Palette(props: {
                     leading={<ProviderMark provider={e.session?.provider} />}
                     trailing={
                       <span className="pal-where">
-                        <span className="pal-ms">{e.session?.title || t('Untitled session')}</span>
+                        <span className="pal-ms">
+                          {e.session ? displayTitle(e.session) : t('Untitled session')}
+                        </span>
                         <span className="pal-ln">
                           {' · '}
                           {t('line {n}').replace('{n}', e.hit.lineNo.toLocaleString())}

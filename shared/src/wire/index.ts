@@ -150,6 +150,21 @@ export const WIRE_MESSAGES = defineWire({
   },
 
   /**
+   * The user changed a session's title, pin or archive state. Carries the whole state after the change:
+   * a field that is absent is cleared. Broadcast to every authenticated connection; agents ignore it.
+   */
+  'session.updated': {
+    lane: 'control',
+    direction: 'core-to-web',
+    fields: {
+      sessionId,
+      titleOverride: v.optional(v.string()),
+      pinnedAt: v.optional(v.number()),
+      archivedAt: v.optional(v.number()),
+    },
+  },
+
+  /**
    * One chunk of the workspace snapshot of a session, uploaded after every completed turn. Chunks of one
    * snapshot arrive in order (`seq` from 0) and the last has `last` set; `data` is base64 of at most
    * `SNAPSHOT_CHUNK_BYTES` bytes of the archive. The metadata repeats in every chunk and must not change.
@@ -660,6 +675,7 @@ export type SessionResync = WireMessageOf<'session.resync'>;
 export type SessionRejected = WireMessageOf<'session.rejected'>;
 export type WorkspaceSnapshot = WireMessageOf<'workspace.snapshot'>;
 export type SessionAppended = WireMessageOf<'session.appended'>;
+export type SessionUpdated = WireMessageOf<'session.updated'>;
 export type RuntimePrompt = WireMessageOf<'runtime.prompt'>;
 export type RuntimeConfig = WireMessageOf<'runtime.config'>;
 export type RuntimePermissionAnswer = WireMessageOf<'runtime.permission.answer'>;

@@ -1,4 +1,6 @@
 import {
+  Archive,
+  ArchiveRestore,
   ArrowRightLeft,
   ArrowUp,
   ArrowUpRight,
@@ -32,6 +34,8 @@ import {
   PanelRight,
   Paperclip,
   Pencil,
+  Pin,
+  PinOff,
   Plug,
   Plus,
   RotateCw,
@@ -111,6 +115,10 @@ export const Icon = {
   filePen: draw(FilePen),
   listChecks: draw(ListChecks),
   sparkles: draw(Sparkles),
+  pin: draw(Pin),
+  unpin: draw(PinOff),
+  archive: draw(Archive),
+  restore: draw(ArchiveRestore),
 };
 
 /** The shared icon vocabulary of config values (`CONFIG_ICONS`) mapped to this client's glyphs. */

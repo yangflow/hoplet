@@ -1,6 +1,6 @@
 import type { LiveSessionMeta } from '@hoplet/shared';
 import { useCallback, useState } from 'react';
-import type { DeviceGroup } from '../group.ts';
+import { type DeviceGroup, displayTitle, isPinned } from '../group.ts';
 
 /**
  * How one machine lists its sessions (docs/spec.md#hoplet): remembered in the browser per device, never sent to
@@ -79,24 +79,33 @@ export function useMachineViews(initial?: MachineViews): {
 export function sortSessions(list: readonly LiveSessionMeta[], sort: Sort): LiveSessionMeta[] {
   const out = [...list];
   if (sort === 'title') {
-    return out.sort((a, b) => a.title.localeCompare(b.title) || b.updatedAt - a.updatedAt);
+    return out.sort(
+      (a, b) => displayTitle(a).localeCompare(displayTitle(b)) || b.updatedAt - a.updatedAt,
+    );
   }
   const key = (s: LiveSessionMeta) => (sort === 'created' ? s.createdAt : s.updatedAt);
   return out.sort((a, b) => key(b) - key(a));
 }
 
-/** A machine's directories with their sessions in the order of the sort. */
+/** A machine's directories with their unpinned sessions in the order of the sort; pinned ones are in `pinnedList`. */
 export function sortedDirs(group: DeviceGroup, sort: Sort): DeviceGroup['dirs'] {
-  return group.dirs.map((d) => ({ ...d, sessions: sortSessions(d.sessions, sort) }));
+  return group.dirs.map((d) => ({
+    ...d,
+    sessions: sortSessions(
+      d.sessions.filter((s) => !isPinned(s)),
+      sort,
+    ),
+  }));
 }
 
 /** A session of a machine with the name of its directory and its full path. */
 export type Placed = { session: LiveSessionMeta; dir: string; path: string };
 
-/** One machine's sessions as a single list in the order of the sort. */
-export function flatList(group: DeviceGroup, sort: Sort): Placed[] {
+function placedSessions(group: DeviceGroup, sort: Sort, pinned: boolean): Placed[] {
   const placed = group.dirs.flatMap((d) =>
-    d.sessions.map((session) => ({ session, dir: d.name, path: d.path })),
+    d.sessions
+      .filter((session) => isPinned(session) === pinned)
+      .map((session) => ({ session, dir: d.name, path: d.path })),
   );
   const rank = new Map(
     sortSessions(
@@ -105,4 +114,14 @@ export function flatList(group: DeviceGroup, sort: Sort): Placed[] {
     ).map((s, i) => [s, i]),
   );
   return placed.sort((a, b) => (rank.get(a.session) ?? 0) - (rank.get(b.session) ?? 0));
+}
+
+/** One machine's unpinned sessions as a single list in the order of the sort. */
+export function flatList(group: DeviceGroup, sort: Sort): Placed[] {
+  return placedSessions(group, sort, false);
+}
+
+/** One machine's pinned sessions in the order of the sort, each with its directory. */
+export function pinnedList(group: DeviceGroup, sort: Sort): Placed[] {
+  return placedSessions(group, sort, true);
 }

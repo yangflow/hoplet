@@ -24,6 +24,7 @@ import * as sessions from './sessions.ts';
 import * as snapshotRead from './snapshot-read.ts';
 import * as snapshots from './snapshots.ts';
 
+export type { SessionStateChange, SessionStateRecord } from './sessions.ts';
 export { type SnapshotDiffResult, SnapshotReadError } from './snapshot-read.ts';
 export { type SnapshotChunk, SnapshotError, type SnapshotRecord } from './snapshots.ts';
 export { summarizeTitle } from './title.ts';
@@ -71,6 +72,23 @@ export class Store {
 
   getSession(sessionId: string): SessionMeta | null {
     return sessions.getSession(this.ctx, sessionId);
+  }
+
+  /** The user's changes of every session that has any: a title of their own, a pin, an archive. */
+  sessionStates(): Map<string, sessions.SessionStateRecord> {
+    return sessions.sessionStates(this.ctx);
+  }
+
+  sessionState(sessionId: string): sessions.SessionStateRecord | null {
+    return sessions.sessionState(this.ctx, sessionId);
+  }
+
+  /** Changes them and returns the state after; null when there is no such session. */
+  updateSessionState(
+    sessionId: string,
+    change: sessions.SessionStateChange,
+  ): sessions.SessionStateRecord | null {
+    return sessions.updateSessionState(this.ctx, sessionId, change);
   }
 
   ownerDeviceId(sessionId: string): string | null {

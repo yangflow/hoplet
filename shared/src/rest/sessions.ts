@@ -35,17 +35,46 @@ export const SessionRuntimeInfoSchema = v.object({
 });
 export type SessionRuntimeInfo = v.InferOutput<typeof SessionRuntimeInfoSchema>;
 
-/** A session as the REST API returns it: the index entry, whether its owner agent is connected, and its runtime state. */
+/** The longest title a user gives a session. */
+export const MAX_TITLE_OVERRIDE_CHARS = 200;
+
+/**
+ * What the user did to a session in Hoplet, beside what its vendor wrote. An absent field means nothing
+ * was done: no title of their own, not pinned (`pinnedAt` is when it was), not archived (`archivedAt`).
+ */
+export const SessionStateSchema = v.object({
+  titleOverride: v.optional(v.string()),
+  pinnedAt: v.optional(v.number()),
+  archivedAt: v.optional(v.number()),
+});
+export type SessionState = v.InferOutput<typeof SessionStateSchema>;
+
+/** A session as the REST API returns it: the index entry, whether its owner agent is connected, its runtime state and the user's changes. */
 export const LiveSessionMetaSchema = v.object({
   ...SessionMetaSchema.entries,
   ownerConnected: v.boolean(),
   runtime: SessionRuntimeInfoSchema,
+  ...SessionStateSchema.entries,
 });
 export type LiveSessionMeta = v.InferOutput<typeof LiveSessionMetaSchema>;
 
 /** GET /api/sessions */
 export const SessionListResponseSchema = v.object({ sessions: v.array(LiveSessionMetaSchema) });
 export type SessionListResponse = v.InferOutput<typeof SessionListResponseSchema>;
+
+/**
+ * PATCH /api/sessions/:id: changes what the user did to the session; a field left out stays as it is.
+ * `title` is the session's name in Hoplet: the core stores it trimmed, as `null` when it is blank or the vendor's own
+ * title, and refuses more than `MAX_TITLE_OVERRIDE_CHARS` characters after trimming (`invalid-request`). `pinned` and
+ * `archived` set or clear the flags; setting one that is set keeps its time. A request that names none of them is
+ * `invalid-request`.
+ */
+export const SessionPatchRequestSchema = v.object({
+  title: v.optional(v.nullable(v.string())),
+  pinned: v.optional(v.boolean()),
+  archived: v.optional(v.boolean()),
+});
+export type SessionPatchRequest = v.InferOutput<typeof SessionPatchRequestSchema>;
 
 /** GET /api/sessions/:id/lines?start=&limit= (negative `start` counts from the end) */
 export const LinesQuerySchema = v.object({

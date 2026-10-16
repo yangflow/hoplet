@@ -11,7 +11,7 @@ import type { Store } from '../store/index.ts';
 import { ApiError, fail, json, readBody } from './http.ts';
 import type { Tickets } from './tickets.ts';
 
-export type Method = 'GET' | 'POST';
+export type Method = 'GET' | 'POST' | 'PATCH';
 
 /** What a handler may use besides the request: the modules api is allowed to call. */
 export interface ApiDeps {
