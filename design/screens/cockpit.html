@@ -28,6 +28,7 @@
     "--color-attention-ring": "rgba(232, 179, 26, 0.32)",
     "--color-success": "#4cc38a",
     "--color-danger": "#ff7366",
+    "--color-on-danger": "#1c0d02",
     "--color-add-bg": "rgba(76, 195, 138, 0.10)",
     "--color-add-text": "#86dcae",
     "--color-del-bg": "rgba(255, 115, 102, 0.10)",
@@ -70,6 +71,7 @@
     "--color-attention-ring": "rgba(154, 106, 0, 0.30)",
     "--color-success": "#1d8550",
     "--color-danger": "#c3352a",
+    "--color-on-danger": "#ffffff",
     "--color-add-bg": "rgba(29, 133, 80, 0.09)",
     "--color-add-text": "#156b3d",
     "--color-del-bg": "rgba(195, 53, 42, 0.08)",
@@ -942,6 +944,50 @@ body.stacked{background:#131210;color:#efe9e2;font-family:-apple-system,"SF Pro 
 .agf.hov{background:var(--color-hover)}
 .arow.c{height:32px;padding-left:var(--space-4);margin:0}
 .agoff .arow .t1{color:var(--color-text-3)}
+/* delete a session (#106): the menu item, the Archived row action and the confirmation dialog */
+.btn.danger{background:var(--color-danger);color:var(--color-on-danger);box-shadow:inset 0 1px 0 rgba(255,255,255,.22),0 1px 2px rgba(0,0,0,.2);font-weight:var(--weight-semibold);padding:0 var(--space-4)}
+.mn .menu-item.danger,.mn .menu-item.danger > svg{color:var(--color-danger)}
+.mn .menu-item.danger.on{background:var(--color-del-bg);box-shadow:none}
+.arow .ib.dng{color:var(--color-danger)}
+.dlg.dx{top:56px}
+.dx .dlg-h{padding-bottom:var(--space-1)}
+.dx .dlg-sub{padding:0 var(--space-4) var(--space-3);color:var(--color-text-3);display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap}
+.dx .dlg-sub .tag{width:auto;text-align:left;flex:none}
+.dx .dlg-b{gap:var(--space-1)}
+.dx .dlg-f{align-items:center}
+.dx .dlg-f .l{margin-right:auto}
+.dx .opt{display:grid;grid-template-columns:16px minmax(0,1fr);column-gap:var(--space-3);padding:var(--space-2);border-radius:var(--radius-sm);align-items:start}
+.dx .opt .cbx{width:16px;height:16px;margin-top:2px;border-radius:4px;box-shadow:inset 0 0 0 1.5px var(--color-text-3);display:grid;place-items:center;color:var(--color-on-accent)}
+.dx .opt .cbx svg{width:12px;height:12px}
+.dx .opt.on .cbx{background:var(--color-accent);box-shadow:none}
+.dx .opt.lock .cbx{background:var(--color-text-3);box-shadow:none;color:var(--color-raised)}
+.dx .opt.dis{opacity:.55}
+.dx .opt.dis .cbx{box-shadow:inset 0 0 0 1.5px var(--color-line)}
+.dx .opt .ol{font-weight:var(--weight-medium)}
+.dx .opt .od{font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3);margin-top:2px}
+.dx .opt .od .mono{font-size:11px;line-height:16px;color:var(--color-text-2)}
+.dx .opt .rsn{font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-2);margin-top:2px;display:flex;gap:var(--space-1);align-items:flex-start}
+.dx .opt .rsn svg{width:12px;height:12px;margin-top:2px}
+.dx .opt.warn{background:var(--color-attention-soft);box-shadow:inset 0 0 0 1px var(--color-attention-ring)}
+.dx .opt.warn .rsn{color:var(--color-attention-text)}
+.dx .xnote{margin:var(--space-2) var(--space-4) 0;padding:var(--space-2) var(--space-3);border-radius:var(--radius-sm);background:var(--color-hover);color:var(--color-text-2);display:flex;gap:var(--space-2);font-size:var(--text-meta);line-height:var(--leading-meta)}
+.light .dx .xnote{background:var(--color-selected)}
+.dx .xnote svg{width:14px;height:14px;margin-top:2px;color:var(--color-text-3)}
+.dx .xnote.att{background:var(--color-attention-soft);box-shadow:inset 0 0 0 1px var(--color-attention-ring)}
+.dx .xnote.att svg{color:var(--color-attention-text)}
+.dx .xnote.bad{background:var(--color-del-bg);color:var(--color-del-text)}
+.dx .xnote.bad svg{color:var(--color-danger)}
+.light .dx .xnote.bad{color:var(--color-danger)}
+.dx .xs{display:grid;grid-template-columns:16px minmax(0,1fr);column-gap:var(--space-3);padding:var(--space-2);align-items:start}
+.dx .xs .xl{color:var(--color-text)}
+.dx .xs .od{font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3);margin-top:2px}
+.dx .xs .od .mono{font-size:11px;line-height:16px;color:var(--color-text-2)}
+.dx .xs.wait .xl,.dx .xs .skip{color:var(--color-text-3)}
+.dx .xs .ok{color:var(--color-success)}
+.dx .xs .bad{color:var(--color-danger)}
+.dx .xs .run{color:var(--color-accent-text)}
+.dx .xs.badrow{background:var(--color-del-bg);border-radius:var(--radius-sm)}
+.dx .xs.badrow .od{color:var(--color-text-2)}
 /* queue and steer: the Up next tray above the composer, and the steer row in the transcript */
 .btn.sm{height:24px;padding:0 var(--space-2);gap:var(--space-1)}
 .btn.sm.danger{color:var(--color-danger)}
@@ -1046,6 +1092,9 @@ const L = {
   hand: '<path d="M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2"/><path d="M14 10V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2"/><path d="M10 10.5V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/>',
   clock: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
   x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+  trash: '<path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>',
+  'circle-dashed': '<circle cx="12" cy="12" r="9" stroke-dasharray="2 4"/>',
+  minus: '<path d="M5 12h14"/>',
   check: '<path d="M20 6 9 17l-5-5"/>',
   'circle-alert': '<circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/>',
   info: '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>',
@@ -1078,7 +1127,7 @@ const ICON_SET = [
   ['plug', 'Called (MCP)'], ['globe', 'Fetched, Language'], ['lightbulb', 'Thought'], ['image', 'Viewed'],
   ['layers', 'Folded tools'], ['eye', 'External, read only'], ['square', 'Interrupt, stop'], ['lock', 'Read only, held, local'],
   ['paperclip', 'Attach'], ['mic', 'Dictate'], ['hand', 'Permission request'], ['clock', 'Timer, snapshot'],
-  ['x', 'Close, failed step'], ['check', 'Done step'], ['circle-alert', 'Error'], ['info', 'Note'],
+  ['x', 'Close, failed step'], ['trash', 'Delete'], ['circle-dashed', 'Step waiting'], ['minus', 'Step skipped'], ['check', 'Done step'], ['circle-alert', 'Error'], ['info', 'Note'],
   ['rotate-cw', 'Retry'], ['copy', 'Copy'], ['settings', 'Settings'], ['laptop', 'Machines'], ['contrast', 'Appearance'], ['ellipsis', 'Sidebar view'],
   ['text-wrap', 'Wrap long lines'], ['loader-circle', 'Running, starting, loading'], ['git-branch', 'Git branch'], ['zap', 'Fast'],
   ['shield', 'Permission mode'], ['shield-alert', 'Permission mode, high risk'],
@@ -1121,6 +1170,9 @@ const I = {
   clock: () => sv(L.clock),
   close: () => sv(L.x),
   x: () => sv(L.x),
+  trash: () => sv(L.trash),
+  waiting: () => sv(L['circle-dashed']),
+  skipped: () => sv(L.minus),
   check: () => sv(L.check),
   alert: () => sv(L['circle-alert']),
   info: () => sv(L.info),
@@ -1237,7 +1289,8 @@ const INSP = ['workspace', 'changes', 'changes-offline', ...WIDE, ...HANDOFF];
 const MINT = ['mint', 'mint-waiting', 'mint-online'];
 const PINNED = ['pinned', 'pinned-flat'];
 const ARCHIVED = ['archived', 'archived-empty'];
-const MENU = ['session-menu', 'session-menu-copy'];
+const MENU = ['session-menu', 'session-menu-copy', 'session-menu-delete'];
+const DELETE = ['delete', 'delete-worktree', 'delete-dirty', 'delete-offline', 'delete-running', 'delete-progress', 'delete-partial'];
 const SETTINGS = ['settings', 'settings-language', 'settings-machines', ...MINT];
 
 function sessKind(state) {
@@ -2185,7 +2238,7 @@ function settingsMain(state) {
     </nav><div class="spage"><div class="in">${page}</div></div></div>`;
 }
 
-/* the session actions menu: Rename and Pin | Copy › and Open in new window | Archive */
+/* the session actions menu: Rename and Pin | Copy › and Open in new window | Archive | Delete… */
 function actions(o = {}) {
   const it = (icon, label, sc = '', on = false) => `<div class="menu-item${on ? ' on' : ''}" role="menuitem"><span class="menu-check">${icon}</span>${label}${sc ? `<span class="sc">${sc}</span>` : ''}</div>`;
   const sub = o.sub ? `<div class="mn" role="menu" aria-label="Copy" style="left:-252px;top:65px">
@@ -2196,7 +2249,9 @@ function actions(o = {}) {
     <div class="menu-item${o.sub ? ' on' : ''}" role="menuitem" aria-haspopup="menu" aria-expanded="${!!o.sub}"><span class="menu-check">${I.copy()}</span>Copy<span class="chv">${I.chev()}</span></div>
     ${it(I.ext(), 'Open in new window')}
     <div class="menu-sep" role="separator"></div>
-    ${it(I.archive(), 'Archive', '⇧⌘A')}${sub}</div>`;
+    ${it(I.archive(), 'Archive', '⇧⌘A')}
+    <div class="menu-sep" role="separator"></div>
+    <div class="menu-item danger${o.del ? ' on' : ''}" role="menuitem"><span class="menu-check">${I.trash()}</span>Delete…</div>${sub}</div>`;
 }
 function renameDialog() {
   return `<div class="scrim"></div><div class="modal dlg" role="dialog" aria-modal="true" aria-label="Rename session">
@@ -2205,13 +2260,57 @@ function renameDialog() {
       <div class="dlg-u"><span>Claude’s title</span><span class="vt">byte cursor catalog</span><span class="gap"></span><button class="btn quiet" style="height:24px">${I.retry()}Use Claude’s title</button></div></div>
     <div class="dlg-f"><button class="btn quiet">Cancel</button><button class="btn primary">Save</button></div></div>`;
 }
+/* Delete a session (#106): one checklist dialog. Hoplet’s copy is always deleted and cannot be unticked; the
+   session file and, for a handed-off session, the worktree and branch Hoplet created are optional and start
+   unticked. A dirty worktree gets a warning. The steps run on the machine first and Hoplet’s copy last. */
+const DEL_TITLE = 'byte cursor catalog', DEL_WT = '~/code/hoplet-3f9a1c2e', DEL_BR = 'hoplet/3f9a1c2e';
+const DEL = {
+  delete: { machine: 'MacBook Pro', wt: null, online: true },
+  'delete-worktree': { machine: 'studio', wt: 'clean', online: true },
+  'delete-dirty': { machine: 'studio', wt: 'dirty', online: true },
+  'delete-offline': { machine: 'studio', wt: 'clean', online: false },
+  'delete-running': { machine: 'MacBook Pro', wt: null, online: true, running: true },
+};
+const small = (svg, n) => svg.replace('width="16" height="16"', `width="${n}" height="${n}"`);
+function deleteDialog(state) {
+  const mono = t => `<span class="mono">${t}</span>`;
+  const opt = (cls, label, ds, why = '') => `<div class="opt ${cls}"><span class="cbx">${/\b(on|lock)\b/.test(cls) ? I.check() : ''}</span><div><div class="ol">${label}</div><div class="od">${ds}</div>${why ? `<div class="rsn">${why}</div>` : ''}</div></div>`;
+  const step = (kind, label, ds = '') => {
+    const ic = { ok: `<span class="ok">${I.check()}</span>`, run: `<span class="run">${spin()}</span>`, bad: `<span class="bad">${I.x()}</span>`, wait: `<span class="skip">${I.waiting()}</span>`, skip: `<span class="skip">${I.skipped()}</span>` }[kind];
+    return `<div class="xs${kind === 'wait' ? ' wait' : ''}${kind === 'bad' ? ' badrow' : ''}">${ic}<div><div class="xl">${label}</div>${ds ? `<div class="od">${ds}</div>` : ''}</div></div>`;
+  };
+  const head = (m, sub = 'This cannot be undone.') => `<div class="dlg-h">Delete “${DEL_TITLE}”?</div><div class="dlg-sub"><span class="tag">${m}</span><span>${sub}</span></div>`;
+  const shell = inner => `<div class="scrim"></div><div class="modal dlg dx" role="dialog" aria-modal="true" aria-label="Delete session">${inner}</div>`;
+  if (state === 'delete-progress') {
+    return shell(`<div class="dlg-h">Deleting “${DEL_TITLE}”</div><div class="dlg-sub"><span class="tag">studio</span><span>Keep this window open.</span></div>
+      <div class="dlg-b">${step('ok', 'Stopped syncing from studio')}${step('ok', 'Deleted the session file on studio')}${step('run', 'Removing the worktree and branch', mono(DEL_WT))}${step('wait', 'Deleting Hoplet’s copy')}</div>
+      <div class="dlg-f"><button class="btn quiet" disabled>Cancel</button><button class="btn danger" disabled>Deleting…</button></div>`);
+  }
+  if (state === 'delete-partial') {
+    return shell(`<div class="dlg-h">“${DEL_TITLE}” was only partly deleted</div><div class="dlg-sub"><span class="tag">studio</span><span>Hoplet’s copy is kept so you can retry.</span></div>
+      <div class="dlg-b">${step('ok', 'Stopped syncing from studio')}${step('ok', 'Deleted the session file on studio')}${step('bad', 'Could not remove the worktree', `${mono(DEL_WT)} changed since this dialog opened: 1 new untracked file. Nothing was deleted there.`)}${step('skip', 'Hoplet’s copy not deleted yet', 'It is hidden from the list and will not sync. Retry finishes it.')}</div>
+      <div class="dlg-f"><button class="btn quiet">Keep as is</button><button class="btn">Retry without the worktree</button><button class="btn danger">Retry</button></div>`);
+  }
+  const d = DEL[state], m = d.machine, off = !d.online, dirty = d.wt === 'dirty';
+  const lock = rsn => `${small(I.lock(), 12)}<span>${rsn}</span>`;
+  const rows = [
+    opt('lock', 'Hoplet’s copy', `The session in the list, its stored lines and snapshots. It stops syncing from ${m}.`),
+    opt(off ? 'dis' : '', `The session file on ${m}`, mono('~/.claude/projects/-Users-me-code-hoplet/3f9a1c2e-….jsonl'), off ? lock(`${m} is offline. The file stays there.`) : ''),
+  ];
+  if (d.wt) rows.push(opt(off ? 'dis' : dirty ? 'warn' : '', 'The worktree and branch Hoplet created', `${mono(DEL_WT)} and ${mono(DEL_BR)}. Your own clone stays as it is. ${dirty ? '' : 'The branch has no unpushed commits.'}`.trim(),
+    off ? lock(`${m} is offline.`) : dirty ? `${small(I.alert(), 12)}<span>3 modified and 2 untracked files would be lost, and 2 commits are not pushed. Tick it to delete them too.</span>` : ''));
+  const note = d.running ? `<div class="xnote bad">${small(I.alert(), 14)}<span>Claude is running in this session, started by Hoplet on ${m}. Stop it first, then delete.</span></div>`
+    : off ? `<div class="xnote att">${small(I.info(), 14)}<span>${m} is offline. Only Hoplet’s copy can be deleted now. Hoplet will tell ${m} to stop syncing it when it reconnects; the file and worktree stay for you to clean up.</span></div>` : '';
+  const stop = d.running ? `<span class="l"><button class="btn sm">${small(I.stop(), 12)}Stop the session</button></span>` : '';
+  return shell(`${head(m)}<div class="dlg-b">${rows.join('')}</div>${note}<div class="dlg-f">${stop}<button class="btn quiet">Cancel</button><button class="btn danger"${d.running ? ' disabled' : ''}>Delete</button></div>`);
+}
 /* the Archived page: machine, then folder (name, path, count), newest first */
 function archivedMain(state) {
   const top = `<header class="top">${ib(I.back(), 'Back to the session · Esc', 'back')}<span class="title">Archived</span>${state === 'archived' ? '<span class="cnt2">9</span>' : ''}<span class="sp"></span></header>`;
   if (state === 'archived-empty') return top + `<div class="empty"><div class="in"><span class="tile">${sv(L.archive).replace('width="16" height="16"', 'width="20" height="20"')}</span><p>No archived sessions</p><span class="k"><span>Archive from the ··· menu</span><span><span class="kbd">⇧⌘A</span></span></span></div></div>`;
   const mh = (name, n, o = {}) => `<div class="agm${o.off ? ' off' : ''}"><span class="${o.off ? 'dot off' : 'dot'}"></span><span class="dn">${name}</span>${o.off ? '<span class="tag">Offline</span>' : ''}<span class="cnt">${n}</span></div>`;
   const fh = (name, path, n, o = {}) => `<div class="agf${o.hov ? ' hov' : ''}"><span class="fi">${o.closed ? I.folder() : I.folderOpen()}</span><span class="dn">${name}</span><span class="pth">${path}</span><span class="rt">${o.hov ? `<button class="btn quiet" style="height:24px">${I.restore()}Restore all</button>` : ''}<span class="cnt">${n}</span></span></div>`;
-  const ar = (t, time, o = {}) => `<div class="arow c${o.hov ? ' hov' : ''}">${pmark('claude')}<span class="tt"><span class="t1">${t}</span></span>${o.hov ? ib(I.restore(), 'Restore') : ''}<span class="m">${time}</span></div>`;
+  const ar = (t, time, o = {}) => `<div class="arow c${o.hov ? ' hov' : ''}">${pmark('claude')}<span class="tt"><span class="t1">${t}</span></span>${o.hov ? ib(I.restore(), 'Restore') + ib(I.trash(), 'Delete', 'dng') : ''}<span class="m">${time}</span></div>`;
   return top + `<div class="conv" style="overflow:auto"><div class="arch-list agp">
       ${mh('MacBook Pro', 5)}
       ${fh('hoplet', '~/code/hoplet', 3, { hov: true })}
@@ -2257,14 +2356,14 @@ function frame(state, scheme) {
         ${state === 'scrolled' ? `<div class="loadbar" role="status"${tip('Loading earlier lines')}>${spin()}</div>` : ''}
         ${composer(state)}`;
     }
-    main = top + body + (MENU.includes(state) ? actions({ sub: state === 'session-menu-copy' }) : '') + (state === 'copied' ? `<div class="toast" role="status" style="bottom:128px">${I.check()}Link copied</div>` : '');
+    main = top + body + (MENU.includes(state) ? actions({ sub: state === 'session-menu-copy', del: state === 'session-menu-delete' }) : '') + (state === 'copied' ? `<div class="toast" role="status" style="bottom:128px">${I.check()}Link copied</div>` : '');
   }
   const cls = `frame ${scheme}${insp ? ' with-insp' : ''}${wide ? ' wide' : ''}${nosb ? ' nosb' : ''}`;
   return `<div class="${cls}" data-state="${state}">
     ${nosb ? '' : sidebar(state)}
     <main class="main">${main}</main>
     ${insp ? inspector(state) : ''}
-    ${state.startsWith('add-project') ? addProjectModal(state) : state === 'search' ? palette() : state === 'rename' ? renameDialog() : ''}
+    ${state.startsWith('add-project') ? addProjectModal(state) : state === 'search' ? palette() : state === 'rename' ? renameDialog() : DELETE.includes(state) ? deleteDialog(state) : ''}
   </div>`;
 }
 
@@ -2322,12 +2421,20 @@ const STATES = [
   ['sidebar-flat', 'MacBook Pro as one list, each row with its directory on a second line; studio by folder'],
   ['sidebar-menu', 'a machine’s view options open: Organize (By folder, Flat) and Sort'],
   ['disconnected', 'this window lost the core'],
-  ['session-menu', 'the ··· menu in the top bar (the same menu opens on a session row’s context menu): Rename, Pin | Copy ›, Open in new window | Archive'],
+  ['session-menu', 'the ··· menu in the top bar (the same menu opens on a session row’s context menu): Rename, Pin | Copy ›, Open in new window | Archive | Delete…'],
   ['session-menu-copy', 'the Copy submenu: Session ID, Link, Last answer as Markdown'],
+  ['session-menu-delete', 'Delete… is last, after a separator, in the danger colour; it opens the confirmation dialog'],
   ['rename', 'Rename session: Claude’s title shown beside the field, with Use Claude’s title'],
+  ['delete', 'Delete: a plain session lists Hoplet’s copy (always) and the session file on the machine (unticked)'],
+  ['delete-worktree', 'Delete a handed-off session: the worktree and branch Hoplet created are a third row, unticked, with the unpushed-commit count'],
+  ['delete-dirty', 'Delete with a dirty worktree: the row is amber with what would be lost; it stays unticked'],
+  ['delete-offline', 'Delete with the owner offline: file and worktree rows disabled with the reason; only Hoplet’s copy goes and the machine is told on reconnect'],
+  ['delete-running', 'Delete a running session: blocked with the reason; Stop the session sits in the footer'],
+  ['delete-progress', 'Deleting: the machine’s steps in order, Hoplet’s copy last'],
+  ['delete-partial', 'A step failed: what was done, what was not, Retry; Hoplet’s copy is kept and the session is hidden and unsynced'],
   ['pinned', 'By folder: a Pinned group at the top of the machine, rows with their folder on a second line'],
   ['pinned-flat', 'Flat: pinned sessions first with a pin glyph, a hairline after the last'],
-  ['archived', 'the Archived page: machine, then folder (name, path, count), newest first; Restore on a row, Restore all on a folder'],
+  ['archived', 'the Archived page: machine, then folder (name, path, count), newest first; Restore and Delete on a hovered row, Restore all on a folder'],
   ['archived-empty', 'the Archived page with nothing archived'],
   ['copied', 'a toast confirms a copy, in the jump-to-end pill’s style'],
 ];

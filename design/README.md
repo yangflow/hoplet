@@ -10,6 +10,9 @@ The mockups, design tokens and app icon behind Hoplet's web UI. The design langu
   - `settings` includes the Notifications section: presets, the per-project and per-event overrides, quiet hours,
     This browser (Web Push on, off and blocked), webhooks (`settings-notify`, `settings-notify-overrides`,
     `settings-notify-off`, `settings-notify-blocked`, `notify-hook`).
+  - `cockpit` includes deleting a session: Delete… in the actions menu (`session-menu-delete`), Delete beside Restore
+    on a hovered Archived row (`archived`), and the confirmation dialog with its states (`delete`,
+    `delete-worktree`, `delete-dirty`, `delete-offline`, `delete-running`, `delete-progress`, `delete-partial`).
   - `action` is the page a signed action link opens and the notifications that lead to it (`os-open`, `confirm`,
     `confirm-answered`, `confirm-expired`, `confirm-used`, `confirm-webui`, `hint-blocked`).
 - `tokens.html`: every design token, with the JSON block that `check-tokens.py` compares with

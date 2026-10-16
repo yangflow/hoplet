@@ -56,6 +56,7 @@ paper, one hoplet orange. Dark is authored first; light is derived. Contrast fol
 | `--color-attention-text` | `#f0c142` | `#8f6200` | attention as text |
 | `--color-success` | `#4cc38a` | `#1d8550` | online presence, done |
 | `--color-danger` | `#ff7366` | `#c3352a` | failed, disconnected |
+| `--color-on-danger` | `#1c0d02` | `#ffffff` | text on a danger-filled button |
 | `--color-add-text` | `#86dcae` | `#156b3d` | added diff lines |
 | `--color-del-text` | `#ffa49b` | `#a82a1f` | deleted diff lines |
 | `--color-git-modified` | `#d9b77e` | `#86621c` | workspace tree: modified |
