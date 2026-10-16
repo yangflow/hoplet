@@ -24,6 +24,7 @@ import {
 import { errorText } from '../../../lib/errors.ts';
 import { t } from '../../../lib/i18n.ts';
 import { onLive, subscribeSession } from '../../../lib/live.ts';
+import { pageKeysSuspended } from '../../../lib/page-keys.ts';
 import { usePageVisible } from '../../../lib/visibility.ts';
 import { Composer } from '../composer/composer.tsx';
 import { ModeMenu, modeOption, nextMode } from '../composer/mode-menu.tsx';
@@ -307,7 +308,7 @@ export function Conversation(props: {
   useEffect(() => {
     if (!shortcuts || !interruptible) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape' || e.defaultPrevented || e.isComposing) return;
+      if (pageKeysSuspended() || e.key !== 'Escape' || e.defaultPrevented || e.isComposing) return;
       e.preventDefault();
       interrupt();
     };

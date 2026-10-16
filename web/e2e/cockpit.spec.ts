@@ -310,3 +310,22 @@ test('Add project browses the machine and adds a folder', async () => {
   await expect(dialog).toHaveCount(0);
   await expect(device.getByText('fixture-repo', { exact: true })).toBeVisible();
 });
+
+test('Settings keeps the cockpit mounted: a composer draft survives, and focus returns', async () => {
+  const input = page.getByTestId('cockpit.composer-input');
+  await input.fill('a draft that must survive');
+  await page.getByTestId('cockpit.settings').click();
+  await expect(page.getByTestId('settings.page')).toBeVisible();
+  await expect(page.getByTestId('cockpit')).toBeHidden();
+  await expect(page).toHaveURL(/settings=appearance/);
+  // The cockpit's shortcuts do nothing while Settings shows.
+  await page.keyboard.press('ControlOrMeta+k');
+  await expect(page.getByTestId('cockpit.palette')).toHaveCount(0);
+  await page.getByTestId('settings.nav.machines').click();
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('settings.page')).toHaveCount(0);
+  await expect(page.getByTestId('cockpit')).toBeVisible();
+  await expect(page).not.toHaveURL(/settings=/);
+  await expect(input).toHaveValue('a draft that must survive');
+  await expect(page.getByTestId('cockpit.settings')).toBeFocused();
+});

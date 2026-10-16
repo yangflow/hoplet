@@ -5,6 +5,7 @@ import { IconButton } from '../../components/IconButton.tsx';
 import { Icon } from '../../components/icons.tsx';
 import { ProviderMark } from '../../components/provider-marks.tsx';
 import { t } from '../../lib/i18n.ts';
+import { pageKeysSuspended } from '../../lib/page-keys.ts';
 import { type DeviceGroup, displayTitle } from './group.ts';
 import { compactRel } from './sidebar/rel.ts';
 
@@ -55,6 +56,7 @@ export function ArchivedPage(props: {
   const total = archivedCount(groups);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (pageKeysSuspended()) return;
       if (e.key === 'Escape' && !document.querySelector('[role="dialog"]')) onBack();
     };
     window.addEventListener('keydown', onKey);

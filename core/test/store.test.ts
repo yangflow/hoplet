@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { NotOwnerError, Store, summarizeTitle } from '../src/store/index.ts';
 
 const dirs: string[] = [];
@@ -190,6 +190,35 @@ describe('Store.append', () => {
     const rotated = store.mintDevice('Mac', 'd-mac');
     expect(store.deviceIdForToken(minted.token)).toBeNull();
     expect(store.deviceIdForToken(rotated.token)).toBe('d-mac');
+  });
+});
+
+describe('Store device last connection', () => {
+  it('reports no lastSeen for a minted device that never connected, and re-minting keeps it so', () => {
+    const { store } = newStore();
+    store.mintDevice('Mac', 'd-mac');
+    expect(store.listDevices()).toEqual([{ deviceId: 'd-mac', name: 'Mac' }]);
+    store.mintDevice('Mac 2', 'd-mac');
+    expect(store.listDevices()).toEqual([{ deviceId: 'd-mac', name: 'Mac 2' }]);
+  });
+
+  it('sets lastSeen on connect and on disconnect, and re-minting does not change it', () => {
+    vi.useFakeTimers();
+    try {
+      const { store } = newStore();
+      store.mintDevice('Mac', 'd-mac');
+      vi.setSystemTime(1_000);
+      store.upsertDevice('d-mac', 'Mac', '0.2.0');
+      expect(store.listDevices()[0]?.lastSeen).toBe(1_000);
+      vi.setSystemTime(5_000);
+      store.touchDevice('d-mac');
+      expect(store.listDevices()[0]?.lastSeen).toBe(5_000);
+      vi.setSystemTime(9_000);
+      store.mintDevice('Mac', 'd-mac');
+      expect(store.listDevices()[0]?.lastSeen).toBe(5_000);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

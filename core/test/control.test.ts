@@ -145,8 +145,33 @@ describe('the route table around the handlers', () => {
         headers: token ? { authorization: `Bearer ${token}` } : {},
         ...(body === undefined ? {} : { body }),
       });
-    return { control, call };
+    return { store, control, call };
   }
+
+  it('lists lastSeen as the agent last connection only', async () => {
+    const { store, control, call } = await boot();
+    const list = async () =>
+      ((await (await call('GET', '/api/devices')).json()) as { devices: Record<string, unknown>[] })
+        .devices;
+    const mint = JSON.stringify({ name: 'Mac', deviceId: 'd-mac' });
+    expect((await call('POST', '/api/devices', mint)).status).toBe(200);
+    expect(await list()).toMatchObject([{ deviceId: 'd-mac', connected: false }]);
+    expect((await list())[0]).not.toHaveProperty('lastSeen');
+
+    const link = fakeLink();
+    control.attach('d-mac', link);
+    store.upsertDevice('d-mac', 'Mac', '0.2.0');
+    const before = Date.now();
+    control.detach(link);
+    const [device] = await list();
+    expect(device).toMatchObject({ connected: false });
+    expect(device?.lastSeen as number).toBeGreaterThanOrEqual(before);
+    expect(device?.lastSeen as number).toBeLessThanOrEqual(Date.now());
+
+    const seen = device?.lastSeen;
+    await call('POST', '/api/devices', mint);
+    expect((await list())[0]?.lastSeen).toBe(seen);
+  });
 
   it('requires the host token on every /api path, known or not', async () => {
     const { call } = await boot();

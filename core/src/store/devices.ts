@@ -22,11 +22,28 @@ export function upsertDevice(
     .run(deviceId, name, version, now, now);
 }
 
-export function listDevices(ctx: StoreContext): { deviceId: string; name: string }[] {
+/** Record that the agent of a device just went away; its last connection is when it disconnected. */
+export function touchDevice(ctx: StoreContext, deviceId: string): void {
+  ctx.db.prepare(`UPDATE devices SET last_seen = ? WHERE device_id = ?`).run(Date.now(), deviceId);
+}
+
+/**
+ * `lastSeen` is the agent's last connection in milliseconds, absent for a device that never connected: a minted
+ * device has no version until its agent says hello.
+ */
+export function listDevices(
+  ctx: StoreContext,
+): { deviceId: string; name: string; lastSeen?: number }[] {
   const rows = ctx.db
-    .prepare(`SELECT device_id, name FROM devices ORDER BY last_seen DESC`)
-    .all() as { device_id: string; name: string }[];
-  return rows.map((r) => ({ deviceId: r.device_id, name: r.name }));
+    .prepare(
+      `SELECT device_id, name, version, last_seen FROM devices ORDER BY last_seen DESC, first_seen DESC`,
+    )
+    .all() as { device_id: string; name: string; version: string; last_seen: number }[];
+  return rows.map((r) => ({
+    deviceId: r.device_id,
+    name: r.name,
+    ...(r.version !== '' ? { lastSeen: r.last_seen } : {}),
+  }));
 }
 
 export function mintDevice(
@@ -45,8 +62,8 @@ export function mintDevice(
     | undefined;
   if (existing) {
     ctx.db
-      .prepare(`UPDATE devices SET name = ?, token_hash = ?, last_seen = ? WHERE device_id = ?`)
-      .run(name, hash, now, id);
+      .prepare(`UPDATE devices SET name = ?, token_hash = ? WHERE device_id = ?`)
+      .run(name, hash, id);
   } else {
     ctx.db
       .prepare(

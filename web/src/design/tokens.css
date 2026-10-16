@@ -2,7 +2,8 @@
    design/screens/cockpit.html; design/tokens.html mirrors this file and design/check-tokens.py compares
    the two. Dark is authored first, light follows the system and is forced by data-scheme. */
 :root,
-:root[data-scheme="dark"] {
+:root[data-scheme="dark"],
+[data-scheme="dark"] {
   color-scheme: dark;
 
   --color-bg: #131210;
@@ -159,7 +160,8 @@
   }
 }
 
-:root[data-scheme="light"] {
+:root[data-scheme="light"],
+[data-scheme="light"] {
   color-scheme: light;
 
   --color-bg: #f8f5f0;

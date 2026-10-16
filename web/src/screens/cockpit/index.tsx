@@ -11,6 +11,7 @@ import { Toast, type ToastState, useToast } from '../../components/Toast.tsx';
 import { postAddProject } from '../../lib/api.ts';
 import { errorText } from '../../lib/errors.ts';
 import { t } from '../../lib/i18n.ts';
+import { pageKeysSuspended } from '../../lib/page-keys.ts';
 import {
   changesOf,
   Inspector,
@@ -88,9 +89,12 @@ export function Cockpit(props: {
   runtime?: Record<string, SessionRuntimeInfo>;
   /** Starts a session; resolves when it exists, rejects with the reason it could not start. */
   onCreateSession?: (request: NewSessionRequest) => Promise<void>;
+  /** Opens the Settings page, which replaces this screen. */
+  onSettings?: () => void;
   fixture?: CockpitFixture;
 }) {
   const { sessions, selected, onSelect, live, error, fixture } = props;
+  const openSettings = () => props.onSettings?.();
   const host = props.host ?? (typeof location === 'undefined' ? '' : location.host);
   const [sidebarFolded, setSidebarFolded] = useState(fixture?.sidebarFolded ?? false);
   const [paletteOpen, setPaletteOpen] = useState(fixture?.paletteOpen ?? false);
@@ -285,6 +289,7 @@ export function Cockpit(props: {
   // They are ⌘-chords, so they also fire from the composer; a dialog owns the keys while it is open. A held key
   // acts once, and AltGr or an input method composing is not a chord.
   shortcut.current = (e) => {
+    if (pageKeysSuspended()) return;
     if (!(e.metaKey || e.ctrlKey) || e.repeat || e.isComposing || e.getModifierState('AltGraph'))
       return;
     if (!session || draft || archivedOpen || renaming || paletteOpen || addFor) return;
@@ -307,7 +312,7 @@ export function Cockpit(props: {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (!(e.metaKey || e.ctrlKey) || e.altKey) return;
+      if (pageKeysSuspended() || !(e.metaKey || e.ctrlKey) || e.altKey) return;
       if (e.shiftKey) {
         // ⇧⌘G and ⇧⌘E open Changes and Files in the inspector.
         const tool = { g: 'changes', e: 'files' }[e.key.toLowerCase()] as
@@ -334,11 +339,14 @@ export function Cockpit(props: {
       } else if (e.key === 'i' && selected) {
         e.preventDefault();
         setInspectorOpen((v) => !v);
+      } else if (e.key === ',') {
+        e.preventDefault();
+        props.onSettings?.();
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [selected, openNewSession, inspector]);
+  }, [selected, openNewSession, inspector, props.onSettings]);
 
   return (
     <div className={`cockpit${wide ? ' inspector-wide' : ''}`} data-testid="cockpit">
@@ -368,9 +376,7 @@ export function Cockpit(props: {
           onAddProject={openAddProject}
           onSearch={() => setPaletteOpen(true)}
           onFold={() => setSidebarFolded(true)}
-          onSettings={() => {
-            /* Settings is its own screen (#8) */
-          }}
+          onSettings={openSettings}
         />
       )}
       <main className="main">
@@ -481,9 +487,7 @@ export function Cockpit(props: {
           onSelectSession={pickSession}
           onSelectHit={pickHit}
           onNewSession={() => openNewSession()}
-          onSettings={() => {
-            /* Settings is its own screen (#8) */
-          }}
+          onSettings={openSettings}
         />
       ) : null}
       {addFor && addTarget ? (

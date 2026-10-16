@@ -45,6 +45,22 @@ svg {
   }
 }
 
+/* The capsule of a Segmented control and its chosen segment, by scheme. */
+:root {
+  --seg-bg: var(--color-bg);
+  --seg-on: var(--color-selected);
+}
+:root[data-scheme="light"] {
+  --seg-bg: var(--color-hover);
+  --seg-on: var(--color-raised);
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-scheme="dark"]) {
+    --seg-bg: var(--color-hover);
+    --seg-on: var(--color-raised);
+  }
+}
+
 /* IconButton: the icon carries the intent, the title names it */
 .ib {
   position: relative;
@@ -559,4 +575,37 @@ button.row:not(.selected):hover {
 .dot.off {
   background: transparent;
   box-shadow: inset 0 0 0 1.5px var(--color-text-3);
+}
+
+/* Segmented: exclusive choices in one capsule */
+.seg {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 8px;
+  background: var(--seg-bg);
+  box-shadow: inset 0 0 0 1px var(--color-line);
+}
+.seg button {
+  height: 24px;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-3);
+  border-radius: 6px;
+  font-size: var(--text-ui);
+  font-weight: var(--weight-medium);
+  color: var(--color-text-2);
+  white-space: nowrap;
+}
+.seg button.on {
+  background: var(--seg-on);
+  color: var(--color-text);
+  box-shadow:
+    inset 0 1px 0 var(--color-highlight),
+    0 0 0 1px var(--color-line);
+}
+.seg button:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
 }

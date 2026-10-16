@@ -169,7 +169,7 @@ svg{display:block;flex:none}
   background:var(--color-bg);color:var(--color-text);font-family:var(--font-ui);font-size:var(--text-ui);line-height:var(--leading-ui);font-weight:var(--weight-regular);
   -webkit-font-smoothing:antialiased;letter-spacing:-0.003em}
 .frame.with-insp{grid-template-columns:var(--layout-sidebar) 1fr var(--layout-inspector)}
-.frame.nosb{grid-template-columns:1fr}
+.frame.nosb,.frame.page{grid-template-columns:1fr}
 .frame.nosb.with-insp{grid-template-columns:1fr var(--layout-inspector)}
 .frame.with-insp.wide{grid-template-columns:1fr var(--layout-inspector-wide)}
 .mono{font-family:var(--font-mono);font-size:var(--text-code);line-height:var(--leading-code);letter-spacing:0}
@@ -643,14 +643,14 @@ svg{display:block;flex:none}
 .ni svg{color:var(--color-text-3)}
 .ni.on{background:var(--color-selected);color:var(--color-text);box-shadow:inset 0 1px 0 var(--color-highlight)}
 .ni.on svg{color:var(--color-text-2)}
-.spage{overflow:hidden;padding:var(--space-6) var(--space-7)}
-.spage .in{max-width:620px}
+.spage{overflow:auto;padding:var(--space-4) var(--space-7) var(--space-5)}
+.spage .in{max-width:620px;margin:0 auto}
 .spage h1{font-size:var(--text-title);line-height:var(--leading-title);font-weight:var(--weight-semibold);letter-spacing:-0.012em;margin-bottom:var(--space-5)}
-.sgrp + .sgrp{margin-top:var(--space-6)}
-.sgrp .lb{font-weight:var(--weight-semibold);color:var(--color-text);margin-bottom:var(--space-3)}
+.sgrp + .sgrp{margin-top:var(--space-5)}
+.sgrp .lb{font-weight:var(--weight-semibold);color:var(--color-text);margin-bottom:var(--space-2)}
 .themes{display:flex;gap:var(--space-4)}
 .thc{display:flex;flex-direction:column;gap:var(--space-2)}
-.thp{width:164px;height:104px;border-radius:var(--radius-md);overflow:hidden;position:relative;box-shadow:0 0 0 1px var(--color-line)}
+.thp{width:164px;height:88px;border-radius:var(--radius-md);overflow:hidden;position:relative;box-shadow:0 0 0 1px var(--color-line)}
 .thc.on .thp{box-shadow:0 0 0 2px var(--color-accent)}
 .thp .mini{position:absolute;inset:0;display:grid;grid-template-columns:40px 1fr}
 .thp .mini.half{clip-path:polygon(100% 0,100% 100%,0 100%)}
@@ -691,6 +691,17 @@ svg{display:block;flex:none}
 .mstep .well{grid-column:2;margin:var(--space-3) 0 0}
 .cfg-f{grid-column:2;display:flex;align-items:center;gap:var(--space-3);margin-top:var(--space-3)}
 .mcard-f{display:flex;justify-content:flex-end}
+
+.pr .nm .meta{display:block;font-weight:var(--weight-regular)}
+.pr .seg{flex:none}
+.pr.hint{height:48px}
+.pr .switch{margin-right:2px}
+.tprev{margin-top:var(--space-3);padding:var(--space-4);border-radius:var(--radius-md);background:var(--color-surface);box-shadow:inset 0 0 0 1px var(--color-line);display:flex;flex-direction:column;gap:var(--space-3)}
+.light .tprev{background:var(--color-raised)}
+.tprev .text{margin:0}
+.tprev .pc{padding:var(--space-2) var(--space-3);border-radius:var(--radius-sm);background:var(--color-bg);box-shadow:inset 0 0 0 1px var(--color-line);white-space:nowrap;overflow:hidden}
+.light .tprev .pc{background:var(--color-hover)}
+.no-lig .mono,.no-lig .wb,.no-lig .diff,.no-lig .code,.no-lig .text code{font-variant-ligatures:none;font-feature-settings:"liga" 0,"calt" 0}
 
 /* stacked view */
 body.stacked{background:#131210;color:#efe9e2;font-family:-apple-system,"SF Pro Text",system-ui,sans-serif;padding:56px 48px 80px;-webkit-font-smoothing:antialiased}
@@ -940,7 +951,31 @@ const HANDOFF = ['handoff', 'handoff-path', 'handoff-progress', 'handoff-failed'
 const WIDE = ['file-open', 'file-image', 'diff-open', 'diff-large', 'diff-binary', 'diff-offline'];
 const INSP = ['workspace', 'changes', 'changes-offline', ...WIDE, ...HANDOFF];
 const MINT = ['mint', 'mint-waiting', 'mint-online'];
-const SETTINGS = ['settings', 'settings-language', 'settings-machines', ...MINT];
+const APPEARANCE = ['settings', 'settings-text', 'settings-text-geist'];
+const SETTINGS = [...APPEARANCE, 'settings-machines', ...MINT];
+
+/* Appearance › Text: kept in the browser. Every choice swaps tokens on the frame (the way the web UI swaps them on the root);
+   faces are bundled in the app and never fetched, so the mockup names local faces and falls back to the system stacks. */
+const TEXT_DEFAULT = { ui: 'Inter', code: 'JetBrains Mono', size: 'Default', wide: false, lig: true };
+const TEXT = {
+  'settings-text': { ui: 'System', code: 'System (SF Mono)', size: 'Large', wide: true, lig: false },
+  'settings-text-geist': { ui: 'Geist', code: 'Geist Mono', size: 'Small', wide: false, lig: true },
+};
+const SYS_UI = '-apple-system, system-ui, "PingFang SC", sans-serif';
+const SYS_MONO = 'ui-monospace, "SF Mono", Menlo, monospace';
+const FACE_UI = { Inter: '"Inter Variable", ' + SYS_UI, System: SYS_UI, Geist: '"Geist Variable", Geist, ' + SYS_UI };
+const FACE_MONO = { 'JetBrains Mono': '"JetBrains Mono Variable", ' + SYS_MONO, 'System (SF Mono)': SYS_MONO, 'Geist Mono': '"Geist Mono Variable", "Geist Mono", ' + SYS_MONO };
+/* the four sizes scale together; every line height is untouched, so all stay multiples of 4 */
+const SIZES = {
+  Small: { meta: 10, ui: 12, body: 14, code: 11.5 },
+  Default: { meta: 11, ui: 13, body: 15, code: 12.5 },
+  Large: { meta: 12, ui: 14, body: 16, code: 13.5 },
+};
+const textOf = state => ({ ...TEXT_DEFAULT, ...(TEXT[state] || {}) });
+const textStyle = t => {
+  const z = SIZES[t.size];
+  return `--font-ui:${FACE_UI[t.ui]};--font-prose:var(--font-ui);--font-mono:${FACE_MONO[t.code]};--text-meta:${z.meta}px;--text-ui:${z.ui}px;--text-body:${z.body}px;--text-title:${z.body}px;--text-code:${z.code}px`.replace(/"/g, '&quot;');
+};
 
 function sessKind(state) {
   if (['running', 'scrolled', 'disconnected'].includes(state)) return 'run';
@@ -953,57 +988,6 @@ function sessKind(state) {
 }
 /* the states that need the user, strongest first; a folded directory shows the strongest it holds */
 const ATTENTION = ['need', 'fail'];
-
-function sidebar(state) {
-  const off = OFFLINE.includes(state);
-  const moved = state === 'handoff-done';
-  const settings = SETTINGS.includes(state);
-  const lost = state === 'disconnected';
-  const sel = !(state === 'empty' || settings);
-  /* view options are per machine: by folder (default) or flat, sorted by recent activity; MacBook Pro is flat in sidebar-flat */
-  const menuOpen = state === 'sidebar-menu';
-  const S = (t, kind, time, on = false) => ({ t, kind, time, on });
-  const t = 'byte cursor catalog';
-  const open = moved ? S(t, '', 'now', true) : S(t, sessKind(state), '1m', sel);
-  const other = S('Hand off sessions with snapshots', off ? '' : 'run', '3h');
-  /* folding is remembered per directory: office-mini › hoplet-app stays folded; notes is folded in ready */
-  const DEVS = [
-    { n: 'MacBook Pro', hov: state.startsWith('add-project'), flat: state === 'sidebar-flat', menu: menuOpen, on: !off, dirs: [{ n: 'hoplet', open: true, ss: moved ? [other] : [open, other] }] },
-    { n: 'office-mini', on: false, dirs: [{ n: 'hoplet-app', open: false, ss: [S('Liquid Glass tab bar', '', '4d')] }] },
-    { n: 'studio', on: true, dirs: [
-      ...(moved ? [{ n: 'hoplet-11111111', open: true, ss: [open] }] : []),
-      { n: 'notes', open: state !== 'ready', hov: state === 'empty', ss: [S('多设备远程同步 AI 会话项目', 'need', '20m')] }] },
-    ...(state === 'mint-online' ? [{ n: 'studio-2', on: true, dirs: [] }] : []),
-  ];
-  /* provider mark | title | runtime state, or the last-activity time when idle */
-  const sess = (s, o = {}) => `<div class="sess${o.two ? ' two' : ''}${s.on ? ' on' : ''}${o.dim ? ' dim' : ''}">${pmark('claude')}${o.two ? `<span class="t tt"><span class="t1">${s.t}</span><span class="t2">${o.two}</span></span>` : `<span class="t">${s.t}</span>`}<span class="m">${s.kind ? GL[s.kind]() : s.time}</span></div>`;
-  const folder = (n, isOpen, ss, hov, title, plus) => {
-    const strongest = ATTENTION.find(k => ss.some(s => s.kind === k));
-    const folded = isOpen ? '' : `<span class="cnt"${tip(`${ss.length} session${ss.length > 1 ? 's' : ''}`)}>${ss.length}</span>${strongest ? GL[strongest]() : ''}`;
-    return `<div class="sdir${isOpen ? ' open' : ''}${hov ? ' hov' : ''}" role="button" aria-expanded="${isOpen}" title="${title}"><span class="fi">${isOpen ? I.folderOpen() : I.folder()}</span><span class="dn">${n}</span><span class="rt">${folded}${plus ? ib(I.plus(), `New session in ${n}`) : ''}</span></div>`;
-  };
-  const dir = d => folder(d.n, d.open, d.ss, d.hov, d.n, true) + (d.open ? d.ss.map(s => sess(s)).join('') : '');
-  const flat = d => d.dirs.flatMap(r => r.ss.map(s => ({ s, dir: r.n }))).sort((a, b) => age(a.s) - age(b.s)).map(p => sess(p.s, { two: p.dir })).join('');
-  const item = (label, on) => `<div class="menu-item" role="menuitemradio" aria-checked="${on}"><span class="menu-check">${on ? I.check() : ''}</span>${label}</div>`;
-  const menu = d => `<div class="pop" role="menu" aria-label="${d.n}"><div class="menu-title">${d.n}</div>
-      <div role="group" aria-label="Organize"><div class="menu-label">Organize</div>${item('By folder', !d.flat)}${item('Flat', !!d.flat)}</div>
-      <div class="menu-sep"></div>
-      <div role="group" aria-label="Sort"><div class="menu-label">Sort</div>${item('Recent activity', true)}${item('Created', false)}${item('Title', false)}</div></div>`;
-  const dev = d => `<div class="devg${d.on ? '' : ' off'}"><div class="dev open${d.hov ? ' hov' : ''}${d.menu ? ' menu' : ''}"><span class="dt" role="button" aria-expanded="true"><span class="lead"><span class="dot${d.on ? '' : ' off'}"${tip(d.on ? 'Online' : 'Offline')}></span></span><span class="dn">${d.n}</span><span class="dchv">${I.chev()}</span></span>${ib(I.more(), 'View options', d.menu ? 'on' : '')}${ib(I.plus(), d.on ? 'Add project' : `${d.n} is offline`, '', !d.on)}${d.menu ? menu(d) : ''}</div>
-      ${d.flat ? `<div class="grp">${flat(d)}</div>` : d.dirs.length ? d.dirs.map(dir).join('') : '<div class="sdir none">No projects yet</div>'}</div>`;
-  const age = s => { const m = /^(\d+)([mhd])$/.exec(s.time); return m ? +m[1] * { m: 1, h: 60, d: 1440 }[m[2]] : 0; };
-  const tree = DEVS.map(dev).join('');
-  const conn = lost
-    ? `<span class="conn lost" role="status" title="Disconnected from hoplet.local · retrying in 3 s"><span class="lead"><span class="dot"></span></span>Reconnecting…</span>`
-    : `<span class="conn" role="status" title="Connected to hoplet.local · 24 ms"><span class="lead"><span class="dot"></span></span>hoplet.local</span>`;
-  return `<aside class="side">
-    <div class="brand"><span class="mark" aria-hidden="true">${mark}</span><b>Hoplet</b><span class="sp"></span>
-      <span class="hb">${ib(I.compose(), 'New session · ⌘N', state === 'new-session' ? 'on' : '')}${ib(I.sidebar(), 'Hide sidebar · ⌘\\')}</span></div>
-    <button class="search"${tip('Search · ⌘K')}>${I.search()}<span class="lbl">Search</span><span class="kbd">⌘K</span></button>
-    <div class="tree${lost ? ' frozen-side' : ''}">${tree}</div>
-    <div class="side-foot">${conn}${ib(I.gear(), 'Settings · ⌘,', settings ? 'on' : '')}</div>
-  </aside>`;
-}
 
 /* tool rows: one grammar, icon | past-tense verb | object | meta (tabular 11 px) */
 const act = (icon, verb, obj, meta = '', cls = '') =>
@@ -1551,8 +1535,23 @@ function themeMini(s) {
   </div>`;
 }
 
+function textGroup(t) {
+  const choice = (name, opts, cur) => `<div class="seg" role="radiogroup" aria-label="${name}">${opts.map(o => `<button role="radio" aria-checked="${o === cur}"${o === cur ? ' class="on"' : ''}>${o}</button>`).join('')}</div>`;
+  const toggle = (name, on) => `<span class="switch${on ? ' on' : ''}" role="switch" aria-checked="${on}" aria-label="${name}"></span>`;
+  const row = (name, ctl, hint = '') => `<div class="pr${hint ? ' hint' : ''}"><span class="nm">${name}${hint ? `<span class="meta">${hint}</span>` : ''}</span>${ctl}</div>`;
+  return `<div class="sgrp"><div class="lb">Text</div><div class="plist">
+        ${row('Interface font', choice('Interface font', Object.keys(FACE_UI), t.ui))}
+        ${row('Code font', choice('Code font', Object.keys(FACE_MONO), t.code))}
+        ${row('Size', choice('Size', Object.keys(SIZES), t.size))}
+        ${row('Full width', toggle('Full width', t.wide), 'The conversation fills the main area')}
+        ${row('Ligatures', toggle('Ligatures', t.lig), 'In code and tool output')}
+      </div>
+      <div class="tprev" aria-label="Preview"><p class="text">The cursor moves by exactly the bytes written, so a resumed sync never repeats a line.</p>
+        <div class="pc mono">if (next !== size &amp;&amp; cursor &gt;= 0) =&gt; next  // != &lt;= ===</div></div></div>`;
+}
+
 function settingsMain(state) {
-  const sec = state === 'settings-language' ? 'language' : state === 'settings' ? 'appearance' : 'machines';
+  const sec = APPEARANCE.includes(state) ? 'appearance' : 'machines';
   const ni = (k, icon, label) => `<div class="ni${sec === k ? ' on' : ''}">${icon}${label}</div>`;
   let page;
   if (sec === 'appearance') {
@@ -1563,13 +1562,10 @@ function settingsMain(state) {
         ${card('light', 'Light', themeMini('light'))}
         ${card('dark', 'Dark', themeMini('dark'))}
       </div></div>
-      <div class="sgrp"><div class="lb">Text size</div><div class="seg"><button>Small</button><button class="on">Default</button><button>Large</button></div></div>`;
-  } else if (sec === 'language') {
-    page = `<h1>Language</h1>
-      <div class="plist" role="radiogroup" aria-label="Language">
-        <div class="pr"><span class="radio on"></span><span class="nm">English</span></div>
-        <div class="pr" lang="zh-Hans"><span class="radio"></span><span class="nm">简体中文</span></div>
-      </div>`;
+      <div class="sgrp"><div class="lb">Language</div><div class="plist">
+        <div class="pr"><span class="nm">Interface language</span><div class="seg" role="radiogroup" aria-label="Interface language"><button role="radio" aria-checked="true" class="on">English</button><button role="radio" aria-checked="false" lang="zh-Hans">简体中文</button></div></div>
+      </div></div>
+      ${textGroup(textOf(state))}`;
   } else {
     const m = (n, on, seen) => `<div class="pr${on ? '' : ' off'}"><span class="lead"><span class="dot${on ? '' : ' off'}" role="img"${tip(on ? 'Online' : 'Offline')}></span></span><span class="nm">${n}</span><span class="meta">${seen}</span></div>`;
     page = `<h1>Machines</h1>
@@ -1577,47 +1573,17 @@ function settingsMain(state) {
       <div class="plist">${m('MacBook Pro', true, 'now')}${m('studio', true, 'now')}${m('office-mini', false, '6h ago')}${state === 'mint-online' ? m('studio-2', true, 'now') : ''}</div>
       ${MINT.includes(state) ? mintCard(state) : `<div class="sact"><button class="btn">${I.plus()}Add a machine</button></div>`}`;
   }
-  return `<header class="top">${ib(I.back(), 'Back to the session · Esc')}<span class="title">Settings</span></header>
+  return `<header class="top">${ib(I.back(), 'Back to the conversation · Esc')}<span class="title">Settings</span></header>
     <div class="set"><nav class="snav" aria-label="Settings sections">
-      ${ni('appearance', I.contrast(), 'Appearance')}${ni('language', I.globe(), 'Language')}${ni('machines', I.laptop(), 'Machines')}
+      ${ni('appearance', I.contrast(), 'Appearance')}${ni('machines', I.laptop(), 'Machines')}
     </nav><div class="spage"><div class="in">${page}</div></div></div>`;
 }
 
+/* Settings is a full page: no sidebar, no status bar; it owns the window and Esc returns to the conversation */
 function frame(state, scheme) {
-  const wide = WIDE.includes(state);
-  const insp = INSP.includes(state);
-  const settings = SETTINGS.includes(state);
-  const nosb = state === 'sidebar-folded' || wide;
-  const empty = state === 'empty';
-  let main;
-  if (settings) main = settingsMain(state);
-  else {
-    const top = `<header class="top">${nosb ? ib(I.sidebar(), 'Show sidebar · ⌘\\') : ''}
-      ${empty ? '' : `<span class="title">byte cursor catalog</span>`}
-      <span class="sp"></span>
-      ${!empty && !insp ? `<button class="ib"${tip('Show workspace · 4 changed · ⌘I')}>${I.panel()}<span class="cdg"></span></button>` : ''}
-    </header>`;
-    let body;
-    if (empty) {
-      body = `<div class="empty"><div class="in"><span class="tile">${bigMark}</span><p>Pick a session, or start a new one</p><span class="k"><span><span class="kbd">⌘K</span>search</span><span><span class="kbd">⌘N</span>new session</span></span></div></div>`;
-    } else {
-      const live = LIVE.includes(state) ? liveTurn(state === 'scrolled' ? 'running' : state) : '';
-      body = `<div class="conv${state === 'scrolled' ? ' loading' : ''}"><div class="col">
-          ${firstTurn(state)}
-          ${state === 'external' ? terminalTurn() : ''}
-          ${live}
-        </div></div>
-        ${state === 'scrolled' ? `<div class="loadbar" role="status"${tip('Loading earlier lines')}>${spin()}</div>` : ''}
-        ${composer(state)}`;
-    }
-    main = top + body;
-  }
-  const cls = `frame ${scheme}${insp ? ' with-insp' : ''}${wide ? ' wide' : ''}${nosb ? ' nosb' : ''}`;
-  return `<div class="${cls}" data-state="${state}">
-    ${nosb ? '' : sidebar(state)}
-    <main class="main">${main}</main>
-    ${insp ? inspector(state) : ''}
-    ${state === 'new-session' ? newSessionModal() : state.startsWith('add-project') ? addProjectModal(state) : state === 'search' ? palette() : ''}
+  const tx = APPEARANCE.includes(state) ? textOf(state) : null;
+  return `<div class="frame page ${scheme}${tx && !tx.lig ? ' no-lig' : ''}"${tx ? ` style="${textStyle(tx)}"` : ''} data-state="${state}">
+    <main class="main">${settingsMain(state)}</main>
   </div>`;
 }
 
@@ -1625,11 +1591,12 @@ function frame(state, scheme) {
 const SCREEN = {
   name: 'Settings',
   system: false,
-  blurb: 'The Settings page: Appearance, Language, Machines and Add a machine, with a section list that grows. Shown inside the cockpit frame (<code>cockpit.html</code>). A draft, reviewed when this screen is designed.',
+  blurb: 'The Settings page, a full page that replaces the window (no sidebar, no status bar): a header with a back button (Esc also goes back) and the title, the section list on the left and the content on the right. Sections are Appearance (Theme, Language, Text) and Machines (with Add a machine); Memory (#18) and Model providers (#16) are added to the list later. Appearance, Language and the Text group (interface font, code font, size, full width, ligatures) are kept in the browser and each choice only swaps tokens; the preview follows them.',
 };
 const STATES = [
   ['settings', 'Settings: Appearance'],
-  ['settings-language', 'Settings: Language'],
+  ['settings-text', 'Appearance › Text: System fonts, Large, full width, ligatures off'],
+  ['settings-text-geist', 'Appearance › Text: Geist and Geist Mono, Small'],
   ['settings-machines', 'Settings: Machines'],
   ['mint', 'Add a machine: token minted'],
   ['mint-waiting', 'waiting for the agent'],

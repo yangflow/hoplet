@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { expect, test } from '@playwright/test';
 
-// Every state of the cockpit and the workspace, in both schemes, against the full axe rule set including colour contrast.
+// Every state of the cockpit, the workspace and Settings, in both schemes, against the full axe rule set including colour contrast.
 const axeSource = readFileSync(
   createRequire(import.meta.url).resolve('axe-core/axe.min.js'),
   'utf8',
@@ -16,7 +16,11 @@ function stateNames(screen: string): string[] {
   const states = source.slice(source.indexOf('export const states'));
   return [...states.matchAll(/^ {2}(?:'([\w-]+)'|(\w+)): /gm)].map((m) => m[1] ?? m[2] ?? '');
 }
-const screens = { cockpit: stateNames('cockpit'), workspace: stateNames('workspace') };
+const screens = {
+  cockpit: stateNames('cockpit'),
+  workspace: stateNames('workspace'),
+  settings: stateNames('settings'),
+};
 
 // What each state shows that axe must have seen: a state that lost its subject would pass for nothing.
 const subject: Record<string, Record<string, string>> = {
@@ -87,11 +91,21 @@ const subject: Record<string, Record<string, string>> = {
     'handoff-done': 'workspace.handoff-done',
     'handoff-offline': 'workspace.handoff-snapshot',
   },
+  settings: {
+    settings: 'settings.theme',
+    'settings-text': 'settings.preview',
+    'settings-text-geist': 'settings.preview',
+    'settings-machines': 'settings.machines',
+    mint: 'settings.mint.config',
+    'mint-waiting': 'settings.mint.waiting',
+    'mint-online': 'settings.mint.online',
+  },
 };
 
-test('the registries list 48 cockpit and 26 workspace states', () => {
+test('the registries list 48 cockpit, 26 workspace and 7 settings states', () => {
   expect(screens.cockpit).toHaveLength(48);
   expect(screens.workspace).toHaveLength(26);
+  expect(screens.settings).toHaveLength(7);
 });
 
 for (const [screen, names] of Object.entries(screens)) {

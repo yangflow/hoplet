@@ -22,9 +22,17 @@ import {
 } from './lib/api.ts';
 import { errorText } from './lib/errors.ts';
 import { emitLive, setLiveSender } from './lib/live.ts';
+import { setPageKeysSuspended } from './lib/page-keys.ts';
 import { usePageVisible } from './lib/visibility.ts';
 import { Cockpit } from './screens/cockpit/index.tsx';
 import type { NewSessionRequest } from './screens/cockpit/model.ts';
+import { type SectionId, Settings, sectionOf } from './screens/settings/index.tsx';
+import {
+  type Appearance,
+  applyAppearance,
+  loadAppearance,
+  saveAppearance,
+} from './screens/settings/prefs.ts';
 
 const BROWSER_MESSAGES = new Set<string>(wireTypes('core-to-web'));
 /** Between session-list refreshes caused by activity. */
@@ -45,10 +53,25 @@ function writeSessionUrl(id: string | null, mode: 'push' | 'replace'): void {
   else history.replaceState(null, '', url);
 }
 
+/** Settings is open when the URL carries `?settings=<section>`. */
+function settingsInUrl(): SectionId | null {
+  const raw = new URLSearchParams(location.search).get('settings');
+  return raw === null ? null : sectionOf(raw);
+}
+
+function writeSettingsUrl(section: SectionId | null): void {
+  const url = new URL(location.href);
+  if (section) url.searchParams.set('settings', section);
+  else url.searchParams.delete('settings');
+  if (url.href !== location.href) history.pushState(null, '', url);
+}
+
 export default function App() {
   const [token, setTokenState] = useState<string | null>(getToken());
   const [sessions, setSessions] = useState<LiveSessionMeta[]>([]);
   const [selected, setSelectedState] = useState<string | null>(sessionInUrl);
+  const [settings, setSettings] = useState<SectionId | null>(settingsInUrl);
+  const [appearance, setAppearance] = useState<Appearance>(loadAppearance);
   const [error, setError] = useState<string | null>(null);
   const [live, setLive] = useState(false);
   const [runtime, setRuntime] = useState<Record<string, SessionRuntimeInfo>>({});
@@ -64,10 +87,49 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const onPop = () => setSelectedState(sessionInUrl());
+    const onPop = () => {
+      setSelectedState(sessionInUrl());
+      setSettings(settingsInUrl());
+    };
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
   }, []);
+
+  // The cockpit stays mounted under Settings; focus goes into Settings and comes back to what opened it.
+  const opener = useRef<HTMLElement | null>(null);
+  const openSettings = useCallback((section: SectionId = 'appearance') => {
+    const from = document.activeElement;
+    // Switching section inside Settings keeps the first opener.
+    if (!opener.current && from instanceof HTMLElement && from !== document.body)
+      opener.current = from;
+    setSettings(section);
+    writeSettingsUrl(section);
+  }, []);
+  const closeSettings = useCallback(() => {
+    setSettings(null);
+    writeSettingsUrl(null);
+  }, []);
+  const isOpen = settings !== null;
+  useEffect(() => {
+    setPageKeysSuspended(isOpen);
+    if (isOpen) return;
+    const back = opener.current;
+    opener.current = null;
+    if (back?.isConnected) back.focus();
+  }, [isOpen]);
+  const changeAppearance = useCallback((change: Partial<Appearance>) => {
+    setAppearance((cur) => ({ ...cur, ...change }));
+  }, []);
+  const firstAppearance = useRef(true);
+  useEffect(() => {
+    // The saved choices were applied at boot (and `?scheme=` may override the theme), so only a change acts.
+    if (firstAppearance.current) {
+      firstAppearance.current = false;
+      return;
+    }
+    saveAppearance(appearance);
+    applyAppearance(appearance);
+  }, [appearance]);
 
   const refreshSessions = useCallback(async (): Promise<LiveSessionMeta[] | null> => {
     const startedAt = Date.now();
@@ -256,15 +318,29 @@ export default function App() {
   };
 
   return (
-    <Cockpit
-      onPatchSession={patch}
-      sessions={sessions}
-      selected={selected}
-      onSelect={select}
-      live={live}
-      error={error}
-      runtime={runtime}
-      onCreateSession={create}
-    />
+    <>
+      {settings && (
+        <Settings
+          section={settings}
+          onSection={openSettings}
+          onBack={closeSettings}
+          appearance={appearance}
+          onAppearance={changeAppearance}
+        />
+      )}
+      <div className="page-host" hidden={isOpen} inert={isOpen}>
+        <Cockpit
+          onSettings={() => openSettings()}
+          onPatchSession={patch}
+          sessions={sessions}
+          selected={selected}
+          onSelect={select}
+          live={live}
+          error={error}
+          runtime={runtime}
+          onCreateSession={create}
+        />
+      </div>
+    </>
   );
 }

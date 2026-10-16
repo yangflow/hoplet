@@ -9,6 +9,8 @@ export const DeviceInfoSchema = v.object({
   deviceId: v.string(),
   name: v.string(),
   connected: v.boolean(),
+  /** When the agent last connected or disconnected, in epoch milliseconds; absent for a device that never connected. */
+  lastSeen: v.optional(v.number()),
   /** The providers the connected agent runs, with their capabilities; empty while the device is offline. */
   providers: v.array(ProviderInfoSchema),
 });

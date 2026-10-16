@@ -96,6 +96,8 @@ Response column names the schema of the success body and its status when it is n
 
 Behavior a client relies on:
 
+- `GET /api/devices` lists every stored device and every connected one. `connected` is its presence; `lastSeen`
+  (milliseconds) is when its agent last connected or disconnected and is absent for a device that never connected.
 - `POST /api/sessions` answers when the agent has created and imported the session. Its error body carries the
   `promptId` that was sent, and a `reason` where the agent gave one.
 - `POST /api/sessions/:sessionId/prompt` answers `202` when the prompt reached the owner. A prompt is at most
