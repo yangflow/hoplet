@@ -176,7 +176,7 @@ One family, Lucide (ISC), bundled and never fetched: every glyph on a 24-unit gr
 search, panel-left, panel-right, square-pen, plus, chevron-right, arrow-up, arrow-up-right,
 arrow-right-left, file, folder, folder-open, book-open, pencil, file-plus, terminal, plug, globe, lightbulb, image,
 layers, eye, square, git-branch, zap, lock, paperclip, mic, hand, clock, x, check, circle-alert, shield, shield-alert, file-pen, list-checks, sparkles, info, rotate-cw, copy,
-settings, laptop, contrast, ellipsis, text-wrap, loader-circle, pin, pin-off, archive, archive-restore, grip-vertical, trash-2, corner-down-right, arrow-right-to-line, play; turned glyphs (a chevron, an arrow) cover the other directions.
+settings, laptop, contrast, ellipsis, text-wrap, loader-circle, pin, pin-off, archive, archive-restore, grip-vertical, trash-2, corner-down-right, arrow-right-to-line, play, bell, bell-off, moon, send, webhook; turned glyphs (a chevron, an arrow) cover the other directions.
 File-type badges (TypeScript, Markdown, JSON, image, text, other) use the same page and stroke with a tint.
 Provider marks (the Claude mark for Claude Code) are drawn monochrome in the dim text colour, never in brand
 colour, and lead each session row. Icons sit in labels, tool rows and empty states and do not decorate. The
@@ -214,6 +214,18 @@ rows dim: a permission request takes the amber attention fill and goes on by its
 the danger ring and an interrupted turn the plain tray, both with Resume and Clear. A steer is one transcript row in the
 tool-row grammar on the accent-soft fill (icon, "Steered", the message, the time); one not yet landed reads "Steering
 at the next tool call" with a spinner and keeps clear of the turn's bottom edge.
+
+Notifications (`design/screens/settings.html`, `design/screens/action.html`; ADR 0021) are a Settings section. A level
+list (radio rows: only when Claude needs me, plus finished turns, everything, off) sets the default; an Override panel
+lists the four events with a Web Push and a Webhook chip each, for all projects or one, and says how many overrides
+exist; quiet hours hold back finished-turn notifications, never a request for Claude's need. Web Push on this browser
+has one switch and a state line (permission not asked, granted, blocked); permission is asked only when the switch is
+pressed. A blocked browser takes the amber banner and, in the cockpit, a dismissible in-page hint that says how to
+allow it. Webhooks are rows with a host hint (never the path), the last delivery and Send a test, Edit and Remove; the
+signing secret is never shown again once saved. An OS notification has no action buttons: its click opens the action
+page, one centred card (440 px, full width on a phone) with the project, the session title, the tool and the command,
+and Allow once and Deny; a plan shows its text and Approve plan and Reject. The same card closes in five
+ways: answered, expired, used, decided in Hoplet only (a request that deletes files) and a link that is not valid.
 
 ## Copy tone
 

@@ -1,4 +1,6 @@
 import {
+  ActionDecideResponseSchema,
+  ActionInspectResponseSchema,
   AttachmentResultSchema,
   CommandsResultSchema,
   type ConfigSetting,
@@ -16,10 +18,16 @@ import {
   LinesPageSchema,
   LiveSessionMetaSchema,
   NewSessionResultSchema,
+  type NotifyPreferences,
+  NotifyPreferencesSchema,
   type PermissionDecision,
   type PromptImage,
   PromptResultSchema,
   type ProviderInfo,
+  PushKeyResponseSchema,
+  type PushSubscribeRequest,
+  PushSubscriptionInfoSchema,
+  PushSubscriptionListResponseSchema,
   QueueSchema,
   RuntimeCommandResultSchema,
   type SessionConfig,
@@ -29,6 +37,11 @@ import {
   SnapshotDiffSchema,
   SteerResultSchema,
   safeParse,
+  type WebhookCreateRequest,
+  WebhookInfoSchema,
+  WebhookListResponseSchema,
+  WebhookTestResponseSchema,
+  type WebhookUpdateRequest,
   WorkspaceDiffSchema,
   WorkspaceFileSchema,
   WorkspaceListingSchema,
@@ -58,9 +71,12 @@ async function call<S extends GenericSchema>(
   schema: S,
   body?: unknown,
   signal?: AbortSignal,
-  method: 'POST' | 'PATCH' | 'DELETE' = 'POST',
+  method: 'POST' | 'PATCH' | 'PUT' | 'DELETE' = 'POST',
+  auth = true,
 ): Promise<InferOutput<S>> {
-  const headers: Record<string, string> = { Authorization: `Bearer ${getToken() ?? ''}` };
+  const headers: Record<string, string> = auth
+    ? { Authorization: `Bearer ${getToken() ?? ''}` }
+    : {};
   const init: RequestInit = { headers };
   if (signal) init.signal = signal;
   if (method === 'DELETE') init.method = method;
@@ -70,7 +86,7 @@ async function call<S extends GenericSchema>(
     init.body = JSON.stringify(body);
   }
   const res = await fetch(path, init);
-  if (res.status === 401) throw new UnauthorizedError();
+  if (res.status === 401 && auth) throw new UnauthorizedError();
   const type = res.headers.get('content-type') ?? '';
   if (!type.includes('application/json')) {
     if (!res.ok) throw new ApiError(res.status, null);
@@ -393,4 +409,85 @@ export function postSteer(
     text,
     ...(attachments.length > 0 ? { attachments } : {}),
   });
+}
+
+/** The notification preferences (ADR 0021). */
+export function fetchNotifyPreferences() {
+  return call('/api/notify/preferences', NotifyPreferencesSchema);
+}
+
+export function putNotifyPreferences(preferences: NotifyPreferences) {
+  return call('/api/notify/preferences', NotifyPreferencesSchema, preferences, undefined, 'PUT');
+}
+
+/** The VAPID public key a push subscription is made against. */
+export function fetchPushKey() {
+  return call('/api/notify/push/key', PushKeyResponseSchema);
+}
+
+export function fetchPushSubscriptions() {
+  return call('/api/notify/push/subscriptions', PushSubscriptionListResponseSchema);
+}
+
+export function postPushSubscription(request: PushSubscribeRequest) {
+  return call('/api/notify/push/subscriptions', PushSubscriptionInfoSchema, request);
+}
+
+export function postPushUnsubscribe(endpoint: string) {
+  return call('/api/notify/push/unsubscribe', PushSubscriptionListResponseSchema, { endpoint });
+}
+
+export function fetchWebhooks() {
+  return call('/api/notify/webhooks', WebhookListResponseSchema);
+}
+
+export function postWebhook(request: WebhookCreateRequest) {
+  return call('/api/notify/webhooks', WebhookInfoSchema, request);
+}
+
+export function patchWebhook(id: string, change: WebhookUpdateRequest) {
+  return call(
+    `/api/notify/webhooks/${encodeURIComponent(id)}`,
+    WebhookInfoSchema,
+    change,
+    undefined,
+    'PATCH',
+  );
+}
+
+export function deleteWebhook(id: string) {
+  return call(
+    `/api/notify/webhooks/${encodeURIComponent(id)}`,
+    WebhookListResponseSchema,
+    undefined,
+    undefined,
+    'DELETE',
+  );
+}
+
+export function postWebhookTest(id: string) {
+  return call(`/api/notify/webhooks/${encodeURIComponent(id)}/test`, WebhookTestResponseSchema, {});
+}
+
+/** The action page's calls: the signed token in the body is the credential, there is no host token. */
+export function postActionInspect(token: string) {
+  return call(
+    '/api/action/inspect',
+    ActionInspectResponseSchema,
+    { token },
+    undefined,
+    'POST',
+    false,
+  );
+}
+
+export function postActionDecide(token: string, decision: 'allow' | 'deny') {
+  return call(
+    '/api/action/decide',
+    ActionDecideResponseSchema,
+    { token, decision },
+    undefined,
+    'POST',
+    false,
+  );
 }

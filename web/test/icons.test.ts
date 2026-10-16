@@ -29,8 +29,8 @@ describe('the icon wrapper', () => {
     .map((n) => n.trim())
     .filter(Boolean);
 
-  it('lists 56 glyphs in the design', () => {
-    expect(documented()).toHaveLength(56);
+  it('lists 61 glyphs in the design', () => {
+    expect(documented()).toHaveLength(61);
   });
 
   it('imports exactly the glyphs of docs/design.md#icons', () => {

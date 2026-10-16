@@ -331,6 +331,7 @@ export default function App() {
       <div className="page-host" hidden={isOpen} inert={isOpen}>
         <Cockpit
           onSettings={() => openSettings()}
+          onNotifySettings={() => openSettings('notifications')}
           onPatchSession={patch}
           sessions={sessions}
           selected={selected}

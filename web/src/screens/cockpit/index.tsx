@@ -7,6 +7,7 @@ import type {
   SessionRuntimeInfo,
 } from '@hoplet/shared';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { NotifyHintGate } from '../../components/NotifyHint.tsx';
 import { Toast, type ToastState, useToast } from '../../components/Toast.tsx';
 import { postAddProject } from '../../lib/api.ts';
 import { errorText } from '../../lib/errors.ts';
@@ -92,6 +93,8 @@ export function Cockpit(props: {
   onCreateSession?: (request: NewSessionRequest) => Promise<void>;
   /** Opens the Settings page, which replaces this screen. */
   onSettings?: () => void;
+  /** Opens Settings > Notifications, where a blocked browser is explained. */
+  onNotifySettings?: () => void;
   fixture?: CockpitFixture;
 }) {
   const { sessions, selected, onSelect, live, error, fixture } = props;
@@ -409,6 +412,9 @@ export function Cockpit(props: {
               <div className="banner-error" role="alert">
                 {error}
               </div>
+            ) : null}
+            {!fixture && props.onNotifySettings ? (
+              <NotifyHintGate onHowTo={props.onNotifySettings} />
             ) : null}
             {draft ? (
               <Draft
