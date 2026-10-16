@@ -470,6 +470,11 @@ svg{display:block;flex:none}
 .cpop.cmp{left:var(--ax,0px);width:min(620px,100%)}
 .cpop.cmp.sm{width:min(380px,100%)}
 .cm-r{height:var(--control-field);display:flex;align-items:center;gap:var(--space-2);padding:0 var(--space-2);border-radius:var(--radius-sm);color:var(--color-text);white-space:nowrap;cursor:default}
+.cm-l1{flex:1;min-width:0;height:100%;display:flex;align-items:center;gap:var(--space-2);}
+.cm-r.two{height:auto;flex-direction:column;gap:0;align-items:stretch;padding-bottom:var(--space-2);}
+.cm-r.two .cm-l1{flex:none;height:var(--control-field);}
+.cm-r.two .cm-src{margin-left:auto}
+.cm-d2{margin-top:-6px;white-space:normal;overflow-wrap:anywhere;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;line-clamp:3;overflow:hidden;color:var(--color-text-2);}
 .cm-r .lead{width:16px;height:16px;display:grid;place-items:center;flex:none;color:var(--color-text-3)}
 .cm-r.on{background:var(--color-selected);box-shadow:inset 2px 0 0 var(--color-text-2),inset 0 1px 0 var(--color-highlight)}
 .cm-r.on .lead{color:var(--color-text-2)}
@@ -1445,7 +1450,7 @@ function completion(state) {
     const cls = i => (i === C.sel ? ' on' : '') + (i === C.hov ? ' hov' : '');
     const opt = i => `role="option" id="${id}-o${i}" aria-selected="${i === C.sel}"`;
     const row = (x, i) => slash
-      ? `<div class="cm-r${cls(i)}" ${opt(i)}><span class="cm-nm"><span class="s">/</span>${cmHl(x.n, C.q)}</span>${x.a ? `<span class="cm-ah">${esc(x.a)}</span>` : ''}<span class="cm-ds">${esc(x.d)}</span><span class="cm-src">${esc(x.s)}</span></div>`
+      ? (() => { const two = i === C.sel && x.d; return `<div class="cm-r${cls(i)}${two ? ' two' : ''}" role="option" id="${id}-o${i}" aria-selected="${i === C.sel}"><div class="cm-l1"><span class="cm-nm"><span class="s">/</span>${cmHl(x.n, C.q)}</span>${x.a ? `<span class="cm-ah">${esc(x.a)}</span>` : ''}${two ? '' : `<span class="cm-ds">${esc(x.d)}</span>`}<span class="cm-src">${esc(x.s)}</span></div>${two ? `<div class="cm-d2">${esc(x.d)}</div>` : ''}</div>`; })()
       : `<div class="cm-r${cls(i)}" ${opt(i)}><span class="lead">${x.dir ? I.folder() : I.file()}</span><span class="t">${cmHl(x.n, C.q, true)}</span></div>`;
     const groups = (slash ? ['Commands', 'Skills'] : ['Files and folders']).map(g => ({ g, rows: list.map((x, i) => ({ x, i })).filter(r => !slash || r.x.g === g) })).filter(g => g.rows.length);
     const keys = '<span><span class="cm-kc">↑</span><span class="cm-kc">↓</span>Move</span><span><span class="cm-kc">⇥</span>or<span class="cm-kc">↩</span>Insert</span><span><span class="cm-kc">Esc</span>Close</span>';
@@ -2008,7 +2013,7 @@ const STATES = [
   ['mode-menu', 'the permission mode: every mode with its description, the high-risk one apart and tagged; Shift+Tab cycles'],
   ['mode-bypass', 'Bypass permissions: the pill turns amber with a shield-alert glyph'],
   ['mode-plan', 'Plan mode: the pill names the mode'],
-  ['completions-commands', '/ at the start of the message: Commands and Skills in two groups, each row a name, argument hint, one-line description and source tag; the first row is highlighted, a hovered row is lighter'],
+  ['completions-commands', '/ at the start of the message: Commands and Skills in two groups, each row a name, argument hint, one-line description and source tag; the highlighted row drops the inline description and shows it in full on a second line, a hovered row is only lighter'],
   ['completions-filter', '/c: the list filters by name prefix and the match is highlighted'],
   ['completions-draft', 'a draft has no process: built-ins only, with a note that project commands and skills show once the session has started'],
   ['mention-files', '@con mid-sentence: working-tree paths, directories first with a trailing /; the popover starts at the caret'],

@@ -431,6 +431,36 @@
   white-space: nowrap;
   cursor: default;
 }
+.cm-l1 {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.cm-r.two {
+  height: auto;
+  flex-direction: column;
+  gap: 0;
+  align-items: stretch;
+  padding-bottom: var(--space-2);
+}
+.cm-r.two .cm-l1 {
+  flex: none;
+  height: var(--control-field);
+}
+.cm-d2 {
+  margin-top: -6px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+  color: var(--color-text-2);
+}
 .cm-r .lead {
   width: 16px;
   height: 16px;
@@ -491,6 +521,9 @@
   color: var(--color-text-3);
   box-shadow: inset 0 0 0 1px var(--color-line);
   white-space: nowrap;
+}
+.cm-r.two .cm-src {
+  margin-left: auto;
 }
 .cm-r .t {
   flex: 1;

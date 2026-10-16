@@ -27,7 +27,8 @@ export const listId = (id: string) => `${id}-lb`;
 
 /**
  * The list the composer opens at the caret: `/` shows Commands and Skills, `@` Files and folders. The selected
- * row has the selected fill and a left edge; a hovered one a lighter fill. A draft adds a note under the list.
+ * row has the selected fill and a left edge, and shows its whole description on a second line; a hovered one
+ * a lighter fill. A draft adds a note under the list.
  */
 export function CompletionList(props: {
   id: string;
@@ -78,41 +79,50 @@ export function CompletionList(props: {
             <div className="menu-label" id={`${id}-g${gi}`}>
               {g.name}
             </div>
-            {g.rows.map(({ item, i }) => (
-              // biome-ignore lint/a11y/useKeyWithClickEvents: the field owns the keys; the combobox pattern has focus stay there
-              <div
-                key={item.kind === 'slash' ? item.name : item.path}
-                className={`cm-r${i === selected ? ' on' : ''}${i === props.hovered ? ' hov' : ''}`}
-                role="option"
-                id={optionId(id, i)}
-                aria-selected={i === selected}
-                tabIndex={-1}
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => props.onPick(item)}
-                data-testid="cockpit.completion"
-              >
-                {item.kind === 'slash' ? (
-                  <>
-                    <span className="cm-nm">
-                      <span className="s">/</span>
-                      <Marked name={item.name} query={query} />
-                    </span>
-                    {item.command.argumentHint ? (
-                      <span className="cm-ah">{item.command.argumentHint}</span>
-                    ) : null}
-                    <span className="cm-ds">{item.command.description}</span>
-                    <span className="cm-src">{sourceLabel(item.command)}</span>
-                  </>
-                ) : (
-                  <>
-                    <span className="lead">{item.dir ? Icon.folder() : Icon.file()}</span>
-                    <span className="t">
-                      <Marked name={item.path} query={query} path />
-                    </span>
-                  </>
-                )}
-              </div>
-            ))}
+            {g.rows.map(({ item, i }) => {
+              const oid = optionId(id, i);
+              const desc = item.kind === 'slash' ? item.command.description : '';
+              // the highlighted row shows its whole description on a second line
+              const two = i === selected && desc !== '';
+              return (
+                // biome-ignore lint/a11y/useKeyWithClickEvents: the field owns the keys; the combobox pattern has focus stay there
+                <div
+                  key={item.kind === 'slash' ? item.name : item.path}
+                  className={`cm-r${i === selected ? ' on' : ''}${two ? ' two' : ''}${i === props.hovered ? ' hov' : ''}`}
+                  role="option"
+                  id={oid}
+                  aria-selected={i === selected}
+                  tabIndex={-1}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => props.onPick(item)}
+                  data-testid="cockpit.completion"
+                >
+                  {item.kind === 'slash' ? (
+                    <>
+                      <div className="cm-l1">
+                        <span className="cm-nm">
+                          <span className="s">/</span>
+                          <Marked name={item.name} query={query} />
+                        </span>
+                        {item.command.argumentHint ? (
+                          <span className="cm-ah">{item.command.argumentHint}</span>
+                        ) : null}
+                        {two ? null : <span className="cm-ds">{desc}</span>}
+                        <span className="cm-src">{sourceLabel(item.command)}</span>
+                      </div>
+                      {two ? <div className="cm-d2">{desc}</div> : null}
+                    </>
+                  ) : (
+                    <>
+                      <span className="lead">{item.dir ? Icon.folder() : Icon.file()}</span>
+                      <span className="t">
+                        <Marked name={item.path} query={query} path />
+                      </span>
+                    </>
+                  )}
+                </div>
+              );
+            })}
           </div>
         ))}
       </div>
