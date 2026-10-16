@@ -165,7 +165,11 @@ export class Store {
     devices.upsertDevice(this.ctx, deviceId, name, version);
   }
 
-  listDevices(): { deviceId: string; name: string }[] {
+  touchDevice(deviceId: string): void {
+    devices.touchDevice(this.ctx, deviceId);
+  }
+
+  listDevices(): { deviceId: string; name: string; lastSeen?: number }[] {
     return devices.listDevices(this.ctx);
   }
 

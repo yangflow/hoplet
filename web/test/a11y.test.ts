@@ -3,11 +3,13 @@ import { JSDOM } from 'jsdom';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { states as cockpit } from '../src/screens/cockpit/states.tsx';
+import { states as settings } from '../src/screens/settings/states.tsx';
 import { states as workspace } from '../src/screens/workspace/states.tsx';
 
 describe.each([
   ['cockpit', cockpit],
   ['workspace', workspace],
+  ['settings', settings],
 ])('%s states axe', (_screen, states) => {
   for (const [name, render] of Object.entries(states)) {
     it(name, async () => {

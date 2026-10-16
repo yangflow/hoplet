@@ -12,6 +12,8 @@ and `agent/go.mod`; Dependabot keeps them current.
 | lucide-react | ISC | web | yes | © Lucide Icons and Contributors, ISC licence (`LICENSE` of the package) |
 | @fontsource-variable/inter | OFL-1.1 | web, design | yes | © The Inter Project Authors, SIL Open Font License 1.1 (`LICENSE` of the package) |
 | @fontsource-variable/jetbrains-mono | OFL-1.1 | web, design | yes | © The JetBrains Mono Project Authors, SIL Open Font License 1.1 (`LICENSE` of the package) |
+| @fontsource-variable/geist | OFL-1.1 | web | yes | © 2024 The Geist Project Authors, SIL Open Font License 1.1 (`LICENSE` of the package) |
+| @fontsource-variable/geist-mono | OFL-1.1 | web | yes | © 2024 The Geist Project Authors, SIL Open Font License 1.1 (`LICENSE` of the package) |
 | Node.js | MIT | image | yes | not required |
 | Debian (bookworm-slim) | Debian licenses | image | yes | `/usr/share/doc/*/copyright` in the image |
 | gorilla/websocket | BSD-2-Clause | agent | yes | not required |

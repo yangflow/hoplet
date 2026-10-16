@@ -14,6 +14,7 @@ import { IconButton } from '../../components/IconButton.tsx';
 import { Icon, Spinner } from '../../components/icons.tsx';
 import { Popover } from '../../components/Popover.tsx';
 import { t } from '../../lib/i18n.ts';
+import { pageKeysSuspended } from '../../lib/page-keys.ts';
 import { clock } from '../cockpit/conversation/format.ts';
 import type { Handoff, HandoffFixture } from './handoff.ts';
 import { HandoffPanel } from './handoff-panel.tsx';
@@ -117,6 +118,7 @@ export function Inspector(props: {
   useEffect(() => {
     if (!opened) return;
     const onKey = (e: globalThis.KeyboardEvent) => {
+      if (pageKeysSuspended()) return;
       const typing = (e.target as HTMLElement | null)?.closest(
         'input, textarea, [contenteditable]',
       );

@@ -110,6 +110,7 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
         if (attached !== link) continue;
         state.byDevice.delete(deviceId);
         state.providers.delete(deviceId);
+        store.touchDevice(deviceId);
         gone.push(deviceId);
       }
       start.detached(link);
@@ -151,6 +152,7 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
           deviceId: d.deviceId,
           name: d.name,
           connected: onlineIds.has(d.deviceId),
+          ...(d.lastSeen === undefined ? {} : { lastSeen: d.lastSeen }),
           providers: onlineIds.has(d.deviceId) ? (state.providers.get(d.deviceId) ?? []) : [],
         });
       }

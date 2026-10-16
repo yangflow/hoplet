@@ -190,10 +190,22 @@ names the new worktree and branch, and the session moves to its new owner in the
 
 ### Settings
 
-A page with a section list that grows with later sections: Appearance (system, light or dark), Language
-(English, 简体中文) and Machines (every device with its presence and last connection, and Add a machine: mint a
-device token, copy a ready agent configuration, and wait until that agent is connected). Appearance and
-language are kept in the browser. Memory and model providers are later sections (#18, #16).
+A full page that replaces the window (no session sidebar, no status bar), opened from the sidebar foot, the
+palette or ⌘, and left with the back button or Esc; the address carries it as `?settings=<section>`. The cockpit stays
+mounted underneath, so drafts, scroll and live updates survive, its shortcuts are off while Settings shows, and
+focus returns to what opened it. A section
+list at its left grows with later sections; the sections are:
+
+- **Appearance**: the theme (System, Light, Dark, as preview cards), the interface language (English, 简体中文)
+  and Text: the interface font (Inter, System, Geist), the code font (JetBrains Mono, System, Geist Mono), the
+  size (Small, Default, Large: the four sizes move together and line heights stay), Full width (the conversation
+  fills the main area) and Ligatures in code and tool output, with a live preview. Every choice is kept in the
+  browser and only swaps design tokens; the faces are bundled with the web UI and never fetched. The terminal's
+  font is not one of them.
+- **Machines**: every device with its presence and last connection, and Add a machine: mint a device token,
+  copy a ready agent configuration, and wait until that agent is connected.
+
+Memory and model providers are later sections (#18, #16).
 
 ### Host CLI
 
@@ -300,8 +312,9 @@ Module responsibilities and the dependency direction are in docs/architecture.md
 The operator selects Add a machine and names the device. `POST /api/devices` stores the hash of a new device
 token and returns the plaintext once with the `device_id`. The panel shows a ready `config.json`
 (`server_url`, `token`, `device_id`, `device_name`) and waits until that device connects. Minting again for an
-existing `device_id` replaces its token. Add a machine is available as `hoplet devices add` and, per the design,
-in Settings (#8).
+existing `device_id` replaces its token. Add a machine is available as `hoplet devices add` and in Settings
+(Machines), where the token is minted with the same request and the panel waits on the device list.
+`GET /api/devices` carries each stored device's `lastSeen` (milliseconds; when its agent last connected or disconnected, absent until it first connects).
 
 ### Session sync
 

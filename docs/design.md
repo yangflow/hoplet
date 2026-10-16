@@ -77,6 +77,8 @@ holding changes carries a dot.
 Two families, bundled with the web UI and served by the core, never fetched from elsewhere: Inter (`--font-ui`)
 for the interface and, through `--font-prose`, for assistant prose; JetBrains Mono (`--font-mono`) for machine
 content. Chinese text falls back to PingFang SC in both, and the system fonts follow when a face is missing.
+Settings offers the system fonts and Geist and Geist Mono as alternatives, also bundled, and three sizes that
+scale the four text tokens together; a choice at its default sets nothing, so these values stay the defaults.
 `--font-prose` follows `--font-ui` and is its own token so that prose can change alone. Four sizes, three
 weights, every line height a multiple of 4 px: `--text-meta` 11/16 for meta, keycaps and line numbers;
 `--text-ui` 13/20 for the sidebar, buttons and tool rows; `--text-body` 15/24 for assistant prose within
@@ -108,8 +110,10 @@ list below clips, to the frame's radius. Conversation flex with a `--layout-colu
 `--layout-inspector` 296 px, opened from the top bar, widening to `--layout-inspector-wide` 720 px while a
 diff or a file is open, split into the viewer and a `--layout-inspector-list` 220 px list or tree on its right, at the window's edge. Rows of the Files tree and the Changes list are `--layout-row-tree` 24 px, a tree level indents 12 px. Below
 1408 px of window width the sidebar folds while the inspector is wide, so the conversation keeps at least
-440 px. The inspector's tab bar holds its tools as closable tabs, Changes and Files to start, and a + button whose tools menu reopens a closed tab and takes Terminal and Browser (#14, #15) when they are built. Settings replaces the conversation and the inspector with a page whose
-`--layout-settings-nav` 208 px section list grows with later sections.
+440 px. The inspector's tab bar holds its tools as closable tabs, Changes and Files to start, and a + button whose tools menu reopens a closed tab and takes Terminal and Browser (#14, #15) when they are built. Settings replaces the whole window (no sidebar, no status bar) with a page: a header with a back button and the
+title, a `--layout-settings-nav` 208 px section list that grows with later sections, and content centred at
+620 px at most. Theme choices are preview cards; every other choice is a row in a list with a segmented control or
+a switch at its right.
 
 The conversation is a column of turn blocks. A finished turn sits flat on the canvas with a hairline above
 it; its header (prompt, time, summary; the line range in a tooltip) pins while the reader scrolls through it. The live turn

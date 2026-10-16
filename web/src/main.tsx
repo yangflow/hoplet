@@ -2,10 +2,13 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import '@fontsource-variable/inter/wght.css';
 import '@fontsource-variable/jetbrains-mono/wght.css';
+import '@fontsource-variable/geist/wght.css';
+import '@fontsource-variable/geist-mono/wght.css';
 import App from './App.tsx';
 import './design/tokens.css';
 import './components/components.css';
 import './styles.css';
+import { applyAppearance, loadAppearance } from './screens/settings/prefs.ts';
 
 function applyScheme(): void {
   const scheme = new URLSearchParams(location.search).get('scheme');
@@ -13,6 +16,7 @@ function applyScheme(): void {
 }
 
 async function boot(): Promise<void> {
+  applyAppearance(loadAppearance());
   applyScheme();
   // Development-only states route (docs/testing.md#end-to-end-tests): /__states/<screen>/<state>.
   // Production builds do not contain this branch or the fixtures.

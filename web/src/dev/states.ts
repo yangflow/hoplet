@@ -2,11 +2,13 @@
 import type { ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { states as cockpitStates } from '../screens/cockpit/states.tsx';
+import { states as settingsStates } from '../screens/settings/states.tsx';
 import { states as workspaceStates } from '../screens/workspace/states.tsx';
 
 const registry: Record<string, Record<string, () => ReactNode>> = {
   cockpit: cockpitStates,
   workspace: workspaceStates,
+  settings: settingsStates,
 };
 
 export function renderState(screen: string, state: string): boolean {

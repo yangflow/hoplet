@@ -33,6 +33,32 @@
 .cockpit.inspector-wide .col {
   width: calc(100% - 48px);
 }
+/* Settings > Appearance > Full width: the column fills the main area */
+:root[data-wide] .col {
+  width: calc(100% - 104px);
+}
+:root[data-wide] .cockpit.inspector-wide .col {
+  width: calc(100% - 48px);
+}
+/* Settings > Appearance > Ligatures off: code and tool output */
+:root[data-ligatures="off"]
+:is(
+  .md code,
+  .text code,
+  .md pre.md-code,
+  .mono,
+  .wb,
+  .diff,
+  .ws-mono,
+  .ws-diff,
+  .ws-code,
+  .field.mono
+) {
+  font-variant-ligatures: none;
+  font-feature-settings:
+    "liga" 0,
+    "calt" 0;
+}
 .vlist {
   position: relative;
 }

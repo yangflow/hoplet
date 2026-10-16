@@ -680,6 +680,9 @@
               "connected": {
                 "type": "boolean"
               },
+              "lastSeen": {
+                "type": "number"
+              },
               "providers": {
                 "type": "array",
                 "items": {
