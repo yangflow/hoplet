@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import {
   type Block,
   type Entry,
@@ -16,6 +18,7 @@ import {
   PREVIEW_BYTES,
   projectLine,
 } from '../src/api/projection/index.ts';
+import { claudeCommands } from './fixtures/claude-commands.ts';
 import { assistant, claudeGrammar, userResult, userText } from './fixtures/claude-grammar.ts';
 
 function trace(entry: Entry | null): string {
@@ -34,6 +37,52 @@ describe('Claude mapping', () => {
       const entry = projectLine('claude', line, i);
       if (entry) expect(is(EntrySchema, entry)).toBe(true);
     });
+  });
+
+  it('keeps the kind of the compact boundary', () => {
+    const line = { type: 'system', subtype: 'compact_boundary', content: 'Conversation compacted' };
+    expect(projectLine('claude', line, 3)?.blocks).toEqual([
+      { type: 'other', kind: 'compact_boundary', text: 'Conversation compacted' },
+    ]);
+  });
+
+  it('projects the real /context and /compact transcript onto the entries the web tests build turns from', () => {
+    const entries = claudeCommands.flatMap((line, i) => projectLine('claude', line, i) ?? []);
+    const expected = JSON.parse(
+      readFileSync(
+        path.resolve(
+          import.meta.dirname,
+          '../../shared/test/fixtures/claude-commands.entries.json',
+        ),
+        'utf8',
+      ),
+    );
+    expect(entries).toEqual(expected);
+    expect(JSON.stringify(entries)).not.toContain('local-command-caveat');
+    expect(JSON.stringify(entries)).not.toContain('This session is being continued');
+  });
+
+  it('carries the sizes of a compaction in the boundary and hides its summary', () => {
+    const [caveat, command, stdout, , , boundary, summary, , compact, printed] = claudeCommands;
+    expect(projectLine('claude', boundary, 5)?.blocks).toEqual([
+      {
+        type: 'other',
+        kind: 'compact_boundary',
+        label: 'Conversation compacted',
+        text: '{"trigger":"manual","preTokens":26208,"postTokens":1151}',
+      },
+    ]);
+    expect(projectLine('claude', summary, 6)).toBeNull();
+    expect(projectLine('claude', caveat, 0)).toBeNull();
+    expect(projectLine('claude', command, 1)?.blocks[0]).toMatchObject({ type: 'text' });
+    expect(projectLine('claude', stdout, 2)?.role).toBe('system');
+    expect(projectLine('claude', compact, 8)?.role).toBe('user');
+    expect(projectLine('claude', printed, 9)?.blocks).toEqual([
+      {
+        type: 'text',
+        text: '<local-command-stdout>\u001b[2mCompacted \u001b[22m</local-command-stdout>',
+      },
+    ]);
   });
 
   it('keeps line numbers and timestamps', () => {

@@ -92,6 +92,10 @@ async function boot() {
     });
     return { status: res.status, body: (await res.json()) as Msg };
   };
+  const get = async (p: string) => {
+    const res = await fetch(base + p, { headers: { authorization: `Bearer ${HOST}` } });
+    return { status: res.status, body: (await res.json()) as Msg };
+  };
   const agent = async (deviceId: string) => {
     const { token } = store.mintDevice(deviceId, deviceId);
     const peer = await open(`ws://127.0.0.1:${port}/ws/agent`, {
@@ -109,7 +113,7 @@ async function boot() {
     const { ticket } = parse(WsTicketResponseSchema, await res.json());
     return open(`ws://127.0.0.1:${port}/ws?ticket=${ticket}`);
   };
-  return { store, control, post, agent, browser };
+  return { store, control, post, get, agent, browser };
 }
 
 const state = (sessionId: string, st: string, extra: Msg = {}): Msg => ({
@@ -442,5 +446,69 @@ describe('reconnect', () => {
       'rebuilt from the agent',
     );
     expect(control.runtimeOf('s1').state).toBe('ready');
+  });
+});
+
+describe('commands and skills', () => {
+  const list = [
+    { name: 'compact', description: 'Summarize', kind: 'command', source: 'builtin' },
+    {
+      name: 'deploy',
+      description: 'Deploy',
+      argumentHint: '<env>',
+      kind: 'command',
+      source: 'project',
+    },
+    { name: 'pdf:extract', description: 'Extract', kind: 'skill', source: 'plugin', plugin: 'pdf' },
+  ];
+
+  it('serves the reported list, remembers it per directory and tells browsers', async () => {
+    const { get, agent, browser, store } = await boot();
+    const owner = await agent('dev-a');
+    const watcher = await browser();
+    // Nothing reported yet: the built-ins.
+    const fallback = await get('/api/sessions/s1/commands');
+    expect(fallback.status).toBe(200);
+    expect(fallback.body.source).toBe('builtin');
+    expect((fallback.body.commands as Msg[]).map((c) => c.name)).toContain('compact');
+    expect((fallback.body.commands as Msg[]).map((c) => c.name)).not.toContain('clear');
+
+    owner.send({ type: 'runtime.commands', sessionId: 's1', cwd: '/work/app', commands: list });
+    await watcher.waitFor(
+      (m) => m.type === 'session.commands' && m.sessionId === 's1',
+      'session.commands',
+    );
+    expect(watcher.ofType('session.commands')[0]).toEqual({
+      v: PROTOCOL_VERSION,
+      type: 'session.commands',
+      sessionId: 's1',
+    });
+    expect(await get('/api/sessions/s1/commands')).toEqual({
+      status: 200,
+      body: { commands: list, source: 'session' },
+    });
+    expect((await get('/api/sessions/s2/commands')).body.source).toBe('builtin');
+    expect((await get('/api/sessions/zz/commands')).status).toBe(404);
+
+    expect(await get('/api/devices/dev-a/commands?cwd=%2Fwork%2Fapp')).toEqual({
+      status: 200,
+      body: { commands: list, source: 'directory' },
+    });
+    expect((await get('/api/devices/dev-a/commands?cwd=%2Fother')).body.source).toBe('builtin');
+    expect((await get('/api/devices/dev-b/commands?cwd=%2Fwork%2Fapp')).body.source).toBe(
+      'builtin',
+    );
+    expect((await get('/api/devices/dev-a/commands')).status).toBe(400);
+    expect(store.directoryCommands('dev-a', '/work/app')).toEqual(list);
+  });
+
+  it('ignores a list from a device that does not own the session', async () => {
+    const { get, agent, store } = await boot();
+    await agent('dev-a');
+    const other = await agent('dev-b');
+    other.send({ type: 'runtime.commands', sessionId: 's1', cwd: '/x', commands: list });
+    await new Promise((r) => setTimeout(r, 100));
+    expect((await get('/api/sessions/s1/commands')).body.source).toBe('builtin');
+    expect(store.directoryCommands('dev-b', '/x')).toBeNull();
   });
 });

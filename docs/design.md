@@ -148,6 +148,18 @@ the jump pill, with its shadow, and fades after a few seconds). Icons are
 (sidebar rows, turn blocks, activity rows, composer, inspector, handoff steps)
 live in the Hoplet screen directory.
 
+The composer completions popover opens above the composer at the caret when the prompt has a `/` or `@` trigger
+word: 620px wide, clamped inside the composer, one line per row with the description truncated, except the highlighted row, which shows its full description on a second line (secondary text, wrapping, at most three lines). `/` lists
+Commands and Skills in two labelled groups (name in mono with the matched characters in bold, argument hint muted,
+description, a source badge on the right); `@` lists files and folders with the matched characters in the accent
+colour. The highlighted row has a selected fill and a 2px leading bar, so it is not colour alone; hovering lightens a row but never expands it. The input is a
+combobox whose `aria-activedescendant` names the highlighted option; the list is a `listbox` with `option` rows in
+labelled groups; loading, empty and offline messages are `role="status"`. A footer shows the keys (move, insert,
+close). A draft with no cached list shows the built-in commands and a note that project commands and skills appear
+once the session has started. In the transcript a sent command is a chip in the user row (name in mono, arguments
+muted), and its local output is a quiet block (surface fill, hairline, 28px header naming the command); `/compact`
+shows "Compacted" and a compaction boundary divider.
+
 ## Icons
 
 One family, Lucide (ISC), bundled and never fetched: every glyph on a 24-unit grid at `--icon-size` 16 px with

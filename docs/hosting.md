@@ -65,7 +65,7 @@ place of the proxy. Never publish port 7788 on `0.0.0.0`.
 
 | Where | What |
 |---|---|
-| Docker volume `hoplet-data` (`/data` in the container) | `hoplet.db` (SQLite index, which also holds what the user did to a session in the web UI: a title of their own, a pin, an archive), `sessions/<sessionId>/c-<seq>.ndjson[.gz]` (session lines), `snapshots/<sessionId>/<snapshotId>.tar.gz` (latest workspace snapshot per session) |
+| Docker volume `hoplet-data` (`/data` in the container) | `hoplet.db` (SQLite index, which also holds what the user did to a session in the web UI: a title of their own, a pin, an archive, and the last slash commands and skills a session reported per machine and directory), `sessions/<sessionId>/c-<seq>.ndjson[.gz]` (session lines), `snapshots/<sessionId>/<snapshotId>.tar.gz` (latest workspace snapshot per session) |
 | Agent state root (`~/.hoplet/` by default) | `device-id`, `config.json`, `projects.json`, `runtime/` (running processes), `handoff/` (installation records), `attachments/` (images uploaded for prompts: at most 64 files and 64 MiB, each kept at most an hour) |
 | Development machine | Claude Code's store and working trees; worktrees created by handoff, next to the clone they belong to |
 

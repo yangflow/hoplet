@@ -3,7 +3,7 @@
 import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import type { SessionMeta, SnapshotChanges } from '@hoplet/shared';
+import type { Command, SessionMeta, SnapshotChanges } from '@hoplet/shared';
 import { migrate } from '../migrations/index.ts';
 import {
   type AppendInput,
@@ -16,6 +16,7 @@ import {
   readStream,
   streamFingerprint,
 } from './chunks.ts';
+import * as commands from './commands.ts';
 import * as devices from './devices.ts';
 import type { StoreContext } from './layout.ts';
 import { recoverOnStart } from './recovery.ts';
@@ -60,6 +61,15 @@ export class Store {
   /** Resolves when the compression an append started has finished. */
   async idle(): Promise<void> {
     while (this.ctx.background.size > 0) await Promise.all([...this.ctx.background]);
+  }
+
+  /** Remembers the commands a session offered in `cwd` of `deviceId`, for drafts of that directory. */
+  putDirectoryCommands(deviceId: string, cwd: string, list: Command[]): void {
+    commands.putDirectoryCommands(this.ctx, deviceId, cwd, list);
+  }
+
+  directoryCommands(deviceId: string, cwd: string): Command[] | null {
+    return commands.directoryCommands(this.ctx, deviceId, cwd);
   }
 
   sessionCount(): number {

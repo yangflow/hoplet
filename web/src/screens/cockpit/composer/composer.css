@@ -396,3 +396,194 @@
   border-radius: 2px;
   background: var(--color-accent-text);
 }
+
+/* The completion list: opens above the composer, its left edge at the trigger (--ax). */
+.cpop {
+  position: absolute;
+  z-index: 30;
+  bottom: calc(100% + var(--space-2));
+  left: var(--ax, 0px);
+  width: min(620px, 100%);
+  padding: var(--space-1);
+  border-radius: var(--radius-md);
+  background: var(--color-raised);
+  box-shadow:
+    var(--shadow-float),
+    0 0 0 1px var(--color-line);
+  pointer-events: auto;
+  text-align: left;
+}
+.cpop.sm {
+  width: min(380px, 100%);
+}
+.cm-list {
+  max-height: 328px;
+  overflow-y: auto;
+}
+.cm-r {
+  height: var(--control-field);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  white-space: nowrap;
+  cursor: default;
+}
+.cm-l1 {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.cm-r.two {
+  height: auto;
+  flex-direction: column;
+  gap: 0;
+  align-items: stretch;
+  padding-bottom: var(--space-2);
+}
+.cm-r.two .cm-l1 {
+  flex: none;
+  height: var(--control-field);
+}
+.cm-d2 {
+  margin-top: -6px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+  color: var(--color-text-2);
+}
+.cm-r .lead {
+  width: 16px;
+  height: 16px;
+  display: grid;
+  place-items: center;
+  flex: none;
+  color: var(--color-text-3);
+}
+.cm-r:hover:not(.on),
+.cm-r.hov {
+  background: color-mix(in srgb, var(--color-hover) 45%, transparent);
+}
+.cm-r.on {
+  background: var(--color-selected);
+  box-shadow:
+    inset 2px 0 0 var(--color-text-2),
+    inset 0 1px 0 var(--color-highlight);
+}
+.cm-r.on .lead {
+  color: var(--color-text-2);
+}
+.cm-hl {
+  color: var(--color-accent-text);
+  font-weight: var(--weight-semibold);
+}
+.cm-nm {
+  font-weight: var(--weight-medium);
+  flex: none;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cm-nm .s {
+  color: var(--color-text-3);
+  font-weight: var(--weight-regular);
+}
+.cm-ah {
+  color: var(--color-text-3);
+  flex: none;
+  white-space: nowrap;
+}
+.cm-ds {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--color-text-2);
+}
+.cm-src {
+  flex: none;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  color: var(--color-text-3);
+  box-shadow: inset 0 0 0 1px var(--color-line);
+  white-space: nowrap;
+}
+.cm-r.two .cm-src {
+  margin-left: auto;
+}
+.cm-r .t {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cm-stat {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 40px;
+  padding: 0 var(--space-3);
+  color: var(--color-text-2);
+}
+.cm-ic {
+  display: inline-flex;
+  color: var(--color-text-3);
+}
+.cm-note .cm-ic {
+  margin-top: 2px;
+}
+.cm-stat.bad .cm-ic {
+  color: var(--color-attention-text);
+}
+.cm-note {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  color: var(--color-text-2);
+}
+.cm-f {
+  height: 36px;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: 0 var(--space-4);
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  color: var(--color-text-3);
+  box-shadow: inset 0 1px 0 var(--color-line);
+}
+.cm-f span {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.cm-kc {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: var(--color-hover);
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  color: var(--color-text-3);
+  font-variant-numeric: tabular-nums;
+  flex: none;
+}

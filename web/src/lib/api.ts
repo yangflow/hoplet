@@ -1,5 +1,6 @@
 import {
   AttachmentResultSchema,
+  CommandsResultSchema,
   type ConfigSetting,
   DeviceCloneResultSchema,
   DeviceDirsResultSchema,
@@ -90,6 +91,19 @@ export function fetchSessions() {
 
 export function fetchLines(sessionId: string, start: number, limit: number) {
   return call(`/api/sessions/${sessionId}/lines?start=${start}&limit=${limit}`, LinesPageSchema);
+}
+
+/** The commands and skills a session offers; they work with the owner offline. */
+export function fetchSessionCommands(sessionId: string) {
+  return call(`/api/sessions/${sessionId}/commands`, CommandsResultSchema);
+}
+
+/** The commands a new session in this directory would offer. */
+export function fetchDeviceCommands(deviceId: string, cwd: string) {
+  return call(
+    `/api/devices/${deviceId}/commands?cwd=${encodeURIComponent(cwd)}`,
+    CommandsResultSchema,
+  );
 }
 
 export function fetchWorkspace(sessionId: string) {

@@ -212,6 +212,8 @@ it('adds the nullable session state columns and keeps the sessions it has', () =
     expect(columns.find((c) => c.name === name)).toMatchObject({ notnull: 0 });
   }
   expect(after.prepare('SELECT id FROM schema_migrations WHERE id = 11').get()).toBeDefined();
+  expect(after.prepare('SELECT id FROM schema_migrations WHERE id = 12').get()).toBeDefined();
+  expect(after.prepare('SELECT count(*) AS n FROM directory_commands').get()).toEqual({ n: 0 });
   after.close();
   const store = new Store(dir);
   expect(store.sessionStates().size).toBe(0);

@@ -34,6 +34,7 @@ export function receiveReply(
     case 'runtime.output':
     case 'runtime.permission':
     case 'runtime.rejected':
+    case 'runtime.commands':
       runtime.receive(link, msg);
       return;
     case 'runtime.started': {

@@ -123,6 +123,14 @@ permission, and the pill follows what the process reports, so a change Claude Co
 shows too. Every mode is selectable remotely, Bypass permissions included, with no confirmation; while it is on
 the pill is amber and carries the shield-alert glyph. In a draft the pick goes into the new session's `config`. The text grows to 8 lines, then scrolls; dragging the composer's top edge sets a height the
 browser remembers, at most what leaves the conversation 240 px, and a double-click on the edge resets it.
+Typing `/` at the start of the text opens a list of the session's slash commands (group Commands) and skills
+(group Skills), filtered as the user types; there is no second trigger for skills. The agent reports the list its
+Claude Code process offers, with each entry's source (project, user, plugin or built-in). Of Claude Code's own
+commands only `compact`, `context`, `usage`, `cost`, `init`, `review`, `security-review`, `pr-comments` and
+`release-notes` are offered; the others need a terminal or change what Hoplet manages. A draft has no process:
+it offers the list last reported for that machine and directory, or the built-in commands, and says that project
+commands and skills show once the session has started. `@` lists the paths of the session's working tree
+(`GET /api/sessions/:id/workspace`), needs the owner online and is not offered in a draft.
 When the session's driver declares `images`, images pasted, dropped or attached go with the prompt: each is
 shrunk to at most 1568 px on its long edge (a GIF is left as it is), must then be PNG, JPEG, GIF or WebP of at
 most 4 MiB, and is uploaded to the session's machine at once; a prompt takes at most 4, together at most 8 MiB.

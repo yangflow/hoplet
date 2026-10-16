@@ -350,6 +350,7 @@ describe('wire contract', () => {
       'subscribe',
       'unsubscribe',
       'session.runtime',
+      'session.commands',
       'session.output',
       'session.permission',
       'handoff.progress',
@@ -382,6 +383,7 @@ describe('lanes', () => {
     expect(bulk).toEqual([
       'attachment.put',
       'handoff.data',
+      'runtime.commands',
       'session.ack',
       'session.append',
       'session.rejected',

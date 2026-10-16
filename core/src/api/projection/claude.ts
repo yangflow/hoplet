@@ -73,6 +73,24 @@ function other(kind: string, text: string, label?: string): FullBlock {
   return { type: 'other', kind, ...(label ? { label } : {}), text };
 }
 
+/**
+ * The boundary of a compaction. When Claude Code recorded the sizes, `text` is the JSON of
+ * `{trigger, preTokens, postTokens}` (as an attachment's text is its JSON) and `label` the line's own words.
+ */
+function compactBoundary(text: string, metadata: unknown): FullBlock {
+  const meta: Rec = {};
+  if (isRec(metadata)) {
+    if (typeof metadata.trigger === 'string') meta.trigger = metadata.trigger;
+    for (const key of ['preTokens', 'postTokens']) {
+      const n = metadata[key];
+      if (typeof n === 'number' && Number.isFinite(n)) meta[key] = n;
+    }
+  }
+  return Object.keys(meta).length > 0
+    ? other('compact_boundary', JSON.stringify(meta), text)
+    : other('compact_boundary', text);
+}
+
 function imageBlock(block: Rec): FullBlock {
   const source = isRec(block.source) ? block.source : {};
   const mediaType = str(source.media_type) ?? str(block.media_type) ?? 'image';
@@ -171,12 +189,18 @@ export function mapClaudeLine(line: unknown, lineNo: number): Entry | null {
   switch (type) {
     case 'user':
       if (line.isSidechain === true || line.isMeta === true) return null;
+      // The summary a compaction writes back is the model's context, shown in Claude Code's transcript view only.
+      if (line.isCompactSummary === true) return null;
       return entry(lineNo, 'user', line, messageBlocks(message.content));
     case 'assistant':
       return entry(lineNo, 'assistant', line, messageBlocks(message.content));
     case 'system': {
       if (BOOKKEEPING_SUBTYPES.has(str(line.subtype) ?? '')) return null;
       const text = str(line.content) ?? str(line.message) ?? '';
+      // The boundary /compact writes keeps its kind, so clients can draw it as the divider it is.
+      if (line.subtype === 'compact_boundary') {
+        return entry(lineNo, 'system', line, [compactBoundary(text, line.compactMetadata)]);
+      }
       return entry(lineNo, 'system', line, text ? [{ type: 'text', text }] : []);
     }
     case 'attachment': {

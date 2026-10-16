@@ -48,13 +48,27 @@ export const PERMISSION_OPEN_MS = 10 * 60_000;
 
 export type Runtime = Pick<
   Control,
-  'prompt' | 'answerPermission' | 'interrupt' | 'stop' | 'config' | 'runtimeOf' | 'openPermissions'
+  | 'prompt'
+  | 'answerPermission'
+  | 'interrupt'
+  | 'stop'
+  | 'config'
+  | 'runtimeOf'
+  | 'openPermissions'
+  | 'commandsOf'
 > & {
   receive(
     link: DeviceLink,
     msg: Extract<
       ControlReply,
-      { type: 'runtime.state' | 'runtime.output' | 'runtime.permission' | 'runtime.rejected' }
+      {
+        type:
+          | 'runtime.state'
+          | 'runtime.output'
+          | 'runtime.permission'
+          | 'runtime.rejected'
+          | 'runtime.commands';
+      }
     >,
   ): void;
   /** The device reconnected: what it ran before is unknown until it reports again. */
@@ -281,6 +295,14 @@ export function createRuntime(state: ControlState): Runtime {
 
     runtimeOf: view,
 
+    commandsOf(sessionId) {
+      const entry = state.commands.get(sessionId);
+      const owner =
+        store.ownerDeviceId(sessionId) ?? state.startedSessions.get(sessionId)?.deviceId;
+      if (!entry || entry.deviceId !== owner) return null;
+      return entry.commands;
+    },
+
     openPermissions(sessionId) {
       const out: SessionPermission[] = [];
       const now = state.now();
@@ -343,6 +365,21 @@ export function createRuntime(state: ControlState): Runtime {
         case 'runtime.rejected':
           rejectPrompt(msg.sessionId, msg.promptId, msg.reason);
           return;
+        case 'runtime.commands': {
+          // Only counts are logged: descriptions come from files of the user's projects.
+          state.commands.set(msg.sessionId, { deviceId, commands: msg.commands });
+          store.putDirectoryCommands(deviceId, msg.cwd, msg.commands);
+          log('debug', 'control', 'commands reported', {
+            sessionId: msg.sessionId,
+            count: msg.commands.length,
+          });
+          state.publish({
+            v: PROTOCOL_VERSION,
+            type: 'session.commands',
+            sessionId: msg.sessionId,
+          });
+          return;
+        }
       }
     },
 

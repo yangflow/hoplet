@@ -1,4 +1,5 @@
 import type {
+  CommandsResult,
   DeviceInfo,
   Entry,
   LiveSessionMeta,
@@ -7,6 +8,7 @@ import type {
 } from '@hoplet/shared';
 import { type ReactNode, useState } from 'react';
 import { live as liveWorkspace, snapshot } from '../workspace/fixtures.ts';
+import type { PathsState } from './composer/use-completions.ts';
 import { rememberBlock } from './conversation/blocks.tsx';
 import type { LiveTurn, OpenPermission } from './conversation/live-turn.ts';
 import { Cockpit, type CockpitFixture } from './index.tsx';
@@ -713,6 +715,161 @@ const DRAFT_DIRS = [
   { path: '/Users/mark/Documents/thesis', name: 'thesis' },
 ];
 
+const cmd = (
+  name: string,
+  description: string,
+  over: Partial<CommandsResult['commands'][number]> = {},
+): CommandsResult['commands'][number] => ({
+  name,
+  description,
+  kind: 'command',
+  source: 'builtin',
+  ...over,
+});
+
+const BUILTIN_COMMANDS: CommandsResult['commands'] = [
+  cmd('compact', 'Clear conversation history but keep a summary in context', {
+    argumentHint: '[focus instructions]',
+  }),
+  cmd('context', 'Show how the context window is being used'),
+  cmd('usage', 'Show plan usage and rate limits'),
+  cmd('init', 'Create a CLAUDE.md that documents this codebase'),
+  cmd('review', 'Review a pull request', { argumentHint: '[pull request]' }),
+];
+
+const SESSION_COMMANDS: CommandsResult = {
+  source: 'session',
+  commands: [
+    ...BUILTIN_COMMANDS,
+    cmd('hello', 'Say hello to someone by name', { argumentHint: '[name]', source: 'project' }),
+    cmd('greet', 'Greet the user in the language of their last message', {
+      kind: 'skill',
+      source: 'user',
+    }),
+    cmd('dodopayments:checkout-integration', 'Add Dodo Payments checkout to a web app', {
+      kind: 'skill',
+      source: 'plugin',
+      plugin: 'dodopayments',
+    }),
+  ],
+};
+
+const MENTION_PATHS = [
+  'core/src/config/index.ts',
+  'core/src/control/index.ts',
+  'web/src/screens/Conversation.tsx',
+];
+const MENTION_PREFIX = 'Compare the cursor reset with ';
+
+/** The ready session with the composer completing: the text, the list's commands or paths, the rows lit. */
+function completing(
+  text: string,
+  over: {
+    paths?: PathsState;
+    selected?: number;
+    hovered?: number;
+    offline?: boolean;
+  } = {},
+): ReactNode {
+  const { offline, ...rest } = over;
+  return (
+    <Scene
+      macbookOnline={!offline}
+      variant={{
+        runtime: { state: offline ? 'offline' : 'ready', capabilities },
+        conversation: {
+          composerText: text,
+          completions: { commands: SESSION_COMMANDS, selected: 0, ...rest },
+          ...(offline ? { composerOffline: true } : {}),
+        },
+      }}
+    />
+  );
+}
+
+/** Command turns of the design: the prompts, what the commands printed and the reply. */
+const user = (lineNo: number, time: string, text: string): Entry => ({
+  lineNo,
+  role: 'user',
+  ts: at(time),
+  blocks: [{ type: 'text', text }],
+});
+const reply = (lineNo: number, time: string, text: string): Entry => ({
+  lineNo,
+  role: 'assistant',
+  ts: at(time),
+  blocks: [{ type: 'text', text }],
+});
+const printed = (lineNo: number, time: string, text: string): Entry =>
+  user(lineNo, time, `<local-command-stdout>${text}</local-command-stdout>`);
+const FOLLOW_UP = [
+  user(8, '12:52:00', 'Now check the reconnect path again'),
+  reply(
+    9,
+    '12:52:20',
+    'The reconnect path reads `byte_size` from the store, so the cursor survives.',
+  ),
+];
+const CONTEXT_TABLE = [
+  '62.4k of 200k tokens used',
+  '',
+  '| Category | Tokens | Share |',
+  '| --- | --- | --- |',
+  '| System prompt | 3.1k | 2% |',
+  '| Tools | 11.8k | 6% |',
+  '| Memory files | 2.4k | 1% |',
+  '| Messages | 45.1k | 23% |',
+  '| Free space | 137.6k | 69% |',
+].join('\n');
+const commandTurns: Record<string, Entry[]> = {
+  'command-sent': [
+    user(1, '12:40:00', '/hello world'),
+    reply(2, '12:40:05', 'Hello, world! Ready when you are.'),
+    user(3, '12:44:00', '/review 147'),
+    reply(
+      4,
+      '12:44:30',
+      'Pull request 147 adds the cockpit screen. The composer and the sidebar match the mockups; the diff view has one open question about large files.',
+    ),
+    ...FOLLOW_UP,
+  ],
+  'command-output': [
+    user(
+      1,
+      '12:44:00',
+      '<command-name>/context</command-name>\n<command-message>context</command-message>\n<command-args></command-args>',
+    ),
+    printed(2, '12:44:01', CONTEXT_TABLE),
+  ],
+  'command-compact': [
+    // Claude Code writes the boundary, with the sizes, before the lines of the command.
+    {
+      lineNo: 1,
+      role: 'system',
+      ts: at('12:51:08'),
+      blocks: [
+        {
+          type: 'other',
+          kind: 'compact_boundary',
+          label: 'Conversation compacted',
+          text: '{"trigger":"manual","preTokens":45100,"postTokens":3200}',
+        },
+      ],
+    },
+    user(2, '12:51:00', '/compact keep the cursor discussion'),
+    printed(3, '12:51:08', '\u001b[2mCompacted \u001b[22m'),
+    ...FOLLOW_UP,
+  ],
+};
+const commandState = (state: string): ReactNode => (
+  <Scene
+    variant={{
+      runtime: { state: 'ready', capabilities },
+      conversation: { entries: commandTurns[state] ?? [] },
+    }}
+  />
+);
+
 /** Every state the design shows, rendered at /__states/cockpit/<state> in development builds. */
 export const states: Record<string, () => ReactNode> = {
   empty: () => <Scene selected={null} fixture={{ hoverDir: 'notes' }} />,
@@ -730,6 +887,32 @@ export const states: Record<string, () => ReactNode> = {
       }}
     />
   ),
+  'completions-commands': () => completing('/', { hovered: 3 }),
+  'completions-filter': () => completing('/c'),
+  'completions-draft': () => (
+    <Scene
+      fixture={{
+        draft: {
+          dirs: DRAFT_DIRS,
+          prompt: '/',
+          completions: { commands: { source: 'builtin', commands: BUILTIN_COMMANDS }, selected: 0 },
+        },
+      }}
+    />
+  ),
+  'mention-files': () =>
+    completing(`${MENTION_PREFIX}@con`, {
+      paths: { phase: 'ready', paths: MENTION_PATHS },
+      hovered: 3,
+    }),
+  'mention-loading': () => completing(`${MENTION_PREFIX}@co`, { paths: { phase: 'loading' } }),
+  'mention-empty': () =>
+    completing(`${MENTION_PREFIX}@zq`, { paths: { phase: 'ready', paths: MENTION_PATHS } }),
+  'mention-offline': () =>
+    completing(`${MENTION_PREFIX}@`, { paths: { phase: 'offline' }, offline: true }),
+  'command-sent': () => commandState('command-sent'),
+  'command-output': () => commandState('command-output'),
+  'command-compact': () => commandState('command-compact'),
   'add-project': () => (
     <Scene
       fixture={{

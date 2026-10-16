@@ -1,4 +1,5 @@
 import type {
+  CommandsResult,
   ConfigSetting,
   Entry,
   LiveSessionMeta,
@@ -27,8 +28,9 @@ import { usePageVisible } from '../../../lib/visibility.ts';
 import { Composer } from '../composer/composer.tsx';
 import { ModeMenu, modeOption, nextMode } from '../composer/mode-menu.tsx';
 import { hasChoices, ModelMenu, withValues } from '../composer/model-menu.tsx';
+import { type PathsState, useCommands } from '../composer/use-completions.ts';
 import { SessionWhere } from '../composer/where.tsx';
-import { composerView, stateName } from '../runtime.ts';
+import { type ComposerView, composerView, stateName } from '../runtime.ts';
 import { LiveTurnView } from './live-view.tsx';
 import { SessionReader } from './reader.ts';
 import { Transcript, type TranscriptHandle } from './transcript.tsx';
@@ -47,6 +49,15 @@ export type ConversationFixture = {
   unread?: number;
   /** Text in the composer's field. */
   composerText?: string;
+  /** What `/` and `@` show: the commands, the paths, the selected row and the hovered one. */
+  completions?: {
+    commands: CommandsResult;
+    paths?: PathsState;
+    selected?: number;
+    hovered?: number;
+  };
+  /** The owner is offline but the field is still drawn, with the state line (a fixture of the offline `@`). */
+  composerOffline?: boolean;
   /** Images waiting in the composer. */
   composerImages?: PromptImage[];
   /** The session's model menu starts open. */
@@ -340,7 +351,8 @@ export function Conversation(props: {
     return () => observer.disconnect();
   }, []);
 
-  const view = composerView({
+  const commands = useCommands(fixture ? null : { sessionId }, fixture?.completions?.commands);
+  const composed = composerView({
     state,
     ownerConnected: session.ownerConnected,
     live,
@@ -349,6 +361,19 @@ export function Conversation(props: {
     error: runtime.error,
     turnFailed: turn?.phase === 'failed',
   });
+  const view: ComposerView = fixture?.composerOffline
+    ? {
+        layout: 'field',
+        placeholder: t('Owner offline'),
+        inputEnabled: false,
+        line: {
+          text: t('{device} offline').replace('{device}', session.deviceName),
+          title: t('Owner offline'),
+          glyph: 'off',
+          tone: 'plain',
+        },
+      }
+    : composed;
 
   const frozen = !live;
   const showLive = turn && !snapshot.hasNewer;
@@ -444,6 +469,25 @@ export function Conversation(props: {
               error={sendError}
               restore={restore}
               voiceAvailable={props.voiceAvailable ?? false}
+              completions={{
+                commands,
+                sessionId,
+                online: session.ownerConnected && !fixture?.composerOffline,
+                deviceName: session.deviceName,
+                ...(fixture?.completions
+                  ? {
+                      fixture: {
+                        ...(fixture.completions.paths ? { paths: fixture.completions.paths } : {}),
+                        ...(fixture.completions.selected !== undefined
+                          ? { selected: fixture.completions.selected }
+                          : {}),
+                        ...(fixture.completions.hovered !== undefined
+                          ? { hovered: fixture.completions.hovered }
+                          : {}),
+                      },
+                    }
+                  : {}),
+              }}
               {...(fixture?.recording ? { recording: true } : {})}
               {...(fixture?.composerText ? { initialText: fixture.composerText } : {})}
               onSend={(text, attachments) => void send(text, attachments)}

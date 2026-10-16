@@ -154,6 +154,21 @@ type ConfigChanged struct {
 	Value any
 }
 
+// Command is one slash command or skill of a session. Kind is "command" or "skill"; Source is "builtin",
+// "project", "user" or "plugin" (then Plugin names the plugin).
+type Command struct {
+	Name         string
+	Description  string
+	ArgumentHint string
+	Kind         string
+	Source       string
+	Plugin       string
+}
+
+// Commands: the complete list of commands and skills the vendor offers the process, sorted and bounded; it is
+// sent when the process learns it and again whenever the vendor says it changed.
+type Commands struct{ List []Command }
+
 // OutputKind names what an Output carries.
 type OutputKind string
 
@@ -202,6 +217,7 @@ type Exited struct{ Err error }
 func (Ready) processEvent()               {}
 func (StateChanged) processEvent()        {}
 func (ConfigChanged) processEvent()       {}
+func (Commands) processEvent()            {}
 func (Output) processEvent()              {}
 func (PermissionRequest) processEvent()   {}
 func (PermissionCancelled) processEvent() {}

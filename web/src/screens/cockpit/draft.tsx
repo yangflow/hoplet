@@ -1,4 +1,4 @@
-import type { PromptImage, SessionConfig } from '@hoplet/shared';
+import type { CommandsResult, PromptImage, SessionConfig } from '@hoplet/shared';
 import { useEffect, useMemo, useState } from 'react';
 import { Icon } from '../../components/icons.tsx';
 import { providerName } from '../../components/provider-marks.tsx';
@@ -9,6 +9,7 @@ import { t } from '../../lib/i18n.ts';
 import { Composer } from './composer/composer.tsx';
 import { ModeMenu, modeOption, nextMode } from './composer/mode-menu.tsx';
 import { hasChoices, ModelMenu, withValues } from './composer/model-menu.tsx';
+import { useCommands } from './composer/use-completions.ts';
 import { BranchPart, WhereRow } from './composer/where.tsx';
 import type { NewSessionRequest, SessionTarget } from './model.ts';
 import type { ComposerView } from './runtime.ts';
@@ -23,6 +24,8 @@ export type DraftFixture = {
   open?: 'machine' | 'directory' | 'model';
   /** The machine's directories as its catalog would list them. */
   dirs?: Dir[];
+  /** What `/` shows, and the selected and hovered rows. */
+  completions?: { commands: CommandsResult; selected?: number; hovered?: number };
 };
 
 /** The folder a directory sits in, as the picker shows it: the home directory reads `~`. */
@@ -73,6 +76,10 @@ export function Draft(props: {
     }
   }, [machine, path, where.deviceName, where.path, onWhere]);
 
+  const commands = useCommands(
+    !props.fixture && target?.deviceId && path ? { deviceId: target.deviceId, cwd: path } : null,
+    props.fixture?.completions?.commands,
+  );
   const providers = target?.providers ?? [];
   // The provider and the option values this window picked; an option left alone keeps the driver's default.
   const [pickedProvider, setPickedProvider] = useState(providers[0]?.provider ?? 'claude');
@@ -225,6 +232,23 @@ export function Draft(props: {
             }
             sendLabel={busy ? t('Starting…') : t('Start')}
             providerName={name}
+            completions={{
+              commands,
+              online: !!target?.online,
+              deviceName: machine,
+              ...(props.fixture?.completions
+                ? {
+                    fixture: {
+                      ...(props.fixture.completions.selected !== undefined
+                        ? { selected: props.fixture.completions.selected }
+                        : {}),
+                      ...(props.fixture.completions.hovered !== undefined
+                        ? { hovered: props.fixture.completions.hovered }
+                        : {}),
+                    },
+                  }
+                : {}),
+            }}
             busy={busy}
             error={error}
             restore={restore}

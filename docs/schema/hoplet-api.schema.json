@@ -236,6 +236,26 @@
     },
     {
       "method": "GET",
+      "path": "/api/sessions/:sessionId/commands",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": null,
+      "response": "CommandsResultSchema"
+    },
+    {
+      "method": "GET",
+      "path": "/api/devices/:deviceId/commands",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": "DeviceCommandsQuerySchema",
+      "body": null,
+      "response": "CommandsResultSchema"
+    },
+    {
+      "method": "GET",
       "path": "/api/devices/:deviceId/dirs",
       "auth": "host",
       "lane": "control",
@@ -353,6 +373,12 @@
       "schema": "SessionRuntimeMessage"
     },
     {
+      "type": "session.commands",
+      "direction": "core-to-web",
+      "lane": "control",
+      "schema": "SessionCommandsMessage"
+    },
+    {
       "type": "session.output",
       "direction": "core-to-web",
       "lane": "control",
@@ -440,6 +466,70 @@
         "attachmentId"
       ]
     },
+    "CommandsResultSchema": {
+      "type": "object",
+      "properties": {
+        "commands": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "description": {
+                "type": "string",
+                "maxLength": 300
+              },
+              "argumentHint": {
+                "type": "string",
+                "maxLength": 128
+              },
+              "kind": {
+                "enum": [
+                  "command",
+                  "skill"
+                ],
+                "type": "string"
+              },
+              "source": {
+                "enum": [
+                  "builtin",
+                  "project",
+                  "user",
+                  "plugin"
+                ],
+                "type": "string"
+              },
+              "plugin": {
+                "type": "string",
+                "maxLength": 128
+              }
+            },
+            "required": [
+              "name",
+              "description",
+              "kind",
+              "source"
+            ]
+          }
+        },
+        "source": {
+          "enum": [
+            "session",
+            "directory",
+            "builtin"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "commands",
+        "source"
+      ]
+    },
     "ConfigRequestSchema": {
       "type": "object",
       "properties": {
@@ -498,6 +588,19 @@
       "required": [
         "deviceId",
         "path"
+      ]
+    },
+    "DeviceCommandsQuerySchema": {
+      "type": "object",
+      "properties": {
+        "cwd": {
+          "type": "string",
+          "pattern": "\\S",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "cwd"
       ]
     },
     "DeviceDirsQuerySchema": {
@@ -2097,6 +2200,26 @@
         "totalLines",
         "byteSize",
         "updatedAt"
+      ]
+    },
+    "SessionCommandsMessage": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 5
+        },
+        "type": {
+          "const": "session.commands"
+        },
+        "sessionId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]+$"
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "sessionId"
       ]
     },
     "SessionListResponseSchema": {

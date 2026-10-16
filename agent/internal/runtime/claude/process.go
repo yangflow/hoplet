@@ -58,6 +58,8 @@ type process struct {
 	model string
 
 	mu      sync.Mutex
+	rawCmds []rawCommand                 // the latest commands Claude Code reported
+	skills  map[string]bool              // the names the init message lists as skills
 	pending map[string]pendingRequest    // permission requests by request id, with the input to echo on allow
 	seen    map[string]bool              // tool_use ids already reported in this turn
 	initErr error                        // the vendor refused initialization
@@ -303,7 +305,15 @@ type message struct {
 		Subtype   string `json:"subtype"`
 		RequestID string `json:"request_id"`
 		Error     string `json:"error"`
+		// Body is the answer to an initialize request.
+		Body struct {
+			Commands []rawCommand `json:"commands"`
+		} `json:"response"`
 	} `json:"response"`
+
+	// Skills (names only) are listed by a `system` init message; Commands by `commands_changed`.
+	Skills   []string     `json:"skills"`
+	Commands []rawCommand `json:"commands"`
 
 	// PermissionMode is the mode a `system` init or status message reports.
 	PermissionMode string `json:"permissionMode"`
@@ -377,6 +387,7 @@ func (p *process) handleLine(line []byte) {
 			return
 		}
 		if m.Response.Subtype == "success" {
+			p.setCommands(m.Response.Body.Commands, nil)
 			p.emit(runtime.Ready{})
 			return
 		}
@@ -391,9 +402,36 @@ func (p *process) handleLine(line []byte) {
 	}
 }
 
+// setCommands records what Claude Code reported (a nil argument keeps the earlier value) and emits the list
+// that results. Only counts are ever logged: descriptions can carry anything a project file says.
+func (p *process) setCommands(raw []rawCommand, skills map[string]bool) {
+	p.mu.Lock()
+	if raw != nil {
+		p.rawCmds = raw
+	}
+	if skills != nil {
+		p.skills = skills
+	}
+	list := buildCommands(p.rawCmds, p.skills)
+	known := p.rawCmds != nil
+	p.mu.Unlock()
+	if known {
+		p.emit(runtime.Commands{List: list})
+	}
+}
+
 func (p *process) handleSystem(m *message) {
 	switch m.Subtype {
+	case "commands_changed":
+		p.setCommands(m.Commands, nil)
 	case "init", "status":
+		if m.Subtype == "init" && m.Skills != nil {
+			skills := make(map[string]bool, len(m.Skills))
+			for _, n := range m.Skills {
+				skills[n] = true
+			}
+			p.setCommands(nil, skills)
+		}
 		// The mode the process runs in: at start, and when it changes by a request or by Claude itself, such
 		// as after ExitPlanMode is allowed. `manual` is the alias of `default`.
 		if mode := m.PermissionMode; mode != "" {

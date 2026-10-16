@@ -1,4 +1,4 @@
-import type { Provider, ProviderInfo, ServerMessage } from '@hoplet/shared';
+import type { Command, Provider, ProviderInfo, ServerMessage } from '@hoplet/shared';
 import type { Store } from '../store/index.ts';
 import type { ActiveHandoff } from './handoff.ts';
 import type { Waiter } from './pending.ts';
@@ -44,6 +44,8 @@ export interface ControlState {
   startedSessions: Map<string, { deviceId: string; provider: Provider; at: number }>;
   /** The state of each session's process as its owner reported it. */
   runtime: Map<string, RuntimeEntry>;
+  /** The commands and skills each session offered in its latest report, with who reported them. */
+  commands: Map<string, { deviceId: string; commands: Command[] }>;
   /** Open permission requests by `<sessionId>\n<requestId>`. */
   permissions: Map<string, OpenPermission>;
   /** Hands an event for the browsers to whoever subscribed. */

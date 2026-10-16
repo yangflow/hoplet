@@ -1483,3 +1483,72 @@ func TestARefusedSwitchDoesNotRollBackANewerChange(t *testing.T) {
 		t.Fatalf("the newer change was rolled back to %v", last.Config[0].Current)
 	}
 }
+
+func (r *recorder) commands(id string) []runtime.CommandsEvent {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	var out []runtime.CommandsEvent
+	for _, ev := range r.events {
+		if c, ok := ev.(runtime.CommandsEvent); ok && c.SessionID == id {
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
+func commandNames(list []runtime.Command) string {
+	var names []string
+	for _, c := range list {
+		names = append(names, c.Kind[:1]+":"+c.Name)
+	}
+	return strings.Join(names, " ")
+}
+
+func TestCommandsAreReportedWhenTheyChange(t *testing.T) {
+	t.Setenv("FAKE_CLAUDE_COMMANDS", "1")
+	e := newEnv(t, nil)
+	e.session("s1")
+	if err := e.m.Prompt("s1", "say hi"); err != nil {
+		t.Fatal(err)
+	}
+	// initialize lists them without the skill marks; the init message of the turn marks the skills.
+	e.rec.waitFor(t, "commands with skills", func() bool {
+		cs := e.rec.commands("s1")
+		return len(cs) > 0 && strings.Contains(commandNames(cs[len(cs)-1].Commands), "s:fix-bug")
+	})
+	cs := e.rec.commands("s1")
+	last := cs[len(cs)-1]
+	if last.Dir != e.workdir {
+		t.Fatalf("dir = %q, want %q", last.Dir, e.workdir)
+	}
+	if got, want := commandNames(last.Commands), "c:compact c:context c:deploy s:fix-bug s:pdf:extract"; got != want {
+		t.Fatalf("commands = %q, want %q", got, want)
+	}
+	e.rec.waitState(t, "s1", runtime.StateReady)
+	n := len(e.rec.commands("s1"))
+
+	// The same list again is not reported twice; a changed one is.
+	e.rec.waitFor(t, "ready", func() bool { s, _ := e.rec.lastState("s1"); return s.State == runtime.StateReady })
+	if err := e.m.Prompt("s1", "newcmd done"); err != nil {
+		t.Fatal(err)
+	}
+	e.rec.waitFor(t, "lint", func() bool {
+		cs := e.rec.commands("s1")
+		return len(cs) > n && strings.Contains(commandNames(cs[len(cs)-1].Commands), "c:lint")
+	})
+	if got := e.m.Commands(); len(got) != 1 || got[0].SessionID != "s1" || !strings.Contains(commandNames(got[0].Commands), "c:lint") {
+		t.Fatalf("Commands() = %+v", got)
+	}
+}
+
+func TestNoCommandsAreReportedWhenTheVendorListsNone(t *testing.T) {
+	e := newEnv(t, nil)
+	e.session("s1")
+	if err := e.m.Prompt("s1", "say hi"); err != nil {
+		t.Fatal(err)
+	}
+	e.rec.waitState(t, "s1", runtime.StateReady)
+	if cs := e.rec.commands("s1"); len(cs) != 0 {
+		t.Fatalf("commands = %+v", cs)
+	}
+}

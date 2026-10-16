@@ -192,6 +192,17 @@ func wireMessage(ev runtime.Event) any {
 			V: sync.ProtocolVersion, Type: sync.TypeRuntimePermission, SessionID: ev.SessionID,
 			RequestID: r.RequestID, Tool: r.Tool, ToolUseID: r.ToolUseID, Input: input,
 		}
+	case runtime.CommandsEvent:
+		list := make([]sync.Command, 0, len(ev.Commands))
+		for _, c := range ev.Commands {
+			list = append(list, sync.Command{
+				Name: c.Name, Description: c.Description, ArgumentHint: c.ArgumentHint,
+				Kind: c.Kind, Source: c.Source, Plugin: c.Plugin,
+			})
+		}
+		return sync.RuntimeCommands{
+			V: sync.ProtocolVersion, Type: sync.TypeRuntimeCommands, SessionID: ev.SessionID, Cwd: ev.Dir, Commands: list,
+		}
 	}
 	return nil
 }
@@ -242,6 +253,9 @@ func (b *bridge) report() {
 	}
 	for _, p := range b.mgr.Pending() {
 		b.emit(p)
+	}
+	for _, c := range b.mgr.Commands() {
+		b.emit(c)
 	}
 }
 
