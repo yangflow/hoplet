@@ -621,6 +621,39 @@ describe('the config of a session', () => {
     expect(runtime.options).toBeUndefined();
   });
 
+  it('changes a permission mode the driver declares, Bypass included, and refuses one it does not', async () => {
+    const MODE = {
+      type: 'select',
+      id: 'mode',
+      name: 'Permission mode',
+      category: 'mode',
+      currentValue: 'default',
+      options: [
+        { value: 'default', name: 'Manual' },
+        { value: 'plan', name: 'Plan' },
+        { value: 'bypassPermissions', name: 'Bypass permissions', risk: 'high' },
+      ],
+    };
+    const { post, owner } = await owned([
+      { provider: 'claude', capabilities: { ...CAPS, config: [MODE, ...CONFIG] } },
+    ]);
+    for (const value of ['plan', 'bypassPermissions']) {
+      expect(await post('/api/sessions/s1/config', change('mode', value))).toEqual({
+        status: 200,
+        body: { ok: true },
+      });
+    }
+    expect(owner.ofType('runtime.config').map((m) => m.value)).toEqual([
+      'plan',
+      'bypassPermissions',
+    ]);
+    expect(await post('/api/sessions/s1/config', change('mode', 'dontAsk'))).toMatchObject({
+      status: 400,
+      body: { reason: 'config' },
+    });
+    expect(owner.ofType('runtime.config')).toHaveLength(2);
+  });
+
   it('is refused when the driver does not declare the option or the value', async () => {
     const { post, owner } = await owned();
     for (const bad of [

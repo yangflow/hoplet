@@ -73,40 +73,56 @@ export function useLiveTurn(opts: {
     });
   }, [sessionId, locked]);
 
-  // The runtime state moves the turn along.
+  // The runtime state moves the turn along. Each state the window is told is applied in order (below, from the
+  // socket message itself): states that arrive within one render, such as running and ready of a short turn,
+  // would otherwise reach this hook as ready after ready, and the turn would never settle.
   const ready = snapshot.ready;
-  useEffect(() => {
-    if (locked || !ready) return;
+  const apply = useCallback((next: RuntimeState, failure: string | undefined) => {
     const before = previous.current;
-    previous.current = state;
-    if (before === state) return;
+    previous.current = next;
+    if (before === next) return;
     // A request can reach the window before the state that announces it: only leaving the waiting state
     // closes the requests.
-    if (before === 'waiting-permission' && state !== 'waiting-permission')
+    if (before === 'waiting-permission' && next !== 'waiting-permission')
       setPermissions((list) => (list.length === 0 ? list : []));
     setTurn((t) => {
-      if (isTurnState(state)) {
+      if (isTurnState(next)) {
         if (t && t.phase === 'live') {
-          return state === 'starting' || t.reachedRunning ? t : { ...t, reachedRunning: true };
+          return next === 'starting' || t.reachedRunning ? t : { ...t, reachedRunning: true };
         }
         return newTurn({
           prompt: null,
           startedAt: Date.now(),
           boundary: snap.current.total,
           joined: before === null,
-          reachedRunning: state !== 'starting',
+          reachedRunning: next !== 'starting',
         });
       }
       if (t?.phase !== 'live') return t;
-      if (state === 'failed') {
+      if (next === 'failed') {
         // A start that failed leaves no turn behind; a turn that ran and failed stays, with its error.
         return t.reachedRunning
-          ? { ...t, phase: 'failed', endedAt: Date.now(), ...(error ? { error } : {}) }
+          ? { ...t, phase: 'failed', endedAt: Date.now(), ...(failure ? { error: failure } : {}) }
           : null;
       }
       return { ...t, phase: 'settling', endedAt: Date.now() };
     });
-  }, [state, error, ready, locked]);
+  }, []);
+  const readyRef = useRef(ready);
+  readyRef.current = ready;
+  useEffect(() => {
+    if (locked || !ready) return;
+    apply(state, error);
+  }, [state, error, ready, locked, apply]);
+  useEffect(() => {
+    if (locked) return;
+    return onLive((event) => {
+      if (event.kind !== 'message') return;
+      const msg = event.msg;
+      if (msg.type === 'session.runtime' && msg.sessionId === sessionId && readyRef.current)
+        apply(msg.state, msg.error);
+    });
+  }, [sessionId, locked, apply]);
 
   // Expired permission requests close themselves; the agent denies them at the same time.
   const hasPermissions = permissions.length > 0;

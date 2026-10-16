@@ -322,5 +322,18 @@
   "config.model": "模型",
   "config.thinking": "思考过程",
   "config.fast": "快速",
-  "config.model.default": "默认模型"
+  "config.model.default": "默认模型",
+  "High risk": "高风险",
+  "Cycle modes": "切换模式",
+  "config.mode": "权限模式",
+  "config.mode.default": "手动",
+  "config.mode.acceptEdits": "自动接受编辑",
+  "config.mode.plan": "计划",
+  "config.mode.auto": "自动",
+  "config.mode.bypassPermissions": "跳过权限确认",
+  "config.mode.default.description": "编辑和命令前先询问",
+  "config.mode.acceptEdits.description": "直接编辑文件；执行命令前先询问",
+  "config.mode.plan.description": "只探索和规划，不编辑、不执行命令",
+  "config.mode.auto.description": "由 Claude 判断何时询问，并做安全检查",
+  "config.mode.bypassPermissions.description": "不经询问直接执行全部操作"
 }

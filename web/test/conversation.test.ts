@@ -526,3 +526,69 @@ it('leaves a turn that failed on screen with its error, and a failed start to th
   expect(q('cockpit.composer-state')?.textContent).toContain('Claude Code not found');
   expect(q('cockpit.retry')?.getAttribute('aria-label')).toBe('Retry start');
 });
+
+it('cycles the permission mode of an open session with Shift+Tab, also while a turn runs, never mid-composition', async () => {
+  const modes = (current: string) => ({
+    ...caps,
+    config: [
+      {
+        type: 'select' as const,
+        id: 'mode',
+        name: 'Mode',
+        category: 'mode',
+        currentValue: current,
+        options: [
+          { value: 'default', name: 'Manual' },
+          { value: 'plan', name: 'Plan' },
+          { value: 'bypassPermissions', name: 'Bypass permissions', risk: 'high' as const },
+        ],
+      },
+    ],
+  });
+  api.postConfig.mockResolvedValue({ ok: true });
+  const open = modes('default');
+  await show({ state: 'idle', capabilities: open }, { capabilities: open });
+  expect(q('cockpit.mode')?.textContent).toBe('Manual');
+  const shiftTab = (init: Record<string, unknown> = {}) => {
+    const ev = new KeyboardEvent('keydown', {
+      key: 'Tab',
+      shiftKey: true,
+      bubbles: true,
+      cancelable: true,
+      ...init,
+    });
+    act(async () => {
+      q('cockpit.composer-input')?.dispatchEvent(ev);
+    });
+    return ev;
+  };
+  const ev = shiftTab();
+  await act(async () => undefined);
+  expect(ev.defaultPrevented).toBe(true);
+  expect(api.postConfig).toHaveBeenLastCalledWith(SID, 'mode', 'plan');
+  expect(q('cockpit.mode')?.textContent).toBe('Plan');
+  shiftTab();
+  await act(async () => undefined);
+  expect(api.postConfig).toHaveBeenLastCalledWith(SID, 'mode', 'bypassPermissions');
+  expect(q('cockpit.mode')?.getAttribute('data-risk')).toBe('high');
+  // An input method composing a word owns the key.
+  api.postConfig.mockClear();
+  const composing = new KeyboardEvent('keydown', {
+    key: 'Tab',
+    shiftKey: true,
+    bubbles: true,
+    cancelable: true,
+    isComposing: true,
+  });
+  await act(async () => {
+    q('cockpit.composer-input')?.dispatchEvent(composing);
+  });
+  expect(composing.defaultPrevented).toBe(false);
+  expect(api.postConfig).not.toHaveBeenCalled();
+  // A turn running does not stop the switch; the pick not reported yet is where the cycle goes on from.
+  const running = modes('plan');
+  await show({ state: 'running', capabilities: running }, { capabilities: running });
+  shiftTab();
+  await act(async () => undefined);
+  expect(api.postConfig).toHaveBeenLastCalledWith(SID, 'mode', 'default');
+});

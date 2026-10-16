@@ -12,6 +12,7 @@ import {
   Ellipsis,
   Eye,
   File,
+  FilePen,
   FilePlus,
   Folder,
   FolderOpen,
@@ -23,6 +24,7 @@ import {
   Laptop,
   Layers,
   Lightbulb,
+  ListChecks,
   LoaderCircle,
   Lock,
   Mic,
@@ -35,6 +37,9 @@ import {
   RotateCw,
   Search,
   Settings,
+  Shield,
+  ShieldAlert,
+  Sparkles,
   Square,
   SquarePen,
   Terminal,
@@ -101,7 +106,26 @@ export const Icon = {
   contrast: draw(Contrast),
   ellipsis: draw(Ellipsis),
   wrap: draw(TextWrap),
+  shield: draw(Shield),
+  shieldAlert: draw(ShieldAlert),
+  filePen: draw(FilePen),
+  listChecks: draw(ListChecks),
+  sparkles: draw(Sparkles),
 };
+
+/** The shared icon vocabulary of config values (`CONFIG_ICONS`) mapped to this client's glyphs. */
+const CONFIG_GLYPHS: Record<string, () => ReactNode> = {
+  shield: () => Icon.shield(),
+  'shield-alert': () => Icon.shieldAlert(),
+  'file-pen': () => Icon.filePen(),
+  'list-checks': () => Icon.listChecks(),
+  sparkles: () => Icon.sparkles(),
+};
+
+/** The glyph of a config value's declared icon name; null when it declares none or the name is unknown. */
+export function configIcon(name: string | undefined) {
+  return name ? (CONFIG_GLYPHS[name]?.() ?? null) : null;
+}
 
 export type IconName = keyof typeof Icon;
 

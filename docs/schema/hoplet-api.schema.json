@@ -629,6 +629,16 @@
                                             "high"
                                           ],
                                           "type": "string"
+                                        },
+                                        "icon": {
+                                          "enum": [
+                                            "shield",
+                                            "shield-alert",
+                                            "file-pen",
+                                            "list-checks",
+                                            "sparkles"
+                                          ],
+                                          "type": "string"
                                         }
                                       },
                                       "required": [
@@ -1705,6 +1715,16 @@
                                     "high"
                                   ],
                                   "type": "string"
+                                },
+                                "icon": {
+                                  "enum": [
+                                    "shield",
+                                    "shield-alert",
+                                    "file-pen",
+                                    "list-checks",
+                                    "sparkles"
+                                  ],
+                                  "type": "string"
                                 }
                               },
                               "required": [
@@ -2181,6 +2201,16 @@
                                           "high"
                                         ],
                                         "type": "string"
+                                      },
+                                      "icon": {
+                                        "enum": [
+                                          "shield",
+                                          "shield-alert",
+                                          "file-pen",
+                                          "list-checks",
+                                          "sparkles"
+                                        ],
+                                        "type": "string"
                                       }
                                     },
                                     "required": [
@@ -2499,6 +2529,16 @@
                             "risk": {
                               "enum": [
                                 "high"
+                              ],
+                              "type": "string"
+                            },
+                            "icon": {
+                              "enum": [
+                                "shield",
+                                "shield-alert",
+                                "file-pen",
+                                "list-checks",
+                                "sparkles"
                               ],
                               "type": "string"
                             }

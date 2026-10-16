@@ -202,6 +202,7 @@ describe('remote control against a scripted Claude Code', () => {
         permissions: true,
         interrupt: true,
         config: [
+          { id: 'mode', currentValue: 'default' },
           { id: 'model', currentValue: 'default' },
           { id: 'thinking', currentValue: true },
           { id: 'fast', currentValue: false },

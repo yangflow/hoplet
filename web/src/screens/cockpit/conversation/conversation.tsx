@@ -25,6 +25,7 @@ import { t } from '../../../lib/i18n.ts';
 import { onLive, subscribeSession } from '../../../lib/live.ts';
 import { usePageVisible } from '../../../lib/visibility.ts';
 import { Composer } from '../composer/composer.tsx';
+import { ModeMenu, modeOption, nextMode } from '../composer/mode-menu.tsx';
 import { hasChoices, ModelMenu, withValues } from '../composer/model-menu.tsx';
 import { SessionWhere } from '../composer/where.tsx';
 import { composerView, stateName } from '../runtime.ts';
@@ -50,6 +51,8 @@ export type ConversationFixture = {
   composerImages?: PromptImage[];
   /** The session's model menu starts open. */
   modelMenuOpen?: boolean;
+  /** The session's permission-mode menu starts open. */
+  modeMenuOpen?: boolean;
   scrollTo?: number;
   openBlocks?: string[];
 };
@@ -210,6 +213,12 @@ export function Conversation(props: {
     },
     [sessionId],
   );
+  const shown = withValues(caps?.config, picked);
+  const mode = modeOption(shown);
+  const cycleMode = useCallback(() => {
+    const next = mode ? nextMode(mode) : undefined;
+    if (mode && next !== undefined) setConfig(mode.id, next);
+  }, [mode, setConfig]);
   const pending = useRef<{ text: string; attachments: string[] } | null>(null);
   const root = useRef<HTMLDivElement>(null);
 
@@ -439,17 +448,29 @@ export function Conversation(props: {
               {...(fixture?.composerText ? { initialText: fixture.composerText } : {})}
               onSend={(text, attachments) => void send(text, attachments)}
               acceptsImages={caps?.images === true}
-              {...(choosable
+              {...(mode ? { onCycleMode: cycleMode } : {})}
+              {...(choosable || mode
                 ? {
                     options: (
-                      <ModelMenu
-                        providers={providers}
-                        provider={session.provider}
-                        config={withValues(caps?.config, picked)}
-                        onProvider={() => {}}
-                        onChange={setConfig}
-                        {...(fixture?.modelMenuOpen ? { initialOpen: true } : {})}
-                      />
+                      <>
+                        {mode ? (
+                          <ModeMenu
+                            option={mode}
+                            onChange={setConfig}
+                            {...(fixture?.modeMenuOpen ? { initialOpen: true } : {})}
+                          />
+                        ) : null}
+                        {choosable ? (
+                          <ModelMenu
+                            providers={providers}
+                            provider={session.provider}
+                            config={shown}
+                            onProvider={() => {}}
+                            onChange={setConfig}
+                            {...(fixture?.modelMenuOpen ? { initialOpen: true } : {})}
+                          />
+                        ) : null}
+                      </>
                     ),
                   }
                 : {})}

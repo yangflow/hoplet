@@ -105,7 +105,7 @@ func TestStartCreatesAndImportsANewSession(t *testing.T) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	st0, ok := s.msgs[0].(sync.RuntimeState)
-	if !ok || len(st0.Capabilities.Config) != 3 || st0.Capabilities.Config[0].CurrentValue != "sonnet" {
+	if !ok || len(st0.Capabilities.Config) != 4 || st0.Capabilities.Config[1].CurrentValue != "sonnet" {
 		t.Fatalf("report = %#v", s.msgs[0])
 	}
 }
@@ -173,8 +173,9 @@ func TestProvidersAnnounceTheDriverCapabilities(t *testing.T) {
 		t.Fatalf("providers = %+v", got)
 	}
 	c := got[0].Capabilities
-	if !c.Permissions || !c.Interrupt || len(c.Config) != 3 || c.Config[0].ID != "model" || len(c.Config[0].Options) != 4 ||
-		c.Config[0].CurrentValue != "default" {
+	if !c.Permissions || !c.Interrupt || len(c.Config) != 4 || c.Config[0].ID != "mode" || c.Config[0].Category != "mode" || len(c.Config[0].Options) != 5 ||
+		c.Config[0].CurrentValue != "default" || c.Config[1].ID != "model" || len(c.Config[1].Options) != 4 ||
+		c.Config[1].CurrentValue != "default" {
 		t.Fatalf("capabilities = %+v", c)
 	}
 	if got[0].Version != "2.1.289" || got[0].Tested == nil || !*got[0].Tested {

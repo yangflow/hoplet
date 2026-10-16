@@ -7,6 +7,7 @@ import { postAttachment } from '../../lib/api.ts';
 import { errorText } from '../../lib/errors.ts';
 import { t } from '../../lib/i18n.ts';
 import { Composer } from './composer/composer.tsx';
+import { ModeMenu, modeOption, nextMode } from './composer/mode-menu.tsx';
 import { hasChoices, ModelMenu, withValues } from './composer/model-menu.tsx';
 import { BranchPart, WhereRow } from './composer/where.tsx';
 import type { NewSessionRequest, SessionTarget } from './model.ts';
@@ -82,6 +83,13 @@ export function Draft(props: {
   const config: SessionConfig = Object.fromEntries(
     Object.entries(picked).filter(([id]) => caps?.config.some((o) => o.id === id)),
   );
+
+  const shown = withValues(caps?.config, config);
+  const mode = modeOption(shown);
+  const cycleMode = () => {
+    const next = mode ? nextMode(mode) : undefined;
+    if (mode && next !== undefined) setPicked((cur) => ({ ...cur, [mode.id]: next }));
+  };
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -189,21 +197,31 @@ export function Draft(props: {
           <Composer
             view={view}
             where={whereRow}
+            {...(mode && !busy ? { onCycleMode: cycleMode } : {})}
             options={
-              hasChoices(providers, provider) ? (
-                <ModelMenu
-                  providers={providers}
-                  provider={provider?.provider ?? pickedProvider}
-                  config={withValues(caps?.config, config)}
-                  onProvider={(next) => {
-                    setPickedProvider(next);
-                    setPicked({});
-                  }}
-                  onChange={(id, value) => setPicked((cur) => ({ ...cur, [id]: value }))}
-                  disabled={busy}
-                  initialOpen={open === 'model'}
-                />
-              ) : null
+              <>
+                {mode ? (
+                  <ModeMenu
+                    option={mode}
+                    onChange={(id, value) => setPicked((cur) => ({ ...cur, [id]: value }))}
+                    disabled={busy}
+                  />
+                ) : null}
+                {hasChoices(providers, provider) ? (
+                  <ModelMenu
+                    providers={providers}
+                    provider={provider?.provider ?? pickedProvider}
+                    config={shown}
+                    onProvider={(next) => {
+                      setPickedProvider(next);
+                      setPicked({});
+                    }}
+                    onChange={(id, value) => setPicked((cur) => ({ ...cur, [id]: value }))}
+                    disabled={busy}
+                    initialOpen={open === 'model'}
+                  />
+                ) : null}
+              </>
             }
             sendLabel={busy ? t('Starting…') : t('Start')}
             providerName={name}

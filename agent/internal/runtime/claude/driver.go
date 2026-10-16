@@ -51,16 +51,31 @@ func (d *Driver) Capabilities() []runtime.Capability {
 
 // Option IDs and the value that leaves the model to Claude Code (ADR 0018).
 const (
+	optMode      = "mode"
 	optModel     = "model"
 	optThinking  = "thinking"
 	optFast      = "fast"
 	modelDefault = "default"
+	modeDefault  = "default"
+	modeBypass   = "bypassPermissions"
 )
 
-// Config declares the model, Thinking and Fast, in that order. The models are the aliases `claude --help`
+// Config declares the permission mode, the model, Thinking and Fast, in that order. The models are the aliases `claude --help`
 // documents for --model; Claude Code resolves each to its latest model, and `default` leaves the choice to it.
 func (d *Driver) Config() []runtime.ConfigOption {
 	return []runtime.ConfigOption{
+		{
+			// Claude Code's own modes except dontAsk, which it lists last and `claude --help` leaves out.
+			ID: optMode, Name: "Permission mode", Category: "mode", Type: runtime.ConfigSelect, Current: modeDefault,
+			Apply: runtime.ApplyNow,
+			Options: []runtime.ConfigValue{
+				{Value: modeDefault, Name: "Manual", Description: "Ask before edits and commands.", Icon: "shield"},
+				{Value: "acceptEdits", Name: "Accept edits", Description: "Edit files without asking; ask before commands.", Icon: "file-pen"},
+				{Value: "plan", Name: "Plan", Description: "Explore and plan; no edits or commands.", Icon: "list-checks"},
+				{Value: "auto", Name: "Auto", Description: "Claude decides when to ask, with safety checks.", Icon: "sparkles"},
+				{Value: modeBypass, Name: "Bypass permissions", Description: "Run everything without asking.", Risk: "high", Icon: "shield-alert"},
+			},
+		},
 		{
 			ID: optModel, Name: "Model", Category: "model", Type: runtime.ConfigSelect, Current: modelDefault,
 			Apply: runtime.ApplyNextTurn,
@@ -83,7 +98,8 @@ func (d *Driver) Config() []runtime.ConfigOption {
 }
 
 // Args are the command line of a process for spec. The session's values map to Claude Code's own flags:
-// --model, --thinking (enabled or disabled) and fast mode through the settings of this one process (--settings
+// --permission-mode (with --allow-dangerously-skip-permissions on every process, so that Bypass can be switched
+// to later; Claude Code refuses that switch otherwise), --model, --thinking (enabled or disabled) and fast mode through the settings of this one process (--settings
 // '{"fastMode":true}'). A new session gets --session-id; an existing one is resumed.
 func (d *Driver) Args(spec runtime.StartSpec) []string {
 	args := []string{
@@ -94,6 +110,11 @@ func (d *Driver) Args(spec runtime.StartSpec) []string {
 		"--include-partial-messages",
 		"--permission-prompt-tool", "stdio",
 	}
+	mode := modeDefault
+	if m, _ := spec.Config[optMode].(string); m != "" {
+		mode = m
+	}
+	args = append(args, "--permission-mode", mode, "--allow-dangerously-skip-permissions")
 	model := d.model
 	if m, _ := spec.Config[optModel].(string); m != "" && m != modelDefault {
 		model = m
@@ -101,11 +122,11 @@ func (d *Driver) Args(spec runtime.StartSpec) []string {
 	if model != "" {
 		args = append(args, "--model", model)
 	}
-	mode := "enabled"
+	thinking := "enabled"
 	if on, ok := spec.Config[optThinking].(bool); ok && !on {
-		mode = "disabled"
+		thinking = "disabled"
 	}
-	args = append(args, "--thinking", mode)
+	args = append(args, "--thinking", thinking)
 	if on, _ := spec.Config[optFast].(bool); on {
 		args = append(args, "--settings", `{"fastMode":true}`)
 	}
@@ -176,6 +197,8 @@ func (d *Driver) Start(ctx context.Context, spec runtime.StartSpec) (runtime.Pro
 		events:  make(chan runtime.ProcessEvent, 256),
 		stderr:  &stderr,
 		pending: map[string]pendingRequest{},
+		waiting: map[string]chan controlReply{},
+		done:    make(chan struct{}),
 		model:   d.model,
 	}
 	go p.read(stdout)

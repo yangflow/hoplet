@@ -27,7 +27,7 @@ in its capabilities (`config`): each option has an `id`, a `name`, an optional `
 `type` of `select` (with its `options`, each a `value`, a `name`, an optional `description`) or `boolean`, and a
 `currentValue`. In the capabilities an agent reports for a provider (`device.hello`) the current value is the
 default of a new session; in a session's runtime state (`runtime.state`, `session.runtime`, the session list) it
-is that session's value. A value may carry `risk: "high"`, which ACP carries in `_meta`; clients mark it. The
+is that session's value. A value may carry `risk: "high"`, which ACP carries in `_meta`; clients mark it. A value may also declare an `icon`, a name from a closed vocabulary in `shared/` (`CONFIG_ICONS`); a client maps the name to its own icon and falls back to the generic icon of the option's category when the name is absent or unknown. The
 list's order is the driver's priority. The capabilities `permissions`, `interrupt` and `images` are not
 settings: they declare what the driver does.
 

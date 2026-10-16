@@ -282,6 +282,39 @@ describe('browser subscriptions', () => {
     expect(subscribed.ofType('session.output').map((m) => m.text)).toEqual(['hel', 'two']);
   });
 
+  it('tells every browser a setting the vendor changed on its own', async () => {
+    const { agent, browser } = await boot();
+    const owner = await agent('dev-a');
+    const watcher = await browser();
+    const mode = (current: string) => ({
+      type: 'select',
+      id: 'mode',
+      name: 'Permission mode',
+      category: 'mode',
+      currentValue: current,
+      options: [
+        { value: 'plan', name: 'Plan' },
+        { value: 'default', name: 'Manual' },
+      ],
+    });
+    const caps = (current: string) => ({ ...CAPS, config: [mode(current), ...CONFIG] });
+    owner.send(state('s1', 'waiting-permission', { capabilities: caps('plan') }));
+    await watcher.waitFor(
+      (m) => m.type === 'session.runtime' && m.state === 'waiting-permission',
+      'plan',
+    );
+    // Claude leaves plan mode itself: the agent reports the new value with the next state.
+    owner.send(state('s1', 'running', { capabilities: caps('default') }));
+    const changed = await watcher.waitFor(
+      (m) => m.type === 'session.runtime' && m.state === 'running',
+      'the new mode',
+    );
+    const config = (changed.capabilities as { config: { id: string; currentValue: unknown }[] })
+      .config;
+    expect(changed.sessionId).toBe('s1');
+    expect(config.find((o) => o.id === 'mode')?.currentValue).toBe('default');
+  });
+
   it('answers a subscription with the current state and the open permission requests', async () => {
     const { agent, browser } = await boot();
     const owner = await agent('dev-a');

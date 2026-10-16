@@ -161,7 +161,7 @@ func wireConfig(config []runtime.ConfigOption) []sync.ConfigOption {
 			CurrentValue: o.Current,
 		}
 		for _, v := range o.Options {
-			w.Options = append(w.Options, sync.ConfigValue{Value: v.Value, Name: v.Name, Description: v.Description, Risk: v.Risk})
+			w.Options = append(w.Options, sync.ConfigValue{Value: v.Value, Name: v.Name, Description: v.Description, Risk: v.Risk, Icon: v.Icon})
 		}
 		out = append(out, w)
 	}

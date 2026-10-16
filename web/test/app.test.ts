@@ -26,6 +26,18 @@ const caps = {
   config: [
     {
       type: 'select' as const,
+      id: 'mode',
+      name: 'Permission mode',
+      category: 'mode',
+      currentValue: 'default',
+      options: [
+        { value: 'default', name: 'Manual' },
+        { value: 'plan', name: 'Plan' },
+        { value: 'bypassPermissions', name: 'Bypass', risk: 'high' as const },
+      ],
+    },
+    {
+      type: 'select' as const,
       id: 'model',
       name: 'Model',
       category: 'model',
@@ -344,13 +356,35 @@ it('starts a session from a draft with the config its machine declares, then sel
   await click(q('cockpit.config.fast'));
   expect(q('cockpit.config.thinking')?.getAttribute('aria-checked')).toBe('true');
   expect(q('cockpit.config.fast')?.getAttribute('aria-checked')).toBe('true');
+  // The permission mode is its own pill; Shift+Tab in the field moves to the next mode and the pill follows.
+  expect(q('cockpit.mode')?.textContent).toBe('Manual');
+  const field = q('cockpit.composer-input') as HTMLElement;
+  const shiftTab = () =>
+    act(async () => {
+      field.dispatchEvent(
+        new KeyboardEvent('keydown', {
+          key: 'Tab',
+          shiftKey: true,
+          bubbles: true,
+          cancelable: true,
+        }),
+      );
+    });
+  await shiftTab();
+  expect(q('cockpit.mode')?.textContent).toBe('Plan');
+  await shiftTab();
+  expect(q('cockpit.mode')?.textContent).toBe('Bypass permissions');
+  expect(q('cockpit.mode')?.getAttribute('data-risk')).toBe('high');
+  await shiftTab();
+  expect(q('cockpit.mode')?.textContent).toBe('Manual');
+  await shiftTab();
   await type('build it');
   await click(q('cockpit.send'));
   expect(api.postNewSession).toHaveBeenCalledWith({
     deviceId: 'dev-mac',
     projectPath: '/repo/hoplet',
     provider: 'claude',
-    config: { model: 'haiku-5', fast: true },
+    config: { model: 'haiku-5', fast: true, mode: 'plan' },
     text: 'build it',
     attachments: [],
   });
