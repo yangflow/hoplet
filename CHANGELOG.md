@@ -4,6 +4,16 @@ Each release's notes are made from the titles of the pull requests merged since 
 Commits: `feat` under Added, `fix` under Fixed, `perf` under Performance; `release-please-config.json`).
 Versions follow Semantic Versioning.
 
+## [0.3.0](https://github.com/yangflow/hoplet/compare/v0.2.0...v0.3.0) (2026-10-16)
+
+
+### Added
+
+* Add the settings page ([#109](https://github.com/yangflow/hoplet/issues/109)) ([a3492b9](https://github.com/yangflow/hoplet/commit/a3492b9a43e72161048d20360e27f29312e5ca6d))
+* Complete commands, skills and file mentions in the composer ([#108](https://github.com/yangflow/hoplet/issues/108)) ([f9aa4a9](https://github.com/yangflow/hoplet/commit/f9aa4a93dd3abf44cf02dc62119365f51647f88b))
+* Queue or steer messages while a session is running ([#113](https://github.com/yangflow/hoplet/issues/113)) ([caf5c88](https://github.com/yangflow/hoplet/commit/caf5c888528475421e7b7fda22312e1d4673ed0f))
+* Review and approve a plan when Claude leaves Plan mode ([#111](https://github.com/yangflow/hoplet/issues/111)) ([74cd14c](https://github.com/yangflow/hoplet/commit/74cd14c44c465befe55b6a6317e2cb7cd8bcf91a))
+
 ## [0.2.0](https://github.com/yangflow/hoplet/compare/v0.1.2...v0.2.0) (2026-10-16)
 
 
