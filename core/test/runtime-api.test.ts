@@ -473,14 +473,14 @@ describe('commands and skills', () => {
     expect((fallback.body.commands as Msg[]).map((c) => c.name)).toContain('compact');
     expect((fallback.body.commands as Msg[]).map((c) => c.name)).not.toContain('clear');
 
-    owner.send({ type: 'session.commands', sessionId: 's1', cwd: '/work/app', commands: list });
+    owner.send({ type: 'runtime.commands', sessionId: 's1', cwd: '/work/app', commands: list });
     await watcher.waitFor(
-      (m) => m.type === 'session.commands.changed' && m.sessionId === 's1',
-      'session.commands.changed',
+      (m) => m.type === 'session.commands' && m.sessionId === 's1',
+      'session.commands',
     );
-    expect(watcher.ofType('session.commands.changed')[0]).toEqual({
+    expect(watcher.ofType('session.commands')[0]).toEqual({
       v: PROTOCOL_VERSION,
-      type: 'session.commands.changed',
+      type: 'session.commands',
       sessionId: 's1',
     });
     expect(await get('/api/sessions/s1/commands')).toEqual({
@@ -506,7 +506,7 @@ describe('commands and skills', () => {
     const { get, agent, store } = await boot();
     await agent('dev-a');
     const other = await agent('dev-b');
-    other.send({ type: 'session.commands', sessionId: 's1', cwd: '/x', commands: list });
+    other.send({ type: 'runtime.commands', sessionId: 's1', cwd: '/x', commands: list });
     await new Promise((r) => setTimeout(r, 100));
     expect((await get('/api/sessions/s1/commands')).body.source).toBe('builtin');
     expect(store.directoryCommands('dev-b', '/x')).toBeNull();

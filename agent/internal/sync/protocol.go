@@ -37,7 +37,7 @@ const (
 	TypeRuntimeOutput            = "runtime.output"
 	TypeRuntimePermission        = "runtime.permission"
 	TypeRuntimeRejected          = "runtime.rejected"
-	TypeSessionCommands          = "session.commands"
+	TypeRuntimeCommands          = "runtime.commands"
 	TypeSessionWorkspaceList     = "session.workspace.list"
 	TypeSessionWorkspace         = "session.workspace"
 	TypeSessionWorkspaceRejected = "session.workspace.rejected"
@@ -395,9 +395,9 @@ type Command struct {
 	Plugin       string `json:"plugin,omitempty"`
 }
 
-// SessionCommands is the complete list of commands and skills a running session offers, with the directory it
+// RuntimeCommands is the complete list of commands and skills a running session offers, with the directory it
 // runs in; it is sent whenever the list changes and again after a reconnect.
-type SessionCommands struct {
+type RuntimeCommands struct {
 	V         int       `json:"v"`
 	Type      string    `json:"type"`
 	SessionID string    `json:"sessionId"`

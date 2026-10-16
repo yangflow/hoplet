@@ -42,7 +42,7 @@ export function useCommands(
         ? onLive((e) => {
             if (
               e.kind === 'message' &&
-              e.msg.type === 'session.commands.changed' &&
+              e.msg.type === 'session.commands' &&
               e.msg.sessionId === target.sessionId
             ) {
               load();

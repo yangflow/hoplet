@@ -200,8 +200,8 @@ func wireMessage(ev runtime.Event) any {
 				Kind: c.Kind, Source: c.Source, Plugin: c.Plugin,
 			})
 		}
-		return sync.SessionCommands{
-			V: sync.ProtocolVersion, Type: sync.TypeSessionCommands, SessionID: ev.SessionID, Cwd: ev.Dir, Commands: list,
+		return sync.RuntimeCommands{
+			V: sync.ProtocolVersion, Type: sync.TypeRuntimeCommands, SessionID: ev.SessionID, Cwd: ev.Dir, Commands: list,
 		}
 	}
 	return nil

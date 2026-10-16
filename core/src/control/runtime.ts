@@ -67,7 +67,7 @@ export type Runtime = Pick<
           | 'runtime.output'
           | 'runtime.permission'
           | 'runtime.rejected'
-          | 'session.commands';
+          | 'runtime.commands';
       }
     >,
   ): void;
@@ -365,7 +365,7 @@ export function createRuntime(state: ControlState): Runtime {
         case 'runtime.rejected':
           rejectPrompt(msg.sessionId, msg.promptId, msg.reason);
           return;
-        case 'session.commands': {
+        case 'runtime.commands': {
           // Only counts are logged: descriptions come from files of the user's projects.
           state.commands.set(msg.sessionId, { deviceId, commands: msg.commands });
           store.putDirectoryCommands(deviceId, msg.cwd, msg.commands);
@@ -375,7 +375,7 @@ export function createRuntime(state: ControlState): Runtime {
           });
           state.publish({
             v: PROTOCOL_VERSION,
-            type: 'session.commands.changed',
+            type: 'session.commands',
             sessionId: msg.sessionId,
           });
           return;

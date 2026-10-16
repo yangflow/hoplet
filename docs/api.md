@@ -135,7 +135,7 @@ Behavior a client relies on:
   and skills a composer offers. `source` says where the list comes from: `session` (the owner reported it for that
   session), `directory` (the last list a session reported on that device in that directory) or `builtin` (the
   fixed set of built-in commands, when nothing was reported). Neither route asks the owner, so both answer while
-  it is offline. A `session.commands.changed` tells browsers to fetch the session's list again.
+  it is offline. A `session.commands` tells browsers to fetch the session's list again.
 - The snapshot routes read the latest stored workspace snapshot whether or not the owner is online. The
   `workspace` routes ask the owner and need it online.
 - `GET /api/devices/:deviceId/dirs` lists directories under the device's browse root and answers `invalid-request`
@@ -225,7 +225,7 @@ over REST.
 | `session.updated` | core → browser | control | `SessionUpdatedMessage` | The user renamed, pinned, unpinned, archived or restored a session. Carries the state after the change (`titleOverride`, `pinnedAt`, `archivedAt`; absent means cleared). Sent to every connection |
 | `device.presence` | core → browser | control | `DevicePresenceMessage` | A device connected or disconnected. Sent to every connection, followed by `session.runtime` for each session the connection is subscribed to |
 | `session.runtime` | core → browser | control | `SessionRuntimeMessage` | The runtime state of a session and its capabilities. Sent to every connection |
-| `session.commands.changed` | core → browser | control | `SessionCommandsChangedMessage` | The commands and skills of a session changed; fetch `GET /api/sessions/:sessionId/commands`. Sent to every connection |
+| `session.commands` | core → browser | control | `SessionCommandsMessage` | The commands and skills of a session changed; fetch `GET /api/sessions/:sessionId/commands`. Sent to every connection |
 | `session.output` | core → browser | control | `SessionOutputMessage` | Streamed content of the running turn: text, thinking, tool calls and results. Only to the connections subscribed to the session. Transient: the session's lines are the record |
 | `session.permission` | core → browser | control | `SessionPermissionMessage` | A tool wants permission; answer with `POST /api/sessions/:sessionId/permission`. Sent to every connection |
 | `handoff.progress` | core → browser | control | `HandoffProgressMessage` | A step of a handoff: `sent` of `total` bytes during `transfer`, the new `worktree` and `branch` on `done`, the `reason` on `failed`. Sent to every connection |

@@ -290,7 +290,7 @@ export const WIRE_MESSAGES = defineWire({
    * first become known and whenever they change (a file of the project or the user changed), and again after
    * a reconnect. At most `MAX_COMMANDS` entries, in the order clients show them.
    */
-  'session.commands': {
+  'runtime.commands': {
     lane: 'bulk',
     direction: 'device-to-core',
     fields: {
@@ -326,7 +326,7 @@ export const WIRE_MESSAGES = defineWire({
     },
   },
   /** The commands of a session changed; the browser reads `GET /api/sessions/:id/commands` again. */
-  'session.commands.changed': {
+  'session.commands': {
     lane: 'control',
     direction: 'core-to-web',
     fields: { sessionId },
@@ -709,8 +709,8 @@ export type RuntimeStateMsg = WireMessageOf<'runtime.state'>;
 export type RuntimeOutputMsg = WireMessageOf<'runtime.output'>;
 export type RuntimePermissionMsg = WireMessageOf<'runtime.permission'>;
 export type RuntimeRejected = WireMessageOf<'runtime.rejected'>;
+export type RuntimeCommands = WireMessageOf<'runtime.commands'>;
 export type SessionCommands = WireMessageOf<'session.commands'>;
-export type SessionCommandsChanged = WireMessageOf<'session.commands.changed'>;
 export type SubscribeMsg = WireMessageOf<'subscribe'>;
 export type UnsubscribeMsg = WireMessageOf<'unsubscribe'>;
 export type DevicePresence = WireMessageOf<'device.presence'>;
@@ -772,7 +772,7 @@ export const ClientMessageSchema = v.variant('type', [
   WIRE_MESSAGES['runtime.output'].schema,
   WIRE_MESSAGES['runtime.permission'].schema,
   WIRE_MESSAGES['runtime.rejected'].schema,
-  WIRE_MESSAGES['session.commands'].schema,
+  WIRE_MESSAGES['runtime.commands'].schema,
   WIRE_MESSAGES['runtime.started'].schema,
   WIRE_MESSAGES['runtime.start.rejected'].schema,
   WIRE_MESSAGES['session.workspace'].schema,

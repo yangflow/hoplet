@@ -373,10 +373,10 @@
       "schema": "SessionRuntimeMessage"
     },
     {
-      "type": "session.commands.changed",
+      "type": "session.commands",
       "direction": "core-to-web",
       "lane": "control",
-      "schema": "SessionCommandsChangedMessage"
+      "schema": "SessionCommandsMessage"
     },
     {
       "type": "session.output",
@@ -2202,14 +2202,14 @@
         "updatedAt"
       ]
     },
-    "SessionCommandsChangedMessage": {
+    "SessionCommandsMessage": {
       "type": "object",
       "properties": {
         "v": {
           "const": 5
         },
         "type": {
-          "const": "session.commands.changed"
+          "const": "session.commands"
         },
         "sessionId": {
           "type": "string",
