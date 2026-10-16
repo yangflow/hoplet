@@ -64,6 +64,13 @@ export function attachBrowserSocket(server: Server, control: Control, tickets: T
   const alive = new Map<WebSocket, boolean>();
   const subscriptions = new Map<WebSocket, Set<string>>();
 
+  /** Forgets a socket: its subscriptions no longer count as sessions open in a tab (ADR 0021). */
+  function drop(ws: WebSocket): void {
+    for (const sessionId of subscriptions.get(ws) ?? []) control.viewing.remove(sessionId);
+    alive.delete(ws);
+    subscriptions.delete(ws);
+  }
+
   function reply(ws: WebSocket, msg: ServerMessage): void {
     sendToBrowser(ws, JSON.stringify(msg));
   }
@@ -114,14 +121,17 @@ export function attachBrowserSocket(server: Server, control: Control, tickets: T
     const subscribed = subscriptions.get(ws) ?? new Set<string>();
     subscriptions.set(ws, subscribed);
     if (msg.type === 'unsubscribe') {
-      subscribed.delete(msg.sessionId);
+      if (subscribed.delete(msg.sessionId)) control.viewing.remove(msg.sessionId);
       return;
     }
     if (!subscribed.has(msg.sessionId) && subscribed.size >= MAX_SUBSCRIPTIONS) {
       replyError(ws, 'too-large', 'too many subscriptions');
       return;
     }
-    subscribed.add(msg.sessionId);
+    if (!subscribed.has(msg.sessionId)) {
+      subscribed.add(msg.sessionId);
+      control.viewing.add(msg.sessionId);
+    }
     snapshot(ws, msg.sessionId);
   }
 
@@ -143,12 +153,8 @@ export function attachBrowserSocket(server: Server, control: Control, tickets: T
     ws.on('message', (data, isBinary) => {
       if (!isBinary) handleMessage(ws, data.toString());
     });
-    const forget = () => {
-      alive.delete(ws);
-      subscriptions.delete(ws);
-    };
-    ws.on('close', forget);
-    ws.on('error', forget);
+    ws.on('close', () => drop(ws));
+    ws.on('error', () => drop(ws));
   });
 
   control.subscribe((event: ServerMessage) => {
@@ -168,8 +174,7 @@ export function attachBrowserSocket(server: Server, control: Control, tickets: T
     for (const [ws, isAlive] of alive) {
       if (!isAlive) {
         ws.terminate();
-        alive.delete(ws);
-        subscriptions.delete(ws);
+        drop(ws);
         continue;
       }
       alive.set(ws, false);

@@ -12,6 +12,7 @@ import type { OpenPermission, RuntimeEntry } from './runtime.ts';
 import type {
   AttachmentOutcome,
   CloneOutcome,
+  ControlEvent,
   DeviceControlOutcome,
   DeviceLink,
   DirsOutcome,
@@ -60,6 +61,8 @@ export interface ControlState {
   /** Hands an event for the browsers to whoever subscribed. */
   publish: (msg: ServerMessage) => void;
   now: () => number;
+  /** Hands a moment that may notify to whoever listens. */
+  emit: (event: ControlEvent) => void;
   /** Set once the queue exists: a session's runtime state changed (ADR 0020). */
   runtimeChanged: (sessionId: string, state: AgentRuntimeState, error?: string) => void;
   pendingWs: Map<string, Waiter<WorkspaceOutcome>>;

@@ -20,6 +20,7 @@ const screens = {
   cockpit: stateNames('cockpit'),
   workspace: stateNames('workspace'),
   settings: stateNames('settings'),
+  action: stateNames('action'),
 };
 
 // What each state shows that axe must have seen: a state that lost its subject would pass for nothing.
@@ -115,13 +116,29 @@ const subject: Record<string, Record<string, string>> = {
     mint: 'settings.mint.config',
     'mint-waiting': 'settings.mint.waiting',
     'mint-online': 'settings.mint.online',
+    'settings-notify': 'settings.notify.presets',
+    'settings-notify-overrides': 'settings.notify.event.permission',
+    'settings-notify-off': 'settings.notify.push',
+    'settings-notify-blocked': 'settings.notify.blocked',
+    'notify-hook': 'settings.notify.hook.events',
+    'notify-hook-new': 'settings.notify.hook.events',
+  },
+  action: {
+    confirm: 'action.card',
+    'confirm-plan': 'action.card',
+    'confirm-answered': 'action.answered',
+    'confirm-expired': 'action.expired',
+    'confirm-used': 'action.used',
+    'confirm-webui': 'action.webui',
+    'hint-blocked': 'notify.hint',
   },
 };
 
-test('the registries list 64 cockpit, 26 workspace and 7 settings states', () => {
+test('the registries list 64 cockpit, 26 workspace, 13 settings and 7 action states', () => {
   expect(screens.cockpit).toHaveLength(64);
   expect(screens.workspace).toHaveLength(26);
-  expect(screens.settings).toHaveLength(7);
+  expect(screens.settings).toHaveLength(13);
+  expect(screens.action).toHaveLength(7);
 });
 
 for (const [screen, names] of Object.entries(screens)) {

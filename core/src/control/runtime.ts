@@ -351,6 +351,7 @@ export function createRuntime(state: ControlState): Runtime {
       }
       switch (msg.type) {
         case 'runtime.state': {
+          const before = runtime.get(msg.sessionId)?.state;
           runtime.set(msg.sessionId, {
             deviceId,
             state: msg.state,
@@ -361,6 +362,9 @@ export function createRuntime(state: ControlState): Runtime {
           if (msg.state === 'starting' || msg.state === 'running') acceptPrompt(msg.sessionId);
           publishRuntime(msg.sessionId);
           state.runtimeChanged(msg.sessionId, msg.state, msg.error);
+          if (msg.state === 'ready' && (before === 'running' || before === 'waiting-permission')) {
+            state.emit({ kind: 'turn-done', sessionId: msg.sessionId });
+          }
           return;
         }
         case 'runtime.output': {
@@ -380,6 +384,15 @@ export function createRuntime(state: ControlState): Runtime {
           });
           const { type: _type, v: _v, ...rest } = msg;
           state.publish({ v: PROTOCOL_VERSION, type: 'session.permission', ...rest });
+          state.emit({
+            kind: 'permission',
+            sessionId: msg.sessionId,
+            requestId: msg.requestId,
+            tool: msg.tool,
+            input: msg.input,
+            plan: msg.planExit !== undefined,
+            ...(msg.planExit === undefined ? { expiresAt: state.now() + PERMISSION_OPEN_MS } : {}),
+          });
           return;
         }
         case 'runtime.rejected': {

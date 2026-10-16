@@ -10,7 +10,7 @@ describe('the route table', () => {
 
   it('gives every route authentication and a response schema, and every body a limit', () => {
     for (const r of routes) {
-      expect(r.auth, r.path).toBe('host');
+      expect(r.auth, r.path).toBe(r.path.startsWith('/api/action/') ? 'token' : 'host');
       expect(r.response, r.path).toBeDefined();
       if (r.body) expect(r.bodyLimit, r.path).toBeGreaterThan(0);
       if (r.method === 'GET') expect(r.body, r.path).toBeUndefined();

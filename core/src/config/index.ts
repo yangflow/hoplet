@@ -6,6 +6,8 @@ export interface Config {
   dataDir: string;
   token: string;
   webDir: string | null;
+  /** The address the core is reached at from outside, for action links; null when none is set. */
+  publicUrl?: string | null;
 }
 
 export function loadConfig(): Config {
@@ -13,12 +15,27 @@ export function loadConfig(): Config {
   const dataDir = process.env.HOPLET_DATA ?? './data';
   const token = process.env.HOPLET_TOKEN ?? '';
   const webDir = process.env.HOPLET_WEB_DIR || null;
+  const publicUrl = parsePublicUrl(process.env.HOPLET_PUBLIC_URL);
   if (!token) {
     log('error', 'config', 'HOPLET_TOKEN is not set; refusing to start');
     process.exit(1);
   }
   registerSecret(token);
-  return { port, dataDir, token, webDir };
+  return { port, dataDir, token, webDir, publicUrl };
+}
+
+/** An http(s) origin and path without a trailing slash, or null (and a warning) for anything else. */
+export function parsePublicUrl(value: string | undefined): string | null {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') throw new Error('scheme');
+    if (url.username || url.password || url.search || url.hash) throw new Error('parts');
+    return `${url.origin}${url.pathname.replace(/\/+$/, '')}`;
+  } catch {
+    log('warn', 'config', 'HOPLET_PUBLIC_URL is not an http(s) URL; action links are off');
+    return null;
+  }
 }
 
 const digest = (value: string): Buffer => createHash('sha256').update(value).digest();

@@ -7,17 +7,20 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { type GenericSchema, type InferOutput, safeParse } from '@hoplet/shared';
 import { BulkBusyError, type Control } from '../control/index.ts';
 import { log } from '../log/index.ts';
+import type { Notify } from '../notify/index.ts';
 import type { Store } from '../store/index.ts';
 import { ApiError, fail, json, readBody } from './http.ts';
+import { createRateLimiter } from './ratelimit.ts';
 import type { Tickets } from './tickets.ts';
 
-export type Method = 'GET' | 'POST' | 'PATCH' | 'DELETE';
+export type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
 /** What a handler may use besides the request: the modules api is allowed to call. */
 export interface ApiDeps {
   store: Store;
   control: Control;
   tickets: Tickets;
+  notify: Notify;
 }
 
 type Parsed<S> = S extends GenericSchema ? InferOutput<S> : undefined;
@@ -36,8 +39,11 @@ export interface RouteSpec<
   method: Method;
   /** `/api/...` with `:name` segments for path parameters. */
   path: string;
-  /** `host`: the host token is required. */
-  auth: 'host';
+  /**
+   * `host`: the host token is required. `token`: the request carries its own credential, a signed action token
+   * in the body (ADR 0021); the route is rate limited and must check the token itself.
+   */
+  auth: 'host' | 'token';
   /**
    * `control` runs the handler on arrival. `bulk` runs it through the bulk queue (control/bulk.ts), so
    * it never delays a control request and a flood of it is refused with `busy`.
@@ -59,7 +65,7 @@ export interface RouteSpec<
 export interface Route {
   method: Method;
   path: string;
-  auth: 'host';
+  auth: 'host' | 'token';
   lane: 'control' | 'bulk';
   bodyLimit: number;
   query: GenericSchema | undefined;
@@ -102,7 +108,13 @@ export interface RouterOptions extends ApiDeps {
   routes: readonly Route[];
   /** Whether the request carries the host token. */
   hostAuthorized(req: IncomingMessage): boolean;
+  /** The clock of the rate limit of `token` routes. */
+  now?: () => number;
 }
+
+/** Requests per minute a `token` route answers: one address, and all addresses together. */
+const TOKEN_ROUTE_PER_ADDRESS = 30;
+const TOKEN_ROUTE_TOTAL = 300;
 
 export interface Router {
   /** Answers a request under `/api/`. */
@@ -115,7 +127,10 @@ export function createRouter(options: RouterOptions): Router {
     store: options.store,
     control: options.control,
     tickets: options.tickets,
+    notify: options.notify,
   };
+  const perAddress = createRateLimiter(TOKEN_ROUTE_PER_ADDRESS, 60_000, options.now);
+  const total = createRateLimiter(TOKEN_ROUTE_TOTAL, 60_000, options.now);
 
   return {
     async handle(req, res, url) {
@@ -124,10 +139,19 @@ export function createRouter(options: RouterOptions): Router {
       const method = req.method ?? 'GET';
       const onPath = routes.filter((r) => r.pattern.test(pathname));
       const route = onPath.find((r) => r.method === method);
-      // Every /api path needs the host token, known or not, so the answer never maps the routes.
-      if (!hostAuthorized(req)) {
+      // Every /api path needs the host token, known or not, so the answer never maps the routes; a `token`
+      // route is the exception and answers to its own credential.
+      if (route?.auth !== 'token' && !hostAuthorized(req)) {
         fail(res, 'unauthorized');
         return;
+      }
+      if (route?.auth === 'token') {
+        const address = req.socket.remoteAddress ?? 'unknown';
+        if (!perAddress.allow(address) || !total.allow('all')) {
+          res.setHeader('retry-after', '60');
+          fail(res, 'rate-limited');
+          return;
+        }
       }
       if (!route) {
         if (onPath.length === 0) {

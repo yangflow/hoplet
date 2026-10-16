@@ -1,0 +1,146 @@
+/* The action page (ADR 0021, design/screens/action.html): one centred card, readable at phone width. */
+.cfw {
+  min-height: 100%;
+  display: grid;
+  place-items: center;
+  padding: var(--space-4);
+  background: var(--color-bg);
+}
+.cf {
+  width: 440px;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.cf .brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-2);
+  font-weight: var(--weight-medium);
+}
+.cf .brand .app {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  background: var(--color-accent);
+  display: grid;
+  place-items: center;
+}
+.cf .card {
+  padding: var(--space-5);
+  border-radius: var(--radius-lg);
+  background: var(--color-raised);
+  box-shadow: var(--shadow-live);
+}
+.cf .body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.cf .card h1 {
+  margin: 0;
+  font-size: var(--text-title);
+  line-height: var(--leading-title);
+  font-weight: var(--weight-semibold);
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+.cf .card h1 svg {
+  flex: none;
+}
+.cf .ctx {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: var(--space-1) var(--space-3);
+  margin: 0;
+  color: var(--color-text-2);
+}
+.cf .ctx dt {
+  color: var(--color-text-2);
+}
+.cf .ctx dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.cf .cmd {
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  box-shadow: inset 0 0 0 1px var(--color-line);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 40vh;
+  overflow: auto;
+}
+.cf .tool {
+  color: var(--color-text-2);
+  font-size: var(--text-meta);
+}
+.cf .plan {
+  max-height: 40vh;
+  overflow: auto;
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  box-shadow: inset 0 0 0 1px var(--color-line);
+}
+.cf .acts {
+  display: flex;
+  gap: var(--space-2);
+}
+.cf .acts .btn {
+  flex: 1;
+  justify-content: center;
+  height: 36px;
+}
+.cf .foot {
+  color: var(--color-text-2);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  justify-content: space-between;
+}
+.cf .foot .when {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.cf .msg {
+  color: var(--color-text-2);
+  margin: 0;
+}
+.cf .att-ic {
+  color: var(--color-attention-text);
+  display: inline-flex;
+}
+.cf .bad-ic {
+  color: var(--color-del-text);
+  display: inline-flex;
+}
+.cf .ok-ic {
+  color: var(--color-success);
+  display: inline-flex;
+}
+@media (max-width: 480px) {
+  .cfw {
+    place-items: start center;
+    padding: var(--space-3);
+  }
+  .cf .card {
+    padding: var(--space-4);
+  }
+  .cf .acts.two .btn {
+    height: 44px;
+  }
+}
+
+/* The in-page hint on the states route sits in a frame the width of the cockpit column. */
+.hint-demo {
+  width: 420px;
+  max-width: 100%;
+  padding: var(--space-4);
+}

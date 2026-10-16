@@ -207,8 +207,47 @@ export type CloneOutcome =
   | { ok: true; path: string | null }
   | { ok: false; error: 'target-offline' | 'timeout' };
 
+/**
+ * A moment a user may want to hear about (ADR 0021). A `permission` event is a request that waits for an answer;
+ * `expiresAt` is when it is denied, absent for a plan review, which never expires. A `turn-done` event is a turn
+ * that went from running to ready. A `failure` is a session start or a handoff that did not complete; a
+ * session that failed to start has no ID.
+ */
+export type ControlEvent =
+  | {
+      kind: 'permission';
+      sessionId: string;
+      requestId: string;
+      tool: string;
+      input: unknown;
+      plan: boolean;
+      expiresAt?: number;
+    }
+  | { kind: 'turn-done'; sessionId: string }
+  | {
+      kind: 'failure';
+      source: 'start' | 'handoff';
+      sessionId?: string;
+      projectPath?: string;
+      error: string;
+    };
+
+/** The browser WebSockets that have a session open (ADR 0021). */
+export interface Viewing {
+  /** A browser subscribed to the session. */
+  add(sessionId: string): void;
+  /** A browser unsubscribed, or its socket closed. */
+  remove(sessionId: string): void;
+  /** Whether at least one browser is subscribed to the session. */
+  isOpen(sessionId: string): boolean;
+}
+
 /** What the REST API asks of control. */
 export interface Control {
+  /** Calls `listener` with every moment that may notify; returns the unsubscribe. */
+  onEvent(listener: (event: ControlEvent) => void): () => void;
+  /** Which sessions browsers have open; the API keeps it current from its sockets. */
+  readonly viewing: Viewing;
   /** The bulk queue: history pages and searches run through it; control requests never do. */
   readonly bulk: BulkQueue;
   /** Calls `listener` with every event agents cause that browsers show (`session.appended`); returns the unsubscribe. */

@@ -205,6 +205,12 @@ list at its left grows with later sections; the sections are:
 - **Machines**: every device with its presence and last connection, and Add a machine: mint a device token,
   copy a ready agent configuration, and wait until that agent is connected.
 
+- **Notifications**: a preset (Needs me, Needs me and done, Everything, Off) with an override of the channels per
+  event and per project, quiet hours in a time zone of the user's choice, the browsers subscribed to Web Push
+  (subscribe this browser, a label, remove), and the webhooks (URL, optional signing secret, the events it
+  receives, enable, test, the
+  status of the last delivery). Preferences live in the core, not in the browser.
+
 Memory and model providers are later sections (#18, #16).
 
 ### Host CLI
@@ -372,7 +378,8 @@ does the same within one session. Search runs as background work and never delay
    provider's mapping as in a stored `tool-call`.
 4. A permission request becomes `waiting-permission` and `session.permission` with `requestId`, tool, `toolKind`
    and input. `POST /api/sessions/:id/permission` with `{ requestId, decision: "allow" | "deny" }` answers it; the
-   first answer wins. A request without an answer for 10 minutes is denied. A denied tool call returns an
+   first answer wins. A request without an answer for 10 minutes is denied; a plan to review (ADR 0019) is not and
+   stays open. A denied tool call returns an
    error to Claude Code and the turn continues.
 5. `POST /api/sessions/:id/interrupt` ends the turn and keeps the process (`ready`);
    `POST /api/sessions/:id/stop` ends the process (`idle`).
@@ -385,6 +392,33 @@ After every turn the agent records the session file's size. When the file grows 
 Hoplet process runs for the session, the state is `external`: the agent stops its process for the session, and
 a prompt is refused until the file has not grown for 60 seconds. When the owner disconnects, its runtime states become `offline`;
 when it reconnects, it reports the state of every process it still runs.
+
+### Notifications
+
+The core tells the user when a session needs them, so a turn does not wait unseen (ADR 0021).
+
+- **Events**: a permission request (`permission`), a plan to review (`plan`), a finished turn (`turn-done`) and
+  a failure (`failure`: a session that failed to start, or a handoff that failed; a refused or cancelled handoff
+  is not one). A finished turn is not sent while a browser has the session open.
+- **Which events go out**: the preset decides (Needs me: permission, plan and failure; Needs me and done adds
+  turn-done; Everything the same events on every channel; Off none), then the overrides of the event, then those
+  of the project. An override names the channels of an event, none turns it off. Quiet hours hold back turn-done
+  and failure but never the events that need the user (permission and plan).
+- **Channels**: Web Push to the subscribed browsers and a JSON `POST` to each enabled webhook, signed with
+  `X-Hoplet-Signature: sha256=<hex>` when the webhook has a secret. A webhook receives an event only when the
+  preferences route it to the webhook channel and the event is one of the webhook's own events (permission, plan
+  and failure unless chosen otherwise). A native client is a third channel that is
+  not sent yet. Each send runs apart from the event that caused it, waits at most 5 seconds and is retried once
+  after a network error, a timeout or a 5xx answer; a push service that answers 404 or 410 loses its
+  subscription. The last delivery of each subscription and webhook is kept and shown.
+- **Content**: the kind, the project's name, the session title and, for a permission, the tool and its command
+  or path redacted (tokens, keys, URL credentials) and cut to 80 characters. Never the prompt, a file or a diff.
+- **Action links**: a permission or plan notification carries a link, `<public URL>/a#<token>`, to a page that
+  shows the request and offers Allow and Deny without the host token. The token is signed, bound to one request
+  and session, decides once, and lasts as long as the request but at most 10 minutes; a plan lasts 10 minutes and
+  is approved with its default mode. A Bash command with the word `rm`, `sudo` or `git push`, a Write or Edit
+  outside the project, every MCP tool and a request whose input is not recognised show `webui-only` and are
+  answered in the web UI. This list catches slips, not an attacker: the link token is the boundary. Without a configured public URL, notifications carry no link.
 
 ### New session
 

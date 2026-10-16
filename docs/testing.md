@@ -11,7 +11,7 @@ together with the end-to-end tests below and a check of the links between the re
 
 Playwright (`web/e2e/`, Chromium) runs in two modes, both part of the image job:
 
-- `pnpm e2e` starts the Vite dev server and opens every `/__states/<screen>/<state>` (cockpit, workspace and settings) in both colour schemes.
+- `pnpm e2e` starts the Vite dev server and opens every `/__states/<screen>/<state>` (cockpit, workspace, settings and the action page) in both colour schemes.
   axe-core runs with its full rule set, colour contrast included, and any violation fails the test.
 - `pnpm e2e:image` runs against the built image: the core in a container with the compose file's isolation, real
   agents built from the current source on the host, and generated fixture sessions. An agent's `claude_bin` is the

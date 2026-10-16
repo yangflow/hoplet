@@ -356,6 +356,7 @@ describe('wire contract', () => {
       'session.output',
       'session.permission',
       'handoff.progress',
+      'notify',
     ]);
     const inUnion = ClientMessageSchema.options.map((option) => option.entries.type.literal).sort();
     expect(inUnion).toEqual([...wireTypes('device-to-core')].sort());

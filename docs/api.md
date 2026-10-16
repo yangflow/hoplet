@@ -54,8 +54,9 @@ curl -s -X POST -H "Authorization: Bearer $HOPLET_TOKEN" "$HOPLET_URL/api/ws-tic
 
 ## REST routes
 
-Auth is `host` for every route: the host token as `Authorization: Bearer`. There is no unauthenticated route
-under `/api/`. The Query and Body columns name the schema of the query string and of the JSON body; the
+Auth is `host` for every route but the two action routes: the host token as `Authorization: Bearer`. The action
+routes (`token`) take no header; the signed action token in the body is the credential
+([Notifications](#notifications)). No route is open without one of the two. The Query and Body columns name the schema of the query string and of the JSON body; the
 Response column names the schema of the success body and its status when it is not `200`.
 
 | Method | Path | Auth | Lane | Query | Body | Response | Errors |
@@ -102,6 +103,20 @@ Response column names the schema of the success body and its status when it is n
 | POST | `/api/devices/:deviceId/projects/remove` | host | control | — | `DeviceProjectsRemoveRequestSchema` | `DeviceProjectsResultSchema` | `invalid-json`, `invalid-request`, `too-large`, `owner-offline`, `timeout`, `rejected`, `cancelled` |
 | POST | `/api/devices/:deviceId/sessions/import` | host | control | — | `DeviceSessionsImportRequestSchema` | `DeviceProjectsResultSchema` | `invalid-json`, `invalid-request`, `too-large`, `owner-offline`, `timeout`, `rejected`, `cancelled` |
 | POST | `/api/devices/:deviceId/sessions/remove` | host | control | — | `DeviceSessionsRemoveRequestSchema` | `DeviceProjectsResultSchema` | `invalid-json`, `invalid-request`, `too-large`, `owner-offline`, `timeout`, `rejected`, `cancelled` |
+| GET | `/api/notify/preferences` | host | control | — | — | `NotifyPreferencesSchema` | — |
+| PUT | `/api/notify/preferences` | host | control | — | `NotifyPreferencesSchema` | `NotifyPreferencesSchema` | `invalid-json`, `invalid-request`, `too-large` |
+| GET | `/api/notify/push/key` | host | control | — | — | `PushKeyResponseSchema` | — |
+| GET | `/api/notify/push/subscriptions` | host | control | — | — | `PushSubscriptionListResponseSchema` | — |
+| POST | `/api/notify/push/subscriptions` | host | control | — | `PushSubscribeRequestSchema` | `PushSubscriptionInfoSchema`, 201 | `invalid-json`, `invalid-request`, `too-large` |
+| DELETE | `/api/notify/push/subscriptions/:id` | host | control | — | — | `PushSubscriptionListResponseSchema` | `not-found` |
+| POST | `/api/notify/push/unsubscribe` | host | control | — | `PushUnsubscribeRequestSchema` | `PushSubscriptionListResponseSchema` | `invalid-json`, `invalid-request`, `too-large` |
+| GET | `/api/notify/webhooks` | host | control | — | — | `WebhookListResponseSchema` | — |
+| POST | `/api/notify/webhooks` | host | control | — | `WebhookCreateRequestSchema` | `WebhookInfoSchema`, 201 | `invalid-json`, `invalid-request`, `too-large` |
+| PATCH | `/api/notify/webhooks/:id` | host | control | — | `WebhookUpdateRequestSchema` | `WebhookInfoSchema` | `invalid-json`, `invalid-request`, `too-large`, `not-found` |
+| DELETE | `/api/notify/webhooks/:id` | host | control | — | — | `WebhookListResponseSchema` | `not-found` |
+| POST | `/api/notify/webhooks/:id/test` | host | control | — | — | `WebhookTestResponseSchema` | `not-found` |
+| POST | `/api/action/inspect` | token | control | — | `ActionInspectRequestSchema` | `ActionInspectResponseSchema` | `invalid-json`, `invalid-request`, `too-large`, `invalid-token`, `rate-limited` |
+| POST | `/api/action/decide` | token | control | — | `ActionDecideRequestSchema` | `ActionDecideResponseSchema` | `invalid-json`, `invalid-request`, `too-large`, `invalid-token`, `owner-offline`, `rate-limited` |
 
 Behavior a client relies on:
 
@@ -148,6 +163,24 @@ Behavior a client relies on:
   `GET /api/devices/:deviceId/projects` carries the `branch` checked out there, read from its git `HEAD` (the
   commit's first 7 hex digits when detached), and none outside a repository.
 - `POST /api/sessions/:sessionId/permission` answers a `session.permission` request; the first answer wins. A refusal may carry `message`, its reason told to the model. A request with `planExit` (ADR 0019) is a plan to review: an approval may carry `mode`, one of `planExit.modes`, which the session switches to (another value is `invalid-request` and the request stays open), and a plan request never expires on its own.
+- `GET /api/notify/push/key` returns the VAPID public key (unpadded base64url), the `applicationServerKey` for
+  `pushManager.subscribe`. A subscription is stored by its endpoint, so subscribing again updates it. A listed
+  subscription shows only the host of its push service (`service`), never the endpoint. A webhook is listed with
+  `hasSecret`; its secret is write-only and `secret: null` in a PATCH removes it. A webhook has its own `events`, a
+  non-empty list of `permission`, `plan`, `turn-done` and `failure`, each at most once (`invalid-request`
+  otherwise); a create without `events` gets `permission`, `plan` and `failure`, and the list is returned in that
+  order. At most 50 subscriptions,
+  20 webhooks and 200 projects in the preferences (`too-large` beyond). `POST /api/notify/webhooks/:id/test`
+  sends a test payload and returns the webhook with its `lastDelivery`.
+- `POST /api/action/inspect` and `POST /api/action/decide` are the only routes without the host token. The
+  token comes from the fragment of an action link (`<public URL>/a#<token>`); a token that is malformed, forged
+  or from before the secrets were rotated is `invalid-token`. Both routes are rate limited per address and in
+  total (`rate-limited`, `Retry-After: 60`). `state` of `inspect` is `open`, `answered` (another window or
+  device decided, or the request closed), `expired`, `used` (the link already decided) or `webui-only`
+  (a request that only the web UI may approve); `decide` returns `decided` when this call answered, or the
+  state that kept it from answering, with status `200`. A `webui-only` or `owner-offline` result does not use up
+  the link. The answer goes through the same path as `POST /api/sessions/:sessionId/permission`; approving
+  a plan uses the plan's default mode.
 - `POST /api/sessions/:sessionId/handoff` answers when the handoff is over, naming the new worktree and branch;
   `handoff.progress` reports its steps meanwhile. A failed handoff leaves the owner and the cursor where they were.
   Before one, `GET /api/devices/:deviceId/clone?origin=` with the `origin` of the workspace listing or the snapshot
@@ -204,6 +237,8 @@ archived sessions too; the client decides what to show.
 | Code | HTTP status | Meaning |
 |---|---|---|
 | `unauthorized` | 401 | The host token is missing or wrong |
+| `invalid-token` | 400 | The action token is malformed, was not signed by this core or does not match any request |
+| `rate-limited` | 429 | Too many requests to the action routes; retry after `Retry-After` seconds |
 | `not-found` | 404 | No route serves the path, or the block or path asked for does not exist |
 | `method-not-allowed` | 405 | The path exists for another method; `Allow` lists them |
 | `session-not-found` | 404 | No session has this ID |
@@ -258,7 +293,20 @@ over REST.
 | `session.output` | core → browser | control | `SessionOutputMessage` | Streamed content of the running turn: text, thinking, tool calls and results. Only to the connections subscribed to the session. Transient: the session's lines are the record |
 | `session.permission` | core → browser | control | `SessionPermissionMessage` | A tool wants permission; answer with `POST /api/sessions/:sessionId/permission`. `planExit` (`plan`, `planFile`, `option`, `modes`, `default`) marks a request to leave a plan. Sent to every connection |
 | `handoff.progress` | core → browser | control | `HandoffProgressMessage` | A step of a handoff: `sent` of `total` bytes during `transfer`, the new `worktree` and `branch` on `done`, the `reason` on `failed`. Sent to every connection |
+| `notify` | core → browser | control | `NotifyMessage` | A notification (`kind`, `sessionId`, `project`, `title`, `tool`, `summary`, `requestId`, `reason`, `link`) for a native client that is connected. Defined for native clients and not sent by the core yet; the payload is the one of every channel ([Notifications](#notifications)) |
 | `error` | core → browser | control | `ErrorMessage` | The core could not take a message from the client; `code` says why |
+
+## Notifications
+
+The core notifies on Web Push, on webhooks and, later, on connected native clients (ADR 0021). The events are
+`permission`, `plan`, `turn-done` (only when no browser has the session open) and `failure` (a session that
+failed to start or a handoff that failed). The payload (`NotifyPayloadSchema`) carries the kind, the session,
+the project's name, the session title and, for a permission request, the tool and its command or path redacted
+and cut to 80 characters. It never carries the prompt, file contents or a diff. A webhook receives it as a JSON
+`POST` with `X-Hoplet-Signature: sha256=<hex>`, the HMAC-SHA-256 of the body under the webhook's secret, when it
+has one. A permission or plan payload carries `link`, the action link `<public URL>/a#<token>`, when the core
+knows its public URL (docs/hosting.md#public-url). The token is signed by the core, bound to one request and
+session, valid for the request's remaining time but at most 10 minutes (a plan: 10 minutes), and decides once.
 
 ## JSON Schema
 

@@ -27,6 +27,7 @@ record and mark the old one "superseded by NNNN".
 | [0018](0018-session-settings-are-config-options.md) | Session settings are config options | accepted |
 | [0019](0019-a-plan-exit-is-declared-by-the-driver.md) | A plan exit is declared by the driver | accepted |
 | [0020](0020-queued-and-steered-messages.md) | Queued and steered messages | accepted |
+| [0021](0021-notifications-and-signed-action-links.md) | Notifications and signed action links | accepted |
 | [0022](0022-the-mac-client-is-native-appkit-with-the-agent-bundled.md) | The Mac client is native AppKit with the agent bundled | proposed |
 
 ## Record template

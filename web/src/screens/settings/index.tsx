@@ -8,6 +8,7 @@ import '../cockpit/conversation/conversation.css';
 import './settings.css';
 import { AppearanceSection } from './appearance.tsx';
 import { type MachinesFixture, MachinesSection } from './machines.tsx';
+import { NotificationsSection, type NotifyFixture } from './notifications.tsx';
 import type { Appearance } from './prefs.ts';
 
 /**
@@ -17,6 +18,7 @@ import type { Appearance } from './prefs.ts';
 export const SECTIONS = [
   { id: 'appearance', label: 'Appearance', icon: () => Icon.contrast() },
   { id: 'machines', label: 'Machines', icon: () => Icon.laptop() },
+  { id: 'notifications', label: 'Notifications', icon: () => Icon.bell() },
 ] as const;
 
 export type SectionId = (typeof SECTIONS)[number]['id'];
@@ -31,12 +33,15 @@ function Page(props: {
   appearance: Appearance;
   onAppearance: (change: Partial<Appearance>) => void;
   machines: MachinesFixture | undefined;
+  notify: NotifyFixture | undefined;
 }): ReactNode {
   switch (props.section) {
     case 'appearance':
       return <AppearanceSection appearance={props.appearance} onChange={props.onAppearance} />;
     case 'machines':
       return <MachinesSection {...(props.machines ? { fixture: props.machines } : {})} />;
+    case 'notifications':
+      return <NotificationsSection {...(props.notify ? { fixture: props.notify } : {})} />;
   }
 }
 
@@ -48,6 +53,7 @@ export function Settings(props: {
   appearance: Appearance;
   onAppearance: (change: Partial<Appearance>) => void;
   machines?: MachinesFixture;
+  notify?: NotifyFixture;
 }) {
   const { onBack } = props;
   const title = useRef<HTMLSpanElement>(null);
@@ -96,6 +102,7 @@ export function Settings(props: {
                 appearance={props.appearance}
                 onAppearance={props.onAppearance}
                 machines={props.machines}
+                notify={props.notify}
               />
             </div>
           </div>

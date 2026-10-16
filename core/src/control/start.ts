@@ -121,8 +121,11 @@ export function createStart(state: ControlState, listProjects: Control['listProj
       const cached = startCache.get(req.promptId);
       if (cached) return cached.outcome;
 
+      const failed = (error: string): void =>
+        state.emit({ kind: 'failure', source: 'start', projectPath: req.projectPath, error });
       const link = onlineLink(state, req.deviceId);
       if (!link) {
+        failed('target-offline');
         return Promise.resolve({ ok: false, error: 'target-offline', promptId: req.promptId });
       }
       const outcome = run(req, link);
@@ -130,6 +133,8 @@ export function createStart(state: ControlState, listProjects: Control['listProj
       // Only a result that may have reached the agent is repeated; a refusal can be retried.
       void outcome.then((result) => {
         if (!result.ok && result.error !== 'timeout') startCache.delete(req.promptId);
+        // A request the core refused as invalid is the caller's mistake, not a failure to tell about.
+        if (!result.ok && result.error !== 'invalid-request') failed(result.error);
       });
       return outcome;
     },

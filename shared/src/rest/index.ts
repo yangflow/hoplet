@@ -1,6 +1,7 @@
 export * from './auth.ts';
 export * from './common.ts';
 export * from './devices.ts';
+export * from './notify.ts';
 export * from './queue.ts';
 export * from './runtime.ts';
 export * from './sessions.ts';
