@@ -1,9 +1,11 @@
-import type {
-  NotifyChannel,
-  NotifyEventKind,
-  NotifyPreferences,
-  NotifyPreset,
-  WebhookInfo,
+import {
+  DEFAULT_WEBHOOK_EVENTS,
+  NOTIFY_EVENT_KINDS,
+  type NotifyChannel,
+  type NotifyEventKind,
+  type NotifyPreferences,
+  type NotifyPreset,
+  type WebhookInfo,
 } from '@hoplet/shared';
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '../../components/Button.tsx';
@@ -46,7 +48,11 @@ import {
   projectName,
   resetScope,
   type Scope,
+  sameEvents,
   toggleChannel,
+  toggleWebhookEvent,
+  WEBHOOK_EVENT_LABEL,
+  webhookEventsText,
 } from './notify-model.ts';
 
 /** This browser's Web Push as the page shows it. */
@@ -502,7 +508,13 @@ function BrowserGroup(props: { push: ReturnType<typeof usePush> }) {
   );
 }
 
-type Draft = { label: string; url: string; secret: string; clearSecret: boolean };
+type Draft = {
+  label: string;
+  url: string;
+  secret: string;
+  clearSecret: boolean;
+  events: NotifyEventKind[];
+};
 
 function WebhookForm(props: {
   existing: WebhookInfo | null;
@@ -517,6 +529,7 @@ function WebhookForm(props: {
     url: existing?.url ?? '',
     secret: '',
     clearSecret: false,
+    events: existing?.events ?? [...DEFAULT_WEBHOOK_EVENTS],
   });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -530,10 +543,16 @@ function WebhookForm(props: {
     const label = draft.label.trim();
     const url = draft.url.trim();
     if (!existing)
-      return postWebhook({ label, url, ...(draft.secret !== '' ? { secret: draft.secret } : {}) });
+      return postWebhook({
+        label,
+        url,
+        events: draft.events,
+        ...(draft.secret !== '' ? { secret: draft.secret } : {}),
+      });
     const change: Parameters<typeof patchWebhook>[1] = {};
     if (label !== existing.label) change.label = label;
     if (url !== existing.url) change.url = url;
+    if (!sameEvents(draft.events, existing.events)) change.events = draft.events;
     if (draft.secret !== '') change.secret = draft.secret;
     else if (draft.clearSecret) change.secret = null;
     return Object.keys(change).length > 0 ? patchWebhook(existing.id, change) : existing;
@@ -613,6 +632,30 @@ function WebhookForm(props: {
           onChange={(e) => setDraft({ ...draft, secret: e.target.value })}
           data-testid="settings.notify.hook.secret"
         />
+        <div className="field-group">
+          <span className="field-label">{t('Events')}</span>
+          <div className="nchips" data-testid="settings.notify.hook.events">
+            {NOTIFY_EVENT_KINDS.map((kind) => {
+              const on = draft.events.includes(kind);
+              return (
+                <button
+                  key={kind}
+                  type="button"
+                  role="switch"
+                  aria-checked={on}
+                  className={`nchip${on ? ' on' : ''}`}
+                  onClick={() =>
+                    setDraft({ ...draft, events: toggleWebhookEvent(draft.events, kind) })
+                  }
+                  data-testid={`settings.notify.hook.event.${kind}`}
+                >
+                  {on ? Icon.check() : null}
+                  {t(WEBHOOK_EVENT_LABEL[kind])}
+                </button>
+              );
+            })}
+          </div>
+        </div>
       </div>
       <p className="set-meta note">
         {t('Optional · HMAC-SHA256 in X-Hoplet-Signature')}
@@ -717,6 +760,9 @@ function WebhooksGroup(props: {
                 <span className="nm">
                   {w.label}
                   <span className="set-meta mono">{hostHint(w.url)}</span>
+                  <span className="set-meta" data-testid={`settings.notify.hook.${w.id}.events`}>
+                    {webhookEventsText(w.events)}
+                  </span>
                 </span>
                 <span className={`dst${last ? (bad ? ' bad' : ' ok') : ''}`}>
                   {last ? bad ? Icon.alert() : <Check on /> : null}

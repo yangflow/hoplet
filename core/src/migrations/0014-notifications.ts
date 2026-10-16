@@ -4,7 +4,7 @@ import type { Migration } from './index.ts';
 /**
  * Notifications (ADR 0021). `notify_prefs` holds the one row of preferences as JSON. A push subscription is
  * bound to the VAPID key it was made with (`vapid_key`), so a rotated key drops the subscriptions of the old one.
- * `webhooks` holds no secret: signing secrets live in the secrets file of the data directory. `action_tokens`
+ * `webhooks` holds the event kinds each one receives as a JSON array and no secret: signing secrets live in the secrets file of the data directory. `action_tokens`
  * remembers the IDs of used action links until they would have expired anyway.
  */
 export const notifications: Migration = {
@@ -33,6 +33,7 @@ export const notifications: Migration = {
         url        TEXT NOT NULL,
         label      TEXT NOT NULL,
         enabled    INTEGER NOT NULL,
+        events     TEXT NOT NULL,
         created_at INTEGER NOT NULL,
         last_at    INTEGER,
         last_ok    INTEGER,

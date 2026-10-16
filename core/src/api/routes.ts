@@ -147,6 +147,7 @@ function webhookInfo(record: WebhookInfo): WebhookInfo {
     url: record.url,
     hasSecret: record.hasSecret,
     enabled: record.enabled,
+    events: record.events,
     createdAt: record.createdAt,
     ...(record.lastDelivery ? { lastDelivery: record.lastDelivery } : {}),
   };
@@ -1035,7 +1036,12 @@ export const routes: readonly Route[] = [
       if (body.secret) registerSecret(body.secret);
       return webhookInfo(
         store.addWebhook(
-          { url: body.url, label: body.label, ...(body.secret ? { secret: body.secret } : {}) },
+          {
+            url: body.url,
+            label: body.label,
+            ...(body.secret ? { secret: body.secret } : {}),
+            ...(body.events ? { events: body.events } : {}),
+          },
           Date.now(),
         ),
       );
@@ -1055,6 +1061,7 @@ export const routes: readonly Route[] = [
         ...(body.url === undefined ? {} : { url: body.url }),
         ...(body.label === undefined ? {} : { label: body.label }),
         ...(body.enabled === undefined ? {} : { enabled: body.enabled }),
+        ...(body.events === undefined ? {} : { events: body.events }),
         ...(body.secret === undefined ? {} : { secret: body.secret }),
       });
       if (!updated) throw new ApiError('not-found');

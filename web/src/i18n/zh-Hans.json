@@ -579,5 +579,8 @@
   "permission granted": "已授予权限",
   "permission not asked yet": "尚未请求权限",
   "timeout": "超时",
-  "works once": "仅可使用一次"
+  "works once": "仅可使用一次",
+  "Permission": "许可",
+  "Plan": "计划",
+  "Finished": "结束"
 }

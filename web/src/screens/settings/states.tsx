@@ -39,6 +39,7 @@ const HOOKS: WebhookInfo[] = [
     url: 'https://hooks.example.com/services/T0/B0/xxxx',
     hasSecret: true,
     enabled: true,
+    events: ['permission', 'plan', 'turn-done'],
     createdAt: NOW - 3 * 86_400_000,
     lastDelivery: { at: NOW - 2 * 60_000, ok: true },
   },
@@ -48,6 +49,7 @@ const HOOKS: WebhookInfo[] = [
     url: 'https://home.example.net/hoplet',
     hasSecret: false,
     enabled: true,
+    events: ['permission', 'plan', 'failure'],
     createdAt: NOW - 86_400_000,
     lastDelivery: { at: NOW - 3_600_000, ok: false, error: 'timeout' },
   },
@@ -157,6 +159,7 @@ export const states: Record<string, () => ReactNode> = {
   'settings-notify-blocked': () => (
     <Scene section="notifications" notify={notify({ push: 'blocked' })} />
   ),
+  'notify-hook-new': () => <Scene section="notifications" notify={notify({ editing: 'new' })} />,
   'notify-hook': () => (
     <Scene
       section="notifications"

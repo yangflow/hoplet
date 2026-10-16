@@ -207,7 +207,8 @@ list at its left grows with later sections; the sections are:
 
 - **Notifications**: a preset (Needs me, Needs me and done, Everything, Off) with an override of the channels per
   event and per project, quiet hours in a time zone of the user's choice, the browsers subscribed to Web Push
-  (subscribe this browser, a label, remove), and the webhooks (URL, optional signing secret, enable, test, the
+  (subscribe this browser, a label, remove), and the webhooks (URL, optional signing secret, the events it
+  receives, enable, test, the
   status of the last delivery). Preferences live in the core, not in the browser.
 
 Memory and model providers are later sections (#18, #16).
@@ -404,7 +405,9 @@ The core tells the user when a session needs them, so a turn does not wait unsee
   of the project. An override names the channels of an event, none turns it off. Quiet hours hold back turn-done
   and failure but never the events that need the user (permission and plan).
 - **Channels**: Web Push to the subscribed browsers and a JSON `POST` to each enabled webhook, signed with
-  `X-Hoplet-Signature: sha256=<hex>` when the webhook has a secret. A native client is a third channel that is
+  `X-Hoplet-Signature: sha256=<hex>` when the webhook has a secret. A webhook receives an event only when the
+  preferences route it to the webhook channel and the event is one of the webhook's own events (permission, plan
+  and failure unless chosen otherwise). A native client is a third channel that is
   not sent yet. Each send runs apart from the event that caused it, waits at most 5 seconds and is retried once
   after a network error, a timeout or a 5xx answer; a push service that answers 404 or 410 loses its
   subscription. The last delivery of each subscription and webhook is kept and shown.

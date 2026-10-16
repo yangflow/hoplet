@@ -119,12 +119,29 @@ const WEBHOOK_SECRET_MAX = 256;
 /** The most webhooks. */
 export const MAX_WEBHOOKS = 20;
 
+/** The events a webhook receives when none are chosen: the ones where Claude needs the user. */
+export const DEFAULT_WEBHOOK_EVENTS = [
+  'permission',
+  'plan',
+  'failure',
+] as const satisfies readonly NotifyEventKind[];
+
+/** The events one webhook receives: a non-empty set of kinds, each once. */
+export const WebhookEventsSchema = v.pipe(
+  v.array(NotifyEventKindSchema),
+  v.minLength(1),
+  v.maxLength(NOTIFY_EVENT_KINDS.length),
+  v.check((kinds) => new Set(kinds).size === kinds.length, 'Events must not repeat'),
+);
+
 /** POST /api/notify/webhooks */
 export const WebhookCreateRequestSchema = v.object({
   url: v.pipe(v.string(), v.url(), v.maxLength(WEBHOOK_URL_MAX), v.regex(/^https?:\/\//)),
   label: v.pipe(TrimmedSchema, v.maxLength(80)),
   /** Signs the body; write-only, never returned. */
   secret: v.optional(v.pipe(v.string(), v.minLength(1), v.maxLength(WEBHOOK_SECRET_MAX))),
+  /** The events this webhook receives; permission, plan and failure when absent. */
+  events: v.optional(WebhookEventsSchema),
 });
 export type WebhookCreateRequest = v.InferOutput<typeof WebhookCreateRequestSchema>;
 
@@ -138,6 +155,7 @@ export const WebhookUpdateRequestSchema = v.object({
     v.nullable(v.pipe(v.string(), v.minLength(1), v.maxLength(WEBHOOK_SECRET_MAX))),
   ),
   enabled: v.optional(v.boolean()),
+  events: v.optional(WebhookEventsSchema),
 });
 export type WebhookUpdateRequest = v.InferOutput<typeof WebhookUpdateRequestSchema>;
 
@@ -148,6 +166,8 @@ export const WebhookInfoSchema = v.object({
   /** Whether a signing secret is set; the secret itself is never returned. */
   hasSecret: v.boolean(),
   enabled: v.boolean(),
+  /** The events this webhook receives, in the order of `NOTIFY_EVENT_KINDS`. */
+  events: WebhookEventsSchema,
   createdAt: v.number(),
   lastDelivery: v.optional(NotifyDeliverySchema),
 });

@@ -120,7 +120,8 @@ const subject: Record<string, Record<string, string>> = {
     'settings-notify-overrides': 'settings.notify.event.permission',
     'settings-notify-off': 'settings.notify.push',
     'settings-notify-blocked': 'settings.notify.blocked',
-    'notify-hook': 'settings.notify.hook.form',
+    'notify-hook': 'settings.notify.hook.events',
+    'notify-hook-new': 'settings.notify.hook.events',
   },
   action: {
     confirm: 'action.card',
@@ -133,10 +134,10 @@ const subject: Record<string, Record<string, string>> = {
   },
 };
 
-test('the registries list 64 cockpit, 26 workspace, 12 settings and 7 action states', () => {
+test('the registries list 64 cockpit, 26 workspace, 13 settings and 7 action states', () => {
   expect(screens.cockpit).toHaveLength(64);
   expect(screens.workspace).toHaveLength(26);
-  expect(screens.settings).toHaveLength(12);
+  expect(screens.settings).toHaveLength(13);
   expect(screens.action).toHaveLength(7);
 });
 

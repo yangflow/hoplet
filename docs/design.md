@@ -221,8 +221,8 @@ lists the four events with a Web Push and a Webhook chip each, for all projects 
 exist; quiet hours hold back finished-turn notifications, never a request for Claude's need. Web Push on this browser
 has one switch and a state line (permission not asked, granted, blocked); permission is asked only when the switch is
 pressed. A blocked browser takes the amber banner and, in the cockpit, a dismissible in-page hint that says how to
-allow it. Webhooks are rows with a host hint (never the path), the last delivery and Send a test, Edit and Remove; the
-signing secret is never shown again once saved. An OS notification has no action buttons: its click opens the action
+allow it. Webhooks are rows with a host hint (never the path), the events they receive in words, the last delivery and Send a test, Edit and Remove; the
+signing secret is never shown again once saved. The form picks the events of a webhook with four chips (Permission, Plan, Finished, Failed); the last chip on cannot be switched off. An OS notification has no action buttons: its click opens the action
 page, one centred card (440 px, full width on a phone) with the project, the session title, the tool and the command,
 and Allow once and Deny; a plan shows its text and Approve plan and Reject. The same card closes in five
 ways: answered, expired, used, decided in Hoplet only (a request that deletes files) and a link that is not valid.

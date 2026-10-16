@@ -1,6 +1,9 @@
 import { randomBytes } from 'node:crypto';
 import {
+  DEFAULT_WEBHOOK_EVENTS,
+  NOTIFY_EVENT_KINDS,
   type NotifyDelivery,
+  type NotifyEventKind,
   type NotifyPreferences,
   NotifyPreferencesSchema,
   safeParse,
@@ -157,6 +160,7 @@ interface WebhookRow {
   url: string;
   label: string;
   enabled: number;
+  events: string;
   created_at: number;
   last_at: number | null;
   last_ok: number | null;
@@ -168,12 +172,32 @@ export interface WebhookRecord {
   url: string;
   label: string;
   enabled: boolean;
+  /** The event kinds this webhook receives, in the order of `NOTIFY_EVENT_KINDS`. */
+  events: NotifyEventKind[];
   createdAt: number;
   hasSecret: boolean;
   lastDelivery?: NotifyDelivery;
 }
 
-const WEBHOOK_COLUMNS = 'id, url, label, enabled, created_at, last_at, last_ok, last_error';
+const WEBHOOK_COLUMNS = 'id, url, label, enabled, events, created_at, last_at, last_ok, last_error';
+
+/** The kinds in the order of `NOTIFY_EVENT_KINDS`, each once. */
+function orderedEvents(kinds: readonly NotifyEventKind[]): NotifyEventKind[] {
+  return NOTIFY_EVENT_KINDS.filter((kind) => kinds.includes(kind));
+}
+
+function parseEvents(json: string): NotifyEventKind[] {
+  try {
+    const raw: unknown = JSON.parse(json);
+    if (Array.isArray(raw)) {
+      const kinds = orderedEvents(raw as NotifyEventKind[]);
+      if (kinds.length > 0) return kinds;
+    }
+  } catch {
+    // Unreadable events are the defaults.
+  }
+  return [...DEFAULT_WEBHOOK_EVENTS];
+}
 
 function webhookRecord(ctx: StoreContext, row: WebhookRow): WebhookRecord {
   const last = delivery(row);
@@ -182,6 +206,7 @@ function webhookRecord(ctx: StoreContext, row: WebhookRow): WebhookRecord {
     url: row.url,
     label: row.label,
     enabled: row.enabled === 1,
+    events: parseEvents(row.events),
     createdAt: row.created_at,
     hasSecret: webhookSecret(ctx, row.id) !== null,
     ...(last ? { lastDelivery: last } : {}),
@@ -205,13 +230,16 @@ export function getWebhook(ctx: StoreContext, id: string): WebhookRecord | null 
 
 export function addWebhook(
   ctx: StoreContext,
-  input: { url: string; label: string; secret?: string },
+  input: { url: string; label: string; secret?: string; events?: readonly NotifyEventKind[] },
   now: number,
 ): WebhookRecord {
   const id = newId();
+  const events = orderedEvents(input.events ?? DEFAULT_WEBHOOK_EVENTS);
   ctx.db
-    .prepare('INSERT INTO webhooks(id, url, label, enabled, created_at) VALUES(?, ?, ?, 1, ?)')
-    .run(id, input.url, input.label, now);
+    .prepare(
+      'INSERT INTO webhooks(id, url, label, enabled, events, created_at) VALUES(?, ?, ?, 1, ?, ?)',
+    )
+    .run(id, input.url, input.label, JSON.stringify(events), now);
   if (input.secret !== undefined) setWebhookSecret(ctx, id, input.secret);
   return getWebhook(ctx, id) as WebhookRecord;
 }
@@ -219,7 +247,13 @@ export function addWebhook(
 export function updateWebhook(
   ctx: StoreContext,
   id: string,
-  patch: { url?: string; label?: string; enabled?: boolean; secret?: string | null },
+  patch: {
+    url?: string;
+    label?: string;
+    enabled?: boolean;
+    secret?: string | null;
+    events?: readonly NotifyEventKind[];
+  },
 ): WebhookRecord | null {
   if (!getWebhook(ctx, id)) return null;
   if (patch.url !== undefined)
@@ -228,6 +262,10 @@ export function updateWebhook(
     ctx.db.prepare('UPDATE webhooks SET label = ? WHERE id = ?').run(patch.label, id);
   if (patch.enabled !== undefined)
     ctx.db.prepare('UPDATE webhooks SET enabled = ? WHERE id = ?').run(patch.enabled ? 1 : 0, id);
+  if (patch.events !== undefined)
+    ctx.db
+      .prepare('UPDATE webhooks SET events = ? WHERE id = ?')
+      .run(JSON.stringify(orderedEvents(patch.events)), id);
   if (patch.secret !== undefined) setWebhookSecret(ctx, id, patch.secret);
   return getWebhook(ctx, id);
 }

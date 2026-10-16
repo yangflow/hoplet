@@ -166,7 +166,10 @@ Behavior a client relies on:
 - `GET /api/notify/push/key` returns the VAPID public key (unpadded base64url), the `applicationServerKey` for
   `pushManager.subscribe`. A subscription is stored by its endpoint, so subscribing again updates it. A listed
   subscription shows only the host of its push service (`service`), never the endpoint. A webhook is listed with
-  `hasSecret`; its secret is write-only and `secret: null` in a PATCH removes it. At most 50 subscriptions,
+  `hasSecret`; its secret is write-only and `secret: null` in a PATCH removes it. A webhook has its own `events`, a
+  non-empty list of `permission`, `plan`, `turn-done` and `failure`, each at most once (`invalid-request`
+  otherwise); a create without `events` gets `permission`, `plan` and `failure`, and the list is returned in that
+  order. At most 50 subscriptions,
   20 webhooks and 200 projects in the preferences (`too-large` beyond). `POST /api/notify/webhooks/:id/test`
   sends a test payload and returns the webhook with its `lastDelivery`.
 - `POST /api/action/inspect` and `POST /api/action/decide` are the only routes without the host token. The

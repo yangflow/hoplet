@@ -12,7 +12,10 @@ import {
   projectChoices,
   projectName,
   resetScope,
+  sameEvents,
   toggleChannel,
+  toggleWebhookEvent,
+  webhookEventsText,
 } from '../src/screens/settings/notify-model.ts';
 
 const ALL = { project: null };
@@ -134,5 +137,32 @@ describe('deliveryText', () => {
   it('gives the reason of a failure', () => {
     expect(deliveryText({ at: now, ok: false, error: 'timeout' }, now)).toBe('Failed · timeout');
     expect(deliveryText({ at: now, ok: false, error: 'http-502' }, now)).toBe('Failed · HTTP 502');
+  });
+});
+
+describe('webhook events', () => {
+  it('switches an event and keeps the canonical order', () => {
+    expect(toggleWebhookEvent(['permission', 'plan', 'failure'], 'turn-done')).toEqual([
+      'permission',
+      'plan',
+      'turn-done',
+      'failure',
+    ]);
+    expect(toggleWebhookEvent(['permission', 'plan', 'failure'], 'plan')).toEqual([
+      'permission',
+      'failure',
+    ]);
+  });
+
+  it('never switches the last event off', () => {
+    expect(toggleWebhookEvent(['failure'], 'failure')).toEqual(['failure']);
+  });
+
+  it('lists the events in words and compares sets regardless of order', () => {
+    expect(webhookEventsText(['failure', 'permission', 'turn-done'])).toBe(
+      'Permission, Finished, Failed',
+    );
+    expect(sameEvents(['plan', 'permission'], ['permission', 'plan'])).toBe(true);
+    expect(sameEvents(['plan'], ['permission', 'plan'])).toBe(false);
   });
 });

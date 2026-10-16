@@ -6,6 +6,7 @@ import { DatabaseSync } from 'node:sqlite';
 import type {
   Command,
   NotifyDelivery,
+  NotifyEventKind,
   NotifyPreferences,
   Queue,
   QueueItem,
@@ -129,13 +130,22 @@ export class Store {
     return notify.getWebhook(this.ctx, id);
   }
 
-  addWebhook(input: { url: string; label: string; secret?: string }, now: number) {
+  addWebhook(
+    input: { url: string; label: string; secret?: string; events?: readonly NotifyEventKind[] },
+    now: number,
+  ) {
     return notify.addWebhook(this.ctx, input, now);
   }
 
   updateWebhook(
     id: string,
-    patch: { url?: string; label?: string; enabled?: boolean; secret?: string | null },
+    patch: {
+      url?: string;
+      label?: string;
+      enabled?: boolean;
+      secret?: string | null;
+      events?: readonly NotifyEventKind[];
+    },
   ) {
     return notify.updateWebhook(this.ctx, id, patch);
   }

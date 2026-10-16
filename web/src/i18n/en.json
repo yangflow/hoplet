@@ -574,5 +574,8 @@
   "permission granted": "permission granted",
   "permission not asked yet": "permission not asked yet",
   "timeout": "timeout",
-  "works once": "works once"
+  "works once": "works once",
+  "Permission": "Permission",
+  "Plan": "Plan",
+  "Finished": "Finished"
 }

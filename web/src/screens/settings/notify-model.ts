@@ -3,6 +3,7 @@
 // and for editing, with no React and no network.
 import {
   NOTIFY_CHANNELS,
+  NOTIFY_EVENT_KINDS,
   type NotifyChannel,
   type NotifyDelivery,
   type NotifyEventKind,
@@ -64,6 +65,36 @@ export const EVENTS: readonly {
     detail: 'A session did not start, or a handoff failed',
   },
 ];
+
+/** The short names of the events on a webhook's chips and in its row; the text is an i18n key. */
+export const WEBHOOK_EVENT_LABEL: Record<NotifyEventKind, string> = {
+  permission: 'Permission',
+  plan: 'Plan',
+  'turn-done': 'Finished',
+  failure: 'Failed',
+};
+
+/** A webhook's events after switching one: the order of `NOTIFY_EVENT_KINDS`, and never empty (the last one stays on). */
+export function toggleWebhookEvent(
+  events: readonly NotifyEventKind[],
+  kind: NotifyEventKind,
+): NotifyEventKind[] {
+  const next = events.includes(kind) ? events.filter((k) => k !== kind) : [...events, kind];
+  if (next.length === 0) return NOTIFY_EVENT_KINDS.filter((k) => events.includes(k));
+  return NOTIFY_EVENT_KINDS.filter((k) => next.includes(k));
+}
+
+/** The events of a webhook in words for its row: "Permission, Plan, Failed". */
+export function webhookEventsText(events: readonly NotifyEventKind[]): string {
+  return NOTIFY_EVENT_KINDS.filter((k) => events.includes(k))
+    .map((k) => t(WEBHOOK_EVENT_LABEL[k]))
+    .join(', ');
+}
+
+/** Whether two sets of events are the same set. */
+export function sameEvents(a: readonly NotifyEventKind[], b: readonly NotifyEventKind[]): boolean {
+  return a.length === b.length && a.every((k) => b.includes(k));
+}
 
 /** The channels the settings page lets a person choose; a native client has none to configure yet. */
 export const CHOOSABLE_CHANNELS = ['push', 'webhook'] as const satisfies readonly NotifyChannel[];

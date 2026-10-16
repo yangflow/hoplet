@@ -227,7 +227,8 @@ export function createNotify(store: Store, control: Control, options: NotifyOpti
     }
     if (channels.includes('webhook')) {
       for (const hook of store.listWebhooks()) {
-        if (hook.enabled) jobs.push(sendWebhook(hook, kind, payload, true));
+        if (hook.enabled && hook.events.includes(kind))
+          jobs.push(sendWebhook(hook, kind, payload, true));
       }
     }
     // `native` has no sender yet: the browser WebSocket `notify` message is reserved for the Mac client.

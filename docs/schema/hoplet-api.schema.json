@@ -4113,6 +4113,21 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 256
+        },
+        "events": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "permission",
+              "plan",
+              "turn-done",
+              "failure"
+            ],
+            "type": "string"
+          },
+          "minItems": 1,
+          "maxItems": 4,
+          "uniqueItems": true
         }
       },
       "required": [
@@ -4137,6 +4152,21 @@
         },
         "enabled": {
           "type": "boolean"
+        },
+        "events": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "permission",
+              "plan",
+              "turn-done",
+              "failure"
+            ],
+            "type": "string"
+          },
+          "minItems": 1,
+          "maxItems": 4,
+          "uniqueItems": true
         },
         "createdAt": {
           "type": "number"
@@ -4166,6 +4196,7 @@
         "url",
         "hasSecret",
         "enabled",
+        "events",
         "createdAt"
       ]
     },
@@ -4191,6 +4222,21 @@
               },
               "enabled": {
                 "type": "boolean"
+              },
+              "events": {
+                "type": "array",
+                "items": {
+                  "enum": [
+                    "permission",
+                    "plan",
+                    "turn-done",
+                    "failure"
+                  ],
+                  "type": "string"
+                },
+                "minItems": 1,
+                "maxItems": 4,
+                "uniqueItems": true
               },
               "createdAt": {
                 "type": "number"
@@ -4220,6 +4266,7 @@
               "url",
               "hasSecret",
               "enabled",
+              "events",
               "createdAt"
             ]
           }
@@ -4250,6 +4297,21 @@
             "enabled": {
               "type": "boolean"
             },
+            "events": {
+              "type": "array",
+              "items": {
+                "enum": [
+                  "permission",
+                  "plan",
+                  "turn-done",
+                  "failure"
+                ],
+                "type": "string"
+              },
+              "minItems": 1,
+              "maxItems": 4,
+              "uniqueItems": true
+            },
             "createdAt": {
               "type": "number"
             },
@@ -4278,6 +4340,7 @@
             "url",
             "hasSecret",
             "enabled",
+            "events",
             "createdAt"
           ]
         },
@@ -4332,6 +4395,21 @@
         },
         "enabled": {
           "type": "boolean"
+        },
+        "events": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "permission",
+              "plan",
+              "turn-done",
+              "failure"
+            ],
+            "type": "string"
+          },
+          "minItems": 1,
+          "maxItems": 4,
+          "uniqueItems": true
         }
       },
       "required": []

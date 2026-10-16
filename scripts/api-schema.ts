@@ -46,6 +46,10 @@ const CONVERSION: ConversionConfig = {
   // not to the value that arrives. `trim` only marks the string; `settleTrimmed` writes the rule once the bounds
   // are known.
   overrideAction: ({ valibotAction, jsonSchema }) => {
+    // The one check on an array is "each item once" (`WebhookEventsSchema`); JSON Schema says it as `uniqueItems`.
+    if (valibotAction.type === 'check' && jsonSchema.type === 'array') {
+      return { ...jsonSchema, uniqueItems: true };
+    }
     if (valibotAction.type !== 'trim') return undefined;
     if (
       jsonSchema.type !== 'string' ||

@@ -237,6 +237,39 @@ describe('delivery', () => {
     expect(off.got).toHaveLength(0);
   });
 
+  it('sends a webhook only the events it chose', async () => {
+    const f = setup();
+    const planOnly = await receiver([200]);
+    const defaults = await receiver([200]);
+    const both = await receiver([200]);
+    f.store.addWebhook({ url: `${planOnly.base}/h`, label: 'plan', events: ['plan'] }, T0);
+    const d = f.store.addWebhook({ url: `${defaults.base}/h`, label: 'default' }, T0);
+    f.store.addWebhook(
+      { url: `${both.base}/h`, label: 'both', events: ['failure', 'permission'] },
+      T0,
+    );
+    expect(d.events).toEqual(['permission', 'plan', 'failure']);
+    expect(Object.fromEntries(f.store.listWebhooks().map((w) => [w.label, w.events]))).toEqual({
+      plan: ['plan'],
+      default: ['permission', 'plan', 'failure'],
+      both: ['permission', 'failure'],
+    });
+    f.control.receive(f.link, permission('r1', 'Bash', { command: 'ls' }));
+    await vi.waitFor(() => expect(defaults.got).toHaveLength(1));
+    await vi.waitFor(() => expect(both.got).toHaveLength(1));
+    expect(planOnly.got).toHaveLength(0);
+  });
+
+  it('keeps a webhook that chose turn-done quiet while the preferences route the event nowhere', async () => {
+    const f = setup();
+    const hook = await receiver([200]);
+    f.store.addWebhook({ url: `${hook.base}/h`, label: 'done', events: ['turn-done'] }, T0);
+    // The default preset sends no turn-done, whatever the webhook chose.
+    f.control.receive(f.link, permission('r1', 'Bash', { command: 'ls' }));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(hook.got).toHaveLength(0);
+  });
+
   it('retries a failing webhook once and records the status', async () => {
     const f = setup();
     const hook = await receiver([500]);
@@ -352,7 +385,9 @@ describe('which events notify', () => {
   it('tells about a finished turn when asked, unless a tab has the session open', async () => {
     const f = setup();
     const hook = await receiver([200]);
-    f.store.addWebhook({ url: `${hook.base}/h`, label: 'Chat' }, T0);
+    const other = await receiver([200]);
+    f.store.addWebhook({ url: `${hook.base}/h`, label: 'Chat', events: ['turn-done'] }, T0);
+    f.store.addWebhook({ url: `${other.base}/h`, label: 'Needs me' }, T0);
     f.store.setNotifyPreferences(prefs({ preset: 'needs-me-and-done' }));
 
     f.control.viewing.add('s1');
@@ -367,6 +402,8 @@ describe('which events notify', () => {
     await vi.waitFor(() => expect(hook.got).toHaveLength(1));
     expect(json(hook.got[0] as Received)).toMatchObject({ kind: 'turn-done', sessionId: 's1' });
     expect(json(hook.got[0] as Received).link).toBeUndefined();
+    // The webhook that did not choose turn-done is not told, though the preset routes the event to webhooks.
+    expect(other.got).toHaveLength(0);
   });
 
   it('holds a finished turn back in quiet hours but not a permission request', async () => {
@@ -679,7 +716,12 @@ describe('routes', () => {
       secret: 'top-secret-value',
     });
     expect(created.status).toBe(201);
-    expect(created.body).toMatchObject({ label: 'Chat', hasSecret: true, enabled: true });
+    expect(created.body).toMatchObject({
+      label: 'Chat',
+      hasSecret: true,
+      enabled: true,
+      events: ['permission', 'plan', 'failure'],
+    });
     expect(JSON.stringify(created.body)).not.toContain('top-secret-value');
     const id = created.body.id as string;
 
@@ -694,6 +736,12 @@ describe('routes', () => {
       secret: null,
     });
     expect(patched.body).toMatchObject({ enabled: false, hasSecret: false });
+    const chosen = await a.call('PATCH', `/api/notify/webhooks/${id}`, {
+      events: ['turn-done', 'plan'],
+    });
+    expect(chosen.body.events).toEqual(['plan', 'turn-done']);
+    for (const events of [[], ['plan', 'plan'], ['nope']])
+      expect((await a.call('PATCH', `/api/notify/webhooks/${id}`, { events })).status).toBe(400);
     expect((await a.call('PATCH', '/api/notify/webhooks/missing', { enabled: true })).status).toBe(
       404,
     );
