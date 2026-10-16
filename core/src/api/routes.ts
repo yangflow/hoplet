@@ -29,6 +29,7 @@ import {
   LinesQuerySchema,
   type LiveSessionMeta,
   LiveSessionMetaSchema,
+  MAX_TITLE_OVERRIDE_CHARS,
   NewSessionRequestSchema,
   NewSessionResultSchema,
   PermissionRequestSchema,
@@ -42,6 +43,7 @@ import {
   SearchResultSchema,
   SessionListResponseSchema,
   type SessionMeta,
+  SessionPatchRequestSchema,
   SessionSearchQuerySchema,
   SnapshotChangesSchema,
   SnapshotDiffSchema,
@@ -56,6 +58,7 @@ import {
 } from '@hoplet/shared';
 import corePackage from '../../package.json' with { type: 'json' };
 import type { DeviceControlOutcome } from '../control/index.ts';
+import type { SessionStateRecord } from '../store/index.ts';
 import { ApiError, relayError } from './http.ts';
 import { checkPromptImage } from './images.ts';
 import { blockOfLine, excerptOf, projectLine } from './projection/index.ts';
@@ -94,10 +97,15 @@ function providerOf(store: ApiDeps['store'], sessionId: string): Provider {
 }
 
 /** The index entry plus whether the owner agent is connected. */
-function withLiveness({ store, control }: ApiDeps, meta: SessionMeta): LiveSessionMeta {
+function withLiveness(
+  { store, control }: ApiDeps,
+  meta: SessionMeta,
+  state: SessionStateRecord = store.sessionState(meta.sessionId) ?? {},
+): LiveSessionMeta {
   const owner = store.ownerDeviceId(meta.sessionId);
   return {
     ...meta,
+    ...state,
     ownerConnected: !!owner && control.ownerOnline(owner),
     runtime: control.runtimeOf(meta.sessionId),
     ...(owner ? { ownerDeviceId: owner } : {}),
@@ -142,7 +150,14 @@ export const routes: readonly Route[] = [
     auth: 'host',
     lane: 'control',
     response: SessionListResponseSchema,
-    handler: (d) => ({ sessions: d.store.listSessions().map((meta) => withLiveness(d, meta)) }),
+    handler: (d) => {
+      const states = d.store.sessionStates();
+      return {
+        sessions: d.store
+          .listSessions()
+          .map((meta) => withLiveness(d, meta, states.get(meta.sessionId) ?? {})),
+      };
+    },
   }),
   defineRoute({
     method: 'POST',
@@ -175,6 +190,42 @@ export const routes: readonly Route[] = [
       const meta = d.store.getSession(d.params.sessionId ?? '');
       if (!meta) throw new ApiError('session-not-found');
       return withLiveness(d, meta);
+    },
+  }),
+  defineRoute({
+    method: 'PATCH',
+    path: '/api/sessions/:sessionId',
+    auth: 'host',
+    lane: 'control',
+    bodyLimit: 4 * 1024,
+    body: SessionPatchRequestSchema,
+    response: LiveSessionMetaSchema,
+    handler: (d) => {
+      const sessionId = d.params.sessionId ?? '';
+      const { title, pinned, archived } = d.body;
+      if (title === undefined && pinned === undefined && archived === undefined)
+        throw new ApiError('invalid-request');
+      const meta = d.store.getSession(sessionId);
+      const current = d.store.sessionState(sessionId);
+      if (!meta || !current) throw new ApiError('session-not-found');
+      // The length counts the trimmed title; a title that is blank or the vendor's own is no title of its own.
+      const own = title?.trim();
+      if (own !== undefined && own.length > MAX_TITLE_OVERRIDE_CHARS)
+        throw new ApiError('invalid-request');
+      const now = Date.now();
+      const state = d.store.updateSessionState(sessionId, {
+        ...(title !== undefined
+          ? { titleOverride: own && own !== meta.title.trim() ? own : null }
+          : {}),
+        // Pinning a pinned session, or archiving an archived one, keeps the time it has.
+        ...(pinned !== undefined ? { pinnedAt: pinned ? (current.pinnedAt ?? now) : null } : {}),
+        ...(archived !== undefined
+          ? { archivedAt: archived ? (current.archivedAt ?? now) : null }
+          : {}),
+      });
+      if (!state) throw new ApiError('session-not-found');
+      d.control.publish({ v: PROTOCOL_VERSION, type: 'session.updated', sessionId, ...state });
+      return withLiveness(d, meta, state);
     },
   }),
   defineRoute({

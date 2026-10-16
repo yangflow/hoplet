@@ -15,6 +15,7 @@ const api = vi.hoisted(() => ({
   socketUrl: vi.fn(),
   postNewSession: vi.fn(),
   postPrompt: vi.fn(),
+  patchSession: vi.fn(),
 }));
 vi.mock('../src/lib/api.ts', async (original) => ({ ...(await original()), ...api }));
 
@@ -458,4 +459,128 @@ it('pauses polling while the tab is hidden', async () => {
     Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
     vi.useRealTimers();
   }
+});
+
+const pushed = (socket: FakeSocket, msg: object) =>
+  act(async () => socket.onmessage?.({ data: JSON.stringify({ v: PROTOCOL_VERSION, ...msg }) }));
+const titles = () => rows().map((r) => r.textContent ?? '');
+
+it('applies session.updated: the override, the pin and the archive reach the sidebar', async () => {
+  await mount();
+  const socket = await open();
+  await pushed(socket, { type: 'session.updated', sessionId: B, titleOverride: 'Mine' });
+  expect(titles().some((t) => t.includes('Mine'))).toBe(true);
+  await pushed(socket, { type: 'session.updated', sessionId: B, pinnedAt: 5 });
+  expect(q('cockpit.pinned')).not.toBeNull();
+  expect(titles().some((t) => t.includes('Mine'))).toBe(false);
+  await pushed(socket, { type: 'session.updated', sessionId: B, archivedAt: 6 });
+  expect(rows()).toHaveLength(1);
+  await pushed(socket, { type: 'session.updated', sessionId: B });
+  expect(rows()).toHaveLength(2);
+});
+
+it('opens the Archived page and restores a session from it', async () => {
+  api.fetchSessions.mockResolvedValue({
+    sessions: [meta(A, 'first'), meta(B, 'second', { archivedAt: 3 })],
+  });
+  api.patchSession.mockResolvedValue(meta(B, 'second'));
+  await mount();
+  expect(rows()).toHaveLength(1);
+  await act(async () => (q('cockpit.archived') as HTMLElement).click());
+  expect(q('cockpit.archived-page')).not.toBeNull();
+  await act(async () => (q('cockpit.restore') as HTMLElement).click());
+  expect(api.patchSession).toHaveBeenCalledWith(B, { archived: false });
+  expect(q('toast')?.textContent).toContain('restored');
+  await act(async () => (q('cockpit.archived-back') as HTMLElement).click());
+  expect(rows()).toHaveLength(2);
+});
+
+it('never selects an archived session when the list loads', async () => {
+  api.fetchSessions.mockResolvedValue({
+    sessions: [meta(A, 'first', { archivedAt: 1 }), meta(B, 'second')],
+  });
+  await mount();
+  expect(new URLSearchParams(location.search).get('session')).toBe(B);
+});
+
+it('archives the selected session with Shift+Cmd+A and moves to the next one', async () => {
+  api.patchSession.mockResolvedValue(meta(A, 'first', { archivedAt: 9 }));
+  await mount();
+  await act(async () => {
+    window.dispatchEvent(
+      new KeyboardEvent('keydown', { code: 'KeyA', key: 'A', metaKey: true, shiftKey: true }),
+    );
+  });
+  expect(api.patchSession).toHaveBeenCalledWith(A, { archived: true });
+  expect(new URLSearchParams(location.search).get('session')).toBe(B);
+});
+
+it('pins the selected session with Alt+Cmd+P and opens the rename dialog with Alt+Cmd+R', async () => {
+  api.patchSession.mockResolvedValue(meta(A, 'first', { pinnedAt: 9 }));
+  await mount();
+  await act(async () => {
+    window.dispatchEvent(
+      new KeyboardEvent('keydown', { code: 'KeyP', key: 'π', metaKey: true, altKey: true }),
+    );
+  });
+  expect(api.patchSession).toHaveBeenCalledWith(A, { pinned: true });
+  await act(async () => {
+    window.dispatchEvent(
+      new KeyboardEvent('keydown', { code: 'KeyR', key: '®', metaKey: true, altKey: true }),
+    );
+  });
+  expect(q('cockpit.rename')).not.toBeNull();
+});
+
+it('shows a failed change as an error toast', async () => {
+  api.patchSession.mockRejectedValue(new Error('boom'));
+  await mount();
+  await act(async () => {
+    window.dispatchEvent(
+      new KeyboardEvent('keydown', { code: 'KeyA', key: 'A', metaKey: true, shiftKey: true }),
+    );
+  });
+  expect(q('toast')?.className).toContain('failed');
+  expect(new URLSearchParams(location.search).get('session')).toBe(A);
+});
+
+it('ignores a held shortcut, AltGr and composition', async () => {
+  api.patchSession.mockResolvedValue(meta(A, 'first', { archivedAt: 9 }));
+  await mount();
+  const chord = (init: KeyboardEventInit) =>
+    act(async () => {
+      window.dispatchEvent(
+        new KeyboardEvent('keydown', {
+          code: 'KeyA',
+          key: 'A',
+          metaKey: true,
+          shiftKey: true,
+          ...init,
+        }),
+      );
+    });
+  await chord({ repeat: true });
+  await chord({ isComposing: true });
+  await chord({ modifierAltGraph: true });
+  expect(api.patchSession).not.toHaveBeenCalled();
+  await chord({});
+  expect(api.patchSession).toHaveBeenCalledOnce();
+});
+
+it('shows one error toast with the count when Restore all only partly works', async () => {
+  api.fetchSessions.mockResolvedValue({
+    sessions: [meta(A, 'first', { archivedAt: 3 }), meta(B, 'second', { archivedAt: 3 })],
+  });
+  api.patchSession.mockImplementation(async (id: string) => {
+    if (id === B) throw new Error('boom');
+    return meta(id, 'first');
+  });
+  await mount();
+  await act(async () => (q('cockpit.archived') as HTMLElement).click());
+  const all = host.querySelector<HTMLElement>('[data-testid="cockpit.restore-all"]');
+  await act(async () => all?.click());
+  const toasts = [...host.querySelectorAll('[data-testid="toast"]')];
+  expect(toasts).toHaveLength(1);
+  expect(toasts[0]?.className).toContain('failed');
+  expect(toasts[0]?.textContent).toContain('1 session could not be restored');
 });

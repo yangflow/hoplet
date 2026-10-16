@@ -345,6 +345,7 @@ describe('wire contract', () => {
   it('keeps the browser-only messages out of Go and the agent messages in the client union', () => {
     expect(wireTypes('core-to-web', 'web-to-core')).toEqual([
       'session.appended',
+      'session.updated',
       'device.presence',
       'subscribe',
       'unsubscribe',

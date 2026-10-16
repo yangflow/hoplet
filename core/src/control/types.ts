@@ -187,6 +187,8 @@ export interface Control {
   readonly bulk: BulkQueue;
   /** Calls `listener` with every event agents cause that browsers show (`session.appended`); returns the unsubscribe. */
   subscribe(listener: (msg: ServerMessage) => void): () => void;
+  /** Tells every browser something the API changed (`session.updated`). */
+  publish(msg: ServerMessage): void;
   ownerOnline(deviceId: string): boolean;
   /** Forwards a prompt to the owner unless its runtime state refuses it; a repeated `promptId` returns the first result. */
   prompt(

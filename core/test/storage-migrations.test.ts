@@ -198,3 +198,22 @@ it('records the claude provider for every session that exists when the column re
   ]);
   expect(store.getSession('fresh')?.provider).toBe('claude');
 });
+
+it('adds the nullable session state columns and keeps the sessions it has', () => {
+  const { dir, db } = oldDataDir();
+  migrate(db);
+  db.close();
+  const after = new DatabaseSync(path.join(dir, 'hoplet.db'));
+  const columns = after.prepare('PRAGMA table_info(sessions)').all() as {
+    name: string;
+    notnull: number;
+  }[];
+  for (const name of ['title_override', 'pinned_at', 'archived_at']) {
+    expect(columns.find((c) => c.name === name)).toMatchObject({ notnull: 0 });
+  }
+  expect(after.prepare('SELECT id FROM schema_migrations WHERE id = 11').get()).toBeDefined();
+  after.close();
+  const store = new Store(dir);
+  expect(store.sessionStates().size).toBe(0);
+  expect(store.getSession('keep')).not.toBeNull();
+});

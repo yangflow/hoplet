@@ -1,12 +1,21 @@
 import type { LiveSessionMeta } from '@hoplet/shared';
-import { type ReactNode, useEffect, useMemo, useRef } from 'react';
+import {
+  type KeyboardEvent,
+  type MouseEvent,
+  type ReactNode,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { Badge } from '../../../components/Badge.tsx';
 import { IconButton } from '../../../components/IconButton.tsx';
 import { HopletMark, Icon, Spinner } from '../../../components/icons.tsx';
+import { Menu, type MenuEntry } from '../../../components/Menu.tsx';
 import { ProviderMark } from '../../../components/provider-marks.tsx';
 import { Row } from '../../../components/Row.tsx';
 import { t } from '../../../lib/i18n.ts';
-import type { DeviceGroup } from '../group.ts';
+import { type DeviceGroup, displayTitle } from '../group.ts';
 import { type GlyphState, glyphState, type RuntimeState } from '../model.ts';
 import { stateName } from '../runtime.ts';
 import { DEVICE_ROW, dirKey, useFoldedDirs } from './folded-dirs.ts';
@@ -15,6 +24,7 @@ import { compactRel } from './rel.ts';
 import {
   flatList,
   type MachineViews,
+  pinnedList,
   type Sort,
   sortedDirs,
   useMachineViews,
@@ -60,11 +70,38 @@ function SessionRow(props: {
   now: number;
   /** Flat: the second line, the name of the session's directory. */
   where?: string;
+  /** Shows the pin glyph before the time (Flat, where pinned rows lead). */
+  pinGlyph?: boolean;
   onSelect: (id: string) => void;
+  /** Opens the session's actions at a point of the window; `opener` gets the focus back. */
+  onMenu: (
+    session: LiveSessionMeta,
+    at: { x: number; y: number },
+    opener: HTMLElement,
+    keyboard: boolean,
+  ) => void;
 }) {
   const { session, state, selected, dim, now, where, onSelect } = props;
-  const title = session.title || t('Untitled session');
+  const title = displayTitle(session);
   const glyph = glyphState(state);
+  // The menu key also fires a native `contextmenu` (at 0,0, on key up): it anchors to the row like the key did.
+  const keyAt = useRef(0);
+  const anchor = (row: HTMLElement) => {
+    const box = row.getBoundingClientRect();
+    props.onMenu(session, { x: box.left + 32, y: box.bottom }, row, true);
+  };
+  const onContextMenu = (e: MouseEvent<HTMLElement>) => {
+    e.preventDefault();
+    const fromKey = Date.now() - keyAt.current < 1000 || (e.clientX === 0 && e.clientY === 0);
+    if (fromKey) anchor(e.currentTarget);
+    else props.onMenu(session, { x: e.clientX, y: e.clientY }, e.currentTarget, false);
+  };
+  const onKeyDown = (e: KeyboardEvent<HTMLElement>) => {
+    if (e.key !== 'ContextMenu' && !(e.key === 'F10' && e.shiftKey)) return;
+    e.preventDefault();
+    keyAt.current = Date.now();
+    anchor(e.currentTarget);
+  };
   return (
     <Row
       leading={<ProviderMark provider={session.provider} />}
@@ -72,7 +109,14 @@ function SessionRow(props: {
         glyph && !dim ? (
           <StateGlyph state={glyph} />
         ) : (
-          <span>{compactRel(session.updatedAt, now)}</span>
+          <>
+            {props.pinGlyph ? (
+              <span className="glyph" role="img" title={t('Pinned')} aria-label={t('Pinned')}>
+                {Icon.pin()}
+              </span>
+            ) : null}
+            <span>{compactRel(session.updatedAt, now)}</span>
+          </>
         )
       }
       selected={selected}
@@ -80,6 +124,8 @@ function SessionRow(props: {
       title={where ? `${title}\n${where}` : title}
       aria-current={selected ? 'true' : undefined}
       onPress={() => onSelect(session.sessionId)}
+      onContextMenu={onContextMenu}
+      onKeyDown={onKeyDown}
       className={`sess${where ? ' two' : ''}`}
       data-testid="cockpit.session"
     >
@@ -189,6 +235,12 @@ export function Sidebar(props: {
   views?: MachineViews;
   /** Starts with the view menu of this machine open (development fixtures). */
   menuDevice?: string;
+  /** Archived sessions: the footer button opens the Archived page. */
+  archivedCount?: number;
+  archivedOpen?: boolean;
+  /** The actions of a session, for its row's context menu. */
+  menuFor?: (session: LiveSessionMeta) => MenuEntry[];
+  onArchived?: () => void;
   onSelect: (id: string) => void;
   onNewSession: (target?: { deviceName: string; path: string }) => void;
   onAddProject: (deviceName: string) => void;
@@ -201,6 +253,12 @@ export function Sidebar(props: {
   const { viewOf, setView } = useMachineViews(props.views);
   const groups = props.groups;
   const treeRef = useRef<HTMLElement>(null);
+  const [ctx, setCtx] = useState<{
+    session: LiveSessionMeta;
+    at: { x: number; y: number };
+    opener: HTMLElement;
+    keyboard: boolean;
+  } | null>(null);
 
   // The sidebar follows the selected session, whoever selected it (a click, the palette, the URL): its
   // machine and directory open and it scrolls into view. Other folds stay as the reader left them.
@@ -229,7 +287,7 @@ export function Sidebar(props: {
     row.scrollIntoView?.({ block: 'nearest' });
   });
 
-  const row = (session: LiveSessionMeta, online: boolean, where?: string) => (
+  const row = (session: LiveSessionMeta, online: boolean, where?: string, pinGlyph?: boolean) => (
     <SessionRow
       key={session.sessionId}
       session={session}
@@ -238,13 +296,18 @@ export function Sidebar(props: {
       dim={!online}
       now={now}
       {...(where ? { where } : {})}
+      {...(pinGlyph ? { pinGlyph } : {})}
       onSelect={props.onSelect}
+      onMenu={(s, at, opener, keyboard) =>
+        props.menuFor && setCtx({ session: s, at, opener, keyboard })
+      }
     />
   );
 
   /** A machine's directories with their sessions. */
   function folders(g: DeviceGroup, sort: Sort) {
-    return sortedDirs(g, sort).map((d) => {
+    const pinned = pinnedList(g, sort);
+    const dirs = sortedDirs(g, sort).map((d) => {
       const folded = folding.isFolded(g.name, d.path);
       return (
         <div className="grp" key={d.path}>
@@ -277,13 +340,31 @@ export function Sidebar(props: {
         </div>
       );
     });
+    return [
+      ...(pinned.length > 0
+        ? [
+            <div className="grp" key="pinned" data-testid="cockpit.pinned">
+              <div className="grp-h">
+                <span className="fi">{Icon.pin()}</span>
+                {t('Pinned')}
+                <span className="cnt">{pinned.length}</span>
+              </div>
+              {pinned.map((p) => row(p.session, g.online, p.dir))}
+            </div>,
+          ]
+        : []),
+      ...dirs,
+    ];
   }
 
   /** A machine's sessions as one list, each with the name of its directory. */
   function flat(g: DeviceGroup, sort: Sort) {
+    const pinned = pinnedList(g, sort);
     return (
       <div className="grp flat">
         {draft?.deviceName === g.name ? <DraftRow /> : null}
+        {pinned.map((p) => row(p.session, g.online, p.dir, true))}
+        {pinned.length > 0 ? <div className="rule" /> : null}
         {flatList(g, sort).map((p) => row(p.session, g.online, p.dir))}
       </div>
     );
@@ -412,6 +493,16 @@ export function Sidebar(props: {
           </span>
           {live ? host : t('Reconnecting…')}
         </span>
+        {props.onArchived ? (
+          <IconButton
+            label={t('Archived')}
+            detail={`${t('Archived')} · ${props.archivedCount ?? 0}`}
+            icon={Icon.archive()}
+            on={props.archivedOpen ?? false}
+            onClick={props.onArchived}
+            data-testid="cockpit.archived"
+          />
+        ) : null}
         <IconButton
           label={t('Settings')}
           hint="⌘,"
@@ -421,6 +512,19 @@ export function Sidebar(props: {
           data-testid="cockpit.settings"
         />
       </div>
+      {ctx && props.menuFor ? (
+        <Menu
+          label={t('Session actions')}
+          entries={props.menuFor(ctx.session)}
+          at={ctx.at}
+          keyboard={ctx.keyboard}
+          onClose={(restore) => {
+            setCtx(null);
+            if (restore) ctx.opener.focus();
+          }}
+          data-testid="cockpit.row-menu"
+        />
+      ) : null}
     </aside>
   );
 }

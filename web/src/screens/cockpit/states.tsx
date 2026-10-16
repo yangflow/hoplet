@@ -579,9 +579,11 @@ export function Scene(props: {
   connected?: boolean;
   variant?: Variant;
   fixture?: CockpitFixture;
+  /** Changes the session list: pins, archives, a renamed session. */
+  sessions?: (base: LiveSessionMeta[]) => LiveSessionMeta[];
 }) {
   const macbookOnline = props.macbookOnline ?? true;
-  const sessions = fixtureSessions(macbookOnline);
+  const sessions = (props.sessions ?? ((base) => base))(fixtureSessions(macbookOnline));
   const [selected, setSelected] = useState<string | null>(
     props.selected === undefined ? catalogId : props.selected,
   );
@@ -634,6 +636,24 @@ export const running = (elapsed: number, over?: Partial<LiveTurn>): Variant => (
   live: { turn: liveTurn({ rows: runningRows, ...over }), elapsed },
 });
 
+/** The studio's note is pinned and the handoff session renamed. */
+const pinned = (base: LiveSessionMeta[]) =>
+  base.map((s) =>
+    s.sessionId === notesId
+      ? { ...s, pinnedAt: NOW - 86_400_000 }
+      : s.sessionId === handoffId
+        ? { ...s, titleOverride: 'Snapshot handoff', pinnedAt: NOW - 2 * 86_400_000 }
+        : s,
+  );
+/** Two sessions of the MacBook Pro and the office-mini's one are archived. */
+const archivedSessions = (base: LiveSessionMeta[]) =>
+  base.map((s) =>
+    s.sessionId === handoffId
+      ? { ...s, archivedAt: NOW - 3_600_000 }
+      : s.sessionId === appId
+        ? { ...s, archivedAt: NOW - 2 * 86_400_000 }
+        : s,
+  );
 const HOME = '/Users/mark';
 const HOME_GITHUB = `${HOME}/github`;
 const dir = (name: string, git = false) => ({ name, git });
@@ -865,5 +885,20 @@ export const states: Record<string, () => ReactNode> = {
     <Scene fixture={{ machineViews: { 'dev-macbook': { organize: 'flat', sort: 'activity' } } }} />
   ),
   'sidebar-menu': () => <Scene fixture={{ menuDevice: 'MacBook Pro' }} />,
+  'session-actions': () => <Scene fixture={{ actionsMenu: {} }} />,
+  'session-actions-copy': () => <Scene fixture={{ actionsMenu: { sub: 'copy' } }} />,
+  'rename-dialog': () => (
+    <Scene sessions={pinned} fixture={{ rename: 'Snapshot handoff' }} selected={handoffId} />
+  ),
+  pinned: () => <Scene sessions={pinned} />,
+  'pinned-flat': () => (
+    <Scene
+      sessions={pinned}
+      fixture={{ machineViews: { 'dev-macbook': { organize: 'flat', sort: 'activity' } } }}
+    />
+  ),
+  archived: () => <Scene sessions={archivedSessions} fixture={{ archived: true }} />,
+  'archived-empty': () => <Scene fixture={{ archived: true }} />,
+  'copy-toast': () => <Scene fixture={{ toast: { text: 'Session ID copied' } }} />,
   disconnected: () => <Scene connected={false} variant={running(48_000)} />,
 };

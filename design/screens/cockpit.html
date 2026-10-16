@@ -779,6 +779,86 @@ body.stacked{background:#131210;color:#efe9e2;font-family:-apple-system,"SF Pro 
 .intro .frame p.text{color:var(--color-text);font-size:var(--text-body);line-height:var(--leading-body);max-width:var(--measure-prose)}
 .intro .frame p.thought{color:var(--color-text-3);font-size:var(--text-ui);line-height:var(--leading-ui);margin:0 0 var(--space-2) calc(16px + var(--space-2))}
 .icons .ic.wide{grid-column:span 2}
+/* session actions: the menu, the rename dialog, the pinned group, the Archived page, the toast */
+/* the actions menu: popover grammar of the machine menu, 28 px items, icon | label | shortcut */
+.mn{position:absolute;z-index:30;width:var(--layout-popover);padding:var(--space-1);border-radius:var(--radius-md);background:var(--color-raised);box-shadow:var(--shadow-float)}
+.mn .menu-item{position:relative}
+.mn .menu-item > svg{color:var(--color-text-3)}
+.mn .menu-item .sc{margin-left:auto;font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3);font-variant-numeric:tabular-nums;letter-spacing:.04em}
+.mn .menu-item.on{background:var(--color-selected);box-shadow:inset 0 1px 0 var(--color-highlight)}
+.mn .menu-item.on > svg{color:var(--color-text-2)}
+.mn .menu-item.off{color:var(--color-text-3)}
+.mn .menu-item .chv{margin-left:auto;color:var(--color-text-3)}
+.mn .menu-sep{margin:var(--space-1) var(--space-2)}
+.sess .m svg{color:var(--color-text-3)}
+.sess .ib{width:24px;height:24px;margin-right:-4px;color:var(--color-text-2)}
+.sess.hov{background:var(--color-hover)}
+.sess.on.hov{background:var(--color-selected)}
+.rw{position:relative}
+.sess.two .m{align-self:center}
+.fld{display:flex;align-items:center;gap:var(--space-1);height:24px;margin:0 -6px;padding:0 6px;border-radius:var(--radius-sm);background:var(--color-raised);outline:2px solid var(--color-accent);outline-offset:0;color:var(--color-text);min-width:0;overflow:hidden;white-space:nowrap}
+.fld .v{flex:1;min-width:0;overflow:hidden}
+.fld .ph2{color:var(--color-text-3)}
+.fld .selx{background:rgba(255,122,26,.28);border-radius:2px}
+.light .fld .selx{background:rgba(194,78,0,.2)}
+.fld .cr2{display:inline-block;width:1.5px;height:16px;background:var(--color-accent);vertical-align:-3px;margin-left:1px}
+.fld .ib{width:20px;height:20px;margin-right:-2px}
+.fld.big{height:var(--control-field);margin:0;padding:0 var(--space-3);font-size:var(--text-ui)}
+.fld.big .ib{width:24px;height:24px}
+.fld.ttl{height:32px;margin:0 0 0 -8px;padding:0 8px;font-size:var(--text-title);line-height:var(--leading-title);font-weight:var(--weight-semibold);letter-spacing:-0.01em;width:380px}
+.hint{position:absolute;z-index:30;left:0;right:0;top:calc(100% + var(--space-1));padding:var(--space-2);border-radius:var(--radius-md);background:var(--color-raised);box-shadow:var(--shadow-float);font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3);display:flex;flex-direction:column;gap:var(--space-1);white-space:normal}
+.hint .l{display:flex;align-items:center;gap:var(--space-1);flex-wrap:wrap}
+.hint b{font-weight:var(--weight-medium);color:var(--color-text-2)}
+.hint .claude{color:var(--color-text-2)}
+.hint.free{width:300px;left:auto;right:auto}
+.dlg{width:var(--layout-dialog);max-width:calc(100% - 32px);top:36px}
+.dlg-h{padding:var(--space-4) var(--space-4) var(--space-3);font-size:var(--text-title);line-height:var(--leading-title);font-weight:var(--weight-semibold);letter-spacing:-0.01em}
+.dlg-b{padding:0 var(--space-4);display:flex;flex-direction:column;gap:var(--space-2)}
+.dlg-u{display:flex;align-items:center;gap:var(--space-2);min-height:var(--control-icon);color:var(--color-text-3);font-size:var(--text-meta);line-height:var(--leading-meta)}
+.dlg-u .vt{color:var(--color-text-2);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dlg-u .gap{flex:1}
+.dlg-f{display:flex;justify-content:flex-end;gap:var(--space-2);padding:var(--space-4)}
+.tag{display:inline-flex;align-items:center;gap:var(--space-1);height:20px;padding:0 6px;border-radius:4px;background:var(--color-hover);color:var(--color-text-2);font-size:var(--text-meta);line-height:var(--leading-meta);font-weight:var(--weight-medium)}
+.light .tag{background:var(--color-selected)}
+.grp-h{height:var(--layout-row);display:flex;align-items:center;gap:var(--space-2);padding:0 var(--space-2);color:var(--color-text-2);font-weight:var(--weight-medium)}
+.grp-h .fi{width:16px;height:16px;display:grid;place-items:center;color:var(--color-text-3)}
+.grp-h .cnt{margin-left:auto;font-size:var(--text-meta);color:var(--color-text-3);font-weight:var(--weight-regular)}
+.rule{height:1px;margin:var(--space-1) var(--space-2);background:var(--color-line)}
+.toast{position:absolute;left:50%;bottom:var(--space-4);transform:translateX(-50%);z-index:8;height:var(--control-field);display:inline-flex;align-items:center;gap:var(--space-2);padding:0 var(--space-4) 0 var(--space-3);border-radius:999px;background:var(--color-raised);box-shadow:var(--shadow-float);white-space:nowrap}
+.toast svg{color:var(--color-success)}
+.arch-list{width:min(var(--layout-column),calc(100% - 64px));margin:0 auto;padding-top:var(--space-3)}
+.arow{height:44px;display:flex;align-items:center;gap:var(--space-3);padding:0 var(--space-3) 0 var(--space-2);margin:0 calc(-1 * var(--space-2));border-radius:var(--radius-sm)}
+.arow.hov{background:var(--color-hover)}
+.arow .tt{flex:1;min-width:0;display:flex;flex-direction:column}
+.arow .t1,.arow .t2{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.arow .t1{color:var(--color-text-2)}
+.arow .t2{font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3)}
+.arow .m{font-size:var(--text-meta);color:var(--color-text-3);font-variant-numeric:tabular-nums}
+.arow .ib{color:var(--color-text-2)}
+.top .back{margin-left:calc(-1 * var(--space-2))}
+.top .cnt2{font-size:var(--text-meta);color:var(--color-text-3);margin-left:var(--space-1)}
+.top .tag{margin-left:var(--space-1)}
+.pal-in .chip2{display:inline-flex;align-items:center;gap:var(--space-1);height:24px;padding:0 var(--space-2);border-radius:var(--radius-sm);background:var(--color-hover);color:var(--color-text-2);font-size:var(--text-ui);margin-right:calc(-1 * var(--space-1))}
+.light .pal-in .chip2{background:var(--color-selected)}
+.pal-in .chip2 svg{color:var(--color-text-3)}
+.pal .modal,.fr .pal{top:36px}
+.po .rs{display:flex;align-items:center;gap:var(--space-1);font-size:var(--text-meta);color:var(--color-text-3)}
+.po.dimr .t{color:var(--color-text-2)}
+
+.agp{width:min(var(--layout-column),calc(100% - 48px))}
+.agm{height:var(--layout-row);display:flex;align-items:center;gap:var(--space-2);padding:0 var(--space-2);margin-top:var(--space-3);font-weight:var(--weight-semibold)}
+.agm:first-child{margin-top:0}
+.agm .cnt,.agf .cnt{margin-left:auto;font-size:var(--text-meta);color:var(--color-text-3);font-weight:var(--weight-regular);font-variant-numeric:tabular-nums}
+.agm.off{color:var(--color-text-3)}
+.agm.off .tag{margin-left:var(--space-1)}
+.agf{height:var(--layout-row);display:flex;align-items:center;gap:var(--space-2);padding:0 var(--space-2);border-radius:var(--radius-sm);color:var(--color-text-2);font-weight:var(--weight-medium)}
+.agf .fi{width:16px;height:16px;display:grid;place-items:center;color:var(--color-text-3)}
+.agf .pth{color:var(--color-text-3);font-weight:var(--weight-regular);font-size:var(--text-meta);line-height:var(--leading-meta)}
+.agf .rt{margin-left:auto;display:flex;align-items:center;gap:var(--space-2)}
+.agf .rt .cnt{margin-left:0}
+.agf.hov{background:var(--color-hover)}
+.arow.c{height:32px;padding-left:var(--space-4);margin:0}
+.agoff .arow .t1{color:var(--color-text-3)}
 </style>
 </head>
 <body>
@@ -840,6 +920,10 @@ const L = {
   'file-pen': '<path d="M12.659 22H18a2 2 0 0 0 2-2V8a2.4 2.4 0 0 0-.706-1.706l-3.588-3.588A2.4 2.4 0 0 0 14 2H6a2 2 0 0 0-2 2v9.34"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="M10.378 12.622a1 1 0 0 1 3 3.003L8.36 20.637a2 2 0 0 1-.854.506l-2.867.837a.5.5 0 0 1-.62-.62l.836-2.869a2 2 0 0 1 .506-.853z"/>',
   'list-checks': '<path d="M13 5h8"/><path d="M13 12h8"/><path d="M13 19h8"/><path d="m3 17 2 2 4-4"/><path d="m3 7 2 2 4-4"/>',
   sparkles: '<path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z"/><path d="M20 2v4"/><path d="M22 4h-4"/><circle cx="4" cy="20" r="2"/>',
+  pin: '<path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/>',
+  'pin-off': '<path d="M12 17v5"/><path d="M15 9.34V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H7.89"/><path d="m2 2 20 20"/><path d="M9 9v1.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h11"/>',
+  archive: '<rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/>',
+  'archive-restore': '<rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h2"/><path d="M20 8v11a2 2 0 0 1-2 2h-2"/><path d="m9 15 3-3 3 3"/><path d="M12 12v9"/>',
   'text-wrap': '<path d="m16 16-3 3 3 3"/><path d="M3 12h14.5a1 1 0 0 1 0 7H13"/><path d="M3 19h6"/><path d="M3 5h18"/>',
 };
 /* the curated set, in the order the intro lists it: [Lucide name, uses] */
@@ -856,6 +940,7 @@ const ICON_SET = [
   ['text-wrap', 'Wrap long lines'], ['loader-circle', 'Running, starting, loading'], ['git-branch', 'Git branch'], ['zap', 'Fast'],
   ['shield', 'Permission mode'], ['shield-alert', 'Permission mode, high risk'],
   ['file-pen', 'Mode: accept edits'], ['list-checks', 'Mode: plan'], ['sparkles', 'Mode: auto'],
+  ['pin', 'Pin, pinned row, Pinned group'], ['pin-off', 'Unpin'], ['archive', 'Archive, Archived page'], ['archive-restore', 'Unarchive, Restore'],
 ];
 const I = {
   search: () => sv(L.search),
@@ -909,6 +994,10 @@ const I = {
   listChecks: () => sv(L['list-checks']),
   sparkles: () => sv(L.sparkles),
   zap: () => sv(L.zap),
+  pin: () => sv(L.pin),
+  unpin: () => sv(L['pin-off']),
+  archive: () => sv(L.archive),
+  restore: () => sv(L['archive-restore']),
 };
 const spin = () => sv(L['loader-circle'], 'spin');
 const mark = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--color-on-accent)" stroke-width="3.2" stroke-linecap="round" aria-hidden="true"><path d="M6 18L18 6"/><circle cx="18" cy="6" r=".6" fill="var(--color-on-accent)"/></svg>`;
@@ -1003,6 +1092,9 @@ const HANDOFF = ['handoff', 'handoff-path', 'handoff-progress', 'handoff-failed'
 const WIDE = ['file-open', 'file-image', 'diff-open', 'diff-large', 'diff-binary', 'diff-offline'];
 const INSP = ['workspace', 'changes', 'changes-offline', ...WIDE, ...HANDOFF];
 const MINT = ['mint', 'mint-waiting', 'mint-online'];
+const PINNED = ['pinned', 'pinned-flat'];
+const ARCHIVED = ['archived', 'archived-empty'];
+const MENU = ['session-menu', 'session-menu-copy'];
 const SETTINGS = ['settings', 'settings-language', 'settings-machines', ...MINT];
 
 function sessKind(state) {
@@ -1023,7 +1115,8 @@ function sidebar(state) {
   const settings = SETTINGS.includes(state);
   const lost = state === 'disconnected';
   const draft = DRAFT.includes(state);
-  const sel = !(state === 'empty' || settings || draft);
+  const sel = !(state === 'empty' || settings || draft || ARCHIVED.includes(state));
+  const pinState = PINNED.includes(state);
   /* view options are per machine: by folder (default) or flat, sorted by recent activity; MacBook Pro is flat in sidebar-flat */
   const menuOpen = state === 'sidebar-menu';
   const S = (t, kind, time, on = false) => ({ t, kind, time, on });
@@ -1032,6 +1125,9 @@ function sidebar(state) {
   const other = S('Hand off sessions with snapshots', off ? '' : 'run', '3h');
   /* folding is remembered per directory: office-mini › hoplet-app stays folded; notes is folded in ready */
   const DEVS = [
+    pinState ? { n: 'MacBook Pro', flat: state === 'pinned-flat', on: true,
+      pinned: [{ ...other, dir: 'hoplet', pin: true }, { ...S('Roadmap 0.4 planning', '', '2d'), dir: 'notes', pin: true }],
+      dirs: [{ n: 'hoplet', open: true, ss: [open, S('Resync the byte cursor on restart', '', '1d')] }, { n: 'notes', open: true, ss: [S('Audit docs/api.md', '', '5d')] }] } :
     { n: 'MacBook Pro', hov: state.startsWith('add-project'), flat: state === 'sidebar-flat', menu: menuOpen, on: !off, dirs: [{ n: 'hoplet', open: true, ss: moved ? [other] : draft ? [{ t: 'New session', draft: true, on: true }, open, other] : [open, other] }] },
     { n: 'office-mini', on: false, dirs: [{ n: 'hoplet-app', open: false, ss: [S('Liquid Glass tab bar', '', '4d')] }] },
     { n: 'studio', on: true, dirs: [
@@ -1040,21 +1136,26 @@ function sidebar(state) {
     ...(state === 'mint-online' ? [{ n: 'studio-2', on: true, dirs: [] }] : []),
   ];
   /* provider mark | title | runtime state, or the last-activity time when idle */
-  const sess = (s, o = {}) => s.draft ? `<div class="sess on draft"><span class="pm">${I.compose()}</span><span class="t">${s.t}</span><span class="m"></span></div>` : `<div class="sess${o.two ? ' two' : ''}${s.on ? ' on' : ''}${o.dim ? ' dim' : ''}">${pmark('claude')}${o.two ? `<span class="t tt"><span class="t1">${s.t}</span><span class="t2">${o.two}</span></span>` : `<span class="t">${s.t}</span>`}<span class="m">${s.kind ? GL[s.kind]() : s.time}</span></div>`;
+  const sess = (s, o = {}) => s.draft ? `<div class="sess on draft"><span class="pm">${I.compose()}</span><span class="t">${s.t}</span><span class="m"></span></div>` : `<div class="sess${o.two ? ' two' : ''}${s.on ? ' on' : ''}${o.dim ? ' dim' : ''}">${pmark('claude')}${o.two ? `<span class="t tt"><span class="t1">${s.t}</span><span class="t2">${o.two}</span></span>` : `<span class="t">${s.t}</span>`}<span class="m">${s.kind ? GL[s.kind]() : `${s.pin && !o.noPin ? glyph(I.pin(), 'Pinned') : ''}${s.time}`}</span></div>`;
   const folder = (n, isOpen, ss, hov, title, plus) => {
     const strongest = ATTENTION.find(k => ss.some(s => s.kind === k));
     const folded = isOpen ? '' : `<span class="cnt"${tip(`${ss.length} session${ss.length > 1 ? 's' : ''}`)}>${ss.length}</span>${strongest ? GL[strongest]() : ''}`;
     return `<div class="sdir${isOpen ? ' open' : ''}${hov ? ' hov' : ''}" role="button" aria-expanded="${isOpen}" title="${title}"><span class="fi">${isOpen ? I.folderOpen() : I.folder()}</span><span class="dn">${n}</span><span class="rt">${folded}${plus ? ib(I.plus(), `New session in ${n}`) : ''}</span></div>`;
   };
   const dir = d => folder(d.n, d.open, d.ss, d.hov, d.n, true) + (d.open ? d.ss.map(s => sess(s)).join('') : '');
-  const flat = d => d.dirs.flatMap(r => r.ss.map(s => ({ s, dir: r.n }))).sort((a, b) => age(a.s) - age(b.s)).map(p => sess(p.s, { two: p.dir })).join('');
+  const flat = d => {
+    const all = d.dirs.flatMap(r => r.ss.map(s => ({ s, dir: r.n }))).sort((a, b) => age(a.s) - age(b.s));
+    const pins = (d.pinned || []).map(s => ({ s, dir: s.dir })).sort((a, b) => age(a.s) - age(b.s));
+    return pins.map(p => sess(p.s, { two: p.dir })).join('') + (pins.length ? '<div class="rule"></div>' : '') + all.map(p => sess(p.s, { two: p.dir })).join('');
+  };
+  const pinGroup = d => d.pinned && !d.flat ? `<div class="grp-h"><span class="fi">${I.pin()}</span>Pinned<span class="cnt">${d.pinned.length}</span></div>${d.pinned.map(s => sess(s, { two: s.dir, noPin: true })).join('')}` : '';
   const item = (label, on) => `<div class="menu-item" role="menuitemradio" aria-checked="${on}"><span class="menu-check">${on ? I.check() : ''}</span>${label}</div>`;
   const menu = d => `<div class="pop" role="menu" aria-label="${d.n}"><div class="menu-title">${d.n}</div>
       <div role="group" aria-label="Organize"><div class="menu-label">Organize</div>${item('By folder', !d.flat)}${item('Flat', !!d.flat)}</div>
       <div class="menu-sep"></div>
       <div role="group" aria-label="Sort"><div class="menu-label">Sort</div>${item('Recent activity', true)}${item('Created', false)}${item('Title', false)}</div></div>`;
   const dev = d => `<div class="devg${d.on ? '' : ' off'}"><div class="dev open${d.hov ? ' hov' : ''}${d.menu ? ' menu' : ''}"><span class="dt" role="button" aria-expanded="true"><span class="lead"><span class="dot${d.on ? '' : ' off'}"${tip(d.on ? 'Online' : 'Offline')}></span></span><span class="dn">${d.n}</span><span class="dchv">${I.chev()}</span></span>${ib(I.more(), 'View options', d.menu ? 'on' : '')}${ib(I.plus(), d.on ? 'Add project' : `${d.n} is offline`, '', !d.on)}${d.menu ? menu(d) : ''}</div>
-      ${d.flat ? `<div class="grp">${flat(d)}</div>` : d.dirs.length ? d.dirs.map(dir).join('') : '<div class="sdir none">No projects yet</div>'}</div>`;
+      ${d.flat ? `<div class="grp">${flat(d)}</div>` : d.dirs.length ? pinGroup(d) + d.dirs.map(dir).join('') : '<div class="sdir none">No projects yet</div>'}</div>`;
   const age = s => { const m = /^(\d+)([mhd])$/.exec(s.time); return m ? +m[1] * { m: 1, h: 60, d: 1440 }[m[2]] : 0; };
   const tree = DEVS.map(dev).join('');
   const conn = lost
@@ -1065,7 +1166,7 @@ function sidebar(state) {
       <span class="hb">${ib(I.compose(), 'New session · ⌘N', draft ? 'on' : '')}${ib(I.sidebar(), 'Hide sidebar · ⌘\\')}</span></div>
     <button class="search"${tip('Search · ⌘K')}>${I.search()}<span class="lbl">Search</span><span class="kbd">⌘K</span></button>
     <div class="tree${lost ? ' frozen-side' : ''}">${tree}</div>
-    <div class="side-foot">${conn}${ib(I.gear(), 'Settings · ⌘,', settings ? 'on' : '')}</div>
+    <div class="side-foot">${conn}${ib(I.archive(), 'Archived · 9', ARCHIVED.includes(state) ? 'on' : '')}${ib(I.gear(), 'Settings · ⌘,', settings ? 'on' : '')}</div>
   </aside>`;
 }
 
@@ -1669,6 +1770,47 @@ function settingsMain(state) {
     </nav><div class="spage"><div class="in">${page}</div></div></div>`;
 }
 
+/* the session actions menu: Rename and Pin | Copy › and Open in new window | Archive */
+function actions(o = {}) {
+  const it = (icon, label, sc = '', on = false) => `<div class="menu-item${on ? ' on' : ''}" role="menuitem"><span class="menu-check">${icon}</span>${label}${sc ? `<span class="sc">${sc}</span>` : ''}</div>`;
+  const sub = o.sub ? `<div class="mn" role="menu" aria-label="Copy" style="left:-252px;top:65px">
+      <div class="menu-item on" role="menuitem">Session ID</div><div class="menu-item" role="menuitem">Link</div><div class="menu-item" role="menuitem">Last answer as Markdown</div></div>` : '';
+  return `<div class="mn" role="menu" aria-label="Session actions" style="right:48px;top:48px">
+    ${it(I.pen(), 'Rename', '⌥⌘R')}${it(I.pin(), 'Pin', '⌥⌘P')}
+    <div class="menu-sep" role="separator"></div>
+    <div class="menu-item${o.sub ? ' on' : ''}" role="menuitem" aria-haspopup="menu" aria-expanded="${!!o.sub}"><span class="menu-check">${I.copy()}</span>Copy<span class="chv">${I.chev()}</span></div>
+    ${it(I.ext(), 'Open in new window')}
+    <div class="menu-sep" role="separator"></div>
+    ${it(I.archive(), 'Archive', '⇧⌘A')}${sub}</div>`;
+}
+function renameDialog() {
+  return `<div class="scrim"></div><div class="modal dlg" role="dialog" aria-modal="true" aria-label="Rename session">
+    <div class="dlg-h">Rename session</div>
+    <div class="dlg-b"><div class="fld big"><span class="v"><span class="selx">Byte cursor design notes</span><span class="cr2"></span></span></div>
+      <div class="dlg-u"><span>Claude’s title</span><span class="vt">byte cursor catalog</span><span class="gap"></span><button class="btn quiet" style="height:24px">${I.retry()}Use Claude’s title</button></div></div>
+    <div class="dlg-f"><button class="btn quiet">Cancel</button><button class="btn primary">Save</button></div></div>`;
+}
+/* the Archived page: machine, then folder (name, path, count), newest first */
+function archivedMain(state) {
+  const top = `<header class="top">${ib(I.back(), 'Back to the session · Esc', 'back')}<span class="title">Archived</span>${state === 'archived' ? '<span class="cnt2">9</span>' : ''}<span class="sp"></span></header>`;
+  if (state === 'archived-empty') return top + `<div class="empty"><div class="in"><span class="tile">${sv(L.archive).replace('width="16" height="16"', 'width="20" height="20"')}</span><p>No archived sessions</p><span class="k"><span>Archive from the ··· menu</span><span><span class="kbd">⇧⌘A</span></span></span></div></div>`;
+  const mh = (name, n, o = {}) => `<div class="agm${o.off ? ' off' : ''}"><span class="${o.off ? 'dot off' : 'dot'}"></span><span class="dn">${name}</span>${o.off ? '<span class="tag">Offline</span>' : ''}<span class="cnt">${n}</span></div>`;
+  const fh = (name, path, n, o = {}) => `<div class="agf${o.hov ? ' hov' : ''}"><span class="fi">${o.closed ? I.folder() : I.folderOpen()}</span><span class="dn">${name}</span><span class="pth">${path}</span><span class="rt">${o.hov ? `<button class="btn quiet" style="height:24px">${I.restore()}Restore all</button>` : ''}<span class="cnt">${n}</span></span></div>`;
+  const ar = (t, time, o = {}) => `<div class="arow c${o.hov ? ' hov' : ''}">${pmark('claude')}<span class="tt"><span class="t1">${t}</span></span>${o.hov ? ib(I.restore(), 'Restore') : ''}<span class="m">${time}</span></div>`;
+  return top + `<div class="conv" style="overflow:auto"><div class="arch-list agp">
+      ${mh('MacBook Pro', 5)}
+      ${fh('hoplet', '~/code/hoplet', 3, { hov: true })}
+      ${ar('Resync the byte cursor on restart', '3d ago')}${ar('Fix the Flat sort order', '5d ago')}${ar('Audit docs/api.md', '3w ago')}
+      ${fh('notes', '~/notes', 2, { closed: true })}
+      ${mh('studio', 2)}
+      ${fh('hoplet-app', '~/code/hoplet-app', 2)}
+      ${ar('Why the byte cursor drifts after a crash', '1w ago', { hov: true })}${ar('Liquid Glass tab bar', '2w ago')}
+      ${mh('office-mini', 2, { off: true })}
+      ${fh('notes', '~/notes', 2)}
+      <div class="agoff">${ar('Resync on restart, take two', '4w ago', { hov: true })}${ar('Archive the old spike', '6w ago')}</div>
+    </div></div>`;
+}
+
 function frame(state, scheme) {
   const wide = WIDE.includes(state);
   const insp = INSP.includes(state);
@@ -1677,10 +1819,12 @@ function frame(state, scheme) {
   const empty = state === 'empty';
   let main;
   if (settings) main = settingsMain(state);
+  else if (ARCHIVED.includes(state)) main = archivedMain(state);
   else {
     const top = `<header class="top">${nosb ? ib(I.sidebar(), 'Show sidebar · ⌘\\') : ''}
       ${empty ? '' : `<span class="title">${DRAFT.includes(state) ? 'New session' : 'byte cursor catalog'}</span>`}
       <span class="sp"></span>
+      ${!empty && !DRAFT.includes(state) ? ib(I.more(), 'Session actions', MENU.includes(state) ? 'on' : state === 'copied' ? 'bd' : '') : ''}
       ${!empty && !insp && !DRAFT.includes(state) ? `<button class="ib"${tip('Show workspace · 4 changed · ⌘I')}>${I.panel()}<span class="cdg"></span></button>` : ''}
     </header>`;
     let body;
@@ -1698,14 +1842,14 @@ function frame(state, scheme) {
         ${state === 'scrolled' ? `<div class="loadbar" role="status"${tip('Loading earlier lines')}>${spin()}</div>` : ''}
         ${composer(state)}`;
     }
-    main = top + body;
+    main = top + body + (MENU.includes(state) ? actions({ sub: state === 'session-menu-copy' }) : '') + (state === 'copied' ? `<div class="toast" role="status" style="bottom:128px">${I.check()}Link copied</div>` : '');
   }
   const cls = `frame ${scheme}${insp ? ' with-insp' : ''}${wide ? ' wide' : ''}${nosb ? ' nosb' : ''}`;
   return `<div class="${cls}" data-state="${state}">
     ${nosb ? '' : sidebar(state)}
     <main class="main">${main}</main>
     ${insp ? inspector(state) : ''}
-    ${state.startsWith('add-project') ? addProjectModal(state) : state === 'search' ? palette() : ''}
+    ${state.startsWith('add-project') ? addProjectModal(state) : state === 'search' ? palette() : state === 'rename' ? renameDialog() : ''}
   </div>`;
 }
 
@@ -1713,7 +1857,7 @@ function frame(state, scheme) {
 const SCREEN = {
   name: 'Cockpit',
   system: true,
-  blurb: 'The main window: the session sidebar, the conversation as turns, the composer, runtime states and permission requests, the command palette and New session. Each session row starts with its provider’s mark, drawn in the row’s text colour and never in brand colour, and ends with its runtime state when it is not idle, else its last-activity time. The sidebar footer names this window’s connection to the core (a dot and the host, “Reconnecting…” in red when lost) beside an icon-only Settings button. Search is a quiet field that opens the command palette (⌘K): sessions, line hits across sessions and actions in one centred list. A machine row folds its directories and shows a plus (Add project) on hover, which opens a dialog with the same chrome: a machine select (every machine with its presence dot, offline ones disabled, an Add a machine item that points to the host CLI), a path bar of clickable segments that turns into a field for a typed path, and the folders under the agent’s browse root with recent folders on top, in one frame whose first row is that path bar; the primary button names the selected folder. A directory row has no chevron and no indent: it is one button that folds it, led by a folder glyph that is open while the directory is, on the machine row’s glyph and name columns. Each machine row also shows an ellipsis on hover, next to the plus, that opens that machine’s view options under its name: Organize (By folder, the default, or Flat) and Sort (Recent activity, Created, Title). Flat lists the machine’s sessions as one list with a second line for each session’s directory and hides its directories; the choice is kept per machine in the browser and an offline machine keeps the menu. The sidebar follows the selected session: its machine and directory open and it scrolls into view. The top bar holds the title and the workspace toggle only. New session (⌘N) opens a draft: an empty conversation whose composer chooses the machine and the directory, and whose first prompt starts the session. The composer’s first row says where the session runs (machine / directory / git branch), read only once the session exists; its toolbar holds attach, the model with Thinking and Fast, dictate and send. The text grows to 8 lines, then scrolls; dragging the top edge sets a height the browser remembers, and a double-click resets it. Pasted and attached images sit as thumbnails above the text. The workspace inspector and Settings are their own screens (<code>workspace.html</code>, <code>settings.html</code>); here the inspector stays closed.',
+  blurb: 'The main window: the session sidebar, the conversation as turns, the composer, runtime states and permission requests, the command palette and New session. Each session row starts with its provider’s mark, drawn in the row’s text colour and never in brand colour, and ends with its runtime state when it is not idle, else its last-activity time. The sidebar footer names this window’s connection to the core (a dot and the host, “Reconnecting…” in red when lost) beside an icon-only Settings button. Search is a quiet field that opens the command palette (⌘K): sessions, line hits across sessions and actions in one centred list. A machine row folds its directories and shows a plus (Add project) on hover, which opens a dialog with the same chrome: a machine select (every machine with its presence dot, offline ones disabled, an Add a machine item that points to the host CLI), a path bar of clickable segments that turns into a field for a typed path, and the folders under the agent’s browse root with recent folders on top, in one frame whose first row is that path bar; the primary button names the selected folder. A directory row has no chevron and no indent: it is one button that folds it, led by a folder glyph that is open while the directory is, on the machine row’s glyph and name columns. Each machine row also shows an ellipsis on hover, next to the plus, that opens that machine’s view options under its name: Organize (By folder, the default, or Flat) and Sort (Recent activity, Created, Title). Flat lists the machine’s sessions as one list with a second line for each session’s directory and hides its directories; the choice is kept per machine in the browser and an offline machine keeps the menu. The sidebar follows the selected session: its machine and directory open and it scrolls into view. The top bar holds the title and the workspace toggle only. New session (⌘N) opens a draft: an empty conversation whose composer chooses the machine and the directory, and whose first prompt starts the session. The composer’s first row says where the session runs (machine / directory / git branch), read only once the session exists; its toolbar holds attach, the model with Thinking and Fast, dictate and send. The text grows to 8 lines, then scrolls; dragging the top edge sets a height the browser remembers, and a double-click resets it. Pasted and attached images sit as thumbnails above the text. The workspace inspector and Settings are their own screens (<code>workspace.html</code>, <code>settings.html</code>); here the inspector stays closed. The top bar’s ··· opens the session menu, which a session row’s context menu repeats: Rename (a small dialog that shows Claude’s title and falls back to it when cleared), Pin, Copy ›, Open in new window and Archive. Pinned sessions form a Pinned group at the top of their machine (Flat: first, with a pin glyph). The sidebar footer’s archive icon opens the Archived page: machine, then folder, newest first, Restore on a row and Restore all on a folder. A copy is confirmed by a toast.',
 };
 const STATES = [
   ['empty', 'no session selected; hover shows a directory’s +'],
@@ -1744,6 +1888,14 @@ const STATES = [
   ['sidebar-flat', 'MacBook Pro as one list, each row with its directory on a second line; studio by folder'],
   ['sidebar-menu', 'a machine’s view options open: Organize (By folder, Flat) and Sort'],
   ['disconnected', 'this window lost the core'],
+  ['session-menu', 'the ··· menu in the top bar (the same menu opens on a session row’s context menu): Rename, Pin | Copy ›, Open in new window | Archive'],
+  ['session-menu-copy', 'the Copy submenu: Session ID, Link, Last answer as Markdown'],
+  ['rename', 'Rename session: Claude’s title shown beside the field, with Use Claude’s title'],
+  ['pinned', 'By folder: a Pinned group at the top of the machine, rows with their folder on a second line'],
+  ['pinned-flat', 'Flat: pinned sessions first with a pin glyph, a hairline after the last'],
+  ['archived', 'the Archived page: machine, then folder (name, path, count), newest first; Restore on a row, Restore all on a folder'],
+  ['archived-empty', 'the Archived page with nothing archived'],
+  ['copied', 'a toast confirms a copy, in the jump-to-end pill’s style'],
 ];
 /* screen: end */
 

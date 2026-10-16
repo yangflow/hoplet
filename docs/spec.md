@@ -76,7 +76,30 @@ row's button presets both, and ⌘N starts where the open session runs. The draf
 refused start keeps the draft and its text and says why. Selecting another session discards the draft. The sidebar foot shows whether this
 window is connected to the core and opens Settings. The sidebar folds away.
 
-**Conversation.** The top bar holds the session's title and the workspace toggle; where the session lives is
+**Session actions.** The session menu (the ellipsis in the conversation's top bar, and the context menu of a
+sidebar row: right click, the context-menu key or Shift+F10) acts on one session and has three groups:
+**Rename** (⌥⌘R) and **Pin** or **Unpin** (⌥⌘P); **Copy**, a submenu of Session ID, Link (the address that
+opens the session in this web UI) and Last answer as Markdown (the text of the session's last assistant
+message, as Markdown), and **Open in new window**; **Archive** or **Unarchive** (⇧⌘A). A copy is confirmed by a
+toast that fades after a few seconds. The shortcuts act on the selected session. There is no Fork and no
+Delete here.
+
+- **Rename** opens a dialog with the title field, the vendor's title ("Claude's title: ...") and a Use Claude's
+  title action. The name is the session's title in Hoplet: the sidebar, the top bar and the palette show it, and
+  clearing the field shows the vendor's title again. It is stored beside the vendor's title and rewrites no
+  line.
+- **Pin** keeps a session at the top. By folder, a Pinned group opens each machine's sessions, and its rows show
+  their folder as a second line; Flat lists pinned sessions first, each with a pin mark, a hairline closing
+  them. Pinned sessions are ordered by the machine's sort.
+- **Archive** hides a session from the sidebar and from the palette's session list. It is not deleted: it stays
+  in the store, keeps syncing, and stays archived when lines are appended to it or it is handed off, until it
+  is restored. The archive icon in the sidebar foot opens the Archived page in the conversation's place:
+  archived sessions grouped by machine, then by project folder (name, path, count), newest first, always,
+  whatever the machine's view options. Restore appears on a row's hover, and Restore all on a folder header's
+  hover, without confirmation. Sessions of an offline machine are listed and can be restored. An empty list says
+  so, and a back button returns to the conversation.
+
+**Conversation.** The top bar holds the session's title, the session menu and the workspace toggle; where the session lives is
 the sidebar's to show. The selected session from its last 80 lines; earlier pages load as the reader scrolls up.
 The conversation is a sequence of turns: a turn begins with a user prompt, which is its header with the
 time, and holds the assistant text, thinking, tool calls, tool results and file edits that follow. A
@@ -181,9 +204,12 @@ Server, under the data directory (docs/hosting.md#data):
 
 - SQLite index `hoplet.db`:
   - `sessions(session_id, project_path, title, created_at, updated_at, line_count, byte_size, chunk_count,
-    cur_chunk_lines, device_id, owner_epoch, provider)`. `byte_size` is the sync cursor; `project_path` is the
+    cur_chunk_lines, device_id, owner_epoch, provider, git_branch, title_override, pinned_at, archived_at)`.
+    `byte_size` is the sync cursor; `project_path` is the
     `cwd` of the session's lines until a handoff commit sets it to the target's worktree; `device_id` is the
-    owner; `owner_epoch` increases with every handoff; `provider` names the vendor (`claude`).
+    owner; `owner_epoch` increases with every handoff; `provider` names the vendor (`claude`); `title` is the vendor's
+    title, and `title_override`, `pinned_at` and `archived_at` (null until set) are what the user did in Hoplet:
+    sync and handoff never write them.
   - `devices(device_id, name, version, first_seen, last_seen, token_hash)`. `token_hash` is the SHA-256 of
     the device token.
   - `snapshots(session_id, snapshot_id, created_at, base_commit, origin_url, tree_hash, byte_size, sha256)`: the latest
@@ -227,9 +253,10 @@ API, in `shared/src/` (schemas, types and error codes) and `agent/internal/sync/
   a path watched through a link matches the sessions run in its real directory);
   `POST /api/devices/:id/projects` (`{ path }`, an absolute path on the machine: the agent resolves symlinks, refuses a path that is not an existing directory, adds the resolved path as `hoplet-agent projects add`
   does and answers with the updated listing; `target-offline` when the agent is not connected); `POST /api/devices/:id/projects/remove`;
-  `POST /api/devices/:id/sessions/import|remove`; `POST /api/ws-tickets`.
+  `POST /api/devices/:id/sessions/import|remove`; `POST /api/ws-tickets`;
+  `PATCH /api/sessions/:id` (`{ title?, pinned?, archived? }`: the session actions above; `session-not-found`).
 - Browser WebSocket `/ws?ticket=`: `subscribe`/`unsubscribe` a session; events `session.appended`,
-  `session.runtime` (state), `session.output` (streamed deltas of a subscribed session),
+  `session.updated` (title, pin and archive state), `session.runtime` (state), `session.output` (streamed deltas of a subscribed session),
   `session.permission`, `handoff.progress`, `device.presence`.
 - Agent WebSocket `/ws/agent`, device token: sync (`device.hello` with the providers and their capabilities,
   `welcome`, `session.append`, `session.ack`, `session.resync`, `session.rejected`), control
@@ -476,5 +503,6 @@ of real sessions (86% tool results) at 23, 128 and 256 MB.
 - [ ] An offline handoff uses the last snapshot and states its time; the old owner's appends are rejected
       after it reconnects
 - [ ] A failed handoff at any step leaves owner, cursor and both machines' files unchanged
+- [ ] Rename, pin and archive of a session reach every open window, survive a restart of the core and change no stored line or cursor
 - [ ] An 8-hour live session stays within the web UI memory budget
 - [ ] `docker compose up -d` serves the web UI on `127.0.0.1` and the health check passes

@@ -11,6 +11,14 @@ export type DeviceGroup = {
   dirs: DirGroup[];
 };
 
+/** The name Hoplet shows for a session: the user's own title, else the vendor's, else a placeholder. */
+export function displayTitle(s: Pick<LiveSessionMeta, 'title' | 'titleOverride'>): string {
+  return s.titleOverride?.trim() || s.title || t('Untitled session');
+}
+
+export const isPinned = (s: LiveSessionMeta): boolean => s.pinnedAt !== undefined;
+export const isArchived = (s: LiveSessionMeta): boolean => s.archivedAt !== undefined;
+
 /** The directory of a session: its project path, or the path its dashed store name stands for. */
 export function sessionPath(s: LiveSessionMeta): string {
   const raw = s.projectPath.trim() || s.projectDir.replace(/^-/, '/').replace(/-/g, '/');

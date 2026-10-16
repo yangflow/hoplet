@@ -40,6 +40,14 @@ const subject: Record<string, Record<string, string>> = {
     search: 'cockpit.palette',
     'sidebar-flat': 'cockpit.session-where',
     'sidebar-menu': 'cockpit.machine-popover',
+    'session-actions': 'cockpit.actions-menu',
+    'session-actions-copy': 'menu.copy-id',
+    'rename-dialog': 'cockpit.rename',
+    pinned: 'cockpit.pinned',
+    'pinned-flat': 'cockpit.pinned',
+    archived: 'cockpit.archived-page',
+    'archived-empty': 'cockpit.archived-empty',
+    'copy-toast': 'toast',
   },
   workspace: {
     workspace: 'workspace.files',
@@ -71,8 +79,8 @@ const subject: Record<string, Record<string, string>> = {
   },
 };
 
-test('the registries list 30 cockpit and 26 workspace states', () => {
-  expect(screens.cockpit).toHaveLength(30);
+test('the registries list 38 cockpit and 26 workspace states', () => {
+  expect(screens.cockpit).toHaveLength(38);
   expect(screens.workspace).toHaveLength(26);
 });
 

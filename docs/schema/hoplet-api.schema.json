@@ -55,6 +55,16 @@
       "response": "LiveSessionMetaSchema"
     },
     {
+      "method": "PATCH",
+      "path": "/api/sessions/:sessionId",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": "SessionPatchRequestSchema",
+      "response": "LiveSessionMetaSchema"
+    },
+    {
       "method": "GET",
       "path": "/api/sessions/:sessionId/lines",
       "auth": "host",
@@ -311,6 +321,12 @@
       "direction": "core-to-web",
       "lane": "control",
       "schema": "SessionAppendedMessage"
+    },
+    {
+      "type": "session.updated",
+      "direction": "core-to-web",
+      "lane": "control",
+      "schema": "SessionUpdatedMessage"
     },
     {
       "type": "device.presence",
@@ -1793,6 +1809,15 @@
           "required": [
             "state"
           ]
+        },
+        "titleOverride": {
+          "type": "string"
+        },
+        "pinnedAt": {
+          "type": "number"
+        },
+        "archivedAt": {
+          "type": "number"
         }
       },
       "required": [
@@ -2279,6 +2304,15 @@
                 "required": [
                   "state"
                 ]
+              },
+              "titleOverride": {
+                "type": "string"
+              },
+              "pinnedAt": {
+                "type": "number"
+              },
+              "archivedAt": {
+                "type": "number"
               }
             },
             "required": [
@@ -2381,6 +2415,28 @@
         "sessionId",
         "kind"
       ]
+    },
+    "SessionPatchRequestSchema": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "pinned": {
+          "type": "boolean"
+        },
+        "archived": {
+          "type": "boolean"
+        }
+      },
+      "required": []
     },
     "SessionPermissionMessage": {
       "type": "object",
@@ -2608,6 +2664,35 @@
         "type",
         "sessionId",
         "state"
+      ]
+    },
+    "SessionUpdatedMessage": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 5
+        },
+        "type": {
+          "const": "session.updated"
+        },
+        "sessionId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "titleOverride": {
+          "type": "string"
+        },
+        "pinnedAt": {
+          "type": "number"
+        },
+        "archivedAt": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "sessionId"
       ]
     },
     "SnapshotChangesSchema": {

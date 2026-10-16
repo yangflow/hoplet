@@ -22,7 +22,14 @@ describe('the route table', () => {
     expect(match('/api/sessions/s1/workspace/file')).toEqual([
       '/api/sessions/:sessionId/workspace/file',
     ]);
-    expect(match('/api/sessions/s1')).toEqual(['/api/sessions/:sessionId']);
+    expect(match('/api/sessions/s1')).toEqual([
+      '/api/sessions/:sessionId',
+      '/api/sessions/:sessionId',
+    ]);
+    expect(routes.filter((r) => r.pattern.test('/api/sessions/s1')).map((r) => r.method)).toEqual([
+      'GET',
+      'PATCH',
+    ]);
     expect(match('/api/unknown')).toEqual([]);
   });
 });

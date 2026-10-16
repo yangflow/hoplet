@@ -1,6 +1,7 @@
 import {
   type LiveSessionMeta,
   type ServerMessage,
+  type SessionPatchRequest,
   type SessionRuntimeInfo,
   safeParse,
   WIRE_MESSAGES,
@@ -13,6 +14,7 @@ import {
   clearToken,
   fetchSessions,
   getToken,
+  patchSession,
   postNewSession,
   setToken,
   socketUrl,
@@ -83,7 +85,7 @@ export default function App() {
       setSelectedState((cur) => {
         if (cur && (sessions.some((s) => s.sessionId === cur) || pending.current === cur))
           return cur;
-        const next = sessions[0]?.sessionId ?? null;
+        const next = sessions.find((s) => s.archivedAt === undefined)?.sessionId ?? null;
         writeSessionUrl(next, 'replace');
         return next;
       });
@@ -169,6 +171,19 @@ export default function App() {
           };
           socketRuntime.current.set(msg.sessionId, { info, at: Date.now() });
           setRuntime((cur) => ({ ...cur, [msg.sessionId]: info }));
+        } else if (msg.type === 'session.updated') {
+          setSessions((cur) =>
+            cur.map((s) => {
+              if (s.sessionId !== msg.sessionId) return s;
+              const { titleOverride: _t, pinnedAt: _p, archivedAt: _a, ...rest } = s;
+              return {
+                ...rest,
+                ...(msg.titleOverride !== undefined ? { titleOverride: msg.titleOverride } : {}),
+                ...(msg.pinnedAt !== undefined ? { pinnedAt: msg.pinnedAt } : {}),
+                ...(msg.archivedAt !== undefined ? { archivedAt: msg.archivedAt } : {}),
+              };
+            }),
+          );
         } else if (msg.type === 'session.appended' || msg.type === 'device.presence') {
           refreshSoon();
         } else if (msg.type === 'handoff.progress' && msg.step === 'done') {
@@ -235,8 +250,14 @@ export default function App() {
       />
     );
 
+  const patch = async (sessionId: string, change: SessionPatchRequest) => {
+    const meta = await patchSession(sessionId, change);
+    setSessions((cur) => cur.map((s) => (s.sessionId === sessionId ? meta : s)));
+  };
+
   return (
     <Cockpit
+      onPatchSession={patch}
       sessions={sessions}
       selected={selected}
       onSelect={select}

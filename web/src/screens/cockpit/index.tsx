@@ -3,10 +3,13 @@ import type {
   GlobalSearchHit,
   LiveSessionMeta,
   RuntimeCapabilities,
+  SessionPatchRequest,
   SessionRuntimeInfo,
 } from '@hoplet/shared';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Toast, type ToastState, useToast } from '../../components/Toast.tsx';
 import { postAddProject } from '../../lib/api.ts';
+import { errorText } from '../../lib/errors.ts';
 import { t } from '../../lib/i18n.ts';
 import {
   changesOf,
@@ -16,11 +19,14 @@ import {
   useWorkspaceData,
   type WorkspaceFixture,
 } from '../workspace/index.tsx';
+import { ArchivedPage, archivedCount, withSessions } from './archived.tsx';
 import { Conversation, type ConversationFixture } from './conversation/conversation.tsx';
 import { Draft, type DraftFixture, type DraftWhere } from './draft.tsx';
-import { buildTree, sessionTargets } from './group.ts';
+import { buildTree, isArchived, sessionTargets } from './group.ts';
 import type { NewSessionRequest, RuntimeState } from './model.ts';
 import { Palette } from './palette.tsx';
+import { RenameDialog } from './rename-dialog.tsx';
+import { type SessionActions, sessionMenu } from './session-actions.tsx';
 import { AddProject, type AddProjectFixture } from './sidebar/add-project.tsx';
 import { Sidebar } from './sidebar/sidebar.tsx';
 import type { MachineViews } from './sidebar/sidebar-view.ts';
@@ -58,13 +64,22 @@ export type CockpitFixture = {
   machineViews?: MachineViews;
   /** The machine whose view menu starts open. */
   menuDevice?: string;
+  /** Opens the session actions menu in the top bar, with this submenu open. */
+  actionsMenu?: { sub?: string };
+  /** Opens the rename dialog for the open session, with this text in the field. */
+  rename?: string;
+  /** Shows the Archived page. */
+  archived?: boolean;
+  toast?: ToastState;
   now?: number;
 };
 
 export function Cockpit(props: {
   sessions: LiveSessionMeta[];
   selected: string | null;
-  onSelect: (id: string) => void;
+  onSelect: (id: string | null) => void;
+  /** Changes a session's title override, pin or archive state; resolves when the core has it. */
+  onPatchSession?: (sessionId: string, patch: SessionPatchRequest) => Promise<void>;
   /** This window's link to the core. */
   live: boolean;
   error: string | null;
@@ -92,6 +107,9 @@ export function Cockpit(props: {
   const [addFor, setAddFor] = useState<string | null>(fixture?.addProject?.deviceName ?? null);
   const [inspectorOpen, setInspectorOpen] = useState(fixture?.inspectorOpen ?? false);
   const [aroundLine, setAroundLine] = useState<number | null>(fixture?.aroundLine ?? null);
+  const [archivedOpen, setArchivedOpen] = useState(fixture?.archived ?? false);
+  const [renaming, setRenaming] = useState<LiveSessionMeta | null>(null);
+  const [toast, say] = useToast(fixture?.toast ?? null);
   const devices = useDevices(fixture?.devices);
   const now = useNow(fixture?.now);
 
@@ -156,10 +174,78 @@ export function Cockpit(props: {
       ?.providers.find((p) => p.provider === s.provider)?.capabilities;
 
   const { watched, remember } = useWatchedProjects(devices, !fixture);
-  const groups = useMemo(() => buildTree(sessions, devices, watched), [sessions, devices, watched]);
+  // Archived sessions stay in the store and keep syncing; the sidebar and the palette list only the others.
+  const visible = useMemo(() => sessions.filter((s) => !isArchived(s)), [sessions]);
+  const groups = useMemo(() => buildTree(visible, devices, watched), [visible, devices, watched]);
   const targets = useMemo(() => sessionTargets(groups), [groups]);
+  const archivedGroups = useMemo(
+    () =>
+      withSessions(
+        buildTree(
+          sessions.filter((s) => isArchived(s)),
+          devices,
+          {},
+        ),
+      ),
+    [sessions, devices],
+  );
+  const archived = archivedCount(archivedGroups);
+
+  /** Applies a change; `null` when it went through, else why it did not. */
+  const apply = useCallback(
+    async (id: string, change: SessionPatchRequest): Promise<unknown> => {
+      try {
+        await props.onPatchSession?.(id, change);
+      } catch (e) {
+        return e;
+      }
+      // The archived session was the open one: the next visible session opens, or none.
+      if (change.archived === true && id === selected) {
+        const rest = visible.filter((s) => s.sessionId !== id);
+        const at = visible.findIndex((s) => s.sessionId === id);
+        onSelect((rest[at] ?? rest[at - 1] ?? null)?.sessionId ?? null);
+      }
+      return null;
+    },
+    [props.onPatchSession, selected, visible, onSelect],
+  );
+  const patch = useCallback(
+    async (id: string, change: SessionPatchRequest) => {
+      const failure = await apply(id, change);
+      if (failure !== null) say(errorText(failure), true);
+    },
+    [apply, say],
+  );
+  const restore = useCallback(
+    async (ids: string[]) => {
+      const results = await Promise.all(ids.map((id) => apply(id, { archived: false })));
+      const failed = results.filter((r) => r !== null);
+      if (failed.length === 0)
+        say(
+          t(ids.length === 1 ? '{n} session restored' : '{n} sessions restored').replace(
+            '{n}',
+            String(ids.length),
+          ),
+        );
+      else
+        say(
+          t(
+            failed.length === 1
+              ? '{n} session could not be restored'
+              : '{n} sessions could not be restored',
+          ).replace('{n}', String(failed.length)),
+          true,
+        );
+    },
+    [apply, say],
+  );
+  const actions: SessionActions = useMemo(
+    () => ({ patch, rename: setRenaming, say }),
+    [patch, say],
+  );
 
   function pickSession(id: string) {
+    setArchivedOpen(false);
     setDraft(null);
     setAroundLine(null);
     inspector.reset();
@@ -167,6 +253,7 @@ export function Cockpit(props: {
   }
 
   function pickHit(hit: GlobalSearchHit) {
+    setArchivedOpen(false);
     setDraft(null);
     inspector.reset();
     setAroundLine(hit.lineNo);
@@ -176,6 +263,7 @@ export function Cockpit(props: {
   // A directory row's button presets the draft; ⌘N starts where the open session runs.
   const openNewSession = useCallback(
     (target?: DraftWhere) => {
+      setArchivedOpen(false);
       setAddFor(null);
       setPaletteOpen(false);
       setDraft(
@@ -190,6 +278,32 @@ export function Cockpit(props: {
     setAddFor(deviceName);
   }, []);
   const addTarget = groups.find((g) => g.name === addFor) ?? null;
+
+  // The session actions' shortcuts act on the selected session: ⌥⌘R rename, ⌥⌘P pin, ⇧⌘A archive.
+  // ⇧⌘A is also the browser's tab search in Chrome on macOS; the page takes it while it has the focus.
+  const shortcut = useRef<(e: KeyboardEvent) => void>(() => undefined);
+  // They are ⌘-chords, so they also fire from the composer; a dialog owns the keys while it is open. A held key
+  // acts once, and AltGr or an input method composing is not a chord.
+  shortcut.current = (e) => {
+    if (!(e.metaKey || e.ctrlKey) || e.repeat || e.isComposing || e.getModifierState('AltGraph'))
+      return;
+    if (!session || draft || archivedOpen || renaming || paletteOpen || addFor) return;
+    if (e.altKey && !e.shiftKey && e.code === 'KeyR') {
+      e.preventDefault();
+      setRenaming(session);
+    } else if (e.altKey && !e.shiftKey && e.code === 'KeyP') {
+      e.preventDefault();
+      void patch(session.sessionId, { pinned: session.pinnedAt === undefined });
+    } else if (e.shiftKey && !e.altKey && e.code === 'KeyA') {
+      e.preventDefault();
+      void patch(session.sessionId, { archived: !isArchived(session) });
+    }
+  };
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => shortcut.current(e);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -231,7 +345,7 @@ export function Cockpit(props: {
       {sidebarHidden ? null : (
         <Sidebar
           groups={groups}
-          selected={draft ? null : selected}
+          selected={draft || archivedOpen ? null : selected}
           runtime={states}
           now={now}
           host={host}
@@ -242,6 +356,13 @@ export function Cockpit(props: {
           {...(fixture?.foldedDirs ? { foldedDirs: fixture.foldedDirs } : {})}
           {...(fixture?.machineViews ? { views: fixture.machineViews } : {})}
           {...(fixture?.menuDevice ? { menuDevice: fixture.menuDevice } : {})}
+          archivedCount={archived}
+          archivedOpen={archivedOpen}
+          menuFor={(s) => sessionMenu(s, actions)}
+          onArchived={() => {
+            setDraft(null);
+            setArchivedOpen(true);
+          }}
           onSelect={pickSession}
           onNewSession={openNewSession}
           onAddProject={openAddProject}
@@ -253,62 +374,77 @@ export function Cockpit(props: {
         />
       )}
       <main className="main">
-        <TopBar
-          session={draft ? null : session}
-          {...(draft ? { title: t('New session') } : {})}
-          sidebarFolded={sidebarHidden}
-          inspectorOpen={inspectorOpen}
-          changes={changes.length}
-          onShowSidebar={() => {
-            setSidebarFolded(false);
-            setSidebarPinned(true);
-          }}
-          onToggleInspector={() => setInspectorOpen((v) => !v)}
-        />
-        {error ? (
-          <div className="banner-error" role="alert">
-            {error}
-          </div>
-        ) : null}
-        {draft ? (
-          <Draft
-            targets={targets}
-            where={draft}
-            onWhere={setDraft}
-            loadDirectories={!fixture}
-            dirsVersion={dirsVersion}
-            voiceAvailable={fixture?.voiceAvailable ?? false}
-            {...(fixture?.draft ? { fixture: fixture.draft } : {})}
-            onAddProject={openAddProject}
-            onSubmit={async (request) => {
-              await props.onCreateSession?.(request);
-              setDraft(null);
-            }}
+        {archivedOpen ? (
+          <ArchivedPage
+            groups={archivedGroups}
+            now={now}
+            onRestore={(ids) => void restore(ids)}
+            onBack={() => setArchivedOpen(false)}
           />
-        ) : session ? (
-          <Conversation
-            key={session.sessionId}
-            session={session}
-            runtime={runtimeOf(session)}
-            live={live}
-            aroundLine={aroundLine}
-            shortcuts={!paletteOpen && !addFor}
-            voiceAvailable={fixture?.voiceAvailable ?? false}
-            capabilities={capabilitiesOf(session)}
-            onHandoff={() => {
-              setInspectorOpen(true);
-              inspector.setHandoffOpen(true);
-            }}
-            openDiff={openDiff}
-            {...(fixture?.conversation ? { fixture: fixture.conversation } : {})}
-          />
-        ) : selected ? (
-          <p className="conv-empty" role="status" data-testid="cockpit.loading-session">
-            {t('Loading…')}
-          </p>
         ) : (
-          <EmptyState />
+          <>
+            <TopBar
+              session={draft ? null : session}
+              {...(session && !draft ? { actions: sessionMenu(session, actions) } : {})}
+              {...(fixture?.actionsMenu ? { menuOpen: true } : {})}
+              {...(fixture?.actionsMenu?.sub ? { menuSub: fixture.actionsMenu.sub } : {})}
+              {...(draft ? { title: t('New session') } : {})}
+              sidebarFolded={sidebarHidden}
+              inspectorOpen={inspectorOpen}
+              changes={changes.length}
+              onShowSidebar={() => {
+                setSidebarFolded(false);
+                setSidebarPinned(true);
+              }}
+              onToggleInspector={() => setInspectorOpen((v) => !v)}
+            />
+            {error ? (
+              <div className="banner-error" role="alert">
+                {error}
+              </div>
+            ) : null}
+            {draft ? (
+              <Draft
+                targets={targets}
+                where={draft}
+                onWhere={setDraft}
+                loadDirectories={!fixture}
+                dirsVersion={dirsVersion}
+                voiceAvailable={fixture?.voiceAvailable ?? false}
+                {...(fixture?.draft ? { fixture: fixture.draft } : {})}
+                onAddProject={openAddProject}
+                onSubmit={async (request) => {
+                  await props.onCreateSession?.(request);
+                  setDraft(null);
+                }}
+              />
+            ) : session ? (
+              <Conversation
+                key={session.sessionId}
+                session={session}
+                runtime={runtimeOf(session)}
+                live={live}
+                aroundLine={aroundLine}
+                shortcuts={!paletteOpen && !addFor}
+                voiceAvailable={fixture?.voiceAvailable ?? false}
+                capabilities={capabilitiesOf(session)}
+                onHandoff={() => {
+                  setInspectorOpen(true);
+                  inspector.setHandoffOpen(true);
+                }}
+                openDiff={openDiff}
+                {...(fixture?.conversation ? { fixture: fixture.conversation } : {})}
+              />
+            ) : selected ? (
+              <p className="conv-empty" role="status" data-testid="cockpit.loading-session">
+                {t('Loading…')}
+              </p>
+            ) : (
+              <EmptyState />
+            )}
+          </>
         )}
+        {toast ? <Toast {...(toast.failed ? { failed: true } : {})}>{toast.text}</Toast> : null}
       </main>
       {inspectorOpen && session && !draft ? (
         <Inspector
@@ -322,6 +458,18 @@ export function Cockpit(props: {
           busy={['running', 'waiting-permission'].includes(runtimeOf(session).state)}
           onHide={() => setInspectorOpen(false)}
           {...(workspace ? { fixture: workspace } : {})}
+        />
+      ) : null}
+      {renaming || fixture?.rename !== undefined ? (
+        <RenameDialog
+          session={(renaming ?? session) as LiveSessionMeta}
+          {...(fixture?.rename !== undefined ? { initial: fixture.rename } : {})}
+          onSave={(title) => {
+            const target = renaming ?? session;
+            setRenaming(null);
+            if (target) void patch(target.sessionId, { title });
+          }}
+          onClose={() => setRenaming(null)}
         />
       ) : null}
       {paletteOpen ? (

@@ -65,6 +65,7 @@ Response column names the schema of the success body and its status when it is n
 | GET | `/api/sessions` | host | control | — | — | `SessionListResponseSchema` | — |
 | POST | `/api/sessions` | host | control | — | `NewSessionRequestSchema` | `NewSessionResultSchema` | `invalid-json`, `invalid-request`, `too-large`, `target-offline`, `timeout`, `rejected` |
 | GET | `/api/sessions/:sessionId` | host | control | — | — | `LiveSessionMetaSchema` | `session-not-found` |
+| PATCH | `/api/sessions/:sessionId` | host | control | — | `SessionPatchRequestSchema` | `LiveSessionMetaSchema` | `invalid-json`, `invalid-request`, `too-large`, `session-not-found` |
 | GET | `/api/sessions/:sessionId/lines` | host | bulk | `LinesQuerySchema` | — | `LinesPageSchema` | `session-not-found`, `busy` |
 | GET | `/api/sessions/:sessionId/blocks/:line/:block` | host | bulk | — | — | `FullBlockSchema` | `invalid-request`, `session-not-found`, `not-found`, `busy` |
 | GET | `/api/sessions/:sessionId/search` | host | bulk | `SessionSearchQuerySchema` | — | `SearchResultSchema` | `invalid-request`, `session-not-found`, `busy` |
@@ -156,6 +157,16 @@ A value that is not a number reads as the default. The other query parameters ar
 diff routes take `path`, `GET /api/devices/:deviceId/clone` takes `origin`, and `GET /api/devices/:deviceId/dirs`
 takes an optional `path` (absent or `~` is the browse root).
 
+`PATCH /api/sessions/:sessionId` changes what the user did to a session, beside what its vendor wrote: `title` is
+the name Hoplet shows (stored trimmed, and at most 200 characters after trimming, else `invalid-request`; blank,
+`null` or the vendor's own title clears it, so the vendor's title shows), `pinned` pins or unpins and `archived`
+archives or restores; pinning a pinned session or archiving an archived one keeps its time. A field left out stays as it is, and a
+body that names none of the three is `invalid-request`. The response is the session as `GET` returns it, with
+`titleOverride`, `pinnedAt` and `archivedAt` (the times of the pin and of the archive) present only while set,
+and every browser receives `session.updated`. The change writes no line and moves no cursor, and a session that
+is archived stays archived when lines are appended to it or it is handed off. `GET /api/sessions` returns
+archived sessions too; the client decides what to show.
+
 ## Error codes
 
 | Code | HTTP status | Meaning |
@@ -204,6 +215,7 @@ over REST.
 | `subscribe` | browser → core | control | `SubscribeMessage` | Receive the streamed output of a session. The core answers with its `session.runtime` and each open `session.permission` |
 | `unsubscribe` | browser → core | control | `UnsubscribeMessage` | Stop receiving the output of a session |
 | `session.appended` | core → browser | control | `SessionAppendedMessage` | Lines were appended to a session, or a session is new (`isNew`). Sent to every connection |
+| `session.updated` | core → browser | control | `SessionUpdatedMessage` | The user renamed, pinned, unpinned, archived or restored a session. Carries the state after the change (`titleOverride`, `pinnedAt`, `archivedAt`; absent means cleared). Sent to every connection |
 | `device.presence` | core → browser | control | `DevicePresenceMessage` | A device connected or disconnected. Sent to every connection, followed by `session.runtime` for each session the connection is subscribed to |
 | `session.runtime` | core → browser | control | `SessionRuntimeMessage` | The runtime state of a session and its capabilities. Sent to every connection |
 | `session.output` | core → browser | control | `SessionOutputMessage` | Streamed content of the running turn: text, thinking, tool calls and results. Only to the connections subscribed to the session. Transient: the session's lines are the record |
