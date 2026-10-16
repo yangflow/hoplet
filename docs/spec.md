@@ -416,9 +416,9 @@ The core tells the user when a session needs them, so a turn does not wait unsee
 - **Action links**: a permission or plan notification carries a link, `<public URL>/a#<token>`, to a page that
   shows the request and offers Allow and Deny without the host token. The token is signed, bound to one request
   and session, decides once, and lasts as long as the request but at most 10 minutes; a plan lasts 10 minutes and
-  is approved with its default mode. Only requests that look safe can be answered there (a read-only command or
-  an edit inside the project); anything else, and every MCP tool, shows `webui-only` and is answered in the web
-  UI. Without a configured public URL, notifications carry no link.
+  is approved with its default mode. A Bash command with the word `rm`, `sudo` or `git push`, a Write or Edit
+  outside the project, every MCP tool and a request whose input is not recognised show `webui-only` and are
+  answered in the web UI. This list catches slips, not an attacker: the link token is the boundary. Without a configured public URL, notifications carry no link.
 
 ### New session
 
