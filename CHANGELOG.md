@@ -4,6 +4,27 @@ Each release's notes are made from the titles of the pull requests merged since 
 Commits: `feat` under Added, `fix` under Fixed, `perf` under Performance; `release-please-config.json`).
 Versions follow Semantic Versioning.
 
+## [0.2.0](https://github.com/yangflow/hoplet/compare/v0.1.2...v0.2.0) (2026-10-16)
+
+
+### ⚠ BREAKING CHANGES
+
+* Declare a session's settings as config options ([#103](https://github.com/yangflow/hoplet/issues/103))
+
+### Added
+
+* Change a session's model, Thinking and Fast from the composer ([#102](https://github.com/yangflow/hoplet/issues/102)) ([47a403e](https://github.com/yangflow/hoplet/commit/47a403ebc58a160d4766071efd604721937a5e0b))
+* Choose a session's permission mode from the composer ([#104](https://github.com/yangflow/hoplet/issues/104)) ([49e549e](https://github.com/yangflow/hoplet/commit/49e549e06a504e44ec0136e00589331a17479e1b)), closes [#9](https://github.com/yangflow/hoplet/issues/9)
+* Rename, pin, copy and archive a session from its actions menu ([#107](https://github.com/yangflow/hoplet/issues/107)) ([947fa82](https://github.com/yangflow/hoplet/commit/947fa829bb2fc5ba387ea9c9094c2fd8f0baeae6))
+* Send pasted and attached images with a prompt ([#101](https://github.com/yangflow/hoplet/issues/101)) ([438d61b](https://github.com/yangflow/hoplet/commit/438d61b9f04f12c5dfbf17dfc78abac8373ca155))
+* Show the git branch in the composer's location row ([#100](https://github.com/yangflow/hoplet/issues/100)) ([51c11ad](https://github.com/yangflow/hoplet/commit/51c11ad9ca9654663fd54f94608e420666bd89f7))
+* **web:** Start sessions from a draft in the composer ([#64](https://github.com/yangflow/hoplet/issues/64)) ([a745b33](https://github.com/yangflow/hoplet/commit/a745b333acb4f1edecd2028a4ecdb6929c071df5))
+
+
+### Changed
+
+* Declare a session's settings as config options ([#103](https://github.com/yangflow/hoplet/issues/103)) ([f849d79](https://github.com/yangflow/hoplet/commit/f849d7988089d0acc25ced00175f4741f86dd3d7)), closes [#9](https://github.com/yangflow/hoplet/issues/9)
+
 ## [0.1.2](https://github.com/yangflow/hoplet/compare/v0.1.1...v0.1.2) (2026-10-12)
 
 
