@@ -27,6 +27,8 @@
   "That session no longer exists.": "该会话已不存在。",
   "The request was not valid.": "请求无效。",
   "Choose a different machine.": "请选择另一台机器。",
+  "The link is not valid.": "链接无效。",
+  "Too many requests. Try again in a moment.": "请求过于频繁，请稍后再试。",
   "That is too large to send.": "内容太大，无法发送。",
   "The machine that owns this session is offline.": "拥有该会话的机器已离线。",
   "The target machine is offline.": "目标机器已离线。",

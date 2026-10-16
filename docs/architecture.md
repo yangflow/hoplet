@@ -54,8 +54,9 @@ Claude Code               the session file (writer) and the running process
 | migrations | core | Forward-only schema migrations | nothing | `core/src/migrations/` |
 | store | core | SQLite index, chunk files, verbatim append and recovery, paged reads, search scans, devices, snapshots | migrations, log | `core/src/store/` |
 | ingest | core | Agent WebSocket: authentication, `device.hello`/`welcome`, append decoding, ack/resync/reject, the two lanes | store, control, log | `core/src/ingest/` |
+| notify | core | Notification rules (preset, overrides, quiet hours), redaction, Web Push and webhook delivery, signed action links and their single use, the VAPID and signing secrets | store, control, log | `core/src/notify/` |
 | control | core | Runtime state per session, prompt and new-session deduplication, permission routing, handoff state machine, device RPC with timeouts | store, log | `core/src/control/` |
-| api | core | REST routes, read projection with one mapping per provider, browser WebSocket and subscriptions, WebSocket tickets, static files | store, control, log | `core/src/api/` |
+| api | core | REST routes, read projection with one mapping per provider, browser WebSocket and subscriptions, WebSocket tickets, static files | store, control, notify, log, config | `core/src/api/` |
 | shared | contract | Schemas, derived types and error codes for REST and both WebSockets | nothing | `shared/src/` |
 | web | browser | Token gate, Hoplet screen, API client, live connection, bounded page cache | REST and browser WebSocket only | `web/src/` |
 | sync | agent | Agent WebSocket client, the two lanes, cursor reconciliation, append batching | config, provider | `agent/internal/sync/` |
@@ -73,7 +74,7 @@ Claude Code               the session file (writer) and the running process
   by `scripts/boundaries.ts`.
 - Only `store` composes paths in the data directory. Enforced by `scripts/boundaries.ts` (no `node:fs` import
   outside `store`, `config` and `api/static`).
-- Every `/api/*` request needs the host token; the browser WebSocket needs a ticket minted with it; the agent
+- Every `/api/*` request needs the host token, except the two `/api/action/*` routes, which need a signed action token and are rate limited; the browser WebSocket needs a ticket minted with it; the agent
   WebSocket needs a device token, and a host token is refused there. Enforced in `core/src/api/` and
   `core/src/ingest/`, tested in `core/test/auth.test.ts`.
 - Every value entering the core or the agent from the network, from disk or from Claude Code is parsed by a
@@ -158,6 +159,16 @@ A driver whose vendor has a plan step sets `planExit` on the permission request 
 approval) or `Verdict.Message` (a refusal that tells the model what to change). The core, the web UI and the
 wire protocol change nothing else: the plan card renders the declaration, and the mode names come from the
 setting's config option.
+
+### A notification channel
+
+A channel is a function in `core/src/notify/` that takes the `NotifyPayload` and returns a delivery result
+(`NotifyDeliverySchema`), plus its name in `NOTIFY_CHANNELS` in `shared/src/rest/notify.ts` so the preferences can
+choose it. `notify` subscribes to control's event stream (`control.onEvent`: `permission`, `turn-done`,
+`failure`), decides the channels from the preferences and sends on each apart from the event, with a timeout and
+one retry. The `native` channel is the `notify` browser message to a connected client. A channel never decides
+what to send; the rules do. A channel that carries action links tells the user that they decide through the same
+path as `POST /api/sessions/:id/permission`.
 
 ### A storage migration
 
@@ -273,7 +284,7 @@ sequenceDiagram
 Session content lives in the chunk files and snapshots under the server's data directory, in the Claude Code
 store and working trees on the development machines, and transiently in the memory of the core and the
 browser. The browser stores the host token in `localStorage`. Traffic flows only between the user's machines
-and the user's server; the core and the agent call no outside service and collect no telemetry. Export is a
+and the user's server. The core calls outside services only to deliver notifications the user asked for, to the push services of their subscribed browsers and to their webhook URLs; neither it nor the agent collects telemetry. Export is a
 copy of the data directory; erase is deleting it and each agent's state root (docs/hosting.md#uninstall).
 
 ## Evolution

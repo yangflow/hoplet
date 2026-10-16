@@ -19,10 +19,22 @@ machine whose Claude Code sessions are synced or controlled.
 - Authentication: the host token (`HOPLET_TOKEN`) as `Authorization: Bearer` for REST; the browser WebSocket
   presents a single-use ticket from `POST /api/ws-tickets`, valid for 30 seconds; each agent presents its
   device token as `Authorization: Bearer` on `/ws/agent` ([ADR 0005](adr/0005-per-device-tokens.md)). No
-  token travels in a URL.
-- Outbound connections: none from the core. The agent connects only to the core; Claude Code processes it
-  starts make their own connections to Anthropic, and `git` may fetch from the repository's `origin` during
-  handoff installation.
+  credential travels in a URL, with one exception: an action link `<public URL>/a#<token>` carries a signed,
+  single-use token in its fragment, which the browser never sends to a server; the page posts it in a body to
+  `/api/action/inspect` and `/api/action/decide`, the two routes that take no host token. Keep the proxy from
+  logging request bodies on these routes.
+- Outbound connections: the core makes HTTPS requests (HTTP only when a webhook URL says so) to the push
+  services of the browsers the user subscribed and to the webhook URLs the user configured, and to nothing else;
+  it does not follow redirects. With no subscription and no webhook it makes none. The agent connects only to
+  the core; Claude Code processes it starts make their own connections to Anthropic, and `git` may fetch from
+  the repository's `origin` during handoff installation.
+
+### Public URL
+
+`HOPLET_PUBLIC_URL` is the address the user reaches the core at through the proxy, for example
+`https://hoplet.example.com`. It is the base of the action links in notifications. An address with a path is
+allowed; credentials, a query or a fragment are refused at startup. Without it the notifications carry no link.
+Web Push also needs a secure origin: the browser subscribes only over HTTPS or on localhost.
 
 ### Reverse proxy
 
@@ -65,9 +77,13 @@ place of the proxy. Never publish port 7788 on `0.0.0.0`.
 
 | Where | What |
 |---|---|
-| Docker volume `hoplet-data` (`/data` in the container) | `hoplet.db` (SQLite index, which also holds what the user did to a session in the web UI: a title of their own, a pin, an archive, the last slash commands and skills a session reported per machine and directory, and the messages queued for a session), `sessions/<sessionId>/c-<seq>.ndjson[.gz]` (session lines), `snapshots/<sessionId>/<snapshotId>.tar.gz` (latest workspace snapshot per session) |
+| Docker volume `hoplet-data` (`/data` in the container) | `hoplet.db` (SQLite index, which also holds what the user did to a session in the web UI: a title of their own, a pin, an archive, the last slash commands and skills a session reported per machine and directory, and the messages queued for a session), `sessions/<sessionId>/c-<seq>.ndjson[.gz]` (session lines), `snapshots/<sessionId>/<snapshotId>.tar.gz` (latest workspace snapshot per session), `notify-secrets.json` (mode 0600: the VAPID key pair for Web Push, the key that signs action links and the signing secrets of webhooks; the push subscriptions, the webhooks without their secrets and the preferences are in `hoplet.db`) |
 | Agent state root (`~/.hoplet/` by default) | `device-id`, `config.json`, `projects.json`, `runtime/` (running processes), `handoff/` (installation records), `attachments/` (images uploaded for prompts: at most 64 files and 64 MiB, each kept at most an hour) |
 | Development machine | Claude Code's store and working trees; worktrees created by handoff, next to the clone they belong to |
+
+Rotating the notification secrets is deleting `notify-secrets.json` while the core is stopped: the next start
+creates new ones. Every action link issued before stops working, push subscriptions made under the old VAPID key
+are removed (the browsers subscribe again), and the signing secrets of webhooks must be entered again.
 
 Back up the stopped data directory, including SQLite WAL and SHM files. Restore by putting it back and
 starting the container. Run one core per data directory, on a local filesystem with fsync and atomic rename.
@@ -82,6 +98,7 @@ starting the container. Run one core per data directory, on a local filesystem w
 | `HOPLET_PORT` | `7788` | listening port inside the container |
 | `HOPLET_DATA` | `/data` in the image | data directory |
 | `HOPLET_WEB_DIR` | `/app/web/dist` in the image | built web UI |
+| `HOPLET_PUBLIC_URL` | none | the address of the core behind the proxy; the base of action links ([Public URL](#public-url)) |
 
 ### Agent (`~/.hoplet/config.json`, or the file passed with `--config`)
 

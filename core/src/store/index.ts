@@ -5,6 +5,8 @@ import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import type {
   Command,
+  NotifyDelivery,
+  NotifyPreferences,
   Queue,
   QueueItem,
   QueuePause,
@@ -26,14 +28,18 @@ import {
 import * as commands from './commands.ts';
 import * as devices from './devices.ts';
 import type { StoreContext } from './layout.ts';
+import * as notify from './notify.ts';
 import * as queue from './queue.ts';
 import { recoverOnStart } from './recovery.ts';
 import { type RawGlobalSearchResult, type RawSearchResult, search, searchAll } from './search.ts';
+import * as secrets from './secrets.ts';
 import * as sessions from './sessions.ts';
 import * as snapshotRead from './snapshot-read.ts';
 import * as snapshots from './snapshots.ts';
 
+export type { PushSubscriptionRecord, WebhookRecord } from './notify.ts';
 export type { QueueOutcome } from './queue.ts';
+export type { NotifySecrets, VapidKeys } from './secrets.ts';
 export type { SessionStateChange, SessionStateRecord } from './sessions.ts';
 export { type SnapshotDiffResult, SnapshotReadError } from './snapshot-read.ts';
 export { type SnapshotChunk, SnapshotError, type SnapshotRecord } from './snapshots.ts';
@@ -55,6 +61,7 @@ export class Store {
       background: new Set(),
       uploads: new Map(),
       snapshotViews: new Map(),
+      secrets: null,
     };
     try {
       db.exec('PRAGMA synchronous=FULL');
@@ -71,6 +78,87 @@ export class Store {
   /** Resolves when the compression an append started has finished. */
   async idle(): Promise<void> {
     while (this.ctx.background.size > 0) await Promise.all([...this.ctx.background]);
+  }
+
+  /** The VAPID keys, the action-link key and the webhook secrets; generated on first use (ADR 0021). */
+  notifySecrets(): secrets.NotifySecrets {
+    return secrets.notifySecrets(this.ctx);
+  }
+
+  notifyPreferences(): NotifyPreferences {
+    return notify.notifyPreferences(this.ctx);
+  }
+
+  setNotifyPreferences(prefs: NotifyPreferences): void {
+    notify.setNotifyPreferences(this.ctx, prefs);
+  }
+
+  /** Drops the push subscriptions made with a VAPID key other than the current one. */
+  pruneForeignSubscriptions(): void {
+    notify.pruneForeignSubscriptions(this.ctx);
+  }
+
+  addPushSubscription(
+    input: { endpoint: string; p256dh: string; auth: string; label: string },
+    now: number,
+  ) {
+    return notify.addPushSubscription(this.ctx, input, now);
+  }
+
+  listPushSubscriptions() {
+    return notify.listPushSubscriptions(this.ctx);
+  }
+
+  deletePushSubscription(id: string): boolean {
+    return notify.deletePushSubscription(this.ctx, id);
+  }
+
+  deletePushByEndpoint(endpoint: string): boolean {
+    return notify.deletePushByEndpoint(this.ctx, endpoint);
+  }
+
+  recordPushDelivery(id: string, delivery: NotifyDelivery): void {
+    notify.recordPushDelivery(this.ctx, id, delivery);
+  }
+
+  listWebhooks() {
+    return notify.listWebhooks(this.ctx);
+  }
+
+  getWebhook(id: string) {
+    return notify.getWebhook(this.ctx, id);
+  }
+
+  addWebhook(input: { url: string; label: string; secret?: string }, now: number) {
+    return notify.addWebhook(this.ctx, input, now);
+  }
+
+  updateWebhook(
+    id: string,
+    patch: { url?: string; label?: string; enabled?: boolean; secret?: string | null },
+  ) {
+    return notify.updateWebhook(this.ctx, id, patch);
+  }
+
+  deleteWebhook(id: string): boolean {
+    return notify.deleteWebhook(this.ctx, id);
+  }
+
+  webhookSecret(id: string): string | null {
+    return secrets.webhookSecret(this.ctx, id);
+  }
+
+  recordWebhookDelivery(id: string, delivery: NotifyDelivery): void {
+    notify.recordWebhookDelivery(this.ctx, id, delivery);
+  }
+
+  /** Marks an action token used; false when it was used before. */
+  useActionToken(tokenId: string, expiresAt: number, now: number): boolean {
+    return notify.useActionToken(this.ctx, tokenId, expiresAt, now);
+  }
+
+  actionTokenUsed(tokenId: string): boolean {
+    return notify.actionTokenUsed(this.ctx, tokenId);
   }
 
   /** Remembers the commands a session offered in `cwd` of `deviceId`, for drafts of that directory. */

@@ -3,6 +3,10 @@
  * body limit, request and response schemas from shared/src/rest/ and its handler; router.ts does the rest.
  */
 import {
+  ActionDecideRequestSchema,
+  ActionDecideResponseSchema,
+  ActionInspectRequestSchema,
+  ActionInspectResponseSchema,
   AttachmentResultSchema,
   BlockParamsSchema,
   BUILTIN_COMMANDS,
@@ -32,15 +36,24 @@ import {
   LinesQuerySchema,
   type LiveSessionMeta,
   LiveSessionMetaSchema,
+  MAX_NOTIFY_PROJECTS,
   MAX_TITLE_OVERRIDE_CHARS,
+  MAX_WEBHOOKS,
   NewSessionRequestSchema,
   NewSessionResultSchema,
+  NotifyPreferencesSchema,
   PermissionRequestSchema,
   PROTOCOL_VERSION,
   PromptImageSchema,
   PromptRequestSchema,
   PromptResultSchema,
   type Provider,
+  PushKeyResponseSchema,
+  PushSubscribeRequestSchema,
+  type PushSubscriptionInfo,
+  PushSubscriptionInfoSchema,
+  PushSubscriptionListResponseSchema,
+  PushUnsubscribeRequestSchema,
   QueueAddRequestSchema,
   QueueEditRequestSchema,
   QueueOrderRequestSchema,
@@ -60,6 +73,12 @@ import {
   SteerResultSchema,
   safeParse,
   undeclaredConfig,
+  WebhookCreateRequestSchema,
+  type WebhookInfo,
+  WebhookInfoSchema,
+  WebhookListResponseSchema,
+  WebhookTestResponseSchema,
+  WebhookUpdateRequestSchema,
   WorkspaceDiffQuerySchema,
   WorkspaceDiffSchema,
   WorkspaceFileQuerySchema,
@@ -69,7 +88,8 @@ import {
 } from '@hoplet/shared';
 import corePackage from '../../package.json' with { type: 'json' };
 import type { DeviceControlOutcome, QueueResult, SteerOutcome } from '../control/index.ts';
-import type { SessionStateRecord } from '../store/index.ts';
+import { registerSecret } from '../log/index.ts';
+import type { PushSubscriptionRecord, SessionStateRecord } from '../store/index.ts';
 import { ApiError, relayError } from './http.ts';
 import { checkPromptImage } from './images.ts';
 import { blockOfLine, excerptOf, projectLine } from './projection/index.ts';
@@ -98,6 +118,38 @@ function ownerOf(deps: ApiDeps, sessionId: string): string {
   const owner = deps.store.ownerDeviceId(sessionId);
   if (!owner) throw new ApiError('session-not-found');
   return owner;
+}
+
+/** The most push subscriptions: one per browser of the owner. */
+const MAX_PUSH_SUBSCRIPTIONS = 50;
+
+/** A subscription as the API shows it: the host of its push service, never the endpoint (a credential). */
+function pushInfo(record: PushSubscriptionRecord): PushSubscriptionInfo {
+  let service = '';
+  try {
+    service = new URL(record.endpoint).host;
+  } catch {
+    // An endpoint the store accepted parses; nothing to show otherwise.
+  }
+  return {
+    id: record.id,
+    label: record.label,
+    service,
+    createdAt: record.createdAt,
+    ...(record.lastDelivery ? { lastDelivery: record.lastDelivery } : {}),
+  };
+}
+
+function webhookInfo(record: WebhookInfo): WebhookInfo {
+  return {
+    id: record.id,
+    label: record.label,
+    url: record.url,
+    hasSecret: record.hasSecret,
+    enabled: record.enabled,
+    createdAt: record.createdAt,
+    ...(record.lastDelivery ? { lastDelivery: record.lastDelivery } : {}),
+  };
 }
 
 /** The vendor of the session's lines, or the 404 when the session is unknown. */
@@ -865,6 +917,199 @@ export const routes: readonly Route[] = [
         deviceId,
         await control.removeSessions(deviceId, body.path, body.sessionIds),
       );
+    },
+  }),
+  defineRoute({
+    method: 'GET',
+    path: '/api/notify/preferences',
+    auth: 'host',
+    lane: 'control',
+    response: NotifyPreferencesSchema,
+    handler: ({ store }) => store.notifyPreferences(),
+  }),
+  defineRoute({
+    method: 'PUT',
+    path: '/api/notify/preferences',
+    auth: 'host',
+    lane: 'control',
+    bodyLimit: 256 * 1024,
+    body: NotifyPreferencesSchema,
+    response: NotifyPreferencesSchema,
+    handler: ({ store, body }) => {
+      if (Object.keys(body.projects).length > MAX_NOTIFY_PROJECTS) {
+        throw new ApiError('too-large');
+      }
+      store.setNotifyPreferences(body);
+      return store.notifyPreferences();
+    },
+  }),
+  defineRoute({
+    method: 'GET',
+    path: '/api/notify/push/key',
+    auth: 'host',
+    lane: 'control',
+    response: PushKeyResponseSchema,
+    handler: ({ notify }) => ({ publicKey: notify.pushKey() }),
+  }),
+  defineRoute({
+    method: 'GET',
+    path: '/api/notify/push/subscriptions',
+    auth: 'host',
+    lane: 'control',
+    response: PushSubscriptionListResponseSchema,
+    handler: ({ store }) => ({ subscriptions: store.listPushSubscriptions().map(pushInfo) }),
+  }),
+  defineRoute({
+    method: 'POST',
+    path: '/api/notify/push/subscriptions',
+    auth: 'host',
+    lane: 'control',
+    bodyLimit: 8 * 1024,
+    body: PushSubscribeRequestSchema,
+    status: 201,
+    response: PushSubscriptionInfoSchema,
+    handler: ({ store, body }) => {
+      const known = store.listPushSubscriptions();
+      if (
+        known.length >= MAX_PUSH_SUBSCRIPTIONS &&
+        !known.some((s) => s.endpoint === body.endpoint)
+      ) {
+        throw new ApiError('too-large');
+      }
+      return pushInfo(
+        store.addPushSubscription(
+          {
+            endpoint: body.endpoint,
+            p256dh: body.keys.p256dh,
+            auth: body.keys.auth,
+            label: body.label,
+          },
+          Date.now(),
+        ),
+      );
+    },
+  }),
+  defineRoute({
+    method: 'DELETE',
+    path: '/api/notify/push/subscriptions/:id',
+    auth: 'host',
+    lane: 'control',
+    response: PushSubscriptionListResponseSchema,
+    handler: ({ store, params }) => {
+      if (!store.deletePushSubscription(params.id ?? '')) throw new ApiError('not-found');
+      return { subscriptions: store.listPushSubscriptions().map(pushInfo) };
+    },
+  }),
+  defineRoute({
+    method: 'POST',
+    path: '/api/notify/push/unsubscribe',
+    auth: 'host',
+    lane: 'control',
+    bodyLimit: 4 * 1024,
+    body: PushUnsubscribeRequestSchema,
+    response: PushSubscriptionListResponseSchema,
+    handler: ({ store, body }) => {
+      store.deletePushByEndpoint(body.endpoint);
+      return { subscriptions: store.listPushSubscriptions().map(pushInfo) };
+    },
+  }),
+  defineRoute({
+    method: 'GET',
+    path: '/api/notify/webhooks',
+    auth: 'host',
+    lane: 'control',
+    response: WebhookListResponseSchema,
+    handler: ({ store }) => ({ webhooks: store.listWebhooks().map(webhookInfo) }),
+  }),
+  defineRoute({
+    method: 'POST',
+    path: '/api/notify/webhooks',
+    auth: 'host',
+    lane: 'control',
+    bodyLimit: 8 * 1024,
+    body: WebhookCreateRequestSchema,
+    status: 201,
+    response: WebhookInfoSchema,
+    handler: ({ store, body }) => {
+      if (store.listWebhooks().length >= MAX_WEBHOOKS) throw new ApiError('too-large');
+      if (body.secret) registerSecret(body.secret);
+      return webhookInfo(
+        store.addWebhook(
+          { url: body.url, label: body.label, ...(body.secret ? { secret: body.secret } : {}) },
+          Date.now(),
+        ),
+      );
+    },
+  }),
+  defineRoute({
+    method: 'PATCH',
+    path: '/api/notify/webhooks/:id',
+    auth: 'host',
+    lane: 'control',
+    bodyLimit: 8 * 1024,
+    body: WebhookUpdateRequestSchema,
+    response: WebhookInfoSchema,
+    handler: ({ store, params, body }) => {
+      if (body.secret) registerSecret(body.secret);
+      const updated = store.updateWebhook(params.id ?? '', {
+        ...(body.url === undefined ? {} : { url: body.url }),
+        ...(body.label === undefined ? {} : { label: body.label }),
+        ...(body.enabled === undefined ? {} : { enabled: body.enabled }),
+        ...(body.secret === undefined ? {} : { secret: body.secret }),
+      });
+      if (!updated) throw new ApiError('not-found');
+      return webhookInfo(updated);
+    },
+  }),
+  defineRoute({
+    method: 'DELETE',
+    path: '/api/notify/webhooks/:id',
+    auth: 'host',
+    lane: 'control',
+    response: WebhookListResponseSchema,
+    handler: ({ store, params }) => {
+      if (!store.deleteWebhook(params.id ?? '')) throw new ApiError('not-found');
+      return { webhooks: store.listWebhooks().map(webhookInfo) };
+    },
+  }),
+  defineRoute({
+    method: 'POST',
+    path: '/api/notify/webhooks/:id/test',
+    auth: 'host',
+    lane: 'control',
+    response: WebhookTestResponseSchema,
+    handler: async ({ notify, params }) => {
+      const result = await notify.testWebhook(params.id ?? '');
+      if (!result) throw new ApiError('not-found');
+      return { webhook: webhookInfo(result.webhook), delivery: result.delivery };
+    },
+  }),
+  defineRoute({
+    method: 'POST',
+    path: '/api/action/inspect',
+    auth: 'token',
+    lane: 'control',
+    bodyLimit: 2 * 1024,
+    body: ActionInspectRequestSchema,
+    response: ActionInspectResponseSchema,
+    handler: ({ notify, body }) => {
+      const view = notify.inspect(body.token);
+      if (!view) throw new ApiError('invalid-token');
+      return view;
+    },
+  }),
+  defineRoute({
+    method: 'POST',
+    path: '/api/action/decide',
+    auth: 'token',
+    lane: 'control',
+    bodyLimit: 2 * 1024,
+    body: ActionDecideRequestSchema,
+    response: ActionDecideResponseSchema,
+    handler: ({ notify, body }) => {
+      const result = notify.decide(body.token, body.decision);
+      if ('error' in result) throw new ApiError(result.error);
+      return result;
     },
   }),
 ];

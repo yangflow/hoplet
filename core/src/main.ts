@@ -6,6 +6,7 @@ import { loadConfig } from './config/index.ts';
 import { createControl } from './control/index.ts';
 import { attachIngest } from './ingest/index.ts';
 import { log } from './log/index.ts';
+import { createNotify } from './notify/index.ts';
 import { Store } from './store/index.ts';
 
 const config = loadConfig();
@@ -13,7 +14,9 @@ const store = new Store(config.dataDir);
 const control = createControl(store);
 const server = createServer();
 attachIngest(server, store, control);
-createApi(store, config, control).attach(server);
+const notify = createNotify(store, control, { publicUrl: config.publicUrl ?? null });
+notify.start();
+createApi(store, config, control, { notify }).attach(server);
 // The two WebSocket paths are taken by the modules above; any other upgrade is refused.
 server.on('upgrade', (req, socket) => {
   const { pathname } = new URL(req.url ?? '/', 'http://localhost');

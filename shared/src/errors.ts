@@ -13,6 +13,8 @@ export const HTTP_ERROR_STATUS = {
   'invalid-json': 400,
   'invalid-request': 400,
   'same-device': 400,
+  'invalid-token': 400,
+  'rate-limited': 429,
   'too-large': 413,
   'owner-offline': 409,
   'target-offline': 409,

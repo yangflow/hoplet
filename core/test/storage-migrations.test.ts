@@ -238,3 +238,22 @@ it('creates the queue tables at schema 13 and keeps them across opens', () => {
   });
   db.close();
 });
+
+it('creates the notification tables at schema 14 and keeps them across opens', () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'hoplet-migration-'));
+  dirs.push(dir);
+  new Store(dir);
+  new Store(dir);
+  const db = new DatabaseSync(path.join(dir, 'hoplet.db'));
+  const names = db
+    .prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name")
+    .all()
+    .map((r) => r.name);
+  for (const table of ['notify_prefs', 'push_subscriptions', 'webhooks', 'action_tokens']) {
+    expect(names).toContain(table);
+  }
+  expect(db.prepare('SELECT name FROM schema_migrations WHERE id = 14').get()).toEqual({
+    name: 'notifications',
+  });
+  db.close();
+});

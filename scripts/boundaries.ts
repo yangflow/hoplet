@@ -89,7 +89,8 @@ const MAY_CALL: Record<string, readonly string[]> = {
   store: ['migrations', 'log'],
   control: ['store', 'log'],
   ingest: ['store', 'control', 'log', 'config'],
-  api: ['store', 'control', 'log', 'config'],
+  notify: ['store', 'control', 'log'],
+  api: ['store', 'control', 'notify', 'log', 'config'],
 };
 
 export function checkBoundaries(files: ReadonlyMap<string, string>): Violation[] {

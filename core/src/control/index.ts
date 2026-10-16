@@ -2,6 +2,7 @@
 // (docs/architecture.md#components). It never sees a socket; ingest hands it `DeviceLink`s.
 
 import { PROTOCOL_VERSION, type ServerMessage } from '@hoplet/shared';
+import { log } from '../log/index.ts';
 import type { Store } from '../store/index.ts';
 import { createBulkQueue } from './bulk.ts';
 import { createHandoff } from './handoff.ts';
@@ -11,12 +12,13 @@ import { createRpc } from './rpc.ts';
 import { createRuntime } from './runtime.ts';
 import { createStart } from './start.ts';
 import type { ControlState } from './state.ts';
-import type { AgentControl, Control, ControlOptions } from './types.ts';
+import type { AgentControl, Control, ControlEvent, ControlOptions, Viewing } from './types.ts';
 
 export { BulkBusyError, type BulkQueue } from './bulk.ts';
 export type {
   AgentControl,
   Control,
+  ControlEvent,
   ControlOptions,
   ControlReply,
   DeviceControlOutcome,
@@ -33,10 +35,20 @@ export type {
   StartOutcome,
   StartRequest,
   SteerOutcome,
+  Viewing,
   WorkspaceDiffOutcome,
   WorkspaceFileOutcome,
   WorkspaceOutcome,
 } from './types.ts';
+
+/** Handoff results that are a refusal of the request or the user's own cancel, not a failure to tell about. */
+const HANDOFF_REFUSALS: ReadonlySet<string> = new Set([
+  'session-not-found',
+  'same-device',
+  'handoff-in-progress',
+  'busy',
+  'cancelled',
+]);
 
 const DEFAULT_BULK = { concurrency: 4, maxWaiting: 64 };
 const DEFAULT_PROMPT_TIMEOUT_MS = 20_000;
@@ -51,6 +63,28 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
   const listeners = new Set<(msg: ServerMessage) => void>();
   const publish = (msg: ServerMessage): void => {
     for (const listener of listeners) listener(msg);
+  };
+  const eventListeners = new Set<(event: ControlEvent) => void>();
+  const emit = (event: ControlEvent): void => {
+    for (const listener of eventListeners) {
+      try {
+        listener(event);
+      } catch (err) {
+        log('error', 'control', 'event listener failed', { kind: event.kind, error: String(err) });
+      }
+    }
+  };
+  const open = new Map<string, number>();
+  const viewing: Viewing = {
+    add(sessionId) {
+      open.set(sessionId, (open.get(sessionId) ?? 0) + 1);
+    },
+    remove(sessionId) {
+      const n = (open.get(sessionId) ?? 0) - 1;
+      if (n > 0) open.set(sessionId, n);
+      else open.delete(sessionId);
+    },
+    isOpen: (sessionId) => open.has(sessionId),
   };
   const state: ControlState = {
     store,
@@ -68,6 +102,7 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
     permissions: new Map(),
     publish,
     now: options.now ?? Date.now,
+    emit,
     runtimeChanged: () => {},
     pendingWs: new Map(),
     pendingFile: new Map(),
@@ -98,6 +133,11 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
 
   return {
     bulk,
+    viewing,
+    onEvent(listener) {
+      eventListeners.add(listener);
+      return () => eventListeners.delete(listener);
+    },
     attach(deviceId, link, providers) {
       if (state.byDevice.get(deviceId) !== link) {
         state.deviceGenerations.set(deviceId, (state.deviceGenerations.get(deviceId) ?? 0) + 1);
@@ -194,6 +234,14 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
     async handoff(request) {
       const outcome = await handoff.handoff(request);
       queue.drain(request.sessionId);
+      if (!outcome.ok && !HANDOFF_REFUSALS.has(outcome.error)) {
+        emit({
+          kind: 'failure',
+          source: 'handoff',
+          sessionId: request.sessionId,
+          error: outcome.error,
+        });
+      }
       return outcome;
     },
   };

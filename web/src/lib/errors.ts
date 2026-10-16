@@ -30,6 +30,8 @@ export const ERROR_COPY: Record<HttpErrorCode, string> = {
   'invalid-json': 'The request was not valid.',
   'invalid-request': 'The request was not valid.',
   'same-device': 'Choose a different machine.',
+  'invalid-token': 'The link is not valid.',
+  'rate-limited': 'Too many requests. Try again in a moment.',
   'too-large': 'That is too large to send.',
   'owner-offline': 'The machine that owns this session is offline.',
   'target-offline': 'The target machine is offline.',

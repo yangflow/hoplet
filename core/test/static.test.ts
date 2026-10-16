@@ -51,6 +51,12 @@ describe('serveStatic', () => {
     expect(res.body).toBe('<html>shell</html>');
   });
 
+  it('serves the shell at the action page address', () => {
+    const res = serve('/a');
+    expect(res.status).toBe(200);
+    expect(res.body).toBe('<html>shell</html>');
+  });
+
   it('never serves a file outside the web root', () => {
     for (const p of [
       '/../outside.txt',

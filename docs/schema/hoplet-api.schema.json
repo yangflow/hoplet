@@ -423,6 +423,146 @@
       "query": null,
       "body": "DeviceSessionsRemoveRequestSchema",
       "response": "DeviceProjectsResultSchema"
+    },
+    {
+      "method": "GET",
+      "path": "/api/notify/preferences",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": null,
+      "response": "NotifyPreferencesSchema"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/notify/preferences",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": "NotifyPreferencesSchema",
+      "response": "NotifyPreferencesSchema"
+    },
+    {
+      "method": "GET",
+      "path": "/api/notify/push/key",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": null,
+      "response": "PushKeyResponseSchema"
+    },
+    {
+      "method": "GET",
+      "path": "/api/notify/push/subscriptions",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": null,
+      "response": "PushSubscriptionListResponseSchema"
+    },
+    {
+      "method": "POST",
+      "path": "/api/notify/push/subscriptions",
+      "auth": "host",
+      "lane": "control",
+      "status": 201,
+      "query": null,
+      "body": "PushSubscribeRequestSchema",
+      "response": "PushSubscriptionInfoSchema"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/notify/push/subscriptions/:id",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": null,
+      "response": "PushSubscriptionListResponseSchema"
+    },
+    {
+      "method": "POST",
+      "path": "/api/notify/push/unsubscribe",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": "PushUnsubscribeRequestSchema",
+      "response": "PushSubscriptionListResponseSchema"
+    },
+    {
+      "method": "GET",
+      "path": "/api/notify/webhooks",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": null,
+      "response": "WebhookListResponseSchema"
+    },
+    {
+      "method": "POST",
+      "path": "/api/notify/webhooks",
+      "auth": "host",
+      "lane": "control",
+      "status": 201,
+      "query": null,
+      "body": "WebhookCreateRequestSchema",
+      "response": "WebhookInfoSchema"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/notify/webhooks/:id",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": "WebhookUpdateRequestSchema",
+      "response": "WebhookInfoSchema"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/notify/webhooks/:id",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": null,
+      "response": "WebhookListResponseSchema"
+    },
+    {
+      "method": "POST",
+      "path": "/api/notify/webhooks/:id/test",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": null,
+      "response": "WebhookTestResponseSchema"
+    },
+    {
+      "method": "POST",
+      "path": "/api/action/inspect",
+      "auth": "token",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": "ActionInspectRequestSchema",
+      "response": "ActionInspectResponseSchema"
+    },
+    {
+      "method": "POST",
+      "path": "/api/action/decide",
+      "auth": "token",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": "ActionDecideRequestSchema",
+      "response": "ActionDecideResponseSchema"
     }
   ],
   "browserMessages": [
@@ -493,6 +633,12 @@
       "schema": "HandoffProgressMessage"
     },
     {
+      "type": "notify",
+      "direction": "core-to-web",
+      "lane": "control",
+      "schema": "NotifyMessage"
+    },
+    {
       "type": "error",
       "direction": "core-to-web",
       "lane": "control",
@@ -508,6 +654,8 @@
     "invalid-json": 400,
     "invalid-request": 400,
     "same-device": 400,
+    "invalid-token": 400,
+    "rate-limited": 429,
     "too-large": 413,
     "owner-offline": 409,
     "target-offline": 409,
@@ -560,6 +708,109 @@
     }
   ],
   "$defs": {
+    "ActionDecideRequestSchema": {
+      "type": "object",
+      "properties": {
+        "token": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{8,1024}\\.[A-Za-z0-9_-]{8,128}$"
+        },
+        "decision": {
+          "enum": [
+            "allow",
+            "deny"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "token",
+        "decision"
+      ]
+    },
+    "ActionDecideResponseSchema": {
+      "type": "object",
+      "properties": {
+        "state": {
+          "enum": [
+            "decided",
+            "answered",
+            "expired",
+            "used",
+            "webui-only"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "state"
+      ]
+    },
+    "ActionInspectRequestSchema": {
+      "type": "object",
+      "properties": {
+        "token": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{8,1024}\\.[A-Za-z0-9_-]{8,128}$"
+        }
+      },
+      "required": [
+        "token"
+      ]
+    },
+    "ActionInspectResponseSchema": {
+      "type": "object",
+      "properties": {
+        "state": {
+          "enum": [
+            "open",
+            "answered",
+            "expired",
+            "used",
+            "webui-only"
+          ],
+          "type": "string"
+        },
+        "sessionId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "requestId": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "permission",
+            "plan"
+          ],
+          "type": "string"
+        },
+        "project": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "tool": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        },
+        "planMode": {
+          "type": "string"
+        },
+        "plan": {
+          "type": "string"
+        },
+        "expiresAt": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "state"
+      ]
+    },
     "AttachmentResultSchema": {
       "type": "object",
       "properties": {
@@ -1169,6 +1420,8 @@
             "invalid-json",
             "invalid-request",
             "same-device",
+            "invalid-token",
+            "rate-limited",
             "too-large",
             "owner-offline",
             "target-offline",
@@ -1225,6 +1478,8 @@
             "invalid-json",
             "invalid-request",
             "same-device",
+            "invalid-token",
+            "rate-limited",
             "too-large",
             "owner-offline",
             "target-offline",
@@ -2148,6 +2403,301 @@
         "promptId"
       ]
     },
+    "NotifyMessage": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 5
+        },
+        "type": {
+          "const": "notify"
+        },
+        "kind": {
+          "enum": [
+            "permission",
+            "plan",
+            "turn-done",
+            "failure"
+          ],
+          "type": "string"
+        },
+        "sessionId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "project": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "tool": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        },
+        "requestId": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "kind",
+        "project"
+      ]
+    },
+    "NotifyPreferencesSchema": {
+      "type": "object",
+      "properties": {
+        "preset": {
+          "enum": [
+            "needs-me",
+            "needs-me-and-done",
+            "everything",
+            "off"
+          ],
+          "type": "string"
+        },
+        "events": {
+          "type": "object",
+          "properties": {
+            "permission": {
+              "type": "object",
+              "properties": {
+                "channels": {
+                  "type": "array",
+                  "items": {
+                    "enum": [
+                      "push",
+                      "webhook",
+                      "native"
+                    ],
+                    "type": "string"
+                  },
+                  "maxItems": 3
+                }
+              },
+              "required": [
+                "channels"
+              ]
+            },
+            "plan": {
+              "type": "object",
+              "properties": {
+                "channels": {
+                  "type": "array",
+                  "items": {
+                    "enum": [
+                      "push",
+                      "webhook",
+                      "native"
+                    ],
+                    "type": "string"
+                  },
+                  "maxItems": 3
+                }
+              },
+              "required": [
+                "channels"
+              ]
+            },
+            "turn-done": {
+              "type": "object",
+              "properties": {
+                "channels": {
+                  "type": "array",
+                  "items": {
+                    "enum": [
+                      "push",
+                      "webhook",
+                      "native"
+                    ],
+                    "type": "string"
+                  },
+                  "maxItems": 3
+                }
+              },
+              "required": [
+                "channels"
+              ]
+            },
+            "failure": {
+              "type": "object",
+              "properties": {
+                "channels": {
+                  "type": "array",
+                  "items": {
+                    "enum": [
+                      "push",
+                      "webhook",
+                      "native"
+                    ],
+                    "type": "string"
+                  },
+                  "maxItems": 3
+                }
+              },
+              "required": [
+                "channels"
+              ]
+            }
+          },
+          "required": []
+        },
+        "projects": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "preset": {
+                "enum": [
+                  "needs-me",
+                  "needs-me-and-done",
+                  "everything",
+                  "off"
+                ],
+                "type": "string"
+              },
+              "events": {
+                "type": "object",
+                "properties": {
+                  "permission": {
+                    "type": "object",
+                    "properties": {
+                      "channels": {
+                        "type": "array",
+                        "items": {
+                          "enum": [
+                            "push",
+                            "webhook",
+                            "native"
+                          ],
+                          "type": "string"
+                        },
+                        "maxItems": 3
+                      }
+                    },
+                    "required": [
+                      "channels"
+                    ]
+                  },
+                  "plan": {
+                    "type": "object",
+                    "properties": {
+                      "channels": {
+                        "type": "array",
+                        "items": {
+                          "enum": [
+                            "push",
+                            "webhook",
+                            "native"
+                          ],
+                          "type": "string"
+                        },
+                        "maxItems": 3
+                      }
+                    },
+                    "required": [
+                      "channels"
+                    ]
+                  },
+                  "turn-done": {
+                    "type": "object",
+                    "properties": {
+                      "channels": {
+                        "type": "array",
+                        "items": {
+                          "enum": [
+                            "push",
+                            "webhook",
+                            "native"
+                          ],
+                          "type": "string"
+                        },
+                        "maxItems": 3
+                      }
+                    },
+                    "required": [
+                      "channels"
+                    ]
+                  },
+                  "failure": {
+                    "type": "object",
+                    "properties": {
+                      "channels": {
+                        "type": "array",
+                        "items": {
+                          "enum": [
+                            "push",
+                            "webhook",
+                            "native"
+                          ],
+                          "type": "string"
+                        },
+                        "maxItems": 3
+                      }
+                    },
+                    "required": [
+                      "channels"
+                    ]
+                  }
+                },
+                "required": []
+              }
+            },
+            "required": [
+              "events"
+            ]
+          }
+        },
+        "quietHours": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "start": {
+                  "type": "string",
+                  "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+                },
+                "end": {
+                  "type": "string",
+                  "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+                },
+                "timeZone": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                }
+              },
+              "required": [
+                "start",
+                "end",
+                "timeZone"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "preset",
+        "events",
+        "projects",
+        "quietHours"
+      ]
+    },
     "PermissionRequestSchema": {
       "type": "object",
       "properties": {
@@ -2240,6 +2790,161 @@
       "required": [
         "ok",
         "promptId"
+      ]
+    },
+    "PushKeyResponseSchema": {
+      "type": "object",
+      "properties": {
+        "publicKey": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "publicKey"
+      ]
+    },
+    "PushSubscribeRequestSchema": {
+      "type": "object",
+      "properties": {
+        "endpoint": {
+          "type": "string",
+          "format": "uri",
+          "maxLength": 2048
+        },
+        "keys": {
+          "type": "object",
+          "properties": {
+            "p256dh": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "auth": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          },
+          "required": [
+            "p256dh",
+            "auth"
+          ]
+        },
+        "label": {
+          "type": "string",
+          "pattern": "^\\s*\\S(?:[\\s\\S]{0,78}\\S)?\\s*$"
+        }
+      },
+      "required": [
+        "endpoint",
+        "keys",
+        "label"
+      ]
+    },
+    "PushSubscriptionInfoSchema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "service": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "number"
+        },
+        "lastDelivery": {
+          "type": "object",
+          "properties": {
+            "at": {
+              "type": "number"
+            },
+            "ok": {
+              "type": "boolean"
+            },
+            "error": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "at",
+            "ok"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "service",
+        "createdAt"
+      ]
+    },
+    "PushSubscriptionListResponseSchema": {
+      "type": "object",
+      "properties": {
+        "subscriptions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              },
+              "service": {
+                "type": "string"
+              },
+              "createdAt": {
+                "type": "number"
+              },
+              "lastDelivery": {
+                "type": "object",
+                "properties": {
+                  "at": {
+                    "type": "number"
+                  },
+                  "ok": {
+                    "type": "boolean"
+                  },
+                  "error": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "at",
+                  "ok"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "label",
+              "service",
+              "createdAt"
+            ]
+          }
+        }
+      },
+      "required": [
+        "subscriptions"
+      ]
+    },
+    "PushUnsubscribeRequestSchema": {
+      "type": "object",
+      "properties": {
+        "endpoint": {
+          "type": "string",
+          "format": "uri",
+          "maxLength": 2048
+        }
+      },
+      "required": [
+        "endpoint"
       ]
     },
     "QueueAddRequestSchema": {
@@ -3390,6 +4095,246 @@
         "type",
         "sessionId"
       ]
+    },
+    "WebhookCreateRequestSchema": {
+      "type": "object",
+      "properties": {
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "maxLength": 2048,
+          "pattern": "^https?:\\/\\/"
+        },
+        "label": {
+          "type": "string",
+          "pattern": "^\\s*\\S(?:[\\s\\S]{0,78}\\S)?\\s*$"
+        },
+        "secret": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        }
+      },
+      "required": [
+        "url",
+        "label"
+      ]
+    },
+    "WebhookInfoSchema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        },
+        "hasSecret": {
+          "type": "boolean"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "createdAt": {
+          "type": "number"
+        },
+        "lastDelivery": {
+          "type": "object",
+          "properties": {
+            "at": {
+              "type": "number"
+            },
+            "ok": {
+              "type": "boolean"
+            },
+            "error": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "at",
+            "ok"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "url",
+        "hasSecret",
+        "enabled",
+        "createdAt"
+      ]
+    },
+    "WebhookListResponseSchema": {
+      "type": "object",
+      "properties": {
+        "webhooks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              },
+              "url": {
+                "type": "string"
+              },
+              "hasSecret": {
+                "type": "boolean"
+              },
+              "enabled": {
+                "type": "boolean"
+              },
+              "createdAt": {
+                "type": "number"
+              },
+              "lastDelivery": {
+                "type": "object",
+                "properties": {
+                  "at": {
+                    "type": "number"
+                  },
+                  "ok": {
+                    "type": "boolean"
+                  },
+                  "error": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "at",
+                  "ok"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "label",
+              "url",
+              "hasSecret",
+              "enabled",
+              "createdAt"
+            ]
+          }
+        }
+      },
+      "required": [
+        "webhooks"
+      ]
+    },
+    "WebhookTestResponseSchema": {
+      "type": "object",
+      "properties": {
+        "webhook": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "label": {
+              "type": "string"
+            },
+            "url": {
+              "type": "string"
+            },
+            "hasSecret": {
+              "type": "boolean"
+            },
+            "enabled": {
+              "type": "boolean"
+            },
+            "createdAt": {
+              "type": "number"
+            },
+            "lastDelivery": {
+              "type": "object",
+              "properties": {
+                "at": {
+                  "type": "number"
+                },
+                "ok": {
+                  "type": "boolean"
+                },
+                "error": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "at",
+                "ok"
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "label",
+            "url",
+            "hasSecret",
+            "enabled",
+            "createdAt"
+          ]
+        },
+        "delivery": {
+          "type": "object",
+          "properties": {
+            "at": {
+              "type": "number"
+            },
+            "ok": {
+              "type": "boolean"
+            },
+            "error": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "at",
+            "ok"
+          ]
+        }
+      },
+      "required": [
+        "webhook",
+        "delivery"
+      ]
+    },
+    "WebhookUpdateRequestSchema": {
+      "type": "object",
+      "properties": {
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "maxLength": 2048,
+          "pattern": "^https?:\\/\\/"
+        },
+        "label": {
+          "type": "string",
+          "pattern": "^\\s*\\S(?:[\\s\\S]{0,78}\\S)?\\s*$"
+        },
+        "secret": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "enabled": {
+          "type": "boolean"
+        }
+      },
+      "required": []
     },
     "WorkspaceDiffQuerySchema": {
       "type": "object",

@@ -83,7 +83,9 @@ describe('docs/api.md REST routes', () => {
   it('mentions no route outside the route table', () => {
     const known = new Set(routes.map(routeKey));
     const knownPaths = new Set(routes.map((r) => r.path));
-    for (const span of doc.matchAll(/`((?:GET |POST )?\/api\/[^`\s?]*)[^`]*`/g)) {
+    for (const span of doc.matchAll(
+      /`((?:GET |POST |PUT |PATCH |DELETE )?\/api\/[^`\s?]*)[^`]*`/g,
+    )) {
       const [method, spanPath] = (span[1] as string).includes(' ')
         ? (span[1] as string).split(' ')
         : [undefined, span[1]];

@@ -13,6 +13,7 @@ import { sessionGitBranch } from './0010-session-git-branch.ts';
 import { sessionActions } from './0011-session-actions.ts';
 import { directoryCommands } from './0012-directory-commands.ts';
 import { sessionQueue } from './0013-session-queue.ts';
+import { notifications } from './0014-notifications.ts';
 
 export interface Migration {
   readonly id: number;
@@ -34,6 +35,7 @@ const MIGRATIONS: readonly Migration[] = [
   sessionActions,
   directoryCommands,
   sessionQueue,
+  notifications,
 ];
 
 export function migrate(db: DatabaseSync): void {

@@ -3,6 +3,7 @@ import { closeSync, fsyncSync, openSync } from 'node:fs';
 import path from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 import { isSessionId } from '@hoplet/shared';
+import type { NotifySecrets } from './secrets.ts';
 import type { SnapshotView } from './snapshot-read.ts';
 
 /** Lines per chunk: a session is cut into 500-line files, so reading any page only decompresses the hit chunk. */
@@ -20,6 +21,8 @@ export interface StoreContext {
   uploads: Map<string, SnapshotUpload>;
   /** Parsed changes of recently read snapshots, by snapshot ID, least recently used first. */
   snapshotViews: Map<string, Promise<SnapshotView>>;
+  /** The notification secrets once read from their file. */
+  secrets: NotifySecrets | null;
 }
 
 /** A snapshot being received: where it is written and what the first chunk promised. */

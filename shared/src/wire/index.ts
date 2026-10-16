@@ -9,6 +9,7 @@ import { CommandSchema, MAX_COMMANDS } from '../commands.ts';
 import { ToolKindSchema, ToolMcpSchema } from '../conversation.ts';
 import { ErrorCodeSchema } from '../errors.ts';
 import { AttachmentIdSchema, HandoffIdSchema, SessionIdSchema, SnapshotIdSchema } from '../ids.ts';
+import { NotifyEventKindSchema } from '../rest/notify.ts';
 import { ChangeStatusSchema, WorkspaceChangeSchema } from '../rest/workspace.ts';
 import {
   AgentRuntimeStateSchema,
@@ -614,6 +615,26 @@ export const WIRE_MESSAGES = defineWire({
     },
   },
 
+  /**
+   * A notification for a native client (ADR 0021): sent to browser sockets that declared themselves a native
+   * client, of which there is none yet, so the core does not send it today. It carries the payload of every
+   * channel and no link.
+   */
+  notify: {
+    lane: 'control',
+    direction: 'core-to-web',
+    fields: {
+      kind: NotifyEventKindSchema,
+      sessionId: v.optional(sessionId),
+      project: v.string(),
+      title: v.optional(v.string()),
+      tool: v.optional(v.string()),
+      summary: v.optional(v.string()),
+      requestId: v.optional(v.string()),
+      reason: v.optional(v.string()),
+    },
+  },
+
   // Device projects and imported sessions
   'device.projects.list': { lane: 'control', direction: 'core-to-device', fields: { requestId } },
   'device.projects.add': {
@@ -759,6 +780,7 @@ export type RuntimeRejected = WireMessageOf<'runtime.rejected'>;
 export type RuntimeCommands = WireMessageOf<'runtime.commands'>;
 export type SessionCommands = WireMessageOf<'session.commands'>;
 export type SessionQueue = WireMessageOf<'session.queue'>;
+export type NotifyMsg = WireMessageOf<'notify'>;
 export type SubscribeMsg = WireMessageOf<'subscribe'>;
 export type UnsubscribeMsg = WireMessageOf<'unsubscribe'>;
 export type DevicePresence = WireMessageOf<'device.presence'>;

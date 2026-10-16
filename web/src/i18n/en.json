@@ -27,6 +27,8 @@
   "That session no longer exists.": "That session no longer exists.",
   "The request was not valid.": "The request was not valid.",
   "Choose a different machine.": "Choose a different machine.",
+  "The link is not valid.": "The link is not valid.",
+  "Too many requests. Try again in a moment.": "Too many requests. Try again in a moment.",
   "That is too large to send.": "That is too large to send.",
   "The machine that owns this session is offline.": "The machine that owns this session is offline.",
   "The target machine is offline.": "The target machine is offline.",
