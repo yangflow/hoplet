@@ -1,7 +1,7 @@
 import {
   type AgentRuntimeState,
   type ConfigSetting,
-  type PermissionDecision,
+  type PlanExit,
   PROTOCOL_VERSION,
   type RuntimeCapabilities,
   type RuntimeConfig,
@@ -18,6 +18,7 @@ import type {
   Control,
   ControlReply,
   DeviceLink,
+  PermissionAnswer,
   RuntimeCommandOutcome,
   RuntimeView,
 } from './types.ts';
@@ -38,12 +39,16 @@ export interface OpenPermission {
   tool: string;
   toolUseId?: string;
   input: unknown;
+  planExit?: PlanExit;
   at: number;
 }
 
 /** A repeated `promptId` returns the first result for this long. */
 export const PROMPT_DEDUP_MS = 10 * 60_000;
-/** A permission request nobody answered is closed here after this long; the agent denies it at the same time. */
+/**
+ * A permission request nobody answered is closed here after this long; the agent denies it at the same time.
+ * A plan exit (ADR 0019) never expires: it waits for the user until the turn is over.
+ */
 export const PERMISSION_OPEN_MS = 10 * 60_000;
 
 export type Runtime = Pick<
@@ -143,6 +148,10 @@ export function createRuntime(state: ControlState): Runtime {
     });
   }
 
+  function permissionExpired(open: OpenPermission): boolean {
+    return open.planExit === undefined && state.now() - open.at > PERMISSION_OPEN_MS;
+  }
+
   function dropPermissions(sessionId: string): void {
     for (const key of [...permissions.keys()]) {
       if (key.startsWith(`${sessionId}\n`)) permissions.delete(key);
@@ -233,16 +242,22 @@ export function createRuntime(state: ControlState): Runtime {
       return outcome;
     },
 
-    answerPermission(sessionId, ownerDeviceId, requestId, decision: PermissionDecision) {
+    answerPermission(sessionId, ownerDeviceId, requestId, answer: PermissionAnswer) {
+      const { decision, message, mode } = answer;
       const link = onlineLink(state, ownerDeviceId);
       if (!link) return { ok: false, error: 'owner-offline' };
       const key = permissionKey(sessionId, requestId);
       const open = permissions.get(key);
-      // The first answer wins: the request is gone before the answer is sent.
-      permissions.delete(key);
-      if (!open || open.deviceId !== ownerDeviceId || state.now() - open.at > PERMISSION_OPEN_MS) {
+      if (!open || open.deviceId !== ownerDeviceId || permissionExpired(open)) {
+        permissions.delete(key);
         return { ok: false, error: 'request-closed' };
       }
+      // A mode is only the approval of a plan, and only one the request offers; the request stays open.
+      if (mode !== undefined && (decision !== 'allow' || !open.planExit?.modes.includes(mode))) {
+        return { ok: false, error: 'invalid-request' };
+      }
+      // The first answer wins: the request is gone before the answer is sent.
+      permissions.delete(key);
       log('info', 'control', 'permission answered', { sessionId, requestId, decision });
       const msg: RuntimePermissionAnswer = {
         v: PROTOCOL_VERSION,
@@ -250,6 +265,8 @@ export function createRuntime(state: ControlState): Runtime {
         sessionId,
         requestId,
         decision,
+        ...(message !== undefined && message !== '' ? { message } : {}),
+        ...(mode !== undefined ? { mode } : {}),
       };
       link.send(msg);
       return { ok: true };
@@ -305,9 +322,8 @@ export function createRuntime(state: ControlState): Runtime {
 
     openPermissions(sessionId) {
       const out: SessionPermission[] = [];
-      const now = state.now();
       for (const [key, open] of permissions) {
-        if (!key.startsWith(`${sessionId}\n`) || now - open.at > PERMISSION_OPEN_MS) continue;
+        if (!key.startsWith(`${sessionId}\n`) || permissionExpired(open)) continue;
         out.push({
           v: PROTOCOL_VERSION,
           type: 'session.permission',
@@ -316,6 +332,7 @@ export function createRuntime(state: ControlState): Runtime {
           tool: open.tool,
           ...(open.toolUseId !== undefined ? { toolUseId: open.toolUseId } : {}),
           input: open.input,
+          ...(open.planExit ? { planExit: open.planExit } : {}),
         });
       }
       return out;
@@ -356,6 +373,7 @@ export function createRuntime(state: ControlState): Runtime {
             tool: msg.tool,
             ...(msg.toolUseId !== undefined ? { toolUseId: msg.toolUseId } : {}),
             input: msg.input,
+            ...(msg.planExit ? { planExit: msg.planExit } : {}),
             at: state.now(),
           });
           const { type: _type, v: _v, ...rest } = msg;

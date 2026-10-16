@@ -739,6 +739,47 @@ details.act-d > summary::-webkit-details-marker {
   border-radius: 0 0 var(--radius-lg) var(--radius-lg);
   box-shadow: inset 0 1px 0 var(--color-attention-ring);
 }
+/* the decided plan row and its mode chip (ADR 0019) */
+.pres {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--layout-row);
+  color: var(--color-text-2);
+  margin: var(--space-1) 0 var(--space-2);
+}
+.pres > svg {
+  color: var(--pres-icon, var(--color-text-3));
+}
+.pres.ok {
+  --pres-icon: var(--color-success);
+}
+.pres b {
+  font-weight: var(--weight-medium);
+  color: var(--color-text);
+}
+.pres .meta {
+  margin-left: auto;
+  font-size: var(--text-meta);
+  color: var(--color-text-3);
+  font-variant-numeric: tabular-nums;
+}
+.mchip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 4px;
+  background: var(--color-hover);
+  box-shadow: inset 0 0 0 1px var(--color-line);
+  color: var(--color-text-2);
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+}
+.mchip svg {
+  color: var(--color-text-3);
+}
 .ask-h {
   display: flex;
   align-items: center;
@@ -778,6 +819,101 @@ details.act-d > summary::-webkit-details-marker {
 }
 .ask-f .ask-meta svg {
   color: var(--color-text-3);
+}
+
+/* plan approval (ADR 0019): the plan document, the card that asks about it, and the decided rows */
+.pdoc {
+  position: relative;
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: inset 0 0 0 1px var(--color-line);
+  padding: var(--space-3) var(--space-4);
+}
+.pdoc .md {
+  max-width: var(--measure-prose);
+}
+.pdoc.open .pb {
+  max-height: 60vh;
+  overflow: auto;
+}
+.pdoc.cut .pb {
+  max-height: 240px;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 56px), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 56px), transparent);
+}
+.pdoc.cut.peek .pb {
+  max-height: 72px;
+}
+.pdoc.cut .wopen {
+  right: var(--space-3);
+  bottom: var(--space-3);
+}
+.wfold {
+  display: block;
+  margin: var(--space-2) 0 0 auto;
+  height: var(--control-icon);
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-sm);
+  font-weight: var(--weight-medium);
+  color: var(--color-text);
+  background: var(--control-bg);
+  box-shadow:
+    inset 0 1px 0 var(--color-highlight),
+    0 0 0 1px var(--color-line);
+}
+.pdoc.inline {
+  margin: var(--space-1) 0 var(--space-2) calc(16px + var(--space-2));
+}
+.ask.plan .pdoc {
+  margin: 0;
+}
+.ask-h .pmeta {
+  margin-left: auto;
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  color: var(--color-text-3);
+  font-variant-numeric: tabular-nums;
+}
+.split {
+  display: inline-flex;
+}
+.split > .btn:first-child {
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+}
+.split .anc .btn {
+  height: 100%;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  padding: 0 var(--space-2);
+  gap: 0;
+  box-shadow:
+    var(--shadow-accent),
+    inset 1px 0 0 color-mix(in srgb, var(--color-on-accent) 30%, transparent);
+}
+.ask-f .anc {
+  position: relative;
+}
+.ask-f .anc .popover {
+  left: 0;
+}
+.pfield {
+  margin-top: var(--space-3);
+}
+.pnote {
+  margin-top: var(--space-3);
+  height: auto;
+  min-height: var(--layout-row);
+}
+.pquote {
+  margin: 0 0 var(--space-2) calc(16px + var(--space-2));
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: inset 0 0 0 1px var(--color-line);
+  color: var(--color-text-2);
+  max-width: var(--measure-prose);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 /* dock: the composer's place under the transcript */

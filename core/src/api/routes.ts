@@ -372,7 +372,7 @@ export const routes: readonly Route[] = [
     path: '/api/sessions/:sessionId/permission',
     auth: 'host',
     lane: 'control',
-    bodyLimit: 4096,
+    bodyLimit: 40_000,
     body: PermissionRequestSchema,
     response: RuntimeCommandResultSchema,
     handler: (d) => {
@@ -381,7 +381,7 @@ export const routes: readonly Route[] = [
         sessionId,
         ownerOf(d, sessionId),
         d.body.requestId,
-        d.body.decision,
+        { decision: d.body.decision, message: d.body.message, mode: d.body.mode },
       );
       if (outcome.ok) return { ok: true };
       throw new ApiError(outcome.error);

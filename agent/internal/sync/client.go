@@ -237,6 +237,7 @@ func (c *Client) readLoop(cs *connState) {
 			Message   string `json:"message"`
 			PromptID  string `json:"promptId"`
 			Decision  string `json:"decision"`
+			Mode      string `json:"mode"`
 			RequestID string `json:"requestId"`
 			Path      string `json:"path"`
 			At        string `json:"at"`
@@ -255,7 +256,7 @@ func (c *Client) readLoop(cs *connState) {
 			go c.handleRuntimePrompt(cs, raw)
 			continue
 		case TypeRuntimePermissionAnswer:
-			go c.handleRuntimeAnswer(head.SessionID, head.RequestID, head.Decision)
+			go c.handleRuntimeAnswer(head.SessionID, head.RequestID, head.Decision, head.Message, head.Mode)
 			continue
 		case TypeRuntimeStart:
 			go c.handleRuntimeStart(cs, raw)

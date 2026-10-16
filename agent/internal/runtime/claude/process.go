@@ -114,7 +114,7 @@ func (p *process) Prompt(prompt runtime.Prompt) error {
 	})
 }
 
-func (p *process) Answer(requestID string, allow bool, message string) error {
+func (p *process) Answer(requestID string, v runtime.Verdict) error {
 	p.mu.Lock()
 	req, ok := p.pending[requestID]
 	delete(p.pending, requestID)
@@ -122,13 +122,17 @@ func (p *process) Answer(requestID string, allow bool, message string) error {
 	if !ok {
 		return fmt.Errorf("no pending permission request %q", requestID)
 	}
-	resp := map[string]any{"behavior": "deny", "message": message}
-	if allow {
+	resp := map[string]any{"behavior": "deny", "message": v.Message}
+	if v.Allow {
 		input := req.input
 		if len(input) == 0 {
 			input = json.RawMessage("{}")
 		}
 		resp = map[string]any{"behavior": "allow", "updatedInput": input}
+		if v.Mode != "" {
+			// The mode switch rides with the approval, so the plan is left straight into it.
+			resp["updatedPermissions"] = []map[string]any{{"type": "setMode", "mode": v.Mode, "destination": "session"}}
+		}
 	}
 	return p.send(map[string]any{
 		"type": "control_response",
@@ -499,6 +503,7 @@ func (p *process) handleControlRequest(m *message) {
 		p.mu.Unlock()
 		p.emit(runtime.PermissionRequest{
 			RequestID: m.RequestID, Tool: m.Request.ToolName, ToolUseID: m.Request.ToolUseID, Input: m.Request.Input,
+			PlanExit: planExit(m.Request.ToolName, m.Request.Input),
 		})
 		return
 	}
@@ -562,4 +567,21 @@ func describeFailure(m *message) string {
 		return "turn failed"
 	}
 	return strings.Join(parts, ": ")
+}
+
+// planExit declares ExitPlanMode as the request to leave a plan: the plan comes from the tool input, and
+// approval may switch the session to any permission mode that grants work without bypassing every check.
+func planExit(tool string, input json.RawMessage) *runtime.PlanExit {
+	if tool != "ExitPlanMode" {
+		return nil
+	}
+	var in struct {
+		Plan         string `json:"plan"`
+		PlanFilePath string `json:"planFilePath"`
+	}
+	_ = json.Unmarshal(input, &in)
+	return &runtime.PlanExit{
+		Plan: in.Plan, File: in.PlanFilePath, Option: "mode",
+		Modes: []string{"acceptEdits", "default", "auto"}, Default: "acceptEdits",
+	}
 }

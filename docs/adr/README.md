@@ -25,6 +25,7 @@ record and mark the old one "superseded by NNNN".
 | [0016](0016-the-source-is-public-under-apache-2-0.md) | The source is public under Apache-2.0 | accepted |
 | [0017](0017-prompt-images-are-uploaded-before-the-prompt.md) | Prompt images are uploaded before the prompt | accepted |
 | [0018](0018-session-settings-are-config-options.md) | Session settings are config options | accepted |
+| [0019](0019-a-plan-exit-is-declared-by-the-driver.md) | A plan exit is declared by the driver | accepted |
 
 ## Record template
 

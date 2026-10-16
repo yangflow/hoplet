@@ -118,7 +118,12 @@ a switch at its right.
 The conversation is a column of turn blocks. A finished turn sits flat on the canvas with a hairline above
 it; its header (prompt, time, summary; the line range in a tooltip) pins while the reader scrolls through it. The live turn
 is the only raised block, with an accent edge, or attention when it waits for permission; a permission
-request opens inside it. Every tool call is one 28 px row in four columns: icon, past-tense verb (Read, Edited, Wrote, Ran, Searched,
+request opens inside it. A permission request for a tool the driver declares as a plan exit is a plan card at the end
+of the live turn: the plan as Markdown on the surface fill (collapsed to about 240 px with a fade when long, with an
+`Open {size}` button that shows all of it in place), then one primary button `Approve · {mode}` fused with a chevron
+whose menu lists the modes the driver offers, and `Keep planning` beside it, which opens a feedback field (the plan folds
+to a peek, `Send feedback` replaces Approve). It has no countdown. Answered, the card becomes a `Planned` row and a result
+line naming the mode; with the owner offline the plan stays readable and the buttons are disabled. Every tool call is one 28 px row in four columns: icon, past-tense verb (Read, Edited, Wrote, Ran, Searched,
 Listed, Fetched, Called, Thought, Viewed), object, and meta right-aligned in tabular meta type (`L1–120 ·
 6.1 KiB`, `exit 1 · 42 s`, `12 matches`); a running row shows a spinner and a live timer there, a failed row
 keeps its place with a danger rule at its left. Every row takes the hover background (`--color-hover`, `--radius-sm`)

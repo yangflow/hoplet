@@ -82,7 +82,14 @@ export type RuntimeCommandOutcome =
 
 export type PermissionOutcome =
   | { ok: true }
-  | { ok: false; error: 'owner-offline' | 'request-closed' };
+  | { ok: false; error: 'owner-offline' | 'request-closed' | 'invalid-request' };
+
+/** An answer to a permission request: a refusal may explain itself, the approval of a plan names a mode. */
+export interface PermissionAnswer {
+  decision: PermissionDecision;
+  message?: string | undefined;
+  mode?: string | undefined;
+}
 
 export type WorkspaceOutcome =
   | { ok: true; listing: WorkspaceListing }
@@ -204,7 +211,7 @@ export interface Control {
     sessionId: string,
     ownerDeviceId: string,
     requestId: string,
-    decision: PermissionDecision,
+    answer: PermissionAnswer,
   ): PermissionOutcome;
   interrupt(sessionId: string, ownerDeviceId: string): RuntimeCommandOutcome;
   stop(sessionId: string, ownerDeviceId: string): RuntimeCommandOutcome;

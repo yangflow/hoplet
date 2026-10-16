@@ -177,12 +177,12 @@ export function renderInline(text: string): ReactNode[] {
   return out;
 }
 
-function Blocks({ blocks }: { blocks: MdBlock[] }): ReactNode {
+function Blocks({ blocks, base }: { blocks: MdBlock[]; base: number }): ReactNode {
   return blocks.map((block, i) => {
     const key = `${block.type}${i}`;
     switch (block.type) {
       case 'heading': {
-        const Tag = `h${Math.min(6, block.level + 2)}` as 'h3';
+        const Tag = `h${Math.min(6, Math.max(2, block.level + base))}` as 'h3';
         return <Tag key={key}>{renderInline(block.text)}</Tag>;
       }
       case 'paragraph':
@@ -201,7 +201,7 @@ function Blocks({ blocks }: { blocks: MdBlock[] }): ReactNode {
       case 'quote':
         return (
           <blockquote key={key}>
-            <Blocks blocks={block.blocks} />
+            <Blocks blocks={block.blocks} base={base} />
           </blockquote>
         );
       case 'list': {
@@ -211,7 +211,7 @@ function Blocks({ blocks }: { blocks: MdBlock[] }): ReactNode {
             {block.items.map((item, j) => (
               // biome-ignore lint/suspicious/noArrayIndexKey: list items have no identity
               <li key={j}>
-                <Blocks blocks={item.blocks} />
+                <Blocks blocks={item.blocks} base={base} />
               </li>
             ))}
           </Tag>
@@ -272,12 +272,21 @@ function withCaret(blocks: MdBlock[]): { blocks: MdBlock[]; placed: boolean } {
 }
 
 /** Assistant prose: sans 15/1.6 within 68ch (docs/design.md#typography); `caret` marks streamed text. */
-export function Markdown({ text, caret }: { text: string; caret?: boolean }) {
+/** `base` is how many levels a `#` heading sits below the page's `h1`: 2 in a turn, 0 in a plan card (headings never go above `h2`). */
+export function Markdown({
+  text,
+  caret,
+  base = 2,
+}: {
+  text: string;
+  caret?: boolean;
+  base?: number;
+}) {
   const parsed = parseMarkdown(text);
   const { blocks, placed } = caret ? withCaret(parsed) : { blocks: parsed, placed: true };
   return (
     <div className="md">
-      <Blocks blocks={blocks} />
+      <Blocks blocks={blocks} base={base} />
       {caret && !placed ? <span className="caret" aria-hidden="true" /> : null}
     </div>
   );

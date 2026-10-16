@@ -12,7 +12,7 @@
 //	images         answer `<n> images: <media types>` for the images that came with the prompt
 //	model          answer `model: <model>`, the --model it started with or the last set_model ("default")
 //	mode           answer `mode: <permission mode>`, the --permission-mode it started with or the last set_permission_mode
-//	exitplan <p>   ask permission for ExitPlanMode with the plan <p>; allow switches to the default mode and reports it
+//	exitplan <p>   ask permission for ExitPlanMode with the plan <p>; allow switches to the mode the approval names (else default) and reports it; a refusal echoes its message
 //	options        answer `model: <model> thinking: <--thinking or default> fast: <true when --settings fastMode>`
 //	newcmd         emit commands_changed with one more project command, then answer like `say`
 //	anything else  behaves like `say`
@@ -452,8 +452,18 @@ func runTurn(t *turn, prompt string) {
 			result("error_during_execution", true, "aborted_tools", "")
 		case ans := <-t.answers:
 			text := "REFUSED"
+			if msg, _ := ans["message"].(string); msg != "" {
+				text = "REFUSED: " + msg
+			}
 			if ans["behavior"] == "allow" {
-				setMode("default")
+				// As Claude Code does: the mode an approval names, else the one before the plan.
+				to := "default"
+				if ups, _ := ans["updatedPermissions"].([]any); len(ups) > 0 {
+					if up, _ := ups[0].(map[string]any); up["type"] == "setMode" {
+						to, _ = up["mode"].(string)
+					}
+				}
+				setMode(to)
 				text = "LEFT PLAN"
 			}
 			state("running")

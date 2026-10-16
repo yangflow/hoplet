@@ -64,6 +64,8 @@ export function composerView(input: {
   error?: string | undefined;
   /** The failed state is that of a turn the user watched run, not of the start. */
   turnFailed: boolean;
+  /** A plan waits for the user's decision. */
+  planPending?: boolean;
 }): ComposerView {
   const ask = t('Ask {provider}…').replace('{provider}', input.providerName);
   const { state } = input;
@@ -105,7 +107,13 @@ export function composerView(input: {
     case 'running':
       return { layout: 'field', placeholder: t('Turn running'), inputEnabled: false };
     case 'waiting-permission':
-      return { layout: 'field', placeholder: t('Waiting for permission'), inputEnabled: false };
+      return {
+        layout: 'field',
+        placeholder: input.planPending
+          ? t('Waiting for your decision on the plan')
+          : t('Waiting for permission'),
+        inputEnabled: false,
+      };
     case 'failed':
       if (input.turnFailed) {
         return { layout: 'field', placeholder: t('Send again to retry'), inputEnabled: true };

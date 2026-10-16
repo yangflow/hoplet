@@ -10,7 +10,8 @@ import { type ReactNode, useState } from 'react';
 import { live as liveWorkspace, snapshot } from '../workspace/fixtures.ts';
 import type { PathsState } from './composer/use-completions.ts';
 import { rememberBlock } from './conversation/blocks.tsx';
-import type { LiveTurn, OpenPermission } from './conversation/live-turn.ts';
+import type { LiveTurn, OpenPermission, PlanResolution } from './conversation/live-turn.ts';
+import type { PlanView } from './conversation/plan-card.tsx';
 import { Cockpit, type CockpitFixture } from './index.tsx';
 import type { AddProjectFixture } from './sidebar/add-project.tsx';
 import { dirKey } from './sidebar/folded-dirs.ts';
@@ -566,9 +567,80 @@ const permission: OpenPermission = {
   receivedAt: LIVE_START + 31_000 - 19_000,
 };
 
+const PLAN_TEXT = `## Roll back the byte cursor after a failed commit
+
+When a chunk commit fails, the cursor must return to the last stored offset.
+
+1. Wrap \`appendChunk\` in a transaction that records the offset it started from.
+2. On failure, restore \`byte_size\` from that offset and drop the partial chunk.
+3. Add a test that fails the commit and checks the next append resumes at the old offset.
+4. Run \`pnpm check\`.
+`;
+
+const LONG_PLAN_TEXT = `${PLAN_TEXT}\n${Array.from(
+  { length: 60 },
+  (_, i) => `- Step note ${i + 1}: keep the stored bytes untouched while the commit is retried.`,
+).join('\n')}\n`;
+
+const planExit = (plan: string): NonNullable<OpenPermission['planExit']> => ({
+  plan,
+  option: 'mode',
+  modes: ['acceptEdits', 'default', 'auto'],
+  default: 'acceptEdits',
+});
+
+const planPermission = (plan = PLAN_TEXT): OpenPermission => ({
+  requestId: 'p1a2b3c4',
+  tool: 'ExitPlanMode',
+  toolKind: 'other',
+  input: { plan },
+  receivedAt: LIVE_START + 31_000,
+  planExit: planExit(plan),
+});
+
+const planResolution = (over: Partial<PlanResolution>): PlanResolution => ({
+  requestId: 'p1a2b3c4',
+  title: 'Roll back the byte cursor after a failed commit',
+  steps: 4,
+  bytes: new TextEncoder().encode(PLAN_TEXT).length,
+  plan: PLAN_TEXT,
+  outcome: 'approved',
+  mode: 'acceptEdits',
+  at: LIVE_START + 40_000,
+  afterId: 1,
+  ...over,
+});
+
+const planScene = (permissions: OpenPermission[], plan?: PlanView, macbookOnline = true) => (
+  <Scene
+    macbookOnline={macbookOnline}
+    variant={{
+      runtime: { state: 'waiting-permission', capabilities },
+      live: {
+        turn: liveTurn({ rows: permissionRows }),
+        elapsed: 31_000,
+        permissions,
+        ...(plan ? { plan } : {}),
+      },
+    }}
+  />
+);
+
+const planResolved = (over: Partial<PlanResolution>) => (
+  <Scene
+    variant={{
+      runtime: { state: 'running', capabilities },
+      live: {
+        turn: liveTurn({ rows: permissionRows, plans: [planResolution(over)] }),
+        elapsed: 48_000,
+      },
+    }}
+  />
+);
+
 export type Variant = {
   runtime?: SessionRuntimeInfo;
-  live?: { turn: LiveTurn; elapsed: number; permissions?: OpenPermission[] };
+  live?: { turn: LiveTurn; elapsed: number; permissions?: OpenPermission[]; plan?: PlanView };
   conversation?: Partial<NonNullable<CockpitFixture['conversation']>>;
   /** studio › notes is folded, as in the design's ready state. */
   foldNotes?: boolean;
@@ -615,7 +687,15 @@ export function Scene(props: {
             ? {
                 entries,
                 now: LIVE_START + (live?.elapsed ?? 0),
-                ...(live ? { live: { turn: live.turn, permissions: live.permissions ?? [] } } : {}),
+                ...(live
+                  ? {
+                      live: {
+                        turn: live.turn,
+                        permissions: live.permissions ?? [],
+                        ...(live.plan ? { plan: live.plan } : {}),
+                      },
+                    }
+                  : {}),
                 ...variant.conversation,
               }
             : { entries: [] },
@@ -1026,6 +1106,20 @@ export const states: Record<string, () => ReactNode> = {
       }}
     />
   ),
+  'plan-pending': () => planScene([planPermission()]),
+  'plan-long': () => planScene([planPermission(LONG_PLAN_TEXT)]),
+  'plan-modes': () => planScene([planPermission()], { menu: true }),
+  'plan-feedback': () =>
+    planScene([planPermission()], { feedback: 'Keep the migration out of this change.' }),
+  'plan-offline': () => planScene([planPermission()], undefined, false),
+  'plan-approved': () => planResolved({}),
+  'plan-kept': () =>
+    planResolved({
+      outcome: 'kept',
+      mode: 'plan',
+      feedback: 'Keep the migration out of this change.',
+    }),
+  'plan-elsewhere': () => planResolved({ outcome: 'elsewhere' }),
   'failed-turn': () => {
     const error = 'claude exited with code 1\nENOENT /Users/mark/.local/bin/claude';
     return (

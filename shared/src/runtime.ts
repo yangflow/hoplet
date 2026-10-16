@@ -153,6 +153,24 @@ export type RuntimeOutputKind = v.InferOutput<typeof RuntimeOutputKindSchema>;
 export const PermissionDecisionSchema = v.picklist(['allow', 'deny']);
 export type PermissionDecision = v.InferOutput<typeof PermissionDecisionSchema>;
 
+/** The longest feedback a refusal may carry to the model. */
+export const PERMISSION_MESSAGE_MAX = 10_000;
+
+/**
+ * A driver's declaration that a permission request asks to leave a plan (ADR 0019): the plan to review as
+ * Markdown, the file it lives in when the provider keeps one, and the values of its select setting `option`
+ * that approving may switch the session to, `default` being the one offered first. A request without it is an
+ * ordinary tool permission.
+ */
+export const PlanExitSchema = v.object({
+  plan: v.string(),
+  planFile: v.optional(v.string()),
+  option: v.string(),
+  modes: v.pipe(v.array(v.string()), v.minLength(1)),
+  default: v.string(),
+});
+export type PlanExit = v.InferOutput<typeof PlanExitSchema>;
+
 /**
  * Images that go with a prompt (docs/spec.md#hoplet, ADR 0017): uploaded one by one to the machine first, then
  * referred to by ID. Each is PNG, JPEG, GIF or WebP of at most 4 MiB; a prompt takes at most 4 and together at

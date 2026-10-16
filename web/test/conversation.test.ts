@@ -357,6 +357,34 @@ it('asks for permission inside the live turn and answers once', async () => {
   expect(q('cockpit.permission')).toBeNull();
 });
 
+it('shows a plan without a countdown, approves into a mode and keeps the decision as a row', async () => {
+  await show({ state: 'idle', capabilities: caps });
+  await show({ state: 'waiting-permission', capabilities: caps });
+  await live({
+    type: 'session.permission',
+    requestId: 'p1',
+    tool: 'ExitPlanMode',
+    toolKind: 'other',
+    input: {},
+    planExit: {
+      plan: '## Fix the cursor\n\n1. Roll back\n2. Test',
+      option: 'mode',
+      modes: ['acceptEdits', 'default'],
+      default: 'acceptEdits',
+    },
+  });
+  expect(q('cockpit.plan')?.textContent).toContain('Fix the cursor');
+  expect(q('cockpit.plan')?.textContent).not.toContain('Auto-deny');
+  expect(q('cockpit.permission')).toBeNull();
+  api.postPermission.mockResolvedValue({ ok: true });
+  await act(async () => {
+    (q('cockpit.plan-approve') as HTMLButtonElement).click();
+  });
+  expect(api.postPermission).toHaveBeenCalledWith(SID, 'p1', 'allow', { mode: 'acceptEdits' });
+  expect(q('cockpit.plan')).toBeNull();
+  expect(q('cockpit.plan-resolved')?.getAttribute('data-outcome')).toBe('approved');
+});
+
 it('drops a request another window answered first', async () => {
   await show({ state: 'idle', capabilities: caps });
   await show({ state: 'waiting-permission', capabilities: caps });

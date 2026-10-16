@@ -188,10 +188,14 @@ func wireMessage(ev runtime.Event) any {
 		if len(input) == 0 {
 			input = json.RawMessage("{}")
 		}
-		return sync.RuntimePermission{
+		out := sync.RuntimePermission{
 			V: sync.ProtocolVersion, Type: sync.TypeRuntimePermission, SessionID: ev.SessionID,
 			RequestID: r.RequestID, Tool: r.Tool, ToolUseID: r.ToolUseID, Input: input,
 		}
+		if pe := r.PlanExit; pe != nil {
+			out.PlanExit = &sync.PlanExit{Plan: pe.Plan, PlanFile: pe.File, Option: pe.Option, Modes: pe.Modes, Default: pe.Default}
+		}
+		return out
 	case runtime.CommandsEvent:
 		list := make([]sync.Command, 0, len(ev.Commands))
 		for _, c := range ev.Commands {
@@ -220,8 +224,8 @@ func (b *bridge) hooks() sync.RuntimeHooks {
 		Config: func(sessionID, configID string, value any) error {
 			return b.mgr.SetConfig(sessionID, configID, value)
 		},
-		Answer: func(sessionID, requestID string, allow bool) error {
-			return b.mgr.Permission(sessionID, requestID, allow)
+		Answer: func(sessionID, requestID string, allow bool, message, mode string) error {
+			return b.mgr.Decide(sessionID, requestID, runtime.Verdict{Allow: allow, Message: message, Mode: mode})
 		},
 		Interrupt: func(sessionID string) error { return b.mgr.Interrupt(sessionID) },
 		Stop:      func(sessionID string) { b.mgr.Stop(sessionID) },

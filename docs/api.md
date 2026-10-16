@@ -124,7 +124,7 @@ Behavior a client relies on:
   new worktree once a handoff commits; it is absent until a line names one. A watched project in
   `GET /api/devices/:deviceId/projects` carries the `branch` checked out there, read from its git `HEAD` (the
   commit's first 7 hex digits when detached), and none outside a repository.
-- `POST /api/sessions/:sessionId/permission` answers a `session.permission` request; the first answer wins.
+- `POST /api/sessions/:sessionId/permission` answers a `session.permission` request; the first answer wins. A refusal may carry `message`, its reason told to the model. A request with `planExit` (ADR 0019) is a plan to review: an approval may carry `mode`, one of `planExit.modes`, which the session switches to (another value is `invalid-request` and the request stays open), and a plan request never expires on its own.
 - `POST /api/sessions/:sessionId/handoff` answers when the handoff is over, naming the new worktree and branch;
   `handoff.progress` reports its steps meanwhile. A failed handoff leaves the owner and the cursor where they were.
   Before one, `GET /api/devices/:deviceId/clone?origin=` with the `origin` of the workspace listing or the snapshot
@@ -229,7 +229,7 @@ over REST.
 | `session.runtime` | core → browser | control | `SessionRuntimeMessage` | The runtime state of a session and its capabilities. Sent to every connection |
 | `session.commands` | core → browser | control | `SessionCommandsMessage` | The commands and skills of a session changed; fetch `GET /api/sessions/:sessionId/commands`. Sent to every connection |
 | `session.output` | core → browser | control | `SessionOutputMessage` | Streamed content of the running turn: text, thinking, tool calls and results. Only to the connections subscribed to the session. Transient: the session's lines are the record |
-| `session.permission` | core → browser | control | `SessionPermissionMessage` | A tool wants permission; answer with `POST /api/sessions/:sessionId/permission`. Sent to every connection |
+| `session.permission` | core → browser | control | `SessionPermissionMessage` | A tool wants permission; answer with `POST /api/sessions/:sessionId/permission`. `planExit` (`plan`, `planFile`, `option`, `modes`, `default`) marks a request to leave a plan. Sent to every connection |
 | `handoff.progress` | core → browser | control | `HandoffProgressMessage` | A step of a handoff: `sent` of `total` bytes during `transfer`, the new `worktree` and `branch` on `done`, the `reason` on `failed`. Sent to every connection |
 | `error` | core → browser | control | `ErrorMessage` | The core could not take a message from the client; `code` says why |
 

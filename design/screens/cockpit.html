@@ -415,6 +415,45 @@ svg{display:block;flex:none}
 .btn svg{color:currentColor}
 .btn[disabled]{opacity:.5;cursor:default}
 
+
+/* plan approval: the plan document, the card that asks about it, and the answered rows */
+.pdoc{position:relative;border-radius:var(--radius-md);background:var(--color-surface);box-shadow:inset 0 0 0 1px var(--color-line);padding:var(--space-3) var(--space-4)}
+.pb{font-family:var(--font-prose);font-size:var(--text-body);line-height:var(--leading-body);color:var(--color-text)}
+.pb h4{font-family:var(--font-ui);font-size:var(--text-title);line-height:var(--leading-title);font-weight:var(--weight-semibold);letter-spacing:-0.01em;margin:0 0 var(--space-1)}
+.pb h5{font-family:var(--font-ui);font-size:var(--text-ui);line-height:var(--leading-ui);font-weight:var(--weight-semibold);color:var(--color-text-2);margin:var(--space-3) 0 var(--space-1)}
+.pb p{margin:0 0 var(--space-2);max-width:var(--measure-prose)}
+.pb ol,.pb ul{margin:0 0 var(--space-2);padding-left:22px;max-width:var(--measure-prose)}
+.pb li{margin:0 0 var(--space-1)}
+.pb li::marker{color:var(--color-text-3);font-variant-numeric:tabular-nums}
+.pb code{font-family:var(--font-mono);font-size:var(--text-code);background:var(--color-bg);padding:1px 4px;border-radius:4px;box-shadow:inset 0 0 0 1px var(--color-line)}
+.pb > :last-child{margin-bottom:0}
+.pdoc.cut .pb{max-height:240px;overflow:hidden;-webkit-mask-image:linear-gradient(to bottom,#000 calc(100% - 56px),transparent);mask-image:linear-gradient(to bottom,#000 calc(100% - 56px),transparent)}
+.pdoc.cut.peek .pb{max-height:72px}
+.pdoc.cut .wopen{right:var(--space-3);bottom:var(--space-3)}
+.pdoc.inline{margin:var(--space-1) 0 var(--space-2) calc(16px + var(--space-2))}
+.ask.plan .pdoc{margin:0}
+.ask-h .meta{margin-left:auto}
+.ask-h .meta.sp0{margin-left:var(--space-2)}
+.split{display:inline-flex}
+.split > .btn.primary:first-child{border-radius:var(--radius-sm) 0 0 var(--radius-sm)}
+.split .anc .btn.primary{border-radius:0 var(--radius-sm) var(--radius-sm) 0;padding:0 var(--space-2);gap:0;box-shadow:var(--shadow-accent),inset 1px 0 0 color-mix(in srgb,var(--color-on-accent) 30%,transparent)}
+.split .btn[disabled]{opacity:.5}
+.ask-f .anc{position:relative}
+.ask-f .cpop{bottom:calc(100% + var(--space-2));left:0}
+.pfield{margin-top:var(--space-3);display:flex;flex-direction:column;gap:var(--space-1)}
+.pfield .l{color:var(--color-text-2)}
+.pfield .ta2{min-height:64px;border-radius:var(--radius-sm);background:var(--color-bg);box-shadow:inset 0 0 0 1.5px var(--color-accent);padding:var(--space-2) var(--space-3);color:var(--color-text);white-space:pre-wrap}
+.pfield .ta2 .cr2{display:inline-block;width:1.5px;height:16px;background:var(--color-accent);vertical-align:-3px;margin-left:1px}
+.pres{display:flex;align-items:center;gap:var(--space-2);min-height:var(--layout-row);color:var(--color-text-2);margin:var(--space-1) 0 var(--space-2)}
+.pres > svg{color:var(--color-text-3)}
+.pres.ok > svg{color:var(--color-success)}
+.pres b{font-weight:var(--weight-medium);color:var(--color-text)}
+.pres .meta{margin-left:auto}
+.mchip{display:inline-flex;align-items:center;gap:var(--space-1);height:20px;padding:0 6px;border-radius:4px;background:var(--color-hover);box-shadow:inset 0 0 0 1px var(--color-line);color:var(--color-text-2);font-size:var(--text-meta);line-height:var(--leading-meta)}
+.mchip svg{color:var(--color-text-3)}
+.pquote{margin:0 0 var(--space-2) calc(16px + var(--space-2));padding:var(--space-2) var(--space-3);border-radius:var(--radius-md);background:var(--color-surface);box-shadow:inset 0 0 0 1px var(--color-line);color:var(--color-text-2);max-width:var(--measure-prose)}
+.pnote{margin-top:var(--space-3)}
+
 /* composer */
 .dock{position:absolute;z-index:5;left:0;right:0;bottom:0;padding:var(--space-7) 0 var(--space-4);background:linear-gradient(var(--fade-bg),var(--color-bg) 42%);pointer-events:none}
 .composer{pointer-events:auto;border-radius:var(--radius-xl);background:var(--color-raised);box-shadow:var(--shadow-float);padding:var(--space-3) var(--space-2) var(--space-2) var(--space-4);display:flex;flex-direction:column;gap:var(--space-2)}
@@ -1130,8 +1169,8 @@ function hlMd(src) {
 }
 
 /* every state is a configuration of the same parts */
-const LIVE = ['starting', 'running', 'waiting-permission', 'failed-turn', 'scrolled', 'disconnected'];
-const OFFLINE = ['offline', 'handoff-offline', 'changes-offline', 'diff-offline', 'mention-offline'];
+const LIVE = ['starting', 'running', 'waiting-permission', 'failed-turn', 'scrolled', 'disconnected', 'plan-pending', 'plan-long', 'plan-modes', 'plan-feedback', 'plan-approved', 'plan-kept', 'plan-elsewhere', 'plan-offline'];
+const OFFLINE = ['offline', 'plan-offline', 'handoff-offline', 'changes-offline', 'diff-offline', 'mention-offline'];
 const HANDOFF = ['handoff', 'handoff-path', 'handoff-progress', 'handoff-failed', 'handoff-done', 'handoff-offline'];
 const WIDE = ['file-open', 'file-image', 'diff-open', 'diff-large', 'diff-binary', 'diff-offline'];
 const INSP = ['workspace', 'changes', 'changes-offline', ...WIDE, ...HANDOFF];
@@ -1144,7 +1183,8 @@ const SETTINGS = ['settings', 'settings-language', 'settings-machines', ...MINT]
 function sessKind(state) {
   if (['running', 'scrolled', 'disconnected'].includes(state)) return 'run';
   if (state === 'starting') return 'start';
-  if (state === 'waiting-permission') return 'need';
+  if (state === 'waiting-permission' || ['plan-pending', 'plan-long', 'plan-modes', 'plan-feedback'].includes(state)) return 'need';
+  if (state.startsWith('plan-') && state !== 'plan-offline') return 'run';
   if (state === 'ready' || state === 'recording') return 'ready';
   if (state.startsWith('failed')) return 'fail';
   if (state === 'external') return 'ext';
@@ -1339,7 +1379,82 @@ function terminalTurn() {
   </section>`;
 }
 
+
+/* plan approval: Claude Code leaves Plan mode by asking permission for ExitPlanMode; the driver declares the tool as a plan exit and the modes approval may switch to */
+const PLAN_STATES = [
+  ['plan-pending', 'a short plan waits for a decision: one primary Approve button that names its mode, Keep planning beside it'],
+  ['plan-long', 'a 14 KiB plan collapsed to its first lines; Open 14 KiB shows all of it in place'],
+  ['plan-modes', 'the chevron of Approve opens the modes it may switch to, as the driver declares them (Bypass is not offered)'],
+  ['plan-feedback', 'Keep planning opened a field for feedback; the plan folds to a peek and Send feedback replaces Approve'],
+  ['plan-approved', 'approved into Accept edits: the card is a Planned row and a result line, the mode pill follows, the turn runs on'],
+  ['plan-kept', 'kept planning: the feedback is quoted, the session stays in Plan and Claude revises'],
+  ['plan-elsewhere', 'answered from another window: the card is resolved and nothing is left to click'],
+  ['plan-offline', 'the owner is offline: the plan can be read, deciding needs the machine'],
+];
+const PLAN_NEED = ['plan-pending', 'plan-long', 'plan-modes', 'plan-feedback', 'plan-offline'];
+const PLAN_MODES = [
+  ['Accept edits', 'Edit files without asking; ask before commands.', 'filePen'],
+  ['Manual', 'Ask before edits and commands.', 'shield'],
+  ['Auto', 'Claude decides when to ask, with safety checks.', 'sparkles'],
+];
+const PLAN_TITLE = 'Roll back the byte cursor after a failed commit';
+const PLAN_FEEDBACK = 'Keep the gz rename after the index commit and do not touch store.write. Name the new test after the crash window.';
+const planMeta = long => (long ? '8 steps · 14 KiB' : '3 steps · 1.1 KiB');
+const planMdShort = () => `<h4>${PLAN_TITLE}</h4>
+  <p>When <code>commitIndex</code> throws, <code>byte_size</code> is already ahead of the stored bytes. The order stays append, commit, rename; a failed commit now rolls the chunk back.</p>
+  <ol><li>Truncate the <code>.tmp</code> chunk to the last committed <code>byte_size</code> when the commit fails.</li>
+  <li>Return the old cursor so the agent resends from there.</li>
+  <li>Add a crash test in <code>chunks.test.ts</code> that fails the commit after the write.</li></ol>
+  <p>Touches <code>core/src/store/chunks.ts</code> and <code>core/src/store/chunks.test.ts</code>.</p>`;
+const planMdLong = () => `<h4>Make the byte cursor survive every failure between append and rename</h4>
+  <h5>Context</h5>
+  <p>The cursor is <code>byte_size</code>. Between the append and the rename there are three places a crash or an error can leave it ahead of the stored bytes: the write, the index commit and the rename.</p>
+  <h5>Approach</h5>
+  <ul><li>Keep append, commit, rename as the order; make each step undoable.</li><li>Never rewrite a line on the way in.</li></ul>
+  <h5>Steps</h5>
+  <ol><li>Truncate the <code>.tmp</code> chunk when the commit fails.</li><li>Return the old cursor to the agent.</li><li>Commit the index row in one transaction.</li>
+  <li>Rename only after the commit returned.</li><li>Prune stray <code>.tmp</code> files on start.</li><li>Cover each failure with a test.</li>
+  <li>Add a benchmark for the append path.</li><li>Document the order in <code>docs/architecture.md</code>.</li></ol>`;
+const planRow = (long, open = false) => act(I.listChecks(), 'Planned', esc(PLAN_TITLE), mt(planMeta(long)) + `<span class="chv">${I.chev()}</span>`, `fold${open ? ' open' : ''}`);
+const planDoc = (long, peek) => `<div class="pdoc${long || peek ? ' cut' : ''}${peek ? ' peek' : ''}"><div class="pb">${long ? planMdLong() : planMdShort()}</div>${long && !peek ? `<button class="wopen"${tip('Open the whole plan · 14 KiB')}>Open 14 KiB</button>` : ''}</div>`;
+const planChip = (n, ic) => `<span class="mchip">${I[ic]()}${n}</span>`;
+function planCard(state) {
+  const long = state === 'plan-long', fb = state === 'plan-feedback', off = state === 'plan-offline', dis = off ? ' disabled' : '';
+  const menu = state === 'plan-modes' ? `<div class="cpop wide" role="menu" aria-label="Mode after approval"><div class="menu-label">After approval, switch to</div>
+    ${PLAN_MODES.map(([n, d], i) => `<div class="mi${i === 0 ? ' cur' : ''}" role="menuitemradio" aria-checked="${i === 0}"><span class="ck">${i === 0 ? I.check() : ''}</span><span class="t"><span class="n">${n}</span><span class="d">${d}</span></span></div>`).join('')}</div>` : '';
+  const foot = fb
+    ? `<div class="ask-f"><button class="btn primary">Send feedback</button><button class="btn">Back to plan</button><span class="meta">${I.info()}<span>Claude Code keeps planning in Plan mode</span></span></div>`
+    : `<div class="ask-f"><span class="split"><button class="btn primary"${dis}>Approve · Accept edits</button><span class="anc"><button class="btn primary"${dis}${tip('Mode after approval')} aria-label="Mode after approval">${I.down()}</button>${menu}</span></span>
+      <button class="btn"${dis}>Keep planning</button><span class="meta">${I.info()}<span>Approving leaves Plan mode</span></span></div>`;
+  const field = fb ? `<div class="pfield"><span class="l">What should change?</span><div class="ta2">${esc(PLAN_FEEDBACK)}<span class="cr2"></span></div></div>` : '';
+  const note = off ? `<div class="nt snap pnote">${I.clock()}<span>MacBook Pro is offline. The plan stays here; deciding needs the machine online.</span></div>` : '';
+  return `<div class="ask plan" title="Request 7c2e">
+    <div class="ask-h">${I.listChecks()}<span class="q">Claude Code has a plan</span><span class="meta">${planMeta(long)}</span></div>
+    ${planDoc(long, fb)}${field}${foot}${note}</div>`;
+}
+function planResolved(state) {
+  const kept = state === 'plan-kept';
+  const fol = kept
+    ? `${R.thought('Keep the rename after the commit and leave store.write alone. Check how the crash window is tested…', '388 tokens')}${R.searched('crash', '2 matches')}`
+    : `${R.thought('Plan approved. Start with the truncate in appendChunk, then the test…', '204 tokens')}${R.edited('core/src/store/chunks.ts', 6, 2)}${R.ran('pnpm vitest run chunks', live('4 s'), 'run')}`;
+  const res = state === 'plan-approved' ? `<div class="pres ok">${I.check()}<span><b>Plan approved</b> · switched to</span>${planChip('Accept edits', 'filePen')}<span class="meta">14:09</span></div>`
+    : state === 'plan-elsewhere' ? `<div class="pres ok">${I.check()}<span><b>Approved in another window</b> · switched to</span>${planChip('Accept edits', 'filePen')}<span class="meta">14:09</span></div>`
+    : `<div class="pres">${I.back()}<span><b>Kept planning</b> · still in</span>${planChip('Plan', 'listChecks')}<span class="meta">14:09</span></div><div class="pquote">${esc(PLAN_FEEDBACK)}</div>`;
+  return planRow(false) + res + fol;
+}
+function planTurn(state) {
+  const need = PLAN_NEED.includes(state), off = state === 'plan-offline';
+  const badge = `<span class="badge" role="img"${tip(need ? 'Waiting for your decision on the plan' : 'Running')}><span class="sdot"></span><span>${need ? '00:52' : '01:21'}</span></span>`;
+  const head = `<header class="th"><div class="p">Plan how a failed chunk commit rolls the byte cursor back.</div>
+      <div class="rt">${badge}${ib(I.stop(), 'Interrupt · Esc', 'bd', off)}</div>
+      <div class="tm"><span class="meta" title="Lines 18,302–18,319">14:06</span></div></header><div class="tsep"></div>`;
+  const explore = `${R.thought('Where does a failed commit leave byte_size? Read the append path first…', '812 tokens')}${R.read('core/src/store/chunks.ts', 'L1–120', '6.1 KiB')}${R.searched('commitIndex', '3 matches')}${R.read('core/src/store/chunks.test.ts', 'L1–80', '2.4 KiB')}`;
+  const cls = `turn live${need ? ' need' : ''}${off ? ' frozen' : ''}`;
+  return `<section class="${cls}">${head}<div class="tb"><div class="acts">${explore}${need ? '' : planResolved(state)}</div>${need ? planCard(state) : ''}</div></section>`;
+}
+
 function liveTurn(state) {
+  if (state.startsWith('plan-')) return planTurn(state);
   const need = state === 'waiting-permission';
   const kind = state === 'starting' ? 'start' : state === 'failed-turn' ? 'fail' : need ? 'need' : 'run';
   const frozen = state === 'disconnected';
@@ -1499,7 +1614,7 @@ function composer(state) {
     ${item2('Opus 5.5', true)}${item2('Sonnet 5.5', false)}${item2('Haiku 4.5', false)}
     <div class="menu-sep"></div>${sw(I.think(), 'Thinking', true)}${sw(I.zap(), 'Fast', false)}</div>`;
   const modes = [['Manual', 'Ask before edits and commands.', false, 'shield'], ['Accept edits', 'Edit files without asking; ask before commands.', false, 'filePen'], ['Plan', 'Explore and plan; no edits or commands.', false, 'listChecks'], ['Auto', 'Claude decides when to ask, with safety checks.', false, 'sparkles'], ['Bypass permissions', 'Run everything without asking.', true, 'shieldAlert']];
-  const curMode = state === 'mode-bypass' ? 4 : state === 'mode-plan' ? 2 : 0;
+  const curMode = state === 'mode-bypass' ? 4 : state === 'mode-plan' || PLAN_NEED.includes(state) || state === 'plan-kept' ? 2 : state === 'plan-approved' || state === 'plan-elsewhere' ? 1 : 0;
   const mrow = ([n, d, risk, ic], i) => `${risk ? '<div class="menu-sep"></div>' : ''}<div class="mi${i === curMode ? ' cur' : ''}${risk ? ' risk' : ''}" role="menuitemradio" aria-checked="${i === curMode}"><span class="ck">${I[ic]()}</span><span class="t"><span class="n">${n}</span><span class="d">${d}</span></span>${risk ? '<span class="risk-b">High risk</span>' : ''}<span class="ck">${i === curMode ? I.check() : ''}</span></div>`;
   const modeMenu = `<div class="cpop wide end" role="menu" aria-label="Permission mode"><div class="menu-label">Permission mode</div>${modes.map(mrow).join('')}<div class="menu-sep"></div><div class="mfoot"><span class="kbd">⇧ ⇥</span>Cycle modes</div></div>`;
   const hot = curMode === 4;
@@ -1558,6 +1673,12 @@ function composer(state) {
       box = full('Reconnecting', false, '', false); break;
     case 'waiting-permission':
       box = full('Waiting for permission', false, '', false); break;
+    case 'plan-pending': case 'plan-long': case 'plan-modes': case 'plan-feedback':
+      box = full('Waiting for your decision on the plan', false, '', false); break;
+    case 'plan-offline':
+      box = `<div class="composer cbar"><span class="cst" title="Owner offline"><span class="off-dot"></span>MacBook Pro offline</span><button class="send"${tip('Hand off to another machine')}>${I.handoff()}</button></div>`; break;
+    case 'plan-approved': case 'plan-kept': case 'plan-elsewhere':
+      box = full('Turn running', false, '', false); break;
     case 'handoff-progress':
       box = full('Handing off to studio', false, '', false); break;
     default:
@@ -2027,6 +2148,7 @@ const STATES = [
   ['starting', 'the first prompt starts Claude Code'],
   ['running', 'live turn: a failed run, its output, a search, an edit and a running run'],
   ['waiting-permission', 'Claude Code asks to use Bash; the thought is expanded'],
+  ...PLAN_STATES,
   ['failed-turn', 'the live turn ended with an error'],
   ['failed-start', 'start failed before any turn'],
   ['external', 'a terminal writes the session'],

@@ -229,6 +229,52 @@ describe('permission, interrupt and stop', () => {
     ).toEqual({ code: 'invalid-request' });
   });
 
+  it('passes a plan exit through to the browsers and its answer to the owner', async () => {
+    const { post, agent, browser } = await boot();
+    const owner = await agent('dev-a');
+    const watcher = await browser();
+    const planExit = {
+      plan: '1. do it',
+      option: 'mode',
+      modes: ['acceptEdits', 'default', 'auto'],
+      default: 'acceptEdits',
+    };
+    owner.send(state('s1', 'waiting-permission'));
+    owner.send({
+      type: 'runtime.permission',
+      sessionId: 's1',
+      requestId: 'p1',
+      tool: 'ExitPlanMode',
+      input: { plan: '1. do it' },
+      planExit,
+    });
+    expect(
+      await watcher.waitFor((m) => m.type === 'session.permission', 'plan request'),
+    ).toMatchObject({ requestId: 'p1', planExit });
+
+    expect(
+      (
+        await post('/api/sessions/s1/permission', {
+          requestId: 'p1',
+          decision: 'allow',
+          mode: 'bypassPermissions',
+        })
+      ).body,
+    ).toEqual({ code: 'invalid-request' });
+    expect(
+      (
+        await post('/api/sessions/s1/permission', {
+          requestId: 'p1',
+          decision: 'allow',
+          mode: 'auto',
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      await owner.waitFor((m) => m.type === 'runtime.permission.answer', 'answer'),
+    ).toMatchObject({ requestId: 'p1', decision: 'allow', mode: 'auto' });
+  });
+
   it('forwards interrupt while a turn runs and refuses it otherwise', async () => {
     const { post, agent, browser } = await boot();
     expect((await post('/api/sessions/s1/interrupt')).body).toEqual({ code: 'owner-offline' });

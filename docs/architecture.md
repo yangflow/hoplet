@@ -135,6 +135,15 @@ Nothing else changes: `device.hello` announces it in `capabilities.config`, `run
 `config`, `runtime.config` sets one on a session (`POST /api/sessions/:id/config`), the agent reports the
 session's values in the `capabilities.config` of `runtime.state`, and the web UI renders the list generically.
 
+### A plan the vendor asks to leave
+
+A driver whose vendor has a plan step sets `planExit` on the permission request it emits
+([ADR 0019](adr/0019-a-plan-exit-is-declared-by-the-driver.md)): the plan as Markdown, the select setting
+(`option`) that approval switches, the `modes` it may switch to and the `default`. It answers `Verdict.Mode` (an
+approval) or `Verdict.Message` (a refusal that tells the model what to change). The core, the web UI and the
+wire protocol change nothing else: the plan card renders the declaration, and the mode names come from the
+setting's config option.
+
 ### A storage migration
 
 Add `core/src/migrations/<NNNN>-<name>.ts` and register it in `core/src/migrations/index.ts`. Migrations run
@@ -209,7 +218,7 @@ sequenceDiagram
   Agent-->>Core: runtime.permission
   Core-->>Web: session.permission
   Web->>Core: POST /permission allow
-  Core->>Agent: runtime.permission.answer
+  Core->>Agent: runtime.permission.answer (optional mode, message)
   Agent->>CC: allow
   CC->>CC: writes the turn to the session file
   Agent->>Core: session.append (bulk lane)

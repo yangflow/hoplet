@@ -9,6 +9,7 @@ import (
 	"maps"
 	"os"
 	"reflect"
+	"slices"
 	"sort"
 	"sync"
 	"time"
@@ -24,6 +25,7 @@ var (
 	ErrUnknownRequest    = errors.New("unknown-permission-request")
 	ErrSessionNotFound   = errors.New("session-not-on-this-device")
 	ErrOptionNotDeclared = errors.New("an option the driver does not declare")
+	ErrInvalidMode       = errors.New("a mode the plan request does not offer")
 )
 
 // Location is where a session lives on this machine.
@@ -944,13 +946,18 @@ func (m *Manager) addPermission(s *session, req PermissionRequest) {
 	id := req.RequestID
 	gen := s.gen
 	s.reqs[id] = req
-	s.perms[id] = time.AfterFunc(m.cfg.PermissionTimeout, func() {
-		m.mu.Lock()
-		defer m.mu.Unlock()
-		if s.gen == gen {
-			_ = m.answer(s, id, false, "No answer within "+m.cfg.PermissionTimeout.String()+"; denied by Hoplet")
-		}
-	})
+	if req.PlanExit != nil {
+		// A plan is read at the user's pace: no automatic denial (ADR 0019).
+		s.perms[id] = nil
+	} else {
+		s.perms[id] = time.AfterFunc(m.cfg.PermissionTimeout, func() {
+			m.mu.Lock()
+			defer m.mu.Unlock()
+			if s.gen == gen {
+				_ = m.answer(s, id, Verdict{Message: "No answer within " + m.cfg.PermissionTimeout.String() + "; denied by Hoplet"})
+			}
+		})
+	}
 	if s.state != StateWaitingPermission {
 		m.setState(s, StateWaitingPermission, "")
 	}
@@ -959,7 +966,9 @@ func (m *Manager) addPermission(s *session, req PermissionRequest) {
 
 func (m *Manager) dropPermission(s *session, id string) {
 	if t, ok := s.perms[id]; ok {
-		t.Stop()
+		if t != nil {
+			t.Stop()
+		}
 		delete(s.perms, id)
 		delete(s.reqs, id)
 	}
@@ -971,28 +980,40 @@ func (m *Manager) clearPermissions(s *session) {
 	}
 }
 
-func (m *Manager) answer(s *session, id string, allow bool, message string) error {
+func (m *Manager) answer(s *session, id string, v Verdict) error {
 	if _, ok := s.perms[id]; !ok || s.proc == nil {
 		return ErrUnknownRequest
 	}
+	if v.Mode != "" {
+		plan := s.reqs[id].PlanExit
+		if plan == nil || !slices.Contains(plan.Modes, v.Mode) || !v.Allow {
+			return ErrInvalidMode
+		}
+	}
 	m.dropPermission(s, id)
-	return s.proc.Answer(id, allow, message)
+	return s.proc.Answer(id, v)
 }
 
 // Permission answers an open permission request. A request that is not open (answered, denied by timeout,
 // cancelled) is ErrUnknownRequest.
 func (m *Manager) Permission(sessionID, requestID string, allow bool) error {
+	return m.Decide(sessionID, requestID, Verdict{Allow: allow})
+}
+
+// Decide answers an open permission request with a verdict: a refusal with the user's words, or the approval
+// of a plan with the mode to switch to. A Mode the request does not offer is ErrInvalidMode and leaves the
+// request open.
+func (m *Manager) Decide(sessionID, requestID string, v Verdict) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	s := m.sessions[sessionID]
 	if s == nil {
 		return ErrUnknownRequest
 	}
-	msg := ""
-	if !allow {
-		msg = "Denied by the user through Hoplet"
+	if !v.Allow && v.Message == "" {
+		v.Message = "Denied by the user through Hoplet"
 	}
-	return m.answer(s, requestID, allow, msg)
+	return m.answer(s, requestID, v)
 }
 
 // Interrupt ends the running turn and keeps the process.

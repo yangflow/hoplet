@@ -285,21 +285,42 @@ export function Conversation(props: {
   }, [sessionId]);
 
   const answer = useCallback(
-    async (requestId: string, decision: 'allow' | 'deny') => {
+    async (
+      requestId: string,
+      decision: 'allow' | 'deny',
+      plan?: { mode?: string; feedback?: string },
+    ) => {
       setAnswering(true);
       setNotice(null);
+      // A plan's row names what this window decided; the session stays in its mode when the plan is kept.
+      if (plan) {
+        const stays = modeOption(withValues(props.capabilities?.config, picked))?.currentValue;
+        lt.intend(requestId, {
+          outcome: decision === 'allow' ? 'approved' : 'kept',
+          ...(decision === 'allow' && plan.mode ? { mode: plan.mode } : {}),
+          ...(decision === 'deny' && typeof stays === 'string' ? { mode: stays } : {}),
+          ...(plan.feedback ? { feedback: plan.feedback } : {}),
+        });
+      }
       try {
-        await postPermission(sessionId, requestId, decision);
+        await (plan
+          ? postPermission(sessionId, requestId, decision, plan)
+          : postPermission(sessionId, requestId, decision));
         lt.answered(requestId);
       } catch (err) {
         // The first answer wins: a closed request is gone for everyone.
-        if (err instanceof ApiError && err.code === 'request-closed') lt.answered(requestId);
+        if (err instanceof ApiError && err.code === 'request-closed') {
+          lt.forget(requestId);
+          lt.answered(requestId);
+        } else {
+          lt.forget(requestId);
+        }
         setNotice(errorText(err));
       } finally {
         setAnswering(false);
       }
     },
-    [sessionId, lt.answered],
+    [sessionId, lt.answered, lt.intend, lt.forget, props.capabilities, picked],
   );
 
   const shortcuts = props.shortcuts ?? true;
@@ -334,9 +355,11 @@ export function Conversation(props: {
   useEffect(() => {
     if (firstRequest) {
       setAnnouncement(
-        t('{provider} asks to use {tool}')
-          .replace('{provider}', provider)
-          .replace('{tool}', firstRequest.tool),
+        firstRequest.planExit
+          ? t('{provider} has a plan').replace('{provider}', provider)
+          : t('{provider} asks to use {tool}')
+              .replace('{provider}', provider)
+              .replace('{tool}', firstRequest.tool),
       );
     }
   }, [firstRequest, provider]);
@@ -361,6 +384,7 @@ export function Conversation(props: {
     providerName: provider,
     error: runtime.error,
     turnFailed: turn?.phase === 'failed',
+    planPending: lt.permissions.some((p) => p.planExit !== undefined),
   });
   const view: ComposerView = fixture?.composerOffline
     ? {
@@ -426,7 +450,11 @@ export function Conversation(props: {
                 notice={notice}
                 canInterrupt={canInterrupt}
                 onInterrupt={interrupt}
-                onAnswer={(id, decision) => void answer(id, decision)}
+                onAnswer={(id, decision, plan) => void answer(id, decision, plan)}
+                modes={mode}
+                decidable={live && session.ownerConnected && !fixture?.composerOffline}
+                deviceName={session.deviceName}
+                planView={fixture?.live?.plan}
               />
             ) : null
           }
