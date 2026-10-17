@@ -4,6 +4,21 @@ Each release's notes are made from the titles of the pull requests merged since 
 Commits: `feat` under Added, `fix` under Fixed, `perf` under Performance; `release-please-config.json`).
 Versions follow Semantic Versioning.
 
+## [0.4.0](https://github.com/yangflow/hoplet/compare/v0.3.0...v0.4.0) (2026-10-17)
+
+
+### Added
+
+* Clone the repository on a handoff target that has none ([#121](https://github.com/yangflow/hoplet/issues/121)) ([1a61572](https://github.com/yangflow/hoplet/commit/1a61572deb76f09bb63750dbc6e1fa4c5228084b))
+* Delete a session, its file and the worktree Hoplet created for it ([#120](https://github.com/yangflow/hoplet/issues/120)) ([e52d41c](https://github.com/yangflow/hoplet/commit/e52d41c4a84438c2dfe86556735463bb27462cfb))
+* Notify on permissions, plans, finished turns and failures ([#117](https://github.com/yangflow/hoplet/issues/117)) ([12bfdd2](https://github.com/yangflow/hoplet/commit/12bfdd2177b6d94bdc1e0c791ed360ef8be7aeab))
+
+
+### Fixed
+
+* **agent:** Ask Claude Code for its session state events ([#128](https://github.com/yangflow/hoplet/issues/128)) ([b3a0a75](https://github.com/yangflow/hoplet/commit/b3a0a758622db0ea3d7caa867fc932fb00f21ee5))
+* **agent:** Keep the lines Claude writes after a turn as the session's own ([#126](https://github.com/yangflow/hoplet/issues/126)) ([ebed9c4](https://github.com/yangflow/hoplet/commit/ebed9c466c67f7ed2b02a7271a75fdadcc54aa17))
+
 ## [0.3.0](https://github.com/yangflow/hoplet/compare/v0.2.0...v0.3.0) (2026-10-16)
 
 

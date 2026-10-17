@@ -16,7 +16,7 @@ import (
 	"github.com/yangflow/hoplet/agent/internal/sessions"
 )
 
-const version = "0.3.0" // x-release-please-version
+const version = "0.4.0" // x-release-please-version
 
 func main() {
 	log.SetFlags(log.LstdFlags | log.Lmsgprefix)
