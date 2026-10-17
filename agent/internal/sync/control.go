@@ -485,3 +485,79 @@ func (c *Client) suppress(sessionID string) {
 	c.suppressed[sessionID] = true
 	c.mu.Unlock()
 }
+
+// handleCloneCheck answers device.clone.check; a machine that cannot clone says no-origin.
+func (c *Client) handleCloneCheck(cs *connState, requestID, origin, cloneInto string) {
+	res := CloneChecked{Reason: "no-origin", CloneInto: cloneInto}
+	if c.hooks.CloneCheck != nil {
+		res = c.hooks.CloneCheck(context.Background(), origin, cloneInto)
+	}
+	_ = c.writeMsg(cs, DeviceCloneChecked{
+		V: ProtocolVersion, Type: TypeDeviceCloneChecked, RequestID: requestID,
+		Reason: res.Reason, Detail: res.Detail, CloneInto: res.CloneInto,
+	})
+}
+
+// beginClone makes the context of the clone requestID: it ends on a cancel and when the connection closes,
+// because nobody is waiting for the clone any more then.
+func (c *Client) beginClone(cs *connState, requestID string) context.Context {
+	ctx, cancel := context.WithCancel(context.Background())
+	c.cloneMu.Lock()
+	c.clones[requestID] = cancel
+	c.cloneMu.Unlock()
+	go func() {
+		select {
+		case <-cs.stop:
+			cancel()
+		case <-ctx.Done():
+		}
+	}()
+	return ctx
+}
+
+// cancelClone ends the clone of requestID; the clone's own goroutine answers with device.clone.failed.
+func (c *Client) cancelClone(requestID string) {
+	c.cloneMu.Lock()
+	cancel := c.clones[requestID]
+	c.cloneMu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
+}
+
+// handleCloneStart runs one clone and ends it with device.clone.done or device.clone.failed.
+func (c *Client) handleCloneStart(ctx context.Context, cs *connState, requestID, handoffID, origin, cloneInto string) {
+	defer func() {
+		c.cloneMu.Lock()
+		cancel := c.clones[requestID]
+		delete(c.clones, requestID)
+		c.cloneMu.Unlock()
+		if cancel != nil {
+			cancel()
+		}
+	}()
+	fail := func(reason, detail string) {
+		_ = c.writeMsg(cs, DeviceCloneFailed{
+			V: ProtocolVersion, Type: TypeDeviceCloneFailed, RequestID: requestID, Reason: reason, Detail: detail,
+		})
+	}
+	if c.hooks.CloneStart == nil {
+		fail("git-failed", "not-implemented")
+		return
+	}
+	path, err := c.hooks.CloneStart(ctx, handoffID, origin, cloneInto, func(received int64, total *int64) {
+		_ = c.writeMsg(cs, DeviceCloneProgress{
+			V: ProtocolVersion, Type: TypeDeviceCloneProgress, RequestID: requestID, Received: received, Total: total,
+		})
+	})
+	if err != nil {
+		var ce *CloneError
+		if errors.As(err, &ce) {
+			fail(ce.Reason, ce.Detail)
+		} else {
+			fail("git-failed", "")
+		}
+		return
+	}
+	_ = c.writeMsg(cs, DeviceCloneDone{V: ProtocolVersion, Type: TypeDeviceCloneDone, RequestID: requestID, Path: path})
+}

@@ -10,7 +10,7 @@ import "encoding/json"
 // (provider.ValidSessionID, ADR 0006). Invalid IDs receive error invalid-session-id
 // before decoding or persistence; the wire envelope and cursor are unchanged.
 
-const ProtocolVersion = 5
+const ProtocolVersion = 6
 
 // Wire message types: Type<Struct> is the `type` of the struct of that name.
 // shared/src/wire/ holds the same table; scripts/test/contract.test.ts compares both.
@@ -79,6 +79,13 @@ const (
 	TypeAttachmentRejected       = "attachment.rejected"
 	TypeDeviceCloneFind          = "device.clone.find"
 	TypeDeviceClone              = "device.clone"
+	TypeDeviceCloneCheck         = "device.clone.check"
+	TypeDeviceCloneChecked       = "device.clone.checked"
+	TypeDeviceCloneStart         = "device.clone.start"
+	TypeDeviceCloneProgress      = "device.clone.progress"
+	TypeDeviceCloneDone          = "device.clone.done"
+	TypeDeviceCloneFailed        = "device.clone.failed"
+	TypeDeviceCloneCancel        = "device.clone.cancel"
 )
 
 // Error codes of an `error` message that the agent acts on (shared/src/errors.ts).
@@ -864,4 +871,67 @@ type DeviceClone struct {
 	Type      string  `json:"type"`
 	RequestID string  `json:"requestId"`
 	Path      *string `json:"path"`
+}
+
+// DeviceCloneCheck asks whether Origin can be cloned into CloneInto (empty: suggest a destination).
+type DeviceCloneCheck struct {
+	V         int    `json:"v"`
+	Type      string `json:"type"`
+	RequestID string `json:"requestId"`
+	Origin    string `json:"origin"`
+	CloneInto string `json:"cloneInto,omitempty"`
+}
+
+// DeviceCloneChecked answers device.clone.check; CloneInto is the destination that was checked.
+type DeviceCloneChecked struct {
+	V         int    `json:"v"`
+	Type      string `json:"type"`
+	RequestID string `json:"requestId"`
+	Reason    string `json:"reason"`
+	Detail    string `json:"detail,omitempty"`
+	CloneInto string `json:"cloneInto"`
+}
+
+// DeviceCloneStart clones Origin into CloneInto for a handoff.
+type DeviceCloneStart struct {
+	V         int    `json:"v"`
+	Type      string `json:"type"`
+	RequestID string `json:"requestId"`
+	HandoffID string `json:"handoffId"`
+	Origin    string `json:"origin"`
+	CloneInto string `json:"cloneInto"`
+}
+
+// DeviceCloneProgress reports the bytes received so far, at most four times a second; Total is absent
+// until git says it.
+type DeviceCloneProgress struct {
+	V         int    `json:"v"`
+	Type      string `json:"type"`
+	RequestID string `json:"requestId"`
+	Received  int64  `json:"received"`
+	Total     *int64 `json:"total,omitempty"`
+}
+
+// DeviceCloneDone ends a clone that completed and is watched; Path is its main working tree.
+type DeviceCloneDone struct {
+	V         int    `json:"v"`
+	Type      string `json:"type"`
+	RequestID string `json:"requestId"`
+	Path      string `json:"path"`
+}
+
+// DeviceCloneFailed ends a clone that did not complete; the directory it created is gone.
+type DeviceCloneFailed struct {
+	V         int    `json:"v"`
+	Type      string `json:"type"`
+	RequestID string `json:"requestId"`
+	Reason    string `json:"reason"`
+	Detail    string `json:"detail,omitempty"`
+}
+
+// DeviceCloneCancel stops the clone of RequestID; it is answered by DeviceCloneFailed with reason cancelled.
+type DeviceCloneCancel struct {
+	V         int    `json:"v"`
+	Type      string `json:"type"`
+	RequestID string `json:"requestId"`
 }

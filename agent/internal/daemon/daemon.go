@@ -94,6 +94,8 @@ func Run(cfg *config.Config, version string) error {
 	// An installation that was interrupted is removed before anything connects; one that finished waits
 	// for the core to say whether its handoff committed.
 	moves.recover(ctx)
+	cloner := newCloner(cfg, st)
+	cloner.Recover()
 	runtimeHooks := rt.hooks()
 	runtimeHooks.Start = rt.starter(st)
 	client = sync.NewClient(cfg, deviceID, version, sync.Hooks{
@@ -111,6 +113,8 @@ func Run(cfg *config.Config, version string) error {
 			return rt.att.put(p.AttachmentID, p.MediaType, p.Seq, p.Last, p.Data)
 		},
 		CloneFind:      cloneFind(st),
+		CloneCheck:     cloneCheck(cloner),
+		CloneStart:     cloneStart(cloner),
 		SessionsImport: st.sessionsImport,
 		SessionsRemove: st.sessionsRemove,
 		SessionInspect: sessionInspect(cfg),
