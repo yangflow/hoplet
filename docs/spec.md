@@ -189,7 +189,9 @@ commit has no Changes and no Hand off, and the inspector says why. Hand off is o
 inspector that opens into the handoff panel, a card in its place that closes with its × and stays open while a
 handoff runs, also one another window started. The panel picks a connected target device and asks it for a clone
 of the working tree's `origin` among its watched projects: it names the clone the worktree goes next to, or says
-that the target has none and asks for the path of one. While the owner is offline it says so and shows the last
+that the target has none, and then offers to clone the repository into a directory of the target (a proposed
+path under its browse root, which the user may change) or asks for the path of an existing clone. A clone is a
+sixth step before prepare, with the bytes received and a Cancel while it runs. While the owner is offline it says so and shows the last
 snapshot's time, files and size; while a turn runs Hand off waits for its end. During a handoff the panel lists the
 five steps (prepare, transfer with the bytes sent, install, verify, commit) with who did each and how long it took;
 a failure marks its step, names the reason and says that nothing moved, with Hand off to try again; on success it
@@ -281,7 +283,10 @@ API, in `shared/src/` (schemas, types and error codes) and `agent/internal/sync/
   is not connected, `invalid-request` with a `reason` for a relative path, a path outside the root, a path that is not a
   directory or one that is unreadable, `timeout`);
   `GET /api/devices/:id/clone?origin=` (`{ deviceId, path }`: the main working tree of a watched project whose
-  `origin` is the given one, as a handoff would pick it, or `path: null`; `target-offline`, `timeout`);
+  `origin` is the given one, as a handoff would pick it, or `path: null` with a `clone` offer (`origin` without credentials, `repoName`, the proposed `cloneInto`, `reason`
+  and `detail`); the optional `cloneInto` query names the destination to check; `target-offline`, `timeout`);
+  `POST /api/sessions/:id/handoff/cancel` (ends a handoff that is in its clone step, which fails as `cancelled`;
+  `handoff-not-running` otherwise);
   `GET /api/devices/:id/projects` (each watched path with its symlinks resolved, the directory its sessions record;
   a path watched through a link matches the sessions run in its real directory);
   `POST /api/devices/:id/projects` (`{ path }`, an absolute path on the machine: the agent resolves symlinks, refuses a path that is not an existing directory, adds the resolved path as `hoplet-agent projects add`
@@ -304,7 +309,8 @@ API, in `shared/src/` (schemas, types and error codes) and `agent/internal/sync/
   `handoff.prepared|installed|verified|failed` from the agent), projects
   (`device.projects.*`, `device.sessions.*`), directory browsing (`device.dirs.list` from the core;
   `device.dirs` or `device.dirs.rejected` from the agent), the clone a handoff would use (`device.clone.find` from
-  the core, `device.clone` from the agent), `ping`/`pong`.
+  the core, `device.clone` from the agent), and cloning a repository for a handoff (`device.clone.check|checked`,
+  `device.clone.start|progress|done|failed` and `device.clone.cancel`), `ping`/`pong`.
 - Errors carry a stable `code`; the web UI and the CLI choose their copy from it.
 
 ## Modules
@@ -464,14 +470,18 @@ snapshot of an offline handoff, the bytes sent of the archive and the stored str
 four times a second), and on `done` the new worktree and branch, which the response also carries
 (`{ ok, ownerDeviceId, ownerEpoch, worktree, branch, snapshotAt? }`).
 
+0. **Clone (only with `cloneInto`).** `device.clone.start` to the target, before the owner is touched: it clones
+   the session's `origin` into `cloneInto` with a restricted git, within 600 s and 60 s without progress, and
+   registers the clone as a watched project. A failure or a cancel fails the handoff (`clone-failed`,
+   `cancelled`) with the owner and the cursor unchanged.
 1. **Prepare (owner online).** `handoff.prepare` to the owner: it stops the session's Claude Code process,
    sends the remaining bytes, and creates a snapshot: base commit, `origin` URL, binary diff of tracked
    changes, untracked files that are not ignored, and a git bundle of commits that `origin` does not contain.
    The snapshot travels to the core in ordered chunks of at most 1 MiB. With the owner offline, the core uses
    the latest stored snapshot and reports its time.
 2. **Install.** `handoff.install` to the target with the snapshot and the stored session stream. The target
-   picks the clone: a watched project path whose `origin` equals the snapshot's, else `targetPath`; without
-   either the handoff fails with `no-clone`. It adds a git worktree next to that clone, named
+   picks the clone: a watched project path whose `origin` equals the snapshot's (the one just made, after a
+   clone step), else `targetPath`; without either the handoff fails with `no-clone`. It adds a git worktree next to that clone, named
    `<clone directory>-<first 8 characters of the session ID>`, on branch `hoplet/<first 8 characters>`, at the
    base commit, applies the diff and untracked files, writes the session file into the Claude Code store for
    the worktree path, adds the worktree to `projects.json` with the session imported, and answers

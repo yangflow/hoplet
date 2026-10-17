@@ -192,6 +192,18 @@ messages that name the session by ID and never a path: `device.session.inspect|i
 `device.session.forget` for the tombstones of a device when it connects. `handoff.installed` carries `clone`, the
 clone the new worktree belongs to, which the core keeps in `session_worktrees`.
 
+A handoff to a machine with no clone of the repository adds a clone step before the owner is touched
+([ADR 0024](adr/0024-a-handoff-clones-the-repository-on-a-target-that-has-none.md)). The protocol version is 6.
+The control-lane messages are `device.clone.check` (`requestId`, `origin`, optional `cloneInto`) answered by
+`device.clone.checked` (`reason`, `detail`, the proposed `cloneInto`), and `device.clone.start` (`requestId`,
+`handoffId`, `origin`, `cloneInto`) answered by `device.clone.progress` (`received`, optional `total`, at most four
+a second) and then `device.clone.done` (`path`) or `device.clone.failed` (`reason`, `detail`).
+`device.clone.cancel` ends a running clone, which answers `device.clone.failed` with reason `cancelled`. The agent
+handles each in its own goroutine, so a clone never blocks the control lane. The clone has 600 s in all and 60 s
+without progress. The agent journals the clone in `<state>/handoff/<handoffId>.clone.json` and removes a
+half-made destination on start-up. Git runs with only the `https` and `ssh` protocols, no prompt, no hooks and
+no credentials in the origin it keeps; its output is cut at 2 KiB.
+
 ### Session chunk files
 
 `<data>/sessions/<sessionId>/c-<seq>.ndjson` holds at most 500 raw JSONL lines. A full chunk is compressed
@@ -268,7 +280,11 @@ sequenceDiagram
   participant Core
   participant Src as Owner agent
   participant Dst as Target agent
-  Web->>Core: POST /handoff {targetDeviceId}
+  Web->>Core: POST /handoff {targetDeviceId, cloneInto?}
+  opt cloneInto
+    Core->>Dst: device.clone.start (origin, cloneInto)
+    Dst-->>Core: device.clone.progress, then done or failed
+  end
   alt owner online
     Core->>Src: handoff.prepare
     Src->>Src: stop Claude Code, final append, snapshot
