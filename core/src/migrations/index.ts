@@ -15,6 +15,7 @@ import { directoryCommands } from './0012-directory-commands.ts';
 import { sessionQueue } from './0013-session-queue.ts';
 import { notifications } from './0014-notifications.ts';
 import { sessionDeletion } from './0015-session-deletion.ts';
+import { sessionContinuations } from './0016-session-continuations.ts';
 
 export interface Migration {
   readonly id: number;
@@ -38,6 +39,7 @@ const MIGRATIONS: readonly Migration[] = [
   sessionQueue,
   notifications,
   sessionDeletion,
+  sessionContinuations,
 ];
 
 export function migrate(db: DatabaseSync): void {

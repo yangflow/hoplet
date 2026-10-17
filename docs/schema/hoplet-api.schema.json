@@ -2618,6 +2618,38 @@
         },
         "archivedAt": {
           "type": "number"
+        },
+        "continuedIn": {
+          "type": "object",
+          "properties": {
+            "sessionId": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]+$"
+            },
+            "title": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "sessionId",
+            "title"
+          ]
+        },
+        "continuedFrom": {
+          "type": "object",
+          "properties": {
+            "sessionId": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]+$"
+            },
+            "title": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "sessionId",
+            "title"
+          ]
         }
       },
       "required": [
@@ -3754,6 +3786,38 @@
               },
               "archivedAt": {
                 "type": "number"
+              },
+              "continuedIn": {
+                "type": "object",
+                "properties": {
+                  "sessionId": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9_-]+$"
+                  },
+                  "title": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "sessionId",
+                  "title"
+                ]
+              },
+              "continuedFrom": {
+                "type": "object",
+                "properties": {
+                  "sessionId": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9_-]+$"
+                  },
+                  "title": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "sessionId",
+                  "title"
+                ]
               }
             },
             "required": [

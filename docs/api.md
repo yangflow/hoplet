@@ -266,6 +266,11 @@ and every browser receives `session.updated`. The change writes no line and move
 is archived stays archived when lines are appended to it or it is handed off. `GET /api/sessions` returns
 archived sessions too; the client decides what to show.
 
+A session's metadata (the list and `GET /api/sessions/:sessionId`) carries `continuedIn` and `continuedFrom`, each
+`{ sessionId, title }`, while a plan was approved from it into a new session or it was started from one
+([ADR 0025](adr/0025-a-plan-can-be-approved-into-a-new-session.md)). `title` is the one the list shows for that
+session, or `""` while the session is not in the index yet; the client shows its untitled placeholder then.
+
 ## Error codes
 
 | Code | HTTP status | Meaning |

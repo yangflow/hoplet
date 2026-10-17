@@ -27,6 +27,7 @@ import {
   streamFingerprint,
 } from './chunks.ts';
 import * as commands from './commands.ts';
+import * as continuations from './continuations.ts';
 import * as deletion from './deletion.ts';
 import * as devices from './devices.ts';
 import type { StoreContext } from './layout.ts';
@@ -39,6 +40,7 @@ import * as sessions from './sessions.ts';
 import * as snapshotRead from './snapshot-read.ts';
 import * as snapshots from './snapshots.ts';
 
+export type { ContinuationLinks } from './continuations.ts';
 export type { Tombstone, WorktreeRecord } from './deletion.ts';
 export type { PushSubscriptionRecord, WebhookRecord } from './notify.ts';
 export type { QueueOutcome } from './queue.ts';
@@ -335,6 +337,25 @@ export class Store {
   /** The deleted sessions whose agent has not confirmed it stopped syncing them. */
   unforgottenTombstones(deviceId: string): string[] {
     return deletion.unforgotten(this.ctx, deviceId);
+  }
+
+  /**
+   * Records that the plan of `fromSessionId` was approved into `toSessionId` (ADR 0025). A session keeps its
+   * latest continuation: a later one naming either session replaces the earlier row.
+   */
+  recordContinuation(
+    fromSessionId: string,
+    toSessionId: string,
+    requestId: string,
+    mode: string,
+    now: number = Date.now(),
+  ): void {
+    continuations.recordContinuation(this.ctx, fromSessionId, toSessionId, requestId, mode, now);
+  }
+
+  /** The IDs of the sessions a session was continued in and from; either may not be in the index yet. */
+  continuationLinks(sessionId: string): continuations.ContinuationLinks {
+    return continuations.continuationLinks(this.ctx, sessionId);
   }
 
   /** Removes the core's rows, directories and queued messages of a session. */

@@ -200,7 +200,18 @@ function withLiveness(
   state: SessionStateRecord = store.sessionState(meta.sessionId) ?? {},
 ): LiveSessionMeta {
   const owner = store.ownerDeviceId(meta.sessionId);
+  const links = store.continuationLinks(meta.sessionId);
+  // The title the list shows; empty while the session is not in the index, which the client shows as untitled.
+  const end = (sessionId: string) => ({
+    sessionId,
+    title:
+      store.sessionState(sessionId)?.titleOverride?.trim() ||
+      store.getSession(sessionId)?.title ||
+      '',
+  });
   return {
+    ...(links.continuedIn ? { continuedIn: end(links.continuedIn) } : {}),
+    ...(links.continuedFrom ? { continuedFrom: end(links.continuedFrom) } : {}),
     ...meta,
     ...state,
     ownerConnected: !!owner && control.ownerOnline(owner),
