@@ -387,7 +387,10 @@ does the same within one session. Search runs as background work and never delay
    `initialize`; its answer makes the session `ready`
    ([ADR 0008](adr/0008-remote-control-runs-a-hoplet-managed-claude-code-process.md)). When more than
    `runtime_max_idle_processes` processes are `ready` without a turn, it stops the least recently used one.
-3. The agent writes the prompt to the process and reports `running`. Text deltas, thinking activity (a token
+3. The agent writes the prompt to the process and reports `running`. The agent starts Claude Code with
+   `CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS=1`, whatever environment it runs in; the runtime states `running`,
+   `waiting-permission` and `ready` follow Claude Code's `session_state_changed` events, and the turn's `result`
+   alone does not end the turn (Claude Code may keep working after it). Text deltas, thinking activity (a token
    count), tool calls and tool results flow as `runtime.output`; the core forwards them as `session.output` to clients subscribed to
    the session and keeps none of them. The core adds `toolKind` and `mcp` to a tool call, classified by the session
    provider's mapping as in a stored `tool-call`.

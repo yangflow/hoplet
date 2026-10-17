@@ -305,3 +305,13 @@ func TestMissingBinaryIsAnError(t *testing.T) {
 		t.Fatal("expected an error")
 	}
 }
+
+func TestProcessEnvSwitchesStateEventsOnOnce(t *testing.T) {
+	got := processEnv([]string{"A=1", "CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS=0", "B=2", "CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS="})
+	if strings.Join(got, " ") != "A=1 B=2 CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS=1" {
+		t.Fatalf("env = %v", got)
+	}
+	if got := processEnv(nil); len(got) != 1 || got[0] != "CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS=1" {
+		t.Fatalf("env = %v", got)
+	}
+}

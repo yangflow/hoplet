@@ -176,7 +176,7 @@ func (d *Driver) Start(ctx context.Context, spec runtime.StartSpec) (runtime.Pro
 	}
 	cmd := exec.Command(d.bin, d.Args(spec)...)
 	cmd.Dir = spec.Dir
-	cmd.Env = os.Environ()
+	cmd.Env = processEnv(os.Environ())
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
@@ -207,6 +207,21 @@ func (d *Driver) Start(ctx context.Context, spec runtime.StartSpec) (runtime.Pro
 		return nil, err
 	}
 	return p, nil
+}
+
+// stateEventsEnv makes Claude Code report session_state_changed, which is how the agent learns that a turn
+// ended or waits for a permission; without it Claude Code stays silent and the session never becomes ready.
+const stateEventsEnv = "CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS"
+
+// processEnv is env with the session state events switched on, whatever the inherited value was.
+func processEnv(env []string) []string {
+	out := make([]string, 0, len(env)+1)
+	for _, kv := range env {
+		if !strings.HasPrefix(kv, stateEventsEnv+"=") {
+			out = append(out, kv)
+		}
+	}
+	return append(out, stateEventsEnv+"=1")
 }
 
 // tailBuffer keeps the last bytes written to it, for error messages.
