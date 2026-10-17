@@ -119,7 +119,7 @@ export function createRuntime(state: ControlState): Runtime {
   }
 
   function view(sessionId: string): RuntimeView {
-    const owner = store.ownerDeviceId(sessionId);
+    const owner = store.ownerDeviceId(sessionId) ?? state.startedSessions.get(sessionId)?.deviceId;
     if (!owner || state.byDevice.get(owner)?.isOpen() !== true) {
       return { state: 'offline', ...capabilitiesOf(sessionId) };
     }
@@ -343,6 +343,9 @@ export function createRuntime(state: ControlState): Runtime {
       const deviceId = deviceOf(state, link);
       if (!deviceId) return;
       if (!ownerSends(msg.sessionId, deviceId)) {
+        // Before the answer to a start the session has no name here; the agent reports everything again
+        // once it has answered (sync/control.go), so this is expected.
+        for (const waiter of state.pendingStart.values()) if (waiter.link === link) return;
         log('warn', 'control', 'runtime message from a device that does not own the session', {
           sessionId: msg.sessionId,
           type: msg.type,

@@ -6,6 +6,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  realpathSync,
   rmSync,
   writeFileSync,
 } from 'node:fs';
@@ -380,5 +381,40 @@ describe('remote control against a scripted Claude Code', () => {
     const refused = await client.prompt(SESSION, 'say no');
     expect(refused).toMatchObject({ ok: false, error: { status: 409, code: 'external' } });
     await synced();
+  });
+
+  it('reports the first turn of a session started from Hoplet as running, and steers it', async () => {
+    const auth = { authorization: `Bearer ${HOST}`, 'content-type': 'application/json' };
+    const created = await fetch(`${client.baseUrl}/api/sessions`, {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify({
+        deviceId: 'runtime-e2e',
+        projectPath: realpathSync(project),
+        provider: 'claude',
+        config: {},
+        text: 'work 150',
+        promptId: 'first-turn',
+      }),
+    });
+    const body = (await created.json()) as { ok: boolean; sessionId: string };
+    expect(created.status, JSON.stringify(body)).toBe(200);
+    const id = body.sessionId;
+
+    // The agent reports its first states before it can name the session (#114); the turn runs on.
+    const deadline = Date.now() + 10_000;
+    while (control.runtimeOf(id).state !== 'running' && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    expect(control.runtimeOf(id).state).toBe('running');
+
+    const steered = await fetch(`${client.baseUrl}/api/sessions/${id}/steer`, {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify({ steerId: 'first-turn-steer', text: 'look left' }),
+    });
+    expect(steered.status).toBe(202);
+    expect(await client.interrupt(id)).toEqual({ ok: true, data: { ok: true } });
+    await vi.waitFor(() => expect(control.runtimeOf(id).state).toBe('ready'), { timeout: 20_000 });
   });
 });

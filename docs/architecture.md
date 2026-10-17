@@ -235,8 +235,10 @@ the cursors.
 **A session starts.** `POST /api/sessions` → control checks the announced capabilities and the device's watched
 projects (`device.projects.list`) → `runtime.start` (with the `config` values) on the control lane → the agent starts Claude Code with a new
 session ID, writes the prompt, waits for the session file, imports the session into `projects.json` →
-`runtime.started` → the response carries the session ID → the agent reports `runtime.state` again, the next
-scan syncs the file and the session joins the index.
+`runtime.started` → the response carries the session ID. The core records the started session when the answer
+arrives, before the caller continues, and the agent reports its states again right behind the answer, so the first
+turn is `running` while the store has no owner for the session yet; what the device said before the answer, when
+the session had no name, is dropped. The next scan syncs the file and the session joins the index.
 
 **A browser opens a session.** Token gate → `GET /api/sessions` → select → `GET /api/sessions/:id/lines?start=-80`
 → store reads the touched chunks → api projects large blocks → render → browser WebSocket `subscribe` →

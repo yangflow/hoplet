@@ -209,6 +209,11 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
         null
       );
     },
+    ownerOf(sessionId) {
+      return (
+        store.ownerDeviceId(sessionId) ?? state.startedSessions.get(sessionId)?.deviceId ?? null
+      );
+    },
     openPermissions: runtime.openPermissions,
     commandsOf: runtime.commandsOf,
     ownerOnline(deviceId) {

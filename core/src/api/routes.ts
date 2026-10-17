@@ -118,9 +118,9 @@ function ownerCapabilities(
   return device.providers.find((p) => p.provider === provider)?.capabilities ?? null;
 }
 
-/** The session's owner device, or the 404 when the session is unknown. */
+/** The session's owner device, also of one an agent just started, or the 404 when the session is unknown. */
 function ownerOf(deps: ApiDeps, sessionId: string): string {
-  const owner = deps.store.ownerDeviceId(sessionId);
+  const owner = deps.control.ownerOf(sessionId);
   if (!owner) throw new ApiError('session-not-found');
   return owner;
 }
@@ -175,7 +175,9 @@ function checkMessage(
 ): void {
   if (text.length > MAX_PROMPT_CHARS) throw new ApiError('too-large');
   if (attachments.length === 0) return;
-  const caps = ownerCapabilities(deps, owner, providerOf(deps.store, sessionId));
+  const provider = deps.control.providerOf(sessionId);
+  if (!provider) throw new ApiError('session-not-found');
+  const caps = ownerCapabilities(deps, owner, provider);
   if (caps !== undefined && !caps?.images) {
     throw new ApiError('invalid-request', { reason: 'images' });
   }
