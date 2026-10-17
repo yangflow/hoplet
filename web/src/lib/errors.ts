@@ -49,6 +49,8 @@ export const ERROR_COPY: Record<HttpErrorCode, string> = {
   cancelled: 'The request was cancelled.',
   'handoff-in-progress': 'A hand-off of this session is already running.',
   'no-clone': 'That machine has no clone of this repository. Give the path of one.',
+  'handoff-not-running': 'No hand-off of this session is cloning now.',
+  'clone-failed': 'The repository could not be cloned on the other machine. Nothing was moved.',
   'no-snapshot':
     'The owner is offline and no workspace snapshot was stored. Hand off once it has finished a turn.',
   'session-changed': 'The session changed during the hand-off. Nothing was moved; try again.',

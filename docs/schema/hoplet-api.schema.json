@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Hoplet client API",
   "description": "Generated from shared/ and the route table by `pnpm schema`; do not edit. Each name under $defs is a schema that docs/api.md names for a route or a message. Parse a body against the schema its route names.",
-  "protocolVersion": 5,
+  "protocolVersion": 6,
   "routes": [
     {
       "method": "POST",
@@ -323,6 +323,16 @@
       "query": null,
       "body": "HandoffRequestSchema",
       "response": "HandoffResultSchema"
+    },
+    {
+      "method": "POST",
+      "path": "/api/sessions/:sessionId/handoff/cancel",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": null,
+      "response": "HandoffCancelResultSchema"
     },
     {
       "method": "GET",
@@ -696,10 +706,12 @@
     "queue-full": 409,
     "cancelled": 409,
     "handoff-in-progress": 409,
+    "handoff-not-running": 409,
     "no-clone": 409,
     "no-snapshot": 409,
     "session-changed": 409,
     "verify-failed": 502,
+    "clone-failed": 502,
     "delete-partial": 502,
     "rejected": 502,
     "timeout": 504,
@@ -1123,6 +1135,10 @@
         "origin": {
           "type": "string",
           "pattern": "^\\s*\\S(?:[\\s\\S]{0,2046}\\S)?\\s*$"
+        },
+        "cloneInto": {
+          "type": "string",
+          "pattern": "^\\s*\\S(?:[\\s\\S]{0,4094}\\S)?\\s*$"
         }
       },
       "required": [
@@ -1143,6 +1159,44 @@
             {
               "type": "null"
             }
+          ]
+        },
+        "clone": {
+          "type": "object",
+          "properties": {
+            "origin": {
+              "type": "string"
+            },
+            "repoName": {
+              "type": "string"
+            },
+            "cloneInto": {
+              "type": "string"
+            },
+            "reason": {
+              "enum": [
+                "ok",
+                "no-origin",
+                "no-access",
+                "destination-taken"
+              ],
+              "type": "string"
+            },
+            "detail": {
+              "enum": [
+                "exists",
+                "outside-root",
+                "symlink",
+                "not-writable"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "origin",
+            "repoName",
+            "cloneInto",
+            "reason"
           ]
         }
       },
@@ -1454,7 +1508,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 5
+          "const": 6
         },
         "type": {
           "const": "device.presence"
@@ -1610,7 +1664,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 5
+          "const": 6
         },
         "type": {
           "const": "error"
@@ -1640,10 +1694,12 @@
             "queue-full",
             "cancelled",
             "handoff-in-progress",
+            "handoff-not-running",
             "no-clone",
             "no-snapshot",
             "session-changed",
             "verify-failed",
+            "clone-failed",
             "delete-partial",
             "rejected",
             "timeout",
@@ -1700,10 +1756,12 @@
             "queue-full",
             "cancelled",
             "handoff-in-progress",
+            "handoff-not-running",
             "no-clone",
             "no-snapshot",
             "session-changed",
             "verify-failed",
+            "clone-failed",
             "delete-partial",
             "rejected",
             "timeout",
@@ -1715,6 +1773,9 @@
           "type": "string"
         },
         "promptId": {
+          "type": "string"
+        },
+        "detail": {
           "type": "string"
         },
         "steps": {
@@ -1948,11 +2009,22 @@
         "exhausted"
       ]
     },
+    "HandoffCancelResultSchema": {
+      "type": "object",
+      "properties": {
+        "ok": {
+          "const": true
+        }
+      },
+      "required": [
+        "ok"
+      ]
+    },
     "HandoffProgressMessage": {
       "type": "object",
       "properties": {
         "v": {
-          "const": 5
+          "const": 6
         },
         "type": {
           "const": "handoff.progress"
@@ -1967,6 +2039,7 @@
         },
         "step": {
           "enum": [
+            "clone",
             "prepare",
             "transfer",
             "install",
@@ -2017,6 +2090,10 @@
           "minLength": 1
         },
         "targetPath": {
+          "type": "string",
+          "pattern": "^\\s*\\S(?:[\\s\\S]{0,4094}\\S)?\\s*$"
+        },
+        "cloneInto": {
           "type": "string",
           "pattern": "^\\s*\\S(?:[\\s\\S]{0,4094}\\S)?\\s*$"
         }
@@ -2648,7 +2725,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 5
+          "const": 6
         },
         "type": {
           "const": "notify"
@@ -3385,7 +3462,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 5
+          "const": 6
         },
         "type": {
           "const": "session.appended"
@@ -3424,7 +3501,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 5
+          "const": 6
         },
         "type": {
           "const": "session.commands"
@@ -3444,7 +3521,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 5
+          "const": 6
         },
         "type": {
           "const": "session.deleted"
@@ -3705,7 +3782,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 5
+          "const": 6
         },
         "type": {
           "const": "session.output"
@@ -3806,7 +3883,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 5
+          "const": 6
         },
         "type": {
           "const": "session.permission"
@@ -3899,7 +3976,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 5
+          "const": 6
         },
         "type": {
           "const": "session.queue"
@@ -3919,7 +3996,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 5
+          "const": 6
         },
         "type": {
           "const": "session.runtime"
@@ -4087,7 +4164,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 5
+          "const": 6
         },
         "type": {
           "const": "session.updated"
@@ -4321,7 +4398,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 5
+          "const": 6
         },
         "type": {
           "const": "subscribe"
@@ -4341,7 +4418,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 5
+          "const": 6
         },
         "type": {
           "const": "unsubscribe"

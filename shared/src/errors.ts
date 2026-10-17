@@ -30,10 +30,12 @@ export const HTTP_ERROR_STATUS = {
   'queue-full': 409,
   cancelled: 409,
   'handoff-in-progress': 409,
+  'handoff-not-running': 409,
   'no-clone': 409,
   'no-snapshot': 409,
   'session-changed': 409,
   'verify-failed': 502,
+  'clone-failed': 502,
   'delete-partial': 502,
   rejected: 502,
   timeout: 504,
@@ -69,6 +71,8 @@ export const ErrorResponseSchema = v.object({
   code: HttpErrorCodeSchema,
   reason: v.optional(v.string()),
   promptId: v.optional(v.string()),
+  /** What `git` said when a clone failed as `git-failed`, with credentials removed and cut at 2 KiB. */
+  detail: v.optional(v.string()),
   /** The steps of a deletion that failed half way (`delete-partial`). */
   steps: v.optional(v.array(DeletionStepSchema)),
 });

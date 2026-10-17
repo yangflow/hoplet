@@ -44,6 +44,8 @@
   "Something went wrong on the server.": "Something went wrong on the server.",
   "A hand-off of this session is already running.": "A hand-off of this session is already running.",
   "That machine has no clone of this repository. Give the path of one.": "That machine has no clone of this repository. Give the path of one.",
+  "No hand-off of this session is cloning now.": "No hand-off of this session is cloning now.",
+  "The repository could not be cloned on the other machine. Nothing was moved.": "The repository could not be cloned on the other machine. Nothing was moved.",
   "The owner is offline and no workspace snapshot was stored. Hand off once it has finished a turn.": "The owner is offline and no workspace snapshot was stored. Hand off once it has finished a turn.",
   "The session changed during the hand-off. Nothing was moved; try again.": "The session changed during the hand-off. Nothing was moved; try again.",
   "The other machine's copy did not match. Nothing was moved.": "The other machine's copy did not match. Nothing was moved.",

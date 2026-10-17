@@ -44,6 +44,8 @@
   "Something went wrong on the server.": "服务器出现问题。",
   "A hand-off of this session is already running.": "这场会话正在交接。",
   "That machine has no clone of this repository. Give the path of one.": "那台设备上没有这个仓库的克隆。请填写一个克隆的路径。",
+  "No hand-off of this session is cloning now.": "当前没有正在克隆的会话转移。",
+  "The repository could not be cloned on the other machine. Nothing was moved.": "无法在另一台设备上克隆该仓库。未移动任何内容。",
   "The owner is offline and no workspace snapshot was stored. Hand off once it has finished a turn.": "所属设备离线，且没有已保存的工作区快照。待它完成一轮后再交接。",
   "The session changed during the hand-off. Nothing was moved; try again.": "交接期间会话发生了变化。未移动任何内容，请重试。",
   "The other machine's copy did not match. Nothing was moved.": "那台机器上的副本与原件不一致。未移动任何内容。",

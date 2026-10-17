@@ -194,6 +194,8 @@ export type NewSessionResult = v.InferOutput<typeof NewSessionResultSchema>;
 export const HandoffRequestSchema = v.object({
   targetDeviceId: TrimmedSchema,
   targetPath: v.optional(v.pipe(TrimmedSchema, v.maxLength(4096))),
+  /** Clone the repository here on the target first (ADR 0024); exclusive with `targetPath`, which the route checks. */
+  cloneInto: v.optional(v.pipe(TrimmedSchema, v.maxLength(4096))),
 });
 export type HandoffRequest = v.InferOutput<typeof HandoffRequestSchema>;
 
@@ -208,3 +210,7 @@ export const HandoffResultSchema = v.object({
   snapshotAt: v.optional(v.number()),
 });
 export type HandoffResult = v.InferOutput<typeof HandoffResultSchema>;
+
+/** POST /api/sessions/:id/handoff/cancel: stops a handoff still in its clone step. */
+export const HandoffCancelResultSchema = v.object({ ok: v.literal(true) });
+export type HandoffCancelResult = v.InferOutput<typeof HandoffCancelResultSchema>;

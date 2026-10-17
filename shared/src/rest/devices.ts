@@ -1,5 +1,6 @@
 import * as v from 'valibot';
 import { DeviceProjectSchema, DirEntrySchema } from '../catalog.ts';
+import { CloneCheckReasonSchema, CloneDestinationDetailSchema } from '../clone.ts';
 import { AttachmentIdSchema, SessionIdSchema } from '../ids.ts';
 import { ProviderInfoSchema } from '../runtime.ts';
 import { TrimmedSchema } from './common.ts';
@@ -62,12 +63,26 @@ export type DeviceSessionsRemoveRequest = DeviceSessionsImportRequest;
  */
 export const DeviceCloneQuerySchema = v.object({
   origin: v.pipe(TrimmedSchema, v.maxLength(2048)),
+  /** The destination to check when there is no clone; absent, the answer suggests one (ADR 0024). */
+  cloneInto: v.optional(v.pipe(TrimmedSchema, v.maxLength(4096))),
 });
 export type DeviceCloneQuery = v.InferOutput<typeof DeviceCloneQuerySchema>;
+
+/** What cloning on a device with no clone would do: `origin` has credentials removed. */
+export const DeviceCloneOfferSchema = v.object({
+  origin: v.string(),
+  repoName: v.string(),
+  cloneInto: v.string(),
+  reason: CloneCheckReasonSchema,
+  detail: v.optional(CloneDestinationDetailSchema),
+});
+export type DeviceCloneOffer = v.InferOutput<typeof DeviceCloneOfferSchema>;
 
 export const DeviceCloneResultSchema = v.object({
   deviceId: v.string(),
   path: v.nullable(v.string()),
+  /** Present only when `path` is null. */
+  clone: v.optional(DeviceCloneOfferSchema),
 });
 export type DeviceCloneResult = v.InferOutput<typeof DeviceCloneResultSchema>;
 

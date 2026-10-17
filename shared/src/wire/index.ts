@@ -5,6 +5,12 @@
  */
 import * as v from 'valibot';
 import { DeviceProjectSchema, DeviceProjectSessionSchema, DirEntrySchema } from '../catalog.ts';
+import {
+  CLONE_DETAIL_MAX_BYTES,
+  CloneCheckReasonSchema,
+  CloneDestinationDetailSchema,
+  CloneFailureReasonSchema,
+} from '../clone.ts';
 import { CommandSchema, MAX_COMMANDS } from '../commands.ts';
 import { ToolKindSchema, ToolMcpSchema } from '../conversation.ts';
 import {
@@ -50,6 +56,7 @@ export type HandoffPart = v.InferOutput<typeof HandoffPartSchema>;
 
 /** The steps a handoff reports to browsers. */
 export const HandoffStepSchema = v.picklist([
+  'clone',
   'prepare',
   'transfer',
   'install',
@@ -612,7 +619,8 @@ export const WIRE_MESSAGES = defineWire({
   },
   /**
    * Progress of a handoff for browsers. `snapshotAt` is the time of the snapshot an offline handoff uses;
-   * during `transfer`, `sent` of `total` bytes have gone to the target; `done` names the new worktree and branch.
+   * during `clone`, `sent` bytes of the repository have arrived (`total` only once git reports it); during
+   * `transfer`, `sent` of `total` bytes have gone to the target; `done` names the new worktree and branch.
    */
   'handoff.progress': {
     lane: 'control',
@@ -794,6 +802,66 @@ export const WIRE_MESSAGES = defineWire({
     direction: 'device-to-core',
     fields: { requestId, path: v.nullable(v.string()) },
   },
+  // Cloning the repository on a target that has none (ADR 0024). Handled in their own goroutines, never on
+  // the ordered handoff queue.
+  /** Can `origin` be cloned into `cloneInto` (absent: the agent suggests a destination)? */
+  'device.clone.check': {
+    lane: 'control',
+    direction: 'core-to-device',
+    fields: {
+      requestId,
+      origin: v.pipe(v.string(), v.maxLength(2048)),
+      cloneInto: v.optional(v.pipe(v.string(), v.maxLength(4096))),
+    },
+  },
+  /** `cloneInto` is the destination checked: the one asked for or the suggestion. */
+  'device.clone.checked': {
+    lane: 'control',
+    direction: 'device-to-core',
+    fields: {
+      requestId,
+      reason: CloneCheckReasonSchema,
+      detail: v.optional(CloneDestinationDetailSchema),
+      cloneInto: v.string(),
+    },
+  },
+  'device.clone.start': {
+    lane: 'control',
+    direction: 'core-to-device',
+    fields: {
+      requestId,
+      handoffId,
+      origin: v.pipe(v.string(), v.maxLength(2048)),
+      cloneInto: v.pipe(v.string(), v.maxLength(4096)),
+    },
+  },
+  /** At most four a second; `total` is absent until git reports it. */
+  'device.clone.progress': {
+    lane: 'control',
+    direction: 'device-to-core',
+    fields: { requestId, received: v.number(), total: v.optional(v.number()) },
+  },
+  /** The clone is complete and watched; `path` is its main working tree. */
+  'device.clone.done': {
+    lane: 'control',
+    direction: 'device-to-core',
+    fields: { requestId, path: v.string() },
+  },
+  'device.clone.failed': {
+    lane: 'control',
+    direction: 'device-to-core',
+    fields: {
+      requestId,
+      reason: CloneFailureReasonSchema,
+      detail: v.optional(v.pipe(v.string(), v.maxLength(CLONE_DETAIL_MAX_BYTES))),
+    },
+  },
+  /** Kills git and removes the directory the clone created; answered by `device.clone.failed` `cancelled`. */
+  'device.clone.cancel': {
+    lane: 'control',
+    direction: 'core-to-device',
+    fields: { requestId },
+  },
 });
 
 type Table = typeof WIRE_MESSAGES;
@@ -891,6 +959,13 @@ export type DeviceDirs = WireMessageOf<'device.dirs'>;
 export type DeviceDirsRejected = WireMessageOf<'device.dirs.rejected'>;
 export type DeviceCloneFind = WireMessageOf<'device.clone.find'>;
 export type DeviceClone = WireMessageOf<'device.clone'>;
+export type DeviceCloneCheck = WireMessageOf<'device.clone.check'>;
+export type DeviceCloneChecked = WireMessageOf<'device.clone.checked'>;
+export type DeviceCloneStart = WireMessageOf<'device.clone.start'>;
+export type DeviceCloneProgress = WireMessageOf<'device.clone.progress'>;
+export type DeviceCloneDone = WireMessageOf<'device.clone.done'>;
+export type DeviceCloneFailed = WireMessageOf<'device.clone.failed'>;
+export type DeviceCloneCancel = WireMessageOf<'device.clone.cancel'>;
 
 /** Types of the messages in `direction`, in table order. */
 export function wireTypes(...directions: Direction[]): WireType[] {
@@ -936,6 +1011,10 @@ export const ClientMessageSchema = v.variant('type', [
   WIRE_MESSAGES['attachment.rejected'].schema,
   WIRE_MESSAGES['device.dirs.rejected'].schema,
   WIRE_MESSAGES['device.clone'].schema,
+  WIRE_MESSAGES['device.clone.checked'].schema,
+  WIRE_MESSAGES['device.clone.progress'].schema,
+  WIRE_MESSAGES['device.clone.done'].schema,
+  WIRE_MESSAGES['device.clone.failed'].schema,
 ]);
 
 /** The messages a browser sends. */
