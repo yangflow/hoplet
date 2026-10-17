@@ -611,7 +611,27 @@ func removeAll(path string) {
 	log.Printf("[agent] could not remove %s", path)
 }
 
-// reasonOf maps what git said to a failure reason.
+// networkFailures are what git and its transports say when the connection failed rather than the access.
+var networkFailures = []string{
+	"ssl_error_syscall",
+	"ssl_connect",
+	"ssl_error",
+	"gnutls",
+	"could not resolve host",
+	"connection timed out",
+	"operation timed out",
+	"connection reset",
+	"connection refused",
+	"early eof",
+	"rpc failed",
+	"failed to connect to",
+	"network is unreachable",
+	"no route to host",
+	"the remote end hung up unexpectedly",
+}
+
+// reasonOf maps what git said to a failure reason. A network failure is git-failed: it is not the user's
+// credentials, and trying again may work.
 func reasonOf(text string) string {
 	t := strings.ToLower(text)
 	switch {
@@ -619,22 +639,40 @@ func reasonOf(text string) string {
 		return CloneNoSpace
 	case strings.Contains(t, "already exists and is not an empty"):
 		return CloneDestinationTaken
-	case strings.Contains(t, "permission denied"),
-		strings.Contains(t, "could not read from remote"),
-		strings.Contains(t, "authentication failed"),
-		strings.Contains(t, "terminal prompts disabled"),
-		strings.Contains(t, "could not read username"),
-		strings.Contains(t, "could not read password"),
-		strings.Contains(t, "repository not found"),
-		strings.Contains(t, "host key verification failed"),
-		strings.Contains(t, "could not resolve host"),
-		strings.Contains(t, "unable to access"),
-		strings.Contains(t, "access denied"),
-		strings.Contains(t, "connection refused"),
-		strings.Contains(t, "connection timed out"):
+	case containsAny(t, accessDenials):
+		return CloneNoAccess
+	case containsAny(t, networkFailures):
+		return CloneGitFailed
+	case containsAny(t, unreadable):
 		return CloneNoAccess
 	}
 	return CloneGitFailed
+}
+
+// accessDenials are what git says when the remote refused or asked for credentials. They win over a network
+// phrase in the same output.
+var accessDenials = []string{
+	"permission denied",
+	"authentication failed",
+	"terminal prompts disabled",
+	"could not read username",
+	"could not read password",
+	"repository not found",
+	"host key verification failed",
+	"access denied",
+}
+
+// unreadable is what git says last when it could not read the remote for a reason it did not name. With no
+// network phrase before it, the access is the likelier cause.
+var unreadable = []string{"could not read from remote", "unable to access"}
+
+func containsAny(text string, needles []string) bool {
+	for _, n := range needles {
+		if strings.Contains(text, n) {
+			return true
+		}
+	}
+	return false
 }
 
 // splitProgress splits git's stderr at both \n and \r: a progress line is rewritten in place with \r.

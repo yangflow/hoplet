@@ -663,12 +663,13 @@
   "The clone stopped: the folder is taken on {target}. Choose another folder.": "克隆已停止：{target} 上的该文件夹已被占用。请选择另一个文件夹。",
   "The clone took too long and was stopped.": "克隆耗时过长，已停止。",
   "The clone was cancelled.": "克隆已取消。",
-  "git could not clone the repository on {target}.": "git 无法在 {target} 上克隆该仓库。",
+  "git could not finish the clone on {target}. Try again.": "git 无法在 {target} 上完成克隆，请重试。",
   "Clone": "克隆",
   "Clone and hand off to {target}": "克隆并交接给 {target}",
   "{target} clones it first. {owner} keeps running until the clone has finished; then the hand off starts.": "{target} 会先克隆它。克隆完成前 {owner} 保持运行，完成后才开始交接。",
   "Change": "更改",
   "{owner} keeps running until the clone has finished. Nothing moves until commit.": "克隆完成前 {owner} 保持运行。提交之前不会移动任何内容。",
   "Cancel clone": "取消克隆",
-  "{target} cannot read {origin}: authentication failed. Hoplet never asks for a password. Give git on {target} an SSH key or a credential helper for {host}, or clone the repository there yourself and hand off again.": "{target} 无法读取 {origin}：认证失败。Hoplet 从不索要密码。请为 {target} 上的 git 配置访问 {host} 的 SSH 密钥或凭据助手，或自行在该机器上克隆仓库后再交接。"
+  "{target} cannot read {origin}: authentication failed. Hoplet never asks for a password. Give git on {target} an SSH key or a credential helper for {host}, or clone the repository there yourself and hand off again.": "{target} 无法读取 {origin}：认证失败。Hoplet 从不索要密码。请为 {target} 上的 git 配置访问 {host} 的 SSH 密钥或凭据助手，或自行在该机器上克隆仓库后再交接。",
+  "{target} could not reach or read {origin}: the network or the credentials failed. Hoplet never asks for a password. Check the connection, give git on {target} an SSH key or a credential helper for {host}, or clone the repository there yourself and hand off again.": "{target} 无法连接或读取 {origin}：网络或凭据出了问题。Hoplet 从不索要密码。请检查网络连接，为 {target} 上的 git 配置访问 {host} 的 SSH 密钥或凭据助手，或自行在该机器上克隆仓库后再交接。"
 }

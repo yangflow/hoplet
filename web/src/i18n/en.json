@@ -658,12 +658,13 @@
   "The clone stopped: the folder is taken on {target}. Choose another folder.": "The clone stopped: the folder is taken on {target}. Choose another folder.",
   "The clone took too long and was stopped.": "The clone took too long and was stopped.",
   "The clone was cancelled.": "The clone was cancelled.",
-  "git could not clone the repository on {target}.": "git could not clone the repository on {target}.",
+  "git could not finish the clone on {target}. Try again.": "git could not finish the clone on {target}. Try again.",
   "Clone": "Clone",
   "Clone and hand off to {target}": "Clone and hand off to {target}",
   "{target} clones it first. {owner} keeps running until the clone has finished; then the hand off starts.": "{target} clones it first. {owner} keeps running until the clone has finished; then the hand off starts.",
   "Change": "Change",
   "{owner} keeps running until the clone has finished. Nothing moves until commit.": "{owner} keeps running until the clone has finished. Nothing moves until commit.",
   "Cancel clone": "Cancel clone",
-  "{target} cannot read {origin}: authentication failed. Hoplet never asks for a password. Give git on {target} an SSH key or a credential helper for {host}, or clone the repository there yourself and hand off again.": "{target} cannot read {origin}: authentication failed. Hoplet never asks for a password. Give git on {target} an SSH key or a credential helper for {host}, or clone the repository there yourself and hand off again."
+  "{target} cannot read {origin}: authentication failed. Hoplet never asks for a password. Give git on {target} an SSH key or a credential helper for {host}, or clone the repository there yourself and hand off again.": "{target} cannot read {origin}: authentication failed. Hoplet never asks for a password. Give git on {target} an SSH key or a credential helper for {host}, or clone the repository there yourself and hand off again.",
+  "{target} could not reach or read {origin}: the network or the credentials failed. Hoplet never asks for a password. Check the connection, give git on {target} an SSH key or a credential helper for {host}, or clone the repository there yourself and hand off again.": "{target} could not reach or read {origin}: the network or the credentials failed. Hoplet never asks for a password. Check the connection, give git on {target} an SSH key or a credential helper for {host}, or clone the repository there yourself and hand off again."
 }

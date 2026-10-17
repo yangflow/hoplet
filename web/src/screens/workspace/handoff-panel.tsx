@@ -10,7 +10,7 @@ import { t } from '../../lib/i18n.ts';
 import { clock, formatBytes } from '../cockpit/conversation/format.ts';
 import { CloneInto, destinationText } from './clone-into.tsx';
 import {
-  CLONE_NO_ACCESS,
+  CLONE_UNREADABLE,
   failureCode,
   failureDetail,
   failureText,
@@ -251,7 +251,7 @@ function CloneOffer(props: {
         <p className="ws-ho-note bad" role="alert" data-testid="workspace.handoff-no-access">
           <Glyph>{Icon.alert()}</Glyph>
           <span>
-            {t(CLONE_NO_ACCESS)
+            {t(CLONE_UNREADABLE)
               .replaceAll('{target}', props.target)
               .replace('{origin}', origin)
               .replace('{host}', origin.split('/')[0] ?? origin)}

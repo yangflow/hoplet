@@ -248,11 +248,16 @@ function cloneFailureText(run: HandoffRun, target: string, reason: string | unde
     case 'cancelled':
       return `${named('The clone was cancelled.')}${left}`;
     default:
-      return `${named('git could not clone the repository on {target}.')}${left}`;
+      return `${named('git could not finish the clone on {target}. Try again.')}${left}`;
   }
 }
 
-/** The fixed advice when a target cannot read the repository: never git's own text, never a password prompt. */
+/** The fixed advice when a target cannot read the repository: never git's own text, never a password prompt.
+ * The check could not read the repository: the network or the credentials, it cannot tell which. */
+export const CLONE_UNREADABLE =
+  '{target} could not reach or read {origin}: the network or the credentials failed. Hoplet never asks for a password. Check the connection, give git on {target} an SSH key or a credential helper for {host}, or clone the repository there yourself and hand off again.';
+
+/** A clone the remote refused: only the credentials can be at fault. */
 export const CLONE_NO_ACCESS =
   '{target} cannot read {origin}: authentication failed. Hoplet never asks for a password. Give git on {target} an SSH key or a credential helper for {host}, or clone the repository there yourself and hand off again.';
 

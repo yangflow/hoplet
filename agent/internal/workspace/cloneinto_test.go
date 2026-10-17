@@ -630,3 +630,40 @@ func TestCloneRejectsBadHandoffID(t *testing.T) {
 		t.Fatal("accepted a path as handoff id")
 	}
 }
+
+func TestReasonOf(t *testing.T) {
+	cases := []struct {
+		name, text, want string
+	}{
+		{"libressl", "fatal: unable to access 'https://github.com/o/r.git/': LibreSSL SSL_ERROR_SYSCALL, errno 54", CloneGitFailed},
+		{"ssl connect", "fatal: unable to access 'https://h/r.git/': SSL_connect: Connection reset by peer", CloneGitFailed},
+		{"gnutls", "error: gnutls_handshake() failed: The TLS connection was non-properly terminated.", CloneGitFailed},
+		{"resolve", "fatal: unable to access 'https://h/r.git/': Could not resolve host: h", CloneGitFailed},
+		{"connect timed out", "fatal: unable to access 'https://h/r.git/': Connection timed out after 300001 milliseconds", CloneGitFailed},
+		{"operation timed out", "ssh: connect to host h port 22: Operation timed out\nfatal: Could not read from remote repository.", CloneGitFailed},
+		{"reset", "error: RPC failed; curl 56 Recv failure: Connection reset by peer", CloneGitFailed},
+		{"early eof", "fatal: early EOF\nfatal: index-pack failed", CloneGitFailed},
+		{"hung up", "fatal: the remote end hung up unexpectedly", CloneGitFailed},
+		{"failed to connect", "fatal: unable to access 'https://h/r.git/': Failed to connect to h port 443", CloneGitFailed},
+		{"ssh refused", "ssh: connect to host h port 22: Connection refused\nfatal: Could not read from remote repository.\n\nPlease make sure you have the correct access rights\nand the repository exists.", CloneGitFailed},
+		{"not found", "remote: Repository not found.\nfatal: repository 'https://h/o/r.git/' not found", CloneNoAccess},
+		{"not found with unable", "fatal: unable to access 'https://h/o/r.git/': The requested URL returned error: 404", CloneNoAccess},
+		{"auth failed", "remote: Invalid username or password.\nfatal: Authentication failed for 'https://h/o/r.git/'", CloneNoAccess},
+		{"publickey", "git@h: Permission denied (publickey).\nfatal: Could not read from remote repository.", CloneNoAccess},
+		{"no prompts", "fatal: could not read Username for 'https://h': terminal prompts disabled", CloneNoAccess},
+		{"password", "fatal: could not read Password for 'https://u@h': terminal prompts disabled", CloneNoAccess},
+		{"host key", "Host key verification failed.\nfatal: Could not read from remote repository.", CloneNoAccess},
+		{"denied with reset", "git@h: Permission denied (publickey).\nConnection reset by peer", CloneNoAccess},
+		{"unnamed unreadable", "fatal: Could not read from remote repository.", CloneNoAccess},
+		{"no space", "fatal: write error: No space left on device", CloneNoSpace},
+		{"taken", "fatal: destination path 'x' already exists and is not an empty directory.", CloneDestinationTaken},
+		{"other", "fatal: something odd", CloneGitFailed},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := reasonOf(c.text); got != c.want {
+				t.Errorf("reasonOf(%q) = %q, want %q", c.text, got, c.want)
+			}
+		})
+	}
+}

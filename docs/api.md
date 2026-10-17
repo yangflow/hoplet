@@ -190,13 +190,16 @@ Behavior a client relies on:
   changes names the clone the target would use, or `path: null` when the request needs a `targetPath` or a
   clone. Then `clone` says what cloning would do ([ADR 0024](adr/0024-a-handoff-clones-the-repository-on-a-target-that-has-none.md)):
   the `origin` with its credentials removed, the `repoName`, the proposed `cloneInto`, a `reason` (`ok`,
-  `no-origin`, `no-access`, `destination-taken`) and, for `destination-taken`, a `detail` (`exists`,
+  `no-origin`, `no-access`, `destination-taken`; `no-access` covers a failed probe, whether the network or the
+  credentials) and, for `destination-taken`, a `detail` (`exists`,
   `outside-root`, `symlink`, `not-writable`). The query takes an optional `cloneInto` to check instead of the
   proposal.
 - A handoff request with `cloneInto` (exclusive with `targetPath`) makes the target clone the repository there
   first, before the owner is touched; `handoff.progress` reports `clone` with the bytes received. A failed clone
   answers `clone-failed` with the `reason` (`no-access`, `no-space`, `destination-taken`, `timeout`,
-  `git-failed`) and the `detail`, and leaves the owner and the cursor where they were.
+  `git-failed`) and the `detail`, and leaves the owner and the cursor where they were. `no-access` is a refusal
+  by the remote (credentials, a missing repository); a network failure during the clone (a dropped connection,
+  a TLS error, an unresolved host) is `git-failed`, with git's credential-stripped text as the `detail`.
   `POST /api/sessions/:sessionId/handoff/cancel` ends a handoff that is cloning, which then fails as
   `cancelled`; it never stops the owner, and answers `handoff-not-running` when no handoff of the session is in
   its clone step.
