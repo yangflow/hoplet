@@ -27,6 +27,8 @@ export function receiveReply(
     pendingSession,
     pendingDirs,
     pendingClone,
+    pendingCloneCheck,
+    pendingCloneRun,
     pendingStart,
     pendingAttachments,
   } = state;
@@ -177,6 +179,34 @@ export function receiveReply(
       return;
     case 'device.clone':
       settleWaiter(pendingClone, msg.requestId, { ok: true, path: msg.path });
+      return;
+    case 'device.clone.checked':
+      settleWaiter(pendingCloneCheck, msg.requestId, {
+        ok: true,
+        reason: msg.reason,
+        cloneInto: msg.cloneInto,
+        ...(msg.detail !== undefined ? { detail: msg.detail } : {}),
+      });
+      return;
+    case 'device.clone.progress': {
+      const wait = pendingCloneRun.get(msg.requestId);
+      if (wait?.link === link) wait.progress(msg.received, msg.total);
+      return;
+    }
+    case 'device.clone.done':
+      if (pendingCloneRun.get(msg.requestId)?.link === link) {
+        settleWaiter(pendingCloneRun, msg.requestId, { ok: true, path: msg.path });
+      }
+      return;
+    case 'device.clone.failed':
+      if (pendingCloneRun.get(msg.requestId)?.link === link) {
+        settleWaiter(pendingCloneRun, msg.requestId, {
+          ok: false,
+          error: 'failed',
+          reason: msg.reason,
+          detail: msg.detail,
+        });
+      }
       return;
     case 'device.dirs.rejected':
       settleWaiter(pendingDirs, msg.requestId, {

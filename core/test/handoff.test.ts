@@ -635,3 +635,296 @@ describe('failures leave owner and cursor unchanged and abort the target', () =>
     );
   });
 });
+
+describe('a handoff that clones the repository first (ADR 0024)', () => {
+  const INTO = '/home/b/work/r';
+  const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+  /** A target that answers `device.clone.start` through `onStart`, and installs as the fixture does. */
+  async function cloning(
+    options: ControlOptions,
+    onStart: (msg: Extract<ServerMessage, { type: 'device.clone.start' }>, d: Device) => void,
+  ): Promise<Fixture> {
+    const f = await fixture(options);
+    const installs = f.target.behavior;
+    f.target.behavior = (msg, d) => {
+      if (msg.type === 'device.clone.start') onStart(msg, d);
+      else installs(msg, d);
+    };
+    return f;
+  }
+  const done = (msg: { requestId: string }, d: Device, path = INTO) =>
+    d.reply({ type: 'device.clone.done', requestId: msg.requestId, path });
+  const failed = (msg: { requestId: string }, d: Device, reason: string, detail?: string) =>
+    d.reply({
+      type: 'device.clone.failed',
+      requestId: msg.requestId,
+      reason,
+      ...(detail !== undefined ? { detail } : {}),
+    });
+
+  it('clones first, then prepares, and installs without a target path', async () => {
+    const f = await cloning({}, done);
+    const result = await f.control.handoff({
+      sessionId: SESSION,
+      targetDeviceId: 'target',
+      cloneInto: INTO,
+    });
+    expect(result).toMatchObject({ ok: true, ownerDeviceId: 'target' });
+    const start = f.target.of('device.clone.start')[0];
+    expect(start).toMatchObject({
+      origin: 'git@example.test:o/r.git',
+      cloneInto: INTO,
+    });
+    expect(start?.handoffId).toBe(f.target.of('handoff.install')[0]?.handoffId);
+    // The clone is a watched project once done, so install finds it by origin.
+    expect(f.target.of('handoff.install')[0]?.targetPath).toBeUndefined();
+    expect(f.target.types()[0]).toBe('device.clone.start');
+    expect(f.progress).toEqual([
+      'clone',
+      'prepare',
+      'transfer',
+      'install',
+      'verify',
+      'commit',
+      'done',
+    ]);
+    // The owner was untouched until the clone was done.
+    expect(f.owner.types()[0]).toBe('handoff.prepare');
+  });
+
+  it('forwards the progress of the clone to browsers', async () => {
+    const f = await cloning({}, (msg, d) => {
+      d.reply({ type: 'device.clone.progress', requestId: msg.requestId, received: 100 });
+      d.reply({
+        type: 'device.clone.progress',
+        requestId: msg.requestId,
+        received: 900,
+        total: 1000,
+      });
+      done(msg, d);
+    });
+    await f.control.handoff({ sessionId: SESSION, targetDeviceId: 'target', cloneInto: INTO });
+    const clone = f.messages.filter((m) => m.step === 'clone');
+    expect(clone.map((m) => m.sent)).toEqual([undefined, 100, 900]);
+    expect(clone.at(-1)).toMatchObject({ sent: 900, total: 1000, targetDeviceId: 'target' });
+  });
+
+  it('takes no clone step without cloneInto', async () => {
+    const f = await fixture();
+    await f.control.handoff({ sessionId: SESSION, targetDeviceId: 'target' });
+    expect(f.target.of('device.clone.start')).toEqual([]);
+    expect(f.progress[0]).toBe('prepare');
+  });
+
+  it('is not bound by the 120 s of the handoff request', async () => {
+    // handoffTimeoutMs is 300 ms in the fixture; the clone takes longer and still succeeds.
+    const f = await cloning({}, (msg, d) => {
+      setTimeout(() => done(msg, d), 450);
+    });
+    const result = await f.control.handoff({
+      sessionId: SESSION,
+      targetDeviceId: 'target',
+      cloneInto: INTO,
+    });
+    expect(result.ok).toBe(true);
+  });
+
+  it.each([['no-access'], ['no-space'], ['destination-taken'], ['git-failed']])(
+    'fails as clone-failed (%s) and leaves the owner running',
+    async (reason) => {
+      const f = await cloning({}, (msg, d) => failed(msg, d, reason));
+      const before = state(f.store);
+      const result = await f.control.handoff({
+        sessionId: SESSION,
+        targetDeviceId: 'target',
+        cloneInto: INTO,
+      });
+      expect(result).toEqual({ ok: false, error: 'clone-failed', reason });
+      expect(state(f.store)).toEqual(before);
+      // The owner never stopped, and nothing was installed, so nothing is aborted.
+      expect(f.owner.sent).toEqual([]);
+      expect(f.target.types()).toEqual(['device.clone.start']);
+      expect(f.progress).toEqual(['clone', 'failed']);
+    },
+  );
+
+  it('carries the stripped git text of a git-failed clone', async () => {
+    const f = await cloning({}, (msg, d) => failed(msg, d, 'git-failed', 'fatal: repository gone'));
+    expect(
+      await f.control.handoff({ sessionId: SESSION, targetDeviceId: 'target', cloneInto: INTO }),
+    ).toEqual({
+      ok: false,
+      error: 'clone-failed',
+      reason: 'git-failed',
+      detail: 'fatal: repository gone',
+    });
+  });
+
+  it('fails as clone-failed timeout when the clone outlives its total limit, and tells the agent', async () => {
+    const f = await cloning({ cloneTimeoutMs: 120, cloneStallMs: 5_000 }, (msg, d) => {
+      const tick = setInterval(
+        () => d.reply({ type: 'device.clone.progress', requestId: msg.requestId, received: 1 }),
+        30,
+      );
+      setTimeout(() => clearInterval(tick), 400);
+    });
+    const result = await f.control.handoff({
+      sessionId: SESSION,
+      targetDeviceId: 'target',
+      cloneInto: INTO,
+    });
+    expect(result).toEqual({ ok: false, error: 'clone-failed', reason: 'timeout' });
+    expect(f.target.of('device.clone.cancel')).toHaveLength(1);
+    expect(f.owner.sent).toEqual([]);
+  });
+
+  it('fails as timeout when git stalls, and progress restarts the stall timer', async () => {
+    const f = await cloning({ cloneStallMs: 120 }, (msg, d) => {
+      // Four progress lines 60 ms apart keep a 120 ms stall timer alive; then silence.
+      for (let i = 1; i <= 4; i++) {
+        setTimeout(
+          () => d.reply({ type: 'device.clone.progress', requestId: msg.requestId, received: i }),
+          i * 60,
+        );
+      }
+    });
+    const started = Date.now();
+    const result = await f.control.handoff({
+      sessionId: SESSION,
+      targetDeviceId: 'target',
+      cloneInto: INTO,
+    });
+    expect(result).toEqual({ ok: false, error: 'clone-failed', reason: 'timeout' });
+    // Later than the first stall window: the progress lines restarted the timer.
+    expect(Date.now() - started).toBeGreaterThanOrEqual(300);
+    expect(f.target.of('device.clone.cancel')).toHaveLength(1);
+  });
+
+  it('fails as target-offline when the target disconnects while cloning', async () => {
+    const f = await cloning({}, () => {});
+    const running = f.control.handoff({
+      sessionId: SESSION,
+      targetDeviceId: 'target',
+      cloneInto: INTO,
+    });
+    await wait(30);
+    f.target.open = false;
+    f.control.detach(f.target.link);
+    expect(await running).toMatchObject({ ok: false, error: 'target-offline' });
+    expect(f.owner.sent).toEqual([]);
+  });
+
+  it('ignores clone messages from a device that was not asked', async () => {
+    const f = await cloning({ cloneTimeoutMs: 150 }, () => {});
+    const running = f.control.handoff({
+      sessionId: SESSION,
+      targetDeviceId: 'target',
+      cloneInto: INTO,
+    });
+    await wait(30);
+    const requestId = f.target.of('device.clone.start')[0]?.requestId ?? '';
+    f.owner.reply({ type: 'device.clone.done', requestId, path: INTO });
+    expect(await running).toEqual({ ok: false, error: 'clone-failed', reason: 'timeout' });
+  });
+
+  it('fails as no-clone when the origin is unknown', async () => {
+    const f = await cloning({}, done);
+    // Another session without a snapshot and with the owner offline: no origin anywhere.
+    f.store.append({ sessionId: 's2', projectDir: 'p', filePath: '/y', deviceId: 'owner' }, [
+      line(0),
+    ]);
+    f.control.detach(f.owner.link);
+    expect(
+      await f.control.handoff({ sessionId: 's2', targetDeviceId: 'target', cloneInto: INTO }),
+    ).toMatchObject({ ok: false, error: 'no-clone' });
+    expect(f.target.of('device.clone.start')).toEqual([]);
+  });
+
+  describe('cancel', () => {
+    it('stops the clone, fails the handoff as cancelled and never stops the owner', async () => {
+      const f = await cloning({}, () => {});
+      const running = f.control.handoff({
+        sessionId: SESSION,
+        targetDeviceId: 'target',
+        cloneInto: INTO,
+      });
+      await wait(30);
+      expect(f.control.cancelHandoff(SESSION)).toEqual({ ok: true });
+      const cancel = f.target.of('device.clone.cancel')[0];
+      expect(cancel?.requestId).toBe(f.target.of('device.clone.start')[0]?.requestId);
+      // The agent answers a cancel with a failed message once the directory is gone.
+      f.target.reply({
+        type: 'device.clone.failed',
+        requestId: cancel?.requestId,
+        reason: 'cancelled',
+      });
+      expect(await running).toMatchObject({ ok: false, error: 'cancelled' });
+      expect(f.owner.sent).toEqual([]);
+      expect(state(f.store).owner).toBe('owner');
+    });
+
+    it('is idempotent, and sends one cancel', async () => {
+      const f = await cloning({}, () => {});
+      const running = f.control.handoff({
+        sessionId: SESSION,
+        targetDeviceId: 'target',
+        cloneInto: INTO,
+      });
+      await wait(30);
+      f.control.cancelHandoff(SESSION);
+      f.control.cancelHandoff(SESSION);
+      expect(f.target.of('device.clone.cancel')).toHaveLength(1);
+      f.target.reply({
+        type: 'device.clone.failed',
+        requestId: f.target.of('device.clone.start')[0]?.requestId,
+        reason: 'cancelled',
+      });
+      await running;
+    });
+
+    it('answers handoff-not-running when nothing is cloning', async () => {
+      const f = await fixture();
+      expect(f.control.cancelHandoff(SESSION)).toEqual({
+        ok: false,
+        error: 'handoff-not-running',
+      });
+    });
+
+    it('answers handoff-not-running after the clone step', async () => {
+      const f = await cloning({}, done);
+      // Hold the owner's prepare so the handoff sits in the prepare step.
+      f.owner.behavior = () => {};
+      const running = f.control.handoff({
+        sessionId: SESSION,
+        targetDeviceId: 'target',
+        cloneInto: INTO,
+      });
+      await wait(60);
+      expect(f.control.cancelHandoff(SESSION)).toEqual({
+        ok: false,
+        error: 'handoff-not-running',
+      });
+      f.control.detach(f.owner.link);
+      await running;
+    });
+
+    it('fails as cancelled even when the clone finishes in the same moment', async () => {
+      const f = await cloning({}, () => {});
+      const running = f.control.handoff({
+        sessionId: SESSION,
+        targetDeviceId: 'target',
+        cloneInto: INTO,
+      });
+      await wait(30);
+      f.control.cancelHandoff(SESSION);
+      f.target.reply({
+        type: 'device.clone.done',
+        requestId: f.target.of('device.clone.start')[0]?.requestId,
+        path: INTO,
+      });
+      expect(await running).toMatchObject({ ok: false, error: 'cancelled' });
+      expect(f.owner.sent).toEqual([]);
+    });
+  });
+});

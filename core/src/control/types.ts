@@ -1,5 +1,8 @@
 import type {
   ClientMessage,
+  CloneCheckReason,
+  CloneDestinationDetail,
+  CloneFailureReason,
   Command,
   ConfigSetting,
   DeleteSessionRequest,
@@ -132,6 +135,8 @@ export interface HandoffRequest {
   sessionId: string;
   targetDeviceId: string;
   targetPath?: string | undefined;
+  /** Clone the repository here on the target first (ADR 0024); exclusive with `targetPath`. */
+  cloneInto?: string | undefined;
 }
 
 export type HandoffOutcome =
@@ -156,6 +161,7 @@ export type HandoffOutcome =
         | 'busy'
         | 'no-snapshot'
         | 'no-clone'
+        | 'clone-failed'
         | 'session-changed'
         | 'verify-failed'
         | 'cancelled'
@@ -163,6 +169,8 @@ export type HandoffOutcome =
         | 'rejected'
         | 'internal';
       reason?: string;
+      /** The text of a failed `git`, credentials removed; only with `clone-failed`. */
+      detail?: string;
     };
 
 /** Why a handoff did not complete. */
@@ -238,6 +246,24 @@ export type AttachmentOutcome =
 export type CloneOutcome =
   | { ok: true; path: string | null }
   | { ok: false; error: 'target-offline' | 'timeout' };
+
+/** The answer to a device.clone.check round-trip: whether the target can clone the origin, and where. */
+export type CloneCheckOutcome =
+  | { ok: true; reason: CloneCheckReason; detail?: CloneDestinationDetail; cloneInto: string }
+  | { ok: false; error: 'target-offline' | 'timeout' };
+
+/** How a clone on the target ended: where the clone is, or why there is none. */
+export type CloneRunOutcome =
+  | { ok: true; path: string }
+  | {
+      ok: false;
+      error: 'timeout' | 'offline' | 'failed';
+      reason?: CloneFailureReason;
+      detail?: string | undefined;
+    };
+
+/** What cancelling a handoff comes to: it stops only while the handoff is cloning. */
+export type HandoffCancelOutcome = { ok: true } | { ok: false; error: 'handoff-not-running' };
 
 /**
  * A moment a user may want to hear about (ADR 0021). A `permission` event is a request that waits for an answer;
@@ -380,12 +406,16 @@ export interface Control {
    * with the new owner or the reason it failed; a failure leaves owner and cursor unchanged.
    */
   handoff(request: HandoffRequest): Promise<HandoffOutcome>;
+  /** Stops a handoff of the session that is in its clone step; the session stays with its owner (ADR 0024). */
+  cancelHandoff(sessionId: string): HandoffCancelOutcome;
   /** Lists the directories of `path` under the browse root of a connected device. */
   listDirs(deviceId: string, path: string): Promise<DirsOutcome>;
   /** Uploads an image for a coming prompt to a connected device on the bulk lane (ADR 0017). */
   putAttachment(deviceId: string, image: PromptImage): Promise<AttachmentOutcome>;
   /** Names the clone among a connected device's watched projects whose remote `origin` is `origin`. */
   findClone(deviceId: string, origin: string): Promise<CloneOutcome>;
+  /** Asks a connected device whether it can clone `origin` into `cloneInto`, or where it would (ADR 0024). */
+  checkClone(deviceId: string, origin: string, cloneInto?: string): Promise<CloneCheckOutcome>;
   listProjects(deviceId: string): Promise<DeviceControlOutcome>;
   addProject(deviceId: string, path: string): Promise<DeviceControlOutcome>;
   removeProject(deviceId: string, path: string): Promise<DeviceControlOutcome>;
@@ -432,4 +462,8 @@ export interface ControlOptions {
   handoffTimeoutMs?: number;
   /** How long the transfer of the snapshot and the session stream to the target may take. */
   transferTimeoutMs?: number;
+  /** How long a clone on the target may take in all (ADR 0024). */
+  cloneTimeoutMs?: number;
+  /** How long a clone may go without progress from the target's git. */
+  cloneStallMs?: number;
 }

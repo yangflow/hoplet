@@ -386,15 +386,15 @@ describe('GET /api/devices/:id/clone', () => {
       fetch(`http://127.0.0.1:${port}/api/devices/${id}/clone${query}`, {
         headers: { authorization: `Bearer ${token}` },
       });
-    const request = async (): Promise<Record<string, unknown>> => {
+    const request = async (type = 'device.clone.find'): Promise<Record<string, unknown>> => {
       for (let i = 0; i < 50; i++) {
-        const msg = inbox.find((m) => m.type === 'device.clone.find');
+        const msg = inbox.find((m) => m.type === type);
         if (msg) return msg;
         await new Promise((r) => setTimeout(r, 20));
       }
-      throw new Error('no device.clone.find arrived');
+      throw new Error(`no ${type} arrived`);
     };
-    return { ws, get, request };
+    return { ws, get, request, store, port, token };
   }
 
   it('refuses an offline device with target-offline', async () => {
@@ -414,28 +414,139 @@ describe('GET /api/devices/:id/clone', () => {
     expect(await res.json()).toMatchObject({ code: 'invalid-request' });
   });
 
-  it('forwards the origin and relays the clone, or null', async () => {
+  it('forwards the origin and relays a clone it found, without a clone object', async () => {
     const { ws, get, request } = await connect();
-    for (const path of ['/home/me/hoplet', null]) {
-      const pending = get('?origin=git%40github.com%3Ao%2Fhoplet.git');
-      const msg = await request();
-      expect(msg).toMatchObject({
+    const pending = get('?origin=git%40github.com%3Ao%2Fhoplet.git');
+    const msg = await request();
+    expect(msg).toMatchObject({
+      v: PROTOCOL_VERSION,
+      type: 'device.clone.find',
+      origin: 'git@github.com:o/hoplet.git',
+    });
+    ws.send(
+      JSON.stringify({
         v: PROTOCOL_VERSION,
-        type: 'device.clone.find',
-        origin: 'git@github.com:o/hoplet.git',
-      });
-      ws.send(
+        type: 'device.clone',
+        requestId: msg.requestId,
+        path: '/home/me/hoplet',
+      }),
+    );
+    const res = await pending;
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ deviceId: 'dev-a', path: '/home/me/hoplet' });
+  });
+
+  describe('with no clone', () => {
+    /** Answers the lookup with null and the check with `checked`; returns the check message and the answer. */
+    async function lookup(query: string, checked: Record<string, unknown>) {
+      const c = await connect();
+      const pending = c.get(query);
+      const find = await c.request();
+      c.ws.send(
         JSON.stringify({
           v: PROTOCOL_VERSION,
           type: 'device.clone',
-          requestId: msg.requestId,
-          path,
+          requestId: find.requestId,
+          path: null,
+        }),
+      );
+      const check = await c.request('device.clone.check');
+      c.ws.send(
+        JSON.stringify({
+          v: PROTOCOL_VERSION,
+          type: 'device.clone.checked',
+          requestId: check.requestId,
+          ...checked,
         }),
       );
       const res = await pending;
-      expect(res.status).toBe(200);
-      expect(await res.json()).toEqual({ deviceId: 'dev-a', path });
-      msg.type = 'answered';
+      return { check, res, body: (await res.json()) as Record<string, unknown> };
     }
+
+    it('answers path null and where and whether it can be cloned', async () => {
+      const { check, res, body } = await lookup('?origin=git%40github.com%3Ao%2Fhoplet.git', {
+        reason: 'ok',
+        cloneInto: '/home/me/work/hoplet',
+      });
+      expect(check).toMatchObject({ origin: 'git@github.com:o/hoplet.git' });
+      expect(check.cloneInto).toBeUndefined();
+      expect(res.status).toBe(200);
+      expect(body).toEqual({
+        deviceId: 'dev-a',
+        path: null,
+        clone: {
+          origin: 'git@github.com:o/hoplet.git',
+          repoName: 'hoplet',
+          cloneInto: '/home/me/work/hoplet',
+          reason: 'ok',
+        },
+      });
+    });
+
+    it('passes the chosen cloneInto on to the check', async () => {
+      const { check, body } = await lookup(
+        '?origin=https%3A%2F%2Fgithub.com%2Fo%2Fhoplet&cloneInto=%2Fhome%2Fme%2Fx',
+        { reason: 'destination-taken', detail: 'exists', cloneInto: '/home/me/x' },
+      );
+      expect(check).toMatchObject({ cloneInto: '/home/me/x' });
+      expect(body.clone).toEqual({
+        origin: 'https://github.com/o/hoplet',
+        repoName: 'hoplet',
+        cloneInto: '/home/me/x',
+        reason: 'destination-taken',
+        detail: 'exists',
+      });
+    });
+
+    it.each(['no-origin', 'no-access'])('relays the reason %s', async (reason) => {
+      const { body } = await lookup('?origin=https%3A%2F%2Fgithub.com%2Fo%2Fhoplet.git', {
+        reason,
+        cloneInto: '/home/me/hoplet',
+      });
+      expect(body.clone).toMatchObject({ reason, repoName: 'hoplet' });
+    });
+
+    it('removes credentials from the origin it answers', async () => {
+      const { body } = await lookup(
+        '?origin=https%3A%2F%2Fme%3Asecret-token%40github.com%2Fo%2Fhoplet.git',
+        { reason: 'no-origin', cloneInto: '/home/me/hoplet' },
+      );
+      expect(JSON.stringify(body)).not.toContain('secret-token');
+      expect(body.clone).toMatchObject({ origin: 'https://github.com/o/hoplet.git' });
+    });
+  });
+});
+
+describe('POST /api/sessions/:id/handoff with cloneInto', () => {
+  async function api() {
+    const { port, store, token } = await boot();
+    store.append({ sessionId: 's1', projectDir: 'p', filePath: '/x', deviceId: 'dev-a' }, [
+      '{"n":1}',
+    ]);
+    const call = (path: string, body?: unknown) =>
+      fetch(`http://127.0.0.1:${port}${path}`, {
+        method: 'POST',
+        headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      });
+    return { call, store };
+  }
+
+  it('refuses targetPath together with cloneInto', async () => {
+    const { call } = await api();
+    const res = await call('/api/sessions/s1/handoff', {
+      targetDeviceId: 'dev-b',
+      targetPath: '/a',
+      cloneInto: '/b',
+    });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ code: 'invalid-request' });
+  });
+
+  it('cancel answers handoff-not-running (409) when nothing is cloning', async () => {
+    const { call } = await api();
+    const res = await call('/api/sessions/s1/handoff/cancel');
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({ code: 'handoff-not-running' });
   });
 });

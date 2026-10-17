@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type {
   AttachmentPut,
+  DeviceCloneCheck,
   DeviceCloneFind,
   DeviceDirsList,
   DeviceProjectsAdd,
@@ -17,6 +18,9 @@ import { askWaiter } from './pending.ts';
 import { type ControlState, onlineLink } from './state.ts';
 import type { Control, DeviceControlOutcome } from './types.ts';
 
+/** The agent bounds its reachability probe at 30 s; the core waits a little longer for the answer. */
+const CLONE_CHECK_TIMEOUT_MS = 40_000;
+
 type DeviceRequest =
   | DeviceProjectsList
   | DeviceProjectsAdd
@@ -32,6 +36,7 @@ type Rpc = Pick<
   | 'listDirs'
   | 'putAttachment'
   | 'findClone'
+  | 'checkClone'
   | 'listProjects'
   | 'addProject'
   | 'removeProject'
@@ -48,6 +53,7 @@ export function createRpc(state: ControlState): Rpc {
     pendingDeviceControl,
     pendingDirs,
     pendingClone,
+    pendingCloneCheck,
     pendingAttachments,
   } = state;
 
@@ -190,6 +196,26 @@ export function createRpc(state: ControlState): Rpc {
         pendingClone,
         requestId,
         state.workspaceTimeoutMs,
+        { ok: false, error: 'timeout' },
+        () => link.send(msg),
+      );
+    },
+    checkClone(deviceId, origin, cloneInto) {
+      const link = onlineLink(state, deviceId);
+      if (!link) return Promise.resolve({ ok: false, error: 'target-offline' });
+      const requestId = randomUUID();
+      const msg: DeviceCloneCheck = {
+        v: PROTOCOL_VERSION,
+        type: 'device.clone.check',
+        requestId,
+        origin,
+        ...(cloneInto !== undefined ? { cloneInto } : {}),
+      };
+      // The agent probes the origin with `git ls-remote`, which may take a while.
+      return askWaiter(
+        pendingCloneCheck,
+        requestId,
+        CLONE_CHECK_TIMEOUT_MS,
         { ok: false, error: 'timeout' },
         () => link.send(msg),
       );

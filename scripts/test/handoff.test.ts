@@ -579,6 +579,28 @@ describe.concurrent('failure injection', () => {
     await failsCleanly(w, 'no-clone', false);
   });
 
+  it('at clone: the agent refuses an origin that is not https or ssh and nothing is created', async () => {
+    // The fixture origin is a local bare repository, which the restricted git of the agent refuses.
+    const w = await prepared({ bWithoutClone: true });
+    const before = await state(w);
+    const cloneInto = join(w.root, 'b', 'cloned');
+    const result = await w.core.client.handoff(SESSION, w.b.id, undefined, cloneInto);
+    expect(result, `${w.a.agent.logs()}${w.b.agent.logs()}`).toMatchObject({
+      ok: false,
+      error: { code: 'clone-failed' },
+    });
+    expect(w.progress.at(-1)).toMatchObject({ step: 'failed' });
+    expect(existsSync(cloneInto)).toBe(false);
+    expect(await state(w)).toEqual(before);
+    expect(w.core.store.ownerDeviceId(SESSION)).toBe(w.a.id);
+  });
+
+  it('cancel answers handoff-not-running when no clone is running', async () => {
+    const w = await prepared();
+    const result = await w.core.client.cancelHandoff(SESSION);
+    expect(result).toMatchObject({ ok: false, error: { code: 'handoff-not-running' } });
+  });
+
   it('at install: the worktree path is taken', async () => {
     const w = await prepared();
     mkdirSync(target(w));
