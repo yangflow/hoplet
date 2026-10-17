@@ -163,7 +163,7 @@ a state of the session appears under the composer when it blocks or changes what
 | `waiting-permission` | Claude Code asks to use a tool; the request opens inside the turn | turn | Allow, Deny, Interrupt |
 | `failed` | Start or the last turn failed; the error is named where the state is shown | turn or composer | Send (retries) |
 
-A permission request shows the tool name and its input (elided above 8 KiB like any block). A request the driver declares a plan exit (ADR 0019) shows the plan instead, as Markdown in the turn (collapsed above 4 KiB, with an Open button): one button approves into a mode (Accept edits by default, a menu for the others the driver offers, never Bypass permissions) and Keep planning sends the user's feedback to the model. A plan has no countdown; it waits for the answer, and a window that did not answer shows it as answered. A control appears
+A permission request shows the tool name and its input (elided above 8 KiB like any block). A request the driver declares a plan exit (ADR 0019) shows the plan instead, as Markdown in the turn (collapsed above 4 KiB, with an Open button): one button approves into a mode (Accept edits by default, a menu for the others the driver offers, never Bypass permissions) and Keep planning sends the user's feedback to the model. A plan has no countdown; it waits for the answer, and a window that did not answer shows it as answered. When the driver declares `freshContext` ([ADR 0025](adr/0025-a-plan-can-be-approved-into-a-new-session.md)), the approve menu ends with Clear context and approve…, which turns the card's footer into a confirmation: a new session on the same machine, in the same project and in the chosen mode, started from the plan and its file and nothing else of this conversation; this session stops and keeps its history, with a link to the new one. Start new session locks the card while the new session starts; if it does not start the plan still waits, with a note, and the user can try again, approve here or keep planning. When it starts, the cockpit opens the new session. This session then shows one resolved line, Approved in a new session, with a chip that opens the new one, and the new session's first turn shows From the plan in the old session's title, linking back. A control appears
 only when the session's runtime driver declares its capability (`permissions`, `interrupt`, `images`); its settings are the config options it declares.
 
 ### Workspace inspector
@@ -245,6 +245,11 @@ Server, under the data directory (docs/hosting.md#data):
     owner; `owner_epoch` increases with every handoff; `provider` names the vendor (`claude`); `title` is the vendor's
     title, and `title_override`, `pinned_at` and `archived_at` (null until set) are what the user did in Hoplet:
     sync and handoff never write them.
+  - `session_continuations(from_session_id, to_session_id, request_id, mode, created_at)`: a plan approved into a new
+    session (ADR 0025). `from_session_id` is the key and `to_session_id` is unique; there are no foreign keys, since the
+    new session is not in the index until its first lines sync. A session keeps its latest continuation, and deleting
+    either session removes the row. A session's metadata carries `continuedIn` and `continuedFrom`, each
+    `{ sessionId, title }`, when a row names it.
   - `devices(device_id, name, version, first_seen, last_seen, token_hash)`. `token_hash` is the SHA-256 of
     the device token.
   - `snapshots(session_id, snapshot_id, created_at, base_commit, origin_url, tree_hash, byte_size, sha256)`: the latest
@@ -269,6 +274,7 @@ API, in `shared/src/` (schemas, types and error codes) and `agent/internal/sync/
   `GET /api/sessions/:id` (each session with its runtime state: `runtime: { state, capabilities?, error? }`,
   `offline` when the owner is not connected);
   `POST /api/sessions` (new session);
+  `POST /api/sessions/:id/permission/fresh` (approve a plan into a new session);
   `GET /api/sessions/:id/lines?start=&limit=`; `GET /api/sessions/:id/blocks/:line/:block`;
   `GET /api/search?q=&start=&limit=`; `GET /api/sessions/:id/search?q=&start=&limit=`;
   `POST /api/sessions/:id/prompt`; `POST /api/sessions/:id/permission`; `POST /api/sessions/:id/interrupt`;
@@ -435,7 +441,7 @@ The core tells the user when a session needs them, so a turn does not wait unsee
 - **Action links**: a permission or plan notification carries a link, `<public URL>/a#<token>`, to a page that
   shows the request and offers Allow and Deny without the host token. The token is signed, bound to one request
   and session, decides once, and lasts as long as the request but at most 10 minutes; a plan lasts 10 minutes and
-  is approved with its default mode. A Bash command with the word `rm`, `sudo` or `git push`, a Write or Edit
+  is approved with its default mode, never into a new session. A Bash command with the word `rm`, `sudo` or `git push`, a Write or Edit
   outside the project, every MCP tool and a request whose input is not recognised show `webui-only` and are
   answered in the web UI. This list catches slips, not an attacker: the link token is the boundary. Without a configured public URL, notifications carry no link.
 
@@ -465,6 +471,24 @@ on the session syncs and is driven as any other (Remote control); the agent repo
 after the answer, and until the session reaches the index the core accepts runtime messages for the session from
 that device, reports its state to clients and sends that device the session's control requests (a steer, an
 interrupt, a permission answer).
+
+#### A plan approved into a new session
+
+`POST /api/sessions/:id/permission/fresh` with `{ requestId, mode, promptId }` approves an open plan request into a
+new session in one call ([ADR 0025](adr/0025-a-plan-can-be-approved-into-a-new-session.md)). The plan is read from
+the open request, never from the client. The core refuses with `request-closed` when the request is not an open plan
+request of the session, with `invalid-request` and `reason: fresh-context` when the driver did not declare
+`freshContext` and `reason: mode` when `mode` is not one of `planExit.modes`, and with `owner-offline` when the
+session's owner is not connected. Otherwise it
+starts a new session on the owner device, in the session's project and with the same provider, as for a new session
+(`runtime.start`, with `config` `{ [planExit.option]: mode }`). The first prompt is a short line that frames the
+plan, the plan and the path of its plan file. Only when the start succeeds does the core record the link, refuse the
+plan in the old session with "This plan is being implemented in a new session." and interrupt its turn (a turn that
+is not running is fine). A plan answered elsewhere while the new session started leaves the link recorded and the
+refusal skipped. When the start fails (`timeout`, or `rejected` with the agent's `reason`) nothing changes, the plan
+waits and the usual start-failure notification is raised. The response is `{ ok: true, sessionId, promptId }`, the new
+session; `promptId` is deduplicated as for a new session: a repeat within 10 minutes returns the first result,
+except after a refusal, which can be retried.
 
 ### Handoff
 

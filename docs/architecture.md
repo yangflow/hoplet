@@ -155,10 +155,21 @@ browsers to read the queue again.
 
 A driver whose vendor has a plan step sets `planExit` on the permission request it emits
 ([ADR 0019](adr/0019-a-plan-exit-is-declared-by-the-driver.md)): the plan as Markdown, the select setting
-(`option`) that approval switches, the `modes` it may switch to and the `default`. It answers `Verdict.Mode` (an
-approval) or `Verdict.Message` (a refusal that tells the model what to change). The core, the web UI and the
+(`option`) that approval switches, the `modes` it may switch to and the `default`, and `freshContext` when the vendor
+can approve the plan into a new session ([ADR 0025](adr/0025-a-plan-can-be-approved-into-a-new-session.md)). It
+answers `Verdict.Mode` (an approval) or `Verdict.Message` (a refusal that tells the model what to change). The core, the web UI and the
 wire protocol change nothing else: the plan card renders the declaration, and the mode names come from the
 setting's config option.
+
+**A plan approved into a new session.** `POST /api/sessions/:id/permission/fresh` is one core call, so every client
+reuses it. Control checks that the request is an open plan request of the session from its owner, that
+`planExit.freshContext` is set, that the mode is one of `planExit.modes` and that the owner is online. It then starts the
+new session through the path of a new session (`runtime.start` to the owner, the project of the session, the same
+provider, config `{ [planExit.option]: mode }`, a first prompt of a framing line, the plan and its plan file path). Only
+when the start succeeds does it record the continuation in `session_continuations`, answer the plan request in the old
+session with a refusal ("This plan is being implemented in a new session.") and interrupt the old session's turn. If the
+plan was answered elsewhere during the start, the link is recorded and the refusal skipped. If the start fails nothing
+changes and the plan waits. The wire protocol is unchanged apart from the optional `freshContext`.
 
 ### A notification channel
 

@@ -13,6 +13,9 @@ The mockups, design tokens and app icon behind Hoplet's web UI. The design langu
   - `cockpit` includes deleting a session: Delete… in the actions menu (`session-menu-delete`), Delete beside Restore
     on a hovered Archived row (`archived`), and the confirmation dialog with its states (`delete`,
     `delete-worktree`, `delete-dirty`, `delete-offline`, `delete-running`, `delete-progress`, `delete-partial`).
+  - `cockpit` includes approving a plan into a fresh context: Clear context and approve… in the Approve menu
+    (`plan-fresh-menu`, `plan-fresh-confirm`) and the states after it (`plan-fresh-starting`, `plan-fresh-failed`,
+    `plan-fresh-done`, `plan-fresh-new`).
   - `action` is the page a signed action link opens and the notifications that lead to it (`os-open`, `confirm`,
     `confirm-answered`, `confirm-expired`, `confirm-used`, `confirm-webui`, `hint-blocked`).
 - `tokens.html`: every design token, with the JSON block that `check-tokens.py` compares with
