@@ -985,7 +985,12 @@ function hlMd(src) {
 /* every state is a configuration of the same parts */
 const LIVE = ['starting', 'running', 'waiting-permission', 'failed-turn', 'scrolled', 'disconnected'];
 const OFFLINE = ['offline', 'handoff-offline', 'changes-offline', 'diff-offline', 'offline-no-snapshot'];
-const HANDOFF = ['handoff', 'handoff-checking', 'handoff-path', 'handoff-busy', 'handoff-progress', 'handoff-failed', 'handoff-done', 'handoff-offline'];
+const CLONE_KEY = {
+  'handoff-clone': 'none', 'handoff-no-access': 'noaccess', 'handoff-browse': 'browse', 'handoff-browse-exists': 'bad-exists',
+  'handoff-browse-readonly': 'bad-readonly', 'handoff-browse-outside': 'bad-outside', 'handoff-cloning': 'cloning',
+  'handoff-clone-failed': 'failed', 'handoff-clone-continue': 'continue',
+};
+const HANDOFF = ['handoff', 'handoff-checking', 'handoff-clone', 'handoff-no-access', 'handoff-browse', 'handoff-browse-exists', 'handoff-browse-readonly', 'handoff-browse-outside', 'handoff-cloning', 'handoff-clone-failed', 'handoff-clone-continue', 'handoff-path', 'handoff-busy', 'handoff-progress', 'handoff-failed', 'handoff-done', 'handoff-offline'];
 const WIDE = ['file-open', 'file-image', 'file-binary', 'diff-open', 'diff-large', 'diff-wrap', 'diff-binary', 'diff-offline'];
 /* the inspector's own states: nothing to list, still reading, or nothing to read */
 const QUIET = ['changes-empty', 'files-truncated', 'workspace-loading', 'workspace-error', 'offline-no-snapshot', 'no-git'];
@@ -1429,6 +1434,82 @@ function viewer(state) {
   return `<div class="viewer">${head}<div class="vb${wrap ? ' wrap' : ''}">${body}</div></div>`;
 }
 
+/* ---- handoff to a machine without a clone: the suggested folder, the folder dialog, the clone steps ---- */
+const CLONE_BAD = { 'bad-exists': 'A folder named hoplet already exists in ~/github on studio. Pick another name or folder.', 'bad-readonly': 'studio cannot write to ~/Documents. Pick another folder.', 'bad-outside': 'That folder is outside the browse root on studio' };
+const CLONE_AUTH = 'studio cannot read github.com/yangflow/hoplet: authentication failed. Hoplet never asks for a password. Give git on studio an SSH key or a credential helper for github.com, or clone the repository there yourself and hand off again.';
+const CLONE_FULL = 'The clone stopped: no space left on studio. Nothing was left at <span class="mono">/Users/mark/github/hoplet</span>.';
+const CLONE_DEST = '/Users/mark/github/hoplet';
+const CLONE_ORIGIN = '<span class="mono">github.com/yangflow/hoplet</span>';
+
+function cloneCard(state, h) {
+  const s = CLONE_KEY[state];
+  const { hh, step, pend, pick, go, lede } = h;
+  const nt = (cls, icon, text) => `<div class="nt ${cls}">${icon}<span>${text}</span></div>`;
+  const lead = `<div class="fld"><span class="l">studio has no clone of ${CLONE_ORIGIN}.</span></div>`;
+    const suggest = `<div class="pick" title="Suggested next to the projects Hoplet already knows on studio">${I.folder()}<span class="v mono" style="font-size:var(--text-code)">~/github/hoplet</span><span class="meta">Change</span></div>`;
+  const cost = `<div class="why">${I.info()}<span>studio clones it first, about 48 MiB. MacBook Pro keeps running until the clone has finished; then the hand off starts.</span></div>`;
+  const label = (t) => `<button class="btn primary">${I.handoff()}${t}</button>`;
+  const form = `${lead}${suggest}`;
+  const cta = label('Clone and hand off to studio');
+  const clone = (kind) => kind === 'run'
+    ? `${step('', spin(), 'Clone', '19.6 / 47.8 MiB')}<div class="bar"><i style="width:41%"></i></div>`
+    : kind === 'ok' ? step('ok', I.check(), 'Clone', '47.8 MiB · 38 s')
+    : step('bad', I.x(), 'Clone', 'no-space');
+  const rest = (n) => ['Prepare', 'Transfer', 'Install', 'Verify', 'Commit'].slice(n).map((x) => step('todo', pend, x)).join('');
+  switch (s) {
+    case 'checking':
+      return `<div class="ho focus">${hh('Hand off')}${lede}${pick}<div class="why" role="status">${spin()}<span>Looking for a clone on studio</span></div>${go(true)}</div>`;
+    case 'none': case 'browse': case 'bad-exists': case 'bad-readonly': case 'bad-outside':
+      return `<div class="ho focus">${hh('Hand off')}${lede}${pick}${form}${cost}${cta}</div>`;
+    case 'noaccess':
+      return `<div class="ho focus">${hh('Hand off')}${lede}${pick}${nt('bad', I.alert(), CLONE_AUTH)}${form}${label('Try again')}</div>`;
+    case 'cloning':
+      return `<div class="ho">${hh('Handing off to studio', '1 of 6')}<div class="steps">${clone('run')}${rest(0)}</div>
+        <div class="why">${I.lock()}<span>MacBook Pro keeps running until the clone has finished. Nothing moves until commit.</span></div>
+        <button class="btn">Cancel clone</button></div>`;
+    case 'failed':
+      return `<div class="ho">${hh('Hand off failed')}<div class="steps">${clone('bad')}${rest(0)}</div>
+        ${nt('bad', I.alert(), CLONE_FULL + ' MacBook Pro still owns the session.')}${label('Try again')}</div>`;
+    case 'continue':
+      return `<div class="ho">${hh('Handing off to studio', '3 of 6')}<div class="steps">${clone('ok')}${step('ok', I.check(), 'Prepare', 'MacBook Pro · 0.8 s')}
+        ${step('', spin(), 'Transfer', '6.2 / 10.4 MiB')}<div class="bar"><i></i></div>${rest(2)}</div>
+        <div class="why">${I.lock()}<span>Nothing moves until commit. A failure leaves owner and cursor unchanged.</span></div></div>`;
+  }
+  return '';
+}
+
+function cloneModal(state) {
+  const s = CLONE_KEY[state];
+  if (!['browse', 'bad-exists', 'bad-readonly', 'bad-outside'].includes(s)) return '';
+  const HOME = '/Users/mark';
+  const dirs = {
+    '~': [['Desktop'], ['Documents'], ['Downloads'], ['github'], ['notes'], ['scratch']],
+    '~/github': [['dotfiles', 1], ['experiments'], ['hoplet'], ['repopro'], ['website', 1]],
+    '~/Documents': [['Shared'], ['Thesis']],
+  };
+  const bad = s.startsWith('bad-');
+  const path = s === 'bad-readonly' ? ['~', 'Documents'] : s === 'bad-outside' ? [] : ['~', 'github'];
+  const cur = path.join('/');
+  const row = (name, git, on) => `<div class="dir${on ? ' on' : ''}" role="option" aria-selected="${on}"><span class="di">${I.folder()}</span><span class="dt"><span class="dn2">${name}</span>${git ? '<span class="gt" title="Git repository">git</span>' : ''}</span><span class="go">${I.chev()}</span></div>`;
+  const list = (dirs[cur] || dirs['~/github']).map(([n, g]) => row(n, g, s === 'bad-exists' && n === 'hoplet')).join('');
+  const crumbs = path.map((c, i) => `<span class="ci">${i ? '<span class="sep">/</span>' : ''}<span class="crumb${i === path.length - 1 ? ' cur' : ''}">${c}</span></span>`).join('');
+  const bar = s === 'bad-outside'
+    ? `<div class="pathbar"><div class="typed" role="textbox" aria-label="Folder path">/etc<span class="cr2"></span></div></div>`
+    : `<div class="pathbar"><nav class="crumbs" aria-label="Folder path">${crumbs}</nav></div>`;
+  const machine = `<span class="l">Machine</span><div class="sel" aria-label="Machine"><span class="sl"><span class="dot"></span></span><span class="v">studio</span></div>`;
+    const browser = `<span class="l lt">Folder</span>
+      <div class="dirs${bad ? ' bad' : ' focus'}">${bar}<div class="dir-body"><div role="listbox" aria-label="Folders on studio">${list}</div></div></div>
+      <span class="l">Name</span><div class="input">hoplet</div>
+      ${bad ? `<p class="ns-err" role="alert">${CLONE_BAD[s]}</p>` : ''}`;
+  const body = machine + browser;
+  const foot = `<button class="btn">Cancel</button><button class="btn primary"${bad ? ' disabled' : ''}>Use ~/github/hoplet</button>`;
+  return `<div class="scrim"></div><div class="modal ns wide" role="dialog" aria-modal="true" aria-label="Clone into">
+    <div class="ns-h"><b>Clone into</b>${ib(I.close(), 'Close · Esc')}</div>
+    <div class="ns-g">${body}</div>
+    <div class="ns-foot">${foot}</div>
+  </div>`;
+}
+
 function inspector(state) {
   const off = OFFLINE.includes(state);
   const wide = WIDE.includes(state);
@@ -1492,6 +1573,7 @@ function inspector(state) {
   const cloneWhy = `<div class="why">${I.info()}<span>studio adds a worktree next to <span class="mono">/Users/mark/github/hoplet</span> and continues the session there. Nothing moves until it verifies the copy.</span></div>`;
   const lede = '<p>Move this session and its working tree to another machine.</p>';
   let card;
+  if (CLONE_KEY[state]) return `<aside class="insp">${head}${body}${cloneCard(state, { hh, step, pend, pick, go, lede })}</aside>`;
   switch (state) {
     case 'handoff':
       card = `<div class="ho focus">${hh('Hand off')}${lede}${pick}${go()}${cloneWhy}</div>`; break;
@@ -1500,8 +1582,8 @@ function inspector(state) {
         <div class="why" role="status">${spin()}<span>Looking for a clone on studio</span></div>${go(true)}</div>`; break;
     case 'handoff-path':
       card = `<div class="ho focus">${hh('Hand off')}${lede}${pick}
-        <div class="fld"><span class="l">studio has no clone of <span class="mono">github.com/yangflow/hoplet</span>.</span></div>
-        <div class="fld"><span class="l">Clone on studio</span><div class="input on">/Users/mark/src/hoplet</div></div>
+        <div class="fld"><span class="l">studio has no clone of <span class="mono">github.com/yangflow/hoplet</span>, and its origin cannot be cloned from there.</span></div>
+        <div class="fld"><span class="l">Path of a clone on studio</span><div class="input on">/Users/mark/src/hoplet</div></div>
         ${go()}</div>`; break;
     case 'handoff-busy':
       card = `<div class="ho focus">${hh('Hand off')}${lede}${pick}${go(true)}
@@ -1717,7 +1799,7 @@ function frame(state, scheme) {
     ${nosb ? '' : sidebar(state)}
     <main class="main">${main}</main>
     ${insp ? inspector(state) : ''}
-    ${state === 'new-session' ? newSessionModal() : state.startsWith('add-project') ? addProjectModal(state) : state === 'search' ? palette() : ''}
+    ${state === 'new-session' ? newSessionModal() : state.startsWith('add-project') ? addProjectModal(state) : state === 'search' ? palette() : CLONE_KEY[state] ? cloneModal(state) : ''}
   </div>`;
 }
 
@@ -1748,7 +1830,16 @@ const STATES = [
   ['no-git', 'a directory without a git commit'],
   ['handoff', 'Hand off open: studio has a clone of the origin'],
   ['handoff-checking', 'asking studio for a clone'],
-  ['handoff-path', 'studio has no clone: the path of one'],
+  ['handoff-clone', 'studio has no clone: a suggested folder to clone into'],
+  ['handoff-no-access', 'studio cannot read the origin: the advice, Try again'],
+  ['handoff-browse', 'Change: choosing the folder on studio'],
+  ['handoff-browse-exists', 'folder: the name already exists'],
+  ['handoff-browse-readonly', 'folder: studio cannot write there'],
+  ['handoff-browse-outside', 'folder: outside the browse root'],
+  ['handoff-cloning', 'cloning on studio, bytes counted, Cancel clone'],
+  ['handoff-clone-failed', 'the clone failed: no space, nothing left behind'],
+  ['handoff-clone-continue', 'clone done, the transfer steps continue'],
+  ['handoff-path', 'no clone and no origin to clone: the path of one'],
   ['handoff-busy', 'a turn is running: wait for its end'],
   ['handoff-progress', 'transfer under way'],
   ['handoff-failed', 'verify failed, nothing moved'],
