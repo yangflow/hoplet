@@ -1,6 +1,6 @@
 # 0023 Deleting a session and what Hoplet made for it
 
-- Status: proposed
+- Status: accepted
 - Date: 2026-10-16
 - Related: ADR 0002, ADR 0007, ADR 0012, ADR 0022, docs/api.md, docs/threat-model.md, issues #106, #115
 

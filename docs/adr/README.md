@@ -29,7 +29,7 @@ record and mark the old one "superseded by NNNN".
 | [0020](0020-queued-and-steered-messages.md) | Queued and steered messages | accepted |
 | [0021](0021-notifications-and-signed-action-links.md) | Notifications and signed action links | accepted |
 | [0022](0022-the-mac-client-is-native-appkit-with-the-agent-bundled.md) | The Mac client is native AppKit with the agent bundled | proposed |
-| [0023](0023-deleting-a-session-and-what-hoplet-made-for-it.md) | Deleting a session and what Hoplet made for it | proposed |
+| [0023](0023-deleting-a-session-and-what-hoplet-made-for-it.md) | Deleting a session and what Hoplet made for it | accepted |
 
 ## Record template
 
