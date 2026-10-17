@@ -145,6 +145,8 @@ func newEnv(t *testing.T, tune func(*runtime.Config)) *env {
 	e := &env{t: t, rec: newRecorder(), projects: t.TempDir(), files: map[string]string{}}
 	e.workdir = t.TempDir()
 	e.log = filepath.Join(t.TempDir(), "starts.jsonl")
+	// Claude Code reports its state only when asked to; the driver must ask, whatever the agent inherits.
+	t.Setenv("CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS", "")
 	t.Setenv("FAKE_CLAUDE_PROJECTS", e.projects)
 	t.Setenv("FAKE_CLAUDE_LOG", e.log)
 	cfg := runtime.Config{
@@ -235,6 +237,24 @@ func fileSize(t *testing.T, path string) int64 {
 		t.Fatal(err)
 	}
 	return st.Size()
+}
+
+func TestATurnEndsInReadyWhateverTheAgentsEnvironment(t *testing.T) {
+	for _, inherited := range []string{"", "0"} {
+		t.Run("inherited="+inherited, func(t *testing.T) {
+			e := newEnv(t, nil)
+			t.Setenv("CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS", inherited)
+			e.session("s1")
+			if err := e.m.Prompt("s1", "say hello there"); err != nil {
+				t.Fatal(err)
+			}
+			e.rec.waitFor(t, "ready after the turn", func() bool {
+				s := e.rec.states("s1")
+				return len(s) >= 3 && s[len(s)-1] == runtime.StateReady
+			})
+			e.expectStates("s1", runtime.StateStarting, runtime.StateRunning, runtime.StateReady)
+		})
+	}
 }
 
 func TestPromptRunsATurn(t *testing.T) {

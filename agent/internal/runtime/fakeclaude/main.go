@@ -84,7 +84,12 @@ func emit(v any) {
 
 func uuid() string { return fmt.Sprintf("00000000-0000-4000-8000-%012d", time.Now().UnixNano()%1e12) }
 
+// state reports the session state the way Claude Code does: only when asked to through
+// CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS=1.
 func state(s string) {
+	if os.Getenv("CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS") != "1" {
+		return
+	}
 	emit(obj{"type": "system", "subtype": "session_state_changed", "state": s, "uuid": uuid(), "session_id": session})
 }
 
