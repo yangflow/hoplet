@@ -196,6 +196,7 @@ describe('a handoff that clones first', () => {
     expect(failureText(failed('no-access'), 'studio')).toMatch(
       /^studio cannot read github.com\/yangflow\/hoplet: authentication failed\. Hoplet never asks for a password\./,
     );
+    expect(failureText(failed('no-access'), 'studio')).not.toMatch(/[{}]/);
     expect(failureText(failed('destination-taken'), 'studio')).toMatch(/Choose another folder/);
     expect(failureText(failed('timeout'), 'studio')).toMatch(/took too long/);
     expect(failureText(failed('cancelled'), 'studio')).toMatch(/was cancelled/);

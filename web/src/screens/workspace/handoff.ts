@@ -204,7 +204,8 @@ export function failureCode(run: HandoffRun): string {
 /** What a failed handoff says: why, in words, and that nothing moved. */
 export function failureText(run: HandoffRun, target: string): string {
   const owner = run.ownerName;
-  const named = (text: string) => t(text).replace('{target}', target).replace('{owner}', owner);
+  const named = (text: string) =>
+    t(text).replaceAll('{target}', target).replaceAll('{owner}', owner);
   const code = run.error?.code ?? run.reason;
   const reason = run.error?.reason ?? run.reason;
   if (run.failedStep === 'clone' || code === 'clone-failed')
@@ -230,10 +231,10 @@ function cloneFailureText(run: HandoffRun, target: string, reason: string | unde
   const into = run.clone?.into;
   const named = (text: string) =>
     t(text)
-      .replace('{target}', target)
-      .replace('{origin}', run.clone?.origin ?? t('the repository'))
-      .replace('{host}', run.clone?.origin?.split('/')[0] ?? t('the remote'))
-      .replace('{path}', into ?? '');
+      .replaceAll('{target}', target)
+      .replaceAll('{origin}', run.clone?.origin ?? t('the repository'))
+      .replaceAll('{host}', run.clone?.origin?.split('/')[0] ?? t('the remote'))
+      .replaceAll('{path}', into ?? '');
   const left = into ? ` ${named('Nothing was left at {path}.')}` : '';
   switch (reason) {
     case 'no-access':
