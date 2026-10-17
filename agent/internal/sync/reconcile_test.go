@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"io"
 	"log"
 	"net/http"
@@ -315,5 +316,24 @@ func TestLateRejectionCannotSuppressNewOwnership(t *testing.T) {
 			cs.replies <- reply{kind: replyAck, sessionID: "s1", byteSize: int64(len(src.data))}
 			<-retry
 		})
+	}
+}
+
+func TestRejectionNamesADeletedSession(t *testing.T) {
+	if !errors.Is(rejection(ReasonDeleted), errDeleted) || !errors.Is(rejection(ReasonDeleted), errRejected) {
+		t.Fatal("a deleted session is a rejection of its own kind")
+	}
+	if errors.Is(rejection("owned-elsewhere"), errDeleted) {
+		t.Fatal("another reason is not a deletion")
+	}
+	var logs bytes.Buffer
+	previous := log.Writer()
+	log.SetOutput(&logs)
+	defer log.SetOutput(previous)
+	logRejected("0b7e1c52-aaaa", rejection(ReasonDeleted))
+	logRejected("0b7e1c52-aaaa", rejection("owned-elsewhere"))
+	out := logs.String()
+	if !strings.Contains(out, "deleted in Hoplet; not syncing") || !strings.Contains(out, "belongs to another device") {
+		t.Fatalf("log %q", out)
 	}
 }

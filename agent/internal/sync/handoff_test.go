@@ -92,7 +92,7 @@ func TestTheChunkThatInstallsIsAnsweredInstalled(t *testing.T) {
 			if !m.Last {
 				return nil, nil
 			}
-			return &HandoffWorktree{Worktree: "/p-s1", Branch: "hoplet/s1"}, nil
+			return &HandoffWorktree{Clone: "/p", Worktree: "/p-s1", Branch: "hoplet/s1"}, nil
 		},
 		Verify: func(_ context.Context, session, handoff string) (HandoffVerification, error) {
 			return HandoffVerification{SessionBytes: 7, SessionSHA256: "abc", TreeHash: "def"}, nil

@@ -16,6 +16,8 @@ export type MenuCommand = {
   label: string;
   icon?: ReactNode;
   shortcut?: string;
+  /** A destructive command: drawn in the danger colour. */
+  danger?: boolean;
   onSelect: () => void;
 };
 /** A command that opens a list of commands to its side. */
@@ -55,6 +57,8 @@ export function Menu(props: {
   keyboard?: boolean;
   /** Starts with this submenu open (development fixtures). */
   initialSub?: string;
+  /** Starts with this item focused (development fixtures). */
+  initialItem?: string;
   'data-testid'?: string;
 }) {
   const { entries, onClose, at } = props;
@@ -67,12 +71,15 @@ export function Menu(props: {
 
   useEffect(() => {
     const root = rootRef.current;
-    root?.querySelector<HTMLElement>(ITEM)?.focus();
+    const item = props.initialItem
+      ? root?.querySelector<HTMLElement>(`[data-testid="menu.${props.initialItem}"]`)
+      : null;
+    (item ?? root?.querySelector<HTMLElement>(ITEM))?.focus();
     const open = props.initialSub
       ? root?.querySelector<HTMLElement>(`[data-submenu="${props.initialSub}"]`)
       : null;
     if (open && props.initialSub) setSub({ id: props.initialSub, top: open.offsetTop });
-  }, [props.initialSub]);
+  }, [props.initialSub, props.initialItem]);
 
   useEffect(() => {
     const onDown = (e: PointerEvent) => {
@@ -172,7 +179,7 @@ export function Menu(props: {
               key={entry.id}
               type="button"
               role="menuitem"
-              className="menu-item"
+              className={`menu-item${entry.danger ? ' danger' : ''}`}
               tabIndex={-1}
               onMouseEnter={() => setSub(null)}
               onClick={() => choose(entry)}

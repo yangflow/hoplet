@@ -24,6 +24,7 @@ export function receiveReply(
     pendingInstalled,
     pendingVerified,
     pendingDeviceControl,
+    pendingSession,
     pendingDirs,
     pendingClone,
     pendingStart,
@@ -88,7 +89,7 @@ export function receiveReply(
       if (matchesWaiter(pendingInstalled, msg.handoffId, link, msg.sessionId)) {
         settleWaiter(pendingInstalled, msg.handoffId, {
           ok: true,
-          value: { worktree: msg.worktree, branch: msg.branch },
+          value: { worktree: msg.worktree, branch: msg.branch, clone: msg.clone },
         });
       }
       return;
@@ -132,6 +133,22 @@ export function receiveReply(
         error: 'rejected',
         reason: msg.reason,
       });
+      return;
+    case 'device.session.inspected':
+    case 'device.session.deleted':
+    case 'device.session.forgotten':
+      if (pendingSession.get(msg.requestId)?.link === link) {
+        settleWaiter(pendingSession, msg.requestId, { ok: true, reply: msg });
+      }
+      return;
+    case 'device.session.rejected':
+      if (pendingSession.get(msg.requestId)?.link === link) {
+        settleWaiter(pendingSession, msg.requestId, {
+          ok: false,
+          error: 'rejected',
+          reason: msg.reason,
+        });
+      }
       return;
     case 'device.dirs':
       settleWaiter(pendingDirs, msg.requestId, {

@@ -25,10 +25,12 @@ describe('the route table', () => {
     expect(match('/api/sessions/s1')).toEqual([
       '/api/sessions/:sessionId',
       '/api/sessions/:sessionId',
+      '/api/sessions/:sessionId',
     ]);
     expect(routes.filter((r) => r.pattern.test('/api/sessions/s1')).map((r) => r.method)).toEqual([
       'GET',
       'PATCH',
+      'DELETE',
     ]);
     expect(
       routes.filter((r) => r.pattern.test('/api/sessions/s1/queue/q1')).map((r) => r.method),

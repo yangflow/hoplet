@@ -109,4 +109,20 @@ type Hooks struct {
 	// SessionsImport / SessionsRemove match hoplet-agent sessions import|remove.
 	SessionsImport func(ctx context.Context, path string, sessionIDs []string) (candidates []string, projects []DeviceProject, err error)
 	SessionsRemove func(ctx context.Context, path string, sessionIDs []string) (candidates []string, projects []DeviceProject, err error)
+
+	// SessionInspect finds what deleting the session would remove on this device (ADR 0023); an error becomes
+	// device.session.rejected with its text as the reason.
+	SessionInspect func(ctx context.Context, sessionID string) (SessionInspection, error)
+	// SessionDelete runs the steps of a deletion in order and reports each; the client stops syncing the
+	// session itself before it calls this. worktreeDirty says the user ticked a worktree that had uncommitted
+	// changes; without it the worktree step fails with reason dirty when the worktree is dirty.
+	SessionDelete func(ctx context.Context, sessionID string, vendorFile, worktree, worktreeDirty bool) []DeletionStep
+	// SessionForget removes the session from every project's imports.
+	SessionForget func(ctx context.Context, sessionID string) error
+}
+
+// SessionInspection is the content of device.session.inspected.
+type SessionInspection struct {
+	VendorFile *DeletionFile
+	Worktree   *DeletionWorktree
 }

@@ -39,6 +39,16 @@ export function handleMessage(deps: MessageDeps, conn: Conn, msg: ClientMessage)
         sendError(conn, 'hello-first', 'send device.hello first');
         return;
       }
+      // A deleted session is not recreated by a sync (ADR 0023).
+      if (store.isTombstoned(msg.sessionId)) {
+        send(conn, {
+          v: PROTOCOL_VERSION,
+          type: 'session.rejected',
+          sessionId: msg.sessionId,
+          reason: 'deleted',
+        });
+        return;
+      }
       try {
         const session = store.getSession(msg.sessionId);
         if (session?.ownerDeviceId && session.ownerDeviceId !== conn.deviceId) {

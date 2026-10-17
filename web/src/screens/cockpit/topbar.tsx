@@ -20,6 +20,7 @@ export function TopBar(props: {
   /** Starts with the actions menu open (development fixtures). */
   menuOpen?: boolean;
   menuSub?: string;
+  menuItem?: string;
   onShowSidebar: () => void;
   onToggleInspector: () => void;
 }) {
@@ -64,8 +65,9 @@ export function TopBar(props: {
               label={t('Session actions')}
               entries={props.actions}
               className="mn-top"
-              keyboard={byKey}
+              keyboard={byKey || !!props.menuItem}
               {...(props.menuSub ? { initialSub: props.menuSub } : {})}
+              {...(props.menuItem ? { initialItem: props.menuItem } : {})}
               onClose={(restore) => {
                 setMenu(false);
                 if (restore) moreRef.current?.querySelector('button')?.focus();

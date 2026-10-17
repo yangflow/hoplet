@@ -56,6 +56,7 @@ paper, one hoplet orange. Dark is authored first; light is derived. Contrast fol
 | `--color-attention-text` | `#f0c142` | `#8f6200` | attention as text |
 | `--color-success` | `#4cc38a` | `#1d8550` | online presence, done |
 | `--color-danger` | `#ff7366` | `#c3352a` | failed, disconnected |
+| `--color-on-danger` | `#1c0d02` | `#ffffff` | text on a danger-filled button |
 | `--color-add-text` | `#86dcae` | `#156b3d` | added diff lines |
 | `--color-del-text` | `#ffa49b` | `#a82a1f` | deleted diff lines |
 | `--color-git-modified` | `#d9b77e` | `#86621c` | workspace tree: modified |
@@ -175,7 +176,7 @@ One family, Lucide (ISC), bundled and never fetched: every glyph on a 24-unit gr
 `--icon-stroke` 1.5, round caps and joins, centred on the line of the text beside it. The set is closed:
 search, panel-left, panel-right, square-pen, plus, chevron-right, arrow-up, arrow-up-right,
 arrow-right-left, file, folder, folder-open, book-open, pencil, file-plus, terminal, plug, globe, lightbulb, image,
-layers, eye, square, git-branch, zap, lock, paperclip, mic, hand, clock, x, check, circle-alert, shield, shield-alert, file-pen, list-checks, sparkles, info, rotate-cw, copy,
+layers, eye, square, git-branch, zap, lock, paperclip, mic, hand, clock, x, check, circle-alert, circle-dashed, minus, shield, shield-alert, file-pen, list-checks, sparkles, info, rotate-cw, copy,
 settings, laptop, contrast, ellipsis, text-wrap, loader-circle, pin, pin-off, archive, archive-restore, grip-vertical, trash-2, corner-down-right, arrow-right-to-line, play, bell, bell-off, moon, send, webhook; turned glyphs (a chevron, an arrow) cover the other directions.
 File-type badges (TypeScript, Markdown, JSON, image, text, other) use the same page and stroke with a tint.
 Provider marks (the Claude mark for Claude Code) are drawn monochrome in the dim text colour, never in brand

@@ -64,6 +64,14 @@ const subject: Record<string, Record<string, string>> = {
     'session-actions': 'cockpit.actions-menu',
     'session-actions-copy': 'menu.copy-id',
     'rename-dialog': 'cockpit.rename',
+    'session-menu-delete': 'menu.delete',
+    delete: 'cockpit.delete-dialog',
+    'delete-worktree': 'cockpit.delete-opt-worktree',
+    'delete-dirty': 'cockpit.delete-opt-worktree',
+    'delete-offline': 'cockpit.delete-offline',
+    'delete-running': 'cockpit.delete-running',
+    'delete-progress': 'cockpit.delete-steps',
+    'delete-partial': 'cockpit.delete-retry',
     pinned: 'cockpit.pinned',
     'pinned-flat': 'cockpit.pinned',
     archived: 'cockpit.archived-page',
@@ -134,8 +142,8 @@ const subject: Record<string, Record<string, string>> = {
   },
 };
 
-test('the registries list 64 cockpit, 26 workspace, 13 settings and 7 action states', () => {
-  expect(screens.cockpit).toHaveLength(64);
+test('the registries list 72 cockpit, 26 workspace, 13 settings and 7 action states', () => {
+  expect(screens.cockpit).toHaveLength(72);
   expect(screens.workspace).toHaveLength(26);
   expect(screens.settings).toHaveLength(13);
   expect(screens.action).toHaveLength(7);

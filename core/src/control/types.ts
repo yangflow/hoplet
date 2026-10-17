@@ -2,9 +2,15 @@ import type {
   ClientMessage,
   Command,
   ConfigSetting,
+  DeleteSessionRequest,
+  DeletionPreview,
+  DeletionStep,
   DeviceDirsResult,
   DeviceInfo,
   DeviceProject,
+  DeviceSessionDeleted,
+  DeviceSessionForgotten,
+  DeviceSessionInspected,
   PermissionDecision,
   PromptImage,
   Provider,
@@ -178,6 +184,8 @@ export interface PreparedInfo {
 export interface InstalledInfo {
   worktree: string;
   branch: string;
+  /** The clone the worktree belongs to, on the target. */
+  clone: string;
 }
 
 /** What the target reports about its copy. */
@@ -191,6 +199,30 @@ export interface VerifiedInfo {
 export type DeviceControlOutcome =
   | { ok: true; candidates: string[]; projects: DeviceProject[] }
   | { ok: false; error: 'owner-offline' | 'timeout' | 'rejected'; reason?: string };
+
+/** What the owner agent answered to a device.session.* request. */
+export type SessionDeviceOutcome =
+  | { ok: true; reply: DeviceSessionInspected | DeviceSessionDeleted | DeviceSessionForgotten }
+  | { ok: false; error: 'owner-offline' | 'timeout' | 'rejected'; reason?: string };
+
+/** Outcome of the preview of a deletion. */
+export type DeletionPreviewOutcome =
+  | { ok: true; preview: DeletionPreview }
+  | {
+      ok: false;
+      error: 'session-not-found' | 'owner-offline' | 'timeout' | 'rejected';
+      reason?: string;
+    };
+
+/** Outcome of a deletion; `delete-partial` carries the steps that ran, and the core copy is kept. */
+export type DeleteSessionOutcome =
+  | { ok: true; steps: DeletionStep[] }
+  | {
+      ok: false;
+      error: 'session-not-found' | 'session-running' | 'owner-offline' | 'timeout' | 'rejected';
+      reason?: string;
+    }
+  | { ok: false; error: 'delete-partial'; steps: DeletionStep[] };
 
 /** Outcome of a device.dirs.list round-trip. */
 export type DirsOutcome =
@@ -367,6 +399,10 @@ export interface Control {
     path: string,
     sessionIds: string[],
   ): Promise<DeviceControlOutcome>;
+  /** What deleting the session would remove: asks the owner agent when it is online (ADR 0023). */
+  deletionPreview(sessionId: string): Promise<DeletionPreviewOutcome>;
+  /** Deletes the session: the core copy always, the vendor file and the worktree when asked for. */
+  deleteSession(sessionId: string, request: DeleteSessionRequest): Promise<DeleteSessionOutcome>;
 }
 
 /** What agent ingestion tells control: which device is on which link, and the answers it relays. */

@@ -86,6 +86,20 @@ export default function App() {
     writeSessionUrl(id, 'push');
   }, []);
 
+  // A deleted session leaves every list; an open tab of it goes back to the empty state.
+  const selectedNow = useRef(selected);
+  selectedNow.current = selected;
+  const dropSession = useCallback((sessionId: string) => {
+    setSessions((cur) => cur.filter((s) => s.sessionId !== sessionId));
+    setRuntime(({ [sessionId]: _gone, ...rest }) => rest);
+    socketRuntime.current.delete(sessionId);
+    if (selectedNow.current === sessionId) {
+      selectedNow.current = null;
+      setSelectedState(null);
+      writeSessionUrl(null, 'replace');
+    }
+  }, []);
+
   useEffect(() => {
     const onPop = () => {
       setSelectedState(sessionInUrl());
@@ -246,6 +260,8 @@ export default function App() {
               };
             }),
           );
+        } else if (msg.type === 'session.deleted') {
+          dropSession(msg.sessionId);
         } else if (msg.type === 'session.appended' || msg.type === 'device.presence') {
           refreshSoon();
         } else if (msg.type === 'handoff.progress' && msg.step === 'done') {
@@ -277,7 +293,7 @@ export default function App() {
       setLiveSender(null);
       ws?.close();
     };
-  }, [token, refreshSessions, refreshSoon]);
+  }, [token, refreshSessions, refreshSoon, dropSession]);
 
   const create = useCallback(
     async (request: NewSessionRequest) => {
@@ -333,6 +349,7 @@ export default function App() {
           onSettings={() => openSettings()}
           onNotifySettings={() => openSettings('notifications')}
           onPatchSession={patch}
+          onSessionDeleted={dropSession}
           sessions={sessions}
           selected={selected}
           onSelect={select}

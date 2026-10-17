@@ -111,15 +111,30 @@ func fetchOrigin(ctx context.Context, clone string) {
 // RemoveWorktree removes a worktree a snapshot restore created and its branch. Callers pass only paths
 // they created themselves.
 func RemoveWorktree(ctx context.Context, clone, worktree, branch string) {
+	RemoveWorktreeKeepBranch(ctx, clone, worktree)
+	DeleteBranch(ctx, clone, branch)
+}
+
+// RemoveWorktreeKeepBranch removes the worktree and its registration and leaves the branch.
+func RemoveWorktreeKeepBranch(ctx context.Context, clone, worktree string) {
 	if _, err := os.Lstat(worktree); err == nil {
 		if _, err := git(ctx, clone, "worktree", "remove", "--force", "--force", worktree); err != nil {
 			_ = os.RemoveAll(worktree)
 		}
 	}
 	_, _ = git(ctx, clone, "worktree", "prune")
-	if gitCommand(ctx, clone, "show-ref", "--verify", "--quiet", "refs/heads/"+branch).Run() == nil {
+}
+
+// DeleteBranch deletes a local branch, merged or not; a branch that does not exist is deleted already.
+func DeleteBranch(ctx context.Context, clone, branch string) {
+	if BranchExists(ctx, clone, branch) {
 		_, _ = git(ctx, clone, "branch", "-D", "--quiet", branch)
 	}
+}
+
+// BranchExists reports whether the clone has the local branch.
+func BranchExists(ctx context.Context, clone, branch string) bool {
+	return gitCommand(ctx, clone, "show-ref", "--verify", "--quiet", "refs/heads/"+branch).Run() == nil
 }
 
 // Stage makes a private directory for the staged parts of an archive under dir.

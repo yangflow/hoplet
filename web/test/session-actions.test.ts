@@ -109,7 +109,12 @@ afterEach(async () => {
 
 describe('sessionMenu', () => {
   const actions = () =>
-    ({ patch: vi.fn(async () => {}), rename: vi.fn(), say: vi.fn() }) satisfies SessionActions;
+    ({
+      patch: vi.fn(async () => {}),
+      rename: vi.fn(),
+      remove: vi.fn(),
+      say: vi.fn(),
+    }) satisfies SessionActions;
   const find = (entries: MenuEntry[], id: string) => {
     for (const e of entries) {
       if (e.id === id) return e;
@@ -128,7 +133,27 @@ describe('sessionMenu', () => {
 
   it('lists the groups of the design in order', () => {
     const ids = sessionMenu(meta('a'), actions()).map((e) => e.id);
-    expect(ids).toEqual(['rename', 'pin', 'sep-1', 'copy', 'open', 'sep-2', 'archive']);
+    expect(ids).toEqual([
+      'rename',
+      'pin',
+      'sep-1',
+      'copy',
+      'open',
+      'sep-2',
+      'archive',
+      'sep-3',
+      'delete',
+    ]);
+  });
+
+  it('ends with a danger Delete entry that asks to remove the session', async () => {
+    const a = actions();
+    const s = meta('a');
+    const entries = sessionMenu(s, a);
+    const del = find(entries, 'delete');
+    expect(del.kind === 'item' && del.danger).toBe(true);
+    await run(entries, 'delete');
+    expect(a.remove).toHaveBeenCalledWith(s);
   });
 
   it('pins and archives, or undoes it, by the state of the session', async () => {

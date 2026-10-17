@@ -1,4 +1,4 @@
-import type { HttpErrorCode } from '@hoplet/shared';
+import type { DeletionStep, HttpErrorCode } from '@hoplet/shared';
 import { t } from './i18n.ts';
 
 /** A non-2xx REST response. `code` is null when the body was not a Hoplet error response. */
@@ -6,12 +6,15 @@ export class ApiError extends Error {
   readonly status: number;
   readonly code: HttpErrorCode | null;
   readonly reason: string | undefined;
+  /** The steps of a deletion that failed half way (`delete-partial`). */
+  readonly steps: DeletionStep[] | undefined;
 
-  constructor(status: number, code: HttpErrorCode | null, reason?: string) {
+  constructor(status: number, code: HttpErrorCode | null, reason?: string, steps?: DeletionStep[]) {
     super(code ?? `HTTP ${status}`);
     this.status = status;
     this.code = code;
     this.reason = reason;
+    this.steps = steps;
   }
 }
 
@@ -50,6 +53,8 @@ export const ERROR_COPY: Record<HttpErrorCode, string> = {
     'The owner is offline and no workspace snapshot was stored. Hand off once it has finished a turn.',
   'session-changed': 'The session changed during the hand-off. Nothing was moved; try again.',
   'verify-failed': "The other machine's copy did not match. Nothing was moved.",
+  'session-running': 'Stop the session before deleting it.',
+  'delete-partial': 'Some steps failed. Nothing more was removed; delete again to continue.',
   rejected: 'The machine refused the request.',
   timeout: 'The machine did not answer in time.',
   internal: 'Something went wrong on the server.',

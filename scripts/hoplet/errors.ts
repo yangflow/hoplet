@@ -31,6 +31,8 @@ export const ERROR_COPY: Record<HttpErrorCode, string> = {
     'The owner is offline and no workspace snapshot was stored. Hand off once it has finished a turn.',
   'session-changed': 'The session changed during the hand-off. Nothing was moved; try again.',
   'verify-failed': "The other machine's copy did not match. Nothing was moved.",
+  'session-running': 'The session is running. Stop it first.',
+  'delete-partial': 'The session was only partly deleted. Run the delete again to finish it.',
   rejected: 'The machine refused the request.',
   timeout: 'The machine did not answer in time.',
   internal: 'Something went wrong on the server.',

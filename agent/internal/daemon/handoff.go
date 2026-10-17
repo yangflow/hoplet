@@ -246,7 +246,7 @@ func (h *handoffs) data(ctx context.Context, m sync.HandoffData) (*sync.HandoffW
 		h.release(m.SessionID)
 		return nil, err
 	}
-	return &sync.HandoffWorktree{Worktree: installed.Record.Worktree, Branch: installed.Record.Branch}, nil
+	return &sync.HandoffWorktree{Clone: installed.Record.Clone, Worktree: installed.Record.Worktree, Branch: installed.Record.Branch}, nil
 }
 
 func (h *handoffs) verify(ctx context.Context, _, handoffID string) (sync.HandoffVerification, error) {

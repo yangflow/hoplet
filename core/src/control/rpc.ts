@@ -217,14 +217,25 @@ export function createRpc(state: ControlState): Rpc {
         path,
       }));
     },
-    importSessions(deviceId, path, sessionIds) {
-      return askDevice(deviceId, (requestId) => ({
+    async importSessions(deviceId, path, sessionIds) {
+      // An import asks for the sessions back (ADR 0023): their tombstones go before the agent starts syncing.
+      const lifted = sessionIds.flatMap((id) => {
+        const tombstone = state.store.tombstoneOf(id);
+        if (!tombstone) return [];
+        state.store.clearTombstone(id);
+        return [tombstone];
+      });
+      const outcome = await askDevice(deviceId, (requestId) => ({
         v: PROTOCOL_VERSION,
         type: 'device.sessions.import',
         requestId,
         path,
         sessionIds,
       }));
+      if (!outcome.ok) {
+        for (const t of lifted) state.store.tombstone(t.sessionId, t.deviceId, t.deletedAt);
+      }
+      return outcome;
     },
     removeSessions(deviceId, path, sessionIds) {
       return askDevice(deviceId, (requestId) => ({
