@@ -377,6 +377,8 @@ export interface Control {
   runtimeOf(sessionId: string): RuntimeView;
   /** The vendor of a session, also of one an agent just started; `null` for an unknown session. */
   providerOf(sessionId: string): Provider | null;
+  /** The owner device of a session, also of one an agent just started; `null` for an unknown session. */
+  ownerOf(sessionId: string): string | null;
   /** The commands and skills the session's owner last reported, or null when it reported none. */
   commandsOf(sessionId: string): Command[] | null;
   /** The permission requests of a session that wait for an answer. */

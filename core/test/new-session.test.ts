@@ -342,12 +342,21 @@ describe('POST /api/sessions', () => {
       error: 'x',
       capabilities: CAPS,
     });
+    const caps = { ...CAPS, steer: true };
     owner.send({ type: 'runtime.started', requestId: start.requestId, sessionId: NEW_ID });
-    owner.send({ type: 'runtime.state', sessionId: NEW_ID, state: 'running', capabilities: CAPS });
+    owner.send({ type: 'runtime.state', sessionId: NEW_ID, state: 'running', capabilities: caps });
     await pending;
     await new Promise((r) => setTimeout(r, 100));
-    expect(control.runtimeOf(NEW_ID)).toEqual({ state: 'running', capabilities: CAPS });
+    expect(control.runtimeOf(NEW_ID)).toEqual({ state: 'running', capabilities: caps });
     expect((await get(`/api/sessions/${NEW_ID}`)).status).toBe(404);
+
+    // Its first turn takes a steer, and the steer goes to the device that started it.
+    const steered = post(`/api/sessions/${NEW_ID}/steer`, { steerId: 'x1', text: 'also this' });
+    const steer = await owner.waitFor((m) => m.type === 'runtime.steer', 'runtime.steer');
+    expect(steer).toMatchObject({ sessionId: NEW_ID, steerId: 'x1', text: 'also this' });
+    expect(other.ofType('runtime.steer')).toEqual([]);
+    owner.send({ type: 'runtime.steered', sessionId: NEW_ID, steerId: 'x1' });
+    expect((await steered).status).toBe(202);
   });
 
   it('ignores runtime messages of a device that did not start the session', async () => {
