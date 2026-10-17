@@ -29,6 +29,7 @@ import {
   DeviceSessionsImportRequestSchema,
   DeviceSessionsRemoveRequestSchema,
   type Entry,
+  FreshPermissionRequestSchema,
   FullBlockSchema,
   GlobalSearchQuerySchema,
   GlobalSearchResultSchema,
@@ -635,6 +636,30 @@ export const routes: readonly Route[] = [
       );
       if (outcome.ok) return { ok: true };
       throw new ApiError(outcome.error);
+    },
+  }),
+  defineRoute({
+    method: 'POST',
+    path: '/api/sessions/:sessionId/permission/fresh',
+    auth: 'host',
+    lane: 'control',
+    bodyLimit: 4096,
+    body: FreshPermissionRequestSchema,
+    response: NewSessionResultSchema,
+    handler: async (d) => {
+      const outcome = await d.control.approvePlanFresh({
+        sessionId: d.params.sessionId ?? '',
+        requestId: d.body.requestId,
+        mode: d.body.mode,
+        promptId: d.body.promptId,
+      });
+      if (outcome.ok) {
+        return { ok: true, sessionId: outcome.sessionId, promptId: outcome.promptId };
+      }
+      throw new ApiError(outcome.error, {
+        promptId: outcome.promptId,
+        ...(outcome.reason !== undefined ? { reason: outcome.reason } : {}),
+      });
     },
   }),
   defineRoute({

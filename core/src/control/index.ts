@@ -6,6 +6,7 @@ import { log } from '../log/index.ts';
 import type { Store } from '../store/index.ts';
 import { createBulkQueue } from './bulk.ts';
 import { createDeletion } from './deletion.ts';
+import { createFresh } from './fresh.ts';
 import { createHandoff } from './handoff.ts';
 import { createQueue } from './queue.ts';
 import { receiveReply } from './replies.ts';
@@ -26,6 +27,8 @@ export type {
   DeletionPreviewOutcome,
   DeviceControlOutcome,
   DeviceLink,
+  FreshOutcome,
+  FreshRequest,
   HandoffOutcome,
   HandoffRequest,
   PermissionOutcome,
@@ -141,8 +144,9 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
   const handoff = createHandoff(state, rpc.workspace);
   const deletion = createDeletion(state, runtime.runtimeOf);
   const start = createStart(state, rpc.listProjects);
+  const fresh = createFresh(state, () => control);
 
-  return {
+  const control: Control & AgentControl = {
     bulk,
     viewing,
     onEvent(listener) {
@@ -250,6 +254,7 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
     deletionPreview: deletion.deletionPreview,
     deleteSession: deletion.deleteSession,
     startSession: start.startSession,
+    approvePlanFresh: fresh.approvePlanFresh,
     cancelHandoff: handoff.cancel,
     async handoff(request) {
       const outcome = await handoff.handoff(request);
@@ -265,4 +270,5 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
       return outcome;
     },
   };
+  return control;
 }
