@@ -368,6 +368,8 @@ describe('remote control against a scripted Claude Code', () => {
     expect((await client.prompt(SESSION, 'say before the terminal')).ok).toBe(true);
     await browser.state('ready');
     await synced();
+    // Lines the process writes in the seconds after a turn result are its own (the agent's 5 s grace).
+    await new Promise((r) => setTimeout(r, 5_500));
     const mark = browser.mark();
     appendFileSync(
       native,

@@ -94,6 +94,7 @@ type Config struct {
 	KillAfter         time.Duration // kill a process that did not exit this long after its input closed; default 10 s
 	ExternalQuiet     time.Duration // refuse prompts until the session file has not grown this long; default 60 s
 	StartTimeout      time.Duration // a process that is not ready after this long is killed; default 60 s
+	OwnGrace          time.Duration // growth this long after a turn result is the process's own; default 5 s
 }
 
 // Manager owns the processes of one agent: one per controlled session.
@@ -153,8 +154,12 @@ type session struct {
 	// haveRecorded. In StateExternal, lastSize and lastGrowth track the foreign writer.
 	recorded     int64
 	haveRecorded bool
-	lastSize     int64
-	lastGrowth   time.Time
+	// ownUntil ends the grace after a turn result in which the process still writes its trailing lines (title,
+	// cost): growth until then is its own, and ownSeq tells the timer that settles it which grace it belongs to.
+	ownUntil   time.Time
+	ownSeq     int
+	lastSize   int64
+	lastGrowth time.Time
 }
 
 func NewManager(cfg Config) *Manager {
@@ -172,6 +177,9 @@ func NewManager(cfg Config) *Manager {
 	}
 	if cfg.StartTimeout <= 0 {
 		cfg.StartTimeout = 60 * time.Second
+	}
+	if cfg.OwnGrace <= 0 {
+		cfg.OwnGrace = 5 * time.Second
 	}
 	if cfg.MaxIdle < 0 {
 		cfg.MaxIdle = 0
@@ -383,8 +391,31 @@ func (m *Manager) observe(s *session, size int64) {
 		return
 	}
 	if size > s.recorded {
+		if now.Before(s.ownUntil) {
+			return // settled by the timer of the grace
+		}
 		m.markExternal(s, size, now)
 	}
+}
+
+// grace opens the window after a turn result in which growth is the process's own: Claude Code appends lines
+// such as the title and the cost after the result. When it ends, the file's size is recorded, so a scan never
+// sees those lines as a foreign write; a write by another process after it is still detected.
+func (m *Manager) grace(s *session) {
+	s.ownSeq++
+	seq := s.ownSeq
+	s.ownUntil = time.Now().Add(m.cfg.OwnGrace)
+	time.AfterFunc(m.cfg.OwnGrace, func() {
+		m.mu.Lock()
+		defer m.mu.Unlock()
+		if s.ownSeq != seq || m.closed {
+			return
+		}
+		switch s.state {
+		case StateIdle, StateReady, StateFailed:
+			m.record(s)
+		}
+	})
 }
 
 func (m *Manager) markExternal(s *session, size int64, now time.Time) {
@@ -845,6 +876,7 @@ func (m *Manager) handle(s *session, ev ProcessEvent) {
 		m.dropPermission(s, ev.RequestID)
 	case TurnResult:
 		m.record(s)
+		m.grace(s)
 		m.clearPermissions(s)
 		if ev.Failed && !s.interrupted {
 			s.turnErr = ev.Error

@@ -30,7 +30,9 @@
 // <session>.jsonl, one level deep), FAKE_CLAUDE_LOG (file receiving one JSON line per start with the
 // arguments), FAKE_CLAUDE_INIT_DELAY_MS, FAKE_CLAUDE_EXIT_ON_START (exit 4 before answering initialize),
 // FAKE_CLAUDE_COMMANDS (set: initialize lists commands and skills, and the init message names the skills),
-// FAKE_CLAUDE_IGNORE_STDIN_CLOSE (keep running after stdin closes, to exercise the kill fallback).
+// FAKE_CLAUDE_IGNORE_STDIN_CLOSE (keep running after stdin closes, to exercise the kill fallback),
+// FAKE_CLAUDE_TRAILING_MS (append a metadata line this many milliseconds after each result, as Claude Code
+// writes its title and cost lines), FAKE_CLAUDE_EXIT_LINE (append a metadata line when stdin closes, before exiting).
 package main
 
 import (
@@ -341,6 +343,9 @@ func main() {
 			if os.Getenv("FAKE_CLAUDE_IGNORE_STDIN_CLOSE") != "" {
 				time.Sleep(time.Hour)
 			}
+			if os.Getenv("FAKE_CLAUDE_EXIT_LINE") != "" {
+				appendLines(obj{"type": "cost-state", "sessionId": session})
+			}
 			return
 		}
 	}
@@ -433,6 +438,12 @@ func initialCommands() []obj {
 func result(subtype string, isErr bool, terminal, text string) {
 	emit(obj{"type": "result", "subtype": subtype, "is_error": isErr, "terminal_reason": terminal, "result": text, "session_id": session, "permission_denials": []any{}})
 	state("idle")
+	if ms, _ := strconv.Atoi(os.Getenv("FAKE_CLAUDE_TRAILING_MS")); ms > 0 {
+		go func() {
+			time.Sleep(time.Duration(ms) * time.Millisecond)
+			appendLines(obj{"type": "ai-title", "sessionId": session, "aiTitle": "A title"})
+		}()
+	}
 }
 
 func runTurn(t *turn, prompt string) {
