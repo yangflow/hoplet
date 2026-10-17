@@ -1,5 +1,6 @@
-import type { SnapshotChanges } from '@hoplet/shared';
+import type { DeviceCloneOffer, SnapshotChanges } from '@hoplet/shared';
 import type { ReactNode } from 'react';
+import { useState } from 'react';
 import { Button } from '../../components/Button.tsx';
 import { IconButton } from '../../components/IconButton.tsx';
 import { Icon, Spinner } from '../../components/icons.tsx';
@@ -7,19 +8,23 @@ import { Select } from '../../components/Select.tsx';
 import { TextField } from '../../components/TextField.tsx';
 import { t } from '../../lib/i18n.ts';
 import { clock, formatBytes } from '../cockpit/conversation/format.ts';
+import { CloneInto, destinationText } from './clone-into.tsx';
 import {
+  CLONE_NO_ACCESS,
   failureCode,
+  failureDetail,
   failureText,
   type Handoff,
   type HandoffRun,
   originLabel,
-  STEPS,
   type Step,
+  stepsOf,
 } from './handoff.ts';
 import { formatCount } from './model.ts';
 
 const stepLabel = (step: Step) =>
   ({
+    clone: t('Clone'),
     prepare: t('Prepare'),
     transfer: t('Transfer'),
     install: t('Install'),
@@ -56,6 +61,7 @@ export function HandoffPanel(props: {
   onClose: () => void;
 }) {
   const { handoff, owner } = props;
+  const [choosing, setChoosing] = useState(handoff.dialogFixture !== undefined);
   const nameOf = (id: string) => handoff.deviceName(id) || t('the other machine');
   const run = handoff.run;
   if (run) return <RunCard run={run} target={nameOf(run.targetDeviceId)} {...props} />;
@@ -64,10 +70,13 @@ export function HandoffPanel(props: {
   const named = (text: string) => t(text).replace('{target}', target).replace('{owner}', owner);
   const clone = handoff.clone;
   const needsPath = clone.state === 'none';
+  const offer = clone.state === 'offer' ? clone.offer : null;
+  // An offer starts a clone; one the target cannot take (no access, a taken folder) starts nothing.
   const canStart =
     handoff.targetId !== '' &&
     !props.busy &&
     clone.state !== 'checking' &&
+    (offer ? offer.reason === 'ok' : true) &&
     (!needsPath || handoff.targetPath.trim() !== '');
 
   return (
@@ -114,7 +123,14 @@ export function HandoffPanel(props: {
               </Glyph>
               <span>{named('Looking for a clone on {target}')}</span>
             </p>
-          ) : clone.state === 'found' ? null : (
+          ) : clone.state === 'found' ? null : offer ? (
+            <CloneOffer
+              offer={offer}
+              target={target}
+              onChange={() => setChoosing(true)}
+              named={named}
+            />
+          ) : (
             <>
               <p className="ws-ho-l" data-testid="workspace.handoff-no-clone">
                 {clone.state === 'unknown' ? (
@@ -147,19 +163,39 @@ export function HandoffPanel(props: {
               />
             </>
           )}
-          <Button
-            variant="primary"
-            icon={Icon.handoff()}
-            onClick={handoff.start}
-            disabled={!canStart}
-            data-testid="workspace.handoff-run"
-          >
-            {named('Hand off to {target}')}
-          </Button>
+          {offer?.reason === 'no-access' ? (
+            <Button
+              variant="primary"
+              icon={Icon.handoff()}
+              onClick={handoff.recheck}
+              data-testid="workspace.handoff-retry-check"
+            >
+              {t('Try again')}
+            </Button>
+          ) : (
+            <Button
+              variant="primary"
+              icon={Icon.handoff()}
+              onClick={handoff.start}
+              disabled={!canStart}
+              data-testid="workspace.handoff-run"
+            >
+              {offer ? named('Clone and hand off to {target}') : named('Hand off to {target}')}
+            </Button>
+          )}
           {props.busy ? (
             <p className="ws-ho-why">
               <Glyph>{Icon.lock()}</Glyph>
               <span>{t('Available when the turn ends')}</span>
+            </p>
+          ) : offer?.reason === 'ok' ? (
+            <p className="ws-ho-why" data-testid="workspace.handoff-clone-cost">
+              <Glyph>{Icon.info()}</Glyph>
+              <span>
+                {named(
+                  '{target} clones it first. {owner} keeps running until the clone has finished; then the hand off starts.',
+                )}
+              </span>
             </p>
           ) : clone.state === 'found' ? (
             <p className="ws-ho-why" data-testid="workspace.handoff-clone">
@@ -177,7 +213,81 @@ export function HandoffPanel(props: {
           ) : null}
         </>
       )}
+      {choosing && offer ? (
+        <CloneInto
+          deviceId={handoff.targetId}
+          deviceName={target}
+          current={offer.cloneInto}
+          check={handoff.chooseDestination}
+          onChosen={() => setChoosing(false)}
+          onClose={() => setChoosing(false)}
+          fixture={handoff.dialogFixture}
+        />
+      ) : null}
     </Card>
+  );
+}
+
+/** The target has no clone and the core offers one: where it would go, or why it cannot. */
+function CloneOffer(props: {
+  offer: DeviceCloneOffer;
+  target: string;
+  onChange: () => void;
+  named: (text: string) => string;
+}) {
+  const { offer, named } = props;
+  const origin = originLabel(offer.origin);
+  const taken =
+    offer.reason === 'destination-taken'
+      ? destinationText(offer.detail, {
+          name: offer.repoName,
+          folder: offer.cloneInto,
+          device: props.target,
+        })
+      : null;
+  return (
+    <>
+      {offer.reason === 'no-access' ? (
+        <p className="ws-ho-note bad" role="alert" data-testid="workspace.handoff-no-access">
+          <Glyph>{Icon.alert()}</Glyph>
+          <span>
+            {t(CLONE_NO_ACCESS)
+              .replaceAll('{target}', props.target)
+              .replace('{origin}', origin)
+              .replace('{host}', origin.split('/')[0] ?? origin)}
+          </span>
+        </p>
+      ) : null}
+      <p className="ws-ho-l" data-testid="workspace.handoff-no-clone">
+        <WithMono
+          text={named('{target} has no clone of {origin}.')}
+          slot="{origin}"
+          value={origin}
+        />
+      </p>
+      <div className="ws-pick" data-testid="workspace.handoff-suggest">
+        <span className="ws-pick-i" aria-hidden="true">
+          {Icon.folder()}
+        </span>
+        <span className="ws-pick-v" title={offer.cloneInto}>
+          {offer.cloneInto}
+        </span>
+        <button
+          type="button"
+          className="ws-pick-change"
+          onClick={props.onChange}
+          data-testid="workspace.handoff-change"
+        >
+          {t('Change')}
+        </button>
+      </div>
+      {taken ? (
+        <p className="ws-ho-note bad" role="alert" data-testid="workspace.handoff-taken">
+          <Glyph>{Icon.alert()}</Glyph>
+          <span>{taken}</span>
+        </p>
+      ) : null}
+    </>
   );
 }
 
@@ -191,7 +301,9 @@ function RunCard(props: {
   const { run, target } = props;
   const named = (text: string) =>
     t(text).replace('{target}', target).replace('{owner}', run.ownerName);
-  const at = run.current ? STEPS.indexOf(run.current) + 1 : 0;
+  const steps = stepsOf(run);
+  const at = run.current ? steps.indexOf(run.current) + 1 : 0;
+  const detail = failureDetail(run);
   const title =
     run.outcome === 'running'
       ? named('Handing off to {target}')
@@ -203,24 +315,39 @@ function RunCard(props: {
       title={title}
       meta={
         run.outcome === 'running' && at > 0
-          ? t('{n} of {total}').replace('{n}', String(at)).replace('{total}', String(STEPS.length))
+          ? t('{n} of {total}').replace('{n}', String(at)).replace('{total}', String(steps.length))
           : undefined
       }
       onClose={run.outcome === 'running' ? undefined : props.onClose}
       busy={run.outcome === 'running'}
     >
       <ol className="ws-steps" aria-label={t('Steps')}>
-        {STEPS.map((step) => (
-          <StepRow key={step} step={step} run={run} target={target} />
+        {steps.map((step) => (
+          <StepRow key={step} step={step} steps={steps} run={run} target={target} />
         ))}
       </ol>
       {run.outcome === 'running' ? (
-        <p className="ws-ho-why">
-          <Glyph>{Icon.lock()}</Glyph>
-          <span>
-            {t('Nothing moves until commit. A failure leaves owner and cursor unchanged.')}
-          </span>
-        </p>
+        <>
+          <p className="ws-ho-why">
+            <Glyph>{Icon.lock()}</Glyph>
+            <span>
+              {run.current === 'clone'
+                ? named(
+                    '{owner} keeps running until the clone has finished. Nothing moves until commit.',
+                  )
+                : t('Nothing moves until commit. A failure leaves owner and cursor unchanged.')}
+            </span>
+          </p>
+          {run.current === 'clone' && run.handoffId ? (
+            <Button
+              onClick={props.handoff.cancel}
+              disabled={props.handoff.cancelling}
+              data-testid="workspace.handoff-cancel"
+            >
+              {t('Cancel clone')}
+            </Button>
+          ) : null}
+        </>
       ) : run.outcome === 'done' ? (
         <p className="ws-ho-note ok" role="status" data-testid="workspace.handoff-done">
           <Glyph>{Icon.check()}</Glyph>
@@ -243,13 +370,18 @@ function RunCard(props: {
             <Glyph>{Icon.alert()}</Glyph>
             <span>{failureText(run, target)}</span>
           </p>
+          {detail ? (
+            <p className="ws-ho-detail ws-mono" data-testid="workspace.handoff-failed-detail">
+              {detail}
+            </p>
+          ) : null}
           <Button
             variant="primary"
             icon={Icon.handoff()}
             onClick={props.handoff.start}
             data-testid="workspace.handoff-retry"
           >
-            {named('Hand off to {target}')}
+            {run.failedStep === 'clone' ? t('Try again') : named('Hand off to {target}')}
           </Button>
         </>
       )}
@@ -258,11 +390,11 @@ function RunCard(props: {
 }
 
 /** One step: its mark, its name and what it did (who, how much, how long). */
-function StepRow(props: { step: Step; run: HandoffRun; target: string }) {
-  const { step, run, target } = props;
+function StepRow(props: { step: Step; steps: readonly Step[]; run: HandoffRun; target: string }) {
+  const { step, steps, run, target } = props;
   const times = run.steps[step];
-  const index = STEPS.indexOf(step);
-  const failedAt = run.outcome === 'failed' ? STEPS.indexOf(run.failedStep ?? 'prepare') : -1;
+  const index = steps.indexOf(step);
+  const failedAt = run.outcome === 'failed' ? steps.indexOf(run.failedStep ?? 'prepare') : -1;
   const state =
     run.outcome === 'done'
       ? 'ok'
@@ -274,7 +406,7 @@ function StepRow(props: { step: Step; run: HandoffRun; target: string }) {
             : 'todo'
         : run.current === step
           ? 'now'
-          : times?.end !== undefined || (run.current && index < STEPS.indexOf(run.current))
+          : times?.end !== undefined || (run.current && index < steps.indexOf(run.current))
             ? 'ok'
             : 'todo';
   const took =
@@ -284,6 +416,7 @@ function StepRow(props: { step: Step; run: HandoffRun; target: string }) {
   if (state === 'bad') meta = failureCode(run);
   else if (state === 'ok')
     meta = {
+      clone: join(run.cloned !== undefined ? formatBytes(run.cloned) : '', took),
       prepare:
         run.snapshotAt !== undefined
           ? t('Snapshot {time}').replace('{time}', clock(run.snapshotAt))
@@ -293,8 +426,8 @@ function StepRow(props: { step: Step; run: HandoffRun; target: string }) {
       verify: t('SHA-256 and tree match'),
       commit: clock(times?.end ?? times?.at),
     }[step];
-  else if (state === 'now' && step === 'transfer' && run.total !== undefined)
-    meta = formatProgress(run.sent ?? 0, run.total);
+  else if (state === 'now' && (step === 'transfer' || step === 'clone') && run.sent !== undefined)
+    meta = run.total !== undefined ? formatProgress(run.sent, run.total) : formatBytes(run.sent);
   const mark =
     state === 'ok' ? (
       Icon.check()
@@ -318,11 +451,11 @@ function StepRow(props: { step: Step; run: HandoffRun; target: string }) {
         <span className="sr-only">, {words}</span>
       </span>
       <span className="ws-step-m">{meta}</span>
-      {state === 'now' && step === 'transfer' && run.total ? (
+      {state === 'now' && (step === 'transfer' || step === 'clone') && run.total ? (
         <span
           className="ws-bar"
           role="progressbar"
-          aria-label={t('Transfer')}
+          aria-label={stepLabel(step)}
           aria-valuemin={0}
           aria-valuemax={run.total}
           aria-valuenow={run.sent ?? 0}

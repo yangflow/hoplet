@@ -1,13 +1,27 @@
-import type { DeviceInfo, HandoffProgress, HandoffResult, HttpErrorCode } from '@hoplet/shared';
+import type {
+  DeviceCloneOffer,
+  DeviceInfo,
+  HandoffProgress,
+  HandoffResult,
+  HttpErrorCode,
+} from '@hoplet/shared';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { fetchDeviceClone, postHandoff } from '../../lib/api.ts';
+import { fetchDeviceClone, postHandoff, postHandoffCancel } from '../../lib/api.ts';
 import { ApiError, errorText } from '../../lib/errors.ts';
 import { t } from '../../lib/i18n.ts';
 import { onLive } from '../../lib/live.ts';
+import type { CloneIntoFixture } from './clone-into.tsx';
 
 /** The steps of a handoff as the panel lists them (docs/spec.md#handoff). */
 export const STEPS = ['prepare', 'transfer', 'install', 'verify', 'commit'] as const;
-export type Step = (typeof STEPS)[number];
+/** The steps of a handoff that clones the repository on the target first (ADR 0024). */
+export const CLONE_STEPS = ['clone', ...STEPS] as const;
+export type Step = (typeof CLONE_STEPS)[number];
+
+/** The steps a run lists: the clone step comes first only when the run clones. */
+export function stepsOf(run: Pick<HandoffRun, 'clone'>): readonly Step[] {
+  return run.clone ? CLONE_STEPS : STEPS;
+}
 
 /** When this window saw a step start and end; a step it joined late has no start. */
 export type StepTimes = { at?: number; end?: number };
@@ -28,37 +42,50 @@ export type HandoffRun = {
   /** Bytes of the snapshot archive and the session stream sent to the target, of `total`. */
   sent?: number;
   total?: number;
+  /** Bytes the clone step received, kept when the step ends and `sent` counts the transfer. */
+  cloned?: number;
   /** The time of the snapshot an offline handoff installs. */
   snapshotAt?: number;
   worktree?: string;
   branch?: string;
+  /** Present when the run clones first: the folder and the origin as people read it, when this window knows them. */
+  clone?: { into?: string; origin?: string };
   /** The step that failed, when one was under way. */
   failedStep?: Step;
   /** The core's reason in `handoff.progress`, or the code and the agent's reason of the refused request. */
   reason?: string;
-  error?: { code: HttpErrorCode | null; reason?: string };
+  error?: { code: HttpErrorCode | null; reason?: string; detail?: string };
 };
 
 /** Whether the target has a clone of the session's repository among its watched projects. */
 export type CloneCheck =
   | { state: 'checking' }
   | { state: 'found'; path: string }
+  /** No clone, and the core's offer to make one: a destination the agent accepts or the reason it does not. */
+  | { state: 'offer'; offer: DeviceCloneOffer }
   | { state: 'none' }
   | { state: 'unknown'; text: string };
 
 /** A run this window starts. */
-export function startRun(targetDeviceId: string, ownerName: string, now: number): HandoffRun {
+export function startRun(
+  targetDeviceId: string,
+  ownerName: string,
+  now: number,
+  clone?: { into: string; origin: string },
+): HandoffRun {
+  const first: Step = clone ? 'clone' : 'prepare';
   return {
     targetDeviceId,
     ownerName,
     outcome: 'running',
-    steps: { prepare: { at: now } },
-    current: 'prepare',
+    steps: { [first]: { at: now } },
+    current: first,
+    ...(clone ? { clone } : {}),
   };
 }
 
 function isStep(step: string): step is Step {
-  return (STEPS as readonly string[]).includes(step);
+  return (CLONE_STEPS as readonly string[]).includes(step);
 }
 
 /** Ends the step under way at `now`. */
@@ -117,7 +144,12 @@ export function applyProgress(
   }
   if (base.outcome !== 'running' || !isStep(msg.step)) return base;
   const step = msg.step;
+  if (step === 'clone' && !base.clone) base = { ...base, clone: {} };
   const steps = step === base.current ? base.steps : closeCurrent(base, now);
+  if (base.current === 'clone' && step !== 'clone') {
+    const { sent, total: _total, ...rest } = base;
+    base = { ...rest, ...(sent !== undefined ? { cloned: sent } : {}) };
+  }
   const next: HandoffRun = {
     ...base,
     steps: { ...steps, [step]: steps[step] ?? { at: now } },
@@ -144,7 +176,11 @@ export function applyResult(
       ...(failedStep ? { failedStep } : {}),
       error:
         result instanceof ApiError
-          ? { code: result.code, ...(result.reason ? { reason: result.reason } : {}) }
+          ? {
+              code: result.code,
+              ...(result.reason ? { reason: result.reason } : {}),
+              ...(result.detail ? { detail: result.detail } : {}),
+            }
           : { code: null, reason: result.message },
     };
   }
@@ -171,6 +207,8 @@ export function failureText(run: HandoffRun, target: string): string {
   const named = (text: string) => t(text).replace('{target}', target).replace('{owner}', owner);
   const code = run.error?.code ?? run.reason;
   const reason = run.error?.reason ?? run.reason;
+  if (run.failedStep === 'clone' || code === 'clone-failed')
+    return `${cloneFailureText(run, target, reason)} ${named('{owner} still owns the session.')}`;
   let why: string;
   if (code === 'no-clone' || reason === 'no-clone')
     why = named('{target} has no clone of this repository there.');
@@ -187,6 +225,42 @@ export function failureText(run: HandoffRun, target: string): string {
   return `${why} ${named('Nothing moved; {owner} still owns the session.')}`;
 }
 
+/** What a failed clone says, by the reason the agent gave; git's own text is `failureDetail`. */
+function cloneFailureText(run: HandoffRun, target: string, reason: string | undefined): string {
+  const into = run.clone?.into;
+  const named = (text: string) =>
+    t(text)
+      .replace('{target}', target)
+      .replace('{origin}', run.clone?.origin ?? t('the repository'))
+      .replace('{host}', run.clone?.origin?.split('/')[0] ?? t('the remote'))
+      .replace('{path}', into ?? '');
+  const left = into ? ` ${named('Nothing was left at {path}.')}` : '';
+  switch (reason) {
+    case 'no-access':
+      return named(CLONE_NO_ACCESS);
+    case 'no-space':
+      return `${named('The clone stopped: no space left on {target}.')}${left}`;
+    case 'destination-taken':
+      return `${named('The clone stopped: the folder is taken on {target}. Choose another folder.')}${left}`;
+    case 'timeout':
+      return `${named('The clone took too long and was stopped.')}${left}`;
+    case 'cancelled':
+      return `${named('The clone was cancelled.')}${left}`;
+    default:
+      return `${named('git could not clone the repository on {target}.')}${left}`;
+  }
+}
+
+/** The fixed advice when a target cannot read the repository: never git's own text, never a password prompt. */
+export const CLONE_NO_ACCESS =
+  '{target} cannot read {origin}: authentication failed. Hoplet never asks for a password. Give git on {target} an SSH key or a credential helper for {host}, or clone the repository there yourself and hand off again.';
+
+/** What git said when it failed (credentials removed by the agent), for the `git-failed` reason only. */
+export function failureDetail(run: HandoffRun): string | undefined {
+  const reason = run.error?.reason ?? run.reason;
+  return reason === 'git-failed' ? run.error?.detail : undefined;
+}
+
 /** A remote URL as people read it: `git@github.com:o/r.git` is `github.com/o/r`. */
 export function originLabel(origin: string): string {
   const url = origin
@@ -201,7 +275,13 @@ export function originLabel(origin: string): string {
 }
 
 /** Development fixtures: what the panel shows without asking anyone. */
-export type HandoffFixture = { run?: HandoffRun; clone?: CloneCheck; targetPath?: string };
+export type HandoffFixture = {
+  run?: HandoffRun;
+  clone?: CloneCheck;
+  targetPath?: string;
+  /** The "Clone into" dialog open over the card, with what it shows. */
+  dialog?: CloneIntoFixture;
+};
 
 /**
  * The handoff of the selected session: the connected machines it can go to, whether the chosen one has a clone
@@ -223,6 +303,8 @@ export function useHandoff(opts: {
   const [targetPath, setTargetPath] = useState(fixture?.targetPath ?? '');
   const [run, setRun] = useState<HandoffRun | null>(fixture?.run ?? null);
   const [clone, setClone] = useState<CloneCheck>(fixture?.clone ?? { state: 'checking' });
+  const [attempt, setAttempt] = useState(0);
+  const [cancelling, setCancelling] = useState(false);
 
   const otherDevices = useMemo(
     () => devices.filter((d) => d.connected && d.deviceId !== ownerDeviceId),
@@ -251,6 +333,7 @@ export function useHandoff(opts: {
 
   // The clone the target would use, looked up while the panel is open and no handoff runs.
   const running = run?.outcome === 'running';
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `attempt` runs the lookup again on "Try again".
   useEffect(() => {
     if (locked || !open || running || !target || origin === undefined) return;
     if (!origin) {
@@ -260,26 +343,70 @@ export function useHandoff(opts: {
     const abort = new AbortController();
     setClone({ state: 'checking' });
     fetchDeviceClone(target, origin, abort.signal)
-      .then((r) => setClone(r.path ? { state: 'found', path: r.path } : { state: 'none' }))
+      .then((r) =>
+        setClone(
+          r.path
+            ? { state: 'found', path: r.path }
+            : r.clone && r.clone.reason !== 'no-origin'
+              ? { state: 'offer', offer: r.clone }
+              : { state: 'none' },
+        ),
+      )
       .catch((err: unknown) => {
         if (!abort.signal.aborted) setClone({ state: 'unknown', text: errorText(err) });
       });
     return () => abort.abort();
-  }, [locked, open, running, target, origin]);
+  }, [locked, open, running, target, origin, attempt]);
 
   const start = useCallback(() => {
     if (!sessionId || !target || running) return;
-    const path = clone.state === 'found' ? undefined : targetPath.trim() || undefined;
-    setRun(startRun(target, ownerName, Date.now()));
+    // A run that failed starts again where it was; otherwise the offer the panel shows decides.
+    const into =
+      run?.clone?.into ??
+      (clone.state === 'offer' && clone.offer.reason === 'ok' ? clone.offer.cloneInto : undefined);
+    const from =
+      run?.clone?.origin ?? (clone.state === 'offer' ? originLabel(clone.offer.origin) : '');
+    const path =
+      clone.state === 'found' || into !== undefined ? undefined : targetPath.trim() || undefined;
+    setRun(startRun(target, ownerName, Date.now(), into ? { into, origin: from } : undefined));
+    setCancelling(false);
     if (locked) return;
-    void postHandoff(sessionId, target, path)
+    void postHandoff(sessionId, target, { targetPath: path, cloneInto: into })
       .then((result) => setRun((r) => applyResult(r, result, Date.now())))
       .catch((err: unknown) =>
         setRun((r) =>
           applyResult(r, err instanceof Error ? err : new Error(String(err)), Date.now()),
         ),
       );
-  }, [sessionId, target, running, clone, targetPath, ownerName, locked]);
+  }, [sessionId, target, running, run, clone, targetPath, ownerName, locked]);
+
+  /** Looks the clone up again, as after the user gave the machine access. */
+  const recheck = useCallback(() => setAttempt((n) => n + 1), []);
+
+  /**
+   * Asks the core whether the target can clone into `path`. An accepted destination becomes the offer; the answer
+   * returns either way so the folder dialog can say why not.
+   */
+  const chooseDestination = useCallback(
+    async (path: string): Promise<DeviceCloneOffer | null> => {
+      if (!target || !origin) return null;
+      const r = await fetchDeviceClone(target, origin, undefined, path);
+      if (r.path) {
+        setClone({ state: 'found', path: r.path });
+        return null;
+      }
+      if (r.clone?.reason === 'ok') setClone({ state: 'offer', offer: r.clone });
+      return r.clone ?? null;
+    },
+    [target, origin],
+  );
+
+  /** Stops the clone step of the run under way; the run then ends as failed with the reason `cancelled`. */
+  const cancel = useCallback(() => {
+    if (!sessionId || locked) return;
+    setCancelling(true);
+    void postHandoffCancel(sessionId).catch(() => undefined);
+  }, [sessionId, locked]);
 
   /** A device's name; the target of a finished handoff owns the session and is no longer among the others. */
   const deviceName = useCallback(
@@ -300,6 +427,11 @@ export function useHandoff(opts: {
     setTargetPath,
     run,
     start,
+    cancel,
+    cancelling,
+    recheck,
+    chooseDestination,
+    dialogFixture: fixture?.dialog,
     dismiss,
     deviceName,
   };

@@ -16,6 +16,7 @@ import {
   FullBlockSchema,
   type GenericSchema,
   GlobalSearchResultSchema,
+  HandoffCancelResultSchema,
   HandoffResultSchema,
   type InferOutput,
   LinesPageSchema,
@@ -99,7 +100,13 @@ async function call<S extends GenericSchema>(
   if (!res.ok) {
     const error = safeParse(ErrorResponseSchema, payload);
     throw error.success
-      ? new ApiError(res.status, error.output.code, error.output.reason, error.output.steps)
+      ? new ApiError(
+          res.status,
+          error.output.code,
+          error.output.reason,
+          error.output.steps,
+          error.output.detail,
+        )
       : new ApiError(res.status, null);
   }
   const parsed = safeParse(schema, payload);
@@ -209,9 +216,15 @@ export function fetchDeviceDirs(deviceId: string, path: string | undefined, sign
 }
 
 /** The clone among a device's watched projects whose remote `origin` is `origin`; aborts with `signal`. */
-export function fetchDeviceClone(deviceId: string, origin: string, signal?: AbortSignal) {
+export function fetchDeviceClone(
+  deviceId: string,
+  origin: string,
+  signal?: AbortSignal,
+  cloneInto?: string,
+) {
+  const into = cloneInto === undefined ? '' : `&cloneInto=${encodeURIComponent(cloneInto)}`;
   return call(
-    `/api/devices/${encodeURIComponent(deviceId)}/clone?origin=${encodeURIComponent(origin)}`,
+    `/api/devices/${encodeURIComponent(deviceId)}/clone?origin=${encodeURIComponent(origin)}${into}`,
     DeviceCloneResultSchema,
     undefined,
     signal,
@@ -222,12 +235,22 @@ export function postMintDevice(name: string, deviceId?: string) {
   return call('/api/devices', DeviceMintResultSchema, deviceId ? { name, deviceId } : { name });
 }
 
-export function postHandoff(sessionId: string, targetDeviceId: string, targetPath?: string) {
-  return call(
-    `/api/sessions/${sessionId}/handoff`,
-    HandoffResultSchema,
-    targetPath === undefined ? { targetDeviceId } : { targetDeviceId, targetPath },
-  );
+/** Hands the session off; `where` is the path of a clone on the target or the folder to clone into first. */
+export function postHandoff(
+  sessionId: string,
+  targetDeviceId: string,
+  where: { targetPath?: string | undefined; cloneInto?: string | undefined } = {},
+) {
+  return call(`/api/sessions/${sessionId}/handoff`, HandoffResultSchema, {
+    targetDeviceId,
+    ...(where.targetPath === undefined ? {} : { targetPath: where.targetPath }),
+    ...(where.cloneInto === undefined ? {} : { cloneInto: where.cloneInto }),
+  });
+}
+
+/** Stops the clone step of the session's handoff. */
+export function postHandoffCancel(sessionId: string) {
+  return call(`/api/sessions/${sessionId}/handoff/cancel`, HandoffCancelResultSchema, {});
 }
 
 export function fetchSearch(q: string, start = 0) {

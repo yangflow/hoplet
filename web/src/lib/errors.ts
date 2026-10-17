@@ -8,13 +8,22 @@ export class ApiError extends Error {
   readonly reason: string | undefined;
   /** The steps of a deletion that failed half way (`delete-partial`). */
   readonly steps: DeletionStep[] | undefined;
+  /** What git said when a clone failed (`clone-failed` with the reason `git-failed`), credentials removed. */
+  readonly detail: string | undefined;
 
-  constructor(status: number, code: HttpErrorCode | null, reason?: string, steps?: DeletionStep[]) {
+  constructor(
+    status: number,
+    code: HttpErrorCode | null,
+    reason?: string,
+    steps?: DeletionStep[],
+    detail?: string,
+  ) {
     super(code ?? `HTTP ${status}`);
     this.status = status;
     this.code = code;
     this.reason = reason;
     this.steps = steps;
+    this.detail = detail;
   }
 }
 
