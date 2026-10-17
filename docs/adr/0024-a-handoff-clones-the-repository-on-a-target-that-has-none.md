@@ -1,6 +1,6 @@
 # 0024 A handoff clones the repository on a target that has none
 
-- Status: proposed
+- Status: accepted
 - Date: 2026-10-17
 - Related: ADR 0002, ADR 0009, ADR 0022, ADR 0023, docs/api.md, docs/threat-model.md, docs/hosting.md, issue #13
 
