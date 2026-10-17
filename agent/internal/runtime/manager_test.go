@@ -161,6 +161,7 @@ func newEnv(t *testing.T, tune func(*runtime.Config)) *env {
 		PermissionTimeout: time.Minute,
 		ExternalQuiet:     300 * time.Millisecond,
 		MaxIdle:           10,
+		OwnGrace:          50 * time.Millisecond,
 	}
 	if tune != nil {
 		tune(&cfg)
@@ -1029,8 +1030,10 @@ func TestOwnWritesAreNotExternal(t *testing.T) {
 	}
 }
 
+// appendForeign writes a line as another process would, once the grace after a turn result has passed.
 func appendForeign(t *testing.T, path string) {
 	t.Helper()
+	time.Sleep(80 * time.Millisecond)
 	f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0o600)
 	if err != nil {
 		t.Fatal(err)
@@ -1038,6 +1041,66 @@ func appendForeign(t *testing.T, path string) {
 	defer f.Close()
 	if _, err := f.WriteString("{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"from a terminal\"}}\n"); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestLinesTheProcessWritesAfterATurnAreOwn(t *testing.T) {
+	t.Setenv("FAKE_CLAUDE_TRAILING_MS", "100")
+	e := newEnv(t, func(c *runtime.Config) { c.OwnGrace = 500 * time.Millisecond })
+	file := e.session("s1")
+	e.m.Observe("s1", fileSize(t, file))
+	if err := e.m.Prompt("s1", "say x"); err != nil {
+		t.Fatal(err)
+	}
+	e.rec.waitState(t, "s1", runtime.StateReady)
+	before := fileSize(t, file)
+	time.Sleep(200 * time.Millisecond) // the trailing line is written
+	if fileSize(t, file) == before {
+		t.Fatal("the fake wrote no trailing line")
+	}
+	e.m.Observe("s1", fileSize(t, file))
+	time.Sleep(600 * time.Millisecond) // the grace ends
+	e.m.Observe("s1", fileSize(t, file))
+	if got := e.m.State("s1"); got != runtime.StateReady {
+		t.Fatalf("state = %s", got)
+	}
+	if err := e.m.Prompt("s1", "say y"); err != nil {
+		t.Fatalf("prompt: %v", err)
+	}
+	e.rec.waitFor(t, "second turn", func() bool { return len(e.rec.states("s1")) >= 5 })
+	if n := len(e.starts()); n != 1 {
+		t.Fatalf("starts = %d", n)
+	}
+	// A write after the grace is foreign.
+	time.Sleep(600 * time.Millisecond)
+	appendForeign(t, file)
+	e.m.Observe("s1", fileSize(t, file))
+	e.rec.waitState(t, "s1", runtime.StateExternal)
+}
+
+func TestLinesTheProcessWritesWhenItExitsAreOwn(t *testing.T) {
+	t.Setenv("FAKE_CLAUDE_EXIT_LINE", "1")
+	e := newEnv(t, func(c *runtime.Config) { c.OwnGrace = 500 * time.Millisecond })
+	file := e.session("s1")
+	e.m.Observe("s1", fileSize(t, file))
+	if err := e.m.Prompt("s1", "say x"); err != nil {
+		t.Fatal(err)
+	}
+	e.rec.waitState(t, "s1", runtime.StateReady)
+	before := fileSize(t, file)
+	e.m.Stop("s1")
+	e.rec.waitState(t, "s1", runtime.StateIdle)
+	if fileSize(t, file) == before {
+		t.Fatal("the fake wrote no line on exit")
+	}
+	e.m.Observe("s1", fileSize(t, file))
+	time.Sleep(600 * time.Millisecond)
+	e.m.Observe("s1", fileSize(t, file))
+	if got := e.m.State("s1"); got != runtime.StateIdle {
+		t.Fatalf("state = %s", got)
+	}
+	if err := e.m.Prompt("s1", "say y"); err != nil {
+		t.Fatalf("prompt: %v", err)
 	}
 }
 

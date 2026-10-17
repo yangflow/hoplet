@@ -403,7 +403,8 @@ does the same within one session. Search runs as background work and never delay
 7. After a completed turn the agent uploads a workspace snapshot (see Handoff). After 30 minutes without a
    turn the agent stops the process (`idle`).
 
-After every turn the agent records the session file's size. When the file grows beyond it, or grows while no
+After every turn the agent records the session file's size; lines Claude Code appends in the 5 seconds after a
+turn result (title, cost) are Hoplet's own. When the file grows beyond it later, or grows while no
 Hoplet process runs for the session, the state is `external`: the agent stops its process for the session, and
 a prompt is refused until the file has not grown for 60 seconds. When the owner disconnects, its runtime states become `offline`;
 when it reconnects, it reports the state of every process it still runs.

@@ -48,6 +48,9 @@ type bridge struct {
 	done     chan struct{}
 }
 
+// ownGrace overrides the runtime's grace after a turn result when set; tests shorten it.
+var ownGrace time.Duration
+
 // turnDone is told when a session's turn ended, from the Manager's goroutine; it must not block.
 func newBridge(cfg *config.Config, send func(any) error, kick func(), turnDone func(sessionID string)) *bridge {
 	b := &bridge{
@@ -64,6 +67,7 @@ func newBridge(cfg *config.Config, send func(any) error, kick func(), turnDone f
 
 		IdleTimeout: time.Duration(cfg.RuntimeIdleMinutes) * time.Minute,
 		MaxIdle:     cfg.RuntimeMaxIdleProcesses,
+		OwnGrace:    ownGrace,
 	})
 	go b.run()
 	return b

@@ -73,6 +73,8 @@ func newTestBridge(t *testing.T) (*bridge, *sink, string, string) {
 		RuntimeMaxIdleProcesses: 3,
 	}
 	s := &sink{}
+	ownGrace = 50 * time.Millisecond
+	t.Cleanup(func() { ownGrace = 0 })
 	b := newBridge(cfg, s.send, func() {}, func(string) {})
 	t.Cleanup(b.close)
 	return b, s, file, workdir
@@ -199,6 +201,7 @@ func TestBridgeNoticesForeignWritesFromScannedSizes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	time.Sleep(80 * time.Millisecond) // past the grace after the turn result
 	_, _ = f.WriteString("{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"terminal\"}}\n")
 	_ = f.Close()
 	b.observe(context.Background(), []provider.Source{src})
