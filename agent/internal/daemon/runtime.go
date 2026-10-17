@@ -199,7 +199,7 @@ func wireMessage(ev runtime.Event) any {
 			RequestID: r.RequestID, Tool: r.Tool, ToolUseID: r.ToolUseID, Input: input,
 		}
 		if pe := r.PlanExit; pe != nil {
-			out.PlanExit = &sync.PlanExit{Plan: pe.Plan, PlanFile: pe.File, Option: pe.Option, Modes: pe.Modes, Default: pe.Default}
+			out.PlanExit = &sync.PlanExit{Plan: pe.Plan, PlanFile: pe.File, Option: pe.Option, Modes: pe.Modes, Default: pe.Default, FreshContext: pe.FreshContext}
 		}
 		return out
 	case runtime.CommandsEvent:

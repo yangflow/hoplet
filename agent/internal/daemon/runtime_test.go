@@ -168,6 +168,29 @@ func TestBridgeRefusesAndAnswers(t *testing.T) {
 	s.waitState(t, "s1", "ready")
 }
 
+func TestBridgeForwardsAPlanExitWithItsFreshContext(t *testing.T) {
+	b, s, _, _ := newTestBridge(t)
+	if err := b.hooks().Prompt("s1", "exitplan 1. do it", nil); err != nil {
+		t.Fatal(err)
+	}
+	s.waitState(t, "s1", "waiting-permission")
+	var req sync.RuntimePermission
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) && req.RequestID == "" {
+		s.mu.Lock()
+		for _, m := range s.msgs {
+			if p, ok := m.(sync.RuntimePermission); ok {
+				req = p
+			}
+		}
+		s.mu.Unlock()
+		time.Sleep(10 * time.Millisecond)
+	}
+	if pe := req.PlanExit; pe == nil || pe.Plan != "1. do it" || !pe.FreshContext {
+		t.Fatalf("plan exit = %+v", pe)
+	}
+}
+
 func TestBridgeReportsRunningProcessesAfterAReconnect(t *testing.T) {
 	b, s, _, _ := newTestBridge(t)
 	h := b.hooks()

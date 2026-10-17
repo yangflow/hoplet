@@ -1669,7 +1669,7 @@ func TestTheDriverDeclaresAPlanExit(t *testing.T) {
 	e := newEnv(t, nil)
 	req := openPlan(t, e, "s1")
 	pe := req.PlanExit
-	if pe == nil || pe.Plan != "1. do it" || pe.Option != "mode" || pe.Default != "acceptEdits" ||
+	if pe == nil || pe.Plan != "1. do it" || pe.Option != "mode" || pe.Default != "acceptEdits" || !pe.FreshContext ||
 		!reflect.DeepEqual(pe.Modes, []string{"acceptEdits", "default", "auto"}) {
 		t.Fatalf("plan exit = %+v", pe)
 	}
