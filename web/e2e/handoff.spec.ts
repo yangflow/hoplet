@@ -345,6 +345,7 @@ test.describe('a failed handoff leaves owner, cursor and both machines unchanged
             handoffId: m.handoffId,
             worktree: '/scripted/worktree',
             branch: 'hoplet/scripted',
+            clone: '/scripted/clone',
           });
         }
         if (m.type === 'handoff.verify')
