@@ -2,7 +2,13 @@ import { HTTP_ERROR_CODES } from '@hoplet/shared';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import en from '../src/i18n/en.json';
 import zhHans from '../src/i18n/zh-Hans.json';
-import { fetchDeviceProjects, fetchSessions, postHandoff } from '../src/lib/api.ts';
+import {
+  fetchDeviceClone,
+  fetchDeviceProjects,
+  fetchSessions,
+  postHandoff,
+  postHandoffCancel,
+} from '../src/lib/api.ts';
 import {
   ApiError,
   addProjectErrorText,
@@ -59,6 +65,32 @@ describe('add project errors', () => {
       addProjectErrorText(new ApiError(502, 'rejected', '/x is not a directory'), 'studio'),
     ).toBe('That path is not a directory on studio');
     expect(addProjectErrorText(new ApiError(504, 'timeout'), 'studio')).toBe(ERROR_COPY.timeout);
+  });
+});
+
+describe('api client clone calls', () => {
+  it('asks the core for the clone with the origin and the chosen folder', async () => {
+    respond(200, { deviceId: 'd1', path: null });
+    const f = globalThis.fetch as unknown as ReturnType<typeof vi.fn>;
+    await fetchDeviceClone('d1', 'https://github.com/o/r.git', undefined, '/Users/mark/x');
+    const url = String(f.mock.calls[0]?.[0]);
+    expect(url).toContain('/api/devices/d1/clone?');
+    expect(url).toContain('origin=https%3A%2F%2Fgithub.com%2Fo%2Fr.git');
+    expect(url).toContain('cloneInto=%2FUsers%2Fmark%2Fx');
+  });
+
+  it('keeps the reason and the detail of a failed clone', async () => {
+    respond(502, { code: 'clone-failed', reason: 'git-failed', detail: 'fatal: no' });
+    const err = await postHandoff('s1', 'd1', { cloneInto: '/x' }).catch((e: unknown) => e);
+    expect(err).toMatchObject({ code: 'clone-failed', reason: 'git-failed', detail: 'fatal: no' });
+    expect(errorText(err)).toBe(`${ERROR_COPY['clone-failed']} (git-failed)`);
+  });
+
+  it('cancels a handoff and reports one that is not running', async () => {
+    respond(200, { ok: true });
+    await expect(postHandoffCancel('s1')).resolves.toEqual({ ok: true });
+    respond(409, { code: 'handoff-not-running' });
+    await expect(postHandoffCancel('s1')).rejects.toMatchObject({ code: 'handoff-not-running' });
   });
 });
 
