@@ -14,6 +14,18 @@ export const PermissionRequestSchema = v.object({
 });
 export type PermissionRequest = v.InferOutput<typeof PermissionRequestSchema>;
 
+/**
+ * POST /api/sessions/:id/permission/fresh: approves an open plan request into a new session (ADR 0025). `mode` is
+ * one of the plan request's `planExit.modes`; `promptId` is chosen by the client and deduplicated as for a new
+ * session. The plan itself is read from the open request, never from the client.
+ */
+export const FreshPermissionRequestSchema = v.object({
+  requestId: TrimmedSchema,
+  mode: v.pipe(v.string(), v.minLength(1), v.maxLength(64)),
+  promptId: v.pipe(v.string(), v.minLength(1), v.maxLength(128)),
+});
+export type FreshPermissionRequest = v.InferOutput<typeof FreshPermissionRequestSchema>;
+
 /** The answer of /permission, /interrupt and /stop: the command was forwarded to the owner. */
 export const RuntimeCommandResultSchema = v.object({ ok: v.literal(true) });
 export type RuntimeCommandResult = v.InferOutput<typeof RuntimeCommandResultSchema>;

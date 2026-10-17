@@ -484,8 +484,9 @@ starts a new session on the owner device, in the session's project and with the 
 (`runtime.start`, with `config` `{ [planExit.option]: mode }`). The first prompt is a short line that frames the
 plan, the plan and the path of its plan file. Only when the start succeeds does the core record the link, refuse the
 plan in the old session with "This plan is being implemented in a new session." and interrupt its turn (a turn that
-is not running is fine). A plan answered elsewhere while the new session started leaves the link recorded and the
-refusal skipped. When the start fails (`timeout`, or `rejected` with the agent's `reason`) nothing changes, the plan
+is not running is fine). A plan answered elsewhere while the new session started leaves the link recorded; that
+plan is neither refused nor interrupted. A second call for a plan whose new session is starting is
+`request-closed`. When the start fails (`timeout`, or `rejected` with the agent's `reason`) nothing changes, the plan
 waits and the usual start-failure notification is raised. The response is `{ ok: true, sessionId, promptId }`, the new
 session; `promptId` is deduplicated as for a new session: a repeat within 10 minutes returns the first result,
 except after a refusal, which can be retried.

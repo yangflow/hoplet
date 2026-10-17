@@ -69,6 +69,30 @@ export type StartOutcome =
       reason?: string;
     };
 
+/** What `POST /api/sessions/:id/permission/fresh` asks for (ADR 0025). */
+export interface FreshRequest {
+  sessionId: string;
+  requestId: string;
+  mode: string;
+  promptId: string;
+}
+
+export type FreshOutcome =
+  | { ok: true; sessionId: string; promptId: string }
+  | {
+      ok: false;
+      error:
+        | 'session-not-found'
+        | 'owner-offline'
+        | 'request-closed'
+        | 'invalid-request'
+        | 'target-offline'
+        | 'timeout'
+        | 'rejected';
+      promptId: string;
+      reason?: string;
+    };
+
 export type PromptOutcome =
   | { ok: true; promptId: string }
   | {
@@ -403,6 +427,12 @@ export interface Control {
    * agent has created and imported the session; a repeated `promptId` returns the first result.
    */
   startSession(request: StartRequest): Promise<StartOutcome>;
+  /**
+   * Approves an open plan request into a new session (ADR 0025): starts the session from the plan and, only when
+   * that succeeds, records the link, refuses the plan and interrupts the old turn. Nothing changes when the start
+   * fails; a repeated `promptId` returns the first result.
+   */
+  approvePlanFresh(request: FreshRequest): Promise<FreshOutcome>;
   /**
    * Moves a session to another connected device (docs/spec.md#handoff). Resolves when the handoff is over,
    * with the new owner or the reason it failed; a failure leaves owner and cursor unchanged.

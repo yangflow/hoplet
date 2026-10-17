@@ -91,7 +91,7 @@ async function synced(): Promise<void> {
 }
 
 beforeAll(async () => {
-  root = mkdtempSync(join(tmpdir(), 'hoplet-runtime-e2e-'));
+  root = realpathSync(mkdtempSync(join(tmpdir(), 'hoplet-runtime-e2e-')));
   project = join(root, 'project');
   mkdirSync(project);
   const run = (args: string[]) => {
@@ -351,6 +351,39 @@ describe('remote control against a scripted Claude Code', () => {
     expect((await client.prompt(SESSION, 'say recovered')).ok).toBe(true);
     await browser.until('ready', () => browser.lastState(mark) === 'ready');
     await synced();
+  });
+
+  it('approves a plan into a new session, links it and refuses the old plan', async () => {
+    await browser.state('ready');
+    const mark = browser.mark();
+    expect(await client.prompt(SESSION, 'exitplan 1. build it')).toMatchObject({ ok: true });
+    await browser.until('a plan request', () =>
+      browser.since(mark).some((m) => m.type === 'session.permission' && m.planExit),
+    );
+    const request = browser.since(mark).find((m) => m.type === 'session.permission') as Msg;
+    const planExit = request.planExit as { modes: string[]; freshContext?: boolean };
+    expect(planExit.freshContext).toBe(true);
+
+    const res = await fetch(`${client.baseUrl}/api/sessions/${SESSION}/permission/fresh`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${HOST}`, 'content-type': 'application/json' },
+      body: JSON.stringify({
+        requestId: request.requestId,
+        mode: planExit.modes[0],
+        promptId: 'fresh-plan',
+      }),
+    });
+    const body = (await res.json()) as { ok: boolean; sessionId: string; promptId: string };
+    expect(res.status, JSON.stringify(body)).toBe(200);
+    expect(body.promptId).toBe('fresh-plan');
+    expect(body.sessionId).not.toBe(SESSION);
+    expect(store.continuationLinks(SESSION)).toEqual({ continuedIn: body.sessionId });
+
+    // The old plan is refused and its turn stops, so the session settles back to ready.
+    await vi.waitFor(() => expect(control.runtimeOf(SESSION).state).toBe('ready'), {
+      timeout: 20_000,
+    });
+    expect(control.openPermissions(SESSION)).toEqual([]);
   });
 
   it('stops the process on request', async () => {

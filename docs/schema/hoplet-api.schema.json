@@ -226,6 +226,16 @@
     },
     {
       "method": "POST",
+      "path": "/api/sessions/:sessionId/permission/fresh",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": "FreshPermissionRequestSchema",
+      "response": "NewSessionResultSchema"
+    },
+    {
+      "method": "POST",
       "path": "/api/sessions/:sessionId/interrupt",
       "auth": "host",
       "lane": "control",
@@ -1814,6 +1824,31 @@
       },
       "required": [
         "code"
+      ]
+    },
+    "FreshPermissionRequestSchema": {
+      "type": "object",
+      "properties": {
+        "requestId": {
+          "type": "string",
+          "pattern": "\\S",
+          "minLength": 1
+        },
+        "mode": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "promptId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "requestId",
+        "mode",
+        "promptId"
       ]
     },
     "FullBlockSchema": {
