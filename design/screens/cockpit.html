@@ -455,6 +455,15 @@ svg{display:block;flex:none}
 .mchip svg{color:var(--color-text-3)}
 .pquote{margin:0 0 var(--space-2) calc(16px + var(--space-2));padding:var(--space-2) var(--space-3);border-radius:var(--radius-md);background:var(--color-surface);box-shadow:inset 0 0 0 1px var(--color-line);color:var(--color-text-2);max-width:var(--measure-prose)}
 .pnote{margin-top:var(--space-3)}
+.mchip.lnk{color:var(--color-text);cursor:pointer}
+.mchip.lnk:hover{background:var(--color-selected)}
+.mchip.lnk svg{color:var(--color-text-3)}
+.pres.from{margin:var(--space-4) 0 0}
+.pconf{display:flex;flex-direction:column;gap:var(--space-2);margin-top:var(--space-3)}
+.pconf b{font-weight:var(--weight-semibold)}
+.pconf .pcr{display:flex;align-items:flex-start;gap:var(--space-2);color:var(--color-text-2)}
+.pconf .pcr svg{margin-top:2px;color:var(--color-text-3);flex:none}
+.pconf .pcr .mono{color:var(--color-text)}
 
 /* composer */
 .dock{position:absolute;z-index:5;left:0;right:0;bottom:0;padding:var(--space-7) 0 var(--space-4);background:linear-gradient(var(--fade-bg),var(--color-bg) 42%);pointer-events:none}
@@ -1281,7 +1290,7 @@ function hlMd(src) {
 }
 
 /* every state is a configuration of the same parts */
-const LIVE = ['queue-menu', 'queue-queued', 'queue-editing', 'queue-dragging', 'queue-steered', 'queue-paused-permission', 'queue-paused-error', 'queue-paused-interrupted', 'starting', 'running', 'waiting-permission', 'failed-turn', 'scrolled', 'disconnected', 'plan-pending', 'plan-long', 'plan-modes', 'plan-feedback', 'plan-approved', 'plan-kept', 'plan-elsewhere', 'plan-offline'];
+const LIVE = ['queue-menu', 'queue-queued', 'queue-editing', 'queue-dragging', 'queue-steered', 'queue-paused-permission', 'queue-paused-error', 'queue-paused-interrupted', 'starting', 'running', 'waiting-permission', 'failed-turn', 'scrolled', 'disconnected', 'plan-pending', 'plan-long', 'plan-modes', 'plan-feedback', 'plan-approved', 'plan-kept', 'plan-elsewhere', 'plan-offline', 'plan-fresh-menu', 'plan-fresh-confirm', 'plan-fresh-starting', 'plan-fresh-failed', 'plan-fresh-done', 'plan-fresh-new'];
 const OFFLINE = ['offline', 'plan-offline', 'handoff-offline', 'changes-offline', 'diff-offline', 'mention-offline'];
 const HANDOFF = ['handoff', 'handoff-path', 'handoff-progress', 'handoff-failed', 'handoff-done', 'handoff-offline'];
 const WIDE = ['file-open', 'file-image', 'diff-open', 'diff-large', 'diff-binary', 'diff-offline'];
@@ -1296,7 +1305,8 @@ const SETTINGS = ['settings', 'settings-language', 'settings-machines', ...MINT]
 function sessKind(state) {
   if (['running', 'scrolled', 'disconnected'].includes(state)) return 'run';
   if (state === 'starting') return 'start';
-  if (state === 'waiting-permission' || ['plan-pending', 'plan-long', 'plan-modes', 'plan-feedback'].includes(state)) return 'need';
+  if (state === 'plan-fresh-done' || state === 'plan-fresh-new') return '';
+  if (state === 'waiting-permission' || ['plan-pending', 'plan-long', 'plan-modes', 'plan-feedback'].includes(state) || (PLAN_NEED.includes(state) && state !== 'plan-offline')) return 'need';
   if (state.startsWith('plan-') && state !== 'plan-offline') return 'run';
   if (state === 'ready' || state === 'recording') return 'ready';
   if (state.startsWith('failed')) return 'fail';
@@ -1309,6 +1319,7 @@ const ATTENTION = ['need', 'fail'];
 function sidebar(state) {
   const off = OFFLINE.includes(state);
   const moved = state === 'handoff-done';
+  const fresh = state === 'plan-fresh-done' || state === 'plan-fresh-new';
   const settings = SETTINGS.includes(state);
   const lost = state === 'disconnected';
   const draft = DRAFT.includes(state);
@@ -1318,14 +1329,15 @@ function sidebar(state) {
   const menuOpen = state === 'sidebar-menu';
   const S = (t, kind, time, on = false) => ({ t, kind, time, on });
   const t = 'byte cursor catalog';
-  const open = moved ? S(t, '', 'now', true) : S(t, sessKind(state), '1m', sel);
+  const open = moved ? S(t, '', 'now', true) : fresh ? S(t, '', '2m', state === 'plan-fresh-done') : S(t, sessKind(state), '1m', sel);
+  const nu = S('Roll back the byte cursor', 'run', 'now', state === 'plan-fresh-new');
   const other = S('Hand off sessions with snapshots', off ? '' : 'run', '3h');
   /* folding is remembered per directory: office-mini › hoplet-app stays folded; notes is folded in ready */
   const DEVS = [
     pinState ? { n: 'MacBook Pro', flat: state === 'pinned-flat', on: true,
       pinned: [{ ...other, dir: 'hoplet', pin: true }, { ...S('Roadmap 0.4 planning', '', '2d'), dir: 'notes', pin: true }],
       dirs: [{ n: 'hoplet', open: true, ss: [open, S('Resync the byte cursor on restart', '', '1d')] }, { n: 'notes', open: true, ss: [S('Audit docs/api.md', '', '5d')] }] } :
-    { n: 'MacBook Pro', hov: state.startsWith('add-project'), flat: state === 'sidebar-flat', menu: menuOpen, on: !off, dirs: [{ n: 'hoplet', open: true, ss: moved ? [other] : draft ? [{ t: 'New session', draft: true, on: true }, open, other] : [open, other] }] },
+    { n: 'MacBook Pro', hov: state.startsWith('add-project'), flat: state === 'sidebar-flat', menu: menuOpen, on: !off, dirs: [{ n: 'hoplet', open: true, ss: moved ? [other] : fresh ? [nu, open, other] : draft ? [{ t: 'New session', draft: true, on: true }, open, other] : [open, other] }] },
     { n: 'office-mini', on: false, dirs: [{ n: 'hoplet-app', open: false, ss: [S('Liquid Glass tab bar', '', '4d')] }] },
     { n: 'studio', on: true, dirs: [
       ...(moved ? [{ n: 'hoplet-11111111', open: true, ss: [open] }] : []),
@@ -1503,8 +1515,14 @@ const PLAN_STATES = [
   ['plan-kept', 'kept planning: the feedback is quoted, the session stays in Plan and Claude revises'],
   ['plan-elsewhere', 'answered from another window: the card is resolved and nothing is left to click'],
   ['plan-offline', 'the owner is offline: the plan can be read, deciding needs the machine'],
+  ['plan-fresh-menu', 'the chevron menu ends, after a divider, with Clear context and approve…, which asks for a confirmation'],
+  ['plan-fresh-confirm', 'the card footer becomes a confirmation naming the new session, what it carries and what happens to this one; Start new session or Back'],
+  ['plan-fresh-starting', 'the core starts the new session first: the card is locked, the primary button shows progress, this session still waits and the plan is not refused until the new one is up'],
+  ['plan-fresh-failed', 'the new session did not start: nothing was refused, so the plan still waits here and a note says why; Try again, Approve here or Keep planning'],
+  ['plan-fresh-done', 'this session once the new one is up: the core refused the plan here, telling Claude it is being implemented in a new session, and interrupted the turn; one resolved line links to the new session, the mode stays Plan'],
+  ['plan-fresh-new', 'the new session’s first turn: an origin line back to the old session, the plan as the first prompt (collapsed, with its plan file), Accept edits in the pill, the turn running'],
 ];
-const PLAN_NEED = ['plan-pending', 'plan-long', 'plan-modes', 'plan-feedback', 'plan-offline'];
+const PLAN_NEED = ['plan-pending', 'plan-long', 'plan-modes', 'plan-feedback', 'plan-offline', 'plan-fresh-menu', 'plan-fresh-confirm', 'plan-fresh-starting', 'plan-fresh-failed'];
 const PLAN_MODES = [
   ['Accept edits', 'Edit files without asking; ask before commands.', 'filePen'],
   ['Manual', 'Ask before edits and commands.', 'shield'],
@@ -1531,19 +1549,34 @@ const planMdLong = () => `<h4>Make the byte cursor survive every failure between
 const planRow = (long, open = false) => act(I.listChecks(), 'Planned', esc(PLAN_TITLE), mt(planMeta(long)) + `<span class="chv">${I.chev()}</span>`, `fold${open ? ' open' : ''}`);
 const planDoc = (long, peek) => `<div class="pdoc${long || peek ? ' cut' : ''}${peek ? ' peek' : ''}"><div class="pb">${long ? planMdLong() : planMdShort()}</div>${long && !peek ? `<button class="wopen"${tip('Open the whole plan · 14 KiB')}>Open 14 KiB</button>` : ''}</div>`;
 const planChip = (n, ic) => `<span class="mchip">${I[ic]()}${n}</span>`;
+const PLAN_FILE = '~/.claude/plans/roll-back-the-byte-cursor.md';
+const PLAN_NEW_TITLE = 'Roll back the byte cursor';
 function planCard(state) {
   const long = state === 'plan-long', fb = state === 'plan-feedback', off = state === 'plan-offline', dis = off ? ' disabled' : '';
-  const menu = state === 'plan-modes' ? `<div class="cpop wide" role="menu" aria-label="Mode after approval"><div class="menu-label">After approval, switch to</div>
-    ${PLAN_MODES.map(([n, d], i) => `<div class="mi${i === 0 ? ' cur' : ''}" role="menuitemradio" aria-checked="${i === 0}"><span class="ck">${i === 0 ? I.check() : ''}</span><span class="t"><span class="n">${n}</span><span class="d">${d}</span></span></div>`).join('')}</div>` : '';
-  const foot = fb
-    ? `<div class="ask-f"><button class="btn primary">Send feedback</button><button class="btn">Back to plan</button><span class="meta">${I.info()}<span>Claude Code keeps planning in Plan mode</span></span></div>`
-    : `<div class="ask-f"><span class="split"><button class="btn primary"${dis}>Approve · Accept edits</button><span class="anc"><button class="btn primary"${dis}${tip('Mode after approval')} aria-label="Mode after approval">${I.down()}</button>${menu}</span></span>
+  const fr = state.startsWith('plan-fresh-') ? state.slice(11) : '';
+  const modeMenu = (extra = '') => `<div class="cpop wide" role="menu" aria-label="Mode after approval"><div class="menu-label">After approval, switch to</div>
+    ${PLAN_MODES.map(([n, d], i) => `<div class="mi${i === 0 ? ' cur' : ''}" role="menuitemradio" aria-checked="${i === 0}"><span class="ck">${i === 0 ? I.check() : ''}</span><span class="t"><span class="n">${n}</span><span class="d">${d}</span></span></div>`).join('')}${extra}</div>`;
+  const menu = state === 'plan-modes' ? modeMenu()
+    : fr === 'menu' ? modeMenu(`<div class="menu-sep"></div><div class="mi" role="menuitem"><span class="ck">${I.compose()}</span><span class="t"><span class="n">Clear context and approve…</span><span class="d">Start a new session with only the plan</span></span></div>`)
+    : '';
+  const split = (label, locked) => `<span class="split"><button class="btn primary"${locked ? ' disabled' : dis}>${label}</button><span class="anc"><button class="btn primary"${locked ? ' disabled' : dis}${tip('Mode after approval')} aria-label="Mode after approval">${I.down()}</button>${menu}</span></span>`;
+  let foot;
+  if (fb) foot = `<div class="ask-f"><button class="btn primary">Send feedback</button><button class="btn">Back to plan</button><span class="meta">${I.info()}<span>Claude Code keeps planning in Plan mode</span></span></div>`;
+  else if (fr === 'confirm') foot = `<div class="pconf"><b>Start a new session with this plan?</b>
+      <div class="pcr">${I.laptop()}<span>A new session on MacBook Pro in <span class="mono">hoplet</span>, in Accept edits</span></div>
+      <div class="pcr">${I.listChecks()}<span>It starts from the plan and its file, <span class="mono">${PLAN_FILE}</span>, and nothing else of this conversation</span></div>
+      <div class="pcr">${I.archive()}<span>This session stops and keeps its history, with a link to the new one</span></div></div>
+      <div class="ask-f"><button class="btn primary">Start new session · Accept edits</button><button class="btn">Back</button></div>`;
+  else if (fr === 'starting') foot = `<div class="ask-f"><button class="btn primary" disabled>${spin()}Starting new session…</button><button class="btn" disabled>Keep planning</button><span class="meta">${I.info()}<span>This session waits until the new one is up</span></span></div>`;
+  else if (fr === 'failed') foot = `<div class="nt bad pnote">${I.alert()}<span>MacBook Pro did not start the new session: no answer in 30 s. The plan still waits here, nothing was changed.</span></div>
+      <div class="ask-f"><button class="btn primary">${I.retry()}Try again</button><button class="btn">Approve here · Accept edits</button><button class="btn">Keep planning</button></div>`;
+  else foot = `<div class="ask-f">${split('Approve · Accept edits')}
       <button class="btn"${dis}>Keep planning</button><span class="meta">${I.info()}<span>Approving leaves Plan mode</span></span></div>`;
   const field = fb ? `<div class="pfield"><span class="l">What should change?</span><div class="ta2">${esc(PLAN_FEEDBACK)}<span class="cr2"></span></div></div>` : '';
   const note = off ? `<div class="nt snap pnote">${I.clock()}<span>MacBook Pro is offline. The plan stays here; deciding needs the machine online.</span></div>` : '';
   return `<div class="ask plan" title="Request 7c2e">
     <div class="ask-h">${I.listChecks()}<span class="q">Claude Code has a plan</span><span class="meta">${planMeta(long)}</span></div>
-    ${planDoc(long, fb)}${field}${foot}${note}</div>`;
+    ${planDoc(long, fb || fr === 'confirm')}${field}${foot}${note}</div>`;
 }
 function planResolved(state) {
   const kept = state === 'plan-kept';
@@ -1555,7 +1588,27 @@ function planResolved(state) {
     : `<div class="pres">${I.back()}<span><b>Kept planning</b> · still in</span>${planChip('Plan', 'listChecks')}<span class="meta">14:09</span></div><div class="pquote">${esc(PLAN_FEEDBACK)}</div>`;
   return planRow(false) + res + fol;
 }
+/* the old session once the new one is up */
+function freshDone() {
+  const explore = `${R.thought('Where does a failed commit leave byte_size? Read the append path first…', '812 tokens')}${R.read('core/src/store/chunks.ts', 'L1–120', '6.1 KiB')}${R.searched('commitIndex', '3 matches')}${R.read('core/src/store/chunks.test.ts', 'L1–80', '2.4 KiB')}`;
+  return `<section class="turn done"><header class="th"><div class="p">Plan how a failed chunk commit rolls the byte cursor back.</div>${sum('2 files', '4 tools', '52 s')}
+      <div class="tm"><span class="meta" title="Lines 18,302–18,319">14:06</span></div></header>
+    <div class="tb"><div class="acts">${explore}${planRow(false)}</div>
+      <div class="pres ok">${I.check()}<span><b>Approved in a new session</b></span><span class="mchip lnk"${tip('Open the new session')}>${PLAN_NEW_TITLE}${I.ext()}</span><span class="meta">14:09</span></div></div></section>`;
+}
+/* the new session: where it came from, the plan as its first prompt, the plan file, a turn that runs */
+function freshNew() {
+  const badge = `<span class="badge" role="img"${tip('Running')}><span class="sdot"></span><span>00:06</span></span>`;
+  return `<div class="pres from">${I.back()}<span>From the plan in</span><span class="mchip lnk"${tip('Open the session this plan came from')}>byte cursor catalog${I.ext()}</span></div>
+    <section class="turn live"><header class="th"><div class="p">Implement this plan: ${esc(PLAN_TITLE)}.</div>
+      <div class="rt">${badge}${ib(I.stop(), 'Interrupt · Esc', 'bd')}</div>
+      <div class="tm"><span class="meta" title="Line 1">14:10</span></div></header><div class="tsep"></div>
+      <div class="tb"><div class="acts">${act(I.file(), 'Plan file', code(PLAN_FILE))}</div>${planDoc(true, false)}
+        <div class="acts">${R.thought('The plan is the whole brief. Start with the truncate in appendChunk, then the crash test…', '131 tokens')}${R.read('core/src/store/chunks.ts', 'L1–120', '6.1 KiB')}${R.ran('pnpm vitest run chunks', live('3 s'), 'run')}</div></div></section>`;
+}
 function planTurn(state) {
+  if (state === 'plan-fresh-done') return freshDone();
+  if (state === 'plan-fresh-new') return freshNew();
   const need = PLAN_NEED.includes(state), off = state === 'plan-offline';
   const badge = `<span class="badge" role="img"${tip(need ? 'Waiting for your decision on the plan' : 'Running')}><span class="sdot"></span><span>${need ? '00:52' : '01:21'}</span></span>`;
   const head = `<header class="th"><div class="p">Plan how a failed chunk commit rolls the byte cursor back.</div>
@@ -1812,7 +1865,7 @@ function composer(state) {
     ${item2('Opus 5.5', true)}${item2('Sonnet 5.5', false)}${item2('Haiku 4.5', false)}
     <div class="menu-sep"></div>${sw(I.think(), 'Thinking', true)}${sw(I.zap(), 'Fast', false)}</div>`;
   const modes = [['Manual', 'Ask before edits and commands.', false, 'shield'], ['Accept edits', 'Edit files without asking; ask before commands.', false, 'filePen'], ['Plan', 'Explore and plan; no edits or commands.', false, 'listChecks'], ['Auto', 'Claude decides when to ask, with safety checks.', false, 'sparkles'], ['Bypass permissions', 'Run everything without asking.', true, 'shieldAlert']];
-  const curMode = state === 'mode-bypass' ? 4 : state === 'mode-plan' || PLAN_NEED.includes(state) || state === 'plan-kept' ? 2 : state === 'plan-approved' || state === 'plan-elsewhere' ? 1 : 0;
+  const curMode = state === 'mode-bypass' ? 4 : state === 'mode-plan' || PLAN_NEED.includes(state) || state === 'plan-kept' || state === 'plan-fresh-done' ? 2 : state === 'plan-approved' || state === 'plan-elsewhere' || state === 'plan-fresh-new' ? 1 : 0;
   const mrow = ([n, d, risk, ic], i) => `${risk ? '<div class="menu-sep"></div>' : ''}<div class="mi${i === curMode ? ' cur' : ''}${risk ? ' risk' : ''}" role="menuitemradio" aria-checked="${i === curMode}"><span class="ck">${I[ic]()}</span><span class="t"><span class="n">${n}</span><span class="d">${d}</span></span>${risk ? '<span class="risk-b">High risk</span>' : ''}<span class="ck">${i === curMode ? I.check() : ''}</span></div>`;
   const modeMenu = `<div class="cpop wide end" role="menu" aria-label="Permission mode"><div class="menu-label">Permission mode</div>${modes.map(mrow).join('')}<div class="menu-sep"></div><div class="mfoot"><span class="kbd">⇧ ⇥</span>Cycle modes</div></div>`;
   const hot = curMode === 4;
@@ -1880,8 +1933,12 @@ function composer(state) {
       box = runComposer(true); break;
     case 'plan-offline':
       box = `<div class="composer cbar"><span class="cst" title="Owner offline"><span class="off-dot"></span>MacBook Pro offline</span><button class="send"${tip('Hand off to another machine')}>${I.handoff()}</button></div>`; break;
-    case 'plan-approved': case 'plan-kept': case 'plan-elsewhere':
+    case 'plan-approved': case 'plan-kept': case 'plan-elsewhere': case 'plan-fresh-new':
       box = runComposer(false); break;
+    case 'plan-fresh-menu': case 'plan-fresh-confirm': case 'plan-fresh-starting': case 'plan-fresh-failed':
+      box = runComposer(true); break;
+    case 'plan-fresh-done':
+      box = full('Ask Claude Code…', true, `<span class="cst" role="img"${tip('Ready · Claude Code is running')}><span class="ready-dot"></span></span>${ib(I.stop(), 'Stop Claude Code')}`); break;
     case 'queue-menu': case 'queue-queued': case 'queue-editing': case 'queue-dragging': case 'queue-steered': case 'queue-paused-permission':
       box = qtray(state) + runComposer(state === 'queue-paused-permission', state === 'queue-menu', state === 'queue-menu' ? 'Also run the Go tests after this' : ''); break;
     case 'queue-paused-error': case 'queue-paused-interrupted':
@@ -2222,8 +2279,8 @@ function settingsMain(state) {
   } else if (sec === 'language') {
     page = `<h1>Language</h1>
       <div class="plist" role="radiogroup" aria-label="Language">
-        <div class="pr"><span class="radio on"></span><span class="nm">English</span></div>
-        <div class="pr" lang="zh-Hans"><span class="radio"></span><span class="nm">简体中文</span></div>
+        <div class="pcr"><span class="radio on"></span><span class="nm">English</span></div>
+        <div class="pcr" lang="zh-Hans"><span class="radio"></span><span class="nm">简体中文</span></div>
       </div>`;
   } else {
     const m = (n, on, seen) => `<div class="pr${on ? '' : ' off'}"><span class="lead"><span class="dot${on ? '' : ' off'}" role="img"${tip(on ? 'Online' : 'Offline')}></span></span><span class="nm">${n}</span><span class="meta">${seen}</span></div>`;
@@ -2336,7 +2393,7 @@ function frame(state, scheme) {
   else if (ARCHIVED.includes(state)) main = archivedMain(state);
   else {
     const top = `<header class="top">${nosb ? ib(I.sidebar(), 'Show sidebar · ⌘\\') : ''}
-      ${empty ? '' : `<span class="title">${DRAFT.includes(state) ? 'New session' : 'byte cursor catalog'}</span>`}
+      ${empty ? '' : `<span class="title">${DRAFT.includes(state) ? 'New session' : state === 'plan-fresh-new' ? 'Roll back the byte cursor' : 'byte cursor catalog'}</span>`}
       <span class="sp"></span>
       ${!empty && !DRAFT.includes(state) ? ib(I.more(), 'Session actions', MENU.includes(state) ? 'on' : state === 'copied' ? 'bd' : '') : ''}
       ${!empty && !insp && !DRAFT.includes(state) ? `<button class="ib"${tip('Show workspace · 4 changed · ⌘I')}>${I.panel()}<span class="cdg"></span></button>` : ''}
@@ -2349,7 +2406,7 @@ function frame(state, scheme) {
     } else {
       const live = LIVE.includes(state) ? liveTurn(state === 'scrolled' ? 'running' : state) : '';
       body = `<div class="conv${state === 'scrolled' ? ' loading' : ''}${state === 'compose' ? ' tall' : ''}"${QTRAY.includes(state) || state === 'queue-steered' ? ` style="padding-bottom:${state === 'queue-editing' ? 400 : state === 'queue-steered' ? 190 : 340}px"` : ''}><div class="col">
-          ${COMMAND_STATES.includes(state) ? commandTurns(state) : firstTurn(state)}
+          ${COMMAND_STATES.includes(state) ? commandTurns(state) : state === 'plan-fresh-new' ? '' : firstTurn(state)}
           ${state === 'external' ? terminalTurn() : ''}
           ${live}
         </div></div>
