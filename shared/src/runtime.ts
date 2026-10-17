@@ -162,7 +162,8 @@ export const PERMISSION_MESSAGE_MAX = 10_000;
  * A driver's declaration that a permission request asks to leave a plan (ADR 0019): the plan to review as
  * Markdown, the file it lives in when the provider keeps one, and the values of its select setting `option`
  * that approving may switch the session to, `default` being the one offered first. A request without it is an
- * ordinary tool permission.
+ * ordinary tool permission. `freshContext` is true when the provider can start a new session from the approved
+ * plan (ADR 0025).
  */
 export const PlanExitSchema = v.object({
   plan: v.string(),
@@ -170,6 +171,7 @@ export const PlanExitSchema = v.object({
   option: v.string(),
   modes: v.pipe(v.array(v.string()), v.minLength(1)),
   default: v.string(),
+  freshContext: v.optional(v.boolean()),
 });
 export type PlanExit = v.InferOutput<typeof PlanExitSchema>;
 

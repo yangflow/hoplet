@@ -238,6 +238,7 @@ describe('permission, interrupt and stop', () => {
       option: 'mode',
       modes: ['acceptEdits', 'default', 'auto'],
       default: 'acceptEdits',
+      freshContext: true,
     };
     owner.send(state('s1', 'waiting-permission'));
     owner.send({

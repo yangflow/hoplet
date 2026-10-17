@@ -211,13 +211,15 @@ type PermissionRequest struct {
 // PlanExit is a driver's declaration that a permission request asks to leave a plan: the plan to review and
 // the values of one of its select settings (Option, the permission mode) that approval may switch the session
 // to. Default is the value a client offers first; it is one of Modes. A request with a PlanExit waits for the
-// user as long as it takes.
+// user as long as it takes. FreshContext says the provider can start a new session from the approved plan
+// (ADR 0025).
 type PlanExit struct {
-	Plan    string
-	File    string
-	Option  string
-	Modes   []string
-	Default string
+	Plan         string
+	File         string
+	Option       string
+	Modes        []string
+	Default      string
+	FreshContext bool
 }
 
 // Verdict answers a permission request. A refusal carries Message, which explains it to the model; the

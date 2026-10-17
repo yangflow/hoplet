@@ -3953,6 +3953,9 @@
             },
             "default": {
               "type": "string"
+            },
+            "freshContext": {
+              "type": "boolean"
             }
           },
           "required": [

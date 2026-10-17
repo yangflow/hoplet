@@ -257,7 +257,7 @@ func TestPlanExitPermissionKeepsItsFieldsOnTheWire(t *testing.T) {
 		Input: json.RawMessage(`{"plan":"# Plan"}`),
 		PlanExit: &PlanExit{
 			Plan: "# Plan", PlanFile: "/tmp/plan.md", Option: "approve",
-			Modes: []string{"default", "acceptEdits"}, Default: "acceptEdits",
+			Modes: []string{"default", "acceptEdits"}, Default: "acceptEdits", FreshContext: true,
 		},
 	})
 	if err != nil {
@@ -270,7 +270,7 @@ func TestPlanExitPermissionKeepsItsFieldsOnTheWire(t *testing.T) {
 	}
 	modes, _ := pe["modes"].([]any)
 	if pe["plan"] != "# Plan" || pe["planFile"] != "/tmp/plan.md" || pe["option"] != "approve" ||
-		pe["default"] != "acceptEdits" || len(modes) != 2 || modes[0] != "default" || modes[1] != "acceptEdits" {
+		pe["default"] != "acceptEdits" || pe["freshContext"] != true || len(modes) != 2 || modes[0] != "default" || modes[1] != "acceptEdits" {
 		t.Fatalf("planExit = %#v", pe)
 	}
 
@@ -290,6 +290,8 @@ func TestPlanExitPermissionKeepsItsFieldsOnTheWire(t *testing.T) {
 	}
 	if pe := read()["planExit"].(map[string]any); pe["planFile"] != nil {
 		t.Fatalf("planFile = %#v", pe["planFile"])
+	} else if _, has := pe["freshContext"]; has {
+		t.Fatalf("freshContext = %#v", pe["freshContext"])
 	}
 }
 

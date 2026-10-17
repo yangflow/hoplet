@@ -591,6 +591,6 @@ func planExit(tool string, input json.RawMessage) *runtime.PlanExit {
 	_ = json.Unmarshal(input, &in)
 	return &runtime.PlanExit{
 		Plan: in.Plan, File: in.PlanFilePath, Option: "mode",
-		Modes: []string{"acceptEdits", "default", "auto"}, Default: "acceptEdits",
+		Modes: []string{"acceptEdits", "default", "auto"}, Default: "acceptEdits", FreshContext: true,
 	}
 }

@@ -423,6 +423,8 @@ type PlanExit struct {
 	Option   string   `json:"option"`
 	Modes    []string `json:"modes"`
 	Default  string   `json:"default"`
+	// FreshContext is set when the provider can start a new session from the approved plan (ADR 0025).
+	FreshContext bool `json:"freshContext,omitempty"`
 }
 
 type RuntimeRejected struct {
