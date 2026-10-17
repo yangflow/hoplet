@@ -11,11 +11,13 @@ import {
 } from '@hoplet/shared';
 import { log } from '../log/index.ts';
 import type { SnapshotRecord } from '../store/index.ts';
-import { askWaiter, type Waiter, waitFor } from './pending.ts';
-import type { ControlState } from './state.ts';
+import { askWaiter, settleWaiter, type Waiter, waitFor } from './pending.ts';
+import type { CloneRunWaiter, ControlState } from './state.ts';
 import type {
+  CloneRunOutcome,
   Control,
   DeviceLink,
+  HandoffCancelOutcome,
   HandoffError,
   HandoffOutcome,
   HandoffRequest,
@@ -30,10 +32,12 @@ const gzip = promisify(gzipCallback);
 class HandoffFailure extends Error {
   readonly code: HandoffError;
   readonly reason: string | undefined;
-  constructor(code: HandoffError, reason?: string) {
+  readonly detail: string | undefined;
+  constructor(code: HandoffError, reason?: string, detail?: string) {
     super(code);
     this.code = code;
     this.reason = reason;
+    this.detail = detail;
   }
 }
 
@@ -45,6 +49,12 @@ export interface ActiveHandoff {
   /** Set once the owner was found online; null for an offline handoff. */
   owner: DeviceLink | null;
   target: DeviceLink;
+  /** The step the handoff is in, as last reported to browsers. */
+  step?: HandoffStep;
+  /** The request ID of the clone on the target, once it was started. */
+  cloneRequestId?: string;
+  /** The user asked to cancel while the handoff was cloning. */
+  cancelRequested?: boolean;
 }
 
 function failureOf(outcome: StepFailure, device: 'owner' | 'target'): HandoffFailure {
@@ -97,6 +107,8 @@ function within<T>(promise: Promise<T>, ms: number, code: HandoffError): Promise
 }
 
 export type HandoffControl = Pick<Control, 'handoff'> & {
+  /** Stops a handoff that is cloning; the clone's failure `cancelled` then ends the handoff. */
+  cancel(sessionId: string): HandoffCancelOutcome;
   /** A device lost its connection: a handoff waiting for it fails. */
   detached(link: DeviceLink): void;
 };
@@ -106,8 +118,19 @@ export type HandoffControl = Pick<Control, 'handoff'> & {
  * moves only in the commit, in one statement that checks owner, cursor and epoch; any failure before it
  * aborts the target and leaves owner and cursor as they were.
  */
-export function createHandoff(state: ControlState): HandoffControl {
-  const { store, byDevice, handoffs, pendingPrepared, pendingInstalled, pendingVerified } = state;
+export function createHandoff(
+  state: ControlState,
+  workspace: Control['workspace'],
+): HandoffControl {
+  const {
+    store,
+    byDevice,
+    handoffs,
+    pendingPrepared,
+    pendingInstalled,
+    pendingVerified,
+    pendingCloneRun,
+  } = state;
 
   const online = (device: string): DeviceLink | undefined => {
     const link = byDevice.get(device);
@@ -120,6 +143,7 @@ export function createHandoff(state: ControlState): HandoffControl {
     step: HandoffStep,
     extra: ProgressExtra = {},
   ): void {
+    active.step = step;
     const defined = Object.fromEntries(
       Object.entries(extra).filter(([, value]) => value !== undefined),
     ) as Omit<ProgressExtra, 'snapshotAt'> & { snapshotAt?: number };
@@ -132,6 +156,96 @@ export function createHandoff(state: ControlState): HandoffControl {
       targetDeviceId: active.targetDeviceId,
       ...defined,
     });
+  }
+
+  /** The origin of the repository the session works in: the latest snapshot's, else the owner's live one. */
+  async function originOf(sessionId: string, active: ActiveHandoff): Promise<string> {
+    const stored = store.latestSnapshot(sessionId)?.originUrl;
+    if (stored) return stored;
+    if (active.owner) {
+      const live = await workspace(sessionId, active.ownerDeviceId);
+      if (live.ok && live.listing.origin) return live.listing.origin;
+    }
+    throw new HandoffFailure('no-clone');
+  }
+
+  /** Waits for a clone on the target: 600 s in all, 60 s without progress from git, both configurable. */
+  function awaitClone(
+    sessionId: string,
+    active: ActiveHandoff,
+    requestId: string,
+    send: () => void,
+  ): Promise<CloneRunOutcome> {
+    const link = active.target;
+    return new Promise((resolve) => {
+      let whole: ReturnType<typeof setTimeout> | undefined;
+      let stall: ReturnType<typeof setTimeout> | undefined;
+      const expire = (): void => {
+        // The agent removes what it made when it is told to stop.
+        if (link.isOpen()) {
+          link.send({ v: PROTOCOL_VERSION, type: 'device.clone.cancel', requestId });
+        }
+        settleWaiter(pendingCloneRun, requestId, { ok: false, error: 'timeout' });
+      };
+      const waiter: CloneRunWaiter = {
+        link,
+        sessionId,
+        resolve: (outcome) => {
+          clearTimeout(whole);
+          clearTimeout(stall);
+          resolve(outcome);
+        },
+        progress: (received, total) => {
+          if (pendingCloneRun.get(requestId) !== waiter) return;
+          clearTimeout(stall);
+          stall = setTimeout(expire, state.cloneStallMs);
+          waiter.timer = stall;
+          progress(sessionId, active, 'clone', {
+            sent: received,
+            ...(total !== undefined ? { total } : {}),
+          });
+        },
+      };
+      whole = setTimeout(expire, state.cloneTimeoutMs);
+      stall = setTimeout(expire, state.cloneStallMs);
+      waiter.timer = stall;
+      pendingCloneRun.set(requestId, waiter);
+      send();
+    });
+  }
+
+  /** The clone step (ADR 0024): the target clones the repository before the owner is touched. */
+  async function cloneStep(
+    sessionId: string,
+    cloneInto: string,
+    active: ActiveHandoff,
+  ): Promise<void> {
+    progress(sessionId, active, 'clone');
+    const origin = await originOf(sessionId, active);
+    if (active.cancelRequested) throw new HandoffFailure('cancelled');
+    const requestId = randomUUID();
+    active.cloneRequestId = requestId;
+    const outcome = await awaitClone(sessionId, active, requestId, () =>
+      active.target.send({
+        v: PROTOCOL_VERSION,
+        type: 'device.clone.start',
+        requestId,
+        handoffId: active.handoffId,
+        origin,
+        cloneInto,
+      }),
+    );
+    if (active.cancelRequested) throw new HandoffFailure('cancelled');
+    if (outcome.ok) return;
+    switch (outcome.error) {
+      case 'offline':
+        throw new HandoffFailure('target-offline');
+      case 'timeout':
+        throw new HandoffFailure('clone-failed', 'timeout');
+      case 'failed':
+        if (outcome.reason === 'cancelled') throw new HandoffFailure('cancelled');
+        throw new HandoffFailure('clone-failed', outcome.reason ?? 'git-failed', outcome.detail);
+    }
   }
 
   async function ask<T>(
@@ -199,6 +313,9 @@ export function createHandoff(state: ControlState): HandoffControl {
     const owner = active.ownerDeviceId;
     let snapshot: SnapshotRecord;
     let snapshotAt: number | undefined;
+
+    // Clone: a target without the repository gets it before the owner stops, so a failure costs nothing.
+    if (request.cloneInto !== undefined) await cloneStep(sessionId, request.cloneInto, active);
 
     // Prepare: the owner stops its process and takes a fresh snapshot, or the latest stored one is used.
     progress(sessionId, active, 'prepare');
@@ -370,10 +487,29 @@ export function createHandoff(state: ControlState): HandoffControl {
         waiter.resolve({ ok: false, error: 'offline' });
       }
     }
+    for (const [id, waiter] of [...pendingCloneRun]) {
+      if (waiter.link === link) settleWaiter(pendingCloneRun, id, { ok: false, error: 'offline' });
+    }
   }
 
   return {
     detached: failAll,
+
+    cancel(sessionId) {
+      const active = handoffs.get(sessionId);
+      if (active?.step !== 'clone') return { ok: false, error: 'handoff-not-running' };
+      if (!active.cancelRequested) {
+        active.cancelRequested = true;
+        if (active.cloneRequestId && active.target.isOpen()) {
+          active.target.send({
+            v: PROTOCOL_VERSION,
+            type: 'device.clone.cancel',
+            requestId: active.cloneRequestId,
+          });
+        }
+      }
+      return { ok: true };
+    },
 
     async handoff(request) {
       const { sessionId, targetDeviceId } = request;
@@ -433,16 +569,28 @@ export function createHandoff(state: ControlState): HandoffControl {
           handoffId: active.handoffId,
           reason,
         } as const;
-        online(targetDeviceId)?.send(abort);
-        online(owner)?.send(abort);
+        // Nothing was installed or stopped before the clone step ended: there is nothing to abort.
+        if (active.step !== 'clone') {
+          online(targetDeviceId)?.send(abort);
+          online(owner)?.send(abort);
+        }
         progress(sessionId, active, 'failed', { reason });
         return {
           ok: false,
           error: failure.code,
           ...(failure.reason !== undefined ? { reason: failure.reason } : {}),
+          ...(failure.detail !== undefined ? { detail: failure.detail } : {}),
         };
       } finally {
         handoffs.delete(sessionId);
+        if (active.cloneRequestId) {
+          const waiter = pendingCloneRun.get(active.cloneRequestId);
+          if (waiter) {
+            pendingCloneRun.delete(active.cloneRequestId);
+            clearTimeout(waiter.timer);
+            waiter.resolve({ ok: false, error: 'offline' });
+          }
+        }
         for (const map of [pendingPrepared, pendingInstalled, pendingVerified]) {
           const waiter = map.get(active.handoffId);
           if (!waiter) continue;

@@ -653,3 +653,18 @@ button.row:not(.selected):hover {
   gap: var(--space-2);
   margin-top: var(--space-2);
 }
+
+/* A path too long for its box loses its start, never its end, which names the folder: rtl puts the ellipsis on
+   the left, and the isolated ltr <bdi> inside keeps the slashes where they are. */
+.path-tail {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl;
+  text-align: left;
+}
+.path-tail > bdi {
+  direction: ltr;
+  unicode-bidi: isolate;
+}

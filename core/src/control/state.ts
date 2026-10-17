@@ -11,7 +11,9 @@ import type { Waiter } from './pending.ts';
 import type { OpenPermission, RuntimeEntry } from './runtime.ts';
 import type {
   AttachmentOutcome,
+  CloneCheckOutcome,
   CloneOutcome,
+  CloneRunOutcome,
   ControlEvent,
   DeviceControlOutcome,
   DeviceLink,
@@ -80,6 +82,9 @@ export interface ControlState {
   pendingSession: Map<string, Waiter<SessionDeviceOutcome>>;
   pendingDirs: Map<string, Waiter<DirsOutcome>>;
   pendingClone: Map<string, Waiter<CloneOutcome>>;
+  pendingCloneCheck: Map<string, Waiter<CloneCheckOutcome>>;
+  /** Clones in progress on a target, by request ID: the handoff's clone step waits on them (ADR 0024). */
+  pendingCloneRun: Map<string, CloneRunWaiter>;
   pendingAttachments: Map<string, Waiter<AttachmentOutcome>>;
   promptTimeoutMs: number;
   startTimeoutMs: number;
@@ -87,7 +92,14 @@ export interface ControlState {
   attachmentTimeoutMs: number;
   handoffTimeoutMs: number;
   transferTimeoutMs: number;
+  cloneTimeoutMs: number;
+  cloneStallMs: number;
 }
+
+/** A clone the handoff waits for; `progress` restarts its stall timer. */
+export type CloneRunWaiter = Waiter<CloneRunOutcome> & {
+  progress(received: number, total: number | undefined): void;
+};
 
 export function onlineLink(state: ControlState, deviceId: string): DeviceLink | null {
   const link = state.byDevice.get(deviceId);

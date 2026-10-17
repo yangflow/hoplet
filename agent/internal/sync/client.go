@@ -55,6 +55,8 @@ type Client struct {
 	version     string
 	hooks       Hooks
 	handoffMu   sync.Mutex
+	cloneMu     sync.Mutex
+	clones      map[string]context.CancelFunc // requestId -> cancel of a running clone
 	handoffTail chan struct{}
 
 	cs      atomic.Pointer[connState]
@@ -80,6 +82,7 @@ func NewClient(cfg *config.Config, deviceID, version string, hooks Hooks) *Clien
 		deviceID:       deviceID,
 		version:        version,
 		hooks:          hooks,
+		clones:         map[string]context.CancelFunc{},
 		cursors:        map[string]int64{},
 		titles:         map[string]string{},
 		ownershipEpoch: map[string]uint64{},
@@ -242,6 +245,8 @@ func (c *Client) readLoop(cs *connState) {
 			Path      string `json:"path"`
 			At        string `json:"at"`
 			Origin    string `json:"origin"`
+			CloneInto string `json:"cloneInto"`
+			HandoffID string `json:"handoffId"`
 		}
 		if err := json.Unmarshal(raw, &head); err != nil {
 			continue
@@ -301,6 +306,17 @@ func (c *Client) readLoop(cs *connState) {
 			continue
 		case TypeDeviceCloneFind:
 			go c.handleClone(cs, head.RequestID, head.Origin)
+			continue
+		case TypeDeviceCloneCheck:
+			go c.handleCloneCheck(cs, head.RequestID, head.Origin, head.CloneInto)
+			continue
+		case TypeDeviceCloneStart:
+			// Registered here, in order, so a cancel that follows finds it.
+			ctx := c.beginClone(cs, head.RequestID)
+			go c.handleCloneStart(ctx, cs, head.RequestID, head.HandoffID, head.Origin, head.CloneInto)
+			continue
+		case TypeDeviceCloneCancel:
+			c.cancelClone(head.RequestID)
 			continue
 		case TypeDeviceSessionsImport, TypeDeviceSessionsRemove:
 			go c.handleSessions(cs, raw)

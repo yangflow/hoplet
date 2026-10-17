@@ -6,10 +6,12 @@ import {
   applyProgress,
   applyResult,
   failureCode,
+  failureDetail,
   failureText,
   type HandoffRun,
   originLabel,
   startRun,
+  stepsOf,
 } from '../src/screens/workspace/handoff.ts';
 import { formatProgress, formatSeconds } from '../src/screens/workspace/handoff-panel.tsx';
 
@@ -138,6 +140,80 @@ describe('a handoff run', () => {
     expect(failureCode({ ...run, error: undefined, reason: 'timeout' } as HandoffRun)).toBe(
       'timeout',
     );
+  });
+});
+
+describe('a handoff that clones first', () => {
+  const clone = { into: '/Users/mark/github/hoplet', origin: 'github.com/yangflow/hoplet' };
+  const started = () => startRun('dev-studio', 'MacBook Pro', 0, clone);
+
+  it('lists six steps with the clone first, and five without', () => {
+    expect(stepsOf(started())).toEqual([
+      'clone',
+      'prepare',
+      'transfer',
+      'install',
+      'verify',
+      'commit',
+    ]);
+    expect(stepsOf(startRun('dev-studio', 'MacBook Pro', 0))).toHaveLength(5);
+  });
+
+  it('shows the bytes received and keeps them when the transfer counts its own', () => {
+    const cloning = fold(
+      started(),
+      progress('clone', { sent: 20, total: 50 }),
+      progress('clone', { sent: 30 }),
+    );
+    expect(cloning).toMatchObject({ current: 'clone', sent: 30 });
+    const moving = fold(cloning, progress('prepare'), progress('transfer', { sent: 1, total: 9 }));
+    expect(moving).toMatchObject({
+      current: 'transfer',
+      cloned: 30,
+      sent: 1,
+      total: 9,
+      steps: { clone: { at: 0, end: 1000 } },
+    });
+  });
+
+  it('fails the clone step with the reason the core gave and says what was left', () => {
+    const run = fold(started(), progress('clone'), progress('failed', { reason: 'no-space' }));
+    expect(run).toMatchObject({ outcome: 'failed', failedStep: 'clone', reason: 'no-space' });
+    expect(failureCode(run as HandoffRun)).toBe('no-space');
+    expect(failureText(run as HandoffRun, 'studio')).toBe(
+      'The clone stopped: no space left on studio. Nothing was left at /Users/mark/github/hoplet. MacBook Pro still owns the session.',
+    );
+  });
+
+  it('gives each failure reason its own words, and git only for git-failed', () => {
+    const failed = (reason: string, detail?: string): HandoffRun => ({
+      ...started(),
+      outcome: 'failed',
+      failedStep: 'clone',
+      current: null,
+      error: { code: 'clone-failed', reason, ...(detail ? { detail } : {}) },
+    });
+    expect(failureText(failed('no-access'), 'studio')).toMatch(
+      /^studio cannot read github.com\/yangflow\/hoplet: authentication failed\. Hoplet never asks for a password\./,
+    );
+    expect(failureText(failed('no-access'), 'studio')).not.toMatch(/[{}]/);
+    expect(failureText(failed('destination-taken'), 'studio')).toMatch(/Choose another folder/);
+    expect(failureText(failed('timeout'), 'studio')).toMatch(/took too long/);
+    expect(failureText(failed('cancelled'), 'studio')).toMatch(/was cancelled/);
+    expect(failureText(failed('git-failed', 'fatal: nope'), 'studio')).not.toMatch(/nope/);
+    expect(failureDetail(failed('git-failed', 'fatal: nope'))).toBe('fatal: nope');
+    expect(failureDetail(failed('no-space', 'fatal: nope'))).toBeUndefined();
+  });
+
+  it('does not claim a path it does not know', () => {
+    const other: HandoffRun = {
+      ...startRun('dev-studio', 'MacBook Pro', 0, {}),
+      outcome: 'failed',
+      failedStep: 'clone',
+      current: null,
+      error: { code: 'clone-failed', reason: 'timeout' },
+    };
+    expect(failureText(other, 'studio')).not.toMatch(/Nothing was left/);
   });
 });
 

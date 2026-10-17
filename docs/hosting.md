@@ -27,7 +27,11 @@ machine whose Claude Code sessions are synced or controlled.
   services of the browsers the user subscribed and to the webhook URLs the user configured, and to nothing else;
   it does not follow redirects. With no subscription and no webhook it makes none. The agent connects only to
   the core; Claude Code processes it starts make their own connections to Anthropic, and `git` may fetch from
-  the repository's `origin` during handoff installation.
+  the repository's `origin` during handoff installation. When a handoff clones a repository on a machine that
+  has none ([ADR 0024](adr/0024-a-handoff-clones-the-repository-on-a-target-that-has-none.md)), that machine's
+  agent runs `git clone` and `git ls-remote` against the `origin` over `https` or `ssh` and nothing else. It
+  needs a credential helper or an ssh key that works without a prompt; a repository that asks for a password
+  fails as `no-access`.
 
 ### Public URL
 
@@ -78,7 +82,7 @@ place of the proxy. Never publish port 7788 on `0.0.0.0`.
 | Where | What |
 |---|---|
 | Docker volume `hoplet-data` (`/data` in the container) | `hoplet.db` (SQLite index, which also holds what the user did to a session in the web UI: a title of their own, a pin, an archive, the last slash commands and skills a session reported per machine and directory, the messages queued for a session, the worktree Hoplet made for a handed-off session, and the IDs of deleted sessions), `sessions/<sessionId>/c-<seq>.ndjson[.gz]` (session lines), `snapshots/<sessionId>/<snapshotId>.tar.gz` (latest workspace snapshot per session), `notify-secrets.json` (mode 0600: the VAPID key pair for Web Push, the key that signs action links and the signing secrets of webhooks; the push subscriptions, the webhooks without their secrets and the preferences are in `hoplet.db`) |
-| Agent state root (`~/.hoplet/` by default) | `device-id`, `config.json`, `projects.json`, `runtime/` (running processes), `handoff/` (installation records), `attachments/` (images uploaded for prompts: at most 64 files and 64 MiB, each kept at most an hour) |
+| Agent state root (`~/.hoplet/` by default) | `device-id`, `config.json`, `projects.json`, `runtime/` (running processes), `handoff/` (installation records and the journal of a clone in progress, `<handoffId>.clone.json`, which the agent uses on start-up to remove a half-made clone), `attachments/` (images uploaded for prompts: at most 64 files and 64 MiB, each kept at most an hour) |
 | Development machine | Claude Code's store and working trees; worktrees created by handoff, next to the clone they belong to |
 
 Rotating the notification secrets is deleting `notify-secrets.json` while the core is stopped: the next start
@@ -128,6 +132,9 @@ nothing. `hoplet-agent projects` and `hoplet-agent sessions` maintain it; the da
 - Image size under 250 MB.
 - Disk: session bytes / 20 after compression, plus the index, plus at most one snapshot per session (at most
   64 MiB each). There is no quota; a full disk fails appends, which the agent retries.
+- A clone made by a handoff takes the disk the repository takes, inside the browse root of the target; it has
+  600 s in all and 60 s without progress, and a full disk fails it as `no-space`. A clone is kept when the
+  handoff later fails or is cancelled, because it is the user's.
 - Session lines are at most 32 MiB; append batches at most 1 MiB raw; WebSocket messages at most 64 MiB.
 - Snapshots: at most 64 MiB compressed and 256 MiB uncompressed, enforced while reading and decompressing.
 - Workspace file reads return at most 256 KiB of text, or an image of at most 4 MiB whole; workspace diffs at
@@ -138,7 +145,7 @@ nothing. `hoplet-agent projects` and `hoplet-agent sessions` maintain it; the da
 Pull the new image and restart: `docker compose pull && docker compose up -d`. Migrations in
 `core/src/migrations/` run forward at startup; a data directory with a newer schema is refused. Replace
 `hoplet-agent` on every machine with the version built from the same commit as the image; the agent and the core
-refuse a `device.hello` whose protocol version differs. Back up the stopped data directory before upgrading;
+refuse a `device.hello` whose protocol version differs (the version is 6). Back up the stopped data directory before upgrading;
 downgrading means restoring that backup with the matching binaries.
 
 ## Uninstall

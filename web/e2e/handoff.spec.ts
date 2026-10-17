@@ -555,3 +555,179 @@ test('an offline handoff uses the last snapshot, states its time, and rejects th
   expect(final?.ownerDeviceId).toBe(DST.id);
   expect(final?.byteSize).toBe(before.byteSize);
 });
+
+// docs/adr/0024: a target with no clone clones the repository first, before the owner is touched. The agent
+// only clones https and ssh origins, so the target is a scripted device that answers the clone messages; the
+// owner is the real source agent.
+test.describe('a handoff to a machine without a clone clones first', () => {
+  const DEST = '/scripted/src/origin';
+  const FRESH = 'e2e-fresh';
+
+  type Fresh = {
+    device: RawDevice;
+    checks: Record<string, unknown>[];
+    starts: Record<string, unknown>[];
+    cancels: Record<string, unknown>[];
+    installs: Record<string, unknown>[];
+    /** Called with every `device.clone.start`; the default leaves the clone running. */
+    onStart: (m: Record<string, unknown>) => void;
+  };
+
+  async function freshDevice(): Promise<Fresh> {
+    const device = await RawDevice.connect(stack, `dev-${FRESH}`, FRESH);
+    const fresh: Fresh = {
+      device,
+      checks: [],
+      starts: [],
+      cancels: [],
+      installs: [],
+      onStart: () => {},
+    };
+    device.on((m) => {
+      const requestId = m.requestId;
+      if (m.type === 'device.clone.find')
+        device.send({ type: 'device.clone', requestId, path: null });
+      if (m.type === 'device.clone.check') {
+        fresh.checks.push(m);
+        device.send({
+          type: 'device.clone.checked',
+          requestId,
+          reason: 'ok',
+          cloneInto: m.cloneInto ?? DEST,
+        });
+      }
+      if (m.type === 'device.clone.start') {
+        fresh.starts.push(m);
+        fresh.onStart(m);
+      }
+      if (m.type === 'device.clone.cancel') {
+        fresh.cancels.push(m);
+        device.send({ type: 'device.clone.failed', requestId, reason: 'cancelled' });
+      }
+      if (m.type === 'handoff.install') {
+        fresh.installs.push(m);
+        device.send({
+          type: 'handoff.failed',
+          sessionId: m.sessionId,
+          handoffId: m.handoffId,
+          step: 'install',
+          reason: 'scripted: the target installs nothing',
+        });
+      }
+    });
+    return fresh;
+  }
+
+  async function chooseFresh(title: string) {
+    await open(page, title);
+    const row = page.getByTestId('workspace.handoff');
+    // The workspace panel stays open from the last session; otherwise the toggle opens it.
+    const toggle = page.getByTestId('cockpit.workspace-toggle');
+    await expect(row.or(toggle)).toBeVisible();
+    if (!(await row.isVisible())) await toggle.click();
+    await row.click();
+    const panel = page.getByTestId('workspace.handoff-panel');
+    await panel.getByTestId('workspace.handoff-target').click();
+    await page.getByRole('option', { name: FRESH }).click();
+    return panel;
+  }
+
+  test.beforeAll(async () => {
+    await restart(src);
+  });
+
+  test('the clone is proposed, runs with its progress and the usual steps follow', async () => {
+    const id = await sourceSession(8);
+    const before = (await stack.session(id)) ?? missing();
+    const fresh = await freshDevice();
+    try {
+      const panel = await chooseFresh(titleOf(8));
+      await expect(panel.getByTestId('workspace.handoff-suggest')).toContainText(DEST);
+      await expect(panel.getByTestId('workspace.handoff-run')).toContainText('Clone and hand off');
+      expect(fresh.checks.at(-1)?.cloneInto).toBeUndefined();
+
+      fresh.onStart = (m) => {
+        fresh.device.send({
+          type: 'device.clone.progress',
+          requestId: m.requestId,
+          received: 1024,
+          total: 4096,
+        });
+      };
+      await panel.getByTestId('workspace.handoff-run').click();
+      await until('the clone to start', 15_000, async () => fresh.starts.length > 0);
+      expect(fresh.starts[0]).toMatchObject({ cloneInto: DEST });
+      expect(String(fresh.starts[0]?.origin)).toContain('origin.git');
+      await feed.wait(
+        (m) =>
+          m.type === 'handoff.progress' &&
+          m.sessionId === id &&
+          m.step === 'clone' &&
+          m.sent === 1024,
+      );
+      await expect(panel.getByTestId('workspace.handoff-cancel')).toBeVisible();
+      await expect(panel.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '1024');
+      // The owner is not touched while the clone runs.
+      expect((await stack.session(id))?.ownerDeviceId).toBe(before.ownerDeviceId);
+      expect(feed.steps(id)).not.toContain('prepare');
+
+      fresh.device.send({
+        type: 'device.clone.done',
+        requestId: fresh.starts[0]?.requestId,
+        path: DEST,
+      });
+      await expect(panel.getByTestId('workspace.handoff-failed')).toBeVisible({ timeout: 30_000 });
+      const steps = feed.steps(id);
+      expect(steps.indexOf('clone')).toBeLessThan(steps.indexOf('prepare'));
+      expect(steps).toEqual(expect.arrayContaining(['clone', 'prepare', 'transfer', 'failed']));
+      // The scripted target refused the install while the transfer ran: the owner and the cursor are as they were.
+      const after = (await stack.session(id)) ?? missing();
+      expect(after.ownerDeviceId).toBe(before.ownerDeviceId);
+      expect(after.ownerEpoch).toBe(before.ownerEpoch);
+      expect(after.byteSize).toBe(before.byteSize);
+    } finally {
+      fresh.device.close();
+    }
+  });
+
+  test('cancelling stops the clone, and the owner and the cursor stay', async () => {
+    const id = await sourceSession(0);
+    const before = (await stack.session(id)) ?? missing();
+    const fresh = await freshDevice();
+    try {
+      const panel = await chooseFresh(titleOf(0));
+      await expect(panel.getByTestId('workspace.handoff-suggest')).toContainText(DEST);
+      fresh.onStart = (m) => {
+        fresh.device.send({
+          type: 'device.clone.progress',
+          requestId: m.requestId,
+          received: 2048,
+        });
+      };
+      await panel.getByTestId('workspace.handoff-run').click();
+      await expect(panel.getByTestId('workspace.handoff-cancel')).toBeVisible({ timeout: 15_000 });
+      await feed.wait(
+        (m) =>
+          m.type === 'handoff.progress' &&
+          m.sessionId === id &&
+          m.step === 'clone' &&
+          m.sent === 2048,
+      );
+      await panel.getByTestId('workspace.handoff-cancel').click();
+      await until('the clone to be cancelled', 15_000, async () => fresh.cancels.length > 0);
+      await expect(panel.getByTestId('workspace.handoff-failed')).toContainText(/cancel/i, {
+        timeout: 15_000,
+      });
+      expect(feed.steps(id)).not.toContain('prepare');
+      const after = (await stack.session(id)) ?? missing();
+      expect(after.ownerDeviceId).toBe(before.ownerDeviceId);
+      expect(after.ownerEpoch).toBe(before.ownerEpoch);
+      expect(after.byteSize).toBe(before.byteSize);
+      // Nothing is running any more.
+      const again = await stack.request('POST', `/api/sessions/${id}/handoff/cancel`);
+      expect(again.body).toMatchObject({ code: 'handoff-not-running' });
+    } finally {
+      fresh.device.close();
+    }
+  });
+});

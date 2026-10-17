@@ -783,6 +783,14 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.ns-add-path {
+  display: inline-flex;
+  min-width: 0;
+  white-space: pre;
+}
+.ns-add-path > .path-tail {
+  flex: 0 1 auto;
+}
 .ns-label-top {
   align-self: start;
   display: flex;

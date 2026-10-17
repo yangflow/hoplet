@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { t } from '../../lib/i18n.ts';
 import { running, Scene, type Variant } from '../cockpit/states.tsx';
+import type { CloneIntoFixture } from './clone-into.tsx';
 import {
   CHUNKS_NOW,
   chunksDiff,
@@ -80,6 +81,74 @@ const ran = (over: Partial<HandoffRun>): HandoffFixture => ({
 const prepared = { prepare: { at: T0, end: T0 + 800 } };
 const transferred = { ...prepared, transfer: { at: T0 + 800, end: T0 + 3700 } };
 const installed = { ...transferred, install: { at: T0 + 3700, end: T0 + 5300 } };
+/** Studio has no clone: where the core would put one, and why it would not. */
+const CLONE_DEST = '/Users/mark/github/client-projects/platform-services/hoplet';
+const offer = (
+  over: Partial<Extract<CloneCheck, { state: 'offer' }>['offer']> = {},
+): CloneCheck => ({
+  state: 'offer',
+  offer: {
+    origin: 'https://github.com/yangflow/hoplet.git',
+    repoName: 'hoplet',
+    cloneInto: CLONE_DEST,
+    reason: 'ok',
+    ...over,
+  },
+});
+const cloneRun = { into: CLONE_DEST, origin: 'github.com/yangflow/hoplet' };
+const cloneEntry = (name: string, git = false) => ({ name, git });
+const studioHome = '/Users/mark';
+const studioListings: CloneIntoFixture['listings'] = {
+  [studioHome]: {
+    path: studioHome,
+    parent: null,
+    root: studioHome,
+    entries: ['Desktop', 'Documents', 'Downloads', 'github', 'notes', 'scratch'].map((n) =>
+      cloneEntry(n),
+    ),
+    truncated: false,
+  },
+  [`${studioHome}/github`]: {
+    path: `${studioHome}/github`,
+    parent: studioHome,
+    root: studioHome,
+    entries: [
+      cloneEntry('dotfiles', true),
+      cloneEntry('experiments'),
+      cloneEntry('repopro'),
+      cloneEntry('website', true),
+    ],
+    truncated: false,
+  },
+  [`${studioHome}/Documents`]: {
+    path: `${studioHome}/Documents`,
+    parent: studioHome,
+    root: studioHome,
+    entries: [cloneEntry('Shared'), cloneEntry('Thesis')],
+    truncated: false,
+  },
+};
+const withHoplet = (): CloneIntoFixture['listings'] => ({
+  ...studioListings,
+  [`${studioHome}/github`]: {
+    ...(studioListings[`${studioHome}/github`] as NonNullable<
+      CloneIntoFixture['listings'][string]
+    >),
+    entries: [
+      cloneEntry('dotfiles', true),
+      cloneEntry('experiments'),
+      cloneEntry('hoplet'),
+      cloneEntry('repopro'),
+      cloneEntry('website', true),
+    ],
+  },
+});
+const dialog = (over: Partial<CloneIntoFixture> = {}): CloneIntoFixture => ({
+  listings: studioListings,
+  start: `${studioHome}/github`,
+  name: 'hoplet',
+  ...over,
+});
 const handoffOpen = (offline = false) => ({ ...(offline ? changes : files), handoffOpen: true });
 
 /** Every state the design shows, rendered at /__states/workspace/<state> in development builds. */
@@ -234,6 +303,116 @@ export const states: Record<string, () => ReactNode> = {
     <Inspect
       offline
       workspace={{ data: offlineData, view: handoffOpen(true), handoff: { clone: found } }}
+    />
+  ),
+  'handoff-clone': () => (
+    <Inspect workspace={{ data: live(), view: handoffOpen(), handoff: { clone: offer() } }} />
+  ),
+  'handoff-no-access': () => (
+    <Inspect
+      workspace={{
+        data: live(),
+        view: handoffOpen(),
+        handoff: { clone: offer({ reason: 'no-access' }) },
+      }}
+    />
+  ),
+  'handoff-browse': () => (
+    <Inspect
+      workspace={{
+        data: live(),
+        view: handoffOpen(),
+        handoff: { clone: offer(), dialog: dialog() },
+      }}
+    />
+  ),
+  'handoff-browse-exists': () => (
+    <Inspect
+      workspace={{
+        data: live(),
+        view: handoffOpen(),
+        handoff: {
+          clone: offer(),
+          dialog: dialog({ listings: withHoplet(), taken: 'exists' }),
+        },
+      }}
+    />
+  ),
+  'handoff-browse-readonly': () => (
+    <Inspect
+      workspace={{
+        data: live(),
+        view: handoffOpen(),
+        handoff: {
+          clone: offer(),
+          dialog: dialog({ start: `${studioHome}/Documents`, taken: 'not-writable' }),
+        },
+      }}
+    />
+  ),
+  'handoff-browse-outside': () => (
+    <Inspect
+      workspace={{
+        data: live(),
+        view: handoffOpen(),
+        handoff: {
+          clone: offer(),
+          dialog: dialog({
+            start: studioHome,
+            typed: { text: '/etc', reason: 'outside the browse root' },
+          }),
+        },
+      }}
+    />
+  ),
+  'handoff-cloning': () => (
+    <Inspect
+      workspace={{
+        data: live(),
+        view: files,
+        handoff: ran({
+          clone: cloneRun,
+          steps: { clone: { at: T0 } },
+          current: 'clone',
+          sent: 20_552_090,
+          total: 50_121_933,
+        }),
+      }}
+    />
+  ),
+  'handoff-clone-failed': () => (
+    <Inspect
+      workspace={{
+        data: live(),
+        view: handoffOpen(),
+        handoff: ran({
+          clone: cloneRun,
+          outcome: 'failed',
+          steps: { clone: { at: T0 } },
+          failedStep: 'clone',
+          reason: 'clone-failed',
+          error: { code: 'clone-failed', reason: 'no-space' },
+        }),
+      }}
+    />
+  ),
+  'handoff-clone-continue': () => (
+    <Inspect
+      workspace={{
+        data: live(),
+        view: files,
+        handoff: ran({
+          clone: cloneRun,
+          steps: {
+            clone: { at: T0, end: T0 + 38_000 },
+            prepare: { at: T0 + 38_000, end: T0 + 38_800 },
+            transfer: { at: T0 + 38_800 },
+          },
+          current: 'transfer',
+          cloned: 50_121_933,
+          sent: 6_501_171,
+        }),
+      }}
     />
   ),
 };

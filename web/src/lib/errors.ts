@@ -8,13 +8,22 @@ export class ApiError extends Error {
   readonly reason: string | undefined;
   /** The steps of a deletion that failed half way (`delete-partial`). */
   readonly steps: DeletionStep[] | undefined;
+  /** What git said when a clone failed (`clone-failed` with the reason `git-failed`), credentials removed. */
+  readonly detail: string | undefined;
 
-  constructor(status: number, code: HttpErrorCode | null, reason?: string, steps?: DeletionStep[]) {
+  constructor(
+    status: number,
+    code: HttpErrorCode | null,
+    reason?: string,
+    steps?: DeletionStep[],
+    detail?: string,
+  ) {
     super(code ?? `HTTP ${status}`);
     this.status = status;
     this.code = code;
     this.reason = reason;
     this.steps = steps;
+    this.detail = detail;
   }
 }
 
@@ -49,6 +58,8 @@ export const ERROR_COPY: Record<HttpErrorCode, string> = {
   cancelled: 'The request was cancelled.',
   'handoff-in-progress': 'A hand-off of this session is already running.',
   'no-clone': 'That machine has no clone of this repository. Give the path of one.',
+  'handoff-not-running': 'No hand-off of this session is cloning now.',
+  'clone-failed': 'The repository could not be cloned on the other machine. Nothing was moved.',
   'no-snapshot':
     'The owner is offline and no workspace snapshot was stored. Hand off once it has finished a turn.',
   'session-changed': 'The session changed during the hand-off. Nothing was moved; try again.',

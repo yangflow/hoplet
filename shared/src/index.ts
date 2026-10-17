@@ -6,6 +6,7 @@
 /** The one valibot every consumer parses with, so the pinned version is the version in use. */
 export { type GenericSchema, type InferOutput, is, parse, safeParse } from 'valibot';
 export * from './catalog.ts';
+export * from './clone.ts';
 export * from './commands.ts';
 export * from './conversation.ts';
 export * from './deletion.ts';

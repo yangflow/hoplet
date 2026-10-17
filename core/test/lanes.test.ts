@@ -97,6 +97,7 @@ describe('REST lanes', () => {
       '/api/sessions/:sessionId/workspace/file',
       '/api/sessions/:sessionId/workspace/diff',
       '/api/sessions/:sessionId/handoff',
+      '/api/sessions/:sessionId/handoff/cancel',
     ]) {
       expect(routes.find((r) => r.path === path)?.lane, path).toBe('control');
     }

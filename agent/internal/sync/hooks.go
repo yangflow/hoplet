@@ -106,6 +106,12 @@ type Hooks struct {
 	// CloneFind names the clone a handoff of a repository with this origin would use, "" when there is none.
 	CloneFind func(ctx context.Context, origin string) (string, error)
 
+	// CloneCheck answers whether origin can be cloned into cloneInto ("": a suggested destination).
+	CloneCheck func(ctx context.Context, origin, cloneInto string) CloneChecked
+	// CloneStart clones origin into cloneInto for a handoff and returns the path of the clone, or an error
+	// that is a *CloneError. It ends early when ctx is cancelled, as a CloneError with reason "cancelled".
+	CloneStart func(ctx context.Context, handoffID, origin, cloneInto string, progress func(received int64, total *int64)) (string, error)
+
 	// SessionsImport / SessionsRemove match hoplet-agent sessions import|remove.
 	SessionsImport func(ctx context.Context, path string, sessionIDs []string) (candidates []string, projects []DeviceProject, err error)
 	SessionsRemove func(ctx context.Context, path string, sessionIDs []string) (candidates []string, projects []DeviceProject, err error)
@@ -126,3 +132,18 @@ type SessionInspection struct {
 	VendorFile *DeletionFile
 	Worktree   *DeletionWorktree
 }
+
+// CloneChecked is the answer of Hooks.CloneCheck.
+type CloneChecked struct {
+	Reason    string
+	Detail    string
+	CloneInto string
+}
+
+// CloneError is the failure of Hooks.CloneStart.
+type CloneError struct {
+	Reason string
+	Detail string
+}
+
+func (e *CloneError) Error() string { return e.Reason }

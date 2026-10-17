@@ -94,7 +94,8 @@ Response column names the schema of the success body and its status when it is n
 | GET | `/api/sessions/:sessionId/workspace/diff` | host | control | `WorkspaceDiffQuerySchema` | — | `WorkspaceDiffSchema` | `invalid-request`, `session-not-found`, `owner-offline`, `timeout`, `rejected` |
 | GET | `/api/sessions/:sessionId/snapshot/changes` | host | bulk | — | — | `SnapshotChangesSchema` | `session-not-found`, `no-snapshot`, `busy` |
 | GET | `/api/sessions/:sessionId/snapshot/diff` | host | bulk | `WorkspaceDiffQuerySchema` | — | `SnapshotDiffSchema` | `invalid-request`, `session-not-found`, `no-snapshot`, `not-found`, `busy` |
-| POST | `/api/sessions/:sessionId/handoff` | host | control | — | `HandoffRequestSchema` | `HandoffResultSchema` | `invalid-json`, `invalid-request`, `too-large`, `session-not-found`, `same-device`, `target-offline`, `owner-offline`, `handoff-in-progress`, `busy`, `no-snapshot`, `no-clone`, `session-changed`, `verify-failed`, `cancelled`, `timeout`, `rejected` |
+| POST | `/api/sessions/:sessionId/handoff` | host | control | — | `HandoffRequestSchema` | `HandoffResultSchema` | `invalid-json`, `invalid-request`, `too-large`, `session-not-found`, `same-device`, `target-offline`, `owner-offline`, `handoff-in-progress`, `busy`, `no-snapshot`, `no-clone`, `clone-failed`, `session-changed`, `verify-failed`, `cancelled`, `timeout`, `rejected` |
+| POST | `/api/sessions/:sessionId/handoff/cancel` | host | control | — | — | `HandoffCancelResultSchema` | `session-not-found`, `handoff-not-running` |
 | GET | `/api/devices` | host | control | — | — | `DeviceListResponseSchema` | — |
 | POST | `/api/devices` | host | control | — | `DeviceMintRequestSchema` | `DeviceMintResultSchema` | `invalid-json`, `invalid-request`, `too-large` |
 | POST | `/api/devices/:deviceId/attachments` | host | bulk | — | `PromptImageSchema` | `AttachmentResultSchema` | `invalid-json`, `invalid-request`, `too-large`, `target-offline`, `timeout` |
@@ -186,7 +187,22 @@ Behavior a client relies on:
 - `POST /api/sessions/:sessionId/handoff` answers when the handoff is over, naming the new worktree and branch;
   `handoff.progress` reports its steps meanwhile. A failed handoff leaves the owner and the cursor where they were.
   Before one, `GET /api/devices/:deviceId/clone?origin=` with the `origin` of the workspace listing or the snapshot
-  changes names the clone the target would use, or `path: null` when the request needs a `targetPath`.
+  changes names the clone the target would use, or `path: null` when the request needs a `targetPath` or a
+  clone. Then `clone` says what cloning would do ([ADR 0024](adr/0024-a-handoff-clones-the-repository-on-a-target-that-has-none.md)):
+  the `origin` with its credentials removed, the `repoName`, the proposed `cloneInto`, a `reason` (`ok`,
+  `no-origin`, `no-access`, `destination-taken`; `no-access` covers a failed probe, whether the network or the
+  credentials) and, for `destination-taken`, a `detail` (`exists`,
+  `outside-root`, `symlink`, `not-writable`). The query takes an optional `cloneInto` to check instead of the
+  proposal.
+- A handoff request with `cloneInto` (exclusive with `targetPath`) makes the target clone the repository there
+  first, before the owner is touched; `handoff.progress` reports `clone` with the bytes received. A failed clone
+  answers `clone-failed` with the `reason` (`no-access`, `no-space`, `destination-taken`, `timeout`,
+  `git-failed`) and the `detail`, and leaves the owner and the cursor where they were. `no-access` is a refusal
+  by the remote (credentials, a missing repository); a network failure during the clone (a dropped connection,
+  a TLS error, an unresolved host) is `git-failed`, with git's credential-stripped text as the `detail`.
+  `POST /api/sessions/:sessionId/handoff/cancel` ends a handoff that is cloning, which then fails as
+  `cancelled`; it never stops the owner, and answers `handoff-not-running` when no handoff of the session is in
+  its clone step.
 - `GET /api/sessions/:sessionId/deletion` previews a deletion (ADR 0023): `owner` (`deviceId`, `name`, `online`), `running`,
   `vendorFile` (`path`, or `null` when the agent finds none), `worktree` (`path`, `branch`, `dirty` with `modified` and
   `untracked`, `unpushed` commits that no remote and no other local branch has; `null` when Hoplet made none for
@@ -276,7 +292,9 @@ archived sessions too; the client decides what to show.
 | `request-closed` | 409 | The permission request was already answered or has closed |
 | `cancelled` | 409 | The operation was cancelled before it completed |
 | `handoff-in-progress` | 409 | A handoff of this session is already running |
-| `no-clone` | 409 | The target has no clone of the session's repository; send `targetPath` |
+| `no-clone` | 409 | The target has no clone of the session's repository; send `targetPath` or `cloneInto` |
+| `handoff-not-running` | 409 | No handoff of this session is in its clone step, so there is nothing to cancel |
+| `clone-failed` | 502 | The target could not clone the repository; the details carry the `reason` and `detail` |
 | `no-snapshot` | 409 | No workspace snapshot is stored for the session |
 | `session-changed` | 409 | The session changed while the handoff ran |
 | `verify-failed` | 502 | What the target installed did not match what was sent |

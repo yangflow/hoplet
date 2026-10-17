@@ -119,7 +119,7 @@ func (i *Installer) records() []Record {
 	entries, _ := os.ReadDir(filepath.Join(i.Home, "handoff"))
 	var out []Record
 	for _, e := range entries {
-		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") || strings.HasSuffix(e.Name(), cloneJournalSuffix) {
 			continue
 		}
 		r, err := i.load(filepath.Join(i.Home, "handoff", e.Name()))

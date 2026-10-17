@@ -30,6 +30,7 @@ record and mark the old one "superseded by NNNN".
 | [0021](0021-notifications-and-signed-action-links.md) | Notifications and signed action links | accepted |
 | [0022](0022-the-mac-client-is-native-appkit-with-the-agent-bundled.md) | The Mac client is native AppKit with the agent bundled | proposed |
 | [0023](0023-deleting-a-session-and-what-hoplet-made-for-it.md) | Deleting a session and what Hoplet made for it | accepted |
+| [0024](0024-a-handoff-clones-the-repository-on-a-target-that-has-none.md) | A handoff clones the repository on a target that has none | accepted |
 
 ## Record template
 

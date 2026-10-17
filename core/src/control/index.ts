@@ -61,6 +61,8 @@ const DEFAULT_WORKSPACE_TIMEOUT_MS = 8_000;
 const DEFAULT_ATTACHMENT_TIMEOUT_MS = 60_000;
 const DEFAULT_HANDOFF_TIMEOUT_MS = 120_000;
 const DEFAULT_TRANSFER_TIMEOUT_MS = 600_000;
+const DEFAULT_CLONE_TIMEOUT_MS = 600_000;
+const DEFAULT_CLONE_STALL_MS = 60_000;
 
 export function createControl(store: Store, options: ControlOptions = {}): Control & AgentControl {
   const listeners = new Set<(msg: ServerMessage) => void>();
@@ -118,6 +120,8 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
     pendingSession: new Map(),
     pendingDirs: new Map(),
     pendingClone: new Map(),
+    pendingCloneCheck: new Map(),
+    pendingCloneRun: new Map(),
     pendingAttachments: new Map(),
     promptTimeoutMs: options.promptTimeoutMs ?? DEFAULT_PROMPT_TIMEOUT_MS,
     startTimeoutMs: options.startTimeoutMs ?? DEFAULT_START_TIMEOUT_MS,
@@ -125,14 +129,16 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
     attachmentTimeoutMs: options.attachmentTimeoutMs ?? DEFAULT_ATTACHMENT_TIMEOUT_MS,
     handoffTimeoutMs: options.handoffTimeoutMs ?? DEFAULT_HANDOFF_TIMEOUT_MS,
     transferTimeoutMs: options.transferTimeoutMs ?? DEFAULT_TRANSFER_TIMEOUT_MS,
+    cloneTimeoutMs: options.cloneTimeoutMs ?? DEFAULT_CLONE_TIMEOUT_MS,
+    cloneStallMs: options.cloneStallMs ?? DEFAULT_CLONE_STALL_MS,
   };
 
   const bulk = createBulkQueue(options.bulk ?? DEFAULT_BULK);
   const runtime = createRuntime(state);
   const queue = createQueue(state, runtime);
   state.runtimeChanged = queue.runtimeChanged;
-  const handoff = createHandoff(state);
   const rpc = createRpc(state);
+  const handoff = createHandoff(state, rpc.workspace);
   const deletion = createDeletion(state, runtime.runtimeOf);
   const start = createStart(state, rpc.listProjects);
 
@@ -239,6 +245,7 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
     deletionPreview: deletion.deletionPreview,
     deleteSession: deletion.deleteSession,
     startSession: start.startSession,
+    cancelHandoff: handoff.cancel,
     async handoff(request) {
       const outcome = await handoff.handoff(request);
       queue.drain(request.sessionId);

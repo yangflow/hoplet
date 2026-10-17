@@ -32,6 +32,7 @@ import {
   FullBlockSchema,
   GlobalSearchQuerySchema,
   GlobalSearchResultSchema,
+  HandoffCancelResultSchema,
   HandoffRequestSchema,
   HandoffResultSchema,
   HealthResponseSchema,
@@ -95,6 +96,7 @@ import { registerSecret } from '../log/index.ts';
 import type { PushSubscriptionRecord, SessionStateRecord } from '../store/index.ts';
 import { ApiError, relayError } from './http.ts';
 import { checkPromptImage } from './images.ts';
+import { publicOrigin, repoNameOf } from './origin.ts';
 import { blockOfLine, excerptOf, projectLine } from './projection/index.ts';
 import { type ApiDeps, defineRoute, type Route } from './router.ts';
 
@@ -763,10 +765,14 @@ export const routes: readonly Route[] = [
     body: HandoffRequestSchema,
     response: HandoffResultSchema,
     handler: async (d) => {
+      if (d.body.targetPath !== undefined && d.body.cloneInto !== undefined) {
+        throw new ApiError('invalid-request', { reason: 'targetPath and cloneInto are exclusive' });
+      }
       const outcome = await d.control.handoff({
         sessionId: d.params.sessionId ?? '',
         targetDeviceId: d.body.targetDeviceId,
         targetPath: d.body.targetPath,
+        cloneInto: d.body.cloneInto,
       });
       if (outcome.ok) {
         return {
@@ -779,7 +785,27 @@ export const routes: readonly Route[] = [
         };
       }
       // A handoff that cannot complete leaves the owner where it was.
+      if (outcome.error === 'clone-failed') {
+        throw new ApiError('clone-failed', {
+          ...(outcome.reason !== undefined ? { reason: outcome.reason } : {}),
+          ...(outcome.detail !== undefined ? { detail: outcome.detail } : {}),
+        });
+      }
       throw relayError(outcome);
+    },
+  }),
+  defineRoute({
+    method: 'POST',
+    path: '/api/sessions/:sessionId/handoff/cancel',
+    auth: 'host',
+    lane: 'control',
+    response: HandoffCancelResultSchema,
+    handler: (d) => {
+      const sessionId = d.params.sessionId ?? '';
+      if (!d.store.getSession(sessionId)) throw new ApiError('session-not-found');
+      const outcome = d.control.cancelHandoff(sessionId);
+      if (outcome.ok) return { ok: true };
+      throw new ApiError(outcome.error);
     },
   }),
   defineRoute({
@@ -879,8 +905,22 @@ export const routes: readonly Route[] = [
     handler: async ({ control, params, query }) => {
       const deviceId = params.deviceId ?? '';
       const outcome = await control.findClone(deviceId, query.origin);
-      if (outcome.ok) return { deviceId, path: outcome.path };
-      throw relayError(outcome);
+      if (!outcome.ok) throw relayError(outcome);
+      if (outcome.path !== null) return { deviceId, path: outcome.path };
+      // No clone: say whether one can be made, and where (ADR 0024).
+      const check = await control.checkClone(deviceId, query.origin, query.cloneInto);
+      if (!check.ok) throw relayError(check);
+      return {
+        deviceId,
+        path: null,
+        clone: {
+          origin: publicOrigin(query.origin),
+          repoName: repoNameOf(query.origin),
+          cloneInto: check.cloneInto,
+          reason: check.reason,
+          ...(check.detail !== undefined ? { detail: check.detail } : {}),
+        },
+      };
     },
   }),
   defineRoute({

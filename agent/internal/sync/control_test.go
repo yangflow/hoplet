@@ -132,6 +132,107 @@ func TestHandleCloneNamesTheCloneOrNull(t *testing.T) {
 	}
 }
 
+func TestHandleCloneCheckAnswersTheHookOrNoOrigin(t *testing.T) {
+	c, cs, read := dialTestConn(t)
+	c.handleCloneCheck(cs, "k1", "git@example.test:o/r.git", "/x")
+	msg := read()
+	if msg["type"] != "device.clone.checked" || msg["requestId"] != "k1" || msg["reason"] != "no-origin" || msg["cloneInto"] != "/x" {
+		t.Fatalf("without a hook: %#v", msg)
+	}
+	c.hooks.CloneCheck = func(ctx context.Context, origin, cloneInto string) CloneChecked {
+		if origin != "git@example.test:o/r.git" || cloneInto != "" {
+			t.Errorf("hook got %q %q", origin, cloneInto)
+		}
+		return CloneChecked{Reason: "destination-taken", Detail: "exists", CloneInto: "/home/me/r"}
+	}
+	c.handleCloneCheck(cs, "k2", "git@example.test:o/r.git", "")
+	msg = read()
+	if msg["reason"] != "destination-taken" || msg["detail"] != "exists" || msg["cloneInto"] != "/home/me/r" || msg["v"] != float64(ProtocolVersion) {
+		t.Fatalf("with a hook: %#v", msg)
+	}
+}
+
+func TestHandleCloneStartReportsProgressThenDone(t *testing.T) {
+	c, cs, read := dialTestConn(t)
+	c.hooks.CloneStart = func(ctx context.Context, handoffID, origin, cloneInto string, progress func(int64, *int64)) (string, error) {
+		if handoffID != "h1" || origin != "o" || cloneInto != "/x" {
+			t.Errorf("hook got %q %q %q", handoffID, origin, cloneInto)
+		}
+		total := int64(100)
+		progress(10, nil)
+		progress(90, &total)
+		return "/x", nil
+	}
+	ctx := c.beginClone(cs, "c1")
+	c.handleCloneStart(ctx, cs, "c1", "h1", "o", "/x")
+	if msg := read(); msg["type"] != "device.clone.progress" || msg["received"] != float64(10) || msg["total"] != nil {
+		t.Fatalf("first progress: %#v", msg)
+	}
+	if msg := read(); msg["received"] != float64(90) || msg["total"] != float64(100) {
+		t.Fatalf("second progress: %#v", msg)
+	}
+	if msg := read(); msg["type"] != "device.clone.done" || msg["requestId"] != "c1" || msg["path"] != "/x" {
+		t.Fatalf("done: %#v", msg)
+	}
+	c.cloneMu.Lock()
+	left := len(c.clones)
+	c.cloneMu.Unlock()
+	if left != 0 {
+		t.Fatalf("%d clones still registered", left)
+	}
+}
+
+func TestHandleCloneStartFailsWithTheReasonOfTheError(t *testing.T) {
+	c, cs, read := dialTestConn(t)
+	c.hooks.CloneStart = func(context.Context, string, string, string, func(int64, *int64)) (string, error) {
+		return "", &CloneError{Reason: "git-failed", Detail: "fatal: nope"}
+	}
+	c.handleCloneStart(c.beginClone(cs, "c2"), cs, "c2", "h", "o", "/x")
+	if msg := read(); msg["type"] != "device.clone.failed" || msg["reason"] != "git-failed" || msg["detail"] != "fatal: nope" {
+		t.Fatalf("got %#v", msg)
+	}
+	c.hooks.CloneStart = func(context.Context, string, string, string, func(int64, *int64)) (string, error) {
+		return "", errors.New("boom")
+	}
+	c.handleCloneStart(c.beginClone(cs, "c3"), cs, "c3", "h", "o", "/x")
+	if msg := read(); msg["reason"] != "git-failed" || msg["detail"] != nil {
+		t.Fatalf("a plain error: %#v", msg)
+	}
+}
+
+func TestACancelEndsTheCloneItNamesAndAnswersFailed(t *testing.T) {
+	c, cs, read := dialTestConn(t)
+	started := make(chan struct{})
+	c.hooks.CloneStart = func(ctx context.Context, _, _, _ string, _ func(int64, *int64)) (string, error) {
+		close(started)
+		<-ctx.Done()
+		return "", &CloneError{Reason: "cancelled"}
+	}
+	ctx := c.beginClone(cs, "c4")
+	other := c.beginClone(cs, "c5")
+	go c.handleCloneStart(ctx, cs, "c4", "h", "o", "/x")
+	<-started
+	c.cancelClone("c4")
+	if msg := read(); msg["type"] != "device.clone.failed" || msg["requestId"] != "c4" || msg["reason"] != "cancelled" {
+		t.Fatalf("got %#v", msg)
+	}
+	if other.Err() != nil {
+		t.Fatal("a cancel of one clone ended another")
+	}
+	c.cancelClone("unknown") // a cancel that arrives after the end is ignored
+}
+
+func TestAClosedConnectionEndsItsClones(t *testing.T) {
+	c, cs, _ := dialTestConn(t)
+	ctx := c.beginClone(cs, "c6")
+	close(cs.stop)
+	select {
+	case <-ctx.Done():
+	case <-time.After(2 * time.Second):
+		t.Fatal("the clone outlived its connection")
+	}
+}
+
 func dialTestConn(t *testing.T) (*Client, *connState, func() map[string]any) {
 	t.Helper()
 	up := websocket.Upgrader{}

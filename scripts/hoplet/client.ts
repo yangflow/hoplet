@@ -5,6 +5,7 @@ import {
   DeviceMintResultSchema,
   ErrorResponseSchema,
   type GenericSchema,
+  HandoffCancelResultSchema,
   HandoffResultSchema,
   type HttpErrorCode,
   type InferOutput,
@@ -86,12 +87,25 @@ export class HostClient {
   }
 
   /** Moves the session to another connected device; resolves when the handoff is over. */
-  handoff(sessionId: string, targetDeviceId: string, targetPath?: string) {
+  handoff(sessionId: string, targetDeviceId: string, targetPath?: string, cloneInto?: string) {
     return this.request(
       'POST',
       `/api/sessions/${encodeURIComponent(sessionId)}/handoff`,
       HandoffResultSchema,
-      targetPath === undefined ? { targetDeviceId } : { targetDeviceId, targetPath },
+      {
+        targetDeviceId,
+        ...(targetPath !== undefined ? { targetPath } : {}),
+        ...(cloneInto !== undefined ? { cloneInto } : {}),
+      },
+    );
+  }
+
+  /** Cancels the clone step of a running handoff; the handoff fails as `cancelled`. */
+  cancelHandoff(sessionId: string) {
+    return this.request(
+      'POST',
+      `/api/sessions/${encodeURIComponent(sessionId)}/handoff/cancel`,
+      HandoffCancelResultSchema,
     );
   }
 
