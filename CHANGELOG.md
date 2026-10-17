@@ -4,6 +4,19 @@ Each release's notes are made from the titles of the pull requests merged since 
 Commits: `feat` under Added, `fix` under Fixed, `perf` under Performance; `release-please-config.json`).
 Versions follow Semantic Versioning.
 
+## [0.5.0](https://github.com/yangflow/hoplet/compare/v0.4.0...v0.5.0) (2026-10-17)
+
+
+### Added
+
+* **agent:** Declare that a plan can be approved into a new session ([#132](https://github.com/yangflow/hoplet/issues/132)) ([0b97331](https://github.com/yangflow/hoplet/commit/0b9733139e55224a9c1d5f3d35038a72e55a11b6))
+* **core:** Link a session to the one started from its plan ([#133](https://github.com/yangflow/hoplet/issues/133)) ([6b6eca2](https://github.com/yangflow/hoplet/commit/6b6eca21f90f37e1f83ccf86edd13b0d7c34cfdc))
+
+
+### Fixed
+
+* **core:** Report a new session's first turn as running ([#129](https://github.com/yangflow/hoplet/issues/129)) ([38e7c3e](https://github.com/yangflow/hoplet/commit/38e7c3e74274468b25ba4e90968a254c6c0f7e93))
+
 ## [0.4.0](https://github.com/yangflow/hoplet/compare/v0.3.0...v0.4.0) (2026-10-17)
 
 
