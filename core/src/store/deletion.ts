@@ -129,6 +129,9 @@ export function purgeSession(ctx: StoreContext, sessionId: string): void {
     ]) {
       ctx.db.prepare(`DELETE FROM ${table} WHERE session_id = ?`).run(sessionId);
     }
+    ctx.db
+      .prepare('DELETE FROM session_continuations WHERE from_session_id = ? OR to_session_id = ?')
+      .run(sessionId, sessionId);
     ctx.db.prepare('INSERT OR IGNORE INTO session_purge(session_id) VALUES(?)').run(sessionId);
     ctx.db.exec('COMMIT');
   } catch (err) {

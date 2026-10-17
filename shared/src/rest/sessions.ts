@@ -49,12 +49,21 @@ export const SessionStateSchema = v.object({
 });
 export type SessionState = v.InferOutput<typeof SessionStateSchema>;
 
-/** A session as the REST API returns it: the index entry, whether its owner agent is connected, its runtime state and the user's changes. */
+/** The other end of a plan approved into a new session (ADR 0025); `title` is empty while that session has none to show. */
+export const SessionContinuationSchema = v.object({
+  sessionId: SessionIdSchema,
+  title: v.string(),
+});
+export type SessionContinuation = v.InferOutput<typeof SessionContinuationSchema>;
+
+/** A session as the REST API returns it: the index entry, whether its owner agent is connected, its runtime state, the user's changes and its continuation links. */
 export const LiveSessionMetaSchema = v.object({
   ...SessionMetaSchema.entries,
   ownerConnected: v.boolean(),
   runtime: SessionRuntimeInfoSchema,
   ...SessionStateSchema.entries,
+  continuedIn: v.optional(SessionContinuationSchema),
+  continuedFrom: v.optional(SessionContinuationSchema),
 });
 export type LiveSessionMeta = v.InferOutput<typeof LiveSessionMetaSchema>;
 
