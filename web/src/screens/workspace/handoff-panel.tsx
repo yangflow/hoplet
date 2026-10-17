@@ -269,8 +269,8 @@ function CloneOffer(props: {
         <span className="ws-pick-i" aria-hidden="true">
           {Icon.folder()}
         </span>
-        <span className="ws-pick-v" title={offer.cloneInto}>
-          {offer.cloneInto}
+        <span className="ws-pick-v path-tail" title={offer.cloneInto}>
+          <bdi>{offer.cloneInto}</bdi>
         </span>
         <button
           type="button"

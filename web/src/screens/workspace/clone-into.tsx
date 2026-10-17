@@ -379,14 +379,28 @@ export function CloneInto(props: {
             onClick={() => void submit()}
             data-testid="workspace.clone-use"
           >
-            <span className="ns-add">
-              {destination && listing
-                ? t('Use {path}').replace('{path}', displayPath(destination, listing.root))
-                : t('Use this folder')}
-            </span>
+            {destination && listing ? (
+              <UsePath path={displayPath(destination, listing.root)} />
+            ) : (
+              <span className="ns-add">{t('Use this folder')}</span>
+            )}
           </Button>
         </div>
       </div>
     </Dialog>
+  );
+}
+
+/** "Use {path}" with the path losing its start, not its end, when it does not fit. */
+function UsePath(props: { path: string }) {
+  const [before = '', after = ''] = t('Use {path}').split('{path}');
+  return (
+    <span className="ns-add ns-add-path">
+      {before}
+      <span className="path-tail" title={props.path}>
+        <bdi>{props.path}</bdi>
+      </span>
+      {after}
+    </span>
   );
 }

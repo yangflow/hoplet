@@ -82,7 +82,7 @@ const prepared = { prepare: { at: T0, end: T0 + 800 } };
 const transferred = { ...prepared, transfer: { at: T0 + 800, end: T0 + 3700 } };
 const installed = { ...transferred, install: { at: T0 + 3700, end: T0 + 5300 } };
 /** Studio has no clone: where the core would put one, and why it would not. */
-const CLONE_DEST = '/Users/mark/github/hoplet';
+const CLONE_DEST = '/Users/mark/github/client-projects/platform-services/hoplet';
 const offer = (
   over: Partial<Extract<CloneCheck, { state: 'offer' }>['offer']> = {},
 ): CloneCheck => ({

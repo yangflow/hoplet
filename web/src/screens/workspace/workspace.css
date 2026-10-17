@@ -864,10 +864,6 @@ ul.ws-list {
 }
 .ws-pick-v {
   flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   font-family: var(--font-mono);
   font-size: var(--text-code);
   color: var(--color-text);
