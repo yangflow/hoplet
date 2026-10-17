@@ -324,6 +324,32 @@ describe('POST /api/sessions', () => {
     });
   });
 
+  it('reports a session running from what its agent said before it answered the start', async () => {
+    const { post, get, agent, control } = await boot();
+    const owner = await agent('dev-a');
+    const other = await agent('dev-b');
+    owner.listProjects();
+    const pending = post('/api/sessions', request());
+    const start = await owner.waitFor((m) => m.type === 'runtime.start', 'runtime.start');
+    // The agent reports from its first moment, before the answer names the session: that is dropped, and it
+    // reports again right behind the answer. The store has no line of the session yet. Another device's
+    // report for the same session is not the owner's.
+    owner.send({ type: 'runtime.state', sessionId: NEW_ID, state: 'running', capabilities: CAPS });
+    other.send({
+      type: 'runtime.state',
+      sessionId: NEW_ID,
+      state: 'failed',
+      error: 'x',
+      capabilities: CAPS,
+    });
+    owner.send({ type: 'runtime.started', requestId: start.requestId, sessionId: NEW_ID });
+    owner.send({ type: 'runtime.state', sessionId: NEW_ID, state: 'running', capabilities: CAPS });
+    await pending;
+    await new Promise((r) => setTimeout(r, 100));
+    expect(control.runtimeOf(NEW_ID)).toEqual({ state: 'running', capabilities: CAPS });
+    expect((await get(`/api/sessions/${NEW_ID}`)).status).toBe(404);
+  });
+
   it('ignores runtime messages of a device that did not start the session', async () => {
     const { post, get, agent, store } = await boot();
     const owner = await agent('dev-a');

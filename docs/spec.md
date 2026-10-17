@@ -462,8 +462,8 @@ Claude Code exits or does not create the file within 60 seconds, the agent stops
 within 75 seconds the core returns `timeout`. The response is `{ ok: true, sessionId, promptId }`. A repeated
 `promptId` within 10 minutes returns the first result, except after a refusal, which can be retried. From then
 on the session syncs and is driven as any other (Remote control); the agent reports its runtime state again
-after the answer, and the core accepts runtime messages for the session from that device until the session
-reaches the index.
+after the answer, and the core accepts runtime messages for the session from that device, and reports its state to
+clients, until the session reaches the index.
 
 ### Handoff
 

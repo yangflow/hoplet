@@ -1,3 +1,4 @@
+import type { Provider } from '@hoplet/shared';
 import type { DeviceLink } from './types.ts';
 
 /** Request/reply waiters for control round-trips over a device link; each ends in a reply or its timeout. */
@@ -6,6 +7,8 @@ export type Waiter<T> = {
   resolve: (v: T) => void;
   link?: DeviceLink;
   sessionId?: string;
+  /** Set on a new-session request: who was asked to start it, and with which provider. */
+  start?: { deviceId: string; provider: Provider } | undefined;
   /** Absent while the waiter waits without a deadline (see `waitFor`). */
   timer?: ReturnType<typeof setTimeout>;
 };
@@ -24,7 +27,7 @@ export function askWaiter<T>(
   timeoutMs: number,
   onTimeout: T,
   send: () => void,
-  binding?: { link: DeviceLink; sessionId: string },
+  binding?: { link: DeviceLink; sessionId: string; start?: Waiter<T>['start'] },
 ): Promise<T> {
   return new Promise((resolve) => {
     map.set(id, {

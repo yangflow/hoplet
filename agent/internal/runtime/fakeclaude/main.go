@@ -10,7 +10,7 @@
 //	work <n>       a turn of n tool gaps 100 ms apart; a user message written during it is absorbed at the next gap
 //	               (it joins the turn, which answers `worked <n>; steered: <texts joined by |>`); one that arrives
 //	               after the last gap, or is left when the turn is interrupted, runs as the next turn, as Claude
-//	               Code does
+//	               Code does; in a new session the prompt's line is written first, so the file exists during the turn
 //	fail           end the turn with an error result
 //	crash          exit with status 3
 //	images         answer `<n> images: <media types>` for the images that came with the prompt
@@ -590,6 +590,11 @@ func runTurn(t *turn, prompt string) {
 func runWork(t *turn, prompt, arg string) {
 	n, _ := strconv.Atoi(arg)
 	start()
+	// A new session's file appears with its first line, as Claude Code writes the prompt before the turn runs.
+	wrote := fresh && file == ""
+	if wrote {
+		appendLines(userLine(prompt))
+	}
 	var steered []string
 	interrupted := false
 loop:
@@ -627,7 +632,9 @@ loop:
 		}
 	}
 	gappyMu.Unlock()
-	appendLines(userLine(prompt))
+	if !wrote {
+		appendLines(userLine(prompt))
+	}
 	for _, m := range steered {
 		appendLines(obj{"type": "user", "cwd": cwd, "sessionId": session, "message": obj{"role": "user", "content": m}})
 	}

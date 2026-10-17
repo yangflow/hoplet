@@ -96,7 +96,7 @@ export function createStart(state: ControlState, listProjects: Control['listProj
       state.startTimeoutMs,
       { ok: false, error: 'timeout' },
       () => link.send(msg),
-      { link, sessionId: '' },
+      { link, sessionId: '', start: { deviceId: req.deviceId, provider: req.provider } },
     );
     if (!answer.ok) {
       return {
@@ -106,11 +106,6 @@ export function createStart(state: ControlState, listProjects: Control['listProj
         ...(answer.reason !== undefined ? { reason: answer.reason } : {}),
       };
     }
-    startedSessions.set(answer.sessionId, {
-      deviceId: req.deviceId,
-      provider: req.provider,
-      at: state.now(),
-    });
     return { ok: true, sessionId: answer.sessionId, promptId };
   }
 

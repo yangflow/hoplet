@@ -44,6 +44,11 @@ export function receiveReply(
     case 'runtime.started': {
       const wait = pendingStart.get(msg.requestId);
       if (wait?.link === link) {
+        // Recorded now, not when the caller continues: the agent reports the session's state right behind
+        // this answer, possibly in the same read.
+        if (wait.start) {
+          state.startedSessions.set(msg.sessionId, { ...wait.start, at: state.now() });
+        }
         settleWaiter(pendingStart, msg.requestId, { ok: true, sessionId: msg.sessionId });
       }
       return;
