@@ -135,3 +135,25 @@ func TestLoadTerminalSetting(t *testing.T) {
 		t.Fatal("terminal:true is ignored")
 	}
 }
+
+func TestLoadPreviewHost(t *testing.T) {
+	load := func(extra string) *Config {
+		path := filepath.Join(t.TempDir(), "config.json")
+		raw := `{"server_url":"http://127.0.0.1:1","token":"t"` + extra + `}`
+		if err := os.WriteFile(path, []byte(raw), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		cfg, err := Load(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return cfg
+	}
+	host, _ := os.Hostname()
+	if got := load("").PreviewHost; got != host {
+		t.Fatalf("default preview_host = %q, want the host name %q", got, host)
+	}
+	if got := load(`,"preview_host":" box.tail.ts.net "`).PreviewHost; got != "box.tail.ts.net" {
+		t.Fatalf("preview_host = %q", got)
+	}
+}

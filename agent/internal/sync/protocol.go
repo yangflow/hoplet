@@ -10,7 +10,7 @@ import "encoding/json"
 // (provider.ValidSessionID, ADR 0006). Invalid IDs receive error invalid-session-id
 // before decoding or persistence; the wire envelope and cursor are unchanged.
 
-const ProtocolVersion = 7
+const ProtocolVersion = 8
 
 // Wire message types: Type<Struct> is the `type` of the struct of that name.
 // shared/src/wire/ holds the same table; scripts/test/contract.test.ts compares both.
@@ -95,6 +95,8 @@ const (
 	TypeTerminalOutput           = "terminal.output"
 	TypeTerminalClosed           = "terminal.closed"
 	TypeTerminalRejected         = "terminal.rejected"
+	TypePortsWatch               = "ports.watch"
+	TypeSessionPorts             = "session.ports"
 )
 
 // Error codes of an `error` message that the agent acts on (shared/src/errors.ts).
@@ -135,6 +137,8 @@ type DeviceHello struct {
 	Providers []ProviderInfo `json:"providers,omitempty"`
 	// Capabilities lists what the agent offers beyond sessions; nil means nothing.
 	Capabilities *DeviceCapabilities `json:"capabilities,omitempty"`
+	// PreviewHost is the host the inspector links dev servers with: preview_host, else the machine's host name.
+	PreviewHost string `json:"previewHost,omitempty"`
 }
 
 // DeviceCapabilities is what an agent offers beyond its providers.
@@ -1049,4 +1053,28 @@ type TerminalRejected struct {
 	Type       string `json:"type"`
 	TerminalID string `json:"terminalId"`
 	Reason     string `json:"reason"`
+}
+
+// PortsWatch replaces the set of sessions whose dev server ports the agent scans for; empty stops the scan
+// (ADR 0026). At most 64 sessions.
+type PortsWatch struct {
+	V          int      `json:"v"`
+	Type       string   `json:"type"`
+	SessionIDs []string `json:"sessionIds"`
+}
+
+// SessionPort is one listening TCP port of a process started from the session's directory. Address is
+// "loopback", "any" or "other"; Process is the executable's base name, at most 64 characters.
+type SessionPort struct {
+	Port    int    `json:"port"`
+	Address string `json:"address"`
+	Process string `json:"process"`
+}
+
+// SessionPorts reports the ports of one watched session, at most 16, sorted by port.
+type SessionPorts struct {
+	V         int           `json:"v"`
+	Type      string        `json:"type"`
+	SessionID string        `json:"sessionId"`
+	Ports     []SessionPort `json:"ports"`
 }

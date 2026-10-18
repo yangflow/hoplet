@@ -27,6 +27,10 @@ type Config struct {
 
 	// Terminal lets the web UI open a shell on this machine (ADR 0026). Off unless the operator sets it.
 	Terminal bool `json:"terminal"`
+
+	// PreviewHost is the host the web UI links a session's dev servers with (ADR 0026); the machine's host name
+	// when unset.
+	PreviewHost string `json:"preview_host"`
 }
 
 func Load(path string) (*Config, error) {
@@ -82,6 +86,10 @@ func Load(path string) (*Config, error) {
 	if cfg.DeviceName == "" {
 		h, _ := os.Hostname()
 		cfg.DeviceName = h
+	}
+	cfg.PreviewHost = strings.TrimSpace(cfg.PreviewHost)
+	if cfg.PreviewHost == "" {
+		cfg.PreviewHost, _ = os.Hostname()
 	}
 	return cfg, nil
 }

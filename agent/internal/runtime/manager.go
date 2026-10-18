@@ -334,6 +334,19 @@ func (m *Manager) State(sessionID string) State {
 	return StateIdle
 }
 
+// PID is the process ID of the session's running process, 0 when it has none or the driver does not expose it.
+// It only scopes the scan for dev server ports (ADR 0026) and is never reported.
+func (m *Manager) PID(sessionID string) int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if s := m.sessions[sessionID]; s != nil && s.proc != nil {
+		if p, ok := s.proc.(interface{ PID() int }); ok {
+			return p.PID()
+		}
+	}
+	return 0
+}
+
 // Pending lists the open permission requests of every session, for the report after a reconnect.
 func (m *Manager) Pending() []PermissionEvent {
 	m.mu.Lock()

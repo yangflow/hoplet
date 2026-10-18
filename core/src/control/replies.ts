@@ -243,6 +243,9 @@ export function receiveReply(
     case 'terminal.closed':
     case 'terminal.rejected':
       return;
+    // The core side of the dev server links (ADR 0026) is a later change; the agent's report is accepted and dropped.
+    case 'session.ports':
+      return;
   }
 }
 

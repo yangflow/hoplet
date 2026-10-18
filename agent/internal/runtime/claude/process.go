@@ -235,6 +235,14 @@ func (p *process) Kill() error {
 	return nil
 }
 
+// PID is the operating-system process ID, for the scan of dev server ports (ADR 0026); it is never reported.
+func (p *process) PID() int {
+	if p.cmd.Process == nil {
+		return 0
+	}
+	return p.cmd.Process.Pid
+}
+
 func (p *process) emit(ev runtime.ProcessEvent) { p.events <- ev }
 
 // read translates Claude Code's stdout into events until it ends, then reports the exit.

@@ -162,6 +162,8 @@ func (c *Client) runOnce(ctx context.Context) error {
 		Name:      c.cfg.DeviceName,
 		Version:   c.version,
 		Providers: c.hooks.Providers,
+
+		PreviewHost: c.hooks.PreviewHost,
 	}
 	if c.hooks.Terminal.Enabled {
 		hello.Capabilities = &DeviceCapabilities{Terminal: true}
@@ -210,6 +212,9 @@ func (c *Client) runOnce(ctx context.Context) error {
 	go c.readLoop(cs)
 	<-cs.done
 	c.cs.CompareAndSwap(cs, nil)
+	if c.hooks.Ports.Watch != nil {
+		c.hooks.Ports.Watch(nil) // the core asks again after it connects
+	}
 	if c.hooks.Terminal.Disconnected != nil {
 		c.hooks.Terminal.Disconnected()
 	}
@@ -261,6 +266,10 @@ func (c *Client) readLoop(cs *connState) {
 		if isHandoffMessage(head.Type) {
 			typ := head.Type
 			c.enqueueHandoff(cs, func() { c.handleHandoff(cs, typ, raw) })
+			continue
+		}
+		if head.Type == TypePortsWatch {
+			c.handlePortsWatch(raw)
 			continue
 		}
 		if strings.HasPrefix(head.Type, "terminal.") {

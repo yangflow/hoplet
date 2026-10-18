@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/yangflow/hoplet/agent/internal/config"
+	"github.com/yangflow/hoplet/agent/internal/ports"
 	"github.com/yangflow/hoplet/agent/internal/projects"
 	"github.com/yangflow/hoplet/agent/internal/provider"
 	claudeprovider "github.com/yangflow/hoplet/agent/internal/provider/claude"
@@ -109,6 +110,7 @@ func Run(cfg *config.Config, version string) error {
 	terms = newTerminals(cfg, deviceID, rt, moves, locator(cfg), func() *sync.Client { return client })
 	moves.onPrepare = terms.handoffStarted
 	defer terms.mgr.CloseAll(terminal.ReasonOwnerOffline)
+	watcher := newPortWatcher(ports.NewScanner(), locator(cfg), rt, terms, func() *sync.Client { return client })
 	cloner := newCloner(cfg, st)
 	cloner.Recover()
 	runtimeHooks := rt.hooks()
@@ -118,6 +120,8 @@ func Run(cfg *config.Config, version string) error {
 		Runtime:        runtimeHooks,
 		Handoff:        moves.hooks(),
 		Terminal:       terms.hooks(),
+		Ports:          sync.PortsHooks{Watch: watcher.Watch},
+		PreviewHost:    cfg.PreviewHost,
 		Workspace:      workspaceList(cfg),
 		File:           workspaceFile(cfg),
 		Diff:           workspaceDiff(cfg),
@@ -142,6 +146,7 @@ func Run(cfg *config.Config, version string) error {
 	snaps.up = client
 	go snaps.run(ctx)
 	go client.Run(ctx)
+	go watcher.Run(ctx)
 
 	log.Printf("hoplet-agent %s started: server=%s projects=%s device=%s(%s)",
 		version, cfg.ServerURL, cfg.ClaudeProjects, cfg.DeviceName, shortIDPrefix(deviceID))
