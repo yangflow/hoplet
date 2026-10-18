@@ -695,6 +695,9 @@ func (m *Manager) CreateWith(dir string, p Prompt, config map[string]any) (strin
 	if err := m.checkImages(p); err != nil {
 		return "", err
 	}
+	if a, ok := m.cfg.Driver.(IDAssigner); ok {
+		return m.createAssigned(a, dir, p, config)
+	}
 	id, err := newSessionID()
 	if err != nil {
 		return "", err
@@ -713,6 +716,76 @@ func (m *Manager) CreateWith(dir string, p Prompt, config map[string]any) (strin
 	m.valuesOf(s)
 	m.startProcess(s, p)
 	return id, nil
+}
+
+// createAssigned is CreateWith for a driver whose vendor assigns the ID: the driver creates the session before
+// the manager knows its ID, so the session is not registered until the driver returns it. A failed start
+// leaves nothing behind.
+func (m *Manager) createAssigned(a IDAssigner, dir string, p Prompt, config map[string]any) (string, error) {
+	s := &session{state: StateIdle, perms: map[string]*time.Timer{}, reqs: map[string]PermissionRequest{}}
+	s.loc = Location{Dir: dir}
+	m.mu.Lock()
+	if m.closed {
+		m.mu.Unlock()
+		return "", errors.New("runtime is shutting down")
+	}
+	for k, v := range config {
+		m.valuesOf(s)[k] = v
+	}
+	spec := StartSpec{Dir: dir, New: true, Config: maps.Clone(m.valuesOf(s))}
+	m.wg.Add(1)
+	m.mu.Unlock()
+	defer m.wg.Done()
+
+	type started struct {
+		id   string
+		proc Process
+		err  error
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan started, 1)
+	go func() {
+		id, proc, err := a.StartNew(ctx, spec)
+		done <- started{id, proc, err}
+	}()
+	var r started
+	select {
+	case r = <-done:
+	case <-time.After(m.cfg.StartTimeout):
+		cancel()
+		go func() {
+			if late := <-done; late.proc != nil {
+				_ = late.proc.Kill()
+			}
+		}()
+		return "", errors.New("the vendor did not create the session in time")
+	}
+	kill := func(err error) (string, error) {
+		cancel()
+		if r.proc != nil {
+			_ = r.proc.Kill()
+		}
+		return "", err
+	}
+	if r.err != nil {
+		return kill(r.err)
+	}
+	if r.id == "" || r.proc == nil {
+		return kill(errors.New("the driver returned no session ID"))
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.closed {
+		return kill(errors.New("runtime is shutting down"))
+	}
+	if m.sessions[r.id] != nil {
+		return kill(fmt.Errorf("the vendor assigned %s, which is already a session", r.id))
+	}
+	s.id = r.id
+	m.sessions[s.id] = s
+	gen := m.starting(s, p, cancel)
+	m.adopt(s, gen, r.proc)
+	return s.id, nil
 }
 
 func (m *Manager) declares(c Capability) bool {
@@ -784,18 +857,8 @@ func (m *Manager) writePrompt(s *session, p Prompt) error {
 }
 
 func (m *Manager) startProcess(s *session, p Prompt) {
-	s.gen++
-	gen := s.gen
-	s.stopped = false
-	s.pendingPrompt = &p
-	s.interrupted, s.turnErr = false, ""
-	m.setState(s, StateStarting, "")
-	m.cfg.TurnStart(s.id)
 	ctx, cancel := context.WithCancel(context.Background())
-	s.cancel = cancel
-	// The new process starts with every value as it stands now; a change made while it starts is applied when
-	// it is ready.
-	s.started = maps.Clone(m.valuesOf(s))
+	gen := m.starting(s, p, cancel)
 	spec := StartSpec{SessionID: s.id, Dir: s.loc.Dir, New: s.fresh, Config: maps.Clone(s.started)}
 	m.wg.Add(1)
 	go func() {
@@ -815,12 +878,32 @@ func (m *Manager) startProcess(s *session, p Prompt) {
 			m.setState(s, StateFailed, err.Error())
 			return
 		}
-		s.proc = proc
-		s.fresh = false
-		time.AfterFunc(m.cfg.StartTimeout, func() { m.startTimedOut(s, gen) })
-		m.wg.Add(1)
-		go m.pump(s, gen, proc)
+		m.adopt(s, gen, proc)
 	}()
+}
+
+// starting moves the session to `starting` for a new process that runs p first and returns the process's
+// generation. The process starts with every value as it stands now; a change made while it starts is applied
+// when it is ready.
+func (m *Manager) starting(s *session, p Prompt, cancel context.CancelFunc) int {
+	s.gen++
+	s.stopped = false
+	s.pendingPrompt = &p
+	s.interrupted, s.turnErr = false, ""
+	m.setState(s, StateStarting, "")
+	m.cfg.TurnStart(s.id)
+	s.cancel = cancel
+	s.started = maps.Clone(m.valuesOf(s))
+	return s.gen
+}
+
+// adopt makes proc the session's process and starts reading its events.
+func (m *Manager) adopt(s *session, gen int, proc Process) {
+	s.proc = proc
+	s.fresh = false
+	time.AfterFunc(m.cfg.StartTimeout, func() { m.startTimedOut(s, gen) })
+	m.wg.Add(1)
+	go m.pump(s, gen, proc)
 }
 
 func (m *Manager) startTimedOut(s *session, gen int) {

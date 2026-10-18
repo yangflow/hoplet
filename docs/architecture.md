@@ -129,6 +129,13 @@ web UI, the store and the wire protocol do not change. A vendor starts with a sp
 store and control mode; a level-0 vendor's spike verifies that its command speaks ACP. The generic ACP driver,
 provider and mapping are built with the first ACP vendor.
 
+A new session gets its ID in one of two ways, and `runtime.start` answers with it either way. By default the
+manager mints a UUID and passes it to the driver as `StartSpec.SessionID` (Claude Code's `--session-id`). A driver
+whose vendor assigns the ID itself and cannot be told one implements `runtime.IDAssigner`: the manager calls
+`StartNew` without an ID, the driver creates the session and returns the vendor's ID with the process, and the
+manager keys the session by it. Such a session does not exist for the manager until `StartNew` returns, and a
+failed start leaves nothing behind.
+
 ### A runtime capability
 
 A new control is a `runtime.*` message, a capability name, an implementation in each runtime driver that
