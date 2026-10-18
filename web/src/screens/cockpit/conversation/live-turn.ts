@@ -41,6 +41,8 @@ export type PlanResolution = {
   plan: string;
   /** `elsewhere`: the request closed without a decision from this window (another window, an interrupt). */
   outcome: 'approved' | 'kept' | 'elsewhere';
+  /** Approved into a new session (ADR 0025): this session stops and the plan goes on there. */
+  fresh?: boolean;
   /** The mode the session is in now: the one chosen on approval, the one it stayed in when kept. */
   mode?: string;
   feedback?: string;
@@ -50,7 +52,12 @@ export type PlanResolution = {
 };
 
 /** What this window sent for a plan, noted before the request so the closing can name it. */
-export type PlanIntent = { outcome: 'approved' | 'kept'; mode?: string; feedback?: string };
+export type PlanIntent = {
+  outcome: 'approved' | 'kept';
+  fresh?: boolean;
+  mode?: string;
+  feedback?: string;
+};
 
 /** A request nobody answers is denied after this long (docs/spec.md#remote-control). */
 export const PERMISSION_OPEN_MS = 10 * 60 * 1000;
@@ -244,6 +251,7 @@ export function resolvePlan(
     bytes: planBytes(exit.plan),
     plan: exit.plan,
     outcome: intent?.outcome ?? 'elsewhere',
+    ...(intent?.fresh ? { fresh: true } : {}),
     ...(intent?.mode !== undefined ? { mode: intent.mode } : {}),
     ...(intent?.feedback !== undefined ? { feedback: intent.feedback } : {}),
     at: now,

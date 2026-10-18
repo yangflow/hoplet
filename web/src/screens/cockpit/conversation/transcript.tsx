@@ -71,8 +71,12 @@ export function flatten(turns: Turn[]): VRow[] {
   return out;
 }
 
-function estimate(v: VRow): number {
-  if (v.type === 'head') return v.first || v.joined ? 76 : 84;
+/** The height of the origin line with its margin, for the estimate of the first header. */
+const ORIGIN_HEIGHT = 44;
+
+function estimate(v: VRow, origin: boolean): number {
+  if (v.type === 'head')
+    return (v.first || v.joined ? 76 : 84) + (v.first && origin ? ORIGIN_HEIGHT : 0);
   const pad = (v.last ? 32 : 0) + v.gap;
   const { row } = v;
   switch (row.kind) {
@@ -123,6 +127,8 @@ export function Transcript(props: {
   focusLine: number | null;
   /** Follows the bottom from the start. */
   startPinned: boolean;
+  /** Where the session began, above its first turn: shown when the window reaches the start of the session. */
+  origin?: ReactNode;
   /** What follows the stored turns: the live turn. */
   live?: ReactNode;
   /** Space the composer takes at the foot. */
@@ -135,6 +141,7 @@ export function Transcript(props: {
   ref?: Ref<TranscriptHandle>;
 }) {
   const { turns, focusLine } = props;
+  const origin = props.origin && !props.hasOlder ? props.origin : null;
   const scroller = useRef<HTMLDivElement>(null);
   const column = useRef<HTMLDivElement>(null);
   const rows = useMemo(() => flatten(turns), [turns]);
@@ -155,7 +162,7 @@ export function Transcript(props: {
   const reported = useRef({ line: -1, atBottom: true });
 
   const keys = useMemo(() => rows.map((r) => r.key), [rows]);
-  const sizes = rows.map((r) => heights.current.get(r.key) ?? estimate(r));
+  const sizes = rows.map((r) => heights.current.get(r.key) ?? estimate(r, origin !== null));
   const offsets = offsetsOf(sizes);
   const total = offsets[rows.length] ?? 0;
   const offsetsRef = useRef(offsets);
@@ -357,6 +364,7 @@ export function Transcript(props: {
               </div>
             </div>
           ) : null}
+          {rows.length === 0 ? origin : null}
           <div className="vlist" style={{ height: total }}>
             {rows.slice(start, end).map((v, i) => {
               const index = start + i;
@@ -371,7 +379,14 @@ export function Transcript(props: {
                   data-vkey={v.key}
                   data-line={lineOf(v)}
                 >
-                  {v.type === 'head' ? <TurnHeader turn={v.turn} /> : <RowView row={v.row} />}
+                  {v.type === 'head' ? (
+                    <>
+                      {v.first ? origin : null}
+                      <TurnHeader turn={v.turn} />
+                    </>
+                  ) : (
+                    <RowView row={v.row} />
+                  )}
                 </div>
               );
             })}

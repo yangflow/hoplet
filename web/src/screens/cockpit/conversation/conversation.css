@@ -904,6 +904,54 @@ details.act-d > summary::-webkit-details-marker {
   height: auto;
   min-height: var(--layout-row);
 }
+.pnote.bad {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-del-bg);
+  color: var(--color-text);
+}
+.pnote.bad svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--color-danger);
+}
+/* a plan approved into a new session (ADR 0025): the confirmation, and the links between the two sessions */
+.pconf {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+.pconf .pcr {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  color: var(--color-text-2);
+}
+.pconf .pcr svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--color-text-3);
+}
+.pconf .pcr .mono {
+  color: var(--color-text);
+}
+.mchip.lnk {
+  border: 0;
+  font: inherit;
+  font-size: var(--text-meta);
+  color: var(--color-text);
+  cursor: pointer;
+}
+.mchip.lnk:hover {
+  background: var(--color-selected);
+}
+.pres.from {
+  margin: var(--space-4) 0 0;
+}
 .pquote {
   margin: 0 0 var(--space-2) calc(16px + var(--space-2));
   padding: var(--space-2) var(--space-3);

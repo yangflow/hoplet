@@ -94,6 +94,8 @@ export function Cockpit(props: {
   runtime?: Record<string, SessionRuntimeInfo>;
   /** Starts a session; resolves when it exists, rejects with the reason it could not start. */
   onCreateSession?: (request: NewSessionRequest) => Promise<void>;
+  /** A plan was approved into this new session (ADR 0025): the app opens it and waits for it to reach the list. */
+  onSessionStarted?: (sessionId: string) => void;
   /** Opens the Settings page, which replaces this screen. */
   onSettings?: () => void;
   /** A session is gone from the core: the app drops it from its lists. */
@@ -476,6 +478,8 @@ export function Cockpit(props: {
                   inspector.setHandoffOpen(true);
                 }}
                 openDiff={openDiff}
+                onOpenSession={pickSession}
+                {...(props.onSessionStarted ? { onSessionStarted: props.onSessionStarted } : {})}
                 {...(fixture?.conversation ? { fixture: fixture.conversation } : {})}
               />
             ) : selected ? (
