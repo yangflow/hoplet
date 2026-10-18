@@ -56,6 +56,12 @@ const subject: Record<string, Record<string, string>> = {
     'plan-approved': 'cockpit.plan-resolved',
     'plan-kept': 'cockpit.plan-resolved',
     'plan-elsewhere': 'cockpit.plan-resolved',
+    'plan-fresh-menu': 'cockpit.plan-fresh-option',
+    'plan-fresh-confirm': 'cockpit.plan-fresh-confirm',
+    'plan-fresh-starting': 'cockpit.plan-fresh-starting',
+    'plan-fresh-failed': 'cockpit.plan-fresh-error',
+    'plan-fresh-done': 'cockpit.plan-fresh-done',
+    'plan-fresh-new': 'cockpit.plan-origin',
     'failed-turn': 'cockpit.live-error',
     'elided-open': 'cockpit.block-full',
     search: 'cockpit.palette',
@@ -151,8 +157,8 @@ const subject: Record<string, Record<string, string>> = {
   },
 };
 
-test('the registries list 72 cockpit, 35 workspace, 13 settings and 7 action states', () => {
-  expect(screens.cockpit).toHaveLength(72);
+test('the registries list 78 cockpit, 35 workspace, 13 settings and 7 action states', () => {
+  expect(screens.cockpit).toHaveLength(78);
   expect(screens.workspace).toHaveLength(35);
   expect(screens.settings).toHaveLength(13);
   expect(screens.action).toHaveLength(7);

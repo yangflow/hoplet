@@ -586,20 +586,21 @@ const LONG_PLAN_TEXT = `${PLAN_TEXT}\n${Array.from(
   (_, i) => `- Step note ${i + 1}: keep the stored bytes untouched while the commit is retried.`,
 ).join('\n')}\n`;
 
-const planExit = (plan: string): NonNullable<OpenPermission['planExit']> => ({
+const planExit = (plan: string, freshContext = false): NonNullable<OpenPermission['planExit']> => ({
   plan,
   option: 'mode',
   modes: ['acceptEdits', 'default', 'auto'],
   default: 'acceptEdits',
+  ...(freshContext ? { freshContext: true } : {}),
 });
 
-const planPermission = (plan = PLAN_TEXT): OpenPermission => ({
+const planPermission = (plan = PLAN_TEXT, freshContext = false): OpenPermission => ({
   requestId: 'p1a2b3c4',
   tool: 'ExitPlanMode',
   toolKind: 'other',
   input: { plan },
   receivedAt: LIVE_START + 31_000,
-  planExit: planExit(plan),
+  planExit: planExit(plan, freshContext),
 });
 
 const planResolution = (over: Partial<PlanResolution>): PlanResolution => ({
@@ -673,6 +674,25 @@ const planResolved = (over: Partial<PlanResolution>) => (
     }}
   />
 );
+
+/** The plan card of a project that can start a new session from the plan ("Clear context and approve…"). */
+const freshPlanScene = (plan: PlanView) => planScene([planPermission(PLAN_TEXT, true)], plan);
+
+const NEW_SESSION_TITLE = 'Roll back the byte cursor';
+/** The catalog session continued in a new one: its plan links forward. */
+const continuedIn = (base: LiveSessionMeta[]) =>
+  base.map((s) =>
+    s.sessionId === catalogId
+      ? { ...s, continuedIn: { sessionId: handoffId, title: NEW_SESSION_TITLE } }
+      : s,
+  );
+/** The catalog session as the new one: it links back to the session whose plan started it. */
+const continuedFrom = (base: LiveSessionMeta[]) =>
+  base.map((s) =>
+    s.sessionId === catalogId
+      ? { ...s, continuedFrom: { sessionId: notesId, title: 'byte cursor catalog' } }
+      : s,
+  );
 
 export type Variant = {
   runtime?: SessionRuntimeInfo;
@@ -1225,6 +1245,42 @@ export const states: Record<string, () => ReactNode> = {
       feedback: 'Keep the migration out of this change.',
     }),
   'plan-elsewhere': () => planResolved({ outcome: 'elsewhere' }),
+  'plan-fresh-menu': () => freshPlanScene({ menu: true }),
+  'plan-fresh-confirm': () => freshPlanScene({ fresh: { phase: 'confirm' } }),
+  'plan-fresh-starting': () => freshPlanScene({ fresh: { phase: 'starting' } }),
+  'plan-fresh-failed': () =>
+    freshPlanScene({
+      fresh: {
+        phase: 'failed',
+        error:
+          'MacBook Pro did not start the new session: it is offline. The plan still waits here, nothing was changed.',
+      },
+    }),
+  'plan-fresh-done': () => (
+    <Scene
+      sessions={continuedIn}
+      variant={{
+        runtime: { state: 'running', capabilities },
+        live: {
+          turn: liveTurn({
+            rows: permissionRows,
+            plans: [planResolution({ outcome: 'elsewhere', fresh: true })],
+          }),
+          elapsed: 48_000,
+        },
+      }}
+    />
+  ),
+  'plan-fresh-new': () => (
+    <Scene
+      sessions={continuedFrom}
+      variant={{
+        ...running(12_000),
+        // A session that starts from a plan has no earlier lines: its origin line is the first thing in it.
+        conversation: { entries: entries.slice(0, 2).map((e, i) => ({ ...e, lineNo: i })) },
+      }}
+    />
+  ),
   'failed-turn': () => {
     const error = 'claude exited with code 1\nENOENT /Users/mark/.local/bin/claude';
     return (

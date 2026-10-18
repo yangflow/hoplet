@@ -17,6 +17,7 @@ import {
   fetchLines,
   postAttachment,
   postConfig,
+  postFreshPermission,
   postInterrupt,
   postPermission,
   postPrompt,
@@ -40,6 +41,7 @@ import { QueueTray, type TrayFixture } from '../queue/queue-tray.tsx';
 import { useQueue } from '../queue/use-queue.ts';
 import { type ComposerView, composerView, stateName } from '../runtime.ts';
 import { LiveTurnView } from './live-view.tsx';
+import { PlanOrigin } from './plan-card.tsx';
 import { SessionReader } from './reader.ts';
 import { Transcript, type TranscriptHandle } from './transcript.tsx';
 import { buildTurns } from './turns.ts';
@@ -111,6 +113,10 @@ export function Conversation(props: {
   capabilities?: RuntimeCapabilities | undefined;
   onHandoff: () => void;
   openDiff?: (path: string) => void;
+  /** Opens another session in the cockpit: the ends of a plan approved into a new session. */
+  onOpenSession?: (sessionId: string) => void;
+  /** A plan was approved into this new session (ADR 0025): the app opens it. */
+  onSessionStarted?: (sessionId: string) => void;
   fixture?: ConversationFixture;
 }) {
   const { session, runtime, live, fixture } = props;
@@ -385,6 +391,22 @@ export function Conversation(props: {
     [sessionId, lt.answered, lt.intend, lt.forget, props.capabilities, picked],
   );
 
+  // Approving into a new session: the plan stays open until the core has the new session up (ADR 0025).
+  const { onSessionStarted } = props;
+  const startFresh = useCallback(
+    async (requestId: string, mode: string, promptId: string) => {
+      lt.intend(requestId, { outcome: 'approved', fresh: true, mode });
+      try {
+        const started = await postFreshPermission(sessionId, { requestId, mode, promptId });
+        onSessionStarted?.(started.sessionId);
+      } catch (err) {
+        lt.forget(requestId);
+        throw err;
+      }
+    },
+    [sessionId, lt.intend, lt.forget, onSessionStarted],
+  );
+
   const shortcuts = props.shortcuts ?? true;
   const interruptible =
     (state === 'running' || state === 'waiting-permission') && canInterrupt && live;
@@ -494,6 +516,11 @@ export function Conversation(props: {
           onNeedNewer={needNewer}
           onViewport={onViewport}
           focusLine={aroundLine}
+          origin={
+            session.continuedFrom ? (
+              <PlanOrigin from={session.continuedFrom} onOpen={props.onOpenSession} />
+            ) : null
+          }
           startPinned={aroundLine === null && fixture?.scrollTo === undefined}
           dock={dock}
           {...(props.openDiff ? { openDiff: props.openDiff } : {})}
@@ -517,6 +544,10 @@ export function Conversation(props: {
                 modes={mode}
                 decidable={live && session.ownerConnected && !fixture?.composerOffline}
                 deviceName={session.deviceName}
+                projectPath={session.projectPath}
+                onFresh={startFresh}
+                continuedIn={session.continuedIn}
+                onOpenSession={props.onOpenSession}
                 planView={fixture?.live?.plan}
                 steering={steeringShown}
               />

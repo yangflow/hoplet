@@ -1,3 +1,4 @@
+import type { SessionContinuation } from '@hoplet/shared';
 import { Fragment, type ReactNode } from 'react';
 import { Button } from '../../../components/Button.tsx';
 import { IconButton } from '../../../components/IconButton.tsx';
@@ -268,6 +269,12 @@ export function LiveTurnView(props: {
   /** Deciding is possible: the owner is online and this window is connected. */
   decidable: boolean;
   deviceName: string;
+  projectPath: string;
+  /** Approves a plan into a new session (ADR 0025); rejects with the reason it did not start. */
+  onFresh?: ((requestId: string, mode: string, promptId: string) => Promise<void>) | undefined;
+  /** Where this session's plan went on, once the core has recorded it. */
+  continuedIn?: SessionContinuation | undefined;
+  onOpenSession?: ((sessionId: string) => void) | undefined;
   /** What a development fixture opens the plan card with. */
   planView?: PlanView | undefined;
   /** Messages steered into this turn that the model has not taken in yet. */
@@ -352,7 +359,12 @@ export function LiveTurnView(props: {
           keyOf={(item) => item.key}
           render={(item) =>
             item.plan ? (
-              <PlanResolved plan={item.plan} modes={props.modes} />
+              <PlanResolved
+                plan={item.plan}
+                modes={props.modes}
+                continuedIn={props.continuedIn}
+                onOpenSession={props.onOpenSession}
+              />
             ) : (
               <LiveRowView
                 row={item.row}
@@ -399,8 +411,15 @@ export function LiveTurnView(props: {
                   modes={props.modes}
                   decidable={props.decidable}
                   deviceName={props.deviceName}
+                  projectPath={props.projectPath}
                   busy={props.answering}
                   initial={props.planView}
+                  onFresh={
+                    props.onFresh
+                      ? (mode, promptId) =>
+                          props.onFresh?.(request.requestId, mode, promptId) ?? Promise.resolve()
+                      : undefined
+                  }
                   onApprove={(mode) => props.onAnswer(request.requestId, 'allow', { mode })}
                   onKeep={(feedback) => props.onAnswer(request.requestId, 'deny', { feedback })}
                 />

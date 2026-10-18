@@ -295,6 +295,22 @@ export default function App() {
     };
   }, [token, refreshSessions, refreshSoon, dropSession]);
 
+  /** Opens a session that was just started and waits for it to reach the list, which also carries its links. */
+  const open = useCallback(
+    async (sessionId: string) => {
+      pending.current = sessionId;
+      select(sessionId);
+      // The session reaches the list when the agent's import is indexed.
+      for (let i = 0; i < 20; i++) {
+        const list = await refreshSessions();
+        if (list?.some((s) => s.sessionId === sessionId)) break;
+        await new Promise((r) => setTimeout(r, 500));
+      }
+      pending.current = null;
+    },
+    [refreshSessions, select],
+  );
+
   const create = useCallback(
     async (request: NewSessionRequest) => {
       const started = await postNewSession({
@@ -305,17 +321,9 @@ export default function App() {
         text: request.prompt,
         attachments: request.attachments,
       });
-      pending.current = started.sessionId;
-      select(started.sessionId);
-      // The session reaches the list when the agent's import is indexed.
-      for (let i = 0; i < 20; i++) {
-        const list = await refreshSessions();
-        if (list?.some((s) => s.sessionId === started.sessionId)) break;
-        await new Promise((r) => setTimeout(r, 500));
-      }
-      pending.current = null;
+      await open(started.sessionId);
     },
-    [refreshSessions, select],
+    [open],
   );
 
   if (!token)
@@ -357,6 +365,7 @@ export default function App() {
           error={error}
           runtime={runtime}
           onCreateSession={create}
+          onSessionStarted={(sessionId) => void open(sessionId)}
         />
       </div>
     </>

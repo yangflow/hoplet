@@ -308,6 +308,17 @@ export function postPermission(
   });
 }
 
+/**
+ * Approves an open plan into a new session on the same machine and project (ADR 0025). Resolves with the new
+ * session once it has started; a failure leaves the plan waiting. `promptId` makes a repeat after a timeout the same start.
+ */
+export function postFreshPermission(
+  sessionId: string,
+  request: { requestId: string; mode: string; promptId: string },
+) {
+  return call(`/api/sessions/${sessionId}/permission/fresh`, NewSessionResultSchema, request);
+}
+
 export function postInterrupt(sessionId: string) {
   return call(`/api/sessions/${sessionId}/interrupt`, RuntimeCommandResultSchema, {});
 }

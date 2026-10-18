@@ -15,6 +15,7 @@ const api = vi.hoisted(() => ({
   postConfig: vi.fn(),
   postAttachment: vi.fn(),
   postPermission: vi.fn(),
+  postFreshPermission: vi.fn(),
   postInterrupt: vi.fn(),
   postStop: vi.fn(),
   postSteer: vi.fn(),
@@ -387,6 +388,110 @@ it('shows a plan without a countdown, approves into a mode and keeps the decisio
   expect(api.postPermission).toHaveBeenCalledWith(SID, 'p1', 'allow', { mode: 'acceptEdits' });
   expect(q('cockpit.plan')).toBeNull();
   expect(q('cockpit.plan-resolved')?.getAttribute('data-outcome')).toBe('approved');
+});
+
+async function askPlan(freshContext: boolean, over: Record<string, unknown> = {}) {
+  await show({ state: 'idle', capabilities: caps }, over);
+  await show({ state: 'waiting-permission', capabilities: caps }, over);
+  await live({
+    type: 'session.permission',
+    requestId: 'p1',
+    tool: 'ExitPlanMode',
+    toolKind: 'other',
+    input: {},
+    planExit: {
+      plan: '## Fix the cursor\n\n1. Roll back\n2. Test',
+      option: 'mode',
+      modes: ['acceptEdits', 'default'],
+      default: 'acceptEdits',
+      ...(freshContext ? { freshContext: true } : {}),
+    },
+  });
+}
+const click = (id: string) =>
+  act(async () => {
+    (q(id) as HTMLButtonElement).click();
+  });
+
+it('offers "Clear context and approve…" only when the plan can start a new session', async () => {
+  await askPlan(false);
+  await click('cockpit.plan-modes');
+  expect(q('cockpit.plan-fresh-option')).toBeNull();
+  await act(async () => root.unmount());
+  root = createRoot(host);
+  await askPlan(true);
+  await click('cockpit.plan-modes');
+  expect(q('cockpit.plan-fresh-option')?.textContent).toContain('Clear context and approve…');
+});
+
+it('confirms, starts the new session with a prompt id and hands its id to the app', async () => {
+  const onSessionStarted = vi.fn();
+  await askPlan(true, { onSessionStarted });
+  await click('cockpit.plan-modes');
+  await click('cockpit.plan-fresh-option');
+  expect(q('cockpit.plan-fresh-confirm')).not.toBeNull();
+  api.postFreshPermission.mockResolvedValue({ ok: true, sessionId: 'new-id', promptId: 'x' });
+  await click('cockpit.plan-fresh-start');
+  expect(api.postFreshPermission).toHaveBeenCalledWith(SID, {
+    requestId: 'p1',
+    mode: 'acceptEdits',
+    promptId: expect.stringMatching(/^[0-9a-f-]{36}$/),
+  });
+  expect(onSessionStarted).toHaveBeenCalledWith('new-id');
+  expect(q('cockpit.plan-fresh-starting')).not.toBeNull();
+});
+
+it('goes back from the confirmation without calling anything', async () => {
+  await askPlan(true);
+  await click('cockpit.plan-modes');
+  await click('cockpit.plan-fresh-option');
+  await click('cockpit.plan-fresh-back');
+  expect(q('cockpit.plan-fresh-confirm')).toBeNull();
+  expect(q('cockpit.plan-approve')).not.toBeNull();
+  expect(api.postFreshPermission).not.toHaveBeenCalled();
+});
+
+it('says why the new session did not start, reuses the prompt id after a timeout and starts afresh after a refusal', async () => {
+  await askPlan(true);
+  await click('cockpit.plan-modes');
+  await click('cockpit.plan-fresh-option');
+  api.postFreshPermission.mockRejectedValueOnce(new ApiError(504, 'timeout'));
+  await click('cockpit.plan-fresh-start');
+  expect(q('cockpit.plan-fresh-error')?.textContent).toContain(
+    'MacBook Pro did not start the new session: no answer in time',
+  );
+  expect(q('cockpit.plan-approve')).toBeNull();
+  api.postFreshPermission.mockRejectedValueOnce(new ApiError(409, 'rejected', 'disk full'));
+  await click('cockpit.plan-fresh-retry');
+  const [first, second] = api.postFreshPermission.mock.calls.map((c) => c[1].promptId);
+  expect(second).toBe(first);
+  expect(q('cockpit.plan-fresh-error')?.textContent).toContain('disk full');
+  api.postFreshPermission.mockResolvedValue({ ok: true, sessionId: 'n', promptId: 'x' });
+  await click('cockpit.plan-fresh-retry');
+  expect(api.postFreshPermission.mock.calls[2]?.[1].promptId).not.toBe(first);
+});
+
+it('approves in this session after the new one failed to start', async () => {
+  await askPlan(true);
+  await click('cockpit.plan-modes');
+  await click('cockpit.plan-fresh-option');
+  api.postFreshPermission.mockRejectedValueOnce(new ApiError(503, 'owner-offline'));
+  await click('cockpit.plan-fresh-start');
+  expect(q('cockpit.plan-fresh-error')?.textContent).toContain('it is offline');
+  api.postPermission.mockResolvedValue({ ok: true });
+  await click('cockpit.plan-fresh-here');
+  expect(api.postPermission).toHaveBeenCalledWith(SID, 'p1', 'allow', { mode: 'acceptEdits' });
+});
+
+it('links the old session from the new one and the new one from the old, with the untitled fallback', async () => {
+  const onOpenSession = vi.fn();
+  const from = { ...session, continuedFrom: { sessionId: 'old-id', title: '' } } as LiveSessionMeta;
+  await show({ state: 'idle', capabilities: caps }, { session: from, onOpenSession });
+  const origin = q('cockpit.plan-origin');
+  expect(origin?.textContent).toContain('From the plan in');
+  expect(origin?.textContent).toContain('Untitled');
+  await click('cockpit.session-chip');
+  expect(onOpenSession).toHaveBeenCalledWith('old-id');
 });
 
 it('drops a request another window answered first', async () => {
