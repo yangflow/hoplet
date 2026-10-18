@@ -18,8 +18,8 @@ date, and plans change. What has shipped is in `CHANGELOG.md`.
 
 - **v0.6: inspection tools.** Verify what Claude Code did without a separate SSH session: a terminal and the dev
   server preview on the owner machine. [milestone](https://github.com/yangflow/hoplet/milestone/4) · overview #4
-- **v0.7: a second provider.** Codex or Pi behind the provider interfaces through the ACP driver, with model
-  providers in Settings. [milestone](https://github.com/yangflow/hoplet/milestone/5) · overview #5
+- **v0.7: a second provider.** Codex behind the provider interfaces, on a driver of its own and with handoff
+  ([ADR 0027](adr/0027-codex-runs-on-its-app-server-and-enters-at-level-2.md)), with model providers in Settings. [milestone](https://github.com/yangflow/hoplet/milestone/5) · overview #5
 - **v0.8: machines and resources.** See each machine's state at a glance, its resources, the capabilities it
   reports, and usage and cost with budget alerts.
   [milestone](https://github.com/yangflow/hoplet/milestone/7) · overview #122
