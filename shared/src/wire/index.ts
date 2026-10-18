@@ -93,6 +93,26 @@ const terminalId = TerminalIdSchema;
 const TerminalCols = v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(TERMINAL_MAX_COLS));
 const TerminalRows = v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(TERMINAL_MAX_ROWS));
 
+/** Sessions one `ports.watch` names, at most (ADR 0026). */
+export const PORTS_WATCH_MAX_SESSIONS = 64;
+/** Ports one `session.ports` reports, at most. */
+export const SESSION_PORTS_MAX = 16;
+/** Characters of an executable name in a port report. */
+export const PORT_PROCESS_MAX = 64;
+
+/** Which interfaces a listening socket accepts connections on. */
+export const PortAddressSchema = v.picklist(['loopback', 'any', 'other']);
+export type PortAddress = v.InferOutput<typeof PortAddressSchema>;
+
+/** One listening TCP port of a process started from a session's directory (ADR 0026). */
+export const SessionPortSchema = v.object({
+  port: v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(65535)),
+  address: PortAddressSchema,
+  /** The executable's base name; never a command line. */
+  process: v.pipe(v.string(), v.maxLength(PORT_PROCESS_MAX)),
+});
+export type SessionPort = v.InferOutput<typeof SessionPortSchema>;
+
 export const EncodingSchema = v.picklist(['plain', 'gzip+base64']);
 export type Encoding = v.InferOutput<typeof EncodingSchema>;
 
@@ -153,6 +173,8 @@ export const WIRE_MESSAGES = defineWire({
       providers: v.optional(v.array(ProviderInfoSchema)),
       /** Present when the agent offers more than sessions, such as the terminal. */
       capabilities: v.optional(DeviceCapabilitiesSchema),
+      /** The host the inspector links dev servers with: the agent's `preview_host`, else the machine's host name. */
+      previewHost: v.optional(v.pipe(v.string(), v.maxLength(255))),
     },
   },
   welcome: {
@@ -962,6 +984,18 @@ export const WIRE_MESSAGES = defineWire({
     direction: 'device-to-core',
     fields: { terminalId, reason: TerminalReasonSchema },
   },
+
+  // Dev server ports (ADR 0026). `ports.watch` replaces the set of sessions to scan; an empty set stops the scan.
+  'ports.watch': {
+    lane: 'control',
+    direction: 'core-to-device',
+    fields: { sessionIds: v.pipe(list(SessionIdSchema), v.maxLength(PORTS_WATCH_MAX_SESSIONS)) },
+  },
+  'session.ports': {
+    lane: 'control',
+    direction: 'device-to-core',
+    fields: { sessionId, ports: v.pipe(list(SessionPortSchema), v.maxLength(SESSION_PORTS_MAX)) },
+  },
 });
 
 type Table = typeof WIRE_MESSAGES;
@@ -1075,6 +1109,8 @@ export type TerminalOpened = WireMessageOf<'terminal.opened'>;
 export type TerminalOutput = WireMessageOf<'terminal.output'>;
 export type TerminalClosed = WireMessageOf<'terminal.closed'>;
 export type TerminalRejected = WireMessageOf<'terminal.rejected'>;
+export type PortsWatch = WireMessageOf<'ports.watch'>;
+export type SessionPorts = WireMessageOf<'session.ports'>;
 
 /** Types of the messages in `direction`, in table order. */
 export function wireTypes(...directions: Direction[]): WireType[] {
@@ -1128,6 +1164,7 @@ export const ClientMessageSchema = v.variant('type', [
   WIRE_MESSAGES['terminal.output'].schema,
   WIRE_MESSAGES['terminal.closed'].schema,
   WIRE_MESSAGES['terminal.rejected'].schema,
+  WIRE_MESSAGES['session.ports'].schema,
 ]);
 
 /** The messages a browser sends. */
@@ -1145,6 +1182,7 @@ export const WIRE_OBJECTS = {
   RuntimeCapabilities: RuntimeCapabilitiesSchema,
   ProviderInfo: ProviderInfoSchema,
   DeviceCapabilities: DeviceCapabilitiesSchema,
+  SessionPort: SessionPortSchema,
   ConfigOption: ConfigOptionSchema,
   ConfigValue: ConfigValueSchema,
   Command: CommandSchema,

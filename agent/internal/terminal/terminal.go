@@ -129,6 +129,19 @@ func (m *Manager) Active() int {
 	return len(m.terms)
 }
 
+// ShellPID is the process ID of the shell of the session's terminal, 0 when there is none. It only scopes the
+// scan for dev server ports (ADR 0026) and is never reported.
+func (m *Manager) ShellPID(sessionID string) int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, t := range m.terms {
+		if t.session == sessionID && t.started {
+			return t.pid
+		}
+	}
+	return 0
+}
+
 // Open starts a shell for the session in dir. guard runs after the slot is reserved and before the shell
 // starts; it returns an *OpenError to refuse (the runtime state and the handoff checks of the daemon). A
 // refusal is an *OpenError whose Reason goes into terminal.rejected.

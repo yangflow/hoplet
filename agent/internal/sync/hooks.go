@@ -45,6 +45,13 @@ type TerminalHooks struct {
 	Disconnected func()
 }
 
+// PortsHooks serve ports.watch (ADR 0026).
+type PortsHooks struct {
+	// Watch replaces the set of sessions whose dev server ports the agent scans for; empty stops the scan.
+	// It must not block: it runs on the read loop.
+	Watch func(sessionIDs []string)
+}
+
 // WorkspaceListing is the content of session.workspace.
 type WorkspaceListing struct {
 	Git       bool
@@ -105,6 +112,9 @@ type Hooks struct {
 	Diff      WorkspaceDiffFunc
 	Handoff   HandoffHooks
 	Terminal  TerminalHooks
+	Ports     PortsHooks
+	// PreviewHost is announced in device.hello: the host the web UI links dev servers with.
+	PreviewHost string
 
 	// ProjectsList / ProjectsAdd / ProjectsRemove match hoplet-agent projects list|add|remove.
 	ProjectsList   func(ctx context.Context) (candidates []string, projects []DeviceProject, err error)
