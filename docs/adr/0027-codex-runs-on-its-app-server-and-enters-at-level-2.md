@@ -1,6 +1,6 @@
 # 0027 Codex runs on its app server and enters at level 2
 
-- Status: proposed
+- Status: accepted
 - Date: 2026-10-18
 - Related: ADR 0002, ADR 0006, ADR 0007, ADR 0009, ADR 0012, ADR 0015, ADR 0017, ADR 0018, ADR 0019, ADR 0020,
   issues #5, #156
