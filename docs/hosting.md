@@ -119,10 +119,34 @@ starting the container. Run one core per data directory, on a local filesystem w
 | `poll_interval_ms` | `1000` | scan interval |
 | `runtime_idle_minutes` | `30` | idle time after which a Claude Code process stops |
 | `runtime_max_idle_processes` | `3` | Claude Code processes kept running between turns; processes in a turn are not limited |
+| `terminal` | `false` | allow the web UI to open a shell on this machine ([Terminal](#terminal)) |
+| `preview_host` | the machine's host name | the host in the links to a session's dev servers ([Dev server links](#dev-server-links)) |
 
 `<hoplet_home>/projects.json` lists watched project paths and the session IDs imported from each:
 `{ "projects": [{ "path": "/abs/project", "imported": ["<session>"] }] }`. A missing or empty file syncs
 nothing. `hoplet-agent projects` and `hoplet-agent sessions` maintain it; the daemon rereads it on every scan.
+
+### Terminal
+
+`"terminal": true` in the agent's `config.json`, then restart the agent, lets the web UI open a terminal on this
+machine ([ADR 0026](adr/0026-the-inspector-opens-a-restricted-terminal-and-links-dev-servers.md)). It is off by
+default, and only the operator of the machine can turn it on: the core cannot. The terminal runs the agent user's
+`$SHELL` in the working directory of a session, only while no turn of that session runs, and anyone with the host
+token can then run commands there as that user. Turn it on only for machines and users where that is acceptable;
+with the key removed or `false` the agent does not offer the terminal. A terminal closes after 60 minutes without
+input, after 8 hours, when a turn or a handoff starts and when the agent loses its connection to the core; at most
+three run on a machine. The agent keeps `<hoplet_home>/terminal/` (one small record per open terminal, no content)
+and removes what a crash left on start-up. The terminal's traffic uses the agent's existing connection to the core.
+
+### Dev server links
+
+The agent reports the TCP ports that processes started from a session's working directory listen on, for the
+sessions open in a browser; the inspector shows them with a link, and no traffic passes through Hoplet. The link
+opens in the browser, so the browser must reach the owner machine itself: the same network, a VPN such as
+Tailscale, or a tunnel the user opens. The link's host is `preview_host`, else the machine's host name; set
+`preview_host` to the name or address the browser uses (for example the machine's Tailscale name). A server bound
+to loopback is linked as `localhost` and opens only on the owner machine or through a tunnel. Nothing needs to be
+published on the server running the core, and the compose file does not change.
 
 ## Resources
 

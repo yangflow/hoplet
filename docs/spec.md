@@ -169,9 +169,9 @@ only when the session's runtime driver declares its capability (`permissions`, `
 ### Workspace inspector
 
 The inspector holds tools as tabs, Changes and Files to start; a tab closes, and the + button opens the tools
-menu, which reopens a closed tab with its shortcut (Changes ⇧⌘G, Files ⇧⌘E) and is where later tools join
-(Terminal #14, Browser #15) once built. The inspector's fold control carries a mark when the working tree has
-changes. Changes lists every changed path with its git status by colour and letter (modified, added, deleted,
+menu, which reopens a closed tab with its shortcut (Changes ⇧⌘G, Files ⇧⌘E) and is where Terminal and Browser join
+([ADR 0026](adr/0026-the-inspector-opens-a-restricted-terminal-and-links-dev-servers.md)). The inspector's fold
+control carries a mark when the working tree has changes. Changes lists every changed path with its git status by colour and letter (modified, added, deleted,
 untracked) and its added and removed line counts, and opens first when the working tree has changes; with none it
 says the tree matches `HEAD`. Files shows the working tree as a folder tree with the same status marks; past the
 listing limit it says that only the first paths are shown. Paths carry an icon for their file type. Opening a
@@ -196,6 +196,27 @@ snapshot's time, files and size; while a turn runs Hand off waits for its end. D
 five steps (prepare, transfer with the bytes sent, install, verify, commit) with who did each and how long it took;
 a failure marks its step, names the reason and says that nothing moved, with Hand off to try again; on success it
 names the new worktree and branch, and the session moves to its new owner in the sidebar.
+
+#### Terminal and dev server links
+
+The Terminal tab opens a shell in the session's working directory on the owner machine, to check what Claude Code
+did without a separate SSH session. It exists only on a machine whose operator turned the agent's `terminal`
+setting on (off by default, docs/hosting.md#terminal); on any other machine the tab says so and names the setting.
+It opens only while the owner is online and the session has no running turn, no `external` writer and no handoff,
+and it says which of these stops it. It is one terminal per session (three per machine), starts in the session's
+directory as the agent's user, closes after 60 minutes without input and when a turn or a handoff starts, and never
+survives the owner's connection; closing the tab ends it. A started turn closes it with a note, never the other
+way round: a prompt is not delayed by the terminal. Hoplet stores nothing of what is typed or printed and logs only
+when a terminal opened and closed, with the reason.
+
+The Browser tab lists the TCP ports that processes started from the session's working directory listen on: the
+port, whether it listens on loopback only, and the process name ("localhost:5173 is running · node"). Open is a
+link in a new tab to the owner machine, which works where the browser reaches it directly (same network,
+Tailscale); the tab shows the address it used. Hoplet does not proxy, embed or inspect a dev server's traffic, and
+reports no command line, arguments, environment or process ID. It lists nothing while the owner is offline.
+
+What is not built: a terminal on a machine that did not opt in, in another directory, during a turn or after the
+owner disconnects, and a preview through the core.
 
 ### Settings
 
@@ -275,6 +296,7 @@ API, in `shared/src/` (schemas, types and error codes) and `agent/internal/sync/
   `offline` when the owner is not connected);
   `POST /api/sessions` (new session);
   `POST /api/sessions/:id/permission/fresh` (approve a plan into a new session);
+  the terminal's open and close calls ([ADR 0026](adr/0026-the-inspector-opens-a-restricted-terminal-and-links-dev-servers.md));
   `GET /api/sessions/:id/lines?start=&limit=`; `GET /api/sessions/:id/blocks/:line/:block`;
   `GET /api/search?q=&start=&limit=`; `GET /api/sessions/:id/search?q=&start=&limit=`;
   `POST /api/sessions/:id/prompt`; `POST /api/sessions/:id/permission`; `POST /api/sessions/:id/interrupt`;
@@ -317,6 +339,11 @@ API, in `shared/src/` (schemas, types and error codes) and `agent/internal/sync/
   `device.dirs` or `device.dirs.rejected` from the agent), the clone a handoff would use (`device.clone.find` from
   the core, `device.clone` from the agent), and cloning a repository for a handoff (`device.clone.check|checked`,
   `device.clone.start|progress|done|failed` and `device.clone.cancel`), `ping`/`pong`.
+- Terminal and dev servers (ADR 0026), all on the control lane: `terminal.open|input|resize|ack|close` from the
+  core; `terminal.opened|output|closed|rejected` from the agent; `ports.watch` from the core and `session.ports`
+  from the agent. `device.hello` announces `capabilities.terminal` only when the agent's `terminal` setting is on.
+  The browser WebSocket carries a terminal's input and output and `session.ports`. Their routes and messages are
+  listed in docs/api.md with the code that exposes them.
 - Errors carry a stable `code`; the web UI and the CLI choose their copy from it.
 
 ## Modules
@@ -613,5 +640,8 @@ of real sessions (86% tool results) at 23, 128 and 256 MB.
       after it reconnects
 - [ ] A failed handoff at any step leaves owner, cursor and both machines' files unchanged
 - [ ] Rename, pin and archive of a session reach every open window, survive a restart of the core and change no stored line or cursor
+- [ ] With `terminal` off on a machine, no terminal opens there; with it on, a terminal opens only while no turn
+      runs, a started turn closes it, and a flood of output does not delay a prompt
+- [ ] A dev server started from a session's directory is listed with its port; Hoplet carries none of its traffic
 - [ ] An 8-hour live session stays within the web UI memory budget
 - [ ] `docker compose up -d` serves the web UI on `127.0.0.1` and the health check passes

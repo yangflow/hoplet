@@ -62,6 +62,7 @@ Claude Code               the session file (writer) and the running process
 | sync | agent | Agent WebSocket client, the two lanes, cursor reconciliation, append batching | config, provider | `agent/internal/sync/` |
 | provider | agent | The `Source`, `Provider` and `Store` interfaces, and one implementation per vendor in `provider/<vendor>/` (`claude`: store discovery, incremental reading, titles, project membership, session-file installation) | nothing | `agent/internal/provider/` |
 | runtime | agent | Process lifecycle, idle stop, `external` detection, and the runtime-driver interface with one driver per vendor in `runtime/<vendor>/` (`claude`: streaming JSON I/O, permissions, interrupt, version check) | provider, locate | `agent/internal/runtime/` |
+| terminal, ports | agent | The PTY of an opened terminal (process group, limits, credit window, cleanup journal), and the scan for listening TCP ports of processes started from a session's directory | runtime, locate | `agent/internal/terminal/`, `agent/internal/ports/` |
 | workspace | agent | Working-tree listing and rooted reads, snapshots, clone resolution, worktree installation, verification | provider, locate | `agent/internal/workspace/` |
 | projects, sessions | agent | `projects.json` and its CLI | provider | `agent/internal/projects/`, `agent/internal/sessions/` |
 | daemon | agent | Wiring, scan loop, recovery of interrupted installation before connecting | all agent packages | `agent/internal/daemon/` |
@@ -180,6 +181,29 @@ choose it. `notify` subscribes to control's event stream (`control.onEvent`: `pe
 one retry. The `native` channel is the `notify` browser message to a connected client. A channel never decides
 what to send; the rules do. A channel that carries action links tells the user that they decide through the same
 path as `POST /api/sessions/:id/permission`.
+
+### An inspector tool on the owner machine
+
+The Terminal and Browser tabs ([ADR 0026](adr/0026-the-inspector-opens-a-restricted-terminal-and-links-dev-servers.md))
+are wire messages on the control lane and an agent package each; the web UI renders them as inspector tabs and the
+Mac client reuses them.
+
+**A terminal.** `agent/internal/terminal/` owns the PTY and its shell's process group. `control` opens one with
+`terminal.open` only when the agent announced `capabilities.terminal` (the agent's `terminal` setting), the session's
+runtime state is not `running`, `waiting-permission` or `external`, and no handoff of the session runs; the agent
+checks the same against its runtime manager. Input, output, resize, acknowledgments and close are
+`terminal.*` messages on the control lane. Output is limited to 4 KiB frames under a 64 KiB credit window that the
+core replenishes with `terminal.ack` once the browser connection took the bytes, so the PTY, not the lane, absorbs a
+flood and a prompt queued behind terminal output waits for at most 64 KiB. The core relays between the agent and
+the subscribed browser WebSocket and keeps no terminal content. Anything that starts a turn, starts a handoff or
+deletes the session first sends `terminal.close`; the agent also closes on its own runtime's first turn and when
+its connection to the core ends.
+
+**Ports.** `control` sends `ports.watch` with the sessions that have a subscribed browser; `agent/internal/ports/`
+scans the listening TCP sockets of the agent's user every 3 seconds for those sessions, keeps those held by a process
+whose directory is inside the session's directory or that descends from the session's process or terminal, and
+reports changes as `session.ports` (port, address class, process name). The core forwards it to subscribed browsers
+and holds it in memory only. No dev server traffic is read, proxied or stored.
 
 ### A storage migration
 
