@@ -134,6 +134,7 @@ const subject: Record<string, Record<string, string>> = {
     'terminal-closed-turn': 'workspace.terminal-closed-turn',
     'terminal-closed-idle': 'workspace.terminal-closed-idle',
     'terminal-closed-offline': 'workspace.terminal-closed-offline',
+    'terminal-closed-exit': 'workspace.terminal-closed-generic',
     'terminal-busy': 'workspace.terminal-busy',
     'browser-ports': 'workspace.port',
     'browser-loopback': 'workspace.browser-loopback',
@@ -172,9 +173,9 @@ const subject: Record<string, Record<string, string>> = {
   },
 };
 
-test('the registries list 78 cockpit, 50 workspace, 13 settings and 7 action states', () => {
+test('the registries list 78 cockpit, 51 workspace, 13 settings and 7 action states', () => {
   expect(screens.cockpit).toHaveLength(78);
-  expect(screens.workspace).toHaveLength(50);
+  expect(screens.workspace).toHaveLength(51);
   expect(screens.settings).toHaveLength(13);
   expect(screens.action).toHaveLength(7);
 });

@@ -237,8 +237,11 @@ export function TerminalTab(props: {
             {t('Open again')}
           </Button>
           <span className="ws-meta">
-            {copy.code}
-            {phase.exitCode !== undefined && kind === 'generic' ? ` · exit ${phase.exitCode}` : ''}
+            {phase.exitCode !== undefined && kind === 'generic'
+              ? phase.reason === 'exit'
+                ? `exit ${phase.exitCode}`
+                : `${copy.code} · exit ${phase.exitCode}`
+              : copy.code}
           </span>
         </div>
       </Message>
