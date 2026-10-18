@@ -18,6 +18,10 @@ The mockups, design tokens and app icon behind Hoplet's web UI. The design langu
     `plan-fresh-done`, `plan-fresh-new`).
   - `action` is the page a signed action link opens and the notifications that lead to it (`os-open`, `confirm`,
     `confirm-answered`, `confirm-expired`, `confirm-used`, `confirm-webui`, `hint-blocked`).
+- `screens/inspector-tools.html`: the inspector's Terminal and Browser tabs (#14, #15) with every state, in light and
+  dark: Terminal (`terminal-off`, `terminal-blocked-turn`, `-external`, `-handoff`, `-offline`, `terminal-ready`,
+  `terminal-open`, `terminal-closed-turn`, `-idle`, `-offline`, `terminal-busy`) and Browser (`browser-ports`,
+  `browser-loopback`, `browser-empty`, `browser-offline`). It is not built yet.
 - `tokens.html`: every design token, with the JSON block that `check-tokens.py` compares with
   `web/src/design/tokens.css`.
 - `mark.html`: the app icon and the web UI's mark; the exported icon is `web/public/icon.svg`.
