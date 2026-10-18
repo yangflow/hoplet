@@ -4,6 +4,22 @@ Each release's notes are made from the titles of the pull requests merged since 
 Commits: `feat` under Added, `fix` under Fixed, `perf` under Performance; `release-please-config.json`).
 Versions follow Semantic Versioning.
 
+## [0.5.0](https://github.com/yangflow/hoplet/compare/v0.4.0...v0.5.0) (2026-10-18)
+
+
+### Added
+
+* **agent:** Declare that a plan can be approved into a new session ([#132](https://github.com/yangflow/hoplet/issues/132)) ([0b97331](https://github.com/yangflow/hoplet/commit/0b9733139e55224a9c1d5f3d35038a72e55a11b6))
+* **core:** Approve a plan into a new session ([#135](https://github.com/yangflow/hoplet/issues/135)) ([97b703a](https://github.com/yangflow/hoplet/commit/97b703a7af1053bec1176bc5f6ac353cd5d45d0e))
+* **core:** Link a session to the one started from its plan ([#133](https://github.com/yangflow/hoplet/issues/133)) ([6b6eca2](https://github.com/yangflow/hoplet/commit/6b6eca21f90f37e1f83ccf86edd13b0d7c34cfdc))
+* **web:** Approve a plan into a new session from the plan card ([#138](https://github.com/yangflow/hoplet/issues/138)) ([aa21553](https://github.com/yangflow/hoplet/commit/aa215530009c5133b58b1029ed52fbdec3b2c5f6))
+
+
+### Fixed
+
+* **core:** Report a new session's first turn as running ([#129](https://github.com/yangflow/hoplet/issues/129)) ([38e7c3e](https://github.com/yangflow/hoplet/commit/38e7c3e74274468b25ba4e90968a254c6c0f7e93))
+* **web:** Keep the Settings row buttons' style out of the conversation ([#137](https://github.com/yangflow/hoplet/issues/137)) ([fca7161](https://github.com/yangflow/hoplet/commit/fca71610f6fa89bd3e5d82c9450bb654f47f0490))
+
 ## [0.4.0](https://github.com/yangflow/hoplet/compare/v0.3.0...v0.4.0) (2026-10-17)
 
 
