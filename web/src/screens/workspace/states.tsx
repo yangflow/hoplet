@@ -480,6 +480,7 @@ export const states: Record<string, () => ReactNode> = {
   'terminal-closed-turn': () => terminalState(closed('turn-started')),
   'terminal-closed-idle': () => terminalState(closed('idle')),
   'terminal-closed-offline': () => terminalState(closed('owner-offline'), { offline: true }),
+  'terminal-closed-exit': () => terminalState({ kind: 'closed', reason: 'exit', exitCode: 0 }),
   'terminal-busy': () => terminalState({ kind: 'busy' }),
   'browser-ports': () =>
     browserState(ready([port(5173, 'node', 'loopback'), port(4000, 'bun', 'any')], PREVIEW_HOST)),
