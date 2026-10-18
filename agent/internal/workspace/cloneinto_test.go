@@ -415,11 +415,14 @@ func TestCloneTimeouts(t *testing.T) {
 		}
 	})
 	t.Run("progress restarts the stall timer", func(t *testing.T) {
-		fakeGit(t, "for i in 1 2 3 4 5 6; do printf 'Receiving objects:  %s%% (1/2), 1.00 MiB | 1.00 MiB/s\\r' $i >&2; sleep 0.2; done; exit 0")
+		fakeGit(t, "for i in 1 2 3 4 5 6 7 8 9 10 11 12; do printf 'Receiving objects:  %s%% (1/2), 1.00 MiB | 1.00 MiB/s\\r' $i >&2; sleep 0.2; done; exit 0")
 		r := newCloneRig(t)
-		r.cl.Stall = 500 * time.Millisecond
+		// The run (about 2.4 s) outlasts one stall period, and each gap is a tenth of it, so a busy
+		// machine has 1.8 s of slack per line.
+		r.cl.Stall = 2 * time.Second
 		var mu sync.Mutex
 		var got []int64
+		start := time.Now()
 		_, err := r.cl.Clone(context.Background(), "h1", "https://example.com/o/r.git", filepath.Join(r.root, "repo"), func(received, total int64) {
 			mu.Lock()
 			got = append(got, received)
@@ -433,8 +436,8 @@ func TestCloneTimeouts(t *testing.T) {
 		if len(got) == 0 || got[0] != 1<<20 {
 			t.Fatalf("progress = %v", got)
 		}
-		// 6 lines in about 1.2 s: at most four a second.
-		if len(got) > 6 {
+		// 12 lines: at most four a second.
+		if max := int(time.Since(start)/cloneProgressEvery) + 1; len(got) > max {
 			t.Fatalf("progress not throttled: %v", got)
 		}
 	})
