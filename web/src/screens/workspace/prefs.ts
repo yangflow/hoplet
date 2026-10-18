@@ -1,8 +1,10 @@
 // What the inspector remembers in the browser (docs/spec.md#workspace-inspector): its open tabs and Wrap.
 
-/** The inspector's tools; Terminal (#14) and Browser (#15) join when they are built. */
-export const TOOLS = ['changes', 'files'] as const;
+/** The inspector's tools, in tab order. */
+export const TOOLS = ['changes', 'files', 'terminal', 'browser'] as const;
 export type Tool = (typeof TOOLS)[number];
+/** The tabs open when nothing is saved: Terminal and Browser are opened from the + menu. */
+export const DEFAULT_TABS: readonly Tool[] = ['changes', 'files'];
 
 export const TABS_KEY = 'hoplet.inspector-tabs';
 export const WRAP_KEY = 'hoplet.inspector-wrap';
@@ -17,16 +19,16 @@ function storage(): Store | null {
   }
 }
 
-/** The open tabs as saved, in tool order; both when nothing usable is saved. */
+/** The open tabs as saved, in tool order; Changes and Files when nothing usable is saved. */
 export function loadTabs(store: Store | null = storage()): Tool[] {
   try {
     const raw = store?.getItem(TABS_KEY);
-    if (!raw) return [...TOOLS];
+    if (!raw) return [...DEFAULT_TABS];
     const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [...TOOLS];
+    if (!Array.isArray(parsed)) return [...DEFAULT_TABS];
     return TOOLS.filter((tool) => parsed.includes(tool));
   } catch {
-    return [...TOOLS];
+    return [...DEFAULT_TABS];
   }
 }
 

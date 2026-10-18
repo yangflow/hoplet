@@ -15,6 +15,8 @@
     "@fontsource-variable/inter": "5.3.0",
     "@fontsource-variable/jetbrains-mono": "5.3.0",
     "@hoplet/shared": "workspace:*",
+    "@xterm/addon-fit": "0.11.0",
+    "@xterm/xterm": "6.0.0",
     "lucide-react": "1.54.0",
     "react": "19.3.0",
     "react-dom": "19.3.0"

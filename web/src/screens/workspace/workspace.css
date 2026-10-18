@@ -129,9 +129,6 @@
 .ws-menu-l {
   flex: 1;
 }
-.ws-menu .menu-item.ws-later:hover {
-  background: none;
-}
 .ws-meta {
   font-size: var(--text-meta);
   line-height: var(--leading-meta);
@@ -689,11 +686,6 @@ ul.ws-list {
 .ws-menu .menu-item > .icon {
   color: var(--color-text-2);
 }
-.ws-menu .menu-item.ws-later,
-.ws-menu .menu-item.ws-later > .icon {
-  color: var(--color-text-3);
-  cursor: default;
-}
 
 /* the handoff panel: a raised card at the foot in place of the row; steps and the result while it runs and after */
 .ws-ho {
@@ -891,4 +883,369 @@ ul.ws-list {
   color: var(--color-text-2);
   overflow-wrap: anywhere;
   white-space: pre-wrap;
+}
+
+/* the tabs carry their glyph; while the inspector is narrow the inactive ones fold to it */
+.ws-tablist > .ws-tab > .icon {
+  flex: none;
+  color: var(--color-text-3);
+}
+.ws-tab.on > .icon {
+  color: var(--color-text-2);
+}
+.ws-tab.ico {
+  width: 28px;
+  padding: 0;
+  justify-content: center;
+}
+.ws-tab.ico:hover:not(.off) {
+  padding-right: 0;
+}
+.ws-tab.ico:not(.off) .ws-tab-x {
+  display: none;
+}
+.ws-live {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-success);
+}
+.ws-live.off {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--color-text-3);
+}
+
+/* Terminal and Browser (design/screens/inspector-tools.html): one centred message with one action, a mono well */
+.ws-tool {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.ws-es {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  text-align: center;
+}
+.ws-tile {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-lg);
+  display: grid;
+  place-items: center;
+  background: var(--color-raised);
+  box-shadow: var(--shadow-live);
+  color: var(--color-text-2);
+}
+.ws-es .ws-es-t {
+  font-size: var(--text-title);
+  line-height: var(--leading-title);
+  font-weight: var(--weight-semibold);
+  letter-spacing: -0.01em;
+}
+.ws-es p {
+  max-width: 44ch;
+  color: var(--color-text-2);
+}
+.ws-acts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+}
+.ws-err {
+  max-width: 44ch;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-del-bg);
+  color: var(--color-text);
+}
+.ws-lnk {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--color-accent-text);
+  font-weight: var(--weight-medium);
+}
+.ws-es .ws-lnk .icon {
+  width: 14px;
+  height: 14px;
+}
+code.ws-mc {
+  padding: 0 var(--space-1);
+  border-radius: 4px;
+  background: var(--color-bg);
+  box-shadow: inset 0 0 0 1px var(--color-line);
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: var(--text-code);
+  letter-spacing: 0;
+}
+:root[data-scheme="light"] code.ws-mc {
+  background: var(--color-hover);
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-scheme="dark"]) code.ws-mc {
+    background: var(--color-hover);
+  }
+}
+.ws-rz {
+  position: absolute;
+  left: -4px;
+  top: 0;
+  bottom: 0;
+  z-index: 5;
+  width: 8px;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+.ws-rz i {
+  display: block;
+  width: 3px;
+  height: 36px;
+  border-radius: 2px;
+  background: var(--color-text-3);
+  opacity: 0.7;
+}
+.ws-tbar {
+  flex: none;
+  height: 36px;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-2) 0 var(--space-3);
+  color: var(--color-text-2);
+}
+.ws-tool .ws-tbar > .icon {
+  color: var(--color-text-3);
+}
+.ws-tbar .ws-path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: var(--text-code);
+  letter-spacing: 0;
+}
+.ws-grow {
+  flex: 1;
+}
+.ws-tfoot {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  box-shadow: inset 0 1px 0 var(--color-line);
+  color: var(--color-text-3);
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+}
+.ws-pad {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 0 var(--space-2) var(--space-2);
+}
+.ws-tm {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: inset 0 0 0 1px var(--color-line);
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: var(--text-code);
+  line-height: var(--leading-code);
+  letter-spacing: 0;
+  white-space: pre;
+}
+:root[data-scheme="light"] .ws-tm {
+  background: var(--color-raised);
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-scheme="dark"]) .ws-tm {
+    background: var(--color-raised);
+  }
+}
+.ws-tm .d {
+  color: var(--color-text-3);
+}
+.ws-tm .ok {
+  color: var(--color-success);
+}
+.ws-tm .pr {
+  color: var(--color-text-2);
+}
+.ws-tm .ky {
+  color: var(--color-syntax-type);
+}
+.ws-tm .caret {
+  display: inline-block;
+  width: 7px;
+  height: 14px;
+  vertical-align: -2px;
+  background: var(--color-text);
+  animation: ws-blink var(--motion-blink) steps(1) infinite;
+}
+@keyframes ws-blink {
+  50% {
+    opacity: 0;
+  }
+}
+.ws-xterm {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  padding: var(--space-2) 0 var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: inset 0 0 0 1px var(--color-line);
+}
+:root[data-scheme="light"] .ws-xterm {
+  background: var(--color-raised);
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-scheme="dark"]) .ws-xterm {
+    background: var(--color-raised);
+  }
+}
+.ws-xterm .xterm {
+  height: 100%;
+}
+.ws-xterm .xterm .xterm-viewport {
+  background: transparent;
+  scrollbar-width: thin;
+}
+
+/* the Browser tab: the host links open at, then one card per port */
+.ws-hostbar {
+  flex: none;
+  margin: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  box-shadow: inset 0 0 0 1px var(--color-line);
+}
+:root[data-scheme="light"] .ws-hostbar {
+  background: var(--color-hover);
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-scheme="dark"]) .ws-hostbar {
+    background: var(--color-hover);
+  }
+}
+.ws-hostbar-l {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-2);
+}
+.ws-tool .ws-hostbar-l > .icon {
+  color: var(--color-text-3);
+}
+.ws-hostbar-l .ws-mono {
+  color: var(--color-text);
+}
+.ws-ports {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  scrollbar-width: thin;
+}
+.ws-portlist {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ws-card {
+  margin: 0 var(--space-2) var(--space-2);
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  border-radius: var(--radius-md);
+  background: var(--color-raised);
+  box-shadow:
+    inset 0 1px 0 var(--color-highlight),
+    0 0 0 1px var(--color-line);
+}
+.ws-card-top {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.ws-port {
+  font-size: 22px;
+  line-height: 28px;
+  font-weight: var(--weight-semibold);
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.ws-who {
+  margin-left: var(--space-1);
+  color: var(--color-text-2);
+}
+.ws-cls {
+  margin-left: auto;
+  height: 20px;
+  padding: 0 var(--space-2);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  border-radius: 10px;
+  background: var(--color-bg);
+  box-shadow: inset 0 0 0 1px var(--color-line);
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  color: var(--color-text-2);
+}
+:root[data-scheme="light"] .ws-cls {
+  background: var(--color-hover);
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-scheme="dark"]) .ws-cls {
+    background: var(--color-hover);
+  }
+}
+.ws-card .ws-cls .icon {
+  width: 12px;
+  height: 12px;
+}
+.ws-url {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-text-2);
+}
+.ws-card-acts {
+  display: flex;
+  gap: var(--space-2);
+}
+.ws-card-acts .btn {
+  flex: 1;
+  justify-content: center;
+}
+.ws-card-acts a.btn {
+  text-decoration: none;
+}
+.ws-bnote {
+  margin-bottom: var(--space-2);
 }

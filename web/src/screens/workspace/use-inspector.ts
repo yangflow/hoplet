@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import { loadTabs, saveTabs, TOOLS, type Tool } from './prefs.ts';
+import { DEFAULT_TABS, loadTabs, saveTabs, TOOLS, type Tool } from './prefs.ts';
 import type { Opened } from './use-workspace.ts';
 
 /** What the inspector shows: its open tabs, the chosen one, the open path, and whether Hand off is open. */
@@ -28,7 +28,7 @@ export function useInspectorView(
   initial?: Partial<InspectorView>,
 ): [InspectorView, InspectorActions] {
   const [view, setView] = useState<InspectorView>(() => ({
-    tabs: initial ? (initial.tabs ?? [...TOOLS]) : loadTabs(),
+    tabs: initial ? (initial.tabs ?? [...DEFAULT_TABS]) : loadTabs(),
     active: initial?.active ?? null,
     opened: initial?.opened ?? null,
     handoffOpen: initial?.handoffOpen ?? false,

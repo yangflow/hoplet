@@ -159,7 +159,11 @@ export function Cockpit(props: {
   // A wide inspector folds the sidebar on narrower windows, so the conversation keeps its room.
   const narrow = useNarrowWindow();
   const [sidebarPinned, setSidebarPinned] = useState(false);
-  const wide = inspectorOpen && session !== null && view.opened !== null && view.tabs.length > 0;
+  const wide =
+    inspectorOpen &&
+    session !== null &&
+    view.tabs.length > 0 &&
+    (view.opened !== null || view.active === 'terminal');
   const sidebarHidden = sidebarFolded || (wide && narrow && !sidebarPinned);
   useEffect(() => {
     if (!wide) setSidebarPinned(false);
@@ -503,6 +507,10 @@ export function Cockpit(props: {
           actions={inspector}
           handoff={handoff}
           busy={['running', 'waiting-permission'].includes(runtimeOf(session).state)}
+          runtimeState={runtimeOf(session).state}
+          terminalCapable={
+            devices.find((d) => d.deviceId === session.ownerDeviceId)?.terminal === true
+          }
           onHide={() => setInspectorOpen(false)}
           {...(workspace ? { fixture: workspace } : {})}
         />
