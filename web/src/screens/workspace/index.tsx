@@ -15,13 +15,18 @@ import { Icon, Spinner } from '../../components/icons.tsx';
 import { Popover } from '../../components/Popover.tsx';
 import { t } from '../../lib/i18n.ts';
 import { pageKeysSuspended } from '../../lib/page-keys.ts';
+import { gateOf } from '../../lib/terminal.ts';
 import { clock } from '../cockpit/conversation/format.ts';
+import { BrowserTab } from './browser-tab.tsx';
 import type { Handoff, HandoffFixture } from './handoff.ts';
 import { HandoffPanel } from './handoff-panel.tsx';
 import { ChangesList, FilesTree } from './lists.tsx';
 import { buildTree, formatCount } from './model.ts';
 import { loadWrap, saveWrap, TOOLS, type Tool } from './prefs.ts';
+import { TerminalTab } from './terminal-tab.tsx';
 import type { InspectorActions, InspectorView } from './use-inspector.ts';
+import type { PortsData } from './use-ports.ts';
+import type { TerminalPhase } from './use-terminal.ts';
 import {
   changesOf,
   useViewerContent,
@@ -43,14 +48,30 @@ export type WorkspaceFixture = {
   toolsOpen?: boolean;
   wrap?: boolean;
   handoff?: HandoffFixture;
+  /** The Terminal tab's state, in place of asking the core. */
+  terminal?: TerminalPhase;
+  /** The Browser tab's ports, in place of asking the core. */
+  browser?: PortsData;
 };
 
-const toolLabel = (tool: Tool) => ({ changes: t('Changes'), files: t('Files') })[tool];
-const toolHint: Record<Tool, string> = { changes: '⇧⌘G', files: '⇧⌘E' };
+const toolLabel = (tool: Tool) =>
+  ({
+    changes: t('Changes'),
+    files: t('Files'),
+    terminal: t('Terminal'),
+    browser: t('Browser'),
+  })[tool];
+const toolHint: Partial<Record<Tool, string>> = { changes: '⇧⌘G', files: '⇧⌘E' };
+const toolIcon: Record<Tool, () => ReturnType<typeof Icon.pen>> = {
+  changes: Icon.pen,
+  files: Icon.folder,
+  terminal: Icon.terminal,
+  browser: Icon.globe,
+};
 
 /**
- * The workspace inspector (docs/spec.md#workspace-inspector): tools as tabs, Changes and Files, a viewer that
- * widens the inspector with the list on its right, and Hand off at the foot.
+ * The workspace inspector (docs/spec.md#workspace-inspector): tools as tabs (Changes, Files, Terminal and
+ * Browser), a viewer that widens the inspector with the list on its right, and Hand off at the foot.
  */
 export function Inspector(props: {
   session: LiveSessionMeta;
@@ -61,6 +82,9 @@ export function Inspector(props: {
   handoff: Handoff;
   /** The session is in a turn: Hand off waits until it ends. */
   busy: boolean;
+  /** The session's runtime state, and whether its machine announced a terminal: the Terminal tab's gate. */
+  runtimeState: string;
+  terminalCapable: boolean;
   onHide: () => void;
   fixture?: WorkspaceFixture;
 }) {
@@ -74,6 +98,7 @@ export function Inspector(props: {
   const [wrap, setWrap] = useState(() => fixture?.wrap ?? loadWrap());
   const id = useId();
   const focusMenu = useRef(false);
+  const [terminalLive, setTerminalLive] = useState(false);
 
   const active: Tool | null =
     view.active && view.tabs.includes(view.active)
@@ -151,7 +176,15 @@ export function Inspector(props: {
     return () => window.removeEventListener('keydown', onKey);
   }, [opened, order, actions, toggleWrap, toolsOpen]);
 
-  const wide = opened !== null && active !== null;
+  // The terminal needs the room of a viewer, whatever it shows, so the pane does not jump when one opens.
+  const wide = active === 'terminal' || (opened !== null && active !== null);
+  const roomy = active === 'terminal' || active === 'browser';
+  const gate = gateOf({
+    online,
+    terminalCapable: props.terminalCapable,
+    runtimeState: props.runtimeState,
+    handoffRunning: props.handoff.run?.outcome === 'running',
+  });
   // The panel stays open while a handoff runs, also one another window started.
   const handoffOpen = view.handoffOpen || props.handoff.run?.outcome === 'running';
 
@@ -169,6 +202,8 @@ export function Inspector(props: {
             active={active}
             count={data.phase === 'live' || data.phase === 'snapshot' ? changes.length : 0}
             filesOff={filesOff}
+            fold={view.tabs.length > 2 && active !== 'terminal'}
+            terminalLive={terminalLive}
             filesWhy={
               git
                 ? t('Files need {name} online').replace('{name}', owner)
@@ -216,7 +251,7 @@ export function Inspector(props: {
           ? { role: 'tabpanel', id: `${id}-panel`, 'aria-labelledby': `${id}-${active}` }
           : {})}
       >
-        {wide && opened ? (
+        {wide && opened && active !== 'terminal' ? (
           <Viewer
             opened={opened}
             change={change}
@@ -232,19 +267,37 @@ export function Inspector(props: {
             onLoadFull={loadFull}
           />
         ) : null}
-        <div className={wide ? 'ws-mlist' : 'ws-pane'}>
-          <ToolBody
-            tool={active}
-            data={data}
-            online={online}
-            owner={owner}
-            compact={wide}
-            selected={opened?.path ?? null}
-            onRetry={props.onRetry}
-            onOpenChange={openChange}
-            onOpenFile={openFile}
-          />
-          {handoffOpen ? (
+        <div className={wide && active !== 'terminal' ? 'ws-mlist' : 'ws-pane'}>
+          {active === 'terminal' ? (
+            <TerminalTab
+              sessionId={session.sessionId}
+              gate={gate}
+              owner={owner}
+              dir={session.projectPath}
+              onLive={setTerminalLive}
+              {...(fixture?.terminal ? { fixture: fixture.terminal } : {})}
+            />
+          ) : active === 'browser' ? (
+            <BrowserTab
+              sessionId={session.sessionId}
+              online={online}
+              owner={owner}
+              {...(fixture?.browser ? { fixture: fixture.browser } : {})}
+            />
+          ) : (
+            <ToolBody
+              tool={active}
+              data={data}
+              online={online}
+              owner={owner}
+              compact={wide}
+              selected={opened?.path ?? null}
+              onRetry={props.onRetry}
+              onOpenChange={openChange}
+              onOpenFile={openFile}
+            />
+          )}
+          {roomy ? null : handoffOpen ? (
             <HandoffPanel
               handoff={props.handoff}
               online={online}
@@ -279,6 +332,10 @@ function TabList(props: {
   count: number;
   filesOff: boolean;
   filesWhy: string;
+  /** Inactive tabs show only their glyph, so four tabs fit the narrow inspector. */
+  fold: boolean;
+  /** The terminal is open: a green dot on its tab. */
+  terminalLive: boolean;
   onPick: (tool: Tool) => void;
   onClose: (tool: Tool) => void;
 }) {
@@ -307,6 +364,9 @@ function TabList(props: {
       {props.tabs.map((tool) => {
         const on = tool === props.active;
         const off = tool === 'files' && props.filesOff;
+        const ico = props.fold && !on;
+        const hint = toolHint[tool];
+        const dot = tool === 'terminal' && props.terminalLive && !ico;
         return (
           <div
             key={tool}
@@ -316,8 +376,9 @@ function TabList(props: {
             aria-selected={on}
             aria-controls={on ? `${props.id}-panel` : undefined}
             aria-disabled={off || undefined}
-            className={`ws-tab${on ? ' on' : ''}${off ? ' off' : ''}`}
-            title={off ? props.filesWhy : `${toolLabel(tool)} · ${toolHint[tool]}`}
+            className={`ws-tab${on ? ' on' : ''}${off ? ' off' : ''}${ico ? ' ico' : ''}`}
+            title={off ? props.filesWhy : hint ? `${toolLabel(tool)} · ${hint}` : toolLabel(tool)}
+            {...(ico ? { 'aria-label': toolLabel(tool) } : {})}
             onClick={() => (off ? undefined : props.onPick(tool))}
             onKeyDown={(e) => {
               if (!off && (e.key === 'Enter' || e.key === ' ')) {
@@ -327,10 +388,12 @@ function TabList(props: {
             }}
             data-testid={`workspace.tab-${tool}`}
           >
-            <span>{toolLabel(tool)}</span>
-            {tool === 'changes' && props.count > 0 ? (
+            {toolIcon[tool]()}
+            {ico ? null : <span>{toolLabel(tool)}</span>}
+            {tool === 'changes' && props.count > 0 && !ico ? (
               <span className="ws-tab-c">{formatCount(props.count)}</span>
             ) : null}
+            {dot ? <span className="ws-live" aria-hidden="true" /> : null}
             <span
               className="ws-tab-x"
               title={t('Close {tool}').replace('{tool}', toolLabel(tool))}
@@ -350,7 +413,7 @@ function TabList(props: {
   );
 }
 
-/** The + menu: reopens a closed tool; Terminal and Browser join when they are built. */
+/** The + menu: opens a tool, or brings a closed one back. */
 function ToolsMenu(props: {
   open: boolean;
   /** Set when the + button opened the menu: its first item takes the focus. */
@@ -382,10 +445,6 @@ function ToolsMenu(props: {
       e.stopPropagation();
     }
   }
-  const icon: Record<Tool, () => ReturnType<typeof Icon.pen>> = {
-    changes: Icon.pen,
-    files: Icon.folder,
-  };
   return (
     <Popover open={props.open} onClose={props.onClose} className="ws-menu">
       <div
@@ -402,34 +461,13 @@ function ToolsMenu(props: {
             role="menuitem"
             tabIndex={-1}
             className="menu-item"
-            aria-keyshortcuts={toolHint[tool]}
+            {...(toolHint[tool] ? { 'aria-keyshortcuts': toolHint[tool] } : {})}
             onClick={() => props.onPick(tool)}
             data-testid={`workspace.open-${tool}`}
           >
-            {icon[tool]()}
+            {toolIcon[tool]()}
             <span className="ws-menu-l">{toolLabel(tool)}</span>
-            <Badge kind="key">{toolHint[tool]}</Badge>
-          </button>
-        ))}
-        <hr className="menu-sep" />
-        {(
-          [
-            ['Terminal', Icon.terminal(), '#14'],
-            ['Browser', Icon.globe(), '#15'],
-          ] as const
-        ).map(([label, glyph, issue]) => (
-          <button
-            key={label}
-            type="button"
-            role="menuitem"
-            tabIndex={-1}
-            aria-disabled="true"
-            className="menu-item ws-later"
-            title={t('Not built yet ({issue})').replace('{issue}', issue)}
-          >
-            {glyph}
-            <span className="ws-menu-l">{t(label)}</span>
-            <span className="ws-meta">{issue}</span>
+            {toolHint[tool] ? <Badge kind="key">{toolHint[tool]}</Badge> : null}
           </button>
         ))}
       </div>

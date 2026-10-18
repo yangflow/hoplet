@@ -37,10 +37,14 @@ import {
   type SessionConfig,
   SessionListResponseSchema,
   type SessionPatchRequest,
+  SessionPortsResultSchema,
   SnapshotChangesSchema,
   SnapshotDiffSchema,
   SteerResultSchema,
   safeParse,
+  TerminalCloseResultSchema,
+  TerminalInfoSchema,
+  TerminalStateSchema,
   type WebhookCreateRequest,
   WebhookInfoSchema,
   WebhookListResponseSchema,
@@ -321,6 +325,31 @@ export function postFreshPermission(
 
 export function postInterrupt(sessionId: string) {
   return call(`/api/sessions/${sessionId}/interrupt`, RuntimeCommandResultSchema, {});
+}
+
+/** Opens a shell on the session's owner machine (ADR 0026); the attach itself goes over the WebSocket. */
+export function openTerminal(sessionId: string, size: { cols: number; rows: number }) {
+  return call(`/api/sessions/${sessionId}/terminal`, TerminalInfoSchema, size);
+}
+
+/** The session's open terminal, or null. */
+export function fetchTerminal(sessionId: string) {
+  return call(`/api/sessions/${sessionId}/terminal`, TerminalStateSchema);
+}
+
+export function closeTerminal(terminalId: string) {
+  return call(
+    `/api/terminals/${terminalId}`,
+    TerminalCloseResultSchema,
+    undefined,
+    undefined,
+    'DELETE',
+  );
+}
+
+/** The ports the session's dev servers listen on. */
+export function fetchPorts(sessionId: string) {
+  return call(`/api/sessions/${sessionId}/ports`, SessionPortsResultSchema);
 }
 
 /** What deleting a session would remove, read from the owner (ADR 0023). */

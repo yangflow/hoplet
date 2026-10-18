@@ -162,7 +162,7 @@ function capabilitiesOn(model = 'default', mode = 'default'): RuntimeCapabilitie
   };
 }
 
-const capabilities = capabilitiesOn();
+export const capabilities = capabilitiesOn();
 
 /** Two pasted images: a 48 px app tile and a screenshot. */
 const COMPOSE_IMAGES = [
@@ -176,7 +176,7 @@ const COMPOSE_IMAGES = [
   },
 ];
 
-function fixtureDevices(macbookOnline: boolean): DeviceInfo[] {
+export function fixtureDevices(macbookOnline: boolean, terminal = true): DeviceInfo[] {
   const providers = [{ provider: 'claude' as const, capabilities }];
   return [
     {
@@ -184,6 +184,8 @@ function fixtureDevices(macbookOnline: boolean): DeviceInfo[] {
       name: 'MacBook Pro',
       connected: macbookOnline,
       providers: macbookOnline ? providers : [],
+      ...(terminal ? { terminal: true } : {}),
+      previewHost: 'mbp.tail1f2a.ts.net',
     },
     { deviceId: 'dev-studio', name: 'studio', connected: true, providers },
     { deviceId: 'dev-office', name: 'office-mini', connected: false, providers: [] },

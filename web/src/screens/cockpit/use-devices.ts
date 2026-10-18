@@ -26,6 +26,8 @@ export function useDevices(fixture?: DeviceInfo[]) {
                 d.name === r.devices[i]?.name &&
                 d.connected === r.devices[i]?.connected &&
                 d.lastSeen === r.devices[i]?.lastSeen &&
+                d.terminal === r.devices[i]?.terminal &&
+                d.previewHost === r.devices[i]?.previewHost &&
                 JSON.stringify(d.providers) === JSON.stringify(r.devices[i]?.providers),
             )
               ? prev

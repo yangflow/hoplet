@@ -162,13 +162,19 @@ describe('what the inspector remembers', () => {
     expect(loadTabs(store)).toEqual(['files']);
     saveTabs(['files', 'changes'], store);
     expect(loadTabs(store)).toEqual(['changes', 'files']);
+    saveTabs(['browser', 'terminal'], store);
+    expect(loadTabs(store)).toEqual(['terminal', 'browser']);
     saveTabs([], store);
     expect(loadTabs(store)).toEqual([]);
   });
 
   it('ignores a saved value it cannot read', () => {
     expect(loadTabs(memoryStore({ [TABS_KEY]: '{' }))).toEqual(['changes', 'files']);
-    expect(loadTabs(memoryStore({ [TABS_KEY]: '["terminal","files"]' }))).toEqual(['files']);
+    expect(loadTabs(memoryStore({ [TABS_KEY]: '["browser","gone","files","terminal"]' }))).toEqual([
+      'files',
+      'terminal',
+      'browser',
+    ]);
   });
 
   it('keeps Wrap', () => {

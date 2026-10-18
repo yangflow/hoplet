@@ -1,6 +1,7 @@
+import type { SessionPort } from '@hoplet/shared';
 import type { ReactNode } from 'react';
 import { t } from '../../lib/i18n.ts';
-import { running, Scene, type Variant } from '../cockpit/states.tsx';
+import { capabilities, fixtureDevices, running, Scene, type Variant } from '../cockpit/states.tsx';
 import type { CloneIntoFixture } from './clone-into.tsx';
 import {
   CHUNKS_NOW,
@@ -19,6 +20,8 @@ import {
 } from './fixtures.ts';
 import type { CloneCheck, HandoffFixture, HandoffRun } from './handoff.ts';
 import type { WorkspaceFixture } from './index.tsx';
+import type { PortsData } from './use-ports.ts';
+import type { TerminalPhase } from './use-terminal.ts';
 import type { Opened, ViewerAnswers, WorkspaceData } from './use-workspace.ts';
 
 // Fixtures for /__states/workspace/<state>: every state of design/screens/workspace.html, the inspector open
@@ -46,6 +49,8 @@ const offlineData: WorkspaceData = { phase: 'snapshot', snapshot };
 
 function Inspect(props: {
   offline?: boolean;
+  /** The owner has not switched the terminal on. */
+  terminalOff?: boolean;
   variant?: Variant;
   workspace: Omit<WorkspaceFixture, 'viewer'>;
 }) {
@@ -53,7 +58,11 @@ function Inspect(props: {
     <Scene
       macbookOnline={!props.offline}
       {...(props.variant ? { variant: props.variant } : {})}
-      fixture={{ inspectorOpen: true, workspace: { viewer: answers, ...props.workspace } }}
+      fixture={{
+        inspectorOpen: true,
+        ...(props.terminalOff ? { devices: fixtureDevices(!props.offline, false) } : {}),
+        workspace: { viewer: answers, ...props.workspace },
+      }}
     />
   );
 }
@@ -152,6 +161,52 @@ const dialog = (over: Partial<CloneIntoFixture> = {}): CloneIntoFixture => ({
 const handoffOpen = (offline = false) => ({ ...(offline ? changes : files), handoffOpen: true });
 
 /** Every state the design shows, rendered at /__states/workspace/<state> in development builds. */
+/** The Terminal and Browser tabs (design/screens/inspector-tools.html). */
+const tools = ['changes', 'files', 'terminal', 'browser'] as const;
+const terminalView = { tabs: [...tools], active: 'terminal' as const };
+const browserView = { tabs: [...tools], active: 'browser' as const };
+const none: TerminalPhase = { kind: 'none' };
+const closed = (reason: string): TerminalPhase => ({ kind: 'closed', reason });
+const port = (n: number, process: string, address: SessionPort['address']): SessionPort => ({
+  port: n,
+  process,
+  address,
+});
+const ready = (ports: SessionPort[], previewHost?: string): PortsData => ({
+  phase: 'ready',
+  ports,
+  ...(previewHost ? { previewHost } : {}),
+});
+const PREVIEW_HOST = 'mbp.tail1f2a.ts.net';
+const external: Variant = { runtime: { state: 'external', capabilities } };
+const terminalState = (
+  phase: TerminalPhase,
+  extra: {
+    variant?: Variant;
+    offline?: boolean;
+    terminalOff?: boolean;
+    handoff?: HandoffFixture;
+  } = {},
+) => (
+  <Inspect
+    {...(extra.variant ? { variant: extra.variant } : {})}
+    {...(extra.offline ? { offline: true } : {})}
+    {...(extra.terminalOff ? { terminalOff: true } : {})}
+    workspace={{
+      data: live(),
+      view: terminalView,
+      terminal: phase,
+      ...(extra.handoff ? { handoff: extra.handoff } : {}),
+    }}
+  />
+);
+const browserState = (ports: PortsData, offline = false) => (
+  <Inspect
+    {...(offline ? { offline: true } : {})}
+    workspace={{ data: live(), view: browserView, browser: ports }}
+  />
+);
+
 export const states: Record<string, () => ReactNode> = {
   workspace: () => <Inspect workspace={{ data: live(), view: files }} />,
   'file-open': () => (
@@ -415,4 +470,20 @@ export const states: Record<string, () => ReactNode> = {
       }}
     />
   ),
+  'terminal-off': () => terminalState({ kind: 'off' }, { terminalOff: true }),
+  'terminal-blocked-turn': () => terminalState(none, { variant: running(0) }),
+  'terminal-blocked-external': () => terminalState(none, { variant: external }),
+  'terminal-blocked-handoff': () => terminalState(none, { handoff: ran({}) }),
+  'terminal-blocked-offline': () => terminalState(none, { offline: true }),
+  'terminal-ready': () => terminalState(none),
+  'terminal-open': () => terminalState({ kind: 'open', terminalId: 't1', cols: 90, rows: 32 }),
+  'terminal-closed-turn': () => terminalState(closed('turn-started')),
+  'terminal-closed-idle': () => terminalState(closed('idle')),
+  'terminal-closed-offline': () => terminalState(closed('owner-offline'), { offline: true }),
+  'terminal-busy': () => terminalState({ kind: 'busy' }),
+  'browser-ports': () =>
+    browserState(ready([port(5173, 'node', 'loopback'), port(4000, 'bun', 'any')], PREVIEW_HOST)),
+  'browser-loopback': () => browserState(ready([port(5173, 'node', 'loopback')], PREVIEW_HOST)),
+  'browser-empty': () => browserState(ready([], PREVIEW_HOST)),
+  'browser-offline': () => browserState(ready([]), true),
 };

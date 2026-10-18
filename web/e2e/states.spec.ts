@@ -124,6 +124,21 @@ const subject: Record<string, Record<string, string>> = {
     'handoff-cloning': 'workspace.handoff-cancel',
     'handoff-clone-failed': 'workspace.handoff-failed',
     'handoff-clone-continue': 'workspace.handoff-panel',
+    'terminal-off': 'workspace.terminal-off',
+    'terminal-blocked-turn': 'workspace.terminal-blocked-turn-running',
+    'terminal-blocked-external': 'workspace.terminal-blocked-external',
+    'terminal-blocked-handoff': 'workspace.terminal-blocked-handoff-running',
+    'terminal-blocked-offline': 'workspace.terminal-blocked-owner-offline',
+    'terminal-ready': 'workspace.terminal-ready',
+    'terminal-open': 'workspace.terminal-view',
+    'terminal-closed-turn': 'workspace.terminal-closed-turn',
+    'terminal-closed-idle': 'workspace.terminal-closed-idle',
+    'terminal-closed-offline': 'workspace.terminal-closed-offline',
+    'terminal-busy': 'workspace.terminal-busy',
+    'browser-ports': 'workspace.port',
+    'browser-loopback': 'workspace.browser-loopback',
+    'browser-empty': 'workspace.browser-empty',
+    'browser-offline': 'workspace.browser-offline',
     'handoff-path': 'workspace.handoff-path',
     'handoff-busy': 'cockpit.live-turn',
     'handoff-progress': 'workspace.handoff-panel',
@@ -157,9 +172,9 @@ const subject: Record<string, Record<string, string>> = {
   },
 };
 
-test('the registries list 78 cockpit, 35 workspace, 13 settings and 7 action states', () => {
+test('the registries list 78 cockpit, 50 workspace, 13 settings and 7 action states', () => {
   expect(screens.cockpit).toHaveLength(78);
-  expect(screens.workspace).toHaveLength(35);
+  expect(screens.workspace).toHaveLength(50);
   expect(screens.settings).toHaveLength(13);
   expect(screens.action).toHaveLength(7);
 });

@@ -37,6 +37,13 @@ export function setLiveSender(next: Sender | null): void {
   for (const sessionId of subscriptions.keys()) next(frame('subscribe', sessionId));
 }
 
+/** Sends one browser message on the open socket; false when there is no open socket. */
+export function sendLive(message: { type: string; [key: string]: unknown }): boolean {
+  if (!sender) return false;
+  sender(JSON.stringify({ v: PROTOCOL_VERSION, ...message }));
+  return true;
+}
+
 /** Subscribes this window to a session's streamed output; the subscription survives reconnects. */
 export function subscribeSession(sessionId: string): () => void {
   subscriptions.set(sessionId, (subscriptions.get(sessionId) ?? 0) + 1);
