@@ -20,6 +20,8 @@ export const SnapshotIdSchema = v.pipe(v.string(), v.regex(OPAQUE_ID_PATTERN));
 /** An image uploaded to a machine for a prompt, chosen by the core (ADR 0017). */
 export const AttachmentIdSchema = v.pipe(v.string(), v.regex(OPAQUE_ID_PATTERN));
 export const HandoffIdSchema = v.pipe(v.string(), v.regex(OPAQUE_ID_PATTERN));
+/** A terminal opened on a machine, chosen by the core (ADR 0026). */
+export const TerminalIdSchema = v.pipe(v.string(), v.regex(OPAQUE_ID_PATTERN));
 
 export function isOpaqueId(value: unknown): value is string {
   return v.is(SnapshotIdSchema, value);

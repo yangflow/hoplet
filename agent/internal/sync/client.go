@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -162,6 +163,9 @@ func (c *Client) runOnce(ctx context.Context) error {
 		Version:   c.version,
 		Providers: c.hooks.Providers,
 	}
+	if c.hooks.Terminal.Enabled {
+		hello.Capabilities = &DeviceCapabilities{Terminal: true}
+	}
 	if err := c.writeMsg(cs, hello); err != nil {
 		conn.Close()
 		return fmt.Errorf("send hello: %w", err)
@@ -206,6 +210,9 @@ func (c *Client) runOnce(ctx context.Context) error {
 	go c.readLoop(cs)
 	<-cs.done
 	c.cs.CompareAndSwap(cs, nil)
+	if c.hooks.Terminal.Disconnected != nil {
+		c.hooks.Terminal.Disconnected()
+	}
 	return errors.New("reader exited")
 }
 
@@ -254,6 +261,11 @@ func (c *Client) readLoop(cs *connState) {
 		if isHandoffMessage(head.Type) {
 			typ := head.Type
 			c.enqueueHandoff(cs, func() { c.handleHandoff(cs, typ, raw) })
+			continue
+		}
+		if strings.HasPrefix(head.Type, "terminal.") {
+			// In order: the input after an open must find the terminal.
+			c.handleTerminal(cs, head.Type, raw)
 			continue
 		}
 		switch head.Type {

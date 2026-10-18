@@ -51,8 +51,9 @@ type bridge struct {
 // ownGrace overrides the runtime's grace after a turn result when set; tests shorten it.
 var ownGrace time.Duration
 
-// turnDone is told when a session's turn ended, from the Manager's goroutine; it must not block.
-func newBridge(cfg *config.Config, send func(any) error, kick func(), turnDone func(sessionID string)) *bridge {
+// turnDone and turnStart are told when a session's turn ended or began, from the Manager's goroutine; they
+// must not block. turnStart may be nil.
+func newBridge(cfg *config.Config, send func(any) error, kick func(), turnDone, turnStart func(sessionID string)) *bridge {
 	b := &bridge{
 		cfg: cfg, att: newAttachments(filepath.Join(cfg.HopletHome, "attachments")),
 		locate: locator(cfg), send: send, kick: kick, done: make(chan struct{}),
@@ -63,7 +64,8 @@ func newBridge(cfg *config.Config, send func(any) error, kick func(), turnDone f
 		Locate: locator(cfg),
 		Emit:   b.emit,
 
-		TurnDone: turnDone,
+		TurnDone:  turnDone,
+		TurnStart: turnStart,
 
 		IdleTimeout: time.Duration(cfg.RuntimeIdleMinutes) * time.Minute,
 		MaxIdle:     cfg.RuntimeMaxIdleProcesses,

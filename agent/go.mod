@@ -3,6 +3,7 @@ module github.com/yangflow/hoplet/agent
 go 1.27
 
 require (
+	github.com/creack/pty v1.1.24
 	github.com/gorilla/websocket v1.5.3
 	github.com/spf13/cobra v1.10.2
 )

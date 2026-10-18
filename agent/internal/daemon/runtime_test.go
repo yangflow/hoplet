@@ -75,7 +75,7 @@ func newTestBridge(t *testing.T) (*bridge, *sink, string, string) {
 	s := &sink{}
 	ownGrace = 50 * time.Millisecond
 	t.Cleanup(func() { ownGrace = 0 })
-	b := newBridge(cfg, s.send, func() {}, func(string) {})
+	b := newBridge(cfg, s.send, func() {}, func(string) {}, nil)
 	t.Cleanup(b.close)
 	return b, s, file, workdir
 }

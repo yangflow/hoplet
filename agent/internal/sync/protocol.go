@@ -10,7 +10,7 @@ import "encoding/json"
 // (provider.ValidSessionID, ADR 0006). Invalid IDs receive error invalid-session-id
 // before decoding or persistence; the wire envelope and cursor are unchanged.
 
-const ProtocolVersion = 6
+const ProtocolVersion = 7
 
 // Wire message types: Type<Struct> is the `type` of the struct of that name.
 // shared/src/wire/ holds the same table; scripts/test/contract.test.ts compares both.
@@ -86,6 +86,15 @@ const (
 	TypeDeviceCloneDone          = "device.clone.done"
 	TypeDeviceCloneFailed        = "device.clone.failed"
 	TypeDeviceCloneCancel        = "device.clone.cancel"
+	TypeTerminalOpen             = "terminal.open"
+	TypeTerminalInput            = "terminal.input"
+	TypeTerminalResize           = "terminal.resize"
+	TypeTerminalAck              = "terminal.ack"
+	TypeTerminalClose            = "terminal.close"
+	TypeTerminalOpened           = "terminal.opened"
+	TypeTerminalOutput           = "terminal.output"
+	TypeTerminalClosed           = "terminal.closed"
+	TypeTerminalRejected         = "terminal.rejected"
 )
 
 // Error codes of an `error` message that the agent acts on (shared/src/errors.ts).
@@ -124,6 +133,14 @@ type DeviceHello struct {
 	Version  string `json:"version"`
 	// Providers are the vendors this agent runs, with the capabilities of their runtime drivers.
 	Providers []ProviderInfo `json:"providers,omitempty"`
+	// Capabilities lists what the agent offers beyond sessions; nil means nothing.
+	Capabilities *DeviceCapabilities `json:"capabilities,omitempty"`
+}
+
+// DeviceCapabilities is what an agent offers beyond its providers.
+type DeviceCapabilities struct {
+	// Terminal is set when the owner enabled the restricted terminal (ADR 0026).
+	Terminal bool `json:"terminal,omitempty"`
 }
 
 // ProviderInfo is one vendor an agent runs and what its runtime driver declares.
@@ -936,4 +953,100 @@ type DeviceCloneCancel struct {
 	V         int    `json:"v"`
 	Type      string `json:"type"`
 	RequestID string `json:"requestId"`
+}
+
+// Terminal reasons (ADR 0026): why a terminal was refused or ended.
+const (
+	TerminalReasonDisabled       = "disabled"
+	TerminalReasonBusy           = "terminal-busy"
+	TerminalReasonTurnRunning    = "turn-running"
+	TerminalReasonExternal       = "external"
+	TerminalReasonHandoffRunning = "handoff-running"
+	TerminalReasonOwnerOffline   = "owner-offline"
+	TerminalReasonNotADirectory  = "not-a-directory"
+	TerminalReasonIdle           = "idle"
+	TerminalReasonMaxAge         = "max-age"
+	TerminalReasonDetached       = "detached"
+	TerminalReasonTurnStarted    = "turn-started"
+	TerminalReasonHandoff        = "handoff"
+	TerminalReasonDeleted        = "deleted"
+	TerminalReasonClosed         = "closed"
+	TerminalReasonInputFlood     = "input-flood"
+	TerminalReasonExit           = "exit"
+)
+
+// TerminalOpen asks for a shell in the working directory of SessionID.
+type TerminalOpen struct {
+	V          int    `json:"v"`
+	Type       string `json:"type"`
+	TerminalID string `json:"terminalId"`
+	SessionID  string `json:"sessionId"`
+	Cols       int    `json:"cols"`
+	Rows       int    `json:"rows"`
+}
+
+// TerminalInput is keyboard input, base64 of at most 4 KiB.
+type TerminalInput struct {
+	V          int    `json:"v"`
+	Type       string `json:"type"`
+	TerminalID string `json:"terminalId"`
+	Data       string `json:"data"`
+}
+
+// TerminalResize changes the size of the terminal (columns 1-500, rows 1-200).
+type TerminalResize struct {
+	V          int    `json:"v"`
+	Type       string `json:"type"`
+	TerminalID string `json:"terminalId"`
+	Cols       int    `json:"cols"`
+	Rows       int    `json:"rows"`
+}
+
+// TerminalAck returns Bytes of output credit to the agent.
+type TerminalAck struct {
+	V          int    `json:"v"`
+	Type       string `json:"type"`
+	TerminalID string `json:"terminalId"`
+	Bytes      int64  `json:"bytes"`
+}
+
+// TerminalClose ends the terminal.
+type TerminalClose struct {
+	V          int    `json:"v"`
+	Type       string `json:"type"`
+	TerminalID string `json:"terminalId"`
+	Reason     string `json:"reason"`
+}
+
+// TerminalOpened answers TerminalOpen: the shell runs.
+type TerminalOpened struct {
+	V          int    `json:"v"`
+	Type       string `json:"type"`
+	TerminalID string `json:"terminalId"`
+}
+
+// TerminalOutput is shell output, base64 of at most 4 KiB, numbered from 0.
+type TerminalOutput struct {
+	V          int    `json:"v"`
+	Type       string `json:"type"`
+	TerminalID string `json:"terminalId"`
+	Seq        int64  `json:"seq"`
+	Data       string `json:"data"`
+}
+
+// TerminalClosed says the terminal ended and why; ExitCode is set when the shell exited.
+type TerminalClosed struct {
+	V          int    `json:"v"`
+	Type       string `json:"type"`
+	TerminalID string `json:"terminalId"`
+	Reason     string `json:"reason"`
+	ExitCode   *int   `json:"exitCode,omitempty"`
+}
+
+// TerminalRejected answers TerminalOpen when no shell was started.
+type TerminalRejected struct {
+	V          int    `json:"v"`
+	Type       string `json:"type"`
+	TerminalID string `json:"terminalId"`
+	Reason     string `json:"reason"`
 }

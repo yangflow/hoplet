@@ -17,6 +17,7 @@ and `agent/go.mod`; Dependabot keeps them current.
 | Node.js | MIT | image | yes | not required |
 | Debian (bookworm-slim) | Debian licenses | image | yes | `/usr/share/doc/*/copyright` in the image |
 | gorilla/websocket | BSD-2-Clause | agent | yes | not required |
+| creack/pty | MIT | agent | yes | not required |
 | Go | BSD-3-Clause | agent | no (build only) | not required |
 | typescript | Apache-2.0 | core, shared, web | no (development only) | not required |
 | vite | MIT | web | no (development only) | not required |

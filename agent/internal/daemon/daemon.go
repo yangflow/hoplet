@@ -15,6 +15,7 @@ import (
 	"github.com/yangflow/hoplet/agent/internal/provider"
 	claudeprovider "github.com/yangflow/hoplet/agent/internal/provider/claude"
 	"github.com/yangflow/hoplet/agent/internal/sync"
+	"github.com/yangflow/hoplet/agent/internal/terminal"
 )
 
 func Scan(cfg *config.Config, sctx context.Context) []provider.Source {
@@ -86,14 +87,28 @@ func Run(cfg *config.Config, version string) error {
 
 	var client *sync.Client
 	var snaps *snapshotter
+	var terms *terminals
 	rt := newBridge(cfg, func(msg any) error { return client.Send(msg) }, func() { client.Kick() },
-		func(sessionID string) { snaps.mark(sessionID) })
+		func(sessionID string) { snaps.mark(sessionID) },
+		func(sessionID string) {
+			if terms != nil {
+				terms.turnStarted(sessionID)
+			}
+		})
 	defer rt.close()
 	snaps = newSnapshotter(cfg.HopletHome, locator(cfg), nil)
 	moves := newHandoffs(cfg, st, rt, snaps, locator(cfg))
 	// An installation that was interrupted is removed before anything connects; one that finished waits
 	// for the core to say whether its handoff committed.
 	moves.recover(ctx)
+	// A shell an earlier run left behind is killed before anything connects, even when the terminal has since
+	// been turned off.
+	if n := terminal.Sweep(cfg.HopletHome); n > 0 {
+		log.Printf("[terminal] killed %d shell(s) of an earlier run", n)
+	}
+	terms = newTerminals(cfg, deviceID, rt, moves, locator(cfg), func() *sync.Client { return client })
+	moves.onPrepare = terms.handoffStarted
+	defer terms.mgr.CloseAll(terminal.ReasonOwnerOffline)
 	cloner := newCloner(cfg, st)
 	cloner.Recover()
 	runtimeHooks := rt.hooks()
@@ -102,6 +117,7 @@ func Run(cfg *config.Config, version string) error {
 		Providers:      rt.providers(),
 		Runtime:        runtimeHooks,
 		Handoff:        moves.hooks(),
+		Terminal:       terms.hooks(),
 		Workspace:      workspaceList(cfg),
 		File:           workspaceFile(cfg),
 		Diff:           workspaceDiff(cfg),
@@ -118,7 +134,7 @@ func Run(cfg *config.Config, version string) error {
 		SessionsImport: st.sessionsImport,
 		SessionsRemove: st.sessionsRemove,
 		SessionInspect: sessionInspect(cfg),
-		SessionDelete:  sessionDelete(cfg, st),
+		SessionDelete:  terms.wrapDelete(sessionDelete(cfg, st)),
 		SessionForget:  func(_ context.Context, id string) error { return st.forgetSession(id) },
 	})
 	st.setKick(client.Kick)

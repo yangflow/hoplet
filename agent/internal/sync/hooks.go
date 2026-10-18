@@ -30,6 +30,21 @@ type RuntimeHooks struct {
 	Connected func()
 }
 
+// TerminalHooks serve the terminal.* messages of the core (ADR 0026). Enabled is the agent's terminal setting:
+// it is announced in device.hello, and while it is false terminal.open is answered with reason disabled.
+type TerminalHooks struct {
+	Enabled bool
+	// Open starts a shell or refuses; the error text is the reason sent as terminal.rejected.
+	Open   func(open TerminalOpen) error
+	Input  func(terminalID string, data []byte)
+	Resize func(terminalID string, cols, rows int)
+	Ack    func(terminalID string, bytes int64)
+	Close  func(terminalID, reason string)
+	// Disconnected is called when the connection to the core is gone, before the next attempt; the terminals
+	// have no reader any more and close.
+	Disconnected func()
+}
+
 // WorkspaceListing is the content of session.workspace.
 type WorkspaceListing struct {
 	Git       bool
@@ -89,6 +104,7 @@ type Hooks struct {
 	File      WorkspaceFileFunc
 	Diff      WorkspaceDiffFunc
 	Handoff   HandoffHooks
+	Terminal  TerminalHooks
 
 	// ProjectsList / ProjectsAdd / ProjectsRemove match hoplet-agent projects list|add|remove.
 	ProjectsList   func(ctx context.Context) (candidates []string, projects []DeviceProject, err error)

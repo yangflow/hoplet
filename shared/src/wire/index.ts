@@ -20,7 +20,13 @@ import {
   DeletionWorktreeSchema,
 } from '../deletion.ts';
 import { ErrorCodeSchema } from '../errors.ts';
-import { AttachmentIdSchema, HandoffIdSchema, SessionIdSchema, SnapshotIdSchema } from '../ids.ts';
+import {
+  AttachmentIdSchema,
+  HandoffIdSchema,
+  SessionIdSchema,
+  SnapshotIdSchema,
+  TerminalIdSchema,
+} from '../ids.ts';
 import { NotifyEventKindSchema } from '../rest/notify.ts';
 import { ChangeStatusSchema, WorkspaceChangeSchema } from '../rest/workspace.ts';
 import {
@@ -42,6 +48,50 @@ import { type Direction, defineWire, type Lane, list } from './define.ts';
 
 export type { Direction, Lane, WireMessage } from './define.ts';
 export { defineWire } from './define.ts';
+
+/** What an agent offers beyond its providers; absent means nothing (ADR 0026). */
+export const DeviceCapabilitiesSchema = v.object({
+  /** The owner enabled the restricted terminal in the agent config. */
+  terminal: v.optional(v.boolean()),
+});
+
+/** Bytes of a terminal input or output message, decoded (ADR 0026). */
+export const TERMINAL_CHUNK_BYTES = 4096;
+/** Output the agent sends before it waits for a `terminal.ack`. */
+export const TERMINAL_WINDOW_BYTES = 65536;
+export const TERMINAL_MAX_COLS = 500;
+export const TERMINAL_MAX_ROWS = 200;
+
+/** Why a terminal was refused or ended. */
+export const TerminalReasonSchema = v.picklist([
+  'disabled',
+  'terminal-busy',
+  'turn-running',
+  'external',
+  'handoff-running',
+  'owner-offline',
+  'not-a-directory',
+  'idle',
+  'max-age',
+  'detached',
+  'turn-started',
+  'handoff',
+  'deleted',
+  'closed',
+  'input-flood',
+  'exit',
+]);
+export type TerminalReason = v.InferOutput<typeof TerminalReasonSchema>;
+
+/** Base64 of at most `TERMINAL_CHUNK_BYTES` bytes. */
+const TerminalData = v.pipe(
+  v.string(),
+  v.regex(/^[A-Za-z0-9+/]*={0,2}$/),
+  v.maxLength(Math.ceil(TERMINAL_CHUNK_BYTES / 3) * 4),
+);
+const terminalId = TerminalIdSchema;
+const TerminalCols = v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(TERMINAL_MAX_COLS));
+const TerminalRows = v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(TERMINAL_MAX_ROWS));
 
 export const EncodingSchema = v.picklist(['plain', 'gzip+base64']);
 export type Encoding = v.InferOutput<typeof EncodingSchema>;
@@ -101,6 +151,8 @@ export const WIRE_MESSAGES = defineWire({
       version: v.string(),
       /** The providers this agent runs, with the capabilities of their runtime drivers. */
       providers: v.optional(v.array(ProviderInfoSchema)),
+      /** Present when the agent offers more than sessions, such as the terminal. */
+      capabilities: v.optional(DeviceCapabilitiesSchema),
     },
   },
   welcome: {
@@ -862,6 +914,54 @@ export const WIRE_MESSAGES = defineWire({
     direction: 'core-to-device',
     fields: { requestId },
   },
+
+  // Restricted terminal (ADR 0026). Output is credit-controlled: the agent stops reading the PTY after
+  // `TERMINAL_WINDOW_BYTES` unacknowledged bytes and resumes on `terminal.ack`.
+  'terminal.open': {
+    lane: 'control',
+    direction: 'core-to-device',
+    fields: { terminalId, sessionId, cols: TerminalCols, rows: TerminalRows },
+  },
+  'terminal.input': {
+    lane: 'control',
+    direction: 'core-to-device',
+    fields: { terminalId, data: TerminalData },
+  },
+  'terminal.resize': {
+    lane: 'control',
+    direction: 'core-to-device',
+    fields: { terminalId, cols: TerminalCols, rows: TerminalRows },
+  },
+  'terminal.ack': {
+    lane: 'control',
+    direction: 'core-to-device',
+    fields: { terminalId, bytes: v.pipe(v.number(), v.integer(), v.minValue(0)) },
+  },
+  'terminal.close': {
+    lane: 'control',
+    direction: 'core-to-device',
+    fields: { terminalId, reason: TerminalReasonSchema },
+  },
+  'terminal.opened': {
+    lane: 'control',
+    direction: 'device-to-core',
+    fields: { terminalId },
+  },
+  'terminal.output': {
+    lane: 'control',
+    direction: 'device-to-core',
+    fields: { terminalId, seq: v.pipe(v.number(), v.integer(), v.minValue(0)), data: TerminalData },
+  },
+  'terminal.closed': {
+    lane: 'control',
+    direction: 'device-to-core',
+    fields: { terminalId, reason: TerminalReasonSchema, exitCode: v.optional(v.number()) },
+  },
+  'terminal.rejected': {
+    lane: 'control',
+    direction: 'device-to-core',
+    fields: { terminalId, reason: TerminalReasonSchema },
+  },
 });
 
 type Table = typeof WIRE_MESSAGES;
@@ -966,6 +1066,15 @@ export type DeviceCloneProgress = WireMessageOf<'device.clone.progress'>;
 export type DeviceCloneDone = WireMessageOf<'device.clone.done'>;
 export type DeviceCloneFailed = WireMessageOf<'device.clone.failed'>;
 export type DeviceCloneCancel = WireMessageOf<'device.clone.cancel'>;
+export type TerminalOpen = WireMessageOf<'terminal.open'>;
+export type TerminalInput = WireMessageOf<'terminal.input'>;
+export type TerminalResize = WireMessageOf<'terminal.resize'>;
+export type TerminalAck = WireMessageOf<'terminal.ack'>;
+export type TerminalClose = WireMessageOf<'terminal.close'>;
+export type TerminalOpened = WireMessageOf<'terminal.opened'>;
+export type TerminalOutput = WireMessageOf<'terminal.output'>;
+export type TerminalClosed = WireMessageOf<'terminal.closed'>;
+export type TerminalRejected = WireMessageOf<'terminal.rejected'>;
 
 /** Types of the messages in `direction`, in table order. */
 export function wireTypes(...directions: Direction[]): WireType[] {
@@ -1015,6 +1124,10 @@ export const ClientMessageSchema = v.variant('type', [
   WIRE_MESSAGES['device.clone.progress'].schema,
   WIRE_MESSAGES['device.clone.done'].schema,
   WIRE_MESSAGES['device.clone.failed'].schema,
+  WIRE_MESSAGES['terminal.opened'].schema,
+  WIRE_MESSAGES['terminal.output'].schema,
+  WIRE_MESSAGES['terminal.closed'].schema,
+  WIRE_MESSAGES['terminal.rejected'].schema,
 ]);
 
 /** The messages a browser sends. */
@@ -1031,6 +1144,7 @@ export const WIRE_OBJECTS = {
   DirEntry: DirEntrySchema,
   RuntimeCapabilities: RuntimeCapabilitiesSchema,
   ProviderInfo: ProviderInfoSchema,
+  DeviceCapabilities: DeviceCapabilitiesSchema,
   ConfigOption: ConfigOptionSchema,
   ConfigValue: ConfigValueSchema,
   Command: CommandSchema,
