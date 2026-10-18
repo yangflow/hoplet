@@ -24,6 +24,9 @@ type Config struct {
 	ClaudeBin               string `json:"claude_bin"`
 	RuntimeIdleMinutes      int    `json:"runtime_idle_minutes"`
 	RuntimeMaxIdleProcesses int    `json:"runtime_max_idle_processes"`
+
+	// Terminal lets the web UI open a shell on this machine (ADR 0026). Off unless the operator sets it.
+	Terminal bool `json:"terminal"`
 }
 
 func Load(path string) (*Config, error) {

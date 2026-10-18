@@ -87,6 +87,9 @@ type Config struct {
 	// TurnDone is called when a turn ended, however it ended, with the Manager's lock held like Emit: it must
 	// not block and must not call the Manager.
 	TurnDone func(sessionID string)
+	// TurnStart is called when a turn begins for a session (a prompt is accepted), under the same rules as
+	// TurnDone. It can be called twice for one turn when the process has to start first.
+	TurnStart func(sessionID string)
 
 	IdleTimeout       time.Duration // stop a process this long after its last turn; default 30 minutes
 	MaxIdle           int           // processes kept `ready` without a turn; the least recently used stops first
@@ -189,6 +192,9 @@ func NewManager(cfg Config) *Manager {
 	}
 	if cfg.TurnDone == nil {
 		cfg.TurnDone = func(string) {}
+	}
+	if cfg.TurnStart == nil {
+		cfg.TurnStart = func(string) {}
 	}
 	return &Manager{cfg: cfg, sessions: map[string]*session{}}
 }
@@ -760,6 +766,7 @@ func (m *Manager) writePrompt(s *session, p Prompt) error {
 	m.stopTimers(s)
 	s.lastUsed = time.Now()
 	m.setState(s, StateRunning, "")
+	m.cfg.TurnStart(s.id)
 	return nil
 }
 
@@ -770,6 +777,7 @@ func (m *Manager) startProcess(s *session, p Prompt) {
 	s.pendingPrompt = &p
 	s.interrupted, s.turnErr = false, ""
 	m.setState(s, StateStarting, "")
+	m.cfg.TurnStart(s.id)
 	ctx, cancel := context.WithCancel(context.Background())
 	s.cancel = cancel
 	// The new process starts with every value as it stands now; a change made while it starts is applied when

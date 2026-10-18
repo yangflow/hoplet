@@ -257,6 +257,25 @@ func TestATurnEndsInReadyWhateverTheAgentsEnvironment(t *testing.T) {
 	}
 }
 
+func TestTurnStartIsCalledForEveryAcceptedPrompt(t *testing.T) {
+	var mu sync.Mutex
+	var started []string
+	e := newEnv(t, func(c *runtime.Config) {
+		c.TurnStart = func(id string) { mu.Lock(); started = append(started, id); mu.Unlock() }
+	})
+	e.session("s1")
+	if err := e.m.Prompt("s1", "say hello there"); err != nil {
+		t.Fatal(err)
+	}
+	e.rec.waitState(t, "s1", runtime.StateReady)
+	mu.Lock()
+	n := len(started)
+	mu.Unlock()
+	if n == 0 || started[0] != "s1" {
+		t.Fatalf("TurnStart calls = %v", started)
+	}
+}
+
 func TestPromptRunsATurn(t *testing.T) {
 	e := newEnv(t, nil)
 	file := e.session("s1")

@@ -98,6 +98,8 @@ type handoffs struct {
 	mu        gosync.Mutex
 	transfers map[string]*workspace.Transfer // by handoff ID
 	held      map[string]bool                // sessions installed here and not yet committed
+	active    map[string]bool                // sessions this device hands off, from prepare to commit or abort
+	onPrepare func(sessionID string)         // called when a handoff of a session starts here
 }
 
 func newHandoffs(cfg *config.Config, st *store, bridge *bridge, snaps *snapshotter, locate runtime.Locator) *handoffs {
@@ -114,6 +116,7 @@ func newHandoffs(cfg *config.Config, st *store, bridge *bridge, snaps *snapshott
 		locate:    locate,
 		transfers: map[string]*workspace.Transfer{},
 		held:      map[string]bool{},
+		active:    map[string]bool{},
 	}
 }
 
@@ -133,9 +136,17 @@ func (h *handoffs) hold(sessionID string) {
 	h.mu.Unlock()
 }
 
+// moving reports whether a handoff of the session is under way on this device.
+func (h *handoffs) moving(sessionID string) bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.held[sessionID] || h.active[sessionID]
+}
+
 func (h *handoffs) release(sessionID string) {
 	h.mu.Lock()
 	delete(h.held, sessionID)
+	delete(h.active, sessionID)
 	h.mu.Unlock()
 }
 
@@ -169,6 +180,12 @@ func (h *handoffs) hooks() sync.HandoffHooks {
 
 // prepare stops the session's process, then reads the final size of its file and uploads a fresh snapshot.
 func (h *handoffs) prepare(ctx context.Context, sessionID, _ string) (string, int64, error) {
+	h.mu.Lock()
+	h.active[sessionID] = true
+	h.mu.Unlock()
+	if h.onPrepare != nil {
+		h.onPrepare(sessionID)
+	}
 	if err := h.bridge.stopSession(sessionID); err != nil {
 		return "", 0, err
 	}
@@ -274,6 +291,7 @@ func (h *handoffs) commit(m sync.HandoffCommit) {
 
 func (h *handoffs) abort(m sync.HandoffAbort) {
 	h.mu.Lock()
+	delete(h.active, m.SessionID)
 	if tr := h.transfers[m.HandoffID]; tr != nil {
 		tr.Close()
 		delete(h.transfers, m.HandoffID)

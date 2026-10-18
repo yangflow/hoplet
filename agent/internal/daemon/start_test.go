@@ -36,7 +36,7 @@ func newStartEnv(t *testing.T) (b *bridge, s *sink, st *store, watched string, s
 	}
 	st = newStore(cfg, file)
 	s = &sink{}
-	b = newBridge(cfg, s.send, func() {}, func(string) {})
+	b = newBridge(cfg, s.send, func() {}, func(string) {}, nil)
 	t.Cleanup(b.close)
 	run := b.starter(st)
 	start = func(req sync.RuntimeStart) (string, error) {

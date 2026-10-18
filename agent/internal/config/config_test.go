@@ -114,3 +114,24 @@ func TestLoadRuntimeSettings(t *testing.T) {
 		t.Fatal("zero idle minutes accepted")
 	}
 }
+
+func TestLoadTerminalSetting(t *testing.T) {
+	load := func(extra string) *Config {
+		path := filepath.Join(t.TempDir(), "config.json")
+		raw := `{"server_url":"http://127.0.0.1:1","token":"t"` + extra + `}`
+		if err := os.WriteFile(path, []byte(raw), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		cfg, err := Load(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return cfg
+	}
+	if load("").Terminal {
+		t.Fatal("the terminal is on by default")
+	}
+	if !load(`,"terminal":true`).Terminal {
+		t.Fatal("terminal:true is ignored")
+	}
+}

@@ -169,7 +169,7 @@ published on the server running the core, and the compose file does not change.
 Pull the new image and restart: `docker compose pull && docker compose up -d`. Migrations in
 `core/src/migrations/` run forward at startup; a data directory with a newer schema is refused. Replace
 `hoplet-agent` on every machine with the version built from the same commit as the image; the agent and the core
-refuse a `device.hello` whose protocol version differs (the version is 6). Back up the stopped data directory before upgrading;
+refuse a `device.hello` whose protocol version differs (the version is 7). Back up the stopped data directory before upgrading;
 downgrading means restoring that backup with the matching binaries.
 
 ## Uninstall

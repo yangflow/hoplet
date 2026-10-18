@@ -237,6 +237,12 @@ export function receiveReply(
         reason: msg.reason,
       });
       return;
+    // The core side of the terminal (ADR 0026) is a later change; the agent's terminal messages are accepted and dropped.
+    case 'terminal.opened':
+    case 'terminal.output':
+    case 'terminal.closed':
+    case 'terminal.rejected':
+      return;
   }
 }
 

@@ -19,7 +19,7 @@ func TestBridgeReportsEveryCompletedTurn(t *testing.T) {
 	}
 	s := &sink{}
 	done := make(chan string, 4)
-	b := newBridge(cfg, s.send, func() {}, func(id string) { done <- id })
+	b := newBridge(cfg, s.send, func() {}, func(id string) { done <- id }, nil)
 	t.Cleanup(b.close)
 
 	h := b.hooks()
