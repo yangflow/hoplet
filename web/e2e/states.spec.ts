@@ -158,6 +158,18 @@ test('the registries list 72 cockpit, 35 workspace, 13 settings and 7 action sta
   expect(screens.action).toHaveLength(7);
 });
 
+test("a screen's styles stay on that screen: the conversation's tool rows stack", async ({
+  page,
+}) => {
+  await page.goto('/__states/cockpit/plan-approved?scheme=light&lang=en');
+  await expect(page.getByTestId('cockpit.plan-resolved').first()).toBeVisible();
+  const display = await page
+    .locator('.acts')
+    .first()
+    .evaluate((el) => getComputedStyle(el).display);
+  expect(display).toBe('block');
+});
+
 for (const [screen, names] of Object.entries(screens)) {
   for (const scheme of ['light', 'dark'] as const) {
     for (const state of names) {
