@@ -54,8 +54,9 @@ pages and relays control between the browser and the agents. Details are in
 
 ## Status
 
-**Pre-release (v0.1).** Nothing is published yet: you build the image and the agent from this repository, and
-formats and APIs may change without notice before 1.0.
+**Pre-1.0.** Each [release](https://github.com/yangflow/hoplet/releases) is a tag with notes; no container image
+or agent binary is published, so you build both from this repository, and formats and APIs may change without
+notice before 1.0.
 
 - Works today: sync, opening and searching sessions, remote control with permissions and interruption, online and
   offline handoff, the workspace view, Add project and New session from the web UI.
