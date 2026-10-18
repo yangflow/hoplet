@@ -20,7 +20,8 @@ a TypeScript core (one container image with the web UI) and a Go agent on each d
 - The contract with the user's host: [`docs/hosting.md`](docs/hosting.md).
 - What is protected and how: [`docs/threat-model.md`](docs/threat-model.md).
 - Design language: [`docs/design.md`](docs/design.md); screens and mockups: [`design/README.md`](design/README.md).
-- Why: [`docs/adr/`](docs/adr/README.md). What next: [`docs/roadmap.md`](docs/roadmap.md).
+- Why: [`docs/adr/`](docs/adr/README.md). What next: [`docs/roadmap.md`](docs/roadmap.md) holds the themes and
+  their order; the GitHub milestones and their `overview` issues hold the work.
 
 Documents win over code: if they disagree, fix the document first and say so in the pull request.
 
@@ -108,6 +109,7 @@ structure yourself. Search open issues first; one issue is one problem.
 - Feature or improvement, `--label enhancement`: `## Problem`, `## Proposed solution`,
   `## Alternatives considered` (when there were any), `## Done when`.
 - Documentation, `--label documentation`: `## Where`, `## What is missing, unclear or wrong`, `## Suggested change`.
+- Milestone: every new issue gets one, a version, `Next` or `Later` (`Later` when it is not scheduled).
 - Labels: add the `scope:*` label of each area touched (`scope:core`, `scope:shared`, `scope:web`, `scope:agent`,
   `scope:image`, `scope:scripts`); `security` marks trust-boundary work; `overview` is only for the roadmap issues.
 - Pull request: the title is the Conventional Commits subject (it becomes the squash commit). The body has
