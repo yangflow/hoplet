@@ -179,6 +179,8 @@ export function Inspector(props: {
   // The terminal needs the room of a viewer, whatever it shows, so the pane does not jump when one opens.
   const wide = active === 'terminal' || (opened !== null && active !== null);
   const roomy = active === 'terminal' || active === 'browser';
+  // the terminal widens the inspector for itself: no viewer, no list beside it
+  const split = wide && active !== 'terminal';
   const gate = gateOf({
     online,
     terminalCapable: props.terminalCapable,
@@ -246,12 +248,12 @@ export function Inspector(props: {
         />
       </header>
       <div
-        className={wide ? 'ws-md' : 'ws-body'}
+        className={split ? 'ws-md' : 'ws-body'}
         {...(active
           ? { role: 'tabpanel', id: `${id}-panel`, 'aria-labelledby': `${id}-${active}` }
           : {})}
       >
-        {wide && opened && active !== 'terminal' ? (
+        {split && opened ? (
           <Viewer
             opened={opened}
             change={change}
@@ -267,7 +269,7 @@ export function Inspector(props: {
             onLoadFull={loadFull}
           />
         ) : null}
-        <div className={wide && active !== 'terminal' ? 'ws-mlist' : 'ws-pane'}>
+        <div className={split ? 'ws-mlist' : 'ws-pane'}>
           {active === 'terminal' ? (
             <TerminalTab
               sessionId={session.sessionId}
