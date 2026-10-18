@@ -33,6 +33,7 @@ record and mark the old one "superseded by NNNN".
 | [0024](0024-a-handoff-clones-the-repository-on-a-target-that-has-none.md) | A handoff clones the repository on a target that has none | accepted |
 | [0025](0025-a-plan-can-be-approved-into-a-new-session.md) | A plan can be approved into a new session | accepted |
 | [0026](0026-the-inspector-opens-a-restricted-terminal-and-links-dev-servers.md) | The inspector opens a restricted terminal and links dev servers | accepted |
+| [0027](0027-codex-runs-on-its-app-server-and-enters-at-level-2.md) | Codex runs on its app server and enters at level 2 | proposed |
 
 ## Record template
 
