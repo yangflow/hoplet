@@ -84,7 +84,7 @@ export const TerminalReasonSchema = v.picklist([
 export type TerminalReason = v.InferOutput<typeof TerminalReasonSchema>;
 
 /** Base64 of at most `TERMINAL_CHUNK_BYTES` bytes. */
-const TerminalData = v.pipe(
+const TerminalBytes = v.pipe(
   v.string(),
   v.regex(/^[A-Za-z0-9+/]*={0,2}$/),
   v.maxLength(Math.ceil(TERMINAL_CHUNK_BYTES / 3) * 4),
@@ -947,7 +947,7 @@ export const WIRE_MESSAGES = defineWire({
   'terminal.input': {
     lane: 'control',
     direction: 'core-to-device',
-    fields: { terminalId, data: TerminalData },
+    fields: { terminalId, data: TerminalBytes },
   },
   'terminal.resize': {
     lane: 'control',
@@ -972,7 +972,11 @@ export const WIRE_MESSAGES = defineWire({
   'terminal.output': {
     lane: 'control',
     direction: 'device-to-core',
-    fields: { terminalId, seq: v.pipe(v.number(), v.integer(), v.minValue(0)), data: TerminalData },
+    fields: {
+      terminalId,
+      seq: v.pipe(v.number(), v.integer(), v.minValue(0)),
+      data: TerminalBytes,
+    },
   },
   'terminal.closed': {
     lane: 'control',
@@ -995,6 +999,62 @@ export const WIRE_MESSAGES = defineWire({
     lane: 'control',
     direction: 'device-to-core',
     fields: { sessionId, ports: v.pipe(list(SessionPortSchema), v.maxLength(SESSION_PORTS_MAX)) },
+  },
+
+  // The browser side of the terminal and the dev server links (ADR 0026). A terminal is opened over REST
+  // (`POST /api/sessions/:id/terminal`); these messages attach a browser socket to its stream. The credit
+  // window of the agent is the core's business: a browser never acknowledges output.
+  /** Attaches this socket to an open terminal: `terminal.attached` and the replay of recent output follow. */
+  'terminal.attach': { lane: 'control', direction: 'web-to-core', fields: { terminalId } },
+  /** Detaches this socket; the terminal closes `detached` 60 seconds after its last socket left. */
+  'terminal.detach': { lane: 'control', direction: 'web-to-core', fields: { terminalId } },
+  /** Keystrokes for an attached terminal: base64 of at most `TERMINAL_CHUNK_BYTES` bytes. */
+  'terminal.keys': {
+    lane: 'control',
+    direction: 'web-to-core',
+    fields: { terminalId, data: TerminalBytes },
+  },
+  /** The size of the terminal view changed. */
+  'terminal.size': {
+    lane: 'control',
+    direction: 'web-to-core',
+    fields: { terminalId, cols: TerminalCols, rows: TerminalRows },
+  },
+  /** The socket is attached; the terminal is `cols` x `rows`. */
+  'terminal.attached': {
+    lane: 'control',
+    direction: 'core-to-web',
+    fields: { terminalId, sessionId, cols: TerminalCols, rows: TerminalRows },
+  },
+  /** Output of an attached terminal, in order by `seq`; the first frames after `terminal.attached` replay recent output. */
+  'terminal.data': {
+    lane: 'control',
+    direction: 'core-to-web',
+    fields: {
+      terminalId,
+      seq: v.pipe(v.number(), v.integer(), v.minValue(0)),
+      data: TerminalBytes,
+    },
+  },
+  /** The terminal ended, or the id names none (`closed`); a socket receives it once and the terminal is gone. */
+  'terminal.ended': {
+    lane: 'control',
+    direction: 'core-to-web',
+    fields: { terminalId, reason: TerminalReasonSchema, exitCode: v.optional(v.number()) },
+  },
+  /**
+   * The ports a session's processes listen on, as its owner last reported, and the host to link them with.
+   * Sent to the browsers subscribed to the session when subscribing and on every change; `ports` is empty when
+   * the owner went offline. Never stored.
+   */
+  'session.listening': {
+    lane: 'control',
+    direction: 'core-to-web',
+    fields: {
+      sessionId,
+      previewHost: v.optional(v.pipe(v.string(), v.maxLength(255))),
+      ports: v.pipe(v.array(SessionPortSchema), v.maxLength(SESSION_PORTS_MAX)),
+    },
   },
 });
 
@@ -1109,6 +1169,14 @@ export type TerminalOpened = WireMessageOf<'terminal.opened'>;
 export type TerminalOutput = WireMessageOf<'terminal.output'>;
 export type TerminalClosed = WireMessageOf<'terminal.closed'>;
 export type TerminalRejected = WireMessageOf<'terminal.rejected'>;
+export type TerminalAttach = WireMessageOf<'terminal.attach'>;
+export type TerminalDetach = WireMessageOf<'terminal.detach'>;
+export type TerminalKeys = WireMessageOf<'terminal.keys'>;
+export type TerminalSize = WireMessageOf<'terminal.size'>;
+export type TerminalAttached = WireMessageOf<'terminal.attached'>;
+export type TerminalData = WireMessageOf<'terminal.data'>;
+export type TerminalEnded = WireMessageOf<'terminal.ended'>;
+export type SessionListening = WireMessageOf<'session.listening'>;
 export type PortsWatch = WireMessageOf<'ports.watch'>;
 export type SessionPorts = WireMessageOf<'session.ports'>;
 
@@ -1171,6 +1239,10 @@ export const ClientMessageSchema = v.variant('type', [
 export const BrowserMessageSchema = v.variant('type', [
   WIRE_MESSAGES.subscribe.schema,
   WIRE_MESSAGES.unsubscribe.schema,
+  WIRE_MESSAGES['terminal.attach'].schema,
+  WIRE_MESSAGES['terminal.detach'].schema,
+  WIRE_MESSAGES['terminal.keys'].schema,
+  WIRE_MESSAGES['terminal.size'].schema,
 ]);
 
 /** Fields of the nested objects the agent mirrors by name in Go. */

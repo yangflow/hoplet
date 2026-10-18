@@ -65,6 +65,8 @@ export const ERROR_COPY: Record<HttpErrorCode, string> = {
   'session-changed': 'The session changed during the hand-off. Nothing was moved; try again.',
   'verify-failed': "The other machine's copy did not match. Nothing was moved.",
   'session-running': 'Stop the session before deleting it.',
+  'terminal-unavailable': 'The terminal is not enabled on that machine.',
+  'terminal-busy': 'This session or that machine has too many terminals open.',
   'delete-partial': 'Some steps failed. Nothing more was removed; delete again to continue.',
   rejected: 'The machine refused the request.',
   timeout: 'The machine did not answer in time.',

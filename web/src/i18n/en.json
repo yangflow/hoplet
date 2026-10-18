@@ -38,6 +38,8 @@
   "That permission request was already answered or has expired.": "That permission request was already answered or has expired.",
   "The request was cancelled.": "The request was cancelled.",
   "Stop the session before deleting it.": "Stop the session before deleting it.",
+  "The terminal is not enabled on that machine.": "The terminal is not enabled on that machine.",
+  "This session or that machine has too many terminals open.": "This session or that machine has too many terminals open.",
   "Some steps failed. Nothing more was removed; delete again to continue.": "Some steps failed. Nothing more was removed; delete again to continue.",
   "The machine refused the request.": "The machine refused the request.",
   "The machine did not answer in time.": "The machine did not answer in time.",

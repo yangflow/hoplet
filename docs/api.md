@@ -68,6 +68,10 @@ Response column names the schema of the success body and its status when it is n
 | GET | `/api/sessions/:sessionId` | host | control | — | — | `LiveSessionMetaSchema` | `session-not-found` |
 | PATCH | `/api/sessions/:sessionId` | host | control | — | `SessionPatchRequestSchema` | `LiveSessionMetaSchema` | `invalid-json`, `invalid-request`, `too-large`, `session-not-found` |
 | DELETE | `/api/sessions/:sessionId` | host | control | — | `DeleteSessionRequestSchema` | `DeleteSessionResponseSchema` | `invalid-json`, `invalid-request`, `too-large`, `session-not-found`, `session-running`, `owner-offline`, `delete-partial`, `timeout`, `rejected` |
+| POST | `/api/sessions/:sessionId/terminal` | host | control | — | `TerminalOpenRequestSchema` | `TerminalInfoSchema` | `invalid-json`, `invalid-request`, `too-large`, `session-not-found`, `owner-offline`, `terminal-unavailable`, `terminal-busy`, `external`, `starting`, `session-running`, `handoff-in-progress`, `timeout`, `rejected` |
+| GET | `/api/sessions/:sessionId/terminal` | host | control | — | — | `TerminalStateSchema` | `session-not-found` |
+| DELETE | `/api/terminals/:terminalId` | host | control | — | — | `TerminalCloseResultSchema` | `not-found` |
+| GET | `/api/sessions/:sessionId/ports` | host | control | — | — | `SessionPortsResultSchema` | `session-not-found` |
 | GET | `/api/sessions/:sessionId/deletion` | host | control | — | — | `DeletionPreviewSchema` | `session-not-found`, `owner-offline`, `timeout`, `rejected` |
 | GET | `/api/sessions/:sessionId/lines` | host | bulk | `LinesQuerySchema` | — | `LinesPageSchema` | `session-not-found`, `busy` |
 | GET | `/api/sessions/:sessionId/blocks/:line/:block` | host | bulk | — | — | `FullBlockSchema` | `invalid-request`, `session-not-found`, `not-found`, `busy` |
@@ -305,6 +309,8 @@ session, or `""` while the session is not in the index yet; the client shows its
 | `no-snapshot` | 409 | No workspace snapshot is stored for the session |
 | `session-changed` | 409 | The session changed while the handoff ran |
 | `verify-failed` | 502 | What the target installed did not match what was sent |
+| `terminal-unavailable` | 409 | The owner's agent did not announce the terminal capability (its `terminal` switch is off) |
+| `terminal-busy` | 409 | The session already has a terminal, or the machine already has three |
 | `session-running` | 409 | A process Hoplet started is alive in the session; stop it before deleting |
 | `delete-partial` | 502 | A step of a deletion failed; `steps` lists each step and the request can be sent again |
 | `rejected` | 502 | The agent refused or failed the request; `reason` is its diagnostic text |
@@ -329,6 +335,14 @@ over REST.
 |---|---|---|---|---|
 | `subscribe` | browser → core | control | `SubscribeMessage` | Receive the streamed output of a session. The core answers with its `session.runtime` and each open `session.permission` |
 | `unsubscribe` | browser → core | control | `UnsubscribeMessage` | Stop receiving the output of a session |
+| `terminal.attach` | browser → core | control | `TerminalAttachMessage` | Receive the output of an open terminal (opened with `POST /api/sessions/:sessionId/terminal`). The core answers with `terminal.attached` and replays up to 64 KiB of recent output as `terminal.data`; an unknown terminal is answered with `terminal.ended` |
+| `terminal.detach` | browser → core | control | `TerminalDetachMessage` | Stop receiving a terminal. The core closes it with reason `detached` 60 seconds after the last connection detached or went away |
+| `terminal.keys` | browser → core | control | `TerminalKeysMessage` | Input for an attached terminal: base64 bytes, at most 4 KiB |
+| `terminal.size` | browser → core | control | `TerminalSizeMessage` | The size of an attached terminal's window: 1 to 500 columns, 1 to 200 rows |
+| `terminal.attached` | core → browser | control | `TerminalAttachedMessage` | The connection is attached to the terminal; carries the session and the current size. Only to the attached connection |
+| `terminal.data` | core → browser | control | `TerminalDataMessage` | Output of a terminal: `seq` and base64 bytes, at most 4 KiB. Only to attached connections. Never stored; the core withholds the agent's credit while a connection's send buffer is backed up |
+| `terminal.ended` | core → browser | control | `TerminalEndedMessage` | The terminal is gone: `reason` (`exit`, `idle`, `max-age`, `detached`, `turn-started`, `handoff`, `deleted`, `owner-offline`, `closed`, `input-flood`, ...) and the `exitCode` when the shell exited. Only to attached connections |
+| `session.listening` | core → browser | control | `SessionListeningMessage` | The TCP ports the session's processes listen on (`port`, `address`, `process`; at most 16) and the `previewHost` to build links with. Sent to the connections subscribed to the session when they subscribe and on every change; `ports` is empty when the owner went offline. Kept in memory only |
 | `session.appended` | core → browser | control | `SessionAppendedMessage` | Lines were appended to a session, or a session is new (`isNew`). Sent to every connection |
 | `session.deleted` | core → browser | control | `SessionDeletedMessage` | A session was deleted (its tombstone is written). Carries `sessionId`; drop it from every list. Sent to every connection |
 | `session.updated` | core → browser | control | `SessionUpdatedMessage` | The user renamed, pinned, unpinned, archived or restored a session. Carries the state after the change (`titleOverride`, `pinnedAt`, `archivedAt`; absent means cleared). Sent to every connection |
@@ -341,6 +355,25 @@ over REST.
 | `handoff.progress` | core → browser | control | `HandoffProgressMessage` | A step of a handoff: `sent` of `total` bytes during `transfer`, the new `worktree` and `branch` on `done`, the `reason` on `failed`. Sent to every connection |
 | `notify` | core → browser | control | `NotifyMessage` | A notification (`kind`, `sessionId`, `project`, `title`, `tool`, `summary`, `requestId`, `reason`, `link`) for a native client that is connected. Defined for native clients and not sent by the core yet; the payload is the one of every channel ([Notifications](#notifications)) |
 | `error` | core → browser | control | `ErrorMessage` | The core could not take a message from the client; `code` says why |
+
+### Terminal and dev server ports
+
+A terminal is opened over REST and streamed over the WebSocket ([ADR 0026](adr/0026-the-inspector-opens-a-restricted-terminal-and-links-dev-servers.md)).
+`POST /api/sessions/:sessionId/terminal` (host token) makes the core generate a `terminalId` and ask the owner's
+agent for a shell; it answers `terminal-unavailable` when the agent did not announce the capability, `owner-offline`,
+`session-running` (a turn runs or waits for permission), `external`, `starting`, `handoff-in-progress` or
+`terminal-busy` (one terminal per session, three per machine) without contacting the shell. The connection that
+opens the terminal sends `terminal.attach`; after a reload `GET /api/sessions/:sessionId/terminal` returns the open
+terminal (or `null`) and the page attaches again. The browser does not acknowledge output: the core passes the
+agent's credit on once the connection's send buffer has drained. A prompt sent to the session closes the terminal
+first (`turn-started`). Handoff, deletion and the loss of the owner's connection close it too. Input, output and
+command lines are never logged or stored; the log holds open and close with IDs, reason, duration and byte counts.
+
+`GET /api/sessions/:sessionId/ports` and `session.listening` carry the listening ports of the session's processes.
+The core asks the agent to watch the sessions that have a subscribed connection and keeps the latest report in
+memory. `previewHost` is the host name the agent announced in its hello (`preview_host` of its configuration, or its
+host name); a client builds `http://<previewHost>:<port>` from it. `GET /api/devices` also lists `terminal` (the
+announced capability) and `previewHost` for each connected device.
 
 ## Notifications
 

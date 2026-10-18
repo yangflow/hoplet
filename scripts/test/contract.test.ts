@@ -358,6 +358,14 @@ describe('wire contract', () => {
       'session.permission',
       'handoff.progress',
       'notify',
+      'terminal.attach',
+      'terminal.detach',
+      'terminal.keys',
+      'terminal.size',
+      'terminal.attached',
+      'terminal.data',
+      'terminal.ended',
+      'session.listening',
     ]);
     const inUnion = ClientMessageSchema.options.map((option) => option.entries.type.literal).sort();
     expect(inUnion).toEqual([...wireTypes('device-to-core')].sort());

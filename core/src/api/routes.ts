@@ -71,12 +71,17 @@ import {
   SessionListResponseSchema,
   type SessionMeta,
   SessionPatchRequestSchema,
+  SessionPortsResultSchema,
   SessionSearchQuerySchema,
   SnapshotChangesSchema,
   SnapshotDiffSchema,
   SteerRequestSchema,
   SteerResultSchema,
   safeParse,
+  TerminalCloseResultSchema,
+  TerminalInfoSchema,
+  TerminalOpenRequestSchema,
+  TerminalStateSchema,
   undeclaredConfig,
   WebhookCreateRequestSchema,
   type WebhookInfo,
@@ -686,6 +691,60 @@ export const routes: readonly Route[] = [
       const outcome = d.control.stop(sessionId, ownerOf(d, sessionId));
       if (outcome.ok) return { ok: true };
       throw new ApiError(outcome.error);
+    },
+  }),
+  defineRoute({
+    method: 'POST',
+    path: '/api/sessions/:sessionId/terminal',
+    auth: 'host',
+    lane: 'control',
+    bodyLimit: 256,
+    body: TerminalOpenRequestSchema,
+    response: TerminalInfoSchema,
+    handler: async (d) => {
+      const sessionId = d.params.sessionId ?? '';
+      const owner = ownerOf(d, sessionId);
+      const outcome = await d.control.terminals.open(sessionId, owner, d.body.cols, d.body.rows);
+      if (outcome.ok) return outcome.terminal;
+      throw new ApiError(
+        outcome.error,
+        outcome.reason !== undefined ? { reason: outcome.reason } : {},
+      );
+    },
+  }),
+  defineRoute({
+    method: 'GET',
+    path: '/api/sessions/:sessionId/terminal',
+    auth: 'host',
+    lane: 'control',
+    response: TerminalStateSchema,
+    handler: (d) => {
+      const sessionId = d.params.sessionId ?? '';
+      ownerOf(d, sessionId);
+      return { terminal: d.control.terminals.ofSession(sessionId) };
+    },
+  }),
+  defineRoute({
+    method: 'DELETE',
+    path: '/api/terminals/:terminalId',
+    auth: 'host',
+    lane: 'control',
+    response: TerminalCloseResultSchema,
+    handler: (d) => {
+      if (!d.control.terminals.close(d.params.terminalId ?? '')) throw new ApiError('not-found');
+      return { ok: true };
+    },
+  }),
+  defineRoute({
+    method: 'GET',
+    path: '/api/sessions/:sessionId/ports',
+    auth: 'host',
+    lane: 'control',
+    response: SessionPortsResultSchema,
+    handler: (d) => {
+      const sessionId = d.params.sessionId ?? '';
+      ownerOf(d, sessionId);
+      return d.control.portsOf(sessionId);
     },
   }),
   defineRoute({

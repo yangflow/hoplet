@@ -14,6 +14,10 @@ export const DeviceInfoSchema = v.object({
   lastSeen: v.optional(v.number()),
   /** The providers the connected agent runs, with their capabilities; empty while the device is offline. */
   providers: v.array(ProviderInfoSchema),
+  /** Present and true when the connected agent offers the restricted terminal (ADR 0026). */
+  terminal: v.optional(v.boolean()),
+  /** The host dev server links use for this machine, as its agent announced it; absent while offline. */
+  previewHost: v.optional(v.string()),
 });
 export type DeviceInfo = v.InferOutput<typeof DeviceInfoSchema>;
 

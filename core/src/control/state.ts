@@ -1,9 +1,12 @@
 import type {
   AgentRuntimeState,
   Command,
+  HttpErrorCode,
   Provider,
   ProviderInfo,
   ServerMessage,
+  SessionPort,
+  TerminalReason,
 } from '@hoplet/shared';
 import type { Store } from '../store/index.ts';
 import type { ActiveHandoff } from './handoff.ts';
@@ -55,6 +58,14 @@ export interface ControlState {
    * and the provider they were started with is their vendor.
    */
   startedSessions: Map<string, { deviceId: string; provider: Provider; at: number }>;
+  /** What each connected agent announced besides its providers: the terminal and the host for dev server links. */
+  deviceInfo: Map<string, { terminal: boolean; previewHost?: string }>;
+  /** The ports each watched session last reported, in memory only (ADR 0026). */
+  sessionPorts: Map<string, { deviceId: string; ports: SessionPort[] }>;
+  /** Opening terminals: the owner has been asked and has not answered, by terminal ID. */
+  pendingTerminal: Map<string, Waiter<TerminalAnswer>>;
+  /** Set once the terminals exist: ends the session's terminal, if it has one, before `reason` takes effect. */
+  closeTerminals: (sessionId: string, reason: TerminalReason) => void;
   /** The state of each session's process as its owner reported it. */
   runtime: Map<string, RuntimeEntry>;
   /** The commands and skills each session offered in its latest report, with who reported them. */
@@ -95,6 +106,9 @@ export interface ControlState {
   cloneTimeoutMs: number;
   cloneStallMs: number;
 }
+
+/** The owner's answer to `terminal.open`, or why there is none. */
+export type TerminalAnswer = { ok: true } | { ok: false; error: HttpErrorCode; reason?: string };
 
 /** A clone the handoff waits for; `progress` restarts its stall timer. */
 export type CloneRunWaiter = Waiter<CloneRunOutcome> & {
