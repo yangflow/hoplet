@@ -21,7 +21,10 @@ export function handleMessage(deps: MessageDeps, conn: Conn, msg: ClientMessage)
         return;
       }
       conn.deviceId = msg.deviceId;
-      control.attach(msg.deviceId, conn.link, msg.providers);
+      control.attach(msg.deviceId, conn.link, msg.providers, {
+        capabilities: msg.capabilities,
+        previewHost: msg.previewHost,
+      });
       store.upsertDevice(msg.deviceId, msg.name, msg.version);
       log('info', 'ingest', 'device online', {
         device: msg.deviceId,

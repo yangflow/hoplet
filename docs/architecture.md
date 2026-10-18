@@ -195,7 +195,7 @@ checks the same against its runtime manager. Input, output, resize, acknowledgme
 `terminal.*` messages on the control lane. Output is limited to 4 KiB frames under a 64 KiB credit window that the
 core replenishes with `terminal.ack` once the browser connection took the bytes, so the PTY, not the lane, absorbs a
 flood and a prompt queued behind terminal output waits for at most 64 KiB. The core relays between the agent and
-the subscribed browser WebSocket and keeps no terminal content. Anything that starts a turn, starts a handoff or
+the browser WebSocket connections attached to the terminal (`core/src/control/terminals.ts`; REST opens it, `terminal.attach` joins it) and keeps no terminal content beyond a 64 KiB replay ring in memory for a connection that attaches again; the core closes a terminal no connection is attached to after 60 seconds. Anything that starts a turn, starts a handoff or
 deletes the session first sends `terminal.close`; the agent also closes on its own runtime's first turn and when
 its connection to the core ends.
 

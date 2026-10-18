@@ -8,12 +8,14 @@ import { createBulkQueue } from './bulk.ts';
 import { createDeletion } from './deletion.ts';
 import { createFresh } from './fresh.ts';
 import { createHandoff } from './handoff.ts';
+import { createPorts } from './ports.ts';
 import { createQueue } from './queue.ts';
 import { receiveReply } from './replies.ts';
 import { createRpc } from './rpc.ts';
 import { createRuntime } from './runtime.ts';
 import { createStart } from './start.ts';
 import type { ControlState } from './state.ts';
+import { createTerminals } from './terminals.ts';
 import type { AgentControl, Control, ControlEvent, ControlOptions, Viewing } from './types.ts';
 
 export { BulkBusyError, type BulkQueue } from './bulk.ts';
@@ -41,6 +43,9 @@ export type {
   StartOutcome,
   StartRequest,
   SteerOutcome,
+  TerminalOpenOutcome,
+  TerminalSink,
+  Terminals,
   Viewing,
   WorkspaceDiffOutcome,
   WorkspaceFileOutcome,
@@ -66,6 +71,8 @@ const DEFAULT_HANDOFF_TIMEOUT_MS = 120_000;
 const DEFAULT_TRANSFER_TIMEOUT_MS = 600_000;
 const DEFAULT_CLONE_TIMEOUT_MS = 600_000;
 const DEFAULT_CLONE_STALL_MS = 60_000;
+/** A terminal no browser is attached to closes after this long (ADR 0026). */
+const DEFAULT_TERMINAL_DETACH_MS = 60_000;
 
 export function createControl(store: Store, options: ControlOptions = {}): Control & AgentControl {
   const listeners = new Set<(msg: ServerMessage) => void>();
@@ -86,11 +93,13 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
   const viewing: Viewing = {
     add(sessionId) {
       open.set(sessionId, (open.get(sessionId) ?? 0) + 1);
+      ports.sync(sessionId);
     },
     remove(sessionId) {
       const n = (open.get(sessionId) ?? 0) - 1;
       if (n > 0) open.set(sessionId, n);
       else open.delete(sessionId);
+      ports.sync(sessionId);
     },
     isOpen: (sessionId) => open.has(sessionId),
   };
@@ -107,6 +116,10 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
     pendingStart: new Map(),
     startCache: new Map(),
     startedSessions: new Map(),
+    deviceInfo: new Map(),
+    sessionPorts: new Map(),
+    pendingTerminal: new Map(),
+    closeTerminals: () => {},
     permissions: new Map(),
     publish,
     now: options.now ?? Date.now,
@@ -139,12 +152,31 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
   const bulk = createBulkQueue(options.bulk ?? DEFAULT_BULK);
   const runtime = createRuntime(state);
   const queue = createQueue(state, runtime);
+  const ownerOf = (sessionId: string): string | null =>
+    store.ownerDeviceId(sessionId) ?? state.startedSessions.get(sessionId)?.deviceId ?? null;
+  const ports = createPorts(state, open, ownerOf);
+  const terminals = createTerminals(
+    state,
+    runtime.runtimeOf,
+    options.terminalDetachMs ?? DEFAULT_TERMINAL_DETACH_MS,
+  );
+  state.closeTerminals = terminals.closeSession;
   state.runtimeChanged = queue.runtimeChanged;
   const rpc = createRpc(state);
   const handoff = createHandoff(state, rpc.workspace);
   const deletion = createDeletion(state, runtime.runtimeOf);
   const start = createStart(state, rpc.listProjects);
   const fresh = createFresh(state, () => control);
+
+  /** What a connected agent announced besides its providers, for the device list. */
+  function deviceExtras(deviceId: string, onlineIds: ReadonlySet<string>) {
+    const info = state.deviceInfo.get(deviceId);
+    if (!info || !onlineIds.has(deviceId)) return {};
+    return {
+      terminal: info.terminal,
+      ...(info.previewHost !== undefined ? { previewHost: info.previewHost } : {}),
+    };
+  }
 
   const control: Control & AgentControl = {
     bulk,
@@ -153,13 +185,22 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
       eventListeners.add(listener);
       return () => eventListeners.delete(listener);
     },
-    attach(deviceId, link, providers) {
+    terminals: terminals.terminals,
+    portsOf: ports.of,
+    attach(deviceId, link, providers, hello) {
       if (state.byDevice.get(deviceId) !== link) {
+        // A replaced connection takes its terminals with it.
+        terminals.detached([deviceId]);
         state.deviceGenerations.set(deviceId, (state.deviceGenerations.get(deviceId) ?? 0) + 1);
       }
       state.byDevice.set(deviceId, link);
       state.providers.set(deviceId, providers ?? []);
+      state.deviceInfo.set(deviceId, {
+        terminal: hello?.capabilities?.terminal === true,
+        ...(hello?.previewHost !== undefined ? { previewHost: hello.previewHost } : {}),
+      });
       runtime.attached(deviceId);
+      ports.attached(deviceId);
       deletion.attached(deviceId);
       publish({ v: PROTOCOL_VERSION, type: 'device.presence', deviceId, connected: true });
     },
@@ -180,12 +221,15 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
       start.detached(link);
       runtime.detached(gone, link);
       handoff.detached(link);
+      terminals.detached(gone);
+      ports.detached(gone);
+      for (const deviceId of gone) state.deviceInfo.delete(deviceId);
       for (const deviceId of gone) {
         publish({ v: PROTOCOL_VERSION, type: 'device.presence', deviceId, connected: false });
       }
     },
     receive(link, msg) {
-      receiveReply(state, runtime, link, msg);
+      receiveReply(state, runtime, terminals, ports, link, msg);
     },
     prompt: runtime.prompt,
     answerPermission: runtime.answerPermission,
@@ -213,11 +257,7 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
         null
       );
     },
-    ownerOf(sessionId) {
-      return (
-        store.ownerDeviceId(sessionId) ?? state.startedSessions.get(sessionId)?.deviceId ?? null
-      );
-    },
+    ownerOf,
     openPermissions: runtime.openPermissions,
     commandsOf: runtime.commandsOf,
     ownerOnline(deviceId) {
@@ -236,6 +276,7 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
           connected: onlineIds.has(d.deviceId),
           ...(d.lastSeen === undefined ? {} : { lastSeen: d.lastSeen }),
           providers: onlineIds.has(d.deviceId) ? (state.providers.get(d.deviceId) ?? []) : [],
+          ...deviceExtras(d.deviceId, onlineIds),
         });
       }
       for (const id of onlineIds) {
@@ -245,6 +286,7 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
             name: id,
             connected: true,
             providers: state.providers.get(id) ?? [],
+            ...deviceExtras(id, onlineIds),
           });
         }
       }
@@ -252,12 +294,17 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
     },
     ...rpc,
     deletionPreview: deletion.deletionPreview,
-    deleteSession: deletion.deleteSession,
+    async deleteSession(sessionId, request) {
+      const outcome = await deletion.deleteSession(sessionId, request);
+      ports.sync();
+      return outcome;
+    },
     startSession: start.startSession,
     approvePlanFresh: fresh.approvePlanFresh,
     cancelHandoff: handoff.cancel,
     async handoff(request) {
       const outcome = await handoff.handoff(request);
+      ports.sync();
       queue.drain(request.sessionId);
       if (!outcome.ok && !HANDOFF_REFUSALS.has(outcome.error)) {
         emit({

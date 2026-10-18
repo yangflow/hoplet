@@ -31,6 +31,8 @@ export const HTTP_ERROR_STATUS = {
   cancelled: 409,
   'handoff-in-progress': 409,
   'handoff-not-running': 409,
+  'terminal-unavailable': 409,
+  'terminal-busy': 409,
   'no-clone': 409,
   'no-snapshot': 409,
   'session-changed': 409,

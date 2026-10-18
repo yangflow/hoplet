@@ -1,4 +1,5 @@
 import type {
+  SessionPort,
   SessionWorkspaceDiff,
   SessionWorkspaceFile,
   WorkspaceDiff,
@@ -7,12 +8,15 @@ import type {
 import { matchesWaiter, settleWaiter } from './pending.ts';
 import type { Runtime } from './runtime.ts';
 import type { ControlState } from './state.ts';
+import type { TerminalReply } from './terminals.ts';
 import type { ControlReply, DeviceLink } from './types.ts';
 
 /** Settles the waiter an agent's answer belongs to. Answers that no request is waiting for are dropped. */
 export function receiveReply(
   state: ControlState,
   runtime: Runtime,
+  terminals: { receive(link: DeviceLink, msg: TerminalReply): void },
+  ports: { receive(link: DeviceLink, sessionId: string, ports: SessionPort[]): void },
   link: DeviceLink,
   msg: ControlReply,
 ): void {
@@ -237,14 +241,14 @@ export function receiveReply(
         reason: msg.reason,
       });
       return;
-    // The core side of the terminal (ADR 0026) is a later change; the agent's terminal messages are accepted and dropped.
     case 'terminal.opened':
     case 'terminal.output':
     case 'terminal.closed':
     case 'terminal.rejected':
+      terminals.receive(link, msg);
       return;
-    // The core side of the dev server links (ADR 0026) is a later change; the agent's report is accepted and dropped.
     case 'session.ports':
+      ports.receive(link, msg.sessionId, msg.ports);
       return;
   }
 }

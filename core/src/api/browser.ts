@@ -6,6 +6,7 @@
  */
 import type { IncomingMessage, Server } from 'node:http';
 import {
+  type BrowserMessage,
   BrowserMessageSchema,
   type ErrorCode,
   PROTOCOL_VERSION,
@@ -13,7 +14,7 @@ import {
   safeParse,
 } from '@hoplet/shared';
 import { type WebSocket, WebSocketServer } from 'ws';
-import type { Control } from '../control/index.ts';
+import type { Control, TerminalSink } from '../control/index.ts';
 import { log } from '../log/index.ts';
 import { classifyTool } from './projection/index.ts';
 import type { Tickets } from './tickets.ts';
@@ -63,12 +64,62 @@ export function attachBrowserSocket(server: Server, control: Control, tickets: T
   const wss = new WebSocketServer({ noServer: true, maxPayload: 64 * 1024 });
   const alive = new Map<WebSocket, boolean>();
   const subscriptions = new Map<WebSocket, Set<string>>();
+  /** The terminals each socket is attached to, and the sink that delivers their output to it (ADR 0026). */
+  const attachments = new Map<WebSocket, { ids: Set<string>; sink: TerminalSink }>();
 
   /** Forgets a socket: its subscriptions no longer count as sessions open in a tab (ADR 0021). */
   function drop(ws: WebSocket): void {
     for (const sessionId of subscriptions.get(ws) ?? []) control.viewing.remove(sessionId);
+    const attached = attachments.get(ws);
+    if (attached)
+      for (const terminalId of attached.ids) control.terminals.detach(terminalId, attached.sink);
     alive.delete(ws);
     subscriptions.delete(ws);
+    attachments.delete(ws);
+  }
+
+  function attachmentsOf(ws: WebSocket): { ids: Set<string>; sink: TerminalSink } {
+    let attached = attachments.get(ws);
+    if (!attached) {
+      attached = {
+        ids: new Set(),
+        sink: { send: (msg) => reply(ws, msg), buffered: () => ws.bufferedAmount },
+      };
+      attachments.set(ws, attached);
+    }
+    return attached;
+  }
+
+  function handleTerminal(
+    ws: WebSocket,
+    msg: Exclude<BrowserMessage, { type: 'subscribe' | 'unsubscribe' }>,
+  ): void {
+    const attached = attachmentsOf(ws);
+    switch (msg.type) {
+      case 'terminal.attach':
+        if (attached.ids.has(msg.terminalId)) return;
+        if (control.terminals.attach(msg.terminalId, attached.sink)) {
+          attached.ids.add(msg.terminalId);
+        } else {
+          reply(ws, {
+            v: PROTOCOL_VERSION,
+            type: 'terminal.ended',
+            terminalId: msg.terminalId,
+            reason: 'closed',
+          });
+        }
+        return;
+      case 'terminal.detach':
+        if (attached.ids.delete(msg.terminalId))
+          control.terminals.detach(msg.terminalId, attached.sink);
+        return;
+      case 'terminal.keys':
+        control.terminals.input(msg.terminalId, attached.sink, msg.data);
+        return;
+      case 'terminal.size':
+        control.terminals.resize(msg.terminalId, attached.sink, msg.cols, msg.rows);
+        return;
+    }
   }
 
   function reply(ws: WebSocket, msg: ServerMessage): void {
@@ -91,9 +142,19 @@ export function attachBrowserSocket(server: Server, control: Control, tickets: T
     });
   }
 
-  /** What a browser needs to start from when it subscribes: the state and the open permission requests. */
+  function sendListening(ws: WebSocket, sessionId: string): void {
+    reply(ws, {
+      v: PROTOCOL_VERSION,
+      type: 'session.listening',
+      sessionId,
+      ...control.portsOf(sessionId),
+    });
+  }
+
+  /** What a browser needs to start from when it subscribes: the state, the open permission requests and the ports. */
   function snapshot(ws: WebSocket, sessionId: string): void {
     sendRuntime(ws, sessionId);
+    sendListening(ws, sessionId);
     for (const permission of control.openPermissions(sessionId)) {
       reply(ws, withToolKind(control, permission));
     }
@@ -118,6 +179,10 @@ export function attachBrowserSocket(server: Server, control: Control, tickets: T
       return;
     }
     const msg = parsed.output;
+    if (msg.type !== 'subscribe' && msg.type !== 'unsubscribe') {
+      handleTerminal(ws, msg);
+      return;
+    }
     const subscribed = subscriptions.get(ws) ?? new Set<string>();
     subscriptions.set(ws, subscribed);
     if (msg.type === 'unsubscribe') {
@@ -161,7 +226,12 @@ export function attachBrowserSocket(server: Server, control: Control, tickets: T
     const msg = withToolKind(control, event);
     const payload = JSON.stringify(msg);
     for (const ws of alive.keys()) {
-      if (msg.type === 'session.output' && !subscriptions.get(ws)?.has(msg.sessionId)) continue;
+      if (
+        (msg.type === 'session.output' || msg.type === 'session.listening') &&
+        !subscriptions.get(ws)?.has(msg.sessionId)
+      ) {
+        continue;
+      }
       sendToBrowser(ws, payload);
       // A subscribed session may have lost or regained its owner: say what it is now.
       if (msg.type === 'device.presence') {

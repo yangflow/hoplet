@@ -255,6 +255,46 @@
       "response": "RuntimeCommandResultSchema"
     },
     {
+      "method": "POST",
+      "path": "/api/sessions/:sessionId/terminal",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": "TerminalOpenRequestSchema",
+      "response": "TerminalInfoSchema"
+    },
+    {
+      "method": "GET",
+      "path": "/api/sessions/:sessionId/terminal",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": null,
+      "response": "TerminalStateSchema"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/terminals/:terminalId",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": null,
+      "response": "TerminalCloseResultSchema"
+    },
+    {
+      "method": "GET",
+      "path": "/api/sessions/:sessionId/ports",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": null,
+      "response": "SessionPortsResultSchema"
+    },
+    {
       "method": "GET",
       "path": "/api/sessions/:sessionId/deletion",
       "auth": "host",
@@ -685,6 +725,54 @@
       "schema": "NotifyMessage"
     },
     {
+      "type": "terminal.attach",
+      "direction": "web-to-core",
+      "lane": "control",
+      "schema": "TerminalAttachMessage"
+    },
+    {
+      "type": "terminal.detach",
+      "direction": "web-to-core",
+      "lane": "control",
+      "schema": "TerminalDetachMessage"
+    },
+    {
+      "type": "terminal.keys",
+      "direction": "web-to-core",
+      "lane": "control",
+      "schema": "TerminalKeysMessage"
+    },
+    {
+      "type": "terminal.size",
+      "direction": "web-to-core",
+      "lane": "control",
+      "schema": "TerminalSizeMessage"
+    },
+    {
+      "type": "terminal.attached",
+      "direction": "core-to-web",
+      "lane": "control",
+      "schema": "TerminalAttachedMessage"
+    },
+    {
+      "type": "terminal.data",
+      "direction": "core-to-web",
+      "lane": "control",
+      "schema": "TerminalDataMessage"
+    },
+    {
+      "type": "terminal.ended",
+      "direction": "core-to-web",
+      "lane": "control",
+      "schema": "TerminalEndedMessage"
+    },
+    {
+      "type": "session.listening",
+      "direction": "core-to-web",
+      "lane": "control",
+      "schema": "SessionListeningMessage"
+    },
+    {
       "type": "error",
       "direction": "core-to-web",
       "lane": "control",
@@ -717,6 +805,8 @@
     "cancelled": 409,
     "handoff-in-progress": 409,
     "handoff-not-running": 409,
+    "terminal-unavailable": 409,
+    "terminal-busy": 409,
     "no-clone": 409,
     "no-snapshot": 409,
     "session-changed": 409,
@@ -1462,6 +1552,12 @@
                     "capabilities"
                   ]
                 }
+              },
+              "terminal": {
+                "type": "boolean"
+              },
+              "previewHost": {
+                "type": "string"
               }
             },
             "required": [
@@ -1705,6 +1801,8 @@
             "cancelled",
             "handoff-in-progress",
             "handoff-not-running",
+            "terminal-unavailable",
+            "terminal-busy",
             "no-clone",
             "no-snapshot",
             "session-changed",
@@ -1767,6 +1865,8 @@
             "cancelled",
             "handoff-in-progress",
             "handoff-not-running",
+            "terminal-unavailable",
+            "terminal-busy",
             "no-clone",
             "no-snapshot",
             "session-changed",
@@ -3877,6 +3977,62 @@
         "sessions"
       ]
     },
+    "SessionListeningMessage": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 8
+        },
+        "type": {
+          "const": "session.listening"
+        },
+        "sessionId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "previewHost": {
+          "type": "string",
+          "maxLength": 255
+        },
+        "ports": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "port": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 65535
+              },
+              "address": {
+                "enum": [
+                  "loopback",
+                  "any",
+                  "other"
+                ],
+                "type": "string"
+              },
+              "process": {
+                "type": "string",
+                "maxLength": 64
+              }
+            },
+            "required": [
+              "port",
+              "address",
+              "process"
+            ]
+          },
+          "maxItems": 16
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "sessionId",
+        "ports"
+      ]
+    },
     "SessionOutputMessage": {
       "type": "object",
       "properties": {
@@ -4072,6 +4228,47 @@
         "requestId",
         "tool",
         "input"
+      ]
+    },
+    "SessionPortsResultSchema": {
+      "type": "object",
+      "properties": {
+        "previewHost": {
+          "type": "string"
+        },
+        "ports": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "port": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 65535
+              },
+              "address": {
+                "enum": [
+                  "loopback",
+                  "any",
+                  "other"
+                ],
+                "type": "string"
+              },
+              "process": {
+                "type": "string",
+                "maxLength": 64
+              }
+            },
+            "required": [
+              "port",
+              "address",
+              "process"
+            ]
+          }
+        }
+      },
+      "required": [
+        "ports"
       ]
     },
     "SessionQueueMessage": {
@@ -4514,6 +4711,318 @@
         "v",
         "type",
         "sessionId"
+      ]
+    },
+    "TerminalAttachMessage": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 8
+        },
+        "type": {
+          "const": "terminal.attach"
+        },
+        "terminalId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,64}$"
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "terminalId"
+      ]
+    },
+    "TerminalAttachedMessage": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 8
+        },
+        "type": {
+          "const": "terminal.attached"
+        },
+        "terminalId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,64}$"
+        },
+        "sessionId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "cols": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 500
+        },
+        "rows": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "terminalId",
+        "sessionId",
+        "cols",
+        "rows"
+      ]
+    },
+    "TerminalCloseResultSchema": {
+      "type": "object",
+      "properties": {
+        "ok": {
+          "const": true
+        }
+      },
+      "required": [
+        "ok"
+      ]
+    },
+    "TerminalDataMessage": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 8
+        },
+        "type": {
+          "const": "terminal.data"
+        },
+        "terminalId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,64}$"
+        },
+        "seq": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "data": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9+/]*={0,2}$",
+          "maxLength": 5464
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "terminalId",
+        "seq",
+        "data"
+      ]
+    },
+    "TerminalDetachMessage": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 8
+        },
+        "type": {
+          "const": "terminal.detach"
+        },
+        "terminalId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,64}$"
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "terminalId"
+      ]
+    },
+    "TerminalEndedMessage": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 8
+        },
+        "type": {
+          "const": "terminal.ended"
+        },
+        "terminalId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,64}$"
+        },
+        "reason": {
+          "enum": [
+            "disabled",
+            "terminal-busy",
+            "turn-running",
+            "external",
+            "handoff-running",
+            "owner-offline",
+            "not-a-directory",
+            "idle",
+            "max-age",
+            "detached",
+            "turn-started",
+            "handoff",
+            "deleted",
+            "closed",
+            "input-flood",
+            "exit"
+          ],
+          "type": "string"
+        },
+        "exitCode": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "terminalId",
+        "reason"
+      ]
+    },
+    "TerminalInfoSchema": {
+      "type": "object",
+      "properties": {
+        "terminalId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,64}$"
+        },
+        "sessionId": {
+          "type": "string"
+        },
+        "cols": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 500
+        },
+        "rows": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200
+        }
+      },
+      "required": [
+        "terminalId",
+        "sessionId",
+        "cols",
+        "rows"
+      ]
+    },
+    "TerminalKeysMessage": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 8
+        },
+        "type": {
+          "const": "terminal.keys"
+        },
+        "terminalId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,64}$"
+        },
+        "data": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9+/]*={0,2}$",
+          "maxLength": 5464
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "terminalId",
+        "data"
+      ]
+    },
+    "TerminalOpenRequestSchema": {
+      "type": "object",
+      "properties": {
+        "cols": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 500
+        },
+        "rows": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200
+        }
+      },
+      "required": [
+        "cols",
+        "rows"
+      ]
+    },
+    "TerminalSizeMessage": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 8
+        },
+        "type": {
+          "const": "terminal.size"
+        },
+        "terminalId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,64}$"
+        },
+        "cols": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 500
+        },
+        "rows": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "terminalId",
+        "cols",
+        "rows"
+      ]
+    },
+    "TerminalStateSchema": {
+      "type": "object",
+      "properties": {
+        "terminal": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "terminalId": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9_-]{1,64}$"
+                },
+                "sessionId": {
+                  "type": "string"
+                },
+                "cols": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 500
+                },
+                "rows": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 200
+                }
+              },
+              "required": [
+                "terminalId",
+                "sessionId",
+                "cols",
+                "rows"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "terminal"
       ]
     },
     "UnsubscribeMessage": {

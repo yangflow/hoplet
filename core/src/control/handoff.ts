@@ -538,6 +538,8 @@ export function createHandoff(
         target,
       };
       handoffs.set(sessionId, active);
+      // A terminal on the old owner would keep a shell in a directory that is about to move.
+      state.closeTerminals(sessionId, 'handoff');
       log('info', 'control', 'handoff started', {
         sessionId,
         handoffId: active.handoffId,

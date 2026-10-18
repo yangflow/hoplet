@@ -63,6 +63,8 @@ export function createDeletion(
 
   /** Drops what the core holds in memory for a session that is going away. */
   function forgetInMemory(sessionId: string): void {
+    state.closeTerminals(sessionId, 'deleted');
+    state.sessionPorts.delete(sessionId);
     state.runtime.delete(sessionId);
     state.commands.delete(sessionId);
     state.startedSessions.delete(sessionId);

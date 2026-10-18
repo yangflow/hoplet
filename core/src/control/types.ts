@@ -14,6 +14,7 @@ import type {
   DeviceSessionDeleted,
   DeviceSessionForgotten,
   DeviceSessionInspected,
+  HttpErrorCode,
   PermissionDecision,
   PromptImage,
   Provider,
@@ -24,6 +25,8 @@ import type {
   ServerMessage,
   SessionConfig,
   SessionPermission,
+  SessionPortsResult,
+  TerminalInfo,
   WorkspaceDiff,
   WorkspaceFile,
   WorkspaceListing,
@@ -324,8 +327,47 @@ export interface Viewing {
   isOpen(sessionId: string): boolean;
 }
 
+/** A browser connection attached to a terminal: what control needs to deliver output and pace the agent. */
+export interface TerminalSink {
+  send(msg: ServerMessage): void;
+  /** Bytes the connection has accepted and not yet written; the agent is paced by it. */
+  buffered(): number;
+}
+
+export type TerminalOpenOutcome =
+  | { ok: true; terminal: TerminalInfo }
+  | { ok: false; error: HttpErrorCode; reason?: string };
+
+/** The restricted terminals of the owner machines, relayed to browsers (ADR 0026). Nothing here is stored. */
+export interface Terminals {
+  /** Asks the owner to open a terminal; resolves when it is running or has been refused. */
+  open(
+    sessionId: string,
+    ownerDeviceId: string,
+    cols: number,
+    rows: number,
+  ): Promise<TerminalOpenOutcome>;
+  /** The open terminal of a session, or null. */
+  ofSession(sessionId: string): TerminalInfo | null;
+  /** The session of an open terminal, or null. */
+  sessionOf(terminalId: string): string | null;
+  /** Attaches the sink and sends it `terminal.attached` and the recent output; false when the terminal is not open. */
+  attach(terminalId: string, sink: TerminalSink): boolean;
+  /** Detaches the sink; the terminal closes 60 seconds after its last sink left. */
+  detach(terminalId: string, sink: TerminalSink): void;
+  /** Writes keystrokes (base64) from an attached sink; ignored for a sink that is not attached. */
+  input(terminalId: string, sink: TerminalSink, data: string): void;
+  resize(terminalId: string, sink: TerminalSink, cols: number, rows: number): void;
+  /** Closes the terminal (reason `closed`); false when none is open. */
+  close(terminalId: string): boolean;
+}
+
 /** What the REST API asks of control. */
 export interface Control {
+  /** The restricted terminals (ADR 0026). */
+  readonly terminals: Terminals;
+  /** The ports last reported for a session and the host to link them with (ADR 0026). */
+  portsOf(sessionId: string): SessionPortsResult;
   /** Calls `listener` with every moment that may notify; returns the unsubscribe. */
   onEvent(listener: (event: ControlEvent) => void): () => void;
   /** Which sessions browsers have open; the API keeps it current from its sockets. */
@@ -467,12 +509,18 @@ export interface Control {
   deleteSession(sessionId: string, request: DeleteSessionRequest): Promise<DeleteSessionOutcome>;
 }
 
+/** What an agent announced in `device.hello` besides its providers (ADR 0026). */
+export interface DeviceHello {
+  capabilities?: { terminal?: boolean | undefined } | undefined;
+  previewHost?: string | undefined;
+}
+
 /** What agent ingestion tells control: which device is on which link, and the answers it relays. */
 export interface AgentControl {
   /** The bulk queue: sync appends run through it; control messages are handled on arrival. */
   readonly bulk: BulkQueue;
   /** The link carries `deviceId` from now on; an older link of the same device is replaced. */
-  attach(deviceId: string, link: DeviceLink, providers?: ProviderInfo[]): void;
+  attach(deviceId: string, link: DeviceLink, providers?: ProviderInfo[], hello?: DeviceHello): void;
   detach(link: DeviceLink): void;
   /** Hands an event for the browsers to whoever subscribed. */
   publish(msg: ServerMessage): void;
@@ -498,4 +546,6 @@ export interface ControlOptions {
   cloneTimeoutMs?: number;
   /** How long a clone may go without progress from the target's git. */
   cloneStallMs?: number;
+  /** How long a terminal with no browser attached stays open. */
+  terminalDetachMs?: number;
 }

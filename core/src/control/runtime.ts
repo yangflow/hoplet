@@ -232,7 +232,11 @@ export function createRuntime(state: ControlState): Runtime {
         key,
         state.promptTimeoutMs,
         { ok: false, error: 'timeout', promptId },
-        () => link.send(msg),
+        () => {
+          // The session's terminal ends first: the turn and a shell never share the directory (ADR 0026).
+          state.closeTerminals(sessionId, 'turn-started');
+          link.send(msg);
+        },
         { link, sessionId },
       );
       promptCache.set(key, { at: now, outcome });
