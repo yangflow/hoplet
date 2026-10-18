@@ -566,7 +566,8 @@
 .dst.bad {
   color: var(--color-del-text);
 }
-.acts {
+/* the buttons at the end of a row; scoped, as the conversation's tool rows are .acts too */
+.pr > .acts {
   display: flex;
   flex: none;
 }
