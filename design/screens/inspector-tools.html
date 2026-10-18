@@ -1,0 +1,590 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hoplet screen: inspector tools</title>
+<script type="application/json" id="tokens">
+{
+  "dark": {
+    "--color-bg": "#131210",
+    "--color-sidebar": "#191715",
+    "--color-surface": "#1c1a17",
+    "--color-raised": "#211e1b",
+    "--color-hover": "#28241f",
+    "--color-selected": "#2c2823",
+    "--color-line": "rgba(255, 238, 220, 0.075)",
+    "--color-highlight": "rgba(255, 244, 232, 0.06)",
+    "--color-text": "#efe9e2",
+    "--color-text-2": "#b8b0a6",
+    "--color-text-3": "#988f85",
+    "--color-accent": "#ff7a1a",
+    "--color-accent-text": "#ff9142",
+    "--color-on-accent": "#1c0d02",
+    "--color-accent-soft": "rgba(255, 122, 26, 0.10)",
+    "--color-attention": "#e8b31a",
+    "--color-attention-text": "#f0c142",
+    "--color-attention-soft": "rgba(232, 179, 26, 0.075)",
+    "--color-attention-ring": "rgba(232, 179, 26, 0.32)",
+    "--color-success": "#4cc38a",
+    "--color-danger": "#ff7366",
+    "--color-on-danger": "#1c0d02",
+    "--color-add-bg": "rgba(76, 195, 138, 0.10)",
+    "--color-add-text": "#86dcae",
+    "--color-del-bg": "rgba(255, 115, 102, 0.10)",
+    "--color-del-text": "#ffa49b",
+    "--color-git-modified": "#d9b77e",
+    "--color-git-untracked": "#6fcf97",
+    "--color-git-deleted": "#ff8a7d",
+    "--color-syntax-keyword": "#d3a6ee",
+    "--color-syntax-string": "#b0d58c",
+    "--color-syntax-comment": "#8f877d",
+    "--color-syntax-number": "#efb57c",
+    "--color-syntax-type": "#7ec3e3",
+    "--color-syntax-function": "#e8d7a4",
+    "--shadow-live": "inset 0 1px 0 rgba(255, 244, 232, 0.06), 0 0 0 1px rgba(0, 0, 0, 0.45), 0 14px 36px rgba(0, 0, 0, 0.42), 0 2px 6px rgba(0, 0, 0, 0.3)",
+    "--shadow-float": "inset 0 1px 0 rgba(255, 244, 232, 0.07), 0 0 0 1px rgba(0, 0, 0, 0.5), 0 18px 40px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.35)",
+    "--shadow-drawer": "inset 1px 0 0 rgba(255, 238, 220, 0.06), -18px 0 40px rgba(0, 0, 0, 0.3)",
+    "--fade-bg": "rgba(19, 18, 16, 0)",
+    "--color-scrim": "rgba(8, 6, 4, 0.42)",
+    "--shadow-accent": "inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 1px 2px rgba(0, 0, 0, 0.2)"
+  },
+  "light": {
+    "--color-bg": "#f8f5f0",
+    "--color-sidebar": "#efebe4",
+    "--color-surface": "#f0ebe4",
+    "--color-raised": "#fffdfa",
+    "--color-hover": "#e8e2d9",
+    "--color-selected": "#e2dbd1",
+    "--color-line": "rgba(60, 40, 20, 0.10)",
+    "--color-highlight": "rgba(255, 255, 255, 0.85)",
+    "--color-text": "#1c1915",
+    "--color-text-2": "#534c44",
+    "--color-text-3": "#675f55",
+    "--color-accent": "#c24e00",
+    "--color-accent-text": "#a64100",
+    "--color-on-accent": "#ffffff",
+    "--color-accent-soft": "rgba(194, 78, 0, 0.08)",
+    "--color-attention": "#c08a00",
+    "--color-attention-text": "#8f6200",
+    "--color-attention-soft": "rgba(192, 138, 0, 0.075)",
+    "--color-attention-ring": "rgba(154, 106, 0, 0.30)",
+    "--color-success": "#1d8550",
+    "--color-danger": "#c3352a",
+    "--color-on-danger": "#ffffff",
+    "--color-add-bg": "rgba(29, 133, 80, 0.09)",
+    "--color-add-text": "#156b3d",
+    "--color-del-bg": "rgba(195, 53, 42, 0.08)",
+    "--color-del-text": "#a82a1f",
+    "--color-git-modified": "#86621c",
+    "--color-git-untracked": "#1a7a47",
+    "--color-git-deleted": "#b42f24",
+    "--color-syntax-keyword": "#8433b5",
+    "--color-syntax-string": "#3f7514",
+    "--color-syntax-comment": "#736b61",
+    "--color-syntax-number": "#9c4f00",
+    "--color-syntax-type": "#17698f",
+    "--color-syntax-function": "#6b5000",
+    "--shadow-live": "inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 0 0 1px rgba(60, 40, 20, 0.08), 0 12px 32px rgba(60, 40, 20, 0.10), 0 2px 6px rgba(60, 40, 20, 0.06)",
+    "--shadow-float": "inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 0 0 1px rgba(60, 40, 20, 0.09), 0 16px 36px rgba(60, 40, 20, 0.12), 0 2px 6px rgba(60, 40, 20, 0.07)",
+    "--shadow-drawer": "inset 1px 0 0 rgba(60, 40, 20, 0.08), -16px 0 36px rgba(60, 40, 20, 0.06)",
+    "--fade-bg": "rgba(248, 245, 240, 0)",
+    "--color-scrim": "rgba(40, 28, 15, 0.13)",
+    "--shadow-accent": "inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 1px 2px rgba(60, 40, 20, 0.2)"
+  },
+  "shared": {
+    "--font-ui": "\"Inter Variable\", -apple-system, system-ui, \"PingFang SC\", sans-serif",
+    "--font-prose": "var(--font-ui)",
+    "--font-mono": "\"JetBrains Mono Variable\", ui-monospace, \"SF Mono\", Menlo, monospace",
+    "--text-meta": "11px",
+    "--leading-meta": "16px",
+    "--text-ui": "13px",
+    "--leading-ui": "20px",
+    "--text-code": "12.5px",
+    "--leading-code": "20px",
+    "--text-body": "15px",
+    "--leading-body": "24px",
+    "--text-title": "15px",
+    "--leading-title": "20px",
+    "--weight-regular": "400",
+    "--weight-medium": "500",
+    "--weight-semibold": "600",
+    "--measure-prose": "68ch",
+    "--icon-size": "16px",
+    "--icon-stroke": "1.5",
+    "--space-1": "4px",
+    "--space-2": "8px",
+    "--space-3": "12px",
+    "--space-4": "16px",
+    "--space-5": "24px",
+    "--space-6": "32px",
+    "--space-7": "48px",
+    "--radius-sm": "6px",
+    "--radius-md": "10px",
+    "--radius-lg": "14px",
+    "--radius-xl": "18px",
+    "--layout-sidebar": "248px",
+    "--layout-inspector": "296px",
+    "--layout-inspector-wide": "720px",
+    "--layout-inspector-list": "220px",
+    "--layout-settings-nav": "208px",
+    "--layout-column": "760px",
+    "--layout-topbar": "52px",
+    "--layout-foot": "44px",
+    "--layout-row-device": "32px",
+    "--layout-row": "28px",
+    "--layout-row-tree": "24px",
+    "--layout-act-verb": "64px",
+    "--layout-gutter": "32px",
+    "--layout-well-max": "240px",
+    "--layout-palette": "560px",
+    "--layout-dialog": "480px",
+    "--layout-popover": "248px",
+    "--layout-modal-top": "96px",
+    "--motion-pulse": "1.6s",
+    "--motion-blink": "1s",
+    "--motion-spin": "0.8s",
+    "--control-icon": "28px",
+    "--control-field": "32px",
+    "--layout-gate": "320px",
+    "--layout-viewport-min": "1024px"
+  }
+}
+</script>
+<style id="token-css"></style>
+<style>
+@font-face{font-family:"Inter Variable";src:url(../fonts/inter-latin-wght-normal.woff2) format("woff2");font-weight:100 900;font-display:swap}
+@font-face{font-family:"JetBrains Mono Variable";src:url(../fonts/jetbrains-mono-latin-wght-normal.woff2) format("woff2");font-weight:100 800;font-display:swap}
+
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:#131210}
+body.solo{overflow:hidden}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+button:focus-visible{outline:2px solid var(--color-accent);outline-offset:2px}
+svg{display:block;flex:none}
+.spin{animation:rot var(--motion-spin) linear infinite}
+@keyframes rot{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important}}
+/* one type scale: meta 11/16 · UI 13/20 · prose 15/24 · title 15/20 600 · mono 12.5/20; weights 400/500/600 */
+.frame{width:1280px;height:800px;overflow:hidden;position:relative;display:grid;grid-template-columns:var(--layout-sidebar) 1fr;grid-template-rows:100%;
+  background:var(--color-bg);color:var(--color-text);font-family:var(--font-ui);font-size:var(--text-ui);line-height:var(--leading-ui);font-weight:var(--weight-regular);
+  -webkit-font-smoothing:antialiased;letter-spacing:-0.003em}
+.frame.with-insp{grid-template-columns:var(--layout-sidebar) 1fr var(--layout-inspector)}
+.frame.nosb{grid-template-columns:1fr}
+.frame.nosb.with-insp{grid-template-columns:1fr var(--layout-inspector)}
+.frame.with-insp.wide{grid-template-columns:1fr var(--layout-inspector-wide)}
+.mono{font-family:var(--font-mono);font-size:var(--text-code);line-height:var(--leading-code);letter-spacing:0}
+.num{font-variant-numeric:tabular-nums}
+.meta{font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3);font-variant-numeric:tabular-nums}
+.ib{width:var(--control-icon);height:var(--control-icon);border-radius:var(--radius-sm);display:grid;place-items:center;color:var(--color-text-3);flex:none;position:relative}
+.ib.on{background:var(--color-selected);color:var(--color-text);box-shadow:inset 0 1px 0 var(--color-highlight)}
+.ib[disabled]{opacity:.4;cursor:default}
+.ib.bd{color:var(--color-text-2);background:var(--color-hover);box-shadow:inset 0 1px 0 var(--color-highlight),0 0 0 1px var(--color-line)}
+.light .ib.bd{background:var(--color-raised)}
+.ib .cdg{position:absolute;top:4px;right:4px;width:6px;height:6px;border-radius:50%;background:var(--color-git-modified);box-shadow:0 0 0 2px var(--color-bg)}
+.kbd{font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3);padding:0 4px;border-radius:4px;box-shadow:inset 0 0 0 1px var(--color-line);font-family:var(--font-ui);font-variant-numeric:tabular-nums}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--color-success);flex:none}
+.dot.off{background:transparent;box-shadow:inset 0 0 0 1.5px var(--color-text-3)}
+.pop{position:absolute;z-index:30;top:calc(100% - var(--space-1));left:var(--space-2);right:var(--space-2);padding:var(--space-1);border-radius:var(--radius-md);background:var(--color-raised);box-shadow:var(--shadow-float)}
+.menu-title{padding:var(--space-2) var(--space-2) var(--space-1);font-weight:var(--weight-semibold);color:var(--color-text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.menu-label{padding:var(--space-2) var(--space-2) var(--space-1);font-size:var(--text-meta);line-height:var(--leading-meta);font-weight:var(--weight-medium);color:var(--color-text-3)}
+.menu-item{height:var(--layout-row);display:flex;align-items:center;gap:var(--space-2);padding:0 var(--space-2);border-radius:var(--radius-sm);color:var(--color-text);white-space:nowrap}
+.menu-check{width:16px;height:16px;display:grid;place-items:center;flex:none;color:var(--color-text-2)}
+.menu-sep{height:1px;margin:var(--space-1) var(--space-2);background:var(--color-line)}
+.pm{width:16px;height:16px;display:grid;place-items:center;flex:none;color:var(--color-text-3)}
+.sess.on .pm{color:var(--color-text-2)}
+.gl{width:16px;height:16px;display:grid;place-items:center;flex:none;color:var(--color-text-3)}
+.gl .spin{color:var(--color-accent)}
+.need-dot{width:8px;height:8px;border-radius:50%;background:var(--color-attention);box-shadow:0 0 0 3px var(--color-attention-ring)}
+.bad-dot{width:8px;height:8px;border-radius:50%;background:var(--color-danger);flex:none}
+.ready-dot{width:8px;height:8px;border-radius:50%;background:var(--color-accent);flex:none}
+
+/* top bar */
+.main{display:flex;flex-direction:column;min-width:0;min-height:0;overflow:hidden;position:relative}
+.top{height:var(--layout-topbar);display:flex;align-items:center;gap:var(--space-2);padding:0 var(--space-3) 0 var(--space-5);flex:none;box-shadow:inset 0 -1px 0 var(--color-line);white-space:nowrap}
+.nosb .top{padding-left:var(--space-3)}
+.top .title{font-size:var(--text-title);line-height:var(--leading-title);font-weight:var(--weight-semibold);letter-spacing:-0.01em}
+.top .sp{flex:1}
+.btn{height:var(--control-field);display:inline-flex;align-items:center;gap:var(--space-2);padding:0 var(--space-3);border-radius:var(--radius-sm);font-weight:var(--weight-medium);color:var(--color-text);background:var(--color-hover);box-shadow:inset 0 1px 0 var(--color-highlight),0 0 0 1px var(--color-line);white-space:nowrap}
+.light .btn{background:var(--color-raised)}
+.btn.primary{background:var(--color-accent);color:var(--color-on-accent);box-shadow:var(--shadow-accent);font-weight:var(--weight-semibold);padding:0 var(--space-4)}
+.btn.quiet{background:transparent;box-shadow:none;color:var(--color-text-2);padding:0 var(--space-2)}
+.btn svg{color:currentColor}
+.btn[disabled]{opacity:.5;cursor:default}
+.quiet-line{display:flex;align-items:center;gap:var(--space-2);height:var(--layout-row);color:var(--color-text-3)}
+.quiet-line .spin{color:var(--color-accent)}
+
+/* empty */
+.empty{flex:1;display:grid;place-items:center;padding-bottom:var(--layout-topbar)}
+.empty .in{display:flex;flex-direction:column;align-items:center;gap:var(--space-4)}
+.empty .tile{width:48px;height:48px;border-radius:var(--radius-lg);display:grid;place-items:center;background:var(--color-raised);box-shadow:var(--shadow-live)}
+.empty p{font-size:var(--text-body);line-height:var(--leading-body);color:var(--color-text-2);letter-spacing:-0.01em}
+.empty .k{display:flex;align-items:center;gap:var(--space-3);font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3);margin-top:calc(-1 * var(--space-2))}
+.empty .k span{display:flex;align-items:center;gap:var(--space-1)}
+/* inspector */
+.insp{background:var(--color-sidebar);box-shadow:var(--shadow-drawer);display:flex;flex-direction:column;min-width:0;position:relative;z-index:4}
+.insp-h{height:var(--layout-topbar);display:flex;align-items:center;gap:var(--space-2);padding:0 var(--space-3);flex:none;box-shadow:inset 0 -1px 0 var(--color-line)}
+.insp-h .sp{flex:1}
+.seg{display:inline-flex;gap:2px;padding:2px;border-radius:8px;background:var(--color-bg);box-shadow:inset 0 0 0 1px var(--color-line);position:relative}
+.light .seg{background:var(--color-hover)}
+.seg button{height:24px;display:flex;align-items:center;gap:var(--space-2);padding:0 var(--space-3);border-radius:6px;font-weight:var(--weight-medium);color:var(--color-text-2);white-space:nowrap}
+.seg button .c{font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3);font-variant-numeric:tabular-nums;font-weight:var(--weight-regular)}
+.seg button.on{background:var(--color-selected);color:var(--color-text);box-shadow:inset 0 1px 0 var(--color-highlight),0 0 0 1px var(--color-line)}
+.light .seg button.on{background:var(--color-raised)}
+.seg button.on .c{color:var(--color-text-2)}
+.seg button[disabled]{color:var(--color-text-3);opacity:.6;cursor:default}
+/* the inspector's tabs: one per open tool, closable, and + for the tools menu */
+.tabs{flex:1;min-width:0;display:flex;align-items:center;gap:2px}
+.tab{position:relative;height:28px;display:flex;align-items:center;gap:var(--space-2);padding:0 var(--space-1) 0 var(--space-2);border-radius:var(--radius-sm);color:var(--color-text-2);font-weight:var(--weight-medium);white-space:nowrap;flex:none}
+.tab > svg{color:var(--color-text-3)}
+.tab .c{font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3);font-variant-numeric:tabular-nums;font-weight:var(--weight-regular)}
+.tab .x{width:20px;height:20px;display:none;place-items:center;border-radius:4px;color:var(--color-text-3)}
+.tab .x svg{width:14px;height:14px}
+.tab.on{background:var(--color-selected);color:var(--color-text);box-shadow:inset 0 1px 0 var(--color-highlight),0 0 0 1px var(--color-line)}
+.light .tab.on{background:var(--color-raised)}
+.tab.on .x{display:grid}
+.tab.off{color:var(--color-text-3);opacity:.6}
+.tab:not(.on){padding-right:var(--space-2)}
+.tabs .ib{width:28px;height:28px}
+/* + opens the tools menu: a closed tab comes back from it, and later tools join it */
+.insp-h{position:relative}
+.pop.tools{top:calc(100% - var(--space-2));left:auto;right:44px;width:232px}
+.pop.tools .menu-item > svg{color:var(--color-text-2)}
+.pop.tools .menu-item .kbd{margin-left:auto}
+.pop.tools .menu-item.later{color:var(--color-text-3)}
+.pop.tools .menu-item.later > svg{color:var(--color-text-3)}
+.pop.tools .menu-item.later .meta{margin-left:auto}
+.input{height:var(--control-field);border-radius:var(--radius-sm);background:var(--color-bg);box-shadow:inset 0 0 0 1px var(--color-line);display:flex;align-items:center;padding:0 var(--space-3);font-family:var(--font-mono);font-size:var(--text-code);color:var(--color-text);white-space:nowrap;overflow:hidden}
+.input.on{box-shadow:inset 0 0 0 1.5px var(--color-accent)}
+.input.ui{font-family:var(--font-ui);font-size:var(--text-ui)}
+.nt{padding:var(--space-2) var(--space-3);border-radius:var(--radius-md);display:flex;gap:var(--space-2);color:var(--color-text)}
+.nt svg{margin-top:2px}
+.nt.bad{background:var(--color-del-bg)}
+.nt.bad svg{color:var(--color-danger)}
+.nt.ok{background:var(--color-add-bg)}
+.nt.ok svg{color:var(--color-success)}
+.nt.snap{background:var(--color-bg);box-shadow:inset 0 0 0 1px var(--color-line);color:var(--color-text-2)}
+.nt.snap svg{color:var(--color-text-3)}
+.trunc{display:flex;align-items:center;gap:var(--space-2);margin:var(--space-2) var(--space-2) 0;padding:var(--space-2);color:var(--color-text-2);font-size:var(--text-meta);line-height:var(--leading-meta);box-shadow:inset 0 1px 0 var(--color-line)}
+.trunc svg{color:var(--color-text-3)}
+.hrow{padding:var(--space-2);box-shadow:inset 0 1px 0 var(--color-line);flex:none;margin-top:auto}
+.hrow .btn{width:100%;justify-content:flex-start;padding:0 var(--space-2);gap:var(--space-2)}
+.hrow .btn svg{color:var(--color-text-3)}
+.hrow .btn .meta{margin-left:auto}
+/* stacked view */
+body.stacked{background:#131210;color:#efe9e2;font-family:-apple-system,"SF Pro Text",system-ui,sans-serif;padding:56px 48px 80px;-webkit-font-smoothing:antialiased}
+.intro{max-width:1300px;margin:0 auto 56px}
+.intro h1{font-size:30px;font-weight:600;letter-spacing:-0.02em}
+.intro h1 span{color:#958d83;font-weight:400}
+.intro p{max-width:72ch;color:#b8b0a6;font-size:15px;line-height:1.6;margin:14px 0 0}
+.intro .cols{display:grid;grid-template-columns:1fr 1fr;gap:48px;margin:32px 0 36px;max-width:1100px}
+.intro h2{font-size:22px;font-weight:600;letter-spacing:-0.015em;margin:48px 0 8px}
+.intro h3{font-size:14px;font-weight:600;margin-bottom:10px;color:#efe9e2}
+.intro ul{list-style:none;display:flex;flex-direction:column;gap:8px;font-size:14px;line-height:1.5;color:#b8b0a6}
+.intro li b{color:#efe9e2;font-weight:500}
+.intro .chip{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:8px;vertical-align:-1px}
+.tok{border-collapse:collapse;font-size:12px;color:#b8b0a6;width:100%;max-width:1100px;margin-top:48px}
+.tok th{text-align:left;font-weight:500;color:#958d83;padding:6px 10px;border-bottom:1px solid rgba(255,238,220,.1)}
+.tok td{padding:4px 10px;border-bottom:1px solid rgba(255,238,220,.05);font-family:ui-monospace,"SF Mono",Menlo,monospace;vertical-align:middle;word-break:break-all}
+.tok td:first-child{color:#efe9e2;white-space:nowrap;word-break:normal}
+.sw{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:8px;vertical-align:-2px;box-shadow:0 0 0 1px rgba(255,255,255,.15)}
+.st{max-width:1300px;margin:0 auto 56px}
+.st h2{font-size:18px;font-weight:600;margin-bottom:16px;letter-spacing:-0.01em}
+.st h2 span{color:#958d83;font-weight:400;margin-left:12px;font-size:14px}
+.pair{display:flex;gap:20px}
+.scaled{width:640px;height:400px;overflow:hidden;border-radius:10px;box-shadow:0 0 0 1px rgba(255,255,255,.08)}
+.scaled .frame{transform:scale(.5);transform-origin:0 0}
+
+/* inspector tools: the Terminal and Browser tabs, three directions (issues #14 and #15, ADR 0026) */
+.btn.sm{height:var(--control-icon);padding:0 var(--space-2)}
+.btn[disabled]{cursor:default}
+.mono-t{font-family:var(--font-mono);font-size:var(--text-code);line-height:var(--leading-code);letter-spacing:0}
+code.mc{font-family:var(--font-mono);font-size:var(--text-code);letter-spacing:0;color:var(--color-text);background:var(--color-bg);padding:0 var(--space-1);border-radius:4px;box-shadow:inset 0 0 0 1px var(--color-line)}
+.light code.mc{background:var(--color-hover)}
+.tab.ico{padding:0;width:28px;justify-content:center}
+.tab.ico .x{display:none}
+/* the conversation beside the inspector: only enough of it to show what the state is about */
+.stub{padding:var(--space-4) var(--space-5);display:flex;flex-direction:column;gap:var(--space-3);flex:1;min-height:0;overflow:hidden}
+.stub .p{font-size:var(--text-title);line-height:var(--leading-title);font-weight:var(--weight-semibold);letter-spacing:-0.01em}
+.stub .sk{height:8px;border-radius:4px;background:var(--color-hover)}
+.stub .st-row{display:flex;align-items:center;gap:var(--space-2);height:var(--layout-row);color:var(--color-text-2)}
+.stub .st-row svg{color:var(--color-text-3)}
+.stub .st-row .spin{color:var(--color-accent)}
+/* the terminal: one mono well, tokens only */
+.tm{background:var(--color-surface);box-shadow:inset 0 0 0 1px var(--color-line);border-radius:var(--radius-md);padding:var(--space-2) var(--space-3);overflow:hidden;font-family:var(--font-mono);font-size:var(--text-code);line-height:var(--leading-code);letter-spacing:0;color:var(--color-text);white-space:pre;min-height:0}
+.light .tm{background:var(--color-raised)}
+.tm .d{color:var(--color-text-3)}
+.tm .ok{color:var(--color-success)}
+.tm .pr{color:var(--color-text-2)}
+.tm .ky{color:var(--color-syntax-type)}
+.tm .caret{display:inline-block;width:7px;height:14px;background:var(--color-text);vertical-align:-2px;animation:blink var(--motion-blink) steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+.tm.ghost{color:var(--color-text-3)}
+.tm.ghost .caret{background:var(--color-text-3);animation:none}
+.tm.fill{flex:1}
+/* empty states in the inspector */
+.es{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:var(--space-3);padding:var(--space-5);text-align:center}
+.es .tile{width:40px;height:40px;border-radius:var(--radius-lg);display:grid;place-items:center;background:var(--color-raised);box-shadow:var(--shadow-live);color:var(--color-text-2)}
+.es b{font-size:var(--text-title);line-height:var(--leading-title);font-weight:var(--weight-semibold);letter-spacing:-0.01em}
+.es p{color:var(--color-text-2);max-width:44ch}
+.es .acts{display:flex;gap:var(--space-2);align-items:center;justify-content:center;flex-wrap:wrap}
+.lnk{color:var(--color-accent-text);font-weight:var(--weight-medium);display:inline-flex;align-items:center;gap:var(--space-1)}
+.lnk svg{width:14px;height:14px}
+/* resize grip on the inspector's edge */
+.rz{position:absolute;left:-4px;top:0;bottom:0;width:8px;z-index:5;display:grid;place-items:center;cursor:col-resize}
+.rz i{display:block;width:3px;height:36px;border-radius:2px;background:var(--color-text-3);opacity:.7}
+/* a bar over a terminal: icon, directory, then meta and controls */
+.tbar{height:36px;display:flex;align-items:center;gap:var(--space-2);padding:0 var(--space-2) 0 var(--space-3);flex:none;color:var(--color-text-2);min-width:0}
+.tbar svg{color:var(--color-text-3)}
+.tbar .path{font-family:var(--font-mono);font-size:var(--text-code);letter-spacing:0;color:var(--color-text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tbar .sp{flex:1}
+.tfoot{display:flex;align-items:center;gap:var(--space-2);padding:var(--space-2) var(--space-3);box-shadow:inset 0 1px 0 var(--color-line);flex:none;color:var(--color-text-3);font-size:var(--text-meta);line-height:var(--leading-meta)}
+.pad{padding:0 var(--space-2) var(--space-2);display:flex;flex-direction:column;flex:1;min-height:0}
+.slots{display:flex;flex-direction:column;margin-top:var(--space-1);white-space:normal}
+.slot{height:var(--layout-row);display:flex;align-items:center;gap:var(--space-2);color:var(--color-text-2);padding:0 var(--space-2);border-radius:var(--radius-sm);font-family:var(--font-ui);font-size:var(--text-ui)}
+.slot .meta{margin-left:auto}
+.slot span.nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* the Browser tab */
+.bnote{margin:var(--space-2) var(--space-2) 0}
+.card{margin:0 var(--space-2) var(--space-2);padding:var(--space-3);border-radius:var(--radius-md);background:var(--color-raised);box-shadow:inset 0 1px 0 var(--color-highlight),0 0 0 1px var(--color-line);display:flex;flex-direction:column;gap:var(--space-2)}
+.card .top2{display:flex;align-items:center;gap:var(--space-2)}
+.card .port{font-size:22px;line-height:28px;font-weight:var(--weight-semibold);letter-spacing:-0.02em;font-variant-numeric:tabular-nums}
+.card .who{color:var(--color-text-2);margin-left:var(--space-1)}
+.card .cls{margin-left:auto;display:inline-flex;align-items:center;gap:var(--space-1);height:20px;padding:0 var(--space-2);border-radius:10px;background:var(--color-bg);box-shadow:inset 0 0 0 1px var(--color-line);font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-2)}
+.light .card .cls{background:var(--color-hover)}
+.card .cls svg{width:12px;height:12px}
+.card .url{color:var(--color-text-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.card .row2{display:flex;gap:var(--space-2)}
+.card .row2 .btn{flex:1;justify-content:center}
+.hostbar{margin:var(--space-2);padding:var(--space-2) var(--space-3);border-radius:var(--radius-md);background:var(--color-bg);box-shadow:inset 0 0 0 1px var(--color-line);display:flex;flex-direction:column;gap:2px;flex:none}
+.light .hostbar{background:var(--color-hover)}
+.hostbar .l{display:flex;align-items:center;gap:var(--space-2);color:var(--color-text-2)}
+.hostbar .l svg{color:var(--color-text-3)}
+.hostbar .l{flex-wrap:wrap}.hostbar .l .mono-t{color:var(--color-text)}
+
+.lv{width:8px;height:8px;border-radius:50%;background:var(--color-success);flex:none}
+.lv.off{background:transparent;box-shadow:inset 0 0 0 1.5px var(--color-text-3)}
+.lv.idle{background:var(--color-text-3)}
+.sk.w1{width:92%}.sk.w2{width:78%}.sk.w3{width:54%}
+.intro .chip{display:none}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+const T = JSON.parse(document.getElementById('tokens').textContent);
+const vars = o => Object.entries(o).map(([k, v]) => `${k}:${v};`).join('');
+document.getElementById('token-css').textContent =
+  `.frame{${vars(T.shared)}}.frame.dark{${vars(T.dark)}}.frame.light{${vars(T.light)}}`;
+
+/* icons: one family, Lucide (ISC licence), inlined; 24-unit grid drawn at 16 px, stroke 1.5, round caps and joins. */
+const sv = (d, cls = '') => `<svg${cls ? ` class="${cls}"` : ''} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+const L = {
+  'panel-left': '<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/>',
+  'panel-right': '<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M15 3v18"/>',
+  plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
+  'arrow-up-right': '<path d="M7 7h10v10"/><path d="M7 17 17 7"/>',
+  'arrow-right-left': '<path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/>',
+  folder: '<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>',
+  pencil: '<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/>',
+  terminal: '<path d="M12 19h8"/><path d="m4 17 6-6-6-6"/>',
+  globe: '<circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/>',
+  eye: '<path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/>',
+  lock: '<rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+  clock: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
+  x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+  check: '<path d="M20 6 9 17l-5-5"/>',
+  minus: '<path d="M5 12h14"/>',
+  info: '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>',
+  copy: '<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
+  settings: '<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>',
+  laptop: '<path d="M20 16V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v9m16 0H4m16 0 1.28 2.55a1 1 0 0 1-.9 1.45H3.62a1 1 0 0 1-.9-1.45L4 16"/>',
+  'loader-circle': '<path d="M21 12a9 9 0 1 1-6.219-8.56"/>',
+};
+const I = k => sv(L[k]);
+const esc = t => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+const tip = t => ` title="${t}" aria-label="${t}"`;
+const ib = (icon, t, cls = '', off = false) => `<button class="ib ${cls}"${tip(t)}${off ? ' disabled' : ''}>${icon}</button>`;
+const btn = (label, icon = '', cls = '', t = '', off = false) => `<button class="btn ${cls}"${t ? tip(t) : ''}${off ? ' disabled' : ''}>${icon}${label}</button>`;
+const code = t => `<code class="mc">${t}</code>`;
+const CFG = '&quot;terminal&quot;: true';
+
+const MAC = 'MacBook Pro';
+const DIR = '~/github/hoplet';
+
+/* ---- what each state is about -------------------------------------------------------------------------------- */
+/* one state per row: [id, description, cause]; the cause drives the conversation stub, the tabs and the copy */
+const TERM = [
+  ['terminal-off', 'The machine’s terminal setting is off; the tab names the setting', 'idle'],
+  ['terminal-blocked-turn', 'Blocked: a turn is running or waiting for a permission (turn-running)', 'turn'],
+  ['terminal-blocked-external', 'Blocked: the session is external (external)', 'external'],
+  ['terminal-blocked-handoff', 'Blocked: a handoff is running (handoff-running)', 'handoff'],
+  ['terminal-blocked-offline', 'Blocked: the owner machine is offline (owner-offline)', 'offline'],
+  ['terminal-ready', 'Ready to open', 'idle'],
+  ['terminal-open', 'Open with a shell: output, resize, close', 'idle'],
+  ['terminal-closed-turn', 'Closed because a turn started (turn-started)', 'turn'],
+  ['terminal-closed-idle', 'Closed after 60 minutes without input (idle)', 'idle'],
+  ['terminal-closed-offline', 'Closed because the owner went offline (owner-offline)', 'offline'],
+  ['terminal-busy', 'Busy: three terminals are open on the machine (terminal-busy)', 'idle'],
+];
+const BROW = [
+  ['browser-ports', 'Ports listed: address class, Open, Copy host:port, the link host', 'idle'],
+  ['browser-loopback', 'Loopback only: opens on the owner machine or through your own tunnel', 'idle'],
+  ['browser-empty', 'No ports yet: start a dev server in the session or the terminal', 'idle'],
+  ['browser-offline', 'Owner offline: nothing is listed', 'offline'],
+];
+const KINDS = [...TERM, ...BROW];
+const STATES = KINDS.map(([k, desc]) => [k, desc]);
+
+/* ---- the three terminals in the busy state ------------------------------------------------------------------- */
+const OTHERS = [['byte cursor catalog', DIR, 'idle 4 min'], ['Fix flaky clone test', '~/github/hoplet-docs', 'idle 21 min'], ['Wire protocol review', '~/github/hoplet-agent', 'idle 38 min']];
+const slots = () => `<div class="slots" role="list" aria-label="Open terminals on ${MAC}">${OTHERS.map(([s, d, i]) =>
+  `<div class="slot" role="listitem"${tip(`${s} · ${d} · ${i}`)}>${I('terminal')}<span class="nm">${s}</span><span class="meta">${i}</span></div>`).join('')}</div>`;
+
+/* ---- terminal output ------------------------------------------------------------------------------------------ */
+const PROMPT = `<span class="ky">${DIR}</span> <span class="pr">$</span> `;
+const shellOut = (wide = false) => `${PROMPT}pnpm test
+<span class="d">&gt; hoplet@0.5.0 test</span>
+<span class="d">&gt; vitest run</span>
+
+ <span class="ok">✓</span> shared/schema.test.ts <span class="d">(24)</span>
+ <span class="ok">✓</span> core/store.test.ts <span class="d">(61)</span>
+ <span class="ok">✓</span> core/ingest.test.ts <span class="d">(38)</span>${wide ? `
+ <span class="ok">✓</span> core/control.test.ts <span class="d">(47)</span>
+ <span class="ok">✓</span> core/api.test.ts <span class="d">(52)</span>` : ''}
+
+ Test Files  ${wide ? '5' : '3'} passed <span class="d">(${wide ? '5' : '3'})</span>
+      Tests  ${wide ? '222' : '123'} passed <span class="d">(${wide ? '222' : '123'})</span>
+   Duration  3.82s
+
+${PROMPT}<span class="caret"></span>`;
+
+/* ---- the frame: top bar, a stub of the conversation, the inspector ------------------------------------------- */
+function stub(cause) {
+  const row = {
+    turn: `<div class="st-row">${sv(L['loader-circle'], 'spin')}<span>Running · pnpm test</span></div>`,
+    external: `<div class="st-row">${I('eye')}<span>External session · read only</span></div>`,
+    handoff: `<div class="st-row">${I('arrow-right-left')}<span>Handing off to studio-2</span></div>`,
+    offline: `<div class="st-row"><span class="lv off"></span><span>${MAC} is offline</span></div>`,
+    idle: `<div class="st-row">${I('check')}<span>Done · 4 files changed</span></div>`,
+  }[cause];
+  return `<div class="stub"><div class="p">Run the chunk tests and fix what fails</div>
+    <div class="sk w1"></div><div class="sk w2"></div><div class="sk w3"></div>${row}</div>`;
+}
+
+/* tabs: the open tool is a full tab; the others fold to their glyph so four fit in 296 px */
+const TABS = [['changes', 'Changes', 'pencil', '<span class="c">4</span>'], ['files', 'Files', 'folder', ''], ['terminal', 'Terminal', 'terminal', ''], ['browser', 'Browser', 'globe', '']];
+function head(active, wide, mark = '') {
+  const tabs = TABS.map(([id, label, icon, extra]) => {
+    const on = id === active;
+    const dotted = id === 'terminal' && mark && wide ? `<span class="${mark}" aria-hidden="true"></span>` : '';
+    if (on || wide) return `<div class="tab${on ? ' on' : ''}" role="tab" aria-selected="${on}">${I(icon)}<span>${label}</span>${extra}${dotted}<span class="x"${tip(`Close ${label}`)}>${I('x')}</span></div>`;
+    return `<div class="tab ico" role="tab" aria-selected="false"${tip(label)}>${I(icon)}${dotted}</div>`;
+  }).join('');
+  return `<div class="insp-h"><div class="tabs" role="tablist">${tabs}${ib(I('plus'), 'Open a tool · ⌘T')}</div>${ib(I('panel-right'), 'Hide workspace · ⌘I', 'on')}</div>`;
+}
+
+function shell(kind, scheme, insp, wide) {
+  const cause = KINDS.find(([k]) => k === kind)[2];
+  return `<div class="frame ${scheme} nosb with-insp${wide ? ' wide' : ''}" data-state="${kind}">
+    <main class="main"><header class="top">${ib(I('panel-left'), 'Show sidebar · ⌘\\')}<span class="title">byte cursor catalog</span><span class="sp"></span></header>
+      ${stub(cause)}</main>
+    <aside class="insp">${insp}</aside>
+  </div>`;
+}
+
+/* ---- pieces shared by the directions ------------------------------------------------------------------------- */
+const es = (icon, title, text, acts = '') => `<div class="es"><span class="tile">${icon}</span><b>${title}</b><p>${text}</p>${acts ? `<div class="acts">${acts}</div>` : ''}</div>`;
+const hostingLink = `<a class="lnk" href="#"${tip('Hosting: Terminal (opens the documentation)')}>Hosting: Terminal${I('arrow-up-right')}</a>`;
+
+/* the cause, in words: title, text, code */
+const CAUSE = {
+  'blocked-turn': [sv(L['loader-circle'], 'spin'), 'A turn is running', 'A turn is running or waiting for a permission. You can open a terminal when it ends.', 'turn-running', 'Available when the turn ends'],
+  'blocked-external': [I('eye'), 'This session is external', 'Claude Code is running it outside Hoplet and Hoplet only reads it. A terminal needs a session Hoplet can drive.', 'external', 'Not available for external sessions'],
+  'blocked-handoff': [I('arrow-right-left'), 'A handoff is running', 'The terminal opens when the handoff has finished.', 'handoff-running', 'Available when the handoff ends'],
+  'blocked-offline': [I('laptop'), `${MAC} is offline`, 'A terminal needs its machine online. It opens when the machine is back.', 'owner-offline', `Available when ${MAC} is back`],
+};
+const CLOSED = {
+  'closed-turn': ['A turn started, so the terminal closed', 'A prompt is not delayed by the terminal. Output is not kept.', 'turn-started', 'Available when the turn ends', true],
+  'closed-idle': ['Closed after 60 minutes without input', 'Output alone does not keep a terminal open. Output is not kept.', 'idle', 'Open a new shell in the session directory', false],
+  'closed-offline': [`${MAC} went offline, so the terminal closed`, 'A terminal never outlives its machine’s connection. Output is not kept.', 'owner-offline', `Available when ${MAC} is back`, true],
+};
+const FOOT = 'Nothing typed or printed is stored · closes after 60 minutes without input, or when a turn starts';
+
+/* the Browser tab: rows of data, one grammar for all directions */
+const PORTS_A = [{ port: 5173, who: 'node', cls: 'loopback' }, { port: 4000, who: 'bun', cls: 'any' }];
+const PORTS_LO = [PORTS_A[0]];
+const HOST = ['mbp.tail1f2a.ts.net', 'preview_host'];
+const linkHost = p => (p.cls === 'loopback' ? 'localhost' : HOST[0]);
+const addr = p => `${linkHost(p)}:${p.port}`;
+const clsText = c => ({ loopback: 'loopback', any: 'all interfaces', other: 'other interface' }[c]);
+const clsIcon = c => (c === 'loopback' ? I('lock') : I('globe'));
+const aria = p => `${addr(p)} is running · ${p.who} · ${clsText(p.cls)}`;
+const LONOTE = `<div class="nt snap bnote" role="note">${I('info')}<span>${code('localhost')} opens only on ${MAC} or through your own tunnel.</span></div>`;
+const EMPTY = es(I('globe'), 'No dev servers yet', `Start one in the session or in a terminal, for example ${code('pnpm dev')}. Hoplet looks every 3 seconds.`);
+const OFFB = es(I('laptop'), `${MAC} is offline`, 'Ports are listed when it is back. Nothing is shown from before.');
+
+function termA(kind) {
+  if (kind === 'terminal-off') return es(I('terminal'), `Terminal is off on ${MAC}`,
+    `Set ${code(CFG)} in the agent’s ${code('config.json')} on ${MAC} and restart the agent. Only the machine’s operator can turn it on; Hoplet cannot.`, hostingLink);
+  if (kind.startsWith('terminal-blocked')) {
+    const [ic, t, p, c, why] = CAUSE[kind.slice(9)];
+    return es(ic, t, p, `${btn('Open terminal', I('terminal'), '', why, true)}<span class="meta">${c}</span>`);
+  }
+  if (kind === 'terminal-ready') return es(I('terminal'), `Open a terminal in ${DIR}`,
+    `A shell on ${MAC}, in this session’s directory. Nothing typed or printed is stored.`, `${btn('Open terminal', I('terminal'), 'primary')}<span class="meta">0 of 3 open on ${MAC}</span>`);
+  if (kind === 'terminal-open') return `<div class="rz" role="separator" aria-orientation="vertical"${tip('Drag to resize')}><i></i></div>
+    <div class="tbar">${I('terminal')}<span class="path">${DIR}</span><span class="sp"></span><span class="meta" title="Columns × rows">90 × 32</span>${btn('Close', I('x'), 'quiet', 'Close terminal')}</div>
+    <div class="pad"><div class="tm fill" role="log" aria-label="Terminal">${shellOut(true)}</div></div>
+    <div class="tfoot">${I('info')}<span>${FOOT}</span></div>`;
+  if (kind.startsWith('terminal-closed')) {
+    const [t, p, c, why, off] = CLOSED[kind.slice(9)];
+    return es(I('clock'), t, p, `${btn('Open again', '', off ? '' : 'primary', why, off)}<span class="meta">${c}</span>`);
+  }
+  if (kind === 'terminal-busy') return `<div class="es"><span class="tile">${I('terminal')}</span><b>Three terminals are open on ${MAC}</b>
+    <p>That is the limit. Close one in its session to open another here.</p>
+    <div style="width:100%;max-width:360px">${slots()}</div>
+    <div class="acts">${btn('Open terminal', I('terminal'), '', 'Three terminals are open on this machine', true)}<span class="meta">terminal-busy</span></div></div>`;
+}
+function browB(kind) {
+  const hb = `<div class="hostbar"><div class="l">${I('globe')}<span>Links open at</span><span class="mono-t">${HOST[0]}</span></div><div class="meta">from ${code(HOST[1])}; ${code('localhost')} for loopback ports</div></div>`;
+  const card = p => `<div class="card" role="listitem"${tip(aria(p))}>
+      <div class="top2"><span class="lv"></span><span class="port">${p.port}</span><span class="who">${p.who}</span><span class="cls">${clsIcon(p.cls)}${clsText(p.cls)}</span></div>
+      <div class="url mono-t">${addr(p)}</div>
+      ${p.cls === 'loopback' ? `<div class="meta">Opens only on ${MAC} or through your own tunnel.</div>` : ''}
+      <div class="row2">${btn('Open', I('arrow-up-right'), '', `Open ${addr(p)} in a new tab`)}${btn('Copy host:port', I('copy'), '', `Copy ${addr(p)}`)}</div></div>`;
+  const list = ps => `<div role="list" aria-label="Dev servers">${ps.map(card).join('')}</div>`;
+  if (kind === 'browser-ports') return hb + list(PORTS_A);
+  if (kind === 'browser-loopback') return hb + list(PORTS_LO) + LONOTE;
+  if (kind === 'browser-empty') return hb + EMPTY;
+  return OFFB;
+}
+function frame(kind, scheme) {
+  const term = kind.startsWith('terminal');
+  return shell(kind, scheme, head(term ? 'terminal' : 'browser', term, kind === 'terminal-open' ? 'lv' : '') + (term ? termA(kind) : browB(kind)), term);
+}
+
+/* ---- the page --------------------------------------------------------------------------------------------------- */
+const q = new URLSearchParams(location.search);
+const root = document.getElementById('root');
+const solo = STATES.find(([s]) => s === q.get('state'));
+if (q.get('state') && !solo) {
+  document.body.className = 'solo';
+  root.textContent = `Unknown state: ${q.get('state')}`;
+} else if (solo) {
+  document.body.className = 'solo';
+  root.innerHTML = frame(solo[0], q.get('scheme') === 'light' ? 'light' : 'dark');
+} else {
+  document.body.className = 'stacked';
+  root.innerHTML = `<header class="intro"><h1>Inspector tools <span>Terminal and Browser</span></h1>
+    <p>The inspector’s Terminal and Browser tabs (issues #14 and #15; <code>docs/adr/0026</code> and <code>docs/spec.md</code>): a restricted terminal in the session’s directory, and links to the dev servers that run from it. Every state of both tabs, light and dark, desktop only. The Mac client (ADR 0022) reuses the same routes and messages, so nothing here depends on the browser.</p>
+    <p><b>Terminal.</b> The tool owns the pane. The inspector widens to 720 px, as it does for a diff, and keeps that width through off, blocked, closed and busy so the pane does not jump when a terminal opens or closes. Every state but open is one centred message with one action, so the pane never shows controls that cannot work; the cause code of the API (<code>turn-running</code>, <code>owner-offline</code> and so on) is small meta text beside the action. An open terminal has a bar with its directory, its size and Close, a left-edge grip to resize, and a foot line saying nothing typed or printed is stored. Output is never stored, so a closed terminal says so and offers a new shell, not a replay. The terminal font is mono 12.5/20 and not an Appearance setting.</p>
+    <p><b>Browser.</b> The inspector keeps its 296 px. A header names the host links open at and where it comes from (<code>preview_host</code>; <code>localhost</code> for loopback ports). Each port is a card: the port large, the process, a pill for its address class, the exact host:port, a note for loopback ports, and Open and Copy host:port. Open links in a new tab; Hoplet does not proxy. Hoplet looks for ports every 3 seconds.</p>
+    <p>The open tool is a full tab and the others fold to their glyph while the inspector is narrow, so four tabs fit in 296 px. The Terminal and Browser entries of the tools menu reopen a closed tab like Changes and Files. The addresses, hosts and the sample <code>pnpm test</code> run are invented for the mockup.</p></header>` +
+    STATES.map(([s, desc]) => `<section class="st"><h2>${s}<span>${desc}</span></h2><div class="pair">
+      <div class="scaled">${frame(s, 'light')}</div><div class="scaled">${frame(s, 'dark')}</div></div></section>`).join('');
+}
+
+</script>
+</body>
+</html>
