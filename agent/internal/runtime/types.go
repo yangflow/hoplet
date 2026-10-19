@@ -121,6 +121,15 @@ type Versioned interface {
 	Version(ctx context.Context) (version string, tested bool, err error)
 }
 
+// IDAssigner is implemented by drivers whose vendor assigns a new session's ID and cannot be told one. The
+// manager starts such a session with StartNew instead of minting an ID; a driver without it gets the
+// manager's ID as StartSpec.SessionID.
+type IDAssigner interface {
+	// StartNew creates a session in spec.Dir (spec.SessionID is empty, spec.New is set), starts its process
+	// as Start does, and returns the ID the vendor gave the session, which is not empty.
+	StartNew(ctx context.Context, spec StartSpec) (sessionID string, p Process, err error)
+}
+
 // Process is one running vendor process. Methods are safe for concurrent use.
 type Process interface {
 	// Events delivers the process's events in order and is closed after the final Exited.
