@@ -40,25 +40,40 @@ export function extractMeta(provider: Provider, lines: string[]): LineMeta {
 
 /**
  * A Codex rollout starts with a `session_meta` line whose payload holds the working directory and the start
- * time. It names no title yet.
+ * time. It has no title line; the title is the first user message's text, as for Claude Code.
  */
 function extractCodexMeta(lines: string[]): LineMeta {
   const meta: LineMeta = { projectPath: '', title: '', aiTitle: '', gitBranch: '', createdAt: 0 };
+  let seenMeta = false;
+  let fallback = '';
   for (const raw of lines) {
-    let o: { type?: unknown; payload?: { cwd?: unknown; timestamp?: unknown } };
+    let o: { type?: unknown; payload?: Record<string, unknown> };
     try {
       o = JSON.parse(raw);
     } catch {
       continue;
     }
-    if (o?.type !== 'session_meta' || typeof o.payload !== 'object' || o.payload === null) continue;
-    if (typeof o.payload.cwd === 'string') meta.projectPath = o.payload.cwd;
-    if (typeof o.payload.timestamp === 'string') {
-      const t = Date.parse(o.payload.timestamp);
-      if (Number.isFinite(t)) meta.createdAt = t;
+    const payload = o?.payload;
+    if (typeof payload !== 'object' || payload === null) continue;
+    if (o.type === 'session_meta' && !seenMeta) {
+      seenMeta = true;
+      if (typeof payload.cwd === 'string') meta.projectPath = payload.cwd;
+      if (typeof payload.timestamp === 'string') {
+        const t = Date.parse(payload.timestamp);
+        if (Number.isFinite(t)) meta.createdAt = t;
+      }
+    } else if (o.type === 'event_msg' && payload.type === 'item_completed' && !meta.title) {
+      const item = payload.item as { type?: unknown; content?: unknown } | undefined;
+      if (item?.type !== 'UserMessage' || !Array.isArray(item.content)) continue;
+      const part = item.content.find((c) => (c as { type?: string })?.type === 'text') as
+        | { text?: string }
+        | undefined;
+      const candidate = summarizeTitle(part?.text ?? '');
+      if (candidate && candidate.length >= 8) meta.title = candidate;
+      else if (candidate && !fallback) fallback = candidate;
     }
-    break;
   }
+  if (!meta.title) meta.title = fallback;
   return meta;
 }
 
