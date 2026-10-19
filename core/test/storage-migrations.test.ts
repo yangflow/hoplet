@@ -253,6 +253,24 @@ it('creates the queue tables at schema 13 and keeps them across opens', () => {
   db.close();
 });
 
+it('adds the nullable device system columns at schema 17', () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'hoplet-migration-'));
+  dirs.push(dir);
+  new Store(dir);
+  const db = new DatabaseSync(path.join(dir, 'hoplet.db'));
+  const columns = db.prepare('PRAGMA table_info(devices)').all() as {
+    name: string;
+    notnull: number;
+  }[];
+  for (const name of ['os', 'arch']) {
+    expect(columns.find((c) => c.name === name)).toMatchObject({ notnull: 0 });
+  }
+  expect(db.prepare('SELECT name FROM schema_migrations WHERE id = 17').get()).toEqual({
+    name: 'device-system',
+  });
+  db.close();
+});
+
 it('creates the notification tables at schema 14 and keeps them across opens', () => {
   const dir = mkdtempSync(path.join(tmpdir(), 'hoplet-migration-'));
   dirs.push(dir);

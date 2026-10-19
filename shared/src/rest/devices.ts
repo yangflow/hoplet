@@ -3,6 +3,7 @@ import { DeviceProjectSchema, DirEntrySchema } from '../catalog.ts';
 import { CloneCheckReasonSchema, CloneDestinationDetailSchema } from '../clone.ts';
 import { AttachmentIdSchema, SessionIdSchema } from '../ids.ts';
 import { ProviderInfoSchema } from '../runtime.ts';
+import { DeviceSystemSchema } from '../wire/index.ts';
 import { TrimmedSchema } from './common.ts';
 
 /** GET /api/devices */
@@ -10,6 +11,8 @@ export const DeviceInfoSchema = v.object({
   deviceId: v.string(),
   name: v.string(),
   connected: v.boolean(),
+  /** The system its agent last announced; null for a device whose agent never did. Kept while the device is offline. */
+  system: v.nullable(DeviceSystemSchema),
   /** When the agent last connected or disconnected, in epoch milliseconds; absent for a device that never connected. */
   lastSeen: v.optional(v.number()),
   /** The providers the connected agent runs, with their capabilities; empty while the device is offline. */

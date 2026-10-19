@@ -133,12 +133,20 @@ type DeviceHello struct {
 	DeviceID string `json:"deviceId"`
 	Name     string `json:"name"`
 	Version  string `json:"version"`
+	// System is the machine the agent runs on; nil means not announced.
+	System *DeviceSystem `json:"system,omitempty"`
 	// Providers are the vendors this agent runs, with the capabilities of their runtime drivers.
 	Providers []ProviderInfo `json:"providers,omitempty"`
 	// Capabilities lists what the agent offers beyond sessions; nil means nothing.
 	Capabilities *DeviceCapabilities `json:"capabilities,omitempty"`
 	// PreviewHost is the host the inspector links dev servers with: preview_host, else the machine's host name.
 	PreviewHost string `json:"previewHost,omitempty"`
+}
+
+// DeviceSystem is the system the agent runs on: runtime.GOOS and runtime.GOARCH verbatim.
+type DeviceSystem struct {
+	OS   string `json:"os"`
+	Arch string `json:"arch"`
 }
 
 // DeviceCapabilities is what an agent offers beyond its providers.

@@ -212,6 +212,13 @@ svg{display:block;flex:none}
 .dev.hov .ib,.dev.menu .ib{display:grid;color:var(--color-text-2)}
 .dot{width:8px;height:8px;border-radius:50%;background:var(--color-success);flex:none}
 .dot.off{background:transparent;box-shadow:inset 0 0 0 1.5px var(--color-text-3)}
+/* machine icon: the system's mark in the folder icon's column, the presence dot at its bottom-right, cut into the mark */
+.mch{--md:7px;--mc:5.5px;--mo:-1.5px;position:relative;width:16px;height:16px;display:grid;place-items:center;flex:none;color:var(--color-text-2)}
+.mch svg{display:block;-webkit-mask-image:radial-gradient(circle at 14px 14px,transparent calc(var(--mc) - .5px),#000 var(--mc));mask-image:radial-gradient(circle at 14px 14px,transparent calc(var(--mc) - .5px),#000 var(--mc))}
+.mch .mch-d{position:absolute;right:var(--mo);bottom:var(--mo);width:var(--md);height:var(--md);border-radius:50%;background:var(--color-success)}
+.mch.off{color:var(--color-text-3)}
+.mch.off .mch-d{background:transparent;box-shadow:inset 0 0 0 1.5px var(--color-text-3)}
+.menu-item.dim{color:var(--color-text-2)}
 .sdir,.sess{height:var(--layout-row);display:flex;align-items:center;gap:var(--space-2);padding:0 var(--space-2);border-radius:var(--radius-sm);white-space:nowrap}
 .sdir{color:var(--color-text-2);font-weight:var(--weight-medium)}
 .sdir .fi{width:16px;height:16px;display:grid;place-items:center;flex:none;color:var(--color-text-3)}
@@ -1316,6 +1323,22 @@ function sessKind(state) {
 /* the states that need the user, strongest first; a folded directory shows the strongest it holds */
 const ATTENTION = ['need', 'fail'];
 
+/* ---- machine icon: the mark of the machine's system with its presence as a dot at the bottom-right ----
+   The dot is cut into the mark with a mask, so the cut shows whatever is behind the row (hover, selected, popover).
+   Each solid mark is scaled about its centre (cx, cy) by k, so it fills the 20 px box the folder glyph fills. */
+const fit = (k, cx, cy) => `transform="translate(12 12) scale(${k}) translate(${-cx} ${-cy})"`;
+const SOLID = (t, d) => `<path fill="currentColor" stroke="none" ${t} d="${d}"/>`;
+/* any other system, or an agent that reports none */
+const MON = '<rect width="20" height="14" x="2" y="3" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/>';
+const OS = {
+  macOS: SOLID(fit(1.2, 12.05, 12.1), 'M16.7 12.7c0-2.2 1.8-3.2 1.9-3.3-1-1.5-2.6-1.7-3.2-1.7-1.4-.1-2.6.8-3.3.8s-1.7-.8-2.8-.7c-1.4 0-2.8.8-3.5 2.1-1.5 2.6-.4 6.4 1.1 8.5.7 1 1.6 2.2 2.7 2.2 1.1 0 1.5-.7 2.8-.7s1.7.7 2.8.7c1.2 0 1.9-1 2.6-2.1.8-1.2 1.2-2.3 1.2-2.4 0 0-2.3-.9-2.3-3.4zM14.6 6.3c.6-.7 1-1.7.9-2.7-.9 0-1.9.6-2.5 1.3-.5.6-1 1.6-.9 2.6 1 .1 1.9-.5 2.5-1.2z'),
+  Windows: SOLID(fit(1.11, 12, 12), 'M3 5.4 10.5 4.4v7H3zM11.5 4.25 21 3v8.4h-9.5zM3 12.6h7.5v6.9L3 18.6zM11.5 12.6H21V21l-9.5-1.3z'),
+  Linux: `<path fill="currentColor" stroke="none" fill-rule="evenodd" ${fit(1.135, 12, 11.75)} d="M12 2.5c-1.9 0-3 1.5-3 3.6 0 1.2.1 1.9-.5 3C7.6 10.7 6 12.8 6 15.4c0 1.2.4 2 1 2.5-.5.4-1.6 1-1.8 1.8-.2.8.4 1.3 1.2 1.3h2.7c.8 0 1.3-.5 1.9-.9.3.1.7.1 1 .1s.7 0 1-.1c.6.4 1.1.9 1.9.9h2.7c.8 0 1.4-.5 1.2-1.3-.2-.8-1.3-1.4-1.8-1.8.6-.5 1-1.3 1-2.5 0-2.6-1.6-4.7-2.5-6.3-.6-1.1-.5-1.8-.5-3 0-2.1-1.1-3.6-3-3.6zM12 10.2c-1.2 0-2.1 1.5-2.1 3.3S10.8 17 12 17s2.1-1.7 2.1-3.5-.9-3.3-2.1-3.3zM10.5 5.3a.6.9 0 1 0 0 1.8.6.9 0 1 0 0-1.8zM13.5 5.3a.6.9 0 1 0 0 1.8.6.9 0 1 0 0-1.8z"/>`,
+};
+const mIcon = (os, on) => `<span class="mch${on ? '' : ' off'}" aria-hidden="true">${sv(OS[os] || MON)}<i class="mch-d"></i></span>`;
+const MACH = [{ n: 'MacBook Pro', os: 'macOS', on: true }, { n: 'studio', os: 'Linux', on: true }, { n: 'office-mini', os: 'Windows', on: false }, { n: 'lab-box', os: '', on: true }];
+const mName = m => `${m.n}, ${m.os ? m.os + ', ' : ''}${m.on ? 'online' : 'offline'}`;
+
 function sidebar(state) {
   const off = OFFLINE.includes(state);
   const moved = state === 'handoff-done';
@@ -1333,16 +1356,23 @@ function sidebar(state) {
   const nu = S('Roll back the byte cursor', 'run', 'now', state === 'plan-fresh-new');
   const other = S('Hand off sessions with snapshots', off ? '' : 'run', '3h');
   /* folding is remembered per directory: office-mini › hoplet-app stays folded; notes is folded in ready */
-  const DEVS = [
-    pinState ? { n: 'MacBook Pro', flat: state === 'pinned-flat', on: true,
+  const machines = state === 'machines';
+  const MDEVS = [
+    { ...MACH[0], hov: true, dirs: [{ n: 'hoplet', open: true, ss: [open, other] }, { n: 'notes', open: false, ss: [S('Audit docs/api.md', '', '5d')] }] },
+    { ...MACH[1], dirs: [{ n: 'notes', open: true, ss: [S('多设备远程同步 AI 会话项目', 'need', '20m')] }] },
+    { ...MACH[2], dirs: [{ n: 'hoplet-app', open: false, ss: [S('Liquid Glass tab bar', '', '4d')] }] },
+    { ...MACH[3], dirs: [] },
+  ];
+  const DEVS = machines ? MDEVS : [
+    pinState ? { n: 'MacBook Pro', os: 'macOS', flat: state === 'pinned-flat', on: true,
       pinned: [{ ...other, dir: 'hoplet', pin: true }, { ...S('Roadmap 0.4 planning', '', '2d'), dir: 'notes', pin: true }],
       dirs: [{ n: 'hoplet', open: true, ss: [open, S('Resync the byte cursor on restart', '', '1d')] }, { n: 'notes', open: true, ss: [S('Audit docs/api.md', '', '5d')] }] } :
-    { n: 'MacBook Pro', hov: state.startsWith('add-project'), flat: state === 'sidebar-flat', menu: menuOpen, on: !off, dirs: [{ n: 'hoplet', open: true, ss: moved ? [other] : fresh ? [nu, open, other] : draft ? [{ t: 'New session', draft: true, on: true }, open, other] : [open, other] }] },
-    { n: 'office-mini', on: false, dirs: [{ n: 'hoplet-app', open: false, ss: [S('Liquid Glass tab bar', '', '4d')] }] },
-    { n: 'studio', on: true, dirs: [
+    { n: 'MacBook Pro', os: 'macOS', hov: state.startsWith('add-project'), flat: state === 'sidebar-flat', menu: menuOpen, on: !off, dirs: [{ n: 'hoplet', open: true, ss: moved ? [other] : fresh ? [nu, open, other] : draft ? [{ t: 'New session', draft: true, on: true }, open, other] : [open, other] }] },
+    { n: 'office-mini', os: 'Windows', on: false, dirs: [{ n: 'hoplet-app', open: false, ss: [S('Liquid Glass tab bar', '', '4d')] }] },
+    { n: 'studio', os: 'Linux', on: true, dirs: [
       ...(moved ? [{ n: 'hoplet-11111111', open: true, ss: [open] }] : []),
       { n: 'notes', open: state !== 'ready', hov: state === 'empty', ss: [S('多设备远程同步 AI 会话项目', 'need', '20m')] }] },
-    ...(state === 'mint-online' ? [{ n: 'studio-2', on: true, dirs: [] }] : []),
+    ...(state === 'mint-online' ? [{ n: 'studio-2', os: '', on: true, dirs: [] }] : []),
   ];
   /* provider mark | title | runtime state, or the last-activity time when idle */
   const sess = (s, o = {}) => s.draft ? `<div class="sess on draft"><span class="pm">${I.compose()}</span><span class="t">${s.t}</span><span class="m"></span></div>` : `<div class="sess${o.two ? ' two' : ''}${s.on ? ' on' : ''}${o.dim ? ' dim' : ''}">${pmark('claude')}${o.two ? `<span class="t tt"><span class="t1">${s.t}</span><span class="t2">${o.two}</span></span>` : `<span class="t">${s.t}</span>`}<span class="m">${s.kind ? GL[s.kind]() : `${s.pin && !o.noPin ? glyph(I.pin(), 'Pinned') : ''}${s.time}`}</span></div>`;
@@ -1363,7 +1393,7 @@ function sidebar(state) {
       <div role="group" aria-label="Organize"><div class="menu-label">Organize</div>${item('By folder', !d.flat)}${item('Flat', !!d.flat)}</div>
       <div class="menu-sep"></div>
       <div role="group" aria-label="Sort"><div class="menu-label">Sort</div>${item('Recent activity', true)}${item('Created', false)}${item('Title', false)}</div></div>`;
-  const dev = d => `<div class="devg${d.on ? '' : ' off'}"><div class="dev open${d.hov ? ' hov' : ''}${d.menu ? ' menu' : ''}"><span class="dt" role="button" aria-expanded="true"><span class="lead"><span class="dot${d.on ? '' : ' off'}"${tip(d.on ? 'Online' : 'Offline')}></span></span><span class="dn">${d.n}</span><span class="dchv">${I.chev()}</span></span>${ib(I.more(), 'View options', d.menu ? 'on' : '')}${ib(I.plus(), d.on ? 'Add project' : `${d.n} is offline`, '', !d.on)}${d.menu ? menu(d) : ''}</div>
+  const dev = d => `<div class="devg${d.on ? '' : ' off'}"><div class="dev open${d.hov ? ' hov' : ''}${d.menu ? ' menu' : ''}"><span class="dt" role="button" aria-expanded="true"${tip(mName(d))}><span class="lead">${mIcon(d.os, d.on)}</span><span class="dn">${d.n}</span><span class="dchv">${I.chev()}</span></span>${ib(I.more(), 'View options', d.menu ? 'on' : '')}${ib(I.plus(), d.on ? 'Add project' : `${d.n} is offline`, '', !d.on)}${d.menu ? menu(d) : ''}</div>
       ${d.flat ? `<div class="grp">${flat(d)}</div>` : d.dirs.length ? pinGroup(d) + d.dirs.map(dir).join('') : '<div class="sdir none">No projects yet</div>'}</div>`;
   const age = s => { const m = /^(\d+)([mhd])$/.exec(s.time); return m ? +m[1] * { m: 1, h: 60, d: 1440 }[m[2]] : 0; };
   const tree = DEVS.map(dev).join('');
@@ -1669,7 +1699,7 @@ function liveTurn(state) {
 }
 
 /* the composer: where the session runs, the field, and a toolbar of attach, model, dictate and send */
-const DRAFT = ['draft', 'draft-directory', 'completions-draft'];
+const DRAFT = ['draft', 'draft-directory', 'completions-draft', 'machines-draft'];
 const cv = () => `<span class="cv">${I.down()}</span>`;
 const PROMPT = 'The composer forgets its height after a reload. The first screenshot is after a reload, the second before it.\n\nKeep the height per browser, not per session, and clamp it to the window so the conversation keeps at least 240 px.';
 const item2 = (label, on, sub = '') => `<div class="menu-item" role="menuitemradio" aria-checked="${on}"><span class="menu-check">${on ? I.check() : ''}</span>${label}${sub ? `<span class="sub">${sub}</span>` : ''}</div>`;
@@ -1764,12 +1794,13 @@ const COMMAND_STATES = ['command-sent', 'command-output', 'command-compact'];
 
 function whereRow(state) {
   const pick = DRAFT.includes(state);
+  const mmenu = state === 'machines-draft' ? `<div class="cpop" role="menu" aria-label="Machine"><div class="menu-title">Machine</div>${MACH.map((m, i) => `<div class="menu-item${m.on ? '' : ' dim'}" role="menuitemradio" aria-checked="${i === 0}" aria-label="${mName(m)}"><span class="menu-check">${i === 0 ? I.check() : ''}</span>${mIcon(m.os, m.on)}${m.n}<span class="sub">${m.on ? m.os : 'Offline'}</span></div>`).join('')}</div>` : '';
   const sl = '<span class="sl">/</span>';
   const menu = `<div class="cpop" role="menu" aria-label="Directory on MacBook Pro"><div class="menu-title">MacBook Pro</div>
     ${item2('hoplet', true, '~/github/repopro')}${item2('website', false, '~/github')}${item2('thesis', false, '~/Documents')}
     <div class="menu-sep"></div><div class="menu-item">${I.plus()}Add project…</div></div>`;
   return `<div class="loc">
-    <button class="chip${pick ? '' : ' ro'}"${tip(pick ? 'Machine' : 'MacBook Pro · online')}><span class="dot"></span>MacBook Pro${pick ? cv() : ''}</button>${sl}
+    <span class="anc"><button class="chip${pick ? '' : ' ro'}${mmenu ? ' on' : ''}"${tip(pick ? 'Machine' : 'MacBook Pro · online')}>${mIcon('macOS', true)}MacBook Pro${pick ? cv() : ''}</button>${mmenu}</span>${sl}
     <span class="anc"><button class="chip${pick ? '' : ' ro'}${state === 'draft-directory' ? ' on' : ''}"${tip(pick ? 'Directory' : '~/github/repopro/hoplet')}>${I.folder()}hoplet${pick ? cv() : ''}</button>${state === 'draft-directory' ? menu : ''}</span>${sl}
     <span class="chip ro"${tip('Git branch of ~/github/repopro/hoplet')}>${I.branch()}main</span></div>`;
 }
@@ -1890,7 +1921,7 @@ function composer(state) {
   };
   let box, pill = '';
   switch (state) {
-    case 'draft': case 'draft-directory':
+    case 'draft': case 'draft-directory': case 'machines-draft':
       box = full('Ask Claude Code…', false, '', true, 'Start · ↩'); break;
     case 'completions-draft':
       box = full('', true, '', true, 'Start · ↩'); break;
@@ -1900,7 +1931,7 @@ function composer(state) {
       box = full('', false, `<span class="cst" role="img"${tip('MacBook Pro is offline')}><span class="off-dot"></span>MacBook Pro offline</span>`, false); break;
     case 'compose': case 'model-menu': case 'mode-menu': case 'mode-bypass': case 'mode-plan':
       box = full('', true); break;
-    case 'ready': case 'add-project': case 'add-project-recent': case 'add-project-error':
+    case 'ready': case 'add-project': case 'add-project-recent': case 'add-project-error': case 'machines-add':
       box = state === 'ready'
         ? full('Ask Claude Code…', true, `<span class="cst" role="img"${tip('Ready · Claude Code is running')}><span class="ready-dot"></span></span>${ib(I.stop(), 'Stop Claude Code')}`)
         : full('Ask Claude Code…', true); break;
@@ -2116,7 +2147,7 @@ function inspector(state) {
   }
 
   const body = tab === 'changes' ? changesList(off) : filesTree();
-  const pick = `<div class="pick" title="Connected machines"><span class="dot"></span><span class="v">studio</span>${I.down()}</div>`;
+  const pick = `<div class="pick" title="Connected machines">${mIcon('Linux', true)}<span class="v">studio</span>${I.down()}</div>`;
   const step = (cls, icon, label, meta = '') => `<div class="step ${cls}"><span class="si">${icon}</span><span>${label}</span><span class="sm">${meta}</span></div>`;
   const pend = '<span class="pend"></span>';
   let card;
@@ -2192,8 +2223,9 @@ function addProjectModal(state) {
   const bar = err
     ? `<div class="pathbar"><div class="typed" role="textbox" aria-label="Folder path">/etc/ssh<span class="cr2"></span></div></div>`
     : `<div class="pathbar"><nav class="crumbs" aria-label="Folder path">${crumbs}</nav></div>`;
-  const sel = `<div class="sel" role="button" title="Machine" aria-label="Machine">
-    <span class="sl"><span class="dot"></span></span><span class="v">MacBook Pro</span>${I.down()}</div>`;
+  const mlist = state === 'machines-add' ? `<div class="pop" role="listbox" aria-label="Machine" style="top:calc(100% + var(--space-1));left:0;right:0">${MACH.map((m, i) => `<div class="menu-item${m.on ? '' : ' dim'}" role="option" aria-selected="${i === 0}"${m.on ? '' : ' aria-disabled="true"'} aria-label="${mName(m)}"><span class="menu-check">${i === 0 ? I.check() : ''}</span>${mIcon(m.os, m.on)}<span>${m.n}</span><span class="sub" style="margin-left:auto;color:var(--color-text-3)">${m.on ? m.os : 'Offline'}</span></div>`).join('')}</div>` : '';
+  const sel = `<div style="position:relative"><div class="sel" role="button" title="Machine" aria-label="Machine">
+    <span class="sl">${mIcon('macOS', true)}</span><span class="v">MacBook Pro</span>${I.down()}</div>${mlist}</div>`;
   return `<div class="scrim"></div><div class="modal ns wide" role="dialog" aria-modal="true" aria-label="Add project">
     <div class="ns-h"><b>Add project</b>${ib(I.close(), 'Close · Esc')}</div>
     <div class="ns-g">
@@ -2283,10 +2315,10 @@ function settingsMain(state) {
         <div class="pcr" lang="zh-Hans"><span class="radio"></span><span class="nm">简体中文</span></div>
       </div>`;
   } else {
-    const m = (n, on, seen) => `<div class="pr${on ? '' : ' off'}"><span class="lead"><span class="dot${on ? '' : ' off'}" role="img"${tip(on ? 'Online' : 'Offline')}></span></span><span class="nm">${n}</span><span class="meta">${seen}</span></div>`;
+    const m = (n, os, on, seen) => `<div class="pr${on ? '' : ' off'}" role="group" aria-label="${mName({ n, os, on })}"><span class="lead">${mIcon(os, on)}</span><span class="nm">${n}</span><span class="meta">${os}</span><span class="meta">${seen}</span></div>`;
     page = `<h1>Machines</h1>
       <div class="plh meta"><span>Machine</span><span>Last seen</span></div>
-      <div class="plist">${m('MacBook Pro', true, 'now')}${m('studio', true, 'now')}${m('office-mini', false, '6h ago')}${state === 'mint-online' ? m('studio-2', true, 'now') : ''}</div>
+      <div class="plist">${m('MacBook Pro', 'macOS', true, 'now')}${m('studio', 'Linux', true, 'now')}${m('office-mini', 'Windows', false, '6h ago')}${state === 'mint-online' ? m('studio-2', '', true, 'now') : ''}</div>
       ${MINT.includes(state) ? mintCard(state) : `<div class="sact"><button class="btn">${I.plus()}Add a machine</button></div>`}`;
   }
   return `<header class="top">${ib(I.back(), 'Back to the session · Esc')}<span class="title">Settings</span></header>
@@ -2365,18 +2397,18 @@ function deleteDialog(state) {
 function archivedMain(state) {
   const top = `<header class="top">${ib(I.back(), 'Back to the session · Esc', 'back')}<span class="title">Archived</span>${state === 'archived' ? '<span class="cnt2">9</span>' : ''}<span class="sp"></span></header>`;
   if (state === 'archived-empty') return top + `<div class="empty"><div class="in"><span class="tile">${sv(L.archive).replace('width="16" height="16"', 'width="20" height="20"')}</span><p>No archived sessions</p><span class="k"><span>Archive from the ··· menu</span><span><span class="kbd">⇧⌘A</span></span></span></div></div>`;
-  const mh = (name, n, o = {}) => `<div class="agm${o.off ? ' off' : ''}"><span class="${o.off ? 'dot off' : 'dot'}"></span><span class="dn">${name}</span>${o.off ? '<span class="tag">Offline</span>' : ''}<span class="cnt">${n}</span></div>`;
+  const mh = (name, os, n, o = {}) => `<div class="agm${o.off ? ' off' : ''}"${tip(mName({ n: name, os, on: !o.off }))}>${mIcon(os, !o.off)}<span class="dn">${name}</span>${o.off ? '<span class="tag">Offline</span>' : ''}<span class="cnt">${n}</span></div>`;
   const fh = (name, path, n, o = {}) => `<div class="agf${o.hov ? ' hov' : ''}"><span class="fi">${o.closed ? I.folder() : I.folderOpen()}</span><span class="dn">${name}</span><span class="pth">${path}</span><span class="rt">${o.hov ? `<button class="btn quiet" style="height:24px">${I.restore()}Restore all</button>` : ''}<span class="cnt">${n}</span></span></div>`;
   const ar = (t, time, o = {}) => `<div class="arow c${o.hov ? ' hov' : ''}">${pmark('claude')}<span class="tt"><span class="t1">${t}</span></span>${o.hov ? ib(I.restore(), 'Restore') + ib(I.trash(), 'Delete', 'dng') : ''}<span class="m">${time}</span></div>`;
   return top + `<div class="conv" style="overflow:auto"><div class="arch-list agp">
-      ${mh('MacBook Pro', 5)}
+      ${mh('MacBook Pro', 'macOS', 5)}
       ${fh('hoplet', '~/code/hoplet', 3, { hov: true })}
       ${ar('Resync the byte cursor on restart', '3d ago')}${ar('Fix the Flat sort order', '5d ago')}${ar('Audit docs/api.md', '3w ago')}
       ${fh('notes', '~/notes', 2, { closed: true })}
-      ${mh('studio', 2)}
+      ${mh('studio', 'Linux', 2)}
       ${fh('hoplet-app', '~/code/hoplet-app', 2)}
       ${ar('Why the byte cursor drifts after a crash', '1w ago', { hov: true })}${ar('Liquid Glass tab bar', '2w ago')}
-      ${mh('office-mini', 2, { off: true })}
+      ${mh('office-mini', 'Windows', 2, { off: true })}
       ${fh('notes', '~/notes', 2)}
       <div class="agoff">${ar('Resync on restart, take two', '4w ago', { hov: true })}${ar('Archive the old spike', '6w ago')}</div>
     </div></div>`;
@@ -2420,7 +2452,7 @@ function frame(state, scheme) {
     ${nosb ? '' : sidebar(state)}
     <main class="main">${main}</main>
     ${insp ? inspector(state) : ''}
-    ${state.startsWith('add-project') ? addProjectModal(state) : state === 'search' ? palette() : state === 'rename' ? renameDialog() : DELETE.includes(state) ? deleteDialog(state) : ''}
+    ${state.startsWith('add-project') || state === 'machines-add' ? addProjectModal(state) : state === 'search' ? palette() : state === 'rename' ? renameDialog() : DELETE.includes(state) ? deleteDialog(state) : ''}
   </div>`;
 }
 
@@ -2428,12 +2460,15 @@ function frame(state, scheme) {
 const SCREEN = {
   name: 'Cockpit',
   system: true,
-  blurb: 'The main window: the session sidebar, the conversation as turns, the composer, runtime states and permission requests, the command palette and New session. Each session row starts with its provider’s mark, drawn in the row’s text colour and never in brand colour, and ends with its runtime state when it is not idle, else its last-activity time. The sidebar footer names this window’s connection to the core (a dot and the host, “Reconnecting…” in red when lost) beside an icon-only Settings button. Search is a quiet field that opens the command palette (⌘K): sessions, line hits across sessions and actions in one centred list. A machine row folds its directories and shows a plus (Add project) on hover, which opens a dialog with the same chrome: a machine select (every machine with its presence dot, offline ones disabled, an Add a machine item that points to the host CLI), a path bar of clickable segments that turns into a field for a typed path, and the folders under the agent’s browse root with recent folders on top, in one frame whose first row is that path bar; the primary button names the selected folder. A directory row has no chevron and no indent: it is one button that folds it, led by a folder glyph that is open while the directory is, on the machine row’s glyph and name columns. Each machine row also shows an ellipsis on hover, next to the plus, that opens that machine’s view options under its name: Organize (By folder, the default, or Flat) and Sort (Recent activity, Created, Title). Flat lists the machine’s sessions as one list with a second line for each session’s directory and hides its directories; the choice is kept per machine in the browser and an offline machine keeps the menu. The sidebar follows the selected session: its machine and directory open and it scrolls into view. The top bar holds the title and the workspace toggle only. New session (⌘N) opens a draft: an empty conversation whose composer chooses the machine and the directory, and whose first prompt starts the session. The composer’s first row says where the session runs (machine / directory / git branch), read only once the session exists; its toolbar holds attach, the model with Thinking and Fast, dictate and send. The text grows to 8 lines, then scrolls; dragging the top edge sets a height the browser remembers, and a double-click resets it. Pasted and attached images sit as thumbnails above the text. The workspace inspector and Settings are their own screens (<code>workspace.html</code>, <code>settings.html</code>); here the inspector stays closed. The top bar’s ··· opens the session menu, which a session row’s context menu repeats: Rename (a small dialog that shows Claude’s title and falls back to it when cleared), Pin, Copy ›, Open in new window and Archive. Pinned sessions form a Pinned group at the top of their machine (Flat: first, with a pin glyph). The sidebar footer’s archive icon opens the Archived page: machine, then folder, newest first, Restore on a row and Restore all on a folder. A copy is confirmed by a toast. Typing in the composer opens completions in one popover at the caret. A / at the very start of the message lists Commands and Skills in two groups; picking a row inserts /name and a space, and the argument hint sits muted after the name. Each row is one line: name, hint, a description cut to what is left of the row, and a source tag (Project, User, Plugin plus the plugin’s name, Built-in). Built-ins are a whitelist, so /clear, /model and /help never appear. An @ anywhere lists paths of the session’s working tree, directories with a trailing / and a folder glyph, and inserts @path and a space; while the machine searches the popover says so, with no match it says that, and with the owner offline it says so and offers nothing. A draft has no process, so / shows the last list seen for that machine and directory, or the built-ins with a note that project commands and skills show once the session has started, and @ is not offered. Up and Down move, Tab or Enter insert, Esc closes. The popover is 620 px wide with its left edge at the caret, capped at the composer’s width and shifted left to stay inside it; the highlighted row (keyboard) has the selected fill, the top highlight and a 2 px left edge, a hovered row only a lighter fill, and the matched letters are accent and semibold. The field is a combobox with aria-activedescendant, the list a listbox of options in labelled groups, and status messages are role=status, so no cue is colour alone. In the transcript a sent command is a chip in the prompt row, its name in mono and its arguments muted mono; a local command’s output is a quiet block on the surface fill with a hairline and a 28 px header naming the command, its content in UI type (/context returns a table); /compact answers Compacted and the conversation gets a boundary divider.',
+  blurb: 'The main window: the session sidebar, the conversation as turns, the composer, runtime states and permission requests, the command palette and New session. Each session row starts with its provider’s mark, drawn in the row’s text colour and never in brand colour, and ends with its runtime state when it is not idle, else its last-activity time. The sidebar footer names this window’s connection to the core (a dot and the host, “Reconnecting…” in red when lost) beside an icon-only Settings button. Search is a quiet field that opens the command palette (⌘K): sessions, line hits across sessions and actions in one centred list. A machine row leads with its system’s mark (the Apple, Windows or Linux mark; a plain computer for any other system or an agent that does not report one), the size of a folder glyph, with the presence dot cut into its bottom-right: a solid green dot when online, a hollow ring and a muted mark when offline. The machine pickers and Settings use the same icon. A machine row folds its directories and shows a plus (Add project) on hover, which opens a dialog with the same chrome: a machine select (every machine with its system’s mark and presence dot, offline ones disabled, an Add a machine item that points to the host CLI), a path bar of clickable segments that turns into a field for a typed path, and the folders under the agent’s browse root with recent folders on top, in one frame whose first row is that path bar; the primary button names the selected folder. A directory row has no chevron and no indent: it is one button that folds it, led by a folder glyph that is open while the directory is, on the machine row’s glyph and name columns. Each machine row also shows an ellipsis on hover, next to the plus, that opens that machine’s view options under its name: Organize (By folder, the default, or Flat) and Sort (Recent activity, Created, Title). Flat lists the machine’s sessions as one list with a second line for each session’s directory and hides its directories; the choice is kept per machine in the browser and an offline machine keeps the menu. The sidebar follows the selected session: its machine and directory open and it scrolls into view. The top bar holds the title and the workspace toggle only. New session (⌘N) opens a draft: an empty conversation whose composer chooses the machine and the directory, and whose first prompt starts the session. The composer’s first row says where the session runs (machine / directory / git branch), read only once the session exists; its toolbar holds attach, the model with Thinking and Fast, dictate and send. The text grows to 8 lines, then scrolls; dragging the top edge sets a height the browser remembers, and a double-click resets it. Pasted and attached images sit as thumbnails above the text. The workspace inspector and Settings are their own screens (<code>workspace.html</code>, <code>settings.html</code>); here the inspector stays closed. The top bar’s ··· opens the session menu, which a session row’s context menu repeats: Rename (a small dialog that shows Claude’s title and falls back to it when cleared), Pin, Copy ›, Open in new window and Archive. Pinned sessions form a Pinned group at the top of their machine (Flat: first, with a pin glyph). The sidebar footer’s archive icon opens the Archived page: machine, then folder, newest first, Restore on a row and Restore all on a folder. A copy is confirmed by a toast. Typing in the composer opens completions in one popover at the caret. A / at the very start of the message lists Commands and Skills in two groups; picking a row inserts /name and a space, and the argument hint sits muted after the name. Each row is one line: name, hint, a description cut to what is left of the row, and a source tag (Project, User, Plugin plus the plugin’s name, Built-in). Built-ins are a whitelist, so /clear, /model and /help never appear. An @ anywhere lists paths of the session’s working tree, directories with a trailing / and a folder glyph, and inserts @path and a space; while the machine searches the popover says so, with no match it says that, and with the owner offline it says so and offers nothing. A draft has no process, so / shows the last list seen for that machine and directory, or the built-ins with a note that project commands and skills show once the session has started, and @ is not offered. Up and Down move, Tab or Enter insert, Esc closes. The popover is 620 px wide with its left edge at the caret, capped at the composer’s width and shifted left to stay inside it; the highlighted row (keyboard) has the selected fill, the top highlight and a 2 px left edge, a hovered row only a lighter fill, and the matched letters are accent and semibold. The field is a combobox with aria-activedescendant, the list a listbox of options in labelled groups, and status messages are role=status, so no cue is colour alone. In the transcript a sent command is a chip in the prompt row, its name in mono and its arguments muted mono; a local command’s output is a quiet block on the surface fill with a hairline and a 28 px header naming the command, its content in UI type (/context returns a table); /compact answers Compacted and the conversation gets a boundary divider.',
 };
 const STATES = [
   ['empty', 'no session selected; hover shows a directory’s +'],
   ['loaded', 'idle, workspace closed; office-mini › hoplet-app folded'],
   ['draft', 'New session (⌘N) as a draft: an empty conversation, the composer picks machine and directory'],
+  ['machines', 'the machine icon: the sidebar with macOS (expanded, hovered), Linux, Windows (offline) and a system the agent does not report'],
+  ['machines-draft', 'the machine icon in the draft composer: the machine chip and its picker, each machine with its system and state'],
+  ['machines-add', 'the machine icon in Add project: the machine select open, offline machines disabled'],
   ['draft-directory', 'the draft’s directory picker: the machine’s projects and Add project'],
   ['add-project', 'Add project: the machine and a folder browser, here in ~/github with a repository selected'],
   ['add-project-recent', 'Add project at the browse root: recent folders, then the folders under it'],

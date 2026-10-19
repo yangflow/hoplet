@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -161,6 +162,7 @@ func (c *Client) runOnce(ctx context.Context) error {
 		DeviceID:  c.deviceID,
 		Name:      c.cfg.DeviceName,
 		Version:   c.version,
+		System:    &DeviceSystem{OS: runtime.GOOS, Arch: runtime.GOARCH},
 		Providers: c.hooks.Providers,
 
 		PreviewHost: c.hooks.PreviewHost,

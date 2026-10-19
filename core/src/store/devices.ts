@@ -1,4 +1,5 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
+import type { DeviceSystem } from '@hoplet/shared';
 import { registerSecret } from '../log/index.ts';
 import type { StoreContext } from './layout.ts';
 
@@ -6,20 +7,26 @@ function hashToken(token: string): string {
   return createHash('sha256').update(token).digest('hex');
 }
 
+/**
+ * The hello describes the agent that is connected now: an agent that sends no `system` leaves the device with
+ * none.
+ */
 export function upsertDevice(
   ctx: StoreContext,
   deviceId: string,
   name: string,
   version: string,
+  system?: DeviceSystem,
 ): void {
   const now = Date.now();
   ctx.db
     .prepare(
-      `INSERT INTO devices(device_id, name, version, first_seen, last_seen)
-       VALUES(?, ?, ?, ?, ?)
-       ON CONFLICT(device_id) DO UPDATE SET name=excluded.name, version=excluded.version, last_seen=excluded.last_seen`,
+      `INSERT INTO devices(device_id, name, version, os, arch, first_seen, last_seen)
+       VALUES(?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(device_id) DO UPDATE SET name=excluded.name, version=excluded.version,
+         os=excluded.os, arch=excluded.arch, last_seen=excluded.last_seen`,
     )
-    .run(deviceId, name, version, now, now);
+    .run(deviceId, name, version, system?.os ?? null, system?.arch ?? null, now, now);
 }
 
 /** Record that the agent of a device just went away; its last connection is when it disconnected. */
@@ -29,19 +36,32 @@ export function touchDevice(ctx: StoreContext, deviceId: string): void {
 
 /**
  * `lastSeen` is the agent's last connection in milliseconds, absent for a device that never connected: a minted
- * device has no version until its agent says hello.
+ * device has no version until its agent says hello. `system` is null until an agent announces it.
  */
-export function listDevices(
-  ctx: StoreContext,
-): { deviceId: string; name: string; lastSeen?: number }[] {
+export interface StoredDevice {
+  deviceId: string;
+  name: string;
+  system: DeviceSystem | null;
+  lastSeen?: number;
+}
+
+export function listDevices(ctx: StoreContext): StoredDevice[] {
   const rows = ctx.db
     .prepare(
-      `SELECT device_id, name, version, last_seen FROM devices ORDER BY last_seen DESC, first_seen DESC`,
+      `SELECT device_id, name, version, os, arch, last_seen FROM devices ORDER BY last_seen DESC, first_seen DESC`,
     )
-    .all() as { device_id: string; name: string; version: string; last_seen: number }[];
+    .all() as {
+    device_id: string;
+    name: string;
+    version: string;
+    os: string | null;
+    arch: string | null;
+    last_seen: number;
+  }[];
   return rows.map((r) => ({
     deviceId: r.device_id,
     name: r.name,
+    system: r.os !== null && r.arch !== null ? { os: r.os, arch: r.arch } : null,
     ...(r.version !== '' ? { lastSeen: r.last_seen } : {}),
   }));
 }

@@ -1,4 +1,4 @@
-import type { DeviceInfo, LiveSessionMeta, ProviderInfo } from '@hoplet/shared';
+import type { DeviceInfo, DeviceSystem, LiveSessionMeta, ProviderInfo } from '@hoplet/shared';
 import { t } from '../../lib/i18n.ts';
 import type { SessionTarget } from './model.ts';
 
@@ -7,6 +7,8 @@ export type DeviceGroup = {
   name: string;
   deviceId: string | null;
   online: boolean;
+  /** What the agent announced about its machine; null for an agent that sent none. */
+  system: DeviceSystem | null;
   providers: ProviderInfo[];
   dirs: DirGroup[];
 };
@@ -58,6 +60,7 @@ export function liveDevice(
       deviceId: ownerId,
       name,
       connected: group.some((s) => s.ownerConnected),
+      system: null,
       providers: [],
     };
   return null;
@@ -99,6 +102,7 @@ export function buildTree(
       name,
       deviceId: device?.deviceId ?? null,
       online: deviceConnected(name, list, devices),
+      system: device?.system ?? null,
       providers: device?.providers ?? [],
       dirs: dirList,
     };
@@ -112,6 +116,7 @@ export function sessionTargets(groups: DeviceGroup[]): SessionTarget[] {
     deviceName: g.name,
     deviceId: g.deviceId,
     online: g.online,
+    system: g.system,
     providers: g.providers,
     dirs: g.dirs.map((d) => ({ path: d.path, name: d.name })),
   }));

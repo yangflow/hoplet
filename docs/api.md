@@ -130,6 +130,8 @@ Behavior a client relies on:
 
 - `GET /api/devices` lists every stored device and every connected one. `connected` is its presence; `lastSeen`
   (milliseconds) is when its agent last connected or disconnected and is absent for a device that never connected.
+  `system` (`os` and `arch`, Go's `GOOS` and `GOARCH` such as `darwin` and `arm64`) is what its agent announced in
+  `device.hello`, kept while the device is offline; it is `null` for a device whose agent never announced it.
 - `POST /api/sessions` answers when the agent has created and imported the session. Its error body carries the
   `promptId` that was sent, and a `reason` where the agent gave one.
 - `POST /api/sessions/:sessionId/prompt` answers `202` when the prompt reached the owner. A prompt is at most

@@ -3,9 +3,11 @@ import { useEffect } from 'react';
 import { Button } from '../../components/Button.tsx';
 import { IconButton } from '../../components/IconButton.tsx';
 import { Icon } from '../../components/icons.tsx';
+import { MachineIcon } from '../../components/MachineIcon.tsx';
 import { ProviderMark } from '../../components/provider-marks.tsx';
 import { t } from '../../lib/i18n.ts';
 import { pageKeysSuspended } from '../../lib/page-keys.ts';
+import { machineLabel, systemOf } from '../../lib/system.ts';
 import { type DeviceGroup, displayTitle } from './group.ts';
 import { compactRel } from './sidebar/rel.ts';
 
@@ -111,8 +113,11 @@ export function ArchivedPage(props: {
                 className={g.online ? undefined : 'agoff'}
                 data-testid="cockpit.archived-machine"
               >
-                <div className={`agm${g.online ? '' : ' off'}`}>
-                  <span className={`dot${g.online ? '' : ' off'}`} />
+                <div
+                  className={`agm${g.online ? '' : ' off'}`}
+                  title={machineLabel(g.name, g.system, g.online)}
+                >
+                  <MachineIcon kind={systemOf(g.system?.os)} online={g.online} />
                   <span className="dn">{g.name}</span>
                   {g.online ? null : <span className="tag">{t('Offline')}</span>}
                   <span className="cnt">{archivedCount([g])}</span>

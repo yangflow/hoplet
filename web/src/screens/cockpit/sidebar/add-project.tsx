@@ -1,4 +1,4 @@
-import type { DeviceDirsResult } from '@hoplet/shared';
+import type { DeviceDirsResult, DeviceSystem } from '@hoplet/shared';
 import { type KeyboardEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '../../../components/Button.tsx';
 import { Dialog } from '../../../components/Dialog.tsx';
@@ -20,12 +20,19 @@ import { t } from '../../../lib/i18n.ts';
 import { ROOT_PATH, useDirBrowser } from '../../../lib/use-dir-browser.ts';
 import { pathLeaf } from '../group.ts';
 import '../../../components/dir-browser.css';
+import { MachineIcon } from '../../../components/MachineIcon.tsx';
+import { systemName, systemOf } from '../../../lib/system.ts';
 
 /** How many of a machine's candidates the Recent group shows. */
 const RECENT_MAX = 5;
 const ADD_MACHINE = '\u0000add-machine';
 
-export type AddProjectMachine = { deviceId: string | null; name: string; online: boolean };
+export type AddProjectMachine = {
+  deviceId: string | null;
+  name: string;
+  online: boolean;
+  system: DeviceSystem | null;
+};
 
 /** Development fixture: the listings a machine would answer, where to start and what is already chosen. */
 export type AddProjectFixture = {
@@ -35,6 +42,8 @@ export type AddProjectFixture = {
   selected?: string;
   /** A typed path the agent refused: the text in the field and the reason it gave. */
   typed?: { text: string; reason: string };
+  /** The machine select starts open. */
+  machineOpen?: boolean;
 };
 
 type Row = {
@@ -226,9 +235,10 @@ export function AddProject(props: {
   const machineOptions = [
     ...machines.map((m) => ({
       value: m.name,
-      label: m.online ? m.name : `${m.name} · ${t('offline')}`,
+      label: m.name,
+      detail: m.online ? (systemName(m.system?.os) ?? undefined) : t('Offline'),
       disabled: !m.online,
-      leading: <span className={`dot${m.online ? '' : ' off'}`} aria-hidden="true" />,
+      leading: <MachineIcon kind={systemOf(m.system?.os)} online={m.online} />,
     })),
     { value: ADD_MACHINE, label: t('Add a machine'), leading: Icon.plus() },
   ];
@@ -301,6 +311,7 @@ export function AddProject(props: {
             value={machineName}
             options={machineOptions}
             onChange={chooseMachine}
+            initialOpen={fixture?.machineOpen ?? false}
             data-testid="cockpit.add-machine"
           />
           {hint ? (

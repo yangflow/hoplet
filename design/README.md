@@ -13,6 +13,8 @@ The mockups, design tokens and app icon behind Hoplet's web UI. The design langu
   - `settings` includes the Model providers section (read-only, a tab per machine and a row per provider its agent
     announces): `settings-providers`, `settings-providers-newer`, `settings-providers-offline`,
     `settings-providers-none`, `settings-providers-empty`.
+  - `cockpit` includes the machine icon, the system's mark with the presence dot at its bottom-right: the sidebar
+    (`machines`), the draft's machine picker (`machines-draft`) and the Add project machine select (`machines-add`).
   - `cockpit` includes deleting a session: Delete… in the actions menu (`session-menu-delete`), Delete beside Restore
     on a hovered Archived row (`archived`), and the confirmation dialog with its states (`delete`,
     `delete-worktree`, `delete-dirty`, `delete-offline`, `delete-running`, `delete-progress`, `delete-partial`).

@@ -18,14 +18,27 @@ import type { ProvidersFixture } from './providers.tsx';
 
 const NOW = Date.UTC(2026, 9, 8, 12, 0, 0);
 
-function machine(deviceId: string, name: string, connected: boolean, lastSeen: number): DeviceInfo {
-  return { deviceId, name, connected, lastSeen, providers: [] };
+function machine(
+  deviceId: string,
+  name: string,
+  connected: boolean,
+  lastSeen: number,
+  os?: string,
+): DeviceInfo {
+  return {
+    deviceId,
+    name,
+    connected,
+    lastSeen,
+    system: os ? { os, arch: 'amd64' } : null,
+    providers: [],
+  };
 }
 
 const DEVICES: DeviceInfo[] = [
-  machine('dev-macbook', 'MacBook Pro', true, NOW),
-  machine('dev-studio', 'studio', true, NOW),
-  machine('dev-office', 'office-mini', false, NOW - 6 * 3_600_000),
+  machine('dev-macbook', 'MacBook Pro', true, NOW, 'darwin'),
+  machine('dev-studio', 'studio', true, NOW, 'linux'),
+  machine('dev-office', 'office-mini', false, NOW - 6 * 3_600_000, 'windows'),
 ];
 
 const STUDIO_2 = { deviceId: 'dev-studio-2', name: 'studio-2', token: 'fixture-token' };

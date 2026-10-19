@@ -16,6 +16,7 @@ import { sessionQueue } from './0013-session-queue.ts';
 import { notifications } from './0014-notifications.ts';
 import { sessionDeletion } from './0015-session-deletion.ts';
 import { sessionContinuations } from './0016-session-continuations.ts';
+import { deviceSystem } from './0017-device-system.ts';
 
 export interface Migration {
   readonly id: number;
@@ -40,6 +41,7 @@ const MIGRATIONS: readonly Migration[] = [
   notifications,
   sessionDeletion,
   sessionContinuations,
+  deviceSystem,
 ];
 
 export function migrate(db: DatabaseSync): void {

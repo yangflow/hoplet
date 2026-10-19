@@ -149,7 +149,7 @@ describe('machine rows', () => {
 
   it('names the presence in the toggle and offers Add project', async () => {
     await show();
-    expect(toggle().getAttribute('aria-label')).toBe('studio · Online');
+    expect(toggle().getAttribute('aria-label')).toBe('studio, online');
     expect(add().getAttribute('aria-label')).toBe('Add project');
     expect(add().title).toBe('Add project');
     expect(add().disabled).toBe(false);

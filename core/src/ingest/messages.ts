@@ -25,7 +25,7 @@ export function handleMessage(deps: MessageDeps, conn: Conn, msg: ClientMessage)
         capabilities: msg.capabilities,
         previewHost: msg.previewHost,
       });
-      store.upsertDevice(msg.deviceId, msg.name, msg.version);
+      store.upsertDevice(msg.deviceId, msg.name, msg.version, msg.system);
       log('info', 'ingest', 'device online', {
         device: msg.deviceId,
         name: msg.name,
