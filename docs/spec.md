@@ -19,8 +19,8 @@ working tree to another machine.
   reads Codex's rollout files (`$CODEX_HOME/sessions/YYYY/MM/DD/rollout-<time>-<threadId>.jsonl`, or `.jsonl.zst`
   once Codex has compressed it) read-only, with the thread ID as session ID and the byte cursor counting
   uncompressed bytes ([ADR 0027](adr/0027-codex-runs-on-its-app-server-and-enters-at-level-2.md)); the core stores
-  the lines, takes a Codex session's project path and start time from the `session_meta` line, maps none of the
-  other lines into entries yet, and does not hand Codex sessions off.
+  the lines, takes a Codex session's project path and start time from the `session_meta` line and its title from
+  the first user message, maps the `item_completed` events into entries, and does not hand Codex sessions off.
 - **The server keeps a verbatim copy of every session**, synced incrementally with the byte offset as the
   cursor ([ADR 0002](adr/0002-the-byte-offset-is-the-sync-cursor.md)). Opening a session never needs the
   owner machine.

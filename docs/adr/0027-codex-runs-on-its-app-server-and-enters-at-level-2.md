@@ -107,10 +107,13 @@ spike verifies.
   - A file installed from a `.jsonl.zst` source is installed uncompressed.
   - The target's working directory goes to `thread/resume`. Codex records it in the next `turn_context` and
     rewrites nothing.
-- **Mapping.** `core/src/api/projection/codex.ts` reads `response_item` records (messages, reasoning, function
-  and custom tool calls and their outputs) into the conversation model, and classifies Codex's tools into tool
-  kinds. `session_meta`, `turn_context`, `event_msg`, `token_usage_record` and `world_state` are Codex's
-  bookkeeping.
+- **Mapping.** `core/src/api/projection/codex.ts` reads the `event_msg` records of type `item_completed` (user
+  and agent messages, reasoning, command executions, file changes, MCP calls, web searches, plans) and
+  `turn_aborted` into the conversation model, and classifies Codex's tools into tool kinds. A rollout holds the
+  conversation twice, and the items are the semantic one: `response_item` is the model's raw input and output
+  (injected context, developer messages, tool calls as JavaScript) and maps to nothing. `session_meta`,
+  `turn_context`, `token_usage_record`, `world_state` and the other events are Codex's bookkeeping. The title is
+  the first user message.
 
 ## Cost
 

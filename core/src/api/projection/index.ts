@@ -5,6 +5,7 @@
  */
 import type { Entry, FullBlock, Provider, ToolKind, ToolMcp } from '@hoplet/shared';
 import { classifyClaudeTool, mapClaudeLine } from './claude.ts';
+import { classifyCodexTool, mapCodexLine } from './codex.ts';
 import { blockText, elideEntry } from './elide.ts';
 
 export { ELIDE_ABOVE_BYTES, PREVIEW_BYTES } from './elide.ts';
@@ -22,8 +23,7 @@ export type ToolClass = { kind: ToolKind; mcp?: ToolMcp };
 
 const MAPPINGS: Record<Provider, Mapping> = {
   claude: { line: mapClaudeLine, tool: classifyClaudeTool },
-  // Codex lines are stored verbatim; their mapping into entries is not written yet, so a Codex session reads empty.
-  codex: { line: () => null, tool: () => ({ kind: 'other' }) },
+  codex: { line: mapCodexLine, tool: classifyCodexTool },
 };
 
 /** The entry of a stored line with every block in full, or `null` when the line holds nothing to show. */

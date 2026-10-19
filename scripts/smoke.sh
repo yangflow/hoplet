@@ -165,7 +165,14 @@ let d="";process.stdin.on("data",c=>d+=c).on("end",()=>{
   const ok=s.length===2&&s.some(x=>x.sessionId===process.argv[2]&&x.projectPath===process.argv[1])&&s.some(x=>x.sessionId===process.argv[3]&&x.provider==="codex"&&x.projectPath===process.argv[1]);
   process.exit(ok?0:1);
 })' "$PROJECT" "$SESSION_ID" "$CODEX_ID" 2>"$LOG_NODE" || fail "unexpected sessions outside synthetic fixtures"
-
+api "/api/sessions/$CODEX_ID/lines?start=0&limit=10" | node -e '
+let d="";process.stdin.on("data",c=>d+=c).on("end",()=>{
+  const p=JSON.parse(d);
+  const text=(e)=>e.blocks.map(b=>b.text||"").join("");
+  const ok=d.length<8192&&p.entries.length===4&&p.entries[0].role==="user"&&text(p.entries[0])==="codex turn 0"&&text(p.entries[1])==="codex answer 0";
+  process.exit(ok?0:1);
+})' 2>"$LOG_NODE" || fail "Codex 会话读取异常（item_completed 映射，或 session_meta 被整行返回）"
+echo "   Codex 会话按对话模型分页，70KB 的 session_meta 不外泄 ✓"
 
 STORED=$(du -sk "$TMP/server-data/sessions" | cut -f1)
 echo ""
