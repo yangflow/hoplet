@@ -13,6 +13,7 @@ import { postAddProject } from '../../lib/api.ts';
 import { errorText } from '../../lib/errors.ts';
 import { t } from '../../lib/i18n.ts';
 import { pageKeysSuspended } from '../../lib/page-keys.ts';
+import { useDevices } from '../../lib/use-devices.ts';
 import {
   changesOf,
   Inspector,
@@ -35,7 +36,6 @@ import { Sidebar } from './sidebar/sidebar.tsx';
 import type { MachineViews } from './sidebar/sidebar-view.ts';
 import { useWatchedProjects } from './sidebar/use-watched-projects.ts';
 import { EmptyState, TopBar } from './topbar.tsx';
-import { useDevices } from './use-devices.ts';
 import type { SearchState } from './use-search.ts';
 import '../../components/components.css';
 import './shell.css';

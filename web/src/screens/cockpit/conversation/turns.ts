@@ -4,8 +4,8 @@
  * nearest turn; lines before the first prompt of the loaded window form a turn without a prompt.
  */
 import type { BlockType, ElidedBlock, Entry, FullBlock, ToolKind, ToolMcp } from '@hoplet/shared';
+import { type Language, languageOfPath } from '../../../lib/highlight.ts';
 import { type DiffRow, lineDiff } from './diff.ts';
-import { type Language, languageOfPath } from './highlight.ts';
 import { base64Bytes } from './tools.ts';
 
 /** An elided block: its preview, its size, and where to fetch the whole of it. */

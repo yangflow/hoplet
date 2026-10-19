@@ -4,8 +4,8 @@
  * https and mailto links are links.
  */
 import type { ReactNode } from 'react';
-import { CodeLines } from './code.tsx';
-import { type Language, languageOfFence } from './highlight.ts';
+import { type Language, languageOfFence } from '../lib/highlight.ts';
+import { CodeLines } from './Code.tsx';
 
 export type MdBlock =
   | { type: 'heading'; level: number; text: string }

@@ -3,12 +3,13 @@ import { Fragment, type ReactNode } from 'react';
 import { Button } from '../../../components/Button.tsx';
 import { IconButton } from '../../../components/IconButton.tsx';
 import { Icon, Spinner } from '../../../components/icons.tsx';
+import { Markdown } from '../../../components/Markdown.tsx';
+import { clock, formatCountdown, formatTimer } from '../../../lib/format.ts';
+import { languageOfPath } from '../../../lib/highlight.ts';
 import { t } from '../../../lib/i18n.ts';
 import type { Select } from '../composer/mode-menu.tsx';
 import type { RuntimeState } from '../model.ts';
 import { ElidedPanel } from './blocks.tsx';
-import { clock, formatCountdown, formatTimer } from './format.ts';
-import { languageOfPath } from './highlight.ts';
 import {
   ELIDED_PREVIEW_CHARS,
   type LiveItem,
@@ -20,7 +21,6 @@ import {
   PERMISSION_OPEN_MS,
   permissionInput,
 } from './live-turn.ts';
-import { Markdown } from './markdown.tsx';
 import { linesOf, OutputWell } from './OutputWell.tsx';
 import { PlanCard, PlanResolved, type PlanView } from './plan-card.tsx';
 import {

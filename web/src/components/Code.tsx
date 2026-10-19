@@ -1,4 +1,4 @@
-import { highlightLine, type Language } from './highlight.ts';
+import { highlightLine, type Language } from '../lib/highlight.ts';
 
 /** Highlighted lines of code; the caller supplies the block that holds them. */
 export function CodeLines({ text, language }: { text: string; language: Language }) {

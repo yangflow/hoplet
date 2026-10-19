@@ -7,11 +7,11 @@ import { Icon, Spinner } from '../../components/icons.tsx';
 import { Select } from '../../components/Select.tsx';
 import { TextField } from '../../components/TextField.tsx';
 import { fetchDeviceDirs } from '../../lib/api.ts';
+import { breadcrumbs, childPath, displayPath, resolveTyped } from '../../lib/browse.ts';
 import { ApiError, browseErrorText, errorText } from '../../lib/errors.ts';
 import { t } from '../../lib/i18n.ts';
-import { breadcrumbs, childPath, displayPath, resolveTyped } from '../cockpit/sidebar/browse.ts';
-import { ROOT_PATH, useDirBrowser } from '../cockpit/sidebar/use-dir-browser.ts';
-import '../cockpit/shell.css';
+import { ROOT_PATH, useDirBrowser } from '../../lib/use-dir-browser.ts';
+import '../../components/dir-browser.css';
 
 /** Development fixture: the listings the machine would answer, where to start, and what the dialog already says. */
 export type CloneIntoFixture = {

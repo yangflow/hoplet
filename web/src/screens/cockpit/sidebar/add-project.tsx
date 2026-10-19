@@ -7,9 +7,6 @@ import { Icon, Spinner } from '../../../components/icons.tsx';
 import { Select } from '../../../components/Select.tsx';
 import { TextField } from '../../../components/TextField.tsx';
 import { fetchDeviceDirs, fetchDeviceProjects } from '../../../lib/api.ts';
-import { ApiError, addProjectErrorText, browseErrorText } from '../../../lib/errors.ts';
-import { t } from '../../../lib/i18n.ts';
-import { pathLeaf } from '../group.ts';
 import {
   breadcrumbs,
   childPath,
@@ -17,8 +14,12 @@ import {
   moveIndex,
   type NavKey,
   resolveTyped,
-} from './browse.ts';
-import { ROOT_PATH, useDirBrowser } from './use-dir-browser.ts';
+} from '../../../lib/browse.ts';
+import { ApiError, addProjectErrorText, browseErrorText } from '../../../lib/errors.ts';
+import { t } from '../../../lib/i18n.ts';
+import { ROOT_PATH, useDirBrowser } from '../../../lib/use-dir-browser.ts';
+import { pathLeaf } from '../group.ts';
+import '../../../components/dir-browser.css';
 
 /** How many of a machine's candidates the Recent group shows. */
 const RECENT_MAX = 5;

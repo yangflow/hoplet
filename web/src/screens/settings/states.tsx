@@ -7,10 +7,10 @@ import type {
   WebhookInfo,
 } from '@hoplet/shared';
 import { type ReactNode, useEffect } from 'react';
+import { type Appearance, applyText, DEFAULTS } from '../../lib/prefs.ts';
 import { type SectionId, Settings } from './index.tsx';
 import type { MachinesFixture } from './machines.tsx';
 import type { NotifyFixture, PushState } from './notifications.tsx';
-import { type Appearance, applyText, DEFAULTS } from './prefs.ts';
 import type { ProvidersFixture } from './providers.tsx';
 
 // Fixtures for /__states/settings/<state>: every state of design/screens/settings.html.

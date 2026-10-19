@@ -4,13 +4,11 @@ import { IconButton } from '../../components/IconButton.tsx';
 import { Icon } from '../../components/icons.tsx';
 import { t } from '../../lib/i18n.ts';
 import '../../components/components.css';
-import '../cockpit/shell.css';
-import '../cockpit/conversation/conversation.css';
 import './settings.css';
+import type { Appearance } from '../../lib/prefs.ts';
 import { AppearanceSection } from './appearance.tsx';
 import { type MachinesFixture, MachinesSection } from './machines.tsx';
 import { NotificationsSection, type NotifyFixture } from './notifications.tsx';
-import type { Appearance } from './prefs.ts';
 import { type ProvidersFixture, ProvidersSection } from './providers.tsx';
 
 /**

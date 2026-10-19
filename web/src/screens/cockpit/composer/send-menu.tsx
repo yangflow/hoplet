@@ -4,7 +4,7 @@ import { Button } from '../../../components/Button.tsx';
 import { Icon } from '../../../components/icons.tsx';
 import { Popover } from '../../../components/Popover.tsx';
 import { t } from '../../../lib/i18n.ts';
-import type { SendMode } from '../../settings/prefs.ts';
+import type { SendMode } from '../../../lib/prefs.ts';
 
 /** The name of a way to send while a turn runs. */
 export function sendModeName(mode: SendMode): string {

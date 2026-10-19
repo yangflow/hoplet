@@ -14,7 +14,7 @@ import {
   type Size,
   UI_FONTS,
   type UiFont,
-} from './prefs.ts';
+} from '../../lib/prefs.ts';
 
 /** The look of a window in one scheme, drawn from that scheme's own tokens. */
 function Mini(props: { scheme: 'light' | 'dark'; half?: boolean }) {

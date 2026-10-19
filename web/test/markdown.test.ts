@@ -1,13 +1,9 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
+import { Markdown, parseMarkdown } from '../src/components/Markdown.tsx';
+import { highlightLine, languageOfFence, languageOfPath } from '../src/lib/highlight.ts';
 import { lineDiff } from '../src/screens/cockpit/conversation/diff.ts';
-import {
-  highlightLine,
-  languageOfFence,
-  languageOfPath,
-} from '../src/screens/cockpit/conversation/highlight.ts';
-import { Markdown, parseMarkdown } from '../src/screens/cockpit/conversation/markdown.tsx';
 
 const html = (text: string, caret = false) =>
   renderToStaticMarkup(createElement(Markdown, { text, caret }));

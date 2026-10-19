@@ -6,8 +6,8 @@ import { IconButton } from '../../components/IconButton.tsx';
 import { Icon, Spinner } from '../../components/icons.tsx';
 import { Select } from '../../components/Select.tsx';
 import { TextField } from '../../components/TextField.tsx';
+import { clock, formatBytes } from '../../lib/format.ts';
 import { t } from '../../lib/i18n.ts';
-import { clock, formatBytes } from '../cockpit/conversation/format.ts';
 import { CloneInto, destinationText } from './clone-into.tsx';
 import {
   CLONE_UNREADABLE,

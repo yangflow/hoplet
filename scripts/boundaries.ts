@@ -80,6 +80,12 @@ const FILESYSTEM_ALLOWED = /^core\/src\/(?:store\/|config\/|api\/static\.ts$)/;
 // The one module that imports the icon family: the rest of the web UI takes icons from it.
 const ICON_MODULE = 'web/src/components/icons.tsx';
 
+// A screen is web/src/screens/<screen>/. Another screen is used through its index.tsx; the fixtures a screen
+// builds for /__states are the only files that reach further.
+const screenOf = (repoPath: string): string | undefined =>
+  /^web\/src\/screens\/([^/]+)\//.exec(repoPath)?.[1];
+const SCREEN_FIXTURE = /\/(?:states\.tsx|fixtures\.ts)$/;
+
 // Which module may import which, the "May call" column of docs/architecture.md#components. `config` is
 // also read for its type where a module is handed the configuration.
 const MAY_CALL: Record<string, readonly string[]> = {
@@ -124,6 +130,19 @@ export function checkBoundaries(files: ReadonlyMap<string, string>): Violation[]
       const into = moduleOf(to);
       if (from && into && from !== into && to !== `core/src/${into}/index.ts`)
         add(`another module is imported only through core/src/${into}/index.ts`);
+      const screen = screenOf(file);
+      const otherScreen = screenOf(to);
+      if (
+        screen &&
+        otherScreen &&
+        screen !== otherScreen &&
+        to !== `web/src/screens/${otherScreen}/index.tsx` &&
+        !SCREEN_FIXTURE.test(file) &&
+        !SCREEN_FIXTURE.test(to)
+      )
+        add(
+          'a screen uses another screen only through its index.tsx; shared code lives in lib/ or components/',
+        );
       const allowed = from ? MAY_CALL[from] : undefined;
       if (from && into && from !== into && allowed && !allowed.includes(into))
         add(`${from} may not call ${into} (docs/architecture.md#components)`);

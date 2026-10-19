@@ -150,7 +150,7 @@ edit and a run of tools, then the live turn), not copied from a session.
 Shared components live in `web/src/components/` and screens compose them; a screen never styles its own
 variant of a shared component. Set: `TokenGate`, `Button`, `IconButton` (icon only, its accessible name is its
 tooltip), `TextField`, `Row`, `Fold`, `Badge` (state labels and keycaps), `Panel`, `Popover`, `Select`, `Switch`,
-`Dialog` (a centred modal over a scrim with a focus trap: the command palette, Add project, Rename), `Menu` (a popover list of actions
+`Markdown` (safe prose from assistant text) and `Code` (syntax-coloured lines), the output well (`.well`, a framed block of mono lines), the folder browser of Add project and Clone into (`dir-browser.css`), `Dialog` (a centred modal over a scrim with a focus trap: the command palette, Add project, Rename), `Menu` (a popover list of actions
 in groups with hairlines between them, a keycap on the right of an item and a submenu opening to the right of its
 parent: the session menu), `Toast` (a transient confirmation that rises from the foot of the conversation like
 the jump pill, with its shadow, and fades after a few seconds). Icons are

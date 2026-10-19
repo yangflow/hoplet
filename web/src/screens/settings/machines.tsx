@@ -8,7 +8,7 @@ import { postMintDevice } from '../../lib/api.ts';
 import { copyText } from '../../lib/clipboard.ts';
 import { errorText } from '../../lib/errors.ts';
 import { t } from '../../lib/i18n.ts';
-import { useDevices } from '../cockpit/use-devices.ts';
+import { useDevices } from '../../lib/use-devices.ts';
 import { lastSeenText } from './last-seen.ts';
 
 /** What a state of the design starts from: the machines, and a machine already minted. */
