@@ -157,9 +157,10 @@ const request = (over: Msg = {}) => ({
 describe('the session listing carries the runtime state', () => {
   it('is offline without the owner, idle with it, and what the owner reports', async () => {
     const { store, get, agent } = await boot();
-    store.append({ sessionId: 's1', projectDir: 'p', filePath: '/s1', deviceId: 'dev-a' }, [
-      '{"type":"user"}',
-    ]);
+    store.append(
+      { sessionId: 's1', provider: 'claude', projectDir: 'p', filePath: '/s1', deviceId: 'dev-a' },
+      ['{"type":"user"}'],
+    );
     const listed = async () => ((await get('/api/sessions')).body.sessions as Msg[])[0];
 
     expect((await listed())?.runtime).toEqual({ state: 'offline' });
@@ -214,7 +215,7 @@ describe('POST /api/sessions', () => {
     for (const bad of [
       { ...request(), text: '   ' },
       { ...request(), promptId: '' },
-      { ...request(), provider: 'codex' },
+      { ...request(), provider: 'gemini' },
       { ...request(), config: 'x' },
       { ...request(), config: { thinking: 1 } },
       { deviceId: 'dev-a' },
@@ -314,7 +315,13 @@ describe('POST /api/sessions', () => {
     expect(control.providerOf(NEW_ID)).toBe('claude');
     owner.send({ type: 'runtime.state', sessionId: NEW_ID, state: 'running', capabilities: CAPS });
     store.append(
-      { sessionId: NEW_ID, projectDir: 'p', filePath: `/${NEW_ID}`, deviceId: 'dev-a' },
+      {
+        sessionId: NEW_ID,
+        provider: 'claude',
+        projectDir: 'p',
+        filePath: `/${NEW_ID}`,
+        deviceId: 'dev-a',
+      },
       ['{"type":"user"}'],
     );
     await new Promise((r) => setTimeout(r, 100));
@@ -384,7 +391,13 @@ describe('POST /api/sessions', () => {
     });
     owner.send({ type: 'runtime.state', sessionId: NEW_ID, state: 'ready', capabilities: CAPS });
     store.append(
-      { sessionId: NEW_ID, projectDir: 'p', filePath: `/${NEW_ID}`, deviceId: 'dev-a' },
+      {
+        sessionId: NEW_ID,
+        provider: 'claude',
+        projectDir: 'p',
+        filePath: `/${NEW_ID}`,
+        deviceId: 'dev-a',
+      },
       ['{"type":"user"}'],
     );
     await new Promise((r) => setTimeout(r, 100));
@@ -558,9 +571,10 @@ describe('images for a prompt (ADR 0017)', () => {
   it('forwards the attachments a prompt names, only to a driver that takes images', async () => {
     const env = await boot();
     const owner = await env.agent('dev-a', IMAGE_PROVIDERS);
-    env.store.append({ sessionId: 's1', projectDir: 'p', filePath: '/s1', deviceId: 'dev-a' }, [
-      '{"type":"user"}',
-    ]);
+    env.store.append(
+      { sessionId: 's1', provider: 'claude', projectDir: 'p', filePath: '/s1', deviceId: 'dev-a' },
+      ['{"type":"user"}'],
+    );
     const pending = env.post('/api/sessions/s1/prompt', {
       text: 'look at this',
       promptId: 'p1',
@@ -581,9 +595,10 @@ describe('images for a prompt (ADR 0017)', () => {
 
     const plain = await boot();
     const other = await plain.agent('dev-a');
-    plain.store.append({ sessionId: 's1', projectDir: 'p', filePath: '/s1', deviceId: 'dev-a' }, [
-      '{"type":"user"}',
-    ]);
+    plain.store.append(
+      { sessionId: 's1', provider: 'claude', projectDir: 'p', filePath: '/s1', deviceId: 'dev-a' },
+      ['{"type":"user"}'],
+    );
     expect(
       await plain.post('/api/sessions/s1/prompt', {
         text: 'x',
@@ -616,9 +631,10 @@ describe('the config of a session', () => {
   async function owned(providers: unknown[] = PROVIDERS) {
     const env = await boot();
     const owner = await env.agent('dev-a', providers);
-    env.store.append({ sessionId: 's1', projectDir: 'p', filePath: '/s1', deviceId: 'dev-a' }, [
-      '{"type":"user"}',
-    ]);
+    env.store.append(
+      { sessionId: 's1', provider: 'claude', projectDir: 'p', filePath: '/s1', deviceId: 'dev-a' },
+      ['{"type":"user"}'],
+    );
     return { ...env, owner };
   }
   const change = (configId: string, value: unknown) => ({ configId, value });
@@ -729,9 +745,10 @@ describe('a prompt', () => {
   it('carries no options', async () => {
     const env = await boot();
     const owner = await env.agent('dev-a', PROVIDERS);
-    env.store.append({ sessionId: 's1', projectDir: 'p', filePath: '/s1', deviceId: 'dev-a' }, [
-      '{"type":"user"}',
-    ]);
+    env.store.append(
+      { sessionId: 's1', provider: 'claude', projectDir: 'p', filePath: '/s1', deviceId: 'dev-a' },
+      ['{"type":"user"}'],
+    );
     const pending = env.post('/api/sessions/s1/prompt', { text: 'x', promptId: 'p1' });
     const forwarded = await owner.waitFor((m) => m.type === 'runtime.prompt', 'runtime.prompt');
     expect(forwarded.options).toBeUndefined();

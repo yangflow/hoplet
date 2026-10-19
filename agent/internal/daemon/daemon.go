@@ -15,6 +15,7 @@ import (
 	"github.com/yangflow/hoplet/agent/internal/projects"
 	"github.com/yangflow/hoplet/agent/internal/provider"
 	claudeprovider "github.com/yangflow/hoplet/agent/internal/provider/claude"
+	codexprovider "github.com/yangflow/hoplet/agent/internal/provider/codex"
 	"github.com/yangflow/hoplet/agent/internal/sync"
 	"github.com/yangflow/hoplet/agent/internal/terminal"
 )
@@ -47,7 +48,8 @@ func vendors(cfg *config.Config) []provider.Provider {
 		vendorCfg = cfg
 		claude := claudeprovider.New(cfg.ClaudeProjects, cfg.ExcludePrefixes)
 		claude.SetProjectHints(func() []string { return watchedPaths(cfg.HopletHome) })
-		vendorList = []provider.Provider{claude}
+		codex := codexprovider.New(codexprovider.SessionsDir(cfg.CodexHome), cfg.ExcludePrefixes)
+		vendorList = []provider.Provider{claude, codex}
 	}
 	return vendorList
 }

@@ -95,13 +95,16 @@ function setup(options: { publicUrl?: string | null } = {}) {
   const dir = mkdtempSync(path.join(tmpdir(), 'hoplet-notify-'));
   dirs.push(dir);
   const store = new Store(dir);
-  store.append({ sessionId: 's1', projectDir: 'p', filePath: '/x', deviceId: 'dev-a' }, [
-    JSON.stringify({
-      type: 'user',
-      cwd: PROJECT,
-      message: { role: 'user', content: 'Fix the login bug' },
-    }),
-  ]);
+  store.append(
+    { sessionId: 's1', provider: 'claude', projectDir: 'p', filePath: '/x', deviceId: 'dev-a' },
+    [
+      JSON.stringify({
+        type: 'user',
+        cwd: PROJECT,
+        message: { role: 'user', content: 'Fix the login bug' },
+      }),
+    ],
+  );
   const clock = { now: T0 };
   const control = createControl(store, { now: () => clock.now, startTimeoutMs: 100 });
   const link = fakeLink();

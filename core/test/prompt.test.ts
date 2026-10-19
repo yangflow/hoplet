@@ -37,7 +37,10 @@ async function boot(): Promise<{ port: number; store: Store; token: string }> {
   const dir = mkdtempSync(path.join(tmpdir(), 'hoplet-prompt-'));
   dirs.push(dir);
   const store = new Store(dir);
-  store.append({ sessionId: 's1', projectDir: 'p', filePath: '/x', deviceId: 'dev-a' }, [line(0)]);
+  store.append(
+    { sessionId: 's1', provider: 'claude', projectDir: 'p', filePath: '/x', deviceId: 'dev-a' },
+    [line(0)],
+  );
   const token = 'tok';
   const config: Config = { port: 0, dataDir: dir, token, webDir: null };
   const server = createServer();
@@ -217,6 +220,7 @@ describe('POST /api/sessions/:id/prompt', () => {
         v: PROTOCOL_VERSION,
         type: 'session.append',
         sessionId: 's1',
+        provider: 'claude',
         projectDir: 'p',
         filePath: '/x',
         byteStart: 0,

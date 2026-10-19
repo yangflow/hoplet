@@ -38,9 +38,16 @@ function setup() {
     ['s2', 'dev-a'],
     ['o1', 'dev-b'],
   ] as const) {
-    store.append({ sessionId: id, projectDir: 'p', filePath: `/x/${id}`, deviceId: device }, [
-      '{"type":"user"}',
-    ]);
+    store.append(
+      {
+        sessionId: id,
+        provider: 'claude',
+        projectDir: 'p',
+        filePath: `/x/${id}`,
+        deviceId: device,
+      },
+      ['{"type":"user"}'],
+    );
   }
   const control = createControl(store, {});
   const link = fakeLink();

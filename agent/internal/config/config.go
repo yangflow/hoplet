@@ -13,6 +13,7 @@ type Config struct {
 	ServerURL       string        `json:"server_url"`
 	Token           string        `json:"token"`
 	ClaudeProjects  string        `json:"claude_projects"`
+	CodexHome       string        `json:"codex_home"`
 	DeviceName      string        `json:"device_name"`
 	DeviceID        string        `json:"device_id,omitempty"`
 	PollInterval    time.Duration `json:"-"`
@@ -69,6 +70,14 @@ func Load(path string) (*Config, error) {
 		cfg.ClaudeProjects = filepath.Join(home, ".claude", "projects")
 	} else {
 		cfg.ClaudeProjects = expandPath(cfg.ClaudeProjects, home)
+	}
+	if cfg.CodexHome == "" {
+		cfg.CodexHome = os.Getenv("CODEX_HOME")
+	}
+	if cfg.CodexHome == "" {
+		cfg.CodexHome = filepath.Join(home, ".codex")
+	} else {
+		cfg.CodexHome = expandPath(cfg.CodexHome, home)
 	}
 	if cfg.ClaudeBin == "" {
 		cfg.ClaudeBin = "claude"

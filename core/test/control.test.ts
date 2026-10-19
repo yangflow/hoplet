@@ -55,9 +55,10 @@ function setup(options: ControlOptions = { promptTimeoutMs: 100, workspaceTimeou
   const dir = mkdtempSync(path.join(tmpdir(), 'hoplet-control-'));
   dirs.push(dir);
   const store = new Store(dir);
-  store.append({ sessionId: 's1', projectDir: 'p', filePath: '/x', deviceId: 'dev-a' }, [
-    '{"type":"user"}',
-  ]);
+  store.append(
+    { sessionId: 's1', provider: 'claude', projectDir: 'p', filePath: '/x', deviceId: 'dev-a' },
+    ['{"type":"user"}'],
+  );
   return { store, control: createControl(store, options) };
 }
 
@@ -400,7 +401,10 @@ describe('remote control state', () => {
 
   it('deduplicates per session', async () => {
     const { store, control, link, report } = runtimeSetup();
-    store.append({ sessionId: 's2', projectDir: 'p', filePath: '/y', deviceId: 'dev-a' }, ['{}']);
+    store.append(
+      { sessionId: 's2', provider: 'claude', projectDir: 'p', filePath: '/y', deviceId: 'dev-a' },
+      ['{}'],
+    );
     const a = control.prompt('s1', 'dev-a', 'go', 'same');
     const b = control.prompt('s2', 'dev-a', 'go', 'same');
     expect(link.sent).toHaveLength(2);

@@ -75,6 +75,7 @@ export function handleMessage(deps: MessageDeps, conn: Conn, msg: ClientMessage)
             projectDir: msg.projectDir,
             filePath: msg.filePath,
             deviceId: conn.deviceId,
+            provider: msg.provider,
             ...(msg.title !== undefined ? { title: msg.title } : {}),
           },
           lines,

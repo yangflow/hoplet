@@ -186,6 +186,7 @@ describe('wire contract', () => {
       v: { optional: false },
       type: { optional: false },
       sessionId: { optional: false },
+      provider: { optional: false },
       projectDir: { optional: false },
       filePath: { optional: false },
       byteStart: { optional: false },

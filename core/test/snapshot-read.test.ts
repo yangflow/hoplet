@@ -42,7 +42,10 @@ function newStore(): Store {
   const dir = mkdtempSync(path.join(tmpdir(), 'hoplet-snapshot-read-'));
   dirs.push(dir);
   const store = new Store(dir);
-  store.append({ sessionId: 's1', projectDir: 'p', filePath: '/x', deviceId: 'dev-a' }, ['{}']);
+  store.append(
+    { sessionId: 's1', provider: 'claude', projectDir: 'p', filePath: '/x', deviceId: 'dev-a' },
+    ['{}'],
+  );
   return store;
 }
 

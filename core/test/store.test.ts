@@ -27,7 +27,13 @@ describe('Store.append', () => {
   it('advances the byte cursor by exactly the bytes appended', () => {
     const { store } = newStore();
     const first = store.append(
-      { sessionId: 's1', projectDir: 'proj', filePath: '/x/s1.jsonl', deviceId: 'd1' },
+      {
+        sessionId: 's1',
+        provider: 'claude',
+        projectDir: 'proj',
+        filePath: '/x/s1.jsonl',
+        deviceId: 'd1',
+      },
       [line(0), line(1)],
     );
     expect(first.byteSize).toBe(`${line(0)}\n${line(1)}\n`.length);
@@ -36,7 +42,13 @@ describe('Store.append', () => {
 
     // An empty batch does not move the cursor and reports the current state
     const empty = store.append(
-      { sessionId: 's1', projectDir: 'proj', filePath: '/x/s1.jsonl', deviceId: 'd1' },
+      {
+        sessionId: 's1',
+        provider: 'claude',
+        projectDir: 'proj',
+        filePath: '/x/s1.jsonl',
+        deviceId: 'd1',
+      },
       [],
     );
     expect(empty).toEqual({
@@ -51,7 +63,7 @@ describe('Store.append', () => {
     const { store, dir } = newStore();
     const lines = Array.from({ length: 1200 }, (_, i) => line(i));
     const r = store.append(
-      { sessionId: 's2', projectDir: 'p', filePath: '/x', deviceId: 'd' },
+      { sessionId: 's2', provider: 'claude', projectDir: 'p', filePath: '/x', deviceId: 'd' },
       lines,
     );
     expect(r.lineCount).toBe(1200);
@@ -72,9 +84,15 @@ describe('Store.append', () => {
 
   it('rejects an append from a device that does not own the session', () => {
     const { store } = newStore();
-    store.append({ sessionId: 's3', projectDir: 'p', filePath: '/x', deviceId: 'd1' }, [line(0)]);
+    store.append(
+      { sessionId: 's3', provider: 'claude', projectDir: 'p', filePath: '/x', deviceId: 'd1' },
+      [line(0)],
+    );
     expect(() =>
-      store.append({ sessionId: 's3', projectDir: 'p', filePath: '/x', deviceId: 'd2' }, [line(1)]),
+      store.append(
+        { sessionId: 's3', provider: 'claude', projectDir: 'p', filePath: '/x', deviceId: 'd2' },
+        [line(1)],
+      ),
     ).toThrow(NotOwnerError);
     expect(store.ownerDeviceId('s3')).toBe('d1');
     expect(store.ownerDeviceId('missing')).toBeNull();
@@ -82,7 +100,13 @@ describe('Store.append', () => {
 
   it('rejects metadata-only requests from a non-owner before changing the title', () => {
     const { store } = newStore();
-    const input = { sessionId: 's-empty-owner', projectDir: 'p', filePath: '/x', deviceId: 'd1' };
+    const input = {
+      sessionId: 's-empty-owner',
+      provider: 'claude' as const,
+      projectDir: 'p',
+      filePath: '/x',
+      deviceId: 'd1',
+    };
     store.append(input, [line(0)]);
     const before = store.getSession(input.sessionId);
     expect(() => store.append({ ...input, deviceId: 'd2', title: 'Foreign title' }, [])).toThrow(
@@ -93,7 +117,10 @@ describe('Store.append', () => {
 
   it('moves ownership so the previous device cannot append', () => {
     const { store } = newStore();
-    store.append({ sessionId: 's-ho', projectDir: 'p', filePath: '/x', deviceId: 'd1' }, [line(0)]);
+    store.append(
+      { sessionId: 's-ho', provider: 'claude', projectDir: 'p', filePath: '/x', deviceId: 'd1' },
+      [line(0)],
+    );
     expect(
       store.handoffOwner(
         's-ho',
@@ -107,39 +134,75 @@ describe('Store.append', () => {
     ).toBe(1);
     expect(store.ownerDeviceId('s-ho')).toBe('d2');
     expect(() =>
-      store.append({ sessionId: 's-ho', projectDir: 'p', filePath: '/x', deviceId: 'd1' }, [
-        line(1),
-      ]),
+      store.append(
+        { sessionId: 's-ho', provider: 'claude', projectDir: 'p', filePath: '/x', deviceId: 'd1' },
+        [line(1)],
+      ),
     ).toThrow(NotOwnerError);
   });
 
   it('extracts project path and title from the lines', () => {
     const { store } = newStore();
-    store.append({ sessionId: 's4', projectDir: 'p', filePath: '/x', deviceId: 'd' }, [
-      JSON.stringify({
-        type: 'user',
-        cwd: '/Users/mark/proj',
-        message: { role: 'user', content: 'Fix the cursor bug' },
-      }),
-    ]);
+    store.append(
+      { sessionId: 's4', provider: 'claude', projectDir: 'p', filePath: '/x', deviceId: 'd' },
+      [
+        JSON.stringify({
+          type: 'user',
+          cwd: '/Users/mark/proj',
+          message: { role: 'user', content: 'Fix the cursor bug' },
+        }),
+      ],
+    );
     const meta = store.getSession('s4');
     expect(meta?.projectPath).toBe('/Users/mark/proj');
     expect(meta?.title).toBe('Fix the cursor bug');
   });
 
+  it('stores a Codex session under codex, with its cwd and start time from session_meta', () => {
+    const { store } = newStore();
+    const input = {
+      sessionId: 'c1',
+      provider: 'codex',
+      projectDir: '2026/05/01',
+      filePath: '/x',
+      deviceId: 'd',
+    } as const;
+    store.append(input, [
+      JSON.stringify({
+        timestamp: '2026-05-01T08:00:00.100Z',
+        type: 'session_meta',
+        payload: { id: 'c1', cwd: '/Users/mark/codex-proj', timestamp: '2026-05-01T08:00:00.000Z' },
+      }),
+      JSON.stringify({ type: 'event_msg', payload: { type: 'user_message', message: 'hi' } }),
+    ]);
+    const meta = store.getSession('c1');
+    expect(meta?.provider).toBe('codex');
+    expect(meta?.projectPath).toBe('/Users/mark/codex-proj');
+    expect(meta?.createdAt).toBe(Date.parse('2026-05-01T08:00:00.000Z'));
+    expect(meta?.title).toBe('');
+    // The vendor is fixed when the session is created.
+    store.append({ ...input, provider: 'claude' }, [line(0)]);
+    expect(store.getSession('c1')?.provider).toBe('codex');
+    expect(store.getSession('c1')?.projectPath).toBe('/Users/mark/codex-proj');
+  });
+
   it('prefers vendor ai-title over a prompt heuristic and can upgrade later', () => {
     const { store } = newStore();
-    store.append({ sessionId: 's4b', projectDir: 'p', filePath: '/x', deviceId: 'd' }, [
-      JSON.stringify({
-        type: 'user',
-        cwd: '/Users/mark/proj',
-        message: { role: 'user', content: 'Fix the cursor bug please now' },
-      }),
-    ]);
+    store.append(
+      { sessionId: 's4b', provider: 'claude', projectDir: 'p', filePath: '/x', deviceId: 'd' },
+      [
+        JSON.stringify({
+          type: 'user',
+          cwd: '/Users/mark/proj',
+          message: { role: 'user', content: 'Fix the cursor bug please now' },
+        }),
+      ],
+    );
     expect(store.getSession('s4b')?.title).toBe('Fix the cursor bug please now');
-    store.append({ sessionId: 's4b', projectDir: 'p', filePath: '/x', deviceId: 'd' }, [
-      JSON.stringify({ type: 'ai-title', aiTitle: 'cursor bug fix' }),
-    ]);
+    store.append(
+      { sessionId: 's4b', provider: 'claude', projectDir: 'p', filePath: '/x', deviceId: 'd' },
+      [JSON.stringify({ type: 'ai-title', aiTitle: 'cursor bug fix' })],
+    );
     expect(store.getSession('s4b')?.title).toBe('cursor bug fix');
   });
 
@@ -148,6 +211,7 @@ describe('Store.append', () => {
     store.append(
       {
         sessionId: 's4c',
+        provider: 'claude',
         projectDir: 'p',
         filePath: '/x',
         deviceId: 'd',
@@ -164,7 +228,14 @@ describe('Store.append', () => {
     expect(store.getSession('s4c')?.title).toBe('你好，测试 hoplet');
     // Cursor caught up; agent peeks a later vendor ai-title without new bytes.
     store.append(
-      { sessionId: 's4c', projectDir: 'p', filePath: '/x', deviceId: 'd', title: 'hoplet 测试' },
+      {
+        sessionId: 's4c',
+        provider: 'claude',
+        projectDir: 'p',
+        filePath: '/x',
+        deviceId: 'd',
+        title: 'hoplet 测试',
+      },
       [],
     );
     expect(store.getSession('s4c')?.title).toBe('hoplet 测试');
@@ -174,9 +245,16 @@ describe('Store.append', () => {
   it('joins the device name onto session meta', () => {
     const { store } = newStore();
     store.upsertDevice('d-mac', 'MacBook Pro', '0.2.0');
-    store.append({ sessionId: 's-dev', projectDir: 'p', filePath: '/x', deviceId: 'd-mac' }, [
-      line(0),
-    ]);
+    store.append(
+      {
+        sessionId: 's-dev',
+        provider: 'claude',
+        projectDir: 'p',
+        filePath: '/x',
+        deviceId: 'd-mac',
+      },
+      [line(0)],
+    );
     expect(store.getSession('s-dev')?.deviceName).toBe('MacBook Pro');
     expect(store.listSessions()[0]?.deviceName).toBe('MacBook Pro');
   });
@@ -226,7 +304,10 @@ describe('Store.readLines', () => {
   it('reads pages and the tail without loading the whole session', async () => {
     const { store } = newStore();
     const lines = Array.from({ length: 1100 }, (_, i) => line(i));
-    store.append({ sessionId: 's5', projectDir: 'p', filePath: '/x', deviceId: 'd' }, lines);
+    store.append(
+      { sessionId: 's5', provider: 'claude', projectDir: 'p', filePath: '/x', deviceId: 'd' },
+      lines,
+    );
 
     const tail = await store.readLines('s5', -80, 80);
     expect(tail?.start).toBe(1020);
@@ -252,7 +333,10 @@ describe('migrations', () => {
     const dir = mkdtempSync(path.join(tmpdir(), 'hoplet-store-'));
     dirs.push(dir);
     const first = new Store(dir);
-    first.append({ sessionId: 's6', projectDir: 'p', filePath: '/x', deviceId: 'd' }, [line(0)]);
+    first.append(
+      { sessionId: 's6', provider: 'claude', projectDir: 'p', filePath: '/x', deviceId: 'd' },
+      [line(0)],
+    );
     const second = new Store(dir);
     expect(second.sessionCount()).toBe(1);
   });
@@ -269,7 +353,10 @@ describe('Store.search', () => {
           })
         : line(i),
     );
-    store.append({ sessionId: 's7', projectDir: 'p', filePath: '/x', deviceId: 'd' }, lines);
+    store.append(
+      { sessionId: 's7', provider: 'claude', projectDir: 'p', filePath: '/x', deviceId: 'd' },
+      lines,
+    );
 
     const first = await store.search('s7', 'needle', 0, 50);
     expect(first?.total).toBe(1);
@@ -304,18 +391,24 @@ describe('summarizeTitle', () => {
 describe('Store.searchAll', () => {
   it('scans sessions newest-first, pages across them and reports exhaustion', async () => {
     const { store } = newStore();
-    store.append({ sessionId: 'older', projectDir: 'p', filePath: '/x', deviceId: 'd' }, [
-      JSON.stringify({
-        type: 'user',
-        message: { role: 'user', content: 'the quilt exists here too' },
-      }),
-      line(0),
-    ]);
+    store.append(
+      { sessionId: 'older', provider: 'claude', projectDir: 'p', filePath: '/x', deviceId: 'd' },
+      [
+        JSON.stringify({
+          type: 'user',
+          message: { role: 'user', content: 'the quilt exists here too' },
+        }),
+        line(0),
+      ],
+    );
     await new Promise((r) => setTimeout(r, 5));
-    store.append({ sessionId: 'newer', projectDir: 'p', filePath: '/x', deviceId: 'd' }, [
-      JSON.stringify({ type: 'user', message: { role: 'user', content: 'The Quilt is here' } }),
-      line(1),
-    ]);
+    store.append(
+      { sessionId: 'newer', provider: 'claude', projectDir: 'p', filePath: '/x', deviceId: 'd' },
+      [
+        JSON.stringify({ type: 'user', message: { role: 'user', content: 'The Quilt is here' } }),
+        line(1),
+      ],
+    );
 
     const page1 = await store.searchAll('quilt', 0, 1);
     expect(page1.results).toHaveLength(1);
@@ -338,7 +431,13 @@ it('fingerprints exact raw bytes across compressed and open chunks', async () =>
   const lines = Array.from({ length: 501 }, (_, i) => `  { "n": ${i}, "text": "字" }  `);
   const bytes = Buffer.from(`${lines.join('\n')}\n`);
   store.append(
-    { sessionId: 'proof', projectDir: 'p', filePath: '/synthetic', deviceId: 'd' },
+    {
+      sessionId: 'proof',
+      provider: 'claude',
+      projectDir: 'p',
+      filePath: '/synthetic',
+      deviceId: 'd',
+    },
     lines,
   );
   expect(await store.streamFingerprint('proof')).toEqual({
@@ -355,7 +454,10 @@ describe('Store.readStream', () => {
       { length: 1203 },
       (_, i) => `{"n":${i},"text":"${'x'.repeat(i % 50)}字"}`,
     );
-    store.append({ sessionId: 'rs', projectDir: 'p', filePath: '/x', deviceId: 'd' }, lines);
+    store.append(
+      { sessionId: 'rs', provider: 'claude', projectDir: 'p', filePath: '/x', deviceId: 'd' },
+      lines,
+    );
     await store.idle();
     const expected = Buffer.from(`${lines.join('\n')}\n`);
     const pieces: Buffer[] = [];
@@ -368,7 +470,10 @@ describe('Store.readStream', () => {
 
   it('refuses a size that is not the cursor', async () => {
     const { store } = newStore();
-    store.append({ sessionId: 'rs', projectDir: 'p', filePath: '/x', deviceId: 'd' }, ['{"a":1}']);
+    store.append(
+      { sessionId: 'rs', provider: 'claude', projectDir: 'p', filePath: '/x', deviceId: 'd' },
+      ['{"a":1}'],
+    );
     const size = store.getSession('rs')?.byteSize ?? 0;
     const drain = async (id: string, n: number) => {
       for await (const _ of store.readStream(id, n, 1024)) {
@@ -393,7 +498,13 @@ describe('the git branch of a session', () => {
 
   it('is the last branch the lines record, kept across appends and restarts', () => {
     const { store, dir } = newStore();
-    const at = { sessionId: 'gb', projectDir: 'p', filePath: '/x', deviceId: 'd' };
+    const at = {
+      sessionId: 'gb',
+      provider: 'claude' as const,
+      projectDir: 'p',
+      filePath: '/x',
+      deviceId: 'd',
+    };
     store.append(at, [line(0)]);
     expect(store.getSession('gb')?.gitBranch).toBeUndefined();
     store.append(at, [branched(1, 'main'), branched(2, 'feat/x')]);
@@ -406,7 +517,10 @@ describe('the git branch of a session', () => {
 
 describe('Store.handoffOwner', () => {
   const seed = (store: Store) =>
-    store.append({ sessionId: 'ho', projectDir: 'p', filePath: '/x', deviceId: 'a' }, [line(0)]);
+    store.append(
+      { sessionId: 'ho', provider: 'claude', projectDir: 'p', filePath: '/x', deviceId: 'a' },
+      [line(0)],
+    );
 
   it('moves the owner and increases the epoch only when owner, cursor and epoch are as expected', () => {
     const { store } = newStore();
@@ -431,7 +545,10 @@ describe('Store.handoffOwner', () => {
     expect(store.handoffOwner('ho', 'a', 'b', cursor, 0, '/w', 'hoplet/w')).toBeNull();
     expect(store.handoffOwner('ho', 'b', 'a', cursor, 1, '/w', 'hoplet/w')).toBe(2);
     // Lines appended afterwards carry the old cwd and do not move the project back.
-    store.append({ sessionId: 'ho', projectDir: 'p', filePath: '/x', deviceId: 'a' }, [line(1)]);
+    store.append(
+      { sessionId: 'ho', provider: 'claude', projectDir: 'p', filePath: '/x', deviceId: 'a' },
+      [line(1)],
+    );
     expect(store.getSession('ho')?.projectPath).toBe('/w');
   });
 

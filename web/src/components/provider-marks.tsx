@@ -19,7 +19,7 @@ const sparkPath = (() => {
   return d;
 })();
 
-export type ProviderId = 'claude';
+export type ProviderId = 'claude' | 'codex';
 
 const providers: Record<ProviderId, { art: (size: number) => ReactNode }> = {
   claude: {
@@ -30,12 +30,22 @@ const providers: Record<ProviderId, { art: (size: number) => ReactNode }> = {
       </svg>
     ),
   },
+  // A neutral ring until the maintainer confirms the Codex artwork.
+  codex: {
+    art: (size) => (
+      <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" strokeWidth="2.5" />
+      </svg>
+    ),
+  },
 };
 
 export function providerName(provider: ProviderId): string {
   switch (provider) {
     case 'claude':
       return t('Claude Code');
+    case 'codex':
+      return t('Codex');
   }
 }
 

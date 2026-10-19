@@ -10,7 +10,13 @@ const dirs: string[] = [];
 afterEach(() => {
   for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
 });
-const input = { sessionId: 'recovery', projectDir: 'p', filePath: '/synthetic', deviceId: 'd' };
+const input = {
+  sessionId: 'recovery',
+  provider: 'claude' as const,
+  projectDir: 'p',
+  filePath: '/synthetic',
+  deviceId: 'd',
+};
 const line = (i: number) => JSON.stringify({ n: i, text: '原始\r bytes' });
 const raw = (count: number) =>
   Buffer.from(Array.from({ length: count }, (_, i) => `${line(i)}\n`).join(''));

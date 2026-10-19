@@ -28,6 +28,7 @@ func writeRecord(t *testing.T, home string, r workspace.Record) {
 type namedSource struct{ id string }
 
 func (s namedSource) ID() string                          { return s.id }
+func (s namedSource) Provider() string                    { return "claude" }
 func (s namedSource) Dir() string                         { return "" }
 func (s namedSource) Cwd() string                         { return "" }
 func (s namedSource) InProject(string) bool               { return false }

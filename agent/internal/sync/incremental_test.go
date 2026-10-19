@@ -179,6 +179,7 @@ type memSource struct {
 }
 
 func (s *memSource) ID() string                          { return s.id }
+func (s *memSource) Provider() string                    { return "claude" }
 func (s *memSource) Dir() string                         { return "p" }
 func (s *memSource) Cwd() string                         { return "" }
 func (s *memSource) InProject(string) bool               { return false }

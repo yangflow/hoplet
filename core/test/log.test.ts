@@ -189,6 +189,7 @@ describe('secrets through the running core', () => {
       v: PROTOCOL_VERSION,
       type: 'session.append',
       sessionId: 's1',
+      provider: 'claude',
       projectDir: 'p',
       filePath: '/x',
       byteStart: 0,

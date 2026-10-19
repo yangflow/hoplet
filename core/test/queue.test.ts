@@ -28,7 +28,13 @@ const line = JSON.stringify({
   cwd: '/tmp/p',
   message: { role: 'user', content: 'x' },
 });
-const meta = { sessionId: 's1', projectDir: 'p', filePath: '/x', deviceId: 'dev-a' };
+const meta = {
+  sessionId: 's1',
+  provider: 'claude' as const,
+  projectDir: 'p',
+  filePath: '/x',
+  deviceId: 'dev-a',
+};
 const caps = (steer = true): RuntimeCapabilities => ({
   permissions: true,
   interrupt: true,

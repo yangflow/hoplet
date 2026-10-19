@@ -26,7 +26,10 @@ function newStore(ids: string[]) {
   dirs.push(dir);
   const store = new Store(dir);
   for (const id of ids) {
-    store.append({ sessionId: id, projectDir: 'p', filePath: `/${id}`, deviceId: 'dev-a' }, [line]);
+    store.append(
+      { sessionId: id, provider: 'claude', projectDir: 'p', filePath: `/${id}`, deviceId: 'dev-a' },
+      [line],
+    );
   }
   return { store, dir };
 }

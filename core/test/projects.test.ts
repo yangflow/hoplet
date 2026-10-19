@@ -520,9 +520,10 @@ describe('GET /api/devices/:id/clone', () => {
 describe('POST /api/sessions/:id/handoff with cloneInto', () => {
   async function api() {
     const { port, store, token } = await boot();
-    store.append({ sessionId: 's1', projectDir: 'p', filePath: '/x', deviceId: 'dev-a' }, [
-      '{"n":1}',
-    ]);
+    store.append(
+      { sessionId: 's1', provider: 'claude', projectDir: 'p', filePath: '/x', deviceId: 'dev-a' },
+      ['{"n":1}'],
+    );
     const call = (path: string, body?: unknown) =>
       fetch(`http://127.0.0.1:${port}${path}`, {
         method: 'POST',

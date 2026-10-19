@@ -35,6 +35,8 @@ func (e *LineTooLargeError) Is(target error) bool { return target == ErrLineTooL
 type Source interface {
 	// ID is the stable session id used in the wire protocol.
 	ID() string
+	// Provider is the Name of the provider the source belongs to: the vendor the session is stored under.
+	Provider() string
 	// Dir is the vendor's name for the place the session is kept, for display and exclusion.
 	Dir() string
 	// Cwd is the directory the session runs in; empty when the session does not say.

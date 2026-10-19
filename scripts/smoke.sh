@@ -8,6 +8,8 @@ PORT=7799
 TOKEN=dev-token
 SESSION_ID="11111111-2222-4333-8444-555555555555"
 PROJECT="$TMP/project"
+CODEX_ID="019a0000-aaaa-7bbb-8ccc-dddddddddddd"
+CODEX_DIR="$TMP/codex/sessions/2026/01/01"
 FIXTURE_DIR="$TMP/claude-projects/${PROJECT//\//-}"
 AGENT="$TMP/hoplet-agent"
 LOG_SERVER="$TMP/server.log"
@@ -52,6 +54,12 @@ RAW_SIZE=$(wc -c < "$FIXTURE" | tr -d ' ')
 LINES=$(wc -l < "$FIXTURE" | tr -d ' ')
 echo "   会话 ${SESSION_ID}: $LINES 行, $((RAW_SIZE / 1024 / 1024))MB"
 
+mkdir -p "$CODEX_DIR"
+CODEX_FILE="$CODEX_DIR/rollout-2026-01-01T00-00-00-$CODEX_ID.jsonl"
+node scripts/gen-codex-fixture.mjs "$CODEX_FILE" "$CODEX_ID" "$PROJECT" 50
+CODEX_SIZE=$(wc -c < "$CODEX_FILE" | tr -d ' ')
+CODEX_LINES=$(wc -l < "$CODEX_FILE" | tr -d ' ')
+
 echo "② 启动 server 与 agent…"
 HOPLET_TOKEN=$TOKEN HOPLET_DATA="$TMP/server-data" HOPLET_PORT=$PORT node core/src/main.ts > "$LOG_SERVER" 2>&1 &
 SERVER_PID=$!
@@ -72,14 +80,14 @@ mkdir -p "$TMP/agent-home"
 cat > "$TMP/agent-home/config.json" <<EOF
 { "server_url": "http://127.0.0.1:$PORT", "token": "$AGENT_TOKEN",
   "device_id": "smoke-agent",
-  "claude_projects": "$TMP/claude-projects", "device_name": "smoke-test",
+  "claude_projects": "$TMP/claude-projects", "codex_home": "$TMP/codex", "device_name": "smoke-test",
   "poll_interval_ms": 400, "hoplet_home": "$TMP/agent-home",
   "exclude_prefixes": [] }
 EOF
 cat > "$TMP/agent-home/projects.json" <<EOF
 { "projects": [
   { "path": "$PROJECT",
-    "imported": ["$SESSION_ID"] }
+    "imported": ["$SESSION_ID", "$CODEX_ID"] }
 ] }
 EOF
 "$AGENT" --config "$TMP/agent-home/config.json" daemon > "$LOG_AGENT" 2>&1 &
@@ -143,12 +151,20 @@ GSEARCH=$(api "/api/search?q=%E5%A2%9E%E9%87%8F%E7%AC%AC%20199%20%E8%BD%AE")
 echo "$GSEARCH" | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>{const r=JSON.parse(d);const hit=(r.results||[]).find(x=>x.sessionId==="11111111-2222-4333-8444-555555555555");const ok=hit&&hit.lineNo>34000;console.log(ok?"gsearch-ok":"gsearch-bad:"+JSON.stringify(r).slice(0,120))})' 2>"$LOG_NODE" | grep -q gsearch-ok || fail "全局搜索异常"
 echo "   大会话跨块搜索 ✓ 全局搜索 ✓"
 
+echo "⑦ Codex 会话（rollout，线程 ID 即会话 ID）…"
+for i in $(seq 1 30); do
+  GOT=$(extract_state "$(api /api/sessions || true)" "$CODEX_ID")
+  [[ "$GOT" == "$CODEX_LINES $CODEX_SIZE" ]] && break
+  [[ $i -eq 30 ]] && fail "Codex 会话同步超时: $GOT (期望 $CODEX_LINES $CODEX_SIZE)"
+  sleep 1
+done
+echo "   Codex 会话 ${CODEX_LINES} 行 / ${CODEX_SIZE} 字节，游标与服务端一致 ✓"
 api /api/sessions | node -e '
 let d="";process.stdin.on("data",c=>d+=c).on("end",()=>{
   const s=JSON.parse(d).sessions;
-  const ok=s.length===1&&s[0].projectPath===process.argv[1]&&s[0].sessionId===process.argv[2];
+  const ok=s.length===2&&s.some(x=>x.sessionId===process.argv[2]&&x.projectPath===process.argv[1])&&s.some(x=>x.sessionId===process.argv[3]&&x.provider==="codex"&&x.projectPath===process.argv[1]);
   process.exit(ok?0:1);
-})' "$PROJECT" "$SESSION_ID" 2>"$LOG_NODE" || fail "unexpected sessions outside synthetic fixtures"
+})' "$PROJECT" "$SESSION_ID" "$CODEX_ID" 2>"$LOG_NODE" || fail "unexpected sessions outside synthetic fixtures"
 
 
 STORED=$(du -sk "$TMP/server-data/sessions" | cut -f1)

@@ -16,6 +16,7 @@ type fakeSrc struct {
 }
 
 func (s fakeSrc) ID() string                          { return s.id }
+func (s fakeSrc) Provider() string                    { return "claude" }
 func (s fakeSrc) Dir() string                         { return s.cwd }
 func (s fakeSrc) Cwd() string                         { return s.cwd }
 func (s fakeSrc) InProject(p string) bool             { return s.cwd == p }

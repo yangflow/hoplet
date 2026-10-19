@@ -101,6 +101,7 @@ test('lines of 1.2 MB, 20 MiB and 32 MiB sync byte-exactly and a line above 32 M
         device_name: 'synthetic',
         hoplet_home: home,
         claude_projects: projects,
+        codex_home: `${home}/codex`,
         exclude_prefixes: [],
         poll_interval_ms: 100,
       }),

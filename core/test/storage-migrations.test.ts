@@ -49,9 +49,16 @@ for (const schema of [1, 2, 3, 4, 5]) {
     const store = new Store(dir);
     expect(store.getSession('old')?.byteSize).toBe(1500 + Buffer.byteLength(tail));
     expect((await store.readLines('old', -1, 1))?.lines).toEqual([{ old: '字节' }]);
-    store.append({ sessionId: 'old', projectDir: 'p', filePath: '/synthetic', deviceId: 'd' }, [
-      '{"new":true}',
-    ]);
+    store.append(
+      {
+        sessionId: 'old',
+        provider: 'claude',
+        projectDir: 'p',
+        filePath: '/synthetic',
+        deviceId: 'd',
+      },
+      ['{"new":true}'],
+    );
     expect(readFileSync(path.join(sessionDir, 'c-0.ndjson.gz')).equals(sealed)).toBe(true);
     expect(readFileSync(path.join(sessionDir, 'c-1.ndjson'), 'utf8')).toBe(`${tail}{"new":true}\n`);
     expect(new Store(dir).getSession('old')?.lineCount).toBe(502);
@@ -193,9 +200,16 @@ it('records the claude provider for every session that exists when the column re
   const store = new Store(dir);
   expect(store.getSession('keep')?.provider).toBe('claude');
   expect(store.listSessions().map((s) => s.provider)).toEqual(['claude']);
-  store.append({ sessionId: 'fresh', projectDir: 'p', filePath: '/synthetic', deviceId: 'd' }, [
-    '{}',
-  ]);
+  store.append(
+    {
+      sessionId: 'fresh',
+      provider: 'claude',
+      projectDir: 'p',
+      filePath: '/synthetic',
+      deviceId: 'd',
+    },
+    ['{}'],
+  );
   expect(store.getSession('fresh')?.provider).toBe('claude');
 });
 

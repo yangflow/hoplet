@@ -138,6 +138,7 @@ beforeAll(async () => {
       device_name: 'runtime-e2e',
       hoplet_home: home,
       claude_projects: projects,
+      codex_home: `${home}/codex`,
       claude_bin: fakeBin,
       exclude_prefixes: [],
       poll_interval_ms: 50,

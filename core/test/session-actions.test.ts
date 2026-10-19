@@ -25,7 +25,10 @@ async function boot() {
   dirs.push(dir);
   const store = new Store(dir);
   for (const id of ['s1', 's2']) {
-    store.append({ sessionId: id, projectDir: 'p', filePath: `/${id}`, deviceId: 'dev-a' }, [line]);
+    store.append(
+      { sessionId: id, provider: 'claude', projectDir: 'p', filePath: `/${id}`, deviceId: 'dev-a' },
+      [line],
+    );
   }
   const control = createControl(store);
   const heard: ServerMessage[] = [];
@@ -52,7 +55,10 @@ describe('Store session state', () => {
       const dir = mkdtempSync(path.join(tmpdir(), 'hoplet-actions-'));
       dirs.push(dir);
       const s = new Store(dir);
-      s.append({ sessionId: 's1', projectDir: 'p', filePath: '/s1', deviceId: 'd' }, [line]);
+      s.append(
+        { sessionId: 's1', provider: 'claude', projectDir: 'p', filePath: '/s1', deviceId: 'd' },
+        [line],
+      );
       return { store: s };
     })();
     expect(store.sessionStates().size).toBe(0);
@@ -78,7 +84,10 @@ describe('Store session state', () => {
     const dir = mkdtempSync(path.join(tmpdir(), 'hoplet-actions-'));
     dirs.push(dir);
     const store = new Store(dir);
-    store.append({ sessionId: 's1', projectDir: 'p', filePath: '/s1', deviceId: 'd' }, [line]);
+    store.append(
+      { sessionId: 's1', provider: 'claude', projectDir: 'p', filePath: '/s1', deviceId: 'd' },
+      [line],
+    );
     const before = store.getSession('s1');
     store.updateSessionState('s1', { titleOverride: 'Mine', pinnedAt: 1, archivedAt: 2 });
     const after = store.getSession('s1');

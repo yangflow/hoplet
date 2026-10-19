@@ -55,6 +55,7 @@
   "Connect another agent to hand off this session.": "Connect another agent to hand off this session.",
   "Actions": "Actions",
   "Claude Code": "Claude Code",
+  "Codex": "Codex",
   "Close": "Close",
   "Connected to {host}": "Connected to {host}",
   "Directory": "Directory",

@@ -22,6 +22,8 @@ export type ToolClass = { kind: ToolKind; mcp?: ToolMcp };
 
 const MAPPINGS: Record<Provider, Mapping> = {
   claude: { line: mapClaudeLine, tool: classifyClaudeTool },
+  // Codex lines are stored verbatim; their mapping into entries is not written yet, so a Codex session reads empty.
+  codex: { line: () => null, tool: () => ({ kind: 'other' }) },
 };
 
 /** The entry of a stored line with every block in full, or `null` when the line holds nothing to show. */

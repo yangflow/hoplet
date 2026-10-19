@@ -5,7 +5,13 @@ import { DatabaseSync } from 'node:sqlite';
 
 const [dir, point, mode, seedArg, countArg] = process.argv.slice(2);
 if (!dir || !point || !mode) throw new Error('missing fixture arguments');
-const input = { sessionId: 'recovery', projectDir: 'p', filePath: '/synthetic', deviceId: 'd' };
+const input = {
+  sessionId: 'recovery',
+  provider: 'claude' as const,
+  projectDir: 'p',
+  filePath: '/synthetic',
+  deviceId: 'd',
+};
 const line = (i: number) => JSON.stringify({ n: i, text: '原始\r bytes' });
 const { Store } = await import('../../src/store/index.ts');
 const recoveryOnly = ['undo-truncated', 'undo-removed', 'undo-startup-failed'].includes(point);

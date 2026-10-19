@@ -12,7 +12,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { gunzip as gunzipCallback } from 'node:zlib';
-import { isSessionId } from '@hoplet/shared';
+import { isSessionId, type Provider } from '@hoplet/shared';
 import { CHUNK_LINES, chunkPath, type StoreContext, sessionDir, syncDirectory } from './layout.ts';
 import { type AppendRecovery, compressPendingAsync, undoAppend } from './recovery.ts';
 import { committedLines, getRow, type SessionRow } from './sessions.ts';
@@ -40,6 +40,8 @@ export interface AppendInput {
   projectDir: string;
   filePath: string;
   deviceId: string;
+  /** The vendor of the lines. It is stored when the session is created and never changes. */
+  provider: Provider;
   /** Agent PeekTitle; preferred over batch extractMeta when non-empty. */
   title?: string;
 }
@@ -81,18 +83,23 @@ export function append(ctx: StoreContext, input: AppendInput, rawLines: string[]
 
   const isNew = !row;
   const now = Date.now();
+  // What the lines say: project path and title prefer them, a new session's start time may come from them.
+  const found = extractMeta(
+    row ? (row.provider === 'codex' ? 'codex' : 'claude') : input.provider,
+    lines,
+  );
   if (!row) {
+    const createdAt = found.createdAt || now;
     db.prepare(
-      `INSERT INTO sessions(session_id, project_dir, created_at, updated_at, chunk_count, device_id)
-       VALUES(?, ?, ?, ?, 1, ?)`,
-    ).run(input.sessionId, input.projectDir, now, now, input.deviceId);
+      `INSERT INTO sessions(session_id, project_dir, provider, created_at, updated_at, chunk_count, device_id)
+       VALUES(?, ?, ?, ?, ?, 1, ?)`,
+    ).run(input.sessionId, input.projectDir, input.provider, createdAt, now, input.deviceId);
     const created = getRow(ctx, input.sessionId);
     if (!created) throw new Error(`session row for ${input.sessionId} vanished after insert`);
     row = created;
   }
 
-  // Project path from line content; title prefers agent PeekTitle, then batch ai-title / heuristic.
-  const found = extractMeta(lines);
+  // Title prefers agent PeekTitle, then batch ai-title / heuristic.
   const projectPath = row.project_path || found.projectPath;
   const title = peekTitle || found.aiTitle || row.title || found.title;
   const gitBranch = found.gitBranch || row.git_branch;
