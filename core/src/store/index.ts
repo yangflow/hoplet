@@ -5,6 +5,7 @@ import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import type {
   Command,
+  DeviceSystem,
   NotifyDelivery,
   NotifyEventKind,
   NotifyPreferences,
@@ -393,15 +394,15 @@ export class Store {
     return snapshotRead.snapshotDiff(this.ctx, sessionId, path);
   }
 
-  upsertDevice(deviceId: string, name: string, version: string): void {
-    devices.upsertDevice(this.ctx, deviceId, name, version);
+  upsertDevice(deviceId: string, name: string, version: string, system?: DeviceSystem): void {
+    devices.upsertDevice(this.ctx, deviceId, name, version, system);
   }
 
   touchDevice(deviceId: string): void {
     devices.touchDevice(this.ctx, deviceId);
   }
 
-  listDevices(): { deviceId: string; name: string; lastSeen?: number }[] {
+  listDevices(): devices.StoredDevice[] {
     return devices.listDevices(this.ctx);
   }
 

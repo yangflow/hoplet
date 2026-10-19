@@ -119,7 +119,7 @@ async function boot(options: { startTimeoutMs?: number } = {}) {
     });
     return { status: res.status, body: (await res.json()) as Msg };
   };
-  const agent = async (deviceId: string, providers: unknown[] | null = PROVIDERS) => {
+  const agent = async (deviceId: string, providers: unknown[] | null = PROVIDERS, system?: Msg) => {
     const { token } = store.mintDevice(deviceId, deviceId);
     const peer = await open(`ws://127.0.0.1:${port}/ws/agent`, {
       authorization: `Bearer ${token}`,
@@ -129,6 +129,7 @@ async function boot(options: { startTimeoutMs?: number } = {}) {
       deviceId,
       name: deviceId,
       version: 'test',
+      ...(system === undefined ? {} : { system }),
       ...(providers === null ? {} : { providers }),
     });
     await peer.waitFor((m) => m.type === 'welcome', 'welcome');
@@ -204,6 +205,21 @@ describe('GET /api/devices', () => {
       connected: false,
       providers: [],
     });
+  });
+});
+
+describe('GET /api/devices system', () => {
+  it('reports the system an agent announced, also offline, and null for an agent that sent none', async () => {
+    const { get, agent } = await boot();
+    const mac = await agent('dev-a', PROVIDERS, { os: 'darwin', arch: 'arm64' });
+    await agent('dev-b');
+    const system = async (id: string) =>
+      ((await get('/api/devices')).body.devices as Msg[]).find((d) => d.deviceId === id)?.system;
+    expect(await system('dev-a')).toEqual({ os: 'darwin', arch: 'arm64' });
+    expect(await system('dev-b')).toBeNull();
+    mac.ws.close();
+    await new Promise((r) => setTimeout(r, 100));
+    expect(await system('dev-a')).toEqual({ os: 'darwin', arch: 'arm64' });
   });
 });
 

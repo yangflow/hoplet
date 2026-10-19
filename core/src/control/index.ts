@@ -273,6 +273,7 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
         out.push({
           deviceId: d.deviceId,
           name: d.name,
+          system: d.system,
           connected: onlineIds.has(d.deviceId),
           ...(d.lastSeen === undefined ? {} : { lastSeen: d.lastSeen }),
           providers: onlineIds.has(d.deviceId) ? (state.providers.get(d.deviceId) ?? []) : [],
@@ -284,6 +285,7 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
           out.push({
             deviceId: id,
             name: id,
+            system: null,
             connected: true,
             providers: state.providers.get(id) ?? [],
             ...deviceExtras(id, onlineIds),

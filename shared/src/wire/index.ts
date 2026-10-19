@@ -55,6 +55,13 @@ export const DeviceCapabilitiesSchema = v.object({
   terminal: v.optional(v.boolean()),
 });
 
+/** The system the agent runs on, as Go names it: `GOOS` and `GOARCH` verbatim, such as `darwin` and `arm64`. */
+export const DeviceSystemSchema = v.object({
+  os: v.pipe(v.string(), v.maxLength(32)),
+  arch: v.pipe(v.string(), v.maxLength(32)),
+});
+export type DeviceSystem = v.InferOutput<typeof DeviceSystemSchema>;
+
 /** Bytes of a terminal input or output message, decoded (ADR 0026). */
 export const TERMINAL_CHUNK_BYTES = 4096;
 /** Output the agent sends before it waits for a `terminal.ack`. */
@@ -169,6 +176,8 @@ export const WIRE_MESSAGES = defineWire({
       deviceId: v.string(),
       name: v.string(),
       version: v.string(),
+      /** The system the agent runs on; absent from an agent that predates it. */
+      system: v.optional(DeviceSystemSchema),
       /** The providers this agent runs, with the capabilities of their runtime drivers. */
       providers: v.optional(v.array(ProviderInfoSchema)),
       /** Present when the agent offers more than sessions, such as the terminal. */
@@ -1258,6 +1267,7 @@ export const WIRE_OBJECTS = {
   RuntimeCapabilities: RuntimeCapabilitiesSchema,
   ProviderInfo: ProviderInfoSchema,
   DeviceCapabilities: DeviceCapabilitiesSchema,
+  DeviceSystem: DeviceSystemSchema,
   SessionPort: SessionPortSchema,
   ConfigOption: ConfigOptionSchema,
   ConfigValue: ConfigValueSchema,

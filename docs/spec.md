@@ -290,8 +290,8 @@ Server, under the data directory (docs/hosting.md#data):
     new session is not in the index until its first lines sync. A session keeps its latest continuation, and deleting
     either session removes the row. A session's metadata carries `continuedIn` and `continuedFrom`, each
     `{ sessionId, title }`, when a row names it.
-  - `devices(device_id, name, version, first_seen, last_seen, token_hash)`. `token_hash` is the SHA-256 of
-    the device token.
+  - `devices(device_id, name, version, os, arch, first_seen, last_seen, token_hash)`. `os` and `arch` are what the agent announced in its last `device.hello` (`GOOS`, `GOARCH`; NULL when it
+    announced none). `token_hash` is the SHA-256 of the device token.
   - `snapshots(session_id, snapshot_id, created_at, base_commit, origin_url, tree_hash, byte_size, sha256)`: the latest
     workspace snapshot per session.
   - `append_recovery`, `compression_pending`: undo boundaries and pending compression; no session bytes.
@@ -322,7 +322,7 @@ API, in `shared/src/` (schemas, types and error codes) and `agent/internal/sync/
   `POST /api/sessions/:id/stop`; `GET /api/sessions/:id/workspace`; `GET /api/sessions/:id/workspace/file?path=&at=`;
   `GET /api/sessions/:id/workspace/diff?path=`; `GET /api/sessions/:id/snapshot/changes`;
   `GET /api/sessions/:id/snapshot/diff?path=`;
-  `POST /api/sessions/:id/handoff`; `GET /api/devices` (each device with the `providers` its connected agent
+  `POST /api/sessions/:id/handoff`; `GET /api/devices` (each device with the `system` its agent announced and the `providers` its connected agent
   announced and their capabilities); `POST /api/devices`;
   `GET /api/devices/:id/dirs?path=` (`path` absent or `~` is the browse root; answers `{ path, parent, root, entries, truncated }`
   where `path` is the resolved absolute path, `parent` is null at the root, and `entries` are `{ name, git }` for the visible
@@ -345,7 +345,7 @@ API, in `shared/src/` (schemas, types and error codes) and `agent/internal/sync/
 - Browser WebSocket `/ws?ticket=`: `subscribe`/`unsubscribe` a session; events `session.appended`,
   `session.deleted`, `session.updated` (title, pin and archive state), `session.runtime` (state), `session.output` (streamed deltas of a subscribed session),
   `session.permission`, `handoff.progress`, `device.presence`.
-- Agent WebSocket `/ws/agent`, device token: sync (`device.hello` with the providers and their capabilities,
+- Agent WebSocket `/ws/agent`, device token: sync (`device.hello` with the system, the providers and their capabilities,
   `welcome`, `session.append`, `session.ack`, `session.resync`, `session.rejected`), control
   (`runtime.prompt|permission.answer|interrupt|stop|start` from the core; `runtime.state` with the driver's
   capabilities, `runtime.output`, `runtime.permission`, `runtime.rejected`, `runtime.started` and

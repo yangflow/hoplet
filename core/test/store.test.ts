@@ -275,9 +275,22 @@ describe('Store device last connection', () => {
   it('reports no lastSeen for a minted device that never connected, and re-minting keeps it so', () => {
     const { store } = newStore();
     store.mintDevice('Mac', 'd-mac');
-    expect(store.listDevices()).toEqual([{ deviceId: 'd-mac', name: 'Mac' }]);
+    expect(store.listDevices()).toEqual([{ deviceId: 'd-mac', name: 'Mac', system: null }]);
     store.mintDevice('Mac 2', 'd-mac');
-    expect(store.listDevices()).toEqual([{ deviceId: 'd-mac', name: 'Mac 2' }]);
+    expect(store.listDevices()).toEqual([{ deviceId: 'd-mac', name: 'Mac 2', system: null }]);
+  });
+
+  it('keeps the system a hello announced and clears it when a later hello has none', () => {
+    const { store } = newStore();
+    store.mintDevice('Mac', 'd-mac');
+    expect(store.listDevices()[0]?.system).toBeNull();
+    store.upsertDevice('d-mac', 'Mac', '0.2.0', { os: 'darwin', arch: 'arm64' });
+    expect(store.listDevices()[0]?.system).toEqual({ os: 'darwin', arch: 'arm64' });
+    store.touchDevice('d-mac');
+    store.mintDevice('Mac', 'd-mac');
+    expect(store.listDevices()[0]?.system).toEqual({ os: 'darwin', arch: 'arm64' });
+    store.upsertDevice('d-mac', 'Mac', '0.1.0');
+    expect(store.listDevices()[0]?.system).toBeNull();
   });
 
   it('sets lastSeen on connect and on disconnect, and re-minting does not change it', () => {

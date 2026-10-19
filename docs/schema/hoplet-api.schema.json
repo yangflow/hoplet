@@ -1395,6 +1395,30 @@
               "connected": {
                 "type": "boolean"
               },
+              "system": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "os": {
+                        "type": "string",
+                        "maxLength": 32
+                      },
+                      "arch": {
+                        "type": "string",
+                        "maxLength": 32
+                      }
+                    },
+                    "required": [
+                      "os",
+                      "arch"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
               "lastSeen": {
                 "type": "number"
               },
@@ -1565,6 +1589,7 @@
               "deviceId",
               "name",
               "connected",
+              "system",
               "providers"
             ]
           }

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -58,6 +59,24 @@ func TestHelloCarriesProtocolVersion(t *testing.T) {
 		}
 		if msg["deviceId"] != "dev-1" || msg["name"] != "box" || msg["version"] != "9.9" {
 			t.Fatalf("hello = %#v", msg)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("the agent sent no hello")
+	}
+}
+
+func TestHelloAnnouncesTheSystem(t *testing.T) {
+	url, hello := serveCore(t, ProtocolVersion)
+	c := NewClient(&config.Config{ServerURL: url, Token: "t", DeviceName: "box"}, "dev-1", "9.9", Hooks{})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func() { _ = c.runOnce(ctx) }()
+	select {
+	case msg := <-hello:
+		want := map[string]any{"os": runtime.GOOS, "arch": runtime.GOARCH}
+		got, _ := msg["system"].(map[string]any)
+		if len(got) != len(want) || got["os"] != want["os"] || got["arch"] != want["arch"] {
+			t.Fatalf("system = %#v, want %#v", msg["system"], want)
 		}
 	case <-time.After(3 * time.Second):
 		t.Fatal("the agent sent no hello")
