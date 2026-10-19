@@ -1,7 +1,7 @@
 // Package codex is the provider of Codex (ADR 0012, ADR 0027): it serves sessions from the append-only rollout
 // files Codex writes under $CODEX_HOME/sessions. A rollout is `rollout-<time>-<threadId>.jsonl`, or the same
 // bytes compressed in place to `.jsonl.zst`; the sync cursor counts the uncompressed bytes in both (ADR 0002).
-// The provider offers discovery only: it implements no provider.Store.
+// The provider is also the Store of Codex: handoff installs a rollout under sessions/ (store.go).
 package codex
 
 import (

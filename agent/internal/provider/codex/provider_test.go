@@ -324,10 +324,10 @@ func TestFind(t *testing.T) {
 	}
 }
 
-func TestDoesNotImplementStore(t *testing.T) {
+func TestIsAStore(t *testing.T) {
 	var p provider.Provider = New(t.TempDir(), nil)
-	if _, ok := p.(provider.Store); ok {
-		t.Fatal("the codex provider declares handoff")
+	if _, ok := p.(provider.Store); !ok {
+		t.Fatal("the codex provider does not declare handoff")
 	}
 	if p.Name() != "codex" {
 		t.Fatalf("name %q", p.Name())

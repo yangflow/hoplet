@@ -17,10 +17,12 @@ working tree to another machine.
   sessions appear) or the vendor's store (handoff), and a vendor moves up a level without changing the rest
   ([ADR 0015](adr/0015-control-protocol-and-history-source-are-chosen-separately.md)). The agent's Codex provider
   reads Codex's rollout files (`$CODEX_HOME/sessions/YYYY/MM/DD/rollout-<time>-<threadId>.jsonl`, or `.jsonl.zst`
-  once Codex has compressed it) read-only, with the thread ID as session ID and the byte cursor counting
+  once Codex has compressed it), with the thread ID as session ID and the byte cursor counting
   uncompressed bytes ([ADR 0027](adr/0027-codex-runs-on-its-app-server-and-enters-at-level-2.md)); the core stores
   the lines, takes a Codex session's project path and start time from the `session_meta` line and its title from
-  the first user message, maps the `item_completed` events into entries, and does not hand Codex sessions off.
+  the first user message, maps the `item_completed` events into entries, and hands Codex sessions off (the
+  target installs the file under `$CODEX_HOME/sessions/`, see Handoff). The provider only reads rollouts,
+  except that a handoff writes one.
 - **The server keeps a verbatim copy of every session**, synced incrementally with the byte offset as the
   cursor ([ADR 0002](adr/0002-the-byte-offset-is-the-sync-cursor.md)). Opening a session never needs the
   owner machine.
@@ -552,6 +554,13 @@ four times a second), and on `done` the new worktree and branch, which the respo
    (one `-` per UTF-16 unit); if the result is longer than 200 characters, it is truncated to 200 characters
    followed by `-` and the base-36 absolute value of a 32-bit hash of the realpath over its UTF-16 units.
    The session file is written byte for byte; sidecar files Claude Code keeps beside it are not carried.
+   For a Codex session the file is written uncompressed (a `.jsonl.zst` source arrives as its uncompressed stream)
+   as `$CODEX_HOME/sessions/YYYY/MM/DD/rollout-<time>-<threadId>.jsonl`: the date and time are those of the first
+   line's `session_meta` timestamp, in the target machine's local time, as Codex names its rollouts. No other file
+   under `$CODEX_HOME` is written, and Codex's own index is left alone; it finds the rollout by its thread ID. The
+   install fails with `session-exists` when the target already has a rollout of that thread anywhere under
+   `sessions/`, in either encoding, and never replaces it. The working directory of the worktree is not stored in
+   the file; it is passed to Codex when the thread is resumed.
 3. **Verify.** Before any Claude Code process starts in the worktree, the target reports the SHA-256 and size
    of the installed session file and the git tree hash of the worktree. The core compares them with the stored stream at the current cursor and the snapshot.
 4. **Commit.** In one transaction the core checks that owner and cursor are unchanged, sets the owner to the
