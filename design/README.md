@@ -15,6 +15,14 @@ The mockups, design tokens and app icon behind Hoplet's web UI. The design langu
     `settings-providers-none`, `settings-providers-empty`.
   - `cockpit` includes the machine icon, the system's mark with the presence dot at its bottom-right: the sidebar
     (`machines`), the draft's machine picker (`machines-draft`) and the Add project machine select (`machines-add`).
+  - `cockpit` includes each machine's load and session processes (#88): the sidebar carries only a warning glyph on a
+    machine over a threshold (`resources`), and the machine's ··· menu has a Resources item, hidden for a machine that
+    reports nothing, that opens Settings › Machines on that machine's tab (`resources-menu`). `settings`
+    includes the detail: Machines as a tab per machine like Model providers, with the selected machine's facts line
+    and three stat tiles with the last hour, the warning line, memory and CPU as stacked bars by session, and the
+    running sessions as the main list with their 1-hour memory line, CPU, memory and child processes
+    (`settings-resources`); an offline machine greys its last values and says its sessions are unknown
+    (`settings-resources-offline`).
   - `cockpit` includes deleting a session: Delete… in the actions menu (`session-menu-delete`), Delete beside Restore
     on a hovered Archived row (`archived`), and the confirmation dialog with its states (`delete`,
     `delete-worktree`, `delete-dirty`, `delete-offline`, `delete-running`, `delete-progress`, `delete-partial`).
