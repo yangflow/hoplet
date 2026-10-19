@@ -32,6 +32,8 @@ const subject: Record<string, Record<string, string>> = {
     machines: 'cockpit.device-toggle',
     'machines-draft': 'cockpit.draft-machine',
     'machines-add': 'cockpit.add-machine',
+    resources: 'cockpit.resource-warning',
+    'resources-menu': 'cockpit.machine-resources',
     compose: 'cockpit.thumbs',
     'model-menu': 'cockpit.model-menu',
     'mode-manual': 'cockpit.mode',
@@ -154,7 +156,9 @@ const subject: Record<string, Record<string, string>> = {
     settings: 'settings.theme',
     'settings-text': 'settings.preview',
     'settings-text-geist': 'settings.preview',
-    'settings-machines': 'settings.machines',
+    'settings-machines': 'settings.machines.tabs',
+    'settings-resources': 'settings.resources.sessions',
+    'settings-resources-offline': 'settings.resources.stale',
     mint: 'settings.mint.config',
     'mint-waiting': 'settings.mint.waiting',
     'mint-online': 'settings.mint.online',
@@ -181,10 +185,10 @@ const subject: Record<string, Record<string, string>> = {
   },
 };
 
-test('the registries list 81 cockpit, 51 workspace, 18 settings and 7 action states', () => {
-  expect(screens.cockpit).toHaveLength(81);
+test('the registries list 83 cockpit, 51 workspace, 20 settings and 7 action states', () => {
+  expect(screens.cockpit).toHaveLength(83);
   expect(screens.workspace).toHaveLength(51);
-  expect(screens.settings).toHaveLength(18);
+  expect(screens.settings).toHaveLength(20);
   expect(screens.action).toHaveLength(7);
 });
 

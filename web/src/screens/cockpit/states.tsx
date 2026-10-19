@@ -181,8 +181,20 @@ export function fixtureDevices(
   macbookOnline: boolean,
   terminal = true,
   labBox = false,
+  /** The machines report their resources (the design's resources states). */
+  reporting = false,
 ): DeviceInfo[] {
   const providers = [{ provider: 'claude' as const, capabilities }];
+  const GIB = 1024 ** 3;
+  const GB = 1e9;
+  const reading = (cpu: number, mem: [number, number], disk: [number, number], ago = 0) => ({
+    at: NOW - ago,
+    cpu,
+    memUsed: Math.round(mem[0] * GIB),
+    memTotal: Math.round(mem[1] * GIB),
+    diskFree: Math.round(disk[0] * GB),
+    diskTotal: Math.round(disk[1] * GB),
+  });
   return [
     {
       deviceId: 'dev-macbook',
@@ -192,6 +204,12 @@ export function fixtureDevices(
       providers: macbookOnline ? providers : [],
       ...(terminal ? { terminal: true } : {}),
       previewHost: 'mbp.tail1f2a.ts.net',
+      ...(reporting
+        ? {
+            resources: reading(12, [20.2, 32], [184, 994], 4_000),
+            warn: { memory: false, disk: false },
+          }
+        : {}),
     },
     {
       deviceId: 'dev-studio',
@@ -199,6 +217,12 @@ export function fixtureDevices(
       connected: true,
       system: { os: 'linux', arch: 'amd64' },
       providers,
+      ...(reporting
+        ? {
+            resources: reading(71, [60.2, 64], [412, 1000], 9_000),
+            warn: { memory: true, disk: false },
+          }
+        : {}),
     },
     {
       deviceId: 'dev-office',
@@ -206,6 +230,12 @@ export function fixtureDevices(
       connected: false,
       system: { os: 'windows', arch: 'amd64' },
       providers: [],
+      ...(reporting
+        ? {
+            resources: reading(8, [6.5, 16], [38, 256], 6 * 3_600_000),
+            warn: { memory: false, disk: false },
+          }
+        : {}),
     },
     ...(labBox
       ? [{ deviceId: 'dev-lab', name: 'lab-box', connected: true, system: null, providers }]
@@ -1059,6 +1089,10 @@ export const states: Record<string, () => ReactNode> = {
   'draft-directory': () => <Scene fixture={{ draft: { dirs: DRAFT_DIRS, open: 'directory' } }} />,
   machines: () => (
     <Scene fixture={{ hoverDevice: 'MacBook Pro', devices: fixtureDevices(true, true, true) }} />
+  ),
+  resources: () => <Scene fixture={{ devices: fixtureDevices(true, true, true, true) }} />,
+  'resources-menu': () => (
+    <Scene fixture={{ devices: fixtureDevices(true, true, true, true), menuDevice: 'studio' }} />
   ),
   'machines-draft': () => (
     <Scene

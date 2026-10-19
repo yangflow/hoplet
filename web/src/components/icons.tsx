@@ -1,4 +1,5 @@
 import {
+  Activity,
   Archive,
   ArchiveRestore,
   ArrowRightLeft,
@@ -111,6 +112,7 @@ export const Icon = {
   mic: draw(Mic),
   hand: draw(Hand),
   clock: draw(Clock),
+  activity: draw(Activity),
   close: draw(X),
   check: draw(Check),
   alert: draw(CircleAlert),

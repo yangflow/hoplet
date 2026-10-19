@@ -54,11 +54,24 @@ function settingsInUrl(): SectionId | null {
   return raw === null ? null : sectionOf(raw);
 }
 
-function writeSettingsUrl(section: SectionId | null): void {
+/** The machine Settings > Machines opens on: `?machine=<device id>` next to `?settings=machines`. */
+function machineInUrl(): string | undefined {
+  return new URLSearchParams(location.search).get('machine') ?? undefined;
+}
+
+function writeSettingsUrl(
+  section: SectionId | null,
+  machine?: string,
+  mode: 'push' | 'replace' = 'push',
+): void {
   const url = new URL(location.href);
   if (section) url.searchParams.set('settings', section);
   else url.searchParams.delete('settings');
-  if (url.href !== location.href) history.pushState(null, '', url);
+  if (section === 'machines' && machine) url.searchParams.set('machine', machine);
+  else url.searchParams.delete('machine');
+  if (url.href === location.href) return;
+  if (mode === 'push') history.pushState(null, '', url);
+  else history.replaceState(null, '', url);
 }
 
 export default function App() {
@@ -66,6 +79,7 @@ export default function App() {
   const [sessions, setSessions] = useState<LiveSessionMeta[]>([]);
   const [selected, setSelectedState] = useState<string | null>(sessionInUrl);
   const [settings, setSettings] = useState<SectionId | null>(settingsInUrl);
+  const [settingsMachine, setSettingsMachine] = useState<string | undefined>(machineInUrl);
   const [appearance, setAppearance] = useState<Appearance>(loadAppearance);
   const [error, setError] = useState<string | null>(null);
   const [live, setLive] = useState(false);
@@ -99,6 +113,7 @@ export default function App() {
     const onPop = () => {
       setSelectedState(sessionInUrl());
       setSettings(settingsInUrl());
+      setSettingsMachine(machineInUrl());
     };
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
@@ -106,17 +121,34 @@ export default function App() {
 
   // The cockpit stays mounted under Settings; focus goes into Settings and comes back to what opened it.
   const opener = useRef<HTMLElement | null>(null);
-  const openSettings = useCallback((section: SectionId = 'appearance') => {
+  const openSettings = useCallback((section: SectionId = 'appearance', machine?: string) => {
     const from = document.activeElement;
     // Switching section inside Settings keeps the first opener.
     if (!opener.current && from instanceof HTMLElement && from !== document.body)
       opener.current = from;
     setSettings(section);
-    writeSettingsUrl(section);
+    setSettingsMachine(machine);
+    writeSettingsUrl(section, machine);
   }, []);
   const closeSettings = useCallback(() => {
     setSettings(null);
+    setSettingsMachine(undefined);
     writeSettingsUrl(null);
+  }, []);
+  const pickSettingsMachine = useCallback((deviceId: string) => {
+    setSettingsMachine(deviceId);
+    writeSettingsUrl('machines', deviceId, 'replace');
+  }, []);
+  // A session row in Settings opens the session in the cockpit: one step back returns to Settings.
+  const openSessionFromSettings = useCallback((sessionId: string) => {
+    setSettings(null);
+    setSettingsMachine(undefined);
+    setSelectedState(sessionId);
+    const url = new URL(location.href);
+    url.searchParams.delete('settings');
+    url.searchParams.delete('machine');
+    url.searchParams.set('session', sessionId);
+    history.pushState(null, '', url);
   }, []);
   const isOpen = settings !== null;
   useEffect(() => {
@@ -342,6 +374,10 @@ export default function App() {
         <Settings
           section={settings}
           onSection={openSettings}
+          machine={settingsMachine}
+          onMachine={pickSettingsMachine}
+          runtime={runtime}
+          onOpenSession={openSessionFromSettings}
           onBack={closeSettings}
           appearance={appearance}
           onAppearance={changeAppearance}
@@ -352,6 +388,7 @@ export default function App() {
         <Cockpit
           onSettings={() => openSettings()}
           onNotifySettings={() => openSettings('notifications')}
+          onMachineResources={(deviceId) => openSettings('machines', deviceId)}
           onPatchSession={patch}
           onSessionDeleted={dropSession}
           sessions={sessions}

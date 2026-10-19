@@ -102,6 +102,8 @@ export function Cockpit(props: {
   onSessionDeleted?: (sessionId: string) => void;
   /** Opens Settings > Notifications, where a blocked browser is explained. */
   onNotifySettings?: () => void;
+  /** Opens Settings > Machines on this machine's tab. */
+  onMachineResources?: (deviceId: string) => void;
   fixture?: CockpitFixture;
 }) {
   const { sessions, selected, onSelect, live, error, fixture } = props;
@@ -415,6 +417,7 @@ export function Cockpit(props: {
           onSearch={() => setPaletteOpen(true)}
           onFold={() => setSidebarFolded(true)}
           onSettings={openSettings}
+          onResources={(deviceId) => props.onMachineResources?.(deviceId)}
         />
       )}
       <main className="main">

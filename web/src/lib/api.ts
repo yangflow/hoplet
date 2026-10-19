@@ -12,6 +12,7 @@ import {
   DeviceListResponseSchema,
   DeviceMintResultSchema,
   DeviceProjectsResultSchema,
+  DeviceResourcesResultSchema,
   ErrorResponseSchema,
   FullBlockSchema,
   type GenericSchema,
@@ -186,6 +187,14 @@ export function fetchSnapshotDiff(sessionId: string, path: string, signal?: Abor
 
 export function fetchDevices() {
   return call('/api/devices', DeviceListResponseSchema);
+}
+
+/** The last hour of a machine's resource readings and the sessions of the latest one. */
+export function fetchDeviceResources(deviceId: string) {
+  return call(
+    `/api/devices/${encodeURIComponent(deviceId)}/resources`,
+    DeviceResourcesResultSchema,
+  );
 }
 
 /** Live agent catalog; `null` when the device is offline. */

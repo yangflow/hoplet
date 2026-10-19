@@ -1,6 +1,8 @@
 import type {
   ConfigOption,
   DeviceInfo,
+  DeviceResourceSample,
+  DeviceSessionResources,
   LiveSessionMeta,
   NotifyPreferences,
   ProviderInfo,
@@ -35,18 +37,233 @@ function machine(
   };
 }
 
-const DEVICES: DeviceInfo[] = [
-  machine('dev-macbook', 'MacBook Pro', true, NOW, 'darwin'),
-  machine('dev-studio', 'studio', true, NOW, 'linux'),
-  machine('dev-office', 'office-mini', false, NOW - 6 * 3_600_000, 'windows'),
+const GIB = 1024 ** 3;
+const GB = 1e9;
+
+function reading(at: number, cpu: number, mem: [number, number], disk: [number, number]) {
+  return {
+    at,
+    cpu,
+    memUsed: Math.round(mem[0] * GIB),
+    memTotal: Math.round(mem[1] * GIB),
+    diskFree: Math.round(disk[0] * GB),
+    diskTotal: Math.round(disk[1] * GB),
+  } satisfies DeviceResourceSample;
+}
+
+/** An hour of readings in 48 steps, ending on `end`: the shape the design draws. */
+function trend(seed: number, base: number, amp: number, end: number, n = 48): number[] {
+  const a = Array.from({ length: n }, (_, i) =>
+    Math.max(
+      2,
+      Math.min(
+        99,
+        Math.round(
+          base +
+            amp * (Math.sin(seed + i * 0.3) * 0.6 + Math.sin(seed * 2 + i * 0.85) * 0.4) +
+            (end - base) * (i / (n - 1)) ** 4,
+        ),
+      ),
+    ),
+  );
+  a[n - 1] = end;
+  return a;
+}
+
+type Proc = {
+  id: string;
+  title: string;
+  project: string;
+  state: 'running' | 'waiting-permission' | 'idle';
+  cpu: number;
+  gb: number;
+  children: number;
+  shape: number[];
+};
+
+type Machine = {
+  device: DeviceInfo;
+  samples: DeviceResourceSample[];
+  procs: Proc[];
+};
+
+/** A machine as the design reports it: its latest reading, an hour of CPU and memory, the session processes. */
+function reported(
+  base: DeviceInfo,
+  last: { cpu: number; mem: [number, number]; disk: [number, number] },
+  hc: number[],
+  hm: number[],
+  procs: Proc[],
+  age = 0,
+): Machine {
+  const now = base.connected ? NOW - age : (base.lastSeen ?? NOW);
+  const samples = hc.map((cpu, i) => {
+    const step = (hc.length - 1 - i) * 75_000;
+    const mem: [number, number] = [((hm[i] ?? 0) * last.mem[1]) / 100, last.mem[1]];
+    return reading(now - step, cpu, mem, last.disk);
+  });
+  const sample = reading(now, last.cpu, last.mem, last.disk);
+  const warn = base.connected
+    ? {
+        memory: sample.memUsed / sample.memTotal > 0.9,
+        disk: sample.diskFree / sample.diskTotal < 0.1,
+      }
+    : { memory: false, disk: false };
+  return {
+    device: { ...base, resources: sample, warn },
+    samples: [...samples.slice(0, -1), sample],
+    procs,
+  };
+}
+
+const OFFICE_BASE = machine('dev-office', 'office-mini', false, NOW - 6 * 3_600_000, 'windows');
+const MACHINES_REPORTED: Machine[] = [
+  reported(
+    machine('dev-macbook', 'MacBook Pro', true, NOW, 'darwin'),
+    { cpu: 12, mem: [20.2, 32], disk: [184, 994] },
+    trend(1, 22, 14, 12),
+    trend(2, 58, 6, 63),
+    [
+      {
+        id: 'res-mac-0',
+        title: 'Hand off sessions with snapshots',
+        project: 'hoplet',
+        state: 'running',
+        cpu: 9,
+        gb: 1.8,
+        children: 3,
+        shape: trend(7, 50, 20, 70),
+      },
+      {
+        id: 'res-mac-1',
+        title: 'Audit docs/api.md',
+        project: 'notes',
+        state: 'idle',
+        cpu: 1,
+        gb: 1.1,
+        children: 2,
+        shape: trend(8, 50, 5, 55),
+      },
+    ],
+  ),
+  reported(
+    machine('dev-studio', 'studio', true, NOW, 'linux'),
+    { cpu: 71, mem: [60.2, 64], disk: [412, 1000] },
+    trend(3, 45, 25, 71),
+    trend(4, 78, 8, 94),
+    [
+      {
+        id: 'res-studio-0',
+        title: '多设备远程同步 AI 会话项目',
+        project: 'notes',
+        state: 'waiting-permission',
+        cpu: 6,
+        gb: 31.4,
+        children: 5,
+        shape: trend(9, 55, 12, 90),
+      },
+      {
+        id: 'res-studio-1',
+        title: 'Fix flaky vitest on CI',
+        project: 'hoplet',
+        state: 'running',
+        cpu: 38,
+        gb: 12.8,
+        children: 4,
+        shape: trend(10, 45, 25, 60),
+      },
+      {
+        id: 'res-studio-2',
+        title: 'Migrate fixtures to Go',
+        project: 'hoplet',
+        state: 'running',
+        cpu: 14,
+        gb: 8.2,
+        children: 2,
+        shape: trend(11, 40, 20, 50),
+      },
+      {
+        id: 'res-studio-3',
+        title: 'Roadmap 0.4 planning',
+        project: 'notes',
+        state: 'idle',
+        cpu: 1,
+        gb: 3.1,
+        children: 1,
+        shape: trend(12, 50, 3, 52),
+      },
+    ],
+  ),
+  reported(
+    OFFICE_BASE,
+    { cpu: 8, mem: [6.5, 16], disk: [38, 256] },
+    trend(5, 10, 6, 8),
+    trend(6, 40, 4, 41),
+    [],
+  ),
 ];
+
+/** The Machines section on one machine's tab, as the resources endpoint and the polls so far would fill it. */
+function resourcesOf(selected: string, hovered?: string): MachinesFixture {
+  const devices = [
+    ...MACHINES_REPORTED.map((m) => m.device),
+    machine('dev-lab', 'lab-box', true, NOW),
+  ];
+  const picked = MACHINES_REPORTED.find((m) => m.device.deviceId === selected);
+  const sessions: DeviceSessionResources[] = (picked?.procs ?? []).map((p) => ({
+    sessionId: p.id,
+    title: p.title,
+    projectPath: `/Users/me/code/${p.project}`,
+    cpu: p.cpu,
+    rss: Math.round(p.gb * GIB),
+    children: p.children,
+  }));
+  const total = picked?.device.resources?.memTotal ?? 0;
+  const history = Object.fromEntries(
+    (picked?.procs ?? []).map((p) => [p.id, p.shape.map((pct) => (pct / 100) * total)]),
+  );
+  const metas: LiveSessionMeta[] = (picked?.procs ?? []).map((p) => ({
+    sessionId: p.id,
+    projectPath: `/Users/me/code/${p.project}`,
+    projectDir: `-Users-me-code-${p.project}`,
+    deviceName: picked?.device.name ?? '',
+    ownerDeviceId: selected,
+    ownerEpoch: 0,
+    title: p.title,
+    provider: 'claude',
+    createdAt: NOW - 86_400_000,
+    updatedAt: NOW - 60_000,
+    lineCount: 100,
+    byteSize: 10_000,
+    ownerConnected: true,
+    runtime: { state: p.state },
+  }));
+  return {
+    now: NOW,
+    devices,
+    selected,
+    resources: {
+      result: {
+        samples: picked?.samples ?? [],
+        sessions,
+        ...(picked?.device.resources ? { at: picked.device.resources.at } : {}),
+      },
+      history,
+    },
+    sessions: metas,
+    ...(hovered ? { hovered } : {}),
+  };
+}
 
 const STUDIO_2 = { deviceId: 'dev-studio-2', name: 'studio-2', token: 'fixture-token' };
 
 function machines(mint?: { copied: boolean }, online = false): MachinesFixture {
+  const base = resourcesOf('dev-macbook');
   return {
-    now: NOW,
-    devices: online ? [...DEVICES, machine(STUDIO_2.deviceId, STUDIO_2.name, true, NOW)] : DEVICES,
+    ...base,
+    devices: online
+      ? [...base.devices, machine(STUDIO_2.deviceId, STUDIO_2.name, true, NOW)]
+      : base.devices,
     ...(mint ? { mint: { result: STUDIO_2, copied: mint.copied } } : {}),
   };
 }
@@ -259,6 +476,12 @@ export const states: Record<string, () => ReactNode> = {
   mint: () => <Scene section="machines" machines={machines({ copied: false })} />,
   'mint-waiting': () => <Scene section="machines" machines={machines({ copied: true })} />,
   'mint-online': () => <Scene section="machines" machines={machines({ copied: true }, true)} />,
+  'settings-resources': () => (
+    <Scene section="machines" machines={resourcesOf('dev-studio', 'res-studio-1')} />
+  ),
+  'settings-resources-offline': () => (
+    <Scene section="machines" machines={resourcesOf('dev-office')} />
+  ),
   'settings-providers': () => <Scene section="providers" providers={providers(undefined)} />,
   'settings-providers-newer': () => (
     <Scene section="providers" providers={providers('dev-studio')} />

@@ -10,6 +10,9 @@ export type DeviceGroup = {
   /** What the agent announced about its machine; null for an agent that sent none. */
   system: DeviceSystem | null;
   providers: ProviderInfo[];
+  /** The agent's latest reading and which thresholds it crosses; absent for an agent that reports none. */
+  resources?: DeviceInfo['resources'];
+  warn?: DeviceInfo['warn'];
   dirs: DirGroup[];
 };
 
@@ -104,6 +107,8 @@ export function buildTree(
       online: deviceConnected(name, list, devices),
       system: device?.system ?? null,
       providers: device?.providers ?? [],
+      ...(device?.resources ? { resources: device.resources } : {}),
+      ...(device?.warn ? { warn: device.warn } : {}),
       dirs: dirList,
     };
   });
