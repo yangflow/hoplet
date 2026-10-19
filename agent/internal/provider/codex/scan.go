@@ -84,27 +84,35 @@ func scanFiles(root string) []rolloutFile {
 
 // firstLine is the part of a rollout's first line (`session_meta`) the provider uses.
 type firstLine struct {
-	Type    string `json:"type"`
-	Payload struct {
-		ID  string `json:"id"`
-		Cwd string `json:"cwd"`
+	Type      string `json:"type"`
+	Timestamp string `json:"timestamp"`
+	Payload   struct {
+		ID        string `json:"id"`
+		Cwd       string `json:"cwd"`
+		Timestamp string `json:"timestamp"`
 	} `json:"payload"`
 }
 
-// readMeta reads the thread ID and cwd from the first line of the rollout at path, decompressing it when it is
-// a .zst. The line is about 70 KB, so it is read to its LF rather than through a small line buffer. ok is
-// false while the line is incomplete or is not a session_meta with a usable ID.
+// readMeta reads the thread ID and cwd from the first line of the rollout at path; see readFirstLine.
 func readMeta(path string) (id, cwd string, ok bool) {
+	fl, ok := readFirstLine(path)
+	return fl.Payload.ID, fl.Payload.Cwd, ok
+}
+
+// readFirstLine parses the first line of the rollout at path, decompressing it when it is a .zst. The line is
+// about 70 KB, so it is read to its LF rather than through a small line buffer. ok is false while the line is
+// incomplete or is not a session_meta with a usable ID.
+func readFirstLine(path string) (firstLine, bool) {
 	f, err := os.Open(path)
 	if err != nil {
-		return "", "", false
+		return firstLine{}, false
 	}
 	defer f.Close()
 	var r io.Reader = f
 	if strings.HasSuffix(path, ".zst") {
 		dec, err := zstd.NewReader(f, zstd.WithDecoderConcurrency(1))
 		if err != nil {
-			return "", "", false
+			return firstLine{}, false
 		}
 		defer dec.Close()
 		r = dec
@@ -112,16 +120,16 @@ func readMeta(path string) (id, cwd string, ok bool) {
 	br := bufio.NewReaderSize(io.LimitReader(countingReader{r}, provider.MaxLineBytes), 128<<10)
 	line, err := br.ReadBytes('\n')
 	if err != nil {
-		return "", "", false
+		return firstLine{}, false
 	}
 	var fl firstLine
 	if json.Unmarshal(bytes.TrimSpace(line), &fl) != nil || fl.Type != "session_meta" {
-		return "", "", false
+		return firstLine{}, false
 	}
 	if !provider.ValidSessionID(fl.Payload.ID) {
-		return "", "", false
+		return firstLine{}, false
 	}
-	return fl.Payload.ID, fl.Payload.Cwd, true
+	return fl, true
 }
 
 var sessionBytesRead atomic.Int64
