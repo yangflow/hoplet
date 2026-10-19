@@ -11,8 +11,9 @@ import { Button } from '../../../components/Button.tsx';
 import { configIcon, Icon, Spinner } from '../../../components/icons.tsx';
 import { Popover } from '../../../components/Popover.tsx';
 import { TextField } from '../../../components/TextField.tsx';
+import { valueDescription, valueName } from '../../../lib/config-options.ts';
 import { t } from '../../../lib/i18n.ts';
-import { modeDescription, modeName, type Select } from '../composer/mode-menu.tsx';
+import type { Select } from '../composer/mode-menu.tsx';
 import { displayTitle } from '../group.ts';
 import { clock, formatBytes } from './format.ts';
 import { type FreshPhase, useFreshPlan } from './fresh-plan.ts';
@@ -153,7 +154,7 @@ export function PlanCard(props: {
   const facts = planFacts(planSteps(exit.plan), bytes);
   const label = (value: string) => {
     const v = modes?.options.find((o) => o.value === value);
-    return modes ? modeName(modes, value, v?.name ?? value) : value;
+    return modes ? valueName(modes, value, v?.name ?? value) : value;
   };
   const off = !props.decidable || busy;
   const projectName = props.projectPath.split('/').filter(Boolean).pop() ?? props.projectPath;
@@ -381,7 +382,7 @@ export function PlanCard(props: {
                     {choices.map((value) => {
                       const v = modes?.options.find((o) => o.value === value);
                       const description = modes
-                        ? modeDescription(modes, value, v?.description)
+                        ? valueDescription(modes, value, v?.description)
                         : '';
                       return (
                         <button
@@ -520,7 +521,7 @@ export function PlanResolved(props: {
     return (
       <span className="mchip">
         {configIcon(v?.icon)}
-        {modes ? modeName(modes, value, v?.name ?? value) : value}
+        {modes ? valueName(modes, value, v?.name ?? value) : value}
       </span>
     );
   };

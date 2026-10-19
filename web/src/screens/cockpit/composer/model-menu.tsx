@@ -11,6 +11,7 @@ import {
 import { Icon } from '../../../components/icons.tsx';
 import { Popover } from '../../../components/Popover.tsx';
 import { ProviderMark, providerName } from '../../../components/provider-marks.tsx';
+import { currentValueName, optionName, valueName } from '../../../lib/config-options.ts';
 import { t } from '../../../lib/i18n.ts';
 
 /**
@@ -39,27 +40,6 @@ export function withValues(
 /** Whether a machine offers anything for the menu to choose: a second provider or an option. */
 export function hasChoices(providers: ProviderInfo[], chosen: ProviderInfo | undefined): boolean {
   return providers.length > 1 || menuConfig(chosen?.capabilities.config).length > 0;
-}
-
-/** An option's name: the strings' entry for its ID when there is one, else the driver's name. */
-function optionName(o: ConfigOption): string {
-  const key = `config.${o.id}`;
-  const known = t(key);
-  return known !== key ? known : o.name;
-}
-
-/** A value's name: the strings' entry for the option and value when there is one, else the driver's name. */
-function valueName(o: ConfigOption, value: string, name: string): string {
-  const key = `config.${o.id}.${value}`;
-  const known = t(key);
-  return known !== key ? known : name;
-}
-
-/** The name of a select's current value. */
-function currentName(o: ConfigOption): string | undefined {
-  if (o.type !== 'select') return undefined;
-  const v = o.options.find((c) => c.value === o.currentValue);
-  return v ? valueName(o, v.value, v.name) : undefined;
 }
 
 /** The glyph of a switch that is on, by ACP's reserved categories. */
@@ -94,7 +74,7 @@ export function ModelMenu(props: {
   const id = useId();
   const options = menuConfig(props.config);
   const modelOption = options.find((o) => o.type === 'select' && o.category === 'model');
-  const label = (modelOption && currentName(modelOption)) || providerName(provider);
+  const label = (modelOption && currentValueName(modelOption)) || providerName(provider);
   const on = options.filter((o) => o.type === 'boolean' && o.currentValue === true);
   const glyphs = on.filter((o) => glyph(o) !== null);
   const detail = [label, ...on.map(optionName)].filter(Boolean).join(' · ');
