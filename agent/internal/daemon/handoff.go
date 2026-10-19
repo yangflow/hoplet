@@ -107,7 +107,7 @@ func newHandoffs(cfg *config.Config, st *store, bridge *bridge, snaps *snapshott
 		cfg: cfg,
 		inst: &workspace.Installer{
 			Home:     cfg.HopletHome,
-			Store:    vendorStore(cfg, "claude"),
+			Stores:   func(name string) provider.Store { return vendorStore(cfg, name) },
 			Watched:  st.watchedPaths,
 			Projects: st,
 		},
@@ -213,6 +213,7 @@ func (h *handoffs) begin(_ context.Context, m sync.HandoffInstall) error {
 	tr, err := workspace.BeginTransfer(h.cfg.HopletHome, workspace.TransferHeader{
 		HandoffID:      m.HandoffID,
 		SessionID:      m.SessionID,
+		Provider:       m.Provider,
 		TargetPath:     m.TargetPath,
 		SnapshotBytes:  m.SnapshotBytes,
 		SnapshotSHA256: m.SnapshotSHA256,

@@ -28,12 +28,12 @@ type Projects interface {
 }
 
 // Installer puts handed-off sessions on this machine (docs/spec.md#handoff): a worktree next to the clone,
-// the snapshot's files in it, the session file in the vendor's store, and the worktree in projects.json. It
+// the snapshot's files in it, the session file in the session's vendor's store, and the worktree in projects.json. It
 // keeps a record of every installation in the state root before it changes anything, so an installation
 // that was interrupted is removed again.
 type Installer struct {
-	Home     string         // agent state root; records are in <Home>/handoff
-	Store    provider.Store // the session's vendor store
+	Home     string                               // agent state root; records are in <Home>/handoff
+	Stores   func(provider string) provider.Store // the store of the vendor named, nil when it has none
 	Watched  func() []string
 	Projects Projects
 
@@ -44,6 +44,8 @@ type Installer struct {
 type Record struct {
 	HandoffID string `json:"handoffId"`
 	SessionID string `json:"sessionId"`
+	// Provider is the vendor whose store holds the session file; verify, rollback and recovery use the same one.
+	Provider string `json:"provider"`
 	// State is "installing" until everything is in place, then "installed" until the handoff commits or aborts.
 	State          string `json:"state"`
 	Clone          string `json:"clone"`
@@ -167,8 +169,8 @@ func (i *Installer) rollback(ctx context.Context, r Record) error {
 			errs = append(errs, err)
 		}
 	}
-	if r.SessionFile != "" && i.Store != nil {
-		i.Store.Remove(r.SessionFile)
+	if st := i.store(r.Provider); r.SessionFile != "" && st != nil {
+		st.Remove(r.SessionFile)
 	}
 	if _, err := os.Lstat(r.Worktree); err == nil {
 		if worktreeIsOurs(ctx, r) {
@@ -189,6 +191,14 @@ func (i *Installer) rollback(ctx context.Context, r Record) error {
 	return nil
 }
 
+// store is the store of the vendor, nil when there is none.
+func (i *Installer) store(name string) provider.Store {
+	if i.Stores == nil {
+		return nil
+	}
+	return i.Stores(name)
+}
+
 // Installed is the result of an installation.
 type Installed struct {
 	Record
@@ -207,7 +217,8 @@ func (i *Installer) Install(ctx context.Context, t *Transfer) (*Installed, error
 	if !provider.ValidSessionID(h.SessionID) {
 		return nil, errors.New("invalid-session-id")
 	}
-	if i.Store == nil {
+	store := i.store(h.Provider)
+	if store == nil {
 		return nil, errors.New("the session's vendor does not support handoff")
 	}
 	// Nothing on this machine changes until the whole archive has been inspected.
@@ -230,6 +241,7 @@ func (i *Installer) Install(ctx context.Context, t *Transfer) (*Installed, error
 	rec := Record{
 		HandoffID: h.HandoffID,
 		SessionID: h.SessionID,
+		Provider:  h.Provider,
 		State:     StateInstalling,
 		Clone:     clone,
 		Worktree:  filepath.Join(filepath.Dir(clone), filepath.Base(clone)+"-"+short),
@@ -258,7 +270,7 @@ func (i *Installer) Install(ctx context.Context, t *Transfer) (*Installed, error
 	}
 	// The file is named in the record only once it exists: a rollback removes what the record names, and a
 	// session file that was already there is not ours to remove.
-	file, err := i.Store.Install(rec.Cwd, h.SessionID, t.Path(PartSession))
+	file, err := store.Install(rec.Cwd, h.SessionID, t.Path(PartSession))
 	if err != nil {
 		return fail(err)
 	}

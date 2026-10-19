@@ -10,7 +10,7 @@ import "encoding/json"
 // (provider.ValidSessionID, ADR 0006). Invalid IDs receive error invalid-session-id
 // before decoding or persistence; the wire envelope and cursor are unchanged.
 
-const ProtocolVersion = 9
+const ProtocolVersion = 10
 
 // Wire message types: Type<Struct> is the `type` of the struct of that name.
 // shared/src/wire/ holds the same table; scripts/test/contract.test.ts compares both.
@@ -588,6 +588,7 @@ type HandoffInstall struct {
 	Type           string `json:"type"`
 	SessionID      string `json:"sessionId"`
 	HandoffID      string `json:"handoffId"`
+	Provider       string `json:"provider"` // the session's vendor, whose store the target installs it in
 	TargetPath     string `json:"targetPath,omitempty"`
 	SnapshotBytes  int64  `json:"snapshotBytes"`
 	SnapshotSHA256 string `json:"snapshotSha256"`

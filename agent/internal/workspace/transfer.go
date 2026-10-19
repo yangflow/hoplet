@@ -44,6 +44,7 @@ var ErrTransfer = errors.New("invalid-transfer")
 type TransferHeader struct {
 	HandoffID      string
 	SessionID      string
+	Provider       string // the session's vendor
 	TargetPath     string
 	SnapshotBytes  int64
 	SnapshotSHA256 string

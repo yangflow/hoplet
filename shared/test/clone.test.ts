@@ -18,8 +18,8 @@ const msg = (type: WireType, fields: Record<string, unknown>): boolean =>
   is(WIRE_MESSAGES[type].schema, { v: PROTOCOL_VERSION, type, ...fields });
 
 describe('the clone wire messages (ADR 0024)', () => {
-  it('is protocol version 9', () => {
-    expect(PROTOCOL_VERSION).toBe(9);
+  it('is protocol version 10', () => {
+    expect(PROTOCOL_VERSION).toBe(10);
   });
 
   it('runs every clone message on the control lane', () => {
