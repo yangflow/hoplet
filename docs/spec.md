@@ -22,7 +22,8 @@ working tree to another machine.
   the lines, takes a Codex session's project path and start time from the `session_meta` line and its title from
   the first user message, maps the `item_completed` events into entries, and hands Codex sessions off (the
   target installs the file under `$CODEX_HOME/sessions/`, see Handoff). The provider only reads rollouts,
-  except that a handoff writes one. Codex sessions are controlled through
+  except that a handoff writes one; the agent installs a handed-off session into Claude Code's store only, until
+  `handoff.install` names the vendor. Codex sessions are controlled through
   `codex app-server`: new sessions, prompts, steering, interrupt, approvals and the settings `mode`, `model`,
   `effort` and `collaboration` (with a plan exit), on the tested codex-cli versions only.
 - **The server keeps a verbatim copy of every session**, synced incrementally with the byte offset as the
