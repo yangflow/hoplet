@@ -20,10 +20,10 @@ working tree to another machine.
   once Codex has compressed it), with the thread ID as session ID and the byte cursor counting
   uncompressed bytes ([ADR 0027](adr/0027-codex-runs-on-its-app-server-and-enters-at-level-2.md)); the core stores
   the lines, takes a Codex session's project path and start time from the `session_meta` line and its title from
-  the first user message, maps the `item_completed` events into entries, and hands Codex sessions off (the
-  target installs the file under `$CODEX_HOME/sessions/`, see Handoff). The provider only reads rollouts,
-  except that a handoff writes one; the agent installs a handed-off session into Claude Code's store only, until
-  `handoff.install` names the vendor. Codex sessions are controlled through
+  the first user message, maps the `item_completed` events into entries. The Codex provider can install a rollout under
+  `$CODEX_HOME/sessions/` (see Handoff) and otherwise only reads rollouts, but `handoff.install` does not name
+  the vendor, so a target agent installs every handed-off session into Claude Code's store and a Codex session
+  does not hand off. Codex sessions are controlled through
   `codex app-server`: new sessions, prompts, steering, interrupt, approvals and the settings `mode`, `model`,
   `effort` and `collaboration` (with a plan exit), on the tested codex-cli versions only.
 - **The server keeps a verbatim copy of every session**, synced incrementally with the byte offset as the
