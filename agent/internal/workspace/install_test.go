@@ -14,6 +14,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/yangflow/hoplet/agent/internal/provider"
 	claudeprovider "github.com/yangflow/hoplet/agent/internal/provider/claude"
 )
 
@@ -45,7 +46,7 @@ func feed(t *testing.T, tr *Transfer, part string, data []byte, piece int, gz bo
 
 func header(snapshot, session []byte) TransferHeader {
 	return TransferHeader{
-		HandoffID: "h-1", SessionID: testSession,
+		HandoffID: "h-1", SessionID: testSession, Provider: "claude",
 		SnapshotBytes: int64(len(snapshot)), SnapshotSHA256: sum(snapshot),
 		SessionBytes: int64(len(session)), SessionSHA256: sum(session),
 	}
@@ -120,7 +121,7 @@ func newTarget(t *testing.T) *target {
 		session: []byte(`{"type":"user","cwd":"/elsewhere","message":{"role":"user","content":"字"}}` + "\n" + strings.Repeat(`{"n":1}`+"\n", 5000)),
 	}
 	tg.inst = &Installer{
-		Home: tg.home, Store: claudeprovider.New(tg.store, nil), Projects: tg.projects,
+		Home: tg.home, Stores: claudeOnly(tg.store), Projects: tg.projects,
 		Watched: func() []string { return []string{filepath.Dir(f.source), f.target} },
 	}
 	return tg
@@ -352,7 +353,7 @@ func TestRecoverRemovesAnInterruptedInstallationAndKeepsAFinishedOne(t *testing.
 	if _, err := tg.inst.Install(ctx, tg.transfer(t, nil)); err != nil {
 		t.Fatal(err)
 	}
-	pending, err := (&Installer{Home: tg.home, Store: claudeprovider.New(tg.store, nil), Projects: tg.projects, Watched: tg.inst.Watched}).Recover(ctx)
+	pending, err := (&Installer{Home: tg.home, Stores: claudeOnly(tg.store), Projects: tg.projects, Watched: tg.inst.Watched}).Recover(ctx)
 	if err != nil || len(pending) != 1 || pending[0].HandoffID != "h-1" || pending[0].State != StateInstalled {
 		t.Fatalf("pending = %+v, %v", pending, err)
 	}
@@ -637,5 +638,25 @@ func TestNormalizeOrigin(t *testing.T) {
 	}
 	if normalizeOrigin("  ") != "" {
 		t.Error("blank origin")
+	}
+}
+
+// claudeOnly is the stores of an agent that has Claude Code's store under dir.
+func claudeOnly(dir string) func(string) provider.Store {
+	claude := claudeprovider.New(dir, nil)
+	return func(name string) provider.Store {
+		if name == "claude" {
+			return claude
+		}
+		return nil
+	}
+}
+
+func TestInstallRefusesAVendorWithoutAStore(t *testing.T) {
+	t.Parallel()
+	tg := newTarget(t)
+	tr := tg.transfer(t, func(h *TransferHeader) { h.Provider = "codex" })
+	if _, err := tg.inst.Install(context.Background(), tr); err == nil || !strings.Contains(err.Error(), "vendor") {
+		t.Fatalf("err = %v", err)
 	}
 }

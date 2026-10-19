@@ -94,7 +94,10 @@ interface Fixture {
 }
 
 /** An owner that answers prepare, and a target that installs once it has the last chunk and verifies truthfully. */
-async function fixture(options: ControlOptions = {}): Promise<Fixture> {
+async function fixture(
+  options: ControlOptions = {},
+  provider: 'claude' | 'codex' = 'claude',
+): Promise<Fixture> {
   const dir = mkdtempSync(path.join(tmpdir(), 'hoplet-handoff-'));
   dirs.push(dir);
   const store = new Store(dir);
@@ -104,7 +107,7 @@ async function fixture(options: ControlOptions = {}): Promise<Fixture> {
     ...options,
   });
   store.append(
-    { sessionId: SESSION, provider: 'claude', projectDir: 'p', filePath: '/x', deviceId: 'owner' },
+    { sessionId: SESSION, provider, projectDir: 'p', filePath: '/x', deviceId: 'owner' },
     [line(0), line(1), line(2)],
   );
   uploadSnapshot(store, 'snap1', archive(2_500_000));
@@ -213,6 +216,7 @@ describe('a handoff with the owner online', () => {
     const snapshot = f.store.latestSnapshot(SESSION);
     expect(install).toMatchObject({
       sessionId: SESSION,
+      provider: 'claude',
       snapshotBytes: snapshot?.byteSize,
       snapshotSha256: snapshot?.sha256,
       sessionBytes: before.cursor,
@@ -266,6 +270,13 @@ describe('a handoff with the owner online', () => {
       worktree: '/home/b/r-sess1234',
       branch: 'hoplet/sess1234',
     });
+  });
+
+  it('names the Codex vendor of a Codex session in handoff.install', async () => {
+    const f = await fixture({}, 'codex');
+    const result = await f.control.handoff({ sessionId: SESSION, targetDeviceId: 'target' });
+    expect(result.ok).toBe(true);
+    expect(f.target.of('handoff.install')[0]?.provider).toBe('codex');
   });
 
   it('rejects the old owner’s appends after the commit', async () => {

@@ -21,9 +21,8 @@ working tree to another machine.
   uncompressed bytes ([ADR 0027](adr/0027-codex-runs-on-its-app-server-and-enters-at-level-2.md)); the core stores
   the lines, takes a Codex session's project path and start time from the `session_meta` line and its title from
   the first user message, maps the `item_completed` events into entries. The Codex provider can install a rollout under
-  `$CODEX_HOME/sessions/` (see Handoff) and otherwise only reads rollouts, but `handoff.install` does not name
-  the vendor, so a target agent installs every handed-off session into Claude Code's store and a Codex session
-  does not hand off. Codex sessions are controlled through
+  `$CODEX_HOME/sessions/` and `handoff.install` names the vendor, so a Codex session hands off like a Claude Code
+  one (see Handoff). Codex sessions are controlled through
   `codex app-server`: new sessions, prompts, steering, interrupt, approvals and the settings `mode`, `model`,
   `effort` and `collaboration` (with a plan exit), on the tested codex-cli versions only.
 - **The server keeps a verbatim copy of every session**, synced incrementally with the byte offset as the
@@ -550,7 +549,7 @@ four times a second), and on `done` the new worktree and branch, which the respo
    picks the clone: a watched project path whose `origin` equals the snapshot's (the one just made, after a
    clone step), else `targetPath`; without either the handoff fails with `no-clone`. It adds a git worktree next to that clone, named
    `<clone directory>-<first 8 characters of the session ID>`, on branch `hoplet/<first 8 characters>`, at the
-   base commit, applies the diff and untracked files, writes the session file into the Claude Code store for
+   base commit, applies the diff and untracked files, writes the session file into the store of the session's vendor (`handoff.install` carries `provider`) for
    the worktree path, adds the worktree to `projects.json` with the session imported, and answers
    `handoff.installed` with the worktree, its branch and the clone it belongs to. The store directory
    is the realpath of the worktree with every character other than ASCII letters and digits replaced by `-`
@@ -564,7 +563,7 @@ four times a second), and on `done` the new worktree and branch, which the respo
    install fails with `session-exists` when the target already has a rollout of that thread anywhere under
    `sessions/`, in either encoding, and never replaces it. The working directory of the worktree is not stored in
    the file; it is passed to Codex when the thread is resumed.
-3. **Verify.** Before any Claude Code process starts in the worktree, the target reports the SHA-256 and size
+3. **Verify.** Before any agent process starts in the worktree, the target reports the SHA-256 and size
    of the installed session file and the git tree hash of the worktree. The core compares them with the stored stream at the current cursor and the snapshot.
 4. **Commit.** In one transaction the core checks that owner and cursor are unchanged, sets the owner to the
    target, sets `project_path` to the target's worktree and increases `owner_epoch`. It sends `handoff.commit`

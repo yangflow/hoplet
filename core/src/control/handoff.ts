@@ -384,6 +384,7 @@ export function createHandoff(
         type: 'handoff.install',
         sessionId,
         handoffId,
+        provider: meta.provider,
         ...(request.targetPath !== undefined ? { targetPath: request.targetPath } : {}),
         snapshotBytes: snapshot.byteSize,
         snapshotSha256: snapshot.sha256,

@@ -616,6 +616,7 @@ export const WIRE_MESSAGES = defineWire({
   /**
    * Starts an installation on the target. The snapshot archive and the session stream follow as
    * `handoff.data` chunks; the sizes and checksums are what the target holds the received bytes to.
+   * `provider` names the session's vendor: the target installs the session file in that vendor's store.
    */
   'handoff.install': {
     lane: 'control',
@@ -623,6 +624,7 @@ export const WIRE_MESSAGES = defineWire({
     fields: {
       sessionId,
       handoffId,
+      provider: ProviderSchema,
       targetPath: v.optional(v.pipe(v.string(), v.maxLength(4096))),
       snapshotBytes: cursor,
       snapshotSha256: v.pipe(v.string(), v.maxLength(64)),

@@ -259,11 +259,11 @@ Deleting a session ([ADR 0023](adr/0023-deleting-a-session-and-what-hoplet-made-
 messages that name the session by ID and never a path: `device.session.inspect|inspected|rejected`,
 `device.session.delete|deleted` and `device.session.forget|forgotten`. A deleted ID is a tombstone in the core;
 `session.append` and a resync of it are answered with `session.rejected` reason `deleted`, and the core sends
-`device.session.forget` for the tombstones of a device when it connects. `handoff.installed` carries `clone`, the
+`device.session.forget` for the tombstones of a device when it connects. `handoff.install` carries the session's `provider`, and the target installs the session file in that vendor's store and records the vendor with the installation, so verify and rollback use the same store. `handoff.installed` carries `clone`, the
 clone the new worktree belongs to, which the core keeps in `session_worktrees`.
 
 A handoff to a machine with no clone of the repository adds a clone step before the owner is touched
-([ADR 0024](adr/0024-a-handoff-clones-the-repository-on-a-target-that-has-none.md)). The protocol version is 9.
+([ADR 0024](adr/0024-a-handoff-clones-the-repository-on-a-target-that-has-none.md)). The protocol version is 10.
 The control-lane messages are `device.clone.check` (`requestId`, `origin`, optional `cloneInto`) answered by
 `device.clone.checked` (`reason`, `detail`, the proposed `cloneInto`), and `device.clone.start` (`requestId`,
 `handoffId`, `origin`, `cloneInto`) answered by `device.clone.progress` (`received`, optional `total`, at most four
