@@ -747,5 +747,18 @@
   "No dev servers yet": "No dev servers yet",
   "Start one in the session or in a terminal, for example `pnpm dev`. Hoplet looks every 3 seconds.": "Start one in the session or in a terminal, for example `pnpm dev`. Hoplet looks every 3 seconds.",
   "Dev servers": "Dev servers",
-  "`localhost` opens only on {name} or through your own tunnel.": "`localhost` opens only on {name} or through your own tunnel."
+  "`localhost` opens only on {name} or through your own tunnel.": "`localhost` opens only on {name} or through your own tunnel.",
+  "Model providers": "Model providers",
+  "Hoplet never asks for an API key. Each provider signs in with its own command-line tool on the machine.": "Hoplet never asks for an API key. Each provider signs in with its own command-line tool on the machine.",
+  "No machines yet": "No machines yet",
+  "Providers come from the agent on each machine. Go to Machines → Add a machine, and the providers it runs appear here.": "Providers come from the agent on each machine. Go to Machines → Add a machine, and the providers it runs appear here.",
+  "Go to Machines": "Go to Machines",
+  "{name} is offline · last seen {when}. Its providers show when its agent connects.": "{name} is offline · last seen {when}. Its providers show when its agent connects.",
+  "This machine’s agent announces no providers.": "This machine’s agent announces no providers.",
+  "used {time}": "used {time}",
+  "Tested": "Tested",
+  "Newer than tested": "Newer than tested",
+  "Newer than the versions the driver was tested against": "Newer than the versions the driver was tested against",
+  "Permissions": "Permissions",
+  "On": "On"
 }

@@ -350,6 +350,7 @@ export default function App() {
           onBack={closeSettings}
           appearance={appearance}
           onAppearance={changeAppearance}
+          sessions={sessions}
         />
       )}
       <div className="page-host" hidden={isOpen} inert={isOpen}>

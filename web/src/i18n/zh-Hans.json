@@ -752,5 +752,18 @@
   "No dev servers yet": "还没有开发服务器",
   "Start one in the session or in a terminal, for example `pnpm dev`. Hoplet looks every 3 seconds.": "在会话或终端中启动一个，例如 `pnpm dev`。Hoplet 每 3 秒查看一次。",
   "Dev servers": "开发服务器",
-  "`localhost` opens only on {name} or through your own tunnel.": "`localhost` 只能在 {name} 上打开，或通过你自己的隧道访问。"
+  "`localhost` opens only on {name} or through your own tunnel.": "`localhost` 只能在 {name} 上打开，或通过你自己的隧道访问。",
+  "Model providers": "模型提供方",
+  "Hoplet never asks for an API key. Each provider signs in with its own command-line tool on the machine.": "Hoplet 不会索要 API 密钥。每个提供方都用这台机器上它自己的命令行工具登录。",
+  "No machines yet": "还没有机器",
+  "Providers come from the agent on each machine. Go to Machines → Add a machine, and the providers it runs appear here.": "提供方由每台机器上的 agent 上报。前往“机器”→“添加机器”，它运行的提供方就会显示在这里。",
+  "Go to Machines": "前往机器",
+  "{name} is offline · last seen {when}. Its providers show when its agent connects.": "{name} 已离线 · 上次在线 {when}。其 agent 连接后，这里会显示它的提供方。",
+  "This machine’s agent announces no providers.": "这台机器的 agent 没有上报任何提供方。",
+  "used {time}": "最近使用 {time}",
+  "Tested": "已测试",
+  "Newer than tested": "比已测试版本新",
+  "Newer than the versions the driver was tested against": "比驱动测试过的版本新",
+  "Permissions": "权限",
+  "On": "开"
 }

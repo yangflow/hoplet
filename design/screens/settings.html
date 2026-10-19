@@ -705,6 +705,38 @@ svg{display:block;flex:none}
 .light .tprev .pc{background:var(--color-hover)}
 .no-lig .mono,.no-lig .wb,.no-lig .diff,.no-lig .code,.no-lig .text code{font-variant-ligatures:none;font-feature-settings:"liga" 0,"calt" 0}
 
+/* settings › model providers (#16): read-only, from what each connected agent announces in device.hello */
+.mp-note{display:flex;gap:var(--space-2);align-items:flex-start;color:var(--color-text-2);margin:calc(-1 * var(--space-3)) 0 var(--space-5)}
+.mp-note svg{color:var(--color-text-3);margin-top:2px}
+.mp-tabs{display:flex;gap:var(--space-4);margin-bottom:var(--space-4);box-shadow:inset 0 -1px 0 var(--color-line);overflow-x:auto}
+.mp-tab{display:inline-flex;align-items:center;gap:var(--space-2);height:var(--control-field);padding:0 2px;color:var(--color-text-2);font-weight:var(--weight-medium);white-space:nowrap;position:relative;flex:none}
+.mp-tab[aria-selected="true"]{color:var(--color-text)}
+.mp-tab[aria-selected="true"]::after{content:"";position:absolute;left:0;right:0;bottom:0;height:2px;border-radius:2px 2px 0 0;background:var(--color-text)}
+.mp-list{border-radius:var(--radius-md);background:var(--color-surface);box-shadow:inset 0 0 0 1px var(--color-line);overflow:hidden}
+.light .mp-list{background:var(--color-raised)}
+.mp-row + .mp-row{box-shadow:inset 0 1px 0 var(--color-line)}
+.mp-rh{min-height:56px;display:flex;align-items:center;gap:var(--space-3);padding:var(--space-2) var(--space-4)}
+.mp-rh .pm{color:var(--color-text-2);flex:none}
+.mp-rh .tx{flex:1;min-width:0;display:flex;flex-direction:column}
+.mp-rh .nm{font-weight:var(--weight-medium)}
+.mp-rh .chev{color:var(--color-text-3);flex:none;display:grid;place-items:center}
+.mp-body{padding:var(--space-1) var(--space-4) var(--space-4) calc(var(--space-4) + 16px + var(--space-3));display:flex;flex-direction:column;gap:var(--space-3)}
+.mp-st{display:inline-flex;align-items:center;gap:var(--space-1);font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-add-text);white-space:nowrap;flex:none}
+.mp-st.new{color:var(--color-attention-text)}
+.mp-st svg{width:12px;height:12px}
+.mp-caps{display:flex;flex-wrap:wrap;gap:var(--space-1)}
+.mp-cap{display:inline-flex;align-items:center;height:20px;padding:0 var(--space-2);border-radius:var(--radius-sm);box-shadow:inset 0 0 0 1px var(--color-line);color:var(--color-text-2);font-size:var(--text-meta);line-height:var(--leading-meta);white-space:nowrap}
+.mp-defs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--space-2) var(--space-3)}
+.mp-defs div{min-width:0}
+.mp-defs dt{font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3)}
+.mp-defs dd{font-weight:var(--weight-medium);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mp-quiet{padding:var(--space-6) var(--space-5);text-align:center;color:var(--color-text-2);border-radius:var(--radius-md);box-shadow:inset 0 0 0 1px var(--color-line)}
+.mp-empty{display:flex;flex-direction:column;align-items:center;gap:var(--space-2);padding:var(--space-6) var(--space-5);border-radius:var(--radius-md);background:var(--color-surface);box-shadow:inset 0 0 0 1px var(--color-line);text-align:center}
+.light .mp-empty{background:var(--color-raised)}
+.mp-empty b{font-weight:var(--weight-semibold)}
+.mp-empty p{margin:0;color:var(--color-text-2);max-width:44ch}
+.mp-empty .btn{margin-top:var(--space-2)}
+
 /* stacked view */
 body.stacked{background:#131210;color:#efe9e2;font-family:-apple-system,"SF Pro Text",system-ui,sans-serif;padding:56px 48px 80px;-webkit-font-smoothing:antialiased}
 .intro{max-width:1300px;margin:0 auto 56px}
@@ -1677,8 +1709,57 @@ function notifyPage(state) {
   return `<h1>Notifications</h1>${presetsGroup(state === 'settings-notify-overrides')}${browserGroup(bk)}${hooksGroup(state === 'notify-hook')}`;
 }
 
+/* ---- Settings › Model providers (#16): read-only; every value is what the connected agent announced in device.hello ---- */
+const PROV = ['settings-providers', 'settings-providers-newer', 'settings-providers-offline', 'settings-providers-none', 'settings-providers-empty'];
+PROVIDER.codex = { name: 'Codex', svg: () => sv(L.terminal) }; /* placeholder for the official mark, like Claude Code's */
+/* what each runtime driver declares: capabilities and the new-session defaults (config options' currentValue) */
+const MP_CAPS = ['Permissions', 'Interrupt', 'Images', 'Steer'];
+const MP_DEFS = {
+  claude: [['Permission mode', 'Manual'], ['Model', 'Default model'], ['Thinking', 'On'], ['Fast', 'Off']],
+  codex: [['Mode', 'Workspace write'], ['Model', 'Default model'], ['Effort', 'Default effort'], ['Collaboration', 'Default']],
+};
+/* version, tested come from device.hello; sessions and used are derived client-side from the session list (provider, deviceName, updatedAt) */
+const mpP = (version, tested, sessions, used) => ({ version, tested, sessions, used });
+const MP_MAC = { name: 'MacBook Pro', on: true, claude: mpP('2.1.42', true, 4, '5 min ago'), codex: mpP('0.124.0', true, 2, '3 h ago') };
+const MP_STUDIO = { name: 'studio', on: true, claude: mpP('2.2.0', false, 7, '1 d ago'), codex: mpP('0.124.0', true, 1, '2 d ago') };
+const MP_OFFICE = { name: 'office-mini', on: false, seen: '3 h ago' };
+const MP_NAS = { name: 'nas-box', on: true };
+/* machines in the order of the Machines section; GET /api/devices lists no providers for an offline one */
+function mpModel(state) {
+  const by = {
+    'settings-providers': [[MP_MAC, MP_STUDIO], 0, 'claude'],
+    'settings-providers-newer': [[MP_MAC, MP_STUDIO], 1],
+    'settings-providers-offline': [[MP_MAC, MP_STUDIO, MP_OFFICE], 2],
+    'settings-providers-none': [[MP_MAC, MP_STUDIO, MP_NAS], 2],
+    'settings-providers-empty': [[], 0],
+  };
+  const [ms, sel, open] = by[state];
+  return { ms, sel, open };
+}
+const mpDot = on => `<span class="dot${on ? '' : ' off'}" role="img"${tip(on ? 'Online' : 'Offline')}></span>`;
+const mpStatus = p => p.tested ? `<span class="mp-st">${I.check()}Tested</span>`
+  : `<span class="mp-st new"${tip('Newer than the versions the driver was tested against')}>${I.alert()}Newer than tested</span>`;
+const mpNote = () => `<p class="mp-note">${I.lock()}<span>Hoplet never asks for an API key. Each provider signs in with its own command-line tool on the machine.</span></p>`;
+function mpRow(k, p, open) {
+  const n = `${p.sessions} ${p.sessions === 1 ? 'session' : 'sessions'}`;
+  const body = open ? `<div class="mp-body"><dl class="mp-defs">${MP_DEFS[k].map(([nm, d]) => `<div><dt>${nm}</dt><dd>${d}</dd></div>`).join('')}</dl>
+    <div class="mp-caps">${MP_CAPS.map(c => `<span class="mp-cap">${c}</span>`).join('')}</div></div>` : '';
+  return `<div class="mp-row"><div class="mp-rh">${pmark(k)}<div class="tx"><span class="nm">${PROVIDER[k].name}</span><span class="meta">${p.version} · ${n} · used ${p.used}</span></div>${mpStatus(p)}<span class="chev" aria-hidden="true">${open ? I.down() : I.chev()}</span></div>${body}</div>`;
+}
+function providersPage(state) {
+  const head = `<h1>Model providers</h1>${mpNote()}`;
+  const { ms, sel, open } = mpModel(state);
+  if (!ms.length) return `${head}<div class="mp-empty"><b>No machines yet</b><p>Providers come from the agent on each machine. Go to Machines → Add a machine, and the providers it runs appear here.</p><button class="btn">${I.laptop()}Go to Machines</button></div>`;
+  const tabs = `<div class="mp-tabs" role="tablist" aria-label="Machines">${ms.map((m, i) => `<span class="mp-tab" role="tab" aria-selected="${i === sel}">${mpDot(m.on)}${m.name}</span>`).join('')}</div>`;
+  const m = ms[sel], ks = ['claude', 'codex'].filter(k => m[k]);
+  const panel = !m.on ? `<div class="mp-quiet">${m.name} is offline · last seen ${m.seen}. Its providers show when its agent connects.</div>`
+    : !ks.length ? `<div class="mp-quiet">This machine’s agent announces no providers.</div>`
+    : `<div class="mp-list">${ks.map(k => mpRow(k, m[k], k === open)).join('')}</div>`;
+  return `${head}${tabs}<div role="tabpanel">${panel}</div>`;
+}
+
 function settingsMain(state) {
-  const sec = APPEARANCE.includes(state) ? 'appearance' : NOTIFY.includes(state) ? 'notifications' : 'machines';
+  const sec = APPEARANCE.includes(state) ? 'appearance' : NOTIFY.includes(state) ? 'notifications' : PROV.includes(state) ? 'providers' : 'machines';
   const ni = (k, icon, label) => `<div class="ni${sec === k ? ' on' : ''}">${icon}${label}</div>`;
   let page;
   if (sec === 'appearance') {
@@ -1693,6 +1774,8 @@ function settingsMain(state) {
         <div class="pr"><span class="nm">Interface language</span><div class="seg" role="radiogroup" aria-label="Interface language"><button role="radio" aria-checked="true" class="on">English</button><button role="radio" aria-checked="false" lang="zh-Hans">简体中文</button></div></div>
       </div></div>
       ${textGroup(textOf(state))}`;
+  } else if (sec === 'providers') {
+    page = providersPage(state);
   } else if (sec === 'notifications') {
     page = notifyPage(state);
   } else {
@@ -1704,7 +1787,7 @@ function settingsMain(state) {
   }
   return `<header class="top">${ib(I.back(), 'Back to the conversation · Esc')}<span class="title">Settings</span></header>
     <div class="set"><nav class="snav" aria-label="Settings sections">
-      ${ni('appearance', I.contrast(), 'Appearance')}${ni('machines', I.laptop(), 'Machines')}${ni('notifications', nI('bell'), 'Notifications')}
+      ${ni('appearance', I.contrast(), 'Appearance')}${ni('machines', I.laptop(), 'Machines')}${ni('providers', I.plug(), 'Model providers')}${ni('notifications', nI('bell'), 'Notifications')}
     </nav><div class="spage"><div class="in">${page}</div></div></div>`;
 }
 
@@ -1720,7 +1803,7 @@ function frame(state, scheme) {
 const SCREEN = {
   name: 'Settings',
   system: false,
-  blurb: 'The Settings page, a full page that replaces the window (no sidebar, no status bar): a header with a back button (Esc also goes back) and the title, the section list on the left and the content on the right. Sections are Appearance (Theme, Language, Text), Machines (with Add a machine) and Notifications (a level, per-project and per-event channels, Web Push for this browser, quiet hours, webhooks); Memory (#18) and Model providers (#16) are added to the list later. Appearance, Language and the Text group (interface font, code font, size, full width, ligatures) are kept in the browser and each choice only swaps tokens; the preview follows them.',
+  blurb: 'Model providers (#16) is read-only and shows three directions (A by machine, B by provider, C a matrix); every value exists in device.hello today (provider, version, tested, capabilities, config options with their defaults). A login state per provider does not exist in the protocol and is not drawn; an offline machine lists nothing because GET /api/devices returns providers empty for it. The Settings page, a full page that replaces the window (no sidebar, no status bar): a header with a back button (Esc also goes back) and the title, the section list on the left and the content on the right. Sections are Appearance (Theme, Language, Text), Machines (with Add a machine) and Notifications (a level, per-project and per-event channels, Web Push for this browser, quiet hours, webhooks); Memory (#18) and Model providers (#16) are added to the list later. Appearance, Language and the Text group (interface font, code font, size, full width, ligatures) are kept in the browser and each choice only swaps tokens; the preview follows them.',
 };
 const STATES = [
   ['settings', 'Settings: Appearance'],
@@ -1730,6 +1813,11 @@ const STATES = [
   ['mint', 'Add a machine: token minted'],
   ['mint-waiting', 'waiting for the agent'],
   ['mint-online', 'the new machine is connected'],
+  ['settings-providers', 'Model providers: a tab per machine, a row per provider its agent announces; Claude Code expanded to its new-session defaults and capabilities'],
+  ['settings-providers-newer', 'Model providers: studio selected, its Claude Code is newer than the versions the driver was tested against'],
+  ['settings-providers-offline', 'Model providers: an offline machine has no live data, only its last seen'],
+  ['settings-providers-none', 'Model providers: an online machine whose agent announces no providers'],
+  ['settings-providers-empty', 'Model providers with no machines at all'],
   ['settings-notify', 'Settings: Notifications; the default level, quiet hours, Web Push on, webhooks'],
   ['settings-notify-overrides', 'Notifications: per project and per event, each event a row with channel chips'],
   ['settings-notify-off', 'Notifications: permission not asked yet, Enable button'],

@@ -155,6 +155,11 @@ const subject: Record<string, Record<string, string>> = {
     mint: 'settings.mint.config',
     'mint-waiting': 'settings.mint.waiting',
     'mint-online': 'settings.mint.online',
+    'settings-providers': 'settings.providers.list',
+    'settings-providers-newer': 'settings.providers.list',
+    'settings-providers-offline': 'settings.providers.offline',
+    'settings-providers-none': 'settings.providers.none',
+    'settings-providers-empty': 'settings.providers.empty',
     'settings-notify': 'settings.notify.presets',
     'settings-notify-overrides': 'settings.notify.event.permission',
     'settings-notify-off': 'settings.notify.push',
@@ -173,10 +178,10 @@ const subject: Record<string, Record<string, string>> = {
   },
 };
 
-test('the registries list 78 cockpit, 51 workspace, 13 settings and 7 action states', () => {
+test('the registries list 78 cockpit, 51 workspace, 18 settings and 7 action states', () => {
   expect(screens.cockpit).toHaveLength(78);
   expect(screens.workspace).toHaveLength(51);
-  expect(screens.settings).toHaveLength(13);
+  expect(screens.settings).toHaveLength(18);
   expect(screens.action).toHaveLength(7);
 });
 

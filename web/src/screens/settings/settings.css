@@ -622,3 +622,186 @@
     width: 100%;
   }
 }
+
+/* Model providers: read-only, from what each connected agent announces */
+.mp-note {
+  display: flex;
+  gap: var(--space-2);
+  align-items: flex-start;
+  color: var(--color-text-2);
+  margin: calc(-1 * var(--space-3)) 0 var(--space-5);
+}
+.mp-note-i {
+  display: grid;
+  color: var(--color-text-3);
+  margin-top: 2px;
+}
+.mp-tabs {
+  display: flex;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+  box-shadow: inset 0 -1px 0 var(--color-line);
+  overflow-x: auto;
+}
+.mp-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: var(--control-field);
+  padding: 0 2px;
+  color: var(--color-text-2);
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+  position: relative;
+  flex: none;
+}
+.mp-tab[aria-selected="true"] {
+  color: var(--color-text);
+}
+.mp-tab[aria-selected="true"]::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  border-radius: 2px 2px 0 0;
+  background: var(--color-text);
+}
+.mp-list {
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: inset 0 0 0 1px var(--color-line);
+  overflow: hidden;
+}
+.mp-row + .mp-row {
+  box-shadow: inset 0 1px 0 var(--color-line);
+}
+.mp-rh {
+  width: 100%;
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  text-align: left;
+}
+.mp-rh .provider-mark {
+  color: var(--color-text-2);
+  flex: none;
+}
+.mp-tx {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.mp-nm {
+  font-weight: var(--weight-medium);
+}
+.mp-rh .chev {
+  color: var(--color-text-3);
+  flex: none;
+  display: grid;
+  place-items: center;
+}
+.mp-body {
+  padding: var(--space-1) var(--space-4) var(--space-4) calc(var(--space-4) + 16px + var(--space-3));
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.mp-st {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  color: var(--color-add-text);
+  white-space: nowrap;
+  flex: none;
+}
+.mp-st.new {
+  color: var(--color-attention-text);
+}
+.mp-st-i {
+  --icon-size: 12px;
+  display: grid;
+}
+.mp-caps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+.mp-cap {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-sm);
+  box-shadow: inset 0 0 0 1px var(--color-line);
+  color: var(--color-text-2);
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  white-space: nowrap;
+}
+.mp-defs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-2) var(--space-3);
+  margin: 0;
+}
+.mp-defs div {
+  min-width: 0;
+}
+.mp-defs dt {
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  color: var(--color-text-3);
+}
+.mp-defs dd {
+  margin: 0;
+  font-weight: var(--weight-medium);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mp-quiet {
+  padding: var(--space-6) var(--space-5);
+  text-align: center;
+  color: var(--color-text-2);
+  border-radius: var(--radius-md);
+  box-shadow: inset 0 0 0 1px var(--color-line);
+}
+.mp-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-6) var(--space-5);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: inset 0 0 0 1px var(--color-line);
+  text-align: center;
+}
+.mp-empty-t {
+  font-weight: var(--weight-semibold);
+}
+.mp-empty p {
+  margin: 0;
+  color: var(--color-text-2);
+  max-width: 44ch;
+}
+.mp-empty .btn {
+  margin-top: var(--space-2);
+}
+:root[data-scheme="light"] .mp-list,
+:root[data-scheme="light"] .mp-empty {
+  background: var(--color-raised);
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-scheme="dark"]) .mp-list,
+  :root:not([data-scheme="dark"]) .mp-empty {
+    background: var(--color-raised);
+  }
+}

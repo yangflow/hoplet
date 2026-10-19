@@ -1,3 +1,4 @@
+import type { LiveSessionMeta } from '@hoplet/shared';
 import { type ReactNode, useEffect, useRef } from 'react';
 import { IconButton } from '../../components/IconButton.tsx';
 import { Icon } from '../../components/icons.tsx';
@@ -10,14 +11,16 @@ import { AppearanceSection } from './appearance.tsx';
 import { type MachinesFixture, MachinesSection } from './machines.tsx';
 import { NotificationsSection, type NotifyFixture } from './notifications.tsx';
 import type { Appearance } from './prefs.ts';
+import { type ProvidersFixture, ProvidersSection } from './providers.tsx';
 
 /**
  * The sections of Settings, in the order of the list. A section is one entry here and one case in `Page`; the
- * Memory (#18) and Model providers (#16) pages join the same way.
+ * Memory (#18) page joins the same way.
  */
 export const SECTIONS = [
   { id: 'appearance', label: 'Appearance', icon: () => Icon.contrast() },
   { id: 'machines', label: 'Machines', icon: () => Icon.laptop() },
+  { id: 'providers', label: 'Model providers', icon: () => Icon.plug() },
   { id: 'notifications', label: 'Notifications', icon: () => Icon.bell() },
 ] as const;
 
@@ -34,12 +37,23 @@ function Page(props: {
   onAppearance: (change: Partial<Appearance>) => void;
   machines: MachinesFixture | undefined;
   notify: NotifyFixture | undefined;
+  providers: ProvidersFixture | undefined;
+  sessions: readonly LiveSessionMeta[];
+  onSection: (section: SectionId) => void;
 }): ReactNode {
   switch (props.section) {
     case 'appearance':
       return <AppearanceSection appearance={props.appearance} onChange={props.onAppearance} />;
     case 'machines':
       return <MachinesSection {...(props.machines ? { fixture: props.machines } : {})} />;
+    case 'providers':
+      return (
+        <ProvidersSection
+          {...(props.providers ? { fixture: props.providers } : {})}
+          sessions={props.sessions}
+          onMachines={() => props.onSection('machines')}
+        />
+      );
     case 'notifications':
       return <NotificationsSection {...(props.notify ? { fixture: props.notify } : {})} />;
   }
@@ -54,6 +68,8 @@ export function Settings(props: {
   onAppearance: (change: Partial<Appearance>) => void;
   machines?: MachinesFixture;
   notify?: NotifyFixture;
+  providers?: ProvidersFixture;
+  sessions?: readonly LiveSessionMeta[];
 }) {
   const { onBack } = props;
   const title = useRef<HTMLSpanElement>(null);
@@ -103,6 +119,9 @@ export function Settings(props: {
                 onAppearance={props.onAppearance}
                 machines={props.machines}
                 notify={props.notify}
+                providers={props.providers}
+                sessions={props.sessions ?? []}
+                onSection={props.onSection}
               />
             </div>
           </div>

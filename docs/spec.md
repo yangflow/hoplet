@@ -243,14 +243,23 @@ list at its left grows with later sections; the sections are:
   font is not one of them.
 - **Machines**: every device with its presence and last connection, and Add a machine: mint a device token,
   copy a ready agent configuration, and wait until that agent is connected.
-
+- **Model providers**: read-only, from what each connected agent announces. A tab per machine (presence dot and
+  name, in the order of Machines; it opens on the first connected one) and a row per provider that machine runs:
+  the mark, the name and "version · N sessions · used <time>" (the counts and the last use come from the session
+  list the web UI already holds; a part that is zero or unknown is left out), with Tested, or Newer than tested
+  when the version is newer than the ones the driver was verified against, and no badge when the version is
+  unknown. A row opens to the new-session defaults (each setting of the driver with its default value) and the
+  capabilities the driver has (Permissions, Interrupt, Images, Steer). An offline machine shows only its last
+  connection, a connected one with no providers says so, and with no machines the section points to Machines. It
+  states that Hoplet never asks for an API key: each provider signs in with its own command-line tool on the
+  machine.
 - **Notifications**: a preset (Needs me, Needs me and done, Everything, Off) with an override of the channels per
   event and per project, quiet hours in a time zone of the user's choice, the browsers subscribed to Web Push
   (subscribe this browser, a label, remove), and the webhooks (URL, optional signing secret, the events it
   receives, enable, test, the
   status of the last delivery). Preferences live in the core, not in the browser.
 
-Memory and model providers are later sections (#18, #16).
+Memory is a later section (#18).
 
 ### Host CLI
 

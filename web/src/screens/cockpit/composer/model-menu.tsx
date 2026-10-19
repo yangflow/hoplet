@@ -42,21 +42,21 @@ export function hasChoices(providers: ProviderInfo[], chosen: ProviderInfo | und
 }
 
 /** An option's name: the strings' entry for its ID when there is one, else the driver's name. */
-function optionName(o: ConfigOption): string {
+export function optionName(o: ConfigOption): string {
   const key = `config.${o.id}`;
   const known = t(key);
   return known !== key ? known : o.name;
 }
 
 /** A value's name: the strings' entry for the option and value when there is one, else the driver's name. */
-function valueName(o: ConfigOption, value: string, name: string): string {
+export function valueName(o: ConfigOption, value: string, name: string): string {
   const key = `config.${o.id}.${value}`;
   const known = t(key);
   return known !== key ? known : name;
 }
 
 /** The name of a select's current value. */
-function currentName(o: ConfigOption): string | undefined {
+export function currentName(o: ConfigOption): string | undefined {
   if (o.type !== 'select') return undefined;
   const v = o.options.find((c) => c.value === o.currentValue);
   return v ? valueName(o, v.value, v.name) : undefined;
