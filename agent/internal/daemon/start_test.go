@@ -25,6 +25,7 @@ func newStartEnv(t *testing.T) (b *bridge, s *sink, st *store, watched string, s
 	home := t.TempDir()
 	cfg := &config.Config{
 		ClaudeBin:               bin,
+		CodexBin:                "/nonexistent/codex",
 		ClaudeProjects:          root,
 		HopletHome:              home,
 		RuntimeIdleMinutes:      30,
@@ -169,8 +170,12 @@ func TestStartFailsWhenTheFirstTurnCrashesWithoutAFile(t *testing.T) {
 func TestProvidersAnnounceTheDriverCapabilities(t *testing.T) {
 	b, _, _, _, _ := newStartEnv(t)
 	got := b.providers()
-	if len(got) != 1 || got[0].Provider != "claude" {
+	if len(got) != 2 || got[0].Provider != "claude" || got[1].Provider != "codex" {
 		t.Fatalf("providers = %+v", got)
+	}
+	// The Codex executable of the tests does not exist: the provider is announced without a version.
+	if got[1].Version != "" || got[1].Tested != nil || !got[1].Capabilities.Permissions {
+		t.Fatalf("codex = %+v", got[1])
 	}
 	c := got[0].Capabilities
 	if !c.Permissions || !c.Interrupt || len(c.Config) != 4 || c.Config[0].ID != "mode" || c.Config[0].Category != "mode" || len(c.Config[0].Options) != 5 ||
@@ -180,5 +185,18 @@ func TestProvidersAnnounceTheDriverCapabilities(t *testing.T) {
 	}
 	if got[0].Version != "2.1.289" || got[0].Tested == nil || !*got[0].Tested {
 		t.Fatalf("version = %q tested = %v", got[0].Version, got[0].Tested)
+	}
+}
+
+func TestStartRoutesByProvider(t *testing.T) {
+	_, _, _, watched, start := newStartEnv(t)
+	_, err := start(sync.RuntimeStart{ProjectPath: watched, Provider: "gemini", Text: "hello"})
+	if err == nil || !strings.Contains(err.Error(), "unsupported provider") {
+		t.Fatalf("err = %v", err)
+	}
+	// Codex is a provider: the start reaches its driver, which cannot run a missing executable.
+	_, err = start(sync.RuntimeStart{ProjectPath: watched, Provider: "codex", Text: "hello"})
+	if err == nil || strings.Contains(err.Error(), "unsupported provider") {
+		t.Fatalf("err = %v", err)
 	}
 }

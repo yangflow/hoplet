@@ -127,14 +127,14 @@ func TestLoadRuntimeSettings(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.ClaudeBin != "claude" || cfg.RuntimeIdleMinutes != 30 || cfg.RuntimeMaxIdleProcesses != 3 {
+	if cfg.ClaudeBin != "claude" || cfg.CodexBin != "codex" || cfg.RuntimeIdleMinutes != 30 || cfg.RuntimeMaxIdleProcesses != 3 {
 		t.Fatalf("defaults: %+v", cfg)
 	}
-	cfg, err = load(`,"claude_bin":"/opt/claude","runtime_idle_minutes":5,"runtime_max_idle_processes":0`)
+	cfg, err = load(`,"claude_bin":"/opt/claude","codex_bin":"/opt/codex","runtime_idle_minutes":5,"runtime_max_idle_processes":0`)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.ClaudeBin != "/opt/claude" || cfg.RuntimeIdleMinutes != 5 || cfg.RuntimeMaxIdleProcesses != 0 {
+	if cfg.ClaudeBin != "/opt/claude" || cfg.CodexBin != "/opt/codex" || cfg.RuntimeIdleMinutes != 5 || cfg.RuntimeMaxIdleProcesses != 0 {
 		t.Fatalf("explicit: %+v", cfg)
 	}
 	if _, err := load(`,"runtime_idle_minutes":0`); err == nil {

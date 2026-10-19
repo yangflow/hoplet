@@ -14,7 +14,8 @@ func TestBridgeReportsEveryCompletedTurn(t *testing.T) {
 	t.Setenv("FAKE_CLAUDE_PROJECTS", projects)
 	runtimetest.Session(t, projects, t.TempDir(), "s1")
 	cfg := &config.Config{
-		ClaudeBin: bin, ClaudeProjects: projects, HopletHome: t.TempDir(),
+		ClaudeBin: bin,
+		CodexBin:  "/nonexistent/codex", ClaudeProjects: projects, HopletHome: t.TempDir(),
 		RuntimeIdleMinutes: 30, RuntimeMaxIdleProcesses: 3,
 	}
 	s := &sink{}

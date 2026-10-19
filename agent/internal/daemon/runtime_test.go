@@ -67,6 +67,7 @@ func newTestBridge(t *testing.T) (*bridge, *sink, string, string) {
 	file := runtimetest.Session(t, projects, workdir, "s1")
 	cfg := &config.Config{
 		ClaudeBin:               bin,
+		CodexBin:                "/nonexistent/codex",
 		ClaudeProjects:          projects,
 		HopletHome:              t.TempDir(),
 		RuntimeIdleMinutes:      30,

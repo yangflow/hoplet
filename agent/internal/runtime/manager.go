@@ -288,6 +288,14 @@ func (m *Manager) checkConfig(values map[string]any) error {
 	return nil
 }
 
+// Knows reports whether the Manager holds state for the session: a process runs for it, or one ran in this run.
+func (m *Manager) Knows(sessionID string) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	_, ok := m.sessions[sessionID]
+	return ok
+}
+
 // Driver is the vendor driver the Manager starts processes with.
 func (m *Manager) Driver() Driver { return m.cfg.Driver }
 

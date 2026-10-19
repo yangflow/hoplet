@@ -54,7 +54,7 @@ func newTerminals(cfg *config.Config, deviceID string, bridge *bridge, moves *ha
 // guard is the state check of terminal.open, run by the manager just before the shell starts.
 func (t *terminals) guard(sessionID string) func() error {
 	return func() error {
-		switch t.bridge.mgr.State(sessionID) {
+		switch t.bridge.managerOf(sessionID).State(sessionID) {
 		case runtime.StateStarting, runtime.StateRunning, runtime.StateWaitingPermission:
 			return &terminal.OpenError{Reason: terminal.ReasonTurnRunning}
 		case runtime.StateExternal:
