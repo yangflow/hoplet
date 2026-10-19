@@ -23,16 +23,11 @@ import {
 import { errorText } from './lib/errors.ts';
 import { emitLive, setLiveSender } from './lib/live.ts';
 import { setPageKeysSuspended } from './lib/page-keys.ts';
+import { type Appearance, applyAppearance, loadAppearance, saveAppearance } from './lib/prefs.ts';
 import { usePageVisible } from './lib/visibility.ts';
 import { Cockpit } from './screens/cockpit/index.tsx';
 import type { NewSessionRequest } from './screens/cockpit/model.ts';
 import { type SectionId, Settings, sectionOf } from './screens/settings/index.tsx';
-import {
-  type Appearance,
-  applyAppearance,
-  loadAppearance,
-  saveAppearance,
-} from './screens/settings/prefs.ts';
 
 const BROWSER_MESSAGES = new Set<string>(wireTypes('core-to-web'));
 /** Between session-list refreshes caused by activity. */

@@ -9,13 +9,14 @@ import {
 } from 'react';
 import { Button } from '../../../components/Button.tsx';
 import { configIcon, Icon, Spinner } from '../../../components/icons.tsx';
+import { Markdown } from '../../../components/Markdown.tsx';
 import { Popover } from '../../../components/Popover.tsx';
 import { TextField } from '../../../components/TextField.tsx';
 import { valueDescription, valueName } from '../../../lib/config-options.ts';
+import { clock, formatBytes } from '../../../lib/format.ts';
 import { t } from '../../../lib/i18n.ts';
 import type { Select } from '../composer/mode-menu.tsx';
 import { displayTitle } from '../group.ts';
-import { clock, formatBytes } from './format.ts';
 import { type FreshPhase, useFreshPlan } from './fresh-plan.ts';
 import {
   type OpenPermission,
@@ -25,7 +26,6 @@ import {
   planModes,
   planSteps,
 } from './live-turn.ts';
-import { Markdown } from './markdown.tsx';
 import { ActCells, Meta } from './rows.tsx';
 import { useView } from './view-context.tsx';
 

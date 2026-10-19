@@ -43,6 +43,36 @@ describe('checkBoundaries', () => {
     expect(bad[0]?.rule).toContain('web/src/components/icons.tsx');
   });
 
+  it('rejects a screen reaching into the internals of another screen', () => {
+    const violations = checkBoundaries(
+      files({
+        'web/src/screens/settings/machines.tsx':
+          'import { useDevices } from "../cockpit/use-devices.ts";',
+        'web/src/screens/workspace/viewer.tsx':
+          'import { Tokens } from "../cockpit/conversation/code.tsx";',
+        'web/src/screens/settings/index.tsx': "import '../cockpit/shell.css';",
+      }),
+    );
+    expect(violations.map((v) => v.file)).toEqual([
+      'web/src/screens/settings/machines.tsx',
+      'web/src/screens/workspace/viewer.tsx',
+      'web/src/screens/settings/index.tsx',
+    ]);
+    expect(violations[0]?.rule).toContain('only through its index.tsx');
+  });
+
+  it('allows a screen to use another screen through its index and fixtures to share fixtures', () => {
+    const violations = checkBoundaries(
+      files({
+        'web/src/screens/cockpit/index.tsx': 'import { Inspector } from "../workspace/index.tsx";',
+        'web/src/screens/cockpit/states.tsx': 'import { live } from "../workspace/fixtures.ts";',
+        'web/src/screens/workspace/states.tsx': 'import { Scene } from "../cockpit/states.tsx";',
+        'web/src/screens/workspace/viewer.tsx': 'import { lines } from "./model.ts";',
+      }),
+    );
+    expect(violations).toEqual([]);
+  });
+
   it('rejects shared depending on core or web', () => {
     const violations = checkBoundaries(
       files({ 'shared/src/index.ts': 'import { Store } from "@hoplet/core";' }),

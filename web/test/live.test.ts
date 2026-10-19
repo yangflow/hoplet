@@ -1,12 +1,7 @@
 import type { SessionOutput, SessionPermission } from '@hoplet/shared';
 import { PROTOCOL_VERSION } from '@hoplet/shared';
 import { describe, expect, it } from 'vitest';
-import {
-  formatBytes,
-  formatCountdown,
-  formatDuration,
-  formatTimer,
-} from '../src/screens/cockpit/conversation/format.ts';
+import { formatBytes, formatCountdown, formatDuration, formatTimer } from '../src/lib/format.ts';
 import {
   addPermission,
   applyOutput,

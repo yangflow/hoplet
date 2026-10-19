@@ -1,6 +1,6 @@
 // What Settings keeps in the browser (docs/spec.md#settings): the theme, the language and how text looks. Every
 // choice only swaps design tokens and root attributes; the faces are bundled with the web UI and never fetched.
-import { currentLanguage, type Language, setLanguage } from '../../lib/i18n.ts';
+import { currentLanguage, type Language, setLanguage } from './i18n.ts';
 
 export const APPEARANCE_KEY = 'hoplet.appearance';
 

@@ -1,6 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import { sectionOf } from '../src/screens/settings/index.tsx';
-import { lastSeenText } from '../src/screens/settings/last-seen.ts';
 import {
   APPEARANCE_KEY,
   applyScheme,
@@ -9,7 +7,9 @@ import {
   loadAppearance,
   saveAppearance,
   textTokens,
-} from '../src/screens/settings/prefs.ts';
+} from '../src/lib/prefs.ts';
+import { sectionOf } from '../src/screens/settings/index.tsx';
+import { lastSeenText } from '../src/screens/settings/last-seen.ts';
 
 function memory(initial?: string) {
   const data = new Map<string, string>();

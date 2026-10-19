@@ -5,7 +5,7 @@ import { Icon } from '../../components/icons.tsx';
 import { ProviderMark, providerName } from '../../components/provider-marks.tsx';
 import { currentValueName, optionName } from '../../lib/config-options.ts';
 import { t } from '../../lib/i18n.ts';
-import { useDevices } from '../cockpit/use-devices.ts';
+import { useDevices } from '../../lib/use-devices.ts';
 import { lastSeenText } from './last-seen.ts';
 import { defaultMachine, providerUse, versionBadge } from './providers-model.ts';
 

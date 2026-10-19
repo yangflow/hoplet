@@ -1,11 +1,11 @@
 import { Fragment, type ReactNode } from 'react';
+import { Tokens } from '../../../components/Code.tsx';
 import { IconButton } from '../../../components/IconButton.tsx';
 import { Icon, Spinner } from '../../../components/icons.tsx';
+import { Markdown } from '../../../components/Markdown.tsx';
+import { clock, formatBytes, formatDuration } from '../../../lib/format.ts';
 import { t } from '../../../lib/i18n.ts';
 import { StoredElided } from './blocks.tsx';
-import { Tokens } from './code.tsx';
-import { clock, formatBytes, formatDuration } from './format.ts';
-import { Markdown } from './markdown.tsx';
 import { linesOf, OutputWell, type WellLine } from './OutputWell.tsx';
 import {
   metaParts,

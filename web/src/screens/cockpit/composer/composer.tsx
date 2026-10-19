@@ -16,7 +16,7 @@ import { IconButton } from '../../../components/IconButton.tsx';
 import { Icon, Spinner } from '../../../components/icons.tsx';
 import { errorText } from '../../../lib/errors.ts';
 import { t } from '../../../lib/i18n.ts';
-import type { SendMode } from '../../settings/prefs.ts';
+import type { SendMode } from '../../../lib/prefs.ts';
 import type { ComposerView } from '../runtime.ts';
 import { type Attachment, dataUrl, fromImages, readImage, refusal } from './attachments.ts';
 import { xOfIndex } from './caret.ts';

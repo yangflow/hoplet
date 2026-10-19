@@ -2,10 +2,10 @@ import type { ActionDecideResponse, ActionInspectResponse } from '@hoplet/shared
 import { useEffect, useState } from 'react';
 import { Button } from '../../components/Button.tsx';
 import { Icon } from '../../components/icons.tsx';
+import { Markdown } from '../../components/Markdown.tsx';
 import { postActionDecide, postActionInspect } from '../../lib/api.ts';
 import { ApiError, errorText } from '../../lib/errors.ts';
 import { t } from '../../lib/i18n.ts';
-import { Markdown } from '../cockpit/conversation/markdown.tsx';
 import './action.css';
 import { expiryText } from './model.ts';
 

@@ -1,7 +1,7 @@
 import type { DeviceInfo } from '@hoplet/shared';
 import { useEffect, useState } from 'react';
-import { fetchDevices } from '../../lib/api.ts';
-import { usePageVisible } from '../../lib/visibility.ts';
+import { fetchDevices } from './api.ts';
+import { usePageVisible } from './visibility.ts';
 
 const POLL_MS = 2000;
 

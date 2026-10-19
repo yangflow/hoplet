@@ -1,0 +1,245 @@
+/* The folder browser of the Add project and Clone into dialogs: the dialog body, the path bar, the folder list */
+.ns {
+  padding: var(--space-3) var(--space-4) var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.ns-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-left: var(--space-1);
+  margin-right: calc(-1 * var(--space-2));
+}
+.ns-head b {
+  font-size: var(--text-title);
+  line-height: var(--leading-title);
+  font-weight: var(--weight-semibold);
+}
+.ns-grid {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  gap: var(--space-2);
+  align-items: center;
+  padding-left: var(--space-1);
+}
+.ns-label {
+  color: var(--color-text-2);
+}
+.ns-hint {
+  grid-column: 2;
+  margin: 0;
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  color: var(--color-text-2);
+}
+/* The header row is 32px with 4px around its segment plates, so nothing in it reaches the frame's border. */
+.pathbar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  height: var(--control-field);
+  padding: var(--space-1);
+}
+.pathbar .field.bare {
+  height: 100%;
+  padding: 0 var(--space-2);
+  font-size: var(--text-code);
+  line-height: var(--leading-code);
+}
+.crumbs {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.crumb-item {
+  display: flex;
+  align-items: center;
+  flex: none;
+}
+.crumb-sep {
+  margin: 0 var(--space-2);
+  color: var(--color-text-3);
+}
+.crumb {
+  height: calc(var(--control-field) - 2 * var(--space-1));
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-code);
+  line-height: var(--leading-code);
+}
+.crumb:hover,
+.crumb:focus-visible {
+  background: var(--color-hover);
+  color: var(--color-text);
+}
+.crumb[aria-current="location"] {
+  color: var(--color-text);
+}
+.crumb-edit {
+  flex: 1;
+  align-self: stretch;
+  min-width: var(--space-4);
+  cursor: text;
+}
+/*
+ * The folder frame: header row plus a list of a fixed height, 8.5 rows, so the dialog does not jump. The frame
+ * draws the border and the focus ring and clips nothing; only the list scrolls and clips, to the frame's radius.
+ */
+.dirs {
+  height: calc(var(--control-icon) * 8.5 + var(--control-field) + var(--space-3));
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+}
+.dirs:focus-within {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+.dirs.bad {
+  border-color: var(--color-danger);
+}
+.dirs.bad:focus-within {
+  outline-color: var(--color-danger);
+}
+.dir-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  border-top: 1px solid var(--color-line);
+  border-radius: 0 0 calc(var(--radius-md) - 1px) calc(var(--radius-md) - 1px);
+}
+.dir-list,
+.dirs .dir-list:focus-visible {
+  outline: none;
+}
+.dir-list {
+  padding: var(--space-1);
+}
+.dir-head {
+  padding: var(--space-2) var(--space-2) var(--space-1);
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  color: var(--color-text-3);
+}
+.dir {
+  height: var(--control-icon);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.dir:hover {
+  background: var(--color-hover);
+}
+.dir.on {
+  background: var(--color-selected);
+}
+.dir-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  color: var(--color-text-3);
+}
+.dir-icon svg {
+  width: 16px;
+  height: 16px;
+}
+.dir-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+.dir-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dir-where {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  color: var(--color-text-2);
+}
+.dir-git {
+  flex: none;
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-sm);
+  box-shadow: inset 0 0 0 1px var(--color-line);
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  color: var(--color-text-2);
+}
+.dir-open {
+  display: grid;
+  place-items: center;
+  flex: none;
+  color: var(--color-text-3);
+  visibility: hidden;
+}
+.dir:hover .dir-open,
+.dir.on .dir-open {
+  visibility: visible;
+}
+.dir-note {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-2);
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  color: var(--color-text-2);
+}
+.ns-foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+.ns-add {
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ns-add-path {
+  display: inline-flex;
+  min-width: 0;
+  white-space: pre;
+}
+.ns-add-path > .path-tail {
+  flex: 0 1 auto;
+}
+.ns-label-top {
+  align-self: start;
+  display: flex;
+  align-items: center;
+  height: var(--control-icon);
+}
+.ns-error {
+  grid-column: 2;
+  margin: 0;
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  color: var(--color-del-text);
+}

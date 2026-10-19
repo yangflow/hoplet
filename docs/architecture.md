@@ -73,6 +73,10 @@ Claude Code               the session file (writer) and the running process
   repository. Enforced by `scripts/boundaries.ts`.
 - Core modules import each other only through `index.ts`, in the direction of the Components table. Enforced
   by `scripts/boundaries.ts`.
+- A web screen imports from another screen only its `index.tsx` (the cockpit hosts the workspace inspector that
+  way), and that holds for stylesheets as for modules; code and styles shared by screens live in `web/src/lib/`
+  and `web/src/components/`. The fixtures behind
+  `/__states` (`states.tsx`, `fixtures.ts`) are exempt. Enforced by `scripts/boundaries.ts`.
 - Only `store` composes paths in the data directory. Enforced by `scripts/boundaries.ts` (no `node:fs` import
   outside `store`, `config` and `api/static`).
 - Every `/api/*` request needs the host token, except the two `/api/action/*` routes, which need a signed action token and are rate limited; the browser WebSocket needs a ticket minted with it; the agent

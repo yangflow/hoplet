@@ -5,8 +5,8 @@
  */
 import type { ToolKind, ToolMcp } from '@hoplet/shared';
 import type { IconName } from '../../../components/icons.tsx';
+import { formatBytes, formatDuration } from '../../../lib/format.ts';
 import { t } from '../../../lib/i18n.ts';
-import { formatBytes, formatDuration } from './format.ts';
 
 export type { ToolKind } from '@hoplet/shared';
 

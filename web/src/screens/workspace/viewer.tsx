@@ -1,13 +1,13 @@
 import type { WorkspaceChange, WorkspaceDiff, WorkspaceFile } from '@hoplet/shared';
 import { type CSSProperties, type ReactNode, useMemo, useState } from 'react';
 import { Button } from '../../components/Button.tsx';
+import { Tokens } from '../../components/Code.tsx';
 import { FileBadge, fileKind } from '../../components/file-types.tsx';
 import { IconButton } from '../../components/IconButton.tsx';
 import { Icon, Spinner } from '../../components/icons.tsx';
+import { formatBytes } from '../../lib/format.ts';
+import { type Language, languageOfPath } from '../../lib/highlight.ts';
 import { t } from '../../lib/i18n.ts';
-import { Tokens } from '../cockpit/conversation/code.tsx';
-import { formatBytes } from '../cockpit/conversation/format.ts';
-import { type Language, languageOfPath } from '../cockpit/conversation/highlight.ts';
 import { Counts, StatusTag } from './lists.tsx';
 import { type DiffLine, gutterFor, largestLine, parseDiff, splitPath, unfold } from './model.ts';
 import type { Loaded, Opened, ViewerContent } from './use-workspace.ts';

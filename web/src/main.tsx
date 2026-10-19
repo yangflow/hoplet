@@ -10,7 +10,7 @@ import { tokenFromHash } from './screens/action/model.ts';
 import './design/tokens.css';
 import './components/components.css';
 import './styles.css';
-import { applyAppearance, loadAppearance } from './screens/settings/prefs.ts';
+import { applyAppearance, loadAppearance } from './lib/prefs.ts';
 
 function applyScheme(): void {
   const scheme = new URLSearchParams(location.search).get('scheme');
