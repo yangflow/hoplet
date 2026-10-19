@@ -11,6 +11,7 @@ import type {
   DeviceDirsResult,
   DeviceInfo,
   DeviceProject,
+  DeviceResourceSample,
   DeviceSessionDeleted,
   DeviceSessionForgotten,
   DeviceSessionInspected,
@@ -26,12 +27,19 @@ import type {
   SessionConfig,
   SessionPermission,
   SessionPortsResult,
+  SessionResources,
   TerminalInfo,
   WorkspaceDiff,
   WorkspaceFile,
   WorkspaceListing,
 } from '@hoplet/shared';
 import type { BulkQueue, BulkQueueOptions } from './bulk.ts';
+
+/** What control holds of a machine's resource reports: the ring, oldest first, and the latest report's sessions. */
+export interface ResourcesSnapshot {
+  samples: DeviceResourceSample[];
+  sessions: SessionResources[];
+}
 
 /** One agent connection as control sees it: ingest owns the socket, control only talks through this. */
 export interface DeviceLink {
@@ -368,6 +376,8 @@ export interface Control {
   readonly terminals: Terminals;
   /** The ports last reported for a session and the host to link them with (ADR 0026). */
   portsOf(sessionId: string): SessionPortsResult;
+  /** The machine's last hour of readings and its sessions' usage from the latest one; empty for a machine that never reported. */
+  resourcesOf(deviceId: string): ResourcesSnapshot;
   /** Calls `listener` with every moment that may notify; returns the unsubscribe. */
   onEvent(listener: (event: ControlEvent) => void): () => void;
   /** Which sessions browsers have open; the API keeps it current from its sockets. */

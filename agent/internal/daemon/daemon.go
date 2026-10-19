@@ -113,6 +113,7 @@ func Run(cfg *config.Config, version string) error {
 	moves.onPrepare = terms.handoffStarted
 	defer terms.mgr.CloseAll(terminal.ReasonOwnerOffline)
 	watcher := newPortWatcher(ports.NewScanner(), locator(cfg), rt, terms, func() *sync.Client { return client })
+	sampler := newResourceSampler(cfg, rt, terms, func() *sync.Client { return client })
 	cloner := newCloner(cfg, st)
 	cloner.Recover()
 	runtimeHooks := rt.hooks()
@@ -149,6 +150,9 @@ func Run(cfg *config.Config, version string) error {
 	go snaps.run(ctx)
 	go client.Run(ctx)
 	go watcher.Run(ctx)
+	if sampler != nil {
+		go sampler.Run(ctx)
+	}
 
 	log.Printf("hoplet-agent %s started: server=%s projects=%s device=%s(%s)",
 		version, cfg.ServerURL, cfg.ClaudeProjects, cfg.DeviceName, shortIDPrefix(deviceID))

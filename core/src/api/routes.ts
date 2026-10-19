@@ -26,6 +26,7 @@ import {
   DeviceProjectsAddRequestSchema,
   DeviceProjectsRemoveRequestSchema,
   DeviceProjectsResultSchema,
+  DeviceResourcesResultSchema,
   DeviceSessionsImportRequestSchema,
   DeviceSessionsRemoveRequestSchema,
   type Entry,
@@ -912,6 +913,38 @@ export const routes: readonly Route[] = [
     lane: 'control',
     response: DeviceListResponseSchema,
     handler: ({ control }) => ({ devices: control.devices() }),
+  }),
+  defineRoute({
+    method: 'GET',
+    path: '/api/devices/:deviceId/resources',
+    auth: 'host',
+    lane: 'control',
+    response: DeviceResourcesResultSchema,
+    handler: ({ store, control, params }) => {
+      const deviceId = params.deviceId ?? '';
+      if (!control.devices().some((d) => d.deviceId === deviceId)) throw new ApiError('not-found');
+      const { samples, sessions } = control.resourcesOf(deviceId);
+      const latest = samples.at(-1);
+      return {
+        samples,
+        sessions: sessions
+          .map((s) => {
+            const meta = store.getSession(s.sessionId);
+            return {
+              sessionId: s.sessionId,
+              title: meta
+                ? store.sessionState(s.sessionId)?.titleOverride?.trim() || meta.title
+                : null,
+              projectPath: meta?.projectPath ?? null,
+              cpu: s.cpu,
+              rss: s.rss,
+              children: s.children,
+            };
+          })
+          .sort((a, b) => b.rss - a.rss),
+        ...(latest ? { at: latest.at } : {}),
+      };
+    },
   }),
   defineRoute({
     method: 'POST',

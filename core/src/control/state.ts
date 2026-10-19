@@ -1,11 +1,13 @@
 import type {
   AgentRuntimeState,
   Command,
+  DeviceResourceSample,
   HttpErrorCode,
   Provider,
   ProviderInfo,
   ServerMessage,
   SessionPort,
+  SessionResources,
   TerminalReason,
 } from '@hoplet/shared';
 import type { Store } from '../store/index.ts';
@@ -62,6 +64,8 @@ export interface ControlState {
   deviceInfo: Map<string, { terminal: boolean; previewHost?: string }>;
   /** The ports each watched session last reported, in memory only (ADR 0026). */
   sessionPorts: Map<string, { deviceId: string; ports: SessionPort[] }>;
+  /** The readings each machine reported, newest last, in memory only: kept after a disconnect, lost on restart. */
+  resources: Map<string, { samples: DeviceResourceSample[]; sessions: SessionResources[] }>;
   /** Opening terminals: the owner has been asked and has not answered, by terminal ID. */
   pendingTerminal: Map<string, Waiter<TerminalAnswer>>;
   /** Set once the terminals exist: ends the session's terminal, if it has one, before `reason` takes effect. */

@@ -244,6 +244,18 @@ whose directory is inside the session's directory or that descends from the sess
 reports changes, at most once a second per session, as `session.ports` (port, address class, process name). The agent announces its `preview_host` in `device.hello`. The core forwards it to subscribed browsers
 and holds it in memory only. No dev server traffic is read, proxied or stored.
 
+**Resources.** `agent/internal/resources/` takes one reading every 15 seconds and sends it as `device.resources` on the
+control lane: the whole machine's CPU, memory used and total, free and total bytes of the volume that holds the
+browse root, and for each session with a process Hoplet started (its Claude Code or Codex process, its terminal's
+shell) the CPU, resident memory and descendant count summed over that process tree, at most 64 sessions, the largest
+in memory first. One process listing serves the machine and the sessions: `/proc` on Linux; on macOS one
+`ps -A -o pid=,ppid=,rss=,pcpu=`, `sysctl -n hw.memsize` and `vm_stat`, where memory used is the total minus the
+free, inactive and speculative pages. CPU figures are percent of the whole machine and, on Linux, differences
+between two readings, so the first one carries none (null). Only numbers and session IDs leave the machine: never a
+process name, command line or process ID. On any other system no sampler runs. A reading taken while the core is away is dropped, never queued. The core keeps the
+last 240 readings of each machine in memory (`core/src/control/resources.ts`), outliving the connection and not
+the process, and stores nothing.
+
 ### A storage migration
 
 Add `core/src/migrations/<NNNN>-<name>.ts` and register it in `core/src/migrations/index.ts`. Migrations run

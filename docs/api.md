@@ -102,6 +102,7 @@ Response column names the schema of the success body and its status when it is n
 | POST | `/api/sessions/:sessionId/handoff` | host | control | — | `HandoffRequestSchema` | `HandoffResultSchema` | `invalid-json`, `invalid-request`, `too-large`, `session-not-found`, `same-device`, `target-offline`, `owner-offline`, `handoff-in-progress`, `busy`, `no-snapshot`, `no-clone`, `clone-failed`, `session-changed`, `verify-failed`, `cancelled`, `timeout`, `rejected` |
 | POST | `/api/sessions/:sessionId/handoff/cancel` | host | control | — | — | `HandoffCancelResultSchema` | `session-not-found`, `handoff-not-running` |
 | GET | `/api/devices` | host | control | — | — | `DeviceListResponseSchema` | — |
+| GET | `/api/devices/:deviceId/resources` | host | control | — | — | `DeviceResourcesResultSchema` | `not-found` |
 | POST | `/api/devices` | host | control | — | `DeviceMintRequestSchema` | `DeviceMintResultSchema` | `invalid-json`, `invalid-request`, `too-large` |
 | POST | `/api/devices/:deviceId/attachments` | host | bulk | — | `PromptImageSchema` | `AttachmentResultSchema` | `invalid-json`, `invalid-request`, `too-large`, `target-offline`, `timeout` |
 | GET | `/api/devices/:deviceId/clone` | host | control | `DeviceCloneQuerySchema` | — | `DeviceCloneResultSchema` | `invalid-request`, `target-offline`, `timeout` |
@@ -132,6 +133,19 @@ Behavior a client relies on:
   (milliseconds) is when its agent last connected or disconnected and is absent for a device that never connected.
   `system` (`os` and `arch`, Go's `GOOS` and `GOARCH` such as `darwin` and `arm64`) is what its agent announced in
   `device.hello`, kept while the device is offline; it is `null` for a device whose agent never announced it.
+  `resources` is the latest `device.resources` report of the machine (`at`, `cpu`, `memUsed`, `memTotal`,
+  `diskFree`, `diskTotal`), kept while the device is offline so a client can say when it was taken; it is absent for
+  a machine that never reported (an agent on a system the agent does not measure sends none). `warn` comes with it:
+  `memory` is true when more than 90% of the memory is used, `disk` when less than 10% of the volume is free, and
+  both are false while the device is offline.
+- `GET /api/devices/:deviceId/resources` answers `samples`, the last hour of the machine's readings (at most 240, one
+  every 15 seconds, oldest first, `cpu` null while the agent had no earlier reading), and `sessions`, the processes
+  of the sessions Hoplet started on it as of the latest report, summed over their process trees: `cpu` (percent of
+  the whole machine's CPU, null when unknown), `rss` (bytes), `children` (descendant processes), the session's
+  `title` and `projectPath` (null for a session the core does not hold), largest memory first. `at` is the
+  latest reading's time. A machine that never reported answers `samples: []` and `sessions: []`; an unknown device
+  answers `not-found`. The core keeps the readings in memory only: they survive the agent disconnecting and are lost
+  when the core restarts. They are not pushed to browsers; a client polls.
 - `POST /api/sessions` answers when the agent has created and imported the session. Its error body carries the
   `promptId` that was sent, and a `reason` where the agent gave one.
 - `POST /api/sessions/:sessionId/prompt` answers `202` when the prompt reached the owner. A prompt is at most

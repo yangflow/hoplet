@@ -156,6 +156,10 @@ published on the server running the core, and the compose file does not change.
   grows with its session: about 230 MB for a small session and 600 MB for a 256 MB session (Claude Code
   2.1.289). Processes in a turn are not limited; size the machine for the sessions you run in parallel.
 - Image size under 250 MB.
+- Machine resources: every 15 seconds the agent reads the machine's CPU, memory and the disk of its browse root
+  and the process trees of the sessions it started, on Linux (`/proc`) and macOS (one `ps`, `sysctl` and
+  `vm_stat`), and sends about 100 bytes per session. The core keeps the last 240 readings of each machine in memory
+  (a few hundred kilobytes in all) and stores none.
 - Disk: session bytes / 20 after compression, plus the index, plus at most one snapshot per session (at most
   64 MiB each). There is no quota; a full disk fails appends, which the agent retries.
 - A clone made by a handoff takes the disk the repository takes, inside the browse root of the target; it has
