@@ -107,7 +107,7 @@ func newHandoffs(cfg *config.Config, st *store, bridge *bridge, snaps *snapshott
 		cfg: cfg,
 		inst: &workspace.Installer{
 			Home:     cfg.HopletHome,
-			Store:    vendorStore(cfg, bridge.mgr.Driver().Name()),
+			Store:    vendorStore(cfg, "claude"),
 			Watched:  st.watchedPaths,
 			Projects: st,
 		},
@@ -285,7 +285,7 @@ func (h *handoffs) commit(m sync.HandoffCommit) {
 	h.release(m.SessionID)
 	if m.OwnerDeviceID != h.client.DeviceID() {
 		// The session lives elsewhere now: its process here must not run on.
-		h.bridge.mgr.Stop(m.SessionID)
+		h.bridge.managerOf(m.SessionID).Stop(m.SessionID)
 	}
 }
 
@@ -331,9 +331,11 @@ func (h *handoffs) welcomed(sessions []sync.SessionMeta) {
 			h.release(r.SessionID)
 		}
 	}
-	for _, st := range h.bridge.mgr.States() {
-		if owner, ok := owners[st.SessionID]; ok && owner != "" && owner != h.client.DeviceID() {
-			h.bridge.mgr.Stop(st.SessionID)
+	for _, mgr := range h.bridge.managers() {
+		for _, st := range mgr.States() {
+			if owner, ok := owners[st.SessionID]; ok && owner != "" && owner != h.client.DeviceID() {
+				mgr.Stop(st.SessionID)
+			}
 		}
 	}
 }

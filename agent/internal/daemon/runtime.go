@@ -15,6 +15,7 @@ import (
 	"github.com/yangflow/hoplet/agent/internal/provider"
 	"github.com/yangflow/hoplet/agent/internal/runtime"
 	"github.com/yangflow/hoplet/agent/internal/runtime/claude"
+	"github.com/yangflow/hoplet/agent/internal/runtime/codex"
 	"github.com/yangflow/hoplet/agent/internal/sync"
 )
 
@@ -35,7 +36,8 @@ type bridge struct {
 	cfg    *config.Config
 	att    *attachments // images uploaded for coming prompts
 	locate runtime.Locator
-	mgr    *runtime.Manager
+	mgr    *runtime.Manager // Claude Code
+	codex  *runtime.Manager // Codex
 	send   func(any) error
 	kick   func()
 
@@ -59,27 +61,75 @@ func newBridge(cfg *config.Config, send func(any) error, kick func(), turnDone, 
 		locate: locator(cfg), send: send, kick: kick, done: make(chan struct{}),
 	}
 	b.cond = gosync.NewCond(&b.mu)
-	b.mgr = runtime.NewManager(runtime.Config{
-		Driver: claude.New(claude.Options{Bin: cfg.ClaudeBin, Model: os.Getenv(modelEnv)}),
-		Locate: locator(cfg),
-		Emit:   b.emit,
+	newManager := func(d runtime.Driver) *runtime.Manager {
+		return runtime.NewManager(runtime.Config{
+			Driver: d,
+			Locate: providerLocator(cfg, d.Name()),
+			Emit:   b.emit,
 
-		TurnDone:  turnDone,
-		TurnStart: turnStart,
+			TurnDone:  turnDone,
+			TurnStart: turnStart,
 
-		IdleTimeout: time.Duration(cfg.RuntimeIdleMinutes) * time.Minute,
-		MaxIdle:     cfg.RuntimeMaxIdleProcesses,
-		OwnGrace:    ownGrace,
-	})
+			IdleTimeout: time.Duration(cfg.RuntimeIdleMinutes) * time.Minute,
+			MaxIdle:     cfg.RuntimeMaxIdleProcesses,
+			OwnGrace:    ownGrace,
+		})
+	}
+	b.mgr = newManager(claude.New(claude.Options{Bin: cfg.ClaudeBin, Model: os.Getenv(modelEnv)}))
+	b.codex = newManager(codex.New(codex.Options{Bin: cfg.CodexBin, ImageDir: filepath.Join(cfg.HopletHome, "codex-images")}))
 	go b.run()
 	return b
 }
 
-// locator finds a session's working directory and file. The provider answers with the directory whose
+// managers lists the runtime managers, one per vendor, Claude Code first.
+func (b *bridge) managers() []*runtime.Manager { return []*runtime.Manager{b.mgr, b.codex} }
+
+// manager is the manager of the provider named name, or nil.
+func (b *bridge) manager(name string) *runtime.Manager {
+	for _, m := range b.managers() {
+		if m.Driver().Name() == name {
+			return m
+		}
+	}
+	return nil
+}
+
+// managerOf is the manager that runs the session: the one that already holds it, otherwise the one of the
+// vendor whose store has its file, otherwise Claude Code's (whose error then says the session is not here).
+func (b *bridge) managerOf(sessionID string) *runtime.Manager {
+	for _, m := range b.managers() {
+		if m.Knows(sessionID) {
+			return m
+		}
+	}
+	for _, v := range vendors(b.cfg) {
+		if _, ok := v.Find(sessionID); ok {
+			if m := b.manager(v.Name()); m != nil {
+				return m
+			}
+		}
+	}
+	return b.mgr
+}
+
+// locator finds a session's working directory and file in any vendor's store.
+func locator(cfg *config.Config) runtime.Locator { return providerLocator(cfg, "") }
+
+// providerLocator finds a session's working directory and file. The provider answers with the directory whose
 // store holds the file, which for a handed-off session is its worktree here, not the machine it came from.
-func locator(cfg *config.Config) runtime.Locator {
+// With a provider name it looks in that vendor's store only; an empty name looks in all of them.
+func providerLocator(cfg *config.Config, providerName string) runtime.Locator {
 	return func(sessionID string) (runtime.Location, error) {
-		sess, err := locate.Locate(sessionID, finders(cfg)...)
+		fs := finders(cfg)
+		if providerName != "" {
+			fs = nil
+			for _, v := range vendors(cfg) {
+				if v.Name() == providerName {
+					fs = append(fs, v)
+				}
+			}
+		}
+		sess, err := locate.Locate(sessionID, fs...)
 		if err != nil {
 			return runtime.Location{}, err
 		}
@@ -227,23 +277,23 @@ func (b *bridge) hooks() sync.RuntimeHooks {
 			if err != nil {
 				return err
 			}
-			return b.mgr.PromptWith(sessionID, p)
+			return b.managerOf(sessionID).PromptWith(sessionID, p)
 		},
 		Steer: func(sessionID, text string, ids []string) error {
 			p, err := b.att.prompt(text, ids)
 			if err != nil {
 				return err
 			}
-			return b.mgr.Steer(sessionID, p)
+			return b.managerOf(sessionID).Steer(sessionID, p)
 		},
 		Config: func(sessionID, configID string, value any) error {
-			return b.mgr.SetConfig(sessionID, configID, value)
+			return b.managerOf(sessionID).SetConfig(sessionID, configID, value)
 		},
 		Answer: func(sessionID, requestID string, allow bool, message, mode string) error {
-			return b.mgr.Decide(sessionID, requestID, runtime.Verdict{Allow: allow, Message: message, Mode: mode})
+			return b.managerOf(sessionID).Decide(sessionID, requestID, runtime.Verdict{Allow: allow, Message: message, Mode: mode})
 		},
-		Interrupt: func(sessionID string) error { return b.mgr.Interrupt(sessionID) },
-		Stop:      func(sessionID string) { b.mgr.Stop(sessionID) },
+		Interrupt: func(sessionID string) error { return b.managerOf(sessionID).Interrupt(sessionID) },
+		Stop:      func(sessionID string) { b.managerOf(sessionID).Stop(sessionID) },
 		Connected: b.report,
 		Started:   func(string) { b.report() },
 	}
@@ -252,29 +302,39 @@ func (b *bridge) hooks() sync.RuntimeHooks {
 // providers are announced in device.hello: the runtime driver's capabilities, so the core can validate the
 // options of a new session before any session exists.
 func (b *bridge) providers() []sync.ProviderInfo {
-	d := b.mgr.Driver()
-	info := sync.ProviderInfo{Provider: d.Name(), Capabilities: capabilities(d.Capabilities(), d.Config())}
-	if vd, ok := d.(runtime.Versioned); ok {
+	var out []sync.ProviderInfo
+	for _, m := range b.managers() {
+		d := m.Driver()
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		if version, tested, err := vd.Version(ctx); err == nil {
-			info.Version, info.Tested = version, &tested
+		if cd, ok := d.(*codex.Driver); ok {
+			// The models are what the new-session form offers; without them only the default is.
+			_ = cd.LoadModels(ctx)
 		}
+		info := sync.ProviderInfo{Provider: d.Name(), Capabilities: capabilities(d.Capabilities(), d.Config())}
+		if vd, ok := d.(runtime.Versioned); ok {
+			if version, tested, err := vd.Version(ctx); err == nil {
+				info.Version, info.Tested = version, &tested
+			}
+		}
+		cancel()
+		out = append(out, info)
 	}
-	return []sync.ProviderInfo{info}
+	return out
 }
 
 // report tells the core the state of every process this agent runs and every permission request that
 // waits for an answer; the core rebuilds its runtime state from it.
 func (b *bridge) report() {
-	for _, st := range b.mgr.States() {
-		b.emit(st)
-	}
-	for _, p := range b.mgr.Pending() {
-		b.emit(p)
-	}
-	for _, c := range b.mgr.Commands() {
-		b.emit(c)
+	for _, m := range b.managers() {
+		for _, st := range m.States() {
+			b.emit(st)
+		}
+		for _, p := range m.Pending() {
+			b.emit(p)
+		}
+		for _, c := range m.Commands() {
+			b.emit(c)
+		}
 	}
 }
 
@@ -283,14 +343,16 @@ func (b *bridge) report() {
 func (b *bridge) observe(ctx context.Context, sources []provider.Source) {
 	for _, src := range sources {
 		if size, err := src.Size(ctx); err == nil && size >= 0 {
-			b.mgr.Observe(src.ID(), size)
+			if m := b.manager(src.Provider()); m != nil {
+				m.Observe(src.ID(), size)
+			}
 		}
 	}
 }
 
 // stopSession ends a session's process before its file is exported for handoff.
 func (b *bridge) stopSession(sessionID string) error {
-	if !b.mgr.StopAndWait(sessionID, 15*time.Second) {
+	if !b.managerOf(sessionID).StopAndWait(sessionID, 15*time.Second) {
 		return errors.New("the session's process did not stop")
 	}
 	return nil
@@ -300,7 +362,9 @@ func (b *bridge) stopSession(sessionID string) error {
 func (b *bridge) close() {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	b.mgr.Shutdown(ctx)
+	for _, m := range b.managers() {
+		m.Shutdown(ctx)
+	}
 	b.mu.Lock()
 	b.closed = true
 	b.cond.Broadcast()

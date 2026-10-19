@@ -19,7 +19,8 @@ func terminalRig(t *testing.T) (*terminals, *bridge) {
 	t.Setenv("FAKE_CLAUDE_PROJECTS", projects)
 	runtimetest.Session(t, projects, t.TempDir(), "s1")
 	cfg := &config.Config{
-		ClaudeBin: bin, ClaudeProjects: projects, HopletHome: t.TempDir(), Terminal: true,
+		ClaudeBin: bin,
+		CodexBin:  "/nonexistent/codex", ClaudeProjects: projects, HopletHome: t.TempDir(), Terminal: true,
 		RuntimeIdleMinutes: 30, RuntimeMaxIdleProcesses: 3,
 	}
 	var terms *terminals

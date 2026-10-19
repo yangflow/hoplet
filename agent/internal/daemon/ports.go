@@ -20,7 +20,7 @@ func newPortWatcher(scan ports.Scanner, locate runtime.Locator, bridge *bridge, 
 			return loc.Dir, err
 		},
 		Roots: func(sessionID string) []int {
-			return []int{bridge.mgr.PID(sessionID), terms.mgr.ShellPID(sessionID)}
+			return []int{bridge.managerOf(sessionID).PID(sessionID), terms.mgr.ShellPID(sessionID)}
 		},
 		Send: func(sessionID string, found []ports.Port) {
 			c := client()

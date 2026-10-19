@@ -61,7 +61,7 @@ Claude Code               the session file (writer) and the running process
 | web | browser | Token gate, Hoplet screen, API client, live connection, bounded page cache | REST and browser WebSocket only | `web/src/` |
 | sync | agent | Agent WebSocket client, the two lanes, cursor reconciliation, append batching | config, provider | `agent/internal/sync/` |
 | provider | agent | The `Source`, `Provider` and `Store` interfaces, and one implementation per vendor in `provider/<vendor>/` (`claude`: store discovery, incremental reading, titles, project membership, session-file installation; `codex`: rollout discovery, session ID and directory from the first line, reading a `.jsonl.zst` by decompressing from the start with the cursor counting uncompressed bytes, session-file installation under `sessions/`) | nothing | `agent/internal/provider/` |
-| runtime | agent | Process lifecycle, idle stop, `external` detection, and the runtime-driver interface with one driver per vendor in `runtime/<vendor>/` (`claude`: streaming JSON I/O, permissions, interrupt, version check) | provider, locate | `agent/internal/runtime/` |
+| runtime | agent | Process lifecycle, idle stop, `external` detection, and the runtime-driver interface with one driver per vendor in `runtime/<vendor>/` (`claude`: streaming JSON I/O, permissions, interrupt, version check; `codex`: JSON-RPC to `codex app-server`, approvals, steer, interrupt, plan exit, version check) | provider, locate | `agent/internal/runtime/` |
 | terminal, ports | agent | The PTY of an opened terminal (process group, limits, credit window, cleanup journal), and the scan for listening TCP ports of processes started from a session's directory | runtime, locate | `agent/internal/terminal/`, `agent/internal/ports/` |
 | workspace | agent | Working-tree listing and rooted reads, snapshots, clone resolution, worktree installation, verification | provider, locate | `agent/internal/workspace/` |
 | projects, sessions | agent | `projects.json` and its CLI | provider | `agent/internal/projects/`, `agent/internal/sessions/` |
@@ -135,6 +135,34 @@ whose vendor assigns the ID itself and cannot be told one implements `runtime.ID
 `StartNew` without an ID, the driver creates the session and returns the vendor's ID with the process, and the
 manager keys the session by it. Such a session does not exist for the manager until `StartNew` returns, and a
 failed start leaves nothing behind.
+
+The agent runs one manager per vendor (Claude Code, Codex), each with its own driver, idle cap and locator that
+looks only in its vendor's store. A command for an existing session goes to the manager that holds the session,
+else to the one whose vendor's store has its file; `runtime.start` goes to the manager of its `provider`.
+
+The Codex driver (`runtime/codex/`, [ADR 0027](adr/0027-codex-runs-on-its-app-server-and-enters-at-level-2.md))
+starts one `codex app-server` per controlled session and speaks newline-delimited JSON-RPC to it over stdio with
+the experimental API: `thread/start` (it implements `IDAssigner`) or `thread/resume` with `excludeTurns`,
+`turn/start` for a prompt (images as `localImage` files under `<hoplet_home>/codex-images/`), `turn/steer` with
+the running turn's ID (a new turn when none runs) and `turn/interrupt`. `item/commandExecution/requestApproval`
+and `item/fileChange/requestApproval` become permission requests answered accept or decline; the message of a
+refusal is steered into the turn that is still running. The settings are `mode`, `model`, `effort` and
+`collaboration`, all applied at the next turn as `turn/start` overrides, and `thread/settings/updated` reports
+a change made in Codex. `mode` sets the approval policy, the sandbox and the approvals reviewer together:
+
+| `mode` | approval policy | sandbox | reviewer |
+|---|---|---|---|
+| `read-only` | on-request | read-only | user |
+| `workspace-write` (default) | on-request | workspace-write | user |
+| `auto-review` | on-request | workspace-write | auto-review |
+| `full-access` | never | none | user |
+
+When a turn in `plan` collaboration completes with a plan item, the driver raises a `planExit` permission
+request: approving it starts a turn in `default` collaboration with the chosen mode (never `full-access`), a
+refusal with a message starts a turn that stays in plan mode. Only the codex-cli versions in `TestedVersions`
+(`runtime/codex/versions.go`) run; any other is refused with an error that names the supported versions, and
+`device.hello` announces no version for it. The `effort` options are the union of the efforts of all models, and
+the driver leaves out an effort the chosen model does not support.
 
 ### A runtime capability
 

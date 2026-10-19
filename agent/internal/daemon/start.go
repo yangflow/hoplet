@@ -63,7 +63,8 @@ func (s *store) importNew(path, sessionID string) error {
 // session and returns its ID. A session that could not be completed is stopped and forgotten.
 func (b *bridge) starter(st *store) func(context.Context, sync.RuntimeStart) (string, error) {
 	return func(ctx context.Context, req sync.RuntimeStart) (string, error) {
-		if req.Provider != b.mgr.Driver().Name() {
+		mgr := b.manager(req.Provider)
+		if mgr == nil {
 			return "", fmt.Errorf("unsupported provider %q", req.Provider)
 		}
 		if strings.TrimSpace(req.Text) == "" {
@@ -77,16 +78,16 @@ func (b *bridge) starter(st *store) func(context.Context, sync.RuntimeStart) (st
 		if err != nil {
 			return "", err
 		}
-		id, err := b.mgr.CreateWith(path, p, req.Config)
+		id, err := mgr.CreateWith(path, p, req.Config)
 		if err != nil {
 			return "", err
 		}
-		if err := b.waitForSession(ctx, id, path); err != nil {
-			b.mgr.Discard(id, 15*time.Second)
+		if err := b.waitForSession(ctx, mgr, id, path); err != nil {
+			mgr.Discard(id, 15*time.Second)
 			return "", err
 		}
 		if err := st.importNew(path, id); err != nil {
-			b.mgr.Discard(id, 15*time.Second)
+			mgr.Discard(id, 15*time.Second)
 			return "", fmt.Errorf("import the new session: %w", err)
 		}
 		return id, nil
@@ -94,10 +95,10 @@ func (b *bridge) starter(st *store) func(context.Context, sync.RuntimeStart) (st
 }
 
 // waitForSession returns once the session's file exists, or an error when the process failed first.
-func (b *bridge) waitForSession(ctx context.Context, id, path string) error {
+func (b *bridge) waitForSession(ctx context.Context, mgr *runtime.Manager, id, path string) error {
 	// A native vendor names the file it will write; any other is found by locating the session.
 	expected := ""
-	if s := vendorStore(b.cfg, b.mgr.Driver().Name()); s != nil {
+	if s := vendorStore(b.cfg, mgr.Driver().Name()); s != nil {
 		expected = s.SessionFile(path, id)
 	}
 	deadline := time.NewTimer(startWait)
@@ -113,7 +114,7 @@ func (b *bridge) waitForSession(ctx context.Context, id, path string) error {
 				return nil
 			}
 		}
-		if state, msg := b.mgr.Info(id); state == runtime.StateFailed {
+		if state, msg := mgr.Info(id); state == runtime.StateFailed {
 			if msg == "" {
 				msg = "the process failed"
 			}

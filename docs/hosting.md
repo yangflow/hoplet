@@ -117,9 +117,10 @@ starting the container. Run one core per data directory, on a local filesystem w
 | `claude_projects` | `~/.claude/projects` | Claude Code session store |
 | `codex_home` | `$CODEX_HOME`, else `~/.codex` | Codex home; the agent reads `sessions/` (rollouts, `.jsonl` and `.jsonl.zst`) and writes only the rollout of a handed-off session, `sessions/YYYY/MM/DD/rollout-<time>-<threadId>.jsonl` (mode 0600, uncompressed, named in the machine's local time from the session_meta timestamp, as Codex names its rollouts); it writes no other file under `codex_home` |
 | `claude_bin` | `claude` on `PATH` | Claude Code executable |
+| `codex_bin` | `codex` on `PATH` | Codex executable; the agent runs `codex app-server` from it, and only the codex-cli versions the driver was tested against (`0.163.0`) run |
 | `poll_interval_ms` | `1000` | scan interval |
-| `runtime_idle_minutes` | `30` | idle time after which a Claude Code process stops |
-| `runtime_max_idle_processes` | `3` | Claude Code processes kept running between turns; processes in a turn are not limited |
+| `runtime_idle_minutes` | `30` | idle time after which a session's process (Claude Code or Codex) stops |
+| `runtime_max_idle_processes` | `3` | processes kept running between turns; processes in a turn are not limited |
 | `terminal` | `false` | allow the web UI to open a shell on this machine ([Terminal](#terminal)) |
 | `preview_host` | the machine's host name | the host in the links to a session's dev servers ([Dev server links](#dev-server-links)) |
 

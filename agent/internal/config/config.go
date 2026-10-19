@@ -23,6 +23,7 @@ type Config struct {
 	BrowseRoot      string        `json:"browse_root"`
 
 	ClaudeBin               string `json:"claude_bin"`
+	CodexBin                string `json:"codex_bin"`
 	RuntimeIdleMinutes      int    `json:"runtime_idle_minutes"`
 	RuntimeMaxIdleProcesses int    `json:"runtime_max_idle_processes"`
 
@@ -41,6 +42,7 @@ func Load(path string) (*Config, error) {
 		HopletHome:      DefaultHome(),
 
 		ClaudeBin:               "claude",
+		CodexBin:                "codex",
 		RuntimeIdleMinutes:      30,
 		RuntimeMaxIdleProcesses: 3,
 	}
@@ -81,6 +83,9 @@ func Load(path string) (*Config, error) {
 	}
 	if cfg.ClaudeBin == "" {
 		cfg.ClaudeBin = "claude"
+	}
+	if cfg.CodexBin == "" {
+		cfg.CodexBin = "codex"
 	}
 	if cfg.RuntimeIdleMinutes <= 0 {
 		return nil, fmt.Errorf("runtime_idle_minutes must be positive")
