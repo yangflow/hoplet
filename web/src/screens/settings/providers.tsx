@@ -3,8 +3,8 @@ import { type KeyboardEvent, useId, useRef, useState } from 'react';
 import { Button } from '../../components/Button.tsx';
 import { Icon } from '../../components/icons.tsx';
 import { ProviderMark, providerName } from '../../components/provider-marks.tsx';
+import { currentValueName, optionName } from '../../lib/config-options.ts';
 import { t } from '../../lib/i18n.ts';
-import { currentName, optionName } from '../cockpit/composer/model-menu.tsx';
 import { useDevices } from '../cockpit/use-devices.ts';
 import { lastSeenText } from './last-seen.ts';
 import { defaultMachine, providerUse, versionBadge } from './providers-model.ts';
@@ -27,7 +27,7 @@ const CAPABILITIES: { key: 'permissions' | 'interrupt' | 'images' | 'steer'; lab
 
 function defaultValue(o: ConfigOption): string {
   if (o.type === 'boolean') return o.currentValue ? t('On') : t('Off');
-  return currentName(o) ?? o.currentValue;
+  return currentValueName(o) ?? o.currentValue;
 }
 
 function ProviderRow(props: {

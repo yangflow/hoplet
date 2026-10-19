@@ -6,8 +6,8 @@ import {
   versionBadge,
 } from '../src/screens/settings/providers-model.ts';
 
-const mac = { deviceId: 'dev-mac', name: 'MacBook Pro' };
-const studio = { deviceId: 'dev-studio', name: 'studio' };
+const mac = { deviceId: 'dev-mac' };
+const studio = { deviceId: 'dev-studio' };
 
 const s = (
   provider: 'claude' | 'codex',
@@ -36,10 +36,14 @@ describe('provider use', () => {
     expect(providerUse(sessions, studio, 'claude')).toEqual({ sessions: 1, lastUsed: 900 });
   });
 
-  it('falls back to the device name for a session without an owner', () => {
+  it('does not count a session without an owner for any machine', () => {
     const none = [s('claude', 50, undefined, 'MacBook Pro')];
-    expect(providerUse(none, mac, 'claude')).toEqual({ sessions: 1, lastUsed: 50 });
-    expect(providerUse(none, studio, 'claude')).toEqual({ sessions: 0, lastUsed: undefined });
+    expect(providerUse(none, mac, 'claude')).toEqual({ sessions: 0, lastUsed: undefined });
+  });
+
+  it('counts an archived session', () => {
+    const archived = [{ ...s('claude', 70, 'dev-mac'), archivedAt: 80 }];
+    expect(providerUse(archived, mac, 'claude')).toEqual({ sessions: 1, lastUsed: 70 });
   });
 
   it('is empty without sessions', () => {

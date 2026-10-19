@@ -246,7 +246,8 @@ list at its left grows with later sections; the sections are:
 - **Model providers**: read-only, from what each connected agent announces. A tab per machine (presence dot and
   name, in the order of Machines; it opens on the first connected one) and a row per provider that machine runs:
   the mark, the name and "version · N sessions · used <time>" (the counts and the last use come from the session
-  list the web UI already holds; a part that is zero or unknown is left out), with Tested, or Newer than tested
+  list the web UI already holds, archived sessions included, and a session counts for the machine that owns it; a
+  part that is zero or unknown is left out), with Tested, or Newer than tested
   when the version is newer than the ones the driver was verified against, and no badge when the version is
   unknown. A row opens to the new-session defaults (each setting of the driver with its default value) and the
   capabilities the driver has (Permissions, Interrupt, Images, Steer). An offline machine shows only its last

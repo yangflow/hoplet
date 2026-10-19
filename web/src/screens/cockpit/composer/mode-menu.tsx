@@ -3,6 +3,7 @@ import { type KeyboardEvent, useEffect, useId, useRef, useState } from 'react';
 import { Badge } from '../../../components/Badge.tsx';
 import { configIcon, Icon } from '../../../components/icons.tsx';
 import { Popover } from '../../../components/Popover.tsx';
+import { optionName, valueDescription, valueName } from '../../../lib/config-options.ts';
 import { t } from '../../../lib/i18n.ts';
 
 export type Select = ConfigOption & { type: 'select' };
@@ -18,25 +19,6 @@ export function nextMode(option: Select): string | undefined {
   if (values.length < 2) return undefined;
   const at = values.findIndex((v) => v.value === option.currentValue);
   return values[(at + 1) % values.length]?.value;
-}
-
-/** A mode's name: the strings' entry for the option and value when there is one, else the driver's name. */
-export function modeName(o: Select, value: string, name: string): string {
-  const key = `config.${o.id}.${value}`;
-  const known = t(key);
-  return known !== key ? known : name;
-}
-
-export function modeDescription(o: Select, value: string, description: string | undefined): string {
-  const key = `config.${o.id}.${value}.description`;
-  const known = t(key);
-  return known !== key ? known : (description ?? '');
-}
-
-function optionName(o: Select): string {
-  const key = `config.${o.id}`;
-  const known = t(key);
-  return known !== key ? known : o.name;
 }
 
 /** Whether the current value carries a high risk. */
@@ -64,7 +46,7 @@ export function ModeMenu(props: {
   const focusOnOpen = useRef(false);
   const id = useId();
   const current = option.options.find((v) => v.value === option.currentValue);
-  const label = current ? modeName(option, current.value, current.name) : optionName(option);
+  const label = current ? valueName(option, current.value, current.name) : optionName(option);
   const risky = isRisky(option);
   const normal = option.options.filter((v) => v.risk !== 'high');
   const high = option.options.filter((v) => v.risk === 'high');
@@ -101,7 +83,7 @@ export function ModeMenu(props: {
 
   const row = (v: Select['options'][number]) => {
     const checked = v.value === option.currentValue;
-    const description = modeDescription(option, v.value, v.description);
+    const description = valueDescription(option, v.value, v.description);
     return (
       <button
         key={v.value}
@@ -120,7 +102,7 @@ export function ModeMenu(props: {
           {configIcon(v.icon) ?? (v.risk === 'high' ? Icon.shieldAlert() : null)}
         </span>
         <span className="mode-text">
-          <span className="mode-name">{modeName(option, v.value, v.name)}</span>
+          <span className="mode-name">{valueName(option, v.value, v.name)}</span>
           {description ? <span className="mode-desc">{description}</span> : null}
         </span>
         {v.risk === 'high' ? <Badge tone="attention">{t('High risk')}</Badge> : null}
