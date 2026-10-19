@@ -59,6 +59,8 @@ esac`,
       REAL_NODE: process.execPath,
     },
     stdio: 'ignore',
+    // Its own process group, so a test can send SIGINT the way a terminal's Ctrl-C does.
+    detached: true,
   });
   const exited = new Promise<number | null>((done) => child.on('exit', done));
   return { root, child, exited };
@@ -90,7 +92,12 @@ for (const signal of ['SIGINT', 'SIGTERM'] as const) {
       const h = harness(false);
       try {
         await waitForFile(join(h.root, 'agent-pid'));
-        h.child.kill(signal);
+        // Ctrl-C signals the whole foreground group; a SIGINT to bash alone is dropped while it waits on a
+        // foreground command that does not die of it. kill(1) signals the script alone.
+        process.kill(
+          signal === 'SIGINT' ? -(h.child.pid as number) : (h.child.pid as number),
+          signal,
+        );
         expect(await h.exited).not.toBe(0);
         expect(readFileSync(join(h.root, 'build-args'), 'utf8')).toContain('build -o');
         assertReaped(h.root, 'server');
