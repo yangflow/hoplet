@@ -4,6 +4,28 @@ Each release's notes are made from the titles of the pull requests merged since 
 Commits: `feat` under Added, `fix` under Fixed, `perf` under Performance; `release-please-config.json`).
 Versions follow Semantic Versioning.
 
+## [0.6.0](https://github.com/yangflow/hoplet/compare/v0.5.0...v0.6.0) (2026-10-19)
+
+
+### Added
+
+* **agent:** Discover and sync Codex sessions started in a terminal ([#164](https://github.com/yangflow/hoplet/issues/164)) ([2ca0a94](https://github.com/yangflow/hoplet/commit/2ca0a945d723de94f20b91cacb7fd689fceda025))
+* **agent:** Hand off Codex sessions between machines ([#166](https://github.com/yangflow/hoplet/issues/166)) ([17db5b4](https://github.com/yangflow/hoplet/commit/17db5b4d51bb2c62291b9543706ef08874232ee6)), closes [#161](https://github.com/yangflow/hoplet/issues/161)
+* **agent:** Let a driver's vendor assign a new session's ID ([#163](https://github.com/yangflow/hoplet/issues/163)) ([71b4119](https://github.com/yangflow/hoplet/commit/71b4119ac6dbf9333f73015b716ab14b87e1c64c))
+* **agent:** Open a terminal on the owner machine ([#149](https://github.com/yangflow/hoplet/issues/149)) ([9282af8](https://github.com/yangflow/hoplet/commit/9282af821db497d11f8633125d299a0ee8290379))
+* **agent:** Report a session's dev server ports ([#151](https://github.com/yangflow/hoplet/issues/151)) ([ec72912](https://github.com/yangflow/hoplet/commit/ec729121d9a5d79fdc9ab28cb10e102479def18d))
+* **agent:** Start and control Codex sessions through its app server ([#167](https://github.com/yangflow/hoplet/issues/167)) ([2322897](https://github.com/yangflow/hoplet/commit/23228977815a24133753025860a0fca820103390)), closes [#162](https://github.com/yangflow/hoplet/issues/162)
+* **core:** Read Codex sessions in the conversation model ([#165](https://github.com/yangflow/hoplet/issues/165)) ([e623feb](https://github.com/yangflow/hoplet/commit/e623feb7a14016df27ec48c2e513f488b2dccc0b)), closes [#160](https://github.com/yangflow/hoplet/issues/160)
+* **core:** Relay the terminal and dev server ports to the browser ([#152](https://github.com/yangflow/hoplet/issues/152)) ([880f611](https://github.com/yangflow/hoplet/commit/880f611f861eabe7dc7a48fb94bd640fd1500605))
+* Name the vendor in handoff.install so Codex sessions hand off ([#169](https://github.com/yangflow/hoplet/issues/169)) ([ab458d7](https://github.com/yangflow/hoplet/commit/ab458d7c19963b633ebc122d17fb6d18c45977ac))
+* **web:** Add the inspector's Terminal and Browser tabs ([#153](https://github.com/yangflow/hoplet/issues/153)) ([d2fc762](https://github.com/yangflow/hoplet/commit/d2fc762515c7c853b2314f46a3c36599cb949582))
+
+
+### Fixed
+
+* **web:** Let the terminal fill the widened inspector ([#155](https://github.com/yangflow/hoplet/issues/155)) ([2772715](https://github.com/yangflow/hoplet/commit/2772715c741e8d631bee1e02a2b55c4437924d40))
+* **web:** Show a shell's exit code once when its terminal closes ([#154](https://github.com/yangflow/hoplet/issues/154)) ([1371ff4](https://github.com/yangflow/hoplet/commit/1371ff41fcbc3e71842d950be75588deb7c42b83))
+
 ## [0.5.0](https://github.com/yangflow/hoplet/compare/v0.4.0...v0.5.0) (2026-10-18)
 
 
