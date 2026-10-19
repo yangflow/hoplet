@@ -456,6 +456,7 @@ export class RawDevice {
     this.send({
       type: 'session.append',
       sessionId,
+      provider: 'claude',
       projectDir: '/e2e',
       filePath: `/e2e/${sessionId}.jsonl`,
       byteStart,
