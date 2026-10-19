@@ -5,8 +5,9 @@ import {
   RESOURCES_DISK_WARN,
   RESOURCES_MEMORY_WARN,
   RESOURCES_RING_SIZE,
+  RESOURCES_SESSIONS_MAX,
 } from '@hoplet/shared';
-import type { ControlState } from './state.ts';
+import type { ControlState, ResourcesEntry } from './state.ts';
 import type { DeviceLink, ResourcesSnapshot } from './types.ts';
 
 /** Whether a reading shows the memory or the disk short. A volume or memory of size 0 warns about nothing. */
@@ -19,7 +20,7 @@ export function resourceWarnings(sample: DeviceResourceSample): { memory: boolea
 
 /**
  * The CPU, memory and disk of each machine and the usage of its sessions' processes. The core keeps the last
- * hour of readings of each machine in memory: they survive the agent disconnecting, so an offline machine shows
+ * hour of readings of each machine, and of each of its sessions, in memory: they survive the agent disconnecting, so an offline machine shows
  * its last values and when they were taken, and are lost when the core restarts. Nothing is stored.
  */
 export function createResources(state: ControlState) {
@@ -34,6 +35,7 @@ export function createResources(state: ControlState) {
       return {
         samples: entry ? [...entry.samples] : [],
         sessions: entry ? [...entry.sessions] : [],
+        history: new Map(entry ? [...entry.history].map(([id, pts]) => [id, [...pts]]) : []),
       };
     },
     /** The latest reading and its warnings for the device list; the warnings only while the device is connected. */
@@ -46,7 +48,11 @@ export function createResources(state: ControlState) {
     receive(link: DeviceLink, msg: DeviceResources): void {
       const deviceId = deviceOf(link);
       if (!deviceId) return;
-      const entry = state.resources.get(deviceId) ?? { samples: [], sessions: [] };
+      const entry: ResourcesEntry = state.resources.get(deviceId) ?? {
+        samples: [],
+        sessions: [],
+        history: new Map(),
+      };
       entry.samples.push({
         at: msg.at,
         cpu: msg.cpu,
@@ -59,6 +65,27 @@ export function createResources(state: ControlState) {
         entry.samples.splice(0, entry.samples.length - RESOURCES_RING_SIZE);
       }
       entry.sessions = msg.sessions;
+      for (const s of msg.sessions) {
+        const points = entry.history.get(s.sessionId) ?? [];
+        points.push({ at: msg.at, cpu: s.cpu, rss: s.rss });
+        if (points.length > RESOURCES_RING_SIZE)
+          points.splice(0, points.length - RESOURCES_RING_SIZE);
+        entry.history.set(s.sessionId, points);
+      }
+      // A point older than the oldest machine reading kept is out of the window; a session with none left is gone.
+      const oldest = entry.samples[0]?.at ?? msg.at;
+      for (const [id, points] of entry.history) {
+        const keep = points.findIndex((pt) => pt.at >= oldest);
+        if (keep < 0) entry.history.delete(id);
+        else if (keep > 0) points.splice(0, keep);
+      }
+      // Bounded to one report's worth of sessions: the ones seen least recently go first.
+      if (entry.history.size > RESOURCES_SESSIONS_MAX) {
+        const byRecency = [...entry.history].sort(
+          (a, b) => (b[1].at(-1)?.at ?? 0) - (a[1].at(-1)?.at ?? 0),
+        );
+        for (const [id] of byRecency.slice(RESOURCES_SESSIONS_MAX)) entry.history.delete(id);
+      }
       state.resources.set(deviceId, entry);
     },
   };

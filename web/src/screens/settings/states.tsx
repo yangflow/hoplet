@@ -8,6 +8,7 @@ import type {
   ProviderInfo,
   WebhookInfo,
 } from '@hoplet/shared';
+import { RESOURCES_INTERVAL_MS } from '@hoplet/shared';
 import { type ReactNode, useEffect } from 'react';
 import { type Appearance, applyText, DEFAULTS } from '../../lib/prefs.ts';
 import { type SectionId, Settings } from './index.tsx';
@@ -210,6 +211,7 @@ function resourcesOf(selected: string, hovered?: string): MachinesFixture {
     machine('dev-lab', 'lab-box', true, NOW),
   ];
   const picked = MACHINES_REPORTED.find((m) => m.device.deviceId === selected);
+  const total = picked?.device.resources?.memTotal ?? 0;
   const sessions: DeviceSessionResources[] = (picked?.procs ?? []).map((p) => ({
     sessionId: p.id,
     title: p.title,
@@ -217,11 +219,12 @@ function resourcesOf(selected: string, hovered?: string): MachinesFixture {
     cpu: p.cpu,
     rss: Math.round(p.gb * GIB),
     children: p.children,
+    history: p.shape.map((pct, i) => ({
+      at: NOW - (p.shape.length - 1 - i) * RESOURCES_INTERVAL_MS,
+      cpu: p.cpu,
+      rss: (pct / 100) * total,
+    })),
   }));
-  const total = picked?.device.resources?.memTotal ?? 0;
-  const history = Object.fromEntries(
-    (picked?.procs ?? []).map((p) => [p.id, p.shape.map((pct) => (pct / 100) * total)]),
-  );
   const metas: LiveSessionMeta[] = (picked?.procs ?? []).map((p) => ({
     sessionId: p.id,
     projectPath: `/Users/me/code/${p.project}`,
@@ -243,12 +246,9 @@ function resourcesOf(selected: string, hovered?: string): MachinesFixture {
     devices,
     selected,
     resources: {
-      result: {
-        samples: picked?.samples ?? [],
-        sessions,
-        ...(picked?.device.resources ? { at: picked.device.resources.at } : {}),
-      },
-      history,
+      samples: picked?.samples ?? [],
+      sessions,
+      ...(picked?.device.resources ? { at: picked.device.resources.at } : {}),
     },
     sessions: metas,
     ...(hovered ? { hovered } : {}),

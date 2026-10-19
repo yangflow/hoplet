@@ -7,6 +7,7 @@ import {
   type DeviceInfo,
   PROTOCOL_VERSION,
   RESOURCES_RING_SIZE,
+  RESOURCES_SESSIONS_MAX,
   type ServerMessage,
 } from '@hoplet/shared';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -123,6 +124,59 @@ describe('device.resources', () => {
   });
 });
 
+describe('session history', () => {
+  const s = (sessionId: string, rss: number, cpu: number | null = null) => ({
+    sessionId,
+    cpu,
+    rss,
+    children: 0,
+  });
+
+  it("keeps each session's readings oldest first", () => {
+    const { control, link } = setup();
+    control.receive(link, sample(1, { sessions: [s('a', 1, null)] }));
+    control.receive(link, sample(2, { sessions: [s('a', 2, 5), s('b', 7)] }));
+    const { history } = control.resourcesOf('dev-a');
+    expect(history.get('a')).toEqual([
+      { at: 1, cpu: null, rss: 1 },
+      { at: 2, cpu: 5, rss: 2 },
+    ]);
+    expect(history.get('b')).toEqual([{ at: 2, cpu: null, rss: 7 }]);
+  });
+
+  it('trims the points with the ring', () => {
+    const { control, link } = setup();
+    for (let i = 0; i < RESOURCES_RING_SIZE + 10; i++) {
+      control.receive(link, sample(i, { sessions: [s('a', i)] }));
+    }
+    const points = control.resourcesOf('dev-a').history.get('a') ?? [];
+    expect(points).toHaveLength(RESOURCES_RING_SIZE);
+    expect(points[0]?.at).toBe(10);
+    expect(points.at(-1)?.at).toBe(RESOURCES_RING_SIZE + 9);
+  });
+
+  it('ages out a session that disappeared once its points leave the window', () => {
+    const { control, link } = setup();
+    control.receive(link, sample(0, { sessions: [s('gone', 1)] }));
+    control.receive(link, sample(1, { sessions: [] }));
+    expect(control.resourcesOf('dev-a').history.has('gone')).toBe(true);
+    for (let i = 2; i <= RESOURCES_RING_SIZE; i++) control.receive(link, sample(i));
+    expect(control.resourcesOf('dev-a').history.has('gone')).toBe(true);
+    control.receive(link, sample(RESOURCES_RING_SIZE + 1));
+    expect(control.resourcesOf('dev-a').history.has('gone')).toBe(false);
+  });
+
+  it("tracks at most one report's worth of sessions, the least recently seen dropped", () => {
+    const { control, link } = setup();
+    control.receive(link, sample(1, { sessions: [s('old', 1)] }));
+    const many = Array.from({ length: RESOURCES_SESSIONS_MAX }, (_, i) => s(`n${i}`, i));
+    control.receive(link, sample(2, { sessions: many }));
+    const { history } = control.resourcesOf('dev-a');
+    expect(history.size).toBe(RESOURCES_SESSIONS_MAX);
+    expect(history.has('old')).toBe(false);
+  });
+});
+
 describe('GET /api/devices/:deviceId/resources', () => {
   async function boot() {
     const dir = mkdtempSync(path.join(tmpdir(), 'hoplet-resources-api-'));
@@ -210,8 +264,14 @@ describe('GET /api/devices/:deviceId/resources', () => {
     expect(res.body.samples).toEqual([
       { at: 7000, cpu: 3, memUsed: 1, memTotal: 2, diskFree: 3, diskTotal: 4 },
     ]);
-    const sessions = res.body.sessions as { sessionId: string; title: string | null }[];
+    const sessions = res.body.sessions as {
+      sessionId: string;
+      title: string | null;
+      history: unknown[];
+    }[];
     expect(sessions.map((s) => s.sessionId)).toEqual(['s1', 'unknown-1']);
+    expect(sessions[0]?.history).toEqual([{ at: 7000, cpu: null, rss: 500 }]);
+    expect(sessions[1]?.history).toEqual([{ at: 7000, cpu: 1, rss: 10 }]);
     expect(sessions[0]?.title).not.toBeNull();
     expect(sessions[1]?.title).toBeNull();
     const list = (await get('/api/devices')).body.devices as DeviceInfo[];

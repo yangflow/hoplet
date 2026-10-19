@@ -20,7 +20,6 @@ import {
   memoryGb,
   memorySeries,
   percent,
-  type SessionHistory,
   sortSessions,
   sparkPoints,
   stack,
@@ -193,7 +192,6 @@ export function ResourcesBody(props: {
   device: DeviceInfo;
   sample: DeviceResourceSample;
   result: DeviceResourcesResult | null;
-  history: SessionHistory;
   sessions: readonly LiveSessionMeta[];
   runtime: Record<string, SessionRuntimeInfo> | undefined;
   now: number;
@@ -338,9 +336,7 @@ export function ResourcesBody(props: {
                   index={i}
                   provider={meta?.provider}
                   state={meta ? runtimeOf(meta).state : undefined}
-                  history={(props.history[s.sessionId] ?? []).map(
-                    (b) => (b / sample.memTotal) * 100,
-                  )}
+                  history={s.history.map((pt) => (pt.rss / sample.memTotal) * 100)}
                   hovered={props.hovered === s.sessionId}
                   onOpen={props.onOpenSession}
                 />

@@ -2,6 +2,7 @@ import type {
   AgentRuntimeState,
   Command,
   DeviceResourceSample,
+  DeviceSessionPoint,
   HttpErrorCode,
   Provider,
   ProviderInfo,
@@ -38,6 +39,14 @@ import type {
 } from './types.ts';
 
 /** Everything the control concerns share: who is online, and the requests awaiting an agent's answer. */
+/** One machine's readings: the ring, the latest report's sessions and each session's readings over the ring's window. */
+export interface ResourcesEntry {
+  samples: DeviceResourceSample[];
+  sessions: SessionResources[];
+  /** Oldest first, by session ID. */
+  history: Map<string, DeviceSessionPoint[]>;
+}
+
 export interface ControlState {
   store: Store;
   byDevice: Map<string, DeviceLink>;
@@ -65,7 +74,7 @@ export interface ControlState {
   /** The ports each watched session last reported, in memory only (ADR 0026). */
   sessionPorts: Map<string, { deviceId: string; ports: SessionPort[] }>;
   /** The readings each machine reported, newest last, in memory only: kept after a disconnect, lost on restart. */
-  resources: Map<string, { samples: DeviceResourceSample[]; sessions: SessionResources[] }>;
+  resources: Map<string, ResourcesEntry>;
   /** Opening terminals: the owner has been asked and has not answered, by terminal ID. */
   pendingTerminal: Map<string, Waiter<TerminalAnswer>>;
   /** Set once the terminals exist: ends the session's terminal, if it has one, before `reason` takes effect. */

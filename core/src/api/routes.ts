@@ -923,7 +923,7 @@ export const routes: readonly Route[] = [
     handler: ({ store, control, params }) => {
       const deviceId = params.deviceId ?? '';
       if (!control.devices().some((d) => d.deviceId === deviceId)) throw new ApiError('not-found');
-      const { samples, sessions } = control.resourcesOf(deviceId);
+      const { samples, sessions, history } = control.resourcesOf(deviceId);
       const latest = samples.at(-1);
       return {
         samples,
@@ -939,6 +939,7 @@ export const routes: readonly Route[] = [
               cpu: s.cpu,
               rss: s.rss,
               children: s.children,
+              history: history.get(s.sessionId) ?? [],
             };
           })
           .sort((a, b) => b.rss - a.rss),

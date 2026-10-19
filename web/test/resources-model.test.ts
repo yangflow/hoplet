@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-  appendHistory,
   archName,
   cpuSeries,
   diskText,
@@ -31,6 +30,7 @@ const sess = (id: string, rss: number) => ({
   cpu: 1,
   rss,
   children: 0,
+  history: [],
 });
 
 describe('formatting', () => {
@@ -120,22 +120,5 @@ describe('series', () => {
   });
   it('turns memory into percents', () => {
     expect(memorySeries([sample({ memUsed: 16 * GB })])).toEqual([50]);
-  });
-});
-
-describe('appendHistory', () => {
-  it('appends per session and drops sessions that are gone', () => {
-    const one = appendHistory({}, [sess('a', 1), sess('b', 2)], true);
-    const two = appendHistory(one, [sess('a', 3)], true);
-    expect(two).toEqual({ a: [1, 3] });
-  });
-  it('adds nothing for a poll without a new reading', () => {
-    const one = appendHistory({}, [sess('a', 1)], true);
-    expect(appendHistory(one, [sess('a', 9)], false)).toBe(one);
-  });
-  it('keeps at most the ring size', () => {
-    let h = {};
-    for (let i = 0; i < 300; i++) h = appendHistory(h, [sess('a', i)], true);
-    expect((h as Record<string, number[]>).a).toHaveLength(240);
   });
 });

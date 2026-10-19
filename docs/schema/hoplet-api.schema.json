@@ -1899,6 +1899,35 @@
               },
               "children": {
                 "type": "number"
+              },
+              "history": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "at": {
+                      "type": "number"
+                    },
+                    "cpu": {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "rss": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "at",
+                    "cpu",
+                    "rss"
+                  ]
+                }
               }
             },
             "required": [
@@ -1907,7 +1936,8 @@
               "projectPath",
               "cpu",
               "rss",
-              "children"
+              "children",
+              "history"
             ]
           }
         },

@@ -28,7 +28,7 @@ export type MachinesFixture = {
   mint?: { result: DeviceMintResult; copied: boolean };
   /** The tab selected, by device id. */
   selected?: string;
-  /** What the resources endpoint answered for the selected machine, and the per-session trend built so far. */
+  /** What the resources endpoint answered for the selected machine, each session with its last hour. */
   resources?: DeviceResources;
   sessions?: LiveSessionMeta[];
   runtime?: Record<string, SessionRuntimeInfo>;
@@ -328,8 +328,7 @@ export function MachinesSection(props: {
             <ResourcesBody
               device={device}
               sample={sample}
-              result={live.result}
-              history={live.history}
+              result={live}
               sessions={fixture?.sessions ?? props.sessions ?? []}
               runtime={fixture?.runtime ?? props.runtime}
               now={now}

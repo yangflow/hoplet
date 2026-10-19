@@ -131,6 +131,14 @@ export type DeviceDirsResult = v.InferOutput<typeof DeviceDirsResultSchema>;
 export const AttachmentResultSchema = v.object({ attachmentId: AttachmentIdSchema });
 export type AttachmentResult = v.InferOutput<typeof AttachmentResultSchema>;
 
+/** One reading of a session's processes: when it was taken, the CPU percent (null when unknown) and resident bytes. */
+export const DeviceSessionPointSchema = v.object({
+  at: v.number(),
+  cpu: v.nullable(v.number()),
+  rss: v.number(),
+});
+export type DeviceSessionPoint = v.InferOutput<typeof DeviceSessionPointSchema>;
+
 /** The processes of one session on a machine, summed over the process tree, as of the latest report. */
 export const DeviceSessionResourcesSchema = v.object({
   sessionId: SessionIdSchema,
@@ -144,6 +152,8 @@ export const DeviceSessionResourcesSchema = v.object({
   rss: v.number(),
   /** Descendant processes. */
   children: v.number(),
+  /** The session's readings within the last hour, oldest first; the last one is the latest report. */
+  history: v.array(DeviceSessionPointSchema),
 });
 export type DeviceSessionResources = v.InferOutput<typeof DeviceSessionResourcesSchema>;
 

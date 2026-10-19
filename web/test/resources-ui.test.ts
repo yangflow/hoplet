@@ -41,9 +41,37 @@ const quiet = device('dev-quiet', 'quiet', {
 const silent = device('dev-silent', 'silent');
 
 const procs: DeviceSessionResources[] = [
-  { sessionId: 's-1', title: 'Small', projectPath: '/w/app', cpu: 2, rss: 1 * GIB, children: 1 },
-  { sessionId: 's-2', title: 'Big', projectPath: '/w/notes', cpu: 30, rss: 9 * GIB, children: 3 },
-  { sessionId: 's-3', title: null, projectPath: null, cpu: null, rss: 2 * GIB, children: 0 },
+  {
+    sessionId: 's-1',
+    title: 'Small',
+    projectPath: '/w/app',
+    cpu: 2,
+    rss: 1 * GIB,
+    children: 1,
+    history: [],
+  },
+  {
+    sessionId: 's-2',
+    title: 'Big',
+    projectPath: '/w/notes',
+    cpu: 30,
+    rss: 9 * GIB,
+    children: 3,
+    history: [
+      { at: NOW - 30_000, cpu: 30, rss: 1 * GIB },
+      { at: NOW - 15_000, cpu: 30, rss: 2 * GIB },
+      { at: NOW, cpu: 30, rss: 9 * GIB },
+    ],
+  },
+  {
+    sessionId: 's-3',
+    title: null,
+    projectPath: null,
+    cpu: null,
+    rss: 2 * GIB,
+    children: 0,
+    history: [],
+  },
 ];
 
 beforeEach(() => {
@@ -141,10 +169,7 @@ describe('Settings > Machines resources', () => {
             now: NOW + 6 * 3_600_000,
             devices,
             selected,
-            resources: {
-              result: { samples: [], sessions, at: NOW },
-              history: { 's-2': [1 * GIB, 2 * GIB, 9 * GIB] },
-            },
+            resources: { samples: [], sessions, at: NOW },
             sessions: [],
           },
           onOpenSession: (id: string) => opened.push(id),

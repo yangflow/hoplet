@@ -15,6 +15,7 @@ import type {
   DeviceSessionDeleted,
   DeviceSessionForgotten,
   DeviceSessionInspected,
+  DeviceSessionPoint,
   HttpErrorCode,
   PermissionDecision,
   PromptImage,
@@ -39,6 +40,8 @@ import type { BulkQueue, BulkQueueOptions } from './bulk.ts';
 export interface ResourcesSnapshot {
   samples: DeviceResourceSample[];
   sessions: SessionResources[];
+  /** Each session's readings over the window of `samples`, oldest first, by session ID. */
+  history: Map<string, DeviceSessionPoint[]>;
 }
 
 /** One agent connection as control sees it: ingest owns the socket, control only talks through this. */

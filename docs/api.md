@@ -142,7 +142,8 @@ Behavior a client relies on:
   every 15 seconds, oldest first, `cpu` null while the agent had no earlier reading), and `sessions`, the processes
   of the sessions Hoplet started on it as of the latest report, summed over their process trees: `cpu` (percent of
   the whole machine's CPU, null when unknown), `rss` (bytes), `children` (descendant processes), the session's
-  `title` and `projectPath` (null for a session the core does not hold), largest memory first. `at` is the
+  `title` and `projectPath` (null for a session the core does not hold), and `history`, the session's readings
+  within the last hour (`at`, `cpu`, `rss`, oldest first, the last one the latest report), largest memory first. `at` is the
   latest reading's time. A machine that never reported answers `samples: []` and `sessions: []`; an unknown device
   answers `not-found`. The core keeps the readings in memory only: they survive the agent disconnecting and are lost
   when the core restarts. They are not pushed to browsers; a client polls.

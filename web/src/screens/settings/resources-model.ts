@@ -3,7 +3,6 @@ import {
   type DeviceSessionResources,
   RESOURCES_DISK_WARN,
   RESOURCES_MEMORY_WARN,
-  RESOURCES_RING_SIZE,
 } from '@hoplet/shared';
 
 const GIB = 1024 ** 3;
@@ -110,27 +109,6 @@ export function cpuSeries(samples: readonly DeviceResourceSample[]): number[] {
 /** The memory percent of every reading. */
 export function memorySeries(samples: readonly DeviceResourceSample[]): number[] {
   return samples.map((s) => percent(s.memUsed, s.memTotal));
-}
-
-/** A session's memory over the polls so far, keyed by session id. */
-export type SessionHistory = Record<string, number[]>;
-
-/**
- * Adds one reading to the sessions' memory history. The API reports the latest reading's sessions only, so the trend
- * per session builds up in the browser while the panel is open. A session that is gone loses its history; a poll that
- * brought no new reading (`fresh` false) adds nothing.
- */
-export function appendHistory(
-  prev: SessionHistory,
-  sessions: readonly Pick<DeviceSessionResources, 'sessionId' | 'rss'>[],
-  fresh: boolean,
-): SessionHistory {
-  if (!fresh) return prev;
-  const next: SessionHistory = {};
-  for (const s of sessions) {
-    next[s.sessionId] = [...(prev[s.sessionId] ?? []), s.rss].slice(-RESOURCES_RING_SIZE);
-  }
-  return next;
 }
 
 /** The architecture as people name it: the Go name `amd64` is x86_64. */

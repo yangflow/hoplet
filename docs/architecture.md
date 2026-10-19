@@ -253,7 +253,8 @@ in memory first. One process listing serves the machine and the sessions: `/proc
 free, inactive and speculative pages. CPU figures are percent of the whole machine and, on Linux, differences
 between two readings, so the first one carries none (null). Only numbers and session IDs leave the machine: never a
 process name, command line or process ID. On any other system no sampler runs. A reading taken while the core is away is dropped, never queued. The core keeps the
-last 240 readings of each machine in memory (`core/src/control/resources.ts`), outliving the connection and not
+last 240 readings of each machine, and the readings of each of its sessions within the same window (at most 64
+sessions), in memory (`core/src/control/resources.ts`), outliving the connection and not
 the process, and stores nothing.
 
 ### A storage migration
