@@ -7,7 +7,7 @@
   tools, duration) so a reader scans turns, not lines.
 - **State lives next to what it describes.** Consequence: turn states sit on the live turn's header, session
   states under the composer, a session's state as a glyph in place of its time on the sidebar row, a device's presence on
-  its heading, this window's connection at the sidebar foot, handoff progress in the inspector. There is no global
+  its heading (the dot on its system's mark), this window's connection at the sidebar foot, handoff progress in the inspector. There is no global
   status strip or status bar (docs/spec.md#hoplet).
 - **Needing the user is the loudest signal.** Consequence: a permission request is the only amber on screen,
   with a ring, in the turn and on the session's sidebar row alike; nothing decorative competes with it.
@@ -94,7 +94,7 @@ Spacing scale `--space-1…7` (4, 8, 12, 16, 24, 32, 48 px); radii `--radius-sm`
 10 px panels, `--radius-lg` 14 px turn blocks, `--radius-xl` 18 px composer. Declared viewport: desktop, at
 least 1024 px wide (docs/spec.md#information-architecture); no other viewport is designed or built
 ([ADR 0011](adr/0011-the-web-ui-is-a-desktop-react-application.md)). Panes: sidebar `--layout-sidebar`
-248 px, which folds away, with device rows of 32 px and 16 px above each device (the presence dot, the name and a chevron that folds the
+248 px, which folds away, with device rows of 32 px and 16 px above each device (the system's mark with the presence dot at its bottom-right, the name and a chevron that folds the
 device's directories; hovering or focusing the row shows a right-aligned Add project plus), directory rows of 28 px
 that fold (no chevron and no indent: the row starts at the machine row's left edge, its folder glyph on the machine's
 glyph column and its name on the machine's name; the whole row is the button, the folder glyph is open while the

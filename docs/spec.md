@@ -65,8 +65,8 @@ Session sidebar and conversation; the workspace inspector (below) opens beside t
 under their directory, and a directory folds (remembered in the browser), showing its session count
 and its most urgent runtime state while folded. A session row shows its provider's mark, the title, and on the right its last
 activity or, when its runtime state is not `idle`, a glyph whose colour and shape name the state (its
-accessible name says the state in words). A device row folds its directories (remembered in the browser), shows whether its agent is connected and, when it is,
-offers Add project on hover: a dialog with a machine select (offline machines disabled; an Add a machine item points to `hoplet devices add`) and a folder browser over the agent's browse root (`browse_root`, the home directory by default): a path bar of clickable segments that becomes a field for a typed path, recent folders (where Claude Code has sessions) at the root, the folders below with a git mark, and the selected path in the footer; the chosen directory is added to the agent's watched projects.
+accessible name says the state in words). A device row is led by its system's mark (macOS, Windows, Linux; a generic computer otherwise) at the folder glyph's size, with a dot at the mark's bottom-right that shows whether its agent is connected (the row's accessible name says so in words); it folds its directories (remembered in the browser) and, when its agent is connected,
+offers Add project on hover: a dialog with a machine select (each machine with its mark, offline machines disabled; an Add a machine item points to `hoplet devices add`) and a folder browser over the agent's browse root (`browse_root`, the home directory by default): a path bar of clickable segments that becomes a field for a typed path, recent folders (where Claude Code has sessions) at the root, the folders below with a git mark, and the selected path in the footer; the chosen directory is added to the agent's watched projects.
 A directory row is one button that folds it, led by a folder glyph that is open while the directory is (only
 a machine row has a chevron). Each machine row has view options (an ellipsis button beside Add project,
 shown on hover or focus and kept on an offline machine) that set how that machine's sessions are listed and
@@ -241,9 +241,9 @@ list at its left grows with later sections; the sections are:
   fills the main area) and Ligatures in code and tool output, with a live preview. Every choice is kept in the
   browser and only swaps design tokens; the faces are bundled with the web UI and never fetched. The terminal's
   font is not one of them.
-- **Machines**: every device with its presence and last connection, and Add a machine: mint a device token,
+- **Machines**: every device with its system's mark (macOS, Windows, Linux; a generic computer for any other system or an agent that does not report one), its presence as a dot at the mark's bottom-right, and its last connection, and Add a machine: mint a device token,
   copy a ready agent configuration, and wait until that agent is connected.
-- **Model providers**: read-only, from what each connected agent announces. A tab per machine (presence dot and
+- **Model providers**: read-only, from what each connected agent announces. A tab per machine (system mark with the presence dot, and
   name, in the order of Machines; it opens on the first connected one) and a row per provider that machine runs:
   the mark, the name and "version · N sessions · used <time>" (the counts and the last use come from the session
   list the web UI already holds, archived sessions included, and a session counts for the machine that owns it; a
