@@ -15,7 +15,12 @@ working tree to another machine.
   and its history source separately: control is a driver of its own or the generic ACP driver; history is the
   ACP log Hoplet writes (remote control of the sessions Hoplet starts), the vendor's own session files (terminal
   sessions appear) or the vendor's store (handoff), and a vendor moves up a level without changing the rest
-  ([ADR 0015](adr/0015-control-protocol-and-history-source-are-chosen-separately.md)).
+  ([ADR 0015](adr/0015-control-protocol-and-history-source-are-chosen-separately.md)). The agent's Codex provider
+  reads Codex's rollout files (`$CODEX_HOME/sessions/YYYY/MM/DD/rollout-<time>-<threadId>.jsonl`, or `.jsonl.zst`
+  once Codex has compressed it) read-only, with the thread ID as session ID and the byte cursor counting
+  uncompressed bytes ([ADR 0027](adr/0027-codex-runs-on-its-app-server-and-enters-at-level-2.md)); the core stores
+  the lines, takes a Codex session's project path and start time from the `session_meta` line, maps none of the
+  other lines into entries yet, and does not hand Codex sessions off.
 - **The server keeps a verbatim copy of every session**, synced incrementally with the byte offset as the
   cursor ([ADR 0002](adr/0002-the-byte-offset-is-the-sync-cursor.md)). Opening a session never needs the
   owner machine.
@@ -263,7 +268,7 @@ Server, under the data directory (docs/hosting.md#data):
     cur_chunk_lines, device_id, owner_epoch, provider, git_branch, title_override, pinned_at, archived_at)`.
     `byte_size` is the sync cursor; `project_path` is the
     `cwd` of the session's lines until a handoff commit sets it to the target's worktree; `device_id` is the
-    owner; `owner_epoch` increases with every handoff; `provider` names the vendor (`claude`); `title` is the vendor's
+    owner; `owner_epoch` increases with every handoff; `provider` names the vendor (`claude` or `codex`); `title` is the vendor's
     title, and `title_override`, `pinned_at` and `archived_at` (null until set) are what the user did in Hoplet:
     sync and handoff never write them.
   - `session_continuations(from_session_id, to_session_id, request_id, mode, created_at)`: a plan approved into a new
@@ -376,10 +381,10 @@ The agent connects with `device.hello`, which carries its `device_id` and protoc
 different protocol version and answers with `welcome`, naming the cursor and `owner_epoch` of every session
 the device owns. The agent's providers scan their vendors' session stores every second for sessions imported in `projects.json`. For each one
 whose file is longer than the server cursor, it reads from the cursor to the last complete line and sends
-`session.append` batches of at most 1 MiB raw bytes, gzip-compressed. A line larger than 1 MiB is sent alone;
+`session.append` batches of at most 1 MiB raw bytes, gzip-compressed, each naming the `provider` of its source. A line larger than 1 MiB is sent alone;
 lines are at most 32 MiB; a longer line is reported once and blocks only its session at that offset. A file
 whose size, mtime and inode did not change is not read again. The core checks ownership, then the start offset against the cursor
-(`session.resync` on a mismatch, `session.rejected` for a non-owner), appends verbatim, commits, acknowledges
+(`session.resync` on a mismatch, `session.rejected` for a non-owner), appends verbatim (a new session is stored under the batch's `provider`, which never changes afterwards), commits, acknowledges
 and broadcasts `session.appended`. A file shorter than the cursor is reported once and skipped. Sync work of
 one session is bounded per scan round (16 MiB raw) and sessions that grew recently go first, so an import of a
 large session does not delay appends of others.

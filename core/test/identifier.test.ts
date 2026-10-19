@@ -68,6 +68,7 @@ it('rejects invalid identifiers before append or metadata writes over WebSocket'
             type: 'session.append',
             sessionId,
             byteStart: 0,
+            provider: 'claude',
             projectDir: 'p',
             filePath: '/synthetic',
             encoding: 'plain',
@@ -101,6 +102,7 @@ it('rejects invalid identifiers before append or metadata writes over WebSocket'
           type: 'session.append',
           sessionId,
           byteStart: 0,
+          provider: 'claude',
           projectDir: 'p',
           filePath: '/synthetic',
           encoding: 'plain',
@@ -170,7 +172,13 @@ it('Store rejects invalid append identifiers without index or journal changes', 
   const store = new Store(dir);
   try {
     store.append(
-      { sessionId: 'parent', deviceId: 'synthetic', projectDir: 'p', filePath: '/synthetic' },
+      {
+        sessionId: 'parent',
+        deviceId: 'synthetic',
+        provider: 'claude',
+        projectDir: 'p',
+        filePath: '/synthetic',
+      },
       ['{}'],
     );
     const db = new DatabaseSync(path.join(dir, 'hoplet.db'));
@@ -178,7 +186,13 @@ it('Store rejects invalid append identifiers without index or journal changes', 
       for (const lines of [[], ['{}']]) {
         expect(() =>
           store.append(
-            { sessionId: id, deviceId: 'synthetic', projectDir: 'p', filePath: '/synthetic' },
+            {
+              sessionId: id,
+              deviceId: 'synthetic',
+              provider: 'claude',
+              projectDir: 'p',
+              filePath: '/synthetic',
+            },
             lines,
           ),
         ).toThrow('invalid-session-id');
@@ -202,7 +216,13 @@ it('preflights every pending ID before recovering any chunk or compression work'
     try {
       const store = new Store(dir);
       store.append(
-        { sessionId: 'valid', deviceId: 'synthetic', projectDir: 'p', filePath: '/synthetic' },
+        {
+          sessionId: 'valid',
+          deviceId: 'synthetic',
+          provider: 'claude',
+          projectDir: 'p',
+          filePath: '/synthetic',
+        },
         ['{}'],
       );
       const chunk = path.join(dir, 'sessions/valid/c-0.ndjson');

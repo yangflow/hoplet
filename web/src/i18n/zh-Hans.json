@@ -55,6 +55,7 @@
   "Connect another agent to hand off this session.": "再连上一台 agent，才能交接这场会话。",
   "Actions": "操作",
   "Claude Code": "Claude Code",
+  "Codex": "Codex",
   "Close": "关闭",
   "Connected to {host}": "已连接到 {host}",
   "Directory": "目录",

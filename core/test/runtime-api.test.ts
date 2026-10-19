@@ -71,9 +71,10 @@ async function boot() {
   dirs.push(dir);
   const store = new Store(dir);
   for (const id of ['s1', 's2']) {
-    store.append({ sessionId: id, projectDir: 'p', filePath: `/${id}`, deviceId: 'dev-a' }, [
-      '{"type":"user"}',
-    ]);
+    store.append(
+      { sessionId: id, provider: 'claude', projectDir: 'p', filePath: `/${id}`, deviceId: 'dev-a' },
+      ['{"type":"user"}'],
+    );
   }
   const control = createControl(store, { promptTimeoutMs: 600 });
   const server = createServer();

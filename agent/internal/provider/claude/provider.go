@@ -50,7 +50,10 @@ var (
 	_ provider.Store    = (*Provider)(nil)
 )
 
-func (c *Provider) Name() string { return "claude" }
+// Name is the provider value on the wire.
+const Name = "claude"
+
+func (c *Provider) Name() string { return Name }
 
 // SessionFile is where Claude Code writes the session sessionID it runs in dir.
 func (c *Provider) SessionFile(dir, sessionID string) string {
@@ -201,6 +204,8 @@ func (s *claudeSource) update(f sessionFile) {
 		s.cwdOK = false
 	}
 }
+
+func (s *claudeSource) Provider() string { return Name }
 
 func (s *claudeSource) ID() string {
 	s.mu.Lock()

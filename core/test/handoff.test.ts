@@ -103,11 +103,10 @@ async function fixture(options: ControlOptions = {}): Promise<Fixture> {
     transferTimeoutMs: 3000,
     ...options,
   });
-  store.append({ sessionId: SESSION, projectDir: 'p', filePath: '/x', deviceId: 'owner' }, [
-    line(0),
-    line(1),
-    line(2),
-  ]);
+  store.append(
+    { sessionId: SESSION, provider: 'claude', projectDir: 'p', filePath: '/x', deviceId: 'owner' },
+    [line(0), line(1), line(2)],
+  );
   uploadSnapshot(store, 'snap1', archive(2_500_000));
   const owner = new Device('owner', control);
   const target = new Device('target', control);
@@ -273,14 +272,28 @@ describe('a handoff with the owner online', () => {
     const f = await fixture();
     await f.control.handoff({ sessionId: SESSION, targetDeviceId: 'target' });
     expect(() =>
-      f.store.append({ sessionId: SESSION, projectDir: 'p', filePath: '/x', deviceId: 'owner' }, [
-        line(9),
-      ]),
+      f.store.append(
+        {
+          sessionId: SESSION,
+          provider: 'claude',
+          projectDir: 'p',
+          filePath: '/x',
+          deviceId: 'owner',
+        },
+        [line(9)],
+      ),
     ).toThrow();
     expect(() =>
-      f.store.append({ sessionId: SESSION, projectDir: 'p', filePath: '/x', deviceId: 'target' }, [
-        line(9),
-      ]),
+      f.store.append(
+        {
+          sessionId: SESSION,
+          provider: 'claude',
+          projectDir: 'p',
+          filePath: '/x',
+          deviceId: 'target',
+        },
+        [line(9)],
+      ),
     ).not.toThrow();
   });
 
@@ -328,9 +341,10 @@ describe('a handoff with the owner offline', () => {
     const f = await fixture();
     f.control.detach(f.owner.link);
     // A session of its own, without any snapshot.
-    f.store.append({ sessionId: 's2', projectDir: 'p', filePath: '/x', deviceId: 'owner' }, [
-      line(0),
-    ]);
+    f.store.append(
+      { sessionId: 's2', provider: 'claude', projectDir: 'p', filePath: '/x', deviceId: 'owner' },
+      [line(0)],
+    );
     expect(await f.control.handoff({ sessionId: 's2', targetDeviceId: 'target' })).toMatchObject({
       ok: false,
       error: 'no-snapshot',
@@ -579,7 +593,13 @@ describe('failures leave owner and cursor unchanged and abort the target', () =>
           const fp = await f.store.streamFingerprint(SESSION);
           // The owner appends before the verification reaches the core.
           f.store.append(
-            { sessionId: SESSION, projectDir: 'p', filePath: '/x', deviceId: 'owner' },
+            {
+              sessionId: SESSION,
+              provider: 'claude',
+              projectDir: 'p',
+              filePath: '/x',
+              deviceId: 'owner',
+            },
             [line(7)],
           );
           d.reply({
@@ -831,9 +851,10 @@ describe('a handoff that clones the repository first (ADR 0024)', () => {
   it('fails as no-clone when the origin is unknown', async () => {
     const f = await cloning({}, done);
     // Another session without a snapshot and with the owner offline: no origin anywhere.
-    f.store.append({ sessionId: 's2', projectDir: 'p', filePath: '/y', deviceId: 'owner' }, [
-      line(0),
-    ]);
+    f.store.append(
+      { sessionId: 's2', provider: 'claude', projectDir: 'p', filePath: '/y', deviceId: 'owner' },
+      [line(0)],
+    );
     f.control.detach(f.owner.link);
     expect(
       await f.control.handoff({ sessionId: 's2', targetDeviceId: 'target', cloneInto: INTO }),

@@ -22,6 +22,33 @@ func TestLoadClaudeProjectsKey(t *testing.T) {
 	}
 }
 
+func TestLoadCodexHome(t *testing.T) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct{ value, env, want string }{
+		{"", "", filepath.Join(home, ".codex")},
+		{"", "/srv/codex-env", "/srv/codex-env"},
+		{"~/.codex-alt", "/srv/codex-env", filepath.Join(home, ".codex-alt")},
+		{"/srv/codex", "", "/srv/codex"},
+	} {
+		t.Setenv("CODEX_HOME", tc.env)
+		path := filepath.Join(t.TempDir(), "config.json")
+		raw := `{"server_url":"http://127.0.0.1:1","token":"t","codex_home":"` + tc.value + `"}`
+		if err := os.WriteFile(path, []byte(raw), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		cfg, err := Load(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if cfg.CodexHome != tc.want {
+			t.Fatalf("codex_home %q with CODEX_HOME %q = %q, want %q", tc.value, tc.env, cfg.CodexHome, tc.want)
+		}
+	}
+}
+
 func TestLoadExplicitHopletHome(t *testing.T) {
 	dir := t.TempDir()
 	state := filepath.Join(dir, "state")

@@ -206,6 +206,7 @@ export class TestAgent {
         device_name: options.name,
         hoplet_home: this.home,
         claude_projects: this.claudeProjects,
+        codex_home: `${this.home}/codex`,
         claude_bin: options.binaries.claude,
         exclude_prefixes: [],
         poll_interval_ms: 50,

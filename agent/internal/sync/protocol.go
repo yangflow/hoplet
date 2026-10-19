@@ -10,7 +10,7 @@ import "encoding/json"
 // (provider.ValidSessionID, ADR 0006). Invalid IDs receive error invalid-session-id
 // before decoding or persistence; the wire envelope and cursor are unchanged.
 
-const ProtocolVersion = 8
+const ProtocolVersion = 9
 
 // Wire message types: Type<Struct> is the `type` of the struct of that name.
 // shared/src/wire/ holds the same table; scripts/test/contract.test.ts compares both.
@@ -161,6 +161,7 @@ type SessionAppend struct {
 	V          int      `json:"v"`
 	Type       string   `json:"type"`
 	SessionID  string   `json:"sessionId"`
+	Provider   string   `json:"provider"` // the source's provider Name(): the vendor the session belongs to
 	ProjectDir string   `json:"projectDir"`
 	FilePath   string   `json:"filePath"`
 	ByteStart  int64    `json:"byteStart"`

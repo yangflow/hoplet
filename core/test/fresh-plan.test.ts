@@ -132,9 +132,10 @@ async function boot(options: { startTimeoutMs?: number } = {}) {
     });
     return { status: res.status, body: (await res.json()) as Msg };
   };
-  store.append({ sessionId: OLD, projectDir: 'p', filePath: `/${OLD}`, deviceId: 'dev-a' }, [
-    `{"type":"user","cwd":"${PROJECT}"}`,
-  ]);
+  store.append(
+    { sessionId: OLD, provider: 'claude', projectDir: 'p', filePath: `/${OLD}`, deviceId: 'dev-a' },
+    [`{"type":"user","cwd":"${PROJECT}"}`],
+  );
   const agent = async (deviceId: string, providers: unknown[] | null = PROVIDERS) => {
     const { token } = store.mintDevice(deviceId, deviceId);
     const peer = await open(`ws://127.0.0.1:${port}/ws/agent`, {

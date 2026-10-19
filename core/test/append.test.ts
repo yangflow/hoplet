@@ -50,6 +50,7 @@ it('resyncs wrong offsets without writes, enforces ownership, and resumes after 
     v: PROTOCOL_VERSION,
     type: 'session.append',
     sessionId: 's1',
+    provider: 'claude',
     projectDir: 'p',
     filePath: '/x',
     byteStart,

@@ -60,9 +60,10 @@ function setup(options = { workspaceTimeoutMs: 200 }) {
   dirs.push(dir);
   const store = new Store(dir);
   const control = createControl(store, options);
-  store.append({ sessionId: SESSION, projectDir: 'p', filePath: '/x', deviceId: 'owner' }, [
-    '{"type":"user"}',
-  ]);
+  store.append(
+    { sessionId: SESSION, provider: 'claude', projectDir: 'p', filePath: '/x', deviceId: 'owner' },
+    ['{"type":"user"}'],
+  );
   const owner = new Device(control);
   const published: ServerMessage[] = [];
   control.subscribe((m) => published.push(m));
@@ -406,9 +407,10 @@ describe('tombstones and import', () => {
 
   it('hides a tombstoned session from lists and search', async () => {
     const { store } = setup();
-    store.append({ sessionId: 's2', projectDir: 'p', filePath: '/y', deviceId: 'owner' }, [
-      '{"type":"user","message":{"role":"user","content":"needle"}}',
-    ]);
+    store.append(
+      { sessionId: 's2', provider: 'claude', projectDir: 'p', filePath: '/y', deviceId: 'owner' },
+      ['{"type":"user","message":{"role":"user","content":"needle"}}'],
+    );
     expect(
       store
         .listSessions()
@@ -594,6 +596,7 @@ describe('ingest', () => {
           v: PROTOCOL_VERSION,
           type: 'session.append',
           sessionId: SESSION,
+          provider: 'claude',
           projectDir: 'p',
           filePath: '/x',
           byteStart: 0,

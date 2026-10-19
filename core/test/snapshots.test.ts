@@ -304,9 +304,10 @@ describe('snapshot upload over the agent socket', () => {
   it('stores the snapshot of the owner and refuses everyone else', async () => {
     const h = await harness();
     try {
-      h.store.append({ sessionId: 's1', projectDir: 'p', filePath: '/x', deviceId: 'owner' }, [
-        '{}',
-      ]);
+      h.store.append(
+        { sessionId: 's1', provider: 'claude', projectDir: 'p', filePath: '/x', deviceId: 'owner' },
+        ['{}'],
+      );
       const owner = await h.connect('owner');
       const other = await h.connect('other');
       const bytes = archive(2 * SNAPSHOT_CHUNK_BYTES + 5);
@@ -350,9 +351,10 @@ describe('snapshot upload over the agent socket', () => {
   it('refuses a chunk whose data is longer than a chunk can be', async () => {
     const h = await harness();
     try {
-      h.store.append({ sessionId: 's1', projectDir: 'p', filePath: '/x', deviceId: 'owner' }, [
-        '{}',
-      ]);
+      h.store.append(
+        { sessionId: 's1', provider: 'claude', projectDir: 'p', filePath: '/x', deviceId: 'owner' },
+        ['{}'],
+      );
       const owner = await h.connect('owner');
       const [chunk] = chunks('s1', 'x', archive(10));
       if (!chunk) throw new Error('chunks');

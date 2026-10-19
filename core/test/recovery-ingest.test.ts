@@ -61,6 +61,7 @@ for (const [point, committed] of [
           v: PROTOCOL_VERSION,
           type: 'session.append',
           sessionId: 'recovery',
+          provider: 'claude',
           projectDir: 'p',
           filePath: '/synthetic',
           byteStart,

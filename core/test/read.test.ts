@@ -39,7 +39,7 @@ async function boot() {
   const dir = mkdtempSync(path.join(tmpdir(), 'hoplet-read-'));
   const store = new Store(dir);
   store.append(
-    { sessionId: SESSION, projectDir: 'p', filePath: '/x', deviceId: 'd' },
+    { sessionId: SESSION, provider: 'claude', projectDir: 'p', filePath: '/x', deviceId: 'd' },
     LINES.map((l) => JSON.stringify(l)),
   );
   const server = createServer();

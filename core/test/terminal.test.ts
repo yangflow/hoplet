@@ -69,9 +69,16 @@ function setup(sessions = ['s1']) {
   dirs.push(dir);
   const store = new Store(dir);
   for (const id of sessions) {
-    store.append({ sessionId: id, projectDir: 'p', filePath: `/x/${id}`, deviceId: 'dev-a' }, [
-      '{"type":"user"}',
-    ]);
+    store.append(
+      {
+        sessionId: id,
+        provider: 'claude',
+        projectDir: 'p',
+        filePath: `/x/${id}`,
+        deviceId: 'dev-a',
+      },
+      ['{"type":"user"}'],
+    );
   }
   const control = createControl(store, { promptTimeoutMs: 100, terminalDetachMs: 60_000 });
   const link = fakeLink();

@@ -1,3 +1,5 @@
+import type { Provider } from '@hoplet/shared';
+
 const TITLE_MAX = 96;
 
 /** Turn a raw prompt into a one-line title: reject commands and paste tags, cut at a sentence when possible. */
@@ -19,16 +21,52 @@ export function summarizeTitle(text: string): string | null {
   return `${window.trimEnd()}…`;
 }
 
-/**
- * What the index reads from appended lines, without changing them: the project path (the first `cwd`), the
- * title, and the git branch (the last `gitBranch`, so a checkout during the session shows).
- */
-export function extractMeta(lines: string[]): {
+export interface LineMeta {
   projectPath: string;
   title: string;
   aiTitle: string;
   gitBranch: string;
-} {
+  /** When the session began as its own lines say, in ms; 0 when they do not say. */
+  createdAt: number;
+}
+
+/**
+ * What the index reads from appended lines, without changing them, by the vendor they come from. The
+ * dispatch is where a vendor's line shapes plug in.
+ */
+export function extractMeta(provider: Provider, lines: string[]): LineMeta {
+  return provider === 'codex' ? extractCodexMeta(lines) : extractClaudeMeta(lines);
+}
+
+/**
+ * A Codex rollout starts with a `session_meta` line whose payload holds the working directory and the start
+ * time. It names no title yet.
+ */
+function extractCodexMeta(lines: string[]): LineMeta {
+  const meta: LineMeta = { projectPath: '', title: '', aiTitle: '', gitBranch: '', createdAt: 0 };
+  for (const raw of lines) {
+    let o: { type?: unknown; payload?: { cwd?: unknown; timestamp?: unknown } };
+    try {
+      o = JSON.parse(raw);
+    } catch {
+      continue;
+    }
+    if (o?.type !== 'session_meta' || typeof o.payload !== 'object' || o.payload === null) continue;
+    if (typeof o.payload.cwd === 'string') meta.projectPath = o.payload.cwd;
+    if (typeof o.payload.timestamp === 'string') {
+      const t = Date.parse(o.payload.timestamp);
+      if (Number.isFinite(t)) meta.createdAt = t;
+    }
+    break;
+  }
+  return meta;
+}
+
+/**
+ * Claude Code lines: the project path (the first `cwd`), the title, and the git branch (the last `gitBranch`,
+ * so a checkout during the session shows).
+ */
+function extractClaudeMeta(lines: string[]): LineMeta {
   let projectPath = '';
   let gitBranch = '';
   let title = '';
@@ -68,5 +106,5 @@ export function extractMeta(lines: string[]): {
       }
     }
   }
-  return { projectPath, title: title || fallback, aiTitle, gitBranch };
+  return { projectPath, title: title || fallback, aiTitle, gitBranch, createdAt: 0 };
 }

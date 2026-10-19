@@ -27,6 +27,7 @@ import (
 type testSource struct{ data []byte }
 
 func (s testSource) ID() string            { return "s1" }
+func (s testSource) Provider() string      { return "claude" }
 func (s testSource) Dir() string           { return "p" }
 func (s testSource) Cwd() string           { return "" }
 func (s testSource) InProject(string) bool { return false }
@@ -335,5 +336,48 @@ func TestRejectionNamesADeletedSession(t *testing.T) {
 	out := logs.String()
 	if !strings.Contains(out, "deleted in Hoplet; not syncing") || !strings.Contains(out, "belongs to another device") {
 		t.Fatalf("log %q", out)
+	}
+}
+
+type codexTestSource struct{ testSource }
+
+func (codexTestSource) Provider() string { return "codex" }
+
+// Every session.append names the vendor of its source, so the core stores the session under it.
+func TestAppendCarriesTheSourcesProvider(t *testing.T) {
+	for _, src := range []provider.Source{testSource{[]byte("{}\n")}, codexTestSource{testSource{[]byte("{}\n")}}} {
+		requests := make(chan SessionAppend, 2)
+		up := websocket.Upgrader{}
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			conn, err := up.Upgrade(w, r, nil)
+			if err != nil {
+				return
+			}
+			defer conn.Close()
+			var msg SessionAppend
+			if conn.ReadJSON(&msg) != nil {
+				return
+			}
+			requests <- msg
+			_ = conn.WriteJSON(map[string]any{"type": "session.ack", "sessionId": "s1", "byteSize": 3})
+			time.Sleep(200 * time.Millisecond)
+		}))
+		conn, _, err := websocket.DefaultDialer.Dial("ws"+srv.URL[len("http"):], nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		c := NewClient(&config.Config{}, "dev", "test", Hooks{})
+		cs := newConnState(conn, make(chan reply, 8))
+		c.cs.Store(cs)
+		go c.readLoop(cs)
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		c.Reconcile(ctx, []provider.Source{src})
+		got := <-requests
+		if got.Provider != src.Provider() {
+			t.Fatalf("append provider=%q want=%q", got.Provider, src.Provider())
+		}
+		cancel()
+		conn.Close()
+		srv.Close()
 	}
 }

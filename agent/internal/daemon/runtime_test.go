@@ -249,6 +249,7 @@ func TestBridgeStopsAProcessBeforeHandoff(t *testing.T) {
 type sizedSource struct{ id, path string }
 
 func (s sizedSource) ID() string            { return s.id }
+func (s sizedSource) Provider() string      { return "claude" }
 func (s sizedSource) Dir() string           { return "" }
 func (s sizedSource) Cwd() string           { return "" }
 func (s sizedSource) InProject(string) bool { return false }

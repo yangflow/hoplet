@@ -196,6 +196,8 @@ export const WIRE_MESSAGES = defineWire({
     direction: 'device-to-core',
     fields: {
       sessionId,
+      /** The vendor of the source the lines come from; the core stores it when it creates the session and never changes it. */
+      provider: ProviderSchema,
       projectDir: v.string(),
       filePath: v.string(),
       byteStart: cursor,

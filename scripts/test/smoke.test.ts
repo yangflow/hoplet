@@ -33,7 +33,7 @@ chmod +x "$TEST_ROOT/artifacts/hoplet-agent"`,
   echo $$ > "$TEST_ROOT/server-pid"
   ${rejectListen ? 'exit 1' : `echo '{"message":"listening"}'`}
   exec "$REAL_NODE" -e 'setInterval(() => {}, 1000)'
-elif [[ "$1" == scripts/gen-fixture.mjs ]]; then
+elif [[ "$1" == scripts/gen-fixture.mjs || "$1" == scripts/gen-codex-fixture.mjs ]]; then
   echo '{}' > "$2"
 else
   exec "$REAL_NODE" "$@"

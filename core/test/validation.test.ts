@@ -105,14 +105,20 @@ describe('REST errors carry a stable code', () => {
     await expectError(await call('GET', '/api/search?q=%20'), 400, 'invalid-request');
     await expectError(await call('GET', '/api/sessions/s1/search'), 400, 'invalid-request');
     await expectError(await call('GET', '/api/sessions/s1/workspace/file'), 400, 'invalid-request');
-    store.append({ sessionId: 's1', projectDir: 'p', filePath: '/x', deviceId: 'd' }, ['{}', '{}']);
+    store.append(
+      { sessionId: 's1', provider: 'claude', projectDir: 'p', filePath: '/x', deviceId: 'd' },
+      ['{}', '{}'],
+    );
     const page = await (await call('GET', '/api/sessions/s1/lines?start=abc&limit=zzz')).json();
     expect(page).toMatchObject({ sessionId: 's1', total: 2, start: 0, end: 2 });
   });
 
   it('returns the provider of a session and validates against the session schema', async () => {
     const { store, call } = await boot();
-    store.append({ sessionId: 's1', projectDir: 'p', filePath: '/x', deviceId: 'd' }, ['{}']);
+    store.append(
+      { sessionId: 's1', provider: 'claude', projectDir: 'p', filePath: '/x', deviceId: 'd' },
+      ['{}'],
+    );
     const list = await (await call('GET', '/api/sessions')).json();
     expect(list.sessions).toHaveLength(1);
     expect(safeParse(LiveSessionMetaSchema, list.sessions[0]).success).toBe(true);
@@ -176,6 +182,7 @@ describe('agent WebSocket validates every message', () => {
           v: PROTOCOL_VERSION,
           type: 'session.append',
           sessionId: 'ok',
+          provider: 'claude',
           projectDir: 'p',
           filePath: '/x',
           byteStart: -1,

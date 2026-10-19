@@ -1,8 +1,8 @@
 import * as v from 'valibot';
 import { SessionIdSchema } from './ids.ts';
 
-/** The vendor a session belongs to (ADR 0012). Claude Code is the only provider implemented. */
-export const ProviderSchema = v.picklist(['claude']);
+/** The vendor a session belongs to (ADR 0012): Claude Code, and Codex (ADR 0027). */
+export const ProviderSchema = v.picklist(['claude', 'codex']);
 export type Provider = v.InferOutput<typeof ProviderSchema>;
 
 /**

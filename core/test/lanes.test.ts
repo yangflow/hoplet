@@ -105,7 +105,10 @@ describe('REST lanes', () => {
 
   it('answers a control request while the bulk queue is full, and refuses more bulk with busy', async () => {
     const store = newStore();
-    store.append({ sessionId: 's1', projectDir: 'p', filePath: '/x', deviceId: 'd' }, ['{"n":1}']);
+    store.append(
+      { sessionId: 's1', provider: 'claude', projectDir: 'p', filePath: '/x', deviceId: 'd' },
+      ['{"n":1}'],
+    );
     const control = createControl(store, { bulk: { concurrency: 1, maxWaiting: 0 } });
     const config = { port: 0, dataDir: '', token: 'host', webDir: null };
     const server = createServer();
@@ -136,7 +139,16 @@ describe('store scans', () => {
     const lines = Array.from({ length: 500 }, (_, i) => JSON.stringify({ n: i, text: 'filler' }));
     for (let s = 0; s < 4; s++) {
       for (let c = 0; c < 3; c++) {
-        store.append({ sessionId: `s${s}`, projectDir: 'p', filePath: '/x', deviceId: 'd' }, lines);
+        store.append(
+          {
+            sessionId: `s${s}`,
+            provider: 'claude',
+            projectDir: 'p',
+            filePath: '/x',
+            deviceId: 'd',
+          },
+          lines,
+        );
       }
     }
     await store.idle();
