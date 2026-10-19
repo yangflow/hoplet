@@ -733,9 +733,6 @@
 .agm.off {
   color: var(--color-text-3);
 }
-.agp .agm .dot {
-  margin: 0 4px;
-}
 .agf {
   height: var(--layout-row);
   display: flex;

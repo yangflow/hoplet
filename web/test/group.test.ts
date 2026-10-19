@@ -28,7 +28,13 @@ function session(
   };
 }
 
-const mac: DeviceInfo = { deviceId: 'dev-mac', name: 'MacBook Pro', connected: true };
+const mac: DeviceInfo = {
+  deviceId: 'dev-mac',
+  name: 'MacBook Pro',
+  connected: true,
+  providers: [],
+  system: { os: 'darwin', arch: 'arm64' },
+};
 
 describe('sessionPath and pathLeaf', () => {
   it('takes the project path and shows only its last directory', () => {
@@ -123,6 +129,7 @@ describe('sessionTargets', () => {
         deviceName: 'MacBook Pro',
         deviceId: 'dev-mac',
         online: true,
+        system: { os: 'darwin', arch: 'arm64' },
         providers: [],
         dirs: [{ path: '/a/hoplet', name: 'hoplet' }],
       },

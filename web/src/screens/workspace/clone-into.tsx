@@ -1,4 +1,4 @@
-import type { DeviceCloneOffer, DeviceDirsResult } from '@hoplet/shared';
+import type { DeviceCloneOffer, DeviceDirsResult, DeviceSystem } from '@hoplet/shared';
 import { type KeyboardEvent, useEffect, useRef, useState } from 'react';
 import { Button } from '../../components/Button.tsx';
 import { Dialog } from '../../components/Dialog.tsx';
@@ -12,6 +12,8 @@ import { ApiError, browseErrorText, errorText } from '../../lib/errors.ts';
 import { t } from '../../lib/i18n.ts';
 import { ROOT_PATH, useDirBrowser } from '../../lib/use-dir-browser.ts';
 import '../../components/dir-browser.css';
+import { MachineIcon } from '../../components/MachineIcon.tsx';
+import { systemOf } from '../../lib/system.ts';
 
 /** Development fixture: the listings the machine would answer, where to start, and what the dialog already says. */
 export type CloneIntoFixture = {
@@ -68,6 +70,7 @@ export function destinationText(
 export function CloneInto(props: {
   deviceId: string;
   deviceName: string;
+  system?: DeviceSystem | null | undefined;
   /** The destination the core suggested or the last one chosen. */
   current: string;
   /** Asks the core whether the target can clone into `path`; null when it cannot say. */
@@ -224,7 +227,13 @@ export function CloneInto(props: {
           <Select
             label={t('Machine')}
             value={deviceName}
-            options={[{ value: deviceName, label: deviceName, leading: <span className="dot" /> }]}
+            options={[
+              {
+                value: deviceName,
+                label: deviceName,
+                leading: <MachineIcon kind={systemOf(props.system?.os)} online />,
+              },
+            ]}
             onChange={() => undefined}
             disabled
           />

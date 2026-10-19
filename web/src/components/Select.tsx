@@ -7,7 +7,7 @@ export type SelectOption = {
   label: string;
   leading?: ReactNode;
   /** Meta text at the right of the option, such as the folder a directory is in. */
-  detail?: string;
+  detail?: string | undefined;
   disabled?: boolean;
 };
 

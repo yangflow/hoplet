@@ -1,4 +1,10 @@
-import type { Provider, ProviderInfo, RuntimeState, SessionConfig } from '@hoplet/shared';
+import type {
+  DeviceSystem,
+  Provider,
+  ProviderInfo,
+  RuntimeState,
+  SessionConfig,
+} from '@hoplet/shared';
 
 export type { ProviderInfo, RuntimeState };
 
@@ -26,6 +32,7 @@ export type SessionTarget = {
   deviceName: string;
   deviceId: string | null;
   online: boolean;
+  system: DeviceSystem | null;
   providers: ProviderInfo[];
   dirs: { path: string; name: string }[];
 };

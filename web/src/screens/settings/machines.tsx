@@ -3,11 +3,13 @@ import { type ReactNode, useState } from 'react';
 import { Button } from '../../components/Button.tsx';
 import { IconButton } from '../../components/IconButton.tsx';
 import { Icon, Spinner } from '../../components/icons.tsx';
+import { MachineIcon } from '../../components/MachineIcon.tsx';
 import { TextField } from '../../components/TextField.tsx';
 import { postMintDevice } from '../../lib/api.ts';
 import { copyText } from '../../lib/clipboard.ts';
 import { errorText } from '../../lib/errors.ts';
 import { t } from '../../lib/i18n.ts';
+import { machineLabel, systemName, systemOf } from '../../lib/system.ts';
 import { useDevices } from '../../lib/use-devices.ts';
 import { lastSeenText } from './last-seen.ts';
 
@@ -239,16 +241,16 @@ export function MachinesSection(props: { fixture?: MachinesFixture }) {
           </div>
           <ul className="plist" aria-label={t('Machines')} data-testid="settings.machines">
             {devices.map((d) => (
-              <li key={d.deviceId} className={`pr${d.connected ? '' : ' off'}`}>
+              <li
+                key={d.deviceId}
+                className={`pr${d.connected ? '' : ' off'}`}
+                aria-label={machineLabel(d.name, d.system, d.connected)}
+              >
                 <span className="lead">
-                  <span
-                    className={`dot${d.connected ? '' : ' off'}`}
-                    role="img"
-                    aria-label={d.connected ? t('Online') : t('Offline')}
-                    title={d.connected ? t('Online') : t('Offline')}
-                  />
+                  <MachineIcon kind={systemOf(d.system?.os)} online={d.connected} />
                 </span>
                 <span className="nm">{d.name}</span>
+                <span className="set-meta">{systemName(d.system?.os)}</span>
                 <span className="set-meta">{lastSeenText(d, now)}</span>
               </li>
             ))}

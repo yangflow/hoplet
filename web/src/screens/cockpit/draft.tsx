@@ -1,11 +1,13 @@
 import type { CommandsResult, PromptImage, SessionConfig } from '@hoplet/shared';
 import { useEffect, useMemo, useState } from 'react';
 import { Icon } from '../../components/icons.tsx';
+import { MachineIcon } from '../../components/MachineIcon.tsx';
 import { providerName } from '../../components/provider-marks.tsx';
 import { Select } from '../../components/Select.tsx';
 import { postAttachment } from '../../lib/api.ts';
 import { errorText } from '../../lib/errors.ts';
 import { t } from '../../lib/i18n.ts';
+import { machineLabel, systemName, systemOf } from '../../lib/system.ts';
 import { Composer } from './composer/composer.tsx';
 import { ModeMenu, modeOption, nextMode } from './composer/mode-menu.tsx';
 import { hasChoices, ModelMenu, withValues } from './composer/model-menu.tsx';
@@ -154,13 +156,16 @@ export function Draft(props: {
           key="machine"
           appearance="chip"
           label={t('Machine')}
-          detail={target?.online ? t('Machine · online') : t('Machine · offline')}
+          detail={
+            target ? machineLabel(target.deviceName, target.system, target.online) : t('Machine')
+          }
           value={machine}
           options={targets.map((x) => ({
             value: x.deviceName,
             label: x.deviceName,
+            detail: x.online ? (systemName(x.system?.os) ?? undefined) : t('Offline'),
             disabled: !x.online,
-            leading: <span className={`dot${x.online ? '' : ' off'}`} />,
+            leading: <MachineIcon kind={systemOf(x.system?.os)} online={x.online} />,
           }))}
           disabled={busy}
           onChange={(deviceName) => onWhere({ deviceName, path: '' })}

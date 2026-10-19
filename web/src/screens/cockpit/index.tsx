@@ -477,6 +477,7 @@ export function Cockpit(props: {
                 shortcuts={!paletteOpen && !addFor}
                 voiceAvailable={fixture?.voiceAvailable ?? false}
                 capabilities={capabilitiesOf(session)}
+                system={groups.find((g) => g.name === session.deviceName)?.system ?? null}
                 onHandoff={() => {
                   setInspectorOpen(true);
                   inspector.setHandoffOpen(true);
@@ -555,7 +556,12 @@ export function Cockpit(props: {
       ) : null}
       {addFor && addTarget ? (
         <AddProject
-          machines={groups.map((g) => ({ deviceId: g.deviceId, name: g.name, online: g.online }))}
+          machines={groups.map((g) => ({
+            deviceId: g.deviceId,
+            name: g.name,
+            online: g.online,
+            system: g.system,
+          }))}
           initialMachine={addTarget.name}
           {...(fixture?.addProject ? { fixture: fixture.addProject.browse } : {})}
           onClose={() => setAddFor(null)}

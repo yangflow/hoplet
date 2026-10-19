@@ -176,19 +176,40 @@ const COMPOSE_IMAGES = [
   },
 ];
 
-export function fixtureDevices(macbookOnline: boolean, terminal = true): DeviceInfo[] {
+/** `labBox` adds a machine whose agent announced no system, as an agent from before the system was reported. */
+export function fixtureDevices(
+  macbookOnline: boolean,
+  terminal = true,
+  labBox = false,
+): DeviceInfo[] {
   const providers = [{ provider: 'claude' as const, capabilities }];
   return [
     {
       deviceId: 'dev-macbook',
       name: 'MacBook Pro',
       connected: macbookOnline,
+      system: { os: 'darwin', arch: 'arm64' },
       providers: macbookOnline ? providers : [],
       ...(terminal ? { terminal: true } : {}),
       previewHost: 'mbp.tail1f2a.ts.net',
     },
-    { deviceId: 'dev-studio', name: 'studio', connected: true, providers },
-    { deviceId: 'dev-office', name: 'office-mini', connected: false, providers: [] },
+    {
+      deviceId: 'dev-studio',
+      name: 'studio',
+      connected: true,
+      system: { os: 'linux', arch: 'amd64' },
+      providers,
+    },
+    {
+      deviceId: 'dev-office',
+      name: 'office-mini',
+      connected: false,
+      system: { os: 'windows', arch: 'amd64' },
+      providers: [],
+    },
+    ...(labBox
+      ? [{ deviceId: 'dev-lab', name: 'lab-box', connected: true, system: null, providers }]
+      : []),
   ];
 }
 
@@ -1036,6 +1057,29 @@ export const states: Record<string, () => ReactNode> = {
   loaded: () => <Scene />,
   draft: () => <Scene fixture={{ draft: { dirs: DRAFT_DIRS } }} />,
   'draft-directory': () => <Scene fixture={{ draft: { dirs: DRAFT_DIRS, open: 'directory' } }} />,
+  machines: () => (
+    <Scene fixture={{ hoverDevice: 'MacBook Pro', devices: fixtureDevices(true, true, true) }} />
+  ),
+  'machines-draft': () => (
+    <Scene
+      fixture={{
+        devices: fixtureDevices(true, true, true),
+        draft: { dirs: DRAFT_DIRS, open: 'machine' },
+      }}
+    />
+  ),
+  'machines-add': () => (
+    <Scene
+      fixture={{
+        hoverDevice: 'MacBook Pro',
+        devices: fixtureDevices(true, true, true),
+        addProject: {
+          deviceName: 'MacBook Pro',
+          browse: { ...browseFixture, start: HOME_GITHUB, machineOpen: true },
+        },
+      }}
+    />
+  ),
   'draft-model': () => (
     <Scene
       fixture={{

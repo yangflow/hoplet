@@ -4,10 +4,12 @@ import { useState } from 'react';
 import { Button } from '../../components/Button.tsx';
 import { IconButton } from '../../components/IconButton.tsx';
 import { Icon, Spinner } from '../../components/icons.tsx';
+import { MachineIcon } from '../../components/MachineIcon.tsx';
 import { Select } from '../../components/Select.tsx';
 import { TextField } from '../../components/TextField.tsx';
 import { clock, formatBytes } from '../../lib/format.ts';
 import { t } from '../../lib/i18n.ts';
+import { systemOf } from '../../lib/system.ts';
 import { CloneInto, destinationText } from './clone-into.tsx';
 import {
   CLONE_UNREADABLE,
@@ -110,7 +112,7 @@ export function HandoffPanel(props: {
             options={handoff.otherDevices.map((d) => ({
               value: d.deviceId,
               label: d.name || d.deviceId,
-              leading: <span className="dot" />,
+              leading: <MachineIcon kind={systemOf(d.system?.os)} online={d.connected} />,
             }))}
             onChange={handoff.setTargetId}
             detail={t('Connected machines')}
@@ -217,6 +219,7 @@ export function HandoffPanel(props: {
         <CloneInto
           deviceId={handoff.targetId}
           deviceName={target}
+          system={handoff.otherDevices.find((d) => d.deviceId === handoff.targetId)?.system ?? null}
           current={offer.cloneInto}
           check={handoff.chooseDestination}
           onChosen={() => setChoosing(false)}

@@ -1,6 +1,7 @@
 import type {
   CommandsResult,
   ConfigSetting,
+  DeviceSystem,
   Entry,
   LiveSessionMeta,
   PromptImage,
@@ -111,6 +112,8 @@ export function Conversation(props: {
   voiceAvailable?: boolean;
   /** What the session's driver can do, as reported or announced: images, switching the model. */
   capabilities?: RuntimeCapabilities | undefined;
+  /** What the session's machine announced about itself, for its mark in the location row. */
+  system?: DeviceSystem | null | undefined;
   onHandoff: () => void;
   openDiff?: (path: string) => void;
   /** Opens another session in the cockpit: the ends of a plan approved into a new session. */
@@ -594,6 +597,7 @@ export function Conversation(props: {
                 <SessionWhere
                   deviceName={session.deviceName}
                   online={session.ownerConnected}
+                  system={props.system}
                   path={session.projectPath}
                   branch={session.gitBranch}
                 />

@@ -1,6 +1,9 @@
+import type { DeviceSystem } from '@hoplet/shared';
 import { Fragment, type ReactNode } from 'react';
 import { Icon } from '../../../components/icons.tsx';
+import { MachineIcon } from '../../../components/MachineIcon.tsx';
 import { t } from '../../../lib/i18n.ts';
+import { machineLabel, systemOf } from '../../../lib/system.ts';
 import { pathLeaf } from '../group.ts';
 
 /**
@@ -48,15 +51,19 @@ export function BranchPart(props: { branch: string | undefined; path: string }) 
 export function SessionWhere(props: {
   deviceName: string;
   online: boolean;
+  system?: DeviceSystem | null | undefined;
   path: string;
   branch?: string | undefined;
 }) {
-  const presence = props.online ? t('Online') : t('Offline');
   return (
     <WhereRow>
       {[
-        <span key="m" className="where-part" title={`${props.deviceName} · ${presence}`}>
-          <span className={`dot${props.online ? '' : ' off'}`} />
+        <span
+          key="m"
+          className="where-part"
+          title={machineLabel(props.deviceName, props.system, props.online)}
+        >
+          <MachineIcon kind={systemOf(props.system?.os)} online={props.online} />
           {props.deviceName}
         </span>,
         <span key="d" className="where-part" title={props.path}>

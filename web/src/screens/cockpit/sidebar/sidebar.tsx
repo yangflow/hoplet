@@ -11,10 +11,12 @@ import {
 import { Badge } from '../../../components/Badge.tsx';
 import { IconButton } from '../../../components/IconButton.tsx';
 import { HopletMark, Icon, Spinner } from '../../../components/icons.tsx';
+import { MachineIcon } from '../../../components/MachineIcon.tsx';
 import { Menu, type MenuEntry } from '../../../components/Menu.tsx';
 import { ProviderMark } from '../../../components/provider-marks.tsx';
 import { Row } from '../../../components/Row.tsx';
 import { t } from '../../../lib/i18n.ts';
+import { machineLabel, systemOf } from '../../../lib/system.ts';
 import { type DeviceGroup, displayTitle } from '../group.ts';
 import { type GlyphState, glyphState, type RuntimeState } from '../model.ts';
 import { stateName } from '../runtime.ts';
@@ -375,7 +377,7 @@ export function Sidebar(props: {
       const key = viewKey(g);
       const view = viewOf(key);
       const deviceFolded = folding.isFolded(g.name, DEVICE_ROW);
-      const presence = g.online ? t('Online') : t('Offline');
+      const label = machineLabel(g.name, g.system, g.online);
       return (
         <div key={g.name} className={`devg${g.online ? '' : ' off'}`} data-testid="cockpit.device">
           <div
@@ -386,12 +388,13 @@ export function Sidebar(props: {
               type="button"
               className="dev-toggle"
               aria-expanded={!deviceFolded}
-              aria-label={`${g.name} · ${presence}`}
+              aria-label={label}
+              title={label}
               onClick={() => folding.toggle(g.name, DEVICE_ROW)}
               data-testid="cockpit.device-toggle"
             >
               <span className="lead">
-                <span className={`dot${g.online ? '' : ' off'}`} title={presence} />
+                <MachineIcon kind={systemOf(g.system?.os)} online={g.online} />
               </span>
               <span className="dn">{g.name}</span>
               <span className="dev-chv">{Icon.chevron()}</span>

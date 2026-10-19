@@ -2,9 +2,11 @@ import type { ConfigOption, DeviceInfo, LiveSessionMeta, ProviderInfo } from '@h
 import { type KeyboardEvent, useId, useRef, useState } from 'react';
 import { Button } from '../../components/Button.tsx';
 import { Icon } from '../../components/icons.tsx';
+import { MachineIcon } from '../../components/MachineIcon.tsx';
 import { ProviderMark, providerName } from '../../components/provider-marks.tsx';
 import { currentValueName, optionName } from '../../lib/config-options.ts';
 import { t } from '../../lib/i18n.ts';
+import { machineLabel, systemOf } from '../../lib/system.ts';
 import { useDevices } from '../../lib/use-devices.ts';
 import { lastSeenText } from './last-seen.ts';
 import { defaultMachine, providerUse, versionBadge } from './providers-model.ts';
@@ -209,14 +211,10 @@ export function ProvidersSection(props: {
                   aria-controls={on ? `${id}-panel` : undefined}
                   tabIndex={on ? 0 : -1}
                   data-device={d.deviceId}
+                  title={machineLabel(d.name, d.system, d.connected)}
                   onClick={() => setPicked(d.deviceId)}
                 >
-                  <span
-                    className={`dot${d.connected ? '' : ' off'}`}
-                    role="img"
-                    aria-label={d.connected ? t('Online') : t('Offline')}
-                    title={d.connected ? t('Online') : t('Offline')}
-                  />
+                  <MachineIcon kind={systemOf(d.system?.os)} online={d.connected} />
                   {d.name}
                 </button>
               );
