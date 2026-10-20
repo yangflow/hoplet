@@ -341,23 +341,33 @@ const CODEX_CONFIG: ConfigOption[] = [
   select('collaboration', 'Collaboration', 'default', [['default', 'Default']]),
 ];
 
+type Over = {
+  id?: string;
+  name?: string;
+  enabled?: boolean;
+  command?: string;
+  env?: { name: string; set: boolean }[];
+};
+
 function announced(
   provider: ProviderInfo['provider'],
   version: string,
   tested: boolean,
+  over: Over = {},
 ): ProviderInfo {
+  const builtIn = over.id === undefined;
   return {
     provider,
     configuration: {
-      id: provider,
-      name: provider === 'claude' ? 'Claude Code' : 'Codex',
+      id: over.id ?? provider,
+      name: over.name ?? (provider === 'claude' ? 'Claude Code' : 'Codex'),
       extends: provider,
-      enabled: true,
-      env: [],
+      enabled: over.enabled ?? true,
+      ...(over.command ? { command: over.command } : {}),
+      env: over.env ?? [],
       defaults: {},
     },
-    version,
-    tested,
+    ...(builtIn ? { version, tested } : {}),
     capabilities: {
       permissions: true,
       interrupt: true,
@@ -368,8 +378,41 @@ function announced(
   };
 }
 
-function online(deviceId: string, name: string, providers: ProviderInfo[]): DeviceInfo {
-  return { ...machine(deviceId, name, true, NOW), providers };
+/** The configurations of one machine as the mockup draws them: the built-ins, GLM with its own login and DeepSeek without its key. */
+function configurations(version: string, tested: boolean): ProviderInfo[] {
+  return [
+    announced('claude', version, tested),
+    announced('claude', version, tested, {
+      id: 'glm',
+      name: 'GLM',
+      env: [
+        { name: 'ANTHROPIC_BASE_URL', set: true },
+        { name: 'ANTHROPIC_DEFAULT_SONNET_MODEL', set: true },
+        { name: 'ANTHROPIC_AUTH_TOKEN', set: true },
+        { name: 'CLAUDE_CONFIG_DIR', set: true },
+      ],
+    }),
+    announced('claude', version, tested, {
+      id: 'deepseek',
+      name: 'DeepSeek',
+      command: '/opt/deepseek/bin/claude',
+      env: [
+        { name: 'ANTHROPIC_BASE_URL', set: true },
+        { name: 'ANTHROPIC_MODEL', set: true },
+        { name: 'ANTHROPIC_AUTH_TOKEN', set: false },
+      ],
+    }),
+    announced('codex', '0.124.0', true, { enabled: false }),
+  ];
+}
+
+function online(
+  deviceId: string,
+  name: string,
+  providers: ProviderInfo[],
+  os?: string,
+): DeviceInfo {
+  return { ...machine(deviceId, name, true, NOW, os), providers };
 }
 
 const MINUTE = 60_000;
@@ -409,28 +452,54 @@ const PROVIDER_SESSIONS: LiveSessionMeta[] = [
 
 function providers(
   selected: string | undefined,
-  over: { offline?: boolean; none?: boolean; empty?: boolean } = {},
+  over: {
+    offline?: boolean;
+    none?: boolean;
+    empty?: boolean;
+    open?: string[];
+    edit?: ProvidersFixture['edit'];
+    add?: string;
+  } = {},
 ): ProvidersFixture {
   const devices = over.empty
     ? []
     : [
-        online('dev-macbook', 'MacBook Pro', [
-          announced('claude', '2.1.42', true),
-          announced('codex', '0.124.0', true),
-        ]),
-        online('dev-studio', 'studio', [
-          announced('claude', '2.2.0', false),
-          announced('codex', '0.124.0', true),
-        ]),
-        ...(over.offline ? [machine('dev-office', 'office-mini', false, NOW - 3 * HOUR)] : []),
+        online('dev-macbook', 'MacBook Pro', configurations('2.1.42', true), 'darwin'),
+        online('dev-studio', 'studio', configurations('2.2.0', false), 'linux'),
+        ...(over.offline
+          ? [machine('dev-office', 'office-mini', false, NOW - 3 * HOUR, 'windows')]
+          : []),
         ...(over.none ? [online('dev-nas', 'nas-box', [])] : []),
       ];
+  const listing = selected === undefined && !over.empty && !over.edit && !over.add;
+  const open = over.open ?? (listing ? ['dev-macbook/deepseek'] : []);
   return {
     devices,
     sessions: PROVIDER_SESSIONS,
     now: NOW,
     ...(selected ? { selected } : {}),
-    ...(selected === undefined && !over.empty ? { open: ['dev-macbook/claude'] } : {}),
+    open,
+    ...(over.edit ? { edit: over.edit } : {}),
+    ...(over.add ? { add: over.add } : {}),
+  };
+}
+
+const GLM = 'dev-macbook/glm';
+
+/** The form of GLM the mockup draws: renamed, with Thinking turned off. */
+function glmEdit(status: 'idle' | 'saving' | 'error'): NonNullable<ProvidersFixture['edit']> {
+  return {
+    key: GLM,
+    name: 'GLM Coding Plan',
+    enabled: true,
+    values: { thinking: false },
+    status,
+    ...(status === 'error'
+      ? {
+          error:
+            'MacBook Pro rejected the change: glm no longer exists on the machine. Its list was refreshed; nothing was saved.',
+        }
+      : {}),
   };
 }
 
@@ -491,8 +560,17 @@ export const states: Record<string, () => ReactNode> = {
     <Scene section="machines" machines={resourcesOf('dev-office')} />
   ),
   'settings-providers': () => <Scene section="providers" providers={providers(undefined)} />,
-  'settings-providers-newer': () => (
-    <Scene section="providers" providers={providers('dev-studio')} />
+  'settings-providers-edit': () => (
+    <Scene section="providers" providers={providers(undefined, { edit: glmEdit('idle') })} />
+  ),
+  'settings-providers-saving': () => (
+    <Scene section="providers" providers={providers(undefined, { edit: glmEdit('saving') })} />
+  ),
+  'settings-providers-error': () => (
+    <Scene section="providers" providers={providers(undefined, { edit: glmEdit('error') })} />
+  ),
+  'settings-providers-add': () => (
+    <Scene section="providers" providers={providers(undefined, { add: 'minimax' })} />
   ),
   'settings-providers-offline': () => (
     <Scene section="providers" providers={providers('dev-office', { offline: true })} />

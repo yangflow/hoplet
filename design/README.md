@@ -10,9 +10,15 @@ The mockups, design tokens and app icon behind Hoplet's web UI. The design langu
   - `settings` includes the Notifications section: presets, the per-project and per-event overrides, quiet hours,
     This browser (Web Push on, off and blocked), webhooks (`settings-notify`, `settings-notify-overrides`,
     `settings-notify-off`, `settings-notify-blocked`, `notify-hook`).
-  - `settings` includes the Model providers section (read-only, a tab per machine and a row per provider its agent
-    announces): `settings-providers`, `settings-providers-newer`, `settings-providers-offline`,
-    `settings-providers-none`, `settings-providers-empty`.
+  - `settings` includes the Model providers section (#170), a tab per machine with that machine's configurations, in
+    rows grouped by vendor with an inline expand (`settings-providers`). It has `-edit` (name, enabled, new-session defaults), `-saving`, `-error` and `-add`
+    (the command to copy; the web never runs it); `settings-providers-offline`, `settings-providers-none` and
+    `settings-providers-empty` show the other cases. Command and variables are read-only, variables show set or not set, never
+    a value; keys are entered on the machine.
+  - `cockpit` includes the provider configurations (#170): the draft's configuration picker
+    (`draft-configuration`), the configuration tag of a session that does not run the built-in
+    (`session-configuration`) and the configuration select of Hand off (`handoff-configuration`,
+    `handoff-configuration-pick`, `handoff-configuration-none`).
   - `cockpit` includes the machine icon, the system's mark with the presence dot at its bottom-right: the sidebar
     (`machines`), the draft's machine picker (`machines-draft`) and the Add project machine select (`machines-add`).
   - `cockpit` includes each machine's load and session processes (#88): the sidebar carries only a warning glyph on a

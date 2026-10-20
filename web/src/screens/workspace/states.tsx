@@ -1,7 +1,14 @@
-import type { SessionPort } from '@hoplet/shared';
+import type { DeviceInfo, LiveSessionMeta, ProviderInfo, SessionPort } from '@hoplet/shared';
 import type { ReactNode } from 'react';
 import { t } from '../../lib/i18n.ts';
-import { capabilities, fixtureDevices, running, Scene, type Variant } from '../cockpit/states.tsx';
+import {
+  capabilities,
+  claudeConfiguration,
+  fixtureDevices,
+  running,
+  Scene,
+  type Variant,
+} from '../cockpit/states.tsx';
 import type { CloneIntoFixture } from './clone-into.tsx';
 import {
   CHUNKS_NOW,
@@ -52,15 +59,24 @@ function Inspect(props: {
   /** The owner has not switched the terminal on. */
   terminalOff?: boolean;
   variant?: Variant;
+  /** The machines to show instead of the design's. */
+  devices?: DeviceInfo[];
+  /** Changes the session list. */
+  sessions?: (base: LiveSessionMeta[]) => LiveSessionMeta[];
   workspace: Omit<WorkspaceFixture, 'viewer'>;
 }) {
   return (
     <Scene
       macbookOnline={!props.offline}
       {...(props.variant ? { variant: props.variant } : {})}
+      {...(props.sessions ? { sessions: props.sessions } : {})}
       fixture={{
         inspectorOpen: true,
-        ...(props.terminalOff ? { devices: fixtureDevices(!props.offline, false) } : {}),
+        ...(props.devices
+          ? { devices: props.devices }
+          : props.terminalOff
+            ? { devices: fixtureDevices(!props.offline, false) }
+            : {}),
         workspace: { viewer: answers, ...props.workspace },
       }}
     />
@@ -204,6 +220,25 @@ const browserState = (ports: PortsData, offline = false) => (
   <Inspect
     {...(offline ? { offline: true } : {})}
     workspace={{ data: live(), view: browserView, browser: ports }}
+  />
+);
+
+/** Hand off of a GLM session to studio, which announces `studio`. */
+const glmHandoff = (studio: ProviderInfo[], open = false) => (
+  <Inspect
+    devices={fixtureDevices(true, true, false, false, { 'dev-studio': studio })}
+    sessions={(base) =>
+      base.map((s) =>
+        s.sessionId === '11111111-2222-4333-8444-555555555555'
+          ? { ...s, configuration: { id: 'glm', name: 'GLM' } }
+          : s,
+      )
+    }
+    workspace={{
+      data: live(),
+      view: handoffOpen(),
+      handoff: { clone: found, ...(open ? { configurationOpen: true } : {}) },
+    }}
   />
 );
 
@@ -360,6 +395,15 @@ export const states: Record<string, () => ReactNode> = {
       workspace={{ data: offlineData, view: handoffOpen(true), handoff: { clone: found } }}
     />
   ),
+  'handoff-configuration': () =>
+    glmHandoff([claudeConfiguration('claude', 'Claude Code'), claudeConfiguration('glm', 'GLM')]),
+  'handoff-configuration-pick': () =>
+    glmHandoff(
+      [claudeConfiguration('claude', 'Claude Code'), claudeConfiguration('deepseek', 'DeepSeek')],
+      true,
+    ),
+  'handoff-configuration-none': () =>
+    glmHandoff([claudeConfiguration('claude', 'Claude Code', { enabled: false })]),
   'handoff-clone': () => (
     <Inspect workspace={{ data: live(), view: handoffOpen(), handoff: { clone: offer() } }} />
   ),

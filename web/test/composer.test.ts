@@ -172,13 +172,13 @@ describe('the config options of the menu', () => {
     expect(withValues([model], {})).toEqual([model]);
   });
 
-  it('offers a menu for a second provider or for an option, and otherwise none', () => {
+  it('offers a menu for an option, and otherwise none', () => {
     const one = { provider: 'claude' as const, capabilities: { ...caps, config: [] } };
-    expect(hasChoices([one], one)).toBe(false);
-    expect(hasChoices([one, { ...one, provider: 'codex' as never }], one)).toBe(true);
+    expect(hasChoices(one)).toBe(false);
+    expect(hasChoices(undefined)).toBe(false);
     const withOption = { ...one, capabilities: { ...caps, config: [thinking] } };
-    expect(hasChoices([withOption], withOption)).toBe(true);
+    expect(hasChoices(withOption)).toBe(true);
     const modeOnly = { ...one, capabilities: { ...caps, config: [mode] } };
-    expect(hasChoices([modeOnly], modeOnly)).toBe(false);
+    expect(hasChoices(modeOnly)).toBe(false);
   });
 });

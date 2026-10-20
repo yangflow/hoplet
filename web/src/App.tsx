@@ -344,6 +344,7 @@ export default function App() {
         deviceId: request.deviceId,
         projectPath: request.path,
         provider: request.provider,
+        ...(request.configuration ? { configuration: request.configuration } : {}),
         config: request.config,
         text: request.prompt,
         attachments: request.attachments,
@@ -389,6 +390,7 @@ export default function App() {
           onSettings={() => openSettings()}
           onNotifySettings={() => openSettings('notifications')}
           onMachineResources={(deviceId) => openSettings('machines', deviceId)}
+          onManageProviders={(deviceId) => openSettings('providers', deviceId)}
           onPatchSession={patch}
           onSessionDeleted={dropSession}
           sessions={sessions}

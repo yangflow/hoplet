@@ -1249,3 +1249,29 @@ code.ws-mc {
 .ws-bnote {
   margin-bottom: var(--space-2);
 }
+.ws-cfld {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.ws-cfld-l,
+.ws-cfld-hint {
+  color: var(--color-text-2);
+  overflow-wrap: anywhere;
+}
+.ws-cmdline {
+  display: block;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg);
+  box-shadow: inset 0 0 0 1px var(--color-line);
+  font-family: var(--font-mono);
+  font-size: var(--text-code);
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+.ws-cmdline i {
+  font-style: normal;
+  color: var(--color-text-3);
+}

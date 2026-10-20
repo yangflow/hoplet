@@ -80,9 +80,9 @@ command palette: sessions whose title matches, line hits across sessions (select
 that line) and actions (New session, Settings). New session (⌘N, in the sidebar header and on each directory
 row) opens a draft: an empty conversation, shown as the selected row at the top of its directory, whose
 composer chooses the machine (online ones) and the project directory (the machine's watched projects, and Add
-project), with the provider and the config options its runtime driver declares ([ADR 0018](adr/0018-session-settings-are-config-options.md)); a directory
+project), with the config options its runtime driver declares ([ADR 0018](adr/0018-session-settings-are-config-options.md)) and, when the machine has more than one enabled provider configuration (or only one that is not the vendor's own), a configuration chip that picks which one runs the session, grouped by vendor, with a configuration whose key is not set dimmed and not selectable, and a link to Settings; the configuration's defaults prefill the options; a directory
 row's button presets both, and ⌘N starts where the open session runs. The draft's first prompt starts the session, which then replaces the draft; a
-refused start keeps the draft and its text and says why. Selecting another session discards the draft. The sidebar foot shows whether this
+refused start keeps the draft and its text and says why. A session that a configuration other than the vendor's own runs shows its name as a tag next to the title in the top bar. Selecting another session discards the draft. The sidebar foot shows whether this
 window is connected to the core and opens Settings. The sidebar folds away.
 
 **Session actions.** The session menu (the ellipsis in the conversation's top bar, and the context menu of a
@@ -196,7 +196,7 @@ last snapshot's changes and diffs, labelled with the snapshot's time and base co
 needs the owner online; without a stored snapshot Changes says that none exists yet. A directory without a git
 commit has no Changes and no Hand off, and the inspector says why. Hand off is one row at the foot of the
 inspector that opens into the handoff panel, a card in its place that closes with its × and stays open while a
-handoff runs, also one another window started. The panel picks a connected target device and asks it for a clone
+handoff runs, also one another window started. The panel picks a connected target device, and the configuration that continues the session there when that machine does not have the session's own enabled (without a choice Hand off stays disabled, and a machine with no enabled configuration of the vendor says so and shows the command that adds one), and asks it for a clone
 of the working tree's `origin` among its watched projects: it names the clone the worktree goes next to, or says
 that the target has none, and then offers to clone the repository into a directory of the target (a proposed
 path under its browse root, which the user may change) or asks for the path of an existing clone. A clone is a
@@ -249,17 +249,21 @@ list at its left grows with later sections; the sections are:
   session) and where the memory and CPU go as stacked bars. An offline machine greys its last values and says when
   they were reported, and its sessions are unknown; a machine whose agent reports nothing shows only its facts.
   The agent reports every 15 seconds; the core keeps the last hour of the machine and of each session in memory only.
-- **Model providers**: read-only, from what each connected agent announces. A tab per machine (system mark with the presence dot, and
-  name, in the order of Machines; it opens on the first connected one) and a row per provider that machine runs:
-  the mark, the name and "version · N sessions · used <time>" (the counts and the last use come from the session
-  list the web UI already holds, archived sessions included, and a session counts for the machine that owns it; a
-  part that is zero or unknown is left out), with Tested, or Newer than tested
+- **Model providers**: from what each connected agent announces. A tab per machine (system mark with the presence dot, and
+  name, in the order of Machines; it opens on the first connected one) and, grouped by vendor, a row per provider
+  configuration that machine defines: the mark, the name and "version · N sessions · used <time>" (the counts and
+  the last use come from the session list the web UI already holds, archived sessions included, and a session counts
+  for the machine that owns it; a part that is zero or unknown is left out), with Tested, or Newer than tested
   when the version is newer than the ones the driver was verified against, and no badge when the version is
-  unknown. A row opens to the new-session defaults (each setting of the driver with its default value) and the
-  capabilities the driver has (Permissions, Interrupt, Images, Steer). An offline machine shows only its last
-  connection, a connected one with no providers says so, and with no machines the section points to Machines. It
-  states that Hoplet never asks for an API key: each provider signs in with its own command-line tool on the
-  machine.
+  unknown. A configuration that still lacks the value of a variable is marked Key not set. A row opens to the
+  configuration: its name and an enabled switch, the new-session defaults (each setting of the driver with its
+  default value, which a new session starts from), and, read-only, the command it runs and its variables by name,
+  each marked set or not set. The web changes only the name, enabled and the defaults, and never sees a variable's
+  value: the command and the variables are created on the machine, and the page shows the command that adds a
+  configuration or sets a variable ([ADR 0028](adr/0028-provider-configurations-live-on-the-machine.md)). An
+  offline machine shows only its last connection, a connected one with no providers says so, and with no machines
+  the section points to Machines. It states that Hoplet never asks for an API key: each provider signs in with its
+  own command-line tool on the machine, and a configuration with its own variables keeps them there.
 - **Notifications**: a preset (Needs me, Needs me and done, Everything, Off) with an override of the channels per
   event and per project, quiet hours in a time zone of the user's choice, the browsers subscribed to Web Push
   (subscribe this browser, a label, remove), and the webhooks (URL, optional signing secret, the events it

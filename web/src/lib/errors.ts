@@ -121,3 +121,28 @@ export function errorText(err: unknown): string {
   }
   return err instanceof Error ? err.message : String(err);
 }
+
+/**
+ * What to show when a machine does not take a change to one of its provider configurations: it is offline, did
+ * not answer, or refused it (the configuration is gone, or the defaults are outside what the driver declares);
+ * anything else keeps the copy of its code.
+ */
+export function configurationErrorText(
+  err: unknown,
+  device: string,
+  configuration: string,
+): string {
+  const named = (text: string) => t(text).replace('{name}', device);
+  if (err instanceof ApiError) {
+    if (err.code === 'owner-offline' || err.code === 'target-offline')
+      return named('{name} is offline');
+    if (err.code === 'timeout') return named('{name} did not answer in time');
+    if (err.code === 'rejected' || err.code === 'not-found')
+      return t(
+        '{name} rejected the change: {configuration} no longer exists on the machine. Its list was refreshed; nothing was saved.',
+      )
+        .replace('{name}', device)
+        .replace('{configuration}', configuration);
+  }
+  return errorText(err);
+}

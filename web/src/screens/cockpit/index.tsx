@@ -104,6 +104,8 @@ export function Cockpit(props: {
   onNotifySettings?: () => void;
   /** Opens Settings > Machines on this machine's tab. */
   onMachineResources?: (deviceId: string) => void;
+  /** Opens Settings > Model providers on this machine's tab. */
+  onManageProviders?: (deviceId: string) => void;
   fixture?: CockpitFixture;
 }) {
   const { sessions, selected, onSelect, live, error, fixture } = props;
@@ -148,6 +150,9 @@ export function Cockpit(props: {
     sessionId: selected,
     ownerDeviceId: session?.ownerDeviceId,
     ownerName: session?.deviceName || t('the owner'),
+    provider: session?.provider,
+    configuration: session?.configuration?.id,
+    configurationName: session?.configuration?.name,
     devices,
     origin:
       data.phase === 'live'
@@ -197,7 +202,10 @@ export function Cockpit(props: {
     runtimeOf(s).capabilities ??
     devices
       .find((d) => d.deviceId === s.ownerDeviceId)
-      ?.providers.find((p) => p.provider === s.provider)?.capabilities;
+      ?.providers.find(
+        (p) =>
+          p.provider === s.provider && p.configuration.id === (s.configuration?.id ?? s.provider),
+      )?.capabilities;
 
   const { watched, remember } = useWatchedProjects(devices, !fixture);
   // Archived sessions stay in the store and keep syncing; the sidebar and the palette list only the others.
@@ -465,6 +473,7 @@ export function Cockpit(props: {
                 voiceAvailable={fixture?.voiceAvailable ?? false}
                 {...(fixture?.draft ? { fixture: fixture.draft } : {})}
                 onAddProject={openAddProject}
+                onManageProviders={(deviceId) => props.onManageProviders?.(deviceId)}
                 onSubmit={async (request) => {
                   await props.onCreateSession?.(request);
                   setDraft(null);

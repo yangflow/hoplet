@@ -10,7 +10,7 @@ import {
 } from 'react';
 import { Icon } from '../../../components/icons.tsx';
 import { Popover } from '../../../components/Popover.tsx';
-import { ProviderMark, providerName } from '../../../components/provider-marks.tsx';
+import { providerName } from '../../../components/provider-marks.tsx';
 import { currentValueName, optionName, valueName } from '../../../lib/config-options.ts';
 import { t } from '../../../lib/i18n.ts';
 
@@ -40,9 +40,9 @@ export function withValues(
 /** What the menu needs of an announced provider. */
 type Choosable = Pick<ProviderInfo, 'provider' | 'capabilities'>;
 
-/** Whether a machine offers anything for the menu to choose: a second provider or an option. */
-export function hasChoices(providers: Choosable[], chosen: Choosable | undefined): boolean {
-  return providers.length > 1 || menuConfig(chosen?.capabilities.config).length > 0;
+/** Whether the provider offers anything for the menu to choose: an option. */
+export function hasChoices(chosen: Choosable | undefined): boolean {
+  return menuConfig(chosen?.capabilities.config).length > 0;
 }
 
 /** The glyph of a switch that is on, by ACP's reserved categories. */
@@ -54,22 +54,20 @@ function glyph(o: ConfigOption): ReactNode {
 
 /**
  * The composer's model button and its menu, drawn from the driver's config options (ADR 0018): the provider
- * (when the machine runs more than one), then every option in the driver's order, a choice as a radio list and
+ * then every option in the driver's order, a choice as a radio list and
  * a yes or no as a switch. The button reads the model category's current value and the glyph of each switch
  * that is on.
  */
 export function ModelMenu(props: {
-  providers: Choosable[];
   provider: ProviderInfo['provider'];
   /** The options with the values to show. */
   config: ConfigOption[];
-  onProvider: (provider: ProviderInfo['provider']) => void;
   onChange: (id: string, value: ConfigSetting) => void;
   disabled?: boolean;
   /** Starts open (development fixtures). */
   initialOpen?: boolean;
 }) {
-  const { providers, provider, onProvider, onChange } = props;
+  const { provider, onChange } = props;
   const [open, setOpen] = useState(props.initialOpen ?? false);
   const trigger = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -193,29 +191,12 @@ export function ModelMenu(props: {
           onKeyDown={onKeyDown}
           data-testid="cockpit.model-menu"
         >
-          {providers.length > 1 ? (
-            // biome-ignore lint/a11y/useSemanticElements: a menu's groups are role=group, a fieldset is not a menu child
-            <div role="group" aria-labelledby={`${id}-provider`}>
-              <div className="popover-label" id={`${id}-provider`}>
-                {t('Provider')}
-              </div>
-              {providers.map((p) =>
-                radio(
-                  p.provider,
-                  p.provider === provider,
-                  providerName(p.provider),
-                  () => onProvider(p.provider),
-                  <ProviderMark provider={p.provider} />,
-                ),
-              )}
-            </div>
-          ) : null}
           {options.map((o, i) => {
             const before = options[i - 1];
             if (o.type === 'boolean') {
               return (
                 <Fragment key={o.id}>
-                  {before?.type !== 'boolean' && (i > 0 || providers.length > 1) ? (
+                  {before?.type !== 'boolean' && i > 0 ? (
                     <div className="popover-sep" aria-hidden="true" />
                   ) : null}
                   {toggle(o)}

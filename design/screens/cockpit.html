@@ -527,6 +527,7 @@ svg{display:block;flex:none}
 .anc{position:relative;display:inline-flex}
 .cpop{position:absolute;z-index:30;bottom:calc(100% + var(--space-2));left:0;width:var(--layout-popover);padding:var(--space-1);border-radius:var(--radius-md);background:var(--color-raised);box-shadow:var(--shadow-float),0 0 0 1px var(--color-line);pointer-events:auto;text-align:left}
 .cpop.end{left:auto;right:0}
+.cpop.dn{bottom:auto;top:calc(100% + var(--space-2))}
 .cpop.wide{width:var(--layout-popover-wide)}
 /* completions: the popover at the caret (/ commands and skills, @ files) and a sent command in the transcript */
 .cpop.cmp{left:var(--ax,0px);width:min(620px,100%)}
@@ -696,6 +697,20 @@ svg{display:block;flex:none}
 .nt.ok svg{color:var(--color-success)}
 .nt.snap{background:var(--color-bg);box-shadow:inset 0 0 0 1px var(--color-line);color:var(--color-text-2)}
 .nt.snap svg{color:var(--color-text-3)}
+
+.ctag{display:inline-flex;align-items:center;gap:var(--space-1);height:20px;padding:0 var(--space-2) 0 var(--space-1);border-radius:var(--radius-sm);box-shadow:inset 0 0 0 1px var(--color-line);color:var(--color-text-2);font-size:var(--text-meta);line-height:var(--leading-meta)}
+.ctag .pm{width:16px;height:16px}
+.pick.on{box-shadow:inset 0 0 0 1.5px var(--color-accent)}
+.pick .pm{color:var(--color-text-3)}
+.cfld{display:flex;flex-direction:column;gap:var(--space-1)}
+.cfld .l{color:var(--color-text-2)}
+.cfld .meta{color:var(--color-text-3)}
+.ho .anc{display:flex}
+.ho .anc .pick{flex:1}
+.ho .cpop{width:100%}
+.ho .cmdline{display:block;padding:var(--space-2) var(--space-3);border-radius:var(--radius-sm);background:var(--color-bg);box-shadow:inset 0 0 0 1px var(--color-line);font-family:var(--font-mono);font-size:var(--text-code);color:var(--color-text);overflow-wrap:anywhere;user-select:all}
+.ho .cmdline i{font-style:normal;color:var(--color-text-3)}
+.cpop .menu-item.dim .pm{opacity:.6}
 
 /* wide inspector: list and viewer side by side */
 .md{flex:1;min-height:0;display:grid;grid-template-columns:var(--layout-inspector-list) minmax(0,1fr)}
@@ -1234,6 +1249,7 @@ const sparkPath = (() => {
   return d;
 })();
 const PROVIDER = {
+  codex: { name: 'Codex', svg: () => sv(L.terminal) },
   claude: { name: 'Claude Code', svg: () => `<svg width="16" height="16" viewBox="-1.5 -1.5 27 27" aria-hidden="true"><path d="${sparkPath}" fill="currentColor"/><circle cx="12" cy="12" r="1.9" fill="currentColor"/></svg>` },
 };
 const pmark = (p = 'claude') => `<span class="pm" role="img" title="${PROVIDER[p].name}" aria-label="${PROVIDER[p].name}">${PROVIDER[p].svg()}</span>`;
@@ -1306,7 +1322,9 @@ function hlMd(src) {
 /* every state is a configuration of the same parts */
 const LIVE = ['queue-menu', 'queue-queued', 'queue-editing', 'queue-dragging', 'queue-steered', 'queue-paused-permission', 'queue-paused-error', 'queue-paused-interrupted', 'starting', 'running', 'waiting-permission', 'failed-turn', 'scrolled', 'disconnected', 'plan-pending', 'plan-long', 'plan-modes', 'plan-feedback', 'plan-approved', 'plan-kept', 'plan-elsewhere', 'plan-offline', 'plan-fresh-menu', 'plan-fresh-confirm', 'plan-fresh-starting', 'plan-fresh-failed', 'plan-fresh-done', 'plan-fresh-new'];
 const OFFLINE = ['offline', 'plan-offline', 'handoff-offline', 'changes-offline', 'diff-offline', 'mention-offline'];
-const HANDOFF = ['handoff', 'handoff-path', 'handoff-progress', 'handoff-failed', 'handoff-done', 'handoff-offline'];
+const HANDOFF = ['handoff', 'handoff-path', 'handoff-progress', 'handoff-failed', 'handoff-done', 'handoff-offline', 'handoff-configuration', 'handoff-configuration-pick', 'handoff-configuration-none'];
+/* sessions that run under a configuration other than the built-in show its name beside the title */
+const CFGSESS = ['session-configuration', 'handoff-configuration', 'handoff-configuration-pick', 'handoff-configuration-none'];
 const WIDE = ['file-open', 'file-image', 'diff-open', 'diff-large', 'diff-binary', 'diff-offline'];
 const INSP = ['workspace', 'changes', 'changes-offline', ...WIDE, ...HANDOFF];
 const MINT = ['mint', 'mint-waiting', 'mint-online'];
@@ -1728,7 +1746,7 @@ function liveTurn(state) {
 }
 
 /* the composer: where the session runs, the field, and a toolbar of attach, model, dictate and send */
-const DRAFT = ['draft', 'draft-directory', 'completions-draft', 'machines-draft'];
+const DRAFT = ['draft', 'draft-directory', 'completions-draft', 'machines-draft', 'draft-configuration'];
 const cv = () => `<span class="cv">${I.down()}</span>`;
 const PROMPT = 'The composer forgets its height after a reload. The first screenshot is after a reload, the second before it.\n\nKeep the height per browser, not per session, and clamp it to the window so the conversation keeps at least 240 px.';
 const item2 = (label, on, sub = '') => `<div class="menu-item" role="menuitemradio" aria-checked="${on}"><span class="menu-check">${on ? I.check() : ''}</span>${label}${sub ? `<span class="sub">${sub}</span>` : ''}</div>`;
@@ -1931,6 +1949,12 @@ function composer(state) {
   const hot = curMode === 4;
   const mode = on => `<span class="anc"><button class="tb2${hot ? ' warn' : ''}${state === 'mode-menu' ? ' on' : ''}"${tip('Permission mode: ' + modes[curMode][0])}${on ? '' : ' disabled'}>${I[modes[curMode][3]]()}${modes[curMode][0]}${cv()}</button>${state === 'mode-menu' ? modeMenu : ''}</span>`;
   const model = on => `<span class="anc"><button class="tb2${state === 'model-menu' ? ' on' : ''}"${tip('Model and options')}${on ? '' : ' disabled'}>Opus 5.5<i>·</i>${I.think()}${cv()}</button>${state === 'model-menu' ? menu : ''}</span>`;
+  /* a draft picks the configuration that runs the session: enabled ones, grouped by the vendor they extend; a
+     disabled configuration is absent, one whose key is not set is dim and says so */
+  const CFGMENU = [['claude', [['Claude Code', true, ''], ['GLM', false, ''], ['DeepSeek', false, 'Key not set']]]];
+  const cfgBtn = `<span class="anc"><button class="tb2${state === 'draft-configuration' ? ' on' : ''}"${tip('Configuration')}>${pmark('claude')}Claude Code${cv()}</button>${state === 'draft-configuration' ? `<div class="cpop" role="menu" aria-label="Configuration on MacBook Pro"><div class="menu-title">MacBook Pro</div>
+    ${CFGMENU.map(([v, cs]) => `<div role="group" aria-label="${PROVIDER[v].name}"><div class="menu-label">${PROVIDER[v].name}</div>${cs.map(([n, on, why]) => `<div class="menu-item${why ? ' dim' : ''}" role="menuitemradio" aria-checked="${on}"${why ? ' aria-disabled="true"' : ''}><span class="menu-check">${on ? I.check() : ''}</span>${pmark(v)}${n}${why ? `<span class="sub">${why}</span>` : ''}</div>`).join('')}</div>`).join('')}
+    <div class="menu-sep"></div><div class="menu-item dim" role="menuitem">${I.gear()}Manage in Settings…</div></div>` : ''}</span>`;
   const cm = CMP[state] ? completion(state) : null;
   const full = (ph, on, left = '', inputOn = on, sendTip, sendHtml) => `<div class="composer">${cm ? cm.pop : ''}${state === 'compose' ? `<span class="grip"${tip('Drag to resize · double-click resets')}></span>` : ''}${whereRow(state)}
     ${state === 'compose' ? `<div class="thumbs">
@@ -1950,8 +1974,8 @@ function composer(state) {
   };
   let box, pill = '';
   switch (state) {
-    case 'draft': case 'draft-directory': case 'machines-draft':
-      box = full('Ask Claude Code…', false, '', true, 'Start · ↩'); break;
+    case 'draft': case 'draft-directory': case 'machines-draft': case 'draft-configuration':
+      box = full('Ask Claude Code…', false, cfgBtn, true, 'Start · ↩'); break;
     case 'completions-draft':
       box = full('', true, '', true, 'Start · ↩'); break;
     case 'completions-commands': case 'completions-filter': case 'mention-files': case 'mention-loading': case 'mention-empty':
@@ -2176,6 +2200,9 @@ function inspector(state) {
   }
 
   const body = tab === 'changes' ? changesList(off) : filesTree();
+  const cfgPick = (n, hint = '', open = false, why = '') => `<div class="cfld"><span class="l">Configuration</span><span class="anc"><div class="pick${open ? ' on' : ''}" title="Configuration on studio">${pmark('claude')}<span class="v">${n}</span>${I.down()}</div>${open ? `<div class="cpop dn" role="menu" aria-label="Configuration on studio"><div class="menu-label">Claude Code on studio</div>
+      <div class="menu-item" role="menuitemradio" aria-checked="false"><span class="menu-check"></span>${pmark('claude')}Claude Code</div>
+      <div class="menu-item" role="menuitemradio" aria-checked="false"><span class="menu-check"></span>${pmark('claude')}DeepSeek</div></div>` : ''}</span>${hint ? `<span class="meta">${hint}</span>` : ''}</div>`;
   const pick = `<div class="pick" title="Connected machines">${mIcon('Linux', true)}<span class="v">studio</span>${I.down()}</div>`;
   const step = (cls, icon, label, meta = '') => `<div class="step ${cls}"><span class="si">${icon}</span><span>${label}</span><span class="sm">${meta}</span></div>`;
   const pend = '<span class="pend"></span>';
@@ -2189,6 +2216,19 @@ function inspector(state) {
       card = `<div class="ho focus"><b>Hand off</b><p>Move this session and its working tree to another machine.</p>${pick}
         <button class="btn primary">${I.handoff()}Hand off to studio</button>
         <div class="why">${I.info()}<span>studio adds a worktree and continues the session. Nothing moves until it verifies the copy.</span></div></div>`; break;
+    case 'handoff-configuration':
+      card = `<div class="ho focus"><b>Hand off</b><p>Move this session and its working tree to another machine.</p>${pick}
+        ${cfgPick('GLM', 'The same configuration is enabled on studio.')}
+        <button class="btn primary">${I.handoff()}Hand off to studio</button></div>`; break;
+    case 'handoff-configuration-pick':
+      card = `<div class="ho focus"><b>Hand off</b><p>Move this session and its working tree to another machine.</p>${pick}
+        ${cfgPick('Choose a configuration', 'GLM is not enabled on studio. Pick one that extends Claude Code.', true)}
+        <button class="btn primary" disabled>${I.handoff()}Hand off to studio</button></div>`; break;
+    case 'handoff-configuration-none':
+      card = `<div class="ho focus"><b>Hand off</b><p>Move this session and its working tree to another machine.</p>${pick}
+        <div class="nt bad">${I.alert()}<span>studio has no enabled configuration that extends Claude Code, so it cannot continue this session. Enable one on studio, then hand off.</span></div>
+        <div class="cfld"><span class="l">Run on studio</span><span class="cmdline"><i>$</i> hoplet-agent provider set claude --enabled true</span></div>
+        <button class="btn primary" disabled>${I.handoff()}Hand off to studio</button></div>`; break;
     case 'handoff-path':
       card = `<div class="ho focus"><b>Hand off</b><p>Move this session and its working tree to another machine.</p>${pick}
         <div class="fld"><span class="l">studio has no clone of <span class="mono">github.com/yangflow/hoplet</span>.</span></div>
@@ -2457,6 +2497,7 @@ function frame(state, scheme) {
   else {
     const top = `<header class="top">${nosb ? ib(I.sidebar(), 'Show sidebar · ⌘\\') : ''}
       ${empty ? '' : `<span class="title">${DRAFT.includes(state) ? 'New session' : state === 'plan-fresh-new' ? 'Roll back the byte cursor' : 'byte cursor catalog'}</span>`}
+      ${CFGSESS.includes(state) ? `<span class="ctag"${tip('Configuration GLM · extends Claude Code')}>${pmark('claude')}GLM</span>` : ''}
       <span class="sp"></span>
       ${!empty && !DRAFT.includes(state) ? ib(I.more(), 'Session actions', MENU.includes(state) ? 'on' : state === 'copied' ? 'bd' : '') : ''}
       ${!empty && !insp && !DRAFT.includes(state) ? `<button class="ib"${tip('Show workspace · 4 changed · ⌘I')}>${I.panel()}<span class="cdg"></span></button>` : ''}
@@ -2497,6 +2538,11 @@ const STATES = [
   ['empty', 'no session selected; hover shows a directory’s +'],
   ['loaded', 'idle, workspace closed; office-mini › hoplet-app folded'],
   ['draft', 'New session (⌘N) as a draft: an empty conversation, the composer picks machine and directory'],
+  ['draft-configuration', 'the configuration chip in the draft composer (#170): enabled configurations of the machine grouped by the vendor they extend, each with its vendor mark; disabled ones are absent, one whose key is not set is dim'],
+  ['session-configuration', 'a session that runs under a configuration other than the built-in (GLM) names it in a quiet tag beside the title; a built-in session shows none'],
+  ['handoff-configuration', 'Hand off of a GLM session: the target preselects the same configuration because studio has it enabled'],
+  ['handoff-configuration-pick', 'Hand off of a GLM session: studio does not have GLM enabled, so the select lists the configurations that extend the same vendor and Hand off waits for a pick'],
+  ['handoff-configuration-none', 'Hand off of a GLM session: studio has no enabled configuration of that vendor; the card says so and shows the command to run on studio (the web never runs it)'],
   ['machines', 'the machine icon: the sidebar with macOS (expanded, hovered), Linux, Windows (offline) and a system the agent does not report'],
   ['machines-draft', 'the machine icon in the draft composer: the machine chip and its picker, each machine with its system and state'],
   ['machines-add', 'the machine icon in Add project: the machine select open, offline machines disabled'],

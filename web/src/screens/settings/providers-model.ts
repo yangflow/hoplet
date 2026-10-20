@@ -3,10 +3,10 @@ import type { DeviceInfo, LiveSessionMeta, ProviderInfo } from '@hoplet/shared';
 /** What the sessions say about one provider on one machine. */
 export type ProviderUse = { sessions: number; lastUsed: number | undefined };
 
-type Session = Pick<LiveSessionMeta, 'provider' | 'ownerDeviceId' | 'updatedAt'>;
+type Session = Pick<LiveSessionMeta, 'provider' | 'ownerDeviceId' | 'updatedAt' | 'configuration'>;
 
 /**
- * How many sessions a machine has with a provider and when the newest was last updated, from the session list the
+ * How many sessions a machine has with a provider configuration (the vendor's own by default) and when the newest was last updated, from the session list the
  * web already holds. Archived sessions count: the row tells how much the provider is used on the machine, not what
  * the sidebar lists. A session belongs to the machine that owns it; one without an owner belongs to none.
  */
@@ -14,11 +14,13 @@ export function providerUse(
   sessions: readonly Session[],
   device: Pick<DeviceInfo, 'deviceId'>,
   provider: ProviderInfo['provider'],
+  configuration: string = provider,
 ): ProviderUse {
   let count = 0;
   let last: number | undefined;
   for (const s of sessions) {
     if (s.provider !== provider) continue;
+    if ((s.configuration?.id ?? provider) !== configuration) continue;
     if (s.ownerDeviceId !== device.deviceId) continue;
     count++;
     if (last === undefined || s.updatedAt > last) last = s.updatedAt;

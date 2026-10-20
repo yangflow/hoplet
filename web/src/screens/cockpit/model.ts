@@ -14,6 +14,8 @@ export type NewSessionRequest = {
   deviceName: string;
   path: string;
   provider: Provider;
+  /** The configuration that runs the session; absent for the vendor's own. */
+  configuration?: string;
   config: SessionConfig;
   prompt: string;
   /** The IDs of the images uploaded to the device for the first prompt. */

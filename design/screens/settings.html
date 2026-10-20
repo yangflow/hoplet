@@ -744,6 +744,67 @@ svg{display:block;flex:none}
 .mp-empty p{margin:0;color:var(--color-text-2);max-width:44ch}
 .mp-empty .btn{margin-top:var(--space-2)}
 
+/* settings › model providers (#170): provider configurations of one machine. The web changes only the name, enabled
+   and the new-session defaults; command and variables are read-only (variables as set / not set, never a value) and
+   a new configuration or a key is made on the machine with a command shown to copy. */
+.cf-top{display:flex;align-items:center;gap:var(--space-3);margin-bottom:var(--space-3)}
+.cf-top .meta{flex:1;min-width:0}
+.cf-grp + .cf-grp{margin-top:var(--space-4)}
+.cf-gh{display:flex;align-items:center;gap:var(--space-2);color:var(--color-text-2);font-weight:var(--weight-medium);margin-bottom:var(--space-2)}
+.cf-gh .pm{color:var(--color-text-2)}
+.cf-gh .meta{margin-left:auto}
+.cf-sub{display:flex;align-items:baseline;gap:var(--space-2);min-width:0;white-space:nowrap}
+.cf-id{font-family:var(--font-mono);font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3)}
+.cf-off .nm,.cf-off .pm{color:var(--color-text-3)}
+.cf-chip{display:inline-flex;align-items:center;gap:var(--space-1);height:20px;padding:0 var(--space-2);border-radius:var(--radius-sm);box-shadow:inset 0 0 0 1px var(--color-line);color:var(--color-text-2);font-size:var(--text-meta);line-height:var(--leading-meta);white-space:nowrap;flex:none}
+.cf-chip svg{width:12px;height:12px}
+.cf-chip.ok{color:var(--color-add-text)}
+.cf-chip.warn{color:var(--color-attention-text);background:var(--color-attention-soft);box-shadow:inset 0 0 0 1px var(--color-attention-ring)}
+.cf-cmd{display:flex;align-items:center;gap:var(--space-2);min-height:var(--control-field);padding:0 var(--space-1) 0 var(--space-3);border-radius:var(--radius-sm);background:var(--color-bg);box-shadow:inset 0 0 0 1px var(--color-line);font-family:var(--font-mono);font-size:var(--text-code);line-height:var(--leading-code);letter-spacing:0}
+.light .cf-cmd{background:var(--color-hover)}
+.cf-cmd code{flex:1;min-width:0;font:inherit;padding:var(--space-1) 0;overflow-wrap:anywhere}
+.cf-cmd .cf-pr{color:var(--color-text-3);margin-right:var(--space-2)}
+.cf-cmd .btn{flex:none;height:24px}
+.cf-warn{display:flex;gap:var(--space-3);align-items:flex-start;padding:var(--space-3);border-radius:var(--radius-md);background:var(--color-attention-soft);box-shadow:inset 0 0 0 1px var(--color-attention-ring)}
+.cf-warn > svg{color:var(--color-attention-text);margin-top:2px;flex:none}
+.cf-warn .bt{flex:1;min-width:0;display:flex;flex-direction:column;gap:var(--space-2)}
+.cf-warn b{font-weight:var(--weight-semibold)}
+.cf-dl{display:grid;grid-template-columns:96px minmax(0,1fr);gap:var(--space-2) var(--space-3);align-items:baseline}
+.cf-dl dt{font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3)}
+.cf-dl dd{min-width:0}
+.cf-vars{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:var(--space-1)}
+.cf-vars li{display:flex;align-items:center;gap:var(--space-3);min-height:24px}
+.cf-vars .mono{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cf-hint{margin:0;color:var(--color-text-3);font-size:var(--text-meta);line-height:var(--leading-meta)}
+.cf-hint .mono{font-size:inherit;color:var(--color-text-2)}
+.cf-foot{display:flex;align-items:center;gap:var(--space-3)}
+.cf-foot .cf-hint{flex:1;min-width:0}
+.cf-form{display:flex;flex-direction:column;gap:var(--space-3)}
+.cf-g2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-3)}
+.cf-en{display:flex;align-items:center;gap:var(--space-3)}
+.cf-en .tx{flex:1;display:flex;flex-direction:column}
+.cf-caret{width:1.5px;height:16px;background:var(--color-accent);margin-left:1px}
+.input.bad{box-shadow:inset 0 0 0 1.5px var(--color-danger)}
+.cf-err{display:flex;gap:var(--space-2);align-items:flex-start;padding:var(--space-2) var(--space-3);border-radius:var(--radius-sm);background:var(--color-del-bg);color:var(--color-del-text)}
+.cf-err svg{margin-top:2px;flex:none}
+.cf-act{display:flex;justify-content:flex-end;gap:var(--space-2);align-items:center}
+.cf-form.busy .input,.cf-form.busy .sel{color:var(--color-text-3)}
+.cf-form.busy .switch{opacity:.5}
+.cf-add{display:flex;flex-direction:column;gap:var(--space-3);padding:var(--space-4);border-radius:var(--radius-md);background:var(--color-surface);box-shadow:inset 0 0 0 1px var(--color-line)}
+.light .cf-add{background:var(--color-raised)}
+.cf-add h2{margin:0;font-size:var(--text-ui);line-height:var(--leading-ui);font-weight:var(--weight-semibold)}
+.cf-add h2 + .cf-hint{margin-top:calc(-1 * var(--space-2))}
+.cf-pre{display:flex;flex-wrap:wrap;gap:var(--space-2)}
+.cf-pre button{height:var(--control-field);display:inline-flex;align-items:center;gap:var(--space-2);padding:0 var(--space-3);border-radius:var(--radius-sm);color:var(--color-text-2);font-weight:var(--weight-medium);box-shadow:inset 0 0 0 1px var(--color-line)}
+.cf-pre button.on{background:var(--color-selected);color:var(--color-text);box-shadow:inset 0 0 0 1px var(--color-line),inset 0 1px 0 var(--color-highlight)}
+.cf-step{display:flex;flex-direction:column;gap:var(--space-1)}
+.cf-step .l{color:var(--color-text-2)}
+.cf-step .l b{font-weight:var(--weight-semibold);color:var(--color-text)}
+/* rows grouped by vendor, a row expands in place */
+.cf-a .mp-body{padding-top:var(--space-1)}
+.cf-a .mp-row.open{background:var(--color-highlight)}
+.cf-hint .mono{white-space:nowrap}
+
 /* stacked view */
 body.stacked{background:#131210;color:#efe9e2;font-family:-apple-system,"SF Pro Text",system-ui,sans-serif;padding:56px 48px 80px;-webkit-font-smoothing:antialiased}
 .intro{max-width:1300px;margin:0 auto 56px}
@@ -1871,52 +1932,126 @@ function machinesPage(state) {
     ${minting ? mintCard(state) : `<div role="tabpanel" aria-label="${m.n}"><p class="rmeta mt-facts">${facts}</p>${resBody(m)}</div>`}`;
 }
 
-/* ---- Settings › Model providers (#16): read-only; every value is what the connected agent announced in device.hello ---- */
-const PROV = ['settings-providers', 'settings-providers-newer', 'settings-providers-offline', 'settings-providers-none', 'settings-providers-empty'];
+/* ---- Settings › Model providers (#16, #170): the provider configurations of one machine (ADR 0028). A configuration is a
+   named way to start a vendor's agent: Claude Code with GLM’s endpoint, say. They live in the machine’s providers.json.
+   The web changes only the name, enabled and the new-session defaults; the command and the variables are shown read-only
+   (a variable as set or not set, never its value) and anything else is done on the machine with a command to copy. The
+   built-ins claude and codex can be disabled, not removed. ---- */
+const PROV = ['settings-providers', 'settings-providers-edit', 'settings-providers-saving', 'settings-providers-error', 'settings-providers-add',
+  'settings-providers-offline', 'settings-providers-none', 'settings-providers-empty'];
 PROVIDER.codex = { name: 'Codex', svg: () => sv(L.terminal) }; /* placeholder for the official mark, like Claude Code's */
-/* what each runtime driver declares: capabilities and the new-session defaults (config options' currentValue) */
-const MP_CAPS = ['Permissions', 'Interrupt', 'Images', 'Steer'];
-const MP_DEFS = {
+const VENDORS = ['claude', 'codex'];
+/* the new-session defaults a vendor's driver declares (config options' currentValue) */
+const CF_DEFS = {
   claude: [['Permission mode', 'Manual'], ['Model', 'Default model'], ['Thinking', 'On'], ['Fast', 'Off']],
   codex: [['Mode', 'Workspace write'], ['Model', 'Default model'], ['Effort', 'Default effort'], ['Collaboration', 'Default']],
 };
-/* version, tested come from device.hello; sessions and used are derived client-side from the session list (provider, deviceName, updatedAt) */
-const mpP = (version, tested, sessions, used) => ({ version, tested, sessions, used });
-const MP_MAC = { name: 'MacBook Pro', os: 'macOS', on: true, claude: mpP('2.1.42', true, 4, '5 min ago'), codex: mpP('0.124.0', true, 2, '3 h ago') };
-const MP_STUDIO = { name: 'studio', os: 'Linux', on: true, claude: mpP('2.2.0', false, 7, '1 d ago'), codex: mpP('0.124.0', true, 1, '2 d ago') };
+/* the closed list of presets in hoplet-agent (agent/internal/configs/presets.go) */
+const PRESETS = [['glm', 'GLM (BigModel)'], ['zai', 'GLM (Z.ai)'], ['deepseek', 'DeepSeek'], ['minimax', 'MiniMax'], ['minimax-cn', 'MiniMax (China)'], ['qwen', 'Qwen']];
+const PRESET_PICKED = 'minimax';
+/* one machine’s list as GET /api/devices returns it: env is [name, set] and never a value */
+const CFG = [
+  { id: 'claude', name: 'Claude Code', ext: 'claude', built: true, on: true, cmd: '', env: [], ver: '2.1.42', sessions: 4, used: '5 min ago' },
+  { id: 'glm', name: 'GLM', ext: 'claude', on: true, cmd: '', env: [['ANTHROPIC_BASE_URL', 1], ['ANTHROPIC_DEFAULT_SONNET_MODEL', 1], ['ANTHROPIC_AUTH_TOKEN', 1], ['CLAUDE_CONFIG_DIR', 1]] },
+  { id: 'deepseek', name: 'DeepSeek', ext: 'claude', on: true, cmd: '/opt/deepseek/bin/claude', env: [['ANTHROPIC_BASE_URL', 1], ['ANTHROPIC_MODEL', 1], ['ANTHROPIC_AUTH_TOKEN', 0]] },
+  { id: 'codex', name: 'Codex', ext: 'codex', built: true, on: false, cmd: '', env: [], ver: '0.124.0', sessions: 2, used: '3 h ago' },
+];
+const MP_MAC = { name: 'MacBook Pro', os: 'macOS', on: true };
+const MP_STUDIO = { name: 'studio', os: 'Linux', on: true };
 const MP_OFFICE = { name: 'office-mini', os: 'Windows', on: false, seen: '3 h ago' };
 const MP_NAS = { name: 'nas-box', os: '', on: true };
 /* machines in the order of the Machines section; GET /api/devices lists no providers for an offline one */
 function mpModel(state) {
   const by = {
-    'settings-providers': [[MP_MAC, MP_STUDIO], 0, 'claude'],
-    'settings-providers-newer': [[MP_MAC, MP_STUDIO], 1],
     'settings-providers-offline': [[MP_MAC, MP_STUDIO, MP_OFFICE], 2],
     'settings-providers-none': [[MP_MAC, MP_STUDIO, MP_NAS], 2],
     'settings-providers-empty': [[], 0],
   };
-  const [ms, sel, open] = by[state];
-  return { ms, sel, open };
+  const [ms, sel] = by[state] || [[MP_MAC, MP_STUDIO], 0];
+  return { ms, sel };
 }
-const mpStatus = p => p.tested ? `<span class="mp-st">${I.check()}Tested</span>`
-  : `<span class="mp-st new"${tip('Newer than the versions the driver was tested against')}>${I.alert()}Newer than tested</span>`;
-const mpNote = () => `<p class="mp-note">${I.lock()}<span>Hoplet never asks for an API key. Each provider signs in with its own command-line tool on the machine.</span></p>`;
-function mpRow(k, p, open) {
-  const n = `${p.sessions} ${p.sessions === 1 ? 'session' : 'sessions'}`;
-  const body = open ? `<div class="mp-body"><dl class="mp-defs">${MP_DEFS[k].map(([nm, d]) => `<div><dt>${nm}</dt><dd>${d}</dd></div>`).join('')}</dl>
-    <div class="mp-caps">${MP_CAPS.map(c => `<span class="mp-cap">${c}</span>`).join('')}</div></div>` : '';
-  return `<div class="mp-row"><div class="mp-rh">${pmark(k)}<div class="tx"><span class="nm">${PROVIDER[k].name}</span><span class="meta">${p.version} · ${n} · used ${p.used}</span></div>${mpStatus(p)}<span class="chev" aria-hidden="true">${open ? I.down() : I.chev()}</span></div>${body}</div>`;
+const mpNote = () => `<p class="mp-note">${I.lock()}<span>Keys are entered on the machine, never here. Hoplet shows which variables are set, not their values.</span></p>`;
+
+const cfMissing = c => c.env.filter(e => !e[1]).map(e => e[0]);
+const cfRun = c => c.cmd ? `<span class="mono">${c.cmd}</span>` : `default ${c.ext}`;
+const cfCmd = t => `<div class="cf-cmd"><code><span class="cf-pr">$</span>${t}</code><button class="btn quiet" aria-label="Copy command">${I.copy()}Copy</button></div>`;
+const cfChips = c => [
+  c.built ? '<span class="cf-chip">Built-in</span>' : '',
+  c.env.some(e => e[0] === 'CLAUDE_CONFIG_DIR') ? `<span class="cf-chip"${tip('CLAUDE_CONFIG_DIR is set: this configuration signs in separately from Claude Code')}>${I.lock()}Own login</span>` : '',
+  c.on && cfMissing(c).length ? `<span class="cf-chip warn">${I.alert()}Not ready</span>` : '',
+].join('');
+const cfSub = c => `<span class="cf-sub"><span class="cf-id">${c.id}</span><span class="meta">· ${cfRun(c)}</span></span>`;
+const cfWarn = (c, m) => !c.on || !cfMissing(c).length ? '' :
+  `<div class="cf-warn">${I.alert()}<div class="bt"><span><b>${c.name} cannot start until ${cfMissing(c)[0]} is set.</b> Enter it on ${m.name}; the key stays there.</span>${cfCmd(`hoplet-agent provider env ${c.id} ${cfMissing(c)[0]}`)}</div></div>`;
+const cfDefs = c => `<dl class="mp-defs">${CF_DEFS[c.ext].map(([n, d]) => `<div><dt>${n}</dt><dd>${d}</dd></div>`).join('')}</dl>`;
+const cfVars = c => c.env.length
+  ? `<ul class="cf-vars">${c.env.map(([n, s]) => `<li><span class="mono">${n}</span><span class="cf-chip ${s ? 'ok' : 'warn'}">${s ? I.check() + 'Set' : I.alert() + 'Not set'}</span></li>`).join('')}</ul>`
+  : '<span class="meta">None</span>';
+
+/* the read-only facts of one configuration and the way into editing */
+function cfDetail(c, m) {
+  const facts = c.built
+    ? `<dt>Version</dt><dd>${c.ver} · <span class="cf-chip ok" style="vertical-align:1px">${I.check()}Tested</span></dd><dt>Sessions</dt><dd>${c.sessions} · used ${c.used}</dd>`
+    : `<dt>Command</dt><dd>${cfRun(c)}</dd><dt>Variables</dt><dd>${cfVars(c)}</dd>`;
+  const hint = c.built ? `<p class="cf-hint">Built-in: it can be turned off, not removed.</p>`
+    : `<p class="cf-hint">The command and the variables change on ${m.name}: <span class="mono">hoplet-agent provider set ${c.id}</span> and <span class="mono">provider env ${c.id} NAME</span>.</p>`;
+  return `${cfWarn(c, m)}<dl class="cf-dl">${facts}<dt>New sessions</dt><dd>${cfDefs(c)}</dd></dl>
+    <div class="cf-foot">${hint}<button class="btn">${I.pen()}Edit</button></div>`;
 }
+
+/* editing: the three things the web may change. view: edit | saving | error */
+function cfForm(c, m, view) {
+  const busy = view === 'saving', bad = view === 'error';
+  const nm = c.id === 'glm' ? 'GLM Coding Plan' : c.name;
+  const dv = CF_DEFS[c.ext].map(([n, d]) => [n, c.id === 'glm' && n === 'Thinking' ? 'Off' : d]);
+  const err = bad ? `<div class="cf-err" role="alert">${I.alert()}<span>${m.name} rejected the change: ${c.id} no longer exists on the machine. Its list was refreshed; nothing was saved.</span></div>` : '';
+  return `<div class="cf-form${busy ? ' busy' : ''}">
+    <div class="fld"><span class="l">Name</span><div class="input ui${bad ? ' bad' : ' on'}"><span>${nm}</span>${busy || bad ? '' : '<span class="cf-caret"></span>'}</div></div>
+    <div class="cf-en"><span class="tx"><span>Enabled</span><span class="cf-hint">New sessions and handoffs can use it.</span></span>${sw('Enabled', c.on)}</div>
+    <div class="fld"><span class="l">New sessions start with</span><div class="cf-g2">${dv.map(([n, d]) => `<div class="fld"><span class="cf-hint">${n}</span><div class="sel"><span class="v">${d}</span>${I.down()}</div></div>`).join('')}</div></div>
+    <p class="cf-hint">The command and the variables are not editable here.</p>
+    ${err}
+    <div class="cf-act"><button class="btn quiet"${busy ? ' disabled' : ''}>Cancel</button><button class="btn primary"${busy ? ' disabled' : ''}>${busy ? spin() + 'Saving…' : 'Save'}</button></div>
+  </div>`;
+}
+
+/* Add a configuration: it is made on the machine, so the web shows the commands and runs nothing */
+function cfAdd(m) {
+  const p = PRESETS.find(x => x[0] === PRESET_PICKED);
+  const choose = `<div class="cf-pre" role="radiogroup" aria-label="Preset">${PRESETS.map(([id, n]) => `<button role="radio" aria-checked="${id === PRESET_PICKED}" class="${id === PRESET_PICKED ? 'on' : ''}">${n}</button>`).join('')}</div>`;
+  return `<div class="cf-add"><h2>Add a configuration</h2>
+    <p class="cf-hint">A configuration is made on ${m.name}, where its key stays. Pick a preset and run both commands in a terminal there.</p>
+    ${choose}
+    <div class="cf-step"><span class="l"><b>1</b> · Create ${p[1]}</span>${cfCmd(`hoplet-agent provider add ${p[0]} --extends claude --preset ${p[0]}`)}</div>
+    <div class="cf-step"><span class="l"><b>2</b> · Set its key; the command asks for the value and stores it on the machine</span>${cfCmd(`hoplet-agent provider env ${p[0]} ANTHROPIC_AUTH_TOKEN`)}</div>
+    <div class="cf-foot"><p class="cf-hint">The configuration appears here when the agent reports it. For your own command use <span class="mono">--command</span>.</p><button class="btn quiet">${I.close()}Close</button></div>
+  </div>`;
+}
+const cfAddBtn = open => `<button class="btn"${open ? ' aria-expanded="true"' : ''}>${I.plus()}Add a configuration</button>`;
+const cfGroupHead = v => `<div class="cf-gh">${pmark(v)}${PROVIDER[v].name}<span class="meta">${CFG.filter(c => c.ext === v).length === 1 ? '1 configuration' : CFG.filter(c => c.ext === v).length + ' configurations'}</span></div>`;
+
+/* rows grouped by vendor; the row opens in place */
+function cfList(m, view) {
+  const editing = ['edit', 'saving', 'error'].includes(view);
+  const open = view === 'add' ? '' : editing ? 'glm' : 'deepseek';
+  const row = c => `<div class="mp-row${c.on ? '' : ' cf-off'}${c.id === open ? ' open' : ''}"><div class="mp-rh">${pmark(c.ext)}<div class="tx"><span class="nm">${c.name}</span>${cfSub(c)}</div>${cfChips(c)}${sw(c.name, c.on)}<span class="chev" aria-hidden="true">${c.id === open ? I.down() : I.chev()}</span></div>
+    ${c.id === open ? `<div class="mp-body">${editing ? cfForm(c, m, view) : cfDetail(c, m)}</div>` : ''}</div>`;
+  return `<div class="cf-a"><div class="cf-top"><span class="meta">Configurations on ${m.name}</span>${cfAddBtn(view === 'add')}</div>
+    ${view === 'add' ? `<div style="margin-bottom:var(--space-4)">${cfAdd(m)}</div>` : ''}
+    ${VENDORS.map(v => `<div class="cf-grp">${cfGroupHead(v)}<div class="mp-list">${CFG.filter(c => c.ext === v).map(row).join('')}</div></div>`).join('')}</div>`;
+}
+
 function providersPage(state) {
   const head = `<h1>Model providers</h1>${mpNote()}`;
-  const { ms, sel, open } = mpModel(state);
+  const { ms, sel } = mpModel(state);
   if (!ms.length) return `${head}<div class="mp-empty"><b>No machines yet</b><p>Providers come from the agent on each machine. Go to Machines → Add a machine, and the providers it runs appear here.</p><button class="btn">${I.laptop()}Go to Machines</button></div>`;
   const tabs = `<div class="mp-tabs" role="tablist" aria-label="Machines">${ms.map((m, i) => `<span class="mp-tab" role="tab" aria-selected="${i === sel}"${tip(mName({ n: m.name, os: m.os, on: m.on }))}>${mIcon(m.os, m.on)}${m.name}</span>`).join('')}</div>`;
-  const m = ms[sel], ks = ['claude', 'codex'].filter(k => m[k]);
-  const panel = !m.on ? `<div class="mp-quiet">${m.name} is offline · last seen ${m.seen}. Its providers show when its agent connects.</div>`
-    : !ks.length ? `<div class="mp-quiet">This machine’s agent announces no providers.</div>`
-    : `<div class="mp-list">${ks.map(k => mpRow(k, m[k], k === open)).join('')}</div>`;
-  return `${head}${tabs}<div role="tabpanel">${panel}</div>`;
+  const m = ms[sel];
+  const dm = state.match(/^settings-providers(?:-(edit|saving|error|add))?$/);
+  const panel = !m.on ? `<div class="mp-quiet">${m.name} is offline · last seen ${m.seen}. Its configurations show when its agent connects.</div>`
+    : !dm ? `<div class="mp-quiet">This machine’s agent announces no providers.</div>`
+    : cfList(m, dm[1] || 'list');
+  return `${head}${tabs}<div role="tabpanel" aria-label="${m.name}">${panel}</div>`;
 }
 
 function settingsMain(state) {
@@ -1960,7 +2095,7 @@ function frame(state, scheme) {
 const SCREEN = {
   name: 'Settings',
   system: false,
-  blurb: 'Model providers (#16) is read-only: a tab per machine and a row per provider its agent announces; every value exists in device.hello today (provider, version, tested, capabilities, config options with their defaults). A login state per provider does not exist in the protocol and is not drawn; an offline machine lists nothing because GET /api/devices returns providers empty for it. The Settings page, a full page that replaces the window (no sidebar, no status bar): a header with a back button (Esc also goes back) and the title, the section list on the left and the content on the right. Sections are Appearance (Theme, Language, Text), Machines (a tab per machine, led by its system’s mark with the presence dot at its bottom-right like the Model providers tabs, then the selected machine’s system, architecture and connection, and its resources; Add a machine is a quiet button at the end of the tab row) and Notifications (a level, per-project and per-event channels, Web Push for this browser, quiet hours, webhooks); Memory (#18) and Model providers (#16) are added to the list later. Appearance, Language and the Text group (interface font, code font, size, full width, ligatures) are kept in the browser and each choice only swaps tokens; the preview follows them.',
+  blurb: 'Model providers (#170) lists the provider configurations of one machine (a tab per machine), grouped by vendor: the built-in Claude Code and Codex, which can be turned off but not removed, and the ones made on the machine (GLM, DeepSeek). From here the web changes only a configuration’s name, whether it is enabled and its new-session defaults; the command and the variables are shown read-only, a variable only as set or not set and never its value. Adding a configuration and entering a key happen on the machine, so the page shows the exact hoplet-agent commands with a copy button and runs nothing; a configuration whose key is not set says it cannot start and shows the command. The rows are grouped by vendor and a row expands in place. An offline machine lists nothing because GET /api/devices returns providers empty for it. The Settings page, a full page that replaces the window (no sidebar, no status bar): a header with a back button (Esc also goes back) and the title, the section list on the left and the content on the right. Sections are Appearance (Theme, Language, Text), Machines (a tab per machine, led by its system’s mark with the presence dot at its bottom-right like the Model providers tabs, then the selected machine’s system, architecture and connection, and its resources; Add a machine is a quiet button at the end of the tab row) and Notifications (a level, per-project and per-event channels, Web Push for this browser, quiet hours, webhooks); Model providers sits between Machines and Notifications; Memory (#18) is added to the list later. Appearance, Language and the Text group (interface font, code font, size, full width, ligatures) are kept in the browser and each choice only swaps tokens; the preview follows them.',
 };
 const STATES = [
   ['settings', 'Settings: Appearance'],
@@ -1972,8 +2107,11 @@ const STATES = [
   ['mint', 'Add a machine: token minted'],
   ['mint-waiting', 'waiting for the agent'],
   ['mint-online', 'the new machine is connected'],
-  ['settings-providers', 'Model providers: a tab per machine, a row per provider its agent announces; Claude Code expanded to its new-session defaults and capabilities'],
-  ['settings-providers-newer', 'Model providers: studio selected, its Claude Code is newer than the versions the driver was tested against'],
+  ['settings-providers', 'Model providers, rows grouped by vendor: MacBook Pro with claude (built-in), GLM (own login), DeepSeek (key not set, so a warning with the command) and codex (built-in, disabled); an enabled switch on every one'],
+  ['settings-providers-edit', 'Model providers: editing GLM, the name and the new-session defaults, Enabled, Save and Cancel; the command and the variables are not editable'],
+  ['settings-providers-saving', 'Model providers: saving, the fields and Cancel disabled'],
+  ['settings-providers-error', 'Model providers: the machine rejected the change, the message above Save and nothing saved'],
+  ['settings-providers-add', 'Model providers: Add a configuration, a preset picked and the two commands to run on the machine with a copy button each'],
   ['settings-providers-offline', 'Model providers: an offline machine has no live data, only its last seen'],
   ['settings-providers-none', 'Model providers: an online machine whose agent announces no providers'],
   ['settings-providers-empty', 'Model providers with no machines at all'],

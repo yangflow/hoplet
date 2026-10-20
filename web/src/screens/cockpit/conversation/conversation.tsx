@@ -227,7 +227,7 @@ export function Conversation(props: {
   // (or the request failed), the menu shows the picked value.
   const caps = props.capabilities;
   const providers = caps ? [{ provider: session.provider, capabilities: caps }] : [];
-  const choosable = caps !== undefined && hasChoices(providers, providers[0]);
+  const choosable = caps !== undefined && hasChoices(providers[0]);
   const [picked, setPicked] = useState<SessionConfig>({});
   useEffect(() => {
     const reported = caps?.config ?? [];
@@ -649,10 +649,8 @@ export function Conversation(props: {
                         ) : null}
                         {choosable ? (
                           <ModelMenu
-                            providers={providers}
                             provider={session.provider}
                             config={shown}
-                            onProvider={() => {}}
                             onChange={setConfig}
                             {...(fixture?.modelMenuOpen ? { initialOpen: true } : {})}
                           />
