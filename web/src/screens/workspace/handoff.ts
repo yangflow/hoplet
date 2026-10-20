@@ -5,12 +5,18 @@ import type {
   HandoffResult,
   HttpErrorCode,
   Provider,
+  ProviderInfo,
 } from '@hoplet/shared';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { providerName } from '../../components/provider-marks.tsx';
-import { fetchDeviceClone, postHandoff, postHandoffCancel } from '../../lib/api.ts';
+import {
+  fetchDeviceClone,
+  postDeviceProviders,
+  postHandoff,
+  postHandoffCancel,
+} from '../../lib/api.ts';
 import { type HandoffChoice, handoffChoice } from '../../lib/configurations.ts';
-import { ApiError, errorText } from '../../lib/errors.ts';
+import { ApiError, configurationErrorText, errorText } from '../../lib/errors.ts';
 import { t } from '../../lib/i18n.ts';
 import { onLive } from '../../lib/live.ts';
 import type { CloneIntoFixture } from './clone-into.tsx';
@@ -293,6 +299,8 @@ export type HandoffFixture = {
   /** The configuration picked on the target, and whether its list is open. */
   configuration?: string;
   configurationOpen?: boolean;
+  /** The ID of the target's configuration an Enable is waiting on. */
+  enabling?: string;
 };
 
 /**
@@ -324,6 +332,12 @@ export function useHandoff(opts: {
   const [attempt, setAttempt] = useState(0);
   const [picked, setPicked] = useState(fixture?.configuration ?? '');
   const [cancelling, setCancelling] = useState(false);
+  const [enabling, setEnabling] = useState<string | undefined>(fixture?.enabling);
+  const [enableError, setEnableError] = useState<string | undefined>();
+  // The answer of an Enable, shown until the devices report the same change.
+  const [enabled, setEnabled] = useState<
+    Record<string, { base: string; providers: ProviderInfo[] }>
+  >({});
 
   const otherDevices = useMemo(
     () => devices.filter((d) => d.connected && d.deviceId !== ownerDeviceId),
@@ -346,7 +360,10 @@ export function useHandoff(opts: {
   }, [sessionId, target, locked]);
 
   // The configuration the session continues in on the target.
-  const targetProviders = otherDevices.find((d) => d.deviceId === target)?.providers;
+  const reported = otherDevices.find((d) => d.deviceId === target)?.providers;
+  const answer = enabled[target];
+  const targetProviders =
+    answer && answer.base === JSON.stringify(reported) ? answer.providers : reported;
   const choice: HandoffChoice = useMemo(
     () =>
       provider && sessionConfiguration
@@ -362,7 +379,40 @@ export function useHandoff(opts: {
       : '';
   /** The target cannot continue the session until a configuration is chosen (or exists). */
   const configurationBlocked =
-    choice.state === 'none' || (choice.state === 'pick' && !configuration);
+    choice.state === 'none' ||
+    choice.state === 'disabled' ||
+    (choice.state === 'pick' && !configuration);
+
+  // An Enable belongs to one target; an error to the card that showed it.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: both are forgotten when the session or target changes
+  useEffect(() => {
+    if (locked) return;
+    setEnableError(undefined);
+  }, [sessionId, target, locked]);
+
+  /** Enables one of the target's configurations; the select then preselects it. */
+  const enable = useCallback(
+    (id: string) => {
+      const device = otherDevices.find((d) => d.deviceId === target);
+      if (!device || locked || enabling !== undefined) return;
+      const base = JSON.stringify(device.providers);
+      setEnabling(id);
+      setEnableError(undefined);
+      postDeviceProviders(device.deviceId, { id, enabled: true })
+        .then((result) => {
+          setEnabled((cur) => ({
+            ...cur,
+            [device.deviceId]: { base, providers: result.providers },
+          }));
+          setPicked(id);
+        })
+        .catch((err: unknown) =>
+          setEnableError(configurationErrorText(err, device.name || device.deviceId, id)),
+        )
+        .finally(() => setEnabling(undefined));
+    },
+    [otherDevices, target, locked, enabling],
+  );
 
   // Progress of this session's handoffs, also of one another window started.
   useEffect(() => {
@@ -501,7 +551,10 @@ export function useHandoff(opts: {
     configurationOpen: fixture?.configurationOpen ?? false,
     vendorName: provider ? providerName(provider) : '',
     configurationName: opts.configurationName ?? sessionConfiguration ?? '',
-    enableCommand: `hoplet-agent provider set ${provider ?? ''} --enabled true`,
+    sessionBuiltIn: sessionConfiguration === provider,
+    enable,
+    enabling,
+    enableError,
     dismiss,
     deviceName,
   };

@@ -107,13 +107,16 @@ export function enabledConfigurations(providers: readonly ProviderInfo[]): Provi
 /**
  * Which configuration a handoff continues the session in on the target:
  * `builtin` when the vendor's own continues the vendor's own (no choice to show), `same` when the target has the
- * session's configuration enabled, `pick` when it has others that extend the same vendor, `none` when it has no
- * enabled one. A target that announced no providers is not second-guessed (`builtin`).
+ * session's configuration enabled, `pick` when it has others that extend the same vendor, `disabled` when it has
+ * configurations of the vendor and none is enabled (they are carried so the card can enable one), `none` when it
+ * announced providers but none of this vendor. A target that announced no providers is not second-guessed
+ * (`builtin`).
  */
 export type HandoffChoice =
   | { state: 'builtin' }
   | { state: 'same'; options: ProviderInfo[]; value: string }
   | { state: 'pick'; options: ProviderInfo[] }
+  | { state: 'disabled'; options: ProviderInfo[] }
   | { state: 'none' };
 
 export function handoffChoice(
@@ -129,5 +132,7 @@ export function handoffChoice(
       ? { state: 'builtin' }
       : { state: 'same', options, value: configuration };
   }
-  return options.length > 0 ? { state: 'pick', options } : { state: 'none' };
+  if (options.length > 0) return { state: 'pick', options };
+  const disabled = target.filter((p) => p.provider === vendor);
+  return disabled.length > 0 ? { state: 'disabled', options: disabled } : { state: 'none' };
 }

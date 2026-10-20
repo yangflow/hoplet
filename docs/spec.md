@@ -196,7 +196,7 @@ last snapshot's changes and diffs, labelled with the snapshot's time and base co
 needs the owner online; without a stored snapshot Changes says that none exists yet. A directory without a git
 commit has no Changes and no Hand off, and the inspector says why. Hand off is one row at the foot of the
 inspector that opens into the handoff panel, a card in its place that closes with its × and stays open while a
-handoff runs, also one another window started. The panel picks a connected target device, and the configuration that continues the session there when that machine does not have the session's own enabled (without a choice Hand off stays disabled, and a machine with no enabled configuration of the vendor says so and shows the command that adds one), and asks it for a clone
+handoff runs, also one another window started. The panel picks a connected target device, and the configuration that continues the session there when that machine does not have the session's own enabled (without a choice Hand off stays disabled; a machine whose configurations of the vendor are all disabled lists them with an Enable button that turns one on there and then preselects it, and a machine that does not offer the vendor says to install it and restart its agent), and asks it for a clone
 of the working tree's `origin` among its watched projects: it names the clone the worktree goes next to, or says
 that the target has none, and then offers to clone the repository into a directory of the target (a proposed
 path under its browse root, which the user may change) or asks for the path of an existing clone. A clone is a

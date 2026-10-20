@@ -183,10 +183,22 @@ describe('handoff target', () => {
       expect(got.options.map((p) => p.configuration.id)).toEqual(['claude']);
   });
 
-  it('says none when the target has no enabled configuration of the vendor', () => {
-    expect(handoffChoice([info('claude', { enabled: false })], 'claude', 'glm')).toEqual({
-      state: 'none',
-    });
+  it('offers the disabled configurations of the vendor when none is enabled', () => {
+    const target = [
+      info('claude', { enabled: false }),
+      info('deepseek', { enabled: false }),
+      info('codex', { vendor: 'codex' }),
+    ];
+    const got = handoffChoice(target, 'claude', 'glm');
+    expect(got.state).toBe('disabled');
+    if (got.state === 'disabled')
+      expect(got.options.map((p) => p.configuration.id)).toEqual(['claude', 'deepseek']);
+    expect(handoffChoice([info('claude', { enabled: false })], 'claude', 'claude').state).toBe(
+      'disabled',
+    );
+  });
+
+  it('says none when the target has nothing of the vendor', () => {
     expect(handoffChoice([info('codex', { vendor: 'codex' })], 'claude', 'glm')).toEqual({
       state: 'none',
     });
