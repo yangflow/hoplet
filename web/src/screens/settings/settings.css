@@ -1408,3 +1408,72 @@ p.rmeta {
 .rfoot {
   margin: 0;
 }
+
+/* Warnings: the thresholds at the end of a machine's tab (#175) */
+.rth {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  box-shadow: inset 0 0 0 1px var(--color-line);
+}
+.th-h {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.th-t {
+  font-weight: var(--weight-semibold);
+  flex: 1;
+}
+.th-sum {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  color: var(--color-text-2);
+}
+.th-sum .btn {
+  margin-left: auto;
+  flex: none;
+}
+.th-v {
+  color: var(--color-text);
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+.th-row {
+  display: flex;
+  gap: var(--space-3);
+}
+.th-f {
+  width: 160px;
+}
+.th-in {
+  height: var(--control-field);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  box-shadow: inset 0 0 0 1px var(--color-line);
+  font-variant-numeric: tabular-nums;
+}
+.th-in:focus-within {
+  box-shadow: inset 0 0 0 1.5px var(--color-accent);
+}
+.th-in.bad,
+.th-in.bad:focus-within {
+  box-shadow: inset 0 0 0 1.5px var(--color-del-text);
+}
+.th-in .field.bare {
+  flex: 1;
+  height: 100%;
+  font-size: var(--text-ui);
+  line-height: var(--leading-ui);
+}
+.th-note {
+  margin: 0;
+}

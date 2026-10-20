@@ -1,9 +1,4 @@
-import {
-  type DeviceResourceSample,
-  type DeviceSessionResources,
-  RESOURCES_DISK_WARN_DEFAULT,
-  RESOURCES_MEMORY_WARN_DEFAULT,
-} from '@hoplet/shared';
+import type { DeviceResourceSample, DeviceSessionResources } from '@hoplet/shared';
 
 const GIB = 1024 ** 3;
 
@@ -20,14 +15,6 @@ export function diskText(bytes: number): string {
 /** A share as a whole percent; 0 for an empty whole. */
 export function percent(part: number, whole: number): number {
   return whole > 0 ? Math.round((part / whole) * 100) : 0;
-}
-
-/** Which thresholds a reading crosses: memory above 90 % used, disk under 10 % free. */
-export function readingWarn(s: DeviceResourceSample): { memory: boolean; disk: boolean } {
-  return {
-    memory: s.memTotal > 0 && s.memUsed / s.memTotal > RESOURCES_MEMORY_WARN_DEFAULT / 100,
-    disk: s.diskTotal > 0 && s.diskFree / s.diskTotal < RESOURCES_DISK_WARN_DEFAULT / 100,
-  };
 }
 
 /** The sessions largest in memory first; equal ones keep the order they came in. */

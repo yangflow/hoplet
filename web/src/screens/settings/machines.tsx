@@ -1,8 +1,10 @@
-import type {
-  DeviceInfo,
-  DeviceMintResult,
-  LiveSessionMeta,
-  SessionRuntimeInfo,
+import {
+  DEFAULT_RESOURCE_THRESHOLDS,
+  type DeviceInfo,
+  type DeviceMintResult,
+  type LiveSessionMeta,
+  type ResourceThresholds,
+  type SessionRuntimeInfo,
 } from '@hoplet/shared';
 import { type ReactNode, useEffect, useId, useState } from 'react';
 import { Button } from '../../components/Button.tsx';
@@ -16,11 +18,15 @@ import { t } from '../../lib/i18n.ts';
 import { systemName } from '../../lib/system.ts';
 import { type DeviceResources, useDeviceResources } from '../../lib/use-device-resources.ts';
 import { useDevices } from '../../lib/use-devices.ts';
+import { useResourceThresholds } from '../../lib/use-resource-thresholds.ts';
+import { fill } from './fill.tsx';
 import { lastSeenText } from './last-seen.ts';
 import { ResourcesBody } from './machine-resources.tsx';
 import { MachineTabs, machinePanelId, machineTabId } from './machine-tabs.tsx';
+import { ThresholdsGroup } from './machine-thresholds.tsx';
 import { defaultMachine } from './providers-model.ts';
 import { archName } from './resources-model.ts';
+import { effectiveThresholds } from './thresholds-model.ts';
 
 /** What a state of the design starts from: the machines, and a machine already minted. */
 export type MachinesFixture = {
@@ -34,6 +40,10 @@ export type MachinesFixture = {
   runtime?: Record<string, SessionRuntimeInfo>;
   /** A session row drawn as hovered, for the design's states. */
   hovered?: string;
+  /** The warning thresholds; the defaults when left out. */
+  thresholds?: ResourceThresholds;
+  /** The default's fields open, as after Change default. */
+  editDefault?: boolean;
   now?: number;
 };
 
@@ -76,14 +86,6 @@ function maskedLines(minted: DeviceMintResult, server: string): ReactNode[] {
       <span className="c">{'}'}</span>
     </div>,
   ];
-}
-
-/** A translated sentence with markup in place of its `{placeholders}`. */
-function fill(template: string, parts: Record<string, ReactNode>): ReactNode[] {
-  return template.split(/(\{\w+\})/).map((piece) => {
-    const part = parts[piece];
-    return part === undefined ? piece : <span key={piece}>{part}</span>;
-  });
 }
 
 function Step(props: {
@@ -280,6 +282,9 @@ export function MachinesSection(props: {
     panelShown && device.resources !== undefined,
     fixture?.resources,
   );
+  const thresholds = useResourceThresholds(
+    fixture ? (fixture.thresholds ?? DEFAULT_RESOURCE_THRESHOLDS) : undefined,
+  );
   const select = (deviceId: string) => {
     setPicked(deviceId);
     props.onMachine?.(deviceId);
@@ -334,6 +339,19 @@ export function MachinesSection(props: {
               now={now}
               hovered={fixture?.hovered}
               onOpenSession={props.onOpenSession ?? (() => undefined)}
+              thresholds={
+                thresholds.thresholds
+                  ? effectiveThresholds(thresholds.thresholds, device.deviceId)
+                  : null
+              }
+              warnings={
+                <ThresholdsGroup
+                  key={device.deviceId}
+                  device={device}
+                  state={thresholds}
+                  editDefault={fixture?.editDefault ?? false}
+                />
+              }
             />
           ) : device.connected ? (
             <p className="rmeta dim" data-testid="settings.resources.none">

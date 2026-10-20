@@ -166,6 +166,9 @@ const subject: Record<string, Record<string, string>> = {
     'settings-machines': 'settings.machines.tabs',
     'settings-resources': 'settings.resources.sessions',
     'settings-resources-offline': 'settings.resources.stale',
+    'settings-thresholds': 'settings.thresholds.summary',
+    'settings-thresholds-default': 'settings.thresholds.memory',
+    'settings-thresholds-custom': 'settings.thresholds.memory',
     mint: 'settings.mint.config',
     'mint-waiting': 'settings.mint.waiting',
     'mint-online': 'settings.mint.online',
@@ -195,10 +198,10 @@ const subject: Record<string, Record<string, string>> = {
   },
 };
 
-test('the registries list 85 cockpit, 56 workspace, 23 settings and 7 action states', () => {
+test('the registries list 85 cockpit, 56 workspace, 26 settings and 7 action states', () => {
   expect(screens.cockpit).toHaveLength(85);
   expect(screens.workspace).toHaveLength(56);
-  expect(screens.settings).toHaveLength(23);
+  expect(screens.settings).toHaveLength(26);
   expect(screens.action).toHaveLength(7);
 });
 

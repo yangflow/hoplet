@@ -5,6 +5,13 @@ import { usePageVisible } from './visibility.ts';
 
 const POLL_MS = 2000;
 
+const refreshers = new Set<() => void>();
+
+/** Asks every device list on screen to reload now, e.g. after a change that moves a machine's warning. */
+export function refreshDevices(): void {
+  for (const reload of refreshers) reload();
+}
+
 /** Polls the device list; fixture mode keeps the given devices. */
 export function useDevices(fixture?: DeviceInfo[]) {
   const [devices, setDevices] = useState<DeviceInfo[]>(fixture ?? []);
@@ -43,9 +50,11 @@ export function useDevices(fixture?: DeviceInfo[]) {
     };
     load();
     const tick = setInterval(load, POLL_MS);
+    refreshers.add(load);
     return () => {
       cancelled = true;
       clearInterval(tick);
+      refreshers.delete(load);
     };
   }, [locked, visible]);
 
