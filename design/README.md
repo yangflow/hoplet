@@ -34,6 +34,14 @@ The mockups, design tokens and app icon behind Hoplet's web UI. The design langu
   - `settings` includes the resource warning thresholds (#175): the selected machine's tab ends with a Warnings group,
     Default (the values every machine uses, with Change default) or Custom for that machine (`settings-thresholds`,
     `settings-thresholds-default`, `settings-thresholds-custom`).
+  - `settings` includes the machine capabilities (#70): a Capabilities group in the selected machine's tab, after the
+    resources and before Warnings, with the toolchain versions, the GPU, the origin of each watched project and the
+    custom labels. Label–value rows: toolchains as name-and-version chips with the missing ones named, the GPU line,
+    repositories as project and origin, labels as removable chips with an inline Add label (`settings-capabilities`).
+    Variants: the Apple chip on the MacBook Pro (`-mac`), adding, removing and an invalid label with its rule
+    (`-label-add`, `-label-remove`, `-label-invalid`), few tools and no GPU (`-sparse`), an offline machine with its
+    last report greyed and the labels still editable (`-offline`), and an agent that reports nothing, only labels
+    (`-none`); all prefixed `settings-capabilities`.
   - `cockpit` includes deleting a session: Delete… in the actions menu (`session-menu-delete`), Delete beside Restore
     on a hovered Archived row (`archived`), and the confirmation dialog with its states (`delete`,
     `delete-worktree`, `delete-dirty`, `delete-offline`, `delete-running`, `delete-progress`, `delete-partial`).
