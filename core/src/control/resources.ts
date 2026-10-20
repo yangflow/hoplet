@@ -2,19 +2,26 @@ import {
   type DeviceInfo,
   type DeviceResourceSample,
   type DeviceResources,
-  RESOURCES_DISK_WARN,
-  RESOURCES_MEMORY_WARN,
+  RESOURCES_DISK_WARN_DEFAULT,
+  RESOURCES_MEMORY_WARN_DEFAULT,
   RESOURCES_RING_SIZE,
   RESOURCES_SESSIONS_MAX,
+  type ResourceThresholdPair,
 } from '@hoplet/shared';
 import type { ControlState, ResourcesEntry } from './state.ts';
 import type { DeviceLink, ResourcesSnapshot } from './types.ts';
 
 /** Whether a reading shows the memory or the disk short. A volume or memory of size 0 warns about nothing. */
-export function resourceWarnings(sample: DeviceResourceSample): { memory: boolean; disk: boolean } {
+export function resourceWarnings(
+  sample: DeviceResourceSample,
+  thresholds: ResourceThresholdPair = {
+    memory: RESOURCES_MEMORY_WARN_DEFAULT,
+    disk: RESOURCES_DISK_WARN_DEFAULT,
+  },
+): { memory: boolean; disk: boolean } {
   return {
-    memory: sample.memTotal > 0 && sample.memUsed / sample.memTotal > RESOURCES_MEMORY_WARN,
-    disk: sample.diskTotal > 0 && sample.diskFree / sample.diskTotal < RESOURCES_DISK_WARN,
+    memory: sample.memTotal > 0 && sample.memUsed * 100 > thresholds.memory * sample.memTotal,
+    disk: sample.diskTotal > 0 && sample.diskFree * 100 < thresholds.disk * sample.diskTotal,
   };
 }
 
@@ -42,7 +49,10 @@ export function createResources(state: ControlState) {
     extras(deviceId: string, connected: boolean): Pick<DeviceInfo, 'resources' | 'warn'> {
       const latest = state.resources.get(deviceId)?.samples.at(-1);
       if (!latest) return {};
-      const warn = connected ? resourceWarnings(latest) : { memory: false, disk: false };
+      const { default: fallback, machines } = state.store.resourceThresholds();
+      const warn = connected
+        ? resourceWarnings(latest, machines[deviceId] ?? fallback)
+        : { memory: false, disk: false };
       return { resources: latest, warn };
     },
     receive(link: DeviceLink, msg: DeviceResources): void {

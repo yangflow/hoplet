@@ -287,5 +287,6 @@ it('creates the notification tables at schema 14 and keeps them across opens', (
   expect(db.prepare('SELECT name FROM schema_migrations WHERE id = 14').get()).toEqual({
     name: 'notifications',
   });
+  expect(names).toContain('resource_thresholds');
   db.close();
 });

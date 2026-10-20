@@ -46,6 +46,7 @@ import {
   type LiveSessionMeta,
   LiveSessionMetaSchema,
   MAX_NOTIFY_PROJECTS,
+  MAX_RESOURCE_THRESHOLD_MACHINES,
   MAX_TITLE_OVERRIDE_CHARS,
   MAX_WEBHOOKS,
   NewSessionRequestSchema,
@@ -69,6 +70,7 @@ import {
   QueueSchema,
   QueueSteerRequestSchema,
   QueueVersionQuerySchema,
+  ResourceThresholdsSchema,
   type RuntimeCapabilities,
   RuntimeCommandResultSchema,
   SearchResultSchema,
@@ -1200,6 +1202,30 @@ export const routes: readonly Route[] = [
       }
       store.setNotifyPreferences(body);
       return store.notifyPreferences();
+    },
+  }),
+  defineRoute({
+    method: 'GET',
+    path: '/api/resources/thresholds',
+    auth: 'host',
+    lane: 'control',
+    response: ResourceThresholdsSchema,
+    handler: ({ store }) => store.resourceThresholds(),
+  }),
+  defineRoute({
+    method: 'PUT',
+    path: '/api/resources/thresholds',
+    auth: 'host',
+    lane: 'control',
+    bodyLimit: 64 * 1024,
+    body: ResourceThresholdsSchema,
+    response: ResourceThresholdsSchema,
+    handler: ({ store, body }) => {
+      if (Object.keys(body.machines).length > MAX_RESOURCE_THRESHOLD_MACHINES) {
+        throw new ApiError('too-large');
+      }
+      store.setResourceThresholds(body);
+      return store.resourceThresholds();
     },
   }),
   defineRoute({

@@ -1,8 +1,8 @@
 import {
   type DeviceResourceSample,
   type DeviceSessionResources,
-  RESOURCES_DISK_WARN,
-  RESOURCES_MEMORY_WARN,
+  RESOURCES_DISK_WARN_DEFAULT,
+  RESOURCES_MEMORY_WARN_DEFAULT,
 } from '@hoplet/shared';
 
 const GIB = 1024 ** 3;
@@ -25,8 +25,8 @@ export function percent(part: number, whole: number): number {
 /** Which thresholds a reading crosses: memory above 90 % used, disk under 10 % free. */
 export function readingWarn(s: DeviceResourceSample): { memory: boolean; disk: boolean } {
   return {
-    memory: s.memTotal > 0 && s.memUsed / s.memTotal > RESOURCES_MEMORY_WARN,
-    disk: s.diskTotal > 0 && s.diskFree / s.diskTotal < RESOURCES_DISK_WARN,
+    memory: s.memTotal > 0 && s.memUsed / s.memTotal > RESOURCES_MEMORY_WARN_DEFAULT / 100,
+    disk: s.diskTotal > 0 && s.diskFree / s.diskTotal < RESOURCES_DISK_WARN_DEFAULT / 100,
   };
 }
 

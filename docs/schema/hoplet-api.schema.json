@@ -546,6 +546,26 @@
     },
     {
       "method": "GET",
+      "path": "/api/resources/thresholds",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": null,
+      "response": "ResourceThresholdsSchema"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/resources/thresholds",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": "ResourceThresholdsSchema",
+      "response": "ResourceThresholdsSchema"
+    },
+    {
+      "method": "GET",
       "path": "/api/notify/push/key",
       "auth": "host",
       "lane": "control",
@@ -4195,6 +4215,61 @@
       },
       "required": [
         "version"
+      ]
+    },
+    "ResourceThresholdsSchema": {
+      "type": "object",
+      "properties": {
+        "default": {
+          "type": "object",
+          "properties": {
+            "memory": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "disk": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 99
+            }
+          },
+          "required": [
+            "memory",
+            "disk"
+          ]
+        },
+        "machines": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "memory": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100
+              },
+              "disk": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 99
+              }
+            },
+            "required": [
+              "memory",
+              "disk"
+            ]
+          }
+        }
+      },
+      "required": [
+        "default",
+        "machines"
       ]
     },
     "RuntimeCommandResultSchema": {
