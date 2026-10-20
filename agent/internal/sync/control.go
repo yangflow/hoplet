@@ -561,3 +561,53 @@ func (c *Client) handleCloneStart(ctx context.Context, cs *connState, requestID,
 	}
 	_ = c.writeMsg(cs, DeviceCloneDone{V: ProtocolVersion, Type: TypeDeviceCloneDone, RequestID: requestID, Path: path})
 }
+
+// providerList is the configurations to announce, never nil-valued when there is a hook.
+func (c *Client) providerList() []ProviderInfo {
+	if c.hooks.Providers == nil {
+		return nil
+	}
+	return c.hooks.Providers()
+}
+
+// parseProvidersUpdate decodes a device.providers.update. Only the name, the enabled flag and the defaults
+// change from the core; the command and the environment are set on the machine, so any other key is refused.
+func parseProvidersUpdate(raw []byte) (DeviceProvidersUpdate, error) {
+	var req DeviceProvidersUpdate
+	if err := json.Unmarshal(raw, &req); err != nil {
+		return req, err
+	}
+	var fields map[string]json.RawMessage
+	_ = json.Unmarshal(raw, &fields)
+	for k := range fields {
+		switch k {
+		case "v", "type", "requestId", "id", "name", "enabled", "defaults":
+		default:
+			return req, errors.New("only name, enabled and defaults can be changed")
+		}
+	}
+	return req, nil
+}
+
+func (c *Client) handleProvidersUpdate(cs *connState, raw []byte) {
+	req, err := parseProvidersUpdate(raw)
+	var list []ProviderInfo
+	if err == nil {
+		if c.hooks.ProvidersUpdate == nil {
+			err = errors.New("not-implemented")
+		} else {
+			list, err = c.hooks.ProvidersUpdate(req)
+		}
+	}
+	if err != nil {
+		log.Printf("[agent] provider update rejected: %v", err)
+		_ = c.writeMsg(cs, DeviceProvidersRejected{
+			V: ProtocolVersion, Type: TypeDeviceProvidersRejected, RequestID: req.RequestID, Reason: err.Error(),
+		})
+		return
+	}
+	if list == nil {
+		list = []ProviderInfo{}
+	}
+	_ = c.writeMsg(cs, DeviceProviders{V: ProtocolVersion, Type: TypeDeviceProviders, RequestID: req.RequestID, Providers: list})
+}

@@ -112,7 +112,7 @@ func TestHelloAnnouncesTheProviders(t *testing.T) {
 			Options: []ConfigValue{{Value: "opus", Name: "opus"}},
 		}}},
 	}}
-	c := NewClient(&config.Config{ServerURL: url, Token: "t", DeviceName: "box"}, "dev-1", "9.9", Hooks{Providers: providers})
+	c := NewClient(&config.Config{ServerURL: url, Token: "t", DeviceName: "box"}, "dev-1", "9.9", Hooks{Providers: func() []ProviderInfo { return providers }})
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go func() { _ = c.runOnce(ctx) }()

@@ -87,7 +87,20 @@ const devices: DeviceInfo[] = [
     deviceId: 'dev-mac',
     name: 'MacBook Pro',
     connected: true,
-    providers: [{ provider: 'claude', capabilities: caps }],
+    providers: [
+      {
+        provider: 'claude',
+        configuration: {
+          id: 'claude',
+          name: 'Claude Code',
+          extends: 'claude',
+          enabled: true,
+          env: [],
+          defaults: {},
+        },
+        capabilities: caps,
+      },
+    ],
   },
 ];
 const empty = (id: string): LinesPage => ({

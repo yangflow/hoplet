@@ -24,12 +24,20 @@ type Options struct {
 	// ImageDir is where the images of a prompt are written for Codex to read as local files; empty means a
 	// directory under the system's temporary directory. The files of a process are removed when it exits.
 	ImageDir string
+	// Env is the environment of every process the driver starts, `codex --version` included; nil means the
+	// agent's own.
+	Env []string
+	// Defaults replace the defaults of a new session's options, by option ID; a value the option does not
+	// declare is ignored.
+	Defaults map[string]any
 }
 
 // Driver starts Codex app-server processes.
 type Driver struct {
 	bin      string
 	imageDir string
+	env      []string
+	defaults map[string]any
 
 	mu          sync.Mutex
 	versionSeen bool
@@ -47,7 +55,7 @@ func New(opts Options) *Driver {
 	if dir == "" {
 		dir = os.TempDir() + string(os.PathSeparator) + "hoplet-codex-images"
 	}
-	return &Driver{bin: bin, imageDir: dir}
+	return &Driver{bin: bin, imageDir: dir, env: opts.Env, defaults: opts.Defaults}
 }
 
 func (d *Driver) Name() string { return "codex" }
@@ -162,7 +170,7 @@ func (d *Driver) Config() []runtime.ConfigOption {
 			}
 		}
 	}
-	return []runtime.ConfigOption{
+	return runtime.ApplyDefaults([]runtime.ConfigOption{
 		{
 			ID: optMode, Name: "Mode", Category: "mode", Type: runtime.ConfigSelect, Current: modeWorkspaceWrite,
 			Apply: runtime.ApplyNextTurn, Options: modeValues,
@@ -183,7 +191,7 @@ func (d *Driver) Config() []runtime.ConfigOption {
 				{Value: collabPlan, Name: "Plan", Description: "Explore and plan; no edits or commands.", Icon: "list-checks"},
 			},
 		},
-	}
+	}, d.defaults)
 }
 
 // supportsEffort says whether the model offers the effort; a model the driver has not read counts as offering it.
@@ -222,7 +230,7 @@ func (d *Driver) checkVersion(ctx context.Context) error {
 	if d.versionSeen {
 		return nil
 	}
-	out, err := exec.CommandContext(ctx, d.bin, "--version").Output()
+	out, err := d.versionCmd(ctx).Output()
 	if err != nil {
 		return fmt.Errorf("run %s --version: %w", d.bin, err)
 	}
@@ -319,9 +327,24 @@ func (d *Driver) open(ctx context.Context, spec runtime.StartSpec) (*process, er
 	return p, nil
 }
 
+// baseEnv is the environment the driver's processes start from.
+func (d *Driver) baseEnv() []string {
+	if d.env != nil {
+		return d.env
+	}
+	return os.Environ()
+}
+
+func (d *Driver) versionCmd(ctx context.Context) *exec.Cmd {
+	cmd := exec.CommandContext(ctx, d.bin, "--version")
+	cmd.Env = d.baseEnv()
+	return cmd
+}
+
 // launch starts `codex app-server` in dir, in its own process group, and begins reading its output.
 func (d *Driver) launch(dir string) (*process, error) {
 	cmd := exec.Command(d.bin, "app-server")
+	cmd.Env = d.baseEnv()
 	cmd.Dir = dir
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	stdin, err := cmd.StdinPipe()

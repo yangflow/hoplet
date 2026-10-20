@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/yangflow/hoplet/agent/internal/config"
+	"github.com/yangflow/hoplet/agent/internal/configs"
 	"github.com/yangflow/hoplet/agent/internal/daemon"
 	"github.com/yangflow/hoplet/agent/internal/projects"
 	"github.com/yangflow/hoplet/agent/internal/provider"
@@ -60,6 +61,7 @@ func newRoot() *cobra.Command {
 	root.AddCommand(
 		daemon.NewCommand(func() *config.Config { return cfg }, version),
 		projects.NewCommand(home, os.Stdout),
+		configs.NewCommand(home, os.Stdin, os.Stdout),
 		sessions.NewCommand(home, scan, os.Stdout),
 	)
 	return root

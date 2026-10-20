@@ -130,14 +130,15 @@ func TestStartRefusesWhatTheAgentCannotDo(t *testing.T) {
 	if got := importedIn(t, st, watched); len(got) != 0 {
 		t.Fatalf("imported = %v", got)
 	}
-	if got := b.mgr.States(); len(got) != 0 {
+	if got := b.manager("claude").States(); len(got) != 0 {
 		t.Fatalf("states = %+v", got)
 	}
 }
 
 func TestStartFailsWhenClaudeCodeExitsBeforeCreatingASession(t *testing.T) {
-	b, _, st, watched, start := newStartEnv(t)
+	// The process environment is read when the bridge is built.
 	t.Setenv("FAKE_CLAUDE_EXIT_ON_START", "1")
+	b, _, st, watched, start := newStartEnv(t)
 	id, err := start(sync.RuntimeStart{ProjectPath: watched, Provider: "claude", Text: "say x"})
 	if err == nil || id != "" {
 		t.Fatalf("id %q, err %v", id, err)
@@ -148,7 +149,7 @@ func TestStartFailsWhenClaudeCodeExitsBeforeCreatingASession(t *testing.T) {
 	if got := importedIn(t, st, watched); len(got) != 0 {
 		t.Fatalf("imported = %v", got)
 	}
-	if got := b.mgr.States(); len(got) != 0 {
+	if got := b.manager("claude").States(); len(got) != 0 {
 		t.Fatalf("a failed start is still reported: %+v", got)
 	}
 }

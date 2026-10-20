@@ -1279,3 +1279,24 @@ func (m *Manager) Shutdown(ctx context.Context) {
 		m.mu.Unlock()
 	}
 }
+
+// ApplyDefaults is opts with the value of each default that the option declares as its Current value; a
+// default for an option that does not exist or a value it does not accept is left out.
+func ApplyDefaults(opts []ConfigOption, defaults map[string]any) []ConfigOption {
+	for i := range opts {
+		if v, ok := defaults[opts[i].ID]; ok && checkValue(opts[i], v) == nil {
+			opts[i].Current = v
+		}
+	}
+	return opts
+}
+
+// DeclaresValue says whether opts declare an option id that accepts value.
+func DeclaresValue(opts []ConfigOption, id string, value any) bool {
+	for _, o := range opts {
+		if o.ID == id {
+			return checkValue(o, value) == nil
+		}
+	}
+	return false
+}

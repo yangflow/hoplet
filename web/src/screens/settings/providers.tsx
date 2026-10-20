@@ -195,7 +195,7 @@ export function ProvidersSection(props: {
               <div className="mp-list" data-testid="settings.providers.list">
                 {device.providers.map((info) => {
                   const use = providerUse(sessions, device, info.provider);
-                  const key = `${device.deviceId}/${info.provider}`;
+                  const key = `${device.deviceId}/${info.configuration.id}`;
                   return (
                     <ProviderRow
                       key={key}

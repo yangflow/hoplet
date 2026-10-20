@@ -212,6 +212,7 @@ describe('wire contract', () => {
       requestId: { optional: false },
       projectPath: { optional: false },
       provider: { optional: false },
+      configuration: { optional: true },
       config: { optional: true },
       text: { optional: false },
       attachments: { optional: true },

@@ -47,7 +47,20 @@ const CONFIG = [
   { type: 'boolean', id: 'fast', name: 'Fast', category: 'model_config', currentValue: false },
 ];
 const CAPS = { permissions: true, interrupt: true, config: CONFIG };
-const PROVIDERS = [{ provider: 'claude', capabilities: CAPS }];
+const PROVIDERS = [
+  {
+    provider: 'claude',
+    configuration: {
+      id: 'claude',
+      name: 'Claude Code',
+      extends: 'claude',
+      enabled: true,
+      env: [],
+      defaults: {},
+    },
+    capabilities: CAPS,
+  },
+];
 const PROJECT = '/work/app';
 const OLD = 'old-session';
 const NEW_ID = '3b1f1b0e-3c1a-4d6e-9a53-0c6f0f3f2a11';

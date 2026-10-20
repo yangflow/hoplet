@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import {
+  findProvider,
   PROTOCOL_VERSION,
   type ProviderInfo,
   type RuntimeStart,
@@ -52,8 +53,13 @@ export function createStart(state: ControlState, listProjects: Control['listProj
       promptId,
       reason,
     });
-    const info = state.providers.get(req.deviceId)?.find((p) => p.provider === req.provider);
-    if (!info) return refuse('provider');
+    const info = findProvider(
+      state.providers.get(req.deviceId) ?? [],
+      req.provider,
+      req.configuration,
+    );
+    if (!info) return refuse(req.configuration === undefined ? 'provider' : 'configuration');
+    if (!info.configuration.enabled) return refuse('configuration');
     const missing = undeclared(req, info);
     if (missing) return refuse(missing);
 
@@ -85,6 +91,7 @@ export function createStart(state: ControlState, listProjects: Control['listProj
       requestId,
       projectPath: project.path,
       provider: req.provider,
+      ...(req.configuration !== undefined ? { configuration: req.configuration } : {}),
       ...(req.config && Object.keys(req.config).length > 0 ? { config: req.config } : {}),
       text: req.text,
       ...(req.attachments && req.attachments.length > 0 ? { attachments: req.attachments } : {}),

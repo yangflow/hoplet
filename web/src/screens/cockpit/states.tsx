@@ -184,7 +184,20 @@ export function fixtureDevices(
   /** The machines report their resources (the design's resources states). */
   reporting = false,
 ): DeviceInfo[] {
-  const providers = [{ provider: 'claude' as const, capabilities }];
+  const providers = [
+    {
+      provider: 'claude' as const,
+      configuration: {
+        id: 'claude',
+        name: 'Claude Code',
+        extends: 'claude' as const,
+        enabled: true,
+        env: [],
+        defaults: {},
+      },
+      capabilities,
+    },
+  ];
   const GIB = 1024 ** 3;
   const GB = 1e9;
   const reading = (cpu: number, mem: [number, number], disk: [number, number], ago = 0) => ({

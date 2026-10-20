@@ -103,8 +103,12 @@ type DirListing struct {
 
 // Hooks are the device-side handlers for control messages from core.
 type Hooks struct {
-	// Providers are announced in device.hello with the capabilities of their runtime drivers.
-	Providers []ProviderInfo
+	// Providers lists the agent's provider configurations as they are now, with the capabilities of their
+	// runtime drivers; device.hello announces them on each connection.
+	Providers func() []ProviderInfo
+	// ProvidersUpdate applies a device.providers.update and returns the list afterwards; an error becomes
+	// device.providers.rejected with its text as the reason.
+	ProvidersUpdate func(DeviceProvidersUpdate) ([]ProviderInfo, error)
 
 	Runtime   RuntimeHooks
 	Workspace WorkspaceFunc

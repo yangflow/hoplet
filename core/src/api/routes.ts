@@ -32,6 +32,7 @@ import {
   type Entry,
   FreshPermissionRequestSchema,
   FullBlockSchema,
+  findProvider,
   GlobalSearchQuerySchema,
   GlobalSearchResultSchema,
   HandoffCancelResultSchema,
@@ -122,7 +123,7 @@ function ownerCapabilities(
 ): RuntimeCapabilities | null | undefined {
   const device = deps.control.devices().find((d) => d.deviceId === owner);
   if (!device?.connected) return undefined;
-  return device.providers.find((p) => p.provider === provider)?.capabilities ?? null;
+  return findProvider(device.providers, provider)?.capabilities ?? null;
 }
 
 /** The session's owner device, also of one an agent just started, or the 404 when the session is unknown. */

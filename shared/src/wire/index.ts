@@ -33,10 +33,13 @@ import {
   AgentRuntimeStateSchema,
   ConfigOptionSchema,
   ConfigSettingSchema,
+  ConfigurationIdSchema,
   ConfigValueSchema,
   PermissionDecisionSchema,
   PlanExitSchema,
   PROMPT_IMAGE_TYPES,
+  ProviderConfigurationSchema,
+  ProviderEnvVarSchema,
   ProviderInfoSchema,
   RuntimeCapabilitiesSchema,
   RuntimeOutputKindSchema,
@@ -393,6 +396,8 @@ export const WIRE_MESSAGES = defineWire({
       requestId,
       projectPath: v.string(),
       provider: ProviderSchema,
+      /** The provider configuration to start with (ADR 0028); the vendor's own when absent. */
+      configuration: v.optional(ConfigurationIdSchema),
       config: v.optional(SessionConfigSchema),
       text: v.string(),
       attachments: v.optional(list(AttachmentIdSchema)),
@@ -472,7 +477,8 @@ export const WIRE_MESSAGES = defineWire({
   },
   /**
    * A prompt or steer the agent refused (`promptId` is the prompt's or the steer's ID); `reason` is `busy`,
-   * `starting`, `external`, `not-running`, `permission`, `unsupported` or diagnostic text.
+   * `starting`, `external`, `not-running`, `permission`, `unsupported`, `configuration-unavailable` (the session's
+   * provider configuration was removed or disabled) or diagnostic text.
    */
   'runtime.rejected': {
     lane: 'control',
@@ -661,6 +667,8 @@ export const WIRE_MESSAGES = defineWire({
       sessionId,
       handoffId,
       provider: ProviderSchema,
+      /** The target's provider configuration the session is installed for; the vendor's own when absent. */
+      configuration: v.optional(ConfigurationIdSchema),
       targetPath: v.optional(v.pipe(v.string(), v.maxLength(4096))),
       snapshotBytes: cursor,
       snapshotSha256: v.pipe(v.string(), v.maxLength(64)),
@@ -899,6 +907,37 @@ export const WIRE_MESSAGES = defineWire({
     },
   },
   'device.dirs.rejected': {
+    lane: 'control',
+    direction: 'device-to-core',
+    fields: { requestId, reason: v.string() },
+  },
+
+  // The provider configurations of a machine (ADR 0028)
+  /**
+   * The full list of the agent's provider configurations: the answer to `device.providers.update`, and sent
+   * unasked when the machine's providers.json changes.
+   */
+  'device.providers': {
+    lane: 'control',
+    direction: 'device-to-core',
+    fields: {
+      requestId: v.optional(requestId),
+      providers: list(ProviderInfoSchema),
+    },
+  },
+  /** Changes the name, the enabled flag or the defaults of one configuration; nothing else can change from here. */
+  'device.providers.update': {
+    lane: 'control',
+    direction: 'core-to-device',
+    fields: {
+      requestId,
+      id: ConfigurationIdSchema,
+      name: v.optional(ProviderConfigurationSchema.entries.name),
+      enabled: v.optional(v.boolean()),
+      defaults: v.optional(SessionConfigSchema),
+    },
+  },
+  'device.providers.rejected': {
     lane: 'control',
     direction: 'device-to-core',
     fields: { requestId, reason: v.string() },
@@ -1238,6 +1277,9 @@ export type SessionListening = WireMessageOf<'session.listening'>;
 export type PortsWatch = WireMessageOf<'ports.watch'>;
 export type SessionPorts = WireMessageOf<'session.ports'>;
 export type DeviceResources = WireMessageOf<'device.resources'>;
+export type DeviceProviders = WireMessageOf<'device.providers'>;
+export type DeviceProvidersUpdate = WireMessageOf<'device.providers.update'>;
+export type DeviceProvidersRejected = WireMessageOf<'device.providers.rejected'>;
 
 /** Types of the messages in `direction`, in table order. */
 export function wireTypes(...directions: Direction[]): WireType[] {
@@ -1293,6 +1335,8 @@ export const ClientMessageSchema = v.variant('type', [
   WIRE_MESSAGES['terminal.rejected'].schema,
   WIRE_MESSAGES['session.ports'].schema,
   WIRE_MESSAGES['device.resources'].schema,
+  WIRE_MESSAGES['device.providers'].schema,
+  WIRE_MESSAGES['device.providers.rejected'].schema,
 ]);
 
 /** The messages a browser sends. */
@@ -1313,6 +1357,8 @@ export const WIRE_OBJECTS = {
   DirEntry: DirEntrySchema,
   RuntimeCapabilities: RuntimeCapabilitiesSchema,
   ProviderInfo: ProviderInfoSchema,
+  ProviderConfiguration: ProviderConfigurationSchema,
+  ProviderEnvVar: ProviderEnvVarSchema,
   DeviceCapabilities: DeviceCapabilitiesSchema,
   DeviceSystem: DeviceSystemSchema,
   SessionPort: SessionPortSchema,

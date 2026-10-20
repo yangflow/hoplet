@@ -155,7 +155,7 @@ func TestBridgeRefusesAndAnswers(t *testing.T) {
 	}
 
 	// A reconnect reports the open request again.
-	before := len(b.mgr.Pending())
+	before := len(b.manager("claude").Pending())
 	b.report()
 	if before != 1 {
 		t.Fatalf("pending = %d", before)
@@ -218,7 +218,7 @@ func TestBridgeNoticesForeignWritesFromScannedSizes(t *testing.T) {
 	s.waitState(t, "s1", "ready")
 	src := sizedSource{id: "s1", path: file}
 	b.observe(context.Background(), []provider.Source{src})
-	if got := b.mgr.State("s1"); got != runtime.StateReady {
+	if got := b.manager("claude").State("s1"); got != runtime.StateReady {
 		t.Fatalf("own writes: state = %s", got)
 	}
 	f, err := os.OpenFile(file, os.O_APPEND|os.O_WRONLY, 0o600)

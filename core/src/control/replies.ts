@@ -6,6 +6,7 @@ import type {
   WorkspaceDiff,
   WorkspaceFile,
 } from '@hoplet/shared';
+import { log } from '../log/index.ts';
 import { matchesWaiter, settleWaiter } from './pending.ts';
 import type { Runtime } from './runtime.ts';
 import type { ControlState } from './state.ts';
@@ -254,6 +255,16 @@ export function receiveReply(
       return;
     case 'device.resources':
       resources.receive(link, msg);
+      return;
+    case 'device.providers': {
+      // The list is the agent's own, whole: it replaces what the hello announced.
+      for (const [deviceId, attached] of state.byDevice) {
+        if (attached === link) state.providers.set(deviceId, msg.providers);
+      }
+      return;
+    }
+    case 'device.providers.rejected':
+      log('warn', 'control', 'provider update refused by the agent', { reason: msg.reason });
       return;
   }
 }

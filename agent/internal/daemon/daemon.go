@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -22,14 +23,21 @@ import (
 
 func Scan(cfg *config.Config, sctx context.Context) []provider.Source {
 	var sources []provider.Source
+	owners := map[string]string{}
 	for _, prov := range vendors(cfg) {
 		ss, err := prov.Scan(sctx)
 		if err != nil {
 			log.Printf("[agent] provider scan failed: %v", err)
 			continue
 		}
+		if conf, ok := extraConfiguration(prov); ok {
+			for _, s := range ss {
+				owners[s.ID()] = conf
+			}
+		}
 		sources = append(sources, ss...)
 	}
+	setScanOwners(owners)
 	return sources
 }
 
@@ -37,21 +45,35 @@ var (
 	vendorMu   gosync.Mutex
 	vendorCfg  *config.Config
 	vendorList []provider.Provider
+	// extras are the session sources of configurations that set their own CLAUDE_CONFIG_DIR or CODEX_HOME.
+	extras []*extraSource
+	// scanOwners maps a session found in an extra source to the configuration that owns it.
+	scanOwners map[string]string
 )
 
-// vendors returns the providers of cfg. They are kept for the life of the config so that their scan state
+// vendors returns the providers of cfg: the vendors' own session stores, then the stores of configurations
+// with a session directory of their own. They are kept for the life of the config so that their scan state
 // survives from one scan to the next.
 func vendors(cfg *config.Config) []provider.Provider {
 	vendorMu.Lock()
 	defer vendorMu.Unlock()
+	return vendorsLocked(cfg)
+}
+
+func vendorsLocked(cfg *config.Config) []provider.Provider {
 	if vendorCfg != cfg {
 		vendorCfg = cfg
+		extras, scanOwners = nil, nil
 		claude := claudeprovider.New(cfg.ClaudeProjects, cfg.ExcludePrefixes)
 		claude.SetProjectHints(func() []string { return watchedPaths(cfg.HopletHome) })
 		codex := codexprovider.New(codexprovider.SessionsDir(cfg.CodexHome), cfg.ExcludePrefixes)
 		vendorList = []provider.Provider{claude, codex}
 	}
-	return vendorList
+	out := append([]provider.Provider(nil), vendorList...)
+	for _, e := range extras {
+		out = append(out, e.p)
+	}
+	return out
 }
 
 func finders(cfg *config.Config) []provider.Finder {
@@ -119,19 +141,20 @@ func Run(cfg *config.Config, version string) error {
 	runtimeHooks := rt.hooks()
 	runtimeHooks.Start = rt.starter(st)
 	client = sync.NewClient(cfg, deviceID, version, sync.Hooks{
-		Providers:      rt.providers(),
-		Runtime:        runtimeHooks,
-		Handoff:        moves.hooks(),
-		Terminal:       terms.hooks(),
-		Ports:          sync.PortsHooks{Watch: watcher.Watch},
-		PreviewHost:    cfg.PreviewHost,
-		Workspace:      workspaceList(cfg),
-		File:           workspaceFile(cfg),
-		Diff:           workspaceDiff(cfg),
-		ProjectsList:   st.projectsList,
-		ProjectsAdd:    st.projectsAdd,
-		ProjectsRemove: st.projectsRemove,
-		DirsList:       dirsList(cfg),
+		Providers:       rt.providers,
+		ProvidersUpdate: rt.update,
+		Runtime:         runtimeHooks,
+		Handoff:         moves.hooks(),
+		Terminal:        terms.hooks(),
+		Ports:           sync.PortsHooks{Watch: watcher.Watch},
+		PreviewHost:     cfg.PreviewHost,
+		Workspace:       workspaceList(cfg),
+		File:            workspaceFile(cfg),
+		Diff:            workspaceDiff(cfg),
+		ProjectsList:    st.projectsList,
+		ProjectsAdd:     st.projectsAdd,
+		ProjectsRemove:  st.projectsRemove,
+		DirsList:        dirsList(cfg),
 		AttachmentPut: func(p sync.AttachmentPut) (bool, error) {
 			return rt.att.put(p.AttachmentID, p.MediaType, p.Seq, p.Last, p.Data)
 		},
@@ -167,9 +190,21 @@ func Run(cfg *config.Config, version string) error {
 		case <-ticker.C:
 		case <-client.Wake():
 		}
+		if rt.reload() {
+			go announceProviders(client, rt)
+		}
 		synced := moves.filter(st.poll(Scan(cfg, ctx)))
 		rt.observe(ctx, synced)
 		client.Reconcile(ctx, synced)
+	}
+}
+
+// announceProviders tells the core the configurations after providers.json changed; a core that is not
+// connected gets them in the hello of its next connection.
+func announceProviders(client *sync.Client, rt *bridge) {
+	err := client.Send(sync.DeviceProviders{V: sync.ProtocolVersion, Type: sync.TypeDeviceProviders, Providers: rt.providers()})
+	if err != nil && !errors.Is(err, sync.ErrNotConnected) {
+		log.Printf("[agent] providers not sent: %v", err)
 	}
 }
 

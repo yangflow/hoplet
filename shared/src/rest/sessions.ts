@@ -3,6 +3,7 @@ import { EntrySchema } from '../conversation.ts';
 import { SessionIdSchema } from '../ids.ts';
 import {
   ConfigChangeSchema,
+  ConfigurationIdSchema,
   PromptAttachmentsSchema,
   RuntimeCapabilitiesSchema,
   RuntimeStateSchema,
@@ -180,6 +181,8 @@ export const NewSessionRequestSchema = v.object({
   deviceId: TrimmedSchema,
   projectPath: v.pipe(TrimmedSchema, v.maxLength(4096)),
   provider: ProviderSchema,
+  /** The provider configuration of the device to start with (ADR 0028); the vendor's own when absent. */
+  configuration: v.optional(ConfigurationIdSchema),
   config: v.optional(SessionConfigSchema),
   text: TrimmedSchema,
   /** Images uploaded to the device for the first prompt; the provider's driver must declare `images`. */
