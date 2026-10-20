@@ -147,6 +147,8 @@ func (c *Client) sendDelta(ctx context.Context, cs *connState, src provider.Sour
 			Encoding:   EncodingGzipBase64,
 			Lines:      base64.StdEncoding.EncodeToString(gzBuf.Bytes()),
 			Title:      provider.PeekTitle(ctx, src),
+
+			Configuration: c.sessionConfiguration(src),
 		}
 		if err := c.writeMsg(cs, msg); err != nil {
 			return false, fmt.Errorf("send: %w", err)
@@ -234,6 +236,8 @@ func (c *Client) pushTitle(ctx context.Context, cs *connState, src provider.Sour
 		Encoding:   EncodingGzipBase64,
 		Lines:      base64.StdEncoding.EncodeToString(gzBuf.Bytes()),
 		Title:      title,
+
+		Configuration: c.sessionConfiguration(src),
 	}
 	if err := c.writeMsg(cs, msg); err != nil {
 		return fmt.Errorf("send title: %w", err)
@@ -313,4 +317,16 @@ func logRejected(id string, err error) {
 		return
 	}
 	log.Printf("[agent] session %s belongs to another device; skipping", shortID(id))
+}
+
+// sessionConfiguration is the configuration to announce with the session's appends: empty for the vendor's own.
+func (c *Client) sessionConfiguration(src provider.Source) string {
+	if c.hooks.SessionConfiguration == nil {
+		return ""
+	}
+	id := c.hooks.SessionConfiguration(src.ID())
+	if id == src.Provider() {
+		return ""
+	}
+	return id
 }

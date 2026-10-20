@@ -27,6 +27,7 @@ import type {
   InstalledInfo,
   PreparedInfo,
   PromptOutcome,
+  ProvidersOutcome,
   SessionDeviceOutcome,
   StartAnswer,
   StartOutcome,
@@ -102,6 +103,8 @@ export interface ControlState {
   pendingInstalled: Map<string, Waiter<StepOutcome<InstalledInfo>>>;
   pendingVerified: Map<string, Waiter<StepOutcome<VerifiedInfo>>>;
   pendingDeviceControl: Map<string, Waiter<DeviceControlOutcome>>;
+  /** Answers to `device.providers.update`, by request ID. */
+  pendingProviders: Map<string, Waiter<ProvidersOutcome>>;
   /** Answers to the device.session.* requests of a deletion, by request ID. */
   pendingSession: Map<string, Waiter<SessionDeviceOutcome>>;
   pendingDirs: Map<string, Waiter<DirsOutcome>>;

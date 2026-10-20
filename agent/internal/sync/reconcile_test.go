@@ -381,3 +381,67 @@ func TestAppendCarriesTheSourcesProvider(t *testing.T) {
 		srv.Close()
 	}
 }
+
+func TestAppendCarriesTheSessionConfiguration(t *testing.T) {
+	for name, tc := range map[string]struct{ id, want string }{
+		"configuration": {"glm", "glm"},
+		"built-in":      {"claude", ""},
+		"unrecorded":    {"", ""},
+	} {
+		t.Run(name, func(t *testing.T) {
+			src := testSource{[]byte("{\"type\":\"ai-title\",\"aiTitle\":\"t\"}\n")}
+			up := websocket.Upgrader{}
+			requests := make(chan json.RawMessage, 4)
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				conn, err := up.Upgrade(w, r, nil)
+				if err != nil {
+					return
+				}
+				defer conn.Close()
+				var hello DeviceHello
+				if conn.ReadJSON(&hello) != nil {
+					return
+				}
+				conn.WriteJSON(map[string]any{"v": ProtocolVersion, "type": TypeWelcome, "sessions": []any{}})
+				for {
+					var raw json.RawMessage
+					if conn.ReadJSON(&raw) != nil {
+						return
+					}
+					var head struct{ Type string }
+					json.Unmarshal(raw, &head)
+					if head.Type != TypeSessionAppend {
+						continue
+					}
+					requests <- raw
+					conn.WriteJSON(map[string]any{"type": "session.ack", "sessionId": "s1", "byteSize": len(src.data)})
+				}
+			}))
+			defer srv.Close()
+			hooks := Hooks{SessionConfiguration: func(string) string { return tc.id }}
+			c := NewClient(&config.Config{ServerURL: srv.URL, Token: "test"}, "dev", "test", hooks)
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+			done := make(chan error, 1)
+			go func() { done <- c.runOnce(ctx) }()
+			select {
+			case <-c.Wake():
+			case <-ctx.Done():
+				t.Fatal("connect timed out")
+			}
+			c.Reconcile(ctx, []provider.Source{src})
+			raw := <-requests
+			var fields map[string]any
+			json.Unmarshal(raw, &fields)
+			got, present := fields["configuration"].(string)
+			if got != tc.want || present != (tc.want != "") {
+				t.Fatalf("configuration = %q (present %v), want %q", got, present, tc.want)
+			}
+			cancel()
+			if cs := c.cs.Load(); cs != nil {
+				cs.conn.Close()
+			}
+			<-done
+		})
+	}
+}

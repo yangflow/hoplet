@@ -269,6 +269,11 @@ export class Store {
     return sessions.updateSessionState(this.ctx, sessionId, change);
   }
 
+  /** The provider configuration the session's owner announced; empty for the vendor's own (ADR 0028). */
+  sessionConfiguration(sessionId: string): string {
+    return sessions.sessionConfiguration(this.ctx, sessionId);
+  }
+
   ownerDeviceId(sessionId: string): string | null {
     return sessions.ownerDeviceId(this.ctx, sessionId);
   }
@@ -287,6 +292,7 @@ export class Store {
     projectPath: string,
     branch: string,
     clone: string | null = null,
+    configuration = '',
   ): number | null {
     return sessions.handoffOwner(
       this.ctx,
@@ -299,6 +305,7 @@ export class Store {
       branch,
       clone,
       Date.now(),
+      configuration,
     );
   }
 

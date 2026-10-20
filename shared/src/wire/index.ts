@@ -247,6 +247,11 @@ export const WIRE_MESSAGES = defineWire({
        * May arrive with an empty batch so already-synced sessions catch up after a title change.
        */
       title: v.optional(v.string()),
+      /**
+       * The ID of the provider configuration the session belongs to (ADR 0028); absent means the vendor's own.
+       * The core keeps what the latest append says.
+       */
+      configuration: v.optional(ConfigurationIdSchema),
     },
   },
   'session.ack': {

@@ -10,7 +10,7 @@ import "encoding/json"
 // (provider.ValidSessionID, ADR 0006). Invalid IDs receive error invalid-session-id
 // before decoding or persistence; the wire envelope and cursor are unchanged.
 
-const ProtocolVersion = 12
+const ProtocolVersion = 13
 
 // Wire message types: Type<Struct> is the `type` of the struct of that name.
 // shared/src/wire/ holds the same table; scripts/test/contract.test.ts compares both.
@@ -230,6 +230,9 @@ type SessionAppend struct {
 	Lines      string   `json:"lines"` // raw lines joined by \n; gzip+base64 when encoded
 	// Title is PeekTitle from the live file; updates the store index only.
 	Title string `json:"title,omitempty"`
+	// Configuration is the ID of the provider configuration the session belongs to (ADR 0028); absent means the
+	// vendor's own. The core keeps what the latest append says.
+	Configuration string `json:"configuration,omitempty"`
 }
 
 // WorkspaceSnapshot is one chunk of a session's workspace snapshot (docs/architecture.md#workspace-snapshots):

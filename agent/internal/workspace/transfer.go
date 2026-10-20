@@ -45,6 +45,7 @@ type TransferHeader struct {
 	HandoffID      string
 	SessionID      string
 	Provider       string // the session's vendor
+	Configuration  string // the target's provider configuration; empty means the vendor's own
 	TargetPath     string
 	SnapshotBytes  int64
 	SnapshotSHA256 string

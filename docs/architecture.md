@@ -154,7 +154,13 @@ sessions on the old process; a disabled one only stops new starts and resumes. `
 `ProviderInfo.configuration` (id, name, extends, enabled, the names of the variables and whether each is set,
 defaults, never a value or the command's content), and the agent sends `device.providers` again when the file
 changes. The agent accepts `device.providers.update` (name, enabled, defaults only) and answers a refused one with
-`device.providers.rejected`; the core logs the refusal.
+`device.providers.rejected`. The core relays the update for `POST /api/devices/:deviceId/providers` on the control lane,
+checks `defaults` against the options the configuration's driver declares (ADR 0018) before it sends, and answers
+with the list of the agent's `device.providers` reply (or the refusal). An agent drops a session's entry from
+`sessions-config.json` when the session is removed or deleted. Each `session.append` carries the session's
+`configuration` ID (absent for the vendor's built-in); the core keeps the latest one per session, and a handoff sets
+it to the configuration the target was asked to install for. The session in the REST API names it from the owner
+device's providers, by its ID while that device is offline.
 
 The Codex driver (`runtime/codex/`, [ADR 0027](adr/0027-codex-runs-on-its-app-server-and-enters-at-level-2.md))
 starts one `codex app-server` per controlled session and speaks newline-delimited JSON-RPC to it over stdio with
@@ -288,11 +294,11 @@ Deleting a session ([ADR 0023](adr/0023-deleting-a-session-and-what-hoplet-made-
 messages that name the session by ID and never a path: `device.session.inspect|inspected|rejected`,
 `device.session.delete|deleted` and `device.session.forget|forgotten`. A deleted ID is a tombstone in the core;
 `session.append` and a resync of it are answered with `session.rejected` reason `deleted`, and the core sends
-`device.session.forget` for the tombstones of a device when it connects. `handoff.install` carries the session's `provider` and an optional `configuration`, and the target installs the session file in that vendor's store and records the vendor with the installation, so verify and rollback use the same store. `handoff.installed` carries `clone`, the
+`device.session.forget` for the tombstones of a device when it connects. `handoff.install` carries the session's `provider` and an optional `configuration`, and the target installs the session file in the store of that configuration (its own session directory when its environment sets `CLAUDE_CONFIG_DIR` or `CODEX_HOME`, else the vendor's) and records the vendor and the configuration with the installation, so verify and rollback use the same store. A configuration that is unknown, disabled or of another vendor is refused with `configuration-unavailable`, which the core reports as `rejected`. When the handoff commits with this device as the owner, the agent records the configuration in `sessions-config.json` (the vendor's built-in has no entry); an abort records nothing. `handoff.installed` carries `clone`, the
 clone the new worktree belongs to, which the core keeps in `session_worktrees`.
 
 A handoff to a machine with no clone of the repository adds a clone step before the owner is touched
-([ADR 0024](adr/0024-a-handoff-clones-the-repository-on-a-target-that-has-none.md)). The protocol version is 12.
+([ADR 0024](adr/0024-a-handoff-clones-the-repository-on-a-target-that-has-none.md)). The protocol version is 13.
 The control-lane messages are `device.clone.check` (`requestId`, `origin`, optional `cloneInto`) answered by
 `device.clone.checked` (`reason`, `detail`, the proposed `cloneInto`), and `device.clone.start` (`requestId`,
 `handoffId`, `origin`, `cloneInto`) answered by `device.clone.progress` (`received`, optional `total`, at most four

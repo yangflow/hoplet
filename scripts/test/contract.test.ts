@@ -193,6 +193,7 @@ describe('wire contract', () => {
       encoding: { optional: false },
       lines: { optional: false },
       title: { optional: true },
+      configuration: { optional: true },
     });
     expect(go.types['device.hello']).toBe('DeviceHello');
     expect(go.codes).toContain('protocol-version-mismatch');

@@ -109,6 +109,7 @@ Response column names the schema of the success body and its status when it is n
 | GET | `/api/devices/:deviceId/dirs` | host | control | `DeviceDirsQuerySchema` | — | `DeviceDirsResultSchema` | `invalid-request`, `target-offline`, `timeout` |
 | GET | `/api/devices/:deviceId/projects` | host | control | — | — | `DeviceProjectsResultSchema` | `owner-offline`, `timeout`, `rejected`, `cancelled` |
 | POST | `/api/devices/:deviceId/projects` | host | control | — | `DeviceProjectsAddRequestSchema` | `DeviceProjectsResultSchema` | `invalid-json`, `invalid-request`, `too-large`, `owner-offline`, `timeout`, `rejected`, `cancelled` |
+| POST | `/api/devices/:deviceId/providers` | host | control | — | `DeviceProvidersUpdateRequestSchema` | `DeviceProvidersResultSchema` | `invalid-json`, `invalid-request`, `too-large`, `not-found`, `owner-offline`, `timeout`, `rejected` |
 | POST | `/api/devices/:deviceId/projects/remove` | host | control | — | `DeviceProjectsRemoveRequestSchema` | `DeviceProjectsResultSchema` | `invalid-json`, `invalid-request`, `too-large`, `owner-offline`, `timeout`, `rejected`, `cancelled` |
 | POST | `/api/devices/:deviceId/sessions/import` | host | control | — | `DeviceSessionsImportRequestSchema` | `DeviceProjectsResultSchema` | `invalid-json`, `invalid-request`, `too-large`, `owner-offline`, `timeout`, `rejected`, `cancelled` |
 | POST | `/api/devices/:deviceId/sessions/remove` | host | control | — | `DeviceSessionsRemoveRequestSchema` | `DeviceProjectsResultSchema` | `invalid-json`, `invalid-request`, `too-large`, `owner-offline`, `timeout`, `rejected`, `cancelled` |
@@ -217,6 +218,18 @@ Behavior a client relies on:
   credentials) and, for `destination-taken`, a `detail` (`exists`,
   `outside-root`, `symlink`, `not-writable`). The query takes an optional `cloneInto` to check instead of the
   proposal.
+- A session carries `configuration` (`{id, name}`) when it belongs to a provider configuration other than the vendor's
+  built-in ([ADR 0028](adr/0028-provider-configurations-live-on-the-machine.md)); the owner agent announces the ID with
+  `session.append`, and the name is the one the owner device announced (the ID while that device is offline).
+- `POST /api/devices/:deviceId/providers` changes one provider configuration on a connected machine: `id` and any of
+  `name`, `enabled` and `defaults` (which replaces the defaults as a whole). The command and the environment are not
+  changeable from here. It answers `{deviceId, providers}` with the machine's list after the change. An unknown device
+  is `not-found`, an offline one `owner-offline`, an unknown `id` or a default the driver does not declare
+  `invalid-request` (`reason: configuration` or `config`), no answer in time `timeout`, and a refusal by the agent
+  `rejected` with its text as `reason`.
+- A handoff request takes an optional `configuration`, the ID of a provider configuration of the target; it must be
+  enabled on the target and extend the session's provider (`invalid-request` with `reason: configuration`
+  otherwise). The target installs the session in that configuration's session store; the default is the provider's built-in. A target that changed the configuration meanwhile refuses with `rejected` and the reason `configuration-unavailable`.
 - A handoff request with `cloneInto` (exclusive with `targetPath`) makes the target clone the repository there
   first, before the owner is touched; `handoff.progress` reports `clone` with the bytes received. A failed clone
   answers `clone-failed` with the `reason` (`no-access`, `no-space`, `destination-taken`, `timeout`,

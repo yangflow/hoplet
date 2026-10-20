@@ -240,6 +240,35 @@ func (b *bridge) ownerOf(sessionID string) string {
 	return ownerByFind(b.cfg, sessionID)
 }
 
+// sessionConfiguration is the configuration to announce for a session: the one that started it, else the one
+// whose own session store the last scan found it in; empty for the vendor's own.
+func (b *bridge) sessionConfiguration(sessionID string) string {
+	if id, ok := b.owners.Get(sessionID); ok {
+		return id
+	}
+	id, _ := extraOwner(sessionID)
+	return id
+}
+
+// installStore is the session store a handed-off session installs into: the configuration's own when its
+// environment names a session directory, else the vendor's.
+func (b *bridge) installStore(vendor, configuration string) provider.Store {
+	if e := b.entry(configuration); configuration != "" && e != nil {
+		if st, ok := storeOf(b.cfg, e.config()).(provider.Store); ok {
+			return st
+		}
+	}
+	return vendorStore(b.cfg, vendor)
+}
+
+// forgetConfiguration drops the record of the configuration that started a session whose entry is removed or
+// whose ownership left the machine.
+func (b *bridge) forgetConfiguration(sessionID string) {
+	if err := b.owners.Forget(sessionID); err != nil {
+		log.Printf("[agent] session configuration not forgotten: %v", err)
+	}
+}
+
 // resolve is the manager that runs the session. A process that runs stays with the manager that started it.
 // Otherwise it is the manager of the session's configuration (a change of a configuration applies to processes
 // started afterwards), which errUnavailable refuses when the configuration was removed or is disabled. A

@@ -81,7 +81,7 @@ place of the proxy. Never publish port 7788 on `0.0.0.0`.
 
 | Where | What |
 |---|---|
-| Docker volume `hoplet-data` (`/data` in the container) | `hoplet.db` (SQLite index, which also holds what the user did to a session in the web UI: a title of their own, a pin, an archive, the last slash commands and skills a session reported per machine and directory, the messages queued for a session, the worktree Hoplet made for a handed-off session, and the IDs of deleted sessions), `sessions/<sessionId>/c-<seq>.ndjson[.gz]` (session lines), `snapshots/<sessionId>/<snapshotId>.tar.gz` (latest workspace snapshot per session), `notify-secrets.json` (mode 0600: the VAPID key pair for Web Push, the key that signs action links and the signing secrets of webhooks; the push subscriptions, the webhooks without their secrets and the preferences are in `hoplet.db`) |
+| Docker volume `hoplet-data` (`/data` in the container) | `hoplet.db` (SQLite index, which also holds what the user did to a session in the web UI: a title of their own, a pin, an archive, the last slash commands and skills a session reported per machine and directory, the messages queued for a session, the worktree Hoplet made for a handed-off session, the provider configuration each session belongs to, and the IDs of deleted sessions), `sessions/<sessionId>/c-<seq>.ndjson[.gz]` (session lines), `snapshots/<sessionId>/<snapshotId>.tar.gz` (latest workspace snapshot per session), `notify-secrets.json` (mode 0600: the VAPID key pair for Web Push, the key that signs action links and the signing secrets of webhooks; the push subscriptions, the webhooks without their secrets and the preferences are in `hoplet.db`) |
 | Agent state root (`~/.hoplet/` by default) | `device-id`, `config.json`, `projects.json`, `runtime/` (running processes), `handoff/` (installation records and the journal of a clone in progress, `<handoffId>.clone.json`, which the agent uses on start-up to remove a half-made clone), `attachments/` (images uploaded for prompts: at most 64 files and 64 MiB, each kept at most an hour) |
 | Development machine | Claude Code's store, Codex's `sessions/` (read-only, except that handoff adds one rollout file) and working trees; worktrees created by handoff, next to the clone they belong to |
 
@@ -189,7 +189,7 @@ published on the server running the core, and the compose file does not change.
 Pull the new image and restart: `docker compose pull && docker compose up -d`. Migrations in
 `core/src/migrations/` run forward at startup; a data directory with a newer schema is refused. Replace
 `hoplet-agent` on every machine with the version built from the same commit as the image; the agent and the core
-refuse a `device.hello` whose protocol version differs (the version is 12). Back up the stopped data directory before upgrading;
+refuse a `device.hello` whose protocol version differs (the version is 13). Back up the stopped data directory before upgrading;
 downgrading means restoring that backup with the matching binaries.
 
 ## Uninstall

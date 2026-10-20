@@ -77,6 +77,7 @@ export function handleMessage(deps: MessageDeps, conn: Conn, msg: ClientMessage)
             deviceId: conn.deviceId,
             provider: msg.provider,
             ...(msg.title !== undefined ? { title: msg.title } : {}),
+            ...(msg.configuration !== undefined ? { configuration: msg.configuration } : {}),
           },
           lines,
         );

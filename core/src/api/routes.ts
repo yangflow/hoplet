@@ -26,6 +26,8 @@ import {
   DeviceProjectsAddRequestSchema,
   DeviceProjectsRemoveRequestSchema,
   DeviceProjectsResultSchema,
+  DeviceProvidersResultSchema,
+  DeviceProvidersUpdateRequestSchema,
   DeviceResourcesResultSchema,
   DeviceSessionsImportRequestSchema,
   DeviceSessionsRemoveRequestSchema,
@@ -217,11 +219,24 @@ function withLiveness(
       store.getSession(sessionId)?.title ||
       '',
   });
+  const configurationId = store.sessionConfiguration(meta.sessionId);
+  const configuration = configurationId
+    ? {
+        id: configurationId,
+        name:
+          findProvider(
+            control.devices().find((d) => d.deviceId === owner)?.providers ?? [],
+            meta.provider,
+            configurationId,
+          )?.configuration.name ?? configurationId,
+      }
+    : undefined;
   return {
     ...(links.continuedIn ? { continuedIn: end(links.continuedIn) } : {}),
     ...(links.continuedFrom ? { continuedFrom: end(links.continuedFrom) } : {}),
     ...meta,
     ...state,
+    ...(configuration ? { configuration } : {}),
     ownerConnected: !!owner && control.ownerOnline(owner),
     runtime: control.runtimeOf(meta.sessionId),
     ...(owner ? { ownerDeviceId: owner } : {}),
@@ -867,11 +882,23 @@ export const routes: readonly Route[] = [
       if (d.body.targetPath !== undefined && d.body.cloneInto !== undefined) {
         throw new ApiError('invalid-request', { reason: 'targetPath and cloneInto are exclusive' });
       }
+      if (d.body.configuration !== undefined) {
+        const provider = d.store.getSession(d.params.sessionId ?? '')?.provider;
+        const target = d.control.devices().find((x) => x.deviceId === d.body.targetDeviceId);
+        // A target that is offline or unknown is the handoff's own error; a connected one must offer the configuration.
+        if (provider !== undefined && target?.connected) {
+          const info = findProvider(target.providers, provider, d.body.configuration);
+          if (!info?.configuration.enabled) {
+            throw new ApiError('invalid-request', { reason: 'configuration' });
+          }
+        }
+      }
       const outcome = await d.control.handoff({
         sessionId: d.params.sessionId ?? '',
         targetDeviceId: d.body.targetDeviceId,
         targetPath: d.body.targetPath,
         cloneInto: d.body.cloneInto,
+        configuration: d.body.configuration,
       });
       if (outcome.ok) {
         return {
@@ -1077,6 +1104,33 @@ export const routes: readonly Route[] = [
     handler: async ({ control, params, body }) => {
       const deviceId = params.deviceId ?? '';
       return deviceResult(deviceId, await control.addProject(deviceId, body.path));
+    },
+  }),
+  defineRoute({
+    method: 'POST',
+    path: '/api/devices/:deviceId/providers',
+    auth: 'host',
+    lane: 'control',
+    bodyLimit: 16 * 1024,
+    body: DeviceProvidersUpdateRequestSchema,
+    response: DeviceProvidersResultSchema,
+    handler: async ({ control, params, body }) => {
+      const deviceId = params.deviceId ?? '';
+      const device = control.devices().find((x) => x.deviceId === deviceId);
+      if (!device) throw new ApiError('not-found');
+      if (!device.connected) throw new ApiError('owner-offline');
+      const info = device.providers.find((p) => p.configuration.id === body.id);
+      if (!info) throw new ApiError('invalid-request', { reason: 'configuration' });
+      // The defaults are checked against what the configuration's driver declares (ADR 0018).
+      if (
+        body.defaults !== undefined &&
+        undeclaredConfig(body.defaults, info.capabilities) !== null
+      ) {
+        throw new ApiError('invalid-request', { reason: 'config' });
+      }
+      const outcome = await control.updateProvider(deviceId, body);
+      if (!outcome.ok) throw relayError(outcome);
+      return { deviceId, providers: outcome.providers };
     },
   }),
   defineRoute({

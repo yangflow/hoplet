@@ -109,6 +109,9 @@ type Hooks struct {
 	// ProvidersUpdate applies a device.providers.update and returns the list afterwards; an error becomes
 	// device.providers.rejected with its text as the reason.
 	ProvidersUpdate func(DeviceProvidersUpdate) ([]ProviderInfo, error)
+	// SessionConfiguration is the ID of the provider configuration the session belongs to, sent with its
+	// appends; empty for the vendor's own.
+	SessionConfiguration func(sessionID string) string
 
 	Runtime   RuntimeHooks
 	Workspace WorkspaceFunc
