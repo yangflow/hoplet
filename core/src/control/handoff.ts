@@ -457,6 +457,8 @@ export function createHandoff(
       worktree,
       branch,
       clone || null,
+      // The target's agent announces it again with the next append; until then it is the one installed for.
+      request.configuration && request.configuration !== meta.provider ? request.configuration : '',
     );
     if (newEpoch === null) throw new HandoffFailure('session-changed');
     const commit = {

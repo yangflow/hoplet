@@ -44,6 +44,8 @@ export interface AppendInput {
   provider: Provider;
   /** Agent PeekTitle; preferred over batch extractMeta when non-empty. */
   title?: string;
+  /** The provider configuration the agent says the session belongs to (ADR 0028); absent is the vendor's own. */
+  configuration?: string;
 }
 
 /**
@@ -62,8 +64,16 @@ export function append(ctx: StoreContext, input: AppendInput, rawLines: string[]
     throw new NotOwnerError(row.device_id);
   }
   const peekTitle = typeof input.title === 'string' ? input.title.trim() : '';
+  // The owner agent's word is final, also when it says nothing: the vendor's own configuration.
+  const configuration = input.configuration ?? '';
   if (lines.length === 0) {
     if (row) {
+      if (configuration !== row.configuration) {
+        db.prepare(`UPDATE sessions SET configuration=? WHERE session_id=?`).run(
+          configuration,
+          input.sessionId,
+        );
+      }
       if (peekTitle && peekTitle !== row.title) {
         db.prepare(`UPDATE sessions SET title=?, updated_at=? WHERE session_id=?`).run(
           peekTitle,
@@ -91,9 +101,17 @@ export function append(ctx: StoreContext, input: AppendInput, rawLines: string[]
   if (!row) {
     const createdAt = found.createdAt || now;
     db.prepare(
-      `INSERT INTO sessions(session_id, project_dir, provider, created_at, updated_at, chunk_count, device_id)
-       VALUES(?, ?, ?, ?, ?, 1, ?)`,
-    ).run(input.sessionId, input.projectDir, input.provider, createdAt, now, input.deviceId);
+      `INSERT INTO sessions(session_id, project_dir, provider, created_at, updated_at, chunk_count, device_id, configuration)
+       VALUES(?, ?, ?, ?, ?, 1, ?, ?)`,
+    ).run(
+      input.sessionId,
+      input.projectDir,
+      input.provider,
+      createdAt,
+      now,
+      input.deviceId,
+      configuration,
+    );
     const created = getRow(ctx, input.sessionId);
     if (!created) throw new Error(`session row for ${input.sessionId} vanished after insert`);
     row = created;
@@ -164,12 +182,13 @@ export function append(ctx: StoreContext, input: AppendInput, rawLines: string[]
     syncDirectory(dir);
     db.exec('BEGIN IMMEDIATE');
     db.prepare(
-      `UPDATE sessions SET project_path=?, title=?, git_branch=?, updated_at=?, line_count=?, byte_size=?,
+      `UPDATE sessions SET project_path=?, title=?, git_branch=?, configuration=?, updated_at=?, line_count=?, byte_size=?,
        chunk_count=?, cur_chunk_lines=? WHERE session_id=?`,
     ).run(
       projectPath,
       title,
       gitBranch,
+      configuration,
       now,
       lineCount,
       byteSize,

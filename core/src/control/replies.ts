@@ -31,6 +31,7 @@ export function receiveReply(
     pendingInstalled,
     pendingVerified,
     pendingDeviceControl,
+    pendingProviders,
     pendingSession,
     pendingDirs,
     pendingClone,
@@ -261,10 +262,18 @@ export function receiveReply(
       for (const [deviceId, attached] of state.byDevice) {
         if (attached === link) state.providers.set(deviceId, msg.providers);
       }
+      if (msg.requestId !== undefined) {
+        settleWaiter(pendingProviders, msg.requestId, { ok: true, providers: msg.providers });
+      }
       return;
     }
     case 'device.providers.rejected':
       log('warn', 'control', 'provider update refused by the agent', { reason: msg.reason });
+      settleWaiter(pendingProviders, msg.requestId, {
+        ok: false,
+        error: 'rejected',
+        reason: msg.reason,
+      });
       return;
   }
 }

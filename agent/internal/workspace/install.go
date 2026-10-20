@@ -32,8 +32,8 @@ type Projects interface {
 // keeps a record of every installation in the state root before it changes anything, so an installation
 // that was interrupted is removed again.
 type Installer struct {
-	Home     string                               // agent state root; records are in <Home>/handoff
-	Stores   func(provider string) provider.Store // the store of the vendor named, nil when it has none
+	Home     string                                              // agent state root; records are in <Home>/handoff
+	Stores   func(provider, configuration string) provider.Store // the store of the configuration (empty: the vendor's own), nil when it has none
 	Watched  func() []string
 	Projects Projects
 
@@ -46,6 +46,9 @@ type Record struct {
 	SessionID string `json:"sessionId"`
 	// Provider is the vendor whose store holds the session file; verify, rollback and recovery use the same one.
 	Provider string `json:"provider"`
+	// Configuration is the provider configuration the session is installed for; empty means the vendor's own.
+	// Its own session store, when it has one, holds the session file.
+	Configuration string `json:"configuration,omitempty"`
 	// State is "installing" until everything is in place, then "installed" until the handoff commits or aborts.
 	State          string `json:"state"`
 	Clone          string `json:"clone"`
@@ -169,7 +172,7 @@ func (i *Installer) rollback(ctx context.Context, r Record) error {
 			errs = append(errs, err)
 		}
 	}
-	if st := i.store(r.Provider); r.SessionFile != "" && st != nil {
+	if st := i.store(r.Provider, r.Configuration); r.SessionFile != "" && st != nil {
 		st.Remove(r.SessionFile)
 	}
 	if _, err := os.Lstat(r.Worktree); err == nil {
@@ -191,12 +194,12 @@ func (i *Installer) rollback(ctx context.Context, r Record) error {
 	return nil
 }
 
-// store is the store of the vendor, nil when there is none.
-func (i *Installer) store(name string) provider.Store {
+// store is the store of the configuration (empty: the vendor's own), nil when there is none.
+func (i *Installer) store(name, configuration string) provider.Store {
 	if i.Stores == nil {
 		return nil
 	}
-	return i.Stores(name)
+	return i.Stores(name, configuration)
 }
 
 // Installed is the result of an installation.
@@ -217,7 +220,7 @@ func (i *Installer) Install(ctx context.Context, t *Transfer) (*Installed, error
 	if !provider.ValidSessionID(h.SessionID) {
 		return nil, errors.New("invalid-session-id")
 	}
-	store := i.store(h.Provider)
+	store := i.store(h.Provider, h.Configuration)
 	if store == nil {
 		return nil, errors.New("the session's vendor does not support handoff")
 	}
@@ -239,13 +242,14 @@ func (i *Installer) Install(ctx context.Context, t *Transfer) (*Installed, error
 		short = short[:8]
 	}
 	rec := Record{
-		HandoffID: h.HandoffID,
-		SessionID: h.SessionID,
-		Provider:  h.Provider,
-		State:     StateInstalling,
-		Clone:     clone,
-		Worktree:  filepath.Join(filepath.Dir(clone), filepath.Base(clone)+"-"+short),
-		Branch:    "hoplet/" + short,
+		HandoffID:     h.HandoffID,
+		SessionID:     h.SessionID,
+		Provider:      h.Provider,
+		Configuration: h.Configuration,
+		State:         StateInstalling,
+		Clone:         clone,
+		Worktree:      filepath.Join(filepath.Dir(clone), filepath.Base(clone)+"-"+short),
+		Branch:        "hoplet/" + short,
 	}
 	if err := i.save(rec); err != nil {
 		return nil, err

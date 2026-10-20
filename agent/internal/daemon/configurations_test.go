@@ -189,3 +189,24 @@ func TestReloadSeesAChangeOnceAndKeepsTheLastGoodFile(t *testing.T) {
 		t.Fatal("the last good configurations were dropped")
 	}
 }
+
+func TestSessionConfigurationIsAnnouncedAndForgotten(t *testing.T) {
+	b, _, _, _, _ := newStartEnv(t)
+	if got := b.sessionConfiguration("s-none"); got != "" {
+		t.Fatalf("unrecorded = %q", got)
+	}
+	if err := b.owners.Set("s-alt", "alt"); err != nil {
+		t.Fatal(err)
+	}
+	if got := b.sessionConfiguration("s-alt"); got != "alt" {
+		t.Fatalf("recorded = %q", got)
+	}
+	b.forgetConfiguration("s-alt")
+	if got := b.sessionConfiguration("s-alt"); got != "" {
+		t.Fatalf("after forget = %q", got)
+	}
+	o, _ := configs.LoadOwners(b.cfg.HopletHome)
+	if _, ok := o.Get("s-alt"); ok {
+		t.Fatal("entry still on disk")
+	}
+}

@@ -60,6 +60,11 @@ export type SessionContinuation = v.InferOutput<typeof SessionContinuationSchema
 /** A session as the REST API returns it: the index entry, whether its owner agent is connected, its runtime state, the user's changes and its continuation links. */
 export const LiveSessionMetaSchema = v.object({
   ...SessionMetaSchema.entries,
+  /**
+   * The provider configuration the session belongs to (ADR 0028), named as its owner machine names it and by its
+   * ID while that machine is offline; absent for the vendor's own.
+   */
+  configuration: v.optional(v.object({ id: ConfigurationIdSchema, name: v.string() })),
   ownerConnected: v.boolean(),
   runtime: SessionRuntimeInfoSchema,
   ...SessionStateSchema.entries,
@@ -208,6 +213,11 @@ export const HandoffRequestSchema = v.object({
   targetPath: v.optional(v.pipe(TrimmedSchema, v.maxLength(4096))),
   /** Clone the repository here on the target first (ADR 0024); exclusive with `targetPath`, which the route checks. */
   cloneInto: v.optional(v.pipe(TrimmedSchema, v.maxLength(4096))),
+  /**
+   * The target's provider configuration to continue under (ADR 0028): enabled on the target and extending the
+   * session's provider, else `invalid-request`. Absent means the vendor's own.
+   */
+  configuration: v.optional(ConfigurationIdSchema),
 });
 export type HandoffRequest = v.InferOutput<typeof HandoffRequestSchema>;
 

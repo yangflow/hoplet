@@ -642,9 +642,9 @@ func TestNormalizeOrigin(t *testing.T) {
 }
 
 // claudeOnly is the stores of an agent that has Claude Code's store under dir.
-func claudeOnly(dir string) func(string) provider.Store {
+func claudeOnly(dir string) func(string, string) provider.Store {
 	claude := claudeprovider.New(dir, nil)
-	return func(name string) provider.Store {
+	return func(name, _ string) provider.Store {
 		if name == "claude" {
 			return claude
 		}

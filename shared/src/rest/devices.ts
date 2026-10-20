@@ -2,7 +2,12 @@ import * as v from 'valibot';
 import { DeviceProjectSchema, DirEntrySchema } from '../catalog.ts';
 import { CloneCheckReasonSchema, CloneDestinationDetailSchema } from '../clone.ts';
 import { AttachmentIdSchema, SessionIdSchema } from '../ids.ts';
-import { ProviderInfoSchema } from '../runtime.ts';
+import {
+  ConfigurationIdSchema,
+  ProviderConfigurationSchema,
+  ProviderInfoSchema,
+  SessionConfigSchema,
+} from '../runtime.ts';
 import { DeviceSystemSchema } from '../wire/index.ts';
 import { TrimmedSchema } from './common.ts';
 
@@ -70,6 +75,27 @@ export const DeviceProjectsAddRequestSchema = v.object({ path: TrimmedSchema });
 export type DeviceProjectsAddRequest = v.InferOutput<typeof DeviceProjectsAddRequestSchema>;
 export const DeviceProjectsRemoveRequestSchema = DeviceProjectsAddRequestSchema;
 export type DeviceProjectsRemoveRequest = DeviceProjectsAddRequest;
+
+/**
+ * POST /api/devices/:id/providers: changes the name, the enabled flag or the defaults of one provider
+ * configuration on the machine (ADR 0028); a field left out stays as it is. `defaults` replaces the configuration's
+ * defaults as a whole and must stay within what the driver declares. The command and the environment are changed
+ * on the machine only.
+ */
+export const DeviceProvidersUpdateRequestSchema = v.object({
+  id: ConfigurationIdSchema,
+  name: v.optional(ProviderConfigurationSchema.entries.name),
+  enabled: v.optional(v.boolean()),
+  defaults: v.optional(SessionConfigSchema),
+});
+export type DeviceProvidersUpdateRequest = v.InferOutput<typeof DeviceProvidersUpdateRequestSchema>;
+
+/** The answer: the machine's provider configurations after the change. */
+export const DeviceProvidersResultSchema = v.object({
+  deviceId: v.string(),
+  providers: v.array(ProviderInfoSchema),
+});
+export type DeviceProvidersResult = v.InferOutput<typeof DeviceProvidersResultSchema>;
 
 /** POST /api/devices/:id/sessions/import and /remove (the same body: import marks to set or clear) */
 export const DeviceSessionsImportRequestSchema = v.object({

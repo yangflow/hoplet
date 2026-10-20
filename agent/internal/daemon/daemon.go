@@ -141,20 +141,21 @@ func Run(cfg *config.Config, version string) error {
 	runtimeHooks := rt.hooks()
 	runtimeHooks.Start = rt.starter(st)
 	client = sync.NewClient(cfg, deviceID, version, sync.Hooks{
-		Providers:       rt.providers,
-		ProvidersUpdate: rt.update,
-		Runtime:         runtimeHooks,
-		Handoff:         moves.hooks(),
-		Terminal:        terms.hooks(),
-		Ports:           sync.PortsHooks{Watch: watcher.Watch},
-		PreviewHost:     cfg.PreviewHost,
-		Workspace:       workspaceList(cfg),
-		File:            workspaceFile(cfg),
-		Diff:            workspaceDiff(cfg),
-		ProjectsList:    st.projectsList,
-		ProjectsAdd:     st.projectsAdd,
-		ProjectsRemove:  st.projectsRemove,
-		DirsList:        dirsList(cfg),
+		Providers:            rt.providers,
+		ProvidersUpdate:      rt.update,
+		SessionConfiguration: rt.sessionConfiguration,
+		Runtime:              runtimeHooks,
+		Handoff:              moves.hooks(),
+		Terminal:             terms.hooks(),
+		Ports:                sync.PortsHooks{Watch: watcher.Watch},
+		PreviewHost:          cfg.PreviewHost,
+		Workspace:            workspaceList(cfg),
+		File:                 workspaceFile(cfg),
+		Diff:                 workspaceDiff(cfg),
+		ProjectsList:         st.projectsList,
+		ProjectsAdd:          st.projectsAdd,
+		ProjectsRemove:       st.projectsRemove,
+		DirsList:             dirsList(cfg),
 		AttachmentPut: func(p sync.AttachmentPut) (bool, error) {
 			return rt.att.put(p.AttachmentID, p.MediaType, p.Seq, p.Last, p.Data)
 		},
@@ -164,8 +165,17 @@ func Run(cfg *config.Config, version string) error {
 		SessionsImport: st.sessionsImport,
 		SessionsRemove: st.sessionsRemove,
 		SessionInspect: sessionInspect(cfg),
-		SessionDelete:  terms.wrapDelete(sessionDelete(cfg, st)),
-		SessionForget:  func(_ context.Context, id string) error { return st.forgetSession(id) },
+		SessionDelete: terms.wrapDelete(func(ctx context.Context, id string, vendorFile, worktree, worktreeDirty bool) []sync.DeletionStep {
+			steps := sessionDelete(cfg, st)(ctx, id, vendorFile, worktree, worktreeDirty)
+			if len(steps) > 0 && steps[0].Status == sync.StatusDone {
+				rt.forgetConfiguration(id) // the session is no longer on this machine's books
+			}
+			return steps
+		}),
+		SessionForget: func(_ context.Context, id string) error {
+			rt.forgetConfiguration(id)
+			return st.forgetSession(id)
+		},
 	})
 	st.setKick(client.Kick)
 	moves.client = client

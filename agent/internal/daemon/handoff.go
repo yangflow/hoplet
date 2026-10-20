@@ -107,7 +107,7 @@ func newHandoffs(cfg *config.Config, st *store, bridge *bridge, snaps *snapshott
 		cfg: cfg,
 		inst: &workspace.Installer{
 			Home:     cfg.HopletHome,
-			Stores:   func(name string) provider.Store { return vendorStore(cfg, name) },
+			Stores:   bridge.installStore,
 			Watched:  st.watchedPaths,
 			Projects: st,
 		},
@@ -210,10 +210,18 @@ func (h *handoffs) begin(_ context.Context, m sync.HandoffInstall) error {
 	if !provider.ValidSessionID(m.SessionID) {
 		return errors.New("invalid-session-id")
 	}
+	// The session installs into the configuration's store: one that is gone, disabled or of another vendor
+	// refuses, as a start does.
+	if m.Configuration != "" {
+		if e := h.bridge.entry(m.Configuration); e == nil || !e.config().Enabled || e.config().Extends != m.Provider {
+			return errUnavailable
+		}
+	}
 	tr, err := workspace.BeginTransfer(h.cfg.HopletHome, workspace.TransferHeader{
 		HandoffID:      m.HandoffID,
 		SessionID:      m.SessionID,
 		Provider:       m.Provider,
+		Configuration:  m.Configuration,
 		TargetPath:     m.TargetPath,
 		SnapshotBytes:  m.SnapshotBytes,
 		SnapshotSHA256: m.SnapshotSHA256,
@@ -280,6 +288,7 @@ func (h *handoffs) commit(m sync.HandoffCommit) {
 	h.mu.Lock()
 	delete(h.transfers, m.HandoffID)
 	h.mu.Unlock()
+	h.recordOwner(m.HandoffID, m.SessionID, m.OwnerDeviceID == h.client.DeviceID())
 	if err := h.inst.Finish(m.HandoffID); err != nil {
 		log.Printf("[agent] handoff %s: forgetting the record: %v", shortID(m.HandoffID), err)
 	}
@@ -287,6 +296,26 @@ func (h *handoffs) commit(m sync.HandoffCommit) {
 	if m.OwnerDeviceID != h.client.DeviceID() {
 		// The session lives elsewhere now: its process here must not run on.
 		h.bridge.managerOf(m.SessionID).Stop(m.SessionID)
+	}
+}
+
+// recordOwner keeps the configuration a committed handoff installed the session for, when this device owns it
+// now (the vendor's own configuration has no entry), and drops the entry of a session that moved away.
+func (h *handoffs) recordOwner(handoffID, sessionID string, mine bool) {
+	if !mine {
+		h.bridge.forgetConfiguration(sessionID)
+		return
+	}
+	for _, r := range h.inst.Records() {
+		if r.HandoffID != handoffID {
+			continue
+		}
+		if r.Configuration == "" || r.Configuration == r.Provider {
+			h.bridge.forgetConfiguration(sessionID)
+		} else if err := h.bridge.owners.Set(sessionID, r.Configuration); err != nil {
+			log.Printf("[agent] handoff %s: recording the configuration: %v", shortID(handoffID), err)
+		}
+		return
 	}
 }
 
@@ -322,6 +351,7 @@ func (h *handoffs) welcomed(sessions []sync.SessionMeta) {
 			continue
 		}
 		if owners[r.SessionID] == h.client.DeviceID() {
+			h.recordOwner(r.HandoffID, r.SessionID, true)
 			if err := h.inst.Finish(r.HandoffID); err == nil {
 				h.release(r.SessionID)
 				h.client.Kick()

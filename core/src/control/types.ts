@@ -250,6 +250,19 @@ export type DeviceControlOutcome =
   | { ok: true; candidates: string[]; projects: DeviceProject[] }
   | { ok: false; error: 'owner-offline' | 'timeout' | 'rejected'; reason?: string };
 
+/** What a provider configuration update changes; a field left out stays. */
+export interface ProviderChange {
+  id: string;
+  name?: string | undefined;
+  enabled?: boolean | undefined;
+  defaults?: SessionConfig | undefined;
+}
+
+/** Outcome of a provider configuration update: the machine's whole list afterwards, or why not. */
+export type ProvidersOutcome =
+  | { ok: true; providers: ProviderInfo[] }
+  | { ok: false; error: 'owner-offline' | 'timeout' | 'rejected'; reason?: string };
+
 /** What the owner agent answered to a device.session.* request. */
 export type SessionDeviceOutcome =
   | { ok: true; reply: DeviceSessionInspected | DeviceSessionDeleted | DeviceSessionForgotten }
@@ -507,6 +520,8 @@ export interface Control {
   findClone(deviceId: string, origin: string): Promise<CloneOutcome>;
   /** Asks a connected device whether it can clone `origin` into `cloneInto`, or where it would (ADR 0024). */
   checkClone(deviceId: string, origin: string, cloneInto?: string): Promise<CloneCheckOutcome>;
+  /** Changes one provider configuration on a connected device (ADR 0028); resolves with the device's new list. */
+  updateProvider(deviceId: string, change: ProviderChange): Promise<ProvidersOutcome>;
   listProjects(deviceId: string): Promise<DeviceControlOutcome>;
   addProject(deviceId: string, path: string): Promise<DeviceControlOutcome>;
   removeProject(deviceId: string, path: string): Promise<DeviceControlOutcome>;

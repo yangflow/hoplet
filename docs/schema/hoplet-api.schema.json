@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Hoplet client API",
   "description": "Generated from shared/ and the route table by `pnpm schema`; do not edit. Each name under $defs is a schema that docs/api.md names for a route or a message. Parse a body against the schema its route names.",
-  "protocolVersion": 12,
+  "protocolVersion": 13,
   "routes": [
     {
       "method": "POST",
@@ -483,6 +483,16 @@
       "query": null,
       "body": "DeviceProjectsAddRequestSchema",
       "response": "DeviceProjectsResultSchema"
+    },
+    {
+      "method": "POST",
+      "path": "/api/devices/:deviceId/providers",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": "DeviceProvidersUpdateRequestSchema",
+      "response": "DeviceProvidersResultSchema"
     },
     {
       "method": "POST",
@@ -1780,7 +1790,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 12
+          "const": 13
         },
         "type": {
           "const": "device.presence"
@@ -1886,6 +1896,291 @@
         "deviceId",
         "candidates",
         "projects"
+      ]
+    },
+    "DeviceProvidersResultSchema": {
+      "type": "object",
+      "properties": {
+        "deviceId": {
+          "type": "string"
+        },
+        "providers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "provider": {
+                "enum": [
+                  "claude",
+                  "codex"
+                ],
+                "type": "string"
+              },
+              "configuration": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9][a-z0-9-]{0,39}$"
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "extends": {
+                    "enum": [
+                      "claude",
+                      "codex"
+                    ],
+                    "type": "string"
+                  },
+                  "enabled": {
+                    "type": "boolean"
+                  },
+                  "command": {
+                    "type": "string",
+                    "maxLength": 4096
+                  },
+                  "env": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128
+                        },
+                        "set": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "name",
+                        "set"
+                      ]
+                    }
+                  },
+                  "defaults": {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    },
+                    "additionalProperties": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128
+                        },
+                        {
+                          "type": "boolean"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "extends",
+                  "enabled",
+                  "env",
+                  "defaults"
+                ]
+              },
+              "capabilities": {
+                "type": "object",
+                "properties": {
+                  "permissions": {
+                    "type": "boolean"
+                  },
+                  "interrupt": {
+                    "type": "boolean"
+                  },
+                  "images": {
+                    "type": "boolean"
+                  },
+                  "steer": {
+                    "type": "boolean"
+                  },
+                  "config": {
+                    "type": "array",
+                    "items": {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "type": {
+                              "const": "select"
+                            },
+                            "id": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 64
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "description": {
+                              "type": "string"
+                            },
+                            "category": {
+                              "type": "string"
+                            },
+                            "options": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "value": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 128
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  },
+                                  "description": {
+                                    "type": "string"
+                                  },
+                                  "risk": {
+                                    "enum": [
+                                      "high"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "icon": {
+                                    "enum": [
+                                      "shield",
+                                      "shield-alert",
+                                      "file-pen",
+                                      "list-checks",
+                                      "sparkles"
+                                    ],
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "value",
+                                  "name"
+                                ]
+                              }
+                            },
+                            "currentValue": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "type",
+                            "id",
+                            "name",
+                            "options",
+                            "currentValue"
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "type": {
+                              "const": "boolean"
+                            },
+                            "id": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 64
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "description": {
+                              "type": "string"
+                            },
+                            "category": {
+                              "type": "string"
+                            },
+                            "currentValue": {
+                              "type": "boolean"
+                            }
+                          },
+                          "required": [
+                            "type",
+                            "id",
+                            "name",
+                            "currentValue"
+                          ]
+                        }
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "permissions",
+                  "interrupt",
+                  "config"
+                ]
+              },
+              "version": {
+                "type": "string"
+              },
+              "tested": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "provider",
+              "configuration",
+              "capabilities"
+            ]
+          }
+        }
+      },
+      "required": [
+        "deviceId",
+        "providers"
+      ]
+    },
+    "DeviceProvidersUpdateRequestSchema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]{0,39}$"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "defaults": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              {
+                "type": "boolean"
+              }
+            ]
+          }
+        }
+      },
+      "required": [
+        "id"
       ]
     },
     "DeviceResourcesResultSchema": {
@@ -2075,7 +2370,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 12
+          "const": 13
         },
         "type": {
           "const": "error"
@@ -2464,7 +2759,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 12
+          "const": 13
         },
         "type": {
           "const": "handoff.progress"
@@ -2536,6 +2831,10 @@
         "cloneInto": {
           "type": "string",
           "pattern": "^\\s*\\S(?:[\\s\\S]{0,4094}\\S)?\\s*$"
+        },
+        "configuration": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]{0,39}$"
         }
       },
       "required": [
@@ -2893,6 +3192,22 @@
         "gitBranch": {
           "type": "string"
         },
+        "configuration": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,39}$"
+            },
+            "name": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "name"
+          ]
+        },
         "ownerConnected": {
           "type": "boolean"
         },
@@ -3203,7 +3518,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 12
+          "const": 13
         },
         "type": {
           "const": "notify"
@@ -3940,7 +4255,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 12
+          "const": 13
         },
         "type": {
           "const": "session.appended"
@@ -3979,7 +4294,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 12
+          "const": 13
         },
         "type": {
           "const": "session.commands"
@@ -3999,7 +4314,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 12
+          "const": 13
         },
         "type": {
           "const": "session.deleted"
@@ -4066,6 +4381,22 @@
               },
               "gitBranch": {
                 "type": "string"
+              },
+              "configuration": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9][a-z0-9-]{0,39}$"
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "name"
+                ]
               },
               "ownerConnected": {
                 "type": "boolean"
@@ -4293,7 +4624,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 12
+          "const": 13
         },
         "type": {
           "const": "session.listening"
@@ -4349,7 +4680,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 12
+          "const": 13
         },
         "type": {
           "const": "session.output"
@@ -4450,7 +4781,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 12
+          "const": 13
         },
         "type": {
           "const": "session.permission"
@@ -4587,7 +4918,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 12
+          "const": 13
         },
         "type": {
           "const": "session.queue"
@@ -4607,7 +4938,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 12
+          "const": 13
         },
         "type": {
           "const": "session.runtime"
@@ -4775,7 +5106,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 12
+          "const": 13
         },
         "type": {
           "const": "session.updated"
@@ -5009,7 +5340,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 12
+          "const": 13
         },
         "type": {
           "const": "subscribe"
@@ -5029,7 +5360,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 12
+          "const": 13
         },
         "type": {
           "const": "terminal.attach"
@@ -5049,7 +5380,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 12
+          "const": 13
         },
         "type": {
           "const": "terminal.attached"
@@ -5097,7 +5428,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 12
+          "const": 13
         },
         "type": {
           "const": "terminal.data"
@@ -5128,7 +5459,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 12
+          "const": 13
         },
         "type": {
           "const": "terminal.detach"
@@ -5148,7 +5479,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 12
+          "const": 13
         },
         "type": {
           "const": "terminal.ended"
@@ -5221,7 +5552,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 12
+          "const": 13
         },
         "type": {
           "const": "terminal.keys"
@@ -5266,7 +5597,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 12
+          "const": 13
         },
         "type": {
           "const": "terminal.size"
@@ -5341,7 +5672,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 12
+          "const": 13
         },
         "type": {
           "const": "unsubscribe"

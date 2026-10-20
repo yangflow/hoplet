@@ -17,6 +17,7 @@ export interface SessionRow {
   owner_epoch: number;
   provider: string;
   git_branch: string;
+  configuration: string;
   title_override: string | null;
   pinned_at: number | null;
   archived_at: number | null;
@@ -93,6 +94,11 @@ export function getSession(ctx: StoreContext, sessionId: string): SessionMeta | 
   return row ? toMeta(row) : null;
 }
 
+/** The provider configuration the session's owner announced; empty for the vendor's own (ADR 0028). */
+export function sessionConfiguration(ctx: StoreContext, sessionId: string): string {
+  return getRow(ctx, sessionId)?.configuration ?? '';
+}
+
 export function ownerDeviceId(ctx: StoreContext, sessionId: string): string | null {
   const row = getRow(ctx, sessionId);
   return row?.device_id ? row.device_id : null;
@@ -115,17 +121,18 @@ export function handoffOwner(
   branch: string,
   clone: string | null,
   now: number,
+  configuration = '',
 ): number | null {
   if (!isSessionId(sessionId)) return null;
   ctx.db.exec('BEGIN IMMEDIATE');
   try {
     const result = ctx.db
       .prepare(
-        `UPDATE sessions SET device_id = ?, project_path = ?, git_branch = ?, owner_epoch = owner_epoch + 1
+        `UPDATE sessions SET device_id = ?, project_path = ?, git_branch = ?, configuration = ?, owner_epoch = owner_epoch + 1
          WHERE session_id = ? AND device_id = ? AND byte_size = ? AND owner_epoch = ?
            AND NOT EXISTS (SELECT 1 FROM session_tombstones t WHERE t.session_id = ?)`,
       )
-      .run(to, projectPath, branch, sessionId, from, byteSize, epoch, sessionId);
+      .run(to, projectPath, branch, configuration, sessionId, from, byteSize, epoch, sessionId);
     if (Number(result.changes) !== 1) {
       ctx.db.exec('ROLLBACK');
       return null;

@@ -135,6 +135,7 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
     pendingInstalled: new Map(),
     pendingVerified: new Map(),
     pendingDeviceControl: new Map(),
+    pendingProviders: new Map(),
     pendingSession: new Map(),
     pendingDirs: new Map(),
     pendingClone: new Map(),

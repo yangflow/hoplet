@@ -181,6 +181,11 @@ func TestOwnersPersistWith0600(t *testing.T) {
 	if _, ok := o2.Get("s1"); ok {
 		t.Fatal("not forgotten")
 	}
+	// The removal is on disk, not only in memory.
+	o3, _ := LoadOwners(home)
+	if _, ok := o3.Get("s1"); ok {
+		t.Fatal("entry still in sessions-config.json")
+	}
 }
 
 func run(t *testing.T, home, stdin string, args ...string) (string, error) {

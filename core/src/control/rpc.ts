@@ -39,6 +39,7 @@ type Rpc = Pick<
   | 'checkClone'
   | 'listProjects'
   | 'addProject'
+  | 'updateProvider'
   | 'removeProject'
   | 'importSessions'
   | 'removeSessions'
@@ -51,6 +52,7 @@ export function createRpc(state: ControlState): Rpc {
     pendingFile,
     pendingDiff,
     pendingDeviceControl,
+    pendingProviders,
     pendingDirs,
     pendingClone,
     pendingCloneCheck,
@@ -226,6 +228,27 @@ export function createRpc(state: ControlState): Rpc {
         type: 'device.projects.list',
         requestId,
       }));
+    },
+    updateProvider(deviceId, change) {
+      const link = onlineLink(state, deviceId);
+      if (!link) return Promise.resolve({ ok: false, error: 'owner-offline' });
+      const requestId = randomUUID();
+      return askWaiter(
+        pendingProviders,
+        requestId,
+        state.workspaceTimeoutMs,
+        { ok: false, error: 'timeout' },
+        () =>
+          link.send({
+            v: PROTOCOL_VERSION,
+            type: 'device.providers.update',
+            requestId,
+            id: change.id,
+            ...(change.name !== undefined ? { name: change.name } : {}),
+            ...(change.enabled !== undefined ? { enabled: change.enabled } : {}),
+            ...(change.defaults !== undefined ? { defaults: change.defaults } : {}),
+          }),
+      );
     },
     addProject(deviceId, path) {
       return askDevice(deviceId, (requestId) => ({
