@@ -207,6 +207,9 @@ func (c *Client) runOnce(ctx context.Context) error {
 	if c.hooks.Runtime.Connected != nil {
 		go c.hooks.Runtime.Connected()
 	}
+	if c.hooks.Connected != nil {
+		go c.hooks.Connected()
+	}
 	if c.hooks.Handoff.Welcomed != nil {
 		go c.hooks.Handoff.Welcomed(w.Sessions)
 	}

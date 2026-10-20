@@ -150,6 +150,39 @@ export const SessionResourcesSchema = v.object({
 });
 export type SessionResources = v.InferOutput<typeof SessionResourcesSchema>;
 
+/** Tools one `device.inventory` lists, at most. */
+export const INVENTORY_TOOLCHAINS_MAX = 32;
+/** GPUs one `device.inventory` lists, at most. */
+export const INVENTORY_GPUS_MAX = 8;
+/** Repositories one `device.inventory` lists, at most: one per watched project. */
+export const INVENTORY_REPOSITORIES_MAX = 200;
+/** Milliseconds between two `device.inventory` reports of an agent; one is also sent after each connect. */
+export const INVENTORY_INTERVAL_MS = 3_600_000;
+
+/** A developer tool found on the machine, such as `node` and `22.4.0`; the name comes from a fixed list. */
+export const InventoryToolchainSchema = v.object({
+  name: v.pipe(v.string(), v.maxLength(32)),
+  version: v.pipe(v.string(), v.maxLength(64)),
+});
+export type InventoryToolchain = v.InferOutput<typeof InventoryToolchainSchema>;
+
+/** A graphics processor of the machine; `memory` is its own memory in bytes, absent when the agent cannot tell. */
+export const InventoryGpuSchema = v.object({
+  name: v.pipe(v.string(), v.maxLength(128)),
+  memory: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0))),
+});
+export type InventoryGpu = v.InferOutput<typeof InventoryGpuSchema>;
+
+/**
+ * The repository of one watched project: its `path` and the URL of its `origin` remote with credentials, query
+ * and fragment removed; null when the project has no `origin` or is not a repository.
+ */
+export const InventoryRepositorySchema = v.object({
+  path: v.pipe(v.string(), v.maxLength(4096)),
+  origin: v.nullable(v.pipe(v.string(), v.maxLength(2048))),
+});
+export type InventoryRepository = v.InferOutput<typeof InventoryRepositorySchema>;
+
 export const EncodingSchema = v.picklist(['plain', 'gzip+base64']);
 export type Encoding = v.InferOutput<typeof EncodingSchema>;
 
@@ -1103,6 +1136,24 @@ export const WIRE_MESSAGES = defineWire({
     },
   },
 
+  // What is installed on the machine, at connect and then every hour; a report sent while the core is away is dropped.
+  'device.inventory': {
+    lane: 'control',
+    direction: 'device-to-core',
+    fields: {
+      /** When the agent detected it, in epoch milliseconds. */
+      at: v.pipe(v.number(), v.integer(), v.minValue(0)),
+      /** The tools of the agent's fixed list that were found, with their versions. */
+      toolchains: v.pipe(list(InventoryToolchainSchema), v.maxLength(INVENTORY_TOOLCHAINS_MAX)),
+      gpus: v.pipe(list(InventoryGpuSchema), v.maxLength(INVENTORY_GPUS_MAX)),
+      /** One entry per watched project. */
+      repositories: v.pipe(
+        list(InventoryRepositorySchema),
+        v.maxLength(INVENTORY_REPOSITORIES_MAX),
+      ),
+    },
+  },
+
   // The browser side of the terminal and the dev server links (ADR 0026). A terminal is opened over REST
   // (`POST /api/sessions/:id/terminal`); these messages attach a browser socket to its stream. The credit
   // window of the agent is the core's business: a browser never acknowledges output.
@@ -1282,6 +1333,7 @@ export type SessionListening = WireMessageOf<'session.listening'>;
 export type PortsWatch = WireMessageOf<'ports.watch'>;
 export type SessionPorts = WireMessageOf<'session.ports'>;
 export type DeviceResources = WireMessageOf<'device.resources'>;
+export type DeviceInventoryReport = WireMessageOf<'device.inventory'>;
 export type DeviceProviders = WireMessageOf<'device.providers'>;
 export type DeviceProvidersUpdate = WireMessageOf<'device.providers.update'>;
 export type DeviceProvidersRejected = WireMessageOf<'device.providers.rejected'>;
@@ -1340,6 +1392,7 @@ export const ClientMessageSchema = v.variant('type', [
   WIRE_MESSAGES['terminal.rejected'].schema,
   WIRE_MESSAGES['session.ports'].schema,
   WIRE_MESSAGES['device.resources'].schema,
+  WIRE_MESSAGES['device.inventory'].schema,
   WIRE_MESSAGES['device.providers'].schema,
   WIRE_MESSAGES['device.providers.rejected'].schema,
 ]);
@@ -1368,6 +1421,9 @@ export const WIRE_OBJECTS = {
   DeviceSystem: DeviceSystemSchema,
   SessionPort: SessionPortSchema,
   SessionResources: SessionResourcesSchema,
+  InventoryToolchain: InventoryToolchainSchema,
+  InventoryGpu: InventoryGpuSchema,
+  InventoryRepository: InventoryRepositorySchema,
   ConfigOption: ConfigOptionSchema,
   ConfigValue: ConfigValueSchema,
   Command: CommandSchema,

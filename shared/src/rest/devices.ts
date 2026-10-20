@@ -8,7 +8,15 @@ import {
   ProviderInfoSchema,
   SessionConfigSchema,
 } from '../runtime.ts';
-import { DeviceSystemSchema } from '../wire/index.ts';
+import {
+  DeviceSystemSchema,
+  INVENTORY_GPUS_MAX,
+  INVENTORY_REPOSITORIES_MAX,
+  INVENTORY_TOOLCHAINS_MAX,
+  InventoryGpuSchema,
+  InventoryRepositorySchema,
+  InventoryToolchainSchema,
+} from '../wire/index.ts';
 import { TrimmedSchema } from './common.ts';
 
 /** One reading of a machine: `cpu` is null while the agent had no earlier reading to compare with. */
@@ -22,6 +30,44 @@ export const DeviceResourceSampleSchema = v.object({
   diskTotal: v.number(),
 });
 export type DeviceResourceSample = v.InferOutput<typeof DeviceResourceSampleSchema>;
+
+/** The most labels one machine carries. */
+export const MAX_DEVICE_LABELS = 20;
+/** The most characters of one label. */
+export const DEVICE_LABEL_MAX = 32;
+
+/** A label of a machine: lowercase letters, digits and hyphens, 1 to 32 characters, starting with a letter or digit. */
+export const DeviceLabelSchema = v.pipe(
+  v.string(),
+  v.maxLength(DEVICE_LABEL_MAX),
+  v.regex(/^[a-z0-9][a-z0-9-]*$/),
+);
+
+/**
+ * What the machine's agent last detected on it, kept while the machine is offline: the tools found with their
+ * versions, its GPUs, and the `origin` of each watched project. `at` is when the agent detected it, in epoch
+ * milliseconds.
+ */
+export const DeviceInventorySchema = v.object({
+  at: v.pipe(v.number(), v.integer(), v.minValue(0)),
+  toolchains: v.pipe(v.array(InventoryToolchainSchema), v.maxLength(INVENTORY_TOOLCHAINS_MAX)),
+  gpus: v.pipe(v.array(InventoryGpuSchema), v.maxLength(INVENTORY_GPUS_MAX)),
+  repositories: v.pipe(v.array(InventoryRepositorySchema), v.maxLength(INVENTORY_REPOSITORIES_MAX)),
+});
+export type DeviceInventory = v.InferOutput<typeof DeviceInventorySchema>;
+
+/**
+ * PUT /api/devices/:deviceId/labels: replaces the machine's labels. Duplicates are dropped, keeping the first;
+ * at most `MAX_DEVICE_LABELS`.
+ */
+export const DeviceLabelsRequestSchema = v.object({
+  labels: v.pipe(v.array(DeviceLabelSchema), v.maxLength(MAX_DEVICE_LABELS)),
+});
+export type DeviceLabelsRequest = v.InferOutput<typeof DeviceLabelsRequestSchema>;
+
+/** The answer: the machine's labels after the change. */
+export const DeviceLabelsResultSchema = v.object({ labels: v.array(DeviceLabelSchema) });
+export type DeviceLabelsResult = v.InferOutput<typeof DeviceLabelsResultSchema>;
 
 /** GET /api/devices */
 export const DeviceInfoSchema = v.object({
@@ -42,6 +88,10 @@ export const DeviceInfoSchema = v.object({
   resources: v.optional(DeviceResourceSampleSchema),
   /** Whether memory or disk is short; true only while the machine is connected. Absent with `resources`. */
   warn: v.optional(v.object({ memory: v.boolean(), disk: v.boolean() })),
+  /** What its agent last detected on the machine, kept while it is offline; absent for a machine that never reported. */
+  inventory: v.optional(DeviceInventorySchema),
+  /** The labels the host gave the machine; empty by default. */
+  labels: v.array(DeviceLabelSchema),
 });
 export type DeviceInfo = v.InferOutput<typeof DeviceInfoSchema>;
 

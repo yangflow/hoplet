@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"slices"
 	gosync "sync"
 	"syscall"
 	"time"
@@ -136,6 +137,7 @@ func Run(cfg *config.Config, version string) error {
 	defer terms.mgr.CloseAll(terminal.ReasonOwnerOffline)
 	watcher := newPortWatcher(ports.NewScanner(), locator(cfg), rt, terms, func() *sync.Client { return client })
 	sampler := newResourceSampler(cfg, rt, terms, func() *sync.Client { return client })
+	inv := newInventory(st, func() *sync.Client { return client })
 	cloner := newCloner(cfg, st)
 	cloner.Recover()
 	runtimeHooks := rt.hooks()
@@ -145,6 +147,7 @@ func Run(cfg *config.Config, version string) error {
 		ProvidersUpdate:      rt.update,
 		SessionConfiguration: rt.sessionConfiguration,
 		Runtime:              runtimeHooks,
+		Connected:            inv.Refresh,
 		Handoff:              moves.hooks(),
 		Terminal:             terms.hooks(),
 		Ports:                sync.PortsHooks{Watch: watcher.Watch},
@@ -183,6 +186,7 @@ func Run(cfg *config.Config, version string) error {
 	go snaps.run(ctx)
 	go client.Run(ctx)
 	go watcher.Run(ctx)
+	go inv.Run(ctx)
 	if sampler != nil {
 		go sampler.Run(ctx)
 	}
@@ -192,6 +196,7 @@ func Run(cfg *config.Config, version string) error {
 
 	ticker := time.NewTicker(cfg.PollInterval)
 	defer ticker.Stop()
+	watched := st.paths()
 	for {
 		select {
 		case <-ctx.Done():
@@ -204,6 +209,10 @@ func Run(cfg *config.Config, version string) error {
 			go announceProviders(client, rt)
 		}
 		synced := moves.filter(st.poll(Scan(cfg, ctx)))
+		if now := st.paths(); !slices.Equal(now, watched) {
+			watched = now
+			inv.Refresh() // the watched projects changed; the report follows within seconds
+		}
 		rt.observe(ctx, synced)
 		client.Reconcile(ctx, synced)
 	}

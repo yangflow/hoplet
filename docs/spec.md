@@ -250,6 +250,11 @@ list at its left grows with later sections; the sections are:
   (title, project, last-hour memory, CPU, memory, child processes; each row opens its session) and where the memory and CPU go as stacked bars. An offline machine greys its last values and says when
   they were reported, and its sessions are unknown; a machine whose agent reports nothing shows only its facts.
   The agent reports every 15 seconds; the core keeps the last hour of the machine and of each session in memory only.
+  A machine's tab also lists what it offers (#70): the developer tools found on it with their versions, its GPUs
+  with their memory, and its watched projects with their `origin`, as the agent last reported them (after a
+  connection, every hour and soon after the watched projects change; kept while the machine is offline), and the
+  host's labels for it: short tags of lowercase letters, digits and hyphens (at most 20, 32 characters each) that the
+  host edits and the agent never changes.
 - **Model providers**: from what each connected agent announces. A tab per machine (system mark with the presence dot, and
   name, in the order of Machines; it opens on the first connected one) and, grouped by vendor, a row per provider
   configuration that machine defines: the mark, the name and "version · N sessions · used <time>" (the counts and

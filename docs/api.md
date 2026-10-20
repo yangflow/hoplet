@@ -103,6 +103,7 @@ Response column names the schema of the success body and its status when it is n
 | POST | `/api/sessions/:sessionId/handoff/cancel` | host | control | — | — | `HandoffCancelResultSchema` | `session-not-found`, `handoff-not-running` |
 | GET | `/api/devices` | host | control | — | — | `DeviceListResponseSchema` | — |
 | GET | `/api/devices/:deviceId/resources` | host | control | — | — | `DeviceResourcesResultSchema` | `not-found` |
+| PUT | `/api/devices/:deviceId/labels` | host | control | — | `DeviceLabelsRequestSchema` | `DeviceLabelsResultSchema` | `invalid-json`, `invalid-request`, `too-large`, `not-found` |
 | POST | `/api/devices` | host | control | — | `DeviceMintRequestSchema` | `DeviceMintResultSchema` | `invalid-json`, `invalid-request`, `too-large` |
 | POST | `/api/devices/:deviceId/attachments` | host | bulk | — | `PromptImageSchema` | `AttachmentResultSchema` | `invalid-json`, `invalid-request`, `too-large`, `target-offline`, `timeout` |
 | GET | `/api/devices/:deviceId/clone` | host | control | `DeviceCloneQuerySchema` | — | `DeviceCloneResultSchema` | `invalid-request`, `target-offline`, `timeout` |
@@ -143,6 +144,17 @@ Behavior a client relies on:
   disk threshold of the volume is free (90% and 10% unless `GET /api/resources/thresholds` says otherwise), and
   both are false while the device is offline. A stored change applies to the next `GET /api/devices`; the web UI
   polls it.
+- `GET /api/devices` also lists `inventory`, the latest `device.inventory` report of the machine (`at`, `toolchains`,
+  `gpus`, `repositories`), kept while the device is offline; it is absent for a machine that never reported.
+  `toolchains` are the developer tools found on it (`name`, `version`; at most 32), `gpus` its graphics adapters
+  (`name`, `memory` in bytes when known; at most 8) and `repositories` the watched projects (`path`, `origin`: the
+  URL of the `origin` remote without user, password, query or fragment, `null` when it has none; at most 200).
+  `labels` are the host's own tags for the machine, `[]` by default.
+- `PUT /api/devices/:deviceId/labels` replaces the labels of a device and answers them. A label is 1 to 32 lowercase
+  letters, digits or `-`, starting with a letter or a digit; at most 20; a repeated label is dropped, keeping the
+  first. A body that is not JSON is `invalid-json`, a bad label or more than 20 labels `invalid-request`, a body over
+  16 KiB `too-large` and an unknown device `not-found`. It works while the device is offline, and the labels survive
+  an agent reconnecting.
 - `GET /api/resources/thresholds` answers the thresholds at which machines warn: `default` for every machine and
   `machines`, the overrides keyed by device ID. Each is a `{ memory, disk }` pair of whole percents: `memory` is the
   percent of the memory used above which a machine warns (1 to 100), `disk` the percent of the volume free under

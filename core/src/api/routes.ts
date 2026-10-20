@@ -20,6 +20,8 @@ import {
   DeviceCommandsQuerySchema,
   DeviceDirsQuerySchema,
   DeviceDirsResultSchema,
+  DeviceLabelsRequestSchema,
+  DeviceLabelsResultSchema,
   DeviceListResponseSchema,
   DeviceMintRequestSchema,
   DeviceMintResultSchema,
@@ -943,6 +945,20 @@ export const routes: readonly Route[] = [
     lane: 'control',
     response: DeviceListResponseSchema,
     handler: ({ control }) => ({ devices: control.devices() }),
+  }),
+  defineRoute({
+    method: 'PUT',
+    path: '/api/devices/:deviceId/labels',
+    auth: 'host',
+    lane: 'control',
+    bodyLimit: 16 * 1024,
+    body: DeviceLabelsRequestSchema,
+    response: DeviceLabelsResultSchema,
+    handler: ({ store, params, body }) => {
+      const labels = [...new Set(body.labels)];
+      if (!store.setDeviceLabels(params.deviceId ?? '', labels)) throw new ApiError('not-found');
+      return { labels };
+    },
   }),
   defineRoute({
     method: 'GET',

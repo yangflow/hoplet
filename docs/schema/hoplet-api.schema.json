@@ -395,6 +395,16 @@
       "response": "DeviceListResponseSchema"
     },
     {
+      "method": "PUT",
+      "path": "/api/devices/:deviceId/labels",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": "DeviceLabelsRequestSchema",
+      "response": "DeviceLabelsResultSchema"
+    },
+    {
       "method": "GET",
       "path": "/api/devices/:deviceId/resources",
       "auth": "host",
@@ -1418,6 +1428,39 @@
         "truncated"
       ]
     },
+    "DeviceLabelsRequestSchema": {
+      "type": "object",
+      "properties": {
+        "labels": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 32,
+            "pattern": "^[a-z0-9][a-z0-9-]*$"
+          },
+          "maxItems": 20
+        }
+      },
+      "required": [
+        "labels"
+      ]
+    },
+    "DeviceLabelsResultSchema": {
+      "type": "object",
+      "properties": {
+        "labels": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 32,
+            "pattern": "^[a-z0-9][a-z0-9-]*$"
+          }
+        }
+      },
+      "required": [
+        "labels"
+      ]
+    },
     "DeviceListResponseSchema": {
       "type": "object",
       "properties": {
@@ -1753,6 +1796,98 @@
                   "memory",
                   "disk"
                 ]
+              },
+              "inventory": {
+                "type": "object",
+                "properties": {
+                  "at": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "toolchains": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "maxLength": 32
+                        },
+                        "version": {
+                          "type": "string",
+                          "maxLength": 64
+                        }
+                      },
+                      "required": [
+                        "name",
+                        "version"
+                      ]
+                    },
+                    "maxItems": 32
+                  },
+                  "gpus": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "maxLength": 128
+                        },
+                        "memory": {
+                          "type": "integer",
+                          "minimum": 0
+                        }
+                      },
+                      "required": [
+                        "name"
+                      ]
+                    },
+                    "maxItems": 8
+                  },
+                  "repositories": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "path": {
+                          "type": "string",
+                          "maxLength": 4096
+                        },
+                        "origin": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "maxLength": 2048
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "path",
+                        "origin"
+                      ]
+                    },
+                    "maxItems": 200
+                  }
+                },
+                "required": [
+                  "at",
+                  "toolchains",
+                  "gpus",
+                  "repositories"
+                ]
+              },
+              "labels": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "maxLength": 32,
+                  "pattern": "^[a-z0-9][a-z0-9-]*$"
+                }
               }
             },
             "required": [
@@ -1760,7 +1895,8 @@
               "name",
               "connected",
               "system",
-              "providers"
+              "providers",
+              "labels"
             ]
           }
         }

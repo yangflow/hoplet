@@ -74,14 +74,24 @@ func originURL(ctx context.Context, top string) string {
 	if err != nil {
 		return ""
 	}
-	return withoutUserinfo(out)
+	return WithoutUserinfo(out)
+}
+
+// Origin is the URL of the `origin` remote of the repository that contains dir, without user and password;
+// empty when dir is in no repository or the repository has no origin.
+func Origin(ctx context.Context, dir string) string {
+	top, _, err := repository(ctx, dir)
+	if err != nil {
+		return ""
+	}
+	return originURL(ctx, top)
 }
 
 var urlUserinfo = regexp.MustCompile(`^([A-Za-z][A-Za-z0-9+.-]*://)[^@/]*@`)
 
-// withoutUserinfo drops `user:password@` from a URL such as https://user:token@host/o/r.git; an scp-like
+// WithoutUserinfo drops `user:password@` from a URL such as https://user:token@host/o/r.git; an scp-like
 // `git@host:o/r.git` names only a user and stays as it is.
-func withoutUserinfo(raw string) string {
+func WithoutUserinfo(raw string) string {
 	return urlUserinfo.ReplaceAllString(raw, "$1")
 }
 

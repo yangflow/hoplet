@@ -295,8 +295,22 @@ describe('hoplet devices', () => {
       return new Response(
         JSON.stringify({
           devices: [
-            { deviceId: 'a', name: 'one', connected: true, providers: [], system: null },
-            { deviceId: 'b', name: 'two', connected: false, providers: [], system: null },
+            {
+              deviceId: 'a',
+              name: 'one',
+              connected: true,
+              providers: [],
+              system: null,
+              labels: [],
+            },
+            {
+              deviceId: 'b',
+              name: 'two',
+              connected: false,
+              providers: [],
+              system: null,
+              labels: [],
+            },
           ],
         }),
         { status: 200 },

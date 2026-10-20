@@ -275,9 +275,13 @@ describe('Store device last connection', () => {
   it('reports no lastSeen for a minted device that never connected, and re-minting keeps it so', () => {
     const { store } = newStore();
     store.mintDevice('Mac', 'd-mac');
-    expect(store.listDevices()).toEqual([{ deviceId: 'd-mac', name: 'Mac', system: null }]);
+    expect(store.listDevices()).toEqual([
+      { deviceId: 'd-mac', name: 'Mac', system: null, labels: [] },
+    ]);
     store.mintDevice('Mac 2', 'd-mac');
-    expect(store.listDevices()).toEqual([{ deviceId: 'd-mac', name: 'Mac 2', system: null }]);
+    expect(store.listDevices()).toEqual([
+      { deviceId: 'd-mac', name: 'Mac 2', system: null, labels: [] },
+    ]);
   });
 
   it('keeps the system a hello announced and clears it when a later hello has none', () => {
