@@ -913,6 +913,18 @@ p.rmeta{margin:0}
 .mt-bar .btn{flex:none;height:var(--control-field)}
 .rmeta.mt-facts{margin:0 0 var(--space-3)}
 .rfoot{margin:0}
+.rth{display:flex;flex-direction:column;gap:var(--space-3);padding:var(--space-3) var(--space-4);border-radius:var(--radius-md);box-shadow:inset 0 0 0 1px var(--color-line)}
+.th-top{margin-bottom:var(--space-4)}
+.th-h{display:flex;align-items:center;gap:var(--space-3)}
+.th-h b{font-weight:var(--weight-semibold);flex:1}
+.th-h>:last-child{margin-left:auto}
+.th-sum{display:flex;align-items:center;gap:var(--space-3);color:var(--color-text-2)}
+.th-sum .btn{margin-left:auto;flex:none}
+.th-sum b{color:var(--color-text);font-weight:var(--weight-semibold);font-variant-numeric:tabular-nums}
+.th-row{display:flex;gap:var(--space-3)}
+.th-f{width:160px}
+.th-in{justify-content:space-between;font-variant-numeric:tabular-nums}
+.rth p.meta{margin:0}
 .banner{display:flex;gap:var(--space-3);align-items:flex-start;padding:var(--space-3) var(--space-4);border-radius:var(--radius-md);background:var(--color-attention-soft);box-shadow:inset 0 0 0 1px var(--color-attention-ring)}
 .banner > svg{color:var(--color-attention-text);margin-top:2px;flex:none}
 .banner .bt{flex:1;min-width:0}
@@ -1157,7 +1169,8 @@ const WIDE = ['file-open', 'file-image', 'diff-open', 'diff-large', 'diff-binary
 const INSP = ['workspace', 'changes', 'changes-offline', ...WIDE, ...HANDOFF];
 const MINT = ['mint', 'mint-waiting', 'mint-online'];
 const APPEARANCE = ['settings', 'settings-text', 'settings-text-geist'];
-const SETTINGS = [...APPEARANCE, 'settings-machines', 'settings-resources', 'settings-resources-offline', ...MINT];
+const TH_STATES = ['settings-thresholds', 'settings-thresholds-default', 'settings-thresholds-custom', 'settings-thresholds-b', 'settings-thresholds-b-custom'];
+const SETTINGS = [...APPEARANCE, 'settings-machines', 'settings-resources', 'settings-resources-offline', ...TH_STATES, ...MINT];
 
 /* Appearance › Text: kept in the browser. Every choice swaps tokens on the frame (the way the web UI swaps them on the root);
    faces are bundled in the app and never fetched, so the mockup names local faces and falls back to the system stacks. */
@@ -1873,7 +1886,10 @@ const gb = n => n >= 1000 ? `${+(n / 1000).toFixed(1)} TB` : `${n} GB`;
 const memPc = r => pc(r.mem[0], r.mem[1]);
 const freePc = r => pc(r.disk[0], r.disk[1]);
 /* fixed thresholds: memory above 90 % used, disk under 10 % free; an offline machine's values are old, so it never warns */
-const resFlags = d => { const r = RES[d.n]; return r && d.on ? { mem: memPc(r) > 90, disk: freePc(r) < 10 } : { mem: false, disk: false }; };
+/* #175: the thresholds are a default for every machine and an optional override per machine; in the -custom states studio has its own */
+let TH = {};
+const thOf = d => TH[d.n] || { mem: 90, disk: 10 };
+const resFlags = d => { const r = RES[d.n], t = thOf(d); return r && d.on ? { mem: memPc(r) > t.mem, disk: freePc(r) < t.disk } : { mem: false, disk: false }; };
 const resWarns = d => { const r = RES[d.n], f = resFlags(d); return [f.mem && `Memory ${memPc(r)}% used`, f.disk && `Disk ${freePc(r)}% free`].filter(Boolean); };
 const spark = (a, label, sm) => {
   const w = sm ? 64 : 120, h = sm ? 16 : 24;
@@ -1900,35 +1916,69 @@ function resBody(d) {
       ${tile('Memory', `${r.mem[0]} <span class="rmeta">of ${r.mem[1]} GB</span>`, spark(r.hm, 'Memory'), f.mem)}
       ${tile('Disk free', `${gb(r.disk[0])} <span class="rmeta">of ${gb(r.disk[1])}</span>`, `<span class="rdisk" role="img" aria-label="${100 - df}% used"><i style="width:${100 - df}%"></i></span>`, f.disk)}
     </div>`;
-  const wn = resWarns(d).map((w, i) => `<p class="rwn">${I.alert()}${w}, ${i === 0 && f.mem ? 'above 90%' : 'under 10% free'}</p>`).join('');
+  const wn = resWarns(d).map((w, i) => `<p class="rwn">${I.alert()}${w}, ${i === 0 && f.mem ? `above ${thOf(d).mem}%` : `under ${thOf(d).disk}% free`}</p>`).join('');
   const stale = d.on ? '' : `<p class="rmeta rst">${I.clock()}Last reported ${r.at}</p>`;
   let where = '', list;
   if (!d.on) list = `<p class="rmeta dim">Sessions are not known while ${d.n} is offline</p>`;
   else if (!r.procs.length) list = '<p class="rmeta dim">No session is running here</p>';
   else {
     const P = r.procs;
-    where = `<div class="rsec">${stack('Memory', P, 4, r.mem[1], r.mem[0], v => `${+v.toFixed(1)} GB`, { at: 90, warn: f.mem })}${stack('CPU', P, 3, 100, r.cpu, v => `${Math.round(v)}%`)}
+    where = `<div class="rsec">${stack('Memory', P, 4, r.mem[1], r.mem[0], v => `${+v.toFixed(1)} GB`, { at: thOf(d).mem, warn: f.mem })}${stack('CPU', P, 3, 100, r.cpu, v => `${Math.round(v)}%`)}
       <div class="rleg"><span><i class="rw ot"></i>Other processes</span><span><i class="rw fr"></i>Free</span></div></div>`;
     list = `<div class="rps" role="table" aria-label="Sessions running on ${d.n}">
         <div class="rp hd" role="row"><span class="h1" role="columnheader">Sessions · ${P.length}</span><span role="columnheader">Last hour</span><span class="n" role="columnheader">CPU</span><span class="n" role="columnheader">Memory</span></div>
         ${P.map(([t, dir, st, c, m, k, h], i) => `<div class="rp${i === 1 ? ' hov' : ''}" role="row" tabindex="0" aria-label="Open ${esc(t)}"${tip(`Open ${esc(t)}`)}><i class="rw ${SGN[i]}" aria-hidden="true"></i>${pmark()}<span class="ti" role="cell"><span class="t1">${esc(t)}</span><span class="t2">${esc(dir)} · +${k} child processes</span></span>${st ? GL[st]() : '<span></span>'}${spark(h, `${esc(t)} memory`, true)}<span class="n" role="cell">${c}%</span><span class="n" role="cell">${m} GB</span></div>`).join('')}
       </div>`;
   }
-  return `<div class="rbody${d.on ? '' : ' stale'}">${stale}${tiles}${wn}${where}${list}<p class="meta rfoot">Reported every 15 s; the trend lines show the last hour. Warnings: memory above 90% used, disk under 10% free.</p></div>`;
+  const foot = THX.foot ? THX.foot(d) : `<p class="meta rfoot">Reported every 15 s; the trend lines show the last hour. Warnings: memory above ${thOf(d).mem}% used, disk under ${thOf(d).disk}% free.</p>`;
+  return `<div class="rbody${d.on ? '' : ' stale'}">${stale}${tiles}${wn}${where}${list}${foot}</div>`;
 }
+/* ---- resource warning thresholds (#175) ----
+   A: the selected machine's tab ends with a Warnings group: Default (the values every machine uses, with Change default)
+   or Custom for this machine (two fields). B: the default sits above the tabs for every machine, and a machine's tab only
+   says whether it follows the default or has its own. */
+let THX = {};
+const thField = (label, v, unit, on) => `<div class="fld th-f"><span class="l">${label}</span><div class="input ui th-in${on ? ' on' : ''}"><span>${v}</span><span class="meta">${unit}</span></div></div>`;
+const thFields = (t, focus) => `<div class="th-row">${thField('Memory used above', t.mem, '%', focus)}${thField('Disk free under', t.disk, '%', false)}</div>`;
+const thSeg = (custom, n) => `<div class="seg" role="radiogroup" aria-label="Warnings for ${n}"><button role="radio" aria-checked="${!custom}"${custom ? '' : ' class="on"'}>Default</button><button role="radio" aria-checked="${custom}"${custom ? ' class="on"' : ''}>Custom for ${n}</button></div>`;
+const thFootnote = '<p class="meta rfoot">Reported every 15 s; the trend lines show the last hour.</p>';
+const TH_A = {
+  foot: d => {
+    const custom = !!TH[d.n], t = thOf(d);
+    const body = custom
+      ? `${thFields(t, true)}<p class="meta">The default is memory above 90% used, disk under 10% free. Saved as you type.</p>`
+      : THX.editDefault
+        ? `${thFields(t, true)}<p class="meta">Every machine without its own values uses these. Saved as you type.</p>`
+        : `<div class="th-sum"><span>Memory above <b>${t.mem}%</b> used, disk under <b>${t.disk}%</b> free</span><button class="btn quiet">Change default</button></div>`;
+    return `<section class="rth" aria-label="Warnings"><div class="th-h"><b>Warnings</b>${thSeg(custom, d.n)}</div>${body}</section>${thFootnote}`;
+  },
+};
+const TH_B = {
+  top: () => `<section class="rth th-top" aria-label="Warnings for every machine"><div class="th-h"><b>Warnings</b><span class="meta">Every machine, unless it has its own</span></div>${thFields({ mem: 90, disk: 10 }, false)}</section>`,
+  foot: d => {
+    const custom = !!TH[d.n], t = thOf(d);
+    const body = custom
+      ? `<div class="th-h"><b>Warnings on ${d.n}</b><button class="btn quiet">Use the default</button></div>${thFields(t, true)}`
+      : `<div class="th-sum"><span>${d.n} uses the default: memory above <b>${t.mem}%</b> used, disk under <b>${t.disk}%</b> free</span><button class="btn quiet">Set for ${d.n}</button></div>`;
+    return `<section class="rth" aria-label="Warnings on ${d.n}">${body}</section>${thFootnote}`;
+  },
+};
 /* Settings › Machines: a tab per machine, like Model providers, and the selected machine's facts and resources (#88) below.
    Add a machine is a quiet button at the end of the tab row; the minted-token card replaces the machine's panel while it is open. */
 const FACTS = { 'MacBook Pro': { arch: 'arm64' }, studio: { arch: 'arm64' }, 'office-mini': { arch: 'x86_64' }, 'lab-box': { arch: '' } };
 function machinesPage(state) {
   const ms = [...MACH, ...(state === 'mint-online' ? [{ n: 'studio-2', os: '', on: true }] : [])];
-  const selName = state === 'settings-resources-offline' ? 'office-mini' : state === 'settings-resources' ? 'studio' : 'MacBook Pro';
+  const thState = TH_STATES.includes(state);
+  THX = state.startsWith('settings-thresholds-b') ? TH_B : thState ? { ...TH_A, editDefault: state === 'settings-thresholds-default' } : {};
+  TH = state.endsWith('-custom') ? { studio: { mem: 97, disk: 10 } } : {};
+  const selName = state === 'settings-resources-offline' ? 'office-mini' : state === 'settings-resources' || thState ? 'studio' : 'MacBook Pro';
   const m = ms.find(x => x.n === selName);
   const minting = MINT.includes(state);
   const tabs = `<div class="mp-tabs" role="tablist" aria-label="Machines">${ms.map(x => `<span class="mp-tab" role="tab" aria-selected="${x.n === selName}"${tip(mName(x))}>${mIcon(x.os, x.on)}${x.n}</span>`).join('')}</div>`;
   const f = FACTS[m.n] || {};
   const facts = [[m.os, f.arch].filter(Boolean).join(' · '), m.on ? 'Connected' : 'Offline'].filter(Boolean).join(' · ');
   return `<h1>Machines</h1>
-    <div class="mt-bar">${tabs}${minting ? '' : `<button class="btn quiet">${I.plus()}Add a machine</button>`}</div>
+    ${THX.top ? THX.top() : ''}<div class="mt-bar">${tabs}${minting ? '' : `<button class="btn quiet">${I.plus()}Add a machine</button>`}</div>
     ${minting ? mintCard(state) : `<div role="tabpanel" aria-label="${m.n}"><p class="rmeta mt-facts">${facts}</p>${resBody(m)}</div>`}`;
 }
 
@@ -2104,6 +2154,11 @@ const STATES = [
   ['settings-machines', 'Settings: Machines'],
   ['settings-resources', 'Machines with resources (#88): a tab per machine like Model providers, studio selected; its facts line (Linux · arm64 · Connected), three stat tiles with the last hour, the warning line, memory and CPU as stacked bars by session, then the running sessions (glyph, title, project, state, 1 h memory line, CPU, memory, child processes) as the main list, each row opening its session in the cockpit (the second row hovered) and the footnote; Add a machine is a quiet button at the end of the tab row. A machine that reports nothing (lab-box) shows its facts and one quiet line'],
   ['settings-resources-offline', 'Machines with resources: office-mini (offline) selected, its last values greyed with Last reported 6 h ago, the sessions unknown while offline'],
+  ['settings-thresholds', 'Direction A (#175): studio’s tab ends with a Warnings group: Default is selected and names the values every machine uses, with Change default; studio (memory 94% used) warns'],
+  ['settings-thresholds-default', 'Direction A: Change default turns the summary into two fields, saved as you type, for every machine without its own'],
+  ['settings-thresholds-custom', 'Direction A: Custom for studio, memory above 97%: studio no longer warns, the memory tick moves to 97% and the default stays as it was'],
+  ['settings-thresholds-b', 'Direction B (#175): the default sits above the machine tabs as two fields for every machine; studio’s tab only says it uses the default, with Set for studio'],
+  ['settings-thresholds-b-custom', 'Direction B: studio has its own values (memory above 97%), with Use the default to drop them'],
   ['mint', 'Add a machine: token minted'],
   ['mint-waiting', 'waiting for the agent'],
   ['mint-online', 'the new machine is connected'],

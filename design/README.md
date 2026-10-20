@@ -31,6 +31,10 @@ The mockups, design tokens and app icon behind Hoplet's web UI. The design langu
     running sessions as the main list with their 1-hour memory line, CPU, memory and child processes
     (`settings-resources`); an offline machine greys its last values and says its sessions are unknown
     (`settings-resources-offline`).
+  - `settings` includes the resource warning thresholds (#175), two directions: A ends the selected machine's tab
+    with a Warnings group, Default (with Change default) or Custom for that machine (`settings-thresholds`,
+    `settings-thresholds-default`, `settings-thresholds-custom`); B puts the default for every machine above the tabs
+    and lets a tab set its own (`settings-thresholds-b`, `settings-thresholds-b-custom`).
   - `cockpit` includes deleting a session: Delete… in the actions menu (`session-menu-delete`), Delete beside Restore
     on a hovered Archived row (`archived`), and the confirmation dialog with its states (`delete`,
     `delete-worktree`, `delete-dirty`, `delete-offline`, `delete-running`, `delete-progress`, `delete-partial`).
