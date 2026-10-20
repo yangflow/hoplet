@@ -527,6 +527,7 @@ svg{display:block;flex:none}
 .anc{position:relative;display:inline-flex}
 .cpop{position:absolute;z-index:30;bottom:calc(100% + var(--space-2));left:0;width:var(--layout-popover);padding:var(--space-1);border-radius:var(--radius-md);background:var(--color-raised);box-shadow:var(--shadow-float),0 0 0 1px var(--color-line);pointer-events:auto;text-align:left}
 .cpop.end{left:auto;right:0}
+.cpop.dn{bottom:auto;top:calc(100% + var(--space-2))}
 .cpop.wide{width:var(--layout-popover-wide)}
 /* completions: the popover at the caret (/ commands and skills, @ files) and a sent command in the transcript */
 .cpop.cmp{left:var(--ax,0px);width:min(620px,100%)}
@@ -2199,7 +2200,7 @@ function inspector(state) {
   }
 
   const body = tab === 'changes' ? changesList(off) : filesTree();
-  const cfgPick = (n, hint = '', open = false, why = '') => `<div class="cfld"><span class="l">Configuration</span><span class="anc"><div class="pick${open ? ' on' : ''}" title="Configuration on studio">${pmark('claude')}<span class="v">${n}</span>${I.down()}</div>${open ? `<div class="cpop" role="menu" aria-label="Configuration on studio"><div class="menu-label">Claude Code on studio</div>
+  const cfgPick = (n, hint = '', open = false, why = '') => `<div class="cfld"><span class="l">Configuration</span><span class="anc"><div class="pick${open ? ' on' : ''}" title="Configuration on studio">${pmark('claude')}<span class="v">${n}</span>${I.down()}</div>${open ? `<div class="cpop dn" role="menu" aria-label="Configuration on studio"><div class="menu-label">Claude Code on studio</div>
       <div class="menu-item" role="menuitemradio" aria-checked="false"><span class="menu-check"></span>${pmark('claude')}Claude Code</div>
       <div class="menu-item" role="menuitemradio" aria-checked="false"><span class="menu-check"></span>${pmark('claude')}DeepSeek</div></div>` : ''}</span>${hint ? `<span class="meta">${hint}</span>` : ''}</div>`;
   const pick = `<div class="pick" title="Connected machines">${mIcon('Linux', true)}<span class="v">studio</span>${I.down()}</div>`;

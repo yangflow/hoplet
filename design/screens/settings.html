@@ -797,55 +797,13 @@ svg{display:block;flex:none}
 .cf-pre{display:flex;flex-wrap:wrap;gap:var(--space-2)}
 .cf-pre button{height:var(--control-field);display:inline-flex;align-items:center;gap:var(--space-2);padding:0 var(--space-3);border-radius:var(--radius-sm);color:var(--color-text-2);font-weight:var(--weight-medium);box-shadow:inset 0 0 0 1px var(--color-line)}
 .cf-pre button.on{background:var(--color-selected);color:var(--color-text);box-shadow:inset 0 0 0 1px var(--color-line),inset 0 1px 0 var(--color-highlight)}
-.cf-tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--space-2)}
-.cf-tiles button{display:flex;flex-direction:column;align-items:flex-start;gap:var(--space-1);padding:var(--space-3);border-radius:var(--radius-md);color:var(--color-text-2);text-align:left;box-shadow:inset 0 0 0 1px var(--color-line)}
-.cf-tiles button b{font-weight:var(--weight-medium);color:var(--color-text)}
-.cf-tiles button.on{background:var(--color-selected);box-shadow:inset 0 0 0 1px var(--color-line),inset 0 1px 0 var(--color-highlight)}
 .cf-step{display:flex;flex-direction:column;gap:var(--space-1)}
 .cf-step .l{color:var(--color-text-2)}
 .cf-step .l b{font-weight:var(--weight-semibold);color:var(--color-text)}
-/* direction A: rows grouped by vendor, a row expands in place */
+/* rows grouped by vendor, a row expands in place */
 .cf-a .mp-body{padding-top:var(--space-1)}
 .cf-a .mp-row.open{background:var(--color-highlight)}
-/* direction B: master-detail */
-.spage .in.wide{max-width:880px}
-.cf-md{display:grid;grid-template-columns:292px minmax(0,1fr);gap:var(--space-4);align-items:start}
-.cf-m{display:flex;flex-direction:column;gap:var(--space-3)}
-.cf-m .mp-list{overflow:visible}
-.cf-mi{display:flex;align-items:center;gap:var(--space-3);min-height:48px;padding:var(--space-2) var(--space-3);position:relative}
-.cf-mi + .cf-mi{box-shadow:inset 0 1px 0 var(--color-line)}
-.cf-mi.sel{background:var(--color-selected)}
-.cf-mi .pm{color:var(--color-text-2);flex:none}
-.cf-mi .tx{flex:1;min-width:0;display:flex;flex-direction:column}
-.cf-mi .nm{font-weight:var(--weight-medium);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.cf-mi .bad-dot{background:var(--color-attention)}
-.cf-mi.cf-off .nm,.cf-mi.cf-off .pm{color:var(--color-text-3)}
-.cf-d{display:flex;flex-direction:column;gap:var(--space-4);padding:var(--space-4);border-radius:var(--radius-md);background:var(--color-surface);box-shadow:inset 0 0 0 1px var(--color-line)}
-.light .cf-d{background:var(--color-raised)}
-.cf-dh{display:flex;align-items:center;gap:var(--space-3)}
-.cf-dh .pm{color:var(--color-text-2)}
-.cf-dh .tx{flex:1;min-width:0;display:flex;flex-direction:column}
-.cf-dh .nm{font-size:var(--text-title);line-height:var(--leading-title);font-weight:var(--weight-semibold);letter-spacing:-0.01em}
-.cf-b .mp-defs{grid-template-columns:repeat(2,minmax(0,1fr))}
-/* direction C: cards */
-.cf-cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-3)}
-.cf-card{display:flex;flex-direction:column;gap:var(--space-3);padding:var(--space-4);border-radius:var(--radius-md);background:var(--color-surface);box-shadow:inset 0 0 0 1px var(--color-line);min-width:0}
-.light .cf-card{background:var(--color-raised)}
-.cf-card.span{grid-column:1 / -1}
-.cf-card.dash{background:transparent;box-shadow:inset 0 0 0 1.5px var(--color-line);align-items:center;justify-content:center;color:var(--color-text-2);min-height:120px;text-align:center}
-.light .cf-card.dash{background:transparent}
-.cf-ch{display:flex;align-items:center;gap:var(--space-3)}
-.cf-ch .pm{color:var(--color-text-2)}
-.cf-ch .tx{flex:1;min-width:0;display:flex;flex-direction:column}
-.cf-ch .nm{font-weight:var(--weight-semibold)}
-.cf-card.cf-off .nm,.cf-card.cf-off .pm{color:var(--color-text-3)}
-.cf-card .cf-chips{display:flex;flex-wrap:wrap;gap:var(--space-1)}
-.cf-card .cf-warn{padding:var(--space-2) var(--space-3)}
-.cf-card .cf-cmd{flex-direction:column;align-items:stretch;gap:0;padding:var(--space-1) var(--space-2)}
-.cf-card .cf-cmd .btn{align-self:flex-end}
 .cf-hint .mono{white-space:nowrap}
-.cf-cc{display:flex;align-items:center;gap:var(--space-2);color:var(--color-text-2);min-width:0}
-.cf-cc .mono{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 /* stacked view */
 body.stacked{background:#131210;color:#efe9e2;font-family:-apple-system,"SF Pro Text",system-ui,sans-serif;padding:56px 48px 80px;-webkit-font-smoothing:antialiased}
@@ -1978,12 +1936,9 @@ function machinesPage(state) {
    named way to start a vendor's agent: Claude Code with GLM’s endpoint, say. They live in the machine’s providers.json.
    The web changes only the name, enabled and the new-session defaults; the command and the variables are shown read-only
    (a variable as set or not set, never its value) and anything else is done on the machine with a command to copy. The
-   built-ins claude and codex can be disabled, not removed. Three directions for the same data: A rows grouped by vendor
-   that expand in place, B a list with a detail pane, C cards. ---- */
-const PROV_DIRS = ['a', 'b', 'c'];
-const PROV_VIEWS = ['', '-edit', '-saving', '-error', '-add'];
-const PROV = ['settings-providers-offline', 'settings-providers-none', 'settings-providers-empty']
-  .concat(...PROV_DIRS.map(d => PROV_VIEWS.map(v => `settings-providers-${d}${v}`)));
+   built-ins claude and codex can be disabled, not removed. ---- */
+const PROV = ['settings-providers', 'settings-providers-edit', 'settings-providers-saving', 'settings-providers-error', 'settings-providers-add',
+  'settings-providers-offline', 'settings-providers-none', 'settings-providers-empty'];
 PROVIDER.codex = { name: 'Codex', svg: () => sv(L.terminal) }; /* placeholder for the official mark, like Claude Code's */
 const VENDORS = ['claude', 'codex'];
 /* the new-session defaults a vendor's driver declares (config options' currentValue) */
@@ -2061,11 +2016,9 @@ function cfForm(c, m, view) {
 }
 
 /* Add a configuration: it is made on the machine, so the web shows the commands and runs nothing */
-function cfAdd(m, tiles) {
+function cfAdd(m) {
   const p = PRESETS.find(x => x[0] === PRESET_PICKED);
-  const choose = tiles
-    ? `<div class="cf-tiles">${PRESETS.map(([id, n]) => `<button class="${id === PRESET_PICKED ? 'on' : ''}"><b>${n}</b><span class="cf-id">${id}</span></button>`).join('')}</div>`
-    : `<div class="cf-pre" role="radiogroup" aria-label="Preset">${PRESETS.map(([id, n]) => `<button role="radio" aria-checked="${id === PRESET_PICKED}" class="${id === PRESET_PICKED ? 'on' : ''}">${n}</button>`).join('')}</div>`;
+  const choose = `<div class="cf-pre" role="radiogroup" aria-label="Preset">${PRESETS.map(([id, n]) => `<button role="radio" aria-checked="${id === PRESET_PICKED}" class="${id === PRESET_PICKED ? 'on' : ''}">${n}</button>`).join('')}</div>`;
   return `<div class="cf-add"><h2>Add a configuration</h2>
     <p class="cf-hint">A configuration is made on ${m.name}, where its key stays. Pick a preset and run both commands in a terminal there.</p>
     ${choose}
@@ -2077,42 +2030,15 @@ function cfAdd(m, tiles) {
 const cfAddBtn = open => `<button class="btn"${open ? ' aria-expanded="true"' : ''}>${I.plus()}Add a configuration</button>`;
 const cfGroupHead = v => `<div class="cf-gh">${pmark(v)}${PROVIDER[v].name}<span class="meta">${CFG.filter(c => c.ext === v).length === 1 ? '1 configuration' : CFG.filter(c => c.ext === v).length + ' configurations'}</span></div>`;
 
-/* A: rows grouped by vendor; the row opens in place */
-function cfA(m, view) {
+/* rows grouped by vendor; the row opens in place */
+function cfList(m, view) {
   const editing = ['edit', 'saving', 'error'].includes(view);
   const open = view === 'add' ? '' : editing ? 'glm' : 'deepseek';
   const row = c => `<div class="mp-row${c.on ? '' : ' cf-off'}${c.id === open ? ' open' : ''}"><div class="mp-rh">${pmark(c.ext)}<div class="tx"><span class="nm">${c.name}</span>${cfSub(c)}</div>${cfChips(c)}${sw(c.name, c.on)}<span class="chev" aria-hidden="true">${c.id === open ? I.down() : I.chev()}</span></div>
     ${c.id === open ? `<div class="mp-body">${editing ? cfForm(c, m, view) : cfDetail(c, m)}</div>` : ''}</div>`;
   return `<div class="cf-a"><div class="cf-top"><span class="meta">Configurations on ${m.name}</span>${cfAddBtn(view === 'add')}</div>
-    ${view === 'add' ? `<div style="margin-bottom:var(--space-4)">${cfAdd(m, false)}</div>` : ''}
+    ${view === 'add' ? `<div style="margin-bottom:var(--space-4)">${cfAdd(m)}</div>` : ''}
     ${VENDORS.map(v => `<div class="cf-grp">${cfGroupHead(v)}<div class="mp-list">${CFG.filter(c => c.ext === v).map(row).join('')}</div></div>`).join('')}</div>`;
-}
-
-/* B: the list on the left, the selected configuration on the right */
-function cfB(m, view) {
-  const editing = ['edit', 'saving', 'error'].includes(view);
-  const pick = view === 'add' ? '' : editing ? 'glm' : 'deepseek';
-  const item = c => `<div class="cf-mi${c.on ? '' : ' cf-off'}${c.id === pick ? ' sel' : ''}">${pmark(c.ext)}<div class="tx"><span class="nm">${c.name}</span><span class="cf-id">${c.id}</span></div>${c.on && cfMissing(c).length ? `<span class="bad-dot"${tip('Not ready: a variable is not set')}></span>` : ''}${sw(c.name, c.on)}</div>`;
-  const list = VENDORS.map(v => `<div class="cf-grp">${cfGroupHead(v)}<div class="mp-list">${CFG.filter(c => c.ext === v).map(item).join('')}</div></div>`).join('');
-  const c = CFG.find(x => x.id === pick);
-  const detail = view === 'add' ? cfAdd(m, false)
-    : `<div class="cf-d"><div class="cf-dh">${pmark(c.ext)}<div class="tx"><span class="nm">${editing && c.id === 'glm' ? 'GLM Coding Plan' : c.name}</span>${cfSub(c)}</div>${cfChips(c)}${editing ? '' : sw(c.name, c.on)}</div>${editing ? cfForm(c, m, view) : cfDetail(c, m)}</div>`;
-  return `<div class="cf-b"><div class="cf-md"><div class="cf-m">${list}${cfAddBtn(view === 'add')}</div><div>${detail}</div></div></div>`;
-}
-
-/* C: a card per configuration; the edited one spans the width */
-function cfC(m, view) {
-  const editing = ['edit', 'saving', 'error'].includes(view);
-  const card = c => {
-    const ed = editing && c.id === 'glm';
-    const vars = c.env.length ? `<div class="cf-chips">${c.env.map(([n, s]) => `<span class="cf-chip ${s ? 'ok' : 'warn'}"${tip(n + (s ? ' is set' : ' is not set'))}>${s ? I.check() : I.alert()}<span class="mono" style="font-size:inherit">${n.replace('ANTHROPIC_', '').replace('DEFAULT_', '')}</span></span>`).join('')}</div>` : '';
-    const meta = c.built ? `<span class="meta">${c.ver} · Tested · ${c.sessions} sessions · used ${c.used}</span>` : '';
-    return `<div class="cf-card${c.on ? '' : ' cf-off'}${ed ? ' span' : ''}"><div class="cf-ch">${pmark(c.ext)}<div class="tx"><span class="nm">${ed ? 'GLM Coding Plan' : c.name}</span><span class="cf-id">${c.id}</span></div>${ed ? '' : sw(c.name, c.on)}</div>
-      ${ed ? cfForm(c, m, view) : `<div class="cf-chips">${cfChips(c)}</div><div class="cf-cc">${I.term()}<span>${cfRun(c)}</span></div>${vars}${meta}${cfWarn(c, m)}
-      <div class="cf-foot"><span class="cf-hint" style="flex:1">${CF_DEFS[c.ext].slice(0, 2).map(x => x[1]).join(' · ')}</span><button class="btn quiet">${I.pen()}Edit</button></div>`}</div>`;
-  };
-  const grid = v => `<div class="cf-grp">${cfGroupHead(v)}<div class="cf-cards">${CFG.filter(c => c.ext === v).map(card).join('')}${v === 'claude' ? `<div class="cf-card dash">${cfAddBtn(view === 'add')}<span class="cf-hint">Made on ${m.name}</span></div>` : ''}</div></div>`;
-  return `<div class="cf-c">${view === 'add' ? `<div style="margin-bottom:var(--space-4)">${cfAdd(m, true)}</div>` : ''}${VENDORS.map(grid).join('')}</div>`;
 }
 
 function providersPage(state) {
@@ -2121,10 +2047,10 @@ function providersPage(state) {
   if (!ms.length) return `${head}<div class="mp-empty"><b>No machines yet</b><p>Providers come from the agent on each machine. Go to Machines → Add a machine, and the providers it runs appear here.</p><button class="btn">${I.laptop()}Go to Machines</button></div>`;
   const tabs = `<div class="mp-tabs" role="tablist" aria-label="Machines">${ms.map((m, i) => `<span class="mp-tab" role="tab" aria-selected="${i === sel}"${tip(mName({ n: m.name, os: m.os, on: m.on }))}>${mIcon(m.os, m.on)}${m.name}</span>`).join('')}</div>`;
   const m = ms[sel];
-  const dm = state.match(/^settings-providers-([abc])(?:-(edit|saving|error|add))?$/);
+  const dm = state.match(/^settings-providers(?:-(edit|saving|error|add))?$/);
   const panel = !m.on ? `<div class="mp-quiet">${m.name} is offline · last seen ${m.seen}. Its configurations show when its agent connects.</div>`
     : !dm ? `<div class="mp-quiet">This machine’s agent announces no providers.</div>`
-    : { a: cfA, b: cfB, c: cfC }[dm[1]](m, dm[2] || 'list');
+    : cfList(m, dm[1] || 'list');
   return `${head}${tabs}<div role="tabpanel" aria-label="${m.name}">${panel}</div>`;
 }
 
@@ -2154,7 +2080,7 @@ function settingsMain(state) {
   return `<header class="top">${ib(I.back(), 'Back to the conversation · Esc')}<span class="title">Settings</span></header>
     <div class="set"><nav class="snav" aria-label="Settings sections">
       ${ni('appearance', I.contrast(), 'Appearance')}${ni('machines', I.laptop(), 'Machines')}${ni('providers', I.plug(), 'Model providers')}${ni('notifications', nI('bell'), 'Notifications')}
-    </nav><div class="spage"><div class="in${/^settings-providers-b/.test(state) ? ' wide' : ''}">${page}</div></div></div>`;
+    </nav><div class="spage"><div class="in">${page}</div></div></div>`;
 }
 
 /* Settings is a full page: no sidebar, no status bar; it owns the window and Esc returns to the conversation */
@@ -2169,7 +2095,7 @@ function frame(state, scheme) {
 const SCREEN = {
   name: 'Settings',
   system: false,
-  blurb: 'Model providers (#170) lists the provider configurations of one machine (a tab per machine), grouped by vendor: the built-in Claude Code and Codex, which can be turned off but not removed, and the ones made on the machine (GLM, DeepSeek). From here the web changes only a configuration’s name, whether it is enabled and its new-session defaults; the command and the variables are shown read-only, a variable only as set or not set and never its value. Adding a configuration and entering a key happen on the machine, so the page shows the exact hoplet-agent commands with a copy button and runs nothing; a configuration whose key is not set says it cannot start and shows the command. Three directions for the same data: A rows grouped by vendor that expand in place, B a list with a detail pane, C cards. An offline machine lists nothing because GET /api/devices returns providers empty for it. The Settings page, a full page that replaces the window (no sidebar, no status bar): a header with a back button (Esc also goes back) and the title, the section list on the left and the content on the right. Sections are Appearance (Theme, Language, Text), Machines (a tab per machine, led by its system’s mark with the presence dot at its bottom-right like the Model providers tabs, then the selected machine’s system, architecture and connection, and its resources; Add a machine is a quiet button at the end of the tab row) and Notifications (a level, per-project and per-event channels, Web Push for this browser, quiet hours, webhooks); Model providers sits between Machines and Notifications; Memory (#18) is added to the list later. Appearance, Language and the Text group (interface font, code font, size, full width, ligatures) are kept in the browser and each choice only swaps tokens; the preview follows them.',
+  blurb: 'Model providers (#170) lists the provider configurations of one machine (a tab per machine), grouped by vendor: the built-in Claude Code and Codex, which can be turned off but not removed, and the ones made on the machine (GLM, DeepSeek). From here the web changes only a configuration’s name, whether it is enabled and its new-session defaults; the command and the variables are shown read-only, a variable only as set or not set and never its value. Adding a configuration and entering a key happen on the machine, so the page shows the exact hoplet-agent commands with a copy button and runs nothing; a configuration whose key is not set says it cannot start and shows the command. The rows are grouped by vendor and a row expands in place. An offline machine lists nothing because GET /api/devices returns providers empty for it. The Settings page, a full page that replaces the window (no sidebar, no status bar): a header with a back button (Esc also goes back) and the title, the section list on the left and the content on the right. Sections are Appearance (Theme, Language, Text), Machines (a tab per machine, led by its system’s mark with the presence dot at its bottom-right like the Model providers tabs, then the selected machine’s system, architecture and connection, and its resources; Add a machine is a quiet button at the end of the tab row) and Notifications (a level, per-project and per-event channels, Web Push for this browser, quiet hours, webhooks); Model providers sits between Machines and Notifications; Memory (#18) is added to the list later. Appearance, Language and the Text group (interface font, code font, size, full width, ligatures) are kept in the browser and each choice only swaps tokens; the preview follows them.',
 };
 const STATES = [
   ['settings', 'Settings: Appearance'],
@@ -2181,21 +2107,11 @@ const STATES = [
   ['mint', 'Add a machine: token minted'],
   ['mint-waiting', 'waiting for the agent'],
   ['mint-online', 'the new machine is connected'],
-  ['settings-providers-a', 'Model providers A, rows grouped by vendor: MacBook Pro with claude (built-in), GLM (own login), DeepSeek (key not set, so a warning with the command) and codex (built-in, disabled); an enabled switch on every one'],
-  ['settings-providers-a-edit', 'Direction A: editing GLM, the name and the new-session defaults, Enabled, Save and Cancel; the command and the variables are not editable'],
-  ['settings-providers-a-saving', 'Direction A: saving, the fields and Cancel disabled'],
-  ['settings-providers-a-error', 'Direction A: the machine rejected the change, the message above Save and nothing saved'],
-  ['settings-providers-a-add', 'Direction A: Add a configuration, a preset picked and the two commands to run on the machine with a copy button each'],
-  ['settings-providers-b', 'Model providers B, list and detail pane: MacBook Pro with claude (built-in), GLM (own login), DeepSeek (key not set, so a warning with the command) and codex (built-in, disabled); an enabled switch on every one'],
-  ['settings-providers-b-edit', 'Direction B: editing GLM, the name and the new-session defaults, Enabled, Save and Cancel; the command and the variables are not editable'],
-  ['settings-providers-b-saving', 'Direction B: saving, the fields and Cancel disabled'],
-  ['settings-providers-b-error', 'Direction B: the machine rejected the change, the message above Save and nothing saved'],
-  ['settings-providers-b-add', 'Direction B: Add a configuration, a preset picked and the two commands to run on the machine with a copy button each'],
-  ['settings-providers-c', 'Model providers C, cards: MacBook Pro with claude (built-in), GLM (own login), DeepSeek (key not set, so a warning with the command) and codex (built-in, disabled); an enabled switch on every one'],
-  ['settings-providers-c-edit', 'Direction C: editing GLM, the name and the new-session defaults, Enabled, Save and Cancel; the command and the variables are not editable'],
-  ['settings-providers-c-saving', 'Direction C: saving, the fields and Cancel disabled'],
-  ['settings-providers-c-error', 'Direction C: the machine rejected the change, the message above Save and nothing saved'],
-  ['settings-providers-c-add', 'Direction C: Add a configuration, a preset picked and the two commands to run on the machine with a copy button each'],
+  ['settings-providers', 'Model providers, rows grouped by vendor: MacBook Pro with claude (built-in), GLM (own login), DeepSeek (key not set, so a warning with the command) and codex (built-in, disabled); an enabled switch on every one'],
+  ['settings-providers-edit', 'Model providers: editing GLM, the name and the new-session defaults, Enabled, Save and Cancel; the command and the variables are not editable'],
+  ['settings-providers-saving', 'Model providers: saving, the fields and Cancel disabled'],
+  ['settings-providers-error', 'Model providers: the machine rejected the change, the message above Save and nothing saved'],
+  ['settings-providers-add', 'Model providers: Add a configuration, a preset picked and the two commands to run on the machine with a copy button each'],
   ['settings-providers-offline', 'Model providers: an offline machine has no live data, only its last seen'],
   ['settings-providers-none', 'Model providers: an online machine whose agent announces no providers'],
   ['settings-providers-empty', 'Model providers with no machines at all'],

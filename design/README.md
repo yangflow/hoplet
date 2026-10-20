@@ -11,10 +11,9 @@ The mockups, design tokens and app icon behind Hoplet's web UI. The design langu
     This browser (Web Push on, off and blocked), webhooks (`settings-notify`, `settings-notify-overrides`,
     `settings-notify-off`, `settings-notify-blocked`, `notify-hook`).
   - `settings` includes the Model providers section (#170), a tab per machine with that machine's configurations, in
-    three directions: A rows grouped by vendor with an inline expand (`settings-providers-a`), B list and detail pane
-    (`-b`), C cards (`-c`). Each has `-edit` (name, enabled, new-session defaults), `-saving`, `-error` and `-add`
+    rows grouped by vendor with an inline expand (`settings-providers`). It has `-edit` (name, enabled, new-session defaults), `-saving`, `-error` and `-add`
     (the command to copy; the web never runs it); `settings-providers-offline`, `settings-providers-none` and
-    `settings-providers-empty` are shared. Command and variables are read-only, variables show set or not set, never
+    `settings-providers-empty` show the other cases. Command and variables are read-only, variables show set or not set, never
     a value; keys are entered on the machine.
   - `cockpit` includes the provider configurations (#170): the draft's configuration picker
     (`draft-configuration`), the configuration tag of a session that does not run the built-in
