@@ -18,7 +18,9 @@ The mockups, design tokens and app icon behind Hoplet's web UI. The design langu
   - `cockpit` includes the provider configurations (#170): the draft's configuration picker
     (`draft-configuration`), the configuration tag of a session that does not run the built-in
     (`session-configuration`) and the configuration select of Hand off (`handoff-configuration`,
-    `handoff-configuration-pick`, `handoff-configuration-none`).
+    `handoff-configuration-pick`, `handoff-configuration-none`). When the target has the vendor's configurations
+    but none enabled (#185), the card lists them with Enable (`handoff-configuration-enable`,
+    `handoff-configuration-enabling`).
   - `cockpit` includes the machine icon, the system's mark with the presence dot at its bottom-right: the sidebar
     (`machines`), the draft's machine picker (`machines-draft`) and the Add project machine select (`machines-add`).
   - `cockpit` includes each machine's load and session processes (#88): the sidebar carries only a warning glyph on a

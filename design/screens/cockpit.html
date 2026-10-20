@@ -710,6 +710,13 @@ svg{display:block;flex:none}
 .ho .cpop{width:100%}
 .ho .cmdline{display:block;padding:var(--space-2) var(--space-3);border-radius:var(--radius-sm);background:var(--color-bg);box-shadow:inset 0 0 0 1px var(--color-line);font-family:var(--font-mono);font-size:var(--text-code);color:var(--color-text);overflow-wrap:anywhere;user-select:all}
 .ho .cmdline i{font-style:normal;color:var(--color-text-3)}
+.ho .dis{display:flex;flex-direction:column;border-radius:var(--radius-md);box-shadow:inset 0 0 0 1px var(--color-line)}
+.ho .dis .r{display:flex;align-items:center;gap:var(--space-2);padding:var(--space-2) var(--space-3);min-height:40px}
+.ho .dis .r+.r{box-shadow:inset 0 1px 0 var(--color-line)}
+.ho .dis .r .n{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ho .dis .r .meta{white-space:nowrap}
+.ho .dis .r .meta{color:var(--color-text-3)}
+.ho .dis .r .btn{flex:none}
 .cpop .menu-item.dim .pm{opacity:.6}
 
 /* wide inspector: list and viewer side by side */
@@ -1322,9 +1329,9 @@ function hlMd(src) {
 /* every state is a configuration of the same parts */
 const LIVE = ['queue-menu', 'queue-queued', 'queue-editing', 'queue-dragging', 'queue-steered', 'queue-paused-permission', 'queue-paused-error', 'queue-paused-interrupted', 'starting', 'running', 'waiting-permission', 'failed-turn', 'scrolled', 'disconnected', 'plan-pending', 'plan-long', 'plan-modes', 'plan-feedback', 'plan-approved', 'plan-kept', 'plan-elsewhere', 'plan-offline', 'plan-fresh-menu', 'plan-fresh-confirm', 'plan-fresh-starting', 'plan-fresh-failed', 'plan-fresh-done', 'plan-fresh-new'];
 const OFFLINE = ['offline', 'plan-offline', 'handoff-offline', 'changes-offline', 'diff-offline', 'mention-offline'];
-const HANDOFF = ['handoff', 'handoff-path', 'handoff-progress', 'handoff-failed', 'handoff-done', 'handoff-offline', 'handoff-configuration', 'handoff-configuration-pick', 'handoff-configuration-none'];
+const HANDOFF = ['handoff', 'handoff-path', 'handoff-progress', 'handoff-failed', 'handoff-done', 'handoff-offline', 'handoff-configuration', 'handoff-configuration-pick', 'handoff-configuration-enable', 'handoff-configuration-enabling', 'handoff-configuration-none'];
 /* sessions that run under a configuration other than the built-in show its name beside the title */
-const CFGSESS = ['session-configuration', 'handoff-configuration', 'handoff-configuration-pick', 'handoff-configuration-none'];
+const CFGSESS = ['session-configuration', 'handoff-configuration', 'handoff-configuration-pick', 'handoff-configuration-enable', 'handoff-configuration-enabling', 'handoff-configuration-none'];
 const WIDE = ['file-open', 'file-image', 'diff-open', 'diff-large', 'diff-binary', 'diff-offline'];
 const INSP = ['workspace', 'changes', 'changes-offline', ...WIDE, ...HANDOFF];
 const MINT = ['mint', 'mint-waiting', 'mint-online'];
@@ -2224,10 +2231,21 @@ function inspector(state) {
       card = `<div class="ho focus"><b>Hand off</b><p>Move this session and its working tree to another machine.</p>${pick}
         ${cfgPick('Choose a configuration', 'GLM is not enabled on studio. Pick one that extends Claude Code.', true)}
         <button class="btn primary" disabled>${I.handoff()}Hand off to studio</button></div>`; break;
+    case 'handoff-configuration-enable':
+    case 'handoff-configuration-enabling': {
+      const busy = state === 'handoff-configuration-enabling';
+      const row = (n, meta, b) => `<div class="r">${pmark('claude')}<span class="n">${n}</span><span class="meta">${meta}</span>${b}</div>`;
+      card = `<div class="ho focus"><b>Hand off</b><p>Move this session and its working tree to another machine.</p>${pick}
+        <div class="cfld"><span class="l">Configuration</span><span class="meta">GLM is not on studio and no configuration that extends Claude Code is enabled there. Enable one to continue this session in it.</span></div>
+        <div class="dis" role="list" aria-label="Disabled configurations on studio">
+          ${row('Claude Code', 'built-in', busy ? `<button class="btn quiet" disabled aria-busy="true" aria-label="Enabling Claude Code">${spin()}</button>` : '<button class="btn quiet">Enable</button>')}
+          ${row('DeepSeek', 'key set', busy ? '<button class="btn quiet" disabled>Enable</button>' : '<button class="btn quiet">Enable</button>')}
+        </div>
+        <button class="btn primary" disabled>${I.handoff()}Hand off to studio</button></div>`; break;
+    }
     case 'handoff-configuration-none':
       card = `<div class="ho focus"><b>Hand off</b><p>Move this session and its working tree to another machine.</p>${pick}
-        <div class="nt bad">${I.alert()}<span>studio has no enabled configuration that extends Claude Code, so it cannot continue this session. Enable one on studio, then hand off.</span></div>
-        <div class="cfld"><span class="l">Run on studio</span><span class="cmdline"><i>$</i> hoplet-agent provider set claude --enabled true</span></div>
+        <div class="nt bad">${I.alert()}<span>studio does not offer Claude Code, so it cannot continue this session. Install Claude Code on studio and restart its agent, then hand off.</span></div>
         <button class="btn primary" disabled>${I.handoff()}Hand off to studio</button></div>`; break;
     case 'handoff-path':
       card = `<div class="ho focus"><b>Hand off</b><p>Move this session and its working tree to another machine.</p>${pick}
@@ -2542,7 +2560,9 @@ const STATES = [
   ['session-configuration', 'a session that runs under a configuration other than the built-in (GLM) names it in a quiet tag beside the title; a built-in session shows none'],
   ['handoff-configuration', 'Hand off of a GLM session: the target preselects the same configuration because studio has it enabled'],
   ['handoff-configuration-pick', 'Hand off of a GLM session: studio does not have GLM enabled, so the select lists the configurations that extend the same vendor and Hand off waits for a pick'],
-  ['handoff-configuration-none', 'Hand off of a GLM session: studio has no enabled configuration of that vendor; the card says so and shows the command to run on studio (the web never runs it)'],
+  ['handoff-configuration-enable', 'Hand off of a GLM session, studio has configurations of that vendor but none enabled; the card lists the disabled ones with Enable, and once one is enabled the select takes it and Hand off is available'],
+  ['handoff-configuration-enabling', 'Enable sent for Claude Code, its button spins until studio reports the configuration enabled; the other rows wait'],
+  ['handoff-configuration-none', 'Hand off of a GLM session: studio does not offer the vendor at all (its CLI is not installed); nothing to enable, so the card says what to install'],
   ['machines', 'the machine icon: the sidebar with macOS (expanded, hovered), Linux, Windows (offline) and a system the agent does not report'],
   ['machines-draft', 'the machine icon in the draft composer: the machine chip and its picker, each machine with its system and state'],
   ['machines-add', 'the machine icon in Add project: the machine select open, offline machines disabled'],

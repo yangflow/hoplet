@@ -155,6 +155,8 @@ const subject: Record<string, Record<string, string>> = {
     'handoff-offline': 'workspace.handoff-snapshot',
     'handoff-configuration': 'workspace.handoff-configuration',
     'handoff-configuration-pick': 'workspace.handoff-configuration',
+    'handoff-configuration-enable': 'workspace.handoff-configuration-enable',
+    'handoff-configuration-enabling': 'workspace.handoff-configuration-enable',
     'handoff-configuration-none': 'workspace.handoff-configuration-none',
   },
   settings: {
@@ -193,9 +195,9 @@ const subject: Record<string, Record<string, string>> = {
   },
 };
 
-test('the registries list 85 cockpit, 54 workspace, 23 settings and 7 action states', () => {
+test('the registries list 85 cockpit, 56 workspace, 23 settings and 7 action states', () => {
   expect(screens.cockpit).toHaveLength(85);
-  expect(screens.workspace).toHaveLength(54);
+  expect(screens.workspace).toHaveLength(56);
   expect(screens.settings).toHaveLength(23);
   expect(screens.action).toHaveLength(7);
 });

@@ -822,8 +822,6 @@
   "Keys are entered on the machine, never here. Hoplet shows which variables are set, not their values.": "Keys are entered on the machine, never here. Hoplet shows which variables are set, not their values.",
   "{name} is offline · last seen {when}. Its configurations show when its agent connects.": "{name} is offline · last seen {when}. Its configurations show when its agent connects.",
   "Configurations on {name}": "Configurations on {name}",
-  "{target} has no enabled configuration that extends {vendor}, so it cannot continue this session. Enable one on {target}, then hand off.": "{target} has no enabled configuration that extends {vendor}, so it cannot continue this session. Enable one on {target}, then hand off.",
-  "Run on {target}": "Run on {target}",
   "The same configuration is enabled on {target}.": "The same configuration is enabled on {target}.",
   "{name} is not enabled on {target}. Pick one that extends {vendor}.": "{name} is not enabled on {target}. Pick one that extends {vendor}.",
   "Configuration": "Configuration",
@@ -831,5 +829,13 @@
   "{vendor} on {target}": "{vendor} on {target}",
   "Configuration on {machine}": "Configuration on {machine}",
   "Key not set": "Key not set",
-  "Manage in Settings…": "Manage in Settings…"
+  "Manage in Settings…": "Manage in Settings…",
+  "{target} does not offer {vendor}, so it cannot continue this session. Install {vendor} on {target} and restart its agent, then hand off.": "{target} does not offer {vendor}, so it cannot continue this session. Install {vendor} on {target} and restart its agent, then hand off.",
+  "No configuration that extends {vendor} is enabled on {target}. Enable one to continue this session in it.": "No configuration that extends {vendor} is enabled on {target}. Enable one to continue this session in it.",
+  "{name} is not on {target} and no configuration that extends {vendor} is enabled there. Enable one to continue this session in it.": "{name} is not on {target} and no configuration that extends {vendor} is enabled there. Enable one to continue this session in it.",
+  "Disabled configurations on {target}": "Disabled configurations on {target}",
+  "Enabling {name}": "Enabling {name}",
+  "built-in": "built-in",
+  "key set": "key set",
+  "key not set": "key not set"
 }

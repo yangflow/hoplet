@@ -8,6 +8,7 @@ import { MachineIcon } from '../../components/MachineIcon.tsx';
 import { ProviderMark } from '../../components/provider-marks.tsx';
 import { Select } from '../../components/Select.tsx';
 import { TextField } from '../../components/TextField.tsx';
+import { isBuiltIn, missingVariables } from '../../lib/configurations.ts';
 import { clock, formatBytes } from '../../lib/format.ts';
 import { t } from '../../lib/i18n.ts';
 import { systemOf } from '../../lib/system.ts';
@@ -237,7 +238,8 @@ export function HandoffPanel(props: {
 
 /**
  * The configuration the session continues in on the target: preselected when the target has the same one
- * enabled, a choice when it does not, and the command to run there when it has none of the vendor.
+ * enabled, a choice when it does not, the disabled ones to enable when it has none enabled, and what to install
+ * when it does not offer the vendor.
  */
 function ConfigurationField(props: {
   handoff: Handoff;
@@ -247,29 +249,18 @@ function ConfigurationField(props: {
   const { handoff, target, named } = props;
   const choice = handoff.configurationChoice;
   if (choice.state === 'builtin') return null;
+  if (choice.state === 'disabled')
+    return <DisabledConfigurations handoff={handoff} target={target} />;
   if (choice.state === 'none') {
-    const vendor = handoff.vendorName;
     return (
-      <>
-        <p
-          className="ws-ho-note bad"
-          role="alert"
-          data-testid="workspace.handoff-configuration-none"
-        >
-          <Glyph>{Icon.alert()}</Glyph>
-          <span>
-            {named(
-              '{target} has no enabled configuration that extends {vendor}, so it cannot continue this session. Enable one on {target}, then hand off.',
-            ).replaceAll('{vendor}', vendor)}
-          </span>
-        </p>
-        <div className="ws-cfld">
-          <span className="ws-cfld-l">{named('Run on {target}')}</span>
-          <span className="ws-cmdline" data-testid="workspace.handoff-configuration-command">
-            <i>$</i> {handoff.enableCommand}
-          </span>
-        </div>
-      </>
+      <p className="ws-ho-note bad" role="alert" data-testid="workspace.handoff-configuration-none">
+        <Glyph>{Icon.alert()}</Glyph>
+        <span>
+          {named(
+            '{target} does not offer {vendor}, so it cannot continue this session. Install {vendor} on {target} and restart its agent, then hand off.',
+          ).replaceAll('{vendor}', handoff.vendorName)}
+        </span>
+      </p>
     );
   }
   const hint =
@@ -299,6 +290,70 @@ function ConfigurationField(props: {
       <span className="ws-cfld-hint" data-testid="workspace.handoff-configuration-hint">
         {hint}
       </span>
+    </div>
+  );
+}
+
+/** The target's configurations of the vendor, all disabled: each can be enabled from the card. */
+function DisabledConfigurations(props: { handoff: Handoff; target: string }) {
+  const { handoff, target } = props;
+  const choice = handoff.configurationChoice;
+  if (choice.state !== 'disabled') return null;
+  const vendor = handoff.vendorName;
+  const text = (message: string) =>
+    t(message)
+      .replaceAll('{target}', target)
+      .replaceAll('{vendor}', vendor)
+      .replace('{name}', handoff.configurationName);
+  return (
+    <div className="ws-cfld" data-testid="workspace.handoff-configuration-enable">
+      <span className="ws-cfld-l">{t('Configuration')}</span>
+      <span className="ws-cfld-meta">
+        {handoff.sessionBuiltIn
+          ? text(
+              'No configuration that extends {vendor} is enabled on {target}. Enable one to continue this session in it.',
+            )
+          : text(
+              '{name} is not on {target} and no configuration that extends {vendor} is enabled there. Enable one to continue this session in it.',
+            )}
+      </span>
+      <ul
+        className="ws-dis"
+        aria-label={t('Disabled configurations on {target}').replace('{target}', target)}
+      >
+        {choice.options.map((p) => {
+          const c = p.configuration;
+          const busy = handoff.enabling === c.id;
+          const meta = isBuiltIn(p)
+            ? t('built-in')
+            : missingVariables(p).length > 0
+              ? t('key not set')
+              : t('key set');
+          return (
+            <li className="ws-dis-r" key={c.id}>
+              <ProviderMark provider={p.provider} />
+              <span className="ws-dis-n">{c.name}</span>
+              <span className="ws-dis-meta">{meta}</span>
+              <Button
+                variant="quiet"
+                disabled={handoff.enabling !== undefined}
+                aria-busy={busy || undefined}
+                aria-label={busy ? t('Enabling {name}').replace('{name}', c.name) : undefined}
+                onClick={() => handoff.enable(c.id)}
+                data-testid={`workspace.handoff-enable.${c.id}`}
+              >
+                {busy ? <Spinner /> : t('Enable')}
+              </Button>
+            </li>
+          );
+        })}
+      </ul>
+      {handoff.enableError ? (
+        <p className="ws-ho-note bad" role="alert" data-testid="workspace.handoff-enable-error">
+          <Glyph>{Icon.alert()}</Glyph>
+          <span>{handoff.enableError}</span>
+        </p>
+      ) : null}
     </div>
   );
 }

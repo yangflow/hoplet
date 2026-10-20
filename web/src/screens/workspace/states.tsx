@@ -223,8 +223,18 @@ const browserState = (ports: PortsData, offline = false) => (
   />
 );
 
+/** A machine that offers Codex alone. */
+function codexConfiguration(): ProviderInfo {
+  const base = claudeConfiguration('codex', 'Codex');
+  return {
+    ...base,
+    provider: 'codex',
+    configuration: { ...base.configuration, extends: 'codex', env: [] },
+  };
+}
+
 /** Hand off of a GLM session to studio, which announces `studio`. */
-const glmHandoff = (studio: ProviderInfo[], open = false) => (
+const glmHandoff = (studio: ProviderInfo[], open = false, enabling?: string) => (
   <Inspect
     devices={fixtureDevices(true, true, false, false, { 'dev-studio': studio })}
     sessions={(base) =>
@@ -237,7 +247,11 @@ const glmHandoff = (studio: ProviderInfo[], open = false) => (
     workspace={{
       data: live(),
       view: handoffOpen(),
-      handoff: { clone: found, ...(open ? { configurationOpen: true } : {}) },
+      handoff: {
+        clone: found,
+        ...(open ? { configurationOpen: true } : {}),
+        ...(enabling ? { enabling } : {}),
+      },
     }}
   />
 );
@@ -402,8 +416,21 @@ export const states: Record<string, () => ReactNode> = {
       [claudeConfiguration('claude', 'Claude Code'), claudeConfiguration('deepseek', 'DeepSeek')],
       true,
     ),
-  'handoff-configuration-none': () =>
-    glmHandoff([claudeConfiguration('claude', 'Claude Code', { enabled: false })]),
+  'handoff-configuration-enable': () =>
+    glmHandoff([
+      claudeConfiguration('claude', 'Claude Code', { enabled: false }),
+      claudeConfiguration('deepseek', 'DeepSeek', { enabled: false }),
+    ]),
+  'handoff-configuration-enabling': () =>
+    glmHandoff(
+      [
+        claudeConfiguration('claude', 'Claude Code', { enabled: false }),
+        claudeConfiguration('deepseek', 'DeepSeek', { enabled: false }),
+      ],
+      false,
+      'claude',
+    ),
+  'handoff-configuration-none': () => glmHandoff([codexConfiguration()]),
   'handoff-clone': () => (
     <Inspect workspace={{ data: live(), view: handoffOpen(), handoff: { clone: offer() } }} />
   ),

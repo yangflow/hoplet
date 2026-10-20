@@ -827,8 +827,6 @@
   "Keys are entered on the machine, never here. Hoplet shows which variables are set, not their values.": "密钥只在机器上输入，从不在这里输入。Hoplet 只显示哪些变量已设置，不显示它们的值。",
   "{name} is offline · last seen {when}. Its configurations show when its agent connects.": "{name} 已离线 · 最后在线 {when}。它的代理连上后，配置会显示在这里。",
   "Configurations on {name}": "{name} 上的配置",
-  "{target} has no enabled configuration that extends {vendor}, so it cannot continue this session. Enable one on {target}, then hand off.": "{target} 上没有已启用的 {vendor} 配置，无法继续这个会话。请先在 {target} 上启用一个，再交接。",
-  "Run on {target}": "在 {target} 上运行",
   "The same configuration is enabled on {target}.": "{target} 上启用了同一个配置。",
   "{name} is not enabled on {target}. Pick one that extends {vendor}.": "{name} 在 {target} 上未启用。请选择一个基于 {vendor} 的配置。",
   "Configuration": "配置",
@@ -836,5 +834,13 @@
   "{vendor} on {target}": "{target} 上的 {vendor}",
   "Configuration on {machine}": "{machine} 上的配置",
   "Key not set": "密钥未设置",
-  "Manage in Settings…": "在设置中管理…"
+  "Manage in Settings…": "在设置中管理…",
+  "{target} does not offer {vendor}, so it cannot continue this session. Install {vendor} on {target} and restart its agent, then hand off.": "{target} 未提供 {vendor}，无法继续这个会话。请在 {target} 上安装 {vendor} 并重启其 agent，再交接。",
+  "No configuration that extends {vendor} is enabled on {target}. Enable one to continue this session in it.": "{target} 上没有已启用的 {vendor} 配置。启用一个，即可在其中继续这个会话。",
+  "{name} is not on {target} and no configuration that extends {vendor} is enabled there. Enable one to continue this session in it.": "{target} 上没有 {name}，也没有已启用的 {vendor} 配置。启用一个，即可在其中继续这个会话。",
+  "Disabled configurations on {target}": "{target} 上未启用的配置",
+  "Enabling {name}": "正在启用 {name}",
+  "built-in": "内置",
+  "key set": "密钥已设置",
+  "key not set": "密钥未设置"
 }
