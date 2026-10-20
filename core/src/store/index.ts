@@ -12,6 +12,7 @@ import type {
   Queue,
   QueueItem,
   QueuePause,
+  ResourceThresholds,
   SessionMeta,
   SnapshotChanges,
 } from '@hoplet/shared';
@@ -35,6 +36,7 @@ import type { StoreContext } from './layout.ts';
 import * as notify from './notify.ts';
 import * as queue from './queue.ts';
 import { recoverOnStart } from './recovery.ts';
+import * as resourceThresholds from './resource-thresholds.ts';
 import { type RawGlobalSearchResult, type RawSearchResult, search, searchAll } from './search.ts';
 import * as secrets from './secrets.ts';
 import * as sessions from './sessions.ts';
@@ -97,6 +99,14 @@ export class Store {
 
   setNotifyPreferences(prefs: NotifyPreferences): void {
     notify.setNotifyPreferences(this.ctx, prefs);
+  }
+
+  resourceThresholds(): ResourceThresholds {
+    return resourceThresholds.resourceThresholds(this.ctx);
+  }
+
+  setResourceThresholds(thresholds: ResourceThresholds): void {
+    resourceThresholds.setResourceThresholds(this.ctx, thresholds);
   }
 
   /** Drops the push subscriptions made with a VAPID key other than the current one. */

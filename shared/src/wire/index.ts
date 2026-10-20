@@ -129,10 +129,10 @@ export const RESOURCES_INTERVAL_MS = 15_000;
 export const RESOURCES_RING_SIZE = 240;
 /** Sessions one `device.resources` reports, at most; the ones holding the most memory. */
 export const RESOURCES_SESSIONS_MAX = 64;
-/** A machine warns about memory when more than this share is used. */
-export const RESOURCES_MEMORY_WARN = 0.9;
-/** A machine warns about disk when less than this share of the volume is free. */
-export const RESOURCES_DISK_WARN = 0.1;
+/** By default a machine warns about memory when more than this percent is used. */
+export const RESOURCES_MEMORY_WARN_DEFAULT = 90;
+/** By default a machine warns about disk when less than this percent of the volume is free. */
+export const RESOURCES_DISK_WARN_DEFAULT = 10;
 
 const Percent = v.pipe(v.number(), v.minValue(0), v.maxValue(100));
 const Bytes = v.pipe(v.number(), v.integer(), v.minValue(0));

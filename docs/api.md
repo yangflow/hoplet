@@ -115,6 +115,8 @@ Response column names the schema of the success body and its status when it is n
 | POST | `/api/devices/:deviceId/sessions/remove` | host | control | — | `DeviceSessionsRemoveRequestSchema` | `DeviceProjectsResultSchema` | `invalid-json`, `invalid-request`, `too-large`, `owner-offline`, `timeout`, `rejected`, `cancelled` |
 | GET | `/api/notify/preferences` | host | control | — | — | `NotifyPreferencesSchema` | — |
 | PUT | `/api/notify/preferences` | host | control | — | `NotifyPreferencesSchema` | `NotifyPreferencesSchema` | `invalid-json`, `invalid-request`, `too-large` |
+| GET | `/api/resources/thresholds` | host | control | — | — | `ResourceThresholdsSchema` | — |
+| PUT | `/api/resources/thresholds` | host | control | — | `ResourceThresholdsSchema` | `ResourceThresholdsSchema` | `invalid-json`, `invalid-request`, `too-large` |
 | GET | `/api/notify/push/key` | host | control | — | — | `PushKeyResponseSchema` | — |
 | GET | `/api/notify/push/subscriptions` | host | control | — | — | `PushSubscriptionListResponseSchema` | — |
 | POST | `/api/notify/push/subscriptions` | host | control | — | `PushSubscribeRequestSchema` | `PushSubscriptionInfoSchema`, 201 | `invalid-json`, `invalid-request`, `too-large` |
@@ -137,8 +139,18 @@ Behavior a client relies on:
   `resources` is the latest `device.resources` report of the machine (`at`, `cpu`, `memUsed`, `memTotal`,
   `diskFree`, `diskTotal`), kept while the device is offline so a client can say when it was taken; it is absent for
   a machine that never reported (an agent on a system the agent does not measure sends none). `warn` comes with it:
-  `memory` is true when more than 90% of the memory is used, `disk` when less than 10% of the volume is free, and
-  both are false while the device is offline.
+  `memory` is true when more than the machine's memory threshold of the memory is used, `disk` when less than its
+  disk threshold of the volume is free (90% and 10% unless `GET /api/resources/thresholds` says otherwise), and
+  both are false while the device is offline. A stored change applies to the next `GET /api/devices`; the web UI
+  polls it.
+- `GET /api/resources/thresholds` answers the thresholds at which machines warn: `default` for every machine and
+  `machines`, the overrides keyed by device ID. Each is a `{ memory, disk }` pair of whole percents: `memory` is the
+  percent of the memory used above which a machine warns (1 to 100), `disk` the percent of the volume free under
+  which it warns (0 to 99). A machine without an override uses `default`; with nothing stored the default is
+  `{ memory: 90, disk: 10 }` and there are no overrides. `PUT` replaces the whole object, so a machine's override is
+  removed by leaving it out; at most 200 overrides, more is `too-large`. The core keeps them in its database. A
+  client shows the effective values of a machine from this object (`machines[deviceId] ?? default`), not from
+  `GET /api/devices`.
 - `GET /api/devices/:deviceId/resources` answers `samples`, the last hour of the machine's readings (at most 240, one
   every 15 seconds, oldest first, `cpu` null while the agent had no earlier reading), and `sessions`, the processes
   of the sessions Hoplet started on it as of the latest report, summed over their process trees: `cpu` (percent of

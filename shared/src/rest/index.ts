@@ -4,6 +4,7 @@ export * from './deletion.ts';
 export * from './devices.ts';
 export * from './notify.ts';
 export * from './queue.ts';
+export * from './resources.ts';
 export * from './runtime.ts';
 export * from './sessions.ts';
 export * from './terminal.ts';

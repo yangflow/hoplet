@@ -173,7 +173,8 @@ published on the server running the core, and the compose file does not change.
 - Machine resources: every 15 seconds the agent reads the machine's CPU, memory and the disk of its browse root
   and the process trees of the sessions it started, on Linux (`/proc`) and macOS (one `ps`, `sysctl` and
   `vm_stat`), and sends about 100 bytes per session. The core keeps the last 240 readings of each machine in memory
-  (a few hundred kilobytes in all) and stores none.
+  (a few hundred kilobytes in all) and stores none. The thresholds at which machines warn are host settings, one
+  small row in the core's database.
 - Disk: session bytes / 20 after compression, plus the index, plus at most one snapshot per session (at most
   64 MiB each). There is no quota; a full disk fails appends, which the agent retries.
 - A clone made by a handoff takes the disk the repository takes, inside the browse root of the target; it has
