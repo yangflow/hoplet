@@ -805,3 +805,326 @@
     background: var(--color-raised);
   }
 }
+
+/* Machine resources: the summary, where the load goes, the session processes */
+.rmeta {
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  color: var(--color-text-2);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--weight-regular);
+}
+.rmeta.dim {
+  color: var(--color-text-3);
+}
+p.rmeta {
+  margin: 0;
+}
+.rbody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  font-weight: var(--weight-regular);
+  white-space: normal;
+}
+.rst {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.rbody .rst svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
+.rtiles {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+.rtile {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg);
+  box-shadow: inset 0 0 0 1px var(--color-line);
+}
+.rtile .rk {
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  color: var(--color-text-3);
+}
+.rtile .rv {
+  font-size: var(--text-title);
+  line-height: 20px;
+  font-weight: var(--weight-semibold);
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.rtile .rv .rmeta {
+  font-weight: var(--weight-regular);
+}
+.rsp {
+  display: block;
+  color: var(--color-text-3);
+}
+.rsp.sm {
+  width: 64px;
+  height: 16px;
+}
+.rtile .rsp {
+  width: 100%;
+  height: 24px;
+  margin-top: var(--space-1);
+}
+.rdisk {
+  display: block;
+  height: 4px;
+  margin: 14px 0 6px;
+  border-radius: 2px;
+  background: var(--color-hover);
+  box-shadow: inset 0 0 0 1px var(--color-line);
+  overflow: hidden;
+}
+.rbody .rdisk i {
+  display: block;
+  height: 100%;
+  background: var(--color-text-3);
+}
+.rtile.warn .rv,
+.rtile.warn .rsp {
+  color: var(--color-attention-text);
+}
+.rwn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  color: var(--color-attention-text);
+  margin: calc(var(--space-2) * -1) 0 0;
+}
+.rbody .rwn svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
+.rsec {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.rbar {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr) 76px;
+  align-items: center;
+  gap: var(--space-2);
+}
+.rbar .rl2 {
+  color: var(--color-text-2);
+}
+.rbar .rn {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-2);
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+}
+.rstack {
+  position: relative;
+  display: flex;
+  gap: 1px;
+  height: 10px;
+  border-radius: 3px;
+  background: var(--color-hover);
+  box-shadow: inset 0 0 0 1px var(--color-line);
+  overflow: hidden;
+}
+.rbar .rstack i {
+  display: block;
+  height: 100%;
+  background: var(--color-accent);
+  flex: none;
+}
+
+.rtile.warn .rdisk i {
+  background: var(--color-attention);
+}
+.rstack i.s0,
+.rw.s0 {
+  opacity: 0.95;
+}
+.rstack i.s1,
+.rw.s1 {
+  opacity: 0.7;
+}
+.rstack i.s2,
+.rw.s2 {
+  opacity: 0.5;
+}
+.rstack i.s3,
+.rw.s3 {
+  opacity: 0.34;
+}
+.rstack i.ot,
+.rw.ot {
+  background: var(--color-text-3);
+  opacity: 0.55;
+}
+.rtick {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--color-text-2);
+  opacity: 0.7;
+}
+.rtick.warn {
+  background: var(--color-attention);
+  opacity: 1;
+}
+.rleg {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  padding-left: calc(56px + var(--space-2));
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  color: var(--color-text-3);
+}
+.rleg span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.rw {
+  display: block;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: var(--color-accent);
+  flex: none;
+}
+.rw.fr {
+  background: var(--color-hover);
+  box-shadow: inset 0 0 0 1px var(--color-line);
+  opacity: 1;
+}
+.rps {
+  display: flex;
+  flex-direction: column;
+}
+.rp {
+  display: grid;
+  grid-template-columns: 8px 16px minmax(0, 1fr) 16px 64px 40px 64px;
+  gap: var(--space-2);
+  align-items: center;
+  height: 44px;
+  box-shadow: inset 0 1px 0 var(--color-line);
+}
+.rp.hd {
+  height: 28px;
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  color: var(--color-text-3);
+}
+.rp.hd .h1 {
+  grid-column: 1 / 5;
+}
+.rp .c {
+  display: contents;
+}
+.rp .ti {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.rp:not(.hd) {
+  margin: 0 calc(-1 * var(--space-2));
+  padding: 0 var(--space-2);
+  border-radius: 6px;
+  cursor: pointer;
+}
+.rp.static {
+  cursor: default;
+}
+.rp:not(.hd, .static):hover,
+.rp.hov {
+  background: var(--color-hover);
+}
+.rp:not(.hd):focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+.rp .t1 {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-text);
+}
+.rp.hov .t1,
+.rp:not(.static):hover .t1 {
+  text-decoration: underline;
+  text-decoration-color: var(--color-text-3);
+  text-underline-offset: 2px;
+}
+.rp .t2 {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  color: var(--color-text-3);
+}
+.rbody .rp .n {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.rp:not(.hd) .n {
+  color: var(--color-text-2);
+}
+.rp .provider-mark,
+.rp .glyph {
+  width: 16px;
+  height: 16px;
+}
+.rbody.stale .rv,
+.rbody.stale .rk {
+  color: var(--color-text-3);
+}
+.rbody.stale .rsp {
+  opacity: 0.6;
+}
+.mt-bar {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+  box-shadow: inset 0 -1px 0 var(--color-line);
+}
+.mt-bar .mp-tabs {
+  flex: 1;
+  min-width: 0;
+  margin-bottom: 0;
+  box-shadow: none;
+}
+.mt-bar .mt-fill {
+  flex: 1;
+  height: var(--control-field);
+}
+.mt-bar .btn {
+  flex: none;
+  height: var(--control-field);
+}
+.rmeta.mt-facts {
+  margin: 0 0 var(--space-3);
+}
+.rfoot {
+  margin: 0;
+}

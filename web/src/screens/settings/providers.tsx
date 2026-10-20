@@ -1,14 +1,13 @@
 import type { ConfigOption, DeviceInfo, LiveSessionMeta, ProviderInfo } from '@hoplet/shared';
-import { type KeyboardEvent, useId, useRef, useState } from 'react';
+import { useId, useState } from 'react';
 import { Button } from '../../components/Button.tsx';
 import { Icon } from '../../components/icons.tsx';
-import { MachineIcon } from '../../components/MachineIcon.tsx';
 import { ProviderMark, providerName } from '../../components/provider-marks.tsx';
 import { currentValueName, optionName } from '../../lib/config-options.ts';
 import { t } from '../../lib/i18n.ts';
-import { machineLabel, systemOf } from '../../lib/system.ts';
 import { useDevices } from '../../lib/use-devices.ts';
 import { lastSeenText } from './last-seen.ts';
+import { MachineTabs, machinePanelId, machineTabId } from './machine-tabs.tsx';
 import { defaultMachine, providerUse, versionBadge } from './providers-model.ts';
 
 /** What a state of the design starts from: the machines, the sessions they hold, the tab and the open rows. */
@@ -131,32 +130,9 @@ export function ProvidersSection(props: {
   const [picked, setPicked] = useState<string | undefined>(fixture?.selected);
   const [opened, setOpened] = useState<Set<string>>(new Set(fixture?.open));
   const id = useId();
-  const list = useRef<HTMLDivElement>(null);
   const device =
     devices.find((d) => d.deviceId === picked) ??
     devices.find((d) => d.deviceId === defaultMachine(devices));
-
-  const onKeyDown = (e: KeyboardEvent) => {
-    const tabs = [...(list.current?.querySelectorAll<HTMLElement>('[role="tab"]') ?? [])];
-    const at = tabs.indexOf(document.activeElement as HTMLElement);
-    if (at < 0) return;
-    const to =
-      e.key === 'ArrowRight'
-        ? at + 1
-        : e.key === 'ArrowLeft'
-          ? at - 1
-          : e.key === 'Home'
-            ? 0
-            : e.key === 'End'
-              ? -1
-              : null;
-    if (to === null) return;
-    e.preventDefault();
-    const next = tabs[(to + tabs.length) % tabs.length];
-    next?.focus();
-    const deviceId = next?.dataset.device;
-    if (deviceId) setPicked(deviceId);
-  };
 
   const toggle = (key: string) =>
     setOpened((cur) => {
@@ -190,40 +166,17 @@ export function ProvidersSection(props: {
         </div>
       ) : (
         <>
-          <div
-            ref={list}
-            className="mp-tabs"
-            role="tablist"
-            aria-label={t('Machines')}
-            onKeyDown={onKeyDown}
-            data-testid="settings.providers.tabs"
-          >
-            {devices.map((d) => {
-              const on = d.deviceId === device.deviceId;
-              return (
-                <button
-                  key={d.deviceId}
-                  type="button"
-                  role="tab"
-                  id={`${id}-tab-${d.deviceId}`}
-                  className="mp-tab"
-                  aria-selected={on}
-                  aria-controls={on ? `${id}-panel` : undefined}
-                  tabIndex={on ? 0 : -1}
-                  data-device={d.deviceId}
-                  title={machineLabel(d.name, d.system, d.connected)}
-                  onClick={() => setPicked(d.deviceId)}
-                >
-                  <MachineIcon kind={systemOf(d.system?.os)} online={d.connected} />
-                  {d.name}
-                </button>
-              );
-            })}
-          </div>
+          <MachineTabs
+            devices={devices}
+            selected={device.deviceId}
+            idPrefix={id}
+            onSelect={setPicked}
+            testid="settings.providers.tabs"
+          />
           <div
             role="tabpanel"
-            id={`${id}-panel`}
-            aria-labelledby={`${id}-tab-${device.deviceId}`}
+            id={machinePanelId(id)}
+            aria-labelledby={machineTabId(id, device.deviceId)}
             data-testid="settings.providers.panel"
           >
             {!device.connected ? (

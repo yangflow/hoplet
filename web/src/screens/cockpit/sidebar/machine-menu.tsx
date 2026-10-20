@@ -18,6 +18,8 @@ export function MachineMenu(props: {
   name: string;
   view: MachineView;
   onChange: (patch: Partial<MachineView>) => void;
+  /** Opens Settings > Machines on this machine's tab; absent when the machine reports no resources. */
+  onResources?: () => void;
   /** Starts open (development fixtures). */
   initialOpen?: boolean;
 }) {
@@ -41,7 +43,9 @@ export function MachineMenu(props: {
 
   function onKeyDown(e: KeyboardEvent) {
     const items = [
-      ...(menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitemradio"]') ?? []),
+      ...(menuRef.current?.querySelectorAll<HTMLElement>(
+        '[role="menuitemradio"], [role="menuitem"]',
+      ) ?? []),
     ];
     const at = items.indexOf(document.activeElement as HTMLElement);
     const go = (i: number) => items[(i + items.length) % items.length]?.focus();
@@ -130,6 +134,32 @@ export function MachineMenu(props: {
               item('sort', s, sortLabel(s), view.sort, (v) => onChange({ sort: v })),
             )}
           </div>
+          {props.onResources ? (
+            <>
+              <hr className="menu-sep" />
+              {/* biome-ignore lint/a11y/useSemanticElements: a menu's groups are role=group, a fieldset is not a menu child */}
+              <div role="group" aria-label={t('Machine')}>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="menu-item"
+                  tabIndex={-1}
+                  title={t('Open Settings › Machines on {name}’s tab').replace(
+                    '{name}',
+                    props.name,
+                  )}
+                  onClick={() => {
+                    close(false);
+                    props.onResources?.();
+                  }}
+                  data-testid="cockpit.machine-resources"
+                >
+                  {Icon.activity()}
+                  {t('Resources')}
+                </button>
+              </div>
+            </>
+          ) : null}
         </div>
       </Popover>
     </span>

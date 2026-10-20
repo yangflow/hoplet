@@ -1,4 +1,5 @@
 import type {
+  DeviceResources,
   SessionPort,
   SessionWorkspaceDiff,
   SessionWorkspaceFile,
@@ -17,6 +18,7 @@ export function receiveReply(
   runtime: Runtime,
   terminals: { receive(link: DeviceLink, msg: TerminalReply): void },
   ports: { receive(link: DeviceLink, sessionId: string, ports: SessionPort[]): void },
+  resources: { receive(link: DeviceLink, msg: DeviceResources): void },
   link: DeviceLink,
   msg: ControlReply,
 ): void {
@@ -249,6 +251,9 @@ export function receiveReply(
       return;
     case 'session.ports':
       ports.receive(link, msg.sessionId, msg.ports);
+      return;
+    case 'device.resources':
+      resources.receive(link, msg);
       return;
   }
 }

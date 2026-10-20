@@ -218,6 +218,11 @@ svg{display:block;flex:none}
 .mch .mch-d{position:absolute;right:var(--mo);bottom:var(--mo);width:var(--md);height:var(--md);border-radius:50%;background:var(--color-success)}
 .mch.off{color:var(--color-text-3)}
 .mch.off .mch-d{background:transparent;box-shadow:inset 0 0 0 1.5px var(--color-text-3)}
+
+/* machine resources (#88): a warning glyph on the row */
+.rm{display:flex;align-items:center;flex:none;margin-right:var(--space-1);color:var(--color-attention-text)}
+.rm svg{width:14px;height:14px;flex:none}
+.dev.hov .rm,.dev.menu .rm{display:none}
 .menu-item.dim{color:var(--color-text-2)}
 .sdir,.sess{height:var(--layout-row);display:flex;align-items:center;gap:var(--space-2);padding:0 var(--space-2);border-radius:var(--radius-sm);white-space:nowrap}
 .sdir{color:var(--color-text-2);font-weight:var(--weight-medium)}
@@ -1113,6 +1118,7 @@ const L = {
   minus: '<path d="M5 12h14"/>',
   check: '<path d="M20 6 9 17l-5-5"/>',
   'circle-alert': '<circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/>',
+  activity: '<path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"/>',
   info: '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>',
   'rotate-cw': '<path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/>',
   copy: '<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
@@ -1143,7 +1149,7 @@ const ICON_SET = [
   ['plug', 'Called (MCP)'], ['globe', 'Fetched, Language'], ['lightbulb', 'Thought'], ['image', 'Viewed'],
   ['layers', 'Folded tools'], ['eye', 'External, read only'], ['square', 'Interrupt, stop'], ['lock', 'Read only, held, local'],
   ['paperclip', 'Attach'], ['mic', 'Dictate'], ['hand', 'Permission request'], ['clock', 'Timer, snapshot'],
-  ['x', 'Close, failed step'], ['trash', 'Delete'], ['circle-dashed', 'Step waiting'], ['minus', 'Step skipped'], ['check', 'Done step'], ['circle-alert', 'Error'], ['info', 'Note'],
+  ['x', 'Close, failed step'], ['trash', 'Delete'], ['circle-dashed', 'Step waiting'], ['minus', 'Step skipped'], ['check', 'Done step'], ['circle-alert', 'Error, resource warning'], ['activity', 'Resources'], ['info', 'Note'],
   ['rotate-cw', 'Retry'], ['copy', 'Copy'], ['settings', 'Settings'], ['laptop', 'Machines'], ['contrast', 'Appearance'], ['ellipsis', 'Sidebar view'],
   ['text-wrap', 'Wrap long lines'], ['loader-circle', 'Running, starting, loading'], ['git-branch', 'Git branch'], ['zap', 'Fast'],
   ['shield', 'Permission mode'], ['shield-alert', 'Permission mode, high risk'],
@@ -1191,6 +1197,7 @@ const I = {
   skipped: () => sv(L.minus),
   check: () => sv(L.check),
   alert: () => sv(L['circle-alert']),
+  activity: () => sv(L.activity),
   info: () => sv(L.info),
   retry: () => sv(L['rotate-cw']),
   copy: () => sv(L.copy),
@@ -1339,6 +1346,23 @@ const mIcon = (os, on) => `<span class="mch${on ? '' : ' off'}" aria-hidden="tru
 const MACH = [{ n: 'MacBook Pro', os: 'macOS', on: true }, { n: 'studio', os: 'Linux', on: true }, { n: 'office-mini', os: 'Windows', on: false }, { n: 'lab-box', os: '', on: true }];
 const mName = m => `${m.n}, ${m.os ? m.os + ', ' : ''}${m.on ? 'online' : 'offline'}`;
 
+/* ---- machine resources (#88) ----
+   The agent reports every 15 s. The sidebar shows nothing but a warning glyph on a machine over a threshold (memory
+   above 90 % used, disk under 10 % free); the numbers live in Settings › Machines (settings.html). An agent that
+   reports nothing has no entry here. An offline machine's values are old, so it never warns. */
+const RES = { 'MacBook Pro': { at: '4 s ago', cpu: 12, mem: [20.2, 32], disk: [184, 994] }, studio: { at: '9 s ago', cpu: 71, mem: [60.2, 64], disk: [412, 1000] }, 'office-mini': { at: '6 h ago', cpu: 8, mem: [6.5, 16], disk: [38, 256] } };
+const pc = (a, b) => Math.round(a / b * 100);
+const memPc = r => pc(r.mem[0], r.mem[1]);
+const freePc = r => pc(r.disk[0], r.disk[1]);
+const resFlags = d => { const r = RES[d.n]; return r && d.on ? { mem: memPc(r) > 90, disk: freePc(r) < 10 } : { mem: false, disk: false }; };
+const resWarns = d => { const r = RES[d.n], f = resFlags(d); return [f.mem && `memory ${memPc(r)}% used`, f.disk && `disk ${freePc(r)}% free`].filter(Boolean); };
+/* states: resources, resources-menu */
+const resMode = s => s.startsWith('resources');
+let CUR = '';
+function resTag(d, on) {
+  const w = on ? resWarns(d) : [];
+  return w.length ? `<span class="rm" role="img"${tip(`${d.n}: ${w.join(', ')} · details in Settings › Machines`)}>${I.alert()}</span>` : '';
+}
 function sidebar(state) {
   const off = OFFLINE.includes(state);
   const moved = state === 'handoff-done';
@@ -1356,13 +1380,18 @@ function sidebar(state) {
   const nu = S('Roll back the byte cursor', 'run', 'now', state === 'plan-fresh-new');
   const other = S('Hand off sessions with snapshots', off ? '' : 'run', '3h');
   /* folding is remembered per directory: office-mini › hoplet-app stays folded; notes is folded in ready */
-  const machines = state === 'machines';
+  const rmode = resMode(state);
+  const machines = state === 'machines' || rmode;
   const MDEVS = [
     { ...MACH[0], hov: true, dirs: [{ n: 'hoplet', open: true, ss: [open, other] }, { n: 'notes', open: false, ss: [S('Audit docs/api.md', '', '5d')] }] },
     { ...MACH[1], dirs: [{ n: 'notes', open: true, ss: [S('多设备远程同步 AI 会话项目', 'need', '20m')] }] },
     { ...MACH[2], dirs: [{ n: 'hoplet-app', open: false, ss: [S('Liquid Glass tab bar', '', '4d')] }] },
     { ...MACH[3], dirs: [] },
   ];
+  if (rmode) {
+    MDEVS.forEach(d => { d.hov = false; });
+    if (state === 'resources-menu') MDEVS[1].menu = true;
+  }
   const DEVS = machines ? MDEVS : [
     pinState ? { n: 'MacBook Pro', os: 'macOS', flat: state === 'pinned-flat', on: true,
       pinned: [{ ...other, dir: 'hoplet', pin: true }, { ...S('Roadmap 0.4 planning', '', '2d'), dir: 'notes', pin: true }],
@@ -1392,8 +1421,8 @@ function sidebar(state) {
   const menu = d => `<div class="pop" role="menu" aria-label="${d.n}"><div class="menu-title">${d.n}</div>
       <div role="group" aria-label="Organize"><div class="menu-label">Organize</div>${item('By folder', !d.flat)}${item('Flat', !!d.flat)}</div>
       <div class="menu-sep"></div>
-      <div role="group" aria-label="Sort"><div class="menu-label">Sort</div>${item('Recent activity', true)}${item('Created', false)}${item('Title', false)}</div></div>`;
-  const dev = d => `<div class="devg${d.on ? '' : ' off'}"><div class="dev open${d.hov ? ' hov' : ''}${d.menu ? ' menu' : ''}"><span class="dt" role="button" aria-expanded="true"${tip(mName(d))}><span class="lead">${mIcon(d.os, d.on)}</span><span class="dn">${d.n}</span><span class="dchv">${I.chev()}</span></span>${ib(I.more(), 'View options', d.menu ? 'on' : '')}${ib(I.plus(), d.on ? 'Add project' : `${d.n} is offline`, '', !d.on)}${d.menu ? menu(d) : ''}</div>
+      <div role="group" aria-label="Sort"><div class="menu-label">Sort</div>${item('Recent activity', true)}${item('Created', false)}${item('Title', false)}</div>${rmode && RES[d.n] ? `<div class="menu-sep"></div><div role="group" aria-label="Machine"><div class="menu-item" role="menuitem"${tip('Open Settings › Machines on ' + d.n + '’s tab')}>${I.activity()}Resources</div></div>` : ''}</div>`;
+  const dev = d => `<div class="devg${d.on ? '' : ' off'}"><div class="dev open${d.hov ? ' hov' : ''}${d.menu ? ' menu' : ''}"><span class="dt" role="button" aria-expanded="true"${tip(mName(d))}><span class="lead">${mIcon(d.os, d.on)}</span><span class="dn">${d.n}</span><span class="dchv">${I.chev()}</span></span>${resTag(d, rmode)}${ib(I.more(), 'View options', d.menu ? 'on' : '')}${ib(I.plus(), d.on ? 'Add project' : `${d.n} is offline`, '', !d.on)}${d.menu ? menu(d) : ''}</div>
       ${d.flat ? `<div class="grp">${flat(d)}</div>` : d.dirs.length ? pinGroup(d) + d.dirs.map(dir).join('') : '<div class="sdir none">No projects yet</div>'}</div>`;
   const age = s => { const m = /^(\d+)([mhd])$/.exec(s.time); return m ? +m[1] * { m: 1, h: 60, d: 1440 }[m[2]] : 0; };
   const tree = DEVS.map(dev).join('');
@@ -2415,6 +2444,8 @@ function archivedMain(state) {
 }
 
 function frame(state, scheme) {
+  CUR = state;
+  if (resMode(state)) state = 'loaded';
   const wide = WIDE.includes(state);
   const insp = INSP.includes(state);
   const settings = SETTINGS.includes(state);
@@ -2448,8 +2479,8 @@ function frame(state, scheme) {
     main = top + body + (MENU.includes(state) ? actions({ sub: state === 'session-menu-copy', del: state === 'session-menu-delete' }) : '') + (state === 'copied' ? `<div class="toast" role="status" style="bottom:128px">${I.check()}Link copied</div>` : '');
   }
   const cls = `frame ${scheme}${insp ? ' with-insp' : ''}${wide ? ' wide' : ''}${nosb ? ' nosb' : ''}`;
-  return `<div class="${cls}" data-state="${state}">
-    ${nosb ? '' : sidebar(state)}
+  return `<div class="${cls}" data-state="${CUR}">
+    ${nosb ? '' : sidebar(CUR)}
     <main class="main">${main}</main>
     ${insp ? inspector(state) : ''}
     ${state.startsWith('add-project') || state === 'machines-add' ? addProjectModal(state) : state === 'search' ? palette() : state === 'rename' ? renameDialog() : DELETE.includes(state) ? deleteDialog(state) : ''}
@@ -2469,6 +2500,8 @@ const STATES = [
   ['machines', 'the machine icon: the sidebar with macOS (expanded, hovered), Linux, Windows (offline) and a system the agent does not report'],
   ['machines-draft', 'the machine icon in the draft composer: the machine chip and its picker, each machine with its system and state'],
   ['machines-add', 'the machine icon in Add project: the machine select open, offline machines disabled'],
+  ['resources', 'Resources (#88): the sidebar carries no numbers; only a machine over a threshold (studio: memory 94% used) shows a warning glyph at the row end, its tooltip pointing to Settings › Machines. office-mini is offline and lab-box reports nothing: neither shows anything extra'],
+  ['resources-menu', 'Resources: studio’s view-options menu, a Resources item after the Sort group (hidden for a machine that reports nothing, like lab-box); it opens Settings › Machines on studio’s tab'],
   ['draft-directory', 'the draft’s directory picker: the machine’s projects and Add project'],
   ['add-project', 'Add project: the machine and a folder browser, here in ~/github with a repository selected'],
   ['add-project-recent', 'Add project at the browse root: recent folders, then the folders under it'],

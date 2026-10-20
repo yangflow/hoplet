@@ -242,7 +242,13 @@ list at its left grows with later sections; the sections are:
   browser and only swaps design tokens; the faces are bundled with the web UI and never fetched. The terminal's
   font is not one of them.
 - **Machines**: every device with its system's mark (macOS, Windows, Linux; a generic computer for any other system or an agent that does not report one), its presence as a dot at the mark's bottom-right, and its last connection, and Add a machine: mint a device token,
-  copy a ready agent configuration, and wait until that agent is connected.
+  copy a ready agent configuration, and wait until that agent is connected. A tab per machine, like Model providers,
+  opens the machine's facts and its resources (#88): CPU, memory used and free disk space with their last hour, a
+  warning line when memory is above 90% used or the disk under 10% free (never for an offline machine), the running
+  sessions as the main list (title, project, last-hour memory, CPU, memory, child processes; each row opens its
+  session) and where the memory and CPU go as stacked bars. An offline machine greys its last values and says when
+  they were reported, and its sessions are unknown; a machine whose agent reports nothing shows only its facts.
+  The agent reports every 15 seconds; the core keeps the last hour of the machine and of each session in memory only.
 - **Model providers**: read-only, from what each connected agent announces. A tab per machine (system mark with the presence dot, and
   name, in the order of Machines; it opens on the first connected one) and a row per provider that machine runs:
   the mark, the name and "version · N sessions · used <time>" (the counts and the last use come from the session

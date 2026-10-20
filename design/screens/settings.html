@@ -795,6 +795,63 @@ body.stacked{background:#131210;color:#efe9e2;font-family:-apple-system,"SF Pro 
 .pr .dst.bad{color:var(--color-del-text)}
 .pr .acts{display:flex;gap:2px;flex:none}
 .pr .switch.off-dis{opacity:.4}
+
+/* machine resources (#88): the summary, where the load goes, the session processes */
+.rmeta{font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-2);font-variant-numeric:tabular-nums;font-weight:var(--weight-regular)}
+.rmeta.dim{color:var(--color-text-3)}
+p.rmeta{margin:0}
+.rbody{display:flex;flex-direction:column;gap:var(--space-4);font-weight:var(--weight-regular);white-space:normal}
+.rst{display:flex;align-items:center;gap:var(--space-1)}
+.rst svg{width:14px;height:14px;flex:none}
+.rtiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--space-2)}
+.rtile{display:flex;flex-direction:column;gap:2px;min-width:0;padding:var(--space-2) var(--space-3);border-radius:var(--radius-sm);background:var(--color-bg);box-shadow:inset 0 0 0 1px var(--color-line)}
+.rtile .rk{font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3)}
+.rtile .rv{font-size:var(--text-title);line-height:20px;font-weight:var(--weight-semibold);color:var(--color-text);font-variant-numeric:tabular-nums;white-space:nowrap}
+.rtile .rv .rmeta{font-weight:var(--weight-regular)}
+.rtile .rsp{width:100%;height:24px;margin-top:var(--space-1)}
+.rdisk{display:block;height:4px;margin:14px 0 6px;border-radius:2px;background:var(--color-hover);box-shadow:inset 0 0 0 1px var(--color-line);overflow:hidden}
+.rdisk i{display:block;height:100%;background:var(--color-text-3)}
+.rtile.warn .rdisk i{background:var(--color-attention)}
+.rtile.warn .rv,.rtile.warn .rsp{color:var(--color-attention-text)}
+.rwn{display:flex;align-items:center;gap:var(--space-1);font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-attention-text);margin:calc(var(--space-2) * -1) 0 0}
+.rwn svg{width:14px;height:14px;flex:none}
+.rsp{display:block;color:var(--color-text-3)}
+.rsp.sm{width:64px;height:16px}
+.rsec{display:flex;flex-direction:column;gap:var(--space-2)}
+.rbar{display:grid;grid-template-columns:56px minmax(0,1fr) 76px;align-items:center;gap:var(--space-2)}
+.rbar .rl2{color:var(--color-text-2)}
+.rbar .rn{text-align:right;font-variant-numeric:tabular-nums;color:var(--color-text-2);font-size:var(--text-meta);line-height:var(--leading-meta)}
+.rstack{position:relative;display:flex;gap:1px;height:10px;border-radius:3px;background:var(--color-hover);box-shadow:inset 0 0 0 1px var(--color-line);overflow:hidden}
+.rstack i{display:block;height:100%;background:var(--color-accent);flex:none}
+.rstack i.s0,.rw.s0{opacity:.95}.rstack i.s1,.rw.s1{opacity:.7}.rstack i.s2,.rw.s2{opacity:.5}.rstack i.s3,.rw.s3{opacity:.34}
+.rstack i.ot,.rw.ot{background:var(--color-text-3);opacity:.55}
+.rtick{position:absolute;top:0;bottom:0;width:1px;background:var(--color-text-2);opacity:.7}
+.rtick.warn{background:var(--color-attention);opacity:1}
+.rleg{display:flex;flex-wrap:wrap;gap:var(--space-1) var(--space-3);padding-left:calc(56px + var(--space-2));font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3)}
+.rleg span{display:inline-flex;align-items:center;gap:var(--space-1)}
+.rw{display:block;width:8px;height:8px;border-radius:2px;background:var(--color-accent);flex:none}
+.rw.fr{background:var(--color-hover);box-shadow:inset 0 0 0 1px var(--color-line);opacity:1}
+.rps{display:flex;flex-direction:column}
+.rp{display:grid;grid-template-columns:8px 16px minmax(0,1fr) 16px 64px 40px 64px;gap:var(--space-2);align-items:center;height:44px;box-shadow:inset 0 1px 0 var(--color-line)}
+.rp.hd{height:28px;font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3)}
+.rp.hd .h1{grid-column:1/5}
+.rp .ti{min-width:0;display:flex;flex-direction:column}
+.rp:not(.hd){margin:0 calc(-1 * var(--space-2));padding:0 var(--space-2);border-radius:6px;cursor:pointer}
+.rp:not(.hd):hover,.rp.hov{background:var(--color-hover)}
+.rp:not(.hd):focus-visible{outline:2px solid var(--color-accent);outline-offset:-2px}
+.rp .t1{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--color-text)}
+.rp:hover .t1,.rp.hov .t1{text-decoration:underline;text-decoration-color:var(--color-text-3);text-underline-offset:2px}
+.rp .t2{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3)}
+.rp .n{text-align:right;font-variant-numeric:tabular-nums}
+.rp:not(.hd) .n{color:var(--color-text-2)}
+.rp .pm,.rp .gl{width:16px;height:16px}
+.rbody.stale .rv,.rbody.stale .rk{color:var(--color-text-3)}
+.rbody.stale .rsp{opacity:.6}
+.mt-bar{display:flex;align-items:flex-start;gap:var(--space-4);margin-bottom:var(--space-4);box-shadow:inset 0 -1px 0 var(--color-line)}
+.mt-bar .mp-tabs{flex:1;min-width:0;margin-bottom:0;box-shadow:none}
+.mt-bar .btn{flex:none;height:var(--control-field)}
+.rmeta.mt-facts{margin:0 0 var(--space-3)}
+.rfoot{margin:0}
 .banner{display:flex;gap:var(--space-3);align-items:flex-start;padding:var(--space-3) var(--space-4);border-radius:var(--radius-md);background:var(--color-attention-soft);box-shadow:inset 0 0 0 1px var(--color-attention-ring)}
 .banner > svg{color:var(--color-attention-text);margin-top:2px;flex:none}
 .banner .bt{flex:1;min-width:0}
@@ -1039,7 +1096,7 @@ const WIDE = ['file-open', 'file-image', 'diff-open', 'diff-large', 'diff-binary
 const INSP = ['workspace', 'changes', 'changes-offline', ...WIDE, ...HANDOFF];
 const MINT = ['mint', 'mint-waiting', 'mint-online'];
 const APPEARANCE = ['settings', 'settings-text', 'settings-text-geist'];
-const SETTINGS = [...APPEARANCE, 'settings-machines', ...MINT];
+const SETTINGS = [...APPEARANCE, 'settings-machines', 'settings-resources', 'settings-resources-offline', ...MINT];
 
 /* Appearance › Text: kept in the browser. Every choice swaps tokens on the frame (the way the web UI swaps them on the root);
    faces are bundled in the app and never fetched, so the mockup names local faces and falls back to the system stacks. */
@@ -1732,6 +1789,88 @@ const mIcon = (os, on) => `<span class="mch${on ? '' : ' off'}" aria-hidden="tru
 const MACH = [{ n: 'MacBook Pro', os: 'macOS', on: true }, { n: 'studio', os: 'Linux', on: true }, { n: 'office-mini', os: 'Windows', on: false }, { n: 'lab-box', os: '', on: true }];
 const mName = m => `${m.n}, ${m.os ? m.os + ', ' : ''}${m.on ? 'online' : 'offline'}`;
 
+/* ---- machine resources (#88) ----
+   The agent reports every 15 s: whole-machine CPU %, memory used / total, free space on the disk that holds the
+   workspace, and the processes of the sessions Hoplet started (with their children). The core keeps the last hour in
+   memory for the trend lines. An agent that reports nothing has no entry here and shows nothing. */
+const trend = (seed, base, amp, end, n = 48) => {
+  const a = Array.from({ length: n }, (_, i) => Math.max(2, Math.min(99, Math.round(base + amp * (Math.sin(seed + i * 0.3) * 0.6 + Math.sin(seed * 2 + i * 0.85) * 0.4) + (end - base) * Math.pow(i / (n - 1), 4)))));
+  a[n - 1] = end;
+  return a;
+};
+/* mem and disk are [used, total] and [free, total] in GB; a session process is [title, project, state, CPU %, memory GB, child processes, 1-hour memory shape] */
+const RES = {
+  'MacBook Pro': { at: '4 s ago', cpu: 12, mem: [20.2, 32], disk: [184, 994], hc: trend(1, 22, 14, 12), hm: trend(2, 58, 6, 63),
+    procs: [['Hand off sessions with snapshots', 'hoplet', 'run', 9, 1.8, 3, trend(7, 50, 20, 70)], ['Audit docs/api.md', 'notes', '', 1, 1.1, 2, trend(8, 50, 5, 55)]] },
+  studio: { at: '9 s ago', cpu: 71, mem: [60.2, 64], disk: [412, 1000], hc: trend(3, 45, 25, 71), hm: trend(4, 78, 8, 94),
+    procs: [['多设备远程同步 AI 会话项目', 'notes', 'need', 6, 31.4, 5, trend(9, 55, 12, 90)], ['Fix flaky vitest on CI', 'hoplet', 'run', 38, 12.8, 4, trend(10, 45, 25, 60)],
+      ['Migrate fixtures to Go', 'hoplet', 'run', 14, 8.2, 2, trend(11, 40, 20, 50)], ['Roadmap 0.4 planning', 'notes', '', 1, 3.1, 1, trend(12, 50, 3, 52)]] },
+  'office-mini': { at: '6 h ago', cpu: 8, mem: [6.5, 16], disk: [38, 256], hc: trend(5, 10, 6, 8), hm: trend(6, 40, 4, 41), procs: [] },
+};
+const pc = (a, b) => Math.round(a / b * 100);
+const gb = n => n >= 1000 ? `${+(n / 1000).toFixed(1)} TB` : `${n} GB`;
+const memPc = r => pc(r.mem[0], r.mem[1]);
+const freePc = r => pc(r.disk[0], r.disk[1]);
+/* fixed thresholds: memory above 90 % used, disk under 10 % free; an offline machine's values are old, so it never warns */
+const resFlags = d => { const r = RES[d.n]; return r && d.on ? { mem: memPc(r) > 90, disk: freePc(r) < 10 } : { mem: false, disk: false }; };
+const resWarns = d => { const r = RES[d.n], f = resFlags(d); return [f.mem && `Memory ${memPc(r)}% used`, f.disk && `Disk ${freePc(r)}% free`].filter(Boolean); };
+const spark = (a, label, sm) => {
+  const w = sm ? 64 : 120, h = sm ? 16 : 24;
+  const lo = Math.min(...a), hi = Math.max(...a), span = Math.max(hi - lo, 8);
+  const pts = a.map((v, i) => `${(i / (a.length - 1) * w).toFixed(1)},${(h - 2 - (v - lo) / span * (h - 4)).toFixed(1)}`).join(' ');
+  return `<svg class="rsp${sm ? ' sm' : ''}" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" role="img" aria-label="${label}, last hour"><polyline points="${pts}" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/></svg>`;
+};
+const SGN = ['s0', 's1', 's2', 's3'];
+/* one stacked bar: each session a segment, then other processes, then free */
+function stack(label, procs, key, total, used, fmt, tick) {
+  const seg = procs.map((p, i) => `<i class="${SGN[i]}" style="width:${p[key] / total * 100}%"${tip(`${p[0]}: ${fmt(p[key])}`)}></i>`).join('');
+  const other = used - procs.reduce((t, p) => t + p[key], 0);
+  const sum = `${fmt(used)} of ${fmt(total)}`;
+  return `<div class="rbar"><span class="rl2">${label}</span><span class="rstack" role="img" aria-label="${label}: ${sum}">${seg}<i class="ot" style="width:${other / total * 100}%"${tip(`Other processes: ${fmt(+other.toFixed(1))}`)}></i>${tick ? `<b class="rtick${tick.warn ? ' warn' : ''}" style="left:${tick.at}%"></b>` : ''}</span><span class="rn">${fmt(used)}</span></div>`;
+}
+/* the detail of one machine: the summary, where the load goes, then the session processes as the main list */
+function resBody(d) {
+  const r = RES[d.n];
+  if (!r) return `<p class="rmeta dim">This machine’s agent does not report resources.</p>`;
+  const f = resFlags(d), mp = memPc(r), df = freePc(r);
+  const tile = (k, v, sp, warn) => `<div class="rtile${warn ? ' warn' : ''}"><span class="rk">${k}</span><span class="rv">${v}</span>${sp}</div>`;
+  const tiles = `<div class="rtiles">
+      ${tile('CPU', `${r.cpu}%`, spark(r.hc, 'CPU'), false)}
+      ${tile('Memory', `${r.mem[0]} <span class="rmeta">of ${r.mem[1]} GB</span>`, spark(r.hm, 'Memory'), f.mem)}
+      ${tile('Disk free', `${gb(r.disk[0])} <span class="rmeta">of ${gb(r.disk[1])}</span>`, `<span class="rdisk" role="img" aria-label="${100 - df}% used"><i style="width:${100 - df}%"></i></span>`, f.disk)}
+    </div>`;
+  const wn = resWarns(d).map((w, i) => `<p class="rwn">${I.alert()}${w}, ${i === 0 && f.mem ? 'above 90%' : 'under 10% free'}</p>`).join('');
+  const stale = d.on ? '' : `<p class="rmeta rst">${I.clock()}Last reported ${r.at}</p>`;
+  let where = '', list;
+  if (!d.on) list = `<p class="rmeta dim">Sessions are not known while ${d.n} is offline</p>`;
+  else if (!r.procs.length) list = '<p class="rmeta dim">No session is running here</p>';
+  else {
+    const P = r.procs;
+    where = `<div class="rsec">${stack('Memory', P, 4, r.mem[1], r.mem[0], v => `${+v.toFixed(1)} GB`, { at: 90, warn: f.mem })}${stack('CPU', P, 3, 100, r.cpu, v => `${Math.round(v)}%`)}
+      <div class="rleg"><span><i class="rw ot"></i>Other processes</span><span><i class="rw fr"></i>Free</span></div></div>`;
+    list = `<div class="rps" role="table" aria-label="Sessions running on ${d.n}">
+        <div class="rp hd" role="row"><span class="h1" role="columnheader">Sessions · ${P.length}</span><span role="columnheader">Last hour</span><span class="n" role="columnheader">CPU</span><span class="n" role="columnheader">Memory</span></div>
+        ${P.map(([t, dir, st, c, m, k, h], i) => `<div class="rp${i === 1 ? ' hov' : ''}" role="row" tabindex="0" aria-label="Open ${esc(t)}"${tip(`Open ${esc(t)}`)}><i class="rw ${SGN[i]}" aria-hidden="true"></i>${pmark()}<span class="ti" role="cell"><span class="t1">${esc(t)}</span><span class="t2">${esc(dir)} · +${k} child processes</span></span>${st ? GL[st]() : '<span></span>'}${spark(h, `${esc(t)} memory`, true)}<span class="n" role="cell">${c}%</span><span class="n" role="cell">${m} GB</span></div>`).join('')}
+      </div>`;
+  }
+  return `<div class="rbody${d.on ? '' : ' stale'}">${stale}${tiles}${wn}${where}${list}<p class="meta rfoot">Reported every 15 s; the trend lines show the last hour. Warnings: memory above 90% used, disk under 10% free.</p></div>`;
+}
+/* Settings › Machines: a tab per machine, like Model providers, and the selected machine's facts and resources (#88) below.
+   Add a machine is a quiet button at the end of the tab row; the minted-token card replaces the machine's panel while it is open. */
+const FACTS = { 'MacBook Pro': { arch: 'arm64' }, studio: { arch: 'arm64' }, 'office-mini': { arch: 'x86_64' }, 'lab-box': { arch: '' } };
+function machinesPage(state) {
+  const ms = [...MACH, ...(state === 'mint-online' ? [{ n: 'studio-2', os: '', on: true }] : [])];
+  const selName = state === 'settings-resources-offline' ? 'office-mini' : state === 'settings-resources' ? 'studio' : 'MacBook Pro';
+  const m = ms.find(x => x.n === selName);
+  const minting = MINT.includes(state);
+  const tabs = `<div class="mp-tabs" role="tablist" aria-label="Machines">${ms.map(x => `<span class="mp-tab" role="tab" aria-selected="${x.n === selName}"${tip(mName(x))}>${mIcon(x.os, x.on)}${x.n}</span>`).join('')}</div>`;
+  const f = FACTS[m.n] || {};
+  const facts = [[m.os, f.arch].filter(Boolean).join(' · '), m.on ? 'Connected' : 'Offline'].filter(Boolean).join(' · ');
+  return `<h1>Machines</h1>
+    <div class="mt-bar">${tabs}${minting ? '' : `<button class="btn quiet">${I.plus()}Add a machine</button>`}</div>
+    ${minting ? mintCard(state) : `<div role="tabpanel" aria-label="${m.n}"><p class="rmeta mt-facts">${facts}</p>${resBody(m)}</div>`}`;
+}
+
 /* ---- Settings › Model providers (#16): read-only; every value is what the connected agent announced in device.hello ---- */
 const PROV = ['settings-providers', 'settings-providers-newer', 'settings-providers-offline', 'settings-providers-none', 'settings-providers-empty'];
 PROVIDER.codex = { name: 'Codex', svg: () => sv(L.terminal) }; /* placeholder for the official mark, like Claude Code's */
@@ -1801,11 +1940,7 @@ function settingsMain(state) {
   } else if (sec === 'notifications') {
     page = notifyPage(state);
   } else {
-    const m = (n, os, on, seen) => `<div class="pr${on ? '' : ' off'}" role="group" aria-label="${mName({ n, os, on })}"><span class="lead">${mIcon(os, on)}</span><span class="nm">${n}</span><span class="meta">${os}</span><span class="meta">${seen}</span></div>`;
-    page = `<h1>Machines</h1>
-      <div class="plh meta"><span>Machine</span><span>Last seen</span></div>
-      <div class="plist">${m('MacBook Pro', 'macOS', true, 'now')}${m('studio', 'Linux', true, 'now')}${m('office-mini', 'Windows', false, '6h ago')}${state === 'mint-online' ? m('studio-2', '', true, 'now') : ''}</div>
-      ${MINT.includes(state) ? mintCard(state) : `<div class="sact"><button class="btn">${I.plus()}Add a machine</button></div>`}`;
+    page = machinesPage(state);
   }
   return `<header class="top">${ib(I.back(), 'Back to the conversation · Esc')}<span class="title">Settings</span></header>
     <div class="set"><nav class="snav" aria-label="Settings sections">
@@ -1825,13 +1960,15 @@ function frame(state, scheme) {
 const SCREEN = {
   name: 'Settings',
   system: false,
-  blurb: 'Model providers (#16) is read-only: a tab per machine and a row per provider its agent announces; every value exists in device.hello today (provider, version, tested, capabilities, config options with their defaults). A login state per provider does not exist in the protocol and is not drawn; an offline machine lists nothing because GET /api/devices returns providers empty for it. The Settings page, a full page that replaces the window (no sidebar, no status bar): a header with a back button (Esc also goes back) and the title, the section list on the left and the content on the right. Sections are Appearance (Theme, Language, Text), Machines (one row per machine, led by its system’s mark with the presence dot at its bottom-right, then its system and last seen; Add a machine below; the Model providers tabs use the same icon) and Notifications (a level, per-project and per-event channels, Web Push for this browser, quiet hours, webhooks); Memory (#18) and Model providers (#16) are added to the list later. Appearance, Language and the Text group (interface font, code font, size, full width, ligatures) are kept in the browser and each choice only swaps tokens; the preview follows them.',
+  blurb: 'Model providers (#16) is read-only: a tab per machine and a row per provider its agent announces; every value exists in device.hello today (provider, version, tested, capabilities, config options with their defaults). A login state per provider does not exist in the protocol and is not drawn; an offline machine lists nothing because GET /api/devices returns providers empty for it. The Settings page, a full page that replaces the window (no sidebar, no status bar): a header with a back button (Esc also goes back) and the title, the section list on the left and the content on the right. Sections are Appearance (Theme, Language, Text), Machines (a tab per machine, led by its system’s mark with the presence dot at its bottom-right like the Model providers tabs, then the selected machine’s system, architecture and connection, and its resources; Add a machine is a quiet button at the end of the tab row) and Notifications (a level, per-project and per-event channels, Web Push for this browser, quiet hours, webhooks); Memory (#18) and Model providers (#16) are added to the list later. Appearance, Language and the Text group (interface font, code font, size, full width, ligatures) are kept in the browser and each choice only swaps tokens; the preview follows them.',
 };
 const STATES = [
   ['settings', 'Settings: Appearance'],
   ['settings-text', 'Appearance › Text: System fonts, Large, full width, ligatures off'],
   ['settings-text-geist', 'Appearance › Text: Geist and Geist Mono, Small'],
   ['settings-machines', 'Settings: Machines'],
+  ['settings-resources', 'Machines with resources (#88): a tab per machine like Model providers, studio selected; its facts line (Linux · arm64 · Connected), three stat tiles with the last hour, the warning line, memory and CPU as stacked bars by session, then the running sessions (glyph, title, project, state, 1 h memory line, CPU, memory, child processes) as the main list, each row opening its session in the cockpit (the second row hovered) and the footnote; Add a machine is a quiet button at the end of the tab row. A machine that reports nothing (lab-box) shows its facts and one quiet line'],
+  ['settings-resources-offline', 'Machines with resources: office-mini (offline) selected, its last values greyed with Last reported 6 h ago, the sessions unknown while offline'],
   ['mint', 'Add a machine: token minted'],
   ['mint-waiting', 'waiting for the agent'],
   ['mint-online', 'the new machine is connected'],

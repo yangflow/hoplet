@@ -10,16 +10,16 @@ import {
 } from 'react';
 import { Badge } from '../../../components/Badge.tsx';
 import { IconButton } from '../../../components/IconButton.tsx';
-import { HopletMark, Icon, Spinner } from '../../../components/icons.tsx';
+import { HopletMark, Icon } from '../../../components/icons.tsx';
 import { MachineIcon } from '../../../components/MachineIcon.tsx';
 import { Menu, type MenuEntry } from '../../../components/Menu.tsx';
 import { ProviderMark } from '../../../components/provider-marks.tsx';
 import { Row } from '../../../components/Row.tsx';
+import { type GlyphState, glyphState, StateGlyph } from '../../../components/StateGlyph.tsx';
 import { t } from '../../../lib/i18n.ts';
 import { machineLabel, systemOf } from '../../../lib/system.ts';
 import { type DeviceGroup, displayTitle } from '../group.ts';
-import { type GlyphState, glyphState, type RuntimeState } from '../model.ts';
-import { stateName } from '../runtime.ts';
+import type { RuntimeState } from '../model.ts';
 import { DEVICE_ROW, dirKey, useFoldedDirs } from './folded-dirs.ts';
 import { MachineMenu } from './machine-menu.tsx';
 import { compactRel } from './rel.ts';
@@ -32,24 +32,6 @@ import {
   useMachineViews,
   viewKey,
 } from './sidebar-view.ts';
-
-/** The runtime state in place of the time: a glyph whose shape differs per state and that names it. */
-export function StateGlyph(props: { state: GlyphState }) {
-  const name = stateName(props.state);
-  const art = {
-    starting: <Spinner />,
-    running: <Spinner />,
-    'waiting-permission': <span className="dot-need" />,
-    ready: <span className="dot-ready" />,
-    failed: <span className="dot-bad" />,
-    external: Icon.eye(),
-  }[props.state];
-  return (
-    <span className={`glyph glyph-${props.state}`} role="img" title={name} aria-label={name}>
-      {art}
-    </span>
-  );
-}
 
 /** The state that needs the user, strongest first: a folded directory shows the strongest it holds. */
 const URGENT: GlyphState[] = ['waiting-permission', 'failed'];
@@ -249,6 +231,8 @@ export function Sidebar(props: {
   onSearch: () => void;
   onFold: () => void;
   onSettings: () => void;
+  /** Opens Settings > Machines on a machine's tab. */
+  onResources?: (deviceId: string) => void;
 }) {
   const { selected, runtime, now, host, live, draft } = props;
   const folding = useFoldedDirs(props.foldedDirs);
@@ -378,6 +362,23 @@ export function Sidebar(props: {
       const view = viewOf(key);
       const deviceFolded = folding.isFolded(g.name, DEVICE_ROW);
       const label = machineLabel(g.name, g.system, g.online);
+      const warnings = [
+        g.warn?.memory && g.resources
+          ? t('memory {n}% used').replace(
+              '{n}',
+              `${Math.round((g.resources.memUsed / g.resources.memTotal) * 100)}`,
+            )
+          : null,
+        g.warn?.disk && g.resources
+          ? t('disk {n}% free').replace(
+              '{n}',
+              `${Math.round((g.resources.diskFree / g.resources.diskTotal) * 100)}`,
+            )
+          : null,
+      ].filter((x): x is string => x !== null);
+      const warnText = t('{name}: {warnings} · details in Settings › Machines')
+        .replace('{name}', g.name)
+        .replace('{warnings}', warnings.join(', '));
       return (
         <div key={g.name} className={`devg${g.online ? '' : ' off'}`} data-testid="cockpit.device">
           <div
@@ -399,8 +400,22 @@ export function Sidebar(props: {
               <span className="dn">{g.name}</span>
               <span className="dev-chv">{Icon.chevron()}</span>
             </button>
+            {warnings.length > 0 ? (
+              <span
+                className="rm"
+                role="img"
+                title={warnText}
+                aria-label={warnText}
+                data-testid="cockpit.resource-warning"
+              >
+                {Icon.alert()}
+              </span>
+            ) : null}
             <MachineMenu
               name={g.name}
+              {...(g.resources && g.deviceId
+                ? { onResources: () => props.onResources?.(g.deviceId as string) }
+                : {})}
               view={view}
               onChange={(patch) => setView(key, patch)}
               initialOpen={props.menuDevice === g.name}

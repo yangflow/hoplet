@@ -10,7 +10,7 @@ import "encoding/json"
 // (provider.ValidSessionID, ADR 0006). Invalid IDs receive error invalid-session-id
 // before decoding or persistence; the wire envelope and cursor are unchanged.
 
-const ProtocolVersion = 10
+const ProtocolVersion = 11
 
 // Wire message types: Type<Struct> is the `type` of the struct of that name.
 // shared/src/wire/ holds the same table; scripts/test/contract.test.ts compares both.
@@ -97,6 +97,7 @@ const (
 	TypeTerminalRejected         = "terminal.rejected"
 	TypePortsWatch               = "ports.watch"
 	TypeSessionPorts             = "session.ports"
+	TypeDeviceResources          = "device.resources"
 )
 
 // Error codes of an `error` message that the agent acts on (shared/src/errors.ts).
@@ -1087,4 +1088,29 @@ type SessionPorts struct {
 	Type      string        `json:"type"`
 	SessionID string        `json:"sessionId"`
 	Ports     []SessionPort `json:"ports"`
+}
+
+// SessionResources is the load of the processes Hoplet started for one session, summed over the process tree.
+// CPU is the percent of the whole machine's CPU, null while there is no earlier reading to compare with; RSS is
+// resident memory in bytes; Children counts the descendant processes.
+type SessionResources struct {
+	SessionID string   `json:"sessionId"`
+	CPU       *float64 `json:"cpu"`
+	RSS       uint64   `json:"rss"`
+	Children  int      `json:"children"`
+}
+
+// DeviceResources reports the machine's load every 15 seconds on the control lane, at most 64 sessions. At is
+// epoch milliseconds; CPU is the whole machine's percent, null while there is no earlier reading; Disk* describe
+// the volume that holds the browse root. A report sent while the core is away is dropped.
+type DeviceResources struct {
+	V         int                `json:"v"`
+	Type      string             `json:"type"`
+	At        int64              `json:"at"`
+	CPU       *float64           `json:"cpu"`
+	MemUsed   uint64             `json:"memUsed"`
+	MemTotal  uint64             `json:"memTotal"`
+	DiskFree  uint64             `json:"diskFree"`
+	DiskTotal uint64             `json:"diskTotal"`
+	Sessions  []SessionResources `json:"sessions"`
 }

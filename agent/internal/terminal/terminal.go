@@ -142,6 +142,20 @@ func (m *Manager) ShellPID(sessionID string) int {
 	return 0
 }
 
+// ShellPIDs maps each session with a started shell to its process ID; it only feeds the measurement of the
+// machine's resources and is never reported.
+func (m *Manager) ShellPIDs() map[string]int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	out := map[string]int{}
+	for _, t := range m.terms {
+		if t.started && t.pid > 0 {
+			out[t.session] = t.pid
+		}
+	}
+	return out
+}
+
 // Open starts a shell for the session in dir. guard runs after the slot is reserved and before the shell
 // starts; it returns an *OpenError to refuse (the runtime state and the handoff checks of the daemon). A
 // refusal is an *OpenError whose Reason goes into terminal.rejected.

@@ -355,6 +355,25 @@ func (m *Manager) PID(sessionID string) int {
 	return 0
 }
 
+// PIDs maps each session with a running process to its process ID. Like PID, it only feeds the measurement of
+// the machine's resources and is never reported.
+func (m *Manager) PIDs() map[string]int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	out := map[string]int{}
+	for id, s := range m.sessions {
+		if s.proc == nil {
+			continue
+		}
+		if p, ok := s.proc.(interface{ PID() int }); ok {
+			if pid := p.PID(); pid > 0 {
+				out[id] = pid
+			}
+		}
+	}
+	return out
+}
+
 // Pending lists the open permission requests of every session, for the report after a reconnect.
 func (m *Manager) Pending() []PermissionEvent {
 	m.mu.Lock()

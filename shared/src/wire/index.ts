@@ -120,6 +120,33 @@ export const SessionPortSchema = v.object({
 });
 export type SessionPort = v.InferOutput<typeof SessionPortSchema>;
 
+/** Milliseconds between two `device.resources` reports of an agent. */
+export const RESOURCES_INTERVAL_MS = 15_000;
+/** Samples the core keeps per machine: one hour at the interval above. */
+export const RESOURCES_RING_SIZE = 240;
+/** Sessions one `device.resources` reports, at most; the ones holding the most memory. */
+export const RESOURCES_SESSIONS_MAX = 64;
+/** A machine warns about memory when more than this share is used. */
+export const RESOURCES_MEMORY_WARN = 0.9;
+/** A machine warns about disk when less than this share of the volume is free. */
+export const RESOURCES_DISK_WARN = 0.1;
+
+const Percent = v.pipe(v.number(), v.minValue(0), v.maxValue(100));
+const Bytes = v.pipe(v.number(), v.integer(), v.minValue(0));
+
+/**
+ * The processes of one session Hoplet started, summed over the process tree: `cpu` is the share of the whole
+ * machine's CPU in percent (null while the agent has no earlier reading to compare with), `rss` the resident
+ * memory in bytes and `children` the number of descendant processes.
+ */
+export const SessionResourcesSchema = v.object({
+  sessionId: SessionIdSchema,
+  cpu: v.nullable(Percent),
+  rss: Bytes,
+  children: v.pipe(v.number(), v.integer(), v.minValue(0)),
+});
+export type SessionResources = v.InferOutput<typeof SessionResourcesSchema>;
+
 export const EncodingSchema = v.picklist(['plain', 'gzip+base64']);
 export type Encoding = v.InferOutput<typeof EncodingSchema>;
 
@@ -1014,6 +1041,24 @@ export const WIRE_MESSAGES = defineWire({
     fields: { sessionId, ports: v.pipe(list(SessionPortSchema), v.maxLength(SESSION_PORTS_MAX)) },
   },
 
+  // The machine's load, every 15 seconds; a report sent while the core is away is dropped.
+  'device.resources': {
+    lane: 'control',
+    direction: 'device-to-core',
+    fields: {
+      /** When the agent took the reading, in epoch milliseconds. */
+      at: v.pipe(v.number(), v.integer(), v.minValue(0)),
+      /** CPU in use on the whole machine, percent; null while the agent has no earlier reading to compare with. */
+      cpu: v.nullable(Percent),
+      memUsed: Bytes,
+      memTotal: Bytes,
+      /** Free and total bytes of the volume that holds the agent's browse root. */
+      diskFree: Bytes,
+      diskTotal: Bytes,
+      sessions: v.pipe(list(SessionResourcesSchema), v.maxLength(RESOURCES_SESSIONS_MAX)),
+    },
+  },
+
   // The browser side of the terminal and the dev server links (ADR 0026). A terminal is opened over REST
   // (`POST /api/sessions/:id/terminal`); these messages attach a browser socket to its stream. The credit
   // window of the agent is the core's business: a browser never acknowledges output.
@@ -1192,6 +1237,7 @@ export type TerminalEnded = WireMessageOf<'terminal.ended'>;
 export type SessionListening = WireMessageOf<'session.listening'>;
 export type PortsWatch = WireMessageOf<'ports.watch'>;
 export type SessionPorts = WireMessageOf<'session.ports'>;
+export type DeviceResources = WireMessageOf<'device.resources'>;
 
 /** Types of the messages in `direction`, in table order. */
 export function wireTypes(...directions: Direction[]): WireType[] {
@@ -1246,6 +1292,7 @@ export const ClientMessageSchema = v.variant('type', [
   WIRE_MESSAGES['terminal.closed'].schema,
   WIRE_MESSAGES['terminal.rejected'].schema,
   WIRE_MESSAGES['session.ports'].schema,
+  WIRE_MESSAGES['device.resources'].schema,
 ]);
 
 /** The messages a browser sends. */
@@ -1269,6 +1316,7 @@ export const WIRE_OBJECTS = {
   DeviceCapabilities: DeviceCapabilitiesSchema,
   DeviceSystem: DeviceSystemSchema,
   SessionPort: SessionPortSchema,
+  SessionResources: SessionResourcesSchema,
   ConfigOption: ConfigOptionSchema,
   ConfigValue: ConfigValueSchema,
   Command: CommandSchema,

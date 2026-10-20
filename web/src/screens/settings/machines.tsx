@@ -1,22 +1,39 @@
-import type { DeviceInfo, DeviceMintResult } from '@hoplet/shared';
-import { type ReactNode, useState } from 'react';
+import type {
+  DeviceInfo,
+  DeviceMintResult,
+  LiveSessionMeta,
+  SessionRuntimeInfo,
+} from '@hoplet/shared';
+import { type ReactNode, useEffect, useId, useState } from 'react';
 import { Button } from '../../components/Button.tsx';
 import { IconButton } from '../../components/IconButton.tsx';
 import { Icon, Spinner } from '../../components/icons.tsx';
-import { MachineIcon } from '../../components/MachineIcon.tsx';
 import { TextField } from '../../components/TextField.tsx';
 import { postMintDevice } from '../../lib/api.ts';
 import { copyText } from '../../lib/clipboard.ts';
 import { errorText } from '../../lib/errors.ts';
 import { t } from '../../lib/i18n.ts';
-import { machineLabel, systemName, systemOf } from '../../lib/system.ts';
+import { systemName } from '../../lib/system.ts';
+import { type DeviceResources, useDeviceResources } from '../../lib/use-device-resources.ts';
 import { useDevices } from '../../lib/use-devices.ts';
 import { lastSeenText } from './last-seen.ts';
+import { ResourcesBody } from './machine-resources.tsx';
+import { MachineTabs, machinePanelId, machineTabId } from './machine-tabs.tsx';
+import { defaultMachine } from './providers-model.ts';
+import { archName } from './resources-model.ts';
 
 /** What a state of the design starts from: the machines, and a machine already minted. */
 export type MachinesFixture = {
   devices: DeviceInfo[];
   mint?: { result: DeviceMintResult; copied: boolean };
+  /** The tab selected, by device id. */
+  selected?: string;
+  /** What the resources endpoint answered for the selected machine, each session with its last hour. */
+  resources?: DeviceResources;
+  sessions?: LiveSessionMeta[];
+  runtime?: Record<string, SessionRuntimeInfo>;
+  /** A session row drawn as hovered, for the design's states. */
+  hovered?: string;
   now?: number;
 };
 
@@ -224,52 +241,107 @@ function MintCard(props: {
   );
 }
 
-/** Settings > Machines: every machine with its presence and last connection, and the way to add one. */
-export function MachinesSection(props: { fixture?: MachinesFixture }) {
+/** The facts line of a machine: system, architecture and presence; an offline machine says when it was last seen. */
+function factsLine(device: DeviceInfo, now: number): string {
+  const os = systemName(device.system?.os);
+  const system = [os, archName(device.system?.arch)].filter((x): x is string => Boolean(x));
+  const presence = device.connected ? t('Connected') : t('Offline');
+  const parts = [...(system.length > 0 ? [system.join(' · ')] : []), presence];
+  if (!device.connected && device.resources === undefined && device.lastSeen !== undefined)
+    parts.push(t('last seen {when}').replace('{when}', lastSeenText(device, now)));
+  return parts.join(' · ');
+}
+
+/** Settings > Machines: a tab per machine with its facts and resources, and the way to add one. */
+export function MachinesSection(props: {
+  fixture?: MachinesFixture;
+  /** The machine the section opens on, from the address. */
+  machine?: string | undefined;
+  onMachine?: (deviceId: string) => void;
+  sessions?: readonly LiveSessionMeta[];
+  runtime?: Record<string, SessionRuntimeInfo> | undefined;
+  onOpenSession?: (sessionId: string) => void;
+}) {
   const { fixture } = props;
   const devices = useDevices(fixture?.devices);
   const [adding, setAdding] = useState(fixture?.mint !== undefined);
+  const [picked, setPicked] = useState<string | undefined>(fixture?.selected ?? props.machine);
+  useEffect(() => {
+    if (props.machine !== undefined) setPicked(props.machine);
+  }, [props.machine]);
+  const id = useId();
   const now = fixture?.now ?? Date.now();
+  const device =
+    devices.find((d) => d.deviceId === picked) ??
+    devices.find((d) => d.deviceId === defaultMachine(devices));
+  const panelShown = device !== undefined && !adding;
+  const live = useDeviceResources(
+    device?.deviceId,
+    panelShown && device.resources !== undefined,
+    fixture?.resources,
+  );
+  const select = (deviceId: string) => {
+    setPicked(deviceId);
+    props.onMachine?.(deviceId);
+  };
+  const sample = device?.resources;
   return (
     <>
       <h1>{t('Machines')}</h1>
-      {devices.length > 0 ? (
-        <>
-          <div className="plh set-meta" aria-hidden="true">
-            <span>{t('Machine')}</span>
-            <span>{t('Last seen')}</span>
-          </div>
-          <ul className="plist" aria-label={t('Machines')} data-testid="settings.machines">
-            {devices.map((d) => (
-              <li
-                key={d.deviceId}
-                className={`pr${d.connected ? '' : ' off'}`}
-                aria-label={machineLabel(d.name, d.system, d.connected)}
-              >
-                <span className="lead">
-                  <MachineIcon kind={systemOf(d.system?.os)} online={d.connected} />
-                </span>
-                <span className="nm">{d.name}</span>
-                <span className="set-meta">{systemName(d.system?.os)}</span>
-                <span className="set-meta">{lastSeenText(d, now)}</span>
-              </li>
-            ))}
-          </ul>
-        </>
-      ) : null}
-      {adding ? (
-        <MintCard devices={devices} initial={fixture?.mint} onClose={() => setAdding(false)} />
-      ) : (
-        <div className="sact">
+      <div className="mt-bar">
+        {device ? (
+          <MachineTabs
+            devices={devices}
+            selected={device.deviceId}
+            idPrefix={id}
+            panel={!adding}
+            onSelect={select}
+            testid="settings.machines.tabs"
+          />
+        ) : (
+          <span className="mt-fill" />
+        )}
+        {adding ? null : (
           <Button
+            variant="quiet"
             icon={Icon.plus()}
             onClick={() => setAdding(true)}
             data-testid="settings.add-machine"
           >
             {t('Add a machine')}
           </Button>
+        )}
+      </div>
+      {adding ? (
+        <MintCard devices={devices} initial={fixture?.mint} onClose={() => setAdding(false)} />
+      ) : device ? (
+        <div
+          role="tabpanel"
+          id={machinePanelId(id)}
+          aria-labelledby={machineTabId(id, device.deviceId)}
+          data-testid="settings.machines.panel"
+        >
+          <p className="rmeta mt-facts" data-testid="settings.machines.facts">
+            {factsLine(device, now)}
+          </p>
+          {sample ? (
+            <ResourcesBody
+              device={device}
+              sample={sample}
+              result={live}
+              sessions={fixture?.sessions ?? props.sessions ?? []}
+              runtime={fixture?.runtime ?? props.runtime}
+              now={now}
+              hovered={fixture?.hovered}
+              onOpenSession={props.onOpenSession ?? (() => undefined)}
+            />
+          ) : device.connected ? (
+            <p className="rmeta dim" data-testid="settings.resources.none">
+              {t('This machine’s agent does not report resources.')}
+            </p>
+          ) : null}
         </div>
-      )}
+      ) : null}
     </>
   );
 }

@@ -1,4 +1,4 @@
-import type { LiveSessionMeta } from '@hoplet/shared';
+import type { LiveSessionMeta, SessionRuntimeInfo } from '@hoplet/shared';
 import { type ReactNode, useEffect, useRef } from 'react';
 import { IconButton } from '../../components/IconButton.tsx';
 import { Icon } from '../../components/icons.tsx';
@@ -37,13 +37,26 @@ function Page(props: {
   notify: NotifyFixture | undefined;
   providers: ProvidersFixture | undefined;
   sessions: readonly LiveSessionMeta[];
+  runtime: Record<string, SessionRuntimeInfo> | undefined;
+  machine: string | undefined;
+  onMachine: ((deviceId: string) => void) | undefined;
+  onOpenSession: ((sessionId: string) => void) | undefined;
   onSection: (section: SectionId) => void;
 }): ReactNode {
   switch (props.section) {
     case 'appearance':
       return <AppearanceSection appearance={props.appearance} onChange={props.onAppearance} />;
     case 'machines':
-      return <MachinesSection {...(props.machines ? { fixture: props.machines } : {})} />;
+      return (
+        <MachinesSection
+          {...(props.machines ? { fixture: props.machines } : {})}
+          machine={props.machine}
+          {...(props.onMachine ? { onMachine: props.onMachine } : {})}
+          sessions={props.sessions}
+          runtime={props.runtime}
+          {...(props.onOpenSession ? { onOpenSession: props.onOpenSession } : {})}
+        />
+      );
     case 'providers':
       return (
         <ProvidersSection
@@ -68,6 +81,13 @@ export function Settings(props: {
   notify?: NotifyFixture;
   providers?: ProvidersFixture;
   sessions?: readonly LiveSessionMeta[];
+  /** The runtime state of each session, for the state glyph of a session row. */
+  runtime?: Record<string, SessionRuntimeInfo>;
+  /** The machine Machines opens on, by device id. */
+  machine?: string | undefined;
+  onMachine?: (deviceId: string) => void;
+  /** Opens a session in the cockpit and leaves Settings. */
+  onOpenSession?: (sessionId: string) => void;
 }) {
   const { onBack } = props;
   const title = useRef<HTMLSpanElement>(null);
@@ -119,6 +139,10 @@ export function Settings(props: {
                 notify={props.notify}
                 providers={props.providers}
                 sessions={props.sessions ?? []}
+                runtime={props.runtime}
+                machine={props.machine}
+                onMachine={props.onMachine}
+                onOpenSession={props.onOpenSession}
                 onSection={props.onSection}
               />
             </div>

@@ -159,6 +159,24 @@
   display: grid;
   color: var(--color-text-2);
 }
+.rm {
+  display: flex;
+  align-items: center;
+  flex: none;
+  margin-right: var(--space-1);
+  color: var(--color-attention-text);
+}
+.rm svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
+.dev:hover .rm,
+.dev:focus-within .rm,
+.dev:has(.dev-pop) .rm,
+.dev[data-hover="true"] .rm {
+  display: none;
+}
 .dev .lead {
   width: var(--icon-size);
   height: var(--icon-size);

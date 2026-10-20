@@ -11,6 +11,7 @@ import { createHandoff } from './handoff.ts';
 import { createPorts } from './ports.ts';
 import { createQueue } from './queue.ts';
 import { receiveReply } from './replies.ts';
+import { createResources } from './resources.ts';
 import { createRpc } from './rpc.ts';
 import { createRuntime } from './runtime.ts';
 import { createStart } from './start.ts';
@@ -118,6 +119,7 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
     startedSessions: new Map(),
     deviceInfo: new Map(),
     sessionPorts: new Map(),
+    resources: new Map(),
     pendingTerminal: new Map(),
     closeTerminals: () => {},
     permissions: new Map(),
@@ -155,6 +157,7 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
   const ownerOf = (sessionId: string): string | null =>
     store.ownerDeviceId(sessionId) ?? state.startedSessions.get(sessionId)?.deviceId ?? null;
   const ports = createPorts(state, open, ownerOf);
+  const resources = createResources(state);
   const terminals = createTerminals(
     state,
     runtime.runtimeOf,
@@ -178,6 +181,11 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
     };
   }
 
+  /** The latest resource report and the warnings it raises; kept while the device is offline. */
+  function resourceExtras(deviceId: string, onlineIds: ReadonlySet<string>) {
+    return resources.extras(deviceId, onlineIds.has(deviceId));
+  }
+
   const control: Control & AgentControl = {
     bulk,
     viewing,
@@ -187,6 +195,7 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
     },
     terminals: terminals.terminals,
     portsOf: ports.of,
+    resourcesOf: resources.of,
     attach(deviceId, link, providers, hello) {
       if (state.byDevice.get(deviceId) !== link) {
         // A replaced connection takes its terminals with it.
@@ -229,7 +238,7 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
       }
     },
     receive(link, msg) {
-      receiveReply(state, runtime, terminals, ports, link, msg);
+      receiveReply(state, runtime, terminals, ports, resources, link, msg);
     },
     prompt: runtime.prompt,
     answerPermission: runtime.answerPermission,
@@ -278,6 +287,7 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
           ...(d.lastSeen === undefined ? {} : { lastSeen: d.lastSeen }),
           providers: onlineIds.has(d.deviceId) ? (state.providers.get(d.deviceId) ?? []) : [],
           ...deviceExtras(d.deviceId, onlineIds),
+          ...resourceExtras(d.deviceId, onlineIds),
         });
       }
       for (const id of onlineIds) {
@@ -289,6 +299,7 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
             connected: true,
             providers: state.providers.get(id) ?? [],
             ...deviceExtras(id, onlineIds),
+            ...resourceExtras(id, onlineIds),
           });
         }
       }
