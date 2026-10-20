@@ -236,6 +236,7 @@ export function fixtureDevices(
     {
       deviceId: 'dev-macbook',
       name: 'MacBook Pro',
+      labels: [],
       connected: macbookOnline,
       system: { os: 'darwin', arch: 'arm64' },
       providers: macbookOnline ? (configurations['dev-macbook'] ?? providers) : [],
@@ -251,6 +252,7 @@ export function fixtureDevices(
     {
       deviceId: 'dev-studio',
       name: 'studio',
+      labels: [],
       connected: true,
       system: { os: 'linux', arch: 'amd64' },
       providers: configurations['dev-studio'] ?? providers,
@@ -264,6 +266,7 @@ export function fixtureDevices(
     {
       deviceId: 'dev-office',
       name: 'office-mini',
+      labels: [],
       connected: false,
       system: { os: 'windows', arch: 'amd64' },
       providers: [],
@@ -275,7 +278,16 @@ export function fixtureDevices(
         : {}),
     },
     ...(labBox
-      ? [{ deviceId: 'dev-lab', name: 'lab-box', connected: true, system: null, providers }]
+      ? [
+          {
+            deviceId: 'dev-lab',
+            name: 'lab-box',
+            connected: true,
+            system: null,
+            providers,
+            labels: [],
+          },
+        ]
       : []),
   ];
 }

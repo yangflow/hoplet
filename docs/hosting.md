@@ -175,6 +175,10 @@ published on the server running the core, and the compose file does not change.
   `vm_stat`), and sends about 100 bytes per session. The core keeps the last 240 readings of each machine in memory
   (a few hundred kilobytes in all) and stores none. The thresholds at which machines warn are host settings, one
   small row in the core's database.
+- Machine inventory: about once an hour, and after each connection, the agent runs `--version` of a fixed list of tools
+  (at most four at once, 5 seconds each), `nvidia-smi` or `system_profiler`, and `git remote get-url origin` per
+  watched project; the core keeps the latest report of each machine (a few kilobytes) and the host's labels in the
+  `devices` table of its database.
 - Disk: session bytes / 20 after compression, plus the index, plus at most one snapshot per session (at most
   64 MiB each). There is no quota; a full disk fails appends, which the agent retries.
 - A clone made by a handoff takes the disk the repository takes, inside the browse root of the target; it has

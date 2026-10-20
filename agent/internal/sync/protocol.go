@@ -101,6 +101,7 @@ const (
 	TypePortsWatch               = "ports.watch"
 	TypeSessionPorts             = "session.ports"
 	TypeDeviceResources          = "device.resources"
+	TypeDeviceInventory          = "device.inventory"
 )
 
 // Error codes of an `error` message that the agent acts on (shared/src/errors.ts).
@@ -1172,4 +1173,36 @@ type DeviceResources struct {
 	DiskFree  uint64             `json:"diskFree"`
 	DiskTotal uint64             `json:"diskTotal"`
 	Sessions  []SessionResources `json:"sessions"`
+}
+
+// InventoryToolchain is one developer tool found on the machine with its version.
+type InventoryToolchain struct {
+	Name    string `json:"name"`
+	Version string `json:"version"`
+}
+
+// InventoryGpu is one GPU; Memory is its memory in bytes, left out when unknown.
+type InventoryGpu struct {
+	Name   string  `json:"name"`
+	Memory *uint64 `json:"memory,omitempty"`
+}
+
+// InventoryRepository is one watched project with its `origin` remote, nil when it has none or is no git
+// repository. The URL carries no user, password, query or fragment.
+type InventoryRepository struct {
+	Path   string  `json:"path"`
+	Origin *string `json:"origin"`
+}
+
+// DeviceInventory reports what the machine offers on the control lane: at most 32 toolchains, 8 GPUs and 200
+// repositories (INVENTORY_*_MAX in shared/src/wire). It is sent after each connection and then hourly, and
+// again soon after the watched projects change. At is epoch milliseconds. A report sent while the core is away
+// is dropped.
+type DeviceInventory struct {
+	V            int                   `json:"v"`
+	Type         string                `json:"type"`
+	At           int64                 `json:"at"`
+	Toolchains   []InventoryToolchain  `json:"toolchains"`
+	Gpus         []InventoryGpu        `json:"gpus"`
+	Repositories []InventoryRepository `json:"repositories"`
 }

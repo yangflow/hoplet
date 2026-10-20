@@ -5,6 +5,7 @@ import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import type {
   Command,
+  DeviceInventory,
   DeviceSystem,
   NotifyDelivery,
   NotifyEventKind,
@@ -417,6 +418,16 @@ export class Store {
 
   touchDevice(deviceId: string): void {
     devices.touchDevice(this.ctx, deviceId);
+  }
+
+  /** Keeps the latest inventory of a device; false when the store does not know the device. */
+  setDeviceInventory(deviceId: string, inventory: DeviceInventory): boolean {
+    return devices.setInventory(this.ctx, deviceId, inventory);
+  }
+
+  /** Replaces the labels of a device; false when the store does not know the device. */
+  setDeviceLabels(deviceId: string, labels: string[]): boolean {
+    return devices.setLabels(this.ctx, deviceId, labels);
   }
 
   listDevices(): devices.StoredDevice[] {

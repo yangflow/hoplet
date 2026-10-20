@@ -257,6 +257,13 @@ export function receiveReply(
     case 'device.resources':
       resources.receive(link, msg);
       return;
+    case 'device.inventory': {
+      const { v: _v, type: _type, ...inventory } = msg;
+      for (const [deviceId, attached] of state.byDevice) {
+        if (attached === link) state.store.setDeviceInventory(deviceId, inventory);
+      }
+      return;
+    }
     case 'device.providers': {
       // The list is the agent's own, whole: it replaces what the hello announced.
       for (const [deviceId, attached] of state.byDevice) {

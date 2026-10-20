@@ -66,6 +66,7 @@ export function liveDevice(
       connected: group.some((s) => s.ownerConnected),
       system: null,
       providers: [],
+      labels: [],
     };
   return null;
 }

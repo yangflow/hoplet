@@ -610,7 +610,7 @@ func TestOriginsLoseTheirCredentials(t *testing.T) {
 		"/srv/git/r.git":                        "/srv/git/r.git",
 		"https://github.com/o/r.git":            "https://github.com/o/r.git",
 	} {
-		if got := withoutUserinfo(in); got != want {
+		if got := WithoutUserinfo(in); got != want {
 			t.Errorf("%q: got %q, want %q", in, got, want)
 		}
 	}

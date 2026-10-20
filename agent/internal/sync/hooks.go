@@ -103,6 +103,9 @@ type DirListing struct {
 
 // Hooks are the device-side handlers for control messages from core.
 type Hooks struct {
+	// Connected is called in its own goroutine after every connection to the core; the agent reports its
+	// inventory then.
+	Connected func()
 	// Providers lists the agent's provider configurations as they are now, with the capabilities of their
 	// runtime drivers; device.hello announces them on each connection.
 	Providers func() []ProviderInfo

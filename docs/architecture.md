@@ -275,6 +275,16 @@ last 240 readings of each machine, and the readings of each of its sessions with
 sessions), in memory (`core/src/control/resources.ts`), outliving the connection and not
 the process, and stores nothing.
 
+**Inventory.** `agent/internal/inventory/` reports what the machine offers as `device.inventory` on the control lane:
+the version of each tool of a fixed list (git, node, python, go, rust, java, docker and the like; found on the
+`PATH`, asked with a 5 second limit, at most four commands at once), the GPUs (`nvidia-smi` on Linux, `system_profiler`
+on macOS) and each watched project with the URL of its `origin` remote, userinfo, query and fragment removed. At most
+32 toolchains, 8 GPUs and 200 repositories. It is sent after each connection, hourly, and soon after the watched
+projects change, from its own goroutine so detection never delays control work; the tool and GPU results are reused for
+five minutes. A report sent while the core is away is dropped, never queued. The core keeps the latest one per device in
+the `devices` table (`inventory`), so it outlives the connection and the process. The host's own `labels` of a device
+live in the same table and are set over REST (`PUT /api/devices/:deviceId/labels`); an agent never sends or changes them.
+
 ### A storage migration
 
 Add `core/src/migrations/<NNNN>-<name>.ts` and register it in `core/src/migrations/index.ts`. Migrations run

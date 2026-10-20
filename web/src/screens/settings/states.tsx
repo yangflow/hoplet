@@ -37,6 +37,7 @@ function machine(
     lastSeen,
     system: os ? { os, arch: 'amd64' } : null,
     providers: [],
+    labels: [],
   };
 }
 
