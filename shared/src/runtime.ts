@@ -87,19 +87,60 @@ export const RuntimeCapabilitiesSchema = v.object({
 });
 export type RuntimeCapabilities = v.InferOutput<typeof RuntimeCapabilitiesSchema>;
 
+/** The ID of a provider configuration: a slug the owner picks on the machine; `claude` and `codex` are the built-ins. */
+export const ConfigurationIdSchema = v.pipe(v.string(), v.regex(/^[a-z0-9][a-z0-9-]{0,39}$/));
+export type ConfigurationId = v.InferOutput<typeof ConfigurationIdSchema>;
+
 /**
- * What an agent reports for a provider it runs: the capabilities of that provider's runtime driver and the
- * installed vendor `version`. `tested` is true when the driver was verified against exactly that version and
+ * A provider configuration as the machine's providers.json says it (ADR 0028), without a single value of its
+ * environment: `env` names the variables and says whether each is set. `command` and `env` are set on the
+ * machine only; the core may change `name`, `enabled` and `defaults`.
+ */
+export const ProviderEnvVarSchema = v.object({
+  name: v.pipe(v.string(), v.minLength(1), v.maxLength(128)),
+  set: v.boolean(),
+});
+export type ProviderEnvVar = v.InferOutput<typeof ProviderEnvVarSchema>;
+
+export const ProviderConfigurationSchema = v.object({
+  id: ConfigurationIdSchema,
+  name: v.pipe(v.string(), v.minLength(1), v.maxLength(64)),
+  extends: ProviderSchema,
+  enabled: v.boolean(),
+  command: v.optional(v.pipe(v.string(), v.maxLength(4096))),
+  env: v.array(ProviderEnvVarSchema),
+  /** The default of a new session's options by option ID, over the driver's own defaults. */
+  defaults: SessionConfigSchema,
+});
+export type ProviderConfiguration = v.InferOutput<typeof ProviderConfigurationSchema>;
+
+/**
+ * What an agent reports for a provider configuration it runs: the capabilities of its runtime driver and the
+ * installed vendor `version`; `provider` is the vendor it extends. `tested` is true when the driver was verified against exactly that version and
  * false when the version is newer than the tested ones; both are absent when the version cannot be read or
  * is refused.
  */
 export const ProviderInfoSchema = v.object({
   provider: ProviderSchema,
+  configuration: ProviderConfigurationSchema,
   capabilities: RuntimeCapabilitiesSchema,
   version: v.optional(v.string()),
   tested: v.optional(v.boolean()),
 });
 export type ProviderInfo = v.InferOutput<typeof ProviderInfoSchema>;
+
+/**
+ * The entry of `providers` for `provider` under `configuration`; the vendor's own configuration (whose ID is the
+ * vendor's name) when `configuration` is absent.
+ */
+export function findProvider(
+  providers: readonly ProviderInfo[],
+  provider: ProviderInfo['provider'],
+  configuration?: string,
+): ProviderInfo | undefined {
+  const id = configuration ?? provider;
+  return providers.find((p) => p.provider === provider && p.configuration.id === id);
+}
 
 /** Whether `value` is a setting `option` accepts: a declared value of a `select`, a boolean for a `boolean`. */
 function accepts(option: ConfigOption, value: ConfigSetting): boolean {

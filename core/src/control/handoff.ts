@@ -385,6 +385,7 @@ export function createHandoff(
         sessionId,
         handoffId,
         provider: meta.provider,
+        ...(request.configuration !== undefined ? { configuration: request.configuration } : {}),
         ...(request.targetPath !== undefined ? { targetPath: request.targetPath } : {}),
         snapshotBytes: snapshot.byteSize,
         snapshotSha256: snapshot.sha256,

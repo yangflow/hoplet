@@ -128,6 +128,20 @@ starting the container. Run one core per data directory, on a local filesystem w
 `{ "projects": [{ "path": "/abs/project", "imported": ["<session>"] }] }`. A missing or empty file syncs
 nothing. `hoplet-agent projects` and `hoplet-agent sessions` maintain it; the daemon rereads it on every scan.
 
+### Provider configurations
+
+`<hoplet_home>/providers.json` (mode 0600) holds the machine's provider configurations
+([ADR 0028](adr/0028-provider-configurations-live-on-the-machine.md)): each has an `id` (a slug), a `name`, the
+vendor it `extends` (`claude` or `codex`), an optional absolute `command`, `env` (variable name to value) and
+`defaults` (new-session values of the driver's config options). The built-ins `claude` and `codex` exist without
+the file and accept only `name`, `enabled` and `defaults`. `hoplet-agent provider` maintains the file: `list`,
+`add <id> [--preset glm|zai|deepseek|minimax|minimax-cn|qwen]`, `set`, `env <id> <NAME>` (the value from standard
+input, never echoed), `unset`, `remove`. A variable's value is a secret: it stays in this file and in the process the agent
+starts, and `list` and the core see only the name and whether it is set. The daemon rereads the file on every
+scan; a file that fails to parse is logged and the last good configurations stay in force.
+`<hoplet_home>/sessions-config.json` records which configuration started each session, so a resumed session runs
+under the same one. A session it does not list runs under its vendor's built-in configuration.
+
 ### Terminal
 
 `"terminal": true` in the agent's `config.json`, then restart the agent, lets the web UI open a terminal on this
@@ -175,7 +189,7 @@ published on the server running the core, and the compose file does not change.
 Pull the new image and restart: `docker compose pull && docker compose up -d`. Migrations in
 `core/src/migrations/` run forward at startup; a data directory with a newer schema is refused. Replace
 `hoplet-agent` on every machine with the version built from the same commit as the image; the agent and the core
-refuse a `device.hello` whose protocol version differs (the version is 10). Back up the stopped data directory before upgrading;
+refuse a `device.hello` whose protocol version differs (the version is 12). Back up the stopped data directory before upgrading;
 downgrading means restoring that backup with the matching binaries.
 
 ## Uninstall

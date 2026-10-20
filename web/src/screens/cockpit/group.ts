@@ -106,7 +106,10 @@ export function buildTree(
       deviceId: device?.deviceId ?? null,
       online: deviceConnected(name, list, devices),
       system: device?.system ?? null,
-      providers: device?.providers ?? [],
+      // The new-session form starts the vendor's own configuration; choosing another is not offered yet.
+      providers: (device?.providers ?? []).filter(
+        (p) => p.configuration.enabled && p.configuration.id === p.provider,
+      ),
       ...(device?.resources ? { resources: device.resources } : {}),
       ...(device?.warn ? { warn: device.warn } : {}),
       dirs: dirList,

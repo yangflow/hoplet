@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -11,6 +12,7 @@ import (
 	"time"
 
 	"github.com/yangflow/hoplet/agent/internal/config"
+	"github.com/yangflow/hoplet/agent/internal/configs"
 	"github.com/yangflow/hoplet/agent/internal/locate"
 	"github.com/yangflow/hoplet/agent/internal/provider"
 	"github.com/yangflow/hoplet/agent/internal/runtime"
@@ -36,10 +38,18 @@ type bridge struct {
 	cfg    *config.Config
 	att    *attachments // images uploaded for coming prompts
 	locate runtime.Locator
-	mgr    *runtime.Manager // Claude Code
-	codex  *runtime.Manager // Codex
 	send   func(any) error
 	kick   func()
+
+	owners              *configs.Owners // which configuration started each session
+	turnDone, turnStart func(sessionID string)
+
+	cmu      gosync.RWMutex
+	entries  []*entry           // one per configuration, built-ins first
+	retired  []*runtime.Manager // managers replaced by a changed configuration; their sessions run on
+	file     *configs.File      // the last providers.json that loaded
+	stamp    configs.Stamp
+	reloadMu gosync.Mutex // serialises reloads and updates
 
 	mu       gosync.Mutex
 	cond     *gosync.Cond
@@ -59,77 +69,229 @@ func newBridge(cfg *config.Config, send func(any) error, kick func(), turnDone, 
 	b := &bridge{
 		cfg: cfg, att: newAttachments(filepath.Join(cfg.HopletHome, "attachments")),
 		locate: locator(cfg), send: send, kick: kick, done: make(chan struct{}),
+		turnDone: turnDone, turnStart: turnStart,
 	}
 	b.cond = gosync.NewCond(&b.mu)
-	newManager := func(d runtime.Driver) *runtime.Manager {
-		return runtime.NewManager(runtime.Config{
-			Driver: d,
-			Locate: providerLocator(cfg, d.Name()),
-			Emit:   b.emit,
-
-			TurnDone:  turnDone,
-			TurnStart: turnStart,
-
-			IdleTimeout: time.Duration(cfg.RuntimeIdleMinutes) * time.Minute,
-			MaxIdle:     cfg.RuntimeMaxIdleProcesses,
-			OwnGrace:    ownGrace,
-		})
+	var err error
+	if b.owners, err = configs.LoadOwners(cfg.HopletHome); err != nil {
+		log.Printf("[agent] %v; sessions started from other configurations are treated as the vendor's own", err)
+		b.owners = configs.NewOwners(cfg.HopletHome)
 	}
-	b.mgr = newManager(claude.New(claude.Options{Bin: cfg.ClaudeBin, Model: os.Getenv(modelEnv)}))
-	b.codex = newManager(codex.New(codex.Options{Bin: cfg.CodexBin, ImageDir: filepath.Join(cfg.HopletHome, "codex-images")}))
+	b.stamp = configs.StampOf(cfg.HopletHome)
+	if b.file, err = configs.Load(cfg.HopletHome); err != nil {
+		log.Printf("[agent] %v; only the built-in configurations are available", err)
+		b.file = &configs.File{}
+	}
+	b.apply(b.file.List())
 	go b.run()
 	return b
 }
 
-// managers lists the runtime managers, one per vendor, Claude Code first.
-func (b *bridge) managers() []*runtime.Manager { return []*runtime.Manager{b.mgr, b.codex} }
+// entry is one configuration with the driver and manager that run it.
+type entry struct {
+	conf configs.Configuration
+	spec string // what the driver and manager were built from
+	drv  runtime.Driver
+	mgr  *runtime.Manager
 
-// manager is the manager of the provider named name, or nil.
-func (b *bridge) manager(name string) *runtime.Manager {
+	mu      gosync.Mutex
+	checked bool // the version and the models were asked for
+	version string
+	tested  *bool
+}
+
+// specOf identifies what a configuration's processes are built from: a change of it replaces the manager. The
+// name and the enabled flag do not change it.
+func specOf(c configs.Configuration) string {
+	raw, _ := json.Marshal(struct {
+		ID, Extends, Command string
+		Env                  map[string]string
+		Defaults             map[string]any
+	}{c.ID, c.Extends, c.Command, c.Env, c.Defaults})
+	return string(raw)
+}
+
+// build makes the driver and manager of c: its command (or the agent's claude_bin or codex_bin) and its
+// environment over the agent's, without the agent's own HOPLET_* variables.
+func (b *bridge) build(c configs.Configuration, spec string) *entry {
+	env := c.Environ(os.Environ())
+	var d runtime.Driver
+	switch c.Extends {
+	case configs.Codex:
+		bin := b.cfg.CodexBin
+		if c.Command != "" {
+			bin = c.Command
+		}
+		d = codex.New(codex.Options{Bin: bin, ImageDir: filepath.Join(b.cfg.HopletHome, "codex-images"), Env: env, Defaults: c.Defaults})
+	default:
+		bin := b.cfg.ClaudeBin
+		if c.Command != "" {
+			bin = c.Command
+		}
+		d = claude.New(claude.Options{Bin: bin, Model: os.Getenv(modelEnv), Env: env, Defaults: c.Defaults})
+	}
+	m := runtime.NewManager(runtime.Config{
+		Driver: d,
+		Locate: configLocator(b.cfg, c),
+		Emit:   b.emit,
+
+		TurnDone:  b.turnDone,
+		TurnStart: b.turnStart,
+
+		IdleTimeout: time.Duration(b.cfg.RuntimeIdleMinutes) * time.Minute,
+		MaxIdle:     b.cfg.RuntimeMaxIdleProcesses,
+		OwnGrace:    ownGrace,
+	})
+	return &entry{conf: c, spec: spec, drv: d, mgr: m}
+}
+
+// apply makes list the configurations: an unchanged one keeps its manager, a changed or removed one hands its
+// manager to the retired, which keeps the sessions it runs going (a change applies to processes started
+// afterwards).
+func (b *bridge) apply(list []configs.Configuration) {
+	setSources(b.cfg, list)
+	b.cmu.Lock()
+	defer b.cmu.Unlock()
+	old := map[string]*entry{}
+	for _, e := range b.entries {
+		old[e.conf.ID] = e
+	}
+	next := make([]*entry, 0, len(list))
+	for _, c := range list {
+		spec := specOf(c)
+		if e, ok := old[c.ID]; ok && e.spec == spec {
+			e.mu.Lock()
+			e.conf = c
+			e.mu.Unlock()
+			next = append(next, e)
+			delete(old, c.ID)
+			continue
+		}
+		next = append(next, b.build(c, spec))
+	}
+	for _, e := range old {
+		b.retired = append(b.retired, e.mgr)
+	}
+	b.entries = next
+}
+
+// snapshot is the current entries.
+func (b *bridge) snapshot() []*entry {
+	b.cmu.RLock()
+	defer b.cmu.RUnlock()
+	return append([]*entry(nil), b.entries...)
+}
+
+func (e *entry) config() configs.Configuration {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.conf
+}
+
+// entry is the entry of the configuration id, or nil.
+func (b *bridge) entry(id string) *entry {
+	for _, e := range b.snapshot() {
+		if e.config().ID == id {
+			return e
+		}
+	}
+	return nil
+}
+
+// managers lists every runtime manager: those of the current configurations, built-ins first, then the
+// retired ones that still run sessions.
+func (b *bridge) managers() []*runtime.Manager {
+	b.cmu.RLock()
+	defer b.cmu.RUnlock()
+	out := make([]*runtime.Manager, 0, len(b.entries)+len(b.retired))
+	for _, e := range b.entries {
+		out = append(out, e.mgr)
+	}
+	return append(out, b.retired...)
+}
+
+// manager is the manager of the configuration id (a built-in's id is its vendor's name), or nil.
+func (b *bridge) manager(id string) *runtime.Manager {
+	if e := b.entry(id); e != nil {
+		return e.mgr
+	}
+	return nil
+}
+
+// errUnavailable refuses a start or a resume under a configuration that was removed or disabled.
+var errUnavailable = errors.New("configuration-unavailable")
+
+// holder is the manager that already holds the session, or nil.
+func (b *bridge) holder(sessionID string) *runtime.Manager {
 	for _, m := range b.managers() {
-		if m.Driver().Name() == name {
+		if m.Knows(sessionID) {
 			return m
 		}
 	}
 	return nil
 }
 
-// managerOf is the manager that runs the session: the one that already holds it, otherwise the one of the
-// vendor whose store has its file, otherwise Claude Code's (whose error then says the session is not here).
-func (b *bridge) managerOf(sessionID string) *runtime.Manager {
-	for _, m := range b.managers() {
-		if m.Knows(sessionID) {
-			return m
-		}
+// ownerOf is the configuration a session belongs to: the one that started it, else the one whose own session
+// store holds it, else the built-in of the vendor whose store does; empty when none does.
+func (b *bridge) ownerOf(sessionID string) string {
+	if id, ok := b.owners.Get(sessionID); ok {
+		return id
 	}
-	for _, v := range vendors(b.cfg) {
-		if _, ok := v.Find(sessionID); ok {
-			if m := b.manager(v.Name()); m != nil {
-				return m
-			}
-		}
-	}
-	return b.mgr
+	return ownerByFind(b.cfg, sessionID)
 }
 
-// locator finds a session's working directory and file in any vendor's store.
-func locator(cfg *config.Config) runtime.Locator { return providerLocator(cfg, "") }
+// resolve is the manager that runs the session. A process that runs stays with the manager that started it.
+// Otherwise it is the manager of the session's configuration (a change of a configuration applies to processes
+// started afterwards), which errUnavailable refuses when the configuration was removed or is disabled. A
+// session no store has goes to Claude Code's manager, whose error then says the session is not here.
+func (b *bridge) resolve(sessionID string) (*runtime.Manager, error) {
+	if m := b.holder(sessionID); m != nil && m.PID(sessionID) != 0 {
+		return m, nil
+	}
+	id := b.ownerOf(sessionID)
+	if id == "" {
+		id = configs.Claude
+	}
+	e := b.entry(id)
+	if e == nil || !e.config().Enabled {
+		return nil, errUnavailable
+	}
+	return e.mgr, nil
+}
 
-// providerLocator finds a session's working directory and file. The provider answers with the directory whose
-// store holds the file, which for a handed-off session is its worktree here, not the machine it came from.
-// With a provider name it looks in that vendor's store only; an empty name looks in all of them.
-func providerLocator(cfg *config.Config, providerName string) runtime.Locator {
+// managerOf is the manager that runs the session, for what needs only a manager: the holder, else the
+// configuration's, else Claude Code's.
+func (b *bridge) managerOf(sessionID string) *runtime.Manager {
+	if m, err := b.resolve(sessionID); err == nil {
+		return m
+	}
+	if m := b.manager(b.ownerOf(sessionID)); m != nil {
+		return m
+	}
+	return b.manager(configs.Claude)
+}
+
+// locator finds a session's working directory and file in any store.
+func locator(cfg *config.Config) runtime.Locator {
 	return func(sessionID string) (runtime.Location, error) {
-		fs := finders(cfg)
-		if providerName != "" {
-			fs = nil
-			for _, v := range vendors(cfg) {
-				if v.Name() == providerName {
-					fs = append(fs, v)
-				}
-			}
+		sess, err := locate.Locate(sessionID, finders(cfg)...)
+		if err != nil {
+			return runtime.Location{}, err
 		}
-		sess, err := locate.Locate(sessionID, fs...)
+		return runtime.Location{Dir: sess.Cwd, File: sess.JSONLPath}, nil
+	}
+}
+
+// configLocator finds a session's working directory and file in the store of conf: its own when its
+// environment names a session directory, else its vendor's. The provider answers with the directory whose
+// store holds the file, which for a handed-off session is its worktree here, not the machine it came from.
+func configLocator(cfg *config.Config, conf configs.Configuration) runtime.Locator {
+	return func(sessionID string) (runtime.Location, error) {
+		p := storeOf(cfg, conf)
+		if p == nil {
+			return runtime.Location{}, locate.ErrNotFound
+		}
+		sess, err := locate.Locate(sessionID, p)
 		if err != nil {
 			return runtime.Location{}, err
 		}
@@ -277,17 +439,29 @@ func (b *bridge) hooks() sync.RuntimeHooks {
 			if err != nil {
 				return err
 			}
-			return b.managerOf(sessionID).PromptWith(sessionID, p)
+			m, err := b.resolve(sessionID)
+			if err != nil {
+				return err
+			}
+			return m.PromptWith(sessionID, p)
 		},
 		Steer: func(sessionID, text string, ids []string) error {
 			p, err := b.att.prompt(text, ids)
 			if err != nil {
 				return err
 			}
-			return b.managerOf(sessionID).Steer(sessionID, p)
+			m, err := b.resolve(sessionID)
+			if err != nil {
+				return err
+			}
+			return m.Steer(sessionID, p)
 		},
 		Config: func(sessionID, configID string, value any) error {
-			return b.managerOf(sessionID).SetConfig(sessionID, configID, value)
+			m, err := b.resolve(sessionID)
+			if err != nil {
+				return err
+			}
+			return m.SetConfig(sessionID, configID, value)
 		},
 		Answer: func(sessionID, requestID string, allow bool, message, mode string) error {
 			return b.managerOf(sessionID).Decide(sessionID, requestID, runtime.Verdict{Allow: allow, Message: message, Mode: mode})
@@ -299,27 +473,119 @@ func (b *bridge) hooks() sync.RuntimeHooks {
 	}
 }
 
-// providers are announced in device.hello: the runtime driver's capabilities, so the core can validate the
-// options of a new session before any session exists.
+// providers is the list the core gets in device.hello and in device.providers: one entry per configuration,
+// disabled ones included, with the capabilities of its runtime driver (so the core can validate the options of
+// a new session before any session exists), its version, and its configuration without any value.
 func (b *bridge) providers() []sync.ProviderInfo {
+	environ := os.Environ()
 	var out []sync.ProviderInfo
-	for _, m := range b.managers() {
-		d := m.Driver()
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		if cd, ok := d.(*codex.Driver); ok {
-			// The models are what the new-session form offers; without them only the default is.
-			_ = cd.LoadModels(ctx)
-		}
-		info := sync.ProviderInfo{Provider: d.Name(), Capabilities: capabilities(d.Capabilities(), d.Config())}
-		if vd, ok := d.(runtime.Versioned); ok {
-			if version, tested, err := vd.Version(ctx); err == nil {
-				info.Version, info.Tested = version, &tested
-			}
-		}
-		cancel()
-		out = append(out, info)
+	for _, e := range b.snapshot() {
+		conf := e.config()
+		e.check(conf.Enabled)
+		e.mu.Lock()
+		version, tested := e.version, e.tested
+		e.mu.Unlock()
+		out = append(out, sync.ProviderInfo{
+			Provider:      conf.Extends,
+			Configuration: wireConfiguration(conf, environ),
+			Capabilities:  capabilities(e.drv.Capabilities(), e.drv.Config()),
+			Version:       version,
+			Tested:        tested,
+		})
 	}
 	return out
+}
+
+// check asks an enabled configuration's driver once for what needs its process: the version, and for Codex
+// the models the new-session form offers.
+func (e *entry) check(enabled bool) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.checked || !enabled {
+		return
+	}
+	e.checked = true
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if cd, ok := e.drv.(*codex.Driver); ok {
+		_ = cd.LoadModels(ctx)
+	}
+	if vd, ok := e.drv.(runtime.Versioned); ok {
+		if version, tested, err := vd.Version(ctx); err == nil {
+			e.version, e.tested = version, &tested
+		}
+	}
+}
+
+// wireConfiguration is a configuration as the core sees it: the names of its variables and whether each has a
+// value, never a value.
+func wireConfiguration(c configs.Configuration, environ []string) sync.ProviderConfiguration {
+	env := make([]sync.ProviderEnvVar, 0, len(c.Env))
+	for _, n := range c.EnvNames() {
+		env = append(env, sync.ProviderEnvVar{Name: n, Set: c.EnvSet(n, environ)})
+	}
+	defaults := make(map[string]any, len(c.Defaults))
+	for k, v := range c.Defaults {
+		defaults[k] = v
+	}
+	return sync.ProviderConfiguration{
+		ID: c.ID, Name: c.Name, Extends: c.Extends, Enabled: c.Enabled, Command: c.Command,
+		Env: env, Defaults: defaults,
+	}
+}
+
+// reload applies providers.json when it changed since the last look and says whether it did. A file that does
+// not load leaves the configurations as they are.
+func (b *bridge) reload() bool {
+	b.reloadMu.Lock()
+	defer b.reloadMu.Unlock()
+	return b.reloadLocked()
+}
+
+func (b *bridge) reloadLocked() bool {
+	st := configs.StampOf(b.cfg.HopletHome)
+	if st == b.stamp {
+		return false
+	}
+	b.stamp = st
+	f, err := configs.Load(b.cfg.HopletHome)
+	if err != nil {
+		log.Printf("[agent] %v; keeping the configurations in use", err)
+		return false
+	}
+	b.file = f
+	b.apply(f.List())
+	return true
+}
+
+// update handles device.providers.update: it changes the name, the enabled flag or the defaults of one
+// configuration, refusing a default the option does not declare, and returns the list afterwards.
+func (b *bridge) update(req sync.DeviceProvidersUpdate) ([]sync.ProviderInfo, error) {
+	b.reloadMu.Lock()
+	defer b.reloadMu.Unlock()
+	b.reloadLocked()
+	e := b.entry(req.ID)
+	if e == nil {
+		return nil, configs.ErrUnknown
+	}
+	opts := e.drv.Config()
+	for id, v := range req.Defaults {
+		if !runtime.DeclaresValue(opts, id, v) {
+			return nil, fmt.Errorf("%w: %s is not an option of %s or does not accept that value", configs.ErrInvalid, id, req.ID)
+		}
+	}
+	f, err := configs.Load(b.cfg.HopletHome)
+	if err != nil {
+		return nil, err
+	}
+	if err := f.Update(req.ID, configs.Patch{Name: req.Name, Enabled: req.Enabled, Defaults: req.Defaults}); err != nil {
+		return nil, err
+	}
+	if err := f.Save(b.cfg.HopletHome); err != nil {
+		return nil, err
+	}
+	b.reloadLocked()
+	return b.providers(), nil
 }
 
 // report tells the core the state of every process this agent runs and every permission request that
@@ -343,11 +609,28 @@ func (b *bridge) report() {
 func (b *bridge) observe(ctx context.Context, sources []provider.Source) {
 	for _, src := range sources {
 		if size, err := src.Size(ctx); err == nil && size >= 0 {
-			if m := b.manager(src.Provider()); m != nil {
+			if m := b.observer(src); m != nil {
 				m.Observe(src.ID(), size)
 			}
 		}
 	}
+}
+
+// observer is the manager to tell the size of a synced file to: the one that holds the session, otherwise the
+// one of its configuration, as recorded, as the last scan found it, or else the vendor's own.
+func (b *bridge) observer(src provider.Source) *runtime.Manager {
+	id := src.ID()
+	if m := b.holder(id); m != nil {
+		return m
+	}
+	owner, ok := b.owners.Get(id)
+	if !ok {
+		owner, ok = extraOwner(id)
+	}
+	if !ok {
+		owner = src.Provider()
+	}
+	return b.manager(owner)
 }
 
 // stopSession ends a session's process before its file is exported for handoff.

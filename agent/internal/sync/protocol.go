@@ -10,7 +10,7 @@ import "encoding/json"
 // (provider.ValidSessionID, ADR 0006). Invalid IDs receive error invalid-session-id
 // before decoding or persistence; the wire envelope and cursor are unchanged.
 
-const ProtocolVersion = 11
+const ProtocolVersion = 12
 
 // Wire message types: Type<Struct> is the `type` of the struct of that name.
 // shared/src/wire/ holds the same table; scripts/test/contract.test.ts compares both.
@@ -74,6 +74,9 @@ const (
 	TypeDeviceDirsList           = "device.dirs.list"
 	TypeDeviceDirs               = "device.dirs"
 	TypeDeviceDirsRejected       = "device.dirs.rejected"
+	TypeDeviceProviders          = "device.providers"
+	TypeDeviceProvidersUpdate    = "device.providers.update"
+	TypeDeviceProvidersRejected  = "device.providers.rejected"
 	TypeAttachmentPut            = "attachment.put"
 	TypeAttachmentStored         = "attachment.stored"
 	TypeAttachmentRejected       = "attachment.rejected"
@@ -156,14 +159,63 @@ type DeviceCapabilities struct {
 	Terminal bool `json:"terminal,omitempty"`
 }
 
-// ProviderInfo is one vendor an agent runs and what its runtime driver declares.
+// ProviderInfo is one provider configuration of an agent (ADR 0028) and what its runtime driver declares:
+// Provider is the vendor it extends.
 type ProviderInfo struct {
-	Provider     string              `json:"provider"`
-	Capabilities RuntimeCapabilities `json:"capabilities"`
+	Provider      string                `json:"provider"`
+	Configuration ProviderConfiguration `json:"configuration"`
+	Capabilities  RuntimeCapabilities   `json:"capabilities"`
 	// Version is the installed vendor version; Tested says the driver was verified against exactly it.
 	// Both are absent when the version could not be read or is refused.
 	Version string `json:"version,omitempty"`
 	Tested  *bool  `json:"tested,omitempty"`
+}
+
+// ProviderConfiguration is what the machine's providers.json says of one configuration, without any value of
+// its environment: Env lists the variables by name and whether each is set.
+type ProviderConfiguration struct {
+	ID       string           `json:"id"`
+	Name     string           `json:"name"`
+	Extends  string           `json:"extends"`
+	Enabled  bool             `json:"enabled"`
+	Command  string           `json:"command,omitempty"`
+	Env      []ProviderEnvVar `json:"env"`
+	Defaults map[string]any   `json:"defaults"`
+}
+
+// ProviderEnvVar names one environment variable of a configuration; the value never leaves the machine.
+type ProviderEnvVar struct {
+	Name string `json:"name"`
+	Set  bool   `json:"set"`
+}
+
+// DeviceProviders (device → core) is the full list of the agent's configurations. It answers a
+// DeviceProvidersUpdate and is sent again when providers.json changes.
+type DeviceProviders struct {
+	V         int            `json:"v"`
+	Type      string         `json:"type"`
+	RequestID string         `json:"requestId,omitempty"`
+	Providers []ProviderInfo `json:"providers"`
+}
+
+// DeviceProvidersUpdate (core → device) changes the name, the enabled flag or the defaults of one
+// configuration; nothing else of a configuration can be changed from the core.
+type DeviceProvidersUpdate struct {
+	V         int            `json:"v"`
+	Type      string         `json:"type"`
+	RequestID string         `json:"requestId"`
+	ID        string         `json:"id"`
+	Name      *string        `json:"name,omitempty"`
+	Enabled   *bool          `json:"enabled,omitempty"`
+	Defaults  map[string]any `json:"defaults,omitempty"`
+}
+
+// DeviceProvidersRejected (device → core) refuses a DeviceProvidersUpdate.
+type DeviceProvidersRejected struct {
+	V         int    `json:"v"`
+	Type      string `json:"type"`
+	RequestID string `json:"requestId"`
+	Reason    string `json:"reason"`
 }
 
 type SessionAppend struct {
@@ -390,6 +442,8 @@ type RuntimeStart struct {
 	RequestID   string `json:"requestId"`
 	ProjectPath string `json:"projectPath"`
 	Provider    string `json:"provider"`
+	// Configuration is the ID of the provider configuration to start with; absent means the vendor's own.
+	Configuration string `json:"configuration,omitempty"`
 	// Config holds the settings of the new session by option ID; an option left out keeps its default.
 	Config      map[string]any `json:"config,omitempty"`
 	Text        string         `json:"text"`
@@ -463,7 +517,7 @@ type RuntimeRejected struct {
 	Type      string `json:"type"`
 	SessionID string `json:"sessionId"`
 	PromptID  string `json:"promptId"`
-	Reason    string `json:"reason"` // busy | starting | external | not-running | permission | unsupported | diagnostic text
+	Reason    string `json:"reason"` // busy | starting | external | not-running | permission | unsupported | configuration-unavailable | diagnostic text
 }
 
 // Command is one slash command or skill a session offers (shared/src/commands.ts).
@@ -593,11 +647,13 @@ type HandoffPrepare struct {
 // HandoffInstall starts an installation; the snapshot archive and the session stream follow as HandoffData
 // chunks, and the sizes and checksums here are what the received bytes are held to.
 type HandoffInstall struct {
-	V              int    `json:"v"`
-	Type           string `json:"type"`
-	SessionID      string `json:"sessionId"`
-	HandoffID      string `json:"handoffId"`
-	Provider       string `json:"provider"` // the session's vendor, whose store the target installs it in
+	V         int    `json:"v"`
+	Type      string `json:"type"`
+	SessionID string `json:"sessionId"`
+	HandoffID string `json:"handoffId"`
+	Provider  string `json:"provider"` // the session's vendor, whose store the target installs it in
+	// Configuration is the target's provider configuration the session is installed for; absent means the vendor's own.
+	Configuration  string `json:"configuration,omitempty"`
 	TargetPath     string `json:"targetPath,omitempty"`
 	SnapshotBytes  int64  `json:"snapshotBytes"`
 	SnapshotSHA256 string `json:"snapshotSha256"`

@@ -63,6 +63,8 @@ export interface StartRequest {
   deviceId: string;
   projectPath: string;
   provider: Provider;
+  /** The provider configuration to start with (ADR 0028); the vendor's own when absent. */
+  configuration?: string | undefined;
   config?: SessionConfig | undefined;
   text: string;
   attachments?: string[] | undefined;
@@ -175,6 +177,8 @@ export interface HandoffRequest {
   targetPath?: string | undefined;
   /** Clone the repository here on the target first (ADR 0024); exclusive with `targetPath`. */
   cloneInto?: string | undefined;
+  /** The target's provider configuration the session is installed for; the vendor's own when absent. */
+  configuration?: string | undefined;
 }
 
 export type HandoffOutcome =

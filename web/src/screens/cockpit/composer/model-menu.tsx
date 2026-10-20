@@ -37,8 +37,11 @@ export function withValues(
   });
 }
 
+/** What the menu needs of an announced provider. */
+type Choosable = Pick<ProviderInfo, 'provider' | 'capabilities'>;
+
 /** Whether a machine offers anything for the menu to choose: a second provider or an option. */
-export function hasChoices(providers: ProviderInfo[], chosen: ProviderInfo | undefined): boolean {
+export function hasChoices(providers: Choosable[], chosen: Choosable | undefined): boolean {
   return providers.length > 1 || menuConfig(chosen?.capabilities.config).length > 0;
 }
 
@@ -56,7 +59,7 @@ function glyph(o: ConfigOption): ReactNode {
  * that is on.
  */
 export function ModelMenu(props: {
-  providers: ProviderInfo[];
+  providers: Choosable[];
   provider: ProviderInfo['provider'];
   /** The options with the values to show. */
   config: ConfigOption[];

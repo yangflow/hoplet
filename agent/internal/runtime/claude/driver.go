@@ -22,12 +22,20 @@ type Options struct {
 	Bin string
 	// Model selects the model with --model; empty leaves Claude Code's default.
 	Model string
+	// Env is the environment of every process the driver starts, `claude --version` included; nil means the
+	// agent's own.
+	Env []string
+	// Defaults replace the defaults of a new session's options, by option ID; a value the option does not
+	// declare is ignored.
+	Defaults map[string]any
 }
 
 // Driver starts Claude Code processes.
 type Driver struct {
-	bin   string
-	model string
+	bin      string
+	model    string
+	env      []string
+	defaults map[string]any
 
 	mu          sync.Mutex
 	versionSeen bool
@@ -40,7 +48,7 @@ func New(opts Options) *Driver {
 	if bin == "" {
 		bin = "claude"
 	}
-	return &Driver{bin: bin, model: opts.Model}
+	return &Driver{bin: bin, model: opts.Model, env: opts.Env, defaults: opts.Defaults}
 }
 
 func (d *Driver) Name() string { return "claude" }
@@ -63,6 +71,10 @@ const (
 // Config declares the permission mode, the model, Thinking and Fast, in that order. The models are the aliases `claude --help`
 // documents for --model; Claude Code resolves each to its latest model, and `default` leaves the choice to it.
 func (d *Driver) Config() []runtime.ConfigOption {
+	return runtime.ApplyDefaults(d.options(), d.defaults)
+}
+
+func (d *Driver) options() []runtime.ConfigOption {
 	return []runtime.ConfigOption{
 		{
 			// Claude Code's own modes except dontAsk, which it lists last and `claude --help` leaves out.
@@ -143,7 +155,7 @@ func (d *Driver) checkVersion(ctx context.Context) error {
 	if d.versionSeen {
 		return nil
 	}
-	out, err := exec.CommandContext(ctx, d.bin, "--version").Output()
+	out, err := d.versionCmd(ctx).Output()
 	if err != nil {
 		return fmt.Errorf("run %s --version: %w", d.bin, err)
 	}
@@ -176,7 +188,7 @@ func (d *Driver) Start(ctx context.Context, spec runtime.StartSpec) (runtime.Pro
 	}
 	cmd := exec.Command(d.bin, d.Args(spec)...)
 	cmd.Dir = spec.Dir
-	cmd.Env = processEnv(os.Environ())
+	cmd.Env = processEnv(d.baseEnv())
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
@@ -212,6 +224,20 @@ func (d *Driver) Start(ctx context.Context, spec runtime.StartSpec) (runtime.Pro
 // stateEventsEnv makes Claude Code report session_state_changed, which is how the agent learns that a turn
 // ended or waits for a permission; without it Claude Code stays silent and the session never becomes ready.
 const stateEventsEnv = "CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS"
+
+// baseEnv is the environment the driver's processes start from.
+func (d *Driver) baseEnv() []string {
+	if d.env != nil {
+		return d.env
+	}
+	return os.Environ()
+}
+
+func (d *Driver) versionCmd(ctx context.Context) *exec.Cmd {
+	cmd := exec.CommandContext(ctx, d.bin, "--version")
+	cmd.Env = d.baseEnv()
+	return cmd
+}
 
 // processEnv is env with the session state events switched on, whatever the inherited value was.
 func processEnv(env []string) []string {

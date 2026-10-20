@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/yangflow/hoplet/agent/internal/config"
+	"github.com/yangflow/hoplet/agent/internal/configs"
 	"github.com/yangflow/hoplet/agent/internal/projects"
 	"github.com/yangflow/hoplet/agent/internal/sync"
 	"github.com/yangflow/hoplet/agent/internal/workspace"
@@ -152,7 +153,8 @@ func TestHandoffInstallsInTheStoreOfTheSessionsVendor(t *testing.T) {
 				t.Fatalf("verification = %+v, %v", v, err)
 			}
 			// The vendor's store finds the session and its runtime manager owns it.
-			loc, err := providerLocator(cfg, c.provider)(c.session)
+			conf, _ := (&configs.File{}).Get(c.provider)
+			loc, err := configLocator(cfg, conf)(c.session)
 			if err != nil || loc.File != rec.SessionFile {
 				t.Fatalf("location = %+v, %v", loc, err)
 			}

@@ -163,7 +163,7 @@ func (c *Client) runOnce(ctx context.Context) error {
 		Name:      c.cfg.DeviceName,
 		Version:   c.version,
 		System:    &DeviceSystem{OS: runtime.GOOS, Arch: runtime.GOARCH},
-		Providers: c.hooks.Providers,
+		Providers: c.providerList(),
 
 		PreviewHost: c.hooks.PreviewHost,
 	}
@@ -323,6 +323,9 @@ func (c *Client) readLoop(cs *connState) {
 			continue
 		case TypeAttachmentPut:
 			c.handleAttachment(cs, raw)
+			continue
+		case TypeDeviceProvidersUpdate:
+			go c.handleProvidersUpdate(cs, raw)
 			continue
 		case TypeDeviceDirsList:
 			go c.handleDirs(cs, head.RequestID, head.Path)

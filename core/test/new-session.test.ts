@@ -35,7 +35,15 @@ const CONFIG = [
   { type: 'boolean', id: 'fast', name: 'Fast', category: 'model_config', currentValue: false },
 ];
 const CAPS = { permissions: true, interrupt: true, config: CONFIG };
-const PROVIDERS = [{ provider: 'claude', capabilities: CAPS }];
+const CONFIGURATION = {
+  id: 'claude',
+  name: 'Claude Code',
+  extends: 'claude',
+  enabled: true,
+  env: [],
+  defaults: {},
+};
+const PROVIDERS = [{ provider: 'claude', configuration: CONFIGURATION, capabilities: CAPS }];
 const PROJECT = '/work/app';
 const NEW_ID = '3b1f1b0e-3c1a-4d6e-9a53-0c6f0f3f2a11';
 
@@ -276,6 +284,7 @@ describe('POST /api/sessions', () => {
     const bare = await agent('dev-b', [
       {
         provider: 'claude',
+        configuration: CONFIGURATION,
         capabilities: {
           permissions: true,
           interrupt: true,
@@ -345,6 +354,41 @@ describe('POST /api/sessions', () => {
       state: 'running',
       capabilities: CAPS,
     });
+  });
+
+  it('starts on a chosen configuration, follows device.providers, and refuses an unknown or disabled one', async () => {
+    const { post, agent } = await boot();
+    const GLM = {
+      ...CONFIGURATION,
+      id: 'glm',
+      name: 'GLM',
+      env: [{ name: 'ANTHROPIC_AUTH_TOKEN', set: true }],
+    };
+    const owner = await agent('dev-a', [
+      ...PROVIDERS,
+      { provider: 'claude', configuration: GLM, capabilities: CAPS },
+    ]);
+    owner.listProjects([PROJECT]);
+
+    const pending = post('/api/sessions', request({ configuration: 'glm' }));
+    const start = await owner.waitFor((m) => m.type === 'runtime.start', 'runtime.start');
+    expect(start).toMatchObject({ provider: 'claude', configuration: 'glm' });
+    owner.send({ type: 'runtime.started', requestId: start.requestId, sessionId: NEW_ID });
+    expect((await pending).status).toBe(200);
+
+    const unknown = await post('/api/sessions', request({ configuration: 'nope', promptId: 'n2' }));
+    expect(unknown.status).toBe(400);
+
+    owner.send({
+      type: 'device.providers',
+      providers: [
+        { provider: 'claude', configuration: CONFIGURATION, capabilities: CAPS },
+        { provider: 'claude', configuration: { ...GLM, enabled: false }, capabilities: CAPS },
+      ],
+    });
+    await new Promise((r) => setTimeout(r, 100));
+    const disabled = await post('/api/sessions', request({ configuration: 'glm', promptId: 'n3' }));
+    expect(disabled.status).toBe(400);
   });
 
   it('reports a session running from what its agent said before it answered the start', async () => {
@@ -506,7 +550,9 @@ describe('POST /api/sessions', () => {
 });
 
 describe('images for a prompt (ADR 0017)', () => {
-  const IMAGE_PROVIDERS = [{ provider: 'claude', capabilities: { ...CAPS, images: true } }];
+  const IMAGE_PROVIDERS = [
+    { provider: 'claude', configuration: CONFIGURATION, capabilities: { ...CAPS, images: true } },
+  ];
   const png = (size = 32) => {
     const bytes = Buffer.alloc(size);
     Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).copy(bytes);
@@ -702,7 +748,11 @@ describe('the config of a session', () => {
       ],
     };
     const { post, owner } = await owned([
-      { provider: 'claude', capabilities: { ...CAPS, config: [MODE, ...CONFIG] } },
+      {
+        provider: 'claude',
+        configuration: CONFIGURATION,
+        capabilities: { ...CAPS, config: [MODE, ...CONFIG] },
+      },
     ]);
     for (const value of ['plan', 'bypassPermissions']) {
       expect(await post('/api/sessions/s1/config', change('mode', value))).toEqual({

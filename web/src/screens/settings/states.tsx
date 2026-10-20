@@ -348,6 +348,14 @@ function announced(
 ): ProviderInfo {
   return {
     provider,
+    configuration: {
+      id: provider,
+      name: provider === 'claude' ? 'Claude Code' : 'Codex',
+      extends: provider,
+      enabled: true,
+      env: [],
+      defaults: {},
+    },
     version,
     tested,
     capabilities: {

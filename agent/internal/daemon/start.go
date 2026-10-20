@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/yangflow/hoplet/agent/internal/projects"
+	"github.com/yangflow/hoplet/agent/internal/provider"
 	"github.com/yangflow/hoplet/agent/internal/runtime"
 	"github.com/yangflow/hoplet/agent/internal/sync"
 )
@@ -63,10 +64,18 @@ func (s *store) importNew(path, sessionID string) error {
 // session and returns its ID. A session that could not be completed is stopped and forgotten.
 func (b *bridge) starter(st *store) func(context.Context, sync.RuntimeStart) (string, error) {
 	return func(ctx context.Context, req sync.RuntimeStart) (string, error) {
-		mgr := b.manager(req.Provider)
-		if mgr == nil {
+		id := req.Configuration
+		if id == "" {
+			id = req.Provider
+		}
+		e := b.entry(id)
+		if e == nil && req.Configuration == "" {
 			return "", fmt.Errorf("unsupported provider %q", req.Provider)
 		}
+		if e == nil || !e.config().Enabled || e.config().Extends != req.Provider {
+			return "", errUnavailable
+		}
+		conf, mgr := e.config(), e.mgr
 		if strings.TrimSpace(req.Text) == "" {
 			return "", errors.New("empty prompt")
 		}
@@ -78,28 +87,42 @@ func (b *bridge) starter(st *store) func(context.Context, sync.RuntimeStart) (st
 		if err != nil {
 			return "", err
 		}
-		id, err := mgr.CreateWith(path, p, req.Config)
+		sessionID, err := mgr.CreateWith(path, p, req.Config)
 		if err != nil {
 			return "", err
 		}
-		if err := b.waitForSession(ctx, mgr, id, path); err != nil {
-			mgr.Discard(id, 15*time.Second)
+		discard := func() {
+			mgr.Discard(sessionID, 15*time.Second)
+			_ = b.owners.Forget(sessionID)
+		}
+		// The configuration is recorded before the session can be resumed: its environment, not the vendor's
+		// default one, must run it again.
+		if err := b.owners.Set(sessionID, conf.ID); err != nil {
+			discard()
+			return "", fmt.Errorf("record the session's configuration: %w", err)
+		}
+		var store provider.Store
+		if sp, ok := storeOf(b.cfg, conf).(provider.Store); ok {
+			store = sp
+		}
+		if err := b.waitForSession(ctx, mgr, store, sessionID, path); err != nil {
+			discard()
 			return "", err
 		}
-		if err := st.importNew(path, id); err != nil {
-			mgr.Discard(id, 15*time.Second)
+		if err := st.importNew(path, sessionID); err != nil {
+			discard()
 			return "", fmt.Errorf("import the new session: %w", err)
 		}
-		return id, nil
+		return sessionID, nil
 	}
 }
 
 // waitForSession returns once the session's file exists, or an error when the process failed first.
-func (b *bridge) waitForSession(ctx context.Context, mgr *runtime.Manager, id, path string) error {
+func (b *bridge) waitForSession(ctx context.Context, mgr *runtime.Manager, store provider.Store, id, path string) error {
 	// A native vendor names the file it will write; any other is found by locating the session.
 	expected := ""
-	if s := vendorStore(b.cfg, mgr.Driver().Name()); s != nil {
-		expected = s.SessionFile(path, id)
+	if store != nil {
+		expected = store.SessionFile(path, id)
 	}
 	deadline := time.NewTimer(startWait)
 	defer deadline.Stop()

@@ -171,7 +171,7 @@ Behavior a client relies on:
   open, and `not-running` when no turn runs.
 - A session's settings are config options (ADR 0018): the driver declares them in `capabilities.config` (ACP's
   shape: `select` or `boolean`, `id`, `name`, `category`, `currentValue`; a select value may declare `risk: "high"` and an `icon` from the shared vocabulary `CONFIG_ICONS`). `POST /api/sessions` takes optional
-  `config`, option ID to value, for the options it sets; `POST /api/sessions/:sessionId/config` takes one
+  `config`, option ID to value, for the options it sets, and optional `configuration`, the ID of a provider configuration of the device ([ADR 0028](adr/0028-provider-configurations-live-on-the-machine.md); default: the provider's built-in), which must be enabled and extend `provider` (`invalid-request` otherwise); `POST /api/sessions/:sessionId/config` takes one
   `{configId, value}` and answers `200` once the owner has it. A setting or value the driver does not declare is
   `invalid-request` with `reason: config`. The runtime state (`GET /api/sessions`, `session.runtime`) reports the
   session's values as `capabilities.config[].currentValue`; the capabilities in `device.hello` carry the defaults
