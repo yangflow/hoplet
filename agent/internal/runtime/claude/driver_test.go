@@ -3,6 +3,7 @@ package claude
 import (
 	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -313,5 +314,21 @@ func TestProcessEnvSwitchesStateEventsOnOnce(t *testing.T) {
 	}
 	if got := processEnv(nil); len(got) != 1 || got[0] != "CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS=1" {
 		t.Fatalf("env = %v", got)
+	}
+}
+
+// A process that exited before the initialize request has closed its input, so the write fails with a broken
+// pipe; the start reports the exit and its stderr instead.
+func TestInitializeReportsTheExitOfAProcessThatAlreadyExited(t *testing.T) {
+	cmd := exec.Command("sh", "-c", "echo boom >&2; exit 4")
+	p, err := launch(cmd, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	<-p.done // the input is closed for certain: the write below cannot succeed
+	err = p.initialize()
+	if err == nil || !strings.Contains(err.Error(), "exited") || !strings.Contains(err.Error(), "exit status 4") ||
+		!strings.Contains(err.Error(), "boom") || strings.Contains(err.Error(), "broken pipe") {
+		t.Fatalf("err = %v", err)
 	}
 }

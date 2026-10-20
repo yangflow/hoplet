@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/yangflow/hoplet/agent/internal/runtime"
 )
@@ -189,6 +190,18 @@ func (d *Driver) Start(ctx context.Context, spec runtime.StartSpec) (runtime.Pro
 	cmd := exec.Command(d.bin, d.Args(spec)...)
 	cmd.Dir = spec.Dir
 	cmd.Env = processEnv(d.baseEnv())
+	p, err := launch(cmd, d.model)
+	if err != nil {
+		return nil, err
+	}
+	if err := p.initialize(); err != nil {
+		return nil, err
+	}
+	return p, nil
+}
+
+// launch starts cmd and reads its output.
+func launch(cmd *exec.Cmd, model string) (*process, error) {
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
@@ -201,7 +214,7 @@ func (d *Driver) Start(ctx context.Context, spec runtime.StartSpec) (runtime.Pro
 	var stderr tailBuffer
 	cmd.Stderr = &stderr
 	if err := cmd.Start(); err != nil {
-		return nil, fmt.Errorf("start %s: %w", d.bin, err)
+		return nil, fmt.Errorf("start %s: %w", cmd.Path, err)
 	}
 	p := &process{
 		cmd:     cmd,
@@ -211,14 +224,34 @@ func (d *Driver) Start(ctx context.Context, spec runtime.StartSpec) (runtime.Pro
 		pending: map[string]pendingRequest{},
 		waiting: map[string]chan controlReply{},
 		done:    make(chan struct{}),
-		model:   d.model,
+		model:   model,
 	}
 	go p.read(stdout)
-	if err := p.send(controlRequest(initRequestID, "initialize")); err != nil {
-		_ = p.Kill()
-		return nil, err
-	}
 	return p, nil
+}
+
+// exitGrace is how long initialize waits for a process whose input broke to report why it ended.
+const exitGrace = 5 * time.Second
+
+// initialize sends the initialize request. A process that already exited has closed its input, so the write
+// fails with a broken pipe whatever the cause; the reason the user needs is the exit, which is reported instead.
+func (p *process) initialize() error {
+	err := p.send(controlRequest(initRequestID, "initialize"))
+	if err == nil {
+		return nil
+	}
+	select {
+	case <-p.done:
+	case <-time.After(exitGrace):
+		_ = p.Kill()
+		return err
+	}
+	for ev := range p.events {
+		if ex, ok := ev.(runtime.Exited); ok && ex.Err != nil {
+			return fmt.Errorf("the process exited: %w", ex.Err)
+		}
+	}
+	return fmt.Errorf("the process exited: %w", err)
 }
 
 // stateEventsEnv makes Claude Code report session_state_changed, which is how the agent learns that a turn

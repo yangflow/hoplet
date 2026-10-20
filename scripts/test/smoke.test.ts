@@ -1,5 +1,14 @@
 import { spawn, spawnSync } from 'node:child_process';
-import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  closeSync,
+  copyFileSync,
+  mkdirSync,
+  mkdtempSync,
+  openSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { expect, test } from 'vitest';
@@ -50,6 +59,7 @@ esac`,
   );
   // Legacy binary is deliberately unusable, even if present.
   writeFileSync(join(root, 'agent/hoplet-agent'), '#!/bin/bash\nexit 99\n', { mode: 0o755 });
+  const out = openSync(join(root, 'smoke.out'), 'a');
   const child = spawn('bash', ['scripts/smoke.sh'], {
     cwd: root,
     env: {
@@ -58,26 +68,40 @@ esac`,
       TEST_ROOT: root,
       REAL_NODE: process.execPath,
     },
-    stdio: 'ignore',
+    // The script's output goes to a file, so a run that dies early says why.
+    stdio: ['ignore', out, out],
     // Its own process group, so a test can send SIGINT the way a terminal's Ctrl-C does.
     detached: true,
   });
+  closeSync(out);
   const exited = new Promise<number | null>((done) => child.on('exit', done));
-  return { root, child, exited };
+  return { root, child, exited, output: () => readFileSync(join(root, 'smoke.out'), 'utf8') };
 }
 
 /** The harness generates a fixture session before it starts the agent, which can take seconds on a busy machine. */
 const START_TIMEOUT_MS = 30_000;
 
-async function waitForFile(path: string) {
-  for (let i = 0; i < START_TIMEOUT_MS / 20; i++) {
+/**
+ * Waits for the file a fake process writes when it starts. A script that exits first never writes it, so that
+ * ends the wait at once with the script's output instead of leaving the test to its timeout.
+ */
+async function waitForFile(path: string, h: { exited: Promise<number | null>; output(): string }) {
+  let exit: number | null | undefined;
+  void h.exited.then((code) => {
+    exit = code;
+  });
+  const deadline = Date.now() + START_TIMEOUT_MS;
+  while (Date.now() < deadline) {
     try {
       return readFileSync(path, 'utf8');
     } catch {
+      if (exit !== undefined) {
+        throw new Error(`The script exited (${exit}) before ${path} existed:\n${h.output()}`);
+      }
       await new Promise((r) => setTimeout(r, 20));
     }
   }
-  throw new Error(`Process did not start: ${path}`);
+  throw new Error(`Process did not start: ${path}\n${h.output()}`);
 }
 
 function assertReaped(root: string, name: string) {
@@ -91,7 +115,7 @@ for (const signal of ['SIGINT', 'SIGTERM'] as const) {
     async () => {
       const h = harness(false);
       try {
-        await waitForFile(join(h.root, 'agent-pid'));
+        await waitForFile(join(h.root, 'agent-pid'), h);
         // Ctrl-C signals the whole foreground group; a SIGINT to bash alone is dropped while it waits on a
         // foreground command that does not die of it. kill(1) signals the script alone.
         process.kill(
