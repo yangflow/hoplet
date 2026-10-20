@@ -924,6 +924,40 @@ p.rmeta{margin:0}
 .th-f{width:160px}
 .th-in{justify-content:space-between;font-variant-numeric:tabular-nums}
 .rth p.meta{margin:0}
+/* machine capabilities (#70): a group between the resources and Warnings, label-value rows */
+.cp-h{display:flex;align-items:center;gap:var(--space-3)}
+.cp-h b{font-weight:var(--weight-semibold);flex:1}
+.cp-h .meta{display:inline-flex;align-items:center;gap:var(--space-1)}
+.cp-h .meta svg{width:12px;height:12px}
+.cp-rows{display:flex;flex-direction:column;gap:var(--space-3)}
+.cp-row{display:grid;grid-template-columns:104px minmax(0,1fr);gap:var(--space-3);align-items:start}
+.cp-k{min-height:24px;display:flex;align-items:center;color:var(--color-text-2)}
+.cp-v{min-width:0;display:flex;flex-direction:column;gap:var(--space-2)}
+.cp-tools{display:flex;flex-wrap:wrap;gap:var(--space-2)}
+.cp-t{display:inline-flex;align-items:center;gap:var(--space-1);height:24px;padding:0 var(--space-2);border-radius:var(--radius-sm);box-shadow:inset 0 0 0 1px var(--color-line);color:var(--color-text-2);font-weight:var(--weight-medium);white-space:nowrap}
+.cp-t span{font-weight:var(--weight-regular);font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3);font-variant-numeric:tabular-nums}
+.cp-line{display:flex;align-items:center;gap:var(--space-2);min-height:24px;min-width:0}
+.cp-line .nm{flex:none;min-width:84px;font-weight:var(--weight-medium)}
+.cp-line .mono{color:var(--color-text-2);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cp-dim{color:var(--color-text-3)}
+.cp-labels{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-2)}
+.cp-lb{display:inline-flex;align-items:center;gap:var(--space-1);height:24px;padding:0 var(--space-1) 0 var(--space-2);border-radius:var(--radius-sm);background:var(--color-accent-soft);color:var(--color-accent-text);font-weight:var(--weight-medium)}
+.cp-x{width:16px;height:16px;display:grid;place-items:center;border-radius:4px;color:inherit;opacity:.7}
+.cp-x svg{width:12px;height:12px}
+.cp-x:hover,.cp-x.hov{opacity:1;background:var(--color-hover)}
+.cp-lb.hov{box-shadow:inset 0 0 0 1px var(--color-accent-text)}
+.cp-add{height:24px}
+.cp-in{display:inline-flex;align-items:center;width:176px;height:24px;padding:0 var(--space-2);border-radius:var(--radius-sm);background:var(--color-bg);box-shadow:inset 0 0 0 1.5px var(--color-accent);font-family:var(--font-mono);font-size:var(--text-code)}
+.cp-in.bad{box-shadow:inset 0 0 0 1.5px var(--color-danger)}
+.cp-in .ph{color:var(--color-text-3)}
+.cp-msg{display:flex;align-items:center;gap:var(--space-2);margin:0;color:var(--color-text-3)}
+.cp-msg svg{flex:none;margin-top:2px}
+.cp-msg.bad{align-items:flex-start;color:var(--color-del-text)}
+.rmeta.dim+.rcap{margin-top:var(--space-3)}
+.cp-msg .btn{height:20px;margin-left:var(--space-1)}
+.cp-none{margin:0;color:var(--color-text-3)}
+.rcap.stale .cp-t,.rcap.stale .cp-line,.rcap.stale .cp-row:not(.lbrow) .cp-v{color:var(--color-text-3)}
+.rcap.stale .cp-t span,.rcap.stale .cp-line .mono{color:var(--color-text-3)}
 .banner{display:flex;gap:var(--space-3);align-items:flex-start;padding:var(--space-3) var(--space-4);border-radius:var(--radius-md);background:var(--color-attention-soft);box-shadow:inset 0 0 0 1px var(--color-attention-ring)}
 .banner > svg{color:var(--color-attention-text);margin-top:2px;flex:none}
 .banner .bt{flex:1;min-width:0}
@@ -1169,7 +1203,8 @@ const INSP = ['workspace', 'changes', 'changes-offline', ...WIDE, ...HANDOFF];
 const MINT = ['mint', 'mint-waiting', 'mint-online'];
 const APPEARANCE = ['settings', 'settings-text', 'settings-text-geist'];
 const TH_STATES = ['settings-thresholds', 'settings-thresholds-default', 'settings-thresholds-custom'];
-const SETTINGS = [...APPEARANCE, 'settings-machines', 'settings-resources', 'settings-resources-offline', ...TH_STATES, ...MINT];
+const CAP_STATES = ['','mac','label-add','label-remove','label-invalid','sparse','offline','none'].map(x => 'settings-capabilities' + (x && '-' + x));
+const SETTINGS = [...APPEARANCE, 'settings-machines', 'settings-resources', 'settings-resources-offline', ...TH_STATES, ...CAP_STATES, ...MINT];
 
 /* Appearance › Text: kept in the browser. Every choice swaps tokens on the frame (the way the web UI swaps them on the root);
    faces are bundled in the app and never fetched, so the mockup names local faces and falls back to the system stacks. */
@@ -1907,7 +1942,7 @@ function stack(label, procs, key, total, used, fmt, tick) {
 /* the detail of one machine: the summary, where the load goes, then the session processes as the main list */
 function resBody(d) {
   const r = RES[d.n];
-  if (!r) return `<p class="rmeta dim">This machine’s agent does not report resources.</p>`;
+  if (!r) return `<p class="rmeta dim">This machine’s agent does not report resources.</p>${THX.noRes ? THX.noRes(d) : ''}`;
   const f = resFlags(d), mp = memPc(r), df = freePc(r);
   const tile = (k, v, sp, warn) => `<div class="rtile${warn ? ' warn' : ''}"><span class="rk">${k}</span><span class="rv">${v}</span>${sp}</div>`;
   const tiles = `<div class="rtiles">
@@ -1951,15 +1986,80 @@ const TH_A = {
     return `<section class="rth" aria-label="Warnings"><div class="th-h"><b>Warnings</b>${thSeg(custom, d.n)}</div>${body}</section>${thFootnote}`;
   },
 };
+/* ---- machine capabilities (#70) ----
+   The agent reports, at connect and hourly: the versions of a fixed list of toolchains found on PATH, the GPU (nvidia-smi on
+   Linux, the Apple chip on macOS; absent when there is none) and the origin of each watched project with the credentials
+   stripped. Labels are a host setting kept by the core, so they stay editable while the machine is offline. */
+const TOOLS = ['git', 'node', 'pnpm', 'npm', 'bun', 'python3', 'go', 'cargo', 'rustc', 'java', 'docker', 'gh'];
+const CAPS = {
+  'MacBook Pro': { at: '41 min ago', t: { git: '2.51.0', node: '24.9.0', pnpm: '10.17.1', npm: '11.6.0', bun: '1.3.2', python3: '3.13.7', go: '1.25.3', cargo: '1.90.0', rustc: '1.90.0', java: '25.0.1', gh: '2.80.0' },
+    gpu: ['Apple M4 Max', '32 GB unified'], repos: [['hoplet', 'github.com/yangflow/hoplet'], ['notes', 'github.com/acme/notes']] },
+  studio: { at: '17 min ago', t: { git: '2.51.0', node: '24.9.0', pnpm: '10.17.1', npm: '11.6.0', python3: '3.13.7', go: '1.25.3', cargo: '1.90.0', rustc: '1.90.0', docker: '28.5.1', gh: '2.80.0' },
+    gpu: ['NVIDIA GeForce RTX 4090', '24 GB'], repos: [['hoplet', 'github.com/yangflow/hoplet'], ['notes', 'github.com/acme/notes'], ['scratch', '']] },
+  'office-mini': { at: '12 min ago', offAt: '6 h ago', t: { git: '2.51.0', node: '22.20.0', npm: '10.9.3' }, gpu: null, repos: [['notes', 'github.com/acme/notes']] },
+  'lab-box': null,
+};
+const LBL = { 'MacBook Pro': ['laptop'], studio: ['gpu', 'release'], 'office-mini': ['build-win'], 'lab-box': ['lab'] };
+const CAP_S = {
+  'settings-capabilities': { m: 'studio' },
+  'settings-capabilities-mac': { m: 'MacBook Pro' },
+  'settings-capabilities-label-add': { m: 'studio', lb: 'add' }, 'settings-capabilities-label-remove': { m: 'studio', lb: 'remove' },
+  'settings-capabilities-label-invalid': { m: 'studio', lb: 'invalid' },
+  'settings-capabilities-sparse': { m: 'office-mini', on: true }, 'settings-capabilities-offline': { m: 'office-mini' },
+  'settings-capabilities-none': { m: 'lab-box' },
+};
+let CAPX = null;
+const capTool = (n, v) => `<span class="cp-t">${n}<span>${v}</span></span>`;
+const capOrigin = o => o ? `<span class="mono">${o}</span>` : '<span class="cp-dim">no origin</span>';
+/* labels: chips with remove ×, then Add label or, while typing, an inline field; lb: add | remove | invalid */
+function capLabels(d) {
+  const lb = CAPX.lb, all = LBL[d.n] || [];
+  const list = lb === 'remove' ? all.filter(l => l !== 'release') : all;
+  const chips = list.map((l, i) => `<span class="cp-lb">${l}<button class="cp-x" aria-label="Remove label ${l}">${I.close()}</button></span>`).join('');
+  const hov = lb === 'remove' ? '' : '';
+  const field = lb === 'add' ? `<span class="cp-in on"><span>ci-runner</span><span class="cf-caret"></span></span>`
+    : lb === 'invalid' ? `<span class="cp-in bad"><span>GPU box</span></span>`
+    : `<button class="btn quiet cp-add">${I.plus()}Add label</button>`;
+  const msg = lb === 'add' ? `<p class="cp-msg meta"><span>Enter adds the label, Esc cancels. Saved as you add it.</span></p>`
+    : lb === 'invalid' ? `<p class="cp-msg meta bad" role="alert">${I.alert()}<span>“GPU box” is not a label. Use lowercase letters, digits and -, up to 32 characters, and at most 20 labels per machine.</span></p>`
+    : lb === 'remove' ? `<p class="cp-msg meta"><span>Removed release.</span><button class="btn quiet">Undo</button></p>`
+    : `<p class="cp-msg meta"><span>Labels are kept by Hoplet, not on ${d.n}, and can be edited while it is offline.</span></p>`;
+  return `<div class="cp-labels">${chips}${hov}${field}</div>${msg}`;
+}
+const capHead = (d, c) => {
+  const at = c ? (d.on ? c.at : c.offAt || RES[d.n].at) : '';
+  return `<div class="cp-h"><b>Capabilities</b>${c ? `<span class="meta">${d.on ? '' : I.clock()}${d.on ? `Detected ${at}` : `Last reported ${at}`}</span>` : ''}</div>`;
+};
+const capGpu = c => c.gpu ? `${c.gpu[0]} <span class="cp-dim">· ${c.gpu[1]}</span>` : '';
+const capMiss = c => TOOLS.filter(n => !c.t[n]);
+/* label–value rows, chips for the tools and the labels */
+function capRows(d, c) {
+  const row = (k, v, cls) => `<div class="cp-row${cls || ''}"><span class="cp-k">${k}</span><div class="cp-v">${v}</div></div>`;
+  const miss = capMiss(c);
+  return `<div class="cp-rows">
+    ${row('Toolchains', `<div class="cp-tools">${TOOLS.filter(n => c.t[n]).map(n => capTool(n, c.t[n])).join('')}</div>${miss.length ? `<span class="meta">Not found: ${miss.join(', ')}</span>` : ''}`)}
+    ${c.gpu ? row('GPU', `<span class="cp-line">${capGpu(c)}</span>`) : ''}
+    ${row('Repositories', c.repos.map(([n, o]) => `<span class="cp-line"><span class="nm">${n}</span>${capOrigin(o)}</span>`).join(''))}
+  </div>`;
+}
+/* the group: what the agent reported (or one quiet line), then the labels; an offline machine's reported part is greyed */
+function capGroup(d) {
+  const c = CAPS[d.n];
+  const body = !c ? `<p class="cp-none">${d.n}’s agent does not report capabilities. Labels still work.</p>` : capRows(d, c);
+  const lbl = `<div class="cp-rows"><div class="cp-row lbrow"><span class="cp-k">Labels</span><div class="cp-v">${capLabels(d)}</div></div></div>`;
+  return `<section class="rth rcap${d.on ? '' : ' stale'}" aria-label="Capabilities">${capHead(d, c)}${body}${lbl}</section>`;
+}
 /* Settings › Machines: a tab per machine, like Model providers, and the selected machine's facts and resources (#88) below.
    Add a machine is a quiet button at the end of the tab row; the minted-token card replaces the machine's panel while it is open. */
 const FACTS = { 'MacBook Pro': { arch: 'arm64' }, studio: { arch: 'arm64' }, 'office-mini': { arch: 'x86_64' }, 'lab-box': { arch: '' } };
 function machinesPage(state) {
-  const ms = [...MACH, ...(state === 'mint-online' ? [{ n: 'studio-2', os: '', on: true }] : [])];
+  const ms = [...MACH.map(x => CAP_S[state] && CAP_S[state].on && CAP_S[state].m === x.n ? { ...x, on: true } : x), ...(state === 'mint-online' ? [{ n: 'studio-2', os: '', on: true }] : [])];
   const thState = TH_STATES.includes(state);
-  THX = thState ? { ...TH_A, editDefault: state === 'settings-thresholds-default' } : {};
+  const capS = CAP_S[state];
+  CAPX = capS || null;
+  THX = thState ? { ...TH_A, editDefault: state === 'settings-thresholds-default' } : capS ? { foot: d => capGroup(d) + TH_A.foot(d), noRes: d => capGroup(d) } : {};
   TH = state.endsWith('-custom') ? { studio: { mem: 97, disk: 10 } } : {};
-  const selName = state === 'settings-resources-offline' ? 'office-mini' : state === 'settings-resources' || thState ? 'studio' : 'MacBook Pro';
+  const selName = capS ? capS.m : state === 'settings-resources-offline' ? 'office-mini' : state === 'settings-resources' || thState ? 'studio' : 'MacBook Pro';
   const m = ms.find(x => x.n === selName);
   const minting = MINT.includes(state);
   const tabs = `<div class="mp-tabs" role="tablist" aria-label="Machines">${ms.map(x => `<span class="mp-tab" role="tab" aria-selected="${x.n === selName}"${tip(mName(x))}>${mIcon(x.os, x.on)}${x.n}</span>`).join('')}</div>`;
@@ -2148,6 +2248,14 @@ const STATES = [
   ['mint', 'Add a machine: token minted'],
   ['mint-waiting', 'waiting for the agent'],
   ['mint-online', 'the new machine is connected'],
+  ['settings-capabilities', 'Machine capabilities (#70): studio’s tab gets a Capabilities group between the resources and Warnings, as label–value rows; Toolchains as name-and-version chips with the missing ones named, GPU, Repositories as project and origin lines, Labels as removable chips with Add label'],
+  ['settings-capabilities-mac', 'Capabilities on the MacBook Pro: the GPU is the Apple chip with its unified memory'],
+  ['settings-capabilities-label-add', 'Capabilities: adding a label, an inline field with the caret, Enter adds and Esc cancels'],
+  ['settings-capabilities-label-remove', 'Capabilities: a label removed with its ×, release gone, Undo beside the line'],
+  ['settings-capabilities-label-invalid', 'Capabilities: an invalid label, the field in the danger ring and the rule said: lowercase letters, digits and -, up to 32 characters, at most 20 labels'],
+  ['settings-capabilities-sparse', 'Capabilities: a machine with few tools and no GPU; office-mini online reports git, node and npm, the GPU line is absent, nine tools named as not found'],
+  ['settings-capabilities-offline', 'Capabilities: office-mini offline, the last reported toolchains and repositories greyed with Last reported 6 h ago; the labels stay editable'],
+  ['settings-capabilities-none', 'Capabilities: lab-box’s agent reports nothing, one quiet line and only the labels; no Warnings group, as there are no resources'],
   ['settings-providers', 'Model providers, rows grouped by vendor: MacBook Pro with claude (built-in), GLM (own login), DeepSeek (key not set, so a warning with the command) and codex (built-in, disabled); an enabled switch on every one'],
   ['settings-providers-edit', 'Model providers: editing GLM, the name and the new-session defaults, Enabled, Save and Cancel; the command and the variables are not editable'],
   ['settings-providers-saving', 'Model providers: saving, the fields and Cancel disabled'],
