@@ -4,6 +4,29 @@ Each release's notes are made from the titles of the pull requests merged since 
 Commits: `feat` under Added, `fix` under Fixed, `perf` under Performance; `release-please-config.json`).
 Versions follow Semantic Versioning.
 
+## [0.7.0](https://github.com/yangflow/hoplet/compare/v0.6.0...v0.7.0) (2026-10-20)
+
+
+### Added
+
+* **core:** Keep each session's provider configuration and let the web update configurations ([#170](https://github.com/yangflow/hoplet/issues/170)) ([#184](https://github.com/yangflow/hoplet/issues/184)) ([588de0b](https://github.com/yangflow/hoplet/commit/588de0b5ef5f0a28abd5b58ab33eaddd8b8a29e9))
+* **core:** Keep resource warning thresholds and apply them to each machine ([#188](https://github.com/yangflow/hoplet/issues/188)) ([4d3405f](https://github.com/yangflow/hoplet/commit/4d3405f8fd833cda3223a1b5764e6afbf9cd7d2c))
+* Define provider configurations on each machine ([#170](https://github.com/yangflow/hoplet/issues/170)) ([#183](https://github.com/yangflow/hoplet/issues/183)) ([5a762dd](https://github.com/yangflow/hoplet/commit/5a762dd2d1c51d0cc83b20990127699b28b0032c))
+* Lead each machine with its system's mark and a presence dot ([#174](https://github.com/yangflow/hoplet/issues/174)) ([bdf3dd0](https://github.com/yangflow/hoplet/commit/bdf3dd01d7c77a73881d40589b6aab9e09ebac57))
+* Show each machine's resources and its sessions' usage ([#88](https://github.com/yangflow/hoplet/issues/88)) ([#181](https://github.com/yangflow/hoplet/issues/181)) ([8b9ac07](https://github.com/yangflow/hoplet/commit/8b9ac0780a25406b0ce340f2272cddf7634b1cc2))
+* **web:** Adjust resource warning thresholds in Settings › Machines ([#189](https://github.com/yangflow/hoplet/issues/189)) ([47738c8](https://github.com/yangflow/hoplet/commit/47738c8588a5dca2fac1e88efdf376e14e6982f9))
+* **web:** Enable a target's configuration from the handoff card ([#185](https://github.com/yangflow/hoplet/issues/185)) ([#187](https://github.com/yangflow/hoplet/issues/187)) ([96adee4](https://github.com/yangflow/hoplet/commit/96adee4d0c12ff01032c0516f0a168a0f70485d1))
+* **web:** Manage provider configurations and choose one for new sessions and handoffs ([#170](https://github.com/yangflow/hoplet/issues/170)) ([#186](https://github.com/yangflow/hoplet/issues/186)) ([cc1f173](https://github.com/yangflow/hoplet/commit/cc1f173dd162929ed99bf2b2490a9e61d37d9140))
+* **web:** Show each machine's model providers in Settings ([#171](https://github.com/yangflow/hoplet/issues/171)) ([a184efb](https://github.com/yangflow/hoplet/commit/a184efba99a95c7618a184288902afab2cd711b0))
+
+
+### Fixed
+
+* **agent:** Report Claude Code's exit when it dies before reading the prompt ([#193](https://github.com/yangflow/hoplet/issues/193)) ([81a5430](https://github.com/yangflow/hoplet/commit/81a543085811012cf0fc003af8c55cd16870b195))
+* **deps:** Bump lucide-react from 1.54.0 to 1.58.0 ([#178](https://github.com/yangflow/hoplet/issues/178)) ([96e1806](https://github.com/yangflow/hoplet/commit/96e18065b79adf95ba7e5fa07f62c8a41ff5e30d))
+* **deps:** Bump lucide-react from 1.58.0 to 1.59.0 ([#192](https://github.com/yangflow/hoplet/issues/192)) ([f6601e7](https://github.com/yangflow/hoplet/commit/f6601e7afb2c6a5b4071b4de877e3d7a87a058a5))
+* **deps:** Bump react and react-dom together to 19.3.1 ([#191](https://github.com/yangflow/hoplet/issues/191)) ([97659fd](https://github.com/yangflow/hoplet/commit/97659fdb4e3eafddf664cf84f007bdf0711075bf))
+
 ## [0.6.0](https://github.com/yangflow/hoplet/compare/v0.5.0...v0.6.0) (2026-10-19)
 
 
