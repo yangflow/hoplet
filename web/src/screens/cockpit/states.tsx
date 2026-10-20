@@ -4,6 +4,7 @@ import type {
   DeviceInfo,
   Entry,
   LiveSessionMeta,
+  ProviderInfo,
   Queue,
   RuntimeCapabilities,
   SessionRuntimeInfo,
@@ -176,6 +177,27 @@ const COMPOSE_IMAGES = [
   },
 ];
 
+/** A configuration that extends Claude Code, as an agent announces it. */
+export function claudeConfiguration(
+  id: string,
+  name: string,
+  over: { enabled?: boolean; keySet?: boolean } = {},
+): ProviderInfo {
+  return {
+    provider: 'claude',
+    configuration: {
+      id,
+      name,
+      extends: 'claude',
+      enabled: over.enabled ?? true,
+      ...(id === 'claude' ? {} : { command: 'claude' }),
+      env: id === 'claude' ? [] : [{ name: 'ANTHROPIC_AUTH_TOKEN', set: over.keySet ?? true }],
+      defaults: {},
+    },
+    capabilities,
+  };
+}
+
 /** `labBox` adds a machine whose agent announced no system, as an agent from before the system was reported. */
 export function fixtureDevices(
   macbookOnline: boolean,
@@ -183,6 +205,8 @@ export function fixtureDevices(
   labBox = false,
   /** The machines report their resources (the design's resources states). */
   reporting = false,
+  /** The configurations a machine announces instead of Claude Code alone, by device ID. */
+  configurations: Record<string, ProviderInfo[]> = {},
 ): DeviceInfo[] {
   const providers = [
     {
@@ -214,7 +238,7 @@ export function fixtureDevices(
       name: 'MacBook Pro',
       connected: macbookOnline,
       system: { os: 'darwin', arch: 'arm64' },
-      providers: macbookOnline ? providers : [],
+      providers: macbookOnline ? (configurations['dev-macbook'] ?? providers) : [],
       ...(terminal ? { terminal: true } : {}),
       previewHost: 'mbp.tail1f2a.ts.net',
       ...(reporting
@@ -229,7 +253,7 @@ export function fixtureDevices(
       name: 'studio',
       connected: true,
       system: { os: 'linux', arch: 'amd64' },
-      providers,
+      providers: configurations['dev-studio'] ?? providers,
       ...(reporting
         ? {
             resources: reading(71, [60.2, 64], [412, 1000], 9_000),
@@ -1124,6 +1148,38 @@ export const states: Record<string, () => ReactNode> = {
           deviceName: 'MacBook Pro',
           browse: { ...browseFixture, start: HOME_GITHUB, machineOpen: true },
         },
+      }}
+    />
+  ),
+  'draft-configuration': () => (
+    <Scene
+      fixture={{
+        devices: fixtureDevices(true, true, false, false, {
+          'dev-macbook': [
+            claudeConfiguration('claude', 'Claude Code'),
+            claudeConfiguration('glm', 'GLM'),
+            claudeConfiguration('deepseek', 'DeepSeek', { keySet: false }),
+            claudeConfiguration('qwen', 'Qwen', { enabled: false }),
+          ],
+        }),
+        draft: { dirs: DRAFT_DIRS, open: 'configuration' },
+      }}
+    />
+  ),
+  'session-configuration': () => (
+    <Scene
+      sessions={(base) =>
+        base.map((s) =>
+          s.sessionId === catalogId ? { ...s, configuration: { id: 'glm', name: 'GLM' } } : s,
+        )
+      }
+      fixture={{
+        devices: fixtureDevices(true, true, false, false, {
+          'dev-macbook': [
+            claudeConfiguration('claude', 'Claude Code'),
+            claudeConfiguration('glm', 'GLM'),
+          ],
+        }),
       }}
     />
   ),

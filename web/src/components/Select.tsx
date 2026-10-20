@@ -35,6 +35,8 @@ export function Select(props: {
   /** A title over the options, such as the machine whose directories they are. */
   heading?: string;
   action?: SelectAction;
+  /** What the trigger says while no option is chosen. */
+  placeholder?: string;
   /** Starts open (development fixtures). */
   initialOpen?: boolean;
   'data-testid'?: string;
@@ -92,13 +94,15 @@ export function Select(props: {
     }
   }
 
+  const shownText = current?.label ?? props.placeholder;
+
   return (
     <div className={`select${chip ? ' select-chip' : ''}`}>
       <button
         ref={triggerRef}
         type="button"
         className={`sel${chip ? ' chip' : ''}${open ? ' open' : ''}`}
-        aria-label={current?.label ? `${label}, ${current.label}` : label}
+        aria-label={shownText ? `${label}, ${shownText}` : label}
         aria-haspopup="listbox"
         aria-expanded={open}
         title={detail ?? label}
@@ -113,7 +117,9 @@ export function Select(props: {
         data-testid={props['data-testid']}
       >
         {current?.leading ? <span className="sel-lead">{current.leading}</span> : null}
-        <span className="sel-value">{current?.label ?? ''}</span>
+        <span className={`sel-value${current ? '' : ' sel-placeholder'}`}>
+          {current?.label ?? props.placeholder ?? ''}
+        </span>
         {Icon.down()}
       </button>
       <Popover

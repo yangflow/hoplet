@@ -4,9 +4,12 @@ import type {
   HandoffProgress,
   HandoffResult,
   HttpErrorCode,
+  Provider,
 } from '@hoplet/shared';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { providerName } from '../../components/provider-marks.tsx';
 import { fetchDeviceClone, postHandoff, postHandoffCancel } from '../../lib/api.ts';
+import { type HandoffChoice, handoffChoice } from '../../lib/configurations.ts';
 import { ApiError, errorText } from '../../lib/errors.ts';
 import { t } from '../../lib/i18n.ts';
 import { onLive } from '../../lib/live.ts';
@@ -287,6 +290,9 @@ export type HandoffFixture = {
   targetPath?: string;
   /** The "Clone into" dialog open over the card, with what it shows. */
   dialog?: CloneIntoFixture;
+  /** The configuration picked on the target, and whether its list is open. */
+  configuration?: string;
+  configurationOpen?: boolean;
 };
 
 /**
@@ -297,6 +303,10 @@ export function useHandoff(opts: {
   sessionId: string | null;
   ownerDeviceId: string | undefined;
   ownerName: string;
+  /** The session's vendor and the ID of its configuration (absent for the vendor's built-in). */
+  provider?: Provider | undefined;
+  configuration?: string | undefined;
+  configurationName?: string | undefined;
   devices: readonly DeviceInfo[];
   /** The URL of the repository's `origin` from the listing or the snapshot; undefined until one was read. */
   origin: string | undefined;
@@ -304,12 +314,15 @@ export function useHandoff(opts: {
   fixture?: HandoffFixture | undefined;
 }) {
   const { sessionId, ownerDeviceId, ownerName, devices, origin, open, fixture } = opts;
+  const provider = opts.provider;
+  const sessionConfiguration = opts.configuration ?? provider;
   const locked = fixture !== undefined;
   const [targetId, setTargetId] = useState('');
   const [targetPath, setTargetPath] = useState(fixture?.targetPath ?? '');
   const [run, setRun] = useState<HandoffRun | null>(fixture?.run ?? null);
   const [clone, setClone] = useState<CloneCheck>(fixture?.clone ?? { state: 'checking' });
   const [attempt, setAttempt] = useState(0);
+  const [picked, setPicked] = useState(fixture?.configuration ?? '');
   const [cancelling, setCancelling] = useState(false);
 
   const otherDevices = useMemo(
@@ -325,6 +338,31 @@ export function useHandoff(opts: {
     setRun(null);
     setTargetPath('');
   }, [sessionId, locked]);
+
+  // A pick belongs to one session and one target.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the pick is forgotten when either changes
+  useEffect(() => {
+    if (!locked) setPicked('');
+  }, [sessionId, target, locked]);
+
+  // The configuration the session continues in on the target.
+  const targetProviders = otherDevices.find((d) => d.deviceId === target)?.providers;
+  const choice: HandoffChoice = useMemo(
+    () =>
+      provider && sessionConfiguration
+        ? handoffChoice(targetProviders ?? [], provider, sessionConfiguration)
+        : { state: 'builtin' },
+    [targetProviders, provider, sessionConfiguration],
+  );
+  const options = choice.state === 'same' || choice.state === 'pick' ? choice.options : [];
+  const configuration = options.some((p) => p.configuration.id === picked)
+    ? picked
+    : choice.state === 'same'
+      ? choice.value
+      : '';
+  /** The target cannot continue the session until a configuration is chosen (or exists). */
+  const configurationBlocked =
+    choice.state === 'none' || (choice.state === 'pick' && !configuration);
 
   // Progress of this session's handoffs, also of one another window started.
   useEffect(() => {
@@ -365,7 +403,7 @@ export function useHandoff(opts: {
   }, [locked, open, running, target, origin, attempt]);
 
   const start = useCallback(() => {
-    if (!sessionId || !target || running) return;
+    if (!sessionId || !target || running || configurationBlocked) return;
     // A run that failed starts again where it was; otherwise the offer the panel shows decides.
     const into =
       run?.clone?.into ??
@@ -377,14 +415,32 @@ export function useHandoff(opts: {
     setRun(startRun(target, ownerName, Date.now(), into ? { into, origin: from } : undefined));
     setCancelling(false);
     if (locked) return;
-    void postHandoff(sessionId, target, { targetPath: path, cloneInto: into })
+    // The default on the target is the vendor's built-in, so only another configuration is named.
+    const named = configuration && configuration !== provider ? configuration : undefined;
+    void postHandoff(sessionId, target, {
+      targetPath: path,
+      cloneInto: into,
+      configuration: named,
+    })
       .then((result) => setRun((r) => applyResult(r, result, Date.now())))
       .catch((err: unknown) =>
         setRun((r) =>
           applyResult(r, err instanceof Error ? err : new Error(String(err)), Date.now()),
         ),
       );
-  }, [sessionId, target, running, run, clone, targetPath, ownerName, locked]);
+  }, [
+    sessionId,
+    target,
+    running,
+    run,
+    clone,
+    targetPath,
+    ownerName,
+    locked,
+    configuration,
+    configurationBlocked,
+    provider,
+  ]);
 
   /** Looks the clone up again, as after the user gave the machine access. */
   const recheck = useCallback(() => setAttempt((n) => n + 1), []);
@@ -438,6 +494,14 @@ export function useHandoff(opts: {
     recheck,
     chooseDestination,
     dialogFixture: fixture?.dialog,
+    configurationChoice: choice,
+    configuration,
+    setConfiguration: setPicked,
+    configurationBlocked,
+    configurationOpen: fixture?.configurationOpen ?? false,
+    vendorName: provider ? providerName(provider) : '',
+    configurationName: opts.configurationName ?? sessionConfiguration ?? '',
+    enableCommand: `hoplet-agent provider set ${provider ?? ''} --enabled true`,
     dismiss,
     deviceName,
   };

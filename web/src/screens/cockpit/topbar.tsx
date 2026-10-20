@@ -4,6 +4,7 @@ import { Badge } from '../../components/Badge.tsx';
 import { IconButton } from '../../components/IconButton.tsx';
 import { HopletMark, Icon } from '../../components/icons.tsx';
 import { Menu, type MenuEntry } from '../../components/Menu.tsx';
+import { ProviderMark } from '../../components/provider-marks.tsx';
 import { t } from '../../lib/i18n.ts';
 import { displayTitle } from './group.ts';
 
@@ -40,7 +41,19 @@ export function TopBar(props: {
         />
       ) : null}
       {session ? (
-        <h1 className="title">{displayTitle(session)}</h1>
+        <>
+          <h1 className="title">{displayTitle(session)}</h1>
+          {session.configuration ? (
+            <span
+              className="ctag"
+              title={t('Configuration {name}').replace('{name}', session.configuration.name)}
+              data-testid="cockpit.configuration-tag"
+            >
+              <ProviderMark provider={session.provider} />
+              {session.configuration.name}
+            </span>
+          ) : null}
+        </>
       ) : props.title ? (
         <h1 className="title">{props.title}</h1>
       ) : null}

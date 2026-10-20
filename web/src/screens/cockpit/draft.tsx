@@ -5,10 +5,12 @@ import { MachineIcon } from '../../components/MachineIcon.tsx';
 import { providerName } from '../../components/provider-marks.tsx';
 import { Select } from '../../components/Select.tsx';
 import { postAttachment } from '../../lib/api.ts';
+import { notReady } from '../../lib/configurations.ts';
 import { errorText } from '../../lib/errors.ts';
 import { t } from '../../lib/i18n.ts';
 import { machineLabel, systemName, systemOf } from '../../lib/system.ts';
 import { Composer } from './composer/composer.tsx';
+import { ConfigurationMenu, showsConfigurationChip } from './composer/configuration-menu.tsx';
 import { ModeMenu, modeOption, nextMode } from './composer/mode-menu.tsx';
 import { hasChoices, ModelMenu, withValues } from './composer/model-menu.tsx';
 import { useCommands } from './composer/use-completions.ts';
@@ -23,7 +25,7 @@ export type DraftWhere = { deviceName: string; path: string };
 /** What development fixtures set: the text, and a picker or the model menu open. */
 export type DraftFixture = {
   prompt?: string;
-  open?: 'machine' | 'directory' | 'model';
+  open?: 'machine' | 'directory' | 'model' | 'configuration';
   /** The machine's directories as its catalog would list them. */
   dirs?: Dir[];
   /** What `/` shows, and the selected and hovered rows. */
@@ -53,6 +55,8 @@ export function Draft(props: {
   /** Starts the session; resolves when it exists. */
   onSubmit: (request: NewSessionRequest) => Promise<void>;
   onAddProject: (deviceName: string) => void;
+  /** Opens Settings › Model providers on the machine. */
+  onManageProviders: (deviceId: string) => void;
   voiceAvailable: boolean;
   fixture?: DraftFixture;
 }) {
@@ -82,15 +86,20 @@ export function Draft(props: {
     !props.fixture && target?.deviceId && path ? { deviceId: target.deviceId, cwd: path } : null,
     props.fixture?.completions?.commands,
   );
+  // The enabled configurations of the machine; the first one that is ready starts the session until one is picked.
   const providers = target?.providers ?? [];
-  // The provider and the option values this window picked; an option left alone keeps the driver's default.
-  const [pickedProvider, setPickedProvider] = useState(providers[0]?.provider ?? 'claude');
+  const [pickedConfiguration, setPickedConfiguration] = useState<string | null>(null);
   const [picked, setPicked] = useState<SessionConfig>({});
-  const provider = providers.find((p) => p.provider === pickedProvider) ?? providers[0];
+  const provider =
+    providers.find((p) => p.configuration.id === pickedConfiguration) ??
+    providers.find((p) => !notReady(p)) ??
+    providers[0];
   const caps = provider?.capabilities;
-  // Only picks the provider declares still hold.
+  // The configuration's defaults prefill the options; the user's picks win. Only options the driver declares hold.
   const config: SessionConfig = Object.fromEntries(
-    Object.entries(picked).filter(([id]) => caps?.config.some((o) => o.id === id)),
+    Object.entries({ ...provider?.configuration.defaults, ...picked }).filter(([id]) =>
+      caps?.config.some((o) => o.id === id),
+    ),
   );
 
   const shown = withValues(caps?.config, config);
@@ -136,6 +145,9 @@ export function Draft(props: {
         deviceName: target.deviceName,
         path,
         provider: provider.provider,
+        ...(provider.configuration.id !== provider.provider
+          ? { configuration: provider.configuration.id }
+          : {}),
         config,
         prompt: text,
         attachments,
@@ -210,6 +222,24 @@ export function Draft(props: {
             view={view}
             where={whereRow}
             {...(mode && !busy ? { onCycleMode: cycleMode } : {})}
+            {...(provider && showsConfigurationChip(providers) && target?.deviceId
+              ? {
+                  leading: (
+                    <ConfigurationMenu
+                      configurations={providers}
+                      value={provider.configuration.id}
+                      machine={machine}
+                      onChange={(id) => {
+                        setPickedConfiguration(id);
+                        setPicked({});
+                      }}
+                      onManage={() => props.onManageProviders(target.deviceId ?? '')}
+                      disabled={busy}
+                      initialOpen={open === 'configuration'}
+                    />
+                  ),
+                }
+              : {})}
             options={
               <>
                 {mode ? (
@@ -219,15 +249,10 @@ export function Draft(props: {
                     disabled={busy}
                   />
                 ) : null}
-                {hasChoices(providers, provider) ? (
+                {hasChoices(provider) ? (
                   <ModelMenu
-                    providers={providers}
-                    provider={provider?.provider ?? pickedProvider}
+                    provider={provider?.provider ?? 'claude'}
                     config={shown}
-                    onProvider={(next) => {
-                      setPickedProvider(next);
-                      setPicked({});
-                    }}
                     onChange={(id, value) => setPicked((cur) => ({ ...cur, [id]: value }))}
                     disabled={busy}
                     initialOpen={open === 'model'}

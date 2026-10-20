@@ -12,6 +12,8 @@ import {
   DeviceListResponseSchema,
   DeviceMintResultSchema,
   DeviceProjectsResultSchema,
+  DeviceProvidersResultSchema,
+  type DeviceProvidersUpdateRequest,
   DeviceResourcesResultSchema,
   ErrorResponseSchema,
   FullBlockSchema,
@@ -244,6 +246,15 @@ export function fetchDeviceClone(
   );
 }
 
+/** Changes the name, the enabled flag or the defaults of one provider configuration on a machine. */
+export function postDeviceProviders(deviceId: string, request: DeviceProvidersUpdateRequest) {
+  return call(
+    `/api/devices/${encodeURIComponent(deviceId)}/providers`,
+    DeviceProvidersResultSchema,
+    request,
+  );
+}
+
 export function postMintDevice(name: string, deviceId?: string) {
   return call('/api/devices', DeviceMintResultSchema, deviceId ? { name, deviceId } : { name });
 }
@@ -252,12 +263,18 @@ export function postMintDevice(name: string, deviceId?: string) {
 export function postHandoff(
   sessionId: string,
   targetDeviceId: string,
-  where: { targetPath?: string | undefined; cloneInto?: string | undefined } = {},
+  where: {
+    targetPath?: string | undefined;
+    cloneInto?: string | undefined;
+    /** The target's provider configuration to continue under; the vendor's own when absent. */
+    configuration?: string | undefined;
+  } = {},
 ) {
   return call(`/api/sessions/${sessionId}/handoff`, HandoffResultSchema, {
     targetDeviceId,
     ...(where.targetPath === undefined ? {} : { targetPath: where.targetPath }),
     ...(where.cloneInto === undefined ? {} : { cloneInto: where.cloneInto }),
+    ...(where.configuration === undefined ? {} : { configuration: where.configuration }),
   });
 }
 
@@ -386,6 +403,8 @@ export function postNewSession(request: {
   deviceId: string;
   projectPath: string;
   provider: ProviderInfo['provider'];
+  /** The provider configuration to start with; the vendor's own when absent. */
+  configuration?: string;
   config: SessionConfig;
   text: string;
   attachments?: string[];

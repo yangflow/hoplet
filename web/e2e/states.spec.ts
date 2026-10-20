@@ -29,6 +29,8 @@ const subject: Record<string, Record<string, string>> = {
     draft: 'cockpit.draft-row',
     'draft-directory': 'cockpit.draft-add-project',
     'draft-model': 'cockpit.model-menu',
+    'draft-configuration': 'cockpit.configuration-menu',
+    'session-configuration': 'cockpit.configuration-tag',
     machines: 'cockpit.device-toggle',
     'machines-draft': 'cockpit.draft-machine',
     'machines-add': 'cockpit.add-machine',
@@ -151,6 +153,9 @@ const subject: Record<string, Record<string, string>> = {
     'handoff-failed': 'workspace.handoff-failed',
     'handoff-done': 'workspace.handoff-done',
     'handoff-offline': 'workspace.handoff-snapshot',
+    'handoff-configuration': 'workspace.handoff-configuration',
+    'handoff-configuration-pick': 'workspace.handoff-configuration',
+    'handoff-configuration-none': 'workspace.handoff-configuration-none',
   },
   settings: {
     settings: 'settings.theme',
@@ -163,7 +168,10 @@ const subject: Record<string, Record<string, string>> = {
     'mint-waiting': 'settings.mint.waiting',
     'mint-online': 'settings.mint.online',
     'settings-providers': 'settings.providers.list',
-    'settings-providers-newer': 'settings.providers.list',
+    'settings-providers-edit': 'settings.providers.form',
+    'settings-providers-saving': 'settings.providers.form',
+    'settings-providers-error': 'settings.providers.error',
+    'settings-providers-add': 'settings.providers.add',
     'settings-providers-offline': 'settings.providers.offline',
     'settings-providers-none': 'settings.providers.none',
     'settings-providers-empty': 'settings.providers.empty',
@@ -185,10 +193,10 @@ const subject: Record<string, Record<string, string>> = {
   },
 };
 
-test('the registries list 83 cockpit, 51 workspace, 20 settings and 7 action states', () => {
-  expect(screens.cockpit).toHaveLength(83);
-  expect(screens.workspace).toHaveLength(51);
-  expect(screens.settings).toHaveLength(20);
+test('the registries list 85 cockpit, 54 workspace, 23 settings and 7 action states', () => {
+  expect(screens.cockpit).toHaveLength(85);
+  expect(screens.workspace).toHaveLength(54);
+  expect(screens.settings).toHaveLength(23);
   expect(screens.action).toHaveLength(7);
 });
 

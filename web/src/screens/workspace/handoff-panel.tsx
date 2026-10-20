@@ -5,6 +5,7 @@ import { Button } from '../../components/Button.tsx';
 import { IconButton } from '../../components/IconButton.tsx';
 import { Icon, Spinner } from '../../components/icons.tsx';
 import { MachineIcon } from '../../components/MachineIcon.tsx';
+import { ProviderMark } from '../../components/provider-marks.tsx';
 import { Select } from '../../components/Select.tsx';
 import { TextField } from '../../components/TextField.tsx';
 import { clock, formatBytes } from '../../lib/format.ts';
@@ -69,7 +70,8 @@ export function HandoffPanel(props: {
   if (run) return <RunCard run={run} target={nameOf(run.targetDeviceId)} {...props} />;
 
   const target = nameOf(handoff.targetId);
-  const named = (text: string) => t(text).replace('{target}', target).replace('{owner}', owner);
+  const named = (text: string) =>
+    t(text).replaceAll('{target}', target).replaceAll('{owner}', owner);
   const clone = handoff.clone;
   const needsPath = clone.state === 'none';
   const offer = clone.state === 'offer' ? clone.offer : null;
@@ -78,6 +80,7 @@ export function HandoffPanel(props: {
     handoff.targetId !== '' &&
     !props.busy &&
     clone.state !== 'checking' &&
+    !handoff.configurationBlocked &&
     (offer ? offer.reason === 'ok' : true) &&
     (!needsPath || handoff.targetPath.trim() !== '');
 
@@ -118,6 +121,7 @@ export function HandoffPanel(props: {
             detail={t('Connected machines')}
             data-testid="workspace.handoff-target"
           />
+          <ConfigurationField handoff={handoff} target={target} named={named} />
           {clone.state === 'checking' ? (
             <p className="ws-ho-why" role="status">
               <Glyph>
@@ -228,6 +232,74 @@ export function HandoffPanel(props: {
         />
       ) : null}
     </Card>
+  );
+}
+
+/**
+ * The configuration the session continues in on the target: preselected when the target has the same one
+ * enabled, a choice when it does not, and the command to run there when it has none of the vendor.
+ */
+function ConfigurationField(props: {
+  handoff: Handoff;
+  target: string;
+  named: (text: string) => string;
+}) {
+  const { handoff, target, named } = props;
+  const choice = handoff.configurationChoice;
+  if (choice.state === 'builtin') return null;
+  if (choice.state === 'none') {
+    const vendor = handoff.vendorName;
+    return (
+      <>
+        <p
+          className="ws-ho-note bad"
+          role="alert"
+          data-testid="workspace.handoff-configuration-none"
+        >
+          <Glyph>{Icon.alert()}</Glyph>
+          <span>
+            {named(
+              '{target} has no enabled configuration that extends {vendor}, so it cannot continue this session. Enable one on {target}, then hand off.',
+            ).replaceAll('{vendor}', vendor)}
+          </span>
+        </p>
+        <div className="ws-cfld">
+          <span className="ws-cfld-l">{named('Run on {target}')}</span>
+          <span className="ws-cmdline" data-testid="workspace.handoff-configuration-command">
+            <i>$</i> {handoff.enableCommand}
+          </span>
+        </div>
+      </>
+    );
+  }
+  const hint =
+    choice.state === 'same'
+      ? named('The same configuration is enabled on {target}.')
+      : named('{name} is not enabled on {target}. Pick one that extends {vendor}.')
+          .replace('{name}', handoff.configurationName)
+          .replace('{vendor}', handoff.vendorName);
+  return (
+    <div className="ws-cfld">
+      <Select
+        label={t('Configuration')}
+        value={handoff.configuration}
+        placeholder={t('Choose a configuration')}
+        options={choice.options.map((p) => ({
+          value: p.configuration.id,
+          label: p.configuration.name,
+          leading: <ProviderMark provider={p.provider} />,
+        }))}
+        onChange={handoff.setConfiguration}
+        heading={t('{vendor} on {target}')
+          .replace('{vendor}', handoff.vendorName)
+          .replace('{target}', target)}
+        initialOpen={handoff.configurationOpen}
+        data-testid="workspace.handoff-configuration"
+      />
+      <span className="ws-cfld-hint" data-testid="workspace.handoff-configuration-hint">
+        {hint}
+      </span>
+    </div>
   );
 }
 

@@ -1,4 +1,5 @@
 import type { DeviceInfo, DeviceSystem, LiveSessionMeta, ProviderInfo } from '@hoplet/shared';
+import { enabledConfigurations } from '../../lib/configurations.ts';
 import { t } from '../../lib/i18n.ts';
 import type { SessionTarget } from './model.ts';
 
@@ -106,10 +107,7 @@ export function buildTree(
       deviceId: device?.deviceId ?? null,
       online: deviceConnected(name, list, devices),
       system: device?.system ?? null,
-      // The new-session form starts the vendor's own configuration; choosing another is not offered yet.
-      providers: (device?.providers ?? []).filter(
-        (p) => p.configuration.enabled && p.configuration.id === p.provider,
-      ),
+      providers: enabledConfigurations(device?.providers ?? []),
       ...(device?.resources ? { resources: device.resources } : {}),
       ...(device?.warn ? { warn: device.warn } : {}),
       dirs: dirList,

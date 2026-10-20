@@ -143,6 +143,8 @@ export function Composer(props: {
   where?: ReactNode;
   /** The toolbar's choices before dictate and send: the model menu. */
   options?: ReactNode;
+  /** What leads the toolbar after the attach button: the configuration chip of a draft. */
+  leading?: ReactNode;
   /** Shift+Tab in the field: cycles the permission mode. Absent when the session has no mode to cycle. */
   onCycleMode?: () => void;
   /** The send button's name: Send, or Start in a draft. */
@@ -675,6 +677,7 @@ export function Composer(props: {
             />
           </>
         ) : null}
+        {props.leading}
         {line ? (
           <span
             className={`cst${line.tone === 'bad' ? ' bad' : ''}`}
