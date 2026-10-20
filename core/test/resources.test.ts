@@ -160,9 +160,9 @@ describe('session history', () => {
     control.receive(link, sample(0, { sessions: [s('gone', 1)] }));
     control.receive(link, sample(1, { sessions: [] }));
     expect(control.resourcesOf('dev-a').history.has('gone')).toBe(true);
-    for (let i = 2; i <= RESOURCES_RING_SIZE; i++) control.receive(link, sample(i));
+    for (let i = 2; i < RESOURCES_RING_SIZE; i++) control.receive(link, sample(i));
     expect(control.resourcesOf('dev-a').history.has('gone')).toBe(true);
-    control.receive(link, sample(RESOURCES_RING_SIZE + 1));
+    control.receive(link, sample(RESOURCES_RING_SIZE));
     expect(control.resourcesOf('dev-a').history.has('gone')).toBe(false);
   });
 
