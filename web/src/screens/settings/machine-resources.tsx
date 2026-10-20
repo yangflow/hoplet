@@ -1,12 +1,15 @@
 // biome-ignore-all lint/a11y/useSemanticElements: a grid laid out with CSS, not a <table>: the roles name its parts
 // biome-ignore-all lint/a11y/useFocusableInteractive: a header row and a session unknown to the store are not actionable
-import type {
-  DeviceInfo,
-  DeviceResourceSample,
-  DeviceResourcesResult,
-  DeviceSessionResources,
-  LiveSessionMeta,
-  SessionRuntimeInfo,
+import {
+  type DeviceInfo,
+  type DeviceResourceSample,
+  type DeviceResourcesResult,
+  type DeviceSessionResources,
+  type LiveSessionMeta,
+  RESOURCES_DISK_WARN_DEFAULT,
+  RESOURCES_MEMORY_WARN_DEFAULT,
+  type ResourceThresholdPair,
+  type SessionRuntimeInfo,
 } from '@hoplet/shared';
 import type { KeyboardEvent, ReactNode } from 'react';
 import { Icon } from '../../components/icons.tsx';
@@ -24,6 +27,7 @@ import {
   sparkPoints,
   stack,
 } from './resources-model.ts';
+import { readingWarn } from './thresholds-model.ts';
 
 /** A trend line of the last hour; with fewer than two points it keeps its place and draws nothing. */
 function Spark(props: { values: readonly number[]; label: string; small?: boolean }) {
@@ -197,19 +201,37 @@ export function ResourcesBody(props: {
   now: number;
   hovered: string | undefined;
   onOpenSession: (sessionId: string) => void;
+  /** What the machine warns at; null until the core has answered, then the warning is the core's own. */
+  thresholds: ResourceThresholdPair | null;
+  /** The Warnings group, shown above the footnote. */
+  warnings?: ReactNode;
 }) {
   const { device, sample, result } = props;
   const online = device.connected;
-  const warn = online
-    ? (device.warn ?? { memory: false, disk: false })
-    : { memory: false, disk: false };
+  const warn = !online
+    ? { memory: false, disk: false }
+    : props.thresholds
+      ? readingWarn(sample, props.thresholds)
+      : (device.warn ?? { memory: false, disk: false });
+  const limit = props.thresholds ?? {
+    memory: RESOURCES_MEMORY_WARN_DEFAULT,
+    disk: RESOURCES_DISK_WARN_DEFAULT,
+  };
   const memPct = percent(sample.memUsed, sample.memTotal);
   const freePct = percent(sample.diskFree, sample.diskTotal);
   const samples = result?.samples ?? [];
   const sessions = online ? sortSessions(result?.sessions ?? []) : [];
   const warnings = [
-    warn.memory ? t('Memory {n}% used, above 90%').replace('{n}', `${memPct}`) : null,
-    warn.disk ? t('Disk {n}% free, under 10% free').replace('{n}', `${freePct}`) : null,
+    warn.memory
+      ? t('Memory {n}% used, above {limit}%')
+          .replace('{n}', `${memPct}`)
+          .replace('{limit}', `${limit.memory}`)
+      : null,
+    warn.disk
+      ? t('Disk {n}% free, under {limit}% free')
+          .replace('{n}', `${freePct}`)
+          .replace('{limit}', `${limit.disk}`)
+      : null,
   ].filter((x): x is string => x !== null);
   const sessionCpu = sessions.reduce((a, s) => a + (s.cpu ?? 0), 0);
 
@@ -288,7 +310,7 @@ export function ResourcesBody(props: {
               total={sample.memTotal}
               used={sample.memUsed}
               format={memText}
-              tick={{ at: 90, warn: warn.memory }}
+              tick={{ at: limit.memory, warn: warn.memory }}
             />
             <StackBar
               label={t('CPU')}
@@ -345,10 +367,9 @@ export function ResourcesBody(props: {
           </div>
         </>
       )}
+      {props.warnings}
       <p className="set-meta rfoot">
-        {t(
-          'Reported every 15 s; the trend lines show the last hour. Warnings: memory above 90% used, disk under 10% free.',
-        )}
+        {t('Reported every 15 s; the trend lines show the last hour.')}
       </p>
     </div>
   );

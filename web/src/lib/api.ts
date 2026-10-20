@@ -36,6 +36,8 @@ import {
   PushSubscriptionInfoSchema,
   PushSubscriptionListResponseSchema,
   QueueSchema,
+  type ResourceThresholds,
+  ResourceThresholdsSchema,
   RuntimeCommandResultSchema,
   type SessionConfig,
   SessionListResponseSchema,
@@ -189,6 +191,16 @@ export function fetchSnapshotDiff(sessionId: string, path: string, signal?: Abor
 
 export function fetchDevices() {
   return call('/api/devices', DeviceListResponseSchema);
+}
+
+/** The default warning thresholds and the machines' own. */
+export function fetchResourceThresholds() {
+  return call('/api/resources/thresholds', ResourceThresholdsSchema);
+}
+
+/** Replaces all of them; a machine without an entry uses the default. */
+export function putResourceThresholds(thresholds: ResourceThresholds) {
+  return call('/api/resources/thresholds', ResourceThresholdsSchema, thresholds, undefined, 'PUT');
 }
 
 /** The last hour of a machine's resource readings and the sessions of the latest one. */

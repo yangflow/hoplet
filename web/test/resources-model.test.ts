@@ -1,3 +1,4 @@
+import type { DeviceResourceSample } from '@hoplet/shared';
 import { describe, expect, it } from 'vitest';
 import {
   archName,
@@ -6,7 +7,6 @@ import {
   memoryGb,
   memorySeries,
   percent,
-  readingWarn,
   shade,
   sortSessions,
   sparkPoints,
@@ -14,7 +14,7 @@ import {
 } from '../src/screens/settings/resources-model.ts';
 
 const GB = 1024 ** 3;
-const sample = (over: Partial<Parameters<typeof readingWarn>[0]> = {}) => ({
+const sample = (over: Partial<DeviceResourceSample> = {}) => ({
   at: 1,
   cpu: 10,
   memUsed: 20 * GB,
@@ -51,23 +51,6 @@ describe('formatting', () => {
     expect(archName('amd64')).toBe('x86_64');
     expect(archName('arm64')).toBe('arm64');
     expect(archName('')).toBeUndefined();
-  });
-});
-
-describe('readingWarn', () => {
-  it('warns on memory above 90 % used, not at it', () => {
-    expect(readingWarn(sample({ memUsed: 29 * GB })).memory).toBe(true);
-    expect(readingWarn(sample({ memUsed: 28.8 * GB })).memory).toBe(false);
-  });
-  it('warns on disk under 10 % free, not at it', () => {
-    expect(readingWarn(sample({ diskFree: 99e9, diskTotal: 1000e9 })).disk).toBe(true);
-    expect(readingWarn(sample({ diskFree: 100e9, diskTotal: 1000e9 })).disk).toBe(false);
-  });
-  it('does not warn without totals', () => {
-    expect(readingWarn(sample({ memTotal: 0, diskTotal: 0 }))).toEqual({
-      memory: false,
-      disk: false,
-    });
   });
 });
 

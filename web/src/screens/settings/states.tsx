@@ -6,6 +6,7 @@ import type {
   LiveSessionMeta,
   NotifyPreferences,
   ProviderInfo,
+  ResourceThresholds,
   WebhookInfo,
 } from '@hoplet/shared';
 import { RESOURCES_INTERVAL_MS } from '@hoplet/shared';
@@ -15,6 +16,7 @@ import { type SectionId, Settings } from './index.tsx';
 import type { MachinesFixture } from './machines.tsx';
 import type { NotifyFixture, PushState } from './notifications.tsx';
 import type { ProvidersFixture } from './providers.tsx';
+import { effectiveThresholds, readingWarn } from './thresholds-model.ts';
 
 // Fixtures for /__states/settings/<state>: every state of design/screens/settings.html.
 // Nothing here is read by the real screen.
@@ -205,11 +207,19 @@ const MACHINES_REPORTED: Machine[] = [
 ];
 
 /** The Machines section on one machine's tab, as the resources endpoint and the polls so far would fill it. */
-function resourcesOf(selected: string, hovered?: string): MachinesFixture {
+function resourcesOf(
+  selected: string,
+  hovered?: string,
+  thresholds?: ResourceThresholds,
+): MachinesFixture {
   const devices = [
     ...MACHINES_REPORTED.map((m) => m.device),
     machine('dev-lab', 'lab-box', true, NOW),
-  ];
+  ].map((d) =>
+    thresholds && d.connected && d.resources
+      ? { ...d, warn: readingWarn(d.resources, effectiveThresholds(thresholds, d.deviceId)) }
+      : d,
+  );
   const picked = MACHINES_REPORTED.find((m) => m.device.deviceId === selected);
   const total = picked?.device.resources?.memTotal ?? 0;
   const sessions: DeviceSessionResources[] = (picked?.procs ?? []).map((p) => ({
@@ -252,6 +262,7 @@ function resourcesOf(selected: string, hovered?: string): MachinesFixture {
     },
     sessions: metas,
     ...(hovered ? { hovered } : {}),
+    ...(thresholds ? { thresholds } : {}),
   };
 }
 
@@ -484,6 +495,8 @@ function providers(
   };
 }
 
+const DEFAULT_THRESHOLDS: ResourceThresholds = { default: { memory: 90, disk: 10 }, machines: {} };
+
 const GLM = 'dev-macbook/glm';
 
 /** The form of GLM the mockup draws: renamed, with Thinking turned off. */
@@ -558,6 +571,30 @@ export const states: Record<string, () => ReactNode> = {
   ),
   'settings-resources-offline': () => (
     <Scene section="machines" machines={resourcesOf('dev-office')} />
+  ),
+  'settings-thresholds': () => (
+    <Scene
+      section="machines"
+      machines={resourcesOf('dev-studio', 'res-studio-1', DEFAULT_THRESHOLDS)}
+    />
+  ),
+  'settings-thresholds-default': () => (
+    <Scene
+      section="machines"
+      machines={{
+        ...resourcesOf('dev-studio', 'res-studio-1', DEFAULT_THRESHOLDS),
+        editDefault: true,
+      }}
+    />
+  ),
+  'settings-thresholds-custom': () => (
+    <Scene
+      section="machines"
+      machines={resourcesOf('dev-studio', 'res-studio-1', {
+        ...DEFAULT_THRESHOLDS,
+        machines: { 'dev-studio': { memory: 97, disk: 10 } },
+      })}
+    />
   ),
   'settings-providers': () => <Scene section="providers" providers={providers(undefined)} />,
   'settings-providers-edit': () => (

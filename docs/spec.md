@@ -245,7 +245,8 @@ list at its left grows with later sections; the sections are:
   copy a ready agent configuration, and wait until that agent is connected. A tab per machine, like Model providers,
   opens the machine's facts and its resources (#88): CPU, memory used and free disk space with their last hour, a
   warning line when memory is above 90% used or the disk under 10% free by default (never for an offline machine;
-  both thresholds are adjustable, for every machine and per machine), the running sessions as the main list
+  both thresholds are adjustable in the Warnings group at the end of each machine's tab: Default for every machine,
+  changed with Change default, or Custom for that machine; saved as you type), the running sessions as the main list
   (title, project, last-hour memory, CPU, memory, child processes; each row opens its session) and where the memory and CPU go as stacked bars. An offline machine greys its last values and says when
   they were reported, and its sessions are unknown; a machine whose agent reports nothing shows only its facts.
   The agent reports every 15 seconds; the core keeps the last hour of the machine and of each session in memory only.
