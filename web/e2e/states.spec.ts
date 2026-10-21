@@ -74,6 +74,9 @@ const subject: Record<string, Record<string, string>> = {
     search: 'cockpit.palette',
     'sidebar-flat': 'cockpit.session-where',
     'sidebar-menu': 'cockpit.machine-popover',
+    'session-usage': 'cockpit.usage-chip',
+    'session-usage-open': 'cockpit.usage-popover',
+    'session-usage-unknown': 'cockpit.usage-popover',
     'session-actions': 'cockpit.actions-menu',
     'session-actions-copy': 'menu.copy-id',
     'rename-dialog': 'cockpit.rename',
@@ -177,6 +180,17 @@ const subject: Record<string, Record<string, string>> = {
     'settings-capabilities-sparse': 'settings.capabilities.toolchains',
     'settings-capabilities-offline': 'settings.capabilities.at',
     'settings-capabilities-none': 'settings.capabilities.none',
+    'settings-usage': 'settings.usage.chart',
+    'settings-usage-session': 'settings.usage.table.session',
+    'settings-usage-machine': 'settings.usage.table.machine',
+    'settings-usage-custom': 'settings.usage.first',
+    'settings-usage-tokens-only': 'settings.usage.footnote',
+    'settings-usage-unknown-model': 'settings.usage.unknown',
+    'settings-usage-empty': 'settings.usage.empty',
+    'settings-usage-backfill': 'settings.usage.backfill',
+    'settings-prices': 'settings.prices.table',
+    'settings-prices-edit': 'settings.prices.editor',
+    'settings-prices-tokens-only': 'settings.prices.tokens-only',
     mint: 'settings.mint.config',
     'mint-waiting': 'settings.mint.waiting',
     'mint-online': 'settings.mint.online',
@@ -206,10 +220,10 @@ const subject: Record<string, Record<string, string>> = {
   },
 };
 
-test('the registries list 85 cockpit, 56 workspace, 34 settings and 7 action states', () => {
-  expect(screens.cockpit).toHaveLength(85);
+test('the registries list 88 cockpit, 56 workspace, 45 settings and 7 action states', () => {
+  expect(screens.cockpit).toHaveLength(88);
   expect(screens.workspace).toHaveLength(56);
-  expect(screens.settings).toHaveLength(34);
+  expect(screens.settings).toHaveLength(45);
   expect(screens.action).toHaveLength(7);
 });
 

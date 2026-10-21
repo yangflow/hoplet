@@ -1073,3 +1073,105 @@
   padding: 0 var(--space-2);
   gap: var(--space-1);
 }
+
+/* The session's usage chip and its popover */
+.top .usage {
+  position: relative;
+  display: inline-flex;
+}
+.uchip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: var(--control-icon);
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-2);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.uchip:hover,
+.uchip[aria-expanded="true"] {
+  background: var(--color-hover);
+  color: var(--color-text);
+}
+.uchip[aria-expanded="true"] {
+  background: var(--color-selected);
+  box-shadow: inset 0 1px 0 var(--color-highlight);
+}
+.uchip .sep {
+  color: var(--color-text-3);
+}
+.usage .popover.upop {
+  left: auto;
+  right: 0;
+  width: var(--layout-popover-wide);
+  padding: var(--space-3) var(--space-4) var(--space-4);
+}
+.upop .ubody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.upop .ph1 {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+.upop .ph1 b {
+  font-weight: var(--weight-semibold);
+  flex: 1;
+}
+.upop .big {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+}
+.upop .big b {
+  font-size: 20px;
+  line-height: 28px;
+  font-weight: var(--weight-semibold);
+  letter-spacing: -0.012em;
+  font-variant-numeric: tabular-nums;
+}
+.upop .big span {
+  color: var(--color-text-2);
+  font-variant-numeric: tabular-nums;
+}
+.upop .rule {
+  height: 1px;
+  background: var(--color-line);
+  margin: 0 calc(-1 * var(--space-4));
+}
+.ukv {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: var(--space-1) var(--space-4);
+  align-items: baseline;
+}
+.ukv.two {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+.ukv .k {
+  color: var(--color-text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ukv .v {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.ukv .v.m {
+  color: var(--color-text-2);
+  min-width: 56px;
+}
+.ukv.hd {
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  color: var(--color-text-3);
+}
+.ukv .k.mono {
+  font-family: var(--font-mono);
+  font-size: var(--text-code);
+}

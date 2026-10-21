@@ -399,6 +399,7 @@ export default function App() {
           live={live}
           error={error}
           runtime={runtime}
+          tokensOnly={appearance.tokensOnly}
           onCreateSession={create}
           onSessionStarted={(sessionId) => void open(sessionId)}
         />

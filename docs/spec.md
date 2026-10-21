@@ -275,6 +275,7 @@ list at its left grows with later sections; the sections are:
   (subscribe this browser, a label, remove), and the webhooks (URL, optional signing secret, the events it
   receives, enable, test, the
   status of the last delivery). Preferences live in the core, not in the browser.
+- **Usage**: tokens and estimated cost, in two tabs (Usage, Prices; see Usage below).
 
 Memory is a later section (#18).
 
@@ -299,6 +300,22 @@ project, machine (device), model and day, with an estimated cost (`GET /api/usag
   models whose prices are documented, overridden by the host (`PUT /api/usage/prices`). A dated model ID uses the
   price of its undated ID. A model without a price reports its tokens and a null cost. Every response says it is
   an estimate. Cache writes are priced at the 5-minute rate. Days are the caller's: a request names its offset from UTC (`utcOffset`, minutes east, UTC by default).
+- **Settings › Usage** (the Usage tab): a range (Day, Week, Month, with previous and next, or Custom with two
+  dates; weeks start on Monday, days are the browser's) and, for it, the total tokens, the estimated cost, "excludes
+  N tokens without a price" when some model has none, and the four token kinds. A stacked bar chart shows each day
+  by model (the three biggest models keep a color, the rest share one) with a tooltip per day and a legend. Below,
+  a switch groups the ranked table by Session, Project, Machine or Model, with tokens, share and estimated cost
+  (a dash for a model without a price) and a footnote that costs are estimates. A model without a price is named in
+  a note with an Add a price action that opens Prices. With no usage the tab says so; while the core is still
+  counting existing sessions the totals are marked partial and the page asks again every few seconds.
+- **Settings › Usage › Prices**: the built-in prices and the host's own per model, in US dollars per 1M tokens for
+  input, output, cache write and cache read. A price set here wins over the built-in one and is saved with
+  `PUT /api/usage/prices`; a model that was used and has no price is listed so it can get one, and a price the host
+  set can be reset. **Show tokens only** hides every estimated cost (the Usage tab, the top bar) for plans that are
+  not billed per token; it is kept in the browser with the other appearance choices and the prices stay.
+- **Session top bar**: a chip with the session's tokens and, when priced and not hidden, `≈ cost`. It follows the
+  conversation and opens a popover with the four token kinds and a row per model; a model without a price shows
+  its tokens and a dash, and the popover points to Settings › Usage › Prices.
 
 ### Host CLI
 

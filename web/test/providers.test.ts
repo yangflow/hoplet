@@ -80,6 +80,7 @@ describe('section', () => {
       'machines',
       'providers',
       'notifications',
+      'usage',
     ]);
     expect(sectionOf('providers')).toBe('providers');
   });
