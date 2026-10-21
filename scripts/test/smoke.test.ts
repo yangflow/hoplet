@@ -2,6 +2,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import {
   closeSync,
   copyFileSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
   openSync,
@@ -81,27 +82,45 @@ esac`,
 /** The harness generates a fixture session before it starts the agent, which can take seconds on a busy machine. */
 const START_TIMEOUT_MS = 30_000;
 
+type Harness = { exited: Promise<number | null>; output(): string };
+
 /**
- * Waits for the file a fake process writes when it starts. A script that exits first never writes it, so that
- * ends the wait at once with the script's output instead of leaving the test to its timeout.
+ * Waits until the script is past `AGENT_PID=$!`, which is when its trap can reap the agent: the fake agent writes
+ * its pid file the moment it starts, possibly before bash has recorded the pid, and a signal in that gap leaves an
+ * agent that ignores SIGINT (a background job of a non-interactive shell) running. The script announces the next
+ * step right after. A script that exits first never gets there, so that ends the wait at once with its output
+ * instead of leaving the test to its timeout.
  */
-async function waitForFile(path: string, h: { exited: Promise<number | null>; output(): string }) {
+async function waitForAgent(root: string, h: Harness) {
   let exit: number | null | undefined;
   void h.exited.then((code) => {
     exit = code;
   });
   const deadline = Date.now() + START_TIMEOUT_MS;
   while (Date.now() < deadline) {
-    try {
-      return readFileSync(path, 'utf8');
-    } catch {
-      if (exit !== undefined) {
-        throw new Error(`The script exited (${exit}) before ${path} existed:\n${h.output()}`);
-      }
-      await new Promise((r) => setTimeout(r, 20));
+    if (exit !== undefined) {
+      throw new Error(`The script exited (${exit}) before it started the agent:\n${h.output()}`);
     }
+    if (existsSync(join(root, 'agent-pid')) && h.output().includes(AGENT_STARTED)) return;
+    await new Promise((r) => setTimeout(r, 20));
   }
-  throw new Error(`Process did not start: ${path}\n${h.output()}`);
+  throw new Error(`The agent did not start:\n${h.output()}`);
+}
+
+/** The step the script announces right after it records the agent's pid. */
+const AGENT_STARTED = '③';
+
+/** The script's exit code, or an error carrying its output when it has not ended in time. */
+async function exitOf(h: Harness, ms = 15_000) {
+  let timer: NodeJS.Timeout | undefined;
+  const late = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`The script did not exit:\n${h.output()}`)), ms);
+  });
+  try {
+    return await Promise.race([h.exited, late]);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 function assertReaped(root: string, name: string) {
@@ -115,14 +134,14 @@ for (const signal of ['SIGINT', 'SIGTERM'] as const) {
     async () => {
       const h = harness(false);
       try {
-        await waitForFile(join(h.root, 'agent-pid'), h);
+        await waitForAgent(h.root, h);
         // Ctrl-C signals the whole foreground group; a SIGINT to bash alone is dropped while it waits on a
         // foreground command that does not die of it. kill(1) signals the script alone.
         process.kill(
           signal === 'SIGINT' ? -(h.child.pid as number) : (h.child.pid as number),
           signal,
         );
-        expect(await h.exited).not.toBe(0);
+        expect(await exitOf(h)).not.toBe(0);
         expect(readFileSync(join(h.root, 'build-args'), 'utf8')).toContain('build -o');
         assertReaped(h.root, 'server');
         assertReaped(h.root, 'agent');
@@ -145,7 +164,7 @@ for (const signal of ['SIGINT', 'SIGTERM'] as const) {
 test('smoke reaps server after setup fails', async () => {
   const h = harness(true);
   try {
-    expect(await h.exited).not.toBe(0);
+    expect(await exitOf(h)).not.toBe(0);
     assertReaped(h.root, 'server');
     expect(readFileSync(join(h.root, 'build-args'), 'utf8')).toContain('build -o');
   } finally {
@@ -166,7 +185,7 @@ test('smoke script parses in bash', () => {
 test('smoke refuses API calls when its server cannot listen', async () => {
   const h = harness(true, true);
   try {
-    expect(await h.exited).not.toBe(0);
+    expect(await exitOf(h)).not.toBe(0);
     expect(() => readFileSync(join(h.root, 'api-called'))).toThrow();
     assertReaped(h.root, 'server');
   } finally {
