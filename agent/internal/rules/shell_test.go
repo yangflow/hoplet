@@ -294,7 +294,7 @@ func TestANSICEscapeBounds(t *testing.T) {
 		`\777`:       "\xff",
 		`\x72m`:      "rm",
 		`\U7fffffff`: "�",
-		`rm`:    "rm",
+		`rm`:         "rm",
 	}
 	for in, want := range cases {
 		if got := ansiC(in); got != want {
