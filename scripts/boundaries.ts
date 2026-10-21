@@ -90,12 +90,13 @@ const SCREEN_FIXTURE = /\/(?:states\.tsx|fixtures\.ts)$/;
 // also read for its type where a module is handed the configuration.
 const MAY_CALL: Record<string, readonly string[]> = {
   config: ['log'],
-  log: [],
+  log: ['scrub'],
+  scrub: [],
   migrations: [],
   store: ['migrations', 'log'],
   control: ['store', 'log'],
   ingest: ['store', 'control', 'log', 'config'],
-  notify: ['store', 'control', 'log'],
+  notify: ['store', 'control', 'log', 'scrub'],
   api: ['store', 'control', 'notify', 'log', 'config'],
 };
 
