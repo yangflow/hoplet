@@ -54,6 +54,15 @@ The mockups, design tokens and app icon behind Hoplet's web UI. The design langu
   dark: Terminal (`terminal-off`, `terminal-blocked-turn`, `-external`, `-handoff`, `-offline`, `terminal-ready`,
   `terminal-open`, `terminal-closed-turn`, `-idle`, `-offline`, `terminal-busy`) and Browser (`browser-ports`,
   `browser-loopback`, `browser-empty`, `browser-offline`), each served under `/__states/workspace/<state>`.
+- `screens/usage.html`: usage, estimated cost and budgets (#75), in light and dark, in English and Simplified Chinese
+  (`-zh`); open one with `?state=<id>&scheme=light|dark`. Settings › Usage in the direction the maintainer chose, A
+  (`usage`: totals, a chart per day stacked by model and a ranked table) over compact tiles with a dense table and
+  over a table-first page; `usage-session`, `-machine` and `usage-unknown-model` group it by session, machine or
+  model, with `usage-custom`, `usage-tokens-only`, `usage-empty` and `usage-backfill`. The session top bar
+  (`session-usage`, `session-usage-open`, `-unknown`, `-near`). Budgets (`budgets` with hoplet-docs under its limit,
+  `budgets-pause` with it over the limit in pause mode, `budgets-allowed`, `budgets-edit`, `budgets-empty`). The
+  composer when a prompt is refused (`composer-over-budget`, `composer-over-budget-running`). Prices (`prices`,
+  `prices-edit`, `prices-tokens-only`).
 - `tokens.html`: every design token, with the JSON block that `check-tokens.py` compares with
   `web/src/design/tokens.css`.
 - `mark.html`: the app icon and the web UI's mark; the exported icon is `web/public/icon.svg`.

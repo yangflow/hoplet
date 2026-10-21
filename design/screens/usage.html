@@ -1,0 +1,1080 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hoplet screen: usage, cost and budgets</title>
+<script type="application/json" id="tokens">
+{
+  "dark": {
+    "--color-bg": "#131210",
+    "--color-sidebar": "#191715",
+    "--color-surface": "#1c1a17",
+    "--color-raised": "#211e1b",
+    "--color-hover": "#28241f",
+    "--color-selected": "#2c2823",
+    "--color-line": "rgba(255, 238, 220, 0.075)",
+    "--color-highlight": "rgba(255, 244, 232, 0.06)",
+    "--color-text": "#efe9e2",
+    "--color-text-2": "#b8b0a6",
+    "--color-text-3": "#988f85",
+    "--color-accent": "#ff7a1a",
+    "--color-accent-text": "#ff9142",
+    "--color-on-accent": "#1c0d02",
+    "--color-accent-soft": "rgba(255, 122, 26, 0.10)",
+    "--color-attention": "#e8b31a",
+    "--color-attention-text": "#f0c142",
+    "--color-attention-soft": "rgba(232, 179, 26, 0.075)",
+    "--color-attention-ring": "rgba(232, 179, 26, 0.32)",
+    "--color-success": "#4cc38a",
+    "--color-danger": "#ff7366",
+    "--color-on-danger": "#1c0d02",
+    "--color-add-bg": "rgba(76, 195, 138, 0.10)",
+    "--color-add-text": "#86dcae",
+    "--color-del-bg": "rgba(255, 115, 102, 0.10)",
+    "--color-del-text": "#ffa49b",
+    "--color-git-modified": "#d9b77e",
+    "--color-git-untracked": "#6fcf97",
+    "--color-git-deleted": "#ff8a7d",
+    "--color-syntax-keyword": "#d3a6ee",
+    "--color-syntax-string": "#b0d58c",
+    "--color-syntax-comment": "#8f877d",
+    "--color-syntax-number": "#efb57c",
+    "--color-syntax-type": "#7ec3e3",
+    "--color-syntax-function": "#e8d7a4",
+    "--shadow-live": "inset 0 1px 0 rgba(255, 244, 232, 0.06), 0 0 0 1px rgba(0, 0, 0, 0.45), 0 14px 36px rgba(0, 0, 0, 0.42), 0 2px 6px rgba(0, 0, 0, 0.3)",
+    "--shadow-float": "inset 0 1px 0 rgba(255, 244, 232, 0.07), 0 0 0 1px rgba(0, 0, 0, 0.5), 0 18px 40px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.35)",
+    "--shadow-drawer": "inset 1px 0 0 rgba(255, 238, 220, 0.06), -18px 0 40px rgba(0, 0, 0, 0.3)",
+    "--fade-bg": "rgba(19, 18, 16, 0)",
+    "--color-scrim": "rgba(8, 6, 4, 0.42)",
+    "--shadow-accent": "inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 1px 2px rgba(0, 0, 0, 0.2)"
+  },
+  "light": {
+    "--color-bg": "#f8f5f0",
+    "--color-sidebar": "#efebe4",
+    "--color-surface": "#f0ebe4",
+    "--color-raised": "#fffdfa",
+    "--color-hover": "#e8e2d9",
+    "--color-selected": "#e2dbd1",
+    "--color-line": "rgba(60, 40, 20, 0.10)",
+    "--color-highlight": "rgba(255, 255, 255, 0.85)",
+    "--color-text": "#1c1915",
+    "--color-text-2": "#534c44",
+    "--color-text-3": "#675f55",
+    "--color-accent": "#c24e00",
+    "--color-accent-text": "#a64100",
+    "--color-on-accent": "#ffffff",
+    "--color-accent-soft": "rgba(194, 78, 0, 0.08)",
+    "--color-attention": "#c08a00",
+    "--color-attention-text": "#8f6200",
+    "--color-attention-soft": "rgba(192, 138, 0, 0.075)",
+    "--color-attention-ring": "rgba(154, 106, 0, 0.30)",
+    "--color-success": "#1d8550",
+    "--color-danger": "#c3352a",
+    "--color-on-danger": "#ffffff",
+    "--color-add-bg": "rgba(29, 133, 80, 0.09)",
+    "--color-add-text": "#156b3d",
+    "--color-del-bg": "rgba(195, 53, 42, 0.08)",
+    "--color-del-text": "#a82a1f",
+    "--color-git-modified": "#86621c",
+    "--color-git-untracked": "#1a7a47",
+    "--color-git-deleted": "#b42f24",
+    "--color-syntax-keyword": "#8433b5",
+    "--color-syntax-string": "#3f7514",
+    "--color-syntax-comment": "#736b61",
+    "--color-syntax-number": "#9c4f00",
+    "--color-syntax-type": "#17698f",
+    "--color-syntax-function": "#6b5000",
+    "--shadow-live": "inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 0 0 1px rgba(60, 40, 20, 0.08), 0 12px 32px rgba(60, 40, 20, 0.10), 0 2px 6px rgba(60, 40, 20, 0.06)",
+    "--shadow-float": "inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 0 0 1px rgba(60, 40, 20, 0.09), 0 16px 36px rgba(60, 40, 20, 0.12), 0 2px 6px rgba(60, 40, 20, 0.07)",
+    "--shadow-drawer": "inset 1px 0 0 rgba(60, 40, 20, 0.08), -16px 0 36px rgba(60, 40, 20, 0.06)",
+    "--fade-bg": "rgba(248, 245, 240, 0)",
+    "--color-scrim": "rgba(40, 28, 15, 0.13)",
+    "--shadow-accent": "inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 1px 2px rgba(60, 40, 20, 0.2)"
+  },
+  "shared": {
+    "--font-ui": "\"Inter Variable\", -apple-system, system-ui, \"PingFang SC\", sans-serif",
+    "--font-prose": "var(--font-ui)",
+    "--font-mono": "\"JetBrains Mono Variable\", ui-monospace, \"SF Mono\", Menlo, monospace",
+    "--text-meta": "11px",
+    "--leading-meta": "16px",
+    "--text-ui": "13px",
+    "--leading-ui": "20px",
+    "--text-code": "12.5px",
+    "--leading-code": "20px",
+    "--text-body": "15px",
+    "--leading-body": "24px",
+    "--text-title": "15px",
+    "--leading-title": "20px",
+    "--weight-regular": "400",
+    "--weight-medium": "500",
+    "--weight-semibold": "600",
+    "--measure-prose": "68ch",
+    "--icon-size": "16px",
+    "--icon-stroke": "1.5",
+    "--space-1": "4px",
+    "--space-2": "8px",
+    "--space-3": "12px",
+    "--space-4": "16px",
+    "--space-5": "24px",
+    "--space-6": "32px",
+    "--space-7": "48px",
+    "--radius-sm": "6px",
+    "--radius-md": "10px",
+    "--radius-lg": "14px",
+    "--radius-xl": "18px",
+    "--layout-sidebar": "248px",
+    "--layout-inspector": "296px",
+    "--layout-inspector-wide": "720px",
+    "--layout-inspector-list": "220px",
+    "--layout-settings-nav": "208px",
+    "--layout-column": "760px",
+    "--layout-topbar": "52px",
+    "--layout-foot": "44px",
+    "--layout-row-device": "32px",
+    "--layout-row": "28px",
+    "--layout-row-tree": "24px",
+    "--layout-act-verb": "64px",
+    "--layout-gutter": "32px",
+    "--layout-well-max": "240px",
+    "--layout-palette": "560px",
+    "--layout-dialog": "480px",
+    "--layout-popover": "248px",
+    "--layout-modal-top": "96px",
+    "--motion-pulse": "1.6s",
+    "--motion-blink": "1s",
+    "--motion-spin": "0.8s",
+    "--control-icon": "28px",
+    "--control-field": "32px",
+    "--layout-gate": "320px",
+    "--layout-viewport-min": "1024px"
+  }
+}
+</script>
+<style id="token-css"></style>
+<style>
+@font-face{font-family:"Inter Variable";src:url(../fonts/inter-latin-wght-normal.woff2) format("woff2");font-weight:100 900;font-display:swap}
+@font-face{font-family:"JetBrains Mono Variable";src:url(../fonts/jetbrains-mono-latin-wght-normal.woff2) format("woff2");font-weight:100 800;font-display:swap}
+
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:#131210}
+body.solo{overflow:hidden}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+button:focus-visible{outline:2px solid var(--color-accent);outline-offset:2px}
+svg{display:block;flex:none}
+.spin{animation:rot var(--motion-spin) linear infinite}
+@keyframes rot{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important}}
+
+/* one type scale: meta 11/16 · UI 13/20 · prose 15/24 · title 15/20 600 · mono 12.5/20; weights 400/500/600 */
+.frame{width:1280px;height:800px;overflow:hidden;position:relative;display:grid;grid-template-columns:var(--layout-sidebar) 1fr;grid-template-rows:100%;
+  background:var(--color-bg);color:var(--color-text);font-family:var(--font-ui);font-size:var(--text-ui);line-height:var(--leading-ui);font-weight:var(--weight-regular);
+  -webkit-font-smoothing:antialiased;letter-spacing:-0.003em}
+.frame.with-insp{grid-template-columns:var(--layout-sidebar) 1fr var(--layout-inspector)}
+.frame.nosb,.frame.page{grid-template-columns:1fr}
+.frame.nosb.with-insp{grid-template-columns:1fr var(--layout-inspector)}
+.frame.with-insp.wide{grid-template-columns:1fr var(--layout-inspector-wide)}
+.mono{font-family:var(--font-mono);font-size:var(--text-code);line-height:var(--leading-code);letter-spacing:0}
+.num{font-variant-numeric:tabular-nums}
+.meta{font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3);font-variant-numeric:tabular-nums}
+
+/* icon buttons: the icon carries the intent, the title names it */
+.ib{width:var(--control-icon);height:var(--control-icon);border-radius:var(--radius-sm);display:grid;place-items:center;color:var(--color-text-3);flex:none;position:relative}
+.ib.on{background:var(--color-selected);color:var(--color-text);box-shadow:inset 0 1px 0 var(--color-highlight)}
+.ib[disabled]{opacity:.4;cursor:default}
+.ib.bd{color:var(--color-text-2);background:var(--color-hover);box-shadow:inset 0 1px 0 var(--color-highlight),0 0 0 1px var(--color-line)}
+.light .ib.bd{background:var(--color-raised)}
+.ib .cdg{position:absolute;top:4px;right:4px;width:6px;height:6px;border-radius:50%;background:var(--color-git-modified);box-shadow:0 0 0 2px var(--color-bg)}
+
+/* a machine's view options: its name, then Organize and Sort as two radio groups under the row */
+.pop{position:absolute;z-index:30;top:calc(100% - var(--space-1));left:var(--space-2);right:var(--space-2);padding:var(--space-1);border-radius:var(--radius-md);background:var(--color-raised);box-shadow:var(--shadow-float)}
+.menu-title{padding:var(--space-2) var(--space-2) var(--space-1);font-weight:var(--weight-semibold);color:var(--color-text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.menu-label{padding:var(--space-2) var(--space-2) var(--space-1);font-size:var(--text-meta);line-height:var(--leading-meta);font-weight:var(--weight-medium);color:var(--color-text-3)}
+.menu-item{height:var(--layout-row);display:flex;align-items:center;gap:var(--space-2);padding:0 var(--space-2);border-radius:var(--radius-sm);color:var(--color-text);white-space:nowrap}
+.menu-check{width:16px;height:16px;display:grid;place-items:center;flex:none;color:var(--color-text-2)}
+.menu-sep{height:1px;margin:var(--space-1) var(--space-2);background:var(--color-line)}
+.pm{width:16px;height:16px;display:grid;place-items:center;flex:none;color:var(--color-text-3)}
+.sess.on .pm{color:var(--color-text-2)}
+.gl{width:16px;height:16px;display:grid;place-items:center;flex:none;color:var(--color-text-3)}
+.gl .spin{color:var(--color-accent)}
+.need-dot{width:8px;height:8px;border-radius:50%;background:var(--color-attention);box-shadow:0 0 0 3px var(--color-attention-ring)}
+.bad-dot{width:8px;height:8px;border-radius:50%;background:var(--color-danger);flex:none}
+.ready-dot{width:8px;height:8px;border-radius:50%;background:var(--color-accent);flex:none}
+.off-dot{width:8px;height:8px;border-radius:50%;box-shadow:inset 0 0 0 1.5px var(--color-text-3);flex:none}
+.devg.off .dev,.devg.off .sdir,.devg.off .sess{color:var(--color-text-3)}
+.devg.off .dev{font-weight:var(--weight-medium)}
+.devg.off .sess.on{color:var(--color-text-2)}
+.frozen-side .gl .spin{color:var(--color-text-3);animation:none}
+.side-foot{height:var(--layout-foot);display:flex;align-items:center;gap:var(--space-2);padding:0 var(--space-2) 0 var(--space-4);box-shadow:inset 0 1px 0 var(--color-line);flex:none}
+.conn{flex:1;min-width:0;display:flex;align-items:center;gap:var(--space-2);color:var(--color-text-3);white-space:nowrap}
+.conn .lead{width:16px;height:16px;display:grid;place-items:center;flex:none}
+.conn.lost{color:var(--color-danger)}
+.conn.lost .dot{background:var(--color-danger)}
+
+/* top bar */
+.main{display:flex;flex-direction:column;min-width:0;min-height:0;overflow:hidden;position:relative}
+.top{height:var(--layout-topbar);display:flex;align-items:center;gap:var(--space-2);padding:0 var(--space-3) 0 var(--space-5);flex:none;box-shadow:inset 0 -1px 0 var(--color-line);white-space:nowrap}
+.nosb .top{padding-left:var(--space-3)}
+.top .title{font-size:var(--text-title);line-height:var(--leading-title);font-weight:var(--weight-semibold);letter-spacing:-0.01em}
+.top .sp{flex:1}
+
+/* conversation */
+.conv{position:relative;flex:1;min-height:0;overflow:auto;scrollbar-width:none;padding:0 0 148px}
+.conv::-webkit-scrollbar{display:none}
+.col{width:min(var(--layout-column),calc(100% - 104px));margin:0 auto;padding-top:var(--space-2)}
+.wide .col{width:calc(100% - 48px)}
+
+.badge{display:flex;align-items:center;gap:var(--space-2);color:var(--color-text-3);font-variant-numeric:tabular-nums}
+/* text buttons: decisions only */
+.btn{height:var(--control-field);display:inline-flex;align-items:center;gap:var(--space-2);padding:0 var(--space-3);border-radius:var(--radius-sm);font-weight:var(--weight-medium);color:var(--color-text);background:var(--color-hover);box-shadow:inset 0 1px 0 var(--color-highlight),0 0 0 1px var(--color-line);white-space:nowrap}
+.light .btn{background:var(--color-raised)}
+.btn.primary{background:var(--color-accent);color:var(--color-on-accent);box-shadow:var(--shadow-accent);font-weight:var(--weight-semibold);padding:0 var(--space-4)}
+.btn.quiet{background:transparent;box-shadow:none;color:var(--color-text-2);padding:0 var(--space-2)}
+.btn svg{color:currentColor}
+.btn[disabled]{opacity:.5;cursor:default}
+
+/* composer */
+.dock{position:absolute;z-index:5;left:0;right:0;bottom:0;padding:var(--space-7) 0 var(--space-4);background:linear-gradient(var(--fade-bg),var(--color-bg) 42%);pointer-events:none}
+.composer{pointer-events:auto;border-radius:var(--radius-xl);background:var(--color-raised);box-shadow:var(--shadow-float);padding:var(--space-3) var(--space-2) var(--space-2) var(--space-4);display:flex;flex-direction:column;gap:var(--space-2)}
+.ph{font-size:var(--text-body);line-height:var(--leading-body);color:var(--color-text-3)}
+.cf{display:flex;align-items:center;gap:var(--space-1);min-height:var(--control-field);margin-left:calc(-1 * var(--space-2))}
+.cf .cst{display:flex;align-items:center;gap:var(--space-2);height:20px;color:var(--color-text-2);margin:0 0 0 var(--space-1);padding-left:var(--space-3);box-shadow:inset 1px 0 0 var(--color-line)}
+.cf .cst.bad{color:var(--color-danger)}
+.cf .r{margin-left:auto;display:flex;align-items:center;gap:var(--space-1)}
+.send{width:var(--control-field);height:var(--control-field);border-radius:50%;display:grid;place-items:center;background:var(--color-accent);color:var(--color-on-accent);box-shadow:var(--shadow-accent);flex:none}
+.send[disabled]{background:var(--color-hover);color:var(--color-text-3);box-shadow:none;cursor:default}
+.composer.cbar{flex-direction:row;align-items:center;gap:var(--space-3);padding:var(--space-3) var(--space-3) var(--space-3) var(--space-5);min-height:56px}
+.composer.cbar .cst{display:flex;align-items:center;gap:var(--space-2);color:var(--color-text-2);flex:1}
+.composer.cbar .cst svg{color:var(--color-text-3)}
+.composer.ro{background:var(--color-surface);box-shadow:inset 0 0 0 1px var(--color-line)}
+.recrow{display:flex;align-items:center;gap:var(--space-3);height:24px;padding-right:var(--space-2)}
+.recrow .rdot{width:8px;height:8px;border-radius:50%;background:var(--color-accent);box-shadow:0 0 0 4px var(--color-accent-soft);animation:pulse var(--motion-pulse) ease-in-out infinite;flex:none}
+.recrow .el{font-size:var(--text-body);line-height:var(--leading-body);color:var(--color-text);font-variant-numeric:tabular-nums;width:36px;flex:none}
+.wave{flex:1;display:flex;align-items:center;justify-content:flex-end;gap:2px;height:24px;overflow:hidden;-webkit-mask-image:linear-gradient(to right,transparent,#000 18%);mask-image:linear-gradient(to right,transparent,#000 18%)}
+.wave i{flex:none;width:3px;border-radius:2px;background:var(--color-accent-text)}
+.cf .note{display:flex;align-items:center;gap:var(--space-2);color:var(--color-text-3);margin-left:var(--space-3)}
+
+.seg{display:inline-flex;gap:2px;padding:2px;border-radius:8px;background:var(--color-bg);box-shadow:inset 0 0 0 1px var(--color-line);position:relative}
+.light .seg{background:var(--color-hover)}
+.seg button{height:24px;display:flex;align-items:center;gap:var(--space-2);padding:0 var(--space-3);border-radius:6px;font-weight:var(--weight-medium);color:var(--color-text-2);white-space:nowrap}
+.seg button .c{font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3);font-variant-numeric:tabular-nums;font-weight:var(--weight-regular)}
+.seg button.on{background:var(--color-selected);color:var(--color-text);box-shadow:inset 0 1px 0 var(--color-highlight),0 0 0 1px var(--color-line)}
+.light .seg button.on{background:var(--color-raised)}
+.seg button.on .c{color:var(--color-text-2)}
+.seg button[disabled]{color:var(--color-text-3);opacity:.6;cursor:default}
+.fld{display:flex;flex-direction:column;gap:var(--space-1)}
+.fld .l{color:var(--color-text-2)}
+.input{height:var(--control-field);border-radius:var(--radius-sm);background:var(--color-bg);box-shadow:inset 0 0 0 1px var(--color-line);display:flex;align-items:center;padding:0 var(--space-3);font-family:var(--font-mono);font-size:var(--text-code);color:var(--color-text);white-space:nowrap;overflow:hidden}
+.input.on{box-shadow:inset 0 0 0 1.5px var(--color-accent)}
+.input.ui{font-family:var(--font-ui);font-size:var(--text-ui)}
+.nt{padding:var(--space-2) var(--space-3);border-radius:var(--radius-md);display:flex;gap:var(--space-2);color:var(--color-text)}
+.nt svg{margin-top:2px}
+.nt.bad{background:var(--color-del-bg)}
+.nt.bad svg{color:var(--color-danger)}
+.nt.ok{background:var(--color-add-bg)}
+.nt.ok svg{color:var(--color-success)}
+.nt.snap{background:var(--color-bg);box-shadow:inset 0 0 0 1px var(--color-line);color:var(--color-text-2)}
+.nt.snap svg{color:var(--color-text-3)}
+.sel{height:var(--control-field);display:flex;align-items:center;gap:var(--space-2);padding:0 var(--space-2);border-radius:var(--radius-sm);background:var(--color-bg);box-shadow:inset 0 0 0 1px var(--color-line);white-space:nowrap}
+.sel .v{flex:1;overflow:hidden;text-overflow:ellipsis}
+.sel > svg{color:var(--color-text-3)}
+.sel .pm{color:var(--color-text-2)}
+.sel .sl{width:16px;height:16px;display:grid;place-items:center;flex:none}
+.tgls{display:flex;gap:var(--space-4);align-items:center;height:var(--control-field)}
+.tgl{display:flex;align-items:center;gap:var(--space-2);color:var(--color-text-2)}
+.switch{width:28px;height:16px;border-radius:8px;background:var(--color-hover);box-shadow:inset 0 0 0 1px var(--color-line);position:relative;flex:none}
+.switch::after{content:"";position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:50%;background:var(--color-text-3)}
+.switch.on{background:var(--color-accent);box-shadow:none}
+.switch.on::after{left:14px;background:var(--color-on-accent)}
+/* settings */
+.set{flex:1;min-height:0;display:grid;grid-template-columns:var(--layout-settings-nav) minmax(0,1fr)}
+.snav{padding:var(--space-3) var(--space-2);box-shadow:inset -1px 0 0 var(--color-line);display:flex;flex-direction:column;gap:2px}
+.ni{height:var(--control-field);display:flex;align-items:center;gap:var(--space-2);padding:0 var(--space-2);border-radius:var(--radius-sm);color:var(--color-text-2)}
+.ni svg{color:var(--color-text-3)}
+.ni.on{background:var(--color-selected);color:var(--color-text);box-shadow:inset 0 1px 0 var(--color-highlight)}
+.ni.on svg{color:var(--color-text-2)}
+.spage{overflow:auto;padding:var(--space-4) var(--space-7) var(--space-5)}
+.spage .in{max-width:620px;margin:0 auto}
+.spage h1{font-size:var(--text-title);line-height:var(--leading-title);font-weight:var(--weight-semibold);letter-spacing:-0.012em;margin-bottom:var(--space-5)}
+.sgrp + .sgrp{margin-top:var(--space-5)}
+.sgrp .lb{font-weight:var(--weight-semibold);color:var(--color-text);margin-bottom:var(--space-2)}
+.themes{display:flex;gap:var(--space-4)}
+.thc{display:flex;flex-direction:column;gap:var(--space-2)}
+.thp{width:164px;height:88px;border-radius:var(--radius-md);overflow:hidden;position:relative;box-shadow:0 0 0 1px var(--color-line)}
+.thc.on .thp{box-shadow:0 0 0 2px var(--color-accent)}
+.thp .mini{position:absolute;inset:0;display:grid;grid-template-columns:40px 1fr}
+.thp .mini.half{clip-path:polygon(100% 0,100% 100%,0 100%)}
+.thp .ms{display:flex;flex-direction:column;gap:4px;padding:12px 8px}
+.thp .ms i,.thp .mc i{display:block;height:4px;border-radius:2px}
+.thp .mc{display:flex;flex-direction:column;gap:8px;padding:12px}
+.thp .mc .cb{margin-top:auto;height:16px;border-radius:6px}
+.rl{display:flex;align-items:center;gap:var(--space-2);color:var(--color-text)}
+.radio{width:16px;height:16px;border-radius:50%;box-shadow:inset 0 0 0 1.5px var(--color-text-3);flex:none}
+.radio.on{box-shadow:inset 0 0 0 5px var(--color-accent)}
+.plist{border-radius:var(--radius-md);background:var(--color-surface);box-shadow:inset 0 0 0 1px var(--color-line);overflow:hidden}
+.light .plist{background:var(--color-raised)}
+.pr{height:44px;display:flex;align-items:center;gap:var(--space-3);padding:0 var(--space-4)}
+.pr + .pr{box-shadow:inset 0 1px 0 var(--color-line)}
+.pr .nm{flex:1;font-weight:var(--weight-medium)}
+.pr .lead{width:16px;height:16px;display:grid;place-items:center;flex:none}
+.pr.off .nm{color:var(--color-text-2)}
+.plh{display:flex;justify-content:space-between;padding:0 var(--space-4) var(--space-2)}
+.sact{margin-top:var(--space-4)}
+.mcard{margin-top:var(--space-4);padding:var(--space-4);border-radius:var(--radius-lg);background:var(--color-raised);box-shadow:var(--shadow-live);display:flex;flex-direction:column;gap:var(--space-4)}
+.mcard-h{display:flex;align-items:center;gap:var(--space-2);margin:calc(-1 * var(--space-1)) calc(-1 * var(--space-2)) 0 0}
+.mcard-h b{font-size:var(--text-title);line-height:var(--leading-title);font-weight:var(--weight-semibold)}
+.mcard-h .ib{margin-left:auto}
+.mrow{display:flex;gap:var(--space-2);align-items:flex-end}
+.mrow .fld{flex:1}
+.ms-list{display:flex;flex-direction:column;gap:var(--space-4);padding-top:var(--space-4);box-shadow:inset 0 1px 0 var(--color-line)}
+.mstep{display:grid;grid-template-columns:20px minmax(0,1fr);column-gap:var(--space-3);align-items:start}
+.mstep .n{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font-size:var(--text-meta);line-height:var(--leading-meta);font-weight:var(--weight-semibold);color:var(--color-text-3);box-shadow:inset 0 0 0 1.5px var(--color-line);font-variant-numeric:tabular-nums}
+.mstep .n svg{width:12px;height:12px}
+.mstep.ok .n{background:var(--color-add-bg);color:var(--color-success);box-shadow:none}
+.mstep.go .n{box-shadow:none}
+.mstep.go .n .spin{color:var(--color-accent)}
+.mstep .tx{color:var(--color-text)}
+.mstep.todo .tx{color:var(--color-text-2)}
+.mstep .tx .mono{white-space:nowrap}
+.mstep .tx .sub{color:var(--color-text-3)}
+.mstep .more{grid-column:2;margin-top:2px}
+.mstep .well{grid-column:2;margin:var(--space-3) 0 0}
+.cfg-f{grid-column:2;display:flex;align-items:center;gap:var(--space-3);margin-top:var(--space-3)}
+.mcard-f{display:flex;justify-content:flex-end}
+
+.pr .nm .meta{display:block;font-weight:var(--weight-regular)}
+.pr .seg{flex:none}
+.pr.hint{height:48px}
+.pr .switch{margin-right:2px}
+.tprev{margin-top:var(--space-3);padding:var(--space-4);border-radius:var(--radius-md);background:var(--color-surface);box-shadow:inset 0 0 0 1px var(--color-line);display:flex;flex-direction:column;gap:var(--space-3)}
+.light .tprev{background:var(--color-raised)}
+.tprev .text{margin:0}
+.tprev .pc{padding:var(--space-2) var(--space-3);border-radius:var(--radius-sm);background:var(--color-bg);box-shadow:inset 0 0 0 1px var(--color-line);white-space:nowrap;overflow:hidden}
+.light .tprev .pc{background:var(--color-hover)}
+.no-lig .mono,.no-lig .wb,.no-lig .diff,.no-lig .code,.no-lig .text code{font-variant-ligatures:none;font-feature-settings:"liga" 0,"calt" 0}
+
+/* settings › model providers (#16): read-only, from what each connected agent announces in device.hello */
+.mp-note{display:flex;gap:var(--space-2);align-items:flex-start;color:var(--color-text-2);margin:calc(-1 * var(--space-3)) 0 var(--space-5)}
+.mp-note svg{color:var(--color-text-3);margin-top:2px}
+.mp-tabs{display:flex;gap:var(--space-4);margin-bottom:var(--space-4);box-shadow:inset 0 -1px 0 var(--color-line);overflow-x:auto}
+.mp-tab{display:inline-flex;align-items:center;gap:var(--space-2);height:var(--control-field);padding:0 2px;color:var(--color-text-2);font-weight:var(--weight-medium);white-space:nowrap;position:relative;flex:none}
+.mp-tab[aria-selected="true"]{color:var(--color-text)}
+.mp-tab[aria-selected="true"]::after{content:"";position:absolute;left:0;right:0;bottom:0;height:2px;border-radius:2px 2px 0 0;background:var(--color-text)}
+.mp-list{border-radius:var(--radius-md);background:var(--color-surface);box-shadow:inset 0 0 0 1px var(--color-line);overflow:hidden}
+/* stacked view */
+body.stacked{background:#131210;color:#efe9e2;font-family:-apple-system,"SF Pro Text",system-ui,sans-serif;padding:56px 48px 80px;-webkit-font-smoothing:antialiased}
+.intro{max-width:1300px;margin:0 auto 56px}
+.intro h1{font-size:30px;font-weight:600;letter-spacing:-0.02em}
+.intro h1 span{color:#958d83;font-weight:400}
+.intro p{max-width:72ch;color:#b8b0a6;font-size:15px;line-height:1.6;margin:14px 0 0}
+.intro .cols{display:grid;grid-template-columns:1fr 1fr;gap:48px;margin:32px 0 36px;max-width:1100px}
+.intro h2{font-size:22px;font-weight:600;letter-spacing:-0.015em;margin:48px 0 8px}
+.intro h3{font-size:14px;font-weight:600;margin-bottom:10px;color:#efe9e2}
+.intro ul{list-style:none;display:flex;flex-direction:column;gap:8px;font-size:14px;line-height:1.5;color:#b8b0a6}
+.intro li b{color:#efe9e2;font-weight:500}
+.intro .chip{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:8px;vertical-align:-1px}
+.tok{border-collapse:collapse;font-size:12px;color:#b8b0a6;width:100%;max-width:1100px;margin-top:48px}
+.tok th{text-align:left;font-weight:500;color:#958d83;padding:6px 10px;border-bottom:1px solid rgba(255,238,220,.1)}
+.tok td{padding:4px 10px;border-bottom:1px solid rgba(255,238,220,.05);font-family:ui-monospace,"SF Mono",Menlo,monospace;vertical-align:middle;word-break:break-all}
+.tok td:first-child{color:#efe9e2;white-space:nowrap;word-break:normal}
+.sw{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:8px;vertical-align:-2px;box-shadow:0 0 0 1px rgba(255,255,255,.15)}
+.st{max-width:1300px;margin:0 auto 56px}
+.st h2{font-size:18px;font-weight:600;margin-bottom:16px;letter-spacing:-0.01em}
+.st h2 span{color:#958d83;font-weight:400;margin-left:12px;font-size:14px}
+.pair{display:flex;gap:20px}
+.scaled{width:640px;height:400px;overflow:hidden;border-radius:10px;box-shadow:0 0 0 1px rgba(255,255,255,.08)}
+.scaled .frame{transform:scale(.5);transform-origin:0 0}
+
+/* machine resources (#88): the summary, where the load goes, the session processes */
+.rmeta{font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-2);font-variant-numeric:tabular-nums;font-weight:var(--weight-regular)}
+.rmeta.dim{color:var(--color-text-3)}
+p.rmeta{margin:0}
+.rbody{display:flex;flex-direction:column;gap:var(--space-4);font-weight:var(--weight-regular);white-space:normal}
+.rst{display:flex;align-items:center;gap:var(--space-1)}
+.rst svg{width:14px;height:14px;flex:none}
+.rtiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--space-2)}
+.rtile{display:flex;flex-direction:column;gap:2px;min-width:0;padding:var(--space-2) var(--space-3);border-radius:var(--radius-sm);background:var(--color-bg);box-shadow:inset 0 0 0 1px var(--color-line)}
+.rtile .rk{font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3)}
+.rtile .rv{font-size:var(--text-title);line-height:20px;font-weight:var(--weight-semibold);color:var(--color-text);font-variant-numeric:tabular-nums;white-space:nowrap}
+.rtile .rv .rmeta{font-weight:var(--weight-regular)}
+.rtile .rsp{width:100%;height:24px;margin-top:var(--space-1)}
+.rdisk{display:block;height:4px;margin:14px 0 6px;border-radius:2px;background:var(--color-hover);box-shadow:inset 0 0 0 1px var(--color-line);overflow:hidden}
+.rdisk i{display:block;height:100%;background:var(--color-text-3)}
+.rtile.warn .rdisk i{background:var(--color-attention)}
+.rtile.warn .rv,.rtile.warn .rsp{color:var(--color-attention-text)}
+.rwn{display:flex;align-items:center;gap:var(--space-1);font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-attention-text);margin:calc(var(--space-2) * -1) 0 0}
+.rwn svg{width:14px;height:14px;flex:none}
+.rsp{display:block;color:var(--color-text-3)}
+.rsp.sm{width:64px;height:16px}
+.rsec{display:flex;flex-direction:column;gap:var(--space-2)}
+.rbar{display:grid;grid-template-columns:56px minmax(0,1fr) 76px;align-items:center;gap:var(--space-2)}
+.rbar .rl2{color:var(--color-text-2)}
+.rbar .rn{text-align:right;font-variant-numeric:tabular-nums;color:var(--color-text-2);font-size:var(--text-meta);line-height:var(--leading-meta)}
+.rstack{position:relative;display:flex;gap:1px;height:10px;border-radius:3px;background:var(--color-hover);box-shadow:inset 0 0 0 1px var(--color-line);overflow:hidden}
+.rstack i{display:block;height:100%;background:var(--color-accent);flex:none}
+.rstack i.s0,.rw.s0{opacity:.95}.rstack i.s1,.rw.s1{opacity:.7}.rstack i.s2,.rw.s2{opacity:.5}.rstack i.s3,.rw.s3{opacity:.34}
+.rstack i.ot,.rw.ot{background:var(--color-text-3);opacity:.55}
+.rtick{position:absolute;top:0;bottom:0;width:1px;background:var(--color-text-2);opacity:.7}
+.rtick.warn{background:var(--color-attention);opacity:1}
+.rleg{display:flex;flex-wrap:wrap;gap:var(--space-1) var(--space-3);padding-left:calc(56px + var(--space-2));font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3)}
+.rleg span{display:inline-flex;align-items:center;gap:var(--space-1)}
+.rw{display:block;width:8px;height:8px;border-radius:2px;background:var(--color-accent);flex:none}
+.rw.fr{background:var(--color-hover);box-shadow:inset 0 0 0 1px var(--color-line);opacity:1}
+.rps{display:flex;flex-direction:column}
+.rp{display:grid;grid-template-columns:8px 16px minmax(0,1fr) 16px 64px 40px 64px;gap:var(--space-2);align-items:center;height:44px;box-shadow:inset 0 1px 0 var(--color-line)}
+.rp.hd{height:28px;font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3)}
+.rp.hd .h1{grid-column:1/5}
+.rp .ti{min-width:0;display:flex;flex-direction:column}
+.rp:not(.hd){margin:0 calc(-1 * var(--space-2));padding:0 var(--space-2);border-radius:6px;cursor:pointer}
+.rp:not(.hd):hover,.rp.hov{background:var(--color-hover)}
+.rp:not(.hd):focus-visible{outline:2px solid var(--color-accent);outline-offset:-2px}
+.rp .t1{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--color-text)}
+.rp:hover .t1,.rp.hov .t1{text-decoration:underline;text-decoration-color:var(--color-text-3);text-underline-offset:2px}
+.rp .t2{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3)}
+.rp .n{text-align:right;font-variant-numeric:tabular-nums}
+.rp:not(.hd) .n{color:var(--color-text-2)}
+.rp .pm,.rp .gl{width:16px;height:16px}
+.rbody.stale .rv,.rbody.stale .rk{color:var(--color-text-3)}
+.rbody.stale .rsp{opacity:.6}
+.mt-bar{display:flex;align-items:flex-start;gap:var(--space-4);margin-bottom:var(--space-4);box-shadow:inset 0 -1px 0 var(--color-line)}
+.mt-bar .mp-tabs{flex:1;min-width:0;margin-bottom:0;box-shadow:none}
+.mt-bar .btn{flex:none;height:var(--control-field)}
+.rmeta.mt-facts{margin:0 0 var(--space-3)}
+.rfoot{margin:0}
+.rth{display:flex;flex-direction:column;gap:var(--space-3);padding:var(--space-3) var(--space-4);border-radius:var(--radius-md);box-shadow:inset 0 0 0 1px var(--color-line)}
+.th-h{display:flex;align-items:center;gap:var(--space-3)}
+.th-h b{font-weight:var(--weight-semibold);flex:1}
+.th-h>:last-child{margin-left:auto}
+.th-sum{display:flex;align-items:center;gap:var(--space-3);color:var(--color-text-2)}
+.th-sum .btn{margin-left:auto;flex:none}
+.th-sum b{color:var(--color-text);font-weight:var(--weight-semibold);font-variant-numeric:tabular-nums}
+.th-row{display:flex;gap:var(--space-3)}
+.th-f{width:160px}
+.th-in{justify-content:space-between;font-variant-numeric:tabular-nums}
+.rth p.meta{margin:0}
+.ctag{display:inline-flex;align-items:center;gap:var(--space-1);height:20px;padding:0 var(--space-2) 0 var(--space-1);border-radius:var(--radius-sm);box-shadow:inset 0 0 0 1px var(--color-line);color:var(--color-text-2);font-size:var(--text-meta);line-height:var(--leading-meta)}
+.ctag .pm{width:16px;height:16px}
+.toast{position:absolute;left:50%;bottom:var(--space-4);transform:translateX(-50%);z-index:8;height:var(--control-field);display:inline-flex;align-items:center;gap:var(--space-2);padding:0 var(--space-4) 0 var(--space-3);border-radius:999px;background:var(--color-raised);box-shadow:var(--shadow-float);white-space:nowrap}
+.toast svg{color:var(--color-success)}
+
+/* usage, cost and budgets (#75) */
+.light .mp-list{background:var(--color-raised)}
+.text{font-family:var(--font-prose);font-size:var(--text-body);line-height:var(--leading-body);color:var(--color-text);margin:var(--space-1) 0 var(--space-3);max-width:var(--measure-prose)}
+.dim{color:var(--color-text-3)}
+.ph.typed{color:var(--color-text)}
+
+/* the range bar and the section heads */
+.ubar{display:flex;align-items:center;gap:var(--space-3);margin-bottom:var(--space-4)}
+.ubar .sp{flex:1}
+.rnav{display:flex;align-items:center;gap:var(--space-1)}
+.rnav .lab{min-width:132px;text-align:center;font-weight:var(--weight-medium);font-variant-numeric:tabular-nums}
+.ubar .input{width:132px;font-family:var(--font-ui);font-size:var(--text-ui)}
+.ubar .to{color:var(--color-text-3)}
+.ugh{display:flex;align-items:center;gap:var(--space-3);margin:var(--space-5) 0 var(--space-2)}
+.ugh b{font-weight:var(--weight-semibold);flex:1}
+.ufoot{margin:var(--space-2) 0 0;color:var(--color-text-3)}
+.ufoot.dim{color:var(--color-text-3)}
+
+/* totals */
+.utot{display:flex;align-items:baseline;gap:var(--space-3);flex-wrap:wrap}
+.utot b{font-size:20px;line-height:28px;font-weight:var(--weight-semibold);letter-spacing:-0.012em;font-variant-numeric:tabular-nums}
+.utot .u{color:var(--color-text-2)}
+.utot .cost{color:var(--color-text-2);font-variant-numeric:tabular-nums}
+.utot .cost b{font-size:var(--text-title);line-height:var(--leading-title);color:var(--color-text)}
+.ubrk{display:flex;gap:var(--space-4);flex-wrap:wrap;margin-top:var(--space-1);font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3);font-variant-numeric:tabular-nums}
+.ubrk b{font-weight:var(--weight-medium);color:var(--color-text-2)}
+.ucard{padding:var(--space-4);border-radius:var(--radius-md);background:var(--color-surface);box-shadow:inset 0 0 0 1px var(--color-line)}
+.light .ucard{background:var(--color-raised)}
+
+/* the chart: a column per day, stacked by model with the accent in opacity steps */
+.uleg{display:flex;flex-wrap:wrap;gap:var(--space-1) var(--space-3);margin:var(--space-3) 0 0;font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3)}
+.uleg span{display:inline-flex;align-items:center;gap:var(--space-1)}
+.uchart{display:grid;grid-template-columns:32px minmax(0,1fr);margin-top:var(--space-4)}
+.uy{height:120px;display:flex;flex-direction:column;justify-content:space-between;font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3);font-variant-numeric:tabular-nums;margin-top:-8px;padding-bottom:0}
+.uy span:last-child{margin-bottom:-8px}
+.uplot{position:relative;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:var(--space-4);padding:0 var(--space-2)}
+.ugl{position:absolute;left:0;right:0;top:0;height:120px;pointer-events:none}
+.ugl i{position:absolute;left:0;right:0;height:1px;background:var(--color-line)}
+.uc{position:relative;display:flex;flex-direction:column;align-items:stretch;min-width:0}
+.ucs{height:120px;display:flex;flex-direction:column-reverse;justify-content:flex-start;position:relative}
+.ucs i{display:block;width:100%;background:var(--color-accent);box-shadow:0 -1px 0 var(--color-surface)}
+.light .ucs i{box-shadow:0 -1px 0 var(--color-raised)}
+.ucs i.s0{opacity:.95}.ucs i.s1{opacity:.7}.ucs i.s2{opacity:.5}.ucs i.ot{background:var(--color-text-3);opacity:.55}
+.ucs i:last-child{border-radius:3px 3px 0 0}
+.ucs.pend{border-bottom:1px dashed var(--color-line)}
+.ucl{margin-top:var(--space-1);text-align:center;font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3);font-variant-numeric:tabular-nums;white-space:nowrap}
+.uc.hov .ucl{color:var(--color-text)}
+.uc.hov .ucs i{filter:brightness(1.12)}
+.utip{position:absolute;z-index:4;top:0;left:50%;transform:translateX(-50%);min-width:148px;padding:var(--space-2) var(--space-3);border-radius:var(--radius-md);background:var(--color-raised);box-shadow:var(--shadow-float);display:flex;flex-direction:column;white-space:nowrap}
+.light .utip{background:var(--color-raised)}
+.utip b{font-weight:var(--weight-semibold)}
+.utip span{color:var(--color-text-2);font-variant-numeric:tabular-nums}
+
+/* the group tables */
+.ur{display:grid;grid-template-columns:var(--cols);gap:var(--space-3);align-items:center;min-height:40px;padding:0 var(--space-4)}
+.ur + .ur{box-shadow:inset 0 1px 0 var(--color-line)}
+.ur.hd{min-height:28px;font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3)}
+.ur .n{text-align:right;font-variant-numeric:tabular-nums;color:var(--color-text-2)}
+.ur .n.c{color:var(--color-text)}
+.ur.hd .n{color:var(--color-text-3)}
+.ur .un{min-width:0;display:flex;flex-direction:column}
+.ur .t1{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ur .t2{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3)}
+.np{display:inline-flex;align-items:center;height:20px;padding:0 var(--space-2);border-radius:var(--radius-sm);box-shadow:inset 0 0 0 1px var(--color-line);font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3);justify-self:end}
+
+/* empty, backfill */
+.uempty{display:flex;flex-direction:column;align-items:center;text-align:center;gap:var(--space-2);padding:var(--space-7) var(--space-6)}
+.uempty .tile{width:40px;height:40px;border-radius:var(--radius-md);display:grid;place-items:center;background:var(--color-surface);box-shadow:inset 0 0 0 1px var(--color-line);color:var(--color-text-3)}
+.uempty b{font-weight:var(--weight-semibold)}
+.uempty p{margin:0;max-width:44ch;color:var(--color-text-2)}
+.uempty .acts{margin-top:var(--space-2);display:flex;gap:var(--space-2)}
+.bf{display:flex;flex-direction:column;gap:var(--space-1);flex:1;min-width:0}
+.bf b{font-weight:var(--weight-semibold);color:var(--color-text)}
+.bf .pbar{flex:none;align-self:stretch}
+.nt .spin{color:var(--color-accent)}
+.nt .acts{margin-left:auto;align-self:center;flex:none}
+
+/* budgets */
+.pbar{position:relative;height:6px;border-radius:3px;background:var(--color-hover);box-shadow:inset 0 0 0 1px var(--color-line);flex:1}
+.pbar i{position:absolute;left:0;top:0;bottom:0;border-radius:3px;background:var(--color-text-3)}
+.pbar u{position:absolute;top:-3px;bottom:-3px;width:1.5px;background:var(--color-text-2);opacity:.8;text-decoration:none}
+.pbar.warn i{background:var(--color-attention)}
+.pbar.stop i{background:var(--color-danger)}
+.pbar.go i{background:var(--color-accent)}
+.bg{display:flex;flex-direction:column;gap:var(--space-2);padding:var(--space-3) var(--space-4)}
+.bg + .bg{box-shadow:inset 0 1px 0 var(--color-line)}
+.bgh{display:flex;align-items:center;gap:var(--space-3)}
+.bgh .pm{color:var(--color-text-2)}
+.bgh .tx{flex:1;min-width:0;display:flex;flex-direction:column}
+.bgh .nm{font-weight:var(--weight-medium)}
+.bgv{font-variant-numeric:tabular-nums;font-weight:var(--weight-medium);white-space:nowrap}
+.bgv i{font-style:normal;font-weight:var(--weight-regular);color:var(--color-text-3)}
+.bgb{display:flex;align-items:center;gap:var(--space-3);padding-left:calc(16px + var(--space-3))}
+.bgb .pc{width:40px;text-align:right;font-variant-numeric:tabular-nums;color:var(--color-text-2)}
+.bgm{display:flex;align-items:center;gap:var(--space-3);padding-left:calc(16px + var(--space-3));min-height:var(--control-field);font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3)}
+.bgm .st1{display:flex;align-items:center;gap:var(--space-1);flex:1;min-width:0}
+.bgm .st1 svg{width:14px;height:14px}
+.bgm .warn{color:var(--color-attention-text)}
+.bgm .stop{color:var(--color-danger)}
+.bgm .ok{color:var(--color-text-2)}
+.bgm .btn{flex:none}
+.bgadd{margin-top:var(--space-3);display:flex;align-items:center;gap:var(--space-3)}
+.bgadd .rmeta{flex:1}
+.fgrid{display:grid;grid-template-columns:1fr 1fr;gap:var(--space-4)}
+.input .sx{margin-left:auto;color:var(--color-text-3);font-family:var(--font-ui);font-size:var(--text-ui)}
+.input .px{margin-right:var(--space-1);color:var(--color-text-3)}
+.opt{display:flex;gap:var(--space-3);align-items:flex-start;padding:var(--space-2) 0}
+.opt .radio{margin-top:2px}
+.opt .tx{display:flex;flex-direction:column}
+.opt .tx b{font-weight:var(--weight-medium)}
+.opt .tx span{color:var(--color-text-3)}
+.mcard .del{margin-right:auto;color:var(--color-danger)}
+.mcard-f{gap:var(--space-2)}
+
+/* prices */
+.pt{--cols:minmax(0,1fr) 68px 68px 76px 76px 64px}
+.pt .ur{min-height:44px}
+.pt .ur .n{color:var(--color-text)}
+.pt .ur.hd .n{color:var(--color-text-3)}
+.pt .own{justify-self:end;display:inline-flex;align-items:center;gap:var(--space-1)}
+.pt .own .tg{font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3)}
+.pt.off{opacity:.55}
+.prow-edit{padding:var(--space-3) var(--space-4) var(--space-4);display:flex;flex-direction:column;gap:var(--space-3);background:var(--color-bg);box-shadow:inset 0 1px 0 var(--color-line)}
+.light .prow-edit{background:var(--color-hover)}
+.prow-edit .hd2{display:flex;align-items:baseline;gap:var(--space-3)}
+.prow-edit .hd2 b{font-weight:var(--weight-semibold)}
+.prow-edit .f4{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--space-3)}
+.prow-edit .fo{display:flex;justify-content:flex-end;gap:var(--space-2)}
+.input .px2{color:var(--color-text-3);margin-right:2px}
+
+/* the session top bar */
+.top .ctx{color:var(--color-text-3);margin-left:var(--space-2)}
+.uchip{display:inline-flex;align-items:center;gap:var(--space-2);height:var(--control-icon);padding:0 var(--space-2);border-radius:var(--radius-sm);color:var(--color-text-2);font-variant-numeric:tabular-nums;white-space:nowrap}
+.uchip:hover,.uchip[aria-expanded="true"]{background:var(--color-hover);color:var(--color-text)}
+.uchip[aria-expanded="true"]{background:var(--color-selected);box-shadow:inset 0 1px 0 var(--color-highlight)}
+.uchip .sep{color:var(--color-text-3)}
+.uchip .adot{width:8px;height:8px;border-radius:50%;background:var(--color-attention);flex:none}
+.upop{position:absolute;z-index:30;top:calc(var(--layout-topbar) - var(--space-1));right:var(--space-7);width:var(--layout-popover-wide);padding:var(--space-3) var(--space-4) var(--space-4);border-radius:var(--radius-md);background:var(--color-raised);box-shadow:var(--shadow-float);display:flex;flex-direction:column;gap:var(--space-3)}
+.upop .ph1{display:flex;align-items:baseline;gap:var(--space-2)}
+.upop .ph1 b{font-weight:var(--weight-semibold);flex:1}
+.upop .big{display:flex;align-items:baseline;gap:var(--space-3)}
+.upop .big b{font-size:20px;line-height:28px;font-weight:var(--weight-semibold);letter-spacing:-0.012em;font-variant-numeric:tabular-nums}
+.upop .big span{color:var(--color-text-2);font-variant-numeric:tabular-nums}
+.ukv{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:var(--space-1) var(--space-4);align-items:baseline}
+.ukv .k{color:var(--color-text-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ukv .v{text-align:right;font-variant-numeric:tabular-nums}
+.ukv .v.m{color:var(--color-text-2);min-width:56px}
+.ukv.hd{font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3)}
+.ukv .k.mono{font-family:var(--font-mono);font-size:var(--text-code)}
+.upop .rule{height:1px;background:var(--color-line);margin:0 calc(-1 * var(--space-4))}
+.upop .bl{display:flex;flex-direction:column;gap:var(--space-1)}
+.upop .bl .row{display:flex;align-items:center;gap:var(--space-2)}
+.upop .bl .row span{flex:1;color:var(--color-text-2)}
+.upop .bl .row em{font-style:normal;font-variant-numeric:tabular-nums}
+.upop .bl .row em.warn{color:var(--color-attention-text)}
+.upop .bl .pbar{margin-left:calc(16px + var(--space-2));flex:none;width:auto}
+.mu{display:flex;gap:var(--space-2);flex-wrap:wrap;margin:calc(-1 * var(--space-1)) 0 var(--space-3);font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3);font-variant-numeric:tabular-nums}
+.cp{font-size:var(--text-title);line-height:var(--leading-title);font-weight:var(--weight-semibold);letter-spacing:-0.012em;padding:var(--space-5) 0 var(--space-2)}
+.cwork{display:flex;align-items:center;gap:var(--space-2);color:var(--color-text-2);margin:var(--space-2) 0}
+.cf .cst.warn{color:var(--color-attention-text)}
+.composer.cbar .cst.warn{color:var(--color-attention-text)}
+.composer.cbar .cst.warn svg{color:var(--color-attention-text)}
+.composer.cbar .cst .sub{color:var(--color-text-3)}
+.solo .scaled{width:auto;height:auto}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+const T = JSON.parse(document.getElementById('tokens').textContent);
+const vars = o => Object.entries(o).map(([k, v]) => `${k}:${v};`).join('');
+document.getElementById('token-css').textContent =
+  `.frame{${vars(T.shared)}}.frame.dark{${vars(T.dark)}}.frame.light{${vars(T.light)}}`;
+
+/* icons: one family, Lucide (ISC licence), inlined; 24-unit grid drawn at 16 px, stroke 1.5, round caps and joins */
+const sv = (d, cls = '') => `<svg${cls ? ` class="${cls}"` : ''} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+const rot = (deg, d) => `<g transform="rotate(${deg} 12 12)">${d}</g>`;
+const L = {
+  'panel-left': '<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/>',
+  'panel-right': '<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M15 3v18"/>',
+  plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
+  'chevron-right': '<path d="m9 18 6-6-6-6"/>',
+  'arrow-up': '<path d="m5 12 7-7 7 7"/><path d="M12 19V5"/>',
+  folder: '<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>',
+  globe: '<circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/>',
+  paperclip: '<path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/>',
+  mic: '<path d="M12 19v3"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><rect x="9" y="2" width="6" height="13" rx="3"/>',
+  x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+  check: '<path d="M20 6 9 17l-5-5"/>',
+  'circle-alert': '<circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/>',
+  info: '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>',
+  'rotate-cw': '<path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/>',
+  pencil: '<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/>',
+  laptop: '<path d="M20 16V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v9m16 0H4m16 0 1.28 2.55a1 1 0 0 1-.9 1.45H3.62a1 1 0 0 1-.9-1.45L4 16"/>',
+  contrast: '<circle cx="12" cy="12" r="10"/><path d="M12 18a6 6 0 0 0 0-12v12z"/>',
+  plug: '<path d="M12 22v-5"/><path d="M9 8V2"/><path d="M15 8V2"/><path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z"/>',
+  bell: '<path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/>',
+  trash: '<path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>',
+  'loader-circle': '<path d="M21 12a9 9 0 1 1-6.219-8.56"/>',
+  'chart-column': '<path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/>',
+  pause: '<rect x="14" y="3" width="5" height="18" rx="1"/><rect x="5" y="3" width="5" height="18" rx="1"/>',
+  square: '<rect width="18" height="18" x="3" y="3" rx="2"/>',
+  lock: '<rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+};
+const I = {
+  sidebar: () => sv(L['panel-left']),
+  panel: () => sv(L['panel-right']),
+  plus: () => sv(L.plus),
+  chev: () => sv(L['chevron-right']),
+  down: () => sv(rot(90, L['chevron-right'])),
+  back: () => sv(rot(180, L['chevron-right'])),
+  up: () => sv(L['arrow-up']),
+  folder: () => sv(L.folder),
+  globe: () => sv(L.globe),
+  clip: () => sv(L.paperclip),
+  mic: () => sv(L.mic),
+  x: () => sv(L.x),
+  check: () => sv(L.check),
+  alert: () => sv(L['circle-alert']),
+  info: () => sv(L.info),
+  retry: () => sv(L['rotate-cw']),
+  pen: () => sv(L.pencil),
+  laptop: () => sv(L.laptop),
+  contrast: () => sv(L.contrast),
+  plug: () => sv(L.plug),
+  bell: () => sv(L.bell),
+  trash: () => sv(L.trash),
+  chart: () => sv(L['chart-column']),
+  pause: () => sv(L.pause),
+  stop: () => sv(L.square),
+  lock: () => sv(L.lock),
+};
+const spin = () => sv(L['loader-circle'], 'spin');
+const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+const tip = s => ` title="${s}" aria-label="${s}"`;
+const ib = (icon, s, cls = '', off = false) => `<button class="ib ${cls}"${tip(s)}${off ? ' disabled' : ''}>${icon}</button>`;
+const btn = (label, icon = '', cls = '', s = '', off = false) => `<button class="btn ${cls}"${s ? tip(s) : ''}${off ? ' disabled' : ''}>${icon}${label}</button>`;
+const code = s => `<span class="mono">${esc(s)}</span>`;
+
+/* the interface language of the frame being drawn: the mockup is written in English, Simplified Chinese is the zh-Hans.json wording */
+let Z = false;
+const t = (en, zh) => (Z ? zh : en);
+
+/* ---- the invented data: one week, every table adds up to the same totals ------------------------------------- */
+const fm = v => (v >= 1 ? `${v.toFixed(1)}M` : `${Math.round(v * 1000)}k`);
+const fc = c => (c == null ? '—' : `$${c.toFixed(2)}`);
+const TOTAL = { tok: 18.4, cost: 36.04, br: [1.2, 0.9, 2.1, 14.2] };
+const DAYS = [['Mon', '周一', 12], ['Tue', '周二', 13], ['Wed', '周三', 14], ['Thu', '周四', 15], ['Fri', '周五', 16], ['Sat', '周六', 17], ['Sun', '周日', 18]];
+/* tokens per day in M by model: opus, sonnet, haiku, glm */
+const DM = [[0.4, 1.5, 0.6, 0.3], [0.6, 1.9, 0.8, 0.3], [0.1, 0.7, 0.3, 0.1], [0.2, 0.8, 0.4, 0.2], [0.5, 1.6, 0.7, 0.3], [0.7, 1.9, 0.8, 0.5], [0.4, 1.0, 0.4, 0.4]];
+const DC = [5.2, 7.1, 1.9, 2.4, 6.3, 8.5, 4.64];
+const MODELS = [
+  ['claude-opus-5', 'claude-opus-5', 2.9, 18.23, 's0'],
+  ['claude-sonnet-5', 'claude-sonnet-5', 9.4, 15.59, 's1'],
+  ['claude-haiku-5', 'claude-haiku-5', 4.0, 2.22, 's2'],
+  ['glm-5', 'glm-5', 2.1, null, 'ot'],
+];
+/* [name, sub, tokens in M, estimated cost, [input, output, cache write, cache read]] */
+const GROUPS = {
+  session: [
+    ['byte cursor catalog', 'hoplet · MacBook Pro', 3.2, 8.12],
+    ['Wire protocol review', 'hoplet · MacBook Pro', 2.4, 6.5],
+    ['Fix flaky clone test', 'hoplet-agent · studio', 1.9, 4.33],
+    ['Trim the settings copy', 'hoplet-docs · MacBook Pro', 1.4, 3.1],
+    ['Backfill the blog tags', 'blog-site · office-mini', 1.1, null],
+    [['41 more sessions', '另外 41 个会话'], '', 8.4, 13.99],
+  ],
+  project: [
+    ['hoplet', '', 10.5, 24.37, [0.7, 0.5, 1.2, 8.1]],
+    ['hoplet-agent', '', 4.1, 8.41, [0.3, 0.2, 0.5, 3.1]],
+    ['hoplet-docs', '', 1.7, 3.26, [0.1, 0.1, 0.2, 1.3]],
+    ['blog-site', '', 2.1, null, [0.1, 0.1, 0.2, 1.7]],
+  ],
+  machine: [
+    ['MacBook Pro', 'macOS · arm64', 10.8, 24.4],
+    ['studio', 'Linux · arm64', 5.5, 11.64],
+    ['office-mini', 'Linux · amd64', 2.1, null],
+  ],
+  model: MODELS.map(([n, , tk, c]) => [n, '', tk, c]),
+};
+const GN = { session: ['Session', '会话'], project: ['Project', '项目'], machine: ['Machine', '机器'], model: ['Model', '模型'] };
+const nm = n => (Array.isArray(n) ? t(n[0], n[1]) : n);
+
+/* ---- Settings frame --------------------------------------------------------------------------------------------- */
+function nav() {
+  const ni = (on, icon, label) => `<div class="ni${on ? ' on' : ''}">${icon}${label}</div>`;
+  return `<nav class="snav" aria-label="${t('Settings sections', '设置分区')}">
+    ${ni(false, I.contrast(), t('Appearance', '外观'))}${ni(false, I.laptop(), t('Machines', '机器'))}${ni(false, I.plug(), t('Model providers', '模型提供方'))}${ni(false, I.bell(), t('Notifications', '通知'))}${ni(true, I.chart(), t('Usage', '用量'))}
+  </nav>`;
+}
+function tabs(active) {
+  const tab = (k, label, n) => `<span class="mp-tab" role="tab" aria-selected="${active === k}">${label}${n ? `<span class="meta">${n}</span>` : ''}</span>`;
+  return `<div class="mp-tabs" role="tablist">${tab('usage', t('Usage', '用量'))}${tab('budgets', t('Budgets', '预算'), 4)}${tab('prices', t('Prices', '价格'))}</div>`;
+}
+function settingsShell(body) {
+  return `<header class="top">${ib(I.back(), t('Back to the conversation · Esc', '返回会话 · Esc'))}<span class="title">${t('Settings', '设置')}</span></header>
+    <div class="set">${nav()}<div class="spage"><div class="in">${body}</div></div></div>`;
+}
+
+/* ---- Usage ------------------------------------------------------------------------------------------------------ */
+const RANGE = [['day', 'Day', '日'], ['week', 'Week', '周'], ['month', 'Month', '月'], ['custom', 'Custom', '自定义']];
+function rangeBar(sel, custom) {
+  const seg = `<div class="seg" role="radiogroup" aria-label="${t('Time range', '时间范围')}">${RANGE.map(([k, en, zh]) => `<button role="radio" aria-checked="${k === sel}" class="${k === sel ? 'on' : ''}">${t(en, zh)}</button>`).join('')}</div>`;
+  const label = t('Oct 12 – 18, 2026', '2026年10月12日–18日');
+  const nav2 = custom
+    ? `<div class="rnav"><div class="input ui on">${t('Oct 12, 2026', '2026年10月12日')}</div><span class="to">–</span><div class="input ui">${t('Oct 18, 2026', '2026年10月18日')}</div></div>`
+    : `<div class="rnav">${ib(I.back(), t('Previous week', '上一周'))}<span class="lab">${label}</span>${ib(I.chev(), t('Next week', '下一周'))}</div>`;
+  return `<div class="ubar">${seg}${nav2}</div>`;
+}
+function groupSeg(sel) {
+  return `<div class="seg" role="radiogroup" aria-label="${t('Group by', '分组')}">${Object.keys(GN).map(k => `<button role="radio" aria-checked="${k === sel}" class="${k === sel ? 'on' : ''}">${t(GN[k][0], GN[k][1])}</button>`).join('')}</div>`;
+}
+const head = (grp, title) => `<div class="ugh"><b>${title || t(`By ${GN[grp][0].toLowerCase()}`, `按${GN[grp][1]}`)}</b>${groupSeg(grp)}</div>`;
+const breakdown = () => `<div class="ubrk">${[['Input', '输入', 0], ['Output', '输出', 1], ['Cache write', '缓存写入', 2], ['Cache read', '缓存读取', 3]].map(([en, zh, i]) => `<span>${t(en, zh)} <b>${fm(TOTAL.br[i])}</b></span>`).join('')}</div>`;
+const costTitle = t('Estimated from the price table', '按价格表估算');
+const footnote = (tokOnly) => `<p class="rmeta ufoot">${tokOnly
+  ? t('Showing tokens only. Turn it off in Prices to show estimated cost.', '仅显示 token。可在“价格”中关闭此选项以显示估算费用。')
+  : t('Costs are estimates from the price table. — marks a model without a price: its tokens are counted, its cost is not.', '费用为按价格表得出的估算值。“—”表示该模型没有价格：其 token 会计入，费用不计入。')}</p>`;
+
+const legend = () => `<div class="uleg">${MODELS.map(([n, , , c, s]) => `<span><i class="rw ${s}"></i>${n}</span>`).join('')}</div>`;
+
+function chart({ hov = 3, tokOnly = false, partial = false } = {}) {
+  const max = 4;
+  const days = partial ? [[0.3, 1.0, 0.5, 0], [0.5, 1.4, 0.7, 0], [0.3, 0.9, 0.5, 0]] : DM;
+  const first = DAYS.length - days.length;
+  const cols = DAYS.map((d, i) => {
+    const row = days[i - first];
+    const pend = i < first;
+    const sum = row ? row.reduce((a, b) => a + b, 0) : 0;
+    const segs = row ? row.map((v, k) => (v ? `<i class="${['s0', 's1', 's2', 'ot'][k]}" style="height:${(v / max) * 100}%"></i>` : '')).join('') : '';
+    const tipHtml = i === hov && !partial ? `<div class="utip" role="tooltip"><b>${t(`${d[0]}, Oct ${d[2]}`, `10月${d[2]}日 ${d[1]}`)}</b><span>${sum.toFixed(1)}M ${t('tokens', 'token')}</span>${tokOnly ? '' : `<span>${fc(DC[i])} ${t('estimated', '估算')}</span>`}</div>` : '';
+    return `<div class="uc${i === hov && !partial ? ' hov' : ''}" role="img" aria-label="${t(`${d[0]} ${d[2]}`, `${d[1]} ${d[2]}`)}: ${sum.toFixed(1)}M ${t('tokens', 'token')}${tokOnly ? '' : `, ${fc(DC[i])}`}">${tipHtml}<div class="ucs${pend ? ' pend' : ''}">${segs}</div><span class="ucl">${t(d[0], d[1])} ${d[2]}</span></div>`;
+  }).join('');
+  return `<div class="uchart"><div class="uy"><span>4M</span><span>2M</span><span>0</span></div>
+    <div class="uplot"><div class="ugl"><i style="top:0"></i><i style="top:50%"></i><i style="top:100%"></i></div>${cols}</div></div>${legend()}`;
+}
+const totals = ({ tokOnly = false, partial = false, unpriced = true } = {}) => {
+  const tk = partial ? '6.1M' : '18.4M';
+  const c = partial ? '$11.90' : '$36.04';
+  return `<div class="utot"><b>${tk}</b><span class="u">${t('tokens', 'token')}</span>${tokOnly ? '' : `<span class="cost"${tip(costTitle)}><b>${c}</b> ${t('estimated', '估算')}${unpriced && !partial ? `<span class="meta"> · ${t('excludes 2.1M tokens without a price', '不含 2.1M 无价格的 token')}</span>` : ''}</span>`}</div>`;
+};
+
+/* the ranked table */
+function tableA(grp, { tokOnly = false, unknown = false, rows } = {}) {
+  const data = rows || GROUPS[grp];
+  const cols = tokOnly ? 'minmax(0,1fr) 84px 56px' : 'minmax(0,1fr) 84px 96px';
+  const body = data.map(([n, sub, tk, c]) => {
+    const sh = `${Math.round((tk / TOTAL.tok) * 100)}%`;
+    const cost = unknown && c == null ? `<span class="np"${tip(t('No price for this model', '该模型没有价格'))}>${t('No price', '无价格')}</span>` : `<span class="n c">${fc(c)}</span>`;
+    return `<div class="ur" style="--cols:${cols}"><span class="un"><span class="t1">${nm(n)}</span>${sub ? `<span class="t2">${sub}</span>` : ''}</span><span class="n">${fm(tk)}</span>${tokOnly ? `<span class="n">${sh}</span>` : cost}</div>`;
+  }).join('');
+  return `<div class="mp-list"><div class="ur hd" style="--cols:${cols}"><span>${t(GN[grp][0], GN[grp][1])}</span><span class="n">${t('Tokens', 'Token')}</span><span class="n"${tokOnly ? '' : tip(costTitle)}>${tokOnly ? t('Share', '占比') : t('Est. cost', '估算费用')}</span></div>${body}</div>`;
+}
+
+function usageMain(state) {
+  const tokOnly = state === 'usage-tokens-only';
+  const grp = state === 'usage-session' ? 'session' : state === 'usage-machine' ? 'machine' : state === 'usage-unknown-model' ? 'model' : 'project';
+  const unknown = state === 'usage-unknown-model';
+  return `${rangeBar(state === 'usage-custom' ? 'custom' : 'week', state === 'usage-custom')}
+    <div class="ucard">${totals({ tokOnly })}${breakdown()}${chart({ tokOnly, hov: unknown ? -1 : 3 })}</div>
+    ${unknown ? `<div class="nt snap" role="note" style="margin-top:var(--space-4)">${I.info()}<span>${t(`${code('glm-5')} has no price, so its 2.1M tokens are counted but not in the estimated cost.`, `${code('glm-5')} 没有价格，其 2.1M token 已计入，但不计入估算费用。`)}</span><span class="acts">${btn(t('Add a price', '添加价格'), '', 'quiet')}</span></div>` : ''}
+    ${head(grp)}${tableA(grp, { tokOnly, unknown })}${footnote(tokOnly)}`;
+}
+
+function usageEmpty() {
+  return `${rangeBar('week')}
+    <div class="mp-list"><div class="uempty"><span class="tile">${I.chart()}</span><b>${t('No usage yet', '还没有用量')}</b>
+      <p>${t('Hoplet counts tokens as sessions run. Start a session and its usage shows here, by session, project, machine and model.', 'Hoplet 在会话运行时统计 token。开始一个会话后，其用量会按会话、项目、机器和模型显示在这里。')}</p></div></div>`;
+}
+function usageBackfill() {
+  const rows = [['hoplet', '', 3.9, 8.05], ['hoplet-agent', '', 1.4, 2.8], ['hoplet-docs', '', 0.8, 1.05]];
+  return `${rangeBar('week')}
+    <div class="nt snap" role="status">${spin()}<div class="bf"><b>${t('Counting existing sessions', '正在统计已有会话')}</b><span>${t('312 of 1,204 sessions, newest first', '已统计 312 / 1,204 个会话，从最新的开始')}</span><div class="pbar go" style="margin:var(--space-1) 0"><i style="width:26%"></i></div><span class="meta">${t('The totals below are partial until counting finishes. You can leave this page.', '统计完成前，下方合计并不完整。可以离开此页。')}</span></div></div>
+    <div class="ucard" style="margin-top:var(--space-4)">${totals({ partial: true })}${chart({ partial: true })}</div>
+    ${head('project')}${tableA('project', { rows })}${footnote(false)}`;
+}
+
+function usagePage(state) {
+  let body;
+  if (state === 'usage-empty') body = usageEmpty();
+  else if (state === 'usage-backfill') body = usageBackfill();
+  else body = usageMain(state);
+  return `<h1>${t('Usage', '用量')}</h1>${tabs('usage')}${body}`;
+}
+
+/* ---- Budgets ---------------------------------------------------------------------------------------------------- */
+const SC = { global: [I.globe, 'Global', '全局'], project: [I.folder, 'Project', '项目'], machine: [I.laptop, 'Machine', '机器'] };
+const PD = { day: ['daily', '每日'], week: ['weekly', '每周'], month: ['monthly', '每月'] };
+function budgetRow(b, { mode = 'warn', allowed = false } = {}) {
+  const [icon, sEn, sZh] = SC[b.scope];
+  const name = b.scope === 'global' ? t('Global', '全局') : `${t(sEn, sZh)} · ${b.target}`;
+  const pct = Math.round((b.used / b.limit) * 100);
+  const over = b.used > b.limit;
+  const near = !over && pct >= b.alert;
+  const cls = over ? (mode === 'pause' && !allowed ? 'stop' : 'warn') : near ? 'warn' : '';
+  const fmt = v => (b.unit === "cost" ? `$${v.toFixed(2)}` : `${+v.toFixed(1)}M`);
+  const unitTx = b.unit === 'cost' ? '' : ` ${t('tokens', 'token')}`;
+  const modeTx = mode === 'pause' ? t('Pauses at the limit', '到限额时暂停') : t('Warn only', '仅提醒');
+  let status;
+  if (over && mode === 'pause' && allowed) {
+    status = `<span class="st1 ok">${I.check()}${t(`Allowed until ${b.end}. Pausing applies again from ${b.next}.`, `已允许至 ${b.endZ}。从 ${b.nextZ} 起重新生效。`)}</span>${btn(t('Stop allowing', '取消允许'), '', 'quiet')}`;
+  } else if (over && mode === 'pause') {
+    status = `<span class="st1 stop">${I.pause()}${t('Over the limit. New prompts are refused and the queue is paused.', '已超出限额。新消息会被拒绝，队列已暂停。')}</span>${btn(t(`Allow until ${b.end}`, `允许至 ${b.endZ}`), '', '', t('Prompts go through until the period ends; the pause applies again next period', '本周期结束前消息可正常发送；下个周期重新生效'))}`;
+  } else if (over) {
+    status = `<span class="st1 warn">${I.alert()}${t(`Over by ${fmt(b.used - b.limit)}. Nothing is paused.`, `超出 ${fmt(b.used - b.limit)}。不会暂停任何操作。`)}</span><span>${t(`Resets ${b.reset}`, `${b.resetZ}重置`)}</span>`;
+  } else if (near) {
+    status = `<span class="st1 warn">${I.alert()}${t(`Past the alert line. ${fmt(b.limit - b.used)}${unitTx} left.`, `已过提醒线。还剩 ${fmt(b.limit - b.used)}${unitTx}。`)}</span><span>${t(`Resets ${b.reset}`, `${b.resetZ}重置`)}</span>`;
+  } else {
+    status = `<span class="st1">${t(`Alert at ${b.alert}%`, `${b.alert}% 时提醒`)}</span><span>${t(`Resets ${b.reset}`, `${b.resetZ}重置`)}</span>`;
+  }
+  const barCls = over && allowed ? 'warn' : cls;
+  return `<div class="bg"><div class="bgh"><span class="pm">${icon()}</span><div class="tx"><span class="nm">${name} · ${t(PD[b.period][0], PD[b.period][1])}</span><span class="meta">${modeTx}${b.unit === 'cost' ? ` · ${t('estimated cost', '估算费用')}` : ''}</span></div>
+      <span class="bgv">${fmt(b.used)} <i>${t('of', '/')} ${fmt(b.limit)}${unitTx}</i></span>${ib(I.pen(), t('Edit budget', '编辑预算'))}</div>
+    <div class="bgb"><div class="pbar ${barCls}" role="progressbar" aria-valuenow="${Math.min(pct, 100)}" aria-valuemin="0" aria-valuemax="100" aria-label="${name}"><i style="width:${Math.min(pct, 100)}%"></i><u style="left:${b.alert}%" title="${t(`Alert line, ${b.alert}%`, `提醒线 ${b.alert}%`)}"></u></div><span class="pc">${pct}%</span></div>
+    <div class="bgm">${status}</div></div>`;
+}
+const B1 = { scope: 'global', period: 'month', unit: 'cost', limit: 200, used: 121.4, alert: 80, reset: 'Nov 1', resetZ: '11月1日' };
+const B2 = { scope: 'project', target: 'hoplet', period: 'week', unit: 'tok', limit: 12, used: 10.3, alert: 80, reset: 'Mon, Oct 26', resetZ: '10月26日（周一）' };
+const B3 = { scope: 'machine', target: 'studio', period: 'day', unit: 'cost', limit: 15, used: 16.2, alert: 80, reset: 'at midnight', resetZ: '午夜' };
+const B4 = { scope: 'project', target: 'hoplet-docs', period: 'month', unit: 'cost', limit: 10, used: 10.6, alert: 80, reset: 'Nov 1', resetZ: '11月1日', end: 'Oct 31', endZ: '10月31日', next: 'Nov 1', nextZ: '11月1日' };
+
+const B4ok = { ...B4, used: 7.4 };
+
+function budgetForm() {
+  const seg = (items, on, label) => `<div class="seg" role="radiogroup" aria-label="${label}">${items.map(([k, en, zh]) => `<button role="radio" aria-checked="${k === on}" class="${k === on ? 'on' : ''}">${t(en, zh)}</button>`).join('')}</div>`;
+  return `<div class="mcard" role="group" aria-label="${t('Edit budget', '编辑预算')}">
+    <div class="mcard-h"><b>${t('Edit budget', '编辑预算')}</b>${ib(I.x(), t('Close · Esc', '关闭 · Esc'))}</div>
+    <div class="fgrid">
+      <div class="fld"><span class="l">${t('Scope', '范围')}</span>${seg([['global', 'Global', '全局'], ['project', 'Project', '项目'], ['machine', 'Machine', '机器']], 'project', t('Scope', '范围'))}</div>
+      <div class="fld"><span class="l">${t('Project', '项目')}</span><div class="sel"><span class="sl">${I.folder()}</span><span class="v">hoplet</span>${I.down()}</div></div>
+      <div class="fld"><span class="l">${t('Period', '周期')}</span>${seg([['day', 'Day', '日'], ['week', 'Week', '周'], ['month', 'Month', '月']], 'week', t('Period', '周期'))}</div>
+      <div class="fld"><span class="l">${t('Unit', '单位')}</span>${seg([['cost', 'Estimated cost', '估算费用'], ['tok', 'Tokens', 'Token']], 'tok', t('Unit', '单位'))}</div>
+      <div class="fld"><span class="l">${t('Limit', '限额')}</span><div class="input ui on">12<span class="sx">${t('M tokens', 'M token')}</span></div></div>
+      <div class="fld"><span class="l">${t('Alert at', '提醒线')}</span><div class="input ui">80<span class="sx">%</span></div></div>
+    </div>
+    <div class="fld"><span class="l">${t('At the limit', '到达限额时')}</span>
+      <div class="opt"><span class="radio on"></span><div class="tx"><b>${t('Warn only', '仅提醒')}</b><span>${t('Hoplet tells you and keeps going. This is the default.', 'Hoplet 会通知你，但继续运行。这是默认选项。')}</span></div></div>
+      <div class="opt"><span class="radio"></span><div class="tx"><b>${t('Pause', '暂停')}</b><span>${t('New prompts are refused and the auto-send queue pauses. A running turn is not interrupted. You can allow it until the end of the period.', '拒绝新消息，并暂停自动发送队列。正在运行的回合不会被打断。你可以选择允许到本周期结束。')}</span></div></div>
+    </div>
+    <p class="rmeta" style="margin:0">${t('At the alert line Hoplet sends a Budget notification, once per period.', '到达提醒线时，Hoplet 会发送一条“预算”通知，每个周期一次。')}</p>
+    <div class="mcard-f">${btn(t('Delete', '删除'), I.trash(), 'quiet del')}${btn(t('Cancel', '取消'), '', 'quiet')}${btn(t('Save', '保存'), '', 'primary')}</div></div>`;
+}
+function budgetsPage(state) {
+  let inner;
+  if (state === 'budgets-empty') {
+    inner = `<div class="mp-list"><div class="uempty"><span class="tile">${I.chart()}</span><b>${t('No budgets', '还没有预算')}</b>
+      <p>${t('A budget watches one scope over a day, a week or a month, and tells you at the alert line. It can also pause new prompts at the limit.', '预算按日、周或月监视一个范围，并在提醒线通知你。它还可以在限额处暂停新消息。')}</p>
+      <div class="acts">${btn(t('Add a budget', '添加预算'), I.plus(), 'primary')}</div></div></div>`;
+  } else {
+    const rows = state === 'budgets-edit'
+      ? budgetRow(B1) + budgetRow(B3) + budgetRow(B4ok, { mode: 'pause' })
+      : budgetRow(B1) + budgetRow(B2) + budgetRow(B3) + budgetRow(state === 'budgets' ? B4ok : B4, { mode: 'pause', allowed: state === 'budgets-allowed' });
+    inner = `${state === 'budgets-edit' ? budgetForm() + '<div style="height:var(--space-4)"></div>' : ''}<div class="mp-list">${rows}</div>
+      <div class="bgadd"><p class="rmeta" style="margin:0;flex:1">${t('Counted in estimated cost, a budget leaves out models without a price. Count in tokens to include them.', '按估算费用计算的预算不含没有价格的模型。改按 token 计算即可包含它们。')}</p>${btn(t('Add a budget', '添加预算'), I.plus())}</div>`;
+  }
+  const toast = state === 'budgets-allowed' ? `<div class="toast" role="status">${I.check()}<span>${t('hoplet-docs is allowed until Oct 31', 'hoplet-docs 已允许至 10月31日')}</span></div>` : '';
+  return `<h1>${t('Usage', '用量')}</h1>${tabs('budgets')}${inner}${toast}`;
+}
+
+/* ---- Prices ----------------------------------------------------------------------------------------------------- */
+/* [model, input, output, cache write, cache read, yours]; per 1M tokens, USD */
+const PRICES = [
+  ['claude-opus-5', 15, 75, 18.75, 1.5, false],
+  ['claude-sonnet-5', 3, 15, 3.75, 0.3, false],
+  ['claude-haiku-5', 0.8, 4, 1, 0.08, true],
+];
+function pricesPage(state) {
+  const tokOnly = state === 'prices-tokens-only';
+  const edit = state === 'prices-edit';
+  const cols = 'minmax(0,1fr) 68px 68px 76px 76px 64px';
+  const row = ([n, a, b, c, d, own]) => `<div class="ur" style="--cols:${cols}"><span class="un"><span class="t1 mono">${n}</span></span><span class="n">${a.toFixed(2)}</span><span class="n">${b.toFixed(2)}</span><span class="n">${c.toFixed(2)}</span><span class="n">${d.toFixed(2)}</span>
+    <span class="own">${own ? `<span class="tg">${t('Yours', '自定')}</span>${ib(I.retry(), t('Reset to the built-in price', '恢复为内置价格'))}` : `<span class="tg">${t('Built in', '内置')}</span>`}</span></div>`;
+  const glmRow = edit
+    ? `<div class="prow-edit"><div class="hd2"><b class="mono" style="font-family:var(--font-mono);font-size:var(--text-code)">glm-5</b><span class="meta">${t('Not in the built-in table. Your price is kept on the host.', '不在内置价格表中。你设置的价格保存在主机上。')}</span></div>
+        <div class="f4">${[['Input', '输入', '0.60'], ['Output', '输出', '2.20'], ['Cache write', '缓存写入', ''], ['Cache read', '缓存读取', '0.11']].map(([en, zh, v], i) => `<div class="fld"><span class="l">${t(en, zh)}</span><div class="input ui${i === 1 ? ' on' : ''}"><span class="px2">$</span>${v}</div></div>`).join('')}</div>
+        <div class="fo">${btn(t('Cancel', '取消'), '', 'quiet')}${btn(t('Save', '保存'), '', 'primary')}</div></div>`
+    : `<div class="ur" style="--cols:${cols}"><span class="un"><span class="t1 mono">glm-5</span><span class="t2">${t('2.1M tokens this week', '本周 2.1M token')}</span></span><span class="n dim">—</span><span class="n dim">—</span><span class="n dim">—</span><span class="n dim">—</span><span class="own">${btn(t('Add price', '添加价格'), '', 'quiet')}</span></div>`;
+  return `<h1>${t('Usage', '用量')}</h1>${tabs('prices')}
+    <div class="sgrp"><div class="plist"><div class="pr hint"><span class="nm">${t('Show tokens only', '仅显示 token')}<span class="meta">${t('Hide estimated cost everywhere, for plans that are not billed per token.', '在所有位置隐藏估算费用，适用于不按 token 计费的订阅。')}</span></span>
+      <span class="switch${tokOnly ? ' on' : ''}" role="switch" aria-checked="${tokOnly}" aria-label="${t('Show tokens only', '仅显示 token')}"></span></div></div></div>
+    <div class="sgrp"><div class="lb">${t('Price table', '价格表')}</div>
+      <p class="rmeta" style="margin:0 0 var(--space-2)">${tokOnly ? t('Estimated cost is hidden. The prices stay and are used again when you turn this off.', '估算费用已隐藏。价格会保留，关闭此选项后将再次使用。') : t('US dollars per 1M tokens. Built-in prices ship with Hoplet; a price you set wins over them.', '每 1M token 的美元价格。内置价格随 Hoplet 提供；你设置的价格优先。')}</p>
+      <div class="mp-list pt${tokOnly ? ' off' : ''}"><div class="ur hd" style="--cols:${cols}"><span>${t('Model', '模型')}</span><span class="n">${t('Input', '输入')}</span><span class="n">${t('Output', '输出')}</span><span class="n">${t('Cache write', '缓存写入')}</span><span class="n">${t('Cache read', '缓存读取')}</span><span></span></div>
+        ${PRICES.map(row).join('')}${glmRow}</div>
+      <div class="bgadd">${btn(t('Add a model price', '添加模型价格'), I.plus())}</div></div>`;
+}
+
+/* ---- the session ------------------------------------------------------------------------------------------------ */
+const SESS = {
+  title: ['byte cursor catalog', 'hoplet · MacBook Pro', 'hoplet · MacBook Pro'],
+  br: [['Input', '输入', '214k'], ['Output', '输出', '168k'], ['Cache write', '缓存写入', '402k'], ['Cache read', '缓存读取', '2.42M']],
+  models: [['claude-opus-5', '0.9M', '$6.30'], ['claude-sonnet-5', '2.3M', '$1.82']],
+};
+function chip(state) {
+  const unknown = state === 'session-usage-unknown';
+  const near = state === 'session-usage-near';
+  const open = state === 'session-usage-open' || state === 'session-usage-unknown' && false || state === 'session-usage-near' || state === 'session-usage-open-unknown';
+  const tk = unknown ? '1.1M' : '3.2M';
+  return `<button class="uchip" aria-haspopup="dialog" aria-expanded="${open}"${tip(t('Usage of this session', '本会话的用量'))}>${near ? `<span class="adot" role="img"${tip(t('A budget is past its alert line', '有预算已过提醒线'))}></span>` : ''}<span>${tk} ${t('tokens', 'token')}</span>${unknown ? '' : `<span class="sep">·</span><span>≈ $8.12</span>`}</button>`;
+}
+function popover(state) {
+  const unknown = state === 'session-usage-unknown' || state === 'session-usage-open-unknown';
+  const near = state === 'session-usage-near';
+  const open = ['session-usage-open', 'session-usage-near', 'session-usage-unknown', 'session-usage-zh'].includes(state) && state !== 'session-usage-zh' || state === 'session-usage-zh';
+  if (!open) return '';
+  const br = unknown ? [['Input', '输入', '96k'], ['Output', '输出', '71k'], ['Cache write', '缓存写入', '181k'], ['Cache read', '缓存读取', '752k']] : SESS.br;
+  const models = unknown ? [['glm-5', '1.1M', null]] : SESS.models;
+  const budget = near ? `<div class="rule"></div><div class="bl"><span class="meta">${t('Budgets that count this session', '计入本会话的预算')}</span>
+      <div class="row">${I.folder()}<span>hoplet · ${t('weekly', '每周')}</span><em class="warn">86%</em></div><div class="pbar warn"><i style="width:86%"></i><u style="left:80%"></u></div>
+      <div class="row">${I.globe()}<span>${t('Global · monthly', '全局 · 每月')}</span><em>61%</em></div><div class="pbar"><i style="width:61%"></i><u style="left:80%"></u></div></div>` : '';
+  return `<div class="upop" role="dialog" aria-label="${t('Usage of this session', '本会话的用量')}">
+    <div class="ph1"><b>${t('Usage of this session', '本会话的用量')}</b><span class="meta">${t('23 turns', '23 个回合')}</span></div>
+    <div class="big"><b>${unknown ? '1.1M' : '3.2M'}</b><span>${t('tokens', 'token')}</span>${unknown ? '' : `<span${tip(costTitle)}>≈ $8.12 ${t('estimated', '估算')}</span>`}</div>
+    <div class="ukv">${br.map(([en, zh, v]) => `<span class="k">${t(en, zh)}</span><span></span><span class="v">${v}</span>`).join('')}</div>
+    <div class="rule"></div>
+    <div class="ukv hd"><span>${t('Model', '模型')}</span><span class="v">${t('Tokens', 'Token')}</span><span class="v m">${t('Est. cost', '估算费用')}</span></div>
+    <div class="ukv">${models.map(([n, tk, c]) => `<span class="k mono">${n}</span><span class="v">${tk}</span><span class="v m">${c == null ? `<span class="np">${t('No price', '无价格')}</span>` : c}</span>`).join('')}</div>
+    ${unknown ? `<p class="rmeta" style="margin:0">${t('glm-5 has no price, so only its tokens are shown. Add one in Settings › Usage › Prices.', 'glm-5 没有价格，所以只显示 token。可在 设置 › 用量 › 价格 中添加。')}</p>` : `<p class="rmeta" style="margin:0">${t('Estimated from the price table.', '按价格表估算。')}</p>`}
+    ${budget}</div>`;
+}
+const msgUsage = (m, a, b, c, d) => `<div class="mu"><span>${m}</span><span>${a} ${t('in', '输入')}</span><span>${b} ${t('out', '输出')}</span><span>${c} ${t('cache write', '缓存写入')}</span><span>${d} ${t('cache read', '缓存读取')}</span>${d ? '' : ''}</div>`;
+function turns(docs) {
+  if (docs) {
+    return `<div class="cp">${t('Update the API reference for the usage routes', '更新用量相关路由的 API 参考')}</div>
+      <p class="text">${t('The routes are documented. I added the three usage routes and the budget fields to the reference and left the notification kinds for the next change.', '这些路由已写入文档。我把三个用量路由和预算字段加进了 API 参考，通知类型留到下一次修改。')}</p>
+      <div class="mu"><span>claude-sonnet-5</span><span>9.8k ${t('in', '输入')}</span><span>1.1k ${t('out', '输出')}</span><span>38k ${t('cache read', '缓存读取')}</span><span>≈ $0.06</span></div>`;
+  }
+  return `<div class="cp">${t('Why does the cursor catalog read the whole file?', '为什么游标目录会读取整个文件？')}</div>
+    <p class="text">${t('It does not. The file only appends, so the byte offset of the old end of file is the cursor, and the catalog reads from there.', '不会。文件只会追加，所以旧文件末尾的字节偏移就是游标，目录从那里开始读取。')}</p>
+    <div class="mu"><span>claude-opus-5</span><span>12.4k ${t('in', '输入')}</span><span>1.1k ${t('out', '输出')}</span><span>38k ${t('cache read', '缓存读取')}</span><span${tip(costTitle)}>≈ $0.19</span></div>
+    <div class="cp" style="padding-top:var(--space-4)">${t('Add a test for the gz rename order', '为 gz 重命名顺序添加测试')}</div>
+    <p class="text">${t('Added. The test fails first, then passes with the order swapped.', '已添加。该测试先失败，调换顺序后通过。')}</p>
+    <div class="mu"><span>claude-sonnet-5</span><span>8.1k ${t('in', '输入')}</span><span>0.9k ${t('out', '输出')}</span><span>31k ${t('cache read', '缓存读取')}</span><span>≈ $0.05</span></div>`;
+}
+const send = on => `<button class="send"${on ? '' : ' disabled'}${tip(t('Send · ↩', '发送 · ↩'))}>${I.up()}</button>`;
+function composerBox(state) {
+  if (state === 'composer-over-budget' || state === 'composer-over-budget-zh') {
+    return `<div class="composer" aria-live="polite"><div class="ph typed">${t('Document the notification kinds in docs/api.md', '在 docs/api.md 中记录通知类型')}</div>
+      <div class="cf">${ib(I.clip(), t('Attach', '附件'))}<span class="cst warn" role="status"${tip(t('over-budget · hoplet-docs monthly, $10.60 of $10.00', 'over-budget · hoplet-docs 每月，$10.60 / $10.00'))}>${I.alert()}${t('Not sent. hoplet-docs is over its monthly budget.', '未发送。hoplet-docs 已超出每月预算。')}</span>
+        <span class="r">${btn(t('Allow until Oct 31', '允许至 10月31日'))}${ib(I.mic(), t('Dictate · transcribed on your machines', '听写 · 在你的机器上转写'))}${send(false)}</span></div></div>`;
+  }
+  return `<div class="composer cbar" aria-live="polite"><span class="cst warn" role="status">${I.pause()}<span>${t('Queue paused. 2 prompts wait; hoplet-docs is over its monthly budget.', '队列已暂停，2 条消息在等待；hoplet-docs 已超出每月预算。')}</span></span>${btn(t('Allow until Oct 31', '允许至 10月31日'))}${ib(I.stop(), t('Stop Claude Code', '停止 Claude Code'))}</div>`;
+}
+function sessionFrame(state, scheme) {
+  const comp = state.startsWith('composer');
+  const unknown = state === 'session-usage-unknown';
+  const titleName = comp ? 'Update the API docs' : SESS.title[0];
+  const ctx = comp ? 'hoplet-docs · MacBook Pro' : unknown ? 'blog-site · office-mini' : SESS.title[1];
+  const running = state === 'composer-over-budget-running';
+  const top = `<header class="top">${ib(I.sidebar(), t('Show sidebar · ⌘\\', '显示侧边栏 · ⌘\\'))}<span class="title">${unknown ? t('Backfill the blog tags', '补全博客标签') : comp ? t('Update the API docs', '更新 API 文档') : titleName}</span><span class="ctx meta">${ctx}</span><span class="sp"></span>${comp ? '' : chip(state)}${ib(I.panel(), t('Show workspace', '显示工作区'))}</header>`;
+  const body = running
+    ? `<div class="cp">${t('Update the API reference for the usage routes', '更新用量相关路由的 API 参考')}</div><div class="cwork">${spin()}<span>${t('Running pnpm check…', '正在运行 pnpm check…')}</span></div>`
+    : turns(comp);
+  const dock = comp ? `<div class="dock"><div class="col">${composerBox(state)}</div></div>` : `<div class="dock"><div class="col"><div class="composer"><div class="ph">${t('Ask Claude Code…', '向 Claude Code 提问…')}</div><div class="cf">${ib(I.clip(), t('Attach', '附件'))}<span class="r">${ib(I.mic(), t('Dictate · transcribed on your machines', '听写 · 在你的机器上转写'))}${send(false)}</span></div></div></div></div>`;
+  return `<div class="frame nosb ${scheme}" data-state="${state}"><main class="main">${top}<div class="conv"><div class="col">${body}</div></div>${dock}${comp ? '' : popover(state)}</main></div>`;
+}
+
+/* screen: begin */
+const STATES = [
+  ['usage', 'Usage: the totals with the token breakdown, a column per day stacked by model, then a ranked table; the Week range, grouped by project, Thursday hovered'],
+  ['usage-session', 'Usage grouped by session: the sessions with the most cost, the rest folded into one row'],
+  ['usage-machine', 'Usage grouped by machine: office-mini has tokens and no cost'],
+  ['usage-custom', 'Usage with a custom range: two date fields instead of the week arrows'],
+  ['usage-tokens-only', 'Usage when the host shows tokens only: no cost anywhere, a share column instead, one line saying so'],
+  ['usage-unknown-model', 'Usage grouped by model: glm-5 has no price, its row says No price, the note offers Add a price and the total says what it leaves out'],
+  ['usage-empty', 'Usage with nothing counted yet: one message'],
+  ['usage-backfill', 'Usage while existing sessions are counted after an upgrade: progress, the partial totals and a chart with the days still to come'],
+  ['usage-zh', 'Usage in Simplified Chinese'],
+  ['session-usage', 'The session top bar: cumulative usage in a chip, tokens and estimated cost, with each message’s own usage under its answer'],
+  ['session-usage-open', 'The chip opened: totals, the four token kinds, then tokens and estimated cost per model'],
+  ['session-usage-unknown', 'The chip opened for a model without a price: tokens only, the cost cell says No price and where to add one'],
+  ['session-usage-near', 'The chip opened when a budget is past its alert line: an amber dot on the chip and the budgets that count this session'],
+  ['session-usage-zh', 'The opened chip in Simplified Chinese'],
+  ['budgets', 'Budgets: four rows with scope, period, usage against the limit and the alert tick; global at 61%, hoplet past the alert line, studio over in warn-only mode, hoplet-docs at 74% of its limit in pause mode, nothing to act on'],
+  ['budgets-pause', 'Budgets: hoplet-docs over its limit in pause mode, a red bar, the line saying new prompts are refused and the queue is paused, and the action Allow until Oct 31'],
+  ['budgets-allowed', 'Budgets: hoplet-docs allowed until the end of the period, the bar amber again, Stop allowing, and a toast'],
+  ['budgets-edit', 'Budgets: editing hoplet weekly; scope, period, unit, limit, alert line and At the limit with its two options'],
+  ['budgets-empty', 'Budgets: none yet'],
+  ['budgets-zh', 'Budgets in Simplified Chinese'],
+  ['composer-over-budget', 'The composer after a prompt was refused (over-budget): the text is kept, one amber line says why, Allow until Oct 31 beside Send'],
+  ['composer-over-budget-running', 'Over budget while a turn runs: the turn goes on, the queue is paused and says so with its one action'],
+  ['composer-over-budget-zh', 'The refusal in Simplified Chinese'],
+  ['prices', 'Prices: Show tokens only off, the built-in prices, one yours (haiku) with Reset, and glm-5 without a price and Add price'],
+  ['prices-edit', 'Prices: adding glm-5, four fields in dollars per 1M tokens, Cache write left empty'],
+  ['prices-tokens-only', 'Prices: Show tokens only on, the table kept but greyed'],
+];
+/* screen: end */
+
+function frame(state, scheme) {
+  Z = state.endsWith('-zh');
+  const lang = Z ? ' lang="zh-Hans"' : '';
+  if (state.startsWith('session-') || state.startsWith('composer-')) return sessionFrame(state, scheme).replace('<div class="frame', `<div${lang} class="frame`);
+  let page;
+  if (state.startsWith('budgets')) page = budgetsPage(state === 'budgets-zh' ? 'budgets' : state);
+  else if (state.startsWith('prices')) page = pricesPage(state);
+  else page = usagePage(state === 'usage-zh' ? 'usage' : state);
+  return `<div${lang} class="frame page ${scheme}" data-state="${state}"><main class="main">${settingsShell(page)}</main></div>`;
+}
+
+/* ---- the page --------------------------------------------------------------------------------------------------- */
+const q = new URLSearchParams(location.search);
+const root = document.getElementById('root');
+const solo = STATES.find(([s]) => s === q.get('state'));
+if (q.get('state') && !solo) {
+  document.body.className = 'solo';
+  root.textContent = `Unknown state: ${q.get('state')}`;
+} else if (solo) {
+  document.body.className = 'solo';
+  root.innerHTML = frame(solo[0], q.get('scheme') === 'light' ? 'light' : 'dark');
+} else {
+  document.body.className = 'stacked';
+  root.innerHTML = `<header class="intro"><h1>Usage, cost and budgets <span>Settings › Usage and the session top bar</span></h1>
+    <p>Usage per message and per session, an estimated cost, and budgets (issue #75). Tokens are counted as the four kinds the model reports: input, output, cache write and cache read. The cost is an estimate from a price table that ships with Hoplet and that the host can override; it is labelled estimated wherever it appears. A model without a price shows tokens only, and the host can choose to show tokens only everywhere.</p>
+    <p><b>Settings › Usage</b> shows the totals and the token breakdown on top, a column per day stacked by model (the accent in opacity steps, the one model without a price in grey), then a ranked table. The range bar (day, week, month, custom) and the group-by control (session, project, machine, model) sit above. The maintainer chose this layout over compact tiles and a table-first page.</p>
+    <p><b>Budgets</b> are rows with a bar and an alert tick; amber means the alert line or an over-limit that only warns, red means new prompts are refused. The pause row carries its one action, Allow until the end of the period. A refused prompt keeps its text in the composer and says why once. The session top bar holds one chip, tokens and estimated cost; it opens to the four token kinds and a line per model. All numbers are invented and add up across the tables.</p></header>` +
+    STATES.map(([s, desc]) => `<section class="st"><h2>${s}<span>${desc}</span></h2><div class="pair">
+      <div class="scaled">${frame(s, 'light')}</div><div class="scaled">${frame(s, 'dark')}</div></div></section>`).join('');
+}
+</script>
+</body>
+</html>
