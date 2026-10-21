@@ -86,7 +86,7 @@ place of the proxy. Never publish port 7788 on `0.0.0.0`.
 
 | Where | What |
 |---|---|
-| Docker volume `hoplet-data` (`/data` in the container) | `hoplet.db` (SQLite index, which also holds what the user did to a session in the web UI: a title of their own, a pin, an archive, the last slash commands and skills a session reported per machine and directory, the messages queued for a session, the worktree Hoplet made for a handed-off session, the provider configuration each session belongs to, and the IDs of deleted sessions; planned, ADR 0030: the audit log, `audit_events`; planned: how far it was derived from each session, `audit_cursor`), `sessions/<sessionId>/c-<seq>.ndjson[.gz]` (session lines), `snapshots/<sessionId>/<snapshotId>.tar.gz` (latest workspace snapshot per session), `notify-secrets.json` (mode 0600: the VAPID key pair for Web Push, the key that signs action links and the signing secrets of webhooks; the push subscriptions, the webhooks without their secrets and the preferences are in `hoplet.db`) |
+| Docker volume `hoplet-data` (`/data` in the container) | `hoplet.db` (SQLite index, which also holds what the user did to a session in the web UI: a title of their own, a pin, an archive, the last slash commands and skills a session reported per machine and directory, the messages queued for a session, the worktree Hoplet made for a handed-off session, the provider configuration each session belongs to, the IDs of deleted sessions, and the session templates, `templates`; planned, ADR 0030: the audit log, `audit_events`; planned: how far it was derived from each session, `audit_cursor`), `sessions/<sessionId>/c-<seq>.ndjson[.gz]` (session lines), `snapshots/<sessionId>/<snapshotId>.tar.gz` (latest workspace snapshot per session), `notify-secrets.json` (mode 0600: the VAPID key pair for Web Push, the key that signs action links and the signing secrets of webhooks; the push subscriptions, the webhooks without their secrets and the preferences are in `hoplet.db`) |
 | Agent state root (`~/.hoplet/` by default) | `device-id`, `config.json`, `projects.json`, `runtime/` (running processes), `handoff/` (installation records and the journal of a clone in progress, `<handoffId>.clone.json`, which the agent uses on start-up to remove a half-made clone), `attachments/` (images uploaded for prompts: at most 64 files and 64 MiB, each kept at most an hour) |
 | Development machine | Claude Code's store, Codex's `sessions/` (read-only, except that handoff adds one rollout file) and working trees; worktrees created by handoff, next to the clone they belong to |
 
@@ -250,6 +250,9 @@ action. Budgets are evaluated from the `usage` table in the core's process: no n
 
 The migration that adds the audit log (ADR 0030) creates `audit_events` and reads nothing; it needs no action. The log starts at the first start after the upgrade and does not cover earlier sessions. No new
 port, resource or dependency; the database grows as the hosting section on data says.
+
+Migration 0024 (session templates) adds the small table `templates`; it reads nothing and needs no action. No new port,
+resource or dependency.
 
 ## Uninstall
 

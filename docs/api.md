@@ -128,6 +128,14 @@ Response column names the schema of the success body and its status when it is n
 | DELETE | `/api/budgets/:id` | host | control | — | — | `BudgetListResponseSchema` | `not-found` |
 | POST | `/api/budgets/:id/allow` | host | control | — | — | `BudgetSchema` | `not-found`, `invalid-request` |
 | DELETE | `/api/budgets/:id/allow` | host | control | — | — | `BudgetSchema` | `not-found`, `invalid-request` |
+| GET | `/api/templates` | host | control | — | — | `TemplateListResponseSchema` | — |
+| POST | `/api/templates` | host | control | — | `TemplateBodySchema` | `TemplateSchema`, 201 | `invalid-json`, `invalid-request`, `too-large` |
+| GET | `/api/templates/export` | host | control | — | — | `TemplateFileSchema` | — |
+| POST | `/api/templates/import` | host | control | — | `TemplateImportRequestSchema` | `TemplateImportResultSchema` | `invalid-json`, `invalid-request`, `too-large` |
+| GET | `/api/templates/:id` | host | control | — | — | `TemplateSchema` | `not-found` |
+| PUT | `/api/templates/:id` | host | control | — | `TemplateBodySchema` | `TemplateSchema` | `invalid-json`, `invalid-request`, `too-large`, `not-found` |
+| DELETE | `/api/templates/:id` | host | control | — | — | `TemplateListResponseSchema` | `not-found` |
+| POST | `/api/templates/:id/start` | host | control | — | `TemplateStartRequestSchema` | `TemplateStartResultSchema` | `invalid-json`, `invalid-request`, `too-large`, `not-found`, `target-offline`, `over-budget`, `timeout` |
 | GET | `/api/audit/events` | host | bulk | `AuditEventsQuerySchema` | — | `AuditEventsResponseSchema` | `invalid-request` |
 | GET | `/api/audit/export` | host | bulk | `AuditExportQuerySchema` | — | `AuditEventSchema`, streamed as JSON Lines or CSV | `invalid-request`, `rate-limited`, `audit-unavailable` |
 | GET | `/api/audit/verify` | host | bulk | `AuditVerifyQuerySchema` | — | `AuditVerifyResponseSchema` | `invalid-request` |
@@ -213,6 +221,20 @@ Behavior a client relies on:
   `invalid-request` with `reason: "onLimit"`. `DELETE /api/budgets/:id/allow` takes the lift back, so the pause
   applies again at once; it answers the budget, also when nothing was lifted, and is `invalid-request` with
   `reason: "onLimit"` on a `warn` budget.
+- Session templates (docs/spec.md#session-templates) are kept by the host: at most 100, a unique `name` of 1 to
+  80 characters, a `text` of at most 8000 characters and the parts of a new session request. `TemplateSchema` adds
+  `placeholders` (name and default, in the order of first use). A `text` whose placeholders are wrong is
+  `invalid-request` with `reason: "text:<problem>:<offset>"` (`syntax` or `too-many`, the offset 0-based); a taken
+  name is `reason: "name"`; the 101st template is `too-large`. `POST /api/templates/:id/start` renders the text and
+  starts a session with the rules and the response of `POST /api/sessions`, including the `promptId` repeat; its
+  `invalid-request` carries the `promptId` and a `reason`: `values:missing:<names>`, `values:unknown:<names>`,
+  `text` (empty once filled), `deviceId` or `projectPath` (neither the request nor the template has one), or the
+  reason of a refused session request. `GET /api/templates/export` answers the file (`v: 1`, machines by name);
+  `POST /api/templates/import` takes `{ file, machines?, dryRun? }`, gives a taken name a suffix (` (2)`), matches
+  `device` by name or by `machines`, stores all entries or none, and answers `items` (and `templates`, empty on a
+  dry run). A bad placeholder in an entry is `reason: "file.<index>.text:<problem>:<offset>"`, an ID in `machines`
+  that is no machine `reason: "machines"`, and more than 100 templates in all `too-large`. Every change is a
+  `config.changed` audit event that never holds the text.
 - A `pause` budget that is over its amount and not lifted refuses new work in its scope with `over-budget` (409,
   with `budget: { id, name }` naming it): `POST /api/sessions/:sessionId/prompt`, a new session
   (`POST /api/sessions`, `POST /api/sessions/:sessionId/permission/fresh`) in its project or on its machine. A

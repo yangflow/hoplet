@@ -23,6 +23,7 @@ import { deviceInventory } from './0020-device-inventory.ts';
 import { usage } from './0021-usage.ts';
 import { budgets } from './0022-budgets.ts';
 import { auditLog } from './0023-audit-log.ts';
+import { templates } from './0024-templates.ts';
 
 export interface Migration {
   readonly id: number;
@@ -54,6 +55,7 @@ const MIGRATIONS: readonly Migration[] = [
   usage,
   budgets,
   auditLog,
+  templates,
 ];
 
 export function migrate(db: DatabaseSync): void {

@@ -823,6 +823,86 @@
       "query": null,
       "body": "ActionDecideRequestSchema",
       "response": "ActionDecideResponseSchema"
+    },
+    {
+      "method": "GET",
+      "path": "/api/templates",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": null,
+      "response": "TemplateListResponseSchema"
+    },
+    {
+      "method": "POST",
+      "path": "/api/templates",
+      "auth": "host",
+      "lane": "control",
+      "status": 201,
+      "query": null,
+      "body": "TemplateBodySchema",
+      "response": "TemplateSchema"
+    },
+    {
+      "method": "GET",
+      "path": "/api/templates/export",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": null,
+      "response": "TemplateFileSchema"
+    },
+    {
+      "method": "POST",
+      "path": "/api/templates/import",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": "TemplateImportRequestSchema",
+      "response": "TemplateImportResultSchema"
+    },
+    {
+      "method": "GET",
+      "path": "/api/templates/:id",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": null,
+      "response": "TemplateSchema"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/templates/:id",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": "TemplateBodySchema",
+      "response": "TemplateSchema"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/templates/:id",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": null,
+      "response": "TemplateListResponseSchema"
+    },
+    {
+      "method": "POST",
+      "path": "/api/templates/:id/start",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": "TemplateStartRequestSchema",
+      "response": "TemplateStartResultSchema"
     }
   ],
   "browserMessages": [
@@ -6541,6 +6621,595 @@
         "v",
         "type",
         "sessionId"
+      ]
+    },
+    "TemplateBodySchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^\\s*\\S(?:[\\s\\S]{0,78}\\S)?\\s*$"
+        },
+        "text": {
+          "type": "string",
+          "pattern": "^\\s*\\S(?:[\\s\\S]{0,7998}\\S)?\\s*$"
+        },
+        "deviceId": {
+          "type": "string",
+          "pattern": "\\S",
+          "minLength": 1
+        },
+        "projectPath": {
+          "type": "string",
+          "pattern": "^\\s*\\S(?:[\\s\\S]{0,4094}\\S)?\\s*$"
+        },
+        "provider": {
+          "enum": [
+            "claude",
+            "codex"
+          ],
+          "type": "string"
+        },
+        "configuration": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]{0,39}$"
+        },
+        "config": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              {
+                "type": "boolean"
+              }
+            ]
+          }
+        }
+      },
+      "required": [
+        "name",
+        "text",
+        "provider"
+      ]
+    },
+    "TemplateFileSchema": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "templates": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "pattern": "^\\s*\\S(?:[\\s\\S]{0,78}\\S)?\\s*$"
+              },
+              "text": {
+                "type": "string",
+                "pattern": "^\\s*\\S(?:[\\s\\S]{0,7998}\\S)?\\s*$"
+              },
+              "device": {
+                "type": "string",
+                "pattern": "\\S",
+                "minLength": 1
+              },
+              "project": {
+                "type": "string",
+                "pattern": "^\\s*\\S(?:[\\s\\S]{0,4094}\\S)?\\s*$"
+              },
+              "provider": {
+                "enum": [
+                  "claude",
+                  "codex"
+                ],
+                "type": "string"
+              },
+              "configuration": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9-]{0,39}$"
+              },
+              "config": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                },
+                "additionalProperties": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 128
+                    },
+                    {
+                      "type": "boolean"
+                    }
+                  ]
+                }
+              }
+            },
+            "required": [
+              "name",
+              "text",
+              "provider"
+            ],
+            "additionalProperties": false
+          },
+          "maxItems": 100
+        }
+      },
+      "required": [
+        "v",
+        "templates"
+      ],
+      "additionalProperties": false
+    },
+    "TemplateImportRequestSchema": {
+      "type": "object",
+      "properties": {
+        "file": {
+          "type": "object",
+          "properties": {
+            "v": {
+              "const": 1
+            },
+            "templates": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "pattern": "^\\s*\\S(?:[\\s\\S]{0,78}\\S)?\\s*$"
+                  },
+                  "text": {
+                    "type": "string",
+                    "pattern": "^\\s*\\S(?:[\\s\\S]{0,7998}\\S)?\\s*$"
+                  },
+                  "device": {
+                    "type": "string",
+                    "pattern": "\\S",
+                    "minLength": 1
+                  },
+                  "project": {
+                    "type": "string",
+                    "pattern": "^\\s*\\S(?:[\\s\\S]{0,4094}\\S)?\\s*$"
+                  },
+                  "provider": {
+                    "enum": [
+                      "claude",
+                      "codex"
+                    ],
+                    "type": "string"
+                  },
+                  "configuration": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9][a-z0-9-]{0,39}$"
+                  },
+                  "config": {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    },
+                    "additionalProperties": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128
+                        },
+                        {
+                          "type": "boolean"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "name",
+                  "text",
+                  "provider"
+                ],
+                "additionalProperties": false
+              },
+              "maxItems": 100
+            }
+          },
+          "required": [
+            "v",
+            "templates"
+          ],
+          "additionalProperties": false
+        },
+        "machines": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "string",
+            "pattern": "\\S",
+            "minLength": 1
+          }
+        },
+        "dryRun": {
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "required": [
+        "file"
+      ]
+    },
+    "TemplateImportResultSchema": {
+      "type": "object",
+      "properties": {
+        "dryRun": {
+          "type": "boolean"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "renamed": {
+                "type": "boolean"
+              },
+              "device": {
+                "type": "string"
+              },
+              "deviceId": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "name",
+              "renamed"
+            ]
+          }
+        },
+        "templates": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_-]{1,64}$"
+              },
+              "name": {
+                "type": "string"
+              },
+              "text": {
+                "type": "string"
+              },
+              "deviceId": {
+                "type": "string"
+              },
+              "projectPath": {
+                "type": "string"
+              },
+              "provider": {
+                "enum": [
+                  "claude",
+                  "codex"
+                ],
+                "type": "string"
+              },
+              "configuration": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9-]{0,39}$"
+              },
+              "config": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                },
+                "additionalProperties": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 128
+                    },
+                    {
+                      "type": "boolean"
+                    }
+                  ]
+                }
+              },
+              "placeholders": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "default": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "name"
+                  ]
+                }
+              },
+              "createdAt": {
+                "type": "number"
+              },
+              "updatedAt": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "text",
+              "provider",
+              "placeholders",
+              "createdAt",
+              "updatedAt"
+            ]
+          }
+        }
+      },
+      "required": [
+        "dryRun",
+        "items",
+        "templates"
+      ]
+    },
+    "TemplateListResponseSchema": {
+      "type": "object",
+      "properties": {
+        "templates": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_-]{1,64}$"
+              },
+              "name": {
+                "type": "string"
+              },
+              "text": {
+                "type": "string"
+              },
+              "deviceId": {
+                "type": "string"
+              },
+              "projectPath": {
+                "type": "string"
+              },
+              "provider": {
+                "enum": [
+                  "claude",
+                  "codex"
+                ],
+                "type": "string"
+              },
+              "configuration": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9-]{0,39}$"
+              },
+              "config": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                },
+                "additionalProperties": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 128
+                    },
+                    {
+                      "type": "boolean"
+                    }
+                  ]
+                }
+              },
+              "placeholders": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "default": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "name"
+                  ]
+                }
+              },
+              "createdAt": {
+                "type": "number"
+              },
+              "updatedAt": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "text",
+              "provider",
+              "placeholders",
+              "createdAt",
+              "updatedAt"
+            ]
+          }
+        }
+      },
+      "required": [
+        "templates"
+      ]
+    },
+    "TemplateSchema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,64}$"
+        },
+        "name": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "deviceId": {
+          "type": "string"
+        },
+        "projectPath": {
+          "type": "string"
+        },
+        "provider": {
+          "enum": [
+            "claude",
+            "codex"
+          ],
+          "type": "string"
+        },
+        "configuration": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]{0,39}$"
+        },
+        "config": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              {
+                "type": "boolean"
+              }
+            ]
+          }
+        },
+        "placeholders": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "default": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "name"
+            ]
+          }
+        },
+        "createdAt": {
+          "type": "number"
+        },
+        "updatedAt": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "text",
+        "provider",
+        "placeholders",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "TemplateStartRequestSchema": {
+      "type": "object",
+      "properties": {
+        "values": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "string",
+            "maxLength": 8000
+          },
+          "default": {}
+        },
+        "promptId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "deviceId": {
+          "type": "string",
+          "pattern": "\\S",
+          "minLength": 1
+        },
+        "projectPath": {
+          "type": "string",
+          "pattern": "^\\s*\\S(?:[\\s\\S]{0,4094}\\S)?\\s*$"
+        }
+      },
+      "required": [
+        "promptId"
+      ]
+    },
+    "TemplateStartResultSchema": {
+      "type": "object",
+      "properties": {
+        "ok": {
+          "const": true
+        },
+        "sessionId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "promptId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "ok",
+        "sessionId",
+        "promptId"
       ]
     },
     "TerminalAttachMessage": {
