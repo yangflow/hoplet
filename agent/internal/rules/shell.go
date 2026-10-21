@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 )
 
 // This file reads a shell command well enough to refuse what it cannot read. It is not a shell:
@@ -585,8 +586,12 @@ func ansiC(s string) string {
 			for j < len(s) && j < i+3 && s[j] >= '0' && s[j] <= '7' {
 				j++
 			}
-			v, _ := strconv.ParseUint(s[i:j], 8, 16)
-			b.WriteByte(byte(v))
+			// Bash keeps the low byte of an octal escape above \377.
+			var v byte
+			for k := i; k < j; k++ {
+				v = v<<3 | (s[k] - '0')
+			}
+			b.WriteByte(v)
 			i = j - 1
 		case c == 'u' || c == 'U':
 			n := 4
@@ -598,7 +603,11 @@ func ansiC(s string) string {
 				j++
 			}
 			if v, err := strconv.ParseUint(s[i+1:j], 16, 32); err == nil && j > i+1 {
-				b.WriteRune(rune(v))
+				if v <= utf8.MaxRune {
+					b.WriteRune(rune(v))
+				} else {
+					b.WriteRune(utf8.RuneError)
+				}
 				i = j - 1
 			}
 		default:

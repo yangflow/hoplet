@@ -287,3 +287,18 @@ func TestAnsiC(t *testing.T) {
 		}
 	}
 }
+
+func TestANSICEscapeBounds(t *testing.T) {
+	cases := map[string]string{
+		`\162\155`:   "rm",
+		`\777`:       "\xff",
+		`\x72m`:      "rm",
+		`\U7fffffff`: "�",
+		`rm`:    "rm",
+	}
+	for in, want := range cases {
+		if got := ansiC(in); got != want {
+			t.Errorf("ansiC(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
