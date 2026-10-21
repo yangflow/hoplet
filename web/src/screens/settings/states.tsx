@@ -20,6 +20,15 @@ import { type SectionId, Settings } from './index.tsx';
 import type { MachinesFixture } from './machines.tsx';
 import type { NotifyFixture, PushState } from './notifications.tsx';
 import type { ProvidersFixture } from './providers.tsx';
+import type { TemplatesFixture } from './templates.tsx';
+import {
+  DEPS,
+  FIX,
+  IMPORT_FILE,
+  STUDIO,
+  templateList,
+  templatesFixture,
+} from './templates-fixtures.ts';
 import { effectiveThresholds, readingWarn } from './thresholds-model.ts';
 import type { UsageFixture } from './usage.tsx';
 import {
@@ -654,6 +663,7 @@ function Scene(props: {
   notify?: NotifyFixture;
   providers?: ProvidersFixture;
   usage?: UsageFixture;
+  templates?: TemplatesFixture;
 }) {
   const appearance = { ...DEFAULTS, ...props.appearance };
   useEffect(() => {
@@ -670,6 +680,7 @@ function Scene(props: {
       {...(props.notify ? { notify: props.notify } : {})}
       {...(props.providers ? { providers: props.providers } : {})}
       {...(props.usage ? { usage: props.usage } : {})}
+      {...(props.templates ? { templates: props.templates } : {})}
     />
   );
 }
@@ -879,4 +890,21 @@ export const states: Record<string, () => ReactNode> = {
     <Scene section="usage" usage={budgetsPage(B1, B2, B3, B4_OK, { editing: B2.id })} />
   ),
   'budgets-empty': () => <Scene section="usage" usage={budgetsPage()} />,
+  templates: () => <Scene section="templates" templates={templatesFixture()} />,
+  'templates-edit': () => (
+    <Scene section="templates" templates={templatesFixture({ editing: 'tpl-review' })} />
+  ),
+  'templates-empty': () => (
+    <Scene section="templates" templates={templatesFixture({ list: templateList() })} />
+  ),
+  'templates-import': () => (
+    <Scene
+      section="templates"
+      templates={templatesFixture({
+        devices: [STUDIO],
+        list: templateList(FIX, DEPS),
+        importing: { file: IMPORT_FILE, fileName: 'hoplet-templates-2026-10-21.json' },
+      })}
+    />
+  ),
 };

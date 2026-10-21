@@ -81,6 +81,7 @@ describe('section', () => {
       'providers',
       'notifications',
       'usage',
+      'templates',
     ]);
     expect(sectionOf('providers')).toBe('providers');
   });

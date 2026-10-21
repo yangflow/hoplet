@@ -196,6 +196,10 @@ const subject: Record<string, Record<string, string>> = {
     'budgets-allowed': 'settings.budget.stop-allowing',
     'budgets-edit': 'settings.budget.form',
     'budgets-empty': 'settings.budgets.empty',
+    templates: 'settings.templates.list',
+    'templates-edit': 'settings.templates.form',
+    'templates-empty': 'settings.templates.empty',
+    'templates-import': 'settings.templates.import',
     'settings-prices': 'settings.prices.table',
     'settings-prices-edit': 'settings.prices.editor',
     'settings-prices-tokens-only': 'settings.prices.tokens-only',
@@ -228,10 +232,10 @@ const subject: Record<string, Record<string, string>> = {
   },
 };
 
-test('the registries list 91 cockpit, 56 workspace, 50 settings and 7 action states', () => {
+test('the registries list 91 cockpit, 56 workspace, 54 settings and 7 action states', () => {
   expect(screens.cockpit).toHaveLength(91);
   expect(screens.workspace).toHaveLength(56);
-  expect(screens.settings).toHaveLength(50);
+  expect(screens.settings).toHaveLength(54);
   expect(screens.action).toHaveLength(7);
 });
 

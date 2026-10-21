@@ -729,7 +729,7 @@ except after a refusal, which can be retried.
 
 ### Session templates
 
-The core API is built (#76); the web UI is planned, and its screens are in `design/screens/templates.html`. A template saves what a user types at the start of a session again and again, so that one click starts it.
+The core API and the web Settings › Templates screen are built (#76); the composer picker, the sidebar menu and the palette are planned, and their screens are in `design/screens/templates.html`. A template saves what a user types at the start of a session again and again, so that one click starts it.
 
 **Fields.** A template has an `id`, a `name` (1 to 80 characters, unique), and the parts of a new session request
 as they are today: `text` (the prompt, with placeholders, at most 8,000 characters), `deviceId` (the machine),
