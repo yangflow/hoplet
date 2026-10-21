@@ -5,6 +5,8 @@
  * hold content or credentials.
  */
 
+import { scrubCredentials } from '../scrub/index.ts';
+
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
 /** Shortest secret that is registered; shorter strings would redact ordinary words. */
@@ -50,9 +52,7 @@ function scrub(value: unknown, depth = 0): unknown {
 
 /** Replaces credentials in an already serialized line. */
 export function redact(line: string): string {
-  let out = line
-    .replace(/(Bearer\s+)[^\s"'\\]+/gi, `$1${REDACTED}`)
-    .replace(/([?&](?:token|ticket)=)[^&\s"'\\]+/gi, `$1${REDACTED}`);
+  let out = scrubCredentials(line, REDACTED);
   for (const secret of secrets) {
     // A secret may sit inside a JSON string, where it appears escaped.
     const escaped = JSON.stringify(secret).slice(1, -1);
