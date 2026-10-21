@@ -1,6 +1,6 @@
 # 0031 The session lifecycle events and the two hook kinds
 
-- Status: proposed
+- Status: accepted
 - Date: 2026-10-21
 - Related: ADR 0002, ADR 0005, ADR 0008, ADR 0012, ADR 0021, ADR 0026, ADR 0028, ADR 0029, docs/architecture.md#principles, docs/architecture.md#wire-protocol, docs/threat-model.md, docs/hosting.md, docs/spec.md#lifecycle-hooks, issues #75, #77, #80, #97, #115
 

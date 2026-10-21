@@ -647,7 +647,7 @@ The core tells the user when a session needs them, so a turn does not wait unsee
 
 ### Lifecycle hooks
 
-Planned (#97, proposed in [ADR 0031](adr/0031-the-session-lifecycle-events-and-the-two-hook-kinds.md); the routes join docs/api.md with the code).
+Planned (#97, decided in [ADR 0031](adr/0031-the-session-lifecycle-events-and-the-two-hook-kinds.md); the routes join docs/api.md with the code).
 
 Session events for programs, where notifications are for people. A hook observes: it never changes a session, a
 permission request, a budget or a handoff.
