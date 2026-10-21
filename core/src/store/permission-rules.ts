@@ -9,6 +9,7 @@ import {
   type PermissionRuleListQuery,
   type PermissionScope,
 } from '@hoplet/shared';
+import { appendAudit } from './audit.ts';
 import type { StoreContext } from './layout.ts';
 import { ownerDeviceId } from './sessions.ts';
 
@@ -140,6 +141,28 @@ function bump(ctx: StoreContext, targets: Iterable<string>): void {
   }
 }
 
+/**
+ * What the audit log keeps of a rule: its short fields. The match patterns and the note can hold a command or a
+ * path, so a change to them is named in `fields` and its text is not recorded.
+ */
+function auditFields(rule: {
+  scope: string;
+  deviceId?: string | null | undefined;
+  sessionId?: string | null | undefined;
+  tool: string;
+  action: string;
+  enabled: boolean;
+}): Record<string, string | boolean> {
+  return {
+    scope: rule.scope,
+    tool: rule.tool,
+    action: rule.action,
+    enabled: rule.enabled,
+    ...(rule.scope === 'project' && rule.deviceId ? { deviceId: rule.deviceId } : {}),
+    ...(rule.scope === 'session' && rule.sessionId ? { sessionId: rule.sessionId } : {}),
+  };
+}
+
 function bodyColumns(body: PermissionRuleBody) {
   return [
     body.scope,
@@ -179,6 +202,16 @@ export function createPermissionRule(
       )
       .run(id, next, ...columns, now, now);
     bump(ctx, reach(ctx, { scope: columns[0], device_id: columns[1], session_id: columns[3] }));
+    appendAudit(ctx, {
+      type: 'config.changed',
+      summary: {
+        area: 'permission-rules',
+        id,
+        action: 'created',
+        fields: [...Object.keys(auditFields(body)), 'match', 'note'],
+        current: auditFields(body),
+      },
+    });
     ctx.db.exec('COMMIT');
   } catch (err) {
     if (ctx.db.isTransaction) ctx.db.exec('ROLLBACK');
@@ -216,6 +249,35 @@ export function updatePermissionRule(
       ...reach(ctx, old),
       ...reach(ctx, { scope: columns[0], device_id: columns[1], session_id: columns[3] }),
     ]);
+    const before = auditFields({
+      scope: old.scope,
+      deviceId: old.device_id,
+      sessionId: old.session_id,
+      tool: old.tool,
+      action: old.action,
+      enabled: old.enabled !== 0,
+    });
+    const after = auditFields(body);
+    const changed = [...new Set([...Object.keys(before), ...Object.keys(after)])].filter(
+      (key) => before[key] !== after[key],
+    );
+    if (old.match !== columns[5]) changed.push('match');
+    if (old.note !== body.note) changed.push('note');
+    appendAudit(ctx, {
+      type: 'config.changed',
+      summary: {
+        area: 'permission-rules',
+        id,
+        action: 'updated',
+        fields: changed,
+        previous: Object.fromEntries(
+          changed.filter((key) => key in before).map((key) => [key, before[key]]),
+        ),
+        current: Object.fromEntries(
+          changed.filter((key) => key in after).map((key) => [key, after[key]]),
+        ),
+      },
+    });
     ctx.db.exec('COMMIT');
   } catch (err) {
     if (ctx.db.isTransaction) ctx.db.exec('ROLLBACK');
@@ -243,6 +305,17 @@ export function setBuiltinEnabled(
       )
       .run(id, enabled ? 1 : 0, now);
     bump(ctx, [EVERY_MACHINE]);
+    appendAudit(ctx, {
+      type: 'config.changed',
+      summary: {
+        area: 'permission-rules',
+        id,
+        action: 'updated',
+        fields: ['enabled'],
+        previous: { enabled: current.enabled },
+        current: { enabled },
+      },
+    });
     ctx.db.exec('COMMIT');
   } catch (err) {
     if (ctx.db.isTransaction) ctx.db.exec('ROLLBACK');
@@ -260,6 +333,23 @@ export function deletePermissionRule(ctx: StoreContext, id: string): boolean {
     if (old) {
       ctx.db.prepare('DELETE FROM permission_rules WHERE id = ?').run(id);
       bump(ctx, reach(ctx, old));
+      appendAudit(ctx, {
+        type: 'config.changed',
+        summary: {
+          area: 'permission-rules',
+          id,
+          action: 'deleted',
+          fields: [],
+          previous: auditFields({
+            scope: old.scope,
+            deviceId: old.device_id,
+            sessionId: old.session_id,
+            tool: old.tool,
+            action: old.action,
+            enabled: old.enabled !== 0,
+          }),
+        },
+      });
     }
     ctx.db.exec('COMMIT');
     return old !== undefined;

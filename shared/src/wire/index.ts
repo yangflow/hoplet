@@ -27,7 +27,7 @@ import {
   SnapshotIdSchema,
   TerminalIdSchema,
 } from '../ids.ts';
-import { PermissionRuleSchema } from '../permission-rules.ts';
+import { PERMISSION_SCOPES, PermissionRuleSchema } from '../permission-rules.ts';
 import { NotifyEventKindSchema } from '../rest/notify.ts';
 import { ChangeStatusSchema, WorkspaceChangeSchema } from '../rest/workspace.ts';
 import {
@@ -512,6 +512,24 @@ export const WIRE_MESSAGES = defineWire({
       toolUseId: v.optional(v.string()),
       input: v.unknown(),
       planExit: v.optional(PlanExitSchema),
+    },
+  },
+  /**
+   * A permission rule decided a tool call without asking a person (ADR 0029). `toolUseId` is the call's, absent
+   * when the vendor sent none; `ruleId` and `scope` name the rule (`agent` is the agent's own floor and the
+   * operator's local deny list) and `revision` the rule revision in force. The core records it in the audit
+   * log. A decision made while the core is unreachable is sent after the reconnect.
+   */
+  'runtime.permission.auto': {
+    lane: 'control',
+    direction: 'device-to-core',
+    fields: {
+      sessionId,
+      toolUseId: v.optional(v.pipe(v.string(), v.maxLength(200))),
+      decision: v.picklist(['allow', 'deny', 'ask']),
+      ruleId: v.pipe(v.string(), v.minLength(1), v.maxLength(80)),
+      scope: v.picklist([...PERMISSION_SCOPES, 'agent']),
+      revision: v.pipe(v.number(), v.integer(), v.minValue(0)),
     },
   },
   /**
@@ -1299,6 +1317,7 @@ export type RuntimeStop = WireMessageOf<'runtime.stop'>;
 export type RuntimeStateMsg = WireMessageOf<'runtime.state'>;
 export type RuntimeOutputMsg = WireMessageOf<'runtime.output'>;
 export type RuntimePermissionMsg = WireMessageOf<'runtime.permission'>;
+export type RuntimePermissionAutoMsg = WireMessageOf<'runtime.permission.auto'>;
 export type RuntimeRejected = WireMessageOf<'runtime.rejected'>;
 export type RuntimeCommands = WireMessageOf<'runtime.commands'>;
 export type SessionCommands = WireMessageOf<'session.commands'>;
@@ -1405,6 +1424,7 @@ export const ClientMessageSchema = v.variant('type', [
   WIRE_MESSAGES['runtime.state'].schema,
   WIRE_MESSAGES['runtime.output'].schema,
   WIRE_MESSAGES['runtime.permission'].schema,
+  WIRE_MESSAGES['runtime.permission.auto'].schema,
   WIRE_MESSAGES['runtime.rejected'].schema,
   WIRE_MESSAGES['runtime.steered'].schema,
   WIRE_MESSAGES['runtime.commands'].schema,

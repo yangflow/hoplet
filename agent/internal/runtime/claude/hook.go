@@ -46,6 +46,7 @@ func hookRegistration() map[string]any {
 type hookInput struct {
 	HookEventName string          `json:"hook_event_name"`
 	ToolName      string          `json:"tool_name"`
+	ToolUseID     string          `json:"tool_use_id"`
 	ToolInput     json.RawMessage `json:"tool_input"`
 }
 
@@ -98,8 +99,15 @@ func (p *process) hookOutput(raw json.RawMessage) (out map[string]any) {
 		engine = e
 	}
 	d := engine.Decide(rules.FromClaude(in.ToolName, in.ToolInput, p.dir, p.dir))
+	decided := func() {
+		p.emitLate(runtime.RuleDecided{
+			ToolUseID: in.ToolUseID, Decision: string(d.Action), RuleID: d.RuleID, Scope: string(d.Scope),
+			Revision: engine.Revision(),
+		})
+	}
 	switch d.Action {
 	case rules.Deny, rules.Ask:
+		decided()
 		return hookDecision(d.Action, d.Reason)
 	case rules.Allow:
 		// The mode comes from the agent's own state. A plan does not run commands or change files, so a rule
@@ -110,6 +118,7 @@ func (p *process) hookOutput(raw json.RawMessage) (out map[string]any) {
 		if mode == modePlan {
 			return map[string]any{}
 		}
+		decided()
 		return hookDecision(rules.Allow, d.Reason)
 	}
 	return map[string]any{}

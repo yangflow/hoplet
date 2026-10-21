@@ -560,3 +560,60 @@ describe('commands and skills', () => {
     expect(store.directoryCommands('dev-b', '/x')).toBeNull();
   });
 });
+
+describe('runtime.permission.auto', () => {
+  const auto = (over: Msg = {}): Msg => ({
+    type: 'runtime.permission.auto',
+    sessionId: 's1',
+    toolUseId: 'toolu_1',
+    decision: 'deny',
+    ruleId: 'default.secrets',
+    scope: 'global',
+    revision: 4,
+    ...over,
+  });
+  const recorded = (store: Awaited<ReturnType<typeof boot>>['store']) =>
+    store.listAudit({ type: 'permission.auto' }, { order: 'asc', limit: 100 }).events;
+
+  it('records the decision keyed by session and tool use, with the device as the actor', async () => {
+    const { agent, store } = await boot();
+    const owner = await agent('dev-a');
+    owner.send(auto());
+    owner.send(
+      auto({ toolUseId: undefined, decision: 'allow', ruleId: 'agent.floor', scope: 'agent' }),
+    );
+    for (let i = 0; i < 100 && recorded(store).length < 2; i++) {
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    const events = recorded(store);
+    expect(events).toHaveLength(2);
+    expect(events[0]).toMatchObject({
+      type: 'permission.auto',
+      sessionId: 's1',
+      deviceId: 'dev-a',
+      actorKind: 'device',
+      actorId: 'dev-a',
+      channel: 'agent',
+      ref: 'toolu_1',
+      summary: { decision: 'deny', ruleId: 'default.secrets', scope: 'global', revision: 4 },
+    });
+    expect(events[1]).toMatchObject({ ref: null, summary: { scope: 'agent', decision: 'allow' } });
+    expect(await store.verifyAudit()).toMatchObject({ ok: true, firstBreak: null });
+  });
+
+  it('refuses an unknown decision or scope and a session another device owns', async () => {
+    const { agent, store } = await boot();
+    const owner = await agent('dev-a');
+    const other = await agent('dev-b');
+    other.send(auto());
+    owner.send(auto({ decision: 'maybe' }));
+    owner.send(auto({ scope: 'planet' }));
+    owner.send(auto({ revision: -1 }));
+    owner.send(auto({ toolUseId: 'toolu_ok', ruleId: 'r' }));
+    for (let i = 0; i < 100 && recorded(store).length < 1; i++) {
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    await new Promise((r) => setTimeout(r, 100));
+    expect(recorded(store).map((e) => e.ref)).toEqual(['toolu_ok']);
+  });
+});

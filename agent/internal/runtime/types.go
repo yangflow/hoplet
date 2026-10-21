@@ -249,6 +249,17 @@ type TurnResult struct {
 	Error  string
 }
 
+// RuleDecided: a permission rule decided a tool call (ADR 0029), without asking a person. Decision is `allow`,
+// `deny` or `ask`; Scope is the rule's scope (`global`, `project`, `session` or `agent`) and Revision the revision
+// of the rule set that was in force. ToolUseID is empty when the vendor sent none.
+type RuleDecided struct {
+	ToolUseID string
+	Decision  string
+	RuleID    string
+	Scope     string
+	Revision  int
+}
+
 // Exited is the last event of a process. Err is nil for an exit with status 0.
 type Exited struct{ Err error }
 
@@ -256,6 +267,7 @@ func (Ready) processEvent()               {}
 func (StateChanged) processEvent()        {}
 func (ConfigChanged) processEvent()       {}
 func (Commands) processEvent()            {}
+func (RuleDecided) processEvent()         {}
 func (Output) processEvent()              {}
 func (PermissionRequest) processEvent()   {}
 func (PermissionCancelled) processEvent() {}

@@ -72,10 +72,17 @@ type CommandsEvent struct {
 	Commands  []Command
 }
 
-func (CommandsEvent) runtimeEvent()   {}
-func (StateEvent) runtimeEvent()      {}
-func (OutputEvent) runtimeEvent()     {}
-func (PermissionEvent) runtimeEvent() {}
+// RuleDecisionEvent reports a call a permission rule decided, for the audit log (ADR 0029).
+type RuleDecisionEvent struct {
+	SessionID string
+	RuleDecided
+}
+
+func (RuleDecisionEvent) runtimeEvent() {}
+func (CommandsEvent) runtimeEvent()     {}
+func (StateEvent) runtimeEvent()        {}
+func (OutputEvent) runtimeEvent()       {}
+func (PermissionEvent) runtimeEvent()   {}
 
 // Config configures a Manager. Zero durations take the defaults of docs/hosting.md (agent configuration).
 type Config struct {
@@ -999,6 +1006,8 @@ func (m *Manager) handle(s *session, ev ProcessEvent) {
 		}
 		s.commands = ev.List
 		m.cfg.Emit(m.commandsEvent(s))
+	case RuleDecided:
+		m.cfg.Emit(RuleDecisionEvent{SessionID: s.id, RuleDecided: ev})
 	case Output:
 		m.cfg.Emit(OutputEvent{SessionID: s.id, Output: ev})
 	case PermissionRequest:

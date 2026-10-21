@@ -38,7 +38,12 @@ type Engine struct {
 	env   Env
 	rules []compiled
 	dirs  map[string][]string // the directories of the path tokens, resolved once
+	// revision is the revision of the pushed set the engine was built from; 0 when none.
+	revision int
 }
+
+// Revision is the revision of the pushed set the engine was built from; 0 for an engine built without one.
+func (e *Engine) Revision() int { return e.revision }
 
 // New builds an engine from the compiled-in floor, the operator's local deny rules
 // (`permission_deny`, scope forced to agent, deny only) and the rules the core pushed. It

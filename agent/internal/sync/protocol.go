@@ -42,6 +42,7 @@ const (
 	TypeRuntimeState             = "runtime.state"
 	TypeRuntimeOutput            = "runtime.output"
 	TypeRuntimePermission        = "runtime.permission"
+	TypeRuntimePermissionAuto    = "runtime.permission.auto"
 	TypeRuntimeRejected          = "runtime.rejected"
 	TypeRuntimeCommands          = "runtime.commands"
 	TypeSessionWorkspaceList     = "session.workspace.list"
@@ -534,6 +535,19 @@ type RuntimePermission struct {
 	ToolUseID string          `json:"toolUseId,omitempty"`
 	Input     json.RawMessage `json:"input"`
 	PlanExit  *PlanExit       `json:"planExit,omitempty"`
+}
+
+// RuntimePermissionAuto reports a tool call a permission rule decided without asking a person (ADR 0029). The
+// core records it in the audit log.
+type RuntimePermissionAuto struct {
+	V         int    `json:"v"`
+	Type      string `json:"type"`
+	SessionID string `json:"sessionId"`
+	ToolUseID string `json:"toolUseId,omitempty"`
+	Decision  string `json:"decision"` // allow | deny | ask
+	RuleID    string `json:"ruleId"`
+	Scope     string `json:"scope"` // global | project | session | agent
+	Revision  int    `json:"revision"`
 }
 
 // PlanExit marks a permission request that asks to leave a plan (ADR 0019).

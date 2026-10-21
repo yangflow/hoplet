@@ -133,6 +133,9 @@ func TestStorePersistsAndLoadsAtStart(t *testing.T) {
 		t.Fatalf("revision after restart: %d", again.Revision())
 	}
 	e, _ = again.Engine("s", "/ws")
+	if e.Revision() != 7 {
+		t.Fatalf("the engine carries the revision it was built from: %d", e.Revision())
+	}
 	if d := e.Decide(run("git push --force")); d.Action == Ask {
 		t.Fatalf("the switched-off built-in still asks: %+v", d)
 	}
