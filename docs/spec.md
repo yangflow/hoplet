@@ -342,8 +342,11 @@ A budget caps what a scope spends in a period and tells the user before and at t
 
 ### Permission rules
 
-Planned (#98, decided in [ADR 0029](adr/0029-permission-rules-match-on-the-agent-and-deny-wins.md); the routes
-join docs/api.md with the code). Rules let a session run without someone answering every tool call: routine calls
+Decided in [ADR 0029](adr/0029-permission-rules-match-on-the-agent-and-deny-wins.md) (#98). Built: the decision
+engine on the agent, and in Claude Code sessions the check of every tool call against the built-in rules and the
+compiled-in floor, in every permission mode. Planned: Codex, rules from the core (storage, scopes, sync), the Settings
+and card screens, and the audit records; the routes join docs/api.md with the code. Rules let a session run without
+someone answering every tool call: routine calls
 are allowed, dangerous ones asked about or denied.
 
 - **A rule** names a tool kind (`run`, `read`, `write`, `fetch`, `mcp:<server>/<tool>` or all), what it matches, an

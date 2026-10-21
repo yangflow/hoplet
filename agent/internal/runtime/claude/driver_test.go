@@ -321,7 +321,7 @@ func TestProcessEnvSwitchesStateEventsOnOnce(t *testing.T) {
 // pipe; the start reports the exit and its stderr instead.
 func TestInitializeReportsTheExitOfAProcessThatAlreadyExited(t *testing.T) {
 	cmd := exec.Command("sh", "-c", "echo boom >&2; exit 4")
-	p, err := launch(cmd, "")
+	p, err := launch(cmd, "", hookState{})
 	if err != nil {
 		t.Fatal(err)
 	}
