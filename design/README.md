@@ -63,6 +63,12 @@ The mockups, design tokens and app icon behind Hoplet's web UI. The design langu
   `budgets-pause` with it over the limit in pause mode, `budgets-allowed`, `budgets-edit`, `budgets-empty`). The
   composer when a prompt is refused (`composer-over-budget`, `composer-over-budget-running`). Prices (`prices`,
   `prices-edit`, `prices-tokens-only`).
+- `screens/templates.html`: session templates (#76), in light and dark, in English and Simplified Chinese; open one
+  with `?state=<id>&scheme=light|dark&lang=zh-Hans`. The picker in the draft is a Templates popover in the composer
+  footer (`picker`); a template without fields fills the draft, with the capability warning inline when the target
+  does not offer its options (`warning`), and one with fields opens the small fill form with a preview of the prompt
+  (`fill`). Saving: `save`, `save-invalid`, `save-menu`. One click: `sidebar-menu`, `palette`, `palette-fill`.
+  Settings › Templates: `list` as rows, `list-edit`, `list-empty`, `list-import`.
 - `tokens.html`: every design token, with the JSON block that `check-tokens.py` compares with
   `web/src/design/tokens.css`.
 - `mark.html`: the app icon and the web UI's mark; the exported icon is `web/public/icon.svg`.

@@ -657,6 +657,81 @@ waits and the usual start-failure notification is raised. The response is `{ ok:
 session; `promptId` is deduplicated as for a new session: a repeat within 10 minutes returns the first result,
 except after a refusal, which can be retried.
 
+### Session templates
+
+Planned (#76), not built; the text waits for the maintainer to
+confirm the fields and the placeholder rules, and the screens in `design/screens/templates.html` for the
+mockup. A template saves what a user types at the start of a session again and again, so that one click starts it.
+
+**Fields.** A template has an `id`, a `name` (1 to 80 characters, unique), and the parts of a new session request
+as they are today: `text` (the prompt, with placeholders, at most 8,000 characters), `deviceId` (the machine),
+`projectPath`, `provider` (a provider or one of its configurations) and `config` (the driver's options: the model,
+Thinking, Fast and the permission mode, which is the driver's `mode` option). `deviceId` and `projectPath` may be
+left out: the starting window then asks for them as for any draft. A template holds nothing else: no credential, no
+environment variable, no path outside a watched project, no token. Three fields are added when the issue that
+introduces them ships, and until then a template has no place for them: worktree mode when #68 ships, a machine
+requirement (labels and capabilities, in place of or beside `deviceId`) when #70's matching is used to pick a
+machine, and pre-completion verification when #79 ships.
+
+**Placeholders.** `text` may contain `{{name}}` and `{{name:default}}`. A name matches `[a-z][a-z0-9_]*` and is at
+most 32 characters; a default is a single line of at most 200 characters without `}}`. Nothing else is
+interpreted: no expression, no filter, no condition, no `$VAR`, no secret, no file read, and a filled value is
+inserted as typed and never scanned again. A name used twice is one field, and its first default counts. A
+template has at most 20 placeholders. The start form lists the placeholders in the order of first use, one field
+each, filled with the default; a field with no default must be filled. A literal `{{` is written `\{{`: the
+three characters `\{{` become `{{` and every other backslash is left as it is, so Windows paths and regular
+expressions pass through. `{{` followed by anything that is not a valid placeholder (`{{Name}}`, `{{ name }}`, an
+unclosed `{{`) is refused when the template is saved, with the position, so a typo is never sent to the model as
+text. A backslash that must stand directly before a placeholder is written with a placeholder whose default is the
+backslash. The prompt after filling is checked against the 8,000-character limit.
+
+**Where a template is made and used.**
+
+- The composer of a draft (#10) has a Templates control in its footer, beside the configuration: a popover with a find
+  row that lists the templates with their machine, directory, model and number of fields, Save the draft as a template
+  and Manage templates. A template without placeholders fills the draft with its text, machine, directory and
+  options, which the user can change before sending; one with placeholders opens the small form (below) whose
+  primary button starts the session. Save as template saves the draft: the dialog names it, shows the prompt as
+  editable text with the placeholders marked, and has a switch for each group of fields to leave out. An existing
+  session has Save as template in its actions menu: the first prompt, the machine, the directory and the options
+  the session started with.
+- One click starts: the sidebar's New session button has a menu of templates beside Blank session, and the command
+  palette lists Start from template entries. A template without placeholders starts at once; one with placeholders
+  opens the small form first: one field per placeholder, the prompt that will be sent with the values marked, and
+  where it runs; its primary button starts the session. Both use the same start as below.
+- Settings has Templates: a list with name, where it runs and its placeholders; edit, duplicate, delete, import and
+  export.
+- Schedules (#20), events (#20) and the CLI (#71, `hoplet session start --template <name> --set key=value`) start a
+  session from a template with the same route and the same rules. There is no person to adjust a refused start,
+  so the start fails and says why, and a scheduled start raises the usual start-failure notification.
+
+**Start.** `POST /api/templates/:id/start` with `{ values, promptId, deviceId?, projectPath? }` renders the prompt
+and starts the session as `POST /api/sessions` does ([New session](#new-session)), with the same response and
+refusals. The route, not a `templateId` on the session request, because a session request stays one shape, a
+template can never change what `POST /api/sessions` accepts, the core resolves the placeholders in one place for
+the web UI, the schedule and the CLI. `values` maps placeholder
+names to strings; a missing value without a default is `invalid-request` with `reason: values` and the names; a
+name the template does not have is refused the same way. `deviceId` and `projectPath` fill what the template left
+out or replace it for this start; nothing is written back to the template.
+
+The options are validated at start against the capabilities that the target machine's driver declares in
+`providers` of `GET /api/devices`, as for a new session. The browser checks the same before sending and, when the template names a model, option, value or configuration
+the target does not offer (another machine, a driver that changed, a configuration that is disabled there), opens
+the template in the draft with an inline warning: the unsupported options are flagged, each with a one-click fix
+for this start, and Start waits. The user fixes them for this start, or saves the fixed template.
+Hoplet never drops an option silently and never starts with a different one than the form shows. The core's
+refusal is the same as for a new session (`invalid-request`, `reason: config`, with the options), and a machine
+that is offline is `target-offline`.
+
+**Export and import.** Export is a JSON file: `{ "v": 1, "templates": [ { "name", "text", "device", "project",
+"provider", "config" } ] }`, where `device` is the machine's name and `project` its path, because a machine ID means
+nothing on another Hoplet. `v` is the format version; import refuses a `v` it does not know and a field it does
+not know, so a file can carry no more than the fields above. Import shows what it will add, matches `device` by
+name and asks for a machine when none matches, gives a name that is taken a suffix (` (2)`), and never starts
+anything. A file holds no credential: the fields cannot hold one, and export writes nothing else.
+
+**Limits.** At most 100 templates; a template belongs to the host, as the machines do.
+
 ### Handoff
 
 `POST /api/sessions/:id/handoff` with `{ targetDeviceId, targetPath? }`. The core refuses when the target is
