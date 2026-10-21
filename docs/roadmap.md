@@ -30,12 +30,11 @@ date, and plans change. What has shipped is in `CHANGELOG.md`.
   and a TypeScript SDK, sessions that view and direct other sessions over MCP, child sessions, and sessions that
   read and change their own configuration.
   [milestone](https://github.com/yangflow/hoplet/milestone/9) · overview #124
-- **v0.11: Mac client.** Use Hoplet on a Mac without a browser tab: a native Swift app with notifications for
-  permission requests, a conversation that stays smooth on large sessions, and the agent bundled
-  ([ADR 0022](adr/0022-the-mac-client-is-native-appkit-with-the-agent-bundled.md)).
-  [milestone](https://github.com/yangflow/hoplet/milestone/12) · overview #262
+- **v0.11: desktop client.** Use Hoplet on macOS, Windows and Linux without a browser tab: a native app built
+  with mygo, with notifications for permission requests, a conversation that stays smooth on large sessions, and
+  the agent bundled (#115). [milestone](https://github.com/yangflow/hoplet/milestone/12) · overview #262
 - **v0.12: iOS client.** Answer a permission request or interrupt a turn from a phone, with push notifications,
-  on the Mac client's shared Swift layer. [milestone](https://github.com/yangflow/hoplet/milestone/13) · overview #263
+  in a native Swift app. [milestone](https://github.com/yangflow/hoplet/milestone/13) · overview #263
 
 ## Next
 
