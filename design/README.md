@@ -69,6 +69,17 @@ The mockups, design tokens and app icon behind Hoplet's web UI. The design langu
   does not offer its options (`warning`), and one with fields opens the small fill form with a preview of the prompt
   (`fill`). Saving: `save`, `save-invalid`, `save-menu`. One click: `sidebar-menu`, `palette`, `palette-fill`.
   Settings › Templates: `list` as rows, `list-edit`, `list-empty`, `list-import`.
+- `screens/rules.html`: permission rules (#98), in light and dark, in English and Simplified Chinese (`-zh`); open
+  one with `?state=<id>&scheme=light|dark`. Settings › Permission rules in three directions, none chosen: A, one
+  list grouped by scope (`a-list`, `a-builtin`, `a-builtin-confirm`, `a-edit`, `a-edit-invalid`, `a-empty`, `a-zh`);
+  B, a tab per scope with a table and the editor in a dialog (`b-global`, `b-project`, `b-builtin`,
+  `b-builtin-confirm`, `b-edit`, `b-local`, `b-empty`, `b-zh`); C, a list with the editor beside it (`c-edit`,
+  `c-new`, `c-builtin`, `c-builtin-confirm`, `c-local`, `c-empty`, `c-zh`). All three show the built-in rules with an
+  off switch and the second confirmation that names the rule, and the read-only rules set on a machine. The
+  permission card: Always allow… and Always deny… as quiet buttons (`card-a`, `card-a-rule` for a call a rule asked
+  about, `card-a-nodraft` and `card-a-other` where no draft is offered, `card-a-zh`) or one Always menu (`card-b`,
+  `card-b-menu`); the draft they open (`draft-session`, `draft-project`, `draft-deny`, `draft-session-zh`); the
+  conversation lines for Allowed by rule, Denied by rule and Asked by rule (`conv-auto`, `conv-auto-zh`).
 - `tokens.html`: every design token, with the JSON block that `check-tokens.py` compares with
   `web/src/design/tokens.css`.
 - `mark.html`: the app icon and the web UI's mark; the exported icon is `web/public/icon.svg`.

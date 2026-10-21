@@ -1,0 +1,1276 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hoplet screen: permission rules</title>
+<script type="application/json" id="tokens">
+{
+  "dark": {
+    "--color-bg": "#131210",
+    "--color-sidebar": "#191715",
+    "--color-surface": "#1c1a17",
+    "--color-raised": "#211e1b",
+    "--color-hover": "#28241f",
+    "--color-selected": "#2c2823",
+    "--color-line": "rgba(255, 238, 220, 0.075)",
+    "--color-highlight": "rgba(255, 244, 232, 0.06)",
+    "--color-text": "#efe9e2",
+    "--color-text-2": "#b8b0a6",
+    "--color-text-3": "#988f85",
+    "--color-accent": "#ff7a1a",
+    "--color-accent-text": "#ff9142",
+    "--color-on-accent": "#1c0d02",
+    "--color-accent-soft": "rgba(255, 122, 26, 0.10)",
+    "--color-attention": "#e8b31a",
+    "--color-attention-text": "#f0c142",
+    "--color-attention-soft": "rgba(232, 179, 26, 0.075)",
+    "--color-attention-ring": "rgba(232, 179, 26, 0.32)",
+    "--color-success": "#4cc38a",
+    "--color-danger": "#ff7366",
+    "--color-on-danger": "#1c0d02",
+    "--color-add-bg": "rgba(76, 195, 138, 0.10)",
+    "--color-add-text": "#86dcae",
+    "--color-del-bg": "rgba(255, 115, 102, 0.10)",
+    "--color-del-text": "#ffa49b",
+    "--color-git-modified": "#d9b77e",
+    "--color-git-untracked": "#6fcf97",
+    "--color-git-deleted": "#ff8a7d",
+    "--color-syntax-keyword": "#d3a6ee",
+    "--color-syntax-string": "#b0d58c",
+    "--color-syntax-comment": "#8f877d",
+    "--color-syntax-number": "#efb57c",
+    "--color-syntax-type": "#7ec3e3",
+    "--color-syntax-function": "#e8d7a4",
+    "--shadow-live": "inset 0 1px 0 rgba(255, 244, 232, 0.06), 0 0 0 1px rgba(0, 0, 0, 0.45), 0 14px 36px rgba(0, 0, 0, 0.42), 0 2px 6px rgba(0, 0, 0, 0.3)",
+    "--shadow-float": "inset 0 1px 0 rgba(255, 244, 232, 0.07), 0 0 0 1px rgba(0, 0, 0, 0.5), 0 18px 40px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.35)",
+    "--shadow-drawer": "inset 1px 0 0 rgba(255, 238, 220, 0.06), -18px 0 40px rgba(0, 0, 0, 0.3)",
+    "--fade-bg": "rgba(19, 18, 16, 0)",
+    "--color-scrim": "rgba(8, 6, 4, 0.42)",
+    "--shadow-accent": "inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 1px 2px rgba(0, 0, 0, 0.2)"
+  },
+  "light": {
+    "--color-bg": "#f8f5f0",
+    "--color-sidebar": "#efebe4",
+    "--color-surface": "#f0ebe4",
+    "--color-raised": "#fffdfa",
+    "--color-hover": "#e8e2d9",
+    "--color-selected": "#e2dbd1",
+    "--color-line": "rgba(60, 40, 20, 0.10)",
+    "--color-highlight": "rgba(255, 255, 255, 0.85)",
+    "--color-text": "#1c1915",
+    "--color-text-2": "#534c44",
+    "--color-text-3": "#675f55",
+    "--color-accent": "#c24e00",
+    "--color-accent-text": "#a64100",
+    "--color-on-accent": "#ffffff",
+    "--color-accent-soft": "rgba(194, 78, 0, 0.08)",
+    "--color-attention": "#c08a00",
+    "--color-attention-text": "#8f6200",
+    "--color-attention-soft": "rgba(192, 138, 0, 0.075)",
+    "--color-attention-ring": "rgba(154, 106, 0, 0.30)",
+    "--color-success": "#1d8550",
+    "--color-danger": "#c3352a",
+    "--color-on-danger": "#ffffff",
+    "--color-add-bg": "rgba(29, 133, 80, 0.09)",
+    "--color-add-text": "#156b3d",
+    "--color-del-bg": "rgba(195, 53, 42, 0.08)",
+    "--color-del-text": "#a82a1f",
+    "--color-git-modified": "#86621c",
+    "--color-git-untracked": "#1a7a47",
+    "--color-git-deleted": "#b42f24",
+    "--color-syntax-keyword": "#8433b5",
+    "--color-syntax-string": "#3f7514",
+    "--color-syntax-comment": "#736b61",
+    "--color-syntax-number": "#9c4f00",
+    "--color-syntax-type": "#17698f",
+    "--color-syntax-function": "#6b5000",
+    "--shadow-live": "inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 0 0 1px rgba(60, 40, 20, 0.08), 0 12px 32px rgba(60, 40, 20, 0.10), 0 2px 6px rgba(60, 40, 20, 0.06)",
+    "--shadow-float": "inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 0 0 1px rgba(60, 40, 20, 0.09), 0 16px 36px rgba(60, 40, 20, 0.12), 0 2px 6px rgba(60, 40, 20, 0.07)",
+    "--shadow-drawer": "inset 1px 0 0 rgba(60, 40, 20, 0.08), -16px 0 36px rgba(60, 40, 20, 0.06)",
+    "--fade-bg": "rgba(248, 245, 240, 0)",
+    "--color-scrim": "rgba(40, 28, 15, 0.13)",
+    "--shadow-accent": "inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 1px 2px rgba(60, 40, 20, 0.2)"
+  },
+  "shared": {
+    "--font-ui": "\"Inter Variable\", -apple-system, system-ui, \"PingFang SC\", sans-serif",
+    "--font-prose": "var(--font-ui)",
+    "--font-mono": "\"JetBrains Mono Variable\", ui-monospace, \"SF Mono\", Menlo, monospace",
+    "--text-meta": "11px",
+    "--leading-meta": "16px",
+    "--text-ui": "13px",
+    "--leading-ui": "20px",
+    "--text-code": "12.5px",
+    "--leading-code": "20px",
+    "--text-body": "15px",
+    "--leading-body": "24px",
+    "--text-title": "15px",
+    "--leading-title": "20px",
+    "--weight-regular": "400",
+    "--weight-medium": "500",
+    "--weight-semibold": "600",
+    "--measure-prose": "68ch",
+    "--icon-size": "16px",
+    "--icon-stroke": "1.5",
+    "--space-1": "4px",
+    "--space-2": "8px",
+    "--space-3": "12px",
+    "--space-4": "16px",
+    "--space-5": "24px",
+    "--space-6": "32px",
+    "--space-7": "48px",
+    "--radius-sm": "6px",
+    "--radius-md": "10px",
+    "--radius-lg": "14px",
+    "--radius-xl": "18px",
+    "--layout-sidebar": "248px",
+    "--layout-inspector": "296px",
+    "--layout-inspector-wide": "720px",
+    "--layout-inspector-list": "220px",
+    "--layout-settings-nav": "208px",
+    "--layout-column": "760px",
+    "--layout-topbar": "52px",
+    "--layout-foot": "44px",
+    "--layout-row-device": "32px",
+    "--layout-row": "28px",
+    "--layout-row-tree": "24px",
+    "--layout-act-verb": "64px",
+    "--layout-gutter": "32px",
+    "--layout-well-max": "240px",
+    "--layout-palette": "560px",
+    "--layout-dialog": "480px",
+    "--layout-popover": "248px",
+    "--layout-modal-top": "96px",
+    "--motion-pulse": "1.6s",
+    "--motion-blink": "1s",
+    "--motion-spin": "0.8s",
+    "--control-icon": "28px",
+    "--control-field": "32px",
+    "--layout-gate": "320px",
+    "--layout-viewport-min": "1024px"
+  }
+}
+</script>
+<style id="token-css"></style>
+<style>
+@font-face{font-family:"Inter Variable";src:url(../fonts/inter-latin-wght-normal.woff2) format("woff2");font-weight:100 900;font-display:swap}
+@font-face{font-family:"JetBrains Mono Variable";src:url(../fonts/jetbrains-mono-latin-wght-normal.woff2) format("woff2");font-weight:100 800;font-display:swap}
+
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:#131210}
+body.solo{overflow:hidden}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+button:focus-visible{outline:2px solid var(--color-accent);outline-offset:2px}
+svg{display:block;flex:none}
+.spin{animation:rot var(--motion-spin) linear infinite}
+@keyframes rot{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important}}
+
+/* one type scale: meta 11/16 · UI 13/20 · prose 15/24 · title 15/20 600 · mono 12.5/20; weights 400/500/600 */
+.frame{width:1280px;height:800px;overflow:hidden;position:relative;display:grid;grid-template-columns:var(--layout-sidebar) 1fr;grid-template-rows:100%;
+  background:var(--color-bg);color:var(--color-text);font-family:var(--font-ui);font-size:var(--text-ui);line-height:var(--leading-ui);font-weight:var(--weight-regular);
+  -webkit-font-smoothing:antialiased;letter-spacing:-0.003em}
+.frame.with-insp{grid-template-columns:var(--layout-sidebar) 1fr var(--layout-inspector)}
+.frame.nosb,.frame.page{grid-template-columns:1fr}
+.frame.nosb.with-insp{grid-template-columns:1fr var(--layout-inspector)}
+.frame.with-insp.wide{grid-template-columns:1fr var(--layout-inspector-wide)}
+.mono{font-family:var(--font-mono);font-size:var(--text-code);line-height:var(--leading-code);letter-spacing:0}
+.num{font-variant-numeric:tabular-nums}
+.meta{font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3);font-variant-numeric:tabular-nums}
+
+/* icon buttons: the icon carries the intent, the title names it */
+.ib{width:var(--control-icon);height:var(--control-icon);border-radius:var(--radius-sm);display:grid;place-items:center;color:var(--color-text-3);flex:none;position:relative}
+.ib.on{background:var(--color-selected);color:var(--color-text);box-shadow:inset 0 1px 0 var(--color-highlight)}
+.ib[disabled]{opacity:.4;cursor:default}
+.ib.bd{color:var(--color-text-2);background:var(--color-hover);box-shadow:inset 0 1px 0 var(--color-highlight),0 0 0 1px var(--color-line)}
+.light .ib.bd{background:var(--color-raised)}
+.ib .cdg{position:absolute;top:4px;right:4px;width:6px;height:6px;border-radius:50%;background:var(--color-git-modified);box-shadow:0 0 0 2px var(--color-bg)}
+
+/* a machine's view options: its name, then Organize and Sort as two radio groups under the row */
+.pop{position:absolute;z-index:30;top:calc(100% - var(--space-1));left:var(--space-2);right:var(--space-2);padding:var(--space-1);border-radius:var(--radius-md);background:var(--color-raised);box-shadow:var(--shadow-float)}
+.menu-title{padding:var(--space-2) var(--space-2) var(--space-1);font-weight:var(--weight-semibold);color:var(--color-text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.menu-label{padding:var(--space-2) var(--space-2) var(--space-1);font-size:var(--text-meta);line-height:var(--leading-meta);font-weight:var(--weight-medium);color:var(--color-text-3)}
+.menu-item{height:var(--layout-row);display:flex;align-items:center;gap:var(--space-2);padding:0 var(--space-2);border-radius:var(--radius-sm);color:var(--color-text);white-space:nowrap}
+.menu-check{width:16px;height:16px;display:grid;place-items:center;flex:none;color:var(--color-text-2)}
+.menu-sep{height:1px;margin:var(--space-1) var(--space-2);background:var(--color-line)}
+.pm{width:16px;height:16px;display:grid;place-items:center;flex:none;color:var(--color-text-3)}
+.sess.on .pm{color:var(--color-text-2)}
+.gl{width:16px;height:16px;display:grid;place-items:center;flex:none;color:var(--color-text-3)}
+.gl .spin{color:var(--color-accent)}
+.need-dot{width:8px;height:8px;border-radius:50%;background:var(--color-attention);box-shadow:0 0 0 3px var(--color-attention-ring)}
+.bad-dot{width:8px;height:8px;border-radius:50%;background:var(--color-danger);flex:none}
+.ready-dot{width:8px;height:8px;border-radius:50%;background:var(--color-accent);flex:none}
+.off-dot{width:8px;height:8px;border-radius:50%;box-shadow:inset 0 0 0 1.5px var(--color-text-3);flex:none}
+.devg.off .dev,.devg.off .sdir,.devg.off .sess{color:var(--color-text-3)}
+.devg.off .dev{font-weight:var(--weight-medium)}
+.devg.off .sess.on{color:var(--color-text-2)}
+.frozen-side .gl .spin{color:var(--color-text-3);animation:none}
+.side-foot{height:var(--layout-foot);display:flex;align-items:center;gap:var(--space-2);padding:0 var(--space-2) 0 var(--space-4);box-shadow:inset 0 1px 0 var(--color-line);flex:none}
+.conn{flex:1;min-width:0;display:flex;align-items:center;gap:var(--space-2);color:var(--color-text-3);white-space:nowrap}
+.conn .lead{width:16px;height:16px;display:grid;place-items:center;flex:none}
+.conn.lost{color:var(--color-danger)}
+.conn.lost .dot{background:var(--color-danger)}
+
+/* top bar */
+.main{display:flex;flex-direction:column;min-width:0;min-height:0;overflow:hidden;position:relative}
+.top{height:var(--layout-topbar);display:flex;align-items:center;gap:var(--space-2);padding:0 var(--space-3) 0 var(--space-5);flex:none;box-shadow:inset 0 -1px 0 var(--color-line);white-space:nowrap}
+.nosb .top{padding-left:var(--space-3)}
+.top .title{font-size:var(--text-title);line-height:var(--leading-title);font-weight:var(--weight-semibold);letter-spacing:-0.01em}
+.top .sp{flex:1}
+
+/* conversation */
+.conv{position:relative;flex:1;min-height:0;overflow:auto;scrollbar-width:none;padding:0 0 148px}
+.conv::-webkit-scrollbar{display:none}
+.col{width:min(var(--layout-column),calc(100% - 104px));margin:0 auto;padding-top:var(--space-2)}
+.wide .col{width:calc(100% - 48px)}
+
+.badge{display:flex;align-items:center;gap:var(--space-2);color:var(--color-text-3);font-variant-numeric:tabular-nums}
+/* text buttons: decisions only */
+.btn{height:var(--control-field);display:inline-flex;align-items:center;gap:var(--space-2);padding:0 var(--space-3);border-radius:var(--radius-sm);font-weight:var(--weight-medium);color:var(--color-text);background:var(--color-hover);box-shadow:inset 0 1px 0 var(--color-highlight),0 0 0 1px var(--color-line);white-space:nowrap}
+.light .btn{background:var(--color-raised)}
+.btn.primary{background:var(--color-accent);color:var(--color-on-accent);box-shadow:var(--shadow-accent);font-weight:var(--weight-semibold);padding:0 var(--space-4)}
+.btn.quiet{background:transparent;box-shadow:none;color:var(--color-text-2);padding:0 var(--space-2)}
+.btn svg{color:currentColor}
+.btn[disabled]{opacity:.5;cursor:default}
+
+/* composer */
+.dock{position:absolute;z-index:5;left:0;right:0;bottom:0;padding:var(--space-7) 0 var(--space-4);background:linear-gradient(var(--fade-bg),var(--color-bg) 42%);pointer-events:none}
+.composer{pointer-events:auto;border-radius:var(--radius-xl);background:var(--color-raised);box-shadow:var(--shadow-float);padding:var(--space-3) var(--space-2) var(--space-2) var(--space-4);display:flex;flex-direction:column;gap:var(--space-2)}
+.ph{font-size:var(--text-body);line-height:var(--leading-body);color:var(--color-text-3)}
+.cf{display:flex;align-items:center;gap:var(--space-1);min-height:var(--control-field);margin-left:calc(-1 * var(--space-2))}
+.cf .cst{display:flex;align-items:center;gap:var(--space-2);height:20px;color:var(--color-text-2);margin:0 0 0 var(--space-1);padding-left:var(--space-3);box-shadow:inset 1px 0 0 var(--color-line)}
+.cf .cst.bad{color:var(--color-danger)}
+.cf .r{margin-left:auto;display:flex;align-items:center;gap:var(--space-1)}
+.send{width:var(--control-field);height:var(--control-field);border-radius:50%;display:grid;place-items:center;background:var(--color-accent);color:var(--color-on-accent);box-shadow:var(--shadow-accent);flex:none}
+.send[disabled]{background:var(--color-hover);color:var(--color-text-3);box-shadow:none;cursor:default}
+.composer.cbar{flex-direction:row;align-items:center;gap:var(--space-3);padding:var(--space-3) var(--space-3) var(--space-3) var(--space-5);min-height:56px}
+.composer.cbar .cst{display:flex;align-items:center;gap:var(--space-2);color:var(--color-text-2);flex:1}
+.composer.cbar .cst svg{color:var(--color-text-3)}
+.composer.ro{background:var(--color-surface);box-shadow:inset 0 0 0 1px var(--color-line)}
+.recrow{display:flex;align-items:center;gap:var(--space-3);height:24px;padding-right:var(--space-2)}
+.recrow .rdot{width:8px;height:8px;border-radius:50%;background:var(--color-accent);box-shadow:0 0 0 4px var(--color-accent-soft);animation:pulse var(--motion-pulse) ease-in-out infinite;flex:none}
+.recrow .el{font-size:var(--text-body);line-height:var(--leading-body);color:var(--color-text);font-variant-numeric:tabular-nums;width:36px;flex:none}
+.wave{flex:1;display:flex;align-items:center;justify-content:flex-end;gap:2px;height:24px;overflow:hidden;-webkit-mask-image:linear-gradient(to right,transparent,#000 18%);mask-image:linear-gradient(to right,transparent,#000 18%)}
+.wave i{flex:none;width:3px;border-radius:2px;background:var(--color-accent-text)}
+.cf .note{display:flex;align-items:center;gap:var(--space-2);color:var(--color-text-3);margin-left:var(--space-3)}
+
+.seg{display:inline-flex;gap:2px;padding:2px;border-radius:8px;background:var(--color-bg);box-shadow:inset 0 0 0 1px var(--color-line);position:relative}
+.light .seg{background:var(--color-hover)}
+.seg button{height:24px;display:flex;align-items:center;gap:var(--space-2);padding:0 var(--space-3);border-radius:6px;font-weight:var(--weight-medium);color:var(--color-text-2);white-space:nowrap}
+.seg button .c{font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3);font-variant-numeric:tabular-nums;font-weight:var(--weight-regular)}
+.seg button.on{background:var(--color-selected);color:var(--color-text);box-shadow:inset 0 1px 0 var(--color-highlight),0 0 0 1px var(--color-line)}
+.light .seg button.on{background:var(--color-raised)}
+.seg button.on .c{color:var(--color-text-2)}
+.seg button[disabled]{color:var(--color-text-3);opacity:.6;cursor:default}
+.fld{display:flex;flex-direction:column;gap:var(--space-1)}
+.fld .l{color:var(--color-text-2)}
+.input{height:var(--control-field);border-radius:var(--radius-sm);background:var(--color-bg);box-shadow:inset 0 0 0 1px var(--color-line);display:flex;align-items:center;padding:0 var(--space-3);font-family:var(--font-mono);font-size:var(--text-code);color:var(--color-text);white-space:nowrap;overflow:hidden}
+.input.on{box-shadow:inset 0 0 0 1.5px var(--color-accent)}
+.input.ui{font-family:var(--font-ui);font-size:var(--text-ui)}
+.nt{padding:var(--space-2) var(--space-3);border-radius:var(--radius-md);display:flex;gap:var(--space-2);color:var(--color-text)}
+.nt svg{margin-top:2px}
+.nt.bad{background:var(--color-del-bg)}
+.nt.bad svg{color:var(--color-danger)}
+.nt.ok{background:var(--color-add-bg)}
+.nt.ok svg{color:var(--color-success)}
+.nt.snap{background:var(--color-bg);box-shadow:inset 0 0 0 1px var(--color-line);color:var(--color-text-2)}
+.nt.snap svg{color:var(--color-text-3)}
+.sel{height:var(--control-field);display:flex;align-items:center;gap:var(--space-2);padding:0 var(--space-2);border-radius:var(--radius-sm);background:var(--color-bg);box-shadow:inset 0 0 0 1px var(--color-line);white-space:nowrap}
+.sel .v{flex:1;overflow:hidden;text-overflow:ellipsis}
+.sel > svg{color:var(--color-text-3)}
+.sel .pm{color:var(--color-text-2)}
+.sel .sl{width:16px;height:16px;display:grid;place-items:center;flex:none}
+.tgls{display:flex;gap:var(--space-4);align-items:center;height:var(--control-field)}
+.tgl{display:flex;align-items:center;gap:var(--space-2);color:var(--color-text-2)}
+.switch{width:28px;height:16px;border-radius:8px;background:var(--color-hover);box-shadow:inset 0 0 0 1px var(--color-line);position:relative;flex:none}
+.switch::after{content:"";position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:50%;background:var(--color-text-3)}
+.switch.on{background:var(--color-accent);box-shadow:none}
+.switch.on::after{left:14px;background:var(--color-on-accent)}
+/* settings */
+.set{flex:1;min-height:0;display:grid;grid-template-columns:var(--layout-settings-nav) minmax(0,1fr)}
+.snav{padding:var(--space-3) var(--space-2);box-shadow:inset -1px 0 0 var(--color-line);display:flex;flex-direction:column;gap:2px}
+.ni{height:var(--control-field);display:flex;align-items:center;gap:var(--space-2);padding:0 var(--space-2);border-radius:var(--radius-sm);color:var(--color-text-2)}
+.ni svg{color:var(--color-text-3)}
+.ni.on{background:var(--color-selected);color:var(--color-text);box-shadow:inset 0 1px 0 var(--color-highlight)}
+.ni.on svg{color:var(--color-text-2)}
+.spage{overflow:auto;padding:var(--space-4) var(--space-7) var(--space-5)}
+.spage .in{max-width:620px;margin:0 auto}
+.spage h1{font-size:var(--text-title);line-height:var(--leading-title);font-weight:var(--weight-semibold);letter-spacing:-0.012em;margin-bottom:var(--space-5)}
+.sgrp + .sgrp{margin-top:var(--space-5)}
+.sgrp .lb{font-weight:var(--weight-semibold);color:var(--color-text);margin-bottom:var(--space-2)}
+.themes{display:flex;gap:var(--space-4)}
+.thc{display:flex;flex-direction:column;gap:var(--space-2)}
+.thp{width:164px;height:88px;border-radius:var(--radius-md);overflow:hidden;position:relative;box-shadow:0 0 0 1px var(--color-line)}
+.thc.on .thp{box-shadow:0 0 0 2px var(--color-accent)}
+.thp .mini{position:absolute;inset:0;display:grid;grid-template-columns:40px 1fr}
+.thp .mini.half{clip-path:polygon(100% 0,100% 100%,0 100%)}
+.thp .ms{display:flex;flex-direction:column;gap:4px;padding:12px 8px}
+.thp .ms i,.thp .mc i{display:block;height:4px;border-radius:2px}
+.thp .mc{display:flex;flex-direction:column;gap:8px;padding:12px}
+.thp .mc .cb{margin-top:auto;height:16px;border-radius:6px}
+.rl{display:flex;align-items:center;gap:var(--space-2);color:var(--color-text)}
+.radio{width:16px;height:16px;border-radius:50%;box-shadow:inset 0 0 0 1.5px var(--color-text-3);flex:none}
+.radio.on{box-shadow:inset 0 0 0 5px var(--color-accent)}
+.plist{border-radius:var(--radius-md);background:var(--color-surface);box-shadow:inset 0 0 0 1px var(--color-line);overflow:hidden}
+.light .plist{background:var(--color-raised)}
+.pr{height:44px;display:flex;align-items:center;gap:var(--space-3);padding:0 var(--space-4)}
+.pr + .pr{box-shadow:inset 0 1px 0 var(--color-line)}
+.pr .nm{flex:1;font-weight:var(--weight-medium)}
+.pr .lead{width:16px;height:16px;display:grid;place-items:center;flex:none}
+.pr.off .nm{color:var(--color-text-2)}
+.plh{display:flex;justify-content:space-between;padding:0 var(--space-4) var(--space-2)}
+.sact{margin-top:var(--space-4)}
+.mcard{margin-top:var(--space-4);padding:var(--space-4);border-radius:var(--radius-lg);background:var(--color-raised);box-shadow:var(--shadow-live);display:flex;flex-direction:column;gap:var(--space-4)}
+.mcard-h{display:flex;align-items:center;gap:var(--space-2);margin:calc(-1 * var(--space-1)) calc(-1 * var(--space-2)) 0 0}
+.mcard-h b{font-size:var(--text-title);line-height:var(--leading-title);font-weight:var(--weight-semibold)}
+.mcard-h .ib{margin-left:auto}
+.mrow{display:flex;gap:var(--space-2);align-items:flex-end}
+.mrow .fld{flex:1}
+.ms-list{display:flex;flex-direction:column;gap:var(--space-4);padding-top:var(--space-4);box-shadow:inset 0 1px 0 var(--color-line)}
+.mstep{display:grid;grid-template-columns:20px minmax(0,1fr);column-gap:var(--space-3);align-items:start}
+.mstep .n{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font-size:var(--text-meta);line-height:var(--leading-meta);font-weight:var(--weight-semibold);color:var(--color-text-3);box-shadow:inset 0 0 0 1.5px var(--color-line);font-variant-numeric:tabular-nums}
+.mstep .n svg{width:12px;height:12px}
+.mstep.ok .n{background:var(--color-add-bg);color:var(--color-success);box-shadow:none}
+.mstep.go .n{box-shadow:none}
+.mstep.go .n .spin{color:var(--color-accent)}
+.mstep .tx{color:var(--color-text)}
+.mstep.todo .tx{color:var(--color-text-2)}
+.mstep .tx .mono{white-space:nowrap}
+.mstep .tx .sub{color:var(--color-text-3)}
+.mstep .more{grid-column:2;margin-top:2px}
+.mstep .well{grid-column:2;margin:var(--space-3) 0 0}
+.cfg-f{grid-column:2;display:flex;align-items:center;gap:var(--space-3);margin-top:var(--space-3)}
+.mcard-f{display:flex;justify-content:flex-end}
+
+.pr .nm .meta{display:block;font-weight:var(--weight-regular)}
+.pr .seg{flex:none}
+.pr.hint{height:48px}
+.pr .switch{margin-right:2px}
+.tprev{margin-top:var(--space-3);padding:var(--space-4);border-radius:var(--radius-md);background:var(--color-surface);box-shadow:inset 0 0 0 1px var(--color-line);display:flex;flex-direction:column;gap:var(--space-3)}
+.light .tprev{background:var(--color-raised)}
+.tprev .text{margin:0}
+.tprev .pc{padding:var(--space-2) var(--space-3);border-radius:var(--radius-sm);background:var(--color-bg);box-shadow:inset 0 0 0 1px var(--color-line);white-space:nowrap;overflow:hidden}
+.light .tprev .pc{background:var(--color-hover)}
+.no-lig .mono,.no-lig .wb,.no-lig .diff,.no-lig .code,.no-lig .text code{font-variant-ligatures:none;font-feature-settings:"liga" 0,"calt" 0}
+
+/* settings › model providers (#16): read-only, from what each connected agent announces in device.hello */
+.mp-note{display:flex;gap:var(--space-2);align-items:flex-start;color:var(--color-text-2);margin:calc(-1 * var(--space-3)) 0 var(--space-5)}
+.mp-note svg{color:var(--color-text-3);margin-top:2px}
+.mp-tabs{display:flex;gap:var(--space-4);margin-bottom:var(--space-4);box-shadow:inset 0 -1px 0 var(--color-line);overflow-x:auto}
+.mp-tab{display:inline-flex;align-items:center;gap:var(--space-2);height:var(--control-field);padding:0 2px;color:var(--color-text-2);font-weight:var(--weight-medium);white-space:nowrap;position:relative;flex:none}
+.mp-tab[aria-selected="true"]{color:var(--color-text)}
+.mp-tab[aria-selected="true"]::after{content:"";position:absolute;left:0;right:0;bottom:0;height:2px;border-radius:2px 2px 0 0;background:var(--color-text)}
+.mp-list{border-radius:var(--radius-md);background:var(--color-surface);box-shadow:inset 0 0 0 1px var(--color-line);overflow:hidden}
+/* stacked view */
+body.stacked{background:#131210;color:#efe9e2;font-family:-apple-system,"SF Pro Text",system-ui,sans-serif;padding:56px 48px 80px;-webkit-font-smoothing:antialiased}
+.intro{max-width:1300px;margin:0 auto 56px}
+.intro h1{font-size:30px;font-weight:600;letter-spacing:-0.02em}
+.intro h1 span{color:#958d83;font-weight:400}
+.intro p{max-width:72ch;color:#b8b0a6;font-size:15px;line-height:1.6;margin:14px 0 0}
+.intro .cols{display:grid;grid-template-columns:1fr 1fr;gap:48px;margin:32px 0 36px;max-width:1100px}
+.intro h2{font-size:22px;font-weight:600;letter-spacing:-0.015em;margin:48px 0 8px}
+.intro h3{font-size:14px;font-weight:600;margin-bottom:10px;color:#efe9e2}
+.intro ul{list-style:none;display:flex;flex-direction:column;gap:8px;font-size:14px;line-height:1.5;color:#b8b0a6}
+.intro li b{color:#efe9e2;font-weight:500}
+.intro .chip{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:8px;vertical-align:-1px}
+.tok{border-collapse:collapse;font-size:12px;color:#b8b0a6;width:100%;max-width:1100px;margin-top:48px}
+.tok th{text-align:left;font-weight:500;color:#958d83;padding:6px 10px;border-bottom:1px solid rgba(255,238,220,.1)}
+.tok td{padding:4px 10px;border-bottom:1px solid rgba(255,238,220,.05);font-family:ui-monospace,"SF Mono",Menlo,monospace;vertical-align:middle;word-break:break-all}
+.tok td:first-child{color:#efe9e2;white-space:nowrap;word-break:normal}
+.sw{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:8px;vertical-align:-2px;box-shadow:0 0 0 1px rgba(255,255,255,.15)}
+.st{max-width:1300px;margin:0 auto 56px}
+.st h2{font-size:18px;font-weight:600;margin-bottom:16px;letter-spacing:-0.01em}
+.st h2 span{color:#958d83;font-weight:400;margin-left:12px;font-size:14px}
+.pair{display:flex;gap:20px}
+.scaled{width:640px;height:400px;overflow:hidden;border-radius:10px;box-shadow:0 0 0 1px rgba(255,255,255,.08)}
+.scaled .frame{transform:scale(.5);transform-origin:0 0}
+
+.toast{position:absolute;left:50%;bottom:var(--space-4);transform:translateX(-50%);z-index:8;height:var(--control-field);display:inline-flex;align-items:center;gap:var(--space-2);padding:0 var(--space-4) 0 var(--space-3);border-radius:999px;background:var(--color-raised);box-shadow:var(--shadow-float);white-space:nowrap}
+.toast svg{color:var(--color-success)}
+.light .mp-list{background:var(--color-raised)}
+.text{font-family:var(--font-prose);font-size:var(--text-body);line-height:var(--leading-body);color:var(--color-text);margin:var(--space-1) 0 var(--space-3);max-width:var(--measure-prose)}
+.dim{color:var(--color-text-3)}
+.ph.typed{color:var(--color-text)}
+.uempty{display:flex;flex-direction:column;align-items:center;text-align:center;gap:var(--space-2);padding:var(--space-7) var(--space-6)}
+.uempty .tile{width:40px;height:40px;border-radius:var(--radius-md);display:grid;place-items:center;background:var(--color-surface);box-shadow:inset 0 0 0 1px var(--color-line);color:var(--color-text-3)}
+.uempty b{font-weight:var(--weight-semibold)}
+.uempty p{margin:0;max-width:44ch;color:var(--color-text-2)}
+.uempty .acts{margin-top:var(--space-2);display:flex;gap:var(--space-2)}
+.nt .spin{color:var(--color-accent)}
+.nt .acts{margin-left:auto;align-self:center;flex:none}
+.fgrid{display:grid;grid-template-columns:1fr 1fr;gap:var(--space-4)}
+.input .sx{margin-left:auto;color:var(--color-text-3);font-family:var(--font-ui);font-size:var(--text-ui)}
+.input .px{margin-right:var(--space-1);color:var(--color-text-3)}
+.opt{display:flex;gap:var(--space-3);align-items:flex-start;padding:var(--space-2) 0}
+.opt .radio{margin-top:2px}
+.opt .tx{display:flex;flex-direction:column}
+.opt .tx b{font-weight:var(--weight-medium)}
+.opt .tx span{color:var(--color-text-3)}
+.mcard .del{margin-right:auto;color:var(--color-danger)}
+.mcard-f{gap:var(--space-2)}
+.top .ctx{color:var(--color-text-3);margin-left:var(--space-2)}
+.cp{font-size:var(--text-title);line-height:var(--leading-title);font-weight:var(--weight-semibold);letter-spacing:-0.012em;padding:var(--space-5) 0 var(--space-2)}
+.scrim{position:absolute;inset:0;z-index:19;background:var(--color-scrim)}
+.modal{position:absolute;z-index:20;left:50%;top:var(--layout-modal-top);transform:translateX(-50%);border-radius:var(--radius-lg);background:var(--color-raised);box-shadow:var(--shadow-float);overflow:hidden}
+.hl{color:var(--color-accent-text);font-weight:var(--weight-semibold)}
+/* turn block */
+.turn{position:relative;padding-bottom:var(--space-5)}
+.turn + .turn{margin-top:var(--space-2)}
+.turn.done + .turn.done{border-top:1px solid var(--color-line)}
+.th{position:sticky;top:0;z-index:3;display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:var(--space-5);align-items:baseline;
+  padding:var(--space-5) 0 var(--space-3);background:var(--color-bg)}
+.th.stuck{box-shadow:0 1px 0 var(--color-line)}
+.th.stuck .p,.wide .th .p{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:none}
+.th .p{font-size:var(--text-title);line-height:var(--leading-title);font-weight:var(--weight-semibold);letter-spacing:-0.012em;color:var(--color-text);max-width:var(--measure-prose)}
+.th .tm{grid-column:1;display:flex;align-items:center;gap:var(--space-2);margin-top:var(--space-1)}
+.th .tm .src{display:flex;align-items:center;color:var(--color-text-3)}
+.sum{grid-row:1;grid-column:2;display:flex;gap:var(--space-1);white-space:nowrap}
+.sum i{font-style:normal;opacity:.6}
+.tb{display:flex;flex-direction:column}
+
+/* live turn */
+.turn.live{margin:0 calc(-1 * var(--space-5));padding:0 var(--space-5) var(--space-4);border-radius:var(--radius-lg);background:var(--color-raised);box-shadow:var(--shadow-live)}
+.turn.live::before{content:"";position:absolute;left:0;top:var(--space-4);bottom:var(--space-4);width:3px;border-radius:0 3px 3px 0;background:var(--color-accent)}
+.turn.live.need::before{background:var(--color-attention)}
+.turn.live.need{box-shadow:var(--shadow-live),0 0 0 1px var(--color-attention-ring)}
+.turn.live .th{position:static;background:none;padding-top:var(--space-4);align-items:center}
+.rt{grid-row:1/span 2;grid-column:2;display:flex;align-items:center;gap:var(--space-3);align-self:center}
+.badge{display:flex;align-items:center;gap:var(--space-2);color:var(--color-text-3);font-variant-numeric:tabular-nums}
+.sdot{width:8px;height:8px;border-radius:50%;background:var(--color-accent);box-shadow:0 0 0 4px var(--color-accent-soft);animation:pulse var(--motion-pulse) ease-in-out infinite}
+.need .sdot{background:var(--color-attention);box-shadow:0 0 0 3px var(--color-attention-ring);animation:none}
+@keyframes pulse{50%{box-shadow:0 0 0 6px transparent}}
+.turn.live .tsep{height:1px;background:var(--color-line);margin:0 0 var(--space-2)}
+
+/* prose */
+.text{font-family:var(--font-prose);font-size:var(--text-body);line-height:var(--leading-body);color:var(--color-text);margin:var(--space-1) 0 var(--space-3);max-width:var(--measure-prose)}
+.text code{font-family:var(--font-mono);font-size:var(--text-code);background:var(--color-surface);padding:1px 4px;border-radius:4px;box-shadow:inset 0 0 0 1px var(--color-line)}
+.live .text code{background:var(--color-bg)}
+.caret{display:inline-block;width:7px;height:16px;background:var(--color-accent);vertical-align:-3px;margin-left:2px;border-radius:1px;animation:blink var(--motion-blink) steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+
+/* tool rows: icon | past-tense verb | object | meta; one 28 px row per call */
+.acts{margin:var(--space-1) 0 var(--space-2)}
+.act{position:relative;display:grid;grid-template-columns:16px minmax(var(--layout-act-verb),max-content) minmax(0,1fr) auto;column-gap:var(--space-2);align-items:center;height:var(--layout-row);margin:0 calc(-1 * var(--space-2));padding:0 var(--space-2);border-radius:var(--radius-sm);white-space:nowrap}
+.act:hover{background:var(--color-hover)}
+.act .i{color:var(--color-text-3);display:grid;place-items:center}
+.act .k{color:var(--color-text-2);font-weight:var(--weight-medium)}
+.act .a{min-width:0;overflow:hidden;text-overflow:ellipsis;color:var(--color-text-2)}
+.act .a .d{color:var(--color-text-3)}
+.act .a.dim{color:var(--color-text-3)}
+.act.think .a{font-style:italic;color:var(--color-text-3)}
+.act .m{display:flex;align-items:center;gap:var(--space-1);justify-content:flex-end;font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3);font-variant-numeric:tabular-nums}
+.act .m i{font-style:normal;opacity:.6}
+.act .m .chv{color:var(--color-text-3);margin-left:var(--space-1)}
+.act .m .chv svg{transition:transform .12s}
+.act.open .m .chv svg{transform:rotate(90deg)}
+.act.run .m{color:var(--color-accent-text)}
+.act.run .m .spin{color:var(--color-accent)}
+.act.bad::before{content:"";position:absolute;left:calc(var(--space-2) - var(--space-3));top:var(--space-1);bottom:var(--space-1);width:2px;border-radius:1px;background:var(--color-danger)}
+.act.bad .m{color:var(--color-danger)}
+.add-n{color:var(--color-add-text)} .del-n{color:var(--color-del-text)}
+.thought{margin:0 0 var(--space-2) calc(16px + var(--space-2));max-width:var(--measure-prose);font-style:italic;color:var(--color-text-3)}
+
+/* the output well: one frame for every expanded result */
+.well{--well-bg:var(--color-surface);position:relative;margin:var(--space-1) 0 var(--space-2) calc(16px + var(--space-2));border-radius:var(--radius-md);background:var(--well-bg);box-shadow:inset 0 0 0 1px var(--color-line);overflow:hidden}
+.well.solo{margin-left:0}
+.live .well{--well-bg:var(--color-bg)}
+.well.peek::after{content:"";position:absolute;right:0;top:0;bottom:0;width:240px;background:linear-gradient(to right,transparent,var(--well-bg) 40%)}
+.wb{font-family:var(--font-mono);font-size:var(--text-code);line-height:var(--leading-code);letter-spacing:0;color:var(--color-text);padding:var(--space-2) 0;max-height:var(--layout-well-max);overflow:hidden}
+.well.fade .wb{-webkit-mask-image:linear-gradient(to bottom,#000 calc(100% - 48px),transparent);mask-image:linear-gradient(to bottom,#000 calc(100% - 48px),transparent)}
+.well.peek .wb{max-height:76px}
+.wl{display:grid;grid-template-columns:minmax(0,1fr);padding:0 48px 0 var(--space-3);white-space:pre}
+.well.ln .wl{grid-template-columns:var(--layout-gutter) minmax(0,1fr);column-gap:var(--space-3);padding-left:0}
+.wl .n{font-family:var(--font-ui);font-size:var(--text-meta);color:var(--color-text-3);text-align:right;font-variant-numeric:tabular-nums}
+.wl .c{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.wl.cmd{color:var(--color-text)}
+.wl.cmd .c::before{content:"$ ";color:var(--color-text-3)}
+.wl.bad{color:var(--color-del-text)}
+.wl.ok{color:var(--color-add-text)}
+.wl.dim{color:var(--color-text-3)}
+.wl .p{color:var(--color-text-3)}
+.wl .c .p{white-space:pre}
+.well.err{background:var(--color-del-bg);box-shadow:inset 0 0 0 1px var(--color-del-bg)}
+.well.err .wl{color:var(--color-del-text)}
+.wact{position:absolute;top:var(--space-1);right:var(--space-1);display:flex;z-index:1;border-radius:var(--radius-sm);background:var(--well-bg)}
+.wact .ib{width:28px;height:28px}
+.wopen{position:absolute;right:var(--space-2);bottom:var(--space-2);z-index:1;height:var(--control-icon);display:inline-flex;align-items:center;padding:0 var(--space-3);border-radius:var(--radius-sm);font-weight:var(--weight-medium);color:var(--color-text);background:var(--color-hover);box-shadow:inset 0 1px 0 var(--color-highlight),0 0 0 1px var(--color-line);font-variant-numeric:tabular-nums}
+.light .wopen{background:var(--color-raised)}
+.diff{font-family:var(--font-mono);font-size:var(--text-code);line-height:var(--leading-code);letter-spacing:0;padding:var(--space-2) 0}
+.dl{display:grid;grid-template-columns:var(--layout-gutter) var(--layout-gutter) 16px minmax(0,1fr);color:var(--color-text);padding-right:48px}
+.dl .n{font-family:var(--font-ui);font-size:var(--text-meta);color:var(--color-text-3);text-align:right;padding-right:var(--space-2);font-variant-numeric:tabular-nums}
+.dl.add{background:var(--color-add-bg)}
+.dl.del{background:var(--color-del-bg)}
+.dl.add .s,.dl.add .n{color:var(--color-add-text)}
+.dl.del .s,.dl.del .n{color:var(--color-del-text)}
+.dl .s{text-align:center}
+.dl .c{white-space:pre;overflow:hidden;text-overflow:ellipsis}
+
+/* permission request inside the live block */
+.ask{margin:var(--space-3) calc(-1 * var(--space-5)) calc(-1 * var(--space-4));padding:var(--space-4) var(--space-5);background:var(--color-attention-soft);border-radius:0 0 var(--radius-lg) var(--radius-lg);box-shadow:inset 0 1px 0 var(--color-attention-ring)}
+.ask-h{display:flex;align-items:center;gap:var(--space-2);margin-bottom:var(--space-3)}
+.ask-h svg{color:var(--color-attention-text)}
+.ask-h .q{font-size:var(--text-title);line-height:var(--leading-title);font-weight:var(--weight-semibold);letter-spacing:-0.01em}
+.ask .well{margin:0}
+.ask-f{display:flex;align-items:center;gap:var(--space-2);margin-top:var(--space-3)}
+.ask-f .meta{margin-left:auto;display:flex;align-items:center;gap:var(--space-1)}
+.ask-f .meta svg{color:var(--color-text-3)}
+.dlg{width:var(--layout-dialog);max-width:calc(100% - 32px);top:36px}
+.dlg-h{padding:var(--space-4) var(--space-4) var(--space-3);font-size:var(--text-title);line-height:var(--leading-title);font-weight:var(--weight-semibold);letter-spacing:-0.01em}
+.dlg-b{padding:0 var(--space-4);display:flex;flex-direction:column;gap:var(--space-2)}
+.dlg-u{display:flex;align-items:center;gap:var(--space-2);min-height:var(--control-icon);color:var(--color-text-3);font-size:var(--text-meta);line-height:var(--leading-meta)}
+.dlg-u .vt{color:var(--color-text-2);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dlg-u .gap{flex:1}
+.dlg-f{display:flex;justify-content:flex-end;gap:var(--space-2);padding:var(--space-4)}
+.dlg.dx{top:56px}
+.dx .dlg-h{padding-bottom:var(--space-1)}
+.dx .dlg-sub{padding:0 var(--space-4) var(--space-3);color:var(--color-text-3);display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap}
+.dx .dlg-sub .tag{width:auto;text-align:left;flex:none}
+.dx .dlg-b{gap:var(--space-1)}
+.dx .dlg-f{align-items:center}
+.dx .dlg-f .l{margin-right:auto}
+.dx .opt{display:grid;grid-template-columns:16px minmax(0,1fr);column-gap:var(--space-3);padding:var(--space-2);border-radius:var(--radius-sm);align-items:start}
+.dx .opt .cbx{width:16px;height:16px;margin-top:2px;border-radius:4px;box-shadow:inset 0 0 0 1.5px var(--color-text-3);display:grid;place-items:center;color:var(--color-on-accent)}
+.dx .opt .cbx svg{width:12px;height:12px}
+.dx .opt.on .cbx{background:var(--color-accent);box-shadow:none}
+.dx .opt.lock .cbx{background:var(--color-text-3);box-shadow:none;color:var(--color-raised)}
+.dx .opt.dis{opacity:.55}
+.dx .opt.dis .cbx{box-shadow:inset 0 0 0 1.5px var(--color-line)}
+.dx .opt .ol{font-weight:var(--weight-medium)}
+.dx .opt .od{font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3);margin-top:2px}
+.dx .opt .od .mono{font-size:11px;line-height:16px;color:var(--color-text-2)}
+.dx .opt .rsn{font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-2);margin-top:2px;display:flex;gap:var(--space-1);align-items:flex-start}
+.dx .opt .rsn svg{width:12px;height:12px;margin-top:2px}
+.dx .opt.warn{background:var(--color-attention-soft);box-shadow:inset 0 0 0 1px var(--color-attention-ring)}
+.dx .opt.warn .rsn{color:var(--color-attention-text)}
+.dx .xnote{margin:var(--space-2) var(--space-4) 0;padding:var(--space-2) var(--space-3);border-radius:var(--radius-sm);background:var(--color-hover);color:var(--color-text-2);display:flex;gap:var(--space-2);font-size:var(--text-meta);line-height:var(--leading-meta)}
+.light .dx .xnote{background:var(--color-selected)}
+.dx .xnote svg{width:14px;height:14px;margin-top:2px;color:var(--color-text-3)}
+.dx .xnote.att{background:var(--color-attention-soft);box-shadow:inset 0 0 0 1px var(--color-attention-ring)}
+.dx .xnote.att svg{color:var(--color-attention-text)}
+.dx .xnote.bad{background:var(--color-del-bg);color:var(--color-del-text)}
+.dx .xnote.bad svg{color:var(--color-danger)}
+.light .dx .xnote.bad{color:var(--color-danger)}
+.dx .xs{display:grid;grid-template-columns:16px minmax(0,1fr);column-gap:var(--space-3);padding:var(--space-2);align-items:start}
+.dx .xs .xl{color:var(--color-text)}
+.dx .xs .od{font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3);margin-top:2px}
+.dx .xs .od .mono{font-size:11px;line-height:16px;color:var(--color-text-2)}
+.dx .xs.wait .xl,.dx .xs .skip{color:var(--color-text-3)}
+.dx .xs .ok{color:var(--color-success)}
+.dx .xs .bad{color:var(--color-danger)}
+.dx .xs .run{color:var(--color-accent-text)}
+
+
+/* permission rules (#98): rows, editor, draft dialog, auto-decision lines */
+.tag{display:inline-flex;align-items:center;gap:var(--space-1);height:20px;padding:0 6px;border-radius:4px;background:var(--color-hover);color:var(--color-text-2);font-size:var(--text-meta);line-height:var(--leading-meta);font-weight:var(--weight-medium);white-space:nowrap;flex:none}
+.light .tag{background:var(--color-selected)}
+.tag svg{width:12px;height:12px}
+.qa{display:inline-flex;align-items:center;justify-content:center;gap:var(--space-1);height:20px;min-width:52px;padding:0 var(--space-2);border-radius:4px;font-size:var(--text-meta);line-height:var(--leading-meta);font-weight:var(--weight-semibold);flex:none;white-space:nowrap}
+.qa svg{width:12px;height:12px}
+.qa.allow{background:var(--color-add-bg);color:var(--color-add-text)}
+.qa.qask{background:var(--color-attention-soft);color:var(--color-attention-text);box-shadow:inset 0 0 0 1px var(--color-attention-ring)}
+.qa.deny{background:var(--color-del-bg);color:var(--color-del-text)}
+.qlead{margin:calc(-1 * var(--space-3)) 0 var(--space-4);color:var(--color-text-2);max-width:68ch}
+.qtb{display:flex;align-items:center;gap:var(--space-2);margin-bottom:var(--space-4)}
+.qtb .qs{flex:1;min-width:0;color:var(--color-text-3)}
+.qtb .qs .ph2{color:var(--color-text-3)}
+.qtb .seg{flex:none}
+.qg{display:flex;align-items:center;gap:var(--space-2);margin:var(--space-5) 0 var(--space-2)}
+.qg.first{margin-top:0}
+.qg b{font-weight:var(--weight-semibold)}
+.qg .meta{flex:1}
+.qg .qgr{display:flex;align-items:center;gap:var(--space-1);color:var(--color-text-3);font-size:var(--text-meta);line-height:var(--leading-meta)}
+.qg .qgr svg{width:14px;height:14px}
+.qr{display:grid;grid-template-columns:52px minmax(0,1fr) auto;align-items:center;column-gap:var(--space-3);min-height:52px;padding:var(--space-2) var(--space-4);position:relative}
+.qr + .qr{box-shadow:inset 0 1px 0 var(--color-line)}
+.qr .qx{min-width:0;display:flex;flex-direction:column}
+.qm{display:flex;align-items:center;gap:var(--space-2);min-width:0;white-space:nowrap}
+.qm .qk{display:inline-flex;align-items:center;gap:var(--space-1);color:var(--color-text-3);flex:none}
+.qm .qk svg{width:14px;height:14px}
+.qm .mono{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.qm .qw{color:var(--color-text-3);font-size:var(--text-meta);line-height:var(--leading-meta);flex:none}
+.qc{display:inline-flex;align-items:center;gap:2px;height:20px;padding:0 6px;border-radius:4px;background:var(--color-hover);font-family:var(--font-mono);font-size:11.5px;line-height:16px;color:var(--color-text-2);white-space:nowrap;flex:none;letter-spacing:0}
+.light .qc{background:var(--color-selected)}
+.qc.ui{font-family:var(--font-ui);font-size:var(--text-meta)}
+.qc svg{width:12px;height:12px;color:var(--color-text-3)}
+.qc.x{color:var(--color-del-text)}
+.light .qc.x{color:var(--color-danger)}
+.qn{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3)}
+.qn b{font-weight:var(--weight-regular);color:var(--color-text-2)}
+.qt{display:flex;align-items:center;gap:var(--space-1)}
+.qr.off .qm,.qr.off .qn,.qr.off .qm .mono{color:var(--color-text-3)}
+.qr.off .qa,.qtr.off .qa{opacity:.5}
+.qm{overflow:hidden}
+.qm .qc{flex:none}
+.qr .qt{flex:none;justify-self:end}
+.qr.sel{background:var(--color-selected)}
+.qr.sel + .qr{box-shadow:none}
+.qr.sel::before{content:"";position:absolute;left:0;top:8px;bottom:8px;width:2px;border-radius:1px;background:var(--color-accent)}
+.qlock{display:inline-flex;align-items:center;gap:var(--space-1);color:var(--color-text-3);font-size:var(--text-meta);line-height:var(--leading-meta);white-space:nowrap}
+.qlock svg{width:14px;height:14px}
+.qsub{padding:var(--space-2) var(--space-4);font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3);background:var(--color-bg);box-shadow:inset 0 1px 0 var(--color-line)}
+.light .qsub{background:var(--color-hover)}
+.qwide .in{max-width:760px}
+.qwide2 .in{max-width:900px}
+.qwide3 .in{max-width:976px}
+.qtr{display:grid;grid-template-columns:var(--cols);column-gap:var(--space-3);align-items:center;min-height:48px;padding:0 var(--space-4)}
+.qtr + .qtr{box-shadow:inset 0 1px 0 var(--color-line)}
+.qtr.hd{min-height:28px;font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3)}
+.qtr .qn{font-size:var(--text-ui);line-height:var(--leading-ui);color:var(--color-text-2);white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.qtr .qt{justify-content:flex-end}
+.qtr .qkind{display:flex;align-items:center;gap:var(--space-1);color:var(--color-text-2)}
+.qtr .qkind svg{color:var(--color-text-3)}
+.qtr.off .qn,.qtr.off .qm,.qtr.off .qkind{color:var(--color-text-3)}
+.qbar{display:flex;align-items:center;gap:var(--space-3);margin-bottom:var(--space-3)}
+.qbar .sel{width:240px}
+.qbar .sp{flex:1}
+.qf{display:flex;flex-direction:column;gap:var(--space-4)}
+.qf .fld .h{color:var(--color-text-3);font-size:var(--text-meta);line-height:var(--leading-meta)}
+.qf .fgrid{gap:var(--space-4)}
+.qf .full{grid-column:1/-1}
+.qchipin{min-height:var(--control-field);display:flex;flex-wrap:wrap;gap:4px;align-items:center;padding:5px var(--space-2);border-radius:var(--radius-sm);background:var(--color-bg);box-shadow:inset 0 0 0 1px var(--color-line)}
+.qchipin.on{box-shadow:inset 0 0 0 1.5px var(--color-accent)}
+.qchipin.bad{box-shadow:inset 0 0 0 1.5px var(--color-danger)}
+.qchipin .ph2{color:var(--color-text-3);padding:0 var(--space-1);font-family:var(--font-mono);font-size:var(--text-code)}
+.qchipin .qc{background:var(--color-hover)}
+.qchipin .qc button{display:grid;place-items:center;color:var(--color-text-3)}
+.light .qchipin,.light .sel,.light .input{background:var(--color-hover)}
+.light .qchipin .qc{background:var(--color-raised)}
+.qins{display:flex;gap:4px;flex-wrap:wrap;align-items:center}
+.qdesc{display:flex;gap:var(--space-2);align-items:flex-start;color:var(--color-text-3);font-size:var(--text-meta);line-height:var(--leading-meta)}
+.qdesc svg{width:14px;height:14px;margin-top:1px}
+.qdesc.att{color:var(--color-attention-text)}
+.qdesc.bad{color:var(--color-danger)}
+.qcount{margin-left:auto;color:var(--color-text-3)}
+.qsum{padding:var(--space-2) var(--space-3);border-radius:var(--radius-sm);background:var(--color-bg);box-shadow:inset 0 0 0 1px var(--color-line);color:var(--color-text-2);display:flex;gap:var(--space-2);align-items:flex-start}
+.light .qsum{background:var(--color-hover)}
+.qsum svg{margin-top:2px;color:var(--color-text-3)}
+.qsum .mono{font-size:11.5px}
+.mcard-f .del{margin-right:auto;color:var(--color-danger)}
+.qkv{display:grid;grid-template-columns:120px minmax(0,1fr);column-gap:var(--space-3);row-gap:var(--space-3);align-items:baseline}
+.qkv .k{color:var(--color-text-3)}
+.qkv .v{display:flex;flex-wrap:wrap;gap:4px;align-items:center;min-width:0}
+.qc2{display:grid;grid-template-columns:300px minmax(0,1fr);gap:var(--space-4);align-items:start}
+.qc2 .mcard{margin-top:0}
+.qc2 .qr{grid-template-columns:44px minmax(0,1fr) auto;padding:var(--space-2) var(--space-3);column-gap:var(--space-2)}
+.qc2 .qa{min-width:44px;padding:0 4px}
+.qc2 .qh{padding:var(--space-3) var(--space-3) var(--space-1);font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3);font-weight:var(--weight-medium);display:flex;gap:var(--space-2);align-items:center}
+.qc2 .qh svg{width:14px;height:14px}
+.qc2 .qh:not(:first-child){box-shadow:inset 0 1px 0 var(--color-line);margin-top:var(--space-1)}
+.qc2 .qh + .qr{box-shadow:none}
+.qpane-h{display:flex;align-items:center;gap:var(--space-2)}
+.qpane-h .qt{margin-left:auto}
+.qkinds{display:grid;grid-template-columns:1fr 1fr;gap:var(--space-4)}
+.qkinds .mcard{margin-top:0}
+.qkinds .mcard-h b{display:flex;align-items:center;gap:var(--space-2)}
+.qkinds .mcard-h b svg{color:var(--color-text-3)}
+.dlg.qd{width:560px;top:72px}
+.dlg.qd.qcf{width:480px;top:180px}
+.dlg.qd .dlg-b{gap:var(--space-3)}
+.dlg.qd .dlg-f{align-items:center}
+.dlg.qd .dlg-f .l{margin-right:auto;color:var(--color-text-3);font-size:var(--text-meta);line-height:var(--leading-meta);display:flex;gap:var(--space-1);align-items:center}
+.dlg.qd .dlg-f .l svg{width:14px;height:14px}
+.dlg.qd .dlg-p{padding:0 var(--space-4);color:var(--color-text-2)}
+.dlg.qd .dlg-p b{color:var(--color-text);font-weight:var(--weight-medium)}
+.qreq{padding:var(--space-2) var(--space-3);border-radius:var(--radius-sm);background:var(--color-bg);box-shadow:inset 0 0 0 1px var(--color-line);display:flex;align-items:center;gap:var(--space-2);min-width:0}
+.light .qreq{background:var(--color-hover)}
+.qreq .mono{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.qreq svg{color:var(--color-text-3)}
+.qreq .qw{margin-left:auto;color:var(--color-text-3);font-size:var(--text-meta);line-height:var(--leading-meta);white-space:nowrap}
+.dlg .qxnote{padding:var(--space-2) var(--space-3);border-radius:var(--radius-sm);background:var(--color-hover);color:var(--color-text-2);display:flex;gap:var(--space-2);font-size:var(--text-meta);line-height:var(--leading-meta)}
+.light .dlg .qxnote{background:var(--color-selected)}
+.dlg .qxnote svg{width:14px;height:14px;margin-top:1px;color:var(--color-text-3);flex:none}
+.dlg .qxnote.att{background:var(--color-attention-soft);box-shadow:inset 0 0 0 1px var(--color-attention-ring)}
+.dlg .qxnote.att svg{color:var(--color-attention-text)}
+.dlg .qxnote .mono{font-size:11px;line-height:16px}
+.qd .opt{display:grid;grid-template-columns:16px minmax(0,1fr);column-gap:var(--space-3);padding:var(--space-2);border-radius:var(--radius-sm);align-items:start}
+.qd .opt .radio{margin-top:2px}
+.qd .opt.on{background:var(--color-hover)}
+.light .qd .opt.on{background:var(--color-selected)}
+.qd .opt .ol{font-weight:var(--weight-medium);display:flex;gap:var(--space-2);align-items:center;flex-wrap:wrap}
+.qd .opt .od{font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3);margin-top:2px}
+.qd .opt .od .mono{font-size:11px;line-height:16px;color:var(--color-text-2)}
+.qd .opt .ol .mono{font-size:12px}
+.qd .qsec{padding:0 var(--space-4);display:flex;flex-direction:column;gap:var(--space-1)}
+.qd .qsec > .l{color:var(--color-text-2)}
+.qd .qsec .opts{display:flex;flex-direction:column;gap:2px}
+.qd .qsec .fld{gap:var(--space-1)}
+.qd .qsw{display:flex;align-items:center;gap:var(--space-2);padding:0 var(--space-4);color:var(--color-text-2)}
+.qd .qsw .sub{color:var(--color-text-3);font-size:var(--text-meta);line-height:var(--leading-meta)}
+.ask-f .vr{width:1px;height:20px;background:var(--color-attention-ring);margin:0 var(--space-1)}
+.ask-f .btn.quiet{color:var(--color-text-2)}
+.ask-f{position:relative}
+.qmenu{position:absolute;z-index:30;left:150px;bottom:calc(100% - var(--space-1));width:276px;padding:var(--space-1);border-radius:var(--radius-md);background:var(--color-raised);box-shadow:var(--shadow-float)}
+.qmenu .menu-item{height:auto;min-height:var(--layout-row);padding:var(--space-1) var(--space-2);flex-direction:column;align-items:flex-start;gap:0;justify-content:center}
+.qmenu .menu-item .sub{font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3)}
+.qmenu .menu-item.on{background:var(--color-hover)}
+.qline{display:flex;align-items:center;gap:var(--space-2);margin:0 0 var(--space-2) calc(16px + var(--space-2));color:var(--color-text-3);font-size:var(--text-meta);line-height:var(--leading-meta);min-width:0;white-space:nowrap}
+.qline svg{width:14px;height:14px;flex:none}
+.qline b{font-weight:var(--weight-medium);color:var(--color-text-2);overflow:hidden;text-overflow:ellipsis}
+.qline.qask svg{color:var(--color-attention-text)}
+.qline.allow svg{color:var(--color-success)}
+.qline.deny,.qline.deny b{color:var(--color-danger)}
+.qline .lnk{color:var(--color-text-2);text-decoration:underline;text-decoration-color:var(--color-text-3);text-underline-offset:2px}
+.ask .qline{margin:calc(-1 * var(--space-1)) 0 var(--space-3) 0;color:var(--color-attention-text)}
+.ask .qline b{color:var(--color-text)}
+.ask-f .qno{display:flex;align-items:center;gap:var(--space-1);color:var(--color-text-3);font-size:var(--text-meta);line-height:var(--leading-meta);margin-left:var(--space-2)}
+.ask-f .qno svg{width:14px;height:14px}
+.qans{margin:var(--space-3) 0 0}
+
+.btn.danger{background:var(--color-danger);color:var(--color-on-danger);box-shadow:inset 0 1px 0 rgba(255,255,255,.22),0 1px 2px rgba(0,0,0,.2);font-weight:var(--weight-semibold);padding:0 var(--space-4)}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+const T = JSON.parse(document.getElementById('tokens').textContent);
+const vars = o => Object.entries(o).map(([k, v]) => `${k}:${v};`).join('');
+document.getElementById('token-css').textContent =
+  `.frame{${vars(T.shared)}}.frame.dark{${vars(T.dark)}}.frame.light{${vars(T.light)}}`;
+
+/* icons: one family, Lucide (ISC licence), inlined; 24-unit grid drawn at 16 px, stroke 1.5, round caps and joins */
+const sv = (d, cls = '') => `<svg${cls ? ` class="${cls}"` : ''} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+const rot = (deg, d) => `<g transform="rotate(${deg} 12 12)">${d}</g>`;
+const L = {
+  'panel-left': '<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/>',
+  'panel-right': '<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M15 3v18"/>',
+  plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
+  'chevron-right': '<path d="m9 18 6-6-6-6"/>',
+  'arrow-up': '<path d="m5 12 7-7 7 7"/><path d="M12 19V5"/>',
+  folder: '<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>',
+  globe: '<circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/>',
+  paperclip: '<path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/>',
+  mic: '<path d="M12 19v3"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><rect x="9" y="2" width="6" height="13" rx="3"/>',
+  x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+  check: '<path d="M20 6 9 17l-5-5"/>',
+  'circle-alert': '<circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/>',
+  info: '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>',
+  'rotate-cw': '<path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/>',
+  pencil: '<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/>',
+  laptop: '<path d="M20 16V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v9m16 0H4m16 0 1.28 2.55a1 1 0 0 1-.9 1.45H3.62a1 1 0 0 1-.9-1.45L4 16"/>',
+  contrast: '<circle cx="12" cy="12" r="10"/><path d="M12 18a6 6 0 0 0 0-12v12z"/>',
+  plug: '<path d="M12 22v-5"/><path d="M9 8V2"/><path d="M15 8V2"/><path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z"/>',
+  bell: '<path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/>',
+  trash: '<path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>',
+  'loader-circle': '<path d="M21 12a9 9 0 1 1-6.219-8.56"/>',
+  'chart-column': '<path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/>',
+  pause: '<rect x="14" y="3" width="5" height="18" rx="1"/><rect x="5" y="3" width="5" height="18" rx="1"/>',
+  square: '<rect width="18" height="18" x="3" y="3" rx="2"/>',
+  lock: '<rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+};
+const I = {
+  sidebar: () => sv(L['panel-left']),
+  panel: () => sv(L['panel-right']),
+  plus: () => sv(L.plus),
+  chev: () => sv(L['chevron-right']),
+  down: () => sv(rot(90, L['chevron-right'])),
+  back: () => sv(rot(180, L['chevron-right'])),
+  up: () => sv(L['arrow-up']),
+  folder: () => sv(L.folder),
+  globe: () => sv(L.globe),
+  clip: () => sv(L.paperclip),
+  mic: () => sv(L.mic),
+  x: () => sv(L.x),
+  check: () => sv(L.check),
+  alert: () => sv(L['circle-alert']),
+  info: () => sv(L.info),
+  retry: () => sv(L['rotate-cw']),
+  pen: () => sv(L.pencil),
+  laptop: () => sv(L.laptop),
+  contrast: () => sv(L.contrast),
+  plug: () => sv(L.plug),
+  bell: () => sv(L.bell),
+  trash: () => sv(L.trash),
+  chart: () => sv(L['chart-column']),
+  pause: () => sv(L.pause),
+  stop: () => sv(L.square),
+  lock: () => sv(L.lock),
+};
+const spin = () => sv(L['loader-circle'], 'spin');
+const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+const tip = s => ` title="${s}" aria-label="${s}"`;
+const ib = (icon, s, cls = '', off = false) => `<button class="ib ${cls}"${tip(s)}${off ? ' disabled' : ''}>${icon}</button>`;
+const btn = (label, icon = '', cls = '', s = '', off = false) => `<button class="btn ${cls}"${s ? tip(s) : ''}${off ? ' disabled' : ''}>${icon}${label}</button>`;
+const code = s => `<span class="mono">${esc(s)}</span>`;
+
+/* the interface language of the frame being drawn: the mockup is written in English, Simplified Chinese is the zh-Hans.json wording */
+let Z = false;
+const t = (en, zh) => (Z ? zh : en);
+/* ---- icons added for the rules screens (Lucide) ---------------------------------------------------------------- */
+Object.assign(L, {
+  terminal: '<polyline points="4 17 10 11 4 5"/><line x1="12" x2="20" y1="19" y2="19"/>',
+  'file-text': '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/>',
+  search: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
+  clock: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
+  asterisk: '<path d="M12 6v12"/><path d="M17.196 9 6.804 15"/><path d="m6.804 9 10.392 6"/>',
+  ban: '<circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/>',
+  hand: '<path d="M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2"/><path d="M14 10V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2"/><path d="M10 10.5V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/>',
+  shield: '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/>',
+  'shield-check': '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/>',
+});
+Object.assign(I, {
+  term: () => sv(L.terminal),
+  file: () => sv(L['file-text']),
+  search: () => sv(L.search),
+  clock: () => sv(L.clock),
+  any: () => sv(L.asterisk),
+  ban: () => sv(L.ban),
+  hand: () => sv(L.hand),
+  shield: () => sv(L.shield),
+  rules: () => sv(L['shield-check']),
+});
+
+/* ---- vocabulary ------------------------------------------------------------------------------------------------ */
+const ACT = { allow: ['Allow', '允许', 'check'], ask: ['Ask', '询问', 'hand'], deny: ['Deny', '拒绝', 'ban'] };
+const qa = a => `<span class="qa ${a === 'ask' ? 'qask' : a}">${I[ACT[a][2]]()}${t(ACT[a][0], ACT[a][1])}</span>`;
+const KD = {
+  run: [I.term, 'Run', '运行', 'Run a command', '运行命令'],
+  read: [I.file, 'Read', '读取', 'Read files', '读取文件'],
+  write: [I.pen, 'Write', '写入', 'Write files', '写入文件'],
+  fetch: [I.globe, 'Fetch', '网页', 'Fetch from the web', '访问网页'],
+  mcp: [I.plug, 'MCP', 'MCP', 'MCP tool', 'MCP 工具'],
+  any: [I.any, 'Any', '任意', 'Any tool', '任意工具'],
+};
+const ch = (s, x = false) => `<span class="qc${x ? ' x' : ''}">${esc(s)}</span>`;
+const chs = (arr, max = 3) => arr.slice(0, max).map(c => ch(c)).join('') + (arr.length > max ? `<span class="qc ui">+${arr.length - max}</span>` : '');
+const sw = (on, label) => `<span class="switch${on ? ' on' : ''}" role="switch" aria-checked="${on}" aria-label="${esc(label)}"></span>`;
+const nn = r => t(r.n[0], r.n[1]);
+
+/* ---- the invented rules ---------------------------------------------------------------------------------------- */
+const BI = [
+  { id: 'default.secret-files', a: 'deny', k: ['read', 'write'], m: { paths: ['**/.env', '**/.env.*'] }, n: ['Secret files (.env)', '密钥文件（.env）'], on: true,
+    off: ['Sessions on every machine could read .env files, which puts their keys in the model’s context and in the stored session.', '所有机器上的会话都可能读取 .env 文件，其中的密钥会进入模型上下文和已存储的会话。'] },
+  { id: 'default.credential-stores', a: 'deny', k: ['read', 'write'], m: { paths: ['~/.ssh/**', '~/.aws/**', '~/.gnupg/**', '~/.netrc'] }, n: ['Credential stores', '凭据存储'], on: true,
+    off: ['Sessions could read SSH keys, cloud credentials and other secrets that sit outside any project.', '会话可能读取 SSH 密钥、云凭据以及位于项目之外的其他机密。'] },
+  { id: 'default.hoplet-and-provider-config', a: 'deny', k: ['read', 'write'], m: { paths: ['<hoplet_home>/**', '~/.claude/settings*.json', '.claude/settings*.json'] }, n: ['Hoplet and provider settings', 'Hoplet 与提供方设置'], on: true,
+    off: ['Sessions could read the device token and change the hooks and settings that carry these rules.', '会话可能读取设备令牌，并修改承载这些规则的钩子和设置。'] },
+  { id: 'default.write-outside-workspace', a: 'deny', k: ['write'], m: { paths: ['anything outside {workspace}, the temp directory and plan files'] }, n: ['Writes outside the workspace', '工作区之外的写入'], on: true,
+    off: ['A session could change files anywhere on the machine, not only in its project.', '会话可以修改机器上任意位置的文件，而不只是它的项目。'] },
+  { id: 'default.force-push', a: 'ask', k: ['run'], m: { cmd: 'git push', any: ['--force*', '-f', '+*'] }, n: ['Force push', '强制推送'], on: true,
+    off: ['A force push would run without a card whenever the permission mode allows commands, and it rewrites shared history.', '只要权限模式允许命令，强制推送就会不经确认直接运行，并改写共享历史。'] },
+  { id: 'default.destructive-git', a: 'ask', k: ['run'], m: { cmd: 'git reset --hard', or: ['git clean -f', 'git checkout --'] }, n: ['Destructive git commands', '破坏性 git 命令'], on: false,
+    off: ['', ''] },
+  { id: 'default.recursive-delete-and-sudo', a: 'ask', k: ['run'], m: { cmd: 'rm', any: ['-r', '-R', '-rf', '--recursive'], or: ['sudo', 'doas', 'su'] }, n: ['Recursive delete and sudo', '递归删除与 sudo'], on: true,
+    off: ['Recursive deletes and privileged commands would run without asking.', '递归删除和特权命令将不经询问直接运行。'] },
+  { id: 'default.download-and-run', a: 'ask', k: ['run'], m: { cmd: 'curl', or: ['wget'], pipe: ['sh', 'bash', 'zsh', 'python*', 'node'] }, n: ['Download and run', '下载并执行'], on: true,
+    off: ['Code nobody read could be fetched and run in one step.', '没人读过的代码可能被一步下载并执行。'] },
+];
+const G = [
+  { id: 'r-1', a: 'allow', k: ['run'], m: { cmd: 'pnpm check' }, n: ['Run the checks', '运行检查'], on: true },
+  { id: 'r-2', a: 'allow', k: ['run'], m: { cmd: 'go test' }, n: ['Go tests', 'Go 测试'], on: false },
+  { id: 'r-3', a: 'deny', k: ['fetch'], m: { domains: ['*.pastebin.com', 'transfer.sh'] }, n: ['No paste sites', '禁止粘贴站点'], on: true },
+];
+const P = [
+  { id: 'r-4', a: 'allow', k: ['write'], m: { paths: ['{workspace}/docs/**'] }, n: ['Docs are safe to edit', '文档可以放心修改'], on: true },
+  { id: 'r-5', a: 'ask', k: ['write'], m: { paths: ['{workspace}/core/migrations/**'] }, n: ['Look at migrations first', '迁移先过目'], on: true },
+];
+const LOC = [
+  { a: 'deny', k: ['read', 'write'], m: { paths: ['/Volumes/Backup/**'] }, n: ['Backups are off limits', '备份目录不可触碰'], local: true },
+  { a: 'deny', k: ['run'], m: { cmd: 'diskutil', any: ['erase*', 'partition*'] }, n: ['No disk changes', '禁止改动磁盘'], local: true },
+];
+const SCOPE_NAME = { builtin: ['Built in', '内置'], global: ['Global', '全局'], project: ['Project · hoplet', '项目 · hoplet'], local: ['This machine', '本机'] };
+
+function matchHtml(r) {
+  const m = r.m;
+  let h = '';
+  if (m.cmd) h += `<span class="mono">${esc(m.cmd)}</span>`;
+  if (m.or) h += `<span class="qw">${t('or', '或')}</span>${chs(m.or, 2)}`;
+  if (m.any) h += `<span class="qw">${t('with', '含')}</span>${chs(m.any)}`;
+  if (m.pipe) h += `<span class="qw">${t('piped to', '管道到')}</span>${chs(m.pipe, 3)}`;
+  if (m.paths) h += m.paths.length === 1 && m.paths[0].startsWith('anything') ? `<span class="qc ui">${t('Anything outside {workspace}, the temp directory and plan files', '{workspace}、临时目录和计划文件之外的任何位置')}</span>` : chs(m.paths, 2);
+  if (m.domains) h += chs(m.domains);
+  if (m.server) h += `<span class="mono">${esc(m.server)} › ${esc(m.tool)}</span>`;
+  return h;
+}
+const kindLabel = r => (r.k.length === 1 ? t(KD[r.k[0]][1], KD[r.k[0]][2]) : r.k.map(k => t(KD[k][1], KD[k][2])).join('/'));
+const kindIcons = r => r.k.map(k => KD[k][0]()).join('');
+const ctl = r => {
+  if (r.builtin) return `<span class="tag"${tip(t('Built in. It can be turned off, not edited or deleted.', '内置规则。可以关闭，不能编辑或删除。'))}>${I.lock()}${t('Built in', '内置')}</span>${sw(r.on, nn(r))}`;
+  if (r.local) return `<span class="qlock"${tip(t('Set in the agent’s configuration on this machine', '在本机的 agent 配置中设置'))}>${I.lock()}${t('Read-only', '只读')}</span>`;
+  return `${sw(r.on, nn(r))}${ib(I.pen(), t('Edit rule', '编辑规则'))}`;
+};
+const bi = BI.map(r => ({ ...r, builtin: true }));
+const row = (r, o = {}) => `<div class="qr${r.on === false ? ' off' : ''}${o.sel ? ' sel' : ''}">${qa(r.a)}<div class="qx"><div class="qm"><span class="qk"${tip(r.k.map(k => t(KD[k][3], KD[k][4])).join(', '))}>${kindIcons(r)}${o.compact ? '' : `<span>${kindLabel(r)}</span>`}</span>${matchHtml(r)}</div><div class="qn">${nn(r)}</div></div><div class="qt">${o.noctl ? '' : ctl(r)}</div></div>`;
+const list = rows => `<div class="mp-list">${rows}</div>`;
+
+/* ---- the shared parts of the Settings page ---------------------------------------------------------------------- */
+function nav() {
+  const ni = (on, icon, label) => `<div class="ni${on ? ' on' : ''}">${icon}${label}</div>`;
+  return `<nav class="snav" aria-label="${t('Settings sections', '设置分区')}">
+    ${ni(false, I.contrast(), t('Appearance', '外观'))}${ni(false, I.laptop(), t('Machines', '机器'))}${ni(false, I.plug(), t('Model providers', '模型提供方'))}${ni(false, I.bell(), t('Notifications', '通知'))}${ni(true, I.rules(), t('Permission rules', '权限规则'))}${ni(false, I.chart(), t('Usage', '用量'))}
+  </nav>`;
+}
+function settingsShell(body, wide = '') {
+  return `<header class="top">${ib(I.back(), t('Back to the conversation · Esc', '返回会话 · Esc'))}<span class="title">${t('Settings', '设置')}</span></header>
+    <div class="set">${nav()}<div class="spage ${wide}"><div class="in">${body}</div></div></div>`;
+}
+const lead = () => `<p class="rmeta qlead">${t('A rule decides a tool call before it reaches you. A deny always wins; otherwise the narrowest scope decides, and ask beats allow within a scope. When nothing matches, the session’s permission mode decides.', '规则会在工具调用到达你之前先做出决定。拒绝始终优先；否则由最窄的范围决定，同一范围内“询问”优先于“允许”。没有规则匹配时，由会话的权限模式决定。')}</p>`;
+const addBtn = (primary = true) => btn(t('Add rule', '添加规则'), I.plus(), primary ? 'primary' : '');
+const toolbar = (extra = '') => `<div class="qtb">${extra}<div class="input ui qs" role="search">${I.search()}<span class="ph2">${t('Search rules', '搜索规则')}</span></div>${addBtn()}</div>`;
+const emptyBox = (cls = '') => `<div class="${cls}"><div class="uempty"><span class="tile">${I.rules()}</span><b>${t('No rules of your own', '还没有你自己的规则')}</b>
+  <p>${t('The built-in rules still apply. Add a rule to allow routine commands, ask before risky ones, or deny what a session must never touch.', '内置规则仍然生效。添加规则，可以放行常规命令、在高风险操作前询问，或拒绝会话绝不能碰的内容。')}</p>
+  <div class="acts">${addBtn()}</div></div></div>`;
+const localNote = () => `<div class="nt snap" role="note">${I.lock()}<span>${t('These come from <span class="mono">permission_deny</span> in the agent’s configuration on this machine. Hoplet shows them and never writes them. A rule pushed from here cannot override them.', '这些规则来自本机 agent 配置中的 <span class="mono">permission_deny</span>。Hoplet 只显示，从不写入。从这里推送的规则无法覆盖它们。')}</span></div>`;
+
+/* ---- the rule editor: one form, three places ---------------------------------------------------------------------- */
+const seg = (items, on, label) => `<div class="seg" role="radiogroup" aria-label="${label}">${items.map(([k, en, zh, ic]) => `<button role="radio" aria-checked="${k === on}" class="${k === on ? 'on' : ''}">${ic ? ic() : ''}${t(en, zh)}</button>`).join('')}</div>`;
+const field = (label, inner, hint = '', cls = '') => `<div class="fld ${cls}"><span class="l">${label}</span>${inner}${hint ? `<span class="h">${hint}</span>` : ''}</div>`;
+const chipsIn = (arr, ph, o = {}) => `<div class="qchipin${o.on ? ' on' : ''}${o.bad ? ' bad' : ''}">${arr.map(c => `<span class="qc">${esc(c)}<button${tip(t('Remove', '移除'))}>${sv(L.x)}</button></span>`).join('')}<span class="ph2">${ph}</span></div>`;
+const KDESC = {
+  run: ['Shell commands, matched by their words and never as plain text.', 'Shell 命令，按词匹配，而不是按纯文本匹配。'],
+  read: ['Reading, searching and listing files.', '读取、搜索和列出文件。'],
+  write: ['Creating or changing files.', '创建或修改文件。'],
+  fetch: ['Web fetch and web search.', '网页抓取和网页搜索。'],
+  mcp: ['One tool of an MCP server.', 'MCP 服务器的某个工具。'],
+  any: ['', ''],
+};
+const ADESC = {
+  allow: ['Runs without asking.', '无需询问直接运行。'],
+  allowRun: ['Runs without asking. A command with a pipe, &&, a redirection or $( ) is never allowed by a rule: it asks each time.', '无需询问直接运行。带管道、&&、重定向或 $( ) 的命令不会被规则放行，每次都会询问。'],
+  ask: ['Always asks, in every permission mode, Bypass permissions included.', '在所有权限模式下都会询问，包括“绕过权限”。'],
+  deny: ['Refuses the call and tells Claude Code which rule did. A deny wins over every allow and ask.', '拒绝调用，并告诉 Claude Code 是哪条规则拒绝的。拒绝优先于所有允许和询问。'],
+};
+function matchFields(f) {
+  switch (f.kind) {
+    case 'run':
+      return `${field(t('Command', '命令'), `<div class="input on">${esc(f.cmd || '')}</div>`, t('Words from the start. <span class="mono">git push</span> also matches <span class="mono">git push origin main</span>; <span class="mono">*</span> stands for any characters inside a word.', '从开头起的词。<span class="mono">git push</span> 同样匹配 <span class="mono">git push origin main</span>；<span class="mono">*</span> 代表词内的任意字符。'))}
+        <div class="fgrid">${field(`${t('Some later word matches', '后面某个词匹配')} <span class="meta">${t('optional', '可选')}</span>`, chipsIn(f.any || [], '--force*, -f'))}
+        ${field(`${t('Output piped to', '输出通过管道交给')} <span class="meta">${t('optional', '可选')}</span>`, chipsIn(f.pipe || [], 'sh, bash'))}</div>`;
+    case 'read':
+    case 'write':
+      return field(t('Paths', '路径'), chipsIn(f.paths || [], '~/work/**', { on: !f.bad, bad: f.bad }),
+        f.bad ? '' : t('Absolute globs: <span class="mono">*</span> inside a segment, <span class="mono">**</span> across segments, <span class="mono">~</span> for home, <span class="mono">{workspace}</span> for the project folder. Symlinks are resolved first.', '绝对路径通配：<span class="mono">*</span> 在单段内，<span class="mono">**</span> 跨多段，<span class="mono">~</span> 代表主目录，<span class="mono">{workspace}</span> 代表项目目录。符号链接会先被解析。'))
+        + (f.bad ? `<div class="qdesc bad" role="alert">${I.alert()}<span>${t('<span class="mono">../secrets/**</span> is not an absolute path. Start with <span class="mono">/</span>, <span class="mono">~</span> or <span class="mono">{workspace}</span>.', '<span class="mono">../secrets/**</span> 不是绝对路径。请以 <span class="mono">/</span>、<span class="mono">~</span> 或 <span class="mono">{workspace}</span> 开头。')}</span></div>` : '');
+    case 'fetch':
+      return field(t('Domains', '域名'), chipsIn(f.domains || [], 'docs.example.com, *.example.com', { on: true }),
+        t('Exact, or <span class="mono">*.example.com</span> for subdomains (not <span class="mono">example.com</span> itself). An IP address matches only exactly. A <span class="mono">curl</span> in a shell command is a Run rule.', '精确匹配，或用 <span class="mono">*.example.com</span> 匹配子域名（不含 <span class="mono">example.com</span> 本身）。IP 地址只能精确匹配。Shell 命令里的 <span class="mono">curl</span> 属于“运行”规则。'));
+    case 'mcp':
+      return `<div class="fgrid">${field(t('Server', '服务器'), `<div class="input on">${esc(f.server || '')}</div>`)}${field(t('Tool', '工具'), `<div class="input">${f.tool ? esc(f.tool) : '<span class="ph2">*</span>'}</div>`)}</div>
+        <div class="qdesc">${I.info()}<span>${t('<span class="mono">*</span> stands for any. The tool’s own arguments are not looked at.', '<span class="mono">*</span> 代表任意。不会检查工具自身的参数。')}</span></div>`;
+    default:
+      return `<div class="qdesc att">${I.alert()}<span>${t('Matches every call, including the ones Hoplet cannot classify. Use Ask or Deny.', '匹配每一次调用，包括 Hoplet 无法归类的调用。请使用“询问”或“拒绝”。')}</span></div>`;
+  }
+}
+function targetHtml(f) {
+  if (f.kind === 'run') return `<span class="mono">${esc(f.cmd || '…')}</span>`;
+  if (f.kind === 'read' || f.kind === 'write') return (f.paths || []).map(p => `<span class="mono">${esc(p)}</span>`).join(', ') || '…';
+  if (f.kind === 'fetch') return (f.domains || []).map(p => `<span class="mono">${esc(p)}</span>`).join(', ') || '…';
+  if (f.kind === 'mcp') return `<span class="mono">${esc(f.server || '…')} › ${esc(f.tool || '*')}</span>`;
+  return '';
+}
+function summary(f) {
+  const V = { allow: ['Allows', '允许'], ask: ['Asks before', '询问'], deny: ['Denies', '拒绝'] }[f.a];
+  const tg = targetHtml(f);
+  const en = { run: `running commands that start with ${tg}`, read: `reading ${tg}`, write: `writing ${tg}`, fetch: `fetching from ${tg}`, mcp: `calling ${tg}`, any: 'any tool call' }[f.kind];
+  const zh = { run: `运行以 ${tg} 开头的命令`, read: `读取 ${tg}`, write: `写入 ${tg}`, fetch: `访问 ${tg}`, mcp: `调用 ${tg}`, any: '任意工具调用' }[f.kind];
+  const where = f.scope === 'project' ? t('in the project hoplet on MacBook Pro', 'MacBook Pro 上的项目 hoplet 中') : t('in every session', '所有会话中');
+  return `<div class="qsum">${I.info()}<span>${Z ? `${where}：${V[1]}${zh}。` : `${V[0]} ${en} ${where}.`}</span></div>`;
+}
+function ruleForm(f) {
+  const kinds = [['run', 'Run', '运行', I.term], ['read', 'Read', '读取', I.file], ['write', 'Write', '写入', I.pen], ['fetch', 'Fetch', '网页', I.globe], ['mcp', 'MCP', 'MCP', I.plug], ['any', 'Any', '任意', I.any]];
+  const acts = [['allow', 'Allow', '允许', I.check], ['ask', 'Ask', '询问', I.hand], ['deny', 'Deny', '拒绝', I.ban]];
+  const adesc = f.a === 'allow' && f.kind === 'run' ? ADESC.allowRun : ADESC[f.a];
+  const kd = KDESC[f.kind];
+  return `<div class="qf">
+    ${field(t('Tool', '工具'), seg(kinds, f.kind, t('Tool', '工具')), kd[0] ? t(kd[0], kd[1]) : '')}
+    ${matchFields(f)}
+    <div class="fgrid">
+      ${field(t('Action', '动作'), seg(acts, f.a, t('Action', '动作')))}
+      ${field(t('Scope', '范围'), seg([['global', 'Global', '全局', I.globe], ['project', 'Project', '项目', I.folder]], f.scope, t('Scope', '范围')))}
+      <div class="qdesc ${f.a === 'deny' ? '' : ''}">${I.info()}<span>${t(adesc[0], adesc[1])}</span></div>
+      ${f.scope === 'project' ? field(t('Project', '项目'), `<div class="sel"><span class="sl">${I.folder()}</span><span class="v">hoplet · MacBook Pro</span>${I.down()}</div>`) : `<div class="qdesc">${I.globe()}<span>${t('Applies to every session on every machine.', '适用于所有机器上的所有会话。')}</span></div>`}
+    </div>
+    ${field(`${t('Note', '备注')} <span class="qcount meta">${(f.note || '').length}/200</span>`, `<div class="input ui">${f.note ? esc(f.note) : `<span class="ph2" style="font-family:var(--font-ui)">${t('Run the unit tests', '运行单元测试')}</span>`}</div>`, t('Shown in the conversation when the rule decides. Without a note the line names the match.', '规则做出决定时会显示在会话中。没有备注时，该行会写出匹配内容。'))}
+    ${summary(f)}
+  </div>`;
+}
+const formFoot = (existing, bad, cls = 'mcard-f') => `<div class="${cls}">${existing ? btn(t('Delete', '删除'), I.trash(), 'quiet del') : ''}${btn(t('Cancel', '取消'), '', 'quiet')}${btn(existing ? t('Save', '保存') : t('Add rule', '添加规则'), '', 'primary', '', bad)}</div>`;
+const cardEditor = (f, title, existing) => `<div class="mcard" role="group" aria-label="${title}"><div class="mcard-h"><b>${title}</b>${ib(I.x(), t('Close · Esc', '关闭 · Esc'))}</div>${ruleForm(f)}${formFoot(existing, f.bad)}</div><div style="height:var(--space-5)"></div>`;
+const modalEditor = (f, title, existing) => `<div class="scrim"></div><div class="modal dlg qd" role="dialog" aria-modal="true" aria-label="${title}" style="top:20px;width:600px"><div class="dlg-h">${title}</div><div class="dlg-b">${ruleForm(f)}</div>${formFoot(existing, f.bad, 'dlg-f')}</div>`;
+
+const F_RUN = { kind: 'run', a: 'allow', scope: 'project', cmd: 'pnpm test', any: [], pipe: [], note: 'Run the unit tests' };
+const F_BAD = { kind: 'write', a: 'allow', scope: 'global', paths: ['../secrets/**'], note: '', bad: true };
+const F_FETCH = { kind: 'fetch', a: 'deny', scope: 'global', domains: ['*.pastebin.com', 'transfer.sh'], note: 'No paste sites' };
+const F_MCP = { kind: 'mcp', a: 'ask', scope: 'global', server: 'github', tool: 'create_pull_request', note: '' };
+const F_DOCS = { kind: 'write', a: 'allow', scope: 'project', paths: ['{workspace}/docs/**'], note: 'Docs are safe to edit' };
+
+/* the second confirmation for turning a built-in rule off, naming the rule */
+function confirmOff(r) {
+  return `<div class="scrim"></div><div class="modal dlg qd qcf" role="alertdialog" aria-modal="true" aria-label="${t('Turn off a built-in rule', '关闭内置规则')}">
+    <div class="dlg-h">${t(`Turn off “${r.n[0]}”?`, `关闭“${r.n[1]}”？`)}</div>
+    <div class="dlg-b"><div class="qreq">${qa(r.a)}<span class="mono">${r.id}</span></div>
+      <p class="rmeta" style="margin:0;color:var(--color-text-2)">${t(r.off[0], r.off[1])}</p>
+      <div class="qxnote att">${I.alert()}<span>${t('The rule is turned off for every session on every machine. You can turn it on again here.', '该规则会对所有机器上的所有会话关闭。你可以随时在这里重新开启。')}</span></div></div>
+    <div class="dlg-f">${btn(t('Keep it on', '保持开启'), '', 'quiet')}${btn(t('Turn off rule', '关闭规则'), '', 'danger')}</div></div>`;
+}
+
+/* ================= direction A: one list, grouped by scope ================= */
+const groupHead = (icon, title, count, right = '', first = false, open = null) => `<div class="qg${first ? ' first' : ''}">${open === null ? '' : ib(open ? I.down() : I.chev(), open ? t('Collapse', '折叠') : t('Expand', '展开'))}<span class="qk" style="color:var(--color-text-3);display:inline-flex">${icon}</span><b>${title}</b><span class="meta">${count}</span><span style="flex:1"></span>${right}</div>`;
+function aPage(st) {
+  const base = st.replace(/-zh$/, '');
+  const bOpen = base === 'a-builtin' || base === 'a-builtin-confirm';
+  const editing = base === 'a-edit' || base === 'a-edit-invalid';
+  const isEmpty = base === 'a-empty';
+  const biOn = bi.filter(r => r.on).length;
+  const biHead = groupHead(I.lock(), t('Built in', '内置'), t(`${bi.length} rules · ${biOn} on`, `${bi.length} 条规则 · ${biOn} 条开启`), `<span class="qgr">${t('Turn off needs a second confirmation', '关闭需要再次确认')}</span>`, !editing, bOpen);
+  let body = lead() + toolbar();
+  if (base === 'a-edit') body += cardEditor(F_RUN, t('Edit rule', '编辑规则'), true);
+  if (base === 'a-edit-invalid') body += cardEditor(F_BAD, t('New rule', '新建规则'), false);
+  body += biHead + (bOpen ? list(bi.map(r => row(r)).join('')) : '');
+  if (isEmpty) {
+    body += groupHead(I.globe(), t('Global', '全局'), '0') + emptyBox('mp-list');
+  } else {
+    body += groupHead(I.globe(), t('Global', '全局'), `${G.length}`, `<span class="qgr">${t('Every session', '所有会话')}</span>`) + list(G.map((r, i) => row(r, { sel: base === 'a-edit' && i === -1 })).join(''));
+    body += groupHead(I.folder(), t('Project · hoplet · MacBook Pro', '项目 · hoplet · MacBook Pro'), `${P.length}`, `<span class="qgr">${t('Sessions of this project on this machine', '该机器上此项目的会话')}</span>`) + list(P.map(r => row(r)).join(''));
+    body += groupHead(I.laptop(), t('MacBook Pro · set on the machine', 'MacBook Pro · 在机器上设置'), `${LOC.length}`, `<span class="qgr">${I.lock()}${t('Read-only', '只读')}</span>`) + `<div class="mp-list">${LOC.map(r => row(r)).join('')}<div class="qsub">${t('From <span class="mono">permission_deny</span> in the agent’s configuration. Edit it on that machine.', '来自 agent 配置中的 <span class="mono">permission_deny</span>。请在该机器上编辑。')}</div></div>`;
+  }
+  let dlg = '';
+  if (base === 'a-builtin-confirm') dlg = confirmOff(bi[4]);
+  return `<h1>${t('Permission rules', '权限规则')}</h1>${body}${dlg}`;
+}
+
+/* ================= direction B: a tab per scope, a table ================= */
+function bTabs(active) {
+  const tab = (k, label, n) => `<span class="mp-tab" role="tab" aria-selected="${active === k}">${label}<span class="meta">${n}</span></span>`;
+  return `<div class="mp-tabs" role="tablist">${tab('builtin', t('Built in', '内置'), bi.length)}${tab('global', t('Global', '全局'), G.length)}${tab('project', t('Project', '项目'), P.length)}${tab('local', t('Set on machines', '机器上设置'), LOC.length)}</div>`;
+}
+function bTable(rows) {
+  const cols = '64px 120px minmax(0,1fr) 176px 112px';
+  const hd = `<div class="qtr hd" style="--cols:${cols}"><span>${t('Action', '动作')}</span><span>${t('Tool', '工具')}</span><span>${t('Match', '匹配')}</span><span>${t('Note', '备注')}</span><span></span></div>`;
+  const body = rows.map(r => `<div class="qtr${r.on === false ? ' off' : ''}" style="--cols:${cols}">${qa(r.a)}<span class="qkind"${tip(r.k.map(k => t(KD[k][3], KD[k][4])).join(', '))}>${kindIcons(r)}<span>${kindLabel(r)}</span></span><span class="qm">${matchHtml(r)}</span><span class="qn">${nn(r)}</span><span class="qt">${ctl(r)}</span></div>`).join('');
+  return `<div class="mp-list">${hd}${body}</div>`;
+}
+const projSel = () => `<div class="sel" style="width:232px;flex:none"><span class="sl">${I.folder()}</span><span class="v">hoplet · MacBook Pro</span>${I.down()}</div>`;
+const machSel = () => `<div class="sel" style="width:232px;flex:none"><span class="sl">${I.laptop()}</span><span class="v">MacBook Pro</span>${I.down()}</div>`;
+function bPage(st) {
+  const base = st.replace(/-zh$/, '');
+  let tab = 'global';
+  if (base === 'b-builtin' || base === 'b-builtin-confirm') tab = 'builtin';
+  if (base === 'b-project') tab = 'project';
+  if (base === 'b-local') tab = 'local';
+  let inner;
+  if (tab === 'builtin') {
+    inner = `<p class="rmeta" style="margin:0 0 var(--space-3)">${t('Built-in rules are global. They cannot be edited or deleted. Turning one off asks you to confirm.', '内置规则是全局规则，不能编辑或删除。关闭时需要再次确认。')}</p>${bTable(bi)}`;
+  } else if (tab === 'global') {
+    inner = base === 'b-empty' ? toolbar() + emptyBox('mp-list') : toolbar() + bTable(G);
+  } else if (tab === 'project') {
+    inner = toolbar(projSel()) + bTable(P);
+  } else {
+    inner = `<div class="qtb">${machSel()}<span style="flex:1"></span></div>${localNote()}<div style="height:var(--space-3)"></div>${bTable(LOC)}`;
+  }
+  let dlg = '';
+  if (base === 'b-builtin-confirm') dlg = confirmOff(bi[1]);
+  if (base === 'b-edit') dlg = modalEditor(F_FETCH, t('Edit rule', '编辑规则'), true);
+  return `<h1>${t('Permission rules', '权限规则')}</h1>${lead()}${bTabs(tab)}${inner}${dlg}`;
+}
+
+/* ================= direction C: a list with an editor beside it ================= */
+function cList(open) {
+  const sections = [
+    ['builtin', I.lock(), t('Built in', '内置'), bi],
+    ['global', I.globe(), t('Global', '全局'), G],
+    ['project', I.folder(), t('Project · hoplet', '项目 · hoplet'), P],
+    ['local', I.laptop(), t('MacBook Pro', 'MacBook Pro'), LOC],
+  ];
+  return sections.map(([k, icon, title, rows], i) => {
+    const o = open.includes(k);
+    const sel = open.sel;
+    return `<div class="qh">${o ? I.down() : I.chev()}${icon}<span>${title}</span><span class="meta" style="margin-left:auto">${rows.length}</span></div>${o ? rows.map((r, j) => rowC(r, k === open.selKind && j === open.selIdx)).join('') : ''}`;
+  }).join('');
+}
+const rowC = (r, sel) => `<div class="qr${r.on === false ? ' off' : ''}${sel ? ' sel' : ''}">${qa(r.a)}<div class="qx"><div class="qm"><span class="qk">${kindIcons(r)}</span>${matchHtml(r).replace(/<span class="qw">.*$/, '')}</div><div class="qn">${nn(r)}</div></div><div class="qt">${r.local ? `<span class="qlock">${I.lock()}</span>` : sw(r.on, nn(r))}</div></div>`;
+const detail = (r, kindKey) => {
+  const rows = [
+    [t('Action', '动作'), qa(r.a)],
+    [t('Tool', '工具'), r.k.map(k => `<span class="qkind" style="display:inline-flex;gap:6px;align-items:center">${KD[k][0]()}${t(KD[k][3], KD[k][4])}</span>`).join(', ')],
+    [t('Match', '匹配'), matchHtml(r)],
+    [t('Scope', '范围'), kindKey === 'local' ? t('This machine only', '仅限本机') : t('Global', '全局')],
+    ...(r.id ? [[t('Rule ID', '规则 ID'), `<span class="mono">${r.id}</span>`]] : []),
+    [t('Source', '来源'), kindKey === 'local' ? `<span class="mono">permission_deny</span> ${t('in the agent configuration on MacBook Pro', '，位于 MacBook Pro 的 agent 配置')}` : t('Ships with Hoplet', '随 Hoplet 提供')],
+  ];
+  const head = `<div class="qpane-h"><b style="font-size:var(--text-title);line-height:var(--leading-title);font-weight:var(--weight-semibold)">${nn(r)}</b>${r.builtin ? `<span class="tag">${I.lock()}${t('Built in', '内置')}</span>` : `<span class="qlock">${I.lock()}${t('Read-only', '只读')}</span>`}</div>`;
+  const foot = r.builtin
+    ? `<div class="pr" style="padding:0;height:auto"><span class="nm">${t('Rule is on', '规则已开启')}<span class="meta">${t('Turning it off asks you to confirm.', '关闭时会再次确认。')}</span></span>${sw(r.on, nn(r))}</div>`
+    : `<div class="qdesc">${I.info()}<span>${t('Hoplet never writes this list. To change it, edit the agent’s configuration on MacBook Pro and restart the agent.', 'Hoplet 从不写入这份列表。如需修改，请编辑 MacBook Pro 上的 agent 配置并重启 agent。')}</span></div>`;
+  return `<div class="mcard">${head}<div class="qkv">${rows.map(([k, v]) => `<span class="k">${k}</span><span class="v">${v}</span>`).join('')}</div>${r.builtin ? `<p class="rmeta" style="margin:0">${t(r.off[0], r.off[1])}</p>` : ''}${foot}</div>`;
+};
+function cPage(st) {
+  const base = st.replace(/-zh$/, '');
+  let left, right;
+  const sb = `<div class="qtb"><div class="input ui qs" role="search">${I.search()}<span class="ph2">${t('Search rules', '搜索规则')}</span></div>${ib(I.plus(), t('Add rule', '添加规则'), 'bd')}</div>`;
+  if (base === 'c-empty') {
+    left = `${sb}<div class="mp-list">${cList(Object.assign(['builtin'], { selKind: '', selIdx: -1 }))}</div>`;
+    right = `<div class="mcard"><div class="uempty" style="padding:var(--space-6)"><span class="tile">${I.rules()}</span><b>${t('No rules of your own', '还没有你自己的规则')}</b><p>${t('The built-in rules still apply. Add a rule to allow routine commands, ask before risky ones, or deny what a session must never touch.', '内置规则仍然生效。添加规则，可以放行常规命令、在高风险操作前询问，或拒绝会话绝不能碰的内容。')}</p><div class="acts">${addBtn()}</div></div></div>`;
+  } else if (base === 'c-builtin' || base === 'c-builtin-confirm') {
+    left = `${sb}<div class="mp-list">${cList(Object.assign(['builtin'], { selKind: 'builtin', selIdx: 4 }))}</div>`;
+    right = detail(bi[4], 'builtin') + (base === 'c-builtin-confirm' ? confirmOff(bi[4]) : '');
+  } else if (base === 'c-local') {
+    left = `${sb}<div class="mp-list">${cList(Object.assign(['local'], { selKind: 'local', selIdx: 0 }))}</div>`;
+    right = detail(LOC[0], 'local');
+  } else if (base === 'c-new') {
+    left = `${sb}<div class="mp-list">${cList(Object.assign(['global'], { selKind: '', selIdx: -1 }))}</div>`;
+    right = `<div class="mcard"><div class="mcard-h"><b>${t('New rule', '新建规则')}</b>${ib(I.x(), t('Close · Esc', '关闭 · Esc'))}</div>${ruleForm(F_MCP)}${formFoot(false, false)}</div>`;
+  } else {
+    left = `${sb}<div class="mp-list">${cList(Object.assign(['global', 'project'], { selKind: 'project', selIdx: 0 }))}</div>`;
+    right = `<div class="mcard"><div class="qpane-h"><b style="font-size:var(--text-title);line-height:var(--leading-title);font-weight:var(--weight-semibold)">${t('Edit rule', '编辑规则')}</b><span class="qt">${sw(true, t('Rule is on', '规则已开启'))}</span></div>${ruleForm(F_DOCS)}${formFoot(true, false)}</div>`;
+  }
+  return `<h1>${t('Permission rules', '权限规则')}</h1>${lead()}<div class="qc2"><div>${left}</div>${right}</div>`;
+}
+
+/* ================= the session: the card, the draft and the conversation ================= */
+const well = lines => `<div class="well solo"><div class="wb">${lines.map(([k, tx]) => `<div class="wl${k ? ' ' + k : ''}"><span class="c">${tx}</span></div>`).join('')}</div></div>`;
+const act = (icon, verb, obj, meta = '', cls = '') => `<div class="act ${cls}"><span class="i">${icon}</span><span class="k">${verb}</span><span class="a">${obj}</span><span class="m">${meta}</span></div>`;
+const qline = (kind, noteTx, scopeTx) => {
+  const icon = kind === 'allow' ? I.rules() : kind === 'deny' ? I.ban() : I.hand();
+  const lbl = kind === 'allow' ? t('Allowed by rule', '已按规则允许') : kind === 'deny' ? t('Denied by rule', '已按规则拒绝') : t('Asked by rule', '按规则询问');
+  return `<div class="qline ${kind === 'ask' ? 'qask' : kind}">${icon}<span>${lbl} <b>${noteTx}</b></span><span>·</span><span>${scopeTx}</span><a class="lnk">${t('View rule', '查看规则')}</a></div>`;
+};
+const SESSION_TITLE = () => t('Run pnpm check and fix what fails.', '运行 pnpm check 并修复失败项。');
+const badge = () => `<span class="badge" role="img"${tip(t('Waiting for permission', '等待权限'))}><span class="sdot"></span><span>00:31</span></span>`;
+const turnHead = () => `<header class="th"><div class="p">${SESSION_TITLE()}</div><div class="rt">${badge()}${ib(I.stop(), t('Interrupt · Esc', '中断 · Esc'), 'bd')}</div><div class="tm"><span class="meta">14:06</span></div></header><div class="tsep"></div>`;
+const lead2 = () => `${act(I.file(), t('Read', '读取'), code('core/src/store/chunks.ts'), '<span>L1–120</span><i>·</i><span>6.1 KiB</span>')}`;
+const askFoot = (mode, o = {}) => {
+  const auto = `<span class="meta"${tip(t('Denied without an answer in 9:41', '9:41 内无回答将自动拒绝'))}>${I.clock()}<span>${t('Auto-deny in 9:41', '9:41 后自动拒绝')}</span></span>`;
+  if (mode === 'buttons') return `<div class="ask-f"><button class="btn primary">${t('Allow', '允许')}</button><button class="btn">${t('Deny', '拒绝')}</button><span class="vr"></span><button class="btn quiet"${tip(t('Draft a rule that allows this', '起草一条允许此调用的规则'))}>${t('Always allow…', '始终允许…')}</button><button class="btn quiet"${tip(t('Draft a rule that denies this', '起草一条拒绝此调用的规则'))}>${t('Always deny…', '始终拒绝…')}</button>${auto}</div>`;
+  if (mode === 'menu') return `<div class="ask-f"><button class="btn primary">${t('Allow', '允许')}</button><button class="btn">${t('Deny', '拒绝')}</button><button class="btn quiet" aria-haspopup="menu" aria-expanded="${!!o.open}">${t('Always', '始终')}${I.down()}</button>${o.open ? `<div class="qmenu" role="menu"><div class="menu-item on" role="menuitem">${t('Always allow…', '始终允许…')}<span class="sub">${t('Draft a rule for this call, then choose its scope', '为此调用起草规则，再选择范围')}</span></div><div class="menu-item" role="menuitem">${t('Always deny…', '始终拒绝…')}<span class="sub">${t('A deny wins over every allow', '拒绝优先于所有允许')}</span></div></div>` : ''}${auto}</div>`;
+  return `<div class="ask-f"><button class="btn primary">${t('Allow', '允许')}</button><button class="btn">${t('Deny', '拒绝')}</button><span class="qno">${I.info()}<span>${o.why}</span></span>${auto}</div>`;
+};
+function askCard(o) {
+  return `<div class="ask" title="Request a1f3"><div class="ask-h">${I.hand()}<span class="q">${o.title}</span></div>
+    ${o.rule ? `<div class="qline qask">${I.rules()}<span>${t('Asked by rule', '按规则询问')} <b>${o.rule[0]}</b></span><span>·</span><span>${o.rule[1]}</span></div>` : ''}
+    ${well(o.lines)}${askFoot(o.mode, o)}</div>`;
+}
+const CARDS = {
+  'card-a': { mode: 'buttons', title: t('Claude Code asks to use Bash', 'Claude Code 请求使用 Bash'), lines: [['cmd', 'pnpm test --filter @hoplet/core']] },
+  'card-a-rule': { mode: 'buttons', title: t('Claude Code asks to use Bash', 'Claude Code 请求使用 Bash'), rule: [t('Force push', '强制推送'), t('Built in', '内置')], lines: [['cmd', 'git push --force-with-lease origin feat/98-rule-audit']] },
+  'card-a-nodraft': { mode: 'none', title: t('Claude Code asks to use Bash', 'Claude Code 请求使用 Bash'), lines: [['cmd', 'pnpm check 2&gt;&amp;1 | tail -40']], why: t('No rule can allow a command with a pipe. It asks each time.', '规则无法放行带管道的命令，每次都会询问。') },
+  'card-a-other': { mode: 'none', title: t('Claude Code asks to use Task', 'Claude Code 请求使用 Task'), lines: [['', t('Run the subagent “Explore” on core/src/ingest', '在 core/src/ingest 上运行子代理“Explore”')]], why: t('No rule can be drafted for this tool.', '无法为此工具起草规则。') },
+  'card-b': { mode: 'menu', title: t('Claude Code asks to use Bash', 'Claude Code 请求使用 Bash'), lines: [['cmd', 'pnpm test --filter @hoplet/core']] },
+  'card-b-menu': { mode: 'menu', open: true, title: t('Claude Code asks to use Bash', 'Claude Code 请求使用 Bash'), lines: [['cmd', 'pnpm test --filter @hoplet/core']] },
+};
+const dock = () => `<div class="dock"><div class="col"><div class="composer"><div class="ph">${t('Ask Claude Code…', '向 Claude Code 提问…')}</div><div class="cf">${ib(I.clip(), t('Attach', '附件'))}<span class="r">${ib(I.mic(), t('Dictate · transcribed on your machines', '听写 · 在你的机器上转写'))}<button class="send" disabled${tip(t('Send · ↩', '发送 · ↩'))}>${I.up()}</button></span></div></div></div></div>`;
+function draft(o) {
+  const title = o.act === 'allow' ? t('Always allow', '始终允许') : t('Always deny', '始终拒绝');
+  const opts = o.opts ? `<div class="qsec"><span class="l">${o.matchLabel}</span><div class="opts">${o.opts.map(([lbl, desc, on]) => `<div class="opt${on ? ' on' : ''}"><span class="radio${on ? ' on' : ''}"></span><div><div class="ol">${lbl}</div><div class="od">${desc}</div></div></div>`).join('')}</div></div>`
+    : `<div class="qsec"><div class="fld"><span class="l">${o.matchLabel}</span><div class="input on">${o.input}</div><span class="h meta">${o.inputHint}</span></div></div>`;
+  const scope = `<div class="qsec"><span class="l">${t('Scope', '范围')}</span>${seg([['session', 'This session', '此会话', I.clock], ['project', 'This project', '此项目', I.folder]], o.scope, t('Scope', '范围'))}<span class="meta">${o.scope === 'session' ? t('Ends with the session and goes with it in a handoff.', '随会话结束，并在交接时一并带走。') : t('hoplet on MacBook Pro. It stays on this machine in a handoff. A global rule is set in Settings.', 'MacBook Pro 上的 hoplet。交接时留在本机。全局规则需在设置中添加。')}</span></div>`;
+  const note = `<div class="qsec"><div class="fld"><span class="l">${t('Note', '备注')} <span class="meta">${t('optional', '可选')}</span></span><div class="input ui">${o.note ? esc(o.note) : `<span class="ph2" style="font-family:var(--font-ui)">${o.notePh}</span>`}</div></div></div>`;
+  return `<div class="scrim"></div><div class="modal dlg qd" role="dialog" aria-modal="true" aria-label="${title}" style="top:56px">
+    <div class="dlg-h">${title}</div>
+    <div class="dlg-b"><div class="qreq">${KD[o.kind][0]()}<span class="mono">${o.req}</span><span class="qw">${t('this request', '本次请求')}</span></div>
+      ${opts}${scope}${note}${o.effect}</div>
+    <div class="dlg-f"><span class="l">${I.info()}${t('Nothing is saved until you press the button.', '点击按钮前不会保存任何内容。')}</span>${btn(t('Cancel', '取消'), '', 'quiet')}${btn(o.act === 'allow' ? t('Save and allow', '保存并允许') : t('Save and deny', '保存并拒绝'), '', o.act === 'allow' ? 'primary' : 'danger')}</div></div>`;
+}
+const DRAFTS = {
+  'draft-session': () => draft({ act: 'allow', kind: 'run', req: 'pnpm test --filter @hoplet/core', matchLabel: t('Command', '命令'), scope: 'session', note: '', notePh: t('Run the unit tests', '运行单元测试'),
+    opts: [[`<span class="mono">pnpm test</span>`, t('The first two words. Also matches pnpm test --watch.', '前两个词。同样匹配 pnpm test --watch。'), true], [`<span class="mono">pnpm</span>`, t('The first word. Wider: any pnpm command, pnpm publish included.', '第一个词。范围更宽：任意 pnpm 命令，包括 pnpm publish。'), false]],
+    effect: `<div class="qxnote att">${I.alert()}<span>${t('A command with a pipe, <span class="mono">&amp;&amp;</span>, a redirection or <span class="mono">$( )</span> is never allowed by this rule. It asks each time.', '带管道、<span class="mono">&amp;&amp;</span>、重定向或 <span class="mono">$( )</span> 的命令不会被此规则放行，每次都会询问。')}</span></div>` }),
+  'draft-project': () => draft({ act: 'allow', kind: 'write', req: '/Users/mark/work/hoplet/docs/api.md', matchLabel: t('Path', '路径'), scope: 'project', note: 'Docs are safe to edit', notePh: '',
+    opts: [[`<span class="mono">{workspace}/docs/api.md</span>`, t('This file.', '仅此文件。'), true], [`<span class="mono">{workspace}/docs/**</span>`, t('Every file under docs/. Wider.', 'docs/ 下的所有文件。范围更宽。'), false]],
+    effect: `<div class="qxnote">${I.info()}<span>${t('A deny at any scope still wins, and an Ask rule in this project beats this Allow.', '任何范围内的拒绝仍然优先，本项目中的“询问”规则优先于此“允许”。')}</span></div>` }),
+  'draft-deny': () => draft({ act: 'deny', kind: 'fetch', req: 'https://pastebin.com/raw/Xk3a9', matchLabel: t('Domain', '域名'), scope: 'session', note: '', notePh: t('No paste sites', '禁止粘贴站点'),
+    input: 'pastebin.com', inputHint: t('The host of the URL. Use <span class="mono">*.pastebin.com</span> for its subdomains.', 'URL 的主机名。用 <span class="mono">*.pastebin.com</span> 匹配其子域名。'),
+    effect: `<div class="qxnote">${I.info()}<span>${t('A deny wins over every allow, at any scope. Turn it off in Settings › Permission rules.', '拒绝优先于所有范围内的允许。可在 设置 › 权限规则 中关闭。')}</span></div>` }),
+};
+function conversation() {
+  return `<section class="turn live"><header class="th"><div class="p">${SESSION_TITLE()}</div><div class="rt"><span class="badge"><span class="sdot"></span><span>00:48</span></span>${ib(I.stop(), t('Interrupt · Esc', '中断 · Esc'), 'bd')}</div><div class="tm"><span class="meta">14:06</span></div></header><div class="tsep"></div>
+    <div class="tb"><div class="acts">
+      ${act(I.term(), t('Ran', '运行'), code('pnpm check'), '<span>exit 0</span><i>·</i><span>42 s</span>')}
+      ${qline('allow', t('Run the checks', '运行检查'), t('Global', '全局'))}
+      ${act(I.pen(), t('Edit', '编辑'), code('.env'), t('denied', '已拒绝'), 'bad')}
+      ${qline('deny', t('Secret files (.env)', '密钥文件（.env）'), t('Built in', '内置'))}
+      ${act(I.term(), t('Ran', '运行'), code('git push --force-with-lease'), '<span>exit 0</span><i>·</i><span>3 s</span>')}
+      ${qline('ask', t('Force push', '强制推送'), t('Built in', '内置'))}
+      ${act(I.check(), t('Allowed', '已允许'), t('by you, once', '由你，仅此一次'), '14:07')}
+    </div>
+    <p class="text">${t('The checks pass. The <code>.env</code> edit was refused by a rule, so I left that file alone and pushed the branch with <code>--force-with-lease</code> after you confirmed it.', '检查已通过。对 <code>.env</code> 的编辑被规则拒绝，所以我没有碰这个文件；在你确认后，我用 <code>--force-with-lease</code> 推送了分支。')}</p></div></section>`;
+}
+function sessionFrame(st, scheme) {
+  const base = st.replace(/-zh$/, '');
+  const top = `<header class="top">${ib(I.sidebar(), t('Show sidebar · ⌘\\', '显示侧边栏 · ⌘\\'))}<span class="title">${t('Check the chunk store', '检查分块存储')}</span><span class="ctx meta">hoplet · MacBook Pro</span><span class="sp"></span>${ib(I.panel(), t('Show workspace', '显示工作区'))}</header>`;
+  let body;
+  let over = '';
+  if (base === 'conv-auto') body = conversation();
+  else {
+    const key = base.startsWith('draft') ? 'card-a' : base;
+    body = `<section class="turn live need">${turnHead()}<div class="tb"><div class="acts">${lead2()}</div>${askCard(CARDS[key])}</div></section>`;
+    if (DRAFTS[base]) over = DRAFTS[base]();
+  }
+  return `<div class="frame nosb ${scheme}" data-state="${st}"><main class="main">${top}<div class="conv"><div class="col">${body}</div></div>${dock()}${over}</main></div>`;
+}
+
+/* screen: begin */
+const STATES = [
+  ['a-list', 'A, one list grouped by scope: Built in collapsed to one line, then Global, Project · hoplet and the read-only rules set on the machine; each row is the action, the tool, the match, the note and an on switch'],
+  ['a-builtin', 'A with Built in open: eight rules with a lock tag and an on switch; Destructive git commands is off and greyed'],
+  ['a-builtin-confirm', 'A: switching a built-in rule off opens a second confirmation that names the rule and says what stops being checked'],
+  ['a-edit', 'A: editing a rule opens the editor above the list; tool, command with its optional later words and pipe targets, action, scope with the project, note, a one-sentence summary'],
+  ['a-edit-invalid', 'A: a path rule that is not absolute; the field turns red, the line says what to start with and Add rule is disabled'],
+  ['a-empty', 'A with no rules of your own: the built-in line stays, one message and Add rule'],
+  ['a-zh', 'A in Simplified Chinese'],
+  ['b-global', 'B, a tab per scope with a table: Global, with the columns action, tool, match, note and controls; the Go tests rule is off'],
+  ['b-project', 'B: the Project tab, the project select above the table'],
+  ['b-builtin', 'B: the Built in tab with its one-line explanation'],
+  ['b-builtin-confirm', 'B: the second confirmation over the Built in tab, naming Credential stores'],
+  ['b-edit', 'B: editing is a dialog over the table; a domain rule with chips and Delete'],
+  ['b-local', 'B: the tab for rules set on a machine; a machine select, the note that Hoplet never writes them, a table without switches'],
+  ['b-empty', 'B: the Global tab with no rules'],
+  ['b-zh', 'B in Simplified Chinese'],
+  ['c-edit', 'C, a list with the editor beside it: the project rule selected, its editor on the right with the on switch in the header; Built in is collapsed'],
+  ['c-new', 'C: a new MCP rule; server and tool fields, * for any'],
+  ['c-builtin', 'C: a built-in rule selected; its facts read-only and the on switch'],
+  ['c-builtin-confirm', 'C: the second confirmation over the built-in rule'],
+  ['c-local', 'C: a rule set on the machine selected; read-only, with where it comes from'],
+  ['c-empty', 'C with no rules of your own: the list shows Built in only, the pane carries the message'],
+  ['c-zh', 'C in Simplified Chinese'],
+  ['card-a', 'Card, direction 1: Allow and Deny, then Always allow… and Always deny… as quiet buttons; neither saves anything'],
+  ['card-a-rule', 'Card, direction 1: the call was asked by a rule; a line under the title names it and its scope'],
+  ['card-a-nodraft', 'Card, direction 1: a command with a pipe has shell control; no Always buttons and one line says why'],
+  ['card-a-other', 'Card, direction 1: a tool Hoplet cannot classify (kind other); no Always buttons'],
+  ['card-b', 'Card, direction 2: one Always menu beside Deny instead of two buttons'],
+  ['card-b-menu', 'Card, direction 2: the Always menu open; each item opens the draft'],
+  ['draft-session', 'The draft after Always allow on a command: the request, the first two words or the first word, session or project, a note, the shell-control warning; Save and allow'],
+  ['draft-project', 'The draft for a file: this file or the directory, the project scope and what it means in a handoff'],
+  ['draft-deny', 'The draft after Always deny on a web fetch: the host, Save and deny in the danger colour'],
+  ['conv-auto', 'The conversation lines for rule decisions: Allowed by rule, Denied by rule and Asked by rule, each with its scope and a View rule link'],
+  ['card-a-zh', 'Card, direction 1, in Simplified Chinese'],
+  ['draft-session-zh', 'The draft in Simplified Chinese'],
+  ['conv-auto-zh', 'The conversation lines in Simplified Chinese'],
+];
+/* screen: end */
+
+function frame(st, scheme) {
+  Z = st.endsWith('-zh');
+  const lang = Z ? ' lang="zh-Hans"' : '';
+  const base = st.replace(/-zh$/, '');
+  if (/^(card|draft|conv)-/.test(st)) return sessionFrame(st, scheme).replace('<div class="frame', `<div${lang} class="frame`);
+  let page;
+  let wide = '';
+  if (st.startsWith('a-')) { page = aPage(st); wide = 'qwide'; }
+  else if (st.startsWith('b-')) { page = bPage(st); wide = 'qwide3'; }
+  else { page = cPage(st); wide = 'qwide3'; }
+  return `<div${lang} class="frame page ${scheme}" data-state="${st}"><main class="main">${settingsShell(page, wide)}</main></div>`;
+}
+
+/* ---- the page --------------------------------------------------------------------------------------------------- */
+const q = new URLSearchParams(location.search);
+const root = document.getElementById('root');
+const solo = STATES.find(([s]) => s === q.get('state'));
+if (q.get('state') && !solo) {
+  document.body.className = 'solo';
+  root.textContent = `Unknown state: ${q.get('state')}`;
+} else if (solo) {
+  document.body.className = 'solo';
+  root.innerHTML = frame(solo[0], q.get('scheme') === 'light' ? 'light' : 'dark');
+} else {
+  document.body.className = 'stacked';
+  root.innerHTML = `<header class="intro"><h1>Permission rules <span>Settings › Permission rules and the permission card</span></h1>
+    <p>Rules decide a tool call on the agent before it reaches the user (issue #98, ADR 0029): a rule is a tool, a matcher, an action (allow, ask, deny) and a scope (global, project, session). A deny always wins; otherwise the narrowest scope decides and ask beats allow within a scope; when nothing matches the permission mode decides. Built-in rules are global, listed first and can only be turned off, with a second confirmation that names the rule. Rules set in the agent’s configuration on a machine are shown read-only.</p>
+    <p><b>Settings, three directions.</b> <b>A</b> is one list grouped by scope, with the editor opening above it. <b>B</b> is a tab per scope with a table and the editor in a dialog. <b>C</b> is a list with the editor beside it. They share one row grammar (action, tool, match, note, switch) and one editor form; only the place of the editor and the grouping differ. No direction has been chosen.</p>
+    <p><b>The permission card, two directions.</b> Direction 1 puts Always allow… and Always deny… next to Allow and Deny as quiet buttons; direction 2 folds them into one Always menu. Either opens a draft that the user edits and scopes to the session or the project before saving; nothing is saved by one click. A call with shell control, a plan exit or a call of kind other gets no draft. A rule that decides leaves one line at the call, and an ask card names the rule. Saving also answering the pending card (Save and allow, Save and deny) is a proposal for the maintainer to confirm. All rules, commands and paths are invented.</p></header>` +
+    STATES.map(([s, desc]) => `<section class="st"><h2>${s}<span>${desc}</span></h2><div class="pair">
+      <div class="scaled">${frame(s, 'light')}</div><div class="scaled">${frame(s, 'dark')}</div></div></section>`).join('');
+}
+
+</script>
+</body>
+</html>
