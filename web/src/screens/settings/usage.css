@@ -400,6 +400,7 @@
   justify-content: flex-end;
   gap: var(--space-2);
 }
+.th-in .px,
 .prow-edit .th-in .px {
   color: var(--color-text-3);
 }
@@ -440,4 +441,166 @@
 .unote .bf b {
   font-weight: var(--weight-semibold);
   color: var(--color-text);
+}
+
+/* Budgets (#75) */
+.bg {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+}
+.bg + .bg {
+  box-shadow: inset 0 1px 0 var(--color-line);
+}
+.bgh {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.bgh .bgp {
+  color: var(--color-text-2);
+  display: inline-flex;
+}
+.bgh .tx {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.bgh .nm {
+  font-weight: var(--weight-medium);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bgh .meta {
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  color: var(--color-text-3);
+}
+.bgv {
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+}
+.bgv .bgu {
+  font-style: normal;
+  font-weight: var(--weight-regular);
+  color: var(--color-text-3);
+}
+.bgb {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding-left: calc(16px + var(--space-3));
+}
+.bgb .pc {
+  width: 40px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-2);
+}
+.bgm {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding-left: calc(16px + var(--space-3));
+  min-height: var(--control-field);
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  color: var(--color-text-3);
+}
+.bgm .st1 {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex: 1;
+  min-width: 0;
+}
+.bgm .st1 svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
+.bgm .warn {
+  color: var(--color-attention-text);
+}
+.bgm .stop {
+  color: var(--color-danger);
+}
+.bgm .ok {
+  color: var(--color-text-2);
+}
+.bgm .btn {
+  flex: none;
+}
+.bgadd {
+  margin-top: var(--space-3);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.bgadd .rmeta {
+  flex: 1;
+  margin: 0;
+}
+.bgerr {
+  margin: var(--space-3) 0 0;
+  color: var(--color-danger);
+}
+.bgform-gap {
+  height: var(--space-4);
+}
+.fgrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+}
+.fgrid .field-group {
+  min-width: 0;
+}
+.th-in .sx {
+  margin-left: auto;
+  color: var(--color-text-3);
+  white-space: nowrap;
+}
+.opt {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+  padding: var(--space-2) 0;
+  width: 100%;
+  text-align: left;
+  color: inherit;
+}
+.opt .radio {
+  margin-top: 2px;
+}
+.opt .tx {
+  display: flex;
+  flex-direction: column;
+}
+.opt .tx b {
+  font-weight: var(--weight-medium);
+}
+.opt .tx span {
+  color: var(--color-text-3);
+}
+.opt:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+.mcard .del {
+  margin-right: auto;
+  color: var(--color-danger);
+}
+.mcard-f {
+  gap: var(--space-2);
+}
+.mp-tab .meta {
+  font-size: var(--text-meta);
+  color: var(--color-text-3);
+  font-variant-numeric: tabular-nums;
 }

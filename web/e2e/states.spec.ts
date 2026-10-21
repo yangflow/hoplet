@@ -77,6 +77,9 @@ const subject: Record<string, Record<string, string>> = {
     'session-usage': 'cockpit.usage-chip',
     'session-usage-open': 'cockpit.usage-popover',
     'session-usage-unknown': 'cockpit.usage-popover',
+    'session-usage-near': 'cockpit.usage-budgets',
+    'composer-over-budget': 'cockpit.composer-budget',
+    'composer-over-budget-running': 'cockpit.composer-budget',
     'session-actions': 'cockpit.actions-menu',
     'session-actions-copy': 'menu.copy-id',
     'rename-dialog': 'cockpit.rename',
@@ -188,6 +191,11 @@ const subject: Record<string, Record<string, string>> = {
     'settings-usage-unknown-model': 'settings.usage.unknown',
     'settings-usage-empty': 'settings.usage.empty',
     'settings-usage-backfill': 'settings.usage.backfill',
+    budgets: 'settings.budgets.list',
+    'budgets-pause': 'settings.budget.allow',
+    'budgets-allowed': 'settings.budget.stop-allowing',
+    'budgets-edit': 'settings.budget.form',
+    'budgets-empty': 'settings.budgets.empty',
     'settings-prices': 'settings.prices.table',
     'settings-prices-edit': 'settings.prices.editor',
     'settings-prices-tokens-only': 'settings.prices.tokens-only',
@@ -220,10 +228,10 @@ const subject: Record<string, Record<string, string>> = {
   },
 };
 
-test('the registries list 88 cockpit, 56 workspace, 45 settings and 7 action states', () => {
-  expect(screens.cockpit).toHaveLength(88);
+test('the registries list 91 cockpit, 56 workspace, 50 settings and 7 action states', () => {
+  expect(screens.cockpit).toHaveLength(91);
   expect(screens.workspace).toHaveLength(56);
-  expect(screens.settings).toHaveLength(45);
+  expect(screens.settings).toHaveLength(50);
   expect(screens.action).toHaveLength(7);
 });
 

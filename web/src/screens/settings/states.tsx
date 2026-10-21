@@ -10,16 +10,33 @@ import type {
   ResourceThresholds,
   WebhookInfo,
 } from '@hoplet/shared';
-import { RESOURCES_INTERVAL_MS } from '@hoplet/shared';
+import { type Budget, RESOURCES_INTERVAL_MS } from '@hoplet/shared';
 import { type ReactNode, useEffect } from 'react';
+import { endDate } from '../../lib/budgets.ts';
+import { t } from '../../lib/i18n.ts';
 import { type Appearance, applyText, DEFAULTS } from '../../lib/prefs.ts';
+import { type BudgetsFixture, fill } from './budgets.tsx';
 import { type SectionId, Settings } from './index.tsx';
 import type { MachinesFixture } from './machines.tsx';
 import type { NotifyFixture, PushState } from './notifications.tsx';
 import type { ProvidersFixture } from './providers.tsx';
 import { effectiveThresholds, readingWarn } from './thresholds-model.ts';
 import type { UsageFixture } from './usage.tsx';
-import { backfillingUsage, customUsage, emptyUsage, usageFixture } from './usage-fixtures.ts';
+import {
+  B1,
+  B2,
+  B3,
+  B4,
+  B4_ALLOWED,
+  B4_OK,
+  BUDGET_DEVICES,
+  BUDGET_PROJECTS,
+  backfillingUsage,
+  budgetList,
+  customUsage,
+  emptyUsage,
+  usageFixture,
+} from './usage-fixtures.ts';
 
 // Fixtures for /__states/settings/<state>: every state of design/screens/settings.html.
 // Nothing here is read by the real screen.
@@ -614,6 +631,21 @@ function glmEdit(status: 'idle' | 'saving' | 'error'): NonNullable<ProvidersFixt
   };
 }
 
+/** The Budgets tab with these budgets; an object among them changes the fixture (the form that starts open, a toast). */
+function budgetsPage(...args: (Budget | Partial<BudgetsFixture>)[]): UsageFixture {
+  const budgets = args.filter((a): a is Budget => 'scope' in a);
+  const over = args.find((a): a is Partial<BudgetsFixture> => !('scope' in a)) ?? {};
+  return usageFixture({
+    tab: 'budgets',
+    budgets: {
+      list: budgetList(...budgets),
+      projects: BUDGET_PROJECTS,
+      devices: BUDGET_DEVICES,
+      ...over,
+    },
+  });
+}
+
 /** The page with its text choices in effect, the way the app applies them; the theme is left to the URL. */
 function Scene(props: {
   section: SectionId;
@@ -830,4 +862,21 @@ export const states: Record<string, () => ReactNode> = {
       usage={usageFixture({ tab: 'prices' })}
     />
   ),
+  budgets: () => <Scene section="usage" usage={budgetsPage(B1, B2, B3, B4_OK)} />,
+  'budgets-pause': () => <Scene section="usage" usage={budgetsPage(B1, B2, B3, B4)} />,
+  'budgets-allowed': () => (
+    <Scene
+      section="usage"
+      usage={budgetsPage(B1, B2, B3, B4_ALLOWED, {
+        toast: fill(t('{name} is allowed until {end}'), {
+          name: B4_ALLOWED.name,
+          end: endDate(B4_ALLOWED),
+        }),
+      })}
+    />
+  ),
+  'budgets-edit': () => (
+    <Scene section="usage" usage={budgetsPage(B1, B2, B3, B4_OK, { editing: B2.id })} />
+  ),
+  'budgets-empty': () => <Scene section="usage" usage={budgetsPage()} />,
 };

@@ -1,4 +1,7 @@
 import type {
+  Budget,
+  BudgetListResponse,
+  DeviceInfo,
   SessionUsage,
   UsageKey,
   UsagePrices,
@@ -216,3 +219,105 @@ export function sessionUsage(unknown = false): SessionUsage {
 function splitTotals(tokens: number, input: number, output: number, cw: number, cr: number) {
   return { input, output, cacheWrite: cw, cacheRead: cr, messages: Math.round(tokens / 20_000) };
 }
+
+// ---- budgets: the four rows of design/screens/usage.html ------------------------------------------------------
+
+export const HOPLET_PATH = '/Users/mark/github/repopro/hoplet';
+export const DOCS_PATH = '/Users/mark/github/repopro/hoplet-docs';
+
+function budget(
+  over: Partial<Budget> & Pick<Budget, 'id' | 'name' | 'scope' | 'period' | 'unit'>,
+): Budget {
+  const amount = over.amount ?? 1;
+  const spent = over.spent ?? 0;
+  const percent = (spent / amount) * 100;
+  const alertPercent = over.alertPercent ?? 80;
+  const onLimit = over.onLimit ?? 'warn';
+  const state = percent > 100 ? 'over' : percent >= alertPercent ? 'alert' : 'ok';
+  return {
+    amount,
+    alertPercent,
+    onLimit,
+    utcOffset: 0,
+    createdAt: Date.UTC(2026, 8, 1),
+    periodStart: Date.UTC(2026, 9, 1),
+    periodEnd: Date.UTC(2026, 10, 1),
+    spent,
+    percent,
+    state,
+    paused: state === 'over' && onLimit === 'pause',
+    costComplete: true,
+    ...over,
+  };
+}
+
+/** Global, monthly, in cost: 61% of $200. */
+export const B1: Budget = budget({
+  id: 'bud-global',
+  name: 'Global',
+  scope: { kind: 'global', value: '' },
+  period: 'month',
+  unit: 'cost',
+  amount: 200,
+  spent: 121.4,
+});
+/** The hoplet project, weekly, in tokens: past its alert line. */
+export const B2: Budget = budget({
+  id: 'bud-hoplet',
+  name: 'hoplet',
+  scope: { kind: 'project', value: HOPLET_PATH },
+  period: 'week',
+  unit: 'tokens',
+  amount: 12_000_000,
+  spent: 10_300_000,
+  periodStart: Date.UTC(2026, 9, 19) - 7 * 86_400_000,
+  periodEnd: Date.UTC(2026, 9, 26),
+});
+/** The studio machine, daily, in cost: over its limit in warn-only mode. */
+export const B3: Budget = budget({
+  id: 'bud-studio',
+  name: 'studio',
+  scope: { kind: 'device', value: 'dev-studio' },
+  period: 'day',
+  unit: 'cost',
+  amount: 15,
+  spent: 16.2,
+  periodStart: Date.UTC(2026, 9, 18),
+  periodEnd: Date.UTC(2026, 9, 19),
+});
+/** hoplet-docs, monthly, in cost, pausing at the limit: over it. */
+export const B4: Budget = budget({
+  id: 'bud-docs',
+  name: 'hoplet-docs',
+  scope: { kind: 'project', value: DOCS_PATH },
+  period: 'month',
+  unit: 'cost',
+  amount: 10,
+  spent: 10.6,
+  onLimit: 'pause',
+});
+/** The same budget before it went over: 74%. */
+export const B4_OK: Budget = budget({
+  id: B4.id,
+  name: B4.name,
+  scope: B4.scope,
+  period: B4.period,
+  unit: B4.unit,
+  amount: B4.amount,
+  onLimit: 'pause',
+  spent: 7.4,
+});
+/** Its pause lifted until the end of the period. */
+export const B4_ALLOWED: Budget = { ...B4, state: 'allowed', paused: false };
+
+export function budgetList(...budgets: Budget[]): BudgetListResponse {
+  return { budgets, backfilling: false };
+}
+
+/** The machines and projects the budget form offers. */
+export const BUDGET_DEVICES: DeviceInfo[] = [
+  { deviceId: 'dev-macbook', name: 'MacBook Pro' },
+  { deviceId: 'dev-studio', name: 'studio' },
+  { deviceId: 'dev-office', name: 'office-mini' },
+].map((d) => ({ ...d, connected: true, system: null, providers: [], labels: [] }));
+export const BUDGET_PROJECTS = [HOPLET_PATH, DOCS_PATH, '/Users/mark/notes'];

@@ -42,6 +42,7 @@ import {
   PanelLeft,
   PanelRight,
   Paperclip,
+  Pause,
   Pencil,
   Pin,
   PinOff,
@@ -145,6 +146,7 @@ export const Icon = {
   queue: draw(CornerDownRight),
   steer: draw(ArrowRightToLine),
   play: draw(Play),
+  pause: draw(Pause),
 };
 
 /** The shared icon vocabulary of config values (`CONFIG_ICONS`) mapped to this client's glyphs. */

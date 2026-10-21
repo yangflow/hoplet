@@ -1175,3 +1175,46 @@
   font-family: var(--font-mono);
   font-size: var(--text-code);
 }
+
+/* The session's chip and popover: budgets that count the session */
+.uchip .adot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-attention);
+  flex: none;
+}
+.upop .bl {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.upop .bl .meta {
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  color: var(--color-text-3);
+}
+.upop .bl .row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.upop .bl .row span {
+  flex: 1;
+  color: var(--color-text-2);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.upop .bl .row em {
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+}
+.upop .bl .row em.warn {
+  color: var(--color-attention-text);
+}
+.upop .bl .pbar {
+  margin-left: calc(16px + var(--space-2));
+  flex: none;
+}
