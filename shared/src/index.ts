@@ -15,5 +15,6 @@ export * from './ids.ts';
 export * from './rest/index.ts';
 export * from './runtime.ts';
 export * from './session.ts';
+export * from './templates.ts';
 export * from './version.ts';
 export * from './wire/index.ts';

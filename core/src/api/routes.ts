@@ -46,6 +46,7 @@ import {
   type Entry,
   FreshPermissionRequestSchema,
   FullBlockSchema,
+  fillTemplate,
   findProvider,
   GlobalSearchQuerySchema,
   GlobalSearchResultSchema,
@@ -60,9 +61,12 @@ import {
   MAX_BUDGETS,
   MAX_NOTIFY_PROJECTS,
   MAX_RESOURCE_THRESHOLD_MACHINES,
+  MAX_TEMPLATE_TEXT_CHARS,
+  MAX_TEMPLATES,
   MAX_TITLE_OVERRIDE_CHARS,
   MAX_USAGE_PRICES,
   MAX_WEBHOOKS,
+  type NewSessionRequest,
   NewSessionRequestSchema,
   NewSessionResultSchema,
   NotifyPreferencesSchema,
@@ -78,6 +82,7 @@ import {
   PushSubscriptionInfoSchema,
   PushSubscriptionListResponseSchema,
   PushUnsubscribeRequestSchema,
+  parseTemplate,
   QueueAddRequestSchema,
   QueueEditRequestSchema,
   QueueOrderRequestSchema,
@@ -99,6 +104,16 @@ import {
   SteerRequestSchema,
   SteerResultSchema,
   safeParse,
+  TEMPLATE_FILE_VERSION,
+  type TemplateBody,
+  TemplateBodySchema,
+  TemplateFileSchema,
+  TemplateImportRequestSchema,
+  TemplateImportResultSchema,
+  TemplateListResponseSchema,
+  TemplateSchema,
+  TemplateStartRequestSchema,
+  TemplateStartResultSchema,
   TerminalCloseResultSchema,
   TerminalInfoSchema,
   TerminalOpenRequestSchema,
@@ -124,7 +139,12 @@ import {
 import corePackage from '../../package.json' with { type: 'json' };
 import type { DeviceControlOutcome, QueueResult, SteerOutcome } from '../control/index.ts';
 import { registerSecret } from '../log/index.ts';
-import type { PushSubscriptionRecord, SessionStateRecord, Store } from '../store/index.ts';
+import {
+  freeName,
+  type PushSubscriptionRecord,
+  type SessionStateRecord,
+  type Store,
+} from '../store/index.ts';
 import { auditExport } from './audit-export.ts';
 import { ApiError, relayError } from './http.ts';
 import { checkPromptImage } from './images.ts';
@@ -265,6 +285,35 @@ function withLiveness(
   };
 }
 
+/** Starts a session for `POST /api/sessions` and for a template's start: one check, one dedup, one set of refusals. */
+async function startNewSession(d: Pick<ApiDeps, 'control'>, req: NewSessionRequest) {
+  if (req.text.length > MAX_PROMPT_CHARS) throw new ApiError('too-large');
+  const outcome = await d.control.startSession(req);
+  if (outcome.ok) {
+    return { ok: true as const, sessionId: outcome.sessionId, promptId: outcome.promptId };
+  }
+  // `reason` names the option or field that was refused, or carries the agent's diagnostic text.
+  throw new ApiError(outcome.error, {
+    promptId: outcome.promptId,
+    ...(outcome.reason !== undefined ? { reason: outcome.reason } : {}),
+    ...(outcome.budget !== undefined ? { budget: outcome.budget } : {}),
+  });
+}
+
+/** What the schema cannot say: the placeholders of the text are valid. The reason names the problem and the offset. */
+function checkTemplateText(text: string, prefix = ''): void {
+  const parsed = parseTemplate(text);
+  if (!parsed.ok) {
+    throw new ApiError('invalid-request', {
+      reason: `${prefix}text:${parsed.problem}:${parsed.position}`,
+    });
+  }
+}
+
+function templateList({ store }: { store: Store }) {
+  return { templates: store.listTemplates() };
+}
+
 function budgetList({ store }: { store: Store }) {
   return { budgets: store.listBudgets(Date.now()), backfilling: store.usageBackfilling() };
 }
@@ -334,19 +383,7 @@ export const routes: readonly Route[] = [
     bodyLimit: 32 * 1024,
     body: NewSessionRequestSchema,
     response: NewSessionResultSchema,
-    handler: async (d) => {
-      if (d.body.text.length > MAX_PROMPT_CHARS) throw new ApiError('too-large');
-      const outcome = await d.control.startSession(d.body);
-      if (outcome.ok) {
-        return { ok: true, sessionId: outcome.sessionId, promptId: outcome.promptId };
-      }
-      // `reason` names the option or field that was refused, or carries the agent's diagnostic text.
-      throw new ApiError(outcome.error, {
-        promptId: outcome.promptId,
-        ...(outcome.reason !== undefined ? { reason: outcome.reason } : {}),
-        ...(outcome.budget !== undefined ? { budget: outcome.budget } : {}),
-      });
-    },
+    handler: (d) => startNewSession(d, d.body),
   }),
   defineRoute({
     method: 'GET',
@@ -1612,6 +1649,190 @@ export const routes: readonly Route[] = [
       const result = notify.decide(body.token, body.decision);
       if ('error' in result) throw new ApiError(result.error);
       return result;
+    },
+  }),
+  defineRoute({
+    method: 'GET',
+    path: '/api/templates',
+    auth: 'host',
+    lane: 'control',
+    response: TemplateListResponseSchema,
+    handler: templateList,
+  }),
+  defineRoute({
+    method: 'POST',
+    path: '/api/templates',
+    auth: 'host',
+    lane: 'control',
+    bodyLimit: 64 * 1024,
+    body: TemplateBodySchema,
+    status: 201,
+    response: TemplateSchema,
+    handler: ({ store, body }) => {
+      if (store.templateCount() >= MAX_TEMPLATES) throw new ApiError('too-large');
+      checkTemplateText(body.text);
+      const created = store.createTemplate(body, Date.now());
+      if (created === 'name-taken') throw new ApiError('invalid-request', { reason: 'name' });
+      return created;
+    },
+  }),
+  defineRoute({
+    method: 'GET',
+    path: '/api/templates/export',
+    auth: 'host',
+    lane: 'control',
+    response: TemplateFileSchema,
+    handler: ({ store }) => {
+      const names = new Map(store.listDevices().map((device) => [device.deviceId, device.name]));
+      return {
+        v: TEMPLATE_FILE_VERSION,
+        templates: store.listTemplates().map((t) => {
+          const device = t.deviceId === undefined ? undefined : names.get(t.deviceId);
+          return {
+            name: t.name,
+            text: t.text,
+            ...(device !== undefined ? { device } : {}),
+            ...(t.projectPath !== undefined ? { project: t.projectPath } : {}),
+            provider: t.provider,
+            ...(t.configuration !== undefined ? { configuration: t.configuration } : {}),
+            ...(t.config !== undefined ? { config: t.config } : {}),
+          };
+        }),
+      };
+    },
+  }),
+  defineRoute({
+    method: 'POST',
+    path: '/api/templates/import',
+    auth: 'host',
+    lane: 'control',
+    bodyLimit: 2 * 1024 * 1024,
+    body: TemplateImportRequestSchema,
+    response: TemplateImportResultSchema,
+    handler: ({ store, body }) => {
+      const entries = body.file.templates;
+      if (store.templateCount() + entries.length > MAX_TEMPLATES) throw new ApiError('too-large');
+      entries.forEach((entry, i) => {
+        checkTemplateText(entry.text, `file.${i}.`);
+      });
+      const devices = store.listDevices();
+      const known = new Set(devices.map((device) => device.deviceId));
+      const chosen = body.machines ?? {};
+      if (Object.values(chosen).some((id) => !known.has(id))) {
+        throw new ApiError('invalid-request', { reason: 'machines' });
+      }
+      const taken = store.templateNames();
+      const items: Array<{ name: string; renamed: boolean; device?: string; deviceId?: string }> =
+        [];
+      const bodies: TemplateBody[] = entries.map((entry) => {
+        const name = freeName(entry.name, taken);
+        taken.add(name);
+        const deviceId =
+          entry.device === undefined
+            ? undefined
+            : (devices.find((device) => device.name === entry.device)?.deviceId ??
+              chosen[entry.device]);
+        items.push({
+          name,
+          renamed: name !== entry.name,
+          ...(entry.device !== undefined ? { device: entry.device } : {}),
+          ...(deviceId !== undefined ? { deviceId } : {}),
+        });
+        return {
+          name,
+          text: entry.text,
+          ...(deviceId !== undefined ? { deviceId } : {}),
+          ...(entry.project !== undefined ? { projectPath: entry.project } : {}),
+          provider: entry.provider,
+          ...(entry.configuration !== undefined ? { configuration: entry.configuration } : {}),
+          ...(entry.config !== undefined ? { config: entry.config } : {}),
+        };
+      });
+      return {
+        dryRun: body.dryRun,
+        items,
+        templates: body.dryRun ? [] : store.createTemplates(bodies, Date.now()),
+      };
+    },
+  }),
+  defineRoute({
+    method: 'GET',
+    path: '/api/templates/:id',
+    auth: 'host',
+    lane: 'control',
+    response: TemplateSchema,
+    handler: ({ store, params }) => {
+      const found = store.getTemplate(params.id ?? '');
+      if (!found) throw new ApiError('not-found');
+      return found;
+    },
+  }),
+  defineRoute({
+    method: 'PUT',
+    path: '/api/templates/:id',
+    auth: 'host',
+    lane: 'control',
+    bodyLimit: 64 * 1024,
+    body: TemplateBodySchema,
+    response: TemplateSchema,
+    handler: ({ store, params, body }) => {
+      checkTemplateText(body.text);
+      const updated = store.updateTemplate(params.id ?? '', body, Date.now());
+      if (updated === 'name-taken') throw new ApiError('invalid-request', { reason: 'name' });
+      if (!updated) throw new ApiError('not-found');
+      return updated;
+    },
+  }),
+  defineRoute({
+    method: 'DELETE',
+    path: '/api/templates/:id',
+    auth: 'host',
+    lane: 'control',
+    response: TemplateListResponseSchema,
+    handler: (d) => {
+      if (!d.store.deleteTemplate(d.params.id ?? '')) throw new ApiError('not-found');
+      return templateList(d);
+    },
+  }),
+  defineRoute({
+    method: 'POST',
+    path: '/api/templates/:id/start',
+    auth: 'host',
+    lane: 'control',
+    bodyLimit: 1024 * 1024,
+    body: TemplateStartRequestSchema,
+    response: TemplateStartResultSchema,
+    handler: (d) => {
+      const template = d.store.getTemplate(d.params.id ?? '');
+      if (!template) throw new ApiError('not-found');
+      const { promptId } = d.body;
+      const refuse = (reason: string) => new ApiError('invalid-request', { promptId, reason });
+      const parsed = parseTemplate(template.text);
+      if (!parsed.ok) throw refuse(`text:${parsed.problem}:${parsed.position}`);
+      const filled = fillTemplate(parsed, d.body.values);
+      if (!filled.ok) {
+        throw refuse(
+          filled.missing.length > 0
+            ? `values:missing:${filled.missing.join(',')}`
+            : `values:unknown:${filled.unknown.join(',')}`,
+        );
+      }
+      const text = filled.text.trim();
+      if (text === '') throw refuse('text');
+      if (text.length > MAX_TEMPLATE_TEXT_CHARS) throw new ApiError('too-large', { promptId });
+      const deviceId = d.body.deviceId ?? template.deviceId;
+      if (deviceId === undefined) throw refuse('deviceId');
+      const projectPath = d.body.projectPath ?? template.projectPath;
+      if (projectPath === undefined) throw refuse('projectPath');
+      return startNewSession(d, {
+        deviceId,
+        projectPath,
+        provider: template.provider,
+        ...(template.configuration !== undefined ? { configuration: template.configuration } : {}),
+        ...(template.config !== undefined ? { config: template.config } : {}),
+        text,
+        promptId,
+      });
     },
   }),
 ];

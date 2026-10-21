@@ -24,6 +24,8 @@ import type {
   SessionMeta,
   SessionUsage,
   SnapshotChanges,
+  Template,
+  TemplateBody,
   UsagePrices,
   UsagePricesBody,
   UsageQuery,
@@ -57,6 +59,7 @@ import * as secrets from './secrets.ts';
 import * as sessions from './sessions.ts';
 import * as snapshotRead from './snapshot-read.ts';
 import * as snapshots from './snapshots.ts';
+import * as templates from './templates.ts';
 import * as usage from './usage.ts';
 
 export { type AuditInput, AuditUnavailableError } from './audit.ts';
@@ -69,6 +72,7 @@ export type { NotifySecrets, VapidKeys } from './secrets.ts';
 export type { SessionStateChange, SessionStateRecord } from './sessions.ts';
 export { type SnapshotDiffResult, SnapshotReadError } from './snapshot-read.ts';
 export { type SnapshotChunk, SnapshotError, type SnapshotRecord } from './snapshots.ts';
+export { freeName } from './templates.ts';
 export { summarizeTitle } from './title.ts';
 export type { AppendInput, AppendResult };
 export { NotOwnerError };
@@ -196,6 +200,38 @@ export class Store {
 
   createBudget(body: BudgetBody, now: number): Budget {
     return budgets.createBudget(this.ctx, body, now);
+  }
+
+  listTemplates(): Template[] {
+    return templates.listTemplates(this.ctx);
+  }
+
+  getTemplate(id: string): Template | null {
+    return templates.getTemplate(this.ctx, id);
+  }
+
+  templateCount(): number {
+    return templates.templateCount(this.ctx);
+  }
+
+  templateNames(): Set<string> {
+    return templates.templateNames(this.ctx);
+  }
+
+  createTemplate(body: TemplateBody, now: number): Template | 'name-taken' {
+    return templates.createTemplate(this.ctx, body, now);
+  }
+
+  createTemplates(bodies: readonly TemplateBody[], now: number): Template[] {
+    return templates.createTemplates(this.ctx, bodies, now);
+  }
+
+  updateTemplate(id: string, body: TemplateBody, now: number): Template | null | 'name-taken' {
+    return templates.updateTemplate(this.ctx, id, body, now);
+  }
+
+  deleteTemplate(id: string): boolean {
+    return templates.deleteTemplate(this.ctx, id);
   }
 
   updateBudget(id: string, body: BudgetBody, now: number): Budget | null {

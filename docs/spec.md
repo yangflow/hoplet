@@ -729,7 +729,7 @@ except after a refusal, which can be retried.
 
 ### Session templates
 
-Planned (#76), not built; the screens are in `design/screens/templates.html`. A template saves what a user types at the start of a session again and again, so that one click starts it.
+The core API is built (#76); the web UI is planned, and its screens are in `design/screens/templates.html`. A template saves what a user types at the start of a session again and again, so that one click starts it.
 
 **Fields.** A template has an `id`, a `name` (1 to 80 characters, unique), and the parts of a new session request
 as they are today: `text` (the prompt, with placeholders, at most 8,000 characters), `deviceId` (the machine),
@@ -778,8 +778,9 @@ and starts the session as `POST /api/sessions` does ([New session](#new-session)
 refusals. The route, not a `templateId` on the session request, because a session request stays one shape, a
 template can never change what `POST /api/sessions` accepts, the core resolves the placeholders in one place for
 the web UI, the schedule and the CLI. `values` maps placeholder
-names to strings; a missing value without a default is `invalid-request` with `reason: values` and the names; a
-name the template does not have is refused the same way. `deviceId` and `projectPath` fill what the template left
+names to strings; a missing value without a default is `invalid-request` with `reason: values:missing:<names>` (names
+separated by commas; an empty value counts as missing when there is no default); a name the template does not have
+is `values:unknown:<names>`. A value is used as typed and is never read as a template. `deviceId` and `projectPath` fill what the template left
 out or replace it for this start; nothing is written back to the template.
 
 The options are validated at start against the capabilities that the target machine's driver declares in
@@ -792,11 +793,12 @@ refusal is the same as for a new session (`invalid-request`, `reason: config`, w
 that is offline is `target-offline`.
 
 **Export and import.** Export is a JSON file: `{ "v": 1, "templates": [ { "name", "text", "device", "project",
-"provider", "config" } ] }`, where `device` is the machine's name and `project` its path, because a machine ID means
+"provider", "configuration", "config" } ] }`, where `device` is the machine's name and `project` its path, because a machine ID means
 nothing on another Hoplet. `v` is the format version; import refuses a `v` it does not know and a field it does
 not know, so a file can carry no more than the fields above. Import shows what it will add, matches `device` by
 name and asks for a machine when none matches, gives a name that is taken a suffix (` (2)`), and never starts
-anything. A file holds no credential: the fields cannot hold one, and export writes nothing else.
+anything. The request is `{ file, machines?, dryRun? }`: `machines` maps the `device` of an entry that matches no
+machine to the ID of one the user chose, and `dryRun` stores nothing and answers what would be added. A file holds no credential: the fields cannot hold one, and export writes nothing else.
 
 **Limits.** At most 100 templates; a template belongs to the host, as the machines do.
 
