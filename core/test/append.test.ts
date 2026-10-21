@@ -30,6 +30,7 @@ it('resyncs wrong offsets without writes, enforces ownership, and resumes after 
     });
     sockets.push(ws);
     const welcome = await receive(ws);
+    const rules = receive(ws);
     ws.send(
       JSON.stringify({
         v: PROTOCOL_VERSION,
@@ -39,6 +40,7 @@ it('resyncs wrong offsets without writes, enforces ownership, and resumes after 
         version: 'test',
       }),
     );
+    expect(await rules).toMatchObject({ type: 'device.rules' });
     return { ws, welcome };
   };
   const request = async (ws: WebSocket, msg: SessionAppend) => {

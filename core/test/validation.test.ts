@@ -232,6 +232,7 @@ describe('agent WebSocket validates every message', () => {
         version: 'test',
       }),
     );
+    expect(await next()).toMatchObject({ type: 'device.rules' });
     ws.send(JSON.stringify({ v: PROTOCOL_VERSION, type: 'ping' }));
     expect(await next()).toMatchObject({ type: 'pong' });
     expect(messages).toEqual([]);

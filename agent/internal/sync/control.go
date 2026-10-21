@@ -589,6 +589,36 @@ func parseProvidersUpdate(raw []byte) (DeviceProvidersUpdate, error) {
 	return req, nil
 }
 
+// handleRules applies a device.rules and answers device.rules.applied. The message is handed to the hook
+// without its envelope; the hook refuses any field it does not know.
+func (c *Client) handleRules(cs *connState, raw []byte) {
+	var head struct {
+		Revision int `json:"revision"`
+	}
+	_ = json.Unmarshal(raw, &head)
+	rev, err := 0, error(nil)
+	var fields map[string]json.RawMessage
+	if err = json.Unmarshal(raw, &fields); err == nil {
+		delete(fields, "v")
+		delete(fields, "type")
+		var body []byte
+		if body, err = json.Marshal(fields); err == nil {
+			if c.hooks.Rules == nil {
+				err = errors.New("not-implemented")
+			} else {
+				rev, err = c.hooks.Rules(body)
+			}
+		}
+	}
+	out := DeviceRulesApplied{V: ProtocolVersion, Type: TypeDeviceRulesApplied, Revision: rev}
+	if err != nil {
+		log.Printf("[agent] permission rules refused: %v", err)
+		out.Revision = head.Revision
+		out.Error = err.Error()
+	}
+	_ = c.writeMsg(cs, out)
+}
+
 func (c *Client) handleProvidersUpdate(cs *connState, raw []byte) {
 	req, err := parseProvidersUpdate(raw)
 	var list []ProviderInfo

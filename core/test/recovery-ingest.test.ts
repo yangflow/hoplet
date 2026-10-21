@@ -43,6 +43,7 @@ for (const [point, committed] of [
       });
       sockets.push(ws);
       const welcome = await receive(ws);
+      const rules = receive(ws);
       ws.send(
         JSON.stringify({
           v: PROTOCOL_VERSION,
@@ -52,6 +53,7 @@ for (const [point, committed] of [
           version: 'synthetic',
         }),
       );
+      expect(await rules).toMatchObject({ type: 'device.rules' });
       return { ws, welcome };
     };
     const request = async (ws: WebSocket, byteStart: number, lines: string) => {

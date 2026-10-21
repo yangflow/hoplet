@@ -414,6 +414,13 @@ export interface Control {
   portsOf(sessionId: string): SessionPortsResult;
   /** The machine's last hour of readings and its sessions' usage from the latest one; empty for a machine that never reported. */
   resourcesOf(deviceId: string): ResourcesSnapshot;
+  /**
+   * Sends the named devices (every online device when none are named) the permission rules they do not yet have
+   * (ADR 0029). The API calls it after a change to the rules, a handoff or a deletion.
+   */
+  syncRules(deviceIds?: readonly string[]): void;
+  /** The revision of the rules the device last applied since it connected; null before it answers. */
+  appliedRulesRevision(deviceId: string): number | null;
   /** Calls `listener` with every moment that may notify; returns the unsubscribe. */
   onEvent(listener: (event: ControlEvent) => void): () => void;
   /** Which sessions browsers have open; the API keeps it current from its sockets. */
@@ -570,6 +577,8 @@ export interface AgentControl {
   /** The link carries `deviceId` from now on; an older link of the same device is replaced. */
   attach(deviceId: string, link: DeviceLink, providers?: ProviderInfo[], hello?: DeviceHello): void;
   detach(link: DeviceLink): void;
+  /** The device said hello: sends it its whole permission rule set (ADR 0029). */
+  announceRules(deviceId: string): void;
   /** Hands an event for the browsers to whoever subscribed. */
   publish(msg: ServerMessage): void;
   receive(link: DeviceLink, msg: ControlReply): void;

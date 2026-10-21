@@ -61,6 +61,9 @@ type process struct {
 	// PreToolUse hook callbacks (nil: no hook is registered).
 	dir    string
 	engine *rules.Engine
+	// rebuild builds the engine again from the rules in force now; each call is decided with it, so a rule the
+	// core pushed holds in a process that is already running. nil keeps engine.
+	rebuild func() (*rules.Engine, error)
 
 	mu      sync.Mutex
 	rawCmds []rawCommand                 // the latest commands Claude Code reported

@@ -31,6 +31,7 @@ it('rejects invalid identifiers before append or metadata writes over WebSocket'
     });
   try {
     await receive();
+    const rules = receive();
     ws.send(
       JSON.stringify({
         v: PROTOCOL_VERSION,
@@ -40,6 +41,7 @@ it('rejects invalid identifiers before append or metadata writes over WebSocket'
         version: 'test',
       }),
     );
+    expect(await rules).toMatchObject({ type: 'device.rules' });
     for (const sessionId of [
       '../escaped',
       'a/b',

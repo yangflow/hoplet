@@ -254,6 +254,8 @@ export function receiveReply(
     case 'session.ports':
       ports.receive(link, msg.sessionId, msg.ports);
       return;
+    case 'device.rules.applied':
+      return; // the rules module takes it before the reply is routed
     case 'device.resources':
       resources.receive(link, msg);
       return;

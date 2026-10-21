@@ -327,6 +327,10 @@ func (c *Client) readLoop(cs *connState) {
 		case TypeAttachmentPut:
 			c.handleAttachment(cs, raw)
 			continue
+		case TypeDeviceRules:
+			// In order: a later push must not be overtaken by an earlier one.
+			c.handleRules(cs, raw)
+			continue
 		case TypeDeviceProvidersUpdate:
 			go c.handleProvidersUpdate(cs, raw)
 			continue

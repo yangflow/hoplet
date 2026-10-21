@@ -15,6 +15,7 @@ import (
 	"github.com/yangflow/hoplet/agent/internal/configs"
 	"github.com/yangflow/hoplet/agent/internal/locate"
 	"github.com/yangflow/hoplet/agent/internal/provider"
+	"github.com/yangflow/hoplet/agent/internal/rules"
 	"github.com/yangflow/hoplet/agent/internal/runtime"
 	"github.com/yangflow/hoplet/agent/internal/runtime/claude"
 	"github.com/yangflow/hoplet/agent/internal/runtime/codex"
@@ -37,6 +38,7 @@ const kickEvery = 250 * time.Millisecond
 type bridge struct {
 	cfg    *config.Config
 	att    *attachments // images uploaded for coming prompts
+	rules  *rules.Store // the permission rules in force (ADR 0029)
 	locate runtime.Locator
 	send   func(any) error
 	kick   func()
@@ -71,6 +73,8 @@ func newBridge(cfg *config.Config, send func(any) error, kick func(), turnDone, 
 		locate: locator(cfg), send: send, kick: kick, done: make(chan struct{}),
 		turnDone: turnDone, turnStart: turnStart,
 	}
+	home, _ := os.UserHomeDir()
+	b.rules = rules.OpenStore(rules.NewEnv(home, cfg.HopletHome), cfg.HopletHome, cfg.PermissionDeny)
 	b.cond = gosync.NewCond(&b.mu)
 	var err error
 	if b.owners, err = configs.LoadOwners(cfg.HopletHome); err != nil {
@@ -128,7 +132,7 @@ func (b *bridge) build(c configs.Configuration, spec string) *entry {
 		if c.Command != "" {
 			bin = c.Command
 		}
-		d = claude.New(claude.Options{Bin: bin, Model: os.Getenv(modelEnv), Env: env, Defaults: c.Defaults, HopletHome: b.cfg.HopletHome})
+		d = claude.New(claude.Options{Bin: bin, Model: os.Getenv(modelEnv), Env: env, Defaults: c.Defaults, HopletHome: b.cfg.HopletHome, Rules: b.ruleSource})
 	}
 	m := runtime.NewManager(runtime.Config{
 		Driver: d,
@@ -148,6 +152,13 @@ func (b *bridge) build(c configs.Configuration, spec string) *entry {
 // apply makes list the configurations: an unchanged one keeps its manager, a changed or removed one hands its
 // manager to the retired, which keeps the sessions it runs going (a change applies to processes started
 // afterwards).
+// ruleSource builds the permission engine of one process from the rules in force now: the floor, the
+// operator's permission_deny, and the pushed global, project and session rules that apply to it. The driver
+// asks again for every tool call, so a push holds in running processes.
+func (b *bridge) ruleSource(spec runtime.StartSpec) (*rules.Engine, error) {
+	return b.rules.Engine(spec.SessionID, spec.Dir)
+}
+
 func (b *bridge) apply(list []configs.Configuration) {
 	setSources(b.cfg, list)
 	b.cmu.Lock()

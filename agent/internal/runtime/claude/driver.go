@@ -206,7 +206,7 @@ func (d *Driver) Start(ctx context.Context, spec runtime.StartSpec) (runtime.Pro
 	}
 	// Without an engine no hook would be registered and the rules would silently not hold, so a rule set that
 	// cannot be built ends the start.
-	engine, err := d.rules()
+	engine, err := d.rules(spec)
 	if err != nil {
 		return nil, fmt.Errorf("permission rules: %w", err)
 	}
@@ -217,7 +217,7 @@ func (d *Driver) Start(ctx context.Context, spec runtime.StartSpec) (runtime.Pro
 	if m, _ := spec.Config[optMode].(string); m != "" {
 		mode = m
 	}
-	p, err := launch(cmd, d.model, hookState{dir: spec.Dir, engine: engine, mode: mode})
+	p, err := launch(cmd, d.model, hookState{dir: spec.Dir, engine: engine, mode: mode, rebuild: func() (*rules.Engine, error) { return d.rules(spec) }})
 	if err != nil {
 		return nil, err
 	}
@@ -231,7 +231,10 @@ func (d *Driver) Start(ctx context.Context, spec runtime.StartSpec) (runtime.Pro
 type hookState struct {
 	dir    string
 	engine *rules.Engine
-	mode   string
+	// rebuild builds the engine again from the rules in force now; each call is decided with it, so a rule the
+	// core pushed holds in a process that is already running. nil keeps engine.
+	rebuild func() (*rules.Engine, error)
+	mode    string
 }
 
 // launch starts cmd and reads its output.
@@ -261,6 +264,7 @@ func launch(cmd *exec.Cmd, model string, hook hookState) (*process, error) {
 		model:   model,
 		dir:     hook.dir,
 		engine:  hook.engine,
+		rebuild: hook.rebuild,
 		mode:    hook.mode,
 	}
 	go p.read(stdout)

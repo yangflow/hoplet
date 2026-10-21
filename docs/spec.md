@@ -345,8 +345,9 @@ A budget caps what a scope spends in a period and tells the user before and at t
 Decided in [ADR 0029](adr/0029-permission-rules-match-on-the-agent-and-deny-wins.md) (#98). Built: the decision
 engine on the agent, and in Claude Code sessions the check of every tool call against the built-in rules and the
 compiled-in floor, in every permission mode; on the core, the storage of rules, their scopes, the built-in switches and
-a revision per machine, served by `/api/permission-rules` (docs/api.md). Planned: Codex, sending the rules to the
-agent, the Settings and card screens, and the audit records. Rules let a session run without someone answering every
+a revision per machine, served by `/api/permission-rules` (docs/api.md); the core sends each agent its rules and the
+agent applies them to every tool call, the next one after a change. Planned: Codex, the web showing which machines
+have applied the latest revision, the Settings and card screens, and the audit records. Rules let a session run without someone answering every
 tool call: routine calls
 are allowed, dangerous ones asked about or denied.
 
