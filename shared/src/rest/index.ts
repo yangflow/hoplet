@@ -1,4 +1,5 @@
 export * from './auth.ts';
+export * from './budgets.ts';
 export * from './common.ts';
 export * from './deletion.ts';
 export * from './devices.ts';

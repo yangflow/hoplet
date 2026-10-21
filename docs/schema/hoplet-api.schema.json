@@ -616,6 +616,56 @@
     },
     {
       "method": "GET",
+      "path": "/api/budgets",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": null,
+      "response": "BudgetListResponseSchema"
+    },
+    {
+      "method": "POST",
+      "path": "/api/budgets",
+      "auth": "host",
+      "lane": "control",
+      "status": 201,
+      "query": null,
+      "body": "BudgetBodySchema",
+      "response": "BudgetSchema"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/budgets/:id",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": "BudgetBodySchema",
+      "response": "BudgetSchema"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/budgets/:id",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": null,
+      "response": "BudgetListResponseSchema"
+    },
+    {
+      "method": "POST",
+      "path": "/api/budgets/:id/allow",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": null,
+      "response": "BudgetSchema"
+    },
+    {
+      "method": "GET",
       "path": "/api/notify/push/key",
       "auth": "host",
       "lane": "control",
@@ -893,6 +943,7 @@
     "queue-conflict": 409,
     "queue-full": 409,
     "cancelled": 409,
+    "over-budget": 409,
     "handoff-in-progress": 409,
     "handoff-not-running": 409,
     "terminal-unavailable": 409,
@@ -1058,6 +1109,324 @@
       },
       "required": [
         "attachmentId"
+      ]
+    },
+    "BudgetBodySchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^\\s*\\S(?:[\\s\\S]{0,78}\\S)?\\s*$"
+        },
+        "scope": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "enum": [
+                "global",
+                "project",
+                "device"
+              ],
+              "type": "string"
+            },
+            "value": {
+              "type": "string",
+              "maxLength": 4096
+            }
+          },
+          "required": [
+            "kind",
+            "value"
+          ]
+        },
+        "period": {
+          "enum": [
+            "day",
+            "week",
+            "month"
+          ],
+          "type": "string"
+        },
+        "unit": {
+          "enum": [
+            "cost",
+            "tokens"
+          ],
+          "type": "string"
+        },
+        "amount": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1000000000000
+        },
+        "alertPercent": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 80
+        },
+        "onLimit": {
+          "enum": [
+            "warn",
+            "pause"
+          ],
+          "type": "string",
+          "default": "warn"
+        },
+        "utcOffset": {
+          "type": "integer",
+          "minimum": -840,
+          "maximum": 840,
+          "default": 0
+        }
+      },
+      "required": [
+        "name",
+        "scope",
+        "period",
+        "unit",
+        "amount"
+      ]
+    },
+    "BudgetListResponseSchema": {
+      "type": "object",
+      "properties": {
+        "budgets": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_-]{1,64}$"
+              },
+              "name": {
+                "type": "string"
+              },
+              "scope": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "enum": [
+                      "global",
+                      "project",
+                      "device"
+                    ],
+                    "type": "string"
+                  },
+                  "value": {
+                    "type": "string",
+                    "maxLength": 4096
+                  }
+                },
+                "required": [
+                  "kind",
+                  "value"
+                ]
+              },
+              "period": {
+                "enum": [
+                  "day",
+                  "week",
+                  "month"
+                ],
+                "type": "string"
+              },
+              "unit": {
+                "enum": [
+                  "cost",
+                  "tokens"
+                ],
+                "type": "string"
+              },
+              "amount": {
+                "type": "number"
+              },
+              "alertPercent": {
+                "type": "number"
+              },
+              "onLimit": {
+                "enum": [
+                  "warn",
+                  "pause"
+                ],
+                "type": "string"
+              },
+              "utcOffset": {
+                "type": "number"
+              },
+              "createdAt": {
+                "type": "number"
+              },
+              "periodStart": {
+                "type": "number"
+              },
+              "periodEnd": {
+                "type": "number"
+              },
+              "spent": {
+                "type": "number"
+              },
+              "percent": {
+                "type": "number"
+              },
+              "state": {
+                "enum": [
+                  "ok",
+                  "alert",
+                  "over",
+                  "allowed"
+                ],
+                "type": "string"
+              },
+              "paused": {
+                "type": "boolean"
+              },
+              "costComplete": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "scope",
+              "period",
+              "unit",
+              "amount",
+              "alertPercent",
+              "onLimit",
+              "utcOffset",
+              "createdAt",
+              "periodStart",
+              "periodEnd",
+              "spent",
+              "percent",
+              "state",
+              "paused",
+              "costComplete"
+            ]
+          }
+        },
+        "backfilling": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "budgets",
+        "backfilling"
+      ]
+    },
+    "BudgetSchema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,64}$"
+        },
+        "name": {
+          "type": "string"
+        },
+        "scope": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "enum": [
+                "global",
+                "project",
+                "device"
+              ],
+              "type": "string"
+            },
+            "value": {
+              "type": "string",
+              "maxLength": 4096
+            }
+          },
+          "required": [
+            "kind",
+            "value"
+          ]
+        },
+        "period": {
+          "enum": [
+            "day",
+            "week",
+            "month"
+          ],
+          "type": "string"
+        },
+        "unit": {
+          "enum": [
+            "cost",
+            "tokens"
+          ],
+          "type": "string"
+        },
+        "amount": {
+          "type": "number"
+        },
+        "alertPercent": {
+          "type": "number"
+        },
+        "onLimit": {
+          "enum": [
+            "warn",
+            "pause"
+          ],
+          "type": "string"
+        },
+        "utcOffset": {
+          "type": "number"
+        },
+        "createdAt": {
+          "type": "number"
+        },
+        "periodStart": {
+          "type": "number"
+        },
+        "periodEnd": {
+          "type": "number"
+        },
+        "spent": {
+          "type": "number"
+        },
+        "percent": {
+          "type": "number"
+        },
+        "state": {
+          "enum": [
+            "ok",
+            "alert",
+            "over",
+            "allowed"
+          ],
+          "type": "string"
+        },
+        "paused": {
+          "type": "boolean"
+        },
+        "costComplete": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "scope",
+        "period",
+        "unit",
+        "amount",
+        "alertPercent",
+        "onLimit",
+        "utcOffset",
+        "createdAt",
+        "periodStart",
+        "periodEnd",
+        "spent",
+        "percent",
+        "state",
+        "paused",
+        "costComplete"
       ]
     },
     "CommandsResultSchema": {
@@ -2602,6 +2971,7 @@
             "queue-conflict",
             "queue-full",
             "cancelled",
+            "over-budget",
             "handoff-in-progress",
             "handoff-not-running",
             "terminal-unavailable",
@@ -2666,6 +3036,7 @@
             "queue-conflict",
             "queue-full",
             "cancelled",
+            "over-budget",
             "handoff-in-progress",
             "handoff-not-running",
             "terminal-unavailable",
@@ -2723,6 +3094,22 @@
               "status"
             ]
           }
+        },
+        "budget": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$"
+            },
+            "name": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "name"
+          ]
         }
       },
       "required": [
@@ -3731,7 +4118,8 @@
             "permission",
             "plan",
             "turn-done",
-            "failure"
+            "failure",
+            "budget"
           ],
           "type": "string"
         },
@@ -3859,6 +4247,26 @@
               "required": [
                 "channels"
               ]
+            },
+            "budget": {
+              "type": "object",
+              "properties": {
+                "channels": {
+                  "type": "array",
+                  "items": {
+                    "enum": [
+                      "push",
+                      "webhook",
+                      "native"
+                    ],
+                    "type": "string"
+                  },
+                  "maxItems": 3
+                }
+              },
+              "required": [
+                "channels"
+              ]
             }
           },
           "required": []
@@ -3946,6 +4354,26 @@
                     ]
                   },
                   "failure": {
+                    "type": "object",
+                    "properties": {
+                      "channels": {
+                        "type": "array",
+                        "items": {
+                          "enum": [
+                            "push",
+                            "webhook",
+                            "native"
+                          ],
+                          "type": "string"
+                        },
+                        "maxItems": 3
+                      }
+                    },
+                    "required": [
+                      "channels"
+                    ]
+                  },
+                  "budget": {
                     "type": "object",
                     "properties": {
                       "channels": {
@@ -6398,12 +6826,13 @@
               "permission",
               "plan",
               "turn-done",
-              "failure"
+              "failure",
+              "budget"
             ],
             "type": "string"
           },
           "minItems": 1,
-          "maxItems": 4,
+          "maxItems": 5,
           "uniqueItems": true
         }
       },
@@ -6437,12 +6866,13 @@
               "permission",
               "plan",
               "turn-done",
-              "failure"
+              "failure",
+              "budget"
             ],
             "type": "string"
           },
           "minItems": 1,
-          "maxItems": 4,
+          "maxItems": 5,
           "uniqueItems": true
         },
         "createdAt": {
@@ -6507,12 +6937,13 @@
                     "permission",
                     "plan",
                     "turn-done",
-                    "failure"
+                    "failure",
+                    "budget"
                   ],
                   "type": "string"
                 },
                 "minItems": 1,
-                "maxItems": 4,
+                "maxItems": 5,
                 "uniqueItems": true
               },
               "createdAt": {
@@ -6581,12 +7012,13 @@
                   "permission",
                   "plan",
                   "turn-done",
-                  "failure"
+                  "failure",
+                  "budget"
                 ],
                 "type": "string"
               },
               "minItems": 1,
-              "maxItems": 4,
+              "maxItems": 5,
               "uniqueItems": true
             },
             "createdAt": {
@@ -6680,12 +7112,13 @@
               "permission",
               "plan",
               "turn-done",
-              "failure"
+              "failure",
+              "budget"
             ],
             "type": "string"
           },
           "minItems": 1,
-          "maxItems": 4,
+          "maxItems": 5,
           "uniqueItems": true
         }
       },

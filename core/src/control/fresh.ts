@@ -96,6 +96,7 @@ export function createFresh(
             error: started.error,
             promptId,
             ...(started.reason !== undefined ? { reason: started.reason } : {}),
+            ...(started.budget !== undefined ? { budget: started.budget } : {}),
           };
         }
         store.recordContinuation(sessionId, started.sessionId, requestId, mode, state.now());

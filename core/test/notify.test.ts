@@ -251,10 +251,10 @@ describe('delivery', () => {
       { url: `${both.base}/h`, label: 'both', events: ['failure', 'permission'] },
       T0,
     );
-    expect(d.events).toEqual(['permission', 'plan', 'failure']);
+    expect(d.events).toEqual(['permission', 'plan', 'failure', 'budget']);
     expect(Object.fromEntries(f.store.listWebhooks().map((w) => [w.label, w.events]))).toEqual({
       plan: ['plan'],
-      default: ['permission', 'plan', 'failure'],
+      default: ['permission', 'plan', 'failure', 'budget'],
       both: ['permission', 'failure'],
     });
     f.control.receive(f.link, permission('r1', 'Bash', { command: 'ls' }));
@@ -723,7 +723,7 @@ describe('routes', () => {
       label: 'Chat',
       hasSecret: true,
       enabled: true,
-      events: ['permission', 'plan', 'failure'],
+      events: ['permission', 'plan', 'failure', 'budget'],
     });
     expect(JSON.stringify(created.body)).not.toContain('top-secret-value');
     const id = created.body.id as string;

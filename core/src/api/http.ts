@@ -44,6 +44,8 @@ export class ApiError extends Error {
 export interface RelayFailure {
   error: HttpErrorCode;
   reason?: string | undefined;
+  /** The budget that refused it (`over-budget`). */
+  budget?: ErrorResponse['budget'] | undefined;
 }
 
 /** Maps a failed relay to its error; `rejected` carries the agent's diagnostic text as `reason`. */
@@ -53,6 +55,9 @@ export function relayError(
 ): ApiError {
   if (outcome.error === 'rejected') {
     return new ApiError('rejected', { reason: outcome.reason ?? 'rejected', ...extra });
+  }
+  if (outcome.error === 'over-budget' && outcome.budget) {
+    return new ApiError('over-budget', { budget: outcome.budget, ...extra });
   }
   return new ApiError(outcome.error, extra);
 }

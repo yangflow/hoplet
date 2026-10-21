@@ -18,6 +18,7 @@ import { type AppendRecovery, compressPendingAsync, undoAppend } from './recover
 import { committedLines, getRow, type SessionRow } from './sessions.ts';
 import { extractMeta } from './title.ts';
 import { extractUsage, upsertUsage } from './usage-lines.ts';
+import { notifyUsage } from './usage-listeners.ts';
 
 const gunzip = promisify(gunzipCallback);
 
@@ -227,6 +228,7 @@ export function append(ctx: StoreContext, input: AppendInput, rawLines: string[]
     .catch(() => {})
     .finally(() => ctx.background.delete(compression));
   ctx.background.add(compression);
+  if (used.records.length > 0) notifyUsage(ctx);
   return { byteSize, lineCount, appendedLines: lines.length, isNew };
 }
 

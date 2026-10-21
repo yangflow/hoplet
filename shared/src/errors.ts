@@ -1,5 +1,6 @@
 import * as v from 'valibot';
 import { DeletionStepSchema } from './deletion.ts';
+import { BudgetRefSchema } from './rest/budgets.ts';
 
 /**
  * Stable error codes. A REST error response is `{ code }` (plus `reason` and `promptId` where the endpoint
@@ -29,6 +30,7 @@ export const HTTP_ERROR_STATUS = {
   'queue-conflict': 409,
   'queue-full': 409,
   cancelled: 409,
+  'over-budget': 409,
   'handoff-in-progress': 409,
   'handoff-not-running': 409,
   'terminal-unavailable': 409,
@@ -77,5 +79,7 @@ export const ErrorResponseSchema = v.object({
   detail: v.optional(v.string()),
   /** The steps of a deletion that failed half way (`delete-partial`). */
   steps: v.optional(v.array(DeletionStepSchema)),
+  /** The budget that refused a prompt (`over-budget`). */
+  budget: v.optional(BudgetRefSchema),
 });
 export type ErrorResponse = v.InferOutput<typeof ErrorResponseSchema>;

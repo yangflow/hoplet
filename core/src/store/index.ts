@@ -4,6 +4,9 @@ import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import type {
+  Budget,
+  BudgetBody,
+  BudgetRef,
   Command,
   DeviceInventory,
   DeviceSystem,
@@ -23,6 +26,7 @@ import type {
   UsageResponse,
 } from '@hoplet/shared';
 import { migrate } from '../migrations/index.ts';
+import * as budgets from './budgets.ts';
 import {
   type AppendInput,
   type AppendResult,
@@ -50,6 +54,7 @@ import * as snapshotRead from './snapshot-read.ts';
 import * as snapshots from './snapshots.ts';
 import * as usage from './usage.ts';
 
+export type { BudgetStatus } from './budgets.ts';
 export type { ContinuationLinks } from './continuations.ts';
 export type { Tombstone, WorktreeRecord } from './deletion.ts';
 export type { PushSubscriptionRecord, WebhookRecord } from './notify.ts';
@@ -77,6 +82,9 @@ export class Store {
       uploads: new Map(),
       snapshotViews: new Map(),
       secrets: null,
+      usageListeners: new Set(),
+      budgetBlocks: new Map(),
+      budgetBlockTimer: null,
     };
     try {
       db.exec('PRAGMA synchronous=FULL');
@@ -84,6 +92,8 @@ export class Store {
       recoverOnStart(this.ctx);
       snapshots.recoverSnapshots(this.ctx);
       queue.recoverQueues(this.ctx);
+      budgets.loadBudgetBlocks(this.ctx, Date.now());
+      this.ctx.usageListeners.add(() => budgets.budgetUsageRecorded(this.ctx));
     } catch (err) {
       db.close();
       throw err;
@@ -110,6 +120,77 @@ export class Store {
 
   setUsagePrices(body: UsagePricesBody): void {
     usage.setUsagePrices(this.ctx, body);
+  }
+
+  /** Calls `listener` after usage has been recorded; returns how to stop. The listener must be quick. */
+  onUsage(listener: () => void): () => void {
+    this.ctx.usageListeners.add(listener);
+    return () => this.ctx.usageListeners.delete(listener);
+  }
+
+  usageBackfilling(): boolean {
+    return usage.usageBackfilling(this.ctx);
+  }
+
+  listBudgets(now: number): Budget[] {
+    return budgets.listBudgets(this.ctx, now);
+  }
+
+  budgetStatuses(now: number) {
+    return budgets.budgetStatuses(this.ctx, now);
+  }
+
+  getBudget(id: string, now: number): Budget | null {
+    return budgets.getBudget(this.ctx, id, now);
+  }
+
+  budgetCount(): number {
+    return budgets.budgetCount(this.ctx);
+  }
+
+  createBudget(body: BudgetBody, now: number): Budget {
+    return budgets.createBudget(this.ctx, body, now);
+  }
+
+  updateBudget(id: string, body: BudgetBody, now: number): Budget | null {
+    return budgets.updateBudget(this.ctx, id, body, now);
+  }
+
+  deleteBudget(id: string): boolean {
+    return budgets.deleteBudget(this.ctx, id);
+  }
+
+  allowBudget(id: string, now: number): Budget | null {
+    return budgets.allowBudget(this.ctx, id, now);
+  }
+
+  claimBudgetAlert(
+    budgetId: string,
+    periodStart: number,
+    threshold: 'alert' | 'limit',
+    now: number,
+  ): boolean {
+    return budgets.claimBudgetAlert(this.ctx, budgetId, periodStart, threshold, now);
+  }
+
+  pruneBudgetAlerts(): void {
+    budgets.pruneBudgetAlerts(this.ctx);
+  }
+
+  /** The budget that refuses a new prompt in this session's project and on its owner; null when none does. */
+  budgetBlockForSession(sessionId: string, now: number): BudgetRef | null {
+    const row = sessions.getRow(this.ctx, sessionId);
+    if (!row) return null;
+    return budgets.blockingBudget(
+      this.ctx,
+      { projectPath: row.project_path || row.project_dir, deviceId: row.device_id },
+      now,
+    );
+  }
+
+  /** The budget that refuses a new session in this project on this machine; null when none does. */
+  budgetBlockFor(projectPath: string, deviceId: string, now: number): BudgetRef | null {
+    return budgets.blockingBudget(this.ctx, { projectPath, deviceId }, now);
   }
 
   /** Resolves when the compression an append started has finished. */

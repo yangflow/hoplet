@@ -80,7 +80,11 @@ export function createQueue(state: ControlState, runtime: Runtime): QueueControl
     } else {
       store.queueRestore(sessionId, next.id);
       // Busy, starting, external and an owner that left are states that pass; a refusal or no answer is not.
-      if (outcome.error === 'rejected' || outcome.error === 'timeout') {
+      if (
+        outcome.error === 'rejected' ||
+        outcome.error === 'timeout' ||
+        outcome.error === 'over-budget'
+      ) {
         store.queueSetPause(sessionId, 'error', outcome.reason ?? outcome.error);
       }
     }

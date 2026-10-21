@@ -45,6 +45,7 @@ export const ERROR_COPY: Record<HttpErrorCode, string> = {
   'invalid-token': 'The link is not valid.',
   'rate-limited': 'Too many requests. Try again in a moment.',
   'too-large': 'That is too large to send.',
+  'over-budget': 'A budget is used up, so new prompts are paused.',
   'owner-offline': 'The machine that owns this session is offline.',
   'target-offline': 'The target machine is offline.',
   busy: 'The session is busy with a turn or a hand-off.',

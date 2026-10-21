@@ -33,6 +33,7 @@ const RETRY_DELAY_MS = 1_000;
 const PLAN_TEXT_MAX = 20_000;
 const TITLE_MAX = 120;
 const PROJECT_MAX = 120;
+const BUDGET_DEBOUNCE_MS = 2_000;
 
 export interface NotifyOptions {
   /** The address the core is reached at from outside, without a trailing slash; links need it. */
@@ -42,6 +43,8 @@ export interface NotifyOptions {
   fetch?: Fetch;
   timeoutMs?: number;
   retryDelayMs?: number;
+  /** How long budgets wait after usage was recorded before they are evaluated; 2 s when absent. */
+  budgetDebounceMs?: number;
 }
 
 export type DecideResult =
@@ -49,13 +52,17 @@ export type DecideResult =
   | { error: 'invalid-token' | 'owner-offline' | 'invalid-request' };
 
 export interface Notify {
-  /** Starts listening to the control events. */
+  /** Starts listening to the control events and to recorded usage. */
   start(): void;
   stop(): void;
   /** The VAPID public key subscriptions are made against. */
   pushKey(): string;
   /** Sends a test message to one webhook; null when there is none with that ID. */
   testWebhook(id: string): Promise<WebhookTestResponse | null>;
+  /** Asks for the budgets to be evaluated soon (debounced); recorded usage and budget edits call it. */
+  budgetsChanged(): void;
+  /** Evaluates the budgets now and resolves when the notifications they raised are delivered. */
+  evaluateBudgets(): Promise<void>;
   /** What the action page shows for a token; null when the token is not one this core signed. */
   inspect(token: string): ActionInspectResponse | null;
   /** Answers the request a token names; an `error` when the token is not one this core signed or the answer cannot be given. */
@@ -72,9 +79,13 @@ export function createNotify(store: Store, control: Control, options: NotifyOpti
   const fetchImpl: Fetch = options.fetch ?? fetch;
   const timeoutMs = options.timeoutMs ?? DELIVERY_TIMEOUT_MS;
   const retryDelayMs = options.retryDelayMs ?? RETRY_DELAY_MS;
+  const budgetDebounceMs = options.budgetDebounceMs ?? BUDGET_DEBOUNCE_MS;
   const publicUrl = options.publicUrl;
   const subject = publicUrl?.startsWith('https://') ? publicUrl : 'mailto:hoplet@localhost';
   let unsubscribe: (() => void) | null = null;
+  let unsubscribeUsage: (() => void) | null = null;
+  let budgetTimer: NodeJS.Timeout | null = null;
+  let evaluating: Promise<void> = Promise.resolve();
 
   const secrets = () => store.notifySecrets();
 
@@ -239,6 +250,63 @@ export function createNotify(store: Store, control: Control, options: NotifyOpti
     }
   }
 
+  /**
+   * Sends the notifications the budgets' current spend calls for: `alert` at the alert line, `limit` at the amount,
+   * each once per budget and period. Crossing both at once sends only the limit. The claim is stored before the send.
+   */
+  function runBudgets(): Promise<void> {
+    const at = now();
+    const jobs: Promise<void>[] = [];
+    for (const budget of store.budgetStatuses(at)) {
+      const over = budget.spent >= budget.amount;
+      const alerted = budget.percent >= budget.alertPercent;
+      if (!over && !alerted) continue;
+      const alertNew = store.claimBudgetAlert(budget.id, budget.periodStart, 'alert', at);
+      const limitNew = over && store.claimBudgetAlert(budget.id, budget.periodStart, 'limit', at);
+      if (!(over ? limitNew : alertNew)) continue;
+      const threshold = over ? 'limit' : 'alert';
+      const payload: NotifyPayload = {
+        kind: 'budget',
+        project: clip(budget.name, PROJECT_MAX),
+        budget: {
+          id: budget.id,
+          name: clip(budget.name, PROJECT_MAX),
+          threshold,
+          percent: Math.round(budget.percent),
+          pause: budget.onLimit === 'pause',
+        },
+      };
+      const projectPath = budget.scope.kind === 'project' ? budget.scope.value : '';
+      const channels = channelsFor(store.notifyPreferences(), 'budget', projectPath, at);
+      log('info', 'notify', 'budget crossed', { budget: budget.id, threshold });
+      if (channels.length === 0) continue;
+      jobs.push(
+        dispatch('budget', payload, channels).catch((err) =>
+          log('error', 'notify', 'dispatch failed', { kind: 'budget', error: String(err) }),
+        ),
+      );
+    }
+    store.pruneBudgetAlerts();
+    return Promise.all(jobs).then(() => undefined);
+  }
+
+  function evaluateBudgets(): Promise<void> {
+    // Evaluations run one after the other so two never claim the same threshold.
+    evaluating = evaluating
+      .then(runBudgets)
+      .catch((err) => log('error', 'notify', 'budget evaluation failed', { error: String(err) }));
+    return evaluating;
+  }
+
+  function budgetsChanged(): void {
+    if (budgetTimer) return;
+    budgetTimer = setTimeout(() => {
+      budgetTimer = null;
+      void evaluateBudgets();
+    }, budgetDebounceMs);
+    budgetTimer.unref();
+  }
+
   function onEvent(event: ControlEvent): void {
     if (event.kind === 'turn-done' && control.viewing.isOpen(event.sessionId)) return;
     const { kind, payload } = buildPayload(event);
@@ -259,11 +327,19 @@ export function createNotify(store: Store, control: Control, options: NotifyOpti
       store.pruneForeignSubscriptions();
       registerSecrets();
       unsubscribe = control.onEvent(onEvent);
+      unsubscribeUsage = store.onUsage(budgetsChanged);
+      budgetsChanged();
     },
     stop() {
       unsubscribe?.();
       unsubscribe = null;
+      unsubscribeUsage?.();
+      unsubscribeUsage = null;
+      if (budgetTimer) clearTimeout(budgetTimer);
+      budgetTimer = null;
     },
+    budgetsChanged,
+    evaluateBudgets,
     pushKey: () => secrets().vapid.publicKey,
 
     async testWebhook(id) {
