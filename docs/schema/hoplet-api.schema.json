@@ -576,6 +576,46 @@
     },
     {
       "method": "GET",
+      "path": "/api/usage",
+      "auth": "host",
+      "lane": "bulk",
+      "status": 200,
+      "query": "UsageQuerySchema",
+      "body": null,
+      "response": "UsageResponseSchema"
+    },
+    {
+      "method": "GET",
+      "path": "/api/sessions/:sessionId/usage",
+      "auth": "host",
+      "lane": "bulk",
+      "status": 200,
+      "query": null,
+      "body": null,
+      "response": "SessionUsageSchema"
+    },
+    {
+      "method": "GET",
+      "path": "/api/usage/prices",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": null,
+      "response": "UsagePricesSchema"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/usage/prices",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": "UsagePricesBodySchema",
+      "response": "UsagePricesSchema"
+    },
+    {
+      "method": "GET",
       "path": "/api/notify/push/key",
       "auth": "host",
       "lane": "control",
@@ -893,6 +933,13 @@
       "schema": "QueueVersionQuerySchema",
       "routes": [
         "DELETE /api/sessions/:sessionId/queue/:itemId"
+      ],
+      "reason": "The \"transform\" action cannot be converted to JSON Schema."
+    },
+    {
+      "schema": "UsageQuerySchema",
+      "routes": [
+        "GET /api/usage"
       ],
       "reason": "The \"transform\" action cannot be converted to JSON Schema."
     }
@@ -5342,6 +5389,144 @@
         "sessionId"
       ]
     },
+    "SessionUsageSchema": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "estimated": {
+          "const": true
+        },
+        "complete": {
+          "type": "boolean"
+        },
+        "total": {
+          "type": "object",
+          "properties": {
+            "input": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "output": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "cacheWrite": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "cacheRead": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "messages": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "estimatedCostUsd": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "costComplete": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "input",
+            "output",
+            "cacheWrite",
+            "cacheRead",
+            "messages",
+            "estimatedCostUsd",
+            "costComplete"
+          ]
+        },
+        "models": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "input": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "output": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "cacheWrite": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "cacheRead": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "messages": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "estimatedCostUsd": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "costComplete": {
+                "type": "boolean"
+              },
+              "keys": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "value": {
+                      "type": "string"
+                    },
+                    "label": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "value",
+                    "label"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "input",
+              "output",
+              "cacheWrite",
+              "cacheRead",
+              "messages",
+              "estimatedCostUsd",
+              "costComplete",
+              "keys"
+            ]
+          }
+        }
+      },
+      "required": [
+        "sessionId",
+        "estimated",
+        "complete",
+        "total",
+        "models"
+      ]
+    },
     "SnapshotChangesSchema": {
       "type": "object",
       "properties": {
@@ -5897,6 +6082,295 @@
         "v",
         "type",
         "sessionId"
+      ]
+    },
+    "UsagePricesBodySchema": {
+      "type": "object",
+      "properties": {
+        "overrides": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "input": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1000000
+              },
+              "output": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1000000
+              },
+              "cacheWrite": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1000000
+              },
+              "cacheRead": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1000000
+              }
+            },
+            "required": [
+              "input",
+              "output",
+              "cacheWrite",
+              "cacheRead"
+            ]
+          }
+        }
+      },
+      "required": [
+        "overrides"
+      ]
+    },
+    "UsagePricesSchema": {
+      "type": "object",
+      "properties": {
+        "defaults": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "input": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1000000
+              },
+              "output": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1000000
+              },
+              "cacheWrite": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1000000
+              },
+              "cacheRead": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1000000
+              }
+            },
+            "required": [
+              "input",
+              "output",
+              "cacheWrite",
+              "cacheRead"
+            ]
+          }
+        },
+        "overrides": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "input": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1000000
+              },
+              "output": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1000000
+              },
+              "cacheWrite": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1000000
+              },
+              "cacheRead": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1000000
+              }
+            },
+            "required": [
+              "input",
+              "output",
+              "cacheWrite",
+              "cacheRead"
+            ]
+          }
+        }
+      },
+      "required": [
+        "defaults",
+        "overrides"
+      ]
+    },
+    "UsageResponseSchema": {
+      "type": "object",
+      "properties": {
+        "estimated": {
+          "const": true
+        },
+        "groupBy": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "session",
+              "project",
+              "device",
+              "model",
+              "day"
+            ],
+            "type": "string"
+          }
+        },
+        "backfilling": {
+          "type": "boolean"
+        },
+        "total": {
+          "type": "object",
+          "properties": {
+            "input": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "output": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "cacheWrite": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "cacheRead": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "messages": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "estimatedCostUsd": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "costComplete": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "input",
+            "output",
+            "cacheWrite",
+            "cacheRead",
+            "messages",
+            "estimatedCostUsd",
+            "costComplete"
+          ]
+        },
+        "rows": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "input": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "output": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "cacheWrite": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "cacheRead": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "messages": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "estimatedCostUsd": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "costComplete": {
+                "type": "boolean"
+              },
+              "keys": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "value": {
+                      "type": "string"
+                    },
+                    "label": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "value",
+                    "label"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "input",
+              "output",
+              "cacheWrite",
+              "cacheRead",
+              "messages",
+              "estimatedCostUsd",
+              "costComplete",
+              "keys"
+            ]
+          }
+        },
+        "rowCount": {
+          "type": "number"
+        },
+        "offset": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "estimated",
+        "groupBy",
+        "backfilling",
+        "total",
+        "rows",
+        "rowCount",
+        "offset"
       ]
     },
     "WebhookCreateRequestSchema": {

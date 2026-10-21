@@ -278,6 +278,28 @@ list at its left grows with later sections; the sections are:
 
 Memory is a later section (#18).
 
+### Usage
+
+The core counts the tokens of every assistant message as the lines are appended, and reports them by session,
+project, machine (device), model and day, with an estimated cost (`GET /api/usage`).
+
+- **What is counted**: each provider's own record of a message's usage. Claude: `message.usage` of an assistant
+  line, keyed by `message.id`; a message Claude wrote as several lines counts once, with the largest of each
+  count. Codex: the `token_count` event's last-turn usage, keyed by its running total. Synthetic messages and
+  all-zero usage are skipped. Input, output, cache write and cache read are kept apart; for Codex, cached input is
+  cache read and is not counted again as input. A row is `(session, message)` and is upserted with the larger
+  count, so seeing a message twice never counts it twice.
+- **Consistency**: the rows are written in the transaction that advances the session's cursor, so an append that
+  is undone leaves no usage, and deleting a session removes its rows.
+- **Backfill**: a session that existed before usage was recorded is read once in the background after the core
+  starts, chunk by chunk, yielding to the event loop. It is resumable (a session is marked done only when
+  finished) and agrees with live appends, because both upsert. Responses say `backfilling` meanwhile. Appends and
+  control traffic are never held up by it.
+- **Estimated cost**: computed when asked, from per-million-token prices per model: built-in defaults for the
+  models whose prices are documented, overridden by the host (`PUT /api/usage/prices`). A dated model ID uses the
+  price of its undated ID. A model without a price reports its tokens and a null cost. Every response says it is
+  an estimate. Cache writes are priced at the 5-minute rate. Days are the caller's: a request names its offset from UTC (`utcOffset`, minutes east, UTC by default).
+
 ### Host CLI
 
 `hoplet` (from a repository checkout, `pnpm hoplet`) uses the REST API with the host token: `hoplet sessions`,
@@ -310,6 +332,10 @@ Server, under the data directory (docs/hosting.md#data):
     announced none). `token_hash` is the SHA-256 of the device token.
   - `snapshots(session_id, snapshot_id, created_at, base_commit, origin_url, tree_hash, byte_size, sha256)`: the latest
     workspace snapshot per session.
+  - `usage(session_id, message_id, model, at, input_tokens, output_tokens, cache_write_tokens, cache_read_tokens)`:
+    the tokens of each assistant message (see Usage above), written in the transaction that appends its lines.
+    `usage_prices(model, input, output, cache_write, cache_read)`: the host's price overrides. `sessions` carries
+    `usage_backfilled` and `usage_model` (the model of a Codex session's latest turn).
   - `append_recovery`, `compression_pending`: undo boundaries and pending compression; no session bytes.
 - Chunk files `sessions/<sessionId>/c-<seq>.ndjson`, gzip-compressed to `.ndjson.gz` when full
   (docs/architecture.md#session-chunk-files).

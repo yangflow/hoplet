@@ -17,6 +17,7 @@ import { CHUNK_LINES, chunkPath, type StoreContext, sessionDir, syncDirectory } 
 import { type AppendRecovery, compressPendingAsync, undoAppend } from './recovery.ts';
 import { committedLines, getRow, type SessionRow } from './sessions.ts';
 import { extractMeta } from './title.ts';
+import { extractUsage, upsertUsage } from './usage-lines.ts';
 
 const gunzip = promisify(gunzipCallback);
 
@@ -94,10 +95,10 @@ export function append(ctx: StoreContext, input: AppendInput, rawLines: string[]
   const isNew = !row;
   const now = Date.now();
   // What the lines say: project path and title prefer them, a new session's start time may come from them.
-  const found = extractMeta(
-    row ? (row.provider === 'codex' ? 'codex' : 'claude') : input.provider,
-    lines,
-  );
+  const provider = row ? (row.provider === 'codex' ? 'codex' : 'claude') : input.provider;
+  const found = extractMeta(provider, lines);
+  // What the lines say they used, recorded in the same transaction as the lines themselves.
+  const used = extractUsage(provider, lines, row?.usage_model ?? '', found.createdAt || now);
   if (!row) {
     const createdAt = found.createdAt || now;
     db.prepare(
@@ -183,7 +184,7 @@ export function append(ctx: StoreContext, input: AppendInput, rawLines: string[]
     db.exec('BEGIN IMMEDIATE');
     db.prepare(
       `UPDATE sessions SET project_path=?, title=?, git_branch=?, configuration=?, updated_at=?, line_count=?, byte_size=?,
-       chunk_count=?, cur_chunk_lines=? WHERE session_id=?`,
+       chunk_count=?, cur_chunk_lines=?, usage_model=? WHERE session_id=?`,
     ).run(
       projectPath,
       title,
@@ -194,8 +195,10 @@ export function append(ctx: StoreContext, input: AppendInput, rawLines: string[]
       byteSize,
       chunkCount,
       curLines,
+      used.model,
       input.sessionId,
     );
+    upsertUsage(db, input.sessionId, used.records);
 
     for (let sealed = firstSeq; sealed < chunkCount - 1; sealed++) {
       db.prepare('INSERT OR IGNORE INTO compression_pending VALUES(?, ?)').run(

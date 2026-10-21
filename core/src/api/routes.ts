@@ -50,6 +50,7 @@ import {
   MAX_NOTIFY_PROJECTS,
   MAX_RESOURCE_THRESHOLD_MACHINES,
   MAX_TITLE_OVERRIDE_CHARS,
+  MAX_USAGE_PRICES,
   MAX_WEBHOOKS,
   NewSessionRequestSchema,
   NewSessionResultSchema,
@@ -81,6 +82,7 @@ import {
   SessionPatchRequestSchema,
   SessionPortsResultSchema,
   SessionSearchQuerySchema,
+  SessionUsageSchema,
   SnapshotChangesSchema,
   SnapshotDiffSchema,
   SteerRequestSchema,
@@ -90,6 +92,10 @@ import {
   TerminalInfoSchema,
   TerminalOpenRequestSchema,
   TerminalStateSchema,
+  UsagePricesBodySchema,
+  UsagePricesSchema,
+  UsageQuerySchema,
+  UsageResponseSchema,
   undeclaredConfig,
   WebhookCreateRequestSchema,
   type WebhookInfo,
@@ -1242,6 +1248,49 @@ export const routes: readonly Route[] = [
       }
       store.setResourceThresholds(body);
       return store.resourceThresholds();
+    },
+  }),
+  defineRoute({
+    method: 'GET',
+    path: '/api/usage',
+    auth: 'host',
+    lane: 'bulk',
+    query: UsageQuerySchema,
+    response: UsageResponseSchema,
+    handler: ({ store, query }) => store.usage(query),
+  }),
+  defineRoute({
+    method: 'GET',
+    path: '/api/sessions/:sessionId/usage',
+    auth: 'host',
+    lane: 'bulk',
+    response: SessionUsageSchema,
+    handler: ({ store, params }) => {
+      const usage = store.sessionUsage(params.sessionId ?? '');
+      if (!usage) throw new ApiError('session-not-found');
+      return usage;
+    },
+  }),
+  defineRoute({
+    method: 'GET',
+    path: '/api/usage/prices',
+    auth: 'host',
+    lane: 'control',
+    response: UsagePricesSchema,
+    handler: ({ store }) => store.usagePrices(),
+  }),
+  defineRoute({
+    method: 'PUT',
+    path: '/api/usage/prices',
+    auth: 'host',
+    lane: 'control',
+    bodyLimit: 256 * 1024,
+    body: UsagePricesBodySchema,
+    response: UsagePricesSchema,
+    handler: ({ store, body }) => {
+      if (Object.keys(body.overrides).length > MAX_USAGE_PRICES) throw new ApiError('too-large');
+      store.setUsagePrices(body);
+      return store.usagePrices();
     },
   }),
   defineRoute({

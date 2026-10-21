@@ -126,6 +126,7 @@ export function purgeSession(ctx: StoreContext, sessionId: string): void {
       'append_recovery',
       'compression_pending',
       'session_worktrees',
+      'usage',
     ]) {
       ctx.db.prepare(`DELETE FROM ${table} WHERE session_id = ?`).run(sessionId);
     }

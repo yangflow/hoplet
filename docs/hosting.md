@@ -197,6 +197,13 @@ Pull the new image and restart: `docker compose pull && docker compose up -d`. M
 refuse a `device.hello` whose protocol version differs (the version is 13). Back up the stopped data directory before upgrading;
 downgrading means restoring that backup with the matching binaries.
 
+The first start that runs migration 0021 (token usage) reads every stored session once in the background to
+fill the `usage` table: it reads each session's chunk files sequentially (the IO of reading them once, about the
+size of the stored session bytes) and takes seconds per gigabyte of session data, while the core serves requests
+as usual; `GET /api/usage` says `backfilling` until it ends. If the core stops meanwhile the next start resumes.
+The table adds a few tens of bytes per assistant message to the database (tens of megabytes for hundreds of
+thousands of messages).
+
 ## Uninstall
 
 `docker compose down`, remove the `hoplet-data` volume, and on every development machine stop the agent and

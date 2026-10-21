@@ -89,6 +89,8 @@ describe('REST lanes', () => {
       '/api/sessions/:sessionId/search',
       '/api/sessions/:sessionId/snapshot/changes',
       '/api/sessions/:sessionId/snapshot/diff',
+      '/api/sessions/:sessionId/usage',
+      '/api/usage',
     ]);
     for (const path of [
       '/api/sessions',

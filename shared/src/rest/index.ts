@@ -8,4 +8,5 @@ export * from './resources.ts';
 export * from './runtime.ts';
 export * from './sessions.ts';
 export * from './terminal.ts';
+export * from './usage.ts';
 export * from './workspace.ts';
