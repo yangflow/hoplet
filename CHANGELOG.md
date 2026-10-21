@@ -4,6 +4,25 @@ Each release's notes are made from the titles of the pull requests merged since 
 Commits: `feat` under Added, `fix` under Fixed, `perf` under Performance; `release-please-config.json`).
 Versions follow Semantic Versioning.
 
+## [0.8.0](https://github.com/yangflow/hoplet/compare/v0.7.0...v0.8.0) (2026-10-21)
+
+
+### Added
+
+* **core:** Budgets that alert and can pause new prompts ([#75](https://github.com/yangflow/hoplet/issues/75)) ([#265](https://github.com/yangflow/hoplet/issues/265)) ([254ff58](https://github.com/yangflow/hoplet/commit/254ff58f0793d6d3727e2120e9e06b6c8463d94e))
+* **core:** Let a budget's allowance be withdrawn ([#75](https://github.com/yangflow/hoplet/issues/75)) ([#267](https://github.com/yangflow/hoplet/issues/267)) ([5fb06cc](https://github.com/yangflow/hoplet/commit/5fb06cc5b6c2a6150aaf8132d6028e7226b25b83))
+* **core:** Record token usage per message and report usage and estimated cost ([#75](https://github.com/yangflow/hoplet/issues/75)) ([#200](https://github.com/yangflow/hoplet/issues/200)) ([4056631](https://github.com/yangflow/hoplet/commit/4056631ef903997059be8f48243d9170ef2f560e))
+* **core:** Store machine capabilities and labels reported by the agent ([#70](https://github.com/yangflow/hoplet/issues/70)) ([#195](https://github.com/yangflow/hoplet/issues/195)) ([c97f48c](https://github.com/yangflow/hoplet/commit/c97f48c896cb621b1196727f0f3a113e788ccdbd))
+* **web:** Set budgets and act on a paused budget ([#75](https://github.com/yangflow/hoplet/issues/75)) ([#269](https://github.com/yangflow/hoplet/issues/269)) ([154f396](https://github.com/yangflow/hoplet/commit/154f396927d51bfc598d001b3105a434fb01f7ac))
+* **web:** Show machine capabilities and labels in Settings › Machines ([#70](https://github.com/yangflow/hoplet/issues/70)) ([#198](https://github.com/yangflow/hoplet/issues/198)) ([185a5c7](https://github.com/yangflow/hoplet/commit/185a5c7fe57f371b8592e96aec77a80d7b8c3890))
+* **web:** Show usage and estimated cost in Settings and the session top bar ([#75](https://github.com/yangflow/hoplet/issues/75)) ([#261](https://github.com/yangflow/hoplet/issues/261)) ([3b6d1a5](https://github.com/yangflow/hoplet/commit/3b6d1a54d1b876272c51ea1f256a64b49c9e7b6e))
+
+
+### Fixed
+
+* **deps:** Bump github.com/klauspost/compress from 1.18.0 to 1.18.7 in /agent ([#197](https://github.com/yangflow/hoplet/issues/197)) ([3b0ce4d](https://github.com/yangflow/hoplet/commit/3b0ce4dfceafe7e57eb45506d0e05039d0605218))
+* **web:** Keep the action page's styles off the composer footer ([#266](https://github.com/yangflow/hoplet/issues/266)) ([#268](https://github.com/yangflow/hoplet/issues/268)) ([f931489](https://github.com/yangflow/hoplet/commit/f93148903926eb432b44b879eb9dba0dfa6fee07))
+
 ## [0.7.0](https://github.com/yangflow/hoplet/compare/v0.6.0...v0.7.0) (2026-10-20)
 
 
