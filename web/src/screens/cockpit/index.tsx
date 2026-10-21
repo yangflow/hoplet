@@ -7,6 +7,7 @@ import type {
   SessionPatchRequest,
   SessionRuntimeInfo,
   SessionUsage,
+  Template,
 } from '@hoplet/shared';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { NotifyHintGate } from '../../components/NotifyHint.tsx';
@@ -27,7 +28,7 @@ import {
 import { ArchivedPage, archivedCount, withSessions } from './archived.tsx';
 import { Conversation, type ConversationFixture } from './conversation/conversation.tsx';
 import { DeleteDialog, type DeleteFixture } from './delete-dialog.tsx';
-import { Draft, type DraftFixture, type DraftWhere } from './draft.tsx';
+import { Draft, type DraftEntry, type DraftFixture, type DraftWhere } from './draft.tsx';
 import { buildTree, isArchived, sessionTargets } from './group.ts';
 import type { NewSessionRequest, RuntimeState, TemplateStart } from './model.ts';
 import { Palette } from './palette.tsx';
@@ -37,6 +38,7 @@ import { AddProject, type AddProjectFixture } from './sidebar/add-project.tsx';
 import { Sidebar } from './sidebar/sidebar.tsx';
 import type { MachineViews } from './sidebar/sidebar-view.ts';
 import { useWatchedProjects } from './sidebar/use-watched-projects.ts';
+import { type TemplateEntryFixture, useTemplateEntry } from './template-entry.tsx';
 import { EmptyState, TopBar } from './topbar.tsx';
 import type { SearchState } from './use-search.ts';
 import '../../components/components.css';
@@ -82,6 +84,8 @@ export type CockpitFixture = {
   now?: number;
   /** The session's usage chip: its data and whether the popover starts open. */
   usage?: { data: SessionUsage; open?: boolean; budgets?: readonly Budget[] };
+  /** The templates of the sidebar menu, the palette and the save dialog, and which of those start open. */
+  templates?: TemplateEntryFixture;
 };
 
 export function Cockpit(props: {
@@ -137,6 +141,8 @@ export function Cockpit(props: {
   const [inspectorOpen, setInspectorOpen] = useState(fixture?.inspectorOpen ?? false);
   const [aroundLine, setAroundLine] = useState<number | null>(fixture?.aroundLine ?? null);
   const [archivedOpen, setArchivedOpen] = useState(fixture?.archived ?? false);
+  // A template for the draft to take up: its text, its place, and the values its fields already have.
+  const [draftEntry, setDraftEntry] = useState<DraftEntry | null>(null);
   const [renaming, setRenaming] = useState<LiveSessionMeta | null>(null);
   // The session being deleted, and the one to open when it was the open one.
   const [deleting, setDeleting] = useState<{
@@ -208,14 +214,17 @@ export function Cockpit(props: {
   }, [sessions, runtimeOf]);
 
   /** What a session's driver can do: as its process reported, else as its machine announced. */
-  const capabilitiesOf = (s: LiveSessionMeta): RuntimeCapabilities | undefined =>
-    runtimeOf(s).capabilities ??
-    devices
-      .find((d) => d.deviceId === s.ownerDeviceId)
-      ?.providers.find(
-        (p) =>
-          p.provider === s.provider && p.configuration.id === (s.configuration?.id ?? s.provider),
-      )?.capabilities;
+  const capabilitiesOf = useCallback(
+    (s: LiveSessionMeta): RuntimeCapabilities | undefined =>
+      runtimeOf(s).capabilities ??
+      devices
+        .find((d) => d.deviceId === s.ownerDeviceId)
+        ?.providers.find(
+          (p) =>
+            p.provider === s.provider && p.configuration.id === (s.configuration?.id ?? s.provider),
+        )?.capabilities,
+    [runtimeOf, devices],
+  );
 
   const { watched, remember } = useWatchedProjects(devices, !fixture);
   // Archived sessions stay in the store and keep syncing; the sidebar and the palette list only the others.
@@ -291,9 +300,40 @@ export function Cockpit(props: {
     },
     [visible],
   );
+  const openDraftWith = useCallback(
+    (template: Template, values?: Record<string, string>) => {
+      setArchivedOpen(false);
+      setAddFor(null);
+      setPaletteOpen(false);
+      setDraft(session ? { deviceName: session.deviceName, path: session.projectPath } : {});
+      setDraftEntry(values ? { template, values } : { template });
+    },
+    [session],
+  );
+  const entry = useTemplateEntry({
+    targets,
+    devices,
+    fixture: fixture?.templates,
+    session,
+    capabilities: session ? capabilitiesOf(session) : undefined,
+    startTemplate: props.onStartTemplate,
+    openDraft: openDraftWith,
+    onStarted: () => {
+      setDraft(null);
+      setArchivedOpen(false);
+      setPaletteOpen(false);
+    },
+    say,
+  });
   const actions: SessionActions = useMemo(
-    () => ({ patch, rename: setRenaming, remove: askDelete, say }),
-    [patch, askDelete, say],
+    () => ({
+      patch,
+      rename: setRenaming,
+      remove: askDelete,
+      saveTemplate: (s) => entry.saveAs(s, capabilitiesOf(s)),
+      say,
+    }),
+    [patch, askDelete, say, entry.saveAs, capabilitiesOf],
   );
 
   function pickSession(id: string) {
@@ -425,6 +465,12 @@ export function Cockpit(props: {
           archivedCount={archived}
           archivedOpen={archivedOpen}
           menuFor={(s) => sessionMenu(s, actions)}
+          templates={{
+            choices: entry.choices,
+            onPick: entry.choose,
+            onManage: () => props.onManageTemplates?.(),
+            ...(fixture?.templates?.menu ? { open: true } : {}),
+          }}
           onArchived={() => {
             setDraft(null);
             setArchivedOpen(true);
@@ -480,6 +526,8 @@ export function Cockpit(props: {
                 targets={targets}
                 where={draft}
                 onWhere={setDraft}
+                entry={draftEntry}
+                onEntryUsed={() => setDraftEntry(null)}
                 loadDirectories={!fixture}
                 dirsVersion={dirsVersion}
                 voiceAvailable={fixture?.voiceAvailable ?? false}
@@ -581,8 +629,14 @@ export function Cockpit(props: {
           onSelectHit={pickHit}
           onNewSession={() => openNewSession()}
           onSettings={openSettings}
+          templates={entry.choices}
+          onTemplate={entry.choose}
+          {...(session && !draft && !archivedOpen
+            ? { onSaveTemplate: () => entry.saveAs(session, capabilitiesOf(session)) }
+            : {})}
         />
       ) : null}
+      {entry.dialogs}
       {addFor && addTarget ? (
         <AddProject
           machines={groups.map((g) => ({

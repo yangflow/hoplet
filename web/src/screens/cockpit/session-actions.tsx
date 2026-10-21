@@ -20,11 +20,13 @@ export type SessionActions = {
   rename: (session: LiveSessionMeta) => void;
   /** Opens the delete dialog (ADR 0023). */
   remove: (session: LiveSessionMeta) => void;
+  /** Opens the save dialog, prefilled from the session's first prompt and options. */
+  saveTemplate: (session: LiveSessionMeta) => void;
   /** Says what happened: a copy was made, or it could not be. */
   say: (text: string, failed?: boolean) => void;
 };
 
-/** The session actions menu: Rename and Pin | Copy and Open in new window | Archive | Delete. */
+/** The session actions menu: Rename and Pin | Copy, Open in new window and Save as template | Archive | Delete. */
 export function sessionMenu(session: LiveSessionMeta, actions: SessionActions): MenuEntry[] {
   const id = session.sessionId;
   const pinned = isPinned(session);
@@ -94,6 +96,13 @@ export function sessionMenu(session: LiveSessionMeta, actions: SessionActions): 
       onSelect: () => {
         window.open(sessionLink(id), '_blank', 'noopener,width=1280,height=860');
       },
+    },
+    {
+      kind: 'item',
+      id: 'save-template',
+      label: t('Save as template…'),
+      icon: Icon.template(),
+      onSelect: () => actions.saveTemplate(session),
     },
     { kind: 'separator', id: 'sep-2' },
     {

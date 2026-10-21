@@ -114,6 +114,7 @@ describe('sessionMenu', () => {
       rename: vi.fn(),
       remove: vi.fn(),
       say: vi.fn(),
+      saveTemplate: vi.fn(),
     }) satisfies SessionActions;
   const find = (entries: MenuEntry[], id: string) => {
     for (const e of entries) {
@@ -139,11 +140,19 @@ describe('sessionMenu', () => {
       'sep-1',
       'copy',
       'open',
+      'save-template',
       'sep-2',
       'archive',
       'sep-3',
       'delete',
     ]);
+  });
+
+  it('saves the session as a template', async () => {
+    const a = actions();
+    const s = meta('a');
+    await run(sessionMenu(s, a), 'save-template');
+    expect(a.saveTemplate).toHaveBeenCalledWith(s);
   });
 
   it('ends with a danger Delete entry that asks to remove the session', async () => {

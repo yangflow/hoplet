@@ -1066,5 +1066,13 @@
   "Fill in {names}.": "请填写 {names}。",
   "The project is not on the machine.": "该项目不在这台机器上。",
   "The machine does not offer an option of this template.": "这台机器不提供此模板的某个选项。",
-  "The prompt is longer than a prompt may be.": "提示超过了长度上限。"
+  "The prompt is longer than a prompt may be.": "提示超过了长度上限。",
+  "New session from a template": "从模板新建会话",
+  "Blank session": "空白会话",
+  "Save as template…": "存为模板…",
+  "Save the current session as a template…": "将当前会话存为模板…",
+  "to start": "开始",
+  "Starts at once": "直接开始",
+  "Template saved": "模板已保存",
+  "Could not read the first prompt": "无法读取第一条提示"
 }

@@ -1,4 +1,4 @@
-import type { LiveSessionMeta } from '@hoplet/shared';
+import type { LiveSessionMeta, Template } from '@hoplet/shared';
 import {
   type KeyboardEvent,
   type MouseEvent,
@@ -20,8 +20,10 @@ import { t } from '../../../lib/i18n.ts';
 import { machineLabel, systemOf } from '../../../lib/system.ts';
 import { type DeviceGroup, displayTitle } from '../group.ts';
 import type { RuntimeState } from '../model.ts';
+import type { EntryChoice } from '../template-entry.tsx';
 import { DEVICE_ROW, dirKey, useFoldedDirs } from './folded-dirs.ts';
 import { MachineMenu } from './machine-menu.tsx';
+import { NewMenu } from './new-menu.tsx';
 import { compactRel } from './rel.ts';
 import {
   flatList,
@@ -225,6 +227,14 @@ export function Sidebar(props: {
   /** The actions of a session, for its row's context menu. */
   menuFor?: (session: LiveSessionMeta) => MenuEntry[];
   onArchived?: () => void;
+  /** The chevron beside New session: the templates to start from. */
+  templates?: {
+    choices: readonly EntryChoice[];
+    onPick: (template: Template) => void;
+    onManage: () => void;
+    /** Starts open (development fixtures). */
+    open?: boolean;
+  };
   onSelect: (id: string) => void;
   onNewSession: (target?: { deviceName: string; path: string }) => void;
   onAddProject: (deviceName: string) => void;
@@ -463,6 +473,15 @@ export function Sidebar(props: {
             onClick={() => props.onNewSession()}
             data-testid="cockpit.new-session"
           />
+          {props.templates ? (
+            <NewMenu
+              choices={props.templates.choices}
+              onBlank={() => props.onNewSession()}
+              onPick={props.templates.onPick}
+              onManage={props.templates.onManage}
+              initialOpen={props.templates.open ?? false}
+            />
+          ) : null}
           <IconButton
             label={t('Hide sidebar')}
             hint="⌘\"

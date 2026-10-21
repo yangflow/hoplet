@@ -732,7 +732,7 @@ except after a refusal, which can be retried.
 
 ### Session templates
 
-The core API, the web Settings › Templates screen and the composer of a draft (the picker, the start form, the warning and Save as template) are built (#76); the sidebar menu, the palette and Save as template in the session actions menu are planned, and the screens are in `design/screens/templates.html`. A template saves what a user types at the start of a session again and again, so that one click starts it.
+The core API, the web Settings › Templates screen, the composer of a draft (the picker, the start form, the warning and Save as template), the sidebar menu, the palette and Save as template in the session actions menu are built (#76), and the screens are in `design/screens/templates.html`. A template saves what a user types at the start of a session again and again, so that one click starts it.
 
 **Fields.** A template has an `id`, a `name` (1 to 80 characters, unique), and the parts of a new session request
 as they are today: `text` (the prompt, with placeholders, at most 8,000 characters), `deviceId` (the machine),
@@ -766,10 +766,14 @@ backslash. The prompt after filling is checked against the 8,000-character limit
   editable text with the placeholders marked, and has a switch for each group of fields to leave out. An existing
   session has Save as template in its actions menu: the first prompt, the machine, the directory and the options
   the session started with.
-- One click starts: the sidebar's New session button has a menu of templates beside Blank session, and the command
-  palette lists Start from template entries. A template without placeholders starts at once; one with placeholders
-  opens the small form first: one field per placeholder, the prompt that will be sent with the values marked, and
-  where it runs; its primary button starts the session. Both use the same start as below.
+- One click starts: a chevron beside the sidebar's New session button opens a menu with Blank session, the templates
+  (each with where it runs and how many fields it asks for) and Manage templates, and the command palette lists
+  Start from a template entries and the action Save the current session as a template. A template without
+  placeholders starts at once when it names a machine and a directory that can run it; one with placeholders opens
+  the small form first: one field per placeholder, the prompt that will be sent with the values marked, and where
+  it runs; its primary button starts the session. A template that names no machine or directory, or whose machine
+  or directory cannot honour it, opens a draft with the template applied, where those are chosen. All use the same
+  start as below.
 - Settings has Templates: a list with name, where it runs and its placeholders; edit, duplicate, delete, import and
   export.
 - Schedules (#20), events (#20) and the CLI (#71, `hoplet session start --template <name> --set key=value`) start a

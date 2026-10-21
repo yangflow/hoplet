@@ -34,6 +34,11 @@ const subject: Record<string, Record<string, string>> = {
     'template-applied': 'cockpit.template-bar',
     'template-mismatch': 'cockpit.template-warning',
     'template-save': 'cockpit.template-save-dialog',
+    'new-menu': 'cockpit.new-popover',
+    palette: 'cockpit.palette',
+    'palette-fill': 'cockpit.template-fill',
+    'save-menu': 'cockpit.actions-menu',
+    'save-session': 'cockpit.template-save-dialog',
     'draft-configuration': 'cockpit.configuration-menu',
     'session-configuration': 'cockpit.configuration-tag',
     machines: 'cockpit.device-toggle',
@@ -238,7 +243,7 @@ const subject: Record<string, Record<string, string>> = {
 };
 
 test('the registries list 96 cockpit, 56 workspace, 54 settings and 7 action states', () => {
-  expect(screens.cockpit).toHaveLength(96);
+  expect(screens.cockpit).toHaveLength(101);
   expect(screens.workspace).toHaveLength(56);
   expect(screens.settings).toHaveLength(54);
   expect(screens.action).toHaveLength(7);
