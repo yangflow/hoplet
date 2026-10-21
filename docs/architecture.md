@@ -66,6 +66,7 @@ Claude Code               the session file (writer) and the running process
 | terminal, ports | agent | The PTY of an opened terminal (process group, limits, credit window, cleanup journal), and the scan for listening TCP ports of processes started from a session's directory | runtime, locate | `agent/internal/terminal/`, `agent/internal/ports/` |
 | workspace | agent | Working-tree listing and rooted reads, snapshots, clone resolution, worktree installation, verification | provider, locate | `agent/internal/workspace/` |
 | projects, sessions | agent | `projects.json` and its CLI | provider | `agent/internal/projects/`, `agent/internal/sessions/` |
+| rules | agent | the permission decision for a tool call: rule model, shell parsing, path and domain matching, precedence, built-in defaults, the compiled-in floor, mappers from provider hook input ([ADR 0029](adr/0029-permission-rules-match-on-the-agent-and-deny-wins.md)) | none (standard library only) | `agent/internal/rules/` |
 | daemon | agent | Wiring, scan loop, recovery of interrupted installation before connecting | all agent packages | `agent/internal/daemon/` |
 
 ## Boundaries

@@ -31,7 +31,7 @@ Documents win over code: if they disagree, fix the document first and say so in 
 core/      the server: one module per directory under core/src/ (config, log, migrations, store, ingest, control, api)
 shared/    schemas, types and error codes of the REST API and both WebSockets: the only contract between the parts
 web/       the web UI: screens/, components/, lib/, design tokens, i18n
-agent/     the Go daemon: cmd/hoplet-agent + internal/{config,provider,projects,sessions,locate,daemon,sync,runtime,workspace}
+agent/     the Go daemon: cmd/hoplet-agent + internal/{config,provider,projects,sessions,locate,daemon,sync,runtime,workspace,rules}
 image/     the Dockerfile and the compose file
 scripts/   repository checks, fixtures, benchmarks, smoke test, host CLI `hoplet`, and their tests
 docs/      spec, architecture, API, hosting, threat model, design language, testing, roadmap, ADRs, benchmarks
