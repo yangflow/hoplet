@@ -132,6 +132,7 @@ describe('applying', () => {
 describe('sections', () => {
   it('falls back to the first section', () => {
     expect(sectionOf('machines')).toBe('machines');
+    expect(sectionOf('templates')).toBe('templates');
     expect(sectionOf('nope')).toBe('appearance');
     expect(sectionOf(null)).toBe('appearance');
   });

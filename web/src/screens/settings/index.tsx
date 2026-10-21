@@ -11,6 +11,7 @@ import { AppearanceSection } from './appearance.tsx';
 import { type MachinesFixture, MachinesSection } from './machines.tsx';
 import { NotificationsSection, type NotifyFixture } from './notifications.tsx';
 import { type ProvidersFixture, ProvidersSection } from './providers.tsx';
+import { type TemplatesFixture, TemplatesSection } from './templates.tsx';
 import { type UsageFixture, UsageSection } from './usage.tsx';
 
 /**
@@ -23,6 +24,7 @@ export const SECTIONS = [
   { id: 'providers', label: 'Model providers', icon: () => Icon.plug() },
   { id: 'notifications', label: 'Notifications', icon: () => Icon.bell() },
   { id: 'usage', label: 'Usage', icon: () => Icon.activity() },
+  { id: 'templates', label: 'Templates', icon: () => Icon.template() },
 ] as const;
 
 export type SectionId = (typeof SECTIONS)[number]['id'];
@@ -40,6 +42,7 @@ function Page(props: {
   notify: NotifyFixture | undefined;
   providers: ProvidersFixture | undefined;
   usage: UsageFixture | undefined;
+  templates: TemplatesFixture | undefined;
   sessions: readonly LiveSessionMeta[];
   runtime: Record<string, SessionRuntimeInfo> | undefined;
   machine: string | undefined;
@@ -80,6 +83,8 @@ function Page(props: {
           sessions={props.sessions}
         />
       );
+    case 'templates':
+      return <TemplatesSection fixture={props.templates} />;
   }
 }
 
@@ -94,6 +99,7 @@ export function Settings(props: {
   notify?: NotifyFixture;
   providers?: ProvidersFixture;
   usage?: UsageFixture;
+  templates?: TemplatesFixture;
   sessions?: readonly LiveSessionMeta[];
   /** The runtime state of each session, for the state glyph of a session row. */
   runtime?: Record<string, SessionRuntimeInfo>;
@@ -153,6 +159,7 @@ export function Settings(props: {
                 notify={props.notify}
                 providers={props.providers}
                 usage={props.usage}
+                templates={props.templates}
                 sessions={props.sessions ?? []}
                 runtime={props.runtime}
                 machine={props.machine}

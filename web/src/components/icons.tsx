@@ -17,6 +17,7 @@ import {
   Contrast,
   Copy,
   CornerDownRight,
+  Download,
   Ellipsis,
   Eye,
   File,
@@ -32,6 +33,7 @@ import {
   Info,
   Laptop,
   Layers,
+  LayoutTemplate,
   Lightbulb,
   ListChecks,
   LoaderCircle,
@@ -61,6 +63,7 @@ import {
   Terminal,
   TextWrap,
   Trash2,
+  Upload,
   Webhook,
   X,
   Zap,
@@ -147,6 +150,9 @@ export const Icon = {
   steer: draw(ArrowRightToLine),
   play: draw(Play),
   pause: draw(Pause),
+  template: draw(LayoutTemplate),
+  upload: draw(Upload),
+  download: draw(Download),
 };
 
 /** The shared icon vocabulary of config values (`CONFIG_ICONS`) mapped to this client's glyphs. */

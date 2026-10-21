@@ -1,6 +1,10 @@
+import type { ReactNode } from 'react';
+
 /** A labelled on/off switch. */
 export function Switch(props: {
   label: string;
+  /** A glyph drawn before the label. */
+  icon?: ReactNode;
   checked: boolean;
   onChange: (checked: boolean) => void;
   disabled?: boolean;
@@ -8,7 +12,7 @@ export function Switch(props: {
   hideLabel?: boolean;
   'data-testid'?: string;
 }) {
-  const { label, checked, onChange, disabled, hideLabel, ...rest } = props;
+  const { label, icon, checked, onChange, disabled, hideLabel, ...rest } = props;
   return (
     <button
       type="button"
@@ -20,7 +24,16 @@ export function Switch(props: {
       {...rest}
     >
       <span className="switch" aria-hidden="true" />
-      {hideLabel ? <span className="sr-only">{label}</span> : label}
+      {hideLabel ? (
+        <span className="sr-only">{label}</span>
+      ) : icon ? (
+        <span className="switch-label">
+          {icon}
+          {label}
+        </span>
+      ) : (
+        label
+      )}
     </button>
   );
 }

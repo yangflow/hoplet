@@ -52,6 +52,12 @@ import {
   SnapshotDiffSchema,
   SteerResultSchema,
   safeParse,
+  type TemplateBody,
+  TemplateFileSchema,
+  type TemplateImportRequest,
+  TemplateImportResultSchema,
+  TemplateListResponseSchema,
+  TemplateSchema,
   TerminalCloseResultSchema,
   TerminalInfoSchema,
   TerminalStateSchema,
@@ -704,4 +710,38 @@ export function deleteBudgetAllow(id: string) {
     undefined,
     'DELETE',
   );
+}
+
+/** The session templates of the host (docs/api.md#session-templates). */
+export function fetchTemplates(signal?: AbortSignal) {
+  return call('/api/templates', TemplateListResponseSchema, undefined, signal);
+}
+
+export function postTemplate(body: TemplateBody) {
+  return call('/api/templates', TemplateSchema, body);
+}
+
+export function putTemplate(id: string, body: TemplateBody) {
+  return call(`/api/templates/${encodeURIComponent(id)}`, TemplateSchema, body, undefined, 'PUT');
+}
+
+/** Removes a template; the answer is the list that remains. */
+export function deleteTemplate(id: string) {
+  return call(
+    `/api/templates/${encodeURIComponent(id)}`,
+    TemplateListResponseSchema,
+    undefined,
+    undefined,
+    'DELETE',
+  );
+}
+
+/** Every template as an export file, machines by name. */
+export function fetchTemplateExport() {
+  return call('/api/templates/export', TemplateFileSchema);
+}
+
+/** Imports a file, or with `dryRun` says what would be added. */
+export function postTemplateImport(request: TemplateImportRequest) {
+  return call('/api/templates/import', TemplateImportResultSchema, request);
 }
