@@ -340,6 +340,44 @@ A budget caps what a scope spends in a period and tells the user before and at t
   running turn and a handoff are not refused. The user lifts a pause until the period ends with
   `POST /api/budgets/:id/allow`; a lift is kept across restarts and ends with the period.
 
+### Permission rules
+
+Planned (#98, proposed in [ADR 0029](adr/0029-permission-rules-match-on-the-agent-and-deny-wins.md); the routes
+join docs/api.md with the code). Rules let a session run without someone answering every tool call: routine calls
+are allowed, dangerous ones asked about or denied.
+
+- **A rule** names a tool kind (`run`, `read`, `write`, `fetch`, `mcp:<server>/<tool>` or all), what it matches, an
+  action (`allow`, `ask` or `deny`) and a scope: everything (`global`), one project path on one machine, or one
+  session. A command matches by a prefix of words with `*` inside a word, optionally with arguments that must
+  appear and a pipe it must feed; a path by an absolute glob (`**`, `~`, `{workspace}`) on whole path segments; a
+  web address by its exact host or `*.example.com`. There is no regular expression.
+- **Precedence**: a `deny` at any scope wins and cannot be overridden; otherwise the narrowest scope that has a
+  matching `ask` or `allow` decides, and in one scope `ask` beats `allow`. With no match the session's permission
+  mode decides, as without rules. `ask` and `deny` hold in every mode, Bypass permissions included, where the
+  provider lets Hoplet see every call; where it does not, the session says that rules cover only the requests the
+  mode lets through.
+- **Commands with shell control** (`;`, `&&`, `|`, a subshell, a redirection, a newline, text that does not
+  parse) are never allowed by a rule; `deny` and `ask` rules apply to each command inside them. A rule on a command
+  is a guard against mistakes, not a sandbox.
+- **Built-in rules** are global rules listed first in Settings: deny reading or writing `.env` files, credential
+  stores (`~/.ssh`, `~/.aws` and similar), the Hoplet home and provider settings, and writing outside the
+  workspace; ask before a force push, `git reset --hard`, `git clean`, recursive `rm`, `sudo` and a download piped
+  into a shell. They cannot be deleted or edited. Turning one off asks a second time and names the rule.
+- **Where they act**: the core stores the rules and sends each machine the ones that apply to it; the machine's
+  agent decides before the request reaches the user, so rules hold while the machine is disconnected and after the
+  agent restarts. A handoff takes the session's rules with it; the dialog offers to copy the source project's rules
+  to the target's. A child session obeys its parent's `deny` and `ask` rules and gets none of its `allow` rules.
+  Sessions cannot create or change rules or permission modes, through Hoplet's own MCP tools or otherwise.
+- **Agent-local deny rules** are written by the operator in the agent's configuration (`permission_deny`) and by the
+  agent's compiled-in floor (the Hoplet home, the provider settings and hook files). Settings shows them read-only;
+  no rule from the core overrides them.
+- **On the permission card**, Always allow and Always deny open a draft rule from the request, which the user edits
+  and scopes to the session or the project before saving. A call with shell control or a plan exit has no draft.
+- **In the conversation** a call decided by a rule shows the rule and its scope ("Allowed by rule ..."), and a card
+  raised by an `ask` rule names the rule. Decisions are stored with the session's ID and tool use ID in the core,
+  never the command or path. Rule changes and decisions go to the core log with IDs only now; the audit log (#80)
+  will carry them.
+
 ### Host CLI
 
 `hoplet` (from a repository checkout, `pnpm hoplet`) uses the REST API with the host token: `hoplet sessions`,
@@ -532,7 +570,8 @@ does the same within one session. Search runs as background work and never delay
    and input. `POST /api/sessions/:id/permission` with `{ requestId, decision: "allow" | "deny" }` answers it; the
    first answer wins. A request without an answer for 10 minutes is denied; a plan to review (ADR 0019) is not and
    stays open. A denied tool call returns an
-   error to Claude Code and the turn continues.
+   error to Claude Code and the turn continues. A call that a permission rule decides never becomes a request
+   (see Permission rules).
 5. `POST /api/sessions/:id/interrupt` ends the turn and keeps the process (`ready`);
    `POST /api/sessions/:id/stop` ends the process (`idle`).
 6. Claude Code writes the turn to the session file; sync appends it as usual, and the live view replaces the
