@@ -1,8 +1,8 @@
 # 0029 Permission rules match on the agent and deny wins
 
-- Status: proposed
+- Status: accepted
 - Date: 2026-10-21
-- Related: ADR 0002, ADR 0008, ADR 0009, ADR 0012, ADR 0019, ADR 0021, ADR 0026, ADR 0027, ADR 0028, docs/architecture.md#wire-protocol, docs/threat-model.md, docs/spec.md#permission-rules, issues #9, #67, #80, #81, #95, #98
+- Related: ADR 0002, ADR 0008, ADR 0009, ADR 0012, ADR 0019, ADR 0021, ADR 0026, ADR 0027, ADR 0028, docs/architecture.md#wire-protocol, docs/threat-model.md, docs/spec.md#permission-rules, ADR 0030, issues #9, #67, #80, #81, #95, #98
 
 ## Context
 
@@ -170,11 +170,10 @@ agent does not know. The core never writes this list.
 **Auto decisions are marked, stored and logged.** When a rule decides, the conversation shows a line at the call:
 "Allowed by rule *note*" or "Denied by rule *note*", with the rule and its scope, and an `ask` card says which rule
 asked. The agent reports `runtime.permission.auto` (`sessionId`, `toolUseId`, `decision`, `ruleId`, `scope`,
-`revision`) and the core stores it in a table of its own, `permission_decisions`, keyed by session and tool use ID,
-which the conversation joins; the session file is not touched (ADR 0002). A user's answer is recorded in the same
-table with the rule ID empty. Neither the table nor the log keeps the command, path or URL, which the session
-already holds. Until the audit log (#80) exists, rule changes (who, rule ID, before and after) and decisions are
-written to the core log with IDs and codes only; #80 will index both. A decision made while the core was unreachable
+`revision`) and the core records it in the audit log (ADR 0030) as a `permission.auto` record, keyed by session and
+tool use ID, which the conversation joins; a user's answer is a `permission.answered` record, and a rule change a
+`config.changed` record. The session file is not touched (ADR 0002), and no record keeps more of the command, path
+or URL than the audit log's scrubbed summary. A decision made while the core was unreachable
 is sent when the agent reconnects.
 
 **"Always allow" and "Always deny" on the card draft a rule.** The card offers them next to Allow and Deny. They
@@ -221,5 +220,4 @@ set faster than they read it; the draft, the narrow default and the scope choice
 
 Allowing pure pipelines (`ls | head`) by checking each stage; a domain rule for commands such as `curl`; rules
 on tool arguments of MCP tools; a provider whose hook does not fire in a permissive mode, or one that offers a
-better hook than the test found; user-level rule files shared between machines; the audit log of #80 landing
-(decisions move into it); a sandbox on the agent that makes command rules unnecessary for the harm they guard.
+better hook than the test found; user-level rule files shared between machines; a sandbox on the agent that makes command rules unnecessary for the harm they guard.

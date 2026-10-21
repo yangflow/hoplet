@@ -374,9 +374,8 @@ are allowed, dangerous ones asked about or denied.
 - **On the permission card**, Always allow and Always deny open a draft rule from the request, which the user edits
   and scopes to the session or the project before saving. A call with shell control or a plan exit has no draft.
 - **In the conversation** a call decided by a rule shows the rule and its scope ("Allowed by rule ..."), and a card
-  raised by an `ask` rule names the rule. Decisions are stored with the session's ID and tool use ID in the core,
-  never the command or path. Rule changes and decisions go to the core log with IDs only now; the audit log (#80)
-  will carry them.
+  raised by an `ask` rule names the rule. Decisions and rule changes are records in the audit log (ADR 0030),
+  keyed by the session's ID and tool use ID.
 
 ### Host CLI
 
