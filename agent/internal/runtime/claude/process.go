@@ -16,6 +16,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/yangflow/hoplet/agent/internal/rules"
 	"github.com/yangflow/hoplet/agent/internal/runtime"
 )
 
@@ -56,12 +57,17 @@ type process struct {
 	// model is the model the driver is configured with; `default` switches to it rather than to Claude Code's
 	// own default, as a start without --model does.
 	model string
+	// dir is the session's working directory, which is also the workspace the rules see; engine decides the
+	// PreToolUse hook callbacks (nil: no hook is registered).
+	dir    string
+	engine *rules.Engine
 
 	mu      sync.Mutex
 	rawCmds []rawCommand                 // the latest commands Claude Code reported
 	skills  map[string]bool              // the names the init message lists as skills
 	pending map[string]pendingRequest    // permission requests by request id, with the input to echo on allow
 	seen    map[string]bool              // tool_use ids already reported in this turn
+	mode    string                       // the permission mode the process runs in, from the agent's own state
 	initErr error                        // the vendor refused initialization
 	waiting map[string]chan controlReply // control requests Set waits for, by request id
 	done    chan struct{}                // closed when the output ended, which ends every wait
@@ -316,10 +322,13 @@ type message struct {
 	} `json:"message"`
 
 	Request struct {
-		Subtype   string          `json:"subtype"`
-		ToolName  string          `json:"tool_name"`
-		ToolUseID string          `json:"tool_use_id"`
-		Input     json.RawMessage `json:"input"`
+		Subtype   string `json:"subtype"`
+		ToolName  string `json:"tool_name"`
+		ToolUseID string `json:"tool_use_id"`
+		// Input is the tool input of can_use_tool and the hook input of a hook_callback; CallbackID names the
+		// callback of the latter.
+		Input      json.RawMessage `json:"input"`
+		CallbackID string          `json:"callback_id"`
 	} `json:"request"`
 
 	Response struct {
@@ -459,6 +468,9 @@ func (p *process) handleSystem(m *message) {
 			if mode == "manual" {
 				mode = modeDefault
 			}
+			p.mu.Lock()
+			p.mode = mode
+			p.mu.Unlock()
 			p.emit(runtime.ConfigChanged{ID: optMode, Value: mode})
 		}
 	case "session_state_changed":
@@ -524,7 +536,16 @@ func (p *process) handleControlRequest(m *message) {
 		})
 		return
 	}
-	// Claude Code waits for an answer to every request it sends; a kind Hoplet does not handle gets an error.
+	if m.Request.Subtype == "hook_callback" {
+		p.handleHook(m)
+		return
+	}
+	p.unsupported(m)
+}
+
+// unsupported answers a request of a kind Hoplet does not handle: Claude Code waits for an answer to every
+// request it sends.
+func (p *process) unsupported(m *message) {
 	_ = p.send(map[string]any{
 		"type": "control_response",
 		"response": map[string]any{

@@ -14,6 +14,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/yangflow/hoplet/agent/internal/rules"
 	"github.com/yangflow/hoplet/agent/internal/runtime"
 )
 
@@ -29,6 +30,12 @@ type Options struct {
 	// Defaults replace the defaults of a new session's options, by option ID; a value the option does not
 	// declare is ignored.
 	Defaults map[string]any
+	// Rules builds the permission rules that decide each tool call in the PreToolUse hook (ADR 0029); nil
+	// means the built-in defaults and the floor for the machine of Home and HopletHome.
+	Rules RuleSource
+	// Home and HopletHome are the user's home and the agent's state directory, which the rules' paths name
+	// (`~`, `{hoplet_home}`); Home empty means the user's home directory.
+	Home, HopletHome string
 }
 
 // Driver starts Claude Code processes.
@@ -37,6 +44,7 @@ type Driver struct {
 	model    string
 	env      []string
 	defaults map[string]any
+	rules    RuleSource
 
 	mu          sync.Mutex
 	versionSeen bool
@@ -49,7 +57,15 @@ func New(opts Options) *Driver {
 	if bin == "" {
 		bin = "claude"
 	}
-	return &Driver{bin: bin, model: opts.Model, env: opts.Env, defaults: opts.Defaults}
+	src := opts.Rules
+	if src == nil {
+		home := opts.Home
+		if home == "" {
+			home, _ = os.UserHomeDir()
+		}
+		src = DefaultRules(rules.NewEnv(home, opts.HopletHome))
+	}
+	return &Driver{bin: bin, model: opts.Model, env: opts.Env, defaults: opts.Defaults, rules: src}
 }
 
 func (d *Driver) Name() string { return "claude" }
@@ -67,6 +83,7 @@ const (
 	modelDefault = "default"
 	modeDefault  = "default"
 	modeBypass   = "bypassPermissions"
+	modePlan     = "plan"
 )
 
 // Config declares the permission mode, the model, Thinking and Fast, in that order. The models are the aliases `claude --help`
@@ -187,10 +204,20 @@ func (d *Driver) Start(ctx context.Context, spec runtime.StartSpec) (runtime.Pro
 	if err := d.checkVersion(ctx); err != nil {
 		return nil, err
 	}
+	// Without an engine no hook would be registered and the rules would silently not hold, so a rule set that
+	// cannot be built ends the start.
+	engine, err := d.rules()
+	if err != nil {
+		return nil, fmt.Errorf("permission rules: %w", err)
+	}
 	cmd := exec.Command(d.bin, d.Args(spec)...)
 	cmd.Dir = spec.Dir
 	cmd.Env = processEnv(d.baseEnv())
-	p, err := launch(cmd, d.model)
+	mode := modeDefault
+	if m, _ := spec.Config[optMode].(string); m != "" {
+		mode = m
+	}
+	p, err := launch(cmd, d.model, hookState{dir: spec.Dir, engine: engine, mode: mode})
 	if err != nil {
 		return nil, err
 	}
@@ -200,8 +227,15 @@ func (d *Driver) Start(ctx context.Context, spec runtime.StartSpec) (runtime.Pro
 	return p, nil
 }
 
+// hookState is what the PreToolUse hook of a process decides with; the zero value registers no hook.
+type hookState struct {
+	dir    string
+	engine *rules.Engine
+	mode   string
+}
+
 // launch starts cmd and reads its output.
-func launch(cmd *exec.Cmd, model string) (*process, error) {
+func launch(cmd *exec.Cmd, model string, hook hookState) (*process, error) {
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
@@ -225,6 +259,9 @@ func launch(cmd *exec.Cmd, model string) (*process, error) {
 		waiting: map[string]chan controlReply{},
 		done:    make(chan struct{}),
 		model:   model,
+		dir:     hook.dir,
+		engine:  hook.engine,
+		mode:    hook.mode,
 	}
 	go p.read(stdout)
 	return p, nil
@@ -236,7 +273,11 @@ const exitGrace = 5 * time.Second
 // initialize sends the initialize request. A process that already exited has closed its input, so the write
 // fails with a broken pipe whatever the cause; the reason the user needs is the exit, which is reported instead.
 func (p *process) initialize() error {
-	err := p.send(controlRequest(initRequestID, "initialize"))
+	req := controlRequest(initRequestID, "initialize")
+	if p.engine != nil {
+		req["request"].(map[string]any)["hooks"] = hookRegistration()
+	}
+	err := p.send(req)
 	if err == nil {
 		return nil
 	}

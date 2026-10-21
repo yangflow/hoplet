@@ -128,7 +128,7 @@ func (b *bridge) build(c configs.Configuration, spec string) *entry {
 		if c.Command != "" {
 			bin = c.Command
 		}
-		d = claude.New(claude.Options{Bin: bin, Model: os.Getenv(modelEnv), Env: env, Defaults: c.Defaults})
+		d = claude.New(claude.Options{Bin: bin, Model: os.Getenv(modelEnv), Env: env, Defaults: c.Defaults, HopletHome: b.cfg.HopletHome})
 	}
 	m := runtime.NewManager(runtime.Config{
 		Driver: d,
