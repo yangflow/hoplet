@@ -1,6 +1,7 @@
 import type { DeviceInfo } from '@hoplet/shared';
 import { useEffect, useState } from 'react';
 import { fetchDevices } from './api.ts';
+import { sameCapabilities } from './capabilities.ts';
 import { usePageVisible } from './visibility.ts';
 
 const POLL_MS = 2000;
@@ -38,7 +39,8 @@ export function useDevices(fixture?: DeviceInfo[]) {
                 JSON.stringify(d.system) === JSON.stringify(r.devices[i]?.system) &&
                 JSON.stringify(d.providers) === JSON.stringify(r.devices[i]?.providers) &&
                 JSON.stringify(d.resources) === JSON.stringify(r.devices[i]?.resources) &&
-                JSON.stringify(d.warn) === JSON.stringify(r.devices[i]?.warn),
+                JSON.stringify(d.warn) === JSON.stringify(r.devices[i]?.warn) &&
+                sameCapabilities(d, r.devices[i]),
             )
               ? prev
               : r.devices,

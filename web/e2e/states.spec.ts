@@ -169,6 +169,14 @@ const subject: Record<string, Record<string, string>> = {
     'settings-thresholds': 'settings.thresholds.summary',
     'settings-thresholds-default': 'settings.thresholds.memory',
     'settings-thresholds-custom': 'settings.thresholds.memory',
+    'settings-capabilities': 'settings.capabilities.toolchains',
+    'settings-capabilities-mac': 'settings.capabilities.gpu',
+    'settings-capabilities-label-add': 'settings.capabilities.input',
+    'settings-capabilities-label-remove': 'settings.capabilities.removed',
+    'settings-capabilities-label-invalid': 'settings.capabilities.invalid',
+    'settings-capabilities-sparse': 'settings.capabilities.toolchains',
+    'settings-capabilities-offline': 'settings.capabilities.at',
+    'settings-capabilities-none': 'settings.capabilities.none',
     mint: 'settings.mint.config',
     'mint-waiting': 'settings.mint.waiting',
     'mint-online': 'settings.mint.online',
@@ -198,10 +206,10 @@ const subject: Record<string, Record<string, string>> = {
   },
 };
 
-test('the registries list 85 cockpit, 56 workspace, 26 settings and 7 action states', () => {
+test('the registries list 85 cockpit, 56 workspace, 34 settings and 7 action states', () => {
   expect(screens.cockpit).toHaveLength(85);
   expect(screens.workspace).toHaveLength(56);
-  expect(screens.settings).toHaveLength(26);
+  expect(screens.settings).toHaveLength(34);
   expect(screens.action).toHaveLength(7);
 });
 

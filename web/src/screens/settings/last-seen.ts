@@ -7,7 +7,12 @@ export function lastSeenText(
 ): string {
   if (device.connected) return t('now');
   if (device.lastSeen === undefined) return '—';
-  const minutes = Math.max(0, Math.floor((now - device.lastSeen) / 60_000));
+  return agoText(device.lastSeen, now);
+}
+
+/** How long ago a moment was: "now", "5 min ago", "6 h ago", "2 d ago". */
+export function agoText(at: number, now = Date.now()): string {
+  const minutes = Math.max(0, Math.floor((now - at) / 60_000));
   if (minutes < 1) return t('now');
   if (minutes < 60) return `${minutes} ${t('min ago')}`;
   const hours = Math.floor(minutes / 60);

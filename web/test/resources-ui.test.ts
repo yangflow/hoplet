@@ -28,6 +28,7 @@ const device = (id: string, name: string, over: Partial<DeviceInfo> = {}): Devic
   lastSeen: NOW,
   system: { os: 'linux', arch: 'amd64' },
   providers: [],
+  labels: [],
   ...over,
 });
 const studio = device('dev-studio', 'studio', {

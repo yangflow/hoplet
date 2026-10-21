@@ -1,6 +1,7 @@
 import type {
   ConfigOption,
   DeviceInfo,
+  DeviceInventory,
   DeviceResourceSample,
   DeviceSessionResources,
   LiveSessionMeta,
@@ -265,6 +266,100 @@ function resourcesOf(
     ...(hovered ? { hovered } : {}),
     ...(thresholds ? { thresholds } : {}),
   };
+}
+
+const tools = (list: Record<string, string>) =>
+  Object.entries(list).map(([name, version]) => ({ name, version }));
+const MIN = 60_000;
+
+/** What each machine's agent reported, as the design's Capabilities group draws it. */
+const INVENTORIES: Record<string, DeviceInventory> = {
+  'dev-macbook': {
+    at: NOW - 41 * MIN,
+    toolchains: tools({
+      git: '2.51.0',
+      node: '24.9.0',
+      pnpm: '10.17.1',
+      npm: '11.6.0',
+      bun: '1.3.2',
+      python3: '3.13.7',
+      go: '1.25.3',
+      cargo: '1.90.0',
+      rustc: '1.90.0',
+      java: '25.0.1',
+      gh: '2.80.0',
+    }),
+    gpus: [{ name: 'Apple M4 Max', memory: 32 * GIB }],
+    repositories: [
+      { path: '/Users/me/code/hoplet', origin: 'github.com/yangflow/hoplet' },
+      { path: '/Users/me/code/notes', origin: 'github.com/acme/notes' },
+    ],
+  },
+  'dev-studio': {
+    at: NOW - 17 * MIN,
+    toolchains: tools({
+      git: '2.51.0',
+      node: '24.9.0',
+      pnpm: '10.17.1',
+      npm: '11.6.0',
+      python3: '3.13.7',
+      go: '1.25.3',
+      cargo: '1.90.0',
+      rustc: '1.90.0',
+      docker: '28.5.1',
+      gh: '2.80.0',
+    }),
+    gpus: [{ name: 'NVIDIA GeForce RTX 4090', memory: 24 * GIB }],
+    repositories: [
+      { path: '/home/me/code/hoplet', origin: 'github.com/yangflow/hoplet' },
+      { path: '/home/me/code/notes', origin: 'github.com/acme/notes' },
+      { path: '/home/me/code/scratch', origin: null },
+    ],
+  },
+  'dev-office': {
+    at: NOW - 6 * 60 * MIN,
+    toolchains: tools({ git: '2.51.0', node: '22.20.0', npm: '10.9.3' }),
+    gpus: [],
+    repositories: [{ path: 'C:\\code\\notes', origin: 'github.com/acme/notes' }],
+  },
+};
+const LABELS: Record<string, string[]> = {
+  'dev-macbook': ['laptop'],
+  'dev-studio': ['gpu', 'release'],
+  'dev-office': ['build-win'],
+  'dev-lab': ['lab'],
+};
+
+/**
+ * The Machines section with the Capabilities group: `online` brings office-mini up with a fresh report (the sparse
+ * state); its offline report is the one from 6 h ago, greyed.
+ */
+function capabilitiesOf(
+  selected: string,
+  over: Pick<MachinesFixture, 'addingLabel' | 'removedLabel'> & { online?: boolean } = {},
+): MachinesFixture {
+  const { online, ...fixture } = over;
+  const base = resourcesOf(selected);
+  const devices = base.devices.map((d): DeviceInfo => {
+    const inventory = INVENTORIES[d.deviceId];
+    const up =
+      online && d.deviceId === 'dev-office' && d.resources
+        ? {
+            connected: true,
+            resources: { ...d.resources, at: NOW },
+            warn: { memory: false, disk: false },
+          }
+        : {};
+    return {
+      ...d,
+      ...up,
+      labels: LABELS[d.deviceId] ?? [],
+      ...(inventory
+        ? { inventory: up.connected ? { ...inventory, at: NOW - 12 * MIN } : inventory }
+        : {}),
+    };
+  });
+  return { ...base, ...fixture, devices };
 }
 
 const STUDIO_2 = { deviceId: 'dev-studio-2', name: 'studio-2', token: 'fixture-token' };
@@ -596,6 +691,44 @@ export const states: Record<string, () => ReactNode> = {
         machines: { 'dev-studio': { memory: 97, disk: 10 } },
       })}
     />
+  ),
+  'settings-capabilities': () => (
+    <Scene section="machines" machines={capabilitiesOf('dev-studio')} />
+  ),
+  'settings-capabilities-mac': () => (
+    <Scene section="machines" machines={capabilitiesOf('dev-macbook')} />
+  ),
+  'settings-capabilities-label-add': () => (
+    <Scene
+      section="machines"
+      machines={capabilitiesOf('dev-studio', { addingLabel: 'ci-runner' })}
+    />
+  ),
+  'settings-capabilities-label-remove': () => (
+    <Scene
+      section="machines"
+      machines={(() => {
+        const m = capabilitiesOf('dev-studio', { removedLabel: 'release' });
+        return {
+          ...m,
+          devices: m.devices.map((d) =>
+            d.deviceId === 'dev-studio' ? { ...d, labels: ['gpu'] } : d,
+          ),
+        };
+      })()}
+    />
+  ),
+  'settings-capabilities-label-invalid': () => (
+    <Scene section="machines" machines={capabilitiesOf('dev-studio', { addingLabel: 'GPU box' })} />
+  ),
+  'settings-capabilities-sparse': () => (
+    <Scene section="machines" machines={capabilitiesOf('dev-office', { online: true })} />
+  ),
+  'settings-capabilities-offline': () => (
+    <Scene section="machines" machines={capabilitiesOf('dev-office')} />
+  ),
+  'settings-capabilities-none': () => (
+    <Scene section="machines" machines={capabilitiesOf('dev-lab')} />
   ),
   'settings-providers': () => <Scene section="providers" providers={providers(undefined)} />,
   'settings-providers-edit': () => (
