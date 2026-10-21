@@ -50,10 +50,10 @@ Claude Code               the session file (writer) and the running process
 | Component | Layer | Owns | May call | Code directory |
 |---|---|---|---|---|
 | config | core | Environment parsing; refuses to start without a host token | log | `core/src/config/` |
-| scrub | core | The credential patterns and the functions that mask them, shared by the log and notifications | nothing | `core/src/scrub/` |
+| scrub | core | The credential patterns and the functions that mask them, shared by the log, notifications and the audit log | nothing | `core/src/scrub/` |
 | log | core | One JSON object per line on stdout, with redaction | scrub | `core/src/log/` |
 | migrations | core | Forward-only schema migrations | nothing | `core/src/migrations/` |
-| store | core | SQLite index, chunk files, verbatim append and recovery, paged reads, search scans, devices, snapshots | migrations, log | `core/src/store/` |
+| store | core | SQLite index, chunk files, verbatim append and recovery, paged reads, search scans, devices, snapshots, the audit log | migrations, log, scrub | `core/src/store/` |
 | ingest | core | Agent WebSocket: authentication, `device.hello`/`welcome`, append decoding, ack/resync/reject, the two lanes | store, control, log | `core/src/ingest/` |
 | notify | core | Notification rules (preset, overrides, quiet hours), redaction, Web Push and webhook delivery, signed action links and their single use, the VAPID and signing secrets | store, control, log, scrub | `core/src/notify/` |
 | control | core | Runtime state per session, prompt and new-session deduplication, permission routing, handoff state machine, device RPC with timeouts | store, log | `core/src/control/` |

@@ -29,6 +29,7 @@
   "Choose a different machine.": "请选择另一台机器。",
   "The link is not valid.": "链接无效。",
   "Too many requests. Try again in a moment.": "请求过于频繁，请稍后再试。",
+  "The audit log could not record this, so it was not done.": "审计日志无法记录此操作，因此未执行。",
   "That is too large to send.": "内容太大，无法发送。",
   "The machine that owns this session is offline.": "拥有该会话的机器已离线。",
   "The target machine is offline.": "目标机器已离线。",

@@ -22,6 +22,7 @@ import { resourceThresholds } from './0019-resource-thresholds.ts';
 import { deviceInventory } from './0020-device-inventory.ts';
 import { usage } from './0021-usage.ts';
 import { budgets } from './0022-budgets.ts';
+import { auditLog } from './0023-audit-log.ts';
 
 export interface Migration {
   readonly id: number;
@@ -52,6 +53,7 @@ const MIGRATIONS: readonly Migration[] = [
   deviceInventory,
   usage,
   budgets,
+  auditLog,
 ];
 
 export function migrate(db: DatabaseSync): void {

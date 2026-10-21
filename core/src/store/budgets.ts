@@ -11,6 +11,7 @@ import type {
   BudgetUnit,
 } from '@hoplet/shared';
 import { log } from '../log/index.ts';
+import { appendAudit } from './audit.ts';
 import type { BudgetBlock, StoreContext } from './layout.ts';
 import { scopeSpend } from './usage.ts';
 
@@ -149,27 +150,58 @@ export function budgetCount(ctx: StoreContext): number {
 
 export function createBudget(ctx: StoreContext, body: BudgetBody, now: number): Budget {
   const id = randomBytes(9).toString('base64url');
-  ctx.db
-    .prepare(
-      `INSERT INTO budgets(id, name, scope_kind, scope_value, period, unit, amount, alert_percent, on_limit, utc_offset, created_at)
-       VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    )
-    .run(
-      id,
-      body.name,
-      body.scope.kind,
-      body.scope.value,
-      body.period,
-      body.unit,
-      body.amount,
-      body.alertPercent,
-      body.onLimit,
-      body.utcOffset,
-      now,
-    );
+  ctx.db.exec('BEGIN IMMEDIATE');
+  try {
+    ctx.db
+      .prepare(
+        `INSERT INTO budgets(id, name, scope_kind, scope_value, period, unit, amount, alert_percent, on_limit, utc_offset, created_at)
+         VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        id,
+        body.name,
+        body.scope.kind,
+        body.scope.value,
+        body.period,
+        body.unit,
+        body.amount,
+        body.alertPercent,
+        body.onLimit,
+        body.utcOffset,
+        now,
+      );
+    appendAudit(ctx, {
+      type: 'config.changed',
+      summary: {
+        area: 'budgets',
+        id,
+        action: 'created',
+        fields: Object.keys(budgetFields(body)),
+        current: budgetFields(body),
+      },
+    });
+    ctx.db.exec('COMMIT');
+  } catch (err) {
+    if (ctx.db.isTransaction) ctx.db.exec('ROLLBACK');
+    throw err;
+  }
   const created = getBudget(ctx, id, now);
   if (!created) throw new Error('budget vanished');
   return created;
+}
+
+/** The fields of a budget the audit log records: names, scope, period, unit and amounts are not secrets. */
+function budgetFields(body: BudgetBody): Record<string, unknown> {
+  return {
+    name: body.name,
+    scope: `${body.scope.kind}:${body.scope.value}`,
+    period: body.period,
+    unit: body.unit,
+    amount: body.amount,
+    alertPercent: body.alertPercent,
+    onLimit: body.onLimit,
+    utcOffset: body.utcOffset,
+  };
 }
 
 /**
@@ -215,6 +247,29 @@ export function updateBudget(
       ctx.db.prepare('DELETE FROM budget_alerts WHERE budget_id = ?').run(id);
       ctx.db.prepare('UPDATE budgets SET allowed_period_start = NULL WHERE id = ?').run(id);
     }
+    const before = budgetFields({
+      name: old.name,
+      scope: { kind: old.scope_kind, value: old.scope_value } as BudgetBody['scope'],
+      period: old.period as BudgetBody['period'],
+      unit: old.unit as BudgetBody['unit'],
+      amount: old.amount,
+      alertPercent: old.alert_percent,
+      onLimit: old.on_limit as BudgetBody['onLimit'],
+      utcOffset: old.utc_offset,
+    });
+    const after = budgetFields(body);
+    const changed = Object.keys(after).filter((key) => before[key] !== after[key]);
+    appendAudit(ctx, {
+      type: 'config.changed',
+      summary: {
+        area: 'budgets',
+        id,
+        action: 'updated',
+        fields: changed,
+        previous: Object.fromEntries(changed.map((key) => [key, before[key]])),
+        current: Object.fromEntries(changed.map((key) => [key, after[key]])),
+      },
+    });
     ctx.db.exec('COMMIT');
   } catch (err) {
     if (ctx.db.isTransaction) ctx.db.exec('ROLLBACK');
@@ -228,6 +283,12 @@ export function deleteBudget(ctx: StoreContext, id: string): boolean {
   try {
     const result = ctx.db.prepare('DELETE FROM budgets WHERE id = ?').run(id);
     ctx.db.prepare('DELETE FROM budget_alerts WHERE budget_id = ?').run(id);
+    if (Number(result.changes) > 0) {
+      appendAudit(ctx, {
+        type: 'config.changed',
+        summary: { area: 'budgets', id, action: 'deleted', fields: [] },
+      });
+    }
     ctx.db.exec('COMMIT');
     ctx.budgetBlocks.delete(id);
     return Number(result.changes) > 0;

@@ -8,8 +8,8 @@ import { type GenericSchema, type InferOutput, safeParse } from '@hoplet/shared'
 import { BulkBusyError, type Control } from '../control/index.ts';
 import { log } from '../log/index.ts';
 import type { Notify } from '../notify/index.ts';
-import type { Store } from '../store/index.ts';
-import { ApiError, fail, json, readBody } from './http.ts';
+import { AuditUnavailableError, type Store } from '../store/index.ts';
+import { ApiError, fail, json, RawResponse, readBody } from './http.ts';
 import { createRateLimiter } from './ratelimit.ts';
 import type { Tickets } from './tickets.ts';
 
@@ -173,11 +173,13 @@ export function createRouter(options: RouterOptions): Router {
           ? await parseBody(route.body, req, res, route.bodyLimit)
           : undefined;
         const call = { ...deps, params, query, body };
-        const result =
-          route.lane === 'bulk'
-            ? await deps.control.bulk.run(() => route.handler(call))
-            : await route.handler(call);
-        json(res, route.status, result);
+        const run = async (): Promise<unknown> => {
+          const result = await route.handler(call);
+          if (result instanceof RawResponse) await result.send(res);
+          return result;
+        };
+        const result = route.lane === 'bulk' ? await deps.control.bulk.run(run) : await run();
+        if (!(result instanceof RawResponse)) json(res, route.status, result);
       } catch (err) {
         if (err instanceof BulkBusyError) {
           fail(res, 'busy');
@@ -185,6 +187,14 @@ export function createRouter(options: RouterOptions): Router {
         }
         if (err instanceof ApiError) {
           fail(res, err.code, err.extra, err.status);
+          return;
+        }
+        if (err instanceof AuditUnavailableError) {
+          log('error', 'api', 'audit log unavailable', {
+            route: route.path,
+            error: String(err.cause),
+          });
+          fail(res, 'audit-unavailable');
           return;
         }
         log('error', 'api', 'request failed', { route: route.path, error: String(err) });

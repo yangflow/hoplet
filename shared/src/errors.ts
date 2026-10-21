@@ -17,6 +17,7 @@ export const HTTP_ERROR_STATUS = {
   'same-device': 400,
   'invalid-token': 400,
   'rate-limited': 429,
+  'audit-unavailable': 503,
   'too-large': 413,
   'owner-offline': 409,
   'target-offline': 409,

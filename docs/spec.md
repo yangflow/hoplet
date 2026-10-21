@@ -379,16 +379,18 @@ are allowed, dangerous ones asked about or denied.
 
 ### Audit log
 
-Planned (#80, decided in [ADR 0030](adr/0030-the-audit-log-records-actions-in-a-hash-chain.md); nothing here is
-built yet). The audit log is a searchable, exportable record of what was done to and by
-sessions, kept apart from the session content.
+Decided in [ADR 0030](adr/0030-the-audit-log-records-actions-in-a-hash-chain.md) (#80). The core, the REST routes and
+the CLI are built; the parts marked planned below are not. The audit log is a searchable, exportable record of what
+was done to and by sessions, kept apart from the session content.
 
-- **What it records**: tool calls (the tool, a scrubbed command of at most 500 characters, the paths a call changes),
-  permission requests and answers (who answered: the operator in the web UI or with the CLI, an action link, a
-  timeout, or a rule of #98), mode changes, session start, stop, interrupt, deletion and handoff, prompts sent (their
-  ID and length, never the text), changes to budgets, notification settings, device labels, watched projects,
-  provider defaults and permission rules, device tokens issued, and terminals opened and closed. Never prompts,
-  assistant text, tool output, file contents or diffs.
+- **What it records**: built: permission answers (who answered: the operator in the web UI or with the CLI, or an
+  action link), mode changes, session stop and interrupt, changes to budgets, device tokens issued, the start of
+  the log (`audit.started`), retention checkpoints and exports. Planned: tool calls (the tool, a scrubbed command of
+  at most 500 characters, the paths a call changes, derived from the session's lines), permission requests and
+  answers by timeout or by a rule of #98, session start, deletion and handoff, prompts sent (their ID and length,
+  never the text), changes to notification settings, device labels, watched projects, provider defaults and
+  permission rules, and terminals opened and closed. Never prompts, assistant text, tool output, file contents or
+  diffs.
 - **Who**: an actor of kind `operator` (the host token, with the channel `rest` or `link`), `device`, `session`,
   `schedule` or `core`. Hoplet has one operator and cannot tell which person or browser used the host token; the
   log does not claim to.
@@ -397,11 +399,15 @@ sessions, kept apart from the session content.
 - **Tamper evidence**: records form one SHA-256 chain. `hoplet audit verify` finds an edited, removed or inserted
   record and says where; it cannot find that the newest records were deleted unless the operator keeps the head
   (`hoplet audit head`) off the host and checks it with `--head`. It shows tampering; it does not prevent it.
-- **Search and export**: the Audit tab of the inspector (one session) and Settings › Audit (all) filter by session,
-  machine, actor, type and time and search the summary text, paged. Export is JSON Lines or CSV of the same filter,
-  streamed (`GET /api/audit/events`, `GET /api/audit/export`, `GET /api/audit/verify`).
-- **Retention**: 180 days by default, set with `HOPLET_AUDIT_RETENTION_DAYS` (`0` keeps everything), shown read-only
-  in Settings. Only retention deletes records, and it leaves a checkpoint. Deleting a session keeps its records.
+- **Search and export**: `GET /api/audit/events` filters by session, machine, actor, type and time and searches the
+  summary text, paged; `GET /api/audit/export` is JSON Lines or CSV of the same filter, streamed, at most two at a
+  time, and is itself recorded (`audit.exported`); `GET /api/audit/verify` walks the chain. A CSV cell that starts
+  with `=`, `+`, `-` or `@` gets a leading `'`. Planned: the Audit tab of the inspector (one session) and
+  Settings › Audit (all).
+- **Failure**: an action whose record cannot be written is not carried out and answers `audit-unavailable` (503).
+- **Retention**: 180 days by default, set with `HOPLET_AUDIT_RETENTION_DAYS` (`0` keeps everything); planned: shown
+  read-only in Settings. Only retention deletes records, once a day, and it leaves a checkpoint
+  (`audit.checkpoint`) that keeps the rest of the chain verifiable. Deleting a session keeps its records.
 - **Not recorded**: sessions that ran before the feature started (`audit.started` marks the start), what happens
   in a terminal outside Hoplet other than the tool calls its session file holds, and reads.
 
@@ -410,7 +416,9 @@ sessions, kept apart from the session content.
 `hoplet` (from a repository checkout, `pnpm hoplet`) uses the REST API with the host token: `hoplet sessions`,
 `hoplet prompt <session> <text>`, `hoplet interrupt <session>`, `hoplet handoff <session> <device> [--path <dir>]`, `hoplet devices` (id, name and connection of every machine) and
 `hoplet devices add <name> [--id <deviceId>]` (mints a device token and prints the agent's `config.json`).
-Planned (#80): `hoplet audit list|export|verify|head` ([Audit log](#audit-log)).
+`hoplet audit list|export|head` read the audit log, and `hoplet audit verify` checks its chain on the core, or
+offline with `--file <export.jsonl>`, optionally against a head written down elsewhere with `--head <seq>:<hash>`
+(exit code 3 when the chain is broken; [Audit log](#audit-log)).
 
 ### Agent CLI
 
@@ -442,9 +450,9 @@ Server, under the data directory (docs/hosting.md#data):
     the tokens of each assistant message (see Usage above), written in the transaction that appends its lines.
     `usage_prices(model, input, output, cache_write, cache_read)`: the host's price overrides. `sessions` carries
     `usage_backfilled` and `usage_model` (the model of a Codex session's latest turn).
-  - Planned (#80, ADR 0030): `audit_events(seq, at, recorded_at, type, session_id, device_id, actor_kind, actor_id,
-    channel, ref, summary, prev_hash, hash)`, append-only and hash-chained, kept when a session is deleted;
-    `audit_cursor(session_id, line)`: how far tool calls were derived from a session's lines.
+  - `audit_events(seq, at, recorded_at, type, session_id, device_id, actor_kind, actor_id, channel, ref, summary,
+    prev_hash, hash)`: append-only and hash-chained (ADR 0030), kept when a session is deleted. Planned:
+    `audit_cursor(session_id, line)`, how far tool calls were derived from a session's lines.
   - `append_recovery`, `compression_pending`: undo boundaries and pending compression; no session bytes.
 - Chunk files `sessions/<sessionId>/c-<seq>.ndjson`, gzip-compressed to `.ndjson.gz` when full
   (docs/architecture.md#session-chunk-files).
@@ -493,8 +501,8 @@ API, in `shared/src/` (schemas, types and error codes) and `agent/internal/sync/
   `PATCH /api/sessions/:id` (`{ title?, pinned?, archived? }`: the session actions above; `session-not-found`);
   `GET /api/sessions/:id/deletion` (what a deletion would remove) and `DELETE /api/sessions/:id` (`{ vendorFile, worktree }`;
   `session-running`, `owner-offline`, `delete-partial`).
-- Planned (#80, ADR 0030), host token: `GET /api/audit/events`, `GET /api/audit/export` and `GET /api/audit/verify`
-  ([Audit log](#audit-log)); they join docs/api.md with the code.
+- Host token (ADR 0030): `GET /api/audit/events`, `GET /api/audit/export` and `GET /api/audit/verify`
+  ([Audit log](#audit-log), docs/api.md).
 - Browser WebSocket `/ws?ticket=`: `subscribe`/`unsubscribe` a session; events `session.appended`,
   `session.deleted`, `session.updated` (title, pin and archive state), `session.runtime` (state), `session.output` (streamed deltas of a subscribed session),
   `session.permission`, `handoff.progress`, `device.presence`.

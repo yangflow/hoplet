@@ -616,6 +616,36 @@
     },
     {
       "method": "GET",
+      "path": "/api/audit/events",
+      "auth": "host",
+      "lane": "bulk",
+      "status": 200,
+      "query": "AuditEventsQuerySchema",
+      "body": null,
+      "response": "AuditEventsResponseSchema"
+    },
+    {
+      "method": "GET",
+      "path": "/api/audit/export",
+      "auth": "host",
+      "lane": "bulk",
+      "status": 200,
+      "query": "AuditExportQuerySchema",
+      "body": null,
+      "response": "AuditEventSchema"
+    },
+    {
+      "method": "GET",
+      "path": "/api/audit/verify",
+      "auth": "host",
+      "lane": "bulk",
+      "status": 200,
+      "query": "AuditVerifyQuerySchema",
+      "body": null,
+      "response": "AuditVerifyResponseSchema"
+    },
+    {
+      "method": "GET",
       "path": "/api/budgets",
       "auth": "host",
       "lane": "control",
@@ -940,6 +970,7 @@
     "same-device": 400,
     "invalid-token": 400,
     "rate-limited": 429,
+    "audit-unavailable": 503,
     "too-large": 413,
     "owner-offline": 409,
     "target-offline": 409,
@@ -1001,6 +1032,20 @@
       "schema": "UsageQuerySchema",
       "routes": [
         "GET /api/usage"
+      ],
+      "reason": "The \"transform\" action cannot be converted to JSON Schema."
+    },
+    {
+      "schema": "AuditEventsQuerySchema",
+      "routes": [
+        "GET /api/audit/events"
+      ],
+      "reason": "The \"transform\" action cannot be converted to JSON Schema."
+    },
+    {
+      "schema": "AuditExportQuerySchema",
+      "routes": [
+        "GET /api/audit/export"
       ],
       "reason": "The \"transform\" action cannot be converted to JSON Schema."
     }
@@ -1119,6 +1164,312 @@
       },
       "required": [
         "attachmentId"
+      ]
+    },
+    "AuditEventSchema": {
+      "type": "object",
+      "properties": {
+        "seq": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "at": {
+          "type": "integer"
+        },
+        "recordedAt": {
+          "type": "integer"
+        },
+        "type": {
+          "type": "string"
+        },
+        "sessionId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "deviceId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "actorKind": {
+          "enum": [
+            "operator",
+            "device",
+            "session",
+            "schedule",
+            "core"
+          ],
+          "type": "string"
+        },
+        "actorId": {
+          "type": "string"
+        },
+        "channel": {
+          "enum": [
+            "rest",
+            "link",
+            "agent",
+            "core"
+          ],
+          "type": "string"
+        },
+        "ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "summary": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {}
+        },
+        "prevHash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "required": [
+        "seq",
+        "at",
+        "recordedAt",
+        "type",
+        "sessionId",
+        "deviceId",
+        "actorKind",
+        "actorId",
+        "channel",
+        "ref",
+        "summary",
+        "prevHash",
+        "hash"
+      ]
+    },
+    "AuditEventsResponseSchema": {
+      "type": "object",
+      "properties": {
+        "events": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "seq": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "at": {
+                "type": "integer"
+              },
+              "recordedAt": {
+                "type": "integer"
+              },
+              "type": {
+                "type": "string"
+              },
+              "sessionId": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "deviceId": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "actorKind": {
+                "enum": [
+                  "operator",
+                  "device",
+                  "session",
+                  "schedule",
+                  "core"
+                ],
+                "type": "string"
+              },
+              "actorId": {
+                "type": "string"
+              },
+              "channel": {
+                "enum": [
+                  "rest",
+                  "link",
+                  "agent",
+                  "core"
+                ],
+                "type": "string"
+              },
+              "ref": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "summary": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {}
+              },
+              "prevHash": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "hash": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            },
+            "required": [
+              "seq",
+              "at",
+              "recordedAt",
+              "type",
+              "sessionId",
+              "deviceId",
+              "actorKind",
+              "actorId",
+              "channel",
+              "ref",
+              "summary",
+              "prevHash",
+              "hash"
+            ]
+          }
+        },
+        "next": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "events",
+        "next"
+      ]
+    },
+    "AuditVerifyQuerySchema": {
+      "type": "object",
+      "properties": {
+        "head": {
+          "type": "string",
+          "pattern": "^\\d{1,15}:[0-9a-f]{64}$"
+        }
+      },
+      "required": []
+    },
+    "AuditVerifyResponseSchema": {
+      "type": "object",
+      "properties": {
+        "ok": {
+          "type": "boolean"
+        },
+        "checked": {
+          "type": "number"
+        },
+        "head": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "seq": {
+                  "type": "number"
+                },
+                "hash": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              },
+              "required": [
+                "seq",
+                "hash"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "firstBreak": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "seq": {
+                  "type": "number"
+                },
+                "reason": {
+                  "enum": [
+                    "hash-mismatch",
+                    "prev-hash-mismatch",
+                    "gap",
+                    "removed-outside-retention",
+                    "head-mismatch",
+                    "head-missing"
+                  ],
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "seq",
+                "reason",
+                "message"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "ok",
+        "checked",
+        "head",
+        "firstBreak"
       ]
     },
     "BudgetBodySchema": {
@@ -2968,6 +3319,7 @@
             "same-device",
             "invalid-token",
             "rate-limited",
+            "audit-unavailable",
             "too-large",
             "owner-offline",
             "target-offline",
@@ -3033,6 +3385,7 @@
             "same-device",
             "invalid-token",
             "rate-limited",
+            "audit-unavailable",
             "too-large",
             "owner-offline",
             "target-offline",

@@ -402,6 +402,7 @@ export function createNotify(store: Store, control: Control, options: NotifyOpti
       // This runs without yielding, so the check above and the spending below cannot interleave with another call.
       const outcome = control.answerPermission(claims.sessionId, owner, claims.requestId, {
         decision,
+        by: 'link',
         ...(request.planExit && decision === 'allow' ? { mode: request.planExit.default } : {}),
       });
       if (!outcome.ok && outcome.error === 'owner-offline') return { error: 'owner-offline' };

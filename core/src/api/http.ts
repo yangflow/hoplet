@@ -11,6 +11,17 @@ export function json(res: ServerResponse, status: number, body: unknown): void {
 }
 
 /**
+ * A response a handler writes itself, such as a stream. The router calls `send` inside the lane the route
+ * declares, so a bulk stream holds its place in the bulk queue until the last byte is written.
+ */
+export class RawResponse {
+  readonly send: (res: ServerResponse) => Promise<void>;
+  constructor(send: (res: ServerResponse) => Promise<void>) {
+    this.send = send;
+  }
+}
+
+/**
  * Every error response is `{ code }` with the status the code stands for (shared/src/errors.ts);
  * `status` overrides it where an endpoint documents another.
  */

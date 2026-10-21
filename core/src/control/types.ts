@@ -170,6 +170,8 @@ export interface PermissionAnswer {
   decision: PermissionDecision;
   message?: string | undefined;
   mode?: string | undefined;
+  /** Who answered, for the audit log: the host (default) or an action link. */
+  by?: 'operator' | 'link' | undefined;
 }
 
 export type WorkspaceOutcome =

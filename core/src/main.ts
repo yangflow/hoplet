@@ -10,8 +10,19 @@ import { createNotify } from './notify/index.ts';
 import { Store } from './store/index.ts';
 
 const config = loadConfig();
-const store = new Store(config.dataDir);
+const store = new Store(config.dataDir, { auditRetentionDays: config.auditRetentionDays ?? 180 });
 store.startUsageBackfill();
+// Retention removes the oldest audit records at start and once a day (ADR 0030).
+const pruneAudit = (): void => {
+  store.pruneAudit().then(
+    (removed) => {
+      if (removed > 0) log('info', 'main', 'audit records past retention removed', { removed });
+    },
+    (err) => log('error', 'main', 'audit retention failed', { error: String(err) }),
+  );
+};
+pruneAudit();
+setInterval(pruneAudit, 24 * 60 * 60 * 1000).unref();
 const control = createControl(store);
 const server = createServer();
 attachIngest(server, store, control);

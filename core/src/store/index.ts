@@ -4,6 +4,10 @@ import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import type {
+  AuditEvent,
+  AuditFilter,
+  AuditHead,
+  AuditVerifyResponse,
   Budget,
   BudgetBody,
   BudgetRef,
@@ -26,6 +30,7 @@ import type {
   UsageResponse,
 } from '@hoplet/shared';
 import { migrate } from '../migrations/index.ts';
+import * as audit from './audit.ts';
 import * as budgets from './budgets.ts';
 import {
   type AppendInput,
@@ -54,6 +59,7 @@ import * as snapshotRead from './snapshot-read.ts';
 import * as snapshots from './snapshots.ts';
 import * as usage from './usage.ts';
 
+export { type AuditInput, AuditUnavailableError } from './audit.ts';
 export type { BudgetStatus } from './budgets.ts';
 export type { ContinuationLinks } from './continuations.ts';
 export type { Tombstone, WorktreeRecord } from './deletion.ts';
@@ -67,10 +73,17 @@ export { summarizeTitle } from './title.ts';
 export type { AppendInput, AppendResult };
 export { NotOwnerError };
 
+export interface StoreOptions {
+  /** Days the audit log keeps a record; 0 keeps everything. Default 180. */
+  auditRetentionDays?: number;
+}
+
 export class Store {
   private ctx: StoreContext;
+  private auditRetentionDays: number;
 
-  constructor(dataDir: string) {
+  constructor(dataDir: string, options: StoreOptions = {}) {
+    this.auditRetentionDays = options.auditRetentionDays ?? 180;
     const dir = path.resolve(dataDir);
     mkdirSync(path.join(dir, 'sessions'), { recursive: true });
     const db = new DatabaseSync(path.join(dir, 'hoplet.db'));
@@ -89,6 +102,7 @@ export class Store {
     try {
       db.exec('PRAGMA synchronous=FULL');
       migrate(db);
+      audit.startAudit(this.ctx);
       recoverOnStart(this.ctx);
       snapshots.recoverSnapshots(this.ctx);
       queue.recoverQueues(this.ctx);
@@ -98,6 +112,38 @@ export class Store {
       db.close();
       throw err;
     }
+  }
+
+  /**
+   * Records an action in the audit log. Inside a transaction it joins it; a failure throws
+   * `AuditUnavailableError` and the action must not happen.
+   */
+  audit(input: audit.AuditInput, now?: number): AuditHead {
+    return audit.appendAudit(this.ctx, input, now);
+  }
+
+  listAudit(
+    filter: AuditFilter,
+    options: audit.AuditPageOptions,
+  ): { events: AuditEvent[]; next: number | null } {
+    return audit.listAudit(this.ctx, filter, options);
+  }
+
+  countAudit(filter: AuditFilter, upTo: number): number {
+    return audit.countAudit(this.ctx, filter, upTo);
+  }
+
+  auditHead(): AuditHead | null {
+    return audit.auditHead(this.ctx);
+  }
+
+  verifyAudit(expected?: AuditHead): Promise<AuditVerifyResponse> {
+    return audit.verifyAudit(this.ctx, expected);
+  }
+
+  /** Removes the audit records past the retention; returns how many. */
+  pruneAudit(now?: number): Promise<number> {
+    return audit.pruneAudit(this.ctx, this.auditRetentionDays, now);
   }
 
   /** Starts reading the usage of sessions recorded before usage was; `idle` waits for it. */
