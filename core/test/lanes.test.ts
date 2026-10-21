@@ -106,6 +106,9 @@ describe('REST lanes', () => {
     ]) {
       expect(routes.find((r) => r.path === path)?.lane, path).toBe('control');
     }
+    expect(
+      routes.find((r) => r.method === 'DELETE' && r.path === '/api/budgets/:id/allow')?.lane,
+    ).toBe('control');
   });
 
   it('answers a control request while the bulk queue is full, and refuses more bulk with busy', async () => {

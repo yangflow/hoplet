@@ -1383,6 +1383,21 @@ export const routes: readonly Route[] = [
     },
   }),
   defineRoute({
+    method: 'DELETE',
+    path: '/api/budgets/:id/allow',
+    auth: 'host',
+    lane: 'control',
+    response: BudgetSchema,
+    handler: ({ store, params }) => {
+      const budget = store.getBudget(params.id ?? '', Date.now());
+      if (!budget) throw new ApiError('not-found');
+      if (budget.onLimit !== 'pause') throw new ApiError('invalid-request', { reason: 'onLimit' });
+      const withdrawn = store.withdrawBudgetAllowance(budget.id, Date.now());
+      if (!withdrawn) throw new ApiError('not-found');
+      return withdrawn;
+    },
+  }),
+  defineRoute({
     method: 'GET',
     path: '/api/notify/push/key',
     auth: 'host',

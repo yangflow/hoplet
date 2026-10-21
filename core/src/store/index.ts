@@ -164,6 +164,10 @@ export class Store {
     return budgets.allowBudget(this.ctx, id, now);
   }
 
+  withdrawBudgetAllowance(id: string, now: number): Budget | null {
+    return budgets.withdrawBudgetAllowance(this.ctx, id, now);
+  }
+
   claimBudgetAlert(
     budgetId: string,
     periodStart: number,
