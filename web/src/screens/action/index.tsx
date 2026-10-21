@@ -234,8 +234,8 @@ export function ActionCard(props: {
     );
   }
   return (
-    <div className="cfw">
-      <main className="cf">
+    <div className="apage-w">
+      <main className="apage">
         <div className="brand">
           <span className="app">
             <Mark />
