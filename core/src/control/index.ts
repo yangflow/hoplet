@@ -13,6 +13,7 @@ import { createQueue } from './queue.ts';
 import { receiveReply } from './replies.ts';
 import { createResources } from './resources.ts';
 import { createRpc } from './rpc.ts';
+import { createRules } from './rules.ts';
 import { createRuntime } from './runtime.ts';
 import { createStart } from './start.ts';
 import type { ControlState } from './state.ts';
@@ -166,6 +167,7 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
   );
   state.closeTerminals = terminals.closeSession;
   state.runtimeChanged = queue.runtimeChanged;
+  const rules = createRules(state);
   const rpc = createRpc(state);
   const handoff = createHandoff(state, rpc.workspace);
   const deletion = createDeletion(state, runtime.runtimeOf);
@@ -197,6 +199,9 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
     terminals: terminals.terminals,
     portsOf: ports.of,
     resourcesOf: resources.of,
+    syncRules: rules.sync,
+    announceRules: rules.announce,
+    appliedRulesRevision: rules.appliedRevision,
     attach(deviceId, link, providers, hello) {
       if (state.byDevice.get(deviceId) !== link) {
         // A replaced connection takes its terminals with it.
@@ -211,6 +216,7 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
       });
       runtime.attached(deviceId);
       ports.attached(deviceId);
+      rules.attached(deviceId);
       deletion.attached(deviceId);
       publish({ v: PROTOCOL_VERSION, type: 'device.presence', deviceId, connected: true });
     },
@@ -233,12 +239,17 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
       handoff.detached(link);
       terminals.detached(gone);
       ports.detached(gone);
+      rules.detached(gone);
       for (const deviceId of gone) state.deviceInfo.delete(deviceId);
       for (const deviceId of gone) {
         publish({ v: PROTOCOL_VERSION, type: 'device.presence', deviceId, connected: false });
       }
     },
     receive(link, msg) {
+      if (msg.type === 'device.rules.applied') {
+        rules.receive(link, msg.revision, msg.error);
+        return;
+      }
       receiveReply(state, runtime, terminals, ports, resources, link, msg);
     },
     prompt: runtime.prompt,
@@ -314,6 +325,7 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
     async deleteSession(sessionId, request) {
       const outcome = await deletion.deleteSession(sessionId, request);
       ports.sync();
+      rules.sync(); // the session's rules went with it
       return outcome;
     },
     startSession: start.startSession,
@@ -322,6 +334,7 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
     async handoff(request) {
       const outcome = await handoff.handoff(request);
       ports.sync();
+      rules.sync(); // the session's rules follow it to its new owner
       queue.drain(request.sessionId);
       if (!outcome.ok && !HANDOFF_REFUSALS.has(outcome.error)) {
         emit({

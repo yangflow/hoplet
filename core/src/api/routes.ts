@@ -1704,10 +1704,12 @@ export const routes: readonly Route[] = [
     body: PermissionRuleBodySchema,
     status: 201,
     response: PermissionRuleEntrySchema,
-    handler: ({ store, body }) => {
+    handler: ({ store, control, body }) => {
       if (store.permissionRuleCount() >= MAX_PERMISSION_RULES) throw new ApiError('too-large');
       checkPermissionRule(store, body);
-      return store.createPermissionRule(body, Date.now());
+      const created = store.createPermissionRule(body, Date.now());
+      control.syncRules();
+      return created;
     },
   }),
   defineRoute({
@@ -1718,7 +1720,7 @@ export const routes: readonly Route[] = [
     bodyLimit: 64 * 1024,
     body: PermissionRulePutSchema,
     response: PermissionRuleEntrySchema,
-    handler: ({ store, params, body }) => {
+    handler: ({ store, control, params, body }) => {
       const id = params.id ?? '';
       const current = store.getPermissionRule(id);
       if (!current) throw new ApiError('not-found');
@@ -1730,12 +1732,14 @@ export const routes: readonly Route[] = [
         }
         const toggled = store.setBuiltinPermissionRule(id, body.enabled, Date.now());
         if (!toggled) throw new ApiError('not-found');
+        control.syncRules();
         return toggled;
       }
       if (!('tool' in body)) throw new ApiError('invalid-request', { reason: 'body' });
       checkPermissionRule(store, body);
       const updated = store.updatePermissionRule(id, body, Date.now());
       if (!updated) throw new ApiError('not-found');
+      control.syncRules();
       return updated;
     },
   }),
@@ -1745,7 +1749,7 @@ export const routes: readonly Route[] = [
     auth: 'host',
     lane: 'control',
     response: PermissionRuleListResponseSchema,
-    handler: ({ store, params }) => {
+    handler: ({ store, control, params }) => {
       const id = params.id ?? '';
       if (id.startsWith('default.')) {
         throw new ApiError(store.getPermissionRule(id) ? 'invalid-request' : 'not-found', {
@@ -1753,6 +1757,7 @@ export const routes: readonly Route[] = [
         });
       }
       if (!store.deletePermissionRule(id)) throw new ApiError('not-found');
+      control.syncRules();
       return { rules: store.listPermissionRules() };
     },
   }),

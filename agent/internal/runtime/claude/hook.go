@@ -6,6 +6,7 @@ import (
 	"log"
 
 	"github.com/yangflow/hoplet/agent/internal/rules"
+	"github.com/yangflow/hoplet/agent/internal/runtime"
 )
 
 // The PreToolUse hook (ADR 0029): Hoplet registers one control-channel callback for every tool in `initialize`,
@@ -21,13 +22,13 @@ const (
 )
 
 // RuleSource builds the engine that decides one process's tool calls. The driver asks for it when a process
-// starts; a later source can return the rules the core pushed.
-type RuleSource func() (*rules.Engine, error)
+// starts, with the start spec, so the rules can be those of that session and its directory.
+type RuleSource func(runtime.StartSpec) (*rules.Engine, error)
 
-// DefaultRules is the rule set until the core pushes rules: the built-in defaults, all enabled, and the
+// DefaultRules is the rule set when no store is wired in: the built-in defaults, all enabled, and the
 // compiled-in floor.
 func DefaultRules(env rules.Env) RuleSource {
-	return func() (*rules.Engine, error) { return rules.New(env, nil, rules.Defaults()) }
+	return func(runtime.StartSpec) (*rules.Engine, error) { return rules.New(env, nil, rules.Defaults()) }
 }
 
 // hookRegistration is the `hooks` field of the initialize request.
@@ -87,7 +88,16 @@ func (p *process) hookOutput(raw json.RawMessage) (out map[string]any) {
 		log.Printf("[agent] a tool call came with a tool input the permission rules cannot read")
 		return hookDecision(rules.Deny, "Hoplet could not read this call to check it against the permission rules")
 	}
-	d := p.engine.Decide(rules.FromClaude(in.ToolName, in.ToolInput, p.dir, p.dir))
+	engine := p.engine
+	if p.rebuild != nil {
+		e, err := p.rebuild()
+		if err != nil {
+			log.Printf("[agent] the permission rules cannot be built: %v", err)
+			return hookDecision(rules.Deny, "Hoplet could not build the permission rules")
+		}
+		engine = e
+	}
+	d := engine.Decide(rules.FromClaude(in.ToolName, in.ToolInput, p.dir, p.dir))
 	switch d.Action {
 	case rules.Deny, rules.Ask:
 		return hookDecision(d.Action, d.Reason)

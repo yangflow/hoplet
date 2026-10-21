@@ -1,6 +1,10 @@
 package sync
 
-import "encoding/json"
+import (
+	"encoding/json"
+
+	"github.com/yangflow/hoplet/agent/internal/rules"
+)
 
 // Wire protocol structures, mirroring shared/src/wire/ (docs/architecture.md#wire-protocol).
 // scripts/test/contract.test.ts compares the message types and field names of both sides: a struct is
@@ -77,6 +81,8 @@ const (
 	TypeDeviceProviders          = "device.providers"
 	TypeDeviceProvidersUpdate    = "device.providers.update"
 	TypeDeviceProvidersRejected  = "device.providers.rejected"
+	TypeDeviceRules              = "device.rules"
+	TypeDeviceRulesApplied       = "device.rules.applied"
 	TypeAttachmentPut            = "attachment.put"
 	TypeAttachmentStored         = "attachment.stored"
 	TypeAttachmentRejected       = "attachment.rejected"
@@ -217,6 +223,31 @@ type DeviceProvidersRejected struct {
 	Type      string `json:"type"`
 	RequestID string `json:"requestId"`
 	Reason    string `json:"reason"`
+}
+
+// DeviceRules (core → device, control lane) is every permission rule that can apply to a session on this
+// device (ADR 0029): the global rules with the built-ins and their enabled state, the rules of projects of the
+// device by project path, and the rules of the sessions the device owns by session ID. Each rule body is the
+// agent's rules.Rule; the core-only fields are not sent, and the agent refuses a push with a field it does not
+// know. Revision is the device's rule revision; the core sends the set after every connection and after every
+// change.
+type DeviceRules struct {
+	V        int                 `json:"v"`
+	Type     string              `json:"type"`
+	Revision int                 `json:"revision"`
+	Global   []rules.Rule        `json:"global"`
+	Projects []rules.ProjectRule `json:"projects"`
+	Sessions []rules.SessionRule `json:"sessions"`
+}
+
+// DeviceRulesApplied (device → core, control lane) answers a DeviceRules. Without Error the agent holds the
+// set and wrote it to its state directory; with Error it refused the push, keeps the previous set, and Revision
+// is the one it was sent when it could read it.
+type DeviceRulesApplied struct {
+	V        int    `json:"v"`
+	Type     string `json:"type"`
+	Revision int    `json:"revision"`
+	Error    string `json:"error,omitempty"`
 }
 
 type SessionAppend struct {

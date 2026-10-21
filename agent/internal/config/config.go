@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/yangflow/hoplet/agent/internal/rules"
 )
 
 type Config struct {
@@ -33,6 +35,10 @@ type Config struct {
 	// PreviewHost is the host the web UI links a session's dev servers with (ADR 0026); the machine's host name
 	// when unset.
 	PreviewHost string `json:"preview_host"`
+
+	// PermissionDeny are the operator's own deny rules (ADR 0029). They hold on this machine whatever the core
+	// pushes; only deny rules are accepted.
+	PermissionDeny []rules.Rule `json:"permission_deny"`
 }
 
 func Load(path string) (*Config, error) {
@@ -92,6 +98,9 @@ func Load(path string) (*Config, error) {
 	}
 	if cfg.RuntimeMaxIdleProcesses < 0 {
 		return nil, fmt.Errorf("runtime_max_idle_processes must not be negative")
+	}
+	if err := rules.ValidateLocal(cfg.PermissionDeny); err != nil {
+		return nil, fmt.Errorf("permission_deny: %w", err)
 	}
 	cfg.PollInterval = time.Duration(cfg.PollIntervalMS) * time.Millisecond
 	if cfg.PollInterval <= 0 {

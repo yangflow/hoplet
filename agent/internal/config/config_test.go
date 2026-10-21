@@ -184,3 +184,28 @@ func TestLoadPreviewHost(t *testing.T) {
 		t.Fatalf("preview_host = %q", got)
 	}
 }
+
+func TestLoadPermissionDeny(t *testing.T) {
+	load := func(extra string) (*Config, error) {
+		path := filepath.Join(t.TempDir(), "config.json")
+		raw := `{"server_url":"http://127.0.0.1:1","token":"t"` + extra + `}`
+		if err := os.WriteFile(path, []byte(raw), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		return Load(path)
+	}
+	cfg, err := load(`,"permission_deny":[{"id":"local.no-curl","tool":"run","match":{"command":"curl"},"action":"deny","note":"no curl"}]`)
+	if err != nil || len(cfg.PermissionDeny) != 1 || cfg.PermissionDeny[0].ID != "local.no-curl" {
+		t.Fatalf("deny rule not loaded: %+v %v", cfg, err)
+	}
+	for name, extra := range map[string]string{
+		"allow":     `,"permission_deny":[{"id":"x","tool":"run","match":{},"action":"allow"}]`,
+		"no id":     `,"permission_deny":[{"tool":"run","match":{},"action":"deny"}]`,
+		"bad match": `,"permission_deny":[{"id":"x","tool":"run","match":{"paths":["/a"]},"action":"deny"}]`,
+		"duplicate": `,"permission_deny":[{"id":"x","tool":"run","match":{},"action":"deny"},{"id":"x","tool":"run","match":{},"action":"deny"}]`,
+	} {
+		if _, err := load(extra); err == nil {
+			t.Errorf("%s: accepted", name)
+		}
+	}
+}

@@ -145,6 +145,7 @@ func Run(cfg *config.Config, version string) error {
 	client = sync.NewClient(cfg, deviceID, version, sync.Hooks{
 		Providers:            rt.providers,
 		ProvidersUpdate:      rt.update,
+		Rules:                rt.rules.Apply,
 		SessionConfiguration: rt.sessionConfiguration,
 		Runtime:              runtimeHooks,
 		Connected:            inv.Refresh,

@@ -112,6 +112,9 @@ type Hooks struct {
 	// ProvidersUpdate applies a device.providers.update and returns the list afterwards; an error becomes
 	// device.providers.rejected with its text as the reason.
 	ProvidersUpdate func(DeviceProvidersUpdate) ([]ProviderInfo, error)
+	// Rules applies a device.rules, given as the JSON of its fields without v and type, and returns the revision
+	// it applied; an error means the previous set stays in force and becomes device.rules.applied with the error.
+	Rules func(set []byte) (int, error)
 	// SessionConfiguration is the ID of the provider configuration the session belongs to, sent with its
 	// appends; empty for the vendor's own.
 	SessionConfiguration func(sessionID string) string

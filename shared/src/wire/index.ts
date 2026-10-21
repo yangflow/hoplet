@@ -27,6 +27,7 @@ import {
   SnapshotIdSchema,
   TerminalIdSchema,
 } from '../ids.ts';
+import { PermissionRuleSchema } from '../permission-rules.ts';
 import { NotifyEventKindSchema } from '../rest/notify.ts';
 import { ChangeStatusSchema, WorkspaceChangeSchema } from '../rest/workspace.ts';
 import {
@@ -51,6 +52,20 @@ import { type Direction, defineWire, type Lane, list } from './define.ts';
 
 export type { Direction, Lane, WireMessage } from './define.ts';
 export { defineWire } from './define.ts';
+
+/** A project rule as the agent keeps it: the rule and the path of the project it belongs to. */
+export const DevicePermissionRuleSchema = v.strictObject({
+  projectPath: v.pipe(v.string(), v.minLength(1), v.maxLength(4096)),
+  rule: PermissionRuleSchema,
+});
+export type DevicePermissionRule = v.InferOutput<typeof DevicePermissionRuleSchema>;
+
+/** A session rule as the agent keeps it: the rule and the session it belongs to. */
+export const SessionPermissionRuleSchema = v.strictObject({
+  sessionId: SessionIdSchema,
+  rule: PermissionRuleSchema,
+});
+export type SessionPermissionRule = v.InferOutput<typeof SessionPermissionRuleSchema>;
 
 /** What an agent offers beyond its providers; absent means nothing (ADR 0026). */
 export const DeviceCapabilitiesSchema = v.object({
@@ -981,6 +996,36 @@ export const WIRE_MESSAGES = defineWire({
     fields: { requestId, reason: v.string() },
   },
 
+  // Permission rules (ADR 0029). The agent matches them, so the core pushes the rules of a device to it.
+  /**
+   * Every permission rule that can apply to a session on the device: the global rules with the built-ins and
+   * their enabled state, the rules of projects of the device by project path, and the rules of sessions the
+   * device owns by session ID. A rule body is the agent's, without the fields only the core keeps. Sent after
+   * every connection and after every change of the device's rules; `revision` is the device's rule revision.
+   */
+  'device.rules': {
+    lane: 'control',
+    direction: 'core-to-device',
+    fields: {
+      revision: v.pipe(v.number(), v.integer(), v.minValue(0)),
+      global: v.array(PermissionRuleSchema),
+      projects: v.array(DevicePermissionRuleSchema),
+      sessions: v.array(SessionPermissionRuleSchema),
+    },
+  },
+  /**
+   * The answer to `device.rules`. Without `error` the agent holds the set and keeps it across restarts; with
+   * it the agent refused the push and keeps the set it had.
+   */
+  'device.rules.applied': {
+    lane: 'control',
+    direction: 'device-to-core',
+    fields: {
+      revision: v.pipe(v.number(), v.integer(), v.minValue(0)),
+      error: v.optional(v.pipe(v.string(), v.maxLength(1000))),
+    },
+  },
+
   // The clone a handoff would use: a watched project whose remote `origin` is `origin`
   'device.clone.find': {
     lane: 'control',
@@ -1337,6 +1382,8 @@ export type DeviceInventoryReport = WireMessageOf<'device.inventory'>;
 export type DeviceProviders = WireMessageOf<'device.providers'>;
 export type DeviceProvidersUpdate = WireMessageOf<'device.providers.update'>;
 export type DeviceProvidersRejected = WireMessageOf<'device.providers.rejected'>;
+export type DeviceRules = WireMessageOf<'device.rules'>;
+export type DeviceRulesApplied = WireMessageOf<'device.rules.applied'>;
 
 /** Types of the messages in `direction`, in table order. */
 export function wireTypes(...directions: Direction[]): WireType[] {
@@ -1395,6 +1442,7 @@ export const ClientMessageSchema = v.variant('type', [
   WIRE_MESSAGES['device.inventory'].schema,
   WIRE_MESSAGES['device.providers'].schema,
   WIRE_MESSAGES['device.providers.rejected'].schema,
+  WIRE_MESSAGES['device.rules.applied'].schema,
 ]);
 
 /** The messages a browser sends. */

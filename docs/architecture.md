@@ -321,6 +321,19 @@ without progress. The agent journals the clone in `<state>/handoff/<handoffId>.c
 half-made destination on start-up. Git runs with only the `https` and `ssh` protocols, no prompt, no hooks and
 no credentials in the origin it keeps; its output is cut at 2 KiB.
 
+### Permission rules on the wire
+
+The core sends each agent its permission rules ([ADR 0029](adr/0029-permission-rules-match-on-the-agent-and-deny-wins.md))
+as `device.rules` on the control lane: a `revision` (the machine's revision, which only grows), `global` (the
+rules of every machine, the built-ins with their switches included), `projects` (`{projectPath, rule}` for the
+project rules of this machine) and `sessions` (`{sessionId, rule}` for the sessions this machine owns). Each rule is
+the agent's `rules.Rule` and carries no target and no timestamp. The core sends it after `device.hello`, after every
+change to a rule, and when a session changes owner or is deleted, to the machines whose set changed. The agent
+refuses a push with an unknown field, an invalid or duplicate rule, or a rule outside its own scope's list, applies
+a valid one whole, writes it to `<hoplet_home>/permission-rules.json` and answers `device.rules.applied` with the
+`revision` (and an `error` for a refusal, in which case it keeps the previous set). The core keeps the last applied
+revision of each connected machine in memory.
+
 ### Session chunk files
 
 `<data>/sessions/<sessionId>/c-<seq>.ndjson` holds at most 500 raw JSONL lines. A full chunk is compressed

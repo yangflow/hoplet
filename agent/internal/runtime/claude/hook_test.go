@@ -89,7 +89,7 @@ func decisionOf(t *testing.T, out map[string]any) (string, string) {
 }
 
 func allowStatus() Options {
-	return Options{Rules: func() (*rules.Engine, error) {
+	return Options{Rules: func(runtime.StartSpec) (*rules.Engine, error) {
 		return rules.New(rules.NewEnv("/home/u", "/home/u/.hoplet"), nil, append(rules.Defaults(), rules.Rule{
 			ID: "user.status", Tool: "run", Match: rules.Match{Command: "git status"}, Action: rules.Allow,
 			Scope: rules.ScopeGlobal, Note: "git status", Enabled: true,
@@ -190,8 +190,37 @@ func TestHookEdgeCasesFailClosed(t *testing.T) {
 	}
 }
 
+// A rule set pushed while a process runs holds for its next tool call, and the source is given the session.
+func TestEachCallIsDecidedWithTheRulesInForceNow(t *testing.T) {
+	env := rules.NewEnv("/home/u", "/home/u/.hoplet")
+	deny := rules.Rule{ID: "user.no-ls", Tool: "run", Match: rules.Match{Command: "ls"}, Action: rules.Deny,
+		Scope: rules.ScopeSession, Note: "no ls", Enabled: true}
+	var calls int
+	var seen []runtime.StartSpec
+	opts := Options{Rules: func(spec runtime.StartSpec) (*rules.Engine, error) {
+		calls++
+		seen = append(seen, spec)
+		if calls <= 1 { // the engine of the start
+			return rules.New(env, nil, rules.Defaults())
+		}
+		return rules.New(env, nil, append(rules.Defaults(), deny))
+	}}
+	dir := t.TempDir()
+	_, got := runHooks(t, opts, runtime.StartSpec{Dir: dir}, []string{
+		hookRequest("h1", hookCallbackID, "Bash", `{"command":"ls"}`),
+	})
+	if d, _ := decisionOf(t, got["h1"]); d != "deny" {
+		t.Fatalf("the rule pushed after the start did not hold: %v", got["h1"])
+	}
+	for _, s := range seen {
+		if s.SessionID != "s" || s.Dir != dir {
+			t.Fatalf("the source got %+v", s)
+		}
+	}
+}
+
 func TestStartFailsWhenTheRulesCannotBeBuilt(t *testing.T) {
-	d := New(Options{Bin: script(t, "exit 0\n"), Rules: func() (*rules.Engine, error) { return nil, os.ErrInvalid }})
+	d := New(Options{Bin: script(t, "exit 0\n"), Rules: func(runtime.StartSpec) (*rules.Engine, error) { return nil, os.ErrInvalid }})
 	if _, err := d.Start(context.Background(), runtime.StartSpec{SessionID: "s", Dir: t.TempDir()}); err == nil {
 		t.Fatal("a session started without its rules")
 	}
