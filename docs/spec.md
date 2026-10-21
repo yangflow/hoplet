@@ -379,8 +379,8 @@ are allowed, dangerous ones asked about or denied.
 
 ### Audit log
 
-Planned (#80, proposed in [ADR 0030](adr/0030-the-audit-log-records-actions-in-a-hash-chain.md); nothing here is
-built, and the ADR is not accepted). The audit log is a searchable, exportable record of what was done to and by
+Planned (#80, decided in [ADR 0030](adr/0030-the-audit-log-records-actions-in-a-hash-chain.md); nothing here is
+built yet). The audit log is a searchable, exportable record of what was done to and by
 sessions, kept apart from the session content.
 
 - **What it records**: tool calls (the tool, a scrubbed command of at most 500 characters, the paths a call changes),

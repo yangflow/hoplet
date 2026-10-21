@@ -1,8 +1,8 @@
 # 0030 The audit log records actions in a hash chain
 
-- Status: proposed
+- Status: accepted
 - Date: 2026-10-21
-- Related: ADR 0002, ADR 0005, ADR 0007, ADR 0012, ADR 0021, ADR 0023, ADR 0026, ADR 0029 (proposed), docs/architecture.md#principles, docs/hosting.md#data, docs/threat-model.md, docs/spec.md#audit-log, issues #9, #67, #71, #79, #80, #81, #97, #98
+- Related: ADR 0002, ADR 0005, ADR 0007, ADR 0012, ADR 0021, ADR 0023, ADR 0026, ADR 0029, docs/architecture.md#principles, docs/hosting.md#data, docs/threat-model.md, docs/spec.md#audit-log, issues #9, #67, #71, #79, #80, #81, #97, #98
 
 ## Context
 
@@ -44,8 +44,8 @@ What the code does today, which decides the design:
   until the user deletes it.
 - **Reads are pages** (docs/api.md): list routes take `limit` with a ceiling, and no client receives a whole session
   (ADR 0007).
-- **ADR 0029 (proposed, #98)** plans a core table `permission_decisions` for auto decisions and user answers. That
-  would be a second home for the same facts.
+- **ADR 0029 (#98)** has the agent report each decision a permission rule makes; those decisions need a home in
+  the core.
 
 The risks are the point. An audit log that stores the command a session ran stores whatever credential was typed in
 it. A log kept in a database the operator can edit proves nothing to anyone who is not the operator. And a log whose
@@ -189,10 +189,8 @@ event. The CLI (#71) gets `hoplet audit list|export|verify|head` over these rout
 **Relation to ADR 0029.** The audit log is the single home of permission facts. #98's auto decisions
 (`runtime.permission.auto`) and the user's answers become `permission.auto` and `permission.answered` records, keyed
 by `session_id` and `ref` (the tool use ID), and rule changes become `config.changed` records with the area
-`permission-rules`; the table `permission_decisions` is not created. The "Allowed by rule" line in a conversation is
-read from the log by the same key, so it shows for as long as the record exists (retention). ADR 0029 should say so
-in its paragraph on auto decisions and drop its interim wording; until #98's code lands, #98 adds only the agent's
-report.
+`permission-rules`; there is no separate table of decisions. The "Allowed by rule" line in a conversation is read from the log by the
+same key, so it shows for as long as the record exists (retention).
 
 ## Cost
 
@@ -228,4 +226,4 @@ head themselves.
 Hoplet gains users or roles (actors name a person); tail truncation matters enough to anchor automatically (a
 configured destination for a signed head); the scrubber misses a class of secret in practice; the table outgrows one
 SQLite file, or search by `q` needs an index; a provider whose lines give no tool calls; a rule that fixes the
-retention; ADR 0029 landing (its `permission_decisions` is dropped as above).
+retention.
