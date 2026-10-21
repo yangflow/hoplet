@@ -21,6 +21,10 @@ export interface SessionRow {
   title_override: string | null;
   pinned_at: number | null;
   archived_at: number | null;
+  /** 1 once the usage of the session's earlier lines is recorded, 0 while the backfill has not read them. */
+  usage_backfilled: number;
+  /** The model a Codex rollout's latest `turn_context` named; the token counts that follow are its. */
+  usage_model: string;
   device_name?: string;
 }
 

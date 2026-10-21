@@ -11,6 +11,7 @@ import { Store } from './store/index.ts';
 
 const config = loadConfig();
 const store = new Store(config.dataDir);
+store.startUsageBackfill();
 const control = createControl(store);
 const server = createServer();
 attachIngest(server, store, control);

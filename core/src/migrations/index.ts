@@ -20,6 +20,7 @@ import { deviceSystem } from './0017-device-system.ts';
 import { sessionConfiguration } from './0018-session-configuration.ts';
 import { resourceThresholds } from './0019-resource-thresholds.ts';
 import { deviceInventory } from './0020-device-inventory.ts';
+import { usage } from './0021-usage.ts';
 
 export interface Migration {
   readonly id: number;
@@ -48,6 +49,7 @@ const MIGRATIONS: readonly Migration[] = [
   sessionConfiguration,
   resourceThresholds,
   deviceInventory,
+  usage,
 ];
 
 export function migrate(db: DatabaseSync): void {

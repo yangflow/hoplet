@@ -15,7 +15,12 @@ import type {
   QueuePause,
   ResourceThresholds,
   SessionMeta,
+  SessionUsage,
   SnapshotChanges,
+  UsagePrices,
+  UsagePricesBody,
+  UsageQuery,
+  UsageResponse,
 } from '@hoplet/shared';
 import { migrate } from '../migrations/index.ts';
 import {
@@ -43,6 +48,7 @@ import * as secrets from './secrets.ts';
 import * as sessions from './sessions.ts';
 import * as snapshotRead from './snapshot-read.ts';
 import * as snapshots from './snapshots.ts';
+import * as usage from './usage.ts';
 
 export type { ContinuationLinks } from './continuations.ts';
 export type { Tombstone, WorktreeRecord } from './deletion.ts';
@@ -82,6 +88,28 @@ export class Store {
       db.close();
       throw err;
     }
+  }
+
+  /** Starts reading the usage of sessions recorded before usage was; `idle` waits for it. */
+  startUsageBackfill(): void {
+    const job = usage.backfillUsage(this.ctx).finally(() => this.ctx.background.delete(job));
+    this.ctx.background.add(job);
+  }
+
+  usage(query: UsageQuery): UsageResponse {
+    return usage.queryUsage(this.ctx, query);
+  }
+
+  sessionUsage(sessionId: string): SessionUsage | null {
+    return usage.sessionUsage(this.ctx, sessionId);
+  }
+
+  usagePrices(): UsagePrices {
+    return usage.usagePrices(this.ctx);
+  }
+
+  setUsagePrices(body: UsagePricesBody): void {
+    usage.setUsagePrices(this.ctx, body);
   }
 
   /** Resolves when the compression an append started has finished. */

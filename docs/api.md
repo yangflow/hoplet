@@ -118,6 +118,10 @@ Response column names the schema of the success body and its status when it is n
 | PUT | `/api/notify/preferences` | host | control | — | `NotifyPreferencesSchema` | `NotifyPreferencesSchema` | `invalid-json`, `invalid-request`, `too-large` |
 | GET | `/api/resources/thresholds` | host | control | — | — | `ResourceThresholdsSchema` | — |
 | PUT | `/api/resources/thresholds` | host | control | — | `ResourceThresholdsSchema` | `ResourceThresholdsSchema` | `invalid-json`, `invalid-request`, `too-large` |
+| GET | `/api/usage` | host | bulk | `UsageQuerySchema` | — | `UsageResponseSchema` | `invalid-request` |
+| GET | `/api/sessions/:sessionId/usage` | host | bulk | — | — | `SessionUsageSchema` | `session-not-found` |
+| GET | `/api/usage/prices` | host | control | — | — | `UsagePricesSchema` | — |
+| PUT | `/api/usage/prices` | host | control | — | `UsagePricesBodySchema` | `UsagePricesSchema` | `invalid-json`, `invalid-request`, `too-large` |
 | GET | `/api/notify/push/key` | host | control | — | — | `PushKeyResponseSchema` | — |
 | GET | `/api/notify/push/subscriptions` | host | control | — | — | `PushSubscriptionListResponseSchema` | — |
 | POST | `/api/notify/push/subscriptions` | host | control | — | `PushSubscribeRequestSchema` | `PushSubscriptionInfoSchema`, 201 | `invalid-json`, `invalid-request`, `too-large` |
@@ -163,6 +167,24 @@ Behavior a client relies on:
   removed by leaving it out; at most 200 overrides, more is `too-large`. The core keeps them in its database. A
   client shows the effective values of a machine from this object (`machines[deviceId] ?? default`), not from
   `GET /api/devices`.
+- `GET /api/usage` answers the tokens the sessions used and what they are estimated to cost. `from` and `to` (Unix
+  ms, `[from, to)`, open ended when absent) bound the time of the assistant messages; `groupBy` is one or two
+  different dimensions, comma separated, of `session`, `project`, `device`, `model` and `day` (a calendar day,
+  `YYYY-MM-DD`, at `utcOffset`: whole minutes east of UTC from -840 to 840, 0 by default), `model` by default; `session`, `project`, `device` and `model` narrow the result to one value;
+  `offset` and `limit` (default 100, at most 500) page the groups. The answer has `total`, `rows` (each with
+  `keys`, a `{ value, label }` per dimension, and the same counts as `total`), `rowCount` over all pages, `offset`,
+  `backfilling` and `estimated: true`. The counts are `input`, `output`, `cacheWrite`, `cacheRead` and `messages`;
+  `estimatedCostUsd` is an estimate from the price table, `null` when no model of the group has a price, and
+  `costComplete` is false when some tokens are of a model without one (they are left out of the cost). `backfilling`
+  is true while the usage of sessions that already existed is still being read. Rows are the most tokens first,
+  `day` oldest first. A bad `groupBy` or a malformed filter is `invalid-request`.
+- `GET /api/sessions/:sessionId/usage` answers one session: `total`, `models` (the rows by model), and `complete`,
+  false while its earlier lines are not read yet; an unknown session is `session-not-found`.
+- `GET /api/usage/prices` answers `defaults`, the USD prices per million tokens (`input`, `output`, `cacheWrite`,
+  `cacheRead`) built into the core, and `overrides`, those the host set, both keyed by model ID. A price applies to
+  the model with that ID and to its dated variants (`<id>-YYYYMMDD`); an override wins over a default. `PUT`
+  replaces all overrides (at most 500; more is `too-large`). Costs are computed from the prices when asked, so a
+  new price applies to past usage at once.
 - `GET /api/devices/:deviceId/resources` answers `samples`, the last hour of the machine's readings (at most 240, one
   every 15 seconds, oldest first, `cpu` null while the agent had no earlier reading), and `sessions`, the processes
   of the sessions Hoplet started on it as of the latest report, summed over their process trees: `cpu` (percent of
