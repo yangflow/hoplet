@@ -146,6 +146,16 @@ export function Composer(props: {
   options?: ReactNode;
   /** What leads the toolbar after the attach button: the configuration chip of a draft. */
   leading?: ReactNode;
+  /** Above the field: the template a draft was filled from. */
+  above?: ReactNode;
+  /** Below the field: what is wrong with the start (a template the machine cannot run as written). */
+  below?: ReactNode;
+  /** The text the field takes in place of what it holds (a template); `n` says it is new. */
+  fill?: { text: string; n: number } | null;
+  /** The field's text as it changes. */
+  onText?: (text: string) => void;
+  /** Sending waits (the template's options are not supported where it would start). */
+  sendBlocked?: boolean;
   /** Shift+Tab in the field: cycles the permission mode. Absent when the session has no mode to cycle. */
   onCycleMode?: () => void;
   /** The send button's name: Send, or Start in a draft. */
@@ -230,6 +240,18 @@ export function Composer(props: {
     setDraft((d) => (d === '' ? back.text : d));
     if (back.withImages) setAttachments((a) => (a.length === 0 ? sent.current : a));
   }, [props.restore]);
+
+  const filled = props.fill;
+  // biome-ignore lint/correctness/useExhaustiveDependencies: a template that is picked replaces the text once
+  useEffect(() => {
+    if (!filled) return;
+    setDraft(filled.text);
+    setCaret(filled.text.length);
+    field.current?.focus();
+  }, [filled?.n]);
+
+  const onText = props.onText;
+  useEffect(() => onText?.(draft), [draft, onText]);
 
   /** Uploads one image; its thumbnail shows the upload, a failure says why under the field. */
   function uploadOne(a: Attachment) {
@@ -458,7 +480,12 @@ export function Composer(props: {
   const uploading = attachments.some((a) => a.status !== 'ready');
   const refused = props.budget?.kind === 'refused' ? props.budget : undefined;
   const canSend =
-    view.inputEnabled && text !== '' && !props.busy && !uploading && refused === undefined;
+    view.inputEnabled &&
+    text !== '' &&
+    !props.busy &&
+    !uploading &&
+    refused === undefined &&
+    props.sendBlocked !== true;
 
   // While a turn runs the field stays open and sends one of two ways; a driver that cannot steer only queues.
   const sending = view.sending;
@@ -610,6 +637,7 @@ export function Composer(props: {
           ))}
         </ul>
       ) : null}
+      {props.above}
       <textarea
         ref={field}
         className="ph-field"
@@ -683,6 +711,7 @@ export function Composer(props: {
           onPick={pick}
         />
       ) : null}
+      {props.below}
       {props.error || attachError ? (
         <p className="cerr" role="alert" data-testid="cockpit.composer-error">
           {Icon.alert()}

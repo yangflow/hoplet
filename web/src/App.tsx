@@ -16,6 +16,7 @@ import {
   getToken,
   patchSession,
   postNewSession,
+  postTemplateStart,
   setToken,
   socketUrl,
   UnauthorizedError,
@@ -26,7 +27,7 @@ import { setPageKeysSuspended } from './lib/page-keys.ts';
 import { type Appearance, applyAppearance, loadAppearance, saveAppearance } from './lib/prefs.ts';
 import { usePageVisible } from './lib/visibility.ts';
 import { Cockpit } from './screens/cockpit/index.tsx';
-import type { NewSessionRequest } from './screens/cockpit/model.ts';
+import type { NewSessionRequest, TemplateStart } from './screens/cockpit/model.ts';
 import { type SectionId, Settings, sectionOf } from './screens/settings/index.tsx';
 
 const BROWSER_MESSAGES = new Set<string>(wireTypes('core-to-web'));
@@ -354,6 +355,18 @@ export default function App() {
     [open],
   );
 
+  const startTemplate = useCallback(
+    async (request: TemplateStart) => {
+      const started = await postTemplateStart(request.templateId, {
+        values: request.values,
+        deviceId: request.deviceId,
+        projectPath: request.path,
+      });
+      await open(started.sessionId);
+    },
+    [open],
+  );
+
   if (!token)
     return (
       <TokenGate
@@ -401,6 +414,8 @@ export default function App() {
           runtime={runtime}
           tokensOnly={appearance.tokensOnly}
           onCreateSession={create}
+          onStartTemplate={startTemplate}
+          onManageTemplates={() => openSettings('templates')}
           onSessionStarted={(sessionId) => void open(sessionId)}
         />
       </div>

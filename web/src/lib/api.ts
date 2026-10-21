@@ -58,6 +58,7 @@ import {
   TemplateImportResultSchema,
   TemplateListResponseSchema,
   TemplateSchema,
+  TemplateStartResultSchema,
   TerminalCloseResultSchema,
   TerminalInfoSchema,
   TerminalStateSchema,
@@ -734,6 +735,23 @@ export function deleteTemplate(id: string) {
     undefined,
     'DELETE',
   );
+}
+
+/** Starts a session from a template; the answer comes when the agent has created it, like `postNewSession`. */
+export function postTemplateStart(
+  id: string,
+  request: {
+    values: Record<string, string>;
+    deviceId?: string;
+    projectPath?: string;
+    promptId?: string;
+  },
+) {
+  const { promptId, ...rest } = request;
+  return call(`/api/templates/${encodeURIComponent(id)}/start`, TemplateStartResultSchema, {
+    ...rest,
+    promptId: promptId ?? crypto.randomUUID(),
+  });
 }
 
 /** Every template as an export file, machines by name. */

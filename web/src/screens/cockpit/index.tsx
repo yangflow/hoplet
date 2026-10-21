@@ -29,7 +29,7 @@ import { Conversation, type ConversationFixture } from './conversation/conversat
 import { DeleteDialog, type DeleteFixture } from './delete-dialog.tsx';
 import { Draft, type DraftFixture, type DraftWhere } from './draft.tsx';
 import { buildTree, isArchived, sessionTargets } from './group.ts';
-import type { NewSessionRequest, RuntimeState } from './model.ts';
+import type { NewSessionRequest, RuntimeState, TemplateStart } from './model.ts';
 import { Palette } from './palette.tsx';
 import { RenameDialog } from './rename-dialog.tsx';
 import { type SessionActions, sessionMenu } from './session-actions.tsx';
@@ -110,6 +110,10 @@ export function Cockpit(props: {
   onMachineResources?: (deviceId: string) => void;
   /** Opens Settings > Model providers on this machine's tab. */
   onManageProviders?: (deviceId: string) => void;
+  /** Starts a session from a template; resolves when it exists, rejects with the reason it could not start. */
+  onStartTemplate?: (request: TemplateStart) => Promise<void>;
+  /** Opens Settings > Templates. */
+  onManageTemplates?: () => void;
   /** Hides estimated cost (the Appearance preference). */
   tokensOnly?: boolean;
   fixture?: CockpitFixture;
@@ -482,6 +486,11 @@ export function Cockpit(props: {
                 {...(fixture?.draft ? { fixture: fixture.draft } : {})}
                 onAddProject={openAddProject}
                 onManageProviders={(deviceId) => props.onManageProviders?.(deviceId)}
+                onManageTemplates={() => props.onManageTemplates?.()}
+                onStartTemplate={async (request) => {
+                  await props.onStartTemplate?.(request);
+                  setDraft(null);
+                }}
                 onSubmit={async (request) => {
                   await props.onCreateSession?.(request);
                   setDraft(null);

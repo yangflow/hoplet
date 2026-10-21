@@ -64,6 +64,8 @@ export function ModelMenu(props: {
   config: ConfigOption[];
   onChange: (id: string, value: ConfigSetting) => void;
   disabled?: boolean;
+  /** The chip turns amber: an option of the template in use is not offered here. */
+  warn?: boolean;
   /** Starts open (development fixtures). */
   initialOpen?: boolean;
 }) {
@@ -153,7 +155,7 @@ export function ModelMenu(props: {
       <button
         ref={trigger}
         type="button"
-        className={`tool-btn${open ? ' open' : ''}`}
+        className={`tool-btn${props.warn ? ' warn' : ''}${open ? ' open' : ''}`}
         aria-label={`${t('Model and options')}, ${detail}`}
         aria-haspopup="menu"
         aria-expanded={open}
