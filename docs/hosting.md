@@ -81,13 +81,20 @@ place of the proxy. Never publish port 7788 on `0.0.0.0`.
 
 | Where | What |
 |---|---|
-| Docker volume `hoplet-data` (`/data` in the container) | `hoplet.db` (SQLite index, which also holds what the user did to a session in the web UI: a title of their own, a pin, an archive, the last slash commands and skills a session reported per machine and directory, the messages queued for a session, the worktree Hoplet made for a handed-off session, the provider configuration each session belongs to, and the IDs of deleted sessions), `sessions/<sessionId>/c-<seq>.ndjson[.gz]` (session lines), `snapshots/<sessionId>/<snapshotId>.tar.gz` (latest workspace snapshot per session), `notify-secrets.json` (mode 0600: the VAPID key pair for Web Push, the key that signs action links and the signing secrets of webhooks; the push subscriptions, the webhooks without their secrets and the preferences are in `hoplet.db`) |
+| Docker volume `hoplet-data` (`/data` in the container) | `hoplet.db` (SQLite index, which also holds what the user did to a session in the web UI: a title of their own, a pin, an archive, the last slash commands and skills a session reported per machine and directory, the messages queued for a session, the worktree Hoplet made for a handed-off session, the provider configuration each session belongs to, and the IDs of deleted sessions; planned, ADR 0030: the audit log, `audit_events`, and how far it was derived from each session, `audit_cursor`), `sessions/<sessionId>/c-<seq>.ndjson[.gz]` (session lines), `snapshots/<sessionId>/<snapshotId>.tar.gz` (latest workspace snapshot per session), `notify-secrets.json` (mode 0600: the VAPID key pair for Web Push, the key that signs action links and the signing secrets of webhooks; the push subscriptions, the webhooks without their secrets and the preferences are in `hoplet.db`) |
 | Agent state root (`~/.hoplet/` by default) | `device-id`, `config.json`, `projects.json`, `runtime/` (running processes), `handoff/` (installation records and the journal of a clone in progress, `<handoffId>.clone.json`, which the agent uses on start-up to remove a half-made clone), `attachments/` (images uploaded for prompts: at most 64 files and 64 MiB, each kept at most an hour) |
 | Development machine | Claude Code's store, Codex's `sessions/` (read-only, except that handoff adds one rollout file) and working trees; worktrees created by handoff, next to the clone they belong to |
 
 Rotating the notification secrets is deleting `notify-secrets.json` while the core is stopped: the next start
 creates new ones. Every action link issued before stops working, push subscriptions made under the old VAPID key
 are removed (the browsers subscribe again), and the signing secrets of webhooks must be entered again.
+
+The audit log (planned, [ADR 0030](adr/0030-the-audit-log-records-actions-in-a-hash-chain.md)) is in `hoplet.db`, so
+the backup and the restore above cover it and nothing else needs running. It grows with the tool calls of your
+sessions, at roughly 0.5 KiB a record: a few MiB a day for a machine making a few thousand tool calls, a few hundred
+MiB at the default 180 days of retention (an estimate until measured). `HOPLET_AUDIT_RETENTION_DAYS` bounds it; only
+retention deletes records. A restored backup is a chain that ends where the backup ended; copy `hoplet audit head`
+somewhere off the host if you want to notice that records were removed.
 
 Back up the stopped data directory, including SQLite WAL and SHM files. Restore by putting it back and
 starting the container. Run one core per data directory, on a local filesystem with fsync and atomic rename.
@@ -102,6 +109,7 @@ starting the container. Run one core per data directory, on a local filesystem w
 | `HOPLET_PORT` | `7788` | listening port inside the container |
 | `HOPLET_DATA` | `/data` in the image | data directory |
 | `HOPLET_WEB_DIR` | `/app/web/dist` in the image | built web UI |
+| `HOPLET_AUDIT_RETENTION_DAYS` | `180` | planned (ADR 0030): days the audit log keeps records; `0` keeps all. An environment variable only, so the host token cannot shorten it |
 | `HOPLET_PUBLIC_URL` | none | the address of the core behind the proxy; the base of action links ([Public URL](#public-url)) |
 
 ### Agent (`~/.hoplet/config.json`, or the file passed with `--config`)
@@ -206,6 +214,10 @@ thousands of messages).
 
 Migration 0022 (budgets) adds two small tables, `budgets` and `budget_alerts`; it reads nothing and needs no
 action. Budgets are evaluated from the `usage` table in the core's process: no new port, resource or dependency.
+
+The migration that adds the audit log (planned, ADR 0030) creates `audit_events` and `audit_cursor` and reads nothing;
+it needs no action. The log starts at the first start after the upgrade and does not cover earlier sessions. No new
+port, resource or dependency; the database grows as the hosting section on data says.
 
 ## Uninstall
 
