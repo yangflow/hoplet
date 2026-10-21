@@ -32,6 +32,11 @@ machine whose Claude Code sessions are synced or controlled.
   agent runs `git clone` and `git ls-remote` against the `origin` over `https` or `ssh` and nothing else. It
   needs a credential helper or an ssh key that works without a prompt; a repository that asks for a password
   fails as `no-access`.
+- Planned (ADR 0031): webhook hooks add outbound requests to the hook URLs the user configured, over `https`
+  only. The core resolves the host and refuses loopback, private, shared, link-local (cloud metadata included) and
+  other non-public addresses before it connects, follows no redirect and keeps no response body. Setting
+  `HOPLET_HOOK_ALLOW_PRIVATE` lets a hook name a loopback or private address, over `http` too; link-local
+  addresses are never allowed. Script hooks open no connection: the agent runs a local executable.
 
 ### Public URL
 
@@ -96,6 +101,12 @@ MiB at the default 180 days of retention (an estimate until measured). `HOPLET_A
 retention deletes records. A restored backup is a chain that ends where the backup ended; copy `hoplet audit head`
 somewhere off the host if you want to notice that records were removed.
 
+Planned (ADR 0031): lifecycle hooks are kept in `hoplet.db` (the hooks, and one row per delivery with its body,
+state and last status, kept 14 days after the delivery settles, at most 500 per hook, and up to 1000 waiting
+deliveries per hook) and their signing secrets are in `notify-secrets.json`, next to the webhook secrets. A hook
+secret is rotated from the web UI, which keeps the old one valid for 24 hours; deleting the file voids every hook
+secret, and each hook then shows `needs-secret` and sends nothing until it is rotated.
+
 Back up the stopped data directory, including SQLite WAL and SHM files. Restore by putting it back and
 starting the container. Run one core per data directory, on a local filesystem with fsync and atomic rename.
 
@@ -111,6 +122,7 @@ starting the container. Run one core per data directory, on a local filesystem w
 | `HOPLET_WEB_DIR` | `/app/web/dist` in the image | built web UI |
 | `HOPLET_AUDIT_RETENTION_DAYS` | `180` | planned (ADR 0030): days the audit log keeps records; `0` keeps all. An environment variable only, so the host token cannot shorten it |
 | `HOPLET_PUBLIC_URL` | none | the address of the core behind the proxy; the base of action links ([Public URL](#public-url)) |
+| `HOPLET_HOOK_ALLOW_PRIVATE` | unset (planned, ADR 0031) | when set to `1`, webhook hooks may name loopback and private addresses, over `http` too; link-local and metadata addresses stay refused |
 
 ### Agent (`~/.hoplet/config.json`, or the file passed with `--config`)
 
@@ -131,6 +143,7 @@ starting the container. Run one core per data directory, on a local filesystem w
 | `runtime_max_idle_processes` | `3` | processes kept running between turns; processes in a turn are not limited |
 | `terminal` | `false` | allow the web UI to open a shell on this machine ([Terminal](#terminal)) |
 | `preview_host` | the machine's host name | the host in the links to a session's dev servers ([Dev server links](#dev-server-links)) |
+| `hooks` | none (planned, ADR 0031) | script hooks the agent runs on session events ([Lifecycle hooks](#lifecycle-hooks)) |
 
 `<hoplet_home>/projects.json` lists watched project paths and the session IDs imported from each:
 `{ "projects": [{ "path": "/abs/project", "imported": ["<session>"] }] }`. A missing or empty file syncs
@@ -161,6 +174,24 @@ with the key removed or `false` the agent does not offer the terminal. A termina
 input, after 8 hours, when a turn or a handoff starts and when the agent loses its connection to the core; at most
 three run on a machine. The agent keeps `<hoplet_home>/terminal/` (one small record per open terminal, no content)
 and removes what a crash left on start-up. The terminal's traffic uses the agent's existing connection to the core.
+
+### Lifecycle hooks
+
+Planned ([ADR 0031](adr/0031-the-session-lifecycle-events-and-the-two-hook-kinds.md)). `"hooks": [...]` in the
+agent's `config.json` declares scripts the agent runs on session events. Each entry has an `id` (a slug, unique on
+the machine), `command` (an absolute path to an executable), `events` (a list of event types, or `"*"`), optional
+`projects` (absolute paths it applies to), `timeout_ms` (default 10000, at most 60000) and `env` (names of
+variables to pass through). Only the operator of the machine can add or change a script hook: the core and the web
+UI list, enable and disable them, and never add, edit or point one. The file is read at start, so a change takes
+an agent restart. The agent refuses at load an entry whose `command` is relative, not a regular file, not
+executable, or writable by group or others, and logs why.
+
+A script runs as the agent's user, without a shell and without arguments, with the event JSON on standard input,
+the project directory as its working directory, and an environment of only `PATH`, `HOME`, `USER`, `LANG`, `TZ`,
+`TMPDIR`, the names in `env` and `HOPLET_HOOK_ID`, `HOPLET_EVENT_ID`, `HOPLET_EVENT_TYPE`. After `timeout_ms` it is
+stopped (`SIGTERM`, then `SIGKILL` after 2 seconds). One run at a time per hook, at most 16 events waiting; more
+are dropped and counted. Standard output is discarded; the exit status and the first 1 KiB of standard error are
+reported to the core.
 
 ### Dev server links
 
