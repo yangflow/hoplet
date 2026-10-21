@@ -268,6 +268,20 @@ export function createRuntime(state: ControlState): Runtime {
       if (mode !== undefined && (decision !== 'allow' || !open.planExit?.modes.includes(mode))) {
         return { ok: false, error: 'invalid-request' };
       }
+      // The record comes first: an answer the audit log cannot hold is not sent (ADR 0030).
+      store.audit({
+        type: 'permission.answered',
+        sessionId,
+        deviceId: ownerDeviceId,
+        ref: requestId,
+        channel: answer.by === 'link' ? 'link' : 'rest',
+        summary: {
+          decision,
+          answeredBy: answer.by ?? 'operator',
+          tool: open.tool,
+          ...(mode !== undefined ? { mode } : {}),
+        },
+      });
       // The first answer wins: the request is gone before the answer is sent.
       permissions.delete(key);
       log('info', 'control', 'permission answered', { sessionId, requestId, decision });
@@ -291,6 +305,7 @@ export function createRuntime(state: ControlState): Runtime {
       if (current !== 'running' && current !== 'waiting-permission') {
         return { ok: false, error: 'not-running' };
       }
+      store.audit({ type: 'session.interrupted', sessionId, deviceId: ownerDeviceId });
       log('info', 'control', 'interrupt forwarded', { sessionId });
       const msg: RuntimeInterrupt = { v: PROTOCOL_VERSION, type: 'runtime.interrupt', sessionId };
       link.send(msg);
@@ -300,6 +315,7 @@ export function createRuntime(state: ControlState): Runtime {
     stop(sessionId, ownerDeviceId): RuntimeCommandOutcome {
       const link = onlineLink(state, ownerDeviceId);
       if (!link) return { ok: false, error: 'owner-offline' };
+      store.audit({ type: 'session.stopped', sessionId, deviceId: ownerDeviceId });
       log('info', 'control', 'stop forwarded', { sessionId });
       const msg: RuntimeStop = { v: PROTOCOL_VERSION, type: 'runtime.stop', sessionId };
       link.send(msg);
@@ -310,6 +326,12 @@ export function createRuntime(state: ControlState): Runtime {
       const link = onlineLink(state, ownerDeviceId);
       if (!link) return { ok: false, error: 'owner-offline' };
       if (view(sessionId).state === 'external') return { ok: false, error: 'external' };
+      store.audit({
+        type: 'mode.changed',
+        sessionId,
+        deviceId: ownerDeviceId,
+        summary: { option: configId, value },
+      });
       log('info', 'control', 'config forwarded', { sessionId, configId, value });
       const msg: RuntimeConfig = {
         v: PROTOCOL_VERSION,

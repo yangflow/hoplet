@@ -8,6 +8,7 @@ import {
   safeParse,
 } from '@hoplet/shared';
 import { registerSecret } from '../log/index.ts';
+import { appendAudit } from './audit.ts';
 import type { StoreContext } from './layout.ts';
 
 function hashToken(token: string): string {
@@ -134,20 +135,32 @@ export function mintDevice(
   registerSecret(token);
   const hash = hashToken(token);
   const now = Date.now();
-  const existing = ctx.db.prepare(`SELECT device_id FROM devices WHERE device_id = ?`).get(id) as
-    | { device_id: string }
-    | undefined;
-  if (existing) {
-    ctx.db
-      .prepare(`UPDATE devices SET name = ?, token_hash = ? WHERE device_id = ?`)
-      .run(name, hash, id);
-  } else {
-    ctx.db
-      .prepare(
-        `INSERT INTO devices(device_id, name, version, first_seen, last_seen, token_hash)
-         VALUES(?, ?, '', ?, ?, ?)`,
-      )
-      .run(id, name, now, now, hash);
+  ctx.db.exec('BEGIN IMMEDIATE');
+  try {
+    const existing = ctx.db.prepare(`SELECT device_id FROM devices WHERE device_id = ?`).get(id) as
+      | { device_id: string }
+      | undefined;
+    if (existing) {
+      ctx.db
+        .prepare(`UPDATE devices SET name = ?, token_hash = ? WHERE device_id = ?`)
+        .run(name, hash, id);
+    } else {
+      ctx.db
+        .prepare(
+          `INSERT INTO devices(device_id, name, version, first_seen, last_seen, token_hash)
+           VALUES(?, ?, '', ?, ?, ?)`,
+        )
+        .run(id, name, now, now, hash);
+    }
+    appendAudit(ctx, {
+      type: 'device.token.issued',
+      deviceId: id,
+      summary: { deviceId: id, name, replaced: Boolean(existing) },
+    });
+    ctx.db.exec('COMMIT');
+  } catch (err) {
+    if (ctx.db.isTransaction) ctx.db.exec('ROLLBACK');
+    throw err;
   }
   return { deviceId: id, token, name };
 }

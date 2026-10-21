@@ -8,6 +8,8 @@ export interface Config {
   webDir: string | null;
   /** The address the core is reached at from outside, for action links; null when none is set. */
   publicUrl?: string | null;
+  /** Days the audit log keeps a record (`HOPLET_AUDIT_RETENTION_DAYS`); 0 keeps everything. Default 180. */
+  auditRetentionDays?: number;
 }
 
 export function loadConfig(): Config {
@@ -21,7 +23,16 @@ export function loadConfig(): Config {
     process.exit(1);
   }
   registerSecret(token);
-  return { port, dataDir, token, webDir, publicUrl };
+  const auditRetentionDays = parseAuditRetention(process.env.HOPLET_AUDIT_RETENTION_DAYS);
+  return { port, dataDir, token, webDir, publicUrl, auditRetentionDays };
+}
+
+/** Days of audit retention: an integer of at least 1, or 0 for no limit; 180 when absent, and for anything else (with a warning). */
+export function parseAuditRetention(value: string | undefined): number {
+  if (value === undefined || value.trim() === '') return 180;
+  if (/^\d{1,6}$/.test(value.trim())) return Number(value.trim());
+  log('warn', 'config', 'HOPLET_AUDIT_RETENTION_DAYS is not a whole number of days; using 180');
+  return 180;
 }
 
 /** An http(s) origin and path without a trailing slash, or null (and a warning) for anything else. */

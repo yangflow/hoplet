@@ -93,7 +93,7 @@ const MAY_CALL: Record<string, readonly string[]> = {
   log: ['scrub'],
   scrub: [],
   migrations: [],
-  store: ['migrations', 'log'],
+  store: ['migrations', 'log', 'scrub'],
   control: ['store', 'log'],
   ingest: ['store', 'control', 'log', 'config'],
   notify: ['store', 'control', 'log', 'scrub'],

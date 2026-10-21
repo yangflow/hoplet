@@ -8,6 +8,12 @@ import {
   ActionInspectRequestSchema,
   ActionInspectResponseSchema,
   AttachmentResultSchema,
+  AuditEventSchema,
+  AuditEventsQuerySchema,
+  AuditEventsResponseSchema,
+  AuditExportQuerySchema,
+  AuditVerifyQuerySchema,
+  AuditVerifyResponseSchema,
   BlockParamsSchema,
   BUILTIN_COMMANDS,
   type BudgetBody,
@@ -119,6 +125,7 @@ import corePackage from '../../package.json' with { type: 'json' };
 import type { DeviceControlOutcome, QueueResult, SteerOutcome } from '../control/index.ts';
 import { registerSecret } from '../log/index.ts';
 import type { PushSubscriptionRecord, SessionStateRecord, Store } from '../store/index.ts';
+import { auditExport } from './audit-export.ts';
 import { ApiError, relayError } from './http.ts';
 import { checkPromptImage } from './images.ts';
 import { publicOrigin, repoNameOf } from './origin.ts';
@@ -1312,6 +1319,41 @@ export const routes: readonly Route[] = [
       if (Object.keys(body.overrides).length > MAX_USAGE_PRICES) throw new ApiError('too-large');
       store.setUsagePrices(body);
       return store.usagePrices();
+    },
+  }),
+  defineRoute({
+    method: 'GET',
+    path: '/api/audit/events',
+    auth: 'host',
+    lane: 'bulk',
+    query: AuditEventsQuerySchema,
+    response: AuditEventsResponseSchema,
+    handler: ({ store, query }) => {
+      const { after, order, limit, ...filter } = query;
+      return store.listAudit(filter, { after, order, limit });
+    },
+  }),
+  defineRoute({
+    method: 'GET',
+    path: '/api/audit/export',
+    auth: 'host',
+    lane: 'bulk',
+    query: AuditExportQuerySchema,
+    response: AuditEventSchema,
+    handler: ({ store, query }) => auditExport(store, query),
+  }),
+  defineRoute({
+    method: 'GET',
+    path: '/api/audit/verify',
+    auth: 'host',
+    lane: 'bulk',
+    query: AuditVerifyQuerySchema,
+    response: AuditVerifyResponseSchema,
+    handler: ({ store, query }) => {
+      const [seq, hash] = query.head?.split(':') ?? [];
+      return store.verifyAudit(
+        seq !== undefined && hash !== undefined ? { seq: Number(seq), hash } : undefined,
+      );
     },
   }),
   defineRoute({

@@ -1,6 +1,8 @@
 /** Host-token HTTP client for core REST (prompt, interrupt, handoff, devices). */
 import { randomUUID } from 'node:crypto';
 import {
+  AuditEventsResponseSchema,
+  AuditVerifyResponseSchema,
   DeviceListResponseSchema,
   DeviceMintResultSchema,
   ErrorResponseSchema,
@@ -129,5 +131,38 @@ export class HostClient {
       DeviceMintResultSchema,
       deviceId === undefined ? { name } : { name, deviceId },
     );
+  }
+
+  /** One page of the audit log; `query` is the query string of GET /api/audit/events. */
+  auditEvents(query: URLSearchParams) {
+    return this.request('GET', `/api/audit/events?${query}`, AuditEventsResponseSchema);
+  }
+
+  auditVerify(head?: string) {
+    const query = head === undefined ? '' : `?${new URLSearchParams({ head })}`;
+    return this.request('GET', `/api/audit/verify${query}`, AuditVerifyResponseSchema);
+  }
+
+  /** The export as text, or the error; the body is not parsed. */
+  async auditExport(
+    query: URLSearchParams,
+  ): Promise<{ ok: true; text: string } | { ok: false; error: HostError }> {
+    const res = await this.fetchImpl(`${this.baseUrl}/api/audit/export?${query}`, {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${this.token}` },
+    });
+    if (!res.ok) {
+      const parsed = safeParse(ErrorResponseSchema, await res.json().catch(() => null));
+      const error = parsed.success ? parsed.output : null;
+      return {
+        ok: false,
+        error: {
+          status: res.status,
+          code: error?.code ?? null,
+          message: errorMessage(res.status, error),
+        },
+      };
+    }
+    return { ok: true, text: await res.text() };
   }
 }

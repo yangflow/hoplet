@@ -128,6 +128,9 @@ Response column names the schema of the success body and its status when it is n
 | DELETE | `/api/budgets/:id` | host | control | — | — | `BudgetListResponseSchema` | `not-found` |
 | POST | `/api/budgets/:id/allow` | host | control | — | — | `BudgetSchema` | `not-found`, `invalid-request` |
 | DELETE | `/api/budgets/:id/allow` | host | control | — | — | `BudgetSchema` | `not-found`, `invalid-request` |
+| GET | `/api/audit/events` | host | bulk | `AuditEventsQuerySchema` | — | `AuditEventsResponseSchema` | `invalid-request` |
+| GET | `/api/audit/export` | host | bulk | `AuditExportQuerySchema` | — | `AuditEventSchema`, streamed as JSON Lines or CSV | `invalid-request`, `rate-limited`, `audit-unavailable` |
+| GET | `/api/audit/verify` | host | bulk | `AuditVerifyQuerySchema` | — | `AuditVerifyResponseSchema` | `invalid-request` |
 | GET | `/api/notify/push/key` | host | control | — | — | `PushKeyResponseSchema` | — |
 | GET | `/api/notify/push/subscriptions` | host | control | — | — | `PushSubscriptionListResponseSchema` | — |
 | POST | `/api/notify/push/subscriptions` | host | control | — | `PushSubscribeRequestSchema` | `PushSubscriptionInfoSchema`, 201 | `invalid-json`, `invalid-request`, `too-large` |
@@ -350,7 +353,7 @@ Behavior a client relies on:
 
 ### Query parameters
 
-The query string is text, so the three schemas that read numbers or check a search string are not in the JSON
+The query string is text, so the schemas that read numbers or check a search string are not in the JSON
 Schema file ([JSON Schema](#json-schema)). Their parameters:
 
 | Route | Parameter | Meaning |
@@ -363,6 +366,12 @@ Schema file ([JSON Schema](#json-schema)). Their parameters:
 | `GET /api/search` | `q` | As above |
 | | `start` | Integer, default `0`, at least `0` |
 | | `limit` | Integer, default `30`, kept within 1 to 100; the response says `exhausted: false` when more may exist |
+| `GET /api/audit/events` | `session`, `device`, `type`, `q` | Filters: the session ID, the machine ID, a type or a type prefix ending in `.`, and text searched in the summary |
+| | `actor` | `<kind>:<id>` (or `<kind>`) of the actor |
+| | `from`, `to` | Integers, milliseconds since the epoch, `from` inclusive and `to` exclusive |
+| | `order`, `after` | `desc` (the default, newest first) or `asc`; `after` is the `seq` the page before ended at (its `next`) |
+| | `limit` | Integer, default `100`, kept within 1 to 500 |
+| `GET /api/audit/export` | the filters above, `format` | `jsonl` (the default) or `csv`; always oldest first, with no paging |
 
 A value that is not a number reads as the default. The other query parameters are in their schemas:
 `GET /api/sessions/:sessionId/workspace/file` takes `path` and `at` (`worktree`, the default, or `head`), the
@@ -424,6 +433,7 @@ session, or `""` while the session is not in the index yet; the client shows its
 | `rejected` | 502 | The agent refused or failed the request; `reason` is its diagnostic text |
 | `timeout` | 504 | The agent did not answer in time |
 | `internal` | 500 | The core failed |
+| `audit-unavailable` | 503 | The audit log could not record the action, so the action was not carried out ([ADR 0030](adr/0030-the-audit-log-records-actions-in-a-hash-chain.md)) |
 
 ## Browser WebSocket
 
@@ -527,6 +537,8 @@ routes that use it and the reason. These are the exclusions:
 | `LinesQuerySchema` | `GET /api/sessions/:sessionId/lines` | It coerces text to numbers and keeps them in range (a `transform`) |
 | `SessionSearchQuerySchema` | `GET /api/sessions/:sessionId/search` | It checks that `q` holds more than whitespace (a `check`) and coerces numbers |
 | `GlobalSearchQuerySchema` | `GET /api/search` | The same as `SessionSearchQuerySchema` |
+| `AuditEventsQuerySchema` | `GET /api/audit/events` | It coerces numbers and splits `actor` into kind and ID (a `transform`) |
+| `AuditExportQuerySchema` | `GET /api/audit/export` | The same as `AuditEventsQuerySchema` |
 
 Their parameters are in [Query parameters](#query-parameters). The messages between the agents and the core
 (`/ws/agent`) are not part of this contract.
