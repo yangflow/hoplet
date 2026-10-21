@@ -127,6 +127,7 @@ Response column names the schema of the success body and its status when it is n
 | PUT | `/api/budgets/:id` | host | control | — | `BudgetBodySchema` | `BudgetSchema` | `invalid-json`, `invalid-request`, `too-large`, `not-found` |
 | DELETE | `/api/budgets/:id` | host | control | — | — | `BudgetListResponseSchema` | `not-found` |
 | POST | `/api/budgets/:id/allow` | host | control | — | — | `BudgetSchema` | `not-found`, `invalid-request` |
+| DELETE | `/api/budgets/:id/allow` | host | control | — | — | `BudgetSchema` | `not-found`, `invalid-request` |
 | GET | `/api/notify/push/key` | host | control | — | — | `PushKeyResponseSchema` | — |
 | GET | `/api/notify/push/subscriptions` | host | control | — | — | `PushSubscriptionListResponseSchema` | — |
 | POST | `/api/notify/push/subscriptions` | host | control | — | `PushSubscribeRequestSchema` | `PushSubscriptionInfoSchema`, 201 | `invalid-json`, `invalid-request`, `too-large` |
@@ -206,7 +207,9 @@ Behavior a client relies on:
   the scope, period, unit, amount, alert percentage or offset starts the budget afresh: its notifications can be
   sent again and a lifted pause ends. `POST /api/budgets/:id/allow` lifts the pause of a `pause` budget until its
   period ends (it is stored, so a restart keeps it, and it expires by itself); on a `warn` budget it is
-  `invalid-request` with `reason: "onLimit"`.
+  `invalid-request` with `reason: "onLimit"`. `DELETE /api/budgets/:id/allow` takes the lift back, so the pause
+  applies again at once; it answers the budget, also when nothing was lifted, and is `invalid-request` with
+  `reason: "onLimit"` on a `warn` budget.
 - A `pause` budget that is over its amount and not lifted refuses new work in its scope with `over-budget` (409,
   with `budget: { id, name }` naming it): `POST /api/sessions/:sessionId/prompt`, a new session
   (`POST /api/sessions`, `POST /api/sessions/:sessionId/permission/fresh`) in its project or on its machine. A

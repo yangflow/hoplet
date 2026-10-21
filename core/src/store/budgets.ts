@@ -246,6 +246,14 @@ export function allowBudget(ctx: StoreContext, id: string, now: number): Budget 
   return getBudget(ctx, id, now);
 }
 
+/** Takes back the lift of a budget's pause, so the pause applies again at once; null when there is no such budget. */
+export function withdrawBudgetAllowance(ctx: StoreContext, id: string, now: number): Budget | null {
+  const row = ctx.db.prepare('SELECT id FROM budgets WHERE id = ?').get(id);
+  if (!row) return null;
+  ctx.db.prepare('UPDATE budgets SET allowed_period_start = NULL WHERE id = ?').run(id);
+  return getBudget(ctx, id, now);
+}
+
 /**
  * Records that `threshold` was notified for the budget's period; true the first time, false when it already was.
  * Recorded before the notification is sent, so a crash in between loses a notification instead of repeating it.

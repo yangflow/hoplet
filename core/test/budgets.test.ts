@@ -214,6 +214,17 @@ describe('the pause', () => {
     expect(store.allowBudget('nope', T0)).toBeNull();
   });
 
+  it('applies again at once when the lift is withdrawn, and withdrawing is idempotent', () => {
+    const { store } = seeded();
+    const b = store.createBudget(body({ amount: 100, onLimit: 'pause' }), T0);
+    store.allowBudget(b.id, T0);
+    expect(store.budgetBlockForSession('s1', T0)).toBeNull();
+    expect(store.withdrawBudgetAllowance(b.id, T0)).toMatchObject({ state: 'over', paused: true });
+    expect(store.budgetBlockForSession('s1', T0)?.id).toBe(b.id);
+    expect(store.withdrawBudgetAllowance(b.id, T0)).toMatchObject({ state: 'over', paused: true });
+    expect(store.withdrawBudgetAllowance('nope', T0)).toBeNull();
+  });
+
   it('keeps a lift across a restart, and drops it when the amount changes', () => {
     const { dir, store } = seeded();
     const b = store.createBudget(body({ amount: 100, onLimit: 'pause' }), T0);
@@ -527,6 +538,7 @@ describe('/api/budgets', () => {
       ['PUT', '/api/budgets/x'],
       ['DELETE', '/api/budgets/x'],
       ['POST', '/api/budgets/x/allow'],
+      ['DELETE', '/api/budgets/x/allow'],
     ] as const) {
       expect((await call(m, u, m === 'GET' ? undefined : body(), false)).status, `${m} ${u}`).toBe(
         401,
@@ -632,6 +644,17 @@ describe('/api/budgets', () => {
     expect(allowed.body).toMatchObject({ state: 'allowed', paused: false });
     const ok = await call('POST', '/api/sessions/s1/prompt', { text: 'go', promptId: 'p2' });
     expect(ok.status).toBe(202);
+
+    const withdrawn = await call('DELETE', `/api/budgets/${id}/allow`);
+    expect(withdrawn.status).toBe(200);
+    expect(withdrawn.body).toMatchObject({ state: 'over', paused: true });
+    const again = await call('DELETE', `/api/budgets/${id}/allow`);
+    expect(again.status).toBe(200);
+    const refusedAgain = await call('POST', '/api/sessions/s1/prompt', {
+      text: 'go',
+      promptId: 'p3',
+    });
+    expect(refusedAgain.status).toBe(409);
   });
 
   it('does not refuse a prompt over a warn budget, and allow is for pause budgets', async () => {
@@ -643,5 +666,9 @@ describe('/api/budgets', () => {
     expect(allow.status).toBe(400);
     expect(allow.body).toMatchObject({ code: 'invalid-request', reason: 'onLimit' });
     expect((await call('POST', '/api/budgets/missing/allow')).status).toBe(404);
+    const withdraw = await call('DELETE', `/api/budgets/${created.body.id}/allow`);
+    expect(withdraw.status).toBe(400);
+    expect(withdraw.body).toMatchObject({ code: 'invalid-request', reason: 'onLimit' });
+    expect((await call('DELETE', '/api/budgets/missing/allow')).status).toBe(404);
   });
 });

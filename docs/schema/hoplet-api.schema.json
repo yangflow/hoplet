@@ -665,6 +665,16 @@
       "response": "BudgetSchema"
     },
     {
+      "method": "DELETE",
+      "path": "/api/budgets/:id/allow",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": null,
+      "response": "BudgetSchema"
+    },
+    {
       "method": "GET",
       "path": "/api/notify/push/key",
       "auth": "host",
