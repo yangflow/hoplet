@@ -67,12 +67,31 @@ export function folderOf(path: string): string {
 }
 
 /** The options of the draft in words, without the permission mode: `Opus · Extended thinking`. */
-function optionsText(shown: readonly ConfigOption[]): string | null {
+export function optionsText(shown: readonly ConfigOption[]): string | null {
   const words = menuConfig(shown)
     .map((o) => (o.type === 'select' ? currentValueName(o) : o.currentValue ? optionName(o) : null))
     .filter((x): x is string => !!x);
   return words.length > 0 ? words.join(' · ') : null;
 }
+
+/** The machine, the folder and the options in words, as the fill dialog shows where a template will run. */
+export function startContext(
+  machine: string,
+  path: string,
+  shown: readonly ConfigOption[],
+): { machine: string; folder: string; options: string } {
+  const mode = modeOption(shown);
+  return {
+    machine,
+    folder: baseName(path),
+    options: [optionsText(shown), mode ? currentValueName(mode) : null]
+      .filter((x): x is string => !!x)
+      .join(' · '),
+  };
+}
+
+/** A template to put on the draft once it is open, and the values its fields already have. */
+export type DraftEntry = { template: Template; values?: Record<string, string> };
 
 /**
  * New session as a draft (docs/spec.md#hoplet): an empty conversation whose composer chooses the machine, the
@@ -97,6 +116,9 @@ export function Draft(props: {
   onStartTemplate: (request: TemplateStart) => Promise<void>;
   /** Opens Settings › Templates. */
   onManageTemplates: () => void;
+  /** A template chosen outside the draft (the sidebar, the palette); applied once, then `onEntryUsed` is called. */
+  entry?: DraftEntry | null;
+  onEntryUsed?: () => void;
   voiceAvailable: boolean;
   fixture?: DraftFixture;
 }) {
@@ -196,8 +218,8 @@ export function Draft(props: {
       )
     : [];
 
-  /** Puts a template's place and options on the draft; a template with fields asks for them next, one without fills the prompt. */
-  function apply(template: Template) {
+  /** Puts a template's place and options on the draft; a template with fields asks for them next unless `values` are given, one without fills the prompt. */
+  function apply(template: Template, values?: Record<string, string>) {
     const there = targets.find(
       (x) => template.deviceId !== undefined && x.deviceId === template.deviceId,
     );
@@ -209,14 +231,23 @@ export function Draft(props: {
     setTpl(template);
     setAccepted(new Set());
     setStartError(null);
-    if (template.placeholders.length > 0) {
+    if (template.placeholders.length > 0 && !values) {
       setDialog('fill');
       return;
     }
     // Nothing to ask: the prompt goes in the composer and the user sends it when it suits.
-    setFillText((cur) => ({ text: draftText(template.text, {}), n: (cur?.n ?? 0) + 1 }));
+    setFillText((cur) => ({ text: draftText(template.text, values ?? {}), n: (cur?.n ?? 0) + 1 }));
     setDialog(null);
   }
+
+  const entry = props.entry;
+  const entryUsed = props.onEntryUsed;
+  // biome-ignore lint/correctness/useExhaustiveDependencies: a chosen template is applied once, when it arrives
+  useEffect(() => {
+    if (!entry) return;
+    apply(entry.template, entry.values);
+    entryUsed?.();
+  }, [entry]);
 
   function clearTemplate() {
     setTpl(null);
@@ -496,13 +527,7 @@ export function Draft(props: {
         <FillDialog
           template={tpl}
           issues={issues}
-          context={{
-            machine,
-            folder: baseName(path),
-            options: [optionsText(shown), mode ? currentValueName(mode) : null]
-              .filter((x): x is string => !!x)
-              .join(' · '),
-          }}
+          context={startContext(machine, path, shown)}
           busy={startBusy}
           error={startError}
           initial={fx?.applied?.values ?? {}}

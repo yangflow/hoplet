@@ -1061,5 +1061,13 @@
   "Fill in {names}.": "Fill in {names}.",
   "The project is not on the machine.": "The project is not on the machine.",
   "The machine does not offer an option of this template.": "The machine does not offer an option of this template.",
-  "The prompt is longer than a prompt may be.": "The prompt is longer than a prompt may be."
+  "The prompt is longer than a prompt may be.": "The prompt is longer than a prompt may be.",
+  "New session from a template": "New session from a template",
+  "Blank session": "Blank session",
+  "Save as template…": "Save as template…",
+  "Save the current session as a template…": "Save the current session as a template…",
+  "to start": "to start",
+  "Starts at once": "Starts at once",
+  "Template saved": "Template saved",
+  "Could not read the first prompt": "Could not read the first prompt"
 }

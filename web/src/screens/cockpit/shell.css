@@ -288,6 +288,7 @@
   right: var(--space-2);
   top: calc(100% - var(--space-1));
 }
+
 .menu-title {
   padding: var(--space-2) var(--space-2) var(--space-1);
   font-weight: var(--weight-semibold);
@@ -1217,4 +1218,56 @@
 .upop .bl .pbar {
   margin-left: calc(16px + var(--space-2));
   flex: none;
+}
+
+/* The chevron beside New session: Blank session, the templates, Manage templates */
+.new-menu {
+  display: contents;
+}
+.brand .tp-pop {
+  left: 104px;
+  right: auto;
+  top: 100%;
+  width: 340px;
+}
+.mn.tp-pop .menu-item {
+  height: auto;
+  min-height: var(--layout-row);
+  padding: var(--space-1) var(--space-2);
+  align-items: flex-start;
+  white-space: normal;
+}
+.mn.tp-pop .menu-item > svg {
+  margin-top: 2px;
+}
+.mn.tp-pop .menu-item.one {
+  align-items: center;
+}
+.mn.tp-pop .tx {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+  text-align: left;
+}
+.mn.tp-pop .tx b {
+  font-weight: var(--weight-medium);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mn.tp-pop .tx span {
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  color: var(--color-text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mn.tp-pop .menu-none {
+  margin: 0;
+  padding: var(--space-1) var(--space-2) var(--space-2);
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  color: var(--color-text-3);
 }

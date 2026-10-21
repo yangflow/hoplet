@@ -998,6 +998,23 @@ const TEMPLATES = templateList(
   },
 );
 
+/** The templates of the one-click entries, as the design lists them: two on each machine. */
+const ENTRY_TEMPLATES = templateList(
+  { ...REVIEW, config: { model: 'opus-5.5', mode: 'default', thinking: true } },
+  { ...FIX, config: { model: 'opus-5.5', mode: 'acceptEdits', thinking: true, fast: true } },
+  { ...NOTES, config: { model: 'sonnet-5.5', mode: 'plan' } },
+  { ...DEPS, config: { model: 'sonnet-5.5', mode: 'acceptEdits' } },
+);
+/** Two sessions whose titles the palette's "review" matches. */
+const reviewing = (base: LiveSessionMeta[]) =>
+  base.map((s) =>
+    s.sessionId === catalogId
+      ? { ...s, titleOverride: 'Review the sync protocol change' }
+      : s.sessionId === notesId
+        ? { ...s, titleOverride: 'Review notes for the 0.8 release' }
+        : s,
+  );
+
 const cmd = (
   name: string,
   description: string,
@@ -1583,6 +1600,35 @@ export const states: Record<string, () => ReactNode> = {
     />
   ),
   'session-actions': () => <Scene fixture={{ actionsMenu: {} }} />,
+  'save-menu': () => <Scene fixture={{ actionsMenu: { item: 'save-template' } }} />,
+  'new-menu': () => <Scene fixture={{ templates: { templates: ENTRY_TEMPLATES, menu: true } }} />,
+  palette: () => (
+    <Scene
+      sessions={reviewing}
+      fixture={{
+        paletteOpen: true,
+        query: 'review',
+        search: { hits: [], scanning: false },
+        templates: { templates: ENTRY_TEMPLATES },
+      }}
+    />
+  ),
+  'palette-fill': () => (
+    <Scene fixture={{ templates: { templates: ENTRY_TEMPLATES, fill: { id: 'tpl-review' } } }} />
+  ),
+  'save-session': () => (
+    <Scene
+      fixture={{
+        templates: {
+          templates: ENTRY_TEMPLATES,
+          save: {
+            name: 'Catalog the byte cursor',
+            text: 'Catalog every place the byte cursor is read or written and list the invariants each one keeps.',
+          },
+        },
+      }}
+    />
+  ),
   'session-actions-copy': () => <Scene fixture={{ actionsMenu: { sub: 'copy' } }} />,
   'rename-dialog': () => (
     <Scene sessions={pinned} fixture={{ rename: 'Snapshot handoff' }} selected={handoffId} />

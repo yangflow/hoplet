@@ -9,7 +9,7 @@ import './templates.css';
 export type TemplateChoice = { template: Template; detail: string };
 
 /** The choices whose name, prompt or detail contain every word of `query`. */
-export function filterChoices(choices: readonly TemplateChoice[], query: string): TemplateChoice[] {
+export function filterChoices<T extends TemplateChoice>(choices: readonly T[], query: string): T[] {
   const words = query.toLowerCase().split(/\s+/).filter(Boolean);
   if (words.length === 0) return [...choices];
   return choices.filter((c) => {
