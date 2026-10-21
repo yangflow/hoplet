@@ -10,7 +10,7 @@ import type {
   SessionRuntimeInfo,
 } from '@hoplet/shared';
 import { type ReactNode, useState } from 'react';
-import { sessionUsage } from '../settings/usage-fixtures.ts';
+import { B1, B2, B4, DOCS_PATH, sessionUsage } from '../settings/usage-fixtures.ts';
 import { live as liveWorkspace, snapshot } from '../workspace/fixtures.ts';
 import type { PathsState } from './composer/use-completions.ts';
 import { rememberBlock } from './conversation/blocks.tsx';
@@ -749,6 +749,9 @@ const queueOf = (over: Partial<Queue> = {}, sending = false): Queue => ({
   })),
   ...over,
 });
+const BUDGET_PROMPT = 'Document the notification kinds in docs/api.md';
+const inDocs = (base: LiveSessionMeta[]) =>
+  base.map((x) => (x.sessionId === catalogId ? { ...x, projectPath: DOCS_PATH } : x));
 const STEER_NOW = 'Also check the same order in the compaction path.';
 const STEER_PEND = 'Use the existing fixture; do not generate a new one.';
 
@@ -1489,6 +1492,32 @@ export const states: Record<string, () => ReactNode> = {
   'session-usage-open': () => <Scene fixture={{ usage: { data: sessionUsage(), open: true } }} />,
   'session-usage-unknown': () => (
     <Scene fixture={{ usage: { data: sessionUsage(true), open: true } }} />
+  ),
+  'session-usage-near': () => (
+    <Scene fixture={{ usage: { data: sessionUsage(), open: true, budgets: [B1, B2] } }} />
+  ),
+  // The open session belongs to hoplet-docs, the project whose budget is over.
+  'composer-over-budget': () => (
+    <Scene
+      sessions={inDocs}
+      variant={{ conversation: { refusal: B4, composerText: BUDGET_PROMPT } }}
+    />
+  ),
+  'composer-over-budget-running': () => (
+    <Scene
+      sessions={inDocs}
+      variant={{
+        ...running(48_000),
+        conversation: {
+          queue: {
+            ...queueOf({ paused: 'error', error: 'over-budget' }),
+            items: queueOf().items.slice(0, 2),
+          },
+          budgets: [B1, B4],
+          composerText: '',
+        },
+      }}
+    />
   ),
   'session-actions': () => <Scene fixture={{ actionsMenu: {} }} />,
   'session-actions-copy': () => <Scene fixture={{ actionsMenu: { sub: 'copy' } }} />,

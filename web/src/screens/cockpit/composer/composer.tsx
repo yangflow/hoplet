@@ -12,6 +12,7 @@ import {
   useRef,
   useState,
 } from 'react';
+import { Button } from '../../../components/Button.tsx';
 import { IconButton } from '../../../components/IconButton.tsx';
 import { Icon, Spinner } from '../../../components/icons.tsx';
 import { errorText } from '../../../lib/errors.ts';
@@ -185,6 +186,18 @@ export function Composer(props: {
   onRetry: () => void;
   onHandoff: () => void;
   onDirty: () => void;
+  /**
+   * A budget is over its limit (#75). `refused`: the prompt was not sent, the text stays and Send waits for the
+   * allowance; `paused`: a turn runs and the queue is stopped, so the composer is a bar with the allowance.
+   */
+  budget?: {
+    kind: 'refused' | 'paused';
+    text: string;
+    title?: string;
+    allowLabel: string;
+    disabled: boolean;
+    onAllow: () => void;
+  };
 }) {
   const { view } = props;
   const [draft, setDraft] = useState(props.initialText ?? '');
@@ -443,7 +456,9 @@ export function Composer(props: {
 
   const text = draft.trim();
   const uploading = attachments.some((a) => a.status !== 'ready');
-  const canSend = view.inputEnabled && text !== '' && !props.busy && !uploading;
+  const refused = props.budget?.kind === 'refused' ? props.budget : undefined;
+  const canSend =
+    view.inputEnabled && text !== '' && !props.busy && !uploading && refused === undefined;
 
   // While a turn runs the field stays open and sends one of two ways; a driver that cannot steer only queues.
   const sending = view.sending;
@@ -486,6 +501,29 @@ export function Composer(props: {
             primary
             onClick={props.onHandoff}
             data-testid="cockpit.handoff"
+          />
+        ) : null}
+      </div>
+    );
+  }
+
+  if (props.budget?.kind === 'paused') {
+    const b = props.budget;
+    return (
+      <div className="composer cbar" aria-live="polite" data-testid="cockpit.composer">
+        <span className="cst warn" role="status" data-testid="cockpit.composer-budget">
+          {Icon.pause()}
+          <span>{b.text}</span>
+        </span>
+        <Button disabled={b.disabled} onClick={b.onAllow} data-testid="cockpit.budget-allow">
+          {b.allowLabel}
+        </Button>
+        {view.action === 'stop' ? (
+          <IconButton
+            label={t('Stop {provider}').replace('{provider}', props.providerName)}
+            icon={Icon.stop()}
+            onClick={props.onStop}
+            data-testid="cockpit.stop"
           />
         ) : null}
       </div>
@@ -678,7 +716,18 @@ export function Composer(props: {
           </>
         ) : null}
         {props.leading}
-        {line ? (
+        {refused ? (
+          <span
+            className="cst warn"
+            role="status"
+            title={refused.title}
+            data-testid="cockpit.composer-budget"
+          >
+            {Icon.alert()}
+            {refused.text}
+          </span>
+        ) : null}
+        {line && !refused ? (
           <span
             className={`cst${line.tone === 'bad' ? ' bad' : ''}`}
             role="img"
@@ -707,6 +756,15 @@ export function Composer(props: {
           />
         ) : null}
         <span className="r">
+          {refused ? (
+            <Button
+              disabled={refused.disabled}
+              onClick={refused.onAllow}
+              data-testid="cockpit.budget-allow"
+            >
+              {refused.allowLabel}
+            </Button>
+          ) : null}
           {props.options}
           {props.voiceAvailable ? (
             <IconButton

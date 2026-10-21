@@ -1,4 +1,6 @@
 import type {
+  Budget,
+  BudgetRef,
   CommandsResult,
   ConfigSetting,
   DeviceSystem,
@@ -10,22 +12,33 @@ import type {
   SessionConfig,
   SessionRuntimeInfo,
 } from '@hoplet/shared';
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import {
+  type ComponentProps,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react';
 import { Icon } from '../../../components/icons.tsx';
 import { providerName } from '../../../components/provider-marks.tsx';
 import {
   ApiError,
   fetchLines,
   postAttachment,
+  postBudgetAllow,
   postConfig,
   postFreshPermission,
   postInterrupt,
   postPermission,
   postPrompt,
   postQueueAdd,
+  postQueueResume,
   postSteer,
   postStop,
 } from '../../../lib/api.ts';
+import { amountText, covers, endDate, PERIOD_WORD } from '../../../lib/budgets.ts';
 import { errorText } from '../../../lib/errors.ts';
 import { t } from '../../../lib/i18n.ts';
 import { onLive, subscribeSession } from '../../../lib/live.ts';
@@ -33,6 +46,7 @@ import { pageKeysSuspended } from '../../../lib/page-keys.ts';
 import type { SendMode } from '../../../lib/prefs.ts';
 import { loadAppearance } from '../../../lib/prefs.ts';
 import { stateName } from '../../../lib/runtime-state.ts';
+import { useBudget, useBudgetList } from '../../../lib/use-budgets.ts';
 import { usePageVisible } from '../../../lib/visibility.ts';
 import { Composer } from '../composer/composer.tsx';
 import { ModeMenu, modeOption, nextMode } from '../composer/mode-menu.tsx';
@@ -79,6 +93,10 @@ export type ConversationFixture = {
   /** The queue the tray shows, and how its rows look. */
   queue?: Queue;
   tray?: TrayFixture;
+  /** A prompt was refused by this budget: the composer says so and offers the allowance. */
+  refusal?: Budget;
+  /** The budgets the paused queue looks for the one that stopped it. */
+  budgets?: readonly Budget[];
   /** The send menu next to the send button starts open. */
   sendMenuOpen?: boolean;
   /** Messages steered into the live turn that the model has not taken in yet. */
@@ -258,9 +276,86 @@ export function Conversation(props: {
     if (mode && next !== undefined) setConfig(mode.id, next);
   }, [mode, setConfig]);
   const pending = useRef<{ text: string; attachments: string[] } | null>(null);
+
+  // A prompt the core refused because a budget is over its limit (#75): the text stays, the composer says why
+  // and offers the allowance instead of an error.
+  const [refusal, setRefusal] = useState<BudgetRef | null>(
+    fixture?.refusal ? { id: fixture.refusal.id, name: fixture.refusal.name } : null,
+  );
+  const refuse = useCallback((err: unknown) => {
+    if (err instanceof ApiError && err.code === 'over-budget' && err.budget) {
+      setRefusal(err.budget);
+      setSendError(null);
+    } else setSendError(errorText(err));
+  }, []);
   const root = useRef<HTMLDivElement>(null);
 
   const { queue, apply: applyQueue, refresh: refreshQueue } = useQueue(sessionId, fixture?.queue);
+  // The budget behind a refusal, and the one that paused the queue: the composer offers the allowance for either.
+  const refusedBudget = useBudget(refusal?.id ?? null, fixture?.refusal);
+  const queueByBudget = queue.paused === 'error' && queue.error === 'over-budget';
+  const covering = useBudgetList(queue.items.length, fixture?.budgets, queueByBudget);
+  const pausing = queueByBudget ? covering.find((b) => b.paused && covers(b, session)) : undefined;
+  const [allowing, setAllowing] = useState(false);
+  const budgetWord = (b: Budget) => PERIOD_WORD[b.period]();
+  const allowBudget = async (id: string, resume: boolean) => {
+    setAllowing(true);
+    try {
+      if (!fixture) {
+        await postBudgetAllow(id);
+        if (resume) applyQueue(await postQueueResume(sessionId));
+      }
+      setRefusal(null);
+    } catch (err) {
+      setSendError(errorText(err));
+    } finally {
+      setAllowing(false);
+    }
+  };
+  const budgetNote: ComponentProps<typeof Composer>['budget'] = (() => {
+    if (pausing) {
+      const n = queue.items.filter((i) => i.state === 'queued').length;
+      return {
+        kind: 'paused',
+        text: (n === 1
+          ? t('Queue paused. 1 prompt waits; {name} is over its {period} budget.')
+          : t('Queue paused. {n} prompts wait; {name} is over its {period} budget.')
+        )
+          .replace('{n}', String(n))
+          .replace('{name}', pausing.name)
+          .replace('{period}', budgetWord(pausing)),
+        allowLabel: t('Allow until {end}').replace('{end}', endDate(pausing)),
+        disabled: allowing,
+        onAllow: () => void allowBudget(pausing.id, true),
+      };
+    }
+    if (refusal && !(refusedBudget && !refusedBudget.paused)) {
+      const b = refusedBudget;
+      return {
+        kind: 'refused',
+        text: b
+          ? t('Not sent. {name} is over its {period} budget.')
+              .replace('{name}', refusal.name)
+              .replace('{period}', budgetWord(b))
+          : t('Not sent. {name} is over its budget.').replace('{name}', refusal.name),
+        ...(b
+          ? {
+              title: t('over-budget · {name} {period}, {spent} of {amount}')
+                .replace('{name}', refusal.name)
+                .replace('{period}', budgetWord(b))
+                .replace('{spent}', amountText(b.unit, b.spent))
+                .replace('{amount}', amountText(b.unit, b.amount)),
+            }
+          : {}),
+        allowLabel: b
+          ? t('Allow until {end}').replace('{end}', endDate(b))
+          : t('Allow until the period ends'),
+        disabled: allowing || !b,
+        onAllow: () => void allowBudget(refusal.id, false),
+      };
+    }
+    return undefined;
+  })();
   const [steering, setSteering] = useState<string[]>(fixture?.steering?.map((s) => s.text) ?? []);
   // Read at every render so a change made in Settings applies as soon as the overlay closes.
   const sendMode: SendMode = fixture?.sendMode ?? loadAppearance().sendMode;
@@ -298,12 +393,12 @@ export function Conversation(props: {
         }
       } catch (err) {
         setRestore((r) => ({ text, withImages: attachments.length > 0, n: (r?.n ?? 0) + 1 }));
-        setSendError(errorText(err));
+        refuse(err);
       } finally {
         setBusy(false);
       }
     },
-    [sessionId, applyQueue],
+    [sessionId, applyQueue, refuse],
   );
 
   const send = useCallback(
@@ -322,12 +417,12 @@ export function Conversation(props: {
         pending.current = null;
         lt.cancel();
         setRestore((r) => ({ text, withImages: attachments.length > 0, n: (r?.n ?? 0) + 1 }));
-        setSendError(errorText(err));
+        refuse(err);
       } finally {
         setBusy(false);
       }
     },
-    [sessionId, lt.begin, lt.cancel],
+    [sessionId, lt.begin, lt.cancel, refuse],
   );
 
   // A start that failed gives the prompt back.
@@ -671,6 +766,7 @@ export function Conversation(props: {
               onRetry={retry}
               onHandoff={props.onHandoff}
               onDirty={() => setSendError(null)}
+              {...(budgetNote ? { budget: budgetNote } : {})}
             />
           </div>
         </div>

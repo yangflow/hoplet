@@ -1,4 +1,4 @@
-import type { LiveSessionMeta, SessionUsage } from '@hoplet/shared';
+import type { Budget, LiveSessionMeta, SessionUsage } from '@hoplet/shared';
 import { useRef, useState } from 'react';
 import { Badge } from '../../components/Badge.tsx';
 import { IconButton } from '../../components/IconButton.tsx';
@@ -26,7 +26,7 @@ export function TopBar(props: {
   /** Hides estimated cost in the usage chip. */
   tokensOnly?: boolean;
   /** The usage chip's data, for development fixtures, and whether its popover starts open. */
-  usage?: { data: SessionUsage; open?: boolean };
+  usage?: { data: SessionUsage; open?: boolean; budgets?: readonly Budget[] };
   onShowSidebar: () => void;
   onToggleInspector: () => void;
 }) {
@@ -68,7 +68,15 @@ export function TopBar(props: {
           sessionId={session.sessionId}
           refresh={session.lineCount}
           tokensOnly={props.tokensOnly ?? false}
-          {...(props.usage ? { fixture: props.usage.data, open: props.usage.open ?? false } : {})}
+          projectPath={session.projectPath}
+          ownerDeviceId={session.ownerDeviceId}
+          {...(props.usage
+            ? {
+                fixture: props.usage.data,
+                open: props.usage.open ?? false,
+                budgetsFixture: props.usage.budgets ?? [],
+              }
+            : {})}
         />
       ) : null}
       {session && props.actions ? (

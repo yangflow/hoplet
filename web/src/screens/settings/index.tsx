@@ -77,6 +77,7 @@ function Page(props: {
           {...(props.usage ? { fixture: props.usage } : {})}
           tokensOnly={props.appearance.tokensOnly}
           onTokensOnly={(tokensOnly) => props.onAppearance({ tokensOnly })}
+          sessions={props.sessions}
         />
       );
   }

@@ -106,12 +106,15 @@ describe('Settings > Usage', () => {
     expect(q('settings.usage.backfill')).not.toBeNull();
   });
 
-  it('switches to Prices with the arrow keys', async () => {
+  it('switches to Prices with the arrow keys, through Budgets', async () => {
     await section();
-    const tab = host.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]');
-    await act(async () => {
-      tab?.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
-    });
+    for (const to of ['settings.budgets.list', 'settings.prices.table']) {
+      const tab = host.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]');
+      await act(async () => {
+        tab?.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+      });
+      if (to === 'settings.budgets.list') expect(q('settings.usage.chart')).toBeNull();
+    }
     expect(q('settings.prices.table')).not.toBeNull();
     expect(q('settings.usage.chart')).toBeNull();
   });

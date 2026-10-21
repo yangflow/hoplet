@@ -301,6 +301,10 @@
 .cf .cst.bad {
   color: var(--color-danger);
 }
+.cf .cst.warn {
+  color: var(--color-attention-text);
+  min-width: 0;
+}
 .cf .r {
   margin-left: auto;
   display: flex;
@@ -333,6 +337,10 @@
 }
 .composer.cbar .cst svg {
   color: var(--color-text-3);
+}
+.composer.cbar .cst.warn,
+.composer.cbar .cst.warn svg {
+  color: var(--color-attention-text);
 }
 .composer.ro {
   background: var(--color-surface);

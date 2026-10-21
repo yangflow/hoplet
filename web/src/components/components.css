@@ -1028,3 +1028,39 @@ button.row:not(.selected):hover {
     "liga" 0,
     "calt" 0;
 }
+
+/* A budget's progress bar: the fill and the alert tick (#75) */
+.pbar {
+  position: relative;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--color-hover);
+  box-shadow: inset 0 0 0 1px var(--color-line);
+  flex: 1;
+}
+.pbar .pf {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  border-radius: 3px;
+  background: var(--color-text-3);
+}
+.pbar .pt {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 1.5px;
+  background: var(--color-text-2);
+  opacity: 0.8;
+  text-decoration: none;
+}
+.pbar.warn .pf {
+  background: var(--color-attention);
+}
+.pbar.stop .pf {
+  background: var(--color-danger);
+}
+.pbar.go .pf {
+  background: var(--color-accent);
+}

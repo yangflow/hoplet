@@ -1,4 +1,4 @@
-import type { UsagePrices, UsageResponse } from '@hoplet/shared';
+import type { LiveSessionMeta, UsagePrices, UsageResponse } from '@hoplet/shared';
 import { type KeyboardEvent, type ReactNode, useRef, useState } from 'react';
 import { Button } from '../../components/Button.tsx';
 import { IconButton } from '../../components/IconButton.tsx';
@@ -29,11 +29,13 @@ import {
   unpricedTokens,
   utcOffsetOf,
 } from '../../lib/usage.ts';
+import { useBudgets } from '../../lib/use-budgets.ts';
 import { useUsage } from '../../lib/use-usage.ts';
+import { type BudgetsFixture, BudgetsTab } from './budgets.tsx';
 import { PricesTab } from './prices.tsx';
 import { UsageChart, UsageLegend } from './usage-chart.tsx';
 
-export type UsageTab = 'usage' | 'prices';
+export type UsageTab = 'usage' | 'budgets' | 'prices';
 
 /** What the development fixtures hand to Settings > Usage instead of the core's answers. */
 export type UsageFixture = {
@@ -51,6 +53,8 @@ export type UsageFixture = {
   hover?: number;
   /** The model whose price starts in the editor. */
   editing?: string;
+  /** The Budgets tab: its list, and the form or toast that starts open. */
+  budgets?: BudgetsFixture;
 };
 
 const RANGE_LABEL: Record<RangeKind, () => string> = {
@@ -90,6 +94,7 @@ const NEXT: Record<RangeKind, () => string> = {
 
 const TABS: readonly { id: UsageTab; label: () => string }[] = [
   { id: 'usage', label: () => t('Usage') },
+  { id: 'budgets', label: () => t('Budgets') },
   { id: 'prices', label: () => t('Prices') },
 ];
 
@@ -456,7 +461,10 @@ export function UsageSection(props: {
   fixture?: UsageFixture;
   tokensOnly: boolean;
   onTokensOnly: (on: boolean) => void;
+  sessions?: readonly LiveSessionMeta[];
 }) {
+  const budgets = useBudgets(props.fixture?.budgets?.list);
+  const projectPaths = [...new Set((props.sessions ?? []).map((x) => x.projectPath))];
   const [tab, setTab] = useState<UsageTab>(props.fixture?.tab ?? 'usage');
   const list = useRef<HTMLDivElement>(null);
   const onKeyDown = (e: KeyboardEvent) => {
@@ -503,6 +511,9 @@ export function UsageSection(props: {
             data-testid={`settings.usage.tab.${x.id}`}
           >
             {x.label()}
+            {x.id === 'budgets' && budgets.data && budgets.data.budgets.length > 0 ? (
+              <span className="meta">{budgets.data.budgets.length}</span>
+            ) : null}
           </button>
         ))}
       </div>
@@ -512,6 +523,12 @@ export function UsageSection(props: {
             fixture={props.fixture}
             tokensOnly={props.tokensOnly}
             onPrices={() => setTab('prices')}
+          />
+        ) : tab === 'budgets' ? (
+          <BudgetsTab
+            budgets={budgets}
+            fixture={props.fixture?.budgets}
+            projectPaths={projectPaths}
           />
         ) : (
           <PricesTab

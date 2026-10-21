@@ -2,6 +2,9 @@ import {
   ActionDecideResponseSchema,
   ActionInspectResponseSchema,
   AttachmentResultSchema,
+  type BudgetBody,
+  BudgetListResponseSchema,
+  BudgetSchema,
   CommandsResultSchema,
   type ConfigSetting,
   type DeleteSessionRequest,
@@ -120,6 +123,7 @@ async function call<S extends GenericSchema>(
           error.output.reason,
           error.output.steps,
           error.output.detail,
+          error.output.budget,
         )
       : new ApiError(res.status, null);
   }
@@ -660,4 +664,44 @@ export function fetchUsagePrices() {
 /** Replaces all price overrides. */
 export function putUsagePrices(body: UsagePricesBody) {
   return call('/api/usage/prices', UsagePricesSchema, body, undefined, 'PUT');
+}
+
+/** The budgets with the spend of their current periods (docs/api.md#budgets). */
+export function fetchBudgets(signal?: AbortSignal) {
+  return call('/api/budgets', BudgetListResponseSchema, undefined, signal);
+}
+
+export function postBudget(body: BudgetBody) {
+  return call('/api/budgets', BudgetSchema, body);
+}
+
+export function putBudget(id: string, body: BudgetBody) {
+  return call(`/api/budgets/${encodeURIComponent(id)}`, BudgetSchema, body, undefined, 'PUT');
+}
+
+/** Removes a budget; the answer is the list that remains. */
+export function deleteBudget(id: string) {
+  return call(
+    `/api/budgets/${encodeURIComponent(id)}`,
+    BudgetListResponseSchema,
+    undefined,
+    undefined,
+    'DELETE',
+  );
+}
+
+/** Lifts the pause of a budget until its period ends. */
+export function postBudgetAllow(id: string) {
+  return call(`/api/budgets/${encodeURIComponent(id)}/allow`, BudgetSchema, {});
+}
+
+/** Takes the lift back: the pause applies again at once. */
+export function deleteBudgetAllow(id: string) {
+  return call(
+    `/api/budgets/${encodeURIComponent(id)}/allow`,
+    BudgetSchema,
+    undefined,
+    undefined,
+    'DELETE',
+  );
 }

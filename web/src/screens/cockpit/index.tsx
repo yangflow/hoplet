@@ -1,4 +1,5 @@
 import type {
+  Budget,
   DeviceInfo,
   GlobalSearchHit,
   LiveSessionMeta,
@@ -80,7 +81,7 @@ export type CockpitFixture = {
   toast?: ToastState;
   now?: number;
   /** The session's usage chip: its data and whether the popover starts open. */
-  usage?: { data: SessionUsage; open?: boolean };
+  usage?: { data: SessionUsage; open?: boolean; budgets?: readonly Budget[] };
 };
 
 export function Cockpit(props: {

@@ -1,4 +1,4 @@
-import type { DeletionStep, HttpErrorCode } from '@hoplet/shared';
+import type { BudgetRef, DeletionStep, HttpErrorCode } from '@hoplet/shared';
 import { t } from './i18n.ts';
 
 /** A non-2xx REST response. `code` is null when the body was not a Hoplet error response. */
@@ -10,6 +10,8 @@ export class ApiError extends Error {
   readonly steps: DeletionStep[] | undefined;
   /** What git said when a clone failed (`clone-failed` with the reason `git-failed`), credentials removed. */
   readonly detail: string | undefined;
+  /** The budget that refused a prompt (`over-budget`). */
+  readonly budget: BudgetRef | undefined;
 
   constructor(
     status: number,
@@ -17,6 +19,7 @@ export class ApiError extends Error {
     reason?: string,
     steps?: DeletionStep[],
     detail?: string,
+    budget?: BudgetRef,
   ) {
     super(code ?? `HTTP ${status}`);
     this.status = status;
@@ -24,6 +27,7 @@ export class ApiError extends Error {
     this.reason = reason;
     this.steps = steps;
     this.detail = detail;
+    this.budget = budget;
   }
 }
 

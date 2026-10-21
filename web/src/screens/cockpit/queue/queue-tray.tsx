@@ -30,6 +30,8 @@ export type TrayFixture = { editing?: string; hovered?: string; dragging?: strin
 function Header(props: {
   count: number;
   pause: TrayPause;
+  /** The pause is a budget over its limit: the composer bar says so and holds the allowance; Resume would be refused again. */
+  budget: boolean;
   busy: boolean;
   onResume: () => void;
   onClear: () => void;
@@ -47,6 +49,25 @@ function Header(props: {
         {num}
         <span className="meta">
           <span>{t('One at a time, after this turn')}</span>
+        </span>
+      </div>
+    );
+  }
+  if (props.budget) {
+    // The composer bar already says the queue is paused and why; the tray only lists what waits.
+    return (
+      <div className="qh" data-testid="queue.head" data-pause={pause}>
+        <b>{t('Up next')}</b>
+        {num}
+        <span className="meta">
+          <Button
+            variant="quiet"
+            disabled={props.busy}
+            onClick={props.onClear}
+            data-testid="queue.clear"
+          >
+            {t('Clear')}
+          </Button>
         </span>
       </div>
     );
@@ -274,6 +295,7 @@ export function QueueTray(props: {
       <Header
         count={queue.items.length}
         pause={pause}
+        budget={pause === 'error' && queue.error === 'over-budget'}
         busy={busy}
         onResume={() => void run(postQueueResume(props.sessionId))}
         onClear={() => void run(postQueueClear(props.sessionId))}

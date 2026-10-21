@@ -1,8 +1,11 @@
-import type { SessionUsage } from '@hoplet/shared';
+import type { Budget, SessionUsage } from '@hoplet/shared';
 import { useState } from 'react';
+import { Icon } from '../../components/icons.tsx';
 import { Popover } from '../../components/Popover.tsx';
+import { barKind, barPercent, covers, pastAlert, shortName, statusOf } from '../../lib/budgets.ts';
 import { t } from '../../lib/i18n.ts';
 import { formatCost, formatTokens, totalTokens } from '../../lib/usage.ts';
+import { useBudgetList } from '../../lib/use-budgets.ts';
 import { useSessionUsage } from '../../lib/use-usage.ts';
 
 /** What the chip says: tokens, and the estimated cost when the session has a price and cost is not hidden. */
@@ -14,7 +17,7 @@ export function chipText(usage: SessionUsage, tokensOnly: boolean) {
     : { tokens, cost: `≈ ${formatCost(cost)}` };
 }
 
-function Detail(props: { usage: SessionUsage; tokensOnly: boolean }) {
+function Detail(props: { usage: SessionUsage; tokensOnly: boolean; budgets: readonly Budget[] }) {
   const { usage, tokensOnly } = props;
   const total = usage.total;
   const kinds: [string, number][] = [
@@ -80,6 +83,42 @@ function Detail(props: { usage: SessionUsage; tokensOnly: boolean }) {
             ? t('Estimated from the price table.')
             : t('Showing tokens only. Turn it off in Prices to show estimated cost.')}
       </p>
+      {props.budgets.length > 0 ? <Budgets budgets={props.budgets} /> : null}
+    </>
+  );
+}
+
+const SCOPE_ICON = {
+  global: () => Icon.globe(),
+  project: () => Icon.folder(),
+  device: () => Icon.laptop(),
+};
+
+/** The budgets that count the session, each with its bar and the alert tick. */
+function Budgets(props: { budgets: readonly Budget[] }) {
+  return (
+    <>
+      <div className="rule" />
+      <div className="bl" data-testid="cockpit.usage-budgets">
+        <span className="meta">{t('Budgets that count this session')}</span>
+        {props.budgets.map((b) => {
+          const status = statusOf(b);
+          const percent = Math.round(b.percent);
+          return (
+            <div key={b.id} style={{ display: 'contents' }}>
+              <div className="row">
+                {SCOPE_ICON[b.scope.kind]()}
+                <span>{shortName(b)}</span>
+                <em className={status === 'ok' ? '' : 'warn'}>{percent}%</em>
+              </div>
+              <div className={`pbar ${barKind(status)}`.trim()}>
+                <span className="pf" style={{ width: `${barPercent(b)}%` }} />
+                <span className="pt" style={{ left: `${b.alertPercent}%` }} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </>
   );
 }
@@ -90,11 +129,20 @@ export function SessionUsageChip(props: {
   /** Changes when the conversation grows, so the chip follows it. */
   refresh: number;
   tokensOnly: boolean;
+  /** Which budgets count the session: its project and the machine that owns it. */
+  projectPath: string;
+  ownerDeviceId?: string | undefined;
   /** The core's answer, for development fixtures. */
   fixture?: SessionUsage;
+  /** The budgets, for development fixtures. */
+  budgetsFixture?: readonly Budget[];
   open?: boolean;
 }) {
   const { data } = useSessionUsage(props.sessionId, props.refresh, props.fixture);
+  const all = useBudgetList(props.refresh, props.budgetsFixture);
+  // Only budgets past their alert line are worth the chip's attention; the popover lists every one that counts.
+  const counting = all.filter((b) => covers(b, props));
+  const near = counting.some(pastAlert);
   const [open, setOpen] = useState(props.open ?? false);
   if (!data || data.total.messages === 0) return null;
   const text = chipText(data, props.tokensOnly);
@@ -109,6 +157,14 @@ export function SessionUsageChip(props: {
         onClick={() => setOpen((v) => !v)}
         data-testid="cockpit.usage-chip"
       >
+        {near ? (
+          <span
+            className="adot"
+            role="img"
+            aria-label={t('A budget is past its alert line')}
+            title={t('A budget is past its alert line')}
+          />
+        ) : null}
         <span>{text.tokens}</span>
         {text.cost ? (
           <>
@@ -124,7 +180,7 @@ export function SessionUsageChip(props: {
           aria-label={t('Usage of this session')}
           data-testid="cockpit.usage-popover"
         >
-          <Detail usage={data} tokensOnly={props.tokensOnly} />
+          <Detail usage={data} tokensOnly={props.tokensOnly} budgets={near ? counting : []} />
         </div>
       </Popover>
     </span>
