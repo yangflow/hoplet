@@ -8,6 +8,14 @@ import type {
 
 export type { ProviderInfo, RuntimeState };
 
+/** What starting from a template submits: the values of its fields, and where to start it. */
+export type TemplateStart = {
+  templateId: string;
+  values: Record<string, string>;
+  deviceId: string;
+  path: string;
+};
+
 /** What New session submits: `config` holds only the options the user picked. */
 export type NewSessionRequest = {
   deviceId: string;

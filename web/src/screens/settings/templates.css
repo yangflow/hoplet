@@ -15,22 +15,6 @@
   margin: 0;
   flex: 1;
 }
-.tp-note {
-  margin: 0;
-  font-size: var(--text-meta);
-  line-height: var(--leading-meta);
-  color: var(--color-text-3);
-}
-.tp-note.bad {
-  color: var(--color-danger);
-}
-.tp-note.after {
-  margin-top: var(--space-3);
-}
-.tp-note.before {
-  margin-bottom: var(--space-3);
-}
-
 /* The list */
 .tp-list .pr {
   height: auto;
@@ -155,25 +139,6 @@
 }
 .tfl .field[aria-invalid="true"] {
   box-shadow: inset 0 0 0 1.5px var(--color-danger);
-}
-.tp-toks {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-1);
-}
-.tp-tok {
-  display: inline-flex;
-  align-items: baseline;
-  height: 20px;
-  padding: 0 6px;
-  border-radius: var(--radius-sm);
-  background: var(--color-selected);
-  box-shadow: inset 0 0 0 1px var(--color-line);
-  font-family: var(--font-mono);
-  font-size: var(--text-code);
-  line-height: 20px;
-  color: var(--color-text);
-  white-space: nowrap;
 }
 .tp-help {
   display: flex;

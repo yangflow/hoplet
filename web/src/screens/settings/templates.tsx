@@ -44,6 +44,7 @@ import {
 } from '../../lib/templates.ts';
 import { useDevices } from '../../lib/use-devices.ts';
 import { type TemplatesState, useTemplates } from '../../lib/use-templates.ts';
+import '../../components/templates.css';
 import './templates.css';
 
 /** What the development fixtures hand to Settings > Templates. */

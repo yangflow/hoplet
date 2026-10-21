@@ -1,21 +1,43 @@
-import type { CommandsResult, PromptImage, SessionConfig } from '@hoplet/shared';
+import type {
+  CommandsResult,
+  ConfigOption,
+  PromptImage,
+  SessionConfig,
+  Template,
+  TemplateListResponse,
+} from '@hoplet/shared';
 import { useEffect, useMemo, useState } from 'react';
+import { Button } from '../../components/Button.tsx';
+import { IconButton } from '../../components/IconButton.tsx';
 import { Icon } from '../../components/icons.tsx';
 import { MachineIcon } from '../../components/MachineIcon.tsx';
 import { providerName } from '../../components/provider-marks.tsx';
 import { Select } from '../../components/Select.tsx';
 import { postAttachment } from '../../lib/api.ts';
+import { currentValueName, optionName } from '../../lib/config-options.ts';
 import { notReady } from '../../lib/configurations.ts';
 import { errorText } from '../../lib/errors.ts';
 import { t } from '../../lib/i18n.ts';
 import { machineLabel, systemName, systemOf } from '../../lib/system.ts';
+import {
+  draftTemplateBody,
+  draftText,
+  type IssueFix,
+  startIssues,
+  startProblem,
+  templateDetail,
+} from '../../lib/template-start.ts';
+import { baseName, fill } from '../../lib/templates.ts';
+import { useTemplates } from '../../lib/use-templates.ts';
 import { Composer } from './composer/composer.tsx';
 import { ConfigurationMenu, showsConfigurationChip } from './composer/configuration-menu.tsx';
 import { ModeMenu, modeOption, nextMode } from './composer/mode-menu.tsx';
-import { hasChoices, ModelMenu, withValues } from './composer/model-menu.tsx';
+import { hasChoices, ModelMenu, menuConfig, withValues } from './composer/model-menu.tsx';
+import { FillDialog, SaveDialog } from './composer/template-dialogs.tsx';
+import { type TemplateChoice, TemplatesMenu } from './composer/templates-menu.tsx';
 import { useCommands } from './composer/use-completions.ts';
 import { BranchPart, WhereRow } from './composer/where.tsx';
-import type { NewSessionRequest, SessionTarget } from './model.ts';
+import type { NewSessionRequest, SessionTarget, TemplateStart } from './model.ts';
 import type { ComposerView } from './runtime.ts';
 import { type Dir, useDeviceDirs } from './use-device-dirs.ts';
 
@@ -25,9 +47,15 @@ export type DraftWhere = { deviceName: string; path: string };
 /** What development fixtures set: the text, and a picker or the model menu open. */
 export type DraftFixture = {
   prompt?: string;
-  open?: 'machine' | 'directory' | 'model' | 'configuration';
+  open?: 'machine' | 'directory' | 'model' | 'configuration' | 'templates';
   /** The machine's directories as its catalog would list them. */
   dirs?: Dir[];
+  /** The templates of the host; changes stay local. */
+  templates?: TemplateListResponse;
+  /** A template already applied: its ID, the values its fields had, and the dialog that is open. */
+  applied?: { id: string; values?: Record<string, string>; dialog?: 'fill' };
+  /** The save dialog is open, with this name typed. */
+  save?: { name: string };
   /** What `/` shows, and the selected and hovered rows. */
   completions?: { commands: CommandsResult; selected?: number; hovered?: number };
 };
@@ -36,6 +64,14 @@ export type DraftFixture = {
 export function folderOf(path: string): string {
   const parent = path.replace(/[/\\]+[^/\\]+[/\\]*$/, '') || '/';
   return parent.replace(/^\/(?:Users|home)\/[^/]+(?=\/|$)/, '~');
+}
+
+/** The options of the draft in words, without the permission mode: `Opus · Extended thinking`. */
+function optionsText(shown: readonly ConfigOption[]): string | null {
+  const words = menuConfig(shown)
+    .map((o) => (o.type === 'select' ? currentValueName(o) : o.currentValue ? optionName(o) : null))
+    .filter((x): x is string => !!x);
+  return words.length > 0 ? words.join(' · ') : null;
 }
 
 /**
@@ -57,6 +93,10 @@ export function Draft(props: {
   onAddProject: (deviceName: string) => void;
   /** Opens Settings › Model providers on the machine. */
   onManageProviders: (deviceId: string) => void;
+  /** Starts a session from a template; resolves when it exists. */
+  onStartTemplate: (request: TemplateStart) => Promise<void>;
+  /** Opens Settings › Templates. */
+  onManageTemplates: () => void;
   voiceAvailable: boolean;
   fixture?: DraftFixture;
 }) {
@@ -88,8 +128,14 @@ export function Draft(props: {
   );
   // The enabled configurations of the machine; the first one that is ready starts the session until one is picked.
   const providers = target?.providers ?? [];
-  const [pickedConfiguration, setPickedConfiguration] = useState<string | null>(null);
-  const [picked, setPicked] = useState<SessionConfig>({});
+  const fx = props.fixture;
+  const appliedAtStart = fx?.applied
+    ? fx.templates?.templates.find((x) => x.id === fx.applied?.id)
+    : undefined;
+  const [pickedConfiguration, setPickedConfiguration] = useState<string | null>(
+    appliedAtStart ? (appliedAtStart.configuration ?? appliedAtStart.provider) : null,
+  );
+  const [picked, setPicked] = useState<SessionConfig>(appliedAtStart?.config ?? {});
   const provider =
     providers.find((p) => p.configuration.id === pickedConfiguration) ??
     providers.find((p) => !notReady(p)) ??
@@ -116,6 +162,84 @@ export function Draft(props: {
     withImages?: boolean;
     n: number;
   } | null>(null);
+
+  // A template: the one applied to the draft, what the user accepted of its mismatches, and the dialog that is open.
+  const templates = useTemplates(fx?.templates);
+  const [tpl, setTpl] = useState<Template | null>(appliedAtStart ?? null);
+  const [accepted, setAccepted] = useState<ReadonlySet<string>>(new Set());
+  const [dialog, setDialog] = useState<'fill' | 'save' | null>(
+    appliedAtStart && fx?.applied?.dialog ? 'fill' : fx?.save ? 'save' : null,
+  );
+  const [fillText, setFillText] = useState<{ text: string; n: number } | null>(
+    appliedAtStart && !fx?.applied?.dialog
+      ? { text: draftText(appliedAtStart.text, fx?.applied?.values), n: 1 }
+      : null,
+  );
+  const [text, setText] = useState(fx?.prompt ?? '');
+  const [startBusy, setStartBusy] = useState(false);
+  const [startError, setStartError] = useState<string | null>(null);
+  const issues = tpl
+    ? startIssues(
+        tpl,
+        {
+          deviceId: target?.deviceId ?? null,
+          deviceName: machine,
+          online: !!target?.online,
+          dirs: dirs.map((d) => d.path),
+          path,
+          provider,
+          providers,
+          config,
+        },
+        accepted,
+        tpl.deviceId === undefined || targets.some((x) => x.deviceId === tpl.deviceId),
+      )
+    : [];
+
+  /** Puts a template's place and options on the draft; a template with fields asks for them next, one without fills the prompt. */
+  function apply(template: Template) {
+    const there = targets.find(
+      (x) => template.deviceId !== undefined && x.deviceId === template.deviceId,
+    );
+    const next = there?.deviceName ?? machine;
+    const wanted = template.projectPath ?? (there ? '' : path);
+    if (next !== machine || wanted !== path) onWhere({ deviceName: next, path: wanted });
+    setPickedConfiguration(template.configuration ?? template.provider);
+    setPicked(template.config ?? {});
+    setTpl(template);
+    setAccepted(new Set());
+    setStartError(null);
+    if (template.placeholders.length > 0) {
+      setDialog('fill');
+      return;
+    }
+    // Nothing to ask: the prompt goes in the composer and the user sends it when it suits.
+    setFillText((cur) => ({ text: draftText(template.text, {}), n: (cur?.n ?? 0) + 1 }));
+    setDialog(null);
+  }
+
+  function clearTemplate() {
+    setTpl(null);
+    setAccepted(new Set());
+    setDialog(null);
+  }
+
+  function fix(issueKey: string, how: IssueFix | undefined) {
+    if (how?.kind === 'set') setPicked((cur) => ({ ...cur, [how.id]: how.value }));
+    else setAccepted((cur) => new Set(cur).add(issueKey));
+  }
+
+  async function startFromTemplate(values: Record<string, string>) {
+    if (!tpl || !target?.deviceId || path === '') return;
+    setStartBusy(true);
+    setStartError(null);
+    try {
+      await props.onStartTemplate({ templateId: tpl.id, values, deviceId: target.deviceId, path });
+    } catch (err) {
+      setStartError(startProblem(err) ?? errorText(err));
+      setStartBusy(false);
+    }
+  }
 
   const name = providerName(provider?.provider ?? 'claude');
   const view: ComposerView = useMemo(() => {
@@ -213,6 +337,86 @@ export function Draft(props: {
     </WhereRow>
   );
 
+  const choices: TemplateChoice[] = (templates.data?.templates ?? []).map((template) => ({
+    template,
+    detail: templateDetail(
+      template,
+      targets.map((x) => ({
+        deviceId: x.deviceId,
+        deviceName: x.deviceName,
+        providers: x.providers,
+      })),
+    ),
+  }));
+
+  const bar = tpl ? (
+    <div className="tp-bar" data-testid="cockpit.template-bar">
+      {Icon.template()}
+      <span className="nm">{tpl.name}</span>
+      <span className="tp-note">{fill(t('Runs on {machine}'), { machine })}</span>
+      <span className="sp" />
+      <IconButton
+        label={t('Clear the template')}
+        icon={Icon.close()}
+        onClick={clearTemplate}
+        data-testid="cockpit.template-clear"
+      />
+    </div>
+  ) : null;
+
+  const warning =
+    tpl && issues.length > 0 ? (
+      <div className="tp-warn" role="status" data-testid="cockpit.template-warning">
+        {Icon.alert()}
+        <div className="tx">
+          <b>{fill(t('This template does not fit {machine}'), { machine })}</b>
+          {issues.map((issue) => (
+            <div className="tp-fix" key={issue.key}>
+              <span className="what">{issue.message}</span>
+              {issue.fix ? (
+                <Button
+                  variant="default"
+                  onClick={() => fix(issue.key, issue.fix)}
+                  data-testid="cockpit.template-fix"
+                >
+                  {issue.fix.label}
+                </Button>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      </div>
+    ) : null;
+
+  const leading = (
+    <>
+      {provider && showsConfigurationChip(providers) && target?.deviceId ? (
+        <ConfigurationMenu
+          configurations={providers}
+          value={provider.configuration.id}
+          machine={machine}
+          onChange={(id) => {
+            setPickedConfiguration(id);
+            setPicked({});
+          }}
+          onManage={() => props.onManageProviders(target.deviceId ?? '')}
+          disabled={busy}
+          initialOpen={open === 'configuration'}
+        />
+      ) : null}
+      <TemplatesMenu
+        choices={choices}
+        loading={templates.loading}
+        canSave={text.trim() !== '' && !!provider && !!target?.deviceId}
+        onPick={apply}
+        onSave={() => setDialog('save')}
+        onManage={props.onManageTemplates}
+        disabled={busy}
+        initialOpen={open === 'templates'}
+      />
+    </>
+  );
+
   return (
     <div className="conv-wrap draft" data-testid="cockpit.draft">
       <p className="draft-note">{t('The first prompt starts the session')}</p>
@@ -222,24 +426,12 @@ export function Draft(props: {
             view={view}
             where={whereRow}
             {...(mode && !busy ? { onCycleMode: cycleMode } : {})}
-            {...(provider && showsConfigurationChip(providers) && target?.deviceId
-              ? {
-                  leading: (
-                    <ConfigurationMenu
-                      configurations={providers}
-                      value={provider.configuration.id}
-                      machine={machine}
-                      onChange={(id) => {
-                        setPickedConfiguration(id);
-                        setPicked({});
-                      }}
-                      onManage={() => props.onManageProviders(target.deviceId ?? '')}
-                      disabled={busy}
-                      initialOpen={open === 'configuration'}
-                    />
-                  ),
-                }
-              : {})}
+            leading={leading}
+            above={bar}
+            below={warning}
+            fill={fillText}
+            onText={setText}
+            sendBlocked={issues.length > 0}
             options={
               <>
                 {mode ? (
@@ -255,6 +447,7 @@ export function Draft(props: {
                     config={shown}
                     onChange={(id, value) => setPicked((cur) => ({ ...cur, [id]: value }))}
                     disabled={busy}
+                    warn={issues.some((issue) => issue.key.startsWith('option:'))}
                     initialOpen={open === 'model'}
                   />
                 ) : null}
@@ -299,6 +492,67 @@ export function Draft(props: {
           />
         </div>
       </div>
+      {dialog === 'fill' && tpl ? (
+        <FillDialog
+          template={tpl}
+          issues={issues}
+          context={{
+            machine,
+            folder: baseName(path),
+            options: [optionsText(shown), mode ? currentValueName(mode) : null]
+              .filter((x): x is string => !!x)
+              .join(' · '),
+          }}
+          busy={startBusy}
+          error={startError}
+          initial={fx?.applied?.values ?? {}}
+          onStart={(values) => void startFromTemplate(values)}
+          onEdit={(values) => {
+            setFillText((cur) => ({ text: draftText(tpl.text, values), n: (cur?.n ?? 0) + 1 }));
+            setDialog(null);
+          }}
+          onClose={clearTemplate}
+        />
+      ) : null}
+      {dialog === 'save' ? (
+        <SaveDialog
+          text={text}
+          initialName={fx?.save?.name ?? ''}
+          summary={{
+            where: `${machine} / ${baseName(path)}`,
+            options: optionsText(shown),
+            mode: mode ? (currentValueName(mode) ?? null) : null,
+          }}
+          saving={templates.saving}
+          problem={templates.problem}
+          onEdited={templates.clearProblem}
+          onClose={() => {
+            templates.clearProblem();
+            setDialog(null);
+          }}
+          onSave={(input) => {
+            if (!provider) return;
+            void templates
+              .save(
+                null,
+                draftTemplateBody({
+                  name: input.name,
+                  text: input.text,
+                  deviceId: target?.deviceId ?? null,
+                  path,
+                  provider: provider.provider,
+                  configuration: provider.configuration.id,
+                  config,
+                  ...(mode ? { modeId: mode.id } : {}),
+                  keep: input.keep,
+                }),
+              )
+              .then((ok) => {
+                if (ok) setDialog(null);
+              });
+          }}
+        />
+      ) : null}
     </div>
   );
 }

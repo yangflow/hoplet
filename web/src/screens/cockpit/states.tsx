@@ -10,6 +10,7 @@ import type {
   SessionRuntimeInfo,
 } from '@hoplet/shared';
 import { type ReactNode, useState } from 'react';
+import { DEPS, FIX, NOTES, REVIEW, templateList } from '../settings/templates-fixtures.ts';
 import { B1, B2, B4, DOCS_PATH, sessionUsage } from '../settings/usage-fixtures.ts';
 import { live as liveWorkspace, snapshot } from '../workspace/fixtures.ts';
 import type { PathsState } from './composer/use-completions.ts';
@@ -979,6 +980,24 @@ const DRAFT_DIRS = [
   { path: '/Users/mark/Documents/thesis', name: 'thesis' },
 ];
 
+/** The settings fixtures' templates, with the model ids this screen's machines offer. */
+const TEMPLATES = templateList(
+  { ...REVIEW, config: { model: 'opus-5.5', mode: 'default', thinking: true } },
+  {
+    ...FIX,
+    deviceId: 'dev-macbook',
+    projectPath: DRAFT_DIRS[0]?.path,
+    config: { model: 'opus-4', mode: 'acceptEdits' },
+  },
+  { ...NOTES, config: { model: 'sonnet-5.5', mode: 'plan' } },
+  {
+    ...DEPS,
+    deviceId: 'dev-macbook',
+    projectPath: DRAFT_DIRS[0]?.path,
+    config: { model: 'sonnet-5.5', mode: 'acceptEdits' },
+  },
+);
+
 const cmd = (
   name: string,
   description: string,
@@ -1206,6 +1225,50 @@ export const states: Record<string, () => ReactNode> = {
           dirs: DRAFT_DIRS,
           open: 'model',
           prompt: 'Use the smaller model for the docs pass',
+        },
+      }}
+    />
+  ),
+  'draft-templates': () => (
+    <Scene fixture={{ draft: { dirs: DRAFT_DIRS, templates: TEMPLATES, open: 'templates' } }} />
+  ),
+  'template-fill': () => (
+    <Scene
+      fixture={{
+        draft: {
+          dirs: DRAFT_DIRS,
+          templates: TEMPLATES,
+          applied: { id: 'tpl-review', values: { pr: '#312' }, dialog: 'fill' },
+        },
+      }}
+    />
+  ),
+  'template-applied': () => (
+    <Scene
+      fixture={{
+        draft: {
+          dirs: DRAFT_DIRS,
+          templates: TEMPLATES,
+          applied: { id: 'tpl-notes', values: { version: 'v0.9.0' } },
+        },
+      }}
+    />
+  ),
+  'template-mismatch': () => (
+    <Scene
+      fixture={{
+        draft: { dirs: DRAFT_DIRS, templates: TEMPLATES, applied: { id: 'tpl-fix' } },
+      }}
+    />
+  ),
+  'template-save': () => (
+    <Scene
+      fixture={{
+        draft: {
+          dirs: DRAFT_DIRS,
+          templates: TEMPLATES,
+          prompt: 'Review pull request {{pr}} in {{repo:hoplet}}.',
+          save: { name: 'Review a pull request' },
         },
       }}
     />
