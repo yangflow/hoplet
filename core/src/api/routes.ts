@@ -1691,6 +1691,7 @@ export const routes: readonly Route[] = [
         query.deviceId ?? (query.sessionId ? store.ownerDeviceId(query.sessionId) : null);
       return {
         rules: store.listPermissionRules(query),
+        local: query.sessionId && !device ? [] : store.localPermissionDeny(device ?? undefined),
         ...(device ? { revision: store.permissionRevision(device) } : {}),
       };
     },

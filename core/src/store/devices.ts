@@ -5,6 +5,9 @@ import {
   DeviceLabelSchema,
   type DeviceSystem,
   is,
+  type LocalPermissionRule,
+  LocalPermissionRuleListSchema,
+  type LocalPermissionRules,
   safeParse,
 } from '@hoplet/shared';
 import { registerSecret } from '../log/index.ts';
@@ -17,7 +20,7 @@ function hashToken(token: string): string {
 
 /**
  * The hello describes the agent that is connected now: an agent that sends no `system` leaves the device with
- * none.
+ * none, and one that announces no `permissionDeny` leaves it with no local deny rules.
  */
 export function upsertDevice(
   ctx: StoreContext,
@@ -25,16 +28,59 @@ export function upsertDevice(
   name: string,
   version: string,
   system?: DeviceSystem,
+  permissionDeny?: readonly LocalPermissionRule[],
 ): void {
   const now = Date.now();
   ctx.db
     .prepare(
-      `INSERT INTO devices(device_id, name, version, os, arch, first_seen, last_seen)
-       VALUES(?, ?, ?, ?, ?, ?, ?)
+      `INSERT INTO devices(device_id, name, version, os, arch, permission_deny, first_seen, last_seen)
+       VALUES(?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(device_id) DO UPDATE SET name=excluded.name, version=excluded.version,
-         os=excluded.os, arch=excluded.arch, last_seen=excluded.last_seen`,
+         os=excluded.os, arch=excluded.arch, permission_deny=excluded.permission_deny,
+         last_seen=excluded.last_seen`,
     )
-    .run(deviceId, name, version, system?.os ?? null, system?.arch ?? null, now, now);
+    .run(
+      deviceId,
+      name,
+      version,
+      system?.os ?? null,
+      system?.arch ?? null,
+      permissionDeny && permissionDeny.length > 0 ? JSON.stringify(permissionDeny) : null,
+      now,
+      now,
+    );
+}
+
+/**
+ * The deny rules the agents announced from their own configuration, one entry per device that has any, in the
+ * order the devices were first seen; only `deviceId` when it is given. Unreadable stored JSON counts as none.
+ */
+export function localPermissionDeny(ctx: StoreContext, deviceId?: string): LocalPermissionRules[] {
+  const rows = (
+    deviceId === undefined
+      ? ctx.db
+          .prepare(
+            `SELECT device_id, permission_deny FROM devices WHERE permission_deny IS NOT NULL ORDER BY first_seen, device_id`,
+          )
+          .all()
+      : ctx.db
+          .prepare(
+            `SELECT device_id, permission_deny FROM devices WHERE permission_deny IS NOT NULL AND device_id = ?`,
+          )
+          .all(deviceId)
+  ) as { device_id: string; permission_deny: string }[];
+  const out: LocalPermissionRules[] = [];
+  for (const row of rows) {
+    try {
+      const parsed = safeParse(LocalPermissionRuleListSchema, JSON.parse(row.permission_deny));
+      if (parsed.success && parsed.output.length > 0) {
+        out.push({ deviceId: row.device_id, rules: parsed.output });
+      }
+    } catch {
+      // Unreadable JSON is none.
+    }
+  }
+  return out;
 }
 
 /** Record that the agent of a device just went away; its last connection is when it disconnected. */

@@ -145,7 +145,7 @@ starting the container. Run one core per data directory, on a local filesystem w
 | `runtime_max_idle_processes` | `3` | processes kept running between turns; processes in a turn are not limited |
 | `terminal` | `false` | allow the web UI to open a shell on this machine ([Terminal](#terminal)) |
 | `preview_host` | the machine's host name | the host in the links to a session's dev servers ([Dev server links](#dev-server-links)) |
-| `permission_deny` | none | deny rules of the operator, a JSON array of rules in the shape of the permission rules (docs/spec.md#permission-rules); they hold against any rule the core sends, and a configuration with an invalid rule does not load |
+| `permission_deny` | none | deny rules of the operator, a JSON array of rules in the shape of the permission rules (docs/spec.md#permission-rules); they hold against any rule the core sends, and at most 100; the agent announces them to the core, which shows them read-only; a configuration with an invalid rule or more rules does not load |
 | `hooks` | none (planned, ADR 0031) | script hooks the agent runs on session events ([Lifecycle hooks](#lifecycle-hooks)) |
 
 `<hoplet_home>/projects.json` lists watched project paths and the session IDs imported from each:
@@ -257,6 +257,9 @@ resource or dependency.
 
 Migration 0025 (permission rules) adds the small tables `permission_rules`, `permission_builtins` and
 `permission_revisions`; it reads nothing and needs no action. No new port, resource or dependency.
+
+Migration 0026 (agent deny rules) adds the column `permission_deny` to `devices`, filled by the next `device.hello` of each
+agent; it reads nothing and needs no action. No new port, resource or dependency.
 
 ## Uninstall
 

@@ -248,7 +248,10 @@ Behavior a client relies on:
   reached every machine plus those that reached that one, so it only grows. A scope that does not fit its targets is
   `invalid-request` with `reason: "scope"`, a machine that is not known `reason: "deviceId"`, a session that is not
   known `reason: "sessionId"`, and a tool or matcher the agent would refuse `reason: "rule: <problem>"`; the 501st
-  rule is `too-large`. A built-in is neither edited nor deleted (`reason: "builtin"`); `PUT` takes
+  rule is `too-large`. `GET` also answers `local`: the deny rules the agents announced from their own configuration
+  (`permission_deny`, `LocalPermissionRuleSchema`: `action` `deny`, `scope` `agent`), one `{ deviceId, rules }` per
+  machine that has any, only the machine named by `deviceId` or owning `sessionId` when one is given; they are
+  read-only and are not among `rules`, and no route creates, changes or deletes one. A built-in is neither edited nor deleted (`reason: "builtin"`); `PUT` takes
   `{ enabled, confirm? }` for it, and turning one off needs `confirm` equal to its ID (`reason: "confirm"`). `PUT` of
   a rule of the user with that short body is `reason: "body"`. `DELETE` answers the list. Session tokens and device
   tokens are `unauthorized` here; a session's rules go with the session. Every create, update, delete and

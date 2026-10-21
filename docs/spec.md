@@ -347,7 +347,8 @@ engine on the agent, and in Claude Code sessions the check of every tool call ag
 compiled-in floor, in every permission mode; on the core, the storage of rules, their scopes, the built-in switches and
 a revision per machine, served by `/api/permission-rules` (docs/api.md); the core sends each agent its rules and the
 agent applies them to every tool call, the next one after a change; the audit records of the calls a rule decided
-and of every rule change. Planned: Codex, the web showing which machines have applied the latest revision, and the
+and of every rule change; the agent announcing its own `permission_deny` rules, which the core keeps per machine and
+serves read-only. Planned: Codex, the web showing which machines have applied the latest revision, and the
 Settings and card screens. Rules let a session run without someone answering every
 tool call: routine calls
 are allowed, dangerous ones asked about or denied.
