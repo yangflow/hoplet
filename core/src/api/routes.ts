@@ -60,6 +60,7 @@ import {
   LiveSessionMetaSchema,
   MAX_BUDGETS,
   MAX_NOTIFY_PROJECTS,
+  MAX_PERMISSION_RULES,
   MAX_RESOURCE_THRESHOLD_MACHINES,
   MAX_TEMPLATE_TEXT_CHARS,
   MAX_TEMPLATES,
@@ -71,6 +72,12 @@ import {
   NewSessionResultSchema,
   NotifyPreferencesSchema,
   PermissionRequestSchema,
+  type PermissionRuleBody,
+  PermissionRuleBodySchema,
+  PermissionRuleEntrySchema,
+  PermissionRuleListQuerySchema,
+  PermissionRuleListResponseSchema,
+  PermissionRulePutSchema,
   PROTOCOL_VERSION,
   PromptImageSchema,
   PromptRequestSchema,
@@ -83,6 +90,7 @@ import {
   PushSubscriptionListResponseSchema,
   PushUnsubscribeRequestSchema,
   parseTemplate,
+  permissionRuleProblem,
   QueueAddRequestSchema,
   QueueEditRequestSchema,
   QueueOrderRequestSchema,
@@ -312,6 +320,26 @@ function checkTemplateText(text: string, prefix = ''): void {
 
 function templateList({ store }: { store: Store }) {
   return { templates: store.listTemplates() };
+}
+
+/** What the schema cannot say: the targets fit the scope and exist, and the matcher fits the tool. */
+function checkPermissionRule(store: Store, body: PermissionRuleBody): void {
+  const refuse = (reason: string) => new ApiError('invalid-request', { reason });
+  const { scope, deviceId, projectPath, sessionId } = body;
+  if (scope !== 'project' && (deviceId !== undefined || projectPath !== undefined)) {
+    throw refuse('scope');
+  }
+  if (scope !== 'session' && sessionId !== undefined) throw refuse('scope');
+  if (scope === 'project') {
+    if (deviceId === undefined || projectPath === undefined) throw refuse('scope');
+    if (!store.hasDevice(deviceId)) throw refuse('deviceId');
+  }
+  if (scope === 'session') {
+    if (sessionId === undefined) throw refuse('scope');
+    if (!store.getSession(sessionId)) throw refuse('sessionId');
+  }
+  const problem = permissionRuleProblem(body);
+  if (problem !== null) throw refuse(`rule: ${problem}`);
 }
 
 function budgetList({ store }: { store: Store }) {
@@ -1649,6 +1677,83 @@ export const routes: readonly Route[] = [
       const result = notify.decide(body.token, body.decision);
       if ('error' in result) throw new ApiError(result.error);
       return result;
+    },
+  }),
+  defineRoute({
+    method: 'GET',
+    path: '/api/permission-rules',
+    auth: 'host',
+    lane: 'control',
+    query: PermissionRuleListQuerySchema,
+    response: PermissionRuleListResponseSchema,
+    handler: ({ store, query }) => {
+      const device =
+        query.deviceId ?? (query.sessionId ? store.ownerDeviceId(query.sessionId) : null);
+      return {
+        rules: store.listPermissionRules(query),
+        ...(device ? { revision: store.permissionRevision(device) } : {}),
+      };
+    },
+  }),
+  defineRoute({
+    method: 'POST',
+    path: '/api/permission-rules',
+    auth: 'host',
+    lane: 'control',
+    bodyLimit: 64 * 1024,
+    body: PermissionRuleBodySchema,
+    status: 201,
+    response: PermissionRuleEntrySchema,
+    handler: ({ store, body }) => {
+      if (store.permissionRuleCount() >= MAX_PERMISSION_RULES) throw new ApiError('too-large');
+      checkPermissionRule(store, body);
+      return store.createPermissionRule(body, Date.now());
+    },
+  }),
+  defineRoute({
+    method: 'PUT',
+    path: '/api/permission-rules/:id',
+    auth: 'host',
+    lane: 'control',
+    bodyLimit: 64 * 1024,
+    body: PermissionRulePutSchema,
+    response: PermissionRuleEntrySchema,
+    handler: ({ store, params, body }) => {
+      const id = params.id ?? '';
+      const current = store.getPermissionRule(id);
+      if (!current) throw new ApiError('not-found');
+      if (current.builtin) {
+        // A built-in is not edited; its switch is the one thing that changes, and off needs the ID typed back.
+        if ('tool' in body) throw new ApiError('invalid-request', { reason: 'builtin' });
+        if (!body.enabled && current.enabled && body.confirm !== id) {
+          throw new ApiError('invalid-request', { reason: 'confirm' });
+        }
+        const toggled = store.setBuiltinPermissionRule(id, body.enabled, Date.now());
+        if (!toggled) throw new ApiError('not-found');
+        return toggled;
+      }
+      if (!('tool' in body)) throw new ApiError('invalid-request', { reason: 'body' });
+      checkPermissionRule(store, body);
+      const updated = store.updatePermissionRule(id, body, Date.now());
+      if (!updated) throw new ApiError('not-found');
+      return updated;
+    },
+  }),
+  defineRoute({
+    method: 'DELETE',
+    path: '/api/permission-rules/:id',
+    auth: 'host',
+    lane: 'control',
+    response: PermissionRuleListResponseSchema,
+    handler: ({ store, params }) => {
+      const id = params.id ?? '';
+      if (id.startsWith('default.')) {
+        throw new ApiError(store.getPermissionRule(id) ? 'invalid-request' : 'not-found', {
+          reason: 'builtin',
+        });
+      }
+      if (!store.deletePermissionRule(id)) throw new ApiError('not-found');
+      return { rules: store.listPermissionRules() };
     },
   }),
   defineRoute({

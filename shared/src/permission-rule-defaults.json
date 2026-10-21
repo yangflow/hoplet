@@ -1,0 +1,151 @@
+[
+  {
+    "id": "default.secret-files",
+    "tool": "read,write",
+    "match": {
+      "paths": ["**/.env", "**/.env.*"],
+      "except": ["**/*.example", "**/*.sample", "**/*.template"]
+    },
+    "action": "deny",
+    "scope": "global",
+    "note": "Secret files (.env)",
+    "enabled": true,
+    "builtin": true
+  },
+  {
+    "id": "default.credential-stores",
+    "tool": "read,write",
+    "match": {
+      "paths": [
+        "~/.ssh/**",
+        "~/.aws/**",
+        "~/.gnupg/**",
+        "~/.config/gcloud/**",
+        "~/.kube/**",
+        "~/.docker/config.json",
+        "~/.netrc",
+        "~/.npmrc",
+        "~/.git-credentials"
+      ]
+    },
+    "action": "deny",
+    "scope": "global",
+    "note": "Credential stores",
+    "enabled": true,
+    "builtin": true
+  },
+  {
+    "id": "default.hoplet-and-provider-config",
+    "tool": "read,write",
+    "match": {
+      "paths": [
+        "{hoplet_home}/**",
+        "~/.claude/settings*.json",
+        "**/.claude/settings*.json",
+        "~/.codex/config.toml",
+        "**/.codex/config.toml"
+      ]
+    },
+    "action": "deny",
+    "scope": "global",
+    "note": "Hoplet and provider configuration",
+    "enabled": true,
+    "builtin": true
+  },
+  {
+    "id": "default.write-outside-workspace",
+    "tool": "write",
+    "match": {
+      "paths": ["/**"],
+      "except": ["{workspace}/**", "{tmp}/**", "~/.claude/plans/**"]
+    },
+    "action": "deny",
+    "scope": "global",
+    "note": "Writes outside the workspace",
+    "enabled": true,
+    "builtin": true
+  },
+  {
+    "id": "default.force-push",
+    "tool": "run",
+    "match": {
+      "command": "git push",
+      "anyArg": ["--force*", "-f", "+*"]
+    },
+    "action": "ask",
+    "scope": "global",
+    "note": "Force push",
+    "enabled": true,
+    "builtin": true
+  },
+  {
+    "id": "default.destructive-git",
+    "tool": "run",
+    "match": {
+      "or": [
+        {
+          "command": "git reset --hard"
+        },
+        {
+          "command": "git clean",
+          "anyArg": ["-f", "-fd", "-df", "-fx", "--force"]
+        },
+        {
+          "command": "git checkout --"
+        }
+      ]
+    },
+    "action": "ask",
+    "scope": "global",
+    "note": "Destructive git commands",
+    "enabled": true,
+    "builtin": true
+  },
+  {
+    "id": "default.recursive-delete-and-sudo",
+    "tool": "run",
+    "match": {
+      "or": [
+        {
+          "command": "rm",
+          "anyArg": ["-r", "-R", "-rf", "-fr", "--recursive"]
+        },
+        {
+          "command": "sudo"
+        },
+        {
+          "command": "doas"
+        },
+        {
+          "command": "su"
+        }
+      ]
+    },
+    "action": "ask",
+    "scope": "global",
+    "note": "Recursive delete and privilege",
+    "enabled": true,
+    "builtin": true
+  },
+  {
+    "id": "default.download-and-run",
+    "tool": "run",
+    "match": {
+      "or": [
+        {
+          "command": "curl",
+          "pipedTo": ["sh", "bash", "zsh", "python*", "node"]
+        },
+        {
+          "command": "wget",
+          "pipedTo": ["sh", "bash", "zsh", "python*", "node"]
+        }
+      ]
+    },
+    "action": "ask",
+    "scope": "global",
+    "note": "Download and run",
+    "enabled": true,
+    "builtin": true
+  }
+]

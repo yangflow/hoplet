@@ -17,6 +17,9 @@ import type {
   NotifyDelivery,
   NotifyEventKind,
   NotifyPreferences,
+  PermissionRuleBody,
+  PermissionRuleEntry,
+  PermissionRuleListQuery,
   Queue,
   QueueItem,
   QueuePause,
@@ -51,6 +54,7 @@ import * as deletion from './deletion.ts';
 import * as devices from './devices.ts';
 import type { StoreContext } from './layout.ts';
 import * as notify from './notify.ts';
+import * as permissionRules from './permission-rules.ts';
 import * as queue from './queue.ts';
 import { recoverOnStart } from './recovery.ts';
 import * as resourceThresholds from './resource-thresholds.ts';
@@ -200,6 +204,47 @@ export class Store {
 
   createBudget(body: BudgetBody, now: number): Budget {
     return budgets.createBudget(this.ctx, body, now);
+  }
+
+  listPermissionRules(query: PermissionRuleListQuery = {}): PermissionRuleEntry[] {
+    return permissionRules.listPermissionRules(this.ctx, query);
+  }
+
+  getPermissionRule(id: string): PermissionRuleEntry | null {
+    return permissionRules.getPermissionRule(this.ctx, id);
+  }
+
+  permissionRuleCount(): number {
+    return permissionRules.permissionRuleCount(this.ctx);
+  }
+
+  /** The revision of the rules that apply to a machine; it grows with every change that reaches it. */
+  permissionRevision(deviceId: string): number {
+    return permissionRules.permissionRevision(this.ctx, deviceId);
+  }
+
+  createPermissionRule(body: PermissionRuleBody, now: number): PermissionRuleEntry {
+    return permissionRules.createPermissionRule(this.ctx, body, now);
+  }
+
+  updatePermissionRule(
+    id: string,
+    body: PermissionRuleBody,
+    now: number,
+  ): PermissionRuleEntry | null {
+    return permissionRules.updatePermissionRule(this.ctx, id, body, now);
+  }
+
+  setBuiltinPermissionRule(id: string, enabled: boolean, now: number): PermissionRuleEntry | null {
+    return permissionRules.setBuiltinEnabled(this.ctx, id, enabled, now);
+  }
+
+  deletePermissionRule(id: string): boolean {
+    return permissionRules.deletePermissionRule(this.ctx, id);
+  }
+
+  hasDevice(deviceId: string): boolean {
+    return devices.listDevices(this.ctx).some((d) => d.deviceId === deviceId);
   }
 
   listTemplates(): Template[] {

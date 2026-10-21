@@ -826,6 +826,46 @@
     },
     {
       "method": "GET",
+      "path": "/api/permission-rules",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": "PermissionRuleListQuerySchema",
+      "body": null,
+      "response": "PermissionRuleListResponseSchema"
+    },
+    {
+      "method": "POST",
+      "path": "/api/permission-rules",
+      "auth": "host",
+      "lane": "control",
+      "status": 201,
+      "query": null,
+      "body": "PermissionRuleBodySchema",
+      "response": "PermissionRuleEntrySchema"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/permission-rules/:id",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": "PermissionRulePutSchema",
+      "response": "PermissionRuleEntrySchema"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/permission-rules/:id",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": null,
+      "response": "PermissionRuleListResponseSchema"
+    },
+    {
+      "method": "GET",
       "path": "/api/templates",
       "auth": "host",
       "lane": "control",
@@ -4911,6 +4951,783 @@
       "required": [
         "requestId",
         "decision"
+      ]
+    },
+    "PermissionRuleBodySchema": {
+      "type": "object",
+      "properties": {
+        "scope": {
+          "enum": [
+            "global",
+            "project",
+            "session"
+          ],
+          "type": "string"
+        },
+        "deviceId": {
+          "type": "string",
+          "pattern": "\\S",
+          "minLength": 1
+        },
+        "projectPath": {
+          "type": "string",
+          "pattern": "^\\s*\\S(?:[\\s\\S]{0,4094}\\S)?\\s*$"
+        },
+        "sessionId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "tool": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "match": {
+          "type": "object",
+          "properties": {
+            "command": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "anyArg": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "maxItems": 50
+            },
+            "pipedTo": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "maxItems": 50
+            },
+            "paths": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "maxItems": 50
+            },
+            "except": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "maxItems": 50
+            },
+            "domains": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "maxItems": 50
+            },
+            "or": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "command": {
+                    "type": "string",
+                    "maxLength": 500
+                  },
+                  "anyArg": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 500
+                    },
+                    "maxItems": 50
+                  },
+                  "pipedTo": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 500
+                    },
+                    "maxItems": 50
+                  },
+                  "paths": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 500
+                    },
+                    "maxItems": 50
+                  },
+                  "except": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 500
+                    },
+                    "maxItems": 50
+                  },
+                  "domains": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 500
+                    },
+                    "maxItems": 50
+                  }
+                },
+                "required": [],
+                "additionalProperties": false
+              },
+              "maxItems": 50
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        },
+        "action": {
+          "enum": [
+            "allow",
+            "ask",
+            "deny"
+          ],
+          "type": "string"
+        },
+        "note": {
+          "type": "string",
+          "maxLength": 200,
+          "default": ""
+        },
+        "enabled": {
+          "type": "boolean",
+          "default": true
+        }
+      },
+      "required": [
+        "scope",
+        "tool",
+        "match",
+        "action"
+      ],
+      "additionalProperties": false
+    },
+    "PermissionRuleEntrySchema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "tool": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "match": {
+          "type": "object",
+          "properties": {
+            "command": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "anyArg": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "maxItems": 50
+            },
+            "pipedTo": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "maxItems": 50
+            },
+            "paths": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "maxItems": 50
+            },
+            "except": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "maxItems": 50
+            },
+            "domains": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "maxItems": 50
+            },
+            "or": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "command": {
+                    "type": "string",
+                    "maxLength": 500
+                  },
+                  "anyArg": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 500
+                    },
+                    "maxItems": 50
+                  },
+                  "pipedTo": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 500
+                    },
+                    "maxItems": 50
+                  },
+                  "paths": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 500
+                    },
+                    "maxItems": 50
+                  },
+                  "except": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 500
+                    },
+                    "maxItems": 50
+                  },
+                  "domains": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 500
+                    },
+                    "maxItems": 50
+                  }
+                },
+                "required": [],
+                "additionalProperties": false
+              },
+              "maxItems": 50
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        },
+        "action": {
+          "enum": [
+            "allow",
+            "ask",
+            "deny"
+          ],
+          "type": "string"
+        },
+        "scope": {
+          "enum": [
+            "global",
+            "project",
+            "session"
+          ],
+          "type": "string"
+        },
+        "note": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "builtin": {
+          "type": "boolean"
+        },
+        "deviceId": {
+          "type": "string",
+          "pattern": "\\S",
+          "minLength": 1
+        },
+        "projectPath": {
+          "type": "string",
+          "pattern": "^\\s*\\S(?:[\\s\\S]{0,4094}\\S)?\\s*$"
+        },
+        "sessionId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "createdAt": {
+          "type": "number"
+        },
+        "updatedAt": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "tool",
+        "match",
+        "action",
+        "scope",
+        "note",
+        "enabled",
+        "builtin"
+      ],
+      "additionalProperties": false
+    },
+    "PermissionRuleListQuerySchema": {
+      "type": "object",
+      "properties": {
+        "scope": {
+          "enum": [
+            "global",
+            "project",
+            "session"
+          ],
+          "type": "string"
+        },
+        "deviceId": {
+          "type": "string",
+          "pattern": "\\S",
+          "minLength": 1
+        },
+        "projectPath": {
+          "type": "string",
+          "pattern": "^\\s*\\S(?:[\\s\\S]{0,4094}\\S)?\\s*$"
+        },
+        "sessionId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]+$"
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    },
+    "PermissionRuleListResponseSchema": {
+      "type": "object",
+      "properties": {
+        "rules": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 80
+              },
+              "tool": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "match": {
+                "type": "object",
+                "properties": {
+                  "command": {
+                    "type": "string",
+                    "maxLength": 500
+                  },
+                  "anyArg": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 500
+                    },
+                    "maxItems": 50
+                  },
+                  "pipedTo": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 500
+                    },
+                    "maxItems": 50
+                  },
+                  "paths": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 500
+                    },
+                    "maxItems": 50
+                  },
+                  "except": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 500
+                    },
+                    "maxItems": 50
+                  },
+                  "domains": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 500
+                    },
+                    "maxItems": 50
+                  },
+                  "or": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "command": {
+                          "type": "string",
+                          "maxLength": 500
+                        },
+                        "anyArg": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 500
+                          },
+                          "maxItems": 50
+                        },
+                        "pipedTo": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 500
+                          },
+                          "maxItems": 50
+                        },
+                        "paths": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 500
+                          },
+                          "maxItems": 50
+                        },
+                        "except": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 500
+                          },
+                          "maxItems": 50
+                        },
+                        "domains": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 500
+                          },
+                          "maxItems": 50
+                        }
+                      },
+                      "required": [],
+                      "additionalProperties": false
+                    },
+                    "maxItems": 50
+                  }
+                },
+                "required": [],
+                "additionalProperties": false
+              },
+              "action": {
+                "enum": [
+                  "allow",
+                  "ask",
+                  "deny"
+                ],
+                "type": "string"
+              },
+              "scope": {
+                "enum": [
+                  "global",
+                  "project",
+                  "session"
+                ],
+                "type": "string"
+              },
+              "note": {
+                "type": "string",
+                "maxLength": 200
+              },
+              "enabled": {
+                "type": "boolean"
+              },
+              "builtin": {
+                "type": "boolean"
+              },
+              "deviceId": {
+                "type": "string",
+                "pattern": "\\S",
+                "minLength": 1
+              },
+              "projectPath": {
+                "type": "string",
+                "pattern": "^\\s*\\S(?:[\\s\\S]{0,4094}\\S)?\\s*$"
+              },
+              "sessionId": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_-]+$"
+              },
+              "createdAt": {
+                "type": "number"
+              },
+              "updatedAt": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "id",
+              "tool",
+              "match",
+              "action",
+              "scope",
+              "note",
+              "enabled",
+              "builtin"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "revision": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "rules"
+      ]
+    },
+    "PermissionRulePutSchema": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "scope": {
+              "enum": [
+                "global",
+                "project",
+                "session"
+              ],
+              "type": "string"
+            },
+            "deviceId": {
+              "type": "string",
+              "pattern": "\\S",
+              "minLength": 1
+            },
+            "projectPath": {
+              "type": "string",
+              "pattern": "^\\s*\\S(?:[\\s\\S]{0,4094}\\S)?\\s*$"
+            },
+            "sessionId": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]+$"
+            },
+            "tool": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "match": {
+              "type": "object",
+              "properties": {
+                "command": {
+                  "type": "string",
+                  "maxLength": 500
+                },
+                "anyArg": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  },
+                  "maxItems": 50
+                },
+                "pipedTo": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  },
+                  "maxItems": 50
+                },
+                "paths": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  },
+                  "maxItems": 50
+                },
+                "except": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  },
+                  "maxItems": 50
+                },
+                "domains": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  },
+                  "maxItems": 50
+                },
+                "or": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "command": {
+                        "type": "string",
+                        "maxLength": 500
+                      },
+                      "anyArg": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 500
+                        },
+                        "maxItems": 50
+                      },
+                      "pipedTo": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 500
+                        },
+                        "maxItems": 50
+                      },
+                      "paths": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 500
+                        },
+                        "maxItems": 50
+                      },
+                      "except": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 500
+                        },
+                        "maxItems": 50
+                      },
+                      "domains": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 500
+                        },
+                        "maxItems": 50
+                      }
+                    },
+                    "required": [],
+                    "additionalProperties": false
+                  },
+                  "maxItems": 50
+                }
+              },
+              "required": [],
+              "additionalProperties": false
+            },
+            "action": {
+              "enum": [
+                "allow",
+                "ask",
+                "deny"
+              ],
+              "type": "string"
+            },
+            "note": {
+              "type": "string",
+              "maxLength": 200,
+              "default": ""
+            },
+            "enabled": {
+              "type": "boolean",
+              "default": true
+            }
+          },
+          "required": [
+            "scope",
+            "tool",
+            "match",
+            "action"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "confirm": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "enabled"
+          ],
+          "additionalProperties": false
+        }
       ]
     },
     "PromptImageSchema": {
