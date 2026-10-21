@@ -1114,17 +1114,6 @@ body.stacked{background:#131210;color:#efe9e2;font-family:-apple-system,"SF Pro 
 .tp-find{display:flex;align-items:center;gap:var(--space-2);height:var(--control-field);padding:0 var(--space-2);color:var(--color-text-3)}
 .tp-find .q{color:var(--color-text)}
 .tp-find .cr2{display:inline-block;width:1.5px;height:16px;background:var(--color-accent);vertical-align:-3px}
-.tp-cards{position:absolute;left:50%;top:132px;transform:translateX(-50%);width:640px;display:flex;flex-direction:column;gap:var(--space-3)}
-.tp-cards h3{font-size:var(--text-meta);line-height:var(--leading-meta);font-weight:var(--weight-medium);color:var(--color-text-3);text-align:center}
-.tp-grid{display:grid;grid-template-columns:1fr 1fr;gap:var(--space-2)}
-.tp-card{display:flex;flex-direction:column;gap:var(--space-2);padding:var(--space-3);border-radius:var(--radius-md);background:var(--color-surface);box-shadow:inset 0 0 0 1px var(--color-line);text-align:left;min-width:0}
-.tp-card.on{background:var(--color-selected);box-shadow:inset 0 0 0 1px var(--color-line),inset 0 1px 0 var(--color-highlight)}
-.tp-card b{font-weight:var(--weight-semibold);display:flex;align-items:center;gap:var(--space-2)}
-.tp-card b svg{color:var(--color-text-3)}
-.tp-card p{color:var(--color-text-2);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;max-height:40px}
-.tp-card .mm{display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap;font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3)}
-.tp-card .mm .chip{height:20px;font-size:var(--text-meta);padding:0 4px}
-.tp-card .go{margin-left:auto;display:flex;align-items:center;gap:var(--space-1);color:var(--color-text-2)}
 .tp-sum{display:flex;flex-direction:column;border-radius:var(--radius-md);background:var(--color-surface);box-shadow:inset 0 0 0 1px var(--color-line)}
 .tp-sum > div{display:flex;align-items:center;gap:var(--space-3);min-height:32px;padding:0 var(--space-3)}
 .tp-sum > div + div{box-shadow:inset 0 1px 0 var(--color-line)}
@@ -2654,7 +2643,7 @@ const TPLS = [
   { id: 'review', name: ['Review a pull request', '审查拉取请求'], dev: 'MacBook Pro', os: 'macOS', proj: 'hoplet', model: 'Opus 5.5', think: true, fast: false, mode: 'Manual', used: 14,
     text: ['Review pull request {{pr}} in {{repo:hoplet}}. Check the byte-cursor invariants and list the findings by severity.', '审查拉取请求 {{pr}}（仓库 {{repo:hoplet}}）。检查字节游标的不变量，并按严重程度列出发现的问题。'] },
   { id: 'fix', name: ['Fix a failing test', '修复失败的测试'], dev: 'studio', os: 'Linux', proj: 'hoplet', model: 'Opus 5.5', think: true, fast: true, mode: 'Accept edits', used: 9,
-    text: ['Run {{command:pnpm check}} and fix the first failing test. Do not change the test unless the test is wrong.', '运行 {{command:pnpm check}} 并修复第一个失败的测试。除非测试本身有误，否则不要修改测试。'] },
+    text: ['Run pnpm check and fix the first failing test. Do not change the test unless the test is wrong.', '运行 pnpm check 并修复第一个失败的测试。除非测试本身有误，否则不要修改测试。'] },
   { id: 'notes', name: ['Write release notes', '撰写发布说明'], dev: 'MacBook Pro', os: 'macOS', proj: 'hoplet', model: 'Sonnet 5.5', think: false, fast: false, mode: 'Plan', used: 3,
     text: ['Write release notes for {{version}} from the pull requests merged since {{since:the last tag}}.', '根据自 {{since:上一个标签}} 以来合并的拉取请求，为 {{version}} 撰写发布说明。'] },
   { id: 'deps', name: ['Update dependencies', '更新依赖'], dev: 'studio', os: 'Linux', proj: 'hoplet', model: 'Sonnet 5.5', think: false, fast: false, mode: 'Accept edits', used: 6,
@@ -2706,29 +2695,14 @@ function draftWith(scheme, { chip = '', ta = '', bar = '', warn = '', ready = fa
   if (flag) h = h.replace('<button class="tb2" title="Model and options"', '<button class="tb2 warn" title="Model and options"');
   return h;
 }
-const picker = x => `<div class="cpop tp-pop" role="menu" aria-label="${t('Templates', '模板')}">
+const pickerPop = x => `<div class="cpop tp-pop" role="menu" aria-label="${t('Templates', '模板')}">
   <div class="tp-find">${I.search()}<span>${t('Find a template', '查找模板')}</span></div><div class="menu-sep" role="separator"></div>
   ${TPLS.map((p, i) => `<div class="menu-item${i === 0 ? ' on' : ''}" role="menuitem">${TI.tpl()}<span class="tx"><b>${nm(p)}</b><span>${p.dev} / ${p.proj} · ${p.model} · ${fields(p)}</span></span>${i === 0 ? '<span class="n"><span class="kbd">↩</span></span>' : ''}</div>`).join('')}
   <div class="menu-sep" role="separator"></div>
   <div class="menu-item one dim" role="menuitem" aria-disabled="true">${I.plus()}${t('Save the draft as a template…', '将草稿存为模板…')}</div>
   <div class="menu-item one" role="menuitem">${I.gear()}${t('Manage templates…', '管理模板…')}</div></div>`;
-function pickerB() {
-  return `<div class="tp-cards"><h3>${t('Start from a template, or type below', '从模板开始，或在下方直接输入')}</h3><div class="tp-grid">
-    ${TPLS.map((p, i) => `<div class="tp-card${i === 0 ? ' on' : ''}" role="button" tabindex="0"><b>${TI.tpl()}${nm(p)}</b><p>${prompt(body(p), 'src')}</p>
-      <div class="mm"><span class="chip ro">${machine(p.os, p.dev)}</span><span>${p.model}</span><span>${t(p.mode, MODE[p.mode])}</span><span class="go">${fields(p)}${i === 0 ? '<span class="kbd">↩</span>' : ''}</span></div></div>`).join('')}</div></div>`;
-}
-function pickA(scheme) { return draftWith(scheme, { chip: tplChip(true, picker()) }); }
-function pickB(scheme) {
-  let h = cockFrame('draft', scheme);
-  h = swap(h, '<p class="draft-note">The first prompt starts the session</p>', pickerB());
-  return swap(h, '<span class="r"><span class="anc">', `${tplChip(false)}<span class="r"><span class="anc">`);
-}
+function picker(scheme) { return draftWith(scheme, { chip: tplChip(true, pickerPop()) }); }
 const fillBar = (x, left) => `<div class="tp-bar">${TI.tpl()}<span class="nm">${nm(x)}</span><span class="tp-note">${left}</span><span class="sp"></span>${ib(I.close(), t('Clear the template', '清除模板'))}</div>`;
-function fillA(scheme, ready) {
-  const vals = ready ? { pr: '#312' } : {};
-  return draftWith(scheme, { chip: tplChip(false), bar: fillBar(REVIEW, ready ? t('All filled in', '已全部填写') : t('1 of 2 to fill · Tab moves on', '还需填写 1 项（共 2 项）· Tab 切换')),
-    ta: prompt(body(REVIEW), 'fill', vals, ready ? '' : 'pr'), ready });
-}
 const fieldRow = (label, val, o = {}) => `<div class="tfl"><span class="l">${label}${o.hint ? `<em>${o.hint}</em>` : ''}</span><div class="input ui${o.on ? ' on' : ''}${o.bad ? ' bad' : ''}">${val ? esc(val) : `<span class="ph2">${o.ph || ''}</span>`}${o.on ? '<span class="cr2"></span>' : ''}</div></div>`;
 const selRow = (label, inner, o = {}) => `<div class="tfl"><span class="l">${label}</span><div class="input ui sel">${inner}<span class="cv">${I.down()}</span></div></div>`;
 function fillDialog(x, vals, focus, o = {}) {
@@ -2746,41 +2720,23 @@ function fillDialog(x, vals, focus, o = {}) {
       <div class="tfl"><span class="l">${t('The prompt that is sent', '将发送的提示')}</span><div class="tp-pv">${prompt(body(x), 'out', vals)}</div></div>${ctx}</div>
     <div class="dlg-f">${btn(t('Cancel', '取消'), 'quiet')}<button class="btn primary"${ok && !o.blocked ? '' : ' disabled'}>${t('Start', '开始')}</button></div></div>`;
 }
-const fillB = scheme => over(cockFrame('draft', scheme), fillDialog(REVIEW, { pr: '#312' }, 'repo'));
+const fill = scheme => over(cockFrame('draft', scheme), fillDialog(REVIEW, { pr: '#312' }, 'repo'));
 
 /* the start-time capability warning (#70, the driver's declared options) */
 const flagRow = (what, was, fix) => `<div class="tp-fix"><span class="what">${what} <s>${was}</s></span>${fix}</div>`;
-function warnA(scheme) {
+function warning(scheme) {
   const w = `<div class="tp-warn" role="status">${I.alert()}<div class="tx"><b>${t('studio does not offer two options of this template', 'studio 不提供此模板的两个选项')}</b>
     ${flagRow(t('Model Opus 5.5 is not installed on studio', 'studio 未安装模型 Opus 5.5'), '', btn(t('Use Sonnet 5.5', '改用 Sonnet 5.5'), 'sm'))}
     ${flagRow(t('Fast is not available', '不支持快速模式'), '', btn(t('Turn off Fast', '关闭快速模式'), 'sm'))}</div></div>`;
   return draftWith(scheme, { chip: tplChip(false), bar: fillBar(FIX, t('Runs on studio · the template says Opus 5.5 and Fast', '在 studio 上运行 · 模板指定 Opus 5.5 和快速模式')),
-    ta: prompt(body(FIX), 'fill', {}, ''), warn: w, studio: true, flag: true });
+    ta: esc(body(FIX)), warn: w, studio: true, flag: true });
 }
-function warnB(scheme) {
-  const mid = `<div class="tp-warn" role="status">${I.alert()}<div class="tx"><b>${t('studio does not offer these options', 'studio 不提供这些选项')}</b>
-    ${flagRow(t('Model', '模型'), 'Opus 5.5', `<div class="seg" role="radiogroup" aria-label="${t('Model', '模型')}"><button role="radio" aria-checked="false">Sonnet 5.5</button><button role="radio" aria-checked="false">Haiku 4.5</button></div>`)}
-    ${flagRow(t('Fast', '快速模式'), t('on', '开'), `<div class="seg" role="radiogroup" aria-label="${t('Fast', '快速模式')}"><button role="radio" aria-checked="false">${t('Off', '关')}</button></div>`)}
-    <span class="tp-note">${t('MacBook Pro offers both. Adjust here for this start; the template stays as it is.', 'MacBook Pro 两者都支持。可在此为本次启动调整，模板保持不变。')}</span></div></div>`;
-  const ctx = `<div class="tfl"><span class="l">${t('Runs on', '运行于')}</span><div class="input ui sel">${machine('Linux', 'studio')}<span class="sl">/</span>hoplet<span class="cv">${I.down()}</span></div></div>`;
-  return over(cockFrame('draft', scheme), fillDialog(FIX, { command: 'pnpm check' }, '', { mid, ctx, blocked: true }));
-}
-
 /* ---- save as a template --------------------------------------------------------------------------------------- */
 const DRAFT_TEXT = 'Review pull request {{pr}} in {{repo:hoplet}}. Check the byte-cursor invariants and list the findings by severity.';
 const DRAFT_TEXT_ZH = '审查拉取请求 {{pr}}（仓库 {{repo:hoplet}}）。检查字节游标的不变量，并按严重程度列出发现的问题。';
 const draftText = () => t(DRAFT_TEXT, DRAFT_TEXT_ZH);
 const sumRow = (k, v, o = {}) => `<div><span class="k">${k}</span><span class="v${o.dim ? ' dim' : ''}${o.txt ? ' txt' : ''}">${v}</span>${o.tog !== undefined ? `<span class="tp-sw${o.tog ? ' on' : ''}" role="switch" aria-checked="${!!o.tog}" aria-label="${k}"></span>` : ''}</div>`;
-function saveA(scheme) {
-  const dlg = `<div class="scrim"></div><div class="modal dlg tp" role="dialog" aria-modal="true" aria-label="${t('Save as template', '存为模板')}">
-    <div class="dlg-h">${t('Save as template', '存为模板')}</div>
-    <div class="dlg-b">${fieldRow(t('Name', '名称'), nm(REVIEW), { on: true })}
-      <div class="tp-sum">${sumRow(t('Prompt', '提示'), prompt(draftText(), 'src'), { txt: true })}${sumRow(t('Runs on', '运行于'), where(REVIEW))}${sumRow(t('Options', '选项'), optLine(REVIEW))}</div>
-      <p class="tp-note">${t('2 placeholders: pr and repo. Nothing secret is saved.', '2 个占位符：pr 和 repo。不会保存任何机密。')}</p></div>
-    <div class="dlg-f">${btn(t('Cancel', '取消'), 'quiet')}<button class="btn primary">${t('Save', '保存')}</button></div></div>`;
-  return over(draftWith(scheme, { chip: tplChip(false), ta: prompt(draftText(), 'fill', {}, '') }), dlg);
-}
-function saveB(scheme, bad) {
+function save(scheme, bad) {
   const text = bad ? (Z ? '审查拉取请求 {{Pr}}（仓库 {{repo:hoplet}}）。检查字节游标的不变量。' : 'Review pull request {{Pr}} in {{repo:hoplet}}. Check the byte-cursor invariants.') : draftText();
   const err = bad ? `<p class="tp-note bad" role="alert">${t('Line 1, column 21: {{Pr}} is not a placeholder. A name is lower case letters, digits and _. Write \\{{ for a literal {{.', '第 1 行，第 ' + (Z ? 11 : 21) + ' 列：{{Pr}} 不是占位符。名称只能用小写字母、数字和 _。需要字面的 {{ 时写作 \\{{。')}</p>` : '';
   const dlg = `<div class="scrim"></div><div class="modal dlg tp" role="dialog" aria-modal="true" aria-label="${t('Save as template', '存为模板')}">
@@ -2843,19 +2799,13 @@ function settingsShell(scheme, page, wide = true) {
 }
 const head = (title, ...bs) => `<div class="tp-head"><h1>${title}</h1>${bs.join('')}</div>`;
 const headBtns = () => `${btn(t('Import', '导入'), '', TI.upload())}${btn(t('Export', '导出'), '', TI.download())}${btn(t('New template', '新建模板'), '', I.plus())}`;
-const rowT = (p, hov) => `<div class="pr${hov ? ' hov' : ''}" role="group" aria-label="${nm(p)}"><span class="lead">${TI.tpl()}</span><span class="nm"><b>${nm(p)}</b><span>${prompt(body(p), 'src').replace(/<[^>]+>/g, '')}</span></span>
+const rowT = (p, hov) => `<div class="pr${hov ? ' hov' : ''}" role="group" aria-label="${nm(p)}"><span class="lead">${TI.tpl()}</span><span class="nm"><b>${nm(p)}</b><span>${esc(body(p))}</span></span>
   <span class="where">${machine(p.os, p.dev)}<span class="sl">/</span>${p.proj}</span><span class="opt meta">${p.model} · ${t(p.mode, MODE[p.mode])}</span>
   <span class="acts">${ib(I.pen(), t('Edit', '编辑'))}${ib(I.copy(), t('Duplicate', '复制'))}${ib(I.trash(), t('Delete', '删除'))}</span></div>`;
-function listA(scheme) {
+function list(scheme) {
   return settingsShell(scheme, `${head(t('Templates', '模板'), headBtns())}
     <div class="plh meta"><span>${t('Template', '模板')}</span><span>${t('Runs on · options', '运行于 · 选项')}</span></div>
     <div class="plist tp-list">${TPLS.map((p, i) => rowT(p, i === 1)).join('')}</div>
-    <p class="tp-note" style="margin-top:var(--space-3)">${t('4 of 100 templates. Placeholders are filled in when a session starts.', '已有 4 个，上限 100 个。占位符在会话开始时填写。')}</p>`);
-}
-function listB(scheme) {
-  const card = (p, i) => `<div class="tp-card${i === 1 ? ' on' : ''}" role="group" aria-label="${nm(p)}"><b>${TI.tpl()}${nm(p)}<span class="go">${i === 1 ? `${ib(I.pen(), t('Edit', '编辑'))}${ib(I.copy(), t('Duplicate', '复制'))}${ib(I.trash(), t('Delete', '删除'))}` : ''}</span></b>
-    <p>${prompt(body(p), 'src')}</p><div class="mm"><span class="chip ro">${machine(p.os, p.dev)}</span><span>${p.proj}</span><span>${p.model}</span><span>${t(p.mode, MODE[p.mode])}</span></div></div>`;
-  return settingsShell(scheme, `${head(t('Templates', '模板'), headBtns())}<div class="tp-grid">${TPLS.map(card).join('')}</div>
     <p class="tp-note" style="margin-top:var(--space-3)">${t('4 of 100 templates. Placeholders are filled in when a session starts.', '已有 4 个，上限 100 个。占位符在会话开始时填写。')}</p>`);
 }
 function listEmpty(scheme) {
@@ -2905,25 +2855,19 @@ function localize(el) {
 /* screen: begin */
 const SCREEN = {
   name: 'Templates',
-  blurb: 'Session templates (#76): save a prompt, where it runs and its options, and start the same session again in one click. Two directions each for the picker in the draft, the start form with its placeholders, the capability warning, the save dialog and the list in Settings; the sidebar menu and the palette have one.',
+  blurb: 'Session templates (#76): save a prompt, where it runs and its options, and start the same session again in one click. The picker in the draft, the fill form, the capability warning, the save dialog and the list in Settings; the sidebar menu and the palette start a session in one click.',
 };
 const STATES = [
-  ['picker-a', 'A · the draft composer has a Templates control beside the configuration; its popover lists the templates with machine, directory, model and the number of fields, a find row on top and Save the draft… (dim: the draft is empty) and Manage… below'],
-  ['picker-b', 'B · the empty draft shows the templates as cards in place of the hint line; a card shows the prompt as written with its placeholders marked, where it runs, model and mode; the composer keeps a quiet Templates control'],
-  ['fill-a', 'A · fill in place: the template’s text is in the composer with each placeholder a field; Tab moves on, the bar above says how many are left, Start waits until none is empty'],
-  ['fill-a-ready', 'A · every field is filled; Start is enabled and the bar says so'],
-  ['fill-b', 'B · fill in a small form: one field per placeholder in order of first use (required, or its default), the prompt that will be sent below with the values marked, where it runs, then Start'],
-  ['warning-a', 'A · the capability warning inline in the draft: the target machine’s driver does not declare the template’s model and Fast; the model chip turns amber, each flagged option has its own one-click fix, Start waits'],
-  ['warning-b', 'B · the capability warning in the start form: the flagged options as choices for this start, the target machine editable, and a note that the template itself stays unchanged'],
-  ['save-a', 'A · Save as template, short: a name and a read-only summary of what is saved (prompt, where it runs, options) with the placeholders found; nothing is edited here'],
-  ['save-b', 'B · Save as template, with control: the prompt editable with placeholders marked and the syntax beside it, and a switch for each group of fields to leave out'],
-  ['save-b-invalid', 'B · a name that is not a placeholder ({{Pr}}) is refused with the position and the rule; Save waits'],
+  ['picker', 'the draft composer has a Templates control beside the configuration; its popover has a find row, lists the templates with machine, directory, model and the number of fields, and has Save the draft… (dim: the draft is empty) and Manage… below; a template without fields fills the draft, one with fields opens the fill form'],
+  ['fill', 'a template with fields opens a small form: one field per placeholder in order of first use (required, or its default), the prompt that will be sent below with the values marked, where it runs, then Start'],
+  ['warning', 'a template without fields fills the draft; the target machine’s driver does not declare its model and Fast, so the model chip turns amber, each flagged option has its own one-click fix, and Start waits'],
+  ['save', 'Save as template: the name, the prompt editable with placeholders marked and the syntax beside it, and a switch for each group of fields to leave out'],
+  ['save-invalid', 'a name that is not a placeholder ({{Pr}}) is refused with the position and the rule; Save waits'],
   ['save-menu', 'Save as template… in a session’s ··· menu, after Open in new window; it saves the first prompt and the options the session started with'],
-  ['sidebar-menu', 'one click from the sidebar: a chevron beside New session opens Blank session and the templates; a template without fields starts at once, one with fields opens the start form'],
+  ['sidebar-menu', 'one click from the sidebar: a chevron beside New session opens Blank session and the templates; a template without fields starts at once, one with fields opens the fill form'],
   ['palette', 'one click from the command palette: a Start from a template group above the sessions, and Save the current session as a template… among the actions'],
-  ['palette-fill', 'the start form opened from the palette for a template with fields'],
-  ['list-a', 'A · Settings › Templates as a list: name and prompt, where it runs, options; hover shows Edit, Duplicate and Delete; Import, Export and New template on top'],
-  ['list-b', 'B · Settings › Templates as cards in two columns: the prompt as written with its placeholders marked, where it runs, model and mode; actions on the hovered card'],
+  ['palette-fill', 'the fill form opened from the palette for a template with fields'],
+  ['list', 'Settings › Templates as rows: name and prompt, where it runs, options; hover shows Edit, Duplicate and Delete; Import, Export and New template on top'],
   ['list-edit', 'Edit a template: name, prompt with the placeholder syntax beside it, machine, directory, configuration, model, permission mode and the options'],
   ['list-empty', 'Settings › Templates with none yet: what a template is and how to make one'],
   ['list-import', 'Import: the file’s version and count, each template as New or Renamed, a template whose machine is unknown asks for one; nothing starts'],
@@ -2931,13 +2875,10 @@ const STATES = [
 /* screen: end */
 
 function frame(state, scheme) {
-  const fn = { 'picker-a': pickA, 'picker-b': pickB, 'fill-a': s => fillA(s, false), 'fill-a-ready': s => fillA(s, true), 'fill-b': fillB, 'warning-a': warnA, 'warning-b': warnB,
-    'save-a': saveA, 'save-b': s => saveB(s, false), 'save-b-invalid': s => saveB(s, true), 'save-menu': saveMenu, 'sidebar-menu': sidebarMenu, palette: paletteT, 'palette-fill': paletteFill,
-    'list-a': listA, 'list-b': listB, 'list-edit': listEdit, 'list-empty': listEmpty, 'list-import': listImport }[state];
+  const fn = { picker, fill, warning, save: s => save(s, false), 'save-invalid': s => save(s, true), 'save-menu': saveMenu, 'sidebar-menu': sidebarMenu, palette: paletteT, 'palette-fill': paletteFill,
+    list, 'list-edit': listEdit, 'list-empty': listEmpty, 'list-import': listImport }[state];
   return fn(scheme);
 }
-const dir = q.get('dir');
-const shown = STATES.filter(([s]) => !dir || !/-[ab](-|$)/.test(s) || new RegExp(`-${dir}(-|$)`).test(s));
 const root = document.getElementById('root');
 const solo = STATES.find(([s]) => s === q.get('state'));
 if (q.get('state') && !solo) {
@@ -2950,8 +2891,8 @@ if (q.get('state') && !solo) {
   document.body.className = 'stacked';
   root.innerHTML = `<header class="intro"><h1>${SCREEN.name} <span>${t('Session templates', '会话模板')}</span></h1>
     <p>${SCREEN.blurb}</p>
-    <p>Open one with <code>?state=&lt;id&gt;&amp;scheme=light|dark&amp;lang=zh-Hans</code>; the overview takes <code>?dir=a|b</code> to show one direction and <code>lang=zh-Hans</code> for Simplified Chinese.</p></header>` +
-    shown.map(([s, d]) => `<section class="st"><h2>${s}<span>${d}</span></h2><div class="pair">
+    <p>Open one with <code>?state=&lt;id&gt;&amp;scheme=light|dark&amp;lang=zh-Hans</code>; the overview takes <code>lang=zh-Hans</code> for Simplified Chinese.</p></header>` +
+    STATES.map(([s, d]) => `<section class="st"><h2>${s}<span>${d}</span></h2><div class="pair">
       <div class="scaled">${frame(s, 'light')}</div><div class="scaled">${frame(s, 'dark')}</div></div></section>`).join('');
 }
 localize(root);

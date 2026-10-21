@@ -649,14 +649,18 @@ backslash. The prompt after filling is checked against the 8,000-character limit
 
 **Where a template is made and used.**
 
-- The composer of a draft (#10) has a Template control: Start from template fills the draft with the template's
-  text (placeholders stay visible as marked tokens), machine, directory and options, which the user can change
-  before sending; Save as template saves the draft as it is, and the dialog names it and lists what is saved. An
-  existing session has Save as template in its actions menu: the first prompt, the machine, the directory and the
-  options the session started with.
+- The composer of a draft (#10) has a Templates control in its footer, beside the configuration: a popover with a find
+  row that lists the templates with their machine, directory, model and number of fields, Save the draft as a template
+  and Manage templates. A template without placeholders fills the draft with its text, machine, directory and
+  options, which the user can change before sending; one with placeholders opens the small form (below) whose
+  primary button starts the session. Save as template saves the draft: the dialog names it, shows the prompt as
+  editable text with the placeholders marked, and has a switch for each group of fields to leave out. An existing
+  session has Save as template in its actions menu: the first prompt, the machine, the directory and the options
+  the session started with.
 - One click starts: the sidebar's New session button has a menu of templates beside Blank session, and the command
   palette lists Start from template entries. A template without placeholders starts at once; one with placeholders
-  opens the small form first, and its primary button starts the session. Both use the same start as below.
+  opens the small form first: one field per placeholder, the prompt that will be sent with the values marked, and
+  where it runs; its primary button starts the session. Both use the same start as below.
 - Settings has Templates: a list with name, where it runs and its placeholders; edit, duplicate, delete, import and
   export.
 - Schedules (#20), events (#20) and the CLI (#71, `hoplet session start --template <name> --set key=value`) start a
@@ -673,10 +677,10 @@ name the template does not have is refused the same way. `deviceId` and `project
 out or replace it for this start; nothing is written back to the template.
 
 The options are validated at start against the capabilities that the target machine's driver declares in
-`providers` of `GET /api/devices`, as for a new session. The start form checks the same in the browser before
-sending and shows a warning when the template names a model, option, value or configuration the target does not
-offer (another machine, a driver that changed, a configuration that is disabled there), with the unsupported
-options flagged and a control to adjust each; the user fixes them for this start, or saves the fixed template.
+`providers` of `GET /api/devices`, as for a new session. The browser checks the same before sending and, when the template names a model, option, value or configuration
+the target does not offer (another machine, a driver that changed, a configuration that is disabled there), opens
+the template in the draft with an inline warning: the unsupported options are flagged, each with a one-click fix
+for this start, and Start waits. The user fixes them for this start, or saves the fixed template.
 Hoplet never drops an option silently and never starts with a different one than the form shows. The core's
 refusal is the same as for a new session (`invalid-request`, `reason: config`, with the options), and a machine
 that is offline is `target-offline`.

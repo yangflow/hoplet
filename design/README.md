@@ -64,13 +64,11 @@ The mockups, design tokens and app icon behind Hoplet's web UI. The design langu
   composer when a prompt is refused (`composer-over-budget`, `composer-over-budget-running`). Prices (`prices`,
   `prices-edit`, `prices-tokens-only`).
 - `screens/templates.html`: session templates (#76), in light and dark, in English and Simplified Chinese; open one
-  with `?state=<id>&scheme=light|dark&lang=zh-Hans`, and the overview takes `?dir=a|b` to show one direction. Two
-  directions each, awaiting the maintainer's choice: the picker in the draft (`picker-a` a Templates popover, `picker-b`
-  cards in place of the hint), filling the placeholders (`fill-a`, `fill-a-ready` in the composer, `fill-b` a small
-  form), the start-time capability warning (`warning-a` inline, `warning-b` in the form), the save dialog (`save-a`
-  a summary, `save-b` and `save-b-invalid` with the prompt editable) and Settings › Templates (`list-a` rows,
-  `list-b` cards). One direction each: `save-menu`, `sidebar-menu`, `palette`, `palette-fill`, `list-edit`,
-  `list-empty`, `list-import`.
+  with `?state=<id>&scheme=light|dark&lang=zh-Hans`. The picker in the draft is a Templates popover in the composer
+  footer (`picker`); a template without fields fills the draft, with the capability warning inline when the target
+  does not offer its options (`warning`), and one with fields opens the small fill form with a preview of the prompt
+  (`fill`). Saving: `save`, `save-invalid`, `save-menu`. One click: `sidebar-menu`, `palette`, `palette-fill`.
+  Settings › Templates: `list` as rows, `list-edit`, `list-empty`, `list-import`.
 - `tokens.html`: every design token, with the JSON block that `check-tokens.py` compares with
   `web/src/design/tokens.css`.
 - `mark.html`: the app icon and the web UI's mark; the exported icon is `web/public/icon.svg`.
