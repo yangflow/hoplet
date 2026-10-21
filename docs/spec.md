@@ -342,7 +342,7 @@ A budget caps what a scope spends in a period and tells the user before and at t
 
 ### Permission rules
 
-Planned (#98, proposed in [ADR 0029](adr/0029-permission-rules-match-on-the-agent-and-deny-wins.md); the routes
+Planned (#98, decided in [ADR 0029](adr/0029-permission-rules-match-on-the-agent-and-deny-wins.md); the routes
 join docs/api.md with the code). Rules let a session run without someone answering every tool call: routine calls
 are allowed, dangerous ones asked about or denied.
 
