@@ -18,6 +18,7 @@ import (
 	"github.com/yangflow/hoplet/agent/internal/provider"
 	claudeprovider "github.com/yangflow/hoplet/agent/internal/provider/claude"
 	codexprovider "github.com/yangflow/hoplet/agent/internal/provider/codex"
+	"github.com/yangflow/hoplet/agent/internal/rules"
 	"github.com/yangflow/hoplet/agent/internal/sync"
 	"github.com/yangflow/hoplet/agent/internal/terminal"
 )
@@ -153,6 +154,7 @@ func Run(cfg *config.Config, version string) error {
 		Terminal:             terms.hooks(),
 		Ports:                sync.PortsHooks{Watch: watcher.Watch},
 		PreviewHost:          cfg.PreviewHost,
+		PermissionDeny:       rules.Announced(cfg.PermissionDeny),
 		Workspace:            workspaceList(cfg),
 		File:                 workspaceFile(cfg),
 		Diff:                 workspaceDiff(cfg),

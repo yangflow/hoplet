@@ -334,6 +334,13 @@ a valid one whole, writes it to `<hoplet_home>/permission-rules.json` and answer
 `revision` (and an `error` for a refusal, in which case it keeps the previous set). The core keeps the last applied
 revision of each connected machine in memory.
 
+`device.hello` also carries the agent's own deny rules, `permissionDeny`: the `permission_deny` of its configuration
+as the engine holds them (`scope: "agent"`, `action: "deny"`, `enabled: true`, `builtin: false`; at most 100, so the
+agent refuses to start with more), absent when there are none. They are not secret. A hello with a longer list or a
+rule of another shape is an `invalid-message` and registers nothing. The core keeps the latest list of each machine
+in the `devices` table, replaced by every hello (a hello without one clears it), and shows it read-only; no push
+reaches it.
+
 Each call a rule decided (`allow`, `deny` or `ask`; not a call no rule matched) is reported by the agent as
 `runtime.permission.auto` on the control lane: `sessionId`, `toolUseId` (absent when the vendor sent none),
 `decision`, `ruleId`, `scope` (`global`, `project`, `session`, or `agent` for the compiled-in floor and the local

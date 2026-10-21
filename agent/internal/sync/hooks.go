@@ -1,6 +1,10 @@
 package sync
 
-import "context"
+import (
+	"context"
+
+	"github.com/yangflow/hoplet/agent/internal/rules"
+)
 
 // RuntimeHooks handle the remote control messages of the core (docs/spec.md#remote-control). The vendor
 // process, not Hoplet, writes the session file.
@@ -128,6 +132,8 @@ type Hooks struct {
 	Ports     PortsHooks
 	// PreviewHost is announced in device.hello: the host the web UI links dev servers with.
 	PreviewHost string
+	// PermissionDeny is announced in device.hello: the operator's deny rules, as rules.Announced makes them.
+	PermissionDeny []rules.Rule
 
 	// ProjectsList / ProjectsAdd / ProjectsRemove match hoplet-agent projects list|add|remove.
 	ProjectsList   func(ctx context.Context) (candidates []string, projects []DeviceProject, err error)

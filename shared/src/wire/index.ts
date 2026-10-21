@@ -27,7 +27,11 @@ import {
   SnapshotIdSchema,
   TerminalIdSchema,
 } from '../ids.ts';
-import { PERMISSION_SCOPES, PermissionRuleSchema } from '../permission-rules.ts';
+import {
+  LocalPermissionRuleListSchema,
+  PERMISSION_SCOPES,
+  PermissionRuleSchema,
+} from '../permission-rules.ts';
 import { NotifyEventKindSchema } from '../rest/notify.ts';
 import { ChangeStatusSchema, WorkspaceChangeSchema } from '../rest/workspace.ts';
 import {
@@ -262,6 +266,8 @@ export const WIRE_MESSAGES = defineWire({
       capabilities: v.optional(DeviceCapabilitiesSchema),
       /** The host the inspector links dev servers with: the agent's `preview_host`, else the machine's host name. */
       previewHost: v.optional(v.pipe(v.string(), v.maxLength(255))),
+      /** The deny rules of the agent's own configuration (`permission_deny`, ADR 0029), at most 100; absent means none. */
+      permissionDeny: v.optional(LocalPermissionRuleListSchema),
     },
   },
   welcome: {

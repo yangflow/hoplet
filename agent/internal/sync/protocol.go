@@ -153,6 +153,9 @@ type DeviceHello struct {
 	Capabilities *DeviceCapabilities `json:"capabilities,omitempty"`
 	// PreviewHost is the host the inspector links dev servers with: preview_host, else the machine's host name.
 	PreviewHost string `json:"previewHost,omitempty"`
+	// PermissionDeny are the operator's own deny rules (permission_deny, ADR 0029) as the engine holds them:
+	// scope agent, enabled. The core shows them read-only.
+	PermissionDeny []rules.Rule `json:"permissionDeny,omitempty"`
 }
 
 // DeviceSystem is the system the agent runs on: runtime.GOOS and runtime.GOARCH verbatim.

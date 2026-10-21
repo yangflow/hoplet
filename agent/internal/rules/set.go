@@ -99,10 +99,32 @@ func (s Set) all() ([]Rule, error) {
 	return out, nil
 }
 
+// MaxLocal is the most `permission_deny` rules; the core accepts no more in device.hello.
+const MaxLocal = 100
+
 // ValidateLocal checks the operator's `permission_deny` rules: each must be a valid deny rule with its own ID.
 func ValidateLocal(local []Rule) error {
+	if len(local) > MaxLocal {
+		return fmt.Errorf("at most %d rules", MaxLocal)
+	}
 	_, err := New(NewEnv("", ""), local, nil)
 	return err
+}
+
+// Announced is the operator's `permission_deny` rules as the engine holds them (scope agent, enabled, not a
+// built-in): what the agent announces to the core. nil when there are none.
+func Announced(local []Rule) []Rule {
+	if len(local) == 0 {
+		return nil
+	}
+	out := make([]Rule, len(local))
+	for i, r := range local {
+		r.Scope = ScopeAgent
+		r.Enabled = true
+		r.Builtin = false
+		out[i] = r
+	}
+	return out
 }
 
 // Validate checks every rule and that no ID repeats, by building the engine of the whole set.

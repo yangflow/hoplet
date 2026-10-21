@@ -166,6 +166,8 @@ func (c *Client) runOnce(ctx context.Context) error {
 		Providers: c.providerList(),
 
 		PreviewHost: c.hooks.PreviewHost,
+
+		PermissionDeny: c.hooks.PermissionDeny,
 	}
 	if c.hooks.Terminal.Enabled {
 		hello.Capabilities = &DeviceCapabilities{Terminal: true}

@@ -1,6 +1,7 @@
 import * as v from 'valibot';
 import { SessionIdSchema } from '../ids.ts';
 import {
+  LocalPermissionRuleSchema,
   PermissionActionSchema,
   PermissionMatchSchema,
   PermissionNoteSchema,
@@ -68,10 +69,22 @@ export const PermissionRuleListQuerySchema = v.strictObject({
 });
 export type PermissionRuleListQuery = v.InferOutput<typeof PermissionRuleListQuerySchema>;
 
+/** The deny rules one machine's agent announced from its own configuration; read-only. */
+export const LocalPermissionRulesSchema = v.strictObject({
+  deviceId: v.string(),
+  rules: v.array(LocalPermissionRuleSchema),
+});
+export type LocalPermissionRules = v.InferOutput<typeof LocalPermissionRulesSchema>;
+
 /** The built-ins first, then the rules the user made in the order they were made. */
 export const PermissionRuleListResponseSchema = v.object({
   rules: v.array(PermissionRuleEntrySchema),
   /** The revision of the rules that apply to the machine named by `deviceId` (or owning `sessionId`); absent when neither is given. */
   revision: v.optional(v.number()),
+  /**
+   * The deny rules the agents announced from their own configuration (`permission_deny`), one entry per machine that
+   * has any; only the machine named by `deviceId` (or owning `sessionId`) when one is given. Read-only. GET only.
+   */
+  local: v.optional(v.array(LocalPermissionRulesSchema)),
 });
 export type PermissionRuleListResponse = v.InferOutput<typeof PermissionRuleListResponseSchema>;

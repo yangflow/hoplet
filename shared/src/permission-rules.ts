@@ -61,6 +61,27 @@ export const PermissionRuleSchema = v.strictObject({
 });
 export type PermissionRule = v.InferOutput<typeof PermissionRuleSchema>;
 
+/** The most deny rules of its own that an agent announces in `device.hello`. */
+export const MAX_LOCAL_PERMISSION_RULES = 100;
+
+/**
+ * A rule from the agent's `permission_deny` as the agent announces it (ADR 0029): deny only, scope `agent`, always
+ * enabled, never a built-in. The core shows it and cannot change it.
+ */
+export const LocalPermissionRuleSchema = v.strictObject({
+  ...PermissionRuleSchema.entries,
+  action: v.literal('deny'),
+  scope: v.literal('agent'),
+  enabled: v.literal(true),
+  builtin: v.literal(false),
+});
+export type LocalPermissionRule = v.InferOutput<typeof LocalPermissionRuleSchema>;
+
+export const LocalPermissionRuleListSchema = v.pipe(
+  v.array(LocalPermissionRuleSchema),
+  v.maxLength(MAX_LOCAL_PERMISSION_RULES),
+);
+
 /** The eight built-in rules of ADR 0029, all enabled; `shared/src/permission-rule-defaults.json` is checked against the agent's table. */
 export const BUILTIN_PERMISSION_RULES: readonly PermissionRule[] = v.parse(
   v.array(PermissionRuleSchema),

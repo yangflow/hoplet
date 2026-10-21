@@ -5534,6 +5534,183 @@
         },
         "revision": {
           "type": "number"
+        },
+        "local": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "deviceId": {
+                "type": "string"
+              },
+              "rules": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 80
+                    },
+                    "tool": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 200
+                    },
+                    "match": {
+                      "type": "object",
+                      "properties": {
+                        "command": {
+                          "type": "string",
+                          "maxLength": 500
+                        },
+                        "anyArg": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 500
+                          },
+                          "maxItems": 50
+                        },
+                        "pipedTo": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 500
+                          },
+                          "maxItems": 50
+                        },
+                        "paths": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 500
+                          },
+                          "maxItems": 50
+                        },
+                        "except": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 500
+                          },
+                          "maxItems": 50
+                        },
+                        "domains": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 500
+                          },
+                          "maxItems": 50
+                        },
+                        "or": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "command": {
+                                "type": "string",
+                                "maxLength": 500
+                              },
+                              "anyArg": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 500
+                                },
+                                "maxItems": 50
+                              },
+                              "pipedTo": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 500
+                                },
+                                "maxItems": 50
+                              },
+                              "paths": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 500
+                                },
+                                "maxItems": 50
+                              },
+                              "except": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 500
+                                },
+                                "maxItems": 50
+                              },
+                              "domains": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 500
+                                },
+                                "maxItems": 50
+                              }
+                            },
+                            "required": [],
+                            "additionalProperties": false
+                          },
+                          "maxItems": 50
+                        }
+                      },
+                      "required": [],
+                      "additionalProperties": false
+                    },
+                    "action": {
+                      "const": "deny"
+                    },
+                    "scope": {
+                      "const": "agent"
+                    },
+                    "note": {
+                      "type": "string",
+                      "maxLength": 200
+                    },
+                    "enabled": {
+                      "const": true
+                    },
+                    "builtin": {
+                      "const": false
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "tool",
+                    "match",
+                    "action",
+                    "scope",
+                    "note",
+                    "enabled",
+                    "builtin"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "deviceId",
+              "rules"
+            ],
+            "additionalProperties": false
+          }
         }
       },
       "required": [

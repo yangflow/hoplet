@@ -14,6 +14,8 @@ import type {
   Command,
   DeviceInventory,
   DeviceSystem,
+  LocalPermissionRule,
+  LocalPermissionRules,
   NotifyDelivery,
   NotifyEventKind,
   NotifyPreferences,
@@ -212,6 +214,11 @@ export class Store {
 
   getPermissionRule(id: string): PermissionRuleEntry | null {
     return permissionRules.getPermissionRule(this.ctx, id);
+  }
+
+  /** The deny rules the agents announced from their own configuration; only `deviceId`'s when given. Read-only. */
+  localPermissionDeny(deviceId?: string): LocalPermissionRules[] {
+    return devices.localPermissionDeny(this.ctx, deviceId);
   }
 
   permissionRuleCount(): number {
@@ -652,8 +659,14 @@ export class Store {
     return snapshotRead.snapshotDiff(this.ctx, sessionId, path);
   }
 
-  upsertDevice(deviceId: string, name: string, version: string, system?: DeviceSystem): void {
-    devices.upsertDevice(this.ctx, deviceId, name, version, system);
+  upsertDevice(
+    deviceId: string,
+    name: string,
+    version: string,
+    system?: DeviceSystem,
+    permissionDeny?: readonly LocalPermissionRule[],
+  ): void {
+    devices.upsertDevice(this.ctx, deviceId, name, version, system, permissionDeny);
   }
 
   touchDevice(deviceId: string): void {
