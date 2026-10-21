@@ -721,9 +721,7 @@ except after a refusal, which can be retried.
 
 ### Session templates
 
-Planned (#76), not built; the text waits for the maintainer to
-confirm the fields and the placeholder rules, and the screens in `design/screens/templates.html` for the
-mockup. A template saves what a user types at the start of a session again and again, so that one click starts it.
+Planned (#76), not built; the screens are in `design/screens/templates.html`. A template saves what a user types at the start of a session again and again, so that one click starts it.
 
 **Fields.** A template has an `id`, a `name` (1 to 80 characters, unique), and the parts of a new session request
 as they are today: `text` (the prompt, with placeholders, at most 8,000 characters), `deviceId` (the machine),
