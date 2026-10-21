@@ -37,8 +37,7 @@ What the code does today, which decides where a rule can act:
   accepts hooks in the settings given with `--settings` and, over the stream-JSON control channel, as callbacks
   registered in `initialize` and sent back as `hook_callback` requests (both strings are in claude 2.1.302). The
   Codex app server generates schemas for hooks too (`preToolUse`, `permissionRequest`, command handlers) and has a
-  trust step for them. The documents describe both as running whatever the mode is. This has not been run through
-  Hoplet's driver; the first code pull request starts with a test of it for each provider (see Decision).
+  trust step for them. A test of both CLIs measured how they behave in each mode (see Decision, *Test*).
 - **The session file is not Hoplet's.** A decision cannot be written into the file Claude Code or Codex owns
   (ADR 0002), and the core stores no live output; a decision needs a store of its own.
 
@@ -123,21 +122,44 @@ other state, and the old owner drops them. The project rules of the source machi
 dialog lists those the target's project does not have and offers to copy them.
 
 **Where a rule bites, per provider, and what that costs.** `ask` and `deny` must hold in the permissive modes too,
-so the agent needs to see every call, not only those the provider would ask about.
+so the agent needs to see every call, not only those the provider would ask about. Both providers run a
+`PreToolUse` hook in every mode tested, Bypass permissions and Full access included. The hook answers
+`{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow|deny|ask","permissionDecisionReason":"..."}}`;
+`{}` is no decision.
 
-- *Claude Code.* The agent registers a `PreToolUse` hook for all tools (a hook callback over the control channel;
-  the `--settings` command form is the fallback if the callback cannot wait long enough) and decides there. A
-  rule `allow` returns allow, a `deny` returns deny with the rule's name as the reason, an `ask` is raised to the
-  user by the agent itself, which holds the hook open and returns the user's answer, so it does not depend on what
-  the mode does with a hook's `ask`. A call no rule matches returns no decision, so the mode decides and, if it
-  asks, `can_use_tool` reaches the user as today. Cost: every tool call crosses the agent before it runs, and a
-  hook that waits for the user needs a timeout of at least the ten minutes of a permission request.
-- *Codex.* The same through its `preToolUse` hook if a test shows it fires in every mode, including Full access.
-  If it does not, rules act only on the approval requests the mode lets through, the driver declares
-  `rules: prompts-only` for that provider and mode, and the session says so in a visible note, since a rule that
-  the user thinks holds but does not is worse than none. Full access never gains rules by this decision.
-- *The code PR starts with that test* for both providers, with a rule per action in each mode, and changes this
-  record before building if a provider does not behave as written.
+- *Claude Code.* The agent registers a `PreToolUse` hook for all tools as a control-channel callback (`initialize`
+  with `hooks.PreToolUse=[{matcher, hookCallbackIds, timeout}]`, answered to each `hook_callback` request with a
+  control response) and decides there. A rule `allow` returns allow, a `deny` returns deny with the rule's name as
+  the reason, and an `ask` returns `ask`: Claude Code then raises `can_use_tool` (decision reason type `hook`),
+  also in `bypassPermissions`, and the user's answer arrives through the existing permission path. A call no rule
+  matches returns no decision, so the mode decides and, if it asks, `can_use_tool` reaches the user as today.
+  The `--settings` command hook is not a fallback for `ask`: under `-p` it has no prompt path and `ask` acts as
+  `deny`. It may serve `allow` and `deny` only. Cost: every tool call crosses the agent before it runs, and a
+  callback that waits for the user needs a timeout of at least the ten minutes of a permission request.
+- *Codex.* Hooks are configured under the stable `hooks` feature
+  (`hooks.PreToolUse=[{matcher, hooks=[{type="command", command, timeout}]}]`), which `-c` passes without touching
+  the user's config. The hook is a command, so the agent holds it open itself: for an `ask` it asks the user and
+  returns `allow` or `deny`, and never returns `ask`, which Codex ignores in Full access (the call runs). A `deny`
+  is honoured in every mode, with the message "Command blocked by PreToolUse hook: <reason>"; an `allow` does not
+  take a call out of the sandbox. Rules therefore apply in Full access too. Two conditions hold them:
+  - Codex runs only trusted hooks and skips an untrusted one silently, and the command runs. The agent runs its
+    hook trusted (`--dangerously-bypass-hook-trust`, or the app server's equivalent) and checks at session start
+    that the hook is registered and has fired; if not, the session shows a visible note and the rules are treated
+    as not enforced, since a rule that silently does not hold is worse than none.
+  - The hook's stdin reports `permission_mode` as `bypassPermissions` whatever the sandbox and approval mode are,
+    so the agent takes the mode from its own session state, not from that field.
+- *Where a hook does not fire*, in a provider or mode where a test or the start check finds that it does not, the
+  driver declares `rules: prompts-only`: rules act only on the approval requests the mode lets through, and the
+  session says so in a visible note.
+- *Test.* On 2026-10-21 with claude 2.1.302 and codex 0.163.0, a rule per action (allow, ask, deny) was run in
+  Claude Code `default`, `acceptEdits` and `bypassPermissions`, and in Codex Full access
+  (`--dangerously-bypass-approvals-and-sandbox`, and `danger-full-access` with approval `never`),
+  `workspace-write` with `on-request`, and `read-only`. Waits of 20 to 25 seconds were honoured. Not tested:
+  Claude Code plan mode, waits of minutes, several hooks merging, `disableAllHooks`, and Codex hooks registered
+  through `codex app-server`, the path the agent's driver uses.
+- *Open checks for the code PR*, before relying on them: a Claude Code callback that waits ten minutes; the Codex
+  hook registered and fired through `codex app-server`. If the second does not hold, Codex is `rules:
+  prompts-only` with the visible note. The code PR changes this record if either fails.
 - The hook can be removed by the model editing the settings it comes from (`disableAllHooks`), so the built-in
   agent-local floor (below) denies writes to the provider settings and hook files.
 
@@ -192,8 +214,8 @@ token can reach does it. The user does it in the web UI or with the host token.
 ## Cost
 
 Every tool call of a session with rules passes through the agent before it runs: a parser for shell commands, a
-path resolver, a rule store on disk, a hook registered with each Claude Code process, and for Codex a hook or a
-limit on what rules cover. The wire gains three messages and the core a table. The user maintains a rule list, and
+path resolver, a rule store on disk, a hook registered with each Claude Code and Codex process, and a check at
+session start that the Codex hook is trusted and fires. The wire gains three messages and the core a table. The user maintains a rule list, and
 the command matcher is deliberately weak: it refuses to allow what it cannot read, so compound commands (a pipe, a
 `&&`) ask each time until the user answers them one by one. A rule on a command is a guard against mistakes, not a
 sandbox: `deny` on `rm -rf` does not stop a program the model writes and runs. The strongest protection is still the

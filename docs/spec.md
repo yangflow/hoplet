@@ -353,9 +353,9 @@ are allowed, dangerous ones asked about or denied.
   web address by its exact host or `*.example.com`. There is no regular expression.
 - **Precedence**: a `deny` at any scope wins and cannot be overridden; otherwise the narrowest scope that has a
   matching `ask` or `allow` decides, and in one scope `ask` beats `allow`. With no match the session's permission
-  mode decides, as without rules. `ask` and `deny` hold in every mode, Bypass permissions included, where the
-  provider lets Hoplet see every call; where it does not, the session says that rules cover only the requests the
-  mode lets through.
+  mode decides, as without rules. `ask` and `deny` hold in every mode, Bypass permissions and Full access
+  included, because the agent decides in the provider's pre-tool hook; if a session's hook is not registered or
+  does not fire, the session says so and its rules cover only the requests the mode lets through.
 - **Commands with shell control** (`;`, `&&`, `|`, a subshell, a redirection, a newline, text that does not
   parse) are never allowed by a rule; `deny` and `ask` rules apply to each command inside them. A rule on a command
   is a guard against mistakes, not a sandbox.
