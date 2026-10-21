@@ -65,6 +65,9 @@ type process struct {
 	// core pushed holds in a process that is already running. nil keeps engine.
 	rebuild func() (*rules.Engine, error)
 
+	evMu     sync.RWMutex // guards the close of events against late emits
+	evClosed bool
+
 	mu      sync.Mutex
 	rawCmds []rawCommand                 // the latest commands Claude Code reported
 	skills  map[string]bool              // the names the init message lists as skills
@@ -254,9 +257,26 @@ func (p *process) PID() int {
 
 func (p *process) emit(ev runtime.ProcessEvent) { p.events <- ev }
 
+// emitLate emits from a goroutine other than the reader (a hook decision): once the reader closed the channel
+// the event is dropped, since nobody can use it any more.
+func (p *process) emitLate(ev runtime.ProcessEvent) {
+	p.evMu.RLock()
+	defer p.evMu.RUnlock()
+	if !p.evClosed {
+		p.events <- ev
+	}
+}
+
+func (p *process) closeEvents() {
+	p.evMu.Lock()
+	defer p.evMu.Unlock()
+	p.evClosed = true
+	close(p.events)
+}
+
 // read translates Claude Code's stdout into events until it ends, then reports the exit.
 func (p *process) read(stdout io.Reader) {
-	defer close(p.events)
+	defer p.closeEvents()
 	defer close(p.done)
 	r := bufio.NewReaderSize(stdout, 64<<10)
 	var readErr error

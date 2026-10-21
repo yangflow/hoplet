@@ -366,3 +366,67 @@ describe('permission rules: the revision', () => {
     expect(await rev(f, 'dev-a')).toBe(a + 1);
   });
 });
+
+describe('permission rules: the audit log', () => {
+  const changes = (f: Fixture) =>
+    f.store
+      .listAudit({ type: 'config.changed' }, { order: 'asc', limit: 100 })
+      .events.map((e) => e.summary as Msg);
+
+  it('records create, update, delete and a built-in switch as config.changed without the patterns', async () => {
+    const f = await boot();
+    const made = await created(f, {
+      match: { command: 'deploy-secret-tool' },
+      note: 'private note',
+    });
+    const url = `/api/permission-rules/${made.id}`;
+    expect(
+      (
+        await f.put(
+          url,
+          rule({ match: { command: 'other-secret-tool' }, note: 'private note', action: 'deny' }),
+        )
+      ).status,
+    ).toBe(200);
+    expect((await f.del(url)).status).toBe(200);
+    expect(
+      (await f.put(`/api/permission-rules/${ID}`, { enabled: false, confirm: ID })).status,
+    ).toBe(200);
+    expect(
+      (await f.put(`/api/permission-rules/${ID}`, { enabled: false, confirm: ID })).status,
+    ).toBe(200);
+
+    const summaries = changes(f);
+    expect(summaries.map((m) => [m.area, m.action, m.id])).toEqual([
+      ['permission-rules', 'created', made.id],
+      ['permission-rules', 'updated', made.id],
+      ['permission-rules', 'deleted', made.id],
+      ['permission-rules', 'updated', ID],
+    ]);
+    expect(summaries[0]).toMatchObject({
+      current: { scope: 'global', tool: 'run', action: 'ask', enabled: true },
+    });
+    expect(summaries[1]).toMatchObject({
+      fields: ['action', 'match'],
+      previous: { action: 'ask' },
+      current: { action: 'deny' },
+    });
+    expect(summaries[3]).toMatchObject({
+      fields: ['enabled'],
+      previous: { enabled: true },
+      current: { enabled: false },
+    });
+    const events = f.store.listAudit({ type: 'config.changed' }, { limit: 100 }).events;
+    expect(events.every((e) => e.actorKind === 'operator' && e.channel === 'rest')).toBe(true);
+    expect(JSON.stringify(events)).not.toMatch(/secret-tool|private note/);
+    expect(await f.store.verifyAudit()).toMatchObject({ ok: true, firstBreak: null });
+  });
+
+  it('records nothing for a refused request or a missing rule', async () => {
+    const f = await boot();
+    await f.post('/api/permission-rules', rule({ tool: '' }));
+    await f.del('/api/permission-rules/nope');
+    await f.put('/api/permission-rules/nope', rule());
+    expect(changes(f)).toEqual([]);
+  });
+});

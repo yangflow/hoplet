@@ -346,8 +346,9 @@ Decided in [ADR 0029](adr/0029-permission-rules-match-on-the-agent-and-deny-wins
 engine on the agent, and in Claude Code sessions the check of every tool call against the built-in rules and the
 compiled-in floor, in every permission mode; on the core, the storage of rules, their scopes, the built-in switches and
 a revision per machine, served by `/api/permission-rules` (docs/api.md); the core sends each agent its rules and the
-agent applies them to every tool call, the next one after a change. Planned: Codex, the web showing which machines
-have applied the latest revision, the Settings and card screens, and the audit records. Rules let a session run without someone answering every
+agent applies them to every tool call, the next one after a change; the audit records of the calls a rule decided
+and of every rule change. Planned: Codex, the web showing which machines have applied the latest revision, and the
+Settings and card screens. Rules let a session run without someone answering every
 tool call: routine calls
 are allowed, dangerous ones asked about or denied.
 
@@ -389,12 +390,13 @@ the CLI are built; the parts marked planned below are not. The audit log is a se
 was done to and by sessions, kept apart from the session content.
 
 - **What it records**: built: permission answers (who answered: the operator in the web UI or with the CLI, or an
-  action link), mode changes, session stop and interrupt, changes to budgets, device tokens issued, the start of
-  the log (`audit.started`), retention checkpoints and exports. Planned: tool calls (the tool, a scrubbed command of
-  at most 500 characters, the paths a call changes, derived from the session's lines), permission requests and
-  answers by timeout or by a rule of #98, session start, deletion and handoff, prompts sent (their ID and length,
-  never the text), changes to notification settings, device labels, watched projects, provider defaults and
-  permission rules, and terminals opened and closed. Never prompts, assistant text, tool output, file contents or
+  action link), calls decided by a permission rule (`permission.auto`: the decision, the rule's ID and scope and the
+  rule revision, keyed by the session and the tool use ID), changes to permission rules, mode changes, session stop
+  and interrupt, changes to budgets, device tokens issued, the start of the log (`audit.started`), retention
+  checkpoints and exports. Planned: tool calls (the tool, a scrubbed command of at most 500 characters, the paths a
+  call changes, derived from the session's lines), permission requests and answers by timeout, session start,
+  deletion and handoff, prompts sent (their ID and length, never the text), changes to notification settings,
+  device labels, watched projects and provider defaults, and terminals opened and closed. Never prompts, assistant text, tool output, file contents or
   diffs.
 - **Who**: an actor of kind `operator` (the host token, with the channel `rest` or `link`), `device`, `session`,
   `schedule` or `core`. Hoplet has one operator and cannot tell which person or browser used the host token; the
@@ -514,7 +516,7 @@ API, in `shared/src/` (schemas, types and error codes) and `agent/internal/sync/
 - Agent WebSocket `/ws/agent`, device token: sync (`device.hello` with the system, the providers and their capabilities,
   `welcome`, `session.append`, `session.ack`, `session.resync`, `session.rejected`), control
   (`runtime.prompt|permission.answer|interrupt|stop|start` from the core; `runtime.state` with the driver's
-  capabilities, `runtime.output`, `runtime.permission`, `runtime.rejected`, `runtime.started` and
+  capabilities, `runtime.output`, `runtime.permission`, `runtime.permission.auto`, `runtime.rejected`, `runtime.started` and
   `runtime.start.rejected` from the agent), workspace (`session.workspace.list|file.read|diff.read` from
   the core; `session.workspace`, `session.workspace.file`, `session.workspace.diff`,
   `session.workspace.rejected` and `workspace.snapshot` from the agent), handoff

@@ -29,11 +29,18 @@ func hookScript(t *testing.T, requests []string) (bin, initFile, replyFile strin
 
 func hookRequest(id, callback, tool, input string) string {
 	return `{"type":"control_request","request_id":"` + id + `","request":{"subtype":"hook_callback","callback_id":"` + callback +
-		`","input":{"hook_event_name":"PreToolUse","tool_name":"` + tool + `","tool_input":` + input + `}}}`
+		`","input":{"hook_event_name":"PreToolUse","tool_name":"` + tool + `","tool_use_id":"toolu_` + id + `","tool_input":` + input + `}}}`
 }
 
 // runHooks starts a process under opts and spec, lets it send requests and returns the answers by request ID.
 func runHooks(t *testing.T, opts Options, spec runtime.StartSpec, requests []string) (initLine string, answers map[string]map[string]any) {
+	t.Helper()
+	initLine, answers, _ = runHooksWithEvents(t, opts, spec, requests)
+	return initLine, answers
+}
+
+// runHooksWithEvents is runHooks that also returns the events the process emitted.
+func runHooksWithEvents(t *testing.T, opts Options, spec runtime.StartSpec, requests []string) (initLine string, answers map[string]map[string]any, events []runtime.ProcessEvent) {
 	t.Helper()
 	bin, initFile, replyFile := hookScript(t, requests)
 	opts.Bin = bin
@@ -45,7 +52,7 @@ func runHooks(t *testing.T, opts Options, spec runtime.StartSpec, requests []str
 	if err != nil {
 		t.Fatal(err)
 	}
-	collect(t, p)
+	events = collect(t, p)
 	raw, _ := os.ReadFile(initFile)
 	initLine = string(raw)
 	answers = map[string]map[string]any{}
@@ -71,7 +78,7 @@ func runHooks(t *testing.T, opts Options, spec runtime.StartSpec, requests []str
 		}
 		answers[m.Response.RequestID] = out
 	}
-	return initLine, answers
+	return initLine, answers, events
 }
 
 func decisionOf(t *testing.T, out map[string]any) (string, string) {
@@ -223,5 +230,61 @@ func TestStartFailsWhenTheRulesCannotBeBuilt(t *testing.T) {
 	d := New(Options{Bin: script(t, "exit 0\n"), Rules: func(runtime.StartSpec) (*rules.Engine, error) { return nil, os.ErrInvalid }})
 	if _, err := d.Start(context.Background(), runtime.StartSpec{SessionID: "s", Dir: t.TempDir()}); err == nil {
 		t.Fatal("a session started without its rules")
+	}
+}
+
+func ruleDecisions(events []runtime.ProcessEvent) map[string]runtime.RuleDecided {
+	out := map[string]runtime.RuleDecided{}
+	for _, ev := range events {
+		if d, ok := ev.(runtime.RuleDecided); ok {
+			out[d.ToolUseID] = d
+		}
+	}
+	return out
+}
+
+// A decision a rule made is reported with the rule, its scope and the revision of the set; a call no rule decided,
+// a plan-mode call and an unreadable input are not.
+func TestHookReportsTheCallsARuleDecided(t *testing.T) {
+	dir := t.TempDir()
+	reqs := []string{
+		hookRequest("h1", hookCallbackID, "Read", `{"file_path":"`+dir+`/.env"}`),
+		hookRequest("h2", hookCallbackID, "Bash", `{"command":"git status"}`),
+		hookRequest("h3", hookCallbackID, "Read", `{"file_path":"`+dir+`/main.go"}`),
+		hookRequest("h4", hookCallbackID, "Bash", `{"command":"git push --force origin main"}`),
+		hookRequest("h5", hookCallbackID, "Bash", `"not an object"`),
+	}
+	opts := Options{Rules: func(runtime.StartSpec) (*rules.Engine, error) {
+		return rules.New(rules.NewEnv("/home/u", "/home/u/.hoplet"), nil, append(rules.Defaults(), rules.Rule{
+			ID: "user.status", Tool: "run", Match: rules.Match{Command: "git status"}, Action: rules.Allow,
+			Scope: rules.ScopeProject, Note: "git status", Enabled: true,
+		}))
+	}}
+	_, _, events := runHooksWithEvents(t, opts, runtime.StartSpec{Dir: dir}, reqs)
+	got := ruleDecisions(events)
+	if len(got) != 3 {
+		t.Fatalf("decisions = %+v", got)
+	}
+	if d := got["toolu_h1"]; d.Decision != "deny" || d.RuleID == "" || d.Scope == "" {
+		t.Fatalf("h1 = %+v", d)
+	}
+	if d := got["toolu_h2"]; d != (runtime.RuleDecided{ToolUseID: "toolu_h2", Decision: "allow", RuleID: "user.status", Scope: "project"}) {
+		t.Fatalf("h2 = %+v", d)
+	}
+	if d := got["toolu_h4"]; d.Decision != "ask" {
+		t.Fatalf("h4 = %+v", d)
+	}
+	for _, id := range []string{"toolu_h3", "toolu_h5"} {
+		if _, ok := got[id]; ok {
+			t.Fatalf("%s: no rule decided, yet an event was emitted", id)
+		}
+	}
+}
+
+func TestHookReportsNothingWhenThePlanModeDecides(t *testing.T) {
+	reqs := []string{hookRequest("h1", hookCallbackID, "Bash", `{"command":"git status"}`)}
+	_, _, events := runHooksWithEvents(t, allowStatus(), runtime.StartSpec{Config: map[string]any{"mode": "plan"}}, reqs)
+	if got := ruleDecisions(events); len(got) != 0 {
+		t.Fatalf("decisions = %+v", got)
 	}
 }

@@ -71,6 +71,7 @@ export type Runtime = Pick<
           | 'runtime.state'
           | 'runtime.output'
           | 'runtime.permission'
+          | 'runtime.permission.auto'
           | 'runtime.rejected'
           | 'runtime.steered'
           | 'runtime.commands';
@@ -406,6 +407,31 @@ export function createRuntime(state: ControlState): Runtime {
         case 'runtime.output': {
           const { type: _type, v: _v, ...rest } = msg;
           state.publish({ v: PROTOCOL_VERSION, type: 'session.output', ...rest });
+          return;
+        }
+        case 'runtime.permission.auto': {
+          // A rule decided; the call is settled already, so a failed record is told and nothing else happens.
+          try {
+            store.audit({
+              type: 'permission.auto',
+              sessionId: msg.sessionId,
+              deviceId,
+              actor: { kind: 'device', id: deviceId },
+              channel: 'agent',
+              ref: msg.toolUseId ?? null,
+              summary: {
+                decision: msg.decision,
+                ruleId: msg.ruleId,
+                scope: msg.scope,
+                revision: msg.revision,
+              },
+            });
+          } catch (err) {
+            log('error', 'control', 'rule decision not recorded', {
+              sessionId: msg.sessionId,
+              error: err instanceof Error ? err.message : 'unknown',
+            });
+          }
           return;
         }
         case 'runtime.permission': {

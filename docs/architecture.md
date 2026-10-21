@@ -334,6 +334,16 @@ a valid one whole, writes it to `<hoplet_home>/permission-rules.json` and answer
 `revision` (and an `error` for a refusal, in which case it keeps the previous set). The core keeps the last applied
 revision of each connected machine in memory.
 
+Each call a rule decided (`allow`, `deny` or `ask`; not a call no rule matched) is reported by the agent as
+`runtime.permission.auto` on the control lane: `sessionId`, `toolUseId` (absent when the vendor sent none),
+`decision`, `ruleId`, `scope` (`global`, `project`, `session`, or `agent` for the compiled-in floor and the local
+deny list) and the `revision` in force. The core records it as a `permission.auto` audit event keyed by the session
+and the tool use ID, with the device as actor and the channel `agent`; the message holds no command, path or
+pattern. A decision made while the core is unreachable stays in a queue in the agent's memory (500 entries, the
+oldest dropped past that, lost when the agent exits) and is sent after the reconnect. A change to a rule through
+`/api/permission-rules` is a `config.changed` audit event with `area: "permission-rules"`; the match patterns and
+the note are named in `fields` and never recorded.
+
 ### Session chunk files
 
 `<data>/sessions/<sessionId>/c-<seq>.ndjson` holds at most 500 raw JSONL lines. A full chunk is compressed

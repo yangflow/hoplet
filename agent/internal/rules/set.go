@@ -204,8 +204,14 @@ func (st *Store) Revision() int {
 func (st *Store) Engine(sessionID, dir string) (*Engine, error) {
 	st.mu.RLock()
 	rs := st.set.ForSession(sessionID, dir)
+	revision := st.set.Revision
 	st.mu.RUnlock()
-	return New(st.env, st.local, rs)
+	e, err := New(st.env, st.local, rs)
+	if err != nil {
+		return nil, err
+	}
+	e.revision = revision
+	return e, nil
 }
 
 func writeAtomic(path string, data []byte) error {

@@ -56,6 +56,7 @@ type bridge struct {
 	mu       gosync.Mutex
 	cond     *gosync.Cond
 	queue    []runtime.Event
+	held     []runtime.RuleDecisionEvent // rule decisions the core has not received
 	outputs  int
 	closed   bool
 	lastKick time.Time
@@ -380,7 +381,12 @@ func (b *bridge) run() {
 
 		if msg := wireMessage(ev); msg != nil {
 			// Not connected: the state of every process is reported again on reconnect.
-			if err := b.send(msg); err != nil && !errors.Is(err, sync.ErrNotConnected) {
+			if err := b.send(msg); errors.Is(err, sync.ErrNotConnected) {
+				// A rule decision is an audit record: it waits for the reconnect, which reports it again.
+				if d, ok := ev.(runtime.RuleDecisionEvent); ok {
+					b.holdDecision(d)
+				}
+			} else if err != nil {
 				log.Printf("[agent] runtime event not sent: %v", err)
 			}
 		}
@@ -388,6 +394,20 @@ func (b *bridge) run() {
 			b.kick()
 		}
 	}
+}
+
+// maxHeldDecisions bounds the rule decisions kept in memory while the core is unreachable; past it the oldest go.
+// They are lost when the agent exits.
+const maxHeldDecisions = 500
+
+func (b *bridge) holdDecision(d runtime.RuleDecisionEvent) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if len(b.held) >= maxHeldDecisions {
+		b.held = b.held[1:]
+		log.Printf("[agent] too many rule decisions wait for the core; the oldest was dropped")
+	}
+	b.held = append(b.held, d)
 }
 
 func isState(ev runtime.Event) bool {
@@ -456,6 +476,11 @@ func wireMessage(ev runtime.Event) any {
 			out.PlanExit = &sync.PlanExit{Plan: pe.Plan, PlanFile: pe.File, Option: pe.Option, Modes: pe.Modes, Default: pe.Default, FreshContext: pe.FreshContext}
 		}
 		return out
+	case runtime.RuleDecisionEvent:
+		return sync.RuntimePermissionAuto{
+			V: sync.ProtocolVersion, Type: sync.TypeRuntimePermissionAuto, SessionID: ev.SessionID,
+			ToolUseID: ev.ToolUseID, Decision: ev.Decision, RuleID: ev.RuleID, Scope: ev.Scope, Revision: ev.Revision,
+		}
 	case runtime.CommandsEvent:
 		list := make([]sync.Command, 0, len(ev.Commands))
 		for _, c := range ev.Commands {
@@ -631,6 +656,13 @@ func (b *bridge) update(req sync.DeviceProvidersUpdate) ([]sync.ProviderInfo, er
 // report tells the core the state of every process this agent runs and every permission request that
 // waits for an answer; the core rebuilds its runtime state from it.
 func (b *bridge) report() {
+	b.mu.Lock()
+	held := b.held
+	b.held = nil
+	b.mu.Unlock()
+	for _, d := range held {
+		b.emit(d)
+	}
 	for _, m := range b.managers() {
 		for _, st := range m.States() {
 			b.emit(st)

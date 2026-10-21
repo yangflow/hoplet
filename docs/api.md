@@ -251,7 +251,10 @@ Behavior a client relies on:
   rule is `too-large`. A built-in is neither edited nor deleted (`reason: "builtin"`); `PUT` takes
   `{ enabled, confirm? }` for it, and turning one off needs `confirm` equal to its ID (`reason: "confirm"`). `PUT` of
   a rule of the user with that short body is `reason: "body"`. `DELETE` answers the list. Session tokens and device
-  tokens are `unauthorized` here; a session's rules go with the session.
+  tokens are `unauthorized` here; a session's rules go with the session. Every create, update, delete and
+  built-in switch is a `config.changed` audit event (`area: "permission-rules"`) that names the changed fields and
+  never holds the match patterns or the note; the calls the rules decide are `permission.auto` events
+  (`GET /api/audit/events?type=permission.`).
 - A `pause` budget that is over its amount and not lifted refuses new work in its scope with `over-budget` (409,
   with `budget: { id, name }` naming it): `POST /api/sessions/:sessionId/prompt`, a new session
   (`POST /api/sessions`, `POST /api/sessions/:sessionId/permission/fresh`) in its project or on its machine. A
