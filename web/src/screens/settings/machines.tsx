@@ -21,6 +21,7 @@ import { useDevices } from '../../lib/use-devices.ts';
 import { useResourceThresholds } from '../../lib/use-resource-thresholds.ts';
 import { fill } from './fill.tsx';
 import { lastSeenText } from './last-seen.ts';
+import { CapabilitiesGroup } from './machine-capabilities.tsx';
 import { ResourcesBody } from './machine-resources.tsx';
 import { MachineTabs, machinePanelId, machineTabId } from './machine-tabs.tsx';
 import { ThresholdsGroup } from './machine-thresholds.tsx';
@@ -44,6 +45,10 @@ export type MachinesFixture = {
   thresholds?: ResourceThresholds;
   /** The default's fields open, as after Change default. */
   editDefault?: boolean;
+  /** The label field of the selected machine open with this text. */
+  addingLabel?: string;
+  /** A label of the selected machine shown as just removed, with Undo. */
+  removedLabel?: string;
   now?: number;
 };
 
@@ -290,6 +295,16 @@ export function MachinesSection(props: {
     props.onMachine?.(deviceId);
   };
   const sample = device?.resources;
+  const capabilities = device ? (
+    <CapabilitiesGroup
+      key={device.deviceId}
+      device={device}
+      now={now}
+      local={fixture !== undefined}
+      adding={fixture?.addingLabel}
+      removed={fixture?.removedLabel}
+    />
+  ) : null;
   return (
     <>
       <h1>{t('Machines')}</h1>
@@ -345,19 +360,27 @@ export function MachinesSection(props: {
                   : null
               }
               warnings={
-                <ThresholdsGroup
-                  key={device.deviceId}
-                  device={device}
-                  state={thresholds}
-                  editDefault={fixture?.editDefault ?? false}
-                />
+                <>
+                  {capabilities}
+                  <ThresholdsGroup
+                    key={device.deviceId}
+                    device={device}
+                    state={thresholds}
+                    editDefault={fixture?.editDefault ?? false}
+                  />
+                </>
               }
             />
-          ) : device.connected ? (
-            <p className="rmeta dim" data-testid="settings.resources.none">
-              {t('This machine’s agent does not report resources.')}
-            </p>
-          ) : null}
+          ) : (
+            <>
+              {device.connected ? (
+                <p className="rmeta dim" data-testid="settings.resources.none">
+                  {t('This machine’s agent does not report resources.')}
+                </p>
+              ) : null}
+              {capabilities}
+            </>
+          )}
         </div>
       ) : null}
     </>

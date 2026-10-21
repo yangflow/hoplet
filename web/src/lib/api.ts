@@ -9,6 +9,7 @@ import {
   DeletionPreviewSchema,
   DeviceCloneResultSchema,
   DeviceDirsResultSchema,
+  DeviceLabelsResultSchema,
   DeviceListResponseSchema,
   DeviceMintResultSchema,
   DeviceProjectsResultSchema,
@@ -264,6 +265,17 @@ export function postDeviceProviders(deviceId: string, request: DeviceProvidersUp
     `/api/devices/${encodeURIComponent(deviceId)}/providers`,
     DeviceProvidersResultSchema,
     request,
+  );
+}
+
+/** Replaces a machine's labels; works while it is offline. */
+export function putDeviceLabels(deviceId: string, labels: string[]) {
+  return call(
+    `/api/devices/${encodeURIComponent(deviceId)}/labels`,
+    DeviceLabelsResultSchema,
+    { labels },
+    undefined,
+    'PUT',
   );
 }
 
