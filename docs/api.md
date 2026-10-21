@@ -39,7 +39,7 @@ curl -s -X POST -H "Authorization: Bearer $HOPLET_TOKEN" "$HOPLET_URL/api/ws-tic
 - Requests and responses are JSON (UTF-8). A request body is sent with `content-type: application/json`; each
   route limits its size (4 KiB to 64 KiB) and answers `too-large` beyond it.
 - A success is `200`, except where the route table says otherwise. Every other response is an error:
-  `{ "code": "<code>", "reason"?: "<text>", "promptId"?: "<id>" }` with the HTTP status of its code
+  `{ "code": "<code>", "reason"?: "<text>", "promptId"?: "<id>", "budget"?: { "id", "name" } }` with the HTTP status of its code
   ([Error codes](#error-codes)). Clients choose their copy from `code`. `reason` is diagnostic text from the
   agent, never copy for the user.
 - Schemas do not forbid extra properties; a client ignores properties it does not know.
@@ -64,7 +64,7 @@ Response column names the schema of the success body and its status when it is n
 | POST | `/api/ws-tickets` | host | control | — | — | `WsTicketResponseSchema` | — |
 | GET | `/api/health` | host | control | — | — | `HealthResponseSchema` | — |
 | GET | `/api/sessions` | host | control | — | — | `SessionListResponseSchema` | — |
-| POST | `/api/sessions` | host | control | — | `NewSessionRequestSchema` | `NewSessionResultSchema` | `invalid-json`, `invalid-request`, `too-large`, `target-offline`, `timeout`, `rejected` |
+| POST | `/api/sessions` | host | control | — | `NewSessionRequestSchema` | `NewSessionResultSchema` | `invalid-json`, `invalid-request`, `too-large`, `over-budget`, `target-offline`, `timeout`, `rejected` |
 | GET | `/api/sessions/:sessionId` | host | control | — | — | `LiveSessionMetaSchema` | `session-not-found` |
 | PATCH | `/api/sessions/:sessionId` | host | control | — | `SessionPatchRequestSchema` | `LiveSessionMetaSchema` | `invalid-json`, `invalid-request`, `too-large`, `session-not-found` |
 | DELETE | `/api/sessions/:sessionId` | host | control | — | `DeleteSessionRequestSchema` | `DeleteSessionResponseSchema` | `invalid-json`, `invalid-request`, `too-large`, `session-not-found`, `session-running`, `owner-offline`, `delete-partial`, `timeout`, `rejected` |
@@ -77,7 +77,7 @@ Response column names the schema of the success body and its status when it is n
 | GET | `/api/sessions/:sessionId/blocks/:line/:block` | host | bulk | — | — | `FullBlockSchema` | `invalid-request`, `session-not-found`, `not-found`, `busy` |
 | GET | `/api/sessions/:sessionId/search` | host | bulk | `SessionSearchQuerySchema` | — | `SearchResultSchema` | `invalid-request`, `session-not-found`, `busy` |
 | GET | `/api/search` | host | bulk | `GlobalSearchQuerySchema` | — | `GlobalSearchResultSchema` | `invalid-request`, `busy` |
-| POST | `/api/sessions/:sessionId/prompt` | host | control | — | `PromptRequestSchema` | `PromptResultSchema`, 202 | `invalid-json`, `invalid-request`, `too-large`, `session-not-found`, `owner-offline`, `external`, `starting`, `busy`, `timeout`, `rejected` |
+| POST | `/api/sessions/:sessionId/prompt` | host | control | — | `PromptRequestSchema` | `PromptResultSchema`, 202 | `invalid-json`, `invalid-request`, `too-large`, `session-not-found`, `owner-offline`, `external`, `starting`, `busy`, `over-budget`, `timeout`, `rejected` |
 | GET | `/api/sessions/:sessionId/queue` | host | control | — | — | `QueueSchema` | `session-not-found` |
 | POST | `/api/sessions/:sessionId/queue` | host | control | — | `QueueAddRequestSchema` | `QueueSchema`, 201 | `invalid-json`, `invalid-request`, `too-large`, `session-not-found`, `queue-full` |
 | POST | `/api/sessions/:sessionId/queue/order` | host | control | — | `QueueOrderRequestSchema` | `QueueSchema` | `invalid-json`, `invalid-request`, `too-large`, `session-not-found`, `queue-conflict` |
@@ -89,7 +89,7 @@ Response column names the schema of the success body and its status when it is n
 | POST | `/api/sessions/:sessionId/steer` | host | control | — | `SteerRequestSchema` | `SteerResultSchema`, 202 | `invalid-json`, `invalid-request`, `too-large`, `session-not-found`, `owner-offline`, `external`, `starting`, `not-running`, `steer-unavailable`, `timeout`, `rejected` |
 | POST | `/api/sessions/:sessionId/config` | host | control | — | `ConfigRequestSchema` | `RuntimeCommandResultSchema` | `invalid-json`, `invalid-request`, `too-large`, `session-not-found`, `owner-offline`, `external` |
 | POST | `/api/sessions/:sessionId/permission` | host | control | — | `PermissionRequestSchema` | `RuntimeCommandResultSchema` | `invalid-json`, `invalid-request`, `too-large`, `session-not-found`, `owner-offline`, `request-closed` |
-| POST | `/api/sessions/:sessionId/permission/fresh` | host | control | — | `FreshPermissionRequestSchema` | `NewSessionResultSchema` | `invalid-json`, `invalid-request`, `too-large`, `session-not-found`, `owner-offline`, `request-closed`, `target-offline`, `timeout`, `rejected` |
+| POST | `/api/sessions/:sessionId/permission/fresh` | host | control | — | `FreshPermissionRequestSchema` | `NewSessionResultSchema` | `invalid-json`, `invalid-request`, `too-large`, `session-not-found`, `owner-offline`, `request-closed`, `over-budget`, `target-offline`, `timeout`, `rejected` |
 | POST | `/api/sessions/:sessionId/interrupt` | host | control | — | — | `RuntimeCommandResultSchema` | `session-not-found`, `owner-offline`, `not-running` |
 | POST | `/api/sessions/:sessionId/stop` | host | control | — | — | `RuntimeCommandResultSchema` | `session-not-found`, `owner-offline`, `not-running` |
 | GET | `/api/sessions/:sessionId/commands` | host | control | — | — | `CommandsResultSchema` | `session-not-found` |
@@ -122,6 +122,11 @@ Response column names the schema of the success body and its status when it is n
 | GET | `/api/sessions/:sessionId/usage` | host | bulk | — | — | `SessionUsageSchema` | `session-not-found` |
 | GET | `/api/usage/prices` | host | control | — | — | `UsagePricesSchema` | — |
 | PUT | `/api/usage/prices` | host | control | — | `UsagePricesBodySchema` | `UsagePricesSchema` | `invalid-json`, `invalid-request`, `too-large` |
+| GET | `/api/budgets` | host | control | — | — | `BudgetListResponseSchema` | — |
+| POST | `/api/budgets` | host | control | — | `BudgetBodySchema` | `BudgetSchema`, 201 | `invalid-json`, `invalid-request`, `too-large` |
+| PUT | `/api/budgets/:id` | host | control | — | `BudgetBodySchema` | `BudgetSchema` | `invalid-json`, `invalid-request`, `too-large`, `not-found` |
+| DELETE | `/api/budgets/:id` | host | control | — | — | `BudgetListResponseSchema` | `not-found` |
+| POST | `/api/budgets/:id/allow` | host | control | — | — | `BudgetSchema` | `not-found`, `invalid-request` |
 | GET | `/api/notify/push/key` | host | control | — | — | `PushKeyResponseSchema` | — |
 | GET | `/api/notify/push/subscriptions` | host | control | — | — | `PushSubscriptionListResponseSchema` | — |
 | POST | `/api/notify/push/subscriptions` | host | control | — | `PushSubscribeRequestSchema` | `PushSubscriptionInfoSchema`, 201 | `invalid-json`, `invalid-request`, `too-large` |
@@ -185,6 +190,29 @@ Behavior a client relies on:
   the model with that ID and to its dated variants (`<id>-YYYYMMDD`); an override wins over a default. `PUT`
   replaces all overrides (at most 500; more is `too-large`). Costs are computed from the prices when asked, so a
   new price applies to past usage at once.
+- Budgets cap what a scope spends in a period. `GET /api/budgets` answers `budgets` and `backfilling` (true while
+  the usage of earlier sessions is still being read, so spend may grow). A budget (`BudgetSchema`) has `name` (at
+  most 80 characters), `scope` (`{ kind, value }`: `global` with an empty `value`, `project` with a project path,
+  `device` with a device ID; a scope with the wrong kind of `value` is `invalid-request`), `period` (`day`,
+  `week` or `month`, computed at `utcOffset`, whole minutes east of UTC from -840 to 840, 0 by default; a week
+  starts on Monday), `unit` (`cost`, estimated US dollars, or `tokens`, all four token kinds summed; a token
+  `amount` is a whole number), `amount` (above 0), `alertPercent` (1 to 100, 80 by default) and `onLimit` (`warn`
+  by default, or `pause`). Each also carries `periodStart` and `periodEnd` (Unix ms, `[start, end)`), `spent`
+  in `unit`, `percent` (`spent` over `amount`, not capped), `state` (`ok`, `alert` from `alertPercent`, `over` from
+  100 percent, `allowed` when over but the pause was lifted), `paused` (new prompts are refused now) and
+  `costComplete` (false for `cost` when usage of a model without a price is in the scope and period: only priced
+  usage is counted, so `spent` is a lower bound). `POST` creates a budget from `BudgetBodySchema`, `PUT` replaces
+  its definition and `DELETE` removes it and answers the list; at most 100 budgets, more is `too-large`. Changing
+  the scope, period, unit, amount, alert percentage or offset starts the budget afresh: its notifications can be
+  sent again and a lifted pause ends. `POST /api/budgets/:id/allow` lifts the pause of a `pause` budget until its
+  period ends (it is stored, so a restart keeps it, and it expires by itself); on a `warn` budget it is
+  `invalid-request` with `reason: "onLimit"`.
+- A `pause` budget that is over its amount and not lifted refuses new work in its scope with `over-budget` (409,
+  with `budget: { id, name }` naming it): `POST /api/sessions/:sessionId/prompt`, a new session
+  (`POST /api/sessions`, `POST /api/sessions/:sessionId/permission/fresh`) in its project or on its machine. A
+  queued message is not refused at `POST /queue`; the auto-send pauses the queue (`paused: true`, reason
+  `over-budget`) instead of retrying, and `POST /queue/resume` ends the pause once the budget allows. A turn that
+  is running is never interrupted, and steering it and a handoff are not gated.
 - `GET /api/devices/:deviceId/resources` answers `samples`, the last hour of the machine's readings (at most 240, one
   every 15 seconds, oldest first, `cpu` null while the agent had no earlier reading), and `sessions`, the processes
   of the sessions Hoplet started on it as of the latest report, summed over their process trees: `cpu` (percent of
@@ -370,6 +398,7 @@ session, or `""` while the session is not in the index yet; the client shows its
 | `owner-offline` | 409 | The agent of the session's owner (or of the addressed device) is not connected |
 | `target-offline` | 409 | The device the request goes to is not connected: the device of a new session, the target of a handoff, the device to browse |
 | `busy` | 409 | The request cannot run now: the bulk queue is full, or the session's process is running a turn, or a running session cannot be handed off. Retry later |
+| `over-budget` | 409 | A `pause` budget covering the session's project, machine or everything is over its limit; the answer names it in `budget` |
 | `steer-unavailable` | 409 | The session's provider cannot take a message into a running turn, or a permission request is open |
 | `queue-conflict` | 409 | The queued message changed, is already sending or is gone; read the queue again |
 | `queue-full` | 409 | The session already holds 20 queued messages |
@@ -454,10 +483,12 @@ announced capability) and `previewHost` for each connected device.
 ## Notifications
 
 The core notifies on Web Push, on webhooks and, later, on connected native clients (ADR 0021). The events are
-`permission`, `plan`, `turn-done` (only when no browser has the session open) and `failure` (a session that
-failed to start or a handoff that failed). The payload (`NotifyPayloadSchema`) carries the kind, the session,
+`permission`, `plan`, `turn-done` (only when no browser has the session open), `failure` (a session that
+failed to start or a handoff that failed) and `budget` (a budget reached its alert percentage or its limit; once
+per budget, period and threshold). The payload (`NotifyPayloadSchema`) carries the kind, the session,
 the project's name, the session title and, for a permission request, the tool and its command or path redacted
-and cut to 80 characters. It never carries the prompt, file contents or a diff. A webhook receives it as a JSON
+and cut to 80 characters. A `budget` payload carries `budget: { id, name, threshold, percent, pause }` (`threshold` is `alert` or `limit`,
+`pause` whether the limit pauses new prompts) and no session. It never carries the prompt, file contents or a diff. A webhook receives it as a JSON
 `POST` with `X-Hoplet-Signature: sha256=<hex>`, the HMAC-SHA-256 of the body under the webhook's secret, when it
 has one. A permission or plan payload carries `link`, the action link `<public URL>/a#<token>`, when the core
 knows its public URL (docs/hosting.md#public-url). The token is signed by the core, bound to one request and

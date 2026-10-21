@@ -77,6 +77,17 @@ export function createStart(state: ControlState, listProjects: Control['listProj
     const project = listing.projects.find((p) => sameDir(p.path, req.projectPath));
     if (!project) return refuse('projectPath');
 
+    // A budget at its limit with `pause` refuses new sessions in its scope as it refuses prompts.
+    const budget = state.store.budgetBlockFor(project.path, req.deviceId, state.now());
+    if (budget) {
+      log('info', 'control', 'new session refused by a budget', {
+        device: req.deviceId,
+        projectPath: project.path,
+        budget: budget.id,
+      });
+      return { ok: false, error: 'over-budget', promptId, budget };
+    }
+
     // The audit trail: who was asked to start what where, never the text itself (docs/threat-model.md).
     log('info', 'control', 'new session forwarded', {
       device: req.deviceId,
@@ -135,8 +146,10 @@ export function createStart(state: ControlState, listProjects: Control['listProj
       // Only a result that may have reached the agent is repeated; a refusal can be retried.
       void outcome.then((result) => {
         if (!result.ok && result.error !== 'timeout') startCache.delete(req.promptId);
-        // A request the core refused as invalid is the caller's mistake, not a failure to tell about.
-        if (!result.ok && result.error !== 'invalid-request') failed(result.error);
+        // A request the core refused as invalid or over budget is the caller's matter, not a failure to tell about.
+        if (!result.ok && result.error !== 'invalid-request' && result.error !== 'over-budget') {
+          failed(result.error);
+        }
       });
       return outcome;
     },

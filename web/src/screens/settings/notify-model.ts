@@ -72,6 +72,7 @@ export const WEBHOOK_EVENT_LABEL: Record<NotifyEventKind, string> = {
   plan: 'Plan',
   'turn-done': 'Finished',
   failure: 'Failed',
+  budget: 'Budget',
 };
 
 /** A webhook's events after switching one: the order of `NOTIFY_EVENT_KINDS`, and never empty (the last one stays on). */

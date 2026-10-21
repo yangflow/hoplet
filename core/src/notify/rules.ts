@@ -10,13 +10,18 @@ import {
 } from '@hoplet/shared';
 
 /** The events that wait for the user; quiet hours never hold them back. */
-export const NEEDS_YOU: ReadonlySet<NotifyEventKind> = new Set(['permission', 'plan', 'failure']);
+export const NEEDS_YOU: ReadonlySet<NotifyEventKind> = new Set([
+  'permission',
+  'plan',
+  'failure',
+  'budget',
+]);
 
 const PRESET_EVENTS: Record<NotifyPreset, readonly NotifyEventKind[]> = {
-  'needs-me': ['permission', 'plan', 'failure'],
-  'needs-me-and-done': ['permission', 'plan', 'failure', 'turn-done'],
+  'needs-me': ['permission', 'plan', 'failure', 'budget'],
+  'needs-me-and-done': ['permission', 'plan', 'failure', 'budget', 'turn-done'],
   // Equal to the one above until more events exist.
-  everything: ['permission', 'plan', 'failure', 'turn-done'],
+  everything: ['permission', 'plan', 'failure', 'budget', 'turn-done'],
   off: [],
 };
 

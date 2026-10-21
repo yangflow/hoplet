@@ -1,4 +1,5 @@
 import type {
+  BudgetRef,
   ClientMessage,
   CloneCheckReason,
   CloneDestinationDetail,
@@ -80,9 +81,11 @@ export type StartOutcome =
   | { ok: true; sessionId: string; promptId: string }
   | {
       ok: false;
-      error: 'target-offline' | 'invalid-request' | 'timeout' | 'rejected';
+      error: 'target-offline' | 'invalid-request' | 'timeout' | 'rejected' | 'over-budget';
       promptId: string;
       reason?: string;
+      /** The budget that refused the session (`over-budget`). */
+      budget?: BudgetRef;
     };
 
 /** What `POST /api/sessions/:id/permission/fresh` asks for (ADR 0025). */
@@ -104,18 +107,29 @@ export type FreshOutcome =
         | 'invalid-request'
         | 'target-offline'
         | 'timeout'
-        | 'rejected';
+        | 'rejected'
+        | 'over-budget';
       promptId: string;
       reason?: string;
+      budget?: BudgetRef;
     };
 
 export type PromptOutcome =
   | { ok: true; promptId: string }
   | {
       ok: false;
-      error: 'owner-offline' | 'external' | 'starting' | 'busy' | 'timeout' | 'rejected';
+      error:
+        | 'owner-offline'
+        | 'external'
+        | 'starting'
+        | 'busy'
+        | 'timeout'
+        | 'rejected'
+        | 'over-budget';
       promptId: string;
       reason?: string;
+      /** The budget that refused the prompt (`over-budget`). */
+      budget?: BudgetRef;
     };
 
 /** A session's runtime state as clients see it. */

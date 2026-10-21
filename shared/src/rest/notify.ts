@@ -2,8 +2,8 @@ import * as v from 'valibot';
 import { SessionIdSchema } from '../ids.ts';
 import { TrimmedSchema } from './common.ts';
 
-/** What can notify (ADR 0021): a permission request, a plan review, a finished turn, a failure. */
-export const NOTIFY_EVENT_KINDS = ['permission', 'plan', 'turn-done', 'failure'] as const;
+/** What can notify (ADR 0021): a permission request, a plan review, a finished turn, a failure, a budget. */
+export const NOTIFY_EVENT_KINDS = ['permission', 'plan', 'turn-done', 'failure', 'budget'] as const;
 export const NotifyEventKindSchema = v.picklist(NOTIFY_EVENT_KINDS);
 export type NotifyEventKind = v.InferOutput<typeof NotifyEventKindSchema>;
 
@@ -28,6 +28,7 @@ export const NotifyEventOverridesSchema = v.partial(
     plan: NotifyOverrideSchema,
     'turn-done': NotifyOverrideSchema,
     failure: NotifyOverrideSchema,
+    budget: NotifyOverrideSchema,
   }),
 );
 export type NotifyEventOverrides = v.InferOutput<typeof NotifyEventOverridesSchema>;
@@ -119,11 +120,12 @@ const WEBHOOK_SECRET_MAX = 256;
 /** The most webhooks. */
 export const MAX_WEBHOOKS = 20;
 
-/** The events a webhook receives when none are chosen: the ones where Claude needs the user. */
+/** The events a webhook receives when none are chosen: the ones where Claude needs the user, and budgets. */
 export const DEFAULT_WEBHOOK_EVENTS = [
   'permission',
   'plan',
   'failure',
+  'budget',
 ] as const satisfies readonly NotifyEventKind[];
 
 /** The events one webhook receives: a non-empty set of kinds, each once. */
@@ -197,6 +199,16 @@ export const NotifyPayloadSchema = v.object({
   requestId: v.optional(v.string()),
   /** Why the failure happened: a start or handoff error code. */
   reason: v.optional(v.string()),
+  /** A budget notification: which budget, which line it crossed and how far spend is. */
+  budget: v.optional(
+    v.object({
+      id: v.string(),
+      name: v.string(),
+      threshold: v.picklist(['alert', 'limit']),
+      percent: v.number(),
+      pause: v.boolean(),
+    }),
+  ),
   /** The action link of a permission or plan notification; absent on a channel that does not carry links. */
   link: v.optional(v.string()),
 });

@@ -255,6 +255,7 @@ function eventIcon(kind: NotifyEventKind): ReactNode {
     case 'turn-done':
       return Icon.check();
     case 'failure':
+    case 'budget':
       return Icon.alert();
   }
 }

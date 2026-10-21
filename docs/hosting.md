@@ -204,6 +204,9 @@ as usual; `GET /api/usage` says `backfilling` until it ends. If the core stops m
 The table adds a few tens of bytes per assistant message to the database (tens of megabytes for hundreds of
 thousands of messages).
 
+Migration 0022 (budgets) adds two small tables, `budgets` and `budget_alerts`; it reads nothing and needs no
+action. Budgets are evaluated from the `usage` table in the core's process: no new port, resource or dependency.
+
 ## Uninstall
 
 `docker compose down`, remove the `hoplet-data` volume, and on every development machine stop the agent and

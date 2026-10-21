@@ -2,7 +2,7 @@ import type { Hash } from 'node:crypto';
 import { closeSync, fsyncSync, openSync } from 'node:fs';
 import path from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
-import { isSessionId } from '@hoplet/shared';
+import { type BudgetScope, isSessionId } from '@hoplet/shared';
 import type { NotifySecrets } from './secrets.ts';
 import type { SnapshotView } from './snapshot-read.ts';
 
@@ -23,6 +23,24 @@ export interface StoreContext {
   snapshotViews: Map<string, Promise<SnapshotView>>;
   /** The notification secrets once read from their file. */
   secrets: NotifySecrets | null;
+  /** Called after usage is recorded; they must not throw or block. */
+  usageListeners: Set<() => void>;
+  /** The `pause` budgets as the prompt path sees them, by budget ID; kept by `store/budgets.ts`. */
+  budgetBlocks: Map<string, BudgetBlock>;
+  /** The pending refresh of the `budgetBlocks` that recorded usage made stale. */
+  budgetBlockTimer: NodeJS.Timeout | null;
+}
+
+/** Whether a `pause` budget refuses new prompts in the period [periodStart, periodEnd), as last computed. */
+export interface BudgetBlock {
+  scope: BudgetScope;
+  createdAt: number;
+  name: string;
+  periodStart: number;
+  periodEnd: number;
+  paused: boolean;
+  /** Usage was recorded since `paused` was computed. */
+  stale: boolean;
 }
 
 /** A snapshot being received: where it is written and what the first chunk promised. */

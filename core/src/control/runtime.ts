@@ -213,6 +213,13 @@ export function createRuntime(state: ControlState): Runtime {
         return Promise.resolve({ ok: false, error: 'busy', promptId });
       }
 
+      // A budget at its limit with `pause` refuses the prompt; a turn already running is never touched.
+      const budget = state.store.budgetBlockForSession(sessionId, now);
+      if (budget) {
+        log('info', 'control', 'prompt refused by a budget', { sessionId, budget: budget.id });
+        return Promise.resolve({ ok: false, error: 'over-budget', promptId, budget });
+      }
+
       // The audit trail: who was asked to run what, never the text itself (docs/threat-model.md).
       log('info', 'control', 'prompt forwarded', {
         sessionId,

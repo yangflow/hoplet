@@ -317,6 +317,29 @@ project, machine (device), model and day, with an estimated cost (`GET /api/usag
   conversation and opens a popover with the four token kinds and a row per model; a model without a price shows
   its tokens and a dash, and the popover points to Settings › Usage › Prices.
 
+### Budgets
+
+A budget caps what a scope spends in a period and tells the user before and at the line (`GET/POST/PUT/DELETE
+/api/budgets`).
+
+- **Definition**: a scope (everything, one project path or one machine), a period (day, week or month), a unit
+  (estimated cost in US dollars, or tokens), an amount, an alert percentage (80 by default) and what happens at the
+  limit: `warn` (default) or `pause`. At most 100.
+- **Periods**: calendar periods at a fixed UTC offset in minutes stored with the budget (not a time zone, so a
+  daylight-saving change does not move them); a week starts on Monday. The period resets at its end.
+- **Spend** is summed from the usage table, for the sessions whose project or owning machine is in the scope, over
+  the messages within the period. In the cost unit only usage of priced models counts and the budget says its cost
+  is incomplete. It is an estimate, like all cost.
+- **Notifications**: the `budget` kind goes through the notification pipeline (presets, overrides, quiet hours do
+  not hold it back). It is sent when the alert line is crossed and when the limit is reached, once per budget per
+  period per threshold; what was sent is stored, so a restart does not send it again. A budget created already over
+  the limit sends the limit only. The check runs after usage is recorded, debounced, apart from the control path.
+- **Pause**: while a `pause` budget is at or over its limit, a new prompt (`POST /api/sessions/:id/prompt`) and a new
+  session in its project, on its machine or anywhere (for a global budget) is refused with `over-budget`, naming the
+  budget. The queue's auto-send pauses instead of retrying. A turn already running is never interrupted. Steering a
+  running turn and a handoff are not refused. The user lifts a pause until the period ends with
+  `POST /api/budgets/:id/allow`; a lift is kept across restarts and ends with the period.
+
 ### Host CLI
 
 `hoplet` (from a repository checkout, `pnpm hoplet`) uses the REST API with the host token: `hoplet sessions`,
@@ -529,15 +552,15 @@ The core tells the user when a session needs them, so a turn does not wait unsee
 
 - **Events**: a permission request (`permission`), a plan to review (`plan`), a finished turn (`turn-done`) and
   a failure (`failure`: a session that failed to start, or a handoff that failed; a refused or cancelled handoff
-  is not one). A finished turn is not sent while a browser has the session open.
-- **Which events go out**: the preset decides (Needs me: permission, plan and failure; Needs me and done adds
+  is not one) and a budget reaching its alert or its limit (`budget`, see Budgets). A finished turn is not sent while a browser has the session open.
+- **Which events go out**: the preset decides (Needs me: permission, plan, failure and budget; Needs me and done adds
   turn-done; Everything the same events on every channel; Off none), then the overrides of the event, then those
   of the project. An override names the channels of an event, none turns it off. Quiet hours hold back turn-done
-  and failure but never the events that need the user (permission and plan).
+  and failure but never the events that need the user (permission, plan and budget).
 - **Channels**: Web Push to the subscribed browsers and a JSON `POST` to each enabled webhook, signed with
   `X-Hoplet-Signature: sha256=<hex>` when the webhook has a secret. A webhook receives an event only when the
   preferences route it to the webhook channel and the event is one of the webhook's own events (permission, plan
-  and failure unless chosen otherwise). A native client is a third channel that is
+  failure and budget unless chosen otherwise). A native client is a third channel that is
   not sent yet. Each send runs apart from the event that caused it, waits at most 5 seconds and is retried once
   after a network error, a timeout or a 5xx answer; a push service that answers 404 or 410 loses its
   subscription. The last delivery of each subscription and webhook is kept and shown.

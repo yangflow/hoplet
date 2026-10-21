@@ -1,4 +1,5 @@
 import type {
+  BudgetScope,
   SessionUsage,
   UsageDimension,
   UsagePrices,
@@ -13,6 +14,7 @@ import { readChunkBytes, splitLines, yieldToEventLoop } from './chunks.ts';
 import type { StoreContext } from './layout.ts';
 import { committedLines, getRow } from './sessions.ts';
 import { extractUsage, upsertUsage } from './usage-lines.ts';
+import { notifyUsage } from './usage-listeners.ts';
 import {
   costOf,
   DEFAULT_USAGE_PRICES,
@@ -73,6 +75,7 @@ async function backfillSession(ctx: StoreContext, sessionId: string): Promise<bo
     try {
       upsertUsage(ctx.db, sessionId, scan.records);
       ctx.db.exec('COMMIT');
+      if (scan.records.length > 0) notifyUsage(ctx);
     } catch (err) {
       if (ctx.db.isTransaction) ctx.db.exec('ROLLBACK');
       throw err;
@@ -246,6 +249,37 @@ function addGroup(acc: Accumulator, g: Group, overrides: UsagePrices['overrides'
   } else {
     acc.complete = false;
   }
+}
+
+/** What the usage of `scope` in [from, to) comes to: all token kinds, and the cost of the priced models. */
+export function scopeSpend(
+  ctx: StoreContext,
+  scope: BudgetScope,
+  from: number,
+  to: number,
+): { tokens: number; costUsd: number; costComplete: boolean } {
+  const where = ['u.at >= ?', 'u.at < ?'];
+  const args: (string | number)[] = [from, to];
+  if (scope.kind === 'project') {
+    where.push(`${DIMENSIONS.project.value} = ?`);
+    args.push(scope.value);
+  } else if (scope.kind === 'device') {
+    where.push('s.device_id = ?');
+    args.push(scope.value);
+  }
+  const total = newAccumulator([]);
+  const overrides = priceOverrides(ctx);
+  for (const g of groups(ctx, [], where, args)) addGroup(total, g, overrides);
+  return {
+    tokens: total.input + total.output + total.cacheWrite + total.cacheRead,
+    costUsd: total.cost,
+    costComplete: total.complete,
+  };
+}
+
+/** Whether sessions recorded before usage was are still being read. */
+export function usageBackfilling(ctx: StoreContext): boolean {
+  return backfilling(ctx);
 }
 
 export function queryUsage(ctx: StoreContext, q: UsageQuery): UsageResponse {

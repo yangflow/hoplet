@@ -10,6 +10,10 @@ import {
   AttachmentResultSchema,
   BlockParamsSchema,
   BUILTIN_COMMANDS,
+  type BudgetBody,
+  BudgetBodySchema,
+  BudgetListResponseSchema,
+  BudgetSchema,
   CommandsResultSchema,
   ConfigRequestSchema,
   DeleteSessionRequestSchema,
@@ -47,6 +51,7 @@ import {
   LinesQuerySchema,
   type LiveSessionMeta,
   LiveSessionMetaSchema,
+  MAX_BUDGETS,
   MAX_NOTIFY_PROJECTS,
   MAX_RESOURCE_THRESHOLD_MACHINES,
   MAX_TITLE_OVERRIDE_CHARS,
@@ -113,7 +118,7 @@ import {
 import corePackage from '../../package.json' with { type: 'json' };
 import type { DeviceControlOutcome, QueueResult, SteerOutcome } from '../control/index.ts';
 import { registerSecret } from '../log/index.ts';
-import type { PushSubscriptionRecord, SessionStateRecord } from '../store/index.ts';
+import type { PushSubscriptionRecord, SessionStateRecord, Store } from '../store/index.ts';
 import { ApiError, relayError } from './http.ts';
 import { checkPromptImage } from './images.ts';
 import { publicOrigin, repoNameOf } from './origin.ts';
@@ -253,6 +258,20 @@ function withLiveness(
   };
 }
 
+function budgetList({ store }: { store: Store }) {
+  return { budgets: store.listBudgets(Date.now()), backfilling: store.usageBackfilling() };
+}
+
+/** What the schema cannot say: a token amount is a whole number. */
+function checkBudget(body: BudgetBody): void {
+  if ((body.scope.kind === 'global') !== (body.scope.value === '')) {
+    throw new ApiError('invalid-request', { reason: 'scope' });
+  }
+  if (body.unit === 'tokens' && !Number.isInteger(body.amount)) {
+    throw new ApiError('invalid-request', { reason: 'amount' });
+  }
+}
+
 function deviceResult(deviceId: string, outcome: DeviceControlOutcome) {
   if (!outcome.ok) {
     throw outcome.error === 'rejected' && outcome.reason === 'cancelled'
@@ -318,6 +337,7 @@ export const routes: readonly Route[] = [
       throw new ApiError(outcome.error, {
         promptId: outcome.promptId,
         ...(outcome.reason !== undefined ? { reason: outcome.reason } : {}),
+        ...(outcome.budget !== undefined ? { budget: outcome.budget } : {}),
       });
     },
   }),
@@ -691,6 +711,7 @@ export const routes: readonly Route[] = [
       throw new ApiError(outcome.error, {
         promptId: outcome.promptId,
         ...(outcome.reason !== undefined ? { reason: outcome.reason } : {}),
+        ...(outcome.budget !== undefined ? { budget: outcome.budget } : {}),
       });
     },
   }),
@@ -1291,6 +1312,74 @@ export const routes: readonly Route[] = [
       if (Object.keys(body.overrides).length > MAX_USAGE_PRICES) throw new ApiError('too-large');
       store.setUsagePrices(body);
       return store.usagePrices();
+    },
+  }),
+  defineRoute({
+    method: 'GET',
+    path: '/api/budgets',
+    auth: 'host',
+    lane: 'control',
+    response: BudgetListResponseSchema,
+    handler: budgetList,
+  }),
+  defineRoute({
+    method: 'POST',
+    path: '/api/budgets',
+    auth: 'host',
+    lane: 'control',
+    bodyLimit: 16 * 1024,
+    body: BudgetBodySchema,
+    status: 201,
+    response: BudgetSchema,
+    handler: ({ store, notify, body }) => {
+      if (store.budgetCount() >= MAX_BUDGETS) throw new ApiError('too-large');
+      checkBudget(body);
+      const created = store.createBudget(body, Date.now());
+      notify.budgetsChanged();
+      return created;
+    },
+  }),
+  defineRoute({
+    method: 'PUT',
+    path: '/api/budgets/:id',
+    auth: 'host',
+    lane: 'control',
+    bodyLimit: 16 * 1024,
+    body: BudgetBodySchema,
+    response: BudgetSchema,
+    handler: ({ store, notify, params, body }) => {
+      checkBudget(body);
+      const updated = store.updateBudget(params.id ?? '', body, Date.now());
+      if (!updated) throw new ApiError('not-found');
+      notify.budgetsChanged();
+      return updated;
+    },
+  }),
+  defineRoute({
+    method: 'DELETE',
+    path: '/api/budgets/:id',
+    auth: 'host',
+    lane: 'control',
+    response: BudgetListResponseSchema,
+    handler: (d) => {
+      if (!d.store.deleteBudget(d.params.id ?? '')) throw new ApiError('not-found');
+      return budgetList(d);
+    },
+  }),
+  defineRoute({
+    method: 'POST',
+    path: '/api/budgets/:id/allow',
+    auth: 'host',
+    lane: 'control',
+    response: BudgetSchema,
+    handler: ({ store, params }) => {
+      const budget = store.getBudget(params.id ?? '', Date.now());
+      if (!budget) throw new ApiError('not-found');
+      // A budget that only warns has no pause to lift.
+      if (budget.onLimit !== 'pause') throw new ApiError('invalid-request', { reason: 'onLimit' });
+      const allowed = store.allowBudget(budget.id, Date.now());
+      if (!allowed) throw new ApiError('not-found');
+      return allowed;
     },
   }),
   defineRoute({

@@ -14,6 +14,7 @@ export const ERROR_COPY: Record<HttpErrorCode, string> = {
   'too-large': 'That is too large to send.',
   'owner-offline': 'The machine that owns this session is offline.',
   'target-offline': 'The target machine is offline.',
+  'over-budget': 'A budget is used up, so new prompts are paused.',
   busy: 'The session is busy with a turn or a hand-off.',
   starting: 'The session is starting. Try again in a moment.',
   external: 'The session was written from a terminal. It can be read but not controlled.',

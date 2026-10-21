@@ -62,6 +62,8 @@
   "Disconnected from {host}": "已与 {host} 断开连接",
   "External, read only": "外部会话，只读",
   "Failed": "失败",
+  "Budget": "预算",
+  "A budget is used up, so new prompts are paused.": "预算已用完，新的提示已暂停。",
   "Fast": "快速",
   "Hide sidebar": "隐藏侧边栏",
   "Lines": "对话行",

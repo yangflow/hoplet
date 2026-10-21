@@ -62,6 +62,8 @@
   "Disconnected from {host}": "Disconnected from {host}",
   "External, read only": "External, read only",
   "Failed": "Failed",
+  "Budget": "Budget",
+  "A budget is used up, so new prompts are paused.": "A budget is used up, so new prompts are paused.",
   "Fast": "Fast",
   "Hide sidebar": "Hide sidebar",
   "Lines": "Lines",
