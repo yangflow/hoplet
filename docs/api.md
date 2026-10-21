@@ -136,6 +136,10 @@ Response column names the schema of the success body and its status when it is n
 | PUT | `/api/templates/:id` | host | control | — | `TemplateBodySchema` | `TemplateSchema` | `invalid-json`, `invalid-request`, `too-large`, `not-found` |
 | DELETE | `/api/templates/:id` | host | control | — | — | `TemplateListResponseSchema` | `not-found` |
 | POST | `/api/templates/:id/start` | host | control | — | `TemplateStartRequestSchema` | `TemplateStartResultSchema` | `invalid-json`, `invalid-request`, `too-large`, `not-found`, `target-offline`, `over-budget`, `timeout` |
+| GET | `/api/permission-rules` | host | control | `PermissionRuleListQuerySchema` | — | `PermissionRuleListResponseSchema` | `invalid-request` |
+| POST | `/api/permission-rules` | host | control | — | `PermissionRuleBodySchema` | `PermissionRuleEntrySchema`, 201 | `invalid-json`, `invalid-request`, `too-large` |
+| PUT | `/api/permission-rules/:id` | host | control | — | `PermissionRulePutSchema` | `PermissionRuleEntrySchema` | `invalid-json`, `invalid-request`, `too-large`, `not-found` |
+| DELETE | `/api/permission-rules/:id` | host | control | — | — | `PermissionRuleListResponseSchema` | `invalid-request`, `not-found` |
 | GET | `/api/audit/events` | host | bulk | `AuditEventsQuerySchema` | — | `AuditEventsResponseSchema` | `invalid-request` |
 | GET | `/api/audit/export` | host | bulk | `AuditExportQuerySchema` | — | `AuditEventSchema`, streamed as JSON Lines or CSV | `invalid-request`, `rate-limited`, `audit-unavailable` |
 | GET | `/api/audit/verify` | host | bulk | `AuditVerifyQuerySchema` | — | `AuditVerifyResponseSchema` | `invalid-request` |
@@ -235,6 +239,19 @@ Behavior a client relies on:
   dry run). A bad placeholder in an entry is `reason: "file.<index>.text:<problem>:<offset>"`, an ID in `machines`
   that is no machine `reason: "machines"`, and more than 100 templates in all `too-large`. Every change is a
   `config.changed` audit event that never holds the text.
+- Permission rules (docs/spec.md#permission-rules) are kept by the host: the eight built-in rules of ADR 0029
+  (`default.*`, global, listed first) and at most 500 the user made, in the order they were made. `PermissionRuleEntrySchema`
+  is the rule as the agent reads it (`id`, `tool`, `match`, `action`, `scope`, `note`, `enabled`, `builtin`) plus
+  where it applies (`deviceId` and `projectPath` for `project`, `sessionId` for `session`) and `createdAt` and
+  `updatedAt`; unknown fields are refused. `GET` narrows the rules of a scope by `deviceId`, `projectPath` and
+  `sessionId`, and answers a `revision` when `deviceId` or `sessionId` names a machine: the count of changes that
+  reached every machine plus those that reached that one, so it only grows. A scope that does not fit its targets is
+  `invalid-request` with `reason: "scope"`, a machine that is not known `reason: "deviceId"`, a session that is not
+  known `reason: "sessionId"`, and a tool or matcher the agent would refuse `reason: "rule: <problem>"`; the 501st
+  rule is `too-large`. A built-in is neither edited nor deleted (`reason: "builtin"`); `PUT` takes
+  `{ enabled, confirm? }` for it, and turning one off needs `confirm` equal to its ID (`reason: "confirm"`). `PUT` of
+  a rule of the user with that short body is `reason: "body"`. `DELETE` answers the list. Session tokens and device
+  tokens are `unauthorized` here; a session's rules go with the session.
 - A `pause` budget that is over its amount and not lifted refuses new work in its scope with `over-budget` (409,
   with `budget: { id, name }` naming it): `POST /api/sessions/:sessionId/prompt`, a new session
   (`POST /api/sessions`, `POST /api/sessions/:sessionId/permission/fresh`) in its project or on its machine. A

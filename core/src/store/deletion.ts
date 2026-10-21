@@ -1,6 +1,7 @@
 import { rmSync } from 'node:fs';
 import { isSessionId } from '@hoplet/shared';
 import { type StoreContext, sessionDir, snapshotDir } from './layout.ts';
+import { dropSessionRules } from './permission-rules.ts';
 
 /** What a handoff created for a session on its target device (ADR 0023). */
 export interface WorktreeRecord {
@@ -118,6 +119,7 @@ export function purgeSession(ctx: StoreContext, sessionId: string): void {
     .get(sessionId) as { snapshot_id: string } | undefined;
   ctx.db.exec('BEGIN IMMEDIATE');
   try {
+    dropSessionRules(ctx, sessionId);
     for (const table of [
       'sessions',
       'snapshots',

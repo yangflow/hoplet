@@ -5,6 +5,7 @@ export * from './common.ts';
 export * from './deletion.ts';
 export * from './devices.ts';
 export * from './notify.ts';
+export * from './permission-rules.ts';
 export * from './queue.ts';
 export * from './resources.ts';
 export * from './runtime.ts';

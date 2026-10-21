@@ -12,6 +12,7 @@ export * from './conversation.ts';
 export * from './deletion.ts';
 export * from './errors.ts';
 export * from './ids.ts';
+export * from './permission-rules.ts';
 export * from './rest/index.ts';
 export * from './runtime.ts';
 export * from './session.ts';

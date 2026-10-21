@@ -1,0 +1,77 @@
+import * as v from 'valibot';
+import { SessionIdSchema } from '../ids.ts';
+import {
+  PermissionActionSchema,
+  PermissionMatchSchema,
+  PermissionNoteSchema,
+  PermissionRuleSchema,
+  PermissionScopeSchema,
+  PermissionToolSchema,
+} from '../permission-rules.ts';
+import { TrimmedSchema } from './common.ts';
+
+/** A rule ID: the opaque ID of a rule the user made, or `default.<name>` of a built-in. */
+export const PermissionRuleIdSchema = v.pipe(
+  v.string(),
+  v.regex(/^([A-Za-z0-9_-]{1,64}|default\.[a-z][a-z-]*)$/),
+);
+
+const ProjectPathSchema = v.pipe(TrimmedSchema, v.maxLength(4096));
+
+/** Where a rule applies besides its `scope`: `project` has a machine and a path, `session` a session ID. */
+const Targets = {
+  deviceId: v.optional(TrimmedSchema),
+  projectPath: v.optional(ProjectPathSchema),
+  sessionId: v.optional(SessionIdSchema),
+};
+
+/** POST and PUT /api/permission-rules: the whole definition of a rule the user makes. The route checks the targets and the matcher. */
+export const PermissionRuleBodySchema = v.strictObject({
+  scope: PermissionScopeSchema,
+  ...Targets,
+  tool: PermissionToolSchema,
+  match: PermissionMatchSchema,
+  action: PermissionActionSchema,
+  note: v.optional(PermissionNoteSchema, ''),
+  enabled: v.optional(v.boolean(), true),
+});
+export type PermissionRuleBody = v.InferOutput<typeof PermissionRuleBodySchema>;
+
+/** PUT /api/permission-rules/:id of a built-in: only the switch. Turning one off needs `confirm` equal to its ID. */
+export const PermissionBuiltinToggleSchema = v.strictObject({
+  enabled: v.boolean(),
+  confirm: v.optional(v.string()),
+});
+export type PermissionBuiltinToggle = v.InferOutput<typeof PermissionBuiltinToggleSchema>;
+
+export const PermissionRulePutSchema = v.union([
+  PermissionRuleBodySchema,
+  PermissionBuiltinToggleSchema,
+]);
+export type PermissionRulePut = v.InferOutput<typeof PermissionRulePutSchema>;
+
+/** The rule as the agent reads it, where it applies, and when it changed (built-ins have no times). */
+export const PermissionRuleEntrySchema = v.strictObject({
+  ...PermissionRuleSchema.entries,
+  ...Targets,
+  createdAt: v.optional(v.number()),
+  updatedAt: v.optional(v.number()),
+});
+export type PermissionRuleEntry = v.InferOutput<typeof PermissionRuleEntrySchema>;
+
+/** GET /api/permission-rules. `deviceId`, `projectPath` and `sessionId` narrow the rules of their scope. */
+export const PermissionRuleListQuerySchema = v.strictObject({
+  scope: v.optional(PermissionScopeSchema),
+  deviceId: v.optional(TrimmedSchema),
+  projectPath: v.optional(ProjectPathSchema),
+  sessionId: v.optional(SessionIdSchema),
+});
+export type PermissionRuleListQuery = v.InferOutput<typeof PermissionRuleListQuerySchema>;
+
+/** The built-ins first, then the rules the user made in the order they were made. */
+export const PermissionRuleListResponseSchema = v.object({
+  rules: v.array(PermissionRuleEntrySchema),
+  /** The revision of the rules that apply to the machine named by `deviceId` (or owning `sessionId`); absent when neither is given. */
+  revision: v.optional(v.number()),
+});
+export type PermissionRuleListResponse = v.InferOutput<typeof PermissionRuleListResponseSchema>;

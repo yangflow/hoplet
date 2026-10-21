@@ -86,7 +86,7 @@ export function defineRoute<
   const paramNames: string[] = [];
   const source = spec.path.replace(/:([A-Za-z]+)/g, (_, name: string) => {
     paramNames.push(name);
-    return '([A-Za-z0-9_-]+)';
+    return '([A-Za-z0-9_.-]+)';
   });
   return {
     method: spec.method,
