@@ -5,6 +5,7 @@ import type {
   RuntimeCapabilities,
   SessionPatchRequest,
   SessionRuntimeInfo,
+  SessionUsage,
 } from '@hoplet/shared';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { NotifyHintGate } from '../../components/NotifyHint.tsx';
@@ -78,6 +79,8 @@ export type CockpitFixture = {
   archived?: boolean;
   toast?: ToastState;
   now?: number;
+  /** The session's usage chip: its data and whether the popover starts open. */
+  usage?: { data: SessionUsage; open?: boolean };
 };
 
 export function Cockpit(props: {
@@ -106,6 +109,8 @@ export function Cockpit(props: {
   onMachineResources?: (deviceId: string) => void;
   /** Opens Settings > Model providers on this machine's tab. */
   onManageProviders?: (deviceId: string) => void;
+  /** Hides estimated cost (the Appearance preference). */
+  tokensOnly?: boolean;
   fixture?: CockpitFixture;
 }) {
   const { sessions, selected, onSelect, live, error, fixture } = props;
@@ -446,6 +451,8 @@ export function Cockpit(props: {
               {...(fixture?.actionsMenu?.sub ? { menuSub: fixture.actionsMenu.sub } : {})}
               {...(fixture?.actionsMenu?.item ? { menuItem: fixture.actionsMenu.item } : {})}
               {...(draft ? { title: t('New session') } : {})}
+              tokensOnly={props.tokensOnly ?? false}
+              {...(fixture?.usage ? { usage: fixture.usage } : {})}
               sidebarFolded={sidebarHidden}
               inspectorOpen={inspectorOpen}
               changes={changes.length}

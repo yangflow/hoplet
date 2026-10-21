@@ -5,11 +5,13 @@ import { Icon } from '../../components/icons.tsx';
 import { t } from '../../lib/i18n.ts';
 import '../../components/components.css';
 import './settings.css';
+import './usage.css';
 import type { Appearance } from '../../lib/prefs.ts';
 import { AppearanceSection } from './appearance.tsx';
 import { type MachinesFixture, MachinesSection } from './machines.tsx';
 import { NotificationsSection, type NotifyFixture } from './notifications.tsx';
 import { type ProvidersFixture, ProvidersSection } from './providers.tsx';
+import { type UsageFixture, UsageSection } from './usage.tsx';
 
 /**
  * The sections of Settings, in the order of the list. A section is one entry here and one case in `Page`; the
@@ -20,6 +22,7 @@ export const SECTIONS = [
   { id: 'machines', label: 'Machines', icon: () => Icon.laptop() },
   { id: 'providers', label: 'Model providers', icon: () => Icon.plug() },
   { id: 'notifications', label: 'Notifications', icon: () => Icon.bell() },
+  { id: 'usage', label: 'Usage', icon: () => Icon.activity() },
 ] as const;
 
 export type SectionId = (typeof SECTIONS)[number]['id'];
@@ -36,6 +39,7 @@ function Page(props: {
   machines: MachinesFixture | undefined;
   notify: NotifyFixture | undefined;
   providers: ProvidersFixture | undefined;
+  usage: UsageFixture | undefined;
   sessions: readonly LiveSessionMeta[];
   runtime: Record<string, SessionRuntimeInfo> | undefined;
   machine: string | undefined;
@@ -67,6 +71,14 @@ function Page(props: {
       );
     case 'notifications':
       return <NotificationsSection {...(props.notify ? { fixture: props.notify } : {})} />;
+    case 'usage':
+      return (
+        <UsageSection
+          {...(props.usage ? { fixture: props.usage } : {})}
+          tokensOnly={props.appearance.tokensOnly}
+          onTokensOnly={(tokensOnly) => props.onAppearance({ tokensOnly })}
+        />
+      );
   }
 }
 
@@ -80,6 +92,7 @@ export function Settings(props: {
   machines?: MachinesFixture;
   notify?: NotifyFixture;
   providers?: ProvidersFixture;
+  usage?: UsageFixture;
   sessions?: readonly LiveSessionMeta[];
   /** The runtime state of each session, for the state glyph of a session row. */
   runtime?: Record<string, SessionRuntimeInfo>;
@@ -138,6 +151,7 @@ export function Settings(props: {
                 machines={props.machines}
                 notify={props.notify}
                 providers={props.providers}
+                usage={props.usage}
                 sessions={props.sessions ?? []}
                 runtime={props.runtime}
                 machine={props.machine}

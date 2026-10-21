@@ -1,4 +1,4 @@
-import type { LiveSessionMeta } from '@hoplet/shared';
+import type { LiveSessionMeta, SessionUsage } from '@hoplet/shared';
 import { useRef, useState } from 'react';
 import { Badge } from '../../components/Badge.tsx';
 import { IconButton } from '../../components/IconButton.tsx';
@@ -7,6 +7,7 @@ import { Menu, type MenuEntry } from '../../components/Menu.tsx';
 import { ProviderMark } from '../../components/provider-marks.tsx';
 import { t } from '../../lib/i18n.ts';
 import { displayTitle } from './group.ts';
+import { SessionUsageChip } from './session-usage.tsx';
 
 /** The session's title and the inspector toggle, which moves into the inspector while it is open. */
 export function TopBar(props: {
@@ -22,6 +23,10 @@ export function TopBar(props: {
   menuOpen?: boolean;
   menuSub?: string;
   menuItem?: string;
+  /** Hides estimated cost in the usage chip. */
+  tokensOnly?: boolean;
+  /** The usage chip's data, for development fixtures, and whether its popover starts open. */
+  usage?: { data: SessionUsage; open?: boolean };
   onShowSidebar: () => void;
   onToggleInspector: () => void;
 }) {
@@ -58,6 +63,14 @@ export function TopBar(props: {
         <h1 className="title">{props.title}</h1>
       ) : null}
       <span className="top-gap" />
+      {session && !props.title ? (
+        <SessionUsageChip
+          sessionId={session.sessionId}
+          refresh={session.lineCount}
+          tokensOnly={props.tokensOnly ?? false}
+          {...(props.usage ? { fixture: props.usage.data, open: props.usage.open ?? false } : {})}
+        />
+      ) : null}
       {session && props.actions ? (
         <span className="more" ref={moreRef}>
           <IconButton

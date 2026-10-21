@@ -34,6 +34,8 @@ export type Appearance = {
   ligatures: boolean;
   /** What Enter does while a turn runs: queue the message for after the turn, or steer it into the turn. */
   sendMode: SendMode;
+  /** Cost is hidden everywhere (docs/spec.md#settings-usage): for plans that are not billed per token. */
+  tokensOnly: boolean;
 };
 
 export const DEFAULTS: Appearance = {
@@ -45,6 +47,7 @@ export const DEFAULTS: Appearance = {
   wide: false,
   ligatures: true,
   sendMode: 'queue',
+  tokensOnly: false,
 };
 
 const SYSTEM_UI = '-apple-system, system-ui, "PingFang SC", sans-serif';
@@ -131,6 +134,7 @@ export function loadAppearance(store: Store | null = storage()): Appearance {
       wide: typeof o.wide === 'boolean' ? o.wide : DEFAULTS.wide,
       ligatures: typeof o.ligatures === 'boolean' ? o.ligatures : DEFAULTS.ligatures,
       sendMode: oneOf(SEND_MODES, o.sendMode, DEFAULTS.sendMode),
+      tokensOnly: typeof o.tokensOnly === 'boolean' ? o.tokensOnly : DEFAULTS.tokensOnly,
     };
   } catch {
     return { ...DEFAULTS };

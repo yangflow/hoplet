@@ -18,6 +18,8 @@ import type { MachinesFixture } from './machines.tsx';
 import type { NotifyFixture, PushState } from './notifications.tsx';
 import type { ProvidersFixture } from './providers.tsx';
 import { effectiveThresholds, readingWarn } from './thresholds-model.ts';
+import type { UsageFixture } from './usage.tsx';
+import { backfillingUsage, customUsage, emptyUsage, usageFixture } from './usage-fixtures.ts';
 
 // Fixtures for /__states/settings/<state>: every state of design/screens/settings.html.
 // Nothing here is read by the real screen.
@@ -619,6 +621,7 @@ function Scene(props: {
   machines?: MachinesFixture;
   notify?: NotifyFixture;
   providers?: ProvidersFixture;
+  usage?: UsageFixture;
 }) {
   const appearance = { ...DEFAULTS, ...props.appearance };
   useEffect(() => {
@@ -634,6 +637,7 @@ function Scene(props: {
       {...(props.machines ? { machines: props.machines } : {})}
       {...(props.notify ? { notify: props.notify } : {})}
       {...(props.providers ? { providers: props.providers } : {})}
+      {...(props.usage ? { usage: props.usage } : {})}
     />
   );
 }
@@ -795,6 +799,35 @@ export const states: Record<string, () => ReactNode> = {
         editing: 'hook-ops',
         testResult: { ok: true, text: 'Test delivered' },
       })}
+    />
+  ),
+  'settings-usage': () => <Scene section="usage" usage={usageFixture({ hover: 3 })} />,
+  'settings-usage-session': () => (
+    <Scene section="usage" usage={usageFixture({ group: 'session' })} />
+  ),
+  'settings-usage-machine': () => (
+    <Scene section="usage" usage={usageFixture({ group: 'machine' })} />
+  ),
+  'settings-usage-custom': () => <Scene section="usage" usage={usageFixture(customUsage())} />,
+  'settings-usage-tokens-only': () => (
+    <Scene section="usage" appearance={{ tokensOnly: true }} usage={usageFixture()} />
+  ),
+  'settings-usage-unknown-model': () => (
+    <Scene section="usage" usage={usageFixture({ group: 'model' })} />
+  ),
+  'settings-usage-empty': () => <Scene section="usage" usage={usageFixture(emptyUsage())} />,
+  'settings-usage-backfill': () => (
+    <Scene section="usage" usage={usageFixture(backfillingUsage())} />
+  ),
+  'settings-prices': () => <Scene section="usage" usage={usageFixture({ tab: 'prices' })} />,
+  'settings-prices-edit': () => (
+    <Scene section="usage" usage={usageFixture({ tab: 'prices', editing: 'claude-sonnet-4-5' })} />
+  ),
+  'settings-prices-tokens-only': () => (
+    <Scene
+      section="usage"
+      appearance={{ tokensOnly: true }}
+      usage={usageFixture({ tab: 'prices' })}
     />
   ),
 };

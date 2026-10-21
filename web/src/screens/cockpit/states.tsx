@@ -10,6 +10,7 @@ import type {
   SessionRuntimeInfo,
 } from '@hoplet/shared';
 import { type ReactNode, useState } from 'react';
+import { sessionUsage } from '../settings/usage-fixtures.ts';
 import { live as liveWorkspace, snapshot } from '../workspace/fixtures.ts';
 import type { PathsState } from './composer/use-completions.ts';
 import { rememberBlock } from './conversation/blocks.tsx';
@@ -1484,6 +1485,11 @@ export const states: Record<string, () => ReactNode> = {
     <Scene fixture={{ machineViews: { 'dev-macbook': { organize: 'flat', sort: 'activity' } } }} />
   ),
   'sidebar-menu': () => <Scene fixture={{ menuDevice: 'MacBook Pro' }} />,
+  'session-usage': () => <Scene fixture={{ usage: { data: sessionUsage() } }} />,
+  'session-usage-open': () => <Scene fixture={{ usage: { data: sessionUsage(), open: true } }} />,
+  'session-usage-unknown': () => (
+    <Scene fixture={{ usage: { data: sessionUsage(true), open: true } }} />
+  ),
   'session-actions': () => <Scene fixture={{ actionsMenu: {} }} />,
   'session-actions-copy': () => <Scene fixture={{ actionsMenu: { sub: 'copy' } }} />,
   'rename-dialog': () => (

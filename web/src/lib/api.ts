@@ -44,6 +44,7 @@ import {
   SessionListResponseSchema,
   type SessionPatchRequest,
   SessionPortsResultSchema,
+  SessionUsageSchema,
   SnapshotChangesSchema,
   SnapshotDiffSchema,
   SteerResultSchema,
@@ -51,6 +52,9 @@ import {
   TerminalCloseResultSchema,
   TerminalInfoSchema,
   TerminalStateSchema,
+  type UsagePricesBody,
+  UsagePricesSchema,
+  UsageResponseSchema,
   type WebhookCreateRequest,
   WebhookInfoSchema,
   WebhookListResponseSchema,
@@ -624,4 +628,36 @@ export function postActionDecide(token: string, decision: 'allow' | 'deny') {
     'POST',
     false,
   );
+}
+
+/** The usage in a range, grouped (docs/api.md#usage); the numbers are estimates. */
+export function fetchUsage(
+  query: { from?: number; to?: number; groupBy: string; utcOffset: number; limit?: number },
+  signal?: AbortSignal,
+) {
+  const q = new URLSearchParams({ groupBy: query.groupBy, utcOffset: String(query.utcOffset) });
+  if (query.from !== undefined) q.set('from', String(query.from));
+  if (query.to !== undefined) q.set('to', String(query.to));
+  if (query.limit !== undefined) q.set('limit', String(query.limit));
+  return call(`/api/usage?${q}`, UsageResponseSchema, undefined, signal);
+}
+
+/** One session's usage in total and by model. */
+export function fetchSessionUsage(sessionId: string, signal?: AbortSignal) {
+  return call(
+    `/api/sessions/${encodeURIComponent(sessionId)}/usage`,
+    SessionUsageSchema,
+    undefined,
+    signal,
+  );
+}
+
+/** The built-in prices and the host's own. */
+export function fetchUsagePrices() {
+  return call('/api/usage/prices', UsagePricesSchema);
+}
+
+/** Replaces all price overrides. */
+export function putUsagePrices(body: UsagePricesBody) {
+  return call('/api/usage/prices', UsagePricesSchema, body, undefined, 'PUT');
 }
