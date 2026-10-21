@@ -36,6 +36,7 @@ record and mark the old one "superseded by NNNN".
 | [0027](0027-codex-runs-on-its-app-server-and-enters-at-level-2.md) | Codex runs on its app server and enters at level 2 | accepted |
 | [0028](0028-provider-configurations-live-on-the-machine.md) | Provider configurations live on the machine | accepted |
 | [0029](0029-permission-rules-match-on-the-agent-and-deny-wins.md) | Permission rules match on the agent and deny wins | accepted |
+| [0030](0030-the-audit-log-records-actions-in-a-hash-chain.md) | The audit log records actions in a hash chain | proposed |
 
 ## Record template
 
