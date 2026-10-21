@@ -142,24 +142,31 @@ so the agent needs to see every call, not only those the provider would ask abou
   returns `allow` or `deny`, and never returns `ask`, which Codex ignores in Full access (the call runs). A `deny`
   is honoured in every mode, with the message "Command blocked by PreToolUse hook: <reason>"; an `allow` does not
   take a call out of the sandbox. Rules therefore apply in Full access too. Two conditions hold them:
-  - Codex runs only trusted hooks and skips an untrusted one silently, and the command runs. The agent runs its
-    hook trusted (`--dangerously-bypass-hook-trust`, or the app server's equivalent) and checks at session start
-    that the hook is registered and has fired; if not, the session shows a visible note and the rules are treated
-    as not enforced, since a rule that silently does not hold is worse than none.
-  - The hook's stdin reports `permission_mode` as `bypassPermissions` whatever the sandbox and approval mode are,
-    so the agent takes the mode from its own session state, not from that field.
+  - Codex runs only trusted hooks and skips an untrusted one silently, and the command runs. The agent's driver
+    speaks to `codex app-server`, where the `--dangerously-bypass-hook-trust` flag has no effect and
+    `-c bypass_hook_trust=true` is ignored; the agent passes `bypass_hook_trust: true` and the hook in the
+    `config` of `thread/start` (and of a resume). Codex answers with a `warning` and a `configWarning` saying
+    hook trust is bypassed, and the agent treats a session without that warning as not enforcing rules.
+    `hooks/list` reports the hook `untrusted` even when the bypass holds, so it is not the check. The first tool
+    call then shows `hook/started` and `hook/completed`; a tool call that runs without them means the hook did not
+    fire. Either failure shows a visible note and the rules are treated as not enforced, since a rule that
+    silently does not hold is worse than none.
+  - The hook's stdin field `permission_mode` does not follow the sandbox and approval mode (`codex exec` reports
+    `bypassPermissions` in every mode), so the agent takes the mode from its own session state.
 - *Where a hook does not fire*, in a provider or mode where a test or the start check finds that it does not, the
   driver declares `rules: prompts-only`: rules act only on the approval requests the mode lets through, and the
   session says so in a visible note.
 - *Test.* On 2026-10-21 with claude 2.1.302 and codex 0.163.0, a rule per action (allow, ask, deny) was run in
   Claude Code `default`, `acceptEdits` and `bypassPermissions`, and in Codex Full access
   (`--dangerously-bypass-approvals-and-sandbox`, and `danger-full-access` with approval `never`),
-  `workspace-write` with `on-request`, and `read-only`. Waits of 20 to 25 seconds were honoured. Not tested:
-  Claude Code plan mode, waits of minutes, several hooks merging, `disableAllHooks`, and Codex hooks registered
-  through `codex app-server`, the path the agent's driver uses.
-- *Open checks for the code PR*, before relying on them: a Claude Code callback that waits ten minutes; the Codex
-  hook registered and fired through `codex app-server`. If the second does not hold, Codex is `rules:
-  prompts-only` with the visible note. The code PR changes this record if either fails.
+  `workspace-write` with `on-request`, and `read-only`. A second run the same day measured the two paths the
+  agent uses: a Claude Code callback registered in `initialize` with a `timeout` of 900 seconds was answered
+  `deny` after 10 minutes 30 seconds in `bypassPermissions` and the call did not run, with no keepalive or
+  cancel on the channel in between; through `codex app-server` with `bypass_hook_trust` in `thread/start`, the
+  hook fired and `allow` and `deny` held in Full access and in `workspace-write` with `on-request`. Not tested:
+  Claude Code plan mode, a wait longer than the hook `timeout`, several hooks merging, `disableAllHooks`, the
+  trust bypass on a resumed Codex thread, and a Codex hook that waits for minutes. The code PR checks the last
+  two before relying on them and changes this record if they fail.
 - The hook can be removed by the model editing the settings it comes from (`disableAllHooks`), so the built-in
   agent-local floor (below) denies writes to the provider settings and hook files.
 
