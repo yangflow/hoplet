@@ -176,7 +176,7 @@ One family, Lucide (ISC), bundled and never fetched: every glyph on a 24-unit gr
 `--icon-stroke` 1.5, round caps and joins, centred on the line of the text beside it. The set is closed:
 search, panel-left, panel-right, square-pen, plus, chevron-right, arrow-up, arrow-up-right,
 arrow-right-left, file, folder, folder-open, book-open, pencil, file-plus, terminal, plug, globe, lightbulb, image,
-layers, eye, square, git-branch, zap, lock, paperclip, mic, hand, clock, x, check, circle-alert, activity, circle-dashed, minus, shield, shield-alert, file-pen, list-checks, sparkles, info, rotate-cw, copy,
+layers, eye, square, git-branch, zap, lock, paperclip, mic, hand, clock, x, check, circle-alert, activity, circle-dashed, minus, shield, shield-alert, shield-check, ban, asterisk, file-pen, list-checks, sparkles, info, rotate-cw, copy,
 settings, laptop, contrast, ellipsis, text-wrap, loader-circle, pin, pin-off, archive, archive-restore, grip-vertical, trash-2, corner-down-right, arrow-right-to-line, play, pause, bell, bell-off, moon, send, webhook, layout-template, upload, download; turned glyphs (a chevron, an arrow) cover the other directions.
 File-type badges (TypeScript, Markdown, JSON, image, text, other) use the same page and stroke with a tint.
 Provider marks (the Claude mark for Claude Code) are drawn monochrome in the dim text colour, never in brand

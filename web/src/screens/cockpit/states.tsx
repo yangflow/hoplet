@@ -16,7 +16,9 @@ import { live as liveWorkspace, snapshot } from '../workspace/fixtures.ts';
 import type { PathsState } from './composer/use-completions.ts';
 import { rememberBlock } from './conversation/blocks.tsx';
 import type { LiveTurn, OpenPermission, PlanResolution } from './conversation/live-turn.ts';
+import type { CardRules } from './conversation/live-view.tsx';
 import type { PlanView } from './conversation/plan-card.tsx';
+import { RuleLine } from './conversation/rule-line.tsx';
 import type { DeleteFixture } from './delete-dialog.tsx';
 import { Cockpit, type CockpitFixture } from './index.tsx';
 import type { AddProjectFixture } from './sidebar/add-project.tsx';
@@ -675,6 +677,25 @@ const permission: OpenPermission = {
   receivedAt: LIVE_START + 31_000 - 19_000,
 };
 
+const askScene = (request: OpenPermission, draft?: NonNullable<CardRules['open']>) => (
+  <Scene
+    variant={{
+      runtime: { state: 'waiting-permission', capabilities },
+      live: {
+        turn: liveTurn({ rows: permissionRows }),
+        elapsed: 31_000,
+        permissions: [request],
+        ...(draft ? { draft } : {}),
+      },
+    }}
+  />
+);
+
+const ruleRequest = (over: Partial<OpenPermission>): OpenPermission => ({
+  ...permission,
+  ...over,
+});
+
 const PLAN_TEXT = `## Roll back the byte cursor after a failed commit
 
 When a chunk commit fails, the cursor must return to the last stored offset.
@@ -803,7 +824,13 @@ const continuedFrom = (base: LiveSessionMeta[]) =>
 
 export type Variant = {
   runtime?: SessionRuntimeInfo;
-  live?: { turn: LiveTurn; elapsed: number; permissions?: OpenPermission[]; plan?: PlanView };
+  live?: {
+    turn: LiveTurn;
+    elapsed: number;
+    permissions?: OpenPermission[];
+    plan?: PlanView;
+    draft?: NonNullable<CardRules['open']>;
+  };
   conversation?: Partial<NonNullable<CockpitFixture['conversation']>>;
   /** studio › notes is folded, as in the design's ready state. */
   foldNotes?: boolean;
@@ -856,6 +883,7 @@ export function Scene(props: {
                         turn: live.turn,
                         permissions: live.permissions ?? [],
                         ...(live.plan ? { plan: live.plan } : {}),
+                        ...(live.draft ? { draft: live.draft } : {}),
                       },
                     }
                   : {}),
@@ -1172,6 +1200,82 @@ const commandState = (state: string): ReactNode => (
 
 /** Every state the design shows, rendered at /__states/cockpit/<state> in development builds. */
 export const states: Record<string, () => ReactNode> = {
+  'card-a': () => askScene(ruleRequest({ input: { command: 'pnpm test --filter @hoplet/core' } })),
+  'card-a-rule': () =>
+    askScene(
+      ruleRequest({
+        input: { command: 'git push --force-with-lease origin feat/98-rule-audit' },
+        rule: {
+          decision: 'ask',
+          ruleId: 'default.force-push',
+          name: 'Force push',
+          scope: 'builtin',
+        },
+      }),
+    ),
+  'card-a-nodraft': () => askScene(permission),
+  'card-a-other': () =>
+    askScene(
+      ruleRequest({
+        tool: 'Task',
+        toolKind: 'other',
+        input: { description: 'Audit the rule store', prompt: 'Read the store and report.' },
+      }),
+    ),
+  'draft-session': () =>
+    askScene(ruleRequest({ input: { command: 'pnpm test --filter @hoplet/core' } }), {
+      action: 'allow',
+    }),
+  'draft-project': () =>
+    askScene(
+      ruleRequest({
+        tool: 'Write',
+        toolKind: 'write',
+        input: {
+          file_path: '/Users/mark/work/hoplet/docs/api.md',
+          content: '# API\n',
+        },
+      }),
+      { action: 'allow', scope: 'project', note: 'Docs are safe to edit' },
+    ),
+  'draft-deny': () =>
+    askScene(
+      ruleRequest({
+        tool: 'WebFetch',
+        toolKind: 'fetch',
+        input: { url: 'https://pastebin.com/raw/Xk3a9' },
+      }),
+      { action: 'deny', note: 'No paste sites' },
+    ),
+  'conv-auto': () => (
+    <main className="col" style={{ padding: 24, maxWidth: 640 }}>
+      <h1 className="meta" style={{ margin: 0, fontSize: 13 }}>
+        Lines the conversation shows when a rule decided
+      </h1>
+      <RuleLine
+        rule={{ decision: 'allow', ruleId: 'r1', name: 'Run the checks', scope: 'global' }}
+        onView={() => {}}
+      />
+      <RuleLine
+        rule={{
+          decision: 'deny',
+          ruleId: 'default.secret-files',
+          name: 'Secret files (.env)',
+          scope: 'builtin',
+        }}
+        onView={() => {}}
+      />
+      <RuleLine
+        rule={{
+          decision: 'ask',
+          ruleId: 'default.force-push',
+          name: 'Force push',
+          scope: 'builtin',
+        }}
+        onView={() => {}}
+      />
+    </main>
+  ),
   empty: () => <Scene selected={null} fixture={{ hoverDir: 'notes' }} />,
   loaded: () => <Scene />,
   draft: () => <Scene fixture={{ draft: { dirs: DRAFT_DIRS } }} />,

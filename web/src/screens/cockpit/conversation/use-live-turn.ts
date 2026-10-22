@@ -16,6 +16,7 @@ import {
   SETTLE_QUIET_PROMPT_ONLY_MS,
   withPlans,
 } from './live-turn.ts';
+import type { CardRules } from './live-view.tsx';
 import type { PlanView } from './plan-card.tsx';
 import type { ReaderSnapshot, SessionReader } from './reader.ts';
 
@@ -24,6 +25,8 @@ export type LiveFixture = {
   permissions?: OpenPermission[];
   /** What the plan card starts with: its mode menu open, or the feedback field filled. */
   plan?: PlanView;
+  /** What the permission card opens its rule draft with. */
+  draft?: NonNullable<CardRules['open']>;
 };
 
 let counter = 0;

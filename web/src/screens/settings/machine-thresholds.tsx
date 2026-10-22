@@ -1,10 +1,10 @@
 import type { DeviceInfo, ResourceThresholdPair, ResourceThresholds } from '@hoplet/shared';
 import { useEffect, useId, useState } from 'react';
 import { Button } from '../../components/Button.tsx';
+import { fill } from '../../components/fill.tsx';
 import { Segmented } from '../../components/Segmented.tsx';
 import { t } from '../../lib/i18n.ts';
 import type { ResourceThresholdsState } from '../../lib/use-resource-thresholds.ts';
-import { fill } from './fill.tsx';
 import {
   effectiveThresholds,
   hasOwnThresholds,

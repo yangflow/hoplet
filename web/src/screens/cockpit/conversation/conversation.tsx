@@ -32,6 +32,7 @@ import {
   postFreshPermission,
   postInterrupt,
   postPermission,
+  postPermissionRule,
   postPrompt,
   postQueueAdd,
   postQueueResume,
@@ -39,10 +40,12 @@ import {
   postStop,
 } from '../../../lib/api.ts';
 import { amountText, covers, endDate, PERIOD_WORD } from '../../../lib/budgets.ts';
+import { projectName } from '../../../lib/capabilities.ts';
 import { errorText } from '../../../lib/errors.ts';
 import { t } from '../../../lib/i18n.ts';
 import { onLive, subscribeSession } from '../../../lib/live.ts';
 import { pageKeysSuspended } from '../../../lib/page-keys.ts';
+import { bodyOfDraft } from '../../../lib/permission-rules.ts';
 import type { SendMode } from '../../../lib/prefs.ts';
 import { loadAppearance } from '../../../lib/prefs.ts';
 import { stateName } from '../../../lib/runtime-state.ts';
@@ -56,7 +59,7 @@ import { SessionWhere } from '../composer/where.tsx';
 import { QueueTray, type TrayFixture } from '../queue/queue-tray.tsx';
 import { useQueue } from '../queue/use-queue.ts';
 import { type ComposerView, composerView } from '../runtime.ts';
-import { LiveTurnView } from './live-view.tsx';
+import { type CardRules, LiveTurnView } from './live-view.tsx';
 import { PlanOrigin } from './plan-card.tsx';
 import { SessionReader } from './reader.ts';
 import { Transcript, type TranscriptHandle } from './transcript.tsx';
@@ -451,6 +454,35 @@ export function Conversation(props: {
     postInterrupt(sessionId).catch((err: unknown) => setNotice(errorText(err)));
   }, [sessionId]);
 
+  const cardRules = useMemo<CardRules | undefined>(() => {
+    const deviceId = session.ownerDeviceId;
+    return {
+      projectPath: session.projectPath,
+      projectName: projectName(session.projectPath),
+      machineName: session.deviceName,
+      canProject: deviceId !== undefined && session.projectPath !== '',
+      ...(fixture?.live?.draft ? { open: fixture.live.draft } : {}),
+      onSave: async (draft, option, action, scope, note) => {
+        try {
+          await postPermissionRule(
+            bodyOfDraft(
+              draft,
+              option,
+              action,
+              scope === 'project' && deviceId !== undefined
+                ? { scope: 'project', deviceId, projectPath: session.projectPath }
+                : { scope: 'session', sessionId },
+              note,
+            ),
+          );
+          return null;
+        } catch (err) {
+          return errorText(err);
+        }
+      },
+    };
+  }, [session.ownerDeviceId, session.projectPath, session.deviceName, sessionId, fixture]);
+
   const answer = useCallback(
     async (
       requestId: string,
@@ -649,6 +681,7 @@ export function Conversation(props: {
                 onOpenSession={props.onOpenSession}
                 planView={fixture?.live?.plan}
                 steering={steeringShown}
+                rules={cardRules}
               />
             ) : null
           }

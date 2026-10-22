@@ -8,6 +8,7 @@ import {
 } from '@hoplet/shared';
 import { type ReactNode, useEffect, useId, useState } from 'react';
 import { Button } from '../../components/Button.tsx';
+import { fill } from '../../components/fill.tsx';
 import { IconButton } from '../../components/IconButton.tsx';
 import { Icon, Spinner } from '../../components/icons.tsx';
 import { TextField } from '../../components/TextField.tsx';
@@ -19,7 +20,6 @@ import { systemName } from '../../lib/system.ts';
 import { type DeviceResources, useDeviceResources } from '../../lib/use-device-resources.ts';
 import { useDevices } from '../../lib/use-devices.ts';
 import { useResourceThresholds } from '../../lib/use-resource-thresholds.ts';
-import { fill } from './fill.tsx';
 import { lastSeenText } from './last-seen.ts';
 import { CapabilitiesGroup } from './machine-capabilities.tsx';
 import { ResourcesBody } from './machine-resources.tsx';

@@ -2,7 +2,9 @@
  * The live turn: what streams while a turn runs. Runtime output is transient (docs/spec.md#remote-control);
  * the stored lines replace it when they arrive.
  */
+
 import type { PlanExit, SessionOutput, SessionPermission, ToolKind, ToolMcp } from '@hoplet/shared';
+import type { AppliedRule } from '../../../lib/permission-rules.ts';
 
 export type LiveRow =
   | { id: number; kind: 'thinking'; tokens: number }
@@ -26,6 +28,9 @@ export type OpenPermission = {
   tool: string;
   toolKind: ToolKind;
   toolUseId?: string;
+  mcp?: ToolMcp;
+  /** The rule that asked for this request. No browser message carries it yet; only development states set it. */
+  rule?: AppliedRule;
   input: unknown;
   receivedAt: number;
   /** The driver declared the tool a plan exit: the request shows the plan and offers the modes (ADR 0019). */
@@ -155,6 +160,7 @@ export function addPermission(
       tool: msg.tool,
       toolKind: msg.toolKind ?? 'other',
       ...(msg.toolUseId !== undefined ? { toolUseId: msg.toolUseId } : {}),
+      ...(msg.mcp ? { mcp: msg.mcp } : {}),
       input: msg.input,
       receivedAt: now,
       ...(msg.planExit ? { planExit: msg.planExit } : {}),
