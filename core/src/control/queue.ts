@@ -121,6 +121,13 @@ export function createQueue(state: ControlState, runtime: Runtime): QueueControl
       return Promise.resolve({ ok: false, error: 'steer-unavailable' });
     }
     // The audit trail: who was asked to steer, never the text itself (docs/threat-model.md).
+    store.audit({
+      type: 'prompt.sent',
+      sessionId,
+      deviceId: ownerDeviceId,
+      ref: steerId,
+      summary: { steerId, steer: true, length: [...text].length, images: attachments.length },
+    });
     log('info', 'control', 'steer forwarded', { sessionId, steerId, images: attachments.length });
     const msg: RuntimeSteer = {
       v: PROTOCOL_VERSION,

@@ -38,6 +38,7 @@ import type {
 } from '@hoplet/shared';
 import { migrate } from '../migrations/index.ts';
 import * as audit from './audit.ts';
+import { resumeAuditDerive, scheduleAuditDerive } from './audit-derive.ts';
 import * as budgets from './budgets.ts';
 import {
   type AppendInput,
@@ -69,6 +70,7 @@ import * as templates from './templates.ts';
 import * as usage from './usage.ts';
 
 export { type AuditInput, AuditUnavailableError } from './audit.ts';
+export { toolInputSummary } from './audit-lines.ts';
 export type { BudgetStatus } from './budgets.ts';
 export type { ContinuationLinks } from './continuations.ts';
 export type { Tombstone, WorktreeRecord } from './deletion.ts';
@@ -108,6 +110,8 @@ export class Store {
       usageListeners: new Set(),
       budgetBlocks: new Map(),
       budgetBlockTimer: null,
+      auditDeriving: new Set(),
+      auditRerun: new Set(),
     };
     try {
       db.exec('PRAGMA synchronous=FULL');
@@ -154,6 +158,11 @@ export class Store {
   /** Removes the audit records past the retention; returns how many. */
   pruneAudit(now?: number): Promise<number> {
     return audit.pruneAudit(this.ctx, this.auditRetentionDays, now);
+  }
+
+  /** Resumes the tool-call deriver of the audit log where a restart cut it; `idle` waits for it. */
+  startAuditDerive(): void {
+    resumeAuditDerive(this.ctx);
   }
 
   /** Starts reading the usage of sessions recorded before usage was; `idle` waits for it. */
@@ -696,7 +705,9 @@ export class Store {
   }
 
   append(input: AppendInput, rawLines: string[]): AppendResult {
-    return append(this.ctx, input, rawLines);
+    const result = append(this.ctx, input, rawLines);
+    if (result.appendedLines > 0) scheduleAuditDerive(this.ctx, input.sessionId);
+    return result;
   }
 
   streamFingerprint(sessionId: string): Promise<{ byteSize: number; streamSha256: string } | null> {

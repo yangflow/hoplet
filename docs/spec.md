@@ -394,11 +394,15 @@ was done to and by sessions, kept apart from the session content.
   action link), calls decided by a permission rule (`permission.auto`: the decision, the rule's ID and scope and the
   rule revision, keyed by the session and the tool use ID), changes to permission rules, mode changes, session stop
   and interrupt, changes to budgets, device tokens issued, the start of the log (`audit.started`), retention
-  checkpoints and exports. Planned: tool calls (the tool, a scrubbed command of at most 500 characters, the paths a
-  call changes, derived from the session's lines), permission requests and answers by timeout, session start,
-  deletion and handoff, prompts sent (their ID and length, never the text), changes to notification settings,
-  device labels, watched projects and provider defaults, and terminals opened and closed. Never prompts, assistant text, tool output, file contents or
-  diffs.
+  checkpoints and exports. Also built: tool calls (`tool.call`: the tool, a scrubbed command of at most 500
+  characters, the paths a call changes; the core derives them from the session's lines, off the control lane, and
+  `audit_cursor` keeps how far it got), permission requests and the denials the core makes on a timeout or at the
+  end of a session, session creation, deletion and handoff, prompts and steers sent (their ID and length, never the
+  text), changes to notification settings, webhooks (never the URL or secret), resource thresholds, price
+  overrides, device labels, watched projects and provider defaults, and terminals opened and closed (size,
+  duration and byte counts, never what was typed or shown). Planned, with their features: `session.op` and
+  `verify.result`. Sessions that ran before this was built are not back-filled; their tool calls start at the
+  end they had. Never prompts, assistant text, tool output, file contents or diffs.
 - **Who**: an actor of kind `operator` (the host token, with the channel `rest` or `link`), `device`, `session`,
   `schedule` or `core`. Hoplet has one operator and cannot tell which person or browser used the host token; the
   log does not claim to.
@@ -459,8 +463,8 @@ Server, under the data directory (docs/hosting.md#data):
     `usage_prices(model, input, output, cache_write, cache_read)`: the host's price overrides. `sessions` carries
     `usage_backfilled` and `usage_model` (the model of a Codex session's latest turn).
   - `audit_events(seq, at, recorded_at, type, session_id, device_id, actor_kind, actor_id, channel, ref, summary,
-    prev_hash, hash)`: append-only and hash-chained (ADR 0030), kept when a session is deleted. Planned:
-    `audit_cursor(session_id, line)`, how far tool calls were derived from a session's lines.
+    prev_hash, hash)`: append-only and hash-chained (ADR 0030), kept when a session is deleted.
+    `audit_cursor(session_id, line)`: how many lines of a session tool calls were derived from.
   - `append_recovery`, `compression_pending`: undo boundaries and pending compression; no session bytes.
 - Chunk files `sessions/<sessionId>/c-<seq>.ndjson`, gzip-compressed to `.ndjson.gz` when full
   (docs/architecture.md#session-chunk-files).

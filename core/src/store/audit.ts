@@ -321,6 +321,29 @@ export function countAudit(ctx: StoreContext, filter: AuditFilter, upTo: number)
   return Number(row.n);
 }
 
+/**
+ * Runs a change and records it in one transaction: either both happen or neither. `record` sees the change's
+ * result and may return null for a change that altered nothing. Inside an open transaction it joins it.
+ */
+export function auditedChange<T>(
+  ctx: StoreContext,
+  change: () => T,
+  record: (result: T) => AuditInput | null,
+): T {
+  const own = !ctx.db.isTransaction;
+  if (own) ctx.db.exec('BEGIN IMMEDIATE');
+  try {
+    const result = change();
+    const input = record(result);
+    if (input) appendAudit(ctx, input);
+    if (own) ctx.db.exec('COMMIT');
+    return result;
+  } catch (err) {
+    if (own && ctx.db.isTransaction) ctx.db.exec('ROLLBACK');
+    throw err;
+  }
+}
+
 /** The newest record's `seq` and hash; null for an empty log. */
 export function auditHead(ctx: StoreContext): AuditHead | null {
   return headRow(ctx);

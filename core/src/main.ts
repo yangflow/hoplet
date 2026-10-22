@@ -12,6 +12,7 @@ import { Store } from './store/index.ts';
 const config = loadConfig();
 const store = new Store(config.dataDir, { auditRetentionDays: config.auditRetentionDays ?? 180 });
 store.startUsageBackfill();
+store.startAuditDerive();
 // Retention removes the oldest audit records at start and once a day (ADR 0030).
 const pruneAudit = (): void => {
   store.pruneAudit().then(

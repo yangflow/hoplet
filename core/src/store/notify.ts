@@ -8,6 +8,7 @@ import {
   NotifyPreferencesSchema,
   safeParse,
 } from '@hoplet/shared';
+import { auditedChange } from './audit.ts';
 import type { StoreContext } from './layout.ts';
 import { notifySecrets, setWebhookSecret, webhookSecret } from './secrets.ts';
 
@@ -34,11 +35,32 @@ export function notifyPreferences(ctx: StoreContext): NotifyPreferences {
 }
 
 export function setNotifyPreferences(ctx: StoreContext, prefs: NotifyPreferences): void {
-  ctx.db
-    .prepare(
-      'INSERT INTO notify_prefs(id, json) VALUES(1, ?) ON CONFLICT(id) DO UPDATE SET json = excluded.json',
-    )
-    .run(JSON.stringify(prefs));
+  const before = notifyPreferences(ctx);
+  auditedChange(
+    ctx,
+    () =>
+      ctx.db
+        .prepare(
+          'INSERT INTO notify_prefs(id, json) VALUES(1, ?) ON CONFLICT(id) DO UPDATE SET json = excluded.json',
+        )
+        .run(JSON.stringify(prefs)),
+    () => ({
+      type: 'config.changed',
+      summary: {
+        area: 'notifications',
+        action: 'updated',
+        fields: (['preset', 'events', 'projects', 'quietHours'] as const).filter(
+          (key) => JSON.stringify(before[key]) !== JSON.stringify(prefs[key]),
+        ),
+        current: {
+          preset: prefs.preset,
+          overrides: Object.keys(prefs.events).length,
+          projects: Object.keys(prefs.projects).length,
+          quietHours: prefs.quietHours !== null,
+        },
+      },
+    }),
+  );
 }
 
 function newId(): string {
@@ -235,12 +257,27 @@ export function addWebhook(
 ): WebhookRecord {
   const id = newId();
   const events = orderedEvents(input.events ?? DEFAULT_WEBHOOK_EVENTS);
-  ctx.db
-    .prepare(
-      'INSERT INTO webhooks(id, url, label, enabled, events, created_at) VALUES(?, ?, ?, 1, ?, ?)',
-    )
-    .run(id, input.url, input.label, JSON.stringify(events), now);
-  if (input.secret !== undefined) setWebhookSecret(ctx, id, input.secret);
+  auditedChange(
+    ctx,
+    () => {
+      ctx.db
+        .prepare(
+          'INSERT INTO webhooks(id, url, label, enabled, events, created_at) VALUES(?, ?, ?, 1, ?, ?)',
+        )
+        .run(id, input.url, input.label, JSON.stringify(events), now);
+      if (input.secret !== undefined) setWebhookSecret(ctx, id, input.secret);
+    },
+    () => ({
+      type: 'config.changed',
+      summary: {
+        area: 'webhooks',
+        id,
+        action: 'created',
+        fields: ['url', 'label', 'events', ...(input.secret !== undefined ? ['secret'] : [])],
+        current: { label: input.label, events },
+      },
+    }),
+  );
   return getWebhook(ctx, id) as WebhookRecord;
 }
 
@@ -256,24 +293,63 @@ export function updateWebhook(
   },
 ): WebhookRecord | null {
   if (!getWebhook(ctx, id)) return null;
-  if (patch.url !== undefined)
-    ctx.db.prepare('UPDATE webhooks SET url = ? WHERE id = ?').run(patch.url, id);
-  if (patch.label !== undefined)
-    ctx.db.prepare('UPDATE webhooks SET label = ? WHERE id = ?').run(patch.label, id);
-  if (patch.enabled !== undefined)
-    ctx.db.prepare('UPDATE webhooks SET enabled = ? WHERE id = ?').run(patch.enabled ? 1 : 0, id);
-  if (patch.events !== undefined)
-    ctx.db
-      .prepare('UPDATE webhooks SET events = ? WHERE id = ?')
-      .run(JSON.stringify(orderedEvents(patch.events)), id);
-  if (patch.secret !== undefined) setWebhookSecret(ctx, id, patch.secret);
+  const fields = (['url', 'label', 'enabled', 'events', 'secret'] as const).filter(
+    (key) => patch[key] !== undefined,
+  );
+  auditedChange(
+    ctx,
+    () => {
+      if (patch.url !== undefined)
+        ctx.db.prepare('UPDATE webhooks SET url = ? WHERE id = ?').run(patch.url, id);
+      if (patch.label !== undefined)
+        ctx.db.prepare('UPDATE webhooks SET label = ? WHERE id = ?').run(patch.label, id);
+      if (patch.enabled !== undefined)
+        ctx.db
+          .prepare('UPDATE webhooks SET enabled = ? WHERE id = ?')
+          .run(patch.enabled ? 1 : 0, id);
+      if (patch.events !== undefined)
+        ctx.db
+          .prepare('UPDATE webhooks SET events = ? WHERE id = ?')
+          .run(JSON.stringify(orderedEvents(patch.events)), id);
+      if (patch.secret !== undefined) setWebhookSecret(ctx, id, patch.secret);
+    },
+    () =>
+      fields.length === 0
+        ? null
+        : {
+            type: 'config.changed',
+            summary: {
+              area: 'webhooks',
+              id,
+              action: 'updated',
+              fields,
+              current: {
+                ...(patch.label !== undefined ? { label: patch.label } : {}),
+                ...(patch.enabled !== undefined ? { enabled: patch.enabled } : {}),
+                ...(patch.events !== undefined ? { events: orderedEvents(patch.events) } : {}),
+              },
+            },
+          },
+  );
   return getWebhook(ctx, id);
 }
 
 export function deleteWebhook(ctx: StoreContext, id: string): boolean {
-  const gone = ctx.db.prepare('DELETE FROM webhooks WHERE id = ?').run(id).changes > 0;
-  if (gone) setWebhookSecret(ctx, id, null);
-  return gone;
+  return auditedChange(
+    ctx,
+    () => {
+      const gone = ctx.db.prepare('DELETE FROM webhooks WHERE id = ?').run(id).changes > 0;
+      if (gone) setWebhookSecret(ctx, id, null);
+      return gone;
+    },
+    (gone) =>
+      gone
+        ? {
+            type: 'config.changed',
+            summary: { area: 'webhooks', id, action: 'deleted', fields: [] },
+          }
+        : null,
+  );
 }
 
 export function recordWebhookDelivery(ctx: StoreContext, id: string, d: NotifyDelivery): void {

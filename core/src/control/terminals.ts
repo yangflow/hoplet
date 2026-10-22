@@ -102,6 +102,18 @@ export function createTerminals(
     };
   }
 
+  /** The terminal is open or over already, so a record the log cannot take is told and nothing else happens. */
+  function record(input: Parameters<typeof state.store.audit>[0]): void {
+    try {
+      state.store.audit(input);
+    } catch (err) {
+      log('error', 'control', 'terminal not recorded', {
+        sessionId: input.sessionId ?? '',
+        error: err instanceof Error ? err.message : 'unknown',
+      });
+    }
+  }
+
   /** Removes the terminal, tells the agent unless it ended it, and tells the attached browsers. */
   function finish(
     entry: Entry,
@@ -138,6 +150,21 @@ export function createTerminals(
         ...(exitCode !== undefined ? { exitCode } : {}),
       });
     }
+    record({
+      type: 'terminal.closed',
+      sessionId: entry.sessionId,
+      deviceId: entry.deviceId,
+      actor: { kind: 'core' },
+      channel: 'core',
+      ref: entry.terminalId,
+      summary: {
+        reason,
+        durationMs: state.now() - entry.openedAt,
+        bytesIn: entry.bytesIn,
+        bytesOut: entry.bytesOut,
+        ...(exitCode !== undefined ? { exitCode } : {}),
+      },
+    });
     // The audit trail: that a terminal ran and for how long, never what was typed or shown (docs/threat-model.md).
     log('info', 'control', 'terminal closed', {
       sessionId: entry.sessionId,
@@ -242,6 +269,13 @@ export function createTerminals(
       if (byId.get(terminalId) !== entry) return { ok: false, error: 'rejected', reason: 'closed' };
       // Nobody is attached yet: the terminal waits for a browser as it does after the last one left.
       if (entry.sinks.size === 0 && !entry.detachTimer) armDetach(entry);
+      record({
+        type: 'terminal.opened',
+        sessionId,
+        deviceId: ownerDeviceId,
+        ref: terminalId,
+        summary: { cols: entry.cols, rows: entry.rows },
+      });
       // The audit trail: that a terminal opened on which session and machine, never its content.
       log('info', 'control', 'terminal opened', { sessionId, terminalId, deviceId: ownerDeviceId });
       return { ok: true, terminal: infoOf(entry) };

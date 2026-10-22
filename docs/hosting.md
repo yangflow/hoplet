@@ -86,7 +86,7 @@ place of the proxy. Never publish port 7788 on `0.0.0.0`.
 
 | Where | What |
 |---|---|
-| Docker volume `hoplet-data` (`/data` in the container) | `hoplet.db` (SQLite index, which also holds what the user did to a session in the web UI: a title of their own, a pin, an archive, the last slash commands and skills a session reported per machine and directory, the messages queued for a session, the worktree Hoplet made for a handed-off session, the provider configuration each session belongs to, the IDs of deleted sessions, the session templates, `templates`, and the permission rules, `permission_rules`, the switches of the built-in ones, `permission_builtins`, and their revisions, `permission_revisions`; planned, ADR 0030: the audit log, `audit_events`; planned: how far it was derived from each session, `audit_cursor`), `sessions/<sessionId>/c-<seq>.ndjson[.gz]` (session lines), `snapshots/<sessionId>/<snapshotId>.tar.gz` (latest workspace snapshot per session), `notify-secrets.json` (mode 0600: the VAPID key pair for Web Push, the key that signs action links and the signing secrets of webhooks; the push subscriptions, the webhooks without their secrets and the preferences are in `hoplet.db`) |
+| Docker volume `hoplet-data` (`/data` in the container) | `hoplet.db` (SQLite index, which also holds what the user did to a session in the web UI: a title of their own, a pin, an archive, the last slash commands and skills a session reported per machine and directory, the messages queued for a session, the worktree Hoplet made for a handed-off session, the provider configuration each session belongs to, the IDs of deleted sessions, the session templates, `templates`, and the permission rules, `permission_rules`, the switches of the built-in ones, `permission_builtins`, and their revisions, `permission_revisions`; the audit log, `audit_events` (ADR 0030), and how far tool calls were derived from each session, `audit_cursor`), `sessions/<sessionId>/c-<seq>.ndjson[.gz]` (session lines), `snapshots/<sessionId>/<snapshotId>.tar.gz` (latest workspace snapshot per session), `notify-secrets.json` (mode 0600: the VAPID key pair for Web Push, the key that signs action links and the signing secrets of webhooks; the push subscriptions, the webhooks without their secrets and the preferences are in `hoplet.db`) |
 | Agent state root (`~/.hoplet/` by default) | `device-id`, `config.json`, `projects.json`, `permission-rules.json` (mode 0600: the last permission rules the core sent, rewritten atomically on each push and read at start; without it the agent uses the built-in rules), `runtime/` (running processes), `handoff/` (installation records and the journal of a clone in progress, `<handoffId>.clone.json`, which the agent uses on start-up to remove a half-made clone), `hook.sock` (the local Unix socket of the Codex rule hook, mode 0600 in a 0700 directory; no network port, absent on Windows, [ADR 0032](adr/0032-codex-rule-hook-calls-the-agent-over-a-local-socket.md)), `attachments/` (images uploaded for prompts: at most 64 files and 64 MiB, each kept at most an hour) |
 | Development machine | Claude Code's store, Codex's `sessions/` (read-only, except that handoff adds one rollout file) and working trees; worktrees created by handoff, next to the clone they belong to |
 
@@ -96,7 +96,7 @@ are removed (the browsers subscribe again), and the signing secrets of webhooks 
 
 The audit log ([ADR 0030](adr/0030-the-audit-log-records-actions-in-a-hash-chain.md)) is in `hoplet.db`, so
 the backup and the restore above cover it and nothing else needs running. It grows with the actions taken and,
-once the tool calls are derived (planned), with the tool calls of your sessions, at roughly 0.5 KiB a record: a few
+with the tool calls of your sessions, at roughly 0.5 KiB a record: a few
 MiB a day for a machine making a few thousand tool calls, a few hundred MiB at the default 180 days of retention
 (an estimate until measured). `HOPLET_AUDIT_RETENTION_DAYS` bounds it; only retention deletes records, once a day.
 If the log cannot be written (a full disk, a read-only database), actions that must be recorded fail with
@@ -249,7 +249,7 @@ thousands of messages).
 Migration 0022 (budgets) adds two small tables, `budgets` and `budget_alerts`; it reads nothing and needs no
 action. Budgets are evaluated from the `usage` table in the core's process: no new port, resource or dependency.
 
-The migration that adds the audit log (ADR 0030) creates `audit_events` and reads nothing; it needs no action. The log starts at the first start after the upgrade and does not cover earlier sessions. No new
+The migrations that add the audit log (ADR 0030) create `audit_events` and, in migration 0027, `audit_cursor`; the second reads nothing; a session gets its cursor with its next append, set to the lines it already had, so only new lines are derived. It needs no action. The log starts at the first start after the upgrade and does not cover earlier sessions. No new
 port, resource or dependency; the database grows as the hosting section on data says.
 
 Migration 0024 (session templates) adds the small table `templates`; it reads nothing and needs no action. No new port,

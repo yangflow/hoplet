@@ -4,6 +4,7 @@ import {
   ResourceThresholdsSchema,
   safeParse,
 } from '@hoplet/shared';
+import { auditedChange } from './audit.ts';
 import type { StoreContext } from './layout.ts';
 
 /** The stored thresholds; the defaults while none are stored or the stored ones are unreadable. */
@@ -22,9 +23,28 @@ export function resourceThresholds(ctx: StoreContext): ResourceThresholds {
 }
 
 export function setResourceThresholds(ctx: StoreContext, thresholds: ResourceThresholds): void {
-  ctx.db
-    .prepare(
-      'INSERT INTO resource_thresholds(id, json) VALUES(1, ?) ON CONFLICT(id) DO UPDATE SET json = excluded.json',
-    )
-    .run(JSON.stringify(thresholds));
+  const before = resourceThresholds(ctx) as unknown as Record<string, unknown>;
+  const after = thresholds as unknown as Record<string, unknown>;
+  const fields = Object.keys(after).filter(
+    (key) => JSON.stringify(before[key]) !== JSON.stringify(after[key]),
+  );
+  auditedChange(
+    ctx,
+    () =>
+      ctx.db
+        .prepare(
+          'INSERT INTO resource_thresholds(id, json) VALUES(1, ?) ON CONFLICT(id) DO UPDATE SET json = excluded.json',
+        )
+        .run(JSON.stringify(thresholds)),
+    () => ({
+      type: 'config.changed',
+      summary: {
+        area: 'resource-thresholds',
+        action: 'updated',
+        fields,
+        previous: Object.fromEntries(fields.map((key) => [key, before[key]])),
+        current: Object.fromEntries(fields.map((key) => [key, after[key]])),
+      },
+    }),
+  );
 }

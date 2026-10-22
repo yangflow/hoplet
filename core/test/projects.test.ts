@@ -142,6 +142,14 @@ describe('GET /api/devices/:id/projects', () => {
     );
     const added = await addPending;
     expect(added.status).toBe(200);
+    expect(
+      store.listAudit({ type: 'config.changed' }, { order: 'asc', limit: 10 }).events,
+    ).toMatchObject([
+      {
+        deviceId: 'dev-a',
+        summary: { area: 'watched-projects', action: 'added', current: { path: '/tmp/app' } },
+      },
+    ]);
 
     const importPending = fetch(`http://127.0.0.1:${port}/api/devices/dev-a/sessions/import`, {
       method: 'POST',
