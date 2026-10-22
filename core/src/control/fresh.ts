@@ -90,6 +90,7 @@ export function createFresh(
           text: promptOf(planExit.plan, planExit.planFile),
           promptId,
           origin: 'plan',
+          ...(req.actor ? { actor: req.actor } : {}),
         });
         if (!started.ok) {
           return {
@@ -106,9 +107,10 @@ export function createFresh(
         const refused = control.answerPermission(sessionId, owner, requestId, {
           decision: 'deny',
           message: FRESH_REFUSAL,
+          ...(req.actor ? { actor: req.actor } : {}),
         });
         // A turn that is not running is fine.
-        if (refused.ok) control.interrupt(sessionId, owner);
+        if (refused.ok) control.interrupt(sessionId, owner, req.actor);
         log('info', 'control', 'plan approved into a new session', {
           from: sessionId,
           to: started.sessionId,

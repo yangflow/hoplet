@@ -28,6 +28,7 @@
   "The request was not valid.": "The request was not valid.",
   "Choose a different machine.": "Choose a different machine.",
   "The link is not valid.": "The link is not valid.",
+  "This access token is not allowed to do that.": "This access token is not allowed to do that.",
   "Too many requests. Try again in a moment.": "Too many requests. Try again in a moment.",
   "That is too large to send.": "That is too large to send.",
   "The machine that owns this session is offline.": "The machine that owns this session is offline.",
@@ -1326,5 +1327,10 @@
   "Price overrides": "Price overrides",
   "Accept edits": "Accept edits",
   "Handoff done": "Handoff done",
-  "Handoff failed": "Handoff failed"
+  "Handoff failed": "Handoff failed",
+  "API tokens": "API tokens",
+  "API token issued": "API token issued",
+  "API token revoked": "API token revoked",
+  "API token refused": "API token refused",
+  "API token · {id}": "API token · {id}"
 }

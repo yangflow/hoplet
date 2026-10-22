@@ -8,7 +8,7 @@ export type Waiter<T> = {
   link?: DeviceLink;
   sessionId?: string;
   /** Set on a new-session request: who was asked to start it, and with which provider. */
-  start?: { deviceId: string; provider: Provider } | undefined;
+  start?: { deviceId: string; provider: Provider; projectPath: string } | undefined;
   /** Absent while the waiter waits without a deadline (see `waitFor`). */
   timer?: ReturnType<typeof setTimeout>;
 };

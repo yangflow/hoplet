@@ -32,6 +32,7 @@ import type {
   SnapshotChanges,
   Template,
   TemplateBody,
+  TokenInfo,
   UsagePrices,
   UsagePricesBody,
   UsageQuery,
@@ -70,6 +71,7 @@ import * as sessions from './sessions.ts';
 import * as snapshotRead from './snapshot-read.ts';
 import * as snapshots from './snapshots.ts';
 import * as templates from './templates.ts';
+import * as tokens from './tokens.ts';
 import * as usage from './usage.ts';
 
 export { type AuditInput, AuditUnavailableError } from './audit.ts';
@@ -94,6 +96,7 @@ export { type SnapshotDiffResult, SnapshotReadError } from './snapshot-read.ts';
 export { type SnapshotChunk, SnapshotError, type SnapshotRecord } from './snapshots.ts';
 export { freeName } from './templates.ts';
 export { summarizeTitle } from './title.ts';
+export { type TokenRecord, TooManyTokensError } from './tokens.ts';
 export type { AppendInput, AppendResult };
 export { NotOwnerError };
 
@@ -580,7 +583,10 @@ export class Store {
     return queue.queueOf(this.ctx, sessionId);
   }
 
-  queueAdd(sessionId: string, input: { id: string; text: string; attachments: string[] }) {
+  queueAdd(
+    sessionId: string,
+    input: { id: string; text: string; attachments: string[]; actorId?: string },
+  ) {
     return queue.queueAdd(this.ctx, sessionId, input);
   }
 
@@ -588,7 +594,7 @@ export class Store {
     sessionId: string,
     id: string,
     version: number,
-    input: { text: string; attachments: string[] },
+    input: { text: string; attachments: string[]; actorId?: string },
   ) {
     return queue.queueEdit(this.ctx, sessionId, id, version, input);
   }
@@ -604,6 +610,11 @@ export class Store {
   /** The head, when nothing of the session is sending. */
   queueNext(sessionId: string): QueueItem | null {
     return queue.queueNext(this.ctx, sessionId);
+  }
+
+  /** The token that queued the message, or "" for the host. */
+  queueAuthor(sessionId: string, id: string): string {
+    return queue.queueAuthor(this.ctx, sessionId, id);
   }
 
   queueClaim(sessionId: string, id: string, version: number) {
@@ -827,6 +838,29 @@ export class Store {
     return devices.deviceIdForToken(this.ctx, token);
   }
 
+  listTokens(now: number = Date.now()): TokenInfo[] {
+    return tokens.listTokens(this.ctx, now);
+  }
+
+  issueToken(
+    input: Parameters<typeof tokens.issueToken>[1],
+    now: number = Date.now(),
+  ): { info: TokenInfo; secret: string } {
+    return tokens.issueToken(this.ctx, input, now);
+  }
+
+  revokeToken(id: string, now: number = Date.now()): 'revoked' | 'removed' | 'unknown' {
+    return tokens.revokeToken(this.ctx, id, now);
+  }
+
+  tokenForSecret(secret: string, now: number = Date.now()): tokens.TokenRecord | null {
+    return tokens.tokenForSecret(this.ctx, secret, now);
+  }
+
+  tokenActive(id: string, now: number = Date.now()): boolean {
+    return tokens.tokenActive(this.ctx, id, now);
+  }
+
   append(input: AppendInput, rawLines: string[]): AppendResult {
     const result = append(this.ctx, input, rawLines);
     if (result.appendedLines > 0) scheduleAuditDerive(this.ctx, input.sessionId);
@@ -859,7 +893,12 @@ export class Store {
     return search(this.ctx, sessionId, query, start, limit);
   }
 
-  searchAll(query: string, start: number, limit: number): Promise<RawGlobalSearchResult> {
-    return searchAll(this.ctx, query, start, limit);
+  searchAll(
+    query: string,
+    start: number,
+    limit: number,
+    visible?: (sessionId: string) => boolean,
+  ): Promise<RawGlobalSearchResult> {
+    return searchAll(this.ctx, query, start, limit, visible);
   }
 }

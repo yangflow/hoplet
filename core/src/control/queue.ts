@@ -10,7 +10,7 @@ import { log } from '../log/index.ts';
 import { askWaiter } from './pending.ts';
 import type { Runtime } from './runtime.ts';
 import { type ControlState, onlineLink } from './state.ts';
-import type { Control, SteerOutcome } from './types.ts';
+import type { AuditActor, Control, SteerOutcome } from './types.ts';
 
 /** A repeated `steerId` returns the first result for this long. */
 const STEER_DEDUP_MS = 10 * 60_000;
@@ -45,6 +45,12 @@ export function createQueue(state: ControlState, runtime: Runtime): QueueControl
   const sending = new Set<string>();
   const steerCache = new Map<string, { at: number; outcome: Promise<SteerOutcome> }>();
 
+  /** The token that wrote a queued message, so its prompt is recorded under it; the host has none. */
+  function authorOf(sessionId: string, id: string): AuditActor | undefined {
+    const author = store.queueAuthor(sessionId, id);
+    return author === '' ? undefined : { kind: 'token', id: author };
+  }
+
   function changed(sessionId: string): Queue {
     state.publish({ v: PROTOCOL_VERSION, type: 'session.queue', sessionId });
     return store.queueOf(sessionId);
@@ -71,6 +77,7 @@ export function createQueue(state: ControlState, runtime: Runtime): QueueControl
         next.text,
         `q-${randomUUID()}`,
         next.attachments,
+        authorOf(sessionId, next.id),
       );
     } finally {
       sending.delete(sessionId);
@@ -99,6 +106,7 @@ export function createQueue(state: ControlState, runtime: Runtime): QueueControl
     steerId: string,
     text: string,
     attachments: string[] = [],
+    actor?: AuditActor,
   ): Promise<SteerOutcome> {
     const now = state.now();
     for (const [key, cached] of steerCache) {
@@ -123,6 +131,7 @@ export function createQueue(state: ControlState, runtime: Runtime): QueueControl
     // The audit trail: who was asked to steer, never the text itself (docs/threat-model.md).
     store.audit({
       type: 'prompt.sent',
+      ...(actor ? { actor } : {}),
       sessionId,
       deviceId: ownerDeviceId,
       ref: steerId,
@@ -157,7 +166,8 @@ export function createQueue(state: ControlState, runtime: Runtime): QueueControl
     queueOf: (sessionId) => store.queueOf(sessionId),
 
     queueAdd(sessionId, input) {
-      const added = store.queueAdd(sessionId, input);
+      const { actor, ...rest } = input;
+      const added = store.queueAdd(sessionId, { ...rest, ...(actor ? { actorId: actor.id } : {}) });
       if (!added.ok) return { ok: false, error: added.reason };
       const queue = changed(sessionId);
       void drain(sessionId);
@@ -165,7 +175,11 @@ export function createQueue(state: ControlState, runtime: Runtime): QueueControl
     },
 
     queueEdit(sessionId, id, version, input) {
-      const edited = store.queueEdit(sessionId, id, version, input);
+      const { actor, ...rest } = input;
+      const edited = store.queueEdit(sessionId, id, version, {
+        ...rest,
+        ...(actor ? { actorId: actor.id } : {}),
+      });
       return edited.ok
         ? { ok: true, queue: changed(sessionId) }
         : { ok: false, error: edited.reason };
@@ -197,7 +211,7 @@ export function createQueue(state: ControlState, runtime: Runtime): QueueControl
       return changed(sessionId);
     },
 
-    async queueSteer(sessionId, ownerDeviceId, id, version) {
+    async queueSteer(sessionId, ownerDeviceId, id, version, actor) {
       const item: QueueItem | undefined = store
         .queueOf(sessionId)
         .items.find((i) => i.id === id && i.version === version && i.state === 'queued');
@@ -212,6 +226,7 @@ export function createQueue(state: ControlState, runtime: Runtime): QueueControl
         `s-${randomUUID()}`,
         item.text,
         item.attachments,
+        actor,
       );
       if (outcome.ok) store.queueSettle(sessionId, id);
       else store.queueRestore(sessionId, id);

@@ -22,6 +22,9 @@ credential, the host token (`HOPLET_TOKEN`, docs/hosting.md#network).
    (no further requests, no WebSocket) and tells the user that the app and the core speak different protocol
    versions, with both numbers. `coreVersion` is for display and for bug reports; clients do not decide by it.
 
+A client that does not need the whole machine uses a scoped API token instead ([API tokens](#api-tokens)); it is
+sent the same way and sees only what its grant reaches.
+
 The host token has full authority: it does everything the web UI does, including driving Claude Code on every
 connected machine and minting device tokens (`POST /api/devices`). The client keeps it in the system secure
 storage (the Keychain on Apple platforms), never in preferences, files, logs, URLs or crash reports, and sends it
@@ -54,18 +57,22 @@ curl -s -X POST -H "Authorization: Bearer $HOPLET_TOKEN" "$HOPLET_URL/api/ws-tic
 
 ## REST routes
 
-Auth is `host` for every route but the two action routes: the host token as `Authorization: Bearer`. The action
-routes (`token`) take no header; the signed action token in the body is the credential
-([Notifications](#notifications)). No route is open without one of the two. The Query and Body columns name the schema of the query string and of the JSON body; the
+The Auth column says who may call a route. `host` is the host token as `Authorization: Bearer` and nothing else.
+`read`, `send`, `create` and `answer` are the abilities of a scoped API token ([API tokens](#api-tokens)): the
+host token may call the route as well, and so may a token that holds that ability (`send` is held by a token that
+may send, `create` by one that may create, and so on; a preset holds the abilities below it). A route that is not
+marked with an ability is the host's alone. The two action routes (`token`) take no header; the signed action
+token in the body is the credential ([Notifications](#notifications)). No route is open without one of these.
+The Query and Body columns name the schema of the query string and of the JSON body; the
 Response column names the schema of the success body and its status when it is not `200`.
 
 | Method | Path | Auth | Lane | Query | Body | Response | Errors |
 |---|---|---|---|---|---|---|---|
-| POST | `/api/ws-tickets` | host | control | — | — | `WsTicketResponseSchema` | — |
-| GET | `/api/health` | host | control | — | — | `HealthResponseSchema` | — |
-| GET | `/api/sessions` | host | control | — | — | `SessionListResponseSchema` | — |
-| POST | `/api/sessions` | host | control | — | `NewSessionRequestSchema` | `NewSessionResultSchema` | `invalid-json`, `invalid-request`, `too-large`, `over-budget`, `target-offline`, `timeout`, `rejected` |
-| GET | `/api/sessions/:sessionId` | host | control | — | — | `LiveSessionMetaSchema` | `session-not-found` |
+| POST | `/api/ws-tickets` | read | control | — | — | `WsTicketResponseSchema` | — |
+| GET | `/api/health` | read | control | — | — | `HealthResponseSchema` | — |
+| GET | `/api/sessions` | read | control | — | — | `SessionListResponseSchema` | — |
+| POST | `/api/sessions` | create | control | — | `NewSessionRequestSchema` | `NewSessionResultSchema` | `invalid-json`, `invalid-request`, `too-large`, `over-budget`, `target-offline`, `timeout`, `rejected`, `forbidden` |
+| GET | `/api/sessions/:sessionId` | read | control | — | — | `LiveSessionMetaSchema` | `session-not-found` |
 | PATCH | `/api/sessions/:sessionId` | host | control | — | `SessionPatchRequestSchema` | `LiveSessionMetaSchema` | `invalid-json`, `invalid-request`, `too-large`, `session-not-found` |
 | DELETE | `/api/sessions/:sessionId` | host | control | — | `DeleteSessionRequestSchema` | `DeleteSessionResponseSchema` | `invalid-json`, `invalid-request`, `too-large`, `session-not-found`, `session-running`, `owner-offline`, `delete-partial`, `timeout`, `rejected` |
 | POST | `/api/sessions/:sessionId/terminal` | host | control | — | `TerminalOpenRequestSchema` | `TerminalInfoSchema` | `invalid-json`, `invalid-request`, `too-large`, `session-not-found`, `owner-offline`, `terminal-unavailable`, `terminal-busy`, `external`, `starting`, `session-running`, `handoff-in-progress`, `timeout`, `rejected` |
@@ -73,24 +80,24 @@ Response column names the schema of the success body and its status when it is n
 | DELETE | `/api/terminals/:terminalId` | host | control | — | — | `TerminalCloseResultSchema` | `not-found` |
 | GET | `/api/sessions/:sessionId/ports` | host | control | — | — | `SessionPortsResultSchema` | `session-not-found` |
 | GET | `/api/sessions/:sessionId/deletion` | host | control | — | — | `DeletionPreviewSchema` | `session-not-found`, `owner-offline`, `timeout`, `rejected` |
-| GET | `/api/sessions/:sessionId/lines` | host | bulk | `LinesQuerySchema` | — | `LinesPageSchema` | `session-not-found`, `busy` |
-| GET | `/api/sessions/:sessionId/blocks/:line/:block` | host | bulk | — | — | `FullBlockSchema` | `invalid-request`, `session-not-found`, `not-found`, `busy` |
-| GET | `/api/sessions/:sessionId/search` | host | bulk | `SessionSearchQuerySchema` | — | `SearchResultSchema` | `invalid-request`, `session-not-found`, `busy` |
-| GET | `/api/search` | host | bulk | `GlobalSearchQuerySchema` | — | `GlobalSearchResultSchema` | `invalid-request`, `busy` |
-| POST | `/api/sessions/:sessionId/prompt` | host | control | — | `PromptRequestSchema` | `PromptResultSchema`, 202 | `invalid-json`, `invalid-request`, `too-large`, `session-not-found`, `owner-offline`, `external`, `starting`, `busy`, `over-budget`, `timeout`, `rejected` |
-| GET | `/api/sessions/:sessionId/queue` | host | control | — | — | `QueueSchema` | `session-not-found` |
-| POST | `/api/sessions/:sessionId/queue` | host | control | — | `QueueAddRequestSchema` | `QueueSchema`, 201 | `invalid-json`, `invalid-request`, `too-large`, `session-not-found`, `queue-full` |
-| POST | `/api/sessions/:sessionId/queue/order` | host | control | — | `QueueOrderRequestSchema` | `QueueSchema` | `invalid-json`, `invalid-request`, `too-large`, `session-not-found`, `queue-conflict` |
-| POST | `/api/sessions/:sessionId/queue/resume` | host | control | — | — | `QueueSchema` | `session-not-found` |
-| POST | `/api/sessions/:sessionId/queue/clear` | host | control | — | — | `QueueSchema` | `session-not-found` |
-| PATCH | `/api/sessions/:sessionId/queue/:itemId` | host | control | — | `QueueEditRequestSchema` | `QueueSchema` | `invalid-json`, `invalid-request`, `too-large`, `session-not-found`, `queue-conflict` |
-| DELETE | `/api/sessions/:sessionId/queue/:itemId` | host | control | `QueueVersionQuerySchema` | — | `QueueSchema` | `invalid-request`, `session-not-found`, `queue-conflict` |
-| POST | `/api/sessions/:sessionId/queue/:itemId/steer` | host | control | — | `QueueSteerRequestSchema` | `QueueSchema` | `invalid-json`, `invalid-request`, `too-large`, `session-not-found`, `owner-offline`, `external`, `starting`, `not-running`, `steer-unavailable`, `queue-conflict`, `timeout`, `rejected` |
-| POST | `/api/sessions/:sessionId/steer` | host | control | — | `SteerRequestSchema` | `SteerResultSchema`, 202 | `invalid-json`, `invalid-request`, `too-large`, `session-not-found`, `owner-offline`, `external`, `starting`, `not-running`, `steer-unavailable`, `timeout`, `rejected` |
+| GET | `/api/sessions/:sessionId/lines` | read | bulk | `LinesQuerySchema` | — | `LinesPageSchema` | `session-not-found`, `busy` |
+| GET | `/api/sessions/:sessionId/blocks/:line/:block` | read | bulk | — | — | `FullBlockSchema` | `invalid-request`, `session-not-found`, `not-found`, `busy` |
+| GET | `/api/sessions/:sessionId/search` | read | bulk | `SessionSearchQuerySchema` | — | `SearchResultSchema` | `invalid-request`, `session-not-found`, `busy` |
+| GET | `/api/search` | read | bulk | `GlobalSearchQuerySchema` | — | `GlobalSearchResultSchema` | `invalid-request`, `busy` |
+| POST | `/api/sessions/:sessionId/prompt` | send | control | — | `PromptRequestSchema` | `PromptResultSchema`, 202 | `invalid-json`, `invalid-request`, `too-large`, `session-not-found`, `owner-offline`, `external`, `starting`, `busy`, `over-budget`, `timeout`, `rejected` |
+| GET | `/api/sessions/:sessionId/queue` | read | control | — | — | `QueueSchema` | `session-not-found` |
+| POST | `/api/sessions/:sessionId/queue` | send | control | — | `QueueAddRequestSchema` | `QueueSchema`, 201 | `invalid-json`, `invalid-request`, `too-large`, `session-not-found`, `queue-full` |
+| POST | `/api/sessions/:sessionId/queue/order` | send | control | — | `QueueOrderRequestSchema` | `QueueSchema` | `invalid-json`, `invalid-request`, `too-large`, `session-not-found`, `queue-conflict` |
+| POST | `/api/sessions/:sessionId/queue/resume` | send | control | — | — | `QueueSchema` | `session-not-found` |
+| POST | `/api/sessions/:sessionId/queue/clear` | send | control | — | — | `QueueSchema` | `session-not-found` |
+| PATCH | `/api/sessions/:sessionId/queue/:itemId` | send | control | — | `QueueEditRequestSchema` | `QueueSchema` | `invalid-json`, `invalid-request`, `too-large`, `session-not-found`, `queue-conflict` |
+| DELETE | `/api/sessions/:sessionId/queue/:itemId` | send | control | `QueueVersionQuerySchema` | — | `QueueSchema` | `invalid-request`, `session-not-found`, `queue-conflict` |
+| POST | `/api/sessions/:sessionId/queue/:itemId/steer` | send | control | — | `QueueSteerRequestSchema` | `QueueSchema` | `invalid-json`, `invalid-request`, `too-large`, `session-not-found`, `owner-offline`, `external`, `starting`, `not-running`, `steer-unavailable`, `queue-conflict`, `timeout`, `rejected` |
+| POST | `/api/sessions/:sessionId/steer` | send | control | — | `SteerRequestSchema` | `SteerResultSchema`, 202 | `invalid-json`, `invalid-request`, `too-large`, `session-not-found`, `owner-offline`, `external`, `starting`, `not-running`, `steer-unavailable`, `timeout`, `rejected` |
 | POST | `/api/sessions/:sessionId/config` | host | control | — | `ConfigRequestSchema` | `RuntimeCommandResultSchema` | `invalid-json`, `invalid-request`, `too-large`, `session-not-found`, `owner-offline`, `external` |
-| POST | `/api/sessions/:sessionId/permission` | host | control | — | `PermissionRequestSchema` | `RuntimeCommandResultSchema` | `invalid-json`, `invalid-request`, `too-large`, `session-not-found`, `owner-offline`, `request-closed` |
-| POST | `/api/sessions/:sessionId/permission/fresh` | host | control | — | `FreshPermissionRequestSchema` | `NewSessionResultSchema` | `invalid-json`, `invalid-request`, `too-large`, `session-not-found`, `owner-offline`, `request-closed`, `over-budget`, `target-offline`, `timeout`, `rejected` |
-| POST | `/api/sessions/:sessionId/interrupt` | host | control | — | — | `RuntimeCommandResultSchema` | `session-not-found`, `owner-offline`, `not-running` |
+| POST | `/api/sessions/:sessionId/permission` | answer | control | — | `PermissionRequestSchema` | `RuntimeCommandResultSchema` | `invalid-json`, `invalid-request`, `too-large`, `session-not-found`, `owner-offline`, `request-closed` |
+| POST | `/api/sessions/:sessionId/permission/fresh` | answer | control | — | `FreshPermissionRequestSchema` | `NewSessionResultSchema` | `invalid-json`, `invalid-request`, `too-large`, `session-not-found`, `owner-offline`, `request-closed`, `over-budget`, `target-offline`, `timeout`, `rejected` |
+| POST | `/api/sessions/:sessionId/interrupt` | send | control | — | — | `RuntimeCommandResultSchema` | `session-not-found`, `owner-offline`, `not-running` |
 | POST | `/api/sessions/:sessionId/stop` | host | control | — | — | `RuntimeCommandResultSchema` | `session-not-found`, `owner-offline`, `not-running` |
 | GET | `/api/sessions/:sessionId/commands` | host | control | — | — | `CommandsResultSchema` | `session-not-found` |
 | GET | `/api/devices/:deviceId/commands` | host | control | `DeviceCommandsQuerySchema` | — | `CommandsResultSchema` | `invalid-request` |
@@ -101,14 +108,14 @@ Response column names the schema of the success body and its status when it is n
 | GET | `/api/sessions/:sessionId/snapshot/diff` | host | bulk | `WorkspaceDiffQuerySchema` | — | `SnapshotDiffSchema` | `invalid-request`, `session-not-found`, `no-snapshot`, `not-found`, `busy` |
 | POST | `/api/sessions/:sessionId/handoff` | host | control | — | `HandoffRequestSchema` | `HandoffResultSchema` | `invalid-json`, `invalid-request`, `too-large`, `session-not-found`, `same-device`, `target-offline`, `owner-offline`, `handoff-in-progress`, `busy`, `no-snapshot`, `no-clone`, `clone-failed`, `session-changed`, `verify-failed`, `cancelled`, `timeout`, `rejected` |
 | POST | `/api/sessions/:sessionId/handoff/cancel` | host | control | — | — | `HandoffCancelResultSchema` | `session-not-found`, `handoff-not-running` |
-| GET | `/api/devices` | host | control | — | — | `DeviceListResponseSchema` | — |
+| GET | `/api/devices` | read | control | — | — | `DeviceListResponseSchema` | — |
 | GET | `/api/devices/:deviceId/resources` | host | control | — | — | `DeviceResourcesResultSchema` | `not-found` |
 | PUT | `/api/devices/:deviceId/labels` | host | control | — | `DeviceLabelsRequestSchema` | `DeviceLabelsResultSchema` | `invalid-json`, `invalid-request`, `too-large`, `not-found` |
 | POST | `/api/devices` | host | control | — | `DeviceMintRequestSchema` | `DeviceMintResultSchema` | `invalid-json`, `invalid-request`, `too-large` |
-| POST | `/api/devices/:deviceId/attachments` | host | bulk | — | `PromptImageSchema` | `AttachmentResultSchema` | `invalid-json`, `invalid-request`, `too-large`, `target-offline`, `timeout` |
+| POST | `/api/devices/:deviceId/attachments` | send | bulk | — | `PromptImageSchema` | `AttachmentResultSchema` | `invalid-json`, `invalid-request`, `too-large`, `target-offline`, `timeout`, `forbidden` |
 | GET | `/api/devices/:deviceId/clone` | host | control | `DeviceCloneQuerySchema` | — | `DeviceCloneResultSchema` | `invalid-request`, `target-offline`, `timeout` |
 | GET | `/api/devices/:deviceId/dirs` | host | control | `DeviceDirsQuerySchema` | — | `DeviceDirsResultSchema` | `invalid-request`, `target-offline`, `timeout` |
-| GET | `/api/devices/:deviceId/projects` | host | control | — | — | `DeviceProjectsResultSchema` | `owner-offline`, `timeout`, `rejected`, `cancelled` |
+| GET | `/api/devices/:deviceId/projects` | read | control | — | — | `DeviceProjectsResultSchema` | `owner-offline`, `timeout`, `rejected`, `cancelled`, `forbidden` |
 | POST | `/api/devices/:deviceId/projects` | host | control | — | `DeviceProjectsAddRequestSchema` | `DeviceProjectsResultSchema` | `invalid-json`, `invalid-request`, `too-large`, `owner-offline`, `timeout`, `rejected`, `cancelled` |
 | POST | `/api/devices/:deviceId/providers` | host | control | — | `DeviceProvidersUpdateRequestSchema` | `DeviceProvidersResultSchema` | `invalid-json`, `invalid-request`, `too-large`, `not-found`, `owner-offline`, `timeout`, `rejected` |
 | POST | `/api/devices/:deviceId/projects/remove` | host | control | — | `DeviceProjectsRemoveRequestSchema` | `DeviceProjectsResultSchema` | `invalid-json`, `invalid-request`, `too-large`, `owner-offline`, `timeout`, `rejected`, `cancelled` |
@@ -128,14 +135,14 @@ Response column names the schema of the success body and its status when it is n
 | DELETE | `/api/budgets/:id` | host | control | — | — | `BudgetListResponseSchema` | `not-found` |
 | POST | `/api/budgets/:id/allow` | host | control | — | — | `BudgetSchema` | `not-found`, `invalid-request` |
 | DELETE | `/api/budgets/:id/allow` | host | control | — | — | `BudgetSchema` | `not-found`, `invalid-request` |
-| GET | `/api/templates` | host | control | — | — | `TemplateListResponseSchema` | — |
+| GET | `/api/templates` | create | control | — | — | `TemplateListResponseSchema` | — |
 | POST | `/api/templates` | host | control | — | `TemplateBodySchema` | `TemplateSchema`, 201 | `invalid-json`, `invalid-request`, `too-large` |
 | GET | `/api/templates/export` | host | control | — | — | `TemplateFileSchema` | — |
 | POST | `/api/templates/import` | host | control | — | `TemplateImportRequestSchema` | `TemplateImportResultSchema` | `invalid-json`, `invalid-request`, `too-large` |
 | GET | `/api/templates/:id` | host | control | — | — | `TemplateSchema` | `not-found` |
 | PUT | `/api/templates/:id` | host | control | — | `TemplateBodySchema` | `TemplateSchema` | `invalid-json`, `invalid-request`, `too-large`, `not-found` |
 | DELETE | `/api/templates/:id` | host | control | — | — | `TemplateListResponseSchema` | `not-found` |
-| POST | `/api/templates/:id/start` | host | control | — | `TemplateStartRequestSchema` | `TemplateStartResultSchema` | `invalid-json`, `invalid-request`, `too-large`, `not-found`, `target-offline`, `over-budget`, `timeout` |
+| POST | `/api/templates/:id/start` | create | control | — | `TemplateStartRequestSchema` | `TemplateStartResultSchema` | `invalid-json`, `invalid-request`, `too-large`, `not-found`, `target-offline`, `over-budget`, `timeout` |
 | GET | `/api/permission-rules` | host | control | `PermissionRuleListQuerySchema` | — | `PermissionRuleListResponseSchema` | `invalid-request` |
 | POST | `/api/permission-rules` | host | control | — | `PermissionRuleBodySchema` | `PermissionRuleEntrySchema`, 201 | `invalid-json`, `invalid-request`, `too-large` |
 | PUT | `/api/permission-rules/:id` | host | control | — | `PermissionRulePutSchema` | `PermissionRuleEntrySchema` | `invalid-json`, `invalid-request`, `too-large`, `not-found` |
@@ -145,6 +152,9 @@ Response column names the schema of the success body and its status when it is n
 | GET | `/api/audit/events` | host | bulk | `AuditEventsQuerySchema` | — | `AuditEventsResponseSchema` | `invalid-request` |
 | GET | `/api/audit/export` | host | bulk | `AuditExportQuerySchema` | — | `AuditEventSchema`, streamed as JSON Lines or CSV | `invalid-request`, `rate-limited`, `audit-unavailable` |
 | GET | `/api/audit/verify` | host | bulk | `AuditVerifyQuerySchema` | — | `AuditVerifyResponseSchema` | `invalid-request` |
+| GET | `/api/tokens` | host | control | — | — | `TokenListResponseSchema` | — |
+| POST | `/api/tokens` | host | control | — | `TokenCreateRequestSchema` | `TokenCreateResponseSchema`, 201 | `invalid-json`, `invalid-request`, `too-large` |
+| DELETE | `/api/tokens/:id` | host | control | — | — | `TokenRevokeResponseSchema` | `not-found` |
 | GET | `/api/notify/push/key` | host | control | — | — | `PushKeyResponseSchema` | — |
 | GET | `/api/notify/push/subscriptions` | host | control | — | — | `PushSubscriptionListResponseSchema` | — |
 | POST | `/api/notify/push/subscriptions` | host | control | — | `PushSubscribeRequestSchema` | `PushSubscriptionInfoSchema`, 201 | `invalid-json`, `invalid-request`, `too-large` |
@@ -486,9 +496,10 @@ session, or `""` while the session is not in the index yet; the client shows its
 
 | Code | HTTP status | Meaning |
 |---|---|---|
-| `unauthorized` | 401 | The host token is missing or wrong |
+| `unauthorized` | 401 | The host token or API token is missing, wrong, expired or revoked |
 | `invalid-token` | 400 | The action token is malformed, was not signed by this core or does not match any request |
-| `rate-limited` | 429 | Too many requests to the action routes; retry after `Retry-After` seconds |
+| `forbidden` | 403 | A scoped API token ([API tokens](#api-tokens)) asked for a machine or project outside its allow-list, for a high-risk configuration option, or for a route its abilities do not cover |
+| `rate-limited` | 429 | Too many requests to the action routes, or more than 300 in a minute with one API token; retry after `Retry-After` seconds |
 | `not-found` | 404 | No route serves the path, or the block or path asked for does not exist |
 | `method-not-allowed` | 405 | The path exists for another method; `Allow` lists them |
 | `session-not-found` | 404 | No session has this ID |
@@ -524,11 +535,57 @@ session, or `""` while the session is not in the index yet; the client shows its
 | `internal` | 500 | The core failed |
 | `audit-unavailable` | 503 | The audit log could not record the action, so the action was not carried out ([ADR 0030](adr/0030-the-audit-log-records-actions-in-a-hash-chain.md)) |
 
+## API tokens
+
+The host token does everything. For a script, the command-line tool or another program, the host issues a scoped
+API token ([ADR 0033](adr/0033-a-command-line-tool-an-sdk-and-scoped-tokens.md)) with `POST /api/tokens` and the
+program sends it as `Authorization: Bearer hpt_...` like the host token. The token routes
+(`GET`, `POST /api/tokens`, `DELETE /api/tokens/:id`) are the host's; a token cannot issue, list or revoke tokens.
+
+`POST /api/tokens` takes a `name`, a `grant` and `expiresInDays` (1 to 365, 90 by default; a token always
+expires). The response is the only place the secret (`token`) appears: Hoplet stores a SHA-256 hash, so a lost
+secret is replaced by issuing another token. `GET /api/tokens` lists every token with its state (`active`,
+`expired`, `revoked`), its grant and when it was last used; `DELETE /api/tokens/:id` revokes one at once (a token
+that is already revoked or expired is removed from the list). At most 100 tokens are active.
+
+The grant holds `capabilities` and an `allow` list.
+
+| Ability | Lets the token |
+|---|---|
+| `read` | Read what it can see: sessions, their lines, blocks and queue, search, machines and their projects, and open a browser WebSocket |
+| `send` | Send a prompt or a steer, edit the queue, interrupt and upload an image, in the sessions and machines it can see |
+| `create` | Start a session on a machine and project it can see (`POST /api/sessions`), read the templates and start one |
+| `answer` | Answer permission requests of the sessions it can see |
+
+The presets are Read only (`read`), May send (`read` and `send`) and May create (`read`, `send` and `create`);
+`answer` is a separate switch that no preset includes. An entry of `allow` names a machine (`deviceId`) and,
+optionally, project paths (`paths`) on it: without `paths` the whole machine, with them those projects and what
+is below them. An empty `allow` list reaches nothing. A path with `..` is refused.
+
+A token sees only what its `allow` list reaches. A session, line, queue or prompt outside it is answered
+`session-not-found`, as if it did not exist; lists (sessions, machines, projects, templates, search) leave those
+entries out. Starting a session on a machine or project outside the list is answered `forbidden`. A request
+for a route outside the token's abilities is answered `forbidden` too. Bypass permissions stay out of reach:
+changing a session's configuration (`POST /api/sessions/:sessionId/config`) is the host's, and a `create` token
+that asks for a high-risk configuration option in `POST /api/sessions` is answered `forbidden`.
+
+Every action of a token is audited with the actor kind `token` and the token's ID
+([audit log](adr/0030-the-audit-log-records-actions-in-a-hash-chain.md)). A refused request of a known token is a
+`token.denied` event, at most one a minute per token and route. A token that is unknown, expired or revoked is
+answered `unauthorized` and not audited. One token may make 300 requests a minute; beyond it the answer is
+`rate-limited` with `Retry-After`.
+
 ## Browser WebSocket
 
 `/ws?ticket=<ticket>` upgrades to a WebSocket after a ticket from `POST /api/ws-tickets` was presented. A ticket
 that is missing, used, expired or unknown is refused with HTTP `401` and no upgrade. The proxy in front of the core
 upgrades `/ws` (docs/hosting.md#network).
+
+A ticket carries the credential that minted it. With an API token's ticket the connection is filtered: the core
+sends it only the messages about sessions and machines the token's `allow` list reaches (`device.presence`,
+`session.*`, `handoff.progress`, `notify`), a `subscribe` to a session outside the list is answered with an
+`error` message of code `session-not-found`, and every terminal message is answered `forbidden`. The core closes
+the connection, with code `4401`, when the token expires or is revoked.
 
 Every message is a JSON text frame with `v` (the protocol version, the `protocolVersion` of
 `GET /api/health`) and `type`. A message from the client with another `v` is answered with an `error` message

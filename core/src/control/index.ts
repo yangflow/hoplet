@@ -23,6 +23,7 @@ import type { AgentControl, Control, ControlEvent, ControlOptions, Viewing } fro
 export { BulkBusyError, type BulkQueue } from './bulk.ts';
 export type {
   AgentControl,
+  AuditActor,
   Control,
   ControlEvent,
   ControlOptions,
@@ -288,8 +289,8 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
     },
     prompt: runtime.prompt,
     answerPermission: runtime.answerPermission,
-    interrupt(sessionId, ownerDeviceId) {
-      const result = runtime.interrupt(sessionId, ownerDeviceId);
+    interrupt(sessionId, ownerDeviceId, actor) {
+      const result = runtime.interrupt(sessionId, ownerDeviceId, actor);
       if (result.ok) queue.interrupted(sessionId);
       return result;
     },
@@ -313,6 +314,13 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
       );
     },
     ownerOf,
+    projectOf(sessionId) {
+      return (
+        store.getSession(sessionId)?.projectPath ??
+        state.startedSessions.get(sessionId)?.projectPath ??
+        null
+      );
+    },
     openPermissions: runtime.openPermissions,
     ruleLinesOf: runtime.ruleLinesOf,
     commandsOf: runtime.commandsOf,

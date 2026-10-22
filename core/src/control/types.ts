@@ -63,6 +63,9 @@ export type ControlReply = Exclude<
   { type: 'device.hello' | 'ping' | 'session.append' | 'workspace.snapshot' }
 >;
 
+/** Who an action is recorded under in the audit log when it is not the host: the token that made the call. */
+export type AuditActor = { kind: 'token'; id: string };
+
 /** What `POST /api/sessions` asks for. */
 export interface StartRequest {
   deviceId: string;
@@ -76,6 +79,8 @@ export interface StartRequest {
   promptId: string;
   /** Where the request came from, told to lifecycle hooks: a plan approved into a new session is `plan`. */
   origin?: 'new' | 'plan' | undefined;
+  /** The token that asked, for the audit log; the host when absent. */
+  actor?: AuditActor | undefined;
 }
 
 /** What an agent answers to `runtime.start`, or why there is no answer. */
@@ -100,6 +105,8 @@ export interface FreshRequest {
   requestId: string;
   mode: string;
   promptId: string;
+  /** The token that asked, for the audit log; the host when absent. */
+  actor?: AuditActor | undefined;
 }
 
 export type FreshOutcome =
@@ -178,6 +185,8 @@ export interface PermissionAnswer {
   mode?: string | undefined;
   /** Who answered, for the audit log: the host (default) or an action link. */
   by?: 'operator' | 'link' | undefined;
+  /** The token that answered, for the audit log; the host when absent. */
+  actor?: AuditActor | undefined;
 }
 
 export type WorkspaceOutcome =
@@ -508,6 +517,7 @@ export interface Control {
     text: string,
     promptId: string,
     attachments?: string[],
+    actor?: AuditActor,
   ): Promise<PromptOutcome>;
   /** Answers an open permission request; the first answer wins. */
   answerPermission(
@@ -516,7 +526,7 @@ export interface Control {
     requestId: string,
     answer: PermissionAnswer,
   ): PermissionOutcome;
-  interrupt(sessionId: string, ownerDeviceId: string): RuntimeCommandOutcome;
+  interrupt(sessionId: string, ownerDeviceId: string, actor?: AuditActor): RuntimeCommandOutcome;
   stop(sessionId: string, ownerDeviceId: string): RuntimeCommandOutcome;
   /** Forwards one setting change (ADR 0018); the caller has checked it against the session's capabilities. */
   config(
@@ -530,14 +540,14 @@ export interface Control {
   /** Appends a message to the queue; the session sends it when its turn is over. A repeated `id` changes nothing. */
   queueAdd(
     sessionId: string,
-    input: { id: string; text: string; attachments: string[] },
+    input: { id: string; text: string; attachments: string[]; actor?: AuditActor | undefined },
   ): QueueResult;
   /** Replaces a waiting message that is still at `version`. */
   queueEdit(
     sessionId: string,
     id: string,
     version: number,
-    input: { text: string; attachments: string[] },
+    input: { text: string; attachments: string[]; actor?: AuditActor | undefined },
   ): QueueResult;
   queueRemove(sessionId: string, id: string, version: number): QueueResult;
   /** Orders the waiting messages; `ids` names exactly those. */
@@ -552,6 +562,7 @@ export interface Control {
     ownerDeviceId: string,
     id: string,
     version: number,
+    actor?: AuditActor,
   ): Promise<QueueSteerOutcome>;
   /** Forwards a message to the running turn, which takes it at its next tool gap; a repeated `steerId` returns the first result. */
   steer(
@@ -560,6 +571,7 @@ export interface Control {
     steerId: string,
     text: string,
     attachments?: string[],
+    actor?: AuditActor,
   ): Promise<SteerOutcome>;
   /** The runtime state of a session; `offline` when its owner is not connected. */
   runtimeOf(sessionId: string): RuntimeView;
@@ -567,6 +579,8 @@ export interface Control {
   providerOf(sessionId: string): Provider | null;
   /** The owner device of a session, also of one an agent just started; `null` for an unknown session. */
   ownerOf(sessionId: string): string | null;
+  /** The project directory of a session, also of one an agent just started; `null` for an unknown session. */
+  projectOf(sessionId: string): string | null;
   /** The commands and skills the session's owner last reported, or null when it reported none. */
   commandsOf(sessionId: string): Command[] | null;
   /** The permission requests of a session that wait for an answer. */

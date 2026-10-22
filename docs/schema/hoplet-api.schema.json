@@ -7,7 +7,7 @@
     {
       "method": "POST",
       "path": "/api/ws-tickets",
-      "auth": "host",
+      "auth": "read",
       "lane": "control",
       "status": 200,
       "query": null,
@@ -17,7 +17,7 @@
     {
       "method": "GET",
       "path": "/api/health",
-      "auth": "host",
+      "auth": "read",
       "lane": "control",
       "status": 200,
       "query": null,
@@ -27,7 +27,7 @@
     {
       "method": "GET",
       "path": "/api/sessions",
-      "auth": "host",
+      "auth": "read",
       "lane": "control",
       "status": 200,
       "query": null,
@@ -37,7 +37,7 @@
     {
       "method": "POST",
       "path": "/api/sessions",
-      "auth": "host",
+      "auth": "create",
       "lane": "control",
       "status": 200,
       "query": null,
@@ -47,7 +47,7 @@
     {
       "method": "GET",
       "path": "/api/sessions/:sessionId",
-      "auth": "host",
+      "auth": "read",
       "lane": "control",
       "status": 200,
       "query": null,
@@ -67,7 +67,7 @@
     {
       "method": "GET",
       "path": "/api/sessions/:sessionId/lines",
-      "auth": "host",
+      "auth": "read",
       "lane": "bulk",
       "status": 200,
       "query": "LinesQuerySchema",
@@ -77,7 +77,7 @@
     {
       "method": "GET",
       "path": "/api/sessions/:sessionId/blocks/:line/:block",
-      "auth": "host",
+      "auth": "read",
       "lane": "bulk",
       "status": 200,
       "query": null,
@@ -87,7 +87,7 @@
     {
       "method": "GET",
       "path": "/api/sessions/:sessionId/search",
-      "auth": "host",
+      "auth": "read",
       "lane": "bulk",
       "status": 200,
       "query": "SessionSearchQuerySchema",
@@ -97,7 +97,7 @@
     {
       "method": "GET",
       "path": "/api/search",
-      "auth": "host",
+      "auth": "read",
       "lane": "bulk",
       "status": 200,
       "query": "GlobalSearchQuerySchema",
@@ -107,7 +107,7 @@
     {
       "method": "POST",
       "path": "/api/sessions/:sessionId/prompt",
-      "auth": "host",
+      "auth": "send",
       "lane": "control",
       "status": 202,
       "query": null,
@@ -117,7 +117,7 @@
     {
       "method": "GET",
       "path": "/api/sessions/:sessionId/queue",
-      "auth": "host",
+      "auth": "read",
       "lane": "control",
       "status": 200,
       "query": null,
@@ -127,7 +127,7 @@
     {
       "method": "POST",
       "path": "/api/sessions/:sessionId/queue",
-      "auth": "host",
+      "auth": "send",
       "lane": "control",
       "status": 201,
       "query": null,
@@ -137,7 +137,7 @@
     {
       "method": "POST",
       "path": "/api/sessions/:sessionId/queue/order",
-      "auth": "host",
+      "auth": "send",
       "lane": "control",
       "status": 200,
       "query": null,
@@ -147,7 +147,7 @@
     {
       "method": "POST",
       "path": "/api/sessions/:sessionId/queue/resume",
-      "auth": "host",
+      "auth": "send",
       "lane": "control",
       "status": 200,
       "query": null,
@@ -157,7 +157,7 @@
     {
       "method": "POST",
       "path": "/api/sessions/:sessionId/queue/clear",
-      "auth": "host",
+      "auth": "send",
       "lane": "control",
       "status": 200,
       "query": null,
@@ -167,7 +167,7 @@
     {
       "method": "PATCH",
       "path": "/api/sessions/:sessionId/queue/:itemId",
-      "auth": "host",
+      "auth": "send",
       "lane": "control",
       "status": 200,
       "query": null,
@@ -177,7 +177,7 @@
     {
       "method": "DELETE",
       "path": "/api/sessions/:sessionId/queue/:itemId",
-      "auth": "host",
+      "auth": "send",
       "lane": "control",
       "status": 200,
       "query": "QueueVersionQuerySchema",
@@ -187,7 +187,7 @@
     {
       "method": "POST",
       "path": "/api/sessions/:sessionId/queue/:itemId/steer",
-      "auth": "host",
+      "auth": "send",
       "lane": "control",
       "status": 200,
       "query": null,
@@ -197,7 +197,7 @@
     {
       "method": "POST",
       "path": "/api/sessions/:sessionId/steer",
-      "auth": "host",
+      "auth": "send",
       "lane": "control",
       "status": 202,
       "query": null,
@@ -217,7 +217,7 @@
     {
       "method": "POST",
       "path": "/api/sessions/:sessionId/permission",
-      "auth": "host",
+      "auth": "answer",
       "lane": "control",
       "status": 200,
       "query": null,
@@ -227,7 +227,7 @@
     {
       "method": "POST",
       "path": "/api/sessions/:sessionId/permission/fresh",
-      "auth": "host",
+      "auth": "answer",
       "lane": "control",
       "status": 200,
       "query": null,
@@ -237,7 +237,7 @@
     {
       "method": "POST",
       "path": "/api/sessions/:sessionId/interrupt",
-      "auth": "host",
+      "auth": "send",
       "lane": "control",
       "status": 200,
       "query": null,
@@ -387,7 +387,7 @@
     {
       "method": "GET",
       "path": "/api/devices",
-      "auth": "host",
+      "auth": "read",
       "lane": "control",
       "status": 200,
       "query": null,
@@ -457,7 +457,7 @@
     {
       "method": "POST",
       "path": "/api/devices/:deviceId/attachments",
-      "auth": "host",
+      "auth": "send",
       "lane": "bulk",
       "status": 200,
       "query": null,
@@ -477,7 +477,7 @@
     {
       "method": "GET",
       "path": "/api/devices/:deviceId/projects",
-      "auth": "host",
+      "auth": "read",
       "lane": "control",
       "status": 200,
       "query": null,
@@ -967,7 +967,7 @@
     {
       "method": "GET",
       "path": "/api/templates",
-      "auth": "host",
+      "auth": "create",
       "lane": "control",
       "status": 200,
       "query": null,
@@ -1037,12 +1037,42 @@
     {
       "method": "POST",
       "path": "/api/templates/:id/start",
-      "auth": "host",
+      "auth": "create",
       "lane": "control",
       "status": 200,
       "query": null,
       "body": "TemplateStartRequestSchema",
       "response": "TemplateStartResultSchema"
+    },
+    {
+      "method": "GET",
+      "path": "/api/tokens",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": null,
+      "response": "TokenListResponseSchema"
+    },
+    {
+      "method": "POST",
+      "path": "/api/tokens",
+      "auth": "host",
+      "lane": "control",
+      "status": 201,
+      "query": null,
+      "body": "TokenCreateRequestSchema",
+      "response": "TokenCreateResponseSchema"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/tokens/:id",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": null,
+      "response": "TokenRevokeResponseSchema"
     }
   ],
   "browserMessages": [
@@ -1194,6 +1224,7 @@
   "errorResponse": "ErrorResponseSchema",
   "errorStatus": {
     "unauthorized": 401,
+    "forbidden": 403,
     "not-found": 404,
     "method-not-allowed": 405,
     "session-not-found": 404,
@@ -1437,6 +1468,7 @@
         "actorKind": {
           "enum": [
             "operator",
+            "token",
             "device",
             "session",
             "schedule",
@@ -1542,6 +1574,7 @@
               "actorKind": {
                 "enum": [
                   "operator",
+                  "token",
                   "device",
                   "session",
                   "schedule",
@@ -3549,6 +3582,7 @@
         "code": {
           "enum": [
             "unauthorized",
+            "forbidden",
             "not-found",
             "method-not-allowed",
             "session-not-found",
@@ -3615,6 +3649,7 @@
         "code": {
           "enum": [
             "unauthorized",
+            "forbidden",
             "not-found",
             "method-not-allowed",
             "session-not-found",
@@ -10112,6 +10147,315 @@
       },
       "required": [
         "terminal"
+      ]
+    },
+    "TokenCreateRequestSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^\\s*\\S(?:[\\s\\S]{0,78}\\S)?\\s*$"
+        },
+        "grant": {
+          "type": "object",
+          "properties": {
+            "capabilities": {
+              "type": "array",
+              "items": {
+                "enum": [
+                  "read",
+                  "send",
+                  "create",
+                  "answer"
+                ],
+                "type": "string"
+              },
+              "minItems": 1,
+              "maxItems": 4,
+              "uniqueItems": true
+            },
+            "allow": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "deviceId": {
+                    "type": "string",
+                    "pattern": "^\\s*\\S(?:[\\s\\S]{0,126}\\S)?\\s*$"
+                  },
+                  "path": {
+                    "type": "string",
+                    "pattern": "^\\s*\\S(?:[\\s\\S]{0,4094}\\S)?\\s*$"
+                  }
+                },
+                "required": [
+                  "deviceId"
+                ],
+                "additionalProperties": false
+              },
+              "minItems": 1,
+              "maxItems": 50
+            }
+          },
+          "required": [
+            "capabilities"
+          ],
+          "additionalProperties": false
+        },
+        "expiresInDays": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 365
+        }
+      },
+      "required": [
+        "name",
+        "grant",
+        "expiresInDays"
+      ]
+    },
+    "TokenCreateResponseSchema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "scoped",
+            "session"
+          ],
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "grant": {
+          "type": "object",
+          "properties": {
+            "capabilities": {
+              "type": "array",
+              "items": {
+                "enum": [
+                  "read",
+                  "send",
+                  "create",
+                  "answer"
+                ],
+                "type": "string"
+              },
+              "minItems": 1,
+              "maxItems": 4,
+              "uniqueItems": true
+            },
+            "allow": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "deviceId": {
+                    "type": "string",
+                    "pattern": "^\\s*\\S(?:[\\s\\S]{0,126}\\S)?\\s*$"
+                  },
+                  "path": {
+                    "type": "string",
+                    "pattern": "^\\s*\\S(?:[\\s\\S]{0,4094}\\S)?\\s*$"
+                  }
+                },
+                "required": [
+                  "deviceId"
+                ],
+                "additionalProperties": false
+              },
+              "minItems": 1,
+              "maxItems": 50
+            }
+          },
+          "required": [
+            "capabilities"
+          ],
+          "additionalProperties": false
+        },
+        "createdAt": {
+          "type": "number"
+        },
+        "expiresAt": {
+          "type": "number"
+        },
+        "revokedAt": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "lastUsedAt": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "state": {
+          "enum": [
+            "active",
+            "expired",
+            "revoked"
+          ],
+          "type": "string"
+        },
+        "token": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "name",
+        "grant",
+        "createdAt",
+        "expiresAt",
+        "revokedAt",
+        "lastUsedAt",
+        "state",
+        "token"
+      ]
+    },
+    "TokenListResponseSchema": {
+      "type": "object",
+      "properties": {
+        "tokens": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "kind": {
+                "enum": [
+                  "scoped",
+                  "session"
+                ],
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "grant": {
+                "type": "object",
+                "properties": {
+                  "capabilities": {
+                    "type": "array",
+                    "items": {
+                      "enum": [
+                        "read",
+                        "send",
+                        "create",
+                        "answer"
+                      ],
+                      "type": "string"
+                    },
+                    "minItems": 1,
+                    "maxItems": 4,
+                    "uniqueItems": true
+                  },
+                  "allow": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "deviceId": {
+                          "type": "string",
+                          "pattern": "^\\s*\\S(?:[\\s\\S]{0,126}\\S)?\\s*$"
+                        },
+                        "path": {
+                          "type": "string",
+                          "pattern": "^\\s*\\S(?:[\\s\\S]{0,4094}\\S)?\\s*$"
+                        }
+                      },
+                      "required": [
+                        "deviceId"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "minItems": 1,
+                    "maxItems": 50
+                  }
+                },
+                "required": [
+                  "capabilities"
+                ],
+                "additionalProperties": false
+              },
+              "createdAt": {
+                "type": "number"
+              },
+              "expiresAt": {
+                "type": "number"
+              },
+              "revokedAt": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "lastUsedAt": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "state": {
+                "enum": [
+                  "active",
+                  "expired",
+                  "revoked"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "kind",
+              "name",
+              "grant",
+              "createdAt",
+              "expiresAt",
+              "revokedAt",
+              "lastUsedAt",
+              "state"
+            ]
+          }
+        }
+      },
+      "required": [
+        "tokens"
+      ]
+    },
+    "TokenRevokeResponseSchema": {
+      "type": "object",
+      "properties": {
+        "ok": {
+          "const": true
+        }
+      },
+      "required": [
+        "ok"
       ]
     },
     "UnsubscribeMessage": {

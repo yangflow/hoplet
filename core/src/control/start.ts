@@ -114,7 +114,11 @@ export function createStart(state: ControlState, listProjects: Control['listProj
       state.startTimeoutMs,
       { ok: false, error: 'timeout' },
       () => link.send(msg),
-      { link, sessionId: '', start: { deviceId: req.deviceId, provider: req.provider } },
+      {
+        link,
+        sessionId: '',
+        start: { deviceId: req.deviceId, provider: req.provider, projectPath: project.path },
+      },
     );
     if (!answer.ok) {
       return {
@@ -128,6 +132,7 @@ export function createStart(state: ControlState, listProjects: Control['listProj
     try {
       state.store.audit({
         type: 'session.created',
+        ...(req.actor ? { actor: req.actor } : {}),
         sessionId: answer.sessionId,
         deviceId: req.deviceId,
         ref: promptId,

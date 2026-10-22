@@ -136,6 +136,10 @@ import {
   TerminalInfoSchema,
   TerminalOpenRequestSchema,
   TerminalStateSchema,
+  TokenCreateRequestSchema,
+  TokenCreateResponseSchema,
+  TokenListResponseSchema,
+  TokenRevokeResponseSchema,
   UsagePricesBodySchema,
   UsagePricesSchema,
   UsageQuerySchema,
@@ -155,18 +159,20 @@ import {
   WsTicketResponseSchema,
 } from '@hoplet/shared';
 import corePackage from '../../package.json' with { type: 'json' };
-import type { DeviceControlOutcome, QueueResult, SteerOutcome } from '../control/index.ts';
+import type { Control, DeviceControlOutcome, QueueResult, SteerOutcome } from '../control/index.ts';
 import { registerSecret } from '../log/index.ts';
 import {
   freeName,
   type PushSubscriptionRecord,
   type SessionStateRecord,
   type Store,
+  TooManyTokensError,
 } from '../store/index.ts';
 import { auditExport } from './audit-export.ts';
 import { ApiError, relayError } from './http.ts';
 import { checkPromptImage } from './images.ts';
 import { publicOrigin, repoNameOf } from './origin.ts';
+import { actorOf, type Principal, seesDevice, seesProject, seesSession } from './principal.ts';
 import { blockOfLine, excerptOf, projectLine } from './projection/index.ts';
 import { type ApiDeps, defineRoute, type Route } from './router.ts';
 
@@ -325,10 +331,36 @@ function withLiveness(
   };
 }
 
+/** Whether the request's `config` sets a value its provider marks `high` risk. */
+function setsHighRisk(control: Pick<Control, 'devices'>, req: NewSessionRequest): boolean {
+  if (!req.config) return false;
+  const providers = control.devices().find((x) => x.deviceId === req.deviceId)?.providers ?? [];
+  const info = findProvider(providers, req.provider, req.configuration);
+  // A provider the core does not know cannot be judged; the start refuses it as an invalid request.
+  if (!info) return false;
+  return Object.entries(req.config).some(([id, value]) => {
+    const option = info.capabilities.config.find((o) => o.id === id);
+    return (
+      option?.type === 'select' &&
+      option.options.some((o) => o.value === value && o.risk === 'high')
+    );
+  });
+}
+
 /** Starts a session for `POST /api/sessions` and for a template's start: one check, one dedup, one set of refusals. */
-async function startNewSession(d: Pick<ApiDeps, 'control'>, req: NewSessionRequest) {
+async function startNewSession(
+  d: Pick<ApiDeps, 'control'> & { principal: Principal },
+  req: NewSessionRequest,
+) {
   if (req.text.length > MAX_PROMPT_CHARS) throw new ApiError('too-large');
-  const outcome = await d.control.startSession(req);
+  if (d.principal.kind === 'token') {
+    // An API token starts sessions only where its grant reaches, and never with a high-risk setting such as
+    // bypassed permissions: that stays with the host token (ADR 0033).
+    if (!seesProject(d.principal, req.deviceId, req.projectPath)) throw new ApiError('forbidden');
+    if (setsHighRisk(d.control, req)) throw new ApiError('forbidden');
+  }
+  const actor = actorOf(d.principal);
+  const outcome = await d.control.startSession(actor ? { ...req, actor } : req);
   if (outcome.ok) {
     return { ok: true as const, sessionId: outcome.sessionId, promptId: outcome.promptId };
   }
@@ -350,8 +382,15 @@ function checkTemplateText(text: string, prefix = ''): void {
   }
 }
 
-function templateList({ store }: { store: Store }) {
-  return { templates: store.listTemplates() };
+/** The templates the principal may start: one tied to a machine or project outside its grant is not shown. */
+function templateList({ store, principal }: { store: Store; principal: Principal }) {
+  return {
+    templates: store.listTemplates().filter((t) => {
+      if (t.deviceId === undefined) return true;
+      if (t.projectPath === undefined) return seesDevice(principal, t.deviceId);
+      return seesProject(principal, t.deviceId, t.projectPath);
+    }),
+  };
 }
 
 /** What the schema cannot say: the targets fit the scope and exist, and the matcher fits the tool. */
@@ -401,15 +440,15 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'POST',
     path: '/api/ws-tickets',
-    auth: 'host',
+    access: { capability: 'read' },
     lane: 'control',
     response: WsTicketResponseSchema,
-    handler: ({ tickets }) => tickets.mint(),
+    handler: ({ tickets, principal }) => tickets.mint(principal),
   }),
   defineRoute({
     method: 'GET',
     path: '/api/health',
-    auth: 'host',
+    access: { capability: 'read' },
     lane: 'control',
     response: HealthResponseSchema,
     handler: ({ store }) => ({
@@ -423,7 +462,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'GET',
     path: '/api/sessions',
-    auth: 'host',
+    access: { capability: 'read' },
     lane: 'control',
     response: SessionListResponseSchema,
     handler: (d) => {
@@ -431,6 +470,7 @@ export const routes: readonly Route[] = [
       return {
         sessions: d.store
           .listSessions()
+          .filter((meta) => seesSession(d.principal, d.control, meta.sessionId))
           .map((meta) => withLiveness(d, meta, states.get(meta.sessionId) ?? {})),
       };
     },
@@ -438,7 +478,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'POST',
     path: '/api/sessions',
-    auth: 'host',
+    access: { capability: 'create' },
     lane: 'control',
     bodyLimit: 32 * 1024,
     body: NewSessionRequestSchema,
@@ -448,7 +488,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'GET',
     path: '/api/sessions/:sessionId',
-    auth: 'host',
+    access: { capability: 'read' },
     lane: 'control',
     response: LiveSessionMetaSchema,
     handler: (d) => {
@@ -460,7 +500,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'PATCH',
     path: '/api/sessions/:sessionId',
-    auth: 'host',
+    access: 'host',
     lane: 'control',
     bodyLimit: 4 * 1024,
     body: SessionPatchRequestSchema,
@@ -496,7 +536,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'GET',
     path: '/api/sessions/:sessionId/lines',
-    auth: 'host',
+    access: { capability: 'read' },
     lane: 'bulk',
     query: LinesQuerySchema,
     response: LinesPageSchema,
@@ -516,7 +556,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'GET',
     path: '/api/sessions/:sessionId/blocks/:line/:block',
-    auth: 'host',
+    access: { capability: 'read' },
     lane: 'bulk',
     response: FullBlockSchema,
     handler: async ({ store, params }) => {
@@ -534,7 +574,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'GET',
     path: '/api/sessions/:sessionId/search',
-    auth: 'host',
+    access: { capability: 'read' },
     lane: 'bulk',
     query: SessionSearchQuerySchema,
     response: SearchResultSchema,
@@ -555,12 +595,14 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'GET',
     path: '/api/search',
-    auth: 'host',
+    access: { capability: 'read' },
     lane: 'bulk',
     query: GlobalSearchQuerySchema,
     response: GlobalSearchResultSchema,
-    handler: async ({ store, query }) => {
-      const found = await store.searchAll(query.q, query.start, query.limit);
+    handler: async ({ store, control, principal, query }) => {
+      const found = await store.searchAll(query.q, query.start, query.limit, (sessionId) =>
+        seesSession(principal, control, sessionId),
+      );
       return {
         ...found,
         results: found.results.map((h) => ({
@@ -574,7 +616,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'POST',
     path: '/api/sessions/:sessionId/prompt',
-    auth: 'host',
+    access: { capability: 'send' },
     lane: 'control',
     bodyLimit: 32 * 1024,
     body: PromptRequestSchema,
@@ -597,6 +639,7 @@ export const routes: readonly Route[] = [
         d.body.text,
         d.body.promptId,
         attachments,
+        actorOf(d.principal),
       );
       if (outcome.ok) return { ok: true, promptId: outcome.promptId };
       throw relayError(
@@ -608,7 +651,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'GET',
     path: '/api/sessions/:sessionId/queue',
-    auth: 'host',
+    access: { capability: 'read' },
     lane: 'control',
     response: QueueSchema,
     handler: (d) => {
@@ -620,7 +663,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'POST',
     path: '/api/sessions/:sessionId/queue',
-    auth: 'host',
+    access: { capability: 'send' },
     lane: 'control',
     bodyLimit: 32 * 1024,
     body: QueueAddRequestSchema,
@@ -632,14 +675,19 @@ export const routes: readonly Route[] = [
       const attachments = d.body.attachments ?? [];
       checkMessage(d, sessionId, owner, d.body.text, attachments);
       return queueResult(
-        d.control.queueAdd(sessionId, { id: d.body.id, text: d.body.text, attachments }),
+        d.control.queueAdd(sessionId, {
+          id: d.body.id,
+          text: d.body.text,
+          attachments,
+          actor: actorOf(d.principal),
+        }),
       );
     },
   }),
   defineRoute({
     method: 'POST',
     path: '/api/sessions/:sessionId/queue/order',
-    auth: 'host',
+    access: { capability: 'send' },
     lane: 'control',
     bodyLimit: 8 * 1024,
     body: QueueOrderRequestSchema,
@@ -653,7 +701,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'POST',
     path: '/api/sessions/:sessionId/queue/resume',
-    auth: 'host',
+    access: { capability: 'send' },
     lane: 'control',
     response: QueueSchema,
     handler: (d) => {
@@ -665,7 +713,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'POST',
     path: '/api/sessions/:sessionId/queue/clear',
-    auth: 'host',
+    access: { capability: 'send' },
     lane: 'control',
     response: QueueSchema,
     handler: (d) => {
@@ -677,7 +725,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'PATCH',
     path: '/api/sessions/:sessionId/queue/:itemId',
-    auth: 'host',
+    access: { capability: 'send' },
     lane: 'control',
     bodyLimit: 32 * 1024,
     body: QueueEditRequestSchema,
@@ -691,6 +739,7 @@ export const routes: readonly Route[] = [
         d.control.queueEdit(sessionId, d.params.itemId ?? '', d.body.version, {
           text: d.body.text,
           attachments,
+          actor: actorOf(d.principal),
         }),
       );
     },
@@ -698,7 +747,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'DELETE',
     path: '/api/sessions/:sessionId/queue/:itemId',
-    auth: 'host',
+    access: { capability: 'send' },
     lane: 'control',
     query: QueueVersionQuerySchema,
     response: QueueSchema,
@@ -711,7 +760,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'POST',
     path: '/api/sessions/:sessionId/queue/:itemId/steer',
-    auth: 'host',
+    access: { capability: 'send' },
     lane: 'control',
     bodyLimit: 1024,
     body: QueueSteerRequestSchema,
@@ -724,6 +773,7 @@ export const routes: readonly Route[] = [
         owner,
         d.params.itemId ?? '',
         d.body.version,
+        actorOf(d.principal),
       );
       if (!outcome.ok) throw new ApiError('queue-conflict');
       if (!outcome.steer.ok) throw relayError(outcome.steer);
@@ -733,7 +783,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'POST',
     path: '/api/sessions/:sessionId/steer',
-    auth: 'host',
+    access: { capability: 'send' },
     lane: 'control',
     bodyLimit: 32 * 1024,
     body: SteerRequestSchema,
@@ -745,7 +795,14 @@ export const routes: readonly Route[] = [
       const attachments = d.body.attachments ?? [];
       checkMessage(d, sessionId, owner, d.body.text, attachments);
       return steerResult(
-        await d.control.steer(sessionId, owner, d.body.steerId, d.body.text, attachments),
+        await d.control.steer(
+          sessionId,
+          owner,
+          d.body.steerId,
+          d.body.text,
+          attachments,
+          actorOf(d.principal),
+        ),
         d.body.steerId,
       );
     },
@@ -753,7 +810,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'POST',
     path: '/api/sessions/:sessionId/config',
-    auth: 'host',
+    access: 'host',
     lane: 'control',
     bodyLimit: 4096,
     body: ConfigRequestSchema,
@@ -777,7 +834,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'POST',
     path: '/api/sessions/:sessionId/permission',
-    auth: 'host',
+    access: { capability: 'answer' },
     lane: 'control',
     bodyLimit: 40_000,
     body: PermissionRequestSchema,
@@ -788,7 +845,12 @@ export const routes: readonly Route[] = [
         sessionId,
         ownerOf(d, sessionId),
         d.body.requestId,
-        { decision: d.body.decision, message: d.body.message, mode: d.body.mode },
+        {
+          decision: d.body.decision,
+          message: d.body.message,
+          mode: d.body.mode,
+          actor: actorOf(d.principal),
+        },
       );
       if (outcome.ok) return { ok: true };
       throw new ApiError(outcome.error);
@@ -797,7 +859,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'POST',
     path: '/api/sessions/:sessionId/permission/fresh',
-    auth: 'host',
+    access: { capability: 'answer' },
     lane: 'control',
     bodyLimit: 4096,
     body: FreshPermissionRequestSchema,
@@ -808,6 +870,7 @@ export const routes: readonly Route[] = [
         requestId: d.body.requestId,
         mode: d.body.mode,
         promptId: d.body.promptId,
+        actor: actorOf(d.principal),
       });
       if (outcome.ok) {
         return { ok: true, sessionId: outcome.sessionId, promptId: outcome.promptId };
@@ -822,12 +885,12 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'POST',
     path: '/api/sessions/:sessionId/interrupt',
-    auth: 'host',
+    access: { capability: 'send' },
     lane: 'control',
     response: RuntimeCommandResultSchema,
     handler: (d) => {
       const sessionId = d.params.sessionId ?? '';
-      const outcome = d.control.interrupt(sessionId, ownerOf(d, sessionId));
+      const outcome = d.control.interrupt(sessionId, ownerOf(d, sessionId), actorOf(d.principal));
       if (outcome.ok) return { ok: true };
       throw new ApiError(outcome.error);
     },
@@ -835,7 +898,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'POST',
     path: '/api/sessions/:sessionId/stop',
-    auth: 'host',
+    access: 'host',
     lane: 'control',
     response: RuntimeCommandResultSchema,
     handler: (d) => {
@@ -848,7 +911,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'POST',
     path: '/api/sessions/:sessionId/terminal',
-    auth: 'host',
+    access: 'host',
     lane: 'control',
     bodyLimit: 256,
     body: TerminalOpenRequestSchema,
@@ -867,7 +930,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'GET',
     path: '/api/sessions/:sessionId/terminal',
-    auth: 'host',
+    access: 'host',
     lane: 'control',
     response: TerminalStateSchema,
     handler: (d) => {
@@ -879,7 +942,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'DELETE',
     path: '/api/terminals/:terminalId',
-    auth: 'host',
+    access: 'host',
     lane: 'control',
     response: TerminalCloseResultSchema,
     handler: (d) => {
@@ -890,7 +953,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'GET',
     path: '/api/sessions/:sessionId/ports',
-    auth: 'host',
+    access: 'host',
     lane: 'control',
     response: SessionPortsResultSchema,
     handler: (d) => {
@@ -902,7 +965,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'GET',
     path: '/api/sessions/:sessionId/deletion',
-    auth: 'host',
+    access: 'host',
     lane: 'control',
     response: DeletionPreviewSchema,
     handler: async (d) => {
@@ -914,7 +977,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'DELETE',
     path: '/api/sessions/:sessionId',
-    auth: 'host',
+    access: 'host',
     lane: 'control',
     bodyLimit: 1024,
     body: DeleteSessionRequestSchema,
@@ -931,7 +994,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'GET',
     path: '/api/sessions/:sessionId/workspace',
-    auth: 'host',
+    access: 'host',
     lane: 'control',
     response: WorkspaceListingSchema,
     handler: async (d) => {
@@ -944,7 +1007,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'GET',
     path: '/api/sessions/:sessionId/workspace/file',
-    auth: 'host',
+    access: 'host',
     lane: 'control',
     query: WorkspaceFileQuerySchema,
     response: WorkspaceFileSchema,
@@ -963,7 +1026,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'GET',
     path: '/api/sessions/:sessionId/workspace/diff',
-    auth: 'host',
+    access: 'host',
     lane: 'control',
     query: WorkspaceDiffQuerySchema,
     response: WorkspaceDiffSchema,
@@ -979,7 +1042,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'GET',
     path: '/api/sessions/:sessionId/snapshot/changes',
-    auth: 'host',
+    access: 'host',
     lane: 'bulk',
     response: SnapshotChangesSchema,
     handler: async ({ store, params }) => {
@@ -993,7 +1056,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'GET',
     path: '/api/sessions/:sessionId/snapshot/diff',
-    auth: 'host',
+    access: 'host',
     lane: 'bulk',
     query: WorkspaceDiffQuerySchema,
     response: SnapshotDiffSchema,
@@ -1008,7 +1071,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'POST',
     path: '/api/sessions/:sessionId/handoff',
-    auth: 'host',
+    access: 'host',
     lane: 'control',
     bodyLimit: 8192,
     body: HandoffRequestSchema,
@@ -1058,7 +1121,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'POST',
     path: '/api/sessions/:sessionId/handoff/cancel',
-    auth: 'host',
+    access: 'host',
     lane: 'control',
     response: HandoffCancelResultSchema,
     handler: (d) => {
@@ -1072,15 +1135,17 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'GET',
     path: '/api/devices',
-    auth: 'host',
+    access: { capability: 'read' },
     lane: 'control',
     response: DeviceListResponseSchema,
-    handler: ({ control }) => ({ devices: control.devices() }),
+    handler: ({ control, principal }) => ({
+      devices: control.devices().filter((x) => seesDevice(principal, x.deviceId)),
+    }),
   }),
   defineRoute({
     method: 'PUT',
     path: '/api/devices/:deviceId/labels',
-    auth: 'host',
+    access: 'host',
     lane: 'control',
     bodyLimit: 16 * 1024,
     body: DeviceLabelsRequestSchema,
@@ -1094,7 +1159,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'GET',
     path: '/api/devices/:deviceId/resources',
-    auth: 'host',
+    access: 'host',
     lane: 'control',
     response: DeviceResourcesResultSchema,
     handler: ({ store, control, params }) => {
@@ -1127,7 +1192,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'POST',
     path: '/api/devices',
-    auth: 'host',
+    access: 'host',
     lane: 'control',
     bodyLimit: 4096,
     body: DeviceMintRequestSchema,
@@ -1137,7 +1202,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'GET',
     path: '/api/sessions/:sessionId/commands',
-    auth: 'host',
+    access: 'host',
     lane: 'control',
     response: CommandsResultSchema,
     handler: (d) => {
@@ -1152,7 +1217,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'GET',
     path: '/api/devices/:deviceId/commands',
-    auth: 'host',
+    access: 'host',
     lane: 'control',
     query: DeviceCommandsQuerySchema,
     response: CommandsResultSchema,
@@ -1166,7 +1231,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'GET',
     path: '/api/devices/:deviceId/dirs',
-    auth: 'host',
+    access: 'host',
     lane: 'control',
     query: DeviceDirsQuerySchema,
     response: DeviceDirsResultSchema,
@@ -1182,7 +1247,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'POST',
     path: '/api/devices/:deviceId/attachments',
-    auth: 'host',
+    access: { capability: 'send' },
     lane: 'bulk',
     bodyLimit: ATTACHMENT_BODY_LIMIT,
     body: PromptImageSchema,
@@ -1206,7 +1271,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'GET',
     path: '/api/devices/:deviceId/clone',
-    auth: 'host',
+    access: 'host',
     lane: 'control',
     query: DeviceCloneQuerySchema,
     response: DeviceCloneResultSchema,
@@ -1234,18 +1299,23 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'GET',
     path: '/api/devices/:deviceId/projects',
-    auth: 'host',
+    access: { capability: 'read' },
     lane: 'control',
     response: DeviceProjectsResultSchema,
-    handler: async ({ control, params }) => {
+    handler: async ({ control, principal, params }) => {
       const deviceId = params.deviceId ?? '';
-      return deviceResult(deviceId, await control.listProjects(deviceId));
+      const result = deviceResult(deviceId, await control.listProjects(deviceId));
+      return {
+        ...result,
+        candidates: result.candidates.filter((path) => seesProject(principal, deviceId, path)),
+        projects: result.projects.filter((p) => seesProject(principal, deviceId, p.path)),
+      };
     },
   }),
   defineRoute({
     method: 'POST',
     path: '/api/devices/:deviceId/projects',
-    auth: 'host',
+    access: 'host',
     lane: 'control',
     bodyLimit: 16 * 1024,
     body: DeviceProjectsAddRequestSchema,
@@ -1258,7 +1328,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'POST',
     path: '/api/devices/:deviceId/providers',
-    auth: 'host',
+    access: 'host',
     lane: 'control',
     bodyLimit: 16 * 1024,
     body: DeviceProvidersUpdateRequestSchema,
@@ -1285,7 +1355,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'POST',
     path: '/api/devices/:deviceId/projects/remove',
-    auth: 'host',
+    access: 'host',
     lane: 'control',
     bodyLimit: 16 * 1024,
     body: DeviceProjectsRemoveRequestSchema,
@@ -1298,7 +1368,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'POST',
     path: '/api/devices/:deviceId/sessions/import',
-    auth: 'host',
+    access: 'host',
     lane: 'control',
     bodyLimit: 64 * 1024,
     body: DeviceSessionsImportRequestSchema,
@@ -1314,7 +1384,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'POST',
     path: '/api/devices/:deviceId/sessions/remove',
-    auth: 'host',
+    access: 'host',
     lane: 'control',
     bodyLimit: 64 * 1024,
     body: DeviceSessionsRemoveRequestSchema,
@@ -1330,7 +1400,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'GET',
     path: '/api/notify/preferences',
-    auth: 'host',
+    access: 'host',
     lane: 'control',
     response: NotifyPreferencesSchema,
     handler: ({ store }) => store.notifyPreferences(),
@@ -1338,7 +1408,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'PUT',
     path: '/api/notify/preferences',
-    auth: 'host',
+    access: 'host',
     lane: 'control',
     bodyLimit: 256 * 1024,
     body: NotifyPreferencesSchema,
@@ -1354,7 +1424,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'GET',
     path: '/api/resources/thresholds',
-    auth: 'host',
+    access: 'host',
     lane: 'control',
     response: ResourceThresholdsSchema,
     handler: ({ store }) => store.resourceThresholds(),
@@ -1362,7 +1432,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'PUT',
     path: '/api/resources/thresholds',
-    auth: 'host',
+    access: 'host',
     lane: 'control',
     bodyLimit: 64 * 1024,
     body: ResourceThresholdsSchema,
@@ -1378,7 +1448,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'GET',
     path: '/api/usage',
-    auth: 'host',
+    access: 'host',
     lane: 'bulk',
     query: UsageQuerySchema,
     response: UsageResponseSchema,
@@ -1387,7 +1457,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'GET',
     path: '/api/sessions/:sessionId/usage',
-    auth: 'host',
+    access: 'host',
     lane: 'bulk',
     response: SessionUsageSchema,
     handler: ({ store, params }) => {
@@ -1399,7 +1469,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'GET',
     path: '/api/usage/prices',
-    auth: 'host',
+    access: 'host',
     lane: 'control',
     response: UsagePricesSchema,
     handler: ({ store }) => store.usagePrices(),
@@ -1407,7 +1477,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'PUT',
     path: '/api/usage/prices',
-    auth: 'host',
+    access: 'host',
     lane: 'control',
     bodyLimit: 256 * 1024,
     body: UsagePricesBodySchema,
@@ -1421,7 +1491,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'GET',
     path: '/api/audit/events',
-    auth: 'host',
+    access: 'host',
     lane: 'bulk',
     query: AuditEventsQuerySchema,
     response: AuditEventsResponseSchema,
@@ -1433,7 +1503,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'GET',
     path: '/api/audit/export',
-    auth: 'host',
+    access: 'host',
     lane: 'bulk',
     query: AuditExportQuerySchema,
     response: AuditEventSchema,
@@ -1442,7 +1512,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'GET',
     path: '/api/audit/verify',
-    auth: 'host',
+    access: 'host',
     lane: 'bulk',
     query: AuditVerifyQuerySchema,
     response: AuditVerifyResponseSchema,
@@ -1456,7 +1526,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'GET',
     path: '/api/budgets',
-    auth: 'host',
+    access: 'host',
     lane: 'control',
     response: BudgetListResponseSchema,
     handler: budgetList,
@@ -1464,7 +1534,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'POST',
     path: '/api/budgets',
-    auth: 'host',
+    access: 'host',
     lane: 'control',
     bodyLimit: 16 * 1024,
     body: BudgetBodySchema,
@@ -1481,7 +1551,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'PUT',
     path: '/api/budgets/:id',
-    auth: 'host',
+    access: 'host',
     lane: 'control',
     bodyLimit: 16 * 1024,
     body: BudgetBodySchema,
@@ -1497,7 +1567,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'DELETE',
     path: '/api/budgets/:id',
-    auth: 'host',
+    access: 'host',
     lane: 'control',
     response: BudgetListResponseSchema,
     handler: (d) => {
@@ -1508,7 +1578,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'POST',
     path: '/api/budgets/:id/allow',
-    auth: 'host',
+    access: 'host',
     lane: 'control',
     response: BudgetSchema,
     handler: ({ store, params }) => {
@@ -1524,7 +1594,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'DELETE',
     path: '/api/budgets/:id/allow',
-    auth: 'host',
+    access: 'host',
     lane: 'control',
     response: BudgetSchema,
     handler: ({ store, params }) => {
@@ -1539,7 +1609,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'GET',
     path: '/api/notify/push/key',
-    auth: 'host',
+    access: 'host',
     lane: 'control',
     response: PushKeyResponseSchema,
     handler: ({ notify }) => ({ publicKey: notify.pushKey() }),
@@ -1547,7 +1617,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'GET',
     path: '/api/notify/push/subscriptions',
-    auth: 'host',
+    access: 'host',
     lane: 'control',
     response: PushSubscriptionListResponseSchema,
     handler: ({ store }) => ({ subscriptions: store.listPushSubscriptions().map(pushInfo) }),
@@ -1555,7 +1625,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'POST',
     path: '/api/notify/push/subscriptions',
-    auth: 'host',
+    access: 'host',
     lane: 'control',
     bodyLimit: 8 * 1024,
     body: PushSubscribeRequestSchema,
@@ -1585,7 +1655,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'DELETE',
     path: '/api/notify/push/subscriptions/:id',
-    auth: 'host',
+    access: 'host',
     lane: 'control',
     response: PushSubscriptionListResponseSchema,
     handler: ({ store, params }) => {
@@ -1596,7 +1666,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'POST',
     path: '/api/notify/push/unsubscribe',
-    auth: 'host',
+    access: 'host',
     lane: 'control',
     bodyLimit: 4 * 1024,
     body: PushUnsubscribeRequestSchema,
@@ -1609,7 +1679,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'GET',
     path: '/api/notify/webhooks',
-    auth: 'host',
+    access: 'host',
     lane: 'control',
     response: WebhookListResponseSchema,
     handler: ({ store }) => ({ webhooks: store.listWebhooks().map(webhookInfo) }),
@@ -1617,7 +1687,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'POST',
     path: '/api/notify/webhooks',
-    auth: 'host',
+    access: 'host',
     lane: 'control',
     bodyLimit: 8 * 1024,
     body: WebhookCreateRequestSchema,
@@ -1642,7 +1712,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'PATCH',
     path: '/api/notify/webhooks/:id',
-    auth: 'host',
+    access: 'host',
     lane: 'control',
     bodyLimit: 8 * 1024,
     body: WebhookUpdateRequestSchema,
@@ -1663,7 +1733,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'DELETE',
     path: '/api/notify/webhooks/:id',
-    auth: 'host',
+    access: 'host',
     lane: 'control',
     response: WebhookListResponseSchema,
     handler: ({ store, params }) => {
@@ -1674,7 +1744,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'POST',
     path: '/api/notify/webhooks/:id/test',
-    auth: 'host',
+    access: 'host',
     lane: 'control',
     response: WebhookTestResponseSchema,
     handler: async ({ notify, params }) => {
@@ -1686,7 +1756,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'GET',
     path: '/api/hooks',
-    auth: 'host',
+    access: 'host',
     lane: 'control',
     response: HookListResponseSchema,
     handler: ({ hooks }) => ({ hooks: hooks.list() }),
@@ -1694,7 +1764,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'POST',
     path: '/api/hooks',
-    auth: 'host',
+    access: 'host',
     lane: 'control',
     bodyLimit: 16 * 1024,
     body: HookCreateRequestSchema,
@@ -1710,7 +1780,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'GET',
     path: '/api/hooks/:id',
-    auth: 'host',
+    access: 'host',
     lane: 'control',
     response: HookInfoSchema,
     handler: ({ hooks, params }) => {
@@ -1722,7 +1792,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'PATCH',
     path: '/api/hooks/:id',
-    auth: 'host',
+    access: 'host',
     lane: 'control',
     bodyLimit: 16 * 1024,
     body: HookUpdateRequestSchema,
@@ -1740,7 +1810,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'DELETE',
     path: '/api/hooks/:id',
-    auth: 'host',
+    access: 'host',
     lane: 'control',
     response: HookListResponseSchema,
     handler: ({ hooks, params }) => {
@@ -1754,7 +1824,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'POST',
     path: '/api/hooks/:id/rotate-secret',
-    auth: 'host',
+    access: 'host',
     lane: 'control',
     response: HookSecretResponseSchema,
     handler: ({ hooks, params }) => {
@@ -1769,7 +1839,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'GET',
     path: '/api/hooks/:id/deliveries',
-    auth: 'host',
+    access: 'host',
     lane: 'control',
     response: HookDeliveriesResponseSchema,
     handler: ({ hooks, params }) => {
@@ -1781,7 +1851,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'POST',
     path: '/api/hooks/:id/test',
-    auth: 'host',
+    access: 'host',
     lane: 'control',
     response: HookTestResponseSchema,
     handler: async ({ hooks, params }) => {
@@ -1793,7 +1863,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'POST',
     path: '/api/action/inspect',
-    auth: 'token',
+    access: 'link',
     lane: 'control',
     bodyLimit: 2 * 1024,
     body: ActionInspectRequestSchema,
@@ -1807,7 +1877,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'POST',
     path: '/api/action/decide',
-    auth: 'token',
+    access: 'link',
     lane: 'control',
     bodyLimit: 2 * 1024,
     body: ActionDecideRequestSchema,
@@ -1821,7 +1891,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'GET',
     path: '/api/permission-rules',
-    auth: 'host',
+    access: 'host',
     lane: 'control',
     query: PermissionRuleListQuerySchema,
     response: PermissionRuleListResponseSchema,
@@ -1838,7 +1908,6 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'GET',
     path: '/api/permission-rules/machines',
-    auth: 'host',
     lane: 'control',
     response: PermissionRuleMachinesResponseSchema,
     handler: ({ store, control }) => permissionRuleMachines(store, control),
@@ -1846,7 +1915,6 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'POST',
     path: '/api/permission-rules/machines/:deviceId/push',
-    auth: 'host',
     lane: 'control',
     response: PermissionRuleMachinesResponseSchema,
     handler: ({ store, control, params }) => {
@@ -1860,7 +1928,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'POST',
     path: '/api/permission-rules',
-    auth: 'host',
+    access: 'host',
     lane: 'control',
     bodyLimit: 64 * 1024,
     body: PermissionRuleBodySchema,
@@ -1877,7 +1945,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'PUT',
     path: '/api/permission-rules/:id',
-    auth: 'host',
+    access: 'host',
     lane: 'control',
     bodyLimit: 64 * 1024,
     body: PermissionRulePutSchema,
@@ -1908,7 +1976,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'DELETE',
     path: '/api/permission-rules/:id',
-    auth: 'host',
+    access: 'host',
     lane: 'control',
     response: PermissionRuleListResponseSchema,
     handler: ({ store, control, params }) => {
@@ -1926,7 +1994,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'GET',
     path: '/api/templates',
-    auth: 'host',
+    access: { capability: 'create' },
     lane: 'control',
     response: TemplateListResponseSchema,
     handler: templateList,
@@ -1934,7 +2002,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'POST',
     path: '/api/templates',
-    auth: 'host',
+    access: 'host',
     lane: 'control',
     bodyLimit: 64 * 1024,
     body: TemplateBodySchema,
@@ -1951,7 +2019,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'GET',
     path: '/api/templates/export',
-    auth: 'host',
+    access: 'host',
     lane: 'control',
     response: TemplateFileSchema,
     handler: ({ store }) => {
@@ -1976,7 +2044,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'POST',
     path: '/api/templates/import',
-    auth: 'host',
+    access: 'host',
     lane: 'control',
     bodyLimit: 2 * 1024 * 1024,
     body: TemplateImportRequestSchema,
@@ -2030,7 +2098,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'GET',
     path: '/api/templates/:id',
-    auth: 'host',
+    access: 'host',
     lane: 'control',
     response: TemplateSchema,
     handler: ({ store, params }) => {
@@ -2042,7 +2110,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'PUT',
     path: '/api/templates/:id',
-    auth: 'host',
+    access: 'host',
     lane: 'control',
     bodyLimit: 64 * 1024,
     body: TemplateBodySchema,
@@ -2058,7 +2126,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'DELETE',
     path: '/api/templates/:id',
-    auth: 'host',
+    access: 'host',
     lane: 'control',
     response: TemplateListResponseSchema,
     handler: (d) => {
@@ -2069,7 +2137,7 @@ export const routes: readonly Route[] = [
   defineRoute({
     method: 'POST',
     path: '/api/templates/:id/start',
-    auth: 'host',
+    access: { capability: 'create' },
     lane: 'control',
     bodyLimit: 1024 * 1024,
     body: TemplateStartRequestSchema,
@@ -2105,6 +2173,55 @@ export const routes: readonly Route[] = [
         text,
         promptId,
       });
+    },
+  }),
+  defineRoute({
+    method: 'GET',
+    path: '/api/tokens',
+    access: 'host',
+    lane: 'control',
+    response: TokenListResponseSchema,
+    handler: ({ store, now }) => ({ tokens: store.listTokens(now()) }),
+  }),
+  defineRoute({
+    method: 'POST',
+    path: '/api/tokens',
+    access: 'host',
+    lane: 'control',
+    bodyLimit: 32 * 1024,
+    body: TokenCreateRequestSchema,
+    status: 201,
+    response: TokenCreateResponseSchema,
+    handler: ({ store, body, now: clock }) => {
+      const now = clock();
+      try {
+        const { info, secret } = store.issueToken(
+          {
+            name: body.name,
+            grant: body.grant,
+            expiresAt: now + body.expiresInDays * 86_400_000,
+          },
+          now,
+        );
+        return { ...info, token: secret };
+      } catch (err) {
+        if (err instanceof TooManyTokensError) throw new ApiError('too-large');
+        throw err;
+      }
+    },
+  }),
+  defineRoute({
+    method: 'DELETE',
+    path: '/api/tokens/:id',
+    access: 'host',
+    lane: 'control',
+    response: TokenRevokeResponseSchema,
+    handler: ({ store, tickets, params, now }) => {
+      const id = params.id ?? '';
+      if (store.revokeToken(id, now()) === 'unknown') throw new ApiError('not-found');
+      // Sockets the token opened close now, not at their next check.
+      tickets.revoke(id);
+      return { ok: true as const };
     },
   }),
 ];

@@ -55,7 +55,12 @@ export function createApi(
     notify,
     hooks,
     ...(options.now ? { now: options.now } : {}),
-    hostAuthorized: (req) => secretsMatch(bearerToken(req.headers.authorization), config.token),
+    authenticate: (req) => {
+      const secret = bearerToken(req.headers.authorization);
+      if (secretsMatch(secret, config.token)) return { kind: 'host' };
+      const token = store.tokenForSecret(secret, (options.now ?? Date.now)());
+      return token ? { kind: 'token', token } : null;
+    },
   });
 
   const handleRequest = (req: IncomingMessage, res: ServerResponse): void => {
@@ -84,7 +89,10 @@ export function createApi(
   return {
     attach(server) {
       server.on('request', handleRequest);
-      attachBrowserSocket(server, control, tickets);
+      attachBrowserSocket(server, control, tickets, {
+        tokenActive: (id) => store.tokenActive(id, (options.now ?? Date.now)()),
+        ...(options.now ? { now: options.now } : {}),
+      });
     },
   };
 }
