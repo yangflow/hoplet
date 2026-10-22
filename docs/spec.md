@@ -451,6 +451,19 @@ a number of days up to 365; 90 by default), Read only, May send or May create, t
 warning when it is on), and "Every machine" or "Only these" with a picker of machines and projects. The secret is
 then shown once with a copy button and how to use it from the CLI; the page keeps nothing of it after Done.
 
+### Sessions as callers
+
+A running session can see and direct other sessions through a session token the core mints for it ([ADR 0034](adr/0034-sessions-view-and-direct-other-sessions-over-mcp.md),
+[Sessions as callers](api.md#sessions-as-callers)). What it may do is set per session, with a project default and
+a global default: send and interrupt, create, ask for its own handoff, and how far it sees (its project, its
+machine or everything); everything is off until the user turns it on. A session never answers permission
+requests, never prompts itself, and never prompts a session that runs in a more permissive mode than its own.
+A chain of prompts holds at most three sessions and never returns to one of them, and a session is limited to 6
+prompts a minute and 60 an hour, 3 a minute to one session and 2 unanswered prompts to one session. The token
+ends with the runtime and is never listed in Settings. The audit log records such a prompt with the actor kind
+`session` and the chain. This version has the core side; the MCP server in the agent and the Settings screen
+follow.
+
 ### CLI
 
 `hoplet` (`@hoplet/cli`, from a repository checkout `pnpm hoplet`) is built on the SDK and takes `HOPLET_URL`,

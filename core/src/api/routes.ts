@@ -113,6 +113,12 @@ import {
   RuntimeCommandResultSchema,
   SearchResultSchema,
   SessionListResponseSchema,
+  SessionMcpDefaultsDeleteQuerySchema,
+  SessionMcpDefaultsPutRequestSchema,
+  SessionMcpDefaultsResponseSchema,
+  SessionMcpOkResponseSchema,
+  SessionMcpPutRequestSchema,
+  SessionMcpResponseSchema,
   type SessionMeta,
   SessionPatchRequestSchema,
   SessionPortsResultSchema,
@@ -160,7 +166,13 @@ import {
   WsTicketResponseSchema,
 } from '@hoplet/shared';
 import corePackage from '../../package.json' with { type: 'json' };
-import type { Control, DeviceControlOutcome, QueueResult, SteerOutcome } from '../control/index.ts';
+import type {
+  Control,
+  DeviceControlOutcome,
+  QueueResult,
+  SessionGuardRefusal,
+  SteerOutcome,
+} from '../control/index.ts';
 import { registerSecret } from '../log/index.ts';
 import {
   freeName,
@@ -173,7 +185,14 @@ import { auditExport } from './audit-export.ts';
 import { ApiError, relayError } from './http.ts';
 import { checkPromptImage } from './images.ts';
 import { publicOrigin, repoNameOf } from './origin.ts';
-import { actorOf, type Principal, seesDevice, seesProject, seesSession } from './principal.ts';
+import {
+  actorOf,
+  type Principal,
+  seesDevice,
+  seesProject,
+  seesSession,
+  sessionOf,
+} from './principal.ts';
 import { blockOfLine, excerptOf, projectLine } from './projection/index.ts';
 import { type ApiDeps, defineRoute, type Route } from './router.ts';
 
@@ -222,6 +241,14 @@ function ownerOf(deps: ApiDeps, sessionId: string): string {
   const owner = deps.control.ownerOf(sessionId);
   if (!owner) throw new ApiError('session-not-found');
   return owner;
+}
+
+/** The API error for a session that may not act on another (ADR 0034). */
+function guardError(refusal: SessionGuardRefusal): ApiError {
+  if (refusal.error === 'forbidden') return new ApiError('forbidden', { reason: refusal.reason });
+  const error = new ApiError(refusal.error);
+  if (refusal.error === 'rate-limited') error.retryAfter = refusal.retryAfter;
+  return error;
 }
 
 /** The most push subscriptions: one per browser of the owner. */
@@ -477,6 +504,7 @@ export const routes: readonly Route[] = [
     method: 'GET',
     path: '/api/sessions',
     access: { capability: 'read' },
+    session: true,
     lane: 'control',
     response: SessionListResponseSchema,
     handler: (d) => {
@@ -485,7 +513,10 @@ export const routes: readonly Route[] = [
         sessions: d.store
           .listSessions()
           .filter((meta) => seesSession(d.principal, d.control, meta.sessionId))
-          .map((meta) => withLiveness(d, meta, states.get(meta.sessionId) ?? {})),
+          .map((meta) => withLiveness(d, meta, states.get(meta.sessionId) ?? {}))
+          .map((meta) =>
+            meta.sessionId === sessionOf(d.principal) ? { ...meta, self: true as const } : meta,
+          ),
       };
     },
   }),
@@ -503,12 +534,14 @@ export const routes: readonly Route[] = [
     method: 'GET',
     path: '/api/sessions/:sessionId',
     access: { capability: 'read' },
+    session: true,
     lane: 'control',
     response: LiveSessionMetaSchema,
     handler: (d) => {
       const meta = d.store.getSession(d.params.sessionId ?? '');
       if (!meta) throw new ApiError('session-not-found');
-      return withLiveness(d, meta);
+      const live = withLiveness(d, meta);
+      return meta.sessionId === sessionOf(d.principal) ? { ...live, self: true as const } : live;
     },
   }),
   defineRoute({
@@ -551,6 +584,7 @@ export const routes: readonly Route[] = [
     method: 'GET',
     path: '/api/sessions/:sessionId/lines',
     access: { capability: 'read' },
+    session: true,
     lane: 'bulk',
     query: LinesQuerySchema,
     response: LinesPageSchema,
@@ -571,6 +605,7 @@ export const routes: readonly Route[] = [
     method: 'GET',
     path: '/api/sessions/:sessionId/blocks/:line/:block',
     access: { capability: 'read' },
+    session: true,
     lane: 'bulk',
     response: FullBlockSchema,
     handler: async ({ store, params }) => {
@@ -631,6 +666,7 @@ export const routes: readonly Route[] = [
     method: 'POST',
     path: '/api/sessions/:sessionId/prompt',
     access: { capability: 'send' },
+    session: true,
     lane: 'control',
     bodyLimit: 32 * 1024,
     body: PromptRequestSchema,
@@ -647,6 +683,9 @@ export const routes: readonly Route[] = [
           throw new ApiError('invalid-request', { reason: 'images' });
         }
       }
+      const source = sessionOf(d.principal);
+      const guard = source === null ? null : d.control.sessionMcp.guardPrompt(source, sessionId);
+      if (guard && !guard.ok) throw guardError(guard);
       const outcome = await d.control.prompt(
         sessionId,
         owner,
@@ -655,6 +694,7 @@ export const routes: readonly Route[] = [
         attachments,
         actorOf(d.principal),
       );
+      if (guard?.ok) guard.settle(outcome.ok);
       if (outcome.ok) return { ok: true, promptId: outcome.promptId };
       throw relayError(
         outcome,
@@ -900,11 +940,17 @@ export const routes: readonly Route[] = [
     method: 'POST',
     path: '/api/sessions/:sessionId/interrupt',
     access: { capability: 'send' },
+    session: true,
     lane: 'control',
     response: RuntimeCommandResultSchema,
     handler: (d) => {
       const sessionId = d.params.sessionId ?? '';
-      const outcome = d.control.interrupt(sessionId, ownerOf(d, sessionId), actorOf(d.principal));
+      const owner = ownerOf(d, sessionId);
+      const source = sessionOf(d.principal);
+      const refusal =
+        source === null ? null : d.control.sessionMcp.guardInterrupt(source, sessionId);
+      if (refusal) throw guardError(refusal);
+      const outcome = d.control.interrupt(sessionId, owner, actorOf(d.principal));
       if (outcome.ok) return { ok: true };
       throw new ApiError(outcome.error);
     },
@@ -1150,6 +1196,7 @@ export const routes: readonly Route[] = [
     method: 'GET',
     path: '/api/devices',
     access: { capability: 'read' },
+    session: true,
     lane: 'control',
     response: DeviceListResponseSchema,
     handler: ({ control, principal }) => ({
@@ -2191,6 +2238,77 @@ export const routes: readonly Route[] = [
   }),
   defineRoute({
     method: 'GET',
+    path: '/api/sessions/:sessionId/mcp',
+    access: 'host',
+    lane: 'control',
+    response: SessionMcpResponseSchema,
+    handler: (d) => {
+      const sessionId = d.params.sessionId ?? '';
+      ownerOf(d, sessionId);
+      return { sessionId, settings: d.control.sessionMcp.settingsOf(sessionId) };
+    },
+  }),
+  defineRoute({
+    method: 'PUT',
+    path: '/api/sessions/:sessionId/mcp',
+    access: 'host',
+    lane: 'control',
+    bodyLimit: 1024,
+    body: SessionMcpPutRequestSchema,
+    response: SessionMcpResponseSchema,
+    handler: (d) => {
+      const sessionId = d.params.sessionId ?? '';
+      ownerOf(d, sessionId);
+      return { sessionId, settings: d.control.sessionMcp.setSettings(sessionId, d.body.settings) };
+    },
+  }),
+  defineRoute({
+    method: 'GET',
+    path: '/api/mcp/defaults',
+    access: 'host',
+    lane: 'control',
+    response: SessionMcpDefaultsResponseSchema,
+    handler: ({ control }) => ({
+      global: control.sessionMcp.globalDefault(),
+      projects: control.sessionMcp.projectDefaults(),
+    }),
+  }),
+  defineRoute({
+    method: 'PUT',
+    path: '/api/mcp/defaults',
+    access: 'host',
+    lane: 'control',
+    bodyLimit: 8 * 1024,
+    body: SessionMcpDefaultsPutRequestSchema,
+    response: SessionMcpOkResponseSchema,
+    handler: ({ control, body }) => {
+      if ((body.deviceId === undefined) !== (body.path === undefined)) {
+        throw new ApiError('invalid-request', { reason: 'deviceId and path go together' });
+      }
+      if (body.deviceId !== undefined && body.path !== undefined) {
+        control.sessionMcp.setProjectDefault(body.deviceId, body.path, body.settings);
+      } else {
+        control.sessionMcp.setGlobalDefault(body.settings);
+      }
+      return { ok: true as const };
+    },
+  }),
+  defineRoute({
+    method: 'DELETE',
+    path: '/api/mcp/defaults',
+    access: 'host',
+    lane: 'control',
+    query: SessionMcpDefaultsDeleteQuerySchema,
+    response: SessionMcpOkResponseSchema,
+    handler: ({ control, query }) => {
+      if (!control.sessionMcp.removeProjectDefault(query.deviceId, query.path)) {
+        throw new ApiError('not-found');
+      }
+      return { ok: true as const };
+    },
+  }),
+  defineRoute({
+    method: 'GET',
     path: '/api/tokens',
     access: 'host',
     lane: 'control',
@@ -2207,6 +2325,9 @@ export const routes: readonly Route[] = [
     status: 201,
     response: TokenCreateResponseSchema,
     handler: ({ store, body, now: clock }) => {
+      if ((body.grant.capabilities as string[]).includes('request-handoff')) {
+        throw new ApiError('invalid-request', { reason: 'request-handoff is for session tokens' });
+      }
       const now = clock();
       try {
         const { info, secret } = store.issueToken(

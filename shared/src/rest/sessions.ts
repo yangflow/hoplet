@@ -71,6 +71,8 @@ export const LiveSessionMetaSchema = v.object({
   ...SessionStateSchema.entries,
   continuedIn: v.optional(SessionContinuationSchema),
   continuedFrom: v.optional(SessionContinuationSchema),
+  /** Present (`true`) only when a session token asks: this entry is the asking session itself (ADR 0034). */
+  self: v.optional(v.literal(true)),
 });
 export type LiveSessionMeta = v.InferOutput<typeof LiveSessionMetaSchema>;
 

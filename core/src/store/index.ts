@@ -27,6 +27,8 @@ import type {
   QueueItem,
   QueuePause,
   ResourceThresholds,
+  SessionMcpProjectDefault,
+  SessionMcpSettings,
   SessionMeta,
   SessionUsage,
   SnapshotChanges,
@@ -67,6 +69,7 @@ import * as resourceThresholds from './resource-thresholds.ts';
 import * as scriptHooks from './script-hooks.ts';
 import { type RawGlobalSearchResult, type RawSearchResult, search, searchAll } from './search.ts';
 import * as secrets from './secrets.ts';
+import * as sessionMcp from './session-mcp.ts';
 import * as sessions from './sessions.ts';
 import * as snapshotRead from './snapshot-read.ts';
 import * as snapshots from './snapshots.ts';
@@ -868,6 +871,77 @@ export class Store {
 
   tokenActive(id: string, now: number = Date.now()): boolean {
     return tokens.tokenActive(this.ctx, id, now);
+  }
+
+  mintSessionToken(
+    sessionId: string,
+    now: number = Date.now(),
+  ): { record: tokens.TokenRecord; secret: string } {
+    return tokens.mintSessionToken(this.ctx, sessionId, now);
+  }
+
+  revokeSessionTokens(sessionId: string): number {
+    return tokens.revokeSessionTokens(this.ctx, sessionId);
+  }
+
+  /** Removes expired session tokens; returns the sessions that still hold one. */
+  sweepSessionTokens(now: number = Date.now()): string[] {
+    return tokens.sweepSessionTokens(this.ctx, now);
+  }
+
+  sessionMcpSettings(sessionId: string): SessionMcpSettings | null {
+    return sessionMcp.getSessionSettings(this.ctx, sessionId);
+  }
+
+  seedSessionMcpSettings(
+    sessionId: string,
+    settings: SessionMcpSettings,
+    now: number = Date.now(),
+  ): void {
+    sessionMcp.seedSessionSettings(this.ctx, sessionId, settings, now);
+  }
+
+  putSessionMcpSettings(
+    sessionId: string,
+    settings: SessionMcpSettings,
+    previous: SessionMcpSettings,
+    now: number = Date.now(),
+  ): SessionMcpSettings {
+    return sessionMcp.putSessionSettings(this.ctx, sessionId, settings, previous, now);
+  }
+
+  /** The default of a project, or the global one with '' for both; null when none is set. */
+  sessionMcpDefault(deviceId: string, path: string): SessionMcpSettings | null {
+    return sessionMcp.getSessionDefault(this.ctx, deviceId, path);
+  }
+
+  putSessionMcpDefault(
+    deviceId: string,
+    path: string,
+    settings: SessionMcpSettings,
+    now: number = Date.now(),
+  ): SessionMcpSettings {
+    return sessionMcp.putSessionDefault(this.ctx, deviceId, path, settings, now);
+  }
+
+  deleteSessionMcpDefault(deviceId: string, path: string): boolean {
+    return sessionMcp.deleteSessionDefault(this.ctx, deviceId, path);
+  }
+
+  sessionMcpProjectDefaults(): SessionMcpProjectDefault[] {
+    return sessionMcp.listProjectDefaults(this.ctx);
+  }
+
+  sessionChain(sessionId: string): string[] {
+    return sessionMcp.getChain(this.ctx, sessionId);
+  }
+
+  setSessionChain(sessionId: string, chain: string[]): void {
+    sessionMcp.setChain(this.ctx, sessionId, chain);
+  }
+
+  forgetSessionMcp(sessionId: string): void {
+    sessionMcp.forgetSession(this.ctx, sessionId);
   }
 
   append(input: AppendInput, rawLines: string[]): AppendResult {

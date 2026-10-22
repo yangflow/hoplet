@@ -29,12 +29,15 @@ import type {
   RuntimeState,
   ServerMessage,
   SessionConfig,
+  SessionMcpProjectDefault,
+  SessionMcpSettings,
   SessionPermission,
   SessionPortsResult,
   SessionResources,
   SessionRule,
   SessionRulesUnenforced,
   TerminalInfo,
+  TokenGrant,
   WorkspaceDiff,
   WorkspaceFile,
   WorkspaceListing,
@@ -63,8 +66,71 @@ export type ControlReply = Exclude<
   { type: 'device.hello' | 'ping' | 'session.append' | 'workspace.snapshot' }
 >;
 
-/** Who an action is recorded under in the audit log when it is not the host: the token that made the call. */
-export type AuditActor = { kind: 'token'; id: string };
+/**
+ * Who an action is recorded under in the audit log when it is not the host: the token that made the call, or, for
+ * a session's own token (ADR 0034), the session.
+ */
+export type AuditActor = { kind: 'token'; id: string } | { kind: 'session'; id: string };
+
+/** The limits on what sessions do to other sessions (ADR 0034); each is per source session. */
+export interface SessionLimits {
+  /** Prompts to other sessions per minute. */
+  promptsPerMinute: number;
+  /** Prompts to other sessions per hour. */
+  promptsPerHour: number;
+  /** Prompts to one target per minute. */
+  perTargetPerMinute: number;
+  /** Prompts from one source that one target has not yet finished a turn on. */
+  unansweredPerTarget: number;
+}
+
+/** Why a session may not prompt another; `forbidden` carries the reason. */
+export type SessionGuardRefusal =
+  | { ok: false; error: 'self' | 'loop-limit' }
+  | { ok: false; error: 'forbidden'; reason: string }
+  | { ok: false; error: 'rate-limited'; retryAfter: number };
+
+/** The verdict on one session prompting another. When allowed, `settle` tells whether the prompt was accepted. */
+export type SessionGuard = { ok: true; settle(accepted: boolean): void } | SessionGuardRefusal;
+
+/** What a minted session token comes to. */
+export interface SessionTokenMint {
+  secret: string;
+  expiresAt: number;
+}
+
+/** Sessions that direct sessions (#67, ADR 0034). */
+export interface SessionMcp {
+  /** The settings of a session; resolved from the project default, else the global default, else read only. */
+  settingsOf(sessionId: string): SessionMcpSettings;
+  /** Replaces a session's settings (the host's change); the grant of its token follows at the next request. */
+  setSettings(sessionId: string, settings: SessionMcpSettings): SessionMcpSettings;
+  globalDefault(): SessionMcpSettings;
+  projectDefaults(): SessionMcpProjectDefault[];
+  setGlobalDefault(settings: SessionMcpSettings): SessionMcpSettings;
+  setProjectDefault(
+    deviceId: string,
+    path: string,
+    settings: SessionMcpSettings,
+  ): SessionMcpSettings;
+  /** Removes a project's default; false when there was none. */
+  removeProjectDefault(deviceId: string, path: string): boolean;
+  /**
+   * What the session's token may do now, looked up from its current settings; null when the session is gone.
+   * `answer` is never part of it.
+   */
+  grantOf(sessionId: string): TokenGrant | null;
+  /** Mints the token of the session's process; null when the session is unknown or its grant would hold `answer`. */
+  mintToken(sessionId: string): SessionTokenMint | null;
+  /** Ends every token of the session. */
+  revokeTokens(sessionId: string): void;
+  /** Checks `source` prompting `target` against the mode rule, the chain and the limits, and reserves the prompt. */
+  guardPrompt(source: string, target: string): SessionGuard;
+  /** The same checks without the chain and the limits, for an interrupt; null when allowed. */
+  guardInterrupt(source: string, target: string): SessionGuardRefusal | null;
+  /** Stops the sweep and the reconnection timers. */
+  close(): void;
+}
 
 /** What `POST /api/sessions` asks for. */
 export interface StartRequest {
@@ -588,6 +654,8 @@ export interface Control {
   providerOf(sessionId: string): Provider | null;
   /** The owner device of a session, also of one an agent just started; `null` for an unknown session. */
   ownerOf(sessionId: string): string | null;
+  /** Sessions that direct sessions: settings, grants, session tokens, provenance and limits (ADR 0034). */
+  readonly sessionMcp: SessionMcp;
   /** The project directory of a session, also of one an agent just started; `null` for an unknown session. */
   projectOf(sessionId: string): string | null;
   /** The commands and skills the session's owner last reported, or null when it reported none. */
@@ -701,4 +769,8 @@ export interface ControlOptions {
   rulesRetryMs?: number;
   /** How long a terminal with no browser attached stays open. */
   terminalDetachMs?: number;
+  /** Overrides of the limits on sessions that prompt other sessions (ADR 0034). */
+  sessionLimits?: Partial<SessionLimits>;
+  /** How long an agent may stay disconnected before its sessions' tokens are revoked. */
+  sessionReconnectMs?: number;
 }

@@ -274,6 +274,11 @@ export function createRuntime(state: ControlState): Runtime {
         return Promise.resolve({ ok: false, error: 'over-budget', promptId, budget });
       }
 
+      // Provenance (ADR 0034): the chain of sessions behind this prompt. A prompt from a session extends that
+      // session's own chain; any other prompt starts a new one.
+      const chain = actor?.kind === 'session' ? [...store.sessionChain(actor.id), actor.id] : [];
+      store.setSessionChain(sessionId, chain);
+
       // The audit trail: who was asked to run what, never the text itself (docs/threat-model.md).
       store.audit({
         type: 'prompt.sent',
@@ -281,7 +286,12 @@ export function createRuntime(state: ControlState): Runtime {
         sessionId,
         deviceId: ownerDeviceId,
         ref: promptId,
-        summary: { promptId, length: [...text].length, images: attachments.length },
+        summary: {
+          promptId,
+          length: [...text].length,
+          images: attachments.length,
+          ...(chain.length > 0 ? { source: { kind: 'session', sessionId: actor?.id, chain } } : {}),
+        },
       });
       log('info', 'control', 'prompt forwarded', {
         sessionId,

@@ -10,6 +10,7 @@ export * from './permission-rules.ts';
 export * from './queue.ts';
 export * from './resources.ts';
 export * from './runtime.ts';
+export * from './session-mcp.ts';
 export * from './sessions.ts';
 export * from './templates.ts';
 export * from './terminal.ts';

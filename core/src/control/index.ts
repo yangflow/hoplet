@@ -15,6 +15,7 @@ import { createResources } from './resources.ts';
 import { createRpc } from './rpc.ts';
 import { createRules } from './rules.ts';
 import { createRuntime } from './runtime.ts';
+import { createSessionMcp } from './session-mcp.ts';
 import { createStart } from './start.ts';
 import type { ControlState } from './state.ts';
 import { createTerminals } from './terminals.ts';
@@ -44,6 +45,11 @@ export type {
   QueueSteerOutcome,
   RuntimeCommandOutcome,
   RuntimeView,
+  SessionGuard,
+  SessionGuardRefusal,
+  SessionLimits,
+  SessionMcp,
+  SessionTokenMint,
   StartAnswer,
   StartOutcome,
   StartRequest,
@@ -169,6 +175,16 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
   const queue = createQueue(state, runtime);
   const ownerOf = (sessionId: string): string | null =>
     store.ownerDeviceId(sessionId) ?? state.startedSessions.get(sessionId)?.deviceId ?? null;
+  const projectOf = (sessionId: string): string | null =>
+    store.getSession(sessionId)?.projectPath ??
+    state.startedSessions.get(sessionId)?.projectPath ??
+    null;
+  const sessionMcp = createSessionMcp(
+    state,
+    { ownerOf, projectOf, runtimeOf: runtime.runtimeOf },
+    options,
+  );
+  eventListeners.add(sessionMcp.onEvent);
   const ports = createPorts(state, open, ownerOf);
   const resources = createResources(state);
   const terminals = createTerminals(
@@ -242,6 +258,7 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
         ...(hello?.previewHost !== undefined ? { previewHost: hello.previewHost } : {}),
       });
       runtime.attached(deviceId);
+      sessionMcp.deviceAttached(deviceId);
       ports.attached(deviceId);
       rules.attached(deviceId);
       deletion.attached(deviceId);
@@ -268,6 +285,7 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
       ports.detached(gone);
       rules.detached(gone);
       for (const deviceId of gone) state.deviceInfo.delete(deviceId);
+      sessionMcp.deviceDetached(gone);
       if (gone.length > 0) for (const listener of goneListeners) listener(gone);
       for (const deviceId of gone) {
         publish({ v: PROTOCOL_VERSION, type: 'device.presence', deviceId, connected: false });
@@ -314,13 +332,8 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
       );
     },
     ownerOf,
-    projectOf(sessionId) {
-      return (
-        store.getSession(sessionId)?.projectPath ??
-        state.startedSessions.get(sessionId)?.projectPath ??
-        null
-      );
-    },
+    projectOf,
+    sessionMcp: sessionMcp.api,
     openPermissions: runtime.openPermissions,
     ruleLinesOf: runtime.ruleLinesOf,
     commandsOf: runtime.commandsOf,
@@ -367,6 +380,7 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
     deletionPreview: deletion.deletionPreview,
     async deleteSession(sessionId, request) {
       const outcome = await deletion.deleteSession(sessionId, request);
+      if (outcome.ok) sessionMcp.sessionGone(sessionId);
       ports.sync();
       rules.sync(); // the session's rules went with it
       return outcome;
@@ -376,6 +390,8 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
     cancelHandoff: handoff.cancel,
     async handoff(request) {
       const outcome = await handoff.handoff(request);
+      // The session's process starts again on the new owner and asks for a token of its own.
+      if (outcome.ok) sessionMcp.api.revokeTokens(request.sessionId);
       ports.sync();
       rules.sync(); // the session's rules follow it to its new owner
       queue.drain(request.sessionId);

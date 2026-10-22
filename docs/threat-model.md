@@ -9,6 +9,9 @@
 - **Scoped API tokens** ([ADR 0033](adr/0033-a-command-line-tool-an-sdk-and-scoped-tokens.md)): a secret for a
   script, limited to abilities, an allow-list of machines and projects and an expiry; stolen, it reaches no more
   than its grant.
+- **Session tokens** ([ADR 0034](adr/0034-sessions-view-and-direct-other-sessions-over-mcp.md)): a secret the core mints for a running session so that it can see and
+  direct other sessions; the grant comes from the session's settings on every request, lasts at most 24 hours and ends
+  with the runtime.
 - **Device tokens**: one per agent; enough to sync as that device and to receive its control messages.
 - **Claude Code permissions**: a permission answer lets Claude Code run a tool on a development machine.
 - **Permission rules** (planned, [ADR 0029](adr/0029-permission-rules-match-on-the-agent-and-deny-wins.md)): the allow, ask and deny rules that decide a
@@ -26,6 +29,8 @@
 ## Trust boundaries
 
 - Browser ↔ core: the host token on REST; a single-use ticket on the browser WebSocket.
+- Session ↔ core: a session token (`hpt_...`) on REST, held by the agent's process of that session. The core resolves its grant live
+  from the session's settings, limits it to the routes marked for sessions, and checks the mode, the chain and the limits of every prompt it sends.
 - Scripted client ↔ core: a scoped API token (`hpt_...`) on REST. Every route declares the ability it needs and is the host's alone
   otherwise, and the core checks the grant's allow-list on every session, machine and project the request names. A ticket carries the token's scope into the
   browser WebSocket.
@@ -71,6 +76,7 @@
 |---|---|---|---|
 | Token theft on the network | browser/agent ↔ core | TLS at the proxy; compose publishes only on `127.0.0.1`; no token in any URL | `image/compose.yaml` review; `core/test/auth.test.ts` |
 | An API token used beyond its grant | scripted client ↔ core | Every route declares `host` or an ability and defaults to `host`; the principal is resolved per request from the stored hash (constant-time lookup by SHA-256); a session outside the allow-list answers `session-not-found` and a machine or project outside it `forbidden`; lists, search and WebSocket publishing are filtered by the same rule; a token cannot reach terminals, configuration routes, settings or the token routes, and cannot start a session with a high-risk option (bypass permissions); the token expires (at most 365 days), can be revoked at once (open WebSockets close) and is limited to 300 requests a minute | `core/test/tokens.test.ts`; `core/test/routes.test.ts` (every route's access, per preset) |
+| A session directs sessions beyond its settings, or escalates | session ↔ core | Settings default to off and are the host's alone; the grant is read per request, so turning a setting off applies at once; the token never holds `answer`; a target in a more permissive mode (or any unknown mode) is refused with `forbidden`; no prompt to itself; the chain holds at most three sessions and never repeats one (`loop-limit`); 6 prompts a minute and 60 an hour per source, 3 a minute and 2 unanswered per target (`rate-limited`); the token ends with the runtime, session deletion, handoff and a disconnect past the reconnect window; the audit log records the source session and chain | `core/test/session-mcp.test.ts` |
 | A leaked API token | scripted client ↔ core | Stored as a SHA-256 hash and shown once; the secret has a recognisable `hpt_` shape that the scrubber removes from the log and the audit log; a refused call is audited as `token.denied`; the log records which token acted | `core/test/tokens.test.ts` |
 | Request without a valid token | browser/agent ↔ core | Every `/api/*` request, ticket and WebSocket upgrade is checked; tokens are compared in constant time | `core/test/auth.test.ts` |
 | Host token used as an agent | browser ↔ core | `/ws/agent` accepts device tokens only; `device.hello` must match the token's `device_id` | `core/test/auth.test.ts` |
@@ -118,6 +124,7 @@
 - **The host token is operator-level.** Whoever holds it can run Claude Code with tool permissions on every
   connected machine, and can turn the permission prompts off for any controlled session (Bypass permissions), and on a machine whose operator turned `terminal` on, can open a shell as the agent's user in a session's directory. Accepted because Hoplet has one operator; it is kept off the public internet without TLS. A stolen host token therefore is a shell on every machine with `terminal` on; turn it off on machines where that is not acceptable.
 - **The server sees plaintext sessions and snapshots.** Accepted because the server is the user's own host.
+- **A session acts within the mode it runs in.** A session that may send can prompt a session in the same or a stricter mode, and the text it sends is what the model wrote, possibly steered by content the session read. The mode rule bounds the harm to what the sender could already do; the audit log names the session and the chain. Turn `send` and `create` on only for sessions that need them.
 - **A scoped token acts with the authority of its grant.** A token that may send can prompt a session on its allowed machines, and Claude Code then acts there as the machine's user within that session's permission mode; a token that may answer permissions can approve a tool call. The audit log names the token, not its holder. Grant `answer` and `create` only to clients that need them.
 - **No rate limiting on the host token.** Accepted while the core is reachable only through the user's proxy. The action routes are the exception: they are rate limited because anyone who has the address can reach them.
 - **A push service or a webhook sees that a session needs the user.** The payload is redacted and short, but the service learns the project name, the session title and the timing. Accepted because the user chose that service; a webhook can be pointed at a host of their own.

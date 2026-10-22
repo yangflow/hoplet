@@ -53,6 +53,8 @@ describe('the route table', () => {
       'POST /api/sessions/:sessionId/permission',
       'POST /api/sessions/:sessionId/permission/fresh',
     ],
+    // Only a session token holds it, and no route asks for it yet.
+    'request-handoff': [],
   };
   const PRESETS: Record<string, TokenCapability[]> = {
     'read only': ['read'],
@@ -90,6 +92,42 @@ describe('the route table', () => {
       const key = `${r.method} ${r.path}`;
       if (listed.has(key)) continue;
       expect(r.access, key).toBe(r.path.startsWith('/api/action/') ? 'link' : 'host');
+    }
+  });
+
+  it('lets a session token call only the routes that read and direct other sessions', () => {
+    const marked = routes
+      .filter((r) => r.session)
+      .map((r) => `${r.method} ${r.path}`)
+      .sort();
+    expect(marked).toEqual(
+      [
+        'GET /api/devices',
+        'GET /api/sessions',
+        'GET /api/sessions/:sessionId',
+        'GET /api/sessions/:sessionId/lines',
+        'GET /api/sessions/:sessionId/blocks/:line/:block',
+        'POST /api/sessions/:sessionId/prompt',
+        'POST /api/sessions/:sessionId/interrupt',
+      ].sort(),
+    );
+    for (const r of routes.filter((x) => x.session)) {
+      expect(r.access, r.path).not.toBe('host');
+      expect(r.access, r.path).not.toBe('link');
+    }
+  });
+
+  it('keeps the settings of sessions that direct sessions with the host', () => {
+    const access = (method: string, path: string) =>
+      routes.find((r) => r.method === method && r.path === path)?.access;
+    for (const [method, path] of [
+      ['GET', '/api/sessions/:sessionId/mcp'],
+      ['PUT', '/api/sessions/:sessionId/mcp'],
+      ['GET', '/api/mcp/defaults'],
+      ['PUT', '/api/mcp/defaults'],
+      ['DELETE', '/api/mcp/defaults'],
+    ] as const) {
+      expect(access(method, path), `${method} ${path}`).toBe('host');
     }
   });
 

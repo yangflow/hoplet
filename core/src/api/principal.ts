@@ -56,6 +56,8 @@ export function seesSession(
   sessionId: string,
 ): boolean {
   if (principal.kind !== 'token') return principal.kind === 'host';
+  // A session always reaches itself (ADR 0034).
+  if (principal.token.kind === 'session' && principal.token.sessionId === sessionId) return true;
   const owner = control.ownerOf(sessionId);
   if (!owner) return false;
   if (grantSeesWholeDevice(principal.token.grant, owner)) return true;
@@ -65,5 +67,15 @@ export function seesSession(
 
 /** The audit actor of an action by this principal; `undefined` is the host, which the log records as the operator. */
 export function actorOf(principal: Principal): AuditActor | undefined {
-  return principal.kind === 'token' ? { kind: 'token', id: principal.token.id } : undefined;
+  if (principal.kind !== 'token') return undefined;
+  return principal.token.kind === 'session'
+    ? { kind: 'session', id: principal.token.sessionId }
+    : { kind: 'token', id: principal.token.id };
+}
+
+/** The session a session token belongs to; null for every other principal. */
+export function sessionOf(principal: Principal): string | null {
+  return principal.kind === 'token' && principal.token.kind === 'session'
+    ? principal.token.sessionId
+    : null;
 }

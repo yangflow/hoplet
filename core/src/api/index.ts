@@ -59,7 +59,11 @@ export function createApi(
       const secret = bearerToken(req.headers.authorization);
       if (secretsMatch(secret, config.token)) return { kind: 'host' };
       const token = store.tokenForSecret(secret, (options.now ?? Date.now)());
-      return token ? { kind: 'token', token } : null;
+      if (!token) return null;
+      if (token.kind !== 'session') return { kind: 'token', token };
+      // A session token holds what its session's settings allow now, not what they allowed when it was issued.
+      const grant = control.sessionMcp.grantOf(token.sessionId);
+      return grant ? { kind: 'token', token: { ...token, grant } } : null;
     },
   });
 

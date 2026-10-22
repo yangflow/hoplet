@@ -30,6 +30,7 @@ import { auditCursor } from './0027-audit-cursor.ts';
 import { hooks } from './0028-hooks.ts';
 import { scriptHooks } from './0029-script-hooks.ts';
 import { apiTokens } from './0030-api-tokens.ts';
+import { sessionMcp } from './0031-session-mcp.ts';
 
 export interface Migration {
   readonly id: number;
@@ -68,6 +69,7 @@ const MIGRATIONS: readonly Migration[] = [
   hooks,
   scriptHooks,
   apiTokens,
+  sessionMcp,
 ];
 
 export function migrate(db: DatabaseSync): void {
