@@ -30,6 +30,7 @@ import type {
   SessionPermission,
   SessionPortsResult,
   SessionResources,
+  SessionRule,
   TerminalInfo,
   WorkspaceDiff,
   WorkspaceFile,
@@ -552,6 +553,8 @@ export interface Control {
   commandsOf(sessionId: string): Command[] | null;
   /** The permission requests of a session that wait for an answer. */
   openPermissions(sessionId: string): SessionPermission[];
+  /** The latest rule decisions of a session, oldest first (ADR 0029). */
+  ruleLinesOf(sessionId: string): SessionRule[];
   workspace(sessionId: string, ownerDeviceId: string): Promise<WorkspaceOutcome>;
   /** Reads one file of the owner's working tree; `at` `head` reads it as `HEAD` has it. */
   workspaceFile(

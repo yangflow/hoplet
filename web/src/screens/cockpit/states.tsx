@@ -1247,6 +1247,20 @@ export const states: Record<string, () => ReactNode> = {
       }),
       { action: 'deny', note: 'No paste sites' },
     ),
+  'rule-lines': () => (
+    <Scene
+      variant={{
+        ...running(48_000),
+        conversation: {
+          rules: [
+            { toolUseId: 'lt2', decision: 'allow', ruleId: 'r1', scope: 'global' },
+            { toolUseId: 'lt3', decision: 'allow', ruleId: 'r2', scope: 'project' },
+            { toolUseId: 'lt1', decision: 'deny', ruleId: 'default.secret-files', scope: 'agent' },
+          ],
+        },
+      }}
+    />
+  ),
   'conv-auto': () => (
     <main className="col" style={{ padding: 24, maxWidth: 640 }}>
       <h1 className="meta" style={{ margin: 0, fontSize: 13 }}>

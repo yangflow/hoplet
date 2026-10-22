@@ -616,4 +616,48 @@ describe('runtime.permission.auto', () => {
     await new Promise((r) => setTimeout(r, 100));
     expect(recorded(store).map((e) => e.ref)).toEqual(['toolu_ok']);
   });
+
+  it('relays the rule to the browsers subscribed to the session, and replays it on subscribe', async () => {
+    const { agent, browser } = await boot();
+    const owner = await agent('dev-a');
+    const watching = await browser();
+    const elsewhere = await browser();
+    watching.send({ type: 'subscribe', sessionId: 's1' });
+    await watching.waitFor((m) => m.type === 'session.runtime', 'snapshot');
+
+    owner.send(auto({ toolUseId: undefined, decision: 'allow', ruleId: 'agent.floor' }));
+    owner.send(auto());
+    const line = await watching.waitFor((m) => m.type === 'session.rule', 'rule line');
+    expect(line).toEqual({
+      v: PROTOCOL_VERSION,
+      type: 'session.rule',
+      sessionId: 's1',
+      toolUseId: 'toolu_1',
+      decision: 'deny',
+      ruleId: 'default.secrets',
+      scope: 'global',
+    });
+    expect(watching.ofType('session.rule')).toHaveLength(1);
+    expect(elsewhere.ofType('session.rule')).toEqual([]);
+
+    const late = await browser();
+    late.send({ type: 'subscribe', sessionId: 's1' });
+    const replayed = await late.waitFor((m) => m.type === 'session.rule', 'replayed line');
+    expect(replayed).toMatchObject({ toolUseId: 'toolu_1', ruleId: 'default.secrets' });
+  });
+
+  it('keeps the latest 200 lines of a session', async () => {
+    const { agent, browser } = await boot();
+    const owner = await agent('dev-a');
+    for (let i = 0; i < 205; i++) owner.send(auto({ toolUseId: `toolu_${i}` }));
+    const late = await browser();
+    await new Promise((r) => setTimeout(r, 300));
+    late.send({ type: 'subscribe', sessionId: 's1' });
+    await late.waitFor((m) => m.type === 'session.runtime', 'snapshot');
+    await new Promise((r) => setTimeout(r, 100));
+    const ids = late.ofType('session.rule').map((m) => m.toolUseId);
+    expect(ids).toHaveLength(200);
+    expect(ids[0]).toBe('toolu_5');
+    expect(ids.at(-1)).toBe('toolu_204');
+  });
 });

@@ -351,8 +351,7 @@ and of every rule change; the agent announcing its own `permission_deny` rules, 
 serves read-only; in the web UI, Settings › Permission rules (list, add, edit, delete, the built-in switches with a
 second confirmation) and, on the permission card, Always allow… and Always deny…, which draft a rule from the
 request and save it together with the answer. Planned: the web showing which machines have applied the
-latest revision, and the conversation lines that say which rule decided a call (the browser messages do not yet
-carry the rule). Rules let a session run without someone answering every tool call: routine calls are allowed,
+latest revision. Rules let a session run without someone answering every tool call: routine calls are allowed,
 dangerous ones asked about or denied.
 
 - **A rule** names a tool kind (`run`, `read`, `write`, `fetch`, `mcp:<server>/<tool>` or all), what it matches, an
@@ -383,8 +382,9 @@ dangerous ones asked about or denied.
   no rule from the core overrides them.
 - **On the permission card**, Always allow and Always deny open a draft rule from the request, which the user edits
   and scopes to the session or the project before saving. A call with shell control or a plan exit has no draft.
-- **In the conversation** a call decided by a rule shows the rule and its scope ("Allowed by rule ..."), and a card
-  raised by an `ask` rule names the rule. Decisions and rule changes are records in the audit log (ADR 0030),
+- **In the conversation** a call an `allow` or `deny` rule decided shows a line under its row with the rule and its
+  scope ("Allowed by rule ..."), and a card raised by an `ask` rule names the rule. The lines of a session's latest
+  200 decisions come again when a window opens it. Decisions and rule changes are records in the audit log (ADR 0030),
   keyed by the session's ID and tool use ID.
 
 ### Audit log
@@ -519,7 +519,7 @@ API, in `shared/src/` (schemas, types and error codes) and `agent/internal/sync/
 - Host token (ADR 0030): `GET /api/audit/events`, `GET /api/audit/export` and `GET /api/audit/verify`
   ([Audit log](#audit-log), docs/api.md).
 - Browser WebSocket `/ws?ticket=`: `subscribe`/`unsubscribe` a session; events `session.appended`,
-  `session.deleted`, `session.updated` (title, pin and archive state), `session.runtime` (state), `session.output` (streamed deltas of a subscribed session),
+  `session.deleted`, `session.updated` (title, pin and archive state), `session.runtime` (state), `session.output` (streamed deltas of a subscribed session), `session.rule` (the rule that decided a call, to subscribers),
   `session.permission`, `handoff.progress`, `device.presence`.
 - Agent WebSocket `/ws/agent`, device token: sync (`device.hello` with the system, the providers and their capabilities,
   `welcome`, `session.append`, `session.ack`, `session.resync`, `session.rejected`), control

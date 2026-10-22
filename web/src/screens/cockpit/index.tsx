@@ -104,6 +104,8 @@ export function Cockpit(props: {
   onCreateSession?: (request: NewSessionRequest) => Promise<void>;
   /** A plan was approved into this new session (ADR 0025): the app opens it and waits for it to reach the list. */
   onSessionStarted?: (sessionId: string) => void;
+  /** Opens the rules in Settings: the rule lines under tool calls link to it. */
+  onManageRules?: () => void;
   /** Opens the Settings page, which replaces this screen. */
   onSettings?: () => void;
   /** A session is gone from the core: the app drops it from its lists. */
@@ -560,6 +562,7 @@ export function Cockpit(props: {
                   inspector.setHandoffOpen(true);
                 }}
                 openDiff={openDiff}
+                {...(props.onManageRules ? { onViewRules: props.onManageRules } : {})}
                 onOpenSession={pickSession}
                 {...(props.onSessionStarted ? { onSessionStarted: props.onSessionStarted } : {})}
                 {...(fixture?.conversation ? { fixture: fixture.conversation } : {})}

@@ -115,6 +115,7 @@ function LiveRowView(props: { row: LiveRow; now: number; caret: boolean }) {
             seconds={seconds}
             defaultOpen={false}
             testid="cockpit.live-tool"
+            toolUseId={row.toolUseId}
           />
         );
       }
@@ -132,6 +133,7 @@ function LiveRowView(props: { row: LiveRow; now: number; caret: boolean }) {
           running={running}
           seconds={seconds}
           testid="cockpit.live-tool"
+          toolUseId={row.toolUseId}
         />
       );
     }

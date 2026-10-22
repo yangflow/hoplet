@@ -9,6 +9,7 @@ import type {
   ServerMessage,
   SessionPort,
   SessionResources,
+  SessionRule,
   TerminalReason,
 } from '@hoplet/shared';
 import type { Store } from '../store/index.ts';
@@ -84,6 +85,8 @@ export interface ControlState {
   runtime: Map<string, RuntimeEntry>;
   /** The commands and skills each session offered in its latest report, with who reported them. */
   commands: Map<string, { deviceId: string; commands: Command[] }>;
+  /** The latest rule decisions of each session, newest last, in memory only: lost on restart (the audit log keeps them). */
+  ruleLines: Map<string, SessionRule[]>;
   /** Open permission requests by `<sessionId>\n<requestId>`. */
   permissions: Map<string, OpenPermission>;
   /** The timers that close a request nobody answered, by the same key. */

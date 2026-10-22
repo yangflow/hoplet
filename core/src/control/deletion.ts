@@ -68,6 +68,7 @@ export function createDeletion(
     state.sessionPorts.delete(sessionId);
     state.runtime.delete(sessionId);
     state.commands.delete(sessionId);
+    state.ruleLines.delete(sessionId);
     state.startedSessions.delete(sessionId);
     closeSessionPermissions(state, sessionId, 'abandoned');
     state.turns.delete(sessionId);

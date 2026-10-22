@@ -187,6 +187,18 @@ describe('buildTurns', () => {
     expect(write.result?.ts).toBe('2026-10-05T09:00:00.400');
   });
 
+  it("keeps the call's ID on a tool row and an edit row, where its rule line is found", () => {
+    const [turn] = buildTurns([
+      user(0, 'go'),
+      call(1, 'toolu_b', 'Bash', { command: 'ls' }),
+      call(2, 'toolu_e', 'Edit', { file_path: '/p/a.ts', old_string: 'a', new_string: 'b' }),
+    ]);
+    expect(turn?.rows.map((r) => (r as ToolRow | EditRow).toolUseId)).toEqual([
+      'toolu_b',
+      'toolu_e',
+    ]);
+  });
+
   it('shows a file edit as a diff with the added and removed counts', () => {
     const [turn] = buildTurns(
       [

@@ -15,6 +15,7 @@ import {
   toBody,
   workspacePath,
 } from '../src/lib/permission-rules.ts';
+import { appliedRule } from '../src/lib/rule-lines.ts';
 
 function rule(over: Partial<PermissionRuleEntry> & { id: string }): PermissionRuleEntry {
   return {
@@ -275,6 +276,58 @@ describe('drafting a rule from a request', () => {
       action: 'allow',
       note: 'fine',
       enabled: true,
+    });
+  });
+});
+
+describe('appliedRule', () => {
+  const list: PermissionRuleListResponse = {
+    rules: [rule({ id: 'r1', note: 'Run the checks', scope: 'project' })],
+    local: [
+      {
+        deviceId: 'dev-a',
+        deviceName: 'studio',
+        rules: [
+          {
+            id: 'local.1',
+            tool: 'run',
+            match: { command: 'rm' },
+            action: 'deny',
+            scope: 'agent',
+            note: 'No rm',
+            enabled: true,
+            builtin: false,
+          },
+        ],
+      },
+    ],
+  } as PermissionRuleListResponse;
+
+  it('names a built-in rule without the list', () => {
+    expect(
+      appliedRule({ decision: 'deny', ruleId: 'default.secret-files', scope: 'agent' }, null),
+    ).toMatchObject({ scope: 'builtin', decision: 'deny', ruleId: 'default.secret-files' });
+  });
+
+  it("names the user's rule and a machine's own deny rule from the list", () => {
+    expect(appliedRule({ decision: 'allow', ruleId: 'r1', scope: 'project' }, list)).toMatchObject({
+      name: 'Run the checks',
+      scope: 'project',
+    });
+    expect(
+      appliedRule({ decision: 'deny', ruleId: 'local.1', scope: 'agent' }, list),
+    ).toMatchObject({
+      name: 'No rm',
+      scope: 'agent',
+    });
+  });
+
+  it('keeps the line of a rule that is gone, without a name', () => {
+    expect(appliedRule({ decision: 'allow', ruleId: 'gone', scope: 'global' }, list)).toEqual({
+      decision: 'allow',
+      ruleId: 'gone',
+      name: '',
+      scope: 'global',
     });
   });
 });
