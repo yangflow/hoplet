@@ -1,12 +1,10 @@
 # 0034 Sessions view and direct other sessions over MCP
 
-- Status: proposed
+- Status: accepted
 - Date: 2026-10-22
 - Related: ADR 0002, ADR 0005, ADR 0007, ADR 0012, ADR 0018, ADR 0021, ADR 0024, ADR 0029, ADR 0030, ADR 0031, ADR 0032, ADR 0033, docs/api.md, docs/architecture.md, docs/threat-model.md, docs/hosting.md, docs/spec.md, issues #67, #69, #81
 
-This record is a proposal. The maintainer has decided none of the points below; each decision lists its options,
-their cost and a recommendation, and "Recommended" is not "Chosen". The status changes to accepted, with the
-choices written in, when the maintainer answers.
+The maintainer accepted the recommendation of each decision below; the options and their cost stay for the record.
 
 ## Context
 
@@ -51,28 +49,28 @@ that sits in the session's environment is one `env` away from the transcript.
 
 ## Decisions
 
-1. Where the MCP server lives. Recommended: `hoplet-agent mcp`, a stdio process started by the vendor, that
+1. Where the MCP server lives. Chosen: `hoplet-agent mcp`, a stdio process started by the vendor, that
    reaches the daemon over a local socket; the daemon calls the core's REST API with the session's token.
-2. The session credential. Recommended: ADR 0033's `session` kind, minted by the core for each process start,
+2. The session credential. Chosen: ADR 0033's `session` kind, minted by the core for each process start,
    held in the daemon's memory only, revoked when the process ends.
-3. Capabilities and who grants them. Recommended: `read` by default; `send`, `create` and `request-handoff`
+3. Capabilities and who grants them. Chosen: `read` by default; `send`, `create` and `request-handoff`
    are per-session switches the user sets, live; `answer` never.
-4. Which sessions a session sees and may drive. Recommended: its own project by default, widened per session to
+4. Which sessions a session sees and may drive. Chosen: its own project by default, widened per session to
    its machine or all machines; a send target may not be more permissive than the sender.
-5. Loop protection. Recommended: a provenance record and a fixed preamble the target's agent adds, a chain with
+5. Loop protection. Chosen: a provenance record and a fixed preamble the target's agent adds, a chain with
    no repeats, depth 3, and rate limits.
-6. `request_handoff`. Recommended: always a request the user confirms, even in permissive modes; an
+6. `request_handoff`. Chosen: always a request the user confirms, even in permissive modes; an
    auto-approve switch per session with a list of target machines; it runs after the turn ends.
-7. Vendors. Recommended: Claude Code through `--mcp-config` with a file, Codex through `mcp_servers` in the
+7. Vendors. Chosen: Claude Code through `--mcp-config` with a file, Codex through `mcp_servers` in the
    `thread/start` config, both behind a driver capability `mcp`; no `--strict-mcp-config`.
-8. Whether it is on. Recommended: off until the machine's operator turns it on in the agent's `config.json`
+8. Whether it is on. Chosen: off until the machine's operator turns it on in the agent's `config.json`
    (`session_mcp`), then on for every new session of that machine with `read` only.
 
 ## Decision
 
 ### Where it lives (decision 1)
 
-**Recommended: a stdio MCP server that is a subcommand of the agent, and a daemon that holds the credential.**
+**Chosen: a stdio MCP server that is a subcommand of the agent, and a daemon that holds the credential.**
 
 - The vendor starts `hoplet-agent mcp` for the session (decision 7). It speaks MCP over standard input and output
   and implements the tools below. It holds no token: it connects to `<hoplet_home>/mcp.sock` (the same
@@ -91,7 +89,7 @@ that sits in the session's environment is one `env` away from the transcript.
 
 | Option | Cost | Verdict |
 |---|---|---|
-| Stdio server in the agent, daemon holds the token (recommended) | A new socket and a new subcommand, as ADR 0032 added for Codex. No wire change for the calls, no new route, the credential never enters the vendor process. The machine must reach the core's REST API over HTTP, not only the agent WebSocket. | Recommended |
+| Stdio server in the agent, daemon holds the token (chosen) | A new socket and a new subcommand, as ADR 0032 added for Codex. No wire change for the calls, no new route, the credential never enters the vendor process. The machine must reach the core's REST API over HTTP, not only the agent WebSocket. | Chosen |
 | Stdio server in the agent, token in its environment | Simplest: no socket. The token is in the environment of a process the model can ask a shell to print (`env`, `/proc`), so it can reach the transcript and any command the session runs. | Rejected |
 | Stdio server in the agent, calls proxied over the agent's WebSocket (new wire messages) | The agent needs no REST path and no token: the core authorizes by device and session. Needs messages in `shared/src/wire/` and `agent/internal/sync/protocol.go`, a second authorization path beside ADR 0033's, and every tool becomes a wire message to keep in step with the REST API. | Fallback if a machine cannot reach the REST API |
 | An MCP endpoint in the core (streamable HTTP), the vendor connects to it remotely | One implementation for every vendor; no agent work. A new exposed route, a bearer in the vendor's MCP configuration on disk, and the development machine must reach the core directly (the core is usually behind the user's proxy and may be unreachable from it). | Rejected for now; the shape to revisit for a client with no agent |
@@ -99,7 +97,7 @@ that sits in the session's environment is one `env` away from the transcript.
 
 ### The session credential (decision 2)
 
-**Recommended: the `session` kind of `api_tokens`, minted per process, never given to the vendor process.**
+**Chosen: the `session` kind of `api_tokens`, minted per process, never given to the vendor process.**
 
 - **Kind and issuer.** The core mints it, not the user, when it sends the agent a start or resume for a
   session, and returns it in that control message over the authenticated agent WebSocket (a change to the start
@@ -126,14 +124,14 @@ that sits in the session's environment is one `env` away from the transcript.
 
 | Option | Cost | Verdict |
 |---|---|---|
-| `session` kind in `api_tokens`, minted per start (recommended) | One start-message field; the table, the lookup, the router and the audit already exist. A live grant means the row is only an identity. | Recommended |
+| `session` kind in `api_tokens`, minted per start (chosen) | One start-message field; the table, the lookup, the router and the audit already exist. A live grant means the row is only an identity. | Chosen |
 | A `scoped` token the user issues and pastes per session | No core mint. The user manages a token per session and it outlives the session. | Rejected |
 | A new credential kind (an HMAC of the session ID under a core key, no row) | Nothing stored and no start-message change. Revocation needs a deny list, and it is a second authorization path. | Rejected |
 | One long-lived token per machine for all its sessions | Least work. The grant is the same for every session and the audit log cannot name the session. | Rejected |
 
 ### Capabilities and who grants them (decision 3)
 
-**Recommended: `read` by default, three switches for the rest, set by the user, live.**
+**Chosen: `read` by default, three switches for the rest, set by the user, live.**
 
 | Capability | Lets the session | Default |
 |---|---|---|
@@ -161,13 +159,13 @@ that sits in the session's environment is one `env` away from the transcript.
 | Option | Cost | Verdict |
 |---|---|---|
 | Read only, no way to grant more | Safest, and useless for the issue's point (directing sessions). | Rejected |
-| Switches, off by default, set per session with project and global defaults (recommended) | A settings section, a table of per-session settings and a live lookup per request. The user decides the power per task. | Recommended |
+| Switches, off by default, set per session with project and global defaults (chosen) | A settings section, a table of per-session settings and a live lookup per request. The user decides the power per task. | Chosen |
 | A global switch only | Smallest UI. Power for all sessions at once, which is where a loop or an injection does the most damage. | Rejected |
 | Grants asked from the session as a card ("this session wants to send") | Tidy, and a model can ask until the user taps yes. Not needed while the switches are cheap. | Later, if the switches are too coarse |
 
 ### What a session sees and may drive (decision 4)
 
-**Recommended: its own project by default, widened by the user; a target is never more permissive than the sender.**
+**Chosen: its own project by default, widened by the user; a target is never more permissive than the sender.**
 
 - **Visibility** is a setting of the session with three values: `project` (default: sessions of the same watched
   project on the same machine, its worktrees included), `machine` (every project of the machine) and `all` (every
@@ -186,13 +184,13 @@ that sits in the session's environment is one `env` away from the transcript.
 | Option | Cost | Verdict |
 |---|---|---|
 | Same machine only | Smallest surface; a session cannot reach the user's other machines, where Hoplet's handoff lies. | Possible as the maximum |
-| Same project (recommended default) | Matches what a session usually coordinates with (its own worktrees and siblings). Needs the project mapping the core already has for `allow` paths. | Recommended default |
+| Same project (chosen default) | Matches what a session usually coordinates with (its own worktrees and siblings). Needs the project mapping the core already has for `allow` paths. | Chosen default |
 | Everything the user's allow list reaches | Most useful for a coordinating "lead" session; any prompt injection in any session then has the whole fleet in reach. | Opt-in per session |
 | No permission-mode rule for targets | Simpler. Permission escalation across sessions. | Rejected |
 
 ### Loop protection (decision 5)
 
-**Recommended: provenance in the core, a preamble the target's agent adds, a no-repeat chain, depth 3 and rate limits.**
+**Chosen: provenance in the core, a preamble the target's agent adds, a no-repeat chain, depth 3 and rate limits.**
 
 - **Provenance.** A prompt from a session carries `source: { kind: "session", sessionId, chain }`, set by the
   core from the token, never from the tool's arguments. `chain` is the source's own chain (the provenance of the
@@ -216,13 +214,13 @@ that sits in the session's environment is one `env` away from the transcript.
 | Option | Cost | Verdict |
 |---|---|---|
 | Label only in the web UI | Easiest; the model cannot tell a peer from the user and treats a hostile message as an instruction from its owner. | Rejected |
-| Provenance in the core plus a preamble the target's agent adds (recommended) | A prompt field in the wire protocol and the queue, and an edit of the text between the core and the vendor. The stored line shows the label. | Recommended |
+| Provenance in the core plus a preamble the target's agent adds (chosen) | A prompt field in the wire protocol and the queue, and an edit of the text between the core and the vendor. The stored line shows the label. | Chosen |
 | A system prompt for the receiving session | Cleaner for the model. Not every vendor has an appendable system prompt per message, and it is not visible in the line. | Possible later |
 | Depth limit only | Does not stop a ping-pong inside the depth; the rate limit catches it. | Rejected alone |
 
 ### `request_handoff` (decision 6)
 
-**Recommended: always a request, confirmed by the user, even in permissive modes; auto-approve is a per-session switch.**
+**Chosen: always a request, confirmed by the user, even in permissive modes; auto-approve is a per-session switch.**
 
 - **The tool** takes a target machine (a `deviceId` from `list_machines`, which lists only machines in the
   session's visibility) and a short reason (at most 500 characters). It creates a `handoff_requests` row
@@ -245,13 +243,13 @@ that sits in the session's environment is one `env` away from the transcript.
 | Option | Cost | Verdict |
 |---|---|---|
 | Never allow a session to ask | Nothing to build; the issue's main example is lost. | Rejected |
-| Always confirm, auto-approve per session with a target list (recommended) | A request table, a card and a notification. Auto-approve is one more way a hijacked session moves itself, limited to machines the user named. | Recommended |
+| Always confirm, auto-approve per session with a target list (chosen) | A request table, a card and a notification. Auto-approve is one more way a hijacked session moves itself, limited to machines the user named. | Chosen |
 | Confirm unless the session's mode is permissive | Fewer taps. Makes Bypass permissions also mean "may move itself anywhere". | Rejected |
 | Execute at once, interrupting the turn | Handoff refuses a running session (`busy`) for a reason: the byte cursor and the process. | Rejected |
 
 ### Vendors (decision 7)
 
-**Recommended: the runtime driver declares an `mcp` capability and takes an MCP spec; each vendor maps it.**
+**Chosen: the runtime driver declares an `mcp` capability and takes an MCP spec; each vendor maps it.**
 
 - The runtime driver interface (ADR 0012) gains `StartSpec.MCP`: a command (the running `hoplet-agent`), its
   arguments (`mcp`) and the environment (`HOPLET_MCP_NONCE=<nonce>` and nothing else). A driver without the
@@ -269,13 +267,13 @@ that sits in the session's environment is one `env` away from the transcript.
 
 | Option | Cost | Verdict |
 |---|---|---|
-| Driver capability and spec (recommended) | An interface change in `agent/internal/runtime/` and a driver change per vendor, each with a spike on its MCP flag. | Recommended |
+| Driver capability and spec (chosen) | An interface change in `agent/internal/runtime/` and a driver change per vendor, each with a spike on its MCP flag. | Chosen |
 | Write the user's global Claude Code or Codex MCP settings once | No per-process work. Changes the maintainer's saved settings and applies to sessions Hoplet did not start. | Rejected |
 | Only Claude Code at first | Fewer spikes. The interface is shaped by one vendor. | Acceptable as the first pull request, behind the capability |
 
 ### Whether it is on (decision 8)
 
-**Recommended: a machine setting the operator owns, like the `terminal` switch.**
+**Chosen: a machine setting the operator owns, like the `terminal` switch.**
 
 `session_mcp` in the agent's `config.json` (default `false`) decides whether the agent registers the server and
 opens `mcp.sock`; the core cannot turn it on. With it on, every new session of the machine gets the `read` tools and
@@ -285,7 +283,7 @@ that. The issue says registered automatically; this is automatic per machine, no
 | Option | Cost | Verdict |
 |---|---|---|
 | On everywhere | One less setting. Tool definitions in every session's context and a new boundary on machines whose operator did not ask. | Rejected |
-| Operator switch on the machine (recommended) | A config field, and a capability announced in `device.hello` so the UI shows the settings only when it is on. | Recommended |
+| Operator switch on the machine (chosen) | A config field, and a capability announced in `device.hello` so the UI shows the settings only when it is on. | Chosen |
 | A per-session choice only | Finer control. The user must remember to turn it on for each session, so it will not be used. | Possible in addition |
 
 ## Cost
@@ -310,7 +308,7 @@ the project scope, the switches, the permission-mode rule and the limits, not re
 
 ## Documents that change with the implementation
 
-None changes in the pull request that adds this record. Once accepted, the implementation pull requests update
+None changes in the pull request that adds this record. The implementation pull requests update
 `docs/api.md` (the `session` token kind, session settings, handoff requests, the new errors), `docs/spec.md` (the
 section for sessions that direct sessions, the settings, the audit events), `docs/threat-model.md` (below),
 `docs/hosting.md` (the agent's `session_mcp` field, the socket `mcp.sock`, the agent's need to reach the core's
