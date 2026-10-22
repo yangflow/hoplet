@@ -9,6 +9,7 @@ import './usage.css';
 import type { Appearance } from '../../lib/prefs.ts';
 import { AppearanceSection } from './appearance.tsx';
 import { type AuditFixture, AuditSection } from './audit.tsx';
+import { type HooksFixture, HooksSection } from './hooks.tsx';
 import { type MachinesFixture, MachinesSection } from './machines.tsx';
 import { NotificationsSection, type NotifyFixture } from './notifications.tsx';
 import { type ProvidersFixture, ProvidersSection } from './providers.tsx';
@@ -26,6 +27,7 @@ export const SECTIONS = [
   { id: 'providers', label: 'Model providers', icon: () => Icon.plug() },
   { id: 'notifications', label: 'Notifications', icon: () => Icon.bell() },
   { id: 'rules', label: 'Permission rules', icon: () => Icon.rules() },
+  { id: 'hooks', label: 'Hooks', icon: () => Icon.webhook() },
   { id: 'audit', label: 'Audit', icon: () => Icon.listChecks() },
   { id: 'usage', label: 'Usage', icon: () => Icon.activity() },
   { id: 'templates', label: 'Templates', icon: () => Icon.template() },
@@ -46,6 +48,7 @@ function Page(props: {
   notify: NotifyFixture | undefined;
   providers: ProvidersFixture | undefined;
   rules: RulesFixture | undefined;
+  hooks: HooksFixture | undefined;
   audit: AuditFixture | undefined;
   usage: UsageFixture | undefined;
   templates: TemplatesFixture | undefined;
@@ -91,6 +94,8 @@ function Page(props: {
       );
     case 'rules':
       return <RulesSection fixture={props.rules} />;
+    case 'hooks':
+      return <HooksSection fixture={props.hooks} />;
     case 'audit':
       return <AuditSection fixture={props.audit} sessions={props.sessions} />;
     case 'templates':
@@ -109,6 +114,7 @@ export function Settings(props: {
   notify?: NotifyFixture;
   providers?: ProvidersFixture;
   rules?: RulesFixture;
+  hooks?: HooksFixture;
   audit?: AuditFixture;
   usage?: UsageFixture;
   templates?: TemplatesFixture;
@@ -171,6 +177,7 @@ export function Settings(props: {
                 notify={props.notify}
                 providers={props.providers}
                 rules={props.rules}
+                hooks={props.hooks}
                 audit={props.audit}
                 usage={props.usage}
                 templates={props.templates}
