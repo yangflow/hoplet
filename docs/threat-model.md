@@ -45,6 +45,14 @@
 - Core ↔ agent script hooks (planned, ADR 0031): the agent runs an executable that the operator declared in its own
   `config.json`, on an event the core forwards by hook ID. No message carries a command, argument, environment
   variable or path, so the core cannot make the agent run anything the file does not name.
+- Hook process ↔ agent (Codex rule hook, [ADR 0032](adr/0032-codex-rule-hook-calls-the-agent-over-a-local-socket.md)):
+  the `hoplet-agent hook codex` process Codex starts for each tool call asks the agent for the decision over the Unix
+  socket `<hoplet_home>/hook.sock` (directory 0700, socket 0600). The agent accepts only the agent's own user ID
+  (peer credentials) and a per-process nonce that it maps to the session; the session ID, working directory and mode
+  in the hook input are ignored. An unknown nonce, a missing socket, a bad reply or a timeout is a deny. It protects
+  the decisions and the permission cards from other users and from processes without the nonce; it does not protect
+  against a process running as the same user, which can read the nonce or use the socket, the same as the provider's
+  own configuration files.
 - Agent ↔ Claude Code: the agent reads the session file and the streaming output as untrusted data and
   never executes their content.
 - Agent ↔ filesystem: request paths, snapshot entries and git output are untrusted until resolved inside

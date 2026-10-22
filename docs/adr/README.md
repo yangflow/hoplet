@@ -38,6 +38,7 @@ record and mark the old one "superseded by NNNN".
 | [0029](0029-permission-rules-match-on-the-agent-and-deny-wins.md) | Permission rules match on the agent and deny wins | accepted |
 | [0030](0030-the-audit-log-records-actions-in-a-hash-chain.md) | The audit log records actions in a hash chain | accepted |
 | [0031](0031-the-session-lifecycle-events-and-the-two-hook-kinds.md) | The session lifecycle events and the two hook kinds | accepted |
+| [0032](0032-codex-rule-hook-calls-the-agent-over-a-local-socket.md) | The Codex rule hook calls the agent over a local socket | accepted |
 
 ## Record template
 
