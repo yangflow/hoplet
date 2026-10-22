@@ -70,6 +70,8 @@ export interface StartRequest {
   text: string;
   attachments?: string[] | undefined;
   promptId: string;
+  /** Where the request came from, told to lifecycle hooks: a plan approved into a new session is `plan`. */
+  origin?: 'new' | 'plan' | undefined;
 }
 
 /** What an agent answers to `runtime.start`, or why there is no answer. */
@@ -352,14 +354,62 @@ export type ControlEvent =
       plan: boolean;
       expiresAt?: number;
     }
-  | { kind: 'turn-done'; sessionId: string }
+  | { kind: 'turn-done'; sessionId: string; turn?: number; durationMs?: number }
   | {
       kind: 'failure';
       source: 'start' | 'handoff';
       sessionId?: string;
       projectPath?: string;
+      /** The machine a failed start was meant for. */
+      deviceId?: string;
       error: string;
-    };
+    }
+  | LifecycleEvent;
+
+/** Who closed a permission request, as lifecycle hooks name it (ADR 0031). */
+export type PermissionActor =
+  | { kind: 'user' }
+  | { kind: 'action-link' }
+  | { kind: 'rule'; id: string }
+  | { kind: 'system' };
+
+/**
+ * The moments only lifecycle hooks listen to (ADR 0031; notifications ignore them). `deviceId` and `projectPath`
+ * are what the emitter knew when the store may not know the session yet or any more.
+ */
+export type LifecycleEvent =
+  | {
+      kind: 'started';
+      sessionId: string;
+      deviceId: string;
+      projectPath: string;
+      provider: Provider;
+      configuration?: string;
+      origin: 'new' | 'plan';
+    }
+  | {
+      kind: 'ended';
+      sessionId: string;
+      reason: 'stopped' | 'idle' | 'deleted';
+      deviceId?: string;
+      projectPath?: string;
+    }
+  | {
+      kind: 'resolved';
+      sessionId: string;
+      requestId: string;
+      resolution: 'allow' | 'deny' | 'expired' | 'abandoned';
+      actor: PermissionActor;
+    }
+  | { kind: 'runtime-error'; sessionId: string; code: string; reason?: string }
+  | {
+      kind: 'handoff-started';
+      sessionId: string;
+      handoffId: string;
+      from: string;
+      to: string;
+    }
+  | { kind: 'handoff-done'; sessionId: string; handoffId: string; from: string; to: string };
 
 /** The browser WebSockets that have a session open (ADR 0021). */
 export interface Viewing {

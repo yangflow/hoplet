@@ -7,6 +7,7 @@ import {
 } from '@hoplet/shared';
 import { log } from '../log/index.ts';
 import { askWaiter } from './pending.ts';
+import { closeSessionPermissions } from './permissions.ts';
 import { type ControlState, onlineLink } from './state.ts';
 import type { Control, SessionDeviceOutcome } from './types.ts';
 
@@ -68,12 +69,9 @@ export function createDeletion(
     state.runtime.delete(sessionId);
     state.commands.delete(sessionId);
     state.startedSessions.delete(sessionId);
-    for (const key of [...state.permissions.keys()]) {
-      if (key.startsWith(`${sessionId}\n`)) {
-        clearTimeout(state.permissions.get(key)?.timer);
-        state.permissions.delete(key);
-      }
-    }
+    closeSessionPermissions(state, sessionId, 'abandoned');
+    state.turns.delete(sessionId);
+    state.stopping.delete(sessionId);
   }
 
   function nameOf(deviceId: string): string {
@@ -117,6 +115,8 @@ export function createDeletion(
       const owner = store.deletingOwner(sessionId);
       if (!owner) return { ok: false, error: 'session-not-found' };
       if (isRunning(sessionId)) return { ok: false, error: 'session-running' };
+      // What hooks name the session by is gone with the purge.
+      const projectPath = store.getSession(sessionId)?.projectPath;
       const wantsAgent = request.vendorFile || request.worktree;
       const online = onlineLink(state, owner) !== null;
       if (wantsAgent && !online) return { ok: false, error: 'owner-offline' };
@@ -197,6 +197,13 @@ export function createDeletion(
       }
       steps.push({ step: 'core-copy', status: 'done' });
       log('info', 'control', 'session deleted', { sessionId, deviceId: owner });
+      state.emit({
+        kind: 'ended',
+        sessionId,
+        reason: 'deleted',
+        deviceId: owner,
+        ...(projectPath !== undefined ? { projectPath } : {}),
+      });
       return { ok: true, steps };
     },
 

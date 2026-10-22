@@ -6,6 +6,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { type GenericSchema, type InferOutput, safeParse } from '@hoplet/shared';
 import { BulkBusyError, type Control } from '../control/index.ts';
+import type { Hooks } from '../hooks/index.ts';
 import { log } from '../log/index.ts';
 import type { Notify } from '../notify/index.ts';
 import { AuditUnavailableError, type Store } from '../store/index.ts';
@@ -21,6 +22,7 @@ export interface ApiDeps {
   control: Control;
   tickets: Tickets;
   notify: Notify;
+  hooks: Hooks;
 }
 
 type Parsed<S> = S extends GenericSchema ? InferOutput<S> : undefined;
@@ -128,6 +130,7 @@ export function createRouter(options: RouterOptions): Router {
     control: options.control,
     tickets: options.tickets,
     notify: options.notify,
+    hooks: options.hooks,
   };
   const perAddress = createRateLimiter(TOKEN_ROUTE_PER_ADDRESS, 60_000, options.now);
   const total = createRateLimiter(TOKEN_ROUTE_TOTAL, 60_000, options.now);

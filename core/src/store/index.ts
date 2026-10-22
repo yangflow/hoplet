@@ -55,6 +55,7 @@ import * as commands from './commands.ts';
 import * as continuations from './continuations.ts';
 import * as deletion from './deletion.ts';
 import * as devices from './devices.ts';
+import * as hooks from './hooks.ts';
 import type { StoreContext } from './layout.ts';
 import * as notify from './notify.ts';
 import * as permissionRules from './permission-rules.ts';
@@ -74,9 +75,16 @@ export { toolInputSummary } from './audit-lines.ts';
 export type { BudgetStatus } from './budgets.ts';
 export type { ContinuationLinks } from './continuations.ts';
 export type { Tombstone, WorktreeRecord } from './deletion.ts';
+export type {
+  DeliveryOutcome,
+  DeliveryRecord,
+  HookInput,
+  HookPatch,
+  HookRecord,
+} from './hooks.ts';
 export type { PushSubscriptionRecord, WebhookRecord } from './notify.ts';
 export type { QueueOutcome } from './queue.ts';
-export type { NotifySecrets, VapidKeys } from './secrets.ts';
+export type { HookSecret, NotifySecrets, VapidKeys } from './secrets.ts';
 export type { SessionStateChange, SessionStateRecord } from './sessions.ts';
 export { type SnapshotDiffResult, SnapshotReadError } from './snapshot-read.ts';
 export { type SnapshotChunk, SnapshotError, type SnapshotRecord } from './snapshots.ts';
@@ -432,6 +440,84 @@ export class Store {
 
   recordWebhookDelivery(id: string, delivery: NotifyDelivery): void {
     notify.recordWebhookDelivery(this.ctx, id, delivery);
+  }
+
+  listHooks(): hooks.HookRecord[] {
+    return hooks.listHooks(this.ctx);
+  }
+
+  getHook(id: string): hooks.HookRecord | null {
+    return hooks.getHook(this.ctx, id);
+  }
+
+  hookCount(): number {
+    return hooks.hookCount(this.ctx);
+  }
+
+  /** Adds a hook with its signing secret and records it in the audit log. */
+  createHook(input: hooks.HookInput, secret: string, now: number): hooks.HookRecord {
+    return hooks.createHook(this.ctx, input, secret, now);
+  }
+
+  updateHook(id: string, patch: hooks.HookPatch, now: number): hooks.HookRecord | null {
+    return hooks.updateHook(this.ctx, id, patch, now);
+  }
+
+  /** Removes a hook, its deliveries and its secret. */
+  deleteHook(id: string): boolean {
+    return hooks.deleteHook(this.ctx, id);
+  }
+
+  auditHookAction(id: string, action: 'rotated' | 'tested'): void {
+    hooks.auditHookAction(this.ctx, id, action);
+  }
+
+  hookSecret(id: string): secrets.HookSecret | null {
+    return secrets.hookSecret(this.ctx, id);
+  }
+
+  /** Replaces a hook's secret; the old one stays valid until `keepUntil` when given. */
+  setHookSecret(id: string, secret: string | null, keepUntil?: number): void {
+    secrets.setHookSecret(this.ctx, id, secret, keepUntil);
+  }
+
+  enqueueHookDelivery(
+    input: { hookId: string; eventId: string; type: string; body: string; expiresAt: number },
+    now: number,
+  ): hooks.DeliveryRecord {
+    return hooks.enqueueDelivery(this.ctx, input, now);
+  }
+
+  getHookDelivery(id: string): hooks.DeliveryRecord | null {
+    return hooks.getDelivery(this.ctx, id);
+  }
+
+  dueHookDeliveries(now: number, limit: number): hooks.DeliveryRecord[] {
+    return hooks.dueDeliveries(this.ctx, now, limit);
+  }
+
+  nextHookDeliveryAt(): number | null {
+    return hooks.nextDeliveryAt(this.ctx);
+  }
+
+  pendingHookDeliveries(hookId: string): number {
+    return hooks.pendingCount(this.ctx, hookId);
+  }
+
+  recordHookDelivery(id: string, outcome: hooks.DeliveryOutcome): void {
+    hooks.recordDelivery(this.ctx, id, outcome);
+  }
+
+  listHookDeliveries(hookId: string, limit: number): hooks.DeliveryRecord[] {
+    return hooks.listDeliveries(this.ctx, hookId, limit);
+  }
+
+  lastSettledHookDelivery(hookId: string): hooks.DeliveryRecord | null {
+    return hooks.lastSettled(this.ctx, hookId);
+  }
+
+  pruneHookDeliveries(now: number): void {
+    hooks.pruneDeliveries(this.ctx, now);
   }
 
   /** Marks an action token used; false when it was used before. */

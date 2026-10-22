@@ -18,6 +18,14 @@ export interface NotifySecrets {
   actionKey: string;
   /** Webhook signing secrets by webhook ID. */
   webhooks: Record<string, string>;
+  /** Lifecycle hook signing secrets by hook ID (ADR 0031). */
+  hooks: Record<string, HookSecret>;
+}
+
+/** A hook's signing secret; after a rotation the one it replaced stays valid until `previous.until`. */
+export interface HookSecret {
+  current: string;
+  previous?: { secret: string; until: number };
 }
 
 function generate(): NotifySecrets {
@@ -30,6 +38,7 @@ function generate(): NotifySecrets {
     },
     actionKey: randomBytes(32).toString('base64url'),
     webhooks: {},
+    hooks: {},
   };
 }
 
@@ -62,6 +71,7 @@ export function notifySecrets(ctx: StoreContext): NotifySecrets {
     try {
       const parsed: unknown = JSON.parse(readFileSync(file, 'utf8'));
       if (valid(parsed)) {
+        parsed.hooks ??= {};
         ctx.secrets = parsed;
         return parsed;
       }
@@ -85,4 +95,28 @@ export function setWebhookSecret(ctx: StoreContext, id: string, secret: string |
 
 export function webhookSecret(ctx: StoreContext, id: string): string | null {
   return notifySecrets(ctx).webhooks[id] ?? null;
+}
+
+/** Sets a hook's signing secret and keeps the old one valid until `keepUntil`; `null` removes the hook's secrets. */
+export function setHookSecret(
+  ctx: StoreContext,
+  id: string,
+  secret: string | null,
+  keepUntil?: number,
+): void {
+  const secrets = notifySecrets(ctx);
+  if (secret === null) {
+    delete secrets.hooks[id];
+  } else {
+    const old = secrets.hooks[id]?.current;
+    secrets.hooks[id] = {
+      current: secret,
+      ...(old && keepUntil !== undefined ? { previous: { secret: old, until: keepUntil } } : {}),
+    };
+  }
+  save(ctx, secrets);
+}
+
+export function hookSecret(ctx: StoreContext, id: string): HookSecret | null {
+  return notifySecrets(ctx).hooks[id] ?? null;
 }

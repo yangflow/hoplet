@@ -2,6 +2,7 @@
 import type { IncomingMessage, Server, ServerResponse } from 'node:http';
 import { bearerToken, type Config, secretsMatch } from '../config/index.ts';
 import type { Control } from '../control/index.ts';
+import { createHooks, type Hooks } from '../hooks/index.ts';
 import { log, registerSecret } from '../log/index.ts';
 import { createNotify, type Notify } from '../notify/index.ts';
 import type { Store } from '../store/index.ts';
@@ -17,6 +18,8 @@ export interface ApiOptions {
   now?: () => number;
   /** The notifications; the API answers for it the action routes. Defaults to one that is not started. */
   notify?: Notify;
+  /** The lifecycle hooks; the API answers for them the hook routes. Defaults to ones that are not started. */
+  hooks?: Hooks;
 }
 
 export interface Api {
@@ -38,12 +41,19 @@ export function createApi(
       publicUrl: config.publicUrl ?? null,
       ...(options.now ? { now: options.now } : {}),
     });
+  const hooks =
+    options.hooks ??
+    createHooks(store, control, {
+      allowPrivate: config.hookAllowPrivate ?? false,
+      ...(options.now ? { now: options.now } : {}),
+    });
   const router = createRouter({
     routes,
     store,
     control,
     tickets,
     notify,
+    hooks,
     ...(options.now ? { now: options.now } : {}),
     hostAuthorized: (req) => secretsMatch(bearerToken(req.headers.authorization), config.token),
   });

@@ -54,6 +54,13 @@ import {
   HandoffRequestSchema,
   HandoffResultSchema,
   HealthResponseSchema,
+  HookCreateRequestSchema,
+  HookDeliveriesResponseSchema,
+  HookInfoSchema,
+  HookListResponseSchema,
+  HookSecretResponseSchema,
+  HookTestResponseSchema,
+  HookUpdateRequestSchema,
   LinesPageSchema,
   LinesQuerySchema,
   type LiveSessionMeta,
@@ -1649,6 +1656,104 @@ export const routes: readonly Route[] = [
       const result = await notify.testWebhook(params.id ?? '');
       if (!result) throw new ApiError('not-found');
       return { webhook: webhookInfo(result.webhook), delivery: result.delivery };
+    },
+  }),
+  defineRoute({
+    method: 'GET',
+    path: '/api/hooks',
+    auth: 'host',
+    lane: 'control',
+    response: HookListResponseSchema,
+    handler: ({ hooks }) => ({ hooks: hooks.list() }),
+  }),
+  defineRoute({
+    method: 'POST',
+    path: '/api/hooks',
+    auth: 'host',
+    lane: 'control',
+    bodyLimit: 16 * 1024,
+    body: HookCreateRequestSchema,
+    status: 201,
+    response: HookSecretResponseSchema,
+    handler: async ({ hooks, body }) => {
+      const created = await hooks.create(body);
+      if (created.ok) return { hook: created.hook, secret: created.secret };
+      if (created.error === 'too-many-hooks') throw new ApiError('too-large');
+      throw new ApiError('invalid-request', { reason: created.reason });
+    },
+  }),
+  defineRoute({
+    method: 'GET',
+    path: '/api/hooks/:id',
+    auth: 'host',
+    lane: 'control',
+    response: HookInfoSchema,
+    handler: ({ hooks, params }) => {
+      const hook = hooks.get(params.id ?? '');
+      if (!hook) throw new ApiError('not-found');
+      return hook;
+    },
+  }),
+  defineRoute({
+    method: 'PATCH',
+    path: '/api/hooks/:id',
+    auth: 'host',
+    lane: 'control',
+    bodyLimit: 16 * 1024,
+    body: HookUpdateRequestSchema,
+    response: HookInfoSchema,
+    handler: async ({ hooks, params, body }) => {
+      const updated = await hooks.update(params.id ?? '', body);
+      if (updated.ok) return updated.hook;
+      if (updated.error === 'not-found') throw new ApiError('not-found');
+      throw new ApiError('invalid-request', { reason: updated.reason });
+    },
+  }),
+  defineRoute({
+    method: 'DELETE',
+    path: '/api/hooks/:id',
+    auth: 'host',
+    lane: 'control',
+    response: HookListResponseSchema,
+    handler: ({ hooks, params }) => {
+      if (!hooks.remove(params.id ?? '')) throw new ApiError('not-found');
+      return { hooks: hooks.list() };
+    },
+  }),
+  defineRoute({
+    method: 'POST',
+    path: '/api/hooks/:id/rotate-secret',
+    auth: 'host',
+    lane: 'control',
+    response: HookSecretResponseSchema,
+    handler: ({ hooks, params }) => {
+      const rotated = hooks.rotate(params.id ?? '');
+      if (!rotated) throw new ApiError('not-found');
+      return rotated;
+    },
+  }),
+  defineRoute({
+    method: 'GET',
+    path: '/api/hooks/:id/deliveries',
+    auth: 'host',
+    lane: 'control',
+    response: HookDeliveriesResponseSchema,
+    handler: ({ hooks, params }) => {
+      const deliveries = hooks.deliveries(params.id ?? '');
+      if (!deliveries) throw new ApiError('not-found');
+      return { deliveries };
+    },
+  }),
+  defineRoute({
+    method: 'POST',
+    path: '/api/hooks/:id/test',
+    auth: 'host',
+    lane: 'control',
+    response: HookTestResponseSchema,
+    handler: async ({ hooks, params }) => {
+      const result = await hooks.test(params.id ?? '');
+      if (!result) throw new ApiError('not-found');
+      return result;
     },
   }),
   defineRoute({

@@ -27,6 +27,7 @@ import { templates } from './0024-templates.ts';
 import { permissionRules } from './0025-permission-rules.ts';
 import { devicePermissionDeny } from './0026-device-permission-deny.ts';
 import { auditCursor } from './0027-audit-cursor.ts';
+import { hooks } from './0028-hooks.ts';
 
 export interface Migration {
   readonly id: number;
@@ -62,6 +63,7 @@ const MIGRATIONS: readonly Migration[] = [
   permissionRules,
   devicePermissionDeny,
   auditCursor,
+  hooks,
 ];
 
 export function migrate(db: DatabaseSync): void {

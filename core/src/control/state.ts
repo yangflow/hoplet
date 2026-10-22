@@ -86,6 +86,12 @@ export interface ControlState {
   commands: Map<string, { deviceId: string; commands: Command[] }>;
   /** Open permission requests by `<sessionId>\n<requestId>`. */
   permissions: Map<string, OpenPermission>;
+  /** The timers that close a request nobody answered, by the same key. */
+  permissionTimers: Map<string, ReturnType<typeof setTimeout>>;
+  /** Turns counted and the running turn's start per session, in memory only: they restart with the core. */
+  turns: Map<string, { count: number; startedAt?: number }>;
+  /** Sessions a stop was forwarded for, until the session reports it is idle. */
+  stopping: Set<string>;
   /** Hands an event for the browsers to whoever subscribed. */
   publish: (msg: ServerMessage) => void;
   now: () => number;

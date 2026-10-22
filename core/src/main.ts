@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 import { createApi } from './api/index.ts';
 import { loadConfig } from './config/index.ts';
 import { createControl } from './control/index.ts';
+import { createHooks } from './hooks/index.ts';
 import { attachIngest } from './ingest/index.ts';
 import { log } from './log/index.ts';
 import { createNotify } from './notify/index.ts';
@@ -29,7 +30,9 @@ const server = createServer();
 attachIngest(server, store, control);
 const notify = createNotify(store, control, { publicUrl: config.publicUrl ?? null });
 notify.start();
-createApi(store, config, control, { notify }).attach(server);
+const hooks = createHooks(store, control, { allowPrivate: config.hookAllowPrivate ?? false });
+hooks.start();
+createApi(store, config, control, { notify, hooks }).attach(server);
 // The two WebSocket paths are taken by the modules above; any other upgrade is refused.
 server.on('upgrade', (req, socket) => {
   const { pathname } = new URL(req.url ?? '/', 'http://localhost');

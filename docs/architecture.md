@@ -56,8 +56,9 @@ Claude Code               the session file (writer) and the running process
 | store | core | SQLite index, chunk files, verbatim append and recovery, paged reads, search scans, devices, snapshots, the audit log | migrations, log, scrub | `core/src/store/` |
 | ingest | core | Agent WebSocket: authentication, `device.hello`/`welcome`, append decoding, ack/resync/reject, the two lanes | store, control, log | `core/src/ingest/` |
 | notify | core | Notification rules (preset, overrides, quiet hours), redaction, Web Push and webhook delivery, signed action links and their single use, the VAPID and signing secrets | store, control, log, scrub | `core/src/notify/` |
+| hooks | core | Lifecycle events from control's event stream (ADR 0031), the webhook hooks, HMAC signing, the address check, the persisted delivery queue with retry and backoff, the delivery history, the hook secrets | store, control, notify, log, scrub | `core/src/hooks/` |
 | control | core | Runtime state per session, prompt and new-session deduplication, permission routing, handoff state machine, device RPC with timeouts | store, log | `core/src/control/` |
-| api | core | REST routes, read projection with one mapping per provider, browser WebSocket and subscriptions, WebSocket tickets, static files | store, control, notify, log, config | `core/src/api/` |
+| api | core | REST routes, read projection with one mapping per provider, browser WebSocket and subscriptions, WebSocket tickets, static files | store, control, notify, hooks, log, config | `core/src/api/` |
 | shared | contract | Schemas, derived types and error codes for REST and both WebSockets | nothing | `shared/src/` |
 | web | browser | Token gate, Hoplet screen, API client, live connection, bounded page cache | REST and browser WebSocket only | `web/src/` |
 | sync | agent | Agent WebSocket client, the two lanes, cursor reconciliation, append batching | config, provider | `agent/internal/sync/` |

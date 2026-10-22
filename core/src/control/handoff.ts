@@ -577,6 +577,13 @@ export function createHandoff(
         handoffId: active.handoffId,
         online: !!ownerLink,
       });
+      state.emit({
+        kind: 'handoff-started',
+        sessionId,
+        handoffId: active.handoffId,
+        from: owner,
+        to: targetDeviceId,
+      });
       try {
         const done = await run(sessionId, request, active);
         progress(sessionId, active, 'done', {
@@ -586,6 +593,13 @@ export function createHandoff(
         });
         log('info', 'control', 'handoff committed', { sessionId, handoffId: active.handoffId });
         recordHandoff(sessionId, active, 'committed');
+        state.emit({
+          kind: 'handoff-done',
+          sessionId,
+          handoffId: active.handoffId,
+          from: owner,
+          to: targetDeviceId,
+        });
         return done;
       } catch (err) {
         const failure =
