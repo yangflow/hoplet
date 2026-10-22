@@ -1,11 +1,10 @@
 # 0033 A command-line tool, an SDK and scoped tokens
 
-- Status: proposed
+- Status: accepted
 - Date: 2026-10-22
 - Related: ADR 0002, ADR 0005, ADR 0007, ADR 0011, ADR 0012, ADR 0018, ADR 0021, ADR 0022, ADR 0029, ADR 0030, ADR 0031, docs/api.md, docs/architecture.md, docs/threat-model.md, docs/hosting.md, docs/spec.md, issues #67, #71, #115
 
-This record proposes; the maintainer has not confirmed it. Each open decision lists its options, their cost and a
-recommendation. The status becomes `accepted` only when the maintainer says so.
+The maintainer accepted the recommendation of each decision below; the options and their cost stay for the record.
 
 ## Context
 
@@ -49,21 +48,21 @@ The risks are the point. A scoped token is a new credential kept in a CI secret 
 power, life and revocation have to be small by default. A scope checked in each handler is a scope one forgotten
 handler defeats. A public package makes the REST contract a promise to people the maintainer cannot see.
 
-## Open decisions
+## Decisions
 
-1. Package location and what is published. Recommendation: `sdk/` (`@hoplet/sdk`) and `cli/` (`@hoplet/cli`) as
+1. Package location and what is published. Chosen: `sdk/` (`@hoplet/sdk`) and `cli/` (`@hoplet/cli`) as
    workspaces, the schemas of `shared/` bundled into the SDK.
-2. Publishing method. Recommendation: npm, by a workflow that waits for the maintainer's approval, with
+2. Publishing method. Chosen: npm, by a workflow that waits for the maintainer's approval, with
    provenance; no CLI in the image in this version.
-3. Token capabilities. Recommendation: four (`read`, `send`, `create`, `answer`) with presets and `answer` as a
+3. Token capabilities. Chosen: four (`read`, `send`, `create`, `answer`) with presets and `answer` as a
    separate switch.
-4. Restrictions. Recommendation: one allow-list of machines and projects; a session out of scope is
+4. Restrictions. Chosen: one allow-list of machines and projects; a session out of scope is
    `session-not-found`.
-5. Expiry. Recommendation: required, 90 days by default, 365 at most.
-6. Whether `hoplet new --worktree` belongs here. Recommendation: no; its own issue, because it needs a wire and
+5. Expiry. Chosen: required, 90 days by default, 365 at most.
+6. Whether `hoplet new --worktree` belongs here. Chosen: no; its own issue, because it needs a wire and
    agent change.
-7. How `wait` finds the end of a turn. Recommendation: infer it from runtime states; no new protocol field now.
-8. Where the CLI keeps credentials. Recommendation: nowhere; environment variables and a token file only.
+7. How `wait` finds the end of a turn. Chosen: infer it from runtime states; no new protocol field now.
+8. Where the CLI keeps credentials. Chosen: nowhere; environment variables and a token file only.
 
 ## Decision
 
@@ -97,12 +96,12 @@ does.
 |---|---|---|
 | Both inside `shared/` | No new manifest. `shared/` is the contract between the parts and depends on nothing; a client and a command line are not a contract. Publishing it would publish the agent protocol. | Rejected |
 | One package, `@hoplet/sdk`, with the `bin` | One manifest and one publish. A program that wants the client installs a tool, and "no `node:` in the SDK" has to be enforced per file. | Possible |
-| `sdk/` and `cli/` (proposed) | Two manifests, two version-check entries, a bundling step for `shared/`. A clean rule that the tool uses only the public client. | Recommended |
+| `sdk/` and `cli/` (chosen) | Two manifests, two version-check entries, a bundling step for `shared/`. A clean rule that the tool uses only the public client. | Chosen |
 | Publish `@hoplet/shared` too, SDK stays thin | No bundling. The private contract of core, agent and web becomes a public one with its own compatibility promise. | Fallback if bundling declarations proves brittle |
 
 ### Publishing (decision 2)
 
-**Recommendation: npm, `@hoplet/sdk` and `@hoplet/cli`, public, published by a workflow with provenance and no
+**Chosen: npm, `@hoplet/sdk` and `@hoplet/cli`, public, published by a workflow with provenance and no
 stored publishing token.**
 
 - The workflow runs when a release is created and waits on a protected GitHub environment that only the maintainer
@@ -115,7 +114,7 @@ stored publishing token.**
 
 | Option | Cost | Verdict |
 |---|---|---|
-| npm, workflow behind an approval (proposed) | An npm account and scope, a workflow, a public-API promise. Releases are otherwise unchanged. | Recommended |
+| npm, workflow behind an approval (chosen) | An npm account and scope, a workflow, a public-API promise. Releases are otherwise unchanged. | Chosen |
 | npm, published by hand from the maintainer's machine | No workflow, no OIDC; no provenance, and a credential on a laptop. | Acceptable for the first release only |
 | Single-file executable (Node SEA, Bun or Deno compile) on the GitHub Release | No Node needed; one file per platform, signing and notarization on macOS, a build matrix. A bigger release process than the feature. | Later, if users without Node ask |
 | The CLI inside the image (`docker exec`) | The host token is already there and nothing is published. It couples the CLI to the server release and grows the image. | Left out of this version; cheap to add after |
@@ -167,7 +166,7 @@ permissions, Codex full access); `POST /api/sessions` answers `forbidden`.
 | Option | Cost | Verdict |
 |---|---|---|
 | Three levels (read, send, create), as the issue sketches | Smallest settings UI. Answering a permission has to live in a level: either `send` can approve what its own prompt asks for, or nothing can answer. | Rejected |
-| Capabilities with presets (proposed) | A grant is a list, and #67 can use a subset. Four names to document. | Recommended |
+| Capabilities with presets (chosen) | A grant is a list, and #67 can use a subset. Four names to document. | Chosen |
 | Per-route or per-method scopes (`sessions:write`, OAuth style) | Finest control, a long list to maintain and explain; nobody can say what a token may do without reading it. | Rejected for a single operator |
 
 *Restrictions (decision 4).* `allow` is a list of entries `{ deviceId, path? }`; absent means everything. An entry
@@ -185,7 +184,7 @@ Restrictions are for machines and projects, not single sessions; #67's per-sessi
 
 *Expiry (decision 5).* `expires_at` is required. Settings offers 1, 7, 30 and 90 days, defaults to 90, and the core
 refuses more than 365. Options: optional expiry (a forgotten token lives forever; rejected); required with a
-maximum (proposed); required and short such as 24 hours (safest, but a CI secret then needs a renewal job, which
+maximum (chosen); required and short such as 24 hours (safest, but a CI secret then needs a renewal job, which
 defeats it). A token cannot be edited: another grant or a longer life is a new token and the old one is revoked.
 
 **Revocation.** `DELETE /api/tokens/:id` sets `revoked_at`; it is immediate (see Lookup) and closes the browser
@@ -258,7 +257,7 @@ is missed, and falls back to polling if the WebSocket is unavailable.
 
 | Option | Cost | Verdict |
 |---|---|---|
-| Infer the turn from states (proposed) | No protocol change. A narrow race when a turn starts and ends between two observations is closed by seeing the appended lines. | Recommended |
+| Infer the turn from states (chosen) | No protocol change. A narrow race when a turn starts and ends between two observations is closed by seeing the appended lines. | Chosen |
 | A `turnId` on `runtime.state` and the prompt result | Exact, also useful to hooks. A change in `shared/src/wire/`, `agent/internal/sync/protocol.go` and each vendor driver. | Revisit if the inference proves wrong |
 | Wait for a `turn-done` hook | Needs a receiver. | Rejected for a CLI |
 
@@ -288,13 +287,13 @@ stays, and the help warns that arguments are visible to other processes.
 
 *Credentials on disk (decision 8).* Options: a `login` command storing URL and token in a file (convenient; a new
 secret store to protect, and the place the host token ends up by habit); the system keychain (right on a Mac, a
-native helper per platform); environment and token file only (proposed). A stored login is a revisit trigger.
+native helper per platform); environment and token file only (chosen). A stored login is a revisit trigger.
 
 *Worktree (decision 6).* `hoplet new --worktree` needs the agent to make a git worktree: a field in
 `NewSessionRequest`, a change to the runtime start message and to the agent, and the worktree branch must be one
 deletion (ADR 0023) can find. Options: (a) include it here, a wire change plus an agent feature in a CLI pull
 request, against "small pull requests, one concern each"; (b) its own issue, and the CLI offers the flag when the
-core supports it (recommended); (c) the CLI makes the worktree itself, impossible because the project lives on the
+core supports it (chosen); (c) the CLI makes the worktree itself, impossible because the project lives on the
 machine, not where the CLI runs.
 
 ## Cost
