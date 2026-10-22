@@ -34,6 +34,8 @@ export type ToolRow = {
   lineNo: number;
   tool: string;
   toolKind: ToolKind;
+  /** The vendor's ID of the call; a rule decision is joined to the call by it. */
+  toolUseId?: string;
   mcp?: ToolMcp;
   /** When the call line was written. */
   ts?: string;
@@ -51,6 +53,8 @@ export type EditRow = {
   lineNo: number;
   tool: string;
   toolKind: ToolKind;
+  /** The vendor's ID of the call; a rule decision is joined to the call by it. */
+  toolUseId?: string;
   path: string;
   added: number;
   removed: number;
@@ -418,6 +422,7 @@ function rowsOfBlock(
             lineNo,
             tool: raw.name,
             toolKind: raw.kind,
+            ...(raw.id ? { toolUseId: raw.id } : {}),
             path: relativePath(path, ctx.cwd),
             language: languageOfPath(path),
             ...diff,
@@ -433,6 +438,7 @@ function rowsOfBlock(
         lineNo,
         tool: raw.name,
         toolKind: raw.kind,
+        ...(raw.id ? { toolUseId: raw.id } : {}),
         ...(raw.mcp ? { mcp: raw.mcp } : {}),
         ...(entry.ts ? { ts: entry.ts } : {}),
         arg: toolArg(raw.input, ctx.cwd),

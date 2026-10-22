@@ -1093,6 +1093,12 @@
       "schema": "SessionPermissionMessage"
     },
     {
+      "type": "session.rule",
+      "direction": "core-to-web",
+      "lane": "control",
+      "schema": "SessionRuleMessage"
+    },
+    {
       "type": "handoff.progress",
       "direction": "core-to-web",
       "lane": "control",
@@ -7990,6 +7996,56 @@
         "v",
         "type",
         "sessionId"
+      ]
+    },
+    "SessionRuleMessage": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 13
+        },
+        "type": {
+          "const": "session.rule"
+        },
+        "sessionId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "toolUseId": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "decision": {
+          "enum": [
+            "allow",
+            "deny",
+            "ask"
+          ],
+          "type": "string"
+        },
+        "ruleId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "scope": {
+          "enum": [
+            "global",
+            "project",
+            "session",
+            "agent"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "sessionId",
+        "toolUseId",
+        "decision",
+        "ruleId",
+        "scope"
       ]
     },
     "SessionRuntimeMessage": {

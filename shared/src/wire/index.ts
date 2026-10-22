@@ -631,6 +631,24 @@ export const WIRE_MESSAGES = defineWire({
     },
   },
 
+  /**
+   * A permission rule decided a tool call (ADR 0029), relayed from `runtime.permission.auto` so the conversation
+   * can say which rule did. `toolUseId` is the call's; `ruleId` and `scope` are as on `runtime.permission.auto`.
+   * It carries no rule name and no tool input: a client finds the name in the rules it already has. A browser
+   * that subscribes gets the latest lines of the session again (the latest 200).
+   */
+  'session.rule': {
+    lane: 'control',
+    direction: 'core-to-web',
+    fields: {
+      sessionId,
+      toolUseId: v.pipe(v.string(), v.maxLength(200)),
+      decision: v.picklist(['allow', 'deny', 'ask']),
+      ruleId: v.pipe(v.string(), v.minLength(1), v.maxLength(80)),
+      scope: v.picklist([...PERMISSION_SCOPES, 'agent']),
+    },
+  },
+
   // Workspace listing, file and diff reads (docs/spec.md#workspace). Requests and the listing are control;
   // the answers that carry file content or a diff are bulk, so a large file never delays a prompt.
   'session.workspace.list': {
@@ -1335,6 +1353,7 @@ export type DevicePresence = WireMessageOf<'device.presence'>;
 export type SessionRuntime = WireMessageOf<'session.runtime'>;
 export type SessionOutput = WireMessageOf<'session.output'>;
 export type SessionPermission = WireMessageOf<'session.permission'>;
+export type SessionRule = WireMessageOf<'session.rule'>;
 export type SessionWorkspaceList = WireMessageOf<'session.workspace.list'>;
 export type SessionWorkspace = WireMessageOf<'session.workspace'>;
 export type SessionWorkspaceRejected = WireMessageOf<'session.workspace.rejected'>;

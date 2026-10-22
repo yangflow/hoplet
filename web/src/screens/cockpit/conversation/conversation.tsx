@@ -48,6 +48,7 @@ import { pageKeysSuspended } from '../../../lib/page-keys.ts';
 import { bodyOfDraft } from '../../../lib/permission-rules.ts';
 import type { SendMode } from '../../../lib/prefs.ts';
 import { loadAppearance } from '../../../lib/prefs.ts';
+import { type RuleDecision, useRuleLines } from '../../../lib/rule-lines.ts';
 import { stateName } from '../../../lib/runtime-state.ts';
 import { useBudget, useBudgetList } from '../../../lib/use-budgets.ts';
 import { usePageVisible } from '../../../lib/visibility.ts';
@@ -69,6 +70,8 @@ import { type LiveFixture, useLiveTurn } from './use-live-turn.ts';
 /** What development fixtures replace: the stored lines, the live turn and a few view settings. */
 export type ConversationFixture = {
   entries: Entry[];
+  /** The rules that decided tool calls, by the call's ID (lib/rule-lines.ts). */
+  rules?: (RuleDecision & { toolUseId: string })[];
   live?: LiveFixture;
   /** The current time, pinned so timers read the same in every capture. */
   now?: number;
@@ -138,6 +141,8 @@ export function Conversation(props: {
   system?: DeviceSystem | null | undefined;
   onHandoff: () => void;
   openDiff?: (path: string) => void;
+  /** Opens the rules in Settings: the rule lines link to it. */
+  onViewRules?: () => void;
   /** Opens another session in the cockpit: the ends of a plan approved into a new session. */
   onOpenSession?: (sessionId: string) => void;
   /** A plan was approved into this new session (ADR 0025): the app opens it. */
@@ -163,6 +168,8 @@ export function Conversation(props: {
   useEffect(() => {
     if (!fixture) void reader.open(aroundLine);
   }, [reader, aroundLine, fixture]);
+  // Before the subscription: the lines it replays are heard from the first one.
+  const { ruleOf } = useRuleLines(sessionId, fixture?.rules ? { lines: fixture.rules } : undefined);
   useEffect(() => {
     if (fixture) return;
     return subscribeSession(sessionId);
@@ -454,6 +461,16 @@ export function Conversation(props: {
     postInterrupt(sessionId).catch((err: unknown) => setNotice(errorText(err)));
   }, [sessionId]);
 
+  // A rule that asked is shown on its card, where the user answers it.
+  const permissionsRuled = useMemo(
+    () =>
+      lt.permissions.map((p) => {
+        const rule = p.toolUseId !== undefined ? ruleOf(p.toolUseId) : undefined;
+        return rule && !p.rule ? { ...p, rule } : p;
+      }),
+    [lt.permissions, ruleOf],
+  );
+
   const cardRules = useMemo<CardRules | undefined>(() => {
     const deviceId = session.ownerDeviceId;
     return {
@@ -655,6 +672,8 @@ export function Conversation(props: {
           startPinned={aroundLine === null && fixture?.scrollTo === undefined}
           dock={dock}
           {...(props.openDiff ? { openDiff: props.openDiff } : {})}
+          ruleOf={ruleOf}
+          {...(props.onViewRules ? { openRule: props.onViewRules } : {})}
           {...(fixture?.openBlocks ? { initiallyOpen: fixture.openBlocks } : {})}
           {...(fixture?.scrollTo !== undefined ? { scrollTo: fixture.scrollTo } : {})}
           live={
@@ -665,7 +684,7 @@ export function Conversation(props: {
                 state={state}
                 now={now}
                 frozen={frozen}
-                permissions={lt.permissions}
+                permissions={permissionsRuled}
                 providerName={provider}
                 answering={answering}
                 notice={notice}

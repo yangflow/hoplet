@@ -200,7 +200,8 @@ agent does not know. The core never writes this list.
 "Allowed by rule *note*" or "Denied by rule *note*", with the rule and its scope, and an `ask` card says which rule
 asked. The agent reports `runtime.permission.auto` (`sessionId`, `toolUseId`, `decision`, `ruleId`, `scope`,
 `revision`) and the core records it in the audit log (ADR 0030) as a `permission.auto` record, keyed by session and
-tool use ID, which the conversation joins; a user's answer is a `permission.answered` record, and a rule change a
+tool use ID; the core also relays the decision to the browsers subscribed to the session as `session.rule` (ids only),
+which the conversation matches to the call by `toolUseId`; a user's answer is a `permission.answered` record, and a rule change a
 `config.changed` record. The session file is not touched (ADR 0002), and no record keeps more of the command, path
 or URL than the audit log's scrubbed summary. A decision made while the core was unreachable
 is sent when the agent reconnects.

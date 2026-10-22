@@ -25,7 +25,8 @@ export type AppliedRule = {
   ruleId: string;
   /** The rule's note, or the line that names its match. */
   name: string;
-  scope: 'builtin' | 'global' | 'project' | 'session';
+  /** `agent`: a deny rule of the machine itself (its floor or its own configuration). */
+  scope: 'builtin' | 'global' | 'project' | 'session' | 'agent';
 };
 
 // -- Grouping -------------------------------------------------------------------------------------------------

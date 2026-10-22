@@ -29,7 +29,7 @@ export type OpenPermission = {
   toolKind: ToolKind;
   toolUseId?: string;
   mcp?: ToolMcp;
-  /** The rule that asked for this request. No browser message carries it yet; only development states set it. */
+  /** The rule that asked for this request, once the core has told it (`session.rule`). */
   rule?: AppliedRule;
   input: unknown;
   receivedAt: number;

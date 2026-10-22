@@ -360,6 +360,7 @@ describe('wire contract', () => {
       'session.queue',
       'session.output',
       'session.permission',
+      'session.rule',
       'handoff.progress',
       'notify',
       'terminal.attach',

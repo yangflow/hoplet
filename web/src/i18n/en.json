@@ -1204,5 +1204,6 @@
   "Recursive deletes and privileged commands would run without asking.": "Recursive deletes and privileged commands would run without asking.",
   "Code nobody read could be fetched and run in one step.": "Code nobody read could be fetched and run in one step.",
   "with": "with",
-  "piped to": "piped to"
+  "piped to": "piped to",
+  "This machine": "This machine"
 }

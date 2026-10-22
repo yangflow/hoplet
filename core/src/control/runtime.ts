@@ -10,6 +10,7 @@ import {
   type RuntimePrompt,
   type RuntimeStop,
   type SessionPermission,
+  type SessionRule,
 } from '@hoplet/shared';
 import { log } from '../log/index.ts';
 import { toolInputSummary } from '../store/index.ts';
@@ -58,6 +59,8 @@ export const PROMPT_DEDUP_MS = 10 * 60_000;
  * A plan exit (ADR 0019) never expires: it waits for the user until the turn is over.
  */
 export const PERMISSION_OPEN_MS = 10 * 60_000;
+/** Rule decisions of a session kept for browsers that subscribe later. */
+export const MAX_RULE_LINES = 200;
 
 export type Runtime = Pick<
   Control,
@@ -68,6 +71,7 @@ export type Runtime = Pick<
   | 'config'
   | 'runtimeOf'
   | 'openPermissions'
+  | 'ruleLinesOf'
   | 'commandsOf'
 > & {
   receive(
@@ -431,6 +435,8 @@ export function createRuntime(state: ControlState): Runtime {
       return out;
     },
 
+    ruleLinesOf: (sessionId) => state.ruleLines.get(sessionId) ?? [],
+
     receive(link, msg) {
       const deviceId = deviceOf(state, link);
       if (!deviceId) return;
@@ -487,6 +493,21 @@ export function createRuntime(state: ControlState): Runtime {
               sessionId: msg.sessionId,
               error: err instanceof Error ? err.message : 'unknown',
             });
+          }
+          if (msg.toolUseId !== undefined) {
+            // Which rule decided is shown beside the call; only ids travel, the browser finds the name.
+            const line: SessionRule = {
+              v: PROTOCOL_VERSION,
+              type: 'session.rule',
+              sessionId: msg.sessionId,
+              toolUseId: msg.toolUseId,
+              decision: msg.decision,
+              ruleId: msg.ruleId,
+              scope: msg.scope,
+            };
+            const lines = [...(state.ruleLines.get(msg.sessionId) ?? []), line];
+            state.ruleLines.set(msg.sessionId, lines.slice(-MAX_RULE_LINES));
+            state.publish(line);
           }
           return;
         }

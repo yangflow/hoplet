@@ -7,6 +7,7 @@ import { clock, formatBytes, formatDuration } from '../../../lib/format.ts';
 import { t } from '../../../lib/i18n.ts';
 import { StoredElided } from './blocks.tsx';
 import { linesOf, OutputWell, type WellLine } from './OutputWell.tsx';
+import { ToolRule } from './rule-line.tsx';
 import {
   metaParts,
   numberedLines,
@@ -259,6 +260,8 @@ export function ToolActivity(props: {
   running?: boolean;
   seconds?: number;
   testid: string;
+  /** The call's vendor ID: the rule that decided it is shown under the row. */
+  toolUseId?: string | undefined;
   /** The elided block of a result, shown under the row in place of the well. */
   elided?: ReactNode;
 }) {
@@ -283,26 +286,30 @@ export function ToolActivity(props: {
       <div data-testid={props.testid}>
         <div className={cls}>{cells}</div>
         {elided}
+        <ToolRule toolUseId={props.toolUseId} />
       </div>
     );
   }
   return (
-    <details
-      className="act-d"
-      open={open}
-      onToggle={(e) => view.setOpen(id, e.currentTarget.open)}
-      data-testid={props.testid}
-    >
-      <summary className={cls}>{cells}</summary>
-      {open ? (
-        <OutputWell
-          lines={well.lines}
-          numbered={well.numbered}
-          error={failed}
-          label={t('Output')}
-        />
-      ) : null}
-    </details>
+    <>
+      <details
+        className="act-d"
+        open={open}
+        onToggle={(e) => view.setOpen(id, e.currentTarget.open)}
+        data-testid={props.testid}
+      >
+        <summary className={cls}>{cells}</summary>
+        {open ? (
+          <OutputWell
+            lines={well.lines}
+            numbered={well.numbered}
+            error={failed}
+            label={t('Output')}
+          />
+        ) : null}
+      </details>
+      <ToolRule toolUseId={props.toolUseId} />
+    </>
   );
 }
 
@@ -313,6 +320,7 @@ export function ToolView({ row }: { row: ToolRow }) {
       facts={factsOf(row)}
       arg={row.arg}
       testid="cockpit.activity"
+      toolUseId={row.toolUseId}
       {...(row.result?.elided ? { elided: <StoredElided elided={row.result.elided} /> } : {})}
     />
   );
@@ -412,38 +420,48 @@ export function EditActivity(props: {
   running?: boolean;
   seconds?: number;
   testid: string;
+  /** The call's vendor ID: the rule that decided it is shown under the row. */
+  toolUseId?: string | undefined;
 }) {
   const view = useView();
   const spec = toolSpec(props.tool);
   const open = view.isOpen(props.id, props.defaultOpen);
   return (
-    <details
-      className="act-d"
-      open={open}
-      onToggle={(e) => view.setOpen(props.id, e.currentTarget.open)}
-      data-testid={props.testid}
-    >
-      <summary className={`act${props.running ? ' run' : ''}${props.failed ? ' bad' : ''}`}>
-        <ActCells
-          icon={Icon[spec.icon]()}
-          verb={verbLabel(spec)}
-          object={<Mono>{props.path}</Mono>}
-          meta={
-            props.running ? (
-              <RunningMeta seconds={props.seconds ?? 0} />
-            ) : (
-              <>
-                {props.failed ? <span>{t('Failed')}</span> : null}
-                <EditCounts added={props.added} removed={props.removed} />
-              </>
-            )
-          }
-        />
-      </summary>
-      {open ? (
-        <DiffWell rows={props.rows} more={props.more} language={props.language} path={props.path} />
-      ) : null}
-    </details>
+    <>
+      <details
+        className="act-d"
+        open={open}
+        onToggle={(e) => view.setOpen(props.id, e.currentTarget.open)}
+        data-testid={props.testid}
+      >
+        <summary className={`act${props.running ? ' run' : ''}${props.failed ? ' bad' : ''}`}>
+          <ActCells
+            icon={Icon[spec.icon]()}
+            verb={verbLabel(spec)}
+            object={<Mono>{props.path}</Mono>}
+            meta={
+              props.running ? (
+                <RunningMeta seconds={props.seconds ?? 0} />
+              ) : (
+                <>
+                  {props.failed ? <span>{t('Failed')}</span> : null}
+                  <EditCounts added={props.added} removed={props.removed} />
+                </>
+              )
+            }
+          />
+        </summary>
+        {open ? (
+          <DiffWell
+            rows={props.rows}
+            more={props.more}
+            language={props.language}
+            path={props.path}
+          />
+        ) : null}
+      </details>
+      <ToolRule toolUseId={props.toolUseId} />
+    </>
   );
 }
 
@@ -461,6 +479,7 @@ export function EditView({ row }: { row: EditRow }) {
       failed={row.result?.failed === true}
       defaultOpen
       testid="cockpit.edit"
+      toolUseId={row.toolUseId}
     />
   );
 }

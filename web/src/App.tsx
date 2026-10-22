@@ -416,6 +416,7 @@ export default function App() {
           onCreateSession={create}
           onStartTemplate={startTemplate}
           onManageTemplates={() => openSettings('templates')}
+          onManageRules={() => openSettings('rules')}
           onSessionStarted={(sessionId) => void open(sessionId)}
         />
       </div>

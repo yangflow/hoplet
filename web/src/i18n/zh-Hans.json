@@ -1209,5 +1209,6 @@
   "Recursive deletes and privileged commands would run without asking.": "递归删除和特权命令将不经询问直接运行。",
   "Code nobody read could be fetched and run in one step.": "没人读过的代码可能被一步下载并执行。",
   "with": "带",
-  "piped to": "管道交给"
+  "piped to": "管道交给",
+  "This machine": "此机器"
 }

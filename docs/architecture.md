@@ -366,6 +366,12 @@ oldest dropped past that, lost when the agent exits) and is sent after the recon
 `/api/permission-rules` is a `config.changed` audit event with `area: "permission-rules"`; the match patterns and
 the note are named in `fields` and never recorded.
 
+The core also keeps the latest 200 decisions of a session that carry a `toolUseId`, in memory, and sends each as
+`session.rule` (`sessionId`, `toolUseId`, `decision`, `ruleId`, `scope`) to the browsers subscribed to the session; a
+browser that subscribes gets the kept ones again. The message holds ids only: the web names the rule from the rules
+it lists (`GET /api/permission-rules`; the built-in table is in `shared/`). The lines are gone when the core restarts;
+the audit event is the record.
+
 ### Session chunk files
 
 `<data>/sessions/<sessionId>/c-<seq>.ndjson` holds at most 500 raw JSONL lines. A full chunk is compressed

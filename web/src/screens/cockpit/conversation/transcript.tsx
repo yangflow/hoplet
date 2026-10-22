@@ -134,6 +134,8 @@ export function Transcript(props: {
   /** Space the composer takes at the foot. */
   dock: number;
   openDiff?: (path: string) => void;
+  ruleOf?: ViewState['ruleOf'];
+  openRule?: ViewState['openRule'];
   /** Keys of the folds and blocks to start open (development fixtures). */
   initiallyOpen?: string[];
   /** Starts scrolled this far from the top (development fixtures). */
@@ -197,8 +199,10 @@ export function Transcript(props: {
         setOpenVersion((v) => v + 1);
       },
       ...(props.openDiff ? { openDiff: props.openDiff } : {}),
+      ...(props.ruleOf ? { ruleOf: props.ruleOf } : {}),
+      ...(props.openRule ? { openRule: props.openRule } : {}),
     }),
-    [props.sessionId, props.openDiff],
+    [props.sessionId, props.openDiff, props.ruleOf, props.openRule],
   );
 
   const measure = useCallback(() => {

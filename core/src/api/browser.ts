@@ -1,6 +1,6 @@
 /**
  * The browser WebSocket `/ws`: one upgrade per ticket (api/tickets.ts), then the events control publishes.
- * Runtime state and permission requests go to every browser; streamed output only to the browsers subscribed
+ * Runtime state and permission requests go to every browser; streamed output and rule decisions only to the browsers subscribed
  * to its session. Tool calls and permission requests carry the kind of their tool as the session provider's
  * mapping classifies it. Nothing buffers without bound: a browser that falls behind is dropped and reconnects.
  */
@@ -158,6 +158,7 @@ export function attachBrowserSocket(server: Server, control: Control, tickets: T
     for (const permission of control.openPermissions(sessionId)) {
       reply(ws, withToolKind(control, permission));
     }
+    for (const line of control.ruleLinesOf(sessionId)) reply(ws, line);
   }
 
   function handleMessage(ws: WebSocket, text: string): void {
@@ -227,7 +228,9 @@ export function attachBrowserSocket(server: Server, control: Control, tickets: T
     const payload = JSON.stringify(msg);
     for (const ws of alive.keys()) {
       if (
-        (msg.type === 'session.output' || msg.type === 'session.listening') &&
+        (msg.type === 'session.output' ||
+          msg.type === 'session.listening' ||
+          msg.type === 'session.rule') &&
         !subscriptions.get(ws)?.has(msg.sessionId)
       ) {
         continue;
