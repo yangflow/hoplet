@@ -36,6 +36,7 @@ import {
   PermissionRuleEntrySchema,
   type PermissionRuleListQuery,
   PermissionRuleListResponseSchema,
+  PermissionRuleMachinesResponseSchema,
   type PermissionRulePut,
   type PromptImage,
   PromptResultSchema,
@@ -779,6 +780,25 @@ export function fetchPermissionRules(query: PermissionRuleListQuery = {}, signal
     PermissionRuleListResponseSchema,
     undefined,
     signal,
+  );
+}
+
+/** Which machines have applied the latest rule revision. */
+export function fetchRuleMachines(signal?: AbortSignal) {
+  return call(
+    '/api/permission-rules/machines',
+    PermissionRuleMachinesResponseSchema,
+    undefined,
+    signal,
+  );
+}
+
+/** Sends the rules to one machine again. */
+export function pushRulesAgain(deviceId: string) {
+  return call(
+    `/api/permission-rules/machines/${encodeURIComponent(deviceId)}/push`,
+    PermissionRuleMachinesResponseSchema,
+    {},
   );
 }
 

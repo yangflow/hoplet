@@ -62,19 +62,35 @@ export function appliedRule(
  */
 export function useRuleLines(
   sessionId: string,
-  fixture?: { lines: (RuleDecision & { toolUseId: string })[]; list?: PermissionRuleListResponse },
+  fixture?: {
+    lines: (RuleDecision & { toolUseId: string })[];
+    list?: PermissionRuleListResponse;
+    /** The calls the Codex hook did not run for. */
+    unenforced?: string[];
+  },
 ) {
   const [lines, setLines] = useState<Map<string, RuleDecision>>(
     () => new Map(fixture?.lines.map((l) => [l.toolUseId, l])),
   );
   const [list, setList] = useState<PermissionRuleListResponse | null>(fixture?.list ?? null);
+  const [unenforced, setUnenforced] = useState<ReadonlySet<string>>(
+    () => new Set(fixture?.unenforced),
+  );
   const locked = fixture !== undefined;
 
   useEffect(() => {
     if (locked) return;
     setLines(new Map());
+    setUnenforced(new Set());
     return onLive((event) => {
-      if (event.kind !== 'message' || event.msg.type !== 'session.rule') return;
+      if (event.kind !== 'message') return;
+      if (event.msg.type === 'session.rules.unenforced') {
+        const { sessionId: id, toolUseId } = event.msg;
+        if (id !== sessionId || toolUseId === undefined) return;
+        setUnenforced((cur) => new Set(cur).add(toolUseId));
+        return;
+      }
+      if (event.msg.type !== 'session.rule') return;
       const msg = event.msg;
       if (msg.sessionId !== sessionId) return;
       setLines((cur) => {
@@ -109,5 +125,6 @@ export function useRuleLines(
     },
     [lines, list],
   );
-  return { ruleOf };
+  const unenforcedAt = useCallback((toolUseId: string) => unenforced.has(toolUseId), [unenforced]);
+  return { ruleOf, unenforcedAt };
 }

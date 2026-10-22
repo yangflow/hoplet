@@ -845,6 +845,8 @@ export function Scene(props: {
   fixture?: CockpitFixture;
   /** Changes the session list: pins, archives, a renamed session. */
   sessions?: (base: LiveSessionMeta[]) => LiveSessionMeta[];
+  /** The rules link of the rule notes. */
+  onManageRules?: () => void;
 }) {
   const macbookOnline = props.macbookOnline ?? true;
   const sessions = (props.sessions ?? ((base) => base))(fixtureSessions(macbookOnline));
@@ -871,6 +873,7 @@ export function Scene(props: {
       error={null}
       host="hoplet.local"
       runtime={runtime}
+      {...(props.onManageRules ? { onManageRules: props.onManageRules } : {})}
       fixture={{
         conversation:
           selected === catalogId
@@ -1258,6 +1261,24 @@ export const states: Record<string, () => ReactNode> = {
             { toolUseId: 'lt1', decision: 'deny', ruleId: 'default.secret-files', scope: 'agent' },
           ],
         },
+      }}
+    />
+  ),
+  'conv-codex-prompts': () => (
+    <Scene
+      variant={{
+        ...running(48_000),
+        runtime: { state: 'running', capabilities: { ...capabilities, rules: 'prompts-only' } },
+      }}
+    />
+  ),
+  'conv-codex-nohook': () => (
+    <Scene
+      onManageRules={() => undefined}
+      variant={{
+        ...running(48_000),
+        runtime: { state: 'running', capabilities },
+        conversation: { unenforced: ['lt2'] },
       }}
     />
   ),

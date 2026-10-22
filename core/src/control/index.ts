@@ -75,6 +75,7 @@ const DEFAULT_HANDOFF_TIMEOUT_MS = 120_000;
 const DEFAULT_TRANSFER_TIMEOUT_MS = 600_000;
 const DEFAULT_CLONE_TIMEOUT_MS = 600_000;
 const DEFAULT_CLONE_STALL_MS = 60_000;
+const DEFAULT_RULES_RETRY_MS = 30_000;
 /** A terminal no browser is attached to closes after this long (ADR 0026). */
 const DEFAULT_TERMINAL_DETACH_MS = 60_000;
 
@@ -159,6 +160,7 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
     transferTimeoutMs: options.transferTimeoutMs ?? DEFAULT_TRANSFER_TIMEOUT_MS,
     cloneTimeoutMs: options.cloneTimeoutMs ?? DEFAULT_CLONE_TIMEOUT_MS,
     cloneStallMs: options.cloneStallMs ?? DEFAULT_CLONE_STALL_MS,
+    rulesRetryMs: options.rulesRetryMs ?? DEFAULT_RULES_RETRY_MS,
   };
 
   const bulk = createBulkQueue(options.bulk ?? DEFAULT_BULK);
@@ -210,6 +212,8 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
     syncRules: rules.sync,
     announceRules: rules.announce,
     appliedRulesRevision: rules.appliedRevision,
+    rulesStatus: rules.status,
+    pushRulesAgain: rules.pushAgain,
     sendHookEvent(deviceId, hookId, event) {
       const link = state.byDevice.get(deviceId);
       if (!link?.isOpen()) return false;

@@ -140,6 +140,8 @@ Response column names the schema of the success body and its status when it is n
 | POST | `/api/permission-rules` | host | control | — | `PermissionRuleBodySchema` | `PermissionRuleEntrySchema`, 201 | `invalid-json`, `invalid-request`, `too-large` |
 | PUT | `/api/permission-rules/:id` | host | control | — | `PermissionRulePutSchema` | `PermissionRuleEntrySchema` | `invalid-json`, `invalid-request`, `too-large`, `not-found` |
 | DELETE | `/api/permission-rules/:id` | host | control | — | — | `PermissionRuleListResponseSchema` | `invalid-request`, `not-found` |
+| GET | `/api/permission-rules/machines` | host | control | — | — | `PermissionRuleMachinesResponseSchema` | — |
+| POST | `/api/permission-rules/machines/:deviceId/push` | host | control | — | — | `PermissionRuleMachinesResponseSchema` | `not-found`, `owner-offline` |
 | GET | `/api/audit/events` | host | bulk | `AuditEventsQuerySchema` | — | `AuditEventsResponseSchema` | `invalid-request` |
 | GET | `/api/audit/export` | host | bulk | `AuditExportQuerySchema` | — | `AuditEventSchema`, streamed as JSON Lines or CSV | `invalid-request`, `rate-limited`, `audit-unavailable` |
 | GET | `/api/audit/verify` | host | bulk | `AuditVerifyQuerySchema` | — | `AuditVerifyResponseSchema` | `invalid-request` |
@@ -265,7 +267,11 @@ Behavior a client relies on:
   tokens are `unauthorized` here; a session's rules go with the session. Every create, update, delete and
   built-in switch is a `config.changed` audit event (`area: "permission-rules"`) that names the changed fields and
   never holds the match patterns or the note; the calls the rules decide are `permission.auto` events
-  (`GET /api/audit/events?type=permission.`).
+  (`GET /api/audit/events?type=permission.`). `GET /api/permission-rules/machines` answers the `latest` revision and,
+  per machine, `revision` (the one the core holds for it), `applied` and `appliedAt` (what it last confirmed with
+  `device.rules.applied`, `null` until it does; kept in memory), `pushedAt`, `retrying` (the core is sending the
+  rules again) and `online`. `POST .../:deviceId/push` sends the rules to that machine again and answers the same
+  list; an unknown device is `not-found`, an offline one `owner-offline` (409).
 - A `pause` budget that is over its amount and not lifted refuses new work in its scope with `over-budget` (409,
   with `budget: { id, name }` naming it): `POST /api/sessions/:sessionId/prompt`, a new session
   (`POST /api/sessions`, `POST /api/sessions/:sessionId/permission/fresh`) in its project or on its machine. A
@@ -545,6 +551,7 @@ over REST.
 | `terminal.ended` | core → browser | control | `TerminalEndedMessage` | The terminal is gone: `reason` (`exit`, `idle`, `max-age`, `detached`, `turn-started`, `handoff`, `deleted`, `owner-offline`, `closed`, `input-flood`, ...) and the `exitCode` when the shell exited. Only to attached connections |
 | `session.listening` | core → browser | control | `SessionListeningMessage` | The TCP ports the session's processes listen on (`port`, `address`, `process`; at most 16) and the `previewHost` to build links with. Sent to the connections subscribed to the session when they subscribe and on every change; `ports` is empty when the owner went offline. Kept in memory only |
 | `session.rule` | core → browser | control | `SessionRuleMessage` | A permission rule decided a tool call of the session: `toolUseId`, `decision` (`allow`, `deny`, `ask`), `ruleId` and `scope` (`global`, `project`, `session`, or `agent` for the agent's floor and its local deny list). No name, pattern or tool input. Only to the connections subscribed to the session; the latest 200 of the session are sent again on subscribe. Kept in memory only |
+| `session.rules.unenforced` | core → browser | control | `SessionRulesUnenforcedMessage` | No permission rule was checked for a tool call because the Codex hook did not run: `toolUseId` (absent when unknown; the web then shows nothing). Only to the connections subscribed to the session; sent again on subscribe. Kept in memory only |
 | `session.appended` | core → browser | control | `SessionAppendedMessage` | Lines were appended to a session, or a session is new (`isNew`). Sent to every connection |
 | `session.deleted` | core → browser | control | `SessionDeletedMessage` | A session was deleted (its tombstone is written). Carries `sessionId`; drop it from every list. Sent to every connection |
 | `session.updated` | core → browser | control | `SessionUpdatedMessage` | The user renamed, pinned, unpinned, archived or restored a session. Carries the state after the change (`titleOverride`, `pinnedAt`, `archivedAt`; absent means cleared). Sent to every connection |

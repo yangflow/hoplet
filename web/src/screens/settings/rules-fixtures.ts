@@ -3,6 +3,7 @@ import {
   type DeviceInfo,
   type PermissionRuleEntry,
   type PermissionRuleListResponse,
+  type PermissionRuleMachinesResponse,
 } from '@hoplet/shared';
 import { emptyForm, type RuleForm } from '../../lib/permission-rules.ts';
 import type { RulesFixture } from './rules.tsx';
@@ -25,6 +26,47 @@ function device(deviceId: string, name: string, os: string, connected: boolean):
 
 const MACBOOK = device('dev-macbook', 'MacBook Pro', 'darwin', true);
 const STUDIO = device('dev-studio', 'Studio', 'linux', true);
+
+/** Ages are relative to now: the panel words them from the clock. */
+function machinesFixture(): PermissionRuleMachinesResponse {
+  const now = Date.now();
+  return {
+    latest: 14,
+    machines: [
+      {
+        deviceId: 'dev-macbook',
+        name: 'MacBook Pro',
+        online: true,
+        revision: 14,
+        applied: 14,
+        appliedAt: now - 2 * 60_000,
+        pushedAt: now - 2 * 60_000,
+        retrying: false,
+      },
+      {
+        deviceId: 'dev-studio',
+        name: 'studio',
+        online: true,
+        revision: 14,
+        applied: 13,
+        appliedAt: now - 3_600_000,
+        pushedAt: now - 6 * 60_000,
+        retrying: true,
+      },
+      {
+        deviceId: 'dev-mini',
+        name: 'mini',
+        online: false,
+        revision: 14,
+        applied: 12,
+        appliedAt: now - 3 * 86_400_000,
+        pushedAt: null,
+        retrying: false,
+        lastSeen: now - 3 * 86_400_000,
+      },
+    ],
+  };
+}
 
 function own(
   id: string,
@@ -123,6 +165,7 @@ export function rulesFixture(
     confirm?: string;
     toast?: string;
     local?: boolean;
+    machines?: boolean;
   } = {},
 ): RulesFixture {
   return {
@@ -136,5 +179,6 @@ export function rulesFixture(
     ...(over.builtinOpen ? { builtinOpen: true } : {}),
     ...(over.confirm ? { confirm: over.confirm } : {}),
     ...(over.toast ? { toast: over.toast } : {}),
+    ...(over.machines ? { machines: machinesFixture() } : {}),
   };
 }

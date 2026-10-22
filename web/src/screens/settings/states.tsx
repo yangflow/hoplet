@@ -895,6 +895,7 @@ export const states: Record<string, () => ReactNode> = {
   ),
   'budgets-empty': () => <Scene section="usage" usage={budgetsPage()} />,
   rules: () => <Scene section="rules" rules={rulesFixture()} />,
+  'rules-revision': () => <Scene section="rules" rules={rulesFixture({ machines: true })} />,
   'rules-builtin': () => <Scene section="rules" rules={rulesFixture({ builtinOpen: true })} />,
   'rules-builtin-confirm': () => (
     <Scene

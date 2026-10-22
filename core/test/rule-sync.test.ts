@@ -25,7 +25,7 @@ afterEach(async () => {
   for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
 });
 
-async function boot() {
+async function boot(options: { rulesRetryMs?: number } = {}) {
   const dir = mkdtempSync(path.join(tmpdir(), 'hoplet-rule-sync-'));
   dirs.push(dir);
   const store = new Store(dir);
@@ -37,7 +37,7 @@ async function boot() {
     { sessionId: SESSION, provider: 'claude', projectDir: 'p', filePath: '/x', deviceId: 'dev-a' },
     ['{"type":"user"}'],
   );
-  const control = createControl(store, {});
+  const control = createControl(store, options);
   const server = createServer();
   attachIngest(server, store, control);
   createApi(store, { port: 0, dataDir: dir, token: HOST, webDir: null }, control).attach(server);
@@ -204,5 +204,79 @@ describe('permission rules: the push to the agent', () => {
     await f.post('/api/permission-rules', rule());
     const next = await a.waitForRules(2);
     expect(next.revision as number).toBeGreaterThan(set.revision as number);
+  });
+});
+
+describe('permission rules: which machines applied the latest revision', () => {
+  type Machine = {
+    deviceId: string;
+    online: boolean;
+    revision: number;
+    applied: number | null;
+    appliedAt: number | null;
+    pushedAt: number | null;
+    retrying: boolean;
+  };
+  const machines = async (f: Awaited<ReturnType<typeof boot>>) => {
+    const res = await f.call('GET', '/api/permission-rules/machines');
+    expect(res.status).toBe(200);
+    return res.body as unknown as { latest: number; machines: Machine[] };
+  };
+
+  it('lists the machines with what they confirmed, and keeps the confirmation after they go offline', async () => {
+    const f = await boot({ rulesRetryMs: 60_000 });
+    const a = await f.agent('dev-a');
+    const set = await a.waitForRules(1);
+    let list = await machines(f);
+    const mine = () => list.machines.find((m) => m.deviceId === 'dev-a') as Machine;
+    expect(mine()).toMatchObject({ online: true, applied: null, appliedAt: null, retrying: true });
+    expect(mine().pushedAt).toEqual(expect.any(Number));
+
+    a.send({ type: 'device.rules.applied', revision: set.revision });
+    await a.settle();
+    list = await machines(f);
+    expect(mine()).toMatchObject({ applied: set.revision, retrying: false });
+    expect(mine().appliedAt).toEqual(expect.any(Number));
+    expect(list.latest).toBe(set.revision);
+
+    sockets[0]?.terminate();
+    await a.settle();
+    list = await machines(f);
+    expect(mine()).toMatchObject({ online: false, applied: set.revision });
+  });
+
+  it('sends the rules again when no confirmation comes, a limited number of times', async () => {
+    const f = await boot({ rulesRetryMs: 40 });
+    const a = await f.agent('dev-a');
+    await a.waitForRules(3);
+    await new Promise((r) => setTimeout(r, 400));
+    expect(a.rules()).toHaveLength(6); // the push and five resends
+  });
+
+  it('stops resending once the agent confirms, and after it refuses', async () => {
+    const f = await boot({ rulesRetryMs: 60 });
+    const a = await f.agent('dev-a');
+    const set = await a.waitForRules(1);
+    a.send({ type: 'device.rules.applied', revision: set.revision });
+    await new Promise((r) => setTimeout(r, 400));
+    expect(a.rules()).toHaveLength(1);
+
+    const b = await f.agent('dev-b');
+    const sent = await b.waitForRules(1);
+    b.send({ type: 'device.rules.applied', revision: sent.revision, error: 'unknown field' });
+    await new Promise((r) => setTimeout(r, 400));
+    expect(b.rules()).toHaveLength(1);
+    expect((await machines(f)).machines.find((m) => m.deviceId === 'dev-b')?.retrying).toBe(false);
+  });
+
+  it('pushes again on request, and refuses an unknown or an offline machine', async () => {
+    const f = await boot({ rulesRetryMs: 60_000 });
+    const a = await f.agent('dev-a');
+    await a.waitForRules(1);
+    const res = await f.post('/api/permission-rules/machines/dev-a/push');
+    expect(res.status).toBe(200);
+    await a.waitForRules(2);
+    expect((await f.post('/api/permission-rules/machines/nobody/push')).status).toBe(404);
+    expect((await f.post('/api/permission-rules/machines/dev-b/push')).status).toBe(409);
   });
 });

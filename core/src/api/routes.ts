@@ -84,6 +84,9 @@ import {
   PermissionRuleEntrySchema,
   PermissionRuleListQuerySchema,
   PermissionRuleListResponseSchema,
+  type PermissionRuleMachine,
+  type PermissionRuleMachinesResponse,
+  PermissionRuleMachinesResponseSchema,
   PermissionRulePutSchema,
   PROTOCOL_VERSION,
   PromptImageSchema,
@@ -183,6 +186,28 @@ function ownerCapabilities(
   const device = deps.control.devices().find((d) => d.deviceId === owner);
   if (!device?.connected) return undefined;
   return findProvider(device.providers, provider)?.capabilities ?? null;
+}
+
+/** Where the rules stand on each machine that has connected (docs/api.md#permission-rules). */
+function permissionRuleMachines(
+  store: ApiDeps['store'],
+  control: ApiDeps['control'],
+): PermissionRuleMachinesResponse {
+  const online = new Map(control.devices().map((d) => [d.deviceId, d.connected]));
+  const machines: PermissionRuleMachine[] = [];
+  for (const d of store.listDevices()) {
+    const isOnline = online.get(d.deviceId) === true;
+    if (!isOnline && d.lastSeen === undefined) continue;
+    machines.push({
+      deviceId: d.deviceId,
+      name: d.name,
+      online: isOnline,
+      revision: store.permissionRevision(d.deviceId),
+      ...control.rulesStatus(d.deviceId),
+      ...(d.lastSeen === undefined ? {} : { lastSeen: d.lastSeen }),
+    });
+  }
+  return { latest: Math.max(0, ...machines.map((m) => m.revision)), machines };
 }
 
 /** The session's owner device, also of one an agent just started, or the 404 when the session is unknown. */
@@ -1808,6 +1833,28 @@ export const routes: readonly Route[] = [
         local: query.sessionId && !device ? [] : store.localPermissionDeny(device ?? undefined),
         ...(device ? { revision: store.permissionRevision(device) } : {}),
       };
+    },
+  }),
+  defineRoute({
+    method: 'GET',
+    path: '/api/permission-rules/machines',
+    auth: 'host',
+    lane: 'control',
+    response: PermissionRuleMachinesResponseSchema,
+    handler: ({ store, control }) => permissionRuleMachines(store, control),
+  }),
+  defineRoute({
+    method: 'POST',
+    path: '/api/permission-rules/machines/:deviceId/push',
+    auth: 'host',
+    lane: 'control',
+    response: PermissionRuleMachinesResponseSchema,
+    handler: ({ store, control, params }) => {
+      const deviceId = params.deviceId ?? '';
+      if (!store.listDevices().some((d) => d.deviceId === deviceId))
+        throw new ApiError('not-found');
+      if (!control.pushRulesAgain(deviceId)) throw new ApiError('owner-offline');
+      return permissionRuleMachines(store, control);
     },
   }),
   defineRoute({

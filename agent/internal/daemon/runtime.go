@@ -512,6 +512,10 @@ func wireMessage(ev runtime.Event) any {
 			V: sync.ProtocolVersion, Type: sync.TypeRuntimePermissionAuto, SessionID: ev.SessionID,
 			ToolUseID: ev.ToolUseID, Decision: ev.Decision, RuleID: ev.RuleID, Scope: ev.Scope, Revision: ev.Revision,
 		}
+	case runtime.RulesUnenforcedEvent:
+		return sync.RuntimeRulesUnenforced{
+			V: sync.ProtocolVersion, Type: sync.TypeRuntimeRulesUnenforced, SessionID: ev.SessionID, ToolUseID: ev.ToolUseID,
+		}
 	case runtime.CommandsEvent:
 		list := make([]sync.Command, 0, len(ev.Commands))
 		for _, c := range ev.Commands {

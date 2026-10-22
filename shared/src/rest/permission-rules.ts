@@ -88,3 +88,32 @@ export const PermissionRuleListResponseSchema = v.object({
   local: v.optional(v.array(LocalPermissionRulesSchema)),
 });
 export type PermissionRuleListResponse = v.InferOutput<typeof PermissionRuleListResponseSchema>;
+
+/**
+ * Where the rules stand on one machine (GET /api/permission-rules/machines). `revision` is the revision the
+ * machine should be at; `applied` the one it last confirmed and `appliedAt` when, `pushedAt` when the core last
+ * sent it the rules. All three are null until known: the core keeps them in memory only. `retrying` says the core
+ * will send the rules again on its own because no confirmation came. `lastSeen` is the agent's last connection
+ * while it is offline.
+ */
+export const PermissionRuleMachineSchema = v.object({
+  deviceId: v.string(),
+  name: v.string(),
+  online: v.boolean(),
+  revision: v.number(),
+  applied: v.nullable(v.number()),
+  appliedAt: v.nullable(v.number()),
+  pushedAt: v.nullable(v.number()),
+  retrying: v.boolean(),
+  lastSeen: v.optional(v.number()),
+});
+export type PermissionRuleMachine = v.InferOutput<typeof PermissionRuleMachineSchema>;
+
+/** `latest` is the highest `revision` among the machines (0 with none). Machines that never connected are not listed. */
+export const PermissionRuleMachinesResponseSchema = v.object({
+  latest: v.number(),
+  machines: v.array(PermissionRuleMachineSchema),
+});
+export type PermissionRuleMachinesResponse = v.InferOutput<
+  typeof PermissionRuleMachinesResponseSchema
+>;

@@ -11,6 +11,7 @@ import {
   type RuntimeStop,
   type SessionPermission,
   type SessionRule,
+  type SessionRulesUnenforced,
 } from '@hoplet/shared';
 import { log } from '../log/index.ts';
 import { toolInputSummary } from '../store/index.ts';
@@ -84,6 +85,7 @@ export type Runtime = Pick<
           | 'runtime.output'
           | 'runtime.permission'
           | 'runtime.permission.auto'
+          | 'runtime.rules.unenforced'
           | 'runtime.rejected'
           | 'runtime.steered'
           | 'runtime.commands';
@@ -509,6 +511,19 @@ export function createRuntime(state: ControlState): Runtime {
             state.ruleLines.set(msg.sessionId, lines.slice(-MAX_RULE_LINES));
             state.publish(line);
           }
+          return;
+        }
+        case 'runtime.rules.unenforced': {
+          // Told at the conversation, and again to a browser that subscribes later.
+          const line: SessionRulesUnenforced = {
+            v: PROTOCOL_VERSION,
+            type: 'session.rules.unenforced',
+            sessionId: msg.sessionId,
+            ...(msg.toolUseId !== undefined ? { toolUseId: msg.toolUseId } : {}),
+          };
+          const lines = [...(state.ruleLines.get(msg.sessionId) ?? []), line];
+          state.ruleLines.set(msg.sessionId, lines.slice(-MAX_RULE_LINES));
+          state.publish(line);
           return;
         }
         case 'runtime.permission': {

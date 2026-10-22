@@ -71,6 +71,64 @@ export function RuleLine(props: { rule: AppliedRule; onView?: (ruleId: string) =
 export function ToolRule(props: { toolUseId: string | undefined }) {
   const view = useView();
   const rule = props.toolUseId !== undefined ? view.ruleOf?.(props.toolUseId) : undefined;
-  if (!rule || rule.decision === 'ask') return null;
-  return <RuleLine rule={rule} {...(view.openRule ? { onView: view.openRule } : {})} />;
+  const unenforced = props.toolUseId !== undefined && view.unenforcedAt?.(props.toolUseId) === true;
+  return (
+    <>
+      {rule && rule.decision !== 'ask' ? (
+        <RuleLine rule={rule} {...(view.openRule ? { onView: view.openRule } : {})} />
+      ) : null}
+      {unenforced ? (
+        <RulesUnenforcedNote {...(view.openRule ? { onView: () => view.openRule?.('') } : {})} />
+      ) : null}
+    </>
+  );
+}
+
+const ADR_URL =
+  'https://github.com/yangflow/hoplet/blob/main/docs/adr/0032-codex-rule-hook-calls-the-agent-over-a-local-socket.md';
+
+/**
+ * At the start of a Codex session whose machine cannot take the rule hook (ADR 0032): rules cover only the approvals
+ * Codex asks for, and in Full access Codex asks for nothing.
+ */
+export function CodexPromptsNote() {
+  return (
+    <div className="cxn" data-testid="cockpit.codex-prompts-note">
+      {Icon.shield()}
+      <span>
+        {t(
+          'Rules apply only to the approvals Codex asks for on this machine. In Full access Codex asks for nothing, so its commands are not checked.',
+        )}{' '}
+        <a
+          className="lnk"
+          href={ADR_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          title={t('Opens the decision record')}
+        >
+          {t('Why')}
+        </a>
+      </span>
+    </div>
+  );
+}
+
+/** Under a Codex call the hook did not run for: no rule was checked, and the agent logged it. */
+export function RulesUnenforcedNote(props: { onView?: () => void }) {
+  return (
+    <div className="cxn att" data-testid="cockpit.rules-unenforced-note">
+      {Icon.hand()}
+      <span>
+        <b>{t('Rules were not enforced')}</b> ·{' '}
+        {t(
+          'The Codex hook did not run for this call, so no rule was checked. The agent logged it.',
+        )}{' '}
+        {props.onView ? (
+          <button type="button" className="lnk" onClick={props.onView}>
+            {t('Permission rules')}
+          </button>
+        ) : null}
+      </span>
+    </div>
+  );
 }

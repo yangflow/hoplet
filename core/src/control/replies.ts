@@ -45,6 +45,7 @@ export function receiveReply(
     case 'runtime.output':
     case 'runtime.permission':
     case 'runtime.permission.auto':
+    case 'runtime.rules.unenforced':
     case 'runtime.rejected':
     case 'runtime.steered':
     case 'runtime.commands':

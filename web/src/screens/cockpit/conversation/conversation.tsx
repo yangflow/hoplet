@@ -63,6 +63,7 @@ import { type ComposerView, composerView } from '../runtime.ts';
 import { type CardRules, LiveTurnView } from './live-view.tsx';
 import { PlanOrigin } from './plan-card.tsx';
 import { SessionReader } from './reader.ts';
+import { CodexPromptsNote } from './rule-line.tsx';
 import { Transcript, type TranscriptHandle } from './transcript.tsx';
 import { buildTurns } from './turns.ts';
 import { type LiveFixture, useLiveTurn } from './use-live-turn.ts';
@@ -72,6 +73,8 @@ export type ConversationFixture = {
   entries: Entry[];
   /** The rules that decided tool calls, by the call's ID (lib/rule-lines.ts). */
   rules?: (RuleDecision & { toolUseId: string })[];
+  /** The calls the Codex hook did not run for (their rule note). */
+  unenforced?: string[];
   live?: LiveFixture;
   /** The current time, pinned so timers read the same in every capture. */
   now?: number;
@@ -169,7 +172,12 @@ export function Conversation(props: {
     if (!fixture) void reader.open(aroundLine);
   }, [reader, aroundLine, fixture]);
   // Before the subscription: the lines it replays are heard from the first one.
-  const { ruleOf } = useRuleLines(sessionId, fixture?.rules ? { lines: fixture.rules } : undefined);
+  const { ruleOf, unenforcedAt } = useRuleLines(
+    sessionId,
+    fixture?.rules || fixture?.unenforced
+      ? { lines: fixture.rules ?? [], unenforced: fixture.unenforced ?? [] }
+      : undefined,
+  );
   useEffect(() => {
     if (fixture) return;
     return subscribeSession(sessionId);
@@ -665,14 +673,20 @@ export function Conversation(props: {
           onViewport={onViewport}
           focusLine={aroundLine}
           origin={
-            session.continuedFrom ? (
-              <PlanOrigin from={session.continuedFrom} onOpen={props.onOpenSession} />
+            session.continuedFrom || props.capabilities?.rules === 'prompts-only' ? (
+              <>
+                {session.continuedFrom ? (
+                  <PlanOrigin from={session.continuedFrom} onOpen={props.onOpenSession} />
+                ) : null}
+                {props.capabilities?.rules === 'prompts-only' ? <CodexPromptsNote /> : null}
+              </>
             ) : null
           }
           startPinned={aroundLine === null && fixture?.scrollTo === undefined}
           dock={dock}
           {...(props.openDiff ? { openDiff: props.openDiff } : {})}
           ruleOf={ruleOf}
+          unenforcedAt={unenforcedAt}
           {...(props.onViewRules ? { openRule: props.onViewRules } : {})}
           {...(fixture?.openBlocks ? { initiallyOpen: fixture.openBlocks } : {})}
           {...(fixture?.scrollTo !== undefined ? { scrollTo: fixture.scrollTo } : {})}

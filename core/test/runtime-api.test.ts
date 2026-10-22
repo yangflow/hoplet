@@ -646,6 +646,31 @@ describe('runtime.permission.auto', () => {
     expect(replayed).toMatchObject({ toolUseId: 'toolu_1', ruleId: 'default.secrets' });
   });
 
+  it('relays that no rule was checked, to the subscribed browsers and again on subscribe', async () => {
+    const { agent, browser } = await boot();
+    const owner = await agent('dev-a');
+    const watching = await browser();
+    const elsewhere = await browser();
+    watching.send({ type: 'subscribe', sessionId: 's1' });
+    await watching.waitFor((m) => m.type === 'session.runtime', 'snapshot');
+
+    owner.send({ type: 'runtime.rules.unenforced', sessionId: 's1', toolUseId: 'item_1' });
+    const line = await watching.waitFor((m) => m.type === 'session.rules.unenforced', 'note');
+    expect(line).toEqual({
+      v: PROTOCOL_VERSION,
+      type: 'session.rules.unenforced',
+      sessionId: 's1',
+      toolUseId: 'item_1',
+    });
+    await new Promise((r) => setTimeout(r, 100));
+    expect(elsewhere.ofType('session.rules.unenforced')).toEqual([]);
+
+    const late = await browser();
+    late.send({ type: 'subscribe', sessionId: 's1' });
+    const replayed = await late.waitFor((m) => m.type === 'session.rules.unenforced', 'replayed');
+    expect(replayed).toMatchObject({ toolUseId: 'item_1' });
+  });
+
   it('keeps the latest 200 lines of a session', async () => {
     const { agent, browser } = await boot();
     const owner = await agent('dev-a');

@@ -221,9 +221,9 @@ func (p *process) endHookAsks() {
 	}
 }
 
-// checkHookRan logs once when a command or a file change finished without the daemon having been asked about
+// checkHookRan logs and reports once when a command or a file change finished without the daemon having been asked about
 // any call: the hook does not run, so the rules are not enforced on this process (ADR 0029, ADR 0032).
-func (p *process) checkHookRan() {
+func (p *process) checkHookRan(toolUseID string) {
 	p.mu.Lock()
 	warn := p.rules != nil && p.hookCalls == 0 && !p.hookWarned
 	if warn {
@@ -232,6 +232,7 @@ func (p *process) checkHookRan() {
 	p.mu.Unlock()
 	if warn {
 		log.Printf("[agent] a Codex tool call ran without the rule hook being asked: the permission rules are not enforced on this process")
+		p.emit(runtime.RulesUnenforced{ToolUseID: toolUseID})
 	}
 }
 
