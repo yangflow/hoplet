@@ -64,6 +64,10 @@ type process struct {
 	// rebuild builds the engine again from the rules in force now; each call is decided with it, so a rule the
 	// core pushed holds in a process that is already running. nil keeps engine.
 	rebuild func() (*rules.Engine, error)
+	// mcpRead lets the read tools of Hoplet's own MCP server run without a prompt (ADR 0034). onExit runs once when
+	// the process ended: it removes the MCP config file and releases the session's MCP registration.
+	mcpRead bool
+	onExit  func()
 
 	evMu     sync.RWMutex // guards the close of events against late emits
 	evClosed bool
@@ -278,6 +282,9 @@ func (p *process) closeEvents() {
 func (p *process) read(stdout io.Reader) {
 	defer p.closeEvents()
 	defer close(p.done)
+	if p.onExit != nil {
+		defer p.onExit()
+	}
 	r := bufio.NewReaderSize(stdout, 64<<10)
 	var readErr error
 	for {

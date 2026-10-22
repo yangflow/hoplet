@@ -104,6 +104,9 @@ type Config struct {
 	// TurnStart is called when a turn begins for a session (a prompt is accepted), under the same rules as
 	// TurnDone. It can be called twice for one turn when the process has to start first.
 	TurnStart func(sessionID string)
+	// MCP makes the MCP spec of the process about to start for a session (ADR 0034); nil, or a nil result, starts
+	// it without. The manager asks only for a driver that declares CapMCP. The driver calls the spec's Release.
+	MCP func(sessionID string) *MCPSpec
 
 	IdleTimeout       time.Duration // stop a process this long after its last turn; default 30 minutes
 	MaxIdle           int           // processes kept `ready` without a turn; the least recently used stops first
@@ -901,6 +904,9 @@ func (m *Manager) startProcess(s *session, p Prompt) {
 	ctx, cancel := context.WithCancel(context.Background())
 	gen := m.starting(s, p, cancel)
 	spec := StartSpec{SessionID: s.id, Dir: s.loc.Dir, New: s.fresh, Config: maps.Clone(s.started)}
+	if m.cfg.MCP != nil && slices.Contains(m.cfg.Driver.Capabilities(), CapMCP) {
+		spec.MCP = m.cfg.MCP(s.id)
+	}
 	m.wg.Add(1)
 	go func() {
 		defer m.wg.Done()

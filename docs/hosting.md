@@ -89,7 +89,7 @@ place of the proxy. Never publish port 7788 on `0.0.0.0`.
 | Where | What |
 |---|---|
 | Docker volume `hoplet-data` (`/data` in the container) | `hoplet.db` (SQLite index, which also holds what the user did to a session in the web UI: a title of their own, a pin, an archive, the last slash commands and skills a session reported per machine and directory, the messages queued for a session, the worktree Hoplet made for a handed-off session, the provider configuration each session belongs to, the IDs of deleted sessions, the session templates, `templates`, and the permission rules, `permission_rules`, the switches of the built-in ones, `permission_builtins`, and their revisions, `permission_revisions`, the lifecycle hooks, `hooks`, and their deliveries, `hook_deliveries`; the scoped API tokens and the session tokens, `api_tokens`, stored as SHA-256 hashes (ADR 0033, ADR 0034), the settings of sessions that call other sessions, `session_mcp_settings`, their defaults, `session_mcp_defaults`, and the chain of the prompt a session is working on, `session_provenance`, the audit log, `audit_events` (ADR 0030), and how far tool calls were derived from each session, `audit_cursor`), `sessions/<sessionId>/c-<seq>.ndjson[.gz]` (session lines), `snapshots/<sessionId>/<snapshotId>.tar.gz` (latest workspace snapshot per session), `notify-secrets.json` (mode 0600: the VAPID key pair for Web Push, the key that signs action links and the signing secrets of webhooks; the push subscriptions, the webhooks without their secrets and the preferences are in `hoplet.db`) |
-| Agent state root (`~/.hoplet/` by default) | `device-id`, `config.json`, `projects.json`, `permission-rules.json` (mode 0600: the last permission rules the core sent, rewritten atomically on each push and read at start; without it the agent uses the built-in rules), `runtime/` (running processes), `handoff/` (installation records and the journal of a clone in progress, `<handoffId>.clone.json`, which the agent uses on start-up to remove a half-made clone), `hook.sock` (the local Unix socket of the Codex rule hook, mode 0600 in a 0700 directory; no network port, absent on Windows, [ADR 0032](adr/0032-codex-rule-hook-calls-the-agent-over-a-local-socket.md)), `attachments/` (images uploaded for prompts: at most 64 files and 64 MiB, each kept at most an hour) |
+| Agent state root (`~/.hoplet/` by default) | `device-id`, `config.json`, `projects.json`, `permission-rules.json` (mode 0600: the last permission rules the core sent, rewritten atomically on each push and read at start; without it the agent uses the built-in rules), `runtime/` (running processes), `handoff/` (installation records and the journal of a clone in progress, `<handoffId>.clone.json`, which the agent uses on start-up to remove a half-made clone), `hook.sock` (the local Unix socket of the Codex rule hook, mode 0600 in a 0700 directory; no network port, absent on Windows, [ADR 0032](adr/0032-codex-rule-hook-calls-the-agent-over-a-local-socket.md)), `mcp.sock` (the local Unix socket of the session MCP server, mode 0600 in a 0700 directory, only with `session_mcp` on; absent on Windows, [ADR 0034](adr/0034-sessions-view-and-direct-other-sessions-over-mcp.md)), `mcp/` (mode 0700; `<nonce>.json`, mode 0600, the `--mcp-config` file of a running Claude Code session, removed when it ends), `attachments/` (images uploaded for prompts: at most 64 files and 64 MiB, each kept at most an hour) |
 | Development machine | Claude Code's store, Codex's `sessions/` (read-only, except that handoff adds one rollout file) and working trees; worktrees created by handoff, next to the clone they belong to |
 
 Rotating the notification secrets is deleting `notify-secrets.json` while the core is stopped: the next start
@@ -146,6 +146,7 @@ starting the container. Run one core per data directory, on a local filesystem w
 | `poll_interval_ms` | `1000` | scan interval |
 | `runtime_idle_minutes` | `30` | idle time after which a session's process (Claude Code or Codex) stops |
 | `runtime_max_idle_processes` | `3` | processes kept running between turns; processes in a turn are not limited |
+| `session_mcp` | `false` | serve the session MCP read tools to the Claude Code sessions of this machine ([Session MCP](#session-mcp)) |
 | `terminal` | `false` | allow the web UI to open a shell on this machine ([Terminal](#terminal)) |
 | `preview_host` | the machine's host name | the host in the links to a session's dev servers ([Dev server links](#dev-server-links)) |
 | `permission_deny` | none | deny rules of the operator, a JSON array of rules in the shape of the permission rules (docs/spec.md#permission-rules); they hold against any rule the core sends, and at most 100; the agent announces them to the core, which shows them read-only; a configuration with an invalid rule or more rules does not load |
@@ -168,6 +169,17 @@ starts, and `list` and the core see only the name and whether it is set. The dae
 scan; a file that fails to parse is logged and the last good configurations stay in force.
 `<hoplet_home>/sessions-config.json` records which configuration started each session, so a resumed session runs
 under the same one. A session it does not list runs under its vendor's built-in configuration.
+
+### Session MCP
+
+`"session_mcp": true` in the agent's `config.json`, then restart the agent, lets the Claude Code sessions of this
+machine see other sessions through the tools `list_machines`, `list_sessions` and `read_session`
+([ADR 0034](adr/0034-sessions-view-and-direct-other-sessions-over-mcp.md)). It is off by default, and only the
+operator of the machine can turn it on: the core cannot. The agent then opens `<hoplet_home>/mcp.sock`, announces
+`capabilities.sessionMcp` in `device.hello`, and calls the core's REST API at `server_url` with the session's token,
+so the machine must reach the core over HTTP and not only over the agent WebSocket. What a session sees is set by
+its settings (`project` visibility by default). Without the key the agent opens no socket and starts Claude Code
+without `--mcp-config`; the user's own MCP servers are never replaced.
 
 ### Terminal
 

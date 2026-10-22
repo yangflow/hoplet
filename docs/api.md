@@ -622,6 +622,12 @@ already running:
 global one, else everything off with `project` visibility. Sessions that already have settings keep them. Changes
 are `config.changed` events of the audit log.
 
+The agent receives the token over its own WebSocket and keeps it in memory: it sends `runtime.mcp.token.request`
+(`requestId`, `sessionId`) and the core answers `runtime.mcp.token` (`requestId`, `sessionId`, and `token` with
+`expiresAt`, or `reason`: `unknown-session`, `not-owner`, `not-allowed`). Both are control-lane messages; the core
+answers only the device that owns the session and announced `capabilities.sessionMcp` in `device.hello`. The agent
+turns the model's MCP calls (`list_machines`, `list_sessions`, `read_session`) into the requests below.
+
 A session token reaches only the routes marked for sessions: the list and read of sessions, lines and blocks, the
 device list, prompt, interrupt and `POST /api/sessions`; every other route answers `forbidden`. A session sees
 itself in the list with `self: true` in its metadata. The rules for a prompt or an interrupt from a session:

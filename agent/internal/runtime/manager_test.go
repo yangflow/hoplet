@@ -290,7 +290,7 @@ func TestPromptRunsATurn(t *testing.T) {
 	e.expectStates("s1", runtime.StateStarting, runtime.StateRunning, runtime.StateReady)
 
 	last, _ := e.rec.lastState("s1")
-	if len(last.Capabilities) != 4 {
+	if len(last.Capabilities) != 5 {
 		t.Fatalf("capabilities = %v", last.Capabilities)
 	}
 	var text string
@@ -1233,7 +1233,7 @@ func TestStatesReportsRunningProcesses(t *testing.T) {
 	if len(got) != 2 || got[0].SessionID != "s1" || got[0].State != runtime.StateReady || got[1].State != runtime.StateRunning {
 		t.Fatalf("States = %+v", got)
 	}
-	if len(got[0].Capabilities) != 4 {
+	if len(got[0].Capabilities) != 5 {
 		t.Fatalf("capabilities = %v", got[0].Capabilities)
 	}
 }

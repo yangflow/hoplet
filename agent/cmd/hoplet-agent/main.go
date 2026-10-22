@@ -12,6 +12,7 @@ import (
 	"github.com/yangflow/hoplet/agent/internal/config"
 	"github.com/yangflow/hoplet/agent/internal/configs"
 	"github.com/yangflow/hoplet/agent/internal/daemon"
+	"github.com/yangflow/hoplet/agent/internal/mcp"
 	"github.com/yangflow/hoplet/agent/internal/projects"
 	"github.com/yangflow/hoplet/agent/internal/provider"
 	"github.com/yangflow/hoplet/agent/internal/runtime/codex"
@@ -65,6 +66,7 @@ func newRoot() *cobra.Command {
 		configs.NewCommand(home, os.Stdin, os.Stdout),
 		sessions.NewCommand(home, scan, os.Stdout),
 		newHookCommand(),
+		newMCPCommand(),
 	)
 	return root
 }
@@ -92,4 +94,22 @@ func newHookCommand() *cobra.Command {
 		},
 	})
 	return hook
+}
+
+// newMCPCommand is `hoplet-agent mcp`, the stdio MCP server Claude Code starts for a session (ADR 0034). It speaks
+// MCP on stdin and stdout and forwards each tool call to the daemon over mcp.sock; the socket and the nonce that
+// names the session come from the environment. It needs no config file.
+func newMCPCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:               "mcp",
+		Short:             "The session MCP server Claude Code starts",
+		Hidden:            true,
+		Args:              cobra.NoArgs,
+		SilenceUsage:      true,
+		SilenceErrors:     true,
+		PersistentPreRunE: func(*cobra.Command, []string) error { return nil },
+		RunE: func(*cobra.Command, []string) error {
+			return mcp.RunStdio(os.Stdin, os.Stdout, os.Getenv)
+		},
+	}
 }

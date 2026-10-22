@@ -76,7 +76,7 @@ export interface ControlState {
     { deviceId: string; provider: Provider; projectPath: string; at: number }
   >;
   /** What each connected agent announced besides its providers: the terminal and the host for dev server links. */
-  deviceInfo: Map<string, { terminal: boolean; previewHost?: string }>;
+  deviceInfo: Map<string, { terminal: boolean; sessionMcp: boolean; previewHost?: string }>;
   /** The ports each watched session last reported, in memory only (ADR 0026). */
   sessionPorts: Map<string, { deviceId: string; ports: SessionPort[] }>;
   /** The readings each machine reported, newest last, in memory only: kept after a disconnect, lost on restart. */

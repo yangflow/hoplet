@@ -135,7 +135,7 @@ stored publishing token.**
 - **Lookup.** Each request hashes the presented token and reads one indexed row; there is no cache, so a revoke or
   an expiry takes effect on the next request. An unknown, expired or revoked token is `unauthorized` with no
   distinction in the answer.
-- **Kinds.** `scoped` is the only kind built here. `session` is the kind #67 mints for a running session: the same
+- **Kinds.** `scoped` is the only kind built here. `session` is the kind #67 mints for a running session (the agent asks for it with `runtime.mcp.token.request`; it stays in the daemon's memory): the same
   table, lookup and `grant` type, a different issuer (the core), a short life, revoked when the session ends. That
   is the shared permission model; #67 decides what its grants hold.
 

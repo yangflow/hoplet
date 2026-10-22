@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log"
 
+	"github.com/yangflow/hoplet/agent/internal/mcp"
 	"github.com/yangflow/hoplet/agent/internal/rules"
 	"github.com/yangflow/hoplet/agent/internal/runtime"
 )
@@ -98,7 +99,13 @@ func (p *process) hookOutput(raw json.RawMessage) (out map[string]any) {
 		}
 		engine = e
 	}
-	d := engine.Decide(rules.FromClaude(in.ToolName, in.ToolInput, p.dir, p.dir))
+	call := rules.FromClaude(in.ToolName, in.ToolInput, p.dir, p.dir)
+	d := engine.Decide(call)
+	// The built-in allow of the session MCP read tools (ADR 0034): it applies only where no rule decided, so a
+	// deny or ask rule of the user still wins, and only in a process that has the server.
+	if d.Action == "" && p.mcpRead && call.Kind == rules.KindMCP && call.Server == mcp.ServerName && mcp.IsReadTool(call.Tool) {
+		d = rules.Decision{Action: rules.Allow, Reason: "a read tool of the Hoplet session MCP server"}
+	}
 	decided := func() {
 		p.emitLate(runtime.RuleDecided{
 			ToolUseID: in.ToolUseID, Decision: string(d.Action), RuleID: d.RuleID, Scope: string(d.Scope),

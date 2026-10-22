@@ -2,17 +2,16 @@ package codex
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log"
 	"net"
 	"os"
-	"path/filepath"
 	"sync"
 	"time"
+
+	"github.com/yangflow/hoplet/agent/internal/localsock"
 )
 
 // The rule hook of Codex (ADR 0029, ADR 0032): Codex runs `hoplet-agent hook codex` before each tool call, and
@@ -39,10 +38,6 @@ const (
 	hookAskTimeout = 860 * time.Second
 	// hookReadTimeout bounds how long a connection may take to send its request.
 	hookReadTimeout = 10 * time.Second
-	// maxSockPath is below the shortest sun_path limit of the supported systems (104 bytes on macOS).
-	maxSockPath = 100
-
-	nonceBytes = 32
 )
 
 // Decisions of a hook reply. Codex supports only deny as a hook decision: an allow and a pass both print nothing
@@ -91,37 +86,9 @@ type HookServer struct {
 // ListenHook creates the socket `<home>/hook.sock` (the directory mode 0700, the socket 0600) and starts
 // answering. It fails when the path is too long for a Unix socket; the caller then runs without the hook.
 func ListenHook(home string) (*HookServer, error) {
-	if !peerCredSupported {
-		return nil, fmt.Errorf("this system cannot check who connects to a Unix socket")
-	}
-	path := filepath.Join(home, HookSockName)
-	if len(path) > maxSockPath {
-		return nil, fmt.Errorf("the hook socket path is longer than %d bytes", maxSockPath)
-	}
-	if err := os.MkdirAll(home, 0o700); err != nil {
-		return nil, err
-	}
-	if st, err := os.Stat(home); err != nil {
-		return nil, err
-	} else if st.Mode().Perm()&0o077 != 0 {
-		if err := os.Chmod(home, 0o700); err != nil {
-			return nil, err
-		}
-	}
-	// A socket left by an earlier run is replaced; anything else at the path is not ours to remove.
-	if st, err := os.Lstat(path); err == nil {
-		if st.Mode()&os.ModeSocket == 0 {
-			return nil, fmt.Errorf("%s exists and is not a socket", path)
-		}
-		_ = os.Remove(path)
-	}
-	ln, err := net.Listen("unix", path)
+	ln, path, err := localsock.Listen(home, HookSockName)
 	if err != nil {
-		return nil, err
-	}
-	if err := os.Chmod(path, 0o600); err != nil {
-		_ = ln.Close()
-		return nil, err
+		return nil, fmt.Errorf("the hook socket: %w", err)
 	}
 	s := newHookServer(path, uint32(os.Getuid()), ln)
 	go s.serve()
@@ -154,13 +121,7 @@ func (s *HookServer) Close() error {
 }
 
 // newNonce is a random 256-bit value, hex encoded.
-func newNonce() (string, error) {
-	b := make([]byte, nonceBytes)
-	if _, err := rand.Read(b); err != nil {
-		return "", err
-	}
-	return hex.EncodeToString(b), nil
-}
+func newNonce() (string, error) { return localsock.NewNonce() }
 
 // register names target by nonce until the returned function is called.
 func (s *HookServer) register(nonce string, target hookTarget) func() {

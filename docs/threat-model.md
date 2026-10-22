@@ -57,6 +57,13 @@
   `config.json`, on an event the core forwards by hook ID (`hook.event`), and checks the ID, the event type and the project again. No
   message carries a command, argument, environment variable or path, so the core cannot make the agent run anything
   the file does not name; `hook.result` returns only an exit code, a duration and 1 KiB of standard error.
+- MCP process ↔ agent (session MCP, [ADR 0034](adr/0034-sessions-view-and-direct-other-sessions-over-mcp.md)): the
+  `hoplet-agent mcp` process the vendor starts asks the daemon over `<hoplet_home>/mcp.sock` (directory 0700, socket
+  0600) with the same peer user ID check and a per-start nonce (256 bits) that names the session; the session ID in
+  a request is ignored. The token never leaves the daemon's memory: it is not on the command line, in the
+  environment or in the config file `<hoplet_home>/mcp/<nonce>.json` (0600), which holds the nonce. A tool result
+  is scrubbed and marked as data, an error carries a code. A process of the same user can read the nonce and use
+  the socket, the same accepted risk as the Codex hook; a machine with `session_mcp` off opens no socket.
 - Hook process ↔ agent (Codex rule hook, [ADR 0032](adr/0032-codex-rule-hook-calls-the-agent-over-a-local-socket.md)):
   the `hoplet-agent hook codex` process Codex starts for each tool call asks the agent for the decision over the Unix
   socket `<hoplet_home>/hook.sock` (directory 0700, socket 0600). The agent accepts only the agent's own user ID

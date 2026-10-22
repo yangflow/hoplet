@@ -66,6 +66,7 @@ Claude Code               the session file (writer) and the running process
 | sync | agent | Agent WebSocket client, the two lanes, cursor reconciliation, append batching | config, provider | `agent/internal/sync/` |
 | provider | agent | The `Source`, `Provider` and `Store` interfaces, and one implementation per vendor in `provider/<vendor>/` (`claude`: store discovery, incremental reading, titles, project membership, session-file installation; `codex`: rollout discovery, session ID and directory from the first line, reading a `.jsonl.zst` by decompressing from the start with the cursor counting uncompressed bytes, session-file installation under `sessions/`) | nothing | `agent/internal/provider/` |
 | runtime | agent | Process lifecycle, idle stop, `external` detection, and the runtime-driver interface with one driver per vendor in `runtime/<vendor>/` (`claude`: streaming JSON I/O, permissions, the PreToolUse hook callback that checks each tool call against the rules, interrupt, version check; `codex`: JSON-RPC to `codex app-server`, approvals, the PreToolUse command hook (`hoplet-agent hook codex`, which asks the daemon over the local socket `hook.sock`, [ADR 0032](adr/0032-codex-rule-hook-calls-the-agent-over-a-local-socket.md)), steer, interrupt, plan exit, version check) | provider, locate, rules | `agent/internal/runtime/` |
+| mcp, localsock | agent | The `hoplet-agent mcp` stdio MCP server (JSON-RPC 2.0) with the read tools, the daemon side that holds the session tokens in memory and calls the core's REST API, and the shared local Unix socket listener (directory 0700, socket 0600, peer user ID, nonce) that `hook.sock` and `mcp.sock` use | config, sync | `agent/internal/mcp/`, `agent/internal/localsock/` |
 | terminal, ports | agent | The PTY of an opened terminal (process group, limits, credit window, cleanup journal), and the scan for listening TCP ports of processes started from a session's directory | runtime, locate | `agent/internal/terminal/`, `agent/internal/ports/` |
 | workspace | agent | Working-tree listing and rooted reads, snapshots, clone resolution, worktree installation, verification | provider, locate | `agent/internal/workspace/` |
 | projects, sessions | agent | `projects.json` and its CLI | provider | `agent/internal/projects/`, `agent/internal/sessions/` |
@@ -214,6 +215,25 @@ remembered and Codex decides. Every error and an unknown nonce deny; an `ask` no
 the hook prints a deny at 870 s, before Codex's 900 s timeout, after which Codex runs the call. Where
 the socket cannot be opened (Windows, a path over 100 bytes) the driver declares `capabilities.rules: "prompts-only"`.
 
+### Session MCP tools
+
+With `session_mcp` on, the agent offers a running session the tools that see other sessions
+([ADR 0034](adr/0034-sessions-view-and-direct-other-sessions-over-mcp.md)). A runtime driver that declares the
+internal capability `mcp` (not a wire flag; Claude Code only) gets `StartSpec.MCP`: the command (`hoplet-agent`),
+the arguments (`mcp`), the nonce and the environment `HOPLET_MCP_SOCK` (`<hoplet_home>/mcp.sock`) and
+`HOPLET_MCP_NONCE`. The Claude driver writes `<hoplet_home>/mcp/<nonce>.json` (mode 0600 in a directory 0700) and
+starts the process with `--mcp-config <path>` and without `--strict-mcp-config`; the file is removed and the nonce
+unregistered when the process ends or fails to start. `hoplet-agent mcp` holds no token: it sends each call to the
+daemon over `mcp.sock` with the nonce, and the daemon takes the session from the nonce, ignores any session ID the
+caller states, and calls the core's REST API with the session's `hpt_` token. The daemon asks for that token the
+first time the session needs it with `runtime.mcp.token.request` and keeps the answer, `runtime.mcp.token`, in
+memory until it expires or the core answers 401. The core answers only a device that announced
+`capabilities.sessionMcp` in `device.hello` and owns the session. The tools are `list_machines`, `list_sessions` and
+`read_session` (a page of lines by cursor, at most 100 lines and 32 KiB a call, a long entry cut, the result marked
+as data and passed through the scrubber); a refusal reaches the model as a code, never the request. In Claude Code
+they are `mcp__hoplet__<tool>`, match as `mcp:hoplet/<tool>` in the rules, and the Claude hook allows them when no
+rule decided.
+
 ### A runtime capability
 
 A new control is a `runtime.*` message, a capability name, an implementation in each runtime driver that
@@ -336,7 +356,7 @@ messages that name the session by ID and never a path: `device.session.inspect|i
 clone the new worktree belongs to, which the core keeps in `session_worktrees`.
 
 A handoff to a machine with no clone of the repository adds a clone step before the owner is touched
-([ADR 0024](adr/0024-a-handoff-clones-the-repository-on-a-target-that-has-none.md)). The protocol version is 16.
+([ADR 0024](adr/0024-a-handoff-clones-the-repository-on-a-target-that-has-none.md)). The protocol version is 17.
 The control-lane messages are `device.clone.check` (`requestId`, `origin`, optional `cloneInto`) answered by
 `device.clone.checked` (`reason`, `detail`, the proposed `cloneInto`), and `device.clone.start` (`requestId`,
 `handoffId`, `origin`, `cloneInto`) answered by `device.clone.progress` (`received`, optional `total`, at most four

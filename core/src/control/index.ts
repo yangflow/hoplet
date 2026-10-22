@@ -19,7 +19,14 @@ import { createSessionMcp } from './session-mcp.ts';
 import { createStart } from './start.ts';
 import type { ControlState } from './state.ts';
 import { createTerminals } from './terminals.ts';
-import type { AgentControl, Control, ControlEvent, ControlOptions, Viewing } from './types.ts';
+import type {
+  AgentControl,
+  Control,
+  ControlEvent,
+  ControlOptions,
+  DeviceLink,
+  Viewing,
+} from './types.ts';
 
 export { BulkBusyError, type BulkQueue } from './bulk.ts';
 export type {
@@ -185,6 +192,34 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
     options,
   );
   eventListeners.add(sessionMcp.onEvent);
+  /**
+   * Answers a device asking for the token of one of its sessions' MCP server (ADR 0034): only the owner of the
+   * session, and only a device that announced `sessionMcp`, gets one.
+   */
+  function answerMcpToken(link: DeviceLink, requestId: string, sessionId: string): void {
+    const reply = (rest: { token: string; expiresAt: number } | { reason: string }): void =>
+      link.send({ v: PROTOCOL_VERSION, type: 'runtime.mcp.token', requestId, sessionId, ...rest });
+    const deviceId = [...state.byDevice].find(([, attached]) => attached === link)?.[0];
+    if (deviceId === undefined || state.deviceInfo.get(deviceId)?.sessionMcp !== true) {
+      reply({ reason: 'not-allowed' });
+      return;
+    }
+    const owner = ownerOf(sessionId);
+    if (owner === null) {
+      reply({ reason: 'unknown-session' });
+      return;
+    }
+    if (owner !== deviceId) {
+      reply({ reason: 'not-owner' });
+      return;
+    }
+    const minted = sessionMcp.api.mintToken(sessionId);
+    if (!minted) {
+      reply({ reason: 'not-allowed' });
+      return;
+    }
+    reply({ token: minted.secret, expiresAt: minted.expiresAt });
+  }
   const ports = createPorts(state, open, ownerOf);
   const resources = createResources(state);
   const terminals = createTerminals(
@@ -255,6 +290,7 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
       state.providers.set(deviceId, providers ?? []);
       state.deviceInfo.set(deviceId, {
         terminal: hello?.capabilities?.terminal === true,
+        sessionMcp: hello?.capabilities?.sessionMcp === true,
         ...(hello?.previewHost !== undefined ? { previewHost: hello.previewHost } : {}),
       });
       runtime.attached(deviceId);
@@ -301,6 +337,10 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
       }
       if (msg.type === 'device.rules.applied') {
         rules.receive(link, msg.revision, msg.error);
+        return;
+      }
+      if (msg.type === 'runtime.mcp.token.request') {
+        answerMcpToken(link, msg.requestId, msg.sessionId);
         return;
       }
       receiveReply(state, runtime, terminals, ports, resources, link, msg);

@@ -45,6 +45,8 @@ type Driver struct {
 	env      []string
 	defaults map[string]any
 	rules    RuleSource
+	// hopletHome holds the per-process MCP config files (`<hoplet_home>/mcp/`).
+	hopletHome string
 
 	mu          sync.Mutex
 	versionSeen bool
@@ -65,13 +67,13 @@ func New(opts Options) *Driver {
 		}
 		src = DefaultRules(rules.NewEnv(home, opts.HopletHome))
 	}
-	return &Driver{bin: bin, model: opts.Model, env: opts.Env, defaults: opts.Defaults, rules: src}
+	return &Driver{bin: bin, model: opts.Model, env: opts.Env, defaults: opts.Defaults, rules: src, hopletHome: opts.HopletHome}
 }
 
 func (d *Driver) Name() string { return "claude" }
 
 func (d *Driver) Capabilities() []runtime.Capability {
-	return []runtime.Capability{runtime.CapPermissions, runtime.CapInterrupt, runtime.CapImages, runtime.CapSteer}
+	return []runtime.Capability{runtime.CapPermissions, runtime.CapInterrupt, runtime.CapImages, runtime.CapSteer, runtime.CapMCP}
 }
 
 // Option IDs and the value that leaves the model to Claude Code (ADR 0018).
@@ -160,6 +162,10 @@ func (d *Driver) Args(spec runtime.StartSpec) []string {
 	if on, _ := spec.Config[optFast].(bool); on {
 		args = append(args, "--settings", `{"fastMode":true}`)
 	}
+	if spec.MCP != nil {
+		// The file, not the nonce, is on the command line. Claude Code's own servers and settings stay.
+		args = append(args, "--mcp-config", mcpConfigPath(d.hopletHome, spec.MCP))
+	}
 	if spec.New {
 		return append(args, "--session-id", spec.SessionID)
 	}
@@ -201,14 +207,34 @@ func (d *Driver) Version(ctx context.Context) (string, bool, error) {
 }
 
 func (d *Driver) Start(ctx context.Context, spec runtime.StartSpec) (runtime.Process, error) {
+	// The MCP file and registration end with the process, or with the start when it fails.
+	var once sync.Once
+	cleanup := func() {
+		once.Do(func() {
+			if spec.MCP != nil {
+				_ = os.Remove(mcpConfigPath(d.hopletHome, spec.MCP))
+				if spec.MCP.Release != nil {
+					spec.MCP.Release()
+				}
+			}
+		})
+	}
 	if err := d.checkVersion(ctx); err != nil {
+		cleanup()
 		return nil, err
 	}
 	// Without an engine no hook would be registered and the rules would silently not hold, so a rule set that
 	// cannot be built ends the start.
 	engine, err := d.rules(spec)
 	if err != nil {
+		cleanup()
 		return nil, fmt.Errorf("permission rules: %w", err)
+	}
+	if spec.MCP != nil {
+		if err := writeMCPConfig(d.hopletHome, spec.MCP); err != nil {
+			cleanup()
+			return nil, err
+		}
 	}
 	cmd := exec.Command(d.bin, d.Args(spec)...)
 	cmd.Dir = spec.Dir
@@ -217,8 +243,10 @@ func (d *Driver) Start(ctx context.Context, spec runtime.StartSpec) (runtime.Pro
 	if m, _ := spec.Config[optMode].(string); m != "" {
 		mode = m
 	}
-	p, err := launch(cmd, d.model, hookState{dir: spec.Dir, engine: engine, mode: mode, rebuild: func() (*rules.Engine, error) { return d.rules(spec) }})
+	p, err := launch(cmd, d.model, hookState{dir: spec.Dir, engine: engine, mode: mode, rebuild: func() (*rules.Engine, error) { return d.rules(spec) },
+		mcpRead: spec.MCP != nil && spec.MCP.ReadAllowed, onExit: cleanup})
 	if err != nil {
+		cleanup()
 		return nil, err
 	}
 	if err := p.initialize(); err != nil {
@@ -235,6 +263,9 @@ type hookState struct {
 	// core pushed holds in a process that is already running. nil keeps engine.
 	rebuild func() (*rules.Engine, error)
 	mode    string
+	// mcpRead and onExit are copied onto the process.
+	mcpRead bool
+	onExit  func()
 }
 
 // launch starts cmd and reads its output.
@@ -266,6 +297,8 @@ func launch(cmd *exec.Cmd, model string, hook hookState) (*process, error) {
 		engine:  hook.engine,
 		rebuild: hook.rebuild,
 		mode:    hook.mode,
+		mcpRead: hook.mcpRead,
+		onExit:  hook.onExit,
 	}
 	go p.read(stdout)
 	return p, nil

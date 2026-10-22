@@ -76,6 +76,8 @@ export type SessionPermissionRule = v.InferOutput<typeof SessionPermissionRuleSc
 export const DeviceCapabilitiesSchema = v.object({
   /** The owner enabled the restricted terminal in the agent config. */
   terminal: v.optional(v.boolean()),
+  /** The owner enabled `session_mcp`: the agent serves the session MCP tools to its sessions (ADR 0034). */
+  sessionMcp: v.optional(v.boolean()),
 });
 
 /** The system the agent runs on, as Go names it: `GOOS` and `GOARCH` verbatim, such as `darwin` and `arm64`. */
@@ -527,6 +529,30 @@ export const WIRE_MESSAGES = defineWire({
     lane: 'control',
     direction: 'device-to-core',
     fields: { requestId, reason: v.string() },
+  },
+  /**
+   * The agent asks for the token of one of its sessions' MCP server (ADR 0034). The session ID of a new session
+   * is known to the core only at `runtime.started`, so the token is requested when the session first needs it.
+   */
+  'runtime.mcp.token.request': {
+    lane: 'control',
+    direction: 'device-to-core',
+    fields: { requestId, sessionId },
+  },
+  /**
+   * The answer: a `session` token, in memory only on the agent, with its expiry; or `reason` (`unknown-session`,
+   * `not-owner`, `not-allowed`) when the core minted none.
+   */
+  'runtime.mcp.token': {
+    lane: 'control',
+    direction: 'core-to-device',
+    fields: {
+      requestId,
+      sessionId,
+      token: v.optional(v.string()),
+      expiresAt: v.optional(v.number()),
+      reason: v.optional(v.string()),
+    },
   },
   'runtime.interrupt': { lane: 'control', direction: 'core-to-device', fields: { sessionId } },
   'runtime.stop': { lane: 'control', direction: 'core-to-device', fields: { sessionId } },
@@ -1446,6 +1472,8 @@ export type RuntimePermissionAnswer = WireMessageOf<'runtime.permission.answer'>
 export type RuntimeStart = WireMessageOf<'runtime.start'>;
 export type RuntimeStarted = WireMessageOf<'runtime.started'>;
 export type RuntimeStartRejected = WireMessageOf<'runtime.start.rejected'>;
+export type RuntimeMcpTokenRequest = WireMessageOf<'runtime.mcp.token.request'>;
+export type RuntimeMcpToken = WireMessageOf<'runtime.mcp.token'>;
 export type RuntimeInterrupt = WireMessageOf<'runtime.interrupt'>;
 export type RuntimeStop = WireMessageOf<'runtime.stop'>;
 export type RuntimeStateMsg = WireMessageOf<'runtime.state'>;
@@ -1570,6 +1598,7 @@ export const ClientMessageSchema = v.variant('type', [
   WIRE_MESSAGES['runtime.commands'].schema,
   WIRE_MESSAGES['runtime.started'].schema,
   WIRE_MESSAGES['runtime.start.rejected'].schema,
+  WIRE_MESSAGES['runtime.mcp.token.request'].schema,
   WIRE_MESSAGES['session.workspace'].schema,
   WIRE_MESSAGES['session.workspace.rejected'].schema,
   WIRE_MESSAGES['session.workspace.file'].schema,

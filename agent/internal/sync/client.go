@@ -172,8 +172,8 @@ func (c *Client) runOnce(ctx context.Context) error {
 	if c.hooks.ScriptHooks != nil {
 		hello.Hooks = c.hooks.ScriptHooks()
 	}
-	if c.hooks.Terminal.Enabled {
-		hello.Capabilities = &DeviceCapabilities{Terminal: true}
+	if c.hooks.Terminal.Enabled || c.hooks.SessionMCP {
+		hello.Capabilities = &DeviceCapabilities{Terminal: c.hooks.Terminal.Enabled, SessionMcp: c.hooks.SessionMCP}
 	}
 	if err := c.writeMsg(cs, hello); err != nil {
 		conn.Close()
@@ -299,6 +299,12 @@ func (c *Client) readLoop(cs *connState) {
 			continue
 		case TypeRuntimeStart:
 			go c.handleRuntimeStart(cs, raw)
+			continue
+		case TypeRuntimeMcpToken:
+			var tok RuntimeMcpToken
+			if c.hooks.McpToken != nil && json.Unmarshal(raw, &tok) == nil {
+				c.hooks.McpToken(tok)
+			}
 			continue
 		case TypeRuntimeInterrupt:
 			go c.handleRuntimeInterrupt(head.SessionID)
