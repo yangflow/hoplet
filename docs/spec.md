@@ -390,8 +390,8 @@ dangerous ones asked about or denied.
 
 ### Audit log
 
-Decided in [ADR 0030](adr/0030-the-audit-log-records-actions-in-a-hash-chain.md) (#80). The core, the REST routes and
-the CLI are built; the parts marked planned below are not. The audit log is a searchable, exportable record of what
+Decided in [ADR 0030](adr/0030-the-audit-log-records-actions-in-a-hash-chain.md) (#80). The core, the REST routes, the
+CLI and Settings › Audit are built; the parts marked planned below are not. The audit log is a searchable, exportable record of what
 was done to and by sessions, kept apart from the session content.
 
 - **What it records**: built: permission answers (who answered: the operator in the web UI or with the CLI, or an
@@ -418,11 +418,15 @@ was done to and by sessions, kept apart from the session content.
 - **Search and export**: `GET /api/audit/events` filters by session, machine, actor, type and time and searches the
   summary text, paged; `GET /api/audit/export` is JSON Lines or CSV of the same filter, streamed, at most two at a
   time, and is itself recorded (`audit.exported`); `GET /api/audit/verify` walks the chain. A CSV cell that starts
-  with `=`, `+`, `-` or `@` gets a leading `'`. Planned: the Audit tab of the inspector (one session) and
-  Settings › Audit (all).
+  with `=`, `+`, `-` or `@` gets a leading `'`. Settings › Audit lists the records newest first in a group per day,
+  100 to a page with "Load older"; a search box and the filters Session, Machine, Actor, Type and Time (the last
+  7 days by default) narrow them; a click opens a record in place (the agent-scrubbed command or the paths, channel,
+  reference and hashes); **Verify chain** reports the first break with its reason; **Export** downloads JSON Lines
+  or CSV of the same filters, fetched with the host token in the `Authorization` header. Planned: the Audit tab of
+  the inspector (one session).
 - **Failure**: an action whose record cannot be written is not carried out and answers `audit-unavailable` (503).
-- **Retention**: 180 days by default, set with `HOPLET_AUDIT_RETENTION_DAYS` (`0` keeps everything); planned: shown
-  read-only in Settings. Only retention deletes records, once a day, and it leaves a checkpoint
+- **Retention**: 180 days by default, set with `HOPLET_AUDIT_RETENTION_DAYS` (`0` keeps everything); Settings › Audit
+  names the variable and cannot change it. Only retention deletes records, once a day, and it leaves a checkpoint
   (`audit.checkpoint`) that keeps the rest of the chain verifiable. Deleting a session keeps its records.
 - **Not recorded**: sessions that ran before the feature started (`audit.started` marks the start), what happens
   in a terminal outside Hoplet other than the tool calls its session file holds, and reads.

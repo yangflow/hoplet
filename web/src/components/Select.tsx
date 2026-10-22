@@ -37,6 +37,10 @@ export function Select(props: {
   action?: SelectAction;
   /** What the trigger says while no option is chosen. */
   placeholder?: string;
+  /** A dimmed word before the value in the trigger: a filter's name. */
+  prefix?: string;
+  /** Rings the trigger: the filter narrows the list. */
+  active?: boolean;
   /** Starts open (development fixtures). */
   initialOpen?: boolean;
   'data-testid'?: string;
@@ -101,8 +105,10 @@ export function Select(props: {
       <button
         ref={triggerRef}
         type="button"
-        className={`sel${chip ? ' chip' : ''}${open ? ' open' : ''}`}
-        aria-label={shownText ? `${label}, ${shownText}` : label}
+        className={`sel${chip ? ' chip' : ''}${open ? ' open' : ''}${props.active ? ' on' : ''}`}
+        aria-label={
+          shownText ? `${props.prefix ?? label}${props.prefix ? ' ' : ', '}${shownText}` : label
+        }
         aria-haspopup="listbox"
         aria-expanded={open}
         title={detail ?? label}
@@ -117,6 +123,8 @@ export function Select(props: {
         data-testid={props['data-testid']}
       >
         {current?.leading ? <span className="sel-lead">{current.leading}</span> : null}
+        {props.prefix ? <span className="sel-prefix">{props.prefix}</span> : null}
+        {props.prefix ? ' ' : null}
         <span className={`sel-value${current ? '' : ' sel-placeholder'}`}>
           {current?.label ?? props.placeholder ?? ''}
         </span>

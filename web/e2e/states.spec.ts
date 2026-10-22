@@ -209,6 +209,19 @@ const subject: Record<string, Record<string, string>> = {
     'budgets-allowed': 'settings.budget.stop-allowing',
     'budgets-edit': 'settings.budget.form',
     'budgets-empty': 'settings.budgets.empty',
+    audit: 'settings.audit.list',
+    'audit-filtered': 'settings.audit.count',
+    'audit-detail': 'settings.audit.detail.1281',
+    'audit-verify-running': 'settings.audit.verify.running',
+    'audit-verify-ok': 'settings.audit.verify.ok',
+    'audit-verify-broken': 'settings.audit.verify.broken',
+    'audit-verify-error': 'settings.audit.verify.error',
+    'audit-export': 'settings.audit.export.jsonl',
+    'audit-exported': 'settings.audit.list',
+    'audit-no-match': 'settings.audit.no-match',
+    'audit-empty': 'settings.audit.empty',
+    'audit-loading': 'settings.audit.loading',
+    'audit-error': 'settings.audit.error',
     templates: 'settings.templates.list',
     'templates-edit': 'settings.templates.form',
     'templates-empty': 'settings.templates.empty',
@@ -245,10 +258,10 @@ const subject: Record<string, Record<string, string>> = {
   },
 };
 
-test('the registries list 110 cockpit, 56 workspace, 60 settings and 7 action states', () => {
+test('the registries list 112 cockpit, 56 workspace, 74 settings and 7 action states', () => {
   expect(screens.cockpit).toHaveLength(112);
   expect(screens.workspace).toHaveLength(56);
-  expect(screens.settings).toHaveLength(61);
+  expect(screens.settings).toHaveLength(74);
   expect(screens.action).toHaveLength(7);
 });
 

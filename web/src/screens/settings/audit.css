@@ -1,0 +1,299 @@
+/* biome-ignore-all lint/style/noDescendingSpecificity: the selectors follow the mockup and are scoped by the .aupage root */
+/* Settings > Audit (design/screens/audit.html, direction A). Tokens only. */
+.spage .in:has(.aupage) {
+  max-width: 900px;
+}
+.aupage .mono {
+  font-family: var(--font-mono);
+}
+.aupage .meta {
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  color: var(--color-text-3);
+  font-variant-numeric: tabular-nums;
+}
+.ahead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+.ahead h1 {
+  margin: 0;
+}
+.ahead .sp,
+.aft .sp {
+  flex: 1;
+}
+.amenu {
+  position: relative;
+  display: inline-flex;
+}
+.aupage .apop {
+  left: auto;
+  right: 0;
+  width: 288px;
+}
+.apop .meta {
+  padding: var(--space-2);
+  display: block;
+}
+.apop .mi {
+  width: 100%;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  text-align: left;
+}
+.apop .mi .meta {
+  padding: 0;
+}
+.apop .mi:hover,
+.apop .mi:focus-visible {
+  background: var(--color-hover);
+}
+.apop .mi svg {
+  color: var(--color-text-2);
+  flex: none;
+}
+.apop .mi .tx {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.rmeta.alead {
+  margin: 0 0 var(--space-4);
+  color: var(--color-text-2);
+}
+.afb {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+.afb .select {
+  flex: 1;
+  min-width: 0;
+}
+.asrch {
+  position: relative;
+  flex: 1;
+  min-width: 168px;
+}
+.asrch > svg {
+  position: absolute;
+  left: var(--space-3);
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--color-text-3);
+  pointer-events: none;
+}
+.asrch .field {
+  padding-left: calc(var(--space-3) + 16px + var(--space-2));
+}
+.aload {
+  padding: var(--space-5) 0;
+}
+
+/* The banner of a verification */
+.avr {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-3);
+  background: var(--color-surface);
+}
+.avr.ok {
+  background: var(--color-add-bg);
+}
+.avr.ok > svg {
+  color: var(--color-success);
+}
+.avr.bad {
+  background: var(--color-del-bg);
+}
+.avr.bad > svg {
+  color: var(--color-del-text);
+}
+.avr > svg {
+  margin-top: 2px;
+  flex: none;
+  color: var(--color-text-2);
+}
+.avr .tx {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.avr .tx b {
+  font-weight: var(--weight-semibold);
+}
+
+/* The list: a heading per day, a row per record */
+.adh {
+  padding: var(--space-2) var(--space-4);
+  background: var(--color-bg);
+  color: var(--color-text-2);
+  font-weight: var(--weight-medium);
+  display: flex;
+  gap: var(--space-2);
+  align-items: baseline;
+}
+.adh .meta {
+  font-weight: var(--weight-regular);
+}
+.arr {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 40px;
+  padding: var(--space-1) var(--space-4);
+  text-align: left;
+  color: var(--color-text);
+  box-shadow: inset 0 1px 0 var(--color-line);
+}
+.arr:hover,
+.arr.sel {
+  background: var(--color-hover);
+}
+.arr .tm2 {
+  width: 56px;
+  flex: none;
+  color: var(--color-text-3);
+  font-family: var(--font-mono);
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  font-variant-numeric: tabular-nums;
+}
+.arr .ty {
+  width: 152px;
+  flex: none;
+  color: var(--color-text-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.arr .ty.att {
+  color: var(--color-attention-text);
+}
+.arr .sm {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.arr .sm .pth {
+  color: var(--color-text-3);
+}
+.arr .ac {
+  width: 148px;
+  flex: none;
+  color: var(--color-text-2);
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.arr .chv {
+  color: var(--color-text-3);
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 16px;
+}
+
+/* A record opened in place */
+.axd {
+  padding: var(--space-3) var(--space-4) var(--space-4) calc(var(--space-4) + 56px + var(--space-3));
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  background: var(--color-bg);
+  box-shadow: inset 0 1px 0 var(--color-line);
+}
+.axd .cmd {
+  margin-top: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: inset 0 0 0 1px var(--color-line);
+  font-family: var(--font-mono);
+  font-size: var(--text-code);
+  line-height: var(--leading-code);
+  word-break: break-all;
+}
+.axd .hkv {
+  margin: 0;
+  display: grid;
+  grid-template-columns: 80px minmax(0, 1fr) 80px minmax(0, 1fr);
+  column-gap: var(--space-3);
+  row-gap: var(--space-1);
+}
+.axd .hkvr {
+  display: contents;
+}
+.axd .hkv .k {
+  color: var(--color-text-3);
+}
+.axd .hkv .v {
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.axd .hkv .v.mono {
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+}
+
+/* The foot of the list and the retention line */
+.aft {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  color: var(--color-text-3);
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+}
+.aft .aerr {
+  color: var(--color-danger);
+}
+.aret {
+  display: flex;
+  gap: var(--space-2);
+  align-items: flex-start;
+  margin-top: var(--space-3);
+  color: var(--color-text-3);
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+}
+.aret svg {
+  flex: none;
+  margin-top: 2px;
+}
+
+:root[data-scheme="light"] .axd .cmd {
+  background: var(--color-raised);
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-scheme="dark"]) .axd .cmd {
+    background: var(--color-raised);
+  }
+}
