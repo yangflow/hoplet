@@ -2505,6 +2505,9 @@
                         "steer": {
                           "type": "boolean"
                         },
+                        "rules": {
+                          "const": "prompts-only"
+                        },
                         "config": {
                           "type": "array",
                           "items": {
@@ -3059,6 +3062,9 @@
                   },
                   "steer": {
                     "type": "boolean"
+                  },
+                  "rules": {
+                    "const": "prompts-only"
                   },
                   "config": {
                     "type": "array",
@@ -4314,6 +4320,9 @@
                 },
                 "steer": {
                   "type": "boolean"
+                },
+                "rules": {
+                  "const": "prompts-only"
                 },
                 "config": {
                   "type": "array",
@@ -6555,6 +6564,9 @@
                       "steer": {
                         "type": "boolean"
                       },
+                      "rules": {
+                        "const": "prompts-only"
+                      },
                       "config": {
                         "type": "array",
                         "items": {
@@ -7100,6 +7112,9 @@
             },
             "steer": {
               "type": "boolean"
+            },
+            "rules": {
+              "const": "prompts-only"
             },
             "config": {
               "type": "array",

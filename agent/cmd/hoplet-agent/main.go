@@ -14,6 +14,7 @@ import (
 	"github.com/yangflow/hoplet/agent/internal/daemon"
 	"github.com/yangflow/hoplet/agent/internal/projects"
 	"github.com/yangflow/hoplet/agent/internal/provider"
+	"github.com/yangflow/hoplet/agent/internal/runtime/codex"
 	"github.com/yangflow/hoplet/agent/internal/sessions"
 )
 
@@ -63,6 +64,32 @@ func newRoot() *cobra.Command {
 		projects.NewCommand(home, os.Stdout),
 		configs.NewCommand(home, os.Stdin, os.Stdout),
 		sessions.NewCommand(home, scan, os.Stdout),
+		newHookCommand(),
 	)
 	return root
+}
+
+// newHookCommand is `hoplet-agent hook codex`, the command Codex runs before each tool call (ADR 0032). It reads
+// the hook input on stdin, asks the daemon and prints the decision. It needs no config file, always exits 0 and
+// denies on every error.
+func newHookCommand() *cobra.Command {
+	hook := &cobra.Command{
+		Use:    "hook",
+		Short:  "Commands the coding agents run as hooks",
+		Hidden: true,
+		Args:   cobra.NoArgs,
+	}
+	hook.AddCommand(&cobra.Command{
+		Use:           "codex",
+		Short:         "The PreToolUse hook of Codex",
+		Args:          cobra.NoArgs,
+		SilenceUsage:  true,
+		SilenceErrors: true,
+		// The hook must not depend on the config file: no config means deny, which the hook does itself.
+		PersistentPreRunE: func(*cobra.Command, []string) error { return nil },
+		Run: func(*cobra.Command, []string) {
+			codex.RunHook(os.Stdin, os.Stdout, os.Getenv, codex.HookClientTimeout)
+		},
+	})
+	return hook
 }

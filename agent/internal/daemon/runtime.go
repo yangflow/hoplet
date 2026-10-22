@@ -36,12 +36,14 @@ const kickEvery = 250 * time.Millisecond
 // bridge connects the runtime Manager to the core: events go out as runtime.* messages in order, and
 // the core's commands come in through sync.RuntimeHooks.
 type bridge struct {
-	cfg    *config.Config
-	att    *attachments // images uploaded for coming prompts
-	rules  *rules.Store // the permission rules in force (ADR 0029)
-	locate runtime.Locator
-	send   func(any) error
-	kick   func()
+	cfg     *config.Config
+	att     *attachments      // images uploaded for coming prompts
+	rules   *rules.Store      // the permission rules in force (ADR 0029)
+	hook    *codex.HookServer // the socket of the Codex rule hook (ADR 0032); nil when it could not be opened
+	hookCmd string
+	locate  runtime.Locator
+	send    func(any) error
+	kick    func()
 
 	owners              *configs.Owners // which configuration started each session
 	turnDone, turnStart func(sessionID string)
@@ -77,6 +79,7 @@ func newBridge(cfg *config.Config, send func(any) error, kick func(), turnDone, 
 	home, _ := os.UserHomeDir()
 	b.rules = rules.OpenStore(rules.NewEnv(home, cfg.HopletHome), cfg.HopletHome, cfg.PermissionDeny)
 	b.cond = gosync.NewCond(&b.mu)
+	b.openHook()
 	var err error
 	if b.owners, err = configs.LoadOwners(cfg.HopletHome); err != nil {
 		log.Printf("[agent] %v; sessions started from other configurations are treated as the vendor's own", err)
@@ -90,6 +93,29 @@ func newBridge(cfg *config.Config, send func(any) error, kick func(), turnDone, 
 	b.apply(b.file.List())
 	go b.run()
 	return b
+}
+
+// openHook opens the socket the Codex rule hook asks (ADR 0032). The hook command is the running agent binary;
+// without the socket or the binary the Codex driver runs without the hook and declares that the rules act on
+// prompts only.
+func (b *bridge) openHook() {
+	exe, err := os.Executable()
+	if err == nil {
+		if r, e := filepath.EvalSymlinks(exe); e == nil {
+			exe = r
+		}
+		exe, err = filepath.Abs(exe)
+	}
+	if err != nil {
+		log.Printf("[agent] the Codex rule hook is off: the agent binary is not known (%v); the rules act on Codex's approval prompts only", err)
+		return
+	}
+	h, err := codex.ListenHook(b.cfg.HopletHome)
+	if err != nil {
+		log.Printf("[agent] the Codex rule hook is off: %v; the rules act on Codex's approval prompts only", err)
+		return
+	}
+	b.hook, b.hookCmd = h, codex.HookCommand(exe)
 }
 
 // entry is one configuration with the driver and manager that run it.
@@ -127,7 +153,10 @@ func (b *bridge) build(c configs.Configuration, spec string) *entry {
 		if c.Command != "" {
 			bin = c.Command
 		}
-		d = codex.New(codex.Options{Bin: bin, ImageDir: filepath.Join(b.cfg.HopletHome, "codex-images"), Env: env, Defaults: c.Defaults})
+		d = codex.New(codex.Options{
+			Bin: bin, ImageDir: filepath.Join(b.cfg.HopletHome, "codex-images"), Env: env, Defaults: c.Defaults,
+			Hook: b.hook, Rules: b.ruleSource, HookCommand: b.hookCmd,
+		})
 	default:
 		bin := b.cfg.ClaudeBin
 		if c.Command != "" {
@@ -427,6 +456,8 @@ func capabilities(caps []runtime.Capability, config []runtime.ConfigOption) sync
 			out.Images = true
 		case runtime.CapSteer:
 			out.Steer = true
+		case runtime.CapRulesPromptsOnly:
+			out.Rules = sync.RulesPromptsOnly
 		}
 	}
 	return out
@@ -719,6 +750,9 @@ func (b *bridge) close() {
 	defer cancel()
 	for _, m := range b.managers() {
 		m.Shutdown(ctx)
+	}
+	if b.hook != nil {
+		_ = b.hook.Close()
 	}
 	b.mu.Lock()
 	b.closed = true

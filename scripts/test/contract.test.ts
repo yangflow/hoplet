@@ -242,6 +242,7 @@ describe('wire contract', () => {
       interrupt: { optional: false },
       images: { optional: true },
       steer: { optional: true },
+      rules: { optional: true },
       config: { optional: false },
     });
     expect(go.structs.RuntimePrompt?.options).toBeUndefined();

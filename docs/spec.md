@@ -343,12 +343,12 @@ A budget caps what a scope spends in a period and tells the user before and at t
 ### Permission rules
 
 Decided in [ADR 0029](adr/0029-permission-rules-match-on-the-agent-and-deny-wins.md) (#98). Built: the decision
-engine on the agent, and in Claude Code sessions the check of every tool call against the built-in rules and the
-compiled-in floor, in every permission mode; on the core, the storage of rules, their scopes, the built-in switches and
+engine on the agent, and in Claude Code and Codex sessions the check of every tool call against the built-in rules and the
+compiled-in floor, in every permission mode (Codex through a command hook the agent registers, ADR 0032); on the core, the storage of rules, their scopes, the built-in switches and
 a revision per machine, served by `/api/permission-rules` (docs/api.md); the core sends each agent its rules and the
 agent applies them to every tool call, the next one after a change; the audit records of the calls a rule decided
 and of every rule change; the agent announcing its own `permission_deny` rules, which the core keeps per machine and
-serves read-only. Planned: Codex, the web showing which machines have applied the latest revision, and the
+serves read-only. Planned: the web showing which machines have applied the latest revision, and the
 Settings and card screens. Rules let a session run without someone answering every
 tool call: routine calls
 are allowed, dangerous ones asked about or denied.
@@ -361,8 +361,9 @@ are allowed, dangerous ones asked about or denied.
 - **Precedence**: a `deny` at any scope wins and cannot be overridden; otherwise the narrowest scope that has a
   matching `ask` or `allow` decides, and in one scope `ask` beats `allow`. With no match the session's permission
   mode decides, as without rules. `ask` and `deny` hold in every mode, Bypass permissions and Full access
-  included, because the agent decides in the provider's pre-tool hook; if a session's hook is not registered or
-  does not fire, the session says so and its rules cover only the requests the mode lets through.
+  included, because the agent decides in the provider's pre-tool hook. Where the agent cannot open the hook
+  socket (Windows) it declares `rules: prompts-only` for Codex, and the rules then cover only the approval requests
+  Codex sends; if the hook does not fire in a Codex session, the agent logs that the rules are not enforced there. Planned: a note in the session in both cases.
 - **Commands with shell control** (`;`, `&&`, `|`, a subshell, a redirection, a newline, text that does not
   parse) are never allowed by a rule; `deny` and `ask` rules apply to each command inside them. A rule on a command
   is a guard against mistakes, not a sandbox.

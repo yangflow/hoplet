@@ -441,13 +441,19 @@ type RuntimeStop struct {
 
 // device → core:
 
+// RulesPromptsOnly is the value of RuntimeCapabilities.Rules of a driver whose permission rules act only on the
+// approval requests the vendor sends (ADR 0029, ADR 0032).
+const RulesPromptsOnly = "prompts-only"
+
 // RuntimeCapabilities is what a runtime driver declares it can do. Config lists the settings of a session
-// (ADR 0018); it is empty (never null) when the driver has none.
+// (ADR 0018); it is empty (never null) when the driver has none. Rules is absent when the permission rules check
+// every tool call, and RulesPromptsOnly when they act only on the vendor's approval requests.
 type RuntimeCapabilities struct {
 	Permissions bool           `json:"permissions"`
 	Interrupt   bool           `json:"interrupt"`
 	Images      bool           `json:"images,omitempty"`
 	Steer       bool           `json:"steer,omitempty"`
+	Rules       string         `json:"rules,omitempty"`
 	Config      []ConfigOption `json:"config"`
 }
 

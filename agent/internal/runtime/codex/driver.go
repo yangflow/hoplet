@@ -30,6 +30,12 @@ type Options struct {
 	// Defaults replace the defaults of a new session's options, by option ID; a value the option does not
 	// declare is ignored.
 	Defaults map[string]any
+	// Hook is the daemon's hook socket, Rules the source of the engine that decides each tool call and
+	// HookCommand the command line Codex runs for the hook (HookCommand). With any of them missing the processes
+	// run without the rule hook and the driver declares that the rules act on prompts only (ADR 0032).
+	Hook        *HookServer
+	Rules       RuleSource
+	HookCommand string
 }
 
 // Driver starts Codex app-server processes.
@@ -38,6 +44,9 @@ type Driver struct {
 	imageDir string
 	env      []string
 	defaults map[string]any
+	hook     *HookServer
+	rules    RuleSource
+	hookCmd  string
 
 	mu          sync.Mutex
 	versionSeen bool
@@ -55,13 +64,29 @@ func New(opts Options) *Driver {
 	if dir == "" {
 		dir = os.TempDir() + string(os.PathSeparator) + "hoplet-codex-images"
 	}
-	return &Driver{bin: bin, imageDir: dir, env: opts.Env, defaults: opts.Defaults}
+	d := &Driver{bin: bin, imageDir: dir, env: opts.Env, defaults: opts.Defaults}
+	if opts.Hook != nil && opts.Rules != nil && opts.HookCommand != "" {
+		d.hook, d.rules, d.hookCmd = opts.Hook, opts.Rules, opts.HookCommand
+	}
+	return d
 }
 
 func (d *Driver) Name() string { return "codex" }
 
 func (d *Driver) Capabilities() []runtime.Capability {
-	return []runtime.Capability{runtime.CapPermissions, runtime.CapInterrupt, runtime.CapImages, runtime.CapSteer}
+	caps := []runtime.Capability{runtime.CapPermissions, runtime.CapInterrupt, runtime.CapImages, runtime.CapSteer}
+	if d.hook == nil {
+		caps = append(caps, runtime.CapRulesPromptsOnly)
+	}
+	return caps
+}
+
+// hookCommand is the command Codex runs for the rule hook; empty when the driver runs without it.
+func (d *Driver) hookCommand() string {
+	if d.hook == nil {
+		return ""
+	}
+	return d.hookCmd
 }
 
 // Option IDs and the value that leaves a setting to Codex (ADR 0018).
@@ -265,7 +290,7 @@ func (d *Driver) LoadModels(ctx context.Context) error {
 	if err := d.checkVersion(ctx); err != nil {
 		return err
 	}
-	p, err := d.launch("")
+	p, err := d.launch("", false)
 	if err != nil {
 		return err
 	}
@@ -305,9 +330,14 @@ func (d *Driver) open(ctx context.Context, spec runtime.StartSpec) (*process, er
 	if err := d.checkVersion(ctx); err != nil {
 		return nil, err
 	}
-	p, err := d.launch(spec.Dir)
+	p, err := d.launch(spec.Dir, true)
 	if err != nil {
 		return nil, err
+	}
+	if d.hook != nil {
+		p.mu.Lock()
+		p.dir, p.rules = spec.Dir, d.rules
+		p.mu.Unlock()
 	}
 	p.configure(spec.Config)
 	fail := func(err error) (*process, error) {
@@ -341,10 +371,20 @@ func (d *Driver) versionCmd(ctx context.Context) *exec.Cmd {
 	return cmd
 }
 
-// launch starts `codex app-server` in dir, in its own process group, and begins reading its output.
-func (d *Driver) launch(dir string) (*process, error) {
+// launch starts `codex app-server` in dir, in its own process group, and begins reading its output. A session's
+// process (forSession) gets a nonce in its environment and is registered with the hook socket under it; the
+// registration ends with the process.
+func (d *Driver) launch(dir string, forSession bool) (*process, error) {
 	cmd := exec.Command(d.bin, "app-server")
 	cmd.Env = d.baseEnv()
+	var nonce string
+	if forSession && d.hook != nil {
+		var err error
+		if nonce, err = newNonce(); err != nil {
+			return nil, fmt.Errorf("make the hook nonce: %w", err)
+		}
+		cmd.Env = append(append([]string(nil), cmd.Env...), HookSockEnv+"="+d.hook.Path(), HookNonceEnv+"="+nonce)
+	}
 	cmd.Dir = dir
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	stdin, err := cmd.StdinPipe()
@@ -361,6 +401,9 @@ func (d *Driver) launch(dir string) (*process, error) {
 		return nil, fmt.Errorf("start %s: %w", d.bin, err)
 	}
 	p := newProcess(d, cmd, stdin, &stderr)
+	if nonce != "" {
+		p.unregister = d.hook.register(nonce, p)
+	}
 	go p.read(stdout)
 	return p, nil
 }

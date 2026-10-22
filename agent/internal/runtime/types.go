@@ -32,6 +32,9 @@ const (
 	CapImages Capability = "images"
 	// CapSteer: a message written during a turn reaches the model at the turn's next tool gap (ADR 0020).
 	CapSteer Capability = "steer"
+	// CapRulesPromptsOnly: the permission rules act only on the approval requests the vendor sends, because the
+	// driver has no hook that checks each tool call (ADR 0029, ADR 0032). Absent, the rules check every call.
+	CapRulesPromptsOnly Capability = "rules-prompts-only"
 )
 
 // Image is a picture that goes with a prompt: its media type (image/png, image/jpeg, image/gif or
