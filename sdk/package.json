@@ -1,0 +1,39 @@
+{
+  "name": "@hoplet/sdk",
+  "description": "Typed client for the Hoplet REST API and browser WebSocket",
+  "version": "0.8.0",
+  "license": "Apache-2.0",
+  "type": "module",
+  "sideEffects": false,
+  "engines": {
+    "node": ">=22"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "publishConfig": {
+    "access": "public",
+    "exports": {
+      ".": {
+        "types": "./dist/types/sdk/src/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "node scripts/build.ts",
+    "typecheck": "tsc -p ."
+  },
+  "dependencies": {
+    "valibot": "1.5.0"
+  },
+  "devDependencies": {
+    "@hoplet/shared": "workspace:*",
+    "esbuild": "0.28.2",
+    "typescript": "7.0.2"
+  }
+}

@@ -86,6 +86,14 @@ const screenOf = (repoPath: string): string | undefined =>
   /^web\/src\/screens\/([^/]+)\//.exec(repoPath)?.[1];
 const SCREEN_FIXTURE = /\/(?:states\.tsx|fixtures\.ts)$/;
 
+// The SDK runs in Node, a browser and Bun alike: it imports its own files and the contract in shared/ (as
+// `@hoplet/shared` or by path), never node:*, the core, the web UI or the agent.
+const SDK_IMPORTS = /^(?:sdk\/|shared\/|@hoplet\/shared(?:\/|$))/;
+const isTest = (file: string): boolean => /^sdk\/test\//.test(file);
+// sdk/scripts/ is the build, which runs in Node.
+const isSdkRuntime = (file: string): boolean =>
+  file.startsWith('sdk/') && !file.startsWith('sdk/scripts/');
+
 // Which module may import which, the "May call" column of docs/architecture.md#components. `config` is
 // also read for its type where a module is handed the configuration.
 const MAY_CALL: Record<string, readonly string[]> = {
@@ -120,6 +128,15 @@ export function checkBoundaries(files: ReadonlyMap<string, string>): Violation[]
           to.startsWith('@hoplet/web'))
       )
         add('shared/ depends on nothing else in the repository');
+      if (isSdkRuntime(file) && !SDK_IMPORTS.test(to) && !(isTest(file) && to === 'vitest'))
+        add('sdk/ imports only shared/ and itself, and no node:* module (ADR 0033)');
+      if (
+        !file.startsWith('sdk/') &&
+        !file.startsWith('cli/') &&
+        !file.startsWith('scripts/') &&
+        (to.startsWith('sdk/') || to.startsWith('@hoplet/sdk'))
+      )
+        add('only the command line tool imports the SDK (ADR 0033)');
       if (/^lucide-react(\/|$)/.test(to) && !file.startsWith('scripts/') && file !== ICON_MODULE)
         add(`icons are imported only in ${ICON_MODULE} (docs/design.md#icons)`);
       if (file.startsWith('web/') && (to.startsWith('core/') || to.startsWith('@hoplet/core')))
@@ -156,7 +173,7 @@ export function checkBoundaries(files: ReadonlyMap<string, string>): Violation[]
 function trackedSources(root: string): Map<string, string> {
   const out = execFileSync(
     'git',
-    ['-C', root, 'ls-files', 'core', 'shared', 'web', 'scripts', 'agent'],
+    ['-C', root, 'ls-files', 'core', 'shared', 'web', 'sdk', 'scripts', 'agent'],
     { encoding: 'utf8' },
   );
   const files = new Map<string, string>();

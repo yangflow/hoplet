@@ -5,7 +5,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 want=$(tr -d '[:space:]' < VERSION)
 status=0
-for manifest in package.json core/package.json shared/package.json web/package.json; do
+for manifest in package.json core/package.json shared/package.json web/package.json sdk/package.json; do
   [ -f "$manifest" ] || continue
   have=$(node -p "require('./$manifest').version")
   if [ "$have" != "$want" ]; then echo "$manifest: version $have, VERSION says $want"; status=1; fi

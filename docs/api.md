@@ -37,6 +37,14 @@ curl -s -H "Authorization: Bearer $HOPLET_TOKEN" "$HOPLET_URL/api/health"
 curl -s -X POST -H "Authorization: Bearer $HOPLET_TOKEN" "$HOPLET_URL/api/ws-tickets"
 ```
 
+## TypeScript SDK
+
+`@hoplet/sdk` (`sdk/`) is a typed client of the routes and the browser WebSocket below: `new Hoplet({ url, token })`,
+then `listSessions`, `createSession`, `sendPrompt`, `waitForTurn`, a paged `readSession`, `subscribe` and the
+rest. It checks `protocolVersion` once, mints a ticket for every socket connection, and raises a `HopletError`
+whose `code` is one of [Error codes](#error-codes) (or `network-error`, `invalid-response`,
+`protocol-version-mismatch`, `aborted`). See `sdk/README.md`.
+
 ## Conventions
 
 - Requests and responses are JSON (UTF-8). A request body is sent with `content-type: application/json`; each
