@@ -24,6 +24,34 @@ describe('checkBoundaries', () => {
     expect(violations[0]?.rule).toContain('only through the API in shared/');
   });
 
+  it('lets the SDK import shared and itself only, and nobody but the CLI import the SDK', () => {
+    const ok = checkBoundaries(
+      files({
+        'sdk/src/client.ts':
+          'import { PROTOCOL_VERSION } from "@hoplet/shared";\nimport { x } from "./error.ts";',
+        'sdk/test/client.test.ts': 'import { it } from "vitest";',
+        'cli/src/main.ts': 'import { Hoplet } from "@hoplet/sdk";',
+      }),
+    );
+    expect(ok).toEqual([]);
+    const bad = checkBoundaries(
+      files({
+        'sdk/src/a.ts': 'import { randomUUID } from "node:crypto";',
+        'sdk/src/b.ts': 'import { Store } from "../../core/src/store/index.ts";',
+        'sdk/src/c.ts': 'import * as v from "valibot";',
+        'core/src/api/index.ts': 'import { Hoplet } from "@hoplet/sdk";',
+        'shared/src/x.ts': 'import { Hoplet } from "@hoplet/sdk";',
+      }),
+    );
+    expect(bad.map((v) => v.file)).toEqual([
+      'sdk/src/a.ts',
+      'sdk/src/b.ts',
+      'sdk/src/c.ts',
+      'core/src/api/index.ts',
+      'shared/src/x.ts',
+    ]);
+  });
+
   it('allows the icon family in the icon module only', () => {
     const ok = checkBoundaries(
       files({ 'web/src/components/icons.tsx': 'import { Search } from "lucide-react";' }),

@@ -31,6 +31,7 @@ Documents win over code: if they disagree, fix the document first and say so in 
 core/      the server: one module per directory under core/src/ (config, log, migrations, store, ingest, control, api)
 shared/    schemas, types and error codes of the REST API and both WebSockets: the only contract between the parts
 web/       the web UI: screens/, components/, lib/, design tokens, i18n
+sdk/       `@hoplet/sdk`, the TypeScript client of the REST API and the browser WebSocket (imports `shared/` only)
 agent/     the Go daemon: cmd/hoplet-agent + internal/{config,provider,projects,sessions,locate,daemon,sync,runtime,workspace,rules}
 image/     the Dockerfile and the compose file
 scripts/   repository checks, fixtures, benchmarks, smoke test, host CLI `hoplet`, and their tests
@@ -82,7 +83,7 @@ scripts/check-version.sh            # VERSION, the package.json files and the ag
   add what it left out.
 - **Small pull requests**, one concern each, on a branch named `<type>/<issue>-<slug>`. Commit messages and pull
   request titles are Conventional Commits: `feat|fix|docs|refactor|perf|test|build|ci|chore|revert(scope)!: subject`,
-  with the scope `core`, `shared`, `web`, `agent`, `image`, `scripts` or `deps` when one fits. The maintainer
+  with the scope `core`, `shared`, `web`, `agent`, `sdk`, `image`, `scripts` or `deps` when one fits. The maintainer
   squash-merges, so the title becomes the commit and the changelog line. Commits carry `Co-Authored-By` for the
   agent; no sign-off.
 - **Releases**: release-please keeps a release pull request open on `main` and computes the version from the
