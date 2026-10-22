@@ -40,6 +40,7 @@ record and mark the old one "superseded by NNNN".
 | [0031](0031-the-session-lifecycle-events-and-the-two-hook-kinds.md) | The session lifecycle events and the two hook kinds | accepted |
 | [0032](0032-codex-rule-hook-calls-the-agent-over-a-local-socket.md) | The Codex rule hook calls the agent over a local socket | accepted |
 | [0033](0033-a-command-line-tool-an-sdk-and-scoped-tokens.md) | A command-line tool, an SDK and scoped tokens | accepted |
+| [0034](0034-sessions-view-and-direct-other-sessions-over-mcp.md) | Sessions view and direct other sessions over MCP | accepted |
 
 ## Record template
 
