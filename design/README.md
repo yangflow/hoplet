@@ -80,6 +80,24 @@ The mockups, design tokens and app icon behind Hoplet's web UI. The design langu
   `draft-session-zh`); the conversation lines for Allowed by rule, Denied by rule and Asked by rule (`conv-auto`,
   `conv-auto-zh`). The one Always menu (`card-b`, `card-b-menu`) is the alternative considered. Built in
   `screens/settings/` and `screens/cockpit/`, with the same state names under `/__states`.
+  Two proposals for #98 are open for the maintainer: which machines applied the latest rules revision on
+  Settings › Permission rules (`a-revision`, `a-revision-zh`: applied, behind, offline), and the quiet notes in a
+  Codex session whose rules are prompts-only or whose hook did not fire (`conv-codex-prompts`,
+  `conv-codex-nohook`, and their `-zh` states).
+- `hooks.html` (#97): Settings › Hooks, three directions, none chosen. A (`a-*`) is one page: the webhooks as rows, a row opens in place, adding and editing happen in a card above the list, and the machines' scripts are a read-only group below. B (`b-*`) is a list with the selected hook beside it, on tabs for Settings and Deliveries; the scripts sit in the same list with a lock. C (`c-*`) is a tab per kind (Webhooks, Scripts, Deliveries) with one delivery log for every hook, and editing in a dialog. States: A `a-list`, `a-deliveries`, `a-needs-secret` (a hook whose
+  secret was lost), `a-add`, `a-edit`, `a-secret` (the one-time secret after create), `a-rotate-confirm`,
+  `a-rotate-secret`, `a-test`, `a-test-bad`, `a-script-run`, `a-empty`; B `b-settings`, `b-deliveries`, `b-script`,
+  `b-add`, `b-secret`, `b-empty`; C `c-webhooks`, `c-edit`, `c-secret`, `c-rotate`, `c-scripts`, `c-deliveries`,
+  `c-empty`. Add `?lang=zh-Hans` for Simplified Chinese. New icons: `webhook`, `play`, `copy`, `ellipsis`. The secret
+  shown is a placeholder, never a real one.
+- `audit.html` (#80): Settings › Audit and the session inspector's Audit tab, three directions, none chosen. A (`a-*`)
+  is dense rows grouped by day with a filter bar of five selects and a search box; B (`b-*`) is a facet column with
+  counts beside a two-line feed; C (`c-*`) is search first, with `key:value` tokens and a monospace log. They share one
+  record grammar (time, type, summary, actor) and one detail. States: A `a-page`, `a-filtered`, `a-detail` (a
+  scrubbed command), `a-verify-ok`, `a-verify-broken` (hash-mismatch), `a-export` (JSON Lines or CSV), `a-empty`,
+  `a-inspector`, `a-inspector-empty`; B `b-page`, `b-detail`, `b-verify`, `b-export`, `b-empty`, `b-inspector`; C
+  `c-page`, `c-detail`, `c-verify`, `c-export`, `c-empty`, `c-inspector`. Retention is shown read-only: it is set on
+  the host. Add `?lang=zh-Hans` for Simplified Chinese. New icons: `list-checks`, `download`.
 - `tokens.html`: every design token, with the JSON block that `check-tokens.py` compares with
   `web/src/design/tokens.css`.
 - `mark.html`: the app icon and the web UI's mark; the exported icon is `web/public/icon.svg`.
