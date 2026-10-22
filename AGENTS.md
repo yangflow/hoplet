@@ -90,7 +90,9 @@ scripts/check-version.sh            # VERSION, the package.json files and the ag
 - **Releases**: release-please keeps a release pull request open on `main` and computes the version from the
   merged titles (`feat` raises the minor version before 1.0, `fix` and `perf` the patch), writing `VERSION`, the
   `package.json` files, the agent and `CHANGELOG.md` (`release-please-config.json`). Do not edit `CHANGELOG.md` or
-  the version by hand; only the maintainer merges the release pull request.
+  the version by hand; only the maintainer merges the release pull request. Publishing that release starts
+  `.github/workflows/npm.yml`, which publishes `@hoplet/sdk` and `@hoplet/cli` once the maintainer approves the
+  `npm` environment; an agent never approves or runs it.
 - **A decision that changes the architecture is an ADR** in `docs/adr/`; a decision only the maintainer can make
   goes into an issue with the options, their cost and a recommendation.
 - **Follow the language of the thread**: issues, pull requests and replies may be in English or Simplified

@@ -1,0 +1,61 @@
+# Publishes @hoplet/sdk and @hoplet/cli to npm when a release is published (ADR 0033). The job waits on the `npm`
+# environment, which only the maintainer can approve, and authenticates with npm trusted publishing (OIDC), so no
+# npm token is stored in the repository and each package carries provenance. Claiming the @hoplet scope, the first
+# publish and the trusted-publisher settings on npm are the maintainer's, done by hand. An agent never runs or
+# approves this workflow (AGENTS.md, Red lines).
+name: npm
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: npm
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: npm
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.release.tag_name }}
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          registry-url: https://registry.npmjs.org
+      - name: The tag matches VERSION and the package manifests
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          test "$TAG" = "v$(cat VERSION)"
+          scripts/check-version.sh
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @hoplet/sdk --filter @hoplet/cli typecheck
+      - run: pnpm --filter @hoplet/sdk build
+      - run: pnpm --filter @hoplet/cli build
+      # pnpm pack turns workspace:* into the version and applies publishConfig; npm publishes the tarball with OIDC.
+      # The SDK goes first because the CLI depends on it; a version already on npm is skipped, so a rerun resumes.
+      - name: Publish
+        run: |
+          version=$(cat VERSION)
+          mkdir -p "$RUNNER_TEMP/pack"
+          for package in sdk cli; do
+            name="@hoplet/$package"
+            if npm view "$name@$version" version >/dev/null 2>&1; then
+              echo "$name@$version is already on npm"
+              continue
+            fi
+            (cd "$package" && pnpm pack --pack-destination "$RUNNER_TEMP/pack")
+            npm publish "$RUNNER_TEMP/pack/hoplet-$package-$version.tgz" --provenance --access public
+          done
