@@ -1046,6 +1046,56 @@
     },
     {
       "method": "GET",
+      "path": "/api/sessions/:sessionId/mcp",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": null,
+      "response": "SessionMcpResponseSchema"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/sessions/:sessionId/mcp",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": "SessionMcpPutRequestSchema",
+      "response": "SessionMcpResponseSchema"
+    },
+    {
+      "method": "GET",
+      "path": "/api/mcp/defaults",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": null,
+      "response": "SessionMcpDefaultsResponseSchema"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/mcp/defaults",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": "SessionMcpDefaultsPutRequestSchema",
+      "response": "SessionMcpOkResponseSchema"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/mcp/defaults",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": "SessionMcpDefaultsDeleteQuerySchema",
+      "body": null,
+      "response": "SessionMcpOkResponseSchema"
+    },
+    {
+      "method": "GET",
       "path": "/api/tokens",
       "auth": "host",
       "lane": "control",
@@ -1231,6 +1281,7 @@
     "invalid-json": 400,
     "invalid-request": 400,
     "same-device": 400,
+    "self": 400,
     "invalid-token": 400,
     "rate-limited": 429,
     "audit-unavailable": 503,
@@ -1249,6 +1300,7 @@
     "cancelled": 409,
     "over-budget": 409,
     "handoff-in-progress": 409,
+    "loop-limit": 409,
     "handoff-not-running": 409,
     "terminal-unavailable": 409,
     "terminal-busy": 409,
@@ -3589,6 +3641,7 @@
             "invalid-json",
             "invalid-request",
             "same-device",
+            "self",
             "invalid-token",
             "rate-limited",
             "audit-unavailable",
@@ -3607,6 +3660,7 @@
             "cancelled",
             "over-budget",
             "handoff-in-progress",
+            "loop-limit",
             "handoff-not-running",
             "terminal-unavailable",
             "terminal-busy",
@@ -3656,6 +3710,7 @@
             "invalid-json",
             "invalid-request",
             "same-device",
+            "self",
             "invalid-token",
             "rate-limited",
             "audit-unavailable",
@@ -3674,6 +3729,7 @@
             "cancelled",
             "over-budget",
             "handoff-in-progress",
+            "loop-limit",
             "handoff-not-running",
             "terminal-unavailable",
             "terminal-busy",
@@ -5952,6 +6008,9 @@
             "sessionId",
             "title"
           ]
+        },
+        "self": {
+          "const": true
         }
       },
       "required": [
@@ -8298,6 +8357,9 @@
                   "sessionId",
                   "title"
                 ]
+              },
+              "self": {
+                "const": true
               }
             },
             "required": [
@@ -8376,6 +8438,245 @@
         "type",
         "sessionId",
         "ports"
+      ]
+    },
+    "SessionMcpDefaultsDeleteQuerySchema": {
+      "type": "object",
+      "properties": {
+        "deviceId": {
+          "type": "string",
+          "pattern": "^\\s*\\S(?:[\\s\\S]{0,126}\\S)?\\s*$"
+        },
+        "path": {
+          "type": "string",
+          "pattern": "^\\s*\\S(?:[\\s\\S]{0,4094}\\S)?\\s*$"
+        }
+      },
+      "required": [
+        "deviceId",
+        "path"
+      ]
+    },
+    "SessionMcpDefaultsPutRequestSchema": {
+      "type": "object",
+      "properties": {
+        "deviceId": {
+          "type": "string",
+          "pattern": "^\\s*\\S(?:[\\s\\S]{0,126}\\S)?\\s*$"
+        },
+        "path": {
+          "type": "string",
+          "pattern": "^\\s*\\S(?:[\\s\\S]{0,4094}\\S)?\\s*$"
+        },
+        "settings": {
+          "type": "object",
+          "properties": {
+            "send": {
+              "type": "boolean"
+            },
+            "create": {
+              "type": "boolean"
+            },
+            "requestHandoff": {
+              "type": "boolean"
+            },
+            "visibility": {
+              "enum": [
+                "project",
+                "machine",
+                "all"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "send",
+            "create",
+            "requestHandoff",
+            "visibility"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "settings"
+      ],
+      "additionalProperties": false
+    },
+    "SessionMcpDefaultsResponseSchema": {
+      "type": "object",
+      "properties": {
+        "global": {
+          "type": "object",
+          "properties": {
+            "send": {
+              "type": "boolean"
+            },
+            "create": {
+              "type": "boolean"
+            },
+            "requestHandoff": {
+              "type": "boolean"
+            },
+            "visibility": {
+              "enum": [
+                "project",
+                "machine",
+                "all"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "send",
+            "create",
+            "requestHandoff",
+            "visibility"
+          ],
+          "additionalProperties": false
+        },
+        "projects": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "deviceId": {
+                "type": "string"
+              },
+              "path": {
+                "type": "string"
+              },
+              "settings": {
+                "type": "object",
+                "properties": {
+                  "send": {
+                    "type": "boolean"
+                  },
+                  "create": {
+                    "type": "boolean"
+                  },
+                  "requestHandoff": {
+                    "type": "boolean"
+                  },
+                  "visibility": {
+                    "enum": [
+                      "project",
+                      "machine",
+                      "all"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "send",
+                  "create",
+                  "requestHandoff",
+                  "visibility"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "deviceId",
+              "path",
+              "settings"
+            ]
+          }
+        }
+      },
+      "required": [
+        "global",
+        "projects"
+      ]
+    },
+    "SessionMcpOkResponseSchema": {
+      "type": "object",
+      "properties": {
+        "ok": {
+          "const": true
+        }
+      },
+      "required": [
+        "ok"
+      ]
+    },
+    "SessionMcpPutRequestSchema": {
+      "type": "object",
+      "properties": {
+        "settings": {
+          "type": "object",
+          "properties": {
+            "send": {
+              "type": "boolean"
+            },
+            "create": {
+              "type": "boolean"
+            },
+            "requestHandoff": {
+              "type": "boolean"
+            },
+            "visibility": {
+              "enum": [
+                "project",
+                "machine",
+                "all"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "send",
+            "create",
+            "requestHandoff",
+            "visibility"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "settings"
+      ],
+      "additionalProperties": false
+    },
+    "SessionMcpResponseSchema": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string"
+        },
+        "settings": {
+          "type": "object",
+          "properties": {
+            "send": {
+              "type": "boolean"
+            },
+            "create": {
+              "type": "boolean"
+            },
+            "requestHandoff": {
+              "type": "boolean"
+            },
+            "visibility": {
+              "enum": [
+                "project",
+                "machine",
+                "all"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "send",
+            "create",
+            "requestHandoff",
+            "visibility"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "sessionId",
+        "settings"
       ]
     },
     "SessionOutputMessage": {
@@ -10206,12 +10507,13 @@
                   "read",
                   "send",
                   "create",
-                  "answer"
+                  "answer",
+                  "request-handoff"
                 ],
                 "type": "string"
               },
               "minItems": 1,
-              "maxItems": 4,
+              "maxItems": 5,
               "uniqueItems": true
             },
             "allow": {
@@ -10280,12 +10582,13 @@
                   "read",
                   "send",
                   "create",
-                  "answer"
+                  "answer",
+                  "request-handoff"
                 ],
                 "type": "string"
               },
               "minItems": 1,
-              "maxItems": 4,
+              "maxItems": 5,
               "uniqueItems": true
             },
             "allow": {
@@ -10398,12 +10701,13 @@
                         "read",
                         "send",
                         "create",
-                        "answer"
+                        "answer",
+                        "request-handoff"
                       ],
                       "type": "string"
                     },
                     "minItems": 1,
-                    "maxItems": 4,
+                    "maxItems": 5,
                     "uniqueItems": true
                   },
                   "allow": {

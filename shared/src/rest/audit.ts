@@ -1,7 +1,7 @@
 import * as v from 'valibot';
 import { queryInt } from './common.ts';
 
-/** Who did it (ADR 0030). Code produces `operator`, `token`, `device` and `core` today; `session` and `schedule` wait for their features. */
+/** Who did it (ADR 0030). Code produces `operator`, `token`, `session`, `device` and `core` today; `schedule` waits for its feature. */
 export const AUDIT_ACTOR_KINDS = [
   'operator',
   'token',

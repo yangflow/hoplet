@@ -57,6 +57,8 @@ export function capabilityText(capability: TokenCapability): string {
       return t('Start sessions, never in Bypass permissions');
     case 'answer':
       return t('Answer permission requests');
+    case 'request-handoff':
+      return t('Ask the user to hand the session off');
   }
 }
 

@@ -39,6 +39,8 @@ export class ApiError extends Error {
   code: HttpErrorCode;
   extra: Omit<ErrorResponse, 'code'>;
   status: number;
+  /** Seconds until the caller may try again; the router sends it as `Retry-After`. */
+  retryAfter?: number;
   constructor(
     code: HttpErrorCode,
     extra: Omit<ErrorResponse, 'code'> = {},

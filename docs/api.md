@@ -166,6 +166,11 @@ Response column names the schema of the success body and its status when it is n
 | GET | `/api/tokens` | host | control | — | — | `TokenListResponseSchema` | — |
 | POST | `/api/tokens` | host | control | — | `TokenCreateRequestSchema` | `TokenCreateResponseSchema`, 201 | `invalid-json`, `invalid-request`, `too-large` |
 | DELETE | `/api/tokens/:id` | host | control | — | — | `TokenRevokeResponseSchema` | `not-found` |
+| GET | `/api/sessions/:sessionId/mcp` | host | control | — | — | `SessionMcpResponseSchema` | `session-not-found` |
+| PUT | `/api/sessions/:sessionId/mcp` | host | control | — | `SessionMcpPutRequestSchema` | `SessionMcpResponseSchema` | `invalid-json`, `invalid-request`, `too-large`, `session-not-found` |
+| GET | `/api/mcp/defaults` | host | control | — | — | `SessionMcpDefaultsResponseSchema` | — |
+| PUT | `/api/mcp/defaults` | host | control | — | `SessionMcpDefaultsPutRequestSchema` | `SessionMcpOkResponseSchema` | `invalid-json`, `invalid-request`, `too-large` |
+| DELETE | `/api/mcp/defaults` | host | control | `SessionMcpDefaultsDeleteQuerySchema` | — | `SessionMcpOkResponseSchema` | `invalid-request`, `not-found` |
 | GET | `/api/notify/push/key` | host | control | — | — | `PushKeyResponseSchema` | — |
 | GET | `/api/notify/push/subscriptions` | host | control | — | — | `PushSubscriptionListResponseSchema` | — |
 | POST | `/api/notify/push/subscriptions` | host | control | — | `PushSubscribeRequestSchema` | `PushSubscriptionInfoSchema`, 201 | `invalid-json`, `invalid-request`, `too-large` |
@@ -514,8 +519,10 @@ session, or `""` while the session is not in the index yet; the client shows its
 |---|---|---|
 | `unauthorized` | 401 | The host token or API token is missing, wrong, expired or revoked |
 | `invalid-token` | 400 | The action token is malformed, was not signed by this core or does not match any request |
-| `forbidden` | 403 | A scoped API token ([API tokens](#api-tokens)) asked for a machine or project outside its allow-list, for a high-risk configuration option, or for a route its abilities do not cover |
-| `rate-limited` | 429 | Too many requests to the action routes, or more than 300 in a minute with one API token; retry after `Retry-After` seconds |
+| `forbidden` | 403 | A scoped API token ([API tokens](#api-tokens)) asked for a machine or project outside its allow-list, for a high-risk configuration option, or for a route its abilities do not cover; a session token asked to prompt or interrupt a session in a more permissive mode than its own (`reason`: `target-mode-more-permissive`, `sender-mode-unknown` or `target-mode-unknown`) |
+| `rate-limited` | 429 | Too many requests to the action routes, or more than 300 in a minute with one API token, or a session prompted other sessions too often ([Sessions as callers](#sessions-as-callers)); retry after `Retry-After` seconds |
+| `self` | 400 | A session addressed itself: a session token asked to prompt or interrupt its own session |
+| `loop-limit` | 409 | The prompt would close a loop or make a chain of more than three sessions ([Sessions as callers](#sessions-as-callers)) |
 | `not-found` | 404 | No route serves the path, or the block or path asked for does not exist |
 | `method-not-allowed` | 405 | The path exists for another method; `Allow` lists them |
 | `session-not-found` | 404 | No session has this ID |
@@ -590,6 +597,48 @@ Every action of a token is audited with the actor kind `token` and the token's I
 `token.denied` event, at most one a minute per token and route. A token that is unknown, expired or revoked is
 answered `unauthorized` and not audited. One token may make 300 requests a minute; beyond it the answer is
 `rate-limited` with `Retry-After`.
+
+## Sessions as callers
+
+A running session can call the API for the sessions it may see and direct
+([ADR 0034](adr/0034-sessions-view-and-direct-other-sessions-over-mcp.md)). The core mints it a **session token**
+(kind `session`, `hpt_...`) when its runtime starts and revokes it when the runtime ends or fails, when the session is
+deleted, when it is handed off, and when its machine stays disconnected past the reconnect window; it lives 24 hours
+at most. It is not in `GET /api/tokens`, cannot be issued or revoked with the token routes, and never holds `answer`.
+
+The grant of a session token is not stored in the token. The core reads the session's settings on every request
+(`GET`/`PUT /api/sessions/:sessionId/mcp`, the host's), so a change applies to the next call and to a call that is
+already running:
+
+| Setting | Effect |
+|---|---|
+| `send` | The `send` ability: prompt, steer and interrupt other sessions |
+| `create` | The `create` ability, which includes `send` |
+| `requestHandoff` | The `request-handoff` ability, which only a session token holds; it lets the session ask for its own handoff (the host confirms) |
+| `visibility` | `project` (sessions of its own machine and project), `machine` (every project of its machine) or `all`; a session outside it is answered `session-not-found`. `read` is always on |
+
+`GET`/`PUT /api/mcp/defaults` hold the defaults a session gets when it begins: a global one and one per project
+(`deviceId` and `path` together; `DELETE` removes a project's). A new session takes the project's default, else the
+global one, else everything off with `project` visibility. Sessions that already have settings keep them. Changes
+are `config.changed` events of the audit log.
+
+A session token reaches only the routes marked for sessions: the list and read of sessions, lines and blocks, the
+device list, prompt, interrupt and `POST /api/sessions`; every other route answers `forbidden`. A session sees
+itself in the list with `self: true` in its metadata. The rules for a prompt or an interrupt from a session:
+
+- It may not address itself: `self`.
+- The target's permission mode may not be more permissive than the sender's. The modes are ranked `plan`, then
+  `default` and `read-only`, then `acceptEdits` and `workspace-write`, then `auto` and `auto-review`, then
+  `bypassPermissions` and `full-access`. A mode that is not in the ranking is refused. Both answer `forbidden`
+  with a `reason`.
+- Every prompt carries the chain of sessions that led to it; a prompt that a user sends resets the chain. A chain
+  that contains the target, or would hold more than three sessions, is `loop-limit`.
+- Per source session: 6 prompts a minute and 60 an hour; per target 3 a minute; and at most 2 prompts to a target
+  that has not finished a turn since. Beyond a limit the answer is `rate-limited` with `Retry-After`. A prompt that
+  was refused does not count.
+
+The `prompt.sent` audit event of a prompt from a session has the actor kind `session` and the source session's ID,
+and its summary names the source and the chain (`source: { kind: "session", sessionId, chain }`).
 
 ## Browser WebSocket
 

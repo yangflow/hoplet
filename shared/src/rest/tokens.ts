@@ -5,8 +5,10 @@ import { TrimmedSchema } from './common.ts';
  * What a scoped API token may do (ADR 0033). Each is a statement about routes: `read` sees sessions, machines and
  * the live stream; `send` adds to an existing session; `create` starts sessions; `answer` answers permission
  * requests. Everything else (deleting, configuration, terminals, handoff, administration) is host-only.
+ * `request-handoff` asks the user to hand the session off (ADR 0034): only a session token can hold it, and
+ * POST /api/tokens answers `invalid-request` to a grant that names it.
  */
-export const TOKEN_CAPABILITIES = ['read', 'send', 'create', 'answer'] as const;
+export const TOKEN_CAPABILITIES = ['read', 'send', 'create', 'answer', 'request-handoff'] as const;
 export const TokenCapabilitySchema = v.picklist(TOKEN_CAPABILITIES);
 export type TokenCapability = v.InferOutput<typeof TokenCapabilitySchema>;
 

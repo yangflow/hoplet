@@ -49,6 +49,8 @@ export const ERROR_COPY: Record<HttpErrorCode, string> = {
   'invalid-token': 'The link is not valid.',
   forbidden: 'This access token is not allowed to do that.',
   'rate-limited': 'Too many requests. Try again in a moment.',
+  self: 'A session cannot do that to itself.',
+  'loop-limit': 'This chain of sessions directing sessions is already as long as it may be.',
   'audit-unavailable': 'The audit log could not record this, so it was not done.',
   'too-large': 'That is too large to send.',
   'over-budget': 'A budget is used up, so new prompts are paused.',

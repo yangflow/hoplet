@@ -89,6 +89,10 @@ Claude Code               the session file (writer) and the running process
   `/__states` (`states.tsx`, `fixtures.ts`) are exempt. Enforced by `scripts/boundaries.ts`.
 - Only `store` composes paths in the data directory. Enforced by `scripts/boundaries.ts` (no `node:fs` import
   outside `store`, `config` and `api/static`).
+- A session token (ADR 0034) is a principal of kind `token` whose grant is read from the session's
+  settings on every request, never stored; it reaches only routes marked for sessions, and a prompt or interrupt
+  from it passes the guard in `core/src/control/` (itself, mode rank, chain, limits) before it is sent. Tested in
+  `core/test/session-mcp.test.ts`.
 - Every `/api/*` request needs the host token, except the two `/api/action/*` routes, which need a signed action token and are rate limited; the browser WebSocket needs a ticket minted with it; the agent
   WebSocket needs a device token, and a host token is refused there. Enforced in `core/src/api/` and
   `core/src/ingest/`, tested in `core/test/auth.test.ts`.

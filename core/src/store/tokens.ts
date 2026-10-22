@@ -35,6 +35,7 @@ interface Row {
   expires_at: number;
   revoked_at: number | null;
   last_used_at: number | null;
+  session_id: string;
 }
 
 /** The token a presented secret names: what the router needs to decide a request. */
@@ -44,6 +45,8 @@ export interface TokenRecord {
   name: string;
   grant: TokenGrant;
   expiresAt: number;
+  /** The session a `session` token belongs to; '' for a scoped token. */
+  sessionId: string;
 }
 
 export function hashSecret(secret: string): string {
@@ -69,11 +72,13 @@ function infoOf(row: Row, now: number): TokenInfo {
   };
 }
 
-const COLUMNS = 'id, kind, name, grant, created_at, expires_at, revoked_at, last_used_at';
+const COLUMNS =
+  'id, kind, name, grant, created_at, expires_at, revoked_at, last_used_at, session_id';
 
+/** The tokens the host minted. A session token is the core's own and is not listed (ADR 0034). */
 export function listTokens(ctx: StoreContext, now: number): TokenInfo[] {
   const rows = ctx.db
-    .prepare(`SELECT ${COLUMNS} FROM api_tokens ORDER BY created_at DESC, id`)
+    .prepare(`SELECT ${COLUMNS} FROM api_tokens WHERE kind = 'scoped' ORDER BY created_at DESC, id`)
     .all() as unknown as Row[];
   return rows.map((row) => infoOf(row, now));
 }
@@ -100,7 +105,10 @@ export function issueToken(
   if (own) ctx.db.exec('BEGIN IMMEDIATE');
   try {
     const active = ctx.db
-      .prepare(`SELECT COUNT(*) AS n FROM api_tokens WHERE revoked_at IS NULL AND expires_at > ?`)
+      .prepare(
+        `SELECT COUNT(*) AS n FROM api_tokens
+         WHERE kind = 'scoped' AND revoked_at IS NULL AND expires_at > ?`,
+      )
       .get(now) as { n: number };
     if (Number(active.n) >= MAX_ACTIVE_TOKENS) throw new TooManyTokensError();
     ctx.db
@@ -145,9 +153,9 @@ export function revokeToken(
   const own = !ctx.db.isTransaction;
   if (own) ctx.db.exec('BEGIN IMMEDIATE');
   try {
-    const row = ctx.db.prepare(`SELECT ${COLUMNS} FROM api_tokens WHERE id = ?`).get(id) as
-      | Row
-      | undefined;
+    const row = ctx.db
+      .prepare(`SELECT ${COLUMNS} FROM api_tokens WHERE id = ? AND kind = 'scoped'`)
+      .get(id) as Row | undefined;
     let outcome: 'revoked' | 'removed' | 'unknown' = 'unknown';
     if (row) {
       if (infoOf(row, now).state === 'active') {
@@ -188,7 +196,63 @@ export function tokenForSecret(ctx: StoreContext, secret: string, now: number): 
     name: info.name,
     grant: info.grant,
     expiresAt: info.expiresAt,
+    sessionId: row.session_id,
   };
+}
+
+/** A session token lives at most this long; the agent asks for a new one (ADR 0034). */
+export const SESSION_TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Mints the token of a session's process. It has no grant of its own: the router looks the grant up from the
+ * session's settings at each request, so the stored one only names the floor (`read`). No `token.issued` record is
+ * written (a token per process would drown the log); the session's prompts and creations carry its actor.
+ */
+export function mintSessionToken(
+  ctx: StoreContext,
+  sessionId: string,
+  now: number,
+): { record: TokenRecord; secret: string } {
+  const secret = `${TOKEN_PREFIX}${randomBytes(32).toString('base64url')}`;
+  registerSecret(secret);
+  const id = randomBytes(8).toString('hex');
+  const grant: TokenGrant = { capabilities: ['read'] };
+  const expiresAt = now + SESSION_TOKEN_TTL_MS;
+  ctx.db
+    .prepare(
+      `INSERT INTO api_tokens(id, kind, name, token_hash, grant, created_at, expires_at, session_id)
+       VALUES(?, 'session', ?, ?, ?, ?, ?, ?)`,
+    )
+    .run(
+      id,
+      `session ${sessionId}`,
+      hashSecret(secret),
+      JSON.stringify(grant),
+      now,
+      expiresAt,
+      sessionId,
+    );
+  return {
+    record: { id, kind: 'session', name: `session ${sessionId}`, grant, expiresAt, sessionId },
+    secret,
+  };
+}
+
+/** Ends every token of a session; they are removed, not kept as revoked. Returns how many there were. */
+export function revokeSessionTokens(ctx: StoreContext, sessionId: string): number {
+  const result = ctx.db
+    .prepare(`DELETE FROM api_tokens WHERE kind = 'session' AND session_id = ?`)
+    .run(sessionId);
+  return Number(result.changes);
+}
+
+/** Removes the session tokens that expired, and returns the sessions that still hold an active one. */
+export function sweepSessionTokens(ctx: StoreContext, now: number): string[] {
+  ctx.db.prepare(`DELETE FROM api_tokens WHERE kind = 'session' AND expires_at <= ?`).run(now);
+  const rows = ctx.db
+    .prepare(`SELECT DISTINCT session_id FROM api_tokens WHERE kind = 'session'`)
+    .all() as { session_id: string }[];
+  return rows.map((r) => r.session_id);
 }
 
 /** Whether the token is still active: the browser WebSocket asks it to close a connection that outlived it. */

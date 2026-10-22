@@ -6,7 +6,7 @@ import { createTickets } from '../src/api/tickets.ts';
 const grant = { abilities: ['read'], allow: [] } as unknown as TokenGrant;
 const token = (id: string): Principal => ({
   kind: 'token',
-  token: { id, kind: 'scoped', name: id, grant, expiresAt: Number.MAX_SAFE_INTEGER },
+  token: { id, kind: 'scoped', name: id, grant, expiresAt: Number.MAX_SAFE_INTEGER, sessionId: '' },
 });
 
 describe('browser WebSocket tickets', () => {

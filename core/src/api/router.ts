@@ -57,6 +57,8 @@ export interface RouteSpec<
    * it never delays a control request and a flood of it is refused with `busy`.
    */
   lane: 'control' | 'bulk';
+  /** A session's own token (ADR 0034) may call the route; every other route refuses it with `forbidden`. */
+  session?: boolean;
   /** Largest request body in bytes; required with `body`. */
   bodyLimit?: number;
   /** Schema of the query string. */
@@ -74,6 +76,7 @@ export interface Route {
   method: Method;
   path: string;
   access: Access;
+  session: boolean;
   lane: 'control' | 'bulk';
   bodyLimit: number;
   query: GenericSchema | undefined;
@@ -100,6 +103,7 @@ export function defineRoute<
     method: spec.method,
     path: spec.path,
     access: spec.access ?? 'host',
+    session: spec.session ?? false,
     lane: spec.lane,
     bodyLimit: spec.bodyLimit ?? 0,
     query: spec.query,
@@ -154,6 +158,7 @@ export function createRouter(options: RouterOptions): Router {
   /** Records a token's refusal in the audit log, at most once a minute per token and route. */
   function audited(principal: Principal, route: Route): void {
     if (principal.kind !== 'token') return;
+    const session = principal.token.kind === 'session';
     const at = now();
     if (deniedAt.size > 10_000) {
       for (const [key, last] of deniedAt) {
@@ -168,7 +173,10 @@ export function createRouter(options: RouterOptions): Router {
       deps.store.audit(
         {
           type: 'token.denied',
-          actor: { kind: 'token', id: principal.token.id },
+          actor: session
+            ? { kind: 'session', id: principal.token.sessionId }
+            : { kind: 'token', id: principal.token.id },
+          ...(session ? { sessionId: principal.token.sessionId } : {}),
           summary: {
             id: principal.token.id,
             method: route.method,
@@ -196,6 +204,9 @@ export function createRouter(options: RouterOptions): Router {
     const { access } = route;
     if (access === 'link') return null;
     if (access === 'host' || !can(principal, access.capability)) return 'forbidden';
+    if (principal.kind === 'token' && principal.token.kind === 'session' && !route.session) {
+      return 'forbidden';
+    }
     const { sessionId, deviceId } = params;
     if (sessionId !== undefined && !seesSession(principal, deps.control, sessionId)) {
       return 'session-not-found';
@@ -275,6 +286,7 @@ export function createRouter(options: RouterOptions): Router {
         }
         if (err instanceof ApiError) {
           if (err.code === 'forbidden') audited(principal, route);
+          if (err.retryAfter !== undefined) res.setHeader('retry-after', String(err.retryAfter));
           fail(res, err.code, err.extra, err.status);
           return;
         }
