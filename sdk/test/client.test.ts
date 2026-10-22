@@ -194,6 +194,51 @@ describe('prompts', () => {
     });
     expect((calls.at(-1) as Call).body).toMatchObject({ deviceId: 'dev1', promptId: 'p' });
   });
+
+  it('starts a session in a new worktree and returns where it is', async () => {
+    const { hoplet, calls } = client(
+      on('POST', '/api/sessions', {
+        status: 200,
+        json: {
+          ok: true,
+          sessionId: 'new1',
+          promptId: 'p',
+          worktree: { path: '/work/app-feat-x', branch: 'feat/x' },
+        },
+      }),
+    );
+    const started = await hoplet.createSession({
+      deviceId: 'dev1',
+      projectPath: '/work/app',
+      provider: 'claude',
+      text: 'start',
+      promptId: 'p',
+      worktree: { branch: 'feat/x' },
+    });
+    expect(started.worktree).toEqual({ path: '/work/app-feat-x', branch: 'feat/x' });
+    expect((calls.at(-1) as Call).body).toMatchObject({ worktree: { branch: 'feat/x' } });
+  });
+
+  it('reports the reason of a refused worktree', async () => {
+    const { hoplet } = client(
+      on('POST', '/api/sessions', {
+        status: 400,
+        json: { code: 'invalid-request', reason: 'worktree-branch-exists', promptId: 'p' },
+      }),
+    );
+    const err = await failure(
+      hoplet.createSession({
+        deviceId: 'dev1',
+        projectPath: '/work/app',
+        provider: 'claude',
+        text: 'start',
+        promptId: 'p',
+        worktree: { branch: 'main' },
+      }),
+    );
+    expect(err.code).toBe('invalid-request');
+    expect(err.reason).toBe('worktree-branch-exists');
+  });
 });
 
 describe('readSession', () => {

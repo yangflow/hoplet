@@ -20,6 +20,7 @@ import {
   BudgetBodySchema,
   BudgetListResponseSchema,
   BudgetSchema,
+  branchNameProblem,
   CommandsResultSchema,
   ConfigRequestSchema,
   DeleteSessionRequestSchema,
@@ -353,6 +354,12 @@ async function startNewSession(
   req: NewSessionRequest,
 ) {
   if (req.text.length > MAX_PROMPT_CHARS) throw new ApiError('too-large');
+  if (req.worktree?.branch !== undefined && branchNameProblem(req.worktree.branch) !== null) {
+    throw new ApiError('invalid-request', {
+      promptId: req.promptId,
+      reason: 'worktree-branch-invalid',
+    });
+  }
   if (d.principal.kind === 'token') {
     // An API token starts sessions only where its grant reaches, and never with a high-risk setting such as
     // bypassed permissions: that stays with the host token (ADR 0033).
@@ -362,7 +369,14 @@ async function startNewSession(
   const actor = actorOf(d.principal);
   const outcome = await d.control.startSession(actor ? { ...req, actor } : req);
   if (outcome.ok) {
-    return { ok: true as const, sessionId: outcome.sessionId, promptId: outcome.promptId };
+    return {
+      ok: true as const,
+      sessionId: outcome.sessionId,
+      promptId: outcome.promptId,
+      ...(outcome.worktree
+        ? { worktree: { path: outcome.worktree.path, branch: outcome.worktree.branch } }
+        : {}),
+    };
   }
   // `reason` names the option or field that was refused, or carries the agent's diagnostic text.
   throw new ApiError(outcome.error, {

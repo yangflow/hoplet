@@ -5,6 +5,8 @@ import (
 	"errors"
 	"log"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/yangflow/hoplet/agent/internal/config"
 	"github.com/yangflow/hoplet/agent/internal/provider"
@@ -146,7 +148,8 @@ func sessionDelete(cfg *config.Config, st *store) func(context.Context, string, 
 		var found workspace.SessionWorktree
 		var haveWorktree bool
 		if worktree {
-			found, haveWorktree = workspace.FindSessionWorktree(ctx, sessionCwd(cfg, sessionID), watchedPaths(cfg.HopletHome), sessionID)
+			cwd := sessionCwd(cfg, sessionID)
+			found, haveWorktree = workspace.FindSessionWorktree(ctx, cwd, watchedPaths(cfg.HopletHome), sessionID)
 			run(sync.StepWorktree, func() string {
 				if !haveWorktree || !found.Present {
 					return ""
@@ -169,6 +172,10 @@ func sessionDelete(cfg *config.Config, st *store) func(context.Context, string, 
 					return "remove-failed"
 				}
 				_ = st.dropProject(found.Path)
+				// A session started in a subdirectory of the repository watches that subdirectory of the worktree.
+				if rel, err := filepath.Rel(found.Path, cwd); err == nil && rel != "." && rel != ".." && !strings.HasPrefix(rel, "../") {
+					_ = st.dropProject(cwd)
+				}
 				return ""
 			})
 			run(sync.StepBranch, func() string {

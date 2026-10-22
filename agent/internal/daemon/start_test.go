@@ -18,6 +18,17 @@ import (
 // newStartEnv is a bridge on the fake Claude Code whose store watches one project directory.
 func newStartEnv(t *testing.T) (b *bridge, s *sink, st *store, watched string, start func(sync.RuntimeStart) (string, error)) {
 	t.Helper()
+	b, s, st, watched, full := newStartEnvFull(t)
+	start = func(req sync.RuntimeStart) (string, error) {
+		res, err := full(req)
+		return res.SessionID, err
+	}
+	return b, s, st, watched, start
+}
+
+// newStartEnvFull is newStartEnv with the whole result of a start.
+func newStartEnvFull(t *testing.T) (b *bridge, s *sink, st *store, watched string, start func(sync.RuntimeStart) (sync.RuntimeStartResult, error)) {
+	t.Helper()
 	bin := runtimetest.Build(t)
 	root := t.TempDir()
 	watched = t.TempDir()
@@ -40,7 +51,7 @@ func newStartEnv(t *testing.T) (b *bridge, s *sink, st *store, watched string, s
 	b = newBridge(cfg, s.send, func() {}, func(string) {}, nil)
 	t.Cleanup(b.close)
 	run := b.starter(st)
-	start = func(req sync.RuntimeStart) (string, error) {
+	start = func(req sync.RuntimeStart) (sync.RuntimeStartResult, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 		return run(ctx, req)

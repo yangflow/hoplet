@@ -9,7 +9,7 @@ func TestHandleHookEventPassesTheEnvelopeAsItIs(t *testing.T) {
 	var gotID string
 	var gotEvent json.RawMessage
 	c := &Client{hooks: Hooks{HookEvent: func(id string, ev json.RawMessage) { gotID, gotEvent = id, ev }}}
-	c.handleHookEvent([]byte(`{"v":15,"type":"hook.event","hookId":"notify","event":{"id":"evt_1","type":"session.ended"}}`))
+	c.handleHookEvent([]byte(`{"v":16,"type":"hook.event","hookId":"notify","event":{"id":"evt_1","type":"session.ended"}}`))
 	if gotID != "notify" || string(gotEvent) != `{"id":"evt_1","type":"session.ended"}` {
 		t.Fatalf("got %q %s", gotID, gotEvent)
 	}

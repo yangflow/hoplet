@@ -181,12 +181,12 @@ func TestCoreCommandsReachTheHooks(t *testing.T) {
 func TestStartedSessionIsAnsweredAndReported(t *testing.T) {
 	c, cs, read := dialTestConn(t)
 	var started string
-	c.hooks.Runtime.Start = func(_ context.Context, req RuntimeStart) (string, error) {
+	c.hooks.Runtime.Start = func(_ context.Context, req RuntimeStart) (RuntimeStartResult, error) {
 		if req.ProjectPath != "/work/a" || req.Provider != "claude" || req.Text != "go" || req.PromptID != "p1" ||
 			req.Config["model"] != "opus" || req.Config["thinking"] != false || req.Config["fast"] != true {
 			t.Fatalf("start = %+v", req)
 		}
-		return "new-1", nil
+		return RuntimeStartResult{SessionID: "new-1"}, nil
 	}
 	c.hooks.Runtime.Started = func(id string) { started = id }
 	c.handleRuntimeStart(cs, []byte(`{"v":2,"type":"runtime.start","requestId":"r1","projectPath":"/work/a",`+
@@ -202,8 +202,8 @@ func TestStartedSessionIsAnsweredAndReported(t *testing.T) {
 
 func TestRefusedStartIsRejectedWithItsReason(t *testing.T) {
 	c, cs, read := dialTestConn(t)
-	c.hooks.Runtime.Start = func(context.Context, RuntimeStart) (string, error) {
-		return "", errors.New("not a watched project")
+	c.hooks.Runtime.Start = func(context.Context, RuntimeStart) (RuntimeStartResult, error) {
+		return RuntimeStartResult{}, errors.New("not a watched project")
 	}
 	c.hooks.Runtime.Started = func(string) { t.Fatal("Started after a refusal") }
 	c.handleRuntimeStart(cs, []byte(`{"type":"runtime.start","requestId":"r2","projectPath":"/x","provider":"claude","options":{},"text":"go","promptId":"p"}`))

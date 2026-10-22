@@ -238,14 +238,63 @@ describe('new', () => {
     });
   });
 
-  it('needs --device and --path, and rejects --worktree and --template', async () => {
+  it('starts in a new worktree with --worktree and --worktree=<branch>', async () => {
+    const withTree = on('POST', '/api/sessions', {
+      status: 200,
+      json: {
+        ok: true,
+        sessionId: 'new1',
+        promptId: 'p1',
+        worktree: { path: '/w-feat-x', branch: 'feat/x' },
+      },
+    });
+    const handlers = [devicesHandler, withTree];
+    const named = await run(
+      ['new', '--device', 'dev1', '--path', '/w', '--worktree=feat/x', 'go'],
+      { handlers },
+    );
+    expect(named.code).toBe(0);
+    expect(lines(named.out)).toEqual(['new1']);
+    expect(named.err).toContain('/w-feat-x');
+    expect(posted(named)).toMatchObject({ text: 'go', worktree: { branch: 'feat/x' } });
+
+    // Without a value the branch is generated, and the word after the flag is still the prompt.
+    const generated = await run(
+      ['new', '--device', 'dev1', '--path', '/w', '--worktree', '--json', 'go'],
+      { handlers },
+    );
+    expect(generated.code).toBe(0);
+    expect(posted(generated)).toMatchObject({ text: 'go', worktree: {} });
+    expect(docs(generated.out)).toEqual([
+      {
+        sessionId: 'new1',
+        promptId: expect.any(String),
+        worktree: { path: '/w-feat-x', branch: 'feat/x' },
+      },
+    ]);
+
+    const none = await run(['new', '--device', 'dev1', '--path', '/w', 'go'], { handlers });
+    expect('worktree' in posted(none)).toBe(false);
+
+    const refused = await run(
+      ['new', '--device', 'dev1', '--path', '/w', '--worktree=main', 'go'],
+      {
+        handlers: [
+          devicesHandler,
+          on('POST', '/api/sessions', {
+            status: 400,
+            json: { code: 'invalid-request', reason: 'worktree-branch-exists', promptId: 'p1' },
+          }),
+        ],
+      },
+    );
+    expect(refused.code).toBe(1);
+    expect(refused.err).toContain('worktree-branch-exists');
+  });
+
+  it('needs --device and --path, and rejects --template', async () => {
     const handlers = [devicesHandler, created];
     expect((await run(['new', '--path', '/w', 'x'], { handlers })).code).toBe(1);
-    const worktree = await run(['new', '--device', 'dev1', '--path', '/w', '--worktree', 'x'], {
-      handlers,
-    });
-    expect(worktree.code).toBe(1);
-    expect(worktree.err).toContain('--worktree is not available');
     const template = await run(
       ['new', '--device', 'dev1', '--path', '/w', '--template', 't', 'x'],
       { handlers },

@@ -32,7 +32,7 @@ the error code `forbidden` under a scoped one.
 | Command | |
 | --- | --- |
 | `sessions [--device] [--state]` | list sessions (id, state, machine, provider, path, title) |
-| `new --device --path [--provider] [--model] [--set option=value]... [--wait] "<prompt>"` | start a session; prints its id |
+| `new --device --path [--provider] [--model] [--set option=value]... [--worktree[=<branch>]] [--wait] "<prompt>"` | start a session; prints its id |
 | `attach <session> [--answer allow\|deny]` | follow the live output; ends with the turn |
 | `send <session> "<text>" [--wait]` (alias `prompt`) | send a prompt; `-` reads it from standard input |
 | `wait <session> [--timeout s] [--until-blocked] [--drain]` | wait for the running turn |
@@ -42,7 +42,7 @@ the error code `forbidden` under a scoped one.
 | `tokens list`, `tokens create --name --can ... [--allow machine[:path]]... [--days n]`, `tokens revoke <id>` | manage API tokens; the secret is printed once |
 | `audit list`, `audit export`, `audit head`, `audit verify [--file] [--head]` | read and verify the audit log |
 
-A machine is its id or its name. Worktrees are not created by `new`; start the session in the directory you want.
+A machine is its id or its name. `new --worktree` starts the session in a new git worktree on a generated branch, `new --worktree=<branch>` on the branch you name (write the `=`; a space would make the next word the prompt). The worktree is made next to the project from its `HEAD`; the session id goes to standard output and `worktree <path> (<branch>)` to standard error (`worktree` in the `--json` document). It fails with `invalid-request` and a `reason` of `worktree-branch-invalid`, `worktree-not-a-git-repository`, `worktree-no-commit`, `worktree-branch-exists` or `worktree-path-exists`.
 
 ## Output and exit codes
 

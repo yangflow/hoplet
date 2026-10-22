@@ -25,14 +25,21 @@ type RuntimeHooks struct {
 	Config func(sessionID, configID string, value any) error
 	Stop   func(sessionID string)
 	// Start creates a session as RuntimeStart asks and returns its ID once the session file exists and is
-	// imported, or the reason it could not. The error text is sent as runtime.start.rejected.
-	Start func(ctx context.Context, req RuntimeStart) (sessionID string, err error)
+	// imported, or the reason it could not, and the worktree it made when req asked for one. The error text is
+	// sent as runtime.start.rejected.
+	Start func(ctx context.Context, req RuntimeStart) (RuntimeStartResult, error)
 	// Started is called after the answer to a successful Start was written; the agent reports the state of
 	// the new session then, which the core accepts only once it has the answer.
 	Started func(sessionID string)
 	// Connected is called in its own goroutine after every connection to the core; the agent reports the
 	// state of the processes it still runs through Client.Send.
 	Connected func()
+}
+
+// RuntimeStartResult is what a successful Start returns.
+type RuntimeStartResult struct {
+	SessionID string
+	Worktree  *StartedWorktree
 }
 
 // TerminalHooks serve the terminal.* messages of the core (ADR 0026). Enabled is the agent's terminal setting:

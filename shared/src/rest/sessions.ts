@@ -1,4 +1,5 @@
 import * as v from 'valibot';
+import { MAX_BRANCH_NAME_LENGTH } from '../branch.ts';
 import { EntrySchema } from '../conversation.ts';
 import { SessionIdSchema } from '../ids.ts';
 import {
@@ -194,6 +195,13 @@ export const NewSessionRequestSchema = v.object({
   attachments: v.optional(PromptAttachmentsSchema),
   /** Chosen by the client; a repeated one within 10 minutes returns the first result. */
   promptId: v.pipe(v.string(), v.minLength(1), v.maxLength(128)),
+  /**
+   * Run the session in a new git worktree of the project's repository: `branch` names the new branch (git
+   * branch name rules, see `branchNameProblem`), absent the agent generates one. `{}` asks for a generated one.
+   */
+  worktree: v.optional(
+    v.object({ branch: v.optional(v.pipe(v.string(), v.maxLength(MAX_BRANCH_NAME_LENGTH))) }),
+  ),
 });
 export type NewSessionRequest = v.InferOutput<typeof NewSessionRequestSchema>;
 
@@ -201,6 +209,8 @@ export const NewSessionResultSchema = v.object({
   ok: v.literal(true),
   sessionId: SessionIdSchema,
   promptId: v.string(),
+  /** The worktree made for the session, when one was asked for. */
+  worktree: v.optional(v.object({ path: v.string(), branch: v.string() })),
 });
 export type NewSessionResult = v.InferOutput<typeof NewSessionResultSchema>;
 

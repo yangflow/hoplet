@@ -332,7 +332,7 @@ messages that name the session by ID and never a path: `device.session.inspect|i
 clone the new worktree belongs to, which the core keeps in `session_worktrees`.
 
 A handoff to a machine with no clone of the repository adds a clone step before the owner is touched
-([ADR 0024](adr/0024-a-handoff-clones-the-repository-on-a-target-that-has-none.md)). The protocol version is 14.
+([ADR 0024](adr/0024-a-handoff-clones-the-repository-on-a-target-that-has-none.md)). The protocol version is 16.
 The control-lane messages are `device.clone.check` (`requestId`, `origin`, optional `cloneInto`) answered by
 `device.clone.checked` (`reason`, `detail`, the proposed `cloneInto`), and `device.clone.start` (`requestId`,
 `handoffId`, `origin`, `cloneInto`) answered by `device.clone.progress` (`received`, optional `total`, at most four

@@ -47,6 +47,25 @@ export function worktreeOf(ctx: StoreContext, sessionId: string): WorktreeRecord
     : null;
 }
 
+/**
+ * Records the worktree the agent made for a session it started, so that deleting the session offers it (ADR 0023).
+ * The device that made it is also the one that owned the session before, so `from_device_id` is the same.
+ */
+export function recordNewWorktree(
+  ctx: StoreContext,
+  sessionId: string,
+  deviceId: string,
+  worktree: { clone: string; path: string; branch: string },
+  now: number,
+): void {
+  ctx.db
+    .prepare(
+      `INSERT OR REPLACE INTO session_worktrees(session_id, device_id, from_device_id, clone, worktree, branch, created_at)
+       VALUES(?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .run(sessionId, deviceId, deviceId, worktree.clone, worktree.path, worktree.branch, now);
+}
+
 export function tombstoneOf(ctx: StoreContext, sessionId: string): Tombstone | null {
   if (!isSessionId(sessionId)) return null;
   const r = ctx.db

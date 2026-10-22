@@ -8,8 +8,9 @@ import (
 	"strings"
 )
 
-// SessionWorktree is the worktree and branch a handoff made for a session, found again from the session ID
-// alone (the installation record is gone once the handoff finishes). Present says whether the worktree
+// SessionWorktree is the worktree and branch a handoff or a new session made for a session, found again from the
+// session ID alone (the installation record is gone once the handoff finishes; a new session's worktree is
+// tied to it by the repository's configuration, see newworktree.go). Present says whether the worktree
 // directory is still there; when it is not, only the branch may be left.
 type SessionWorktree struct {
 	Clone     string
@@ -50,6 +51,10 @@ func FindSessionWorktree(ctx context.Context, cwd string, watched []string, sess
 			continue
 		}
 		seen[clone] = true
+		// A worktree made for a new session is tied to it by the repository's configuration.
+		if found, ok := markedWorktree(ctx, clone, sessionID); ok {
+			return found, true
+		}
 		wt, branch := installNames(clone, sessionID)
 		rec := Record{Clone: clone, Worktree: wt, Branch: branch}
 		if _, err := os.Lstat(wt); err == nil {
@@ -67,6 +72,10 @@ func FindSessionWorktree(ctx context.Context, cwd string, watched []string, sess
 
 // IsOurs re-checks, right before a removal, that the worktree is still the one the installation made.
 func (w SessionWorktree) IsOurs(ctx context.Context) bool {
+	// The main working tree of the repository is never a session's worktree.
+	if sameFile(w.Path, w.Clone) {
+		return false
+	}
 	return worktreeIsOurs(ctx, Record{Clone: w.Clone, Worktree: w.Path, Branch: w.Branch})
 }
 

@@ -193,7 +193,7 @@ describe('waitForTurn with events', () => {
     socket.open();
     await until(() => calls.filter((c) => c.path === '/api/sessions/s1').length >= 1);
     socket.message({
-      v: 15,
+      v: 16,
       type: 'session.appended',
       sessionId: 's1',
       appendedLines: 3,

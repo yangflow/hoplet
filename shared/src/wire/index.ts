@@ -85,6 +85,18 @@ export const DeviceSystemSchema = v.object({
 });
 export type DeviceSystem = v.InferOutput<typeof DeviceSystemSchema>;
 
+/** The worktree a new session asks for: `branch` names its new branch, absent the agent generates one. */
+export const NewWorktreeSchema = v.object({ branch: v.optional(v.string()) });
+export type NewWorktree = v.InferOutput<typeof NewWorktreeSchema>;
+
+/** The worktree the agent made: the repository's main working tree, the worktree directory and its branch. */
+export const StartedWorktreeSchema = v.object({
+  clone: v.string(),
+  path: v.string(),
+  branch: v.string(),
+});
+export type StartedWorktree = v.InferOutput<typeof StartedWorktreeSchema>;
+
 /** A script hook as the agent announces it (ADR 0031): its entry in `config.json` and its counters since start. */
 export const HookAnnounceSchema = v.object({
   /** The slug of the entry, unique on the machine. */
@@ -493,13 +505,23 @@ export const WIRE_MESSAGES = defineWire({
       text: v.string(),
       attachments: v.optional(list(AttachmentIdSchema)),
       promptId: v.string(),
+      /**
+       * Run the session in a new git worktree of the project's repository, made before the provider starts:
+       * `branch` names its new branch, absent the agent generates one.
+       */
+      worktree: v.optional(NewWorktreeSchema),
     },
   },
   /** The session the agent started is imported and syncs from now on. */
   'runtime.started': {
     lane: 'control',
     direction: 'device-to-core',
-    fields: { requestId, sessionId },
+    fields: {
+      requestId,
+      sessionId,
+      /** The worktree made for the session: the repository's main working tree, the worktree and its branch. */
+      worktree: v.optional(StartedWorktreeSchema),
+    },
   },
   'runtime.start.rejected': {
     lane: 'control',
@@ -1619,6 +1641,8 @@ export const WIRE_OBJECTS = {
   DeletionFile: DeletionFileSchema,
   DeletionDirty: DeletionDirtySchema,
   DeletionWorktree: DeletionWorktreeSchema,
+  NewWorktree: NewWorktreeSchema,
+  StartedWorktree: StartedWorktreeSchema,
   DeletionStep: DeletionStepSchema,
   HookAnnounce: HookAnnounceSchema,
 } as const;

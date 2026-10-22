@@ -82,7 +82,11 @@ export type PromptSent = {
   baseline: Baseline;
 };
 
-export type SessionStarted = PromptSent & { sessionId: string };
+/** What `createSession` returns; `worktree` is set when the session runs in a new worktree. */
+export type SessionStarted = PromptSent & {
+  sessionId: string;
+  worktree?: { path: string; branch: string };
+};
 
 export type ListSessionsFilter = {
   /** Only the sessions this device owns. */
@@ -188,6 +192,7 @@ export class Hoplet {
       sessionId: result.sessionId,
       promptId: result.promptId,
       baseline: { sessionId: result.sessionId, lineCount: 0, state: 'idle' },
+      ...(result.worktree ? { worktree: result.worktree } : {}),
     };
   }
 
