@@ -80,6 +80,7 @@ describe('section', () => {
       'machines',
       'providers',
       'notifications',
+      'rules',
       'usage',
       'templates',
     ]);

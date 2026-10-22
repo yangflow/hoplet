@@ -348,10 +348,12 @@ compiled-in floor, in every permission mode (Codex through a command hook the ag
 a revision per machine, served by `/api/permission-rules` (docs/api.md); the core sends each agent its rules and the
 agent applies them to every tool call, the next one after a change; the audit records of the calls a rule decided
 and of every rule change; the agent announcing its own `permission_deny` rules, which the core keeps per machine and
-serves read-only. Planned: the web showing which machines have applied the latest revision, and the
-Settings and card screens. Rules let a session run without someone answering every
-tool call: routine calls
-are allowed, dangerous ones asked about or denied.
+serves read-only; in the web UI, Settings › Permission rules (list, add, edit, delete, the built-in switches with a
+second confirmation) and, on the permission card, Always allow… and Always deny…, which draft a rule from the
+request and save it together with the answer. Planned: the web showing which machines have applied the
+latest revision, and the conversation lines that say which rule decided a call (the browser messages do not yet
+carry the rule). Rules let a session run without someone answering every tool call: routine calls are allowed,
+dangerous ones asked about or denied.
 
 - **A rule** names a tool kind (`run`, `read`, `write`, `fetch`, `mcp:<server>/<tool>` or all), what it matches, an
   action (`allow`, `ask` or `deny`) and a scope: everything (`global`), one project path on one machine, or one

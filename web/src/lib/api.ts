@@ -32,6 +32,11 @@ import {
   type NotifyPreferences,
   NotifyPreferencesSchema,
   type PermissionDecision,
+  type PermissionRuleBody,
+  PermissionRuleEntrySchema,
+  type PermissionRuleListQuery,
+  PermissionRuleListResponseSchema,
+  type PermissionRulePut,
   type PromptImage,
   PromptResultSchema,
   type ProviderInfo,
@@ -762,4 +767,41 @@ export function fetchTemplateExport() {
 /** Imports a file, or with `dryRun` says what would be added. */
 export function postTemplateImport(request: TemplateImportRequest) {
   return call('/api/templates/import', TemplateImportResultSchema, request);
+}
+
+/** The permission rules (docs/api.md#permission-rules). */
+export function fetchPermissionRules(query: PermissionRuleListQuery = {}, signal?: AbortSignal) {
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(query)) if (v) qs.set(k, v);
+  const suffix = qs.size > 0 ? `?${qs}` : '';
+  return call(
+    `/api/permission-rules${suffix}`,
+    PermissionRuleListResponseSchema,
+    undefined,
+    signal,
+  );
+}
+
+export function postPermissionRule(body: PermissionRuleBody) {
+  return call('/api/permission-rules', PermissionRuleEntrySchema, body);
+}
+
+export function putPermissionRule(id: string, body: PermissionRulePut) {
+  return call(
+    `/api/permission-rules/${encodeURIComponent(id)}`,
+    PermissionRuleEntrySchema,
+    body,
+    undefined,
+    'PUT',
+  );
+}
+
+export function deletePermissionRule(id: string) {
+  return call(
+    `/api/permission-rules/${encodeURIComponent(id)}`,
+    PermissionRuleListResponseSchema,
+    undefined,
+    undefined,
+    'DELETE',
+  );
 }

@@ -1,10 +1,16 @@
-import type { KeyboardEvent } from 'react';
+import type { KeyboardEvent, ReactNode } from 'react';
 
 /** A small set of exclusive choices side by side: one radio group, arrow keys move between them. */
 export function Segmented<T extends string>(props: {
   label: string;
   value: T;
-  options: readonly { value: T; label: string; lang?: string }[];
+  options: readonly {
+    value: T;
+    label: string;
+    lang?: string;
+    icon?: ReactNode;
+    disabled?: boolean;
+  }[];
   onChange: (value: T) => void;
   'data-testid'?: string;
 }) {
@@ -38,9 +44,11 @@ export function Segmented<T extends string>(props: {
           tabIndex={o.value === value ? 0 : -1}
           className={o.value === value ? 'on' : undefined}
           lang={o.lang}
+          disabled={o.disabled}
           onClick={() => onChange(o.value)}
           data-testid={props['data-testid'] ? `${props['data-testid']}.${o.value}` : undefined}
         >
+          {o.icon}
           {o.label}
         </button>
       ))}

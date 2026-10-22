@@ -1,5 +1,5 @@
 import type { SessionContinuation } from '@hoplet/shared';
-import { Fragment, type ReactNode } from 'react';
+import { Fragment, type ReactNode, useState } from 'react';
 import { Button } from '../../../components/Button.tsx';
 import { IconButton } from '../../../components/IconButton.tsx';
 import { Icon, Spinner } from '../../../components/icons.tsx';
@@ -7,6 +7,7 @@ import { Markdown } from '../../../components/Markdown.tsx';
 import { clock, formatCountdown, formatTimer } from '../../../lib/format.ts';
 import { languageOfPath } from '../../../lib/highlight.ts';
 import { t } from '../../../lib/i18n.ts';
+import { type Draft, type DraftOption, draftFromCall } from '../../../lib/permission-rules.ts';
 import type { Select } from '../composer/mode-menu.tsx';
 import type { RuntimeState } from '../model.ts';
 import { ElidedPanel } from './blocks.tsx';
@@ -32,8 +33,28 @@ import {
   SteerActivity,
   ToolActivity,
 } from './rows.tsx';
+import { type DraftScope, RuleDraftDialog } from './rule-draft.tsx';
+import { RuleLine } from './rule-line.tsx';
 import { toolRefOf } from './tools.ts';
 import { editDiff, type Turn, toolArgOf } from './turns.ts';
+
+/** What the permission card needs to draft a rule from a request and save it. */
+export type CardRules = {
+  projectPath: string;
+  projectName: string;
+  machineName: string;
+  canProject: boolean;
+  /** Saves the drafted rule; resolves to null on success, else the reason. */
+  onSave: (
+    draft: Extract<Draft, { ok: true }>,
+    option: DraftOption,
+    action: 'allow' | 'deny',
+    scope: DraftScope,
+    note: string,
+  ) => Promise<string | null>;
+  /** What a development fixture opens the draft dialog with. */
+  open?: { action: 'allow' | 'deny'; scope?: DraftScope; note?: string; option?: string };
+};
 
 /** A `{name}` template with elements in place of its placeholders. */
 function fill(template: string, parts: Record<string, ReactNode>): ReactNode[] {
@@ -137,8 +158,20 @@ export function PermissionCard(props: {
   now: number;
   busy: boolean;
   onAnswer: (decision: 'allow' | 'deny') => void;
+  /** Drafting a rule from the request; absent where no rule can be saved. */
+  rules?: CardRules | undefined;
 }) {
   const { request, now, busy } = props;
+  const rules = props.rules;
+  const draft = rules
+    ? draftFromCall({
+        toolKind: request.toolKind,
+        mcp: request.mcp,
+        input: request.input,
+        projectPath: rules.projectPath,
+      })
+    : null;
+  const [drafting, setDrafting] = useState<'allow' | 'deny' | null>(rules?.open?.action ?? null);
   const input = permissionInput(request.toolKind, request.input);
   const remaining = Math.min(PERMISSION_OPEN_MS, request.receivedAt + PERMISSION_OPEN_MS - now);
   const countdown = formatCountdown(remaining);
@@ -185,6 +218,7 @@ export function PermissionCard(props: {
           data-testid="cockpit.permission-input"
         />
       )}
+      {request.rule ? <RuleLine rule={request.rule} /> : null}
       <div className="ask-f">
         <Button
           variant="primary"
@@ -201,6 +235,43 @@ export function PermissionCard(props: {
         >
           {t('Deny')}
         </Button>
+        {draft?.ok ? (
+          <>
+            <span className="vr" />
+            <Button
+              variant="quiet"
+              disabled={busy}
+              title={t('Draft a rule that allows this')}
+              onClick={() => setDrafting('allow')}
+              data-testid="cockpit.permission-always-allow"
+            >
+              {Icon.rules()}
+              {t('Always allow…')}
+            </Button>
+            <Button
+              variant="quiet"
+              disabled={busy}
+              title={t('Draft a rule that denies this')}
+              onClick={() => setDrafting('deny')}
+              data-testid="cockpit.permission-always-deny"
+            >
+              {Icon.ban()}
+              {t('Always deny…')}
+            </Button>
+          </>
+        ) : draft ? (
+          <>
+            <span className="vr" />
+            <span className="qno" data-testid="cockpit.permission-no-rule">
+              {Icon.info()}
+              <span>
+                {draft.reason === 'control'
+                  ? t('No rule can allow a command with a pipe. It asks each time.')
+                  : t('No rule can be drafted for this tool.')}
+              </span>
+            </span>
+          </>
+        ) : null}
         <span
           className="ask-meta"
           title={t('Denied without an answer in {time}').replace('{time}', countdown)}
@@ -209,6 +280,26 @@ export function PermissionCard(props: {
           {fill(t('Auto-deny in {time}'), { time: <span className="num">{countdown}</span> })}
         </span>
       </div>
+      {drafting && rules && draft?.ok ? (
+        <RuleDraftDialog
+          draft={draft}
+          action={drafting}
+          projectName={rules.projectName}
+          machineName={rules.machineName}
+          canProject={rules.canProject}
+          onSave={async (option, scope, note) => {
+            const failed = await rules.onSave(draft, option, drafting, scope, note);
+            if (failed) return failed;
+            setDrafting(null);
+            props.onAnswer(drafting);
+            return null;
+          }}
+          onClose={() => setDrafting(null)}
+          {...(rules.open?.scope ? { initialScope: rules.open.scope } : {})}
+          {...(rules.open?.note ? { initialNote: rules.open.note } : {})}
+          {...(rules.open?.option ? { initialOption: rules.open.option } : {})}
+        />
+      ) : null}
     </fieldset>
   );
 }
@@ -279,6 +370,8 @@ export function LiveTurnView(props: {
   planView?: PlanView | undefined;
   /** Messages steered into this turn that the model has not taken in yet. */
   steering?: { text: string; taken?: boolean }[];
+  /** Drafting a rule from a permission request. */
+  rules?: CardRules | undefined;
 }) {
   const { turn, base, state, now, frozen } = props;
   const failed = turn.phase === 'failed';
@@ -431,6 +524,7 @@ export function LiveTurnView(props: {
                   now={now}
                   busy={props.answering}
                   onAnswer={(decision) => props.onAnswer(request.requestId, decision)}
+                  rules={props.rules}
                 />
               ),
             )

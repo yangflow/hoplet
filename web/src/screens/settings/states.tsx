@@ -20,6 +20,8 @@ import { type SectionId, Settings } from './index.tsx';
 import type { MachinesFixture } from './machines.tsx';
 import type { NotifyFixture, PushState } from './notifications.tsx';
 import type { ProvidersFixture } from './providers.tsx';
+import type { RulesFixture } from './rules.tsx';
+import { rulesFixture } from './rules-fixtures.ts';
 import type { TemplatesFixture } from './templates.tsx';
 import {
   DEPS,
@@ -662,6 +664,7 @@ function Scene(props: {
   machines?: MachinesFixture;
   notify?: NotifyFixture;
   providers?: ProvidersFixture;
+  rules?: RulesFixture;
   usage?: UsageFixture;
   templates?: TemplatesFixture;
 }) {
@@ -679,6 +682,7 @@ function Scene(props: {
       {...(props.machines ? { machines: props.machines } : {})}
       {...(props.notify ? { notify: props.notify } : {})}
       {...(props.providers ? { providers: props.providers } : {})}
+      {...(props.rules ? { rules: props.rules } : {})}
       {...(props.usage ? { usage: props.usage } : {})}
       {...(props.templates ? { templates: props.templates } : {})}
     />
@@ -890,6 +894,37 @@ export const states: Record<string, () => ReactNode> = {
     <Scene section="usage" usage={budgetsPage(B1, B2, B3, B4_OK, { editing: B2.id })} />
   ),
   'budgets-empty': () => <Scene section="usage" usage={budgetsPage()} />,
+  rules: () => <Scene section="rules" rules={rulesFixture()} />,
+  'rules-builtin': () => <Scene section="rules" rules={rulesFixture({ builtinOpen: true })} />,
+  'rules-builtin-confirm': () => (
+    <Scene
+      section="rules"
+      rules={rulesFixture({ builtinOpen: true, confirm: 'default.force-push' })}
+    />
+  ),
+  'rules-edit': () => (
+    <Scene
+      section="rules"
+      rules={rulesFixture({
+        form: {
+          id: 'r2',
+          command: 'curl',
+          pipedTo: ['sh', 'bash'],
+          action: 'ask',
+          note: 'Never pipe a download into a shell unseen',
+        },
+      })}
+    />
+  ),
+  'rules-edit-invalid': () => (
+    <Scene
+      section="rules"
+      rules={rulesFixture({
+        form: { kind: 'read', paths: ['/srv/data/**', 'secrets/*.pem'], action: 'deny' },
+      })}
+    />
+  ),
+  'rules-empty': () => <Scene section="rules" rules={rulesFixture({ own: [], local: false })} />,
   templates: () => <Scene section="templates" templates={templatesFixture()} />,
   'templates-edit': () => (
     <Scene section="templates" templates={templatesFixture({ editing: 'tpl-review' })} />

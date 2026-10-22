@@ -11,6 +11,7 @@ import { AppearanceSection } from './appearance.tsx';
 import { type MachinesFixture, MachinesSection } from './machines.tsx';
 import { NotificationsSection, type NotifyFixture } from './notifications.tsx';
 import { type ProvidersFixture, ProvidersSection } from './providers.tsx';
+import { type RulesFixture, RulesSection } from './rules.tsx';
 import { type TemplatesFixture, TemplatesSection } from './templates.tsx';
 import { type UsageFixture, UsageSection } from './usage.tsx';
 
@@ -23,6 +24,7 @@ export const SECTIONS = [
   { id: 'machines', label: 'Machines', icon: () => Icon.laptop() },
   { id: 'providers', label: 'Model providers', icon: () => Icon.plug() },
   { id: 'notifications', label: 'Notifications', icon: () => Icon.bell() },
+  { id: 'rules', label: 'Permission rules', icon: () => Icon.rules() },
   { id: 'usage', label: 'Usage', icon: () => Icon.activity() },
   { id: 'templates', label: 'Templates', icon: () => Icon.template() },
 ] as const;
@@ -41,6 +43,7 @@ function Page(props: {
   machines: MachinesFixture | undefined;
   notify: NotifyFixture | undefined;
   providers: ProvidersFixture | undefined;
+  rules: RulesFixture | undefined;
   usage: UsageFixture | undefined;
   templates: TemplatesFixture | undefined;
   sessions: readonly LiveSessionMeta[];
@@ -83,6 +86,8 @@ function Page(props: {
           sessions={props.sessions}
         />
       );
+    case 'rules':
+      return <RulesSection fixture={props.rules} />;
     case 'templates':
       return <TemplatesSection fixture={props.templates} />;
   }
@@ -98,6 +103,7 @@ export function Settings(props: {
   machines?: MachinesFixture;
   notify?: NotifyFixture;
   providers?: ProvidersFixture;
+  rules?: RulesFixture;
   usage?: UsageFixture;
   templates?: TemplatesFixture;
   sessions?: readonly LiveSessionMeta[];
@@ -158,6 +164,7 @@ export function Settings(props: {
                 machines={props.machines}
                 notify={props.notify}
                 providers={props.providers}
+                rules={props.rules}
                 usage={props.usage}
                 templates={props.templates}
                 sessions={props.sessions ?? []}
