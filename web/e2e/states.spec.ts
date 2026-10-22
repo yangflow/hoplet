@@ -179,6 +179,19 @@ const subject: Record<string, Record<string, string>> = {
   },
   settings: {
     'rules-revision': 'settings.rules.machines',
+    tokens: 'settings.tokens',
+    'tokens-detail': 'settings.tokens.detail.tok_release',
+    'tokens-empty': 'settings.tokens.empty',
+    'tokens-issue': 'settings.tokens.form',
+    'tokens-issue-answer': 'settings.tokens.answer-warning',
+    'tokens-picker': 'settings.tokens.picker',
+    'tokens-invalid': 'settings.tokens.form',
+    'tokens-reveal': 'settings.tokens.secret',
+    'tokens-reveal-copied': 'settings.tokens.secret',
+    'tokens-revoke': 'settings.tokens.confirm',
+    'tokens-error': 'settings.tokens.problem',
+    'tokens-loading': 'settings.tokens.loading',
+    'tokens-load-error': 'settings.tokens.load-error',
     settings: 'settings.theme',
     'settings-text': 'settings.preview',
     'settings-text-geist': 'settings.preview',
@@ -258,10 +271,10 @@ const subject: Record<string, Record<string, string>> = {
   },
 };
 
-test('the registries list 112 cockpit, 56 workspace, 86 settings and 7 action states', () => {
+test('the registries list 112 cockpit, 56 workspace, 99 settings and 7 action states', () => {
   expect(screens.cockpit).toHaveLength(112);
   expect(screens.workspace).toHaveLength(56);
-  expect(screens.settings).toHaveLength(86);
+  expect(screens.settings).toHaveLength(99);
   expect(screens.action).toHaveLength(7);
 });
 

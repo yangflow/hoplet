@@ -1,0 +1,414 @@
+/* biome-ignore-all lint/style/noDescendingSpecificity: the selectors follow the mockup and are scoped by the .tkpage and .tkcf roots */
+/* Settings > API tokens (design/screens/tokens.html, direction A). Tokens only. */
+.spage .in:has(.tkpage) {
+  max-width: 760px;
+}
+.tkpage .mono,
+.tkcf .mono {
+  font-family: var(--font-mono);
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+}
+.tk-lead {
+  color: var(--color-text-2);
+  margin: calc(-1 * var(--space-3)) 0 var(--space-5);
+  max-width: 64ch;
+}
+.tk-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-2);
+}
+.tk-bar .lb {
+  font-weight: var(--weight-semibold);
+}
+.tk-bar.tk-top {
+  justify-content: flex-end;
+  margin-bottom: var(--space-4);
+}
+.tk-bar.tk-gone {
+  margin-top: var(--space-5);
+}
+.tkpage .meta {
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  color: var(--color-text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The rows */
+.tkw + .tkw {
+  box-shadow: inset 0 1px 0 var(--color-line);
+}
+.tkr {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) 176px 28px;
+  gap: var(--space-3);
+  align-items: center;
+  padding: var(--space-3) var(--space-4);
+  min-height: 60px;
+}
+.tkr .lead {
+  color: var(--color-text-3);
+  display: grid;
+}
+.tkr .tkm {
+  min-width: 0;
+}
+.tkr .nm {
+  font-weight: var(--weight-medium);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.tkr .nm .n {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tkr .sub {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 2px;
+  color: var(--color-text-3);
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+}
+.tkr .when {
+  text-align: right;
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  color: var(--color-text-3);
+}
+.tkr .when b {
+  display: block;
+  font-weight: var(--weight-regular);
+  color: var(--color-text-2);
+}
+.tkr .when b.warn {
+  color: var(--color-attention-text);
+}
+.tkr.dim .nm .n,
+.tkr.dim .when b {
+  color: var(--color-text-2);
+}
+.tkr.dim .lead {
+  opacity: 0.6;
+}
+.tkr.sel {
+  background: var(--color-selected);
+}
+.tkd {
+  padding: var(--space-1) var(--space-4) var(--space-4) calc(var(--space-4) + 16px + var(--space-3));
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.hkv {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: var(--space-1) var(--space-3);
+  align-items: baseline;
+}
+.hkv .k {
+  color: var(--color-text-3);
+}
+.tkd .hkv {
+  grid-template-columns: 128px minmax(0, 1fr);
+}
+.tkd .hkv .v {
+  display: block;
+  white-space: normal;
+}
+.tkd .hkv .v .l2 {
+  display: block;
+}
+.hacts {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+.hacts .del {
+  margin-left: auto;
+  color: var(--color-danger);
+}
+.tkpage .tag.att {
+  background: var(--color-attention-soft);
+  color: var(--color-attention-text);
+  box-shadow: inset 0 0 0 1px var(--color-attention-ring);
+}
+.tkpage .tag.bad {
+  background: var(--color-del-bg);
+  color: var(--color-danger);
+}
+
+/* The form and the reveal */
+.tkpage .mcard {
+  margin-top: 0;
+  margin-bottom: var(--space-5);
+}
+.tkpage .mcard-f {
+  gap: var(--space-2);
+  align-items: center;
+}
+.tkpage .mcard-f .l {
+  margin-right: auto;
+  color: var(--color-text-3);
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+}
+.tkf {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.tkf .two {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-4);
+  align-items: start;
+}
+.tkpage .fld {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.tkpage .fld .l {
+  color: var(--color-text-2);
+}
+.tkpage .fld .h {
+  color: var(--color-text-3);
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+}
+.tkpage .fld .h.bad,
+.tkdesc.bad {
+  color: var(--color-danger);
+}
+.tkf .seg {
+  align-self: flex-start;
+}
+.tkdesc {
+  color: var(--color-text-3);
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+}
+.tkerr {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-del-bg);
+  display: flex;
+  gap: var(--space-2);
+  color: var(--color-text);
+}
+.tkerr svg {
+  margin-top: 2px;
+  color: var(--color-danger);
+  flex: none;
+}
+.tkans {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  box-shadow: inset 0 0 0 1px var(--color-line);
+}
+.tkans.on {
+  box-shadow: inset 0 0 0 1px var(--color-attention-ring);
+}
+.tkans .tx {
+  flex: 1;
+  min-width: 0;
+}
+.tkans .tx b {
+  display: block;
+  font-weight: var(--weight-medium);
+}
+.tkans .switch-row {
+  margin-top: 2px;
+}
+.hwarn {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-attention-soft);
+  box-shadow: inset 0 0 0 1px var(--color-attention-ring);
+  display: flex;
+  gap: var(--space-2);
+  color: var(--color-text);
+}
+.hwarn svg {
+  color: var(--color-attention-text);
+  margin-top: 2px;
+  flex: none;
+}
+.tkchips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+.tkchips .tag {
+  height: 24px;
+  padding: 0 var(--space-2);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  gap: var(--space-2);
+}
+.tkchips .tag .meta {
+  font-size: 11px;
+}
+.tkx {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  color: var(--color-text-3);
+}
+.tkx:hover {
+  color: var(--color-text);
+}
+.tkx:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+.tkx svg {
+  width: 12px;
+  height: 12px;
+}
+.tkscope {
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius-sm);
+  box-shadow: inset 0 0 0 1px var(--color-line);
+  overflow: hidden;
+}
+.tkscope .sr {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 32px;
+  padding: 0 var(--space-3);
+  width: 100%;
+  text-align: left;
+}
+.tkscope .sr:hover {
+  background: var(--color-hover);
+}
+.tkscope .sr:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+.tkscope .sr + .sr,
+.tkscope .tkgrp + .tkgrp {
+  box-shadow: inset 0 1px 0 var(--color-line);
+}
+.tkscope .sr .mono {
+  color: var(--color-text-2);
+}
+.tkscope .sr .sp {
+  flex: 1;
+}
+.tkscope .sr.h {
+  color: var(--color-text);
+  font-weight: var(--weight-medium);
+}
+.tkscope .sr.h svg {
+  color: var(--color-text-3);
+}
+.tkscope .sr svg {
+  color: var(--color-text-3);
+}
+.cbx {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  box-shadow: inset 0 0 0 1.5px var(--color-text-3);
+  display: grid;
+  place-items: center;
+  flex: none;
+  color: var(--color-on-accent);
+}
+.tkscope .sr .cbx svg {
+  color: var(--color-on-accent);
+}
+.cbx.on,
+.cbx.part {
+  background: var(--color-accent);
+  box-shadow: none;
+}
+.cbx svg {
+  width: 12px;
+  height: 12px;
+}
+.cbx.part::after {
+  content: "";
+  width: 8px;
+  height: 2px;
+  border-radius: 1px;
+  background: currentColor;
+}
+.hsec {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 40px;
+  padding: 0 var(--space-2) 0 var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg);
+  box-shadow: inset 0 0 0 1px var(--color-line);
+}
+.hsec .mono {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  user-select: all;
+}
+.tkcode {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg);
+  box-shadow: inset 0 0 0 1px var(--color-line);
+  display: flex;
+  flex-direction: column;
+}
+.tkcode .mono {
+  display: block;
+  white-space: pre;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tkcode .c {
+  color: var(--color-text-3);
+}
+.tkhow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.tkhow .k {
+  color: var(--color-text-2);
+}
+
+/* The revoke confirmation */
+.modal.tkcf {
+  width: 480px;
+}
+.tkcf .dlg-b {
+  gap: var(--space-3);
+}
+.tkcf .dlg-p {
+  margin: 0;
+  color: var(--color-text-2);
+}
+.tkcf .meta {
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  color: var(--color-text-3);
+}

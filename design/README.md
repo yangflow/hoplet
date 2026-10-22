@@ -99,7 +99,7 @@ The mockups, design tokens and app icon behind Hoplet's web UI. The design langu
   `a-inspector`, `a-inspector-empty`; B `b-page`, `b-detail`, `b-verify`, `b-export`, `b-empty`, `b-inspector`; C
   `c-page`, `c-detail`, `c-verify`, `c-export`, `c-empty`, `c-inspector`. Retention is shown read-only: it is set on
   the host. Add `?lang=zh-Hans` for Simplified Chinese. New icons: `list-checks`, `download`.
-- `screens/tokens.html` (#71): Settings › API tokens, three directions, none chosen. A (`a-*`) is one page: rows
+- `screens/tokens.html` (#71): Settings › API tokens, three directions; A is chosen and built in `screens/settings/` under `/__states/settings/tokens-*`. A (`a-*`) is one page: rows
   that open in place, the issue form in a card above the list, revoked and expired tokens in a group below; B (`b-*`)
   is a table with the form and the one-time reveal in dialogs; C (`c-*`) is two tabs (Active, Revoked and expired)
   with issuing on its own page beside a "This token can / cannot" summary. States: A `a-list`, `a-detail`,

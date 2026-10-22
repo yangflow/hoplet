@@ -83,6 +83,7 @@ describe('section', () => {
       'rules',
       'hooks',
       'audit',
+      'tokens',
       'usage',
       'templates',
     ]);

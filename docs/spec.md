@@ -276,6 +276,7 @@ list at its left grows with later sections; the sections are:
   (subscribe this browser, a label, remove), and the webhooks (URL, optional signing secret, the events it
   receives, enable, test, the
   status of the last delivery). Preferences live in the core, not in the browser.
+- **API tokens**: the scoped tokens of the host (see Scoped API tokens below).
 - **Usage**: tokens and estimated cost, in two tabs (Usage, Prices; see Usage below).
 
 Memory is a later section (#18).
@@ -442,6 +443,13 @@ routes (tokens, devices, settings, the audit log, terminals, handoff, deletion),
 permission mode or start a session with a high-risk option such as bypass permissions, and is limited to 300
 requests a minute. The host revokes it at once, and its browser WebSocket connections close. Every action it takes
 is in the audit log under its own ID.
+
+Settings → API tokens lists them: the active ones first, then the revoked and expired, each with its abilities,
+its machines and projects, when it expires and when it was last used. A row opens in place to its details and a
+Revoke button that asks first. Issuing opens a form above the list: the name, the expiry (1, 7, 30 or 90 days, or
+a number of days up to 365; 90 by default), Read only, May send or May create, the answer switch (off, with a
+warning when it is on), and "Every machine" or "Only these" with a picker of machines and projects. The secret is
+then shown once with a copy button and how to use it from the CLI; the page keeps nothing of it after Done.
 
 ### Host CLI
 

@@ -77,6 +77,10 @@ import {
   TerminalCloseResultSchema,
   TerminalInfoSchema,
   TerminalStateSchema,
+  type TokenCreateRequest,
+  TokenCreateResponseSchema,
+  TokenListResponseSchema,
+  TokenRevokeResponseSchema,
   type UsagePricesBody,
   UsagePricesSchema,
   UsageResponseSchema,
@@ -903,6 +907,27 @@ export function deletePermissionRule(id: string) {
   return call(
     `/api/permission-rules/${encodeURIComponent(id)}`,
     PermissionRuleListResponseSchema,
+    undefined,
+    undefined,
+    'DELETE',
+  );
+}
+
+/** The API tokens: the scoped ones, never their secrets. */
+export function fetchTokens(signal?: AbortSignal) {
+  return call('/api/tokens', TokenListResponseSchema, undefined, signal);
+}
+
+/** Issues a token. The answer carries its secret, which is shown once and kept nowhere. */
+export function postToken(body: TokenCreateRequest) {
+  return call('/api/tokens', TokenCreateResponseSchema, body);
+}
+
+/** Revokes a token at once. */
+export function deleteToken(id: string) {
+  return call(
+    `/api/tokens/${encodeURIComponent(id)}`,
+    TokenRevokeResponseSchema,
     undefined,
     undefined,
     'DELETE',
