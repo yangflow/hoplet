@@ -70,13 +70,15 @@ func (c *Client) handleRuntimeStart(cs *connState, raw json.RawMessage) {
 		reject("not-implemented")
 		return
 	}
-	sessionID, err := c.hooks.Runtime.Start(context.Background(), req)
+	started, err := c.hooks.Runtime.Start(context.Background(), req)
 	if err != nil {
 		reject(err.Error())
 		return
 	}
+	sessionID := started.SessionID
 	if err := c.writeMsg(cs, RuntimeStarted{
 		V: ProtocolVersion, Type: TypeRuntimeStarted, RequestID: req.RequestID, SessionID: sessionID,
+		Worktree: started.Worktree,
 	}); err != nil {
 		return
 	}

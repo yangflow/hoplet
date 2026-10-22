@@ -817,6 +817,111 @@ describe('the config of a session', () => {
   });
 });
 
+describe('POST /api/sessions in a new worktree', () => {
+  const WORKTREE = {
+    clone: PROJECT,
+    path: '/work/app-feature-x',
+    branch: 'feature/x',
+  };
+
+  it('forwards the branch, answers with the worktree and records it for deletion', async () => {
+    const { post, store, agent } = await boot();
+    const owner = await agent('dev-a');
+    owner.listProjects();
+    const pending = post('/api/sessions', request({ worktree: { branch: 'feature/x' } }));
+    const start = await owner.waitFor((m) => m.type === 'runtime.start', 'runtime.start');
+    expect(start.worktree).toEqual({ branch: 'feature/x' });
+    owner.send({
+      type: 'runtime.started',
+      requestId: start.requestId,
+      sessionId: NEW_ID,
+      worktree: WORKTREE,
+    });
+    expect(await pending).toEqual({
+      status: 200,
+      body: {
+        ok: true,
+        sessionId: NEW_ID,
+        promptId: 'n1',
+        worktree: { path: '/work/app-feature-x', branch: 'feature/x' },
+      },
+    });
+    expect(store.sessionWorktree(NEW_ID)).toMatchObject({
+      sessionId: NEW_ID,
+      deviceId: 'dev-a',
+      clone: PROJECT,
+      worktree: '/work/app-feature-x',
+      branch: 'feature/x',
+    });
+  });
+
+  it('asks for a generated branch with an empty worktree and none without one', async () => {
+    const { post, agent } = await boot();
+    const owner = await agent('dev-a');
+    owner.listProjects();
+    const generated = post('/api/sessions', request({ worktree: {} }));
+    const start = await owner.waitFor((m) => m.type === 'runtime.start', 'runtime.start');
+    expect(start.worktree).toEqual({});
+    owner.send({ type: 'runtime.started', requestId: start.requestId, sessionId: NEW_ID });
+    expect((await generated).body.worktree).toBeUndefined();
+
+    const plain = post('/api/sessions', request({ promptId: 'n2' }));
+    await owner.waitFor((m) => m.type === 'runtime.start' && m !== start, 'second runtime.start');
+    const second = owner.ofType('runtime.start')[1] as Msg;
+    expect('worktree' in second).toBe(false);
+    owner.send({ type: 'runtime.started', requestId: second.requestId, sessionId: NEW_ID });
+    expect((await plain).body.worktree).toBeUndefined();
+  });
+
+  it('refuses an invalid branch before anything is sent', async () => {
+    const { post, agent } = await boot();
+    const owner = await agent('dev-a');
+    owner.listProjects();
+    for (const branch of ['-x', '--force', 'a..b', 'a b', 'a~b', 'x.lock', '/x', 'x/', '']) {
+      expect(await post('/api/sessions', request({ worktree: { branch } })), branch).toEqual({
+        status: 400,
+        body: { code: 'invalid-request', reason: 'worktree-branch-invalid', promptId: 'n1' },
+      });
+    }
+    expect(owner.ofType('runtime.start')).toEqual([]);
+  });
+
+  it('passes the reasons the agent gives on and lets the same promptId retry', async () => {
+    const seen = new Set<string>();
+    const { post, agent } = await boot();
+    const owner = await agent('dev-a');
+    owner.listProjects();
+    for (const reason of [
+      'worktree-not-a-git-repository',
+      'worktree-no-commit',
+      'worktree-branch-exists',
+      'worktree-path-exists',
+    ]) {
+      const pending = post('/api/sessions', request({ worktree: { branch: 'b' } }));
+      await owner.waitFor(
+        (m) => m.type === 'runtime.start' && !seen.has(m.requestId as string),
+        'runtime.start',
+      );
+      const start = owner.ofType('runtime.start').at(-1) as Msg;
+      seen.add(start.requestId as string);
+      owner.send({ type: 'runtime.start.rejected', requestId: start.requestId, reason });
+      expect(await pending, reason).toEqual({
+        status: 400,
+        body: { code: 'invalid-request', reason, promptId: 'n1' },
+      });
+    }
+    // A reason that is not about the worktree stays a rejection.
+    const other = post('/api/sessions', request({ worktree: {} }));
+    await owner.waitFor(
+      (m) => m.type === 'runtime.start' && !seen.has(m.requestId as string),
+      'one more',
+    );
+    const last = owner.ofType('runtime.start').at(-1) as Msg;
+    owner.send({ type: 'runtime.start.rejected', requestId: last.requestId, reason: 'boom' });
+    expect((await other).body).toMatchObject({ code: 'rejected', reason: 'boom' });
+  });
+});
+
 describe('a prompt', () => {
   it('carries no options', async () => {
     const env = await boot();

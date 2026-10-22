@@ -334,7 +334,12 @@ Behavior a client relies on:
   shape: `select` or `boolean`, `id`, `name`, `category`, `currentValue`; a select value may declare `risk: "high"` and an `icon` from the shared vocabulary `CONFIG_ICONS`). `POST /api/sessions` takes optional
   `config`, option ID to value, for the options it sets, and optional `configuration`, the ID of a provider configuration of the device ([ADR 0028](adr/0028-provider-configurations-live-on-the-machine.md); default: the provider's built-in), which must be enabled and extend `provider` (`invalid-request` otherwise); `POST /api/sessions/:sessionId/config` takes one
   `{configId, value}` and answers `200` once the owner has it. A setting or value the driver does not declare is
-  `invalid-request` with `reason: config`. The runtime state (`GET /api/sessions`, `session.runtime`) reports the
+  `invalid-request` with `reason: config`. `POST /api/sessions` also takes optional `worktree: { branch? }`, which
+  starts the session in a new git worktree of `projectPath` ([New session](spec.md#new-session)); the result then
+  carries `worktree: { path, branch }`. A refusal is `invalid-request` with a `reason` of `worktree-branch-invalid`,
+  `worktree-not-a-git-repository`, `worktree-no-commit`, `worktree-branch-exists` or `worktree-path-exists`; a body
+  that fails the schema is `invalid-request` without one. The `create` capability and the allow-list of a token apply
+  to `projectPath`. The runtime state (`GET /api/sessions`, `session.runtime`) reports the
   session's values as `capabilities.config[].currentValue`; the capabilities in `device.hello` carry the defaults
   of a new session. A prompt carries no settings.
 - `POST /api/devices/:deviceId/attachments` uploads one image (`mediaType`, base64 `data`; a body of at most

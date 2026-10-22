@@ -772,6 +772,21 @@ after the answer, and until the session reaches the index the core accepts runti
 that device, reports its state to clients and sends that device the session's control requests (a steer, an
 interrupt, a permission answer).
 
+**In a new worktree.** `worktree: { branch? }` starts the session in a new git worktree of the project instead of
+the project itself. Without `branch` the agent generates `hoplet/<8 hex>`. The agent creates the branch from the
+project's `HEAD` and the worktree next to the project's main working tree, at `<clone>-<branch with / as ->`,
+before it starts the provider; uncommitted changes of the project are not carried over. For a project that is a
+subdirectory of a clone, the session runs at the same subdirectory inside the worktree. The response then also
+carries `worktree: { path, branch }`. The branch name follows the rules of `git check-ref-format`, is at most 200
+characters and never starts with `-`. The core refuses with `invalid-request` and a `reason`:
+`worktree-branch-invalid` (checked before any token rule), and, from the agent, `worktree-not-a-git-repository`,
+`worktree-no-commit` (the repository has no commit yet), `worktree-branch-exists` (Hoplet never reuses a branch)
+and `worktree-path-exists` (the directory is taken). A session that does not start removes the worktree and branch
+it made. The agent records the session on the branch, so deleting the session
+([ADR 0023](adr/0023-deleting-a-session-and-what-hoplet-made-for-it.md)) offers the worktree and the branch like
+those of a handoff. A token with `create` and an allow-list is checked against `projectPath`, the project the
+worktree belongs to.
+
 #### A plan approved into a new session
 
 `POST /api/sessions/:id/permission/fresh` with `{ requestId, mode, promptId }` approves an open plan request into a

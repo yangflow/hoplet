@@ -77,6 +77,8 @@ export interface StartRequest {
   text: string;
   attachments?: string[] | undefined;
   promptId: string;
+  /** Run the session in a new git worktree; `branch` names it, absent the agent generates one. */
+  worktree?: { branch?: string | undefined } | undefined;
   /** Where the request came from, told to lifecycle hooks: a plan approved into a new session is `plan`. */
   origin?: 'new' | 'plan' | undefined;
   /** The token that asked, for the audit log; the host when absent. */
@@ -85,11 +87,18 @@ export interface StartRequest {
 
 /** What an agent answers to `runtime.start`, or why there is no answer. */
 export type StartAnswer =
-  | { ok: true; sessionId: string }
+  | { ok: true; sessionId: string; worktree?: StartedWorktree }
   | { ok: false; error: 'target-offline' | 'timeout' | 'rejected'; reason?: string };
 
+/** The worktree an agent made for a new session. */
+export interface StartedWorktree {
+  clone: string;
+  path: string;
+  branch: string;
+}
+
 export type StartOutcome =
-  | { ok: true; sessionId: string; promptId: string }
+  | { ok: true; sessionId: string; promptId: string; worktree?: StartedWorktree }
   | {
       ok: false;
       error: 'target-offline' | 'invalid-request' | 'timeout' | 'rejected' | 'over-budget';

@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import {
   findProvider,
+  isWorktreeReason,
   PROTOCOL_VERSION,
   type ProviderInfo,
   type RuntimeStart,
@@ -107,6 +108,9 @@ export function createStart(state: ControlState, listProjects: Control['listProj
       text: req.text,
       ...(req.attachments && req.attachments.length > 0 ? { attachments: req.attachments } : {}),
       promptId,
+      ...(req.worktree
+        ? { worktree: req.worktree.branch !== undefined ? { branch: req.worktree.branch } : {} }
+        : {}),
     };
     const answer = await askWaiter<StartAnswer>(
       pendingStart,
@@ -121,12 +125,27 @@ export function createStart(state: ControlState, listProjects: Control['listProj
       },
     );
     if (!answer.ok) {
+      // A worktree the agent could not make for a reason of the request is the caller's to fix.
+      if (req.worktree && answer.error === 'rejected' && isWorktreeReason(answer.reason)) {
+        return refuse(answer.reason);
+      }
       return {
         ok: false,
         error: answer.error,
         promptId,
         ...(answer.reason !== undefined ? { reason: answer.reason } : {}),
       };
+    }
+    // The worktree is recorded first: deleting the session offers it (ADR 0023).
+    if (answer.worktree) {
+      try {
+        state.store.recordNewWorktree(answer.sessionId, req.deviceId, answer.worktree);
+      } catch (err) {
+        log('error', 'control', 'session worktree not recorded', {
+          sessionId: answer.sessionId,
+          error: err instanceof Error ? err.message : 'unknown',
+        });
+      }
     }
     // The session exists already, so a record the log cannot take is told and nothing else happens.
     try {
@@ -150,7 +169,12 @@ export function createStart(state: ControlState, listProjects: Control['listProj
         error: err instanceof Error ? err.message : 'unknown',
       });
     }
-    return { ok: true, sessionId: answer.sessionId, promptId };
+    return {
+      ok: true,
+      sessionId: answer.sessionId,
+      promptId,
+      ...(answer.worktree ? { worktree: answer.worktree } : {}),
+    };
   }
 
   return {

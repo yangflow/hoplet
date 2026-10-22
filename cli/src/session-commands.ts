@@ -108,12 +108,6 @@ function coerce(value: string): string | boolean {
 
 export async function newSession(ctx: Context, words: string[]): Promise<number> {
   const { flags } = ctx;
-  if (bool(flags, 'worktree')) {
-    throw new CliError(
-      'not-supported',
-      '--worktree is not available yet: the core cannot start a session in a git worktree.',
-    );
-  }
   if (str(flags, 'template') !== undefined) {
     throw new CliError('not-supported', '--template is not available yet.');
   }
@@ -137,22 +131,39 @@ export async function newSession(ctx: Context, words: string[]): Promise<number>
   const text = await textOf(ctx, words);
   if (text === '') throw new CliError('usage', 'The prompt is empty.');
   const options = bool(flags, 'wait') ? waitOptions(ctx) : undefined;
+  // --worktree starts the session in a new git worktree on a generated branch, --worktree=<branch> on that one.
+  const wanted = flags.worktree;
+  const worktree =
+    wanted === undefined ? undefined : typeof wanted === 'string' ? { branch: wanted } : {};
 
   const deviceId = await resolveDevice(ctx.client, deviceRef);
   const started = await ctx.client.createSession({
     deviceId,
     projectPath,
     provider,
+    ...(worktree === undefined ? {} : { worktree }),
     ...(Object.keys(config).length > 0 ? { config } : {}),
     text,
   });
-  const info = { sessionId: started.sessionId, promptId: started.promptId };
+  const info = {
+    sessionId: started.sessionId,
+    promptId: started.promptId,
+    ...(started.worktree ? { worktree: started.worktree } : {}),
+  };
   if (options === undefined) {
     if (ctx.json) ctx.doc(info);
-    else ctx.line(started.sessionId);
+    else {
+      ctx.line(started.sessionId);
+      if (started.worktree)
+        ctx.note(`worktree ${started.worktree.path} (${started.worktree.branch})`);
+    }
     return 0;
   }
-  if (!ctx.json) ctx.note(`session ${started.sessionId}`);
+  if (!ctx.json) {
+    ctx.note(`session ${started.sessionId}`);
+    if (started.worktree)
+      ctx.note(`worktree ${started.worktree.path} (${started.worktree.branch})`);
+  }
   const result = await ctx.client.waitForTurn(started.sessionId, {
     ...options,
     since: started.baseline,

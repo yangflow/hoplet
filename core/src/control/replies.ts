@@ -59,7 +59,11 @@ export function receiveReply(
         if (wait.start) {
           state.startedSessions.set(msg.sessionId, { ...wait.start, at: state.now() });
         }
-        settleWaiter(pendingStart, msg.requestId, { ok: true, sessionId: msg.sessionId });
+        settleWaiter(pendingStart, msg.requestId, {
+          ok: true,
+          sessionId: msg.sessionId,
+          ...(msg.worktree ? { worktree: msg.worktree } : {}),
+        });
       }
       return;
     }

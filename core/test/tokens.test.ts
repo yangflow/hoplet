@@ -448,6 +448,28 @@ describe('the allow list', () => {
     expect(other.status).toBe(403);
   });
 
+  it('applies the create capability and the allow list to a session in a new worktree', async () => {
+    const b = await boot();
+    const body = (projectPath: string) => ({
+      deviceId: 'dev-a',
+      projectPath,
+      provider: 'claude',
+      text: 'hi',
+      promptId: 'n1',
+      worktree: { branch: 'feature/x' },
+    });
+    const noCreate = await b.issue({ capabilities: ['read', 'send'] });
+    const denied = await b.rest('POST', '/api/sessions', noCreate.token, body('/work/a'));
+    expect(denied.status).toBe(403);
+    const scoped = await b.issue({
+      capabilities: ['read', 'send', 'create'],
+      allow: [{ deviceId: 'dev-a', path: '/work/a' }],
+    });
+    const outside = await b.rest('POST', '/api/sessions', scoped.token, body('/work/b'));
+    expect(outside.status).toBe(403);
+    expect(outside.body).toEqual({ code: 'forbidden' });
+  });
+
   it('hides a template that starts outside the allow list', async () => {
     const b = await boot();
     const t = await b.issue({

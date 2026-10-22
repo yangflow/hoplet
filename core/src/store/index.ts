@@ -715,6 +715,15 @@ export class Store {
     return deletion.worktreeOf(this.ctx, sessionId);
   }
 
+  /** Records the worktree an agent made for a session it started, for its deletion later (ADR 0023). */
+  recordNewWorktree(
+    sessionId: string,
+    deviceId: string,
+    worktree: { clone: string; path: string; branch: string },
+  ): void {
+    deletion.recordNewWorktree(this.ctx, sessionId, deviceId, worktree, Date.now());
+  }
+
   /** The owner of a session including one being deleted; only the deletion reads it. */
   deletingOwner(sessionId: string): string | null {
     return sessions.getRowAny(this.ctx, sessionId)?.device_id || null;

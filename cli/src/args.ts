@@ -1,6 +1,7 @@
 import { CliError } from './errors.ts';
 
-type FlagKind = 'bool' | 'string' | 'list';
+/** `optional` is a switch that takes a value only in the `--name=value` form, so a word after it stays a word. */
+type FlagKind = 'bool' | 'optional' | 'string' | 'list';
 
 /** Every flag of every command; a command accepts the ones its spec lists, and the global ones. */
 const FLAGS: Record<string, FlagKind> = {
@@ -17,7 +18,7 @@ const FLAGS: Record<string, FlagKind> = {
   model: 'string',
   set: 'list',
   template: 'string',
-  worktree: 'bool',
+  worktree: 'optional',
   // new, send, wait
   wait: 'bool',
   timeout: 'string',
@@ -72,7 +73,7 @@ export const COMMANDS: Record<string, CommandSpec> = {
     min: 1,
     max: Number.POSITIVE_INFINITY,
     usage:
-      'hoplet new --device <machine> --path <dir> [--provider claude|codex] [--model <id>] [--set option=value] [--wait] "<prompt>"',
+      'hoplet new --device <machine> --path <dir> [--provider claude|codex] [--model <id>] [--set option=value] [--worktree[=<branch>]] [--wait] "<prompt>"',
   },
   attach: {
     flags: ['answer'],
@@ -177,6 +178,10 @@ export function parseArgs(argv: readonly string[]): Parsed {
     const name = eq < 0 ? arg.slice(2) : arg.slice(2, eq);
     const kind = FLAGS[name];
     if (kind === undefined) throw usage(`Unknown flag: --${name}`);
+    if (kind === 'optional') {
+      flags[name] = eq < 0 ? true : arg.slice(eq + 1);
+      continue;
+    }
     if (kind === 'bool') {
       if (eq >= 0) throw usage(`--${name} takes no value`);
       flags[name] = true;

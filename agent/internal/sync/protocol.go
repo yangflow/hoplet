@@ -14,7 +14,7 @@ import (
 // (provider.ValidSessionID, ADR 0006). Invalid IDs receive error invalid-session-id
 // before decoding or persistence; the wire envelope and cursor are unchanged.
 
-const ProtocolVersion = 15
+const ProtocolVersion = 16
 
 // Wire message types: Type<Struct> is the `type` of the struct of that name.
 // shared/src/wire/ holds the same table; scripts/test/contract.test.ts compares both.
@@ -535,14 +535,33 @@ type RuntimeStart struct {
 	Text        string         `json:"text"`
 	Attachments []string       `json:"attachments,omitempty"`
 	PromptID    string         `json:"promptId"`
+	// Worktree asks for the session to run in a new git worktree of ProjectPath's repository, made before the
+	// provider starts (ADR 0023 for its deletion). Absent: the session runs in ProjectPath.
+	Worktree *NewWorktree `json:"worktree,omitempty"`
 }
 
-// RuntimeStarted (device → core): the session is created, imported and syncs from now on.
+// NewWorktree is the worktree a new session asks for. Branch names the new branch; empty means the agent
+// generates one.
+type NewWorktree struct {
+	Branch string `json:"branch,omitempty"`
+}
+
+// StartedWorktree is the worktree the agent made for a new session: Clone is the repository's main working
+// tree, Path the worktree directory and Branch its branch.
+type StartedWorktree struct {
+	Clone  string `json:"clone"`
+	Path   string `json:"path"`
+	Branch string `json:"branch"`
+}
+
+// RuntimeStarted (device → core): the session is created, imported and syncs from now on. Worktree is the
+// worktree made for it, when one was asked for.
 type RuntimeStarted struct {
-	V         int    `json:"v"`
-	Type      string `json:"type"`
-	RequestID string `json:"requestId"`
-	SessionID string `json:"sessionId"`
+	V         int              `json:"v"`
+	Type      string           `json:"type"`
+	RequestID string           `json:"requestId"`
+	SessionID string           `json:"sessionId"`
+	Worktree  *StartedWorktree `json:"worktree,omitempty"`
 }
 
 type RuntimeStartRejected struct {
