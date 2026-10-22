@@ -15,6 +15,7 @@ import { NotificationsSection, type NotifyFixture } from './notifications.tsx';
 import { type ProvidersFixture, ProvidersSection } from './providers.tsx';
 import { type RulesFixture, RulesSection } from './rules.tsx';
 import { type TemplatesFixture, TemplatesSection } from './templates.tsx';
+import { type TokensFixture, TokensSection } from './tokens.tsx';
 import { type UsageFixture, UsageSection } from './usage.tsx';
 
 /**
@@ -29,6 +30,7 @@ export const SECTIONS = [
   { id: 'rules', label: 'Permission rules', icon: () => Icon.rules() },
   { id: 'hooks', label: 'Hooks', icon: () => Icon.webhook() },
   { id: 'audit', label: 'Audit', icon: () => Icon.listChecks() },
+  { id: 'tokens', label: 'API tokens', icon: () => Icon.key() },
   { id: 'usage', label: 'Usage', icon: () => Icon.activity() },
   { id: 'templates', label: 'Templates', icon: () => Icon.template() },
 ] as const;
@@ -50,6 +52,7 @@ function Page(props: {
   rules: RulesFixture | undefined;
   hooks: HooksFixture | undefined;
   audit: AuditFixture | undefined;
+  tokens: TokensFixture | undefined;
   usage: UsageFixture | undefined;
   templates: TemplatesFixture | undefined;
   sessions: readonly LiveSessionMeta[];
@@ -98,6 +101,8 @@ function Page(props: {
       return <HooksSection fixture={props.hooks} />;
     case 'audit':
       return <AuditSection fixture={props.audit} sessions={props.sessions} />;
+    case 'tokens':
+      return <TokensSection fixture={props.tokens} />;
     case 'templates':
       return <TemplatesSection fixture={props.templates} />;
   }
@@ -116,6 +121,7 @@ export function Settings(props: {
   rules?: RulesFixture;
   hooks?: HooksFixture;
   audit?: AuditFixture;
+  tokens?: TokensFixture;
   usage?: UsageFixture;
   templates?: TemplatesFixture;
   sessions?: readonly LiveSessionMeta[];
@@ -179,6 +185,7 @@ export function Settings(props: {
                 rules={props.rules}
                 hooks={props.hooks}
                 audit={props.audit}
+                tokens={props.tokens}
                 usage={props.usage}
                 templates={props.templates}
                 sessions={props.sessions ?? []}

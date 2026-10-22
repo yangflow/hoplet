@@ -72,7 +72,7 @@ export type RulesFixture = {
 const mono = (s: string) => <span className="mono">{s}</span>;
 
 /** The projects of every machine, as the choices of a project rule: the fixture's, else what the agents list. */
-function useProjectChoices(
+export function useProjectChoices(
   devices: readonly DeviceInfo[],
   fixture?: Record<string, string[]>,
 ): { deviceId: string; path: string }[] {

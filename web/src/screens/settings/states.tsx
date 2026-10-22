@@ -36,6 +36,8 @@ import {
   templatesFixture,
 } from './templates-fixtures.ts';
 import { effectiveThresholds, readingWarn } from './thresholds-model.ts';
+import type { TokensFixture } from './tokens.tsx';
+import { filledForm, issuedFixture, tokensFixture } from './tokens-fixtures.ts';
 import type { UsageFixture } from './usage.tsx';
 import {
   B1,
@@ -673,6 +675,7 @@ function Scene(props: {
   audit?: AuditFixture;
   usage?: UsageFixture;
   templates?: TemplatesFixture;
+  tokens?: TokensFixture;
 }) {
   const appearance = { ...DEFAULTS, ...props.appearance };
   useEffect(() => {
@@ -693,6 +696,7 @@ function Scene(props: {
       {...(props.audit ? { audit: props.audit } : {})}
       {...(props.usage ? { usage: props.usage } : {})}
       {...(props.templates ? { templates: props.templates } : {})}
+      {...(props.tokens ? { tokens: props.tokens } : {})}
     />
   );
 }
@@ -975,5 +979,60 @@ export const states: Record<string, () => ReactNode> = {
         importing: { file: IMPORT_FILE, fileName: 'hoplet-templates-2026-10-21.json' },
       })}
     />
+  ),
+  tokens: () => <Scene section="tokens" tokens={tokensFixture()} />,
+  'tokens-detail': () => <Scene section="tokens" tokens={tokensFixture({ open: 'tok_release' })} />,
+  'tokens-empty': () => <Scene section="tokens" tokens={tokensFixture({ empty: true })} />,
+  'tokens-issue': () => (
+    <Scene section="tokens" tokens={tokensFixture({ form: filledForm({ scope: 'all' }) })} />
+  ),
+  'tokens-issue-answer': () => (
+    <Scene
+      section="tokens"
+      tokens={tokensFixture({ form: filledForm({ answer: true, scope: 'all' }) })}
+    />
+  ),
+  'tokens-picker': () => (
+    <Scene
+      section="tokens"
+      tokens={tokensFixture({
+        form: filledForm({
+          allow: [{ deviceId: 'dev-build', path: '/srv/hoplet' }, { deviceId: 'dev-mbp' }],
+        }),
+        picker: true,
+      })}
+    />
+  ),
+  'tokens-invalid': () => (
+    <Scene
+      section="tokens"
+      tokens={tokensFixture({
+        form: filledForm({ name: '', scope: 'only', allow: [] }),
+        tried: true,
+      })}
+    />
+  ),
+  'tokens-reveal': () => (
+    <Scene section="tokens" tokens={tokensFixture({ issued: issuedFixture })} />
+  ),
+  'tokens-reveal-copied': () => (
+    <Scene section="tokens" tokens={tokensFixture({ issued: issuedFixture, copied: true })} />
+  ),
+  'tokens-revoke': () => (
+    <Scene section="tokens" tokens={tokensFixture({ confirm: 'tok_phone' })} />
+  ),
+  'tokens-error': () => (
+    <Scene
+      section="tokens"
+      tokens={tokensFixture({
+        form: filledForm(),
+        problem:
+          'The most Hoplet allows, 100 tokens, are active. Revoke one before issuing another.',
+      })}
+    />
+  ),
+  'tokens-loading': () => <Scene section="tokens" tokens={tokensFixture({ loading: true })} />,
+  'tokens-load-error': () => (
+    <Scene section="tokens" tokens={tokensFixture({ error: 'Could not reach the core.' })} />
   ),
 };
