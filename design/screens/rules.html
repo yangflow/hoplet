@@ -710,6 +710,27 @@ body.stacked{background:#131210;color:#efe9e2;font-family:-apple-system,"SF Pro 
 .qline.allow svg{color:var(--color-success)}
 .qline.deny,.qline.deny b{color:var(--color-danger)}
 .qline .lnk{color:var(--color-text-2);text-decoration:underline;text-decoration-color:var(--color-text-3);text-underline-offset:2px}
+.rv{margin:0 0 var(--space-4);border-radius:var(--radius-md);background:var(--color-surface);box-shadow:inset 0 0 0 1px var(--color-line);overflow:hidden}
+.light .rv{background:var(--color-raised)}
+.rv-h{display:flex;align-items:center;gap:var(--space-2);padding:var(--space-2) var(--space-4);background:var(--color-bg);color:var(--color-text-2);font-weight:var(--weight-medium)}
+.rv-h .meta{font-weight:var(--weight-regular);color:var(--color-text-3)}
+.rv-h .sp{flex:1}
+.rv-r{display:grid;grid-template-columns:16px 132px minmax(0,1fr) auto;align-items:center;gap:var(--space-3);padding:var(--space-2) var(--space-4);box-shadow:inset 0 1px 0 var(--color-line);min-height:var(--control-field)}
+.rv-r svg{width:16px;height:16px}
+.rv-r .rvs{color:var(--color-text-2)}
+.rv-r .rvs.ok svg{color:var(--color-success)}
+.rv-r .rvs.behind svg{color:var(--color-attention-text)}
+.rv-r .rvs.off svg{color:var(--color-text-3)}
+.rv-r .rvn{display:flex;align-items:center;gap:var(--space-2);min-width:0;font-weight:var(--weight-medium)}
+.rv-r .rvm{color:var(--color-text-3);font-size:var(--text-meta);line-height:var(--leading-meta);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rv-r .rvm.att{color:var(--color-attention-text)}
+.rv-r .rvv{font-family:var(--font-mono);font-size:var(--text-code);line-height:var(--leading-code);color:var(--color-text-2);white-space:nowrap}
+.rv-r.off .rvn{color:var(--color-text-3)}
+.rv-f{padding:var(--space-2) var(--space-4);font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3);background:var(--color-bg);box-shadow:inset 0 1px 0 var(--color-line)}
+.cxn{margin:0 0 var(--space-3) calc(16px + var(--space-2))}
+.cxn.att svg{color:var(--color-attention-text)}
+.cxn .lnk{color:var(--color-text-2);text-decoration:underline;text-decoration-color:var(--color-text-3);text-underline-offset:2px;white-space:nowrap}
+.cxn span b{font-weight:var(--weight-medium)}
 .ask .qline{margin:calc(-1 * var(--space-1)) 0 var(--space-3) 0;color:var(--color-attention-text)}
 .ask .qline b{color:var(--color-text)}
 .ask-f .qno{display:flex;align-items:center;gap:var(--space-1);color:var(--color-text-3);font-size:var(--text-meta);line-height:var(--leading-meta);margin-left:var(--space-2)}
@@ -1005,6 +1026,15 @@ function confirmOff(r) {
 
 /* ================= direction A: one list, grouped by scope ================= */
 const groupHead = (icon, title, count, right = '', first = false, open = null) => `<div class="qg${first ? ' first' : ''}">${open === null ? '' : ib(open ? I.down() : I.chev(), open ? t('Collapse', '折叠') : t('Expand', '展开'))}<span class="qk" style="color:var(--color-text-3);display:inline-flex">${icon}</span><b>${title}</b><span class="meta">${count}</span><span style="flex:1"></span>${right}</div>`;
+/* ---- which machines applied the latest revision (proposal for #98) --------------------------------------------- */
+function revPanel() {
+  const rows = [
+    ['ok', I.check(), 'MacBook Pro', t('Applied', '已应用'), 'r14', t('Confirmed 2 min ago', '2 分钟前确认'), '', ''],
+    ['behind', I.clock(), 'studio', t('Behind', '落后'), 'r13', t('Last push 6 min ago, no confirmation yet. Retrying.', '6 分钟前推送，尚未确认。正在重试。'), 'att', btn(t('Push again', '重新推送'), '', 'quiet')],
+    ['off', I.laptop(), 'mini', t('Offline', '离线'), 'r12', t('Last seen 3 days ago. Applies when it reconnects.', '3 天前最后在线。重新连接后应用。'), '', ''],
+  ];
+  return `<div class="rv" role="group" aria-label="${t('Rules on your machines', '各机器上的规则')}"><div class="rv-h"><b>${t('On your machines', '你的机器')}</b><span class="meta">${t('Latest revision', '最新版本')} <span class="mono">r14</span></span><span class="sp"></span><span class="meta">${t('1 of 3 applied', '3 台中 1 台已应用')}</span></div>${rows.map(([k, ic, n, lbl, rev, m, cls, act]) => `<div class="rv-r ${k === 'off' ? 'off' : ''}"><span class="rvs ${k}"${tip(lbl)}>${ic}</span><span class="rvn">${n}<span class="rvv">${rev}</span></span><span class="rvm ${cls}">${lbl} · ${m}</span>${act || '<span></span>'}</div>`).join('')}<div class="rv-f">${t('Rules reach a machine as a revision. A machine that is behind keeps deciding with the revision it has.', '规则以版本的形式送达机器。落后的机器继续按它已有的版本做决定。')}</div></div>`;
+}
 function aPage(st) {
   const base = st.replace(/-zh$/, '');
   const bOpen = base === 'a-builtin' || base === 'a-builtin-confirm';
@@ -1012,7 +1042,7 @@ function aPage(st) {
   const isEmpty = base === 'a-empty';
   const biOn = bi.filter(r => r.on).length;
   const biHead = groupHead(I.lock(), t('Built in', '内置'), t(`${bi.length} rules · ${biOn} on`, `${bi.length} 条规则 · ${biOn} 条开启`), `<span class="qgr">${t('Turn off needs a second confirmation', '关闭需要再次确认')}</span>`, !editing, bOpen);
-  let body = lead() + toolbar();
+  let body = lead() + (base === 'a-revision' ? revPanel() : '') + toolbar();
   if (base === 'a-edit') body += cardEditor(F_RUN, t('Edit rule', '编辑规则'), true);
   if (base === 'a-edit-invalid') body += cardEditor(F_BAD, t('New rule', '新建规则'), false);
   body += biHead + (bOpen ? list(bi.map(r => row(r)).join('')) : '');
@@ -1184,18 +1214,35 @@ function conversation() {
     </div>
     <p class="text">${t('The checks pass. The <code>.env</code> edit was refused by a rule, so I left that file alone and pushed the branch with <code>--force-with-lease</code> after you confirmed it.', '检查已通过。对 <code>.env</code> 的编辑被规则拒绝，所以我没有碰这个文件；在你确认后，我用 <code>--force-with-lease</code> 推送了分支。')}</p></div></section>`;
 }
+/* ---- a Codex session whose rules cannot fully apply (proposal for #98, ADR 0032) -------------------------------- */
+function cxNote(kind) {
+  if (kind === 'prompts') return `<div class="nt snap cxn" role="note">${I.shield()}<span>${t('Rules apply only to the approvals Codex asks for on this machine. In Full access Codex asks for nothing, so its commands are not checked.', '规则只适用于本机上 Codex 发来的审批请求。在完全访问模式下 Codex 不会请求审批，其命令不会被检查。')} <a class="lnk">${t('Why', '为什么')}</a></span></div>`;
+  return `<div class="nt snap cxn att" role="note">${I.hand()}<span><b>${t('Rules were not enforced', '规则未生效')}</b> · ${t('The Codex hook did not run for this call, so no rule was checked. The agent logged it.', 'Codex 钩子没有为这次调用运行，所以没有检查任何规则。agent 已记录此事。')} <a class="lnk">${t('Permission rules', '权限规则')}</a></span></div>`;
+}
+function codexConv(kind) {
+  const hd = `<header class="th"><div class="p">${t('Rename the ingest helpers.', '重命名摄取辅助函数。')}</div><div class="rt"><span class="badge"><span class="sdot"></span><span>00:19</span></span>${ib(I.stop(), t('Interrupt · Esc', '中断 · Esc'), 'bd')}</div><div class="tm"><span class="meta">11:42</span></div></header><div class="tsep"></div>`;
+  const acts = kind === 'prompts'
+    ? `${cxNote('prompts')}${act(I.term(), t('Ran', '运行'), code('rg appendChunk core/src'), '<span>exit 0</span><i>·</i><span>0.2 s</span>')}${act(I.pen(), t('Edit', '编辑'), code('core/src/ingest/append.ts'), '<span>+4</span><i>·</i><span>−4</span>')}`
+    : `${act(I.term(), t('Ran', '运行'), code('rg appendChunk core/src'), '<span>exit 0</span><i>·</i><span>0.2 s</span>')}${cxNote('nohook')}${act(I.term(), t('Ran', '运行'), code('pnpm test --filter core'), '<span>exit 0</span><i>·</i><span>19 s</span>')}`;
+  return `<section class="turn live">${hd}<div class="tb"><div class="acts">${acts}</div></div></section>`;
+}
 function sessionFrame(st, scheme) {
   const base = st.replace(/-zh$/, '');
   const top = `<header class="top">${ib(I.sidebar(), t('Show sidebar · ⌘\\', '显示侧边栏 · ⌘\\'))}<span class="title">${t('Check the chunk store', '检查分块存储')}</span><span class="ctx meta">hoplet · MacBook Pro</span><span class="sp"></span>${ib(I.panel(), t('Show workspace', '显示工作区'))}</header>`;
   let body;
   let over = '';
   if (base === 'conv-auto') body = conversation();
+  else if (base === 'conv-codex-prompts') body = codexConv('prompts');
+  else if (base === 'conv-codex-nohook') body = codexConv('nohook');
   else {
     const key = base.startsWith('draft') ? 'card-a' : base;
     body = `<section class="turn live need">${turnHead()}<div class="tb"><div class="acts">${lead2()}</div>${askCard(CARDS[key])}</div></section>`;
     if (DRAFTS[base]) over = DRAFTS[base]();
   }
-  return `<div class="frame nosb ${scheme}" data-state="${st}"><main class="main">${top}<div class="conv"><div class="col">${body}</div></div>${dock()}${over}</main></div>`;
+  const codex = base.startsWith('conv-codex');
+  const dk = codex ? dock().replace(t('Ask Claude Code…', '向 Claude Code 提问…'), t('Ask Codex…', '向 Codex 提问…')) : dock();
+  const tp = codex ? top.replace(t('Check the chunk store', '检查分块存储'), t('Rename the ingest helpers', '重命名摄取辅助函数')).replace('hoplet · MacBook Pro', 'hoplet · studio · Codex') : top;
+  return `<div class="frame nosb ${scheme}" data-state="${st}"><main class="main">${tp}<div class="conv"><div class="col">${body}</div></div>${dk}${over}</main></div>`;
 }
 
 /* screen: begin */
@@ -1232,6 +1279,12 @@ const STATES = [
   ['draft-project', 'The draft for a file: this file or the directory, the project scope and what it means in a handoff'],
   ['draft-deny', 'The draft after Always deny on a web fetch: the host, Save and deny in the danger colour'],
   ['conv-auto', 'The conversation lines for rule decisions: Allowed by rule, Denied by rule and Asked by rule, each with its scope and a View rule link'],
+  ['a-revision', 'Proposal for #98: on Settings › Permission rules, which machines applied the latest rules revision; MacBook Pro applied, studio behind and retrying with Push again, mini offline and applying on reconnect'],
+  ['conv-codex-prompts', 'Proposal for #98: a quiet note at the start of a Codex session whose rules are prompts-only; rules cover only the approvals Codex sends and Full access runs unchecked'],
+  ['conv-codex-nohook', 'Proposal for #98: a quiet note in the conversation where the Codex hook did not fire; the next call ran with no rule checked'],
+  ['a-revision-zh', 'The revision panel in Simplified Chinese'],
+  ['conv-codex-prompts-zh', 'The prompts-only note in Simplified Chinese'],
+  ['conv-codex-nohook-zh', 'The hook-did-not-fire note in Simplified Chinese'],
   ['card-a-zh', 'Card, direction 1, in Simplified Chinese'],
   ['draft-session-zh', 'The draft in Simplified Chinese'],
   ['conv-auto-zh', 'The conversation lines in Simplified Chinese'],
@@ -1266,7 +1319,8 @@ if (q.get('state') && !solo) {
   root.innerHTML = `<header class="intro"><h1>Permission rules <span>Settings › Permission rules and the permission card</span></h1>
     <p>Rules decide a tool call on the agent before it reaches the user (issue #98, ADR 0029): a rule is a tool, a matcher, an action (allow, ask, deny) and a scope (global, project, session). A deny always wins; otherwise the narrowest scope decides and ask beats allow within a scope; when nothing matches the permission mode decides. Built-in rules are global, listed first and can only be turned off, with a second confirmation that names the rule. Rules set in the agent’s configuration on a machine are shown read-only.</p>
     <p><b>Settings, three directions.</b> <b>A</b> is one list grouped by scope, with the editor opening above it. <b>B</b> is a tab per scope with a table and the editor in a dialog. <b>C</b> is a list with the editor beside it. They share one row grammar (action, tool, match, note, switch) and one editor form; only the place of the editor and the grouping differ. No direction has been chosen.</p>
-    <p><b>The permission card, two directions.</b> Direction 1 puts Always allow… and Always deny… next to Allow and Deny as quiet buttons; direction 2 folds them into one Always menu. Either opens a draft that the user edits and scopes to the session or the project before saving; nothing is saved by one click. A call with shell control, a plan exit or a call of kind other gets no draft. A rule that decides leaves one line at the call, and an ask card names the rule. Saving also answering the pending card (Save and allow, Save and deny) is a proposal for the maintainer to confirm. All rules, commands and paths are invented.</p></header>` +
+    <p><b>The permission card, two directions.</b> Direction 1 puts Always allow… and Always deny… next to Allow and Deny as quiet buttons; direction 2 folds them into one Always menu. Either opens a draft that the user edits and scopes to the session or the project before saving; nothing is saved by one click. A call with shell control, a plan exit or a call of kind other gets no draft. A rule that decides leaves one line at the call, and an ask card names the rule. Saving also answering the pending card (Save and allow, Save and deny) is a proposal for the maintainer to confirm. All rules, commands and paths are invented.</p>
+    <p><b>Two small additions, one proposal each.</b> <b>a-revision</b> adds a panel to Settings › Permission rules that shows which machines applied the latest rules revision (applied, behind, offline). <b>conv-codex-prompts</b> and <b>conv-codex-nohook</b> are quiet notes in a Codex session: rules cover only the approvals Codex sends, or the hook did not run for a call (ADR 0032).</p></header>` +
     STATES.map(([s, desc]) => `<section class="st"><h2>${s}<span>${desc}</span></h2><div class="pair">
       <div class="scaled">${frame(s, 'light')}</div><div class="scaled">${frame(s, 'dark')}</div></div></section>`).join('');
 }
