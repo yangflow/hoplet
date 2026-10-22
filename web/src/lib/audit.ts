@@ -53,6 +53,7 @@ export const TYPE_CHOICES = [
   'config.changed',
   'terminal.',
   'device.token.issued',
+  'token.',
   'audit.',
 ] as const;
 
@@ -70,6 +71,7 @@ export function actorOptions(): AuditOption[] {
     { value: 'device', label: t('Machines') },
     { value: 'session', label: t('Sessions') },
     { value: 'core', label: t('Core') },
+    { value: 'token', label: t('API tokens') },
   ];
 }
 
@@ -319,6 +321,22 @@ export function summaryParts(event: AuditEvent, names: AuditNames): SummaryParts
         ...(name ? { mono: name } : {}),
       };
     }
+    case 'token.issued':
+    case 'token.revoked': {
+      const name = str(s.name);
+      return {
+        lead: event.type === 'token.issued' ? t('API token issued') : t('API token revoked'),
+        ...(name ? { mono: name } : {}),
+      };
+    }
+    case 'token.denied': {
+      const method = str(s.method);
+      const path = str(s.path);
+      return {
+        lead: t('API token refused'),
+        ...(method && path ? { mono: `${method} ${path}` } : {}),
+      };
+    }
     case 'terminal.opened':
       return { lead: t('Terminal opened') };
     case 'terminal.closed':
@@ -372,6 +390,8 @@ export function actorLabel(event: AuditEvent, names: AuditNames): string {
       return fill(t('Session · {name}'), { name: names.session(event.actorId) });
     case 'schedule':
       return t('Schedule');
+    case 'token':
+      return fill(t('API token · {id}'), { id: event.actorId });
   }
 }
 

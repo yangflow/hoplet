@@ -16,7 +16,7 @@ machine whose Claude Code sessions are synced or controlled.
   `127.0.0.1` only. Access from other machines goes through a TLS reverse proxy on the same host.
 - Paths: `/` (web UI), `/api/*` (REST), `/ws` (browser WebSocket), `/ws/agent` (agent WebSocket). The proxy
   upgrades WebSockets on both `/ws` paths and keeps them open for at least a day.
-- Authentication: the host token (`HOPLET_TOKEN`) as `Authorization: Bearer` for REST; the browser WebSocket
+- Authentication: the host token (`HOPLET_TOKEN`), or a scoped API token the host issued (ADR 0033, `hpt_...`, hashed in `hoplet.db`), as `Authorization: Bearer` for REST; the browser WebSocket
   presents a single-use ticket from `POST /api/ws-tickets`, valid for 30 seconds; each agent presents its
   device token as `Authorization: Bearer` on `/ws/agent` ([ADR 0005](adr/0005-per-device-tokens.md)). No
   credential travels in a URL, with one exception: an action link `<public URL>/a#<token>` carries a signed,
@@ -88,7 +88,7 @@ place of the proxy. Never publish port 7788 on `0.0.0.0`.
 
 | Where | What |
 |---|---|
-| Docker volume `hoplet-data` (`/data` in the container) | `hoplet.db` (SQLite index, which also holds what the user did to a session in the web UI: a title of their own, a pin, an archive, the last slash commands and skills a session reported per machine and directory, the messages queued for a session, the worktree Hoplet made for a handed-off session, the provider configuration each session belongs to, the IDs of deleted sessions, the session templates, `templates`, and the permission rules, `permission_rules`, the switches of the built-in ones, `permission_builtins`, and their revisions, `permission_revisions`, the lifecycle hooks, `hooks`, and their deliveries, `hook_deliveries`; the audit log, `audit_events` (ADR 0030), and how far tool calls were derived from each session, `audit_cursor`), `sessions/<sessionId>/c-<seq>.ndjson[.gz]` (session lines), `snapshots/<sessionId>/<snapshotId>.tar.gz` (latest workspace snapshot per session), `notify-secrets.json` (mode 0600: the VAPID key pair for Web Push, the key that signs action links and the signing secrets of webhooks; the push subscriptions, the webhooks without their secrets and the preferences are in `hoplet.db`) |
+| Docker volume `hoplet-data` (`/data` in the container) | `hoplet.db` (SQLite index, which also holds what the user did to a session in the web UI: a title of their own, a pin, an archive, the last slash commands and skills a session reported per machine and directory, the messages queued for a session, the worktree Hoplet made for a handed-off session, the provider configuration each session belongs to, the IDs of deleted sessions, the session templates, `templates`, and the permission rules, `permission_rules`, the switches of the built-in ones, `permission_builtins`, and their revisions, `permission_revisions`, the lifecycle hooks, `hooks`, and their deliveries, `hook_deliveries`; the scoped API tokens, `api_tokens`, stored as SHA-256 hashes (ADR 0033), the audit log, `audit_events` (ADR 0030), and how far tool calls were derived from each session, `audit_cursor`), `sessions/<sessionId>/c-<seq>.ndjson[.gz]` (session lines), `snapshots/<sessionId>/<snapshotId>.tar.gz` (latest workspace snapshot per session), `notify-secrets.json` (mode 0600: the VAPID key pair for Web Push, the key that signs action links and the signing secrets of webhooks; the push subscriptions, the webhooks without their secrets and the preferences are in `hoplet.db`) |
 | Agent state root (`~/.hoplet/` by default) | `device-id`, `config.json`, `projects.json`, `permission-rules.json` (mode 0600: the last permission rules the core sent, rewritten atomically on each push and read at start; without it the agent uses the built-in rules), `runtime/` (running processes), `handoff/` (installation records and the journal of a clone in progress, `<handoffId>.clone.json`, which the agent uses on start-up to remove a half-made clone), `hook.sock` (the local Unix socket of the Codex rule hook, mode 0600 in a 0700 directory; no network port, absent on Windows, [ADR 0032](adr/0032-codex-rule-hook-calls-the-agent-over-a-local-socket.md)), `attachments/` (images uploaded for prompts: at most 64 files and 64 MiB, each kept at most an hour) |
 | Development machine | Claude Code's store, Codex's `sessions/` (read-only, except that handoff adds one rollout file) and working trees; worktrees created by handoff, next to the clone they belong to |
 
@@ -280,6 +280,9 @@ port, resource or dependency.
 Migration 0029 (script hooks) creates `script_hooks` and adds the column `run` to `hook_deliveries`; the next
 `device.hello` of each agent fills the table. It reads nothing and needs no action. No new port, resource or
 dependency.
+
+Migration 0030 (scoped API tokens) creates `api_tokens` and adds the column `actor_id` to `session_queue`; it reads nothing
+and needs no action. Tokens are issued later, with `POST /api/tokens`. No new port, resource or dependency.
 
 ## Uninstall
 

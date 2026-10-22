@@ -1,8 +1,15 @@
 import * as v from 'valibot';
 import { queryInt } from './common.ts';
 
-/** Who did it (ADR 0030). Code produces `operator`, `device` and `core` today; `session` and `schedule` wait for their features. */
-export const AUDIT_ACTOR_KINDS = ['operator', 'device', 'session', 'schedule', 'core'] as const;
+/** Who did it (ADR 0030). Code produces `operator`, `token`, `device` and `core` today; `session` and `schedule` wait for their features. */
+export const AUDIT_ACTOR_KINDS = [
+  'operator',
+  'token',
+  'device',
+  'session',
+  'schedule',
+  'core',
+] as const;
 export const AuditActorKindSchema = v.picklist(AUDIT_ACTOR_KINDS);
 export type AuditActorKind = v.InferOutput<typeof AuditActorKindSchema>;
 
@@ -28,6 +35,9 @@ export const AUDIT_EVENT_TYPES = [
   'config.changed',
   'verify.result',
   'device.token.issued',
+  'token.issued',
+  'token.revoked',
+  'token.denied',
   'terminal.opened',
   'terminal.closed',
   'audit.started',
@@ -83,7 +93,7 @@ const AuditFilterEntries = {
   actor: v.optional(
     v.pipe(
       v.string(),
-      v.regex(/^(operator|device|session|schedule|core)(:.{1,256})?$/),
+      v.regex(/^(operator|token|device|session|schedule|core)(:.{1,256})?$/),
       v.transform((raw) => {
         const colon = raw.indexOf(':');
         return colon < 0

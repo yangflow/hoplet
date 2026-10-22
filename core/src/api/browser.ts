@@ -16,6 +16,7 @@ import {
 import { type WebSocket, WebSocketServer } from 'ws';
 import type { Control, TerminalSink } from '../control/index.ts';
 import { log } from '../log/index.ts';
+import { type Principal, seesDevice, seesSession } from './principal.ts';
 import { classifyTool } from './projection/index.ts';
 import type { Tickets } from './tickets.ts';
 
@@ -60,9 +61,59 @@ function withToolKind(control: Control, msg: ServerMessage): ServerMessage {
   return { ...msg, toolKind: kind, ...(mcp ? { mcp } : {}) };
 }
 
-export function attachBrowserSocket(server: Server, control: Control, tickets: Tickets): void {
+/** The close code of a connection whose API token expired or was revoked. */
+export const TOKEN_ENDED_CLOSE_CODE = 4401;
+
+/** How often a connection of an API token is checked against the token, besides its expiry timer and a revoke. */
+const TOKEN_CHECK_MS = 30_000;
+
+/**
+ * Whether the principal receives the event. The host receives all of it. An API token receives only what concerns a
+ * session or machine its grant reaches; an event that names neither is not for it.
+ */
+export function visibleTo(principal: Principal, control: Control, msg: ServerMessage): boolean {
+  if (principal.kind !== 'token') return principal.kind === 'host';
+  switch (msg.type) {
+    case 'device.presence':
+      return seesDevice(principal, msg.deviceId);
+    case 'session.appended':
+    case 'session.deleted':
+    case 'session.updated':
+    case 'session.runtime':
+    case 'session.commands':
+    case 'session.queue':
+    case 'session.output':
+    case 'session.permission':
+    case 'session.rule':
+    case 'session.listening':
+    case 'handoff.progress':
+      return seesSession(principal, control, msg.sessionId);
+    case 'notify':
+      return msg.sessionId !== undefined && seesSession(principal, control, msg.sessionId);
+    default:
+      return false;
+  }
+}
+
+export interface BrowserSocketOptions {
+  /** Whether the API token is still valid (not revoked, not expired). */
+  tokenActive(tokenId: string): boolean;
+  /** The clock. */
+  now?: () => number;
+}
+
+export function attachBrowserSocket(
+  server: Server,
+  control: Control,
+  tickets: Tickets,
+  options: BrowserSocketOptions = { tokenActive: () => true },
+): void {
   const wss = new WebSocketServer({ noServer: true, maxPayload: 64 * 1024 });
+  const now = options.now ?? Date.now;
   const alive = new Map<WebSocket, boolean>();
+  /** Who each connection acts as, from its ticket. */
+  const principals = new Map<WebSocket, Principal>();
+  const expiryTimers = new Map<WebSocket, NodeJS.Timeout>();
   const subscriptions = new Map<WebSocket, Set<string>>();
   /** The terminals each socket is attached to, and the sink that delivers their output to it (ADR 0026). */
   const attachments = new Map<WebSocket, { ids: Set<string>; sink: TerminalSink }>();
@@ -76,7 +127,25 @@ export function attachBrowserSocket(server: Server, control: Control, tickets: T
     alive.delete(ws);
     subscriptions.delete(ws);
     attachments.delete(ws);
+    principals.delete(ws);
+    const timer = expiryTimers.get(ws);
+    if (timer) clearTimeout(timer);
+    expiryTimers.delete(ws);
   }
+
+  /** Closes a connection whose token ended. */
+  function endToken(ws: WebSocket): void {
+    drop(ws);
+    ws.close(TOKEN_ENDED_CLOSE_CODE, 'token ended');
+    // A peer that does not answer the close handshake is cut after a moment.
+    setTimeout(() => ws.terminate(), 2_000).unref();
+  }
+
+  tickets.onRevoke((tokenId) => {
+    for (const [ws, principal] of [...principals]) {
+      if (principal.kind === 'token' && principal.token.id === tokenId) endToken(ws);
+    }
+  });
 
   function attachmentsOf(ws: WebSocket): { ids: Set<string>; sink: TerminalSink } {
     let attached = attachments.get(ws);
@@ -180,7 +249,14 @@ export function attachBrowserSocket(server: Server, control: Control, tickets: T
       return;
     }
     const msg = parsed.output;
+    const principal = principals.get(ws);
+    if (!principal) return;
     if (msg.type !== 'subscribe' && msg.type !== 'unsubscribe') {
+      // The terminal is for the host (ADR 0033).
+      if (principal.kind !== 'host') {
+        replyError(ws, 'forbidden', 'the terminal is not available to this token');
+        return;
+      }
       handleTerminal(ws, msg);
       return;
     }
@@ -188,6 +264,11 @@ export function attachBrowserSocket(server: Server, control: Control, tickets: T
     subscriptions.set(ws, subscribed);
     if (msg.type === 'unsubscribe') {
       if (subscribed.delete(msg.sessionId)) control.viewing.remove(msg.sessionId);
+      return;
+    }
+    if (!seesSession(principal, control, msg.sessionId)) {
+      // Out of the token's reach is answered as a session that does not exist.
+      replyError(ws, 'session-not-found', 'session not found');
       return;
     }
     if (!subscribed.has(msg.sessionId) && subscribed.size >= MAX_SUBSCRIPTIONS) {
@@ -204,16 +285,31 @@ export function attachBrowserSocket(server: Server, control: Control, tickets: T
   server.on('upgrade', (req: IncomingMessage, socket, head) => {
     const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
     if (url.pathname !== '/ws') return;
-    if (!tickets.redeem(url.searchParams.get('ticket') ?? '')) {
+    const principal = tickets.redeem(url.searchParams.get('ticket') ?? '');
+    if (!principal) {
       socket.write('HTTP/1.1 401 Unauthorized\r\nconnection: close\r\n\r\n');
       socket.destroy();
       return;
     }
-    wss.handleUpgrade(req, socket, head, (ws) => wss.emit('connection', ws, req));
+    wss.handleUpgrade(req, socket, head, (ws) => {
+      principals.set(ws, principal);
+      wss.emit('connection', ws, req);
+    });
   });
 
   wss.on('connection', (ws: WebSocket) => {
     alive.set(ws, true);
+    const principal = principals.get(ws);
+    if (principal?.kind === 'token') {
+      // The connection ends with the token, whichever comes first: its expiry, a revoke (tickets.revoke) or a check.
+      const left = principal.token.expiresAt - now();
+      if (left <= 0) {
+        endToken(ws);
+        return;
+      }
+      // setTimeout cannot wait longer than 2^31 ms; the periodic check covers the rest.
+      if (left < 2 ** 31 - 1) expiryTimers.set(ws, setTimeout(() => endToken(ws), left).unref());
+    }
     log('info', 'api', 'browser connected', { browsers: alive.size });
     ws.on('pong', () => alive.set(ws, true));
     ws.on('message', (data, isBinary) => {
@@ -227,6 +323,13 @@ export function attachBrowserSocket(server: Server, control: Control, tickets: T
     const msg = withToolKind(control, event);
     const payload = JSON.stringify(msg);
     for (const ws of alive.keys()) {
+      const principal = principals.get(ws);
+      if (!principal) continue;
+      if (!visibleTo(principal, control, msg)) {
+        // The deletion of a session a connection watched reaches it even though the session is gone.
+        if (!(msg.type === 'session.deleted' && subscriptions.get(ws)?.has(msg.sessionId)))
+          continue;
+      }
       if (
         (msg.type === 'session.output' ||
           msg.type === 'session.listening' ||
@@ -243,6 +346,12 @@ export function attachBrowserSocket(server: Server, control: Control, tickets: T
       }
     }
   });
+
+  setInterval(() => {
+    for (const [ws, principal] of [...principals]) {
+      if (principal.kind === 'token' && !options.tokenActive(principal.token.id)) endToken(ws);
+    }
+  }, TOKEN_CHECK_MS).unref();
 
   setInterval(() => {
     for (const [ws, isAlive] of alive) {

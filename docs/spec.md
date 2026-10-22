@@ -37,8 +37,9 @@ working tree to another machine.
   ([ADR 0008](adr/0008-remote-control-runs-a-hoplet-managed-claude-code-process.md)).
 - **Handoff moves a workspace snapshot into the target's own clone**, online or offline
   ([ADR 0009](adr/0009-handoff-moves-a-workspace-snapshot-into-the-target-clone.md)).
-- **Two kinds of token.** The host token is the operator; each agent has its own device token
-  ([ADR 0005](adr/0005-per-device-tokens.md)).
+- **Three kinds of token.** The host token is the operator; each agent has its own device token
+  ([ADR 0005](adr/0005-per-device-tokens.md)); a scripted client gets a scoped API token with abilities, an
+  allow-list of machines and projects and an expiry ([ADR 0033](adr/0033-a-command-line-tool-an-sdk-and-scoped-tokens.md)).
 - **The web UI is for desktop browsers.** Phones and tablets are left to a native client later, which will
   use the same API ([ADR 0011](adr/0011-the-web-ui-is-a-desktop-react-application.md)).
 - **Self-hosted, no outside service.** One container image on the user's host; the core and the agent call
@@ -431,6 +432,17 @@ was done to and by sessions, kept apart from the session content.
 - **Not recorded**: sessions that ran before the feature started (`audit.started` marks the start), what happens
   in a terminal outside Hoplet other than the tool calls its session file holds, and reads.
 
+### Scoped API tokens
+
+The host issues a token for a script or another program (`POST /api/tokens`, [API tokens](api.md#api-tokens)).
+It has a name, one of three presets (Read only, May send, May create) with a separate switch for answering
+permission requests, an allow-list of machines and projects, and an expiry of 90 days by default and 365 at most.
+Its secret is shown once. The token sees and changes only what its allow-list reaches, cannot reach the host's
+routes (tokens, devices, settings, the audit log, terminals, handoff, deletion), cannot change a session's
+permission mode or start a session with a high-risk option such as bypass permissions, and is limited to 300
+requests a minute. The host revokes it at once, and its browser WebSocket connections close. Every action it takes
+is in the audit log under its own ID.
+
 ### Host CLI
 
 `hoplet` (from a repository checkout, `pnpm hoplet`) uses the REST API with the host token: `hoplet sessions`,
@@ -470,6 +482,11 @@ Server, under the data directory (docs/hosting.md#data):
     the tokens of each assistant message (see Usage above), written in the transaction that appends its lines.
     `usage_prices(model, input, output, cache_write, cache_read)`: the host's price overrides. `sessions` carries
     `usage_backfilled` and `usage_model` (the model of a Codex session's latest turn).
+  - `api_tokens(id, kind, name, token_hash, grant, created_at, expires_at, revoked_at, last_used_at)`: the scoped
+    API tokens (ADR 0033). `token_hash` is the SHA-256 of the secret, which is shown once when the token is issued
+    and never stored; `grant` is the JSON of the abilities and the allow-list; `kind` is `scoped`, or `session` for
+    the tokens of running sessions (#67), which share the table. `session_queue.actor_id` is the token that queued a
+    message, empty for the host.
   - `audit_events(seq, at, recorded_at, type, session_id, device_id, actor_kind, actor_id, channel, ref, summary,
     prev_hash, hash)`: append-only and hash-chained (ADR 0030), kept when a session is deleted.
     `audit_cursor(session_id, line)`: how many lines of a session tool calls were derived from.

@@ -9,6 +9,7 @@ import { BudgetRefSchema } from './rest/budgets.ts';
  */
 export const HTTP_ERROR_STATUS = {
   unauthorized: 401,
+  forbidden: 403,
   'not-found': 404,
   'method-not-allowed': 405,
   'session-not-found': 404,

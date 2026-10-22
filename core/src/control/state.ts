@@ -71,7 +71,10 @@ export interface ControlState {
    * Sessions an agent started that the store does not know yet: runtime messages of that device are accepted,
    * and the provider they were started with is their vendor.
    */
-  startedSessions: Map<string, { deviceId: string; provider: Provider; at: number }>;
+  startedSessions: Map<
+    string,
+    { deviceId: string; provider: Provider; projectPath: string; at: number }
+  >;
   /** What each connected agent announced besides its providers: the terminal and the host for dev server links. */
   deviceInfo: Map<string, { terminal: boolean; previewHost?: string }>;
   /** The ports each watched session last reported, in memory only (ADR 0026). */

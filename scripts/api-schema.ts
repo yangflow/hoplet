@@ -142,7 +142,12 @@ export function describeRoutes(): RouteEntry[] {
     return {
       method: route.method,
       path: route.path,
-      auth: route.auth,
+      auth:
+        route.access === 'link'
+          ? 'token'
+          : route.access === 'host'
+            ? 'host'
+            : route.access.capability,
       lane: route.lane,
       status: route.status,
       query: nameOf('query'),

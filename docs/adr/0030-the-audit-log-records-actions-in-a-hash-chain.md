@@ -77,7 +77,8 @@ a session it owns (an auto decision of #98, a result of #79), which the core val
 agent` and the agent's device ID, and writes.
 
 **Actors.** `operator` (the host token; `actor_id` empty, `channel` `rest`, or `link` for an action link, whose
-record also carries the link's request ID); `device` (an agent acting on its own, such as an auto decision, with its
+record also carries the link's request ID); `token` (a scoped API token, ADR 0033; `actor_id` is the token's ID,
+`channel` `rest`, so the log names which token acted, though still not who holds it); `device` (an agent acting on its own, such as an auto decision, with its
 device ID); `session` (a session acting through Hoplet's own tools, #67 and #81, with its session ID); `schedule`
 (a schedule, with its ID); `core` (Hoplet itself, with a reason: `retention`, `startup`, `permission-timeout`,
 `budget`). `session` and `schedule` are in the schema from the start and no code produces them until their features
@@ -101,6 +102,8 @@ of ADR 0005, stated in the log rather than hidden by it; roles would change it (
 | `config.changed` | a setting of the core changes: budgets, notification preferences and webhooks, price overrides, device labels and watched projects, provider defaults, permission rules (#98) | the area, the object ID, the names of the fields changed and, for a field that is not a secret, its previous and new value; a secret's value is never recorded, only that it changed |
 | `verify.result` | an automatic verification finishes (#79) | the check's name, outcome, duration |
 | `device.token.issued` | `mintDevice` | device ID, name, whether it replaced a token (`replaced`: the old token stopped working) |
+| `token.issued`, `token.revoked` | the host issues or revokes a scoped API token (ADR 0033) | token ID, name, the grant (abilities and allow-list) and the expiry; never the secret |
+| `token.denied` | a known token asks for something its grant does not cover | token ID, method and route, reason `forbidden`; at most one record a minute per token and route. A token that is unknown, expired or revoked is not recorded |
 | `terminal.opened`, `terminal.closed` | a shell is opened or closed (ADR 0026) | terminal ID, reason, duration, byte counts; never input or output |
 | `audit.started`, `audit.checkpoint`, `audit.exported` | the first start with this feature; retention; an export | for a checkpoint see Retention; for an export the format, the filters and the number of records |
 

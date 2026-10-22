@@ -1,7 +1,7 @@
 /**
- * The route table engine. A route declares its method, path, authentication, body limit, request and
+ * The route table engine. A route declares its method, path, access, body limit, request and
  * response schemas and handler (api/routes.ts); this file supplies everything around the handler:
- * matching, authentication, body-size limits, schema validation, error mapping and 405.
+ * matching, authentication, the scope of an API token, body-size limits, schema validation, error mapping and 405.
  */
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { type GenericSchema, type InferOutput, safeParse } from '@hoplet/shared';
@@ -11,6 +11,7 @@ import { log } from '../log/index.ts';
 import type { Notify } from '../notify/index.ts';
 import { AuditUnavailableError, type Store } from '../store/index.ts';
 import { ApiError, fail, json, RawResponse, readBody } from './http.ts';
+import { type Access, can, type Principal, seesDevice, seesSession } from './principal.ts';
 import { createRateLimiter } from './ratelimit.ts';
 import type { Tickets } from './tickets.ts';
 
@@ -23,12 +24,16 @@ export interface ApiDeps {
   tickets: Tickets;
   notify: Notify;
   hooks: Hooks;
+  /** The clock, in epoch milliseconds. */
+  now: () => number;
 }
 
 type Parsed<S> = S extends GenericSchema ? InferOutput<S> : undefined;
 
 /** What a handler receives: the path parameters and the request already parsed by its schemas. */
 export interface Call<Q, B> extends ApiDeps {
+  /** Who asks: the host, an API token, or (on a `link` route) nobody the router knows. */
+  principal: Principal;
   params: Record<string, string>;
   query: Q;
   body: B;
@@ -42,10 +47,11 @@ export interface RouteSpec<
   /** `/api/...` with `:name` segments for path parameters. */
   path: string;
   /**
-   * `host`: the host token is required. `token`: the request carries its own credential, a signed action token
-   * in the body (ADR 0021); the route is rate limited and must check the token itself.
+   * Who may call it; `host` when absent. `host`: the host token only. `{ capability }`: the host token, or an API
+   * token whose grant has that ability (ADR 0033). `link`: the request carries its own credential, a signed
+   * action token in the body (ADR 0021); the route is rate limited and must check the token itself.
    */
-  auth: 'host' | 'token';
+  access?: Access;
   /**
    * `control` runs the handler on arrival. `bulk` runs it through the bulk queue (control/bulk.ts), so
    * it never delays a control request and a flood of it is refused with `busy`.
@@ -67,7 +73,7 @@ export interface RouteSpec<
 export interface Route {
   method: Method;
   path: string;
-  auth: 'host' | 'token';
+  access: Access;
   lane: 'control' | 'bulk';
   bodyLimit: number;
   query: GenericSchema | undefined;
@@ -93,7 +99,7 @@ export function defineRoute<
   return {
     method: spec.method,
     path: spec.path,
-    auth: spec.auth,
+    access: spec.access ?? 'host',
     lane: spec.lane,
     bodyLimit: spec.bodyLimit ?? 0,
     query: spec.query,
@@ -106,17 +112,23 @@ export function defineRoute<
   };
 }
 
-export interface RouterOptions extends ApiDeps {
+export interface RouterOptions extends Omit<ApiDeps, 'now'> {
   routes: readonly Route[];
-  /** Whether the request carries the host token. */
-  hostAuthorized(req: IncomingMessage): boolean;
-  /** The clock of the rate limit of `token` routes. */
+  /** Who the request's bearer credential is: the host, an API token, or null for none or an unknown one. */
+  authenticate(req: IncomingMessage): Principal | null;
+  /** The clock of the rate limits. */
   now?: () => number;
 }
 
-/** Requests per minute a `token` route answers: one address, and all addresses together. */
-const TOKEN_ROUTE_PER_ADDRESS = 30;
-const TOKEN_ROUTE_TOTAL = 300;
+/** Requests per minute a `link` route answers: one address, and all addresses together. */
+const LINK_ROUTE_PER_ADDRESS = 30;
+const LINK_ROUTE_TOTAL = 300;
+
+/** Requests per minute one API token may make. */
+export const TOKEN_REQUESTS_PER_MINUTE = 300;
+
+/** A token's refusals on one route are recorded at most this often. */
+const DENIED_AUDIT_INTERVAL_MS = 60_000;
 
 export interface Router {
   /** Answers a request under `/api/`. */
@@ -124,16 +136,73 @@ export interface Router {
 }
 
 export function createRouter(options: RouterOptions): Router {
-  const { routes, hostAuthorized } = options;
+  const { routes, authenticate } = options;
+  const now = options.now ?? Date.now;
   const deps: ApiDeps = {
     store: options.store,
     control: options.control,
     tickets: options.tickets,
     notify: options.notify,
     hooks: options.hooks,
+    now,
   };
-  const perAddress = createRateLimiter(TOKEN_ROUTE_PER_ADDRESS, 60_000, options.now);
-  const total = createRateLimiter(TOKEN_ROUTE_TOTAL, 60_000, options.now);
+  const perAddress = createRateLimiter(LINK_ROUTE_PER_ADDRESS, 60_000, options.now);
+  const total = createRateLimiter(LINK_ROUTE_TOTAL, 60_000, options.now);
+  const perToken = createRateLimiter(TOKEN_REQUESTS_PER_MINUTE, 60_000, options.now);
+  const deniedAt = new Map<string, number>();
+
+  /** Records a token's refusal in the audit log, at most once a minute per token and route. */
+  function audited(principal: Principal, route: Route): void {
+    if (principal.kind !== 'token') return;
+    const at = now();
+    if (deniedAt.size > 10_000) {
+      for (const [key, last] of deniedAt) {
+        if (at - last >= DENIED_AUDIT_INTERVAL_MS) deniedAt.delete(key);
+      }
+    }
+    const key = `${principal.token.id}\n${route.method} ${route.path}`;
+    const last = deniedAt.get(key);
+    if (last !== undefined && at - last < DENIED_AUDIT_INTERVAL_MS) return;
+    deniedAt.set(key, at);
+    try {
+      deps.store.audit(
+        {
+          type: 'token.denied',
+          actor: { kind: 'token', id: principal.token.id },
+          summary: {
+            id: principal.token.id,
+            method: route.method,
+            path: route.path,
+            reason: 'forbidden',
+          },
+        },
+        at,
+      );
+    } catch (err) {
+      // The refusal stands whether or not it could be recorded.
+      log('error', 'api', 'token.denied could not be recorded', { error: String(err) });
+    }
+  }
+
+  /**
+   * What an API token's grant refuses before the handler runs: a route its abilities do not cover, a machine it does
+   * not list (`forbidden`), a session outside its machines and projects (`session-not-found`, as if it did not exist).
+   */
+  function scopeRefusal(
+    principal: Principal,
+    route: Route,
+    params: Record<string, string>,
+  ): 'forbidden' | 'session-not-found' | null {
+    const { access } = route;
+    if (access === 'link') return null;
+    if (access === 'host' || !can(principal, access.capability)) return 'forbidden';
+    const { sessionId, deviceId } = params;
+    if (sessionId !== undefined && !seesSession(principal, deps.control, sessionId)) {
+      return 'session-not-found';
+    }
+    if (deviceId !== undefined && !seesDevice(principal, deviceId)) return 'forbidden';
+    return null;
+  }
 
   return {
     async handle(req, res, url) {
@@ -142,13 +211,15 @@ export function createRouter(options: RouterOptions): Router {
       const method = req.method ?? 'GET';
       const onPath = routes.filter((r) => r.pattern.test(pathname));
       const route = onPath.find((r) => r.method === method);
-      // Every /api path needs the host token, known or not, so the answer never maps the routes; a `token`
+      // Every /api path needs a credential, known or not, so the answer never maps the routes; a `link`
       // route is the exception and answers to its own credential.
-      if (route?.auth !== 'token' && !hostAuthorized(req)) {
+      const link = route?.access === 'link';
+      const caller = link ? null : authenticate(req);
+      if (!link && !caller) {
         fail(res, 'unauthorized');
         return;
       }
-      if (route?.auth === 'token') {
+      if (link) {
         const address = req.socket.remoteAddress ?? 'unknown';
         if (!perAddress.allow(address) || !total.allow('all')) {
           res.setHeader('retry-after', '60');
@@ -156,6 +227,12 @@ export function createRouter(options: RouterOptions): Router {
           return;
         }
       }
+      if (caller?.kind === 'token' && !perToken.allow(caller.token.id)) {
+        res.setHeader('retry-after', '60');
+        fail(res, 'rate-limited');
+        return;
+      }
+      const principal: Principal = caller ?? { kind: 'link' };
       if (!route) {
         if (onPath.length === 0) {
           fail(res, 'not-found');
@@ -171,11 +248,19 @@ export function createRouter(options: RouterOptions): Router {
         route.paramNames.forEach((name, i) => {
           params[name] = match?.[i + 1] ?? '';
         });
+        if (principal.kind === 'token') {
+          const refused = scopeRefusal(principal, route, params);
+          if (refused) {
+            if (refused === 'forbidden') audited(principal, route);
+            fail(res, refused);
+            return;
+          }
+        }
         const query = route.query ? parseQuery(route.query, url) : undefined;
         const body = route.body
           ? await parseBody(route.body, req, res, route.bodyLimit)
           : undefined;
-        const call = { ...deps, params, query, body };
+        const call = { ...deps, principal, params, query, body };
         const run = async (): Promise<unknown> => {
           const result = await route.handler(call);
           if (result instanceof RawResponse) await result.send(res);
@@ -189,6 +274,7 @@ export function createRouter(options: RouterOptions): Router {
           return;
         }
         if (err instanceof ApiError) {
+          if (err.code === 'forbidden') audited(principal, route);
           fail(res, err.code, err.extra, err.status);
           return;
         }

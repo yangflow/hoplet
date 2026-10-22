@@ -130,6 +130,23 @@ describe('audit summaries', () => {
     expect(actorLabel(event(1284), names)).toBe('Operator');
     expect(actorLabel(event(1280), names)).toBe('Core');
   });
+
+  it('names what an API token did and was refused', () => {
+    const denied = {
+      ...event(1284),
+      type: 'token.denied',
+      actorKind: 'token' as const,
+      actorId: '9f3ac41e',
+      summary: { id: '9f3ac41e', method: 'POST', path: '/api/sessions', reason: 'forbidden' },
+    };
+    expect(actorLabel(denied, names)).toBe('API token · 9f3ac41e');
+    expect(summaryParts(denied, names)).toEqual({
+      lead: 'API token refused',
+      mono: 'POST /api/sessions',
+    });
+    const issued = { ...denied, type: 'token.issued', summary: { id: '9f3ac41e', name: 'ci' } };
+    expect(summaryParts(issued, names)).toEqual({ lead: 'API token issued', mono: 'ci' });
+  });
 });
 
 describe('audit detail', () => {

@@ -66,7 +66,7 @@ export function queueOf(ctx: StoreContext, sessionId: string): Queue {
 export function queueAdd(
   ctx: StoreContext,
   sessionId: string,
-  input: { id: string; text: string; attachments: string[] },
+  input: { id: string; text: string; attachments: string[]; actorId?: string },
 ): QueueOutcome {
   const existing = ctx.db
     .prepare(
@@ -82,11 +82,28 @@ export function queueAdd(
   const position = (last.p ?? 0) + 1;
   ctx.db
     .prepare(
-      `INSERT INTO session_queue(id, session_id, position, text, attachments, version, state, created_at)
-       VALUES(?, ?, ?, ?, ?, 1, 'queued', ?)`,
+      `INSERT INTO session_queue(id, session_id, position, text, attachments, version, state, created_at, actor_id)
+       VALUES(?, ?, ?, ?, ?, 1, 'queued', ?, ?)`,
     )
-    .run(input.id, sessionId, position, input.text, JSON.stringify(input.attachments), Date.now());
-  return { ok: true, item: { ...input, version: 1, state: 'queued' } };
+    .run(
+      input.id,
+      sessionId,
+      position,
+      input.text,
+      JSON.stringify(input.attachments),
+      Date.now(),
+      input.actorId ?? '',
+    );
+  return {
+    ok: true,
+    item: {
+      id: input.id,
+      text: input.text,
+      attachments: input.attachments,
+      version: 1,
+      state: 'queued',
+    },
+  };
 }
 
 function queued(ctx: StoreContext, sessionId: string, id: string, version: number): Row | null {
@@ -104,14 +121,15 @@ export function queueEdit(
   sessionId: string,
   id: string,
   version: number,
-  input: { text: string; attachments: string[] },
+  input: { text: string; attachments: string[]; actorId?: string },
 ): QueueOutcome {
   if (!queued(ctx, sessionId, id, version)) return CONFLICT;
+  // Whoever wrote the text last is the author of the prompt it becomes.
   ctx.db
     .prepare(
-      'UPDATE session_queue SET text = ?, attachments = ?, version = version + 1 WHERE id = ? AND session_id = ?',
+      'UPDATE session_queue SET text = ?, attachments = ?, actor_id = ?, version = version + 1 WHERE id = ? AND session_id = ?',
     )
-    .run(input.text, JSON.stringify(input.attachments), id, sessionId);
+    .run(input.text, JSON.stringify(input.attachments), input.actorId ?? '', id, sessionId);
   return { ok: true, item: item(queued(ctx, sessionId, id, version + 1) as Row) };
 }
 
@@ -154,6 +172,14 @@ export function queueNext(ctx: StoreContext, sessionId: string): QueueItem | nul
   const head = all[0];
   if (!head || all.some((r) => r.state === 'sending')) return null;
   return item(head);
+}
+
+/** The token that queued the message, or '' for the host. */
+export function queueAuthor(ctx: StoreContext, sessionId: string, id: string): string {
+  const row = ctx.db
+    .prepare('SELECT actor_id FROM session_queue WHERE id = ? AND session_id = ?')
+    .get(id, sessionId) as { actor_id: string } | undefined;
+  return row?.actor_id ?? '';
 }
 
 /** Marks a waiting message at `version` as sending; nothing else of the session may be sending. */

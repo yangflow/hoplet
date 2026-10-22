@@ -57,12 +57,15 @@ export async function searchAll(
   query: string,
   start: number,
   limit: number,
+  visible: (sessionId: string) => boolean = () => true,
 ): Promise<RawGlobalSearchResult> {
-  const sessions = ctx.db
+  const rows = ctx.db
     .prepare(`SELECT * FROM sessions s
        WHERE NOT EXISTS (SELECT 1 FROM session_tombstones t WHERE t.session_id = s.session_id)
        ORDER BY updated_at DESC LIMIT 200`)
     .all() as unknown as SessionRow[];
+  // A session the caller does not reach is neither scanned nor counted: it must not shift a page.
+  const sessions = rows.filter((row) => visible(row.session_id));
   const needle = query.toLowerCase();
   const results: RawGlobalSearchResult['results'] = [];
   let skipped = 0;

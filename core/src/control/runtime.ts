@@ -245,7 +245,7 @@ export function createRuntime(state: ControlState): Runtime {
   }
 
   return {
-    prompt(sessionId, ownerDeviceId, text, promptId, attachments = []) {
+    prompt(sessionId, ownerDeviceId, text, promptId, attachments = [], actor) {
       const now = state.now();
       sweepPrompts(now);
       const key = permissionKey(sessionId, promptId);
@@ -277,6 +277,7 @@ export function createRuntime(state: ControlState): Runtime {
       // The audit trail: who was asked to run what, never the text itself (docs/threat-model.md).
       store.audit({
         type: 'prompt.sent',
+        ...(actor ? { actor } : {}),
         sessionId,
         deviceId: ownerDeviceId,
         ref: promptId,
@@ -333,13 +334,14 @@ export function createRuntime(state: ControlState): Runtime {
       // The record comes first: an answer the audit log cannot hold is not sent (ADR 0030).
       store.audit({
         type: 'permission.answered',
+        ...(answer.actor ? { actor: answer.actor } : {}),
         sessionId,
         deviceId: ownerDeviceId,
         ref: requestId,
         channel: answer.by === 'link' ? 'link' : 'rest',
         summary: {
           decision,
-          answeredBy: answer.by ?? 'operator',
+          answeredBy: answer.actor ? 'token' : (answer.by ?? 'operator'),
           tool: open.tool,
           ...(mode !== undefined ? { mode } : {}),
         },
@@ -362,14 +364,19 @@ export function createRuntime(state: ControlState): Runtime {
       return { ok: true };
     },
 
-    interrupt(sessionId, ownerDeviceId): RuntimeCommandOutcome {
+    interrupt(sessionId, ownerDeviceId, actor): RuntimeCommandOutcome {
       const link = onlineLink(state, ownerDeviceId);
       if (!link) return { ok: false, error: 'owner-offline' };
       const current = view(sessionId).state;
       if (current !== 'running' && current !== 'waiting-permission') {
         return { ok: false, error: 'not-running' };
       }
-      store.audit({ type: 'session.interrupted', sessionId, deviceId: ownerDeviceId });
+      store.audit({
+        type: 'session.interrupted',
+        ...(actor ? { actor } : {}),
+        sessionId,
+        deviceId: ownerDeviceId,
+      });
       log('info', 'control', 'interrupt forwarded', { sessionId });
       const msg: RuntimeInterrupt = { v: PROTOCOL_VERSION, type: 'runtime.interrupt', sessionId };
       link.send(msg);

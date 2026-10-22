@@ -37,6 +37,7 @@ const RULES: readonly Rule[] = [
   // well-known key shapes
   { pattern: /\b(?:sk|pk|rk)-[A-Za-z0-9_-]{16,}/g, to: (m) => m },
   { pattern: /\b(?:ghp|gho|ghu|ghs|ghr|github_pat)_[A-Za-z0-9_]{16,}/g, to: (m) => m },
+  { pattern: /\bhpt_[A-Za-z0-9_-]{16,}/g, to: (m) => m },
   { pattern: /\bxox[abprs]-[A-Za-z0-9-]{10,}/g, to: (m) => m },
   { pattern: /\bAKIA[0-9A-Z]{16}\b/g, to: (m) => m },
   { pattern: /\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]*/g, to: (m) => m },
