@@ -32,11 +32,13 @@ machine whose Claude Code sessions are synced or controlled.
   agent runs `git clone` and `git ls-remote` against the `origin` over `https` or `ssh` and nothing else. It
   needs a credential helper or an ssh key that works without a prompt; a repository that asks for a password
   fails as `no-access`.
-- Planned (ADR 0031): webhook hooks add outbound requests to the hook URLs the user configured, over `https`
+- Webhook hooks (ADR 0031) add outbound requests to the hook URLs the user configured, over `https`
   only. The core resolves the host and refuses loopback, private, shared, link-local (cloud metadata included) and
-  other non-public addresses before it connects, follows no redirect and keeps no response body. Setting
+  other non-public addresses before it connects (when a hook is saved and again at every attempt), connects to the
+  address it checked, follows no redirect and keeps no response body. Setting
   `HOPLET_HOOK_ALLOW_PRIVATE` lets a hook name a loopback or private address, over `http` too; link-local
-  addresses are never allowed. Script hooks open no connection: the agent runs a local executable.
+  addresses are never allowed. At most 4 hook requests are in flight at a time. Script hooks (planned) open no
+  connection: the agent runs a local executable.
 
 ### Public URL
 
@@ -86,7 +88,7 @@ place of the proxy. Never publish port 7788 on `0.0.0.0`.
 
 | Where | What |
 |---|---|
-| Docker volume `hoplet-data` (`/data` in the container) | `hoplet.db` (SQLite index, which also holds what the user did to a session in the web UI: a title of their own, a pin, an archive, the last slash commands and skills a session reported per machine and directory, the messages queued for a session, the worktree Hoplet made for a handed-off session, the provider configuration each session belongs to, the IDs of deleted sessions, the session templates, `templates`, and the permission rules, `permission_rules`, the switches of the built-in ones, `permission_builtins`, and their revisions, `permission_revisions`; the audit log, `audit_events` (ADR 0030), and how far tool calls were derived from each session, `audit_cursor`), `sessions/<sessionId>/c-<seq>.ndjson[.gz]` (session lines), `snapshots/<sessionId>/<snapshotId>.tar.gz` (latest workspace snapshot per session), `notify-secrets.json` (mode 0600: the VAPID key pair for Web Push, the key that signs action links and the signing secrets of webhooks; the push subscriptions, the webhooks without their secrets and the preferences are in `hoplet.db`) |
+| Docker volume `hoplet-data` (`/data` in the container) | `hoplet.db` (SQLite index, which also holds what the user did to a session in the web UI: a title of their own, a pin, an archive, the last slash commands and skills a session reported per machine and directory, the messages queued for a session, the worktree Hoplet made for a handed-off session, the provider configuration each session belongs to, the IDs of deleted sessions, the session templates, `templates`, and the permission rules, `permission_rules`, the switches of the built-in ones, `permission_builtins`, and their revisions, `permission_revisions`, the lifecycle hooks, `hooks`, and their deliveries, `hook_deliveries`; the audit log, `audit_events` (ADR 0030), and how far tool calls were derived from each session, `audit_cursor`), `sessions/<sessionId>/c-<seq>.ndjson[.gz]` (session lines), `snapshots/<sessionId>/<snapshotId>.tar.gz` (latest workspace snapshot per session), `notify-secrets.json` (mode 0600: the VAPID key pair for Web Push, the key that signs action links and the signing secrets of webhooks; the push subscriptions, the webhooks without their secrets and the preferences are in `hoplet.db`) |
 | Agent state root (`~/.hoplet/` by default) | `device-id`, `config.json`, `projects.json`, `permission-rules.json` (mode 0600: the last permission rules the core sent, rewritten atomically on each push and read at start; without it the agent uses the built-in rules), `runtime/` (running processes), `handoff/` (installation records and the journal of a clone in progress, `<handoffId>.clone.json`, which the agent uses on start-up to remove a half-made clone), `hook.sock` (the local Unix socket of the Codex rule hook, mode 0600 in a 0700 directory; no network port, absent on Windows, [ADR 0032](adr/0032-codex-rule-hook-calls-the-agent-over-a-local-socket.md)), `attachments/` (images uploaded for prompts: at most 64 files and 64 MiB, each kept at most an hour) |
 | Development machine | Claude Code's store, Codex's `sessions/` (read-only, except that handoff adds one rollout file) and working trees; worktrees created by handoff, next to the clone they belong to |
 
@@ -103,11 +105,12 @@ If the log cannot be written (a full disk, a read-only database), actions that m
 `audit-unavailable` and are not carried out. A restored backup is a chain that ends where the backup ended; copy `hoplet audit head`
 somewhere off the host if you want to notice that records were removed.
 
-Planned (ADR 0031): lifecycle hooks are kept in `hoplet.db` (the hooks, and one row per delivery with its body,
-state and last status, kept 14 days after the delivery settles, at most 500 per hook, and up to 1000 waiting
-deliveries per hook) and their signing secrets are in `notify-secrets.json`, next to the webhook secrets. A hook
-secret is rotated from the web UI, which keeps the old one valid for 24 hours; deleting the file voids every hook
-secret, and each hook then shows `needs-secret` and sends nothing until it is rotated.
+Lifecycle hooks (ADR 0031) are kept in `hoplet.db` (`hooks`, and `hook_deliveries` with one row per delivery: its
+body, state and last status, kept 14 days after the delivery settles, at most 500 per hook, and up to 1000 waiting
+deliveries per hook) and their signing secrets are in `notify-secrets.json` under `hooks`, next to the webhook
+secrets. A hook secret is rotated through `POST /api/hooks/:id/rotate-secret`, which keeps the old one valid for 24
+hours; deleting the file voids every hook secret, and each hook then shows `needs-secret` and sends nothing until it
+is rotated.
 
 Back up the stopped data directory, including SQLite WAL and SHM files. Restore by putting it back and
 starting the container. Run one core per data directory, on a local filesystem with fsync and atomic rename.
@@ -124,7 +127,7 @@ starting the container. Run one core per data directory, on a local filesystem w
 | `HOPLET_WEB_DIR` | `/app/web/dist` in the image | built web UI |
 | `HOPLET_AUDIT_RETENTION_DAYS` | `180` | days the audit log keeps records (ADR 0030); `0` keeps all. An environment variable only, so the host token cannot shorten it |
 | `HOPLET_PUBLIC_URL` | none | the address of the core behind the proxy; the base of action links ([Public URL](#public-url)) |
-| `HOPLET_HOOK_ALLOW_PRIVATE` | unset (planned, ADR 0031) | when set to `1`, webhook hooks may name loopback and private addresses, over `http` too; link-local and metadata addresses stay refused |
+| `HOPLET_HOOK_ALLOW_PRIVATE` | unset | when set to `1`, webhook hooks may name loopback and private addresses, over `http` too; link-local and metadata addresses stay refused |
 
 ### Agent (`~/.hoplet/config.json`, or the file passed with `--config`)
 
@@ -260,6 +263,9 @@ Migration 0025 (permission rules) adds the small tables `permission_rules`, `per
 
 Migration 0026 (agent deny rules) adds the column `permission_deny` to `devices`, filled by the next `device.hello` of each
 agent; it reads nothing and needs no action. No new port, resource or dependency.
+
+Migration 0028 (lifecycle hooks) creates `hooks` and `hook_deliveries`; it reads nothing and needs no action. No new
+port, resource or dependency.
 
 ## Uninstall
 

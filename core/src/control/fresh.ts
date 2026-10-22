@@ -89,6 +89,7 @@ export function createFresh(
           config: { [planExit.option]: mode },
           text: promptOf(planExit.plan, planExit.planFile),
           promptId,
+          origin: 'plan',
         });
         if (!started.ok) {
           return {

@@ -4,6 +4,7 @@ export * from './budgets.ts';
 export * from './common.ts';
 export * from './deletion.ts';
 export * from './devices.ts';
+export * from './hooks.ts';
 export * from './notify.ts';
 export * from './permission-rules.ts';
 export * from './queue.ts';

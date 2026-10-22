@@ -14,6 +14,13 @@ import {
 import { log } from '../log/index.ts';
 import { toolInputSummary } from '../store/index.ts';
 import { askWaiter, settleWaiter } from './pending.ts';
+import {
+  armExpiry,
+  closeDevicePermissions,
+  closePermission,
+  closeSessionPermissions,
+  permissionKey,
+} from './permissions.ts';
 import { type ControlState, onlineLink } from './state.ts';
 import type {
   Control,
@@ -42,8 +49,6 @@ export interface OpenPermission {
   input: unknown;
   planExit?: PlanExit;
   at: number;
-  /** Closes the request when nobody answers; a plan exit has none. */
-  timer?: ReturnType<typeof setTimeout>;
 }
 
 /** A repeated `promptId` returns the first result for this long. */
@@ -87,10 +92,6 @@ export type Runtime = Pick<
   detached(deviceIds: string[], link: DeviceLink): void;
 };
 
-function permissionKey(sessionId: string, requestId: string): string {
-  return `${sessionId}\n${requestId}`;
-}
-
 function deviceOf(state: ControlState, link: DeviceLink): string | null {
   for (const [deviceId, attached] of state.byDevice) if (attached === link) return deviceId;
   return null;
@@ -103,6 +104,14 @@ const TURN_OVER: ReadonlySet<AgentRuntimeState> = new Set([
   'ready',
   'failed',
   'external',
+]);
+
+/** States of a session whose process is up under Hoplet's control: leaving them for `idle` ends the session. */
+const LIVE: ReadonlySet<AgentRuntimeState> = new Set([
+  'starting',
+  'ready',
+  'running',
+  'waiting-permission',
 ]);
 
 /**
@@ -157,47 +166,8 @@ export function createRuntime(state: ControlState): Runtime {
     return open.planExit === undefined && state.now() - open.at > PERMISSION_OPEN_MS;
   }
 
-  /** Removes a request nobody answers any more and stops its timer. */
-  function forget(key: string): void {
-    const open = permissions.get(key);
-    if (open?.timer) clearTimeout(open.timer);
-    permissions.delete(key);
-  }
-
-  /**
-   * A request closed without an answer from a person: the agent denied it, so the record says so. It is
-   * best effort, like the record of a rule decision: the request is over either way.
-   */
-  function closeOpen(key: string, answeredBy: 'timeout' | 'session-end'): void {
-    const open = permissions.get(key);
-    if (!open) return;
-    forget(key);
-    const sessionId = key.slice(0, key.indexOf('\n'));
-    try {
-      store.audit({
-        type: 'permission.answered',
-        sessionId,
-        deviceId: open.deviceId,
-        actor: {
-          kind: 'core',
-          id: answeredBy === 'timeout' ? 'permission-timeout' : 'session-end',
-        },
-        channel: 'core',
-        ref: open.requestId,
-        summary: { decision: 'deny', answeredBy, tool: open.tool },
-      });
-    } catch (err) {
-      log('error', 'control', 'permission closure not recorded', {
-        sessionId,
-        error: err instanceof Error ? err.message : 'unknown',
-      });
-    }
-  }
-
   function dropPermissions(sessionId: string): void {
-    for (const key of [...permissions.keys()]) {
-      if (key.startsWith(`${sessionId}\n`)) closeOpen(key, 'session-end');
-    }
+    closeSessionPermissions(state, sessionId, 'abandoned');
   }
 
   function sweepPrompts(now: number): void {
@@ -229,6 +199,43 @@ export function createRuntime(state: ControlState): Runtime {
         ? { ok: false, error: reason, promptId }
         : { ok: false, error: 'rejected', promptId, reason },
     );
+  }
+
+  /** The lifecycle moments a state report makes (ADR 0031): a turn done, a process ended, a process that failed. */
+  function trackLifecycle(
+    sessionId: string,
+    before: AgentRuntimeState | undefined,
+    now: AgentRuntimeState,
+    error: string | undefined,
+  ): void {
+    const inTurn = before === 'running' || before === 'waiting-permission';
+    const turns = state.turns.get(sessionId) ?? { count: 0 };
+    if (now === 'running' && !inTurn) {
+      turns.startedAt = state.now();
+      state.turns.set(sessionId, turns);
+    }
+    if (now === 'ready' && inTurn) {
+      turns.count += 1;
+      const durationMs =
+        turns.startedAt === undefined ? 0 : Math.max(0, state.now() - turns.startedAt);
+      delete turns.startedAt;
+      state.turns.set(sessionId, turns);
+      state.emit({ kind: 'turn-done', sessionId, turn: turns.count, durationMs });
+    }
+    if (now === 'failed') {
+      state.emit({
+        kind: 'runtime-error',
+        sessionId,
+        code: 'runtime-failed',
+        ...(error !== undefined ? { reason: error } : {}),
+      });
+    }
+    if (now === 'idle') {
+      const stopped = state.stopping.delete(sessionId);
+      if (before !== undefined && LIVE.has(before)) {
+        state.emit({ kind: 'ended', sessionId, reason: stopped ? 'stopped' : 'idle' });
+      }
+    }
   }
 
   return {
@@ -309,7 +316,8 @@ export function createRuntime(state: ControlState): Runtime {
       const key = permissionKey(sessionId, requestId);
       const open = permissions.get(key);
       if (!open || open.deviceId !== ownerDeviceId || permissionExpired(open)) {
-        forget(key);
+        if (open && open.deviceId === ownerDeviceId) closePermission(state, key, 'expired');
+        else if (open) permissions.delete(key);
         return { ok: false, error: 'request-closed' };
       }
       // A mode is only the approval of a plan, and only one the request offers; the request stays open.
@@ -331,7 +339,9 @@ export function createRuntime(state: ControlState): Runtime {
         },
       });
       // The first answer wins: the request is gone before the answer is sent.
-      forget(key);
+      closePermission(state, key, decision, {
+        kind: answer.by === 'link' ? 'action-link' : 'user',
+      });
       log('info', 'control', 'permission answered', { sessionId, requestId, decision });
       const msg: RuntimePermissionAnswer = {
         v: PROTOCOL_VERSION,
@@ -365,6 +375,7 @@ export function createRuntime(state: ControlState): Runtime {
       if (!link) return { ok: false, error: 'owner-offline' };
       store.audit({ type: 'session.stopped', sessionId, deviceId: ownerDeviceId });
       log('info', 'control', 'stop forwarded', { sessionId });
+      state.stopping.add(sessionId);
       const msg: RuntimeStop = { v: PROTOCOL_VERSION, type: 'runtime.stop', sessionId };
       link.send(msg);
       return { ok: true };
@@ -446,9 +457,7 @@ export function createRuntime(state: ControlState): Runtime {
           if (msg.state === 'starting' || msg.state === 'running') acceptPrompt(msg.sessionId);
           publishRuntime(msg.sessionId);
           state.runtimeChanged(msg.sessionId, msg.state, msg.error);
-          if (msg.state === 'ready' && (before === 'running' || before === 'waiting-permission')) {
-            state.emit({ kind: 'turn-done', sessionId: msg.sessionId });
-          }
+          trackLifecycle(msg.sessionId, before, msg.state, msg.error);
           return;
         }
         case 'runtime.output': {
@@ -482,15 +491,9 @@ export function createRuntime(state: ControlState): Runtime {
           return;
         }
         case 'runtime.permission': {
-          const permKey = permissionKey(msg.sessionId, msg.requestId);
-          forget(permKey);
-          const timer =
-            msg.planExit === undefined
-              ? setTimeout(() => {
-                  if (permissions.get(permKey)?.timer === timer) closeOpen(permKey, 'timeout');
-                }, PERMISSION_OPEN_MS)
-              : undefined;
-          timer?.unref();
+          const key = permissionKey(msg.sessionId, msg.requestId);
+          // The agent asked again under the same ID: the earlier request is over.
+          closePermission(state, key, 'abandoned');
           try {
             const { command, paths } = toolInputSummary(msg.tool, msg.input);
             store.audit({
@@ -513,7 +516,7 @@ export function createRuntime(state: ControlState): Runtime {
               error: err instanceof Error ? err.message : 'unknown',
             });
           }
-          permissions.set(permKey, {
+          permissions.set(key, {
             deviceId,
             requestId: msg.requestId,
             tool: msg.tool,
@@ -521,8 +524,8 @@ export function createRuntime(state: ControlState): Runtime {
             input: msg.input,
             ...(msg.planExit ? { planExit: msg.planExit } : {}),
             at: state.now(),
-            ...(timer ? { timer } : {}),
           });
+          if (msg.planExit === undefined) armExpiry(state, key, PERMISSION_OPEN_MS);
           const { type: _type, v: _v, ...rest } = msg;
           state.publish({ v: PROTOCOL_VERSION, type: 'session.permission', ...rest });
           state.emit({
@@ -587,8 +590,7 @@ export function createRuntime(state: ControlState): Runtime {
         runtime.delete(sessionId);
         reset.push(sessionId);
       }
-      for (const [key, open] of [...permissions])
-        if (open.deviceId === deviceId) closeOpen(key, 'session-end');
+      closeDevicePermissions(state, new Set([deviceId]), 'abandoned');
       for (const sessionId of reset) publishRuntime(sessionId);
     },
 
@@ -609,9 +611,7 @@ export function createRuntime(state: ControlState): Runtime {
       for (const [sessionId, entry] of runtime) {
         if (gone.has(entry.deviceId)) publishRuntime(sessionId);
       }
-      for (const [key, open] of [...permissions]) {
-        if (gone.has(open.deviceId)) closeOpen(key, 'session-end');
-      }
+      closeDevicePermissions(state, gone, 'abandoned');
     },
   };
 }

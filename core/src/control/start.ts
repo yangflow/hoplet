@@ -156,7 +156,13 @@ export function createStart(state: ControlState, listProjects: Control['listProj
       if (cached) return cached.outcome;
 
       const failed = (error: string): void =>
-        state.emit({ kind: 'failure', source: 'start', projectPath: req.projectPath, error });
+        state.emit({
+          kind: 'failure',
+          source: 'start',
+          projectPath: req.projectPath,
+          deviceId: req.deviceId,
+          error,
+        });
       const link = onlineLink(state, req.deviceId);
       if (!link) {
         failed('target-offline');
@@ -167,6 +173,17 @@ export function createStart(state: ControlState, listProjects: Control['listProj
       // Only a result that may have reached the agent is repeated; a refusal can be retried.
       void outcome.then((result) => {
         if (!result.ok && result.error !== 'timeout') startCache.delete(req.promptId);
+        if (result.ok) {
+          state.emit({
+            kind: 'started',
+            sessionId: result.sessionId,
+            deviceId: req.deviceId,
+            projectPath: req.projectPath,
+            provider: req.provider,
+            ...(req.configuration !== undefined ? { configuration: req.configuration } : {}),
+            origin: req.origin ?? 'new',
+          });
+        }
         // A request the core refused as invalid or over budget is the caller's matter, not a failure to tell about.
         if (!result.ok && result.error !== 'invalid-request' && result.error !== 'over-budget') {
           failed(result.error);

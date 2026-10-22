@@ -10,6 +10,8 @@ export interface Config {
   publicUrl?: string | null;
   /** Days the audit log keeps a record (`HOPLET_AUDIT_RETENTION_DAYS`); 0 keeps everything. Default 180. */
   auditRetentionDays?: number;
+  /** `HOPLET_HOOK_ALLOW_PRIVATE`: lets lifecycle hooks call loopback, private and shared addresses and use http. */
+  hookAllowPrivate?: boolean;
 }
 
 export function loadConfig(): Config {
@@ -24,7 +26,10 @@ export function loadConfig(): Config {
   }
   registerSecret(token);
   const auditRetentionDays = parseAuditRetention(process.env.HOPLET_AUDIT_RETENTION_DAYS);
-  return { port, dataDir, token, webDir, publicUrl, auditRetentionDays };
+  const hookAllowPrivate = /^(?:1|true)$/i.test(
+    (process.env.HOPLET_HOOK_ALLOW_PRIVATE ?? '').trim(),
+  );
+  return { port, dataDir, token, webDir, publicUrl, auditRetentionDays, hookAllowPrivate };
 }
 
 /** Days of audit retention: an integer of at least 1, or 0 for no limit; 180 when absent, and for anything else (with a warning). */

@@ -22,6 +22,7 @@ import { channelsFor } from './rules.ts';
 import { webhookHeaders } from './webhook.ts';
 
 export { webUiOnly } from './classify.ts';
+export { type Attempt, BlockedAddressError, type Fetch, post } from './deliver.ts';
 export { LINK_MAX_MS, signToken, verifyToken } from './links.ts';
 export { encryptPayload, vapidJwt } from './push.ts';
 export { clip, redactText, summarize } from './redact.ts';
@@ -74,6 +75,8 @@ function projectName(projectPath: string): string {
   return clip(parts[parts.length - 1] ?? projectPath, PROJECT_MAX);
 }
 
+type NotifiedEvent = Extract<ControlEvent, { kind: 'permission' | 'turn-done' | 'failure' }>;
+
 export function createNotify(store: Store, control: Control, options: NotifyOptions): Notify {
   const now = options.now ?? Date.now;
   const fetchImpl: Fetch = options.fetch ?? fetch;
@@ -106,7 +109,7 @@ export function createNotify(store: Store, control: Control, options: NotifyOpti
     return `${publicUrl}/a#${signToken(secrets().actionKey, { sessionId, requestId, expiresAt })}`;
   }
 
-  function buildPayload(event: ControlEvent): { kind: NotifyEventKind; payload: NotifyPayload } {
+  function buildPayload(event: NotifiedEvent): { kind: NotifyEventKind; payload: NotifyPayload } {
     if (event.kind === 'failure') {
       const meta = event.sessionId ? store.getSession(event.sessionId) : null;
       const projectPath = meta?.projectPath ?? event.projectPath ?? '';
@@ -308,6 +311,10 @@ export function createNotify(store: Store, control: Control, options: NotifyOpti
   }
 
   function onEvent(event: ControlEvent): void {
+    // The lifecycle moments are for hooks (ADR 0031).
+    if (event.kind !== 'permission' && event.kind !== 'turn-done' && event.kind !== 'failure') {
+      return;
+    }
     if (event.kind === 'turn-done' && control.viewing.isOpen(event.sessionId)) return;
     const { kind, payload } = buildPayload(event);
     const session =

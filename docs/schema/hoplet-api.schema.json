@@ -805,6 +805,86 @@
       "response": "WebhookTestResponseSchema"
     },
     {
+      "method": "GET",
+      "path": "/api/hooks",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": null,
+      "response": "HookListResponseSchema"
+    },
+    {
+      "method": "POST",
+      "path": "/api/hooks",
+      "auth": "host",
+      "lane": "control",
+      "status": 201,
+      "query": null,
+      "body": "HookCreateRequestSchema",
+      "response": "HookSecretResponseSchema"
+    },
+    {
+      "method": "GET",
+      "path": "/api/hooks/:id",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": null,
+      "response": "HookInfoSchema"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/hooks/:id",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": "HookUpdateRequestSchema",
+      "response": "HookInfoSchema"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/hooks/:id",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": null,
+      "response": "HookListResponseSchema"
+    },
+    {
+      "method": "POST",
+      "path": "/api/hooks/:id/rotate-secret",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": null,
+      "response": "HookSecretResponseSchema"
+    },
+    {
+      "method": "GET",
+      "path": "/api/hooks/:id/deliveries",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": null,
+      "response": "HookDeliveriesResponseSchema"
+    },
+    {
+      "method": "POST",
+      "path": "/api/hooks/:id/test",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": null,
+      "response": "HookTestResponseSchema"
+    },
+    {
       "method": "POST",
       "path": "/api/action/inspect",
       "auth": "token",
@@ -3976,6 +4056,849 @@
         "coreVersion",
         "protocolVersion"
       ]
+    },
+    "HookCreateRequestSchema": {
+      "type": "object",
+      "properties": {
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "maxLength": 2048,
+          "pattern": "^https?:\\/\\/"
+        },
+        "label": {
+          "type": "string",
+          "pattern": "^\\s*\\S(?:[\\s\\S]{0,78}\\S)?\\s*$"
+        },
+        "events": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "session.started",
+              "turn.completed",
+              "session.ended",
+              "permission.requested",
+              "permission.resolved",
+              "session.error",
+              "handoff.started",
+              "handoff.completed"
+            ],
+            "type": "string"
+          },
+          "minItems": 1,
+          "maxItems": 8,
+          "uniqueItems": true
+        },
+        "scope": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "const": "all"
+                }
+              },
+              "required": [
+                "kind"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "const": "project"
+                },
+                "deviceId": {
+                  "type": "string",
+                  "pattern": "^\\s*\\S(?:[\\s\\S]{0,198}\\S)?\\s*$"
+                },
+                "projectPath": {
+                  "type": "string",
+                  "pattern": "^\\s*\\S(?:[\\s\\S]{0,4094}\\S)?\\s*$"
+                }
+              },
+              "required": [
+                "kind",
+                "deviceId",
+                "projectPath"
+              ]
+            }
+          ]
+        },
+        "summary": {
+          "type": "boolean"
+        },
+        "enabled": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "url",
+        "label",
+        "events"
+      ],
+      "additionalProperties": false
+    },
+    "HookDeliveriesResponseSchema": {
+      "type": "object",
+      "properties": {
+        "deliveries": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "eventId": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string"
+              },
+              "state": {
+                "enum": [
+                  "pending",
+                  "delivered",
+                  "failed",
+                  "dropped"
+                ],
+                "type": "string"
+              },
+              "attempts": {
+                "type": "number"
+              },
+              "error": {
+                "type": "string"
+              },
+              "createdAt": {
+                "type": "number"
+              },
+              "settledAt": {
+                "type": "number"
+              },
+              "nextAttemptAt": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "id",
+              "eventId",
+              "type",
+              "state",
+              "attempts",
+              "createdAt"
+            ]
+          }
+        }
+      },
+      "required": [
+        "deliveries"
+      ]
+    },
+    "HookInfoSchema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "webhook"
+        },
+        "label": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        },
+        "events": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "session.started",
+              "turn.completed",
+              "session.ended",
+              "permission.requested",
+              "permission.resolved",
+              "session.error",
+              "handoff.started",
+              "handoff.completed"
+            ],
+            "type": "string"
+          },
+          "minItems": 1,
+          "maxItems": 8,
+          "uniqueItems": true
+        },
+        "scope": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "const": "all"
+                }
+              },
+              "required": [
+                "kind"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "const": "project"
+                },
+                "deviceId": {
+                  "type": "string",
+                  "pattern": "^\\s*\\S(?:[\\s\\S]{0,198}\\S)?\\s*$"
+                },
+                "projectPath": {
+                  "type": "string",
+                  "pattern": "^\\s*\\S(?:[\\s\\S]{0,4094}\\S)?\\s*$"
+                }
+              },
+              "required": [
+                "kind",
+                "deviceId",
+                "projectPath"
+              ]
+            }
+          ]
+        },
+        "summary": {
+          "type": "boolean"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "status": {
+          "enum": [
+            "active",
+            "disabled",
+            "needs-secret"
+          ],
+          "type": "string"
+        },
+        "version": {
+          "const": 1
+        },
+        "createdAt": {
+          "type": "number"
+        },
+        "updatedAt": {
+          "type": "number"
+        },
+        "pending": {
+          "type": "number"
+        },
+        "lastDelivery": {
+          "type": "object",
+          "properties": {
+            "at": {
+              "type": "number"
+            },
+            "state": {
+              "enum": [
+                "pending",
+                "delivered",
+                "failed",
+                "dropped"
+              ],
+              "type": "string"
+            },
+            "error": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "at",
+            "state"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "label",
+        "url",
+        "events",
+        "scope",
+        "summary",
+        "enabled",
+        "status",
+        "version",
+        "createdAt",
+        "updatedAt",
+        "pending"
+      ]
+    },
+    "HookListResponseSchema": {
+      "type": "object",
+      "properties": {
+        "hooks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "kind": {
+                "const": "webhook"
+              },
+              "label": {
+                "type": "string"
+              },
+              "url": {
+                "type": "string"
+              },
+              "events": {
+                "type": "array",
+                "items": {
+                  "enum": [
+                    "session.started",
+                    "turn.completed",
+                    "session.ended",
+                    "permission.requested",
+                    "permission.resolved",
+                    "session.error",
+                    "handoff.started",
+                    "handoff.completed"
+                  ],
+                  "type": "string"
+                },
+                "minItems": 1,
+                "maxItems": 8,
+                "uniqueItems": true
+              },
+              "scope": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "const": "all"
+                      }
+                    },
+                    "required": [
+                      "kind"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "const": "project"
+                      },
+                      "deviceId": {
+                        "type": "string",
+                        "pattern": "^\\s*\\S(?:[\\s\\S]{0,198}\\S)?\\s*$"
+                      },
+                      "projectPath": {
+                        "type": "string",
+                        "pattern": "^\\s*\\S(?:[\\s\\S]{0,4094}\\S)?\\s*$"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "deviceId",
+                      "projectPath"
+                    ]
+                  }
+                ]
+              },
+              "summary": {
+                "type": "boolean"
+              },
+              "enabled": {
+                "type": "boolean"
+              },
+              "status": {
+                "enum": [
+                  "active",
+                  "disabled",
+                  "needs-secret"
+                ],
+                "type": "string"
+              },
+              "version": {
+                "const": 1
+              },
+              "createdAt": {
+                "type": "number"
+              },
+              "updatedAt": {
+                "type": "number"
+              },
+              "pending": {
+                "type": "number"
+              },
+              "lastDelivery": {
+                "type": "object",
+                "properties": {
+                  "at": {
+                    "type": "number"
+                  },
+                  "state": {
+                    "enum": [
+                      "pending",
+                      "delivered",
+                      "failed",
+                      "dropped"
+                    ],
+                    "type": "string"
+                  },
+                  "error": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "at",
+                  "state"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "kind",
+              "label",
+              "url",
+              "events",
+              "scope",
+              "summary",
+              "enabled",
+              "status",
+              "version",
+              "createdAt",
+              "updatedAt",
+              "pending"
+            ]
+          }
+        }
+      },
+      "required": [
+        "hooks"
+      ]
+    },
+    "HookSecretResponseSchema": {
+      "type": "object",
+      "properties": {
+        "hook": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "webhook"
+            },
+            "label": {
+              "type": "string"
+            },
+            "url": {
+              "type": "string"
+            },
+            "events": {
+              "type": "array",
+              "items": {
+                "enum": [
+                  "session.started",
+                  "turn.completed",
+                  "session.ended",
+                  "permission.requested",
+                  "permission.resolved",
+                  "session.error",
+                  "handoff.started",
+                  "handoff.completed"
+                ],
+                "type": "string"
+              },
+              "minItems": 1,
+              "maxItems": 8,
+              "uniqueItems": true
+            },
+            "scope": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "const": "all"
+                    }
+                  },
+                  "required": [
+                    "kind"
+                  ]
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "const": "project"
+                    },
+                    "deviceId": {
+                      "type": "string",
+                      "pattern": "^\\s*\\S(?:[\\s\\S]{0,198}\\S)?\\s*$"
+                    },
+                    "projectPath": {
+                      "type": "string",
+                      "pattern": "^\\s*\\S(?:[\\s\\S]{0,4094}\\S)?\\s*$"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "deviceId",
+                    "projectPath"
+                  ]
+                }
+              ]
+            },
+            "summary": {
+              "type": "boolean"
+            },
+            "enabled": {
+              "type": "boolean"
+            },
+            "status": {
+              "enum": [
+                "active",
+                "disabled",
+                "needs-secret"
+              ],
+              "type": "string"
+            },
+            "version": {
+              "const": 1
+            },
+            "createdAt": {
+              "type": "number"
+            },
+            "updatedAt": {
+              "type": "number"
+            },
+            "pending": {
+              "type": "number"
+            },
+            "lastDelivery": {
+              "type": "object",
+              "properties": {
+                "at": {
+                  "type": "number"
+                },
+                "state": {
+                  "enum": [
+                    "pending",
+                    "delivered",
+                    "failed",
+                    "dropped"
+                  ],
+                  "type": "string"
+                },
+                "error": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "at",
+                "state"
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "kind",
+            "label",
+            "url",
+            "events",
+            "scope",
+            "summary",
+            "enabled",
+            "status",
+            "version",
+            "createdAt",
+            "updatedAt",
+            "pending"
+          ]
+        },
+        "secret": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "hook",
+        "secret"
+      ]
+    },
+    "HookTestResponseSchema": {
+      "type": "object",
+      "properties": {
+        "hook": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "webhook"
+            },
+            "label": {
+              "type": "string"
+            },
+            "url": {
+              "type": "string"
+            },
+            "events": {
+              "type": "array",
+              "items": {
+                "enum": [
+                  "session.started",
+                  "turn.completed",
+                  "session.ended",
+                  "permission.requested",
+                  "permission.resolved",
+                  "session.error",
+                  "handoff.started",
+                  "handoff.completed"
+                ],
+                "type": "string"
+              },
+              "minItems": 1,
+              "maxItems": 8,
+              "uniqueItems": true
+            },
+            "scope": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "const": "all"
+                    }
+                  },
+                  "required": [
+                    "kind"
+                  ]
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "const": "project"
+                    },
+                    "deviceId": {
+                      "type": "string",
+                      "pattern": "^\\s*\\S(?:[\\s\\S]{0,198}\\S)?\\s*$"
+                    },
+                    "projectPath": {
+                      "type": "string",
+                      "pattern": "^\\s*\\S(?:[\\s\\S]{0,4094}\\S)?\\s*$"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "deviceId",
+                    "projectPath"
+                  ]
+                }
+              ]
+            },
+            "summary": {
+              "type": "boolean"
+            },
+            "enabled": {
+              "type": "boolean"
+            },
+            "status": {
+              "enum": [
+                "active",
+                "disabled",
+                "needs-secret"
+              ],
+              "type": "string"
+            },
+            "version": {
+              "const": 1
+            },
+            "createdAt": {
+              "type": "number"
+            },
+            "updatedAt": {
+              "type": "number"
+            },
+            "pending": {
+              "type": "number"
+            },
+            "lastDelivery": {
+              "type": "object",
+              "properties": {
+                "at": {
+                  "type": "number"
+                },
+                "state": {
+                  "enum": [
+                    "pending",
+                    "delivered",
+                    "failed",
+                    "dropped"
+                  ],
+                  "type": "string"
+                },
+                "error": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "at",
+                "state"
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "kind",
+            "label",
+            "url",
+            "events",
+            "scope",
+            "summary",
+            "enabled",
+            "status",
+            "version",
+            "createdAt",
+            "updatedAt",
+            "pending"
+          ]
+        },
+        "delivery": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "eventId": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string"
+            },
+            "state": {
+              "enum": [
+                "pending",
+                "delivered",
+                "failed",
+                "dropped"
+              ],
+              "type": "string"
+            },
+            "attempts": {
+              "type": "number"
+            },
+            "error": {
+              "type": "string"
+            },
+            "createdAt": {
+              "type": "number"
+            },
+            "settledAt": {
+              "type": "number"
+            },
+            "nextAttemptAt": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "id",
+            "eventId",
+            "type",
+            "state",
+            "attempts",
+            "createdAt"
+          ]
+        }
+      },
+      "required": [
+        "hook",
+        "delivery"
+      ]
+    },
+    "HookUpdateRequestSchema": {
+      "type": "object",
+      "properties": {
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "maxLength": 2048,
+          "pattern": "^https?:\\/\\/"
+        },
+        "label": {
+          "type": "string",
+          "pattern": "^\\s*\\S(?:[\\s\\S]{0,78}\\S)?\\s*$"
+        },
+        "events": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "session.started",
+              "turn.completed",
+              "session.ended",
+              "permission.requested",
+              "permission.resolved",
+              "session.error",
+              "handoff.started",
+              "handoff.completed"
+            ],
+            "type": "string"
+          },
+          "minItems": 1,
+          "maxItems": 8,
+          "uniqueItems": true
+        },
+        "scope": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "const": "all"
+                }
+              },
+              "required": [
+                "kind"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "const": "project"
+                },
+                "deviceId": {
+                  "type": "string",
+                  "pattern": "^\\s*\\S(?:[\\s\\S]{0,198}\\S)?\\s*$"
+                },
+                "projectPath": {
+                  "type": "string",
+                  "pattern": "^\\s*\\S(?:[\\s\\S]{0,4094}\\S)?\\s*$"
+                }
+              },
+              "required": [
+                "kind",
+                "deviceId",
+                "projectPath"
+              ]
+            }
+          ]
+        },
+        "summary": {
+          "type": "boolean"
+        },
+        "enabled": {
+          "type": "boolean"
+        }
+      },
+      "required": [],
+      "additionalProperties": false
     },
     "LinesPageSchema": {
       "type": "object",

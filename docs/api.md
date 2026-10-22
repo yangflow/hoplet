@@ -153,6 +153,14 @@ Response column names the schema of the success body and its status when it is n
 | PATCH | `/api/notify/webhooks/:id` | host | control | — | `WebhookUpdateRequestSchema` | `WebhookInfoSchema` | `invalid-json`, `invalid-request`, `too-large`, `not-found` |
 | DELETE | `/api/notify/webhooks/:id` | host | control | — | — | `WebhookListResponseSchema` | `not-found` |
 | POST | `/api/notify/webhooks/:id/test` | host | control | — | — | `WebhookTestResponseSchema` | `not-found` |
+| GET | `/api/hooks` | host | control | — | — | `HookListResponseSchema` | — |
+| POST | `/api/hooks` | host | control | — | `HookCreateRequestSchema` | `HookSecretResponseSchema`, 201 | `invalid-json`, `invalid-request`, `too-large` |
+| GET | `/api/hooks/:id` | host | control | — | — | `HookInfoSchema` | `not-found` |
+| PATCH | `/api/hooks/:id` | host | control | — | `HookUpdateRequestSchema` | `HookInfoSchema` | `invalid-json`, `invalid-request`, `too-large`, `not-found` |
+| DELETE | `/api/hooks/:id` | host | control | — | — | `HookListResponseSchema` | `not-found` |
+| POST | `/api/hooks/:id/rotate-secret` | host | control | — | — | `HookSecretResponseSchema` | `not-found` |
+| GET | `/api/hooks/:id/deliveries` | host | control | — | — | `HookDeliveriesResponseSchema` | `not-found` |
+| POST | `/api/hooks/:id/test` | host | control | — | — | `HookTestResponseSchema` | `not-found` |
 | POST | `/api/action/inspect` | token | control | — | `ActionInspectRequestSchema` | `ActionInspectResponseSchema` | `invalid-json`, `invalid-request`, `too-large`, `invalid-token`, `rate-limited` |
 | POST | `/api/action/decide` | token | control | — | `ActionDecideRequestSchema` | `ActionDecideResponseSchema` | `invalid-json`, `invalid-request`, `too-large`, `invalid-token`, `owner-offline`, `rate-limited` |
 
@@ -324,6 +332,26 @@ Behavior a client relies on:
   order. At most 50 subscriptions,
   20 webhooks and 200 projects in the preferences (`too-large` beyond). `POST /api/notify/webhooks/:id/test`
   sends a test payload and returns the webhook with its `lastDelivery`.
+- `/api/hooks` are the lifecycle webhooks (ADR 0031). They take the host token only: a hook is a standing
+  instruction to send events about the user's sessions to an address, so no ticket, action-link token or browser
+  session can change one. A hook has a `label`, a `url`, a non-empty `events` list (each of `session.started`,
+  `turn.completed`, `session.ended`, `permission.requested`, `permission.resolved`, `session.error`,
+  `handoff.started`, `handoff.completed`, at most once), a `scope` (`{ "kind": "all" }` or one project of one
+  machine), `summary` (adds the opt-in fields to `turn.completed`, `permission.requested` and `session.error`)
+  and `enabled`. `POST` and `POST .../rotate-secret` return the signing secret (`whsec_` and 43 characters)
+  once; no other route returns it. After a rotation the old secret signs alongside the new one for 24 hours. A
+  listed hook shows its `url` without the query string, a `status` of `active`, `disabled` or `needs-secret`
+  (the secret file lost it), the number of `pending` deliveries and its `lastDelivery`. A URL must be `https`
+  (or `http` with `HOPLET_HOOK_ALLOW_PRIVATE`) and must not name a blocked address; otherwise the route answers
+  `invalid-request` with a `reason` (`invalid-url`, `scheme`, `credentials`, `http-needs-allow-private`,
+  `unresolvable` or `blocked-address`). At most 20 hooks (`too-large` beyond). `GET .../deliveries` lists the
+  last 100 deliveries, newest first; `POST .../test` sends one `hook.test` event now, without retry, also for a
+  disabled hook, and returns the hook with the delivery.
+  Each event is a JSON `POST` of the envelope `HookEnvelopeSchema` with `Hoplet-Event`, `User-Agent: Hoplet-Hook/1`
+  and `Hoplet-Signature: t=<unix seconds>,v1=<hex>`, the HMAC-SHA-256 of `<t>.<body>` under the secret (one `v1`
+  per valid secret, newest first). A timeout, a network error, a 408, a 429 and a 5xx are retried after 30
+  seconds, 2 minutes, 10 minutes, 30 minutes and then every 2 hours until 24 hours after the event; any other
+  answer fails the delivery at once. The core follows no redirect and reads nothing of the answer but its status.
 - `POST /api/action/inspect` and `POST /api/action/decide` are the only routes without the host token. The
   token comes from the fragment of an action link (`<public URL>/a#<token>`); a token that is malformed, forged
   or from before the secrets were rotated is `invalid-token`. Both routes are rate limited per address and in
