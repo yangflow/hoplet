@@ -230,7 +230,8 @@ export function attachBrowserSocket(server: Server, control: Control, tickets: T
       if (
         (msg.type === 'session.output' ||
           msg.type === 'session.listening' ||
-          msg.type === 'session.rule') &&
+          msg.type === 'session.rule' ||
+          msg.type === 'session.rules.unenforced') &&
         !subscriptions.get(ws)?.has(msg.sessionId)
       ) {
         continue;

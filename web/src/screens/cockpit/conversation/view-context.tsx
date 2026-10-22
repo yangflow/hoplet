@@ -11,6 +11,8 @@ export type ViewState = {
   openDiff?: (path: string) => void;
   /** The rule that decided a tool call, by the call's ID (lib/rule-lines.ts). */
   ruleOf?: (toolUseId: string) => AppliedRule | undefined;
+  /** Whether the Codex hook did not run for a tool call, so no rule was checked (ADR 0032). */
+  unenforcedAt?: (toolUseId: string) => boolean;
   /** Opens the rules in Settings. */
   openRule?: (ruleId: string) => void;
 };

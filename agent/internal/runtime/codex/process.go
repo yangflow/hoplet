@@ -842,7 +842,7 @@ func (p *process) itemCompleted(params json.RawMessage) {
 	}
 	switch n.Item.Type {
 	case "commandExecution", "fileChange":
-		p.checkHookRan()
+		p.checkHookRan(n.Item.ID)
 	}
 	switch n.Item.Type {
 	case "commandExecution":

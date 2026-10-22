@@ -33,6 +33,7 @@ import type {
   SessionPortsResult,
   SessionResources,
   SessionRule,
+  SessionRulesUnenforced,
   TerminalInfo,
   WorkspaceDiff,
   WorkspaceFile,
@@ -474,6 +475,15 @@ export interface Control {
   syncRules(deviceIds?: readonly string[]): void;
   /** The revision of the rules the device last applied since it connected; null before it answers. */
   appliedRulesRevision(deviceId: string): number | null;
+  /** What the core knows of the rules on a device: the revision it confirmed and when, the last push, and whether a resend is pending. */
+  rulesStatus(deviceId: string): {
+    applied: number | null;
+    appliedAt: number | null;
+    pushedAt: number | null;
+    retrying: boolean;
+  };
+  /** Sends a connected device its whole set of rules again; false when it is not connected. */
+  pushRulesAgain(deviceId: string): boolean;
   /** Sends a lifecycle event to a script hook on the agent; false when the device is not connected. */
   sendHookEvent(deviceId: string, hookId: string, event: HookEnvelope): boolean;
   /** Calls `listener` with every result an agent reports for a script hook; returns the unsubscribe. */
@@ -562,7 +572,7 @@ export interface Control {
   /** The permission requests of a session that wait for an answer. */
   openPermissions(sessionId: string): SessionPermission[];
   /** The latest rule decisions of a session, oldest first (ADR 0029). */
-  ruleLinesOf(sessionId: string): SessionRule[];
+  ruleLinesOf(sessionId: string): (SessionRule | SessionRulesUnenforced)[];
   workspace(sessionId: string, ownerDeviceId: string): Promise<WorkspaceOutcome>;
   /** Reads one file of the owner's working tree; `at` `head` reads it as `HEAD` has it. */
   workspaceFile(
@@ -664,6 +674,8 @@ export interface ControlOptions {
   cloneTimeoutMs?: number;
   /** How long a clone may go without progress from the target's git. */
   cloneStallMs?: number;
+  /** How long a push of permission rules waits for the agent's confirmation before it is sent again. */
+  rulesRetryMs?: number;
   /** How long a terminal with no browser attached stays open. */
   terminalDetachMs?: number;
 }

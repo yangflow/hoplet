@@ -571,6 +571,19 @@ export const WIRE_MESSAGES = defineWire({
     },
   },
   /**
+   * A tool call ran with no permission rule checked: the Codex hook did not run for it (ADR 0032). `toolUseId` is
+   * the call's, absent when unknown. The agent sends it once per process; the core relays it as
+   * `session.rules.unenforced`.
+   */
+  'runtime.rules.unenforced': {
+    lane: 'control',
+    direction: 'device-to-core',
+    fields: {
+      sessionId,
+      toolUseId: v.optional(v.pipe(v.string(), v.maxLength(200))),
+    },
+  },
+  /**
    * The commands and skills of a session's process, with `cwd`, the directory it runs in. Sent when they
    * first become known and whenever they change (a file of the project or the user changed), and again after
    * a reconnect. At most `MAX_COMMANDS` entries, in the order clients show them.
@@ -678,6 +691,19 @@ export const WIRE_MESSAGES = defineWire({
       decision: v.picklist(['allow', 'deny', 'ask']),
       ruleId: v.pipe(v.string(), v.minLength(1), v.maxLength(80)),
       scope: v.picklist([...PERMISSION_SCOPES, 'agent']),
+    },
+  },
+
+  /**
+   * Relayed from `runtime.rules.unenforced`: the conversation says, at the call `toolUseId` (the session's first
+   * call when absent), that no rule was checked. A browser that subscribes gets it again with the rule lines.
+   */
+  'session.rules.unenforced': {
+    lane: 'control',
+    direction: 'core-to-web',
+    fields: {
+      sessionId,
+      toolUseId: v.optional(v.pipe(v.string(), v.maxLength(200))),
     },
   },
 
@@ -1404,6 +1430,7 @@ export type RuntimeStateMsg = WireMessageOf<'runtime.state'>;
 export type RuntimeOutputMsg = WireMessageOf<'runtime.output'>;
 export type RuntimePermissionMsg = WireMessageOf<'runtime.permission'>;
 export type RuntimePermissionAutoMsg = WireMessageOf<'runtime.permission.auto'>;
+export type RuntimeRulesUnenforcedMsg = WireMessageOf<'runtime.rules.unenforced'>;
 export type RuntimeRejected = WireMessageOf<'runtime.rejected'>;
 export type RuntimeCommands = WireMessageOf<'runtime.commands'>;
 export type SessionCommands = WireMessageOf<'session.commands'>;
@@ -1416,6 +1443,7 @@ export type SessionRuntime = WireMessageOf<'session.runtime'>;
 export type SessionOutput = WireMessageOf<'session.output'>;
 export type SessionPermission = WireMessageOf<'session.permission'>;
 export type SessionRule = WireMessageOf<'session.rule'>;
+export type SessionRulesUnenforced = WireMessageOf<'session.rules.unenforced'>;
 export type SessionWorkspaceList = WireMessageOf<'session.workspace.list'>;
 export type SessionWorkspace = WireMessageOf<'session.workspace'>;
 export type SessionWorkspaceRejected = WireMessageOf<'session.workspace.rejected'>;
@@ -1514,6 +1542,7 @@ export const ClientMessageSchema = v.variant('type', [
   WIRE_MESSAGES['runtime.output'].schema,
   WIRE_MESSAGES['runtime.permission'].schema,
   WIRE_MESSAGES['runtime.permission.auto'].schema,
+  WIRE_MESSAGES['runtime.rules.unenforced'].schema,
   WIRE_MESSAGES['runtime.rejected'].schema,
   WIRE_MESSAGES['runtime.steered'].schema,
   WIRE_MESSAGES['runtime.commands'].schema,

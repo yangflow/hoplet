@@ -350,8 +350,8 @@ agent applies them to every tool call, the next one after a change; the audit re
 and of every rule change; the agent announcing its own `permission_deny` rules, which the core keeps per machine and
 serves read-only; in the web UI, Settings › Permission rules (list, add, edit, delete, the built-in switches with a
 second confirmation) and, on the permission card, Always allow… and Always deny…, which draft a rule from the
-request and save it together with the answer. Planned: the web showing which machines have applied the
-latest revision. Rules let a session run without someone answering every tool call: routine calls are allowed,
+request and save it together with the answer; in Settings › Permission rules, which machines have applied the
+latest revision, with Push again for one that is behind. Rules let a session run without someone answering every tool call: routine calls are allowed,
 dangerous ones asked about or denied.
 
 - **A rule** names a tool kind (`run`, `read`, `write`, `fetch`, `mcp:<server>/<tool>` or all), what it matches, an
@@ -364,7 +364,8 @@ dangerous ones asked about or denied.
   mode decides, as without rules. `ask` and `deny` hold in every mode, Bypass permissions and Full access
   included, because the agent decides in the provider's pre-tool hook. Where the agent cannot open the hook
   socket (Windows) it declares `rules: prompts-only` for Codex, and the rules then cover only the approval requests
-  Codex sends; if the hook does not fire in a Codex session, the agent logs that the rules are not enforced there. Planned: a note in the session in both cases.
+  Codex sends; if the hook does not fire in a Codex session, the agent logs that the rules are not enforced there. The session shows a note in both cases: at the start of a
+  `prompts-only` Codex transcript, and under the tool call the hook did not run for.
 - **Commands with shell control** (`;`, `&&`, `|`, a subshell, a redirection, a newline, text that does not
   parse) are never allowed by a rule; `deny` and `ask` rules apply to each command inside them. A rule on a command
   is a guard against mistakes, not a sandbox.

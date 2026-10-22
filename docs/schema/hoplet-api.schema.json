@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Hoplet client API",
   "description": "Generated from shared/ and the route table by `pnpm schema`; do not edit. Each name under $defs is a schema that docs/api.md names for a route or a message. Parse a body against the schema its route names.",
-  "protocolVersion": 14,
+  "protocolVersion": 15,
   "routes": [
     {
       "method": "POST",
@@ -915,6 +915,26 @@
       "response": "PermissionRuleListResponseSchema"
     },
     {
+      "method": "GET",
+      "path": "/api/permission-rules/machines",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": null,
+      "response": "PermissionRuleMachinesResponseSchema"
+    },
+    {
+      "method": "POST",
+      "path": "/api/permission-rules/machines/:deviceId/push",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": null,
+      "response": "PermissionRuleMachinesResponseSchema"
+    },
+    {
       "method": "POST",
       "path": "/api/permission-rules",
       "auth": "host",
@@ -1097,6 +1117,12 @@
       "direction": "core-to-web",
       "lane": "control",
       "schema": "SessionRuleMessage"
+    },
+    {
+      "type": "session.rules.unenforced",
+      "direction": "core-to-web",
+      "lane": "control",
+      "schema": "SessionRulesUnenforcedMessage"
     },
     {
       "type": "handoff.progress",
@@ -2932,7 +2958,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 14
+          "const": 15
         },
         "type": {
           "const": "device.presence"
@@ -3515,7 +3541,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 14
+          "const": 15
         },
         "type": {
           "const": "error"
@@ -3924,7 +3950,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 14
+          "const": 15
         },
         "type": {
           "const": "handoff.progress"
@@ -6003,7 +6029,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 14
+          "const": 15
         },
         "type": {
           "const": "notify"
@@ -7129,6 +7155,84 @@
         "rules"
       ]
     },
+    "PermissionRuleMachinesResponseSchema": {
+      "type": "object",
+      "properties": {
+        "latest": {
+          "type": "number"
+        },
+        "machines": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "deviceId": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "online": {
+                "type": "boolean"
+              },
+              "revision": {
+                "type": "number"
+              },
+              "applied": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "appliedAt": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "pushedAt": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "retrying": {
+                "type": "boolean"
+              },
+              "lastSeen": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "deviceId",
+              "name",
+              "online",
+              "revision",
+              "applied",
+              "appliedAt",
+              "pushedAt",
+              "retrying"
+            ]
+          }
+        }
+      },
+      "required": [
+        "latest",
+        "machines"
+      ]
+    },
     "PermissionRulePutSchema": {
       "anyOf": [
         {
@@ -7790,7 +7894,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 14
+          "const": 15
         },
         "type": {
           "const": "session.appended"
@@ -7829,7 +7933,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 14
+          "const": 15
         },
         "type": {
           "const": "session.commands"
@@ -7849,7 +7953,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 14
+          "const": 15
         },
         "type": {
           "const": "session.deleted"
@@ -8162,7 +8266,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 14
+          "const": 15
         },
         "type": {
           "const": "session.listening"
@@ -8218,7 +8322,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 14
+          "const": 15
         },
         "type": {
           "const": "session.output"
@@ -8319,7 +8423,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 14
+          "const": 15
         },
         "type": {
           "const": "session.permission"
@@ -8456,7 +8560,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 14
+          "const": 15
         },
         "type": {
           "const": "session.queue"
@@ -8476,7 +8580,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 14
+          "const": 15
         },
         "type": {
           "const": "session.rule"
@@ -8522,11 +8626,35 @@
         "scope"
       ]
     },
+    "SessionRulesUnenforcedMessage": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 15
+        },
+        "type": {
+          "const": "session.rules.unenforced"
+        },
+        "sessionId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "toolUseId": {
+          "type": "string",
+          "maxLength": 200
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "sessionId"
+      ]
+    },
     "SessionRuntimeMessage": {
       "type": "object",
       "properties": {
         "v": {
-          "const": 14
+          "const": 15
         },
         "type": {
           "const": "session.runtime"
@@ -8697,7 +8825,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 14
+          "const": 15
         },
         "type": {
           "const": "session.updated"
@@ -9069,7 +9197,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 14
+          "const": 15
         },
         "type": {
           "const": "subscribe"
@@ -9678,7 +9806,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 14
+          "const": 15
         },
         "type": {
           "const": "terminal.attach"
@@ -9698,7 +9826,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 14
+          "const": 15
         },
         "type": {
           "const": "terminal.attached"
@@ -9746,7 +9874,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 14
+          "const": 15
         },
         "type": {
           "const": "terminal.data"
@@ -9777,7 +9905,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 14
+          "const": 15
         },
         "type": {
           "const": "terminal.detach"
@@ -9797,7 +9925,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 14
+          "const": 15
         },
         "type": {
           "const": "terminal.ended"
@@ -9870,7 +9998,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 14
+          "const": 15
         },
         "type": {
           "const": "terminal.keys"
@@ -9915,7 +10043,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 14
+          "const": 15
         },
         "type": {
           "const": "terminal.size"
@@ -9990,7 +10118,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 14
+          "const": 15
         },
         "type": {
           "const": "unsubscribe"

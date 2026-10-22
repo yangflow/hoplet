@@ -263,6 +263,10 @@ type RuleDecided struct {
 	Revision  int
 }
 
+// RulesUnenforced: a Codex command or file change ran without the rule hook being asked, so no rule was checked
+// on this process (ADR 0032). ToolUseID is the item that ran, empty when unknown. It is sent once per process.
+type RulesUnenforced struct{ ToolUseID string }
+
 // Exited is the last event of a process. Err is nil for an exit with status 0.
 type Exited struct{ Err error }
 
@@ -271,6 +275,7 @@ func (StateChanged) processEvent()        {}
 func (ConfigChanged) processEvent()       {}
 func (Commands) processEvent()            {}
 func (RuleDecided) processEvent()         {}
+func (RulesUnenforced) processEvent()     {}
 func (Output) processEvent()              {}
 func (PermissionRequest) processEvent()   {}
 func (PermissionCancelled) processEvent() {}

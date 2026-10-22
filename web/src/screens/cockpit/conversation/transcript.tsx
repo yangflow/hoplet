@@ -135,6 +135,7 @@ export function Transcript(props: {
   dock: number;
   openDiff?: (path: string) => void;
   ruleOf?: ViewState['ruleOf'];
+  unenforcedAt?: ViewState['unenforcedAt'];
   openRule?: ViewState['openRule'];
   /** Keys of the folds and blocks to start open (development fixtures). */
   initiallyOpen?: string[];
@@ -200,9 +201,10 @@ export function Transcript(props: {
       },
       ...(props.openDiff ? { openDiff: props.openDiff } : {}),
       ...(props.ruleOf ? { ruleOf: props.ruleOf } : {}),
+      ...(props.unenforcedAt ? { unenforcedAt: props.unenforcedAt } : {}),
       ...(props.openRule ? { openRule: props.openRule } : {}),
     }),
-    [props.sessionId, props.openDiff, props.ruleOf, props.openRule],
+    [props.sessionId, props.openDiff, props.ruleOf, props.unenforcedAt, props.openRule],
   );
 
   const measure = useCallback(() => {

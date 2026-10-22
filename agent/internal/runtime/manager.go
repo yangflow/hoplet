@@ -78,11 +78,18 @@ type RuleDecisionEvent struct {
 	RuleDecided
 }
 
-func (RuleDecisionEvent) runtimeEvent() {}
-func (CommandsEvent) runtimeEvent()     {}
-func (StateEvent) runtimeEvent()        {}
-func (OutputEvent) runtimeEvent()       {}
-func (PermissionEvent) runtimeEvent()   {}
+// RulesUnenforcedEvent reports a call that ran with no rule checked (ADR 0032).
+type RulesUnenforcedEvent struct {
+	SessionID string
+	RulesUnenforced
+}
+
+func (RulesUnenforcedEvent) runtimeEvent() {}
+func (RuleDecisionEvent) runtimeEvent()    {}
+func (CommandsEvent) runtimeEvent()        {}
+func (StateEvent) runtimeEvent()           {}
+func (OutputEvent) runtimeEvent()          {}
+func (PermissionEvent) runtimeEvent()      {}
 
 // Config configures a Manager. Zero durations take the defaults of docs/hosting.md (agent configuration).
 type Config struct {
@@ -1008,6 +1015,8 @@ func (m *Manager) handle(s *session, ev ProcessEvent) {
 		m.cfg.Emit(m.commandsEvent(s))
 	case RuleDecided:
 		m.cfg.Emit(RuleDecisionEvent{SessionID: s.id, RuleDecided: ev})
+	case RulesUnenforced:
+		m.cfg.Emit(RulesUnenforcedEvent{SessionID: s.id, RulesUnenforced: ev})
 	case Output:
 		m.cfg.Emit(OutputEvent{SessionID: s.id, Output: ev})
 	case PermissionRequest:

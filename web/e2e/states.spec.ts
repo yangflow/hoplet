@@ -46,6 +46,8 @@ const subject: Record<string, Record<string, string>> = {
     'machines-add': 'cockpit.add-machine',
     resources: 'cockpit.resource-warning',
     'resources-menu': 'cockpit.machine-resources',
+    'conv-codex-prompts': 'cockpit.codex-prompts-note',
+    'conv-codex-nohook': 'cockpit.rules-unenforced-note',
     compose: 'cockpit.thumbs',
     'model-menu': 'cockpit.model-menu',
     'mode-manual': 'cockpit.mode',
@@ -176,6 +178,7 @@ const subject: Record<string, Record<string, string>> = {
     'handoff-configuration-none': 'workspace.handoff-configuration-none',
   },
   settings: {
+    'rules-revision': 'settings.rules.machines',
     settings: 'settings.theme',
     'settings-text': 'settings.preview',
     'settings-text-geist': 'settings.preview',
@@ -243,9 +246,9 @@ const subject: Record<string, Record<string, string>> = {
 };
 
 test('the registries list 110 cockpit, 56 workspace, 60 settings and 7 action states', () => {
-  expect(screens.cockpit).toHaveLength(110);
+  expect(screens.cockpit).toHaveLength(112);
   expect(screens.workspace).toHaveLength(56);
-  expect(screens.settings).toHaveLength(60);
+  expect(screens.settings).toHaveLength(61);
   expect(screens.action).toHaveLength(7);
 });
 

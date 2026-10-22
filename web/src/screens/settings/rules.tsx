@@ -3,6 +3,7 @@ import type {
   LocalPermissionRule,
   PermissionRuleEntry,
   PermissionRuleListResponse,
+  PermissionRuleMachinesResponse,
 } from '@hoplet/shared';
 import { MAX_PERMISSION_NOTE_CHARS } from '@hoplet/shared';
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
@@ -47,6 +48,7 @@ import { systemOf } from '../../lib/system.ts';
 import { baseName, fill as fillText } from '../../lib/templates.ts';
 import { useDevices } from '../../lib/use-devices.ts';
 import { type PermissionRulesState, usePermissionRules } from '../../lib/use-permission-rules.ts';
+import { RuleMachines } from './rule-machines.tsx';
 import '../../components/rules.css';
 
 /** What the development fixtures hand to Settings > Permission rules. */
@@ -63,6 +65,8 @@ export type RulesFixture = {
   confirm?: string;
   /** The ID of the rule being edited, to mark its row. */
   toast?: string;
+  /** The machines panel's answer. */
+  machines?: PermissionRuleMachinesResponse;
 };
 
 const mono = (s: string) => <span className="mono">{s}</span>;
@@ -849,6 +853,7 @@ export function RulesSection(props: { fixture?: RulesFixture | undefined }) {
           'A rule decides a tool call before it reaches you. A deny always wins; otherwise the narrowest scope decides, and ask beats allow within a scope. When nothing matches, the session’s permission mode decides.',
         )}
       </p>
+      <RuleMachines fixture={fixture?.machines} />
       <div className="qtb">
         <TextField
           label={t('Search rules')}

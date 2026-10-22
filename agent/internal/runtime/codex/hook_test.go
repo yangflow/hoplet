@@ -247,14 +247,24 @@ func TestDecideHookTakesTheSessionFromTheProcess(t *testing.T) {
 
 func TestChecksThatTheHookRan(t *testing.T) {
 	p := hookProcess(t)
-	p.checkHookRan()
+	p.checkHookRan("item1")
 	if !p.hookWarned {
 		t.Error("no warning without a hook call")
 	}
+	if ev, ok := nextEv(t, p).(runtime.RulesUnenforced); !ok || ev.ToolUseID != "item1" {
+		t.Errorf("no event for the call that ran: %+v", ev)
+	}
+	p.checkHookRan("item2")
+	if len(p.events) != 0 {
+		t.Error("told more than once")
+	}
 	q := hookProcess(t)
 	q.decideHook(context.Background(), bashInput("ls"))
-	q.checkHookRan()
-	if q.hookWarned {
+	for len(q.events) > 0 {
+		<-q.events
+	}
+	q.checkHookRan("item1")
+	if q.hookWarned || len(q.events) != 0 {
 		t.Error("warned although the hook ran")
 	}
 }

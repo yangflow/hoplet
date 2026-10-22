@@ -597,6 +597,137 @@
   color: var(--color-text);
 }
 
+/* Which machines have applied the latest rules */
+.rv {
+  margin: 0 0 var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: inset 0 0 0 1px var(--color-line);
+  overflow: hidden;
+}
+.rv-h {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  background: var(--color-bg);
+  color: var(--color-text-2);
+  font-weight: var(--weight-medium);
+}
+.rv-h .rmeta {
+  font-weight: var(--weight-regular);
+  color: var(--color-text-3);
+}
+.rv-h .sp {
+  flex: 1;
+}
+.rv-r {
+  display: grid;
+  grid-template-columns: 16px 132px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  box-shadow: inset 0 1px 0 var(--color-line);
+  min-height: var(--control-field);
+}
+.rv-r svg {
+  width: 16px;
+  height: 16px;
+}
+.rv-r .rvs {
+  display: flex;
+  color: var(--color-text-2);
+}
+.rv-r .rvs.ok svg {
+  color: var(--color-success);
+}
+.rv-r .rvs.behind svg {
+  color: var(--color-attention-text);
+}
+.rv-r .rvs.off svg {
+  color: var(--color-text-3);
+}
+.rv-r .rvn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  font-weight: var(--weight-medium);
+}
+.rv-r .rvm {
+  color: var(--color-text-3);
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rv-r .rvm.att {
+  color: var(--color-attention-text);
+}
+.rv-r .rvv {
+  font-family: var(--font-mono);
+  font-size: var(--text-code);
+  line-height: var(--leading-code);
+  color: var(--color-text-2);
+  font-weight: var(--weight-regular);
+  white-space: nowrap;
+}
+.rv-r.off .rvn {
+  color: var(--color-text-3);
+}
+.rv-f {
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  color: var(--color-text-3);
+  background: var(--color-bg);
+  box-shadow: inset 0 1px 0 var(--color-line);
+}
+:root[data-scheme="light"] .rv {
+  background: var(--color-raised);
+}
+
+/* A quiet note in a Codex session: rules cover only what Codex asks for, or the hook did not run */
+.cxn {
+  display: flex;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3) calc(16px + var(--space-2));
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  box-shadow: inset 0 0 0 1px var(--color-line);
+  color: var(--color-text-2);
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+}
+.cxn svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  margin-top: 1px;
+  color: var(--color-text-3);
+}
+.cxn.att svg {
+  color: var(--color-attention-text);
+}
+.cxn span b {
+  font-weight: var(--weight-medium);
+}
+.cxn .lnk {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+  color: var(--color-text-2);
+  text-decoration: underline;
+  text-decoration-color: var(--color-text-3);
+  text-underline-offset: 2px;
+  white-space: nowrap;
+}
+
 /* Light scheme: the surfaces that are the page colour in dark lift one step */
 :root[data-scheme="light"] .qsub,
 :root[data-scheme="light"] .qsum,
@@ -622,6 +753,9 @@
   background: var(--color-attention-soft);
 }
 @media (prefers-color-scheme: light) {
+  :root:not([data-scheme="dark"]) .rv {
+    background: var(--color-raised);
+  }
   :root:not([data-scheme="dark"]) .qsub,
   :root:not([data-scheme="dark"]) .qsum,
   :root:not([data-scheme="dark"]) .qreq,

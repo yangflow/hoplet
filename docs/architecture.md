@@ -384,6 +384,12 @@ browser that subscribes gets the kept ones again. The message holds ids only: th
 it lists (`GET /api/permission-rules`; the built-in table is in `shared/`). The lines are gone when the core restarts;
 the audit event is the record.
 
+`device.rules.applied` also gives the core the revision and the time each machine last confirmed, in memory;
+`GET /api/permission-rules/machines` lists them against the latest revision, and a push to one machine can be
+repeated (`POST /api/permission-rules/machines/:deviceId/push`). When the Codex hook did not run for a call, the agent
+sends `runtime.rules.unenforced` (`sessionId`, `toolUseId`) once per process and the core relays it as
+`session.rules.unenforced` to the subscribed browsers, again on subscribe, in memory only.
+
 ### Session chunk files
 
 `<data>/sessions/<sessionId>/c-<seq>.ndjson` holds at most 500 raw JSONL lines. A full chunk is compressed

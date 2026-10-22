@@ -14,7 +14,7 @@ import (
 // (provider.ValidSessionID, ADR 0006). Invalid IDs receive error invalid-session-id
 // before decoding or persistence; the wire envelope and cursor are unchanged.
 
-const ProtocolVersion = 14
+const ProtocolVersion = 15
 
 // Wire message types: Type<Struct> is the `type` of the struct of that name.
 // shared/src/wire/ holds the same table; scripts/test/contract.test.ts compares both.
@@ -43,6 +43,7 @@ const (
 	TypeRuntimeOutput            = "runtime.output"
 	TypeRuntimePermission        = "runtime.permission"
 	TypeRuntimePermissionAuto    = "runtime.permission.auto"
+	TypeRuntimeRulesUnenforced   = "runtime.rules.unenforced"
 	TypeRuntimeRejected          = "runtime.rejected"
 	TypeRuntimeCommands          = "runtime.commands"
 	TypeSessionWorkspaceList     = "session.workspace.list"
@@ -597,6 +598,15 @@ type RuntimePermissionAuto struct {
 	RuleID    string `json:"ruleId"`
 	Scope     string `json:"scope"` // global | project | session | agent
 	Revision  int    `json:"revision"`
+}
+
+// RuntimeRulesUnenforced reports that a tool call ran without the permission rules being checked: the Codex hook did
+// not run for it (ADR 0032). The agent sends it once per process.
+type RuntimeRulesUnenforced struct {
+	V         int    `json:"v"`
+	Type      string `json:"type"`
+	SessionID string `json:"sessionId"`
+	ToolUseID string `json:"toolUseId,omitempty"`
 }
 
 // PlanExit marks a permission request that asks to leave a plan (ADR 0019).
