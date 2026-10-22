@@ -14,6 +14,7 @@ import type {
   Command,
   DeviceInventory,
   DeviceSystem,
+  HookAnnounce,
   LocalPermissionRule,
   LocalPermissionRules,
   NotifyDelivery,
@@ -62,6 +63,7 @@ import * as permissionRules from './permission-rules.ts';
 import * as queue from './queue.ts';
 import { recoverOnStart } from './recovery.ts';
 import * as resourceThresholds from './resource-thresholds.ts';
+import * as scriptHooks from './script-hooks.ts';
 import { type RawGlobalSearchResult, type RawSearchResult, search, searchAll } from './search.ts';
 import * as secrets from './secrets.ts';
 import * as sessions from './sessions.ts';
@@ -81,9 +83,11 @@ export type {
   HookInput,
   HookPatch,
   HookRecord,
+  ScriptRun,
 } from './hooks.ts';
 export type { PushSubscriptionRecord, WebhookRecord } from './notify.ts';
 export type { QueueOutcome } from './queue.ts';
+export { type ScriptHookRecord, scriptHookId } from './script-hooks.ts';
 export type { HookSecret, NotifySecrets, VapidKeys } from './secrets.ts';
 export type { SessionStateChange, SessionStateRecord } from './sessions.ts';
 export { type SnapshotDiffResult, SnapshotReadError } from './snapshot-read.ts';
@@ -482,10 +486,43 @@ export class Store {
   }
 
   enqueueHookDelivery(
-    input: { hookId: string; eventId: string; type: string; body: string; expiresAt: number },
+    input: Parameters<typeof hooks.enqueueDelivery>[1],
     now: number,
   ): hooks.DeliveryRecord {
     return hooks.enqueueDelivery(this.ctx, input, now);
+  }
+
+  findPendingHookDelivery(hookId: string, eventId: string): hooks.DeliveryRecord | null {
+    return hooks.findPendingDelivery(this.ctx, hookId, eventId);
+  }
+
+  /** Takes the script hooks a device announced in its hello. */
+  replaceScriptHooks(deviceId: string, announced: readonly HookAnnounce[], now: number): void {
+    scriptHooks.replaceScriptHooks(this.ctx, deviceId, announced, now);
+  }
+
+  listScriptHooks(): scriptHooks.ScriptHookRecord[] {
+    return scriptHooks.listScriptHooks(this.ctx);
+  }
+
+  getScriptHook(deviceId: string, slug: string): scriptHooks.ScriptHookRecord | null {
+    return scriptHooks.getScriptHook(this.ctx, deviceId, slug);
+  }
+
+  setScriptHookEnabled(
+    deviceId: string,
+    slug: string,
+    enabled: boolean,
+  ): scriptHooks.ScriptHookRecord | null {
+    return scriptHooks.setScriptHookEnabled(this.ctx, deviceId, slug, enabled);
+  }
+
+  auditScriptHookTest(deviceId: string, slug: string): void {
+    scriptHooks.auditScriptHookTest(this.ctx, deviceId, slug);
+  }
+
+  settlePendingScriptDeliveries(deviceId: string | null, error: string, now: number): void {
+    scriptHooks.settlePendingScriptDeliveries(this.ctx, deviceId, error, now);
   }
 
   getHookDelivery(id: string): hooks.DeliveryRecord | null {

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/yangflow/hoplet/agent/internal/hooks"
 	"github.com/yangflow/hoplet/agent/internal/rules"
 )
 
@@ -39,6 +40,10 @@ type Config struct {
 	// PermissionDeny are the operator's own deny rules (ADR 0029). They hold on this machine whatever the core
 	// pushes; only deny rules are accepted.
 	PermissionDeny []rules.Rule `json:"permission_deny"`
+
+	// Hooks are the script hooks of ADR 0031: programs this machine runs for session lifecycle events. They are
+	// declared here and nowhere else; the core can enable, disable and test them, never add or change one.
+	Hooks []hooks.Entry `json:"hooks"`
 }
 
 func Load(path string) (*Config, error) {
@@ -101,6 +106,9 @@ func Load(path string) (*Config, error) {
 	}
 	if err := rules.ValidateLocal(cfg.PermissionDeny); err != nil {
 		return nil, fmt.Errorf("permission_deny: %w", err)
+	}
+	if err := hooks.Validate(cfg.Hooks); err != nil {
+		return nil, fmt.Errorf("hooks: %w", err)
 	}
 	cfg.PollInterval = time.Duration(cfg.PollIntervalMS) * time.Millisecond
 	if cfg.PollInterval <= 0 {

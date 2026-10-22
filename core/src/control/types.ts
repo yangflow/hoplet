@@ -17,6 +17,8 @@ import type {
   DeviceSessionForgotten,
   DeviceSessionInspected,
   DeviceSessionPoint,
+  HookEnvelope,
+  HookResult,
   HttpErrorCode,
   PermissionDecision,
   PromptImage,
@@ -472,6 +474,12 @@ export interface Control {
   syncRules(deviceIds?: readonly string[]): void;
   /** The revision of the rules the device last applied since it connected; null before it answers. */
   appliedRulesRevision(deviceId: string): number | null;
+  /** Sends a lifecycle event to a script hook on the agent; false when the device is not connected. */
+  sendHookEvent(deviceId: string, hookId: string, event: HookEnvelope): boolean;
+  /** Calls `listener` with every result an agent reports for a script hook; returns the unsubscribe. */
+  onHookResult(listener: (deviceId: string, result: HookResult) => void): () => void;
+  /** Calls `listener` with the devices whose link just dropped; returns the unsubscribe. */
+  onDevicesGone(listener: (deviceIds: string[]) => void): () => void;
   /** Calls `listener` with every moment that may notify; returns the unsubscribe. */
   onEvent(listener: (event: ControlEvent) => void): () => void;
   /** Which sessions browsers have open; the API keeps it current from its sockets. */

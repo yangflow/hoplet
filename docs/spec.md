@@ -670,7 +670,7 @@ The core tells the user when a session needs them, so a turn does not wait unsee
 
 ### Lifecycle hooks
 
-Decided in [ADR 0031](adr/0031-the-session-lifecycle-events-and-the-two-hook-kinds.md) (#97). Webhook hooks and the events are built (routes in docs/api.md); script hooks and the Hooks section of the settings are planned.
+Decided in [ADR 0031](adr/0031-the-session-lifecycle-events-and-the-two-hook-kinds.md) (#97). Webhook hooks, script hooks and the events are built (routes in docs/api.md); the Hooks section of the settings is planned.
 
 Session events for programs, where notifications are for people. A hook observes: it never changes a session, a
 permission request, a budget or a handoff.
@@ -688,13 +688,15 @@ permission request, a budget or a handoff.
   link-local or metadata are refused, redirects are not followed, and only `HOPLET_HOOK_ALLOW_PRIVATE` allows
   loopback and private ones. Failed attempts are retried with backoff for 24 hours, then the delivery is `failed`.
   Delivery records are kept 14 days.
-- **Script hooks** (planned): the agent runs an executable the operator declared by absolute path in `config.json`, with an
-  event filter and a timeout (default 10 seconds, at most 60). No shell and no arguments, the event JSON on standard
-  input, a minimal environment, the project as working directory. Only the exit status and the first 1 KiB of
-  standard error go back to the core. The core and the web UI list, enable and disable script hooks, and never add,
-  edit or point them. One run at a time per hook; beyond a queue of 16 events are dropped and counted.
+- **Script hooks**: the agent runs an executable the operator declared by absolute path in `config.json`, with an
+  event filter, a project filter and a timeout (default 10 seconds, at most 60). No shell and no arguments, the event
+  JSON on standard input, a minimal environment, the project as working directory. Only the exit status and the first
+  1 KiB of standard error go back to the core. The core and the web UI list, enable, disable and test script hooks,
+  and never add, edit or point them. A script gets the events of the sessions of its own machine; its envelope
+  also carries the project's `path`. One run at a time per hook; beyond a queue of 16 events are dropped and
+  counted. Switching, testing and the machine are audit events; the script and what it printed are not.
 - **Settings** (planned for the web UI; the REST routes exist): a Hooks section lists both kinds with the state of their last deliveries and a Send test event
-  button. Creating, editing, rotating and deleting a hook are audit events.
+  button. Creating, editing, rotating and deleting a webhook, and enabling, disabling and testing any hook, are audit events.
 
 ### New session
 

@@ -132,6 +132,10 @@ function setup(options: { fetch?: typeof fetch; allowPrivate?: boolean } = {}) {
       listeners.push(l);
       return () => listeners.splice(listeners.indexOf(l), 1);
     },
+    onHookResult: () => () => {},
+    onDevicesGone: () => () => {},
+    sendHookEvent: () => false,
+    ownerOnline: () => false,
   } as unknown as Control;
   const emit = (e: ControlEvent) => {
     for (const l of [...listeners]) l(e);
@@ -746,7 +750,7 @@ describe('management', () => {
     const f = setup();
     const hooks = f.make(f.bus);
     const { id } = await withHook(hooks);
-    expect(hooks.get(id)?.url).toBe('https://hooks.example/a');
+    expect((hooks.get(id) as { url?: string } | null)?.url).toBe('https://hooks.example/a');
     for (let i = 1; i < 20; i++) await withHook(hooks, { label: `h${i}` });
     const extra = await hooks.create({ url: URL_A, label: 'x', events: ['session.ended'] });
     expect(extra).toMatchObject({ ok: false, error: 'too-many-hooks' });

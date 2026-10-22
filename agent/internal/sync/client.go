@@ -169,6 +169,9 @@ func (c *Client) runOnce(ctx context.Context) error {
 
 		PermissionDeny: c.hooks.PermissionDeny,
 	}
+	if c.hooks.ScriptHooks != nil {
+		hello.Hooks = c.hooks.ScriptHooks()
+	}
 	if c.hooks.Terminal.Enabled {
 		hello.Capabilities = &DeviceCapabilities{Terminal: true}
 	}
@@ -328,6 +331,9 @@ func (c *Client) readLoop(cs *connState) {
 			continue
 		case TypeAttachmentPut:
 			c.handleAttachment(cs, raw)
+			continue
+		case TypeHookEvent:
+			c.handleHookEvent(raw)
 			continue
 		case TypeDeviceRules:
 			// In order: a later push must not be overtaken by an earlier one.

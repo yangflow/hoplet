@@ -1706,6 +1706,9 @@ export const routes: readonly Route[] = [
       const updated = await hooks.update(params.id ?? '', body);
       if (updated.ok) return updated.hook;
       if (updated.error === 'not-found') throw new ApiError('not-found');
+      if (updated.error === 'script-managed') {
+        throw new ApiError('invalid-request', { reason: 'script-managed' });
+      }
       throw new ApiError('invalid-request', { reason: updated.reason });
     },
   }),
@@ -1716,6 +1719,9 @@ export const routes: readonly Route[] = [
     lane: 'control',
     response: HookListResponseSchema,
     handler: ({ hooks, params }) => {
+      if (hooks.isScript(params.id ?? '')) {
+        throw new ApiError('invalid-request', { reason: 'script-managed' });
+      }
       if (!hooks.remove(params.id ?? '')) throw new ApiError('not-found');
       return { hooks: hooks.list() };
     },
@@ -1727,6 +1733,9 @@ export const routes: readonly Route[] = [
     lane: 'control',
     response: HookSecretResponseSchema,
     handler: ({ hooks, params }) => {
+      if (hooks.isScript(params.id ?? '')) {
+        throw new ApiError('invalid-request', { reason: 'script-managed' });
+      }
       const rotated = hooks.rotate(params.id ?? '');
       if (!rotated) throw new ApiError('not-found');
       return rotated;

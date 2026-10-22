@@ -32,6 +32,7 @@ import {
   PERMISSION_SCOPES,
   PermissionRuleSchema,
 } from '../permission-rules.ts';
+import { HookEnvelopeSchema, HookEventTypeSchema } from '../rest/hooks.ts';
 import { NotifyEventKindSchema } from '../rest/notify.ts';
 import { ChangeStatusSchema, WorkspaceChangeSchema } from '../rest/workspace.ts';
 import {
@@ -83,6 +84,35 @@ export const DeviceSystemSchema = v.object({
   arch: v.pipe(v.string(), v.maxLength(32)),
 });
 export type DeviceSystem = v.InferOutput<typeof DeviceSystemSchema>;
+
+/** A script hook as the agent announces it (ADR 0031): its entry in `config.json` and its counters since start. */
+export const HookAnnounceSchema = v.object({
+  /** The slug of the entry, unique on the machine. */
+  id: v.pipe(v.string(), v.maxLength(40)),
+  /** The absolute path of the program; it is not secret. */
+  command: v.pipe(v.string(), v.maxLength(4096)),
+  /** Event types, or `*` alone. */
+  events: v.pipe(v.array(v.union([HookEventTypeSchema, v.literal('*')])), v.maxLength(8)),
+  /** Absolute project paths the hook applies to; empty means every project. */
+  projects: v.pipe(v.array(v.pipe(v.string(), v.maxLength(4096))), v.maxLength(100)),
+  timeoutMs: v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(60000)),
+  /** Names, never values, of the variables the script is passed. */
+  env: v.pipe(v.array(v.pipe(v.string(), v.maxLength(64))), v.maxLength(100)),
+  runs: v.pipe(v.number(), v.integer(), v.minValue(0)),
+  failed: v.pipe(v.number(), v.integer(), v.minValue(0)),
+  dropped: v.pipe(v.number(), v.integer(), v.minValue(0)),
+});
+export type HookAnnounce = v.InferOutput<typeof HookAnnounceSchema>;
+
+/** The most script hooks one agent announces. */
+export const MAX_SCRIPT_HOOKS = 20;
+
+/** Why a script run has no exit code. */
+export const HookResultErrorSchema = v.picklist(['timeout', 'spawn-failed', 'dropped']);
+export type HookResultError = v.InferOutput<typeof HookResultErrorSchema>;
+
+/** The bytes of standard error a `hook.result` carries. */
+export const HOOK_STDERR_BYTES = 1024;
 
 /** Bytes of a terminal input or output message, decoded (ADR 0026). */
 export const TERMINAL_CHUNK_BYTES = 4096;
@@ -268,6 +298,8 @@ export const WIRE_MESSAGES = defineWire({
       previewHost: v.optional(v.pipe(v.string(), v.maxLength(255))),
       /** The deny rules of the agent's own configuration (`permission_deny`, ADR 0029), at most 100; absent means none. */
       permissionDeny: v.optional(LocalPermissionRuleListSchema),
+      /** The script hooks of the agent's `config.json` (ADR 0031); absent means none. */
+      hooks: v.optional(v.pipe(v.array(HookAnnounceSchema), v.maxLength(MAX_SCRIPT_HOOKS))),
     },
   },
   welcome: {
@@ -1068,6 +1100,36 @@ export const WIRE_MESSAGES = defineWire({
     },
   },
 
+  // Script hooks (ADR 0031). Bulk: an event is not control work, and none waits behind one.
+  /**
+   * One lifecycle event for one script hook of the device. `hookId` names an entry of the agent's own
+   * `config.json`; the agent checks it again, and the type and project, and runs nothing else. A test event
+   * (`hook.test`) arrives the same way.
+   */
+  'hook.event': {
+    lane: 'bulk',
+    direction: 'core-to-device',
+    fields: { hookId: v.pipe(v.string(), v.maxLength(40)), event: HookEnvelopeSchema },
+  },
+  /**
+   * The outcome of one `hook.event`: `ok` for exit code 0; otherwise the exit code, or `error` when the run
+   * has none (`dropped`: the agent did not run it). `stderr` is the first kilobyte of the script's standard
+   * error.
+   */
+  'hook.result': {
+    lane: 'bulk',
+    direction: 'device-to-core',
+    fields: {
+      hookId: v.pipe(v.string(), v.maxLength(40)),
+      eventId: v.pipe(v.string(), v.maxLength(64)),
+      ok: v.boolean(),
+      exitCode: v.optional(v.pipe(v.number(), v.integer())),
+      error: v.optional(HookResultErrorSchema),
+      durationMs: v.pipe(v.number(), v.integer(), v.minValue(0)),
+      stderr: v.pipe(v.string(), v.maxLength(HOOK_STDERR_BYTES)),
+    },
+  },
+
   // The clone a handoff would use: a watched project whose remote `origin` is `origin`
   'device.clone.find': {
     lane: 'control',
@@ -1428,6 +1490,8 @@ export type DeviceProvidersUpdate = WireMessageOf<'device.providers.update'>;
 export type DeviceProvidersRejected = WireMessageOf<'device.providers.rejected'>;
 export type DeviceRules = WireMessageOf<'device.rules'>;
 export type DeviceRulesApplied = WireMessageOf<'device.rules.applied'>;
+export type HookEvent = WireMessageOf<'hook.event'>;
+export type HookResult = WireMessageOf<'hook.result'>;
 
 /** Types of the messages in `direction`, in table order. */
 export function wireTypes(...directions: Direction[]): WireType[] {
@@ -1488,6 +1552,7 @@ export const ClientMessageSchema = v.variant('type', [
   WIRE_MESSAGES['device.providers'].schema,
   WIRE_MESSAGES['device.providers.rejected'].schema,
   WIRE_MESSAGES['device.rules.applied'].schema,
+  WIRE_MESSAGES['hook.result'].schema,
 ]);
 
 /** The messages a browser sends. */
@@ -1526,4 +1591,5 @@ export const WIRE_OBJECTS = {
   DeletionDirty: DeletionDirtySchema,
   DeletionWorktree: DeletionWorktreeSchema,
   DeletionStep: DeletionStepSchema,
+  HookAnnounce: HookAnnounceSchema,
 } as const;

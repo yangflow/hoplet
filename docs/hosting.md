@@ -37,7 +37,7 @@ machine whose Claude Code sessions are synced or controlled.
   other non-public addresses before it connects (when a hook is saved and again at every attempt), connects to the
   address it checked, follows no redirect and keeps no response body. Setting
   `HOPLET_HOOK_ALLOW_PRIVATE` lets a hook name a loopback or private address, over `http` too; link-local
-  addresses are never allowed. At most 4 hook requests are in flight at a time. Script hooks (planned) open no
+  addresses are never allowed. At most 4 hook requests are in flight at a time. Script hooks open no
   connection: the agent runs a local executable.
 
 ### Public URL
@@ -149,7 +149,7 @@ starting the container. Run one core per data directory, on a local filesystem w
 | `terminal` | `false` | allow the web UI to open a shell on this machine ([Terminal](#terminal)) |
 | `preview_host` | the machine's host name | the host in the links to a session's dev servers ([Dev server links](#dev-server-links)) |
 | `permission_deny` | none | deny rules of the operator, a JSON array of rules in the shape of the permission rules (docs/spec.md#permission-rules); they hold against any rule the core sends, and at most 100; the agent announces them to the core, which shows them read-only; a configuration with an invalid rule or more rules does not load |
-| `hooks` | none (planned, ADR 0031) | script hooks the agent runs on session events ([Lifecycle hooks](#lifecycle-hooks)) |
+| `hooks` | none | script hooks the agent runs on session events ([Lifecycle hooks](#lifecycle-hooks)) |
 
 `<hoplet_home>/projects.json` lists watched project paths and the session IDs imported from each:
 `{ "projects": [{ "path": "/abs/project", "imported": ["<session>"] }] }`. A missing or empty file syncs
@@ -183,21 +183,31 @@ and removes what a crash left on start-up. The terminal's traffic uses the agent
 
 ### Lifecycle hooks
 
-Planned ([ADR 0031](adr/0031-the-session-lifecycle-events-and-the-two-hook-kinds.md)). `"hooks": [...]` in the
+([ADR 0031](adr/0031-the-session-lifecycle-events-and-the-two-hook-kinds.md)) `"hooks": [...]` in the
 agent's `config.json` declares scripts the agent runs on session events. Each entry has an `id` (a slug, unique on
 the machine), `command` (an absolute path to an executable), `events` (a list of event types, or `"*"`), optional
 `projects` (absolute paths it applies to), `timeout_ms` (default 10000, at most 60000) and `env` (names of
 variables to pass through). Only the operator of the machine can add or change a script hook: the core and the web
-UI list, enable and disable them, and never add, edit or point one. The file is read at start, so a change takes
-an agent restart. The agent refuses at load an entry whose `command` is relative, not a regular file, not
-executable, or writable by group or others, and logs why.
+UI list, enable, disable and test them, and never add, edit or point one. The file is read at start, so a change takes
+an agent restart. The agent refuses to load a configuration with an entry whose `id` is not a slug or is repeated,
+whose `command` is relative, not a regular file, not executable, or writable by group or others, with an unknown or
+`*`-mixed event, a relative project path, a `timeout_ms` over 60000, or an `env` name that starts with `HOPLET_`
+(at most 20 entries), and says why.
 
 A script runs as the agent's user, without a shell and without arguments, with the event JSON on standard input,
 the project directory as its working directory, and an environment of only `PATH`, `HOME`, `USER`, `LANG`, `TZ`,
 `TMPDIR`, the names in `env` and `HOPLET_HOOK_ID`, `HOPLET_EVENT_ID`, `HOPLET_EVENT_TYPE`. After `timeout_ms` it is
 stopped (`SIGTERM`, then `SIGKILL` after 2 seconds). One run at a time per hook, at most 16 events waiting; more
 are dropped and counted. Standard output is discarded; the exit status and the first 1 KiB of standard error are
-reported to the core.
+reported to the core. The working directory is the project directory when the machine watches it, else
+`<hoplet_home>`. The agent keeps `<hoplet_home>/hooks/` (one small record per running script: its process group,
+never content) and kills a script a crashed agent left behind when it starts. The agent announces its script hooks
+(`id`, `command`, events, projects, timeout, the names in `env`, and the counts of runs, failures and dropped
+events since it started) in `device.hello`; the core keeps the announcement and its own `enabled` switch of each hook
+in the table `script_hooks` (a hook that is no longer announced is forgotten), and sends an event only to an enabled
+hook on the machine that owns the session, once, without retry: a machine that is offline gets a delivery recorded
+as `dropped` with the error `offline`. A delivery waiting for the result when the connection drops fails with
+`connection-lost`, and one waiting when the core starts with `interrupted`.
 
 ### Dev server links
 
@@ -266,6 +276,10 @@ agent; it reads nothing and needs no action. No new port, resource or dependency
 
 Migration 0028 (lifecycle hooks) creates `hooks` and `hook_deliveries`; it reads nothing and needs no action. No new
 port, resource or dependency.
+
+Migration 0029 (script hooks) creates `script_hooks` and adds the column `run` to `hook_deliveries`; the next
+`device.hello` of each agent fills the table. It reads nothing and needs no action. No new port, resource or
+dependency.
 
 ## Uninstall
 
