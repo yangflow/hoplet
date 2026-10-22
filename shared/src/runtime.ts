@@ -75,14 +75,16 @@ export type ConfigChange = v.InferOutput<typeof ConfigChangeSchema>;
 /**
  * What a runtime driver declares it can do; the UI shows only the controls a session's driver supports.
  * `permissions` and `interrupt` are the controls of a turn, `images` says a prompt may carry images, `steer`
- * says a message written during a turn reaches the model at the turn's next tool gap (ADR 0020), and
- * `config` lists the settings of a session (ADR 0018).
+ * says a message written during a turn reaches the model at the turn's next tool gap (ADR 0020), `rules` is
+ * `prompts-only` when the permission rules act only on the vendor's approval requests and not on every tool call
+ * (ADR 0032; absent means they check every call), and `config` lists the settings of a session (ADR 0018).
  */
 export const RuntimeCapabilitiesSchema = v.object({
   permissions: v.boolean(),
   interrupt: v.boolean(),
   images: v.optional(v.boolean()),
   steer: v.optional(v.boolean()),
+  rules: v.optional(v.literal('prompts-only')),
   config: v.array(ConfigOptionSchema),
 });
 export type RuntimeCapabilities = v.InferOutput<typeof RuntimeCapabilitiesSchema>;

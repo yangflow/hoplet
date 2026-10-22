@@ -7,6 +7,7 @@ require (
 	github.com/gorilla/websocket v1.5.3
 	github.com/klauspost/compress v1.18.7
 	github.com/spf13/cobra v1.10.2
+	golang.org/x/sys v0.49.0
 )
 
 require (

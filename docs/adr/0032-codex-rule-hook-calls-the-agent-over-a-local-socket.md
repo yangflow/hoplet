@@ -58,6 +58,33 @@ permission cards. It does not stop a malicious process running as the same user:
 process environment or open the socket itself. That is outside the threat model, the same as writing the provider's own
 configuration files.
 
+## Verified against codex 0.163.0
+
+Three short app-server turns registered a probe hook in the `thread/start` config the way this record describes.
+
+1. The environment reaches the hook: `HOPLET_HOOK_SOCK` and `HOPLET_HOOK_NONCE` arrive. The matcher `.*` fires for
+   the shell tool (`tool_name` `Bash`, `tool_input.command`) and for `apply_patch` (`tool_input.command` is the patch
+   text, with absolute file paths). `bypass_hook_trust` works on `thread/start`; the hook's source is reported as
+   `sessionFlags`. `tool_use_id` equals the id of the `commandExecution` or `fileChange` item.
+2. `permissionDecision: "deny"` with a reason blocks the call: the hook run is `blocked` and the command does not
+   run.
+3. `permissionDecision: "allow"` is not supported: the hook run is `failed` ("unsupported permissionDecision:allow")
+   and the call then runs under Codex's own policy.
+4. Codex fails open on a hook failure. A hook that outlived its timeout was reported `failed` and the command ran.
+   Any failure of the hook process (a crash, unsupported output, a process that cannot start) lets the call through.
+
+Consequences:
+
+- An `allow` by a rule, and a decision the user approved in the web UI, print nothing and exit 0, so Codex's approval
+  policy applies. The daemon remembers the approved `tool_use_id` for ten minutes; when Codex then sends its own
+  approval request for the same item, the driver accepts it without asking the user again. A call a rule denies never
+  reaches that point.
+- Fail closed holds only while the hook process runs and answers in time. The hook prints its deny at 870 s and the
+  daemon resolves an `ask` that nobody answered as a deny ("no answer in time") at 860 s, both before the 900 s timeout
+  of the hook in the config, because past that timeout the call runs.
+- A hook that cannot start or is killed lets the call through. The agent cannot prevent that; the start check logs a
+  session in which no call ever reached the hook.
+
 ## Cost
 
 A new subcommand and a local listener in the agent, a nonce per process, and a process start per tool call

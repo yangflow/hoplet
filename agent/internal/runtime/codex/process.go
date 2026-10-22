@@ -9,12 +9,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/yangflow/hoplet/agent/internal/runtime"
 )
@@ -79,6 +81,17 @@ type process struct {
 	requests    map[string]*serverReq
 	plans       map[string]string // plan-exit requests waiting for the user, by request ID
 	images      []string
+
+	// The rule hook (ADR 0032): the process answers it as a hookTarget registered under its nonce.
+	gone       chan struct{} // closed when the output ended
+	dir        string        // the session's directory, as the daemon knows it
+	rules      RuleSource    // nil when the process runs without the hook
+	unregister func()
+	hookAsks   map[string]*hookAsk // approvals the hook holds open, by request ID
+	hookSeq    int
+	hookOK     map[string]time.Time // items the hook let through, by item ID, until Codex asks about them
+	hookCalls  int                  // calls the hook asked about
+	hookWarned bool
 }
 
 func newProcess(d *Driver, cmd *exec.Cmd, stdin io.WriteCloser, stderr *tailBuffer) *process {
@@ -91,6 +104,9 @@ func newProcess(d *Driver, cmd *exec.Cmd, stdin io.WriteCloser, stderr *tailBuff
 		reported: map[string]string{},
 		requests: map[string]*serverReq{},
 		plans:    map[string]string{},
+		gone:     make(chan struct{}),
+		hookAsks: map[string]*hookAsk{},
+		hookOK:   map[string]time.Time{},
 	}
 }
 
@@ -243,6 +259,10 @@ func (p *process) read(r io.Reader) {
 		}
 	}
 	waitErr := p.cmd.Wait()
+	close(p.gone)
+	if p.unregister != nil {
+		p.unregister()
+	}
 	p.mu.Lock()
 	p.done = true
 	pending := p.pending
@@ -359,6 +379,9 @@ func (p *process) openThread(ctx context.Context, spec runtime.StartSpec) error 
 	}
 	if model != valueDefault {
 		params["model"] = model
+	}
+	if cmd := p.d.hookCommand(); cmd != "" && p.rules != nil {
+		params["config"] = hookConfig(cmd)
 	}
 	method := "thread/start"
 	if !spec.New {
@@ -538,6 +561,7 @@ func (p *process) Interrupt() error {
 		}
 	}
 	p.mu.Unlock()
+	p.endHookAsks()
 	if turn != "" {
 		p.callAsync("turn/interrupt", map[string]any{"threadId": thread, "turnId": turn}, nil)
 		return nil
@@ -598,6 +622,11 @@ func (p *process) handleRequest(id json.RawMessage, method string, params json.R
 	if q.Reason != nil {
 		input["reason"] = *q.Reason
 	}
+	if p.takeHookOK(q.ItemID) {
+		// The user or an allow rule approved this item at the hook; Codex's own approval follows that answer.
+		_ = p.write(map[string]any{"jsonrpc": "2.0", "id": id, "result": map[string]any{"decision": "accept"}})
+		return
+	}
 	reqID := string(id)
 	p.mu.Lock()
 	p.requests[reqID] = &serverReq{id: id, turnID: q.TurnID}
@@ -609,6 +638,9 @@ func (p *process) handleRequest(id json.RawMessage, method string, params json.R
 func (p *process) Answer(requestID string, v runtime.Verdict) error {
 	if strings.HasPrefix(requestID, planPrefix) {
 		return p.answerPlan(requestID, v)
+	}
+	if strings.HasPrefix(requestID, hookAskPrefix) {
+		return p.answerHook(requestID, v)
 	}
 	p.mu.Lock()
 	req := p.requests[requestID]
@@ -740,6 +772,29 @@ func (p *process) handleNote(method string, params json.RawMessage) {
 		p.turnCompleted(params)
 	case "serverRequest/resolved":
 		p.requestResolved(params)
+	case "warning", "configWarning":
+		p.hookWarning(method, params)
+	}
+}
+
+// hookWarning logs a warning of Codex that is about hooks: a hook Codex refused to load means the rules are not
+// enforced. Other warnings are Codex's own.
+func (p *process) hookWarning(method string, params json.RawMessage) {
+	if p.rules == nil {
+		return
+	}
+	var n struct {
+		Message string `json:"message"`
+		Summary string `json:"summary"`
+		Details string `json:"details"`
+	}
+	_ = json.Unmarshal(params, &n)
+	text := strings.TrimSpace(n.Message + " " + n.Summary + " " + n.Details)
+	if strings.Contains(strings.ToLower(text), "hook") {
+		if len(text) > 300 {
+			text = strings.ToValidUTF8(text[:300], "")
+		}
+		log.Printf("[agent] Codex reported on its hooks (%s): %s", method, text)
 	}
 }
 
@@ -784,6 +839,10 @@ func (p *process) itemCompleted(params json.RawMessage) {
 	}
 	if json.Unmarshal(params, &n) != nil {
 		return
+	}
+	switch n.Item.Type {
+	case "commandExecution", "fileChange":
+		p.checkHookRan()
 	}
 	switch n.Item.Type {
 	case "commandExecution":

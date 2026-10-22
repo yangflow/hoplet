@@ -188,6 +188,20 @@ refusal with a message starts a turn that stays in plan mode. Only the codex-cli
 `device.hello` announces no version for it. The `effort` options are the union of the efforts of all models, and
 the driver leaves out an effort the chosen model does not support.
 
+The permission rules reach Codex through a `PreToolUse` command hook ([ADR 0032](adr/0032-codex-rule-hook-calls-the-agent-over-a-local-socket.md)).
+`thread/start` and `thread/resume` carry it in `config` with the absolute path of the agent binary (`hoplet-agent hook codex`),
+the matcher `.*`, a 900 s timeout and `bypass_hook_trust`. The daemon listens on `<hoplet_home>/hook.sock` and gives
+each Codex process a random nonce (256 bits) in `HOPLET_HOOK_SOCK` and `HOPLET_HOOK_NONCE`; the hook sends the nonce
+with the input (at most 1 MiB), the daemon takes the session from the nonce, evaluates the rules (`rules.FromCodexHook`
+maps the tool call) and answers. Codex supports only `deny` from a hook, so the hook prints a deny with a reason and
+prints nothing for an `allow` or an approval, which leaves the call to Codex's approval policy; the daemon remembers
+the approved tool call for ten minutes and accepts Codex's own approval request for the same item without asking
+again. An `ask` is raised as a permission request (`hook:<n>`) and holds the hook open until the user answers; a
+rule decision emits `runtime.permission.auto` as in Claude Code. In `plan` collaboration an `allow` is not
+remembered and Codex decides. Every error and an unknown nonce deny; an `ask` nobody answers is a deny at 860 s and
+the hook prints a deny at 870 s, before Codex's 900 s timeout, after which Codex runs the call. Where
+the socket cannot be opened (Windows, a path over 100 bytes) the driver declares `capabilities.rules: "prompts-only"`.
+
 ### A runtime capability
 
 A new control is a `runtime.*` message, a capability name, an implementation in each runtime driver that
