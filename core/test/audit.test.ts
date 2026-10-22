@@ -12,7 +12,7 @@ import {
   type ServerMessage,
 } from '@hoplet/shared';
 import { afterEach, describe, expect, it } from 'vitest';
-import { verifyAuditFile } from '../../scripts/hoplet/audit-verify.ts';
+import { verifyAuditFile } from '../../cli/src/audit-verify.ts';
 import { auditExport } from '../src/api/audit-export.ts';
 import { createApi } from '../src/api/index.ts';
 import { type ControlReply, createControl, type DeviceLink } from '../src/control/index.ts';

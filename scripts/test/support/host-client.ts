@@ -1,4 +1,4 @@
-/** Host-token HTTP client for core REST (prompt, interrupt, handoff, devices). */
+/** A host-token HTTP client for the end-to-end tests: it answers `{ ok, data }` or `{ ok: false, error }`. */
 import { randomUUID } from 'node:crypto';
 import {
   AuditEventsResponseSchema,
@@ -14,8 +14,7 @@ import {
   PromptResultSchema,
   RuntimeCommandResultSchema,
   safeParse,
-} from '../../shared/src/index.ts';
-import { errorMessage } from './errors.ts';
+} from '../../../shared/src/index.ts';
 
 export type HostClientOptions = {
   baseUrl: string;
@@ -65,7 +64,9 @@ export class HostClient {
         error: {
           status: res.status,
           code: error?.code ?? null,
-          message: errorMessage(res.status, error),
+          message: error
+            ? `${error.code}${error.reason ? ` (${error.reason})` : ''}`
+            : `HTTP ${res.status}`,
         },
       };
     }
@@ -159,7 +160,9 @@ export class HostClient {
         error: {
           status: res.status,
           code: error?.code ?? null,
-          message: errorMessage(res.status, error),
+          message: error
+            ? `${error.code}${error.reason ? ` (${error.reason})` : ''}`
+            : `HTTP ${res.status}`,
         },
       };
     }

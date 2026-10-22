@@ -17,7 +17,7 @@ import {
 import { attachIngest } from '../../../core/src/ingest/index.ts';
 import { Store } from '../../../core/src/store/index.ts';
 import type { ServerMessage } from '../../../shared/src/index.ts';
-import { HostClient } from '../../hoplet/client.ts';
+import { HostClient } from './host-client.ts';
 
 /** Git without the user's or the system's configuration, and with fixed identities. */
 export const isolatedEnv: NodeJS.ProcessEnv = {

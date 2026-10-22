@@ -94,6 +94,13 @@ const isTest = (file: string): boolean => /^sdk\/test\//.test(file);
 const isSdkRuntime = (file: string): boolean =>
   file.startsWith('sdk/') && !file.startsWith('sdk/scripts/');
 
+// The command line tool is built on the SDK and Node alone (ADR 0033): never on shared/, the core, the web UI
+// or the agent, and it imports the SDK by its package name. Only scripts/ and one core test (the independent
+// check of the offline audit verification) import it.
+const CLI_FORBIDDEN =
+  /^(?:core\/|web\/|shared\/|agent\/|sdk\/|scripts\/|@hoplet\/(?:shared|core|web)(?:\/|$))/;
+const CLI_IMPORTERS = /^(?:cli\/|scripts\/|core\/test\/audit\.test\.ts$)/;
+
 // Which module may import which, the "May call" column of docs/architecture.md#components. `config` is
 // also read for its type where a module is handed the configuration.
 const MAY_CALL: Record<string, readonly string[]> = {
@@ -137,6 +144,10 @@ export function checkBoundaries(files: ReadonlyMap<string, string>): Violation[]
         (to.startsWith('sdk/') || to.startsWith('@hoplet/sdk'))
       )
         add('only the command line tool imports the SDK (ADR 0033)');
+      if (file.startsWith('cli/') && CLI_FORBIDDEN.test(to))
+        add('cli/ imports only the SDK (@hoplet/sdk), node:* and itself (ADR 0033)');
+      if (!CLI_IMPORTERS.test(file) && (to.startsWith('cli/') || to.startsWith('@hoplet/cli')))
+        add('nothing but cli/ and scripts/ imports the command line tool');
       if (/^lucide-react(\/|$)/.test(to) && !file.startsWith('scripts/') && file !== ICON_MODULE)
         add(`icons are imported only in ${ICON_MODULE} (docs/design.md#icons)`);
       if (file.startsWith('web/') && (to.startsWith('core/') || to.startsWith('@hoplet/core')))
@@ -173,7 +184,7 @@ export function checkBoundaries(files: ReadonlyMap<string, string>): Violation[]
 function trackedSources(root: string): Map<string, string> {
   const out = execFileSync(
     'git',
-    ['-C', root, 'ls-files', 'core', 'shared', 'web', 'sdk', 'scripts', 'agent'],
+    ['-C', root, 'ls-files', 'core', 'shared', 'web', 'sdk', 'cli', 'scripts', 'agent'],
     { encoding: 'utf8' },
   );
   const files = new Map<string, string>();

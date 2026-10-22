@@ -45,6 +45,9 @@ rest. It checks `protocolVersion` once, mints a ticket for every socket connecti
 whose `code` is one of [Error codes](#error-codes) (or `network-error`, `invalid-response`,
 `protocol-version-mismatch`, `aborted`). See `sdk/README.md`.
 
+The `hoplet` command (`@hoplet/cli`, `cli/`) is built on the SDK and prints these codes' messages; with `--json`
+it prints failures as `{"code", "reason"?}` on standard error. See `cli/README.md`.
+
 ## Conventions
 
 - Requests and responses are JSON (UTF-8). A request body is sent with `content-type: application/json`; each

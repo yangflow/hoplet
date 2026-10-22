@@ -52,6 +52,36 @@ describe('checkBoundaries', () => {
     ]);
   });
 
+  it('lets the CLI import the SDK, Node and itself only, and keeps others from importing the CLI', () => {
+    const ok = checkBoundaries(
+      files({
+        'cli/src/main.ts':
+          'import { readFileSync } from "node:fs";\nimport { Hoplet } from "@hoplet/sdk";\nimport { run } from "./run.ts";',
+        'cli/test/run.test.ts':
+          'import { it } from "vitest";\nimport { run } from "../src/run.ts";',
+        'cli/scripts/build.ts': 'import { build } from "esbuild";',
+        'core/test/audit.test.ts':
+          'import { verifyAuditFile } from "../../cli/src/audit-verify.ts";',
+        'scripts/x.ts': 'import { run } from "../cli/src/run.ts";',
+      }),
+    );
+    expect(ok).toEqual([]);
+    const bad = checkBoundaries(
+      files({
+        'cli/src/a.ts': 'import { X } from "@hoplet/shared";',
+        'cli/src/b.ts': 'import { Store } from "../../core/src/store/index.ts";',
+        'cli/src/c.ts': 'import { Hoplet } from "../../sdk/src/index.ts";',
+        'web/src/lib/d.ts': 'import { run } from "../../../cli/src/run.ts";',
+      }),
+    );
+    expect(bad.map((v) => v.file)).toEqual([
+      'cli/src/a.ts',
+      'cli/src/b.ts',
+      'cli/src/c.ts',
+      'web/src/lib/d.ts',
+    ]);
+  });
+
   it('allows the icon family in the icon module only', () => {
     const ok = checkBoundaries(
       files({ 'web/src/components/icons.tsx': 'import { Search } from "lucide-react";' }),

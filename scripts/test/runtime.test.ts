@@ -23,7 +23,7 @@ import { createControl } from '../../core/src/control/index.ts';
 import { attachIngest } from '../../core/src/ingest/index.ts';
 import { Store } from '../../core/src/store/index.ts';
 import { PROTOCOL_VERSION, RuntimeCommandResultSchema } from '../../shared/src/index.ts';
-import { HostClient } from '../hoplet/client.ts';
+import { HostClient } from './support/host-client.ts';
 
 const HOST = 'runtime-e2e-host-token';
 const SESSION = '11111111-2222-4333-8444-5555555555aa';

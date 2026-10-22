@@ -1,7 +1,7 @@
-import type { HttpErrorCode } from '../../shared/src/index.ts';
+import { HopletError } from '@hoplet/sdk';
 
-/** What the CLI prints for each error code. */
-export const ERROR_COPY: Record<HttpErrorCode, string> = {
+/** What the CLI prints for each stable error code; a code it does not know prints as itself. */
+const ERROR_COPY: Record<string, string> = {
   unauthorized: 'The token was not accepted.',
   'not-found': 'Not found.',
   'method-not-allowed': 'This action is not supported.',
@@ -28,8 +28,7 @@ export const ERROR_COPY: Record<HttpErrorCode, string> = {
   'queue-full': 'The queue is full.',
   cancelled: 'The request was cancelled.',
   'handoff-in-progress': 'A hand-off of this session is already running.',
-  'no-clone':
-    'That machine has no clone of this repository. Hand off with a path from the hoplet CLI.',
+  'no-clone': 'That machine has no clone of this repository. Hand off with --path.',
   'handoff-not-running': 'No handoff of this session is cloning now.',
   'clone-failed': 'The repository could not be cloned on the other machine. Nothing was moved.',
   'no-snapshot':
@@ -43,14 +42,43 @@ export const ERROR_COPY: Record<HttpErrorCode, string> = {
   rejected: 'The machine refused the request.',
   timeout: 'The machine did not answer in time.',
   internal: 'Something went wrong on the server.',
+  'network-error': 'The core could not be reached.',
+  'invalid-response': 'The core answered something other than the documented shape.',
+  'protocol-version-mismatch': 'This command and the core speak different protocol versions.',
+  aborted: 'Stopped.',
+  'no-token': 'No token. Set HOPLET_TOKEN, HOPLET_TOKEN_FILE or pass --token-file.',
+  usage: 'Usage error.',
+  'not-supported': 'Not supported.',
 };
 
-/** The line to print for a failed request: the copy of its code, then the agent's reason if any. */
-export function errorMessage(
-  status: number,
-  error: { code: HttpErrorCode; reason?: string | undefined } | null,
-): string {
-  if (!error) return `HTTP ${status}`;
-  const copy = ERROR_COPY[error.code];
-  return error.reason && error.reason !== error.code ? `${copy} (${error.reason})` : copy;
+/** A failure of the command itself, before or apart from any request. */
+export class CliError extends Error {
+  readonly code: string;
+  readonly reason: string | undefined;
+
+  constructor(code: string, reason?: string) {
+    super(reason === undefined ? code : `${code}: ${reason}`);
+    this.name = 'CliError';
+    this.code = code;
+    this.reason = reason;
+  }
+}
+
+export type Failure = { code: string; reason?: string };
+
+/** The code and reason of anything thrown; an error that is neither kind prints as `internal`. */
+export function failureOf(err: unknown): Failure {
+  if (err instanceof HopletError || err instanceof CliError) {
+    return err.reason === undefined ? { code: err.code } : { code: err.code, reason: err.reason };
+  }
+  return { code: 'internal', reason: err instanceof Error ? err.message : String(err) };
+}
+
+/** The line to print for a failure: the copy of its code, then the reason if any. */
+export function failureText(failure: Failure): string {
+  if ((failure.code === 'usage' || failure.code === 'not-supported') && failure.reason) {
+    return failure.reason;
+  }
+  const copy = ERROR_COPY[failure.code] ?? failure.code;
+  return failure.reason && failure.reason !== failure.code ? `${copy} (${failure.reason})` : copy;
 }
