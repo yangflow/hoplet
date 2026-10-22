@@ -532,6 +532,13 @@ button.row:not(.selected):hover {
 .sel > svg {
   color: var(--color-text-3);
 }
+.sel.on {
+  box-shadow: inset 0 0 0 1.5px var(--color-accent);
+}
+.sel-prefix {
+  flex: none;
+  color: var(--color-text-3);
+}
 .sel:disabled {
   opacity: 0.5;
   cursor: default;

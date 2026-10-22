@@ -2,6 +2,8 @@ import {
   ActionDecideResponseSchema,
   ActionInspectResponseSchema,
   AttachmentResultSchema,
+  AuditEventsResponseSchema,
+  AuditVerifyResponseSchema,
   type BudgetBody,
   BudgetListResponseSchema,
   BudgetSchema,
@@ -768,6 +770,41 @@ export function fetchTemplateExport() {
 /** Imports a file, or with `dryRun` says what would be added. */
 export function postTemplateImport(request: TemplateImportRequest) {
   return call('/api/templates/import', TemplateImportResultSchema, request);
+}
+
+/** The audit log (docs/api.md#audit-log): a page of records; `query` holds the filters, `after` and `limit`. */
+export function fetchAuditEvents(query: Record<string, string>, signal?: AbortSignal) {
+  const qs = new URLSearchParams(query);
+  return call(`/api/audit/events?${qs}`, AuditEventsResponseSchema, undefined, signal);
+}
+
+/** Walks the whole chain; it takes as long as the log is long. */
+export function fetchAuditVerify(signal?: AbortSignal) {
+  return call('/api/audit/verify', AuditVerifyResponseSchema, undefined, signal);
+}
+
+/**
+ * The export of the records a filter matches, read whole: the stream needs the host token in a header, so it is
+ * fetched and offered as a file by the caller rather than linked.
+ */
+export async function fetchAuditExport(
+  query: Record<string, string>,
+  format: 'jsonl' | 'csv',
+  signal?: AbortSignal,
+): Promise<Blob> {
+  const qs = new URLSearchParams({ ...query, format });
+  const init: RequestInit = { headers: { Authorization: `Bearer ${getToken() ?? ''}` } };
+  if (signal) init.signal = signal;
+  const res = await fetch(`/api/audit/export?${qs}`, init);
+  if (res.status === 401) throw new UnauthorizedError();
+  if (!res.ok) {
+    const payload: unknown = await res.json().catch(() => null);
+    const error = safeParse(ErrorResponseSchema, payload);
+    throw error.success
+      ? new ApiError(res.status, error.output.code, error.output.reason)
+      : new ApiError(res.status, null);
+  }
+  return res.blob();
 }
 
 /** The permission rules (docs/api.md#permission-rules). */

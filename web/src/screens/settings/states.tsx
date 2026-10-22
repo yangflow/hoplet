@@ -15,6 +15,8 @@ import { type ReactNode, useEffect } from 'react';
 import { endDate } from '../../lib/budgets.ts';
 import { t } from '../../lib/i18n.ts';
 import { type Appearance, applyText, DEFAULTS } from '../../lib/prefs.ts';
+import type { AuditFixture } from './audit.tsx';
+import * as auditFx from './audit-fixtures.ts';
 import { type BudgetsFixture, fill } from './budgets.tsx';
 import { type SectionId, Settings } from './index.tsx';
 import type { MachinesFixture } from './machines.tsx';
@@ -665,6 +667,7 @@ function Scene(props: {
   notify?: NotifyFixture;
   providers?: ProvidersFixture;
   rules?: RulesFixture;
+  audit?: AuditFixture;
   usage?: UsageFixture;
   templates?: TemplatesFixture;
 }) {
@@ -683,6 +686,7 @@ function Scene(props: {
       {...(props.notify ? { notify: props.notify } : {})}
       {...(props.providers ? { providers: props.providers } : {})}
       {...(props.rules ? { rules: props.rules } : {})}
+      {...(props.audit ? { audit: props.audit } : {})}
       {...(props.usage ? { usage: props.usage } : {})}
       {...(props.templates ? { templates: props.templates } : {})}
     />
@@ -926,6 +930,19 @@ export const states: Record<string, () => ReactNode> = {
     />
   ),
   'rules-empty': () => <Scene section="rules" rules={rulesFixture({ own: [], local: false })} />,
+  audit: () => <Scene section="audit" audit={auditFx.auditPage()} />,
+  'audit-filtered': () => <Scene section="audit" audit={auditFx.auditFiltered()} />,
+  'audit-detail': () => <Scene section="audit" audit={auditFx.auditDetail()} />,
+  'audit-verify-running': () => <Scene section="audit" audit={auditFx.auditVerifyRunning()} />,
+  'audit-verify-ok': () => <Scene section="audit" audit={auditFx.auditVerifyOk()} />,
+  'audit-verify-broken': () => <Scene section="audit" audit={auditFx.auditVerifyBroken()} />,
+  'audit-verify-error': () => <Scene section="audit" audit={auditFx.auditVerifyError()} />,
+  'audit-export': () => <Scene section="audit" audit={auditFx.auditExport()} />,
+  'audit-exported': () => <Scene section="audit" audit={auditFx.auditExported()} />,
+  'audit-no-match': () => <Scene section="audit" audit={auditFx.auditNoMatch()} />,
+  'audit-empty': () => <Scene section="audit" audit={auditFx.auditEmpty()} />,
+  'audit-loading': () => <Scene section="audit" audit={auditFx.auditLoading()} />,
+  'audit-error': () => <Scene section="audit" audit={auditFx.auditError()} />,
   templates: () => <Scene section="templates" templates={templatesFixture()} />,
   'templates-edit': () => (
     <Scene section="templates" templates={templatesFixture({ editing: 'tpl-review' })} />

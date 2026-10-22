@@ -8,6 +8,7 @@ import './settings.css';
 import './usage.css';
 import type { Appearance } from '../../lib/prefs.ts';
 import { AppearanceSection } from './appearance.tsx';
+import { type AuditFixture, AuditSection } from './audit.tsx';
 import { type MachinesFixture, MachinesSection } from './machines.tsx';
 import { NotificationsSection, type NotifyFixture } from './notifications.tsx';
 import { type ProvidersFixture, ProvidersSection } from './providers.tsx';
@@ -25,6 +26,7 @@ export const SECTIONS = [
   { id: 'providers', label: 'Model providers', icon: () => Icon.plug() },
   { id: 'notifications', label: 'Notifications', icon: () => Icon.bell() },
   { id: 'rules', label: 'Permission rules', icon: () => Icon.rules() },
+  { id: 'audit', label: 'Audit', icon: () => Icon.listChecks() },
   { id: 'usage', label: 'Usage', icon: () => Icon.activity() },
   { id: 'templates', label: 'Templates', icon: () => Icon.template() },
 ] as const;
@@ -44,6 +46,7 @@ function Page(props: {
   notify: NotifyFixture | undefined;
   providers: ProvidersFixture | undefined;
   rules: RulesFixture | undefined;
+  audit: AuditFixture | undefined;
   usage: UsageFixture | undefined;
   templates: TemplatesFixture | undefined;
   sessions: readonly LiveSessionMeta[];
@@ -88,6 +91,8 @@ function Page(props: {
       );
     case 'rules':
       return <RulesSection fixture={props.rules} />;
+    case 'audit':
+      return <AuditSection fixture={props.audit} sessions={props.sessions} />;
     case 'templates':
       return <TemplatesSection fixture={props.templates} />;
   }
@@ -104,6 +109,7 @@ export function Settings(props: {
   notify?: NotifyFixture;
   providers?: ProvidersFixture;
   rules?: RulesFixture;
+  audit?: AuditFixture;
   usage?: UsageFixture;
   templates?: TemplatesFixture;
   sessions?: readonly LiveSessionMeta[];
@@ -165,6 +171,7 @@ export function Settings(props: {
                 notify={props.notify}
                 providers={props.providers}
                 rules={props.rules}
+                audit={props.audit}
                 usage={props.usage}
                 templates={props.templates}
                 sessions={props.sessions ?? []}
