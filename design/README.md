@@ -98,6 +98,15 @@ The mockups, design tokens and app icon behind Hoplet's web UI. The design langu
   `a-inspector`, `a-inspector-empty`; B `b-page`, `b-detail`, `b-verify`, `b-export`, `b-empty`, `b-inspector`; C
   `c-page`, `c-detail`, `c-verify`, `c-export`, `c-empty`, `c-inspector`. Retention is shown read-only: it is set on
   the host. Add `?lang=zh-Hans` for Simplified Chinese. New icons: `list-checks`, `download`.
+- `screens/tokens.html` (#71): Settings › API tokens, three directions, none chosen. A (`a-*`) is one page: rows
+  that open in place, the issue form in a card above the list, revoked and expired tokens in a group below; B (`b-*`)
+  is a table with the form and the one-time reveal in dialogs; C (`c-*`) is two tabs (Active, Revoked and expired)
+  with issuing on its own page beside a "This token can / cannot" summary. States: A `a-list`, `a-detail`,
+  `a-issue`, `a-issue-answer` (the separate answer switch and its warning), `a-reveal`, `a-revoke`, `a-error`
+  (100 tokens active), `a-empty`; B `b-table`, `b-issue`, `b-reveal`, `b-revoke`, `b-error` (the list failed to
+  load), `b-empty`; C `c-active`, `c-inactive`, `c-issue`, `c-issue-answer`, `c-reveal`, `c-revoke`, `c-error` (the
+  audit log could not record the token), `c-empty`; each direction also has `-zh` states. Add `?lang=zh-Hans` for
+  Simplified Chinese. New icons: `key-round`. The token shown is a placeholder, never a real one.
 - `tokens.html`: every design token, with the JSON block that `check-tokens.py` compares with
   `web/src/design/tokens.css`.
 - `mark.html`: the app icon and the web UI's mark; the exported icon is `web/public/icon.svg`.
