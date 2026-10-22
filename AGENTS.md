@@ -32,9 +32,10 @@ core/      the server: one module per directory under core/src/ (config, log, mi
 shared/    schemas, types and error codes of the REST API and both WebSockets: the only contract between the parts
 web/       the web UI: screens/, components/, lib/, design tokens, i18n
 sdk/       `@hoplet/sdk`, the TypeScript client of the REST API and the browser WebSocket (imports `shared/` only)
+cli/       `@hoplet/cli`, the `hoplet` command: sessions, attach, send, wait and administration (imports `sdk/` only)
 agent/     the Go daemon: cmd/hoplet-agent + internal/{config,provider,projects,sessions,locate,daemon,sync,runtime,workspace,rules}
 image/     the Dockerfile and the compose file
-scripts/   repository checks, fixtures, benchmarks, smoke test, host CLI `hoplet`, and their tests
+scripts/   repository checks, fixtures, benchmarks, smoke test and their tests
 docs/      spec, architecture, API, hosting, threat model, design language, testing, roadmap, ADRs, benchmarks
 design/    mockups, design tokens and the app icon
 ```
@@ -50,7 +51,7 @@ pnpm check                          # Biome · tsc · Vitest · boundaries · ve
 pnpm --filter @hoplet/web build     # the web UI the core serves
 pnpm e2e                            # Playwright over every /__states route, axe on each in both schemes
 pnpm e2e:image                      # Playwright flows against the built image (builds hoplet:e2e)
-pnpm hoplet --help                  # host CLI (HOPLET_URL + HOPLET_TOKEN)
+pnpm hoplet --help                  # the CLI (HOPLET_URL + HOPLET_TOKEN or HOPLET_TOKEN_FILE)
 pnpm schema                         # regenerate docs/schema/hoplet-api.schema.json; pnpm check fails when it is stale
 docker build -f image/Dockerfile -t hoplet:local .
 ./scripts/smoke.sh                  # end to end: core + agent + generated fixture sessions
@@ -83,7 +84,7 @@ scripts/check-version.sh            # VERSION, the package.json files and the ag
   add what it left out.
 - **Small pull requests**, one concern each, on a branch named `<type>/<issue>-<slug>`. Commit messages and pull
   request titles are Conventional Commits: `feat|fix|docs|refactor|perf|test|build|ci|chore|revert(scope)!: subject`,
-  with the scope `core`, `shared`, `web`, `agent`, `sdk`, `image`, `scripts` or `deps` when one fits. The maintainer
+  with the scope `core`, `shared`, `web`, `agent`, `sdk`, `cli`, `image`, `scripts` or `deps` when one fits. The maintainer
   squash-merges, so the title becomes the commit and the changelog line. Commits carry `Co-Authored-By` for the
   agent; no sign-off.
 - **Releases**: release-please keeps a release pull request open on `main` and computes the version from the

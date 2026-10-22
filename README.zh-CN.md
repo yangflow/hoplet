@@ -88,7 +88,7 @@ mkdir -p ~/.hoplet && $EDITOR ~/.hoplet/config.json   # 粘贴上一步打印出
 ## 使用
 
 - **网页界面**：在桌面浏览器里打开你的 Hoplet 地址，输入主机令牌，选择机器和会话，就可以发送提示、回答权限请求、中断或交接会话（见 [docs/spec.md](docs/spec.md)）。
-- **主机命令行**：`pnpm hoplet --help` 列出相关命令：列出会话和机器、发送提示、中断、交接、添加机器；它读取 `HOPLET_URL` 和 `HOPLET_TOKEN`。
+- **命令行**：`pnpm hoplet --help` 列出相关命令：列出会话、新建会话、附着查看实时输出、发送提示并等待该轮结束（退出码可供脚本判断）；使用主机令牌时还能中断、交接、添加机器、查看审计日志和管理 API 令牌。它读取 `HOPLET_URL` 以及 `HOPLET_TOKEN` 或 `HOPLET_TOKEN_FILE`（见 [cli/README.md](cli/README.md)）。
 - **agent 命令行**：`hoplet-agent --help` 列出 agent 的命令：`daemon`、`projects` 和 `sessions`。
 - **其他客户端**：HTTP API 和浏览器 WebSocket 见 [docs/api.md](docs/api.md)。
 

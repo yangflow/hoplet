@@ -61,6 +61,7 @@ Claude Code               the session file (writer) and the running process
 | api | core | REST routes, read projection with one mapping per provider, browser WebSocket and subscriptions, WebSocket tickets, static files | store, control, notify, hooks, log, config | `core/src/api/` |
 | shared | contract | Schemas, derived types and error codes for REST and both WebSockets | nothing | `shared/src/` |
 | sdk | client | `@hoplet/sdk`: the typed client for scripts and tools: REST calls with errors mapped to the stable codes, paged `readSession`, `waitForTurn`, the event stream with ticket and reconnect, the protocol-version check; `shared/` is bundled into its build ([ADR 0033](adr/0033-a-command-line-tool-an-sdk-and-scoped-tokens.md)) | `shared/`, global `fetch` and `WebSocket` | `sdk/src/` |
+| cli | client | `@hoplet/cli`, the `hoplet` command: sessions, `new`, `attach`, `send`, `wait` with exit codes per result, `--json` output, and the host-token commands (interrupt, handoff, devices, audit, tokens); credentials from the environment or a file, nothing stored ([ADR 0033](adr/0033-a-command-line-tool-an-sdk-and-scoped-tokens.md)) | `sdk/`, `node:*` | `cli/src/` |
 | web | browser | Token gate, Hoplet screen, API client, live connection, bounded page cache | REST and browser WebSocket only | `web/src/` |
 | sync | agent | Agent WebSocket client, the two lanes, cursor reconciliation, append batching | config, provider | `agent/internal/sync/` |
 | provider | agent | The `Source`, `Provider` and `Store` interfaces, and one implementation per vendor in `provider/<vendor>/` (`claude`: store discovery, incremental reading, titles, project membership, session-file installation; `codex`: rollout discovery, session ID and directory from the first line, reading a `.jsonl.zst` by decompressing from the start with the cursor counting uncompressed bytes, session-file installation under `sessions/`) | nothing | `agent/internal/provider/` |
@@ -77,6 +78,9 @@ Claude Code               the session file (writer) and the running process
   repository. Enforced by `scripts/boundaries.ts`.
 - `sdk/` imports only `shared/` and itself (no `node:*`, no `core/`, `web/` or `agent/`), and only the command-line
   tool imports `sdk/`. Enforced by `scripts/boundaries.ts`.
+- `cli/` imports only `@hoplet/sdk`, `node:*` and itself; nothing outside `cli/` and `scripts/` imports it (the
+  audit test of the core imports its offline verifier as an independent check). Enforced by
+  `scripts/boundaries.ts`.
 - Core modules import each other only through `index.ts`, in the direction of the Components table. Enforced
   by `scripts/boundaries.ts`.
 - A web screen imports from another screen only its `index.tsx` (the cockpit hosts the workspace inspector that

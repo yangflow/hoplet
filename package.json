@@ -8,18 +8,18 @@
     "node": ">=26.8.2 <27"
   },
   "bin": {
-    "hoplet": "./scripts/hoplet/cli.ts"
+    "hoplet": "./cli/src/main.ts"
   },
   "scripts": {
-    "lint": "biome ci --error-on-warnings core sdk shared scripts web package.json biome.json tsconfig.json tsconfig.base.json vitest.config.ts",
-    "format": "biome check --write core sdk shared scripts web package.json biome.json tsconfig.json tsconfig.base.json vitest.config.ts",
+    "lint": "biome ci --error-on-warnings cli core sdk shared scripts web package.json biome.json tsconfig.json tsconfig.base.json vitest.config.ts",
+    "format": "biome check --write cli core sdk shared scripts web package.json biome.json tsconfig.json tsconfig.base.json vitest.config.ts",
     "typecheck": "tsc -p . && pnpm -r typecheck",
     "test": "vitest run",
     "agent:check": "cd agent && test -z \"$(gofmt -l .)\" && go vet ./... && go test ./...",
     "check": "pnpm lint && pnpm typecheck && pnpm test && node scripts/boundaries.ts && scripts/check-version.sh && python3 design/check-tokens.py && pnpm agent:check",
     "dev:core": "node core/src/main.ts",
     "dev:web": "pnpm --filter @hoplet/web dev",
-    "hoplet": "node scripts/hoplet/cli.ts",
+    "hoplet": "node cli/src/main.ts",
     "schema": "node scripts/api-schema.ts",
     "smoke": "./scripts/smoke.sh",
     "bench": "node scripts/bench/run.ts",

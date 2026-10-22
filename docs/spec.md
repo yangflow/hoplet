@@ -451,14 +451,30 @@ a number of days up to 365; 90 by default), Read only, May send or May create, t
 warning when it is on), and "Every machine" or "Only these" with a picker of machines and projects. The secret is
 then shown once with a copy button and how to use it from the CLI; the page keeps nothing of it after Done.
 
-### Host CLI
+### CLI
 
-`hoplet` (from a repository checkout, `pnpm hoplet`) uses the REST API with the host token: `hoplet sessions`,
-`hoplet prompt <session> <text>`, `hoplet interrupt <session>`, `hoplet handoff <session> <device> [--path <dir>]`, `hoplet devices` (id, name and connection of every machine) and
-`hoplet devices add <name> [--id <deviceId>]` (mints a device token and prints the agent's `config.json`).
-`hoplet audit list|export|head` read the audit log, and `hoplet audit verify` checks its chain on the core, or
-offline with `--file <export.jsonl>`, optionally against a head written down elsewhere with `--head <seq>:<hash>`
-(exit code 3 when the chain is broken; [Audit log](#audit-log)).
+`hoplet` (`@hoplet/cli`, from a repository checkout `pnpm hoplet`) is built on the SDK and takes `HOPLET_URL`,
+and a token from `--token-file` / `HOPLET_TOKEN_FILE` or `HOPLET_TOKEN` (`--token` also works, but other processes
+can read arguments). Nothing is stored on disk and there is no login command. Failures print the message of the
+stable error code.
+
+- `hoplet sessions [--device <machine>] [--state <state>]` lists sessions; `hoplet new --device <machine> --path <dir>
+  [--model <id>] [--set option=value]... "<prompt>"` starts one and prints its id.
+- `hoplet attach <session> [--answer allow|deny]` follows the live output, asks for permission requests at the
+  terminal or answers them with `--answer`, and ends with the turn.
+- `hoplet send <session> "<text>"` (alias `prompt`) sends a prompt; `hoplet wait <session> [--timeout <s>]
+  [--until-blocked] [--drain]` waits for the turn. `--wait` on `send` and `new` waits for the turn they started.
+  Exit codes of the waiting commands: 0 ready, 1 error, 4 failed, 5 ended, 6 blocked on a permission request or a
+  question, 7 timeout.
+- `--json` prints one JSON document per command (one object per line for `attach`), and failures as
+  `{"code","reason"?}` on standard error.
+- `hoplet interrupt <session>` stops the turn; `hoplet devices` lists the id, name and connection of every machine
+  in scope.
+- With the host token: `hoplet handoff <session> <machine> [--path <dir>]`, `hoplet devices add <name> [--id
+  <deviceId>]` (mints a device token and prints the agent's `config.json`) and `hoplet tokens list|create|revoke`.
+- `hoplet audit list|export|head` read the audit log, and `hoplet audit verify` checks its chain on the core, or
+  offline with `--file <export.jsonl>`, optionally against a head written down elsewhere with `--head <seq>:<hash>`
+  (exit code 3 when the chain is broken; [Audit log](#audit-log)).
 
 ### Agent CLI
 
@@ -580,7 +596,8 @@ API, in `shared/src/` (schemas, types and error codes) and `agent/internal/sync/
 | web | The token gate and the Hoplet screen | `web/src/screens/`, `web/src/components/`, `web/src/lib/` |
 | agent | Session scan and sync, providers and runtime drivers (Claude Code), workspace listing, snapshots and handoff installation | `agent/cmd/hoplet-agent/`, `agent/internal/{config,provider,projects,sessions,locate,daemon,sync,runtime,workspace}` |
 | image | The container image and the compose file | `image/` |
-| scripts | Repository checks, fixtures, benchmarks, smoke test and the host CLI `hoplet` | `scripts/` |
+| cli | The `hoplet` command (`@hoplet/cli`) | `cli/` |
+| scripts | Repository checks, fixtures, benchmarks and smoke test | `scripts/` |
 
 Module responsibilities and the dependency direction are in docs/architecture.md#components.
 

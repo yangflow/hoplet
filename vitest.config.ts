@@ -11,6 +11,7 @@ export default defineConfig({
   ],
   test: {
     include: [
+      'cli/test/**/*.test.ts',
       'core/test/**/*.test.ts',
       'sdk/test/**/*.test.ts',
       'shared/test/**/*.test.ts',

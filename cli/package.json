@@ -1,0 +1,35 @@
+{
+  "name": "@hoplet/cli",
+  "description": "The hoplet command: sessions, attach, send and wait for a Hoplet core",
+  "version": "0.8.0",
+  "license": "Apache-2.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "bin": {
+    "hoplet": "./src/main.ts"
+  },
+  "publishConfig": {
+    "access": "public",
+    "bin": {
+      "hoplet": "./dist/hoplet.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "node scripts/build.ts",
+    "typecheck": "tsc -p ."
+  },
+  "dependencies": {
+    "@hoplet/sdk": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.5",
+    "esbuild": "0.28.2",
+    "typescript": "7.0.2"
+  }
+}

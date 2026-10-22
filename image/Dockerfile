@@ -7,6 +7,8 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
 COPY core/package.json core/
 COPY shared/package.json shared/
 COPY web/package.json web/
+COPY sdk/package.json sdk/
+COPY cli/package.json cli/
 RUN pnpm install --frozen-lockfile
 # Build the web UI, then drop the build tools: the runtime keeps production dependencies only.
 COPY shared/src shared/src

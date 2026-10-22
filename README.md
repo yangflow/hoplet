@@ -69,7 +69,7 @@ What comes next is in [docs/roadmap.md](docs/roadmap.md).
 ## Quick start
 
 You need Docker with Compose on the server, and on each development machine Go 1.27, `git` and Claude Code. Adding
-a machine uses the host CLI, which needs Node.js 26 and pnpm 12.
+a machine uses the `hoplet` command, which needs Node.js 26 and pnpm 12.
 
 **1. Start the server.**
 
@@ -111,8 +111,10 @@ Every setting, the data on the host, upgrades and backups are in [docs/hosting.m
 
 - **Web UI**: open your Hoplet address in a desktop browser, enter the host token, pick a machine and a session,
   and prompt, answer permission requests, interrupt or hand the session off from there ([docs/spec.md](docs/spec.md)).
-- **Host CLI**: `pnpm hoplet --help` lists the commands to list sessions and machines, prompt, interrupt, hand off
-  and add a machine; it reads `HOPLET_URL` and `HOPLET_TOKEN`.
+- **CLI**: `pnpm hoplet --help` lists the commands to list sessions, start one, attach to its output, send a prompt
+  and wait for the turn (with exit codes a script can branch on), interrupt it and list machines, and, with the host
+  token, to hand off, add a machine, read the audit log and manage API tokens; it reads `HOPLET_URL` and `HOPLET_TOKEN` or
+  `HOPLET_TOKEN_FILE` ([cli/README.md](cli/README.md)).
 - **Agent CLI**: `hoplet-agent --help` lists the agent's commands: `daemon`, `projects` and `sessions`.
 - **Other clients**: the HTTP API and the browser WebSocket are in [docs/api.md](docs/api.md).
 
