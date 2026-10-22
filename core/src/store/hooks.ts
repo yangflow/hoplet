@@ -50,6 +50,14 @@ export interface DeliveryRecord {
   settledAt?: number;
   nextAttemptAt?: number;
   expiresAt: number;
+  /** A script hook's run, as the agent reported it. */
+  run?: ScriptRun;
+}
+
+export interface ScriptRun {
+  exitCode?: number;
+  durationMs: number;
+  stderr: string;
 }
 
 interface HookRow {
@@ -78,6 +86,7 @@ interface DeliveryRow {
   settled_at: number | null;
   next_attempt_at: number | null;
   expires_at: number;
+  run: string | null;
 }
 
 function newId(): string {
@@ -122,7 +131,18 @@ function delivery(row: DeliveryRow): DeliveryRecord {
     ...(row.settled_at !== null ? { settledAt: row.settled_at } : {}),
     ...(row.next_attempt_at !== null ? { nextAttemptAt: row.next_attempt_at } : {}),
     expiresAt: row.expires_at,
+    ...runOf(row.run),
   };
+}
+
+function runOf(json: string | null): { run?: ScriptRun } {
+  if (json === null) return {};
+  try {
+    const parsed = JSON.parse(json) as ScriptRun;
+    return typeof parsed.durationMs === 'number' ? { run: parsed } : {};
+  } catch {
+    return {};
+  }
 }
 
 export function listHooks(ctx: StoreContext): HookRecord[] {
@@ -267,7 +287,15 @@ export function auditHookAction(ctx: StoreContext, id: string, action: 'rotated'
  */
 export function enqueueDelivery(
   ctx: StoreContext,
-  input: { hookId: string; eventId: string; type: string; body: string; expiresAt: number },
+  input: {
+    hookId: string;
+    eventId: string;
+    type: string;
+    body: string;
+    expiresAt: number;
+    /** A script hook's delivery is never sent by the pump: it waits for the agent's result. */
+    script?: boolean;
+  },
   now: number,
 ): DeliveryRecord {
   const id = newId();
@@ -276,7 +304,16 @@ export function enqueueDelivery(
       `INSERT INTO hook_deliveries(id, hook_id, event_id, type, state, attempts, body, created_at,
          next_attempt_at, expires_at) VALUES(?, ?, ?, ?, 'pending', 0, ?, ?, ?, ?)`,
     )
-    .run(id, input.hookId, input.eventId, input.type, input.body, now, now, input.expiresAt);
+    .run(
+      id,
+      input.hookId,
+      input.eventId,
+      input.type,
+      input.body,
+      now,
+      input.script ? null : now,
+      input.expiresAt,
+    );
   const over = pendingCount(ctx, input.hookId) - MAX_PENDING_PER_HOOK;
   if (over > 0) {
     ctx.db
@@ -333,13 +370,14 @@ export interface DeliveryOutcome {
   error?: string;
   settledAt?: number;
   nextAttemptAt?: number;
+  run?: ScriptRun;
 }
 
 export function recordDelivery(ctx: StoreContext, id: string, outcome: DeliveryOutcome): void {
   ctx.db
     .prepare(
       `UPDATE hook_deliveries SET state = ?, attempts = ?, last_error = ?, settled_at = ?,
-         next_attempt_at = ? WHERE id = ?`,
+         next_attempt_at = ?, run = ? WHERE id = ?`,
     )
     .run(
       outcome.state,
@@ -347,8 +385,24 @@ export function recordDelivery(ctx: StoreContext, id: string, outcome: DeliveryO
       outcome.error ?? null,
       outcome.settledAt ?? null,
       outcome.nextAttemptAt ?? null,
+      outcome.run ? JSON.stringify(outcome.run) : null,
       id,
     );
+}
+
+/** The waiting delivery of an event for a hook; null when it is settled or never existed. */
+export function findPendingDelivery(
+  ctx: StoreContext,
+  hookId: string,
+  eventId: string,
+): DeliveryRecord | null {
+  const row = ctx.db
+    .prepare(
+      `SELECT * FROM hook_deliveries WHERE hook_id = ? AND event_id = ? AND state = 'pending'
+         ORDER BY rowid DESC LIMIT 1`,
+    )
+    .get(hookId, eventId) as DeliveryRow | undefined;
+  return row ? delivery(row) : null;
 }
 
 /** A hook's deliveries, newest first. */

@@ -400,6 +400,8 @@ describe('lanes', () => {
     expect(bulk).toEqual([
       'attachment.put',
       'handoff.data',
+      'hook.event',
+      'hook.result',
       'runtime.commands',
       'session.ack',
       'session.append',

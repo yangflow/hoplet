@@ -1,7 +1,8 @@
-// Hooks: sends session lifecycle events to webhooks (ADR 0031). It listens to `control.onEvent` like notify does
+// Hooks: sends session lifecycle events to webhooks and to the script hooks of the agents (ADR 0031). It listens to `control.onEvent` like notify does
 // and never blocks the event: a matching hook gets a row in the delivery queue, and the sender works through
 // the queue in the background, with retries, a few requests at a time. The queue lives in hoplet.db, so a restart
-// goes on where it stopped.
+// goes on where it stopped. A script hook is declared in an agent's own config.json: the core lists it, switches
+// it and tests it, sends its events to that one machine as `hook.event` and records the `hook.result` it gets back.
 
 import { randomBytes } from 'node:crypto';
 import {
@@ -11,14 +12,23 @@ import {
   type HookEnvelope,
   type HookEventType,
   type HookInfo,
+  type HookResult,
   type HookScope,
   type HookUpdateRequest,
   MAX_HOOKS,
+  type ScriptHookInfo,
+  type WebhookHookInfo,
 } from '@hoplet/shared';
 import type { Control, ControlEvent } from '../control/index.ts';
 import { log, registerSecret } from '../log/index.ts';
 import { clip, type Fetch, post, summarize } from '../notify/index.ts';
-import type { DeliveryRecord, HookRecord, Store } from '../store/index.ts';
+import {
+  type DeliveryRecord,
+  type HookRecord,
+  type ScriptHookRecord,
+  type Store,
+  scriptHookId,
+} from '../store/index.ts';
 import {
   createPinnedFetch,
   type Resolver,
@@ -61,13 +71,15 @@ export interface HooksOptions {
 }
 
 export type CreateResult =
-  | { ok: true; hook: HookInfo; secret: string }
+  | { ok: true; hook: WebhookHookInfo; secret: string }
   | { ok: false; error: 'too-many-hooks' }
   | { ok: false; error: 'bad-url'; reason: UrlRefusal };
 
 export type UpdateResult =
   | { ok: true; hook: HookInfo }
   | { ok: false; error: 'not-found' }
+  /** A script hook is declared on its machine: only `enabled` can be changed here. */
+  | { ok: false; error: 'script-managed' }
   | { ok: false; error: 'bad-url'; reason: UrlRefusal };
 
 export interface Hooks {
@@ -80,9 +92,14 @@ export interface Hooks {
   update(id: string, request: HookUpdateRequest): Promise<UpdateResult>;
   remove(id: string): boolean;
   /** Replaces the signing secret; the old one stays valid for 24 hours. Null when there is no such hook. */
-  rotate(id: string): { hook: HookInfo; secret: string } | null;
+  rotate(id: string): { hook: WebhookHookInfo; secret: string } | null;
+  /** Whether `id` names a script hook, which cannot be created, edited, deleted or given a secret here. */
+  isScript(id: string): boolean;
   deliveries(id: string): HookDelivery[] | null;
-  /** Sends one `hook.test` event now, without retry, and records it as a delivery. */
+  /**
+   * Sends one `hook.test` event now, without retry, and records it as a delivery. A script hook's test is
+   * answered with the delivery still `pending`: the agent's result settles it.
+   */
   test(id: string): Promise<{ hook: HookInfo; delivery: HookDelivery } | null>;
   /** Sends what is due now. The sender calls it itself; tests call it after moving the clock. */
   pump(): void;
@@ -122,6 +139,21 @@ export function newSecret(): string {
   return `whsec_${randomBytes(32).toString('base64url')}`;
 }
 
+/** The project filter of a script hook: empty takes every project, else the project or one under it. */
+function projectMatches(projects: readonly string[], projectPath: string | null): boolean {
+  if (projects.length === 0) return true;
+  if (projectPath === null) return false;
+  return projects.some((p) => projectPath === p || projectPath.startsWith(`${p}/`));
+}
+
+/** Splits `script:<deviceId>:<slug>`; the slug holds no colon. */
+function parseScriptId(id: string): { deviceId: string; slug: string } | null {
+  if (!id.startsWith('script:')) return null;
+  const last = id.lastIndexOf(':');
+  if (last <= 'script:'.length) return null;
+  return { deviceId: id.slice('script:'.length, last), slug: id.slice(last + 1) };
+}
+
 /** The URL as a list shows it: the query string may carry a credential, so it is cut. */
 function displayUrl(url: string): string {
   try {
@@ -142,6 +174,8 @@ export function createHooks(store: Store, control: Control, options: HooksOption
   const sending = new Set<string>();
   const inFlight = new Set<Promise<void>>();
   let unsubscribe: (() => void) | null = null;
+  let unsubscribeResult: (() => void) | null = null;
+  let unsubscribeGone: (() => void) | null = null;
   let timer: NodeJS.Timeout | null = null;
   let pruneTimer: NodeJS.Timeout | null = null;
   let running = false;
@@ -156,7 +190,46 @@ export function createHooks(store: Store, control: Control, options: HooksOption
     }
   }
 
-  function info(hook: HookRecord): HookInfo {
+  function lastDeliveryOf(id: string): Pick<ScriptHookInfo, 'lastDelivery'> {
+    const last = store.lastSettledHookDelivery(id);
+    return last && last.settledAt !== undefined
+      ? {
+          lastDelivery: {
+            at: last.settledAt,
+            state: last.state,
+            ...(last.error ? { error: last.error } : {}),
+          },
+        }
+      : {};
+  }
+
+  function scriptInfo(hook: ScriptHookRecord): ScriptHookInfo {
+    const id = scriptHookId(hook.deviceId, hook.id);
+    return {
+      id,
+      kind: 'script',
+      label: hook.id,
+      machine: {
+        ...machineRef(hook.deviceId),
+        online: control.ownerOnline(hook.deviceId),
+      },
+      command: hook.command,
+      events: hook.events as ScriptHookInfo['events'],
+      projects: hook.projects,
+      timeoutMs: hook.timeoutMs,
+      env: hook.env,
+      runs: hook.runs,
+      failed: hook.failed,
+      dropped: hook.dropped,
+      enabled: hook.enabled,
+      status: hook.enabled ? 'active' : 'disabled',
+      updatedAt: hook.updatedAt,
+      pending: store.pendingHookDeliveries(id),
+      ...lastDeliveryOf(id),
+    };
+  }
+
+  function info(hook: HookRecord): WebhookHookInfo {
     const last = store.lastSettledHookDelivery(hook.id);
     const status = !hook.enabled
       ? 'disabled'
@@ -200,6 +273,7 @@ export function createHooks(store: Store, control: Control, options: HooksOption
       createdAt: d.createdAt,
       ...(d.settledAt !== undefined ? { settledAt: d.settledAt } : {}),
       ...(d.nextAttemptAt !== undefined ? { nextAttemptAt: d.nextAttemptAt } : {}),
+      ...(d.run ? { run: d.run } : {}),
     };
   }
 
@@ -389,6 +463,90 @@ export function createHooks(store: Store, control: Control, options: HooksOption
     } as HookEnvelope;
   }
 
+  /** The envelope a script receives: the project also carries its directory, which the agent filters by. */
+  function scriptEnvelope(
+    prepared: Prepared,
+    eventId: string,
+    at: number,
+    withExtra: boolean,
+  ): HookEnvelope {
+    const base = envelope(prepared, eventId, at, withExtra);
+    const path = prepared.context.projectPath;
+    if (path === null || path === '') return base;
+    return {
+      ...base,
+      session: { ...base.session, project: { ...base.session.project, path } },
+    } as HookEnvelope;
+  }
+
+  /** Records a script delivery that never left: the machine is offline. */
+  function dropOffline(d: DeliveryRecord): void {
+    store.recordHookDelivery(d.id, {
+      state: 'dropped',
+      attempts: 0,
+      error: 'offline',
+      settledAt: now(),
+    });
+  }
+
+  /** Sends one event to a script hook on its machine and queues the delivery that waits for the result. */
+  function dispatchScript(
+    hook: { deviceId: string; id: string },
+    body: HookEnvelope,
+    at: number,
+  ): DeliveryRecord {
+    const id = scriptHookId(hook.deviceId, hook.id);
+    const row = store.enqueueHookDelivery(
+      {
+        hookId: id,
+        eventId: body.id,
+        type: body.type,
+        body: '',
+        expiresAt: at,
+        script: true,
+      },
+      at,
+    );
+    if (!control.sendHookEvent(hook.deviceId, hook.id, body)) dropOffline(row);
+    return row;
+  }
+
+  function onScriptEvent(prepared: Prepared, eventId: string, at: number): void {
+    const deviceId = prepared.context.deviceId;
+    if (deviceId === null) return;
+    for (const hook of store.listScriptHooks()) {
+      if (hook.deviceId !== deviceId || !hook.enabled) continue;
+      if (!hook.events.includes('*') && !hook.events.includes(prepared.type)) continue;
+      if (!projectMatches(hook.projects, prepared.context.projectPath)) continue;
+      dispatchScript(hook, scriptEnvelope(prepared, eventId, at, true), at);
+    }
+  }
+
+  function onHookResult(deviceId: string, result: HookResult): void {
+    try {
+      const id = scriptHookId(deviceId, result.hookId);
+      const d = store.findPendingHookDelivery(id, result.eventId);
+      if (!d) return;
+      const state = result.ok ? 'delivered' : result.error === 'dropped' ? 'dropped' : 'failed';
+      const error = result.ok
+        ? undefined
+        : (result.error ?? (result.exitCode !== undefined ? `exit-${result.exitCode}` : 'failed'));
+      store.recordHookDelivery(d.id, {
+        state,
+        attempts: 1,
+        ...(error ? { error } : {}),
+        settledAt: now(),
+        run: {
+          ...(result.exitCode !== undefined ? { exitCode: result.exitCode } : {}),
+          durationMs: result.durationMs,
+          stderr: result.stderr,
+        },
+      });
+    } catch (err) {
+      log('error', 'hooks', 'recording a script result failed', { error: String(err) });
+    }
+  }
+
   function onEvent(event: ControlEvent): void {
     try {
       const matching = store
@@ -399,9 +557,10 @@ export function createHooks(store: Store, control: Control, options: HooksOption
       const targets = matching.filter(
         (h) => (h.events as string[]).includes(prepared.type) && inScope(h.scope, prepared.context),
       );
-      if (targets.length === 0) return;
       const at = now();
       const eventId = `evt_${newEventId()}`;
+      onScriptEvent(prepared, eventId, at);
+      if (targets.length === 0) return;
       for (const hook of targets) {
         const body = JSON.stringify(envelope(prepared, eventId, at, hook.summary));
         store.enqueueHookDelivery(
@@ -539,6 +698,11 @@ export function createHooks(store: Store, control: Control, options: HooksOption
       running = true;
       registerSecrets();
       unsubscribe = control.onEvent(onEvent);
+      unsubscribeResult = control.onHookResult(onHookResult);
+      unsubscribeGone = control.onDevicesGone((ids) => {
+        for (const id of ids) store.settlePendingScriptDeliveries(id, 'connection-lost', now());
+      });
+      store.settlePendingScriptDeliveries(null, 'interrupted', now());
       store.pruneHookDeliveries(now());
       pruneTimer = setInterval(() => store.pruneHookDeliveries(now()), PRUNE_EVERY_MS);
       pruneTimer.unref();
@@ -548,16 +712,26 @@ export function createHooks(store: Store, control: Control, options: HooksOption
       running = false;
       unsubscribe?.();
       unsubscribe = null;
+      unsubscribeResult?.();
+      unsubscribeResult = null;
+      unsubscribeGone?.();
+      unsubscribeGone = null;
       if (timer) clearTimeout(timer);
       if (pruneTimer) clearInterval(pruneTimer);
       timer = null;
       pruneTimer = null;
     },
-    list: () => store.listHooks().map(info),
+    list: () => [...store.listHooks().map(info), ...store.listScriptHooks().map(scriptInfo)],
     get(id) {
+      const script = parseScriptId(id);
+      if (script) {
+        const record = store.getScriptHook(script.deviceId, script.slug);
+        return record ? scriptInfo(record) : null;
+      }
       const hook = store.getHook(id);
       return hook ? info(hook) : null;
     },
+    isScript: (id) => parseScriptId(id) !== null,
     async create(request) {
       if (store.hookCount() >= MAX_HOOKS) return { ok: false, error: 'too-many-hooks' };
       const reason = await refuse(request.url);
@@ -579,6 +753,22 @@ export function createHooks(store: Store, control: Control, options: HooksOption
       return { ok: true, hook: info(hook), secret };
     },
     async update(id, request) {
+      const script = parseScriptId(id);
+      if (script) {
+        if (!store.getScriptHook(script.deviceId, script.slug)) {
+          return { ok: false, error: 'not-found' };
+        }
+        const { enabled, ...rest } = request;
+        if (Object.values(rest).some((value) => value !== undefined)) {
+          return { ok: false, error: 'script-managed' };
+        }
+        const updated =
+          enabled === undefined
+            ? store.getScriptHook(script.deviceId, script.slug)
+            : store.setScriptHookEnabled(script.deviceId, script.slug, enabled);
+        if (!updated) return { ok: false, error: 'not-found' };
+        return { ok: true, hook: scriptInfo(updated) };
+      }
       if (!store.getHook(id)) return { ok: false, error: 'not-found' };
       if (request.url !== undefined) {
         const reason = await refuse(request.url);
@@ -600,8 +790,9 @@ export function createHooks(store: Store, control: Control, options: HooksOption
       if (request.enabled === false) pump();
       return { ok: true, hook: info(updated) };
     },
-    remove: (id) => store.deleteHook(id),
+    remove: (id) => !parseScriptId(id) && store.deleteHook(id),
     rotate(id) {
+      if (parseScriptId(id)) return null;
       const hook = store.getHook(id);
       if (!hook) return null;
       const secret = newSecret();
@@ -611,10 +802,37 @@ export function createHooks(store: Store, control: Control, options: HooksOption
       return { hook: info(hook), secret };
     },
     deliveries(id) {
-      if (!store.getHook(id)) return null;
+      const script = parseScriptId(id);
+      if (script ? !store.getScriptHook(script.deviceId, script.slug) : !store.getHook(id)) {
+        return null;
+      }
       return store.listHookDeliveries(id, HISTORY_LIMIT).map(deliveryInfo);
     },
     async test(id) {
+      const script = parseScriptId(id);
+      if (script) {
+        const record = store.getScriptHook(script.deviceId, script.slug);
+        if (!record) return null;
+        const at = now();
+        const body = scriptEnvelope(
+          {
+            type: 'hook.test',
+            sessionId: undefined,
+            context: { deviceId: null, projectPath: null },
+            actor: { kind: 'user' },
+            data: { hookId: id },
+          },
+          `evt_${newEventId()}`,
+          at,
+          false,
+        );
+        // A test goes out even when the hook is disabled, like a webhook's.
+        const row = dispatchScript(record, body, at);
+        store.auditScriptHookTest(record.deviceId, record.id);
+        const current = store.getHookDelivery(row.id);
+        if (!current) return null;
+        return { hook: scriptInfo(record), delivery: deliveryInfo(current) };
+      }
       const hook = store.getHook(id);
       if (!hook) return null;
       const at = now();

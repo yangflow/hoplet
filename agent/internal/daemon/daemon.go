@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/yangflow/hoplet/agent/internal/config"
+	"github.com/yangflow/hoplet/agent/internal/hooks"
 	"github.com/yangflow/hoplet/agent/internal/ports"
 	"github.com/yangflow/hoplet/agent/internal/projects"
 	"github.com/yangflow/hoplet/agent/internal/provider"
@@ -133,6 +134,11 @@ func Run(cfg *config.Config, version string) error {
 	if n := terminal.Sweep(cfg.HopletHome); n > 0 {
 		log.Printf("[terminal] killed %d shell(s) of an earlier run", n)
 	}
+	if n := hooks.Sweep(cfg.HopletHome); n > 0 {
+		log.Printf("[hooks] killed %d script(s) of an earlier run", n)
+	}
+	scripts := newScriptHooks(cfg, st, func() *sync.Client { return client })
+	defer scripts.Close()
 	terms = newTerminals(cfg, deviceID, rt, moves, locator(cfg), func() *sync.Client { return client })
 	moves.onPrepare = terms.handoffStarted
 	defer terms.mgr.CloseAll(terminal.ReasonOwnerOffline)
@@ -155,6 +161,8 @@ func Run(cfg *config.Config, version string) error {
 		Ports:                sync.PortsHooks{Watch: watcher.Watch},
 		PreviewHost:          cfg.PreviewHost,
 		PermissionDeny:       rules.Announced(cfg.PermissionDeny),
+		ScriptHooks:          announceScriptHooks(scripts),
+		HookEvent:            scripts.Handle,
 		Workspace:            workspaceList(cfg),
 		File:                 workspaceFile(cfg),
 		Diff:                 workspaceDiff(cfg),

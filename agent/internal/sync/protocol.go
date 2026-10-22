@@ -14,7 +14,7 @@ import (
 // (provider.ValidSessionID, ADR 0006). Invalid IDs receive error invalid-session-id
 // before decoding or persistence; the wire envelope and cursor are unchanged.
 
-const ProtocolVersion = 13
+const ProtocolVersion = 14
 
 // Wire message types: Type<Struct> is the `type` of the struct of that name.
 // shared/src/wire/ holds the same table; scripts/test/contract.test.ts compares both.
@@ -84,6 +84,8 @@ const (
 	TypeDeviceProvidersRejected  = "device.providers.rejected"
 	TypeDeviceRules              = "device.rules"
 	TypeDeviceRulesApplied       = "device.rules.applied"
+	TypeHookEvent                = "hook.event"
+	TypeHookResult               = "hook.result"
 	TypeAttachmentPut            = "attachment.put"
 	TypeAttachmentStored         = "attachment.stored"
 	TypeAttachmentRejected       = "attachment.rejected"
@@ -156,6 +158,22 @@ type DeviceHello struct {
 	// PermissionDeny are the operator's own deny rules (permission_deny, ADR 0029) as the engine holds them:
 	// scope agent, enabled. The core shows them read-only.
 	PermissionDeny []rules.Rule `json:"permissionDeny,omitempty"`
+	// Hooks are the script hooks of the operator's config.json (ADR 0031) with their counters.
+	Hooks []HookAnnounce `json:"hooks,omitempty"`
+}
+
+// HookAnnounce is a script hook as device.hello announces it; the names in Env are passed through, never
+// their values.
+type HookAnnounce struct {
+	ID        string   `json:"id"`
+	Command   string   `json:"command"`
+	Events    []string `json:"events"`
+	Projects  []string `json:"projects"`
+	TimeoutMs int      `json:"timeoutMs"`
+	Env       []string `json:"env"`
+	Runs      int64    `json:"runs"`
+	Failed    int64    `json:"failed"`
+	Dropped   int64    `json:"dropped"`
 }
 
 // DeviceSystem is the system the agent runs on: runtime.GOOS and runtime.GOARCH verbatim.
@@ -252,6 +270,28 @@ type DeviceRulesApplied struct {
 	Type     string `json:"type"`
 	Revision int    `json:"revision"`
 	Error    string `json:"error,omitempty"`
+}
+
+// HookEvent is one lifecycle event for one script hook of this machine (ADR 0031); Event is the envelope, which
+// the script receives as it is.
+type HookEvent struct {
+	V      int             `json:"v"`
+	Type   string          `json:"type"`
+	HookID string          `json:"hookId"`
+	Event  json.RawMessage `json:"event"`
+}
+
+// HookResult is the outcome of one HookEvent: Error is timeout, spawn-failed or dropped when there is no exit code.
+type HookResult struct {
+	V          int    `json:"v"`
+	Type       string `json:"type"`
+	HookID     string `json:"hookId"`
+	EventID    string `json:"eventId"`
+	OK         bool   `json:"ok"`
+	ExitCode   *int   `json:"exitCode,omitempty"`
+	Error      string `json:"error,omitempty"`
+	DurationMs int64  `json:"durationMs"`
+	Stderr     string `json:"stderr"`
 }
 
 type SessionAppend struct {

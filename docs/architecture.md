@@ -56,7 +56,7 @@ Claude Code               the session file (writer) and the running process
 | store | core | SQLite index, chunk files, verbatim append and recovery, paged reads, search scans, devices, snapshots, the audit log | migrations, log, scrub | `core/src/store/` |
 | ingest | core | Agent WebSocket: authentication, `device.hello`/`welcome`, append decoding, ack/resync/reject, the two lanes | store, control, log | `core/src/ingest/` |
 | notify | core | Notification rules (preset, overrides, quiet hours), redaction, Web Push and webhook delivery, signed action links and their single use, the VAPID and signing secrets | store, control, log, scrub | `core/src/notify/` |
-| hooks | core | Lifecycle events from control's event stream (ADR 0031), the webhook hooks, HMAC signing, the address check, the persisted delivery queue with retry and backoff, the delivery history, the hook secrets | store, control, notify, log, scrub | `core/src/hooks/` |
+| hooks | core | Lifecycle events from control's event stream (ADR 0031), the webhook hooks, HMAC signing, the address check, the persisted delivery queue with retry and backoff, the delivery history, the hook secrets, the script hooks the agents announced (their switch, the `hook.event` sent to the machine and the `hook.result` recorded) | store, control, notify, log, scrub | `core/src/hooks/` |
 | control | core | Runtime state per session, prompt and new-session deduplication, permission routing, handoff state machine, device RPC with timeouts | store, log | `core/src/control/` |
 | api | core | REST routes, read projection with one mapping per provider, browser WebSocket and subscriptions, WebSocket tickets, static files | store, control, notify, hooks, log, config | `core/src/api/` |
 | shared | contract | Schemas, derived types and error codes for REST and both WebSockets | nothing | `shared/src/` |
@@ -325,7 +325,7 @@ messages that name the session by ID and never a path: `device.session.inspect|i
 clone the new worktree belongs to, which the core keeps in `session_worktrees`.
 
 A handoff to a machine with no clone of the repository adds a clone step before the owner is touched
-([ADR 0024](adr/0024-a-handoff-clones-the-repository-on-a-target-that-has-none.md)). The protocol version is 13.
+([ADR 0024](adr/0024-a-handoff-clones-the-repository-on-a-target-that-has-none.md)). The protocol version is 14.
 The control-lane messages are `device.clone.check` (`requestId`, `origin`, optional `cloneInto`) answered by
 `device.clone.checked` (`reason`, `detail`, the proposed `cloneInto`), and `device.clone.start` (`requestId`,
 `handoffId`, `origin`, `cloneInto`) answered by `device.clone.progress` (`received`, optional `total`, at most four
@@ -335,6 +335,18 @@ handles each in its own goroutine, so a clone never blocks the control lane. The
 without progress. The agent journals the clone in `<state>/handoff/<handoffId>.clone.json` and removes a
 half-made destination on start-up. Git runs with only the `https` and `ssh` protocols, no prompt, no hooks and
 no credentials in the origin it keeps; its output is cut at 2 KiB.
+
+### Script hooks on the wire
+
+An agent announces its script hooks ([ADR 0031](adr/0031-the-session-lifecycle-events-and-the-two-hook-kinds.md)) in
+`device.hello` as `hooks`: per hook the `id` (the slug in its `config.json`), `command`, `events`, `projects`,
+`timeoutMs`, the names in `env`, and the counts `runs`, `failed` and `dropped` since it started. The core replaces
+what it kept for the device, keeps the `enabled` switch of a hook it knew, and forgets the rest. For an event an
+enabled hook takes, the core sends `hook.event` (`hookId`, `event`: the envelope with the project's `path`) on the bulk
+lane to the machine that owns the session (the source for `handoff.started`, the target for `handoff.completed`). The
+agent checks the hook ID, the event type and the project again, runs the script and answers `hook.result` (`hookId`,
+`eventId`, `ok`, `exitCode`, `error` of `timeout`, `spawn-failed` or `dropped`, `durationMs`, `stderr` cut to 1 KiB) on
+the bulk lane. No message carries a command, an argument, an environment variable or a path to run.
 
 ### Permission rules on the wire
 

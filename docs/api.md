@@ -347,6 +347,16 @@ Behavior a client relies on:
   `unresolvable` or `blocked-address`). At most 20 hooks (`too-large` beyond). `GET .../deliveries` lists the
   last 100 deliveries, newest first; `POST .../test` sends one `hook.test` event now, without retry, also for a
   disabled hook, and returns the hook with the delivery.
+  `GET /api/hooks` also lists the script hooks of the machines (`kind: "script"`, `ScriptHookInfoSchema`) that
+  agents declared in their own `config.json` (ADR 0031). A script hook has the `id` `script:<deviceId>:<slug>`, shows its
+  `machine` (with `online`), `command`, `events`, `projects`, `timeoutMs`, the names (not the values) in `env`, the
+  `runs`, `failed` and `dropped` counts since the agent started, `enabled` and a `status` of `active` or `disabled`.
+  Only `enabled` can be changed (`PATCH` with anything else, and `DELETE` or `POST .../rotate-secret`, answer
+  `invalid-request` with the `reason` `script-managed`). `POST .../test` sends a `hook.test` event to the machine
+  and returns the delivery still `pending`; the delivery settles when the agent reports: `delivered`, `failed`
+  with `exit-<code>`, `timeout` or `spawn-failed`, `dropped` with `offline` (the machine is not connected),
+  `dropped` (the agent did not take the event), or `failed` with `connection-lost` or `interrupted`. A delivery
+  of a script hook carries `run` (`exitCode`, `durationMs` and the first 1 KiB of `stderr`, which is not redacted).
   Each event is a JSON `POST` of the envelope `HookEnvelopeSchema` with `Hoplet-Event`, `User-Agent: Hoplet-Hook/1`
   and `Hoplet-Signature: t=<unix seconds>,v1=<hex>`, the HMAC-SHA-256 of `<t>.<body>` under the secret (one `v1`
   per valid secret, newest first). A timeout, a network error, a 408, a 429 and a 5xx are retried after 30

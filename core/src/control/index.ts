@@ -1,7 +1,7 @@
 // Control: device RPC with timeouts and the handoff steps, between the REST API and agent ingestion
 // (docs/architecture.md#components). It never sees a socket; ingest hands it `DeviceLink`s.
 
-import { PROTOCOL_VERSION, type ServerMessage } from '@hoplet/shared';
+import { type HookResult, PROTOCOL_VERSION, type ServerMessage } from '@hoplet/shared';
 import { log } from '../log/index.ts';
 import type { Store } from '../store/index.ts';
 import { createBulkQueue } from './bulk.ts';
@@ -80,6 +80,8 @@ const DEFAULT_TERMINAL_DETACH_MS = 60_000;
 
 export function createControl(store: Store, options: ControlOptions = {}): Control & AgentControl {
   const listeners = new Set<(msg: ServerMessage) => void>();
+  const hookResultListeners = new Set<(deviceId: string, result: HookResult) => void>();
+  const goneListeners = new Set<(deviceIds: string[]) => void>();
   const publish = (msg: ServerMessage): void => {
     for (const listener of listeners) listener(msg);
   };
@@ -208,6 +210,20 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
     syncRules: rules.sync,
     announceRules: rules.announce,
     appliedRulesRevision: rules.appliedRevision,
+    sendHookEvent(deviceId, hookId, event) {
+      const link = state.byDevice.get(deviceId);
+      if (!link?.isOpen()) return false;
+      link.send({ v: PROTOCOL_VERSION, type: 'hook.event', hookId, event });
+      return true;
+    },
+    onHookResult(listener) {
+      hookResultListeners.add(listener);
+      return () => hookResultListeners.delete(listener);
+    },
+    onDevicesGone(listener) {
+      goneListeners.add(listener);
+      return () => goneListeners.delete(listener);
+    },
     attach(deviceId, link, providers, hello) {
       if (state.byDevice.get(deviceId) !== link) {
         // A replaced connection takes its terminals with it.
@@ -247,11 +263,19 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
       ports.detached(gone);
       rules.detached(gone);
       for (const deviceId of gone) state.deviceInfo.delete(deviceId);
+      if (gone.length > 0) for (const listener of goneListeners) listener(gone);
       for (const deviceId of gone) {
         publish({ v: PROTOCOL_VERSION, type: 'device.presence', deviceId, connected: false });
       }
     },
     receive(link, msg) {
+      if (msg.type === 'hook.result') {
+        for (const [deviceId, attached] of state.byDevice) {
+          if (attached === link)
+            for (const listener of hookResultListeners) listener(deviceId, msg);
+        }
+        return;
+      }
       if (msg.type === 'device.rules.applied') {
         rules.receive(link, msg.revision, msg.error);
         return;

@@ -26,6 +26,7 @@ export function handleMessage(deps: MessageDeps, conn: Conn, msg: ClientMessage)
         previewHost: msg.previewHost,
       });
       store.upsertDevice(msg.deviceId, msg.name, msg.version, msg.system, msg.permissionDeny);
+      store.replaceScriptHooks(msg.deviceId, msg.hooks ?? [], Date.now());
       control.announceRules(msg.deviceId);
       log('info', 'ingest', 'device online', {
         device: msg.deviceId,
@@ -145,6 +146,14 @@ export function handleMessage(deps: MessageDeps, conn: Conn, msg: ClientMessage)
         log('warn', 'ingest', 'snapshot refused', { reason: err.reason });
         sendError(conn, 'snapshot-rejected', err.reason);
       }
+      return;
+    }
+    case 'hook.result': {
+      if (!conn.deviceId) {
+        sendError(conn, 'hello-first', 'send device.hello first');
+        return;
+      }
+      control.receive(conn.link, msg);
       return;
     }
     default:

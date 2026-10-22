@@ -47,14 +47,15 @@ const EnvelopeBase = {
 
 const SessionRefSchema = v.object({
   id: SessionIdSchema,
-  project: v.object({ name: v.string() }),
+  /** `path` is the project directory on its machine; only the copy a script hook receives carries it. */
+  project: v.object({ name: v.string(), path: v.optional(v.string()) }),
   machine: MachineSchema,
 });
 
 /** A session that may not exist: a start that failed, or a test. */
 const MaybeSessionRefSchema = v.object({
   id: v.optional(SessionIdSchema),
-  project: v.object({ name: v.string() }),
+  project: v.object({ name: v.string(), path: v.optional(v.string()) }),
   machine: MachineSchema,
 });
 
@@ -201,7 +202,13 @@ export const HOOK_DELIVERY_STATES = ['pending', 'delivered', 'failed', 'dropped'
 export const HookDeliveryStateSchema = v.picklist(HOOK_DELIVERY_STATES);
 export type HookDeliveryState = v.InferOutput<typeof HookDeliveryStateSchema>;
 
-export const HookInfoSchema = v.object({
+const LastDeliverySchema = v.object({
+  at: v.number(),
+  state: HookDeliveryStateSchema,
+  error: v.optional(v.string()),
+});
+
+export const WebhookHookInfoSchema = v.object({
   id: v.string(),
   kind: v.literal('webhook'),
   label: v.string(),
@@ -218,21 +225,52 @@ export const HookInfoSchema = v.object({
   updatedAt: v.number(),
   /** Deliveries waiting to be sent or retried. */
   pending: v.number(),
-  lastDelivery: v.optional(
-    v.object({
-      at: v.number(),
-      state: HookDeliveryStateSchema,
-      error: v.optional(v.string()),
-    }),
-  ),
+  lastDelivery: v.optional(LastDeliverySchema),
 });
+export type WebhookHookInfo = v.InferOutput<typeof WebhookHookInfoSchema>;
+
+/**
+ * A script hook (ADR 0031): declared in the agent's own `config.json`, so it is shown and can be switched or
+ * tested, never created, edited or deleted here. Its `id` is `script:<deviceId>:<slug>`.
+ */
+export const ScriptHookInfoSchema = v.object({
+  id: v.string(),
+  kind: v.literal('script'),
+  /** The slug of the entry in `config.json`. */
+  label: v.string(),
+  machine: v.object({ id: v.string(), name: v.string(), online: v.boolean() }),
+  /** The absolute path of the program, as the agent announced it. */
+  command: v.string(),
+  events: v.pipe(v.array(v.union([HookEventTypeSchema, v.literal('*')])), v.minLength(1)),
+  /** Project paths on the machine; empty means every project. */
+  projects: v.array(v.string()),
+  timeoutMs: v.number(),
+  /** The names, never the values, of the variables the script is passed. */
+  env: v.array(v.string()),
+  /** What the agent counted since it started. */
+  runs: v.number(),
+  failed: v.number(),
+  dropped: v.number(),
+  enabled: v.boolean(),
+  /** `disabled` is the core's switch. A script that is not announced any more is not listed. */
+  status: v.picklist(['active', 'disabled']),
+  updatedAt: v.number(),
+  pending: v.number(),
+  lastDelivery: v.optional(LastDeliverySchema),
+});
+export type ScriptHookInfo = v.InferOutput<typeof ScriptHookInfoSchema>;
+
+export const HookInfoSchema = v.variant('kind', [WebhookHookInfoSchema, ScriptHookInfoSchema]);
 export type HookInfo = v.InferOutput<typeof HookInfoSchema>;
 
 export const HookListResponseSchema = v.object({ hooks: v.array(HookInfoSchema) });
 export type HookListResponse = v.InferOutput<typeof HookListResponseSchema>;
 
 /** POST /api/hooks and /api/hooks/:id/rotate-secret: the signing secret is returned this once. */
-export const HookSecretResponseSchema = v.object({ hook: HookInfoSchema, secret: v.string() });
+export const HookSecretResponseSchema = v.object({
+  hook: WebhookHookInfoSchema,
+  secret: v.string(),
+});
 export type HookSecretResponse = v.InferOutput<typeof HookSecretResponseSchema>;
 
 export const HookDeliverySchema = v.object({
@@ -241,11 +279,22 @@ export const HookDeliverySchema = v.object({
   type: v.string(),
   state: HookDeliveryStateSchema,
   attempts: v.number(),
-  /** `http-<status>`, `timeout`, `blocked-address`, `network`, `needs-secret`, `overflow` or `expired`. */
+  /**
+   * A webhook: `http-<status>`, `timeout`, `blocked-address`, `network`, `needs-secret`, `overflow` or `expired`.
+   * A script: `exit-<code>`, `timeout`, `spawn-failed`, `offline`, `disabled`, `connection-lost`, `interrupted` or `dropped`.
+   */
   error: v.optional(v.string()),
   createdAt: v.number(),
   settledAt: v.optional(v.number()),
   nextAttemptAt: v.optional(v.number()),
+  /** A script hook's run: the exit code, how long it took and the first kilobyte of its standard error. */
+  run: v.optional(
+    v.object({
+      exitCode: v.optional(v.number()),
+      durationMs: v.number(),
+      stderr: v.string(),
+    }),
+  ),
 });
 export type HookDelivery = v.InferOutput<typeof HookDeliverySchema>;
 

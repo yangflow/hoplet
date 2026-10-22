@@ -2,6 +2,7 @@ package sync
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/yangflow/hoplet/agent/internal/rules"
 )
@@ -134,6 +135,11 @@ type Hooks struct {
 	PreviewHost string
 	// PermissionDeny is announced in device.hello: the operator's deny rules, as rules.Announced makes them.
 	PermissionDeny []rules.Rule
+	// ScriptHooks lists the script hooks of the operator's config.json with their counters as they are now;
+	// device.hello announces them on each connection (ADR 0031).
+	ScriptHooks func() []HookAnnounce
+	// HookEvent takes one hook.event. It must not block: it runs on the read loop.
+	HookEvent func(hookID string, event json.RawMessage)
 
 	// ProjectsList / ProjectsAdd / ProjectsRemove match hoplet-agent projects list|add|remove.
 	ProjectsList   func(ctx context.Context) (candidates []string, projects []DeviceProject, err error)
