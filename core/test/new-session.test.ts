@@ -338,6 +338,16 @@ describe('POST /api/sessions', () => {
 
     // The agent reports the new session's state before the store has it, then syncs it.
     expect(control.providerOf(NEW_ID)).toBe('claude');
+    const created = store.listAudit({ type: 'session.created' }, { order: 'asc', limit: 10 });
+    expect(created.events).toMatchObject([
+      {
+        sessionId: NEW_ID,
+        deviceId: 'dev-a',
+        ref: 'n1',
+        summary: { provider: 'claude', projectPath: `${PROJECT}/`, promptId: 'n1', images: 0 },
+      },
+    ]);
+    expect(JSON.stringify(created.events)).not.toContain('build the thing');
     owner.send({ type: 'runtime.state', sessionId: NEW_ID, state: 'running', capabilities: CAPS });
     store.append(
       {

@@ -960,3 +960,47 @@ describe('a handoff that clones the repository first (ADR 0024)', () => {
     });
   });
 });
+
+describe('the audit log', () => {
+  const handoffs = (store: Store) =>
+    store.listAudit({ type: 'session.handoff' }, { order: 'asc', limit: 50 }).events;
+
+  it('records a committed handoff with the devices and whether the owner was online', async () => {
+    const f = await fixture();
+    await f.control.handoff({ sessionId: SESSION, targetDeviceId: 'target' });
+    const [event] = handoffs(f.store);
+    expect(event).toMatchObject({
+      sessionId: SESSION,
+      deviceId: 'target',
+      summary: { from: 'owner', to: 'target', outcome: 'committed', ownerOnline: true },
+    });
+    expect(event?.ref).toMatch(/\S/);
+    expect(handoffs(f.store)).toHaveLength(1);
+    expect(await f.store.verifyAudit()).toMatchObject({ ok: true });
+  });
+
+  it('records a failed handoff with the reason', async () => {
+    const f = await fixture();
+    f.owner.behavior = (msg, d) => {
+      if (msg.type === 'handoff.prepare') {
+        d.reply({
+          type: 'handoff.failed',
+          sessionId: SESSION,
+          handoffId: msg.handoffId,
+          step: 'prepare',
+          reason: 'not-a-git-repository',
+        });
+      }
+    };
+    await f.control.handoff({ sessionId: SESSION, targetDeviceId: 'target' });
+    expect(handoffs(f.store).map((e) => e.summary)).toEqual([
+      {
+        from: 'owner',
+        to: 'target',
+        outcome: 'failed',
+        ownerOnline: true,
+        reason: 'not-a-git-repository',
+      },
+    ]);
+  });
+});

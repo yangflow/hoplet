@@ -1,4 +1,5 @@
 import type { UsagePrice } from '@hoplet/shared';
+import { auditedChange } from './audit.ts';
 import type { StoreContext } from './layout.ts';
 
 /**
@@ -49,20 +50,34 @@ export function priceOverrides(ctx: StoreContext): Record<string, UsagePrice> {
 
 /** Replaces every override by `overrides`. */
 export function setPriceOverrides(ctx: StoreContext, overrides: Record<string, UsagePrice>): void {
-  ctx.db.exec('BEGIN IMMEDIATE');
-  try {
-    ctx.db.exec('DELETE FROM usage_prices');
-    const insert = ctx.db.prepare(
-      'INSERT INTO usage_prices(model, input, output, cache_write, cache_read) VALUES(?, ?, ?, ?, ?)',
-    );
-    for (const [model, p] of Object.entries(overrides)) {
-      insert.run(model, p.input, p.output, p.cacheWrite, p.cacheRead);
-    }
-    ctx.db.exec('COMMIT');
-  } catch (err) {
-    if (ctx.db.isTransaction) ctx.db.exec('ROLLBACK');
-    throw err;
-  }
+  const before = priceOverrides(ctx);
+  auditedChange(
+    ctx,
+    () => {
+      ctx.db.exec('DELETE FROM usage_prices');
+      const insert = ctx.db.prepare(
+        'INSERT INTO usage_prices(model, input, output, cache_write, cache_read) VALUES(?, ?, ?, ?, ?)',
+      );
+      for (const [model, p] of Object.entries(overrides)) {
+        insert.run(model, p.input, p.output, p.cacheWrite, p.cacheRead);
+      }
+    },
+    () => {
+      const models = new Set([...Object.keys(before), ...Object.keys(overrides)]);
+      const fields = [...models]
+        .filter((model) => JSON.stringify(before[model]) !== JSON.stringify(overrides[model]))
+        .sort();
+      return {
+        type: 'config.changed',
+        summary: {
+          area: 'price-overrides',
+          action: 'updated',
+          fields,
+          count: Object.keys(overrides).length,
+        },
+      };
+    },
+  );
 }
 
 const DATED = /^(.+)-\d{8}$/;

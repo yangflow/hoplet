@@ -124,6 +124,27 @@ export function createStart(state: ControlState, listProjects: Control['listProj
         ...(answer.reason !== undefined ? { reason: answer.reason } : {}),
       };
     }
+    // The session exists already, so a record the log cannot take is told and nothing else happens.
+    try {
+      state.store.audit({
+        type: 'session.created',
+        sessionId: answer.sessionId,
+        deviceId: req.deviceId,
+        ref: promptId,
+        summary: {
+          provider: req.provider,
+          projectPath: project.path,
+          promptId,
+          length: [...req.text].length,
+          images: req.attachments?.length ?? 0,
+        },
+      });
+    } catch (err) {
+      log('error', 'control', 'session start not recorded', {
+        sessionId: answer.sessionId,
+        error: err instanceof Error ? err.message : 'unknown',
+      });
+    }
     return { ok: true, sessionId: answer.sessionId, promptId };
   }
 

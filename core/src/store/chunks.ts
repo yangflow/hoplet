@@ -131,6 +131,7 @@ export function append(ctx: StoreContext, input: AppendInput, rawLines: string[]
   let curLines = row.cur_chunk_lines;
   let chunkCount = row.chunk_count;
   let lineCount = row.line_count;
+  const linesBefore = lineCount;
   let byteSize = row.byte_size;
 
   const firstSeq = seq;
@@ -200,6 +201,11 @@ export function append(ctx: StoreContext, input: AppendInput, rawLines: string[]
       input.sessionId,
     );
     upsertUsage(db, input.sessionId, used.records);
+    // The audit deriver reads only lines that arrive from here on; a session met for the first time starts at its end.
+    db.prepare('INSERT OR IGNORE INTO audit_cursor(session_id, line) VALUES(?, ?)').run(
+      input.sessionId,
+      linesBefore,
+    );
 
     for (let sealed = firstSeq; sealed < chunkCount - 1; sealed++) {
       db.prepare('INSERT OR IGNORE INTO compression_pending VALUES(?, ?)').run(

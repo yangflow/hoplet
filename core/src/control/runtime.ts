@@ -12,6 +12,7 @@ import {
   type SessionPermission,
 } from '@hoplet/shared';
 import { log } from '../log/index.ts';
+import { toolInputSummary } from '../store/index.ts';
 import { askWaiter, settleWaiter } from './pending.ts';
 import { type ControlState, onlineLink } from './state.ts';
 import type {
@@ -41,6 +42,8 @@ export interface OpenPermission {
   input: unknown;
   planExit?: PlanExit;
   at: number;
+  /** Closes the request when nobody answers; a plan exit has none. */
+  timer?: ReturnType<typeof setTimeout>;
 }
 
 /** A repeated `promptId` returns the first result for this long. */
@@ -154,9 +157,46 @@ export function createRuntime(state: ControlState): Runtime {
     return open.planExit === undefined && state.now() - open.at > PERMISSION_OPEN_MS;
   }
 
+  /** Removes a request nobody answers any more and stops its timer. */
+  function forget(key: string): void {
+    const open = permissions.get(key);
+    if (open?.timer) clearTimeout(open.timer);
+    permissions.delete(key);
+  }
+
+  /**
+   * A request closed without an answer from a person: the agent denied it, so the record says so. It is
+   * best effort, like the record of a rule decision: the request is over either way.
+   */
+  function closeOpen(key: string, answeredBy: 'timeout' | 'session-end'): void {
+    const open = permissions.get(key);
+    if (!open) return;
+    forget(key);
+    const sessionId = key.slice(0, key.indexOf('\n'));
+    try {
+      store.audit({
+        type: 'permission.answered',
+        sessionId,
+        deviceId: open.deviceId,
+        actor: {
+          kind: 'core',
+          id: answeredBy === 'timeout' ? 'permission-timeout' : 'session-end',
+        },
+        channel: 'core',
+        ref: open.requestId,
+        summary: { decision: 'deny', answeredBy, tool: open.tool },
+      });
+    } catch (err) {
+      log('error', 'control', 'permission closure not recorded', {
+        sessionId,
+        error: err instanceof Error ? err.message : 'unknown',
+      });
+    }
+  }
+
   function dropPermissions(sessionId: string): void {
     for (const key of [...permissions.keys()]) {
-      if (key.startsWith(`${sessionId}\n`)) permissions.delete(key);
+      if (key.startsWith(`${sessionId}\n`)) closeOpen(key, 'session-end');
     }
   }
 
@@ -222,6 +262,13 @@ export function createRuntime(state: ControlState): Runtime {
       }
 
       // The audit trail: who was asked to run what, never the text itself (docs/threat-model.md).
+      store.audit({
+        type: 'prompt.sent',
+        sessionId,
+        deviceId: ownerDeviceId,
+        ref: promptId,
+        summary: { promptId, length: [...text].length, images: attachments.length },
+      });
       log('info', 'control', 'prompt forwarded', {
         sessionId,
         promptId,
@@ -262,7 +309,7 @@ export function createRuntime(state: ControlState): Runtime {
       const key = permissionKey(sessionId, requestId);
       const open = permissions.get(key);
       if (!open || open.deviceId !== ownerDeviceId || permissionExpired(open)) {
-        permissions.delete(key);
+        forget(key);
         return { ok: false, error: 'request-closed' };
       }
       // A mode is only the approval of a plan, and only one the request offers; the request stays open.
@@ -284,7 +331,7 @@ export function createRuntime(state: ControlState): Runtime {
         },
       });
       // The first answer wins: the request is gone before the answer is sent.
-      permissions.delete(key);
+      forget(key);
       log('info', 'control', 'permission answered', { sessionId, requestId, decision });
       const msg: RuntimePermissionAnswer = {
         v: PROTOCOL_VERSION,
@@ -435,7 +482,38 @@ export function createRuntime(state: ControlState): Runtime {
           return;
         }
         case 'runtime.permission': {
-          permissions.set(permissionKey(msg.sessionId, msg.requestId), {
+          const permKey = permissionKey(msg.sessionId, msg.requestId);
+          forget(permKey);
+          const timer =
+            msg.planExit === undefined
+              ? setTimeout(() => {
+                  if (permissions.get(permKey)?.timer === timer) closeOpen(permKey, 'timeout');
+                }, PERMISSION_OPEN_MS)
+              : undefined;
+          timer?.unref();
+          try {
+            const { command, paths } = toolInputSummary(msg.tool, msg.input);
+            store.audit({
+              type: 'permission.requested',
+              sessionId: msg.sessionId,
+              deviceId,
+              actor: { kind: 'device', id: deviceId },
+              channel: 'agent',
+              ref: msg.requestId,
+              summary: {
+                tool: msg.tool,
+                planExit: msg.planExit !== undefined,
+                ...(command !== undefined ? { command } : {}),
+                ...(paths.length > 0 ? { paths } : {}),
+              },
+            });
+          } catch (err) {
+            log('error', 'control', 'permission request not recorded', {
+              sessionId: msg.sessionId,
+              error: err instanceof Error ? err.message : 'unknown',
+            });
+          }
+          permissions.set(permKey, {
             deviceId,
             requestId: msg.requestId,
             tool: msg.tool,
@@ -443,6 +521,7 @@ export function createRuntime(state: ControlState): Runtime {
             input: msg.input,
             ...(msg.planExit ? { planExit: msg.planExit } : {}),
             at: state.now(),
+            ...(timer ? { timer } : {}),
           });
           const { type: _type, v: _v, ...rest } = msg;
           state.publish({ v: PROTOCOL_VERSION, type: 'session.permission', ...rest });
@@ -508,8 +587,8 @@ export function createRuntime(state: ControlState): Runtime {
         runtime.delete(sessionId);
         reset.push(sessionId);
       }
-      for (const [key, open] of permissions)
-        if (open.deviceId === deviceId) permissions.delete(key);
+      for (const [key, open] of [...permissions])
+        if (open.deviceId === deviceId) closeOpen(key, 'session-end');
       for (const sessionId of reset) publishRuntime(sessionId);
     },
 
@@ -530,7 +609,9 @@ export function createRuntime(state: ControlState): Runtime {
       for (const [sessionId, entry] of runtime) {
         if (gone.has(entry.deviceId)) publishRuntime(sessionId);
       }
-      for (const [key, open] of permissions) if (gone.has(open.deviceId)) permissions.delete(key);
+      for (const [key, open] of [...permissions]) {
+        if (gone.has(open.deviceId)) closeOpen(key, 'session-end');
+      }
     },
   };
 }

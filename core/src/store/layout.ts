@@ -29,6 +29,9 @@ export interface StoreContext {
   budgetBlocks: Map<string, BudgetBlock>;
   /** The pending refresh of the `budgetBlocks` that recorded usage made stale. */
   budgetBlockTimer: NodeJS.Timeout | null;
+  /** Sessions whose tool calls the audit deriver is reading now, and those that got lines meanwhile. */
+  auditDeriving: Set<string>;
+  auditRerun: Set<string>;
 }
 
 /** Whether a `pause` budget refuses new prompts in the period [periodStart, periodEnd), as last computed. */

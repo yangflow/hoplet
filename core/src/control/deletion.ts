@@ -69,7 +69,10 @@ export function createDeletion(
     state.commands.delete(sessionId);
     state.startedSessions.delete(sessionId);
     for (const key of [...state.permissions.keys()]) {
-      if (key.startsWith(`${sessionId}\n`)) state.permissions.delete(key);
+      if (key.startsWith(`${sessionId}\n`)) {
+        clearTimeout(state.permissions.get(key)?.timer);
+        state.permissions.delete(key);
+      }
     }
   }
 
@@ -120,6 +123,17 @@ export function createDeletion(
 
       // The tombstone first: from here the session is in no list and ingest refuses it.
       if (!store.isTombstoned(sessionId)) {
+        // The record comes first: a deletion the audit log cannot hold does not start (ADR 0030).
+        store.audit({
+          type: 'session.deleted',
+          sessionId,
+          deviceId: owner,
+          summary: {
+            vendorFile: request.vendorFile === true,
+            worktree: request.worktree === true,
+            worktreeDirty: request.worktreeDirty === true,
+          },
+        });
         store.tombstone(sessionId, owner);
         forgetInMemory(sessionId);
         state.publish({ v: PROTOCOL_VERSION, type: 'session.deleted', sessionId });

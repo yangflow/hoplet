@@ -14,6 +14,8 @@ import type {
   SessionWorkspaceList,
 } from '@hoplet/shared';
 import { PROTOCOL_VERSION, SNAPSHOT_CHUNK_BYTES } from '@hoplet/shared';
+import { log } from '../log/index.ts';
+import type { AuditInput } from '../store/index.ts';
 import { askWaiter } from './pending.ts';
 import { type ControlState, onlineLink } from './state.ts';
 import type { Control, DeviceControlOutcome } from './types.ts';
@@ -73,6 +75,22 @@ export function createRpc(state: ControlState): Rpc {
       { ok: false, error: 'timeout' },
       () => link.send(build(requestId)),
     );
+  }
+
+  /** A change the device made is recorded once it answered ok; a record the log cannot take is told only. */
+  function recorded<T extends { ok: boolean }>(outcome: Promise<T>, input: AuditInput): Promise<T> {
+    return outcome.then((result) => {
+      if (!result.ok) return result;
+      try {
+        state.store.audit(input);
+      } catch (err) {
+        log('error', 'control', 'device change not recorded', {
+          deviceId: input.deviceId ?? '',
+          error: err instanceof Error ? err.message : 'unknown',
+        });
+      }
+      return result;
+    });
   }
 
   return {
@@ -233,7 +251,7 @@ export function createRpc(state: ControlState): Rpc {
       const link = onlineLink(state, deviceId);
       if (!link) return Promise.resolve({ ok: false, error: 'owner-offline' });
       const requestId = randomUUID();
-      return askWaiter(
+      const outcome = askWaiter(
         pendingProviders,
         requestId,
         state.workspaceTimeoutMs,
@@ -249,22 +267,61 @@ export function createRpc(state: ControlState): Rpc {
             ...(change.defaults !== undefined ? { defaults: change.defaults } : {}),
           }),
       );
+      return recorded(outcome, {
+        type: 'config.changed',
+        deviceId,
+        summary: {
+          area: 'providers',
+          id: change.id,
+          action: 'updated',
+          fields: (['name', 'enabled', 'defaults'] as const).filter((k) => change[k] !== undefined),
+          current: {
+            ...(change.name !== undefined ? { name: change.name } : {}),
+            ...(change.enabled !== undefined ? { enabled: change.enabled } : {}),
+            ...(change.defaults !== undefined ? { defaults: change.defaults } : {}),
+          },
+        },
+      });
     },
     addProject(deviceId, path) {
-      return askDevice(deviceId, (requestId) => ({
-        v: PROTOCOL_VERSION,
-        type: 'device.projects.add',
-        requestId,
-        path,
-      }));
+      return recorded(
+        askDevice(deviceId, (requestId) => ({
+          v: PROTOCOL_VERSION,
+          type: 'device.projects.add',
+          requestId,
+          path,
+        })),
+        {
+          type: 'config.changed',
+          deviceId,
+          summary: {
+            area: 'watched-projects',
+            action: 'added',
+            fields: ['path'],
+            current: { path },
+          },
+        },
+      );
     },
     removeProject(deviceId, path) {
-      return askDevice(deviceId, (requestId) => ({
-        v: PROTOCOL_VERSION,
-        type: 'device.projects.remove',
-        requestId,
-        path,
-      }));
+      return recorded(
+        askDevice(deviceId, (requestId) => ({
+          v: PROTOCOL_VERSION,
+          type: 'device.projects.remove',
+          requestId,
+          path,
+        })),
+        {
+          type: 'config.changed',
+          deviceId,
+          summary: {
+            area: 'watched-projects',
+            action: 'removed',
+            fields: ['path'],
+            current: { path },
+          },
+        },
+      );
     },
     async importSessions(deviceId, path, sessionIds) {
       // An import asks for the sessions back (ADR 0023): their tombstones go before the agent starts syncing.

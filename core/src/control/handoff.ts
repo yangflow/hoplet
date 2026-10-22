@@ -516,6 +516,34 @@ export function createHandoff(
     },
 
     async handoff(request) {
+      /** The outcome is settled when it is recorded, so a record the log cannot take is told and nothing else happens. */
+      const recordHandoff = (
+        sessionId: string,
+        active: ActiveHandoff,
+        outcome: 'committed' | 'failed',
+        reason?: string,
+      ): void => {
+        try {
+          store.audit({
+            type: 'session.handoff',
+            sessionId,
+            deviceId: active.targetDeviceId,
+            ref: active.handoffId,
+            summary: {
+              from: active.ownerDeviceId,
+              to: active.targetDeviceId,
+              outcome,
+              ownerOnline: active.owner !== null,
+              ...(reason !== undefined ? { reason } : {}),
+            },
+          });
+        } catch (err) {
+          log('error', 'control', 'handoff not recorded', {
+            sessionId,
+            error: err instanceof Error ? err.message : 'unknown',
+          });
+        }
+      };
       const { sessionId, targetDeviceId } = request;
       if (!isSessionId(sessionId))
         return { ok: false, error: 'rejected', reason: 'invalid-session-id' };
@@ -557,6 +585,7 @@ export function createHandoff(
           branch: done.branch,
         });
         log('info', 'control', 'handoff committed', { sessionId, handoffId: active.handoffId });
+        recordHandoff(sessionId, active, 'committed');
         return done;
       } catch (err) {
         const failure =
@@ -568,6 +597,7 @@ export function createHandoff(
           code: failure.code,
           reason,
         });
+        recordHandoff(sessionId, active, 'failed', reason);
         const abort = {
           v: PROTOCOL_VERSION,
           type: 'handoff.abort',

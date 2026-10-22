@@ -11,7 +11,7 @@ import {
   safeParse,
 } from '@hoplet/shared';
 import { registerSecret } from '../log/index.ts';
-import { appendAudit } from './audit.ts';
+import { appendAudit, auditedChange } from './audit.ts';
 import type { StoreContext } from './layout.ts';
 
 function hashToken(token: string): string {
@@ -164,10 +164,28 @@ export function setInventory(
 
 /** Replaces the labels of a device; false for a device the store does not know. */
 export function setLabels(ctx: StoreContext, deviceId: string, labels: string[]): boolean {
-  const result = ctx.db
-    .prepare(`UPDATE devices SET labels = ? WHERE device_id = ?`)
-    .run(labels.length === 0 ? null : JSON.stringify(labels), deviceId);
-  return Number(result.changes) > 0;
+  return auditedChange(
+    ctx,
+    () =>
+      Number(
+        ctx.db
+          .prepare(`UPDATE devices SET labels = ? WHERE device_id = ?`)
+          .run(labels.length === 0 ? null : JSON.stringify(labels), deviceId).changes,
+      ) > 0,
+    (changed) =>
+      changed
+        ? {
+            type: 'config.changed',
+            deviceId,
+            summary: {
+              area: 'device-labels',
+              action: 'updated',
+              fields: ['labels'],
+              current: { labels },
+            },
+          }
+        : null,
+  );
 }
 
 export function mintDevice(

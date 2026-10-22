@@ -167,6 +167,25 @@ describe('deletion preview', () => {
 });
 
 describe('deleting a session', () => {
+  it('records the deletion in the audit log with what the operator chose', async () => {
+    const { store, control, owner } = setup();
+    control.attach('owner', owner.link);
+    answering(owner);
+    await control.deleteSession(SESSION, {
+      vendorFile: true,
+      worktree: false,
+      worktreeDirty: false,
+    });
+    const events = store.listAudit({ type: 'session.deleted' }, { order: 'asc', limit: 10 }).events;
+    expect(events).toMatchObject([
+      {
+        sessionId: SESSION,
+        summary: { vendorFile: true, worktree: false, worktreeDirty: false },
+      },
+    ]);
+    expect(await store.verifyAudit()).toMatchObject({ ok: true });
+  });
+
   it('core only: tombstones, publishes, purges and asks the agent for nothing optional', async () => {
     const { dir, store, control, owner, published } = setup();
     control.attach('owner', owner.link);

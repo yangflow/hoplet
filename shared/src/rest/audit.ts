@@ -1,7 +1,7 @@
 import * as v from 'valibot';
 import { queryInt } from './common.ts';
 
-/** Who did it (ADR 0030). Code produces `operator` and `core` today; `device`, `session` and `schedule` wait for their features. */
+/** Who did it (ADR 0030). Code produces `operator`, `device` and `core` today; `session` and `schedule` wait for their features. */
 export const AUDIT_ACTOR_KINDS = ['operator', 'device', 'session', 'schedule', 'core'] as const;
 export const AuditActorKindSchema = v.picklist(AUDIT_ACTOR_KINDS);
 export type AuditActorKind = v.InferOutput<typeof AuditActorKindSchema>;

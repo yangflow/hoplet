@@ -166,7 +166,7 @@ describe('the configuration of a session', () => {
 
 describe('POST /api/devices/:id/providers', () => {
   it('relays the change and answers with the list the agent sent', async () => {
-    const { post, agent } = await boot();
+    const { post, agent, store } = await boot();
     const owner = await agent('dev-a');
     const pending = post('/api/devices/dev-a/providers', {
       id: 'glm',
@@ -193,6 +193,19 @@ describe('POST /api/devices/:id/providers', () => {
       name: 'GLM 5',
       enabled: false,
     });
+    const recorded = store.listAudit({ type: 'config.changed' }, { order: 'asc', limit: 10 });
+    expect(recorded.events).toMatchObject([
+      {
+        deviceId: 'dev-a',
+        summary: {
+          area: 'providers',
+          id: 'glm',
+          action: 'updated',
+          fields: ['name', 'enabled', 'defaults'],
+          current: { name: 'GLM 5', enabled: false, defaults: { model: 'opus' } },
+        },
+      },
+    ]);
   });
 
   it('relays the agent refusal', async () => {
