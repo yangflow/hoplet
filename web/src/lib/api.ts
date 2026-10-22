@@ -27,6 +27,13 @@ import {
   GlobalSearchResultSchema,
   HandoffCancelResultSchema,
   HandoffResultSchema,
+  type HookCreateRequest,
+  HookDeliveriesResponseSchema,
+  HookInfoSchema,
+  HookListResponseSchema,
+  HookSecretResponseSchema,
+  HookTestResponseSchema,
+  type HookUpdateRequest,
   type InferOutput,
   LinesPageSchema,
   LiveSessionMetaSchema,
@@ -624,6 +631,45 @@ export function deleteWebhook(id: string) {
 
 export function postWebhookTest(id: string) {
   return call(`/api/notify/webhooks/${encodeURIComponent(id)}/test`, WebhookTestResponseSchema, {});
+}
+
+export function fetchHooks() {
+  return call('/api/hooks', HookListResponseSchema);
+}
+
+export function postHook(request: HookCreateRequest) {
+  return call('/api/hooks', HookSecretResponseSchema, request);
+}
+
+export function patchHook(id: string, change: HookUpdateRequest) {
+  return call(`/api/hooks/${encodeURIComponent(id)}`, HookInfoSchema, change, undefined, 'PATCH');
+}
+
+export function deleteHook(id: string) {
+  return call(
+    `/api/hooks/${encodeURIComponent(id)}`,
+    HookListResponseSchema,
+    undefined,
+    undefined,
+    'DELETE',
+  );
+}
+
+export function rotateHookSecret(id: string) {
+  return call(`/api/hooks/${encodeURIComponent(id)}/rotate-secret`, HookSecretResponseSchema, {});
+}
+
+export function fetchHookDeliveries(id: string, signal?: AbortSignal) {
+  return call(
+    `/api/hooks/${encodeURIComponent(id)}/deliveries`,
+    HookDeliveriesResponseSchema,
+    undefined,
+    signal,
+  );
+}
+
+export function postHookTest(id: string) {
+  return call(`/api/hooks/${encodeURIComponent(id)}/test`, HookTestResponseSchema, {});
 }
 
 /** The action page's calls: the signed token in the body is the credential, there is no host token. */

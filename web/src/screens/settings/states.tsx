@@ -18,6 +18,8 @@ import { type Appearance, applyText, DEFAULTS } from '../../lib/prefs.ts';
 import type { AuditFixture } from './audit.tsx';
 import * as auditFx from './audit-fixtures.ts';
 import { type BudgetsFixture, fill } from './budgets.tsx';
+import type { HooksFixture } from './hooks.tsx';
+import { hooksStates } from './hooks-fixtures.ts';
 import { type SectionId, Settings } from './index.tsx';
 import type { MachinesFixture } from './machines.tsx';
 import type { NotifyFixture, PushState } from './notifications.tsx';
@@ -667,6 +669,7 @@ function Scene(props: {
   notify?: NotifyFixture;
   providers?: ProvidersFixture;
   rules?: RulesFixture;
+  hooks?: HooksFixture;
   audit?: AuditFixture;
   usage?: UsageFixture;
   templates?: TemplatesFixture;
@@ -686,6 +689,7 @@ function Scene(props: {
       {...(props.notify ? { notify: props.notify } : {})}
       {...(props.providers ? { providers: props.providers } : {})}
       {...(props.rules ? { rules: props.rules } : {})}
+      {...(props.hooks ? { hooks: props.hooks } : {})}
       {...(props.audit ? { audit: props.audit } : {})}
       {...(props.usage ? { usage: props.usage } : {})}
       {...(props.templates ? { templates: props.templates } : {})}
@@ -930,6 +934,18 @@ export const states: Record<string, () => ReactNode> = {
     />
   ),
   'rules-empty': () => <Scene section="rules" rules={rulesFixture({ own: [], local: false })} />,
+  hooks: () => <Scene section="hooks" hooks={hooksStates.list()} />,
+  'hooks-deliveries': () => <Scene section="hooks" hooks={hooksStates.deliveries()} />,
+  'hooks-needs-secret': () => <Scene section="hooks" hooks={hooksStates.needsSecret()} />,
+  'hooks-add': () => <Scene section="hooks" hooks={hooksStates.add()} />,
+  'hooks-edit': () => <Scene section="hooks" hooks={hooksStates.edit()} />,
+  'hooks-secret': () => <Scene section="hooks" hooks={hooksStates.secret()} />,
+  'hooks-rotate-confirm': () => <Scene section="hooks" hooks={hooksStates.rotateConfirm()} />,
+  'hooks-rotate-secret': () => <Scene section="hooks" hooks={hooksStates.rotateSecret()} />,
+  'hooks-test': () => <Scene section="hooks" hooks={hooksStates.test()} />,
+  'hooks-test-bad': () => <Scene section="hooks" hooks={hooksStates.testBad()} />,
+  'hooks-script-run': () => <Scene section="hooks" hooks={hooksStates.scriptRun()} />,
+  'hooks-empty': () => <Scene section="hooks" hooks={hooksStates.empty()} />,
   audit: () => <Scene section="audit" audit={auditFx.auditPage()} />,
   'audit-filtered': () => <Scene section="audit" audit={auditFx.auditFiltered()} />,
   'audit-detail': () => <Scene section="audit" audit={auditFx.auditDetail()} />,
