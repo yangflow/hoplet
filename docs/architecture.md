@@ -226,6 +226,14 @@ injectable timer: a child past its time limit (`session_children`, set when a se
 of a tree past its tokens are interrupted, stopped and audited as `child.limit`. The API adds `parentId` and
 `childCount` to the session metadata, the descendants route and `cascade` on stop; it does not own the relation.
 
+A parent reads its children over four session-callable routes (`api/children.ts` holds the pure parts: the child
+state, the last report, the file list, the fit into 8 KiB). The state is derived from the runtime, except what the
+core did to a child: `session_children.ended` holds `timed-out` (the tree watcher) or `cancelled` (a cancel) and
+wins. Waiting is polling: `wait_children` in the agent asks the status route every 2 seconds for at most 50 seconds,
+so nothing is held in the core and no wire message is added. The report preamble and the worktree default
+are applied by `control/start.ts` before `runtime.start`, so the agent needs no knowledge of them; the same module
+gives the new child its narrow session MCP settings (`inheritSettings`).
+
 ### Configuration reads of a session
 
 The core asks the owner of a session for one page of its configuration with `session.config.read` (control lane;
@@ -272,7 +280,7 @@ tools when no rule decided. `send_prompt` (queued through `POST /api/sessions/:i
 (`POST /api/sessions`, with the new session's chain recorded in `session_provenance`)
 act on another session: the hook does not allow them, so the vendor asks the user, and the core checks the grant,
 the target's mode, the chain and the limits again. The core sets `source` on the `runtime.prompt` it sends for such a
-message, and the target's agent puts the fixed line naming the sender before the text; `runtime.start` carries the same `source`, and the new session's first prompt gets the line.
+message, and the target's agent puts the fixed line naming the sender before the text; `runtime.start` carries the same `source`, and the new session's first prompt gets the line. A parent also has `wait_children` and `read_child_diff` (read tools: they change nothing and reach only its own children) and `collect_child` and `cancel_child` (the hook does not allow them either); see Trees of work.
 
 ### A runtime capability
 

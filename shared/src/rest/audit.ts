@@ -40,6 +40,8 @@ export const AUDIT_EVENT_TYPES = [
   'prompt.sent',
   'session.op',
   'child.limit',
+  'child.collected',
+  'child.cancelled',
   'config.changed',
   'verify.result',
   'device.token.issued',

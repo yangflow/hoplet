@@ -189,7 +189,7 @@ setting: 2 levels below the root, 4 live children per session, 8 live sessions p
 session, 3,000,000 input and output tokens per tree (cache excluded), and 30 minutes a child, up to 2 hours when the
 parent asks. A tree is checked every 30 seconds; a session past a limit is interrupted and stopped. Only a machine
 with `session_mcp` on lets a session start sessions, so each machine still decides whether trees exist. The sessions
-a session started, and the time limit of each, are rows in the core's database (`session_children`).
+a session started, and the time limit of each, are rows in the core's database (`session_children`), and so is whether the core ended one (`timed-out` or `cancelled`). A parent waits for its children by asking the core every 2 seconds for at most 50 seconds per tool call; nothing is held between calls and no port, volume or setting is added.
 
 ### Terminal
 

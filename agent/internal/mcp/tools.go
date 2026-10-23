@@ -30,6 +30,9 @@ const (
 	ToolListSkills = "list_skills"
 	ToolReadSkill  = "read_skill"
 	ToolReadMemory = "read_memory"
+	// The two tools that read one's own children (ADR 0035) need only `read`: they change nothing.
+	ToolWaitChildren  = "wait_children"
+	ToolReadChildDiff = "read_child_diff"
 )
 
 // The tools that act on another session. They need the `send` ability and a grant for it, so the vendor asks the
@@ -39,10 +42,12 @@ const (
 	ToolInterruptSession = "interrupt_session"
 	ToolStartSession     = "start_session"
 	ToolRequestHandoff   = "request_handoff"
+	ToolCollectChild     = "collect_child"
+	ToolCancelChild      = "cancel_child"
 )
 
 // ActTools are the tools that change another session.
-var ActTools = []string{ToolSendPrompt, ToolInterruptSession, ToolStartSession, ToolRequestHandoff}
+var ActTools = []string{ToolSendPrompt, ToolInterruptSession, ToolStartSession, ToolRequestHandoff, ToolCollectChild, ToolCancelChild}
 
 // IsKnownTool says whether name is a tool this server offers.
 func IsKnownTool(name string) bool {
@@ -58,7 +63,7 @@ func IsKnownTool(name string) bool {
 }
 
 // ReadTools are the tools that need only the `read` ability, which the built-in rule allows.
-var ReadTools = []string{ToolListMachines, ToolListSessions, ToolReadSession, ToolGetConfig, ToolListSkills, ToolReadSkill, ToolReadMemory}
+var ReadTools = []string{ToolListMachines, ToolListSessions, ToolReadSession, ToolGetConfig, ToolListSkills, ToolReadSkill, ToolReadMemory, ToolWaitChildren, ToolReadChildDiff}
 
 // IsReadTool says whether name is one of ReadTools.
 func IsReadTool(name string) bool {
@@ -173,8 +178,12 @@ func tools() []toolDef {
 			Name: ToolStartSession,
 			Description: "Start a new session with a first prompt and return its ID. The new session runs the same " +
 				"provider as this one, on this machine and in this project unless machine and projectPath say " +
-				"otherwise, and it sees that this session started it. Its permission mode is never more permissive " +
-				"than this session's: without permissionMode it gets this session's mode (or the closest below it). " +
+				"otherwise, and it sees that this session started it. It does not wait: it returns the new " +
+				"session's ID at once, and wait_children and collect_child give you its result. In a git project the " +
+				"session gets a new worktree that starts from HEAD and does not carry this session's uncommitted " +
+				"changes (commit first, or put what it needs in the prompt); worktree false shares this directory. " +
+				"Its permission mode is never more permissive than this session's: without permissionMode it gets " +
+				"this session's mode (or the closest below it). It can start sessions of its own only with nested. " +
 				"A refusal names its code (forbidden, loop-limit, rate-limited, invalid-request) and, where there is " +
 				"one, a reason; do not retry a refusal that is not rate-limited. Starting is limited to " + startLimits + ".",
 			InputSchema: obj(map[string]any{
@@ -182,9 +191,55 @@ func tools() []toolDef {
 				"machine":        map[string]any{"type": "string", "description": "A machine ID or name from list_machines (default: this session's machine)."},
 				"projectPath":    map[string]any{"type": "string", "maxLength": maxPathChars, "description": "The project directory on that machine (default: this session's project)."},
 				"permissionMode": map[string]any{"type": "string", "description": "A permission mode, such as plan, default or acceptEdits; not more permissive than this session's."},
-				"worktree":       map[string]any{"type": "boolean", "description": "Run the new session in a new git worktree of the project."},
-				"branch":         map[string]any{"type": "string", "maxLength": maxBranchChars, "description": "The branch name of the worktree (default: generated); only with worktree."},
+				"worktree":       map[string]any{"type": "boolean", "description": "Run the new session in a new git worktree (default true in a git project); false shares this session's directory, and its changes are then mixed with other work."},
+				"branch":         map[string]any{"type": "string", "maxLength": maxBranchChars, "description": "The branch name of the worktree (default: generated); not with worktree false."},
+				"title":          map[string]any{"type": "string", "maxLength": maxTitleChars, "description": "A short title for the session list."},
+				"nested":         map[string]any{"type": "boolean", "description": "Let the new session start sessions of its own, within the depth limit (default false)."},
 			}, "prompt"),
+		},
+		{
+			Name: ToolWaitChildren,
+			Description: "Wait for the sessions this session started. It returns when all of them (until all, the " +
+				"default) or any of them (until any) is no longer running, or after at most " + maxWaitText + " with " +
+				"pending true: call it again to keep waiting. Each child has a state: running, done (its last turn " +
+				"ended), failed, blocked (it asks the user for a permission, which only the user can answer: tell the " +
+				"user), ended, timed-out or cancelled. " + dataNotice,
+			InputSchema: obj(map[string]any{
+				"sessionIds":     map[string]any{"type": "array", "maxItems": maxWaitIDs, "items": map[string]any{"type": "string"}, "description": "Children to wait for (default: all of this session's children)."},
+				"until":          map[string]any{"type": "string", "enum": []string{"all", "any"}, "description": "Return when all (default) or any of them is no longer running."},
+				"timeoutSeconds": map[string]any{"type": "integer", "minimum": 1, "maximum": maxWaitSeconds, "description": "Wait at most this long (default and maximum " + maxWaitText + ")."},
+			}),
+		},
+		{
+			Name: ToolCollectChild,
+			Description: "Collect the result of a session this session started: its state, its report (its last message, " +
+				"cut at 6 KiB), the files it changed (at most 200, no content), and what it cost. The whole answer is at " +
+				"most 8 KiB. With release (the default) a child that is done or failed has its process stopped; the " +
+				"session and its worktree stay. A running or blocked child is never stopped by it. " + dataNotice,
+			InputSchema: obj(map[string]any{
+				"sessionId": map[string]any{"type": "string", "description": "A child of this session."},
+				"release":   map[string]any{"type": "boolean", "description": "Stop the process of a finished child (default true)."},
+			}, "sessionId"),
+		},
+		{
+			Name: ToolReadChildDiff,
+			Description: "Read one file's diff of a session this session started, against the commit its worktree started " +
+				"from. One call returns one page; next, when present, is the cursor of the following page. " + dataNotice,
+			InputSchema: obj(map[string]any{
+				"sessionId": map[string]any{"type": "string", "description": "A child of this session."},
+				"path":      map[string]any{"type": "string", "maxLength": maxPathChars, "description": "A path from collect_child's list of files."},
+				"cursor":    map[string]any{"type": "integer", "minimum": 0, "description": "The next of the previous page."},
+			}, "sessionId", "path"),
+		},
+		{
+			Name: ToolCancelChild,
+			Description: "Interrupt and stop a session this session started, or one below it. With subtree the sessions " +
+				"it started are cancelled too. The session and its worktree stay. A refusal names its code and, where " +
+				"there is one, a reason.",
+			InputSchema: obj(map[string]any{
+				"sessionId": map[string]any{"type": "string", "description": "A session this session started, directly or not."},
+				"subtree":   map[string]any{"type": "boolean", "description": "Also cancel the sessions it started."},
+			}, "sessionId"),
 		},
 		{
 			Name: ToolRequestHandoff,
@@ -205,11 +260,19 @@ func tools() []toolDef {
 const (
 	handoffLimits  = "6 requests an hour from this session, one open request at a time, and a chain of 3 sessions"
 	maxReasonChars = 500
-	startLimits    = "5 sessions an hour and 10 live sessions started by this session, and a chain of 3 sessions"
+	startLimits    = "12 sessions an hour, 4 live children of this session, 8 live sessions in the whole tree, 2 levels of children, 30 minutes for each (up to 120), and a chain of 3 sessions"
 	maxPathChars   = 4096
 	maxBranchChars = 244
 	maxPromptChars = 8000
-	sendLimits     = "6 prompts a minute and 60 an hour from this session, 3 a minute to one session, and a chain of 3 sessions"
+	maxTitleChars  = 200
+	// maxWaitSeconds is the longest wait_children holds a call: the daemon gives a call 55 seconds, and the answer
+	// must get out before that.
+	maxWaitSeconds = 50
+	maxWaitText    = "50 seconds"
+	maxWaitIDs     = 16
+	// diffPageBytes is the page of read_child_diff: the answer is cut at 32 KiB, and escaping can double a diff.
+	diffPageBytes = 12 << 10
+	sendLimits    = "6 prompts a minute and 60 an hour from this session, 3 a minute to one session, and a chain of 3 sessions"
 )
 
 const (

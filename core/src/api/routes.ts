@@ -23,6 +23,14 @@ import {
   BudgetListResponseSchema,
   BudgetSchema,
   branchNameProblem,
+  ChildCancelQuerySchema,
+  ChildCancelSchema,
+  ChildCollectQuerySchema,
+  ChildCollectSchema,
+  ChildDiffQuerySchema,
+  type ChildStatus,
+  ChildStatusesSchema,
+  ChildStatusQuerySchema,
   CommandsResultSchema,
   ConfigFileListQuerySchema,
   ConfigFileReadQuerySchema,
@@ -72,6 +80,7 @@ import {
   type LiveSessionMeta,
   LiveSessionMetaSchema,
   MAX_BUDGETS,
+  MAX_CHILD_DIFF_BYTES,
   MAX_CHILD_TREE,
   MAX_NOTIFY_PROJECTS,
   MAX_PERMISSION_RULES,
@@ -200,6 +209,7 @@ import {
   type SteerOutcome,
 } from '../control/index.ts';
 import { registerSecret } from '../log/index.ts';
+import type { ChildRecord } from '../store/index.ts';
 import {
   freeName,
   type PushSubscriptionRecord,
@@ -208,6 +218,7 @@ import {
   TooManyTokensError,
 } from '../store/index.ts';
 import { auditExport } from './audit-export.ts';
+import { changesOf, childStateOf, fitCollect, lastReport, usageOf } from './children.ts';
 import { ApiError, relayError } from './http.ts';
 import { checkPromptImage } from './images.ts';
 import { publicOrigin, repoNameOf } from './origin.ts';
@@ -386,6 +397,50 @@ function providerOf(store: ApiDeps['store'], sessionId: string): Provider {
   return meta.provider;
 }
 
+type ChildCall = Pick<ApiDeps, 'store' | 'control' | 'now'> & {
+  params: Record<string, string>;
+  principal: Principal;
+};
+
+/** The parent a call speaks for: a session reaches only its own children, the host and tokens any session's. */
+function parentOfCall(d: ChildCall): string {
+  const parent = d.params.sessionId ?? '';
+  const self = sessionOf(d.principal);
+  if ((self !== null && self !== parent) || !d.store.getSession(parent)) {
+    throw new ApiError('session-not-found');
+  }
+  if (!seesSession(d.principal, d.control, parent)) throw new ApiError('session-not-found');
+  return parent;
+}
+
+/** The record of a direct child of the parent; every other id, also an unknown one, is `session-not-found`. */
+function directChild(d: ChildCall, parent: string, child: string) {
+  const record = d.store.sessionChildren().get(child);
+  const chains = d.store.childChains();
+  if (
+    !record ||
+    parentOf(chains, child) !== parent ||
+    !seesSession(d.principal, d.control, child)
+  ) {
+    throw new ApiError('session-not-found');
+  }
+  return record;
+}
+
+/** The `actor` of an audit record for the caller, left out when the router knows none. */
+function auditActor(principal: Principal) {
+  const actor = actorOf(principal);
+  return actor ? { actor } : {};
+}
+
+function statusOf(d: ChildCall, child: string, record: ChildRecord): ChildStatus {
+  return {
+    sessionId: child,
+    state: childStateOf(record, d.control.runtimeOf(child).state),
+    elapsedSeconds: Math.max(0, Math.floor((d.now() - record.startedAt) / 1000)),
+  };
+}
+
 /** A message for the queue or a steer obeys the limits of a prompt: its length and the images its driver takes. */
 function checkMessage(
   deps: ApiDeps,
@@ -486,7 +541,7 @@ function setsHighRisk(control: Pick<Control, 'devices'>, req: NewSessionRequest)
 
 /** Starts a session for `POST /api/sessions` and for a template's start: one check, one dedup, one set of refusals. */
 async function startNewSession(
-  d: Pick<ApiDeps, 'control'> & { principal: Principal },
+  d: Pick<ApiDeps, 'control' | 'store'> & { principal: Principal },
   req: NewSessionRequest,
 ) {
   if (req.text.length > MAX_PROMPT_CHARS) throw new ApiError('too-large');
@@ -494,7 +549,12 @@ async function startNewSession(
   if (req.timeLimitMinutes !== undefined && sessionOf(d.principal) === null) {
     throw new ApiError('invalid-request', { promptId: req.promptId, reason: 'timeLimitMinutes' });
   }
-  if (req.worktree?.branch !== undefined && branchNameProblem(req.worktree.branch) !== null) {
+  // Only a session starts a nested session: it is the child's power to start children in turn.
+  if (req.nested !== undefined && sessionOf(d.principal) === null) {
+    throw new ApiError('invalid-request', { promptId: req.promptId, reason: 'nested' });
+  }
+  const worktree = req.worktree === false ? undefined : req.worktree;
+  if (worktree?.branch !== undefined && branchNameProblem(worktree.branch) !== null) {
     throw new ApiError('invalid-request', {
       promptId: req.promptId,
       reason: 'worktree-branch-invalid',
@@ -519,8 +579,10 @@ async function startNewSession(
         });
   if (guard && !guard.ok) throw guardError(guard);
   const actor = actorOf(d.principal);
+  const { worktree: _worktree, title, nested, ...rest } = req;
   const outcome = await d.control.startSession({
-    ...req,
+    ...rest,
+    ...(worktree ? { worktree } : {}),
     ...(guard?.ok
       ? {
           config: guard.config,
@@ -529,6 +591,8 @@ async function startNewSession(
             chain: guard.chain,
             lineage: guard.lineage,
             timeLimitMs: guard.timeLimitMs,
+            defaultWorktree: req.worktree === undefined,
+            nested: nested === true,
           },
         }
       : {}),
@@ -536,6 +600,19 @@ async function startNewSession(
   });
   if (guard?.ok) guard.settle(outcome.ok);
   if (outcome.ok) {
+    if (title !== undefined && title !== '') {
+      const meta = d.store.getSession(outcome.sessionId);
+      const state = d.store.updateSessionState(outcome.sessionId, { titleOverride: title });
+      if (!state) d.store.holdTitle(outcome.sessionId, title);
+      if (meta && state) {
+        d.control.publish({
+          v: PROTOCOL_VERSION,
+          type: 'session.updated',
+          sessionId: outcome.sessionId,
+          ...state,
+        });
+      }
+    }
     return {
       ok: true as const,
       sessionId: outcome.sessionId,
@@ -730,6 +807,169 @@ export const routes: readonly Route[] = [
         descendants.push({ ...live, depth });
       }
       return { sessionId, descendants, truncated };
+    },
+  }),
+  defineRoute({
+    method: 'GET',
+    path: '/api/sessions/:sessionId/children/status',
+    access: { capability: 'read' },
+    session: true,
+    lane: 'control',
+    query: ChildStatusQuerySchema,
+    response: ChildStatusesSchema,
+    handler: (d) => {
+      const parent = parentOfCall(d);
+      const records = d.store.sessionChildren();
+      const chains = d.store.childChains();
+      const wanted = d.query.ids
+        ? [
+            ...new Set(
+              d.query.ids
+                .split(',')
+                .map((id) => id.trim())
+                .filter((id) => id !== ''),
+            ),
+          ]
+        : null;
+      const ids =
+        wanted ??
+        [...records.keys()].filter(
+          (id) => parentOf(chains, id) === parent && seesSession(d.principal, d.control, id),
+        );
+      const children: ChildStatus[] = [];
+      for (const id of ids.slice(0, MAX_CHILD_TREE)) {
+        children.push(statusOf(d, id, directChild(d, parent, id)));
+      }
+      children.sort(
+        (a, b) =>
+          (records.get(a.sessionId)?.startedAt ?? 0) - (records.get(b.sessionId)?.startedAt ?? 0),
+      );
+      return { sessionId: parent, children };
+    },
+  }),
+  defineRoute({
+    method: 'POST',
+    path: '/api/sessions/:sessionId/children/:childId/collect',
+    access: { capability: 'create' },
+    session: true,
+    lane: 'control',
+    query: ChildCollectQuerySchema,
+    response: ChildCollectSchema,
+    handler: async (d) => {
+      const parent = parentOfCall(d);
+      const child = d.params.childId ?? '';
+      const record = directChild(d, parent, child);
+      const state = childStateOf(record, d.control.runtimeOf(child).state);
+      const provider = providerOf(d.store, child);
+      const report = await lastReport(d.store, provider, child);
+      const owner = d.control.ownerOf(child);
+      const changes =
+        owner === null
+          ? ({ status: 'owner-offline' } as const)
+          : changesOf(await d.control.workspaceChanges(child, owner));
+      // Only a child that has finished is released; one still working keeps its process.
+      let released = false;
+      if (
+        d.query.release !== 'false' &&
+        owner !== null &&
+        (state === 'done' || state === 'failed') &&
+        LIVE_STATES.has(d.control.runtimeOf(child).state)
+      ) {
+        released = d.control.stop(child, owner).ok;
+      }
+      const collected = fitCollect({
+        sessionId: child,
+        state,
+        summary: report.summary,
+        summaryTruncated: report.truncated,
+        changes,
+        usage: { estimated: true, ...usageOf(d.store, child) },
+        released,
+      });
+      d.store.audit({
+        type: 'child.collected',
+        sessionId: child,
+        ...(owner !== null ? { deviceId: owner } : {}),
+        ...auditActor(d.principal),
+        channel: 'rest',
+        summary: {
+          parent,
+          state,
+          released,
+          files: 'total' in changes ? (changes.total ?? 0) : 0,
+          summaryBytes: Buffer.byteLength(collected.summary, 'utf8'),
+        },
+      });
+      return collected;
+    },
+  }),
+  defineRoute({
+    method: 'GET',
+    path: '/api/sessions/:sessionId/children/:childId/diff',
+    access: { capability: 'read' },
+    session: true,
+    lane: 'bulk',
+    query: ChildDiffQuerySchema,
+    response: WorkspaceDiffSchema,
+    handler: async (d) => {
+      const parent = parentOfCall(d);
+      const child = d.params.childId ?? '';
+      directChild(d, parent, child);
+      const outcome = await d.control.workspaceDiff(child, ownerOf(d, child), d.query.path, {
+        base: true,
+        cursor: d.query.cursor,
+        limit: d.query.limit ?? MAX_CHILD_DIFF_BYTES,
+      });
+      if (outcome.ok) return outcome.diff;
+      throw relayError(outcome);
+    },
+  }),
+  defineRoute({
+    method: 'POST',
+    path: '/api/sessions/:sessionId/children/:childId/cancel',
+    access: { capability: 'create' },
+    session: true,
+    lane: 'control',
+    query: ChildCancelQuerySchema,
+    response: ChildCancelSchema,
+    handler: (d) => {
+      const parent = parentOfCall(d);
+      const child = d.params.childId ?? '';
+      // Any descendant of the parent, not only a direct child.
+      const chains = d.store.childChains();
+      if (!descendantsOf(chains, parent).some((x) => x.sessionId === child)) {
+        throw new ApiError('session-not-found');
+      }
+      const targets = [child];
+      if (d.query.subtree === 'true') {
+        for (const x of descendantsOf(chains, child)) targets.push(x.sessionId);
+      }
+      const cancelled: string[] = [];
+      for (const id of targets) {
+        const owner = d.control.ownerOf(id);
+        if (owner === null || !LIVE_STATES.has(d.control.runtimeOf(id).state)) continue;
+        const interrupted = d.control.interrupt(id, owner, actorOf(d.principal));
+        if (!interrupted.ok && interrupted.error === 'owner-offline') {
+          if (id === child) throw new ApiError('owner-offline');
+          continue;
+        }
+        const stopped = d.control.stop(id, owner);
+        if (!stopped.ok) {
+          if (id === child) throw new ApiError(stopped.error);
+          continue;
+        }
+        d.store.markChildEnded(id, 'cancelled');
+        d.store.audit({
+          type: 'child.cancelled',
+          sessionId: id,
+          deviceId: owner,
+          ...auditActor(d.principal),
+          channel: 'rest',
+          summary: { parent, target: child, subtree: d.query.subtree === 'true' },
+        });
+        cancelled.push(id);
+      }
+      return { ok: true as const, cancelled };
     },
   }),
   defineRoute({

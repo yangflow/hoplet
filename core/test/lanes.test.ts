@@ -88,6 +88,7 @@ describe('REST lanes', () => {
       '/api/devices/:deviceId/attachments',
       '/api/search',
       '/api/sessions/:sessionId/blocks/:line/:block',
+      '/api/sessions/:sessionId/children/:childId/diff',
       '/api/sessions/:sessionId/lines',
       '/api/sessions/:sessionId/search',
       '/api/sessions/:sessionId/snapshot/changes',

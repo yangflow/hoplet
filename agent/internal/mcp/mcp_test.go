@@ -57,7 +57,7 @@ func TestInitializeToolsListAndNotification(t *testing.T) {
 	for _, x := range list {
 		names = append(names, x.(map[string]any)["name"].(string))
 	}
-	if strings.Join(names, ",") != "list_machines,list_sessions,read_session,get_config,list_skills,read_skill,read_memory,send_prompt,interrupt_session,start_session,request_handoff" {
+	if strings.Join(names, ",") != "list_machines,list_sessions,read_session,get_config,list_skills,read_skill,read_memory,send_prompt,interrupt_session,start_session,wait_children,collect_child,read_child_diff,cancel_child,request_handoff" {
 		t.Fatalf("tools = %v", names)
 	}
 }
@@ -108,7 +108,8 @@ func TestToolsCallAndErrors(t *testing.T) {
 
 func TestOnlyTheReadToolsAreReadTools(t *testing.T) {
 	for _, tool := range tools() {
-		isAct := tool.Name == ToolSendPrompt || tool.Name == ToolInterruptSession || tool.Name == ToolStartSession || tool.Name == ToolRequestHandoff
+		isAct := tool.Name == ToolSendPrompt || tool.Name == ToolInterruptSession || tool.Name == ToolStartSession || tool.Name == ToolRequestHandoff ||
+			tool.Name == ToolCollectChild || tool.Name == ToolCancelChild
 		if IsReadTool(tool.Name) == isAct {
 			t.Fatalf("%s: read tool = %v", tool.Name, IsReadTool(tool.Name))
 		}
@@ -678,7 +679,7 @@ func TestStartSessionRefusalsAreStructured(t *testing.T) {
 func TestStartSessionValidatesArguments(t *testing.T) {
 	c, seen := startCore(t, 200, `{"ok":true,"sessionId":"n1","promptId":"x"}`, "")
 	long := `{"prompt":"` + strings.Repeat("x", maxPromptChars+1) + `"}`
-	for _, bad := range []string{``, `{}`, `{"prompt":"  "}`, long, `{"prompt":"a","branch":"b"}`,
+	for _, bad := range []string{``, `{}`, `{"prompt":"  "}`, long, `{"prompt":"a","worktree":false,"branch":"b"}`, `{"prompt":"a","title":"` + strings.Repeat("t", maxTitleChars+1) + `"}`,
 		`{"prompt":"a","machine":"nobody"}`, `{"prompt":"a","permissionMode":"bypassPermissions"}`} {
 		if rep := c.Call(context.Background(), "s1", ToolStartSession, json.RawMessage(bad)); !rep.IsError {
 			t.Fatalf("start %q accepted", bad)

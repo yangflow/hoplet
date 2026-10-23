@@ -28,7 +28,7 @@ export const MAX_AUTO_APPROVE_MACHINES = 32;
 
 /**
  * What one session may do to other sessions (ADR 0034). Reading is always on. `send` allows `send_prompt` and
- * `interrupt_session`; `create` allows `start_session` and implies `send`; `requestHandoff` allows asking the user
+ * `interrupt_session`; `create` allows `start_session`, `collect_child` and `cancel_child` and implies `send` (`wait_children` and `read_child_diff` are reads); `requestHandoff` allows asking the user
  * to hand the session off. `autoApproveHandoff` lets those requests from this session pass without the user's
  * confirmation when the destination is one of `autoApproveMachines`; it is only meaningful with `requestHandoff`.
  * `readConfig` allows reading the session's own configuration and `writeConfig` allows proposing changes to it

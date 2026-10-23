@@ -1519,7 +1519,7 @@
   "Read other sessions": "读取其他会话",
   "Always on": "始终开启",
   "Included with starting sessions.": "随“启动新会话”一并开启。",
-  "Up to 5 an hour and 10 running at once.": "每小时最多 5 个，同时运行最多 10 个。",
+  "Up to 12 an hour and 4 running at once.": "每小时最多 12 个，同时运行最多 4 个。",
   "You confirm every request, in every permission mode.": "每次请求都由你确认，不论哪种权限模式。",
   "Only you can. A session cannot be given this.": "只有你可以回答，无法授予会话。",
   "Never": "永不",

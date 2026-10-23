@@ -226,10 +226,22 @@ export const NewSessionRequestSchema = v.object({
   /**
    * Run the session in a new git worktree of the project's repository: `branch` names the new branch (git
    * branch name rules, see `branchNameProblem`), absent the agent generates one. `{}` asks for a generated one.
+   * `false` asks for none: it is the same as leaving `worktree` out, except for a session that starts a child,
+   * where leaving it out means a new worktree when the project is a git repository (ADR 0035).
    */
   worktree: v.optional(
-    v.object({ branch: v.optional(v.pipe(v.string(), v.maxLength(MAX_BRANCH_NAME_LENGTH))) }),
+    v.union([
+      v.object({ branch: v.optional(v.pipe(v.string(), v.maxLength(MAX_BRANCH_NAME_LENGTH))) }),
+      v.literal(false),
+    ]),
   ),
+  /** The title the session list shows, as if the user had renamed the session; at most `MAX_TITLE_OVERRIDE_CHARS` characters. */
+  title: v.optional(v.pipe(TrimmedSchema, v.maxLength(MAX_TITLE_OVERRIDE_CHARS))),
+  /**
+   * The new session may start sessions of its own, within the depth limit (ADR 0035). Only a session's token may
+   * ask; any other caller gets `invalid-request`.
+   */
+  nested: v.optional(v.boolean()),
   /**
    * How long a child session may run, in minutes (1 to 120; the core's default is 30). Only a session's token may
    * ask; any other caller gets `invalid-request`.

@@ -262,9 +262,13 @@ export interface ChildRecord {
   chain: string[];
   startedAt: number;
   timeLimitMs: number;
+  /** How the core ended the child, when it did: a limit of its tree, or its parent's cancel. */
+  ended: ChildEnd | null;
 }
 
-/** Records that a session started `sessionId` (the chain ends with it), when, and how long it may run. */
+export type ChildEnd = 'timed-out' | 'cancelled';
+
+/** Records that a session started `sessionId` (the chain ends with the parent), when, and how long it may run. */
 export function recordChild(
   ctx: StoreContext,
   sessionId: string,
@@ -281,11 +285,24 @@ export function recordChild(
     .run(sessionId, JSON.stringify(chain), startedAt, timeLimitMs);
 }
 
+/** Records how the core ended a child; a session that is no child is left alone. */
+export function markChildEnded(ctx: StoreContext, sessionId: string, ended: ChildEnd): void {
+  ctx.db
+    .prepare('UPDATE session_children SET ended = ? WHERE session_id = ?')
+    .run(ended, sessionId);
+}
+
 /** Every session that a session started, by id: the one scan the session list, the limits and the watcher read. */
 export function allChildren(ctx: StoreContext): Map<string, ChildRecord> {
   const rows = ctx.db
-    .prepare(`SELECT session_id, chain, started_at, time_limit_ms FROM session_children`)
-    .all() as { session_id: string; chain: string; started_at: number; time_limit_ms: number }[];
+    .prepare(`SELECT session_id, chain, started_at, time_limit_ms, ended FROM session_children`)
+    .all() as {
+    session_id: string;
+    chain: string;
+    started_at: number;
+    time_limit_ms: number;
+    ended: string | null;
+  }[];
   const out = new Map<string, ChildRecord>();
   for (const row of rows) {
     try {
@@ -297,6 +314,7 @@ export function allChildren(ctx: StoreContext): Map<string, ChildRecord> {
         chain,
         startedAt: row.started_at,
         timeLimitMs: row.time_limit_ms,
+        ended: row.ended === 'timed-out' || row.ended === 'cancelled' ? row.ended : null,
       });
     } catch {
       // A damaged chain reads as none.

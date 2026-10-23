@@ -411,7 +411,7 @@ was done to and by sessions, kept apart from the session content.
   overrides, device labels, watched projects and provider defaults, and terminals opened and closed (size,
   duration and byte counts, never what was typed or shown). What a session does to another session is recorded as the
   events above (`prompt.sent`, `session.created`, `handoff.requested`, `handoff.decided`, `token.denied`) with the actor
-  kind `session` (ADR 0034); reads are GETs and are not recorded. `child.limit` is the core stopping a session past a limit of its tree (#81). Planned: `session.op` with child sessions (#81) and
+  kind `session` (ADR 0034); reads are GETs and are not recorded. `child.limit` is the core stopping a session past a limit of its tree (#81); `child.collected` and `child.cancelled` are a parent collecting or cancelling a child. Planned: `session.op` with child sessions (#81) and
   `verify.result` with automatic verification (#79). Sessions that ran before this was built are not back-filled; their tool calls start at the
   end they had. Never prompts, assistant text, tool output, file contents or diffs.
 - **Who**: an actor of kind `operator` (the host token, with the channel `rest` or `link`), `device`, `session`,
@@ -490,8 +490,11 @@ session can cascade to the live sessions below it. A tree is limited: two levels
 session, 8 live sessions per tree, 12 starts an hour, 3,000,000 input and output tokens, and 30 minutes a child (a
 session may ask for up to 2 hours). A start past a limit is refused (`depth-limit`, `children-limit`,
 `budget-exceeded`), a `pause` budget that is used up refuses it too, and the live sessions of a tree past its time
-or token limit are interrupted and stopped, each audited as `child.limit`. Planned: the MCP tools that wait for and
-read children, and the web screens for the tree.
+or token limit are interrupted and stopped, each audited as `child.limit`. A parent session has the MCP tools
+`wait_children`, `collect_child` (the child's state, its report of up to 6 KiB, the files it changed and its cost, in
+8 KiB), `read_child_diff` and `cancel_child`; `start_session` does not wait, gives the child a new worktree in a git
+project, and puts the instruction to end with a short report in front of the child's first prompt. Planned: the web
+screens for the tree.
 
 ### CLI
 

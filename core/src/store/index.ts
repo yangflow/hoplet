@@ -101,6 +101,7 @@ export type { PushSubscriptionRecord, WebhookRecord } from './notify.ts';
 export type { QueueOutcome } from './queue.ts';
 export { type ScriptHookRecord, scriptHookId } from './script-hooks.ts';
 export type { HookSecret, NotifySecrets, VapidKeys } from './secrets.ts';
+export type { ChildRecord } from './session-mcp.ts';
 export type { SessionStateChange, SessionStateRecord } from './sessions.ts';
 export { type SnapshotDiffResult, SnapshotReadError } from './snapshot-read.ts';
 export { type SnapshotChunk, SnapshotError, type SnapshotRecord } from './snapshots.ts';
@@ -967,6 +968,10 @@ export class Store {
     sessionMcp.recordChild(this.ctx, sessionId, chain, startedAt, timeLimitMs);
   }
 
+  markChildEnded(sessionId: string, ended: sessionMcp.ChildEnd): void {
+    sessionMcp.markChildEnded(this.ctx, sessionId, ended);
+  }
+
   setSessionChain(sessionId: string, chain: string[]): void {
     sessionMcp.setChain(this.ctx, sessionId, chain);
   }
@@ -1044,8 +1049,29 @@ export class Store {
     return handoffRequests.countAutoApproved(this.ctx, sessionId, since);
   }
 
+  /**
+   * A title for a session that is not in the index yet (a session starts before its file arrives): the next
+   * append that creates it applies the title. Held in memory, at most 256 sessions.
+   */
+  holdTitle(sessionId: string, title: string): void {
+    if (this.heldTitles.size >= 256) {
+      const oldest = this.heldTitles.keys().next().value;
+      if (oldest !== undefined) this.heldTitles.delete(oldest);
+    }
+    this.heldTitles.set(sessionId, title);
+  }
+
+  private readonly heldTitles = new Map<string, string>();
+
   append(input: AppendInput, rawLines: string[]): AppendResult {
     const result = append(this.ctx, input, rawLines);
+    const held = this.heldTitles.get(input.sessionId);
+    if (
+      held !== undefined &&
+      sessions.updateSessionState(this.ctx, input.sessionId, { titleOverride: held })
+    ) {
+      this.heldTitles.delete(input.sessionId);
+    }
     if (result.appendedLines > 0) scheduleAuditDerive(this.ctx, input.sessionId);
     return result;
   }

@@ -55,6 +55,7 @@ export function createTreeWatcher(options: TreeWatcherOptions): TreeWatcher {
     if (!interrupted.ok && interrupted.error === 'owner-offline') return false;
     const stopped = runtime.stop(sessionId, owner);
     if (!stopped.ok) return false;
+    store.markChildEnded(sessionId, 'timed-out');
     store.audit({
       type: 'child.limit',
       sessionId,
