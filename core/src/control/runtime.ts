@@ -120,6 +120,15 @@ const LIVE: ReadonlySet<AgentRuntimeState> = new Set([
   'waiting-permission',
 ]);
 
+/** A sender's title as the target's agent quotes it: one line, no quotes, at most 100 characters. */
+export function senderTitle(raw: string): string {
+  const title = raw
+    .replace(/[\p{Cc}\p{Cf}\u2028\u2029"]+/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return [...title].slice(0, 100).join('');
+}
+
 /**
  * The runtime state per session, prompt deduplication and permission routing (docs/spec.md#remote-control).
  * Runtime state lives in memory: agents rebuild it when they connect.
@@ -244,15 +253,6 @@ export function createRuntime(state: ControlState): Runtime {
     }
   }
 
-  /** The sender's title as the target's agent quotes it: one line, no quotes, at most 100 characters. */
-  function senderTitle(sessionId: string): string {
-    const title = (store.getSession(sessionId)?.title ?? '')
-      .replace(/[\p{Cc}\p{Cf}\u2028\u2029"]+/gu, ' ')
-      .replace(/\s+/g, ' ')
-      .trim();
-    return [...title].slice(0, 100).join('');
-  }
-
   return {
     prompt(sessionId, ownerDeviceId, text, promptId, attachments = [], actor) {
       const now = state.now();
@@ -320,7 +320,7 @@ export function createRuntime(state: ControlState): Runtime {
               source: {
                 kind: 'session' as const,
                 sessionId: actor.id,
-                title: senderTitle(actor.id),
+                title: senderTitle(store.getSession(actor.id)?.title ?? ''),
                 chain,
               },
             }

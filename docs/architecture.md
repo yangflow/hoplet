@@ -232,10 +232,11 @@ memory until it expires or the core answers 401. The core answers only a device 
 `read_session` (a page of lines by cursor, at most 100 lines and 32 KiB a call, a long entry cut, the result marked
 as data and passed through the scrubber); a refusal reaches the model as a code, never the request. In Claude Code
 they are `mcp__hoplet__<tool>`, match as `mcp:hoplet/<tool>` in the rules, and the Claude hook allows the read
-tools when no rule decided. `send_prompt` (queued through `POST /api/sessions/:id/queue`) and `interrupt_session`
+tools when no rule decided. `send_prompt` (queued through `POST /api/sessions/:id/queue`), `interrupt_session` and `start_session`
+(`POST /api/sessions`, with the new session's chain recorded in `session_provenance`)
 act on another session: the hook does not allow them, so the vendor asks the user, and the core checks the grant,
 the target's mode, the chain and the limits again. The core sets `source` on the `runtime.prompt` it sends for such a
-message, and the target's agent puts the fixed line naming the sender before the text.
+message, and the target's agent puts the fixed line naming the sender before the text; `runtime.start` carries the same `source`, and the new session's first prompt gets the line.
 
 ### A runtime capability
 
@@ -359,7 +360,7 @@ messages that name the session by ID and never a path: `device.session.inspect|i
 clone the new worktree belongs to, which the core keeps in `session_worktrees`.
 
 A handoff to a machine with no clone of the repository adds a clone step before the owner is touched
-([ADR 0024](adr/0024-a-handoff-clones-the-repository-on-a-target-that-has-none.md)). The protocol version is 18.
+([ADR 0024](adr/0024-a-handoff-clones-the-repository-on-a-target-that-has-none.md)). The protocol version is 19.
 The control-lane messages are `device.clone.check` (`requestId`, `origin`, optional `cloneInto`) answered by
 `device.clone.checked` (`reason`, `detail`, the proposed `cloneInto`), and `device.clone.start` (`requestId`,
 `handoffId`, `origin`, `cloneInto`) answered by `device.clone.progress` (`received`, optional `total`, at most four

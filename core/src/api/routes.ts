@@ -388,14 +388,25 @@ async function startNewSession(
       reason: 'worktree-branch-invalid',
     });
   }
+  const source = sessionOf(d.principal);
   if (d.principal.kind === 'token') {
     // An API token starts sessions only where its grant reaches, and never with a high-risk setting such as
     // bypassed permissions: that stays with the host token (ADR 0033).
     if (!seesProject(d.principal, req.deviceId, req.projectPath)) throw new ApiError('forbidden');
     if (setsHighRisk(d.control, req)) throw new ApiError('forbidden');
   }
+  // A session starts another one under the chain, the limits and the permission mode of ADR 0034.
+  const guard = source === null ? null : d.control.sessionMcp.guardStart(source, req);
+  if (guard && !guard.ok) throw guardError(guard);
   const actor = actorOf(d.principal);
-  const outcome = await d.control.startSession(actor ? { ...req, actor } : req);
+  const outcome = await d.control.startSession({
+    ...req,
+    ...(guard?.ok
+      ? { config: guard.config, source: { sessionId: source as string, chain: guard.chain } }
+      : {}),
+    ...(actor ? { actor } : {}),
+  });
+  if (guard?.ok) guard.settle(outcome.ok);
   if (outcome.ok) {
     return {
       ok: true as const,
@@ -538,6 +549,7 @@ export const routes: readonly Route[] = [
     method: 'POST',
     path: '/api/sessions',
     access: { capability: 'create' },
+    session: true,
     lane: 'control',
     bodyLimit: 32 * 1024,
     body: NewSessionRequestSchema,

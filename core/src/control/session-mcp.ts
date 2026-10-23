@@ -2,8 +2,10 @@
 // rules a prompt from one session to another must pass (mode, chain, limits) and when a session's tokens end.
 import {
   DEFAULT_SESSION_MCP_SETTINGS,
+  findProvider,
   MAX_SESSION_CHAIN,
   type RuntimeCapabilities,
+  type SessionConfig,
   type SessionMcpSettings,
   type TokenCapability,
   type TokenGrant,
@@ -18,6 +20,8 @@ import type {
   SessionGuardRefusal,
   SessionLimits,
   SessionMcp,
+  SessionStartGuard,
+  StartRequest,
 } from './types.ts';
 
 /** What a session may do to others, unless the user, a project default or the global default says otherwise. */
@@ -26,6 +30,8 @@ export const DEFAULT_SESSION_LIMITS: SessionLimits = {
   promptsPerHour: 60,
   perTargetPerMinute: 3,
   unansweredPerTarget: 2,
+  startsPerHour: 5,
+  liveChildren: 10,
 };
 
 /** How long an agent may stay disconnected before the tokens of its sessions are revoked. */
@@ -76,7 +82,19 @@ interface SourceUse {
   perTarget: Map<string, number[]>;
   /** Prompts per target the target has not yet finished a turn on. */
   unanswered: Map<string, number>;
+  /** When each session start was reserved, oldest first. */
+  starts: number[];
+  /** Starts reserved and not yet settled, which the live children do not count yet. */
+  startsInFlight: number;
 }
+
+/** States of a session whose process is up (it counts as a live child). */
+const LIVE_STATES: ReadonlySet<string> = new Set([
+  'starting',
+  'ready',
+  'running',
+  'waiting-permission',
+]);
 
 export function createSessionMcp(
   state: ControlState,
@@ -175,7 +193,13 @@ export function createSessionMcp(
     const at = state.now();
     let mine = use.get(source);
     if (!mine) {
-      mine = { all: [], perTarget: new Map(), unanswered: new Map() };
+      mine = {
+        all: [],
+        perTarget: new Map(),
+        unanswered: new Map(),
+        starts: [],
+        startsInFlight: 0,
+      };
       use.set(source, mine);
     }
     const targetList = mine.perTarget.get(target) ?? [];
@@ -218,6 +242,105 @@ export function createSessionMcp(
     };
   }
 
+  /**
+   * The mode a session started by `source` runs in: the one the request names when it is not more permissive than
+   * the source's, else the most permissive the provider offers that is not more permissive than the source's
+   * (the source's own value when offered). Null when the provider declares no mode.
+   */
+  function startConfig(
+    source: string,
+    request: Pick<StartRequest, 'deviceId' | 'provider' | 'configuration' | 'config'>,
+  ): { ok: true; config: SessionConfig | undefined } | SessionGuardRefusal {
+    const from = modeOf(control.runtimeOf(source).capabilities);
+    if (from === null || MODE_RANK[from] === undefined) {
+      return { ok: false, error: 'forbidden', reason: 'sender-mode-unknown' };
+    }
+    const info = findProvider(
+      state.providers.get(request.deviceId) ?? [],
+      request.provider,
+      request.configuration,
+    );
+    const option = info?.capabilities.config.find((o) => o.category === 'mode');
+    // A provider the core does not know is refused by the start itself.
+    if (option?.type !== 'select') return { ok: true, config: request.config };
+    const ceiling = MODE_RANK[from] as number;
+    const named = request.config?.[option.id];
+    if (named !== undefined) {
+      const rank = typeof named === 'string' ? MODE_RANK[named] : undefined;
+      if (rank === undefined)
+        return { ok: false, error: 'forbidden', reason: 'target-mode-unknown' };
+      if (rank > ceiling)
+        return { ok: false, error: 'forbidden', reason: 'target-mode-more-permissive' };
+      return { ok: true, config: request.config };
+    }
+    let best: { value: string; rank: number } | null = null;
+    for (const o of option.options) {
+      const rank = MODE_RANK[o.value];
+      // A setting marked high risk is never chosen for a session (ADR 0033).
+      if (rank === undefined || rank > ceiling || o.risk === 'high') continue;
+      if (o.value === from) {
+        best = { value: o.value, rank: Number.POSITIVE_INFINITY };
+        break;
+      }
+      if (best === null || rank > best.rank) best = { value: o.value, rank };
+    }
+    if (best === null) return { ok: false, error: 'forbidden', reason: 'target-mode-unknown' };
+    return { ok: true, config: { ...request.config, [option.id]: best.value } };
+  }
+
+  function guardStart(
+    source: string,
+    request: Pick<StartRequest, 'deviceId' | 'provider' | 'configuration' | 'config'>,
+  ): SessionStartGuard {
+    const chain = [...store.sessionChain(source), source];
+    if (chain.length > MAX_SESSION_CHAIN) return { ok: false, error: 'loop-limit' };
+
+    const resolved = startConfig(source, request);
+    if (!resolved.ok) return resolved;
+
+    const at = state.now();
+    let mine = use.get(source);
+    if (!mine) {
+      mine = {
+        all: [],
+        perTarget: new Map(),
+        unanswered: new Map(),
+        starts: [],
+        startsInFlight: 0,
+      };
+      use.set(source, mine);
+    }
+    prune(mine.starts, HOUR, at);
+    if (mine.starts.length >= limits.startsPerHour) {
+      return { ok: false, error: 'rate-limited', retryAfter: retryAfter(mine.starts, HOUR, at) };
+    }
+    const live = store
+      .sessionChildren(source)
+      .filter((id) => LIVE_STATES.has(control.runtimeOf(id).state)).length;
+    if (live + mine.startsInFlight >= limits.liveChildren) {
+      return { ok: false, error: 'rate-limited', retryAfter: 60 };
+    }
+
+    mine.starts.push(at);
+    mine.startsInFlight += 1;
+    const reserved = mine;
+    let settled = false;
+    return {
+      ok: true,
+      config: resolved.config ?? {},
+      chain,
+      settle(accepted) {
+        if (settled) return;
+        settled = true;
+        reserved.startsInFlight -= 1;
+        if (accepted) return;
+        // The session was not started: it counts for nothing.
+        const i = reserved.starts.lastIndexOf(at);
+        if (i >= 0) reserved.starts.splice(i, 1);
+      },
+    };
+  }
+
   /** A turn of `target` ended: the prompts it was given are answered. */
   function answered(target: string): void {
     for (const mine of use.values()) mine.unanswered.delete(target);
@@ -255,6 +378,7 @@ export function createSessionMcp(
     },
     revokeTokens,
     guardPrompt,
+    guardStart,
     guardInterrupt: guardTarget,
     close() {
       clearInterval(sweep);

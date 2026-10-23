@@ -82,6 +82,10 @@ export interface SessionLimits {
   perTargetPerMinute: number;
   /** Prompts from one source that one target has not yet finished a turn on. */
   unansweredPerTarget: number;
+  /** Sessions one session starts per hour. */
+  startsPerHour: number;
+  /** Sessions one session started that are still live. */
+  liveChildren: number;
 }
 
 /** Why a session may not prompt another; `forbidden` carries the reason. */
@@ -92,6 +96,15 @@ export type SessionGuardRefusal =
 
 /** The verdict on one session prompting another. When allowed, `settle` tells whether the prompt was accepted. */
 export type SessionGuard = { ok: true; settle(accepted: boolean): void } | SessionGuardRefusal;
+
+/**
+ * The verdict on one session starting another. When allowed, `config` is the setting the new session starts with
+ * (its permission mode filled in or checked), `chain` the provenance it gets, and `settle` tells whether the
+ * start went through.
+ */
+export type SessionStartGuard =
+  | { ok: true; config: SessionConfig; chain: string[]; settle(accepted: boolean): void }
+  | SessionGuardRefusal;
 
 /** What a minted session token comes to. */
 export interface SessionTokenMint {
@@ -126,6 +139,14 @@ export interface SessionMcp {
   revokeTokens(sessionId: string): void;
   /** Checks `source` prompting `target` against the mode rule, the chain and the limits, and reserves the prompt. */
   guardPrompt(source: string, target: string): SessionGuard;
+  /**
+   * Checks `source` starting a session with `request`: the chain, the limits on starts and live children, and a
+   * permission mode that is not more permissive than the source's (filled in when the request names none).
+   */
+  guardStart(
+    source: string,
+    request: Pick<StartRequest, 'deviceId' | 'provider' | 'configuration' | 'config'>,
+  ): SessionStartGuard;
   /** The same checks without the chain and the limits, for an interrupt; null when allowed. */
   guardInterrupt(source: string, target: string): SessionGuardRefusal | null;
   /** Stops the sweep and the reconnection timers. */
@@ -149,6 +170,8 @@ export interface StartRequest {
   origin?: 'new' | 'plan' | undefined;
   /** The token that asked, for the audit log; the host when absent. */
   actor?: AuditActor | undefined;
+  /** Set when a session started this one (ADR 0034): the agent names it before the prompt, the core records the chain. */
+  source?: { sessionId: string; chain: string[] } | undefined;
 }
 
 /** What an agent answers to `runtime.start`, or why there is no answer. */

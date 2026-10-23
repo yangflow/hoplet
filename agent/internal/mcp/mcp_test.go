@@ -57,7 +57,7 @@ func TestInitializeToolsListAndNotification(t *testing.T) {
 	for _, x := range list {
 		names = append(names, x.(map[string]any)["name"].(string))
 	}
-	if strings.Join(names, ",") != "list_machines,list_sessions,read_session,send_prompt,interrupt_session" {
+	if strings.Join(names, ",") != "list_machines,list_sessions,read_session,send_prompt,interrupt_session,start_session" {
 		t.Fatalf("tools = %v", names)
 	}
 }
@@ -108,7 +108,7 @@ func TestToolsCallAndErrors(t *testing.T) {
 
 func TestOnlyTheReadToolsAreReadTools(t *testing.T) {
 	for _, tool := range tools() {
-		isAct := tool.Name == ToolSendPrompt || tool.Name == ToolInterruptSession
+		isAct := tool.Name == ToolSendPrompt || tool.Name == ToolInterruptSession || tool.Name == ToolStartSession
 		if IsReadTool(tool.Name) == isAct {
 			t.Fatalf("%s: read tool = %v", tool.Name, IsReadTool(tool.Name))
 		}
@@ -116,7 +116,7 @@ func TestOnlyTheReadToolsAreReadTools(t *testing.T) {
 			t.Fatalf("%s is not known", tool.Name)
 		}
 	}
-	for _, n := range []string{"send_message", "start_session", "handoff_session", ""} {
+	for _, n := range []string{"send_message", "handoff_session", ""} {
 		if IsReadTool(n) || IsKnownTool(n) {
 			t.Fatalf("%q must not be a tool", n)
 		}
@@ -566,5 +566,125 @@ func TestInterruptSessionPostsAndRelaysRefusals(t *testing.T) {
 	rep = c.Call(context.Background(), "s1", ToolInterruptSession, json.RawMessage(`{"sessionId":"s2"}`))
 	if !rep.IsError || !strings.Contains(rep.Text, "forbidden") || !strings.Contains(rep.Text, "not-granted") {
 		t.Fatalf("rep = %+v", rep)
+	}
+}
+
+// startCore answers the reads start_session makes and records what it POSTs to /api/sessions.
+func startCore(t *testing.T, status int, body, retryAfter string) (*Core, *[]string) {
+	t.Helper()
+	f := newFakeCore(t)
+	var seen []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		seen = append(seen, r.Method+" "+r.URL.Path+" "+r.Header.Get("Authorization")+" "+string(b))
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/sessions/s1":
+			_, _ = w.Write([]byte(`{"sessionId":"s1","provider":"claude","projectPath":"/work/app","ownerDeviceId":"d1"}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/api/devices":
+			_, _ = w.Write([]byte(`{"devices":[{"deviceId":"d1","name":"mac","providers":[{"provider":"claude","capabilities":{"config":[` +
+				`{"id":"mode","category":"mode","type":"select","options":[{"value":"plan"},{"value":"default"},{"value":"acceptEdits"}]}]}}]},` +
+				`{"deviceId":"d2","name":"box","providers":[{"provider":"claude","capabilities":{"config":[]}}]}]}`))
+		case r.Method == http.MethodPost && r.URL.Path == "/api/sessions":
+			if retryAfter != "" {
+				w.Header().Set("Retry-After", retryAfter)
+			}
+			w.WriteHeader(status)
+			_, _ = w.Write([]byte(body))
+		default:
+			w.WriteHeader(404)
+		}
+	}))
+	t.Cleanup(srv.Close)
+	return NewCore(srv.URL, f.tokens), &seen
+}
+
+func lastPost(seen []string) string {
+	for i := len(seen) - 1; i >= 0; i-- {
+		if strings.HasPrefix(seen[i], "POST ") {
+			return seen[i]
+		}
+	}
+	return ""
+}
+
+func TestStartSessionDefaultsToTheOwnMachineAndProject(t *testing.T) {
+	c, seen := startCore(t, 200, `{"ok":true,"sessionId":"n1","promptId":"x"}`, "")
+	rep := c.Call(context.Background(), "s1", ToolStartSession, json.RawMessage(`{"prompt":"fix the build"}`))
+	if rep.IsError || !strings.Contains(rep.Text, "Started session n1") {
+		t.Fatalf("rep = %+v", rep)
+	}
+	got := lastPost(*seen)
+	for _, w := range []string{"POST /api/sessions Bearer hpt_0000000000000001 ", `"deviceId":"d1"`, `"projectPath":"/work/app"`,
+		`"provider":"claude"`, `"text":"fix the build"`, `"promptId":"mcp-`} {
+		if !strings.Contains(got, w) {
+			t.Fatalf("request %s lacks %s", got, w)
+		}
+	}
+	if strings.Contains(got, `"config"`) || strings.Contains(got, `"worktree"`) {
+		t.Fatalf("nothing was asked for: %s", got)
+	}
+}
+
+func TestStartSessionPassesMachineModeAndWorktree(t *testing.T) {
+	c, seen := startCore(t, 200, `{"ok":true,"sessionId":"n2","promptId":"x","worktree":{"path":"/work/app-wt","branch":"feat/x"}}`, "")
+	rep := c.Call(context.Background(), "s1", ToolStartSession,
+		json.RawMessage(`{"prompt":"go","machine":"mac","permissionMode":"plan","worktree":true,"branch":"feat/x"}`))
+	if rep.IsError || !strings.Contains(rep.Text, "n2") || !strings.Contains(rep.Text, "/work/app-wt") || !strings.Contains(rep.Text, "feat/x") {
+		t.Fatalf("rep = %+v", rep)
+	}
+	got := lastPost(*seen)
+	if !strings.Contains(got, `"config":{"mode":"plan"}`) || !strings.Contains(got, `"worktree":{"branch":"feat/x"}`) {
+		t.Fatalf("request = %s", got)
+	}
+	// Another machine needs a project.
+	rep = c.Call(context.Background(), "s1", ToolStartSession, json.RawMessage(`{"prompt":"go","machine":"box"}`))
+	if !rep.IsError {
+		t.Fatalf("another machine without a project was accepted: %+v", rep)
+	}
+	rep = c.Call(context.Background(), "s1", ToolStartSession, json.RawMessage(`{"prompt":"go","machine":"d2","projectPath":"/srv/x"}`))
+	if rep.IsError || !strings.Contains(lastPost(*seen), `"deviceId":"d2"`) {
+		t.Fatalf("rep = %+v", rep)
+	}
+}
+
+func TestStartSessionRefusalsAreStructured(t *testing.T) {
+	cases := []struct {
+		name, status, body, retry string
+		want                      []string
+	}{
+		{"mode", "403", `{"code":"forbidden","reason":"target-mode-more-permissive"}`, "", []string{"forbidden", "target-mode-more-permissive"}},
+		{"loop", "409", `{"code":"loop-limit"}`, "", []string{"loop-limit"}},
+		{"rate", "429", `{"code":"rate-limited"}`, "42", []string{"rate-limited", "retry after 42 seconds"}},
+	}
+	for _, tc := range cases {
+		status := 0
+		_, _ = fmt.Sscan(tc.status, &status)
+		c, _ := startCore(t, status, tc.body, tc.retry)
+		rep := c.Call(context.Background(), "s1", ToolStartSession, json.RawMessage(`{"prompt":"hi"}`))
+		if !rep.IsError {
+			t.Fatalf("%s: not an error: %+v", tc.name, rep)
+		}
+		for _, w := range tc.want {
+			if !strings.Contains(rep.Text, w) {
+				t.Fatalf("%s: %q lacks %q", tc.name, rep.Text, w)
+			}
+		}
+		if strings.Contains(rep.Text, "hpt_") {
+			t.Fatalf("%s leaks a token: %s", tc.name, rep.Text)
+		}
+	}
+}
+
+func TestStartSessionValidatesArguments(t *testing.T) {
+	c, seen := startCore(t, 200, `{"ok":true,"sessionId":"n1","promptId":"x"}`, "")
+	long := `{"prompt":"` + strings.Repeat("x", maxPromptChars+1) + `"}`
+	for _, bad := range []string{``, `{}`, `{"prompt":"  "}`, long, `{"prompt":"a","branch":"b"}`,
+		`{"prompt":"a","machine":"nobody"}`, `{"prompt":"a","permissionMode":"bypassPermissions"}`} {
+		if rep := c.Call(context.Background(), "s1", ToolStartSession, json.RawMessage(bad)); !rep.IsError {
+			t.Fatalf("start %q accepted", bad)
+		}
+	}
+	if lastPost(*seen) != "" {
+		t.Fatalf("an invalid call reached the core: %v", *seen)
 	}
 }

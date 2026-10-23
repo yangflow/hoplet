@@ -7,7 +7,7 @@ import (
 	"github.com/yangflow/hoplet/agent/internal/rules"
 )
 
-const rulesPush = `{"v":18,"type":"device.rules","revision":4,` +
+const rulesPush = `{"v":19,"type":"device.rules","revision":4,` +
 	`"global":[{"id":"default.force-push","tool":"run","match":{"command":"git push","anyArg":["--force*"]},"action":"ask","scope":"global","note":"Force push","enabled":false,"builtin":true}],` +
 	`"projects":[{"projectPath":"/work/app","rule":{"id":"p1","tool":"run","match":{"command":"pnpm test*"},"action":"allow","scope":"project","note":"","enabled":true,"builtin":false}}],` +
 	`"sessions":[{"sessionId":"s1","rule":{"id":"s1r","tool":"fetch","match":{"domains":["example.com"]},"action":"deny","scope":"session","note":"","enabled":true,"builtin":false}}]}`
@@ -37,7 +37,7 @@ func TestHandleRulesRefusesAPushWithAnUnknownRuleFieldAndKeepsTheSet(t *testing.
 	c.hooks.Rules = st.Apply
 	c.handleRules(cs, []byte(rulesPush))
 	read()
-	bad := `{"v":18,"type":"device.rules","revision":5,"global":[{"id":"x","tool":"run","match":{},"action":"allow","scope":"global","note":"","enabled":true,"builtin":false,"deviceId":"d"}],"projects":[],"sessions":[]}`
+	bad := `{"v":19,"type":"device.rules","revision":5,"global":[{"id":"x","tool":"run","match":{},"action":"allow","scope":"global","note":"","enabled":true,"builtin":false,"deviceId":"d"}],"projects":[],"sessions":[]}`
 	c.handleRules(cs, []byte(bad))
 	msg := read()
 	if msg["type"] != "device.rules.applied" || msg["revision"] != float64(5) {
@@ -70,7 +70,7 @@ func TestDeviceRulesWireShape(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	const want = `{"v":18,"type":"device.rules","revision":2,` +
+	const want = `{"v":19,"type":"device.rules","revision":2,` +
 		`"global":[{"id":"g","tool":"run","match":{},"action":"ask","scope":"global","note":"","enabled":true,"builtin":false}],` +
 		`"projects":[{"projectPath":"/p","rule":{"id":"p","tool":"run","match":{},"action":"allow","scope":"project","note":"","enabled":false,"builtin":false}}],` +
 		`"sessions":[{"sessionId":"s","rule":{"id":"s","tool":"run","match":{},"action":"deny","scope":"session","note":"","enabled":false,"builtin":false}}]}`

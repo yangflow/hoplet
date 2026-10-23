@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Hoplet client API",
   "description": "Generated from shared/ and the route table by `pnpm schema`; do not edit. Each name under $defs is a schema that docs/api.md names for a route or a message. Parse a body against the schema its route names.",
-  "protocolVersion": 18,
+  "protocolVersion": 19,
   "routes": [
     {
       "method": "POST",
@@ -3046,7 +3046,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 18
+          "const": 19
         },
         "type": {
           "const": "device.presence"
@@ -3629,7 +3629,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 18
+          "const": 19
         },
         "type": {
           "const": "error"
@@ -4044,7 +4044,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 18
+          "const": 19
         },
         "type": {
           "const": "handoff.progress"
@@ -6151,7 +6151,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 18
+          "const": 19
         },
         "type": {
           "const": "notify"
@@ -8016,7 +8016,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 18
+          "const": 19
         },
         "type": {
           "const": "session.appended"
@@ -8055,7 +8055,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 18
+          "const": 19
         },
         "type": {
           "const": "session.commands"
@@ -8075,7 +8075,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 18
+          "const": 19
         },
         "type": {
           "const": "session.deleted"
@@ -8391,7 +8391,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 18
+          "const": 19
         },
         "type": {
           "const": "session.listening"
@@ -8751,7 +8751,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 18
+          "const": 19
         },
         "type": {
           "const": "session.output"
@@ -8852,7 +8852,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 18
+          "const": 19
         },
         "type": {
           "const": "session.permission"
@@ -8989,7 +8989,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 18
+          "const": 19
         },
         "type": {
           "const": "session.queue"
@@ -9009,7 +9009,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 18
+          "const": 19
         },
         "type": {
           "const": "session.rule"
@@ -9059,7 +9059,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 18
+          "const": 19
         },
         "type": {
           "const": "session.rules.unenforced"
@@ -9083,7 +9083,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 18
+          "const": 19
         },
         "type": {
           "const": "session.runtime"
@@ -9254,7 +9254,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 18
+          "const": 19
         },
         "type": {
           "const": "session.updated"
@@ -9626,7 +9626,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 18
+          "const": 19
         },
         "type": {
           "const": "subscribe"
@@ -10250,7 +10250,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 18
+          "const": 19
         },
         "type": {
           "const": "terminal.attach"
@@ -10270,7 +10270,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 18
+          "const": 19
         },
         "type": {
           "const": "terminal.attached"
@@ -10318,7 +10318,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 18
+          "const": 19
         },
         "type": {
           "const": "terminal.data"
@@ -10349,7 +10349,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 18
+          "const": 19
         },
         "type": {
           "const": "terminal.detach"
@@ -10369,7 +10369,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 18
+          "const": 19
         },
         "type": {
           "const": "terminal.ended"
@@ -10442,7 +10442,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 18
+          "const": 19
         },
         "type": {
           "const": "terminal.keys"
@@ -10487,7 +10487,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 18
+          "const": 19
         },
         "type": {
           "const": "terminal.size"
@@ -10874,7 +10874,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 18
+          "const": 19
         },
         "type": {
           "const": "unsubscribe"

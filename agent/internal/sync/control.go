@@ -72,6 +72,7 @@ func (c *Client) handleRuntimeStart(cs *connState, raw json.RawMessage) {
 		reject("not-implemented")
 		return
 	}
+	req.Text = withProvenance(req.Source, req.Text)
 	started, err := c.hooks.Runtime.Start(context.Background(), req)
 	if err != nil {
 		reject(err.Error())

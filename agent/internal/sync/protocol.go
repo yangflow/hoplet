@@ -14,7 +14,7 @@ import (
 // (provider.ValidSessionID, ADR 0006). Invalid IDs receive error invalid-session-id
 // before decoding or persistence; the wire envelope and cursor are unchanged.
 
-const ProtocolVersion = 18
+const ProtocolVersion = 19
 
 // Wire message types: Type<Struct> is the `type` of the struct of that name.
 // shared/src/wire/ holds the same table; scripts/test/contract.test.ts compares both.
@@ -553,6 +553,8 @@ type RuntimeStart struct {
 	// Worktree asks for the session to run in a new git worktree of ProjectPath's repository, made before the
 	// provider starts (ADR 0023 for its deletion). Absent: the session runs in ProjectPath.
 	Worktree *NewWorktree `json:"worktree,omitempty"`
+	// Source is set when another session started this one (ADR 0034).
+	Source *PromptSource `json:"source,omitempty"`
 }
 
 // NewWorktree is the worktree a new session asks for. Branch names the new branch; empty means the agent
