@@ -9,6 +9,7 @@ import type {
   DeviceProjectsRemove,
   DeviceSessionsImport,
   DeviceSessionsRemove,
+  SessionConfigRead,
   SessionWorkspaceChangesRead,
   SessionWorkspaceDiffRead,
   SessionWorkspaceFileRead,
@@ -37,6 +38,7 @@ type Rpc = Pick<
   | 'workspaceFile'
   | 'workspaceDiff'
   | 'workspaceChanges'
+  | 'readConfig'
   | 'listDirs'
   | 'putAttachment'
   | 'findClone'
@@ -56,6 +58,7 @@ export function createRpc(state: ControlState): Rpc {
     pendingFile,
     pendingDiff,
     pendingChanges,
+    pendingConfig,
     pendingDeviceControl,
     pendingProviders,
     pendingDirs,
@@ -169,6 +172,29 @@ export function createRpc(state: ControlState): Rpc {
       };
       return askWaiter(
         pendingChanges,
+        requestId,
+        state.workspaceTimeoutMs,
+        { ok: false, error: 'timeout' },
+        () => link.send(msg),
+      );
+    },
+    readConfig(sessionId, ownerDeviceId, provider, read) {
+      const link = onlineLink(state, ownerDeviceId);
+      if (!link) return Promise.resolve({ ok: false, error: 'owner-offline' });
+      const requestId = randomUUID();
+      const msg: SessionConfigRead = {
+        v: PROTOCOL_VERSION,
+        type: 'session.config.read',
+        sessionId,
+        requestId,
+        provider,
+        kind: read.kind,
+        scope: read.scope,
+        ...(read.name !== undefined ? { name: read.name } : {}),
+        ...(read.offset !== undefined ? { offset: read.offset } : {}),
+      };
+      return askWaiter(
+        pendingConfig,
         requestId,
         state.workspaceTimeoutMs,
         { ok: false, error: 'timeout' },

@@ -14,7 +14,7 @@ import (
 // (provider.ValidSessionID, ADR 0006). Invalid IDs receive error invalid-session-id
 // before decoding or persistence; the wire envelope and cursor are unchanged.
 
-const ProtocolVersion = 20
+const ProtocolVersion = 21
 
 // Wire message types: Type<Struct> is the `type` of the struct of that name.
 // shared/src/wire/ holds the same table; scripts/test/contract.test.ts compares both.
@@ -55,6 +55,9 @@ const (
 	TypeSessionWorkspaceFile     = "session.workspace.file"
 	TypeSessionWorkspaceDiffRead = "session.workspace.diff.read"
 	TypeSessionWorkspaceDiff     = "session.workspace.diff"
+	TypeSessionConfigRead        = "session.config.read"
+	TypeSessionConfig            = "session.config"
+	TypeSessionConfigRejected    = "session.config.rejected"
 	TypeHandoffPrepare           = "handoff.prepare"
 	TypeHandoffPrepared          = "handoff.prepared"
 	TypeHandoffInstall           = "handoff.install"
@@ -838,6 +841,57 @@ type SessionWorkspaceDiff struct {
 	Size      int64  `json:"size,omitempty"`
 	OldSize   *int64 `json:"oldSize,omitempty"`
 	NewSize   *int64 `json:"newSize,omitempty"`
+}
+
+// SessionConfigRead asks for a page of a session's own configuration file (ADR 0036). Provider is the stored
+// session's vendor, which fixes the paths of each Kind; Name is absent for "memory" and "list".
+type SessionConfigRead struct {
+	V         int    `json:"v"`
+	Type      string `json:"type"`
+	SessionID string `json:"sessionId"`
+	RequestID string `json:"requestId"`
+	Provider  string `json:"provider"`
+	Kind      string `json:"kind"`
+	Scope     string `json:"scope"`
+	Name      string `json:"name,omitempty"`
+	Offset    int64  `json:"offset,omitempty"`
+}
+
+// ConfigFileEntry is one skill or command of a list answer.
+type ConfigFileEntry struct {
+	Kind        string `json:"kind"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+}
+
+// SessionConfig is a page of a configuration file (bulk lane): Exists false for a missing file, Size and Hash
+// (SHA-256, hex) of the whole file, Text from byte Offset, NextOffset while more follows; Entries answer a list.
+type SessionConfig struct {
+	V          int               `json:"v"`
+	Type       string            `json:"type"`
+	SessionID  string            `json:"sessionId"`
+	RequestID  string            `json:"requestId"`
+	Kind       string            `json:"kind"`
+	Scope      string            `json:"scope"`
+	Name       string            `json:"name,omitempty"`
+	Exists     bool              `json:"exists"`
+	Size       int64             `json:"size"`
+	Hash       string            `json:"hash"`
+	Offset     int64             `json:"offset"`
+	Text       string            `json:"text"`
+	NextOffset *int64            `json:"nextOffset,omitempty"`
+	Entries    []ConfigFileEntry `json:"entries"`
+}
+
+// SessionConfigRejected answers a SessionConfigRead the agent cannot answer; Code is "unsupported", "invalid"
+// or "io".
+type SessionConfigRejected struct {
+	V         int    `json:"v"`
+	Type      string `json:"type"`
+	SessionID string `json:"sessionId"`
+	RequestID string `json:"requestId"`
+	Code      string `json:"code"`
+	Reason    string `json:"reason"`
 }
 
 // Handoff (docs/spec.md#handoff, ADR 0009). core → device:

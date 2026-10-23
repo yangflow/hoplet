@@ -42,6 +42,14 @@ func (c *Core) Call(ctx context.Context, sessionID, tool string, args json.RawMe
 		return c.listSessions(ctx, sessionID, args)
 	case ToolReadSession:
 		return c.readSession(ctx, sessionID, args)
+	case ToolGetConfig:
+		return c.getConfig(ctx, sessionID)
+	case ToolListSkills:
+		return c.listSkills(ctx, sessionID, args)
+	case ToolReadSkill:
+		return c.readSkill(ctx, sessionID, args)
+	case ToolReadMemory:
+		return c.readMemory(ctx, sessionID, args)
 	case ToolSendPrompt:
 		return c.sendPrompt(ctx, sessionID, args)
 	case ToolInterruptSession:
@@ -96,12 +104,15 @@ func (c *Core) get(ctx context.Context, sessionID, path string) ([]byte, Reply, 
 	}
 }
 
-func finish(v any) Reply {
+func finish(v any) Reply { return finishWith(dataNotice, v) }
+
+// finishWith builds a result that begins with notice.
+func finishWith(notice string, v any) Reply {
 	b, err := json.Marshal(v)
 	if err != nil {
 		return errReply("the result could not be built")
 	}
-	text := dataNotice + "\n" + scrub(string(b))
+	text := notice + "\n" + scrub(string(b))
 	if len(text) > MaxResultBytes {
 		text = cut(text, MaxResultBytes)
 	}

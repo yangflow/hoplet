@@ -28,6 +28,7 @@ export function receiveReply(
     pendingFile,
     pendingDiff,
     pendingChanges,
+    pendingConfig,
     pendingPrepared,
     pendingInstalled,
     pendingVerified,
@@ -110,6 +111,31 @@ export function receiveReply(
           total: msg.total,
           files: msg.files,
         },
+      });
+      return;
+    case 'session.config':
+      settleWaiter(pendingConfig, msg.requestId, {
+        ok: true,
+        read: {
+          kind: msg.kind,
+          scope: msg.scope,
+          ...(msg.name !== undefined ? { name: msg.name } : {}),
+          exists: msg.exists,
+          size: msg.size,
+          hash: msg.hash,
+          offset: msg.offset,
+          text: msg.text,
+          ...(msg.nextOffset !== undefined ? { nextOffset: msg.nextOffset } : {}),
+          entries: msg.entries,
+        },
+      });
+      return;
+    case 'session.config.rejected':
+      settleWaiter(pendingConfig, msg.requestId, {
+        ok: false,
+        error: 'rejected',
+        code: msg.code,
+        reason: msg.reason,
       });
       return;
     case 'handoff.prepared':

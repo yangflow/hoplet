@@ -56,8 +56,11 @@ describe('the route table', () => {
     ],
     // Only a session token holds it.
     'request-handoff': ['POST /api/handoff-requests'],
-    // Only a session token holds these two (ADR 0036).
+    // Only a session token holds these (ADR 0036).
     'read-config': [
+      'GET /api/sessions/:sessionId/config',
+      'GET /api/sessions/:sessionId/config-files',
+      'GET /api/sessions/:sessionId/config-files/:kind',
       'GET /api/sessions/:sessionId/config-changes',
       'GET /api/config-changes/:changeId',
     ],
@@ -119,6 +122,9 @@ describe('the route table', () => {
         'POST /api/handoff-requests',
         'GET /api/sessions/:sessionId/config-changes',
         'GET /api/config-changes/:changeId',
+        'GET /api/sessions/:sessionId/config',
+        'GET /api/sessions/:sessionId/config-files',
+        'GET /api/sessions/:sessionId/config-files/:kind',
         'POST /api/sessions/:sessionId/config-changes',
         'POST /api/sessions/:sessionId/prompt',
         'POST /api/sessions/:sessionId/interrupt',

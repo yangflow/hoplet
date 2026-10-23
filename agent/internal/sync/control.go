@@ -262,6 +262,50 @@ func (c *Client) handleWorkspaceDiff(cs *connState, sessionID, requestID, rel st
 	})
 }
 
+// handleConfigRead answers a read of the session's own configuration files: a page on the bulk lane, a
+// refusal on the control lane (ADR 0036).
+func (c *Client) handleConfigRead(cs *connState, raw json.RawMessage) {
+	var req SessionConfigRead
+	if err := json.Unmarshal(raw, &req); err != nil {
+		return
+	}
+	var page SessionConfig
+	var err error
+	if c.hooks.ConfigRead == nil {
+		err = &ConfigError{Code: "unsupported", Reason: "not-implemented"}
+	} else {
+		page, err = c.hooks.ConfigRead(context.Background(), req)
+	}
+	if err != nil {
+		code, reason := "io", err.Error()
+		var rejection *ConfigError
+		if errors.As(err, &rejection) {
+			code, reason = rejection.Code, rejection.Reason
+		}
+		log.Printf("[agent] config read %s rejected for %s: %s: %s", req.Kind, shortID(req.SessionID), code, reason)
+		_ = c.writeMsg(cs, SessionConfigRejected{
+			V:         ProtocolVersion,
+			Type:      TypeSessionConfigRejected,
+			SessionID: req.SessionID,
+			RequestID: req.RequestID,
+			Code:      code,
+			Reason:    reason,
+		})
+		return
+	}
+	page.V = ProtocolVersion
+	page.Type = TypeSessionConfig
+	page.SessionID = req.SessionID
+	page.RequestID = req.RequestID
+	page.Kind = req.Kind
+	page.Scope = req.Scope
+	page.Name = req.Name
+	if page.Entries == nil {
+		page.Entries = []ConfigFileEntry{}
+	}
+	_ = c.writeMsg(cs, page)
+}
+
 func (c *Client) handleProjects(cs *connState, raw json.RawMessage) {
 	var head struct {
 		Type      string `json:"type"`

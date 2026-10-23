@@ -124,6 +124,18 @@ type WorkspaceChangesContent struct {
 // WorkspaceChangesFunc lists what a session changed against the commit it started from.
 type WorkspaceChangesFunc func(ctx context.Context, sessionID string) (WorkspaceChangesContent, error)
 
+// ConfigError is a refusal of a configuration read: Code is "unsupported", "invalid" or "io".
+type ConfigError struct {
+	Code   string
+	Reason string
+}
+
+func (e *ConfigError) Error() string { return e.Code + ": " + e.Reason }
+
+// ConfigReadFunc reads a page of a session's own configuration files (ADR 0036). It fills Exists, Size, Hash,
+// Offset, Text, NextOffset and Entries; the client adds the envelope. A refusal is a *ConfigError.
+type ConfigReadFunc func(ctx context.Context, req SessionConfigRead) (SessionConfig, error)
+
 // DirListing is the content of device.dirs.
 type DirListing struct {
 	Path      string
@@ -156,9 +168,11 @@ type Hooks struct {
 	File      WorkspaceFileFunc
 	Diff      WorkspaceDiffFunc
 	Changes   WorkspaceChangesFunc
-	Handoff   HandoffHooks
-	Terminal  TerminalHooks
-	Ports     PortsHooks
+	// ConfigRead answers session.config.read.
+	ConfigRead ConfigReadFunc
+	Handoff    HandoffHooks
+	Terminal   TerminalHooks
+	Ports      PortsHooks
 	// PreviewHost is announced in device.hello: the host the web UI links dev servers with.
 	PreviewHost string
 	// PermissionDeny is announced in device.hello: the operator's deny rules, as rules.Announced makes them.

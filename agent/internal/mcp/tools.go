@@ -25,6 +25,11 @@ const (
 	ToolListMachines = "list_machines"
 	ToolListSessions = "list_sessions"
 	ToolReadSession  = "read_session"
+	// The tools that read this session's own configuration (ADR 0036).
+	ToolGetConfig  = "get_config"
+	ToolListSkills = "list_skills"
+	ToolReadSkill  = "read_skill"
+	ToolReadMemory = "read_memory"
 )
 
 // The tools that act on another session. They need the `send` ability and a grant for it, so the vendor asks the
@@ -53,7 +58,7 @@ func IsKnownTool(name string) bool {
 }
 
 // ReadTools are the tools that need only the `read` ability, which the built-in rule allows.
-var ReadTools = []string{ToolListMachines, ToolListSessions, ToolReadSession}
+var ReadTools = []string{ToolListMachines, ToolListSessions, ToolReadSession, ToolGetConfig, ToolListSkills, ToolReadSkill, ToolReadMemory}
 
 // IsReadTool says whether name is one of ReadTools.
 func IsReadTool(name string) bool {
@@ -109,6 +114,41 @@ func tools() []toolDef {
 				"start":     map[string]any{"type": "integer", "description": "First line; negative counts from the end (default -20)."},
 				"limit":     map[string]any{"type": "integer", "minimum": 1, "maximum": maxPageLines, "description": "At most this many lines (default 20)."},
 			}, "sessionId"),
+		},
+		{
+			Name: ToolGetConfig,
+			Description: "Show this session's own options as its runtime reports them: provider, state and each option " +
+				"with its current value and the values it takes. " + configNotice,
+			InputSchema: obj(map[string]any{}),
+		},
+		{
+			Name: ToolListSkills,
+			Description: "List the skills and commands of this session's provider, with a one-line description each. " +
+				"The project scope is this session's working directory; the user scope is the user's own directory. " +
+				"At most 200 entries. " + configNotice,
+			InputSchema: obj(map[string]any{
+				"scope": map[string]any{"type": "string", "enum": []string{"project", "user"}, "description": "Where to look (default project)."},
+			}),
+		},
+		{
+			Name: ToolReadSkill,
+			Description: "Read a skill or a command by name, a page of at most 32 KiB. A missing one is reported as " +
+				"exists false. Use next as offset to continue. " + configNotice,
+			InputSchema: obj(map[string]any{
+				"name":   map[string]any{"type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,63}$", "description": "A name from list_skills."},
+				"kind":   map[string]any{"type": "string", "enum": []string{"skill", "command"}, "description": "Skill or command (default skill)."},
+				"scope":  map[string]any{"type": "string", "enum": []string{"project", "user"}, "description": "Where to look (default project)."},
+				"offset": map[string]any{"type": "integer", "minimum": 0, "description": "Byte offset to continue from (default 0)."},
+			}, "name"),
+		},
+		{
+			Name: ToolReadMemory,
+			Description: "Read this session's memory file (CLAUDE.md), a page of at most 32 KiB. A missing file is " +
+				"reported as exists false. Use next as offset to continue. " + configNotice,
+			InputSchema: obj(map[string]any{
+				"scope":  map[string]any{"type": "string", "enum": []string{"project", "user"}, "description": "Where to look (default project)."},
+				"offset": map[string]any{"type": "integer", "minimum": 0, "description": "Byte offset to continue from (default 0)."},
+			}),
 		},
 		{
 			Name: ToolSendPrompt,

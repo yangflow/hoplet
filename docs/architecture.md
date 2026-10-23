@@ -226,6 +226,17 @@ injectable timer: a child past its time limit (`session_children`, set when a se
 of a tree past its tokens are interrupted, stopped and audited as `child.limit`. The API adds `parentId` and
 `childCount` to the session metadata, the descendants route and `cascade` on stop; it does not own the relation.
 
+### Configuration reads of a session
+
+The core asks the owner of a session for one page of its configuration with `session.config.read` (control lane;
+`kind` `list`, `memory`, `skill` or `command`, `scope`, optional `name` and `offset`), which the agent answers with
+`session.config` (bulk lane, at most 32 KiB of text) or `session.config.rejected` (control lane, `code`
+`unsupported`, `invalid` or `io`). The `control` module waits for the answer like a workspace read. The agent
+package `configfiles` opens the scope's directory as a root, maps a kind and name to a path itself, refuses a symbolic
+link, a file over 1 MiB, a NUL byte and invalid UTF-8, and cuts a page on a character boundary. One reading logic
+serves the MCP tools and the later reads of the web UI. `get_config` needs no agent: it reads the capabilities the
+runtime reported.
+
 ### Configuration changes of a session
 
 The `control` module `config-changes` keeps a session's requests to change its own configuration in `config_changes`
@@ -254,7 +265,8 @@ first time the session needs it with `runtime.mcp.token.request` and keeps the a
 memory until it expires or the core answers 401. The core answers only a device that announced
 `capabilities.sessionMcp` in `device.hello` and owns the session. The read tools are `list_machines`, `list_sessions` and
 `read_session` (a page of lines by cursor, at most 100 lines and 32 KiB a call, a long entry cut, the result marked
-as data and passed through the scrubber); a refusal reaches the model as a code, never the request. In Claude Code and Codex
+as data and passed through the scrubber), and `get_config`, `list_skills`, `read_skill` and `read_memory`, which read
+the session's own options, skills, commands and memory file through the `session.config.read` request; a refusal reaches the model as a code, never the request. In Claude Code and Codex
 they are `mcp__hoplet__<tool>`, match as `mcp:hoplet/<tool>` in the rules, and the Claude and Codex hooks allow the read
 tools when no rule decided. `send_prompt` (queued through `POST /api/sessions/:id/queue`), `interrupt_session` and `start_session`
 (`POST /api/sessions`, with the new session's chain recorded in `session_provenance`)
@@ -384,7 +396,7 @@ messages that name the session by ID and never a path: `device.session.inspect|i
 clone the new worktree belongs to, which the core keeps in `session_worktrees`.
 
 A handoff to a machine with no clone of the repository adds a clone step before the owner is touched
-([ADR 0024](adr/0024-a-handoff-clones-the-repository-on-a-target-that-has-none.md)). The protocol version is 20.
+([ADR 0024](adr/0024-a-handoff-clones-the-repository-on-a-target-that-has-none.md)). The protocol version is 21.
 The control-lane messages are `device.clone.check` (`requestId`, `origin`, optional `cloneInto`) answered by
 `device.clone.checked` (`reason`, `detail`, the proposed `cloneInto`), and `device.clone.start` (`requestId`,
 `handoffId`, `origin`, `cloneInto`) answered by `device.clone.progress` (`received`, optional `total`, at most four

@@ -526,6 +526,103 @@ describe('GET /api/sessions/:id/workspace', () => {
       body: { code: 'rejected', reason: 'not-a-git-repository' },
     });
   });
+
+  it('forwards session.config.read with the provider and relays the page', async () => {
+    const { status, body, sent } = await relay(
+      '/api/sessions/s1/config-files/skill?scope=user&name=deploy&offset=10',
+      'session.config.read',
+      (requestId) => ({
+        type: 'session.config',
+        requestId,
+        kind: 'skill',
+        scope: 'user',
+        name: 'deploy',
+        exists: true,
+        size: 14,
+        hash: 'h',
+        offset: 10,
+        text: 'tail',
+        entries: [],
+      }),
+    );
+    expect(sent).toMatchObject({
+      provider: 'claude',
+      kind: 'skill',
+      scope: 'user',
+      name: 'deploy',
+      offset: 10,
+    });
+    expect(status).toBe(200);
+    expect(body).toEqual({
+      kind: 'skill',
+      scope: 'user',
+      name: 'deploy',
+      exists: true,
+      size: 14,
+      hash: 'h',
+      offset: 10,
+      text: 'tail',
+      entries: [],
+    });
+  });
+
+  it('lists the project scope by default and relays the entries', async () => {
+    const { status, body, sent } = await relay(
+      '/api/sessions/s1/config-files',
+      'session.config.read',
+      (requestId) => ({
+        type: 'session.config',
+        requestId,
+        kind: 'list',
+        scope: 'project',
+        exists: true,
+        size: 0,
+        hash: '',
+        offset: 0,
+        text: '',
+        entries: [{ kind: 'skill', name: 'deploy', description: 'Ship it' }],
+      }),
+    );
+    expect(sent).toMatchObject({ kind: 'list', scope: 'project' });
+    expect(status).toBe(200);
+    expect(body).toMatchObject({ entries: [{ kind: 'skill', name: 'deploy' }] });
+  });
+
+  it('answers 501 when the agent has no such files for the provider and 502 for a refusal', async () => {
+    const unsupported = await relay(
+      '/api/sessions/s1/config-files/memory',
+      'session.config.read',
+      (requestId) => ({
+        type: 'session.config.rejected',
+        requestId,
+        code: 'unsupported',
+        reason: 'no memory files',
+      }),
+    );
+    expect(unsupported).toMatchObject({
+      status: 501,
+      body: { code: 'unsupported', reason: 'no memory files' },
+    });
+    const invalid = await relay(
+      '/api/sessions/s1/config-files/memory',
+      'session.config.read',
+      (requestId) => ({
+        type: 'session.config.rejected',
+        requestId,
+        code: 'invalid',
+        reason: 'symlink',
+      }),
+    );
+    expect(invalid).toMatchObject({ status: 502, body: { code: 'rejected', reason: 'symlink' } });
+  });
+
+  it('refuses a skill read without a name and an unknown kind before asking the agent', async () => {
+    const { port, token } = await boot();
+    const get = (p: string) =>
+      fetch(`http://127.0.0.1:${port}${p}`, { headers: { authorization: `Bearer ${token}` } });
+    expect((await get('/api/sessions/s1/config-files/skill')).status).toBe(400);
+    expect((await get('/api/sessions/s1/config-files/secrets')).status).toBe(404);
+  });
 });
 
 describe('POST /api/devices', () => {

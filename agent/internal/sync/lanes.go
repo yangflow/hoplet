@@ -22,7 +22,7 @@ const (
 // control.
 func laneOf(msg any) Lane {
 	switch msg.(type) {
-	case SessionAppend, WorkspaceSnapshot, SessionWorkspaceFile, SessionWorkspaceDiff, RuntimeCommands, HookResult:
+	case SessionAppend, WorkspaceSnapshot, SessionWorkspaceFile, SessionWorkspaceDiff, SessionConfig, RuntimeCommands, HookResult:
 		return LaneBulk
 	}
 	return LaneControl

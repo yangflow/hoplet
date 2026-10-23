@@ -393,3 +393,49 @@ func TestHandleWorkspaceChanges(t *testing.T) {
 		t.Fatalf("got %#v", msg)
 	}
 }
+
+func TestHandleConfigRead(t *testing.T) {
+	c, cs, read := dialTestConn(t)
+	next := int64(32768)
+	c.hooks.ConfigRead = func(ctx context.Context, req SessionConfigRead) (SessionConfig, error) {
+		switch req.Name {
+		case "refused":
+			return SessionConfig{}, &ConfigError{Code: "invalid", Reason: "invalid name"}
+		case "broken":
+			return SessionConfig{}, errors.New("disk on fire")
+		}
+		return SessionConfig{Exists: true, Size: 40000, Hash: "abc", Offset: req.Offset, Text: "hi", NextOffset: &next}, nil
+	}
+	ask := func(name string) {
+		raw, _ := json.Marshal(SessionConfigRead{
+			V: ProtocolVersion, Type: TypeSessionConfigRead, SessionID: "s1", RequestID: "r1",
+			Provider: "claude", Kind: "skill", Scope: "project", Name: name, Offset: 5,
+		})
+		c.handleConfigRead(cs, raw)
+	}
+	ask("review")
+	msg := read()
+	if msg["type"] != "session.config" || msg["requestId"] != "r1" || msg["kind"] != "skill" || msg["name"] != "review" ||
+		msg["exists"] != true || msg["offset"] != 5.0 || msg["nextOffset"] != 32768.0 || msg["text"] != "hi" {
+		t.Fatalf("got %#v", msg)
+	}
+	if entries, ok := msg["entries"].([]any); !ok || len(entries) != 0 {
+		t.Fatalf("entries %#v", msg["entries"])
+	}
+	ask("refused")
+	msg = read()
+	if msg["type"] != "session.config.rejected" || msg["code"] != "invalid" || msg["reason"] != "invalid name" {
+		t.Fatalf("got %#v", msg)
+	}
+	ask("broken")
+	msg = read()
+	if msg["type"] != "session.config.rejected" || msg["code"] != "io" {
+		t.Fatalf("got %#v", msg)
+	}
+	c.hooks.ConfigRead = nil
+	ask("review")
+	msg = read()
+	if msg["type"] != "session.config.rejected" || msg["code"] != "unsupported" {
+		t.Fatalf("got %#v", msg)
+	}
+}

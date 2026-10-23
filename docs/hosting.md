@@ -173,7 +173,8 @@ under the same one. A session it does not list runs under its vendor's built-in 
 ### Session MCP
 
 `"session_mcp": true` in the agent's `config.json`, then restart the agent, lets the Claude Code and Codex sessions of this
-machine see other sessions through the tools `list_machines`, `list_sessions` and `read_session`
+machine see other sessions through the tools `list_machines`, `list_sessions` and `read_session`, and read their own configuration files with
+`get_config`, `list_skills`, `read_skill` and `read_memory` ([ADR 0036](adr/0036-sessions-change-their-own-configuration-over-mcp.md))
 ([ADR 0034](adr/0034-sessions-view-and-direct-other-sessions-over-mcp.md)). It is off by default, and only the
 operator of the machine can turn it on: the core cannot. The agent then opens `<hoplet_home>/mcp.sock`, announces
 `capabilities.sessionMcp` in `device.hello`, and calls the core's REST API at `server_url` with the session's token,
