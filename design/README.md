@@ -150,8 +150,9 @@ The mockups, design tokens and app icon behind Hoplet's web UI. The design langu
   `unsupported`) and `conv-undo-stale` show what the session or the user sees when a request or an Undo fails.
   Most states also have `-zh` states. Strings that are not in `web/src/i18n/zh-Hans.json` yet are proposals for
   it. New icons: `undo-2`, `zap`, `sliders-horizontal`, `book-open`, `triangle-alert`.
-- `screens/child-sessions.html` (#81): the UI of child sessions (ADR 0035, decision 6), three directions awaiting
-  the maintainer's choice. Shared by all three: the session list as a tree (a parent with a count and the
+- `screens/child-sessions.html` (#81): the UI of child sessions (ADR 0035, decision 6), three directions; the
+  maintainer chose A with B's permission strip under a blocked child's row in the parent's turn, and B and C stay
+  as the alternatives considered. Shared by all three: the session list as a tree (a parent with a count and the
   strongest state among its children, indented children with machine and worktree branch, a grandchild, a folded
   parent that keeps its attention dot, "Started by a deleted session") and the stop dialog with "Also stop N
   running children", checked by default. Every cancel says what stops and what stays; worktrees always stay. A
