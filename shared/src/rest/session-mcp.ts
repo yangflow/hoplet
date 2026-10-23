@@ -104,3 +104,62 @@ export type SessionMcpDefaultsDeleteQuery = v.InferOutput<
 
 /** The answer of the routes that change or remove a default. */
 export const SessionMcpOkResponseSchema = v.object({ ok: v.literal(true) });
+
+/** How long a hand-off request waits for the user (ADR 0034). */
+export const HANDOFF_REQUEST_TTL_MS = 24 * 60 * 60 * 1000;
+
+/** The most characters of the reason a session gives for a hand-off request. */
+export const MAX_HANDOFF_REASON_CHARS = 500;
+
+/**
+ * Where a hand-off request is: `pending` waits for the user, `approved` (by the user or automatically) waits for
+ * the end of the turn and then runs, `declined` and `expired` are closed without a hand-off, `done` moved the
+ * session and `failed` did not (`error` names why).
+ */
+export const HANDOFF_REQUEST_STATES = [
+  'pending',
+  'approved',
+  'declined',
+  'expired',
+  'done',
+  'failed',
+] as const;
+export const HandoffRequestStateSchema = v.picklist(HANDOFF_REQUEST_STATES);
+export type HandoffRequestState = v.InferOutput<typeof HandoffRequestStateSchema>;
+
+/** Who approved or declined: the user, or the session's own automatic approval. */
+export const HANDOFF_DECISIONS = ['user', 'auto'] as const;
+export const HandoffDecisionSchema = v.picklist(HANDOFF_DECISIONS);
+export type HandoffDecision = v.InferOutput<typeof HandoffDecisionSchema>;
+
+/** A session's request to be handed off to another machine (ADR 0034). */
+export const SessionHandoffRequestSchema = v.object({
+  requestId: v.string(),
+  sessionId: v.string(),
+  targetDeviceId: v.string(),
+  reason: v.string(),
+  state: HandoffRequestStateSchema,
+  /** Null while `pending`, and after `expired`. */
+  decision: v.nullable(HandoffDecisionSchema),
+  createdAt: v.number(),
+  /** When a request nobody answered expires. */
+  expiresAt: v.number(),
+  decidedAt: v.nullable(v.number()),
+  /** The error code of a `failed` request (`no-clone`, `clone-failed`, `target-offline` and so on). */
+  error: v.optional(v.string()),
+  errorReason: v.optional(v.string()),
+});
+export type SessionHandoffRequest = v.InferOutput<typeof SessionHandoffRequestSchema>;
+
+/** POST /api/handoff-requests, with a session token: `targetDeviceId` is a machine ID from `list_machines`. */
+export const SessionHandoffRequestCreateSchema = v.strictObject({
+  targetDeviceId: v.pipe(TrimmedSchema, v.maxLength(128)),
+  reason: v.pipe(TrimmedSchema, v.maxLength(MAX_HANDOFF_REASON_CHARS)),
+});
+export type SessionHandoffRequestCreate = v.InferOutput<typeof SessionHandoffRequestCreateSchema>;
+
+/** GET /api/sessions/:sessionId/handoff-requests: the newest first. */
+export const SessionHandoffRequestListSchema = v.object({
+  requests: v.array(SessionHandoffRequestSchema),
+});
+export type SessionHandoffRequestList = v.InferOutput<typeof SessionHandoffRequestListSchema>;

@@ -34,7 +34,7 @@ import {
 } from '../permission-rules.ts';
 import { HookEnvelopeSchema, HookEventTypeSchema } from '../rest/hooks.ts';
 import { NotifyEventKindSchema } from '../rest/notify.ts';
-import { PromptSourceSchema } from '../rest/session-mcp.ts';
+import { PromptSourceSchema, SessionHandoffRequestSchema } from '../rest/session-mcp.ts';
 import { ChangeStatusSchema, WorkspaceChangeSchema } from '../rest/workspace.ts';
 import {
   AgentRuntimeStateSchema,
@@ -968,6 +968,16 @@ export const WIRE_MESSAGES = defineWire({
   },
 
   /**
+   * A session's hand-off request changed (ADR 0034): it was made, decided, expired, or it ran and `done` or
+   * `failed`. Browsers show it as a card in the turn.
+   */
+  'handoff.request': {
+    lane: 'control',
+    direction: 'core-to-web',
+    fields: { request: SessionHandoffRequestSchema },
+  },
+
+  /**
    * A notification for a native client (ADR 0021): sent to browser sockets that declared themselves a native
    * client, of which there is none yet, so the core does not send it today. It carries the payload of every
    * channel and no link.
@@ -1517,6 +1527,7 @@ export type HandoffFailed = WireMessageOf<'handoff.failed'>;
 export type HandoffCommit = WireMessageOf<'handoff.commit'>;
 export type HandoffAbort = WireMessageOf<'handoff.abort'>;
 export type HandoffProgress = WireMessageOf<'handoff.progress'>;
+export type SessionHandoffRequestChanged = WireMessageOf<'handoff.request'>;
 export type DeviceProjectsList = WireMessageOf<'device.projects.list'>;
 export type DeviceProjectsAdd = WireMessageOf<'device.projects.add'>;
 export type DeviceProjectsRemove = WireMessageOf<'device.projects.remove'>;

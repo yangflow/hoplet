@@ -10,6 +10,7 @@ import type {
   Queue,
   RuntimeCapabilities,
   SessionConfig,
+  SessionHandoffRequest,
   SessionRuntimeInfo,
 } from '@hoplet/shared';
 import {
@@ -42,6 +43,7 @@ import {
 import { amountText, covers, endDate, PERIOD_WORD } from '../../../lib/budgets.ts';
 import { projectName } from '../../../lib/capabilities.ts';
 import { errorText } from '../../../lib/errors.ts';
+import { useHandoffRequests } from '../../../lib/handoff-requests.ts';
 import { t } from '../../../lib/i18n.ts';
 import { onLive, subscribeSession } from '../../../lib/live.ts';
 import { pageKeysSuspended } from '../../../lib/page-keys.ts';
@@ -60,7 +62,7 @@ import { SessionWhere } from '../composer/where.tsx';
 import { QueueTray, type TrayFixture } from '../queue/queue-tray.tsx';
 import { useQueue } from '../queue/use-queue.ts';
 import { type ComposerView, composerView } from '../runtime.ts';
-import { type CardRules, LiveTurnView } from './live-view.tsx';
+import { type CardRules, type HandoffView, LiveTurnView, PendingHandoffs } from './live-view.tsx';
 import { PlanOrigin } from './plan-card.tsx';
 import { SessionReader } from './reader.ts';
 import { CodexPromptsNote } from './rule-line.tsx';
@@ -112,6 +114,8 @@ export type ConversationFixture = {
   steering?: { text: string; taken?: boolean }[];
   /** What a send does while a turn runs, when the user's setting is not the default. */
   sendMode?: SendMode;
+  /** The session's requests to be handed off to another machine. */
+  handoffs?: SessionHandoffRequest[];
   scrollTo?: number;
   openBlocks?: string[];
 };
@@ -148,6 +152,8 @@ export function Conversation(props: {
   onViewRules?: () => void;
   /** Opens another session in the cockpit: the ends of a plan approved into a new session. */
   onOpenSession?: (sessionId: string) => void;
+  /** The name of a machine, for the target of a hand-off request. */
+  deviceName?: (deviceId: string) => string;
   /** A plan was approved into this new session (ADR 0025): the app opens it. */
   onSessionStarted?: (sessionId: string) => void;
   fixture?: ConversationFixture;
@@ -192,6 +198,20 @@ export function Conversation(props: {
     fixture: fixture?.live,
   });
   const turn = lt.turn;
+
+  const handoffRequests = useHandoffRequests(sessionId, fixture?.handoffs);
+  const [handoffError, setHandoffError] = useState<string | null>(null);
+  const handoffs: HandoffView = {
+    requests: handoffRequests.requests,
+    fromName: session.deviceName,
+    projectName: projectName(session.projectPath),
+    nameOf: props.deviceName ?? ((id) => id),
+    busy: handoffRequests.deciding,
+    decidable: live,
+    onDecide: (requestId, approve) => {
+      void handoffRequests.decide(requestId, approve).then(setHandoffError);
+    },
+  };
 
   const [atBottom, setAtBottom] = useState(aroundLine === null);
   const atBottomRef = useRef(atBottom);
@@ -688,6 +708,7 @@ export function Conversation(props: {
           ruleOf={ruleOf}
           unenforcedAt={unenforcedAt}
           {...(props.onViewRules ? { openRule: props.onViewRules } : {})}
+          openSession={props.onOpenSession}
           {...(fixture?.openBlocks ? { initiallyOpen: fixture.openBlocks } : {})}
           {...(fixture?.scrollTo !== undefined ? { scrollTo: fixture.scrollTo } : {})}
           live={
@@ -715,6 +736,7 @@ export function Conversation(props: {
                 planView={fixture?.live?.plan}
                 steering={steeringShown}
                 rules={cardRules}
+                handoffs={handoffs}
               />
             ) : null
           }
@@ -742,6 +764,14 @@ export function Conversation(props: {
             </div>
           ) : null}
           <div ref={composerBox}>
+            {!showLive || turn?.phase !== 'live' ? (
+              <PendingHandoffs view={handoffs} providerName={provider} now={now} />
+            ) : null}
+            {handoffError ? (
+              <p className="banner-error" role="alert" data-testid="cockpit.handoff-error">
+                {handoffError}
+              </p>
+            ) : null}
             <QueueTray
               sessionId={sessionId}
               queue={queue}

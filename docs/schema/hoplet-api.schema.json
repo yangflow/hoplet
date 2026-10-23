@@ -385,6 +385,46 @@
       "response": "HandoffCancelResultSchema"
     },
     {
+      "method": "POST",
+      "path": "/api/handoff-requests",
+      "auth": "request-handoff",
+      "lane": "control",
+      "status": 201,
+      "query": null,
+      "body": "SessionHandoffRequestCreateSchema",
+      "response": "SessionHandoffRequestSchema"
+    },
+    {
+      "method": "GET",
+      "path": "/api/sessions/:sessionId/handoff-requests",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": null,
+      "response": "SessionHandoffRequestListSchema"
+    },
+    {
+      "method": "POST",
+      "path": "/api/handoff-requests/:requestId/approve",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": null,
+      "response": "SessionHandoffRequestSchema"
+    },
+    {
+      "method": "POST",
+      "path": "/api/handoff-requests/:requestId/decline",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": null,
+      "response": "SessionHandoffRequestSchema"
+    },
+    {
       "method": "GET",
       "path": "/api/devices",
       "auth": "read",
@@ -1209,6 +1249,12 @@
       "direction": "core-to-web",
       "lane": "control",
       "schema": "HandoffProgressMessage"
+    },
+    {
+      "type": "handoff.request",
+      "direction": "core-to-web",
+      "lane": "control",
+      "schema": "HandoffRequestMessage"
     },
     {
       "type": "notify",
@@ -4099,6 +4145,97 @@
         "handoffId",
         "step",
         "targetDeviceId"
+      ]
+    },
+    "HandoffRequestMessage": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 19
+        },
+        "type": {
+          "const": "handoff.request"
+        },
+        "request": {
+          "type": "object",
+          "properties": {
+            "requestId": {
+              "type": "string"
+            },
+            "sessionId": {
+              "type": "string"
+            },
+            "targetDeviceId": {
+              "type": "string"
+            },
+            "reason": {
+              "type": "string"
+            },
+            "state": {
+              "enum": [
+                "pending",
+                "approved",
+                "declined",
+                "expired",
+                "done",
+                "failed"
+              ],
+              "type": "string"
+            },
+            "decision": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "user",
+                    "auto"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "createdAt": {
+              "type": "number"
+            },
+            "expiresAt": {
+              "type": "number"
+            },
+            "decidedAt": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "error": {
+              "type": "string"
+            },
+            "errorReason": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "requestId",
+            "sessionId",
+            "targetDeviceId",
+            "reason",
+            "state",
+            "decision",
+            "createdAt",
+            "expiresAt",
+            "decidedAt"
+          ]
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "request"
       ]
     },
     "HandoffRequestSchema": {
@@ -8089,6 +8226,185 @@
         "v",
         "type",
         "sessionId"
+      ]
+    },
+    "SessionHandoffRequestCreateSchema": {
+      "type": "object",
+      "properties": {
+        "targetDeviceId": {
+          "type": "string",
+          "pattern": "^\\s*\\S(?:[\\s\\S]{0,126}\\S)?\\s*$"
+        },
+        "reason": {
+          "type": "string",
+          "pattern": "^\\s*\\S(?:[\\s\\S]{0,498}\\S)?\\s*$"
+        }
+      },
+      "required": [
+        "targetDeviceId",
+        "reason"
+      ],
+      "additionalProperties": false
+    },
+    "SessionHandoffRequestListSchema": {
+      "type": "object",
+      "properties": {
+        "requests": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "requestId": {
+                "type": "string"
+              },
+              "sessionId": {
+                "type": "string"
+              },
+              "targetDeviceId": {
+                "type": "string"
+              },
+              "reason": {
+                "type": "string"
+              },
+              "state": {
+                "enum": [
+                  "pending",
+                  "approved",
+                  "declined",
+                  "expired",
+                  "done",
+                  "failed"
+                ],
+                "type": "string"
+              },
+              "decision": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "user",
+                      "auto"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "createdAt": {
+                "type": "number"
+              },
+              "expiresAt": {
+                "type": "number"
+              },
+              "decidedAt": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "error": {
+                "type": "string"
+              },
+              "errorReason": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "requestId",
+              "sessionId",
+              "targetDeviceId",
+              "reason",
+              "state",
+              "decision",
+              "createdAt",
+              "expiresAt",
+              "decidedAt"
+            ]
+          }
+        }
+      },
+      "required": [
+        "requests"
+      ]
+    },
+    "SessionHandoffRequestSchema": {
+      "type": "object",
+      "properties": {
+        "requestId": {
+          "type": "string"
+        },
+        "sessionId": {
+          "type": "string"
+        },
+        "targetDeviceId": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "state": {
+          "enum": [
+            "pending",
+            "approved",
+            "declined",
+            "expired",
+            "done",
+            "failed"
+          ],
+          "type": "string"
+        },
+        "decision": {
+          "anyOf": [
+            {
+              "enum": [
+                "user",
+                "auto"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "createdAt": {
+          "type": "number"
+        },
+        "expiresAt": {
+          "type": "number"
+        },
+        "decidedAt": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "error": {
+          "type": "string"
+        },
+        "errorReason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "requestId",
+        "sessionId",
+        "targetDeviceId",
+        "reason",
+        "state",
+        "decision",
+        "createdAt",
+        "expiresAt",
+        "decidedAt"
       ]
     },
     "SessionListResponseSchema": {

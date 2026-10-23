@@ -119,6 +119,10 @@ Response column names the schema of the success body and its status when it is n
 | GET | `/api/sessions/:sessionId/snapshot/diff` | host | bulk | `WorkspaceDiffQuerySchema` | — | `SnapshotDiffSchema` | `invalid-request`, `session-not-found`, `no-snapshot`, `not-found`, `busy` |
 | POST | `/api/sessions/:sessionId/handoff` | host | control | — | `HandoffRequestSchema` | `HandoffResultSchema` | `invalid-json`, `invalid-request`, `too-large`, `session-not-found`, `same-device`, `target-offline`, `owner-offline`, `handoff-in-progress`, `busy`, `no-snapshot`, `no-clone`, `clone-failed`, `session-changed`, `verify-failed`, `cancelled`, `timeout`, `rejected` |
 | POST | `/api/sessions/:sessionId/handoff/cancel` | host | control | — | — | `HandoffCancelResultSchema` | `session-not-found`, `handoff-not-running` |
+| POST | `/api/handoff-requests` | request-handoff | control | — | `SessionHandoffRequestCreateSchema` | `SessionHandoffRequestSchema` (201) | `invalid-json`, `invalid-request`, `too-large`, `forbidden`, `not-found`, `same-device`, `target-offline`, `loop-limit`, `rate-limited` |
+| GET | `/api/sessions/:sessionId/handoff-requests` | host | control | — | — | `SessionHandoffRequestListSchema` | `session-not-found` |
+| POST | `/api/handoff-requests/:requestId/approve` | host | control | — | — | `SessionHandoffRequestSchema` | `not-found`, `request-closed` |
+| POST | `/api/handoff-requests/:requestId/decline` | host | control | — | — | `SessionHandoffRequestSchema` | `not-found`, `request-closed` |
 | GET | `/api/devices` | read | control | — | — | `DeviceListResponseSchema` | — |
 | GET | `/api/devices/:deviceId/resources` | host | control | — | — | `DeviceResourcesResultSchema` | `not-found` |
 | PUT | `/api/devices/:deviceId/labels` | host | control | — | `DeviceLabelsRequestSchema` | `DeviceLabelsResultSchema` | `invalid-json`, `invalid-request`, `too-large`, `not-found` |
@@ -614,7 +618,7 @@ already running:
 |---|---|
 | `send` | The `send` ability: prompt, steer and interrupt other sessions |
 | `create` | The `create` ability, which includes `send` |
-| `requestHandoff` | The `request-handoff` ability, which only a session token holds; it lets the session ask for its own handoff (the host confirms) |
+| `requestHandoff` | The `request-handoff` ability, which only a session token holds; it lets the session ask for its own handoff (the host confirms unless auto-approve applies) |
 | `autoApproveHandoff`, `autoApproveMachines` | Part of the settings of `requestHandoff` and rejected without it (`invalid-request`): whether a handoff request to one of these machines, which must be known, is approved without the host (stored and shown; the handoff request flow acts on it) |
 | `visibility` | `project` (sessions of its own machine and project), `machine` (every project of its machine) or `all`; a session outside it is answered `session-not-found`. `read` is always on |
 
@@ -627,10 +631,10 @@ The agent receives the token over its own WebSocket and keeps it in memory: it s
 (`requestId`, `sessionId`) and the core answers `runtime.mcp.token` (`requestId`, `sessionId`, and `token` with
 `expiresAt`, or `reason`: `unknown-session`, `not-owner`, `not-allowed`). Both are control-lane messages; the core
 answers only the device that owns the session and announced `capabilities.sessionMcp` in `device.hello`. The agent
-turns the model's MCP calls (`list_machines`, `list_sessions`, `read_session`, `send_prompt`, `interrupt_session`, `start_session`) into the requests below.
+turns the model's MCP calls (`list_machines`, `list_sessions`, `read_session`, `send_prompt`, `interrupt_session`, `start_session`, `request_handoff`) into the requests below.
 
 A session token reaches only the routes marked for sessions: the list and read of sessions, lines and blocks, the
-device list, prompt, queue (`POST /api/sessions/:sessionId/queue`), interrupt and `POST /api/sessions`; every other route answers `forbidden`. A session sees
+device list, prompt, queue (`POST /api/sessions/:sessionId/queue`), interrupt, `POST /api/sessions` and `POST /api/handoff-requests`; every other route answers `forbidden`. A session sees
 itself in the list with `self: true` in its metadata. The rules for a prompt or an interrupt from a session:
 
 - It may not address itself: `self`.
@@ -663,6 +667,28 @@ most 5 starts an hour and 10 live children; beyond either the answer is `rate-li
 start that was refused or failed does not count. The core sends `runtime.start` with the same `source` as a prompt
 carries, and the new session's agent puts the fixed line naming the caller before the first prompt. The tool
 returns the new session id and, with `worktree`, the worktree. Claude Code asks the user before each call.
+
+`request_handoff` (`machine`, an ID or name from `list_machines`; `reason` of 1 to 500 characters) is a
+`POST /api/handoff-requests` `{targetDeviceId, reason}` and needs the `request-handoff` ability (the `requestHandoff`
+setting). It creates a request in the state `pending` and returns at once; the tool tells the model to finish its turn.
+The refusals are `forbidden` (the setting is off) with the `reason` `session-only` (a host token called) or
+`request-open` (the session already has an open request), `not-found` (an unknown machine or one the grant does not
+reach, so the session's `visibility` must include the target), `same-device`, `target-offline`, `loop-limit` (the chain of the session would hold more than three
+sessions) and `rate-limited` with `Retry-After` (6 requests an hour per session).
+
+A request is `pending`, `approved`, `declined`, `expired`, `done` or `failed`, and has a `decision` once decided:
+`user` or `auto`. The web shows it as a card in the session's turn, and the notification of the existing kinds
+(`permission`, `tool` `request_handoff`, the target's name as `summary`, no link) goes to the channels; the
+decision is the host's, `POST /api/handoff-requests/:requestId/approve` or `.../decline` (`request-closed` when it is no
+longer `pending`, `not-found` when unknown), never an action link. `GET /api/sessions/:sessionId/handoff-requests`
+lists a session's requests, newest first. A request is approved automatically only when `autoApproveHandoff` is on, the
+target is in `autoApproveMachines` and the session has had fewer than 3 automatic approvals in the last hour; beyond it
+the request asks the user. An approved request runs the hand-off of `POST /api/sessions/:sessionId/handoff` (the
+default clone of the target) when the session is `ready`, after the queue has drained, so it waits for the end of the
+turn; it is then `done`, or `failed` with `error` and `errorReason` (for example `no-clone`, `clone-failed`). A request
+nobody answers in 24 hours, or whose session ended, failed or moved, is `expired`. The audit events are
+`handoff.requested` (actor `session`) and `handoff.decided` (actor: the host for `user`, `core` for `auto`).
+The new wire message `handoff.request` is core to browser only, so the protocol version stays 19.
 
 The prompt of a session carries its origin. `runtime.prompt` has an optional `source` (`kind: "session"`, the
 sender's `sessionId`, its `title` as one line of at most 100 characters without quotes, and the `chain`), set by the
@@ -717,6 +743,7 @@ over REST.
 | `session.output` | core → browser | control | `SessionOutputMessage` | Streamed content of the running turn: text, thinking, tool calls and results. Only to the connections subscribed to the session. Transient: the session's lines are the record |
 | `session.permission` | core → browser | control | `SessionPermissionMessage` | A tool wants permission; answer with `POST /api/sessions/:sessionId/permission`. `planExit` (`plan`, `planFile`, `option`, `modes`, `default`, `freshContext`) marks a request to leave a plan; `freshContext` says approval can start a new session. Sent to every connection |
 | `handoff.progress` | core → browser | control | `HandoffProgressMessage` | A step of a handoff: `sent` of `total` bytes during `transfer`, the new `worktree` and `branch` on `done`, the `reason` on `failed`. Sent to every connection |
+| `handoff.request` | core → browser | control | `HandoffRequestMessage` | A hand-off request of a session was made or changed state (`request`: `requestId`, `sessionId`, `targetDeviceId`, `reason`, `state`, `decision`, `createdAt`, `expiresAt`, `decidedAt`, and `error` with `errorReason` when it failed). Only to the connections whose token sees the session. The web shows it as a card in the turn |
 | `notify` | core → browser | control | `NotifyMessage` | A notification (`kind`, `sessionId`, `project`, `title`, `tool`, `summary`, `requestId`, `reason`, `link`) for a native client that is connected. Defined for native clients and not sent by the core yet; the payload is the one of every channel ([Notifications](#notifications)) |
 | `error` | core → browser | control | `ErrorMessage` | The core could not take a message from the client; `code` says why |
 

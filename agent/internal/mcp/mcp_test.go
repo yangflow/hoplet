@@ -57,7 +57,7 @@ func TestInitializeToolsListAndNotification(t *testing.T) {
 	for _, x := range list {
 		names = append(names, x.(map[string]any)["name"].(string))
 	}
-	if strings.Join(names, ",") != "list_machines,list_sessions,read_session,send_prompt,interrupt_session,start_session" {
+	if strings.Join(names, ",") != "list_machines,list_sessions,read_session,send_prompt,interrupt_session,start_session,request_handoff" {
 		t.Fatalf("tools = %v", names)
 	}
 }
@@ -108,7 +108,7 @@ func TestToolsCallAndErrors(t *testing.T) {
 
 func TestOnlyTheReadToolsAreReadTools(t *testing.T) {
 	for _, tool := range tools() {
-		isAct := tool.Name == ToolSendPrompt || tool.Name == ToolInterruptSession || tool.Name == ToolStartSession
+		isAct := tool.Name == ToolSendPrompt || tool.Name == ToolInterruptSession || tool.Name == ToolStartSession || tool.Name == ToolRequestHandoff
 		if IsReadTool(tool.Name) == isAct {
 			t.Fatalf("%s: read tool = %v", tool.Name, IsReadTool(tool.Name))
 		}
@@ -584,7 +584,7 @@ func startCore(t *testing.T, status int, body, retryAfter string) (*Core, *[]str
 			_, _ = w.Write([]byte(`{"devices":[{"deviceId":"d1","name":"mac","providers":[{"provider":"claude","capabilities":{"config":[` +
 				`{"id":"mode","category":"mode","type":"select","options":[{"value":"plan"},{"value":"default"},{"value":"acceptEdits"}]}]}}]},` +
 				`{"deviceId":"d2","name":"box","providers":[{"provider":"claude","capabilities":{"config":[]}}]}]}`))
-		case r.Method == http.MethodPost && r.URL.Path == "/api/sessions":
+		case r.Method == http.MethodPost && (r.URL.Path == "/api/sessions" || r.URL.Path == "/api/handoff-requests"):
 			if retryAfter != "" {
 				w.Header().Set("Retry-After", retryAfter)
 			}
@@ -686,5 +686,41 @@ func TestStartSessionValidatesArguments(t *testing.T) {
 	}
 	if lastPost(*seen) != "" {
 		t.Fatalf("an invalid call reached the core: %v", *seen)
+	}
+}
+
+func TestRequestHandoffAsksTheCoreAndTellsTheModelToFinish(t *testing.T) {
+	c, seen := startCore(t, 201, `{"requestId":"r1","sessionId":"s1","state":"pending"}`, "")
+	rep := c.Call(context.Background(), "s1", ToolRequestHandoff, json.RawMessage(`{"machine":"box","reason":"needs the GPU"}`))
+	if rep.IsError || !strings.Contains(rep.Text, "waiting for the user") || !strings.Contains(rep.Text, "finish your turn") {
+		t.Fatalf("rep = %+v", rep)
+	}
+	got := lastPost(*seen)
+	for _, w := range []string{"POST /api/handoff-requests Bearer hpt_", `"targetDeviceId":"d2"`, `"reason":"needs the GPU"`} {
+		if !strings.Contains(got, w) {
+			t.Fatalf("request %s lacks %s", got, w)
+		}
+	}
+	c, _ = startCore(t, 201, `{"requestId":"r2","sessionId":"s1","state":"approved"}`, "")
+	rep = c.Call(context.Background(), "s1", ToolRequestHandoff, json.RawMessage(`{"machine":"d2","reason":"go"}`))
+	if rep.IsError || !strings.Contains(rep.Text, "approved automatically") {
+		t.Fatalf("rep = %+v", rep)
+	}
+}
+
+func TestRequestHandoffRefusalsAndBadArguments(t *testing.T) {
+	c, _ := startCore(t, 409, `{"code":"target-offline"}`, "")
+	rep := c.Call(context.Background(), "s1", ToolRequestHandoff, json.RawMessage(`{"machine":"box","reason":"x"}`))
+	if !rep.IsError || !strings.Contains(rep.Text, "target-offline") {
+		t.Fatalf("rep = %+v", rep)
+	}
+	rep = c.Call(context.Background(), "s1", ToolRequestHandoff, json.RawMessage(`{"machine":"nowhere","reason":"x"}`))
+	if !rep.IsError || !strings.Contains(rep.Text, "not-found") {
+		t.Fatalf("an unknown machine: %+v", rep)
+	}
+	for _, bad := range []string{`{}`, `{"machine":"box"}`, `{"machine":"box","reason":"  "}`, `{"machine":"box","reason":"` + strings.Repeat("x", 501) + `"}`} {
+		if rep := c.Call(context.Background(), "s1", ToolRequestHandoff, json.RawMessage(bad)); !rep.IsError {
+			t.Fatalf("%.40s was accepted", bad)
+		}
 	}
 }

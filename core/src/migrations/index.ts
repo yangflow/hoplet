@@ -32,6 +32,7 @@ import { scriptHooks } from './0029-script-hooks.ts';
 import { apiTokens } from './0030-api-tokens.ts';
 import { sessionMcp } from './0031-session-mcp.ts';
 import { sessionMcpHandoffApproval } from './0032-session-mcp-handoff-approval.ts';
+import { handoffRequests } from './0033-handoff-requests.ts';
 
 export interface Migration {
   readonly id: number;
@@ -72,6 +73,7 @@ const MIGRATIONS: readonly Migration[] = [
   apiTokens,
   sessionMcp,
   sessionMcpHandoffApproval,
+  handoffRequests,
 ];
 
 export function migrate(db: DatabaseSync): void {

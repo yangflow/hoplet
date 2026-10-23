@@ -33,10 +33,11 @@ const (
 	ToolSendPrompt       = "send_prompt"
 	ToolInterruptSession = "interrupt_session"
 	ToolStartSession     = "start_session"
+	ToolRequestHandoff   = "request_handoff"
 )
 
 // ActTools are the tools that change another session.
-var ActTools = []string{ToolSendPrompt, ToolInterruptSession, ToolStartSession}
+var ActTools = []string{ToolSendPrompt, ToolInterruptSession, ToolStartSession, ToolRequestHandoff}
 
 // IsKnownTool says whether name is a tool this server offers.
 func IsKnownTool(name string) bool {
@@ -145,10 +146,25 @@ func tools() []toolDef {
 				"branch":         map[string]any{"type": "string", "maxLength": maxBranchChars, "description": "The branch name of the worktree (default: generated); only with worktree."},
 			}, "prompt"),
 		},
+		{
+			Name: ToolRequestHandoff,
+			Description: "Ask the user to move this session to another machine. It returns at once with a pending " +
+				"request; the user approves or declines it in Hoplet, and an approved hand-off runs when this turn " +
+				"ends, so finish your turn after calling it and do not wait or ask again. This session then continues " +
+				"on the target machine. A refusal names its code (forbidden, same-device, target-offline, loop-limit, " +
+				"rate-limited, not-found) and, where there is one, a reason; do not retry a refusal that is not " +
+				"rate-limited. Requests are limited to " + handoffLimits + ".",
+			InputSchema: obj(map[string]any{
+				"machine": map[string]any{"type": "string", "description": "A machine ID or name from list_machines; not this session's machine."},
+				"reason":  map[string]any{"type": "string", "minLength": 1, "maxLength": maxReasonChars, "description": "Why the session should move, shown to the user."},
+			}, "machine", "reason"),
+		},
 	}
 }
 
 const (
+	handoffLimits  = "6 requests an hour from this session, one open request at a time, and a chain of 3 sessions"
+	maxReasonChars = 500
 	startLimits    = "5 sessions an hour and 10 live sessions started by this session, and a chain of 3 sessions"
 	maxPathChars   = 4096
 	maxBranchChars = 244

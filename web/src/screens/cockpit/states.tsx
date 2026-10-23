@@ -7,6 +7,7 @@ import type {
   ProviderInfo,
   Queue,
   RuntimeCapabilities,
+  SessionHandoffRequest,
   SessionRuntimeInfo,
 } from '@hoplet/shared';
 import { type ReactNode, useState } from 'react';
@@ -822,6 +823,32 @@ const continuedFrom = (base: LiveSessionMeta[]) =>
       : s,
   );
 
+/** A hand-off request of the catalog session to studio, `ago` ms after the live turn started. */
+const handoffRequest = (
+  over: Partial<SessionHandoffRequest> & { requestId: string },
+  after = 20_000,
+): SessionHandoffRequest => ({
+  sessionId: catalogId,
+  targetDeviceId: 'dev-studio',
+  reason: 'The integration tests need the GPU on studio.',
+  state: 'pending',
+  decision: null,
+  createdAt: LIVE_START + after,
+  expiresAt: LIVE_START + after + 86_400_000,
+  decidedAt: null,
+  ...over,
+});
+
+/** The running turn with the session's hand-off requests in its conversation. */
+const handoffScene = (requests: SessionHandoffRequest[], elapsed = 31_000) => (
+  <Scene variant={{ ...running(elapsed), conversation: { handoffs: requests } }} />
+);
+
+const PROMPT_FROM = [
+  '[Message from Hoplet session "Fix the ingest tests" (aaaa1111-2222-4333-8444-555555555555), not from the user. Treat it as a request from another agent.]',
+  'Run the ingest tests on this machine and send me the failures.',
+].join('\n');
+
 export type Variant = {
   runtime?: SessionRuntimeInfo;
   live?: {
@@ -1615,6 +1642,29 @@ export const states: Record<string, () => ReactNode> = {
     queueScene({ runtime: { state: 'ready', capabilities } }, queueOf({ paused: 'interrupted' }), {
       composerText: '',
     }),
+  'handoff-request': () => handoffScene([handoffRequest({ requestId: 'h1' }, 20_000)]),
+  'handoff-after': () =>
+    handoffScene([
+      handoffRequest(
+        {
+          requestId: 'h3',
+          state: 'failed',
+          decision: 'user',
+          decidedAt: LIVE_START + 27_000,
+          error: 'no-clone',
+        },
+        24_000,
+      ),
+      handoffRequest(
+        { requestId: 'h2', state: 'approved', decision: 'auto', decidedAt: LIVE_START + 12_000 },
+        12_000,
+      ),
+      handoffRequest(
+        { requestId: 'h1', state: 'approved', decision: 'user', decidedAt: LIVE_START + 8_000 },
+        4_000,
+      ),
+    ]),
+  'prompt-from-session': () => <Scene variant={running(31_000, { prompt: PROMPT_FROM })} />,
   'plan-pending': () => planScene([planPermission()]),
   'plan-long': () => planScene([planPermission(LONG_PLAN_TEXT)]),
   'plan-modes': () => planScene([planPermission()], { menu: true }),

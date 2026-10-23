@@ -53,8 +53,8 @@ describe('the route table', () => {
       'POST /api/sessions/:sessionId/permission',
       'POST /api/sessions/:sessionId/permission/fresh',
     ],
-    // Only a session token holds it, and no route asks for it yet.
-    'request-handoff': [],
+    // Only a session token holds it.
+    'request-handoff': ['POST /api/handoff-requests'],
   };
   const PRESETS: Record<string, TokenCapability[]> = {
     'read only': ['read'],
@@ -108,6 +108,7 @@ describe('the route table', () => {
         'GET /api/sessions/:sessionId/lines',
         'GET /api/sessions/:sessionId/blocks/:line/:block',
         'POST /api/sessions',
+        'POST /api/handoff-requests',
         'POST /api/sessions/:sessionId/prompt',
         'POST /api/sessions/:sessionId/interrupt',
         'POST /api/sessions/:sessionId/queue',

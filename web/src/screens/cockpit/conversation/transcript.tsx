@@ -137,6 +137,8 @@ export function Transcript(props: {
   ruleOf?: ViewState['ruleOf'];
   unenforcedAt?: ViewState['unenforcedAt'];
   openRule?: ViewState['openRule'];
+  /** Opens the session a prompt came from. */
+  openSession?: ((sessionId: string) => void) | undefined;
   /** Keys of the folds and blocks to start open (development fixtures). */
   initiallyOpen?: string[];
   /** Starts scrolled this far from the top (development fixtures). */
@@ -366,7 +368,7 @@ export function Transcript(props: {
           {pin ? (
             <div className="pin" style={{ top: loadingOlder ? 32 : 0 }} aria-hidden="true">
               <div style={{ transform: `translateY(${pushed}px)` }}>
-                <TurnHeader turn={pin.turn} stuck />
+                <TurnHeader turn={pin.turn} stuck onOpenSession={props.openSession} />
               </div>
             </div>
           ) : null}
@@ -388,7 +390,7 @@ export function Transcript(props: {
                   {v.type === 'head' ? (
                     <>
                       {v.first ? origin : null}
-                      <TurnHeader turn={v.turn} />
+                      <TurnHeader turn={v.turn} onOpenSession={props.openSession} />
                     </>
                   ) : (
                     <RowView row={v.row} />

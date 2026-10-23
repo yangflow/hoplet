@@ -1,4 +1,4 @@
-import type { SessionContinuation } from '@hoplet/shared';
+import type { SessionContinuation, SessionHandoffRequest } from '@hoplet/shared';
 import { Fragment, type ReactNode, useState } from 'react';
 import { Button } from '../../../components/Button.tsx';
 import { IconButton } from '../../../components/IconButton.tsx';
@@ -8,9 +8,11 @@ import { clock, formatCountdown, formatTimer } from '../../../lib/format.ts';
 import { languageOfPath } from '../../../lib/highlight.ts';
 import { t } from '../../../lib/i18n.ts';
 import { type Draft, type DraftOption, draftFromCall } from '../../../lib/permission-rules.ts';
+import { promptSource } from '../../../lib/provenance.ts';
 import type { Select } from '../composer/mode-menu.tsx';
 import type { RuntimeState } from '../model.ts';
 import { ElidedPanel } from './blocks.tsx';
+import { HandoffCard, HandoffResult } from './handoff-card.tsx';
 import {
   ELIDED_PREVIEW_CHARS,
   type LiveItem,
@@ -29,6 +31,7 @@ import {
   EditActivity,
   Meta,
   NoteActivity,
+  PromptSourceLine,
   RowView,
   SteerActivity,
   ToolActivity,
@@ -55,6 +58,38 @@ export type CardRules = {
   /** What a development fixture opens the draft dialog with. */
   open?: { action: 'allow' | 'deny'; scope?: DraftScope; note?: string; option?: string };
 };
+
+/** The hand-off requests of the session and how to answer them. */
+export type HandoffView = {
+  requests: readonly SessionHandoffRequest[];
+  /** The machine that holds the session now. */
+  fromName: string;
+  projectName: string;
+  nameOf: (deviceId: string) => string;
+  busy: boolean;
+  decidable: boolean;
+  onDecide: (requestId: string, approve: boolean) => void;
+};
+
+/** The cards of the requests nobody has answered yet. */
+export function PendingHandoffs(props: { view: HandoffView; providerName: string; now: number }) {
+  const { view } = props;
+  return view.requests
+    .filter((r) => r.state === 'pending')
+    .map((r) => (
+      <HandoffCard
+        key={r.requestId}
+        request={r}
+        providerName={props.providerName}
+        fromName={view.fromName}
+        toName={view.nameOf(r.targetDeviceId)}
+        now={props.now}
+        busy={view.busy}
+        decidable={view.decidable}
+        onDecide={(approve) => view.onDecide(r.requestId, approve)}
+      />
+    ));
+}
 
 /** A `{name}` template with elements in place of its placeholders. */
 function fill(template: string, parts: Record<string, ReactNode>): ReactNode[] {
@@ -374,12 +409,16 @@ export function LiveTurnView(props: {
   steering?: { text: string; taken?: boolean }[];
   /** Drafting a rule from a permission request. */
   rules?: CardRules | undefined;
+  /** The session's requests to be handed off to another machine (ADR 0034). */
+  handoffs?: HandoffView | undefined;
 }) {
   const { turn, base, state, now, frozen } = props;
   const failed = turn.phase === 'failed';
   const need = state === 'waiting-permission' && turn.phase === 'live';
   const live = turn.phase === 'live';
-  const prompt = turn.prompt ?? base?.prompt?.text ?? null;
+  const rawPrompt = turn.prompt ?? base?.prompt?.text ?? null;
+  const from = rawPrompt ? promptSource(rawPrompt) : null;
+  const prompt = from ? from.text : rawPrompt;
   const startedAt = base?.ts
     ? Math.min(Date.parse(base.ts) || turn.startedAt, turn.startedAt)
     : turn.startedAt;
@@ -430,6 +469,7 @@ export function LiveTurnView(props: {
         </div>
         <div className="meta">
           <span className="num">{clock(startedAt)}</span>
+          {from ? <PromptSourceLine source={from.source} onOpen={props.onOpenSession} /> : null}
         </div>
       </header>
       <div className="tsep" />
@@ -490,6 +530,19 @@ export function LiveTurnView(props: {
             <OutputWell solo error lines={linesOf(turn.error ?? t('Failed'))} label={t('Error')} />
           </div>
         ) : null}
+        {props.handoffs
+          ? props.handoffs.requests
+              .filter((r) => r.state !== 'pending' && r.createdAt >= turn.startedAt)
+              .reverse()
+              .map((r) => (
+                <HandoffResult
+                  key={r.requestId}
+                  request={r}
+                  toName={props.handoffs?.nameOf(r.targetDeviceId) ?? r.targetDeviceId}
+                  projectName={props.handoffs?.projectName ?? ''}
+                />
+              ))
+          : null}
         {props.notice ? (
           <div className="quiet-line" role="status" data-testid="cockpit.permission-notice">
             {Icon.info()}
@@ -531,6 +584,9 @@ export function LiveTurnView(props: {
               ),
             )
           : null}
+        {live && props.handoffs ? (
+          <PendingHandoffs view={props.handoffs} providerName={props.providerName} now={now} />
+        ) : null}
       </div>
     </section>
   );

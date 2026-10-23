@@ -8,6 +8,7 @@ import { createBulkQueue } from './bulk.ts';
 import { createDeletion } from './deletion.ts';
 import { createFresh } from './fresh.ts';
 import { createHandoff } from './handoff.ts';
+import { createHandoffRequests } from './handoff-requests.ts';
 import { createPorts } from './ports.ts';
 import { createQueue } from './queue.ts';
 import { receiveReply } from './replies.ts';
@@ -15,7 +16,7 @@ import { createResources } from './resources.ts';
 import { createRpc } from './rpc.ts';
 import { createRules } from './rules.ts';
 import { createRuntime } from './runtime.ts';
-import { createSessionMcp } from './session-mcp.ts';
+import { createSessionMcp, DEFAULT_SESSION_LIMITS } from './session-mcp.ts';
 import { createStart } from './start.ts';
 import type { ControlState } from './state.ts';
 import { createTerminals } from './terminals.ts';
@@ -54,6 +55,8 @@ export type {
   RuntimeView,
   SessionGuard,
   SessionGuardRefusal,
+  SessionHandoffRefusal,
+  SessionHandoffRequests,
   SessionLimits,
   SessionMcp,
   SessionTokenMint,
@@ -192,6 +195,14 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
     options,
   );
   eventListeners.add(sessionMcp.onEvent);
+  const handoffRequests = createHandoffRequests(
+    state,
+    () => control,
+    sessionMcp.api,
+    { ...DEFAULT_SESSION_LIMITS, ...options.sessionLimits },
+    options,
+  );
+  eventListeners.add(handoffRequests.onEvent);
   /**
    * Answers a device asking for the token of one of its sessions' MCP server (ADR 0034): only the owner of the
    * session, and only a device that announced `sessionMcp`, gets one.
@@ -228,7 +239,10 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
     options.terminalDetachMs ?? DEFAULT_TERMINAL_DETACH_MS,
   );
   state.closeTerminals = terminals.closeSession;
-  state.runtimeChanged = queue.runtimeChanged;
+  state.runtimeChanged = (sessionId, runtimeState, error) => {
+    queue.runtimeChanged(sessionId, runtimeState, error);
+    handoffRequests.runtimeChanged(sessionId, runtimeState);
+  };
   const rules = createRules(state);
   const rpc = createRpc(state);
   const handoff = createHandoff(state, rpc.workspace);
@@ -375,6 +389,7 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
     ownerOf,
     projectOf,
     sessionMcp: sessionMcp.api,
+    handoffRequests: handoffRequests.api,
     openPermissions: runtime.openPermissions,
     ruleLinesOf: runtime.ruleLinesOf,
     commandsOf: runtime.commandsOf,
@@ -421,7 +436,10 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
     deletionPreview: deletion.deletionPreview,
     async deleteSession(sessionId, request) {
       const outcome = await deletion.deleteSession(sessionId, request);
-      if (outcome.ok) sessionMcp.sessionGone(sessionId);
+      if (outcome.ok) {
+        sessionMcp.sessionGone(sessionId);
+        handoffRequests.sessionGone(sessionId);
+      }
       ports.sync();
       rules.sync(); // the session's rules went with it
       return outcome;
@@ -432,7 +450,10 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
     async handoff(request) {
       const outcome = await handoff.handoff(request);
       // The session's process starts again on the new owner and asks for a token of its own.
-      if (outcome.ok) sessionMcp.api.revokeTokens(request.sessionId);
+      if (outcome.ok) {
+        sessionMcp.api.revokeTokens(request.sessionId);
+        handoffRequests.sessionMoved(request.sessionId);
+      }
       ports.sync();
       rules.sync(); // the session's rules follow it to its new owner
       queue.drain(request.sessionId);
