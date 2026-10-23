@@ -240,7 +240,10 @@ that sits in the session's environment is one `env` away from the transcript.
 - **Auto-approve.** A per-session switch, off by default, set by the user in the same section, with a list of
   target machines it applies to (empty means none). When on, a request for a listed target is approved by the
   core with the decision recorded as `auto`; it still waits for the end of the turn; at most 3 auto-approved
-  handoffs an hour per session. A request for any other machine still needs the user.
+  handoffs an hour per session. A request for any other machine still needs the user. The switch and the list are
+  the settings `autoApproveHandoff` and `autoApproveMachines`, part of the session's settings and of the defaults
+  (global and per project); they only exist with `requestHandoff`, and the machines must be known to Hoplet. The
+  settings are stored and shown in Settings and in the session's inspector; step 5 acts on them.
 - **Afterwards.** The new owner starts the process with a new session token (decision 2) and the same settings,
   which belong to the session; the old token is revoked at commit. If the target lacks the project, the existing
   handoff errors (`no-clone`, `clone-failed`) are recorded on the request and shown.

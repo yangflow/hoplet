@@ -23,15 +23,25 @@ export const PromptSourceSchema = v.strictObject({
 });
 export type PromptSource = v.InferOutput<typeof PromptSourceSchema>;
 
+/** The most machines one session may name for automatic hand-off approval. */
+export const MAX_AUTO_APPROVE_MACHINES = 32;
+
 /**
  * What one session may do to other sessions (ADR 0034). Reading is always on. `send` allows `send_prompt` and
  * `interrupt_session`; `create` allows `start_session` and implies `send`; `requestHandoff` allows asking the user
- * to hand the session off. Answering permission requests is not an ability a session can be given.
+ * to hand the session off. `autoApproveHandoff` lets those requests from this session pass without the user's
+ * confirmation when the destination is one of `autoApproveMachines`; it is only meaningful with `requestHandoff`.
+ * Answering permission requests is not an ability a session can be given.
  */
 export const SessionMcpSettingsSchema = v.strictObject({
   send: v.boolean(),
   create: v.boolean(),
   requestHandoff: v.boolean(),
+  autoApproveHandoff: v.boolean(),
+  autoApproveMachines: v.pipe(
+    v.array(v.pipe(TrimmedSchema, v.maxLength(128))),
+    v.maxLength(MAX_AUTO_APPROVE_MACHINES),
+  ),
   visibility: SessionVisibilitySchema,
 });
 export type SessionMcpSettings = v.InferOutput<typeof SessionMcpSettingsSchema>;
@@ -41,6 +51,8 @@ export const DEFAULT_SESSION_MCP_SETTINGS: SessionMcpSettings = {
   send: false,
   create: false,
   requestHandoff: false,
+  autoApproveHandoff: false,
+  autoApproveMachines: [],
   visibility: 'project',
 };
 

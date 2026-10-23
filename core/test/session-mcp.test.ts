@@ -227,6 +227,8 @@ describe('the settings', () => {
       send: false,
       create: false,
       requestHandoff: false,
+      autoApproveHandoff: false,
+      autoApproveMachines: [],
       visibility: 'project',
     });
   });
@@ -240,6 +242,8 @@ describe('the settings', () => {
       send: true,
       create: true,
       requestHandoff: false,
+      autoApproveHandoff: false,
+      autoApproveMachines: [],
       visibility: 'all',
     });
     expect((await b.rest('GET', '/api/sessions/zz/mcp', HOST)).status).toBe(404);
@@ -248,6 +252,37 @@ describe('the settings', () => {
     ).toBe(400);
     const changed = b.audit().filter((e) => e.type === 'config.changed');
     expect(changed.at(-1)).toMatchObject({ actorKind: 'operator', sessionId: 'a1' });
+  });
+
+  it('hold automatic hand-off approval only with a hand-off request and known machines', async () => {
+    const b = await boot();
+    const put = (id: string, patch: Partial<SessionMcpSettings>) =>
+      b.rest('PUT', `/api/sessions/${id}/mcp`, HOST, {
+        settings: { ...DEFAULT_SESSION_MCP_SETTINGS, ...patch },
+      });
+    expect((await put('a1', { autoApproveHandoff: true })).status).toBe(400);
+    expect((await put('a1', { autoApproveMachines: ['dev-a'] })).status).toBe(400);
+    expect((await put('a1', { requestHandoff: true, autoApproveMachines: ['nope'] })).status).toBe(
+      400,
+    );
+    const ok = await put('a1', {
+      requestHandoff: true,
+      autoApproveHandoff: true,
+      autoApproveMachines: ['dev-a', 'dev-a'],
+    });
+    expect(ok.status).toBe(200);
+    expect(ok.body?.settings).toMatchObject({
+      autoApproveHandoff: true,
+      autoApproveMachines: ['dev-a'],
+    });
+    expect((await b.rest('GET', '/api/sessions/a1/mcp', HOST)).body?.settings).toMatchObject({
+      autoApproveHandoff: true,
+      autoApproveMachines: ['dev-a'],
+    });
+    const defaults = await b.rest('PUT', '/api/mcp/defaults', HOST, {
+      settings: { ...DEFAULT_SESSION_MCP_SETTINGS, autoApproveHandoff: true },
+    });
+    expect(defaults.status).toBe(400);
   });
 
   it('cannot be asked for through POST /api/tokens', async () => {
@@ -263,8 +298,19 @@ describe('the settings', () => {
   it('take the project default, else the global default, for sessions that start later', async () => {
     const b = await boot();
     const put = (body: unknown) => b.rest('PUT', '/api/mcp/defaults', HOST, body);
-    const global = { send: true, create: false, requestHandoff: false, visibility: 'machine' };
-    const project = { send: true, create: true, requestHandoff: true, visibility: 'project' };
+    const global = {
+      ...DEFAULT_SESSION_MCP_SETTINGS,
+      send: true,
+      visibility: 'machine',
+    };
+    const project = {
+      ...DEFAULT_SESSION_MCP_SETTINGS,
+      send: true,
+      create: true,
+      requestHandoff: true,
+      autoApproveHandoff: true,
+      autoApproveMachines: ['dev-a'],
+    };
     expect((await put({ settings: global })).status).toBe(200);
     expect((await put({ deviceId: 'dev-a', path: '/work/a', settings: project })).status).toBe(200);
     expect((await put({ deviceId: 'dev-a', settings: project })).status).toBe(400);

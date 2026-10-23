@@ -119,6 +119,7 @@ import {
   SessionMcpOkResponseSchema,
   SessionMcpPutRequestSchema,
   SessionMcpResponseSchema,
+  type SessionMcpSettings,
   type SessionMeta,
   SessionPatchRequestSchema,
   SessionPortsResultSchema,
@@ -432,6 +433,19 @@ function templateList({ store, principal }: { store: Store; principal: Principal
       return seesProject(principal, t.deviceId, t.projectPath);
     }),
   };
+}
+
+/** Automatic hand-off approval needs `requestHandoff`, and names machines Hoplet knows. */
+function checkAutoApprove(store: Store, settings: SessionMcpSettings): void {
+  if (
+    !settings.requestHandoff &&
+    (settings.autoApproveHandoff || settings.autoApproveMachines.length > 0)
+  ) {
+    throw new ApiError('invalid-request', { reason: 'autoApproveHandoff needs requestHandoff' });
+  }
+  if (settings.autoApproveMachines.some((id) => !store.hasDevice(id))) {
+    throw new ApiError('invalid-request', { reason: 'autoApproveMachines' });
+  }
 }
 
 /** What the schema cannot say: the targets fit the scope and exist, and the matcher fits the tool. */
@@ -2264,6 +2278,7 @@ export const routes: readonly Route[] = [
     handler: (d) => {
       const sessionId = d.params.sessionId ?? '';
       ownerOf(d, sessionId);
+      checkAutoApprove(d.store, d.body.settings);
       return { sessionId, settings: d.control.sessionMcp.setSettings(sessionId, d.body.settings) };
     },
   }),
@@ -2286,10 +2301,11 @@ export const routes: readonly Route[] = [
     bodyLimit: 8 * 1024,
     body: SessionMcpDefaultsPutRequestSchema,
     response: SessionMcpOkResponseSchema,
-    handler: ({ control, body }) => {
+    handler: ({ control, store, body }) => {
       if ((body.deviceId === undefined) !== (body.path === undefined)) {
         throw new ApiError('invalid-request', { reason: 'deviceId and path go together' });
       }
+      checkAutoApprove(store, body.settings);
       if (body.deviceId !== undefined && body.path !== undefined) {
         control.sessionMcp.setProjectDefault(body.deviceId, body.path, body.settings);
       } else {

@@ -615,6 +615,7 @@ already running:
 | `send` | The `send` ability: prompt, steer and interrupt other sessions |
 | `create` | The `create` ability, which includes `send` |
 | `requestHandoff` | The `request-handoff` ability, which only a session token holds; it lets the session ask for its own handoff (the host confirms) |
+| `autoApproveHandoff`, `autoApproveMachines` | Part of the settings of `requestHandoff` and rejected without it (`invalid-request`): whether a handoff request to one of these machines, which must be known, is approved without the host (stored and shown; the handoff request flow acts on it) |
 | `visibility` | `project` (sessions of its own machine and project), `machine` (every project of its machine) or `all`; a session outside it is answered `session-not-found`. `read` is always on |
 
 `GET`/`PUT /api/mcp/defaults` hold the defaults a session gets when it begins: a global one and one per project
