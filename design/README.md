@@ -80,10 +80,10 @@ The mockups, design tokens and app icon behind Hoplet's web UI. The design langu
   `draft-session-zh`); the conversation lines for Allowed by rule, Denied by rule and Asked by rule (`conv-auto`,
   `conv-auto-zh`). The one Always menu (`card-b`, `card-b-menu`) is the alternative considered. Built in
   `screens/settings/` and `screens/cockpit/`, with the same state names under `/__states`.
-  Two proposals for #98 are open for the maintainer: which machines applied the latest rules revision on
-  Settings › Permission rules (`a-revision`, `a-revision-zh`: applied, behind, offline), and the quiet notes in a
+  Two more are built (#308): which machines applied the latest rules revision on
+  Settings › Permission rules (`a-revision`, `a-revision-zh`: applied, behind, offline; `/__states/settings/rules-revision`), and the quiet notes in a
   Codex session whose rules are prompts-only or whose hook did not fire (`conv-codex-prompts`,
-  `conv-codex-nohook`, and their `-zh` states).
+  `conv-codex-nohook`, and their `-zh` states; the same names in the cockpit `/__states`).
 - `hooks.html` (#97): Settings › Hooks, three directions; A is chosen and built in `screens/settings/` with the same state names under `/__states/settings/hooks*`, B and C stay as alternatives. A (`a-*`) is one page: the webhooks as rows, a row opens in place, adding and editing happen in a card above the list, and the machines' scripts are a read-only group below. B (`b-*`) is a list with the selected hook beside it, on tabs for Settings and Deliveries; the scripts sit in the same list with a lock. C (`c-*`) is a tab per kind (Webhooks, Scripts, Deliveries) with one delivery log for every hook, and editing in a dialog. States: A `a-list`, `a-deliveries`, `a-needs-secret` (a hook whose
   secret was lost), `a-add`, `a-edit`, `a-secret` (the one-time secret after create), `a-rotate-confirm`,
   `a-rotate-secret`, `a-test`, `a-test-bad`, `a-script-run`, `a-empty`; B `b-settings`, `b-deliveries`, `b-script`,
