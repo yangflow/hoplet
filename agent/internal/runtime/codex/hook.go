@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/yangflow/hoplet/agent/internal/mcp"
 	"github.com/yangflow/hoplet/agent/internal/rules"
 	"github.com/yangflow/hoplet/agent/internal/runtime"
 )
@@ -43,6 +44,26 @@ func hookConfig(command string) map[string]any {
 		},
 		"bypass_hook_trust": true,
 	}
+}
+
+// threadConfig is the `config` of thread/start and thread/resume: the rule hook when the driver runs with it and
+// the Hoplet MCP server when the process was given one (ADR 0034). Nil when there is neither. The nonce that names
+// the session is in the server's `env`, which travels in the JSON-RPC request to the app server and never on a
+// command line; the session token is not in it (the daemon holds it).
+func threadConfig(hookCmd string, hook bool, spec *runtime.MCPSpec) map[string]any {
+	var cfg map[string]any
+	if hookCmd != "" && hook {
+		cfg = hookConfig(hookCmd)
+	}
+	if spec != nil {
+		if cfg == nil {
+			cfg = map[string]any{}
+		}
+		cfg["mcp_servers"] = map[string]any{mcp.ServerName: map[string]any{
+			"command": spec.Command, "args": spec.Args, "env": spec.Env,
+		}}
+	}
+	return cfg
 }
 
 // HookCommand is the command line of the hook for the agent binary at exe: the quoted absolute path and
@@ -93,6 +114,7 @@ func (p *process) decideHook(ctx context.Context, raw json.RawMessage) (out hook
 	p.hookCalls++
 	plan := p.cfg[optCollaboration] == collabPlan
 	src, dir, thread := p.rules, p.dir, p.threadID
+	mcpRead := p.mcp != nil && p.mcp.ReadAllowed
 	p.mu.Unlock()
 	if src == nil {
 		return denyReply("Hoplet has no permission rules for this Codex process")
@@ -104,6 +126,11 @@ func (p *process) decideHook(ctx context.Context, raw json.RawMessage) (out hook
 	}
 	call := rules.FromCodexHook(in.ToolName, in.ToolInput, dir, dir)
 	d := engine.Decide(call)
+	// The built-in allow of the session MCP read tools (ADR 0034): only where no rule decided, so a deny or ask
+	// rule of the user still wins, and only in a process that has the server.
+	if d.Action == "" && mcpRead && call.Kind == rules.KindMCP && call.Server == mcp.ServerName && mcp.IsReadTool(call.Tool) {
+		d = rules.Decision{Action: rules.Allow, Reason: "a read tool of the Hoplet session MCP server"}
+	}
 	decided := func() {
 		p.emit(runtime.RuleDecided{
 			ToolUseID: in.ToolUseID, Decision: string(d.Action), RuleID: d.RuleID, Scope: string(d.Scope),

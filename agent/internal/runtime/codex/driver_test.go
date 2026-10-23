@@ -213,7 +213,7 @@ func TestConfigDeclaresCodexSettings(t *testing.T) {
 		t.Fatalf("models before they are read: %v", cfg[1].Options)
 	}
 	// Without the hook socket the rules act on prompts only.
-	if got := d.Capabilities(); len(got) != 5 || got[4] != runtime.CapRulesPromptsOnly {
+	if got := d.Capabilities(); len(got) != 6 || got[5] != runtime.CapRulesPromptsOnly {
 		t.Fatalf("capabilities = %v", got)
 	}
 }

@@ -61,7 +61,8 @@
   `hoplet-agent mcp` process the vendor starts asks the daemon over `<hoplet_home>/mcp.sock` (directory 0700, socket
   0600) with the same peer user ID check and a per-start nonce (256 bits) that names the session; the session ID in
   a request is ignored. The token never leaves the daemon's memory: it is not on the command line, in the
-  environment or in the config file `<hoplet_home>/mcp/<nonce>.json` (0600), which holds the nonce. A tool result
+  environment or in the config file `<hoplet_home>/mcp/<nonce>.json` (0600), which holds the nonce; for Codex the nonce is in the `env` of the server entry in the `thread/start` and
+  `thread/resume` request to the app server, not in a file. A tool result
   is scrubbed and marked as data, an error carries a code. A process of the same user can read the nonce and use
   the socket, the same accepted risk as the Codex hook; a machine with `session_mcp` off opens no socket.
 - Hook process ↔ agent (Codex rule hook, [ADR 0032](adr/0032-codex-rule-hook-calls-the-agent-over-a-local-socket.md)):

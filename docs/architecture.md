@@ -219,19 +219,23 @@ the socket cannot be opened (Windows, a path over 100 bytes) the driver declares
 
 With `session_mcp` on, the agent offers a running session the tools that see other sessions
 ([ADR 0034](adr/0034-sessions-view-and-direct-other-sessions-over-mcp.md)). A runtime driver that declares the
-internal capability `mcp` (not a wire flag; Claude Code only) gets `StartSpec.MCP`: the command (`hoplet-agent`),
+internal capability `mcp` (not a wire flag; the Claude and Codex drivers) gets `StartSpec.MCP`: the command (`hoplet-agent`),
 the arguments (`mcp`), the nonce and the environment `HOPLET_MCP_SOCK` (`<hoplet_home>/mcp.sock`) and
 `HOPLET_MCP_NONCE`. The Claude driver writes `<hoplet_home>/mcp/<nonce>.json` (mode 0600 in a directory 0700) and
 starts the process with `--mcp-config <path>` and without `--strict-mcp-config`; the file is removed and the nonce
-unregistered when the process ends or fails to start. `hoplet-agent mcp` holds no token: it sends each call to the
+unregistered when the process ends or fails to start. The Codex driver writes no file: it adds
+`mcp_servers.hoplet = {command, args, env}` to the `config` of `thread/start` and `thread/resume` (beside the rule
+hook), so the nonce travels in that JSON-RPC request and not on a command line. Codex names a new thread itself, so
+the manager asks for the spec before the ID exists and the driver calls `MCPSpec.Bind` with the thread ID once it
+has one; the nonce is registered then. `hoplet-agent mcp` holds no token: it sends each call to the
 daemon over `mcp.sock` with the nonce, and the daemon takes the session from the nonce, ignores any session ID the
 caller states, and calls the core's REST API with the session's `hpt_` token. The daemon asks for that token the
 first time the session needs it with `runtime.mcp.token.request` and keeps the answer, `runtime.mcp.token`, in
 memory until it expires or the core answers 401. The core answers only a device that announced
 `capabilities.sessionMcp` in `device.hello` and owns the session. The read tools are `list_machines`, `list_sessions` and
 `read_session` (a page of lines by cursor, at most 100 lines and 32 KiB a call, a long entry cut, the result marked
-as data and passed through the scrubber); a refusal reaches the model as a code, never the request. In Claude Code
-they are `mcp__hoplet__<tool>`, match as `mcp:hoplet/<tool>` in the rules, and the Claude hook allows the read
+as data and passed through the scrubber); a refusal reaches the model as a code, never the request. In Claude Code and Codex
+they are `mcp__hoplet__<tool>`, match as `mcp:hoplet/<tool>` in the rules, and the Claude and Codex hooks allow the read
 tools when no rule decided. `send_prompt` (queued through `POST /api/sessions/:id/queue`), `interrupt_session` and `start_session`
 (`POST /api/sessions`, with the new session's chain recorded in `session_provenance`)
 act on another session: the hook does not allow them, so the vendor asks the user, and the core checks the grant,

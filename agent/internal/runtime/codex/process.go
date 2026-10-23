@@ -87,6 +87,8 @@ type process struct {
 	dir        string        // the session's directory, as the daemon knows it
 	rules      RuleSource    // nil when the process runs without the hook
 	unregister func()
+	mcp        *runtime.MCPSpec    // the Hoplet MCP server this process was given (ADR 0034), nil without
+	onExit     func()              // ends the MCP registration with the process
 	hookAsks   map[string]*hookAsk // approvals the hook holds open, by request ID
 	hookSeq    int
 	hookOK     map[string]time.Time // items the hook let through, by item ID, until Codex asks about them
@@ -263,6 +265,9 @@ func (p *process) read(r io.Reader) {
 	if p.unregister != nil {
 		p.unregister()
 	}
+	if p.onExit != nil {
+		p.onExit()
+	}
 	p.mu.Lock()
 	p.done = true
 	pending := p.pending
@@ -380,8 +385,8 @@ func (p *process) openThread(ctx context.Context, spec runtime.StartSpec) error 
 	if model != valueDefault {
 		params["model"] = model
 	}
-	if cmd := p.d.hookCommand(); cmd != "" && p.rules != nil {
-		params["config"] = hookConfig(cmd)
+	if cfg := threadConfig(p.d.hookCommand(), p.rules != nil, spec.MCP); cfg != nil {
+		params["config"] = cfg
 	}
 	method := "thread/start"
 	if !spec.New {

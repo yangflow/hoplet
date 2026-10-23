@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	gosync "sync"
 
 	"github.com/yangflow/hoplet/agent/internal/localsock"
 	"github.com/yangflow/hoplet/agent/internal/mcp"
@@ -61,14 +62,28 @@ func (b *bridge) mcpSpec(sessionID string) *runtime.MCPSpec {
 		log.Printf("[agent] a session starts without the MCP server: %v", err)
 		return nil
 	}
-	unregister := h.server.Register(nonce, sessionID)
+	var mu gosync.Mutex
+	unregister := func() {}
+	if sessionID != "" {
+		unregister = h.server.Register(nonce, sessionID)
+	}
 	return &runtime.MCPSpec{
 		Command:     h.exe,
 		Args:        []string{"mcp"},
 		Env:         map[string]string{mcp.SockEnv: h.server.Path(), mcp.NonceEnv: nonce},
 		Nonce:       nonce,
 		ReadAllowed: true,
+		// A session whose ID the vendor assigns is named once it has one; until then the nonce names nobody.
+		Bind: func(id string) {
+			mu.Lock()
+			defer mu.Unlock()
+			unregister()
+			sessionID = id
+			unregister = h.server.Register(nonce, id)
+		},
 		Release: func() {
+			mu.Lock()
+			defer mu.Unlock()
 			unregister()
 			h.tokens.Forget(sessionID)
 		},

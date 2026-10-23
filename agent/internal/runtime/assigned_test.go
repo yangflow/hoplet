@@ -128,3 +128,36 @@ func TestAFailedStartOfAnAssignedSessionLeavesNoSession(t *testing.T) {
 		t.Fatalf("events = %v", rec.events)
 	}
 }
+
+// mcpAssigning is an assigning driver with the mcp capability.
+type mcpAssigning struct{ assigning }
+
+func (d *mcpAssigning) Capabilities() []runtime.Capability {
+	return append(d.assigning.Capabilities(), runtime.CapMCP)
+}
+
+// A session whose ID the vendor assigns gets an MCP spec made for no ID yet: the driver binds it to the ID.
+func TestASessionTheVendorNamesStartsWithAnUnboundMCPSpec(t *testing.T) {
+	d := &mcpAssigning{assigning{id: "019e0000-0000-7000-8000-000000000002"}}
+	rec := newRecorder()
+	var asked []string
+	m := runtime.NewManager(runtime.Config{
+		Driver: d,
+		Locate: func(string) (runtime.Location, error) { return runtime.Location{Dir: t.TempDir()}, nil },
+		Emit:   rec.emit, MaxIdle: 5,
+		MCP: func(id string) *runtime.MCPSpec {
+			asked = append(asked, id)
+			return &runtime.MCPSpec{Command: "/bin/hoplet-agent", Args: []string{"mcp"}, Nonce: "n"}
+		},
+	})
+	t.Cleanup(func() { m.Shutdown(context.Background()) })
+	id, err := m.Create(t.TempDir(), "x", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec.waitState(t, id, runtime.StateReady)
+	specs := d.started()
+	if len(asked) != 1 || asked[0] != "" || len(specs) != 1 || specs[0].MCP == nil || specs[0].MCP.Nonce != "n" {
+		t.Fatalf("asked %v, specs %+v", asked, specs)
+	}
+}

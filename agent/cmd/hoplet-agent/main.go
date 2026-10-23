@@ -96,13 +96,13 @@ func newHookCommand() *cobra.Command {
 	return hook
 }
 
-// newMCPCommand is `hoplet-agent mcp`, the stdio MCP server Claude Code starts for a session (ADR 0034). It speaks
+// newMCPCommand is `hoplet-agent mcp`, the stdio MCP server Claude Code or Codex starts for a session (ADR 0034). It speaks
 // MCP on stdin and stdout and forwards each tool call to the daemon over mcp.sock; the socket and the nonce that
 // names the session come from the environment. It needs no config file.
 func newMCPCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:               "mcp",
-		Short:             "The session MCP server Claude Code starts",
+		Short:             "The session MCP server a coding agent starts",
 		Hidden:            true,
 		Args:              cobra.NoArgs,
 		SilenceUsage:      true,

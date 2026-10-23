@@ -461,10 +461,10 @@ requests, never prompts itself, and never prompts a session that runs in a more 
 A chain of prompts holds at most three sessions and never returns to one of them, and a session is limited to 6
 prompts a minute and 60 an hour, 3 a minute to one session and 2 unanswered prompts to one session. The token
 ends with the runtime and is never listed in Settings. The audit log records such a prompt with the actor kind
-`session` and the chain. With `session_mcp` on in the agent's config, a Claude Code session on that machine has
+`session` and the chain. With `session_mcp` on in the agent's config, a Claude Code or Codex session on that machine has
 the tools `list_machines`, `list_sessions` and `read_session` (MCP server `hoplet`); `read_session` returns a page
 of lines, at most 32 KiB, marked as data. Reading needs no prompt and a `deny` or `ask` rule still wins. The tools
-that send, start or hand off, the Codex driver and the Settings screen follow.
+that send, start or hand off and the Settings screen follow.
 
 ### CLI
 
