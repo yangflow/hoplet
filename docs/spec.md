@@ -580,7 +580,8 @@ API, in `shared/src/` (schemas, types and error codes) and `agent/internal/sync/
   `GET /api/search?q=&start=&limit=`; `GET /api/sessions/:id/search?q=&start=&limit=`;
   `POST /api/sessions/:id/prompt`; `POST /api/sessions/:id/permission`; `POST /api/sessions/:id/interrupt`;
   `POST /api/sessions/:id/stop`; `GET /api/sessions/:id/workspace`; `GET /api/sessions/:id/workspace/file?path=&at=`;
-  `GET /api/sessions/:id/workspace/diff?path=`; `GET /api/sessions/:id/snapshot/changes`;
+  `GET /api/sessions/:id/workspace/diff?path=&against=&cursor=&limit=`; `GET /api/sessions/:id/workspace/changes`;
+  `GET /api/sessions/:id/snapshot/changes`;
   `GET /api/sessions/:id/snapshot/diff?path=`;
   `POST /api/sessions/:id/handoff`; `GET /api/devices` (each device with the `system` its agent announced and the `providers` its connected agent
   announced and their capabilities); `POST /api/devices`;
@@ -611,8 +612,8 @@ API, in `shared/src/` (schemas, types and error codes) and `agent/internal/sync/
   `welcome`, `session.append`, `session.ack`, `session.resync`, `session.rejected`), control
   (`runtime.prompt|permission.answer|interrupt|stop|start` from the core; `runtime.state` with the driver's
   capabilities, `runtime.output`, `runtime.permission`, `runtime.permission.auto`, `runtime.rejected`, `runtime.started` and
-  `runtime.start.rejected` from the agent), workspace (`session.workspace.list|file.read|diff.read` from
-  the core; `session.workspace`, `session.workspace.file`, `session.workspace.diff`,
+  `runtime.start.rejected` from the agent), workspace (`session.workspace.list|file.read|diff.read|changes.read` from
+  the core; `session.workspace`, `session.workspace.file`, `session.workspace.diff`, `session.workspace.changes`,
   `session.workspace.rejected` and `workspace.snapshot` from the agent), handoff
   (`handoff.prepare|install|data|verify|commit|abort` from the core;
   `handoff.prepared|installed|verified|failed` from the agent), projects
@@ -995,11 +996,21 @@ has it. Text is UTF-8 without a NUL byte in its first 256 KiB and is returned up
 beyond; an image (PNG, JPEG, GIF, WebP, SVG by extension and content) of at most 4 MiB is returned whole as
 base64 with its media type; any other file is `binary` with its size. Paths that reach `.git` are refused.
 `GET /api/sessions/:id/workspace/diff?path=` returns the unified diff of one changed path against `HEAD`: its
-hunks without the header lines, at most 256 KiB cut at a line end with `truncated` and the full size beyond
-that, or `binary` with the old and new sizes; an untracked file is all added lines. These three need the owner
-online (`owner-offline`); the agent's refusal (`not-changed`, `not-in-head`, `path-escape` and the like) is
-`rejected` with that `reason`. Requests and the listing travel on the control lane, file and diff answers on
-the bulk lane, so a large image never delays a prompt.
+hunks without the header lines, one page of at most 256 KiB cut at a line end, or `binary` with the old and new
+sizes; an untracked file is all added lines. `truncated` says more follows, `next` is then the `cursor` of the
+next page and `size` the whole length of the hunks. `limit` (1 to 262144 bytes) makes the pages smaller, and
+`cursor` must be 0 or a `next` the agent returned (else `rejected` with `invalid-cursor`); the cursor is a byte
+offset, so a file that changes between two pages can shift the text. `against=base` compares with the commit the
+session's own worktree started from instead of `HEAD`, which is `HEAD` for a session without a worktree of its own.
+`GET /api/sessions/:id/workspace/changes` lists what the session changed, committed or not, without any
+content: `base` (the commit the changes are counted against), `branch` (empty on a detached `HEAD`), `shared`
+(true when the session works in a directory no worktree was made for, so the files are everything uncommitted
+there and not the session's alone), `total` and at most 200 `files` by path, each with its status, line counts or
+`binary`. The base is recorded only for a worktree Hoplet makes for a new session; another worktree is compared
+with `HEAD`. A directory that is not in a repository with a commit is `rejected` with `not-a-git-repository`.
+These four need the owner online (`owner-offline`); the agent's refusal (`not-changed`, `not-in-head`,
+`path-escape` and the like) is `rejected` with that `reason`. Requests, the listing and the changes travel on the
+control lane, file and diff answers on the bulk lane, so a large image never delays a prompt.
 `GET /api/sessions/:id/snapshot/changes` and `GET /api/sessions/:id/snapshot/diff?path=` answer the same from
 the latest stored snapshot (its tracked diff against the base commit and its untracked files), with the
 snapshot's time and base commit (the changes also with its `origin` and the size of its archive), whether or not the owner is online: `no-snapshot` when there is none and

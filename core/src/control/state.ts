@@ -36,6 +36,7 @@ import type {
   SteerOutcome,
   StepOutcome,
   VerifiedInfo,
+  WorkspaceChangesOutcome,
   WorkspaceDiffOutcome,
   WorkspaceFileOutcome,
   WorkspaceOutcome,
@@ -109,6 +110,7 @@ export interface ControlState {
   pendingWs: Map<string, Waiter<WorkspaceOutcome>>;
   pendingFile: Map<string, Waiter<WorkspaceFileOutcome>>;
   pendingDiff: Map<string, Waiter<WorkspaceDiffOutcome>>;
+  pendingChanges: Map<string, Waiter<WorkspaceChangesOutcome>>;
   /** The handoff in progress for each session, by session ID. */
   handoffs: Map<string, ActiveHandoff>;
   /** Answers to handoff steps, by handoff ID. */

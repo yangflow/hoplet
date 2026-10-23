@@ -4,12 +4,12 @@ import "testing"
 
 func TestProvidersUpdateRefusesWhatOnlyTheMachineSets(t *testing.T) {
 	for _, key := range []string{`"command":"/bin/x"`, `"env":{"A":"b"}`, `"extends":"codex"`, `"configuration":{}`} {
-		raw := []byte(`{"v":19,"type":"device.providers.update","requestId":"r","id":"glm",` + key + `}`)
+		raw := []byte(`{"v":20,"type":"device.providers.update","requestId":"r","id":"glm",` + key + `}`)
 		if _, err := parseProvidersUpdate(raw); err == nil {
 			t.Errorf("%s was accepted", key)
 		}
 	}
-	raw := []byte(`{"v":19,"type":"device.providers.update","requestId":"r","id":"glm","name":"G","enabled":false,"defaults":{"model":"m"}}`)
+	raw := []byte(`{"v":20,"type":"device.providers.update","requestId":"r","id":"glm","name":"G","enabled":false,"defaults":{"model":"m"}}`)
 	req, err := parseProvidersUpdate(raw)
 	if err != nil {
 		t.Fatal(err)

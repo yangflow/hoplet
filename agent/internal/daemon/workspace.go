@@ -47,8 +47,8 @@ func workspaceFile(cfg *config.Config) sync.WorkspaceFileFunc {
 }
 
 func workspaceDiff(cfg *config.Config) sync.WorkspaceDiffFunc {
-	return func(dctx context.Context, sessionID, rel string) (sync.WorkspaceDiffContent, error) {
-		diff, err := workspace.ReadDiff(dctx, finders(cfg), sessionID, rel)
+	return func(dctx context.Context, sessionID, rel string, page sync.WorkspaceDiffPage) (sync.WorkspaceDiffContent, error) {
+		diff, err := workspace.ReadDiffPage(dctx, finders(cfg), sessionID, rel, workspace.DiffPage{Base: page.Base, From: page.Cursor, Limit: page.Limit})
 		if err != nil {
 			return sync.WorkspaceDiffContent{}, err
 		}
@@ -57,9 +57,24 @@ func workspaceDiff(cfg *config.Config) sync.WorkspaceDiffFunc {
 			Kind:      diff.Kind,
 			Diff:      diff.Text,
 			Truncated: diff.Truncated,
+			Next:      diff.Next,
 			Size:      diff.Size,
 			OldSize:   diff.OldSize,
 			NewSize:   diff.NewSize,
 		}, nil
+	}
+}
+
+func workspaceChanges(cfg *config.Config) sync.WorkspaceChangesFunc {
+	return func(cctx context.Context, sessionID string) (sync.WorkspaceChangesContent, error) {
+		changes, err := workspace.ReadChanges(cctx, finders(cfg), sessionID)
+		if err != nil {
+			return sync.WorkspaceChangesContent{}, err
+		}
+		files := make([]sync.WorkspaceChange, len(changes.Files))
+		for i, c := range changes.Files {
+			files[i] = sync.WorkspaceChange{Path: c.Path, Status: c.Status, Added: c.Added, Removed: c.Removed, Binary: c.Binary}
+		}
+		return sync.WorkspaceChangesContent{Branch: changes.Branch, Base: changes.Base, Shared: changes.Shared, Total: changes.Total, Files: files}, nil
 	}
 }

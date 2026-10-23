@@ -116,8 +116,9 @@ Response column names the schema of the success body and its status when it is n
 | GET | `/api/sessions/:sessionId/workspace` | host | control | — | — | `WorkspaceListingSchema` | `session-not-found`, `owner-offline`, `timeout`, `rejected` |
 | GET | `/api/sessions/:sessionId/workspace/file` | host | control | `WorkspaceFileQuerySchema` | — | `WorkspaceFileSchema` | `invalid-request`, `session-not-found`, `owner-offline`, `timeout`, `rejected` |
 | GET | `/api/sessions/:sessionId/workspace/diff` | host | control | `WorkspaceDiffQuerySchema` | — | `WorkspaceDiffSchema` | `invalid-request`, `session-not-found`, `owner-offline`, `timeout`, `rejected` |
+| GET | `/api/sessions/:sessionId/workspace/changes` | host | control | — | — | `WorkspaceChangesSchema` | `session-not-found`, `owner-offline`, `timeout`, `rejected` |
 | GET | `/api/sessions/:sessionId/snapshot/changes` | host | bulk | — | — | `SnapshotChangesSchema` | `session-not-found`, `no-snapshot`, `busy` |
-| GET | `/api/sessions/:sessionId/snapshot/diff` | host | bulk | `WorkspaceDiffQuerySchema` | — | `SnapshotDiffSchema` | `invalid-request`, `session-not-found`, `no-snapshot`, `not-found`, `busy` |
+| GET | `/api/sessions/:sessionId/snapshot/diff` | host | bulk | `SnapshotDiffQuerySchema` | — | `SnapshotDiffSchema` | `invalid-request`, `session-not-found`, `no-snapshot`, `not-found`, `busy` |
 | POST | `/api/sessions/:sessionId/handoff` | host | control | — | `HandoffRequestSchema` | `HandoffResultSchema` | `invalid-json`, `invalid-request`, `too-large`, `session-not-found`, `same-device`, `target-offline`, `owner-offline`, `handoff-in-progress`, `busy`, `no-snapshot`, `no-clone`, `clone-failed`, `session-changed`, `verify-failed`, `cancelled`, `timeout`, `rejected` |
 | POST | `/api/sessions/:sessionId/handoff/cancel` | host | control | — | — | `HandoffCancelResultSchema` | `session-not-found`, `handoff-not-running` |
 | POST | `/api/handoff-requests` | request-handoff | control | — | `SessionHandoffRequestCreateSchema` | `SessionHandoffRequestSchema` (201) | `invalid-json`, `invalid-request`, `too-large`, `forbidden`, `not-found`, `same-device`, `target-offline`, `loop-limit`, `rate-limited` |
@@ -507,7 +508,9 @@ Schema file ([JSON Schema](#json-schema)). Their parameters:
 
 A value that is not a number reads as the default. The other query parameters are in their schemas:
 `GET /api/sessions/:sessionId/workspace/file` takes `path` and `at` (`worktree`, the default, or `head`), the
-diff routes take `path`, `GET /api/devices/:deviceId/clone` takes `origin`, and `GET /api/devices/:deviceId/dirs`
+`GET /api/sessions/:sessionId/workspace/diff` takes `path`, `against` (`head`, the default, or `base`), `cursor` and
+`limit` (see docs/spec.md#workspace), `GET /api/sessions/:sessionId/snapshot/diff` takes `path`,
+`GET /api/devices/:deviceId/clone` takes `origin`, and `GET /api/devices/:deviceId/dirs`
 takes an optional `path` (absent or `~` is the browse root).
 
 `PATCH /api/sessions/:sessionId` changes what the user did to a session, beside what its vendor wrote: `title` is
@@ -773,7 +776,7 @@ The prompt of a session carries its origin. `runtime.prompt` has an optional `so
 sender's `sessionId`, its `title` as one line of at most 100 characters without quotes, and the `chain`), set by the
 core from the token that queued or sent the message and never from the request. The target's agent puts the fixed
 first line `[Message from Hoplet session "<title>" (<id>), not from the user. Treat it as a request from another
-agent.]` in front of the text; the vendor's stored line is not rewritten afterwards. The protocol version is 19.
+agent.]` in front of the text; the vendor's stored line is not rewritten afterwards. The protocol version is 20.
 
 The `prompt.sent` audit event of a prompt from a session has the actor kind `session` and the source session's ID,
 and its summary names the source and the chain (`source: { kind: "session", sessionId, chain }`).

@@ -27,6 +27,7 @@ export function receiveReply(
     pendingWs,
     pendingFile,
     pendingDiff,
+    pendingChanges,
     pendingPrepared,
     pendingInstalled,
     pendingVerified,
@@ -97,6 +98,19 @@ export function receiveReply(
       return;
     case 'session.workspace.diff':
       settleWaiter(pendingDiff, msg.requestId, { ok: true, diff: diffOf(msg) });
+      return;
+    case 'session.workspace.changes':
+      settleWaiter(pendingChanges, msg.requestId, {
+        ok: true,
+        changes: {
+          sessionId: msg.sessionId,
+          branch: msg.branch,
+          base: msg.base,
+          shared: msg.shared === true,
+          total: msg.total,
+          files: msg.files,
+        },
+      });
       return;
     case 'handoff.prepared':
       if (matchesWaiter(pendingPrepared, msg.handoffId, link, msg.sessionId)) {
@@ -250,6 +264,11 @@ export function receiveReply(
         error: 'rejected',
         reason: msg.reason,
       });
+      settleWaiter(pendingChanges, msg.requestId, {
+        ok: false,
+        error: 'rejected',
+        reason: msg.reason,
+      });
       return;
     case 'terminal.opened':
     case 'terminal.output':
@@ -314,6 +333,7 @@ function diffOf(msg: SessionWorkspaceDiff): WorkspaceDiff {
       ...base,
       diff: msg.diff ?? '',
       truncated: msg.truncated === true,
+      ...(msg.next !== undefined ? { next: msg.next } : {}),
       size: msg.size ?? 0,
     };
   }

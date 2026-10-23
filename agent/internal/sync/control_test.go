@@ -329,22 +329,67 @@ func TestHandleWorkspaceFileImage(t *testing.T) {
 
 func TestHandleWorkspaceDiff(t *testing.T) {
 	c, cs, read := dialTestConn(t)
-	c.hooks.Diff = func(ctx context.Context, sessionID, path string) (WorkspaceDiffContent, error) {
+	c.hooks.Diff = func(ctx context.Context, sessionID, path string, page WorkspaceDiffPage) (WorkspaceDiffContent, error) {
 		if path == "gone" {
 			return WorkspaceDiffContent{}, errors.New("not-changed")
+		}
+		if path == "big.txt" {
+			next := page.Cursor + 10
+			if !page.Base || page.Limit != 2048 {
+				t.Fatalf("page %#v", page)
+			}
+			return WorkspaceDiffContent{Status: "modified", Kind: "text", Diff: "@@\n", Truncated: true, Next: &next, Size: 99}, nil
 		}
 		size := int64(9)
 		return WorkspaceDiffContent{Status: "added", Kind: "binary", NewSize: &size}, nil
 	}
-	c.handleWorkspaceDiff(cs, "s1", "r1", "pic.bin")
+	c.handleWorkspaceDiff(cs, "s1", "r1", "pic.bin", WorkspaceDiffPage{})
 	msg := read()
 	if msg["type"] != "session.workspace.diff" || msg["kind"] != "binary" || msg["newSize"] != 9.0 ||
 		msg["oldSize"] != nil || msg["status"] != "added" {
 		t.Fatalf("got %#v", msg)
 	}
-	c.handleWorkspaceDiff(cs, "s1", "r2", "gone")
+	c.handleWorkspaceDiff(cs, "s1", "r2", "gone", WorkspaceDiffPage{})
 	msg = read()
 	if msg["type"] != "session.workspace.rejected" || msg["reason"] != "not-changed" || msg["requestId"] != "r2" {
+		t.Fatalf("got %#v", msg)
+	}
+	c.handleWorkspaceDiff(cs, "s1", "r3", "big.txt", WorkspaceDiffPage{Base: true, Cursor: 30, Limit: 2048})
+	msg = read()
+	if msg["type"] != "session.workspace.diff" || msg["truncated"] != true || msg["next"] != 40.0 || msg["size"] != 99.0 {
+		t.Fatalf("got %#v", msg)
+	}
+}
+
+func TestHandleWorkspaceChanges(t *testing.T) {
+	c, cs, read := dialTestConn(t)
+	c.hooks.Changes = func(ctx context.Context, sessionID string) (WorkspaceChangesContent, error) {
+		if sessionID == "s2" {
+			return WorkspaceChangesContent{}, errors.New("not-a-git-repository")
+		}
+		if sessionID == "s3" {
+			return WorkspaceChangesContent{Branch: "b", Base: "abc", Shared: true}, nil
+		}
+		added, removed := 3, 1
+		return WorkspaceChangesContent{Branch: "hoplet/x", Base: "abc", Total: 201, Files: []WorkspaceChange{
+			{Path: "a.go", Status: "modified", Added: &added, Removed: &removed},
+		}}, nil
+	}
+	c.handleWorkspaceChanges(cs, "s1", "r1")
+	msg := read()
+	files, _ := msg["files"].([]any)
+	if msg["type"] != "session.workspace.changes" || msg["branch"] != "hoplet/x" || msg["base"] != "abc" ||
+		msg["total"] != 201.0 || msg["shared"] != nil || len(files) != 1 {
+		t.Fatalf("got %#v", msg)
+	}
+	c.handleWorkspaceChanges(cs, "s3", "r3")
+	msg = read()
+	if empty, ok := msg["files"].([]any); !ok || len(empty) != 0 || msg["shared"] != true {
+		t.Fatalf("got %#v", msg)
+	}
+	c.handleWorkspaceChanges(cs, "s2", "r2")
+	msg = read()
+	if msg["type"] != "session.workspace.rejected" || msg["reason"] != "not-a-git-repository" {
 		t.Fatalf("got %#v", msg)
 	}
 }

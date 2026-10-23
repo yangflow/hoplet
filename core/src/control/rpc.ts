@@ -9,6 +9,7 @@ import type {
   DeviceProjectsRemove,
   DeviceSessionsImport,
   DeviceSessionsRemove,
+  SessionWorkspaceChangesRead,
   SessionWorkspaceDiffRead,
   SessionWorkspaceFileRead,
   SessionWorkspaceList,
@@ -35,6 +36,7 @@ type Rpc = Pick<
   | 'workspace'
   | 'workspaceFile'
   | 'workspaceDiff'
+  | 'workspaceChanges'
   | 'listDirs'
   | 'putAttachment'
   | 'findClone'
@@ -53,6 +55,7 @@ export function createRpc(state: ControlState): Rpc {
     pendingWs,
     pendingFile,
     pendingDiff,
+    pendingChanges,
     pendingDeviceControl,
     pendingProviders,
     pendingDirs,
@@ -132,7 +135,7 @@ export function createRpc(state: ControlState): Rpc {
         () => link.send(msg),
       );
     },
-    workspaceDiff(sessionId, ownerDeviceId, path) {
+    workspaceDiff(sessionId, ownerDeviceId, path, page = {}) {
       const link = onlineLink(state, ownerDeviceId);
       if (!link) return Promise.resolve({ ok: false, error: 'owner-offline' });
       const requestId = randomUUID();
@@ -142,9 +145,30 @@ export function createRpc(state: ControlState): Rpc {
         sessionId,
         requestId,
         path,
+        ...(page.base === true ? { base: true } : {}),
+        ...(page.cursor !== undefined ? { cursor: page.cursor } : {}),
+        ...(page.limit !== undefined ? { limit: page.limit } : {}),
       };
       return askWaiter(
         pendingDiff,
+        requestId,
+        state.workspaceTimeoutMs,
+        { ok: false, error: 'timeout' },
+        () => link.send(msg),
+      );
+    },
+    workspaceChanges(sessionId, ownerDeviceId) {
+      const link = onlineLink(state, ownerDeviceId);
+      if (!link) return Promise.resolve({ ok: false, error: 'owner-offline' });
+      const requestId = randomUUID();
+      const msg: SessionWorkspaceChangesRead = {
+        v: PROTOCOL_VERSION,
+        type: 'session.workspace.changes.read',
+        sessionId,
+        requestId,
+      };
+      return askWaiter(
+        pendingChanges,
         requestId,
         state.workspaceTimeoutMs,
         { ok: false, error: 'timeout' },

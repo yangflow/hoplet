@@ -134,6 +134,7 @@ import {
   SessionSearchQuerySchema,
   SessionUsageSchema,
   SnapshotChangesSchema,
+  SnapshotDiffQuerySchema,
   SnapshotDiffSchema,
   SteerRequestSchema,
   SteerResultSchema,
@@ -169,6 +170,7 @@ import {
   WebhookListResponseSchema,
   WebhookTestResponseSchema,
   WebhookUpdateRequestSchema,
+  WorkspaceChangesSchema,
   WorkspaceDiffQuerySchema,
   WorkspaceDiffSchema,
   WorkspaceFileQuerySchema,
@@ -1261,8 +1263,30 @@ export const routes: readonly Route[] = [
     response: WorkspaceDiffSchema,
     handler: async (d) => {
       const sessionId = d.params.sessionId ?? '';
-      const outcome = await d.control.workspaceDiff(sessionId, ownerOf(d, sessionId), d.query.path);
+      const outcome = await d.control.workspaceDiff(
+        sessionId,
+        ownerOf(d, sessionId),
+        d.query.path,
+        {
+          base: d.query.against === 'base',
+          cursor: d.query.cursor,
+          limit: d.query.limit,
+        },
+      );
       if (outcome.ok) return outcome.diff;
+      throw relayError(outcome);
+    },
+  }),
+  defineRoute({
+    method: 'GET',
+    path: '/api/sessions/:sessionId/workspace/changes',
+    access: 'host',
+    lane: 'control',
+    response: WorkspaceChangesSchema,
+    handler: async (d) => {
+      const sessionId = d.params.sessionId ?? '';
+      const outcome = await d.control.workspaceChanges(sessionId, ownerOf(d, sessionId));
+      if (outcome.ok) return outcome.changes;
       throw relayError(outcome);
     },
   }),
@@ -1287,7 +1311,7 @@ export const routes: readonly Route[] = [
     path: '/api/sessions/:sessionId/snapshot/diff',
     access: 'host',
     lane: 'bulk',
-    query: WorkspaceDiffQuerySchema,
+    query: SnapshotDiffQuerySchema,
     response: SnapshotDiffSchema,
     handler: async ({ store, params, query }) => {
       const sessionId = params.sessionId ?? '';
