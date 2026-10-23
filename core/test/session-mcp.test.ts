@@ -751,6 +751,45 @@ describe('starting a session', () => {
     expect(b.starts[2]?.config).toEqual({ mode: 'acceptEdits' });
   });
 
+  it('refuses every wider mode for a child of a session in the default mode', async () => {
+    const b = await boot();
+    await b.ready({ a1: 'default' });
+    await b.settings('a1', { create: true });
+    const parent = b.tokenOf('a1');
+    const edits = await b.start(parent, 'wide-edits', { config: { mode: 'acceptEdits' } });
+    expect(edits.status).toBe(403);
+    expect(edits.body).toMatchObject({ code: 'forbidden', reason: 'target-mode-more-permissive' });
+    // A high-risk setting is refused before the ceiling is looked at.
+    const bypass = await b.start(parent, 'wide-bypass', { config: { mode: 'bypassPermissions' } });
+    expect(bypass.status).toBe(403);
+    expect(bypass.body).toMatchObject({ code: 'forbidden' });
+    expect(b.starts).toHaveLength(0);
+    // The same or a narrower mode is allowed, and no request at all gets the parent's mode.
+    expect((await b.start(parent, 'same', { config: { mode: 'default' } })).status).toBe(200);
+    expect((await b.start(parent, 'plan', { config: { mode: 'plan' } })).status).toBe(200);
+    expect((await b.start(parent, 'unset')).status).toBe(200);
+    expect(b.starts.map((s) => s.config)).toEqual([
+      { mode: 'default' },
+      { mode: 'plan' },
+      { mode: 'default' },
+    ]);
+  });
+
+  it('holds the mode ceiling down a tree of sessions', async () => {
+    const b = await boot();
+    await b.ready({ a1: 'default' });
+    await b.settings('a1', { create: true });
+    expect((await b.start(b.tokenOf('a1'), 'child', { config: { mode: 'plan' } })).status).toBe(
+      200,
+    );
+    // The child runs in plan, so the mode of the root is already wider than it may hand on.
+    await b.settings('new-1', { create: true });
+    const grand = await b.start(b.tokenOf('new-1'), 'grand', { config: { mode: 'default' } });
+    expect(grand.status).toBe(403);
+    expect(grand.body).toMatchObject({ reason: 'target-mode-more-permissive' });
+    expect(b.starts).toHaveLength(1);
+  });
+
   it('is refused when the starting session mode is unknown', async () => {
     const b = await boot();
     await b.settings('a1', { create: true });
