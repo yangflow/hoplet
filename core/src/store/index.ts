@@ -936,6 +936,11 @@ export class Store {
     return sessionMcp.getChain(this.ctx, sessionId);
   }
 
+  /** The sessions whose latest prompt came from `sessionId`. */
+  sessionChildren(sessionId: string): string[] {
+    return sessionMcp.getChildren(this.ctx, sessionId);
+  }
+
   setSessionChain(sessionId: string, chain: string[]): void {
     sessionMcp.setChain(this.ctx, sessionId, chain);
   }

@@ -51,7 +51,7 @@ const modeOption = (current: string) => ({
     { value: 'plan', name: 'Plan' },
     { value: 'default', name: 'Manual' },
     { value: 'acceptEdits', name: 'Accept edits' },
-    { value: 'bypassPermissions', name: 'Bypass' },
+    { value: 'bypassPermissions', name: 'Bypass', risk: 'high' },
   ],
 });
 const capabilities = (mode: string) => ({
@@ -59,6 +59,15 @@ const capabilities = (mode: string) => ({
   interrupt: true,
   config: [modeOption(mode)],
 });
+
+const CONFIGURATION = {
+  id: 'claude',
+  name: 'Claude Code',
+  extends: 'claude',
+  enabled: true,
+  env: [],
+  defaults: {},
+};
 
 async function boot(limits: Partial<SessionLimits> = {}) {
   const dir = mkdtempSync(path.join(tmpdir(), 'hoplet-session-mcp-'));
@@ -115,6 +124,7 @@ async function boot(limits: Partial<SessionLimits> = {}) {
   sockets.push(agent);
   const send = (msg: Json) => agent.send(JSON.stringify({ v: PROTOCOL_VERSION, ...msg }));
   const prompts: Json[] = [];
+  const starts: Json[] = [];
   const modes = new Map<string, string>();
   const report = (sessionId: string, state: string) =>
     send({
@@ -129,12 +139,40 @@ async function boot(limits: Partial<SessionLimits> = {}) {
       prompts.push(msg);
       report(msg.sessionId, 'starting');
     }
+    if (msg.type === 'device.projects.list') {
+      send({
+        type: 'device.projects',
+        requestId: msg.requestId,
+        candidates: [],
+        projects: ['/work/a', '/work/b'].map((p) => ({ path: p, sessions: [] })),
+      });
+    }
+    // A new session: the agent names it, then reports it ready in the mode it was asked for.
+    if (msg.type === 'runtime.start') {
+      starts.push(msg);
+      const sessionId = `new-${starts.length}`;
+      modes.set(sessionId, (msg.config as Json | undefined)?.mode ?? 'default');
+      send({ type: 'runtime.started', requestId: msg.requestId, sessionId });
+      report(sessionId, 'ready');
+    }
   });
   await new Promise<void>((resolve, reject) => {
     agent.once('error', reject);
     agent.once('message', () => resolve());
     agent.once('open', () =>
-      send({ type: 'device.hello', deviceId: 'dev-a', name: 'dev-a', version: 'test' }),
+      send({
+        type: 'device.hello',
+        deviceId: 'dev-a',
+        name: 'dev-a',
+        version: 'test',
+        providers: [
+          {
+            provider: 'claude',
+            configuration: CONFIGURATION,
+            capabilities: capabilities('default'),
+          },
+        ],
+      }),
     );
   });
   /** Reports each session ready in its mode. */
@@ -171,7 +209,29 @@ async function boot(limits: Partial<SessionLimits> = {}) {
   const prompt = (token: string, target: string, promptId: string) =>
     rest('POST', `/api/sessions/${target}/prompt`, token, { text: 'hi', promptId });
   const settle = () => new Promise((r) => setTimeout(r, 60));
-  return { store, control, rest, ready, settings, tokenOf, audit, prompt, prompts, settle };
+  const start = (token: string, promptId: string, extra: Json = {}) =>
+    rest('POST', '/api/sessions', token, {
+      deviceId: 'dev-a',
+      projectPath: '/work/a',
+      provider: 'claude',
+      text: 'build it',
+      promptId,
+      ...extra,
+    });
+  return {
+    store,
+    control,
+    rest,
+    ready,
+    settings,
+    tokenOf,
+    audit,
+    prompt,
+    prompts,
+    starts,
+    start,
+    settle,
+  };
 }
 
 describe('the session token', () => {
@@ -597,5 +657,155 @@ describe('limits', () => {
     expect((await b.prompt(b.tokenOf('a1'), 'a2', 'p1')).status).toBe(403);
     await b.ready();
     expect((await b.prompt(b.tokenOf('a1'), 'a2', 'p2')).status).toBe(202);
+  });
+});
+
+describe('starting a session', () => {
+  it('needs the create ability, looked up live', async () => {
+    const b = await boot();
+    await b.ready();
+    const secret = b.tokenOf('a1');
+    expect((await b.start(secret, 'p1')).status).toBe(403);
+    await b.settings('a1', { send: true });
+    expect((await b.start(secret, 'p2')).status).toBe(403);
+    await b.settings('a1', { create: true });
+    const res = await b.start(secret, 'p3');
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ ok: true, sessionId: 'new-1', promptId: 'p3' });
+    await b.settings('a1', { create: false });
+    expect((await b.start(secret, 'p4')).status).toBe(403);
+    expect(b.starts).toHaveLength(1);
+  });
+
+  it('records the chain, names the session in the first prompt and audits it', async () => {
+    const b = await boot();
+    await b.ready();
+    await b.settings('a1', { create: true });
+    expect((await b.start(b.tokenOf('a1'), 'p1')).status).toBe(200);
+    expect(b.starts[0]?.source).toMatchObject({ kind: 'session', sessionId: 'a1', chain: ['a1'] });
+    expect(b.store.sessionChain('new-1')).toEqual(['a1']);
+    const created = b.audit().filter((e) => e.type === 'session.created');
+    expect(created.at(-1)).toMatchObject({
+      actorKind: 'session',
+      actorId: 'a1',
+      sessionId: 'new-1',
+    });
+    expect(created.at(-1)?.summary.source).toEqual({
+      kind: 'session',
+      sessionId: 'a1',
+      chain: ['a1'],
+    });
+    expect(JSON.stringify(created)).not.toContain('build it');
+    // A start from the host has no source.
+    expect((await b.start(HOST, 'p2')).status).toBe(200);
+    expect(b.starts[1]?.source).toBeUndefined();
+    expect(b.store.sessionChain('new-2')).toEqual([]);
+  });
+
+  it('reaches the project, the machine or all, as the settings say', async () => {
+    const b = await boot();
+    await b.ready();
+    await b.settings('a1', { create: true });
+    const secret = b.tokenOf('a1');
+    expect((await b.start(secret, 'p1', { projectPath: '/work/b' })).status).toBe(403);
+    expect((await b.start(secret, 'p2', { deviceId: 'dev-b' })).status).toBe(403);
+    await b.settings('a1', { create: true, visibility: 'machine' });
+    expect((await b.start(secret, 'p3', { projectPath: '/work/b' })).status).toBe(200);
+    expect(b.starts).toHaveLength(1);
+  });
+
+  it('never starts a session in a high-risk setting', async () => {
+    const b = await boot();
+    await b.ready({ a1: 'bypassPermissions' });
+    await b.settings('a1', { create: true });
+    const secret = b.tokenOf('a1');
+    const res = await b.start(secret, 'p1', { config: { mode: 'bypassPermissions' } });
+    expect(res.status).toBe(403);
+    // Without a mode the session gets the highest one below it that is not high risk.
+    expect((await b.start(secret, 'p2')).status).toBe(200);
+    expect(b.starts[0]?.config).toEqual({ mode: 'acceptEdits' });
+  });
+
+  it('is never more permissive than the starting session, and fills the mode in', async () => {
+    const b = await boot();
+    await b.ready({ a1: 'plan', a2: 'acceptEdits' });
+    await b.settings('a1', { create: true });
+    await b.settings('a2', { create: true });
+    const plan = b.tokenOf('a1');
+    const more = await b.start(plan, 'p1', { config: { mode: 'acceptEdits' } });
+    expect(more.status).toBe(403);
+    expect(more.body).toMatchObject({ code: 'forbidden', reason: 'target-mode-more-permissive' });
+    expect((await b.start(plan, 'p2', { config: { mode: 'unheard-of' } })).body?.reason).toBe(
+      'target-mode-unknown',
+    );
+    expect((await b.start(plan, 'p3')).status).toBe(200);
+    expect(b.starts[0]?.config).toEqual({ mode: 'plan' });
+    expect((await b.start(b.tokenOf('a2'), 'p4', { config: { mode: 'default' } })).status).toBe(
+      200,
+    );
+    expect(b.starts[1]?.config).toEqual({ mode: 'default' });
+    expect((await b.start(b.tokenOf('a2'), 'p5')).status).toBe(200);
+    expect(b.starts[2]?.config).toEqual({ mode: 'acceptEdits' });
+  });
+
+  it('is refused when the starting session mode is unknown', async () => {
+    const b = await boot();
+    await b.settings('a1', { create: true });
+    const res = await b.start(b.tokenOf('a1'), 'p1');
+    expect(res.status).toBe(403);
+    expect(res.body?.reason).toBe('sender-mode-unknown');
+    expect(b.starts).toHaveLength(0);
+  });
+
+  it('refuses a chain longer than three sessions with loop-limit', async () => {
+    const b = await boot();
+    await b.ready();
+    await b.settings('a1', { create: true });
+    b.store.setSessionChain('a1', ['x', 'y', 'z']);
+    const res = await b.start(b.tokenOf('a1'), 'p1');
+    expect(res.status).toBe(409);
+    expect(res.body?.code).toBe('loop-limit');
+    // One link fewer is allowed, and the new session's chain is the source's plus one.
+    b.store.setSessionChain('a1', ['x', 'y']);
+    expect((await b.start(b.tokenOf('a1'), 'p2')).status).toBe(200);
+    expect(b.store.sessionChain('new-1')).toEqual(['x', 'y', 'a1']);
+  });
+
+  it('allows the limit of starts an hour, then answers 429 with Retry-After', async () => {
+    const b = await boot({ startsPerHour: 2 });
+    await b.ready();
+    await b.settings('a1', { create: true });
+    const secret = b.tokenOf('a1');
+    expect((await b.start(secret, 'p1')).status).toBe(200);
+    // A start the core refuses does not count.
+    expect((await b.start(secret, 'bad', { projectPath: '/elsewhere' })).status).toBe(403);
+    expect((await b.start(secret, 'p2')).status).toBe(200);
+    const limited = await b.start(secret, 'p3');
+    expect(limited.status).toBe(429);
+    expect(limited.body?.code).toBe('rate-limited');
+    expect(Number(limited.headers.get('retry-after'))).toBeGreaterThan(0);
+    expect(b.starts).toHaveLength(2);
+  });
+
+  it('does not count a start the device refused', async () => {
+    const b = await boot({ startsPerHour: 1 });
+    await b.ready();
+    await b.settings('a1', { create: true, visibility: 'all' });
+    const secret = b.tokenOf('a1');
+    expect((await b.start(secret, 'p1', { projectPath: '/not/watched' })).status).toBe(400);
+    expect((await b.start(secret, 'p2')).status).toBe(200);
+  });
+
+  it('allows a limited number of live sessions it started', async () => {
+    const b = await boot({ liveChildren: 1 });
+    await b.ready();
+    await b.settings('a1', { create: true });
+    const secret = b.tokenOf('a1');
+    expect((await b.start(secret, 'p1')).status).toBe(200);
+    await b.settle();
+    const second = await b.start(secret, 'p2');
+    expect(second.status).toBe(429);
+    expect(second.body?.code).toBe('rate-limited');
+    expect(b.starts).toHaveLength(1);
   });
 });

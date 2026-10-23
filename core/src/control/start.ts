@@ -9,7 +9,7 @@ import {
 } from '@hoplet/shared';
 import { log } from '../log/index.ts';
 import { askWaiter } from './pending.ts';
-import { PROMPT_DEDUP_MS } from './runtime.ts';
+import { PROMPT_DEDUP_MS, senderTitle } from './runtime.ts';
 import { type ControlState, onlineLink } from './state.ts';
 import type { Control, DeviceLink, StartAnswer, StartOutcome, StartRequest } from './types.ts';
 
@@ -111,6 +111,17 @@ export function createStart(state: ControlState, listProjects: Control['listProj
       ...(req.worktree
         ? { worktree: req.worktree.branch !== undefined ? { branch: req.worktree.branch } : {} }
         : {}),
+      // The new session's agent puts a first line naming the session that started it (ADR 0034).
+      ...(req.source
+        ? {
+            source: {
+              kind: 'session' as const,
+              sessionId: req.source.sessionId,
+              title: senderTitle(state.store.getSession(req.source.sessionId)?.title ?? ''),
+              chain: req.source.chain,
+            },
+          }
+        : {}),
     };
     const answer = await askWaiter<StartAnswer>(
       pendingStart,
@@ -136,6 +147,8 @@ export function createStart(state: ControlState, listProjects: Control['listProj
         ...(answer.reason !== undefined ? { reason: answer.reason } : {}),
       };
     }
+    // The chain behind the new session's first prompt (ADR 0034).
+    if (req.source) state.store.setSessionChain(answer.sessionId, req.source.chain);
     // The worktree is recorded first: deleting the session offers it (ADR 0023).
     if (answer.worktree) {
       try {
@@ -161,6 +174,15 @@ export function createStart(state: ControlState, listProjects: Control['listProj
           promptId,
           length: [...req.text].length,
           images: req.attachments?.length ?? 0,
+          ...(req.source
+            ? {
+                source: {
+                  kind: 'session',
+                  sessionId: req.source.sessionId,
+                  chain: req.source.chain,
+                },
+              }
+            : {}),
         },
       });
     } catch (err) {

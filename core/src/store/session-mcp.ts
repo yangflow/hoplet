@@ -232,6 +232,14 @@ export function getChain(ctx: StoreContext, sessionId: string): string[] {
   }
 }
 
+/** The sessions whose latest prompt came from `sessionId` itself (it is the last of their chain). */
+export function getChildren(ctx: StoreContext, sessionId: string): string[] {
+  const rows = ctx.db
+    .prepare(`SELECT session_id FROM session_provenance WHERE json_extract(chain, '$[#-1]') = ?`)
+    .all(sessionId) as { session_id: string }[];
+  return rows.map((r) => r.session_id);
+}
+
 /** Records the chain behind the prompt; an empty chain (a prompt of a user) removes the record. */
 export function setChain(ctx: StoreContext, sessionId: string, chain: string[]): void {
   if (chain.length === 0) {

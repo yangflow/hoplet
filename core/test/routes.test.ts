@@ -107,6 +107,7 @@ describe('the route table', () => {
         'GET /api/sessions/:sessionId',
         'GET /api/sessions/:sessionId/lines',
         'GET /api/sessions/:sessionId/blocks/:line/:block',
+        'POST /api/sessions',
         'POST /api/sessions/:sessionId/prompt',
         'POST /api/sessions/:sessionId/interrupt',
         'POST /api/sessions/:sessionId/queue',

@@ -515,6 +515,8 @@ export const WIRE_MESSAGES = defineWire({
        * `branch` names its new branch, absent the agent generates one.
        */
       worktree: v.optional(NewWorktreeSchema),
+      /** Set when another session started this one (ADR 0034): the agent puts a fixed first line naming it. */
+      source: v.optional(PromptSourceSchema),
     },
   },
   /** The session the agent started is imported and syncs from now on. */

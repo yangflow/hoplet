@@ -32,10 +32,11 @@ const (
 const (
 	ToolSendPrompt       = "send_prompt"
 	ToolInterruptSession = "interrupt_session"
+	ToolStartSession     = "start_session"
 )
 
 // ActTools are the tools that change another session.
-var ActTools = []string{ToolSendPrompt, ToolInterruptSession}
+var ActTools = []string{ToolSendPrompt, ToolInterruptSession, ToolStartSession}
 
 // IsKnownTool says whether name is a tool this server offers.
 func IsKnownTool(name string) bool {
@@ -127,10 +128,30 @@ func tools() []toolDef {
 				"sessionId": map[string]any{"type": "string", "description": "A session ID from list_sessions; not this session."},
 			}, "sessionId"),
 		},
+		{
+			Name: ToolStartSession,
+			Description: "Start a new session with a first prompt and return its ID. The new session runs the same " +
+				"provider as this one, on this machine and in this project unless machine and projectPath say " +
+				"otherwise, and it sees that this session started it. Its permission mode is never more permissive " +
+				"than this session's: without permissionMode it gets this session's mode (or the closest below it). " +
+				"A refusal names its code (forbidden, loop-limit, rate-limited, invalid-request) and, where there is " +
+				"one, a reason; do not retry a refusal that is not rate-limited. Starting is limited to " + startLimits + ".",
+			InputSchema: obj(map[string]any{
+				"prompt":         map[string]any{"type": "string", "minLength": 1, "maxLength": maxPromptChars, "description": "The first prompt of the new session."},
+				"machine":        map[string]any{"type": "string", "description": "A machine ID or name from list_machines (default: this session's machine)."},
+				"projectPath":    map[string]any{"type": "string", "maxLength": maxPathChars, "description": "The project directory on that machine (default: this session's project)."},
+				"permissionMode": map[string]any{"type": "string", "description": "A permission mode, such as plan, default or acceptEdits; not more permissive than this session's."},
+				"worktree":       map[string]any{"type": "boolean", "description": "Run the new session in a new git worktree of the project."},
+				"branch":         map[string]any{"type": "string", "maxLength": maxBranchChars, "description": "The branch name of the worktree (default: generated); only with worktree."},
+			}, "prompt"),
+		},
 	}
 }
 
 const (
+	startLimits    = "5 sessions an hour and 10 live sessions started by this session, and a chain of 3 sessions"
+	maxPathChars   = 4096
+	maxBranchChars = 244
 	maxPromptChars = 8000
 	sendLimits     = "6 prompts a minute and 60 an hour from this session, 3 a minute to one session, and a chain of 3 sessions"
 )

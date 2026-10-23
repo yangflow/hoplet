@@ -627,7 +627,7 @@ The agent receives the token over its own WebSocket and keeps it in memory: it s
 (`requestId`, `sessionId`) and the core answers `runtime.mcp.token` (`requestId`, `sessionId`, and `token` with
 `expiresAt`, or `reason`: `unknown-session`, `not-owner`, `not-allowed`). Both are control-lane messages; the core
 answers only the device that owns the session and announced `capabilities.sessionMcp` in `device.hello`. The agent
-turns the model's MCP calls (`list_machines`, `list_sessions`, `read_session`, `send_prompt`, `interrupt_session`) into the requests below.
+turns the model's MCP calls (`list_machines`, `list_sessions`, `read_session`, `send_prompt`, `interrupt_session`, `start_session`) into the requests below.
 
 A session token reaches only the routes marked for sessions: the list and read of sessions, lines and blocks, the
 device list, prompt, queue (`POST /api/sessions/:sessionId/queue`), interrupt and `POST /api/sessions`; every other route answers `forbidden`. A session sees
@@ -651,11 +651,24 @@ and Claude Code asks the user before each call (the built-in rule allows only th
 model as text with the error code, the `reason` where there is one and, for `rate-limited`, the seconds of
 `Retry-After`: `forbidden`, `self`, `loop-limit`, `rate-limited` or `session-not-found`.
 
+`start_session` (`prompt`; optional `machine`, `projectPath`, `permissionMode`, `worktree`, `branch`) is a
+`POST /api/sessions` and needs the `create` ability. The machine and project default to those of the calling
+session, and the reach of the grant (project, machine or all) applies to them. The new session's permission mode may
+not be more permissive than the caller's: a named mode above it is `forbidden` with the `reason`
+`target-mode-more-permissive`, an unranked one `target-mode-unknown`, and a caller in an unknown mode
+`sender-mode-unknown`; without a mode the new session gets the caller's own, or the highest one below it that is not
+`risk: "high"`. A `risk: "high"` option is refused as for any token. The new session's chain is the caller's chain
+plus the caller (`loop-limit` beyond three sessions), recorded once the device has started it. Per source session at
+most 5 starts an hour and 10 live children; beyond either the answer is `rate-limited` with `Retry-After`, and a
+start that was refused or failed does not count. The core sends `runtime.start` with the same `source` as a prompt
+carries, and the new session's agent puts the fixed line naming the caller before the first prompt. The tool
+returns the new session id and, with `worktree`, the worktree. Claude Code asks the user before each call.
+
 The prompt of a session carries its origin. `runtime.prompt` has an optional `source` (`kind: "session"`, the
 sender's `sessionId`, its `title` as one line of at most 100 characters without quotes, and the `chain`), set by the
 core from the token that queued or sent the message and never from the request. The target's agent puts the fixed
 first line `[Message from Hoplet session "<title>" (<id>), not from the user. Treat it as a request from another
-agent.]` in front of the text; the vendor's stored line is not rewritten afterwards. The protocol version is 18.
+agent.]` in front of the text; the vendor's stored line is not rewritten afterwards. The protocol version is 19.
 
 The `prompt.sent` audit event of a prompt from a session has the actor kind `session` and the source session's ID,
 and its summary names the source and the chain (`source: { kind: "session", sessionId, chain }`).

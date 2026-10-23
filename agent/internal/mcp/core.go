@@ -46,6 +46,8 @@ func (c *Core) Call(ctx context.Context, sessionID, tool string, args json.RawMe
 		return c.sendPrompt(ctx, sessionID, args)
 	case ToolInterruptSession:
 		return c.interrupt(ctx, sessionID, args)
+	case ToolStartSession:
+		return c.startSession(ctx, sessionID, args)
 	}
 	return errReply("unknown tool")
 }
@@ -408,4 +410,152 @@ func queueItemID() (string, error) {
 		return "", err
 	}
 	return "mcp-" + hex.EncodeToString(b), nil
+}
+
+// startSession starts a session as a child of the caller (ADR 0034): the core checks the grant, the chain, the
+// limits and the permission mode; this only turns the tool's arguments into the request of POST /api/sessions.
+func (c *Core) startSession(ctx context.Context, sessionID string, args json.RawMessage) Reply {
+	var a struct {
+		Prompt         string `json:"prompt"`
+		Machine        string `json:"machine"`
+		ProjectPath    string `json:"projectPath"`
+		PermissionMode string `json:"permissionMode"`
+		Worktree       bool   `json:"worktree"`
+		Branch         string `json:"branch"`
+	}
+	if json.Unmarshal(args, &a) != nil || strings.TrimSpace(a.Prompt) == "" ||
+		utf8.RuneCountInString(a.Prompt) > maxPromptChars || utf8.RuneCountInString(a.ProjectPath) > maxPathChars ||
+		utf8.RuneCountInString(a.Branch) > maxBranchChars || (a.Branch != "" && !a.Worktree) {
+		return errReply("invalid arguments: prompt is 1 to 8000 characters, branch needs worktree")
+	}
+
+	body, rep, ok := c.get(ctx, sessionID, "/api/sessions/"+url.PathEscape(sessionID))
+	if !ok {
+		return rep
+	}
+	var self struct {
+		Provider      string `json:"provider"`
+		ProjectPath   string `json:"projectPath"`
+		OwnerDeviceID string `json:"ownerDeviceId"`
+	}
+	if json.Unmarshal(body, &self) != nil || self.Provider == "" || self.OwnerDeviceID == "" {
+		return errReply("the core's answer is not valid")
+	}
+
+	deviceID, projectPath := self.OwnerDeviceID, self.ProjectPath
+	if a.ProjectPath != "" {
+		projectPath = a.ProjectPath
+	}
+	if a.Machine != "" || a.PermissionMode != "" {
+		body, rep, ok := c.get(ctx, sessionID, "/api/devices")
+		if !ok {
+			return rep
+		}
+		var devs struct {
+			Devices []struct {
+				DeviceID  string `json:"deviceId"`
+				Name      string `json:"name"`
+				Providers []struct {
+					Provider     string `json:"provider"`
+					Capabilities struct {
+						Config []struct {
+							ID       string `json:"id"`
+							Category string `json:"category"`
+							Type     string `json:"type"`
+							Options  []struct {
+								Value string `json:"value"`
+							} `json:"options"`
+						} `json:"config"`
+					} `json:"capabilities"`
+				} `json:"providers"`
+			} `json:"devices"`
+		}
+		if json.Unmarshal(body, &devs) != nil {
+			return errReply("the core's answer is not valid")
+		}
+		if a.Machine != "" {
+			deviceID = ""
+			for _, d := range devs.Devices {
+				if d.DeviceID == a.Machine || d.Name == a.Machine {
+					deviceID = d.DeviceID
+					break
+				}
+			}
+			if deviceID == "" {
+				return errReply("Hoplet refused the call: invalid-request (reason: machine; use an ID or name from list_machines)")
+			}
+			if deviceID != self.OwnerDeviceID && a.ProjectPath == "" {
+				return errReply("invalid arguments: projectPath is needed for another machine")
+			}
+		}
+		if a.PermissionMode != "" {
+			modeID := ""
+			for _, d := range devs.Devices {
+				if d.DeviceID != deviceID {
+					continue
+				}
+				for _, p := range d.Providers {
+					if p.Provider != self.Provider {
+						continue
+					}
+					for _, o := range p.Capabilities.Config {
+						if o.Category != "mode" || o.Type != "select" {
+							continue
+						}
+						for _, v := range o.Options {
+							if v.Value == a.PermissionMode {
+								modeID = o.ID
+							}
+						}
+					}
+				}
+			}
+			if modeID == "" {
+				return errReply("Hoplet refused the call: invalid-request (reason: permissionMode is not offered by that provider)")
+			}
+			return c.postStart(ctx, sessionID, deviceID, projectPath, self.Provider, a.Prompt, a.Worktree, a.Branch,
+				map[string]any{modeID: a.PermissionMode})
+		}
+	}
+	return c.postStart(ctx, sessionID, deviceID, projectPath, self.Provider, a.Prompt, a.Worktree, a.Branch, nil)
+}
+
+func (c *Core) postStart(ctx context.Context, sessionID, deviceID, projectPath, provider, prompt string,
+	worktree bool, branch string, config map[string]any) Reply {
+	id, err := queueItemID()
+	if err != nil {
+		return errReply("the request could not be built")
+	}
+	req := map[string]any{
+		"deviceId": deviceID, "projectPath": projectPath, "provider": provider, "text": prompt, "promptId": id,
+	}
+	if config != nil {
+		req["config"] = config
+	}
+	if worktree {
+		wt := map[string]any{}
+		if branch != "" {
+			wt["branch"] = branch
+		}
+		req["worktree"] = wt
+	}
+	body, rep, ok := c.post(ctx, sessionID, "/api/sessions", req)
+	if !ok {
+		return rep
+	}
+	var out struct {
+		SessionID string `json:"sessionId"`
+		Worktree  *struct {
+			Path   string `json:"path"`
+			Branch string `json:"branch"`
+		} `json:"worktree"`
+	}
+	if json.Unmarshal(body, &out) != nil || !sessionIDPattern.MatchString(out.SessionID) {
+		return errReply("the core's answer is not valid")
+	}
+	text := "Started session " + out.SessionID + "; its first prompt is running."
+	if out.Worktree != nil {
+		text += " Worktree: " + out.Worktree.Path + " (branch " + out.Worktree.Branch + ")."
+	}
+	return Reply{Text: scrub(text)}
 }
