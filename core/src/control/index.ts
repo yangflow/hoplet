@@ -5,6 +5,7 @@ import { type HookResult, PROTOCOL_VERSION, type ServerMessage } from '@hoplet/s
 import { log } from '../log/index.ts';
 import type { Store } from '../store/index.ts';
 import { createBulkQueue } from './bulk.ts';
+import { createConfigChanges } from './config-changes.ts';
 import { createDeletion } from './deletion.ts';
 import { createFresh } from './fresh.ts';
 import { createHandoff } from './handoff.ts';
@@ -35,6 +36,10 @@ export { type Chains, childCounts, descendantsOf, LIVE_STATES, parentOf } from '
 export type {
   AgentControl,
   AuditActor,
+  ConfigFileApply,
+  ConfigFileObject,
+  ConfigFilePreview,
+  ConfigFiles,
   Control,
   ControlEvent,
   ControlOptions,
@@ -55,6 +60,8 @@ export type {
   QueueSteerOutcome,
   RuntimeCommandOutcome,
   RuntimeView,
+  SessionConfigChangeRefusal,
+  SessionConfigChanges,
   SessionGuard,
   SessionGuardRefusal,
   SessionHandoffRefusal,
@@ -205,6 +212,8 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
     options,
   );
   eventListeners.add(handoffRequests.onEvent);
+  const configChanges = createConfigChanges(state, () => control, sessionMcp.api, options);
+  eventListeners.add(configChanges.onEvent);
   const treeWatcher = createTreeWatcher({
     store,
     runtime,
@@ -320,6 +329,7 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
       });
       runtime.attached(deviceId);
       sessionMcp.deviceAttached(deviceId);
+      configChanges.deviceAttached(deviceId);
       ports.attached(deviceId);
       rules.attached(deviceId);
       deletion.attached(deviceId);
@@ -400,6 +410,7 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
     projectOf,
     sessionMcp: sessionMcp.api,
     handoffRequests: handoffRequests.api,
+    configChanges: configChanges.api,
     checkTrees: treeWatcher.check,
     openPermissions: runtime.openPermissions,
     ruleLinesOf: runtime.ruleLinesOf,
@@ -450,6 +461,7 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
       if (outcome.ok) {
         sessionMcp.sessionGone(sessionId);
         handoffRequests.sessionGone(sessionId);
+        configChanges.sessionGone(sessionId);
       }
       ports.sync();
       rules.sync(); // the session's rules went with it
@@ -464,6 +476,7 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
       if (outcome.ok) {
         sessionMcp.api.revokeTokens(request.sessionId);
         handoffRequests.sessionMoved(request.sessionId);
+        configChanges.sessionMoved(request.sessionId);
       }
       ports.sync();
       rules.sync(); // the session's rules follow it to its new owner

@@ -12,6 +12,7 @@ import type {
   BudgetBody,
   BudgetRef,
   Command,
+  ConfigChangeState,
   DeviceInventory,
   DeviceSystem,
   HandoffRequestState,
@@ -58,6 +59,7 @@ import {
   streamFingerprint,
 } from './chunks.ts';
 import * as commands from './commands.ts';
+import * as configChanges from './config-changes.ts';
 import * as continuations from './continuations.ts';
 import * as deletion from './deletion.ts';
 import * as devices from './devices.ts';
@@ -83,6 +85,8 @@ import * as usage from './usage.ts';
 export { type AuditInput, AuditUnavailableError } from './audit.ts';
 export { toolInputSummary } from './audit-lines.ts';
 export type { BudgetStatus } from './budgets.ts';
+export type { PreviousContent, StoredConfigChange } from './config-changes.ts';
+export { publicChange } from './config-changes.ts';
 export type { ContinuationLinks } from './continuations.ts';
 export type { Tombstone, WorktreeRecord } from './deletion.ts';
 export type {
@@ -970,6 +974,41 @@ export class Store {
   forgetSessionMcp(sessionId: string): void {
     sessionMcp.forgetSession(this.ctx, sessionId);
     handoffRequests.forgetRequests(this.ctx, sessionId);
+    configChanges.forgetChanges(this.ctx, sessionId);
+  }
+
+  insertConfigChange(
+    change: configChanges.StoredConfigChange,
+    record: audit.AuditInput,
+  ): configChanges.StoredConfigChange {
+    return configChanges.insertChange(this.ctx, change, record);
+  }
+
+  configChange(changeId: string): configChanges.StoredConfigChange | null {
+    return configChanges.getChange(this.ctx, changeId);
+  }
+
+  configChanges(sessionId: string): configChanges.StoredConfigChange[] {
+    return configChanges.listChanges(this.ctx, sessionId);
+  }
+
+  openConfigChanges(): configChanges.StoredConfigChange[] {
+    return configChanges.listOpenChanges(this.ctx);
+  }
+
+  /** Moves a change out of one of the states in `from`; null when it had left them already. */
+  patchConfigChange(
+    changeId: string,
+    from: readonly ConfigChangeState[],
+    patch: configChanges.ConfigChangePatch,
+    record: audit.AuditInput | null,
+  ): configChanges.StoredConfigChange | null {
+    return configChanges.patchChange(this.ctx, changeId, from, patch, record);
+  }
+
+  /** Drops the previous content of changes applied before `before`; returns how many lost it. */
+  pruneConfigChangePrevious(before: number): number {
+    return configChanges.pruneChangePrevious(this.ctx, before);
   }
 
   insertHandoffRequest(

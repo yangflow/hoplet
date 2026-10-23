@@ -124,6 +124,12 @@ Response column names the schema of the success body and its status when it is n
 | GET | `/api/sessions/:sessionId/handoff-requests` | host | control | — | — | `SessionHandoffRequestListSchema` | `session-not-found` |
 | POST | `/api/handoff-requests/:requestId/approve` | host | control | — | — | `SessionHandoffRequestSchema` | `not-found`, `request-closed` |
 | POST | `/api/handoff-requests/:requestId/decline` | host | control | — | — | `SessionHandoffRequestSchema` | `not-found`, `request-closed` |
+| POST | `/api/sessions/:sessionId/config-changes` | write-config | control | — | `SessionConfigChangeCreateSchema` | `SessionConfigChangeSchema` (201) | `invalid-json`, `invalid-request`, `too-large`, `forbidden`, `not-found`, `owner-offline`, `unsupported`, `stale`, `unsafe-content`, `request-closed` |
+| GET | `/api/sessions/:sessionId/config-changes` | read-config | control | — | — | `SessionConfigChangeListSchema` | `not-found` |
+| GET | `/api/config-changes/:changeId` | read-config | control | — | — | `SessionConfigChangeSchema` | `not-found` |
+| POST | `/api/config-changes/:changeId/approve` | host | control | — | — | `SessionConfigChangeSchema` | `not-found`, `request-closed` |
+| POST | `/api/config-changes/:changeId/decline` | host | control | — | — | `SessionConfigChangeSchema` | `not-found`, `request-closed` |
+| POST | `/api/config-changes/:changeId/undo` | host | control | — | — | `SessionConfigChangeSchema` | `not-found`, `request-closed`, `owner-offline`, `stale`, `unsupported`, `busy` |
 | GET | `/api/devices` | read | control | — | — | `DeviceListResponseSchema` | — |
 | GET | `/api/devices/:deviceId/resources` | host | control | — | — | `DeviceResourcesResultSchema` | `not-found` |
 | PUT | `/api/devices/:deviceId/labels` | host | control | — | `DeviceLabelsRequestSchema` | `DeviceLabelsResultSchema` | `invalid-json`, `invalid-request`, `too-large`, `not-found` |
@@ -562,6 +568,9 @@ session, or `""` while the session is not in the index yet; the client shows its
 | `terminal-busy` | 409 | The session already has a terminal, or the machine already has three |
 | `session-running` | 409 | A process Hoplet started is alive in the session; stop it before deleting |
 | `delete-partial` | 502 | A step of a deletion failed; `steps` lists each step and the request can be sent again |
+| `stale` | 409 | The file changed on the machine after the proposal's `baseHash`, so the change was not written or undone |
+| `unsafe-content` | 422 | The proposed content holds something shaped like a credential |
+| `unsupported` | 501 | The session's agent cannot preview or write configuration files |
 | `rejected` | 502 | The agent refused or failed the request; `reason` is its diagnostic text |
 | `timeout` | 504 | The agent did not answer in time |
 | `internal` | 500 | The core failed |
@@ -654,6 +663,8 @@ already running:
 | `create` | The `create` ability, which includes `send` |
 | `requestHandoff` | The `request-handoff` ability, which only a session token holds; it lets the session ask for its own handoff (the host confirms unless auto-approve applies) |
 | `autoApproveHandoff`, `autoApproveMachines` | Part of the settings of `requestHandoff` and rejected without it (`invalid-request`): whether a handoff request to one of these machines, which must be known, is approved without the host (stored and shown; the handoff request flow acts on it) |
+| `readConfig` | The `read-config` ability, which only a session token holds; on by default. It reads the session's own change requests |
+| `writeConfig` | The `write-config` ability, which only a session token holds; off by default and implies `readConfig`. It lets the session propose changes to its own configuration, which the host approves ([Configuration changes](#configuration-changes-of-a-session)) |
 | `visibility` | `project` (sessions of its own machine and project), `machine` (every project of its machine) or `all`; a session outside it is answered `session-not-found`. `read` is always on |
 
 `GET`/`PUT /api/mcp/defaults` hold the defaults a session gets when it begins: a global one and one per project
@@ -668,7 +679,7 @@ answers only the device that owns the session and announced `capabilities.sessio
 turns the model's MCP calls (`list_machines`, `list_sessions`, `read_session`, `send_prompt`, `interrupt_session`, `start_session`, `request_handoff`) into the requests below.
 
 A session token reaches only the routes marked for sessions: the list and read of sessions, lines and blocks, the
-device list, prompt, queue (`POST /api/sessions/:sessionId/queue`), interrupt, `POST /api/sessions` and `POST /api/handoff-requests`; every other route answers `forbidden`. A session sees
+device list, prompt, queue (`POST /api/sessions/:sessionId/queue`), interrupt, `POST /api/sessions`, `POST /api/handoff-requests` and its own configuration changes (below); every other route answers `forbidden`. A session sees
 itself in the list with `self: true` in its metadata. The rules for a prompt or an interrupt from a session:
 
 - It may not address itself: `self`.
@@ -724,6 +735,40 @@ nobody answers in 24 hours, or whose session ended, failed or moved, is `expired
 `handoff.requested` (actor `session`) and `handoff.decided` (actor: the host for `user`, `core` for `auto`).
 The new wire message `handoff.request` is core to browser only, so the protocol version stays 19.
 
+### Configuration changes of a session
+
+A session proposes changes to its own configuration, and the host approves them
+([ADR 0036](adr/0036-sessions-change-their-own-configuration-over-mcp.md)). `POST /api/sessions/:sessionId/config-changes`
+needs the `write-config` ability (the `writeConfig` setting) and only the session itself may call it for its own
+`sessionId`: a host token is `forbidden` with the `reason` `session-only`, another session's ID is `not-found`, and a
+setting that is off is `forbidden`. The tokens of `POST /api/tokens` cannot hold `read-config` or `write-config`
+(`invalid-request`). `GET /api/sessions/:sessionId/config-changes` and `GET /api/config-changes/:changeId` need
+`read-config`; a session token reads only its own session's requests, the host reads all.
+
+The body is `{reason, objects}`: `reason` of 1 to 500 characters and 1 to 5 objects, 64 KiB of content together. An
+object is `{kind, name, content, baseHash}`. The kinds `memory` (`name` `CLAUDE.md` or `AGENTS.md`), `skill` and `command`
+are files in the working directory; `content` is the whole new file, or null to delete a `skill` or `command`;
+`baseHash` is the hash of the file the proposal was made against, empty or absent for a new file. The kind `config` has
+`name` `model` or `effort` and the value as `content`, and ignores `baseHash`. A `name` that does not fit its kind, or an
+object twice, is `invalid-request`. A `config` value is checked as for `POST /api/sessions/:sessionId/config`: an
+unknown option or value is `invalid-request` with the `reason` `unknown-option` or `unknown-value`, a `risk: "high"`
+choice `high-risk`, and a permission `mode` `mode` (it is not changed this way). Content shaped like a credential is
+`unsafe-content`. The core asks the owner's agent to preview the files and answers with the change and its diff:
+`owner-offline` when the agent is not connected, `unsupported` when it cannot preview, `stale` when `baseHash` differs
+from the file now. A session has one open request (`request-closed`).
+
+A change is `pending`, `approved`, `applied`, `declined`, `expired`, `failed` or `undone`. The host decides with
+`POST /api/config-changes/:changeId/approve` or `.../decline` (`request-closed` when it is no longer `pending`). An
+approval writes the files, then the options (`runtime.config`); when the options fail, the files are restored and the
+change is `failed` with `error` and `errorReason`. With the owner offline an approved change waits and is applied when it
+reconnects. A request nobody answers in 24 hours, or whose session ended, is `expired`. `POST /api/config-changes/:changeId/undo`
+restores `previous`, files first and then the options: `stale` when a file changed since, and any failure other than
+`owner-offline` leaves the change `applied` with `error` and `errorReason`. `previous` is kept for 30 days, after which
+the change cannot be undone (`request-closed`). The audit events are `config.change.requested` (actor `session`),
+`config.change.decided`, `config.change.applied`, `config.change.failed` and `config.change.undone`; they name the
+object keys (`kind:name`) and never the content. The browser message `session.change` carries the ids and the state
+only, so a browser reads the change over REST.
+
 The prompt of a session carries its origin. `runtime.prompt` has an optional `source` (`kind: "session"`, the
 sender's `sessionId`, its `title` as one line of at most 100 characters without quotes, and the `chain`), set by the
 core from the token that queued or sent the message and never from the request. The target's agent puts the fixed
@@ -777,6 +822,7 @@ over REST.
 | `session.output` | core → browser | control | `SessionOutputMessage` | Streamed content of the running turn: text, thinking, tool calls and results. Only to the connections subscribed to the session. Transient: the session's lines are the record |
 | `session.permission` | core → browser | control | `SessionPermissionMessage` | A tool wants permission; answer with `POST /api/sessions/:sessionId/permission`. `planExit` (`plan`, `planFile`, `option`, `modes`, `default`, `freshContext`) marks a request to leave a plan; `freshContext` says approval can start a new session. Sent to every connection |
 | `handoff.progress` | core → browser | control | `HandoffProgressMessage` | A step of a handoff: `sent` of `total` bytes during `transfer`, the new `worktree` and `branch` on `done`, the `reason` on `failed`. Sent to every connection |
+| `session.change` | core → browser | control | `SessionChangeMessage` | A change request of a session was made or changed state (`sessionId`, `changeId`, `state`); read the change with `GET /api/config-changes/:changeId`. Only to the connections whose token sees the session |
 | `handoff.request` | core → browser | control | `HandoffRequestMessage` | A hand-off request of a session was made or changed state (`request`: `requestId`, `sessionId`, `targetDeviceId`, `reason`, `state`, `decision`, `createdAt`, `expiresAt`, `decidedAt`, and `error` with `errorReason` when it failed). Only to the connections whose token sees the session. The web shows it as a card in the turn |
 | `notify` | core → browser | control | `NotifyMessage` | A notification (`kind`, `sessionId`, `project`, `title`, `tool`, `summary`, `requestId`, `reason`, `link`) for a native client that is connected. Defined for native clients and not sent by the core yet; the payload is the one of every channel ([Notifications](#notifications)) |
 | `error` | core → browser | control | `ErrorMessage` | The core could not take a message from the client; `code` says why |

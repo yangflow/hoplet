@@ -456,6 +456,15 @@ a number of days up to 365; 90 by default), Read only, May send or May create, t
 warning when it is on), and "Every machine" or "Only these" with a picker of machines and projects. The secret is
 then shown once with a copy button and how to use it from the CLI; the page keeps nothing of it after Done.
 
+### Sessions changing their own configuration
+
+A session can propose changes to its own configuration (memory file, skills, commands, `model`, `effort`); nothing is
+written until the host approves the diff, and an applied change can be undone for 30 days
+([ADR 0036](adr/0036-sessions-change-their-own-configuration-over-mcp.md),
+[Configuration changes of a session](api.md#configuration-changes-of-a-session)). The core holds the requests, their
+states and the retention; the agent previews and writes the files (not yet built, so the core answers `unsupported`).
+The abilities `read-config` (on by default) and `write-config` (off by default) are session-token only.
+
 ### Sessions as callers
 
 A running session can see and direct other sessions through a session token the core mints for it ([ADR 0034](adr/0034-sessions-view-and-direct-other-sessions-over-mcp.md),

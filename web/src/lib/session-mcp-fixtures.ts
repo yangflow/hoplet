@@ -32,6 +32,8 @@ export const OFF_SETTINGS: SessionMcpSettings = {
   autoApproveHandoff: false,
   autoApproveMachines: [],
   visibility: 'project',
+  readConfig: true,
+  writeConfig: false,
 };
 
 /** Send, Start and hand-off on, approved for studio; reaches the machine. */
@@ -42,6 +44,8 @@ export const ON_SETTINGS: SessionMcpSettings = {
   autoApproveHandoff: true,
   autoApproveMachines: ['dev-studio'],
   visibility: 'machine',
+  readConfig: true,
+  writeConfig: false,
 };
 
 export const WIDE_SETTINGS: SessionMcpSettings = {
@@ -51,6 +55,8 @@ export const WIDE_SETTINGS: SessionMcpSettings = {
   autoApproveHandoff: false,
   autoApproveMachines: [],
   visibility: 'all',
+  readConfig: true,
+  writeConfig: false,
 };
 
 const SEND_ONLY: SessionMcpSettings = { ...OFF_SETTINGS, send: true };

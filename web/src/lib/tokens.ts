@@ -59,6 +59,10 @@ export function capabilityText(capability: TokenCapability): string {
       return t('Answer permission requests');
     case 'request-handoff':
       return t('Ask the user to hand the session off');
+    case 'read-config':
+      return t("Read the session's own configuration");
+    case 'write-config':
+      return t("Propose changes to the session's own configuration");
   }
 }
 

@@ -293,6 +293,8 @@ describe('the settings', () => {
       autoApproveHandoff: false,
       autoApproveMachines: [],
       visibility: 'project',
+      readConfig: true,
+      writeConfig: false,
     });
   });
 
@@ -308,6 +310,8 @@ describe('the settings', () => {
       autoApproveHandoff: false,
       autoApproveMachines: [],
       visibility: 'all',
+      readConfig: true,
+      writeConfig: false,
     });
     expect((await b.rest('GET', '/api/sessions/zz/mcp', HOST)).status).toBe(404);
     expect(

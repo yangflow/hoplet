@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { scrubCredentials, scrubText } from '../src/scrub/index.ts';
+import { containsCredential, scrubCredentials, scrubText } from '../src/scrub/index.ts';
 
 const R = '[redacted]';
 
@@ -74,5 +74,17 @@ describe('scrubText (what a notification summary masks)', () => {
 
   it('takes the mask as an argument', () => {
     expect(scrubText('API_TOKEN=x', R)).toBe(`API_TOKEN=${R}`);
+  });
+});
+
+describe('containsCredential (what stored configuration must not hold)', () => {
+  it('finds a private key block and a credential by its shape', () => {
+    expect(containsCredential('-----BEGIN OPENSSH PRIVATE KEY-----\nabc')).toBe(true);
+    expect(containsCredential('Authorization: Bearer abc.def')).toBe(true);
+  });
+
+  it('lets prose through', () => {
+    expect(containsCredential('Run the tests with pnpm check before you commit.')).toBe(false);
+    expect(containsCredential('Never put a token in the repository.')).toBe(false);
   });
 });
