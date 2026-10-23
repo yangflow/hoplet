@@ -162,7 +162,7 @@
   box-shadow: inset 0 1px 0 var(--color-line);
 }
 .arr:hover,
-.arr.sel {
+.arr.open {
   background: var(--color-hover);
 }
 .arr .tm2 {

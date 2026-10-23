@@ -122,7 +122,7 @@ function RuleRow(props: {
   const shown = rule.note.trim() ? (rule.builtin ? t(rule.note.trim()) : rule.note.trim()) : '';
   return (
     <div
-      className={`qrow${rule.enabled ? '' : ' off'}${selected ? ' sel' : ''}`}
+      className={`qrow${rule.enabled ? '' : ' off'}${selected ? ' open' : ''}`}
       data-testid={`settings.rules.row.${rule.id}`}
     >
       <ActionBadge action={rule.action} />
