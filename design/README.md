@@ -108,6 +108,30 @@ The mockups, design tokens and app icon behind Hoplet's web UI. The design langu
   load), `b-empty`; C `c-active`, `c-inactive`, `c-issue`, `c-issue-answer`, `c-reveal`, `c-revoke`, `c-error` (the
   audit log could not record the token), `c-empty`; each direction also has `-zh` states. Add `?lang=zh-Hans` for
   Simplified Chinese. New icons: `key-round`. The token shown is a placeholder, never a real one.
+- `screens/session-mcp.html` (#67): Settings › Other sessions and the per-session switches of ADR 0034, three
+  directions. The maintainer chose a combination: the session's switches as A's inspector tab, Settings as C's
+  table, and the hand-off request and the provenance label as A's card in the turn and line in the meta row; the
+  rest stays as the alternatives considered. Each shows the
+  per-session switches (send, start, hand-off; reading always on, answering shown as never), Reach (project,
+  machine, all), the project and global defaults, a machine with `session_mcp` off, the hand-off request the user
+  confirms, and the label on a prompt from another session. A (`a-*`) puts the switches in an inspector tab and
+  has one Settings page (global default, project defaults, a list of machines); the hand-off request is a card in
+  the turn and the provenance label a line in the prompt's meta row. B (`b-*`) puts a chip in the top bar that
+  opens a popover; Settings has a tab per machine, so a machine with `session_mcp` off is a tab that explains
+  itself; the hand-off request is a banner above the composer and the provenance label a pill above the prompt.
+  C (`c-*`) opens a dialog from the session's actions menu with presets (Read only, Can direct, Can start and
+  move) and Custom; Settings is a table with the global row on top and greyed rows on machines that have it off;
+  the hand-off card offers a second action, Approve and always allow studio (a proposal); the provenance label is
+  a quoted block. States: A `a-session`, `a-session-on`, `a-session-wide`, `a-session-off`, `a-settings`,
+  `a-settings-edit`, `a-handoff`, `a-handoff-after`, `a-prov`; B `b-session`, `b-session-on`, `b-session-wide`,
+  `b-session-off`, `b-settings`, `b-settings-machine`, `b-settings-off`, `b-handoff`, `b-handoff-after`, `b-prov`;
+  C `c-session`, `c-session-adv`, `c-session-off`, `c-settings`, `c-settings-menu`, `c-settings-empty`,
+  `c-handoff`, `c-handoff-after`, `c-prov`; `conv-refusals` shows `forbidden`, `loop-limit` and `rate-limited`
+  as the sending session sees them. Most states also have `-zh` states in Simplified Chinese. Strings that are not
+  in `web/src/i18n/zh-Hans.json` yet are proposals for it. Automatic approval of hand-offs (the switch and its list
+  of machines, up to 3 an hour, each still waiting for the end of the turn) is kept; it needs a field of
+  `SessionMcpSettings` in `shared/`, added with ADR 0034 step 5. New icons: `send`, `square-plus`, `arrow-right-left`, `eye`, `link`,
+  `corner-down-right`, `external-link`, `webhook`.
 - `tokens.html`: every design token, with the JSON block that `check-tokens.py` compares with
   `web/src/design/tokens.css`.
 - `mark.html`: the app icon and the web UI's mark; the exported icon is `web/public/icon.svg`.
