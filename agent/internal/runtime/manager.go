@@ -777,6 +777,10 @@ func (m *Manager) createAssigned(a IDAssigner, dir string, p Prompt, config map[
 		m.valuesOf(s)[k] = v
 	}
 	spec := StartSpec{Dir: dir, New: true, Config: maps.Clone(m.valuesOf(s))}
+	if m.cfg.MCP != nil && slices.Contains(m.cfg.Driver.Capabilities(), CapMCP) {
+		// The ID is the vendor's to assign: the driver binds the spec to it.
+		spec.MCP = m.cfg.MCP("")
+	}
 	m.wg.Add(1)
 	m.mu.Unlock()
 	defer m.wg.Done()

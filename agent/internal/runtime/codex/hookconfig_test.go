@@ -41,7 +41,7 @@ func TestHookIsInjectedIntoNewAndResumedThreads(t *testing.T) {
 	h, s := hookHarness(t)
 	h.startNew(nil)
 	checkHookInjected(t, h.received("thread/start")[0])
-	if got := h.d.Capabilities(); len(got) != 4 {
+	if got := h.d.Capabilities(); len(got) != 5 {
 		t.Errorf("capabilities = %v", got)
 	}
 

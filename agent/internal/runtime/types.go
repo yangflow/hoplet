@@ -121,6 +121,9 @@ type MCPSpec struct {
 	Nonce string
 	// ReadAllowed says the built-in rule lets the session call the read tools without asking.
 	ReadAllowed bool
+	// Bind names the session for a spec made before the vendor assigned the session's ID (IDAssigner): the driver
+	// calls it once with the ID, before the process reports Ready. Nil when the spec was made for a known ID.
+	Bind func(sessionID string)
 	// Release forgets the nonce; it may be called more than once.
 	Release func()
 }

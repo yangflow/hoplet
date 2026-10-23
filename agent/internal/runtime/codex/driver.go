@@ -74,7 +74,7 @@ func New(opts Options) *Driver {
 func (d *Driver) Name() string { return "codex" }
 
 func (d *Driver) Capabilities() []runtime.Capability {
-	caps := []runtime.Capability{runtime.CapPermissions, runtime.CapInterrupt, runtime.CapImages, runtime.CapSteer}
+	caps := []runtime.Capability{runtime.CapPermissions, runtime.CapInterrupt, runtime.CapImages, runtime.CapSteer, runtime.CapMCP}
 	if d.hook == nil {
 		caps = append(caps, runtime.CapRulesPromptsOnly)
 	}
@@ -327,13 +327,32 @@ func (d *Driver) StartNew(ctx context.Context, spec runtime.StartSpec) (string, 
 // open launches the app server, initializes it and starts or resumes the thread; the process reports Ready when
 // the thread is open.
 func (d *Driver) open(ctx context.Context, spec runtime.StartSpec) (*process, error) {
+	// The MCP registration ends with the process, or with the start when it fails before the process exists.
+	var release func()
+	if spec.MCP != nil {
+		var once sync.Once
+		release = func() {
+			once.Do(func() {
+				if spec.MCP.Release != nil {
+					spec.MCP.Release()
+				}
+			})
+		}
+	}
 	if err := d.checkVersion(ctx); err != nil {
+		if release != nil {
+			release()
+		}
 		return nil, err
 	}
 	p, err := d.launch(spec.Dir, true)
 	if err != nil {
+		if release != nil {
+			release()
+		}
 		return nil, err
 	}
+	p.mcp, p.onExit = spec.MCP, release
 	if d.hook != nil {
 		p.mu.Lock()
 		p.dir, p.rules = spec.Dir, d.rules
@@ -352,6 +371,9 @@ func (d *Driver) open(ctx context.Context, spec runtime.StartSpec) (*process, er
 	}
 	if err := p.openThread(ctx, spec); err != nil {
 		return fail(err)
+	}
+	if spec.MCP != nil && spec.MCP.Bind != nil {
+		spec.MCP.Bind(p.threadID)
 	}
 	p.emit(runtime.Ready{})
 	return p, nil

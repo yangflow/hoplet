@@ -146,7 +146,7 @@ starting the container. Run one core per data directory, on a local filesystem w
 | `poll_interval_ms` | `1000` | scan interval |
 | `runtime_idle_minutes` | `30` | idle time after which a session's process (Claude Code or Codex) stops |
 | `runtime_max_idle_processes` | `3` | processes kept running between turns; processes in a turn are not limited |
-| `session_mcp` | `false` | serve the session MCP read tools to the Claude Code sessions of this machine ([Session MCP](#session-mcp)) |
+| `session_mcp` | `false` | serve the session MCP read tools to the Claude Code and Codex sessions of this machine ([Session MCP](#session-mcp)) |
 | `terminal` | `false` | allow the web UI to open a shell on this machine ([Terminal](#terminal)) |
 | `preview_host` | the machine's host name | the host in the links to a session's dev servers ([Dev server links](#dev-server-links)) |
 | `permission_deny` | none | deny rules of the operator, a JSON array of rules in the shape of the permission rules (docs/spec.md#permission-rules); they hold against any rule the core sends, and at most 100; the agent announces them to the core, which shows them read-only; a configuration with an invalid rule or more rules does not load |
@@ -172,14 +172,14 @@ under the same one. A session it does not list runs under its vendor's built-in 
 
 ### Session MCP
 
-`"session_mcp": true` in the agent's `config.json`, then restart the agent, lets the Claude Code sessions of this
+`"session_mcp": true` in the agent's `config.json`, then restart the agent, lets the Claude Code and Codex sessions of this
 machine see other sessions through the tools `list_machines`, `list_sessions` and `read_session`
 ([ADR 0034](adr/0034-sessions-view-and-direct-other-sessions-over-mcp.md)). It is off by default, and only the
 operator of the machine can turn it on: the core cannot. The agent then opens `<hoplet_home>/mcp.sock`, announces
 `capabilities.sessionMcp` in `device.hello`, and calls the core's REST API at `server_url` with the session's token,
 so the machine must reach the core over HTTP and not only over the agent WebSocket. What a session sees is set by
 its settings (`project` visibility by default). Without the key the agent opens no socket and starts Claude Code
-without `--mcp-config`; the user's own MCP servers are never replaced.
+without `--mcp-config` and Codex without the `mcp_servers` entry; the user's own MCP servers are never replaced.
 
 ### Terminal
 
