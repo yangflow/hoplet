@@ -149,6 +149,15 @@ export function createStart(state: ControlState, listProjects: Control['listProj
     }
     // The chain behind the new session's first prompt (ADR 0034).
     if (req.source) state.store.setSessionChain(answer.sessionId, req.source.chain);
+    // The session is a child of the one that started it for as long as it lives (ADR 0035).
+    if (req.source) {
+      state.store.recordChild(
+        answer.sessionId,
+        [...req.source.lineage, req.source.sessionId],
+        state.now(),
+        req.source.timeLimitMs,
+      );
+    }
     // The worktree is recorded first: deleting the session offers it (ADR 0023).
     if (answer.worktree) {
       try {

@@ -57,7 +57,7 @@ Claude Code               the session file (writer) and the running process
 | ingest | core | Agent WebSocket: authentication, `device.hello`/`welcome`, append decoding, ack/resync/reject, the two lanes | store, control, log | `core/src/ingest/` |
 | notify | core | Notification rules (preset, overrides, quiet hours), redaction, Web Push and webhook delivery, signed action links and their single use, the VAPID and signing secrets | store, control, log, scrub | `core/src/notify/` |
 | hooks | core | Lifecycle events from control's event stream (ADR 0031), the webhook hooks, HMAC signing, the address check, the persisted delivery queue with retry and backoff, the delivery history, the hook secrets, the script hooks the agents announced (their switch, the `hook.event` sent to the machine and the `hook.result` recorded) | store, control, notify, log, scrub | `core/src/hooks/` |
-| control | core | Runtime state per session, prompt and new-session deduplication, permission routing, handoff state machine, device RPC with timeouts | store, log | `core/src/control/` |
+| control | core | Runtime state per session, prompt and new-session deduplication, permission routing, handoff state machine, the limits of trees of work and the tree watcher that stops sessions past them ([ADR 0035](adr/0035-child-sessions-work-on-parts-of-a-task-in-parallel.md)), device RPC with timeouts | store, log | `core/src/control/` |
 | api | core | REST routes, read projection with one mapping per provider, browser WebSocket and subscriptions, WebSocket tickets, static files | store, control, notify, hooks, log, config | `core/src/api/` |
 | shared | contract | Schemas, derived types and error codes for REST and both WebSockets | nothing | `shared/src/` |
 | sdk | client | `@hoplet/sdk`: the typed client for scripts and tools: REST calls with errors mapped to the stable codes, paged `readSession`, `waitForTurn`, the event stream with ticket and reconnect, the protocol-version check; `shared/` is bundled into its build ([ADR 0033](adr/0033-a-command-line-tool-an-sdk-and-scoped-tokens.md)) | `shared/`, global `fetch` and `WebSocket` | `sdk/src/` |
@@ -214,6 +214,17 @@ rule decision emits `runtime.permission.auto` as in Claude Code. In `plan` colla
 remembered and Codex decides. Every error and an unknown nonce deny; an `ask` nobody answers is a deny at 860 s and
 the hook prints a deny at 870 s, before Codex's 900 s timeout, after which Codex runs the call. Where
 the socket cannot be opened (Windows, a path over 100 bytes) the driver declares `capabilities.rules: "prompts-only"`.
+
+### Trees of work
+
+A child is a session started by another session; the relation is recorded when it starts, in `session_children`, as the
+creation chain (the last entry is the parent, the first the root) and lasts as long as the session. Provenance, the
+chain behind a session's latest prompt, serves `loop-limit` and the sender label, not the tree. `control/tree.ts` reads it (parent, children, descendants, members of a tree) and
+`control/session-mcp.ts` applies the limits of a start with `guardStart` (depth, live children, live sessions per
+tree, starts an hour, `pause` budgets, tree tokens). `control/tree-watcher.ts` looks every 30 seconds, with an
+injectable timer: a child past its time limit (`session_children`, set when a session starts it) and every live session
+of a tree past its tokens are interrupted, stopped and audited as `child.limit`. The API adds `parentId` and
+`childCount` to the session metadata, the descendants route and `cascade` on stop; it does not own the relation.
 
 ### Session MCP tools
 

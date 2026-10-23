@@ -211,7 +211,7 @@ that sits in the session's environment is one `env` away from the transcript.
   or would be longer than 3, so A to B to A and a fourth hop do not run. Rate limits, per session and counted in the
   core, each answered `rate-limited` with `Retry-After`: at most 6 prompts a minute and 60 an hour to other
   sessions, at most 3 a minute to one target, at most 2 unanswered queued prompts from one source in one target,
-  and at most 5 `start_session` calls an hour with at most 10 live children. ADR 0033's 300 requests a minute stays
+  and at most 12 `start_session` calls an hour with at most 4 live children ([ADR 0035](0035-child-sessions-work-on-parts-of-a-task-in-parallel.md)). ADR 0033's 300 requests a minute stays
   above them. The numbers are first values to try and live in the core's configuration.
 - **A user takes over.** A message from the user into a session starts a new chain: the depth counts agent hops
   only, so a person can always continue the work.

@@ -67,6 +67,7 @@ import {
   type LiveSessionMeta,
   LiveSessionMetaSchema,
   MAX_BUDGETS,
+  MAX_CHILD_TREE,
   MAX_NOTIFY_PROJECTS,
   MAX_PERMISSION_RULES,
   MAX_RESOURCE_THRESHOLD_MACHINES,
@@ -112,6 +113,7 @@ import {
   type RuntimeCapabilities,
   RuntimeCommandResultSchema,
   SearchResultSchema,
+  SessionChildrenResponseSchema,
   SessionHandoffRequestCreateSchema,
   SessionHandoffRequestListSchema,
   SessionHandoffRequestSchema,
@@ -132,6 +134,8 @@ import {
   SnapshotDiffSchema,
   SteerRequestSchema,
   SteerResultSchema,
+  StopQuerySchema,
+  StopResultSchema,
   safeParse,
   TEMPLATE_FILE_VERSION,
   type TemplateBody,
@@ -170,13 +174,18 @@ import {
   WsTicketResponseSchema,
 } from '@hoplet/shared';
 import corePackage from '../../package.json' with { type: 'json' };
-import type {
-  Control,
-  DeviceControlOutcome,
-  QueueResult,
-  SessionGuardRefusal,
-  SessionHandoffRefusal,
-  SteerOutcome,
+import {
+  type Chains,
+  type Control,
+  childCounts,
+  type DeviceControlOutcome,
+  descendantsOf,
+  LIVE_STATES,
+  parentOf,
+  type QueueResult,
+  type SessionGuardRefusal,
+  type SessionHandoffRefusal,
+  type SteerOutcome,
 } from '../control/index.ts';
 import { registerSecret } from '../log/index.ts';
 import {
@@ -251,6 +260,9 @@ function ownerOf(deps: ApiDeps, sessionId: string): string {
 /** The API error for a session that may not act on another (ADR 0034). */
 function guardError(refusal: SessionGuardRefusal): ApiError {
   if (refusal.error === 'forbidden') return new ApiError('forbidden', { reason: refusal.reason });
+  if (refusal.error === 'budget-exceeded') {
+    return new ApiError('budget-exceeded', refusal.budget ? { budget: refusal.budget } : {});
+  }
   const error = new ApiError(refusal.error);
   if (refusal.error === 'rate-limited') error.retryAfter = refusal.retryAfter;
   return error;
@@ -343,11 +355,23 @@ function steerResult(outcome: SteerOutcome, steerId: string) {
   throw relayError(outcome);
 }
 
+/** The parent and child count of sessions, from one read of the recorded chains. */
+interface Relations {
+  chains: Chains;
+  counts: ReadonlyMap<string, number>;
+}
+
+function relationsOf(store: Store): Relations {
+  const chains = store.childChains();
+  return { chains, counts: childCounts(chains) };
+}
+
 /** The index entry plus whether the owner agent is connected. */
 function withLiveness(
   { store, control }: ApiDeps,
   meta: SessionMeta,
   state: SessionStateRecord = store.sessionState(meta.sessionId) ?? {},
+  relations: Relations = relationsOf(store),
 ): LiveSessionMeta {
   const owner = store.ownerDeviceId(meta.sessionId);
   const links = store.continuationLinks(meta.sessionId);
@@ -377,6 +401,8 @@ function withLiveness(
     ...meta,
     ...state,
     ...(configuration ? { configuration } : {}),
+    parentId: parentOf(relations.chains, meta.sessionId),
+    childCount: relations.counts.get(meta.sessionId) ?? 0,
     ownerConnected: !!owner && control.ownerOnline(owner),
     runtime: control.runtimeOf(meta.sessionId),
     ...(owner ? { ownerDeviceId: owner } : {}),
@@ -405,6 +431,10 @@ async function startNewSession(
   req: NewSessionRequest,
 ) {
   if (req.text.length > MAX_PROMPT_CHARS) throw new ApiError('too-large');
+  // Only a session asks for a time limit; the core applies it to the child it starts.
+  if (req.timeLimitMinutes !== undefined && sessionOf(d.principal) === null) {
+    throw new ApiError('invalid-request', { promptId: req.promptId, reason: 'timeLimitMinutes' });
+  }
   if (req.worktree?.branch !== undefined && branchNameProblem(req.worktree.branch) !== null) {
     throw new ApiError('invalid-request', {
       promptId: req.promptId,
@@ -419,13 +449,29 @@ async function startNewSession(
     if (setsHighRisk(d.control, req)) throw new ApiError('forbidden');
   }
   // A session starts another one under the chain, the limits and the permission mode of ADR 0034.
-  const guard = source === null ? null : d.control.sessionMcp.guardStart(source, req);
+  const guard =
+    source === null
+      ? null
+      : d.control.sessionMcp.guardStart(source, {
+          ...req,
+          ...(req.timeLimitMinutes !== undefined
+            ? { timeLimitMs: req.timeLimitMinutes * 60_000 }
+            : {}),
+        });
   if (guard && !guard.ok) throw guardError(guard);
   const actor = actorOf(d.principal);
   const outcome = await d.control.startSession({
     ...req,
     ...(guard?.ok
-      ? { config: guard.config, source: { sessionId: source as string, chain: guard.chain } }
+      ? {
+          config: guard.config,
+          source: {
+            sessionId: source as string,
+            chain: guard.chain,
+            lineage: guard.lineage,
+            timeLimitMs: guard.timeLimitMs,
+          },
+        }
       : {}),
     ...(actor ? { actor } : {}),
   });
@@ -557,11 +603,12 @@ export const routes: readonly Route[] = [
     response: SessionListResponseSchema,
     handler: (d) => {
       const states = d.store.sessionStates();
+      const relations = relationsOf(d.store);
       return {
         sessions: d.store
           .listSessions()
           .filter((meta) => seesSession(d.principal, d.control, meta.sessionId))
-          .map((meta) => withLiveness(d, meta, states.get(meta.sessionId) ?? {}))
+          .map((meta) => withLiveness(d, meta, states.get(meta.sessionId) ?? {}, relations))
           .map((meta) =>
             meta.sessionId === sessionOf(d.principal) ? { ...meta, self: true as const } : meta,
           ),
@@ -591,6 +638,39 @@ export const routes: readonly Route[] = [
       if (!meta) throw new ApiError('session-not-found');
       const live = withLiveness(d, meta);
       return meta.sessionId === sessionOf(d.principal) ? { ...live, self: true as const } : live;
+    },
+  }),
+  defineRoute({
+    method: 'GET',
+    path: '/api/sessions/:sessionId/children',
+    access: { capability: 'read' },
+    session: true,
+    lane: 'control',
+    response: SessionChildrenResponseSchema,
+    handler: (d) => {
+      const sessionId = d.params.sessionId ?? '';
+      if (!d.store.getSession(sessionId) || !seesSession(d.principal, d.control, sessionId)) {
+        throw new ApiError('session-not-found');
+      }
+      const relations = relationsOf(d.store);
+      const states = d.store.sessionStates();
+      const all = descendantsOf(relations.chains, sessionId);
+      const descendants = [];
+      let truncated = false;
+      for (const { sessionId: id, depth } of all) {
+        const meta = d.store.getSession(id);
+        if (!meta || !seesSession(d.principal, d.control, id)) {
+          truncated = true;
+          continue;
+        }
+        if (descendants.length >= MAX_CHILD_TREE) {
+          truncated = true;
+          break;
+        }
+        const live = withLiveness(d, meta, states.get(id) ?? {}, relations);
+        descendants.push({ ...live, depth });
+      }
+      return { sessionId, descendants, truncated };
     },
   }),
   defineRoute({
@@ -1014,12 +1094,21 @@ export const routes: readonly Route[] = [
     path: '/api/sessions/:sessionId/stop',
     access: 'host',
     lane: 'control',
-    response: RuntimeCommandResultSchema,
+    query: StopQuerySchema,
+    response: StopResultSchema,
     handler: (d) => {
       const sessionId = d.params.sessionId ?? '';
       const outcome = d.control.stop(sessionId, ownerOf(d, sessionId));
-      if (outcome.ok) return { ok: true };
-      throw new ApiError(outcome.error);
+      if (!outcome.ok) throw new ApiError(outcome.error);
+      if (d.query.cascade !== 'true') return { ok: true as const };
+      // The live descendants follow, best effort: one that cannot be reached is left out of `stopped`.
+      const stopped: string[] = [];
+      for (const { sessionId: id } of descendantsOf(d.store.childChains(), sessionId)) {
+        const owner = d.control.ownerOf(id);
+        if (owner === null || !LIVE_STATES.has(d.control.runtimeOf(id).state)) continue;
+        if (d.control.stop(id, owner).ok) stopped.push(id);
+      }
+      return { ok: true as const, stopped };
     },
   }),
   defineRoute({

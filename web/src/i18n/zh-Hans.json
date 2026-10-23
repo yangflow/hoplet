@@ -1577,5 +1577,8 @@
   "Nothing recorded yet": "还没有记录",
   "What this session does, and what you do in it, appears here as it happens.": "这个会话做了什么、你在其中做了什么，会随发生随时出现在这里。",
   "This session only. Never prompts, assistant text, tool output, file contents or diffs.": "仅限这个会话。从不记录提示词、助手文本、工具输出、文件内容或 diff。",
-  "All records in Settings › Audit": "在设置 › 审计中查看全部记录"
+  "All records in Settings › Audit": "在设置 › 审计中查看全部记录",
+  "Sessions started by sessions may only go two levels deep.": "由会话启动的会话最多只能嵌套两层。",
+  "This session or its tree already has as many live sessions as it may.": "此会话或其会话树的运行中会话已达上限。",
+  "A budget or the tree token limit is used up, so no new session starts.": "预算或会话树的令牌上限已用完，无法启动新会话。"
 }

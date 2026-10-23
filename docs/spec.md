@@ -410,7 +410,7 @@ was done to and by sessions, kept apart from the session content.
   overrides, device labels, watched projects and provider defaults, and terminals opened and closed (size,
   duration and byte counts, never what was typed or shown). What a session does to another session is recorded as the
   events above (`prompt.sent`, `session.created`, `handoff.requested`, `handoff.decided`, `token.denied`) with the actor
-  kind `session` (ADR 0034); reads are GETs and are not recorded. Planned: `session.op` with child sessions (#81) and
+  kind `session` (ADR 0034); reads are GETs and are not recorded. `child.limit` is the core stopping a session past a limit of its tree (#81). Planned: `session.op` with child sessions (#81) and
   `verify.result` with automatic verification (#79). Sessions that ran before this was built are not back-filled; their tool calls start at the
   end they had. Never prompts, assistant text, tool output, file contents or diffs.
 - **Who**: an actor of kind `operator` (the host token, with the channel `rest` or `link`), `device`, `session`,
@@ -469,6 +469,17 @@ ends with the runtime and is never listed in Settings. The audit log records suc
 the tools `list_machines`, `list_sessions` and `read_session` (MCP server `hoplet`); `read_session` returns a page
 of lines, at most 32 KiB, marked as data. Reading needs no prompt and a `deny` or `ask` rule still wins. The tools
 that send, start or hand off and the Settings screen follow.
+
+### Child sessions
+
+A child is a session started by another session, and the relation is recorded when it starts, so a prompt does not change it. A session that starts a session is the parent of a tree of work (#81, [ADR 0035](adr/0035-child-sessions-work-on-parts-of-a-task-in-parallel.md)). Built in the core: every session
+reports its `parentId` and `childCount`; `GET /api/sessions/:sessionId/children` lists the descendants; stopping a
+session can cascade to the live sessions below it. A tree is limited: two levels below the root, 4 live children per
+session, 8 live sessions per tree, 12 starts an hour, 3,000,000 input and output tokens, and 30 minutes a child (a
+session may ask for up to 2 hours). A start past a limit is refused (`depth-limit`, `children-limit`,
+`budget-exceeded`), a `pause` budget that is used up refuses it too, and the live sessions of a tree past its time
+or token limit are interrupted and stopped, each audited as `child.limit`. Planned: the MCP tools that wait for and
+read children, and the web screens for the tree.
 
 ### CLI
 

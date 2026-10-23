@@ -61,6 +61,8 @@ export function session(
     updatedAt: 2,
     lineCount,
     byteSize: lineCount * 10,
+    parentId: null,
+    childCount: 0,
     ownerConnected: true,
     runtime: { state, ...extra },
     ...overrides,

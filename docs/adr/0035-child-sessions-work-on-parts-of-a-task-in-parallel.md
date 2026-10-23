@@ -72,10 +72,13 @@ result and the change list, limits for a tree of work, a way to cancel a child o
 
 **Recommended: a child is a session started with `start_session`; four new tools complete the loop.**
 
-- A child is not a new kind of session. It is a session whose provenance chain ends in the parent. "Children of
-  X" is what `store.sessionChildren` already computes from that chain, so no table is added for the relation; a
-  `parentId` is derived on read. This keeps ADR 0034's checks (token, mode ceiling, `forbidden`, `loop-limit`,
-  `rate-limited`, audit) as the only path to create anything.
+- A child is not a new kind of session. It is a session that another session started with `start_session`. The core
+  records the relation once, when the session starts, in `session_children` (the session, its creation chain from
+  the root to the parent, when it started and its time limit), and keeps it as long as the session lives. The
+  provenance chain does not carry it: provenance follows the latest prompt, so a session that only sends a prompt
+  to a peer would become that peer's parent, and a user's prompt to a child would take it out of its tree.
+  `parentId` and `childCount` are read from `session_children`. This keeps ADR 0034's checks (token, mode ceiling,
+  `forbidden`, `loop-limit`, `rate-limited`, audit) as the only path to create anything.
 - `start_session` gains `worktree` defaulting to `true` for a project that is a git repository (decision 4), and an
   optional `title` the list shows. It returns `{ sessionId, worktree?: { path, branch } }`. It does not wait.
 - `wait_children({ sessionIds?, until: "all" | "any", timeoutSeconds? })` waits on the caller's own children (all of
@@ -174,8 +177,8 @@ means work: a child that runs one long turn is one turn. So the limits are time,
 - **Where they are set.** In the core's configuration, as ADR 0034's numbers are. The issue asks for them per
   project; ADR 0034's project defaults can carry the same fields. The recommendation is the core configuration
   first and a per-project override when a user needs it.
-- **Tree.** A tree is all descendants of a root, found from provenance. The root is the earliest session of the chain
-  that a user or a script started.
+- **Tree.** A tree is all descendants of a root, found from `session_children`. The root is the first session of the
+  creation chain, a session that no session started; the depth is the length of the chain.
 
 | Option | Cost | Verdict |
 |---|---|---|
@@ -215,7 +218,7 @@ means work: a child that runs one long turn is one turn. So the limits are time,
 | The parent's turn is interrupted or ends | Nothing. A child is a separate session, possibly on another machine. A parent that ended its turn without collecting leaves the children to finish; the user sees them in the tree and tells the parent. An interrupted `wait_children` simply returns |
 | The parent fails, goes offline or its agent disconnects | Nothing. The parent's token is revoked after the reconnection window (ADR 0034); a child keeps its own. The tree shows the parent as failed |
 | The parent is stopped from the UI | A dialog asks "Also stop N running children", default yes; the route takes `cascade: true` for the same |
-| The parent is deleted (ADR 0023) | The dialog lists live children and offers to stop them. The sessions stay and show "started by a deleted session"; their provenance is kept. Worktrees stay, since deletion never removes what the user did not agree to |
+| The parent is deleted (ADR 0023) | The dialog lists live children and offers to stop them. The sessions stay and show "started by a deleted session"; their creation chain is kept. Worktrees stay, since deletion never removes what the user did not agree to |
 | The parent is handed off (ADR 0024) | The relation is by session ID and is unchanged. The new owner starts the parent with a new token and `wait_children` works as before. Children are not moved |
 | A child is handed off | The relation is unchanged; its changes are read from its new owner and its worktree there |
 | A child finishes its turn | It is `ready` and holds a slot. When the parent collects its result with `release: true` (the default), the core stops the process and keeps the session and worktree; the user may still open it and send a message, which starts it again as for any stopped session |
@@ -224,7 +227,7 @@ means work: a child that runs one long turn is one turn. So the limits are time,
 | The time or token limit is reached | Interrupt, then stop, state `timed-out`; `wait_children` tells the parent |
 
 - **Orphans.** There is no orphan collector. A session without a live parent is a normal session; the tree keeps
-  showing the relation from provenance so a person can find and finish it. Nothing is deleted automatically.
+  showing the relation from `session_children` so a person can find and finish it. Nothing is deleted automatically.
 - **Idempotence.** A repeated `start_session` with the same `promptId` returns the first result (the existing rule),
   so a parent that retries after a timeout does not start a second child.
 - **Audit.** Spawn (`session.created` with actor `session`), `child.collected`, `child.cancelled` and `child.limit`
@@ -249,7 +252,7 @@ record does not claim a confirmation the maintainer did not give.
 - Cancel per child and per subtree, with a confirmation that says what stops and what stays (worktrees stay).
 - A child waiting for a permission is visible from the parent and in the list, and notifies as a permission request
   does (ADR 0021).
-- The session API carries `parentId` and `childCount` (derived), the list can be fetched as a tree, and the browser
+- The session API carries `parentId` and `childCount` (read from `session_children`), the list can be fetched as a tree, and the browser
   WebSocket sends a child's state changes to the parent's subscribers. Strings go into
   `web/src/i18n/zh-Hans.json`.
 
@@ -271,7 +274,8 @@ ceiling, the rules and the limits as in ADR 0034.
 - *The vendors' own subagents.* One process, one machine, one directory; not visible or controllable in Hoplet, no
   separate worktree. They remain available and are not in the way.
 - *An orchestrator in the core that holds the plan.* A different product (ADR 0034 rejected it).
-- *A `children` table separate from provenance.* A second source of truth for one fact; the chain already answers it.
+- *Deriving the relation from provenance.* Provenance is the chain behind a session's latest prompt, so a prompt sent
+  to a peer or a user's prompt to a child changes it; the relation of a child must not change for its life.
 
 ## Documents that change with the implementation
 

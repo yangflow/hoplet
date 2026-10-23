@@ -85,8 +85,18 @@ export interface SessionLimits {
   unansweredPerTarget: number;
   /** Sessions one session starts per hour. */
   startsPerHour: number;
-  /** Sessions one session started that are still live. */
+  /** Sessions one session started that are still live (ADR 0035). */
   liveChildren: number;
+  /** How many sessions deep below the root a tree may reach: a root's child is depth 1. */
+  childDepth: number;
+  /** Live sessions in one tree below its root. */
+  liveTree: number;
+  /** How long a child may run unless its parent asks for less or more, in milliseconds. */
+  childTimeMs: number;
+  /** The most a parent may ask a child to run, in milliseconds. */
+  childTimeMaxMs: number;
+  /** Input plus output tokens (cache reads excluded) one tree may spend below its root. */
+  treeTokens: number;
   /** Hand-off requests one session may have approved automatically per hour. */
   autoApprovedHandoffsPerHour: number;
   /** Hand-off requests one session may make per hour, the approved ones and the rest. */
@@ -95,8 +105,9 @@ export interface SessionLimits {
 
 /** Why a session may not prompt another; `forbidden` carries the reason. */
 export type SessionGuardRefusal =
-  | { ok: false; error: 'self' | 'loop-limit' }
+  | { ok: false; error: 'self' | 'loop-limit' | 'depth-limit' | 'children-limit' }
   | { ok: false; error: 'forbidden'; reason: string }
+  | { ok: false; error: 'budget-exceeded'; budget?: BudgetRef }
   | { ok: false; error: 'rate-limited'; retryAfter: number };
 
 /** The verdict on one session prompting another. When allowed, `settle` tells whether the prompt was accepted. */
@@ -108,7 +119,16 @@ export type SessionGuard = { ok: true; settle(accepted: boolean): void } | Sessi
  * start went through.
  */
 export type SessionStartGuard =
-  | { ok: true; config: SessionConfig; chain: string[]; settle(accepted: boolean): void }
+  | {
+      ok: true;
+      config: SessionConfig;
+      chain: string[];
+      /** The sessions that started the one that asks, root first: what the new session's creation chain extends. */
+      lineage: string[];
+      /** How long the new session may run, in milliseconds. */
+      timeLimitMs: number;
+      settle(accepted: boolean): void;
+    }
   | SessionGuardRefusal;
 
 /** What a minted session token comes to. */
@@ -150,7 +170,13 @@ export interface SessionMcp {
    */
   guardStart(
     source: string,
-    request: Pick<StartRequest, 'deviceId' | 'provider' | 'configuration' | 'config'>,
+    request: Pick<
+      StartRequest,
+      'deviceId' | 'projectPath' | 'provider' | 'configuration' | 'config'
+    > & {
+      /** How long the new session may run, in milliseconds; the default when absent. */
+      timeLimitMs?: number | undefined;
+    },
   ): SessionStartGuard;
   /** The same checks without the chain and the limits, for an interrupt; null when allowed. */
   guardInterrupt(source: string, target: string): SessionGuardRefusal | null;
@@ -207,8 +233,14 @@ export interface StartRequest {
   origin?: 'new' | 'plan' | undefined;
   /** The token that asked, for the audit log; the host when absent. */
   actor?: AuditActor | undefined;
-  /** Set when a session started this one (ADR 0034): the agent names it before the prompt, the core records the chain. */
-  source?: { sessionId: string; chain: string[] } | undefined;
+  /**
+   * Set when a session started this one (ADR 0034): the agent names it before the prompt, the core records the
+   * provenance `chain`. ADR 0035: `lineage` is the creation chain of the starter (root first), which the new
+   * session's own extends, and `timeLimitMs` how long it may run; the tree watcher enforces it.
+   */
+  source?:
+    | { sessionId: string; chain: string[]; lineage: string[]; timeLimitMs: number }
+    | undefined;
 }
 
 /** What an agent answers to `runtime.start`, or why there is no answer. */
@@ -720,6 +752,8 @@ export interface Control {
   readonly sessionMcp: SessionMcp;
   /** Requests of sessions to be handed off to another machine (ADR 0034). */
   readonly handoffRequests: SessionHandoffRequests;
+  /** Looks at the trees of work once for sessions past a limit and stops them (ADR 0035); the timer calls it every 30 seconds. */
+  checkTrees(): void;
   /** The project directory of a session, also of one an agent just started; `null` for an unknown session. */
   projectOf(sessionId: string): string | null;
   /** The commands and skills the session's owner last reported, or null when it reported none. */
@@ -837,4 +871,6 @@ export interface ControlOptions {
   sessionLimits?: Partial<SessionLimits>;
   /** How long an agent may stay disconnected before its sessions' tokens are revoked. */
   sessionReconnectMs?: number;
+  /** Schedules the tree watcher (ADR 0035); `fn` runs every `ms` until the returned function is called. */
+  treeEvery?: (fn: () => void, ms: number) => () => void;
 }

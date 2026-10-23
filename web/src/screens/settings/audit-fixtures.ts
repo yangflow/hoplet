@@ -75,6 +75,8 @@ function session(
     updatedAt: at(22, 14, 32),
     lineCount: 240,
     byteSize: 480_000,
+    parentId: null,
+    childCount: 0,
     ownerConnected: true,
     runtime: { state: 'idle' },
   };

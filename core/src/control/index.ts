@@ -20,6 +20,7 @@ import { createSessionMcp, DEFAULT_SESSION_LIMITS } from './session-mcp.ts';
 import { createStart } from './start.ts';
 import type { ControlState } from './state.ts';
 import { createTerminals } from './terminals.ts';
+import { createTreeWatcher } from './tree-watcher.ts';
 import type {
   AgentControl,
   Control,
@@ -30,6 +31,7 @@ import type {
 } from './types.ts';
 
 export { BulkBusyError, type BulkQueue } from './bulk.ts';
+export { type Chains, childCounts, descendantsOf, LIVE_STATES, parentOf } from './tree.ts';
 export type {
   AgentControl,
   AuditActor,
@@ -203,6 +205,14 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
     options,
   );
   eventListeners.add(handoffRequests.onEvent);
+  const treeWatcher = createTreeWatcher({
+    store,
+    runtime,
+    control: { ownerOf, runtimeOf: runtime.runtimeOf },
+    now: state.now,
+    treeTokens: { ...DEFAULT_SESSION_LIMITS, ...options.sessionLimits }.treeTokens,
+    ...(options.treeEvery ? { every: options.treeEvery } : {}),
+  });
   /**
    * Answers a device asking for the token of one of its sessions' MCP server (ADR 0034): only the owner of the
    * session, and only a device that announced `sessionMcp`, gets one.
@@ -390,6 +400,7 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
     projectOf,
     sessionMcp: sessionMcp.api,
     handoffRequests: handoffRequests.api,
+    checkTrees: treeWatcher.check,
     openPermissions: runtime.openPermissions,
     ruleLinesOf: runtime.ruleLinesOf,
     commandsOf: runtime.commandsOf,

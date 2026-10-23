@@ -154,9 +154,15 @@ export function createRouter(options: RouterOptions): Router {
   const total = createRateLimiter(LINK_ROUTE_TOTAL, 60_000, options.now);
   const perToken = createRateLimiter(TOKEN_REQUESTS_PER_MINUTE, 60_000, options.now);
   const deniedAt = new Map<string, number>();
+  /** The refusals of a tree's limits (ADR 0035), audited as `token.denied` with the code as the reason. */
+  const LIMIT_REFUSALS: ReadonlySet<string> = new Set([
+    'depth-limit',
+    'children-limit',
+    'budget-exceeded',
+  ]);
 
   /** Records a token's refusal in the audit log, at most once a minute per token and route. */
-  function audited(principal: Principal, route: Route): void {
+  function audited(principal: Principal, route: Route, reason: string = 'forbidden'): void {
     if (principal.kind !== 'token') return;
     const session = principal.token.kind === 'session';
     const at = now();
@@ -165,7 +171,7 @@ export function createRouter(options: RouterOptions): Router {
         if (at - last >= DENIED_AUDIT_INTERVAL_MS) deniedAt.delete(key);
       }
     }
-    const key = `${principal.token.id}\n${route.method} ${route.path}`;
+    const key = `${principal.token.id}\n${route.method} ${route.path}\n${reason}`;
     const last = deniedAt.get(key);
     if (last !== undefined && at - last < DENIED_AUDIT_INTERVAL_MS) return;
     deniedAt.set(key, at);
@@ -181,7 +187,7 @@ export function createRouter(options: RouterOptions): Router {
             id: principal.token.id,
             method: route.method,
             path: route.path,
-            reason: 'forbidden',
+            reason,
           },
         },
         at,
@@ -286,6 +292,7 @@ export function createRouter(options: RouterOptions): Router {
         }
         if (err instanceof ApiError) {
           if (err.code === 'forbidden') audited(principal, route);
+          else if (LIMIT_REFUSALS.has(err.code)) audited(principal, route, err.code);
           if (err.retryAfter !== undefined) res.setHeader('retry-after', String(err.retryAfter));
           fail(res, err.code, err.extra, err.status);
           return;

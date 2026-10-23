@@ -70,6 +70,8 @@ export function session(
     updatedAt: 2,
     lineCount: 3,
     byteSize: 30,
+    parentId: null,
+    childCount: 0,
     ownerConnected: true,
     runtime: { state, ...extra },
     ...overrides,

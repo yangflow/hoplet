@@ -293,6 +293,8 @@ function resourcesOf(
     updatedAt: NOW - 60_000,
     lineCount: 100,
     byteSize: 10_000,
+    parentId: null,
+    childCount: 0,
     ownerConnected: true,
     runtime: { state: p.state },
   }));
@@ -588,6 +590,8 @@ function used(
     updatedAt: NOW - age - i * HOUR,
     lineCount: 100,
     byteSize: 10_000,
+    parentId: null,
+    childCount: 0,
     ownerConnected: true,
     runtime: { state: 'idle' as const },
   }));

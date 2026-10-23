@@ -34,6 +34,7 @@ export const AUDIT_EVENT_TYPES = [
   'handoff.decided',
   'prompt.sent',
   'session.op',
+  'child.limit',
   'config.changed',
   'verify.result',
   'device.token.issued',
