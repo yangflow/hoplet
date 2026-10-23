@@ -1,10 +1,11 @@
 # 0035 Child sessions work on parts of a task in parallel
 
-- Status: proposed
+- Status: accepted
 - Date: 2026-10-23
 - Related: ADR 0002, ADR 0007, ADR 0012, ADR 0021, ADR 0023, ADR 0024, ADR 0029, ADR 0030, ADR 0031, ADR 0033, ADR 0034, docs/api.md, docs/architecture.md, docs/threat-model.md, docs/hosting.md, docs/spec.md, issues #9, #67, #68, #70, #72, #75, #80, #81
 
-Not yet decided. The maintainer confirms or changes each decision below; the recommendation is marked in each table.
+The maintainer accepted the recommended option of each decision on 2026-10-23; the other options stay in the tables
+as the record of what was weighed.
 
 ## Context
 
