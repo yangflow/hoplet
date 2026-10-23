@@ -114,6 +114,9 @@ import {
   RuntimeCommandResultSchema,
   SearchResultSchema,
   SessionChildrenResponseSchema,
+  SessionConfigChangeCreateSchema,
+  SessionConfigChangeListSchema,
+  SessionConfigChangeSchema,
   SessionHandoffRequestCreateSchema,
   SessionHandoffRequestListSchema,
   SessionHandoffRequestSchema,
@@ -183,6 +186,7 @@ import {
   LIVE_STATES,
   parentOf,
   type QueueResult,
+  type SessionConfigChangeRefusal,
   type SessionGuardRefusal,
   type SessionHandoffRefusal,
   type SteerOutcome,
@@ -274,6 +278,28 @@ function handoffRefusalError(refusal: SessionHandoffRefusal): ApiError {
   const error = new ApiError(refusal.error);
   if (refusal.error === 'rate-limited') error.retryAfter = refusal.retryAfter;
   return error;
+}
+
+/** The API error for a change request of a session that was not made (ADR 0036). */
+function configChangeRefusalError(refusal: SessionConfigChangeRefusal): ApiError {
+  return new ApiError(
+    refusal.error,
+    refusal.reason === undefined ? {} : { reason: refusal.reason },
+  );
+}
+
+/** The host's answer to a change request of a session. */
+function decideConfigChange(
+  d: Pick<ApiDeps, 'control'> & { params: Record<string, string>; principal: Principal },
+  approve: boolean,
+) {
+  const outcome = d.control.configChanges.decide(
+    d.params.changeId ?? '',
+    approve,
+    actorOf(d.principal),
+  );
+  if (outcome.ok) return outcome.change;
+  throw new ApiError(outcome.error);
 }
 
 /** The host's answer to a hand-off request of a session. */
@@ -1386,6 +1412,93 @@ export const routes: readonly Route[] = [
     lane: 'control',
     response: SessionHandoffRequestSchema,
     handler: (d) => decideHandoff(d, false),
+  }),
+  defineRoute({
+    method: 'POST',
+    path: '/api/sessions/:sessionId/config-changes',
+    access: { capability: 'write-config' },
+    session: true,
+    lane: 'control',
+    bodyLimit: 160 * 1024,
+    body: SessionConfigChangeCreateSchema,
+    response: SessionConfigChangeSchema,
+    status: 201,
+    handler: async (d) => {
+      // Only a session proposes, and only for itself; the host changes configuration in Settings.
+      const source = sessionOf(d.principal);
+      const sessionId = d.params.sessionId ?? '';
+      if (source === null) throw new ApiError('forbidden', { reason: 'session-only' });
+      if (source !== sessionId) throw new ApiError('not-found');
+      const outcome = await d.control.configChanges.propose(sessionId, d.body);
+      if (outcome.ok) return outcome.change;
+      throw configChangeRefusalError(outcome);
+    },
+  }),
+  defineRoute({
+    method: 'GET',
+    path: '/api/sessions/:sessionId/config-changes',
+    access: { capability: 'read-config' },
+    session: true,
+    lane: 'control',
+    response: SessionConfigChangeListSchema,
+    handler: (d) => {
+      const sessionId = d.params.sessionId ?? '';
+      ownerOf(d, sessionId);
+      // A session reads its own requests only: they hold its configuration, not the project's.
+      const own = sessionOf(d.principal);
+      if (own !== null && own !== sessionId) throw new ApiError('not-found');
+      return { changes: d.control.configChanges.list(sessionId) };
+    },
+  }),
+  defineRoute({
+    method: 'GET',
+    path: '/api/config-changes/:changeId',
+    access: { capability: 'read-config' },
+    session: true,
+    lane: 'control',
+    response: SessionConfigChangeSchema,
+    handler: (d) => {
+      const change = d.control.configChanges.get(d.params.changeId ?? '');
+      const own = sessionOf(d.principal);
+      if (!change || (own !== null && own !== change.sessionId)) {
+        throw new ApiError('not-found');
+      }
+      return change;
+    },
+  }),
+  defineRoute({
+    method: 'POST',
+    path: '/api/config-changes/:changeId/approve',
+    access: 'host',
+    lane: 'control',
+    response: SessionConfigChangeSchema,
+    handler: (d) => decideConfigChange(d, true),
+  }),
+  defineRoute({
+    method: 'POST',
+    path: '/api/config-changes/:changeId/decline',
+    access: 'host',
+    lane: 'control',
+    response: SessionConfigChangeSchema,
+    handler: (d) => decideConfigChange(d, false),
+  }),
+  defineRoute({
+    method: 'POST',
+    path: '/api/config-changes/:changeId/undo',
+    access: 'host',
+    lane: 'control',
+    response: SessionConfigChangeSchema,
+    handler: async (d) => {
+      const outcome = await d.control.configChanges.undo(
+        d.params.changeId ?? '',
+        actorOf(d.principal),
+      );
+      if (outcome.ok) return outcome.change;
+      throw new ApiError(
+        outcome.error,
+        outcome.reason === undefined ? {} : { reason: outcome.reason },
+      );
+    },
   }),
   defineRoute({
     method: 'GET',
@@ -2522,8 +2635,10 @@ export const routes: readonly Route[] = [
     status: 201,
     response: TokenCreateResponseSchema,
     handler: ({ store, body, now: clock }) => {
-      if ((body.grant.capabilities as string[]).includes('request-handoff')) {
-        throw new ApiError('invalid-request', { reason: 'request-handoff is for session tokens' });
+      for (const capability of ['request-handoff', 'read-config', 'write-config']) {
+        if ((body.grant.capabilities as string[]).includes(capability)) {
+          throw new ApiError('invalid-request', { reason: `${capability} is for session tokens` });
+        }
       }
       const now = clock();
       try {

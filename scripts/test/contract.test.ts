@@ -367,6 +367,7 @@ describe('wire contract', () => {
       'session.rules.unenforced',
       'handoff.progress',
       'handoff.request',
+      'session.change',
       'notify',
       'terminal.attach',
       'terminal.detach',

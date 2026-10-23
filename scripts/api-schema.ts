@@ -50,6 +50,9 @@ const CONVERSION: ConversionConfig = {
     if (valibotAction.type === 'check' && jsonSchema.type === 'array') {
       return { ...jsonSchema, uniqueItems: true };
     }
+    // A rule across the fields of an object (a name that fits the kind, no object twice) has no JSON Schema form;
+    // the server enforces it and answers `invalid-request`, and docs/api.md states it.
+    if (valibotAction.type === 'check' && jsonSchema.type === 'object') return jsonSchema;
     if (valibotAction.type !== 'trim') return undefined;
     if (
       jsonSchema.type !== 'string' ||

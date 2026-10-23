@@ -435,6 +435,66 @@
       "response": "SessionHandoffRequestSchema"
     },
     {
+      "method": "POST",
+      "path": "/api/sessions/:sessionId/config-changes",
+      "auth": "write-config",
+      "lane": "control",
+      "status": 201,
+      "query": null,
+      "body": "SessionConfigChangeCreateSchema",
+      "response": "SessionConfigChangeSchema"
+    },
+    {
+      "method": "GET",
+      "path": "/api/sessions/:sessionId/config-changes",
+      "auth": "read-config",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": null,
+      "response": "SessionConfigChangeListSchema"
+    },
+    {
+      "method": "GET",
+      "path": "/api/config-changes/:changeId",
+      "auth": "read-config",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": null,
+      "response": "SessionConfigChangeSchema"
+    },
+    {
+      "method": "POST",
+      "path": "/api/config-changes/:changeId/approve",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": null,
+      "response": "SessionConfigChangeSchema"
+    },
+    {
+      "method": "POST",
+      "path": "/api/config-changes/:changeId/decline",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": null,
+      "response": "SessionConfigChangeSchema"
+    },
+    {
+      "method": "POST",
+      "path": "/api/config-changes/:changeId/undo",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": null,
+      "response": "SessionConfigChangeSchema"
+    },
+    {
       "method": "GET",
       "path": "/api/devices",
       "auth": "read",
@@ -1267,6 +1327,12 @@
       "schema": "HandoffRequestMessage"
     },
     {
+      "type": "session.change",
+      "direction": "core-to-web",
+      "lane": "control",
+      "schema": "SessionChangeMessage"
+    },
+    {
       "type": "notify",
       "direction": "core-to-web",
       "lane": "control",
@@ -1366,6 +1432,9 @@
     "no-clone": 409,
     "no-snapshot": 409,
     "session-changed": 409,
+    "stale": 409,
+    "unsafe-content": 422,
+    "unsupported": 501,
     "verify-failed": 502,
     "clone-failed": 502,
     "delete-partial": 502,
@@ -3732,6 +3801,9 @@
             "no-clone",
             "no-snapshot",
             "session-changed",
+            "stale",
+            "unsafe-content",
+            "unsupported",
             "verify-failed",
             "clone-failed",
             "delete-partial",
@@ -3804,6 +3876,9 @@
             "no-clone",
             "no-snapshot",
             "session-changed",
+            "stale",
+            "unsafe-content",
+            "unsupported",
             "verify-failed",
             "clone-failed",
             "delete-partial",
@@ -8228,6 +8303,43 @@
         "updatedAt"
       ]
     },
+    "SessionChangeMessage": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 19
+        },
+        "type": {
+          "const": "session.change"
+        },
+        "sessionId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "changeId": {
+          "type": "string"
+        },
+        "state": {
+          "enum": [
+            "pending",
+            "approved",
+            "applied",
+            "declined",
+            "expired",
+            "failed",
+            "undone"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "sessionId",
+        "changeId",
+        "state"
+      ]
+    },
     "SessionChildrenResponseSchema": {
       "type": "object",
       "properties": {
@@ -8572,6 +8684,336 @@
         "v",
         "type",
         "sessionId"
+      ]
+    },
+    "SessionConfigChangeCreateSchema": {
+      "type": "object",
+      "properties": {
+        "reason": {
+          "type": "string",
+          "pattern": "^\\s*\\S(?:[\\s\\S]{0,498}\\S)?\\s*$"
+        },
+        "objects": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "enum": [
+                  "memory",
+                  "skill",
+                  "command",
+                  "config"
+                ],
+                "type": "string"
+              },
+              "name": {
+                "type": "string",
+                "pattern": "^\\s*\\S(?:[\\s\\S]{0,62}\\S)?\\s*$"
+              },
+              "baseHash": {
+                "type": "string",
+                "maxLength": 64
+              },
+              "content": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "kind",
+              "name",
+              "content"
+            ],
+            "additionalProperties": false
+          },
+          "minItems": 1,
+          "maxItems": 5
+        }
+      },
+      "required": [
+        "reason",
+        "objects"
+      ],
+      "additionalProperties": false
+    },
+    "SessionConfigChangeListSchema": {
+      "type": "object",
+      "properties": {
+        "changes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "changeId": {
+                "type": "string"
+              },
+              "sessionId": {
+                "type": "string"
+              },
+              "state": {
+                "enum": [
+                  "pending",
+                  "approved",
+                  "applied",
+                  "declined",
+                  "expired",
+                  "failed",
+                  "undone"
+                ],
+                "type": "string"
+              },
+              "reason": {
+                "type": "string"
+              },
+              "objects": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "enum": [
+                        "memory",
+                        "skill",
+                        "command",
+                        "config"
+                      ],
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "baseHash": {
+                      "type": "string"
+                    },
+                    "newHash": {
+                      "type": "string"
+                    },
+                    "content": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "diff": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "name",
+                    "baseHash",
+                    "newHash",
+                    "content",
+                    "diff"
+                  ]
+                }
+              },
+              "createdAt": {
+                "type": "number"
+              },
+              "expiresAt": {
+                "type": "number"
+              },
+              "decidedAt": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "appliedAt": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "undoneAt": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "undoable": {
+                "type": "boolean"
+              },
+              "error": {
+                "type": "string"
+              },
+              "errorReason": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "changeId",
+              "sessionId",
+              "state",
+              "reason",
+              "objects",
+              "createdAt",
+              "expiresAt",
+              "decidedAt",
+              "appliedAt",
+              "undoneAt",
+              "undoable"
+            ]
+          }
+        }
+      },
+      "required": [
+        "changes"
+      ]
+    },
+    "SessionConfigChangeSchema": {
+      "type": "object",
+      "properties": {
+        "changeId": {
+          "type": "string"
+        },
+        "sessionId": {
+          "type": "string"
+        },
+        "state": {
+          "enum": [
+            "pending",
+            "approved",
+            "applied",
+            "declined",
+            "expired",
+            "failed",
+            "undone"
+          ],
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "objects": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "enum": [
+                  "memory",
+                  "skill",
+                  "command",
+                  "config"
+                ],
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "baseHash": {
+                "type": "string"
+              },
+              "newHash": {
+                "type": "string"
+              },
+              "content": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "diff": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "name",
+              "baseHash",
+              "newHash",
+              "content",
+              "diff"
+            ]
+          }
+        },
+        "createdAt": {
+          "type": "number"
+        },
+        "expiresAt": {
+          "type": "number"
+        },
+        "decidedAt": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "appliedAt": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "undoneAt": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "undoable": {
+          "type": "boolean"
+        },
+        "error": {
+          "type": "string"
+        },
+        "errorReason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "changeId",
+        "sessionId",
+        "state",
+        "reason",
+        "objects",
+        "createdAt",
+        "expiresAt",
+        "decidedAt",
+        "appliedAt",
+        "undoneAt",
+        "undoable"
       ]
     },
     "SessionDeletedMessage": {
@@ -9184,6 +9626,12 @@
             "autoApproveHandoff": {
               "type": "boolean"
             },
+            "readConfig": {
+              "type": "boolean"
+            },
+            "writeConfig": {
+              "type": "boolean"
+            },
             "autoApproveMachines": {
               "type": "array",
               "items": {
@@ -9206,6 +9654,8 @@
             "create",
             "requestHandoff",
             "autoApproveHandoff",
+            "readConfig",
+            "writeConfig",
             "autoApproveMachines",
             "visibility"
           ],
@@ -9235,6 +9685,12 @@
             "autoApproveHandoff": {
               "type": "boolean"
             },
+            "readConfig": {
+              "type": "boolean"
+            },
+            "writeConfig": {
+              "type": "boolean"
+            },
             "autoApproveMachines": {
               "type": "array",
               "items": {
@@ -9257,6 +9713,8 @@
             "create",
             "requestHandoff",
             "autoApproveHandoff",
+            "readConfig",
+            "writeConfig",
             "autoApproveMachines",
             "visibility"
           ],
@@ -9288,6 +9746,12 @@
                   "autoApproveHandoff": {
                     "type": "boolean"
                   },
+                  "readConfig": {
+                    "type": "boolean"
+                  },
+                  "writeConfig": {
+                    "type": "boolean"
+                  },
                   "autoApproveMachines": {
                     "type": "array",
                     "items": {
@@ -9310,6 +9774,8 @@
                   "create",
                   "requestHandoff",
                   "autoApproveHandoff",
+                  "readConfig",
+                  "writeConfig",
                   "autoApproveMachines",
                   "visibility"
                 ],
@@ -9358,6 +9824,12 @@
             "autoApproveHandoff": {
               "type": "boolean"
             },
+            "readConfig": {
+              "type": "boolean"
+            },
+            "writeConfig": {
+              "type": "boolean"
+            },
             "autoApproveMachines": {
               "type": "array",
               "items": {
@@ -9380,6 +9852,8 @@
             "create",
             "requestHandoff",
             "autoApproveHandoff",
+            "readConfig",
+            "writeConfig",
             "autoApproveMachines",
             "visibility"
           ],
@@ -9412,6 +9886,12 @@
             "autoApproveHandoff": {
               "type": "boolean"
             },
+            "readConfig": {
+              "type": "boolean"
+            },
+            "writeConfig": {
+              "type": "boolean"
+            },
             "autoApproveMachines": {
               "type": "array",
               "items": {
@@ -9434,6 +9914,8 @@
             "create",
             "requestHandoff",
             "autoApproveHandoff",
+            "readConfig",
+            "writeConfig",
             "autoApproveMachines",
             "visibility"
           ],
@@ -11304,12 +11786,14 @@
                   "send",
                   "create",
                   "answer",
-                  "request-handoff"
+                  "request-handoff",
+                  "read-config",
+                  "write-config"
                 ],
                 "type": "string"
               },
               "minItems": 1,
-              "maxItems": 5,
+              "maxItems": 7,
               "uniqueItems": true
             },
             "allow": {
@@ -11379,12 +11863,14 @@
                   "send",
                   "create",
                   "answer",
-                  "request-handoff"
+                  "request-handoff",
+                  "read-config",
+                  "write-config"
                 ],
                 "type": "string"
               },
               "minItems": 1,
-              "maxItems": 5,
+              "maxItems": 7,
               "uniqueItems": true
             },
             "allow": {
@@ -11498,12 +11984,14 @@
                         "send",
                         "create",
                         "answer",
-                        "request-handoff"
+                        "request-handoff",
+                        "read-config",
+                        "write-config"
                       ],
                       "type": "string"
                     },
                     "minItems": 1,
-                    "maxItems": 5,
+                    "maxItems": 7,
                     "uniqueItems": true
                   },
                   "allow": {

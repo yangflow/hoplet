@@ -31,6 +31,8 @@ export const MAX_AUTO_APPROVE_MACHINES = 32;
  * `interrupt_session`; `create` allows `start_session` and implies `send`; `requestHandoff` allows asking the user
  * to hand the session off. `autoApproveHandoff` lets those requests from this session pass without the user's
  * confirmation when the destination is one of `autoApproveMachines`; it is only meaningful with `requestHandoff`.
+ * `readConfig` allows reading the session's own configuration and `writeConfig` allows proposing changes to it
+ * (ADR 0036); `writeConfig` implies `readConfig`, and every change stays the user's to approve.
  * Answering permission requests is not an ability a session can be given.
  */
 export const SessionMcpSettingsSchema = v.strictObject({
@@ -38,6 +40,8 @@ export const SessionMcpSettingsSchema = v.strictObject({
   create: v.boolean(),
   requestHandoff: v.boolean(),
   autoApproveHandoff: v.boolean(),
+  readConfig: v.boolean(),
+  writeConfig: v.boolean(),
   autoApproveMachines: v.pipe(
     v.array(v.pipe(TrimmedSchema, v.maxLength(128))),
     v.maxLength(MAX_AUTO_APPROVE_MACHINES),
@@ -52,6 +56,8 @@ export const DEFAULT_SESSION_MCP_SETTINGS: SessionMcpSettings = {
   create: false,
   requestHandoff: false,
   autoApproveHandoff: false,
+  readConfig: true,
+  writeConfig: false,
   autoApproveMachines: [],
   visibility: 'project',
 };

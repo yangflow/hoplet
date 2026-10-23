@@ -71,3 +71,13 @@ export function scrubCredentials(input: string, mask: string): string {
 export function scrubText(input: string, mask: string = TEXT_MASK): string {
   return apply(input, mask, true);
 }
+
+/**
+ * Whether `input` contains a credential by its shape (a key format, a bearer token, URL user info) or a private
+ * key block. Text that merely names a credential (`TOKEN=value`) does not count: that is prose, and stored
+ * content that must never hold a secret is checked with this.
+ */
+export function containsCredential(input: string): boolean {
+  if (/-----BEGIN [A-Z ]*PRIVATE KEY-----/.test(input)) return true;
+  return scrubCredentials(input, '\u0000') !== input;
+}

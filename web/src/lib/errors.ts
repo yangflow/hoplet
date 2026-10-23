@@ -75,6 +75,11 @@ export const ERROR_COPY: Record<HttpErrorCode, string> = {
   'no-snapshot':
     'The owner is offline and no workspace snapshot was stored. Hand off once it has finished a turn.',
   'session-changed': 'The session changed during the hand-off. Nothing was moved; try again.',
+  stale:
+    'The file changed since the change was proposed. Nothing was written; ask the session to propose it again.',
+  'unsafe-content':
+    'The proposal contains something that looks like a credential, so it was refused.',
+  unsupported: 'This machine cannot change that configuration yet.',
   'verify-failed': "The other machine's copy did not match. Nothing was moved.",
   'session-running': 'Stop the session before deleting it.',
   'terminal-unavailable': 'The terminal is not enabled on that machine.',

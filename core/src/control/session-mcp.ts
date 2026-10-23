@@ -153,6 +153,8 @@ export function createSessionMcp(
     if (settings.send || settings.create) capabilities.push('send');
     if (settings.create) capabilities.push('create');
     if (settings.requestHandoff) capabilities.push('request-handoff');
+    if (settings.readConfig || settings.writeConfig) capabilities.push('read-config');
+    if (settings.writeConfig) capabilities.push('write-config');
     if (settings.visibility === 'all') return { capabilities };
     if (settings.visibility === 'machine') return { capabilities, allow: [{ deviceId: owner }] };
     return {

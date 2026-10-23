@@ -15,6 +15,8 @@ interface SettingsRow {
   request_handoff: number;
   auto_approve_handoff: number;
   auto_approve_machines: string;
+  read_config: number;
+  write_config: number;
   visibility: string;
 }
 
@@ -35,14 +37,16 @@ function settingsOf(row: SettingsRow): SessionMcpSettings {
     requestHandoff: row.request_handoff === 1,
     autoApproveHandoff: row.auto_approve_handoff === 1,
     autoApproveMachines: machinesOf(row.auto_approve_machines),
+    readConfig: row.read_config === 1,
+    writeConfig: row.write_config === 1,
     // A damaged value reaches the least.
     visibility: visibility.success ? visibility.output : 'project',
   };
 }
 
 /**
- * `create` implies `send`, and automatic approval belongs to `requestHandoff`: the stored value never holds the
- * one without the other, and its machine list has no duplicates.
+ * `create` implies `send`, `writeConfig` implies `readConfig`, and automatic approval belongs to `requestHandoff`:
+ * the stored value never holds the one without the other, and its machine list has no duplicates.
  */
 export function normalized(settings: SessionMcpSettings): SessionMcpSettings {
   const send = settings.send || settings.create;
@@ -50,24 +54,29 @@ export function normalized(settings: SessionMcpSettings): SessionMcpSettings {
   return {
     ...settings,
     send,
+    readConfig: settings.readConfig || settings.writeConfig,
     autoApproveHandoff: approve,
     autoApproveMachines: settings.requestHandoff ? [...new Set(settings.autoApproveMachines)] : [],
   };
 }
 
-function values(s: SessionMcpSettings): [number, number, number, number, string, string] {
+function values(
+  s: SessionMcpSettings,
+): [number, number, number, number, string, number, number, string] {
   return [
     s.send ? 1 : 0,
     s.create ? 1 : 0,
     s.requestHandoff ? 1 : 0,
     s.autoApproveHandoff ? 1 : 0,
     JSON.stringify(s.autoApproveMachines),
+    s.readConfig ? 1 : 0,
+    s.writeConfig ? 1 : 0,
     s.visibility,
   ];
 }
 
 const SETTINGS_COLUMNS =
-  'send, create_sessions, request_handoff, auto_approve_handoff, auto_approve_machines, visibility';
+  'send, create_sessions, request_handoff, auto_approve_handoff, auto_approve_machines, read_config, write_config, visibility';
 
 export function getSessionSettings(
   ctx: StoreContext,
@@ -91,8 +100,8 @@ export function seedSessionSettings(
 ): void {
   ctx.db
     .prepare(
-      `INSERT OR IGNORE INTO session_mcp_settings(session_id, send, create_sessions, request_handoff, auto_approve_handoff, auto_approve_machines, visibility, updated_at)
-       VALUES(?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT OR IGNORE INTO session_mcp_settings(session_id, send, create_sessions, request_handoff, auto_approve_handoff, auto_approve_machines, read_config, write_config, visibility, updated_at)
+       VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(sessionId, ...values(normalized(settings)), now);
 }
@@ -111,11 +120,12 @@ export function putSessionSettings(
     () => {
       ctx.db
         .prepare(
-          `INSERT INTO session_mcp_settings(session_id, send, create_sessions, request_handoff, auto_approve_handoff, auto_approve_machines, visibility, updated_at)
-           VALUES(?, ?, ?, ?, ?, ?, ?, ?)
+          `INSERT INTO session_mcp_settings(session_id, send, create_sessions, request_handoff, auto_approve_handoff, auto_approve_machines, read_config, write_config, visibility, updated_at)
+           VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT(session_id) DO UPDATE SET send = excluded.send, create_sessions = excluded.create_sessions,
              request_handoff = excluded.request_handoff, auto_approve_handoff = excluded.auto_approve_handoff,
-             auto_approve_machines = excluded.auto_approve_machines, visibility = excluded.visibility,
+             auto_approve_machines = excluded.auto_approve_machines, read_config = excluded.read_config,
+             write_config = excluded.write_config, visibility = excluded.visibility,
              updated_at = excluded.updated_at`,
         )
         .run(sessionId, ...values(s), now);
@@ -157,13 +167,14 @@ export function putSessionDefault(
     () => {
       ctx.db
         .prepare(
-          `INSERT INTO session_mcp_defaults(device_id, project_path, send, create_sessions, request_handoff, auto_approve_handoff, auto_approve_machines, visibility, updated_at)
-           VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `INSERT INTO session_mcp_defaults(device_id, project_path, send, create_sessions, request_handoff, auto_approve_handoff, auto_approve_machines, read_config, write_config, visibility, updated_at)
+           VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT(device_id, project_path) DO UPDATE SET send = excluded.send,
              create_sessions = excluded.create_sessions, request_handoff = excluded.request_handoff,
              auto_approve_handoff = excluded.auto_approve_handoff,
-             auto_approve_machines = excluded.auto_approve_machines,
-             visibility = excluded.visibility, updated_at = excluded.updated_at`,
+             auto_approve_machines = excluded.auto_approve_machines, read_config = excluded.read_config,
+             write_config = excluded.write_config, visibility = excluded.visibility,
+             updated_at = excluded.updated_at`,
         )
         .run(deviceId, path, ...values(s), now);
       return s;

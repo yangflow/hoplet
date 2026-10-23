@@ -16,6 +16,8 @@ const ON = {
   autoApproveHandoff: false,
   autoApproveMachines: [],
   visibility: 'machine',
+  readConfig: true,
+  writeConfig: false,
 } as const;
 
 describe('session MCP settings', () => {
@@ -27,6 +29,8 @@ describe('session MCP settings', () => {
       autoApproveHandoff: false,
       autoApproveMachines: [],
       visibility: 'project',
+      readConfig: true,
+      writeConfig: false,
     });
     expect(MAX_SESSION_CHAIN).toBe(3);
   });

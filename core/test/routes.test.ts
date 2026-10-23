@@ -56,6 +56,12 @@ describe('the route table', () => {
     ],
     // Only a session token holds it.
     'request-handoff': ['POST /api/handoff-requests'],
+    // Only a session token holds these two (ADR 0036).
+    'read-config': [
+      'GET /api/sessions/:sessionId/config-changes',
+      'GET /api/config-changes/:changeId',
+    ],
+    'write-config': ['POST /api/sessions/:sessionId/config-changes'],
   };
   const PRESETS: Record<string, TokenCapability[]> = {
     'read only': ['read'],
@@ -111,6 +117,9 @@ describe('the route table', () => {
         'GET /api/sessions/:sessionId/blocks/:line/:block',
         'POST /api/sessions',
         'POST /api/handoff-requests',
+        'GET /api/sessions/:sessionId/config-changes',
+        'GET /api/config-changes/:changeId',
+        'POST /api/sessions/:sessionId/config-changes',
         'POST /api/sessions/:sessionId/prompt',
         'POST /api/sessions/:sessionId/interrupt',
         'POST /api/sessions/:sessionId/queue',

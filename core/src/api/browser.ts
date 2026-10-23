@@ -88,6 +88,8 @@ export function visibleTo(principal: Principal, control: Control, msg: ServerMes
     case 'session.listening':
     case 'handoff.progress':
       return seesSession(principal, control, msg.sessionId);
+    case 'session.change':
+      return seesSession(principal, control, msg.sessionId);
     case 'handoff.request':
       return seesSession(principal, control, msg.request.sessionId);
     case 'notify':

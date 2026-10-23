@@ -29,6 +29,8 @@ import type {
   RuntimeState,
   ServerMessage,
   SessionConfig,
+  SessionConfigChange,
+  SessionConfigChangeCreate,
   SessionHandoffRequest,
   SessionMcpProjectDefault,
   SessionMcpSettings,
@@ -213,6 +215,132 @@ export interface SessionHandoffRequests {
     | { ok: true; request: SessionHandoffRequest }
     | { ok: false; error: 'not-found' | 'request-closed' };
   /** Stops the expiry timers. */
+  close(): void;
+}
+
+/** An object of a change request that is a file of the project (a `config` object is not). */
+export interface ConfigFileObject {
+  kind: 'memory' | 'skill' | 'command';
+  name: string;
+  /** The proposed content; null deletes the file. */
+  content: string | null;
+}
+
+/** What the owner's agent says about the files of a proposal before the user sees it (ADR 0036). */
+export type ConfigFilePreview =
+  | {
+      ok: true;
+      objects: {
+        kind: ConfigFileObject['kind'];
+        name: string;
+        /** SHA-256 (hex) of the file as it is now; empty when it does not exist. */
+        currentHash: string;
+        /** The file's content now; null when it does not exist. */
+        previous: string | null;
+        /** A unified diff of the file as the agent read it against the proposed content. */
+        diff: string;
+      }[];
+    }
+  | {
+      ok: false;
+      error: 'owner-offline' | 'unsupported' | 'unsafe-content' | 'rejected' | 'timeout';
+      reason?: string;
+    };
+
+/** What the owner's agent says about writing the files of an approved change. */
+export type ConfigFileApply =
+  | { ok: true }
+  | {
+      ok: false;
+      error: 'owner-offline' | 'unsupported' | 'unsafe-content' | 'stale' | 'timeout' | 'failed';
+      reason?: string;
+    };
+
+/**
+ * Where a change request meets the files of a project (ADR 0036): the owner's agent previews the files of a
+ * proposal and writes them after approval. The core never reads or writes a project file itself.
+ */
+export interface ConfigFiles {
+  preview(
+    deviceId: string,
+    sessionId: string,
+    objects: ConfigFileObject[],
+  ): Promise<ConfigFilePreview>;
+  /** Writes all objects or none; each is written only if the file still has `baseHash`. */
+  apply(
+    deviceId: string,
+    input: {
+      changeId: string;
+      sessionId: string;
+      objects: (ConfigFileObject & { baseHash: string; newHash: string })[];
+    },
+  ): Promise<ConfigFileApply>;
+}
+
+/** Why a session's change request was not made. */
+export type SessionConfigChangeRefusal =
+  | {
+      ok: false;
+      error:
+        | 'not-found'
+        | 'owner-offline'
+        | 'unsupported'
+        | 'unsafe-content'
+        | 'stale'
+        | 'too-large'
+        | 'timeout'
+        | 'rejected'
+        | 'external';
+      reason?: string;
+    }
+  | { ok: false; error: 'forbidden' | 'invalid-request'; reason: string };
+
+/** Changes of sessions to their own configuration (#69, ADR 0036). */
+export interface SessionConfigChanges {
+  /**
+   * `sessionId` proposes changes to its own configuration: previewed by the owner's agent, then `pending` until the
+   * user decides. Nothing is written before that.
+   */
+  propose(
+    sessionId: string,
+    input: SessionConfigChangeCreate,
+  ): Promise<{ ok: true; change: SessionConfigChange } | SessionConfigChangeRefusal>;
+  /** A session's requests, newest first. */
+  list(sessionId: string): SessionConfigChange[];
+  get(changeId: string): SessionConfigChange | null;
+  /**
+   * The user's answer to a pending request; `request-closed` once it was answered or has expired. An approval
+   * returns at once with the request `approved`; it is written when the owner is online.
+   */
+  decide(
+    changeId: string,
+    approve: boolean,
+    actor?: AuditActor,
+  ):
+    | { ok: true; change: SessionConfigChange }
+    | { ok: false; error: 'not-found' | 'request-closed' };
+  /** Undoes an applied change; the files are written back only if they still have the hash the change produced. */
+  undo(
+    changeId: string,
+    actor?: AuditActor,
+  ): Promise<
+    | { ok: true; change: SessionConfigChange }
+    | {
+        ok: false;
+        error:
+          | 'not-found'
+          | 'request-closed'
+          | 'busy'
+          | 'owner-offline'
+          | 'stale'
+          | 'unsupported'
+          | 'rejected';
+        reason?: string;
+      }
+  >;
+  /** Drops the previous content of changes applied more than 30 days ago; returns how many lost it. */
+  prune(): number;
+  /** Stops the timers. */
   close(): void;
 }
 
@@ -752,6 +880,8 @@ export interface Control {
   readonly sessionMcp: SessionMcp;
   /** Requests of sessions to be handed off to another machine (ADR 0034). */
   readonly handoffRequests: SessionHandoffRequests;
+  /** Changes of sessions to their own configuration (ADR 0036). */
+  readonly configChanges: SessionConfigChanges;
   /** Looks at the trees of work once for sessions past a limit and stops them (ADR 0035); the timer calls it every 30 seconds. */
   checkTrees(): void;
   /** The project directory of a session, also of one an agent just started; `null` for an unknown session. */
@@ -845,6 +975,8 @@ export interface AgentControl {
 }
 
 export interface ControlOptions {
+  /** Where change requests meet project files; the default answers `unsupported` (ADR 0036). */
+  configFiles?: ConfigFiles;
   /** Bulk work in flight and waiting; the defaults suit one operator. */
   bulk?: BulkQueueOptions;
   promptTimeoutMs?: number;

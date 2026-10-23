@@ -32,6 +32,7 @@ import {
   PERMISSION_SCOPES,
   PermissionRuleSchema,
 } from '../permission-rules.ts';
+import { ConfigChangeStateSchema } from '../rest/config-changes.ts';
 import { HookEnvelopeSchema, HookEventTypeSchema } from '../rest/hooks.ts';
 import { NotifyEventKindSchema } from '../rest/notify.ts';
 import { PromptSourceSchema, SessionHandoffRequestSchema } from '../rest/session-mcp.ts';
@@ -981,6 +982,16 @@ export const WIRE_MESSAGES = defineWire({
     lane: 'control',
     direction: 'core-to-web',
     fields: { request: SessionHandoffRequestSchema },
+  },
+
+  /**
+   * A session's request to change its own configuration was made or changed state (ADR 0036). It carries ids and
+   * the state only; a browser reads the request, with its diff, over REST.
+   */
+  'session.change': {
+    lane: 'control',
+    direction: 'core-to-web',
+    fields: { sessionId, changeId: v.string(), state: ConfigChangeStateSchema },
   },
 
   /**
