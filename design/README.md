@@ -134,6 +134,22 @@ The mockups, design tokens and app icon behind Hoplet's web UI. The design langu
   of machines, up to 3 an hour, each still waiting for the end of the turn) is kept; it needs a field of
   `SessionMcpSettings` in `shared/`, added with ADR 0034 step 5. New icons: `send`, `square-plus`, `arrow-right-left`, `eye`, `link`,
   `corner-down-right`, `external-link`, `webhook`.
+- `screens/self-config.html` (#69): a session's change request for its own configuration (ADR 0036), three
+  directions awaiting the maintainer's choice; none is confirmed. Each shows the request in the turn (CLAUDE.md, a
+  skill, a command and the effort setting, a diff per object, Approve and Decline for the whole request, "takes
+  effect when the session next starts", the content-check warning), the state after approval with Undo and after
+  Undo, a request that expired at a hand-off, where `read-config` and `write-config` are turned on, and the
+  notification of a pending request. A (`a-*`) opens the diffs inside the card and puts the switches in the
+  inspector tab, retitled Hoplet tools. B (`b-*`) keeps the card compact and opens a wide inspector with an object
+  list and the diff; the switches are a chip and a popover. C (`c-*`) offers one action, Review and decide, and a
+  dialog with steps that offers Approve on the last step; the switches are presets in a dialog. States: A
+  `a-card`, `a-card-open`, `a-card-warn`, `a-applied`, `a-undone`, `a-expired`, `a-session`, `a-session-write`,
+  `a-notify`; B `b-card`, `b-review`, `b-review-warn`, `b-applied`, `b-undone`, `b-expired`, `b-session`,
+  `b-session-write`, `b-notify`; C `c-card`, `c-review`, `c-review-warn`, `c-review-last`, `c-applied`,
+  `c-undone`, `c-expired`, `c-session`, `c-session-write`, `c-notify`; `conv-refused` (`stale`, `unsafe-content`,
+  `unsupported`) and `conv-undo-stale` show what the session or the user sees when a request or an Undo fails.
+  Most states also have `-zh` states. Strings that are not in `web/src/i18n/zh-Hans.json` yet are proposals for
+  it. New icons: `undo-2`, `zap`, `sliders-horizontal`, `book-open`, `triangle-alert`.
 - `tokens.html`: every design token, with the JSON block that `check-tokens.py` compares with
   `web/src/design/tokens.css`.
 - `mark.html`: the app icon and the web UI's mark; the exported icon is `web/public/icon.svg`.
