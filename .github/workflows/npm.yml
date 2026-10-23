@@ -1,8 +1,9 @@
 # Publishes @hoplet/sdk and @hoplet/cli to npm when a release is published (ADR 0033). The job waits on the `npm`
 # environment, which only the maintainer can approve, and authenticates with npm trusted publishing (OIDC), so no
 # npm token is stored in the repository and each package carries provenance. Claiming the @hoplet scope, the first
-# publish and the trusted-publisher settings on npm are the maintainer's, done by hand. An agent never runs or
-# approves this workflow (AGENTS.md, Red lines).
+# publish and the trusted-publisher settings on npm are the maintainer's, done by hand. The job runs only when the
+# repository variable NPM_PUBLISH is `true`, which the maintainer sets once npm is ready; otherwise a release skips
+# it. An agent never runs or approves this workflow (AGENTS.md, Red lines).
 name: npm
 
 on:
@@ -19,6 +20,7 @@ concurrency:
 jobs:
   publish:
     name: publish
+    if: vars.NPM_PUBLISH == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment: npm
