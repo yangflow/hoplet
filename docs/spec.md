@@ -377,8 +377,10 @@ dangerous ones asked about or denied.
   into a shell. They cannot be deleted or edited. Turning one off asks a second time and names the rule.
 - **Where they act**: the core stores the rules and sends each machine the ones that apply to it; the machine's
   agent decides before the request reaches the user, so rules hold while the machine is disconnected and after the
-  agent restarts. A handoff takes the session's rules with it; the dialog offers to copy the source project's rules
-  to the target's. A child session obeys its parent's `deny` and `ask` rules and gets none of its `allow` rules.
+  agent restarts. A handoff takes the session's rules with it; project rules stay on their machine, and the
+  handoff dialog says so. Planned (#330): copying the source project's rules to the target's from the dialog.
+  Planned (#329), with child sessions (#81): a child session obeys its parent's `deny` and `ask` rules and gets none
+  of its `allow` rules.
   Sessions cannot create or change rules or permission modes, through Hoplet's own MCP tools or otherwise.
 - **Agent-local deny rules** are written by the operator in the agent's configuration (`permission_deny`) and by the
   agent's compiled-in floor (the Hoplet home, the provider settings and hook files). Settings shows them read-only;
