@@ -15,6 +15,12 @@ import { type ReactNode, useEffect } from 'react';
 import { endDate } from '../../lib/budgets.ts';
 import { t } from '../../lib/i18n.ts';
 import { type Appearance, applyText, DEFAULTS } from '../../lib/prefs.ts';
+import {
+  EMPTY_DEFAULTS,
+  MCP_DEFAULTS,
+  MCP_PROJECTS,
+  mcpDevices,
+} from '../../lib/session-mcp-fixtures.ts';
 import type { AuditFixture } from './audit.tsx';
 import * as auditFx from './audit-fixtures.ts';
 import { type BudgetsFixture, fill } from './budgets.tsx';
@@ -22,6 +28,7 @@ import type { HooksFixture } from './hooks.tsx';
 import { hooksStates } from './hooks-fixtures.ts';
 import { type SectionId, Settings } from './index.tsx';
 import type { MachinesFixture } from './machines.tsx';
+import type { McpFixture } from './mcp.tsx';
 import type { NotifyFixture, PushState } from './notifications.tsx';
 import type { ProvidersFixture } from './providers.tsx';
 import type { RulesFixture } from './rules.tsx';
@@ -676,6 +683,7 @@ function Scene(props: {
   usage?: UsageFixture;
   templates?: TemplatesFixture;
   tokens?: TokensFixture;
+  mcp?: McpFixture;
 }) {
   const appearance = { ...DEFAULTS, ...props.appearance };
   useEffect(() => {
@@ -697,9 +705,17 @@ function Scene(props: {
       {...(props.usage ? { usage: props.usage } : {})}
       {...(props.templates ? { templates: props.templates } : {})}
       {...(props.tokens ? { tokens: props.tokens } : {})}
+      {...(props.mcp ? { mcp: props.mcp } : {})}
     />
   );
 }
+
+const mcpFixture = (over: Partial<McpFixture> = {}): McpFixture => ({
+  defaults: MCP_DEFAULTS,
+  devices: mcpDevices(),
+  projects: MCP_PROJECTS,
+  ...over,
+});
 
 export const states: Record<string, () => ReactNode> = {
   settings: () => <Scene section="appearance" />,
@@ -980,6 +996,11 @@ export const states: Record<string, () => ReactNode> = {
       })}
     />
   ),
+  'c-settings': () => <Scene section="mcp" mcp={mcpFixture()} />,
+  'c-settings-menu': () => (
+    <Scene section="mcp" mcp={mcpFixture({ menu: 'dev-studio/Users/mark/src/hoplet' })} />
+  ),
+  'c-settings-empty': () => <Scene section="mcp" mcp={mcpFixture({ defaults: EMPTY_DEFAULTS })} />,
   tokens: () => <Scene section="tokens" tokens={tokensFixture()} />,
   'tokens-detail': () => <Scene section="tokens" tokens={tokensFixture({ open: 'tok_release' })} />,
   'tokens-empty': () => <Scene section="tokens" tokens={tokensFixture({ empty: true })} />,

@@ -60,6 +60,10 @@ import {
   RuntimeCommandResultSchema,
   type SessionConfig,
   SessionListResponseSchema,
+  SessionMcpDefaultsResponseSchema,
+  SessionMcpOkResponseSchema,
+  SessionMcpResponseSchema,
+  type SessionMcpSettings,
   type SessionPatchRequest,
   SessionPortsResultSchema,
   SessionUsageSchema,
@@ -928,6 +932,56 @@ export function deleteToken(id: string) {
   return call(
     `/api/tokens/${encodeURIComponent(id)}`,
     TokenRevokeResponseSchema,
+    undefined,
+    undefined,
+    'DELETE',
+  );
+}
+
+/** What one session may do to other sessions (ADR 0034). */
+export function fetchSessionMcp(sessionId: string, signal?: AbortSignal) {
+  return call(
+    `/api/sessions/${encodeURIComponent(sessionId)}/mcp`,
+    SessionMcpResponseSchema,
+    undefined,
+    signal,
+  );
+}
+
+export function putSessionMcp(sessionId: string, settings: SessionMcpSettings) {
+  return call(
+    `/api/sessions/${encodeURIComponent(sessionId)}/mcp`,
+    SessionMcpResponseSchema,
+    { settings },
+    undefined,
+    'PUT',
+  );
+}
+
+/** The global default and the project defaults for sessions that begin afterwards. */
+export function fetchMcpDefaults(signal?: AbortSignal) {
+  return call('/api/mcp/defaults', SessionMcpDefaultsResponseSchema, undefined, signal);
+}
+
+/** Sets the global default, or one project's when `project` is given. */
+export function putMcpDefault(
+  settings: SessionMcpSettings,
+  project?: { deviceId: string; path: string },
+) {
+  return call(
+    '/api/mcp/defaults',
+    SessionMcpOkResponseSchema,
+    { settings, ...(project ?? {}) },
+    undefined,
+    'PUT',
+  );
+}
+
+export function deleteMcpDefault(project: { deviceId: string; path: string }) {
+  const q = new URLSearchParams(project);
+  return call(
+    `/api/mcp/defaults?${q.toString()}`,
+    SessionMcpOkResponseSchema,
     undefined,
     undefined,
     'DELETE',

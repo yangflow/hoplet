@@ -2838,6 +2838,9 @@
               "terminal": {
                 "type": "boolean"
               },
+              "sessionMcp": {
+                "type": "boolean"
+              },
               "previewHost": {
                 "type": "string"
               },

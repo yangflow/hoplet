@@ -723,8 +723,8 @@ command lines are never logged or stored; the log holds open and close with IDs,
 `GET /api/sessions/:sessionId/ports` and `session.listening` carry the listening ports of the session's processes.
 The core asks the agent to watch the sessions that have a subscribed connection and keeps the latest report in
 memory. `previewHost` is the host name the agent announced in its hello (`preview_host` of its configuration, or its
-host name); a client builds `http://<previewHost>:<port>` from it. `GET /api/devices` also lists `terminal` (the
-announced capability) and `previewHost` for each connected device.
+host name); a client builds `http://<previewHost>:<port>` from it. `GET /api/devices` also lists `terminal` and `sessionMcp` (the
+announced capabilities) and `previewHost` for each connected device.
 
 ## Notifications
 

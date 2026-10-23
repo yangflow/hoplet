@@ -11,6 +11,7 @@ import { AppearanceSection } from './appearance.tsx';
 import { type AuditFixture, AuditSection } from './audit.tsx';
 import { type HooksFixture, HooksSection } from './hooks.tsx';
 import { type MachinesFixture, MachinesSection } from './machines.tsx';
+import { type McpFixture, McpSection } from './mcp.tsx';
 import { NotificationsSection, type NotifyFixture } from './notifications.tsx';
 import { type ProvidersFixture, ProvidersSection } from './providers.tsx';
 import { type RulesFixture, RulesSection } from './rules.tsx';
@@ -28,6 +29,7 @@ export const SECTIONS = [
   { id: 'providers', label: 'Model providers', icon: () => Icon.plug() },
   { id: 'notifications', label: 'Notifications', icon: () => Icon.bell() },
   { id: 'rules', label: 'Permission rules', icon: () => Icon.rules() },
+  { id: 'mcp', label: 'Other sessions', icon: () => Icon.link() },
   { id: 'hooks', label: 'Hooks', icon: () => Icon.webhook() },
   { id: 'audit', label: 'Audit', icon: () => Icon.listChecks() },
   { id: 'tokens', label: 'API tokens', icon: () => Icon.key() },
@@ -53,6 +55,7 @@ function Page(props: {
   hooks: HooksFixture | undefined;
   audit: AuditFixture | undefined;
   tokens: TokensFixture | undefined;
+  mcp: McpFixture | undefined;
   usage: UsageFixture | undefined;
   templates: TemplatesFixture | undefined;
   sessions: readonly LiveSessionMeta[];
@@ -103,6 +106,8 @@ function Page(props: {
       return <AuditSection fixture={props.audit} sessions={props.sessions} />;
     case 'tokens':
       return <TokensSection fixture={props.tokens} />;
+    case 'mcp':
+      return <McpSection fixture={props.mcp} />;
     case 'templates':
       return <TemplatesSection fixture={props.templates} />;
   }
@@ -122,6 +127,7 @@ export function Settings(props: {
   hooks?: HooksFixture;
   audit?: AuditFixture;
   tokens?: TokensFixture;
+  mcp?: McpFixture;
   usage?: UsageFixture;
   templates?: TemplatesFixture;
   sessions?: readonly LiveSessionMeta[];
@@ -186,6 +192,7 @@ export function Settings(props: {
                 hooks={props.hooks}
                 audit={props.audit}
                 tokens={props.tokens}
+                mcp={props.mcp}
                 usage={props.usage}
                 templates={props.templates}
                 sessions={props.sessions ?? []}

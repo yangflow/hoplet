@@ -1,7 +1,7 @@
 // What the inspector remembers in the browser (docs/spec.md#workspace-inspector): its open tabs and Wrap.
 
 /** The inspector's tools, in tab order. */
-export const TOOLS = ['changes', 'files', 'terminal', 'browser'] as const;
+export const TOOLS = ['changes', 'files', 'terminal', 'browser', 'sessions'] as const;
 export type Tool = (typeof TOOLS)[number];
 /** The tabs open when nothing is saved: Terminal and Browser are opened from the + menu. */
 export const DEFAULT_TABS: readonly Tool[] = ['changes', 'files'];

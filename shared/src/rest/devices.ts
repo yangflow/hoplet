@@ -82,6 +82,8 @@ export const DeviceInfoSchema = v.object({
   providers: v.array(ProviderInfoSchema),
   /** Present and true when the connected agent offers the restricted terminal (ADR 0026). */
   terminal: v.optional(v.boolean()),
+  /** Present while the agent is connected: whether its owner enabled `session_mcp` (ADR 0034). */
+  sessionMcp: v.optional(v.boolean()),
   /** The host dev server links use for this machine, as its agent announced it; absent while offline. */
   previewHost: v.optional(v.string()),
   /** The latest resource report of the machine, kept while it is offline; absent for a machine that never reported. */

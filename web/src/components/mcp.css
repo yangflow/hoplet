@@ -1,0 +1,399 @@
+/* What a session may do to other sessions (#67, ADR 0034): the capability rows, the reach, the notes and the
+   table of defaults. Shared by the inspector tab and Settings > Other sessions. */
+
+.mc-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 4px;
+  flex: none;
+  background: var(--color-hover);
+  color: var(--color-text-2);
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+}
+.mc-tag svg {
+  width: 12px;
+  height: 12px;
+  flex: none;
+}
+.mc-tag.line {
+  background: none;
+  box-shadow: inset 0 0 0 1px var(--color-line);
+}
+.mc-tag.ok {
+  background: var(--color-add-bg);
+  color: var(--color-add-text);
+}
+button.mc-tag {
+  cursor: pointer;
+}
+button.mc-tag:hover {
+  background: var(--color-selected);
+}
+.mc-tag .mc-x {
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  margin-right: -4px;
+  border-radius: 3px;
+  color: var(--color-text-3);
+}
+.mc-tag .mc-x:hover {
+  background: var(--color-selected);
+  color: var(--color-text);
+}
+
+.mc-note {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  display: flex;
+  gap: var(--space-2);
+  color: var(--color-text-2);
+  background: var(--color-bg);
+  box-shadow: inset 0 0 0 1px var(--color-line);
+}
+.mc-note svg {
+  margin-top: 2px;
+  flex: none;
+  color: var(--color-text-3);
+}
+.mc-note.warn {
+  color: var(--color-text);
+  background: var(--color-attention-soft);
+  box-shadow: inset 0 0 0 1px var(--color-attention-ring);
+}
+.mc-note code,
+.mc-off code {
+  font-family: var(--font-mono);
+}
+
+.mc-cr {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+  padding: var(--space-3) var(--space-4);
+}
+.mc-cr + .mc-cr {
+  box-shadow: inset 0 1px 0 var(--color-line);
+}
+.mc-cr > svg {
+  color: var(--color-text-3);
+  margin-top: 2px;
+  flex: none;
+}
+.mc-cx {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.mc-cx > b {
+  font-weight: var(--weight-medium);
+}
+.mc-cx .mc-tools {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--color-text-3);
+}
+.mc-cc {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 20px;
+}
+.mc-caps.compact .mc-cr {
+  padding: var(--space-2) var(--space-3);
+}
+.mc-sub {
+  margin-top: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg);
+  box-shadow: inset 0 0 0 1px var(--color-line);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.mc-sr {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+.mc-sr .grow {
+  flex: 1;
+}
+.mc-pick {
+  position: relative;
+  display: inline-flex;
+}
+.mc-pick .mn {
+  position: absolute;
+  top: calc(100% + var(--space-1));
+  left: 0;
+  z-index: 30;
+  min-width: 180px;
+}
+
+.mc-vis {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  align-items: flex-start;
+}
+.mc-vis > .l {
+  color: var(--color-text-2);
+}
+.mc-vis > .mc-note {
+  align-self: stretch;
+}
+.mc-lead {
+  margin: 0 0 var(--space-4);
+}
+.mc-foot {
+  margin: 0;
+}
+.mc-wrap > .mc-foot {
+  display: block;
+  margin-top: var(--space-3);
+}
+.mc-wrap > .mc-note {
+  margin-top: var(--space-3);
+}
+
+.mc-off {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--space-2);
+  padding: var(--space-5) var(--space-3);
+}
+.mc-off .tile {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
+  display: grid;
+  place-items: center;
+  background: var(--color-surface);
+  box-shadow: inset 0 0 0 1px var(--color-line);
+  color: var(--color-text-3);
+}
+.mc-off b {
+  font-weight: var(--weight-semibold);
+}
+.mc-off p {
+  margin: 0;
+  max-width: 44ch;
+  color: var(--color-text-2);
+}
+.mc-link {
+  color: var(--color-text-2);
+  text-decoration: underline;
+  text-decoration-color: var(--color-text-3);
+  text-underline-offset: 2px;
+  white-space: nowrap;
+}
+
+/* Settings > Other sessions: the table of defaults */
+.mc-wrap {
+  position: relative;
+}
+.mx-h,
+.mx-r {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) 112px 64px 64px 72px 104px 56px;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 0 var(--space-4);
+}
+.mx-h {
+  height: 32px;
+  color: var(--color-text-3);
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  box-shadow: inset 0 -1px 0 var(--color-line);
+}
+.mx-h .ce,
+.mx-r .ce {
+  display: flex;
+  justify-content: center;
+}
+.mx-r {
+  min-height: 48px;
+}
+.mx-r + .mx-r {
+  box-shadow: inset 0 1px 0 var(--color-line);
+}
+.mx-r .nm {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.mx-r .nm b {
+  font-weight: var(--weight-medium);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mx-r .nm .rmeta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mx-r.glob {
+  background: var(--color-raised);
+}
+.mx-r.off .ce {
+  opacity: 0.45;
+}
+.mx-r.off .nm b {
+  color: var(--color-text-2);
+}
+.mx-r .acts2 {
+  display: flex;
+  justify-content: flex-end;
+}
+.mc-rsel {
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg);
+  box-shadow: inset 0 0 0 1px var(--color-line);
+  color: var(--color-text);
+  white-space: nowrap;
+}
+.mc-rsel svg {
+  width: 14px;
+  height: 14px;
+  color: var(--color-text-3);
+}
+.mc-rcell {
+  position: relative;
+  display: flex;
+}
+.mc-rcell > .mc-rsel {
+  flex: 1;
+}
+.mc-rcell .mc-rmenu {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + var(--space-1));
+  left: auto;
+  right: 0;
+  width: 292px;
+  padding: var(--space-1);
+  border-radius: var(--radius-md);
+  background: var(--color-raised);
+  box-shadow: var(--shadow-float);
+}
+.mc-rmi {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+  width: 100%;
+  text-align: left;
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+}
+.mc-rmi:hover,
+.mc-rmi:focus-visible {
+  background: var(--color-selected);
+}
+.mc-rmi.on {
+  background: var(--color-selected);
+}
+.mc-rmi .radio {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  margin-top: 3px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px var(--color-text-3);
+}
+.mc-rmi.on .radio {
+  box-shadow:
+    inset 0 0 0 1px var(--color-text),
+    inset 0 0 0 3px var(--color-selected),
+    inset 0 0 0 7px var(--color-text);
+}
+.mc-rmi .tx {
+  display: flex;
+  flex-direction: column;
+}
+.mc-rmi .tx span {
+  color: var(--color-text-3);
+}
+.mc-addrow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
+.mc-stack > * + * {
+  margin-top: var(--space-3);
+}
+.mc-empty {
+  margin-top: var(--space-4);
+}
+.mc-empty .acts {
+  margin-top: var(--space-2);
+  display: flex;
+  gap: var(--space-2);
+}
+
+/* The inspector tab */
+.mc-meta {
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  color: var(--color-text-3);
+  font-variant-numeric: tabular-nums;
+}
+.mc-tab {
+  flex: 1;
+  min-height: 0;
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  overflow: auto;
+}
+.mc-tab > * {
+  flex: none;
+}
+.mc-tab .plist {
+  background: var(--color-surface);
+}
+
+.mc-note.warn svg {
+  color: var(--color-attention-text);
+}
+
+/* the Reach popover opens over the table */
+.plist.mc-table {
+  overflow: visible;
+}
+
+.spage .in:has(.tkpage.mc-wrap) {
+  max-width: 976px;
+}
+
+.mc-wrap > .mc-lead {
+  max-width: 68ch;
+  margin: calc(-1 * var(--space-3)) 0 var(--space-4);
+}
+.mc-table .mx-r:last-child {
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+}
