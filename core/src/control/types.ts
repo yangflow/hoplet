@@ -5,6 +5,10 @@ import type {
   CloneDestinationDetail,
   CloneFailureReason,
   Command,
+  ConfigFileRead,
+  ConfigFileScope,
+  ConfigReadKind,
+  ConfigReadRejection,
   ConfigSetting,
   DeleteSessionRequest,
   DeletionPreview,
@@ -510,6 +514,14 @@ export interface WorkspaceDiffRequest {
   /** The most bytes of hunks the page may carry. */
   limit?: number | undefined;
 }
+export type ConfigReadOutcome =
+  | { ok: true; read: ConfigFileRead }
+  | {
+      ok: false;
+      error: 'owner-offline' | 'timeout' | 'rejected';
+      code?: ConfigReadRejection;
+      reason?: string;
+    };
 
 /** What `POST /api/sessions/:id/handoff` asks for. */
 export interface HandoffRequest {
@@ -924,6 +936,13 @@ export interface Control {
   ): Promise<WorkspaceDiffOutcome>;
   /** Lists the files the session changed in the owner's working tree, committed or not, without content. */
   workspaceChanges(sessionId: string, ownerDeviceId: string): Promise<WorkspaceChangesOutcome>;
+  /** Reads a page of a session's own configuration files on its owner (ADR 0036). */
+  readConfig(
+    sessionId: string,
+    ownerDeviceId: string,
+    provider: Provider,
+    read: { kind: ConfigReadKind; scope: ConfigFileScope; name?: string; offset?: number },
+  ): Promise<ConfigReadOutcome>;
   devices(): DeviceInfo[];
   /**
    * Starts a session in a watched project of a connected device (docs/spec.md#new-session). Resolves when the

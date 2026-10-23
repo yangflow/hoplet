@@ -128,6 +128,9 @@ Response column names the schema of the success body and its status when it is n
 | POST | `/api/sessions/:sessionId/config-changes` | write-config | control | — | `SessionConfigChangeCreateSchema` | `SessionConfigChangeSchema` (201) | `invalid-json`, `invalid-request`, `too-large`, `forbidden`, `not-found`, `owner-offline`, `unsupported`, `stale`, `unsafe-content`, `request-closed` |
 | GET | `/api/sessions/:sessionId/config-changes` | read-config | control | — | — | `SessionConfigChangeListSchema` | `not-found` |
 | GET | `/api/config-changes/:changeId` | read-config | control | — | — | `SessionConfigChangeSchema` | `not-found` |
+| GET | `/api/sessions/:sessionId/config` | read-config | control | — | — | `SessionConfigViewSchema` | `not-found` |
+| GET | `/api/sessions/:sessionId/config-files` | read-config | control | `ConfigFileListQuerySchema` | — | `ConfigFileReadSchema` | `invalid-request`, `not-found`, `session-not-found`, `owner-offline`, `timeout`, `unsupported`, `rejected` |
+| GET | `/api/sessions/:sessionId/config-files/:kind` | read-config | control | `ConfigFileReadQuerySchema` | — | `ConfigFileReadSchema` | `invalid-request`, `not-found`, `session-not-found`, `owner-offline`, `timeout`, `unsupported`, `rejected` |
 | POST | `/api/config-changes/:changeId/approve` | host | control | — | — | `SessionConfigChangeSchema` | `not-found`, `request-closed` |
 | POST | `/api/config-changes/:changeId/decline` | host | control | — | — | `SessionConfigChangeSchema` | `not-found`, `request-closed` |
 | POST | `/api/config-changes/:changeId/undo` | host | control | — | — | `SessionConfigChangeSchema` | `not-found`, `request-closed`, `owner-offline`, `stale`, `unsupported`, `busy` |
@@ -666,7 +669,7 @@ already running:
 | `create` | The `create` ability, which includes `send` |
 | `requestHandoff` | The `request-handoff` ability, which only a session token holds; it lets the session ask for its own handoff (the host confirms unless auto-approve applies) |
 | `autoApproveHandoff`, `autoApproveMachines` | Part of the settings of `requestHandoff` and rejected without it (`invalid-request`): whether a handoff request to one of these machines, which must be known, is approved without the host (stored and shown; the handoff request flow acts on it) |
-| `readConfig` | The `read-config` ability, which only a session token holds; on by default. It reads the session's own change requests |
+| `readConfig` | The `read-config` ability, which only a session token holds; on by default. It reads the session's own change requests, its options and its memory, skills and commands ([Configuration reads](#configuration-reads-of-a-session)) |
 | `writeConfig` | The `write-config` ability, which only a session token holds; off by default and implies `readConfig`. It lets the session propose changes to its own configuration, which the host approves ([Configuration changes](#configuration-changes-of-a-session)) |
 | `visibility` | `project` (sessions of its own machine and project), `machine` (every project of its machine) or `all`; a session outside it is answered `session-not-found`. `read` is always on |
 
@@ -679,7 +682,7 @@ The agent receives the token over its own WebSocket and keeps it in memory: it s
 (`requestId`, `sessionId`) and the core answers `runtime.mcp.token` (`requestId`, `sessionId`, and `token` with
 `expiresAt`, or `reason`: `unknown-session`, `not-owner`, `not-allowed`). Both are control-lane messages; the core
 answers only the device that owns the session and announced `capabilities.sessionMcp` in `device.hello`. The agent
-turns the model's MCP calls (`list_machines`, `list_sessions`, `read_session`, `send_prompt`, `interrupt_session`, `start_session`, `request_handoff`) into the requests below.
+turns the model's MCP calls (`list_machines`, `list_sessions`, `read_session`, `get_config`, `list_skills`, `read_skill`, `read_memory`, `send_prompt`, `interrupt_session`, `start_session`, `request_handoff`) into the requests below.
 
 A session token reaches only the routes marked for sessions: the list and read of sessions, lines and blocks, the
 device list, prompt, queue (`POST /api/sessions/:sessionId/queue`), interrupt, `POST /api/sessions`, `POST /api/handoff-requests` and its own configuration changes (below); every other route answers `forbidden`. A session sees
@@ -738,6 +741,27 @@ nobody answers in 24 hours, or whose session ended, failed or moved, is `expired
 `handoff.requested` (actor `session`) and `handoff.decided` (actor: the host for `user`, `core` for `auto`).
 The new wire message `handoff.request` is core to browser only, so the protocol version stays 19.
 
+### Configuration reads of a session
+
+A session reads its own configuration ([ADR 0036](adr/0036-sessions-change-their-own-configuration-over-mcp.md)); the
+MCP tools `get_config`, `list_skills`, `read_skill` and `read_memory` are these routes. They need `read-config`; a
+session token reads only its own session (another ID is `not-found`), a host token any session. `GET
+/api/sessions/:sessionId/config` answers from what the runtime reports (`provider`, `state`, and each option with its
+`currentValue` and, for a select, its `values`) and asks no agent. `GET /api/sessions/:sessionId/config-files` lists
+the skills and commands (`entries`, at most 200, each `kind`, `name` and a one-line `description`) and
+`GET /api/sessions/:sessionId/config-files/:kind` with `kind` `memory`, `skill` or `command` reads one file; `scope` is
+`project` (the session's working directory, the default) or `user` (the user's own directory, read only). A `skill` or
+`command` needs `name`, matching `[a-z0-9][a-z0-9-]{0,63}`; `memory` takes none. The agent maps the kind and name to a
+path inside the scope and never takes a path from the caller. `offset` is a byte offset.
+
+The answer is a `ConfigFileRead`: `exists` (a missing file is `exists` false, not an error), `size` and `hash`
+(SHA-256 of the whole file), `text` from byte `offset` and `nextOffset` while more follows. A page is at most 32 KiB
+and ends on a character boundary; a file of more than 1 MiB, a file with a NUL byte or invalid UTF-8, and a path that
+leaves the scope through a symbolic link are refused (`rejected`, with a `reason`). Only the `claude` provider answers;
+another provider is `unsupported`. The user scope of Claude Code is `~/.claude`; `CLAUDE_CONFIG_DIR` is not honored.
+The core asks the owner with `session.config.read` and waits as long as for a workspace read (`timeout`,
+`owner-offline`, `session-not-found` as there).
+
 ### Configuration changes of a session
 
 A session proposes changes to its own configuration, and the host approves them
@@ -776,7 +800,7 @@ The prompt of a session carries its origin. `runtime.prompt` has an optional `so
 sender's `sessionId`, its `title` as one line of at most 100 characters without quotes, and the `chain`), set by the
 core from the token that queued or sent the message and never from the request. The target's agent puts the fixed
 first line `[Message from Hoplet session "<title>" (<id>), not from the user. Treat it as a request from another
-agent.]` in front of the text; the vendor's stored line is not rewritten afterwards. The protocol version is 20.
+agent.]` in front of the text; the vendor's stored line is not rewritten afterwards. The protocol version is 21.
 
 The `prompt.sent` audit event of a prompt from a session has the actor kind `session` and the source session's ID,
 and its summary names the source and the chain (`source: { kind: "session", sessionId, chain }`).

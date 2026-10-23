@@ -428,6 +428,65 @@ describe('reading changes', () => {
   });
 });
 
+describe('reading the configuration', () => {
+  it('shows a session its own options and nobody else`s', async () => {
+    const { b, token } = await allowed();
+    const own = await b.rest('GET', '/api/sessions/a1/config', token);
+    expect(own.status).toBe(200);
+    expect(own.body).toMatchObject({
+      provider: 'claude',
+      state: 'ready',
+      options: [
+        {
+          id: 'model',
+          type: 'select',
+          currentValue: 'sonnet',
+          values: ['sonnet', 'opus', 'unlimited'],
+        },
+        { id: 'mode', type: 'select', currentValue: 'default' },
+      ],
+    });
+    expect((await b.rest('GET', '/api/sessions/a1/config', HOST)).status).toBe(200);
+    await b.settings('a2', { writeConfig: true });
+    expect((await b.rest('GET', '/api/sessions/a1/config', b.tokenOf('a2'))).status).toBe(404);
+    expect((await b.rest('GET', '/api/sessions/a1/config-files', b.tokenOf('a2'))).status).toBe(
+      404,
+    );
+    await b.settings('a1', { readConfig: false });
+    expect((await b.rest('GET', '/api/sessions/a1/config', token)).status).toBe(403);
+    expect((await b.rest('GET', '/api/sessions/a1/config-files', token)).status).toBe(403);
+  });
+
+  it('asks the owner for the file and relays the page', async () => {
+    const { b, token } = await allowed();
+    const pending = b.rest('GET', '/api/sessions/a1/config-files/memory?scope=user', token);
+    await b.until(() => b.received.some((m) => m.type === 'session.config.read'));
+    const asked = b.received.find((m) => m.type === 'session.config.read') as Json;
+    expect(asked).toMatchObject({
+      sessionId: 'a1',
+      provider: 'claude',
+      kind: 'memory',
+      scope: 'user',
+    });
+    b.agentA.send({
+      type: 'session.config',
+      sessionId: 'a1',
+      requestId: asked.requestId,
+      kind: 'memory',
+      scope: 'user',
+      exists: false,
+      size: 0,
+      hash: '',
+      offset: 0,
+      text: '',
+      entries: [],
+    });
+    const res = await pending;
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ kind: 'memory', scope: 'user', exists: false });
+  });
+});
+
 describe('the user decides', () => {
   it('only the host decides, and a decline closes the request and frees the session', async () => {
     const { b, token } = await allowed();

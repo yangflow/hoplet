@@ -22,6 +22,7 @@ import type {
   CloneCheckOutcome,
   CloneOutcome,
   CloneRunOutcome,
+  ConfigReadOutcome,
   ControlEvent,
   DeviceControlOutcome,
   DeviceLink,
@@ -111,6 +112,7 @@ export interface ControlState {
   pendingFile: Map<string, Waiter<WorkspaceFileOutcome>>;
   pendingDiff: Map<string, Waiter<WorkspaceDiffOutcome>>;
   pendingChanges: Map<string, Waiter<WorkspaceChangesOutcome>>;
+  pendingConfig: Map<string, Waiter<ConfigReadOutcome>>;
   /** The handoff in progress for each session, by session ID. */
   handoffs: Map<string, ActiveHandoff>;
   /** Answers to handoff steps, by handoff ID. */

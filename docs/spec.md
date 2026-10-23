@@ -477,7 +477,9 @@ prompts a minute and 60 an hour, 3 a minute to one session and 2 unanswered prom
 ends with the runtime and is never listed in Settings. The audit log records such a prompt with the actor kind
 `session` and the chain. With `session_mcp` on in the agent's config, a Claude Code or Codex session on that machine has
 the tools `list_machines`, `list_sessions` and `read_session` (MCP server `hoplet`); `read_session` returns a page
-of lines, at most 32 KiB, marked as data. Reading needs no prompt and a `deny` or `ask` rule still wins. The tools
+of lines, at most 32 KiB, marked as data. The tools `get_config`, `list_skills`, `read_skill` and `read_memory` read
+the session's own options, skills, commands and `CLAUDE.md` (the project directory or the user's `~/.claude`, read
+only) in pages of at most 32 KiB; Codex sessions are answered `unsupported`. Reading needs no prompt and a `deny` or `ask` rule still wins. The tools
 that send, start or hand off and the Settings screen follow.
 
 ### Child sessions

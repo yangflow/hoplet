@@ -338,6 +338,10 @@ func (c *Client) readLoop(cs *connState) {
 			go c.handleWorkspaceChanges(cs, head.SessionID, head.RequestID)
 			continue
 		}
+		if head.Type == TypeSessionConfigRead {
+			go c.handleConfigRead(cs, raw)
+			continue
+		}
 		switch head.Type {
 		case TypeDeviceProjectsList, TypeDeviceProjectsAdd, TypeDeviceProjectsRemove:
 			go c.handleProjects(cs, raw)

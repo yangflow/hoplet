@@ -6,7 +6,7 @@ import (
 )
 
 func TestLaneOf(t *testing.T) {
-	bulk := []any{SessionAppend{}, WorkspaceSnapshot{}, SessionWorkspaceFile{}, SessionWorkspaceDiff{}}
+	bulk := []any{SessionAppend{}, WorkspaceSnapshot{}, SessionWorkspaceFile{}, SessionWorkspaceDiff{}, SessionConfig{}}
 	for _, msg := range bulk {
 		if laneOf(msg) != LaneBulk {
 			t.Errorf("%T should be bulk", msg)

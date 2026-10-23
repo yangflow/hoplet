@@ -140,7 +140,7 @@ that sits in the session's environment is one `env` away from the transcript.
 
 | Capability | Lets the session | Default |
 |---|---|---|
-| `read` | `list_machines`, `list_sessions`, `read_session` | on (when the machine has MCP on, decision 8) |
+| `read` | `list_machines`, `list_sessions`, `read_session` (the four configuration reads of ADR 0036 need `read-config`) | on (when the machine has MCP on, decision 8) |
 | `send` | `send_prompt`, `interrupt_session` to a session it can see | off |
 | `create` | `start_session`; implies `send` | off |
 | `request-handoff` | `request_handoff` for itself, never for another session | off |

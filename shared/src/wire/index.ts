@@ -33,6 +33,12 @@ import {
   PermissionRuleSchema,
 } from '../permission-rules.ts';
 import { ConfigChangeStateSchema } from '../rest/config-changes.ts';
+import {
+  ConfigFileEntrySchema,
+  ConfigFileScopeSchema,
+  ConfigReadKindSchema,
+  ConfigReadRejectionSchema,
+} from '../rest/config-files.ts';
 import { HookEnvelopeSchema, HookEventTypeSchema } from '../rest/hooks.ts';
 import { NotifyEventKindSchema } from '../rest/notify.ts';
 import { PromptSourceSchema, SessionHandoffRequestSchema } from '../rest/session-mcp.ts';
@@ -894,6 +900,59 @@ export const WIRE_MESSAGES = defineWire({
     },
   },
 
+  // Reading a session's own configuration files (docs/adr/0036): the request is control, the page that
+  // carries file text is bulk, a refusal is control.
+  /**
+   * `provider` is the stored session's provider; the paths of each kind are fixed by it. `name` names the
+   * skill or command and is absent for `memory` and `list`; `offset` is the byte the page starts at.
+   */
+  'session.config.read': {
+    lane: 'control',
+    direction: 'core-to-device',
+    fields: {
+      sessionId,
+      requestId,
+      provider: ProviderSchema,
+      kind: ConfigReadKindSchema,
+      scope: ConfigFileScopeSchema,
+      name: v.optional(v.string()),
+      offset: v.optional(cursor),
+    },
+  },
+  /**
+   * One page of a configuration file, or the entries of a list. A missing file is `exists` false. `size` and
+   * `hash` (SHA-256, hex) are the whole file's; `text` is at most 32 KiB starting at byte `offset`.
+   */
+  'session.config': {
+    lane: 'bulk',
+    direction: 'device-to-core',
+    fields: {
+      sessionId,
+      requestId,
+      kind: ConfigReadKindSchema,
+      scope: ConfigFileScopeSchema,
+      name: v.optional(v.string()),
+      exists: v.boolean(),
+      size: cursor,
+      hash: v.string(),
+      offset: cursor,
+      text: v.string(),
+      nextOffset: v.optional(cursor),
+      entries: list(ConfigFileEntrySchema),
+    },
+  },
+  /** Answers a `session.config.read` the agent cannot answer. */
+  'session.config.rejected': {
+    lane: 'control',
+    direction: 'device-to-core',
+    fields: {
+      sessionId,
+      requestId,
+      code: ConfigReadRejectionSchema,
+      reason: v.string(),
+    },
+  },
+
   // Handoff (docs/spec.md#handoff): the data transfer is bulk; every step and answer is control
   'handoff.prepare': {
     lane: 'control',
@@ -1578,6 +1637,9 @@ export type SessionWorkspaceDiffRead = WireMessageOf<'session.workspace.diff.rea
 export type SessionWorkspaceDiff = WireMessageOf<'session.workspace.diff'>;
 export type SessionWorkspaceChangesRead = WireMessageOf<'session.workspace.changes.read'>;
 export type SessionWorkspaceChanges = WireMessageOf<'session.workspace.changes'>;
+export type SessionConfigRead = WireMessageOf<'session.config.read'>;
+export type SessionConfigPage = WireMessageOf<'session.config'>;
+export type SessionConfigRejected = WireMessageOf<'session.config.rejected'>;
 export type HandoffPrepare = WireMessageOf<'handoff.prepare'>;
 export type HandoffPrepared = WireMessageOf<'handoff.prepared'>;
 export type HandoffInstall = WireMessageOf<'handoff.install'>;
@@ -1682,6 +1744,8 @@ export const ClientMessageSchema = v.variant('type', [
   WIRE_MESSAGES['session.workspace.file'].schema,
   WIRE_MESSAGES['session.workspace.diff'].schema,
   WIRE_MESSAGES['session.workspace.changes'].schema,
+  WIRE_MESSAGES['session.config'].schema,
+  WIRE_MESSAGES['session.config.rejected'].schema,
   WIRE_MESSAGES['handoff.prepared'].schema,
   WIRE_MESSAGES['handoff.installed'].schema,
   WIRE_MESSAGES['handoff.verified'].schema,
@@ -1731,6 +1795,7 @@ export const WIRE_OBJECTS = {
   DeviceProject: DeviceProjectSchema,
   DeviceProjectSession: DeviceProjectSessionSchema,
   DirEntry: DirEntrySchema,
+  ConfigFileEntry: ConfigFileEntrySchema,
   RuntimeCapabilities: RuntimeCapabilitiesSchema,
   ProviderInfo: ProviderInfoSchema,
   ProviderConfiguration: ProviderConfigurationSchema,

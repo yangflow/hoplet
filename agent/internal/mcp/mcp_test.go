@@ -57,7 +57,7 @@ func TestInitializeToolsListAndNotification(t *testing.T) {
 	for _, x := range list {
 		names = append(names, x.(map[string]any)["name"].(string))
 	}
-	if strings.Join(names, ",") != "list_machines,list_sessions,read_session,send_prompt,interrupt_session,start_session,request_handoff" {
+	if strings.Join(names, ",") != "list_machines,list_sessions,read_session,get_config,list_skills,read_skill,read_memory,send_prompt,interrupt_session,start_session,request_handoff" {
 		t.Fatalf("tools = %v", names)
 	}
 }

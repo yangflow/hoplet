@@ -2,6 +2,8 @@
  * The REST route table (docs/spec.md#data-model). Each route declares its method, path, authentication,
  * body limit, request and response schemas from shared/src/rest/ and its handler; router.ts does the rest.
  */
+
+import type { ConfigFileRead, ConfigFileScope, ConfigReadKind } from '@hoplet/shared';
 import {
   ActionDecideRequestSchema,
   ActionDecideResponseSchema,
@@ -22,6 +24,9 @@ import {
   BudgetSchema,
   branchNameProblem,
   CommandsResultSchema,
+  ConfigFileListQuerySchema,
+  ConfigFileReadQuerySchema,
+  ConfigFileReadSchema,
   ConfigRequestSchema,
   DeleteSessionRequestSchema,
   DeleteSessionResponseSchema,
@@ -117,6 +122,7 @@ import {
   SessionConfigChangeCreateSchema,
   SessionConfigChangeListSchema,
   SessionConfigChangeSchema,
+  SessionConfigViewSchema,
   SessionHandoffRequestCreateSchema,
   SessionHandoffRequestListSchema,
   SessionHandoffRequestSchema,
@@ -346,6 +352,31 @@ function webhookInfo(record: WebhookInfo): WebhookInfo {
     createdAt: record.createdAt,
     ...(record.lastDelivery ? { lastDelivery: record.lastDelivery } : {}),
   };
+}
+
+/** A session token reads its own session only (ADR 0036); another session is not found. */
+function ownOnly(d: { principal: Principal }, sessionId: string): void {
+  const own = sessionOf(d.principal);
+  if (own !== null && own !== sessionId) throw new ApiError('not-found');
+}
+
+/** Reads a page of the session's own configuration files on its owner (ADR 0036). */
+async function readConfigFile(
+  d: Pick<ApiDeps, 'control' | 'store'> & { params: Record<string, string>; principal: Principal },
+  read: { kind: ConfigReadKind; scope: ConfigFileScope; name?: string; offset?: number },
+): Promise<ConfigFileRead> {
+  const sessionId = d.params.sessionId ?? '';
+  const provider = providerOf(d.store, sessionId);
+  const owner = d.control.ownerOf(sessionId);
+  if (!owner) throw new ApiError('session-not-found');
+  ownOnly(d, sessionId);
+  const outcome = await d.control.readConfig(sessionId, owner, provider, read);
+  if (outcome.ok) return outcome.read;
+  if (outcome.error === 'rejected') {
+    const reason = outcome.reason ?? 'rejected';
+    throw new ApiError(outcome.code === 'unsupported' ? 'unsupported' : 'rejected', { reason });
+  }
+  throw relayError(outcome);
 }
 
 /** The vendor of the session's lines, or the 404 when the session is unknown. */
@@ -1436,6 +1467,64 @@ export const routes: readonly Route[] = [
     lane: 'control',
     response: SessionHandoffRequestSchema,
     handler: (d) => decideHandoff(d, false),
+  }),
+  defineRoute({
+    method: 'GET',
+    path: '/api/sessions/:sessionId/config',
+    access: { capability: 'read-config' },
+    session: true,
+    lane: 'control',
+    response: SessionConfigViewSchema,
+    handler: (d) => {
+      const sessionId = d.params.sessionId ?? '';
+      const provider = providerOf(d.store, sessionId);
+      ownOnly(d, sessionId);
+      const runtime = d.control.runtimeOf(sessionId);
+      return {
+        provider,
+        state: runtime.state,
+        options: (runtime.capabilities?.config ?? []).map((option) => ({
+          id: option.id,
+          name: option.name,
+          type: option.type,
+          currentValue: option.currentValue,
+          ...(option.type === 'select' ? { values: option.options.map((o) => o.value) } : {}),
+        })),
+      };
+    },
+  }),
+  defineRoute({
+    method: 'GET',
+    path: '/api/sessions/:sessionId/config-files',
+    access: { capability: 'read-config' },
+    session: true,
+    lane: 'control',
+    query: ConfigFileListQuerySchema,
+    response: ConfigFileReadSchema,
+    handler: (d) => readConfigFile(d, { kind: 'list', scope: d.query.scope ?? 'project' }),
+  }),
+  defineRoute({
+    method: 'GET',
+    path: '/api/sessions/:sessionId/config-files/:kind',
+    access: { capability: 'read-config' },
+    session: true,
+    lane: 'control',
+    query: ConfigFileReadQuerySchema,
+    response: ConfigFileReadSchema,
+    handler: (d) => {
+      const kind = d.params.kind;
+      if (kind !== 'memory' && kind !== 'skill' && kind !== 'command') {
+        throw new ApiError('not-found');
+      }
+      const { name, offset } = d.query;
+      if (kind !== 'memory' && name === undefined) throw new ApiError('invalid-request');
+      return readConfigFile(d, {
+        kind,
+        scope: d.query.scope ?? 'project',
+        ...(name !== undefined ? { name } : {}),
+        ...(offset !== undefined ? { offset } : {}),
+      });
+    },
   }),
   defineRoute({
     method: 'POST',
