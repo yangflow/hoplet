@@ -4,6 +4,53 @@ Each release's notes are made from the titles of the pull requests merged since 
 Commits: `feat` under Added, `fix` under Fixed, `perf` under Performance; `release-please-config.json`).
 Versions follow Semantic Versioning.
 
+## [0.9.0](https://github.com/yangflow/hoplet/compare/v0.8.0...v0.9.0) (2026-10-23)
+
+
+### Added
+
+* **agent:** Apply permission rules to Codex through a local hook ([#98](https://github.com/yangflow/hoplet/issues/98)) ([#299](https://github.com/yangflow/hoplet/issues/299)) ([76ffa9d](https://github.com/yangflow/hoplet/commit/76ffa9d8a68980eb31840684579d73a68faceca7))
+* **agent:** Apply the permission rules the core sends ([#98](https://github.com/yangflow/hoplet/issues/98)) ([#294](https://github.com/yangflow/hoplet/issues/294)) ([17c8fa8](https://github.com/yangflow/hoplet/commit/17c8fa80910119cddb9cc3268780a1e31b21f251))
+* **agent:** Check Claude Code tool calls against permission rules ([#98](https://github.com/yangflow/hoplet/issues/98)) ([#290](https://github.com/yangflow/hoplet/issues/290)) ([1173512](https://github.com/yangflow/hoplet/commit/1173512d798ce1a518d5fd7f7782d6be331e606c))
+* **agent:** Decide tool calls against permission rules ([#98](https://github.com/yangflow/hoplet/issues/98)) ([#288](https://github.com/yangflow/hoplet/issues/288)) ([d228df0](https://github.com/yangflow/hoplet/commit/d228df0b869dc66b553d4f50d8a93ec634eda9ed))
+* **agent:** Give Codex sessions the Hoplet MCP server ([#326](https://github.com/yangflow/hoplet/issues/326)) ([f2402a2](https://github.com/yangflow/hoplet/commit/f2402a2e95a1335221e6b966bb47039201b55a69))
+* **agent:** Let sessions send prompts to and interrupt other sessions over MCP ([#322](https://github.com/yangflow/hoplet/issues/322)) ([f7b3338](https://github.com/yangflow/hoplet/commit/f7b333814be10809780a5005a7e8d1e8397a14ef))
+* **agent:** Let sessions start other sessions over MCP ([#323](https://github.com/yangflow/hoplet/issues/323)) ([cd64b00](https://github.com/yangflow/hoplet/commit/cd64b003dd429a7819762854fd55d00f4b2f217e))
+* **agent:** Serve the session MCP read tools to Claude Code sessions ([#67](https://github.com/yangflow/hoplet/issues/67)) ([#319](https://github.com/yangflow/hoplet/issues/319)) ([a24dc43](https://github.com/yangflow/hoplet/commit/a24dc43a2dbed9351bd96c52b33efbd3cffb7ac0))
+* **cli:** Add the @hoplet/cli command for sessions, attach, send and wait ([#71](https://github.com/yangflow/hoplet/issues/71)) ([#314](https://github.com/yangflow/hoplet/issues/314)) ([18ace63](https://github.com/yangflow/hoplet/commit/18ace633bccc9e172bffd535d8e30f5fd63010dd))
+* **core:** Add session tokens, session capabilities and loop limits for session MCP ([#67](https://github.com/yangflow/hoplet/issues/67)) ([#318](https://github.com/yangflow/hoplet/issues/318)) ([622a789](https://github.com/yangflow/hoplet/commit/622a789e073c54b051feb7a0c95d0b1a4c78af1f))
+* **core:** Issue scoped API tokens and check their scope on every route ([#71](https://github.com/yangflow/hoplet/issues/71)) ([#310](https://github.com/yangflow/hoplet/issues/310)) ([3d6f32f](https://github.com/yangflow/hoplet/commit/3d6f32f32efb769c05b97aff34ff7c0b5f942871))
+* **core:** Let a session propose changes to its own configuration ([#338](https://github.com/yangflow/hoplet/issues/338)) ([343a305](https://github.com/yangflow/hoplet/commit/343a305ee879159b7857e3e63b74012fa37cd65f))
+* **core:** Let a session request a hand-off over session MCP ([#325](https://github.com/yangflow/hoplet/issues/325)) ([41644a5](https://github.com/yangflow/hoplet/commit/41644a53b44385ad9174d99e57e52082d629c6f6))
+* **core:** Make a child session obey its parent's deny and ask rules ([#337](https://github.com/yangflow/hoplet/issues/337)) ([decb317](https://github.com/yangflow/hoplet/commit/decb31746815f53b7072f00496a28721b14ae1d5))
+* **core:** Record actions in a hash-chained audit log ([#80](https://github.com/yangflow/hoplet/issues/80)) ([#276](https://github.com/yangflow/hoplet/issues/276)) ([bde3535](https://github.com/yangflow/hoplet/commit/bde353594eabc719bc17871362ca3f606802afd1))
+* **core:** Record rule decisions and rule changes in the audit log ([#98](https://github.com/yangflow/hoplet/issues/98)) ([#295](https://github.com/yangflow/hoplet/issues/295)) ([c1fe63f](https://github.com/yangflow/hoplet/commit/c1fe63f5f24663e98c56a6a61d7db5125de72368))
+* **core:** Record tool calls and session events in the audit log ([#80](https://github.com/yangflow/hoplet/issues/80)) ([#298](https://github.com/yangflow/hoplet/issues/298)) ([3852159](https://github.com/yangflow/hoplet/commit/3852159ce921060468ec504c3c8277f7adf10db6))
+* **core:** Send session lifecycle events to webhooks ([#97](https://github.com/yangflow/hoplet/issues/97)) ([#300](https://github.com/yangflow/hoplet/issues/300)) ([f6df4cf](https://github.com/yangflow/hoplet/commit/f6df4cfb49048f315538ea447d4d477646f0ee9d))
+* **core:** Show each machine's own deny rules ([#98](https://github.com/yangflow/hoplet/issues/98)) ([#297](https://github.com/yangflow/hoplet/issues/297)) ([ad390ab](https://github.com/yangflow/hoplet/commit/ad390ab01c610b498ea1d03e6293bd31ac4868af))
+* **core:** Start a session in a new git worktree from the CLI and SDK ([#306](https://github.com/yangflow/hoplet/issues/306)) ([#316](https://github.com/yangflow/hoplet/issues/316)) ([ab49761](https://github.com/yangflow/hoplet/commit/ab4976172c8b26cf30c6725461ed9b9fef06af85))
+* **core:** Store permission rules and serve them over the API ([#98](https://github.com/yangflow/hoplet/issues/98)) ([#293](https://github.com/yangflow/hoplet/issues/293)) ([fa89733](https://github.com/yangflow/hoplet/commit/fa8973366f029787a70c25cfa43b31a8584525ea))
+* **core:** Store session templates and start a session from one ([#76](https://github.com/yangflow/hoplet/issues/76)) ([#278](https://github.com/yangflow/hoplet/issues/278)) ([1a3d614](https://github.com/yangflow/hoplet/commit/1a3d614de485222d71bb789576d1ea2cf6403d12))
+* **core:** Track child sessions and limit a tree of work ([#336](https://github.com/yangflow/hoplet/issues/336)) ([666d85a](https://github.com/yangflow/hoplet/commit/666d85a385a67c270a847f8e0263a8ba5770f29d))
+* Run local script hooks on session lifecycle events ([#97](https://github.com/yangflow/hoplet/issues/97)) ([#304](https://github.com/yangflow/hoplet/issues/304)) ([6ad8483](https://github.com/yangflow/hoplet/commit/6ad8483c916ef3ef6ba87d8f620aa876e859af11))
+* **sdk:** Add the @hoplet/sdk client for the REST API and the browser WebSocket ([#71](https://github.com/yangflow/hoplet/issues/71)) ([#313](https://github.com/yangflow/hoplet/issues/313)) ([d2f7af4](https://github.com/yangflow/hoplet/commit/d2f7af48e83c933e56249b01a4dfc134f1d83b11))
+* Show each machine's rule revision and the Codex rule notes ([#98](https://github.com/yangflow/hoplet/issues/98)) ([#308](https://github.com/yangflow/hoplet/issues/308)) ([ad18e21](https://github.com/yangflow/hoplet/commit/ad18e2184bee99e65aec5138c4b71d74efb7cefd))
+* Show which rule decided a tool call in the conversation ([#98](https://github.com/yangflow/hoplet/issues/98)) ([#302](https://github.com/yangflow/hoplet/issues/302)) ([2fa52d3](https://github.com/yangflow/hoplet/commit/2fa52d3c53347484db7d98d45dc2083c39b6e89c))
+* **web:** Edit permission rules in Settings and from the permission card ([#98](https://github.com/yangflow/hoplet/issues/98)) ([#301](https://github.com/yangflow/hoplet/issues/301)) ([9be7c94](https://github.com/yangflow/hoplet/commit/9be7c941dd77b3d31e5c0bebc4e3239f12418f4a))
+* **web:** Issue, list and revoke API tokens in Settings → API tokens ([#71](https://github.com/yangflow/hoplet/issues/71)) ([#312](https://github.com/yangflow/hoplet/issues/312)) ([3eee123](https://github.com/yangflow/hoplet/commit/3eee1233c85389be662ba913df920f4772975783))
+* **web:** Manage session templates in Settings ([#76](https://github.com/yangflow/hoplet/issues/76)) ([#287](https://github.com/yangflow/hoplet/issues/287)) ([a61114b](https://github.com/yangflow/hoplet/commit/a61114bfbc632dafa87281924fcd0c95783e40b6))
+* **web:** Search, inspect, verify and export the audit log in Settings → Audit ([#80](https://github.com/yangflow/hoplet/issues/80)) ([#309](https://github.com/yangflow/hoplet/issues/309)) ([485578b](https://github.com/yangflow/hoplet/commit/485578b49a81ce7ed0e43a15e1056b42d1f6e154))
+* **web:** Set what a session may do to other sessions ([#324](https://github.com/yangflow/hoplet/issues/324)) ([e0aa0cd](https://github.com/yangflow/hoplet/commit/e0aa0cd75aaf30c154f70c0d81851e7cd571e6f4))
+* **web:** Show a session's audit records in the inspector's Audit tab ([#332](https://github.com/yangflow/hoplet/issues/332)) ([1462889](https://github.com/yangflow/hoplet/commit/1462889ec17ded476415851934e724ca171a59c2))
+* **web:** Show webhooks and machine scripts in Settings → Hooks ([#97](https://github.com/yangflow/hoplet/issues/97)) ([#311](https://github.com/yangflow/hoplet/issues/311)) ([908a734](https://github.com/yangflow/hoplet/commit/908a734553a9d98a3d7c13f3115d34b7d8de4989))
+* **web:** Start a session from a template in the composer ([#76](https://github.com/yangflow/hoplet/issues/76)) ([#289](https://github.com/yangflow/hoplet/issues/289)) ([56b319c](https://github.com/yangflow/hoplet/commit/56b319c3b2a8cbc8abeadf45be269aeb6f2dba95))
+* **web:** Start from a template in the sidebar and the palette ([#76](https://github.com/yangflow/hoplet/issues/76)) ([#291](https://github.com/yangflow/hoplet/issues/291)) ([039320b](https://github.com/yangflow/hoplet/commit/039320bdb13c09cc5e816ea8f43a708d12d8df05))
+
+
+### Fixed
+
+* **web:** Keep the select style off opened rows in Settings ([#333](https://github.com/yangflow/hoplet/issues/333)) ([fdfae5b](https://github.com/yangflow/hoplet/commit/fdfae5bfaf50abc7ca233d48d7ac5fd9ef32e63e))
+
 ## [0.8.0](https://github.com/yangflow/hoplet/compare/v0.7.0...v0.8.0) (2026-10-21)
 
 
