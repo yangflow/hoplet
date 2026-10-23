@@ -91,7 +91,9 @@ The mockups, design tokens and app icon behind Hoplet's web UI. The design langu
   `c-empty`. Add `?lang=zh-Hans` for Simplified Chinese. New icons: `webhook`, `play`, `copy`, `ellipsis`. The secret
   shown is a placeholder, never a real one.
 - `audit.html` (#80): Settings › Audit and the session inspector's Audit tab, three directions; A is chosen and built
-  as Settings › Audit (the `audit-*` states in `/__states/settings`), B and C stay as explored. A (`a-*`)
+  as Settings › Audit (the `audit-*` states in `/__states/settings`) and as the inspector's Audit tab (the
+  `a-inspector`, `a-inspector-detail` and `a-inspector-empty` states in `/__states/workspace`), B and C stay as
+  explored. A (`a-*`)
   is dense rows grouped by day with a filter bar of five selects and a search box; B (`b-*`) is a facet column with
   counts beside a two-line feed; C (`c-*`) is search first, with `key:value` tokens and a monospace log. They share one
   record grammar (time, type, summary, actor) and one detail. States: A `a-page`, `a-filtered`, `a-detail` (a

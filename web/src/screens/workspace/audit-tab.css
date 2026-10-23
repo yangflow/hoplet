@@ -1,0 +1,113 @@
+/* The inspector's Audit tab (design/screens/audit.html, direction A). Tokens only. */
+.ait {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.ait-fb {
+  flex: none;
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+}
+.ait-fb .seg button {
+  flex: 1;
+  justify-content: center;
+  padding: 0 var(--space-1);
+}
+.ait-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+.ait-dh {
+  padding: var(--space-2) var(--space-3) var(--space-1);
+  color: var(--color-text-3);
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  font-weight: var(--weight-medium);
+}
+.ait-item + .ait-item {
+  box-shadow: inset 0 1px 0 var(--color-line);
+}
+.ait-row {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-2) var(--space-3);
+  text-align: left;
+  color: var(--color-text);
+}
+.ait-row:hover,
+.ait-row.open {
+  background: var(--color-hover);
+}
+.ait-row .l1 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.ait-row .l2 {
+  display: flex;
+  gap: var(--space-2);
+  color: var(--color-text-3);
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.ait-row .l2 .mono {
+  font-family: var(--font-mono);
+}
+.ait-row .l2 .att {
+  color: var(--color-attention-text);
+}
+.ait-row .l2 i {
+  font-style: normal;
+}
+.ait .axd {
+  padding: var(--space-2) var(--space-3) var(--space-3);
+}
+.ait .axd .hkv {
+  grid-template-columns: 72px minmax(0, 1fr);
+}
+.ait-more {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  color: var(--color-text-3);
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+}
+.ait-err {
+  color: var(--color-danger);
+}
+.ait-ft {
+  flex: none;
+  padding: var(--space-2) var(--space-3);
+  box-shadow: inset 0 1px 0 var(--color-line);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  color: var(--color-text-3);
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+}
+.ait-lnk {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--color-text-2);
+  font-weight: var(--weight-medium);
+}
+.ait-lnk:hover {
+  color: var(--color-text);
+}

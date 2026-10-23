@@ -281,9 +281,9 @@ const subject: Record<string, Record<string, string>> = {
   },
 };
 
-test('the registries list 115 cockpit, 60 workspace, 102 settings and 7 action states', () => {
+test('the registries list 115 cockpit, 63 workspace, 102 settings and 7 action states', () => {
   expect(screens.cockpit).toHaveLength(115);
-  expect(screens.workspace).toHaveLength(60);
+  expect(screens.workspace).toHaveLength(63);
   expect(screens.settings).toHaveLength(102);
   expect(screens.action).toHaveLength(7);
 });

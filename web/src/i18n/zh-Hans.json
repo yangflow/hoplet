@@ -1572,5 +1572,10 @@
   "Hand-off failed": "交接失败",
   "{target} has no clone of {project}. Clone it there and ask again.": "{target} 上没有 {project} 的克隆。请先在那里克隆，再重新请求。",
   "From session": "来自会话",
-  "Open the session this prompt came from": "打开此提示所来自的会话"
+  "Open the session this prompt came from": "打开此提示所来自的会话",
+  "Other": "其他",
+  "Nothing recorded yet": "还没有记录",
+  "What this session does, and what you do in it, appears here as it happens.": "这个会话做了什么、你在其中做了什么，会随发生随时出现在这里。",
+  "This session only. Never prompts, assistant text, tool output, file contents or diffs.": "仅限这个会话。从不记录提示词、助手文本、工具输出、文件内容或 diff。",
+  "All records in Settings › Audit": "在设置 › 审计中查看全部记录"
 }

@@ -21,6 +21,7 @@ import {
   Scene,
   type Variant,
 } from '../cockpit/states.tsx';
+import { AUDIT_EVENTS } from '../settings/audit-fixtures.ts';
 import type { CloneIntoFixture } from './clone-into.tsx';
 import {
   CHUNKS_NOW,
@@ -196,6 +197,34 @@ const browserView = { tabs: [...tools], active: 'browser' as const };
 const sessionsView = { tabs: [...tools, 'sessions' as const], active: 'sessions' as const };
 const sessionsState = (settings: SessionMcpSettings, devices = mcpDevices()) => (
   <Inspect workspace={{ data: live(), view: sessionsView, sessions: { settings, devices } }} />
+);
+const auditView = { tabs: [...tools, 'audit' as const], active: 'audit' as const };
+/** The audit records of the catalog session: the Settings fixtures, kept to the session shown beside the inspector. */
+const AUDIT_NOW = new Date(2026, 9, 22, 14, 40).getTime();
+const auditState = (events = AUDIT_EVENTS, extra: { openSeq?: number } = {}) => (
+  <Inspect
+    workspace={{
+      data: live(),
+      view: auditView,
+      audit: {
+        source: {
+          events: events.map((e) => {
+            const own = '8f1c2d3e-4a5b-4c6d-8e7f-90a1b2c3d4e5';
+            const shown = '11111111-2222-4333-8444-555555555555';
+            return {
+              ...e,
+              sessionId: e.sessionId === own ? shown : e.sessionId,
+              actorId: e.actorId === own ? shown : e.actorId,
+            };
+          }),
+          next: events.length > 0 ? 1271 : null,
+          now: AUDIT_NOW,
+        },
+        devices: fixtureDevices(true),
+        ...extra,
+      },
+    }}
+  />
 );
 const none: TerminalPhase = { kind: 'none' };
 const closed = (reason: string): TerminalPhase => ({ kind: 'closed', reason });
@@ -573,6 +602,9 @@ export const states: Record<string, () => ReactNode> = {
   'a-session-on': () => sessionsState(ON_SETTINGS),
   'a-session-wide': () => sessionsState(WIDE_SETTINGS),
   'a-session-off': () => sessionsState(OFF_SETTINGS, mcpDevices(false, false)),
+  'a-inspector': () => auditState(),
+  'a-inspector-detail': () => auditState(AUDIT_EVENTS, { openSeq: 1281 }),
+  'a-inspector-empty': () => auditState([]),
   'browser-ports': () =>
     browserState(ready([port(5173, 'node', 'loopback'), port(4000, 'bun', 'any')], PREVIEW_HOST)),
   'browser-loopback': () => browserState(ready([port(5173, 'node', 'loopback')], PREVIEW_HOST)),
