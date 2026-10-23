@@ -101,6 +101,7 @@ describe('REST lanes', () => {
       '/api/sessions/:sessionId/workspace',
       '/api/sessions/:sessionId/workspace/file',
       '/api/sessions/:sessionId/workspace/diff',
+      '/api/sessions/:sessionId/workspace/changes',
       '/api/sessions/:sessionId/handoff',
       '/api/sessions/:sessionId/handoff/cancel',
       '/api/budgets',

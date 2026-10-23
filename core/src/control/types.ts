@@ -41,6 +41,7 @@ import type {
   SessionRulesUnenforced,
   TerminalInfo,
   TokenGrant,
+  WorkspaceChanges,
   WorkspaceDiff,
   WorkspaceFile,
   WorkspaceListing,
@@ -496,6 +497,20 @@ export type WorkspaceDiffOutcome =
   | { ok: true; diff: WorkspaceDiff }
   | { ok: false; error: 'owner-offline' | 'timeout' | 'rejected'; reason?: string };
 
+export type WorkspaceChangesOutcome =
+  | { ok: true; changes: WorkspaceChanges }
+  | { ok: false; error: 'owner-offline' | 'timeout' | 'rejected'; reason?: string };
+
+/** Which part of a diff the owner is asked for, and against what. */
+export interface WorkspaceDiffRequest {
+  /** Compare with the commit the session's worktree started from instead of `HEAD`. */
+  base?: boolean | undefined;
+  /** The byte offset into the hunks where the page starts. */
+  cursor?: number | undefined;
+  /** The most bytes of hunks the page may carry. */
+  limit?: number | undefined;
+}
+
 /** What `POST /api/sessions/:id/handoff` asks for. */
 export interface HandoffRequest {
   sessionId: string;
@@ -900,12 +915,15 @@ export interface Control {
     path: string,
     at?: 'worktree' | 'head',
   ): Promise<WorkspaceFileOutcome>;
-  /** Reads the diff of one changed path of the owner's working tree against `HEAD`. */
+  /** Reads one page of the diff of one changed path of the owner's working tree against `HEAD` or the base. */
   workspaceDiff(
     sessionId: string,
     ownerDeviceId: string,
     path: string,
+    page?: WorkspaceDiffRequest,
   ): Promise<WorkspaceDiffOutcome>;
+  /** Lists the files the session changed in the owner's working tree, committed or not, without content. */
+  workspaceChanges(sessionId: string, ownerDeviceId: string): Promise<WorkspaceChangesOutcome>;
   devices(): DeviceInfo[];
   /**
    * Starts a session in a watched project of a connected device (docs/spec.md#new-session). Resolves when the

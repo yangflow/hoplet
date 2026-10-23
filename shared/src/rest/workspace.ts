@@ -70,12 +70,35 @@ export const WorkspaceFileSchema = v.variant('kind', [
 ]);
 export type WorkspaceFile = v.InferOutput<typeof WorkspaceFileSchema>;
 
-/** GET /api/sessions/:id/workspace/diff?path= and GET /api/sessions/:id/snapshot/diff?path= */
-export const WorkspaceDiffQuerySchema = v.object({ path: TrimmedSchema });
+/** GET /api/sessions/:id/snapshot/diff?path= */
+export const SnapshotDiffQuerySchema = v.object({ path: TrimmedSchema });
 
 /**
- * The unified diff of one changed path (`git diff` format, hunks only, no header lines), at most 256 KiB with
- * `truncated` and the full `size` beyond; an untracked file is all added lines. A binary change carries the
+ * GET /api/sessions/:id/workspace/diff?path=&against=&cursor=&limit= — `against=base` compares with the commit
+ * the session's worktree started from instead of `HEAD`. `cursor` and `limit` page the hunks: `cursor` is the
+ * `next` of the previous page (absent for the first), `limit` the most bytes of hunks per page (1 to 262144;
+ * 262144 when absent).
+ */
+export const WorkspaceDiffQuerySchema = v.object({
+  path: TrimmedSchema,
+  against: v.optional(v.picklist(['head', 'base'])),
+  cursor: v.optional(v.pipe(v.string(), v.regex(/^\d{1,15}$/), v.transform(Number))),
+  limit: v.optional(
+    v.pipe(
+      v.string(),
+      v.regex(/^\d{1,6}$/),
+      v.transform(Number),
+      v.minValue(1),
+      v.maxValue(256 * 1024),
+    ),
+  ),
+});
+export type WorkspaceDiffQuery = v.InferOutput<typeof WorkspaceDiffQuerySchema>;
+
+/**
+ * The unified diff of one changed path (`git diff` format, hunks only, no header lines), one page of at most
+ * 256 KiB cut at a line end; an untracked file is all added lines. `size` is the whole length of the hunks and
+ * `truncated` says more follows, with `next` the `cursor` of the following page. A binary change carries the
  * old and new sizes instead (absent on the side where the file does not exist).
  */
 export const WorkspaceDiffSchema = v.variant('kind', [
@@ -86,6 +109,7 @@ export const WorkspaceDiffSchema = v.variant('kind', [
     status: ChangeStatusSchema,
     diff: v.string(),
     truncated: v.boolean(),
+    next: v.optional(v.number()),
     size: v.number(),
   }),
   v.object({
@@ -98,6 +122,22 @@ export const WorkspaceDiffSchema = v.variant('kind', [
   }),
 ]);
 export type WorkspaceDiff = v.InferOutput<typeof WorkspaceDiffSchema>;
+
+/**
+ * GET /api/sessions/:id/workspace/changes — the files the session changed, committed or not, without content.
+ * They differ from `base`: the commit the session's worktree started from, or `HEAD` when the session shares its
+ * directory (`shared`; the changes are then everything uncommitted there, not the session's alone). `branch` is
+ * empty on a detached `HEAD`. `files` lists at most 200 paths by path and `total` counts them all.
+ */
+export const WorkspaceChangesSchema = v.object({
+  sessionId: SessionIdSchema,
+  branch: v.string(),
+  base: v.string(),
+  shared: v.boolean(),
+  total: v.number(),
+  files: v.array(WorkspaceChangeSchema),
+});
+export type WorkspaceChanges = v.InferOutput<typeof WorkspaceChangesSchema>;
 
 /** What a snapshot answer adds: the snapshot's time (ms since the epoch) and its base commit. */
 const SnapshotBase = { snapshotAt: v.number(), baseCommit: v.string() };

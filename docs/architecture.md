@@ -384,7 +384,7 @@ messages that name the session by ID and never a path: `device.session.inspect|i
 clone the new worktree belongs to, which the core keeps in `session_worktrees`.
 
 A handoff to a machine with no clone of the repository adds a clone step before the owner is touched
-([ADR 0024](adr/0024-a-handoff-clones-the-repository-on-a-target-that-has-none.md)). The protocol version is 19.
+([ADR 0024](adr/0024-a-handoff-clones-the-repository-on-a-target-that-has-none.md)). The protocol version is 20.
 The control-lane messages are `device.clone.check` (`requestId`, `origin`, optional `cloneInto`) answered by
 `device.clone.checked` (`reason`, `detail`, the proposed `cloneInto`), and `device.clone.start` (`requestId`,
 `handoffId`, `origin`, `cloneInto`) answered by `device.clone.progress` (`received`, optional `total`, at most four
@@ -394,6 +394,22 @@ handles each in its own goroutine, so a clone never blocks the control lane. The
 without progress. The agent journals the clone in `<state>/handoff/<handoffId>.clone.json` and removes a
 half-made destination on start-up. Git runs with only the `https` and `ssh` protocols, no prompt, no hooks and
 no credentials in the origin it keeps; its output is cut at 2 KiB.
+
+### Workspace changes on the wire
+
+`session.workspace.changes.read` (`sessionId`, `requestId`) asks the agent for what a session changed in its
+workspace ([ADR 0035](adr/0035-child-sessions-work-on-parts-of-a-task-in-parallel.md)). The agent answers
+`session.workspace.changes` (`branch`, `base`, `shared`, `total`, `files`: per file the `path`, `status`, `added` and
+`removed`, or `binary`; at most 200 files, no content) or `session.workspace.rejected`. Both travel on the control lane: they
+carry a list, never file content. A session in a worktree Hoplet made is compared with the commit the worktree was
+made from; any other session is compared with `HEAD` and a shared directory is marked `shared`. Uncommitted and
+untracked files count.
+
+The diff of one file is paged: `session.workspace.diff.read` takes `base` (compare with the recorded base instead of
+`HEAD`), `cursor` (a byte offset into the diff text, 0 or the `next` of the previous page) and `limit` (at most
+256 KiB). The `session.workspace.diff` answer carries `next` while text is left. It stays on the bulk lane. A cursor
+that is not 0, a line start or the end is refused with `invalid-cursor`; a tree that changes between two pages can
+shift the text, so a reader that needs a stable diff reads it again from 0.
 
 ### Script hooks on the wire
 

@@ -168,6 +168,7 @@ func Run(cfg *config.Config, version string) error {
 		Workspace:            workspaceList(cfg),
 		File:                 workspaceFile(cfg),
 		Diff:                 workspaceDiff(cfg),
+		Changes:              workspaceChanges(cfg),
 		ProjectsList:         st.projectsList,
 		ProjectsAdd:          st.projectsAdd,
 		ProjectsRemove:       st.projectsRemove,

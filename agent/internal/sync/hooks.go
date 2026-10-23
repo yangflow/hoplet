@@ -90,6 +90,7 @@ type WorkspaceDiffContent struct {
 	Kind      string
 	Diff      string
 	Truncated bool
+	Next      *int64
 	Size      int64
 	OldSize   *int64
 	NewSize   *int64
@@ -101,8 +102,27 @@ type WorkspaceFunc func(ctx context.Context, sessionID string) (WorkspaceListing
 // WorkspaceFileFunc reads one file of a session's working tree; at is "worktree", "head" or empty.
 type WorkspaceFileFunc func(ctx context.Context, sessionID, path, at string) (WorkspaceFileContent, error)
 
-// WorkspaceDiffFunc reads the diff of one changed path of a session's working tree against HEAD.
-type WorkspaceDiffFunc func(ctx context.Context, sessionID, path string) (WorkspaceDiffContent, error)
+// WorkspaceDiffPage selects the page of a diff: see SessionWorkspaceDiffRead.
+type WorkspaceDiffPage struct {
+	Base   bool
+	Cursor int64
+	Limit  int
+}
+
+// WorkspaceDiffFunc reads one page of the diff of one changed path of a session's working tree.
+type WorkspaceDiffFunc func(ctx context.Context, sessionID, path string, page WorkspaceDiffPage) (WorkspaceDiffContent, error)
+
+// WorkspaceChangesContent is the content of session.workspace.changes.
+type WorkspaceChangesContent struct {
+	Branch string
+	Base   string
+	Shared bool
+	Total  int
+	Files  []WorkspaceChange
+}
+
+// WorkspaceChangesFunc lists what a session changed against the commit it started from.
+type WorkspaceChangesFunc func(ctx context.Context, sessionID string) (WorkspaceChangesContent, error)
 
 // DirListing is the content of device.dirs.
 type DirListing struct {
@@ -135,6 +155,7 @@ type Hooks struct {
 	Workspace WorkspaceFunc
 	File      WorkspaceFileFunc
 	Diff      WorkspaceDiffFunc
+	Changes   WorkspaceChangesFunc
 	Handoff   HandoffHooks
 	Terminal  TerminalHooks
 	Ports     PortsHooks

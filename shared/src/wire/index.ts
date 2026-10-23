@@ -830,14 +830,27 @@ export const WIRE_MESSAGES = defineWire({
       data: v.optional(v.pipe(v.string(), v.maxLength(WORKSPACE_IMAGE_CHARS))),
     },
   },
+  /**
+   * `base` compares with the commit the session's worktree started from instead of `HEAD`. `cursor` is the byte
+   * offset into the hunks where the page starts (0, or the `next` of an earlier answer) and `limit` the most
+   * bytes of hunks the page may carry (1 KiB to 256 KiB; 256 KiB when absent).
+   */
   'session.workspace.diff.read': {
     lane: 'control',
     direction: 'core-to-device',
-    fields: { sessionId, requestId, path: v.string() },
+    fields: {
+      sessionId,
+      requestId,
+      path: v.string(),
+      base: v.optional(v.boolean()),
+      cursor: v.optional(cursor),
+      limit: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(256 * 1024))),
+    },
   },
   /**
-   * One changed path's diff against `HEAD`: for `kind` text the hunks (`diff`, at most 256 KiB, `truncated`
-   * beyond) and the full `size`; for `kind` binary the sizes of the sides that exist.
+   * One changed path's diff against `HEAD` (or the base the read asked for): for `kind` text the hunks (`diff`,
+   * one page of at most the read's `limit`, cut at a line end; `truncated` when more follows, then `next` is the
+   * `cursor` of the following page) and the full `size`; for `kind` binary the sizes of the sides that exist.
    */
   'session.workspace.diff': {
     lane: 'bulk',
@@ -850,9 +863,34 @@ export const WIRE_MESSAGES = defineWire({
       kind: v.picklist(['text', 'binary']),
       diff: v.optional(v.string()),
       truncated: v.optional(v.boolean()),
+      next: v.optional(cursor),
       size: v.optional(cursor),
       oldSize: v.optional(cursor),
       newSize: v.optional(cursor),
+    },
+  },
+  /** The files a session changed, with no content. Control: the answer is small and bounded. */
+  'session.workspace.changes.read': {
+    lane: 'control',
+    direction: 'core-to-device',
+    fields: { sessionId, requestId },
+  },
+  /**
+   * The paths that differ from `base`, the commit the session's worktree started from (`HEAD` when it has no
+   * worktree of its own, then `shared` is true), committed or not. `branch` is empty on a detached `HEAD`.
+   * `files` holds at most 200 entries by path; `total` counts them all.
+   */
+  'session.workspace.changes': {
+    lane: 'control',
+    direction: 'device-to-core',
+    fields: {
+      sessionId,
+      requestId,
+      branch: v.string(),
+      base: v.string(),
+      shared: v.optional(v.boolean()),
+      total: cursor,
+      files: v.pipe(list(WorkspaceChangeSchema), v.maxLength(200)),
     },
   },
 
@@ -1538,6 +1576,8 @@ export type SessionWorkspaceFileRead = WireMessageOf<'session.workspace.file.rea
 export type SessionWorkspaceFile = WireMessageOf<'session.workspace.file'>;
 export type SessionWorkspaceDiffRead = WireMessageOf<'session.workspace.diff.read'>;
 export type SessionWorkspaceDiff = WireMessageOf<'session.workspace.diff'>;
+export type SessionWorkspaceChangesRead = WireMessageOf<'session.workspace.changes.read'>;
+export type SessionWorkspaceChanges = WireMessageOf<'session.workspace.changes'>;
 export type HandoffPrepare = WireMessageOf<'handoff.prepare'>;
 export type HandoffPrepared = WireMessageOf<'handoff.prepared'>;
 export type HandoffInstall = WireMessageOf<'handoff.install'>;
@@ -1641,6 +1681,7 @@ export const ClientMessageSchema = v.variant('type', [
   WIRE_MESSAGES['session.workspace.rejected'].schema,
   WIRE_MESSAGES['session.workspace.file'].schema,
   WIRE_MESSAGES['session.workspace.diff'].schema,
+  WIRE_MESSAGES['session.workspace.changes'].schema,
   WIRE_MESSAGES['handoff.prepared'].schema,
   WIRE_MESSAGES['handoff.installed'].schema,
   WIRE_MESSAGES['handoff.verified'].schema,

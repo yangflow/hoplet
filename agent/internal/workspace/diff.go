@@ -16,22 +16,55 @@ import (
 	"github.com/yangflow/hoplet/agent/internal/provider"
 )
 
-// Diff is one changed path's diff against HEAD: Kind "text" with the hunks (git's unified format from the
-// first "@@", at most maxDiffBytes and cut at a line end, Truncated beyond) and Size, the bytes of all of
-// them; or Kind "binary" with the sizes of the sides that exist.
+// Diff is one changed path's diff against HEAD (or, for DiffPage.Base, the commit the session's worktree
+// started from): Kind "text" with one page of the hunks (git's unified format from the first "@@", at most
+// the page's limit, cut at a line end) and Size, the bytes of all of them; or Kind "binary" with the sizes
+// of the sides that exist. Truncated says the page ends before the hunks do; Next is the cursor of the page
+// after it, absent when there is none (a single line longer than the limit is cut and the page after it
+// starts at the next line).
 type Diff struct {
 	Status    string
 	Kind      string
 	Text      string
 	Truncated bool
+	Next      *int64
 	Size      int64
 	OldSize   *int64
 	NewSize   *int64
 }
 
-// ReadDiff returns the diff of one changed path of the session directory against HEAD. An untracked file
-// is all added lines, read through os.Root like any worktree read (ADR 0010).
+// DiffPage selects what ReadDiffPage reads. The zero value is the first maxDiffBytes of the diff against HEAD.
+type DiffPage struct {
+	// Base compares with the commit the session's worktree started from instead of HEAD.
+	Base bool
+	// From is the cursor: the byte offset in the hunks where the page starts, 0 or a Next of an earlier page.
+	From int64
+	// Limit is the most bytes of hunks in the page; 0 is maxDiffBytes, and it is held between minDiffPage and
+	// maxDiffBytes.
+	Limit int
+}
+
+const minDiffPage = 1024
+
+// errInvalidCursor is the reason for a cursor that is not the start of a line of the diff.
+var errInvalidCursor = errors.New("invalid-cursor")
+
+// ReadDiff returns the first page of the diff of one changed path of the session directory against HEAD.
 func ReadDiff(ctx context.Context, finders []provider.Finder, sessionID, rel string) (Diff, error) {
+	return ReadDiffPage(ctx, finders, sessionID, rel, DiffPage{})
+}
+
+// ReadDiffPage returns one page of the diff of one changed path of the session directory. An untracked file
+// is all added lines, read through os.Root like any worktree read (ADR 0010). The cursor counts bytes of the
+// hunks as they are now: a file that changes between two pages can make the second page not fit the first.
+func ReadDiffPage(ctx context.Context, finders []provider.Finder, sessionID, rel string, page DiffPage) (Diff, error) {
+	if page.From < 0 {
+		return Diff{}, errInvalidCursor
+	}
+	if page.Limit <= 0 || page.Limit > maxDiffBytes {
+		page.Limit = maxDiffBytes
+	}
+	page.Limit = max(page.Limit, minDiffPage)
 	sess, err := locate.Locate(sessionID, finders...)
 	if err != nil {
 		return Diff{}, err
@@ -43,14 +76,22 @@ func ReadDiff(ctx context.Context, finders []provider.Finder, sessionID, rel str
 	if headCommit(ctx, sess.Cwd) == "" {
 		return Diff{}, errNoRepository
 	}
-	status, err := pathStatus(ctx, sess.Cwd, name)
+	rev := "HEAD"
+	if page.Base {
+		scope, err := changeScope(ctx, sess.Cwd, sessionID)
+		if err != nil {
+			return Diff{}, err
+		}
+		rev = scope.rev
+	}
+	status, err := pathStatus(ctx, sess.Cwd, rev, name)
 	if err != nil {
 		return Diff{}, err
 	}
 	if status == "untracked" {
-		return untrackedDiff(sess.Cwd, name)
+		return untrackedDiff(sess.Cwd, name, page)
 	}
-	return trackedDiff(ctx, sess.Cwd, name, status)
+	return trackedDiff(ctx, sess.Cwd, rev, name, status, page)
 }
 
 // literal makes a git command take its path arguments as names, never as patterns.
@@ -59,10 +100,10 @@ func literal(cmd *exec.Cmd) *exec.Cmd {
 	return cmd
 }
 
-// pathStatus is the change status of name against HEAD, or errNotChanged.
-func pathStatus(ctx context.Context, dir, name string) (string, error) {
+// pathStatus is the change status of name against rev, or errNotChanged.
+func pathStatus(ctx context.Context, dir, rev, name string) (string, error) {
 	out, err := literal(gitCommand(ctx, dir, "diff", "--name-status", "-z", "--no-renames", "--no-ext-diff",
-		"--relative", "HEAD", "--", name)).Output()
+		"--relative", rev, "--", name)).Output()
 	if err != nil {
 		return "", wrap("diff", err, nil)
 	}
@@ -84,18 +125,24 @@ func pathStatus(ctx context.Context, dir, name string) (string, error) {
 	return "", errNotChanged
 }
 
-// hunkWriter keeps the hunks of a diff: it drops the header lines before the first "@@", notes a
-// "Binary files … differ" line, keeps at most maxDiffBytes and counts everything.
+// hunkWriter keeps one page of the hunks of a diff: it drops the header lines before the first "@@", notes a
+// "Binary files … differ" line, keeps the bytes from page.From to page.From+page.Limit and counts everything.
 type hunkWriter struct {
+	page      DiffPage
 	started   bool
 	binary    bool
 	lineStart bool
 	keep      []byte
-	size      int64
-	truncated bool
+	size      int64 // bytes of hunks seen so far, which is also the offset of the next piece
+	cursorOK  bool  // the cursor is the start of a line
+	firstEnd  int64 // the end of the first line that ends after the cursor, 0 while none did
+	lastEnd   int64 // the end of the last line that ends within the page, 0 while none did
+	prevNL    bool  // the last hunk byte seen was a line end
 }
 
-func newHunkWriter() *hunkWriter { return &hunkWriter{lineStart: true} }
+func newHunkWriter(page DiffPage) *hunkWriter {
+	return &hunkWriter{page: page, lineStart: true, cursorOK: page.From == 0}
+}
 
 // fragment takes the next piece of the diff; a piece never spans a line end.
 func (h *hunkWriter) fragment(p []byte) {
@@ -113,25 +160,55 @@ func (h *hunkWriter) fragment(p []byte) {
 		}
 		h.started = true
 	}
-	h.size += int64(len(p))
-	if h.truncated {
+	from, end := h.page.From, h.page.From+int64(h.page.Limit)
+	start, stop := h.size, h.size+int64(len(p))
+	if start == from {
+		h.cursorOK = h.size == 0 || h.prevNL
+	}
+	h.size = stop
+	h.prevNL = p[len(p)-1] == '\n'
+	if stop <= from {
 		return
 	}
-	if len(h.keep)+len(p) > maxDiffBytes {
-		h.truncated = true
-		return
-	}
-	h.keep = append(h.keep, p...)
-}
-
-// text is what was kept, cut back to the last line end when the diff was truncated.
-func (h *hunkWriter) text() string {
-	if h.truncated {
-		if i := bytes.LastIndexByte(h.keep, '\n'); i >= 0 {
-			return string(h.keep[:i+1])
+	if p[len(p)-1] == '\n' {
+		if h.firstEnd == 0 {
+			h.firstEnd = stop
+		}
+		if stop <= end {
+			h.lastEnd = stop
 		}
 	}
-	return string(h.keep)
+	lo, hi := max(start, from), min(stop, end)
+	if lo < hi {
+		h.keep = append(h.keep, p[lo-start:hi-start]...)
+	}
+}
+
+// page is what the writer kept: the text, cut back to the last line end when the diff goes on past the
+// page, and the cursor of the page after it. It is errInvalidCursor when the cursor is not the start of a
+// line of the hunks or lies beyond them.
+func (h *hunkWriter) result() (text string, truncated bool, next *int64, err error) {
+	if h.page.From == h.size && h.size > 0 {
+		h.cursorOK = h.prevNL
+	}
+	if !h.cursorOK || h.page.From > h.size {
+		return "", false, nil, errInvalidCursor
+	}
+	if h.size <= h.page.From+int64(h.page.Limit) {
+		return string(h.keep), false, nil, nil
+	}
+	if h.lastEnd > h.page.From {
+		n := h.lastEnd
+		return string(h.keep[:n-h.page.From]), true, &n, nil
+	}
+	// One line is longer than the page: the page is a piece of it, cut at a character, and the next page
+	// starts after the line.
+	keep := trimPartialRune(h.keep, true)
+	if h.firstEnd > 0 && h.firstEnd < h.size {
+		n := h.firstEnd
+		return string(keep), true, &n, nil
+	}
+	return string(keep), true, nil, nil
 }
 
 // feed passes r to h line by line, in pieces of at most the reader's buffer.
@@ -150,9 +227,9 @@ func (h *hunkWriter) feed(r io.Reader) error {
 	}
 }
 
-func trackedDiff(ctx context.Context, dir, name, status string) (Diff, error) {
+func trackedDiff(ctx context.Context, dir, rev, name, status string, page DiffPage) (Diff, error) {
 	cmd := literal(gitCommand(ctx, dir, "diff", "--no-color", "--no-ext-diff", "--no-textconv", "--no-renames",
-		"-U3", "--relative", "HEAD", "--", name))
+		"-U3", "--relative", rev, "--", name))
 	out, err := cmd.StdoutPipe()
 	if err != nil {
 		return Diff{}, err
@@ -162,7 +239,7 @@ func trackedDiff(ctx context.Context, dir, name, status string) (Diff, error) {
 	if err := cmd.Start(); err != nil {
 		return Diff{}, err
 	}
-	h := newHunkWriter()
+	h := newHunkWriter(page)
 	feedErr := h.feed(out)
 	if err := cmd.Wait(); err != nil {
 		return Diff{}, fmt.Errorf("git diff: %w: %s", err, strings.TrimSpace(stderr.String()))
@@ -171,11 +248,11 @@ func trackedDiff(ctx context.Context, dir, name, status string) (Diff, error) {
 		return Diff{}, feedErr
 	}
 	if !h.binary {
-		return Diff{Status: status, Kind: "text", Text: h.text(), Truncated: h.truncated, Size: h.size}, nil
+		return h.diff(status)
 	}
 	d := Diff{Status: status, Kind: "binary"}
 	if status != "added" {
-		if size, err := blobSize(ctx, dir, "HEAD:./"+name); err == nil {
+		if size, err := blobSize(ctx, dir, rev+":./"+name); err == nil {
 			d.OldSize = &size
 		}
 	}
@@ -193,7 +270,7 @@ func trackedDiff(ctx context.Context, dir, name, status string) (Diff, error) {
 
 // untrackedDiff synthesizes the diff git shows for a new file: one hunk of added lines, or binary when a
 // NUL byte is in what git looks at.
-func untrackedDiff(dir, name string) (Diff, error) {
+func untrackedDiff(dir, name string, page DiffPage) (Diff, error) {
 	root, err := os.OpenRoot(dir)
 	if err != nil {
 		return Diff{}, err
@@ -227,8 +304,11 @@ func untrackedDiff(dir, name string) (Diff, error) {
 	if _, err := file.Seek(0, io.SeekStart); err != nil {
 		return Diff{}, err
 	}
-	h := newHunkWriter()
+	h := newHunkWriter(page)
 	if lines == 0 {
+		if page.From > 0 {
+			return Diff{}, errInvalidCursor
+		}
 		return Diff{Status: "untracked", Kind: "text"}, nil
 	}
 	if lines == 1 {
@@ -258,7 +338,16 @@ func untrackedDiff(dir, name string) (Diff, error) {
 	if !lineStart {
 		h.fragment([]byte("\n\\ No newline at end of file\n"))
 	}
-	return Diff{Status: "untracked", Kind: "text", Text: h.text(), Truncated: h.truncated, Size: h.size}, nil
+	return h.diff("untracked")
+}
+
+// diff is the text diff the writer kept, for a path with status.
+func (h *hunkWriter) diff(status string) (Diff, error) {
+	text, truncated, next, err := h.result()
+	if err != nil {
+		return Diff{}, err
+	}
+	return Diff{Status: status, Kind: "text", Text: text, Truncated: truncated, Next: next, Size: h.size}, nil
 }
 
 // scanLines counts the lines of r as git does and returns how many bytes they span, so the second pass

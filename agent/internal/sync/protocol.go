@@ -14,7 +14,7 @@ import (
 // (provider.ValidSessionID, ADR 0006). Invalid IDs receive error invalid-session-id
 // before decoding or persistence; the wire envelope and cursor are unchanged.
 
-const ProtocolVersion = 19
+const ProtocolVersion = 20
 
 // Wire message types: Type<Struct> is the `type` of the struct of that name.
 // shared/src/wire/ holds the same table; scripts/test/contract.test.ts compares both.
@@ -727,12 +727,47 @@ type SessionWorkspaceFileRead struct {
 	At        string `json:"at,omitempty"`
 }
 
+// SessionWorkspaceDiffRead asks for one page of a changed path's diff. Base compares with the commit the
+// session's worktree started from instead of HEAD; Cursor is the byte offset in the hunks where the page starts
+// (0, or the Next of the page before) and Limit the most bytes of hunks in it (the agent's own cap when absent).
 type SessionWorkspaceDiffRead struct {
 	V         int    `json:"v"`
 	Type      string `json:"type"`
 	SessionID string `json:"sessionId"`
 	RequestID string `json:"requestId"`
 	Path      string `json:"path"`
+	Base      bool   `json:"base,omitempty"`
+	Cursor    int64  `json:"cursor,omitempty"`
+	Limit     int    `json:"limit,omitempty"`
+}
+
+// The changes of a session against the commit it started from (ADR 0035). core → device, then the answer on
+// the control lane: it is at most MaxChangeFiles entries and no content.
+const (
+	TypeSessionWorkspaceChangesRead = "session.workspace.changes.read"
+	TypeSessionWorkspaceChanges     = "session.workspace.changes"
+)
+
+type SessionWorkspaceChangesRead struct {
+	V         int    `json:"v"`
+	Type      string `json:"type"`
+	SessionID string `json:"sessionId"`
+	RequestID string `json:"requestId"`
+}
+
+// SessionWorkspaceChanges lists what a session changed. Base is the commit the changes are counted against and
+// Branch the branch it works on ("" for a detached HEAD); Shared says the session has no worktree of its own, so
+// the changes may be someone else's too. Files are at most MaxChangeFiles of Total, by path.
+type SessionWorkspaceChanges struct {
+	V         int               `json:"v"`
+	Type      string            `json:"type"`
+	SessionID string            `json:"sessionId"`
+	RequestID string            `json:"requestId"`
+	Branch    string            `json:"branch"`
+	Base      string            `json:"base"`
+	Shared    bool              `json:"shared,omitempty"`
+	Total     int               `json:"total"`
+	Files     []WorkspaceChange `json:"files"`
 }
 
 // device → core:
@@ -786,8 +821,9 @@ type SessionWorkspaceFile struct {
 	Data      string `json:"data,omitempty"`
 }
 
-// SessionWorkspaceDiff is one changed path's diff (bulk lane): Kind "text" with the hunks in Diff and the
-// full Size, or "binary" with the sizes of the sides that exist.
+// SessionWorkspaceDiff is one page of a changed path's diff (bulk lane): Kind "text" with the hunks of the page
+// in Diff, the full Size of all of them and, when more follow, Truncated and the Next cursor (absent on the last
+// page), or "binary" with the sizes of the sides that exist.
 type SessionWorkspaceDiff struct {
 	V         int    `json:"v"`
 	Type      string `json:"type"`
@@ -798,6 +834,7 @@ type SessionWorkspaceDiff struct {
 	Kind      string `json:"kind"`
 	Diff      string `json:"diff,omitempty"`
 	Truncated bool   `json:"truncated,omitempty"`
+	Next      *int64 `json:"next,omitempty"`
 	Size      int64  `json:"size,omitempty"`
 	OldSize   *int64 `json:"oldSize,omitempty"`
 	NewSize   *int64 `json:"newSize,omitempty"`

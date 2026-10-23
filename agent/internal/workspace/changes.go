@@ -32,11 +32,17 @@ type Change struct {
 // listChanges reports every path inside dir that differs from HEAD, tracked or untracked and not ignored,
 // sorted by path. Renames are a deletion and an addition.
 func listChanges(ctx context.Context, dir string) ([]Change, error) {
-	statuses, err := git(ctx, dir, "diff", "--name-status", "-z", "--no-renames", "--no-ext-diff", "--relative", "HEAD")
+	return listChangesAgainst(ctx, dir, "HEAD")
+}
+
+// listChangesAgainst is listChanges with rev as the side compared with: a child session's worktree is
+// compared with the commit it started from, so what it committed counts too.
+func listChangesAgainst(ctx context.Context, dir, rev string) ([]Change, error) {
+	statuses, err := git(ctx, dir, "diff", "--name-status", "-z", "--no-renames", "--no-ext-diff", "--relative", rev)
 	if err != nil {
 		return nil, err
 	}
-	numstat, err := git(ctx, dir, "diff", "--numstat", "-z", "--no-renames", "--no-ext-diff", "--no-textconv", "--relative", "HEAD")
+	numstat, err := git(ctx, dir, "diff", "--numstat", "-z", "--no-renames", "--no-ext-diff", "--no-textconv", "--relative", rev)
 	if err != nil {
 		return nil, err
 	}

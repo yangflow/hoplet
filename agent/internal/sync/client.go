@@ -266,6 +266,9 @@ func (c *Client) readLoop(cs *connState) {
 			RequestID string `json:"requestId"`
 			Path      string `json:"path"`
 			At        string `json:"at"`
+			Base      bool   `json:"base"`
+			Cursor    int64  `json:"cursor"`
+			Limit     int    `json:"limit"`
 			Origin    string `json:"origin"`
 			CloneInto string `json:"cloneInto"`
 			HandoffID string `json:"handoffId"`
@@ -328,7 +331,11 @@ func (c *Client) readLoop(cs *connState) {
 			continue
 		}
 		if head.Type == TypeSessionWorkspaceDiffRead {
-			go c.handleWorkspaceDiff(cs, head.SessionID, head.RequestID, head.Path)
+			go c.handleWorkspaceDiff(cs, head.SessionID, head.RequestID, head.Path, WorkspaceDiffPage{Base: head.Base, Cursor: head.Cursor, Limit: head.Limit})
+			continue
+		}
+		if head.Type == TypeSessionWorkspaceChangesRead {
+			go c.handleWorkspaceChanges(cs, head.SessionID, head.RequestID)
 			continue
 		}
 		switch head.Type {

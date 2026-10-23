@@ -432,6 +432,8 @@ describe('lanes', () => {
       'session.workspace.rejected',
       'session.workspace.file.read',
       'session.workspace.diff.read',
+      'session.workspace.changes.read',
+      'session.workspace.changes',
       'device.projects.list',
       'device.projects',
       'device.dirs.list',

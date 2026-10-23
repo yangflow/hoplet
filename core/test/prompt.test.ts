@@ -449,6 +449,83 @@ describe('GET /api/sessions/:id/workspace', () => {
       body: { code: 'rejected', reason: 'not-changed' },
     });
   });
+
+  it('forwards the base, cursor and limit of a diff page and relays next', async () => {
+    const page = await relay(
+      '/api/sessions/s1/workspace/diff?path=a.txt&against=base&cursor=100&limit=4096',
+      'session.workspace.diff.read',
+      (requestId) => ({
+        type: 'session.workspace.diff',
+        requestId,
+        path: 'a.txt',
+        status: 'modified',
+        kind: 'text',
+        diff: '+x\n',
+        truncated: true,
+        next: 103,
+        size: 9000,
+      }),
+    );
+    expect(page.sent).toMatchObject({ path: 'a.txt', base: true, cursor: 100, limit: 4096 });
+    expect(page.body).toMatchObject({ kind: 'text', truncated: true, next: 103, size: 9000 });
+    const plain = await relay(
+      '/api/sessions/s1/workspace/diff?path=a.txt',
+      'session.workspace.diff.read',
+      (requestId) => ({ type: 'session.workspace.rejected', requestId, reason: 'invalid-cursor' }),
+    );
+    expect(plain.sent?.base).toBeUndefined();
+    expect(plain.sent?.cursor).toBeUndefined();
+    expect(plain.sent?.limit).toBeUndefined();
+    expect(plain).toMatchObject({ status: 502, body: { reason: 'invalid-cursor' } });
+  });
+
+  it('refuses a diff query with a limit or cursor out of range', async () => {
+    const { port, token } = await boot();
+    for (const q of ['limit=0', 'limit=262145', 'cursor=-1', 'cursor=x', 'against=other']) {
+      const res = await fetch(
+        `http://127.0.0.1:${port}/api/sessions/s1/workspace/diff?path=a.txt&${q}`,
+        { headers: { authorization: `Bearer ${token}` } },
+      );
+      expect(res.status, q).toBe(400);
+    }
+  });
+
+  it('forwards session.workspace.changes.read and relays the list or a refusal', async () => {
+    const listed = await relay(
+      '/api/sessions/s1/workspace/changes',
+      'session.workspace.changes.read',
+      (requestId) => ({
+        type: 'session.workspace.changes',
+        requestId,
+        branch: 'hoplet/child',
+        base: 'abc1234',
+        total: 1,
+        files: [{ path: 'a.txt', status: 'modified', added: 2, removed: 1 }],
+      }),
+    );
+    expect(listed.sent).toMatchObject({ type: 'session.workspace.changes.read' });
+    expect(listed.body).toEqual({
+      sessionId: 's1',
+      branch: 'hoplet/child',
+      base: 'abc1234',
+      shared: false,
+      total: 1,
+      files: [{ path: 'a.txt', status: 'modified', added: 2, removed: 1 }],
+    });
+    const refused = await relay(
+      '/api/sessions/s1/workspace/changes',
+      'session.workspace.changes.read',
+      (requestId) => ({
+        type: 'session.workspace.rejected',
+        requestId,
+        reason: 'not-a-git-repository',
+      }),
+    );
+    expect(refused).toMatchObject({
+      status: 502,
+      body: { code: 'rejected', reason: 'not-a-git-repository' },
+    });
+  });
 });
 
 describe('POST /api/devices', () => {

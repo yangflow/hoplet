@@ -33,6 +33,9 @@ const MaxBranchName = 200
 const (
 	markerSession  = "hopletsession"
 	markerWorktree = "hopletworktree"
+	// markerBase is the commit the worktree started from: what the changes of a session in it are counted
+	// against, however many commits it makes (ADR 0035).
+	markerBase = "hopletbase"
 )
 
 // NewWorktree is a worktree made for a session that has not started yet.
@@ -42,6 +45,8 @@ type NewWorktree struct {
 	// Path is the root of the new worktree and Branch its new branch.
 	Path   string
 	Branch string
+	// Base is the commit the branch started at.
+	Base string
 	// Dir is where the session runs: the directory of the worktree that corresponds to the project the session
 	// was asked for (Path itself unless the project is a subdirectory of its repository).
 	Dir string
@@ -168,7 +173,7 @@ func CreateNewWorktree(ctx context.Context, project, branch string) (NewWorktree
 		RemoveWorktree(ctx, clone, path, branch)
 		return w, fmt.Errorf("create the worktree: %w", err)
 	}
-	return NewWorktree{Clone: clone, Path: real, Branch: branch, Dir: filepath.Join(real, rel)}, nil
+	return NewWorktree{Clone: clone, Path: real, Branch: branch, Base: commit, Dir: filepath.Join(real, rel)}, nil
 }
 
 // notRepo is the answer for a directory git does not accept as a working tree; a missing git is reported as it is.
@@ -190,7 +195,13 @@ func (w NewWorktree) Mark(ctx context.Context, sessionID string) error {
 	if _, err := git(ctx, w.Clone, "config", "--local", "branch."+w.Branch+"."+markerSession, sessionID); err != nil {
 		return err
 	}
-	_, err := git(ctx, w.Clone, "config", "--local", "branch."+w.Branch+"."+markerWorktree, w.Path)
+	if _, err := git(ctx, w.Clone, "config", "--local", "branch."+w.Branch+"."+markerWorktree, w.Path); err != nil {
+		return err
+	}
+	if w.Base == "" {
+		return nil
+	}
+	_, err := git(ctx, w.Clone, "config", "--local", "branch."+w.Branch+"."+markerBase, w.Base)
 	return err
 }
 

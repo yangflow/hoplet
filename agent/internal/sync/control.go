@@ -203,14 +203,43 @@ func (c *Client) handleWorkspaceFile(cs *connState, sessionID, requestID, rel, a
 	_ = c.writeMsg(cs, msg)
 }
 
+// handleWorkspaceChanges answers on the control lane: a bounded list with no content.
+func (c *Client) handleWorkspaceChanges(cs *connState, sessionID, requestID string) {
+	var changes WorkspaceChangesContent
+	var err error
+	if c.hooks.Changes == nil {
+		err = errors.New("not-implemented")
+	} else {
+		changes, err = c.hooks.Changes(context.Background(), sessionID)
+	}
+	if err != nil {
+		c.rejectWorkspace(cs, sessionID, requestID, "changes", err)
+		return
+	}
+	if changes.Files == nil {
+		changes.Files = []WorkspaceChange{}
+	}
+	_ = c.writeMsg(cs, SessionWorkspaceChanges{
+		V:         ProtocolVersion,
+		Type:      TypeSessionWorkspaceChanges,
+		SessionID: sessionID,
+		RequestID: requestID,
+		Branch:    changes.Branch,
+		Base:      changes.Base,
+		Shared:    changes.Shared,
+		Total:     changes.Total,
+		Files:     changes.Files,
+	})
+}
+
 // handleWorkspaceDiff answers on the bulk lane, like a file read.
-func (c *Client) handleWorkspaceDiff(cs *connState, sessionID, requestID, rel string) {
+func (c *Client) handleWorkspaceDiff(cs *connState, sessionID, requestID, rel string, page WorkspaceDiffPage) {
 	var diff WorkspaceDiffContent
 	var err error
 	if c.hooks.Diff == nil {
 		err = errors.New("not-implemented")
 	} else {
-		diff, err = c.hooks.Diff(context.Background(), sessionID, rel)
+		diff, err = c.hooks.Diff(context.Background(), sessionID, rel, page)
 	}
 	if err != nil {
 		c.rejectWorkspace(cs, sessionID, requestID, "diff", err)
@@ -226,6 +255,7 @@ func (c *Client) handleWorkspaceDiff(cs *connState, sessionID, requestID, rel st
 		Kind:      diff.Kind,
 		Diff:      diff.Diff,
 		Truncated: diff.Truncated,
+		Next:      diff.Next,
 		Size:      diff.Size,
 		OldSize:   diff.OldSize,
 		NewSize:   diff.NewSize,
