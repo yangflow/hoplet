@@ -1549,5 +1549,8 @@
   "Nothing recorded yet": "Nothing recorded yet",
   "What this session does, and what you do in it, appears here as it happens.": "What this session does, and what you do in it, appears here as it happens.",
   "This session only. Never prompts, assistant text, tool output, file contents or diffs.": "This session only. Never prompts, assistant text, tool output, file contents or diffs.",
-  "All records in Settings › Audit": "All records in Settings › Audit"
+  "All records in Settings › Audit": "All records in Settings › Audit",
+  "Sessions started by sessions may only go two levels deep.": "Sessions started by sessions may only go two levels deep.",
+  "This session or its tree already has as many live sessions as it may.": "This session or its tree already has as many live sessions as it may.",
+  "A budget or the tree token limit is used up, so no new session starts.": "A budget or the tree token limit is used up, so no new session starts."
 }

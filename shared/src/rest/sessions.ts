@@ -71,6 +71,10 @@ export const LiveSessionMetaSchema = v.object({
   ...SessionStateSchema.entries,
   continuedIn: v.optional(SessionContinuationSchema),
   continuedFrom: v.optional(SessionContinuationSchema),
+  /** The session whose latest prompt this session's provenance names last (ADR 0035); `null` when the latest prompt came from a user. */
+  parentId: v.nullable(v.string()),
+  /** How many sessions have this session as `parentId`. */
+  childCount: v.pipe(v.number(), v.integer(), v.minValue(0)),
   /** Present (`true`) only when a session token asks: this entry is the asking session itself (ADR 0034). */
   self: v.optional(v.literal(true)),
 });
@@ -79,6 +83,28 @@ export type LiveSessionMeta = v.InferOutput<typeof LiveSessionMetaSchema>;
 /** GET /api/sessions */
 export const SessionListResponseSchema = v.object({ sessions: v.array(LiveSessionMetaSchema) });
 export type SessionListResponse = v.InferOutput<typeof SessionListResponseSchema>;
+
+/** The most descendants GET /api/sessions/:id/children returns. */
+export const MAX_CHILD_TREE = 200;
+
+/** One descendant: the session plus its depth below the asked session (1 for a child). */
+export const SessionDescendantSchema = v.object({
+  ...LiveSessionMetaSchema.entries,
+  depth: v.pipe(v.number(), v.integer(), v.minValue(1)),
+});
+export type SessionDescendant = v.InferOutput<typeof SessionDescendantSchema>;
+
+/**
+ * GET /api/sessions/:id/children: the descendants of a session as a flat list in pre-order (a parent before its
+ * children, siblings by creation); `parentId` rebuilds the tree. `truncated` is true when more than
+ * `MAX_CHILD_TREE` exist or the token's grant leaves some out of the list.
+ */
+export const SessionChildrenResponseSchema = v.object({
+  sessionId: SessionIdSchema,
+  descendants: v.array(SessionDescendantSchema),
+  truncated: v.boolean(),
+});
+export type SessionChildrenResponse = v.InferOutput<typeof SessionChildrenResponseSchema>;
 
 /**
  * PATCH /api/sessions/:id: changes what the user did to the session; a field left out stays as it is.
@@ -204,6 +230,11 @@ export const NewSessionRequestSchema = v.object({
   worktree: v.optional(
     v.object({ branch: v.optional(v.pipe(v.string(), v.maxLength(MAX_BRANCH_NAME_LENGTH))) }),
   ),
+  /**
+   * How long a child session may run, in minutes (1 to 120; the core's default is 30). Only a session's token may
+   * ask; any other caller gets `invalid-request`.
+   */
+  timeLimitMinutes: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(120))),
 });
 export type NewSessionRequest = v.InferOutput<typeof NewSessionRequestSchema>;
 

@@ -88,7 +88,7 @@ place of the proxy. Never publish port 7788 on `0.0.0.0`.
 
 | Where | What |
 |---|---|
-| Docker volume `hoplet-data` (`/data` in the container) | `hoplet.db` (SQLite index, which also holds what the user did to a session in the web UI: a title of their own, a pin, an archive, the last slash commands and skills a session reported per machine and directory, the messages queued for a session, the worktree Hoplet made for a handed-off session, the provider configuration each session belongs to, the IDs of deleted sessions, the session templates, `templates`, and the permission rules, `permission_rules`, the switches of the built-in ones, `permission_builtins`, and their revisions, `permission_revisions`, the lifecycle hooks, `hooks`, and their deliveries, `hook_deliveries`; the scoped API tokens and the session tokens, `api_tokens`, stored as SHA-256 hashes (ADR 0033, ADR 0034), the settings of sessions that call other sessions, `session_mcp_settings`, their defaults, `session_mcp_defaults`, the chain of the prompt a session is working on, `session_provenance`, the hand-off requests of sessions, `handoff_requests`, the audit log, `audit_events` (ADR 0030), and how far tool calls were derived from each session, `audit_cursor`), `sessions/<sessionId>/c-<seq>.ndjson[.gz]` (session lines), `snapshots/<sessionId>/<snapshotId>.tar.gz` (latest workspace snapshot per session), `notify-secrets.json` (mode 0600: the VAPID key pair for Web Push, the key that signs action links and the signing secrets of webhooks; the push subscriptions, the webhooks without their secrets and the preferences are in `hoplet.db`) |
+| Docker volume `hoplet-data` (`/data` in the container) | `hoplet.db` (SQLite index, which also holds what the user did to a session in the web UI: a title of their own, a pin, an archive, the last slash commands and skills a session reported per machine and directory, the messages queued for a session, the worktree Hoplet made for a handed-off session, the provider configuration each session belongs to, the IDs of deleted sessions, the session templates, `templates`, and the permission rules, `permission_rules`, the switches of the built-in ones, `permission_builtins`, and their revisions, `permission_revisions`, the lifecycle hooks, `hooks`, and their deliveries, `hook_deliveries`; the scoped API tokens and the session tokens, `api_tokens`, stored as SHA-256 hashes (ADR 0033, ADR 0034), the settings of sessions that call other sessions, `session_mcp_settings`, their defaults, `session_mcp_defaults`, the chain of the prompt a session is working on, `session_provenance`, the sessions a session started with their creation chain and time limit, `session_children`, the hand-off requests of sessions, `handoff_requests`, the audit log, `audit_events` (ADR 0030), and how far tool calls were derived from each session, `audit_cursor`), `sessions/<sessionId>/c-<seq>.ndjson[.gz]` (session lines), `snapshots/<sessionId>/<snapshotId>.tar.gz` (latest workspace snapshot per session), `notify-secrets.json` (mode 0600: the VAPID key pair for Web Push, the key that signs action links and the signing secrets of webhooks; the push subscriptions, the webhooks without their secrets and the preferences are in `hoplet.db`) |
 | Agent state root (`~/.hoplet/` by default) | `device-id`, `config.json`, `projects.json`, `permission-rules.json` (mode 0600: the last permission rules the core sent, rewritten atomically on each push and read at start; without it the agent uses the built-in rules), `runtime/` (running processes), `handoff/` (installation records and the journal of a clone in progress, `<handoffId>.clone.json`, which the agent uses on start-up to remove a half-made clone), `hook.sock` (the local Unix socket of the Codex rule hook, mode 0600 in a 0700 directory; no network port, absent on Windows, [ADR 0032](adr/0032-codex-rule-hook-calls-the-agent-over-a-local-socket.md)), `mcp.sock` (the local Unix socket of the session MCP server, mode 0600 in a 0700 directory, only with `session_mcp` on; absent on Windows, [ADR 0034](adr/0034-sessions-view-and-direct-other-sessions-over-mcp.md)), `mcp/` (mode 0700; `<nonce>.json`, mode 0600, the `--mcp-config` file of a running Claude Code session, removed when it ends), `attachments/` (images uploaded for prompts: at most 64 files and 64 MiB, each kept at most an hour) |
 | Development machine | Claude Code's store, Codex's `sessions/` (read-only, except that handoff adds one rollout file) and working trees; worktrees created by handoff, next to the clone they belong to |
 
@@ -181,6 +181,15 @@ so the machine must reach the core over HTTP and not only over the agent WebSock
 its settings (`project` visibility by default). Without the key the agent opens no socket and starts Claude Code
 without `--mcp-config` and Codex without the `mcp_servers` entry; the user's own MCP servers are never replaced.
 
+### Child session limits
+
+The core limits the trees of work that sessions start ([ADR 0035](adr/0035-child-sessions-work-on-parts-of-a-task-in-parallel.md)). The limits are fixed values of the core and have no
+setting: 2 levels below the root, 4 live children per session, 8 live sessions per tree, 12 starts an hour per
+session, 3,000,000 input and output tokens per tree (cache excluded), and 30 minutes a child, up to 2 hours when the
+parent asks. A tree is checked every 30 seconds; a session past a limit is interrupted and stopped. Only a machine
+with `session_mcp` on lets a session start sessions, so each machine still decides whether trees exist. The sessions
+a session started, and the time limit of each, are rows in the core's database (`session_children`).
+
 ### Terminal
 
 `"terminal": true` in the agent's `config.json`, then restart the agent, lets the web UI open a terminal on this
@@ -237,6 +246,8 @@ published on the server running the core, and the compose file does not change.
   grows with its session: about 230 MB for a small session and 600 MB for a 256 MB session (Claude Code
   2.1.289). Processes in a turn are not limited; size the machine for the sessions you run in parallel.
 - Image size under 250 MB.
+- Trees of work: at most 8 live sessions below one root, each a Claude Code process (see the memory above); size the
+  machine for that many in parallel when you let sessions start sessions.
 - Machine resources: every 15 seconds the agent reads the machine's CPU, memory and the disk of its browse root
   and the process trees of the sessions it started, on Linux (`/proc`) and macOS (one `ps`, `sysctl` and
   `vm_stat`), and sends about 100 bytes per session. The core keeps the last 240 readings of each machine in memory

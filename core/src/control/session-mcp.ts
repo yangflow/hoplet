@@ -12,6 +12,7 @@ import {
 } from '@hoplet/shared';
 import { log } from '../log/index.ts';
 import type { ControlState } from './state.ts';
+import { LIVE_STATES, membersOf } from './tree.ts';
 import type {
   Control,
   ControlEvent,
@@ -30,8 +31,13 @@ export const DEFAULT_SESSION_LIMITS: SessionLimits = {
   promptsPerHour: 60,
   perTargetPerMinute: 3,
   unansweredPerTarget: 2,
-  startsPerHour: 5,
-  liveChildren: 10,
+  startsPerHour: 12,
+  liveChildren: 4,
+  childDepth: 2,
+  liveTree: 8,
+  childTimeMs: 30 * 60_000,
+  childTimeMaxMs: 2 * 60 * 60_000,
+  treeTokens: 3_000_000,
   autoApprovedHandoffsPerHour: 3,
   handoffRequestsPerHour: 6,
 };
@@ -90,13 +96,15 @@ interface SourceUse {
   startsInFlight: number;
 }
 
-/** States of a session whose process is up (it counts as a live child). */
-const LIVE_STATES: ReadonlySet<string> = new Set([
-  'starting',
-  'ready',
-  'running',
-  'waiting-permission',
-]);
+/** The input and output tokens of the sessions `ids`; cache reads and writes are left out. */
+function tokensOf(state: ControlState, ids: string[]): number {
+  let total = 0;
+  for (const id of ids) {
+    const usage = state.store.sessionUsage(id)?.total;
+    if (usage) total += usage.input + usage.output;
+  }
+  return total;
+}
 
 export function createSessionMcp(
   state: ControlState,
@@ -107,6 +115,8 @@ export function createSessionMcp(
   const limits: SessionLimits = { ...DEFAULT_SESSION_LIMITS, ...options.sessionLimits };
   const reconnectMs = options.sessionReconnectMs ?? DEFAULT_RECONNECT_MS;
   const use = new Map<string, SourceUse>();
+  /** Starts reserved and not yet settled, by the root of their tree. */
+  const treeInFlight = new Map<string, number>();
   const timers = new Map<string, NodeJS.Timeout>();
 
   const sweep = setInterval(() => {
@@ -292,13 +302,34 @@ export function createSessionMcp(
 
   function guardStart(
     source: string,
-    request: Pick<StartRequest, 'deviceId' | 'provider' | 'configuration' | 'config'>,
+    request: Pick<
+      StartRequest,
+      'deviceId' | 'projectPath' | 'provider' | 'configuration' | 'config'
+    > & {
+      /** How long the new session may run, in milliseconds; the default when absent. */
+      timeLimitMs?: number | undefined;
+    },
   ): SessionStartGuard {
     const chain = [...store.sessionChain(source), source];
     if (chain.length > MAX_SESSION_CHAIN) return { ok: false, error: 'loop-limit' };
 
     const resolved = startConfig(source, request);
     if (!resolved.ok) return resolved;
+
+    // The tree is the one the starter belongs to (a session no session started is its own root); the new session
+    // sits `lineage.length + 1` below the root.
+    const chains = store.childChains();
+    const lineage = chains.get(source) ?? [];
+    if (lineage.length + 1 > limits.childDepth) return { ok: false, error: 'depth-limit' };
+
+    // A budget at its limit with `pause` stops a tree from growing in its scope.
+    const root = lineage[0] ?? source;
+    const budget = store.budgetBlockFor(request.projectPath, request.deviceId, state.now());
+    if (budget) return { ok: false, error: 'budget-exceeded', budget };
+    const members = membersOf(chains, root);
+    if (tokensOf(state, members) >= limits.treeTokens) {
+      return { ok: false, error: 'budget-exceeded' };
+    }
 
     const at = state.now();
     let mine = use.get(source);
@@ -312,29 +343,39 @@ export function createSessionMcp(
       };
       use.set(source, mine);
     }
+    const isLive = (id: string): boolean => LIVE_STATES.has(control.runtimeOf(id).state);
+    const live = [...chains].filter(([id, c]) => c[c.length - 1] === source && isLive(id)).length;
+    if (live + mine.startsInFlight >= limits.liveChildren) {
+      return { ok: false, error: 'children-limit' };
+    }
+    const flying = treeInFlight.get(root) ?? 0;
+    if (members.filter(isLive).length + flying >= limits.liveTree) {
+      return { ok: false, error: 'children-limit' };
+    }
     prune(mine.starts, HOUR, at);
     if (mine.starts.length >= limits.startsPerHour) {
       return { ok: false, error: 'rate-limited', retryAfter: retryAfter(mine.starts, HOUR, at) };
     }
-    const live = store
-      .sessionChildren(source)
-      .filter((id) => LIVE_STATES.has(control.runtimeOf(id).state)).length;
-    if (live + mine.startsInFlight >= limits.liveChildren) {
-      return { ok: false, error: 'rate-limited', retryAfter: 60 };
-    }
 
+    const timeLimitMs = Math.min(request.timeLimitMs ?? limits.childTimeMs, limits.childTimeMaxMs);
     mine.starts.push(at);
     mine.startsInFlight += 1;
+    treeInFlight.set(root, flying + 1);
     const reserved = mine;
     let settled = false;
     return {
       ok: true,
       config: resolved.config ?? {},
       chain,
+      lineage,
+      timeLimitMs,
       settle(accepted) {
         if (settled) return;
         settled = true;
         reserved.startsInFlight -= 1;
+        const left = (treeInFlight.get(root) ?? 1) - 1;
+        if (left > 0) treeInFlight.set(root, left);
+        else treeInFlight.delete(root);
         if (accepted) return;
         // The session was not started: it counts for nothing.
         const i = reserved.starts.lastIndexOf(at);

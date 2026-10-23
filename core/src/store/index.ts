@@ -939,9 +939,18 @@ export class Store {
     return sessionMcp.getChain(this.ctx, sessionId);
   }
 
-  /** The sessions whose latest prompt came from `sessionId`. */
-  sessionChildren(sessionId: string): string[] {
-    return sessionMcp.getChildren(this.ctx, sessionId);
+  /** The sessions a session started, by id, with their creation chain and time limit. */
+  sessionChildren(): Map<string, sessionMcp.ChildRecord> {
+    return sessionMcp.allChildren(this.ctx);
+  }
+
+  /** The creation chain of every session a session started (root first, parent last), by id. */
+  childChains(): Map<string, string[]> {
+    return new Map([...sessionMcp.allChildren(this.ctx)].map(([id, r]) => [id, r.chain]));
+  }
+
+  recordChild(sessionId: string, chain: string[], startedAt: number, timeLimitMs: number): void {
+    sessionMcp.recordChild(this.ctx, sessionId, chain, startedAt, timeLimitMs);
   }
 
   setSessionChain(sessionId: string, chain: string[]): void {

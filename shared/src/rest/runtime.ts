@@ -30,6 +30,17 @@ export type FreshPermissionRequest = v.InferOutput<typeof FreshPermissionRequest
 export const RuntimeCommandResultSchema = v.object({ ok: v.literal(true) });
 export type RuntimeCommandResult = v.InferOutput<typeof RuntimeCommandResultSchema>;
 
+/** The query of POST /api/sessions/:id/stop: `cascade=true` also stops the live descendants of the session. */
+export const StopQuerySchema = v.object({ cascade: v.optional(v.picklist(['true', 'false'])) });
+export type StopQuery = v.InferOutput<typeof StopQuerySchema>;
+
+/** The answer of /stop: with `cascade`, `stopped` lists the descendants that were stopped, deepest last. */
+export const StopResultSchema = v.object({
+  ok: v.literal(true),
+  stopped: v.optional(v.array(v.string())),
+});
+export type StopResult = v.InferOutput<typeof StopResultSchema>;
+
 /**
  * GET /api/sessions/:id/commands and GET /api/devices/:id/commands?cwd=: the commands and skills a prompt may
  * invoke as `/name args`, commands first and each group by name. `source` says where the list came from: the

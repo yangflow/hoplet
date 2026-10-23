@@ -44,6 +44,8 @@ function session(
     projectPath: '/Users/mark/github/repopro/hoplet',
     projectDir: '-Users-mark-github-repopro-hoplet',
     provider: 'claude',
+    parentId: null,
+    childCount: 0,
     ownerConnected: true,
     createdAt: NOW - 7_200_000,
     updatedAt: NOW - MINUTE,

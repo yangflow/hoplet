@@ -82,8 +82,9 @@ Response column names the schema of the success body and its status when it is n
 | POST | `/api/ws-tickets` | read | control | — | — | `WsTicketResponseSchema` | — |
 | GET | `/api/health` | read | control | — | — | `HealthResponseSchema` | — |
 | GET | `/api/sessions` | read | control | — | — | `SessionListResponseSchema` | — |
-| POST | `/api/sessions` | create | control | — | `NewSessionRequestSchema` | `NewSessionResultSchema` | `invalid-json`, `invalid-request`, `too-large`, `over-budget`, `target-offline`, `timeout`, `rejected`, `forbidden` |
+| POST | `/api/sessions` | create | control | — | `NewSessionRequestSchema` | `NewSessionResultSchema` | `invalid-json`, `invalid-request`, `too-large`, `over-budget`, `target-offline`, `timeout`, `rejected`, `forbidden`, `loop-limit`, `depth-limit`, `children-limit`, `budget-exceeded`, `rate-limited` |
 | GET | `/api/sessions/:sessionId` | read | control | — | — | `LiveSessionMetaSchema` | `session-not-found` |
+| GET | `/api/sessions/:sessionId/children` | read | control | — | — | `SessionChildrenResponseSchema` | `session-not-found` |
 | PATCH | `/api/sessions/:sessionId` | host | control | — | `SessionPatchRequestSchema` | `LiveSessionMetaSchema` | `invalid-json`, `invalid-request`, `too-large`, `session-not-found` |
 | DELETE | `/api/sessions/:sessionId` | host | control | — | `DeleteSessionRequestSchema` | `DeleteSessionResponseSchema` | `invalid-json`, `invalid-request`, `too-large`, `session-not-found`, `session-running`, `owner-offline`, `delete-partial`, `timeout`, `rejected` |
 | POST | `/api/sessions/:sessionId/terminal` | host | control | — | `TerminalOpenRequestSchema` | `TerminalInfoSchema` | `invalid-json`, `invalid-request`, `too-large`, `session-not-found`, `owner-offline`, `terminal-unavailable`, `terminal-busy`, `external`, `starting`, `session-running`, `handoff-in-progress`, `timeout`, `rejected` |
@@ -109,7 +110,7 @@ Response column names the schema of the success body and its status when it is n
 | POST | `/api/sessions/:sessionId/permission` | answer | control | — | `PermissionRequestSchema` | `RuntimeCommandResultSchema` | `invalid-json`, `invalid-request`, `too-large`, `session-not-found`, `owner-offline`, `request-closed` |
 | POST | `/api/sessions/:sessionId/permission/fresh` | answer | control | — | `FreshPermissionRequestSchema` | `NewSessionResultSchema` | `invalid-json`, `invalid-request`, `too-large`, `session-not-found`, `owner-offline`, `request-closed`, `over-budget`, `target-offline`, `timeout`, `rejected` |
 | POST | `/api/sessions/:sessionId/interrupt` | send | control | — | — | `RuntimeCommandResultSchema` | `session-not-found`, `owner-offline`, `not-running` |
-| POST | `/api/sessions/:sessionId/stop` | host | control | — | — | `RuntimeCommandResultSchema` | `session-not-found`, `owner-offline`, `not-running` |
+| POST | `/api/sessions/:sessionId/stop` | host | control | `StopQuerySchema` | — | `StopResultSchema` | `session-not-found`, `owner-offline`, `not-running` |
 | GET | `/api/sessions/:sessionId/commands` | host | control | — | — | `CommandsResultSchema` | `session-not-found` |
 | GET | `/api/devices/:deviceId/commands` | host | control | `DeviceCommandsQuerySchema` | — | `CommandsResultSchema` | `invalid-request` |
 | GET | `/api/sessions/:sessionId/workspace` | host | control | — | — | `WorkspaceListingSchema` | `session-not-found`, `owner-offline`, `timeout`, `rejected` |
@@ -487,6 +488,7 @@ Schema file ([JSON Schema](#json-schema)). Their parameters:
 | `GET /api/sessions/:sessionId/search` | `q` | The search string, required; one of only whitespace is `invalid-request` |
 | | `start` | Integer, default `0`, at least `0`: the hit to start from |
 | | `limit` | Integer, default `50`, kept within 1 to 200 |
+| `POST /api/sessions/:sessionId/stop` | `cascade` | `true` also stops the live sessions below it ([Child sessions](#child-sessions)); the body stays empty |
 | `GET /api/search` | `q` | As above |
 | | `start` | Integer, default `0`, at least `0` |
 | | `limit` | Integer, default `30`, kept within 1 to 100; the response says `exhausted: false` when more may exist |
@@ -527,6 +529,9 @@ session, or `""` while the session is not in the index yet; the client shows its
 | `rate-limited` | 429 | Too many requests to the action routes, or more than 300 in a minute with one API token, or a session prompted other sessions too often ([Sessions as callers](#sessions-as-callers)); retry after `Retry-After` seconds |
 | `self` | 400 | A session addressed itself: a session token asked to prompt or interrupt its own session |
 | `loop-limit` | 409 | The prompt would close a loop or make a chain of more than three sessions ([Sessions as callers](#sessions-as-callers)) |
+| `depth-limit` | 409 | A session started a session more than two levels below the root of its tree ([Child sessions](#child-sessions)) |
+| `children-limit` | 409 | A session already has 4 live children, or its tree 8 live sessions below the root |
+| `budget-exceeded` | 409 | A session started a session while a `pause` budget covering the project or the machine is used up (`budget` names it), or while its tree has spent its 3,000,000 input and output tokens (no `budget`) |
 | `not-found` | 404 | No route serves the path, or the block or path asked for does not exist |
 | `method-not-allowed` | 405 | The path exists for another method; `Allow` lists them |
 | `session-not-found` | 404 | No session has this ID |
@@ -598,9 +603,38 @@ that asks for a high-risk configuration option in `POST /api/sessions` is answer
 
 Every action of a token is audited with the actor kind `token` and the token's ID
 ([audit log](adr/0030-the-audit-log-records-actions-in-a-hash-chain.md)). A refused request of a known token is a
-`token.denied` event, at most one a minute per token and route. A token that is unknown, expired or revoked is
+`token.denied` event, at most one a minute per token, route and reason; the reason is `forbidden`, or the code of a
+refused session start (`depth-limit`, `children-limit`, `budget-exceeded`). A token that is unknown, expired or revoked is
 answered `unauthorized` and not audited. One token may make 300 requests a minute; beyond it the answer is
 `rate-limited` with `Retry-After`.
+
+## Child sessions
+
+A child is a session started by another session (#81, [ADR 0035](adr/0035-child-sessions-work-on-parts-of-a-task-in-parallel.md)).
+The relation is recorded when it starts and lasts as long as the session: the last session of its creation chain is the
+parent, the first the root of the tree. A prompt, from a user or from another session, does not change it. Every
+`LiveSessionMetaSchema` carries `parentId` (the parent's ID, or `null`) and `childCount` (how many sessions it started).
+
+`GET /api/sessions/:sessionId/children` returns `{sessionId, descendants, truncated}`: every descendant in pre-order,
+each as the session metadata plus `depth` (1 for a child), at most 200. Sessions the caller may not see are left out
+and set `truncated`. `POST /api/sessions/:sessionId/stop?cascade=true` stops the session and then the live sessions
+below it, and answers `{ok: true, stopped}` with the IDs it stopped; the route stays the host's.
+
+The limits of a tree are fixed in the core ([Hosting](hosting.md#resources)):
+
+| Limit | Value | Answer |
+|---|---|---|
+| Depth below the root | 2 | `depth-limit` |
+| Live children of one session | 4 | `children-limit` |
+| Live sessions in a tree, root excluded | 8 | `children-limit` |
+| Starts an hour per session | 12 | `rate-limited` |
+| Input plus output tokens of a tree (cache excluded) | 3,000,000 | `budget-exceeded` at a start; the live sessions are stopped |
+| Time a child may run | 30 minutes; a session asks for 1 to 120 with `timeLimitMinutes` | The child is stopped |
+
+A `pause` budget that is used up also refuses the start (`budget-exceeded` with `budget`). The tree watcher checks
+the time and token limits every 30 seconds: it interrupts then stops the live sessions past a limit, and each one is a
+`child.limit` audit event (actor `core`, summary `root` and `limit` `time` or `tokens`). Only a session token may send
+`timeLimitMinutes`; the host's is `invalid-request`.
 
 ## Sessions as callers
 
@@ -655,7 +689,7 @@ and Claude Code asks the user before each call (the built-in rule allows only th
 model as text with the error code, the `reason` where there is one and, for `rate-limited`, the seconds of
 `Retry-After`: `forbidden`, `self`, `loop-limit`, `rate-limited` or `session-not-found`.
 
-`start_session` (`prompt`; optional `machine`, `projectPath`, `permissionMode`, `worktree`, `branch`) is a
+`start_session` (`prompt`; optional `machine`, `projectPath`, `permissionMode`, `worktree`, `branch`, `timeLimitMinutes`) is a
 `POST /api/sessions` and needs the `create` ability. The machine and project default to those of the calling
 session, and the reach of the grant (project, machine or all) applies to them. The new session's permission mode may
 not be more permissive than the caller's: a named mode above it is `forbidden` with the `reason`
@@ -663,8 +697,8 @@ not be more permissive than the caller's: a named mode above it is `forbidden` w
 `sender-mode-unknown`; without a mode the new session gets the caller's own, or the highest one below it that is not
 `risk: "high"`. A `risk: "high"` option is refused as for any token. The new session's chain is the caller's chain
 plus the caller (`loop-limit` beyond three sessions), recorded once the device has started it. Per source session at
-most 5 starts an hour and 10 live children; beyond either the answer is `rate-limited` with `Retry-After`, and a
-start that was refused or failed does not count. The core sends `runtime.start` with the same `source` as a prompt
+most 12 starts an hour (`rate-limited` with `Retry-After`) and 4 live children (`children-limit`); the limits of the
+whole tree are in [Child sessions](#child-sessions). A start that was refused or failed does not count. The core sends `runtime.start` with the same `source` as a prompt
 carries, and the new session's agent puts the fixed line naming the caller before the first prompt. The tool
 returns the new session id and, with `worktree`, the worktree. Claude Code asks the user before each call.
 

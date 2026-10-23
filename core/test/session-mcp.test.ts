@@ -766,9 +766,9 @@ describe('starting a session', () => {
     expect(res.status).toBe(409);
     expect(res.body?.code).toBe('loop-limit');
     // One link fewer is allowed, and the new session's chain is the source's plus one.
-    b.store.setSessionChain('a1', ['x', 'y']);
+    b.store.setSessionChain('a1', ['x']);
     expect((await b.start(b.tokenOf('a1'), 'p2')).status).toBe(200);
-    expect(b.store.sessionChain('new-1')).toEqual(['x', 'y', 'a1']);
+    expect(b.store.sessionChain('new-1')).toEqual(['x', 'a1']);
   });
 
   it('allows the limit of starts an hour, then answers 429 with Retry-After', async () => {
@@ -804,8 +804,285 @@ describe('starting a session', () => {
     expect((await b.start(secret, 'p1')).status).toBe(200);
     await b.settle();
     const second = await b.start(secret, 'p2');
-    expect(second.status).toBe(429);
-    expect(second.body?.code).toBe('rate-limited');
+    expect(second.status).toBe(409);
+    expect(second.body?.code).toBe('children-limit');
     expect(b.starts).toHaveLength(1);
+  });
+});
+
+const usageLine = (id: string, input: number) =>
+  JSON.stringify({
+    type: 'assistant',
+    cwd: '/work/a',
+    timestamp: new Date().toISOString(),
+    message: {
+      id,
+      model: 'claude-opus-5-5',
+      role: 'assistant',
+      content: [{ type: 'text', text: 'x' }],
+      usage: {
+        input_tokens: input,
+        output_tokens: 0,
+        cache_creation_input_tokens: 0,
+        cache_read_input_tokens: 0,
+      },
+    },
+  });
+const meta = (id: string) => ({
+  sessionId: id,
+  provider: 'claude' as const,
+  projectDir: 'p',
+  filePath: `/x/${id}`,
+  deviceId: 'dev-a',
+});
+
+describe('a tree of work', () => {
+  it('refuses a start deeper than two levels with depth-limit, and audits it', async () => {
+    const b = await boot();
+    await b.ready();
+    await b.settings('a1', { create: true });
+    b.store.recordChild('a1', ['x', 'y'], Date.now(), 30 * 60_000);
+    const res = await b.start(b.tokenOf('a1'), 'p1');
+    expect(res.status).toBe(409);
+    expect(res.body?.code).toBe('depth-limit');
+    expect(b.audit().find((e) => e.type === 'token.denied')).toMatchObject({
+      actorKind: 'session',
+      sessionId: 'a1',
+    });
+    expect(JSON.stringify(b.audit().filter((e) => e.type === 'token.denied'))).toContain(
+      'depth-limit',
+    );
+  });
+
+  it('allows a limited number of live sessions in one tree', async () => {
+    const b = await boot({ liveTree: 2 });
+    await b.ready();
+    await b.settings('a1', { create: true });
+    const secret = b.tokenOf('a1');
+    expect((await b.start(secret, 'p1')).status).toBe(200);
+    await b.settle();
+    expect((await b.start(secret, 'p2')).status).toBe(200);
+    await b.settle();
+    const third = await b.start(secret, 'p3');
+    expect(third.status).toBe(409);
+    expect(third.body?.code).toBe('children-limit');
+  });
+
+  it('allows twelve starts an hour', async () => {
+    const b = await boot({ liveChildren: 100, liveTree: 100 });
+    await b.ready();
+    await b.settings('a1', { create: true });
+    const secret = b.tokenOf('a1');
+    for (let i = 0; i < 12; i++) {
+      expect((await b.start(secret, `p${i}`)).status, `start ${i}`).toBe(200);
+    }
+    expect((await b.start(secret, 'p12')).status).toBe(429);
+  });
+
+  it('refuses a start with budget-exceeded under a pause budget', async () => {
+    const b = await boot();
+    await b.ready();
+    await b.settings('a1', { create: true });
+    b.store.append(meta('a5'), [usageLine('m1', 5000)]);
+    b.store.createBudget(
+      {
+        name: 'Cap',
+        scope: { kind: 'global', value: '' },
+        period: 'day',
+        unit: 'tokens',
+        amount: 100,
+        alertPercent: 80,
+        onLimit: 'pause',
+        utcOffset: 0,
+      },
+      Date.now(),
+    );
+    const res = await b.start(b.tokenOf('a1'), 'p1');
+    expect(res.status).toBe(409);
+    expect(res.body?.code).toBe('budget-exceeded');
+    expect(res.body?.budget).toBeTruthy();
+  });
+
+  it('refuses a start once the tree has spent its tokens', async () => {
+    const b = await boot({ treeTokens: 1000 });
+    await b.ready();
+    await b.settings('a1', { create: true });
+    b.store.recordChild('a2', ['a1'], Date.now(), 30 * 60_000);
+    b.store.append(meta('a2'), [usageLine('m1', 2000)]);
+    const res = await b.start(b.tokenOf('a1'), 'p1');
+    expect(res.status).toBe(409);
+    expect(res.body?.code).toBe('budget-exceeded');
+    expect(res.body?.budget).toBeUndefined();
+  });
+
+  it('stores the time limit of a child: 30 minutes, or what its parent asks up to two hours', async () => {
+    const b = await boot();
+    await b.ready();
+    await b.settings('a1', { create: true });
+    const secret = b.tokenOf('a1');
+    expect((await b.start(secret, 'p1')).status).toBe(200);
+    expect((await b.start(secret, 'p2', { timeLimitMinutes: 90 })).status).toBe(200);
+    expect(b.store.sessionChildren().get('new-1')?.timeLimitMs).toBe(30 * 60_000);
+    expect(b.store.sessionChildren().get('new-2')?.timeLimitMs).toBe(90 * 60_000);
+    expect((await b.start(secret, 'p3', { timeLimitMinutes: 121 })).status).toBe(400);
+    const host = await b.start(HOST, 'p4', { timeLimitMinutes: 10 });
+    expect(host.status).toBe(400);
+    expect(host.body?.code).toBe('invalid-request');
+  });
+
+  it('shows parentId and childCount, and lists the descendants within the reach of the caller', async () => {
+    const b = await boot();
+    b.store.recordChild('a2', ['a1'], Date.now(), 30 * 60_000);
+    b.store.recordChild('a3', ['a1', 'a2'], Date.now(), 30 * 60_000);
+    b.store.recordChild('a6', ['a1'], Date.now(), 30 * 60_000);
+    const one = await b.rest('GET', '/api/sessions/a1', HOST);
+    expect(one.body).toMatchObject({ parentId: null, childCount: 2 });
+    const list = await b.rest('GET', '/api/sessions', HOST);
+    const by = (id: string) =>
+      ((list.body?.sessions ?? []) as Json[]).find((x) => x.sessionId === id);
+    expect(by('a3')).toMatchObject({ parentId: 'a2', childCount: 0 });
+    expect(by('a2')).toMatchObject({ parentId: 'a1', childCount: 1 });
+
+    const tree = await b.rest('GET', '/api/sessions/a1/children', HOST);
+    expect(tree.body?.truncated).toBe(false);
+    expect(((tree.body?.descendants ?? []) as Json[]).map((d) => [d.sessionId, d.depth])).toEqual([
+      ['a2', 1],
+      ['a3', 2],
+      ['a6', 1],
+    ]);
+    // A session sees its own project only: a6 is in another one.
+    await b.settings('a1', { send: true });
+    const mine = await b.rest('GET', '/api/sessions/a1/children', b.tokenOf('a1'));
+    expect(((mine.body?.descendants ?? []) as Json[]).map((d) => d.sessionId)).toEqual([
+      'a2',
+      'a3',
+    ]);
+    expect(mine.body?.truncated).toBe(true);
+    expect((await b.rest('GET', '/api/sessions/zz/children', HOST)).status).toBe(404);
+  });
+
+  it('stops the live descendants with cascade, for the host alone', async () => {
+    const b = await boot();
+    await b.ready();
+    b.store.recordChild('a2', ['a1'], Date.now(), 30 * 60_000);
+    b.store.recordChild('a3', ['a1', 'a2'], Date.now(), 30 * 60_000);
+    await b.settings('a1', { send: true });
+    const refused = await b.rest('POST', '/api/sessions/a2/stop?cascade=true', b.tokenOf('a1'));
+    expect(refused.status).toBe(403);
+    const plain = await b.rest('POST', '/api/sessions/a2/stop', HOST);
+    expect(plain.body).toEqual({ ok: true });
+    const res = await b.rest('POST', '/api/sessions/a1/stop?cascade=true', HOST);
+    expect(res.status).toBe(200);
+    expect(res.body?.stopped).toEqual(expect.arrayContaining(['a3']));
+    expect(
+      b
+        .audit()
+        .filter((e) => e.type === 'session.stopped')
+        .map((e) => e.sessionId),
+    ).toEqual(expect.arrayContaining(['a1', 'a3']));
+  });
+});
+
+describe('the tree watcher', () => {
+  it('stops a child past its time limit once, and audits child.limit', async () => {
+    const b = await boot();
+    await b.ready();
+    b.store.recordChild('a2', ['a1'], Date.now() - 3_600_000, 60_000);
+    b.store.recordChild('a3', ['a1', 'a2'], Date.now(), 30 * 60_000);
+    b.control.checkTrees();
+    b.control.checkTrees();
+    const events = b.audit().filter((e) => e.type === 'child.limit');
+    // The child and what it started; a1 is the root and keeps running.
+    expect(events.map((e) => e.sessionId).sort()).toEqual(['a2', 'a3']);
+    expect(events[0]?.actorKind).toBe('core');
+    expect(JSON.stringify(events[0]?.summary)).toContain('time');
+  });
+
+  it('leaves a child within its limit alone', async () => {
+    const b = await boot();
+    await b.ready();
+    b.store.recordChild('a2', ['a1'], Date.now(), 60 * 60_000);
+    b.control.checkTrees();
+    expect(b.audit().filter((e) => e.type === 'child.limit')).toEqual([]);
+  });
+
+  it('stops the live sessions of a tree that spent its tokens', async () => {
+    const b = await boot({ treeTokens: 1000 });
+    await b.ready();
+    b.store.recordChild('a2', ['a1'], Date.now(), 30 * 60_000);
+    b.store.recordChild('a3', ['a1'], Date.now(), 30 * 60_000);
+    b.store.append(meta('a2'), [usageLine('m1', 2000)]);
+    b.control.checkTrees();
+    const events = b.audit().filter((e) => e.type === 'child.limit');
+    expect(events.map((e) => e.sessionId).sort()).toEqual(['a2', 'a3']);
+    expect(JSON.stringify(events[0]?.summary)).toContain('tokens');
+  });
+});
+
+describe('the relation of a child', () => {
+  it('is not made by a prompt: a send_prompt to a peer leaves it without a parent', async () => {
+    const b = await boot();
+    await b.ready();
+    // The peer a2 got a prompt of a1: its provenance names a1, but a1 did not start it.
+    b.store.setSessionChain('a2', ['a1']);
+    const peer = await b.rest('GET', '/api/sessions/a2', HOST);
+    expect(peer.body).toMatchObject({ parentId: null, childCount: 0 });
+    expect(((await b.rest('GET', '/api/sessions/a1', HOST)).body as Json).childCount).toBe(0);
+    expect(
+      ((await b.rest('GET', '/api/sessions/a1/children', HOST)).body?.descendants ?? []) as Json[],
+    ).toEqual([]);
+    // Stopping the sender with cascade leaves the peer running, and the watcher does not touch it.
+    const res = await b.rest('POST', '/api/sessions/a1/stop?cascade=true', HOST);
+    expect(res.body?.stopped).toEqual([]);
+    b.control.checkTrees();
+    expect(b.audit().filter((e) => e.type === 'child.limit')).toEqual([]);
+  });
+
+  it('does not count a prompted peer against the limits of the sender', async () => {
+    const b = await boot({ liveChildren: 1, liveTree: 1 });
+    await b.ready();
+    await b.settings('a1', { create: true });
+    b.store.setSessionChain('a2', ['a1']);
+    b.store.setSessionChain('a3', ['a1']);
+    expect((await b.start(b.tokenOf('a1'), 'p1')).status).toBe(200);
+  });
+
+  it('stays when a user prompts the child: it keeps its parent and its tree', async () => {
+    const b = await boot();
+    await b.ready();
+    b.store.recordChild('a2', ['a1'], Date.now(), 30 * 60_000);
+    b.store.recordChild('a3', ['a1', 'a2'], Date.now(), 30 * 60_000);
+    // A prompt of a user removes the provenance of a2.
+    b.store.setSessionChain('a2', []);
+    expect(((await b.rest('GET', '/api/sessions/a2', HOST)).body as Json).parentId).toBe('a1');
+    expect(((await b.rest('GET', '/api/sessions/a3', HOST)).body as Json).parentId).toBe('a2');
+    const tree = await b.rest('GET', '/api/sessions/a1/children', HOST);
+    expect(((tree.body?.descendants ?? []) as Json[]).map((d) => d.sessionId)).toEqual([
+      'a2',
+      'a3',
+    ]);
+  });
+
+  it('takes the depth from the creation chain, not from the provenance', async () => {
+    const b = await boot();
+    await b.ready();
+    await b.settings('a1', { create: true });
+    // A long provenance of a prompt means nothing for the depth: a1 was not started by a session.
+    b.store.setSessionChain('a1', ['x']);
+    expect((await b.start(b.tokenOf('a1'), 'p1')).status).toBe(200);
+    expect(b.store.sessionChildren().get('new-1')?.chain).toEqual(['a1']);
+    // The child of a child sits at depth two, which is allowed; the next level is not.
+    b.store.recordChild('a2', ['r', 'a1'], Date.now(), 30 * 60_000);
+    await b.settings('a2', { create: true });
+    const deep = await b.start(b.tokenOf('a2'), 'p2');
+    expect(deep.status).toBe(409);
+    expect(deep.body?.code).toBe('depth-limit');
+  });
+
+  it('is forgotten with the session', async () => {
+    const b = await boot();
+    b.store.recordChild('a2', ['a1'], Date.now(), 30 * 60_000);
+    b.store.forgetSessionMcp('a2');
+    expect(b.store.sessionChildren().has('a2')).toBe(false);
   });
 });

@@ -98,12 +98,13 @@ of ADR 0005, stated in the log rather than hidden by it; roles would change it (
 | `session.created`, `session.stopped`, `session.interrupted`, `session.deleted` | a session starts, is stopped, interrupted or deleted | machine, project path, provider and configuration, the options chosen; for a deletion what was removed (ADR 0023) |
 | `session.handoff` | a handoff ends | source and target machine, outcome and failure code; `session.auto_transfer` when an automatic move (not built) does it |
 | `prompt.sent` | a prompt or a steer is accepted | prompt ID, length in characters, number of images; never the text |
+| `child.limit` | the core stops a session past a limit of its tree (#81, [ADR 0035](0035-child-sessions-work-on-parts-of-a-task-in-parallel.md)) | the session's ID, the root of its tree, the limit (`time` or `tokens`) and its value; actor `core` |
 | `session.op` | one session views or directs another (#67, #81) | the other session's ID, the operation |
 | `config.changed` | a setting of the core changes: budgets, notification preferences and webhooks, price overrides, device labels and watched projects, provider defaults, permission rules (#98) | the area, the object ID, the names of the fields changed and, for a field that is not a secret, its previous and new value; a secret's value is never recorded, only that it changed |
 | `verify.result` | an automatic verification finishes (#79) | the check's name, outcome, duration |
 | `device.token.issued` | `mintDevice` | device ID, name, whether it replaced a token (`replaced`: the old token stopped working) |
 | `token.issued`, `token.revoked` | the host issues or revokes a scoped API token (ADR 0033) | token ID, name, the grant (abilities and allow-list) and the expiry; never the secret |
-| `token.denied` | a known token asks for something its grant does not cover | token ID, method and route, reason `forbidden`; at most one record a minute per token and route. A token that is unknown, expired or revoked is not recorded |
+| `token.denied` | a known token asks for something its grant does not cover | token ID, method and route, reason `forbidden`, or `depth-limit`, `children-limit` or `budget-exceeded` for a refused session start; at most one record a minute per token and route. A token that is unknown, expired or revoked is not recorded |
 | `terminal.opened`, `terminal.closed` | a shell is opened or closed (ADR 0026) | terminal ID, reason, duration, byte counts; never input or output |
 | `audit.started`, `audit.checkpoint`, `audit.exported` | the first start with this feature; retention; an export | for a checkpoint see Retention; for an export the format, the filters and the number of records |
 

@@ -232,14 +232,6 @@ export function getChain(ctx: StoreContext, sessionId: string): string[] {
   }
 }
 
-/** The sessions whose latest prompt came from `sessionId` itself (it is the last of their chain). */
-export function getChildren(ctx: StoreContext, sessionId: string): string[] {
-  const rows = ctx.db
-    .prepare(`SELECT session_id FROM session_provenance WHERE json_extract(chain, '$[#-1]') = ?`)
-    .all(sessionId) as { session_id: string }[];
-  return rows.map((r) => r.session_id);
-}
-
 /** Records the chain behind the prompt; an empty chain (a prompt of a user) removes the record. */
 export function setChain(ctx: StoreContext, sessionId: string, chain: string[]): void {
   if (chain.length === 0) {
@@ -254,8 +246,57 @@ export function setChain(ctx: StoreContext, sessionId: string, chain: string[]):
     .run(sessionId, JSON.stringify(chain));
 }
 
+export interface ChildRecord {
+  /** The sessions that started this one, root first and parent last. */
+  chain: string[];
+  startedAt: number;
+  timeLimitMs: number;
+}
+
+/** Records that a session started `sessionId` (the chain ends with it), when, and how long it may run. */
+export function recordChild(
+  ctx: StoreContext,
+  sessionId: string,
+  chain: string[],
+  startedAt: number,
+  timeLimitMs: number,
+): void {
+  ctx.db
+    .prepare(
+      `INSERT INTO session_children(session_id, chain, started_at, time_limit_ms) VALUES(?, ?, ?, ?)
+       ON CONFLICT(session_id) DO UPDATE SET chain = excluded.chain, started_at = excluded.started_at,
+         time_limit_ms = excluded.time_limit_ms`,
+    )
+    .run(sessionId, JSON.stringify(chain), startedAt, timeLimitMs);
+}
+
+/** Every session that a session started, by id: the one scan the session list, the limits and the watcher read. */
+export function allChildren(ctx: StoreContext): Map<string, ChildRecord> {
+  const rows = ctx.db
+    .prepare(`SELECT session_id, chain, started_at, time_limit_ms FROM session_children`)
+    .all() as { session_id: string; chain: string; started_at: number; time_limit_ms: number }[];
+  const out = new Map<string, ChildRecord>();
+  for (const row of rows) {
+    try {
+      const parsed: unknown = JSON.parse(row.chain);
+      if (!Array.isArray(parsed)) continue;
+      const chain = parsed.filter((x): x is string => typeof x === 'string');
+      if (chain.length === 0) continue;
+      out.set(row.session_id, {
+        chain,
+        startedAt: row.started_at,
+        timeLimitMs: row.time_limit_ms,
+      });
+    } catch {
+      // A damaged chain reads as none.
+    }
+  }
+  return out;
+}
+
 /** Forgets a session's settings and provenance (the session was deleted). */
 export function forgetSession(ctx: StoreContext, sessionId: string): void {
   ctx.db.prepare(`DELETE FROM session_mcp_settings WHERE session_id = ?`).run(sessionId);
   ctx.db.prepare(`DELETE FROM session_provenance WHERE session_id = ?`).run(sessionId);
+  ctx.db.prepare(`DELETE FROM session_children WHERE session_id = ?`).run(sessionId);
 }

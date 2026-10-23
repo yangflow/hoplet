@@ -55,6 +55,16 @@
       "response": "LiveSessionMetaSchema"
     },
     {
+      "method": "GET",
+      "path": "/api/sessions/:sessionId/children",
+      "auth": "read",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": null,
+      "response": "SessionChildrenResponseSchema"
+    },
+    {
       "method": "PATCH",
       "path": "/api/sessions/:sessionId",
       "auth": "host",
@@ -250,9 +260,9 @@
       "auth": "host",
       "lane": "control",
       "status": 200,
-      "query": null,
+      "query": "StopQuerySchema",
       "body": null,
-      "response": "RuntimeCommandResultSchema"
+      "response": "StopResultSchema"
     },
     {
       "method": "POST",
@@ -1347,6 +1357,9 @@
     "over-budget": 409,
     "handoff-in-progress": 409,
     "loop-limit": 409,
+    "depth-limit": 409,
+    "children-limit": 409,
+    "budget-exceeded": 409,
     "handoff-not-running": 409,
     "terminal-unavailable": 409,
     "terminal-busy": 409,
@@ -3710,6 +3723,9 @@
             "over-budget",
             "handoff-in-progress",
             "loop-limit",
+            "depth-limit",
+            "children-limit",
+            "budget-exceeded",
             "handoff-not-running",
             "terminal-unavailable",
             "terminal-busy",
@@ -3779,6 +3795,9 @@
             "over-budget",
             "handoff-in-progress",
             "loop-limit",
+            "depth-limit",
+            "children-limit",
+            "budget-exceeded",
             "handoff-not-running",
             "terminal-unavailable",
             "terminal-busy",
@@ -6149,6 +6168,20 @@
             "title"
           ]
         },
+        "parentId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "childCount": {
+          "type": "integer",
+          "minimum": 0
+        },
         "self": {
           "const": true
         }
@@ -6166,7 +6199,9 @@
         "lineCount",
         "byteSize",
         "ownerConnected",
-        "runtime"
+        "runtime",
+        "parentId",
+        "childCount"
       ]
     },
     "NewSessionRequestSchema": {
@@ -6239,6 +6274,11 @@
             }
           },
           "required": []
+        },
+        "timeLimitMinutes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 120
         }
       },
       "required": [
@@ -8188,6 +8228,332 @@
         "updatedAt"
       ]
     },
+    "SessionChildrenResponseSchema": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "descendants": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "sessionId": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_-]+$"
+              },
+              "projectPath": {
+                "type": "string"
+              },
+              "projectDir": {
+                "type": "string"
+              },
+              "deviceName": {
+                "type": "string"
+              },
+              "ownerDeviceId": {
+                "type": "string"
+              },
+              "ownerEpoch": {
+                "type": "number"
+              },
+              "title": {
+                "type": "string"
+              },
+              "provider": {
+                "enum": [
+                  "claude",
+                  "codex"
+                ],
+                "type": "string"
+              },
+              "createdAt": {
+                "type": "number"
+              },
+              "updatedAt": {
+                "type": "number"
+              },
+              "lineCount": {
+                "type": "number"
+              },
+              "byteSize": {
+                "type": "number"
+              },
+              "gitBranch": {
+                "type": "string"
+              },
+              "configuration": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9][a-z0-9-]{0,39}$"
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "name"
+                ]
+              },
+              "ownerConnected": {
+                "type": "boolean"
+              },
+              "runtime": {
+                "type": "object",
+                "properties": {
+                  "state": {
+                    "enum": [
+                      "offline",
+                      "external",
+                      "idle",
+                      "starting",
+                      "ready",
+                      "running",
+                      "waiting-permission",
+                      "failed"
+                    ],
+                    "type": "string"
+                  },
+                  "capabilities": {
+                    "type": "object",
+                    "properties": {
+                      "permissions": {
+                        "type": "boolean"
+                      },
+                      "interrupt": {
+                        "type": "boolean"
+                      },
+                      "images": {
+                        "type": "boolean"
+                      },
+                      "steer": {
+                        "type": "boolean"
+                      },
+                      "rules": {
+                        "const": "prompts-only"
+                      },
+                      "config": {
+                        "type": "array",
+                        "items": {
+                          "oneOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "type": {
+                                  "const": "select"
+                                },
+                                "id": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 64
+                                },
+                                "name": {
+                                  "type": "string"
+                                },
+                                "description": {
+                                  "type": "string"
+                                },
+                                "category": {
+                                  "type": "string"
+                                },
+                                "options": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "value": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 128
+                                      },
+                                      "name": {
+                                        "type": "string"
+                                      },
+                                      "description": {
+                                        "type": "string"
+                                      },
+                                      "risk": {
+                                        "enum": [
+                                          "high"
+                                        ],
+                                        "type": "string"
+                                      },
+                                      "icon": {
+                                        "enum": [
+                                          "shield",
+                                          "shield-alert",
+                                          "file-pen",
+                                          "list-checks",
+                                          "sparkles"
+                                        ],
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "value",
+                                      "name"
+                                    ]
+                                  }
+                                },
+                                "currentValue": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "type",
+                                "id",
+                                "name",
+                                "options",
+                                "currentValue"
+                              ]
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "type": {
+                                  "const": "boolean"
+                                },
+                                "id": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 64
+                                },
+                                "name": {
+                                  "type": "string"
+                                },
+                                "description": {
+                                  "type": "string"
+                                },
+                                "category": {
+                                  "type": "string"
+                                },
+                                "currentValue": {
+                                  "type": "boolean"
+                                }
+                              },
+                              "required": [
+                                "type",
+                                "id",
+                                "name",
+                                "currentValue"
+                              ]
+                            }
+                          ]
+                        }
+                      }
+                    },
+                    "required": [
+                      "permissions",
+                      "interrupt",
+                      "config"
+                    ]
+                  },
+                  "error": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "state"
+                ]
+              },
+              "titleOverride": {
+                "type": "string"
+              },
+              "pinnedAt": {
+                "type": "number"
+              },
+              "archivedAt": {
+                "type": "number"
+              },
+              "continuedIn": {
+                "type": "object",
+                "properties": {
+                  "sessionId": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9_-]+$"
+                  },
+                  "title": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "sessionId",
+                  "title"
+                ]
+              },
+              "continuedFrom": {
+                "type": "object",
+                "properties": {
+                  "sessionId": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9_-]+$"
+                  },
+                  "title": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "sessionId",
+                  "title"
+                ]
+              },
+              "parentId": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "childCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "self": {
+                "const": true
+              },
+              "depth": {
+                "type": "integer",
+                "minimum": 1
+              }
+            },
+            "required": [
+              "sessionId",
+              "projectPath",
+              "projectDir",
+              "deviceName",
+              "ownerEpoch",
+              "title",
+              "provider",
+              "createdAt",
+              "updatedAt",
+              "lineCount",
+              "byteSize",
+              "ownerConnected",
+              "runtime",
+              "parentId",
+              "childCount",
+              "depth"
+            ]
+          }
+        },
+        "truncated": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "sessionId",
+        "descendants",
+        "truncated"
+      ]
+    },
     "SessionCommandsMessage": {
       "type": "object",
       "properties": {
@@ -8677,6 +9043,20 @@
                   "title"
                 ]
               },
+              "parentId": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "childCount": {
+                "type": "integer",
+                "minimum": 0
+              },
               "self": {
                 "const": true
               }
@@ -8694,7 +9074,9 @@
               "lineCount",
               "byteSize",
               "ownerConnected",
-              "runtime"
+              "runtime",
+              "parentId",
+              "childCount"
             ]
           }
         }
@@ -9936,6 +10318,36 @@
       "required": [
         "ok",
         "steerId"
+      ]
+    },
+    "StopQuerySchema": {
+      "type": "object",
+      "properties": {
+        "cascade": {
+          "enum": [
+            "true",
+            "false"
+          ],
+          "type": "string"
+        }
+      },
+      "required": []
+    },
+    "StopResultSchema": {
+      "type": "object",
+      "properties": {
+        "ok": {
+          "const": true
+        },
+        "stopped": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "ok"
       ]
     },
     "SubscribeMessage": {

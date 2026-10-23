@@ -36,6 +36,9 @@ export const HTTP_ERROR_STATUS = {
   'over-budget': 409,
   'handoff-in-progress': 409,
   'loop-limit': 409,
+  'depth-limit': 409,
+  'children-limit': 409,
+  'budget-exceeded': 409,
   'handoff-not-running': 409,
   'terminal-unavailable': 409,
   'terminal-busy': 409,
@@ -83,7 +86,7 @@ export const ErrorResponseSchema = v.object({
   detail: v.optional(v.string()),
   /** The steps of a deletion that failed half way (`delete-partial`). */
   steps: v.optional(v.array(DeletionStepSchema)),
-  /** The budget that refused a prompt (`over-budget`). */
+  /** The budget that refused a prompt (`over-budget`) or a session's start (`budget-exceeded`). */
   budget: v.optional(BudgetRefSchema),
 });
 export type ErrorResponse = v.InferOutput<typeof ErrorResponseSchema>;
