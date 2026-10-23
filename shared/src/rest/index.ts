@@ -1,6 +1,7 @@
 export * from './audit.ts';
 export * from './auth.ts';
 export * from './budgets.ts';
+export * from './children.ts';
 export * from './common.ts';
 export * from './config-changes.ts';
 export * from './config-files.ts';

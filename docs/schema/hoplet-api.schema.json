@@ -65,6 +65,46 @@
       "response": "SessionChildrenResponseSchema"
     },
     {
+      "method": "GET",
+      "path": "/api/sessions/:sessionId/children/status",
+      "auth": "read",
+      "lane": "control",
+      "status": 200,
+      "query": "ChildStatusQuerySchema",
+      "body": null,
+      "response": "ChildStatusesSchema"
+    },
+    {
+      "method": "POST",
+      "path": "/api/sessions/:sessionId/children/:childId/collect",
+      "auth": "create",
+      "lane": "control",
+      "status": 200,
+      "query": "ChildCollectQuerySchema",
+      "body": null,
+      "response": "ChildCollectSchema"
+    },
+    {
+      "method": "GET",
+      "path": "/api/sessions/:sessionId/children/:childId/diff",
+      "auth": "read",
+      "lane": "bulk",
+      "status": 200,
+      "query": "ChildDiffQuerySchema",
+      "body": null,
+      "response": "WorkspaceDiffSchema"
+    },
+    {
+      "method": "POST",
+      "path": "/api/sessions/:sessionId/children/:childId/cancel",
+      "auth": "create",
+      "lane": "control",
+      "status": 200,
+      "query": "ChildCancelQuerySchema",
+      "body": null,
+      "response": "ChildCancelSchema"
+    },
+    {
       "method": "PATCH",
       "path": "/api/sessions/:sessionId",
       "auth": "host",
@@ -1484,6 +1524,13 @@
   },
   "excluded": [
     {
+      "schema": "ChildDiffQuerySchema",
+      "routes": [
+        "GET /api/sessions/:sessionId/children/:childId/diff"
+      ],
+      "reason": "The \"transform\" action cannot be converted to JSON Schema."
+    },
+    {
       "schema": "LinesQuerySchema",
       "routes": [
         "GET /api/sessions/:sessionId/lines"
@@ -2287,6 +2334,260 @@
         "state",
         "paused",
         "costComplete"
+      ]
+    },
+    "ChildCancelQuerySchema": {
+      "type": "object",
+      "properties": {
+        "subtree": {
+          "enum": [
+            "true",
+            "false"
+          ],
+          "type": "string"
+        }
+      },
+      "required": []
+    },
+    "ChildCancelSchema": {
+      "type": "object",
+      "properties": {
+        "ok": {
+          "const": true
+        },
+        "cancelled": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]+$"
+          }
+        }
+      },
+      "required": [
+        "ok",
+        "cancelled"
+      ]
+    },
+    "ChildCollectQuerySchema": {
+      "type": "object",
+      "properties": {
+        "release": {
+          "enum": [
+            "true",
+            "false"
+          ],
+          "type": "string"
+        }
+      },
+      "required": []
+    },
+    "ChildCollectSchema": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "state": {
+          "enum": [
+            "running",
+            "done",
+            "failed",
+            "blocked",
+            "ended",
+            "timed-out",
+            "cancelled"
+          ],
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        },
+        "summaryTruncated": {
+          "type": "boolean"
+        },
+        "changes": {
+          "type": "object",
+          "properties": {
+            "status": {
+              "enum": [
+                "ok",
+                "unknown",
+                "owner-offline"
+              ],
+              "type": "string"
+            },
+            "branch": {
+              "type": "string"
+            },
+            "base": {
+              "type": "string"
+            },
+            "shared": {
+              "type": "boolean"
+            },
+            "total": {
+              "type": "number"
+            },
+            "files": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "enum": [
+                      "modified",
+                      "added",
+                      "deleted",
+                      "untracked"
+                    ],
+                    "type": "string"
+                  },
+                  "added": {
+                    "type": "number"
+                  },
+                  "removed": {
+                    "type": "number"
+                  },
+                  "binary": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "path",
+                  "status"
+                ]
+              }
+            },
+            "truncated": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "status"
+          ]
+        },
+        "usage": {
+          "type": "object",
+          "properties": {
+            "estimated": {
+              "const": true
+            },
+            "input": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "output": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "cacheWrite": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "cacheRead": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "messages": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "estimatedCostUsd": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "costComplete": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "estimated",
+            "input",
+            "output",
+            "cacheWrite",
+            "cacheRead",
+            "messages",
+            "estimatedCostUsd",
+            "costComplete"
+          ]
+        },
+        "released": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "sessionId",
+        "state",
+        "summary",
+        "summaryTruncated",
+        "changes",
+        "usage",
+        "released"
+      ]
+    },
+    "ChildStatusQuerySchema": {
+      "type": "object",
+      "properties": {
+        "ids": {
+          "type": "string",
+          "maxLength": 1024
+        }
+      },
+      "required": []
+    },
+    "ChildStatusesSchema": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "children": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "sessionId": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_-]+$"
+              },
+              "state": {
+                "enum": [
+                  "running",
+                  "done",
+                  "failed",
+                  "blocked",
+                  "ended",
+                  "timed-out",
+                  "cancelled"
+                ],
+                "type": "string"
+              },
+              "elapsedSeconds": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "sessionId",
+              "state",
+              "elapsedSeconds"
+            ]
+          }
+        }
+      },
+      "required": [
+        "sessionId",
+        "children"
       ]
     },
     "CommandsResultSchema": {
@@ -6494,14 +6795,28 @@
           "maxLength": 128
         },
         "worktree": {
-          "type": "object",
-          "properties": {
-            "branch": {
-              "type": "string",
-              "maxLength": 200
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "branch": {
+                  "type": "string",
+                  "maxLength": 200
+                }
+              },
+              "required": []
+            },
+            {
+              "const": false
             }
-          },
-          "required": []
+          ]
+        },
+        "title": {
+          "type": "string",
+          "pattern": "^\\s*\\S(?:[\\s\\S]{0,198}\\S)?\\s*$"
+        },
+        "nested": {
+          "type": "boolean"
         },
         "timeLimitMinutes": {
           "type": "integer",

@@ -150,6 +150,12 @@ export interface SessionMcp {
   settingsOf(sessionId: string): SessionMcpSettings;
   /** Replaces a session's settings (the host's change); the grant of its token follows at the next request. */
   setSettings(sessionId: string, settings: SessionMcpSettings): SessionMcpSettings;
+  /**
+   * Gives a session that `parent` started the settings it inherits (ADR 0035): `send`, `readConfig` and the
+   * visibility of the parent; `create` only when the spawn asked for `nested`, the parent has it and the depth
+   * limit leaves room; never a hand-off, an auto-approval or a change of configuration.
+   */
+  inheritSettings(parent: string, child: string, nested: boolean): SessionMcpSettings;
   globalDefault(): SessionMcpSettings;
   projectDefaults(): SessionMcpProjectDefault[];
   setGlobalDefault(settings: SessionMcpSettings): SessionMcpSettings;
@@ -369,10 +375,19 @@ export interface StartRequest {
   /**
    * Set when a session started this one (ADR 0034): the agent names it before the prompt, the core records the
    * provenance `chain`. ADR 0035: `lineage` is the creation chain of the starter (root first), which the new
-   * session's own extends, and `timeLimitMs` how long it may run; the tree watcher enforces it.
+   * session's own extends, and `timeLimitMs` how long it may run; the tree watcher enforces it. `worktree` says
+   * the starter did not decide on a worktree: a git project gets a new one. `nested` lets the new session start
+   * sessions of its own. The first prompt of the new session carries the report preamble.
    */
   source?:
-    | { sessionId: string; chain: string[]; lineage: string[]; timeLimitMs: number }
+    | {
+        sessionId: string;
+        chain: string[];
+        lineage: string[];
+        timeLimitMs: number;
+        defaultWorktree: boolean;
+        nested: boolean;
+      }
     | undefined;
 }
 

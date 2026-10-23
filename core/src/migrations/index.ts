@@ -35,6 +35,7 @@ import { sessionMcpHandoffApproval } from './0032-session-mcp-handoff-approval.t
 import { handoffRequests } from './0033-handoff-requests.ts';
 import { sessionChildren } from './0034-session-children.ts';
 import { configChanges } from './0035-config-changes.ts';
+import { childEnded } from './0036-child-ended.ts';
 
 export interface Migration {
   readonly id: number;
@@ -78,6 +79,7 @@ const MIGRATIONS: readonly Migration[] = [
   handoffRequests,
   sessionChildren,
   configChanges,
+  childEnded,
 ];
 
 export function migrate(db: DatabaseSync): void {

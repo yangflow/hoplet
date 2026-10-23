@@ -407,6 +407,24 @@ export function createSessionMcp(
     setSettings(sessionId, settings) {
       return store.putSessionMcpSettings(sessionId, settings, settingsOf(sessionId), state.now());
     },
+    inheritSettings(parent, child, nested) {
+      const from = settingsOf(parent);
+      // One more level below the child must stay within the depth limit.
+      const depth = store.childChains().get(child)?.length ?? Number.POSITIVE_INFINITY;
+      const create = nested && from.create && depth < limits.childDepth;
+      // What the parent has, narrowed: no hand-off and no change of configuration is passed down.
+      const inherited: SessionMcpSettings = {
+        send: from.send || create,
+        create,
+        requestHandoff: false,
+        autoApproveHandoff: false,
+        readConfig: from.readConfig,
+        writeConfig: false,
+        autoApproveMachines: [],
+        visibility: from.visibility,
+      };
+      return store.putSessionMcpSettings(child, inherited, settingsOf(child), state.now());
+    },
     globalDefault,
     projectDefaults: () => store.sessionMcpProjectDefaults(),
     setGlobalDefault: (settings) => store.putSessionMcpDefault('', '', settings, state.now()),

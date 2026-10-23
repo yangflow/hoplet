@@ -270,7 +270,9 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
   const rpc = createRpc(state);
   const handoff = createHandoff(state, rpc.workspace);
   const deletion = createDeletion(state, runtime.runtimeOf);
-  const start = createStart(state, rpc.listProjects, rules.sync);
+  const start = createStart(state, rpc.listProjects, rules.sync, (p, c, n) => {
+    sessionMcp.api.inheritSettings(p, c, n);
+  });
   const fresh = createFresh(state, () => control);
 
   /** What a connected agent announced besides its providers, for the device list. */

@@ -69,7 +69,7 @@ const CONFIGURATION = {
   defaults: {},
 };
 
-async function boot(limits: Partial<SessionLimits> = {}) {
+async function boot(limits: Partial<SessionLimits> = {}, git = false) {
   const dir = mkdtempSync(path.join(tmpdir(), 'hoplet-session-mcp-'));
   dirs.push(dir);
   const store = new Store(dir);
@@ -126,6 +126,7 @@ async function boot(limits: Partial<SessionLimits> = {}) {
   const prompts: Json[] = [];
   const starts: Json[] = [];
   const ruleSets: Json[] = [];
+  const diffReads: Json[] = [];
   const modes = new Map<string, string>();
   const report = (sessionId: string, state: string) =>
     send({
@@ -146,7 +147,34 @@ async function boot(limits: Partial<SessionLimits> = {}) {
         type: 'device.projects',
         requestId: msg.requestId,
         candidates: [],
-        projects: ['/work/a', '/work/b'].map((p) => ({ path: p, sessions: [] })),
+        projects: ['/work/a', '/work/b'].map((p) => ({
+          path: p,
+          ...(git && p === '/work/a' ? { branch: 'main' } : {}),
+          sessions: [],
+        })),
+      });
+    }
+    if (msg.type === 'session.workspace.changes.read') {
+      send({
+        type: 'session.workspace.changes',
+        requestId: msg.requestId,
+        sessionId: msg.sessionId,
+        branch: 'hoplet/x',
+        base: 'abc123',
+        total: 1,
+        files: [{ path: 'src/a.ts', status: 'modified', added: 2, removed: 1 }],
+      });
+    }
+    if (msg.type === 'session.workspace.diff.read') {
+      diffReads.push(msg);
+      send({
+        type: 'session.workspace.diff',
+        requestId: msg.requestId,
+        sessionId: msg.sessionId,
+        path: msg.path,
+        status: 'modified',
+        kind: 'text',
+        diff: '@@ -1 +1 @@\n-a\n+b\n',
       });
     }
     // A new session: the agent names it, then reports it ready in the mode it was asked for.
@@ -231,6 +259,7 @@ async function boot(limits: Partial<SessionLimits> = {}) {
     prompt,
     prompts,
     starts,
+    diffReads,
     ruleSets,
     start,
     settle,
@@ -1225,5 +1254,235 @@ describe('the rules of a child (ADR 0029)', () => {
     await addRule(b, sessionRule('a3', 'deny'));
     await b.settle();
     expect((b.ruleSets.at(-1) as Json).inherited).toBeUndefined();
+  });
+});
+
+describe('the children of a session', () => {
+  const kids = (b: Awaited<ReturnType<typeof boot>>) => {
+    b.store.recordChild('a2', ['a1'], Date.now(), 30 * 60_000);
+    b.store.recordChild('a3', ['a1'], Date.now(), 30 * 60_000);
+    b.store.recordChild('a4', ['a1', 'a2'], Date.now(), 30 * 60_000);
+  };
+
+  it('reports the state of the direct children, narrowed by ids', async () => {
+    const b = await boot();
+    await b.ready();
+    kids(b);
+    await b.settings('a1', { send: true });
+    const secret = b.tokenOf('a1');
+    const all = await b.rest('GET', '/api/sessions/a1/children/status', secret);
+    expect(all.status).toBe(200);
+    expect(((all.body?.children ?? []) as Json[]).map((c) => [c.sessionId, c.state])).toEqual([
+      ['a2', 'done'],
+      ['a3', 'done'],
+    ]);
+    const one = await b.rest('GET', '/api/sessions/a1/children/status?ids=a3', secret);
+    expect(((one.body?.children ?? []) as Json[]).map((c) => c.sessionId)).toEqual(['a3']);
+    // A grandchild or a stranger is no child.
+    expect((await b.rest('GET', '/api/sessions/a1/children/status?ids=a4', secret)).status).toBe(
+      404,
+    );
+    expect((await b.rest('GET', '/api/sessions/a1/children/status?ids=a5', secret)).status).toBe(
+      404,
+    );
+    // A session reads its own children only.
+    expect((await b.rest('GET', '/api/sessions/a2/children/status', secret)).status).toBe(404);
+  });
+
+  it('collects the report and the changes, releases a finished child and audits it', async () => {
+    const b = await boot();
+    await b.ready();
+    b.store.recordChild('a2', ['a1'], Date.now(), 30 * 60_000);
+    b.store.append(meta('a2'), [
+      JSON.stringify({
+        type: 'assistant',
+        cwd: '/work/a',
+        message: { id: 'r1', role: 'assistant', content: [{ type: 'text', text: 'All done.' }] },
+      }),
+    ]);
+    await b.settings('a1', { create: true });
+    const res = await b.rest('POST', '/api/sessions/a1/children/a2/collect', b.tokenOf('a1'));
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      sessionId: 'a2',
+      state: 'done',
+      summary: 'All done.',
+      summaryTruncated: false,
+      released: true,
+      changes: { status: 'ok', branch: 'hoplet/x', total: 1 },
+    });
+    const event = b.audit().find((e) => e.type === 'child.collected');
+    expect(event).toMatchObject({ actorKind: 'session', actorId: 'a1', sessionId: 'a2' });
+    expect(JSON.stringify(event)).not.toContain('All done');
+  });
+
+  it('keeps the process of a child with release=false', async () => {
+    const b = await boot();
+    await b.ready();
+    b.store.recordChild('a2', ['a1'], Date.now(), 30 * 60_000);
+    await b.settings('a1', { create: true });
+    const res = await b.rest(
+      'POST',
+      '/api/sessions/a1/children/a2/collect?release=false',
+      b.tokenOf('a1'),
+    );
+    expect(res.body?.released).toBe(false);
+    expect(b.control.runtimeOf('a2').state).toBe('ready');
+  });
+
+  it('needs the create ability to collect and to cancel, and refuses what is no child', async () => {
+    const b = await boot();
+    await b.ready();
+    kids(b);
+    await b.settings('a1', { send: true });
+    const secret = b.tokenOf('a1');
+    expect((await b.rest('POST', '/api/sessions/a1/children/a2/collect', secret)).status).toBe(403);
+    expect((await b.rest('POST', '/api/sessions/a1/children/a2/cancel', secret)).status).toBe(403);
+    await b.settings('a1', { create: true });
+    expect((await b.rest('POST', '/api/sessions/a1/children/a4/collect', secret)).status).toBe(404);
+    expect((await b.rest('POST', '/api/sessions/a1/children/a5/collect', secret)).status).toBe(404);
+    expect((await b.rest('POST', '/api/sessions/a1/children/a5/cancel', secret)).status).toBe(404);
+  });
+
+  it('reads one page of a changed file from the child', async () => {
+    const b = await boot();
+    await b.ready();
+    kids(b);
+    await b.settings('a1', { send: true });
+    const secret = b.tokenOf('a1');
+    const res = await b.rest(
+      'GET',
+      '/api/sessions/a1/children/a2/diff?path=src%2Fa.ts&limit=4096',
+      secret,
+    );
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ path: 'src/a.ts', kind: 'text' });
+    expect(b.diffReads[0]).toMatchObject({ sessionId: 'a2', base: true, limit: 4096 });
+    expect(
+      (await b.rest('GET', '/api/sessions/a1/children/a4/diff?path=src%2Fa.ts', secret)).status,
+    ).toBe(404);
+  });
+
+  it('cancels a child and records that it was cancelled', async () => {
+    const b = await boot();
+    await b.ready();
+    kids(b);
+    await b.settings('a1', { create: true });
+    const secret = b.tokenOf('a1');
+    const one = await b.rest('POST', '/api/sessions/a1/children/a2/cancel', secret);
+    expect(one.body).toEqual({ ok: true, cancelled: ['a2'] });
+    expect(b.store.sessionChildren().get('a2')?.ended).toBe('cancelled');
+    expect(b.store.sessionChildren().get('a4')?.ended).toBeNull();
+    // The root can cancel a grandchild: any descendant.
+    const deep = await b.rest('POST', '/api/sessions/a1/children/a4/cancel', secret);
+    expect(deep.body?.cancelled).toEqual(['a4']);
+    const status = await b.rest('GET', '/api/sessions/a1/children/status', secret);
+    expect(((status.body?.children ?? []) as Json[]).map((c) => c.state)).toEqual([
+      'cancelled',
+      'done',
+    ]);
+    const events = b.audit().filter((e) => e.type === 'child.cancelled');
+    expect(events.map((e) => e.sessionId)).toEqual(['a2', 'a4']);
+  });
+
+  it('cancels the subtree below a child along with it', async () => {
+    const b = await boot();
+    await b.ready();
+    kids(b);
+    await b.settings('a1', { create: true });
+    const res = await b.rest(
+      'POST',
+      '/api/sessions/a1/children/a2/cancel?subtree=true',
+      b.tokenOf('a1'),
+    );
+    expect(res.body?.cancelled).toEqual(['a2', 'a4']);
+  });
+
+  it('marks a child that ran out of time as timed-out', async () => {
+    const b = await boot();
+    await b.ready();
+    b.store.recordChild('a2', ['a1'], Date.now() - 3_600_000, 60_000);
+    b.control.checkTrees();
+    expect(b.store.sessionChildren().get('a2')?.ended).toBe('timed-out');
+    const res = await b.rest('GET', '/api/sessions/a1/children/status', HOST);
+    expect(((res.body?.children ?? []) as Json[]).map((c) => c.state)).toEqual(['timed-out']);
+  });
+});
+
+describe('a session started by a session', () => {
+  it('puts the report preamble before the first prompt, for a child only', async () => {
+    const b = await boot();
+    await b.ready();
+    await b.settings('a1', { create: true });
+    expect((await b.start(b.tokenOf('a1'), 'p1')).status).toBe(200);
+    expect((await b.start(HOST, 'p2')).status).toBe(200);
+    const child = String(b.starts[0]?.text);
+    expect(child.startsWith('Another session started you')).toBe(true);
+    expect(child.endsWith('\n\nbuild it')).toBe(true);
+    expect(b.starts[1]?.text).toBe('build it');
+  });
+
+  it('opens a worktree by default in a git project, unless the caller asks for none', async () => {
+    const b = await boot({ liveChildren: 100, liveTree: 100 }, true);
+    await b.ready();
+    await b.settings('a1', { create: true });
+    const secret = b.tokenOf('a1');
+    await b.start(secret, 'p1');
+    await b.start(secret, 'p2', { worktree: false });
+    await b.start(secret, 'p3', { worktree: { branch: 'feat/x' } });
+    await b.start(HOST, 'p4');
+    expect(b.starts[0]?.worktree).toEqual({});
+    expect(b.starts[1]?.worktree).toBeUndefined();
+    expect(b.starts[2]?.worktree).toEqual({ branch: 'feat/x' });
+    expect(b.starts[3]?.worktree).toBeUndefined();
+  });
+
+  it('opens no worktree in a directory that is no git project', async () => {
+    const b = await boot();
+    await b.ready();
+    await b.settings('a1', { create: true });
+    await b.start(b.tokenOf('a1'), 'p1');
+    expect(b.starts[0]?.worktree).toBeUndefined();
+  });
+
+  it('names the session with title, and accepts nested from a session alone', async () => {
+    const b = await boot();
+    await b.ready();
+    await b.settings('a1', { create: true });
+    const res = await b.start(b.tokenOf('a1'), 'p1', { title: 'Fix the tests' });
+    expect(res.status).toBe(200);
+    // The session is not in the index yet: its first lines bring the title along.
+    expect(b.store.sessionState('new-1')).toBeNull();
+    b.store.append(meta('new-1'), [usageLine('m1', 1)]);
+    expect(b.store.sessionState('new-1')?.titleOverride).toBe('Fix the tests');
+    const host = await b.start(HOST, 'p2', { nested: true });
+    expect(host.status).toBe(400);
+    expect(host.body?.code).toBe('invalid-request');
+    expect(b.starts).toHaveLength(1);
+  });
+
+  it('passes narrowed settings down: no nesting unless asked, never hand-off or configuration', async () => {
+    const b = await boot();
+    await b.ready();
+    await b.settings('a1', {
+      create: true,
+      readConfig: true,
+      writeConfig: true,
+      requestHandoff: true,
+    });
+    const secret = b.tokenOf('a1');
+    await b.start(secret, 'p1');
+    await b.start(secret, 'p2', { nested: true });
+    expect(b.control.sessionMcp.settingsOf('new-1')).toMatchObject({
+      create: false,
+      readConfig: true,
+      writeConfig: false,
+      requestHandoff: false,
+    });
+    expect(b.control.sessionMcp.settingsOf('new-2')).toMatchObject({
+      create: true,
+      send: true,
+      writeConfig: false,
+    });
   });
 });

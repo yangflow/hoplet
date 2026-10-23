@@ -85,6 +85,10 @@ Response column names the schema of the success body and its status when it is n
 | POST | `/api/sessions` | create | control | — | `NewSessionRequestSchema` | `NewSessionResultSchema` | `invalid-json`, `invalid-request`, `too-large`, `over-budget`, `target-offline`, `timeout`, `rejected`, `forbidden`, `loop-limit`, `depth-limit`, `children-limit`, `budget-exceeded`, `rate-limited` |
 | GET | `/api/sessions/:sessionId` | read | control | — | — | `LiveSessionMetaSchema` | `session-not-found` |
 | GET | `/api/sessions/:sessionId/children` | read | control | — | — | `SessionChildrenResponseSchema` | `session-not-found` |
+| GET | `/api/sessions/:sessionId/children/status` | read | control | `ChildStatusQuerySchema` | — | `ChildStatusesSchema` | `invalid-request`, `session-not-found` |
+| POST | `/api/sessions/:sessionId/children/:childId/collect` | create | control | `ChildCollectQuerySchema` | — | `ChildCollectSchema` | `invalid-request`, `session-not-found` |
+| GET | `/api/sessions/:sessionId/children/:childId/diff` | read | bulk | `ChildDiffQuerySchema` | — | `WorkspaceDiffSchema` | `invalid-request`, `session-not-found`, `owner-offline`, `timeout`, `rejected` |
+| POST | `/api/sessions/:sessionId/children/:childId/cancel` | create | control | `ChildCancelQuerySchema` | — | `ChildCancelSchema` | `invalid-request`, `session-not-found`, `owner-offline` |
 | PATCH | `/api/sessions/:sessionId` | host | control | — | `SessionPatchRequestSchema` | `LiveSessionMetaSchema` | `invalid-json`, `invalid-request`, `too-large`, `session-not-found` |
 | DELETE | `/api/sessions/:sessionId` | host | control | — | `DeleteSessionRequestSchema` | `DeleteSessionResponseSchema` | `invalid-json`, `invalid-request`, `too-large`, `session-not-found`, `session-running`, `owner-offline`, `delete-partial`, `timeout`, `rejected` |
 | POST | `/api/sessions/:sessionId/terminal` | host | control | — | `TerminalOpenRequestSchema` | `TerminalInfoSchema` | `invalid-json`, `invalid-request`, `too-large`, `session-not-found`, `owner-offline`, `terminal-unavailable`, `terminal-busy`, `external`, `starting`, `session-running`, `handoff-in-progress`, `timeout`, `rejected` |
@@ -651,6 +655,41 @@ the time and token limits every 30 seconds: it interrupts then stops the live se
 `child.limit` audit event (actor `core`, summary `root` and `limit` `time` or `tokens`). Only a session token may send
 `timeLimitMinutes`; the host's is `invalid-request`.
 
+A session reaches its children with four routes, all under its own `:sessionId` (another session's ID, or a
+child that is not a direct child, is `session-not-found`; the host and scoped tokens name any session). A child
+has a state: `running`, `done` (the runtime reached `ready`), `failed`, `blocked` (it waits for a permission, which only
+the user answers), `ended` (stopped, or its machine is gone), `timed-out` (a limit of the tree stopped it) and
+`cancelled` (its parent cancelled it).
+
+- `GET /api/sessions/:sessionId/children/status?ids=` returns `{sessionId, children}`, the direct children by
+  creation, each `{sessionId, state, elapsedSeconds}`; `ids` (comma separated) narrows it.
+- `POST /api/sessions/:sessionId/children/:childId/collect?release=` needs `create` and returns `{sessionId, state,
+  summary, summaryTruncated, changes, usage, released}` in at most 8 KiB: `summary` is the last assistant text of the
+  child's last turn cut to 6 KiB, `changes` is `{status, branch?, base?, shared?, total?, files?, truncated?}` with at most
+  200 files and no content (`status` is `ok`, `unknown` or `owner-offline`), `usage` is the child's own, estimated.
+  With `release` (the default; `false` keeps the process) a child that is `done` or `failed` has its process stopped;
+  the session and its worktree stay, and it then reads as `ended`. A running or blocked child is never stopped by
+  it. Audit event `child.collected`.
+- `GET /api/sessions/:sessionId/children/:childId/diff?path=&cursor=&limit=` returns one page of one file's diff against
+  the base of the child's worktree (`WorkspaceDiffSchema`); `limit` is at most 32 KiB, and `next` is the cursor of the
+  following page.
+- `POST /api/sessions/:sessionId/children/:childId/cancel?subtree=` needs `create`, takes any descendant, interrupts and
+  stops it (and with `subtree=true` the live sessions below it) and returns `{ok: true, cancelled}`. The sessions and
+  their worktrees stay. Audit event `child.cancelled`.
+
+The MCP tools are `wait_children` (`sessionIds?`, `until`: `all` or `any`, `timeoutSeconds?`: the agent asks the status
+route every 2 seconds and returns when the condition holds or after at most 50 seconds with `pending: true`; a
+child that is not `running` counts as settled), `collect_child` (`sessionId`, `release?`), `read_child_diff`
+(`sessionId`, `path`, `cursor?`; pages of 12 KiB) and `cancel_child` (`sessionId`, `subtree?`). The first and third need
+only `read`: they change nothing; the others need `create`, and Claude Code and Codex ask the user before them.
+
+A session started by another session has the fixed report instruction in front of its first prompt: another session
+started it, reads its last message as the report, and wants it to end with what it did, did not do and where to look
+in under 1,500 characters. Without `worktree` a session starting a session in a git project gets a new worktree;
+`worktree: false` shares the directory. The child may start sessions of its own only when its parent's call set
+`nested` and the depth limit allows it; it has `send` with `create`, its parent's `readConfig` and `visibility`, and
+no hand-off, no configuration changes and no automatic approval.
+
 ## Sessions as callers
 
 A running session can call the API for the sessions it may see and direct
@@ -682,7 +721,7 @@ The agent receives the token over its own WebSocket and keeps it in memory: it s
 (`requestId`, `sessionId`) and the core answers `runtime.mcp.token` (`requestId`, `sessionId`, and `token` with
 `expiresAt`, or `reason`: `unknown-session`, `not-owner`, `not-allowed`). Both are control-lane messages; the core
 answers only the device that owns the session and announced `capabilities.sessionMcp` in `device.hello`. The agent
-turns the model's MCP calls (`list_machines`, `list_sessions`, `read_session`, `get_config`, `list_skills`, `read_skill`, `read_memory`, `send_prompt`, `interrupt_session`, `start_session`, `request_handoff`) into the requests below.
+turns the model's MCP calls (`list_machines`, `list_sessions`, `read_session`, `get_config`, `list_skills`, `read_skill`, `read_memory`, `send_prompt`, `interrupt_session`, `start_session`, `wait_children`, `collect_child`, `read_child_diff`, `cancel_child`, `request_handoff`) into the requests below.
 
 A session token reaches only the routes marked for sessions: the list and read of sessions, lines and blocks, the
 device list, prompt, queue (`POST /api/sessions/:sessionId/queue`), interrupt, `POST /api/sessions`, `POST /api/handoff-requests` and its own configuration changes (below); every other route answers `forbidden`. A session sees
@@ -706,7 +745,7 @@ and Claude Code asks the user before each call (the built-in rule allows only th
 model as text with the error code, the `reason` where there is one and, for `rate-limited`, the seconds of
 `Retry-After`: `forbidden`, `self`, `loop-limit`, `rate-limited` or `session-not-found`.
 
-`start_session` (`prompt`; optional `machine`, `projectPath`, `permissionMode`, `worktree`, `branch`, `timeLimitMinutes`) is a
+`start_session` (`prompt`; optional `machine`, `projectPath`, `permissionMode`, `worktree`, `branch`, `title`, `nested`, `timeLimitMinutes`) is a
 `POST /api/sessions` and needs the `create` ability. The machine and project default to those of the calling
 session, and the reach of the grant (project, machine or all) applies to them. The new session's permission mode may
 not be more permissive than the caller's: a named mode above it is `forbidden` with the `reason`
@@ -717,7 +756,10 @@ plus the caller (`loop-limit` beyond three sessions), recorded once the device h
 most 12 starts an hour (`rate-limited` with `Retry-After`) and 4 live children (`children-limit`); the limits of the
 whole tree are in [Child sessions](#child-sessions). A start that was refused or failed does not count. The core sends `runtime.start` with the same `source` as a prompt
 carries, and the new session's agent puts the fixed line naming the caller before the first prompt. The tool
-returns the new session id and, with `worktree`, the worktree. Claude Code asks the user before each call.
+does not wait: it returns the new session id and the worktree, if any. Claude Code asks the user before each call.
+`worktree` is a `{branch?}` object or `false` in `POST /api/sessions`; left out by a session it means a new worktree in a
+git project, and `title` sets the session's title. Only a session token may send `nested` and `timeLimitMinutes` (the
+host's is `invalid-request`).
 
 `request_handoff` (`machine`, an ID or name from `list_machines`; `reason` of 1 to 500 characters) is a
 `POST /api/handoff-requests` `{targetDeviceId, reason}` and needs the `request-handoff` ability (the `requestHandoff`

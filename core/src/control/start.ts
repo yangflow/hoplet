@@ -24,6 +24,20 @@ function sameDir(a: string, b: string): boolean {
   return trim(a) === trim(b);
 }
 
+/**
+ * What the core puts before the first prompt of a child (ADR 0035): the child's last message is the report its
+ * parent collects. The text names no session and no person, so it holds for every child.
+ */
+export const REPORT_PREAMBLE = [
+  'Another session started you to do one part of a larger task, and it will read your last message as your report.',
+  'When you finish, end with a report of under 1,500 characters: what you did, what you did not do, and where to look (files, branch).',
+].join('\n');
+
+/** The first prompt of a child: the preamble, a blank line and the task. */
+export function withPreamble(text: string): string {
+  return `${REPORT_PREAMBLE}\n\n${text}`;
+}
+
 /** What the provider's capabilities do not declare in the request (`images` or `config`), or null. */
 function undeclared(req: StartRequest, info: ProviderInfo): 'images' | 'config' | null {
   if ((req.attachments?.length ?? 0) > 0 && !info.capabilities.images) return 'images';
@@ -39,6 +53,7 @@ export function createStart(
   state: ControlState,
   listProjects: Control['listProjects'],
   syncRules: (deviceIds?: readonly string[]) => void,
+  inheritSettings: (parent: string, child: string, nested: boolean) => void,
 ): Start {
   const { pendingStart, startCache, startedSessions } = state;
 
@@ -105,6 +120,10 @@ export function createStart(
     // A child obeys the deny and ask rules of the sessions that started it from its first tool call (ADR 0029).
     const ancestors = req.source ? [...req.source.lineage, req.source.sessionId] : [];
     const inherited = state.store.inheritedPermissionRules(ancestors).map(body);
+    // A session that left the worktree open gets a new one when the project is a git repository.
+    const worktree =
+      req.worktree ??
+      (req.source?.defaultWorktree && project.branch !== undefined ? {} : undefined);
     const msg: RuntimeStart = {
       v: PROTOCOL_VERSION,
       type: 'runtime.start',
@@ -113,11 +132,11 @@ export function createStart(
       provider: req.provider,
       ...(req.configuration !== undefined ? { configuration: req.configuration } : {}),
       ...(req.config && Object.keys(req.config).length > 0 ? { config: req.config } : {}),
-      text: req.text,
+      text: req.source ? withPreamble(req.text) : req.text,
       ...(req.attachments && req.attachments.length > 0 ? { attachments: req.attachments } : {}),
       promptId,
-      ...(req.worktree
-        ? { worktree: req.worktree.branch !== undefined ? { branch: req.worktree.branch } : {} }
+      ...(worktree
+        ? { worktree: worktree.branch !== undefined ? { branch: worktree.branch } : {} }
         : {}),
       // The new session's agent puts a first line naming the session that started it (ADR 0034).
       ...(req.source
@@ -146,7 +165,7 @@ export function createStart(
     );
     if (!answer.ok) {
       // A worktree the agent could not make for a reason of the request is the caller's to fix.
-      if (req.worktree && answer.error === 'rejected' && isWorktreeReason(answer.reason)) {
+      if (worktree && answer.error === 'rejected' && isWorktreeReason(answer.reason)) {
         return refuse(answer.reason);
       }
       return {
@@ -166,6 +185,15 @@ export function createStart(
         state.now(),
         req.source.timeLimitMs,
       );
+      // What the child may do with the session MCP is what its parent has, narrowed (ADR 0035).
+      try {
+        inheritSettings(req.source.sessionId, answer.sessionId, req.source.nested);
+      } catch (err) {
+        log('error', 'control', 'child settings not inherited', {
+          sessionId: answer.sessionId,
+          error: err instanceof Error ? err.message : 'unknown',
+        });
+      }
       // The device's rules now include the child's inherited ones, and its revision counts the change.
       state.store.bumpPermissionRevision(req.deviceId);
       syncRules([req.deviceId]);

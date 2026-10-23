@@ -200,7 +200,9 @@ export function Caps(props: {
         testid={`${testid}.read`}
         icon={Icon.eye()}
         title={t('Read other sessions')}
-        tools={tools('list_machines · list_sessions · read_session')}
+        tools={tools(
+          'list_machines · list_sessions · read_session · wait_children · read_child_diff',
+        )}
         metas={[]}
         control={<LockTag>{t('Always on')}</LockTag>}
       />
@@ -225,8 +227,8 @@ export function Caps(props: {
         testid={`${testid}.start`}
         icon={Icon.start()}
         title={nStart}
-        tools={tools('start_session')}
-        metas={[!compact && t('Up to 5 an hour and 10 running at once.')]}
+        tools={tools('start_session · collect_child · cancel_child')}
+        metas={[!compact && t('Up to 12 an hour and 4 running at once.')]}
         control={
           <Switch
             label={nStart}

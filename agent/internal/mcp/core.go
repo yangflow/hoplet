@@ -24,11 +24,17 @@ type Core struct {
 	base   string
 	http   *http.Client
 	tokens *Tokens
+	// waitMax and pollEvery bound wait_children: the longest it holds a call and how often it asks the core.
+	waitMax   time.Duration
+	pollEvery time.Duration
 }
 
 // NewCore builds the client for the core at serverURL.
 func NewCore(serverURL string, tokens *Tokens) *Core {
-	return &Core{base: strings.TrimRight(serverURL, "/"), http: &http.Client{Timeout: 30 * time.Second}, tokens: tokens}
+	return &Core{
+		base: strings.TrimRight(serverURL, "/"), http: &http.Client{Timeout: 30 * time.Second}, tokens: tokens,
+		waitMax: maxWaitSeconds * time.Second, pollEvery: 2 * time.Second,
+	}
 }
 
 var sessionIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{1,128}$`)
@@ -58,6 +64,14 @@ func (c *Core) Call(ctx context.Context, sessionID, tool string, args json.RawMe
 		return c.startSession(ctx, sessionID, args)
 	case ToolRequestHandoff:
 		return c.requestHandoff(ctx, sessionID, args)
+	case ToolWaitChildren:
+		return c.waitChildren(ctx, sessionID, args)
+	case ToolCollectChild:
+		return c.collectChild(ctx, sessionID, args)
+	case ToolReadChildDiff:
+		return c.readChildDiff(ctx, sessionID, args)
+	case ToolCancelChild:
+		return c.cancelChild(ctx, sessionID, args)
 	}
 	return errReply("unknown tool")
 }
@@ -433,14 +447,18 @@ func (c *Core) startSession(ctx context.Context, sessionID string, args json.Raw
 		Machine        string `json:"machine"`
 		ProjectPath    string `json:"projectPath"`
 		PermissionMode string `json:"permissionMode"`
-		Worktree       bool   `json:"worktree"`
+		Worktree       *bool  `json:"worktree"`
 		Branch         string `json:"branch"`
+		Title          string `json:"title"`
+		Nested         bool   `json:"nested"`
 	}
 	if json.Unmarshal(args, &a) != nil || strings.TrimSpace(a.Prompt) == "" ||
 		utf8.RuneCountInString(a.Prompt) > maxPromptChars || utf8.RuneCountInString(a.ProjectPath) > maxPathChars ||
-		utf8.RuneCountInString(a.Branch) > maxBranchChars || (a.Branch != "" && !a.Worktree) {
-		return errReply("invalid arguments: prompt is 1 to 8000 characters, branch needs worktree")
+		utf8.RuneCountInString(a.Branch) > maxBranchChars || utf8.RuneCountInString(strings.TrimSpace(a.Title)) > maxTitleChars ||
+		(a.Branch != "" && a.Worktree != nil && !*a.Worktree) {
+		return errReply("invalid arguments: prompt is 1 to 8000 characters, title at most 200, and branch does not go with worktree false")
 	}
+	opts := startOptions{worktree: a.Worktree, branch: a.Branch, title: strings.TrimSpace(a.Title), nested: a.Nested}
 
 	body, rep, ok := c.get(ctx, sessionID, "/api/sessions/"+url.PathEscape(sessionID))
 	if !ok {
@@ -526,15 +544,24 @@ func (c *Core) startSession(ctx context.Context, sessionID string, args json.Raw
 			if modeID == "" {
 				return errReply("Hoplet refused the call: invalid-request (reason: permissionMode is not offered by that provider)")
 			}
-			return c.postStart(ctx, sessionID, deviceID, projectPath, self.Provider, a.Prompt, a.Worktree, a.Branch,
+			return c.postStart(ctx, sessionID, deviceID, projectPath, self.Provider, a.Prompt, opts,
 				map[string]any{modeID: a.PermissionMode})
 		}
 	}
-	return c.postStart(ctx, sessionID, deviceID, projectPath, self.Provider, a.Prompt, a.Worktree, a.Branch, nil)
+	return c.postStart(ctx, sessionID, deviceID, projectPath, self.Provider, a.Prompt, opts, nil)
+}
+
+// startOptions are the choices of start_session that are not where and what: worktree is nil when the caller left
+// it to the default (a new worktree in a git project, decided by the core).
+type startOptions struct {
+	worktree *bool
+	branch   string
+	title    string
+	nested   bool
 }
 
 func (c *Core) postStart(ctx context.Context, sessionID, deviceID, projectPath, provider, prompt string,
-	worktree bool, branch string, config map[string]any) Reply {
+	opts startOptions, config map[string]any) Reply {
 	id, err := queueItemID()
 	if err != nil {
 		return errReply("the request could not be built")
@@ -545,12 +572,21 @@ func (c *Core) postStart(ctx context.Context, sessionID, deviceID, projectPath, 
 	if config != nil {
 		req["config"] = config
 	}
-	if worktree {
+	switch {
+	case opts.worktree != nil && !*opts.worktree:
+		req["worktree"] = false
+	case (opts.worktree != nil && *opts.worktree) || opts.branch != "":
 		wt := map[string]any{}
-		if branch != "" {
-			wt["branch"] = branch
+		if opts.branch != "" {
+			wt["branch"] = opts.branch
 		}
 		req["worktree"] = wt
+	}
+	if opts.title != "" {
+		req["title"] = opts.title
+	}
+	if opts.nested {
+		req["nested"] = true
 	}
 	body, rep, ok := c.post(ctx, sessionID, "/api/sessions", req)
 	if !ok {
@@ -566,7 +602,7 @@ func (c *Core) postStart(ctx context.Context, sessionID, deviceID, projectPath, 
 	if json.Unmarshal(body, &out) != nil || !sessionIDPattern.MatchString(out.SessionID) {
 		return errReply("the core's answer is not valid")
 	}
-	text := "Started session " + out.SessionID + "; its first prompt is running."
+	text := "Started session " + out.SessionID + "; its first prompt is running. It does not wait: use wait_children and collect_child for its result."
 	if out.Worktree != nil {
 		text += " Worktree: " + out.Worktree.Path + " (branch " + out.Worktree.Branch + ")."
 	}
