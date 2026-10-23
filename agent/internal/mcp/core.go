@@ -48,6 +48,8 @@ func (c *Core) Call(ctx context.Context, sessionID, tool string, args json.RawMe
 		return c.interrupt(ctx, sessionID, args)
 	case ToolStartSession:
 		return c.startSession(ctx, sessionID, args)
+	case ToolRequestHandoff:
+		return c.requestHandoff(ctx, sessionID, args)
 	}
 	return errReply("unknown tool")
 }
@@ -558,4 +560,58 @@ func (c *Core) postStart(ctx context.Context, sessionID, deviceID, projectPath, 
 		text += " Worktree: " + out.Worktree.Path + " (branch " + out.Worktree.Branch + ")."
 	}
 	return Reply{Text: scrub(text)}
+}
+
+// requestHandoff asks the user to move the session to another machine (ADR 0034): the core checks the setting, the
+// reach, the chain and the limits, records the request and answers at once; the user decides in Hoplet.
+func (c *Core) requestHandoff(ctx context.Context, sessionID string, args json.RawMessage) Reply {
+	var a struct {
+		Machine string `json:"machine"`
+		Reason  string `json:"reason"`
+	}
+	if json.Unmarshal(args, &a) != nil {
+		return errReply("invalid arguments: machine and reason are required")
+	}
+	reason := strings.TrimSpace(a.Reason)
+	if strings.TrimSpace(a.Machine) == "" || reason == "" || utf8.RuneCountInString(reason) > maxReasonChars {
+		return errReply("invalid arguments: machine is an ID or name from list_machines and reason is 1 to 500 characters")
+	}
+	body, rep, ok := c.get(ctx, sessionID, "/api/devices")
+	if !ok {
+		return rep
+	}
+	var devs struct {
+		Devices []struct {
+			DeviceID string `json:"deviceId"`
+			Name     string `json:"name"`
+		} `json:"devices"`
+	}
+	if json.Unmarshal(body, &devs) != nil {
+		return errReply("the core's answer is not valid")
+	}
+	deviceID, name := "", ""
+	for _, d := range devs.Devices {
+		if d.DeviceID == a.Machine || d.Name == a.Machine {
+			deviceID, name = d.DeviceID, d.Name
+			break
+		}
+	}
+	if deviceID == "" {
+		return errReply("Hoplet refused the call: not-found (use a machine ID or name from list_machines)")
+	}
+	body, rep, ok = c.post(ctx, sessionID, "/api/handoff-requests", map[string]any{"targetDeviceId": deviceID, "reason": reason})
+	if !ok {
+		return rep
+	}
+	var out struct {
+		RequestID string `json:"requestId"`
+		State     string `json:"state"`
+	}
+	if json.Unmarshal(body, &out) != nil || out.RequestID == "" {
+		return errReply("the core's answer is not valid")
+	}
+	if out.State == "approved" {
+		return Reply{Text: scrub("Hand-off to " + name + " was approved automatically. It runs when this turn ends: finish your turn now.")}
+	}
+	return Reply{Text: scrub("Hand-off to " + name + " is waiting for the user's answer. If approved it runs when this turn ends: finish your turn now and do not ask again.")}
 }

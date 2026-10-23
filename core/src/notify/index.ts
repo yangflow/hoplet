@@ -75,7 +75,10 @@ function projectName(projectPath: string): string {
   return clip(parts[parts.length - 1] ?? projectPath, PROJECT_MAX);
 }
 
-type NotifiedEvent = Extract<ControlEvent, { kind: 'permission' | 'turn-done' | 'failure' }>;
+type NotifiedEvent = Extract<
+  ControlEvent,
+  { kind: 'permission' | 'turn-done' | 'failure' | 'handoff-requested' }
+>;
 
 export function createNotify(store: Store, control: Control, options: NotifyOptions): Notify {
   const now = options.now ?? Date.now;
@@ -127,6 +130,21 @@ export function createNotify(store: Store, control: Control, options: NotifyOpti
     const meta = store.getSession(event.sessionId);
     const project = projectName(meta?.projectPath ?? '');
     const title = meta ? { title: clip(meta.title, TITLE_MAX) } : {};
+    if (event.kind === 'handoff-requested') {
+      // The user answers in the web UI (ADR 0034); the notification carries no action link.
+      return {
+        kind: 'permission',
+        payload: {
+          kind: 'permission',
+          sessionId: event.sessionId,
+          project,
+          ...title,
+          tool: 'request_handoff',
+          summary: clip(event.targetName, SUMMARY_MAX),
+          requestId: event.requestId,
+        },
+      };
+    }
     if (event.kind === 'turn-done') {
       return {
         kind: 'turn-done',
@@ -312,7 +330,12 @@ export function createNotify(store: Store, control: Control, options: NotifyOpti
 
   function onEvent(event: ControlEvent): void {
     // The lifecycle moments are for hooks (ADR 0031).
-    if (event.kind !== 'permission' && event.kind !== 'turn-done' && event.kind !== 'failure') {
+    if (
+      event.kind !== 'permission' &&
+      event.kind !== 'turn-done' &&
+      event.kind !== 'failure' &&
+      event.kind !== 'handoff-requested'
+    ) {
       return;
     }
     if (event.kind === 'turn-done' && control.viewing.isOpen(event.sessionId)) return;

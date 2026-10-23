@@ -59,6 +59,8 @@ import {
   ResourceThresholdsSchema,
   RuntimeCommandResultSchema,
   type SessionConfig,
+  SessionHandoffRequestListSchema,
+  SessionHandoffRequestSchema,
   SessionListResponseSchema,
   SessionMcpDefaultsResponseSchema,
   SessionMcpOkResponseSchema,
@@ -985,5 +987,24 @@ export function deleteMcpDefault(project: { deviceId: string; path: string }) {
     undefined,
     undefined,
     'DELETE',
+  );
+}
+
+/** The hand-off requests of a session, newest first (ADR 0034). */
+export function fetchHandoffRequests(sessionId: string, signal?: AbortSignal) {
+  return call(
+    `/api/sessions/${encodeURIComponent(sessionId)}/handoff-requests`,
+    SessionHandoffRequestListSchema,
+    undefined,
+    signal,
+  );
+}
+
+/** Approves or declines a session's request to be handed off. */
+export function postHandoffRequestDecision(requestId: string, approve: boolean) {
+  return call(
+    `/api/handoff-requests/${encodeURIComponent(requestId)}/${approve ? 'approve' : 'decline'}`,
+    SessionHandoffRequestSchema,
+    {},
   );
 }

@@ -14,6 +14,7 @@ import type {
   Command,
   DeviceInventory,
   DeviceSystem,
+  HandoffRequestState,
   HookAnnounce,
   LocalPermissionRule,
   LocalPermissionRules,
@@ -27,6 +28,7 @@ import type {
   QueueItem,
   QueuePause,
   ResourceThresholds,
+  SessionHandoffRequest,
   SessionMcpProjectDefault,
   SessionMcpSettings,
   SessionMeta,
@@ -59,6 +61,7 @@ import * as commands from './commands.ts';
 import * as continuations from './continuations.ts';
 import * as deletion from './deletion.ts';
 import * as devices from './devices.ts';
+import * as handoffRequests from './handoff-requests.ts';
 import * as hooks from './hooks.ts';
 import type { StoreContext } from './layout.ts';
 import * as notify from './notify.ts';
@@ -947,6 +950,40 @@ export class Store {
 
   forgetSessionMcp(sessionId: string): void {
     sessionMcp.forgetSession(this.ctx, sessionId);
+    handoffRequests.forgetRequests(this.ctx, sessionId);
+  }
+
+  insertHandoffRequest(
+    request: SessionHandoffRequest,
+    record: audit.AuditInput,
+  ): SessionHandoffRequest {
+    return handoffRequests.insertRequest(this.ctx, request, record);
+  }
+
+  handoffRequest(requestId: string): SessionHandoffRequest | null {
+    return handoffRequests.getRequest(this.ctx, requestId);
+  }
+
+  handoffRequests(sessionId: string): SessionHandoffRequest[] {
+    return handoffRequests.listRequests(this.ctx, sessionId);
+  }
+
+  openHandoffRequests(): SessionHandoffRequest[] {
+    return handoffRequests.listOpenRequests(this.ctx);
+  }
+
+  /** Moves a request out of one of the states in `from`; null when it had left them already. */
+  changeHandoffRequest(
+    requestId: string,
+    from: readonly HandoffRequestState[],
+    change: handoffRequests.RequestChange,
+    record: audit.AuditInput | null,
+  ): SessionHandoffRequest | null {
+    return handoffRequests.changeRequest(this.ctx, requestId, from, change, record);
+  }
+
+  autoApprovedHandoffs(sessionId: string, since: number): number {
+    return handoffRequests.countAutoApproved(this.ctx, sessionId, since);
   }
 
   append(input: AppendInput, rawLines: string[]): AppendResult {

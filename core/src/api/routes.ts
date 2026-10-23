@@ -112,6 +112,9 @@ import {
   type RuntimeCapabilities,
   RuntimeCommandResultSchema,
   SearchResultSchema,
+  SessionHandoffRequestCreateSchema,
+  SessionHandoffRequestListSchema,
+  SessionHandoffRequestSchema,
   SessionListResponseSchema,
   SessionMcpDefaultsDeleteQuerySchema,
   SessionMcpDefaultsPutRequestSchema,
@@ -172,6 +175,7 @@ import type {
   DeviceControlOutcome,
   QueueResult,
   SessionGuardRefusal,
+  SessionHandoffRefusal,
   SteerOutcome,
 } from '../control/index.ts';
 import { registerSecret } from '../log/index.ts';
@@ -250,6 +254,25 @@ function guardError(refusal: SessionGuardRefusal): ApiError {
   const error = new ApiError(refusal.error);
   if (refusal.error === 'rate-limited') error.retryAfter = refusal.retryAfter;
   return error;
+}
+
+/** The API error for a hand-off request that was refused. */
+function handoffRefusalError(refusal: SessionHandoffRefusal): ApiError {
+  if (refusal.error === 'forbidden') return new ApiError('forbidden', { reason: refusal.reason });
+  const error = new ApiError(refusal.error);
+  if (refusal.error === 'rate-limited') error.retryAfter = refusal.retryAfter;
+  return error;
+}
+
+/** The host's answer to a hand-off request of a session. */
+function decideHandoff(
+  d: Pick<ApiDeps, 'control'> & { params: Record<string, string>; principal: Principal },
+  approve: boolean,
+) {
+  const actor = actorOf(d.principal);
+  const outcome = d.control.handoffRequests.decide(d.params.requestId ?? '', approve, actor);
+  if (outcome.ok) return outcome.request;
+  throw new ApiError(outcome.error);
 }
 
 /** The most push subscriptions: one per browser of the owner. */
@@ -1222,6 +1245,58 @@ export const routes: readonly Route[] = [
       if (outcome.ok) return { ok: true };
       throw new ApiError(outcome.error);
     },
+  }),
+  defineRoute({
+    method: 'POST',
+    path: '/api/handoff-requests',
+    access: { capability: 'request-handoff' },
+    session: true,
+    lane: 'control',
+    bodyLimit: 4096,
+    body: SessionHandoffRequestCreateSchema,
+    response: SessionHandoffRequestSchema,
+    status: 201,
+    handler: (d) => {
+      // Only a session asks; the host moves a session through the handoff route.
+      const source = sessionOf(d.principal);
+      if (source === null) throw new ApiError('forbidden', { reason: 'session-only' });
+      if (!seesDevice(d.principal, d.body.targetDeviceId)) throw new ApiError('not-found');
+      const outcome = d.control.handoffRequests.request(
+        source,
+        d.body.targetDeviceId,
+        d.body.reason,
+      );
+      if (outcome.ok) return outcome.request;
+      throw handoffRefusalError(outcome);
+    },
+  }),
+  defineRoute({
+    method: 'GET',
+    path: '/api/sessions/:sessionId/handoff-requests',
+    access: 'host',
+    lane: 'control',
+    response: SessionHandoffRequestListSchema,
+    handler: (d) => {
+      const sessionId = d.params.sessionId ?? '';
+      ownerOf(d, sessionId);
+      return { requests: d.control.handoffRequests.list(sessionId) };
+    },
+  }),
+  defineRoute({
+    method: 'POST',
+    path: '/api/handoff-requests/:requestId/approve',
+    access: 'host',
+    lane: 'control',
+    response: SessionHandoffRequestSchema,
+    handler: (d) => decideHandoff(d, true),
+  }),
+  defineRoute({
+    method: 'POST',
+    path: '/api/handoff-requests/:requestId/decline',
+    access: 'host',
+    lane: 'control',
+    response: SessionHandoffRequestSchema,
+    handler: (d) => decideHandoff(d, false),
   }),
   defineRoute({
     method: 'GET',

@@ -32,6 +32,8 @@ export const DEFAULT_SESSION_LIMITS: SessionLimits = {
   unansweredPerTarget: 2,
   startsPerHour: 5,
   liveChildren: 10,
+  autoApprovedHandoffsPerHour: 3,
+  handoffRequestsPerHour: 6,
 };
 
 /** How long an agent may stay disconnected before the tokens of its sessions are revoked. */

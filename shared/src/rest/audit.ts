@@ -30,6 +30,8 @@ export const AUDIT_EVENT_TYPES = [
   'session.interrupted',
   'session.deleted',
   'session.handoff',
+  'handoff.requested',
+  'handoff.decided',
   'prompt.sent',
   'session.op',
   'config.changed',

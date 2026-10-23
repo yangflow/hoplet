@@ -29,6 +29,7 @@ import type {
   RuntimeState,
   ServerMessage,
   SessionConfig,
+  SessionHandoffRequest,
   SessionMcpProjectDefault,
   SessionMcpSettings,
   SessionPermission,
@@ -86,6 +87,10 @@ export interface SessionLimits {
   startsPerHour: number;
   /** Sessions one session started that are still live. */
   liveChildren: number;
+  /** Hand-off requests one session may have approved automatically per hour. */
+  autoApprovedHandoffsPerHour: number;
+  /** Hand-off requests one session may make per hour, the approved ones and the rest. */
+  handoffRequestsPerHour: number;
 }
 
 /** Why a session may not prompt another; `forbidden` carries the reason. */
@@ -150,6 +155,38 @@ export interface SessionMcp {
   /** The same checks without the chain and the limits, for an interrupt; null when allowed. */
   guardInterrupt(source: string, target: string): SessionGuardRefusal | null;
   /** Stops the sweep and the reconnection timers. */
+  close(): void;
+}
+
+/** Why a session's hand-off request was not made. */
+export type SessionHandoffRefusal =
+  | { ok: false; error: 'not-found' | 'same-device' | 'target-offline' | 'loop-limit' }
+  | { ok: false; error: 'forbidden'; reason: string }
+  | { ok: false; error: 'rate-limited'; retryAfter: number };
+
+/** Hand-off requests of sessions (#67, ADR 0034). */
+export interface SessionHandoffRequests {
+  /**
+   * `sessionId` asks to be handed off to `targetDeviceId`: pending until the user answers, or approved at once when
+   * the session's settings and the hourly limit allow. The handoff itself waits for the end of the turn.
+   */
+  request(
+    sessionId: string,
+    targetDeviceId: string,
+    reason: string,
+  ): { ok: true; request: SessionHandoffRequest } | SessionHandoffRefusal;
+  /** A session's requests, newest first. */
+  list(sessionId: string): SessionHandoffRequest[];
+  get(requestId: string): SessionHandoffRequest | null;
+  /** The user's answer to a pending request; `request-closed` once it was answered, expired or moved on. */
+  decide(
+    requestId: string,
+    approve: boolean,
+    actor?: AuditActor,
+  ):
+    | { ok: true; request: SessionHandoffRequest }
+    | { ok: false; error: 'not-found' | 'request-closed' };
+  /** Stops the expiry timers. */
   close(): void;
 }
 
@@ -466,6 +503,8 @@ export type ControlEvent =
       expiresAt?: number;
     }
   | { kind: 'turn-done'; sessionId: string; turn?: number; durationMs?: number }
+  /** A session asked the user to hand it off to `targetName` (ADR 0034); a request approved automatically is not one. */
+  | { kind: 'handoff-requested'; sessionId: string; requestId: string; targetName: string }
   | {
       kind: 'failure';
       source: 'start' | 'handoff';
@@ -679,6 +718,8 @@ export interface Control {
   ownerOf(sessionId: string): string | null;
   /** Sessions that direct sessions: settings, grants, session tokens, provenance and limits (ADR 0034). */
   readonly sessionMcp: SessionMcp;
+  /** Requests of sessions to be handed off to another machine (ADR 0034). */
+  readonly handoffRequests: SessionHandoffRequests;
   /** The project directory of a session, also of one an agent just started; `null` for an unknown session. */
   projectOf(sessionId: string): string | null;
   /** The commands and skills the session's owner last reported, or null when it reported none. */

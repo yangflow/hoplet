@@ -480,6 +480,87 @@ details.act-d > summary::-webkit-details-marker {
   border-radius: 0 0 var(--radius-lg) var(--radius-lg);
   box-shadow: inset 0 1px 0 var(--color-attention-ring);
 }
+/* a session's request to be handed off, and what became of it (ADR 0034) */
+.hres {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-2) calc(16px + var(--space-2));
+  color: var(--color-text-2);
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  min-width: 0;
+}
+.hres svg {
+  width: 14px;
+  height: 14px;
+  color: var(--hres-icon, var(--color-text-3));
+}
+.hres b {
+  font-weight: var(--weight-medium);
+  color: var(--hres-head, var(--color-text));
+}
+.hres.ok {
+  --hres-icon: var(--color-success);
+}
+.hres.err {
+  --hres-icon: var(--color-danger);
+  --hres-head: var(--color-danger);
+  color: var(--color-danger);
+}
+.hres .spin {
+  color: var(--color-accent);
+}
+.hq {
+  margin: 0 0 var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg);
+  box-shadow: inset 0 0 0 1px var(--color-line);
+  color: var(--color-text);
+  font-family: var(--font-prose);
+  font-size: var(--text-body);
+  line-height: var(--leading-body);
+}
+.hf {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+  color: var(--color-text-2);
+}
+.hf svg {
+  color: var(--color-text-3);
+}
+.hf .meta {
+  margin-left: auto;
+  font-size: var(--text-meta);
+  color: var(--color-text-3);
+}
+/* where a prompt came from, beside its time */
+.pvl {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--color-text-3);
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+}
+.pvl svg {
+  width: 14px;
+  height: 14px;
+}
+.pvl .lnk {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--color-text);
+  cursor: pointer;
+}
+.pvl .lnk:hover {
+  text-decoration: underline;
+}
 /* the decided plan row and its mode chip (ADR 0019) */
 .pres {
   display: flex;

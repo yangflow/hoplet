@@ -5,6 +5,7 @@ import { Icon, Spinner } from '../../../components/icons.tsx';
 import { Markdown } from '../../../components/Markdown.tsx';
 import { clock, formatBytes, formatDuration } from '../../../lib/format.ts';
 import { t } from '../../../lib/i18n.ts';
+import { type PromptSource, promptSource } from '../../../lib/provenance.ts';
 import { StoredElided } from './blocks.tsx';
 import { linesOf, OutputWell, type WellLine } from './OutputWell.tsx';
 import { ToolRule } from './rule-line.tsx';
@@ -61,9 +62,38 @@ export function Summary({ parts }: { parts: string[] }) {
   );
 }
 
+/** Where a prompt came from when another session sent it (ADR 0034), in the meta row under the prompt. */
+export function PromptSourceLine(props: {
+  source: PromptSource;
+  onOpen?: ((sessionId: string) => void) | undefined;
+}) {
+  const label = t('Open the session this prompt came from');
+  return (
+    <span className="pvl" data-testid="cockpit.prompt-source">
+      {Icon.queue()}
+      <span>{t('From session')}</span>
+      <button
+        type="button"
+        className="lnk"
+        title={label}
+        aria-label={`${label}: ${props.source.title}`}
+        onClick={() => props.onOpen?.(props.source.sessionId)}
+      >
+        {props.source.title}
+      </button>
+      {Icon.external()}
+    </span>
+  );
+}
+
 /** The header of a finished turn: the prompt, its time (the line range in the tooltip) and the summary. */
-export function TurnHeader(props: { turn: Turn; stuck?: boolean }) {
-  const { turn, stuck } = props;
+export function TurnHeader(props: {
+  turn: Turn;
+  stuck?: boolean;
+  onOpenSession?: ((sessionId: string) => void) | undefined;
+}) {
+  const { turn, stuck, onOpenSession } = props;
+  const from = turn.prompt && !turn.prompt.command ? promptSource(turn.prompt.text) : null;
   const range = t('Lines {a}–{b}')
     .replace('{a}', turn.startLine.toLocaleString())
     .replace('{b}', turn.endLine.toLocaleString());
@@ -82,7 +112,7 @@ export function TurnHeader(props: { turn: Turn; stuck?: boolean }) {
             ) : null}
           </span>
         ) : turn.prompt ? (
-          turn.prompt.text
+          (from?.text ?? turn.prompt.text)
         ) : (
           t('Earlier in this turn')
         )}
@@ -92,6 +122,7 @@ export function TurnHeader(props: { turn: Turn; stuck?: boolean }) {
         <span className="num" title={range}>
           {clock(turn.ts)}
         </span>
+        {from ? <PromptSourceLine source={from.source} onOpen={onOpenSession} /> : null}
       </div>
     </header>
   );

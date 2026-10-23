@@ -564,6 +564,7 @@ export function Cockpit(props: {
                 openDiff={openDiff}
                 {...(props.onManageRules ? { onViewRules: props.onManageRules } : {})}
                 onOpenSession={pickSession}
+                deviceName={(id) => devices.find((d) => d.deviceId === id)?.name ?? id}
                 {...(props.onSessionStarted ? { onSessionStarted: props.onSessionStarted } : {})}
                 {...(fixture?.conversation ? { fixture: fixture.conversation } : {})}
               />

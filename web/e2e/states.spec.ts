@@ -67,6 +67,9 @@ const subject: Record<string, Record<string, string>> = {
     'queue-paused-permission': 'queue.head',
     'queue-paused-error': 'queue.resume',
     'queue-paused-interrupted': 'queue.resume',
+    'handoff-request': 'cockpit.handoff-request',
+    'handoff-after': 'cockpit.handoff-result',
+    'prompt-from-session': 'cockpit.prompt-source',
     'plan-pending': 'cockpit.plan',
     'plan-long': 'cockpit.plan-open',
     'plan-modes': 'cockpit.plan-mode-menu',
@@ -278,8 +281,8 @@ const subject: Record<string, Record<string, string>> = {
   },
 };
 
-test('the registries list 112 cockpit, 60 workspace, 102 settings and 7 action states', () => {
-  expect(screens.cockpit).toHaveLength(112);
+test('the registries list 115 cockpit, 60 workspace, 102 settings and 7 action states', () => {
+  expect(screens.cockpit).toHaveLength(115);
   expect(screens.workspace).toHaveLength(60);
   expect(screens.settings).toHaveLength(102);
   expect(screens.action).toHaveLength(7);
