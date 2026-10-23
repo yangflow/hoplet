@@ -135,7 +135,7 @@ The mockups, design tokens and app icon behind Hoplet's web UI. The design langu
   `SessionMcpSettings` in `shared/`, added with ADR 0034 step 5. New icons: `send`, `square-plus`, `arrow-right-left`, `eye`, `link`,
   `corner-down-right`, `external-link`, `webhook`.
 - `screens/self-config.html` (#69): a session's change request for its own configuration (ADR 0036), three
-  directions awaiting the maintainer's choice; none is confirmed. Each shows the request in the turn (CLAUDE.md, a
+  directions; the maintainer chose B, and A and C stay as the alternatives considered. Each shows the request in the turn (CLAUDE.md, a
   skill, a command and the effort setting, a diff per object, Approve and Decline for the whole request, "takes
   effect when the session next starts", the content-check warning), the state after approval with Undo and after
   Undo, a request that expired at a hand-off, where `read-config` and `write-config` are turned on, and the
