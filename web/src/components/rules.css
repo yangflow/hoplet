@@ -193,13 +193,13 @@
 .qrow.off .qa {
   opacity: 0.5;
 }
-.qrow.sel {
+.qrow.open {
   background: var(--color-selected);
 }
-.qrow.sel + .qrow {
+.qrow.open + .qrow {
   box-shadow: none;
 }
-.qrow.sel::before {
+.qrow.open::before {
   content: "";
   position: absolute;
   left: 0;

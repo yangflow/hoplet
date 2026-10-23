@@ -99,7 +99,7 @@
 .tkr.dim .lead {
   opacity: 0.6;
 }
-.tkr.sel {
+.tkr.open {
   background: var(--color-selected);
 }
 .tkd {

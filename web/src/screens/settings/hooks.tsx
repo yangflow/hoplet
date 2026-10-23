@@ -378,7 +378,7 @@ function WebhookRow(props: {
   ];
   return (
     <div
-      className={`hk${hook.enabled ? '' : ' off'}${selected ? ' sel' : ''}`}
+      className={`hk${hook.enabled ? '' : ' off'}${selected ? ' open' : ''}`}
       data-testid={`settings.hooks.row.${hook.id}`}
     >
       <span className={`hd ${dot.dot}`} role="img" aria-label={dot.text} title={dot.text} />
@@ -469,7 +469,7 @@ function ScriptRow(props: {
   return (
     <>
       <div
-        className={`hk sc${hook.enabled ? '' : ' off'}${hook.machine.online ? '' : ' gone'}${props.open ? ' sel' : ''}`}
+        className={`hk sc${hook.enabled ? '' : ' off'}${hook.machine.online ? '' : ' gone'}${props.open ? ' open' : ''}`}
         data-testid={`settings.hooks.script.${hook.id}`}
       >
         <span className="lead" role="img" aria-label={dot.text} title={dot.text}>

@@ -290,7 +290,7 @@ function Row(props: {
   const id = `tk-${token.id}`;
   return (
     <div className="tkw" data-testid={`settings.tokens.row.${token.id}`}>
-      <div className={`tkr${token.state === 'active' ? '' : ' dim'}${open ? ' sel' : ''}`}>
+      <div className={`tkr${token.state === 'active' ? '' : ' dim'}${open ? ' open' : ''}`}>
         <span className="lead">{Icon.key()}</span>
         <div className="tkm">
           <div className="nm">

@@ -241,7 +241,7 @@ export function AuditSection(props: {
                   <div key={event.seq}>
                     <button
                       type="button"
-                      className={`arr${open ? ' sel' : ''}`}
+                      className={`arr${open ? ' open' : ''}`}
                       aria-expanded={open}
                       onClick={() => setOpenSeq(open ? null : event.seq)}
                       data-testid={`settings.audit.row.${event.seq}`}

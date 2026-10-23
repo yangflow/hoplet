@@ -221,7 +221,7 @@
 .hkpage .hk + .hm {
   box-shadow: inset 0 1px 0 var(--color-line);
 }
-.hkpage .hk.sel {
+.hkpage .hk.open {
   background: var(--color-hover);
 }
 .hkpage .hk.click {
@@ -322,7 +322,7 @@
 .hkpage .hl2.att {
   color: var(--color-attention-text);
 }
-.hkpage .sel > .hl2.att {
+.hkpage .open > .hl2.att {
   color: var(--color-text);
 }
 .hkpage .hk.off .h1 b {
