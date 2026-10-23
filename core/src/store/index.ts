@@ -255,6 +255,16 @@ export class Store {
     return permissionRules.permissionRuleCount(this.ctx);
   }
 
+  /** The `deny` and `ask` rules of the session scope of `ancestors` (root first), which a session they started obeys. */
+  inheritedPermissionRules(ancestors: readonly string[]): PermissionRuleEntry[] {
+    return permissionRules.inheritedPermissionRules(this.ctx, ancestors);
+  }
+
+  /** Counts a change that reached the machine without a rule changing (a session that inherits rules started on it). */
+  bumpPermissionRevision(deviceId: string): void {
+    permissionRules.bumpPermissionRevision(this.ctx, deviceId);
+  }
+
   /** The revision of the rules that apply to a machine; it grows with every change that reaches it. */
   permissionRevision(deviceId: string): number {
     return permissionRules.permissionRevision(this.ctx, deviceId);

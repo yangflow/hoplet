@@ -125,6 +125,7 @@ async function boot(limits: Partial<SessionLimits> = {}) {
   const send = (msg: Json) => agent.send(JSON.stringify({ v: PROTOCOL_VERSION, ...msg }));
   const prompts: Json[] = [];
   const starts: Json[] = [];
+  const ruleSets: Json[] = [];
   const modes = new Map<string, string>();
   const report = (sessionId: string, state: string) =>
     send({
@@ -139,6 +140,7 @@ async function boot(limits: Partial<SessionLimits> = {}) {
       prompts.push(msg);
       report(msg.sessionId, 'starting');
     }
+    if (msg.type === 'device.rules') ruleSets.push(msg);
     if (msg.type === 'device.projects.list') {
       send({
         type: 'device.projects',
@@ -229,6 +231,7 @@ async function boot(limits: Partial<SessionLimits> = {}) {
     prompt,
     prompts,
     starts,
+    ruleSets,
     start,
     settle,
   };
@@ -1084,5 +1087,100 @@ describe('the relation of a child', () => {
     b.store.recordChild('a2', ['a1'], Date.now(), 30 * 60_000);
     b.store.forgetSessionMcp('a2');
     expect(b.store.sessionChildren().has('a2')).toBe(false);
+  });
+});
+
+describe('the rules of a child (ADR 0029)', () => {
+  const sessionRule = (sessionId: string, action: string, command = 'rm') => ({
+    scope: 'session',
+    sessionId,
+    tool: 'run',
+    match: { command },
+    action,
+  });
+  const addRule = async (b: Awaited<ReturnType<typeof boot>>, body: Json): Promise<string> => {
+    const res = await b.rest('POST', '/api/permission-rules', HOST, body);
+    expect(res.status).toBe(201);
+    return res.body?.id as string;
+  };
+
+  it('sends a new child the deny and ask rules of its parent with runtime.start, and no allow', async () => {
+    const b = await boot();
+    await b.ready();
+    await b.settings('a1', { create: true });
+    const deny = await addRule(b, sessionRule('a1', 'deny'));
+    const ask = await addRule(b, sessionRule('a1', 'ask', 'push'));
+    await addRule(b, sessionRule('a1', 'allow', 'ls'));
+    const off = await addRule(b, { ...sessionRule('a1', 'deny', 'dd'), enabled: false });
+    await addRule(b, sessionRule('a3', 'deny', 'other'));
+    expect((await b.start(b.tokenOf('a1'), 'p1')).status).toBe(200);
+    const sent = b.starts[0]?.inheritedRules as Json[];
+    expect(sent.map((r) => r.id).sort()).toEqual([deny, ask].sort());
+    expect(sent.map((r) => r.id)).not.toContain(off);
+    expect(sent.every((r) => r.action !== 'allow' && r.scope === 'session')).toBe(true);
+  });
+
+  it('sends nothing for a parent without rules', async () => {
+    const b = await boot();
+    await b.ready();
+    await b.settings('a1', { create: true });
+    expect((await b.start(b.tokenOf('a1'), 'p1')).status).toBe(200);
+    expect(b.starts[0]?.inheritedRules).toBeUndefined();
+  });
+
+  it('records the inherited rules and the device revision in the audit log', async () => {
+    const b = await boot();
+    await b.ready();
+    await b.settings('a1', { create: true });
+    const deny = await addRule(b, sessionRule('a1', 'deny'));
+    expect((await b.start(b.tokenOf('a1'), 'p1')).status).toBe(200);
+    const created = b.audit().find((e) => e.type === 'session.created');
+    const rules = ((created?.summary ?? {}) as Json).rules as Json;
+    expect(rules.inherited).toEqual([deny]);
+    expect(rules.revision).toBe(b.store.permissionRevision('dev-a'));
+  });
+
+  it('lists a child under its own ID in device.rules, with the ID of the parent rule', async () => {
+    const b = await boot();
+    await b.ready();
+    await b.settings('a1', { create: true });
+    const deny = await addRule(b, sessionRule('a1', 'deny'));
+    await addRule(b, sessionRule('a1', 'allow', 'ls'));
+    b.store.recordChild('a2', ['a1'], Date.now(), 30 * 60_000);
+    b.store.bumpPermissionRevision('dev-a');
+    b.control.syncRules(['dev-a']);
+    await b.settle();
+    const last = b.ruleSets.at(-1) as Json;
+    expect(last.inherited).toEqual([
+      { sessionId: 'a2', rule: expect.objectContaining({ id: deny, action: 'deny' }) },
+    ]);
+    // The parent's own rules stay in sessions; the allow stays with the parent.
+    expect((last.sessions as Json[]).map((x) => x.sessionId)).toEqual(['a1', 'a1']);
+  });
+
+  it('follows the parent: a deny added later reaches the children at once, an allow never does', async () => {
+    const b = await boot();
+    await b.ready();
+    b.store.recordChild('a2', ['a1'], Date.now(), 30 * 60_000);
+    b.store.recordChild('a3', ['a1', 'a2'], Date.now(), 30 * 60_000);
+    const before = b.store.permissionRevision('dev-a');
+    const deny = await addRule(b, sessionRule('a1', 'deny'));
+    await addRule(b, sessionRule('a1', 'allow', 'ls'));
+    await b.settle();
+    expect(b.store.permissionRevision('dev-a')).toBeGreaterThan(before);
+    const inherited = (b.ruleSets.at(-1) as Json).inherited as Json[];
+    expect(inherited.map((x) => [x.sessionId, x.rule.id]).sort()).toEqual([
+      ['a2', deny],
+      ['a3', deny],
+    ]);
+  });
+
+  it('does not send a child the rules of a session that did not start it', async () => {
+    const b = await boot();
+    await b.ready();
+    b.store.recordChild('a2', ['a1'], Date.now(), 30 * 60_000);
+    await addRule(b, sessionRule('a3', 'deny'));
+    await b.settle();
+    expect((b.ruleSets.at(-1) as Json).inherited).toBeUndefined();
   });
 });

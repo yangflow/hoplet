@@ -257,7 +257,7 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
   const rpc = createRpc(state);
   const handoff = createHandoff(state, rpc.workspace);
   const deletion = createDeletion(state, runtime.runtimeOf);
-  const start = createStart(state, rpc.listProjects);
+  const start = createStart(state, rpc.listProjects, rules.sync);
   const fresh = createFresh(state, () => control);
 
   /** What a connected agent announced besides its providers, for the device list. */

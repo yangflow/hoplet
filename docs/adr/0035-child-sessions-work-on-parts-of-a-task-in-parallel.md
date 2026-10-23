@@ -194,7 +194,7 @@ means work: a child that runs one long turn is one turn. So the limits are time,
 | What | Rule | State |
 |---|---|---|
 | Permission mode | Not more permissive than the parent's; defaults to the parent's; never a `risk: "high"` option | Built (ADR 0034) |
-| Allow, ask and deny rules | The child obeys the parent's `deny` and `ask` rules and gets none of its `allow` rules (docs/spec.md, ADR 0029). The deliverable is that the parent's session-scoped rules reach the child's agent with its start | Documented, not found in code; to implement |
+| Allow, ask and deny rules | The child obeys the parent's `deny` and `ask` rules and gets none of its `allow` rules (docs/spec.md, ADR 0029). The parent's session-scoped rules reach the child's agent with its start (`runtime.start.inheritedRules`) and in every pushed set (`device.rules.inherited`) | Built |
 | Session MCP switches | `read` and `send` are inherited when the parent has them; `create` only when the spawn asks `nested: true` and depth remains; `request-handoff` and auto-approve are never inherited. Only the user changes a child's switches, as for any session | New |
 | Visibility | At most the parent's. A `machine` or `all` parent lets a child be placed on those machines; a `project` parent only on its own machine and project | New check on `machine` |
 | Token | A `session` token as ever (ADR 0034); no child gets the `answer` capability | Built |

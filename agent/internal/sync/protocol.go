@@ -265,6 +265,8 @@ type DeviceRules struct {
 	Global   []rules.Rule        `json:"global"`
 	Projects []rules.ProjectRule `json:"projects"`
 	Sessions []rules.SessionRule `json:"sessions"`
+	// Inherited holds the deny and ask rules a child session obeys besides its own, by the child's session ID.
+	Inherited []rules.SessionRule `json:"inherited,omitempty"`
 }
 
 // DeviceRulesApplied (device → core, control lane) answers a DeviceRules. Without Error the agent holds the
@@ -555,6 +557,9 @@ type RuntimeStart struct {
 	Worktree *NewWorktree `json:"worktree,omitempty"`
 	// Source is set when another session started this one (ADR 0034).
 	Source *PromptSource `json:"source,omitempty"`
+	// InheritedRules are the deny and ask rules of the sessions that started this one, which it obeys from its
+	// first tool call (ADR 0029). Never an allow rule.
+	InheritedRules []rules.Rule `json:"inheritedRules,omitempty"`
 }
 
 // NewWorktree is the worktree a new session asks for. Branch names the new branch; empty means the agent

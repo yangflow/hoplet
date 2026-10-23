@@ -12,7 +12,7 @@ import type { DeviceLink } from './types.ts';
 const MAX_RULE_RETRIES = 5;
 
 /** The rule as the agent reads it: the stored extras (target, timestamps) stay in the core. */
-function body(entry: PermissionRuleEntry): PermissionRule {
+export function body(entry: PermissionRuleEntry): PermissionRule {
   return {
     id: entry.id,
     tool: entry.tool,
@@ -84,6 +84,14 @@ export function createRules(state: ControlState) {
         sessions.push({ sessionId: entry.sessionId, rule: body(entry) });
       }
     }
+    // A child obeys the deny and ask rules of the sessions that started it, and none of their allow rules.
+    const inherited: NonNullable<DeviceRules['inherited']> = [];
+    for (const [childId, child] of store.sessionChildren()) {
+      if (store.ownerDeviceId(childId) !== deviceId) continue;
+      for (const entry of store.inheritedPermissionRules(child.chain)) {
+        inherited.push({ sessionId: childId, rule: body(entry) });
+      }
+    }
     return {
       v: PROTOCOL_VERSION,
       type: 'device.rules',
@@ -91,6 +99,7 @@ export function createRules(state: ControlState) {
       global,
       projects,
       sessions,
+      ...(inherited.length > 0 ? { inherited } : {}),
     };
   }
 
@@ -98,7 +107,13 @@ export function createRules(state: ControlState) {
     const link = onlineLink(state, deviceId);
     if (!link) return;
     const msg = build(deviceId);
-    const key = JSON.stringify([msg.revision, msg.global, msg.projects, msg.sessions]);
+    const key = JSON.stringify([
+      msg.revision,
+      msg.global,
+      msg.projects,
+      msg.sessions,
+      msg.inherited ?? [],
+    ]);
     if (!force && sent.get(deviceId) === key) return;
     sent.set(deviceId, key);
     if (!resend) retryCount.set(deviceId, 0);
