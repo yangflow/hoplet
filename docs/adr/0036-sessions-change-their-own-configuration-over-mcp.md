@@ -1,12 +1,12 @@
 # 0036 Sessions change their own configuration over MCP
 
-- Status: proposed
+- Status: accepted
 - Date: 2026-10-23
 - Related: ADR 0002, ADR 0009, ADR 0012, ADR 0018, ADR 0021, ADR 0024, ADR 0028, ADR 0029, ADR 0030, ADR 0032, ADR 0033, ADR 0034, docs/api.md, docs/architecture.md, docs/threat-model.md, docs/hosting.md, docs/spec.md, issues #9, #12, #18, #67, #69, #81
 
-This record is a proposal. The maintainer has not confirmed any decision below; each has its options, their cost and a
-recommendation. It builds on ADR 0034, whose session MCP server, session tokens and request-and-confirm pattern
-(`request_handoff`) it reuses.
+The maintainer accepted the recommended option of each decision on 2026-10-23; the other options stay in the tables
+as the record of what was weighed. It builds on ADR 0034, whose session MCP server, session tokens and
+request-and-confirm pattern (`request_handoff`) it reuses.
 
 ## Context
 

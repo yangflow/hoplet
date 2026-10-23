@@ -42,7 +42,7 @@ record and mark the old one "superseded by NNNN".
 | [0033](0033-a-command-line-tool-an-sdk-and-scoped-tokens.md) | A command-line tool, an SDK and scoped tokens | accepted |
 | [0034](0034-sessions-view-and-direct-other-sessions-over-mcp.md) | Sessions view and direct other sessions over MCP | accepted |
 | [0035](0035-child-sessions-work-on-parts-of-a-task-in-parallel.md) | Child sessions work on parts of a task in parallel | accepted |
-| [0036](0036-sessions-change-their-own-configuration-over-mcp.md) | Sessions change their own configuration over MCP | proposed |
+| [0036](0036-sessions-change-their-own-configuration-over-mcp.md) | Sessions change their own configuration over MCP | accepted |
 
 ## Record template
 
