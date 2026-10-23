@@ -14,7 +14,7 @@ import (
 // (provider.ValidSessionID, ADR 0006). Invalid IDs receive error invalid-session-id
 // before decoding or persistence; the wire envelope and cursor are unchanged.
 
-const ProtocolVersion = 16
+const ProtocolVersion = 17
 
 // Wire message types: Type<Struct> is the `type` of the struct of that name.
 // shared/src/wire/ holds the same table; scripts/test/contract.test.ts compares both.
@@ -36,6 +36,8 @@ const (
 	TypeRuntimeStart             = "runtime.start"
 	TypeRuntimeStarted           = "runtime.started"
 	TypeRuntimeStartRejected     = "runtime.start.rejected"
+	TypeRuntimeMcpTokenRequest   = "runtime.mcp.token.request"
+	TypeRuntimeMcpToken          = "runtime.mcp.token"
 	TypeRuntimePermissionAnswer  = "runtime.permission.answer"
 	TypeRuntimeInterrupt         = "runtime.interrupt"
 	TypeRuntimeStop              = "runtime.stop"
@@ -187,6 +189,8 @@ type DeviceSystem struct {
 type DeviceCapabilities struct {
 	// Terminal is set when the owner enabled the restricted terminal (ADR 0026).
 	Terminal bool `json:"terminal,omitempty"`
+	// SessionMcp is set when the owner enabled session_mcp: the agent serves the session MCP tools (ADR 0034).
+	SessionMcp bool `json:"sessionMcp,omitempty"`
 }
 
 // ProviderInfo is one provider configuration of an agent (ADR 0028) and what its runtime driver declares:
@@ -552,6 +556,25 @@ type StartedWorktree struct {
 	Clone  string `json:"clone"`
 	Path   string `json:"path"`
 	Branch string `json:"branch"`
+}
+
+// RuntimeMcpTokenRequest (device → core) asks for the token of a session's MCP server (ADR 0034).
+type RuntimeMcpTokenRequest struct {
+	V         int    `json:"v"`
+	Type      string `json:"type"`
+	RequestID string `json:"requestId"`
+	SessionID string `json:"sessionId"`
+}
+
+// RuntimeMcpToken (core → device) answers it with a session token and its expiry (Unix ms), or with Reason.
+type RuntimeMcpToken struct {
+	V         int    `json:"v"`
+	Type      string `json:"type"`
+	RequestID string `json:"requestId"`
+	SessionID string `json:"sessionId"`
+	Token     string `json:"token,omitempty"`
+	ExpiresAt int64  `json:"expiresAt,omitempty"`
+	Reason    string `json:"reason,omitempty"`
 }
 
 // RuntimeStarted (device → core): the session is created, imported and syncs from now on. Worktree is the

@@ -728,7 +728,7 @@ export interface Control {
 
 /** What an agent announced in `device.hello` besides its providers (ADR 0026). */
 export interface DeviceHello {
-  capabilities?: { terminal?: boolean | undefined } | undefined;
+  capabilities?: { terminal?: boolean | undefined; sessionMcp?: boolean | undefined } | undefined;
   previewHost?: string | undefined;
 }
 

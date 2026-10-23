@@ -145,6 +145,11 @@ type Hooks struct {
 	// ScriptHooks lists the script hooks of the operator's config.json with their counters as they are now;
 	// device.hello announces them on each connection (ADR 0031).
 	ScriptHooks func() []HookAnnounce
+	// SessionMCP is announced in device.hello: the owner enabled session_mcp (ADR 0034).
+	SessionMCP bool
+	// McpToken takes one runtime.mcp.token, the core's answer to a request sent with Client.Send. It must not
+	// block: it runs on the read loop.
+	McpToken func(RuntimeMcpToken)
 	// HookEvent takes one hook.event. It must not block: it runs on the read loop.
 	HookEvent func(hookID string, event json.RawMessage)
 

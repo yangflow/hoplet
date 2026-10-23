@@ -33,6 +33,10 @@ type Config struct {
 	// Terminal lets the web UI open a shell on this machine (ADR 0026). Off unless the operator sets it.
 	Terminal bool `json:"terminal"`
 
+	// SessionMCP gives the sessions of this machine the Hoplet MCP tools to see the user's other sessions (ADR
+	// 0034). Off unless the operator sets it.
+	SessionMCP bool `json:"session_mcp"`
+
 	// PreviewHost is the host the web UI links a session's dev servers with (ADR 0026); the machine's host name
 	// when unset.
 	PreviewHost string `json:"preview_host"`

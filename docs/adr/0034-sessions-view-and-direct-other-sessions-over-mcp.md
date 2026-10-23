@@ -99,18 +99,23 @@ that sits in the session's environment is one `env` away from the transcript.
 
 **Chosen: the `session` kind of `api_tokens`, minted per process, never given to the vendor process.**
 
-- **Kind and issuer.** The core mints it, not the user, when it sends the agent a start or resume for a
-  session, and returns it in that control message over the authenticated agent WebSocket (a change to the start
-  message in `shared/src/wire/` and `protocol.go`, in the same pull request). The row records the session ID.
-  It is not a token the user lists or revokes in Settings; the session's settings show that it exists.
+- **Kind and issuer.** The core mints it, not the user, and delivers it over the authenticated agent WebSocket
+  as a request and a reply on the control lane: the daemon sends `runtime.mcp.token.request` (`requestId`,
+  `sessionId`) the first time a tool call of that session needs a token, and the core answers
+  `runtime.mcp.token` (`requestId`, `sessionId`, then `token` and `expiresAt`, or a `reason`: `unknown-session`,
+  `not-owner` or `not-allowed`). The core answers only a device that announced `capabilities.sessionMcp` and owns
+  the session. The delivery is lazy because the session ID of a new session exists only after `runtime.started`,
+  and the `runtime.start` message is built before it; a session that never calls a tool never gets a token. The
+  row records the session ID. It is not a token the user lists or revokes in Settings; the session's settings
+  show that it exists.
 - **The grant is looked up, not frozen.** For a `session` token the router reads the capabilities, visibility and
   limits from the session's current settings at each request (decisions 3 and 4), so a switch the user turns off
   takes effect on the next call, with no new token. The `allow` entries are derived from the visibility
   setting and are never wider than what the user chose.
 - **Lifetime.** It lives as long as the process: revoked when the runtime ends (`idle`, `failed`, `offline`), the
   session is deleted, a handoff commits (the new owner gets its own) or the agent stays disconnected past the
-  reconnection window; at most 24 hours, after which the agent asks the core for a new one without restarting the
-  process. It is not the 90 days of a scoped token; a leaked session token is useless within a day.
+  reconnection window; at most 24 hours, after which the daemon asks the core for a new one (a token that has
+  expired, or that the core refused with 401, is requested again) without restarting the process. It is not the 90 days of a scoped token; a leaked session token is useless within a day.
 - **Storage.** In the daemon's memory, keyed by the nonce. It is never written to disk, never placed in the
   environment, arguments or MCP configuration of the vendor process, and never returned by a tool. The
   nonce is the only secret the vendor process holds; like ADR 0032's, it protects against other users and
@@ -252,13 +257,18 @@ that sits in the session's environment is one `env` away from the transcript.
 **Chosen: the runtime driver declares an `mcp` capability and takes an MCP spec; each vendor maps it.**
 
 - The runtime driver interface (ADR 0012) gains `StartSpec.MCP`: a command (the running `hoplet-agent`), its
-  arguments (`mcp`) and the environment (`HOPLET_MCP_NONCE=<nonce>` and nothing else). A driver without the
+  arguments (`mcp`), the environment (`HOPLET_MCP_SOCK=<hoplet_home>/mcp.sock` and `HOPLET_MCP_NONCE=<nonce>`,
+  and nothing else), the nonce, the flag whether the read tools are allowed without a prompt, and a `Release`
+  that the driver calls when the process ends or fails to start. A driver without the
   `mcp` capability gets none, and the session shows the tools are not available. Nothing outside a driver
   knows the vendor's flag.
 - **Claude Code**: the agent writes `<hoplet_home>/mcp/<nonce>.json` (`{"mcpServers":{"hoplet":{...}}}`, mode 0600,
   removed when the process ends) and starts the process with `--mcp-config <path>`; inline JSON would put the
   nonce in the process list. It does not pass `--strict-mcp-config`, so the user's own MCP servers keep
-  working. The tools are `mcp__hoplet__<tool>`.
+  working. The tools are `mcp__hoplet__<tool>`. The built-in allow of the read tools (`list_machines`,
+  `list_sessions`, `read_session`) lives in the Claude hook, not in the rule defaults: it applies only to a
+  process that has the server and only when no rule decided, so a `deny` or `ask` rule wins, and in plan mode the
+  hook still returns no decision.
 - **Codex**: `mcp_servers.hoplet = { command, args, env }` in the `config` of `thread/start` and of a resume,
   beside the hook of ADR 0032. Both are verified against the installed binaries before code relies on them
   (flag names and the generated schema), as ADRs 0029 and 0032 did; the result goes into this record if it differs.
@@ -319,7 +329,7 @@ and `web/src/i18n/zh-Hans.json`. Implementation order, one concern each:
 
 1. The core: the session grant lookup, the per-session settings, provenance, the limits and the mode rule, with
    tests over the route table (no agent, no UI).
-2. The wire and the agent: the credential in the start message, `mcp.sock`, `hoplet-agent mcp` with the read tools,
+2. The wire and the agent: the token request and reply, `mcp.sock`, `hoplet-agent mcp` with the read tools,
    the Claude Code driver and the `session_mcp` setting. Verified with the fake Claude, not a real session.
 3. The web UI: the settings section, once the mockup is confirmed.
 4. `send_prompt` and `interrupt_session`, with the preamble and the labelled message in the target.

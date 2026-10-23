@@ -35,6 +35,8 @@ const (
 	// CapRulesPromptsOnly: the permission rules act only on the approval requests the vendor sends, because the
 	// driver has no hook that checks each tool call (ADR 0029, ADR 0032). Absent, the rules check every call.
 	CapRulesPromptsOnly Capability = "rules-prompts-only"
+	// CapMCP: the driver can start its process with the Hoplet MCP server (StartSpec.MCP, ADR 0034).
+	CapMCP Capability = "mcp"
 )
 
 // Image is a picture that goes with a prompt: its media type (image/png, image/jpeg, image/gif or
@@ -103,6 +105,24 @@ type StartSpec struct {
 	New bool
 	// Config holds the session's value of every setting of Driver.Config(), by option ID.
 	Config map[string]any
+	// MCP is the Hoplet MCP server to start the process with; nil when the machine has it off or the driver lacks
+	// CapMCP (ADR 0034).
+	MCP *MCPSpec
+}
+
+// MCPSpec says how a vendor process starts the Hoplet MCP server for its session: a command, its arguments and
+// the environment of that command, which holds the nonce naming the session and nothing else. The driver gives the
+// vendor what it needs in its own form and calls Release when the process is gone or never started.
+type MCPSpec struct {
+	Command string
+	Args    []string
+	Env     map[string]string
+	// Nonce is the value of the nonce variable of Env; it names the process and is not to be logged.
+	Nonce string
+	// ReadAllowed says the built-in rule lets the session call the read tools without asking.
+	ReadAllowed bool
+	// Release forgets the nonce; it may be called more than once.
+	Release func()
 }
 
 // Driver starts processes of one vendor.

@@ -41,6 +41,7 @@ type bridge struct {
 	rules   *rules.Store      // the permission rules in force (ADR 0029)
 	hook    *codex.HookServer // the socket of the Codex rule hook (ADR 0032); nil when it could not be opened
 	hookCmd string
+	mcp     *mcpHost // the session MCP server (ADR 0034); nil when session_mcp is off
 	locate  runtime.Locator
 	send    func(any) error
 	kick    func()
@@ -80,6 +81,7 @@ func newBridge(cfg *config.Config, send func(any) error, kick func(), turnDone, 
 	b.rules = rules.OpenStore(rules.NewEnv(home, cfg.HopletHome), cfg.HopletHome, cfg.PermissionDeny)
 	b.cond = gosync.NewCond(&b.mu)
 	b.openHook()
+	b.openMCP()
 	var err error
 	if b.owners, err = configs.LoadOwners(cfg.HopletHome); err != nil {
 		log.Printf("[agent] %v; sessions started from other configurations are treated as the vendor's own", err)
@@ -171,6 +173,7 @@ func (b *bridge) build(c configs.Configuration, spec string) *entry {
 
 		TurnDone:  b.turnDone,
 		TurnStart: b.turnStart,
+		MCP:       b.mcpSpec,
 
 		IdleTimeout: time.Duration(b.cfg.RuntimeIdleMinutes) * time.Minute,
 		MaxIdle:     b.cfg.RuntimeMaxIdleProcesses,
@@ -757,6 +760,9 @@ func (b *bridge) close() {
 	}
 	if b.hook != nil {
 		_ = b.hook.Close()
+	}
+	if b.mcp != nil {
+		_ = b.mcp.server.Close()
 	}
 	b.mu.Lock()
 	b.closed = true

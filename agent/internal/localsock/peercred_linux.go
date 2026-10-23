@@ -1,6 +1,6 @@
 //go:build linux
 
-package codex
+package localsock
 
 import (
 	"net"
@@ -8,10 +8,11 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-const peerCredSupported = true
+// Supported says whether the other end of a Unix socket can be identified on this system.
+const Supported = true
 
-// peerUID is the user ID of the process at the other end of a Unix socket connection (SO_PEERCRED).
-func peerUID(c *net.UnixConn) (uint32, error) {
+// PeerUID is the user ID of the process at the other end of a Unix socket connection (SO_PEERCRED).
+func PeerUID(c *net.UnixConn) (uint32, error) {
 	raw, err := c.SyscallConn()
 	if err != nil {
 		return 0, err

@@ -158,6 +158,8 @@ func Run(cfg *config.Config, version string) error {
 		Connected:            inv.Refresh,
 		Handoff:              moves.hooks(),
 		Terminal:             terms.hooks(),
+		SessionMCP:           rt.mcp != nil,
+		McpToken:             rt.mcpToken,
 		Ports:                sync.PortsHooks{Watch: watcher.Watch},
 		PreviewHost:          cfg.PreviewHost,
 		PermissionDeny:       rules.Announced(cfg.PermissionDeny),

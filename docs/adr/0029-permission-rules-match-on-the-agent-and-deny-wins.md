@@ -215,7 +215,9 @@ of `other` kind. Nothing is saved by one click.
 **Child sessions and self-management are bound.** A child session (#81) is decided by the global rules, its own
 project rules and its own session rules, and also by the `deny` and `ask` rules of its parent's session scope; a
 parent's session `allow` rules are not inherited, so a child is never more permissive than its parent's rules say.
-Hoplet's own MCP tools (#67) are `mcp:hoplet/<tool>` and go through the same rules. Creating, changing or deleting a
+Hoplet's own MCP tools (#67) are `mcp:hoplet/<tool>` and go through the same rules. The three read tools
+(`list_machines`, `list_sessions`, `read_session`) are allowed without a prompt by the Claude hook when no rule
+decided, so any `deny` or `ask` rule, at any scope, still wins; the other tools of the server ask as any MCP tool. Creating, changing or deleting a
 rule and changing a session's permission mode are not offered to sessions at all: no MCP tool and no route a session's
 token can reach does it. The user does it in the web UI or with the host token.
 
