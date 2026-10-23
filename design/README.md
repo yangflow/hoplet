@@ -150,6 +150,22 @@ The mockups, design tokens and app icon behind Hoplet's web UI. The design langu
   `unsupported`) and `conv-undo-stale` show what the session or the user sees when a request or an Undo fails.
   Most states also have `-zh` states. Strings that are not in `web/src/i18n/zh-Hans.json` yet are proposals for
   it. New icons: `undo-2`, `zap`, `sliders-horizontal`, `book-open`, `triangle-alert`.
+- `screens/child-sessions.html` (#81): the UI of child sessions (ADR 0035, decision 6), three directions; the
+  maintainer chose A with B's permission strip under a blocked child's row in the parent's turn, and B and C stay
+  as the alternatives considered. Shared by all three: the session list as a tree (a parent with a count and the
+  strongest state among its children, indented children with machine and worktree branch, a grandchild, a folded
+  parent that keeps its attention dot, "Started by a deleted session") and the stop dialog with "Also stop N
+  running children", checked by default. Every cancel says what stops and what stays; worktrees always stay. A
+  child waiting for a permission shows in the list, in the parent and where the directions place it. A (`a-*`) puts
+  the children in a Children tab of the inspector: one row each with state, elapsed time and tokens, a done child
+  opened in place to its summary and changed files, cancel in a dialog. B (`b-*`) replaces the "Started" lines of
+  the parent's turn with a card, one row per child, opened and cancelled in place, with the permission request as
+  a strip under its row. C (`c-*`) is a split view: a strip of children above the parent and the selected child,
+  read only, answered in its pane, cancel in a popover. States: shared `list-open`, `list-folded`, `stop-parent`;
+  A `a-panel`, `a-open`, `a-blocked`, `a-cancel`, `a-subtree`; B `b-card`, `b-open`, `b-blocked`, `b-cancel`,
+  `b-subtree`; C `c-split`, `c-blocked`, `c-cancel`, `c-subtree`. `list-open`, `stop-parent` and the main states of each direction
+  also have `-zh` states in Simplified Chinese; strings not in `web/src/i18n/zh-Hans.json` yet are proposals for it. The token cap per tree is not
+  shown because its value is not decided. New icons: `git-fork`, `git-branch`, `unlink`.
 - `tokens.html`: every design token, with the JSON block that `check-tokens.py` compares with
   `web/src/design/tokens.css`.
 - `mark.html`: the app icon and the web UI's mark; the exported icon is `web/public/icon.svg`.
