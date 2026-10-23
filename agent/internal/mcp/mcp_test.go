@@ -57,7 +57,7 @@ func TestInitializeToolsListAndNotification(t *testing.T) {
 	for _, x := range list {
 		names = append(names, x.(map[string]any)["name"].(string))
 	}
-	if strings.Join(names, ",") != "list_machines,list_sessions,read_session" {
+	if strings.Join(names, ",") != "list_machines,list_sessions,read_session,send_prompt,interrupt_session" {
 		t.Fatalf("tools = %v", names)
 	}
 }
@@ -106,15 +106,19 @@ func TestToolsCallAndErrors(t *testing.T) {
 	}
 }
 
-func TestOnlyReadToolsExist(t *testing.T) {
+func TestOnlyTheReadToolsAreReadTools(t *testing.T) {
 	for _, tool := range tools() {
-		if !IsReadTool(tool.Name) {
-			t.Fatalf("%s is not a read tool", tool.Name)
+		isAct := tool.Name == ToolSendPrompt || tool.Name == ToolInterruptSession
+		if IsReadTool(tool.Name) == isAct {
+			t.Fatalf("%s: read tool = %v", tool.Name, IsReadTool(tool.Name))
+		}
+		if !IsKnownTool(tool.Name) {
+			t.Fatalf("%s is not known", tool.Name)
 		}
 	}
 	for _, n := range []string{"send_message", "start_session", "handoff_session", ""} {
-		if IsReadTool(n) {
-			t.Fatalf("%q must not be a read tool", n)
+		if IsReadTool(n) || IsKnownTool(n) {
+			t.Fatalf("%q must not be a tool", n)
 		}
 	}
 }
@@ -470,4 +474,97 @@ func TestTokensTimeoutAndDisconnected(t *testing.T) {
 		t.Fatalf("err = %v", err)
 	}
 	tk.Deliver(TokenReply{RequestID: "nobody-waits"}) // dropped, no panic
+}
+
+// actCore answers the queue and interrupt routes with the status and body it is told to.
+func actCore(t *testing.T, status int, body string, retryAfter string) (*Core, *[]string) {
+	t.Helper()
+	f := newFakeCore(t)
+	var seen []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		seen = append(seen, r.Method+" "+r.URL.Path+" "+r.Header.Get("Authorization")+" "+string(b))
+		if retryAfter != "" {
+			w.Header().Set("Retry-After", retryAfter)
+		}
+		w.WriteHeader(status)
+		_, _ = w.Write([]byte(body))
+	}))
+	t.Cleanup(srv.Close)
+	return NewCore(srv.URL, f.tokens), &seen
+}
+
+func TestSendPromptQueuesWithTheSessionsToken(t *testing.T) {
+	c, seen := actCore(t, 201, `{"items":[]}`, "")
+	rep := c.Call(context.Background(), "s1", ToolSendPrompt, json.RawMessage(`{"sessionId":"s2","text":"run the tests"}`))
+	if rep.IsError || !strings.Contains(rep.Text, "Queued") {
+		t.Fatalf("rep = %+v", rep)
+	}
+	got := (*seen)[0]
+	if !strings.HasPrefix(got, "POST /api/sessions/s2/queue Bearer hpt_0000000000000001 ") ||
+		!strings.Contains(got, `"text":"run the tests"`) || !strings.Contains(got, `"id":"mcp-`) {
+		t.Fatalf("request = %s", got)
+	}
+}
+
+func TestSendPromptRefusalsAreStructured(t *testing.T) {
+	cases := []struct {
+		name, status, body, retry string
+		want                      []string
+	}{
+		{"mode", "403", `{"code":"forbidden","reason":"target-mode-more-permissive"}`, "", []string{"forbidden", "target-mode-more-permissive"}},
+		{"loop", "409", `{"code":"loop-limit"}`, "", []string{"loop-limit"}},
+		{"rate", "429", `{"code":"rate-limited"}`, "42", []string{"rate-limited", "retry after 42 seconds"}},
+	}
+	for _, tc := range cases {
+		status := 0
+		_, _ = fmt.Sscan(tc.status, &status)
+		c, _ := actCore(t, status, tc.body, tc.retry)
+		rep := c.Call(context.Background(), "s1", ToolSendPrompt, json.RawMessage(`{"sessionId":"s2","text":"hi"}`))
+		if !rep.IsError {
+			t.Fatalf("%s: not an error: %+v", tc.name, rep)
+		}
+		for _, w := range tc.want {
+			if !strings.Contains(rep.Text, w) {
+				t.Fatalf("%s: %q lacks %q", tc.name, rep.Text, w)
+			}
+		}
+		if strings.Contains(rep.Text, "hpt_") {
+			t.Fatalf("%s leaks a token: %s", tc.name, rep.Text)
+		}
+	}
+}
+
+func TestSendPromptAndInterruptValidateArguments(t *testing.T) {
+	c, seen := actCore(t, 201, `{}`, "")
+	for _, bad := range []string{``, `{}`, `{"sessionId":"s2"}`, `{"sessionId":"s2","text":"  "}`, `{"sessionId":"../x","text":"a"}`, `{"sessionId":"s1","text":"a"}`} {
+		if rep := c.Call(context.Background(), "s1", ToolSendPrompt, json.RawMessage(bad)); !rep.IsError {
+			t.Fatalf("send %q accepted", bad)
+		}
+	}
+	for _, bad := range []string{``, `{}`, `{"sessionId":"a b"}`, `{"sessionId":"s1"}`} {
+		if rep := c.Call(context.Background(), "s1", ToolInterruptSession, json.RawMessage(bad)); !rep.IsError {
+			t.Fatalf("interrupt %q accepted", bad)
+		}
+	}
+	long := `{"sessionId":"s2","text":"` + strings.Repeat("x", maxPromptChars+1) + `"}`
+	if rep := c.Call(context.Background(), "s1", ToolSendPrompt, json.RawMessage(long)); !rep.IsError {
+		t.Fatal("a text over the limit was accepted")
+	}
+	if len(*seen) != 0 {
+		t.Fatalf("an invalid call reached the core: %v", *seen)
+	}
+}
+
+func TestInterruptSessionPostsAndRelaysRefusals(t *testing.T) {
+	c, seen := actCore(t, 200, `{"ok":true}`, "")
+	rep := c.Call(context.Background(), "s1", ToolInterruptSession, json.RawMessage(`{"sessionId":"s2"}`))
+	if rep.IsError || !strings.HasPrefix((*seen)[0], "POST /api/sessions/s2/interrupt Bearer hpt_") {
+		t.Fatalf("rep = %+v seen = %v", rep, *seen)
+	}
+	c, _ = actCore(t, 403, `{"code":"forbidden","reason":"not-granted"}`, "")
+	rep = c.Call(context.Background(), "s1", ToolInterruptSession, json.RawMessage(`{"sessionId":"s2"}`))
+	if !rep.IsError || !strings.Contains(rep.Text, "forbidden") || !strings.Contains(rep.Text, "not-granted") {
+		t.Fatalf("rep = %+v", rep)
+	}
 }

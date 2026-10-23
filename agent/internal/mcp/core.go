@@ -1,13 +1,17 @@
 package mcp
 
 import (
+	"bytes"
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -38,6 +42,10 @@ func (c *Core) Call(ctx context.Context, sessionID, tool string, args json.RawMe
 		return c.listSessions(ctx, sessionID, args)
 	case ToolReadSession:
 		return c.readSession(ctx, sessionID, args)
+	case ToolSendPrompt:
+		return c.sendPrompt(ctx, sessionID, args)
+	case ToolInterruptSession:
+		return c.interrupt(ctx, sessionID, args)
 	}
 	return errReply("unknown tool")
 }
@@ -287,4 +295,117 @@ func fitPage(id string, start, end, total int, entries []json.RawMessage) map[st
 		out["next"] = next
 	}
 	return out
+}
+
+// refusal turns the core's error answer into text the calling model can act on: the code, the reason and, for a
+// rate limit, the seconds to wait.
+func refusal(status int, header http.Header, body []byte) string {
+	var e struct {
+		Code   string `json:"code"`
+		Reason string `json:"reason"`
+	}
+	_ = json.Unmarshal(body, &e)
+	if e.Code == "" {
+		e.Code = fmt.Sprintf("http-%d", status)
+	}
+	text := "Hoplet refused the call: " + scrub(e.Code)
+	if e.Reason != "" {
+		text += " (reason: " + scrub(e.Reason) + ")"
+	}
+	if ra := header.Get("Retry-After"); ra != "" {
+		if n, err := strconv.Atoi(ra); err == nil && n >= 0 {
+			text += fmt.Sprintf(" (retry after %d seconds)", n)
+		}
+	}
+	return text
+}
+
+// post performs one POST with the session's token; a 401 drops the token and asks for another once. A refusal of
+// the core comes back as an error reply that names its code.
+func (c *Core) post(ctx context.Context, sessionID, path string, payload any) ([]byte, Reply, bool) {
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return nil, errReply("invalid request"), false
+	}
+	for attempt := 0; ; attempt++ {
+		tok, err := c.tokens.Get(ctx, sessionID)
+		if err != nil {
+			return nil, errReply(err.Error()), false
+		}
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.base+path, bytes.NewReader(data))
+		if err != nil {
+			return nil, errReply("invalid request"), false
+		}
+		req.Header.Set("Authorization", "Bearer "+tok)
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := c.http.Do(req)
+		if err != nil {
+			return nil, errReply("the core is not reachable"), false
+		}
+		body, rerr := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+		_ = resp.Body.Close()
+		if resp.StatusCode == http.StatusUnauthorized && attempt == 0 {
+			c.tokens.Forget(sessionID)
+			continue
+		}
+		if rerr != nil {
+			return nil, errReply("the core's answer could not be read"), false
+		}
+		if resp.StatusCode < 200 || resp.StatusCode > 299 {
+			if resp.StatusCode == http.StatusUnauthorized {
+				c.tokens.Forget(sessionID)
+			}
+			return nil, errReply(refusal(resp.StatusCode, resp.Header, body)), false
+		}
+		return body, Reply{}, true
+	}
+}
+
+func (c *Core) sendPrompt(ctx context.Context, sessionID string, args json.RawMessage) Reply {
+	var a struct {
+		SessionID string `json:"sessionId"`
+		Text      string `json:"text"`
+	}
+	if json.Unmarshal(args, &a) != nil || !sessionIDPattern.MatchString(a.SessionID) ||
+		strings.TrimSpace(a.Text) == "" || utf8.RuneCountInString(a.Text) > maxPromptChars {
+		return errReply("invalid arguments: sessionId is a session ID from list_sessions and text is 1 to 8000 characters")
+	}
+	if a.SessionID == sessionID {
+		return errReply("Hoplet refused the call: self (a session cannot send to itself)")
+	}
+	id, err := queueItemID()
+	if err != nil {
+		return errReply("the request could not be built")
+	}
+	path := fmt.Sprintf("/api/sessions/%s/queue", url.PathEscape(a.SessionID))
+	if _, rep, ok := c.post(ctx, sessionID, path, map[string]any{"id": id, "text": a.Text}); !ok {
+		return rep
+	}
+	return Reply{Text: "Queued for session " + a.SessionID + "; it runs when that session's current turn ends."}
+}
+
+func (c *Core) interrupt(ctx context.Context, sessionID string, args json.RawMessage) Reply {
+	var a struct {
+		SessionID string `json:"sessionId"`
+	}
+	if json.Unmarshal(args, &a) != nil || !sessionIDPattern.MatchString(a.SessionID) {
+		return errReply("invalid arguments: sessionId is a session ID from list_sessions")
+	}
+	if a.SessionID == sessionID {
+		return errReply("Hoplet refused the call: self (a session cannot interrupt itself)")
+	}
+	path := fmt.Sprintf("/api/sessions/%s/interrupt", url.PathEscape(a.SessionID))
+	if _, rep, ok := c.post(ctx, sessionID, path, struct{}{}); !ok {
+		return rep
+	}
+	return Reply{Text: "Interrupted session " + a.SessionID + "."}
+}
+
+// queueItemID is the opaque ID of a queued message, which the core takes from the caller.
+func queueItemID() (string, error) {
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return "mcp-" + hex.EncodeToString(b), nil
 }

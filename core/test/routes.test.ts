@@ -109,6 +109,7 @@ describe('the route table', () => {
         'GET /api/sessions/:sessionId/blocks/:line/:block',
         'POST /api/sessions/:sessionId/prompt',
         'POST /api/sessions/:sessionId/interrupt',
+        'POST /api/sessions/:sessionId/queue',
       ].sort(),
     );
     for (const r of routes.filter((x) => x.session)) {

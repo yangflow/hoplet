@@ -14,7 +14,7 @@ import (
 // (provider.ValidSessionID, ADR 0006). Invalid IDs receive error invalid-session-id
 // before decoding or persistence; the wire envelope and cursor are unchanged.
 
-const ProtocolVersion = 17
+const ProtocolVersion = 18
 
 // Wire message types: Type<Struct> is the `type` of the struct of that name.
 // shared/src/wire/ holds the same table; scripts/test/contract.test.ts compares both.
@@ -402,6 +402,17 @@ type RuntimePrompt struct {
 	PromptID    string   `json:"promptId"`
 	Text        string   `json:"text"`
 	Attachments []string `json:"attachments,omitempty"`
+	// Source is set when another session wrote the prompt (ADR 0034).
+	Source *PromptSource `json:"source,omitempty"`
+}
+
+// PromptSource names the session behind a prompt: the core sets it from the sender's token, and the agent adds a
+// first line that says so to the text it hands the vendor.
+type PromptSource struct {
+	Kind      string   `json:"kind"`
+	SessionID string   `json:"sessionId"`
+	Title     string   `json:"title"`
+	Chain     []string `json:"chain"`
 }
 
 // RuntimeSteer (core → device, control lane) writes a message into the running turn (ADR 0020). The agent answers

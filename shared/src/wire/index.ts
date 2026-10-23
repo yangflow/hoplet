@@ -34,6 +34,7 @@ import {
 } from '../permission-rules.ts';
 import { HookEnvelopeSchema, HookEventTypeSchema } from '../rest/hooks.ts';
 import { NotifyEventKindSchema } from '../rest/notify.ts';
+import { PromptSourceSchema } from '../rest/session-mcp.ts';
 import { ChangeStatusSchema, WorkspaceChangeSchema } from '../rest/workspace.ts';
 import {
   AgentRuntimeStateSchema,
@@ -442,6 +443,8 @@ export const WIRE_MESSAGES = defineWire({
       promptId: v.string(),
       text: v.string(),
       attachments: v.optional(list(AttachmentIdSchema)),
+      /** Set when another session wrote the prompt (ADR 0034): the agent puts a fixed first line naming it. */
+      source: v.optional(PromptSourceSchema),
     },
   },
   /**
@@ -1648,6 +1651,7 @@ export const BrowserMessageSchema = v.variant('type', [
 /** Fields of the nested objects the agent mirrors by name in Go. */
 export const WIRE_OBJECTS = {
   SessionMeta: SessionMetaSchema,
+  PromptSource: PromptSourceSchema,
   DeviceProject: DeviceProjectSchema,
   DeviceProjectSession: DeviceProjectSessionSchema,
   DirEntry: DirEntrySchema,

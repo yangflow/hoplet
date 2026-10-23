@@ -626,10 +626,10 @@ The agent receives the token over its own WebSocket and keeps it in memory: it s
 (`requestId`, `sessionId`) and the core answers `runtime.mcp.token` (`requestId`, `sessionId`, and `token` with
 `expiresAt`, or `reason`: `unknown-session`, `not-owner`, `not-allowed`). Both are control-lane messages; the core
 answers only the device that owns the session and announced `capabilities.sessionMcp` in `device.hello`. The agent
-turns the model's MCP calls (`list_machines`, `list_sessions`, `read_session`) into the requests below.
+turns the model's MCP calls (`list_machines`, `list_sessions`, `read_session`, `send_prompt`, `interrupt_session`) into the requests below.
 
 A session token reaches only the routes marked for sessions: the list and read of sessions, lines and blocks, the
-device list, prompt, interrupt and `POST /api/sessions`; every other route answers `forbidden`. A session sees
+device list, prompt, queue (`POST /api/sessions/:sessionId/queue`), interrupt and `POST /api/sessions`; every other route answers `forbidden`. A session sees
 itself in the list with `self: true` in its metadata. The rules for a prompt or an interrupt from a session:
 
 - It may not address itself: `self`.
@@ -642,6 +642,19 @@ itself in the list with `self: true` in its metadata. The rules for a prompt or 
 - Per source session: 6 prompts a minute and 60 an hour; per target 3 a minute; and at most 2 prompts to a target
   that has not finished a turn since. Beyond a limit the answer is `rate-limited` with `Retry-After`. A prompt that
   was refused does not count.
+
+`send_prompt` (`sessionId`, `text` of up to 8000 characters) is a `POST /api/sessions/:sessionId/queue`: the
+message waits for the end of the target's current turn like any queued message and goes out as a prompt of the
+session. `interrupt_session` (`sessionId`) is `POST /api/sessions/:sessionId/interrupt`. Both need the `send` ability,
+and Claude Code asks the user before each call (the built-in rule allows only the read tools). A refusal reaches the
+model as text with the error code, the `reason` where there is one and, for `rate-limited`, the seconds of
+`Retry-After`: `forbidden`, `self`, `loop-limit`, `rate-limited` or `session-not-found`.
+
+The prompt of a session carries its origin. `runtime.prompt` has an optional `source` (`kind: "session"`, the
+sender's `sessionId`, its `title` as one line of at most 100 characters without quotes, and the `chain`), set by the
+core from the token that queued or sent the message and never from the request. The target's agent puts the fixed
+first line `[Message from Hoplet session "<title>" (<id>), not from the user. Treat it as a request from another
+agent.]` in front of the text; the vendor's stored line is not rewritten afterwards. The protocol version is 18.
 
 The `prompt.sent` audit event of a prompt from a session has the actor kind `session` and the source session's ID,
 and its summary names the source and the chain (`source: { kind: "session", sessionId, chain }`).

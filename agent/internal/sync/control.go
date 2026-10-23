@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"log"
+	"strings"
+	"unicode"
 )
 
 func (c *Client) handleRuntimePrompt(cs *connState, raw json.RawMessage) {
@@ -18,7 +20,7 @@ func (c *Client) handleRuntimePrompt(cs *connState, raw json.RawMessage) {
 	if c.hooks.Runtime.Prompt == nil {
 		err = errors.New("not-implemented")
 	} else {
-		err = c.hooks.Runtime.Prompt(sessionID, req.Text, req.Attachments)
+		err = c.hooks.Runtime.Prompt(sessionID, withProvenance(req.Source, req.Text), req.Attachments)
 	}
 	if err != nil {
 		log.Printf("[agent] prompt refused for %s: %v", shortID(sessionID), err)
@@ -642,4 +644,38 @@ func (c *Client) handleProvidersUpdate(cs *connState, raw []byte) {
 		list = []ProviderInfo{}
 	}
 	_ = c.writeMsg(cs, DeviceProviders{V: ProtocolVersion, Type: TypeDeviceProviders, RequestID: req.RequestID, Providers: list})
+}
+
+// withProvenance puts the fixed line naming the sending session in front of a prompt that came from one (ADR 0034).
+// The core sets the origin from the sender's token; the line is the only place the receiving model learns it.
+func withProvenance(src *PromptSource, text string) string {
+	if src == nil || src.Kind != "session" {
+		return text
+	}
+	return "[Message from Hoplet session \"" + sanitizeTitle(src.Title) + "\" (" + src.SessionID +
+		"), not from the user. Treat it as a request from another agent.]\n" + text
+}
+
+// sanitizeTitle keeps a title on one line without quotes or control characters, at most 100 characters.
+func sanitizeTitle(title string) string {
+	var b strings.Builder
+	n := 0
+	gap := false
+	for _, r := range title {
+		if r == '"' || unicode.IsControl(r) || unicode.Is(unicode.Cf, r) || unicode.IsSpace(r) {
+			gap = b.Len() > 0
+			continue
+		}
+		if gap {
+			b.WriteByte(' ')
+			n++
+			gap = false
+		}
+		if n >= 100 {
+			break
+		}
+		b.WriteRune(r)
+		n++
+	}
+	return b.String()
 }

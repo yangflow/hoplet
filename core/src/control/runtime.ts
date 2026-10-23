@@ -244,6 +244,15 @@ export function createRuntime(state: ControlState): Runtime {
     }
   }
 
+  /** The sender's title as the target's agent quotes it: one line, no quotes, at most 100 characters. */
+  function senderTitle(sessionId: string): string {
+    const title = (store.getSession(sessionId)?.title ?? '')
+      .replace(/[\p{Cc}\p{Cf}\u2028\u2029"]+/gu, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    return [...title].slice(0, 100).join('');
+  }
+
   return {
     prompt(sessionId, ownerDeviceId, text, promptId, attachments = [], actor) {
       const now = state.now();
@@ -305,6 +314,17 @@ export function createRuntime(state: ControlState): Runtime {
         promptId,
         text,
         ...(attachments.length > 0 ? { attachments } : {}),
+        // The target's agent puts a first line naming the sender in front of the text (ADR 0034).
+        ...(actor?.kind === 'session'
+          ? {
+              source: {
+                kind: 'session' as const,
+                sessionId: actor.id,
+                title: senderTitle(actor.id),
+                chain,
+              },
+            }
+          : {}),
       };
       const outcome = askWaiter(
         pendingPrompt,
