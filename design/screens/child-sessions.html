@@ -1383,7 +1383,7 @@ function childTurn(k) {
 function splitC(o = {}) {
   const sel = byId(o.sel || 'c1'), c = count();
   const strip = `<div class="cstrip"><span class="cl-l">${I.fork()}${t('Children', '子会话')}${mt(K.length)}</span>${K.map(k => chip(k, sel.id)).join('')}<span class="sp"></span>${btn(t('Cancel all', '全部取消'), '', 'quiet')}</div>`;
-  const left = `<section class="pane"><div class="ph"><span class="title">${t('This session', '此会话')}</span>${mt(rollTxt(c).replace(/<[^>]+>/g, ''))}</div><div class="conv"><div class="col">${pBody()}</div></div>${dock()}</section>`;
+  const left = `<section class="pane"><div class="ph"><span class="title">${t('This session', '此会话')}</span>${mt(esc(Object.assign(document.createElement('div'), { innerHTML: rollTxt(c) }).textContent))}</div><div class="conv"><div class="col">${pBody()}</div></div>${dock()}</section>`;
   const ks = o.cancel === 'sub' ? [sel, byId(sel.kids[0])] : [sel];
   const pop = o.cancel ? `<div class="cpop" role="alertdialog" aria-label="${esc(cancelTitle(ks))}"><div class="ttl">${cancelTitle(ks)}</div>${cancelLead(ks) ? `<div class="meta">${cancelLead(ks)}</div>` : ''}${cancelFacts(ks)}<div class="row">${btn(keepLbl(), '', 'quiet')}${btn(cancelLbl(ks), '', 'danger')}</div></div>` : '';
   const ro = `<div class="ro-bar">${I.eye()}<span>${t('You are reading a child session. Open it to send a message.', '你正在查看子会话。打开它才能发送消息。')}</span><span class="sp" style="flex:1"></span>${btn(t('Open session', '打开会话'), I.ext(), '')}</div>`;
