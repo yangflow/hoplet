@@ -27,7 +27,7 @@ func TestDeviceInventoryWireShape(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	const want = `{"v":17,"type":"device.inventory","at":7,"toolchains":[{"name":"git","version":"2.45.1"}],` +
+	const want = `{"v":18,"type":"device.inventory","at":7,"toolchains":[{"name":"git","version":"2.45.1"}],` +
 		`"gpus":[{"name":"RTX","memory":25769803776},{"name":"Apple M3"}],` +
 		`"repositories":[{"path":"/a","origin":"https://github.com/o/r.git"},{"path":"/b","origin":null}]}`
 	if string(raw) != want {

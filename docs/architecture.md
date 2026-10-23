@@ -228,11 +228,14 @@ daemon over `mcp.sock` with the nonce, and the daemon takes the session from the
 caller states, and calls the core's REST API with the session's `hpt_` token. The daemon asks for that token the
 first time the session needs it with `runtime.mcp.token.request` and keeps the answer, `runtime.mcp.token`, in
 memory until it expires or the core answers 401. The core answers only a device that announced
-`capabilities.sessionMcp` in `device.hello` and owns the session. The tools are `list_machines`, `list_sessions` and
+`capabilities.sessionMcp` in `device.hello` and owns the session. The read tools are `list_machines`, `list_sessions` and
 `read_session` (a page of lines by cursor, at most 100 lines and 32 KiB a call, a long entry cut, the result marked
 as data and passed through the scrubber); a refusal reaches the model as a code, never the request. In Claude Code
-they are `mcp__hoplet__<tool>`, match as `mcp:hoplet/<tool>` in the rules, and the Claude hook allows them when no
-rule decided.
+they are `mcp__hoplet__<tool>`, match as `mcp:hoplet/<tool>` in the rules, and the Claude hook allows the read
+tools when no rule decided. `send_prompt` (queued through `POST /api/sessions/:id/queue`) and `interrupt_session`
+act on another session: the hook does not allow them, so the vendor asks the user, and the core checks the grant,
+the target's mode, the chain and the limits again. The core sets `source` on the `runtime.prompt` it sends for such a
+message, and the target's agent puts the fixed line naming the sender before the text.
 
 ### A runtime capability
 
@@ -356,7 +359,7 @@ messages that name the session by ID and never a path: `device.session.inspect|i
 clone the new worktree belongs to, which the core keeps in `session_worktrees`.
 
 A handoff to a machine with no clone of the repository adds a clone step before the owner is touched
-([ADR 0024](adr/0024-a-handoff-clones-the-repository-on-a-target-that-has-none.md)). The protocol version is 17.
+([ADR 0024](adr/0024-a-handoff-clones-the-repository-on-a-target-that-has-none.md)). The protocol version is 18.
 The control-lane messages are `device.clone.check` (`requestId`, `origin`, optional `cloneInto`) answered by
 `device.clone.checked` (`reason`, `detail`, the proposed `cloneInto`), and `device.clone.start` (`requestId`,
 `handoffId`, `origin`, `cloneInto`) answered by `device.clone.progress` (`received`, optional `total`, at most four

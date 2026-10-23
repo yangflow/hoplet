@@ -407,6 +407,64 @@ describe('prompting another session', () => {
   });
 });
 
+describe('queuing a prompt for another session', () => {
+  const queue = (b: Awaited<ReturnType<typeof boot>>, token: string, target: string, id: string) =>
+    b.rest('POST', `/api/sessions/${target}/queue`, token, { id, text: 'later' });
+
+  it('passes the same checks as a prompt', async () => {
+    const b = await boot();
+    await b.ready({ a1: 'acceptEdits', a2: 'bypassPermissions', a3: 'plan' });
+    const secret = b.tokenOf('a1');
+    expect((await queue(b, secret, 'a3', 'q0')).status).toBe(403);
+    await b.settings('a1', { send: true });
+    const more = await queue(b, secret, 'a2', 'q1');
+    expect(more.status).toBe(403);
+    expect(more.body).toMatchObject({ code: 'forbidden', reason: 'target-mode-more-permissive' });
+    const self = await queue(b, secret, 'a1', 'q2');
+    expect(self.status).toBe(400);
+    expect(self.body?.code).toBe('self');
+    expect(b.store.queueOf('a2').items).toHaveLength(0);
+    expect((await queue(b, secret, 'a3', 'q3')).status).toBe(201);
+  });
+
+  it('is limited like a prompt, and a refusal does not count', async () => {
+    const b = await boot({ unansweredPerTarget: 99, perTargetPerMinute: 1 });
+    await b.settings('a1', { send: true });
+    // No mode known yet: refused before it counts.
+    expect((await queue(b, b.tokenOf('a1'), 'a2', 'q1')).status).toBe(403);
+    await b.ready();
+    const secret = b.tokenOf('a1');
+    expect((await queue(b, secret, 'a2', 'q2')).status).toBe(201);
+    await b.ready();
+    const again = await queue(b, secret, 'a2', 'q3');
+    expect(again.status).toBe(429);
+    expect(again.body?.code).toBe('rate-limited');
+    expect(Number(again.headers.get('retry-after'))).toBeGreaterThan(0);
+  });
+
+  it('keeps the session as the author and sends its provenance with the prompt', async () => {
+    const b = await boot();
+    await b.ready();
+    await b.settings('a1', { send: true });
+    expect((await queue(b, b.tokenOf('a1'), 'a2', 'q1')).status).toBe(201);
+    await b.settle();
+    const sent = b.prompts.at(-1);
+    expect(sent).toMatchObject({ sessionId: 'a2', text: 'later' });
+    expect(sent?.source).toMatchObject({ kind: 'session', sessionId: 'a1', chain: ['a1'] });
+    expect(sent?.source?.title).toBe('hello');
+    const audited = b.audit().filter((e) => e.type === 'prompt.sent');
+    expect(audited.at(-1)).toMatchObject({ actorKind: 'session', actorId: 'a1', sessionId: 'a2' });
+  });
+
+  it('adds no provenance to a prompt from the host', async () => {
+    const b = await boot();
+    await b.ready();
+    expect((await queue(b, HOST, 'a2', 'q1')).status).toBe(201);
+    await b.settle();
+    expect(b.prompts.at(-1)?.source).toBeUndefined();
+  });
+});
+
 describe('loops', () => {
   async function chainTo(
     b: Awaited<ReturnType<typeof boot>>,

@@ -718,6 +718,7 @@ export const routes: readonly Route[] = [
     method: 'POST',
     path: '/api/sessions/:sessionId/queue',
     access: { capability: 'send' },
+    session: true,
     lane: 'control',
     bodyLimit: 32 * 1024,
     body: QueueAddRequestSchema,
@@ -728,14 +729,18 @@ export const routes: readonly Route[] = [
       const owner = ownerOf(d, sessionId);
       const attachments = d.body.attachments ?? [];
       checkMessage(d, sessionId, owner, d.body.text, attachments);
-      return queueResult(
-        d.control.queueAdd(sessionId, {
-          id: d.body.id,
-          text: d.body.text,
-          attachments,
-          actor: actorOf(d.principal),
-        }),
-      );
+      // A session queuing for another passes the same checks as a prompt: mode, chain, limits (ADR 0034).
+      const source = sessionOf(d.principal);
+      const guard = source === null ? null : d.control.sessionMcp.guardPrompt(source, sessionId);
+      if (guard && !guard.ok) throw guardError(guard);
+      const result = d.control.queueAdd(sessionId, {
+        id: d.body.id,
+        text: d.body.text,
+        attachments,
+        actor: actorOf(d.principal),
+      });
+      if (guard?.ok) guard.settle(result.ok);
+      return queueResult(result);
     },
   }),
   defineRoute({

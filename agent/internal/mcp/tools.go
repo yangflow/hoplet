@@ -27,6 +27,29 @@ const (
 	ToolReadSession  = "read_session"
 )
 
+// The tools that act on another session. They need the `send` ability and a grant for it, so the vendor asks the
+// user before each call: the built-in permission rule does not cover them.
+const (
+	ToolSendPrompt       = "send_prompt"
+	ToolInterruptSession = "interrupt_session"
+)
+
+// ActTools are the tools that change another session.
+var ActTools = []string{ToolSendPrompt, ToolInterruptSession}
+
+// IsKnownTool says whether name is a tool this server offers.
+func IsKnownTool(name string) bool {
+	if IsReadTool(name) {
+		return true
+	}
+	for _, t := range ActTools {
+		if t == name {
+			return true
+		}
+	}
+	return false
+}
+
 // ReadTools are the tools that need only the `read` ability, which the built-in rule allows.
 var ReadTools = []string{ToolListMachines, ToolListSessions, ToolReadSession}
 
@@ -85,8 +108,32 @@ func tools() []toolDef {
 				"limit":     map[string]any{"type": "integer", "minimum": 1, "maximum": maxPageLines, "description": "At most this many lines (default 20)."},
 			}, "sessionId"),
 		},
+		{
+			Name: ToolSendPrompt,
+			Description: "Send a prompt to another session. It is queued and runs when that session's current turn ends; " +
+				"the receiver sees that it came from this session. A refusal names its code (forbidden, loop-limit, " +
+				"rate-limited, self) and, where there is one, a reason; do not retry a refusal that is not rate-limited. " +
+				"The send is limited to " + sendLimits + ".",
+			InputSchema: obj(map[string]any{
+				"sessionId": map[string]any{"type": "string", "description": "A session ID from list_sessions; not this session."},
+				"text":      map[string]any{"type": "string", "minLength": 1, "maxLength": maxPromptChars, "description": "The prompt."},
+			}, "sessionId", "text"),
+		},
+		{
+			Name: ToolInterruptSession,
+			Description: "Interrupt the turn another session is running. A refusal names its code (forbidden, " +
+				"loop-limit, rate-limited, self) and, where there is one, a reason.",
+			InputSchema: obj(map[string]any{
+				"sessionId": map[string]any{"type": "string", "description": "A session ID from list_sessions; not this session."},
+			}, "sessionId"),
+		},
 	}
 }
+
+const (
+	maxPromptChars = 8000
+	sendLimits     = "6 prompts a minute and 60 an hour from this session, 3 a minute to one session, and a chain of 3 sessions"
+)
 
 const (
 	maxListLimit = 200

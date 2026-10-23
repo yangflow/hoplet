@@ -12,6 +12,13 @@ import type { Runtime } from './runtime.ts';
 import { type ControlState, onlineLink } from './state.ts';
 import type { AuditActor, Control, SteerOutcome } from './types.ts';
 
+/** The prefix of `session_queue.actor_id` for a message a session queued. */
+const SESSION_AUTHOR = 'session:';
+
+/** The value `session_queue.actor_id` holds for an author. */
+const authorId = (actor: AuditActor): string =>
+  actor.kind === 'session' ? `${SESSION_AUTHOR}${actor.id}` : actor.id;
+
 /** A repeated `steerId` returns the first result for this long. */
 const STEER_DEDUP_MS = 10 * 60_000;
 
@@ -48,7 +55,11 @@ export function createQueue(state: ControlState, runtime: Runtime): QueueControl
   /** The token that wrote a queued message, so its prompt is recorded under it; the host has none. */
   function authorOf(sessionId: string, id: string): AuditActor | undefined {
     const author = store.queueAuthor(sessionId, id);
-    return author === '' ? undefined : { kind: 'token', id: author };
+    if (author === '') return undefined;
+    // A message a session queued is stored as `session:<id>`, so its prompt keeps the session as actor (ADR 0034).
+    return author.startsWith(SESSION_AUTHOR)
+      ? { kind: 'session', id: author.slice(SESSION_AUTHOR.length) }
+      : { kind: 'token', id: author };
   }
 
   function changed(sessionId: string): Queue {
@@ -167,7 +178,10 @@ export function createQueue(state: ControlState, runtime: Runtime): QueueControl
 
     queueAdd(sessionId, input) {
       const { actor, ...rest } = input;
-      const added = store.queueAdd(sessionId, { ...rest, ...(actor ? { actorId: actor.id } : {}) });
+      const added = store.queueAdd(sessionId, {
+        ...rest,
+        ...(actor ? { actorId: authorId(actor) } : {}),
+      });
       if (!added.ok) return { ok: false, error: added.reason };
       const queue = changed(sessionId);
       void drain(sessionId);
@@ -178,7 +192,7 @@ export function createQueue(state: ControlState, runtime: Runtime): QueueControl
       const { actor, ...rest } = input;
       const edited = store.queueEdit(sessionId, id, version, {
         ...rest,
-        ...(actor ? { actorId: actor.id } : {}),
+        ...(actor ? { actorId: authorId(actor) } : {}),
       });
       return edited.ok
         ? { ok: true, queue: changed(sessionId) }

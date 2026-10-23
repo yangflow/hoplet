@@ -12,6 +12,17 @@ export type SessionVisibility = v.InferOutput<typeof SessionVisibilitySchema>;
 /** The longest chain of sessions that direct each other: A directs B directs C directs D, and no further. */
 export const MAX_SESSION_CHAIN = 3;
 
+/** Who wrote a prompt that another session sent (ADR 0034): set by the core from the token, never by the sender. */
+export const PromptSourceSchema = v.strictObject({
+  kind: v.literal('session'),
+  sessionId: v.string(),
+  /** The sender's title, cut and cleaned by the core; the target's agent quotes it in the first line. */
+  title: v.pipe(v.string(), v.maxLength(200)),
+  /** The sessions behind the prompt, the sender last. */
+  chain: v.pipe(v.array(v.string()), v.maxLength(MAX_SESSION_CHAIN + 1)),
+});
+export type PromptSource = v.InferOutput<typeof PromptSourceSchema>;
+
 /**
  * What one session may do to other sessions (ADR 0034). Reading is always on. `send` allows `send_prompt` and
  * `interrupt_session`; `create` allows `start_session` and implies `send`; `requestHandoff` allows asking the user

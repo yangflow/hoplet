@@ -151,7 +151,7 @@ func (s *Server) handle(c net.Conn) {
 		return
 	}
 	var req request
-	if err := json.Unmarshal(raw, &req); err != nil || req.Nonce == "" || !IsReadTool(req.Tool) {
+	if err := json.Unmarshal(raw, &req); err != nil || req.Nonce == "" || !IsKnownTool(req.Tool) {
 		s.reply(c, errReply("Hoplet could not read the request"))
 		return
 	}

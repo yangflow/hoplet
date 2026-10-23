@@ -14,7 +14,7 @@ func TestStartInANewWorktreeIsAnsweredWithIt(t *testing.T) {
 		return RuntimeStartResult{SessionID: "new-2", Worktree: &StartedWorktree{Clone: "/work/a", Path: "/work/a-feat-x", Branch: "feat/x"}}, nil
 	}
 	c.hooks.Runtime.Started = func(string) {}
-	c.handleRuntimeStart(cs, []byte(`{"v":17,"type":"runtime.start","requestId":"r4","projectPath":"/work/a","provider":"claude",`+
+	c.handleRuntimeStart(cs, []byte(`{"v":18,"type":"runtime.start","requestId":"r4","projectPath":"/work/a","provider":"claude",`+
 		`"text":"go","promptId":"p4","worktree":{"branch":"feat/x"}}`))
 	msg := read()
 	wt, _ := msg["worktree"].(map[string]any)
