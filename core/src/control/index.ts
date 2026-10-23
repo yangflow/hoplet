@@ -242,6 +242,7 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
     if (!info || !onlineIds.has(deviceId)) return {};
     return {
       terminal: info.terminal,
+      sessionMcp: info.sessionMcp,
       ...(info.previewHost !== undefined ? { previewHost: info.previewHost } : {}),
     };
   }

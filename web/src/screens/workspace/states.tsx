@@ -1,6 +1,18 @@
-import type { DeviceInfo, LiveSessionMeta, ProviderInfo, SessionPort } from '@hoplet/shared';
+import type {
+  DeviceInfo,
+  LiveSessionMeta,
+  ProviderInfo,
+  SessionMcpSettings,
+  SessionPort,
+} from '@hoplet/shared';
 import type { ReactNode } from 'react';
 import { t } from '../../lib/i18n.ts';
+import {
+  mcpDevices,
+  OFF_SETTINGS,
+  ON_SETTINGS,
+  WIDE_SETTINGS,
+} from '../../lib/session-mcp-fixtures.ts';
 import {
   capabilities,
   claudeConfiguration,
@@ -181,6 +193,10 @@ const handoffOpen = (offline = false) => ({ ...(offline ? changes : files), hand
 const tools = ['changes', 'files', 'terminal', 'browser'] as const;
 const terminalView = { tabs: [...tools], active: 'terminal' as const };
 const browserView = { tabs: [...tools], active: 'browser' as const };
+const sessionsView = { tabs: [...tools, 'sessions' as const], active: 'sessions' as const };
+const sessionsState = (settings: SessionMcpSettings, devices = mcpDevices()) => (
+  <Inspect workspace={{ data: live(), view: sessionsView, sessions: { settings, devices } }} />
+);
 const none: TerminalPhase = { kind: 'none' };
 const closed = (reason: string): TerminalPhase => ({ kind: 'closed', reason });
 const port = (n: number, process: string, address: SessionPort['address']): SessionPort => ({
@@ -553,6 +569,10 @@ export const states: Record<string, () => ReactNode> = {
   'terminal-closed-offline': () => terminalState(closed('owner-offline'), { offline: true }),
   'terminal-closed-exit': () => terminalState({ kind: 'closed', reason: 'exit', exitCode: 0 }),
   'terminal-busy': () => terminalState({ kind: 'busy' }),
+  'a-session': () => sessionsState(OFF_SETTINGS),
+  'a-session-on': () => sessionsState(ON_SETTINGS),
+  'a-session-wide': () => sessionsState(WIDE_SETTINGS),
+  'a-session-off': () => sessionsState(OFF_SETTINGS, mcpDevices(false, false)),
   'browser-ports': () =>
     browserState(ready([port(5173, 'node', 'loopback'), port(4000, 'bun', 'any')], PREVIEW_HOST)),
   'browser-loopback': () => browserState(ready([port(5173, 'node', 'loopback')], PREVIEW_HOST)),

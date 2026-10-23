@@ -161,6 +161,10 @@ const subject: Record<string, Record<string, string>> = {
     'terminal-closed-offline': 'workspace.terminal-closed-offline',
     'terminal-closed-exit': 'workspace.terminal-closed-generic',
     'terminal-busy': 'workspace.terminal-busy',
+    'a-session': 'workspace.sessions.caps',
+    'a-session-on': 'workspace.sessions.caps.handoff.auto.machines',
+    'a-session-wide': 'workspace.sessions.reach.warn',
+    'a-session-off': 'workspace.sessions.off',
     'browser-ports': 'workspace.port',
     'browser-loopback': 'workspace.browser-loopback',
     'browser-empty': 'workspace.browser-empty',
@@ -179,6 +183,9 @@ const subject: Record<string, Record<string, string>> = {
   },
   settings: {
     'rules-revision': 'settings.rules.machines',
+    'c-settings': 'settings.mcp.table',
+    'c-settings-menu': 'settings.mcp.menu',
+    'c-settings-empty': 'settings.mcp.empty',
     tokens: 'settings.tokens',
     'tokens-detail': 'settings.tokens.detail.tok_release',
     'tokens-empty': 'settings.tokens.empty',
@@ -271,10 +278,10 @@ const subject: Record<string, Record<string, string>> = {
   },
 };
 
-test('the registries list 112 cockpit, 56 workspace, 99 settings and 7 action states', () => {
+test('the registries list 112 cockpit, 60 workspace, 102 settings and 7 action states', () => {
   expect(screens.cockpit).toHaveLength(112);
-  expect(screens.workspace).toHaveLength(56);
-  expect(screens.settings).toHaveLength(99);
+  expect(screens.workspace).toHaveLength(60);
+  expect(screens.settings).toHaveLength(102);
   expect(screens.action).toHaveLength(7);
 });
 

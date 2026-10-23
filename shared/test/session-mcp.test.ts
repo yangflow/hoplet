@@ -9,7 +9,14 @@ import {
   SessionMcpSettingsSchema,
 } from '../src/rest/index.ts';
 
-const ON = { send: true, create: false, requestHandoff: false, visibility: 'machine' } as const;
+const ON = {
+  send: true,
+  create: false,
+  requestHandoff: false,
+  autoApproveHandoff: false,
+  autoApproveMachines: [],
+  visibility: 'machine',
+} as const;
 
 describe('session MCP settings', () => {
   it('start with everything off and the project in view', () => {
@@ -17,6 +24,8 @@ describe('session MCP settings', () => {
       send: false,
       create: false,
       requestHandoff: false,
+      autoApproveHandoff: false,
+      autoApproveMachines: [],
       visibility: 'project',
     });
     expect(MAX_SESSION_CHAIN).toBe(3);
@@ -28,6 +37,14 @@ describe('session MCP settings', () => {
       false,
     );
     expect(v.safeParse(SessionMcpSettingsSchema, { ...ON, answer: true }).success).toBe(false);
+  });
+
+  it('hold machines for automatic hand-off approval', () => {
+    const ok = (autoApproveMachines: unknown) =>
+      v.safeParse(SessionMcpSettingsSchema, { ...ON, autoApproveMachines }).success;
+    expect(ok(['dev-a', 'dev-b'])).toBe(true);
+    expect(ok([1])).toBe(false);
+    expect(ok(Array.from({ length: 33 }, (_, i) => `m${i}`))).toBe(false);
   });
 
   it('are put as a whole', () => {

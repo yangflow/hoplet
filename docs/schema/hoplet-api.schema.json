@@ -2838,6 +2838,9 @@
               "terminal": {
                 "type": "boolean"
               },
+              "sessionMcp": {
+                "type": "boolean"
+              },
               "previewHost": {
                 "type": "string"
               },
@@ -8480,6 +8483,17 @@
             "requestHandoff": {
               "type": "boolean"
             },
+            "autoApproveHandoff": {
+              "type": "boolean"
+            },
+            "autoApproveMachines": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^\\s*\\S(?:[\\s\\S]{0,126}\\S)?\\s*$"
+              },
+              "maxItems": 32
+            },
             "visibility": {
               "enum": [
                 "project",
@@ -8493,6 +8507,8 @@
             "send",
             "create",
             "requestHandoff",
+            "autoApproveHandoff",
+            "autoApproveMachines",
             "visibility"
           ],
           "additionalProperties": false
@@ -8518,6 +8534,17 @@
             "requestHandoff": {
               "type": "boolean"
             },
+            "autoApproveHandoff": {
+              "type": "boolean"
+            },
+            "autoApproveMachines": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^\\s*\\S(?:[\\s\\S]{0,126}\\S)?\\s*$"
+              },
+              "maxItems": 32
+            },
             "visibility": {
               "enum": [
                 "project",
@@ -8531,6 +8558,8 @@
             "send",
             "create",
             "requestHandoff",
+            "autoApproveHandoff",
+            "autoApproveMachines",
             "visibility"
           ],
           "additionalProperties": false
@@ -8558,6 +8587,17 @@
                   "requestHandoff": {
                     "type": "boolean"
                   },
+                  "autoApproveHandoff": {
+                    "type": "boolean"
+                  },
+                  "autoApproveMachines": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "pattern": "^\\s*\\S(?:[\\s\\S]{0,126}\\S)?\\s*$"
+                    },
+                    "maxItems": 32
+                  },
                   "visibility": {
                     "enum": [
                       "project",
@@ -8571,6 +8611,8 @@
                   "send",
                   "create",
                   "requestHandoff",
+                  "autoApproveHandoff",
+                  "autoApproveMachines",
                   "visibility"
                 ],
                 "additionalProperties": false
@@ -8615,6 +8657,17 @@
             "requestHandoff": {
               "type": "boolean"
             },
+            "autoApproveHandoff": {
+              "type": "boolean"
+            },
+            "autoApproveMachines": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^\\s*\\S(?:[\\s\\S]{0,126}\\S)?\\s*$"
+              },
+              "maxItems": 32
+            },
             "visibility": {
               "enum": [
                 "project",
@@ -8628,6 +8681,8 @@
             "send",
             "create",
             "requestHandoff",
+            "autoApproveHandoff",
+            "autoApproveMachines",
             "visibility"
           ],
           "additionalProperties": false
@@ -8656,6 +8711,17 @@
             "requestHandoff": {
               "type": "boolean"
             },
+            "autoApproveHandoff": {
+              "type": "boolean"
+            },
+            "autoApproveMachines": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^\\s*\\S(?:[\\s\\S]{0,126}\\S)?\\s*$"
+              },
+              "maxItems": 32
+            },
             "visibility": {
               "enum": [
                 "project",
@@ -8669,6 +8735,8 @@
             "send",
             "create",
             "requestHandoff",
+            "autoApproveHandoff",
+            "autoApproveMachines",
             "visibility"
           ],
           "additionalProperties": false

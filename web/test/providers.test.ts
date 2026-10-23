@@ -81,6 +81,7 @@ describe('section', () => {
       'providers',
       'notifications',
       'rules',
+      'mcp',
       'hooks',
       'audit',
       'tokens',

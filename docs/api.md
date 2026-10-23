@@ -615,6 +615,7 @@ already running:
 | `send` | The `send` ability: prompt, steer and interrupt other sessions |
 | `create` | The `create` ability, which includes `send` |
 | `requestHandoff` | The `request-handoff` ability, which only a session token holds; it lets the session ask for its own handoff (the host confirms) |
+| `autoApproveHandoff`, `autoApproveMachines` | Part of the settings of `requestHandoff` and rejected without it (`invalid-request`): whether a handoff request to one of these machines, which must be known, is approved without the host (stored and shown; the handoff request flow acts on it) |
 | `visibility` | `project` (sessions of its own machine and project), `machine` (every project of its machine) or `all`; a session outside it is answered `session-not-found`. `read` is always on |
 
 `GET`/`PUT /api/mcp/defaults` hold the defaults a session gets when it begins: a global one and one per project
@@ -722,8 +723,8 @@ command lines are never logged or stored; the log holds open and close with IDs,
 `GET /api/sessions/:sessionId/ports` and `session.listening` carry the listening ports of the session's processes.
 The core asks the agent to watch the sessions that have a subscribed connection and keeps the latest report in
 memory. `previewHost` is the host name the agent announced in its hello (`preview_host` of its configuration, or its
-host name); a client builds `http://<previewHost>:<port>` from it. `GET /api/devices` also lists `terminal` (the
-announced capability) and `previewHost` for each connected device.
+host name); a client builds `http://<previewHost>:<port>` from it. `GET /api/devices` also lists `terminal` and `sessionMcp` (the
+announced capabilities) and `previewHost` for each connected device.
 
 ## Notifications
 

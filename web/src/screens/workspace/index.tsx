@@ -23,6 +23,7 @@ import { HandoffPanel } from './handoff-panel.tsx';
 import { ChangesList, FilesTree } from './lists.tsx';
 import { buildTree, formatCount } from './model.ts';
 import { loadWrap, saveWrap, TOOLS, type Tool } from './prefs.ts';
+import { type SessionsFixture, SessionsTab } from './sessions-tab.tsx';
 import { TerminalTab } from './terminal-tab.tsx';
 import type { InspectorActions, InspectorView } from './use-inspector.ts';
 import type { PortsData } from './use-ports.ts';
@@ -52,6 +53,8 @@ export type WorkspaceFixture = {
   terminal?: TerminalPhase;
   /** The Browser tab's ports, in place of asking the core. */
   browser?: PortsData;
+  /** The Other sessions tab, in place of asking the core. */
+  sessions?: SessionsFixture;
 };
 
 const toolLabel = (tool: Tool) =>
@@ -60,6 +63,7 @@ const toolLabel = (tool: Tool) =>
     files: t('Files'),
     terminal: t('Terminal'),
     browser: t('Browser'),
+    sessions: t('Other sessions'),
   })[tool];
 const toolHint: Partial<Record<Tool, string>> = { changes: '⇧⌘G', files: '⇧⌘E' };
 const toolIcon: Record<Tool, () => ReturnType<typeof Icon.pen>> = {
@@ -67,6 +71,7 @@ const toolIcon: Record<Tool, () => ReturnType<typeof Icon.pen>> = {
   files: Icon.folder,
   terminal: Icon.terminal,
   browser: Icon.globe,
+  sessions: Icon.link,
 };
 
 /**
@@ -178,7 +183,7 @@ export function Inspector(props: {
 
   // The terminal needs the room of a viewer, whatever it shows, so the pane does not jump when one opens.
   const wide = active === 'terminal' || (opened !== null && active !== null);
-  const roomy = active === 'terminal' || active === 'browser';
+  const roomy = active === 'terminal' || active === 'browser' || active === 'sessions';
   // the terminal widens the inspector for itself: no viewer, no list beside it
   const split = wide && active !== 'terminal';
   const gate = gateOf({
@@ -286,6 +291,11 @@ export function Inspector(props: {
               owner={owner}
               {...(fixture?.browser ? { fixture: fixture.browser } : {})}
             />
+          ) : active === 'sessions' ? (
+            <SessionsTab
+              session={session}
+              {...(fixture?.sessions ? { fixture: fixture.sessions } : {})}
+            />
           ) : (
             <ToolBody
               tool={active}
@@ -367,6 +377,8 @@ function TabList(props: {
         const on = tool === props.active;
         const off = tool === 'files' && props.filesOff;
         const ico = props.fold && !on;
+        // five tools leave no room for the active label beside the inspector's own toggle
+        const bare = ico || (on && props.tabs.length >= 5);
         const hint = toolHint[tool];
         const dot = tool === 'terminal' && props.terminalLive && !ico;
         return (
@@ -380,7 +392,7 @@ function TabList(props: {
             aria-disabled={off || undefined}
             className={`ws-tab${on ? ' on' : ''}${off ? ' off' : ''}${ico ? ' ico' : ''}`}
             title={off ? props.filesWhy : hint ? `${toolLabel(tool)} · ${hint}` : toolLabel(tool)}
-            {...(ico ? { 'aria-label': toolLabel(tool) } : {})}
+            {...(bare ? { 'aria-label': toolLabel(tool) } : {})}
             onClick={() => (off ? undefined : props.onPick(tool))}
             onKeyDown={(e) => {
               if (!off && (e.key === 'Enter' || e.key === ' ')) {
@@ -391,7 +403,7 @@ function TabList(props: {
             data-testid={`workspace.tab-${tool}`}
           >
             {toolIcon[tool]()}
-            {ico ? null : <span>{toolLabel(tool)}</span>}
+            {bare ? null : <span>{toolLabel(tool)}</span>}
             {tool === 'changes' && props.count > 0 && !ico ? (
               <span className="ws-tab-c">{formatCount(props.count)}</span>
             ) : null}
