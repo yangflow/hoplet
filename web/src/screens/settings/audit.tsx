@@ -1,5 +1,6 @@
-import type { AuditEvent, DeviceInfo, LiveSessionMeta } from '@hoplet/shared';
+import type { DeviceInfo, LiveSessionMeta } from '@hoplet/shared';
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
+import { Detail, SummaryView } from '../../components/audit-parts.tsx';
 import { Button } from '../../components/Button.tsx';
 import { fill } from '../../components/fill.tsx';
 import { Icon } from '../../components/icons.tsx';
@@ -15,14 +16,9 @@ import {
   breakText,
   clock,
   DEFAULT_FILTERS,
-  detailOf,
   formatCount,
-  fullTime,
   groupByDay,
   isFiltered,
-  shortHash,
-  summaryParts,
-  summaryRest,
   timeOptions,
   typeOptions,
   verifiedLine,
@@ -51,83 +47,6 @@ const mono = (s: string) => <span className="mono">{s}</span>;
 
 function sessionTitle(s: LiveSessionMeta): string {
   return s.titleOverride?.trim() || s.title || s.sessionId.slice(0, 8);
-}
-
-function SummaryView(props: { event: AuditEvent; names: AuditNames }) {
-  const parts = summaryParts(props.event, props.names);
-  return (
-    <>
-      {parts.lead}
-      {parts.mono ? <> · {mono(parts.mono)}</> : null}
-      {parts.tail ? (
-        <>
-          {' '}
-          <span className="pth">{parts.tail}</span>
-        </>
-      ) : null}
-    </>
-  );
-}
-
-function Detail(props: { event: AuditEvent; names: AuditNames }) {
-  const { event, names } = props;
-  const { command, paths } = detailOf(event);
-  const rest = summaryRest(event);
-  const facts: [string, string, boolean][] = [
-    [t('Seq'), `#${formatCount(event.seq)}`, true],
-    [t('Recorded'), fullTime(event.recordedAt), true],
-    [t('Channel'), event.channel, true],
-    [t('Actor'), actorLabel(event, names), false],
-    [t('Session'), event.sessionId ? names.session(event.sessionId) : '—', false],
-    [t('Machine'), event.deviceId ? names.device(event.deviceId) : '—', false],
-    ...(event.ref ? ([[t('Ref'), event.ref, true]] as [string, string, boolean][]) : []),
-    [t('Hash'), `${shortHash(event.hash)} ← ${shortHash(event.prevHash)}`, true],
-  ];
-  return (
-    <div className="axd" data-testid={`settings.audit.detail.${event.seq}`}>
-      {command ? (
-        <div>
-          <div className="meta">{t('Command · secrets scrubbed by the agent')}</div>
-          <div className="cmd">{command}</div>
-        </div>
-      ) : null}
-      {paths.length > 0 ? (
-        <div>
-          <div className="meta">{t('Paths this call changes')}</div>
-          <div className="cmd">
-            {paths.map((p) => (
-              <div key={p}>{p}</div>
-            ))}
-          </div>
-        </div>
-      ) : null}
-      <dl className="hkv">
-        {facts.map(([k, v, m]) => (
-          <div key={k} className="hkvr">
-            <dt className="k">{k}</dt>
-            <dd className={`v${m ? ' mono' : ''}`} title={v}>
-              {v}
-            </dd>
-          </div>
-        ))}
-      </dl>
-      {rest.length > 0 ? (
-        <dl className="hkv">
-          {rest.map(([k, v]) => (
-            <div key={k} className="hkvr">
-              <dt className="k">{k}</dt>
-              <dd className="v mono" title={v}>
-                {v}
-              </dd>
-            </div>
-          ))}
-        </dl>
-      ) : null}
-      <div className="meta">
-        {t('Never records prompts, assistant text, tool output, file contents or diffs.')}
-      </div>
-    </div>
-  );
 }
 
 function Banner(props: { verify: VerifyState; onAgain: () => void }) {
@@ -337,7 +256,9 @@ export function AuditSection(props: {
                       <span className="ac">{actorLabel(event, names)}</span>
                       <span className="chv">{open ? Icon.down() : Icon.chevron()}</span>
                     </button>
-                    {open ? <Detail event={event} names={names} /> : null}
+                    {open ? (
+                      <Detail event={event} names={names} testid="settings.audit.detail" />
+                    ) : null}
                   </div>
                 );
               })}

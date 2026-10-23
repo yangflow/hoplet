@@ -408,8 +408,10 @@ was done to and by sessions, kept apart from the session content.
   end of a session, session creation, deletion and handoff, prompts and steers sent (their ID and length, never the
   text), changes to notification settings, webhooks (never the URL or secret), resource thresholds, price
   overrides, device labels, watched projects and provider defaults, and terminals opened and closed (size,
-  duration and byte counts, never what was typed or shown). Planned, with their features: `session.op` and
-  `verify.result`. Sessions that ran before this was built are not back-filled; their tool calls start at the
+  duration and byte counts, never what was typed or shown). What a session does to another session is recorded as the
+  events above (`prompt.sent`, `session.created`, `handoff.requested`, `handoff.decided`, `token.denied`) with the actor
+  kind `session` (ADR 0034); reads are GETs and are not recorded. Planned: `session.op` with child sessions (#81) and
+  `verify.result` with automatic verification (#79). Sessions that ran before this was built are not back-filled; their tool calls start at the
   end they had. Never prompts, assistant text, tool output, file contents or diffs.
 - **Who**: an actor of kind `operator` (the host token, with the channel `rest` or `link`), `device`, `session`,
   `schedule` or `core`. Hoplet has one operator and cannot tell which person or browser used the host token; the
@@ -426,8 +428,8 @@ was done to and by sessions, kept apart from the session content.
   100 to a page with "Load older"; a search box and the filters Session, Machine, Actor, Type and Time (the last
   7 days by default) narrow them; a click opens a record in place (the agent-scrubbed command or the paths, channel,
   reference and hashes); **Verify chain** reports the first break with its reason; **Export** downloads JSON Lines
-  or CSV of the same filters, fetched with the host token in the `Authorization` header. Planned: the Audit tab of
-  the inspector (one session).
+  or CSV of the same filters, fetched with the host token in the `Authorization` header. The inspector's Audit tab lists the same records for one session, newest first in a group per day, with the segments
+  All, Tools, Permissions and Other, "Load older" and the same click-to-open detail.
 - **Failure**: an action whose record cannot be written is not carried out and answers `audit-unavailable` (503).
 - **Retention**: 180 days by default, set with `HOPLET_AUDIT_RETENTION_DAYS` (`0` keeps everything); Settings › Audit
   names the variable and cannot change it. Only retention deletes records, once a day, and it leaves a checkpoint

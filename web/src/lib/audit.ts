@@ -445,6 +445,35 @@ export function verifiedLine(result: AuditVerifyResponse): string {
   return `${fill(t('{count} records checked'), { count: formatCount(result.checked) })}${head}`;
 }
 
+/** The segments of the inspector's Audit tab: all records, tool calls, permissions, and everything else. */
+export type TabKind = 'all' | 'tools' | 'perm' | 'other';
+
+export const TAB_KINDS: readonly TabKind[] = ['all', 'tools', 'perm', 'other'];
+
+/** The `type` filter the core is asked for; `other` has no single type, so it asks for all and `inKind` keeps its own. */
+export function tabType(kind: TabKind): string {
+  return kind === 'tools' ? 'tool.call' : kind === 'perm' ? 'permission.' : 'all';
+}
+
+/** Whether a record of `type` belongs to the segment. */
+export function inKind(type: string, kind: TabKind): boolean {
+  switch (kind) {
+    case 'all':
+      return true;
+    case 'tools':
+      return type === 'tool.call';
+    case 'perm':
+      return type.startsWith('permission.');
+    case 'other':
+      return type !== 'tool.call' && !type.startsWith('permission.');
+  }
+}
+
+/** The filter bar of one session's records in the inspector: that session, any time. */
+export function sessionFilters(sessionId: string, kind: TabKind): AuditFilters {
+  return { ...DEFAULT_FILTERS, session: sessionId, time: 'all', type: tabType(kind) };
+}
+
 /** The file name of an export made on `date`. */
 export function exportFileName(date: Date, format: 'jsonl' | 'csv'): string {
   return `hoplet-audit-${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}.${format}`;

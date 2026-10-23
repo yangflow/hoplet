@@ -17,6 +17,7 @@ import { clock } from '../../lib/format.ts';
 import { t } from '../../lib/i18n.ts';
 import { pageKeysSuspended } from '../../lib/page-keys.ts';
 import { gateOf } from '../../lib/terminal.ts';
+import { AuditTab, type AuditTabFixture } from './audit-tab.tsx';
 import { BrowserTab } from './browser-tab.tsx';
 import type { Handoff, HandoffFixture } from './handoff.ts';
 import { HandoffPanel } from './handoff-panel.tsx';
@@ -55,6 +56,8 @@ export type WorkspaceFixture = {
   browser?: PortsData;
   /** The Other sessions tab, in place of asking the core. */
   sessions?: SessionsFixture;
+  /** The Audit tab, in place of asking the core. */
+  audit?: AuditTabFixture;
 };
 
 const toolLabel = (tool: Tool) =>
@@ -64,6 +67,7 @@ const toolLabel = (tool: Tool) =>
     terminal: t('Terminal'),
     browser: t('Browser'),
     sessions: t('Other sessions'),
+    audit: t('Audit'),
   })[tool];
 const toolHint: Partial<Record<Tool, string>> = { changes: '⇧⌘G', files: '⇧⌘E' };
 const toolIcon: Record<Tool, () => ReturnType<typeof Icon.pen>> = {
@@ -72,6 +76,7 @@ const toolIcon: Record<Tool, () => ReturnType<typeof Icon.pen>> = {
   terminal: Icon.terminal,
   browser: Icon.globe,
   sessions: Icon.link,
+  audit: Icon.listChecks,
 };
 
 /**
@@ -183,7 +188,8 @@ export function Inspector(props: {
 
   // The terminal needs the room of a viewer, whatever it shows, so the pane does not jump when one opens.
   const wide = active === 'terminal' || (opened !== null && active !== null);
-  const roomy = active === 'terminal' || active === 'browser' || active === 'sessions';
+  const roomy =
+    active === 'terminal' || active === 'browser' || active === 'sessions' || active === 'audit';
   // the terminal widens the inspector for itself: no viewer, no list beside it
   const split = wide && active !== 'terminal';
   const gate = gateOf({
@@ -296,6 +302,8 @@ export function Inspector(props: {
               session={session}
               {...(fixture?.sessions ? { fixture: fixture.sessions } : {})}
             />
+          ) : active === 'audit' ? (
+            <AuditTab session={session} {...(fixture?.audit ? { fixture: fixture.audit } : {})} />
           ) : (
             <ToolBody
               tool={active}

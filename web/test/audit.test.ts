@@ -7,12 +7,16 @@ import {
   detailOf,
   exportFileName,
   groupByDay,
+  inKind,
   isFiltered,
   matchesQuery,
   queryOf,
+  sessionFilters,
   shortHash,
   summaryParts,
   summaryRest,
+  TAB_KINDS,
+  tabType,
 } from '../src/lib/audit.ts';
 import { AUDIT_EVENTS } from '../src/screens/settings/audit-fixtures.ts';
 
@@ -70,6 +74,35 @@ describe('audit filters', () => {
     expect(count({ actor: 'operator' })).toBe(9);
     expect(count({ device: 'dev-studio' })).toBe(1);
     expect(count({ from: String(new Date(2026, 9, 22).getTime()) })).toBe(10);
+  });
+});
+
+describe('audit tab of the inspector', () => {
+  it('asks the core for one session, all time, and the type of the segment', () => {
+    expect(sessionFilters('s1', 'all')).toEqual({
+      ...DEFAULT_FILTERS,
+      session: 's1',
+      time: 'all',
+      type: 'all',
+    });
+    expect(queryOf(sessionFilters('s1', 'tools'), NOW)).toEqual({
+      session: 's1',
+      type: 'tool.call',
+    });
+    expect(queryOf(sessionFilters('s1', 'perm'), NOW)).toEqual({
+      session: 's1',
+      type: 'permission.',
+    });
+  });
+
+  it('sorts each type into exactly one of Tools, Permissions and Other', () => {
+    expect(TAB_KINDS).toEqual(['all', 'tools', 'perm', 'other']);
+    expect(tabType('other')).toBe('all');
+    const types = ['tool.call', 'permission.requested', 'permission.auto', 'prompt.sent'];
+    expect(types.map((type) => inKind(type, 'tools'))).toEqual([true, false, false, false]);
+    expect(types.map((type) => inKind(type, 'perm'))).toEqual([false, true, true, false]);
+    expect(types.map((type) => inKind(type, 'other'))).toEqual([false, false, false, true]);
+    expect(types.every((type) => inKind(type, 'all'))).toBe(true);
   });
 });
 

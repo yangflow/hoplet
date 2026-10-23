@@ -1544,5 +1544,10 @@
   "Reading other sessions is always on. Answering permission requests is never available to a session.": "Reading other sessions is always on. Answering permission requests is never available to a session.",
   "reach.project": "Project",
   "reach.machine": "Machine",
-  "reach.all": "All"
+  "reach.all": "All",
+  "Other": "Other",
+  "Nothing recorded yet": "Nothing recorded yet",
+  "What this session does, and what you do in it, appears here as it happens.": "What this session does, and what you do in it, appears here as it happens.",
+  "This session only. Never prompts, assistant text, tool output, file contents or diffs.": "This session only. Never prompts, assistant text, tool output, file contents or diffs.",
+  "All records in Settings › Audit": "All records in Settings › Audit"
 }
