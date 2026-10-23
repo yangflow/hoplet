@@ -411,6 +411,14 @@ a valid one whole, writes it to `<hoplet_home>/permission-rules.json` and answer
 `revision` (and an `error` for a refusal, in which case it keeps the previous set). The core keeps the last applied
 revision of each connected machine in memory.
 
+A child session obeys the `deny` and `ask` rules of the sessions that started it. `device.rules` carries them as
+`inherited` (`{sessionId, rule}`, the child's ID and the ancestor's rule with its own ID), only for children this
+machine owns and never an allow rule; the agent refuses an inherited rule that is an `allow` or not of the session
+scope. A session's ID is known only after its process started, so `runtime.start` also carries the same rules as
+`inheritedRules`: the agent holds them for the new session until a pushed set carries its `inherited` rules. A
+child's start and the first sync of a child session raise the machine's revision and send the set, and so does a
+change to an ancestor's rule.
+
 `device.hello` also carries the agent's own deny rules, `permissionDeny`: the `permission_deny` of its configuration
 as the engine holds them (`scope: "agent"`, `action: "deny"`, `enabled: true`, `builtin: false`; at most 100, so the
 agent refuses to start with more), absent when there are none. They are not secret. A hello with a longer list or a

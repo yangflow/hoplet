@@ -220,6 +220,7 @@ describe('wire contract', () => {
       promptId: { optional: false },
       worktree: { optional: true },
       source: { optional: true },
+      inheritedRules: { optional: true },
     });
     expect(go.types['attachment.put']).toBe('AttachmentPut');
     expect(go.structs.RuntimePrompt?.attachments).toEqual({ optional: true });

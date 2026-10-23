@@ -90,6 +90,11 @@ export function handleMessage(deps: MessageDeps, conn: Conn, msg: ClientMessage)
           byteSize: r.byteSize,
           lineCount: r.lineCount,
         });
+        // A child that exists now has an owner, so the device's rules gain the ones it inherits (ADR 0029).
+        if (r.isNew && store.sessionChildren().has(msg.sessionId)) {
+          store.bumpPermissionRevision(conn.deviceId);
+          control.announceRules(conn.deviceId);
+        }
         if (r.appendedLines > 0) {
           control.publish({
             v: PROTOCOL_VERSION,

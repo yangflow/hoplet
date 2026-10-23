@@ -10,6 +10,7 @@ import (
 
 	"github.com/yangflow/hoplet/agent/internal/projects"
 	"github.com/yangflow/hoplet/agent/internal/provider"
+	"github.com/yangflow/hoplet/agent/internal/rules"
 	"github.com/yangflow/hoplet/agent/internal/runtime"
 	"github.com/yangflow/hoplet/agent/internal/sync"
 	"github.com/yangflow/hoplet/agent/internal/workspace"
@@ -144,10 +145,25 @@ func (b *bridge) starter(st *store) func(context.Context, sync.RuntimeStart) (sy
 			}
 			projectAdded = added
 		}
+		// A session another session started obeys that session's deny and ask rules from its first tool call,
+		// before the core knows its ID (ADR 0029); an allow rule among them is refused.
+		var carry *rules.Carry
+		if len(req.InheritedRules) > 0 {
+			c, err := b.rules.Inherit(dir, req.InheritedRules)
+			if err != nil {
+				undo(projectAdded)
+				return none, err
+			}
+			carry = c
+			defer carry.Drop()
+		}
 		sessionID, err := mgr.CreateWith(dir, p, req.Config)
 		if err != nil {
 			undo(projectAdded)
 			return none, err
+		}
+		if carry != nil {
+			carry.Bind(sessionID)
 		}
 		discard := func() {
 			mgr.Discard(sessionID, 15*time.Second)

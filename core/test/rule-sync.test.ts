@@ -188,6 +188,39 @@ describe('permission rules: the push to the agent', () => {
     expect(((await a.waitForRules(3)).sessions as unknown[]).length).toBe(0);
   });
 
+  it('sends the inherited rules of a child as soon as the child session first syncs', async () => {
+    const f = await boot();
+    const a = await f.agent('dev-a');
+    const first = await a.waitForRules(1);
+    const created = await f.post(
+      '/api/permission-rules',
+      rule({ scope: 'session', sessionId: SESSION, action: 'deny' }),
+    );
+    await f.post(
+      '/api/permission-rules',
+      rule({ scope: 'session', sessionId: SESSION, action: 'allow' }),
+    );
+    await a.waitForRules(3);
+    // The child is known to the core before its session is: it has no owner, so no rules to send yet.
+    const child = 'c0c0c0c0-3c1a-4d6e-9a53-0c6f0f3f2a12';
+    f.store.recordChild(child, [SESSION], Date.now(), 30 * 60_000);
+    a.send({
+      type: 'session.append',
+      sessionId: child,
+      provider: 'claude',
+      projectDir: 'p',
+      filePath: '/y',
+      byteStart: 0,
+      encoding: 'plain',
+      lines: '{"type":"user"}\n',
+    });
+    const set = await a.waitForRules(4);
+    expect(set.revision as number).toBeGreaterThan(first.revision as number);
+    expect(set.inherited).toEqual([
+      { sessionId: child, rule: expect.objectContaining({ id: created.body.id, action: 'deny' }) },
+    ]);
+  });
+
   it('records the revision the agent applied and does not count a refused one', async () => {
     const f = await boot();
     const a = await f.agent('dev-a');

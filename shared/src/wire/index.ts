@@ -517,6 +517,12 @@ export const WIRE_MESSAGES = defineWire({
       worktree: v.optional(NewWorktreeSchema),
       /** Set when another session started this one (ADR 0034): the agent puts a fixed first line naming it. */
       source: v.optional(PromptSourceSchema),
+      /**
+       * The `deny` and `ask` rules of the sessions that started this one, which it obeys from its first tool call
+       * (ADR 0029, ADR 0035). The agent holds them until it knows the session's ID; `device.rules.inherited` then
+       * carries them. Never an `allow`.
+       */
+      inheritedRules: v.optional(v.array(PermissionRuleSchema)),
     },
   },
   /** The session the agent started is imported and syncs from now on. */
@@ -1174,6 +1180,11 @@ export const WIRE_MESSAGES = defineWire({
       global: v.array(PermissionRuleSchema),
       projects: v.array(DevicePermissionRuleSchema),
       sessions: v.array(SessionPermissionRuleSchema),
+      /**
+       * The `deny` and `ask` rules a child session obeys besides its own: those of the sessions that started it,
+       * by the child's session ID, with the ID of the rule they come from. Absent means none.
+       */
+      inherited: v.optional(v.array(SessionPermissionRuleSchema)),
     },
   },
   /**

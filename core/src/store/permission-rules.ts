@@ -11,6 +11,7 @@ import {
 } from '@hoplet/shared';
 import { appendAudit } from './audit.ts';
 import type { StoreContext } from './layout.ts';
+import { allChildren } from './session-mcp.ts';
 import { ownerDeviceId } from './sessions.ts';
 
 interface Row {
@@ -122,12 +123,51 @@ export function permissionRevision(ctx: StoreContext, deviceId: string): number 
   return rows.reduce((sum, r) => sum + Number(r.revision), 0);
 }
 
-/** The machines a rule reaches: every machine (`''`), the machine of a project, or the owner of a session. */
+/**
+ * The machines a rule reaches: every machine (`''`), the machine of a project, or the owner of a session. A
+ * session's rules also reach the owners of the sessions it started, which obey its `deny` and `ask` rules (ADR 0029).
+ */
 function reach(ctx: StoreContext, rule: Pick<Row, 'scope' | 'device_id' | 'session_id'>): string[] {
   if (rule.scope === 'global') return [EVERY_MACHINE];
   if (rule.scope === 'project') return rule.device_id ? [rule.device_id] : [];
-  const owner = rule.session_id ? ownerDeviceId(ctx, rule.session_id) : null;
-  return owner ? [owner] : [];
+  if (!rule.session_id) return [];
+  const targets = new Set<string>();
+  const owner = ownerDeviceId(ctx, rule.session_id);
+  if (owner) targets.add(owner);
+  for (const [childId, child] of allChildren(ctx)) {
+    if (!child.chain.includes(rule.session_id)) continue;
+    const childOwner = ownerDeviceId(ctx, childId);
+    if (childOwner) targets.add(childOwner);
+  }
+  return [...targets];
+}
+
+/**
+ * The rules a session started by `ancestors` (root first, parent last) obeys besides its own: the enabled `deny`
+ * and `ask` rules of the session scope of each ancestor, never an `allow`. A child is never more permissive than
+ * its parent's rules say (ADR 0029, ADR 0035).
+ */
+export function inheritedPermissionRules(
+  ctx: StoreContext,
+  ancestors: readonly string[],
+): PermissionRuleEntry[] {
+  if (ancestors.length === 0) return [];
+  const wanted = new Set(ancestors);
+  return (
+    ctx.db
+      .prepare(
+        `SELECT * FROM permission_rules WHERE scope = 'session' AND enabled = 1 AND action != 'allow'
+         ORDER BY position, id`,
+      )
+      .all() as unknown as Row[]
+  )
+    .filter((row) => row.session_id !== null && wanted.has(row.session_id))
+    .map(toEntry);
+}
+
+/** Counts a change that reached the machine without a rule changing, so the agent can tell its set is newer. */
+export function bumpPermissionRevision(ctx: StoreContext, deviceId: string): void {
+  bump(ctx, [deviceId]);
 }
 
 function bump(ctx: StoreContext, targets: Iterable<string>): void {

@@ -9,6 +9,7 @@ import {
 } from '@hoplet/shared';
 import { log } from '../log/index.ts';
 import { askWaiter } from './pending.ts';
+import { body } from './rules.ts';
 import { PROMPT_DEDUP_MS, senderTitle } from './runtime.ts';
 import { type ControlState, onlineLink } from './state.ts';
 import type { Control, DeviceLink, StartAnswer, StartOutcome, StartRequest } from './types.ts';
@@ -34,7 +35,11 @@ function undeclared(req: StartRequest, info: ProviderInfo): 'images' | 'config' 
  * New sessions (docs/spec.md#new-session): checks the request against what the device announced and its
  * watched projects, forwards `runtime.start`, and waits for the agent to answer with the session's ID.
  */
-export function createStart(state: ControlState, listProjects: Control['listProjects']): Start {
+export function createStart(
+  state: ControlState,
+  listProjects: Control['listProjects'],
+  syncRules: (deviceIds?: readonly string[]) => void,
+): Start {
   const { pendingStart, startCache, startedSessions } = state;
 
   function sweep(now: number): void {
@@ -97,6 +102,9 @@ export function createStart(state: ControlState, listProjects: Control['listProj
       images: req.attachments?.length ?? 0,
     });
     const requestId = randomUUID();
+    // A child obeys the deny and ask rules of the sessions that started it from its first tool call (ADR 0029).
+    const ancestors = req.source ? [...req.source.lineage, req.source.sessionId] : [];
+    const inherited = state.store.inheritedPermissionRules(ancestors).map(body);
     const msg: RuntimeStart = {
       v: PROTOCOL_VERSION,
       type: 'runtime.start',
@@ -122,6 +130,7 @@ export function createStart(state: ControlState, listProjects: Control['listProj
             },
           }
         : {}),
+      ...(inherited.length > 0 ? { inheritedRules: inherited } : {}),
     };
     const answer = await askWaiter<StartAnswer>(
       pendingStart,
@@ -157,6 +166,9 @@ export function createStart(state: ControlState, listProjects: Control['listProj
         state.now(),
         req.source.timeLimitMs,
       );
+      // The device's rules now include the child's inherited ones, and its revision counts the change.
+      state.store.bumpPermissionRevision(req.deviceId);
+      syncRules([req.deviceId]);
     }
     // The worktree is recorded first: deleting the session offers it (ADR 0023).
     if (answer.worktree) {
@@ -189,6 +201,11 @@ export function createStart(state: ControlState, listProjects: Control['listProj
                   kind: 'session',
                   sessionId: req.source.sessionId,
                   chain: req.source.chain,
+                },
+                // The rules the child obeys because of its parent, and the revision of the device's rules.
+                rules: {
+                  inherited: inherited.map((r) => r.id),
+                  revision: state.store.permissionRevision(req.deviceId),
                 },
               }
             : {}),
