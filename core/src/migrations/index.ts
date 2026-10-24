@@ -37,6 +37,7 @@ import { sessionChildren } from './0034-session-children.ts';
 import { configChanges } from './0035-config-changes.ts';
 import { childEnded } from './0036-child-ended.ts';
 import { sessionTags } from './0037-session-tags.ts';
+import { deviceEventSeq } from './0039-device-event-seq.ts';
 
 export interface Migration {
   readonly id: number;
@@ -82,6 +83,7 @@ const MIGRATIONS: readonly Migration[] = [
   configChanges,
   childEnded,
   sessionTags,
+  deviceEventSeq,
 ];
 
 export function migrate(db: DatabaseSync): void {

@@ -44,6 +44,7 @@ record and mark the old one "superseded by NNNN".
 | [0035](0035-child-sessions-work-on-parts-of-a-task-in-parallel.md) | Child sessions work on parts of a task in parallel | accepted |
 | [0036](0036-sessions-change-their-own-configuration-over-mcp.md) | Sessions change their own configuration over MCP | accepted |
 | [0037](0037-worktrees-share-their-clones-project-rules-and-a-handoff-can-copy-them.md) | Worktrees share their clone's project rules, and a handoff can copy them | accepted |
+| [0039](0039-sessions-continue-across-a-disconnect-and-the-agent-replays-its-events.md) | Sessions continue across a disconnect, and the agent replays its events | accepted |
 | [0041](0041-a-project-across-machines-is-its-git-remote.md) | A project across machines is its git remote | accepted |
 
 ## Record template

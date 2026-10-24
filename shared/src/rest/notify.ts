@@ -211,6 +211,17 @@ export const NotifyPayloadSchema = v.object({
   ),
   /** The action link of a permission or plan notification; absent on a channel that does not carry links. */
   link: v.optional(v.string()),
+  /**
+   * A machine reconnected after turns finished or sessions ended while it was away (ADR 0039): one `turn-done`
+   * notification sums them up, with no session.
+   */
+  reconnected: v.optional(
+    v.object({
+      machine: v.string(),
+      turns: v.pipe(v.number(), v.integer(), v.minValue(0)),
+      ended: v.pipe(v.number(), v.integer(), v.minValue(0)),
+    }),
+  ),
 });
 export type NotifyPayload = v.InferOutput<typeof NotifyPayloadSchema>;
 

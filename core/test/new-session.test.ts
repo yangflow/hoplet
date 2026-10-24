@@ -193,7 +193,12 @@ describe('the session listing carries the runtime state', () => {
     });
     owner.ws.close();
     await new Promise((r) => setTimeout(r, 100));
-    expect((await listed())?.runtime).toEqual({ state: 'offline', capabilities: CAPS });
+    expect((await listed())?.runtime).toEqual({
+      state: 'offline',
+      capabilities: CAPS,
+      lastState: 'failed',
+      since: expect.any(Number),
+    });
     expect((await get('/api/sessions/s1')).body.runtime).toMatchObject({ state: 'offline' });
   });
 });

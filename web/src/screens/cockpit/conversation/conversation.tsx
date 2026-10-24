@@ -10,6 +10,7 @@ import type {
   Queue,
   RuntimeCapabilities,
   SessionConfig,
+  SessionDivergence,
   SessionHandoffRequest,
   SessionRuntimeInfo,
 } from '@hoplet/shared';
@@ -63,7 +64,7 @@ import { type PathsState, useCommands } from '../composer/use-completions.ts';
 import { SessionWhere } from '../composer/where.tsx';
 import { QueueTray, type TrayFixture } from '../queue/queue-tray.tsx';
 import { useQueue } from '../queue/use-queue.ts';
-import { type ComposerView, composerView } from '../runtime.ts';
+import { type ComposerView, composerView, isTurnState, offlineText } from '../runtime.ts';
 import { ChildAsks } from './child-asks.tsx';
 import {
   type ConfigChangeView,
@@ -124,6 +125,8 @@ export type ConversationFixture = {
   sendMode?: SendMode;
   /** The session's requests to be handed off to another machine. */
   handoffs?: SessionHandoffRequest[];
+  /** Lines the session's earlier owner wrote after it lost the session (ADR 0039). */
+  diverged?: SessionDivergence;
   scrollTo?: number;
   openBlocks?: string[];
 };
@@ -212,6 +215,20 @@ export function Conversation(props: {
     fixture: fixture?.live,
   });
   const turn = lt.turn;
+  // The owner went offline during a turn (ADR 0039): the session may go on there, and the turn stays frozen.
+  const lastState = state === 'offline' ? runtime.lastState : undefined;
+  const away = lastState && isTurnState(lastState) ? { since: runtime.since } : undefined;
+
+  // Lines the earlier owner wrote after it lost the session stay on that machine (ADR 0039); this window says so.
+  const [diverged, setDiverged] = useState<SessionDivergence | null>(fixture?.diverged ?? null);
+  useEffect(() => {
+    if (fixture) return;
+    setDiverged(null);
+    return onLive((event) => {
+      if (event.kind !== 'message' || event.msg.type !== 'session.divergence') return;
+      if (event.msg.sessionId === sessionId) setDiverged(event.msg);
+    });
+  }, [sessionId, fixture]);
 
   const handoffRequests = useHandoffRequests(sessionId, fixture?.handoffs);
   const [handoffError, setHandoffError] = useState<string | null>(null);
@@ -690,6 +707,7 @@ export function Conversation(props: {
     turnFailed: turn?.phase === 'failed',
     planPending: lt.permissions.some((p) => p.planExit !== undefined),
     canSteer: props.capabilities?.steer === true,
+    lastState,
   });
   const view: ComposerView = fixture?.composerOffline
     ? {
@@ -697,7 +715,7 @@ export function Conversation(props: {
         placeholder: t('Owner offline'),
         inputEnabled: false,
         line: {
-          text: t('{device} offline').replace('{device}', session.deviceName),
+          text: offlineText(session.deviceName, lastState),
           title: t('Owner offline'),
           glyph: 'off',
           tone: 'plain',
@@ -760,9 +778,11 @@ export function Conversation(props: {
               <LiveTurnView
                 turn={turn}
                 base={base}
-                state={state}
+                state={away && lastState ? lastState : state}
                 now={now}
                 frozen={frozen}
+                away={away}
+                catchUp={runtime.catchUp}
                 permissions={permissionsRuled}
                 providerName={provider}
                 answering={answering}
@@ -821,6 +841,18 @@ export function Conversation(props: {
                   </>
                 ) : null}
               </>
+            ) : null}
+            {diverged ? (
+              <p className="quiet-line diverged" role="status" data-testid="cockpit.diverged">
+                {Icon.info()}
+                <span>
+                  {t(
+                    '{device} wrote {n} lines after it stopped owning this session; they stay in the transcript file on that machine',
+                  )
+                    .replace('{device}', props.deviceName?.(diverged.deviceId) ?? diverged.deviceId)
+                    .replace('{n}', String(diverged.lines))}
+                </span>
+              </p>
             ) : null}
             {handoffError ? (
               <p className="banner-error" role="alert" data-testid="cockpit.handoff-error">

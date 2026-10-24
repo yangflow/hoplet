@@ -206,6 +206,7 @@ func (c *Client) AcceptOwnership(sessionID string, cursor int64, epoch int64) {
 	c.mu.Lock()
 	c.acceptOwnershipLocked(sessionID, cursor)
 	c.ownerEpochs[sessionID] = epoch
+	c.mine[sessionID] = true
 	c.mu.Unlock()
 	c.notifyWake()
 }
@@ -215,5 +216,6 @@ func (c *Client) Disown(sessionID string, epoch int64) {
 	c.mu.Lock()
 	c.suppressed[sessionID] = true
 	c.ownerEpochs[sessionID] = epoch
+	delete(c.mine, sessionID)
 	c.mu.Unlock()
 }

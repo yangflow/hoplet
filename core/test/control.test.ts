@@ -7,6 +7,7 @@ import { PROTOCOL_VERSION, type ServerMessage } from '@hoplet/shared';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createApi } from '../src/api/index.ts';
 import {
+  type ControlEvent,
   type ControlOptions,
   type ControlReply,
   createControl,
@@ -445,6 +446,7 @@ describe('remote control state', () => {
         tool: 'Bash',
         toolUseId: 'tu1',
         input: { command: 'ls' },
+        requestedAt: expect.any(Number),
       });
       expect(control.openPermissions('s1')).toHaveLength(1);
 
@@ -626,8 +628,9 @@ describe('remote control state', () => {
     expect(control.runtimeOf('s1')).toEqual({ state: 'running', capabilities: caps });
   });
 
-  it('goes offline when the owner disconnects and rebuilds from the agent when it returns', () => {
-    const { control, link, events, report } = runtimeSetup();
+  it('goes offline with its last state, keeps its requests, and rebuilds from what the agent reports', () => {
+    let now = 1_000_000;
+    const { control, link, events, report } = runtimeSetup(() => now);
     report('running');
     control.receive(link, {
       v: PROTOCOL_VERSION,
@@ -639,22 +642,135 @@ describe('remote control state', () => {
     });
     events.length = 0;
 
+    now += 1000;
     control.detach(link);
-    expect(kinds(events)).toEqual(['session.runtime:offline', 'device.presence']);
-    expect(control.runtimeOf('s1').state).toBe('offline');
-    expect(control.openPermissions('s1')).toEqual([]);
+    expect(kinds(events)).toEqual([
+      'session.runtime:offline',
+      'session.permission',
+      'device.presence',
+    ]);
+    expect(control.runtimeOf('s1')).toEqual({
+      state: 'offline',
+      capabilities: caps,
+      lastState: 'running',
+      since: 1_001_000,
+    });
+    // The request stays open, unanswerable, while the machine is away (ADR 0039).
+    expect(control.openPermissions('s1')).toEqual([
+      expect.objectContaining({ requestId: 'r1', unreachable: true, requestedAt: 1_000_000 }),
+    ]);
+    expect(control.answerPermission('s1', 'dev-a', 'r1', { decision: 'allow' })).toEqual({
+      ok: false,
+      error: 'owner-offline',
+    });
 
-    // The new connection starts from nothing; the agent reports what it still runs.
+    // What the core held stays until the agent reports.
     events.length = 0;
     const back = fakeLink();
     control.attach('dev-a', back);
-    expect(kinds(events)).toEqual(['session.runtime:idle', 'device.presence']);
-    expect(control.runtimeOf('s1').state).toBe('idle');
+    expect(kinds(events)).toEqual(['session.runtime:running', 'device.presence']);
     control.receive(back, agentState('s1', 'running'));
+    control.receive(back, { v: PROTOCOL_VERSION, type: 'runtime.reported' } as ControlReply);
     expect(control.runtimeOf('s1')).toEqual({ state: 'running', capabilities: caps });
+    // The report did not name r1 again: it is over.
+    expect(control.openPermissions('s1')).toEqual([]);
     // The old link is no longer the device's connection.
     control.receive(link, agentState('s1', 'external'));
     expect(control.runtimeOf('s1').state).toBe('running');
+  });
+
+  it('ends what the agent no longer runs once it has reported', () => {
+    const { control, link, report } = runtimeSetup();
+    report('ready');
+    control.detach(link);
+    const back = fakeLink();
+    control.attach('dev-a', back);
+    expect(control.runtimeOf('s1').state).toBe('ready');
+    control.receive(back, { v: PROTOCOL_VERSION, type: 'runtime.reported' } as ControlReply);
+    expect(control.runtimeOf('s1').state).toBe('idle');
+  });
+
+  it('opens a request the agent names again with the time it had left, without a second notice', () => {
+    let now = 1_000_000;
+    const { control, link, report } = runtimeSetup(() => now);
+    const seen: string[] = [];
+    control.onEvent((e) => seen.push(e.kind));
+    report('waiting-permission');
+    const ask = {
+      v: PROTOCOL_VERSION,
+      type: 'runtime.permission',
+      sessionId: 's1',
+      requestId: 'r1',
+      tool: 'Bash',
+      input: {},
+    } as ControlReply;
+    control.receive(link, ask);
+    now += 60_000;
+    control.detach(link);
+    now += 3_600_000; // an hour away: the paused clock does not run out
+    const back = fakeLink();
+    control.attach('dev-a', back);
+    control.receive(back, agentState('s1', 'waiting-permission'));
+    control.receive(back, ask);
+    control.receive(back, { v: PROTOCOL_VERSION, type: 'runtime.reported' } as ControlReply);
+    const [open] = control.openPermissions('s1');
+    expect(open).toMatchObject({ requestId: 'r1', requestedAt: now - 60_000 });
+    expect(open && 'unreachable' in open).toBe(false);
+    expect(seen.filter((k) => k === 'permission')).toHaveLength(1);
+    expect(control.answerPermission('s1', 'dev-a', 'r1', { decision: 'allow' })).toEqual({
+      ok: true,
+    });
+  });
+
+  it('applies a journalled event once and acknowledges every copy', () => {
+    const { control, link } = runtimeSetup();
+    const seen: string[] = [];
+    control.onEvent((e) => seen.push(e.kind));
+    const ended = (seq: number) =>
+      ({ ...agentState('s1', 'idle'), eventSeq: seq, at: 900, replayed: true }) as ControlReply;
+    control.receive(link, { ...agentState('s1', 'running'), eventSeq: 1 } as ControlReply);
+    control.receive(link, ended(2));
+    control.receive(link, ended(2));
+    control.receive(link, ended(1));
+    const acks = link.sent.filter((m) => m.type === 'journal.ack');
+    expect(acks.map((m) => (m as { eventSeq: number }).eventSeq)).toEqual([1, 2, 2, 1]);
+    expect(seen.filter((k) => k === 'ended')).toHaveLength(1);
+  });
+
+  it('sums up what a machine did while it was away once it has reported', () => {
+    const { control, link, report } = runtimeSetup();
+    const seen: ControlEvent[] = [];
+    control.onEvent((e) => seen.push(e));
+    report('running');
+    control.detach(link);
+    const back = fakeLink();
+    control.attach('dev-a', back);
+    control.receive(back, {
+      ...agentState('s1', 'ready'),
+      eventSeq: 7,
+      at: 1234,
+      replayed: true,
+    } as ControlReply);
+    expect(seen.at(-1)).toMatchObject({ kind: 'turn-done', replayed: true, at: 1234 });
+    control.receive(back, { v: PROTOCOL_VERSION, type: 'runtime.reported' } as ControlReply);
+    expect(seen.at(-1)).toEqual({ kind: 'reconnected', deviceId: 'dev-a', turns: 1, ended: 0 });
+  });
+
+  it('shows the transcript a machine still has to send as catching up', () => {
+    const { control, link } = runtimeSetup();
+    control.receive(link, {
+      v: PROTOCOL_VERSION,
+      type: 'device.backlog',
+      sessions: [{ sessionId: 's1', bytes: 1000 }],
+    } as ControlReply);
+    expect(control.runtimeOf('s1')).toEqual({
+      state: 'idle',
+      catchUp: { received: 0, total: 1000 },
+    });
+    control.appended('s1', 400);
+    expect(control.runtimeOf('s1').catchUp).toEqual({ received: 400, total: 1000 });
+    control.appended('s1', 600);
+    expect(control.runtimeOf('s1')).toEqual({ state: 'idle' });
   });
 
   it('keeps a replaced connection from marking the new one offline', () => {
@@ -663,6 +779,6 @@ describe('remote control state', () => {
     const next = fakeLink();
     control.attach('dev-a', next);
     control.detach(link); // the old socket closes after the new one attached
-    expect(control.runtimeOf('s1').state).toBe('idle');
+    expect(control.runtimeOf('s1').state).toBe('ready');
   });
 });

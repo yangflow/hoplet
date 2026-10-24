@@ -9,6 +9,8 @@ import {
   PermissionToolSchema,
 } from '../permission-rules.ts';
 import {
+  AgentRuntimeStateSchema,
+  CatchUpSchema,
   ConfigChangeSchema,
   ConfigurationIdSchema,
   PromptAttachmentsSchema,
@@ -34,12 +36,17 @@ export type HealthResponse = v.InferOutput<typeof HealthResponseSchema>;
 /**
  * The runtime state of a session as browsers see it (the same values `session.runtime` carries):
  * `offline` when the owner is not connected; `capabilities` once the owner has reported them,
- * with the session's values in `capabilities.config`.
+ * with the session's values in `capabilities.config`. With `offline`, `lastState` is the state before the
+ * machine disconnected and `since` when it did; `catchUp` is the transcript the machine has still to send after a
+ * reconnect (ADR 0039).
  */
 export const SessionRuntimeInfoSchema = v.object({
   state: RuntimeStateSchema,
   capabilities: v.optional(RuntimeCapabilitiesSchema),
   error: v.optional(v.string()),
+  lastState: v.optional(AgentRuntimeStateSchema),
+  since: v.optional(v.number()),
+  catchUp: v.optional(CatchUpSchema),
 });
 export type SessionRuntimeInfo = v.InferOutput<typeof SessionRuntimeInfoSchema>;
 

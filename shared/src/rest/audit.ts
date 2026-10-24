@@ -53,6 +53,8 @@ export const AUDIT_EVENT_TYPES = [
   'audit.started',
   'audit.checkpoint',
   'audit.exported',
+  'journal.gap',
+  'session.diverged',
 ] as const;
 export const AuditEventTypeSchema = v.picklist(AUDIT_EVENT_TYPES);
 export type AuditEventType = v.InferOutput<typeof AuditEventTypeSchema>;

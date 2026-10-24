@@ -11,7 +11,13 @@ import {
   PERMISSION_OPEN_MS,
   permissionInput,
 } from '../src/screens/cockpit/conversation/live-turn.ts';
-import { composerView, startErrorName } from '../src/screens/cockpit/runtime.ts';
+import {
+  awayNote,
+  catchUpPercent,
+  composerView,
+  offlineText,
+  startErrorName,
+} from '../src/screens/cockpit/runtime.ts';
 
 const out = (over: Partial<SessionOutput> & Pick<SessionOutput, 'kind'>): SessionOutput => ({
   v: PROTOCOL_VERSION,
@@ -97,6 +103,29 @@ describe('permission requests', () => {
     expect(expirePermissions(list, 1000)).toBe(list);
   });
 
+  it('pauses a request across a disconnect and resumes it with the time it had left', () => {
+    const away = { ...request('a'), unreachable: true };
+    let list = addPermission([], request('a'), 1000);
+    list = addPermission(list, away, 61_000);
+    expect(list[0]).toMatchObject({ unreachable: true, pausedAt: 61_000, receivedAt: 1000 });
+    // The same unreachable request again changes nothing; the clock never closes it while it is away.
+    expect(addPermission(list, away, 70_000)).toBe(list);
+    expect(expirePermissions(list, 1000 + 10 * PERMISSION_OPEN_MS)).toBe(list);
+    // Sent again after the reconnect: the hour away does not count against it.
+    list = addPermission(list, { ...request('a'), requestedAt: 1000 }, 3_661_000);
+    expect(list).toHaveLength(1);
+    expect(list[0]).toMatchObject({ receivedAt: 3_601_000, resent: true });
+    expect(list[0]?.unreachable).toBeUndefined();
+    expect(list[0]?.pausedAt).toBeUndefined();
+    // A request that is open and reachable stays as it is.
+    expect(addPermission(list, request('a'), 3_700_000)).toBe(list);
+  });
+
+  it('keeps when a request was first asked and whether the machine is away', () => {
+    const [p] = addPermission([], { ...request('a'), unreachable: true, requestedAt: 500 }, 9000);
+    expect(p).toMatchObject({ unreachable: true, pausedAt: 9000, requestedAt: 500 });
+  });
+
   it('shows the command of a tool that runs one and the JSON of the others', () => {
     expect(addPermission([], request('a'), 0)[0]?.toolKind).toBe('run');
     expect(permissionInput('run', { command: 'ls -la' })).toEqual({
@@ -155,6 +184,10 @@ describe('composerView', () => {
       action: 'handoff',
       line: { text: 'MacBook Pro offline' },
     });
+    expect(composerView({ ...base, state: 'offline', lastState: 'running' })).toMatchObject({
+      action: 'handoff',
+      line: { text: 'MacBook Pro offline · the session may still be running there' },
+    });
     expect(composerView({ ...base, ownerConnected: false, state: 'idle' }).action).toBe('handoff');
     expect(composerView({ ...base, state: 'external' })).toMatchObject({
       layout: 'bar',
@@ -190,5 +223,38 @@ describe('format', () => {
     expect(formatDuration(3_720_000)).toBe('1h 02m');
     expect(formatTimer(48_000)).toBe('00:48');
     expect(formatCountdown(581_000)).toBe('9:41');
+  });
+});
+
+describe('a machine that is away or catching up', () => {
+  it('says what the session was doing when its machine was last heard', () => {
+    expect(offlineText('studio', undefined)).toBe('studio offline');
+    expect(offlineText('studio', 'idle')).toBe('studio offline');
+    expect(offlineText('studio', 'running')).toBe(
+      'studio offline · the session may still be running there',
+    );
+    expect(offlineText('studio', 'waiting-permission')).toBe(
+      'studio offline · a permission request is waiting',
+    );
+  });
+
+  it('gives a row a second line only while it is away in a turn or catching up', () => {
+    expect(awayNote({ state: 'offline' })).toBeNull();
+    expect(awayNote({ state: 'offline', lastState: 'idle' })).toBeNull();
+    expect(awayNote({ state: 'offline', lastState: 'running' })).toBe('May still be running');
+    expect(awayNote({ state: 'offline', lastState: 'waiting-permission' })).toBe(
+      'Waiting for you · machine offline',
+    );
+    expect(awayNote({ state: 'running', catchUp: { received: 3, total: 4 } })).toBe(
+      'Catching up · 75%',
+    );
+    expect(awayNote({ state: 'idle' })).toBeNull();
+  });
+
+  it('counts a catch-up from 0 to 100', () => {
+    expect(catchUpPercent({ received: 0, total: 10 })).toBe(0);
+    expect(catchUpPercent({ received: 1, total: 3 })).toBe(33);
+    expect(catchUpPercent({ received: 12, total: 10 })).toBe(100);
+    expect(catchUpPercent({ received: 0, total: 0 })).toBe(100);
   });
 });

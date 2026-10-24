@@ -45,6 +45,8 @@ export function attachIngest(server: Server, store: Store, control: AgentControl
       type: 'welcome',
       serverTime: Date.now(),
       sessions: store.listSessions(5000),
+      // The agent replays only the journalled events after this one (ADR 0039).
+      eventSeq: store.deviceEventSeq(boundDeviceId),
     });
 
     ws.on('message', (data, isBinary) => {

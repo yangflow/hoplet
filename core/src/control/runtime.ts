@@ -1,6 +1,7 @@
 import {
   type AgentRuntimeState,
   type ConfigSetting,
+  type DeviceBacklogSession,
   type PlanExit,
   PROTOCOL_VERSION,
   type RuntimeCapabilities,
@@ -18,12 +19,11 @@ import { toolInputSummary } from '../store/index.ts';
 import { askWaiter, settleWaiter } from './pending.ts';
 import {
   armExpiry,
-  closeDevicePermissions,
   closePermission,
   closeSessionPermissions,
   permissionKey,
 } from './permissions.ts';
-import { type ControlState, onlineLink } from './state.ts';
+import { type ControlState, onlineLink, type Reconnect } from './state.ts';
 import type {
   CommandActor,
   Control,
@@ -52,6 +52,12 @@ export interface OpenPermission {
   input: unknown;
   planExit?: PlanExit;
   at: number;
+  /**
+   * The machine is offline (ADR 0039): the request stays open and its clock is paused; `remainingMs` is the time
+   * it had left. The machine's report after it reconnects opens it again, or closes it when it is gone.
+   */
+  unreachable?: boolean;
+  remainingMs?: number;
 }
 
 /** A repeated `promptId` returns the first result for this long. */
@@ -86,6 +92,7 @@ export type Runtime = Pick<
           | 'runtime.output'
           | 'runtime.permission'
           | 'runtime.permission.auto'
+          | 'runtime.permission.closed'
           | 'runtime.rules.unenforced'
           | 'runtime.rejected'
           | 'runtime.steered'
@@ -93,10 +100,25 @@ export type Runtime = Pick<
       }
     >,
   ): void;
-  /** The device reconnected: what it ran before is unknown until it reports again. */
+  /**
+   * The device reconnected (ADR 0039): what the core held from before stays until the device's
+   * `runtime.reported`, and what it replays meanwhile is counted for the summary.
+   */
   attached(deviceId: string): void;
-  /** These devices lost their connection: their sessions are `offline`. */
+  /**
+   * These devices lost their connection: their sessions are `offline` with the state they were in, and their
+   * permission requests stay open as unreachable with their clocks paused (ADR 0039).
+   */
   detached(deviceIds: string[], link: DeviceLink): void;
+  /**
+   * The device replayed its journal, sent its backlog and reported every running session: what it did not
+   * report is over. Returns the sessions of the device that are idle or ready, whose queues may resume.
+   */
+  reported(deviceId: string): string[];
+  /** The transcript bytes the device has still to send per session after a reconnect. */
+  backlog(deviceId: string, sessions: DeviceBacklogSession[]): void;
+  /** The store took `bytes` bytes of the session's transcript. */
+  appended(sessionId: string, bytes: number): void;
 };
 
 /** The actor of an interrupt or a stop; the core's own commands are on the channel `core`. */
@@ -156,14 +178,28 @@ export function createRuntime(state: ControlState): Runtime {
   function view(sessionId: string): RuntimeView {
     const owner = store.ownerDeviceId(sessionId) ?? state.startedSessions.get(sessionId)?.deviceId;
     if (!owner || state.byDevice.get(owner)?.isOpen() !== true) {
-      return { state: 'offline', ...capabilitiesOf(sessionId) };
+      // What the session was doing when its machine went away: it may still be doing it (ADR 0039).
+      const entry = runtime.get(sessionId);
+      const since = owner ? state.offlineSince.get(owner) : undefined;
+      return {
+        state: 'offline',
+        ...capabilitiesOf(sessionId),
+        ...(entry && entry.deviceId === owner ? { lastState: entry.state } : {}),
+        ...(since !== undefined ? { since } : {}),
+      };
     }
+    const catchUp = state.catchUp.get(sessionId);
+    const progress =
+      catchUp && catchUp.deviceId === owner
+        ? { catchUp: { received: catchUp.received, total: catchUp.total } }
+        : {};
     const entry = runtime.get(sessionId);
-    if (!entry || entry.deviceId !== owner) return { state: 'idle' };
+    if (!entry || entry.deviceId !== owner) return { state: 'idle', ...progress };
     return {
       state: entry.state,
       ...(entry.error !== undefined ? { error: entry.error } : {}),
       capabilities: entry.capabilities,
+      ...progress,
     };
   }
 
@@ -181,11 +217,54 @@ export function createRuntime(state: ControlState): Runtime {
       state: v.state,
       ...(v.error !== undefined ? { error: v.error } : {}),
       ...(v.capabilities ? { capabilities: v.capabilities } : {}),
+      ...(v.lastState !== undefined ? { lastState: v.lastState } : {}),
+      ...(v.since !== undefined ? { since: v.since } : {}),
+      ...(v.catchUp ? { catchUp: v.catchUp } : {}),
     });
   }
 
+  /** A paused request never expires here: its machine counts its time (ADR 0039). */
   function permissionExpired(open: OpenPermission): boolean {
-    return open.planExit === undefined && state.now() - open.at > PERMISSION_OPEN_MS;
+    return (
+      open.planExit === undefined &&
+      open.unreachable !== true &&
+      state.now() - open.at > PERMISSION_OPEN_MS
+    );
+  }
+
+  /** The browser's view of an open request. */
+  function permissionMessage(sessionId: string, open: OpenPermission): SessionPermission {
+    return {
+      v: PROTOCOL_VERSION,
+      type: 'session.permission',
+      sessionId,
+      requestId: open.requestId,
+      tool: open.tool,
+      ...(open.toolUseId !== undefined ? { toolUseId: open.toolUseId } : {}),
+      input: open.input,
+      ...(open.planExit ? { planExit: open.planExit } : {}),
+      ...(open.unreachable ? { unreachable: true } : {}),
+      requestedAt: open.at,
+    };
+  }
+
+  /** Tells the listeners a request waits for an answer; a replayed one says when it was made. */
+  function emitPermission(sessionId: string, open: OpenPermission, replayed: boolean): void {
+    state.emit({
+      kind: 'permission',
+      sessionId,
+      requestId: open.requestId,
+      tool: open.tool,
+      input: open.input,
+      plan: open.planExit !== undefined,
+      ...(open.planExit === undefined ? { expiresAt: open.at + PERMISSION_OPEN_MS } : {}),
+      ...(replayed ? { replayed: true, at: open.at } : {}),
+    });
+  }
+
+  /** The reconnect a replayed event of the device counts toward, if the device is between attach and report. */
+  function reconnectOf(deviceId: string): Reconnect | undefined {
+    return state.reconnects.get(deviceId);
   }
 
   function dropPermissions(sessionId: string): void {
@@ -229,20 +308,25 @@ export function createRuntime(state: ControlState): Runtime {
     before: AgentRuntimeState | undefined,
     now: AgentRuntimeState,
     error: string | undefined,
+    replay: { at: number; reconnect: Reconnect } | undefined,
   ): void {
+    const at = replay?.at ?? state.now();
+    // A moment the machine replayed happened while it was away (ADR 0039): hooks hear when, and notifications
+    // leave it to the summary.
+    const timing = replay ? { at, replayed: true } : {};
     const inTurn = before === 'running' || before === 'waiting-permission';
     const turns = state.turns.get(sessionId) ?? { count: 0 };
     if (now === 'running' && !inTurn) {
-      turns.startedAt = state.now();
+      turns.startedAt = at;
       state.turns.set(sessionId, turns);
     }
     if (now === 'ready' && inTurn) {
       turns.count += 1;
-      const durationMs =
-        turns.startedAt === undefined ? 0 : Math.max(0, state.now() - turns.startedAt);
+      const durationMs = turns.startedAt === undefined ? 0 : Math.max(0, at - turns.startedAt);
       delete turns.startedAt;
       state.turns.set(sessionId, turns);
-      state.emit({ kind: 'turn-done', sessionId, turn: turns.count, durationMs });
+      if (replay) replay.reconnect.turns += 1;
+      state.emit({ kind: 'turn-done', sessionId, turn: turns.count, durationMs, ...timing });
     }
     if (now === 'failed') {
       state.emit({
@@ -250,12 +334,14 @@ export function createRuntime(state: ControlState): Runtime {
         sessionId,
         code: 'runtime-failed',
         ...(error !== undefined ? { reason: error } : {}),
+        ...timing,
       });
     }
     if (now === 'idle') {
       const stopped = state.stopping.delete(sessionId);
       if (before !== undefined && LIVE.has(before)) {
-        state.emit({ kind: 'ended', sessionId, reason: stopped ? 'stopped' : 'idle' });
+        if (replay) replay.reconnect.ended += 1;
+        state.emit({ kind: 'ended', sessionId, reason: stopped ? 'stopped' : 'idle', ...timing });
       }
     }
   }
@@ -364,6 +450,8 @@ export function createRuntime(state: ControlState): Runtime {
         else if (open) permissions.delete(key);
         return { ok: false, error: 'request-closed' };
       }
+      // Answerable once the machine's report after its reconnect says the request still waits (ADR 0039).
+      if (open.unreachable) return { ok: false, error: 'owner-offline' };
       // A mode is only the approval of a plan, and only one the request offers; the request stays open.
       if (mode !== undefined && (decision !== 'allow' || !open.planExit?.modes.includes(mode))) {
         return { ok: false, error: 'invalid-request' };
@@ -473,16 +561,7 @@ export function createRuntime(state: ControlState): Runtime {
       const out: SessionPermission[] = [];
       for (const [key, open] of permissions) {
         if (!key.startsWith(`${sessionId}\n`) || permissionExpired(open)) continue;
-        out.push({
-          v: PROTOCOL_VERSION,
-          type: 'session.permission',
-          sessionId,
-          requestId: open.requestId,
-          tool: open.tool,
-          ...(open.toolUseId !== undefined ? { toolUseId: open.toolUseId } : {}),
-          input: open.input,
-          ...(open.planExit ? { planExit: open.planExit } : {}),
-        });
+        out.push(permissionMessage(sessionId, open));
       }
       return out;
     },
@@ -502,9 +581,15 @@ export function createRuntime(state: ControlState): Runtime {
         });
         return;
       }
+      const reconnect = reconnectOf(deviceId);
+      const replay =
+        'replayed' in msg && msg.replayed === true && reconnect
+          ? { at: msg.at ?? state.now(), reconnect }
+          : undefined;
       switch (msg.type) {
         case 'runtime.state': {
           const before = runtime.get(msg.sessionId)?.state;
+          reconnect?.reported.add(msg.sessionId);
           runtime.set(msg.sessionId, {
             deviceId,
             state: msg.state,
@@ -515,7 +600,18 @@ export function createRuntime(state: ControlState): Runtime {
           if (msg.state === 'starting' || msg.state === 'running') acceptPrompt(msg.sessionId);
           publishRuntime(msg.sessionId);
           state.runtimeChanged(msg.sessionId, msg.state, msg.error);
-          trackLifecycle(msg.sessionId, before, msg.state, msg.error);
+          trackLifecycle(msg.sessionId, before, msg.state, msg.error, replay);
+          return;
+        }
+        case 'runtime.permission.closed': {
+          // The machine denied a request nobody answered in time (ADR 0039).
+          closePermission(
+            state,
+            permissionKey(msg.sessionId, msg.requestId),
+            'expired',
+            undefined,
+            'timeout',
+          );
           return;
         }
         case 'runtime.output': {
@@ -528,6 +624,7 @@ export function createRuntime(state: ControlState): Runtime {
           try {
             store.audit({
               type: 'permission.auto',
+              ...(msg.at !== undefined ? { at: msg.at } : {}),
               sessionId: msg.sessionId,
               deviceId,
               actor: { kind: 'device', id: deviceId },
@@ -578,12 +675,29 @@ export function createRuntime(state: ControlState): Runtime {
         }
         case 'runtime.permission': {
           const key = permissionKey(msg.sessionId, msg.requestId);
+          const known = permissions.get(key);
+          if (known && known.deviceId === deviceId) {
+            // The same request again, from a replay or the report after a reconnect (ADR 0039): it opens again
+            // with the time it had left, and is neither recorded nor notified a second time.
+            if (known.unreachable) {
+              const remaining = known.remainingMs ?? PERMISSION_OPEN_MS;
+              delete known.unreachable;
+              delete known.remainingMs;
+              if (known.planExit === undefined) {
+                known.at = state.now() - (PERMISSION_OPEN_MS - remaining);
+                armExpiry(state, key, remaining);
+              }
+              state.publish(permissionMessage(msg.sessionId, known));
+            }
+            return;
+          }
           // The agent asked again under the same ID: the earlier request is over.
           closePermission(state, key, 'abandoned');
           try {
             const { command, paths } = toolInputSummary(msg.tool, msg.input);
             store.audit({
               type: 'permission.requested',
+              ...(msg.at !== undefined ? { at: msg.at } : {}),
               sessionId: msg.sessionId,
               deviceId,
               actor: { kind: 'device', id: deviceId },
@@ -602,7 +716,7 @@ export function createRuntime(state: ControlState): Runtime {
               error: err instanceof Error ? err.message : 'unknown',
             });
           }
-          permissions.set(key, {
+          const open: OpenPermission = {
             deviceId,
             requestId: msg.requestId,
             tool: msg.tool,
@@ -610,19 +724,13 @@ export function createRuntime(state: ControlState): Runtime {
             input: msg.input,
             ...(msg.planExit ? { planExit: msg.planExit } : {}),
             at: state.now(),
-          });
+          };
+          permissions.set(key, open);
           if (msg.planExit === undefined) armExpiry(state, key, PERMISSION_OPEN_MS);
-          const { type: _type, v: _v, ...rest } = msg;
-          state.publish({ v: PROTOCOL_VERSION, type: 'session.permission', ...rest });
-          state.emit({
-            kind: 'permission',
-            sessionId: msg.sessionId,
-            requestId: msg.requestId,
-            tool: msg.tool,
-            input: msg.input,
-            plan: msg.planExit !== undefined,
-            ...(msg.planExit === undefined ? { expiresAt: state.now() + PERMISSION_OPEN_MS } : {}),
-          });
+          state.publish(permissionMessage(msg.sessionId, open));
+          // A replayed request is notified after the machine's report, if it still waits then (ADR 0039).
+          if (replay) replay.reconnect.permissions.push(key);
+          else emitPermission(msg.sessionId, open, false);
           return;
         }
         case 'runtime.rejected': {
@@ -670,14 +778,65 @@ export function createRuntime(state: ControlState): Runtime {
     },
 
     attached(deviceId) {
-      const reset: string[] = [];
+      state.offlineSince.delete(deviceId);
+      state.reconnects.set(deviceId, { reported: new Set(), turns: 0, ended: 0, permissions: [] });
       for (const [sessionId, entry] of runtime) {
-        if (entry.deviceId !== deviceId) continue;
-        runtime.delete(sessionId);
-        reset.push(sessionId);
+        if (entry.deviceId === deviceId) publishRuntime(sessionId);
       }
-      closeDevicePermissions(state, new Set([deviceId]), 'abandoned');
-      for (const sessionId of reset) publishRuntime(sessionId);
+    },
+
+    reported(deviceId) {
+      const reconnect = state.reconnects.get(deviceId);
+      state.reconnects.delete(deviceId);
+      // A process the machine did not report is not running any more.
+      for (const [sessionId, entry] of [...runtime]) {
+        if (entry.deviceId !== deviceId || reconnect?.reported.has(sessionId)) continue;
+        runtime.delete(sessionId);
+        publishRuntime(sessionId);
+      }
+      // A request the report did not name again is gone with its process.
+      for (const [key, open] of [...permissions]) {
+        if (open.deviceId === deviceId && open.unreachable) {
+          closePermission(state, key, 'abandoned', undefined, 'session-end');
+        }
+      }
+      if (reconnect) {
+        for (const key of reconnect.permissions) {
+          const open = permissions.get(key);
+          if (open) emitPermission(key.slice(0, key.indexOf('\n')), open, true);
+        }
+        if (reconnect.turns > 0 || reconnect.ended > 0) {
+          state.emit({
+            kind: 'reconnected',
+            deviceId,
+            turns: reconnect.turns,
+            ended: reconnect.ended,
+          });
+        }
+      }
+      const resumable: string[] = [];
+      for (const session of store.listSessions(5000)) {
+        if (session.ownerDeviceId !== deviceId) continue;
+        const current = view(session.sessionId).state;
+        if (current === 'idle' || current === 'ready') resumable.push(session.sessionId);
+      }
+      return resumable;
+    },
+
+    backlog(deviceId, sessions) {
+      for (const { sessionId, bytes } of sessions) {
+        if (bytes <= 0) continue;
+        state.catchUp.set(sessionId, { deviceId, received: 0, total: bytes });
+        publishRuntime(sessionId);
+      }
+    },
+
+    appended(sessionId, bytes) {
+      const catchUp = state.catchUp.get(sessionId);
+      if (!catchUp) return;
+      catchUp.received += bytes;
+      if (catchUp.received >= catchUp.total) state.catchUp.delete(sessionId);
+      publishRuntime(sessionId);
     },
 
     detached(deviceIds, link) {
@@ -694,10 +853,32 @@ export function createRuntime(state: ControlState): Runtime {
           settleWaiter(state.pendingSteer, key, { ok: false, error: 'owner-offline' });
       }
       const gone = new Set(deviceIds);
+      const since = state.now();
+      for (const deviceId of deviceIds) {
+        state.offlineSince.set(deviceId, since);
+        state.reconnects.delete(deviceId);
+      }
+      for (const [sessionId, catchUp] of [...state.catchUp]) {
+        if (gone.has(catchUp.deviceId)) state.catchUp.delete(sessionId);
+      }
       for (const [sessionId, entry] of runtime) {
         if (gone.has(entry.deviceId)) publishRuntime(sessionId);
       }
-      closeDevicePermissions(state, gone, 'abandoned');
+      // The machine may still be running the turn and waiting for the answer (ADR 0039): the request stays
+      // open, unanswerable, with its clock paused.
+      for (const [key, open] of permissions) {
+        if (!gone.has(open.deviceId) || open.unreachable) continue;
+        const timer = state.permissionTimers.get(key);
+        if (timer) {
+          clearTimeout(timer);
+          state.permissionTimers.delete(key);
+        }
+        open.unreachable = true;
+        if (open.planExit === undefined) {
+          open.remainingMs = Math.max(0, PERMISSION_OPEN_MS - (since - open.at));
+        }
+        state.publish(permissionMessage(key.slice(0, key.indexOf('\n')), open));
+      }
     },
   };
 }

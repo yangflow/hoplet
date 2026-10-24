@@ -153,6 +153,22 @@ describe('audit summaries', () => {
     expect(summaryParts(event(1276), names).lead).toBe('Exported 61 records as CSV');
   });
 
+  it('count the events a disconnect dropped and the lines an earlier owner wrote', () => {
+    const at = event(1285);
+    const gap = { ...at, type: 'journal.gap', summary: { dropped: 1200, from: 1, to: 1200 } };
+    expect(summaryParts(gap, names).lead).toBe('1,200 events dropped while offline');
+    expect(summaryParts({ ...gap, summary: {} }, names).lead).toBe('Events dropped while offline');
+    const diverged = {
+      ...at,
+      type: 'session.diverged',
+      summary: { ownerEpoch: 3, bytes: 900, lines: 4 },
+    };
+    expect(summaryParts(diverged, names).lead).toBe('4 lines written after the session moved');
+    expect(summaryParts({ ...diverged, summary: {} }, names).lead).toBe(
+      'Transcript diverged on the earlier owner',
+    );
+  });
+
   it('show a type it does not know as its type, and never throw', () => {
     const odd = { ...event(1285), type: 'future.thing', summary: { surprise: [1] } };
     expect(summaryParts(odd, names)).toEqual({ lead: 'future.thing' });

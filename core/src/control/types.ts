@@ -1,5 +1,7 @@
 import type {
+  AgentRuntimeState,
   BudgetRef,
+  CatchUp,
   ClientMessage,
   CloneCheckReason,
   CloneDestinationDetail,
@@ -481,6 +483,11 @@ export interface RuntimeView {
   error?: string;
   /** `capabilities.config` carries the session's values, as the owner reported. */
   capabilities?: RuntimeCapabilities;
+  /** With `offline`: the state before the machine disconnected and when it did (ADR 0039). */
+  lastState?: AgentRuntimeState;
+  since?: number;
+  /** The transcript the machine has still to send after a reconnect (ADR 0039). */
+  catchUp?: CatchUp;
 }
 
 export type RuntimeCommandOutcome =
@@ -715,9 +722,14 @@ export type HandoffCancelOutcome = { ok: true } | { ok: false; error: 'handoff-n
  * A moment a user may want to hear about (ADR 0021). A `permission` event is a request that waits for an answer;
  * `expiresAt` is when it is denied, absent for a plan review, which never expires. A `turn-done` event is a turn
  * that went from running to ready. A `failure` is a session start or a handoff that did not complete; a
- * session that failed to start has no ID.
+ * session that failed to start has no ID. A `reconnected` event sums up, once per reconnect, the turns that
+ * finished and the sessions that ended while a machine was away (ADR 0039).
+ *
+ * An event a machine replayed after a reconnect carries `replayed` and `at`, when it happened (epoch ms).
  */
-export type ControlEvent =
+export type ControlEvent = ControlMoment & { at?: number; replayed?: boolean };
+
+type ControlMoment =
   | {
       kind: 'permission';
       sessionId: string;
@@ -739,6 +751,7 @@ export type ControlEvent =
       deviceId?: string;
       error: string;
     }
+  | { kind: 'reconnected'; deviceId: string; turns: number; ended: number }
   | LifecycleEvent;
 
 /** Who closed a permission request, as lifecycle hooks name it (ADR 0031). */
@@ -1062,6 +1075,8 @@ export interface AgentControl {
   /** Hands an event for the browsers to whoever subscribed. */
   publish(msg: ServerMessage): void;
   receive(link: DeviceLink, msg: ControlReply): void;
+  /** The store took `bytes` bytes of the session's transcript: counts toward its catch-up (ADR 0039). */
+  appended(sessionId: string, bytes: number): void;
 }
 
 export interface ControlOptions {

@@ -367,6 +367,26 @@ export function summaryParts(event: AuditEvent, names: AuditNames): SummaryParts
     }
     case 'verify.result':
       return { lead: t('Chain verified') };
+    case 'journal.gap': {
+      const dropped = num(s.dropped);
+      return {
+        lead:
+          dropped === undefined
+            ? t('Events dropped while offline')
+            : fill(t('{count} events dropped while offline'), { count: formatCount(dropped) }),
+      };
+    }
+    case 'session.diverged': {
+      const lines = num(s.lines);
+      return {
+        lead:
+          lines === undefined
+            ? t('Transcript diverged on the earlier owner')
+            : fill(t('{count} lines written after the session moved'), {
+                count: formatCount(lines),
+              }),
+      };
+    }
     default:
       return { lead: event.type };
   }

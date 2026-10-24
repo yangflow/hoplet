@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Hoplet client API",
   "description": "Generated from shared/ and the route table by `pnpm schema`; do not edit. Each name under $defs is a schema that docs/api.md names for a route or a message. Parse a body against the schema its route names.",
-  "protocolVersion": 23,
+  "protocolVersion": 24,
   "routes": [
     {
       "method": "POST",
@@ -1367,6 +1367,12 @@
       "direction": "core-to-web",
       "lane": "control",
       "schema": "SessionRuntimeMessage"
+    },
+    {
+      "type": "session.divergence",
+      "direction": "core-to-web",
+      "lane": "control",
+      "schema": "SessionDivergenceMessage"
     },
     {
       "type": "session.commands",
@@ -3638,7 +3644,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 23
+          "const": 24
         },
         "type": {
           "const": "device.presence"
@@ -4221,7 +4227,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 23
+          "const": 24
         },
         "type": {
           "const": "error"
@@ -4648,7 +4654,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 23
+          "const": 24
         },
         "type": {
           "const": "handoff.progress"
@@ -4713,7 +4719,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 23
+          "const": 24
         },
         "type": {
           "const": "handoff.request"
@@ -6876,6 +6882,38 @@
             },
             "error": {
               "type": "string"
+            },
+            "lastState": {
+              "enum": [
+                "external",
+                "idle",
+                "starting",
+                "ready",
+                "running",
+                "waiting-permission",
+                "failed"
+              ],
+              "type": "string"
+            },
+            "since": {
+              "type": "number"
+            },
+            "catchUp": {
+              "type": "object",
+              "properties": {
+                "received": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "total": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              },
+              "required": [
+                "received",
+                "total"
+              ]
             }
           },
           "required": [
@@ -7107,7 +7145,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 23
+          "const": 24
         },
         "type": {
           "const": "notify"
@@ -8972,7 +9010,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 23
+          "const": 24
         },
         "type": {
           "const": "session.appended"
@@ -9011,7 +9049,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 23
+          "const": 24
         },
         "type": {
           "const": "session.change"
@@ -9271,6 +9309,38 @@
                   },
                   "error": {
                     "type": "string"
+                  },
+                  "lastState": {
+                    "enum": [
+                      "external",
+                      "idle",
+                      "starting",
+                      "ready",
+                      "running",
+                      "waiting-permission",
+                      "failed"
+                    ],
+                    "type": "string"
+                  },
+                  "since": {
+                    "type": "number"
+                  },
+                  "catchUp": {
+                    "type": "object",
+                    "properties": {
+                      "received": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "total": {
+                        "type": "integer",
+                        "minimum": 0
+                      }
+                    },
+                    "required": [
+                      "received",
+                      "total"
+                    ]
                   }
                 },
                 "required": [
@@ -9384,7 +9454,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 23
+          "const": 24
         },
         "type": {
           "const": "session.commands"
@@ -9825,7 +9895,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 23
+          "const": 24
         },
         "type": {
           "const": "session.deleted"
@@ -9839,6 +9909,44 @@
         "v",
         "type",
         "sessionId"
+      ]
+    },
+    "SessionDivergenceMessage": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 24
+        },
+        "type": {
+          "const": "session.divergence"
+        },
+        "sessionId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "deviceId": {
+          "type": "string"
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "lines": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "at": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "sessionId",
+        "deviceId",
+        "bytes",
+        "lines",
+        "at"
       ]
     },
     "SessionHandoffRequestCreateSchema": {
@@ -10243,6 +10351,38 @@
                   },
                   "error": {
                     "type": "string"
+                  },
+                  "lastState": {
+                    "enum": [
+                      "external",
+                      "idle",
+                      "starting",
+                      "ready",
+                      "running",
+                      "waiting-permission",
+                      "failed"
+                    ],
+                    "type": "string"
+                  },
+                  "since": {
+                    "type": "number"
+                  },
+                  "catchUp": {
+                    "type": "object",
+                    "properties": {
+                      "received": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "total": {
+                        "type": "integer",
+                        "minimum": 0
+                      }
+                    },
+                    "required": [
+                      "received",
+                      "total"
+                    ]
                   }
                 },
                 "required": [
@@ -10346,7 +10486,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 23
+          "const": 24
         },
         "type": {
           "const": "session.listening"
@@ -10746,7 +10886,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 23
+          "const": 24
         },
         "type": {
           "const": "session.output"
@@ -10867,7 +11007,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 23
+          "const": 24
         },
         "type": {
           "const": "session.permission"
@@ -10948,6 +11088,12 @@
             "modes",
             "default"
           ]
+        },
+        "unreachable": {
+          "type": "boolean"
+        },
+        "requestedAt": {
+          "type": "number"
         }
       },
       "required": [
@@ -11004,7 +11150,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 23
+          "const": 24
         },
         "type": {
           "const": "session.queue"
@@ -11024,7 +11170,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 23
+          "const": 24
         },
         "type": {
           "const": "session.rule"
@@ -11074,7 +11220,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 23
+          "const": 24
         },
         "type": {
           "const": "session.rules.unenforced"
@@ -11098,7 +11244,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 23
+          "const": 24
         },
         "type": {
           "const": "session.runtime"
@@ -11256,6 +11402,38 @@
             "interrupt",
             "config"
           ]
+        },
+        "lastState": {
+          "enum": [
+            "external",
+            "idle",
+            "starting",
+            "ready",
+            "running",
+            "waiting-permission",
+            "failed"
+          ],
+          "type": "string"
+        },
+        "since": {
+          "type": "number"
+        },
+        "catchUp": {
+          "type": "object",
+          "properties": {
+            "received": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "total": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "received",
+            "total"
+          ]
         }
       },
       "required": [
@@ -11269,7 +11447,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 23
+          "const": 24
         },
         "type": {
           "const": "session.updated"
@@ -11693,7 +11871,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 23
+          "const": 24
         },
         "type": {
           "const": "subscribe"
@@ -12317,7 +12495,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 23
+          "const": 24
         },
         "type": {
           "const": "terminal.attach"
@@ -12337,7 +12515,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 23
+          "const": 24
         },
         "type": {
           "const": "terminal.attached"
@@ -12385,7 +12563,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 23
+          "const": 24
         },
         "type": {
           "const": "terminal.data"
@@ -12416,7 +12594,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 23
+          "const": 24
         },
         "type": {
           "const": "terminal.detach"
@@ -12436,7 +12614,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 23
+          "const": 24
         },
         "type": {
           "const": "terminal.ended"
@@ -12509,7 +12687,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 23
+          "const": 24
         },
         "type": {
           "const": "terminal.keys"
@@ -12554,7 +12732,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 23
+          "const": 24
         },
         "type": {
           "const": "terminal.size"
@@ -12947,7 +13125,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 23
+          "const": 24
         },
         "type": {
           "const": "unsubscribe"

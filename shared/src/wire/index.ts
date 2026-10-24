@@ -50,6 +50,7 @@ import { PromptSourceSchema, SessionHandoffRequestSchema } from '../rest/session
 import { ChangeStatusSchema, WorkspaceChangeSchema } from '../rest/workspace.ts';
 import {
   AgentRuntimeStateSchema,
+  CatchUpSchema,
   ConfigOptionSchema,
   ConfigSettingSchema,
   ConfigurationIdSchema,
@@ -307,6 +308,31 @@ const handoffId = HandoffIdSchema;
 const requestId = v.string();
 const cursor = v.pipe(v.number(), v.integer(), v.minValue(0));
 
+/** The most events the agent's journal holds (ADR 0039); the oldest that are not open permission requests go first. */
+export const JOURNAL_MAX_EVENTS = 10_000;
+/** The most bytes the agent's journal holds (ADR 0039). */
+export const JOURNAL_MAX_BYTES = 4 * 1024 * 1024;
+/** The most sessions one `device.backlog` names. */
+export const BACKLOG_MAX_SESSIONS = 500;
+
+/**
+ * The fields of a journalled event (ADR 0039): `eventSeq` numbers it on its machine, `at` is when it happened
+ * (epoch milliseconds) and `replayed` marks one sent again after a reconnect. The core applies an event once,
+ * by `eventSeq`, and answers `journal.ack`.
+ */
+const journaled = {
+  eventSeq: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1))),
+  at: v.optional(v.number()),
+  replayed: v.optional(v.boolean()),
+};
+
+/** A session with transcript bytes the agent has still to send after a reconnect. */
+export const DeviceBacklogSessionSchema = v.object({
+  sessionId: SessionIdSchema,
+  bytes: v.pipe(v.number(), v.integer(), v.minValue(0)),
+});
+export type DeviceBacklogSession = v.InferOutput<typeof DeviceBacklogSessionSchema>;
+
 export const WIRE_MESSAGES = defineWire({
   // Session and connection
   'device.hello': {
@@ -333,8 +359,49 @@ export const WIRE_MESSAGES = defineWire({
   welcome: {
     lane: 'control',
     direction: 'core-to-device',
-    fields: { serverTime: v.number(), sessions: v.array(SessionMetaSchema) },
+    fields: {
+      serverTime: v.number(),
+      sessions: v.array(SessionMetaSchema),
+      /** The highest journalled `eventSeq` of this machine the core has applied (ADR 0039); 0 for none. */
+      eventSeq: cursor,
+    },
   },
+  /** The core applied the agent's journalled events up to `eventSeq`; the agent drops them from its journal. */
+  'journal.ack': {
+    lane: 'control',
+    direction: 'core-to-device',
+    fields: { eventSeq: cursor },
+  },
+  /**
+   * The agent's journal reached its cap and dropped `dropped` events journalled between `from` and `to` (epoch
+   * milliseconds). Journalled itself; the core records it in the audit log.
+   */
+  'journal.gap': {
+    lane: 'control',
+    direction: 'device-to-core',
+    fields: {
+      dropped: v.pipe(v.number(), v.integer(), v.minValue(1)),
+      from: v.number(),
+      to: v.number(),
+      ...journaled,
+    },
+  },
+  /**
+   * After a reconnect, the transcript bytes the agent has still to send per session, at most
+   * `BACKLOG_MAX_SESSIONS`; the web UI shows the progress as catching up. Sent once per connection.
+   */
+  'device.backlog': {
+    lane: 'control',
+    direction: 'device-to-core',
+    fields: {
+      sessions: v.pipe(list(DeviceBacklogSessionSchema), v.maxLength(BACKLOG_MAX_SESSIONS)),
+    },
+  },
+  /**
+   * After a reconnect the agent replayed its journal, sent its transcript backlog and reported the state of every
+   * running session; what the core still holds from before the disconnect and the agent did not report is over.
+   */
+  'runtime.reported': { lane: 'control', direction: 'device-to-core', fields: {} },
   ping: { lane: 'control', direction: 'device-to-core', fields: { t: v.optional(v.number()) } },
   pong: { lane: 'control', direction: 'core-to-device', fields: { t: v.optional(v.number()) } },
   error: {
@@ -366,7 +433,22 @@ export const WIRE_MESSAGES = defineWire({
        * The core keeps what the latest append says.
        */
       configuration: v.optional(ConfigurationIdSchema),
+      /**
+       * The `owner_epoch` the agent last heard for the session (ADR 0039); the core refuses an append with an
+       * older one as `not-owner`. Absent when the agent knows none.
+       */
+      ownerEpoch: v.optional(cursor),
     },
+  },
+  /**
+   * The agent wrote `bytes` bytes and `lines` lines of a session after it stopped being its owner (`ownerEpoch` is
+   * the epoch it last held). They stay in the transcript file on the machine; the core records it in the audit log
+   * and tells the browsers.
+   */
+  'session.diverged': {
+    lane: 'control',
+    direction: 'device-to-core',
+    fields: { sessionId, ownerEpoch: cursor, bytes: cursor, lines: cursor },
   },
   'session.ack': {
     lane: 'bulk',
@@ -591,6 +673,7 @@ export const WIRE_MESSAGES = defineWire({
       error: v.optional(v.string()),
       /** `capabilities.config` carries this session's values. */
       capabilities: RuntimeCapabilitiesSchema,
+      ...journaled,
     },
   },
   /** Streamed content of the running turn; transient, the session file is the record. */
@@ -623,7 +706,17 @@ export const WIRE_MESSAGES = defineWire({
       toolUseId: v.optional(v.string()),
       input: v.unknown(),
       planExit: v.optional(PlanExitSchema),
+      ...journaled,
     },
+  },
+  /**
+   * The agent closed a permission request without an answer from the core: `timeout` when it waited longer than
+   * the agent's limit and the agent denied it (ADR 0039). Journalled.
+   */
+  'runtime.permission.closed': {
+    lane: 'control',
+    direction: 'device-to-core',
+    fields: { sessionId, requestId: v.string(), reason: v.picklist(['timeout']), ...journaled },
   },
   /**
    * A permission rule decided a tool call without asking a person (ADR 0029). `toolUseId` is the call's, absent
@@ -641,6 +734,7 @@ export const WIRE_MESSAGES = defineWire({
       ruleId: v.pipe(v.string(), v.minLength(1), v.maxLength(80)),
       scope: v.picklist([...PERMISSION_SCOPES, 'agent']),
       revision: v.pipe(v.number(), v.integer(), v.minValue(0)),
+      ...journaled,
     },
   },
   /**
@@ -690,6 +784,10 @@ export const WIRE_MESSAGES = defineWire({
   },
   subscribe: { lane: 'control', direction: 'web-to-core', fields: { sessionId } },
   unsubscribe: { lane: 'control', direction: 'web-to-core', fields: { sessionId } },
+  /**
+   * A session's runtime state. With `offline`, `lastState` is the state before the machine disconnected and
+   * `since` when it did (ADR 0039). `catchUp` is the transcript the machine has still to send after a reconnect.
+   */
   'session.runtime': {
     lane: 'control',
     direction: 'core-to-web',
@@ -698,7 +796,19 @@ export const WIRE_MESSAGES = defineWire({
       state: RuntimeStateSchema,
       error: v.optional(v.string()),
       capabilities: v.optional(RuntimeCapabilitiesSchema),
+      lastState: v.optional(AgentRuntimeStateSchema),
+      since: v.optional(v.number()),
+      catchUp: v.optional(CatchUpSchema),
     },
+  },
+  /**
+   * The session's owner machine wrote lines after it stopped being the owner (ADR 0039); they stay on that
+   * machine. Broadcast to every authenticated connection.
+   */
+  'session.divergence': {
+    lane: 'control',
+    direction: 'core-to-web',
+    fields: { sessionId, deviceId: v.string(), bytes: cursor, lines: cursor, at: v.number() },
   },
   /** The commands of a session changed; the browser reads `GET /api/sessions/:id/commands` again. */
   'session.commands': {
@@ -746,6 +856,13 @@ export const WIRE_MESSAGES = defineWire({
       toolUseId: v.optional(v.string()),
       input: v.unknown(),
       planExit: v.optional(PlanExitSchema),
+      /**
+       * The machine is offline (ADR 0039): the request stays open, cannot be answered until the machine is back
+       * and its clock is paused.
+       */
+      unreachable: v.optional(v.boolean()),
+      /** When the request was first made, epoch milliseconds. */
+      requestedAt: v.optional(v.number()),
     },
   },
 
@@ -1790,6 +1907,13 @@ export type DeviceRules = WireMessageOf<'device.rules'>;
 export type DeviceRulesApplied = WireMessageOf<'device.rules.applied'>;
 export type HookEvent = WireMessageOf<'hook.event'>;
 export type HookResult = WireMessageOf<'hook.result'>;
+export type JournalAck = WireMessageOf<'journal.ack'>;
+export type JournalGap = WireMessageOf<'journal.gap'>;
+export type DeviceBacklog = WireMessageOf<'device.backlog'>;
+export type RuntimeReported = WireMessageOf<'runtime.reported'>;
+export type SessionDiverged = WireMessageOf<'session.diverged'>;
+export type SessionDivergence = WireMessageOf<'session.divergence'>;
+export type RuntimePermissionClosedMsg = WireMessageOf<'runtime.permission.closed'>;
 
 /** Types of the messages in `direction`, in table order. */
 export function wireTypes(...directions: Direction[]): WireType[] {
@@ -1812,7 +1936,12 @@ export const ClientMessageSchema = v.variant('type', [
   WIRE_MESSAGES['runtime.output'].schema,
   WIRE_MESSAGES['runtime.permission'].schema,
   WIRE_MESSAGES['runtime.permission.auto'].schema,
+  WIRE_MESSAGES['runtime.permission.closed'].schema,
   WIRE_MESSAGES['runtime.rules.unenforced'].schema,
+  WIRE_MESSAGES['runtime.reported'].schema,
+  WIRE_MESSAGES['journal.gap'].schema,
+  WIRE_MESSAGES['device.backlog'].schema,
+  WIRE_MESSAGES['session.diverged'].schema,
   WIRE_MESSAGES['runtime.rejected'].schema,
   WIRE_MESSAGES['runtime.steered'].schema,
   WIRE_MESSAGES['runtime.commands'].schema,
@@ -1906,4 +2035,5 @@ export const WIRE_OBJECTS = {
   StartedWorktree: StartedWorktreeSchema,
   DeletionStep: DeletionStepSchema,
   HookAnnounce: HookAnnounceSchema,
+  DeviceBacklogSession: DeviceBacklogSessionSchema,
 } as const;

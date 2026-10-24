@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	gosync "sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/yangflow/hoplet/agent/internal/config"
@@ -45,6 +46,9 @@ type bridge struct {
 	locate  runtime.Locator
 	send    func(any) error
 	kick    func()
+	// up is whether the core is reachable (sync.RuntimeHooks.Link); the managers pause their permission timers
+	// while it is not.
+	up atomic.Bool
 
 	owners              *configs.Owners // which configuration started each session
 	turnDone, turnStart func(sessionID string)
@@ -56,10 +60,12 @@ type bridge struct {
 	stamp    configs.Stamp
 	reloadMu gosync.Mutex // serialises reloads and updates
 
-	mu       gosync.Mutex
-	cond     *gosync.Cond
-	queue    []runtime.Event
-	held     []runtime.RuleDecisionEvent // rule decisions the core has not received
+	mu    gosync.Mutex
+	cond  *gosync.Cond
+	queue []queued
+	// journal sends the events the core must not miss (sync.Client.SendJournaled, ADR 0039): state changes,
+	// permission requests and their closures, rule decisions. It is send until the daemon sets it.
+	journal  func(any) error
 	outputs  int
 	closed   bool
 	lastKick time.Time
@@ -79,6 +85,8 @@ func newBridge(cfg *config.Config, send func(any) error, kick func(), turnDone, 
 	}
 	home, _ := os.UserHomeDir()
 	b.rules = rules.OpenStore(rules.NewEnv(home, cfg.HopletHome), cfg.HopletHome, cfg.PermissionDeny)
+	b.journal = send
+	b.up.Store(true)
 	b.cond = gosync.NewCond(&b.mu)
 	b.openHook()
 	b.openMCP()
@@ -179,6 +187,7 @@ func (b *bridge) build(c configs.Configuration, spec string) *entry {
 		MaxIdle:     b.cfg.RuntimeMaxIdleProcesses,
 		OwnGrace:    ownGrace,
 	})
+	m.SetConnected(b.up.Load())
 	return &entry{conf: c, spec: spec, drv: d, mgr: m}
 }
 
@@ -372,21 +381,40 @@ func configLocator(cfg *config.Config, conf configs.Configuration) runtime.Locat
 	}
 }
 
+// queued is an event waiting for the bridge's sender. A report is the current state sent again after a reconnect,
+// which is not journalled; the marker after a report sends runtime.reported.
+type queued struct {
+	ev     runtime.Event
+	report bool
+	marker bool
+}
+
 // emit queues an event; it never blocks the Manager.
 func (b *bridge) emit(ev runtime.Event) {
+	b.enqueue(queued{ev: ev})
+}
+
+func (b *bridge) enqueue(q queued) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	if b.closed {
 		return
 	}
-	if _, isOutput := ev.(runtime.OutputEvent); isOutput {
+	if _, isOutput := q.ev.(runtime.OutputEvent); isOutput {
 		if b.outputs >= maxQueuedOutput {
 			return
 		}
 		b.outputs++
 	}
-	b.queue = append(b.queue, ev)
+	b.queue = append(b.queue, q)
 	b.cond.Signal()
+}
+
+// setJournal makes the bridge send the events the core must not miss through journal.
+func (b *bridge) setJournal(journal func(any) error) {
+	b.mu.Lock()
+	b.journal = journal
+	b.mu.Unlock()
 }
 
 func (b *bridge) run() {
@@ -400,46 +428,48 @@ func (b *bridge) run() {
 			b.mu.Unlock()
 			return
 		}
-		ev := b.queue[0]
+		q := b.queue[0]
 		b.queue = b.queue[1:]
-		if _, isOutput := ev.(runtime.OutputEvent); isOutput {
+		if _, isOutput := q.ev.(runtime.OutputEvent); isOutput {
 			b.outputs--
 		}
 		kick := time.Since(b.lastKick) >= kickEvery
 		if kick {
 			b.lastKick = time.Now()
 		}
+		journal := b.journal
 		b.mu.Unlock()
 
-		if msg := wireMessage(ev); msg != nil {
-			// Not connected: the state of every process is reported again on reconnect.
-			if err := b.send(msg); errors.Is(err, sync.ErrNotConnected) {
-				// A rule decision is an audit record: it waits for the reconnect, which reports it again.
-				if d, ok := ev.(runtime.RuleDecisionEvent); ok {
-					b.holdDecision(d)
-				}
-			} else if err != nil {
+		if q.marker {
+			if err := b.send(sync.RuntimeReported{V: sync.ProtocolVersion, Type: sync.TypeRuntimeReported}); err != nil && !errors.Is(err, sync.ErrNotConnected) {
+				log.Printf("[agent] runtime report not sent: %v", err)
+			}
+			continue
+		}
+		if msg := wireMessage(q.ev); msg != nil {
+			send := b.send
+			if !q.report && journalled(q.ev) {
+				send = journal
+			}
+			// Not connected: an event that is not journalled is transient, and the state of every process is
+			// reported again on reconnect.
+			if err := send(msg); err != nil && !errors.Is(err, sync.ErrNotConnected) {
 				log.Printf("[agent] runtime event not sent: %v", err)
 			}
 		}
-		if kick || isState(ev) {
+		if kick || isState(q.ev) {
 			b.kick()
 		}
 	}
 }
 
-// maxHeldDecisions bounds the rule decisions kept in memory while the core is unreachable; past it the oldest go.
-// They are lost when the agent exits.
-const maxHeldDecisions = 500
-
-func (b *bridge) holdDecision(d runtime.RuleDecisionEvent) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	if len(b.held) >= maxHeldDecisions {
-		b.held = b.held[1:]
-		log.Printf("[agent] too many rule decisions wait for the core; the oldest was dropped")
+// journalled tells the events kept until the core confirms them (ADR 0039).
+func journalled(ev runtime.Event) bool {
+	switch ev.(type) {
+	case runtime.StateEvent, runtime.PermissionEvent, runtime.PermissionClosedEvent, runtime.RuleDecisionEvent:
+		return true
 	}
-	b.held = append(b.held, d)
+	return false
 }
 
 func isState(ev runtime.Event) bool {
@@ -515,6 +545,11 @@ func wireMessage(ev runtime.Event) any {
 			V: sync.ProtocolVersion, Type: sync.TypeRuntimePermissionAuto, SessionID: ev.SessionID,
 			ToolUseID: ev.ToolUseID, Decision: ev.Decision, RuleID: ev.RuleID, Scope: ev.Scope, Revision: ev.Revision,
 		}
+	case runtime.PermissionClosedEvent:
+		return sync.RuntimePermissionClosed{
+			V: sync.ProtocolVersion, Type: sync.TypeRuntimePermissionClosed, SessionID: ev.SessionID,
+			RequestID: ev.RequestID, Reason: ev.Reason,
+		}
 	case runtime.RulesUnenforcedEvent:
 		return sync.RuntimeRulesUnenforced{
 			V: sync.ProtocolVersion, Type: sync.TypeRuntimeRulesUnenforced, SessionID: ev.SessionID, ToolUseID: ev.ToolUseID,
@@ -571,8 +606,9 @@ func (b *bridge) hooks() sync.RuntimeHooks {
 		},
 		Interrupt: func(sessionID string) error { return b.managerOf(sessionID).Interrupt(sessionID) },
 		Stop:      func(sessionID string) { b.managerOf(sessionID).Stop(sessionID) },
-		Connected: b.report,
-		Started:   func(string) { b.report() },
+		Connected: func() { b.reportAll(true) },
+		Started:   func(string) { b.reportAll(false) },
+		Link:      b.link,
 	}
 }
 
@@ -691,26 +727,31 @@ func (b *bridge) update(req sync.DeviceProvidersUpdate) ([]sync.ProviderInfo, er
 	return b.providers(), nil
 }
 
-// report tells the core the state of every process this agent runs and every permission request that
-// waits for an answer; the core rebuilds its runtime state from it.
-func (b *bridge) report() {
-	b.mu.Lock()
-	held := b.held
-	b.held = nil
-	b.mu.Unlock()
-	for _, d := range held {
-		b.emit(d)
-	}
+// reportAll tells the core the state of every process this agent runs and every permission request that
+// waits for an answer; the core rebuilds its runtime state from it. After a reconnect, marker follows the report
+// with runtime.reported (ADR 0039).
+func (b *bridge) reportAll(marker bool) {
 	for _, m := range b.managers() {
 		for _, st := range m.States() {
-			b.emit(st)
+			b.enqueue(queued{ev: st, report: true})
 		}
 		for _, p := range m.Pending() {
-			b.emit(p)
+			b.enqueue(queued{ev: p, report: true})
 		}
 		for _, c := range m.Commands() {
-			b.emit(c)
+			b.enqueue(queued{ev: c, report: true})
 		}
+	}
+	if marker {
+		b.enqueue(queued{marker: true})
+	}
+}
+
+// link pauses the permission timers of every manager while the core is unreachable (ADR 0039).
+func (b *bridge) link(up bool) {
+	b.up.Store(up)
+	for _, m := range b.managers() {
+		m.SetConnected(up)
 	}
 }
 

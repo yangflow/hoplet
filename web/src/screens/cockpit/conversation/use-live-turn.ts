@@ -108,6 +108,9 @@ export function useLiveTurn(opts: {
   const ready = snapshot.ready;
   const apply = useCallback(
     (next: RuntimeState, failure: string | undefined) => {
+      // The owner went offline (ADR 0039): the session may go on there, so the turn and its requests stay as
+      // they were, frozen, until the machine is back and says what happened.
+      if (next === 'offline') return;
       const before = previous.current;
       previous.current = next;
       if (before === next) return;

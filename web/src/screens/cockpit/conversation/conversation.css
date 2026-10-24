@@ -828,6 +828,54 @@ details.act-d > summary::-webkit-details-marker {
   color: var(--color-accent-text);
 }
 
+/* the machine is away or catching up (ADR 0039): the badges, the progress, the permission card */
+.badge.may {
+  color: var(--color-text-2);
+}
+.badge.cu {
+  color: var(--color-accent-text);
+}
+.cuprog {
+  height: 3px;
+  border-radius: 2px;
+  background: var(--color-hover);
+  overflow: hidden;
+  margin: var(--space-2) 0 var(--space-1);
+}
+.cuprog i {
+  display: block;
+  height: 100%;
+  background: var(--color-accent);
+  border-radius: 2px;
+}
+.culine {
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  font-variant-numeric: tabular-nums;
+}
+.ask.away {
+  background: var(--color-surface);
+  box-shadow: inset 0 0 0 1px var(--color-line);
+}
+.ask.away .ask-h svg {
+  color: var(--color-text-3);
+}
+.ask-f .ask-note {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--color-text-2);
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+}
+.ask-back {
+  margin: calc(-1 * var(--space-1)) 0 var(--space-3);
+}
+.diverged {
+  height: auto;
+  padding: var(--space-1) 0;
+}
+
 /* this window lost the core: live motion stops and greys */
 .frozen .sdot {
   animation: none;

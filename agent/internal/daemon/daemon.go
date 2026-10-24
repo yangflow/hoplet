@@ -198,6 +198,8 @@ func Run(cfg *config.Config, version string) error {
 			return st.forgetSession(id)
 		},
 	})
+	// State changes, permission requests and rule decisions survive a disconnect in the journal (ADR 0039).
+	rt.setJournal(client.SendJournaled)
 	st.setKick(client.Kick)
 	moves.client = client
 	snaps.up = client

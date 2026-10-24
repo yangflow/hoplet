@@ -103,6 +103,16 @@ export interface ControlState {
   turns: Map<string, { count: number; startedAt?: number }>;
   /** Sessions a stop was forwarded for, until the session reports it is idle. */
   stopping: Set<string>;
+  /** When each machine that was connected since the core started lost its connection (ADR 0039). */
+  offlineSince: Map<string, number>;
+  /** The transcript a session's machine has still to send after a reconnect, by session ID (ADR 0039). */
+  catchUp: Map<string, { deviceId: string; received: number; total: number }>;
+  /**
+   * What a machine replayed since it reconnected, until its `runtime.reported` (ADR 0039): the sessions it
+   * reported a state for, the turns that finished and the sessions that ended while it was away, and the
+   * replayed permission requests whose notification waits for the report.
+   */
+  reconnects: Map<string, Reconnect>;
   /** Hands an event for the browsers to whoever subscribed. */
   publish: (msg: ServerMessage) => void;
   now: () => number;
@@ -145,6 +155,14 @@ export interface ControlState {
   cloneStallMs: number;
   /** How long a push of permission rules waits for the agent's confirmation before it is sent again. */
   rulesRetryMs: number;
+}
+
+/** What a machine replayed since it reconnected (ADR 0039). */
+export interface Reconnect {
+  reported: Set<string>;
+  turns: number;
+  ended: number;
+  permissions: string[];
 }
 
 /** The owner's answer to `terminal.open`, or why there is none. */

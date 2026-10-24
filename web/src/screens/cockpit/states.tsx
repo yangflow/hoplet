@@ -11,6 +11,7 @@ import type {
   SessionHandoffRequest,
   SessionRuntimeInfo,
 } from '@hoplet/shared';
+import { PROTOCOL_VERSION } from '@hoplet/shared';
 import { type ReactNode, useState } from 'react';
 import { blockedDocs, DOCS_ASK, KID_DOCS, kidsTree } from '../../lib/children-fixtures.ts';
 import { CONFIG_CHANGE_ID, configChange } from '../../lib/config-change-fixtures.ts';
@@ -1867,6 +1868,84 @@ export const states: Record<string, () => ReactNode> = {
   ),
   external: () => <Scene variant={{ runtime: { state: 'external', capabilities } }} />,
   offline: () => <Scene macbookOnline={false} />,
+  // The machine went away during a turn (ADR 0039): the session may still be running there.
+  'offline-running': () => (
+    <Scene
+      macbookOnline={false}
+      variant={{
+        runtime: {
+          state: 'offline',
+          lastState: 'running',
+          since: LIVE_START + 48_000,
+          capabilities,
+        },
+        live: { turn: liveTurn({ rows: runningRows }), elapsed: 48_000 },
+      }}
+    />
+  ),
+  // A permission request waits for a machine that is away: its timer is paused and it cannot be answered.
+  'offline-permission': () => (
+    <Scene
+      macbookOnline={false}
+      variant={{
+        runtime: {
+          state: 'offline',
+          lastState: 'waiting-permission',
+          since: LIVE_START + 31_000,
+          capabilities,
+        },
+        live: {
+          turn: liveTurn({ rows: permissionRows }),
+          elapsed: 31_000,
+          permissions: [{ ...permission, unreachable: true, pausedAt: LIVE_START + 31_000 }],
+        },
+      }}
+    />
+  ),
+  // The machine is back and sent the request again: it keeps the time it was first asked.
+  'offline-permission-back': () => (
+    <Scene
+      variant={{
+        runtime: { state: 'waiting-permission', capabilities },
+        live: {
+          turn: liveTurn({ rows: permissionRows }),
+          elapsed: 31_000,
+          permissions: [{ ...permission, resent: true, requestedAt: LIVE_START + 12_000 }],
+        },
+      }}
+    />
+  ),
+  // The machine is back and sends what it wrote while away.
+  'offline-catching-up': () => (
+    <Scene
+      variant={{
+        ...running(48_000),
+        runtime: {
+          state: 'running',
+          capabilities,
+          catchUp: { received: 1.8 * 1024 * 1024, total: 4.2 * 1024 * 1024 },
+        },
+      }}
+    />
+  ),
+  // The earlier owner wrote lines after the session moved: they stay on that machine.
+  'offline-diverged': () => (
+    <Scene
+      variant={{
+        conversation: {
+          diverged: {
+            v: PROTOCOL_VERSION,
+            type: 'session.divergence',
+            sessionId: catalogId,
+            deviceId: 'dev-studio',
+            bytes: 18_430,
+            lines: 12,
+            at: LIVE_START + 60_000,
+          },
+        },
+      }}
+    />
+  ),
   scrolled: () => (
     <Scene
       variant={{

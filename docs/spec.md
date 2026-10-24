@@ -167,7 +167,7 @@ a state of the session appears under the composer when it blocks or changes what
 
 | State | Meaning | Shown on | Controls |
 |---|---|---|---|
-| `offline` | The owner agent is not connected | composer | Hand off |
+| `offline` | The owner agent is not connected; a session that was in a turn may still be running there | composer; the turn and the row when it was in a turn | Hand off |
 | `external` | The session file was written by a process Hoplet did not start | composer | none; reading only |
 | `idle` | No Claude Code process for this session | nothing | Send (starts one) |
 | `starting` | The process is starting | turn | none |
@@ -801,8 +801,36 @@ does the same within one session. Search runs as background work and never delay
 After every turn the agent records the session file's size; lines Claude Code appends in the 5 seconds after a
 turn result (title, cost) are Hoplet's own. When the file grows beyond it later, or grows while no
 Hoplet process runs for the session, the state is `external`: the agent stops its process for the session, and
-a prompt is refused until the file has not grown for 60 seconds. When the owner disconnects, its runtime states become `offline`;
-when it reconnects, it reports the state of every process it still runs.
+a prompt is refused until the file has not grown for 60 seconds.
+
+#### Across a disconnect
+
+Decided in [ADR 0039](adr/0039-sessions-continue-across-a-disconnect-and-the-agent-replays-its-events.md) (#95).
+A session keeps running on its machine while the link to the core is down, and the agent keeps the events the core
+must not miss in a journal on disk: state changes, permission requests and their closures, and rule decisions;
+never transcript lines, which the session file holds. The journal holds at most 10,000 events or 4 MiB; past that
+the oldest events that are not permission requests are dropped and the agent records a gap, which the core writes
+to the audit log (`journal.gap`). Each event carries a sequence number per machine; the core names the last it
+applied when the machine reconnects, and the agent sends the rest in order, then the transcript, then the state of
+every process it still runs. A replayed event is applied once.
+
+- **States**: when the owner disconnects, its sessions become `offline` with the state they were in and since when.
+  A session that was in a turn shows "may still be running" on its row and on its turn, which stays as it was
+  rather than settling; one that waited for a permission shows "waiting for you · machine offline". After the
+  reconnect, while the machine sends what it wrote while away, the row and the turn show "catching up" with its
+  progress.
+- **Permission requests** stay open while the machine is away: the card keeps its request with the answers
+  disabled, says it waits for the machine and is never approved on its own, and its clock is paused on the core
+  and on the agent. A request waits at most 24 hours while the machine is away; then the agent denies it. After the
+  reconnect the agent sends it again and the core matches it by ID: the card says it was sent again with the time
+  it was first asked, and there is no second audit record and no second notification. A request the agent does
+  not name again after the reconnect is closed. A replayed event can deny or close a request, never approve one.
+- **Handoff**: appends carry the owner epoch the agent last heard, and the core refuses an older one. A machine that
+  wrote lines after the session moved to another one reports them; the core records `session.diverged`, and the
+  session shows that those lines stay in the transcript file on that machine. The handoff dialog warns when the
+  offline owner was in a turn when it was last heard.
+- **After the reconnect** the queue resumes for every session of the machine that is idle, and a rule decision is
+  kept by the agent until the core confirms it.
 
 ### Notifications
 
@@ -815,6 +843,10 @@ The core tells the user when a session needs them, so a turn does not wait unsee
   turn-done; Everything the same events on every channel; Off none), then the overrides of the event, then those
   of the project. An override names the channels of an event, none turns it off. Quiet hours hold back turn-done
   and failure but never the events that need the user (permission, plan and budget).
+- **After a disconnect**: what a machine replays after it reconnects is notified only when it can still be acted
+  on (a permission request that still waits); the turns that finished and the sessions that ended while it was
+  away are summed up in one turn-done notification per machine ("MacBook Pro reconnected: 3 turns finished,
+  1 session ended").
 - **Channels**: Web Push to the subscribed browsers and a JSON `POST` to each enabled webhook, signed with
   `X-Hoplet-Signature: sha256=<hex>` when the webhook has a secret. A webhook receives an event only when the
   preferences route it to the webhook channel and the event is one of the webhook's own events (permission, plan
@@ -840,8 +872,10 @@ permission request, a budget or a handoff.
 
 - **Events**: `session.started`, `turn.completed`, `session.ended`, `permission.requested`, `permission.resolved`,
   `session.error` (a start, a runtime or a handoff that failed), `handoff.started` and `handoff.completed`. Each is an
-  envelope `{ v, id, type, at, session, actor?, data }`; `id` is the idempotency key, delivery is at least once and
-  not ordered, and new types and fields are additions within `v: 1`.
+  envelope `{ v, id, type, at, replayed?, session, actor?, data }`; `id` is the idempotency key, delivery is at
+  least once and not ordered, and new types and fields are additions within `v: 1`. `at` is when the event
+  happened; an event a machine sent after it reconnected carries the time it happened on the machine and
+  `replayed: true`.
 - **Content**: metadata only (IDs, names, codes, counts, times). Never a prompt, a message, tool input or output,
   a file or a diff. A hook may opt in to `summary`: a title cut to 80 characters and the turn's usage, a redacted
   80-character summary of a permission request and a redacted 200-character error reason.
@@ -1148,6 +1182,8 @@ of real sessions (86% tool results) at 23, 128 and 256 MB.
       own clone, with identical files and session
 - [ ] An offline handoff uses the last snapshot and states its time; the old owner's appends are rejected
       after it reconnects
+- [ ] A dropped link keeps the session running and its permission request open; after the reconnect the same
+      request is answered with one audit record and one notification, and replayed events are applied once
 - [ ] A failed handoff at any step leaves owner, cursor and both machines' files unchanged
 - [ ] Rename, pin, archive and tags of a session reach every open window, survive a restart of the core and change no stored line or cursor
 - [ ] Grouping by project joins the sessions of two machines whose folders share a git remote, and a folder without one stays apart

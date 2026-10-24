@@ -194,6 +194,7 @@ describe('wire contract', () => {
       lines: { optional: false },
       title: { optional: true },
       configuration: { optional: true },
+      ownerEpoch: { optional: true },
     });
     expect(go.types['device.hello']).toBe('DeviceHello');
     expect(go.codes).toContain('protocol-version-mismatch');
@@ -359,6 +360,7 @@ describe('wire contract', () => {
       'subscribe',
       'unsubscribe',
       'session.runtime',
+      'session.divergence',
       'session.commands',
       'session.queue',
       'session.output',

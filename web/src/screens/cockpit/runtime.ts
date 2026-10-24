@@ -36,6 +36,42 @@ export function startErrorName(error: string | undefined, providerName: string):
   return t('Failed to start');
 }
 
+/** What the composer's bar says of an offline owner: with what the session was doing when it was last heard. */
+export function offlineText(deviceName: string, lastState: RuntimeState | undefined): string {
+  const text =
+    lastState === 'waiting-permission'
+      ? t('{device} offline · a permission request is waiting')
+      : lastState && isTurnState(lastState)
+        ? t('{device} offline · the session may still be running there')
+        : t('{device} offline');
+  return text.replace('{device}', deviceName);
+}
+
+/**
+ * The second line of a session's row in the list (ADR 0039): what a session whose machine is away was doing, or
+ * how far its catch-up has come; null when the row needs none.
+ */
+export function awayNote(info: {
+  state: RuntimeState;
+  lastState?: RuntimeState | undefined;
+  catchUp?: { received: number; total: number } | undefined;
+}): string | null {
+  if (info.state === 'offline') {
+    if (info.lastState === 'waiting-permission') return t('Waiting for you · machine offline');
+    if (info.lastState && isTurnState(info.lastState)) return t('May still be running');
+    return null;
+  }
+  if (info.catchUp)
+    return t('Catching up · {n}%').replace('{n}', String(catchUpPercent(info.catchUp)));
+  return null;
+}
+
+/** How much of a catch-up has arrived, 0 to 100. */
+export function catchUpPercent(catchUp: { received: number; total: number }): number {
+  if (catchUp.total <= 0) return 100;
+  return Math.min(100, Math.floor((catchUp.received / catchUp.total) * 100));
+}
+
 export function composerView(input: {
   state: RuntimeState;
   ownerConnected: boolean;
@@ -51,6 +87,8 @@ export function composerView(input: {
   planPending?: boolean;
   /** The session's driver takes a steer (`capabilities.steer`). */
   canSteer?: boolean;
+  /** The state before the owner went offline (ADR 0039). */
+  lastState?: RuntimeState | undefined;
 }): ComposerView {
   const ask = t('Ask {provider}…').replace('{provider}', input.providerName);
   const { state } = input;
@@ -60,7 +98,7 @@ export function composerView(input: {
       placeholder: t('Owner offline'),
       inputEnabled: false,
       line: {
-        text: t('{device} offline').replace('{device}', input.deviceName),
+        text: offlineText(input.deviceName, input.lastState),
         title: t('Owner offline'),
         glyph: 'off',
         tone: 'plain',

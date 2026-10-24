@@ -156,7 +156,7 @@ func TestBridgeRefusesAndAnswers(t *testing.T) {
 
 	// A reconnect reports the open request again.
 	before := len(b.manager("claude").Pending())
-	b.report()
+	b.reportAll(true)
 	if before != 1 {
 		t.Fatalf("pending = %d", before)
 	}
@@ -202,7 +202,7 @@ func TestBridgeReportsRunningProcessesAfterAReconnect(t *testing.T) {
 	s.mu.Lock()
 	s.msgs = nil
 	s.mu.Unlock()
-	b.report()
+	b.reportAll(true)
 	s.waitState(t, "s1", "ready")
 	if got := s.states("s1"); len(got) != 1 {
 		t.Fatalf("report = %v", got)

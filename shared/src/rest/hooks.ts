@@ -40,8 +40,10 @@ const EnvelopeBase = {
   v: v.literal(1),
   /** `evt_` and a ULID: unique, and sorted by the time the event happened. */
   id: v.pipe(v.string(), v.regex(/^evt_[0-9A-HJKMNP-TV-Z]{26}$/)),
-  /** ISO 8601, UTC. */
+  /** ISO 8601, UTC: when the event happened. */
   at: v.string(),
+  /** The machine was offline when the event happened and sent it after it reconnected (ADR 0039). */
+  replayed: v.optional(v.literal(true)),
   actor: HookActorSchema,
 };
 

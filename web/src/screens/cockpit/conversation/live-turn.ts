@@ -35,6 +35,13 @@ export type OpenPermission = {
   receivedAt: number;
   /** The driver declared the tool a plan exit: the request shows the plan and offers the modes (ADR 0019). */
   planExit?: PlanExit;
+  /** The machine is offline (ADR 0039): the request cannot be answered and its clock is paused since `pausedAt`. */
+  unreachable?: boolean;
+  pausedAt?: number;
+  /** The machine sent the request again after it reconnected. */
+  resent?: boolean;
+  /** When the request was first made, epoch milliseconds. */
+  requestedAt?: number;
 };
 
 /** What the user decided about a plan, kept as a row of the turn once the request has closed. */
@@ -152,7 +159,23 @@ export function addPermission(
   msg: SessionPermission,
   now: number,
 ): OpenPermission[] {
-  if (list.some((p) => p.requestId === msg.requestId)) return list;
+  const known = list.find((p) => p.requestId === msg.requestId);
+  if (known) {
+    // The same request across a disconnect (ADR 0039): its clock pauses while the machine is away and resumes
+    // with the time it had left when the machine sends it again.
+    if (msg.unreachable) {
+      if (known.unreachable) return list;
+      return list.map((p) => (p === known ? { ...p, unreachable: true, pausedAt: now } : p));
+    }
+    if (!known.unreachable) return list;
+    const { unreachable: _u, pausedAt, ...rest } = known;
+    const resumed: OpenPermission = {
+      ...rest,
+      receivedAt: known.receivedAt + (now - (pausedAt ?? now)),
+      resent: true,
+    };
+    return list.map((p) => (p === known ? resumed : p));
+  }
   return [
     ...list,
     {
@@ -164,6 +187,8 @@ export function addPermission(
       input: msg.input,
       receivedAt: now,
       ...(msg.planExit ? { planExit: msg.planExit } : {}),
+      ...(msg.unreachable ? { unreachable: true, pausedAt: now } : {}),
+      ...(msg.requestedAt !== undefined ? { requestedAt: msg.requestedAt } : {}),
     },
   ];
 }
@@ -171,7 +196,8 @@ export function addPermission(
 export function expirePermissions(list: OpenPermission[], now: number): OpenPermission[] {
   // A plan waits for as long as the user takes: it is never denied by the clock.
   const open = list.filter(
-    (p) => p.planExit !== undefined || now - p.receivedAt < PERMISSION_OPEN_MS,
+    (p) =>
+      p.planExit !== undefined || p.unreachable === true || now - p.receivedAt < PERMISSION_OPEN_MS,
   );
   return open.length === list.length ? list : open;
 }

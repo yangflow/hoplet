@@ -9,6 +9,9 @@ const TEXT = {
     done: 'Done',
     failure: 'Failed',
     test: 'Test notification',
+    reconnected: (machine) => `${machine} reconnected`,
+    caughtUp: (turns, ended) =>
+      `${turns} ${turns === 1 ? 'turn' : 'turns'} finished, ${ended} ${ended === 1 ? 'session' : 'sessions'} ended while offline`,
   },
   'zh-Hans': {
     permission: '需要你的许可',
@@ -16,6 +19,8 @@ const TEXT = {
     done: '已完成',
     failure: '失败',
     test: '测试通知',
+    reconnected: (machine) => `${machine} 已重新连接`,
+    caughtUp: (turns, ended) => `离线期间完成了 ${turns} 轮，结束了 ${ended} 个会话`,
   },
 };
 
@@ -38,6 +43,17 @@ function describe(payload, language) {
     : `${kind}-${payload.sessionId || project}`;
   let head;
   let body;
+  const back = payload.reconnected;
+  if (kind === 'turn-done' && back && typeof back.machine === 'string') {
+    return {
+      title: w.reconnected(back.machine),
+      options: {
+        body: w.caughtUp(Number(back.turns) || 0, Number(back.ended) || 0),
+        tag: `reconnected-${back.machine}`,
+        data: { link: null, sessionId: null },
+      },
+    };
+  }
   if (kind === 'permission') {
     head = w.permission;
     body = [payload.tool, payload.summary].filter(Boolean).join(' · ') || title;

@@ -70,6 +70,8 @@ export function HandoffPanel(props: {
   snapshot: SnapshotChanges | null;
   /** The session is in a turn: the core refuses a handoff until it ends. */
   busy: boolean;
+  /** The offline owner was in a turn when last heard: it may still be running there (ADR 0039). */
+  mayRun?: boolean;
   onClose: () => void;
 }) {
   const { handoff, owner } = props;
@@ -101,6 +103,16 @@ export function HandoffPanel(props: {
           ? t('Move this session and its working tree to another machine.')
           : named('{owner} is offline. The session moves from its last snapshot.')}
       </p>
+      {!props.online && props.mayRun ? (
+        <p className="ws-ho-note att" role="note" data-testid="workspace.handoff-may-run">
+          <Glyph>{Icon.alert()}</Glyph>
+          <span>
+            {named(
+              '{owner} was running a turn when it was last heard. The work may still be going on there, and what it writes from now on stays on {owner}.',
+            )}
+          </span>
+        </p>
+      ) : null}
       {props.snapshot ? (
         <p className="ws-ho-note snap" data-testid="workspace.handoff-snapshot">
           <Glyph>{Icon.clock()}</Glyph>

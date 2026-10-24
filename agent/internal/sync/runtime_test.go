@@ -132,6 +132,13 @@ func TestCoreCommandsReachTheHooks(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go func() { _ = c.runOnce(ctx) }()
+	// The running sessions report once a reconcile pass finds no transcript backlog.
+	go func() {
+		for ctx.Err() == nil {
+			c.Reconcile(ctx, nil)
+			time.Sleep(10 * time.Millisecond)
+		}
+	}()
 
 	deadline := time.After(5 * time.Second)
 	sawState := false

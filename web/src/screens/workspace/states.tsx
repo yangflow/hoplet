@@ -500,6 +500,14 @@ export const states: Record<string, () => ReactNode> = {
       workspace={{ data: offlineData, view: handoffOpen(true), handoff: { clone: found } }}
     />
   ),
+  // The owner went away during a turn (ADR 0039): the handoff warns that it may still be running there.
+  'handoff-may-run': () => (
+    <Inspect
+      offline
+      variant={{ runtime: { state: 'offline', lastState: 'running', capabilities } }}
+      workspace={{ data: offlineData, view: handoffOpen(true), handoff: { clone: found } }}
+    />
+  ),
   'handoff-configuration': () =>
     glmHandoff([claudeConfiguration('claude', 'Claude Code'), claudeConfiguration('glm', 'GLM')]),
   'handoff-configuration-pick': () =>

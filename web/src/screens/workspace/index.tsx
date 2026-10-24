@@ -115,6 +115,8 @@ export function Inspector(props: {
   busy: boolean;
   /** The session's runtime state, and whether its machine announced a terminal: the Terminal tab's gate. */
   runtimeState: string;
+  /** The owner is offline and was in a turn when last heard (ADR 0039): the handoff warns. */
+  ownerMayRun?: boolean;
   terminalCapable: boolean;
   onHide: () => void;
   /** The session's descendants, read once by the cockpit for this tab and the turn's permission strips. */
@@ -412,6 +414,7 @@ export function Inspector(props: {
                 owner={owner}
                 snapshot={data.phase === 'snapshot' ? data.snapshot : null}
                 busy={props.busy}
+                mayRun={props.ownerMayRun === true}
                 onClose={() => {
                   actions.setHandoffOpen(false);
                   props.handoff.dismiss();

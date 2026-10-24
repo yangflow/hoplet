@@ -886,6 +886,14 @@ export class Store {
     return devices.deviceIdForToken(this.ctx, token);
   }
 
+  deviceEventSeq(deviceId: string): number {
+    return devices.deviceEventSeq(this.ctx, deviceId);
+  }
+
+  setDeviceEventSeq(deviceId: string, seq: number): void {
+    devices.setDeviceEventSeq(this.ctx, deviceId, seq);
+  }
+
   listTokens(now: number = Date.now()): TokenInfo[] {
     return tokens.listTokens(this.ctx, now);
   }

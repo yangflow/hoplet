@@ -472,7 +472,7 @@ describe('browser subscriptions', () => {
 });
 
 describe('reconnect', () => {
-  it('marks the sessions offline, then rebuilds their state from the agent', async () => {
+  it('marks the sessions offline with their last state, then rebuilds it from the agent', async () => {
     const { agent, browser, control } = await boot();
     const owner = await agent('dev-a');
     const watcher = await browser();
@@ -483,10 +483,13 @@ describe('reconnect', () => {
     await watcher.waitFor((m) => m.type === 'session.runtime' && m.state === 'offline', 'offline');
     expect(control.runtimeOf('s1').state).toBe('offline');
 
+    expect(watcher.ofType('session.runtime').at(-1)).toMatchObject({ lastState: 'running' });
+
+    // Until the agent reports, the session shows what it last did.
     const again = await agent('dev-a');
     await watcher.waitFor(
-      (m) => m.type === 'session.runtime' && m.state === 'idle' && watcher.got.indexOf(m) > 1,
-      'reset',
+      (m) => m.type === 'session.runtime' && m.state === 'running' && watcher.got.indexOf(m) > 1,
+      'last state',
     );
     again.send(state('s1', 'ready'));
     await watcher.waitFor(

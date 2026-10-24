@@ -129,6 +129,8 @@ interface Prepared {
   extra?: () => Record<string, unknown>;
   /** Handoff events name both machines. */
   machines?: { from: string; to: string };
+  /** A machine replayed the event after a reconnect: it happened at this time, epoch ms (ADR 0039). */
+  replayedAt?: number;
 }
 
 function backoff(attempts: number): number {
@@ -452,7 +454,8 @@ export function createHooks(store: Store, control: Control, options: HooksOption
       v: 1,
       id: eventId,
       type: prepared.type,
-      at: new Date(at).toISOString(),
+      at: new Date(prepared.replayedAt ?? at).toISOString(),
+      ...(prepared.replayedAt !== undefined ? { replayed: true } : {}),
       session: {
         ...(prepared.sessionId !== undefined ? { id: prepared.sessionId } : {}),
         project: { name: projectName(prepared.context.projectPath) },
@@ -554,6 +557,7 @@ export function createHooks(store: Store, control: Control, options: HooksOption
         .filter((h) => h.enabled && store.hookSecret(h.id) !== null);
       const prepared = prepare(event);
       if (!prepared) return;
+      if (event.replayed && event.at !== undefined) prepared.replayedAt = event.at;
       const targets = matching.filter(
         (h) => (h.events as string[]).includes(prepared.type) && inScope(h.scope, prepared.context),
       );

@@ -4,13 +4,14 @@ import { Button } from '../../../components/Button.tsx';
 import { IconButton } from '../../../components/IconButton.tsx';
 import { Icon, Spinner } from '../../../components/icons.tsx';
 import { Markdown } from '../../../components/Markdown.tsx';
-import { clock, formatCountdown, formatTimer } from '../../../lib/format.ts';
+import { clock, formatBytes, formatCountdown, formatTimer } from '../../../lib/format.ts';
 import { languageOfPath } from '../../../lib/highlight.ts';
 import { t } from '../../../lib/i18n.ts';
 import { type Draft, type DraftOption, draftFromCall } from '../../../lib/permission-rules.ts';
 import { promptSource } from '../../../lib/provenance.ts';
 import type { Select } from '../composer/mode-menu.tsx';
 import type { RuntimeState } from '../model.ts';
+import { catchUpPercent } from '../runtime.ts';
 import { ElidedPanel } from './blocks.tsx';
 import {
   ConfigChangeResults,
@@ -202,8 +203,12 @@ export function PermissionCard(props: {
   onAnswer: (decision: 'allow' | 'deny') => void;
   /** Drafting a rule from the request; absent where no rule can be saved. */
   rules?: CardRules | undefined;
+  /** The session's machine, which an unreachable request waits for (ADR 0039). */
+  deviceName?: string;
 }) {
-  const { request, now, busy } = props;
+  const { request, now } = props;
+  const away = request.unreachable === true;
+  const busy = props.busy || away;
   const rules = props.rules;
   const draft = rules
     ? draftFromCall({
@@ -215,12 +220,15 @@ export function PermissionCard(props: {
     : null;
   const [drafting, setDrafting] = useState<'allow' | 'deny' | null>(rules?.open?.action ?? null);
   const input = permissionInput(request.toolKind, request.input);
-  const remaining = Math.min(PERMISSION_OPEN_MS, request.receivedAt + PERMISSION_OPEN_MS - now);
+  const remaining = Math.min(
+    PERMISSION_OPEN_MS,
+    request.receivedAt + PERMISSION_OPEN_MS - (away ? (request.pausedAt ?? now) : now),
+  );
   const countdown = formatCountdown(remaining);
   const big = input.text.length > PERMISSION_ELIDE_BYTES;
   return (
     <fieldset
-      className="ask"
+      className={`ask${away ? ' away' : ''}`}
       title={t('Request {id}').replace('{id}', request.requestId.slice(0, 4))}
       data-testid="cockpit.permission"
     >
@@ -238,6 +246,17 @@ export function PermissionCard(props: {
           })}
         </span>
       </div>
+      {request.resent && !away ? (
+        <div className="ask-back" data-testid="cockpit.permission-resent">
+          <span className="tag">
+            {Icon.retry()}
+            {t('Sent again after reconnect · asked {time}').replace(
+              '{time}',
+              clock(request.requestedAt ?? request.receivedAt),
+            )}
+          </span>
+        </div>
+      ) : null}
       {big ? (
         <ElidedPanel
           id={`perm:${request.requestId}`}
@@ -277,7 +296,15 @@ export function PermissionCard(props: {
         >
           {t('Deny')}
         </Button>
-        {draft?.ok ? (
+        {away ? (
+          <span className="ask-note" data-testid="cockpit.permission-away">
+            <span className="off-dot" />
+            {t('Answer once {device} reconnects; it is never approved on its own').replace(
+              '{device}',
+              props.deviceName ?? '',
+            )}
+          </span>
+        ) : draft?.ok ? (
           <>
             <span className="vr" />
             <Button
@@ -314,13 +341,26 @@ export function PermissionCard(props: {
             </span>
           </>
         ) : null}
-        <span
-          className="ask-meta"
-          title={t('Denied without an answer in {time}').replace('{time}', countdown)}
-        >
-          {Icon.clock()}
-          {fill(t('Auto-deny in {time}'), { time: <span className="num">{countdown}</span> })}
-        </span>
+        {away ? (
+          <span
+            className="ask-meta"
+            title={t('The clock stops while the machine is away')}
+            data-testid="cockpit.permission-paused"
+          >
+            {Icon.pause()}
+            {fill(t('Timer paused · {time} left'), {
+              time: <span className="num">{countdown}</span>,
+            })}
+          </span>
+        ) : (
+          <span
+            className="ask-meta"
+            title={t('Denied without an answer in {time}').replace('{time}', countdown)}
+          >
+            {Icon.clock()}
+            {fill(t('Auto-deny in {time}'), { time: <span className="num">{countdown}</span> })}
+          </span>
+        )}
       </div>
       {drafting && rules && draft?.ok ? (
         <RuleDraftDialog
@@ -420,8 +460,13 @@ export function LiveTurnView(props: {
   childAsks?: ReactNode;
   /** The session's requests to change its configuration (ADR 0036). */
   configChanges?: ConfigChangeView | undefined;
+  /** The session's machine went offline during the turn (ADR 0039): when it was last heard. */
+  away?: { since?: number | undefined } | undefined;
+  /** The machine is back and sends what it wrote while away (ADR 0039). */
+  catchUp?: { received: number; total: number } | undefined;
 }) {
-  const { turn, base, state, now, frozen } = props;
+  const { turn, base, state, now, away, catchUp } = props;
+  const frozen = props.frozen || away !== undefined;
   const failed = turn.phase === 'failed';
   const need = state === 'waiting-permission' && turn.phase === 'live';
   const live = turn.phase === 'live';
@@ -435,11 +480,23 @@ export function LiveTurnView(props: {
   const showBadge = state !== 'starting' && (live || failed);
   const word = failed
     ? t('Failed')
-    : frozen
-      ? t('Running · paused while reconnecting')
-      : need
-        ? t('Waiting for permission')
-        : t('Running');
+    : away
+      ? need
+        ? t('Waiting for you · machine offline')
+        : away.since !== undefined
+          ? t('May still be running · last heard {time}').replace('{time}', clock(away.since))
+          : t('May still be running')
+      : frozen
+        ? t('Running · paused while reconnecting')
+        : need
+          ? t('Waiting for permission')
+          : t('Running');
+  const caughtUp = catchUp
+    ? t('Catching up · {received} of {total}')
+        .replace('{received}', formatBytes(catchUp.received))
+        .replace('{total}', formatBytes(catchUp.total))
+    : null;
+  const percent = catchUp ? catchUpPercent(catchUp) : 0;
   const lastText = [...turn.rows].reverse().find((r) => r.kind === 'text');
   const cls = `turn live${need ? ' need' : ''}${failed ? ' fail' : ''}${frozen ? ' frozen' : ''}`;
   return (
@@ -452,7 +509,17 @@ export function LiveTurnView(props: {
       <header className="th" data-testid="cockpit.live-head">
         <div className={`tp${prompt ? '' : ' none'}`}>{prompt ?? t('Turn in progress')}</div>
         <div className="rt">
-          {showBadge ? (
+          {showBadge && away && live ? (
+            <span className="badge may" data-testid="cockpit.live-state" data-away="true">
+              <span className="off-dot" />
+              <span>{word}</span>
+            </span>
+          ) : showBadge && caughtUp && live ? (
+            <span className="badge cu" data-testid="cockpit.live-state" data-catching-up="true">
+              <Spinner />
+              <span>{caughtUp}</span>
+            </span>
+          ) : showBadge ? (
             <span
               className="badge"
               role="img"
@@ -592,10 +659,44 @@ export function LiveTurnView(props: {
                   busy={props.answering}
                   onAnswer={(decision) => props.onAnswer(request.requestId, decision)}
                   rules={props.rules}
+                  deviceName={props.deviceName}
                 />
               ),
             )
           : null}
+        {live && caughtUp ? (
+          <>
+            <div
+              className="cuprog"
+              role="progressbar"
+              aria-valuenow={percent}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label={t('Catching up')}
+            >
+              <i style={{ width: `${percent}%` }} />
+            </div>
+            <div className="quiet-line culine" data-testid="cockpit.catching-up">
+              <Spinner />
+              <span>
+                {t(
+                  'Output written while {device} was offline is arriving; the state follows when it is in',
+                ).replace('{device}', props.deviceName)}
+              </span>
+            </div>
+          </>
+        ) : null}
+        {live && away ? (
+          <div className="quiet-line culine" data-testid="cockpit.away-line">
+            {Icon.clock()}
+            <span>
+              {t('Anything it does from here appears when {device} reconnects').replace(
+                '{device}',
+                props.deviceName,
+              )}
+            </span>
+          </div>
+        ) : null}
         {live ? props.childAsks : null}
         {live && props.handoffs ? (
           <PendingHandoffs view={props.handoffs} providerName={props.providerName} now={now} />

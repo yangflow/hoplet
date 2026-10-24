@@ -79,19 +79,6 @@ export function closeSessionPermissions(
   }
 }
 
-/** Closes every open request of these devices because they went away. */
-export function closeDevicePermissions(
-  state: ControlState,
-  deviceIds: ReadonlySet<string>,
-  resolution: PermissionResolution,
-): void {
-  for (const [key, open] of [...state.permissions]) {
-    if (deviceIds.has(open.deviceId)) {
-      closePermission(state, key, resolution, undefined, 'session-end');
-    }
-  }
-}
-
 /** Arms the expiry of a request that expires: it is closed `expired` when the agent denies it. */
 export function armExpiry(state: ControlState, key: string, ms: number): void {
   const timer = setTimeout(() => {

@@ -1,2 +1,2 @@
 /** Carried as `v` by every WebSocket message; the core refuses a `device.hello` with another value. */
-export const PROTOCOL_VERSION = 23 as const;
+export const PROTOCOL_VERSION = 24 as const;

@@ -27,6 +27,7 @@ import type {
   Control,
   ControlEvent,
   ControlOptions,
+  ControlReply,
   DeviceLink,
   Viewing,
 } from './types.ts';
@@ -161,6 +162,9 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
     permissionTimers: new Map(),
     turns: new Map(),
     stopping: new Set(),
+    offlineSince: new Map(),
+    catchUp: new Map(),
+    reconnects: new Map(),
     publish,
     now: options.now ?? Date.now,
     emit,
@@ -228,6 +232,76 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
     treeTokens: { ...DEFAULT_SESSION_LIMITS, ...options.sessionLimits }.treeTokens,
     ...(options.treeEvery ? { every: options.treeEvery } : {}),
   });
+  /** Hands a device's message to the part of the core it belongs to. */
+  function receiveFrom(link: DeviceLink, deviceId: string | undefined, msg: ControlReply): void {
+    switch (msg.type) {
+      case 'hook.result':
+        if (deviceId !== undefined)
+          for (const listener of hookResultListeners) listener(deviceId, msg);
+        return;
+      case 'device.rules.applied':
+        rules.receive(link, msg.revision, msg.error);
+        return;
+      case 'runtime.mcp.token.request':
+        answerMcpToken(link, msg.requestId, msg.sessionId);
+        return;
+      case 'journal.gap':
+        // The machine's journal overflowed while it was away: what it dropped is lost (ADR 0039).
+        if (deviceId === undefined) return;
+        try {
+          store.audit({
+            type: 'journal.gap',
+            at: msg.at ?? state.now(),
+            deviceId,
+            actor: { kind: 'device', id: deviceId },
+            channel: 'agent',
+            summary: { dropped: msg.dropped, from: msg.from, to: msg.to },
+          });
+        } catch (err) {
+          log('error', 'control', 'audit write failed', { error: String(err) });
+        }
+        return;
+      case 'device.backlog':
+        if (deviceId !== undefined) runtime.backlog(deviceId, msg.sessions);
+        return;
+      case 'runtime.reported':
+        if (deviceId === undefined) return;
+        // Messages that waited for the machine and sessions it no longer runs can move on.
+        for (const sessionId of runtime.reported(deviceId)) queue.drain(sessionId);
+        return;
+      case 'session.diverged': {
+        // The machine wrote to a transcript after another machine took it over (ADR 0039).
+        if (deviceId === undefined) return;
+        const at = state.now();
+        try {
+          store.audit({
+            type: 'session.diverged',
+            at,
+            sessionId: msg.sessionId,
+            deviceId,
+            actor: { kind: 'device', id: deviceId },
+            channel: 'agent',
+            summary: { ownerEpoch: msg.ownerEpoch, bytes: msg.bytes, lines: msg.lines },
+          });
+        } catch (err) {
+          log('error', 'control', 'audit write failed', { error: String(err) });
+        }
+        publish({
+          v: PROTOCOL_VERSION,
+          type: 'session.divergence',
+          sessionId: msg.sessionId,
+          deviceId,
+          bytes: msg.bytes,
+          lines: msg.lines,
+          at,
+        });
+        return;
+      }
+      default:
+        receiveReply(state, runtime, terminals, ports, resources, link, msg);
+    }
+  }
+
   /**
    * Answers a device asking for the token of one of its sessions' MCP server (ADR 0034): only the owner of the
    * session, and only a device that announced `sessionMcp`, gets one.
@@ -371,23 +445,20 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
       }
     },
     receive(link, msg) {
-      if (msg.type === 'hook.result') {
-        for (const [deviceId, attached] of state.byDevice) {
-          if (attached === link)
-            for (const listener of hookResultListeners) listener(deviceId, msg);
-        }
+      const deviceId = [...state.byDevice].find(([, attached]) => attached === link)?.[0];
+      const eventSeq = 'eventSeq' in msg ? msg.eventSeq : undefined;
+      if (eventSeq === undefined || deviceId === undefined) {
+        receiveFrom(link, deviceId, msg);
         return;
       }
-      if (msg.type === 'device.rules.applied') {
-        rules.receive(link, msg.revision, msg.error);
-        return;
+      // A journalled event the core applied already is acknowledged again and skipped (ADR 0039).
+      if (eventSeq > store.deviceEventSeq(deviceId)) {
+        receiveFrom(link, deviceId, msg);
+        store.setDeviceEventSeq(deviceId, eventSeq);
       }
-      if (msg.type === 'runtime.mcp.token.request') {
-        answerMcpToken(link, msg.requestId, msg.sessionId);
-        return;
-      }
-      receiveReply(state, runtime, terminals, ports, resources, link, msg);
+      link.send({ v: PROTOCOL_VERSION, type: 'journal.ack', eventSeq });
     },
+    appended: runtime.appended,
     prompt: runtime.prompt,
     answerPermission: runtime.answerPermission,
     interrupt(sessionId, ownerDeviceId, actor) {

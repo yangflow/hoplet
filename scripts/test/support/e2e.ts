@@ -129,6 +129,7 @@ export async function startCore(
       control.attach(deviceId, wrapped, providers, hello);
     },
     announceRules: control.announceRules,
+    appended: control.appended,
     detach(link) {
       control.detach(links.get(link)?.link ?? link);
       links.delete(link);

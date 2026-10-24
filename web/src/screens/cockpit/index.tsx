@@ -36,6 +36,7 @@ import { buildTree, isArchived, sessionTargets } from './group.ts';
 import type { NewSessionRequest, RuntimeState, TemplateStart } from './model.ts';
 import { Palette } from './palette.tsx';
 import { RenameDialog } from './rename-dialog.tsx';
+import { awayNote } from './runtime.ts';
 import { type SessionActions, sessionMenu } from './session-actions.tsx';
 import { AddProject, type AddProjectFixture } from './sidebar/add-project.tsx';
 import type { Grouping } from './sidebar/organize.ts';
@@ -243,6 +244,14 @@ export function Cockpit(props: {
   const states = useMemo(() => {
     const out: Record<string, RuntimeState> = {};
     for (const s of sessions) out[s.sessionId] = runtimeOf(s).state;
+    return out;
+  }, [sessions, runtimeOf]);
+  const notes = useMemo(() => {
+    const out: Record<string, string> = {};
+    for (const s of sessions) {
+      const note = awayNote(runtimeOf(s));
+      if (note) out[s.sessionId] = note;
+    }
     return out;
   }, [sessions, runtimeOf]);
 
@@ -496,6 +505,7 @@ export function Cockpit(props: {
           groups={groups}
           selected={draft || archivedOpen ? null : selected}
           runtime={states}
+          notes={notes}
           now={now}
           host={host}
           live={live}
@@ -657,6 +667,9 @@ export function Cockpit(props: {
           handoff={handoff}
           busy={busy}
           runtimeState={runtimeOf(session).state}
+          ownerMayRun={
+            awayNote(runtimeOf(session)) !== null && runtimeOf(session).state === 'offline'
+          }
           terminalCapable={
             devices.find((d) => d.deviceId === session.ownerDeviceId)?.terminal === true
           }

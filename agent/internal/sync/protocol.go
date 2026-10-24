@@ -14,7 +14,7 @@ import (
 // (provider.ValidSessionID, ADR 0006). Invalid IDs receive error invalid-session-id
 // before decoding or persistence; the wire envelope and cursor are unchanged.
 
-const ProtocolVersion = 23
+const ProtocolVersion = 24
 
 // Wire message types: Type<Struct> is the `type` of the struct of that name.
 // shared/src/wire/ holds the same table; scripts/test/contract.test.ts compares both.
@@ -45,6 +45,12 @@ const (
 	TypeRuntimeOutput            = "runtime.output"
 	TypeRuntimePermission        = "runtime.permission"
 	TypeRuntimePermissionAuto    = "runtime.permission.auto"
+	TypeRuntimePermissionClosed  = "runtime.permission.closed"
+	TypeRuntimeReported          = "runtime.reported"
+	TypeJournalAck               = "journal.ack"
+	TypeJournalGap               = "journal.gap"
+	TypeDeviceBacklog            = "device.backlog"
+	TypeSessionDiverged          = "session.diverged"
 	TypeRuntimeRulesUnenforced   = "runtime.rules.unenforced"
 	TypeRuntimeRejected          = "runtime.rejected"
 	TypeRuntimeCommands          = "runtime.commands"
@@ -325,6 +331,63 @@ type SessionAppend struct {
 	// Configuration is the ID of the provider configuration the session belongs to (ADR 0028); absent means the
 	// vendor's own. The core keeps what the latest append says.
 	Configuration string `json:"configuration,omitempty"`
+	// OwnerEpoch is the owner_epoch the agent last heard for the session (ADR 0039); the core refuses an older one.
+	OwnerEpoch int64 `json:"ownerEpoch,omitempty"`
+}
+
+// SessionDiverged reports the bytes and lines the agent wrote to a session after it stopped being its owner
+// (ADR 0039); OwnerEpoch is the epoch it last held. The lines stay in the transcript file on the machine.
+type SessionDiverged struct {
+	V          int    `json:"v"`
+	Type       string `json:"type"`
+	SessionID  string `json:"sessionId"`
+	OwnerEpoch int64  `json:"ownerEpoch"`
+	Bytes      int64  `json:"bytes"`
+	Lines      int64  `json:"lines"`
+}
+
+// JournalAck says the core applied the journalled events up to EventSeq (ADR 0039).
+type JournalAck struct {
+	V        int    `json:"v"`
+	Type     string `json:"type"`
+	EventSeq int64  `json:"eventSeq"`
+}
+
+// JournalGap says the journal reached its cap and dropped Dropped events journalled between From and To (epoch
+// milliseconds). It is journalled itself.
+type JournalGap struct {
+	V        int    `json:"v"`
+	Type     string `json:"type"`
+	Dropped  int    `json:"dropped"`
+	From     int64  `json:"from"`
+	To       int64  `json:"to"`
+	EventSeq int64  `json:"eventSeq,omitempty"`
+	At       int64  `json:"at,omitempty"`
+	Replayed bool   `json:"replayed,omitempty"`
+}
+
+// DeviceBacklogSession is a session with Bytes of transcript still to send after a reconnect.
+type DeviceBacklogSession struct {
+	SessionID string `json:"sessionId"`
+	Bytes     int64  `json:"bytes"`
+}
+
+// DeviceBacklog names, once per connection, the transcript bytes still to send per session (at most
+// MaxBacklogSessions).
+type DeviceBacklog struct {
+	V        int                    `json:"v"`
+	Type     string                 `json:"type"`
+	Sessions []DeviceBacklogSession `json:"sessions"`
+}
+
+// MaxBacklogSessions is the most sessions one DeviceBacklog names.
+const MaxBacklogSessions = 500
+
+// RuntimeReported says the agent replayed its journal, sent its transcript backlog and reported every running
+// session after a reconnect.
+type RuntimeReported struct {
+	V    int    `json:"v"`
+	Type string `json:"type"`
 }
 
 // WorkspaceSnapshot is one chunk of a session's workspace snapshot (docs/architecture.md#workspace-snapshots):
@@ -362,6 +425,8 @@ type Welcome struct {
 	Type       string        `json:"type"`
 	ServerTime int64         `json:"serverTime"`
 	Sessions   []SessionMeta `json:"sessions"`
+	// EventSeq is the highest journalled event of this machine the core has applied (ADR 0039).
+	EventSeq int64 `json:"eventSeq"`
 }
 
 type SessionAck struct {
@@ -629,6 +694,9 @@ type RuntimeState struct {
 	Error     string `json:"error,omitempty"`
 	// Capabilities.Config carries this session's values.
 	Capabilities RuntimeCapabilities `json:"capabilities"`
+	EventSeq     int64               `json:"eventSeq,omitempty"`
+	At           int64               `json:"at,omitempty"`
+	Replayed     bool                `json:"replayed,omitempty"`
 }
 
 type RuntimeOutput struct {
@@ -654,6 +722,22 @@ type RuntimePermission struct {
 	ToolUseID string          `json:"toolUseId,omitempty"`
 	Input     json.RawMessage `json:"input"`
 	PlanExit  *PlanExit       `json:"planExit,omitempty"`
+	EventSeq  int64           `json:"eventSeq,omitempty"`
+	At        int64           `json:"at,omitempty"`
+	Replayed  bool            `json:"replayed,omitempty"`
+}
+
+// RuntimePermissionClosed says the agent closed a permission request without an answer from the core: Reason is
+// timeout when it waited longer than the agent's limit and was denied (ADR 0039).
+type RuntimePermissionClosed struct {
+	V         int    `json:"v"`
+	Type      string `json:"type"`
+	SessionID string `json:"sessionId"`
+	RequestID string `json:"requestId"`
+	Reason    string `json:"reason"`
+	EventSeq  int64  `json:"eventSeq,omitempty"`
+	At        int64  `json:"at,omitempty"`
+	Replayed  bool   `json:"replayed,omitempty"`
 }
 
 // RuntimePermissionAuto reports a tool call a permission rule decided without asking a person (ADR 0029). The
@@ -667,6 +751,9 @@ type RuntimePermissionAuto struct {
 	RuleID    string `json:"ruleId"`
 	Scope     string `json:"scope"` // global | project | session | agent
 	Revision  int    `json:"revision"`
+	EventSeq  int64  `json:"eventSeq,omitempty"`
+	At        int64  `json:"at,omitempty"`
+	Replayed  bool   `json:"replayed,omitempty"`
 }
 
 // RuntimeRulesUnenforced reports that a tool call ran without the permission rules being checked: the Codex hook did

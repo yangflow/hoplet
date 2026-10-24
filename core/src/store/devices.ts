@@ -236,3 +236,18 @@ export function deviceIdForToken(ctx: StoreContext, token: string): string | nul
     .get(hashToken(token)) as { device_id: string } | undefined;
   return row?.device_id ?? null;
 }
+
+/** The highest journalled event of the device the core has applied (ADR 0039); 0 for none or an unknown device. */
+export function deviceEventSeq(ctx: StoreContext, deviceId: string): number {
+  const row = ctx.db.prepare('SELECT event_seq FROM devices WHERE device_id = ?').get(deviceId) as
+    | { event_seq: number }
+    | undefined;
+  return Number(row?.event_seq ?? 0);
+}
+
+/** Records that the core applied the device's journalled events up to `seq`; it never moves back. */
+export function setDeviceEventSeq(ctx: StoreContext, deviceId: string, seq: number): void {
+  ctx.db
+    .prepare('UPDATE devices SET event_seq = ? WHERE device_id = ? AND event_seq < ?')
+    .run(seq, deviceId, seq);
+}

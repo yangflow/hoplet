@@ -209,6 +209,16 @@ The mockups, design tokens and app icon behind Hoplet's web UI. The design langu
   `c-archive`, `c-edit`, `c-empty`. `a-default`, `a-edit`, `a-archive`, `b-default` and `c-filter` also have `-zh`
   states. In the web UI: `/__states/cockpit/session-tags`, `tags-empty`, `tag-editor`, `tag-filter`, `group-menu`,
   `group-project`, `group-time`, `archived-tag-filter` and `archived-tag-none`. New icon: `tag`.
+- `screens/offline.html` (#95): a session whose machine goes offline and comes back (ADR 0039), two directions;
+  the maintainer confirmed A, built under `/__states/cockpit/offline-*` and `/__states/workspace/handoff-may-run`, and B stays as the alternative considered.
+  Both show the machine offline while a turn runs ("may still be running", the live turn frozen rather than
+  settled, the handoff offered), catching up after the reconnect with its progress, a permission request that
+  stays open across the disconnect with its answers disabled and its clock paused, and the same request sent
+  again after the reconnect. A (`a-*`) says it in place: the row's second line, the turn's badge, the card and the
+  composer. B (`b-*`) says it in one strip under the top bar and leaves the rest quiet. States: `a-offline`,
+  `a-catching-up`, `a-permission-offline`, `a-permission-back`, `b-offline`, `b-catching-up`,
+  `b-permission-offline`, `b-permission-back`; `a-offline`, `a-permission-offline`, `b-offline` and
+  `b-permission-offline` also have `-zh` states. The mockup draws `wifi-off`, `refresh-cw` and `pen-line`; the built states use the existing `retry`, `pause`, `clock` and `alert` glyphs.
 - `tokens.html`: every design token, with the JSON block that `check-tokens.py` compares with
   `web/src/design/tokens.css`.
 - `mark.html`: the app icon and the web UI's mark; the exported icon is `web/public/icon.svg`.

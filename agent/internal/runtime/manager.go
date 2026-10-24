@@ -84,12 +84,21 @@ type RulesUnenforcedEvent struct {
 	RulesUnenforced
 }
 
-func (RulesUnenforcedEvent) runtimeEvent() {}
-func (RuleDecisionEvent) runtimeEvent()    {}
-func (CommandsEvent) runtimeEvent()        {}
-func (StateEvent) runtimeEvent()           {}
-func (OutputEvent) runtimeEvent()          {}
-func (PermissionEvent) runtimeEvent()      {}
+// PermissionClosedEvent reports a permission request the agent closed without an answer from the core: Reason is
+// timeout when it was denied after PermissionTimeout of connected time, or after PermissionCap in all (ADR 0039).
+type PermissionClosedEvent struct {
+	SessionID string
+	RequestID string
+	Reason    string
+}
+
+func (PermissionClosedEvent) runtimeEvent() {}
+func (RulesUnenforcedEvent) runtimeEvent()  {}
+func (RuleDecisionEvent) runtimeEvent()     {}
+func (CommandsEvent) runtimeEvent()         {}
+func (StateEvent) runtimeEvent()            {}
+func (OutputEvent) runtimeEvent()           {}
+func (PermissionEvent) runtimeEvent()       {}
 
 // Config configures a Manager. Zero durations take the defaults of docs/hosting.md (agent configuration).
 type Config struct {
@@ -111,10 +120,13 @@ type Config struct {
 	IdleTimeout       time.Duration // stop a process this long after its last turn; default 30 minutes
 	MaxIdle           int           // processes kept `ready` without a turn; the least recently used stops first
 	PermissionTimeout time.Duration // deny an unanswered permission request after this long; default 10 minutes
-	KillAfter         time.Duration // kill a process that did not exit this long after its input closed; default 10 s
-	ExternalQuiet     time.Duration // refuse prompts until the session file has not grown this long; default 60 s
-	StartTimeout      time.Duration // a process that is not ready after this long is killed; default 60 s
-	OwnGrace          time.Duration // growth this long after a turn result is the process's own; default 5 s
+	// PermissionCap is the longest a permission request waits while the core is unreachable: its PermissionTimeout
+	// counts connected time only (ADR 0039). Default 24 hours.
+	PermissionCap time.Duration
+	KillAfter     time.Duration // kill a process that did not exit this long after its input closed; default 10 s
+	ExternalQuiet time.Duration // refuse prompts until the session file has not grown this long; default 60 s
+	StartTimeout  time.Duration // a process that is not ready after this long is killed; default 60 s
+	OwnGrace      time.Duration // growth this long after a turn result is the process's own; default 5 s
 }
 
 // Manager owns the processes of one agent: one per controlled session.
@@ -125,6 +137,18 @@ type Manager struct {
 	sessions map[string]*session
 	closed   bool
 	wg       sync.WaitGroup
+	// offline is set while the core is unreachable: the permission timers are paused (SetConnected).
+	offline bool
+}
+
+// permTimer is the automatic denial of an open permission request. Its PermissionTimeout runs while the core is
+// reachable; left is what remains of it, armed is when the running timer started. A plan has none (ADR 0019).
+type permTimer struct {
+	timer  *time.Timer
+	left   time.Duration
+	armed  time.Time
+	opened time.Time
+	plan   bool
 }
 
 type session struct {
@@ -163,7 +187,7 @@ type session struct {
 	interrupted bool
 	turnErr     string
 
-	perms map[string]*time.Timer // open permission requests by id, each with its auto-deny timer
+	perms map[string]*permTimer // open permission requests by id, each with its automatic denial
 	reqs  map[string]PermissionRequest
 
 	lastUsed  time.Time
@@ -188,6 +212,9 @@ func NewManager(cfg Config) *Manager {
 	}
 	if cfg.PermissionTimeout <= 0 {
 		cfg.PermissionTimeout = 10 * time.Minute
+	}
+	if cfg.PermissionCap <= 0 {
+		cfg.PermissionCap = 24 * time.Hour
 	}
 	if cfg.KillAfter <= 0 {
 		cfg.KillAfter = 10 * time.Second
@@ -219,7 +246,7 @@ func NewManager(cfg Config) *Manager {
 func (m *Manager) get(id string) *session {
 	s := m.sessions[id]
 	if s == nil {
-		s = &session{id: id, state: StateIdle, perms: map[string]*time.Timer{}, reqs: map[string]PermissionRequest{}}
+		s = &session{id: id, state: StateIdle, perms: map[string]*permTimer{}, reqs: map[string]PermissionRequest{}}
 		m.sessions[id] = s
 	}
 	return s
@@ -766,7 +793,7 @@ func (m *Manager) CreateWith(dir string, p Prompt, config map[string]any) (strin
 // the manager knows its ID, so the session is not registered until the driver returns it. A failed start
 // leaves nothing behind.
 func (m *Manager) createAssigned(a IDAssigner, dir string, p Prompt, config map[string]any) (string, error) {
-	s := &session{state: StateIdle, perms: map[string]*time.Timer{}, reqs: map[string]PermissionRequest{}}
+	s := &session{state: StateIdle, perms: map[string]*permTimer{}, reqs: map[string]PermissionRequest{}}
 	s.loc = Location{Dir: dir}
 	m.mu.Lock()
 	if m.closed {
@@ -1173,28 +1200,71 @@ func (m *Manager) addPermission(s *session, req PermissionRequest) {
 	id := req.RequestID
 	gen := s.gen
 	s.reqs[id] = req
-	if req.PlanExit != nil {
-		// A plan is read at the user's pace: no automatic denial (ADR 0019).
-		s.perms[id] = nil
-	} else {
-		s.perms[id] = time.AfterFunc(m.cfg.PermissionTimeout, func() {
-			m.mu.Lock()
-			defer m.mu.Unlock()
-			if s.gen == gen {
-				_ = m.answer(s, id, Verdict{Message: "No answer within " + m.cfg.PermissionTimeout.String() + "; denied by Hoplet"})
-			}
-		})
-	}
+	// A plan is read at the user's pace: no automatic denial (ADR 0019).
+	p := &permTimer{left: m.cfg.PermissionTimeout, opened: time.Now(), plan: req.PlanExit != nil}
+	s.perms[id] = p
+	m.armPermission(s, gen, id, p)
 	if s.state != StateWaitingPermission {
 		m.setState(s, StateWaitingPermission, "")
 	}
 	m.cfg.Emit(PermissionEvent{SessionID: s.id, Request: req})
 }
 
+// armPermission starts the timer of an open request: what is left of PermissionTimeout while the core is reachable,
+// what is left of PermissionCap while it is not. Called with mu held.
+func (m *Manager) armPermission(s *session, gen int, id string, p *permTimer) {
+	if p.plan {
+		return
+	}
+	if p.timer != nil {
+		p.timer.Stop()
+	}
+	wait, why := p.left, "No answer within "+m.cfg.PermissionTimeout.String()+"; denied by Hoplet"
+	if m.offline {
+		wait = max(m.cfg.PermissionCap-time.Since(p.opened), 0)
+		why = "No answer within " + m.cfg.PermissionCap.String() + " while Hoplet was unreachable; denied by Hoplet"
+	}
+	p.armed = time.Now()
+	p.timer = time.AfterFunc(wait, func() {
+		m.mu.Lock()
+		defer m.mu.Unlock()
+		if s.gen != gen || s.perms[id] != p {
+			return
+		}
+		if m.answer(s, id, Verdict{Message: why}) != nil {
+			m.dropPermission(s, id)
+		}
+		m.cfg.Emit(PermissionClosedEvent{SessionID: s.id, RequestID: id, Reason: "timeout"})
+	})
+}
+
+// SetConnected pauses the permission timers while the core is unreachable and resumes them with the time they had
+// left when it is back (ADR 0039): a request nobody could see is not denied for want of an answer, up to
+// PermissionCap.
+func (m *Manager) SetConnected(up bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.offline == !up {
+		return
+	}
+	m.offline = !up
+	for _, s := range m.sessions {
+		for id, p := range s.perms {
+			if p.plan {
+				continue
+			}
+			if !up {
+				p.left = max(p.left-time.Since(p.armed), 0)
+			}
+			m.armPermission(s, s.gen, id, p)
+		}
+	}
+}
+
 func (m *Manager) dropPermission(s *session, id string) {
-	if t, ok := s.perms[id]; ok {
-		if t != nil {
-			t.Stop()
+	if p, ok := s.perms[id]; ok {
+		if p.timer != nil {
+			p.timer.Stop()
 		}
 		delete(s.perms, id)
 		delete(s.reqs, id)

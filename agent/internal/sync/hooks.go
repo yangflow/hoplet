@@ -31,9 +31,13 @@ type RuntimeHooks struct {
 	// Started is called after the answer to a successful Start was written; the agent reports the state of
 	// the new session then, which the core accepts only once it has the answer.
 	Started func(sessionID string)
-	// Connected is called in its own goroutine after every connection to the core; the agent reports the
-	// state of the processes it still runs through Client.Send.
+	// Connected is called in its own goroutine once per connection to the core, after the journal was replayed
+	// and the transcript backlog sent (or a minute passed); the agent reports the state of the processes it still
+	// runs and then sends runtime.reported (ADR 0039).
 	Connected func()
+	// Link is called with true once a connection replayed the journal and with false when it ends; the agent
+	// pauses the timers of its open permission requests while the link is down.
+	Link func(up bool)
 }
 
 // RuntimeStartResult is what a successful Start returns.

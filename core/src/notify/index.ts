@@ -77,7 +77,7 @@ function projectName(projectPath: string): string {
 
 type NotifiedEvent = Extract<
   ControlEvent,
-  { kind: 'permission' | 'turn-done' | 'failure' | 'handoff-requested' }
+  { kind: 'permission' | 'turn-done' | 'failure' | 'handoff-requested' | 'reconnected' }
 >;
 
 export function createNotify(store: Store, control: Control, options: NotifyOptions): Notify {
@@ -113,6 +113,22 @@ export function createNotify(store: Store, control: Control, options: NotifyOpti
   }
 
   function buildPayload(event: NotifiedEvent): { kind: NotifyEventKind; payload: NotifyPayload } {
+    if (event.kind === 'reconnected') {
+      // One summary per machine for what finished while it was away (ADR 0039).
+      const name = store.listDevices().find((d) => d.deviceId === event.deviceId)?.name;
+      return {
+        kind: 'turn-done',
+        payload: {
+          kind: 'turn-done',
+          project: '',
+          reconnected: {
+            machine: clip(name ?? event.deviceId, TITLE_MAX),
+            turns: event.turns,
+            ended: event.ended,
+          },
+        },
+      };
+    }
     if (event.kind === 'failure') {
       const meta = event.sessionId ? store.getSession(event.sessionId) : null;
       const projectPath = meta?.projectPath ?? event.projectPath ?? '';
@@ -334,10 +350,14 @@ export function createNotify(store: Store, control: Control, options: NotifyOpti
       event.kind !== 'permission' &&
       event.kind !== 'turn-done' &&
       event.kind !== 'failure' &&
-      event.kind !== 'handoff-requested'
+      event.kind !== 'handoff-requested' &&
+      event.kind !== 'reconnected'
     ) {
       return;
     }
+    // What a machine replayed after a reconnect is in its summary; a request that still waits is notified once
+    // the machine reported it (ADR 0039).
+    if (event.replayed && event.kind !== 'permission') return;
     if (event.kind === 'turn-done' && control.viewing.isOpen(event.sessionId)) return;
     const { kind, payload } = buildPayload(event);
     const session =

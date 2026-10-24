@@ -69,6 +69,8 @@ function SessionRow(props: {
   now: number;
   /** Flat: the second line, the name of the session's directory. */
   where?: string;
+  /** The second line of a session whose machine is away or catching up (ADR 0039); it takes the place of `where`. */
+  note?: string;
   /** Shows the pin glyph before the time (Flat, where pinned rows lead). */
   pinGlyph?: boolean;
   onSelect: (id: string) => void;
@@ -80,7 +82,8 @@ function SessionRow(props: {
     keyboard: boolean,
   ) => void;
 }) {
-  const { session, state, selected, dim, now, where, onSelect } = props;
+  const { session, state, selected, dim, now, note, onSelect } = props;
+  const where = note ?? props.where;
   const title = displayTitle(session);
   const glyph = glyphState(state);
   // The menu key also fires a native `contextmenu` (at 0,0, on key up): it anchors to the row like the key did.
@@ -131,7 +134,11 @@ function SessionRow(props: {
       {where ? (
         <span className="two-lines">
           <span className="two-title">{title}</span>
-          <span className="two-where" data-testid="cockpit.session-where">
+          <span
+            className="two-where"
+            data-testid={note ? 'cockpit.session-note' : 'cockpit.session-where'}
+          >
+            {note && dim ? <span className="off-dot" /> : null}
             {where}
           </span>
         </span>
@@ -234,6 +241,8 @@ export function Sidebar(props: {
   groups: DeviceGroup[];
   selected: string | null;
   runtime: Record<string, RuntimeState>;
+  /** The second line of the sessions whose machine is away or catching up, by session ID (ADR 0039). */
+  notes?: Record<string, string>;
   now: number;
   host: string;
   live: boolean;
@@ -348,6 +357,7 @@ export function Sidebar(props: {
       dim={!online}
       now={now}
       {...(where ? { where } : {})}
+      {...(props.notes?.[session.sessionId] ? { note: props.notes[session.sessionId] } : {})}
       {...(pinGlyph ? { pinGlyph } : {})}
       onSelect={props.onSelect}
       onMenu={(s, at, opener, keyboard) =>

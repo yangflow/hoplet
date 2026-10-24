@@ -11,7 +11,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { createServer, type Server } from 'node:http';
-import type { AddressInfo } from 'node:net';
+import type { AddressInfo, Socket } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
@@ -81,6 +81,8 @@ let browser: Browser;
 let native = '';
 let project = '';
 const agentLog: string[] = [];
+/** The sockets of the agent's connections, to drop the link without stopping the agent. */
+const agentSockets: Socket[] = [];
 
 const nativeSize = () => readFileSync(native).byteLength;
 
@@ -107,6 +109,9 @@ beforeAll(async () => {
   store = new Store(join(root, 'data'));
   control = createControl(store);
   server = createServer();
+  server.on('upgrade', (req, socket) => {
+    if (req.url?.startsWith('/ws/agent')) agentSockets.push(socket as Socket);
+  });
   attachIngest(server, store, control);
   createApi(
     store,
@@ -317,6 +322,85 @@ describe('remote control against a scripted Claude Code', () => {
         .map((m) => m.text)
         .join(''),
     ).toBe('REFUSED');
+    await synced();
+  });
+
+  it('keeps a permission request open across a dropped link and answers it after the reconnect', async () => {
+    await browser.state('ready');
+    const mark = browser.mark();
+    expect((await client.prompt(SESSION, 'tool echo across')).ok).toBe(true);
+    await browser.until('a permission request', () =>
+      browser.since(mark).some((m) => m.type === 'session.permission'),
+    );
+    await browser.state('waiting-permission');
+    const request = browser.since(mark).find((m) => m.type === 'session.permission') as Msg;
+    const requested = () =>
+      store
+        .listAudit({ type: 'permission.requested' }, { order: 'asc', limit: 500 })
+        .events.filter((e) => e.ref === request.requestId).length;
+    expect(requested()).toBe(1);
+
+    // The link drops; the agent and its Claude Code process go on (ADR 0039).
+    const away = browser.mark();
+    for (const socket of agentSockets.splice(0)) socket.destroy();
+    await browser.until('the session to go offline with its last state', () =>
+      browser
+        .since(away)
+        .some(
+          (m) =>
+            m.type === 'session.runtime' &&
+            m.state === 'offline' &&
+            m.lastState === 'waiting-permission',
+        ),
+    );
+    await browser.until('the request to wait for the machine', () =>
+      browser
+        .since(away)
+        .some(
+          (m) =>
+            m.type === 'session.permission' &&
+            m.requestId === request.requestId &&
+            m.unreachable === true,
+        ),
+    );
+    const early = await client.request(
+      'POST',
+      `/api/sessions/${SESSION}/permission`,
+      RuntimeCommandResultSchema,
+      { requestId: request.requestId, decision: 'allow' },
+    );
+    expect(early.ok).toBe(false);
+
+    // The agent reconnects by itself and names the same request again: one request, one record.
+    await browser.until(
+      'the request to open again after the reconnect',
+      () =>
+        browser
+          .since(away)
+          .some(
+            (m) =>
+              m.type === 'session.permission' &&
+              m.requestId === request.requestId &&
+              m.unreachable === undefined,
+          ),
+      30_000,
+    );
+    expect(control.runtimeOf(SESSION).state).toBe('waiting-permission');
+    expect(requested()).toBe(1);
+    const answer = await client.request(
+      'POST',
+      `/api/sessions/${SESSION}/permission`,
+      RuntimeCommandResultSchema,
+      { requestId: request.requestId, decision: 'allow' },
+    );
+    expect(answer.ok).toBe(true);
+    await browser.until('ready after the allowed tool', () => browser.lastState(away) === 'ready');
+    expect(
+      browser
+        .since(away)
+        .filter((m) => m.type === 'session.output' && m.kind === 'tool-result')
+        .at(-1),
+    ).toMatchObject({ text: 'ran: echo across' });
     await synced();
   });
 

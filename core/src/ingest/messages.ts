@@ -59,6 +59,11 @@ export function handleMessage(deps: MessageDeps, conn: Conn, msg: ClientMessage)
         if (session?.ownerDeviceId && session.ownerDeviceId !== conn.deviceId) {
           throw new NotOwnerError(session.ownerDeviceId);
         }
+        // Written under an ownership the session has since passed on and got back (ADR 0039): the agent keeps
+        // the lines aside and reports them with session.diverged.
+        if (session && msg.ownerEpoch !== undefined && msg.ownerEpoch < session.ownerEpoch) {
+          throw new NotOwnerError(session.ownerDeviceId ?? conn.deviceId);
+        }
         const byteSize = session?.byteSize ?? 0;
         if (msg.byteStart !== byteSize) {
           send(conn, {
@@ -90,6 +95,7 @@ export function handleMessage(deps: MessageDeps, conn: Conn, msg: ClientMessage)
           byteSize: r.byteSize,
           lineCount: r.lineCount,
         });
+        control.appended(msg.sessionId, r.byteSize - msg.byteStart);
         // A child that exists now has an owner, so the device's rules gain the ones it inherits (ADR 0029).
         if (r.isNew && store.sessionChildren().has(msg.sessionId)) {
           store.bumpPermissionRevision(conn.deviceId);

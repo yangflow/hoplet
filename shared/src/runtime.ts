@@ -178,6 +178,13 @@ export const AgentRuntimeStateSchema = v.picklist([
 ]);
 export type AgentRuntimeState = v.InferOutput<typeof AgentRuntimeStateSchema>;
 
+/** Transcript bytes received since a reconnect, of the `total` the machine said it had to send (ADR 0039). */
+export const CatchUpSchema = v.object({
+  received: v.pipe(v.number(), v.integer(), v.minValue(0)),
+  total: v.pipe(v.number(), v.integer(), v.minValue(0)),
+});
+export type CatchUp = v.InferOutput<typeof CatchUpSchema>;
+
 /** What browsers see: the agent's states plus `offline`, which the core adds when the owner is not connected. */
 export const RuntimeStateSchema = v.picklist([
   'offline',

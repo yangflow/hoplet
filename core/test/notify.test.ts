@@ -409,6 +409,32 @@ describe('which events notify', () => {
     expect(other.got).toHaveLength(0);
   });
 
+  it('sums up what finished while a machine was away in one notification (ADR 0039)', async () => {
+    const f = setup();
+    const hook = await receiver([200]);
+    f.store.addWebhook({ url: `${hook.base}/h`, label: 'Chat', events: ['turn-done'] }, T0);
+    f.store.setNotifyPreferences(prefs({ preset: 'needs-me-and-done' }));
+    f.control.receive(f.link, state('s1', 'running'));
+    f.control.detach(f.link);
+    const back = fakeLink();
+    f.control.attach('dev-a', back);
+    const replayed = (value: string, eventSeq: number) =>
+      ({ ...state('s1', value), eventSeq, at: T0 - 1000, replayed: true }) as ControlReply;
+    f.control.receive(back, replayed('ready', 1));
+    f.control.receive(back, replayed('idle', 2));
+    await new Promise((r) => setTimeout(r, 40));
+    // The replayed turn is not told on its own.
+    expect(hook.got).toHaveLength(0);
+    f.control.receive(back, { v: PROTOCOL_VERSION, type: 'runtime.reported' } as ControlReply);
+    await vi.waitFor(() => expect(hook.got).toHaveLength(1));
+    const payload = json(hook.got[0] as Received);
+    expect(payload).toMatchObject({
+      kind: 'turn-done',
+      reconnected: { machine: 'dev-a', turns: 1, ended: 1 },
+    });
+    expect(payload.sessionId).toBeUndefined();
+  });
+
   it('holds a finished turn back in quiet hours but not a permission request', async () => {
     const f = setup();
     const hook = await receiver([200]);
@@ -588,10 +614,10 @@ describe('action links', () => {
     expect(other.notify.inspect(f.token)).toBeNull();
   });
 
-  it('reports a request closed by the owner going offline as answered', async () => {
+  it('refuses to answer while the owner is offline: the request waits for it (ADR 0039)', async () => {
     const f = await linked();
     f.control.detach(f.link);
-    expect(f.notify.decide(f.token, 'allow')).toEqual({ state: 'answered' });
+    expect(f.notify.decide(f.token, 'allow')).toEqual({ error: 'owner-offline' });
   });
 });
 

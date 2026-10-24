@@ -49,6 +49,13 @@ type connState struct {
 	bulk     chan outbound
 	stop     chan struct{}
 	stopOnce sync.Once
+
+	// welcomed is set for a connection that got its welcome and replayed the journal; only such a connection
+	// names its transcript backlog (backlogSent, set by Reconcile) and reports the running sessions.
+	welcomed    bool
+	backlogSent bool
+	// reportOnce reports the running sessions once this connection caught up (ADR 0039).
+	reportOnce sync.Once
 }
 
 type Client struct {
@@ -76,9 +83,33 @@ type Client struct {
 	rewritten      map[string]bool
 	wake           chan struct{}
 	sched          scheduler // used by Reconcile only
+
+	// journal keeps the runtime events the core has not confirmed (journal.go, ADR 0039). sendMu orders a
+	// journalled send against the replay after a reconnect; live is the connection that replay finished on.
+	journal *journal
+	sendMu  sync.Mutex
+	live    *connState
+	// mine is the sessions this device owned as of the welcome and its own commits; diverged is the sessions it
+	// owned before a reconnect and another device owns now, with the cursor and epoch it held (guarded by mu).
+	mine     map[string]bool
+	diverged map[string]divergence
 }
 
+// divergence is where a session stood when this device stopped being its owner.
+type divergence struct {
+	cursor int64
+	epoch  int64
+}
+
+// reportFallback is how long a reconnect waits for the transcript backlog before it reports the running sessions
+// anyway.
+const reportFallback = 60 * time.Second
+
 func NewClient(cfg *config.Config, deviceID, version string, hooks Hooks) *Client {
+	home := ""
+	if cfg != nil {
+		home = cfg.HopletHome
+	}
 	return &Client{
 		cfg:            cfg,
 		deviceID:       deviceID,
@@ -93,6 +124,9 @@ func NewClient(cfg *config.Config, deviceID, version string, hooks Hooks) *Clien
 		suppressed:     map[string]bool{},
 		rewritten:      map[string]bool{},
 		wake:           make(chan struct{}, 1),
+		journal:        openJournal(home),
+		mine:           map[string]bool{},
+		diverged:       map[string]divergence{},
 	}
 }
 
@@ -193,25 +227,52 @@ func (c *Client) runOnce(ctx context.Context) error {
 		return fmt.Errorf("the core speaks protocol version %d, this agent %d; upgrade both together", w.V, ProtocolVersion)
 	}
 	c.mu.Lock()
+	for _, s := range w.Sessions {
+		// A session this device owned that another device took while it was away: what it wrote since is
+		// reported as diverged by Reconcile.
+		if c.mine[s.SessionID] && s.OwnerDeviceID != "" && s.OwnerDeviceID != c.deviceID {
+			c.diverged[s.SessionID] = divergence{cursor: c.cursors[s.SessionID], epoch: c.ownerEpochs[s.SessionID]}
+		}
+	}
 	c.cursors = make(map[string]int64, len(w.Sessions))
 	c.titles = make(map[string]string, len(w.Sessions))
 	c.ownerEpochs = make(map[string]int64, len(w.Sessions))
+	c.mine = make(map[string]bool, len(w.Sessions))
 	for _, s := range w.Sessions {
 		c.cursors[s.SessionID] = s.ByteSize
 		c.titles[s.SessionID] = s.Title
 		c.ownerEpochs[s.SessionID] = s.OwnerEpoch
 		if s.OwnerDeviceID == c.deviceID {
+			c.mine[s.SessionID] = true
+			delete(c.diverged, s.SessionID)
 			c.acceptOwnershipLocked(s.SessionID, s.ByteSize)
 		}
 	}
 	c.mu.Unlock()
 
-	c.cs.Store(cs)
-	log.Printf("[agent] connected to %s, server has %d sessions", wsURL, len(w.Sessions))
-	c.notifyWake()
-	if c.hooks.Runtime.Connected != nil {
-		go c.hooks.Runtime.Connected()
+	// The journal first, in order, on the control lane: then the transcript backlog (Reconcile), then the state
+	// of the running sessions (report).
+	c.journal.welcome(w.EventSeq)
+	go c.readLoop(cs)
+	c.sendMu.Lock()
+	replayed := c.journal.pending()
+	for _, raw := range replayed {
+		if err := c.writeMsg(cs, json.RawMessage(raw)); err != nil {
+			break // they stay journalled for the next connection
+		}
 	}
+	c.live = cs
+	cs.welcomed = true
+	c.sendMu.Unlock()
+	if c.hooks.Runtime.Link != nil {
+		c.hooks.Runtime.Link(true)
+	}
+
+	c.cs.Store(cs)
+	log.Printf("[agent] connected to %s, server has %d sessions, %d journalled events replayed", wsURL, len(w.Sessions), len(replayed))
+	c.notifyWake()
+	fallback := time.AfterFunc(reportFallback, func() { c.report(cs) })
+	defer fallback.Stop()
 	if c.hooks.Connected != nil {
 		go c.hooks.Connected()
 	}
@@ -219,8 +280,15 @@ func (c *Client) runOnce(ctx context.Context) error {
 		go c.hooks.Handoff.Welcomed(w.Sessions)
 	}
 
-	go c.readLoop(cs)
 	<-cs.done
+	c.sendMu.Lock()
+	if c.live == cs {
+		c.live = nil
+	}
+	c.sendMu.Unlock()
+	if c.hooks.Runtime.Link != nil {
+		c.hooks.Runtime.Link(false)
+	}
 	c.cs.CompareAndSwap(cs, nil)
 	if c.hooks.Ports.Watch != nil {
 		c.hooks.Ports.Watch(nil) // the core asks again after it connects
@@ -391,12 +459,20 @@ func (c *Client) readLoop(cs *connState) {
 			go c.handleSessionDeletion(cs, head.Type, raw)
 			continue
 		}
+		if head.Type == TypeJournalAck {
+			var ack JournalAck
+			if json.Unmarshal(raw, &ack) == nil {
+				c.journal.ack(ack.EventSeq)
+			}
+			continue
+		}
 		r := reply{sessionID: head.SessionID, byteSize: head.ByteSize, reason: head.Reason}
 		switch head.Type {
 		case TypeSessionAck:
 			r.kind = replyAck
 			c.mu.Lock()
 			c.cursors[head.SessionID] = head.ByteSize
+			c.mine[head.SessionID] = true
 			c.mu.Unlock()
 		case TypeSessionResync:
 			r.kind = replyResync
@@ -430,4 +506,34 @@ func (c *Client) acceptOwnershipLocked(sessionID string, cursor int64) {
 	delete(c.suppressed, sessionID)
 	delete(c.rewritten, sessionID)
 	delete(c.titles, sessionID)
+}
+
+// SendJournaled journals msg and sends it when a connection is up (ADR 0039). An event the core does not confirm is
+// sent again, marked replayed, after the next welcome; so a write that fails is not an error.
+func (c *Client) SendJournaled(msg any) error {
+	c.sendMu.Lock()
+	defer c.sendMu.Unlock()
+	raw, err := c.journal.append(msg)
+	if err != nil {
+		return err
+	}
+	if c.live != nil {
+		_ = c.writeMsg(c.live, json.RawMessage(raw))
+	}
+	return nil
+}
+
+// report has the agent report its running sessions on cs, once, after the journal and the transcript backlog;
+// runtime.reported follows them.
+func (c *Client) report(cs *connState) {
+	if !cs.welcomed || c.cs.Load() != cs {
+		return
+	}
+	cs.reportOnce.Do(func() {
+		if c.hooks.Runtime.Connected != nil {
+			go c.hooks.Runtime.Connected()
+			return
+		}
+		_ = c.writeMsg(cs, RuntimeReported{V: ProtocolVersion, Type: TypeRuntimeReported})
+	})
 }

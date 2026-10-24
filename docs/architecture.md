@@ -434,7 +434,7 @@ messages that name the session by ID and never a path: `device.session.inspect|i
 clone the new worktree belongs to, which the core keeps in `session_worktrees`.
 
 A handoff to a machine with no clone of the repository adds a clone step before the owner is touched
-([ADR 0024](adr/0024-a-handoff-clones-the-repository-on-a-target-that-has-none.md)). The protocol version is 23.
+([ADR 0024](adr/0024-a-handoff-clones-the-repository-on-a-target-that-has-none.md)). The protocol version is 24.
 The control-lane messages are `device.clone.check` (`requestId`, `origin`, optional `cloneInto`) answered by
 `device.clone.checked` (`reason`, `detail`, the proposed `cloneInto`), and `device.clone.start` (`requestId`,
 `handoffId`, `origin`, `cloneInto`) answered by `device.clone.progress` (`received`, optional `total`, at most four
@@ -444,6 +444,32 @@ handles each in its own goroutine, so a clone never blocks the control lane. The
 without progress. The agent journals the clone in `<state>/handoff/<handoffId>.clone.json` and removes a
 half-made destination on start-up. Git runs with only the `https` and `ssh` protocols, no prompt, no hooks and
 no credentials in the origin it keeps; its output is cut at 2 KiB.
+
+### A disconnect on the wire
+
+A session keeps running while its machine's link is down, and the agent journals the events the core must not miss
+([ADR 0039](adr/0039-sessions-continue-across-a-disconnect-and-the-agent-replays-its-events.md)):
+`runtime.state`, `runtime.permission`, `runtime.permission.closed`, `runtime.permission.auto` and `journal.gap`,
+never transcript lines. A journalled message carries `eventSeq` (monotonic per machine across restarts), `at`
+(when it happened, epoch milliseconds) and, when sent from the journal after a reconnect, `replayed: true`. The
+journal is `<hoplet_home>/journal.ndjson` (mode 0600), at most 10,000 events or 4 MiB; past that the oldest events
+that are not permission requests are dropped and `journal.gap` (`dropped`, `from`, `to`) takes their place, which the
+core writes to the audit log. The core keeps the highest `eventSeq` it applied per device (`devices.event_seq`),
+names it in `welcome.eventSeq` and confirms with `journal.ack`; an event at or below it is acknowledged and skipped.
+
+After `welcome` the agent sends, in order: the journal after the core's `eventSeq`, `device.backlog` (the bytes
+each session has still to send; `session.runtime` carries them to browsers as `catchUp`) and the transcript appends,
+then `runtime.state` for every running session and `runtime.reported`. All but the appends travel on the control
+lane. At `runtime.reported` the core closes the open permission requests of the device the agent did not name
+again, notifies what still waits, sends one summary notification per machine and resumes the queue of each idle
+session. A permission request replayed with a known `requestId` opens the existing one again with the time it had
+left; a replayed event can deny or close a request and never approve one. While the device is away its requests
+are `unreachable` and the agent pauses their clock, denying one after 24 hours away.
+
+`session.append` carries `ownerEpoch`, the epoch the agent last heard; the core refuses an append with an older one
+(`session.rejected` reason `not-owner`). An agent that wrote lines of a session after it stopped owning it sends
+`session.diverged` (`ownerEpoch`, `bytes`, `lines`); the core records it in the audit log and sends
+`session.divergence` to browsers.
 
 ### Workspace changes on the wire
 
@@ -569,9 +595,10 @@ the sizes are bounded as the bytes are read.
 `session.append` (it names the source's `provider`) on the bulk lane → ingest checks owner and offset → store appends, syncs, commits →
 `session.ack` → `session.appended` to browsers → the open conversation fetches the new lines.
 
-**An agent connects.** `device.hello` → `welcome` with every owned session's cursor and `owner_epoch` → the
-agent reports `runtime.state` for every process it runs → control rebuilds runtime state → sync resumes from
-the cursors.
+**An agent connects.** `device.hello` → `welcome` with every owned session's cursor and `owner_epoch` and the
+device's `eventSeq` → the agent replays its journal → `device.backlog` and sync resumes from the cursors → the agent
+reports `runtime.state` for every process it runs and `runtime.reported` → control rebuilds runtime state, closes
+the permission requests no longer named and resumes idle queues.
 
 **A session starts.** `POST /api/sessions` → control checks the announced capabilities and the device's watched
 projects (`device.projects.list`) → `runtime.start` (with the `config` values) on the control lane → the agent starts Claude Code with a new

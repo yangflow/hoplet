@@ -239,6 +239,27 @@ describe('events at every lifecycle point', () => {
     });
   });
 
+  it('a replayed event carries the time it happened and says it was replayed (ADR 0039)', async () => {
+    const a = await all();
+    const at = T0 - 60_000;
+    const env = await a.fire({
+      kind: 'turn-done',
+      sessionId: 's1',
+      turn: 1,
+      durationMs: 10,
+      at,
+      replayed: true,
+    });
+    expect(env).toMatchObject({
+      type: 'turn.completed',
+      at: new Date(at).toISOString(),
+      replayed: true,
+    });
+    const live = await a.fire({ kind: 'turn-done', sessionId: 's1', turn: 2, durationMs: 10 });
+    expect(live.at).toBe(new Date(T0).toISOString());
+    expect(live).not.toHaveProperty('replayed');
+  });
+
   it('session.ended tells why: stopped, idle or deleted', async () => {
     const a = await all();
     const stopped = await a.fire({ kind: 'ended', sessionId: 's1', reason: 'stopped' });

@@ -29,9 +29,25 @@ func (c *Client) Reconcile(ctx context.Context, sources []provider.Source) {
 			c.notifyWake()
 		}
 	}()
+	if cs.welcomed && !cs.backlogSent {
+		cs.backlogSent = true
+		c.sendBacklog(ctx, cs, sources)
+	}
 	for _, src := range c.sched.order(ctx, sources, time.Now()) {
 		if ctx.Err() != nil {
 			return
+		}
+		c.mu.RLock()
+		d, diverged := c.diverged[src.ID()]
+		c.mu.RUnlock()
+		if diverged {
+			if err := c.reportDiverged(ctx, cs, src, d); err != nil {
+				if errors.Is(err, errConnChanged) {
+					return
+				}
+				log.Printf("[agent] divergence of %s not reported: %v", shortID(src.ID()), err)
+			}
+			continue
 		}
 		c.mu.RLock()
 		sup := c.suppressed[src.ID()]
@@ -45,11 +61,7 @@ func (c *Client) Reconcile(ctx context.Context, sources []provider.Source) {
 		if size, err := src.Size(ctx); err == nil && size >= 0 && cursor >= size {
 			if err := c.pushTitle(ctx, cs, src, cursor); err != nil {
 				if errors.Is(err, errRejected) {
-					c.mu.Lock()
-					if c.ownershipEpoch[src.ID()] == epoch {
-						c.suppressed[src.ID()] = true
-					}
-					c.mu.Unlock()
+					c.lostOwnership(src.ID(), epoch, cursor, err)
 					logRejected(src.ID(), err)
 					continue
 				}
@@ -80,11 +92,7 @@ func (c *Client) Reconcile(ctx context.Context, sources []provider.Source) {
 				continue
 			}
 			if errors.Is(err, errRejected) {
-				c.mu.Lock()
-				if c.ownershipEpoch[src.ID()] == epoch {
-					c.suppressed[src.ID()] = true
-				}
-				c.mu.Unlock()
+				c.lostOwnership(src.ID(), epoch, cursor, err)
 				logRejected(src.ID(), err)
 				continue
 			}
@@ -94,6 +102,90 @@ func (c *Client) Reconcile(ctx context.Context, sources []provider.Source) {
 			log.Printf("[agent] sync %s failed: %v", shortID(src.ID()), err)
 		}
 	}
+	if !backlog {
+		// Caught up: the running sessions report their state after the transcript (ADR 0039).
+		c.report(cs)
+	}
+}
+
+// lostOwnership handles a refused append: a session deleted in Hoplet, or one another device owns, is not synced
+// again; one this device owned is first reported as diverged when it wrote past the cursor.
+func (c *Client) lostOwnership(id string, epoch uint64, cursor int64, err error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.ownershipEpoch[id] != epoch {
+		return
+	}
+	if !errors.Is(err, errDeleted) && c.mine[id] {
+		c.diverged[id] = divergence{cursor: cursor, epoch: c.ownerEpochs[id]}
+	} else {
+		c.suppressed[id] = true
+	}
+	delete(c.mine, id)
+}
+
+// sendBacklog names the transcript bytes each session has still to send, once per connection; the core shows
+// the catch-up from them.
+func (c *Client) sendBacklog(ctx context.Context, cs *connState, sources []provider.Source) {
+	msg := DeviceBacklog{V: ProtocolVersion, Type: TypeDeviceBacklog, Sessions: []DeviceBacklogSession{}}
+	for _, src := range sources {
+		if len(msg.Sessions) >= MaxBacklogSessions || ctx.Err() != nil {
+			break
+		}
+		c.mu.RLock()
+		skip := c.suppressed[src.ID()] || c.rewritten[src.ID()]
+		_, diverged := c.diverged[src.ID()]
+		cursor := c.cursors[src.ID()]
+		c.mu.RUnlock()
+		if skip || diverged {
+			continue
+		}
+		if size, err := src.Size(ctx); err == nil && size > cursor {
+			msg.Sessions = append(msg.Sessions, DeviceBacklogSession{SessionID: src.ID(), Bytes: size - cursor})
+		}
+	}
+	if len(msg.Sessions) == 0 {
+		return
+	}
+	if err := c.writeMsg(cs, msg); err != nil {
+		log.Printf("[agent] backlog not sent: %v", err)
+	}
+}
+
+// maxDivergedScan is how many bytes past the cursor are read to count the diverged lines.
+const maxDivergedScan = 64 << 20
+
+// reportDiverged sends session.diverged for a session this device wrote to after it stopped being its owner. The
+// lines stay in the file; the session is not synced from this device.
+func (c *Client) reportDiverged(ctx context.Context, cs *connState, src provider.Source, d divergence) error {
+	size, err := src.Size(ctx)
+	if err != nil {
+		return err
+	}
+	var lines int64
+	for at := d.cursor; at < size && at-d.cursor < maxDivergedScan; {
+		chunk, err := src.Read(ctx, at, maxBatchBytes)
+		if err != nil || len(chunk) == 0 {
+			break
+		}
+		lines += int64(bytes.Count(chunk, []byte{'\n'}))
+		at += int64(len(chunk))
+	}
+	if size > d.cursor {
+		if c.cs.Load() != cs {
+			return errConnChanged
+		}
+		msg := SessionDiverged{V: ProtocolVersion, Type: TypeSessionDiverged, SessionID: src.ID(), OwnerEpoch: d.epoch, Bytes: size - d.cursor, Lines: lines}
+		if err := c.writeMsg(cs, msg); err != nil {
+			return errConnChanged
+		}
+		log.Printf("[agent] session %s: %d lines written after another device took it stay on this machine only", shortID(src.ID()), lines)
+	}
+	c.mu.Lock()
+	delete(c.diverged, src.ID())
+	c.suppressed[src.ID()] = true
+	c.mu.Unlock()
+	return nil
 }
 
 var (
@@ -149,6 +241,7 @@ func (c *Client) sendDelta(ctx context.Context, cs *connState, src provider.Sour
 			Title:      provider.PeekTitle(ctx, src),
 
 			Configuration: c.sessionConfiguration(src),
+			OwnerEpoch:    c.ownerEpoch(src.ID()),
 		}
 		if err := c.writeMsg(cs, msg); err != nil {
 			return false, fmt.Errorf("send: %w", err)
@@ -238,6 +331,7 @@ func (c *Client) pushTitle(ctx context.Context, cs *connState, src provider.Sour
 		Title:      title,
 
 		Configuration: c.sessionConfiguration(src),
+		OwnerEpoch:    c.ownerEpoch(src.ID()),
 	}
 	if err := c.writeMsg(cs, msg); err != nil {
 		return fmt.Errorf("send title: %w", err)
@@ -329,4 +423,11 @@ func (c *Client) sessionConfiguration(src provider.Source) string {
 		return ""
 	}
 	return id
+}
+
+// ownerEpoch is the core's owner epoch of the session as this agent last heard it.
+func (c *Client) ownerEpoch(id string) int64 {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.ownerEpochs[id]
 }
