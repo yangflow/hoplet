@@ -1,0 +1,596 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hoplet screen: project rules on hand-off</title>
+<style>
+@font-face{font-family:"Inter Variable";src:url(../fonts/inter-latin-wght-normal.woff2) format("woff2");font-weight:100 900;font-display:swap}
+@font-face{font-family:"JetBrains Mono Variable";src:url(../fonts/jetbrains-mono-latin-wght-normal.woff2) format("woff2");font-weight:100 800;font-display:swap}
+
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:#131210}
+body.solo{overflow:hidden}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+button:focus-visible{outline:2px solid var(--color-accent);outline-offset:2px}
+svg{display:block;flex:none}
+.spin{animation:rot var(--motion-spin) linear infinite}
+@keyframes rot{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important}}
+
+/* one type scale: meta 11/16 · UI 13/20 · prose 15/24 · title 15/20 600 · mono 12.5/20; weights 400/500/600 */
+.frame{width:1280px;height:800px;overflow:hidden;position:relative;display:grid;grid-template-columns:1fr var(--layout-inspector);grid-template-rows:100%;
+  background:var(--color-bg);color:var(--color-text);font-family:var(--font-ui);font-size:var(--text-ui);line-height:var(--leading-ui);font-weight:var(--weight-regular);
+  -webkit-font-smoothing:antialiased;letter-spacing:-0.003em}
+.mono{font-family:var(--font-mono);font-size:var(--text-code);line-height:var(--leading-code);letter-spacing:0}
+.meta{font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3);font-variant-numeric:tabular-nums}
+
+.ib{width:var(--control-icon);height:var(--control-icon);border-radius:var(--radius-sm);display:grid;place-items:center;color:var(--color-text-3);flex:none;position:relative}
+.ib.on{background:var(--color-selected);color:var(--color-text);box-shadow:inset 0 1px 0 var(--color-highlight)}
+.btn{height:var(--control-field);display:inline-flex;align-items:center;gap:var(--space-2);padding:0 var(--space-3);border-radius:var(--radius-sm);font-weight:var(--weight-medium);color:var(--color-text);background:var(--color-hover);box-shadow:inset 0 1px 0 var(--color-highlight),0 0 0 1px var(--color-line);white-space:nowrap}
+.light .btn{background:var(--color-raised)}
+.btn.primary{background:var(--color-accent);color:var(--color-on-accent);box-shadow:var(--shadow-accent);font-weight:var(--weight-semibold);padding:0 var(--space-4)}
+.btn.quiet{background:transparent;box-shadow:none;color:var(--color-text-2);padding:0 var(--space-2)}
+.btn[disabled]{opacity:.5;cursor:default}
+.lnk{color:var(--color-accent-text);font-weight:var(--weight-medium)}
+
+/* top bar, conversation and composer: context only */
+.main{display:flex;flex-direction:column;min-width:0;min-height:0;overflow:hidden;position:relative}
+.top{height:var(--layout-topbar);display:flex;align-items:center;gap:var(--space-2);padding:0 var(--space-3) 0 var(--space-5);flex:none;box-shadow:inset 0 -1px 0 var(--color-line);white-space:nowrap}
+.top .title{font-size:var(--text-title);line-height:var(--leading-title);font-weight:var(--weight-semibold);letter-spacing:-0.01em}
+.top .sp{flex:1}
+.top .own{display:flex;align-items:center;gap:var(--space-2);color:var(--color-text-3);margin-right:var(--space-2)}
+.conv{position:relative;flex:1;min-height:0;overflow:hidden;padding:0 0 148px}
+.col{width:min(var(--layout-column),calc(100% - 104px));margin:0 auto;padding-top:var(--space-5)}
+.text{font-family:var(--font-prose);font-size:var(--text-body);line-height:var(--leading-body);color:var(--color-text);margin:var(--space-1) 0 var(--space-4);max-width:var(--measure-prose)}
+.text code{font-family:var(--font-mono);font-size:var(--text-code)}
+.umsg{margin:0 0 var(--space-5) auto;width:fit-content;max-width:72%;padding:var(--space-2) var(--space-4);border-radius:var(--radius-lg);background:var(--color-surface);font-family:var(--font-prose);font-size:var(--text-body);line-height:var(--leading-body)}
+.dock{position:absolute;z-index:5;left:0;right:0;bottom:0;padding:var(--space-7) 0 var(--space-4);background:linear-gradient(var(--fade-bg),var(--color-bg) 42%);pointer-events:none}
+.composer{pointer-events:auto;border-radius:var(--radius-xl);background:var(--color-raised);box-shadow:var(--shadow-float);padding:var(--space-3) var(--space-2) var(--space-2) var(--space-4);display:flex;flex-direction:column;gap:var(--space-2)}
+.ph{font-size:var(--text-body);line-height:var(--leading-body);color:var(--color-text-3)}
+.cf{display:flex;align-items:center;gap:var(--space-1);min-height:var(--control-field);margin-left:calc(-1 * var(--space-2))}
+.cf .r{margin-left:auto}
+.send{width:var(--control-field);height:var(--control-field);border-radius:50%;display:grid;place-items:center;background:var(--color-hover);color:var(--color-text-3);cursor:default}
+
+/* inspector */
+.insp{background:var(--color-sidebar);box-shadow:var(--shadow-drawer);display:flex;flex-direction:column;min-width:0;min-height:0;position:relative;z-index:4}
+.insp-h{height:var(--layout-topbar);display:flex;align-items:center;gap:var(--space-2);padding:0 var(--space-3);flex:none;box-shadow:inset 0 -1px 0 var(--color-line)}
+.tabs{flex:1;min-width:0;display:flex;align-items:center;gap:2px}
+.tab{height:28px;display:flex;align-items:center;gap:var(--space-2);padding:0 var(--space-2);border-radius:var(--radius-sm);color:var(--color-text-2);font-weight:var(--weight-medium);white-space:nowrap;flex:none}
+.tab .c{font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3);font-variant-numeric:tabular-nums;font-weight:var(--weight-regular)}
+.tab.on{background:var(--color-selected);color:var(--color-text);box-shadow:inset 0 1px 0 var(--color-highlight),0 0 0 1px var(--color-line)}
+.light .tab.on{background:var(--color-raised)}
+.chg{flex:1;min-height:0;overflow:hidden;padding:var(--space-1) var(--space-2) 0}
+.chg-sum{display:flex;align-items:center;gap:var(--space-1);height:var(--layout-row-tree);padding:0 var(--space-2);font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-2);font-variant-numeric:tabular-nums}
+.cr{height:var(--layout-row-tree);display:flex;align-items:center;gap:var(--space-2);padding:0 var(--space-2);border-radius:var(--radius-sm);white-space:nowrap;color:var(--color-text-2)}
+.cr .nm{color:var(--color-git-modified)}
+.cr .dir{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3)}
+.tag{width:16px;text-align:center;font-size:var(--text-meta);line-height:var(--leading-meta);font-weight:var(--weight-semibold);color:var(--color-git-modified);flex:none}
+
+/* the hand-off card (workspace.html, as built), and what each direction adds to it */
+.ho{margin:var(--space-3);margin-top:auto;padding:var(--space-4);border-radius:var(--radius-lg);background:var(--color-raised);box-shadow:var(--shadow-live);display:flex;flex-direction:column;gap:var(--space-3);flex:none}
+.ho b{font-size:var(--text-title);line-height:var(--leading-title);font-weight:var(--weight-semibold)}
+.ho p{color:var(--color-text-2);margin-top:calc(-1 * var(--space-1))}
+.ho.focus{box-shadow:var(--shadow-live),0 0 0 1.5px var(--color-accent)}
+.ho .hh{display:flex;align-items:center;gap:var(--space-2);min-height:var(--control-icon);margin:calc(-1 * var(--space-1)) 0}
+.ho .hh .meta{margin-left:auto;white-space:nowrap}
+.ho .btn{justify-content:center}
+.ho .acts{display:flex;flex-direction:column;gap:var(--space-2)}
+.pick{height:var(--control-field);display:flex;align-items:center;gap:var(--space-2);padding:0 var(--space-2) 0 var(--space-3);border-radius:var(--radius-sm);background:var(--color-bg);box-shadow:inset 0 0 0 1px var(--color-line)}
+.pick .v{flex:1}
+.pick > svg{color:var(--color-text-3)}
+.why{color:var(--color-text-2);display:flex;gap:var(--space-2)}
+.why svg{color:var(--color-text-3);margin-top:2px}
+.why .mono{overflow-wrap:anywhere}
+.steps{display:flex;flex-direction:column}
+.step{display:grid;grid-template-columns:16px minmax(0,1fr) auto;column-gap:var(--space-2);align-items:center;height:var(--layout-row);color:var(--color-text)}
+.step .si{display:grid;place-items:center;color:var(--color-text-3)}
+.step .si .spin{color:var(--color-accent)}
+.step .sm{font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3);font-variant-numeric:tabular-nums;white-space:nowrap}
+.step.ok .si{color:var(--color-success)}
+.step.bad,.step.bad .si,.step.bad .sm{color:var(--color-danger)}
+.step.todo{color:var(--color-text-3)}
+/* the new step is marked in the mockup only */
+.step.new .lb::after{content:"";display:inline-block;width:6px;height:6px;margin-left:var(--space-2);border-radius:50%;background:var(--color-accent);vertical-align:1px}
+.pend{width:8px;height:8px;border-radius:50%;box-shadow:inset 0 0 0 1.5px var(--color-text-3);opacity:.8}
+.nt{padding:var(--space-2) var(--space-3);border-radius:var(--radius-md);display:flex;gap:var(--space-2);color:var(--color-text)}
+.nt svg{margin-top:2px}
+.nt .acts{margin-top:var(--space-2)}
+.nt.bad{background:var(--color-del-bg)}
+.nt.bad svg{color:var(--color-danger)}
+.nt.ok{background:var(--color-add-bg)}
+.nt.ok svg{color:var(--color-success)}
+.nt.att{background:var(--color-attention-soft);box-shadow:inset 0 0 0 1px var(--color-attention-ring)}
+.nt.att svg{color:var(--color-attention-text)}
+.nt .sub{display:block;color:var(--color-text-2)}
+
+/* A: one checkbox row */
+.rl-sep{box-shadow:inset 0 1px 0 var(--color-line);padding-top:var(--space-3)}
+.opt{display:flex;gap:var(--space-3);align-items:flex-start}
+.opt .cbx{width:16px;height:16px;margin-top:2px;border-radius:4px;box-shadow:inset 0 0 0 1.5px var(--color-text-3);display:grid;place-items:center;color:var(--color-on-accent);flex:none}
+.opt .cbx svg{width:12px;height:12px}
+.opt.on .cbx{background:var(--color-accent);box-shadow:none}
+.opt.dis .cbx{box-shadow:inset 0 0 0 1.5px var(--color-line)}
+.opt.dis .tx > span:first-child{color:var(--color-text-3)}
+.opt .tx{display:flex;flex-direction:column;min-width:0;flex:1}
+.opt .tx > span:first-child{font-weight:var(--weight-medium)}
+
+/* rule rows, shared by A's Show, B's list and C's gate */
+.rls{display:flex;flex-direction:column;border-radius:var(--radius-md);background:var(--color-bg);box-shadow:inset 0 0 0 1px var(--color-line);padding:var(--space-1) 0}
+.rr{display:grid;grid-template-columns:12px 44px minmax(0,1fr) auto;column-gap:var(--space-2);align-items:center;min-height:24px;padding:0 var(--space-2)}
+.rr .mk{font-family:var(--font-mono);font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3);display:grid;place-items:center}
+.rr.add .mk{color:var(--color-success)}
+.rr .mk .spin{color:var(--color-accent)}
+.rr .mk svg{width:12px;height:12px}
+.rr .pat{font-family:var(--font-mono);font-size:var(--text-meta);line-height:var(--leading-meta);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--color-text)}
+.rr .pat i{font-style:normal;color:var(--color-text-3)}
+.rr.same .pat,.rr.theirs .pat{color:var(--color-text-3)}
+.rr .own{font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3);white-space:nowrap}
+.qa{height:16px;display:inline-grid;place-items:center;padding:0 var(--space-1);border-radius:4px;font-size:var(--text-meta);line-height:var(--leading-meta);font-weight:var(--weight-semibold)}
+.qa.deny{background:var(--color-del-bg);color:var(--color-del-text)}
+.qa.ask{background:var(--color-attention-soft);color:var(--color-attention-text);box-shadow:inset 0 0 0 1px var(--color-attention-ring)}
+.qa.allow{background:var(--color-add-bg);color:var(--color-add-text)}
+.rr.same .qa,.rr.theirs .qa{opacity:.6}
+.rlh{display:flex;align-items:center;gap:var(--space-2);box-shadow:inset 0 1px 0 var(--color-line);padding-top:var(--space-3)}
+.rlh svg{color:var(--color-text-3)}
+.rlh > span{font-weight:var(--weight-semibold);white-space:nowrap}
+.rlh .meta{margin-left:auto;font-weight:var(--weight-regular);white-space:nowrap}
+.seg{display:flex;gap:2px;padding:2px;border-radius:8px;background:var(--color-bg);box-shadow:inset 0 0 0 1px var(--color-line)}
+.light .seg{background:var(--color-hover)}
+.seg button{flex:1;height:24px;display:flex;align-items:center;justify-content:center;padding:0 var(--space-1);border-radius:6px;font-weight:var(--weight-medium);color:var(--color-text-2);white-space:nowrap}
+.seg button.on{background:var(--color-selected);color:var(--color-text);box-shadow:inset 0 1px 0 var(--color-highlight),0 0 0 1px var(--color-line)}
+.light .seg button.on{background:var(--color-raised)}
+.seg button[disabled]{color:var(--color-text-3);opacity:.6;cursor:default}
+
+/* the inspector's Audit tab (audit.html, direction A as built) */
+.ait{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+.ait-dh{padding:var(--space-3) var(--space-3) var(--space-1);color:var(--color-text-3);font-size:var(--text-meta);line-height:var(--leading-meta);font-weight:var(--weight-medium)}
+.ait-row + .ait-row{box-shadow:inset 0 1px 0 var(--color-line)}
+.ait-row{display:flex;flex-direction:column;gap:2px;padding:var(--space-2) var(--space-3)}
+.ait-row.open{background:var(--color-hover)}
+.ait-row .l1 .mono{font-size:var(--text-ui)}
+.ait-row .l2{display:flex;gap:var(--space-2);color:var(--color-text-3);font-size:var(--text-meta);line-height:var(--leading-meta)}
+.ait-row .l2 .mono{font-size:var(--text-meta);line-height:var(--leading-meta)}
+.ait-row .l2 .sp{flex:1}
+/* the records this issue adds are marked in the mockup only */
+.ait-row.new .l1::before{content:"";display:inline-block;width:6px;height:6px;margin-right:var(--space-2);border-radius:50%;background:var(--color-accent);vertical-align:1px}
+.ait-dt{display:grid;grid-template-columns:64px minmax(0,1fr);gap:2px var(--space-2);margin-top:var(--space-2);font-size:var(--text-meta);line-height:var(--leading-meta)}
+.ait-dt dt{color:var(--color-text-3)}
+.ait-dt dd{color:var(--color-text-2);overflow-wrap:anywhere}
+.ait-dt dd .mono{font-size:var(--text-meta);line-height:var(--leading-meta)}
+
+/* stacked view */
+body.stacked{background:#131210;color:#efe9e2;font-family:-apple-system,"SF Pro Text",system-ui,sans-serif;padding:56px 48px 80px;-webkit-font-smoothing:antialiased}
+.intro{max-width:1300px;margin:0 auto 56px}
+.intro h1{font-size:30px;font-weight:600;letter-spacing:-0.02em}
+.intro h1 span{color:#958d83;font-weight:400}
+.intro h2{font-size:18px;font-weight:600;margin:28px 0 0}
+.intro p{max-width:80ch;color:#b8b0a6;font-size:15px;line-height:1.6;margin:14px 0 0}
+.intro p b{color:#efe9e2;font-weight:500}
+.zh{border-collapse:collapse;font-size:13px;color:#b8b0a6;margin-top:16px;max-width:1100px}
+.zh th{text-align:left;font-weight:500;color:#958d83;padding:6px 10px;border-bottom:1px solid rgba(255,238,220,.1)}
+.zh td{padding:4px 10px;border-bottom:1px solid rgba(255,238,220,.05);vertical-align:top}
+.zh td:first-child{color:#efe9e2}
+.st{max-width:1300px;margin:0 auto 56px}
+.st h2{font-size:18px;font-weight:600;margin-bottom:16px;letter-spacing:-0.01em}
+.st h2 span{color:#958d83;font-weight:400;margin-left:12px;font-size:14px}
+.pair{display:flex;gap:20px}
+.scaled{width:640px;height:400px;overflow:hidden;border-radius:10px;box-shadow:0 0 0 1px rgba(255,255,255,.08)}
+.scaled .frame{transform:scale(.5);transform-origin:0 0}
+</style>
+<script type="application/json" id="tokens">
+{
+  "dark": {
+    "--color-bg": "#131210",
+    "--color-sidebar": "#191715",
+    "--color-surface": "#1c1a17",
+    "--color-raised": "#211e1b",
+    "--color-hover": "#28241f",
+    "--color-selected": "#2c2823",
+    "--color-line": "rgba(255, 238, 220, 0.075)",
+    "--color-highlight": "rgba(255, 244, 232, 0.06)",
+    "--color-text": "#efe9e2",
+    "--color-text-2": "#b8b0a6",
+    "--color-text-3": "#988f85",
+    "--color-accent": "#ff7a1a",
+    "--color-accent-text": "#ff9142",
+    "--color-on-accent": "#1c0d02",
+    "--color-accent-soft": "rgba(255, 122, 26, 0.10)",
+    "--color-attention": "#e8b31a",
+    "--color-attention-text": "#f0c142",
+    "--color-attention-soft": "rgba(232, 179, 26, 0.075)",
+    "--color-attention-ring": "rgba(232, 179, 26, 0.32)",
+    "--color-success": "#4cc38a",
+    "--color-danger": "#ff7366",
+    "--color-on-danger": "#1c0d02",
+    "--color-add-bg": "rgba(76, 195, 138, 0.10)",
+    "--color-add-text": "#86dcae",
+    "--color-del-bg": "rgba(255, 115, 102, 0.10)",
+    "--color-del-text": "#ffa49b",
+    "--color-git-modified": "#d9b77e",
+    "--color-git-untracked": "#6fcf97",
+    "--color-git-deleted": "#ff8a7d",
+    "--color-syntax-keyword": "#d3a6ee",
+    "--color-syntax-string": "#b0d58c",
+    "--color-syntax-comment": "#8f877d",
+    "--color-syntax-number": "#efb57c",
+    "--color-syntax-type": "#7ec3e3",
+    "--color-syntax-function": "#e8d7a4",
+    "--shadow-live": "inset 0 1px 0 rgba(255, 244, 232, 0.06), 0 0 0 1px rgba(0, 0, 0, 0.45), 0 14px 36px rgba(0, 0, 0, 0.42), 0 2px 6px rgba(0, 0, 0, 0.3)",
+    "--shadow-float": "inset 0 1px 0 rgba(255, 244, 232, 0.07), 0 0 0 1px rgba(0, 0, 0, 0.5), 0 18px 40px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.35)",
+    "--shadow-drawer": "inset 1px 0 0 rgba(255, 238, 220, 0.06), -18px 0 40px rgba(0, 0, 0, 0.3)",
+    "--fade-bg": "rgba(19, 18, 16, 0)",
+    "--color-scrim": "rgba(8, 6, 4, 0.42)",
+    "--shadow-accent": "inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 1px 2px rgba(0, 0, 0, 0.2)"
+  },
+  "light": {
+    "--color-bg": "#f8f5f0",
+    "--color-sidebar": "#efebe4",
+    "--color-surface": "#f0ebe4",
+    "--color-raised": "#fffdfa",
+    "--color-hover": "#e8e2d9",
+    "--color-selected": "#e2dbd1",
+    "--color-line": "rgba(60, 40, 20, 0.10)",
+    "--color-highlight": "rgba(255, 255, 255, 0.85)",
+    "--color-text": "#1c1915",
+    "--color-text-2": "#534c44",
+    "--color-text-3": "#675f55",
+    "--color-accent": "#c24e00",
+    "--color-accent-text": "#a64100",
+    "--color-on-accent": "#ffffff",
+    "--color-accent-soft": "rgba(194, 78, 0, 0.08)",
+    "--color-attention": "#c08a00",
+    "--color-attention-text": "#8f6200",
+    "--color-attention-soft": "rgba(192, 138, 0, 0.075)",
+    "--color-attention-ring": "rgba(154, 106, 0, 0.30)",
+    "--color-success": "#1d8550",
+    "--color-danger": "#c3352a",
+    "--color-on-danger": "#ffffff",
+    "--color-add-bg": "rgba(29, 133, 80, 0.09)",
+    "--color-add-text": "#156b3d",
+    "--color-del-bg": "rgba(195, 53, 42, 0.08)",
+    "--color-del-text": "#a82a1f",
+    "--color-git-modified": "#86621c",
+    "--color-git-untracked": "#1a7a47",
+    "--color-git-deleted": "#b42f24",
+    "--color-syntax-keyword": "#8433b5",
+    "--color-syntax-string": "#3f7514",
+    "--color-syntax-comment": "#736b61",
+    "--color-syntax-number": "#9c4f00",
+    "--color-syntax-type": "#17698f",
+    "--color-syntax-function": "#6b5000",
+    "--shadow-live": "inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 0 0 1px rgba(60, 40, 20, 0.08), 0 12px 32px rgba(60, 40, 20, 0.10), 0 2px 6px rgba(60, 40, 20, 0.06)",
+    "--shadow-float": "inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 0 0 1px rgba(60, 40, 20, 0.09), 0 16px 36px rgba(60, 40, 20, 0.12), 0 2px 6px rgba(60, 40, 20, 0.07)",
+    "--shadow-drawer": "inset 1px 0 0 rgba(60, 40, 20, 0.08), -16px 0 36px rgba(60, 40, 20, 0.06)",
+    "--fade-bg": "rgba(248, 245, 240, 0)",
+    "--color-scrim": "rgba(40, 28, 15, 0.13)",
+    "--shadow-accent": "inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 1px 2px rgba(60, 40, 20, 0.2)"
+  },
+  "shared": {
+    "--font-ui": "\"Inter Variable\", -apple-system, system-ui, \"PingFang SC\", sans-serif",
+    "--font-prose": "var(--font-ui)",
+    "--font-mono": "\"JetBrains Mono Variable\", ui-monospace, \"SF Mono\", Menlo, monospace",
+    "--text-meta": "11px",
+    "--leading-meta": "16px",
+    "--text-ui": "13px",
+    "--leading-ui": "20px",
+    "--text-code": "12.5px",
+    "--leading-code": "20px",
+    "--text-body": "15px",
+    "--leading-body": "24px",
+    "--text-title": "15px",
+    "--leading-title": "20px",
+    "--weight-regular": "400",
+    "--weight-medium": "500",
+    "--weight-semibold": "600",
+    "--measure-prose": "68ch",
+    "--icon-size": "16px",
+    "--icon-stroke": "1.5",
+    "--space-1": "4px",
+    "--space-2": "8px",
+    "--space-3": "12px",
+    "--space-4": "16px",
+    "--space-5": "24px",
+    "--space-6": "32px",
+    "--space-7": "48px",
+    "--radius-sm": "6px",
+    "--radius-md": "10px",
+    "--radius-lg": "14px",
+    "--radius-xl": "18px",
+    "--layout-sidebar": "248px",
+    "--layout-inspector": "296px",
+    "--layout-inspector-wide": "720px",
+    "--layout-inspector-list": "220px",
+    "--layout-settings-nav": "208px",
+    "--layout-column": "760px",
+    "--layout-topbar": "52px",
+    "--layout-foot": "44px",
+    "--layout-row-device": "32px",
+    "--layout-row": "28px",
+    "--layout-row-tree": "24px",
+    "--layout-act-verb": "64px",
+    "--layout-gutter": "32px",
+    "--layout-well-max": "240px",
+    "--layout-palette": "560px",
+    "--layout-dialog": "480px",
+    "--layout-popover": "248px",
+    "--layout-popover-wide": "328px",
+    "--layout-modal-top": "96px",
+    "--motion-pulse": "1.6s",
+    "--motion-blink": "1s",
+    "--motion-spin": "0.8s",
+    "--control-icon": "28px",
+    "--control-field": "32px",
+    "--layout-gate": "320px",
+    "--layout-viewport-min": "1024px"
+  }
+}
+</script>
+<style id="token-css"></style>
+</head><body><div id="root"></div>
+<script>
+const T = JSON.parse(document.getElementById('tokens').textContent);
+const vars = o => Object.entries(o).map(([k, v]) => `${k}:${v};`).join('');
+document.getElementById('token-css').textContent =
+  `.frame{${vars(T.shared)}}.frame.dark{${vars(T.dark)}}.frame.light{${vars(T.light)}}`;
+
+/* icons: one family, Lucide (ISC licence), inlined; 24-unit grid drawn at 16 px, stroke 1.5, round caps and joins */
+const sv = (d, cls = '') => `<svg${cls ? ` class="${cls}"` : ''} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+const rot = (deg, d) => `<g transform="rotate(${deg} 12 12)">${d}</g>`;
+const L = {
+  'panel-right': '<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M15 3v18"/>',
+  'chevron-right': '<path d="m9 18 6-6-6-6"/>',
+  'arrow-up': '<path d="m5 12 7-7 7 7"/><path d="M12 19V5"/>',
+  paperclip: '<path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/>',
+  x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+  check: '<path d="M20 6 9 17l-5-5"/>',
+  'circle-alert': '<circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/>',
+  info: '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>',
+  'rotate-cw': '<path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/>',
+  laptop: '<path d="M20 16V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v9m16 0H4m16 0 1.28 2.55a1 1 0 0 1-.9 1.45H3.62a1 1 0 0 1-.9-1.45L4 16"/>',
+  'loader-circle': '<path d="M21 12a9 9 0 1 1-6.219-8.56"/>',
+  shield: '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/>',
+  'git-branch': '<line x1="6" x2="6" y1="3" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/>',
+  plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
+};
+const I = {
+  panel: () => sv(L['panel-right']),
+  down: () => sv(rot(90, L['chevron-right'])),
+  chev: () => sv(L['chevron-right']),
+  up: () => sv(L['arrow-up']),
+  clip: () => sv(L.paperclip),
+  x: () => sv(L.x),
+  check: () => sv(L.check),
+  alert: () => sv(L['circle-alert']),
+  info: () => sv(L.info),
+  retry: () => sv(L['rotate-cw']),
+  laptop: () => sv(L.laptop),
+  spin: () => sv(L['loader-circle'], 'spin'),
+  shield: () => sv(L.shield),
+  branch: () => sv(L['git-branch']),
+  plus: () => sv(L.plus),
+};
+
+/* ---- the screen ------------------------------------------------------------------------------------------------- */
+let Z = false;
+const t = (en, zh) => (Z ? zh : en);
+const fill = (s, o) => s.replace(/\{(\w+)\}/g, (_, k) => o[k]);
+const SRC = 'MacBook Pro';
+const DST = 'studio';
+const PROJ_SRC = '/Users/mark/github/repopro/hoplet';
+const PROJ_DST = '/Users/mark/github/hoplet';
+
+/* the source project's rules, and what studio has for its clone of the same repository */
+const RULES = [
+  { a: 'deny', kind: 'run', pat: 'terraform apply' },
+  { a: 'ask', kind: 'run', pat: 'pnpm publish' },
+  { a: 'deny', kind: 'write', pat: '{workspace}/core/src/migrations/**' },
+  { a: 'allow', kind: 'run', pat: 'pnpm test' },
+];
+const THEIRS = { a: 'allow', kind: 'fetch', pat: 'registry.npmjs.org' };
+const ACT = { deny: ['Deny', '拒绝'], ask: ['Ask', '询问'], allow: ['Allow', '允许'] };
+const qa = a => `<span class="qa ${a}">${t(...ACT[a])}</span>`;
+/* st: add (copied), same (already on studio), theirs (only on studio, kept); mk overrides the marker */
+function rr(r, st, mk) {
+  const marks = { add: '+', same: '=', theirs: '·' };
+  const own = st === 'theirs' ? `<span class="own">${fill(t('{machine} only', '仅 {machine}'), { machine: DST })}</span>` : '<span></span>';
+  return `<div class="rr ${st}"><span class="mk">${mk || marks[st]}</span>${qa(r.a)}<span class="pat"><i>${r.kind}</i> ${r.pat}</span>${own}</div>`;
+}
+const diffList = (mk = {}) => `<div class="rls">${RULES.map((r, i) => rr(r, i === 1 ? 'same' : 'add', i === 1 ? '' : mk[i])).join('')}${rr(THEIRS, 'theirs')}</div>`;
+const noneList = () => `<div class="rls">${RULES.map(r => rr(r, 'add')).join('')}</div>`;
+const addOnly = () => `<div class="rls">${RULES.filter((_, i) => i !== 1).map(r => rr(r, 'add')).join('')}</div>`;
+
+const hh = (title, meta = '') => `<div class="hh"><b>${title}</b>${meta ? `<span class="meta">${meta}</span>` : ''}</div>`;
+const lede = () => `<p>${t('Move this session and its working tree to another machine.', '把这场会话连同工作区移到另一台设备。')}</p>`;
+const pick = () => `<div class="pick">${I.laptop()}<span class="v">${DST}</span>${I.down()}</div>`;
+const whyWt = () => `<div class="why">${I.branch()}<span>${fill(t('{target} adds a worktree next to {path} and continues the session there. Nothing moves until it verifies the copy.', '{target} 会在 {path} 旁新建一个工作树并在那里继续会话。校验副本之前不会移动任何内容。'), { target: DST, path: `<span class="mono">${PROJ_DST}</span>` })}</span></div>`;
+const goBtn = (label, cls = 'primary') => `<button class="btn ${cls}">${label}</button>`;
+const handOffTo = () => goBtn(fill(t('Hand off to {target}', '交接到 {target}'), { target: DST }));
+const why = (icon, html) => `<div class="why">${icon}<span>${html}</span></div>`;
+const cbx = on => `<span class="cbx">${on ? I.check() : ''}</span>`;
+const note = (cls, icon, main, sub = '', acts = '') => `<div class="nt ${cls}">${icon}<span>${main}${sub ? `<span class="sub">${sub}</span>` : ''}${acts}</span></div>`;
+
+/* the run card: the steps of a hand-off with Rules between Verify and Commit */
+function steps(rules, { commit = 'todo', label } = {}) {
+  const st = (cls, icon, lb, sm = '', isNew = false) => `<div class="step ${cls}${isNew ? ' new' : ''}"><span class="si">${icon}</span><span class="lb">${lb}</span><span class="sm">${sm}</span></div>`;
+  const ok = (lb, sm) => st('ok', I.check(), lb, sm);
+  const rulesStep = rules === 'skip' ? st('todo', '<span class="pend"></span>', t('Rules', '规则'), t('Not copied', '不复制'), true)
+    : rules === 'now' ? st('', I.spin(), t('Rules', '规则'), label || fill(t('{n} to {machine}', '{n} 条到 {machine}'), { n: 3, machine: DST }), true)
+    : rules === 'bad' ? st('bad', I.x(), t('Rules', '规则'), label, true)
+    : st('ok', I.check(), t('Rules', '规则'), fill(t('{n} copied', '已复制 {n} 条'), { n: 3 }), true);
+  const commitStep = commit === 'ok' ? ok(t('Commit', '提交'), '') : st('todo', '<span class="pend"></span>', t('Commit', '提交'));
+  return `<div class="steps">${ok(t('Prepare', '准备'), '0.4 s')}${ok(t('Transfer', '传输'), '18 MB')}${ok(t('Install', '安装'), '2.1 s')}${ok(t('Verify', '校验'), '0.8 s')}${rulesStep}${commitStep}</div>`;
+}
+const runHead = (title, meta) => hh(title, meta);
+const handing = () => fill(t('Handing off to {target}', '正在交接到 {target}'), { target: DST });
+
+/* the counts line: what is added, what is already there, what of the target's stays */
+const sumDiff = () => fill(t('2 deny · 1 allow. {machine} has 1 of them; its 1 own rule stays.', '2 条拒绝 · 1 条允许。{machine} 已有其中 1 条；它自己的 1 条规则保留。'), { machine: DST });
+const sumNone = () => fill(t('2 deny · 1 ask · 1 allow. {machine} has none for this project.', '2 条拒绝 · 1 条询问 · 1 条允许。{machine} 在这个项目上没有规则。'), { machine: DST });
+
+/* ---- A: one checkbox row in the card, checked by default ---- */
+function cardA(s) {
+  const n = s === 'none' ? 4 : 3;
+  const copyLine = fill(t('Copy {n} project rules to {machine}', '把 {n} 条项目规则复制到 {machine}'), { n, machine: DST });
+  const sum = s === 'none' ? sumNone() : sumDiff();
+  const show = s === 'list';
+  const row = (on, extra = '') => `<div class="opt${on ? ' on' : ''}">${cbx(on)}<span class="tx"><span>${copyLine}</span><span class="meta">${sum} <span class="lnk">${show ? t('Hide', '隐藏') : t('Show', '显示')}</span></span>${extra}</span></div>`;
+  if (s === 'differ' || s === 'none' || s === 'list') return `<div class="ho focus">${hh(t('Hand off', '交接所有权'), fill(t('Owner {machine}', '所有者 {machine}'), { machine: SRC }))}${lede()}${pick()}${whyWt()}<div class="rl-sep">${row(true)}</div>${show ? diffList() : ''}${handOffTo()}</div>`;
+  if (s === 'same') return `<div class="ho focus">${hh(t('Hand off', '交接所有权'), fill(t('Owner {machine}', '所有者 {machine}'), { machine: SRC }))}${lede()}${pick()}${whyWt()}${why(I.shield(), fill(t('{machine} already has this project’s 4 rules.', '{machine} 已有这个项目的 4 条规则。'), { machine: DST }))}${handOffTo()}</div>`;
+  if (s === 'unchecked') return `<div class="ho focus">${hh(t('Hand off', '交接所有权'), fill(t('Owner {machine}', '所有者 {machine}'), { machine: SRC }))}${lede()}${pick()}${whyWt()}<div class="rl-sep">${row(false)}</div>${note('att', I.alert(), fill(t('On {machine} the session will not be stopped by deny <span class="mono">terraform apply</span> and 1 more deny rule.', '在 {machine} 上，会话将不再受拒绝 <span class="mono">terraform apply</span> 及另外 1 条拒绝规则的约束。'), { machine: DST }))}${handOffTo()}</div>`;
+  if (s === 'old') return `<div class="ho focus">${hh(t('Hand off', '交接所有权'), fill(t('Owner {machine}', '所有者 {machine}'), { machine: SRC }))}${lede()}${pick()}${whyWt()}<div class="rl-sep"><div class="opt dis">${cbx(false)}<span class="tx"><span>${copyLine}</span><span class="meta">${fill(t('{machine}’s agent cannot take rules. Update it to copy them.', '{machine} 的代理无法接收规则。更新它之后才能复制。'), { machine: DST })}</span></span></div></div>${note('att', I.alert(), fill(t('On {machine} the session will run without this project’s 2 deny and 1 allow rules.', '在 {machine} 上，会话将不受这个项目的 2 条拒绝和 1 条允许规则约束。'), { machine: DST }))}${handOffTo()}</div>`;
+  if (s === 'copying') return `<div class="ho">${runHead(handing(), '0:24')}${steps('now')}${why(I.shield(), fill(t('{machine} confirms the rules before the session moves. Its own rules stay.', '{machine} 确认规则后会话才会移动。它自己的规则保留。'), { machine: DST }))}</div>`;
+  if (s === 'failed') return `<div class="ho">${runHead(t('Hand off failed', '交接失败'), '0:31')}${steps('bad', { label: fill(t('{machine} disconnected', '{machine} 已断开'), { machine: DST }) })}${note('bad', I.alert(), fill(t('Nothing moved. {source} still owns the session.', '没有移动任何内容。会话仍属于 {source}。'), { source: SRC }), fill(t('{machine} disconnected before it confirmed the rules. The copied rules were removed again.', '{machine} 在确认规则前断开。已复制的规则已被撤回。'), { machine: DST }))}<div class="acts">${goBtn(`${I.retry()}${t('Try again', '重试')}`)}${goBtn(t('Hand off without the rules', '不带规则交接'), 'quiet')}</div></div>`;
+  /* done */
+  return `<div class="ho">${runHead(fill(t('Handed off to {target}', '已交接到 {target}'), { target: DST }), '0:42')}${steps('ok', { commit: 'ok' })}${note('ok', I.check(), fill(t('3 project rules copied to {machine}.', '已把 3 条项目规则复制到 {machine}。'), { machine: DST }), t('Recorded in Audit. Change them in Settings › Permission rules.', '已记入审计。可在设置 › 权限规则中修改。'))}</div>`;
+}
+
+/* ---- B: a Project rules section that compares both machines, with a three-way choice ---- */
+function cardB(s) {
+  const head = (meta) => `<div class="rlh">${I.shield()}<span>${t('Project rules', '项目规则')}</span><span class="meta">${meta}</span></div>`;
+  const cmp = fill(t('4 here · {b} 2', '本机 4 · {b} 2'), { b: DST });
+  const seg = (on, dis = false) => `<div class="seg" role="radiogroup">${[['all', t('Copy 3', '复制 3 条')], ['strict', t('Deny and ask', '仅拒绝和询问')], ['none', t('Don’t copy', '不复制')]].map(([k, l]) => `<button role="radio" aria-checked="${k === on}" class="${k === on ? 'on' : ''}"${dis && k !== 'none' ? ' disabled' : ''}>${k === 'all' && s === 'none' ? t('Copy 4', '复制 4 条') : l}</button>`).join('')}</div>`;
+  const top = `${hh(t('Hand off', '交接所有权'), fill(t('Owner {machine}', '所有者 {machine}'), { machine: SRC }))}${lede()}${pick()}`;
+  if (s === 'differ') return `<div class="ho focus">${top}${head(cmp)}${diffList()}${seg('all')}${handOffTo()}</div>`;
+  if (s === 'none') return `<div class="ho focus">${top}${head(fill(t('4 here · {b} none', '本机 4 · {b} 无'), { b: DST }))}${noneList()}${seg('all')}${handOffTo()}</div>`;
+  if (s === 'same') return `<div class="ho focus">${top}${head(t('Same on both', '两边一致'))}<div class="rls">${RULES.map(r => rr(r, 'same')).join('')}</div>${handOffTo()}</div>`;
+  if (s === 'unchecked') return `<div class="ho focus">${top}${head(cmp)}${diffList({ 0: '–', 2: '–', 3: '–' }).replace(/rr add/g, 'rr same')}${seg('none')}${note('att', I.alert(), fill(t('{machine} will not deny <span class="mono">terraform apply</span> or writes to migrations.', '{machine} 将不会拒绝 <span class="mono">terraform apply</span>，也不会拒绝对 migrations 的写入。'), { machine: DST }))}${handOffTo()}</div>`;
+  if (s === 'old') return `<div class="ho focus">${top}${head(cmp)}${diffList({ 0: '–', 2: '–', 3: '–' }).replace(/rr add/g, 'rr same')}${seg('none', true)}${note('att', I.alert(), fill(t('{machine}’s agent cannot take rules. The session runs there without this project’s 3 rules until the agent is updated.', '{machine} 的代理无法接收规则。在代理更新之前，会话在那里不受这个项目的 3 条规则约束。'), { machine: DST }))}${handOffTo()}</div>`;
+  if (s === 'copying') return `<div class="ho">${runHead(handing(), '0:24')}${head(fill(t('Copying to {machine}', '正在复制到 {machine}'), { machine: DST }))}${diffList({ 0: I.spin(), 2: I.spin(), 3: I.spin() })}${steps('now')}</div>`;
+  if (s === 'failed') return `<div class="ho">${runHead(t('Hand off failed', '交接失败'), '0:31')}${head(fill(t('Refused by {machine}', '被 {machine} 拒绝'), { machine: DST }))}${diffList({ 0: '–', 2: '–', 3: '–' }).replace(/rr add/g, 'rr same')}${steps('bad', { label: t('Refused', '被拒绝') })}${note('bad', I.alert(), fill(t('Nothing moved. {source} still owns the session.', '没有移动任何内容。会话仍属于 {source}。'), { source: SRC }), fill(t('{machine} refused the rule set: rule 3: path is outside the workspace.', '{machine} 拒绝了这组规则：规则 3：路径在工作区之外。'), { machine: DST }))}<div class="acts">${goBtn(`${I.retry()}${t('Try again', '重试')}`)}${goBtn(t('Hand off without the rules', '不带规则交接'), 'quiet')}</div></div>`;
+  return `<div class="ho">${runHead(fill(t('Handed off to {target}', '已交接到 {target}'), { target: DST }), '0:42')}${head(fill(t('{n} copied', '已复制 {n} 条'), { n: 3 }))}${diffList({ 0: I.check(), 2: I.check(), 3: I.check() })}${steps('ok', { commit: 'ok' })}</div>`;
+}
+
+/* ---- C: the card stays as built; when the rules differ, Hand off opens a gate step in the card ---- */
+function cardC(s) {
+  const top = `${hh(t('Hand off', '交接所有权'), fill(t('Owner {machine}', '所有者 {machine}'), { machine: SRC }))}${lede()}${pick()}${whyWt()}`;
+  const gate = (title, list, sub) => `<div class="ho focus">${hh(title, fill(t('Step 2 of 2', '第 2 步，共 2 步'), {}))}<p>${sub}</p>${list}<div class="acts">${goBtn(t('Copy rules and hand off', '复制规则并交接'))}${goBtn(t('Hand off without them', '不带规则交接'), '')}${goBtn(t('Back', '返回'), 'quiet')}</div></div>`;
+  if (s === 'differ') return gate(fill(t('{machine} lacks 3 of this project’s rules', '{machine} 缺少这个项目的 3 条规则'), { machine: DST }), addOnly(), fill(t('Copy them so {machine} stops and asks as {source} does. {machine}’s own rule stays.', '复制后 {machine} 会像 {source} 一样拒绝和询问。{machine} 自己的规则保留。'), { machine: DST, source: SRC }));
+  if (s === 'none') return gate(fill(t('{machine} has no rules for this project', '{machine} 在这个项目上没有规则'), { machine: DST }), noneList(), fill(t('Copy the 4 rules so {machine} stops and asks as {source} does.', '复制这 4 条规则后，{machine} 会像 {source} 一样拒绝和询问。'), { machine: DST, source: SRC }));
+  if (s === 'same') return `<div class="ho focus">${top}${handOffTo()}${why(I.shield(), fill(t('{machine} has the same project rules.', '{machine} 有相同的项目规则。'), { machine: DST }))}</div>`;
+  if (s === 'unchecked') return `<div class="ho">${runHead(handing(), '0:24')}${steps('skip')}${note('att', I.alert(), fill(t('Handing off without 3 project rules.', '正在不带 3 条项目规则交接。'), {}), fill(t('On {machine} the session will not deny <span class="mono">terraform apply</span>.', '在 {machine} 上，会话将不会拒绝 <span class="mono">terraform apply</span>。'), { machine: DST }))}</div>`;
+  if (s === 'old') return `<div class="ho focus">${hh(fill(t('{machine} cannot take rules', '{machine} 无法接收规则'), { machine: DST }), t('Step 2 of 2', '第 2 步，共 2 步'))}<p>${fill(t('Its agent is too old to take permission rules. The session would run there without these 3:', '它的代理版本过旧，无法接收权限规则。会话在那里将不受这 3 条规则约束：'), {})}</p>${addOnly()}<div class="acts">${goBtn(t('Hand off without them', '不带规则交接'), '')}${goBtn(t('Back', '返回'), 'quiet')}</div></div>`;
+  if (s === 'copying') return `<div class="ho">${runHead(handing(), '0:24')}${steps('now')}</div>`;
+  if (s === 'failed') return `<div class="ho">${runHead(t('Hand off failed', '交接失败'), '0:31')}${steps('bad', { label: t('No answer', '无应答') })}${note('bad', I.alert(), fill(t('Nothing moved. {source} still owns the session.', '没有移动任何内容。会话仍属于 {source}。'), { source: SRC }), fill(t('{machine} did not confirm the rules in time. The copied rules were removed again.', '{machine} 未能及时确认规则。已复制的规则已被撤回。'), { machine: DST }))}<div class="acts">${goBtn(`${I.retry()}${t('Try again', '重试')}`)}${goBtn(t('Back', '返回'), 'quiet')}</div></div>`;
+  return `<div class="ho">${runHead(fill(t('Handed off to {target}', '已交接到 {target}'), { target: DST }), '0:42')}${steps('ok', { commit: 'ok' })}${why(I.shield(), fill(t('3 project rules copied to {machine}.', '已把 3 条项目规则复制到 {machine}。'), { machine: DST }))}</div>`;
+}
+
+/* ---- the inspector: Changes with the card at its foot, or the Audit tab ---- */
+function changes() {
+  const rows = [['handoff-panel.tsx', 'web/src/screens/workspace'], ['handoff.ts', 'core/src/control'], ['rules.ts', 'core/src/control']];
+  return `<div class="chg"><div class="chg-sum">${fill(t('{n} files changed', '{n} 个文件已更改'), { n: 3 })}</div>${rows.map(([n, d]) => `<div class="cr"><span class="nm">${n}</span><span class="dir">${d}</span><span class="tag">M</span></div>`).join('')}</div>`;
+}
+function auditTab() {
+  const row = (time, type, l1, actor, open, dl) => `<div class="ait-row${open ? ' open' : ''}${dl ? ' new' : ''}"><span class="l1">${l1}</span><span class="l2"><span class="mono">${type}</span><span class="sp"></span><span>${actor}</span><span>${time}</span></span>${open ? `<dl class="ait-dt">${open}</dl>` : ''}</div>`;
+  const dd = (k, v) => `<dt>${k}</dt><dd>${v}</dd>`;
+  const you = t('You', '你');
+  return `<div class="ait"><div class="ait-dh">${t('Today', '今天')}</div>
+    ${row('14:32', 'session.handoff', fill(t('Handed off from {a} to {b}, 3 project rules copied', '已从 {a} 交接到 {b}，复制了 3 条项目规则'), { a: SRC, b: DST }), you, '', true)}
+    ${row('14:32', 'config.changed', fill(t('Project rules on {b}: 3 added by hand-off', '{b} 上的项目规则：交接添加了 3 条'), { b: DST }), you,
+      dd(t('Area', '范围'), 'permission-rules') + dd(t('Machine', '设备'), DST) + dd(t('Project', '项目'), `<span class="mono">${PROJ_DST}</span>`) + dd(t('From', '来自'), `${SRC} · <span class="mono">${PROJ_SRC}</span>`) + dd(t('Added', '添加'), t('2 deny, 1 allow', '2 条拒绝，1 条允许')) + dd(t('Kept', '保留'), fill(t('{b}’s 1 own rule', '{b} 自己的 1 条规则'), { b: DST })), true)}
+    <div class="ait-dh">${t('Yesterday', '昨天')}</div>
+    ${row('17:05', 'session.handoff', fill(t('Handed off from {b} to {a}, project rules not copied (1 differs)', '已从 {b} 交接到 {a}，未复制项目规则（1 条不同）'), { a: SRC, b: DST }), you)}
+    ${row('16:48', 'permission.auto', t('Deny <span class="mono">terraform apply</span>, project rule', '拒绝 <span class="mono">terraform apply</span>，项目规则'), t('Rule', '规则'))}
+  </div>`;
+}
+function inspector(card, tab = 'changes') {
+  const tabs = `<div class="insp-h"><div class="tabs" role="tablist"><div class="tab${tab === 'changes' ? ' on' : ''}" role="tab" aria-selected="${tab === 'changes'}">${t('Changes', '更改')}<span class="c">3</span></div><div class="tab${tab === 'audit' ? ' on' : ''}" role="tab" aria-selected="${tab === 'audit'}">${t('Audit', '审计')}</div></div><button class="ib" title="${t('Add a tool', '添加工具')}">${I.plus()}</button></div>`;
+  return `<aside class="insp">${tabs}${tab === 'audit' ? auditTab() : `${changes()}${card}`}</aside>`;
+}
+
+function mainPane() {
+  return `<main class="main"><div class="top"><span class="title">${t('Tighten the migration checks', '收紧迁移检查')}</span><span class="sp"></span><span class="own">${I.laptop()}<span>${SRC}</span></span><button class="ib on" title="${t('Inspector', '检查器')}">${I.panel()}</button></div>
+    <div class="conv"><div class="col">
+      <div class="umsg">${t('Finish this on the studio, I’m leaving the laptop here.', '在 studio 上把这个做完，笔记本我先放这儿。')}</div>
+      <p class="text">${t('The migration check now refuses a file whose number is out of order, and <code>pnpm test</code> passes. Three files changed; hand the session off and I continue on studio from here.', '迁移检查现在会拒绝编号顺序不对的文件，<code>pnpm test</code> 已通过。改了三个文件；交接会话后我会在 studio 上接着做。')}</p>
+    </div></div>
+    <div class="dock"><div class="col" style="padding:0"><div class="composer"><div class="ph">${t('Ask for follow-up changes', '继续提出修改')}</div><div class="cf"><button class="ib" title="${t('Attach', '附加')}">${I.clip()}</button><span class="r"><button class="send" disabled>${I.up()}</button></span></div></div></div></div></main>`;
+}
+
+const STATES = [
+  ['a-differ', 'A, one checkbox row in the card, checked by default: “Copy 3 project rules to studio” with a counts line (2 deny · 1 allow; studio has 1 of them; its own rule stays) and Show'],
+  ['a-list', 'A: Show opens the compared list under the row: + is copied, = is on studio already, · is studio’s own and stays'],
+  ['a-none', 'A: studio has no rules for this project; the row offers all 4'],
+  ['a-same', 'A: studio has the same rules; nothing is offered, one shield line says so'],
+  ['a-unchecked', 'A: the box cleared; an attention note names the strongest rule studio will not have'],
+  ['a-copying', 'A: a new Rules step between Verify and Commit; studio confirms the rules before the session moves'],
+  ['a-failed', 'A: studio disconnected before it confirmed the rules; nothing moved, the copied rules were removed; Try again or Hand off without the rules'],
+  ['a-done', 'A: handed off; the ok note says how many rules were copied and that Audit has the record'],
+  ['a-old', 'A: studio’s agent is too old to take rules; the row is disabled and the attention note stays'],
+  ['b-differ', 'B, a Project rules section in the card: both machines’ rules compared (+, =, ·) and a choice of Copy 3, Deny and ask, Don’t copy'],
+  ['b-none', 'B: studio has none; all 4 marked +'],
+  ['b-same', 'B: the same rules on both; the list stays, nothing to choose'],
+  ['b-unchecked', 'B: Don’t copy chosen; the rows lose their + and the attention note names what studio will not deny'],
+  ['b-copying', 'B: each copied row carries a spinner while studio applies the set'],
+  ['b-failed', 'B: studio refused the rule set (its validation error is shown); nothing moved'],
+  ['b-done', 'B: each copied row ticked'],
+  ['b-old', 'B: studio’s agent cannot take rules; only Don’t copy is enabled'],
+  ['c-differ', 'C, a gate: the card stays as built; when the rules differ, Hand off turns the card into a second step with the missing rules and three actions'],
+  ['c-none', 'C: the gate when studio has none'],
+  ['c-same', 'C: the rules match; no gate, Hand off goes straight on and a line says why'],
+  ['c-unchecked', 'C: “Hand off without them” was chosen; the Rules step is skipped and an attention note stays while it runs'],
+  ['c-copying', 'C: copying, the same Rules step as A'],
+  ['c-failed', 'C: studio did not confirm the rules in time; nothing moved'],
+  ['c-done', 'C: handed off; one shield line under the steps'],
+  ['c-old', 'C: the gate when studio’s agent cannot take rules: only Hand off without them and Back'],
+  ['audit', 'All directions: the inspector’s Audit tab after the hand-off: session.handoff says how many rules were copied, config.changed (area permission-rules) is opened and names machine, project, source and counts, never the patterns; yesterday’s hand-off says the rules were not copied'],
+  ['a-differ-zh', 'A in Simplified Chinese'],
+  ['a-failed-zh', 'A failed, in Simplified Chinese'],
+  ['b-differ-zh', 'B in Simplified Chinese'],
+  ['c-differ-zh', 'C in Simplified Chinese'],
+  ['audit-zh', 'The Audit tab in Simplified Chinese'],
+];
+/* screen: end */
+
+function frame(st, scheme) {
+  Z = st.endsWith('-zh');
+  const lang = Z ? ' lang="zh-Hans"' : '';
+  const base = st.replace(/-zh$/, '');
+  let insp;
+  if (base === 'audit') insp = inspector('', 'audit');
+  else {
+    const [dir, s] = base.split('-');
+    insp = inspector(dir === 'a' ? cardA(s) : dir === 'b' ? cardB(s) : cardC(s));
+  }
+  return `<div${lang} class="frame ${scheme}" data-state="${st}">${mainPane()}${insp}</div>`;
+}
+
+/* ---- the page --------------------------------------------------------------------------------------------------- */
+const q = new URLSearchParams(location.search);
+const root = document.getElementById('root');
+const solo = STATES.find(([s]) => s === q.get('state'));
+const ZH = [
+  ['Copy {n} project rules to {machine}', '把 {n} 条项目规则复制到 {machine}'],
+  ['{machine} already has this project’s {n} rules.', '{machine} 已有这个项目的 {n} 条规则。'],
+  ['Rules', '规则'],
+  ['{n} copied', '已复制 {n} 条'],
+  ['Hand off without the rules', '不带规则交接'],
+  ['Copy rules and hand off', '复制规则并交接'],
+  ['{machine} lacks {n} of this project’s rules', '{machine} 缺少这个项目的 {n} 条规则'],
+  ['{machine}’s agent cannot take rules. Update it to copy them.', '{machine} 的代理无法接收规则。更新它之后才能复制。'],
+  ['{machine} disconnected before it confirmed the rules. The copied rules were removed again.', '{machine} 在确认规则前断开。已复制的规则已被撤回。'],
+  ['{n} project rules copied to {machine}.', '已把 {n} 条项目规则复制到 {machine}。'],
+  ['Project rules on {machine}: {n} added by hand-off', '{machine} 上的项目规则：交接添加了 {n} 条'],
+  ['Handed off from {a} to {b}, {n} project rules copied', '已从 {a} 交接到 {b}，复制了 {n} 条项目规则'],
+  ['Deny and ask / Don’t copy', '仅拒绝和询问 / 不复制'],
+];
+if (q.get('state') && !solo) {
+  document.body.className = 'solo';
+  root.textContent = `Unknown state: ${q.get('state')}`;
+} else if (solo) {
+  document.body.className = 'solo';
+  root.innerHTML = frame(solo[0], q.get('scheme') === 'light' ? 'light' : 'dark');
+} else {
+  document.body.className = 'stacked';
+  root.innerHTML = `<header class="intro"><h1>Project rules on hand-off <span>Offer to copy the source project’s permission rules to the target machine (issue #330)</span></h1>
+    <p>Project rules (#98) belong to a project on one machine. When a session is handed off, the target’s agent applies only the rules the core holds for that machine, so a session that was stopped by a deny or asked on MacBook Pro can run unguarded on studio. The hand-off card says nothing about rules today. These directions offer the copy in the card, checked by default; on confirm the core adds the missing rules to the target’s project, pushes them with the existing <b>device.rules</b> message, waits for <b>device.rules.applied</b>, and only then commits the hand-off. The audit log records it.</p>
+    <p><b>Shared.</b> The copy adds what the target lacks and never removes the target’s own rules; deny wins, so a merge can only make the target stricter or as strict. Absolute paths under the source project are rewritten to the target’s; <b>{workspace}</b> and <b>~</b> copy as they are. The rules are copied to the target’s clone, and they cover the hand-off worktree beside it (a decision this needs, see the report). A new Rules step sits between Verify and Commit: if the target refuses the set or disconnects, the hand-off fails with nothing moved and the copied rules are removed again. A hand-off a session asks for over session MCP follows the same card: only the user’s choice copies rules. The example: MacBook Pro has 4 rules on hoplet, studio has 1 of them and 1 of its own.</p>
+    <h2>A, one checkbox row</h2><p>The smallest change to the card as built: one row, checked, with a counts line and Show for the list. Cleared, an attention note names the strongest rule studio will not have. The run card gains a Rules step. Least to read for the common case; the list is one click away.</p>
+    <h2>B, a compare section</h2><p>The card shows both machines’ rules side by side as one list, + added, = already there, · studio’s own and kept, with a three-way choice: Copy all, Deny and ask only, Don’t copy. Most informative and lets the user drop an allow, but the card grows by about 200 px in the 296 px inspector, and the middle choice is one more thing to explain.</p>
+    <h2>C, a gate</h2><p>The card stays exactly as built. Pressing Hand off when the rules differ turns it into a second step that lists the missing rules: Copy rules and hand off (primary), Hand off without them, Back. Nothing is shown when the rules match. No checkbox to miss, but one more click on every hand-off where the rules differ, and the choice is made after the user has already decided to go.</p>
+    <p>Each direction has the states differ, none, same, unchecked, copying, failed, done and old (the target’s agent cannot take rules); the Audit tab is shared. States ending <b>-zh</b> are in Simplified Chinese; strings not in <b>web/src/i18n/zh-Hans.json</b> yet are proposals for it, the main ones below. No new icons.</p>
+    <table class="zh"><tr><th>English</th><th>Proposed zh-Hans</th></tr>${ZH.map(([e, z]) => `<tr><td>${e}</td><td>${z}</td></tr>`).join('')}</table></header>` +
+    STATES.map(([s, desc]) => `<section class="st"><h2>${s}<span>${desc}</span></h2><div class="pair">
+      <div class="scaled">${frame(s, 'light')}</div><div class="scaled">${frame(s, 'dark')}</div></div></section>`).join('');
+}
+</script></body></html>
