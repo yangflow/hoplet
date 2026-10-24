@@ -250,6 +250,104 @@ starts; settings apply to the live process.**
 The trust-boundary changes, the documents that change with the implementation and the order are given below. None
 of them is part of the pull request that adds this record.
 
+## Spike result: how Claude Code and Codex pick up these files
+
+Step 3 of the order above, done on 2026-10-24 from the vendors' public documentation, from the Claude Code 2.1.302
+`--help` on the maintainer's machine, and from the driver code of this repository. **No live session was started**,
+so every statement about the running `-p` stream-JSON process is marked unverified, with the check that settles it.
+Sources: code.claude.com/docs (`memory`, `skills`, `settings`, `model-config`) and the Codex pages on AGENTS.md and
+skills (developers.openai.com/codex, served from learn.chatgpt.com).
+
+### Claude Code
+
+Verified from the documentation:
+
+| Object | Where it loads from | When a change on disk reaches a running session |
+|---|---|---|
+| Project memory | `./CLAUDE.md` or `./.claude/CLAUDE.md`, plus `./CLAUDE.local.md`; the same files in every directory above the working directory; user: `~/.claude/CLAUDE.md` | Not until the process starts again. They are read "at launch"; after `/compact` the project-root file is re-read from disk. A `CLAUDE.md` in a subdirectory loads when Claude first reads, writes or edits a file there, so it is the one memory file a running session can pick up by itself. |
+| `AGENTS.md` | Read directly (Claude Code 2.1.277 and later) only when there is no `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` in the working directory or above it. With any of them present it is read only if a `CLAUDE.md` imports it (`@AGENTS.md`). | As above, at launch. |
+| Skills | `~/.claude/skills/<name>/SKILL.md`, `.claude/skills/<name>/SKILL.md`, the `.claude/skills/` of an `--add-dir` directory, plugins | Within the current session, without a restart: Claude Code watches these directories ("except in bare mode"). A top-level skills directory that did not exist at the start is not watched; `/reload-skills` picks it up. |
+| Slash commands | `.claude/commands/<name>.md`, `~/.claude/commands/`; merged into skills (`commands/deploy.md` and `skills/deploy/SKILL.md` both make `/deploy`), with the same front matter except `name` and `paths` | The page states watching for the skills directories and says an `--add-dir` directory's `.claude/commands/` is not watched. Whether the project's own `.claude/commands/` is watched is not stated: unknown. |
+| Model | `--model`, `ANTHROPIC_MODEL`, `model` in `settings.json`; `/model` | Settings files are watched and reloaded, but `model` is one of the keys read once at start; the documented mid-session change is `/model`. The driver does the same over the control protocol (`set_model`). |
+| Effort | `--effort <low\|medium\|high\|xhigh\|max>` (also in the 2.1.302 `--help`), `CLAUDE_CODE_EFFORT_LEVEL`, `effortLevel` (not `max`), `/effort` | `effortLevel` is read once; `/effort` changes it mid-session and applies "to the next request in the turn". |
+
+Format facts for the content check (documentation; the key list is Claude Code's, not Hoplet's):
+
+- Front matter keys Claude Code acts on in a skill or command: `name`, `description`, `when_to_use`, `argument-hint`,
+  `arguments`, `disable-model-invocation`, `user-invocable`, `allowed-tools`, `disallowed-tools`, `model`, `effort`,
+  `context`, `agent`, `background`, `hooks`, `paths`, `shell`; `metadata`, `license` and `compatibility` are
+  accepted and ignored, and an unknown key is ignored without an error. The closed list `name` and `description`
+  of decision 3 is therefore stricter than the vendor on purpose, and `model` and `effort` (which override the
+  session's for the turn) are refused like `allowed-tools`.
+- Shell lines are not only "`!`-prefixed lines": they are the inline form `` !`cmd` `` (recognized at the start of a
+  line or after whitespace) and a fenced block opened with ` ```! `. The check refuses both.
+  `disableSkillShellExecution` is a setting that turns them off; Hoplet does not set it.
+- `@path` imports are relative to the file that holds them, absolute paths are allowed, up to four hops, skipped
+  inside code spans and fenced blocks. A project file's import that resolves outside the working directory raises an
+  approval dialog in an interactive session. Block-level HTML comments are stripped from `CLAUDE.md` before the
+  model sees it, so text in a comment is shown on the card but never reaches the model. The Edit and Write tools
+  refuse to write through a symbolic link, which agrees with the writer's rule.
+
+What the repository already controls, from the code (`agent/internal/runtime/claude/driver.go`, `process.go`):
+`Args` starts the process with `--model` (unless `default`), `--permission-mode`, `--thinking`,
+`--settings '{"fastMode":true}'` and `--mcp-config`. `Set` changes the model of a running process with a
+`set_model` control request before the next prompt (`ApplyNextTurn`), and the mode with `set_permission_mode`. The
+Claude driver declares no `effort` option (the Codex driver does, `ApplyNextTurn`). The process reads `system`
+`commands_changed` and the `skills` of `init` (`handleSystem`); that message is the signal for a rescan.
+
+### Codex
+
+From the documentation: `AGENTS.md` is read when Codex starts, "once per run; in the TUI this usually means once per
+launched session", from `~/.codex` (`AGENTS.override.md` first), then from the project root down to the working
+directory, at most one file per directory, 32 KiB in total (`project_doc_max_bytes`). Skills are `SKILL.md` files in
+`.agents/skills` of every directory from the working directory up to the repository root, in `$HOME/.agents/skills`
+and in `/etc/codex/skills`; the front matter requires `name` and `description`, and the invocation policy lives in
+`agents/openai.yaml`. "Codex detects skill changes automatically. If an update doesn't appear, restart Codex."
+`~/.codex/config.toml` needs a restart. The pages read describe no project slash-command files. Step 7 therefore
+uses `.agents/skills`, not a `.codex/` directory, and treats `AGENTS.md` as read at the next start. The Codex
+driver's `model` and `effort` options are `ApplyNextTurn` already (`agent/internal/runtime/codex/driver.go`).
+
+### Not verified: needs a live session
+
+The documents describe the interactive CLI; the agent runs `claude -p --input-format stream-json`. Each check takes
+minutes in a throwaway project with a scratch `CLAUDE_CONFIG_DIR`, so the maintainer's settings stay untouched:
+
+1. Memory: start a session, ask what `CLAUDE.md` says about X, append a line about X from another shell, ask again in
+   the same process. Expected: not seen. Restart with `--resume`: seen.
+2. Skill rescan in `-p`: with a project that already has `.claude/skills/`, create `.claude/skills/probe/SKILL.md` and
+   watch for a `system` `commands_changed` message that lists `probe`. Repeat with an edit of its `description`,
+   with a new `.claude/commands/probe2.md`, and in a project with no `.claude/skills/` yet (expected: not seen).
+3. Effort: whether the control protocol has a request for effort (none is used today). If not, effort is an
+   `ApplyRestart` option that adds `--effort` to `Args`.
+4. An `AGENTS.md`-only project: `/context` lists `AGENTS.md`; creating a `CLAUDE.md` mid-session does not change the
+   running session.
+
+### Consequences for the steps that follow
+
+- **What the card and the tool result promise.** Memory (`CLAUDE.md`, `AGENTS.md`): "takes effect when the session
+  next starts", for Claude Code and Codex alike. Skills and commands: "takes effect in this session when the vendor
+  rescans, and in any case when it next starts"; the card says "now" only for a driver that reports
+  `selfConfig.reload` and only after the agent saw the rescan signal (`commands_changed` listing the name) following
+  the write, falling back to the start wording when none comes within a few seconds. Until check 2 passes, the
+  Claude driver reports no `reload` and every file kind says "next start". `model`: the next turn of the running
+  session (`set_model`). `effort`: the next turn for Codex; for Claude Code the next turn only if check 3 finds a
+  control request, otherwise a restart between turns (`ApplyRestart`, as Thinking and Fast), and the wording says so.
+- **Step 4, the writer.** For `memory:project` the writer resolves the file the vendor reads, not a fixed name: an
+  existing `CLAUDE.md` or `.claude/CLAUDE.md`; when the project has only `AGENTS.md`, that file; a new memory file is
+  `CLAUDE.md` for Claude Code and `AGENTS.md` for Codex. Writing `AGENTS.md` in a project that has a `CLAUDE.md`
+  which does not import it has no effect, and is answered `unsupported` with that reason. `CLAUDE.local.md` and
+  `.claude/rules/` are not objects of this record. The writer does not silently create a top-level `.claude/skills`
+  directory; the card names that the directory is new and that a running session will not see it before it restarts.
+  The content check uses the key and shell-line rules above, and a vendor version outside the tested list gets skills
+  and commands marked `unsupported`.
+- **Step 6, the write tools.** The results of `propose_*` and `get_change` carry a `takesEffect` field (`now`,
+  `next-turn`, `next-start`) filled from the object kind and the driver's `selfConfig.reload`, so the model is told
+  in the words the card shows and does not assume the running session sees the file it just proposed; for memory the
+  text says the current conversation keeps the old instructions. `model` and `effort` write no file: they go to
+  `POST /api/sessions/:id/config` (ADR 0018), because the settings files are on the never-change list and both keys
+  are read once from them anyway.
+- **Documents.** `docs/spec.md` and `docs/architecture.md` state nothing these results change.
+
 ## Cost
 
 Two capabilities and eight tools in the session MCP server, a `config_changes` table with stored previous versions
