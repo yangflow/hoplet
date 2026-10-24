@@ -24,6 +24,16 @@ export function withHandoff(s: SessionMcpSettings, on: boolean): SessionMcpSetti
     : { ...s, requestHandoff: false, autoApproveHandoff: false, autoApproveMachines: [] };
 }
 
+/** Reading the configuration turned off also turns proposing off, since proposing implies reading (ADR 0036). */
+export function withReadConfig(s: SessionMcpSettings, on: boolean): SessionMcpSettings {
+  return on ? { ...s, readConfig: true } : { ...s, readConfig: false, writeConfig: false };
+}
+
+/** Proposing changes turned on turns reading on with it; turned off, reading keeps its own state. */
+export function withWriteConfig(s: SessionMcpSettings, on: boolean): SessionMcpSettings {
+  return on ? { ...s, writeConfig: true, readConfig: true } : { ...s, writeConfig: false };
+}
+
 export function withAutoApprove(s: SessionMcpSettings, on: boolean): SessionMcpSettings {
   return { ...s, autoApproveHandoff: on && s.requestHandoff };
 }

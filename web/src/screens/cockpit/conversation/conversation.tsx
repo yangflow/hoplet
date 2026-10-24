@@ -42,6 +42,7 @@ import {
 } from '../../../lib/api.ts';
 import { amountText, covers, endDate, PERIOD_WORD } from '../../../lib/budgets.ts';
 import { projectName } from '../../../lib/capabilities.ts';
+import type { ConfigChanges } from '../../../lib/config-changes.ts';
 import { errorText } from '../../../lib/errors.ts';
 import { useHandoffRequests } from '../../../lib/handoff-requests.ts';
 import { t } from '../../../lib/i18n.ts';
@@ -64,6 +65,11 @@ import { QueueTray, type TrayFixture } from '../queue/queue-tray.tsx';
 import { useQueue } from '../queue/use-queue.ts';
 import { type ComposerView, composerView } from '../runtime.ts';
 import { ChildAsks } from './child-asks.tsx';
+import {
+  type ConfigChangeView,
+  LatestConfigChangeResult,
+  PendingConfigChange,
+} from './config-change-card.tsx';
 import { type CardRules, type HandoffView, LiveTurnView, PendingHandoffs } from './live-view.tsx';
 import { PlanOrigin } from './plan-card.tsx';
 import { SessionReader } from './reader.ts';
@@ -160,6 +166,10 @@ export function Conversation(props: {
   deviceName?: (deviceId: string) => string;
   /** A plan was approved into this new session (ADR 0025): the app opens it. */
   onSessionStarted?: (sessionId: string) => void;
+  /** The session's requests to change its configuration (ADR 0036), held by the cockpit for the review too. */
+  configChanges?: ConfigChanges;
+  /** Opens a change request in the review in the inspector. */
+  onReviewChange?: (changeId: string) => void;
   fixture?: ConversationFixture;
 }) {
   const { session, runtime, live, fixture } = props;
@@ -216,6 +226,32 @@ export function Conversation(props: {
       void handoffRequests.decide(requestId, approve).then(setHandoffError);
     },
   };
+
+  const [configChangeError, setConfigChangeError] = useState<string | null>(null);
+  const cc = props.configChanges;
+  const configChanges: ConfigChangeView | undefined = cc
+    ? {
+        changes: cc.changes,
+        touched: cc.touched,
+        dismissed: cc.dismissed,
+        busy: cc.busy,
+        decidable: live,
+        providerName: provider,
+        projectName: projectName(session.projectPath),
+        deviceName: session.deviceName,
+        onDecide: (changeId, approve) => {
+          void cc.decide(changeId, approve).then(setConfigChangeError);
+        },
+        onUndo: (changeId) => {
+          void cc.undo(changeId).then(setConfigChangeError);
+        },
+        onReview: (changeId) => props.onReviewChange?.(changeId),
+        onDismiss: (changeId) => {
+          cc.dismiss(changeId);
+          setConfigChangeError(null);
+        },
+      }
+    : undefined;
 
   const childAsks = props.kids ? (
     <ChildAsks view={props.kids} decidable={live} onOpenSession={props.onOpenSession} />
@@ -746,6 +782,7 @@ export function Conversation(props: {
                 rules={cardRules}
                 handoffs={handoffs}
                 childAsks={childAsks}
+                configChanges={configChanges}
               />
             ) : null
           }
@@ -777,11 +814,22 @@ export function Conversation(props: {
               <>
                 {childAsks}
                 <PendingHandoffs view={handoffs} providerName={provider} now={now} />
+                {configChanges ? (
+                  <>
+                    <LatestConfigChangeResult view={configChanges} />
+                    <PendingConfigChange view={configChanges} now={now} />
+                  </>
+                ) : null}
               </>
             ) : null}
             {handoffError ? (
               <p className="banner-error" role="alert" data-testid="cockpit.handoff-error">
                 {handoffError}
+              </p>
+            ) : null}
+            {configChangeError ? (
+              <p className="banner-error" role="alert" data-testid="cockpit.config-change-error">
+                {configChangeError}
               </p>
             ) : null}
             <QueueTray

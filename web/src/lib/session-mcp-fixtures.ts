@@ -36,7 +36,7 @@ export const OFF_SETTINGS: SessionMcpSettings = {
   writeConfig: false,
 };
 
-/** Send, Start and hand-off on, approved for studio; reaches the machine. */
+/** Send, Start, hand-off and proposing configuration changes on, hand-off approved for studio; reaches the machine. */
 export const ON_SETTINGS: SessionMcpSettings = {
   send: true,
   create: true,
@@ -45,7 +45,7 @@ export const ON_SETTINGS: SessionMcpSettings = {
   autoApproveMachines: ['dev-studio'],
   visibility: 'machine',
   readConfig: true,
-  writeConfig: false,
+  writeConfig: true,
 };
 
 export const WIDE_SETTINGS: SessionMcpSettings = {

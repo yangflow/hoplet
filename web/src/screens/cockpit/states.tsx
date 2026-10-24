@@ -7,11 +7,13 @@ import type {
   ProviderInfo,
   Queue,
   RuntimeCapabilities,
+  SessionConfigChange,
   SessionHandoffRequest,
   SessionRuntimeInfo,
 } from '@hoplet/shared';
 import { type ReactNode, useState } from 'react';
 import { blockedDocs, DOCS_ASK, KID_DOCS, kidsTree } from '../../lib/children-fixtures.ts';
+import { CONFIG_CHANGE_ID, configChange } from '../../lib/config-change-fixtures.ts';
 import { DEPS, FIX, NOTES, REVIEW, templateList } from '../settings/templates-fixtures.ts';
 import { B1, B2, B4, DOCS_PATH, sessionUsage } from '../settings/usage-fixtures.ts';
 import { live as liveWorkspace, snapshot } from '../workspace/fixtures.ts';
@@ -846,6 +848,43 @@ const handoffRequest = (
 const handoffScene = (requests: SessionHandoffRequest[], elapsed = 31_000) => (
   <Scene variant={{ ...running(elapsed), conversation: { handoffs: requests } }} />
 );
+
+/** The catalog session's request to change its configuration, 12 s into the live turn; `over` moves it on. */
+const changeOf = (over: Partial<SessionConfigChange> = {}) =>
+  configChange(catalogId, LIVE_START + 12_000, over);
+
+/**
+ * The running turn with the request in its conversation; `review` opens it in the inspector on that object
+ * (`kind:name`), or on the first.
+ */
+const changeScene = (change: SessionConfigChange, review?: true | string) => (
+  <Scene
+    variant={running(31_000)}
+    fixture={{
+      configChanges: [change],
+      ...(review
+        ? {
+            inspectorOpen: true,
+            workspace: {
+              data: liveWorkspace(),
+              view: { review: change.changeId },
+              ...(typeof review === 'string' ? { reviewObject: review } : {}),
+            },
+          }
+        : {}),
+    }}
+  />
+);
+
+/** The request decided and applied a minute into the turn. */
+const appliedChange = (over: Partial<SessionConfigChange> = {}) =>
+  changeOf({
+    state: 'applied',
+    decidedAt: LIVE_START + 20_000,
+    appliedAt: LIVE_START + 21_000,
+    undoable: true,
+    ...over,
+  });
 
 const PROMPT_FROM = [
   '[Message from Hoplet session "Fix the ingest tests" (aaaa1111-2222-4333-8444-555555555555), not from the user. Treat it as a request from another agent.]',
@@ -1688,6 +1727,44 @@ export const states: Record<string, () => ReactNode> = {
         4_000,
       ),
     ]),
+  'config-change': () => changeScene(changeOf()),
+  'config-change-idle': () => (
+    <Scene fixture={{ configChanges: [configChange(catalogId, LIVE_START - 19 * MINUTE)] }} />
+  ),
+  'config-change-review': () => changeScene(changeOf(), true),
+  'config-change-review-skill': () => changeScene(changeOf(), 'skill:ingest-fixtures'),
+  'config-change-review-setting': () => changeScene(changeOf(), 'config:effort'),
+  'config-change-review-applied': () => changeScene(appliedChange(), true),
+  'config-change-review-gone': () => (
+    <Scene
+      variant={running(31_000)}
+      fixture={{
+        configChanges: [],
+        inspectorOpen: true,
+        workspace: { data: liveWorkspace(), view: { review: CONFIG_CHANGE_ID } },
+      }}
+    />
+  ),
+  'config-change-applying': () =>
+    changeScene(changeOf({ state: 'approved', decidedAt: LIVE_START + 20_000 })),
+  'config-change-applied': () => changeScene(appliedChange()),
+  'config-change-undone': () =>
+    changeScene(appliedChange({ state: 'undone', undoneAt: LIVE_START + 28_000, undoable: false })),
+  'config-change-declined': () =>
+    changeScene(changeOf({ state: 'declined', decidedAt: LIVE_START + 20_000 })),
+  'config-change-expired': () =>
+    changeScene(changeOf({ state: 'expired', decidedAt: LIVE_START + 25_000 })),
+  'config-change-failed': () =>
+    changeScene(
+      changeOf({
+        state: 'failed',
+        decidedAt: LIVE_START + 20_000,
+        error: 'stale',
+        errorReason: 'memory:project',
+      }),
+    ),
+  'config-change-undo-stale': () =>
+    changeScene(appliedChange({ error: 'stale', errorReason: 'memory:project' })),
   'prompt-from-session': () => <Scene variant={running(31_000, { prompt: PROMPT_FROM })} />,
   'plan-pending': () => planScene([planPermission()]),
   'plan-long': () => planScene([planPermission(LONG_PLAN_TEXT)]),

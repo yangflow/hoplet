@@ -9,6 +9,8 @@ export type InspectorView = {
   active: Tool | null;
   opened: Opened | null;
   handoffOpen: boolean;
+  /** The change request the review shows in place of the tools (ADR 0036). */
+  review: string | null;
 };
 
 export type InspectorActions = {
@@ -19,7 +21,10 @@ export type InspectorActions = {
   openPath: (path: string, mode: Opened['mode'], tool?: Tool) => void;
   closeViewer: () => void;
   setHandoffOpen: (open: boolean) => void;
-  /** Forgets the open path and the panel, as when another session is selected. */
+  /** Shows the review of a change request in place of the tools; a tool's tab ends it. */
+  openReview: (changeId: string) => void;
+  closeReview: () => void;
+  /** Forgets the open path, the panel and the review, as when another session is selected. */
   reset: () => void;
 };
 
@@ -32,6 +37,7 @@ export function useInspectorView(
     active: initial?.active ?? null,
     opened: initial?.opened ?? null,
     handoffOpen: initial?.handoffOpen ?? false,
+    review: initial?.review ?? null,
   }));
   const persist = initial === undefined;
 
@@ -42,7 +48,7 @@ export function useInspectorView(
           ? v.tabs
           : TOOLS.filter((x) => x === tool || v.tabs.includes(x));
         if (persist && tabs !== v.tabs) saveTabs(tabs);
-        return { ...v, tabs, active: tool };
+        return { ...v, tabs, active: tool, review: null };
       }),
     [persist],
   );
@@ -59,7 +65,7 @@ export function useInspectorView(
   const openPath = useCallback(
     (path: string, mode: Opened['mode'], tool?: Tool) => {
       if (tool) openTool(tool);
-      setView((v) => ({ ...v, opened: { path, mode } }));
+      setView((v) => ({ ...v, opened: { path, mode }, review: null }));
     },
     [openTool],
   );
@@ -68,11 +74,28 @@ export function useInspectorView(
     (handoffOpen: boolean) => setView((v) => ({ ...v, handoffOpen })),
     [],
   );
-  const reset = useCallback(() => setView((v) => ({ ...v, opened: null, handoffOpen: false })), []);
+  const openReview = useCallback(
+    (changeId: string) => setView((v) => ({ ...v, review: changeId })),
+    [],
+  );
+  const closeReview = useCallback(() => setView((v) => ({ ...v, review: null })), []);
+  const reset = useCallback(
+    () => setView((v) => ({ ...v, opened: null, handoffOpen: false, review: null })),
+    [],
+  );
 
   const actions = useMemo(
-    () => ({ openTool, closeTool, openPath, closeViewer, setHandoffOpen, reset }),
-    [openTool, closeTool, openPath, closeViewer, setHandoffOpen, reset],
+    () => ({
+      openTool,
+      closeTool,
+      openPath,
+      closeViewer,
+      setHandoffOpen,
+      openReview,
+      closeReview,
+      reset,
+    }),
+    [openTool, closeTool, openPath, closeViewer, setHandoffOpen, openReview, closeReview, reset],
   );
   return [view, actions];
 }

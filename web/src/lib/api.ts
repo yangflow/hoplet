@@ -63,6 +63,8 @@ import {
   RuntimeCommandResultSchema,
   SessionChildrenResponseSchema,
   type SessionConfig,
+  SessionConfigChangeListSchema,
+  SessionConfigChangeSchema,
   SessionHandoffRequestListSchema,
   SessionHandoffRequestSchema,
   SessionListResponseSchema,
@@ -1042,6 +1044,44 @@ export function postHandoffRequestDecision(requestId: string, approve: boolean) 
   return call(
     `/api/handoff-requests/${encodeURIComponent(requestId)}/${approve ? 'approve' : 'decline'}`,
     SessionHandoffRequestSchema,
+    {},
+  );
+}
+
+/** A session's requests to change its own configuration, newest first (ADR 0036). */
+export function fetchConfigChanges(sessionId: string, signal?: AbortSignal) {
+  return call(
+    `/api/sessions/${encodeURIComponent(sessionId)}/config-changes`,
+    SessionConfigChangeListSchema,
+    undefined,
+    signal,
+  );
+}
+
+/** One request to change a session's configuration, as it is now. */
+export function fetchConfigChange(changeId: string, signal?: AbortSignal) {
+  return call(
+    `/api/config-changes/${encodeURIComponent(changeId)}`,
+    SessionConfigChangeSchema,
+    undefined,
+    signal,
+  );
+}
+
+/** Approves or declines a request to change a session's configuration, as a whole. */
+export function postConfigChangeDecision(changeId: string, approve: boolean) {
+  return call(
+    `/api/config-changes/${encodeURIComponent(changeId)}/${approve ? 'approve' : 'decline'}`,
+    SessionConfigChangeSchema,
+    {},
+  );
+}
+
+/** Restores what an applied change replaced, all objects or none. */
+export function postConfigChangeUndo(changeId: string) {
+  return call(
+    `/api/config-changes/${encodeURIComponent(changeId)}/undo`,
+    SessionConfigChangeSchema,
     {},
   );
 }

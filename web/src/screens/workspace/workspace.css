@@ -1301,3 +1301,150 @@ code.ws-mc {
   flex: none;
   justify-content: center;
 }
+
+/* the review of a session's request to change its configuration (design/screens/self-config.html b-review): the
+   objects on the left, the selected one on the right, the decision in the footer */
+.rw-w {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.rw {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: var(--layout-inspector-list) minmax(0, 1fr);
+}
+.rw-l {
+  min-height: 0;
+  padding: var(--space-2);
+  box-shadow: inset -1px 0 0 var(--color-line);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: auto;
+}
+.rw-lh {
+  padding: var(--space-2) var(--space-2) var(--space-1);
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  font-weight: var(--weight-medium);
+  color: var(--color-text-3);
+}
+.rw-i {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  column-gap: var(--space-2);
+  padding: var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--color-text-2);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.rw-i:hover:not(.on) {
+  background: var(--color-hover);
+}
+.rw-i:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--color-accent);
+}
+.rw-i > svg {
+  color: var(--color-text-3);
+  margin-top: 2px;
+}
+.rw-i .cnt {
+  margin-top: 2px;
+}
+.rw-i.on {
+  background: var(--color-selected);
+  box-shadow: inset 0 1px 0 var(--color-highlight);
+}
+.rw-i.on > svg {
+  color: var(--color-text-2);
+}
+.rw-v {
+  min-width: 0;
+  min-height: 0;
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  overflow: auto;
+  background: var(--color-bg);
+}
+.rw-vh {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.rw-vh .rw-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-title);
+  line-height: var(--leading-title);
+  font-weight: var(--weight-semibold);
+  letter-spacing: -0.01em;
+}
+.rw-vh .sp {
+  flex: 1;
+}
+.rw-path {
+  font-family: var(--font-mono);
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  color: var(--color-text-3);
+  overflow-wrap: anywhere;
+}
+.rw-d {
+  flex: none;
+  max-width: 100%;
+  overflow: auto;
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: inset 0 0 0 1px var(--color-line);
+}
+.light .rw-d {
+  background: var(--color-raised);
+}
+.rw-v:focus-visible,
+.rw-d:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--color-accent);
+}
+.rw-f {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  box-shadow: inset 0 1px 0 var(--color-line);
+}
+.rw-f .meta {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  color: var(--color-text-3);
+}
+.rw-f .meta svg {
+  flex: none;
+  color: var(--color-text-3);
+}
+.rw-f .meta .spin {
+  color: var(--color-accent);
+}
+.rw-err {
+  min-width: 0;
+  color: var(--color-danger);
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+}
