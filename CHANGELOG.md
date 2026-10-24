@@ -4,6 +4,26 @@ Each release's notes are made from the titles of the pull requests merged since 
 Commits: `feat` under Added, `fix` under Fixed, `perf` under Performance; `release-please-config.json`).
 Versions follow Semantic Versioning.
 
+## [0.10.0](https://github.com/yangflow/hoplet/compare/v0.9.0...v0.10.0) (2026-10-24)
+
+
+### Added
+
+* **agent:** Give a parent session tools to wait for, collect and cancel its children ([#343](https://github.com/yangflow/hoplet/issues/343)) ([6383575](https://github.com/yangflow/hoplet/commit/63835750df094237691efa7e96fdb50b87be01fd))
+* **agent:** Let a session propose changes to its own configuration over MCP ([#347](https://github.com/yangflow/hoplet/issues/347)) ([8b37371](https://github.com/yangflow/hoplet/commit/8b37371d653c2ffa1f5024774f0627ca3746634b))
+* **agent:** Let a session read its own configuration over MCP ([#342](https://github.com/yangflow/hoplet/issues/342)) ([55a8606](https://github.com/yangflow/hoplet/commit/55a8606317974939a3fee36d7c9e43fa4a0ae91a))
+* **agent:** Let Codex sessions read and change their own configuration ([#350](https://github.com/yangflow/hoplet/issues/350)) ([2f08bbc](https://github.com/yangflow/hoplet/commit/2f08bbcdbb3832e66c018c0a0d6eeec3182143f8))
+* **agent:** Page the changes of a child session's workspace ([#340](https://github.com/yangflow/hoplet/issues/340)) ([84fb20f](https://github.com/yangflow/hoplet/commit/84fb20f5d7b70317e495c93875d847622dae72a9))
+* **agent:** Write a session's approved configuration changes ([#345](https://github.com/yangflow/hoplet/issues/345)) ([efda80a](https://github.com/yangflow/hoplet/commit/efda80a93f24b32f3adafe6d33c59ec150df57ef))
+* **core:** Copy project rules to the target machine on hand-off ([#352](https://github.com/yangflow/hoplet/issues/352)) ([ca1e869](https://github.com/yangflow/hoplet/commit/ca1e8692a1d2e0d9121197602933302d24d1295c))
+* **web:** Review a session's requests to change its configuration ([#349](https://github.com/yangflow/hoplet/issues/349)) ([46c4cd4](https://github.com/yangflow/hoplet/commit/46c4cd48acb9ab3f4af3208daee83b9a8e573493))
+* **web:** Show a session's children in the inspector ([#346](https://github.com/yangflow/hoplet/issues/346)) ([f7352f9](https://github.com/yangflow/hoplet/commit/f7352f9766cb38f5da9d34dc9a16b92dd5e9bef3))
+
+
+### Fixed
+
+* **core:** Audit what a parent session does to its children as that session ([#348](https://github.com/yangflow/hoplet/issues/348)) ([37a6328](https://github.com/yangflow/hoplet/commit/37a6328d79fde171cc753cf56b577c09208f6e7a))
+
 ## [0.9.0](https://github.com/yangflow/hoplet/compare/v0.8.0...v0.9.0) (2026-10-23)
 
 
