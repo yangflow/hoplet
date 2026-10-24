@@ -637,7 +637,8 @@ parent, the first the root of the tree. A prompt, from a user or from another se
 `GET /api/sessions/:sessionId/children` returns `{sessionId, descendants, truncated}`: every descendant in pre-order,
 each as the session metadata plus `depth` (1 for a child), at most 200. Sessions the caller may not see are left out
 and set `truncated`. `POST /api/sessions/:sessionId/stop?cascade=true` stops the session and then the live sessions
-below it, and answers `{ok: true, stopped}` with the IDs it stopped; the route stays the host's.
+below it, and answers `{ok: true, stopped}` with the IDs it stopped; the route stays the host's. Each session it stops below
+the first is audited as `session.stopped` with `cascade` naming the session the stop started from.
 
 The limits of a tree are fixed in the core ([Hosting](hosting.md#resources)):
 
@@ -669,13 +670,14 @@ the user answers), `ended` (stopped, or its machine is gone), `timed-out` (a lim
   200 files and no content (`status` is `ok`, `unknown` or `owner-offline`), `usage` is the child's own, estimated.
   With `release` (the default; `false` keeps the process) a child that is `done` or `failed` has its process stopped;
   the session and its worktree stay, and it then reads as `ended`. A running or blocked child is never stopped by
-  it. Audit event `child.collected`.
+  it. Audit event `child.collected`, and `session.stopped` for a release, both with the parent session as actor.
 - `GET /api/sessions/:sessionId/children/:childId/diff?path=&cursor=&limit=` returns one page of one file's diff against
   the base of the child's worktree (`WorkspaceDiffSchema`); `limit` is at most 32 KiB, and `next` is the cursor of the
   following page.
 - `POST /api/sessions/:sessionId/children/:childId/cancel?subtree=` needs `create`, takes any descendant, interrupts and
   stops it (and with `subtree=true` the live sessions below it) and returns `{ok: true, cancelled}`. The sessions and
-  their worktrees stay. Audit event `child.cancelled`.
+  their worktrees stay. Audit events `child.cancelled`, and `session.interrupted` and `session.stopped` for each
+  session it stops, all with the parent session as actor.
 
 The MCP tools are `wait_children` (`sessionIds?`, `until`: `all` or `any`, `timeoutSeconds?`: the agent asks the status
 route every 2 seconds and returns when the condition holds or after at most 50 seconds with `pending: true`; a

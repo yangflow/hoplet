@@ -21,6 +21,10 @@
 //	newcmd         emit commands_changed with one more project command, then answer like `say`
 //	anything else  behaves like `say`
 //
+// A prompt another session sent begins with the agent's line naming that session (`[Message from Hoplet
+// session ...]`); its script is chosen by the last paragraph after that line, so the report instruction the core
+// puts before a child's first prompt does not hide it.
+//
 // A prompt's images are written into its user line before the text, as Claude Code records them.
 //
 // Started with --session-id the session is new: its file is created, in the store directory of the working
@@ -451,8 +455,21 @@ func result(subtype string, isErr bool, terminal, text string) {
 	}
 }
 
+// scriptOf is the part of a prompt whose first word selects the script: the whole prompt, or for a prompt another
+// session sent, its last paragraph after the line naming the sender.
+func scriptOf(prompt string) string {
+	if !strings.HasPrefix(prompt, "[Message from Hoplet session ") {
+		return prompt
+	}
+	_, body, _ := strings.Cut(prompt, "\n")
+	if i := strings.LastIndex(body, "\n\n"); i >= 0 {
+		body = body[i+2:]
+	}
+	return body
+}
+
 func runTurn(t *turn, prompt string) {
-	cmd, rest, _ := strings.Cut(prompt, " ")
+	cmd, rest, _ := strings.Cut(scriptOf(prompt), " ")
 	switch cmd {
 	case "newcmd":
 		emit(obj{"type": "system", "subtype": "commands_changed", "commands": append(initialCommands(), obj{"name": "lint", "description": "Run the linter (project)"})})

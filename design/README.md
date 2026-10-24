@@ -155,8 +155,8 @@ The mockups, design tokens and app icon behind Hoplet's web UI. The design langu
   as the alternatives considered. Built: A as the inspector's Children tab (the `children`, `children-open`,
   `children-blocked`, `children-cancel`, `children-subtree`, `children-cancel-all`, `children-loading`,
   `children-error` and `children-empty` states in `/__states/workspace`) and B's strip, with Allow and Deny, in the
-  parent's turn or above the composer between turns (`child-ask` and `child-ask-idle` in `/__states/cockpit`). Not
-  built: tokens on every row and for the tree (the core reports a child's usage only when it is collected), the diff
+  parent's turn or above the composer between turns (`child-ask` and `child-ask-idle` in `/__states/cockpit`), on a core
+  and agent run end to end across two machines (`scripts/test/children.test.ts`). Not built: tokens on every row and for the tree (the core reports a child's usage only when it is collected), the diff
   of a changed file, the session list as a tree and the stop dialog's cascade choice. Shared by all three: the session list as a tree (a parent with a count and the
   strongest state among its children, indented children with machine and worktree branch, a grandchild, a folded
   parent that keeps its attention dot, "Started by a deleted session") and the stop dialog with "Also stop N

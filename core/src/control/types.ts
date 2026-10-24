@@ -79,6 +79,8 @@ export type ControlReply = Exclude<
  * a session's own token (ADR 0034), the session.
  */
 export type AuditActor = { kind: 'token'; id: string } | { kind: 'session'; id: string };
+/** Who interrupts or stops a session: a caller's actor, or the core itself (the tree watcher, #81). */
+export type CommandActor = AuditActor | { kind: 'core' };
 
 /** The limits on what sessions do to other sessions (ADR 0034); each is per source session. */
 export interface SessionLimits {
@@ -877,8 +879,17 @@ export interface Control {
     requestId: string,
     answer: PermissionAnswer,
   ): PermissionOutcome;
-  interrupt(sessionId: string, ownerDeviceId: string, actor?: AuditActor): RuntimeCommandOutcome;
-  stop(sessionId: string, ownerDeviceId: string): RuntimeCommandOutcome;
+  interrupt(sessionId: string, ownerDeviceId: string, actor?: CommandActor): RuntimeCommandOutcome;
+  /**
+   * Stops a session's runtime. `actor` is who asked (the operator when absent); `cascadeOf` is the session whose
+   * stop reached this one, recorded in the `session.stopped` summary.
+   */
+  stop(
+    sessionId: string,
+    ownerDeviceId: string,
+    actor?: CommandActor,
+    cascadeOf?: string,
+  ): RuntimeCommandOutcome;
   /** Forwards one setting change (ADR 0018); the caller has checked it against the session's capabilities. */
   config(
     sessionId: string,
