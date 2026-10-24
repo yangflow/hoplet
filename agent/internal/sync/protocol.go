@@ -14,7 +14,7 @@ import (
 // (provider.ValidSessionID, ADR 0006). Invalid IDs receive error invalid-session-id
 // before decoding or persistence; the wire envelope and cursor are unchanged.
 
-const ProtocolVersion = 22
+const ProtocolVersion = 23
 
 // Wire message types: Type<Struct> is the `type` of the struct of that name.
 // shared/src/wire/ holds the same table; scripts/test/contract.test.ts compares both.
@@ -262,7 +262,8 @@ type DeviceProvidersRejected struct {
 
 // DeviceRules (core → device, control lane) is every permission rule that can apply to a session on this
 // device (ADR 0029): the global rules with the built-ins and their enabled state, the rules of projects of the
-// device by project path, and the rules of the sessions the device owns by session ID. Each rule body is the
+// device by project path (a rule again under each worktree Hoplet made from that project's clone, with the same
+// body, ADR 0037), and the rules of the sessions the device owns by session ID. Each rule body is the
 // agent's rules.Rule; the core-only fields are not sent, and the agent refuses a push with a field it does not
 // know. Revision is the device's rule revision; the core sends the set after every connection and after every
 // change.

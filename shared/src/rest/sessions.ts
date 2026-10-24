@@ -3,6 +3,12 @@ import { MAX_BRANCH_NAME_LENGTH } from '../branch.ts';
 import { EntrySchema } from '../conversation.ts';
 import { SessionIdSchema } from '../ids.ts';
 import {
+  PermissionActionSchema,
+  PermissionMatchSchema,
+  PermissionNoteSchema,
+  PermissionToolSchema,
+} from '../permission-rules.ts';
+import {
   ConfigChangeSchema,
   ConfigurationIdSchema,
   PromptAttachmentsSchema,
@@ -273,8 +279,43 @@ export const HandoffRequestSchema = v.object({
    * session's provider, else `invalid-request`. Absent means the vendor's own.
    */
   configuration: v.optional(ConfigurationIdSchema),
+  /**
+   * Copy the source project's rules that the target's clone lacks to it before the commit (ADR 0037). Only the
+   * owner sets it; a session's own handoff request never copies.
+   */
+  copyProjectRules: v.optional(v.boolean()),
 });
 export type HandoffRequest = v.InferOutput<typeof HandoffRequestSchema>;
+
+/** GET /api/sessions/:id/handoff/rules: the target machine and the clone there the rules would be copied to. */
+export const HandoffRulesQuerySchema = v.strictObject({
+  targetDeviceId: TrimmedSchema,
+  targetPath: v.pipe(TrimmedSchema, v.minLength(1), v.maxLength(4096)),
+});
+export type HandoffRulesQuery = v.InferOutput<typeof HandoffRulesQuerySchema>;
+
+/**
+ * One rule of the copy a handoff would make: `copy` the target lacks it and the handoff adds it (its paths moved
+ * onto the target's clone), `same` the target has it, `target` the target's own rule the source does not have.
+ */
+export const HandoffRuleSchema = v.object({
+  state: v.picklist(['copy', 'same', 'target']),
+  action: PermissionActionSchema,
+  tool: PermissionToolSchema,
+  match: PermissionMatchSchema,
+  note: PermissionNoteSchema,
+});
+export type HandoffRule = v.InferOutput<typeof HandoffRuleSchema>;
+
+/** The answer of GET /api/sessions/:id/handoff/rules. `sourcePath` is null when the session has no project. */
+export const HandoffRulesPreviewSchema = v.object({
+  sourceDeviceId: v.string(),
+  sourcePath: v.nullable(v.string()),
+  targetDeviceId: v.string(),
+  targetPath: v.string(),
+  rules: v.array(HandoffRuleSchema),
+});
+export type HandoffRulesPreview = v.InferOutput<typeof HandoffRulesPreviewSchema>;
 
 export const HandoffResultSchema = v.object({
   ok: v.literal(true),
@@ -285,6 +326,8 @@ export const HandoffResultSchema = v.object({
   branch: v.string(),
   /** The time of the snapshot an offline handoff installed; absent when the owner was online. */
   snapshotAt: v.optional(v.number()),
+  /** The project rules copied to the target (ADR 0037); absent when none were. */
+  rulesCopied: v.optional(v.number()),
 });
 export type HandoffResult = v.InferOutput<typeof HandoffResultSchema>;
 

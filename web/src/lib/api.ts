@@ -30,6 +30,7 @@ import {
   GlobalSearchResultSchema,
   HandoffCancelResultSchema,
   HandoffResultSchema,
+  HandoffRulesPreviewSchema,
   type HookCreateRequest,
   HookDeliveriesResponseSchema,
   HookInfoSchema,
@@ -338,6 +339,8 @@ export function postHandoff(
     cloneInto?: string | undefined;
     /** The target's provider configuration to continue under; the vendor's own when absent. */
     configuration?: string | undefined;
+    /** Copy the source project's rules the target's clone lacks (ADR 0037). */
+    copyProjectRules?: boolean | undefined;
   } = {},
 ) {
   return call(`/api/sessions/${sessionId}/handoff`, HandoffResultSchema, {
@@ -345,7 +348,24 @@ export function postHandoff(
     ...(where.targetPath === undefined ? {} : { targetPath: where.targetPath }),
     ...(where.cloneInto === undefined ? {} : { cloneInto: where.cloneInto }),
     ...(where.configuration === undefined ? {} : { configuration: where.configuration }),
+    ...(where.copyProjectRules ? { copyProjectRules: true } : {}),
   });
+}
+
+/** The session's project rules compared with those of the target's clone at `targetPath`. */
+export function fetchHandoffRules(
+  sessionId: string,
+  targetDeviceId: string,
+  targetPath: string,
+  signal?: AbortSignal,
+) {
+  const query = `targetDeviceId=${encodeURIComponent(targetDeviceId)}&targetPath=${encodeURIComponent(targetPath)}`;
+  return call(
+    `/api/sessions/${sessionId}/handoff/rules?${query}`,
+    HandoffRulesPreviewSchema,
+    undefined,
+    signal,
+  );
 }
 
 /** Stops the clone step of the session's handoff. */

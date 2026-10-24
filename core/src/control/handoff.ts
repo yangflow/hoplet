@@ -12,6 +12,8 @@ import {
 import { log } from '../log/index.ts';
 import type { SnapshotRecord } from '../store/index.ts';
 import { askWaiter, settleWaiter, type Waiter, waitFor } from './pending.ts';
+import { planRuleCopy, ruleSourceOf } from './rule-copy.ts';
+import type { RulesControl } from './rules.ts';
 import type { CloneRunWaiter, ControlState } from './state.ts';
 import type {
   CloneRunOutcome,
@@ -55,6 +57,10 @@ export interface ActiveHandoff {
   cloneRequestId?: string;
   /** The user asked to cancel while the handoff was cloning. */
   cancelRequested?: boolean;
+  /** The worktree the target installed and its clone: the clone's project rules reach it before the commit (ADR 0037). */
+  installed?: { clone: string; worktree: string };
+  /** The rules the rules step copied to the target; deleted again when the handoff fails. */
+  copiedRuleIds?: string[];
 }
 
 function failureOf(outcome: StepFailure, device: 'owner' | 'target'): HandoffFailure {
@@ -81,6 +87,7 @@ type ProgressExtra = {
   worktree?: string;
   branch?: string;
   reason?: string;
+  copied?: number;
 };
 
 /** Resolves when `check` holds, or fails with `code` once `ms` have passed. */
@@ -107,6 +114,7 @@ function within<T>(promise: Promise<T>, ms: number, code: HandoffError): Promise
 }
 
 export type HandoffControl = Pick<Control, 'handoff'> & {
+  rulesPreview: Control['handoffRulesPreview'];
   /** Stops a handoff that is cloning; the clone's failure `cancelled` then ends the handoff. */
   cancel(sessionId: string): HandoffCancelOutcome;
   /** A device lost its connection: a handoff waiting for it fails. */
@@ -121,6 +129,7 @@ export type HandoffControl = Pick<Control, 'handoff'> & {
 export function createHandoff(
   state: ControlState,
   workspace: Control['workspace'],
+  rules: Pick<RulesControl, 'refresh' | 'confirm'>,
 ): HandoffControl {
   const {
     store,
@@ -431,6 +440,11 @@ export function createHandoff(
     const installedOutcome = await answer.promise;
     if (!installedOutcome.ok) throw failureOf(installedOutcome, 'target');
     const { worktree, branch, clone } = installedOutcome.value;
+    // The target's project rules of the clone reach the worktree before the session starts in it.
+    if (clone) {
+      active.installed = { clone, worktree };
+      rules.refresh([active.targetDeviceId]);
+    }
 
     // Verify: the target proves its copy before ownership moves.
     progress(sessionId, active, 'verify');
@@ -443,6 +457,12 @@ export function createHandoff(
       verified.treeHash !== snapshot.treeHash
     ) {
       throw new HandoffFailure('verify-failed');
+    }
+
+    // Rules: the owner chose to copy the source project's rules the target's clone lacks (ADR 0037).
+    let rulesCopied = 0;
+    if (request.copyProjectRules === true && clone) {
+      rulesCopied = await copyRules(sessionId, active, clone);
     }
 
     // Commit: no await from the last check through the owner update.
@@ -479,7 +499,50 @@ export function createHandoff(
       worktree,
       branch,
       ...(snapshotAt !== undefined ? { snapshotAt } : {}),
+      ...(rulesCopied > 0 ? { rulesCopied } : {}),
     };
+  }
+
+  /**
+   * The rules step: stores the copies, sends the target its set and waits until it applied it. Returns how many
+   * rules were copied; a failure leaves the copies on `active` for the rollback.
+   */
+  async function copyRules(
+    sessionId: string,
+    active: ActiveHandoff,
+    targetClone: string,
+  ): Promise<number> {
+    const source = ruleSourceOf(store, sessionId, active.ownerDeviceId);
+    if (!source) return 0;
+    const plan = planRuleCopy(store.listPermissionRules({ scope: 'project' }), source, {
+      deviceId: active.targetDeviceId,
+      path: targetClone,
+    });
+    if (plan.copies.length === 0) return 0;
+    progress(sessionId, active, 'rules', { copied: plan.copies.length });
+    const ids = store.copyPermissionRules(plan.copies, {
+      deviceId: active.targetDeviceId,
+      fromDeviceId: active.ownerDeviceId,
+      sessionId,
+    });
+    if (!ids) throw new HandoffFailure('rejected', 'rules-limit');
+    active.copiedRuleIds = ids;
+    const answer = await rules.confirm(
+      active.targetDeviceId,
+      store.permissionRevision(active.targetDeviceId),
+      state.handoffTimeoutMs,
+    );
+    if (answer.ok) return ids.length;
+    switch (answer.error) {
+      case 'refused':
+        // The agent's reason can quote a pattern; it is in the core's log, not in the answer.
+        log('warn', 'control', 'copied permission rules refused', { sessionId });
+        throw new HandoffFailure('rejected', 'rules-refused');
+      case 'offline':
+        throw new HandoffFailure('target-offline');
+      case 'timeout':
+        throw new HandoffFailure('timeout');
+    }
   }
 
   function failAll(link: DeviceLink): void {
@@ -498,6 +561,31 @@ export function createHandoff(
 
   return {
     detached: failAll,
+
+    rulesPreview(sessionId, targetDeviceId, targetPath) {
+      const owner = isSessionId(sessionId) ? store.ownerDeviceId(sessionId) : null;
+      if (!owner) return { ok: false, error: 'session-not-found' };
+      if (!store.listDevices().some((d) => d.deviceId === targetDeviceId)) {
+        return { ok: false, error: 'not-found' };
+      }
+      const source = ruleSourceOf(store, sessionId, owner);
+      const plan = source
+        ? planRuleCopy(store.listPermissionRules({ scope: 'project' }), source, {
+            deviceId: targetDeviceId,
+            path: targetPath,
+          })
+        : { rules: [] };
+      return {
+        ok: true,
+        preview: {
+          sourceDeviceId: owner,
+          sourcePath: source?.path ?? null,
+          targetDeviceId,
+          targetPath,
+          rules: plan.rules,
+        },
+      };
+    },
 
     cancel(sessionId) {
       const active = handoffs.get(sessionId);
@@ -522,6 +610,7 @@ export function createHandoff(
         active: ActiveHandoff,
         outcome: 'committed' | 'failed',
         reason?: string,
+        rulesCopied?: number,
       ): void => {
         try {
           store.audit({
@@ -535,6 +624,7 @@ export function createHandoff(
               outcome,
               ownerOnline: active.owner !== null,
               ...(reason !== undefined ? { reason } : {}),
+              ...(rulesCopied !== undefined ? { rulesCopied } : {}),
             },
           });
         } catch (err) {
@@ -592,7 +682,13 @@ export function createHandoff(
           branch: done.branch,
         });
         log('info', 'control', 'handoff committed', { sessionId, handoffId: active.handoffId });
-        recordHandoff(sessionId, active, 'committed');
+        recordHandoff(
+          sessionId,
+          active,
+          'committed',
+          undefined,
+          request.copyProjectRules === true ? (done.rulesCopied ?? 0) : undefined,
+        );
         state.emit({
           kind: 'handoff-done',
           sessionId,
@@ -611,7 +707,28 @@ export function createHandoff(
           code: failure.code,
           reason,
         });
-        recordHandoff(sessionId, active, 'failed', reason);
+        // The copies of a handoff that did not commit are deleted again; the target gets its set without them.
+        if (active.copiedRuleIds) {
+          try {
+            store.removeCopiedPermissionRules(active.copiedRuleIds, {
+              deviceId: targetDeviceId,
+              fromDeviceId: owner,
+              sessionId,
+            });
+          } catch (removeErr) {
+            log('error', 'control', 'copied permission rules not removed', {
+              sessionId,
+              error: removeErr instanceof Error ? removeErr.message : 'unknown',
+            });
+          }
+        }
+        recordHandoff(
+          sessionId,
+          active,
+          'failed',
+          reason,
+          request.copyProjectRules === true ? 0 : undefined,
+        );
         const abort = {
           v: PROTOCOL_VERSION,
           type: 'handoff.abort',
@@ -633,6 +750,8 @@ export function createHandoff(
         };
       } finally {
         handoffs.delete(sessionId);
+        // The worktree it installed is now recorded with the session or gone with the abort.
+        if (active.installed || active.copiedRuleIds) rules.refresh();
         if (active.cloneRequestId) {
           const waiter = pendingCloneRun.get(active.cloneRequestId);
           if (waiter) {

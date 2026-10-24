@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Hoplet client API",
   "description": "Generated from shared/ and the route table by `pnpm schema`; do not edit. Each name under $defs is a schema that docs/api.md names for a route or a message. Parse a body against the schema its route names.",
-  "protocolVersion": 22,
+  "protocolVersion": 23,
   "routes": [
     {
       "method": "POST",
@@ -433,6 +433,16 @@
       "query": null,
       "body": "HandoffRequestSchema",
       "response": "HandoffResultSchema"
+    },
+    {
+      "method": "GET",
+      "path": "/api/sessions/:sessionId/handoff/rules",
+      "auth": "host",
+      "lane": "control",
+      "status": 200,
+      "query": "HandoffRulesQuerySchema",
+      "body": null,
+      "response": "HandoffRulesPreviewSchema"
     },
     {
       "method": "POST",
@@ -3628,7 +3638,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 22
+          "const": 23
         },
         "type": {
           "const": "device.presence"
@@ -4211,7 +4221,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 22
+          "const": 23
         },
         "type": {
           "const": "error"
@@ -4638,7 +4648,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 22
+          "const": 23
         },
         "type": {
           "const": "handoff.progress"
@@ -4658,6 +4668,7 @@
             "transfer",
             "install",
             "verify",
+            "rules",
             "commit",
             "done",
             "failed"
@@ -4674,6 +4685,9 @@
           "type": "number"
         },
         "total": {
+          "type": "number"
+        },
+        "copied": {
           "type": "number"
         },
         "worktree": {
@@ -4699,7 +4713,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 22
+          "const": 23
         },
         "type": {
           "const": "handoff.request"
@@ -4805,6 +4819,9 @@
         "configuration": {
           "type": "string",
           "pattern": "^[a-z0-9][a-z0-9-]{0,39}$"
+        },
+        "copyProjectRules": {
+          "type": "boolean"
         }
       },
       "required": [
@@ -4831,6 +4848,9 @@
         },
         "snapshotAt": {
           "type": "number"
+        },
+        "rulesCopied": {
+          "type": "number"
         }
       },
       "required": [
@@ -4840,6 +4860,212 @@
         "worktree",
         "branch"
       ]
+    },
+    "HandoffRulesPreviewSchema": {
+      "type": "object",
+      "properties": {
+        "sourceDeviceId": {
+          "type": "string"
+        },
+        "sourcePath": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "targetDeviceId": {
+          "type": "string"
+        },
+        "targetPath": {
+          "type": "string"
+        },
+        "rules": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "state": {
+                "enum": [
+                  "copy",
+                  "same",
+                  "target"
+                ],
+                "type": "string"
+              },
+              "action": {
+                "enum": [
+                  "allow",
+                  "ask",
+                  "deny"
+                ],
+                "type": "string"
+              },
+              "tool": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "match": {
+                "type": "object",
+                "properties": {
+                  "command": {
+                    "type": "string",
+                    "maxLength": 500
+                  },
+                  "anyArg": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 500
+                    },
+                    "maxItems": 50
+                  },
+                  "pipedTo": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 500
+                    },
+                    "maxItems": 50
+                  },
+                  "paths": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 500
+                    },
+                    "maxItems": 50
+                  },
+                  "except": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 500
+                    },
+                    "maxItems": 50
+                  },
+                  "domains": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 500
+                    },
+                    "maxItems": 50
+                  },
+                  "or": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "command": {
+                          "type": "string",
+                          "maxLength": 500
+                        },
+                        "anyArg": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 500
+                          },
+                          "maxItems": 50
+                        },
+                        "pipedTo": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 500
+                          },
+                          "maxItems": 50
+                        },
+                        "paths": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 500
+                          },
+                          "maxItems": 50
+                        },
+                        "except": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 500
+                          },
+                          "maxItems": 50
+                        },
+                        "domains": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 500
+                          },
+                          "maxItems": 50
+                        }
+                      },
+                      "required": [],
+                      "additionalProperties": false
+                    },
+                    "maxItems": 50
+                  }
+                },
+                "required": [],
+                "additionalProperties": false
+              },
+              "note": {
+                "type": "string",
+                "maxLength": 200
+              }
+            },
+            "required": [
+              "state",
+              "action",
+              "tool",
+              "match",
+              "note"
+            ]
+          }
+        }
+      },
+      "required": [
+        "sourceDeviceId",
+        "sourcePath",
+        "targetDeviceId",
+        "targetPath",
+        "rules"
+      ]
+    },
+    "HandoffRulesQuerySchema": {
+      "type": "object",
+      "properties": {
+        "targetDeviceId": {
+          "type": "string",
+          "pattern": "\\S",
+          "minLength": 1
+        },
+        "targetPath": {
+          "type": "string",
+          "pattern": "^\\s*\\S(?:[\\s\\S]{0,4094}\\S)?\\s*$"
+        }
+      },
+      "required": [
+        "targetDeviceId",
+        "targetPath"
+      ],
+      "additionalProperties": false
     },
     "HealthResponseSchema": {
       "type": "object",
@@ -6871,7 +7097,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 22
+          "const": 23
         },
         "type": {
           "const": "notify"
@@ -8736,7 +8962,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 22
+          "const": 23
         },
         "type": {
           "const": "session.appended"
@@ -8775,7 +9001,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 22
+          "const": 23
         },
         "type": {
           "const": "session.change"
@@ -9138,7 +9364,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 22
+          "const": 23
         },
         "type": {
           "const": "session.commands"
@@ -9579,7 +9805,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 22
+          "const": 23
         },
         "type": {
           "const": "session.deleted"
@@ -10090,7 +10316,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 22
+          "const": 23
         },
         "type": {
           "const": "session.listening"
@@ -10490,7 +10716,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 22
+          "const": 23
         },
         "type": {
           "const": "session.output"
@@ -10591,7 +10817,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 22
+          "const": 23
         },
         "type": {
           "const": "session.permission"
@@ -10728,7 +10954,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 22
+          "const": 23
         },
         "type": {
           "const": "session.queue"
@@ -10748,7 +10974,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 22
+          "const": 23
         },
         "type": {
           "const": "session.rule"
@@ -10798,7 +11024,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 22
+          "const": 23
         },
         "type": {
           "const": "session.rules.unenforced"
@@ -10822,7 +11048,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 22
+          "const": 23
         },
         "type": {
           "const": "session.runtime"
@@ -10993,7 +11219,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 22
+          "const": 23
         },
         "type": {
           "const": "session.updated"
@@ -11411,7 +11637,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 22
+          "const": 23
         },
         "type": {
           "const": "subscribe"
@@ -12035,7 +12261,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 22
+          "const": 23
         },
         "type": {
           "const": "terminal.attach"
@@ -12055,7 +12281,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 22
+          "const": 23
         },
         "type": {
           "const": "terminal.attached"
@@ -12103,7 +12329,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 22
+          "const": 23
         },
         "type": {
           "const": "terminal.data"
@@ -12134,7 +12360,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 22
+          "const": 23
         },
         "type": {
           "const": "terminal.detach"
@@ -12154,7 +12380,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 22
+          "const": 23
         },
         "type": {
           "const": "terminal.ended"
@@ -12227,7 +12453,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 22
+          "const": 23
         },
         "type": {
           "const": "terminal.keys"
@@ -12272,7 +12498,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 22
+          "const": 23
         },
         "type": {
           "const": "terminal.size"
@@ -12665,7 +12891,7 @@
       "type": "object",
       "properties": {
         "v": {
-          "const": 22
+          "const": 23
         },
         "type": {
           "const": "unsubscribe"

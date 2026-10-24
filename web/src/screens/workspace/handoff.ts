@@ -3,7 +3,10 @@ import type {
   DeviceInfo,
   HandoffProgress,
   HandoffResult,
+  HandoffRule,
+  HandoffRulesPreview,
   HttpErrorCode,
+  PermissionAction,
   Provider,
   ProviderInfo,
 } from '@hoplet/shared';
@@ -11,6 +14,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { providerName } from '../../components/provider-marks.tsx';
 import {
   fetchDeviceClone,
+  fetchHandoffRules,
   postDeviceProviders,
   postHandoff,
   postHandoffCancel,
@@ -19,17 +23,26 @@ import { type HandoffChoice, handoffChoice } from '../../lib/configurations.ts';
 import { ApiError, configurationErrorText, errorText } from '../../lib/errors.ts';
 import { t } from '../../lib/i18n.ts';
 import { onLive } from '../../lib/live.ts';
+import { ruleName } from '../../lib/permission-rules.ts';
 import type { CloneIntoFixture } from './clone-into.tsx';
 
-/** The steps of a handoff as the panel lists them (docs/spec.md#handoff). */
-export const STEPS = ['prepare', 'transfer', 'install', 'verify', 'commit'] as const;
-/** The steps of a handoff that clones the repository on the target first (ADR 0024). */
-export const CLONE_STEPS = ['clone', ...STEPS] as const;
-export type Step = (typeof CLONE_STEPS)[number];
+/** Every step a run can list: the clone first (ADR 0024), the rules between verify and commit (ADR 0037). */
+export const ALL_STEPS = [
+  'clone',
+  'prepare',
+  'transfer',
+  'install',
+  'verify',
+  'rules',
+  'commit',
+] as const;
+export type Step = (typeof ALL_STEPS)[number];
 
-/** The steps a run lists: the clone step comes first only when the run clones. */
-export function stepsOf(run: Pick<HandoffRun, 'clone'>): readonly Step[] {
-  return run.clone ? CLONE_STEPS : STEPS;
+/** The steps a run lists: the clone step only when the run clones, the rules step only when it copies rules. */
+export function stepsOf(run: Pick<HandoffRun, 'clone' | 'rules'>): readonly Step[] {
+  return ALL_STEPS.filter(
+    (step) => (step !== 'clone' || run.clone) && (step !== 'rules' || run.rules),
+  );
 }
 
 /** When this window saw a step start and end; a step it joined late has no start. */
@@ -59,6 +72,8 @@ export type HandoffRun = {
   branch?: string;
   /** Present when the run clones first: the folder and the origin as people read it, when this window knows them. */
   clone?: { into?: string; origin?: string };
+  /** Present when the run copies project rules: how many the preview offered and how many the core copied. */
+  rules?: { count?: number; copied?: number };
   /** The step that failed, when one was under way. */
   failedStep?: Step;
   /** The core's reason in `handoff.progress`, or the code and the agent's reason of the refused request. */
@@ -81,6 +96,7 @@ export function startRun(
   ownerName: string,
   now: number,
   clone?: { into: string; origin: string },
+  rules?: number,
 ): HandoffRun {
   const first: Step = clone ? 'clone' : 'prepare';
   return {
@@ -90,11 +106,12 @@ export function startRun(
     steps: { [first]: { at: now } },
     current: first,
     ...(clone ? { clone } : {}),
+    ...(rules ? { rules: { count: rules } } : {}),
   };
 }
 
 function isStep(step: string): step is Step {
-  return (CLONE_STEPS as readonly string[]).includes(step);
+  return (ALL_STEPS as readonly string[]).includes(step);
 }
 
 /** Ends the step under way at `now`. */
@@ -154,6 +171,12 @@ export function applyProgress(
   if (base.outcome !== 'running' || !isStep(msg.step)) return base;
   const step = msg.step;
   if (step === 'clone' && !base.clone) base = { ...base, clone: {} };
+  if (step === 'rules') {
+    base = {
+      ...base,
+      rules: { ...base.rules, ...(msg.copied !== undefined ? { copied: msg.copied } : {}) },
+    };
+  }
   const steps = step === base.current ? base.steps : closeCurrent(base, now);
   if (base.current === 'clone' && step !== 'clone') {
     const { sent, total: _total, ...rest } = base;
@@ -202,6 +225,10 @@ export function applyResult(
     worktree: result.worktree,
     branch: result.branch,
     ...(result.snapshotAt !== undefined ? { snapshotAt: result.snapshotAt } : {}),
+    // A run that asked to copy rules learns here how many were: none when the target had them all by then.
+    ...(run.rules || result.rulesCopied !== undefined
+      ? { rules: { ...run.rules, copied: result.rulesCopied ?? 0 } }
+      : {}),
   };
 }
 
@@ -220,7 +247,17 @@ export function failureText(run: HandoffRun, target: string): string {
   if (run.failedStep === 'clone' || code === 'clone-failed')
     return `${cloneFailureText(run, target, reason)} ${named('{owner} still owns the session.')}`;
   let why: string;
-  if (code === 'no-clone' || reason === 'no-clone')
+  if (run.failedStep === 'rules' && code === 'target-offline')
+    why = named(
+      '{target} disconnected before it confirmed the rules. The copied rules were removed again.',
+    );
+  else if (reason === 'rules-refused')
+    why = named('{target} refused the copied rules. They were removed again.');
+  else if (reason === 'rules-limit')
+    why = named('{target} would have more permission rules than Hoplet keeps.');
+  else if (run.failedStep === 'rules' && code === 'timeout')
+    why = named('{target} did not confirm the rules in time. The copied rules were removed again.');
+  else if (code === 'no-clone' || reason === 'no-clone')
     why = named('{target} has no clone of this repository there.');
   else if (reason === 'base-commit-unavailable')
     why = named('{target} does not have the base commit. Fetch in its clone and try again.');
@@ -289,6 +326,100 @@ export function originLabel(origin: string): string {
   return url;
 }
 
+/** Whether the target's clone has the rules of the session's project, as the core compared them (ADR 0037). */
+export type RulesCheck =
+  /** No clone to compare with yet, or nothing to look up. */
+  | { state: 'idle' }
+  | { state: 'checking' }
+  | { state: 'ready'; preview: HandoffRulesPreview }
+  | { state: 'unknown' };
+
+/** The compared rules counted: the copies by action, those the target has, and the target's own. */
+export type RulesSummary = {
+  copies: HandoffRule[];
+  byAction: Record<PermissionAction, number>;
+  same: number;
+  own: number;
+};
+
+export function rulesSummary(rules: readonly HandoffRule[]): RulesSummary {
+  const copies = rules.filter((r) => r.state === 'copy');
+  const byAction: Record<PermissionAction, number> = { deny: 0, ask: 0, allow: 0 };
+  for (const r of copies) byAction[r.action] += 1;
+  return {
+    copies,
+    byAction,
+    same: rules.filter((r) => r.state === 'same').length,
+    own: rules.filter((r) => r.state === 'target').length,
+  };
+}
+
+const fillN = (text: string, n: number, target: string) =>
+  t(text).replaceAll('{n}', String(n)).replaceAll('{target}', target);
+
+/** The line under the checkbox: the copies by action, then what the target has and keeps. */
+export function rulesCountsText(summary: RulesSummary, target: string): string {
+  const { byAction, same, own } = summary;
+  const actions = [
+    byAction.deny ? fillN('{n} deny', byAction.deny, target) : '',
+    byAction.ask ? fillN('{n} ask', byAction.ask, target) : '',
+    byAction.allow ? fillN('{n} allow', byAction.allow, target) : '',
+  ].filter(Boolean);
+  const parts = [`${actions.join(' · ')}.`];
+  if (same === 0 && own === 0) parts.push(fillN('{target} has none for this project.', 0, target));
+  if (same > 0) parts.push(fillN('{target} has {n} of them.', same, target));
+  if (own === 1) parts.push(fillN('Its own rule stays.', 1, target));
+  else if (own > 1) parts.push(fillN('Its {n} own rules stay.', own, target));
+  return parts.join(' ');
+}
+
+/** The label of the checkbox. */
+export function rulesCopyLabel(n: number, target: string): string {
+  return n === 1
+    ? fillN('Copy 1 project rule to {target}', 1, target)
+    : fillN('Copy {n} project rules to {target}', n, target);
+}
+
+/** What a rule matches, written out, without its note. */
+export function ruleMatchText(rule: Pick<HandoffRule, 'tool' | 'match'>): string {
+  return ruleName({ ...rule, note: '' });
+}
+
+/**
+ * What the session loses on the target when the box is cleared: the strongest rule it will not have and how many
+ * more of its action, with `{rule}` where that rule goes. Null when nothing would be copied.
+ */
+export function rulesLossText(
+  summary: RulesSummary,
+  target: string,
+): { text: string; rule: string } | null {
+  const pick = (action: PermissionAction) => summary.copies.find((r) => r.action === action);
+  const first = pick('deny') ?? pick('ask');
+  if (!first) {
+    if (summary.byAction.allow === 0) return null;
+    return {
+      text: fillN(
+        'On {target} the session runs without this project’s {n} allow rules and asks instead.',
+        summary.byAction.allow,
+        target,
+      ),
+      rule: '',
+    };
+  }
+  const more = summary.byAction[first.action] - 1;
+  const [one, many] =
+    first.action === 'deny'
+      ? [
+          'On {target} the session will not be stopped by deny {rule}.',
+          'On {target} the session will not be stopped by deny {rule} and {n} more deny rules.',
+        ]
+      : [
+          'On {target} the session will not ask before {rule}.',
+          'On {target} the session will not ask before {rule} and {n} more ask rules.',
+        ];
+  return { text: fillN(more > 0 ? many : one, more, target), rule: ruleMatchText(first) };
+}
+
 /** Development fixtures: what the panel shows without asking anyone. */
 export type HandoffFixture = {
   run?: HandoffRun;
@@ -301,6 +432,10 @@ export type HandoffFixture = {
   configurationOpen?: boolean;
   /** The ID of the target's configuration an Enable is waiting on. */
   enabling?: string;
+  /** The compared project rules, whether the box is checked and whether the list is shown. */
+  rules?: RulesCheck;
+  copyRules?: boolean;
+  rulesOpen?: boolean;
 };
 
 /**
@@ -333,6 +468,9 @@ export function useHandoff(opts: {
   const [picked, setPicked] = useState(fixture?.configuration ?? '');
   const [cancelling, setCancelling] = useState(false);
   const [enabling, setEnabling] = useState<string | undefined>(fixture?.enabling);
+  const [rules, setRules] = useState<RulesCheck>(fixture?.rules ?? { state: 'idle' });
+  const [copyRules, setCopyRules] = useState(fixture?.copyRules ?? true);
+  const [rulesOpen, setRulesOpen] = useState(fixture?.rulesOpen ?? false);
   const [enableError, setEnableError] = useState<string | undefined>();
   // The answer of an Enable, shown until the devices report the same change.
   const [enabled, setEnabled] = useState<
@@ -452,45 +590,107 @@ export function useHandoff(opts: {
     return () => abort.abort();
   }, [locked, open, running, target, origin, attempt]);
 
-  const start = useCallback(() => {
-    if (!sessionId || !target || running || configurationBlocked) return;
-    // A run that failed starts again where it was; otherwise the offer the panel shows decides.
-    const into =
-      run?.clone?.into ??
-      (clone.state === 'offer' && clone.offer.reason === 'ok' ? clone.offer.cloneInto : undefined);
-    const from =
-      run?.clone?.origin ?? (clone.state === 'offer' ? originLabel(clone.offer.origin) : '');
-    const path =
-      clone.state === 'found' || into !== undefined ? undefined : targetPath.trim() || undefined;
-    setRun(startRun(target, ownerName, Date.now(), into ? { into, origin: from } : undefined));
-    setCancelling(false);
+  // The clone the rules would be copied to: the one found, the one the offer makes, or the path typed.
+  const rulesPath =
+    clone.state === 'found'
+      ? clone.path
+      : clone.state === 'offer'
+        ? clone.offer.reason === 'ok'
+          ? clone.offer.cloneInto
+          : ''
+        : clone.state === 'checking'
+          ? ''
+          : targetPath.trim();
+  // The project rules the target's clone lacks, compared again when the target or its clone changes.
+  useEffect(() => {
     if (locked) return;
-    // The default on the target is the vendor's built-in, so only another configuration is named.
-    const named = configuration && configuration !== provider ? configuration : undefined;
-    void postHandoff(sessionId, target, {
-      targetPath: path,
-      cloneInto: into,
-      configuration: named,
-    })
-      .then((result) => setRun((r) => applyResult(r, result, Date.now())))
-      .catch((err: unknown) =>
-        setRun((r) =>
-          applyResult(r, err instanceof Error ? err : new Error(String(err)), Date.now()),
-        ),
+    if (!open || running || !sessionId || !target || !rulesPath) {
+      setRules({ state: 'idle' });
+      return;
+    }
+    const abort = new AbortController();
+    setRules({ state: 'checking' });
+    // A typed path is compared once the typing pauses.
+    const timer = setTimeout(() => {
+      fetchHandoffRules(sessionId, target, rulesPath, abort.signal)
+        .then((preview) => setRules({ state: 'ready', preview }))
+        .catch(() => {
+          if (!abort.signal.aborted) setRules({ state: 'unknown' });
+        });
+    }, 250);
+    return () => {
+      clearTimeout(timer);
+      abort.abort();
+    };
+  }, [locked, open, running, sessionId, target, rulesPath]);
+  // The box starts checked for every target, and the list closed.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: both are reset when the session or target changes
+  useEffect(() => {
+    if (locked) return;
+    setCopyRules(true);
+    setRulesOpen(false);
+  }, [sessionId, target, locked]);
+  const rulesToCopy =
+    rules.state === 'ready' ? rules.preview.rules.filter((r) => r.state === 'copy').length : 0;
+
+  /** Starts the handoff; `withoutRules` is the failed card's "Hand off without the rules". */
+  const start = useCallback(
+    (opts?: { withoutRules?: boolean }) => {
+      if (!sessionId || !target || running || configurationBlocked) return;
+      // A run that failed starts again where it was; otherwise the offer the panel shows decides.
+      const into =
+        run?.clone?.into ??
+        (clone.state === 'offer' && clone.offer.reason === 'ok'
+          ? clone.offer.cloneInto
+          : undefined);
+      const from =
+        run?.clone?.origin ?? (clone.state === 'offer' ? originLabel(clone.offer.origin) : '');
+      const path =
+        clone.state === 'found' || into !== undefined ? undefined : targetPath.trim() || undefined;
+      // A run that failed copies again what it was copying, unless the owner now hands off without the rules.
+      const copying = opts?.withoutRules
+        ? false
+        : run
+          ? run.rules !== undefined
+          : copyRules && rulesToCopy > 0;
+      if (opts?.withoutRules) setCopyRules(false);
+      const count = copying ? (run?.rules?.count ?? rulesToCopy) : undefined;
+      setRun(
+        startRun(target, ownerName, Date.now(), into ? { into, origin: from } : undefined, count),
       );
-  }, [
-    sessionId,
-    target,
-    running,
-    run,
-    clone,
-    targetPath,
-    ownerName,
-    locked,
-    configuration,
-    configurationBlocked,
-    provider,
-  ]);
+      setCancelling(false);
+      if (locked) return;
+      // The default on the target is the vendor's built-in, so only another configuration is named.
+      const named = configuration && configuration !== provider ? configuration : undefined;
+      void postHandoff(sessionId, target, {
+        targetPath: path,
+        cloneInto: into,
+        configuration: named,
+        copyProjectRules: copying,
+      })
+        .then((result) => setRun((r) => applyResult(r, result, Date.now())))
+        .catch((err: unknown) =>
+          setRun((r) =>
+            applyResult(r, err instanceof Error ? err : new Error(String(err)), Date.now()),
+          ),
+        );
+    },
+    [
+      sessionId,
+      target,
+      running,
+      run,
+      clone,
+      targetPath,
+      ownerName,
+      locked,
+      configuration,
+      configurationBlocked,
+      provider,
+      copyRules,
+      rulesToCopy,
+    ],
+  );
 
   /** Looks the clone up again, as after the user gave the machine access. */
   const recheck = useCallback(() => setAttempt((n) => n + 1), []);
@@ -555,6 +755,11 @@ export function useHandoff(opts: {
     enable,
     enabling,
     enableError,
+    rules,
+    copyRules,
+    setCopyRules,
+    rulesOpen,
+    setRulesOpen,
     dismiss,
     deviceName,
   };

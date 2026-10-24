@@ -3,6 +3,7 @@
 import { randomBytes } from 'node:crypto';
 import {
   BUILTIN_PERMISSION_RULES,
+  MAX_PERMISSION_RULES,
   type PermissionMatch,
   type PermissionRuleBody,
   type PermissionRuleEntry,
@@ -410,4 +411,115 @@ export function dropSessionRules(ctx: StoreContext, sessionId: string): void {
     ctx,
     rows.flatMap((row) => reach(ctx, row)),
   );
+}
+
+/** Who a handoff's copy of project rules is for, as the audit log names it (ADR 0037). */
+export interface RuleCopyLink {
+  deviceId: string;
+  fromDeviceId: string;
+  sessionId: string;
+}
+
+function byAction(actions: readonly string[]): Record<string, number> {
+  const counts: Record<string, number> = { deny: 0, ask: 0, allow: 0 };
+  for (const action of actions) counts[action] = (counts[action] ?? 0) + 1;
+  return counts;
+}
+
+/**
+ * Stores the project rules a handoff copies to its target, in one transaction with one `config.changed` record
+ * that names the machines, the session and the counts and never a pattern. Null, with nothing stored, when the
+ * copies would take the host past `MAX_PERMISSION_RULES`.
+ */
+export function copyPermissionRules(
+  ctx: StoreContext,
+  bodies: readonly PermissionRuleBody[],
+  link: RuleCopyLink,
+  now: number,
+): string[] | null {
+  ctx.db.exec('BEGIN IMMEDIATE');
+  try {
+    if (permissionRuleCount(ctx) + bodies.length > MAX_PERMISSION_RULES) {
+      ctx.db.exec('ROLLBACK');
+      return null;
+    }
+    let position = Number(
+      (
+        ctx.db.prepare('SELECT COALESCE(MAX(position), 0) AS p FROM permission_rules').get() as {
+          p: number;
+        }
+      ).p,
+    );
+    const insert = ctx.db.prepare(
+      `INSERT INTO permission_rules(id, position, scope, device_id, project_path, session_id, tool, match, action,
+         note, enabled, created_at, updated_at)
+       VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    );
+    const ids: string[] = [];
+    for (const body of bodies) {
+      const id = randomBytes(9).toString('base64url');
+      position += 1;
+      insert.run(id, position, ...bodyColumns(body), now, now);
+      ids.push(id);
+    }
+    bump(ctx, [link.deviceId]);
+    appendAudit(ctx, {
+      type: 'config.changed',
+      sessionId: link.sessionId,
+      deviceId: link.deviceId,
+      summary: {
+        area: 'permission-rules',
+        action: 'copied',
+        deviceId: link.deviceId,
+        fromDeviceId: link.fromDeviceId,
+        sessionId: link.sessionId,
+        count: bodies.length,
+        byAction: byAction(bodies.map((b) => b.action)),
+      },
+    });
+    ctx.db.exec('COMMIT');
+    return ids;
+  } catch (err) {
+    if (ctx.db.isTransaction) ctx.db.exec('ROLLBACK');
+    throw err;
+  }
+}
+
+/** Deletes the rules a failed handoff copied, with one `config.changed` record of the removal. */
+export function removeCopiedPermissionRules(
+  ctx: StoreContext,
+  ids: readonly string[],
+  link: RuleCopyLink,
+): void {
+  if (ids.length === 0) return;
+  ctx.db.exec('BEGIN IMMEDIATE');
+  try {
+    const actions: string[] = [];
+    const remove = ctx.db.prepare('DELETE FROM permission_rules WHERE id = ? RETURNING action');
+    for (const id of ids) {
+      const row = remove.get(id) as { action: string } | undefined;
+      if (row) actions.push(row.action);
+    }
+    bump(ctx, [link.deviceId]);
+    if (actions.length > 0) {
+      appendAudit(ctx, {
+        type: 'config.changed',
+        sessionId: link.sessionId,
+        deviceId: link.deviceId,
+        summary: {
+          area: 'permission-rules',
+          action: 'removed',
+          deviceId: link.deviceId,
+          fromDeviceId: link.fromDeviceId,
+          sessionId: link.sessionId,
+          count: actions.length,
+          byAction: byAction(actions),
+        },
+      });
+    }
+    ctx.db.exec('COMMIT');
+  } catch (err) {
+    if (ctx.db.isTransaction) ctx.db.exec('ROLLBACK');
+    throw err;
+  }
 }

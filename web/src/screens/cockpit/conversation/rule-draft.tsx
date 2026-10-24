@@ -213,7 +213,7 @@ export function RuleDraftDialog(props: {
               ? t('Ends with the session and goes with it in a handoff.')
               : fill(
                   t(
-                    '{project} on {machine}. It stays on this machine in a handoff. A global rule is set in Settings.',
+                    '{project} on {machine}. A handoff can copy it to the target machine. A global rule is set in Settings.',
                   ),
                   { project: props.projectName, machine: props.machineName },
                 )}

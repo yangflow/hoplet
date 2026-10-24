@@ -2,7 +2,7 @@
 
 - Status: accepted
 - Date: 2026-10-21
-- Related: ADR 0002, ADR 0008, ADR 0009, ADR 0012, ADR 0019, ADR 0021, ADR 0026, ADR 0027, ADR 0028, docs/architecture.md#wire-protocol, docs/threat-model.md, docs/spec.md#permission-rules, ADR 0030, issues #9, #67, #80, #81, #95, #98
+- Related: ADR 0002, ADR 0008, ADR 0009, ADR 0012, ADR 0019, ADR 0021, ADR 0026, ADR 0027, ADR 0028, docs/architecture.md#wire-protocol, docs/threat-model.md, docs/spec.md#permission-rules, ADR 0030, ADR 0037 (amends the project scope), issues #9, #67, #80, #81, #95, #98
 
 ## Context
 

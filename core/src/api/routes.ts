@@ -67,6 +67,8 @@ import {
   HandoffCancelResultSchema,
   HandoffRequestSchema,
   HandoffResultSchema,
+  HandoffRulesPreviewSchema,
+  HandoffRulesQuerySchema,
   HealthResponseSchema,
   HookCreateRequestSchema,
   HookDeliveriesResponseSchema,
@@ -1621,6 +1623,7 @@ export const routes: readonly Route[] = [
         targetPath: d.body.targetPath,
         cloneInto: d.body.cloneInto,
         configuration: d.body.configuration,
+        copyProjectRules: d.body.copyProjectRules,
       });
       if (outcome.ok) {
         return {
@@ -1630,6 +1633,7 @@ export const routes: readonly Route[] = [
           worktree: outcome.worktree,
           branch: outcome.branch,
           ...(outcome.snapshotAt !== undefined ? { snapshotAt: outcome.snapshotAt } : {}),
+          ...(outcome.rulesCopied !== undefined ? { rulesCopied: outcome.rulesCopied } : {}),
         };
       }
       // A handoff that cannot complete leaves the owner where it was.
@@ -1640,6 +1644,24 @@ export const routes: readonly Route[] = [
         });
       }
       throw relayError(outcome);
+    },
+  }),
+  // What a handoff would copy of the session's project rules (ADR 0037); the stored rules answer it.
+  defineRoute({
+    method: 'GET',
+    path: '/api/sessions/:sessionId/handoff/rules',
+    access: 'host',
+    lane: 'control',
+    query: HandoffRulesQuerySchema,
+    response: HandoffRulesPreviewSchema,
+    handler: (d) => {
+      const outcome = d.control.handoffRulesPreview(
+        d.params.sessionId ?? '',
+        d.query.targetDeviceId,
+        d.query.targetPath,
+      );
+      if (outcome.ok) return outcome.preview;
+      throw new ApiError(outcome.error);
     },
   }),
   defineRoute({

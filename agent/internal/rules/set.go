@@ -9,6 +9,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 )
@@ -104,9 +105,12 @@ func checkInheritable(r Rule) error {
 	return nil
 }
 
-// all lists every rule of the set, checking that each sits in the list of its own scope.
+// all lists every rule of the set, checking that each sits in the list of its own scope. A project rule the core
+// lists again under another path (a worktree of the project's clone, ADR 0037) counts once when its body is the
+// same; the same ID with another body stays a duplicate.
 func (s Set) all() ([]Rule, error) {
 	var out []Rule
+	projects := map[string]Rule{}
 	for _, r := range s.Global {
 		if r.Scope != ScopeGlobal {
 			return nil, fmt.Errorf("rule %q: scope %q in the global list", r.ID, r.Scope)
@@ -120,6 +124,10 @@ func (s Set) all() ([]Rule, error) {
 		if !filepath.IsAbs(p.ProjectPath) {
 			return nil, fmt.Errorf("rule %q: project path %q is not absolute", p.Rule.ID, p.ProjectPath)
 		}
+		if seen, ok := projects[p.Rule.ID]; ok && reflect.DeepEqual(seen, p.Rule) {
+			continue
+		}
+		projects[p.Rule.ID] = p.Rule
 		out = append(out, p.Rule)
 	}
 	for _, x := range s.Sessions {
@@ -175,14 +183,20 @@ func (s Set) Validate(env Env, local []Rule) error {
 }
 
 // ForSession is the rules that apply to one session: the global rules, the rules of the project that holds
-// dir, the session's own and the ones it inherits. A project holds dir when dir is the project path or below it.
+// dir, the session's own and the ones it inherits. A project holds dir when dir is the project path or below it;
+// a project rule listed under several paths that hold dir counts once.
 func (s Set) ForSession(sessionID, dir string) []Rule {
 	out := append([]Rule{}, s.Global...)
 	dir = filepath.Clean(dir)
 	sep := string(filepath.Separator)
+	listed := map[string]bool{}
 	for _, p := range s.Projects {
 		root := filepath.Clean(p.ProjectPath)
+		if listed[p.Rule.ID] {
+			continue
+		}
 		if dir == root || strings.HasPrefix(dir, strings.TrimSuffix(root, sep)+sep) {
+			listed[p.Rule.ID] = true
 			out = append(out, p.Rule)
 		}
 	}

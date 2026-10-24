@@ -21,6 +21,7 @@ import type {
   DeviceSessionForgotten,
   DeviceSessionInspected,
   DeviceSessionPoint,
+  HandoffRulesPreview,
   HookEnvelope,
   HookResult,
   HttpErrorCode,
@@ -561,6 +562,8 @@ export interface HandoffRequest {
   cloneInto?: string | undefined;
   /** The target's provider configuration the session is installed for; the vendor's own when absent. */
   configuration?: string | undefined;
+  /** Copy the source project's rules the target's clone lacks before the commit (ADR 0037); only the owner sets it. */
+  copyProjectRules?: boolean | undefined;
 }
 
 export type HandoffOutcome =
@@ -573,6 +576,8 @@ export type HandoffOutcome =
       branch: string;
       /** The time of the snapshot an offline handoff installed. */
       snapshotAt?: number;
+      /** The project rules copied to the target (ADR 0037). */
+      rulesCopied?: number;
     }
   | {
       ok: false;
@@ -596,6 +601,10 @@ export type HandoffOutcome =
       /** The text of a failed `git`, credentials removed; only with `clone-failed`. */
       detail?: string;
     };
+
+export type HandoffRulesPreviewOutcome =
+  | { ok: true; preview: HandoffRulesPreview }
+  | { ok: false; error: 'session-not-found' | 'not-found' };
 
 /** Why a handoff did not complete. */
 export type HandoffError = Extract<HandoffOutcome, { ok: false }>['error'];
@@ -1000,6 +1009,12 @@ export interface Control {
   handoff(request: HandoffRequest): Promise<HandoffOutcome>;
   /** Stops a handoff of the session that is in its clone step; the session stays with its owner (ADR 0024). */
   cancelHandoff(sessionId: string): HandoffCancelOutcome;
+  /** What a handoff to `targetPath` on the target would copy of the session's project rules (ADR 0037). */
+  handoffRulesPreview(
+    sessionId: string,
+    targetDeviceId: string,
+    targetPath: string,
+  ): HandoffRulesPreviewOutcome;
   /** Lists the directories of `path` under the browse root of a connected device. */
   listDirs(deviceId: string, path: string): Promise<DirsOutcome>;
   /** Uploads an image for a coming prompt to a connected device on the bulk lane (ADR 0017). */
