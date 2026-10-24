@@ -439,3 +439,71 @@ func TestHandleConfigRead(t *testing.T) {
 		t.Fatalf("got %#v", msg)
 	}
 }
+
+func TestHandleConfigPreviewAndApply(t *testing.T) {
+	c, cs, read := dialTestConn(t)
+	prev := "old\n"
+	c.hooks.ConfigPreview = func(ctx context.Context, req RuntimeConfigPreview) ([]ConfigPreviewedObject, error) {
+		if req.Provider != "claude" || len(req.Objects) != 1 || req.Objects[0].Content == nil {
+			return nil, &ConfigError{Code: "invalid", Reason: "bad request"}
+		}
+		return []ConfigPreviewedObject{{Kind: "memory", Name: "project", CurrentHash: "h1", Previous: &prev, Diff: "d"}}, nil
+	}
+	c.hooks.ConfigApply = func(ctx context.Context, req RuntimeConfigApply) ([]ConfigAppliedObject, error) {
+		if !req.Restore {
+			return nil, &ConfigError{Code: "stale", Reason: "memory:project"}
+		}
+		return []ConfigAppliedObject{{Kind: "memory", Name: "project", Hash: "h0"}}, nil
+	}
+	content := "new\n"
+	raw, _ := json.Marshal(RuntimeConfigPreview{
+		V: ProtocolVersion, Type: TypeRuntimeConfigPreview, SessionID: "s1", RequestID: "r1", Provider: "claude",
+		Objects: []ConfigPreviewObject{{Kind: "memory", Name: "project", Content: &content}},
+	})
+	c.handleConfigPreview(cs, raw)
+	msg := read()
+	objects, _ := msg["objects"].([]any)
+	if msg["type"] != "runtime.config.previewed" || msg["requestId"] != "r1" || len(objects) != 1 {
+		t.Fatalf("got %#v", msg)
+	}
+	if o := objects[0].(map[string]any); o["currentHash"] != "h1" || o["previous"] != "old\n" || o["diff"] != "d" {
+		t.Fatalf("object %#v", o)
+	}
+	if _, ok := objects[0].(map[string]any)["newDirectories"]; ok {
+		t.Fatal("newDirectories without any")
+	}
+	raw, _ = json.Marshal(RuntimeConfigPreview{V: ProtocolVersion, Type: TypeRuntimeConfigPreview, SessionID: "s1", RequestID: "r2", Provider: "codex"})
+	c.handleConfigPreview(cs, raw)
+	if msg = read(); msg["type"] != "runtime.config.failed" || msg["code"] != "invalid" || msg["requestId"] != "r2" {
+		t.Fatalf("got %#v", msg)
+	}
+	apply := func(restore bool) {
+		raw, _ := json.Marshal(RuntimeConfigApply{
+			V: ProtocolVersion, Type: TypeRuntimeConfigApply, SessionID: "s1", RequestID: "r3", ChangeID: "c1",
+			Provider: "claude", Restore: restore,
+			Objects: []ConfigApplyObject{{Kind: "memory", Name: "project", BaseHash: "h1"}},
+		})
+		c.handleConfigApply(cs, raw)
+	}
+	apply(false)
+	if msg = read(); msg["type"] != "runtime.config.failed" || msg["code"] != "stale" || msg["reason"] != "memory:project" {
+		t.Fatalf("got %#v", msg)
+	}
+	apply(true)
+	msg = read()
+	objects, _ = msg["objects"].([]any)
+	if msg["type"] != "runtime.config.applied" || msg["changeId"] != "c1" || len(objects) != 1 {
+		t.Fatalf("got %#v", msg)
+	}
+	c.hooks.ConfigApply = nil
+	apply(true)
+	if msg = read(); msg["type"] != "runtime.config.failed" || msg["code"] != "unsupported" {
+		t.Fatalf("got %#v", msg)
+	}
+	c.hooks.ConfigPreview = nil
+	raw, _ = json.Marshal(RuntimeConfigPreview{V: ProtocolVersion, Type: TypeRuntimeConfigPreview, SessionID: "s1", RequestID: "r4"})
+	c.handleConfigPreview(cs, raw)
+	if msg = read(); msg["type"] != "runtime.config.failed" || msg["code"] != "unsupported" {
+		t.Fatalf("got %#v", msg)
+	}
+}

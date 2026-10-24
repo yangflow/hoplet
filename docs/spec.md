@@ -462,7 +462,13 @@ A session can propose changes to its own configuration (memory file, skills, com
 written until the host approves the diff, and an applied change can be undone for 30 days
 ([ADR 0036](adr/0036-sessions-change-their-own-configuration-over-mcp.md),
 [Configuration changes of a session](api.md#configuration-changes-of-a-session)). The core holds the requests, their
-states and the retention; the agent previews and writes the files (not yet built, so the core answers `unsupported`).
+states and the retention; the owner's agent previews the files with its own diff and, after approval, writes them
+all or nothing, refusing a file that changed since the preview (`stale`). It writes only the project's memory file
+(the one Claude Code reads), `.claude/skills/<name>/SKILL.md` and `.claude/commands/<name>.md`, never through a
+symbolic link, and refuses a skill or command that sets front matter other than `name` and `description`, runs a
+shell command, or imports a file outside the project. Skills and commands are written only for a Claude Code version
+the driver was tested with; Codex sessions are answered `unsupported`. The card in the web UI and the write tools
+follow.
 The abilities `read-config` (on by default) and `write-config` (off by default) are session-token only.
 
 ### Sessions as callers

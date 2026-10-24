@@ -22,6 +22,8 @@ import type {
   CloneCheckOutcome,
   CloneOutcome,
   CloneRunOutcome,
+  ConfigFileApply,
+  ConfigFilePreview,
   ConfigReadOutcome,
   ControlEvent,
   DeviceControlOutcome,
@@ -113,6 +115,9 @@ export interface ControlState {
   pendingDiff: Map<string, Waiter<WorkspaceDiffOutcome>>;
   pendingChanges: Map<string, Waiter<WorkspaceChangesOutcome>>;
   pendingConfig: Map<string, Waiter<ConfigReadOutcome>>;
+  /** Answers to runtime.config.preview and runtime.config.apply, by request ID (ADR 0036). */
+  pendingConfigPreview: Map<string, Waiter<ConfigFilePreview>>;
+  pendingConfigApply: Map<string, Waiter<ConfigFileApply>>;
   /** The handoff in progress for each session, by session ID. */
   handoffs: Map<string, ActiveHandoff>;
   /** Answers to handoff steps, by handoff ID. */

@@ -170,6 +170,8 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
     pendingDiff: new Map(),
     pendingChanges: new Map(),
     pendingConfig: new Map(),
+    pendingConfigPreview: new Map(),
+    pendingConfigApply: new Map(),
     handoffs: new Map(),
     pendingPrepared: new Map(),
     pendingInstalled: new Map(),

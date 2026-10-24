@@ -7,6 +7,7 @@ import type {
   WorkspaceFile,
 } from '@hoplet/shared';
 import { log } from '../log/index.ts';
+import { receiveConfigFiles } from './config-files.ts';
 import { matchesWaiter, settleWaiter } from './pending.ts';
 import type { Runtime } from './runtime.ts';
 import type { ControlState } from './state.ts';
@@ -137,6 +138,11 @@ export function receiveReply(
         code: msg.code,
         reason: msg.reason,
       });
+      return;
+    case 'runtime.config.previewed':
+    case 'runtime.config.applied':
+    case 'runtime.config.failed':
+      receiveConfigFiles(state, link, msg);
       return;
     case 'handoff.prepared':
       if (matchesWaiter(pendingPrepared, msg.handoffId, link, msg.sessionId)) {

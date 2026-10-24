@@ -2,7 +2,8 @@
 // of its project or of the user (ADR 0036). The paths are fixed by the provider and the kind and are never
 // taken from the caller; a name must be a plain `[a-z0-9][a-z0-9-]{0,63}`. Everything is read through
 // os.Root, so nothing outside the project directory (or the user's provider directory) is reachable, and a
-// symlink is refused at every step. The package only reads; writing is a separate path (ADR 0036, step 3).
+// symlink is refused at every step. The project's memory file is the one the vendor reads (projectMemory).
+// Writer previews and applies a change the user approved, in the project only (writer.go).
 package configfiles
 
 import (
@@ -164,9 +165,13 @@ func (r Reader) Read(cwd string, req Request) (Page, error) {
 	case KindList:
 		return list(root, prefix, lay)
 	case KindMemory:
-		memory := lay.projectMemory
-		if req.Scope == ScopeUser {
-			memory = lay.userMemory
+		memory := lay.userMemory
+		if req.Scope == ScopeProject {
+			// The file the writer would write; a project whose AGENTS.md has no effect shows its CLAUDE.md.
+			memory = lay.projectMemory
+			if resolved, err := projectMemory(cwd, r.Home); err == nil {
+				memory = resolved
+			}
 		}
 		return readPage(root, memory, req.Offset)
 	case KindSkill:

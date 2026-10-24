@@ -249,10 +249,25 @@ runtime reported.
 
 The `control` module `config-changes` keeps a session's requests to change its own configuration in `config_changes`
 ([ADR 0036](adr/0036-sessions-change-their-own-configuration-over-mcp.md)). The files go through the `ConfigFiles` port
-(`preview`, `apply`), which the agent will implement over the control lane; the default answers `unsupported`. The
-objects are a closed set of kinds and names, so the core never sees a path. Approval writes the files, then the
-options through `runtime.config`; a failure restores the files. Undo does the same in the other direction. Expiry and
-the 30-day pruning of `previous` run on the core's clock. The browser is told with `session.change` (ids and state).
+(`preview`, `apply`); `control/config-files.ts` implements it by asking the owner's agent with
+`runtime.config.preview` and `runtime.config.apply` ([Configuration writes on the wire](#configuration-writes-on-the-wire)),
+and a test may pass its own. The objects are a closed set of kinds and names, so the core never sees a path. Approval
+sets the options through `runtime.config`, then writes the files; when the files fail, the options are put back. Undo
+is an apply with `restore`, files first and then the options. Expiry and the 30-day pruning of `previous` run on the core's clock.
+The browser is told with `session.change` (ids and state).
+
+A request becomes a file in the agent package `configfiles` (the `Writer`), and nowhere else. It maps a kind and a name
+to a path below the session's working directory: `memory:project` to the file Claude Code reads (an existing `CLAUDE.md`,
+else `.claude/CLAUDE.md`, else an `AGENTS.md` that no `CLAUDE.local.md` here and no memory file above shadows unless one
+imports it, else a new `CLAUDE.md`), `skill:<name>` to `.claude/skills/<name>/SKILL.md` and `command:<name>` to
+`.claude/commands/<name>.md`. It opens the working directory with `os.OpenRoot`, refuses a symbolic link or a
+non-regular file on the way, runs the content check on the new text (a skill or command may set only `name` and
+`description` in its front matter and holds no `` !` `` or ```` ```! ```` shell form; a new `@` import stays inside the
+working directory, off the floor's files and off symbolic links), and writes each file to a temporary file in the same
+directory that is renamed over it, keeping its mode (0644 for a new file, 0755 for a new directory). An apply checks
+every hash before it writes and restores what it wrote when a later object fails, so a change set lands whole or not at
+all; applies are serialized in the agent. Skills and commands are written only while the driver reports a vendor
+version it was tested with. Codex sessions are answered `unsupported` until its driver step.
 
 ### Session MCP tools
 
@@ -404,7 +419,7 @@ messages that name the session by ID and never a path: `device.session.inspect|i
 clone the new worktree belongs to, which the core keeps in `session_worktrees`.
 
 A handoff to a machine with no clone of the repository adds a clone step before the owner is touched
-([ADR 0024](adr/0024-a-handoff-clones-the-repository-on-a-target-that-has-none.md)). The protocol version is 21.
+([ADR 0024](adr/0024-a-handoff-clones-the-repository-on-a-target-that-has-none.md)). The protocol version is 22.
 The control-lane messages are `device.clone.check` (`requestId`, `origin`, optional `cloneInto`) answered by
 `device.clone.checked` (`reason`, `detail`, the proposed `cloneInto`), and `device.clone.start` (`requestId`,
 `handoffId`, `origin`, `cloneInto`) answered by `device.clone.progress` (`received`, optional `total`, at most four
@@ -430,6 +445,21 @@ The diff of one file is paged: `session.workspace.diff.read` takes `base` (compa
 256 KiB). The `session.workspace.diff` answer carries `next` while text is left. It stays on the bulk lane. A cursor
 that is not 0, a line start or the end is refused with `invalid-cursor`; a tree that changes between two pages can
 shift the text, so a reader that needs a stable diff reads it again from 0.
+
+### Configuration writes on the wire
+
+`runtime.config.preview` (`sessionId`, `requestId`, `provider`, 1 to 5 `objects` of `kind`, `name` and `content`, null
+to delete) asks the owner's agent what a change would do. It answers `runtime.config.previewed` with one object per
+object asked, in order: `currentHash` (SHA-256 of the file now, empty when it does not exist), `previous` (its text or
+null), `diff` (a unified diff the agent made itself) and `newDirectories` (the directories writing it would create,
+when there are any). `runtime.config.apply` (`changeId`, `provider`, `restore`, objects with `baseHash` and `newHash`)
+writes an approved change; each file must still have `baseHash` and `newHash` must be the hash of `content`. `restore`
+marks an undo: the content is what the agent read at preview time, so the content check and the version gate are
+skipped while the hash, path and symbolic-link rules are not. The agent answers `runtime.config.applied` (the hash of
+each object afterwards) or, for either request, `runtime.config.failed` (`code` `unsupported`, `unsafe-content`,
+`stale`, `not-found`, `invalid`, `too-large` or `io`, and a `reason`). All of them travel on the control lane: an
+object is at most 64 KiB and a change at most five. The core waits as long as for a workspace read; an answer from
+another connection is dropped.
 
 ### Script hooks on the wire
 

@@ -34,10 +34,15 @@ import {
 } from '../permission-rules.ts';
 import { ConfigChangeStateSchema } from '../rest/config-changes.ts';
 import {
+  ConfigAppliedObjectSchema,
+  ConfigApplyObjectSchema,
   ConfigFileEntrySchema,
   ConfigFileScopeSchema,
+  ConfigPreviewedObjectSchema,
+  ConfigPreviewObjectSchema,
   ConfigReadKindSchema,
   ConfigReadRejectionSchema,
+  ConfigWriteFailureSchema,
 } from '../rest/config-files.ts';
 import { HookEnvelopeSchema, HookEventTypeSchema } from '../rest/hooks.ts';
 import { NotifyEventKindSchema } from '../rest/notify.ts';
@@ -953,6 +958,68 @@ export const WIRE_MESSAGES = defineWire({
     },
   },
 
+  // Writing a session's own configuration files (docs/adr/0036): every step and answer is control. The agent
+  // maps each kind and name to a path in the session's working directory, never takes one from the core.
+  /** Asks what the objects would change: the current hashes, the current text and a diff, after the content check. */
+  'runtime.config.preview': {
+    lane: 'control',
+    direction: 'core-to-device',
+    fields: {
+      sessionId,
+      requestId,
+      provider: ProviderSchema,
+      objects: v.pipe(v.array(ConfigPreviewObjectSchema), v.minLength(1), v.maxLength(5)),
+    },
+  },
+  /** The preview, one entry per object in the order asked. */
+  'runtime.config.previewed': {
+    lane: 'control',
+    direction: 'device-to-core',
+    fields: {
+      sessionId,
+      requestId,
+      objects: v.pipe(list(ConfigPreviewedObjectSchema), v.maxLength(5)),
+    },
+  },
+  /**
+   * Writes an approved change, all or nothing: each file must still have its `baseHash`. `restore` is set by an
+   * undo, which puts back what the agent read at preview time and so skips the content check, not the hashes.
+   */
+  'runtime.config.apply': {
+    lane: 'control',
+    direction: 'core-to-device',
+    fields: {
+      sessionId,
+      requestId,
+      changeId: v.string(),
+      provider: ProviderSchema,
+      restore: v.boolean(),
+      objects: v.pipe(v.array(ConfigApplyObjectSchema), v.minLength(1), v.maxLength(5)),
+    },
+  },
+  /** Every object was written; `hash` is the file's hash now, empty for a deleted one. */
+  'runtime.config.applied': {
+    lane: 'control',
+    direction: 'device-to-core',
+    fields: {
+      sessionId,
+      requestId,
+      changeId: v.string(),
+      objects: v.pipe(list(ConfigAppliedObjectSchema), v.maxLength(5)),
+    },
+  },
+  /** Answers a preview or an apply the agent refused; after a refused apply every file is as it was. */
+  'runtime.config.failed': {
+    lane: 'control',
+    direction: 'device-to-core',
+    fields: {
+      sessionId,
+      requestId,
+      code: ConfigWriteFailureSchema,
+      reason: v.string(),
+    },
+  },
+
   // Handoff (docs/spec.md#handoff): the data transfer is bulk; every step and answer is control
   'handoff.prepare': {
     lane: 'control',
@@ -1640,6 +1707,11 @@ export type SessionWorkspaceChanges = WireMessageOf<'session.workspace.changes'>
 export type SessionConfigRead = WireMessageOf<'session.config.read'>;
 export type SessionConfigPage = WireMessageOf<'session.config'>;
 export type SessionConfigRejected = WireMessageOf<'session.config.rejected'>;
+export type RuntimeConfigPreview = WireMessageOf<'runtime.config.preview'>;
+export type RuntimeConfigPreviewed = WireMessageOf<'runtime.config.previewed'>;
+export type RuntimeConfigApply = WireMessageOf<'runtime.config.apply'>;
+export type RuntimeConfigApplied = WireMessageOf<'runtime.config.applied'>;
+export type RuntimeConfigFailed = WireMessageOf<'runtime.config.failed'>;
 export type HandoffPrepare = WireMessageOf<'handoff.prepare'>;
 export type HandoffPrepared = WireMessageOf<'handoff.prepared'>;
 export type HandoffInstall = WireMessageOf<'handoff.install'>;
@@ -1746,6 +1818,9 @@ export const ClientMessageSchema = v.variant('type', [
   WIRE_MESSAGES['session.workspace.changes'].schema,
   WIRE_MESSAGES['session.config'].schema,
   WIRE_MESSAGES['session.config.rejected'].schema,
+  WIRE_MESSAGES['runtime.config.previewed'].schema,
+  WIRE_MESSAGES['runtime.config.applied'].schema,
+  WIRE_MESSAGES['runtime.config.failed'].schema,
   WIRE_MESSAGES['handoff.prepared'].schema,
   WIRE_MESSAGES['handoff.installed'].schema,
   WIRE_MESSAGES['handoff.verified'].schema,
@@ -1796,6 +1871,10 @@ export const WIRE_OBJECTS = {
   DeviceProjectSession: DeviceProjectSessionSchema,
   DirEntry: DirEntrySchema,
   ConfigFileEntry: ConfigFileEntrySchema,
+  ConfigPreviewObject: ConfigPreviewObjectSchema,
+  ConfigPreviewedObject: ConfigPreviewedObjectSchema,
+  ConfigApplyObject: ConfigApplyObjectSchema,
+  ConfigAppliedObject: ConfigAppliedObjectSchema,
   RuntimeCapabilities: RuntimeCapabilitiesSchema,
   ProviderInfo: ProviderInfoSchema,
   ProviderConfiguration: ProviderConfigurationSchema,

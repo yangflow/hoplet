@@ -322,8 +322,10 @@ Migration 0035 (configuration changes) creates `config_changes`: what a session 
 configuration (memory, skills, commands, `model`, `effort`), the diff, who decided and how it ended, and the previous
 content of what was written so the host can undo it. It reads nothing and needs no action. The previous content is
 kept 30 days and then dropped (the change can no longer be undone); the rest of the row is kept and removed with its
-session. When the host approves a change, the agent writes the files into the session's working directory, so that
-directory must be writable by the agent's user. No new port, resource or dependency.
+session. When the host approves a change, the agent writes the files into the session's working directory (the memory
+file, `.claude/skills/` and `.claude/commands/`), so that directory must be writable by the agent's user. A file is
+written to a temporary `.<name>.hoplet-<random>.tmp` beside it and renamed over it, keeping its mode; a new file is
+0644 and a new directory 0755. No new port, resource or dependency.
 
 ## Uninstall
 
