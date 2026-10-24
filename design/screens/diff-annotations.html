@@ -806,7 +806,7 @@ function frame(st, scheme) {
   return `<div class="frame ${scheme}" lang="${Z ? 'zh-Hans' : 'en'}">${body}</div>`;
 }
 
-const SAMPLE = () => { Z = false; return composed().replace(/<[^>]+>/g, '').replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&'); };
+const SAMPLE = () => { Z = false; return new DOMParser().parseFromString(composed(), 'text/html').body.textContent; };
 
 /* ---- the page --------------------------------------------------------------------------------------------------- */
 const q = new URLSearchParams(location.search);
