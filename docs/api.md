@@ -129,7 +129,7 @@ Response column names the schema of the success body and its status when it is n
 | GET | `/api/sessions/:sessionId/handoff-requests` | host | control | — | — | `SessionHandoffRequestListSchema` | `session-not-found` |
 | POST | `/api/handoff-requests/:requestId/approve` | host | control | — | — | `SessionHandoffRequestSchema` | `not-found`, `request-closed` |
 | POST | `/api/handoff-requests/:requestId/decline` | host | control | — | — | `SessionHandoffRequestSchema` | `not-found`, `request-closed` |
-| POST | `/api/sessions/:sessionId/config-changes` | write-config | control | — | `SessionConfigChangeCreateSchema` | `SessionConfigChangeSchema` (201) | `invalid-json`, `invalid-request`, `too-large`, `forbidden`, `not-found`, `owner-offline`, `unsupported`, `stale`, `unsafe-content`, `request-closed` |
+| POST | `/api/sessions/:sessionId/config-changes` | write-config | control | — | `SessionConfigChangeCreateSchema` | `SessionConfigChangeSchema` (201) | `invalid-json`, `invalid-request`, `too-large`, `forbidden`, `not-found`, `owner-offline`, `timeout`, `unsupported`, `stale`, `unsafe-content`, `rejected`, `request-closed` |
 | GET | `/api/sessions/:sessionId/config-changes` | read-config | control | — | — | `SessionConfigChangeListSchema` | `not-found` |
 | GET | `/api/config-changes/:changeId` | read-config | control | — | — | `SessionConfigChangeSchema` | `not-found` |
 | GET | `/api/sessions/:sessionId/config` | read-config | control | — | — | `SessionConfigViewSchema` | `not-found` |
@@ -137,7 +137,7 @@ Response column names the schema of the success body and its status when it is n
 | GET | `/api/sessions/:sessionId/config-files/:kind` | read-config | control | `ConfigFileReadQuerySchema` | — | `ConfigFileReadSchema` | `invalid-request`, `not-found`, `session-not-found`, `owner-offline`, `timeout`, `unsupported`, `rejected` |
 | POST | `/api/config-changes/:changeId/approve` | host | control | — | — | `SessionConfigChangeSchema` | `not-found`, `request-closed` |
 | POST | `/api/config-changes/:changeId/decline` | host | control | — | — | `SessionConfigChangeSchema` | `not-found`, `request-closed` |
-| POST | `/api/config-changes/:changeId/undo` | host | control | — | — | `SessionConfigChangeSchema` | `not-found`, `request-closed`, `owner-offline`, `stale`, `unsupported`, `busy` |
+| POST | `/api/config-changes/:changeId/undo` | host | control | — | — | `SessionConfigChangeSchema` | `not-found`, `request-closed`, `owner-offline`, `stale`, `unsupported`, `rejected`, `busy` |
 | GET | `/api/devices` | read | control | — | — | `DeviceListResponseSchema` | — |
 | GET | `/api/devices/:deviceId/resources` | host | control | — | — | `DeviceResourcesResultSchema` | `not-found` |
 | PUT | `/api/devices/:deviceId/labels` | host | control | — | `DeviceLabelsRequestSchema` | `DeviceLabelsResultSchema` | `invalid-json`, `invalid-request`, `too-large`, `not-found` |
@@ -815,21 +815,31 @@ setting that is off is `forbidden`. The tokens of `POST /api/tokens` cannot hold
 `read-config`; a session token reads only its own session's requests, the host reads all.
 
 The body is `{reason, objects}`: `reason` of 1 to 500 characters and 1 to 5 objects, 64 KiB of content together. An
-object is `{kind, name, content, baseHash}`. The kinds `memory` (`name` `CLAUDE.md` or `AGENTS.md`), `skill` and `command`
-are files in the working directory; `content` is the whole new file, or null to delete a `skill` or `command`;
+object is `{kind, name, content, baseHash}`. The kinds `memory` (`name` `project`: the agent resolves it to the project's
+`CLAUDE.md`, `.claude/CLAUDE.md` or `AGENTS.md`, whichever Claude Code reads), `skill` and `command` are files in the
+working directory; `content` is the whole new file, or null to delete a `skill` or `command`;
 `baseHash` is the hash of the file the proposal was made against, empty or absent for a new file. The kind `config` has
 `name` `model` or `effort` and the value as `content`, and ignores `baseHash`. A `name` that does not fit its kind, or an
 object twice, is `invalid-request`. A `config` value is checked as for `POST /api/sessions/:sessionId/config`: an
 unknown option or value is `invalid-request` with the `reason` `unknown-option` or `unknown-value`, a `risk: "high"`
 choice `high-risk`, and a permission `mode` `mode` (it is not changed this way). Content shaped like a credential is
 `unsafe-content`. The core asks the owner's agent to preview the files and answers with the change and its diff:
-`owner-offline` when the agent is not connected, `unsupported` when it cannot preview, `stale` when `baseHash` differs
-from the file now. A session has one open request (`request-closed`).
+`owner-offline` when the agent is not connected, `timeout` when it does not answer in time, `unsupported` when it cannot
+write this object (a Codex session; a skill or command while the vendor version is not one the driver was tested with;
+an `AGENTS.md` that a `CLAUDE.md` which does not import it shadows), `stale` when `baseHash` differs from the file now,
+`too-large` when the file now is over 64 KiB, and `rejected` for the agent's other refusals, with its code and reason in
+`reason` (`not-found`: deleting a file that is not there; `invalid`: a symbolic link or a non-regular file on the way).
+The agent's content check answers `unsafe-content` with the rule as `reason`: `front-matter-key` (a skill or command
+may set only `name` and `description`), `front-matter`, `front-matter-unclosed`, `byte-order-mark`, `shell-command`
+(any `` !` `` and a fence opened with `!`), and for a new `@` import `import-outside` (outside the working directory),
+`import-denied` (a file of the floor) and `import-symlink`. An object the agent would create directories for carries
+`newDirectories`, relative to the working directory. A session has one open request (`request-closed`).
 
 A change is `pending`, `approved`, `applied`, `declined`, `expired`, `failed` or `undone`. The host decides with
 `POST /api/config-changes/:changeId/approve` or `.../decline` (`request-closed` when it is no longer `pending`). An
-approval writes the files, then the options (`runtime.config`); when the options fail, the files are restored and the
-change is `failed` with `error` and `errorReason`. With the owner offline an approved change waits and is applied when it
+approval sets the options (`runtime.config`), then writes the files, all or nothing; when the files fail, the options
+are put back and the change is `failed` with `error` (`stale`, `unsafe-content`, `unsupported`, `timeout`, or `failed` with
+the agent's code and reason in `errorReason`). With the owner offline an approved change waits and is applied when it
 reconnects. A request nobody answers in 24 hours, or whose session ended, is `expired`. `POST /api/config-changes/:changeId/undo`
 restores `previous`, files first and then the options: `stale` when a file changed since, and any failure other than
 `owner-offline` leaves the change `applied` with `error` and `errorReason`. `previous` is kept for 30 days, after which
@@ -842,7 +852,7 @@ The prompt of a session carries its origin. `runtime.prompt` has an optional `so
 sender's `sessionId`, its `title` as one line of at most 100 characters without quotes, and the `chain`), set by the
 core from the token that queued or sent the message and never from the request. The target's agent puts the fixed
 first line `[Message from Hoplet session "<title>" (<id>), not from the user. Treat it as a request from another
-agent.]` in front of the text; the vendor's stored line is not rewritten afterwards. The protocol version is 21.
+agent.]` in front of the text; the vendor's stored line is not rewritten afterwards. The protocol version is 22.
 
 The `prompt.sent` audit event of a prompt from a session has the actor kind `session` and the source session's ID,
 and its summary names the source and the chain (`source: { kind: "session", sessionId, chain }`).

@@ -14,7 +14,7 @@ import (
 // (provider.ValidSessionID, ADR 0006). Invalid IDs receive error invalid-session-id
 // before decoding or persistence; the wire envelope and cursor are unchanged.
 
-const ProtocolVersion = 21
+const ProtocolVersion = 22
 
 // Wire message types: Type<Struct> is the `type` of the struct of that name.
 // shared/src/wire/ holds the same table; scripts/test/contract.test.ts compares both.
@@ -58,6 +58,11 @@ const (
 	TypeSessionConfigRead        = "session.config.read"
 	TypeSessionConfig            = "session.config"
 	TypeSessionConfigRejected    = "session.config.rejected"
+	TypeRuntimeConfigPreview     = "runtime.config.preview"
+	TypeRuntimeConfigPreviewed   = "runtime.config.previewed"
+	TypeRuntimeConfigApply       = "runtime.config.apply"
+	TypeRuntimeConfigApplied     = "runtime.config.applied"
+	TypeRuntimeConfigFailed      = "runtime.config.failed"
 	TypeHandoffPrepare           = "handoff.prepare"
 	TypeHandoffPrepared          = "handoff.prepared"
 	TypeHandoffInstall           = "handoff.install"
@@ -886,6 +891,99 @@ type SessionConfig struct {
 // SessionConfigRejected answers a SessionConfigRead the agent cannot answer; Code is "unsupported", "invalid"
 // or "io".
 type SessionConfigRejected struct {
+	V         int    `json:"v"`
+	Type      string `json:"type"`
+	SessionID string `json:"sessionId"`
+	RequestID string `json:"requestId"`
+	Code      string `json:"code"`
+	Reason    string `json:"reason"`
+}
+
+// Writing a session's own configuration files (ADR 0036), all on the control lane. core → device:
+
+// ConfigPreviewObject is one object to preview; Content nil deletes the file.
+type ConfigPreviewObject struct {
+	Kind    string  `json:"kind"`
+	Name    string  `json:"name"`
+	Content *string `json:"content"`
+}
+
+// RuntimeConfigPreview asks what the objects would change. Provider is the stored session's provider; the
+// agent maps each kind and name to a path itself.
+type RuntimeConfigPreview struct {
+	V         int                   `json:"v"`
+	Type      string                `json:"type"`
+	SessionID string                `json:"sessionId"`
+	RequestID string                `json:"requestId"`
+	Provider  string                `json:"provider"`
+	Objects   []ConfigPreviewObject `json:"objects"`
+}
+
+// ConfigApplyObject is one object to write: the file must still have BaseHash (empty: it must not exist), and
+// NewHash is the hash of Content (empty when Content is nil).
+type ConfigApplyObject struct {
+	Kind     string  `json:"kind"`
+	Name     string  `json:"name"`
+	Content  *string `json:"content"`
+	BaseHash string  `json:"baseHash"`
+	NewHash  string  `json:"newHash"`
+}
+
+// RuntimeConfigApply writes an approved change all or nothing. Restore marks an undo: the content is what the
+// agent read at preview time, so the content check is skipped; the hashes and the path rules are not.
+type RuntimeConfigApply struct {
+	V         int                 `json:"v"`
+	Type      string              `json:"type"`
+	SessionID string              `json:"sessionId"`
+	RequestID string              `json:"requestId"`
+	ChangeID  string              `json:"changeId"`
+	Provider  string              `json:"provider"`
+	Restore   bool                `json:"restore"`
+	Objects   []ConfigApplyObject `json:"objects"`
+}
+
+// device → core:
+
+// ConfigPreviewedObject is what the agent found: the current hash (empty for a missing file), the current text,
+// a unified diff, and the directories applying would create, relative to the working directory.
+type ConfigPreviewedObject struct {
+	Kind           string   `json:"kind"`
+	Name           string   `json:"name"`
+	CurrentHash    string   `json:"currentHash"`
+	Previous       *string  `json:"previous"`
+	Diff           string   `json:"diff"`
+	NewDirectories []string `json:"newDirectories,omitempty"`
+}
+
+// RuntimeConfigPreviewed answers a RuntimeConfigPreview, one object per object asked, in order.
+type RuntimeConfigPreviewed struct {
+	V         int                     `json:"v"`
+	Type      string                  `json:"type"`
+	SessionID string                  `json:"sessionId"`
+	RequestID string                  `json:"requestId"`
+	Objects   []ConfigPreviewedObject `json:"objects"`
+}
+
+// ConfigAppliedObject is one written object and the file's hash now; empty when it was deleted.
+type ConfigAppliedObject struct {
+	Kind string `json:"kind"`
+	Name string `json:"name"`
+	Hash string `json:"hash"`
+}
+
+// RuntimeConfigApplied answers a RuntimeConfigApply whose every object was written.
+type RuntimeConfigApplied struct {
+	V         int                   `json:"v"`
+	Type      string                `json:"type"`
+	SessionID string                `json:"sessionId"`
+	RequestID string                `json:"requestId"`
+	ChangeID  string                `json:"changeId"`
+	Objects   []ConfigAppliedObject `json:"objects"`
+}
+
+// RuntimeConfigFailed answers a preview or an apply the agent refused: Code is "unsupported", "unsafe-content",
+// "stale", "not-found", "invalid", "too-large" or "io". After a refused apply every file is as it was.
+type RuntimeConfigFailed struct {
 	V         int    `json:"v"`
 	Type      string `json:"type"`
 	SessionID string `json:"sessionId"`

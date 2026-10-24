@@ -148,6 +148,7 @@ func Run(cfg *config.Config, version string) error {
 	cloner := newCloner(cfg, st)
 	cloner.Recover()
 	runtimeHooks := rt.hooks()
+	writes := newConfigWriter(cfg, rt.versionTested)
 	runtimeHooks.Start = rt.starter(st)
 	client = sync.NewClient(cfg, deviceID, version, sync.Hooks{
 		Providers:            rt.providers,
@@ -170,6 +171,8 @@ func Run(cfg *config.Config, version string) error {
 		Diff:                 workspaceDiff(cfg),
 		Changes:              workspaceChanges(cfg),
 		ConfigRead:           configRead(cfg),
+		ConfigPreview:        writes.preview,
+		ConfigApply:          writes.apply,
 		ProjectsList:         st.projectsList,
 		ProjectsAdd:          st.projectsAdd,
 		ProjectsRemove:       st.projectsRemove,

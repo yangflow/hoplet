@@ -342,6 +342,14 @@ func (c *Client) readLoop(cs *connState) {
 			go c.handleConfigRead(cs, raw)
 			continue
 		}
+		if head.Type == TypeRuntimeConfigPreview {
+			go c.handleConfigPreview(cs, raw)
+			continue
+		}
+		if head.Type == TypeRuntimeConfigApply {
+			go c.handleConfigApply(cs, raw)
+			continue
+		}
 		switch head.Type {
 		case TypeDeviceProjectsList, TypeDeviceProjectsAdd, TypeDeviceProjectsRemove:
 			go c.handleProjects(cs, raw)

@@ -306,6 +306,88 @@ func (c *Client) handleConfigRead(cs *connState, raw json.RawMessage) {
 	_ = c.writeMsg(cs, page)
 }
 
+// configFailure is the code and reason of a refused preview or apply.
+func configFailure(err error) (string, string) {
+	var rejection *ConfigError
+	if errors.As(err, &rejection) {
+		return rejection.Code, rejection.Reason
+	}
+	return "io", err.Error()
+}
+
+func (c *Client) sendConfigFailed(cs *connState, what, sessionID, requestID string, err error) {
+	code, reason := configFailure(err)
+	log.Printf("[agent] config %s refused for %s: %s: %s", what, shortID(sessionID), code, reason)
+	_ = c.writeMsg(cs, RuntimeConfigFailed{
+		V:         ProtocolVersion,
+		Type:      TypeRuntimeConfigFailed,
+		SessionID: sessionID,
+		RequestID: requestID,
+		Code:      code,
+		Reason:    reason,
+	})
+}
+
+// handleConfigPreview answers what an approved change would do to the session's own files (ADR 0036).
+func (c *Client) handleConfigPreview(cs *connState, raw json.RawMessage) {
+	var req RuntimeConfigPreview
+	if err := json.Unmarshal(raw, &req); err != nil {
+		return
+	}
+	var objects []ConfigPreviewedObject
+	var err error
+	if c.hooks.ConfigPreview == nil {
+		err = &ConfigError{Code: "unsupported", Reason: "not-implemented"}
+	} else {
+		objects, err = c.hooks.ConfigPreview(context.Background(), req)
+	}
+	if err != nil {
+		c.sendConfigFailed(cs, "preview", req.SessionID, req.RequestID, err)
+		return
+	}
+	if objects == nil {
+		objects = []ConfigPreviewedObject{}
+	}
+	_ = c.writeMsg(cs, RuntimeConfigPreviewed{
+		V:         ProtocolVersion,
+		Type:      TypeRuntimeConfigPreviewed,
+		SessionID: req.SessionID,
+		RequestID: req.RequestID,
+		Objects:   objects,
+	})
+}
+
+// handleConfigApply writes an approved change, or an undo of one, all or nothing (ADR 0036).
+func (c *Client) handleConfigApply(cs *connState, raw json.RawMessage) {
+	var req RuntimeConfigApply
+	if err := json.Unmarshal(raw, &req); err != nil {
+		return
+	}
+	var objects []ConfigAppliedObject
+	var err error
+	if c.hooks.ConfigApply == nil {
+		err = &ConfigError{Code: "unsupported", Reason: "not-implemented"}
+	} else {
+		objects, err = c.hooks.ConfigApply(context.Background(), req)
+	}
+	if err != nil {
+		c.sendConfigFailed(cs, "apply", req.SessionID, req.RequestID, err)
+		return
+	}
+	if objects == nil {
+		objects = []ConfigAppliedObject{}
+	}
+	log.Printf("[agent] config change %s applied for %s", shortID(req.ChangeID), shortID(req.SessionID))
+	_ = c.writeMsg(cs, RuntimeConfigApplied{
+		V:         ProtocolVersion,
+		Type:      TypeRuntimeConfigApplied,
+		SessionID: req.SessionID,
+		RequestID: req.RequestID,
+		ChangeID:  req.ChangeID,
+		Objects:   objects,
+	})
+}
+
 func (c *Client) handleProjects(cs *connState, raw json.RawMessage) {
 	var head struct {
 		Type      string `json:"type"`

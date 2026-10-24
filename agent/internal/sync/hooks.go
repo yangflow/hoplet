@@ -124,7 +124,8 @@ type WorkspaceChangesContent struct {
 // WorkspaceChangesFunc lists what a session changed against the commit it started from.
 type WorkspaceChangesFunc func(ctx context.Context, sessionID string) (WorkspaceChangesContent, error)
 
-// ConfigError is a refusal of a configuration read: Code is "unsupported", "invalid" or "io".
+// ConfigError is a refusal of a configuration read, preview or apply: Code is one of the codes of
+// session.config.rejected or runtime.config.failed.
 type ConfigError struct {
 	Code   string
 	Reason string
@@ -135,6 +136,14 @@ func (e *ConfigError) Error() string { return e.Code + ": " + e.Reason }
 // ConfigReadFunc reads a page of a session's own configuration files (ADR 0036). It fills Exists, Size, Hash,
 // Offset, Text, NextOffset and Entries; the client adds the envelope. A refusal is a *ConfigError.
 type ConfigReadFunc func(ctx context.Context, req SessionConfigRead) (SessionConfig, error)
+
+// ConfigPreviewFunc says what a change set would do to a session's files, one object per object asked, without
+// writing anything (ADR 0036). A refusal is a *ConfigError.
+type ConfigPreviewFunc func(ctx context.Context, req RuntimeConfigPreview) ([]ConfigPreviewedObject, error)
+
+// ConfigApplyFunc writes an approved change set all or nothing and returns the hash of each object afterwards.
+// A refusal is a *ConfigError; when it returns one, no file changed.
+type ConfigApplyFunc func(ctx context.Context, req RuntimeConfigApply) ([]ConfigAppliedObject, error)
 
 // DirListing is the content of device.dirs.
 type DirListing struct {
@@ -170,9 +179,13 @@ type Hooks struct {
 	Changes   WorkspaceChangesFunc
 	// ConfigRead answers session.config.read.
 	ConfigRead ConfigReadFunc
-	Handoff    HandoffHooks
-	Terminal   TerminalHooks
-	Ports      PortsHooks
+	// ConfigPreview answers runtime.config.preview.
+	ConfigPreview ConfigPreviewFunc
+	// ConfigApply answers runtime.config.apply.
+	ConfigApply ConfigApplyFunc
+	Handoff     HandoffHooks
+	Terminal    TerminalHooks
+	Ports       PortsHooks
 	// PreviewHost is announced in device.hello: the host the web UI links dev servers with.
 	PreviewHost string
 	// PermissionDeny is announced in device.hello: the operator's deny rules, as rules.Announced makes them.

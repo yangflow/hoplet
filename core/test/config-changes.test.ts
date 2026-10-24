@@ -123,7 +123,7 @@ function fakeFiles() {
 }
 
 /** Session a1 on dev-a (connected), a2 on dev-d (stored, offline). */
-async function boot() {
+async function boot(opts: { agentFiles?: boolean } = {}) {
   const dir = mkdtempSync(path.join(tmpdir(), 'hoplet-config-changes-'));
   dirs.push(dir);
   const store = new Store(dir);
@@ -155,7 +155,7 @@ async function boot() {
     promptTimeoutMs: 600,
     workspaceTimeoutMs: 150,
     now: () => clock.now,
-    configFiles: fake.files,
+    ...(opts.agentFiles ? {} : { configFiles: fake.files }),
   });
   const server = createServer();
   attachIngest(server, store, control);
@@ -271,8 +271,8 @@ async function boot() {
 }
 
 /** A booted core whose session a1 may write configuration, with its token. */
-async function allowed() {
-  const b = await boot();
+async function allowed(opts: { agentFiles?: boolean } = {}) {
+  const b = await boot(opts);
   await b.settings('a1', { writeConfig: true });
   await b.state('a1', 'ready');
   return { b, token: b.tokenOf('a1') };
@@ -732,5 +732,184 @@ describe('tokens', () => {
       });
       expect(res.status).toBe(400);
     }
+  });
+});
+
+/**
+ * The core's own port: a core booted without `configFiles` asks the owner's agent over the control lane. The
+ * agent here keeps files by key and answers the way agent/internal/configfiles does.
+ */
+describe("writing through the owner's agent", () => {
+  async function withAgent() {
+    const { b, token } = await allowed({ agentFiles: true });
+    const disk = new Map<string, string>();
+    const asked: Json[] = [];
+    const answer: { failPreview?: Json; failApply?: Json; silent?: boolean } = {};
+    b.agentA.ws.on('message', (data) => {
+      const msg = JSON.parse(String(data)) as Json;
+      if (msg.type !== 'runtime.config.preview' && msg.type !== 'runtime.config.apply') return;
+      asked.push(msg);
+      if (answer.silent) return;
+      const reply = (body: Json) =>
+        b.agentA.send({ sessionId: msg.sessionId, requestId: msg.requestId, ...body });
+      if (msg.type === 'runtime.config.preview') {
+        if (answer.failPreview)
+          return reply({ type: 'runtime.config.failed', ...answer.failPreview });
+        return reply({
+          type: 'runtime.config.previewed',
+          objects: msg.objects.map((o: Json) => {
+            const now = disk.get(`${o.kind}:${o.name}`) ?? null;
+            return {
+              kind: o.kind,
+              name: o.name,
+              currentHash: now === null ? '' : sha(now),
+              previous: now,
+              diff: `@@ ${o.kind}:${o.name} @@\n`,
+              ...(o.kind === 'skill' && now === null
+                ? { newDirectories: ['.claude/skills', `.claude/skills/${o.name}`] }
+                : {}),
+            };
+          }),
+        });
+      }
+      if (answer.failApply) return reply({ type: 'runtime.config.failed', ...answer.failApply });
+      for (const o of msg.objects as Json[]) {
+        const now = disk.get(`${o.kind}:${o.name}`) ?? null;
+        if ((now === null ? '' : sha(now)) !== o.baseHash) {
+          return reply({
+            type: 'runtime.config.failed',
+            code: 'stale',
+            reason: `${o.kind}:${o.name}`,
+          });
+        }
+      }
+      for (const o of msg.objects as Json[]) {
+        if (o.content === null) disk.delete(`${o.kind}:${o.name}`);
+        else disk.set(`${o.kind}:${o.name}`, o.content);
+      }
+      return reply({
+        type: 'runtime.config.applied',
+        changeId: msg.changeId,
+        objects: msg.objects.map((o: Json) => ({ kind: o.kind, name: o.name, hash: o.newHash })),
+      });
+    });
+    return { b, token, disk, asked, answer };
+  }
+
+  it('previews with the agent, writes after approval, and undoes with restore', async () => {
+    const { b, token, disk, asked } = await withAgent();
+    disk.set('memory:project', 'old');
+    const made = await b.propose(token, [
+      b.memory('new', sha('old')),
+      { kind: 'skill', name: 'review', content: 'steps' },
+    ]);
+    expect(made.status).toBe(201);
+    expect(asked[0]).toMatchObject({
+      type: 'runtime.config.preview',
+      sessionId: 'a1',
+      provider: 'claude',
+      objects: [
+        { kind: 'memory', name: 'project', content: 'new' },
+        { kind: 'skill', name: 'review', content: 'steps' },
+      ],
+    });
+    expect(made.body.objects[0]).toMatchObject({
+      baseHash: sha('old'),
+      diff: '@@ memory:project @@\n',
+    });
+    expect(made.body.objects[0].newDirectories).toBeUndefined();
+    expect(made.body.objects[1].newDirectories).toEqual([
+      '.claude/skills',
+      '.claude/skills/review',
+    ]);
+    expect(disk.get('memory:project')).toBe('old');
+
+    await b.decide(made.body.changeId, 'approve');
+    await b.until(() => b.control.configChanges.get(made.body.changeId)?.state === 'applied');
+    const apply = asked.find((m) => m.type === 'runtime.config.apply') as Json;
+    expect(apply).toMatchObject({
+      changeId: made.body.changeId,
+      provider: 'claude',
+      restore: false,
+      objects: [
+        {
+          kind: 'memory',
+          name: 'project',
+          content: 'new',
+          baseHash: sha('old'),
+          newHash: sha('new'),
+        },
+        { kind: 'skill', name: 'review', content: 'steps', baseHash: '', newHash: sha('steps') },
+      ],
+    });
+    expect(disk.get('memory:project')).toBe('new');
+    expect(disk.get('skill:review')).toBe('steps');
+
+    const undone = await b.decide(made.body.changeId, 'undo');
+    expect(undone.status).toBe(200);
+    const undo = asked.filter((m) => m.type === 'runtime.config.apply')[1] as Json;
+    expect(undo).toMatchObject({
+      restore: true,
+      objects: [
+        { kind: 'memory', content: 'old', baseHash: sha('new'), newHash: sha('old') },
+        { kind: 'skill', content: null, baseHash: sha('steps'), newHash: '' },
+      ],
+    });
+    expect(disk.get('memory:project')).toBe('old');
+    expect(disk.has('skill:review')).toBe(false);
+  });
+
+  it('fails an approved change whose file changed since the preview', async () => {
+    const { b, token, disk } = await withAgent();
+    disk.set('memory:project', 'old');
+    const made = await b.propose(token, [b.memory('new', sha('old'))]);
+    disk.set('memory:project', 'edited by hand');
+    await b.decide(made.body.changeId, 'approve');
+    await b.until(() => b.control.configChanges.get(made.body.changeId)?.state === 'failed');
+    expect(b.control.configChanges.get(made.body.changeId)).toMatchObject({
+      error: 'stale',
+      errorReason: 'memory:project',
+    });
+    expect(disk.get('memory:project')).toBe('edited by hand');
+  });
+
+  it('refuses an undo when the file changed since it was written', async () => {
+    const { b, token, disk } = await withAgent();
+    const made = await b.propose(token, [b.memory('new')]);
+    await b.decide(made.body.changeId, 'approve');
+    await b.until(() => b.control.configChanges.get(made.body.changeId)?.state === 'applied');
+    disk.set('memory:project', 'edited by hand');
+    const refused = await b.decide(made.body.changeId, 'undo');
+    expect(refused.status).toBe(409);
+    expect(refused.body).toMatchObject({ code: 'stale' });
+    expect(disk.get('memory:project')).toBe('edited by hand');
+  });
+
+  it("relays the agent's refusals of a preview", async () => {
+    const { b, token, answer } = await withAgent();
+    answer.failPreview = { code: 'unsafe-content', reason: 'shell-command' };
+    const unsafe = await b.propose(token, [{ kind: 'command', name: 'deploy', content: 'x' }]);
+    expect(unsafe.body).toMatchObject({ code: 'unsafe-content' });
+    answer.failPreview = { code: 'unsupported', reason: 'the project has a CLAUDE.md' };
+    expect((await b.propose(token, [b.memory('x')])).body).toMatchObject({ code: 'unsupported' });
+    answer.failPreview = { code: 'not-found', reason: 'command:gone' };
+    const gone = await b.propose(token, [{ kind: 'command', name: 'gone', content: null }]);
+    expect(gone.body).toMatchObject({ code: 'rejected' });
+    expect(b.control.configChanges.list('a1')).toHaveLength(0);
+  });
+
+  it('fails an approved change the agent could not write, and times out a silent agent', async () => {
+    const { b, token, answer } = await withAgent();
+    const made = await b.propose(token, [b.memory('new')]);
+    answer.failApply = { code: 'io', reason: 'disk full' };
+    await b.decide(made.body.changeId, 'approve');
+    await b.until(() => b.control.configChanges.get(made.body.changeId)?.state === 'failed');
+    expect(b.control.configChanges.get(made.body.changeId)).toMatchObject({
+      error: 'failed',
+      errorReason: 'io: disk full',
+    });
+    answer.silent = true;
+    const late = await b.propose(token, [b.memory('later')]);
+    expect(late.body).toMatchObject({ code: 'timeout' });
   });
 });

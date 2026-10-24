@@ -84,3 +84,70 @@ export const SessionConfigViewSchema = v.strictObject({
   ),
 });
 export type SessionConfigView = v.InferOutput<typeof SessionConfigViewSchema>;
+
+/**
+ * Writing a session's own configuration files (ADR 0036): the objects of a change the owner's agent previews
+ * and applies. The agent maps the kind and the name to the path; `memory` is the file the vendor reads.
+ */
+export const CONFIG_FILE_KINDS = ['memory', 'skill', 'command'] as const;
+export const ConfigFileKindSchema = v.picklist(CONFIG_FILE_KINDS);
+export type ConfigFileKind = v.InferOutput<typeof ConfigFileKindSchema>;
+
+/**
+ * Why the agent did not preview or apply: the provider, its version or the project cannot take the object
+ * (`unsupported`), the content fails the check (`unsafe-content`), the file is not the one the change was
+ * written against (`stale`), a deletion names a file that is not there (`not-found`), the request is
+ * malformed (`invalid`), the current file is larger than a stored previous version may be (`too-large`), or the
+ * file system failed (`io`).
+ */
+export const CONFIG_WRITE_FAILURES = [
+  'unsupported',
+  'unsafe-content',
+  'stale',
+  'not-found',
+  'invalid',
+  'too-large',
+  'io',
+] as const;
+export const ConfigWriteFailureSchema = v.picklist(CONFIG_WRITE_FAILURES);
+export type ConfigWriteFailure = v.InferOutput<typeof ConfigWriteFailureSchema>;
+
+const objectName = v.pipe(v.string(), v.maxLength(64));
+const hash = v.pipe(v.string(), v.maxLength(64));
+
+/** One object to preview: `content` null deletes the file. */
+export const ConfigPreviewObjectSchema = v.strictObject({
+  kind: ConfigFileKindSchema,
+  name: objectName,
+  content: v.nullable(v.string()),
+});
+
+/**
+ * What the agent found for one object: `currentHash` (SHA-256, hex; empty when the file does not exist), the
+ * current text as `previous`, a unified diff, and the directories applying would create, relative to the
+ * session's working directory.
+ */
+export const ConfigPreviewedObjectSchema = v.strictObject({
+  kind: ConfigFileKindSchema,
+  name: objectName,
+  currentHash: hash,
+  previous: v.nullable(v.string()),
+  diff: v.string(),
+  newDirectories: v.optional(v.array(v.string())),
+});
+
+/** One object to write: the file must still have `baseHash`, and `newHash` is the hash of `content`. */
+export const ConfigApplyObjectSchema = v.strictObject({
+  kind: ConfigFileKindSchema,
+  name: objectName,
+  content: v.nullable(v.string()),
+  baseHash: hash,
+  newHash: hash,
+});
+
+/** One written object and the hash of the file now; empty when it was deleted. */
+export const ConfigAppliedObjectSchema = v.strictObject({
+  kind: ConfigFileKindSchema,
+  name: objectName,
+  hash: hash,
+});

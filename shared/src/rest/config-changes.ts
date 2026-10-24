@@ -101,6 +101,8 @@ export const ConfigChangeObjectSchema = v.object({
   content: v.nullable(v.string()),
   /** A unified diff of the file as the agent read it at proposal time. */
   diff: v.string(),
+  /** The directories writing the file creates, relative to the session's working directory. */
+  newDirectories: v.optional(v.array(v.string())),
 });
 export type ConfigChangeObject = v.InferOutput<typeof ConfigChangeObjectSchema>;
 

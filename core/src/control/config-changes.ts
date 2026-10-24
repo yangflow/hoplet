@@ -1,7 +1,8 @@
 // Changes of sessions to their own configuration (#69, ADR 0036): a session proposes up to five objects (the
 // project's memory file, project skills and commands, the options `model` and `effort`); the owner's agent previews
 // the files, the user approves or declines the whole request, and only then is anything written. The core holds the
-// text and the decision; the files are touched by the owner's agent alone, through the `ConfigFiles` port.
+// text and the decision; the files are touched by the owner's agent alone, through the `ConfigFiles` port
+// (config-files.ts).
 import { createHash, randomUUID } from 'node:crypto';
 import {
   CONFIG_CHANGE_PREVIOUS_RETENTION_MS,
@@ -21,11 +22,11 @@ import {
   publicChange,
   type StoredConfigChange,
 } from '../store/index.ts';
+import { createAgentConfigFiles } from './config-files.ts';
 import type { ControlState } from './state.ts';
 import type {
   AuditActor,
   ConfigFileObject,
-  ConfigFiles,
   Control,
   ControlEvent,
   ControlOptions,
@@ -34,12 +35,6 @@ import type {
 } from './types.ts';
 
 const HOUR = 60 * 60_000;
-
-/** What the default port answers: no agent writes configuration files yet. */
-const UNSUPPORTED_FILES: ConfigFiles = {
-  preview: async () => ({ ok: false, error: 'unsupported' }),
-  apply: async () => ({ ok: false, error: 'unsupported' }),
-};
 
 /** What the module returns to control: the interface the API uses and the hooks control feeds. */
 export interface ConfigChangesModule {
@@ -83,12 +78,14 @@ function settableOption(
 
 export function createConfigChanges(
   state: ControlState,
-  control: () => Pick<Control, 'ownerOf' | 'runtimeOf' | 'devices' | 'config'>,
+  control: () => Pick<Control, 'ownerOf' | 'runtimeOf' | 'devices' | 'config' | 'providerOf'>,
   sessionMcp: SessionMcp,
   options: ControlOptions,
 ): ConfigChangesModule {
   const { store } = state;
-  const files = options.configFiles ?? UNSUPPORTED_FILES;
+  const files =
+    options.configFiles ??
+    createAgentConfigFiles(state, (sessionId) => control().providerOf(sessionId));
   /** The changes being written or undone, which an expiry or a second write must leave alone. */
   const executing = new Set<string>();
   const timers = new Map<string, NodeJS.Timeout>();
@@ -227,6 +224,7 @@ export function createConfigChanges(
           newHash: given.content === null ? '' : sha256(given.content),
           content: given.content,
           diff: seen.diff,
+          ...(seen.newDirectories?.length ? { newDirectories: seen.newDirectories } : {}),
         };
         if (bytesOf(seen.previous) > MAX_CONFIG_CHANGE_BYTES) return refusal('too-large');
         previous[i] = { kind: given.kind, name: given.name, content: seen.previous };
@@ -440,6 +438,7 @@ export function createConfigChanges(
         const outcome = await files.apply(owner, {
           changeId,
           sessionId: current.sessionId,
+          restore: true,
           objects: fileObjects.map((o) => {
             const before =
               previous.find((p) => p.kind === o.kind && p.name === o.name)?.content ?? null;

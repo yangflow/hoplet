@@ -250,11 +250,19 @@ export type ConfigFilePreview =
         previous: string | null;
         /** A unified diff of the file as the agent read it against the proposed content. */
         diff: string;
+        /** The directories writing the file would create, relative to the working directory. */
+        newDirectories?: string[];
       }[];
     }
   | {
       ok: false;
-      error: 'owner-offline' | 'unsupported' | 'unsafe-content' | 'rejected' | 'timeout';
+      error:
+        | 'owner-offline'
+        | 'unsupported'
+        | 'unsafe-content'
+        | 'too-large'
+        | 'rejected'
+        | 'timeout';
       reason?: string;
     };
 
@@ -277,12 +285,16 @@ export interface ConfigFiles {
     sessionId: string,
     objects: ConfigFileObject[],
   ): Promise<ConfigFilePreview>;
-  /** Writes all objects or none; each is written only if the file still has `baseHash`. */
+  /**
+   * Writes all objects or none; each is written only if the file still has `baseHash`. `restore` marks an undo:
+   * the content is what the agent itself read at preview time.
+   */
   apply(
     deviceId: string,
     input: {
       changeId: string;
       sessionId: string;
+      restore?: boolean;
       objects: (ConfigFileObject & { baseHash: string; newHash: string })[];
     },
   ): Promise<ConfigFileApply>;
@@ -1027,7 +1039,10 @@ export interface AgentControl {
 }
 
 export interface ControlOptions {
-  /** Where change requests meet project files; the default answers `unsupported` (ADR 0036). */
+  /**
+   * Where change requests meet project files; the default asks the owner's agent with runtime.config.preview and
+   * runtime.config.apply (ADR 0036).
+   */
   configFiles?: ConfigFiles;
   /** Bulk work in flight and waiting; the defaults suit one operator. */
   bulk?: BulkQueueOptions;
