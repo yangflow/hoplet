@@ -827,8 +827,9 @@ unknown option or value is `forbidden` with the `reason` `unknown-option` or `un
 choice `high-risk`, and an option of the category `mode` `mode` (it is not changed this way); a session the agent
 does not run (`external`) cannot change an option. Content shaped like a credential is `unsafe-content`. The core asks the owner's agent to preview the files and answers with the change and its diff:
 `owner-offline` when the agent is not connected, `timeout` when it does not answer in time, `unsupported` when it cannot
-write this object (a Codex session; a skill or command while the vendor version is not one the driver was tested with;
-an `AGENTS.md` that a `CLAUDE.md` which does not import it shadows), `stale` when `baseHash` differs from the file now,
+write this object (a command of a Codex session; a skill or command while the vendor version is not one the driver
+was tested with; an `AGENTS.md` that a `CLAUDE.md` which does not import it shadows; a Codex project directory with an
+`AGENTS.override.md`), `stale` when `baseHash` differs from the file now,
 `too-large` when the file now is over 64 KiB, and `rejected` for the agent's other refusals, with its code and reason in
 `reason` (`not-found`: deleting a file that is not there; `invalid`: a symbolic link or a non-regular file on the way).
 The agent's content check answers `unsafe-content` with the rule as `reason`: `front-matter-key` (a skill or command

@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"os"
@@ -266,7 +267,11 @@ func (w Writer) resolve(root *os.Root, cwd string, c Change) ([]target, error) {
 			}
 			t.newDirs = nil
 		} else if !c.Restore {
-			if err := checkContent(cwd, w.Home, o.Kind, rel, t.current, *o.Content); err != nil {
+			// The vendor reads no more than this of its memory files; the rest would be dropped unseen.
+			if o.Kind == KindMemory && lay.maxMemory > 0 && len(*o.Content) > lay.maxMemory {
+				return nil, refuse(CodeTooLarge, fmt.Sprintf("%s reads at most %d KiB of its memory files", lay.vendor, lay.maxMemory/1024))
+			}
+			if err := checkContent(cwd, w.Home, lay, o.Kind, rel, t.current, *o.Content); err != nil {
 				return nil, err
 			}
 		}
@@ -285,18 +290,21 @@ func (w Writer) pathOf(cwd string, lay layout, c Change, o Object) (string, erro
 		if o.Content == nil && !c.Restore {
 			return "", refuse(CodeInvalid, "the memory file is not deleted")
 		}
-		return projectMemory(cwd, w.Home)
+		return lay.projectMemory(cwd, w.Home)
 	case KindSkill, KindCommand:
 		if !namePattern.MatchString(o.Name) {
 			return "", refuse(CodeInvalid, "invalid name")
+		}
+		if o.Kind == KindCommand && lay.commandsDir == "" {
+			return "", refuse(CodeUnsupported, lay.vendor+" has no command files")
 		}
 		if !c.Tested && !c.Restore {
 			return "", refuse(CodeUnsupported, "the vendor version is not one the "+o.Kind+" format was checked against")
 		}
 		if o.Kind == KindSkill {
-			return path.Join(lay.configDir, lay.skillsDir, o.Name, lay.skillFile), nil
+			return path.Join(lay.skillsDir, o.Name, lay.skillFile), nil
 		}
-		return path.Join(lay.configDir, lay.commandsDir, o.Name+lay.commandExt), nil
+		return path.Join(lay.commandsDir, o.Name+lay.commandExt), nil
 	default:
 		return "", refuse(CodeInvalid, "unknown kind")
 	}

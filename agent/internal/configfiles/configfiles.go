@@ -1,8 +1,9 @@
 // Package configfiles reads a session's own configuration files: the memory file, the skills and the commands
 // of its project or of the user (ADR 0036). The paths are fixed by the provider and the kind and are never
 // taken from the caller; a name must be a plain `[a-z0-9][a-z0-9-]{0,63}`. Everything is read through
-// os.Root, so nothing outside the project directory (or the user's provider directory) is reachable, and a
-// symlink is refused at every step. The project's memory file is the one the vendor reads (projectMemory).
+// os.Root, so nothing outside the project directory (or the vendor's directory in the user's home) is
+// reachable, and a symlink is refused at every step. The project's memory file is the one the vendor reads
+// (memory.go). Claude Code and Codex have a layout each; Codex has no commands, so that kind is "unsupported".
 // Writer previews and applies a change the user approved, in the project only (writer.go).
 package configfiles
 
@@ -66,28 +67,53 @@ func (e *Error) Error() string { return e.Code + ": " + e.Reason }
 
 func refuse(code, reason string) error { return &Error{Code: code, Reason: reason} }
 
-// layout is where one provider keeps its configuration, relative to the project directory and to the user's
-// home directory.
+// layout is where one provider keeps its configuration. Paths are slash-separated, relative to the project
+// directory or to the user's home directory; a path below the home directory starts with the vendor's own top
+// directory (.claude, .codex, .agents), which is where a user-scope read is rooted.
 type layout struct {
-	projectMemory string // in the project directory
-	userMemory    string // in the user's provider directory
-	configDir     string // the provider directory, in the project and in the home directory
-	skillsDir     string // below the provider directory; a skill is <name>/<skillFile>
-	skillFile     string
-	commandsDir   string // below the provider directory; a command is <name><commandExt>
-	commandExt    string
+	vendor string // the vendor's name in a refusal
+	// projectMemory is the project memory file the writer writes, below cwd (memory.go).
+	projectMemory func(cwd, home string) (string, error)
+	// shownMemory is the project file a read shows when projectMemory refuses: the one the vendor reads instead.
+	shownMemory string
+	// userMemory are the candidates for the user's memory file below the home directory; the first present one
+	// is the one the vendor reads.
+	userMemory []string
+	// maxMemory bounds a new project memory file where the vendor reads less than MaxWriteBytes; 0 if it does not.
+	maxMemory int
+	skillsDir string // below the project and the home directory; a skill is <name>/<skillFile>
+	skillFile string
+	// skillHeader says a skill must open with front matter that sets name and description, or the vendor skips it.
+	skillHeader bool
+	commandsDir string // below the project and the home directory; a command is <name><commandExt>; empty: none
+	commandExt  string
 }
 
-// layouts lists the providers whose files can be read. A provider without an entry answers "unsupported".
+// layouts lists the providers whose files can be read. A provider without an entry answers "unsupported". The
+// paths are those of the vendor spike of ADR 0036.
 var layouts = map[string]layout{
 	"claude": {
-		projectMemory: "CLAUDE.md",
-		userMemory:    "CLAUDE.md",
-		configDir:     ".claude",
-		skillsDir:     "skills",
+		vendor:        "Claude Code",
+		projectMemory: claudeProjectMemory,
+		shownMemory:   "CLAUDE.md",
+		userMemory:    []string{".claude/CLAUDE.md"},
+		skillsDir:     ".claude/skills",
 		skillFile:     "SKILL.md",
-		commandsDir:   "commands",
+		commandsDir:   ".claude/commands",
 		commandExt:    ".md",
+	},
+	// Codex reads AGENTS.md (in ~/.codex AGENTS.override.md first), at most 32 KiB in all, and skills from
+	// .agents/skills of the project and of the home directory, whose front matter needs name and description. It
+	// has no command files.
+	"codex": {
+		vendor:        "Codex",
+		projectMemory: codexProjectMemory,
+		shownMemory:   codexOverrideFile,
+		userMemory:    []string{".codex/" + codexOverrideFile, ".codex/" + agentsFile},
+		maxMemory:     codexMemoryBytes,
+		skillsDir:     ".agents/skills",
+		skillFile:     "SKILL.md",
+		skillHeader:   true,
 	},
 }
 
@@ -148,52 +174,73 @@ func (r Reader) Read(cwd string, req Request) (Page, error) {
 		return Page{}, refuse(CodeInvalid, "unknown kind")
 	}
 
-	dir, prefix, err := r.rootOf(cwd, req.Scope, lay)
+	if req.Kind == KindCommand && lay.commandsDir == "" {
+		return Page{}, refuse(CodeUnsupported, lay.vendor+" has no command files")
+	}
+	if req.Kind == KindList {
+		return r.list(cwd, req.Scope, lay)
+	}
+
+	var file string
+	switch req.Kind {
+	case KindMemory:
+		if req.Scope == ScopeProject {
+			// The file the writer would write, else the one the vendor reads instead (a project whose AGENTS.md
+			// has no effect shows its CLAUDE.md).
+			file = lay.shownMemory
+			if resolved, err := lay.projectMemory(cwd, r.Home); err == nil {
+				file = resolved
+			}
+		} else {
+			file = lay.userMemory[len(lay.userMemory)-1]
+			for _, candidate := range lay.userMemory {
+				if r.Home != "" && present(filepath.Join(r.Home, filepath.FromSlash(candidate))) {
+					file = candidate
+					break
+				}
+			}
+		}
+	case KindSkill:
+		file = path.Join(lay.skillsDir, req.Name, lay.skillFile)
+	default:
+		file = path.Join(lay.commandsDir, req.Name+lay.commandExt)
+	}
+	root, rel, err := r.open(cwd, req.Scope, file)
 	if err != nil {
 		return Page{}, err
 	}
-	root, err := os.OpenRoot(dir)
-	if errors.Is(err, fs.ErrNotExist) {
+	if root == nil {
 		return Page{Entries: []Entry{}}, nil
 	}
-	if err != nil {
-		return Page{}, refuse(CodeIO, "cannot open "+req.Scope+" directory")
-	}
 	defer root.Close()
-
-	switch req.Kind {
-	case KindList:
-		return list(root, prefix, lay)
-	case KindMemory:
-		memory := lay.userMemory
-		if req.Scope == ScopeProject {
-			// The file the writer would write; a project whose AGENTS.md has no effect shows its CLAUDE.md.
-			memory = lay.projectMemory
-			if resolved, err := projectMemory(cwd, r.Home); err == nil {
-				memory = resolved
-			}
-		}
-		return readPage(root, memory, req.Offset)
-	case KindSkill:
-		return readPage(root, path.Join(prefix, lay.skillsDir, req.Name, lay.skillFile), req.Offset)
-	default:
-		return readPage(root, path.Join(prefix, lay.commandsDir, req.Name+lay.commandExt), req.Offset)
-	}
+	return readPage(root, rel, req.Offset)
 }
 
-// rootOf is the directory every path of the scope stays inside and the provider directory below it: the
-// project directory itself, or the provider directory of the user's home.
-func (r Reader) rootOf(cwd, scope string, lay layout) (dir, prefix string, err error) {
+// open roots p of the scope: at the project directory itself, or for the user scope at the vendor's top
+// directory of the home directory (which may be a symlink, as a dotfile manager makes it). rel is p below the
+// root; a root that does not exist is (nil, "", nil).
+func (r Reader) open(cwd, scope, p string) (*os.Root, string, error) {
+	var dir, rel string
 	if scope == ScopeProject {
 		if !filepath.IsAbs(cwd) {
-			return "", "", refuse(CodeIO, "the session has no working directory")
+			return nil, "", refuse(CodeIO, "the session has no working directory")
 		}
-		return cwd, lay.configDir, nil
+		dir, rel = cwd, p
+	} else {
+		if r.Home == "" {
+			return nil, "", refuse(CodeIO, "no home directory")
+		}
+		top, below, _ := strings.Cut(p, "/")
+		dir, rel = filepath.Join(r.Home, top), below
 	}
-	if r.Home == "" {
-		return "", "", refuse(CodeIO, "no home directory")
+	root, err := os.OpenRoot(dir)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, "", nil
 	}
-	return path.Join(r.Home, lay.configDir), "", nil
+	if err != nil {
+		return nil, "", refuse(CodeIO, "cannot open "+scope+" directory")
+	}
+	return root, rel, nil
 }
 
 // regular opens rel under root when every component is a real directory and the last is a regular file; a
@@ -282,24 +329,36 @@ func readPage(root *os.Root, rel string, offset int64) (Page, error) {
 	return page, nil
 }
 
-func list(root *os.Root, prefix string, lay layout) (Page, error) {
+// list names the skills and, where the vendor has them, the commands of the scope.
+func (r Reader) list(cwd, scope string, lay layout) (Page, error) {
 	var entries []Entry
-	skills, err := names(root, path.Join(prefix, lay.skillsDir), true, "")
-	if err != nil {
-		return Page{}, err
-	}
-	for _, name := range skills {
-		if desc, ok := describe(root, path.Join(prefix, lay.skillsDir, name, lay.skillFile)); ok {
-			entries = append(entries, Entry{Kind: KindSkill, Name: name, Description: desc})
+	add := func(kind, dir string, dirs bool, ext string) error {
+		root, rel, err := r.open(cwd, scope, dir)
+		if err != nil || root == nil {
+			return err
 		}
+		defer root.Close()
+		found, err := names(root, rel, dirs, ext)
+		if err != nil {
+			return err
+		}
+		for _, name := range found {
+			file := path.Join(rel, name+ext)
+			if dirs {
+				file = path.Join(rel, name, lay.skillFile)
+			}
+			if desc, ok := describe(root, file); ok {
+				entries = append(entries, Entry{Kind: kind, Name: name, Description: desc})
+			}
+		}
+		return nil
 	}
-	commands, err := names(root, path.Join(prefix, lay.commandsDir), false, lay.commandExt)
-	if err != nil {
+	if err := add(KindSkill, lay.skillsDir, true, ""); err != nil {
 		return Page{}, err
 	}
-	for _, name := range commands {
-		if desc, ok := describe(root, path.Join(prefix, lay.commandsDir, name+lay.commandExt)); ok {
-			entries = append(entries, Entry{Kind: KindCommand, Name: name, Description: desc})
+	if lay.commandsDir != "" {
+		if err := add(KindCommand, lay.commandsDir, false, lay.commandExt); err != nil {
+			return Page{}, err
 		}
 	}
 	if len(entries) > MaxEntries {

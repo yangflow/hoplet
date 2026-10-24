@@ -348,9 +348,9 @@ func TestWriterRefusesHostileNamesAndRequests(t *testing.T) {
 		t.Errorf("empty: %v", err)
 	}
 	c := change(Object{Kind: KindMemory, Name: MemoryName, Content: str("x")})
-	c.Provider = "codex"
+	c.Provider = "gemini"
 	if _, err := w.Preview(cwd, c); code(err) != CodeUnsupported {
-		t.Errorf("codex: %v", err)
+		t.Errorf("gemini: %v", err)
 	}
 	if _, err := w.Preview("relative", change(Object{Kind: KindMemory, Name: MemoryName, Content: str("x")})); code(err) != CodeIO {
 		t.Errorf("relative cwd: %v", err)
@@ -417,7 +417,7 @@ func TestMemoryResolution(t *testing.T) {
 			for rel, content := range tc.files {
 				write(t, filepath.Join(base, rel), content)
 			}
-			got, err := projectMemory(cwd, home)
+			got, err := claudeProjectMemory(cwd, home)
 			if code(err) != tc.code || got != tc.want {
 				t.Fatalf("got %q %v", got, err)
 			}
@@ -459,7 +459,7 @@ func TestContentCheck(t *testing.T) {
 		{KindMemory, "@" + filepath.Join(cwd, "docs", "guide.md") + "\n"},
 	}
 	for _, c := range ok {
-		if err := checkContent(cwd, w.Home, c.kind, pathFor(c.kind), nil, c.text); err != nil {
+		if err := checkContent(cwd, w.Home, layouts["claude"], c.kind, pathFor(c.kind), nil, c.text); err != nil {
 			t.Errorf("%s %q: %v", c.kind, c.text, err)
 		}
 	}
@@ -486,7 +486,7 @@ func TestContentCheck(t *testing.T) {
 		{KindSkill, "@../../../../outside.md\n", "import-outside"},
 	}
 	for _, c := range refused {
-		err := checkContent(cwd, w.Home, c.kind, pathFor(c.kind), nil, c.text)
+		err := checkContent(cwd, w.Home, layouts["claude"], c.kind, pathFor(c.kind), nil, c.text)
 		var e *Error
 		if !errors.As(err, &e) || e.Code != CodeUnsafeContent || e.Reason != c.reason {
 			t.Errorf("%s %q: %v, want %s", c.kind, c.text, err, c.reason)
@@ -494,16 +494,16 @@ func TestContentCheck(t *testing.T) {
 	}
 	// An import the file already has is not new.
 	current := "@../shared.md\n"
-	if err := checkContent(cwd, w.Home, KindMemory, "CLAUDE.md", &current, current+"More.\n"); err != nil {
+	if err := checkContent(cwd, w.Home, layouts["claude"], KindMemory, "CLAUDE.md", &current, current+"More.\n"); err != nil {
 		t.Errorf("kept import: %v", err)
 	}
 	// The import of a skill is relative to the skill's own file.
-	if err := checkContent(cwd, w.Home, KindSkill, ".claude/skills/x/SKILL.md", nil, "@../../../docs/guide.md\n"); err != nil {
+	if err := checkContent(cwd, w.Home, layouts["claude"], KindSkill, ".claude/skills/x/SKILL.md", nil, "@../../../docs/guide.md\n"); err != nil {
 		t.Errorf("relative to the skill: %v", err)
 	}
 	// A path under the home directory that is inside the project is allowed.
 	project := filepath.Join(w.Home, "project")
-	if err := checkContent(project, w.Home, KindMemory, "CLAUDE.md", nil, "@~/project/docs.md\n"); err != nil {
+	if err := checkContent(project, w.Home, layouts["claude"], KindMemory, "CLAUDE.md", nil, "@~/project/docs.md\n"); err != nil {
 		t.Errorf("home inside the project: %v", err)
 	}
 }

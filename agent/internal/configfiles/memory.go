@@ -10,19 +10,39 @@ import (
 )
 
 // The project memory file is the one the vendor reads, not a fixed name (ADR 0036, spike): Claude Code reads
-// CLAUDE.md or .claude/CLAUDE.md, and AGENTS.md in a project that has neither.
+// CLAUDE.md or .claude/CLAUDE.md, and AGENTS.md in a project that has neither; Codex reads AGENTS.md.
 
-const agentsFile = "AGENTS.md"
+const (
+	agentsFile = "AGENTS.md"
+	// codexOverrideFile is the file Codex reads before AGENTS.md in ~/.codex, at most one file per directory.
+	codexOverrideFile = "AGENTS.override.md"
+	// codexMemoryBytes is how much of its AGENTS.md files Codex reads in all (project_doc_max_bytes).
+	codexMemoryBytes = 32 * 1024
+)
+
+// codexProjectMemory is the memory file of a Codex session's project: AGENTS.md in cwd, which Codex reads with
+// those of the directories above it up to the project root. A directory that also has an AGENTS.override.md is
+// refused ("unsupported"): Codex reads one file per directory and the override first in ~/.codex, and whether
+// it does so in a project too is not verified, so writing AGENTS.md there might have no effect.
+func codexProjectMemory(cwd, _ string) (string, error) {
+	if !filepath.IsAbs(cwd) {
+		return "", refuse(CodeIO, "the session has no working directory")
+	}
+	if present(filepath.Join(cwd, codexOverrideFile)) {
+		return "", refuse(CodeUnsupported, "the project has an AGENTS.override.md, which Codex may read instead of AGENTS.md")
+	}
+	return agentsFile, nil
+}
 
 // claudeShadows are the files of a directory that Claude Code reads as memory beside or instead of AGENTS.md.
 var claudeShadows = []string{"CLAUDE.md", ".claude/CLAUDE.md", "CLAUDE.local.md"}
 
-// projectMemory is the memory file of the project in cwd, relative to cwd: an existing CLAUDE.md, else an
+// claudeProjectMemory is the memory file of the project in cwd, relative to cwd: an existing CLAUDE.md, else an
 // existing .claude/CLAUDE.md, else an existing AGENTS.md, else a new CLAUDE.md. AGENTS.md is refused
 // ("unsupported") when a CLAUDE.local.md here or a memory file of a directory above would be read and none of
 // them imports it: writing it would have no effect. home's own .claude/CLAUDE.md is the user's memory and is
 // not a project's.
-func projectMemory(cwd, home string) (string, error) {
+func claudeProjectMemory(cwd, home string) (string, error) {
 	if !filepath.IsAbs(cwd) {
 		return "", refuse(CodeIO, "the session has no working directory")
 	}
