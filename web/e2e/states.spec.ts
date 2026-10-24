@@ -154,6 +154,14 @@ const subject: Record<string, Record<string, string>> = {
     changes: 'workspace.changes',
     'tools-menu': 'workspace.tools-menu',
     'diff-open': 'workspace.fold',
+    'comments-pending': 'workspace.review-bar',
+    'comment-edit': 'workspace.comment-edit',
+    'review-send': 'workspace.review-message',
+    'review-send-busy': 'workspace.review-queue',
+    'review-send-over': 'workspace.review-over',
+    'review-send-offline': 'workspace.review-blocked',
+    'comments-sent': 'workspace.comment-changed',
+    'comments-resolved': 'workspace.comment-resolved',
     'diff-large': 'workspace.cut',
     'diff-wrap': 'workspace.cut',
     'diff-binary': 'workspace.before-after',
@@ -323,9 +331,9 @@ const subject: Record<string, Record<string, string>> = {
   },
 };
 
-test('the registries list 140 cockpit, 80 workspace, 102 settings and 7 action states', () => {
+test('the registries list 140 cockpit, 88 workspace, 102 settings and 7 action states', () => {
   expect(screens.cockpit).toHaveLength(140);
-  expect(screens.workspace).toHaveLength(80);
+  expect(screens.workspace).toHaveLength(88);
   expect(screens.settings).toHaveLength(102);
   expect(screens.action).toHaveLength(7);
 });
@@ -340,6 +348,56 @@ test("a screen's styles stay on that screen: the conversation's tool rows stack"
     .first()
     .evaluate((el) => getComputedStyle(el).display);
   expect(display).toBe('block');
+});
+
+test('lines of a diff take a comment, and the pending comments go as one review', async ({
+  page,
+}) => {
+  await page.goto('/__states/workspace/comments-pending?scheme=light&lang=en');
+  const viewer = page.getByTestId('workspace.viewer');
+  await expect(page.getByTestId('workspace.review-bar')).toContainText('3 pending comments');
+  await expect(page.getByTestId('workspace.change-comments').first()).toHaveText('2');
+
+  // a drag over the + of three lines picks them; the comment goes under the last
+  const plus = viewer.getByTestId('workspace.comment-plus');
+  const first = viewer.locator('.ws-dl').filter({ hasText: 'const at = row.byteSize' });
+  const last = viewer.locator('.ws-dl').filter({ hasText: '// commit the index row' });
+  await first.hover();
+  const box = await first.getByTestId('workspace.comment-plus').boundingBox();
+  const end = await last.boundingBox();
+  if (!box || !end) throw new Error('no rows');
+  await page.mouse.move(box.x + 5, box.y + 5);
+  await page.mouse.down();
+  await page.mouse.move(box.x + 5, end.y + 5, { steps: 6 });
+  await page.mouse.up();
+  await expect(viewer.locator('.ws-dl.pick')).toHaveCount(3);
+  const edit = page.getByTestId('workspace.comment-edit');
+  await expect(edit).toContainText('Lines 36–38');
+  await page.getByTestId('workspace.comment-field').fill('Say why the order matters.');
+  await page.keyboard.press('ControlOrMeta+Enter');
+  await expect(edit).toHaveCount(0);
+  await expect(page.getByTestId('workspace.review-bar')).toContainText('4 pending comments');
+  await expect(plus.first()).toBeAttached();
+
+  // the dialog shows the message the core would send, the note first
+  await page.getByTestId('workspace.review-open').click();
+  const dialog = page.getByTestId('workspace.send-review');
+  await page.getByTestId('workspace.review-note').fill('One note first.');
+  const message = page.getByTestId('workspace.review-message');
+  await expect(message).toContainText('One note first.');
+  expect(await message.textContent()).toMatch(/working tree\.\n\nOne note first\.\n\n1\. /);
+  await expect(message).toContainText('core/src/store/chunks.ts:36-38');
+  await page.getByTestId('workspace.review-send').click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByTestId('workspace.review-bar')).toHaveCount(0);
+  await expect(viewer.getByTestId('workspace.comment-sent')).toHaveCount(3);
+
+  // a sent comment resolves and folds; the foot shows it again
+  await viewer.getByTestId('workspace.comment-resolve').first().click();
+  await expect(viewer.getByTestId('workspace.comment-sent')).toHaveCount(2);
+  await expect(page.getByTestId('workspace.comments-foot')).toContainText('2 open · 1 resolved');
+  await page.getByTestId('workspace.show-resolved').click();
+  await expect(viewer.getByTestId('workspace.comment-resolved')).toHaveCount(1);
 });
 
 for (const [screen, names] of Object.entries(screens)) {

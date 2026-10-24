@@ -55,6 +55,8 @@ export function ChangesList(props: {
   changes: readonly WorkspaceChange[];
   selected: string | null;
   compact: boolean;
+  /** Per path, its review comments not resolved and how many are pending. */
+  comments?: ReadonlyMap<string, { open: number; pending: number }>;
   onOpen: (path: string) => void;
 }) {
   const { changes, compact } = props;
@@ -77,6 +79,7 @@ export function ChangesList(props: {
       <ul>
         {changes.map((c) => {
           const { dir, name } = splitPath(c.path);
+          const notes = props.comments?.get(c.path);
           return (
             <li key={c.path}>
               <button
@@ -95,6 +98,19 @@ export function ChangesList(props: {
                     <Counts change={c} />
                   </span>
                 )}
+                {notes ? (
+                  <span
+                    className={`ws-notes${notes.pending > 0 ? ' pend' : ''}`}
+                    title={(notes.open === 1 ? t('{n} comment') : t('{n} comments')).replace(
+                      '{n}',
+                      formatCount(notes.open),
+                    )}
+                    data-testid="workspace.change-comments"
+                  >
+                    {Icon.comment()}
+                    {formatCount(notes.open)}
+                  </span>
+                ) : null}
                 <StatusTag status={c.status} />
               </button>
             </li>

@@ -20,6 +20,7 @@ import { t } from '../../lib/i18n.ts';
 import { pageKeysSuspended } from '../../lib/page-keys.ts';
 import { gateOf } from '../../lib/terminal.ts';
 import type { ChildrenView } from '../../lib/use-children.ts';
+import { commentCounts } from './annotations.ts';
 import { AuditTab, type AuditTabFixture } from './audit-tab.tsx';
 import { BrowserTab } from './browser-tab.tsx';
 import { ChildrenTab, type ChildrenTabFixture } from './children-tab.tsx';
@@ -31,6 +32,7 @@ import { buildTree, formatCount } from './model.ts';
 import { loadWrap, saveWrap, TOOLS, type Tool } from './prefs.ts';
 import { type SessionsFixture, SessionsTab } from './sessions-tab.tsx';
 import { TerminalTab } from './terminal-tab.tsx';
+import { type AnnotationsFixture, useAnnotations } from './use-annotations.ts';
 import type { InspectorActions, InspectorView } from './use-inspector.ts';
 import type { PortsData } from './use-ports.ts';
 import type { TerminalPhase } from './use-terminal.ts';
@@ -40,7 +42,7 @@ import {
   type ViewerFixture,
   type WorkspaceData,
 } from './use-workspace.ts';
-import { Quiet, Viewer } from './viewer.tsx';
+import { type DiffReview, Quiet, Viewer } from './viewer.tsx';
 import './workspace.css';
 
 export { useHandoff } from './handoff.ts';
@@ -67,6 +69,8 @@ export type WorkspaceFixture = {
   childrenTab?: ChildrenTabFixture;
   /** The object the review of a change request shows first, by `kind:name`. */
   reviewObject?: string;
+  /** The review comments on the diff, in place of asking the core, and the viewer's first state. */
+  annotations?: AnnotationsFixture & { initial?: DiffReview['initial'] };
 };
 
 /** The Children tab of a caller that reads no tree: nothing to show. */
@@ -115,6 +119,8 @@ export function Inspector(props: {
   busy: boolean;
   /** The session's runtime state, and whether its machine announced a terminal: the Terminal tab's gate. */
   runtimeState: string;
+  /** A running turn takes a message now (steer): a review can go into it. */
+  canSteer?: boolean;
   terminalCapable: boolean;
   onHide: () => void;
   /** The session's descendants, read once by the cockpit for this tab and the turn's permission strips. */
@@ -133,6 +139,21 @@ export function Inspector(props: {
   const git = data.phase !== 'live' || data.listing.git;
   const filesOff = !online || !git;
   const [toolsOpen, setToolsOpen] = useState(fixture?.toolsOpen ?? false);
+  const notes = useAnnotations(session.sessionId, fixture?.annotations);
+  const counts = useMemo(() => commentCounts(notes.list), [notes.list]);
+  const review: DiffReview = {
+    notes,
+    target: {
+      blocked: !online
+        ? t('Sending needs {name} online').replace('{name}', owner)
+        : props.runtimeState === 'external'
+          ? t('This session runs outside Hoplet; send the review from its terminal.')
+          : null,
+      busy: props.busy,
+      canSteer: props.canSteer === true,
+    },
+    ...(fixture?.annotations?.initial ? { initial: fixture.annotations.initial } : {}),
+  };
   const [wrap, setWrap] = useState(() => fixture?.wrap ?? loadWrap());
   const id = useId();
   const focusMenu = useRef(false);
@@ -359,6 +380,7 @@ export function Inspector(props: {
               onStep={(path) => actions.openPath(path, 'diff')}
               onClose={actions.closeViewer}
               onLoadFull={loadFull}
+              review={review}
             />
           ) : null}
           <div className={split ? 'ws-mlist' : 'ws-pane'}>
@@ -403,6 +425,7 @@ export function Inspector(props: {
                 onRetry={props.onRetry}
                 onOpenChange={openChange}
                 onOpenFile={openFile}
+                comments={counts}
               />
             )}
             {roomy ? null : handoffOpen ? (
@@ -646,6 +669,7 @@ function ToolBody(props: {
   onRetry: () => void;
   onOpenChange: (path: string) => void;
   onOpenFile: (path: string) => void;
+  comments: ReadonlyMap<string, { open: number; pending: number }>;
 }) {
   const { tool, data, owner } = props;
   const named = (text: string) => t(text).replace('{name}', owner);
@@ -760,6 +784,7 @@ function ToolBody(props: {
         changes={changes}
         selected={props.selected}
         compact={props.compact}
+        comments={props.comments}
         onOpen={props.onOpenChange}
       />
     </>

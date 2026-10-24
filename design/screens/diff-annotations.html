@@ -1,0 +1,833 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hoplet screen: diff annotations</title>
+<script type="application/json" id="tokens">
+{
+  "dark": {
+    "--color-bg": "#131210",
+    "--color-sidebar": "#191715",
+    "--color-surface": "#1c1a17",
+    "--color-raised": "#211e1b",
+    "--color-hover": "#28241f",
+    "--color-selected": "#2c2823",
+    "--color-line": "rgba(255, 238, 220, 0.075)",
+    "--color-highlight": "rgba(255, 244, 232, 0.06)",
+    "--color-text": "#efe9e2",
+    "--color-text-2": "#b8b0a6",
+    "--color-text-3": "#988f85",
+    "--color-accent": "#ff7a1a",
+    "--color-accent-text": "#ff9142",
+    "--color-on-accent": "#1c0d02",
+    "--color-accent-soft": "rgba(255, 122, 26, 0.10)",
+    "--color-attention": "#e8b31a",
+    "--color-attention-text": "#f0c142",
+    "--color-attention-soft": "rgba(232, 179, 26, 0.075)",
+    "--color-attention-ring": "rgba(232, 179, 26, 0.32)",
+    "--color-success": "#4cc38a",
+    "--color-danger": "#ff7366",
+    "--color-on-danger": "#1c0d02",
+    "--color-add-bg": "rgba(76, 195, 138, 0.10)",
+    "--color-add-text": "#86dcae",
+    "--color-del-bg": "rgba(255, 115, 102, 0.10)",
+    "--color-del-text": "#ffa49b",
+    "--color-git-modified": "#d9b77e",
+    "--color-git-untracked": "#6fcf97",
+    "--color-git-deleted": "#ff8a7d",
+    "--color-syntax-keyword": "#d3a6ee",
+    "--color-syntax-string": "#b0d58c",
+    "--color-syntax-comment": "#8f877d",
+    "--color-syntax-number": "#efb57c",
+    "--color-syntax-type": "#7ec3e3",
+    "--color-syntax-function": "#e8d7a4",
+    "--shadow-live": "inset 0 1px 0 rgba(255, 244, 232, 0.06), 0 0 0 1px rgba(0, 0, 0, 0.45), 0 14px 36px rgba(0, 0, 0, 0.42), 0 2px 6px rgba(0, 0, 0, 0.3)",
+    "--shadow-float": "inset 0 1px 0 rgba(255, 244, 232, 0.07), 0 0 0 1px rgba(0, 0, 0, 0.5), 0 18px 40px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.35)",
+    "--shadow-drawer": "inset 1px 0 0 rgba(255, 238, 220, 0.06), -18px 0 40px rgba(0, 0, 0, 0.3)",
+    "--fade-bg": "rgba(19, 18, 16, 0)",
+    "--color-scrim": "rgba(8, 6, 4, 0.42)",
+    "--shadow-accent": "inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 1px 2px rgba(0, 0, 0, 0.2)"
+  },
+  "light": {
+    "--color-bg": "#f8f5f0",
+    "--color-sidebar": "#efebe4",
+    "--color-surface": "#f0ebe4",
+    "--color-raised": "#fffdfa",
+    "--color-hover": "#e8e2d9",
+    "--color-selected": "#e2dbd1",
+    "--color-line": "rgba(60, 40, 20, 0.10)",
+    "--color-highlight": "rgba(255, 255, 255, 0.85)",
+    "--color-text": "#1c1915",
+    "--color-text-2": "#534c44",
+    "--color-text-3": "#675f55",
+    "--color-accent": "#c24e00",
+    "--color-accent-text": "#a64100",
+    "--color-on-accent": "#ffffff",
+    "--color-accent-soft": "rgba(194, 78, 0, 0.08)",
+    "--color-attention": "#c08a00",
+    "--color-attention-text": "#8f6200",
+    "--color-attention-soft": "rgba(192, 138, 0, 0.075)",
+    "--color-attention-ring": "rgba(154, 106, 0, 0.30)",
+    "--color-success": "#1d8550",
+    "--color-danger": "#c3352a",
+    "--color-on-danger": "#ffffff",
+    "--color-add-bg": "rgba(29, 133, 80, 0.09)",
+    "--color-add-text": "#156b3d",
+    "--color-del-bg": "rgba(195, 53, 42, 0.08)",
+    "--color-del-text": "#a82a1f",
+    "--color-git-modified": "#86621c",
+    "--color-git-untracked": "#1a7a47",
+    "--color-git-deleted": "#b42f24",
+    "--color-syntax-keyword": "#8433b5",
+    "--color-syntax-string": "#3f7514",
+    "--color-syntax-comment": "#736b61",
+    "--color-syntax-number": "#9c4f00",
+    "--color-syntax-type": "#17698f",
+    "--color-syntax-function": "#6b5000",
+    "--shadow-live": "inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 0 0 1px rgba(60, 40, 20, 0.08), 0 12px 32px rgba(60, 40, 20, 0.10), 0 2px 6px rgba(60, 40, 20, 0.06)",
+    "--shadow-float": "inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 0 0 1px rgba(60, 40, 20, 0.09), 0 16px 36px rgba(60, 40, 20, 0.12), 0 2px 6px rgba(60, 40, 20, 0.07)",
+    "--shadow-drawer": "inset 1px 0 0 rgba(60, 40, 20, 0.08), -16px 0 36px rgba(60, 40, 20, 0.06)",
+    "--fade-bg": "rgba(248, 245, 240, 0)",
+    "--color-scrim": "rgba(40, 28, 15, 0.13)",
+    "--shadow-accent": "inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 1px 2px rgba(60, 40, 20, 0.2)"
+  },
+  "shared": {
+    "--font-ui": "\"Inter Variable\", -apple-system, system-ui, \"PingFang SC\", sans-serif",
+    "--font-prose": "var(--font-ui)",
+    "--font-mono": "\"JetBrains Mono Variable\", ui-monospace, \"SF Mono\", Menlo, monospace",
+    "--text-meta": "11px",
+    "--leading-meta": "16px",
+    "--text-ui": "13px",
+    "--leading-ui": "20px",
+    "--text-code": "12.5px",
+    "--leading-code": "20px",
+    "--text-body": "15px",
+    "--leading-body": "24px",
+    "--text-title": "15px",
+    "--leading-title": "20px",
+    "--weight-regular": "400",
+    "--weight-medium": "500",
+    "--weight-semibold": "600",
+    "--measure-prose": "68ch",
+    "--icon-size": "16px",
+    "--icon-stroke": "1.5",
+    "--space-1": "4px",
+    "--space-2": "8px",
+    "--space-3": "12px",
+    "--space-4": "16px",
+    "--space-5": "24px",
+    "--space-6": "32px",
+    "--space-7": "48px",
+    "--radius-sm": "6px",
+    "--radius-md": "10px",
+    "--radius-lg": "14px",
+    "--radius-xl": "18px",
+    "--layout-sidebar": "248px",
+    "--layout-inspector": "296px",
+    "--layout-inspector-wide": "720px",
+    "--layout-inspector-list": "220px",
+    "--layout-settings-nav": "208px",
+    "--layout-column": "760px",
+    "--layout-topbar": "52px",
+    "--layout-foot": "44px",
+    "--layout-row-device": "32px",
+    "--layout-row": "28px",
+    "--layout-row-tree": "24px",
+    "--layout-act-verb": "64px",
+    "--layout-gutter": "32px",
+    "--layout-well-max": "240px",
+    "--layout-palette": "560px",
+    "--layout-dialog": "480px",
+    "--layout-popover": "248px",
+    "--layout-modal-top": "96px",
+    "--motion-pulse": "1.6s",
+    "--motion-blink": "1s",
+    "--motion-spin": "0.8s",
+    "--control-icon": "28px",
+    "--control-field": "32px",
+    "--layout-gate": "320px",
+    "--layout-viewport-min": "1024px"
+  }
+}
+</script>
+<style id="token-css"></style>
+<style>
+@font-face{font-family:"Inter Variable";src:url(../fonts/inter-latin-wght-normal.woff2) format("woff2");font-weight:100 900;font-display:swap}
+@font-face{font-family:"JetBrains Mono Variable";src:url(../fonts/jetbrains-mono-latin-wght-normal.woff2) format("woff2");font-weight:100 800;font-display:swap}
+
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:#131210}
+body.solo{overflow:hidden}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+button:focus-visible{outline:2px solid var(--color-accent);outline-offset:2px}
+svg{display:block;flex:none}
+.spin{animation:rot var(--motion-spin) linear infinite}
+@keyframes rot{to{transform:rotate(360deg)}}
+@keyframes pulse{50%{box-shadow:0 0 0 6px transparent}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important}}
+
+.frame{width:1280px;height:800px;overflow:hidden;position:relative;display:grid;grid-template-columns:1fr var(--layout-inspector-wide);grid-template-rows:100%;
+  background:var(--color-bg);color:var(--color-text);font-family:var(--font-ui);font-size:var(--text-ui);line-height:var(--leading-ui);font-weight:var(--weight-regular);
+  -webkit-font-smoothing:antialiased;letter-spacing:-0.003em}
+.frame.narrow{grid-template-columns:var(--layout-sidebar) 1fr var(--layout-inspector)}
+.frame.phones{display:flex;align-items:center;justify-content:center;gap:var(--space-7)}
+.mono{font-family:var(--font-mono);font-size:var(--text-code);line-height:var(--leading-code);letter-spacing:0}
+.meta{font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3);font-variant-numeric:tabular-nums}
+.ib{width:var(--control-icon);height:var(--control-icon);border-radius:var(--radius-sm);display:grid;place-items:center;color:var(--color-text-3);flex:none;position:relative}
+.ib.on{background:var(--color-selected);color:var(--color-text);box-shadow:inset 0 1px 0 var(--color-highlight)}
+.ib.sm{width:24px;height:24px}
+.ib.sm svg{width:14px;height:14px}
+.btn{height:var(--control-field);display:inline-flex;align-items:center;gap:var(--space-2);padding:0 var(--space-3);border-radius:var(--radius-sm);font-weight:var(--weight-medium);color:var(--color-text);background:var(--color-hover);box-shadow:inset 0 1px 0 var(--color-highlight),0 0 0 1px var(--color-line);white-space:nowrap}
+.light .btn{background:var(--color-raised)}
+.btn.primary{background:var(--color-accent);color:var(--color-on-accent);box-shadow:var(--shadow-accent);font-weight:var(--weight-semibold);padding:0 var(--space-4)}
+.btn.quiet{background:transparent;box-shadow:none;color:var(--color-text-2);padding:0 var(--space-2)}
+.btn.sm{height:24px;padding:0 var(--space-2)}
+.btn.primary.sm{padding:0 var(--space-3)}
+.btn[disabled]{opacity:.5;cursor:default}
+.kbd{font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3);padding:0 4px;border-radius:4px;box-shadow:inset 0 0 0 1px var(--color-line);font-variant-numeric:tabular-nums}
+.tag{display:inline-flex;align-items:center;gap:var(--space-1);height:20px;padding:0 6px;border-radius:4px;background:var(--color-hover);color:var(--color-text-2);font-size:var(--text-meta);line-height:var(--leading-meta);font-weight:var(--weight-medium);white-space:nowrap;flex:none}
+.light .tag{background:var(--color-selected)}
+.tag svg{width:12px;height:12px}
+.tag.acc{background:var(--color-accent-soft);color:var(--color-accent-text)}
+.tag.ok{background:var(--color-add-bg);color:var(--color-add-text)}
+.tag.line{background:transparent;box-shadow:inset 0 0 0 1px var(--color-line);color:var(--color-text-3)}
+.seg{display:inline-flex;gap:2px;padding:2px;border-radius:8px;background:var(--color-bg);box-shadow:inset 0 0 0 1px var(--color-line)}
+.light .seg{background:var(--color-hover)}
+.seg button{height:24px;display:flex;align-items:center;gap:var(--space-2);padding:0 var(--space-3);border-radius:6px;font-weight:var(--weight-medium);color:var(--color-text-2);white-space:nowrap}
+.seg button.on{background:var(--color-selected);color:var(--color-text);box-shadow:inset 0 1px 0 var(--color-highlight),0 0 0 1px var(--color-line)}
+.light .seg button.on{background:var(--color-raised)}
+.nt{padding:var(--space-2) var(--space-3);border-radius:var(--radius-md);display:flex;gap:var(--space-2);color:var(--color-text)}
+.nt svg{margin-top:2px}
+.nt.bad{background:var(--color-del-bg)}
+.nt.bad svg{color:var(--color-danger)}
+.nt.snap{background:var(--color-bg);box-shadow:inset 0 0 0 1px var(--color-line);color:var(--color-text-2)}
+.nt.snap svg{color:var(--color-text-3)}
+.cbx{width:16px;height:16px;border-radius:4px;box-shadow:inset 0 0 0 1.5px var(--color-text-3);display:grid;place-items:center;color:var(--color-on-accent);flex:none}
+.cbx svg{width:12px;height:12px}
+.cbx.on{background:var(--color-accent);box-shadow:none}
+
+/* main column */
+.main{display:flex;flex-direction:column;min-width:0;min-height:0;overflow:hidden;position:relative}
+.top{height:var(--layout-topbar);display:flex;align-items:center;gap:var(--space-2);padding:0 var(--space-3);flex:none;box-shadow:inset 0 -1px 0 var(--color-line);white-space:nowrap}
+.top .title{font-size:var(--text-title);line-height:var(--leading-title);font-weight:var(--weight-semibold);letter-spacing:-0.01em;overflow:hidden;text-overflow:ellipsis}
+.top .sp{flex:1}
+.conv{position:relative;flex:1;min-height:0;overflow:hidden;padding:0 0 160px}
+.col{width:calc(100% - 64px);max-width:var(--layout-column);margin:0 auto;padding-top:var(--space-2)}
+.turn{position:relative;padding-bottom:var(--space-5)}
+.turn + .turn{border-top:1px solid var(--color-line)}
+.turn.live{margin:var(--space-2) calc(-1 * var(--space-5)) 0;padding:0 var(--space-5) var(--space-4);border-radius:var(--radius-lg);background:var(--color-raised);box-shadow:var(--shadow-live);border-top:0}
+.turn.live::before{content:"";position:absolute;left:0;top:var(--space-4);bottom:var(--space-4);width:3px;border-radius:0 3px 3px 0;background:var(--color-accent)}
+.th{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:var(--space-4);align-items:baseline;padding:var(--space-5) 0 var(--space-3)}
+.turn.live .th{padding-top:var(--space-4)}
+.th .p{font-size:var(--text-title);line-height:var(--leading-title);font-weight:var(--weight-semibold);letter-spacing:-0.012em;max-width:var(--measure-prose)}
+.th .tm{grid-column:1;display:flex;align-items:center;gap:var(--space-2);margin-top:var(--space-1)}
+.th .rt{grid-row:1;grid-column:2;display:flex;align-items:center;gap:var(--space-2)}
+.sdot{width:8px;height:8px;border-radius:50%;background:var(--color-accent);box-shadow:0 0 0 4px var(--color-accent-soft);animation:pulse var(--motion-pulse) ease-in-out infinite}
+.text{font-family:var(--font-prose);font-size:var(--text-body);line-height:var(--leading-body);color:var(--color-text);margin:var(--space-1) 0 var(--space-3);max-width:var(--measure-prose)}
+.text code{font-family:var(--font-mono);font-size:var(--text-code);background:var(--color-surface);padding:1px 4px;border-radius:4px;box-shadow:inset 0 0 0 1px var(--color-line)}
+.act{display:grid;grid-template-columns:16px minmax(var(--layout-act-verb),max-content) minmax(0,1fr) auto;column-gap:var(--space-2);align-items:center;height:var(--layout-row);white-space:nowrap}
+.act .i{color:var(--color-text-3)}
+.act .k{color:var(--color-text-2);font-weight:var(--weight-medium)}
+.act .a{min-width:0;overflow:hidden;text-overflow:ellipsis;color:var(--color-text-2)}
+.act .m{font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3);font-variant-numeric:tabular-nums}
+.act.run .m{color:var(--color-accent-text)}
+.act.run .i .spin{color:var(--color-accent)}
+.add-n{color:var(--color-add-text)} .del-n{color:var(--color-del-text)}
+.dock{position:absolute;z-index:5;left:0;right:0;bottom:0;padding:var(--space-7) var(--space-6) var(--space-4);background:linear-gradient(var(--fade-bg),var(--color-bg) 42%)}
+.composer{max-width:var(--layout-column);margin:0 auto;border-radius:var(--radius-xl);background:var(--color-raised);box-shadow:var(--shadow-float);padding:var(--space-3) var(--space-2) var(--space-2) var(--space-4);display:flex;flex-direction:column;gap:var(--space-2);position:relative}
+.ph{font-size:var(--text-body);line-height:var(--leading-body);color:var(--color-text-3)}
+.ph.typed{color:var(--color-text)}
+.cf{display:flex;align-items:center;gap:var(--space-1);min-height:var(--control-field);margin-left:calc(-1 * var(--space-2))}
+.cf .r{margin-left:auto;display:flex;align-items:center;gap:var(--space-1)}
+.send{width:var(--control-field);height:var(--control-field);border-radius:50%;display:grid;place-items:center;background:var(--color-accent);color:var(--color-on-accent);box-shadow:var(--shadow-accent);flex:none}
+
+/* inspector */
+.insp{background:var(--color-sidebar);box-shadow:var(--shadow-drawer);display:flex;flex-direction:column;min-width:0;min-height:0;position:relative;z-index:4;overflow:hidden}
+.insp-h{height:var(--layout-topbar);display:flex;align-items:center;gap:var(--space-2);padding:0 var(--space-3);flex:none;box-shadow:inset 0 -1px 0 var(--color-line)}
+.tabs{flex:1;min-width:0;display:flex;align-items:center;gap:2px}
+.tab{height:28px;display:flex;align-items:center;gap:var(--space-2);padding:0 var(--space-2);border-radius:var(--radius-sm);color:var(--color-text-2);font-weight:var(--weight-medium);white-space:nowrap;flex:none}
+.tab > svg{color:var(--color-text-3)}
+.tab .c{font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3);font-variant-numeric:tabular-nums;font-weight:var(--weight-regular)}
+.tab .c.acc{color:var(--color-accent-text);font-weight:var(--weight-semibold)}
+.tab.on{background:var(--color-selected);color:var(--color-text);box-shadow:inset 0 1px 0 var(--color-highlight),0 0 0 1px var(--color-line)}
+.light .tab.on{background:var(--color-raised)}
+.md{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) var(--layout-inspector-list)}
+.mlist{display:flex;flex-direction:column;min-height:0;min-width:0;box-shadow:inset 1px 0 0 var(--color-line);padding:var(--space-1) var(--space-2) 0}
+.chg-sum{display:flex;align-items:center;gap:var(--space-1);height:var(--layout-row-tree);padding:0 var(--space-2);font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-2);font-variant-numeric:tabular-nums}
+.cr{height:var(--layout-row-tree);display:flex;align-items:center;gap:var(--space-2);padding:0 var(--space-2);border-radius:var(--radius-sm);white-space:nowrap;color:var(--color-git-modified)}
+.cr .gt{width:16px;text-align:center;font-size:var(--text-meta);line-height:var(--leading-meta);font-weight:var(--weight-semibold);flex:none}
+.cr .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.cr .cmc{display:inline-flex;align-items:center;gap:2px;font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-accent-text);font-variant-numeric:tabular-nums}
+.cr .cmc svg{width:12px;height:12px}
+.cr .cmc.sent{color:var(--color-text-3)}
+.cr.on{background:var(--color-selected);box-shadow:inset 0 1px 0 var(--color-highlight)}
+.viewer{display:flex;flex-direction:column;min-width:0;min-height:0;background:var(--color-bg);position:relative}
+.vh{height:48px;flex:none;display:flex;align-items:center;gap:var(--space-2);padding:0 var(--space-3);box-shadow:inset 0 -1px 0 var(--color-line);white-space:nowrap}
+.vh b{font-weight:var(--weight-semibold)}
+.vh .sp{flex:1}
+.vb{flex:1;min-height:0;overflow:hidden}
+
+/* the diff, with the annotation layer */
+.diff{font-family:var(--font-mono);font-size:var(--text-code);line-height:var(--leading-code);letter-spacing:0;padding:var(--space-2) 0}
+.dl{display:grid;grid-template-columns:var(--layout-gutter) var(--layout-gutter) 16px minmax(0,1fr);color:var(--color-text);position:relative}
+.dl .n{font-family:var(--font-ui);font-size:var(--text-meta);color:var(--color-text-3);text-align:right;padding-right:var(--space-2);font-variant-numeric:tabular-nums}
+.dl .s{text-align:center}
+.dl .c{white-space:pre;overflow:hidden;text-overflow:ellipsis;padding-right:var(--space-3)}
+.dl.add{background:var(--color-add-bg)}
+.dl.del{background:var(--color-del-bg)}
+.dl.add .s,.dl.add .n{color:var(--color-add-text)}
+.dl.del .s,.dl.del .n{color:var(--color-del-text)}
+.dl.hunk{color:var(--color-text-3);background:var(--color-surface)}
+.dl.pick{background:var(--color-accent-soft);box-shadow:inset 3px 0 0 var(--color-accent)}
+.dl.pick .n{color:var(--color-accent-text)}
+.dl.hov{background:var(--color-hover)}
+/* the + that starts a comment sits over the sign column of the hovered line */
+.dl .plus{position:absolute;left:calc(2 * var(--layout-gutter) - 10px);top:0;width:20px;height:20px;border-radius:4px;display:grid;place-items:center;background:var(--color-accent);color:var(--color-on-accent)}
+.dl .plus svg{width:14px;height:14px}
+/* a dot in the gutter: a comment on this line (B) */
+.dl .cdot{position:absolute;left:4px;top:6px;width:8px;height:8px;border-radius:50%;background:var(--color-accent)}
+.dl .cdot.sent{background:var(--color-text-3)}
+.dl .cdot.done{background:transparent;box-shadow:inset 0 0 0 1.5px var(--color-text-3)}
+.ann{margin:var(--space-2) var(--space-3) var(--space-2) calc(var(--layout-gutter) + var(--space-3));padding:var(--space-3);border-radius:var(--radius-md);background:var(--color-raised);box-shadow:var(--shadow-live);font-family:var(--font-ui);font-size:var(--text-ui);line-height:var(--leading-ui);display:flex;flex-direction:column;gap:var(--space-2);white-space:normal}
+.ann.edit{box-shadow:var(--shadow-live),0 0 0 1.5px var(--color-accent)}
+.ann.sent{background:var(--color-surface);box-shadow:inset 0 0 0 1px var(--color-line)}
+.light .ann.sent{background:var(--color-raised)}
+.ann .ah{display:flex;align-items:center;gap:var(--space-2);margin:calc(-1 * var(--space-1)) calc(-1 * var(--space-1)) 0 0}
+.ann .ah .sp{flex:1}
+.ann .ab{color:var(--color-text)}
+.ann .ab code,.rv code{font-family:var(--font-mono);font-size:var(--text-code);background:var(--color-bg);padding:0 4px;border-radius:4px;box-shadow:inset 0 0 0 1px var(--color-line)}
+.ann .af{display:flex;align-items:center;gap:var(--space-2)}
+.ann .af .meta{margin-right:auto;display:flex;align-items:center;gap:var(--space-2)}
+.ann.fold{flex-direction:row;align-items:center;padding:var(--space-1) var(--space-3);background:transparent;box-shadow:inset 0 0 0 1px var(--color-line);color:var(--color-text-3)}
+.ann.fold .ab{color:var(--color-text-3);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ann.fold svg{color:var(--color-success)}
+.ta{min-height:64px;border-radius:var(--radius-sm);background:var(--color-bg);box-shadow:inset 0 0 0 1.5px var(--color-accent);padding:var(--space-2) var(--space-3);color:var(--color-text)}
+.ta.idle{box-shadow:inset 0 0 0 1px var(--color-line);color:var(--color-text-3);min-height:var(--control-field)}
+.caret{display:inline-block;width:1.5px;height:16px;background:var(--color-accent);vertical-align:-3px;margin-left:1px}
+.snip{border-radius:var(--radius-sm);background:var(--color-bg);box-shadow:inset 0 0 0 1px var(--color-line);padding:var(--space-1) var(--space-2);font-family:var(--font-mono);font-size:var(--text-code);line-height:var(--leading-code);white-space:pre;overflow:hidden;color:var(--color-text-2)}
+/* the review bar at the foot of the viewer (A) */
+.rbar{position:absolute;left:var(--space-3);right:var(--space-3);bottom:var(--space-3);z-index:3;height:48px;display:flex;align-items:center;gap:var(--space-2);padding:0 var(--space-2) 0 var(--space-4);border-radius:var(--radius-lg);background:var(--color-raised);box-shadow:var(--shadow-float)}
+.rbar .l{flex:1;display:flex;align-items:center;gap:var(--space-2);white-space:nowrap}
+.rbar .l b{font-weight:var(--weight-semibold)}
+.rbar .l svg{color:var(--color-accent-text)}
+.vfoot{height:36px;flex:none;display:flex;align-items:center;gap:var(--space-3);padding:0 var(--space-3);box-shadow:inset 0 1px 0 var(--color-line);color:var(--color-text-3);font-size:var(--text-meta);line-height:var(--leading-meta)}
+.vfoot a{color:var(--color-text-2);text-decoration:underline;text-underline-offset:2px}
+/* the comment popover under a selection (B) */
+.cpop{position:absolute;z-index:6;width:340px;padding:var(--space-3);border-radius:var(--radius-md);background:var(--color-raised);box-shadow:var(--shadow-float);display:flex;flex-direction:column;gap:var(--space-2);font-family:var(--font-ui);font-size:var(--text-ui);line-height:var(--leading-ui)}
+.cpop .af{display:flex;align-items:center;gap:var(--space-2)}
+.cpop .af .meta{margin-right:auto}
+/* the editor docked in the viewer foot (C) */
+.vdock{flex:none;padding:var(--space-3);box-shadow:inset 0 1px 0 var(--color-line);background:var(--color-sidebar);display:flex;flex-direction:column;gap:var(--space-2)}
+.vdock .vdh{display:flex;align-items:center;gap:var(--space-2)}
+.vdock .vdh .sp{flex:1}
+.vdock .af{display:flex;align-items:center;gap:var(--space-2)}
+.vdock .af .meta{margin-right:auto}
+
+/* the review tray above the composer (B) */
+.tray{display:flex;flex-direction:column;gap:2px;margin:calc(-1 * var(--space-1)) 0 var(--space-1) calc(-1 * var(--space-2));padding-bottom:var(--space-2);box-shadow:inset 0 -1px 0 var(--color-line)}
+.tray .trh{display:flex;align-items:center;gap:var(--space-2);height:24px;padding:0 var(--space-2);color:var(--color-text-2)}
+.tray .trh b{font-weight:var(--weight-semibold);color:var(--color-text)}
+.tray .trh svg{color:var(--color-accent-text)}
+.tray .trh .sp{flex:1}
+.tri{display:grid;grid-template-columns:16px auto minmax(0,1fr) auto;column-gap:var(--space-2);align-items:center;height:var(--layout-row);padding:0 0 0 var(--space-2);border-radius:var(--radius-sm)}
+.tri .i{color:var(--color-text-3)}
+.tri .loc{font-family:var(--font-mono);font-size:var(--text-code);color:var(--color-text);white-space:nowrap}
+.tri .tx{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--color-text-2)}
+.smenu{position:absolute;right:0;bottom:calc(100% + var(--space-2));width:260px;padding:var(--space-1);border-radius:var(--radius-md);background:var(--color-raised);box-shadow:var(--shadow-float);z-index:7}
+.mi{display:grid;grid-template-columns:16px minmax(0,1fr);column-gap:var(--space-2);padding:var(--space-2);border-radius:var(--radius-sm);align-items:start}
+.mi.on{background:var(--color-selected)}
+.mi b{font-weight:var(--weight-medium)}
+.mi .meta{grid-column:2}
+.mi svg{margin-top:2px;color:var(--color-text-2)}
+.pv{position:absolute;left:0;right:0;bottom:calc(100% + var(--space-2));padding:var(--space-3);border-radius:var(--radius-md);background:var(--color-raised);box-shadow:var(--shadow-float);z-index:6;display:flex;flex-direction:column;gap:var(--space-2)}
+.pv .pvh{display:flex;align-items:center;gap:var(--space-2)}
+.pv .pvh b{font-weight:var(--weight-semibold)}
+.pv .pvh .sp{flex:1}
+
+/* a sent review inside the conversation */
+.rv{margin:0 0 var(--space-3);border-radius:var(--radius-md);background:var(--color-surface);box-shadow:inset 0 0 0 1px var(--color-line);overflow:hidden}
+.light .rv{background:var(--color-raised)}
+.turn.live .rv{background:var(--color-bg)}
+.rv .rvh{display:flex;align-items:center;gap:var(--space-2);height:36px;padding:0 var(--space-3);box-shadow:inset 0 -1px 0 var(--color-line);color:var(--color-text-2)}
+.rv .rvh svg{color:var(--color-text-3)}
+.rv .rvh .sp{flex:1}
+.rvi{display:grid;grid-template-columns:16px minmax(0,1fr) auto;column-gap:var(--space-3);padding:var(--space-2) var(--space-3);align-items:start}
+.rvi + .rvi{box-shadow:inset 0 1px 0 var(--color-line)}
+.rvi .cbx{margin-top:2px}
+.rvi .loc{font-family:var(--font-mono);font-size:var(--text-code);color:var(--color-text-2)}
+.rvi .tx{color:var(--color-text)}
+.rvi.done .tx{color:var(--color-text-3);text-decoration:line-through;text-decoration-color:var(--color-text-3)}
+.rvi.done .loc{color:var(--color-text-3)}
+
+/* the Review tab (C) */
+.rtab{flex:1;min-height:0;display:flex;flex-direction:column}
+.rtab .rb{flex:1;min-height:0;overflow:hidden;padding:var(--space-2) var(--space-3)}
+.rg{display:flex;align-items:center;gap:var(--space-2);height:28px;margin-top:var(--space-3)}
+.rg:first-child{margin-top:0}
+.rg b{font-weight:var(--weight-semibold)}
+.rg .sp{flex:1}
+.rg svg{color:var(--color-text-3)}
+.rc{display:grid;grid-template-columns:16px minmax(0,1fr) auto;column-gap:var(--space-2);padding:var(--space-2);border-radius:var(--radius-sm);align-items:start}
+.rc + .rc{box-shadow:inset 0 1px 0 var(--color-line)}
+.rc .i{color:var(--color-text-3);margin-top:2px}
+.rc .cbx{margin-top:2px}
+.rc .loc{font-family:var(--font-mono);font-size:var(--text-code);color:var(--color-text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rc .tx{color:var(--color-text)}
+.rc .snip{margin-top:var(--space-1)}
+.rc .acts{display:flex}
+.rc.done .tx,.rc.done .loc{color:var(--color-text-3)}
+.rc.done .tx{text-decoration:line-through}
+.rc.on{background:var(--color-selected)}
+.rfoot{flex:none;padding:var(--space-3);box-shadow:inset 0 1px 0 var(--color-line);display:flex;flex-direction:column;gap:var(--space-2)}
+.rfoot .rr{display:flex;align-items:center;gap:var(--space-2)}
+.rfoot .rr .meta{margin-right:auto}
+.rempty{display:flex;flex-direction:column;align-items:center;text-align:center;gap:var(--space-1);padding:var(--space-4) var(--space-3);color:var(--color-text-3)}
+
+/* dialog */
+.scrim{position:absolute;inset:0;z-index:19;background:var(--color-scrim)}
+.dlg{position:absolute;z-index:20;left:50%;top:48px;transform:translateX(-50%);width:var(--layout-dialog);border-radius:var(--radius-lg);background:var(--color-raised);box-shadow:var(--shadow-float);overflow:hidden}
+.dlg-h{padding:var(--space-4) var(--space-4) var(--space-1);font-size:var(--text-title);line-height:var(--leading-title);font-weight:var(--weight-semibold);letter-spacing:-0.01em}
+.dlg-sub{padding:0 var(--space-4) var(--space-3);color:var(--color-text-3)}
+.dlg-b{padding:0 var(--space-4);display:flex;flex-direction:column;gap:var(--space-3)}
+.dlg-f{display:flex;align-items:center;justify-content:flex-end;gap:var(--space-2);padding:var(--space-4)}
+.dlg-f .l{margin-right:auto;display:flex;align-items:center;gap:var(--space-2)}
+.lbl{display:flex;align-items:center;justify-content:space-between;color:var(--color-text-2);margin-bottom:var(--space-1)}
+.over{color:var(--color-danger)}
+.compose{border-radius:var(--radius-md);background:var(--color-bg);box-shadow:inset 0 0 0 1px var(--color-line);padding:var(--space-2) var(--space-3);font-family:var(--font-mono);font-size:var(--text-code);line-height:var(--leading-code);white-space:pre-wrap;overflow:hidden;color:var(--color-text);max-height:328px;-webkit-mask-image:linear-gradient(to bottom,#000 calc(100% - 40px),transparent);mask-image:linear-gradient(to bottom,#000 calc(100% - 40px),transparent)}
+.compose .d{color:var(--color-text-3)}
+.compose .h{color:var(--color-accent-text)}
+.pv .compose{max-height:220px}
+
+/* phone references for the native client */
+.phcap{width:300px;display:flex;flex-direction:column;gap:var(--space-2);color:var(--color-text-2)}
+.phcap b{font-size:var(--text-title);line-height:var(--leading-title);font-weight:var(--weight-semibold);color:var(--color-text)}
+.phone{width:390px;height:740px;border-radius:44px;background:var(--color-bg);box-shadow:0 0 0 10px var(--color-surface),0 0 0 11px var(--color-line),var(--shadow-float);overflow:hidden;display:flex;flex-direction:column;position:relative}
+.psb{height:44px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 28px;font-weight:var(--weight-semibold)}
+.pnav{height:44px;flex:none;display:flex;align-items:center;gap:var(--space-2);padding:0 var(--space-2);box-shadow:inset 0 -1px 0 var(--color-line)}
+.pnav b{font-weight:var(--weight-semibold);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pbody{flex:1;min-height:0;overflow:hidden;position:relative}
+.phone .dl{grid-template-columns:36px 16px minmax(0,1fr)}
+.phone .ann{margin-left:var(--space-3)}
+.sheet{position:absolute;left:0;right:0;bottom:0;z-index:5;padding:var(--space-2) var(--space-4) var(--space-6);border-radius:var(--radius-xl) var(--radius-xl) 0 0;background:var(--color-raised);box-shadow:var(--shadow-float);display:flex;flex-direction:column;gap:var(--space-3)}
+.grab{width:36px;height:4px;border-radius:2px;background:var(--color-line);margin:0 auto var(--space-1);box-shadow:inset 0 0 0 2px var(--color-text-3);opacity:.5}
+.sheet .sr{display:flex;align-items:center;gap:var(--space-2)}
+.sheet .sr .sp{flex:1}
+.sheet .btn{height:40px;justify-content:center;flex:1}
+.handle{position:absolute;left:44px;width:12px;height:12px;border-radius:50%;background:var(--color-accent);z-index:2}
+.pbar{position:absolute;left:var(--space-3);right:var(--space-3);bottom:var(--space-6);z-index:4;height:52px;display:flex;align-items:center;gap:var(--space-2);padding:0 var(--space-2) 0 var(--space-4);border-radius:var(--radius-lg);background:var(--color-raised);box-shadow:var(--shadow-float)}
+.pbar .l{flex:1}
+.pbar .btn{height:36px}
+.phone .composer{margin:0 var(--space-3)}
+.phone .dock{padding:var(--space-6) 0 var(--space-6)}
+
+/* stacked view */
+body.stacked{background:#131210;color:#efe9e2;font-family:-apple-system,"SF Pro Text",system-ui,sans-serif;padding:56px 48px 80px;-webkit-font-smoothing:antialiased}
+.intro{max-width:1300px;margin:0 auto 56px}
+.intro h1{font-size:30px;font-weight:600;letter-spacing:-0.02em}
+.intro h1 span{color:#958d83;font-weight:400}
+.intro p{max-width:80ch;color:#b8b0a6;font-size:15px;line-height:1.6;margin:14px 0 0}
+.intro b{color:#efe9e2;font-weight:500}
+.intro pre{max-width:80ch;margin:14px 0 0;padding:14px 16px;border-radius:8px;background:#1c1a17;color:#efe9e2;font:12.5px/20px ui-monospace,"SF Mono",Menlo,monospace;white-space:pre-wrap}
+.st{max-width:1300px;margin:0 auto 56px}
+.st h2{font-size:18px;font-weight:600;margin-bottom:16px;letter-spacing:-0.01em}
+.st h2 span{color:#958d83;font-weight:400;margin-left:12px;font-size:14px}
+.pair{display:flex;gap:20px}
+.scaled{width:640px;height:400px;overflow:hidden;border-radius:10px;box-shadow:0 0 0 1px rgba(255,255,255,.08)}
+.scaled .frame{transform:scale(.5);transform-origin:0 0}
+</style></head><body><div id="root"></div>
+<script>
+const T = JSON.parse(document.getElementById('tokens').textContent);
+const vars = o => Object.entries(o).map(([k, v]) => `${k}:${v};`).join('');
+document.getElementById('token-css').textContent =
+  `.frame{${vars(T.shared)}}.frame.dark{${vars(T.dark)}}.frame.light{${vars(T.light)}}`;
+
+/* icons: Lucide (ISC), inlined, 16 px, stroke 1.5. message-square is new to the closed set; every other glyph is in it */
+const sv = (d, cls = '') => `<svg${cls ? ` class="${cls}"` : ''} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+const rot = (deg, d) => `<g transform="rotate(${deg} 12 12)">${d}</g>`;
+const L = {
+  'panel-left': '<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/>',
+  'panel-right': '<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M15 3v18"/>',
+  plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
+  'chevron-right': '<path d="m9 18 6-6-6-6"/>',
+  'arrow-up': '<path d="m5 12 7-7 7 7"/><path d="M12 19V5"/>',
+  x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+  check: '<path d="M20 6 9 17l-5-5"/>',
+  'circle-alert': '<circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/>',
+  info: '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>',
+  pencil: '<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/>',
+  'trash-2': '<path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/>',
+  'loader-circle': '<path d="M21 12a9 9 0 1 1-6.219-8.56"/>',
+  send: '<path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"/><path d="m21.854 2.147-10.94 10.939"/>',
+  copy: '<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
+  file: '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/>',
+  'file-pen': '<path d="M12.5 22H18a2 2 0 0 0 2-2V7l-5-5H6a2 2 0 0 0-2 2v9.5"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M13.378 15.626a1 1 0 1 0-3.004-3.004l-5.01 5.012a2 2 0 0 0-.506.854l-.837 2.87a.5.5 0 0 0 .62.62l2.87-.837a2 2 0 0 0 .854-.506z"/>',
+  terminal: '<polyline points="4 17 10 11 4 5"/><line x1="12" x2="20" y1="19" y2="19"/>',
+  folder: '<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>',
+  ellipsis: '<circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>',
+  'corner-down-right': '<path d="m15 10 5 5-5 5"/><path d="M4 4v7a4 4 0 0 0 4 4h12"/>',
+  'list-checks': '<path d="m3 17 2 2 4-4"/><path d="m3 7 2 2 4-4"/><path d="M13 6h8"/><path d="M13 12h8"/><path d="M13 18h8"/>',
+  clock: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
+  'git-branch': '<line x1="6" x2="6" y1="3" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/>',
+  'undo-2': '<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11"/>',
+  'message-square': '<path d="M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z"/>',
+};
+const I = {
+  sidebar: () => sv(L['panel-left']), panel: () => sv(L['panel-right']), plus: () => sv(L.plus), chev: () => sv(L['chevron-right']),
+  down: () => sv(rot(90, L['chevron-right'])), back: () => sv(rot(180, L['chevron-right'])), up: () => sv(L['arrow-up']),
+  x: () => sv(L.x), check: () => sv(L.check), alert: () => sv(L['circle-alert']), info: () => sv(L.info), pen: () => sv(L.pencil),
+  trash: () => sv(L['trash-2']), send: () => sv(L.send), copy: () => sv(L.copy), file: () => sv(L.file), edit: () => sv(L['file-pen']),
+  term: () => sv(L.terminal), folder: () => sv(L.folder), more: () => sv(L.ellipsis), steer: () => sv(L['corner-down-right']),
+  list: () => sv(L['list-checks']), clock: () => sv(L.clock), branch: () => sv(L['git-branch']), undo: () => sv(L['undo-2']),
+  cm: () => sv(L['message-square']),
+};
+const spin = () => sv(L['loader-circle'], 'spin');
+const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+const tip = s => ` title="${s}" aria-label="${s}"`;
+const ib = (icon, s, cls = '') => `<button class="ib ${cls}"${tip(s)}>${icon}</button>`;
+const btn = (label, icon = '', cls = '', off = false) => `<button class="btn ${cls}"${off ? ' disabled' : ''}>${icon}${label}</button>`;
+const ic = s => s.replace(/`([^`]+)`/g, (_, c) => `<code>${c}</code>`);
+let Z = false;
+const t = (en, zh) => (Z ? zh : en);
+
+/* ---- the example: a session fixing the byte cursor in core/src/store ------------------------------------------- */
+const SESSION = () => t('Fix chunk offsets after compaction', '修复压缩后的块偏移');
+const F1 = 'core/src/store/chunks.ts', F2 = 'core/src/store/chunks.test.ts', F3 = 'core/src/store/index.ts';
+const D1 = [
+  ['h', '', '', '@@ -36,12 +36,16 @@ export function appendChunk'],
+  [' ', 36, 36, ''],
+  [' ', 37, 37, '/** Appends raw lines; the byte cursor moves by what was stored. */'],
+  [' ', 38, 38, 'export function appendChunk(store: Store, s: Session, buf: Buffer) {'],
+  [' ', 39, 39, '  const lines = splitLines(buf);'],
+  ['-', 40, '', '  let offset = s.byteSize;'],
+  ['+', '', 40, '  let offset = s.byteSize ?? 0;'],
+  [' ', 41, 41, '  for (const line of lines) {'],
+  ['+', '', 42, '    const start = offset;'],
+  ['+', '', 43, '    const end = start + line.length;'],
+  ['+', '', 44, '    offset = end;'],
+  [' ', 42, 45, '    store.insertLine(s.id, { start, end, text: line });'],
+  [' ', 43, 46, '  }'],
+  ['+', '', 47, '  store.setByteSize(s.id, offset);'],
+  [' ', 44, 48, '  return offset;'],
+  [' ', 45, 49, '}'],
+  ['h', '', '', '@@ -61,7 +65,9 @@ export function compact'],
+  [' ', 61, 65, 'export function compact(store: Store, id: string) {'],
+  ['+', '', 66, '  const before = store.byteSize(id);'],
+  [' ', 62, 67, '  const rows = store.lines(id);'],
+  ['-', 63, '', '  store.rewrite(id, rows);'],
+  ['+', '', 68, '  store.rewrite(id, rows, { keepCursor: true });'],
+  ['+', '', 69, '  assert(store.byteSize(id) === before);'],
+  [' ', 64, 70, '}'],
+];
+/* after turn 8: line 43 counts the newline, and setByteSize moved into a transaction */
+const D1b = [
+  ['h', '', '', '@@ -36,12 +36,18 @@ export function appendChunk'],
+  [' ', 38, 38, 'export function appendChunk(store: Store, s: Session, buf: Buffer) {'],
+  [' ', 39, 39, '  const lines = splitLines(buf);'],
+  ['-', 40, '', '  let offset = s.byteSize;'],
+  ['+', '', 40, '  let offset = s.byteSize ?? 0;'],
+  ['+', '', 41, '  store.transaction(() => {'],
+  [' ', 41, 42, '    for (const line of lines) {'],
+  ['+', '', 43, '      const start = offset;'],
+  ['+', '', 44, '      const end = start + line.byteLength + 1; // the \\n'],
+  ['+', '', 45, '      offset = end;'],
+  [' ', 42, 46, '      store.insertLine(s.id, { start, end, text: line });'],
+  [' ', 43, 47, '    }'],
+  ['+', '', 48, '    store.setByteSize(s.id, offset);'],
+  ['+', '', 49, '  });'],
+  [' ', 44, 50, '  return offset;'],
+  [' ', 45, 51, '}'],
+];
+const C1 = () => t('Count the newline too: `end` must include the `\\n`, or `byte_size` drifts by one byte per line (ADR 0002).', '把换行符也算上：`end` 必须包含 `\\n`，否则 `byte_size` 每行都会差一个字节（ADR 0002）。');
+const C2 = () => t('Do this in the same transaction as the inserts.', '放进与插入相同的事务里。');
+const C3 = () => t('Add a case with a CRLF line ending.', '加一个 CRLF 换行的用例。');
+const NOTE = () => t('Fix these before the PR.', '提 PR 前先改掉这些。');
+
+const dline = (r, o = {}) => {
+  const [k, a, b, c] = r;
+  if (k === 'h') return `<div class="dl hunk"><span class="n"></span><span class="n"></span><span class="s"></span><span class="c">${esc(c)}</span></div>`;
+  const cls = (k === '+' ? ' add' : k === '-' ? ' del' : '') + (o.pick ? ' pick' : '') + (o.hov ? ' hov' : '');
+  return `<div class="dl${cls}">${o.dot ? `<span class="cdot ${o.dot}"></span>` : ''}<span class="n">${a}</span><span class="n">${b}</span><span class="s">${k === ' ' ? '' : k}</span><span class="c">${esc(c)}</span>${o.plus ? `<span class="plus" title="${t('Comment on this line', '评论此行')}">${I.plus()}</span>` : ''}</div>`;
+};
+/* o: { pick:[i,j], hov:i, plus:i, after:{i:html}, dots:{i:cls} } */
+const diffView = (rows, o = {}) => `<div class="diff">${rows.map((r, i) => dline(r, {
+  pick: o.pick && i >= o.pick[0] && i <= o.pick[1], hov: o.hov === i, plus: o.plus === i, dot: o.dots && o.dots[i],
+}) + (o.after && o.after[i] ? o.after[i] : '')).join('')}</div>`;
+
+const topBar = (extra = '') => `<div class="top">${ib(I.sidebar(), t('Show sidebar', '显示侧边栏'))}<span class="title">${SESSION()}</span><span class="meta">hoplet · MacBook Pro</span><span class="sp"></span>${extra}${ib(I.more(), t('Session actions', '会话操作'))}${ib(I.panel(), t('Hide inspector', '隐藏检查器'), 'on')}</div>`;
+const act = (icon, verb, obj, meta = '', cls = '') => `<div class="act ${cls}"><span class="i">${icon}</span><span class="k">${verb}</span><span class="a">${obj}</span><span class="m">${meta}</span></div>`;
+const turn7 = () => `<div class="turn"><div class="th"><div class="p">${t('Keep byte_size equal to the appended bytes when chunks are compacted', '压缩块时让 byte_size 与追加的字节保持一致')}</div><div class="tm meta">${t('Turn 7 · 14:02 · 3 min', '第 7 轮 · 14:02 · 3 分钟')}</div><div class="rt meta"><span class="add-n">+11</span><span class="del-n">−3</span></div></div>
+  ${act(I.edit(), t('Edited', '编辑了'), 'chunks.ts', '<span class="add-n">+9</span> <span class="del-n">−2</span>')}
+  ${act(I.edit(), t('Edited', '编辑了'), 'chunks.test.ts', '<span class="add-n">+2</span> <span class="del-n">−1</span>')}
+  ${act(I.term(), t('Ran', '运行了'), 'pnpm --filter @hoplet/core test', t('exit 0 · 18 s', '退出码 0 · 18 秒'))}
+  <p class="text">${ic(t('`appendChunk` now tracks the offset per line and writes `byte_size` once at the end, and `compact` keeps the cursor. The store tests pass.', '`appendChunk` 现在逐行记录偏移，并在末尾写一次 `byte_size`；`compact` 保留游标。store 的测试已通过。'))}</p></div>`;
+const composer = (inner = '', typed = '') => `<div class="dock"><div class="composer">${inner}<div class="ph${typed ? ' typed' : ''}">${typed || t('Ask for follow-up changes', '继续提出修改要求')}</div>
+  <div class="cf">${ib(I.plus(), t('Attach', '附加'))}<div class="r"><button class="send"${tip(t('Send', '发送'))}>${I.up()}</button></div></div></div></div>`;
+const mainCol = (body, dock = composer()) => `<div class="main">${topBar()}<div class="conv"><div class="col">${body}</div></div>${dock}</div>`;
+
+const tabsBar = (tabs) => `<div class="insp-h"><div class="tabs">${tabs}</div>${ib(I.plus(), t('Open a tool', '打开工具'))}</div>`;
+const tab = (on, label, c = '', cAcc = false, icon = '') => `<button class="tab${on ? ' on' : ''}">${icon}${label}${c !== '' ? `<span class="c${cAcc ? ' acc' : ''}">${c}</span>` : ''}</button>`;
+const changesList = (sel = F1, counts = {}) => {
+  const rows = [[F1, 'chunks.ts', '+9 −2'], [F2, 'chunks.test.ts', '+2 −1'], [F3, 'index.ts', '+1']];
+  return `<div class="mlist"><div class="chg-sum">${t('3 files', '3 个文件')}<span class="add-n">+12</span><span class="del-n">−3</span><span class="meta">· main</span></div>
+  ${rows.map(([p, n]) => { const c = counts[p]; return `<div class="cr${p === sel ? ' on' : ''}"><span class="gt">M</span><span class="nm">${n}</span>${c ? `<span class="cmc${c.sent ? ' sent' : ''}">${I.cm()}${c.n}</span>` : ''}</div>`; }).join('')}</div>`;
+};
+const vhead = (file = 'chunks.ts', extra = '') => `<div class="vh">${I.file()}<b>${file}</b><span class="meta">core/src/store</span><span class="meta"><span class="add-n">+9</span> <span class="del-n">−2</span></span><span class="sp"></span>${extra}<div class="seg"><button class="on">${t('Diff', '差异')}</button><button>${t('File', '文件')}</button></div></div>`;
+const wide = (viewer, list, tabs) => `<div class="insp">${tabsBar(tabs)}<div class="md">${viewer}${list}</div></div>`;
+
+/* ---- annotation cards ------------------------------------------------------------------------------------------- */
+const lines = (a, b) => (a === b ? t(`Line ${a}`, `第 ${a} 行`) : t(`Lines ${a}–${b}`, `第 ${a}–${b} 行`));
+const editCard = (a, b, text) => `<div class="ann edit"><div class="ah"><span class="tag acc">${I.cm()}${lines(a, b)}</span><span class="sp"></span></div>
+  <div class="ta">${ic(text)}<span class="caret"></span></div>
+  <div class="af"><span class="meta"><span class="kbd">⌘↵</span>${t('to add', '添加')}<span class="kbd">Esc</span>${t('to cancel', '取消')}</span>${btn(t('Cancel', '取消'), '', 'quiet sm')}${btn(t('Add comment', '添加评论'), '', 'primary sm')}</div></div>`;
+const pendCard = (a, b, text) => `<div class="ann"><div class="ah"><span class="tag">${I.cm()}${lines(a, b)}</span><span class="meta">${t('Pending', '待发送')}</span><span class="sp"></span>${ib(I.pen(), t('Edit', '编辑'), 'sm')}${ib(I.trash(), t('Delete', '删除'), 'sm')}</div><div class="ab">${ic(text)}</div></div>`;
+const sentCard = (a, b, text, n, o = {}) => `<div class="ann sent"><div class="ah"><span class="tag">${I.cm()}${lines(a, b)}</span><span class="tag line">${I.send()}${t(`Sent in turn ${n}`, `第 ${n} 轮已发送`)}</span>${o.outdated ? `<span class="tag line">${t('Lines changed', '行已变化')}</span>` : ''}<span class="sp"></span>${o.live ? `<span class="meta">${t('Working on it', '处理中')}</span>` : ''}</div>
+  <div class="ab">${ic(text)}</div>${o.snip ? `<div class="snip">${esc(o.snip)}</div>` : ''}
+  ${o.resolve ? `<div class="af"><span class="meta">${o.outdated ? t('Shown with the code as sent; the lines moved in turn 8.', '按发送时的代码显示；这些行在第 8 轮中移动了。') : t('Turn 8 changed these lines.', '第 8 轮改动了这些行。')}</span>${btn(t('Reply', '回复'), '', 'quiet sm')}${btn(t('Resolve', '标记已解决'), I.check(), 'sm')}</div>` : ''}</div>`;
+const foldCard = (a, b, text) => `<div class="ann fold">${I.check()}<span class="tag line">${lines(a, b)}</span><span class="ab">${ic(text)}</span>${btn(t('Reopen', '重新打开'), '', 'quiet sm')}</div>`;
+
+/* ---- the composed message --------------------------------------------------------------------------------------- */
+function composed(o = {}) {
+  const h = s => `<span class="h">${esc(s)}</span>`, d = s => `<span class="d">${esc(s)}</span>`;
+  const items = [
+    [`${F1}:42-44`, '    const start = offset;\n    const end = start + line.length;\n    offset = end;', C1()],
+    [`${F1}:47`, '  store.setByteSize(s.id, offset);', C2()],
+    [`${F2}:58`, '  expect(size).toBe(input.length);', C3()],
+  ];
+  return `${h(t('Review comments (3) on the working tree, against main.', '对工作区的评审意见（3 条），基准为 main。'))}\n\n${o.note === false ? '' : esc(NOTE()) + '\n\n'}` +
+    items.map(([loc, code, c], i) => `${h(`${i + 1}. ${loc}`)}\n${d('```ts')}\n${esc(code)}\n${d('```')}\n${esc(c.replace(/`/g, ''))}`).join('\n\n');
+}
+const COUNT = () => '712';
+
+/* ---- direction A: inline in the diff ---------------------------------------------------------------------------- */
+function aFrame(st) {
+  const tabsA = c => tab(true, t('Changes', '变更'), 3) + tab(false, t('Files', '文件')) + (c ? '' : '');
+  if (st === 'a-select') {
+    const v = `<div class="viewer">${vhead()}<div class="vb">${diffView(D1, { pick: [8, 10], after: { 10: editCard(42, 44, C1()) } })}</div></div>`;
+    return mainCol(turn7()) + wide(v, changesList(), tabsA());
+  }
+  if (st === 'a-hover') {
+    const v = `<div class="viewer">${vhead()}<div class="vb">${diffView(D1, { hov: 13, plus: 13 })}</div></div>`;
+    return mainCol(turn7()) + wide(v, changesList(), tabsA());
+  }
+  if (st === 'a-pending') {
+    const v = `<div class="viewer">${vhead()}<div class="vb">${diffView(D1, { after: { 10: pendCard(42, 44, C1()), 13: pendCard(47, 47, C2()) } })}</div>
+      <div class="rbar"><span class="l">${I.cm()}<b>${t('3 pending comments', '3 条待发送评论')}</b><span class="meta">${t('in 2 files', '分布在 2 个文件')}</span></span>${btn(t('Discard', '丢弃'), '', 'quiet')}${btn(t('Review and send…', '检查并发送…'), I.send(), 'primary')}</div></div>`;
+    return mainCol(turn7()) + wide(v, changesList(F1, { [F1]: { n: 2 }, [F2]: { n: 1 } }), tabsA());
+  }
+  if (st === 'a-send' || st === 'a-send-busy' || st === 'a-send-over') {
+    const busy = st === 'a-send-busy', over = st === 'a-send-over';
+    const v = `<div class="viewer">${vhead()}<div class="vb">${diffView(D1, { after: { 10: pendCard(42, 44, C1()), 13: pendCard(47, 47, C2()) } })}</div></div>`;
+    const body = busy ? turn7() + liveTurn() : turn7();
+    const n = over ? '9,416' : COUNT();
+    const foot = busy
+      ? `<div class="dlg-f"><span class="l">${btn(t('Copy', '复制'), I.copy(), 'quiet')}</span>${btn(t('Cancel', '取消'))}${btn(t('Steer now', '立即插话'), I.steer())}${btn(t('Queue', '排队'), I.send(), 'primary')}</div>`
+      : `<div class="dlg-f"><span class="l">${btn(t('Copy', '复制'), I.copy(), 'quiet')}</span>${btn(t('Cancel', '取消'))}${btn(t('Send review', '发送评审'), I.send(), 'primary', over)}</div>`;
+    const dlg = `<div class="scrim"></div><div class="dlg" role="dialog" aria-label="${t('Send review', '发送评审')}"><div class="dlg-h">${t('Send review', '发送评审')}</div>
+      <div class="dlg-sub">${over ? t('14 comments in 5 files · against main', '5 个文件中的 14 条评论 · 基准 main') : t('3 comments in 2 files · against main · sent as the next turn', '2 个文件中的 3 条评论 · 基准 main · 作为下一轮发送')}</div>
+      <div class="dlg-b"><div><div class="lbl"><span>${t('Note', '附言')}</span><span class="meta">${t('Optional, goes first', '可选，放在最前')}</span></div><div class="ta" style="min-height:0">${esc(NOTE())}</div></div>
+      <div><div class="lbl"><span>${t('Message', '消息')}</span><span class="meta${over ? ' over' : ''}">${t(`${n} / 8,000 characters`, `${n} / 8,000 字符`)}</span></div><div class="compose">${composed()}</div></div>
+      ${busy ? `<div class="nt snap" role="note">${I.clock()}<span>${t('A turn is running. Queue sends the review when it ends; Steer now adds it to the running turn.', '有一轮正在运行。排队会在本轮结束后发送；立即插话会把它加入正在运行的这一轮。')}</span></div>` : ''}
+      ${over ? `<div class="nt bad" role="alert">${I.alert()}<span>${t('Too long for one message. Send the comments of fewer files, or shorten the snippets; the rest stay pending.', '超出单条消息的上限。请减少文件数量或缩短代码片段后再发送；其余评论会保留为待发送。')}</span></div>` : ''}</div>${foot}</div>`;
+    return mainCol(body) + wide(v, changesList(F1, { [F1]: { n: 2 }, [F2]: { n: 1 } }), tabsA()) + dlg;
+  }
+  if (st === 'a-sent') {
+    const v = `<div class="viewer">${vhead()}<div class="vb">${diffView(D1, { after: { 10: sentCard(42, 44, C1(), 8, { live: true }), 13: sentCard(47, 47, C2(), 8, { live: true }) } })}</div></div>`;
+    return mainCol(turn7() + liveReviewTurn('a')) + wide(v, changesList(F1, { [F1]: { n: 2, sent: true }, [F2]: { n: 1, sent: true } }), tabsA());
+  }
+  if (st === 'a-resolve') {
+    const v = `<div class="viewer">${vhead()}<div class="vb">${diffView(D1b, { after: { 9: sentCard(43, 45, C1(), 8, { resolve: true }), 12: sentCard(47, 47, C2(), 8, { resolve: true, outdated: true, snip: '  store.setByteSize(s.id, offset);' }) } })}</div>
+      <div class="vfoot"><span>${t('2 open · 1 resolved', '2 条未解决 · 1 条已解决')}</span><a>${t('Show resolved', '显示已解决')}</a></div></div>`;
+    return mainCol(turn7() + doneReviewTurn()) + wide(v, changesList(F1, { [F1]: { n: 2, sent: true } }), tabsA());
+  }
+  if (st === 'a-resolved') {
+    const v = `<div class="viewer">${vhead()}<div class="vb">${diffView(D1b, { after: { 9: foldCard(43, 45, C1()), 12: sentCard(47, 47, C2(), 8, { resolve: true, outdated: true, snip: '  store.setByteSize(s.id, offset);' }) } })}</div>
+      <div class="vfoot"><span>${t('1 open · 2 resolved', '1 条未解决 · 2 条已解决')}</span><a>${t('Hide resolved', '隐藏已解决')}</a></div></div>`;
+    return mainCol(turn7() + doneReviewTurn()) + wide(v, changesList(F1, { [F1]: { n: 1, sent: true } }), tabsA());
+  }
+  return '';
+}
+const liveTurn = () => `<div class="turn live"><div class="th"><div class="p">${t('Run the whole check before the PR', '提 PR 前跑一遍完整检查')}</div><div class="tm meta">${t('Turn 8 · 14:09', '第 8 轮 · 14:09')}</div><div class="rt meta"><span class="sdot"></span>${t('Working · 1:12', '运行中 · 1:12')}</div></div>
+  ${act(spin(), t('Running', '运行中'), 'pnpm check', '1:04', 'run')}</div>`;
+function liveReviewTurn(dir) {
+  const rv = dir === 'b' ? reviewBlock({ live: true }) : `<div class="rv"><div class="rvh">${I.cm()}<span>${t('Review · 3 comments in 2 files', '评审 · 2 个文件中的 3 条评论')}</span><span class="sp"></span><button class="btn quiet sm">${t('Show message', '查看消息')}</button></div></div>`;
+  return `<div class="turn live"><div class="th"><div class="p">${esc(NOTE())}</div><div class="tm meta">${t('Turn 8 · 14:11 · review', '第 8 轮 · 14:11 · 评审')}</div><div class="rt meta"><span class="sdot"></span>${t('Working · 0:24', '运行中 · 0:24')}</div></div>
+  ${rv}${act(I.file(), t('Read', '读取了'), 'chunks.ts', '')}${act(spin(), t('Editing', '编辑中'), 'chunks.ts', '', 'run')}</div>`;
+}
+const doneReviewTurn = (dir) => `<div class="turn"><div class="th"><div class="p">${esc(NOTE())}</div><div class="tm meta">${t('Turn 8 · 14:11 · 2 min · review', '第 8 轮 · 14:11 · 2 分钟 · 评审')}</div><div class="rt meta"><span class="add-n">+6</span><span class="del-n">−4</span></div></div>
+  ${dir === 'b' ? reviewBlock({ resolve: true }) : `<div class="rv"><div class="rvh">${I.cm()}<span>${t('Review · 3 comments · 1 resolved', '评审 · 3 条评论 · 1 条已解决')}</span><span class="sp"></span><button class="btn quiet sm">${t('Show message', '查看消息')}</button></div></div>`}
+  ${act(I.edit(), t('Edited', '编辑了'), 'chunks.ts', '<span class="add-n">+5</span> <span class="del-n">−3</span>')}${act(I.edit(), t('Edited', '编辑了'), 'chunks.test.ts', '<span class="add-n">+1</span> <span class="del-n">−1</span>')}
+  <p class="text">${ic(t('`end` now counts the newline, `setByteSize` runs in the insert transaction, and there is a CRLF case.', '`end` 现在包含换行符，`setByteSize` 在插入事务中执行，并新增了 CRLF 用例。'))}</p></div>`;
+function reviewBlock(o = {}) {
+  const it = [[`chunks.ts:42-44`, C1(), o.resolve], [`chunks.ts:47`, C2(), false, o.resolve], [`chunks.test.ts:58`, C3(), false]];
+  return `<div class="rv"><div class="rvh">${I.cm()}<span>${t('Review · 3 comments', '评审 · 3 条评论')}</span><span class="sp"></span>${o.resolve ? `<span class="meta">${t('1 resolved', '1 条已解决')}</span>` : `<span class="meta">${t('Resolve after this turn', '本轮结束后可标记解决')}</span>`}</div>
+    ${it.map(([loc, c, done, outd]) => `<div class="rvi${done ? ' done' : ''}"><span class="cbx${done ? ' on' : ''}"${o.live ? ' style="opacity:.4"' : ''}>${done ? I.check() : ''}</span><div><div class="loc">${loc}${outd ? ` <span class="tag line">${t('Lines changed', '行已变化')}</span>` : ''}</div><div class="tx">${ic(c)}</div></div>${ib(I.chev(), t('Show in the diff', '在差异中显示'), 'sm')}</div>`).join('')}</div>`;
+}
+
+/* ---- direction B: a tray above the composer ---------------------------------------------------------------------- */
+function bTray(o = {}) {
+  const it = [[`chunks.ts:42-44`, C1()], [`chunks.ts:47`, C2()], [`chunks.test.ts:58`, C3()]];
+  return `<div class="tray"><div class="trh">${I.cm()}<b>${t('Review', '评审')}</b><span class="meta">${t('3 comments · 2 files', '3 条评论 · 2 个文件')}</span><span class="sp"></span><button class="btn quiet sm">${t('Preview', '预览')}</button>${ib(I.x(), t('Remove all', '全部移除'), 'sm')}</div>
+    ${it.map(([loc, c]) => `<div class="tri"><span class="i">${I.cm()}</span><span class="loc">${loc}</span><span class="tx">${ic(c)}</span>${ib(I.x(), t('Remove', '移除'), 'sm')}</div>`).join('')}</div>`;
+}
+function bFrame(st) {
+  const tabsB = tab(true, t('Changes', '变更'), 3) + tab(false, t('Files', '文件'));
+  if (st === 'b-select') {
+    const pop = `<div class="cpop" style="left:120px;top:318px"><div class="ta">${ic(C1())}<span class="caret"></span></div>
+      <div class="af"><span class="meta">${lines(42, 44)} · <span class="kbd">⌘↵</span></span>${btn(t('Cancel', '取消'), '', 'quiet sm')}${btn(t('Add to message', '加入消息'), I.cm(), 'primary sm')}</div></div>`;
+    const v = `<div class="viewer">${vhead()}<div class="vb">${diffView(D1, { pick: [8, 10] })}</div>${pop}</div>`;
+    return mainCol(turn7()) + wide(v, changesList(), tabsB);
+  }
+  if (st === 'b-pending') {
+    const v = `<div class="viewer">${vhead()}<div class="vb">${diffView(D1, { dots: { 8: 'p', 9: 'p', 10: 'p', 13: 'p' } })}</div></div>`;
+    return mainCol(turn7(), composer(bTray(), esc(NOTE()))) + wide(v, changesList(F1, { [F1]: { n: 2 }, [F2]: { n: 1 } }), tabsB);
+  }
+  if (st === 'b-send') {
+    const v = `<div class="viewer">${vhead()}<div class="vb">${diffView(D1, { dots: { 8: 'p', 9: 'p', 10: 'p', 13: 'p' } })}</div></div>`;
+    const pv = `<div class="pv"><div class="pvh"><b>${t('Message preview', '消息预览')}</b><span class="meta">${t(`${COUNT()} / 8,000 characters`, `${COUNT()} / 8,000 字符`)}</span><span class="sp"></span>${ib(I.copy(), t('Copy', '复制'), 'sm')}${ib(I.x(), t('Close', '关闭'), 'sm')}</div><div class="compose">${composed()}</div></div>`;
+    const menu = `<div class="smenu" role="menu"><div class="mi on">${I.send()}<div><b>${t('Queue', '排队')}</b><div class="meta">${t('Send when the running turn ends', '在当前这一轮结束后发送')}</div></div></div><div class="mi">${I.steer()}<div><b>${t('Steer', '插话')}</b><div class="meta">${t('Add it to the running turn now', '立即加入正在运行的这一轮')}</div></div></div></div>`;
+    const dock = `<div class="dock"><div class="composer">${pv}${bTray()}<div class="ph typed">${esc(NOTE())}</div><div class="cf">${ib(I.plus(), t('Attach', '附加'))}<div class="r" style="position:relative">${menu}<button class="send"${tip(t('Queue', '排队'))}>${I.up()}</button></div></div></div></div>`;
+    return mainCol(turn7() + liveTurn(), dock) + wide(v, changesList(F1, { [F1]: { n: 2 }, [F2]: { n: 1 } }), tabsB);
+  }
+  if (st === 'b-sent') {
+    const v = `<div class="viewer">${vhead()}<div class="vb">${diffView(D1, { dots: { 8: 'sent', 9: 'sent', 10: 'sent', 13: 'sent' } })}</div></div>`;
+    return mainCol(turn7() + liveReviewTurn('b')) + wide(v, changesList(F1, { [F1]: { n: 2, sent: true }, [F2]: { n: 1, sent: true } }), tabsB);
+  }
+  if (st === 'b-resolve') {
+    const v = `<div class="viewer">${vhead()}<div class="vb">${diffView(D1b, { dots: { 7: 'done', 8: 'done', 9: 'done', 12: 'sent' } })}</div></div>`;
+    return mainCol(doneReviewTurn('b')) + wide(v, changesList(F1, { [F1]: { n: 1, sent: true }, [F2]: { n: 1, sent: true } }), tabsB);
+  }
+  return '';
+}
+
+/* ---- direction C: a Review tab --------------------------------------------------------------------------------- */
+const rc = (loc, c, o = {}) => `<div class="rc${o.done ? ' done' : ''}${o.on ? ' on' : ''}">${o.check !== undefined ? `<span class="cbx${o.check ? ' on' : ''}">${o.check ? I.check() : ''}</span>` : `<span class="i">${I.cm()}</span>`}
+  <div style="min-width:0"><div class="loc">${loc}${o.outd ? ` <span class="tag line">${t('Lines changed', '行已变化')}</span>` : ''}</div><div class="tx">${ic(c)}</div>${o.snip ? `<div class="snip">${esc(o.snip)}</div>` : ''}</div>
+  <div class="acts">${o.check !== undefined ? ib(I.chev(), t('Show in the diff', '在差异中显示'), 'sm') : ib(I.pen(), t('Edit', '编辑'), 'sm') + ib(I.trash(), t('Delete', '删除'), 'sm')}</div></div>`;
+function cFrame(st) {
+  const tabsC = (on, n, acc) => tab(on === 'changes', t('Changes', '变更'), 3) + tab(on === 'review', t('Review', '评审'), n, acc) + tab(false, t('Files', '文件'));
+  if (st === 'c-select') {
+    const dock = `<div class="vdock"><div class="vdh"><span class="tag acc">${I.cm()}chunks.ts · ${lines(42, 44)}</span><span class="sp"></span>${ib(I.x(), t('Cancel', '取消'), 'sm')}</div>
+      <div class="ta">${ic(C1())}<span class="caret"></span></div><div class="af"><span class="meta">${t('Goes to the Review tab', '会加入“评审”标签页')} · <span class="kbd">⌘↵</span></span>${btn(t('Add comment', '添加评论'), '', 'primary sm')}</div></div>`;
+    const v = `<div class="viewer">${vhead()}<div class="vb">${diffView(D1, { pick: [8, 10] })}</div>${dock}</div>`;
+    return mainCol(turn7()) + wide(v, changesList(F1, { [F2]: { n: 1 } }), tabsC('changes', 1, true));
+  }
+  const reviewTab = (body, foot) => `<div class="insp">${tabsBar(tabsC('review', st === 'c-rounds' ? 2 : 3, st !== 'c-rounds'))}<div class="rtab"><div class="rb">${body}</div>${foot}</div></div>`;
+  if (st === 'c-review' || st === 'c-send') {
+    const draft = `<div class="rg"><b>${t('Draft', '草稿')}</b><span class="meta">${t('3 comments · 2 files', '3 条评论 · 2 个文件')}</span><span class="sp"></span><div class="seg"><button class="${st === 'c-review' ? 'on' : ''}">${t('Comments', '评论')}</button><button class="${st === 'c-send' ? 'on' : ''}">${t('Message', '消息')}</button></div></div>`;
+    const body = st === 'c-review'
+      ? draft + rc(`${F1}:42-44`, C1(), { snip: '    const start = offset;\n    const end = start + line.length;\n    offset = end;', on: true }) + rc(`${F1}:47`, C2(), { snip: '  store.setByteSize(s.id, offset);' }) + rc(`${F2}:58`, C3(), { snip: '  expect(size).toBe(input.length);' })
+        + `<div class="rg">${I.chev()}<b>${t('Turn 5', '第 5 轮')}</b><span class="meta">${t('2 comments · all resolved', '2 条评论 · 全部已解决')}</span></div>`
+      : draft + `<div class="compose" style="max-height:520px;margin-top:var(--space-2)">${composed()}</div>`;
+    const foot = `<div class="rfoot"><div class="ta idle">${st === 'c-send' ? `<span style="color:var(--color-text)">${esc(NOTE())}</span>` : t('Add a note (optional)', '添加附言（可选）')}</div>
+      <div class="rr"><span class="meta">${t(`${COUNT()} / 8,000 characters`, `${COUNT()} / 8,000 字符`)}</span>${btn(t('Discard', '丢弃'), '', 'quiet')}${st === 'c-send' ? btn(t('Steer now', '立即插话'), I.steer()) + btn(t('Queue', '排队'), I.send(), 'primary') : btn(t('Send 3 comments', '发送 3 条评论'), I.send(), 'primary')}</div></div>`;
+    return mainCol(st === 'c-send' ? turn7() + liveTurn() : turn7()) + reviewTab(body, foot);
+  }
+  if (st === 'c-rounds') {
+    const body = `<div class="rg"><b>${t('Draft', '草稿')}</b><span class="meta">${t('empty', '空')}</span></div><div class="rempty">${I.cm()}<span>${t('Select lines in Changes to comment on them.', '在“变更”中选中行即可评论。')}</span></div>
+      <div class="rg">${I.down()}<b>${t('Turn 8', '第 8 轮')}</b><span class="meta">${t('sent 14:11 · 2 open', '14:11 发送 · 2 条未解决')}</span><span class="sp"></span>${btn(t('Resolve all', '全部标记已解决'), '', 'quiet sm')}</div>
+      ${rc(`${F1}:43-45`, C1(), { check: true, done: true })}${rc(`${F1}:47`, C2(), { check: false, outd: true, snip: '  store.setByteSize(s.id, offset);' })}${rc(`${F2}:58`, C3(), { check: false })}
+      <div class="rg">${I.chev()}<b>${t('Turn 5', '第 5 轮')}</b><span class="meta">${t('2 comments · all resolved', '2 条评论 · 全部已解决')}</span></div>`;
+    return mainCol(turn7() + doneReviewTurn()) + reviewTab(body, '');
+  }
+  return '';
+}
+
+/* ---- phone references (the native client, not the web UI: ADR 0011) --------------------------------------------- */
+const psb = () => `<div class="psb"><span>9:41</span><span class="meta">●●●</span></div>`;
+const phoneDiff = (o = {}) => {
+  const rows = D1.slice(4, 16).map((r, i) => {
+    const [k, , b, c] = r; const pick = o.pick && i >= 4 && i <= 6;
+    return `<div class="dl${k === '+' ? ' add' : k === '-' ? ' del' : ''}${pick ? ' pick' : ''}"><span class="n">${b}</span><span class="s">${k === ' ' ? '' : k}</span><span class="c">${esc(c.trim() ? c.replace(/^ {2}/, '') : c)}</span></div>` + (o.after && o.after[i] ? o.after[i] : '');
+  });
+  return `<div class="diff">${rows.join('')}</div>`;
+};
+const phone = (nav, body) => `<div class="phone">${psb()}<div class="pnav">${ib(I.back(), t('Back', '返回'))}<b>${nav}</b>${ib(I.more(), t('More', '更多'))}</div><div class="pbody">${body}</div></div>`;
+const cap = (title, text) => `<div class="phcap"><b>${title}</b><span>${text}</span><span class="meta">${t('A reference for the native client. The web UI stays desktop-only at 1024 px and wider (ADR 0011).', '供原生客户端参考。Web UI 仍只面向 1024 px 及以上的桌面（ADR 0011）。')}</span></div>`;
+function phoneFrame(st) {
+  const dir = st[0];
+  if (dir === 'a') {
+    const p1 = phone('chunks.ts', phoneDiff({ pick: true }) + `<span class="handle" style="top:${8 + 4 * 20 - 6}px"></span><span class="handle" style="top:${8 + 7 * 20 - 6}px"></span>
+      <div class="sheet"><div class="grab"></div><div class="sr"><span class="tag acc">${I.cm()}${lines(42, 44)}</span><span class="sp"></span></div><div class="ta">${ic(C1())}</div><div class="sr">${btn(t('Cancel', '取消'))}${btn(t('Add comment', '添加评论'), '', 'primary')}</div></div>`);
+    const p2 = phone('chunks.ts', phoneDiff({ after: { 6: pendCard(42, 44, C1()), 9: pendCard(47, 47, C2()) } }) + `<div class="pbar"><span class="l"><b>${t('3 pending', '3 条待发送')}</b></span>${btn(t('Review and send', '检查并发送'), I.send(), 'primary')}</div>`);
+    return cap(t('A on a phone', '手机上的 A'), t('Drag the handles to select lines, then write in a sheet. Comments sit inline; the bar sends them. The send preview is a full-screen sheet.', '拖动选择手柄选中行，在底部面板中撰写。评论显示在行内，底栏负责发送；发送预览为全屏面板。')) + p1 + p2;
+  }
+  if (dir === 'b') {
+    const p1 = phone('chunks.ts', phoneDiff({ pick: true }) + `<div class="sheet"><div class="grab"></div><div class="sr"><span class="tag acc">${I.cm()}${lines(42, 44)}</span></div><div class="ta">${ic(C1())}</div><div class="sr">${btn(t('Cancel', '取消'))}${btn(t('Add to message', '加入消息'), '', 'primary')}</div></div>`);
+    const it = [[`chunks.ts:42-44`, C1()], [`chunks.ts:47`, C2()], [`chunks.test.ts:58`, C3()]];
+    const tray = `<div class="tray"><div class="trh">${I.cm()}<b>${t('Review', '评审')}</b><span class="meta">3</span><span class="sp"></span></div>${it.map(([l, c]) => `<div class="tri"><span class="i">${I.cm()}</span><span class="loc">${l}</span><span class="tx">${ic(c)}</span>${ib(I.x(), t('Remove', '移除'), 'sm')}</div>`).join('')}</div>`;
+    const p2 = phone(SESSION(), `<div style="padding:0 var(--space-4)">${turn7()}</div><div class="dock"><div class="composer">${tray}<div class="ph typed">${esc(NOTE())}</div><div class="cf">${ib(I.plus(), t('Attach', '附加'))}<div class="r"><button class="send">${I.up()}</button></div></div></div></div>`);
+    return cap(t('B on a phone', '手机上的 B'), t('The same sheet adds to the message instead; the tray rides on the composer like attachments, and Send is the usual one.', '同样的面板改为加入消息；评论托盘像附件一样跟着输入框，用平常的发送按钮发送。')) + p1 + p2;
+  }
+  const list = `<div style="padding:var(--space-2) var(--space-3)"><div class="rg"><b>${t('Draft', '草稿')}</b><span class="meta">3</span></div>${rc('chunks.ts:42-44', C1())}${rc('chunks.ts:47', C2())}${rc('chunks.test.ts:58', C3())}</div>
+    <div class="pbar"><span class="l meta">${COUNT()} / 8,000</span>${btn(t('Send 3', '发送 3 条'), I.send(), 'primary')}</div>`;
+  const rounds = `<div style="padding:var(--space-2) var(--space-3)"><div class="rg"><b>${t('Turn 8', '第 8 轮')}</b><span class="meta">${t('2 open', '2 条未解决')}</span></div>${rc('chunks.ts:43-45', C1(), { check: true, done: true })}${rc('chunks.ts:47', C2(), { check: false, outd: true })}${rc('chunks.test.ts:58', C3(), { check: false })}
+    <div class="rg">${I.chev()}<b>${t('Turn 5', '第 5 轮')}</b><span class="meta">${t('all resolved', '全部已解决')}</span></div></div>`;
+  return cap(t('C on a phone', '手机上的 C'), t('A list first: the Review screen reads well at phone width, and a row opens the diff at its lines. Rounds keep their checkboxes.', '以列表为主：评审页在手机宽度下易读，点一行即可打开对应行的差异；各轮保留勾选框。')) + phone(t('Review', '评审'), list) + phone(t('Review', '评审'), rounds);
+}
+
+/* ---- states ----------------------------------------------------------------------------------------------------- */
+const STATES = [
+  ['a-hover', 'A, inline in the diff: hovering a line shows + over the sign column; click, shift-click or drag selects a range'],
+  ['a-select', 'A: lines 42–44 selected, the comment box opens under them'],
+  ['a-pending', 'A: two pending comments inline (a third is in chunks.test.ts), a count per file in the list, and the review bar'],
+  ['a-send', 'A: Send review, with an optional note and the composed message, counted against the 8,000-character prompt limit'],
+  ['a-send-busy', 'A: Send review while a turn runs: Queue (default) or Steer now, as in the composer'],
+  ['a-send-over', 'A: the composed message is over 8,000 characters; Send is off and the comments stay pending'],
+  ['a-sent', 'A: sent as turn 8; the cards are marked Sent in turn 8 and cannot be edited; the turn shows a Review block'],
+  ['a-resolve', 'A: turn 8 finished; each comment offers Resolve; the second is re-anchored as Lines changed and shows the code as sent'],
+  ['a-resolved', 'A: one comment resolved and folded to a line, with Reopen'],
+  ['a-phone', 'A as a native-client reference at 390 px: select with handles, write in a sheet; pending comments and the review bar'],
+  ['a-select-zh', 'A in Simplified Chinese: selecting lines'],
+  ['a-pending-zh', 'A in Simplified Chinese: pending comments'],
+  ['a-send-zh', 'A in Simplified Chinese: Send review'],
+  ['a-resolve-zh', 'A in Simplified Chinese: resolving after the turn'],
+  ['b-select', 'B, a tray above the composer: selecting lines opens a popover that adds the comment to the message'],
+  ['b-pending', 'B: three comments in the composer tray with a typed note; dots in the gutter mark commented lines'],
+  ['b-send', 'B: Preview over the tray, and the send menu (Queue or Steer) while a turn runs'],
+  ['b-sent', 'B: the sent turn lists the comments with checkboxes, off until the turn ends; grey dots in the gutter'],
+  ['b-resolve', 'B: turn 8 done; one comment ticked resolved, one marked Lines changed; hollow dots for resolved lines'],
+  ['b-phone', 'B as a native-client reference: the sheet adds to the message, the tray rides on the composer'],
+  ['b-pending-zh', 'B in Simplified Chinese: the tray'],
+  ['c-select', 'C, a Review tab: the comment editor docks at the foot of the diff; the Review tab counts drafts'],
+  ['c-review', 'C: the Review tab with three draft comments and their snippets, the note and Send in the footer, an earlier round folded'],
+  ['c-send', 'C: the Message view of the draft, the composed text; Queue or Steer now while a turn runs'],
+  ['c-rounds', 'C: after sending, rounds by turn with checkboxes, Lines changed on a moved comment, Resolve all'],
+  ['c-phone', 'C as a native-client reference: the draft list with Send, and a round with checkboxes'],
+  ['c-review-zh', 'C in Simplified Chinese: the Review tab'],
+  ['c-rounds-zh', 'C in Simplified Chinese: rounds'],
+];
+
+function frame(st, scheme) {
+  Z = st.endsWith('-zh');
+  const s = st.replace(/-zh$/, '');
+  if (s.endsWith('-phone')) return `<div class="frame phones ${scheme}" lang="${Z ? 'zh-Hans' : 'en'}">${phoneFrame(s)}</div>`;
+  const body = s[0] === 'a' ? aFrame(s) : s[0] === 'b' ? bFrame(s) : cFrame(s);
+  return `<div class="frame ${scheme}" lang="${Z ? 'zh-Hans' : 'en'}">${body}</div>`;
+}
+
+const SAMPLE = () => { Z = false; return new DOMParser().parseFromString(composed(), 'text/html').body.textContent; };
+
+/* ---- the page --------------------------------------------------------------------------------------------------- */
+const q = new URLSearchParams(location.search);
+const root = document.getElementById('root');
+const solo = STATES.find(([s]) => s === q.get('state'));
+if (q.get('state') && !solo) {
+  document.body.className = 'solo';
+  root.textContent = `Unknown state: ${q.get('state')}`;
+} else if (solo) {
+  document.body.className = 'solo';
+  root.innerHTML = frame(solo[0], q.get('scheme') === 'light' ? 'light' : 'dark');
+} else {
+  document.body.className = 'stacked';
+  root.innerHTML = `<header class="intro"><h1>Diff annotations <span>Comment on lines of the Changes diff and send them as the next turn (issue #84)</span></h1>
+    <p><b>The maintainer chose A, built in <code>web/src/screens/workspace/</code> under <code>/__states/workspace/comments-*</code>, <code>comment-edit</code> and <code>review-send*</code>; B and C stay as the alternatives considered.</b> Not built: the conversation’s Review block with Reply and the Working on it link, and the phone states. A sent card says Sent in review N, since the core does not number turns. The user selects one or more lines in the inspector’s Changes diff and writes a comment. Comments collect as pending; sending composes them, each with its path, line numbers and code snippet, into one message that goes to the session as the next turn. Sent comments stay where they were, marked with the turn that sent them, and can be resolved after that turn. The message is an ordinary prompt: it obeys the 8,000-character limit, and while a turn runs it is queued or steered like anything typed in the composer.</p>
+    <p><b>A, inline in the diff.</b> A + over the sign column starts a comment; click, shift-click or drag selects a range. Comments are cards under their lines, a review bar at the foot of the diff counts them, and Send review opens a dialog with a note and the exact message. After the turn each card offers Resolve; a resolved card folds to a line. Closest to code review tools, and the comment sits by its code the whole time.</p>
+    <p><b>B, a tray above the composer.</b> A popover under the selection adds the comment to the message being written; the comments ride above the text like attachments and go with the normal Send, so Queue and Steer need nothing new. The sent turn lists them with checkboxes. Least new UI, but a long review crowds the composer and the comments leave the diff once added.</p>
+    <p><b>C, a Review tab.</b> The editor docks at the foot of the diff and each comment lands in a Review tab beside Changes: a draft, then one round per sent turn with checkboxes, and a Message view of the composed text. List-first, so it suits a phone and a long review best; the comment is one step away from its code.</p>
+    <p><b>Shared.</b> A comment stores the path, the side, the line range and the snippet as it was. When the diff changes it is re-anchored by its snippet; if the snippet is gone it shows <b>Lines changed</b> with the code as sent. Phone states are references for the native client (ADR 0011 keeps the web UI desktop-only). <b>message-square</b> is new to the closed icon set. States ending <b>-zh</b> are in Simplified Chinese; the built strings are in zh-Hans.json. The composed message, as drawn in every direction:</p>
+    <pre>${esc(SAMPLE())}</pre></header>` +
+    STATES.map(([s, desc]) => `<section class="st"><h2>${s}<span>${desc}</span></h2><div class="pair">
+      <div class="scaled">${frame(s, 'light')}</div><div class="scaled">${frame(s, 'dark')}</div></div></section>`).join('');
+}
+</script></body></html>

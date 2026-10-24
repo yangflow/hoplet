@@ -35,6 +35,7 @@ describe('the route table', () => {
       'GET /api/sessions/:sessionId/search',
       'GET /api/search',
       'GET /api/sessions/:sessionId/queue',
+      'GET /api/sessions/:sessionId/annotations',
       'GET /api/devices',
       'GET /api/devices/:deviceId/projects',
     ],
@@ -50,6 +51,10 @@ describe('the route table', () => {
       'POST /api/sessions/:sessionId/steer',
       'POST /api/sessions/:sessionId/interrupt',
       'POST /api/devices/:deviceId/attachments',
+      'POST /api/sessions/:sessionId/annotations',
+      'PATCH /api/sessions/:sessionId/annotations/:annotationId',
+      'DELETE /api/sessions/:sessionId/annotations/:annotationId',
+      'POST /api/sessions/:sessionId/annotations/send',
     ],
     create: [
       'POST /api/sessions',
