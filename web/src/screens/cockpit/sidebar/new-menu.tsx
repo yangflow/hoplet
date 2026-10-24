@@ -4,6 +4,7 @@ import { IconButton } from '../../../components/IconButton.tsx';
 import { Icon } from '../../../components/icons.tsx';
 import { Popover } from '../../../components/Popover.tsx';
 import { t } from '../../../lib/i18n.ts';
+import { keyOf } from '../../../lib/shortcuts.ts';
 import { type EntryChoice, menuDetail } from '../template-entry.tsx';
 
 /**
@@ -88,7 +89,7 @@ export function NewMenu(props: {
           >
             <span className="menu-check">{Icon.compose()}</span>
             {t('Blank session')}
-            <span className="sc">⌘N</span>
+            <span className="sc">{keyOf('new-session')}</span>
           </button>
           <hr className="menu-sep" />
           {/* biome-ignore lint/a11y/useSemanticElements: a menu's groups are role=group, a fieldset is not a menu child */}

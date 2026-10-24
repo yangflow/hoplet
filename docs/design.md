@@ -150,7 +150,7 @@ edit and a run of tools, then the live turn), not copied from a session.
 Shared components live in `web/src/components/` and screens compose them; a screen never styles its own
 variant of a shared component. Set: `TokenGate`, `Button`, `IconButton` (icon only, its accessible name is its
 tooltip), `TextField`, `Row`, `Fold`, `Badge` (state labels and keycaps), `Panel`, `Popover`, `Select`, `Switch`,
-`Markdown` (safe prose from assistant text) and `Code` (syntax-coloured lines), the output well (`.well`, a framed block of mono lines), the folder browser of Add project and Clone into (`dir-browser.css`), `Dialog` (a centred modal over a scrim with a focus trap: the command palette, Add project, Rename), `Menu` (a popover list of actions
+`Markdown` (safe prose from assistant text) and `Code` (syntax-coloured lines), the output well (`.well`, a framed block of mono lines), the folder browser of Add project and Clone into (`dir-browser.css`), `Dialog` (a centred modal over a scrim with a focus trap: the command palette, Keyboard shortcuts, Add project, Rename), `Menu` (a popover list of actions
 in groups with hairlines between them, a keycap on the right of an item and a submenu opening to the right of its
 parent: the session menu), `Toast` (a transient confirmation that rises from the foot of the conversation like
 the jump pill, with its shadow, and fades after a few seconds). Icons are
@@ -177,7 +177,7 @@ One family, Lucide (ISC), bundled and never fetched: every glyph on a 24-unit gr
 search, panel-left, panel-right, square-pen, plus, chevron-right, arrow-up, arrow-up-right,
 arrow-right-left, file, folder, folder-open, book-open, pencil, file-plus, terminal, plug, globe, lightbulb, image,
 layers, eye, link, square-plus, square, git-branch, git-fork, zap, lock, paperclip, mic, hand, clock, x, check, circle-alert, activity, circle-dashed, minus, shield, shield-alert, shield-check, ban, asterisk, file-pen, list-checks, sparkles, info, rotate-cw, copy,
-settings, laptop, key-round, contrast, ellipsis, text-wrap, loader-circle, pin, pin-off, archive, archive-restore, grip-vertical, trash-2, corner-down-right, arrow-right-to-line, play, pause, bell, bell-off, moon, send, webhook, layout-template, upload, download, sliders-horizontal, undo-2, tag, message-square; turned glyphs (a chevron, an arrow) cover the other directions.
+settings, laptop, key-round, contrast, ellipsis, text-wrap, loader-circle, pin, pin-off, archive, archive-restore, grip-vertical, trash-2, corner-down-right, arrow-right-to-line, play, pause, bell, bell-off, moon, send, webhook, layout-template, upload, download, sliders-horizontal, undo-2, tag, message-square, keyboard; turned glyphs (a chevron, an arrow) cover the other directions.
 File-type badges (TypeScript, Markdown, JSON, image, text, other) use the same page and stroke with a tint.
 Provider marks (the Claude mark for Claude Code) are drawn monochrome in the dim text colour, never in brand
 colour, and lead each session row. Icons sit in labels, tool rows and empty states and do not decorate. The

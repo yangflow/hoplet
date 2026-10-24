@@ -36,6 +36,12 @@ const subject: Record<string, Record<string, string>> = {
     'template-save': 'cockpit.template-save-dialog',
     'new-menu': 'cockpit.new-popover',
     palette: 'cockpit.palette',
+    'palette-open': 'cockpit.palette-command',
+    'palette-fuzzy': 'cockpit.palette-command',
+    'palette-stop': 'cockpit.palette-confirm-list',
+    'palette-none': 'cockpit.palette-new-with-text',
+    shortcuts: 'cockpit.shortcuts-group',
+    'shortcuts-filter': 'cockpit.shortcut',
     'palette-fill': 'cockpit.template-fill',
     'save-menu': 'cockpit.actions-menu',
     'save-session': 'cockpit.template-save-dialog',
@@ -331,11 +337,50 @@ const subject: Record<string, Record<string, string>> = {
   },
 };
 
-test('the registries list 140 cockpit, 88 workspace, 102 settings and 7 action states', () => {
-  expect(screens.cockpit).toHaveLength(140);
+test('the registries list 146 cockpit, 88 workspace, 102 settings and 7 action states', () => {
+  expect(screens.cockpit).toHaveLength(146);
   expect(screens.workspace).toHaveLength(88);
   expect(screens.settings).toHaveLength(102);
   expect(screens.action).toHaveLength(7);
+});
+
+test('the keyboard opens the palette and Keyboard shortcuts, and steps through the sidebar', async ({
+  page,
+}) => {
+  await page.goto('/__states/cockpit/sidebar-flat?scheme=light&lang=en');
+  const title = page.getByTestId('cockpit.topbar').locator('h1');
+  await expect(title).toBeVisible();
+  const first = await title.innerText();
+  await page.keyboard.press('ControlOrMeta+Alt+ArrowDown');
+  await expect(title).not.toHaveText(first);
+  await page.keyboard.press('ControlOrMeta+Alt+ArrowUp');
+  await expect(title).toHaveText(first);
+
+  await page.keyboard.press('ControlOrMeta+k');
+  const palette = page.getByTestId('cockpit.palette');
+  await expect(palette).toBeVisible();
+  await page.getByTestId('cockpit.palette-input').fill('keyboard');
+  await page.keyboard.press('Enter');
+  await expect(palette).toHaveCount(0);
+  const dialog = page.getByTestId('cockpit.shortcuts');
+  await expect(dialog).toBeVisible();
+  await page.getByTestId('cockpit.shortcuts-filter').fill('search');
+  await expect(dialog.getByTestId('cockpit.shortcut').first()).toContainText('Search and commands');
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+
+  await page.keyboard.press('ControlOrMeta+/');
+  await expect(dialog).toBeVisible();
+});
+
+test('Stop asks in place in the palette and Esc goes back to the list', async ({ page }) => {
+  await page.goto('/__states/cockpit/palette-stop?scheme=light&lang=en');
+  const confirm = page.getByTestId('cockpit.palette-confirm');
+  await expect(confirm).toBeVisible();
+  await expect(page.getByTestId('cockpit.palette-confirm-list').locator('li')).not.toHaveCount(0);
+  await page.keyboard.press('Escape');
+  await expect(confirm).toHaveCount(0);
+  await expect(page.getByTestId('cockpit.palette')).toBeVisible();
 });
 
 test("a screen's styles stay on that screen: the conversation's tool rows stack", async ({

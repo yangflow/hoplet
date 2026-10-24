@@ -18,6 +18,7 @@ import type { ConfigChanges } from '../../lib/config-changes.ts';
 import { clock } from '../../lib/format.ts';
 import { t } from '../../lib/i18n.ts';
 import { pageKeysSuspended } from '../../lib/page-keys.ts';
+import { keyOf } from '../../lib/shortcuts.ts';
 import { gateOf } from '../../lib/terminal.ts';
 import type { ChildrenView } from '../../lib/use-children.ts';
 import { commentCounts } from './annotations.ts';
@@ -93,7 +94,10 @@ const toolLabel = (tool: Tool) =>
     sessions: t('Other sessions'),
     audit: t('Audit'),
   })[tool];
-const toolHint: Partial<Record<Tool, string>> = { changes: '⇧⌘G', files: '⇧⌘E' };
+const toolHint: Partial<Record<Tool, string>> = {
+  changes: keyOf('changes'),
+  files: keyOf('files'),
+};
 const toolIcon: Record<Tool, () => ReturnType<typeof Icon.pen>> = {
   changes: Icon.pen,
   files: Icon.folder,
@@ -335,7 +339,7 @@ export function Inspector(props: {
         </div>
         <IconButton
           label={t('Hide workspace')}
-          hint="⌘I"
+          hint={keyOf('workspace')}
           icon={Icon.panel()}
           on
           onClick={props.onHide}

@@ -1931,6 +1931,48 @@ export const states: Record<string, () => ReactNode> = {
       }}
     />
   ),
+  // ⌘K with no query: recent sessions, machines, projects and the commands of the running catalog session.
+  'palette-open': () => (
+    <Scene
+      variant={running(48_000)}
+      fixture={{ paletteOpen: true, search: { hits: [], scanning: false } }}
+    />
+  ),
+  // A fuzzy query: "st" reaches Stop, Settings, Keyboard shortcuts and the sessions it spells.
+  'palette-fuzzy': () => (
+    <Scene
+      variant={running(48_000)}
+      fixture={{ paletteOpen: true, query: 'st', search: { hits: [], scanning: false } }}
+    />
+  ),
+  // Stop asks in place and names the live child sessions that stop with it.
+  'palette-stop': () => (
+    <Scene
+      variant={running(48_000)}
+      sessions={(base) =>
+        base.map((s) => (s.sessionId === catalogId ? { ...s, childCount: 5 } : s))
+      }
+      fixture={{
+        paletteOpen: true,
+        query: 'stop',
+        paletteConfirm: 'c-stop',
+        search: { hits: [], scanning: false },
+        children: { data: kidsTree(catalogId, blockedDocs), asks: { [KID_DOCS]: [DOCS_ASK] } },
+      }}
+    />
+  ),
+  // Nothing matches: the palette offers a new session with the text as its prompt.
+  'palette-none': () => (
+    <Scene
+      fixture={{
+        paletteOpen: true,
+        query: 'flaky e2e on ci',
+        search: { hits: [], scanning: false },
+      }}
+    />
+  ),
+  shortcuts: () => <Scene fixture={{ shortcuts: {} }} />,
+  'shortcuts-filter': () => <Scene fixture={{ shortcuts: { filter: 'session' } }} />,
   'palette-fill': () => (
     <Scene fixture={{ templates: { templates: ENTRY_TEMPLATES, fill: { id: 'tpl-review' } } }} />
   ),

@@ -18,6 +18,7 @@ import { ProviderMark } from '../../../components/provider-marks.tsx';
 import { Row } from '../../../components/Row.tsx';
 import { type GlyphState, glyphState, StateGlyph } from '../../../components/StateGlyph.tsx';
 import { t } from '../../../lib/i18n.ts';
+import { keyOf } from '../../../lib/shortcuts.ts';
 import { machineLabel, systemOf } from '../../../lib/system.ts';
 import { type DeviceGroup, displayTitle } from '../group.ts';
 import type { RuntimeState } from '../model.ts';
@@ -255,6 +256,8 @@ export function Sidebar(props: {
   groupMenu?: boolean;
   /** The tag the list starts filtered by (development fixtures). */
   tagFilter?: string;
+  /** Receives the sessions in the order their rows show, after each render (⌥⌘↑/↓). */
+  order?: { current: readonly string[] };
   /** Archived sessions: the footer button opens the Archived page. */
   archivedCount?: number;
   archivedOpen?: boolean;
@@ -339,22 +342,31 @@ export function Sidebar(props: {
     row.scrollIntoView?.({ block: 'nearest' });
   });
 
-  const row = (session: LiveSessionMeta, online: boolean, where?: string, pinGlyph?: boolean) => (
-    <SessionRow
-      key={session.sessionId}
-      session={session}
-      state={runtime[session.sessionId] ?? 'idle'}
-      selected={session.sessionId === selected}
-      dim={!online}
-      now={now}
-      {...(where ? { where } : {})}
-      {...(pinGlyph ? { pinGlyph } : {})}
-      onSelect={props.onSelect}
-      onMenu={(s, at, opener, keyboard) =>
-        props.menuFor && setCtx({ session: s, at, opener, keyboard })
-      }
-    />
-  );
+  // The rows in the order they render, whatever the grouping, the tag filter and the folds: ⌥⌘↑/↓ follows it.
+  const rowOrder: string[] = [];
+  useEffect(() => {
+    if (props.order) props.order.current = rowOrder;
+  });
+
+  const row = (session: LiveSessionMeta, online: boolean, where?: string, pinGlyph?: boolean) => {
+    if (!rowOrder.includes(session.sessionId)) rowOrder.push(session.sessionId);
+    return (
+      <SessionRow
+        key={session.sessionId}
+        session={session}
+        state={runtime[session.sessionId] ?? 'idle'}
+        selected={session.sessionId === selected}
+        dim={!online}
+        now={now}
+        {...(where ? { where } : {})}
+        {...(pinGlyph ? { pinGlyph } : {})}
+        onSelect={props.onSelect}
+        onMenu={(s, at, opener, keyboard) =>
+          props.menuFor && setCtx({ session: s, at, opener, keyboard })
+        }
+      />
+    );
+  };
 
   /** A machine's directories with their sessions. */
   function folders(g: DeviceGroup, sort: Sort) {
@@ -606,7 +618,7 @@ export function Sidebar(props: {
           />
           <IconButton
             label={t('New session')}
-            hint="⌘N"
+            hint={keyOf('new-session')}
             icon={Icon.compose()}
             on={draft !== null}
             onClick={() => props.onNewSession()}
@@ -623,7 +635,7 @@ export function Sidebar(props: {
           ) : null}
           <IconButton
             label={t('Hide sidebar')}
-            hint="⌘\"
+            hint={keyOf('sidebar')}
             icon={Icon.sidebar()}
             onClick={props.onFold}
             data-testid="cockpit.sidebar-fold"
@@ -634,14 +646,14 @@ export function Sidebar(props: {
         type="button"
         className="search"
         aria-keyshortcuts="Meta+K"
-        title={`${t('Search')} · ⌘K`}
+        title={`${t('Search')} · ${keyOf('palette')}`}
         onClick={props.onSearch}
         data-testid="cockpit.search"
       >
         {Icon.search()}
         <span className="search-label">{t('Search')}</span>
         <span aria-hidden="true">
-          <Badge kind="key">⌘K</Badge>
+          <Badge kind="key">{keyOf('palette')}</Badge>
         </span>
       </button>
       {tags.length > 0 ? (
@@ -720,7 +732,7 @@ export function Sidebar(props: {
         ) : null}
         <IconButton
           label={t('Settings')}
-          hint="⌘,"
+          hint={keyOf('settings')}
           icon={Icon.gear()}
           on={props.settingsOpen ?? false}
           onClick={props.onSettings}

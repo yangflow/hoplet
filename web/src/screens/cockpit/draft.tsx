@@ -119,6 +119,8 @@ export function Draft(props: {
   /** A template chosen outside the draft (the sidebar, the palette); applied once, then `onEntryUsed` is called. */
   entry?: DraftEntry | null;
   onEntryUsed?: () => void;
+  /** The prompt the composer starts with (the palette's "New session with the text as the prompt"). */
+  initialText?: string;
   voiceAvailable: boolean;
   fixture?: DraftFixture;
 }) {
@@ -197,7 +199,8 @@ export function Draft(props: {
       ? { text: draftText(appliedAtStart.text, fx?.applied?.values), n: 1 }
       : null,
   );
-  const [text, setText] = useState(fx?.prompt ?? '');
+  const startText = fx?.prompt ?? props.initialText;
+  const [text, setText] = useState(startText ?? '');
   const [startBusy, setStartBusy] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
   const issues = tpl
@@ -507,7 +510,7 @@ export function Draft(props: {
             error={error}
             restore={restore}
             voiceAvailable={props.voiceAvailable}
-            {...(props.fixture?.prompt ? { initialText: props.fixture.prompt } : {})}
+            {...(startText ? { initialText: startText } : {})}
             onSend={(text, attachments) => void start(text, attachments)}
             acceptsImages={caps?.images === true}
             {...(target?.deviceId

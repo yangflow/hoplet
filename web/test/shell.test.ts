@@ -2,8 +2,8 @@ import { JSDOM } from 'jsdom';
 import { act, createElement } from 'react';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
-// The shell's keyboard behaviour in a DOM: Dialog traps and returns focus, the palette moves and opens
-// with the keyboard, Select picks with the arrow keys.
+// The shell's keyboard behaviour in a DOM: Dialog traps and returns focus, Select picks with the arrow keys
+// (the palette's keys are in palette.test.ts).
 
 let dom: JSDOM;
 beforeAll(() => {
@@ -99,49 +99,5 @@ describe('Select', () => {
     await act(async () => key(list, 'Enter'));
     expect(onChange).toHaveBeenCalledWith('b');
     expect(document.querySelector('[role="listbox"]')).toBeNull();
-  });
-});
-
-describe('Palette', () => {
-  it('lists sessions and actions and opens the active entry on Enter', async () => {
-    const { Palette } = await import('../src/screens/cockpit/palette.tsx');
-    const onSelectSession = vi.fn();
-    const onClose = vi.fn();
-    const session = {
-      sessionId: 's1',
-      projectPath: '/a/hoplet',
-      projectDir: '',
-      deviceName: 'MacBook Pro',
-      title: 'byte cursor catalog',
-      provider: 'claude' as const,
-      ownerConnected: true,
-      createdAt: 1,
-      updatedAt: 2,
-      lineCount: 1,
-      byteSize: 1,
-      ownerEpoch: 0,
-    };
-    await mount(
-      createElement(Palette, {
-        sessions: [session],
-        searchFixture: { hits: [], scanning: false },
-        onClose,
-        onSelectSession,
-        onSelectHit: vi.fn(),
-        onNewSession: vi.fn(),
-        onSettings: vi.fn(),
-      }),
-    );
-    const options = [...document.querySelectorAll('[role="option"]')];
-    expect(options.map((o) => o.textContent)).toEqual([
-      expect.stringContaining('byte cursor catalog'),
-      expect.stringContaining('New session'),
-      expect.stringContaining('Settings'),
-    ]);
-    const input = document.querySelector('input[role="combobox"]') as HTMLElement;
-    expect(document.activeElement).toBe(input);
-    await act(async () => key(input, 'Enter'));
-    expect(onSelectSession).toHaveBeenCalledWith('s1');
-    expect(onClose).toHaveBeenCalled();
   });
 });

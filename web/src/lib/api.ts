@@ -83,6 +83,7 @@ import {
   SnapshotChangesSchema,
   SnapshotDiffSchema,
   SteerResultSchema,
+  StopResultSchema,
   safeParse,
   type TemplateBody,
   TemplateFileSchema,
@@ -488,8 +489,13 @@ export function deleteSession(sessionId: string, request: DeleteSessionRequest) 
   );
 }
 
-export function postStop(sessionId: string) {
-  return call(`/api/sessions/${sessionId}/stop`, RuntimeCommandResultSchema, {});
+/** Stops the session's turn; `cascade` also stops the live sessions below it (ADR 0035). */
+export function postStop(sessionId: string, cascade = false) {
+  return call(
+    `/api/sessions/${sessionId}/stop${cascade ? '?cascade=true' : ''}`,
+    StopResultSchema,
+    {},
+  );
 }
 
 /** Every descendant of a session in pre-order (ADR 0035). */

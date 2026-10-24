@@ -3,11 +3,17 @@ import { Icon } from '../../components/icons.tsx';
 import type { MenuEntry } from '../../components/Menu.tsx';
 import { copyLater, copyText } from '../../lib/clipboard.ts';
 import { t } from '../../lib/i18n.ts';
+import { keyOf } from '../../lib/shortcuts.ts';
 import { isArchived, isPinned } from './group.ts';
 import { lastAnswerMarkdown } from './last-answer.ts';
 
 /** The shortcuts of the actions, shown in the menu and handled by the cockpit. */
-export const SHORTCUT = { rename: '⌥⌘R', pin: '⌥⌘P', tags: '⌥⌘T', archive: '⇧⌘A' } as const;
+export const SHORTCUT = {
+  rename: keyOf('rename'),
+  pin: keyOf('pin'),
+  tags: keyOf('tags'),
+  archive: keyOf('archive'),
+} as const;
 
 /** The address that opens a session in this core. */
 export function sessionLink(sessionId: string): string {

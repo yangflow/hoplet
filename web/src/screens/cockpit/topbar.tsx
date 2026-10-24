@@ -7,6 +7,7 @@ import { HopletMark, Icon } from '../../components/icons.tsx';
 import { Menu, type MenuEntry } from '../../components/Menu.tsx';
 import { ProviderMark } from '../../components/provider-marks.tsx';
 import { t } from '../../lib/i18n.ts';
+import { keyOf } from '../../lib/shortcuts.ts';
 import { displayTitle } from './group.ts';
 import { SHORTCUT } from './session-actions.tsx';
 import { SessionUsageChip } from './session-usage.tsx';
@@ -114,7 +115,7 @@ export function TopBar(props: {
       {props.sidebarFolded ? (
         <IconButton
           label={t('Show sidebar')}
-          hint="⌘\"
+          hint={keyOf('sidebar')}
           icon={Icon.sidebar()}
           onClick={props.onShowSidebar}
           data-testid="cockpit.sidebar-show"
@@ -190,7 +191,7 @@ export function TopBar(props: {
       {session && !props.inspectorOpen ? (
         <IconButton
           label={t('Workspace')}
-          hint="⌘I"
+          hint={keyOf('workspace')}
           detail={
             props.changes > 0
               ? t('Workspace · {n} changed').replace('{n}', String(props.changes))
@@ -218,11 +219,11 @@ export function EmptyState() {
         <h1 className="empty-title">{t('Pick a session, or start a new one')}</h1>
         <span className="empty-keys">
           <span>
-            <Badge kind="key">⌘K</Badge>
+            <Badge kind="key">{keyOf('palette')}</Badge>
             {t('search')}
           </span>
           <span>
-            <Badge kind="key">⌘N</Badge>
+            <Badge kind="key">{keyOf('new-session')}</Badge>
             {t('new session')}
           </span>
         </span>

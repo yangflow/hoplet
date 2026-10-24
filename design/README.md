@@ -226,6 +226,21 @@ The mockups, design tokens and app icon behind Hoplet's web UI. The design langu
   B `b-select`, `b-pending`, `b-send`, `b-sent`, `b-resolve`, `b-phone`; C `c-select`, `c-review`, `c-send`,
   `c-rounds`, `c-phone`. The `-phone` states are references for the native client at 390 px; the web UI stays
   desktop-only (ADR 0011). The main states also have `-zh` states; the built strings are in `web/src/i18n/zh-Hans.json`. New icon: `message-square`.
+- `screens/command-palette.html` (#92): the command palette and the keyboard shortcuts, three directions; the
+  maintainer chose A, built in `screens/cockpit/` (`palette.tsx`, `palette-sources.tsx`, `keys-dialog.tsx`, with
+  the registry in `lib/shortcuts.ts`), and B and C stay as the alternatives considered. Every direction reaches
+  sessions, machines, projects and the commands on the open session with fuzzy matching, confirms Stop before it acts
+  (naming the child sessions that stop with it) and lists the shortcuts; `*` marks a chord a browser may take first.
+  A (`a-*`) grows the grouped list, matches every kind at once, confirms in place and opens a Keyboard shortcuts
+  dialog with ⌘/. B (`b-*`) shows one kind at a time behind a prefix (`>` commands, `@` machines, `#` projects, `?`
+  shortcuts) shown as a chip, with the confirmation as a step of its own. C (`c-*`) is a wide palette with two panes
+  that previews the chosen row with its actions, confirms in the preview and shows the shortcuts as a full cheat
+  sheet. States: A `a-open`, `a-fuzzy`, `a-confirm`, `a-help`, `a-none`; B `b-open`, `b-actions`, `b-machines`,
+  `b-confirm`, `b-help`, `b-none`; C `c-open`, `c-fuzzy`, `c-confirm`, `c-help`, `c-none`. `a-open`, `a-confirm`,
+  `a-help`, `b-actions` and `c-open` also have `-zh` states. A's states under `/__states/cockpit/`: `palette-open`,
+  `palette-fuzzy`, `palette-stop`, `palette-none`, `shortcuts`, `shortcuts-filter`. Not built from A: the Search all
+  session lines row (lines are searched as the query is typed) and the machine details " · no remote" and
+  "Offline · seen". New icon: `keyboard`.
 - `tokens.html`: every design token, with the JSON block that `check-tokens.py` compares with
   `web/src/design/tokens.css`.
 - `mark.html`: the app icon and the web UI's mark; the exported icon is `web/public/icon.svg`.
