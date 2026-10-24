@@ -295,6 +295,19 @@ export class Store {
     return permissionRules.deletePermissionRule(this.ctx, id);
   }
 
+  /** Stores a handoff's copy of project rules on its target; null when it would pass the cap (ADR 0037). */
+  copyPermissionRules(
+    bodies: readonly PermissionRuleBody[],
+    link: permissionRules.RuleCopyLink,
+  ): string[] | null {
+    return permissionRules.copyPermissionRules(this.ctx, bodies, link, Date.now());
+  }
+
+  /** Deletes the rules a failed handoff copied. */
+  removeCopiedPermissionRules(ids: readonly string[], link: permissionRules.RuleCopyLink): void {
+    permissionRules.removeCopiedPermissionRules(this.ctx, ids, link);
+  }
+
   hasDevice(deviceId: string): boolean {
     return devices.listDevices(this.ctx).some((d) => d.deviceId === deviceId);
   }
@@ -734,6 +747,11 @@ export class Store {
   /** The worktree a handoff created for the session on its current owner, or null (ADR 0023). */
   sessionWorktree(sessionId: string): deletion.WorktreeRecord | null {
     return deletion.worktreeOf(this.ctx, sessionId);
+  }
+
+  /** The worktrees Hoplet made on a device and their clones; its project rules apply in them too (ADR 0037). */
+  deviceWorktrees(deviceId: string): { clone: string; worktree: string }[] {
+    return deletion.deviceWorktrees(this.ctx, deviceId);
   }
 
   /** Records the worktree an agent made for a session it started, for its deletion later (ADR 0023). */

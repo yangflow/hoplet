@@ -1,4 +1,6 @@
 import type {
+  HandoffRule,
+  HandoffRulesPreview,
   SnapshotChanges,
   WorkspaceChange,
   WorkspaceDiff,
@@ -256,3 +258,59 @@ export const sketchFile: WorkspaceFile = {
   path: 'design/hoplet.sketch',
   size: 1_887_437,
 };
+
+/** The catalog session's project rules on MacBook Pro against studio's clone (design/screens/handoff-rules.html). */
+const STUDIO_CLONE = '/Users/mark/github/hoplet';
+const RULE_TERRAFORM: Omit<HandoffRule, 'state'> = {
+  action: 'deny',
+  tool: 'run',
+  match: { command: 'terraform apply' },
+  note: '',
+};
+const RULE_PUBLISH: Omit<HandoffRule, 'state'> = {
+  action: 'ask',
+  tool: 'run',
+  match: { command: 'pnpm publish' },
+  note: '',
+};
+const RULE_MIGRATIONS: Omit<HandoffRule, 'state'> = {
+  action: 'deny',
+  tool: 'write',
+  match: { paths: [`${STUDIO_CLONE}/core/src/migrations/**`] },
+  note: '',
+};
+const RULE_TEST: Omit<HandoffRule, 'state'> = {
+  action: 'allow',
+  tool: 'run',
+  match: { command: 'pnpm test' },
+  note: '',
+};
+const RULE_NPM: Omit<HandoffRule, 'state'> = {
+  action: 'allow',
+  tool: 'fetch',
+  match: { domains: ['registry.npmjs.org'] },
+  note: '',
+};
+
+/** studio has one of the four and one of its own (`differ`), none of them (`none`) or all four (`same`). */
+export function handoffRules(kind: 'differ' | 'none' | 'same'): HandoffRulesPreview {
+  const four = [RULE_TERRAFORM, RULE_PUBLISH, RULE_MIGRATIONS, RULE_TEST];
+  const rules: HandoffRule[] =
+    kind === 'same'
+      ? four.map((r) => ({ ...r, state: 'same' }))
+      : kind === 'none'
+        ? four.map((r) => ({ ...r, state: 'copy' }))
+        : [
+            ...four.map(
+              (r): HandoffRule => ({ ...r, state: r === RULE_PUBLISH ? 'same' : 'copy' }),
+            ),
+            { ...RULE_NPM, state: 'target' },
+          ];
+  return {
+    sourceDeviceId: 'dev-macbook',
+    sourcePath: '/Users/mark/github/repopro/hoplet',
+    targetDeviceId: 'dev-studio',
+    targetPath: STUDIO_CLONE,
+    rules,
+  };
+}

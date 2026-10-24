@@ -39,6 +39,7 @@ import {
   CHUNKS_NOW,
   chunksDiff,
   chunksFile,
+  handoffRules,
   hostingDiff,
   iconDiff,
   iconHead,
@@ -50,7 +51,7 @@ import {
   snapshot,
   truncatedListing,
 } from './fixtures.ts';
-import type { CloneCheck, HandoffFixture, HandoffRun } from './handoff.ts';
+import type { CloneCheck, HandoffFixture, HandoffRun, RulesCheck } from './handoff.ts';
 import type { WorkspaceFixture } from './index.tsx';
 import type { PortsData } from './use-ports.ts';
 import type { TerminalPhase } from './use-terminal.ts';
@@ -134,6 +135,17 @@ const ran = (over: Partial<HandoffRun>): HandoffFixture => ({
 const prepared = { prepare: { at: T0, end: T0 + 800 } };
 const transferred = { ...prepared, transfer: { at: T0 + 800, end: T0 + 3700 } };
 const installed = { ...transferred, install: { at: T0 + 3700, end: T0 + 5300 } };
+const verified = { ...installed, verify: { at: T0 + 5300, end: T0 + 5600 } };
+const rulesReady = (kind: Parameters<typeof handoffRules>[0]): RulesCheck => ({
+  state: 'ready',
+  preview: handoffRules(kind),
+});
+/** The handoff card with studio's clone found and its project rules compared (ADR 0037). */
+const rulesState = (handoff: HandoffFixture) => (
+  <Inspect
+    workspace={{ data: live(), view: handoffOpen(), handoff: { clone: found, ...handoff } }}
+  />
+);
 /** Studio has no clone: where the core would put one, and why it would not. */
 const CLONE_DEST = '/Users/mark/github/client-projects/platform-services/hoplet';
 const offer = (
@@ -620,6 +632,44 @@ export const states: Record<string, () => ReactNode> = {
       }}
     />
   ),
+  'handoff-rules-differ': () => rulesState({ rules: rulesReady('differ') }),
+  'handoff-rules-list': () => rulesState({ rules: rulesReady('differ'), rulesOpen: true }),
+  'handoff-rules-none': () => rulesState({ rules: rulesReady('none') }),
+  'handoff-rules-same': () => rulesState({ rules: rulesReady('same') }),
+  'handoff-rules-unchecked': () => rulesState({ rules: rulesReady('differ'), copyRules: false }),
+  'handoff-rules-copying': () =>
+    rulesState(
+      ran({
+        rules: { count: 3, copied: 3 },
+        steps: { ...verified, rules: { at: T0 + 5600 } },
+        current: 'rules',
+      }),
+    ),
+  'handoff-rules-failed': () =>
+    rulesState(
+      ran({
+        outcome: 'failed',
+        rules: { count: 3, copied: 3 },
+        steps: { ...verified, rules: { at: T0 + 5600 } },
+        failedStep: 'rules',
+        reason: 'target-offline',
+        error: { code: 'target-offline' },
+      }),
+    ),
+  'handoff-rules-done': () =>
+    rulesState(
+      ran({
+        outcome: 'done',
+        rules: { count: 3, copied: 3 },
+        steps: {
+          ...verified,
+          rules: { at: T0 + 5600, end: T0 + 6000 },
+          commit: { at: T0 + 6000, end: T0 + 6100 },
+        },
+        worktree: '/Users/mark/github/hoplet-11111111',
+        branch: 'hoplet/11111111',
+      }),
+    ),
   'terminal-off': () => terminalState({ kind: 'off' }, { terminalOff: true }),
   'terminal-blocked-turn': () => terminalState(none, { variant: running(0) }),
   'terminal-blocked-external': () => terminalState(none, { variant: external }),

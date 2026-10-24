@@ -47,6 +47,20 @@ export function worktreeOf(ctx: StoreContext, sessionId: string): WorktreeRecord
     : null;
 }
 
+/** The worktrees Hoplet made on a device, each with the clone it was made from (ADR 0037). */
+export function deviceWorktrees(
+  ctx: StoreContext,
+  deviceId: string,
+): { clone: string; worktree: string }[] {
+  return (
+    ctx.db
+      .prepare(
+        'SELECT clone, worktree FROM session_worktrees WHERE device_id = ? ORDER BY worktree',
+      )
+      .all(deviceId) as { clone: string; worktree: string }[]
+  ).map((r) => ({ clone: r.clone, worktree: r.worktree }));
+}
+
 /**
  * Records the worktree the agent made for a session it started, so that deleting the session offers it (ADR 0023).
  * The device that made it is also the one that owned the session before, so `from_device_id` is the same.

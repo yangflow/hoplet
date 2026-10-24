@@ -114,6 +114,7 @@ export function createHandoffRequests(
   async function run(request: SessionHandoffRequest): Promise<void> {
     executing.add(request.requestId);
     try {
+      // A session's own request never copies project rules: that is the owner's choice (ADR 0037).
       const outcome = await control().handoff({
         sessionId: request.sessionId,
         targetDeviceId: request.targetDeviceId,

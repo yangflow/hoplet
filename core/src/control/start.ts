@@ -52,6 +52,7 @@ function undeclared(req: StartRequest, info: ProviderInfo): 'images' | 'config' 
 export function createStart(
   state: ControlState,
   listProjects: Control['listProjects'],
+  /** Sends the devices their rules, with a new revision when the set changed (`rules.refresh`). */
   syncRules: (deviceIds?: readonly string[]) => void,
   inheritSettings: (parent: string, child: string, nested: boolean) => void,
 ): Start {
@@ -195,13 +196,14 @@ export function createStart(
         });
       }
       // The device's rules now include the child's inherited ones, and its revision counts the change.
-      state.store.bumpPermissionRevision(req.deviceId);
       syncRules([req.deviceId]);
     }
     // The worktree is recorded first: deleting the session offers it (ADR 0023).
     if (answer.worktree) {
       try {
         state.store.recordNewWorktree(answer.sessionId, req.deviceId, answer.worktree);
+        // The clone's project rules reach the new worktree (ADR 0037).
+        syncRules([req.deviceId]);
       } catch (err) {
         log('error', 'control', 'session worktree not recorded', {
           sessionId: answer.sessionId,

@@ -6,11 +6,13 @@ import { IconButton } from '../../components/IconButton.tsx';
 import { Icon, Spinner } from '../../components/icons.tsx';
 import { MachineIcon } from '../../components/MachineIcon.tsx';
 import { ProviderMark } from '../../components/provider-marks.tsx';
+import { ActionBadge, kindName } from '../../components/rule-parts.tsx';
 import { Select } from '../../components/Select.tsx';
 import { TextField } from '../../components/TextField.tsx';
 import { isBuiltIn, missingVariables } from '../../lib/configurations.ts';
 import { clock, formatBytes } from '../../lib/format.ts';
 import { t } from '../../lib/i18n.ts';
+import { toolsOf } from '../../lib/permission-rules.ts';
 import { systemOf } from '../../lib/system.ts';
 import { CloneInto, destinationText } from './clone-into.tsx';
 import {
@@ -21,6 +23,11 @@ import {
   type Handoff,
   type HandoffRun,
   originLabel,
+  ruleMatchText,
+  rulesCopyLabel,
+  rulesCountsText,
+  rulesLossText,
+  rulesSummary,
   type Step,
   stepsOf,
 } from './handoff.ts';
@@ -33,6 +40,7 @@ const stepLabel = (step: Step) =>
     transfer: t('Transfer'),
     install: t('Install'),
     verify: t('Verify'),
+    rules: t('Rules'),
     commit: t('Commit'),
   })[step];
 
@@ -81,6 +89,7 @@ export function HandoffPanel(props: {
     handoff.targetId !== '' &&
     !props.busy &&
     clone.state !== 'checking' &&
+    handoff.rules.state !== 'checking' &&
     !handoff.configurationBlocked &&
     (offer ? offer.reason === 'ok' : true) &&
     (!needsPath || handoff.targetPath.trim() !== '');
@@ -170,6 +179,7 @@ export function HandoffPanel(props: {
               />
             </>
           )}
+          <RulesField handoff={handoff} target={target} />
           {offer?.reason === 'no-access' ? (
             <Button
               variant="primary"
@@ -183,7 +193,7 @@ export function HandoffPanel(props: {
             <Button
               variant="primary"
               icon={Icon.handoff()}
-              onClick={handoff.start}
+              onClick={() => handoff.start()}
               disabled={!canStart}
               data-testid="workspace.handoff-run"
             >
@@ -358,6 +368,116 @@ function DisabledConfigurations(props: { handoff: Handoff; target: string }) {
   );
 }
 
+/**
+ * The source project's rules the target's clone lacks (ADR 0037): one checkbox, checked by default, with the
+ * counts and the compared list; cleared, what the session will not have there.
+ */
+function RulesField(props: { handoff: Handoff; target: string }) {
+  const { handoff, target } = props;
+  const check = handoff.rules;
+  if (check.state === 'unknown')
+    return (
+      <p className="ws-ho-why" data-testid="workspace.handoff-rules-unknown">
+        <Glyph>{Icon.info()}</Glyph>
+        <span>
+          {t('The project rules could not be compared with {target}. None are copied.').replace(
+            '{target}',
+            target,
+          )}
+        </span>
+      </p>
+    );
+  if (check.state !== 'ready') return null;
+  const summary = rulesSummary(check.preview.rules);
+  const n = summary.copies.length;
+  if (n === 0) {
+    if (summary.same === 0) return null;
+    return (
+      <p className="ws-ho-why" data-testid="workspace.handoff-rules-same">
+        <Glyph>{Icon.shield()}</Glyph>
+        <span>
+          {t('{target} already has this project’s {n} rules.')
+            .replace('{target}', target)
+            .replace('{n}', String(summary.same))}
+        </span>
+      </p>
+    );
+  }
+  const loss = handoff.copyRules ? null : rulesLossText(summary, target);
+  return (
+    <div className="ws-rl" data-testid="workspace.handoff-rules">
+      <label className={`ws-rl-opt${handoff.copyRules ? ' on' : ''}`}>
+        <input
+          type="checkbox"
+          className="ws-rl-in"
+          checked={handoff.copyRules}
+          onChange={(e) => handoff.setCopyRules(e.target.checked)}
+          aria-describedby="ws-rl-meta"
+          data-testid="workspace.handoff-rules-copy"
+        />
+        <span className="ws-rl-box" aria-hidden="true">
+          {handoff.copyRules ? Icon.check() : null}
+        </span>
+        <span className="ws-rl-l">{rulesCopyLabel(n, target)}</span>
+      </label>
+      <p className="ws-rl-meta" id="ws-rl-meta">
+        {rulesCountsText(summary, target)}{' '}
+        <button
+          type="button"
+          className="ws-rl-show"
+          aria-expanded={handoff.rulesOpen}
+          onClick={() => handoff.setRulesOpen(!handoff.rulesOpen)}
+          data-testid="workspace.handoff-rules-show"
+        >
+          {handoff.rulesOpen ? t('Hide') : t('Show')}
+        </button>
+      </p>
+      {handoff.rulesOpen ? (
+        <ul
+          className="ws-rls"
+          aria-label={t('Project rules')}
+          data-testid="workspace.handoff-rules-list"
+        >
+          {check.preview.rules.map((rule, i) => {
+            const what = ruleMatchText(rule);
+            const kinds = toolsOf(rule.tool).map(kindName).join('/');
+            const words = {
+              copy: t('copied'),
+              same: t('already there'),
+              target: t('{target} only').replace('{target}', target),
+            }[rule.state];
+            return (
+              // biome-ignore lint/suspicious/noArrayIndexKey: the compared list, in the core's order
+              <li key={i} className={`ws-rr ${rule.state}`}>
+                <span className="ws-rr-mk" aria-hidden="true">
+                  {{ copy: '+', same: '=', target: '·' }[rule.state]}
+                </span>
+                <ActionBadge action={rule.action} />
+                <span className="ws-rr-pat" title={what}>
+                  <i>{kinds}</i> {what}
+                </span>
+                {rule.state === 'target' ? (
+                  <span className="ws-rr-own">{words}</span>
+                ) : (
+                  <span className="sr-only">{words}</span>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      ) : null}
+      {loss ? (
+        <p className="ws-ho-note att" role="status" data-testid="workspace.handoff-rules-loss">
+          <Glyph>{Icon.alert()}</Glyph>
+          <span>
+            {loss.rule ? <WithMono text={loss.text} slot="{rule}" value={loss.rule} /> : loss.text}
+          </span>
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 /** The target has no clone and the core offers one: where it would go, or why it cannot. */
 function CloneOffer(props: {
   offer: DeviceCloneOffer;
@@ -465,7 +585,11 @@ function RunCard(props: {
                 ? named(
                     '{owner} keeps running until the clone has finished. Nothing moves until commit.',
                   )
-                : t('Nothing moves until commit. A failure leaves owner and cursor unchanged.')}
+                : run.current === 'rules'
+                  ? named(
+                      '{target} confirms the rules before the session moves. Its own rules stay.',
+                    )
+                  : t('Nothing moves until commit. A failure leaves owner and cursor unchanged.')}
             </span>
           </p>
           {run.current === 'clone' && run.handoffId ? (
@@ -479,21 +603,37 @@ function RunCard(props: {
           ) : null}
         </>
       ) : run.outcome === 'done' ? (
-        <p className="ws-ho-note ok" role="status" data-testid="workspace.handoff-done">
-          <Glyph>{Icon.check()}</Glyph>
-          <span>
-            {run.worktree ? (
-              <WithMono
-                text={t('Worktree {path} on branch {branch}')}
-                slot="{path}"
-                value={run.worktree}
-                then={{ slot: '{branch}', value: run.branch ?? '' }}
-              />
-            ) : (
-              named('{target} owns the session now.')
-            )}
-          </span>
-        </p>
+        <>
+          <p className="ws-ho-note ok" role="status" data-testid="workspace.handoff-done">
+            <Glyph>{Icon.check()}</Glyph>
+            <span>
+              {run.worktree ? (
+                <WithMono
+                  text={t('Worktree {path} on branch {branch}')}
+                  slot="{path}"
+                  value={run.worktree}
+                  then={{ slot: '{branch}', value: run.branch ?? '' }}
+                />
+              ) : (
+                named('{target} owns the session now.')
+              )}
+            </span>
+          </p>
+          {run.rules?.copied ? (
+            <p className="ws-ho-note ok" data-testid="workspace.handoff-rules-done">
+              <Glyph>{Icon.shield()}</Glyph>
+              <span>
+                {(run.rules.copied === 1
+                  ? named('1 project rule copied to {target}.')
+                  : named('{n} project rules copied to {target}.')
+                ).replace('{n}', String(run.rules.copied))}
+                <span className="ws-ho-sub">
+                  {t('Recorded in Audit. Change them in Settings › Permission rules.')}
+                </span>
+              </span>
+            </p>
+          ) : null}
+        </>
       ) : (
         <>
           <p className="ws-ho-note bad" role="alert" data-testid="workspace.handoff-failed">
@@ -508,11 +648,20 @@ function RunCard(props: {
           <Button
             variant="primary"
             icon={Icon.handoff()}
-            onClick={props.handoff.start}
+            onClick={() => props.handoff.start()}
             data-testid="workspace.handoff-retry"
           >
             {run.failedStep === 'clone' ? t('Try again') : named('Hand off to {target}')}
           </Button>
+          {run.failedStep === 'rules' ? (
+            <Button
+              variant="quiet"
+              onClick={() => props.handoff.start({ withoutRules: true })}
+              data-testid="workspace.handoff-without-rules"
+            >
+              {t('Hand off without the rules')}
+            </Button>
+          ) : null}
         </>
       )}
     </Card>
@@ -554,8 +703,13 @@ function StepRow(props: { step: Step; steps: readonly Step[]; run: HandoffRun; t
       transfer: join(run.total !== undefined ? formatBytes(run.total) : '', took),
       install: join(target, took),
       verify: t('SHA-256 and tree match'),
+      rules: t('{n} copied').replace('{n}', String(run.rules?.copied ?? run.rules?.count ?? 0)),
       commit: clock(times?.end ?? times?.at),
     }[step];
+  else if (state === 'now' && step === 'rules')
+    meta = t('{n} to {target}')
+      .replace('{n}', String(run.rules?.copied ?? run.rules?.count ?? 0))
+      .replace('{target}', target);
   else if (state === 'now' && (step === 'transfer' || step === 'clone') && run.sent !== undefined)
     meta = run.total !== undefined ? formatProgress(run.sent, run.total) : formatBytes(run.sent);
   const mark =

@@ -277,6 +277,7 @@ export const HandoffStepSchema = v.picklist([
   'transfer',
   'install',
   'verify',
+  'rules',
   'commit',
   'done',
   'failed',
@@ -1119,7 +1120,8 @@ export const WIRE_MESSAGES = defineWire({
   /**
    * Progress of a handoff for browsers. `snapshotAt` is the time of the snapshot an offline handoff uses;
    * during `clone`, `sent` bytes of the repository have arrived (`total` only once git reports it); during
-   * `transfer`, `sent` of `total` bytes have gone to the target; `done` names the new worktree and branch.
+   * `transfer`, `sent` of `total` bytes have gone to the target; during `rules`, `copied` project rules wait for
+   * the target to apply them (ADR 0037); `done` names the new worktree and branch.
    */
   'handoff.progress': {
     lane: 'control',
@@ -1132,6 +1134,7 @@ export const WIRE_MESSAGES = defineWire({
       snapshotAt: v.optional(v.number()),
       sent: v.optional(v.number()),
       total: v.optional(v.number()),
+      copied: v.optional(v.number()),
       worktree: v.optional(v.string()),
       branch: v.optional(v.string()),
       reason: v.optional(v.string()),
@@ -1353,6 +1356,10 @@ export const WIRE_MESSAGES = defineWire({
     fields: {
       revision: v.pipe(v.number(), v.integer(), v.minValue(0)),
       global: v.array(PermissionRuleSchema),
+      /**
+       * The project rules of this device by project path; a rule is listed again, with the same body, under each
+       * worktree Hoplet made from that project's clone on this device (ADR 0037).
+       */
       projects: v.array(DevicePermissionRuleSchema),
       sessions: v.array(SessionPermissionRuleSchema),
       /**

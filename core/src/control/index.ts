@@ -270,9 +270,9 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
   };
   const rules = createRules(state);
   const rpc = createRpc(state);
-  const handoff = createHandoff(state, rpc.workspace);
+  const handoff = createHandoff(state, rpc.workspace, rules);
   const deletion = createDeletion(state, runtime.runtimeOf);
-  const start = createStart(state, rpc.listProjects, rules.sync, (p, c, n) => {
+  const start = createStart(state, rpc.listProjects, rules.refresh, (p, c, n) => {
     sessionMcp.api.inheritSettings(p, c, n);
   });
   const fresh = createFresh(state, () => control);
@@ -478,6 +478,7 @@ export function createControl(store: Store, options: ControlOptions = {}): Contr
     startSession: start.startSession,
     approvePlanFresh: fresh.approvePlanFresh,
     cancelHandoff: handoff.cancel,
+    handoffRulesPreview: handoff.rulesPreview,
     async handoff(request) {
       const outcome = await handoff.handoff(request);
       // The session's process starts again on the new owner and asks for a token of its own.

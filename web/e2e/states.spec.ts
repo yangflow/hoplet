@@ -168,6 +168,14 @@ const subject: Record<string, Record<string, string>> = {
     'handoff-cloning': 'workspace.handoff-cancel',
     'handoff-clone-failed': 'workspace.handoff-failed',
     'handoff-clone-continue': 'workspace.handoff-panel',
+    'handoff-rules-differ': 'workspace.handoff-rules',
+    'handoff-rules-list': 'workspace.handoff-rules-list',
+    'handoff-rules-none': 'workspace.handoff-rules',
+    'handoff-rules-same': 'workspace.handoff-rules-same',
+    'handoff-rules-unchecked': 'workspace.handoff-rules-loss',
+    'handoff-rules-copying': 'workspace.handoff-panel',
+    'handoff-rules-failed': 'workspace.handoff-without-rules',
+    'handoff-rules-done': 'workspace.handoff-rules-done',
     'terminal-off': 'workspace.terminal-off',
     'terminal-blocked-turn': 'workspace.terminal-blocked-turn-running',
     'terminal-blocked-external': 'workspace.terminal-blocked-external',
@@ -306,9 +314,9 @@ const subject: Record<string, Record<string, string>> = {
   },
 };
 
-test('the registries list 131 cockpit, 72 workspace, 102 settings and 7 action states', () => {
+test('the registries list 131 cockpit, 80 workspace, 102 settings and 7 action states', () => {
   expect(screens.cockpit).toHaveLength(131);
-  expect(screens.workspace).toHaveLength(72);
+  expect(screens.workspace).toHaveLength(80);
   expect(screens.settings).toHaveLength(102);
   expect(screens.action).toHaveLength(7);
 });

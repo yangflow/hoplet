@@ -222,3 +222,37 @@ func TestStoreEngineHonoursScopePrecedenceFloorAndLocalDeny(t *testing.T) {
 		t.Errorf("the floor must beat a pushed allow: %+v", d)
 	}
 }
+
+func TestStoreAcceptsAProjectRuleRepeatedUnderAWorktree(t *testing.T) {
+	st := OpenStore(testEnv(), t.TempDir(), nil)
+	deny := rule("no-x", "run", Deny, ScopeProject, Match{Command: "x"})
+	same := setOf(2, nil, []ProjectRule{{"/work/a", deny}, {"/work/a-1234abcd", deny}}, nil)
+	if _, err := st.Apply(same); err != nil {
+		t.Fatalf("the same rule under the clone and its worktree refused: %v", err)
+	}
+	for _, dir := range []string{"/work/a", "/work/a-1234abcd/sub"} {
+		e, err := st.Engine("s", dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if d := e.Decide(run("x")); d.Action != Deny || d.RuleID != "no-x" {
+			t.Fatalf("%s: decision %+v", dir, d)
+		}
+	}
+	other := deny
+	other.Action = Ask
+	if _, err := st.Apply(setOf(3, nil, []ProjectRule{{"/work/a", deny}, {"/work/a-1234abcd", other}}, nil)); err == nil {
+		t.Fatal("one ID with two bodies applied")
+	}
+	if st.Revision() != 2 {
+		t.Fatalf("revision %d", st.Revision())
+	}
+}
+
+func TestForSessionListsARepeatedProjectRuleOnce(t *testing.T) {
+	r := rule("pa", "run", Ask, ScopeProject, Match{Command: "x"})
+	s := Set{Projects: []ProjectRule{{"/work", r}, {"/work/a", r}}}
+	if got := ids(s.ForSession("s", "/work/a/b")); len(got) != 1 || got[0] != "pa" {
+		t.Fatalf("got %v", got)
+	}
+}
