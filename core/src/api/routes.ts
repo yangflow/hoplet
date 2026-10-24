@@ -3,7 +3,12 @@
  * body limit, request and response schemas from shared/src/rest/ and its handler; router.ts does the rest.
  */
 
-import type { ConfigFileRead, ConfigFileScope, ConfigReadKind } from '@hoplet/shared';
+import type {
+  ConfigFileRead,
+  ConfigFileScope,
+  ConfigReadKind,
+  InventoryRepository,
+} from '@hoplet/shared';
 import {
   ActionDecideRequestSchema,
   ActionDecideResponseSchema,
@@ -87,6 +92,7 @@ import {
   MAX_NOTIFY_PROJECTS,
   MAX_PERMISSION_RULES,
   MAX_RESOURCE_THRESHOLD_MACHINES,
+  MAX_SESSION_TAGS,
   MAX_TEMPLATE_TEXT_CHARS,
   MAX_TEMPLATES,
   MAX_TITLE_OVERRIDE_CHARS,
@@ -223,7 +229,7 @@ import { auditExport } from './audit-export.ts';
 import { changesOf, childStateOf, fitCollect, lastReport, usageOf } from './children.ts';
 import { ApiError, relayError } from './http.ts';
 import { checkPromptImage } from './images.ts';
-import { publicOrigin, repoNameOf } from './origin.ts';
+import { publicOrigin, repoNameOf, repositoryOf } from './origin.ts';
 import {
   actorOf,
   type Principal,
@@ -475,11 +481,16 @@ function steerResult(outcome: SteerOutcome, steerId: string) {
 interface Relations {
   chains: Chains;
   counts: ReadonlyMap<string, number>;
+  /** The watched projects of each machine, from its last inventory. */
+  repositories: ReadonlyMap<string, readonly InventoryRepository[]>;
 }
 
 function relationsOf(store: Store): Relations {
   const chains = store.childChains();
-  return { chains, counts: childCounts(chains) };
+  const repositories = new Map(
+    store.listDevices().map((d) => [d.deviceId, d.inventory?.repositories ?? []] as const),
+  );
+  return { chains, counts: childCounts(chains), repositories };
 }
 
 /** The index entry plus whether the owner agent is connected. */
@@ -511,12 +522,22 @@ function withLiveness(
           )?.configuration.name ?? configurationId,
       }
     : undefined;
+  // The project across machines (ADR 0041): the owner's watched project that holds the path, or the clone of the
+  // worktree Hoplet made for the session.
+  const repository = owner
+    ? repositoryOf(
+        relations.repositories.get(owner) ?? [],
+        meta.projectPath,
+        store.sessionWorktree(meta.sessionId)?.clone,
+      )
+    : null;
   return {
     ...(links.continuedIn ? { continuedIn: end(links.continuedIn) } : {}),
     ...(links.continuedFrom ? { continuedFrom: end(links.continuedFrom) } : {}),
     ...meta,
     ...state,
     ...(configuration ? { configuration } : {}),
+    ...(repository ? { repository } : {}),
     parentId: parentOf(relations.chains, meta.sessionId),
     childCount: relations.counts.get(meta.sessionId) ?? 0,
     ownerConnected: !!owner && control.ownerOnline(owner),
@@ -985,7 +1006,16 @@ export const routes: readonly Route[] = [
     handler: (d) => {
       const sessionId = d.params.sessionId ?? '';
       const { title, pinned, archived } = d.body;
-      if (title === undefined && pinned === undefined && archived === undefined)
+      // Tags are case-insensitive: the core keeps them lowercase.
+      const addTags = d.body.addTags?.map((tag) => tag.toLowerCase());
+      const removeTags = d.body.removeTags?.map((tag) => tag.toLowerCase());
+      if (
+        title === undefined &&
+        pinned === undefined &&
+        archived === undefined &&
+        addTags === undefined &&
+        removeTags === undefined
+      )
         throw new ApiError('invalid-request');
       const meta = d.store.getSession(sessionId);
       const current = d.store.sessionState(sessionId);
@@ -994,6 +1024,11 @@ export const routes: readonly Route[] = [
       const own = title?.trim();
       if (own !== undefined && own.length > MAX_TITLE_OVERRIDE_CHARS)
         throw new ApiError('invalid-request');
+      // Removals apply before additions; the tags after the change must fit the limit.
+      const tags = new Set(current.tags ?? []);
+      for (const tag of removeTags ?? []) tags.delete(tag);
+      for (const tag of addTags ?? []) tags.add(tag);
+      if (tags.size > MAX_SESSION_TAGS) throw new ApiError('invalid-request');
       const now = Date.now();
       const state = d.store.updateSessionState(sessionId, {
         ...(title !== undefined
@@ -1004,6 +1039,8 @@ export const routes: readonly Route[] = [
         ...(archived !== undefined
           ? { archivedAt: archived ? (current.archivedAt ?? now) : null }
           : {}),
+        ...(removeTags ? { removeTags } : {}),
+        ...(addTags ? { addTags } : {}),
       });
       if (!state) throw new ApiError('session-not-found');
       d.control.publish({ v: PROTOCOL_VERSION, type: 'session.updated', sessionId, ...state });

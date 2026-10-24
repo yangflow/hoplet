@@ -163,6 +163,7 @@ export function purgeSession(ctx: StoreContext, sessionId: string): void {
       'session_worktrees',
       'usage',
       'audit_cursor',
+      'session_tags',
     ]) {
       ctx.db.prepare(`DELETE FROM ${table} WHERE session_id = ?`).run(sessionId);
     }

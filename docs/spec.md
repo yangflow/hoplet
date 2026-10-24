@@ -74,7 +74,8 @@ shown on hover or focus and kept on an offline machine) that set how that machin
 in which order, remembered in the browser per machine: **By folder** (the default: the machine's directories
 with their sessions) or **Flat** (the machine's sessions as one list, each row with a second line naming its
 directory, and no directory rows, so Add project stays on the machine row); sorted by **Recent activity**
-(the default), **Created** or **Title**. Sessions are never grouped across machines. The sidebar follows the
+(the default), **Created** or **Title**. The Group menu in the sidebar header groups across machines instead
+([Organizing sessions](#organizing-sessions)). The sidebar follows the
 selected session, however it was selected (a click, the palette, the address): its machine and directory open
 and the row scrolls into view, while every other fold stays as the reader left it. Search (⌘K) opens a
 command palette: sessions whose title matches, line hits across sessions (selecting one opens the session at
@@ -88,7 +89,7 @@ window is connected to the core and opens Settings. The sidebar folds away.
 
 **Session actions.** The session menu (the ellipsis in the conversation's top bar, and the context menu of a
 sidebar row: right click, the context-menu key or Shift+F10) acts on one session and has three groups:
-**Rename** (⌥⌘R) and **Pin** or **Unpin** (⌥⌘P); **Copy**, a submenu of Session ID, Link (the address that
+**Rename** (⌥⌘R), **Pin** or **Unpin** (⌥⌘P) and **Tags…** (⌥⌘T, [Organizing sessions](#organizing-sessions)); **Copy**, a submenu of Session ID, Link (the address that
 opens the session in this web UI) and Last answer as Markdown (the text of the session's last assistant
 message, as Markdown), and **Open in new window**; **Archive** or **Unarchive** (⇧⌘A). A copy is confirmed by a
 toast that fades after a few seconds. The shortcuts act on the selected session. A last group holds **Delete…**. There
@@ -112,11 +113,13 @@ is no Fork here.
   in the store, keeps syncing, and stays archived when lines are appended to it or it is handed off, until it
   is restored. The archive icon in the sidebar foot opens the Archived page in the conversation's place:
   archived sessions grouped by machine, then by project folder (name, path, count), newest first, always,
-  whatever the machine's view options. Restore appears on a row's hover, and Restore all on a folder header's
+  whatever the machine's view options. A row shows its tags, and a row of the archive's tags above the list
+  filters the page by one tag while it is open (a filter that matches nothing says so and offers Clear filter).
+  Restore appears on a row's hover, and Restore all on a folder header's
   hover, without confirmation. Sessions of an offline machine are listed and can be restored. An empty list says
   so, and a back button returns to the conversation.
 
-**Conversation.** The top bar holds the session's title, the session menu and the workspace toggle; where the session lives is
+**Conversation.** The top bar holds the session's title, its tags, the session menu and the workspace toggle; where the session lives is
 the sidebar's to show. The selected session from its last 80 lines; earlier pages load as the reader scrolls up.
 The conversation is a sequence of turns: a turn begins with a user prompt, which is its header with the
 time, and holds the assistant text, thinking, tool calls, tool results and file edits that follow. A
@@ -175,6 +178,36 @@ a state of the session appears under the composer when it blocks or changes what
 
 A permission request shows the tool name and its input (elided above 8 KiB like any block). A request the driver declares a plan exit (ADR 0019) shows the plan instead, as Markdown in the turn (collapsed above 4 KiB, with an Open button): one button approves into a mode (Accept edits by default, a menu for the others the driver offers, never Bypass permissions) and Keep planning sends the user's feedback to the model. A plan has no countdown; it waits for the answer, and a window that did not answer shows it as answered. When the driver declares `freshContext` ([ADR 0025](adr/0025-a-plan-can-be-approved-into-a-new-session.md)), the approve menu ends with Clear context and approve…, which turns the card's footer into a confirmation: a new session on the same machine, in the same project and in the chosen mode, started from the plan and its file and nothing else of this conversation; this session stops and keeps its history, with a link to the new one. Start new session locks the card while the new session starts; if it does not start the plan still waits, with a note, and the user can try again, approve here or keep planning. When it starts, the cockpit opens the new session. This session then shows one resolved line, Approved in a new session, with a chip that opens the new one, and the new session's first turn shows From the plan in the old session's title, linking back. A control appears
 only when the session's runtime driver declares its capability (`permissions`, `interrupt`, `images`); its settings are the config options it declares.
+
+### Organizing sessions
+
+Sessions are organized by tags, pins, the archive and a grouping; none of them changes a stored line or cursor.
+
+- **Tags** are words the user gives a session: ASCII letters, digits and hyphens, up to 32 characters, at most 10 a
+  session. They are global (one set across every machine) and case-insensitive (the core stores them lowercase),
+  have no colour, and are kept by the core beside the session, never in its lines; sync and handoff never write
+  them. Anyone with the host token edits them. The top bar shows the open session's tags next to the title, with
+  Add tag when it has none; Edit tags (the button beside them, Tags… in the session menu, or ⌥⌘T) opens a
+  combobox under them whose chips are the session's tags. Typing offers the tags in use that match, with how many
+  sessions carry each, then Create for a new one; Enter adds, Backspace in an empty field removes the last tag
+  and Esc closes. Each change reaches every open window at once.
+- **Filter by tag.** A row of chips under Search lists the tags in use with their counts, most used first. One
+  chip is on at a time: the sidebar then shows only the sessions with that tag (their machines and folders,
+  whatever the grouping), and a line under the chips says how many of how many sessions match, with Clear. The
+  row is absent while no session has a tag. `hoplet sessions --tag` filters the same way.
+- **Group.** The Group menu in the sidebar header groups the sessions by **Machine** (the default: each
+  machine's own view options), **Project** or **Last activity**, remembered in the browser (`hoplet.grouping`),
+  never sent to the core. By project, the sessions of every machine whose folder has the same git remote are one
+  group ([ADR 0041](adr/0041-a-project-across-machines-is-its-git-remote.md)), named by the remote's last
+  segment, noting how many machines it joins, and each row names its machine; a folder without a remote is a
+  group of its own on its machine, noted "no remote". By last activity, the sessions fall under Today,
+  Yesterday, This week and Earlier (the browser's calendar days), and each row names its machine and folder.
+  Groups fold like directories.
+- **Pin** keeps a session on top in every grouping: by project and by last activity, a Pinned group of every
+  machine's pinned sessions comes first.
+- **Archive** is manual only. The Archived page restores, and archiving never deletes data.
+
+The phone layout of these is left to the native client.
 
 ### Workspace inspector
 
@@ -537,8 +570,8 @@ and a token from `--token-file` / `HOPLET_TOKEN_FILE` or `HOPLET_TOKEN` (`--toke
 can read arguments). Nothing is stored on disk and there is no login command. Failures print the message of the
 stable error code.
 
-- `hoplet sessions [--device <machine>] [--state <state>]` lists sessions; `hoplet new --device <machine> --path <dir>
-  [--model <id>] [--set option=value]... "<prompt>"` starts one and prints its id.
+- `hoplet sessions [--device <machine>] [--state <state>] [--tag <tag>]` lists sessions; `hoplet new --device <machine>
+  --path <dir> [--model <id>] [--set option=value]... "<prompt>"` starts one and prints its id.
 - `hoplet attach <session> [--answer allow|deny]` follows the live output, asks for permission requests at the
   terminal or answers them with `--answer`, and ends with the turn.
 - `hoplet send <session> "<text>"` (alias `prompt`) sends a prompt; `hoplet wait <session> [--timeout <s>]
@@ -572,6 +605,8 @@ Server, under the data directory (docs/hosting.md#data):
     owner; `owner_epoch` increases with every handoff; `provider` names the vendor (`claude` or `codex`); `title` is the vendor's
     title, and `title_override`, `pinned_at` and `archived_at` (null until set) are what the user did in Hoplet:
     sync and handoff never write them.
+  - `session_tags(session_id, tag, added_at)`: the session's tags ([Organizing sessions](#organizing-sessions)),
+    lowercase, at most 10 a session; sync and handoff never write them and deleting the session removes them.
   - `session_continuations(from_session_id, to_session_id, request_id, mode, created_at)`: a plan approved into a new
     session (ADR 0025). `from_session_id` is the key and `to_session_id` is unique; there are no foreign keys, since the
     new session is not in the index until its first lines sync. A session keeps its latest continuation, and deleting
@@ -639,13 +674,14 @@ API, in `shared/src/` (schemas, types and error codes) and `agent/internal/sync/
   `POST /api/devices/:id/projects` (`{ path }`, an absolute path on the machine: the agent resolves symlinks, refuses a path that is not an existing directory, adds the resolved path as `hoplet-agent projects add`
   does and answers with the updated listing; `target-offline` when the agent is not connected); `POST /api/devices/:id/projects/remove`;
   `POST /api/devices/:id/sessions/import|remove`; `POST /api/ws-tickets`;
-  `PATCH /api/sessions/:id` (`{ title?, pinned?, archived? }`: the session actions above; `session-not-found`);
+  `PATCH /api/sessions/:id` (`{ title?, pinned?, archived?, addTags?, removeTags? }`: the session actions and tags
+  above; `session-not-found`);
   `GET /api/sessions/:id/deletion` (what a deletion would remove) and `DELETE /api/sessions/:id` (`{ vendorFile, worktree }`;
   `session-running`, `owner-offline`, `delete-partial`).
 - Host token (ADR 0030): `GET /api/audit/events`, `GET /api/audit/export` and `GET /api/audit/verify`
   ([Audit log](#audit-log), docs/api.md).
 - Browser WebSocket `/ws?ticket=`: `subscribe`/`unsubscribe` a session; events `session.appended`,
-  `session.deleted`, `session.updated` (title, pin and archive state), `session.runtime` (state), `session.output` (streamed deltas of a subscribed session), `session.rule` (the rule that decided a call, to subscribers),
+  `session.deleted`, `session.updated` (title, pin, archive state and tags), `session.runtime` (state), `session.output` (streamed deltas of a subscribed session), `session.rule` (the rule that decided a call, to subscribers),
   `session.permission`, `handoff.progress`, `device.presence`.
 - Agent WebSocket `/ws/agent`, device token: sync (`device.hello` with the system, the providers and their capabilities,
   `welcome`, `session.append`, `session.ack`, `session.resync`, `session.rejected`), control
@@ -1113,7 +1149,8 @@ of real sessions (86% tool results) at 23, 128 and 256 MB.
 - [ ] An offline handoff uses the last snapshot and states its time; the old owner's appends are rejected
       after it reconnects
 - [ ] A failed handoff at any step leaves owner, cursor and both machines' files unchanged
-- [ ] Rename, pin and archive of a session reach every open window, survive a restart of the core and change no stored line or cursor
+- [ ] Rename, pin, archive and tags of a session reach every open window, survive a restart of the core and change no stored line or cursor
+- [ ] Grouping by project joins the sessions of two machines whose folders share a git remote, and a folder without one stays apart
 - [ ] With `terminal` off on a machine, no terminal opens there; with it on, a terminal opens only while no turn
       runs, a started turn closes it, and a flood of output does not delay a prompt
 - [ ] A dev server started from a session's directory is listed with its port; Hoplet carries none of its traffic

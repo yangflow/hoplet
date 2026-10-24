@@ -94,6 +94,8 @@ export type ListSessionsFilter = {
   provider?: LiveSessionMeta['provider'];
   /** Only the sessions in this runtime state. */
   state?: LiveSessionMeta['runtime']['state'];
+  /** Only the sessions with this tag; tags are case-insensitive. */
+  tag?: string;
 };
 
 export type ReadSessionOptions = {
@@ -166,11 +168,13 @@ export class Hoplet {
 
   async listSessions(filter: ListSessionsFilter = {}): Promise<LiveSessionMeta[]> {
     const { sessions } = await this.call('GET', '/api/sessions', SessionListResponseSchema);
+    const tag = filter.tag?.trim().toLowerCase();
     return sessions.filter(
       (s) =>
         (filter.deviceId === undefined || s.ownerDeviceId === filter.deviceId) &&
         (filter.provider === undefined || s.provider === filter.provider) &&
-        (filter.state === undefined || s.runtime.state === filter.state),
+        (filter.state === undefined || s.runtime.state === filter.state) &&
+        (tag === undefined || (s.tags ?? []).includes(tag)),
     );
   }
 

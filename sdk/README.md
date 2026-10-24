@@ -27,7 +27,7 @@ them. The SDK reads no environment variables; pass `HOPLET_URL` and `HOPLET_TOKE
 
 ## Calls
 
-- `listSessions({ deviceId?, provider?, state? })`, `getSession(id)`.
+- `listSessions({ deviceId?, provider?, state?, tag? })`, `getSession(id)`.
 - `createSession(input)` and `sendPrompt(id, text | input)` choose the `promptId` (or take yours) and repeat a
   lost request with the same one, so a retry never sends the prompt twice. Both return `{ promptId, baseline }`.
 - `waitForTurn(id, { since?, startTimeout?, timeout?, untilBlocked?, drain?, signal? })` resolves with

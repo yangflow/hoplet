@@ -112,6 +112,7 @@ describe('sessionMenu', () => {
     ({
       patch: vi.fn(async () => {}),
       rename: vi.fn(),
+      editTags: vi.fn(),
       remove: vi.fn(),
       say: vi.fn(),
       saveTemplate: vi.fn(),
@@ -137,6 +138,7 @@ describe('sessionMenu', () => {
     expect(ids).toEqual([
       'rename',
       'pin',
+      'tags',
       'sep-1',
       'copy',
       'open',
@@ -146,6 +148,16 @@ describe('sessionMenu', () => {
       'sep-3',
       'delete',
     ]);
+  });
+
+  it('opens the tag editor of the session with ⌥⌘T as its hint', async () => {
+    const a = actions();
+    const s = meta('a', { tags: ['sync'] });
+    const entries = sessionMenu(s, a);
+    const tags = find(entries, 'tags');
+    expect(tags.kind === 'item' && tags.shortcut).toBe('⌥⌘T');
+    await run(entries, 'tags');
+    expect(a.editTags).toHaveBeenCalledWith(s);
   });
 
   it('saves the session as a template', async () => {

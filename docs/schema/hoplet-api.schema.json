@@ -6891,6 +6891,16 @@
         "archivedAt": {
           "type": "number"
         },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 10
+        },
+        "repository": {
+          "type": "string"
+        },
         "continuedIn": {
           "type": "object",
           "properties": {
@@ -9276,6 +9286,16 @@
               "archivedAt": {
                 "type": "number"
               },
+              "tags": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 10
+              },
+              "repository": {
+                "type": "string"
+              },
               "continuedIn": {
                 "type": "object",
                 "properties": {
@@ -10238,6 +10258,16 @@
               "archivedAt": {
                 "type": "number"
               },
+              "tags": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 10
+              },
+              "repository": {
+                "type": "string"
+              },
               "continuedIn": {
                 "type": "object",
                 "properties": {
@@ -10809,6 +10839,26 @@
         },
         "archived": {
           "type": "boolean"
+        },
+        "addTags": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9-]*$"
+          },
+          "maxItems": 10
+        },
+        "removeTags": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9-]*$"
+          },
+          "maxItems": 10
         }
       },
       "required": []
@@ -11236,6 +11286,12 @@
         },
         "archivedAt": {
           "type": "number"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         }
       },
       "required": [

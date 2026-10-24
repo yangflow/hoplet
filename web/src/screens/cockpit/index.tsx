@@ -38,6 +38,8 @@ import { Palette } from './palette.tsx';
 import { RenameDialog } from './rename-dialog.tsx';
 import { type SessionActions, sessionMenu } from './session-actions.tsx';
 import { AddProject, type AddProjectFixture } from './sidebar/add-project.tsx';
+import type { Grouping } from './sidebar/organize.ts';
+import { tagCounts } from './sidebar/organize.ts';
 import { Sidebar } from './sidebar/sidebar.tsx';
 import type { MachineViews } from './sidebar/sidebar-view.ts';
 import { useWatchedProjects } from './sidebar/use-watched-projects.ts';
@@ -81,8 +83,15 @@ export type CockpitFixture = {
   rename?: string;
   /** Opens the delete dialog for the open session, with the owner's answer to what exists. */
   delete?: DeleteFixture;
-  /** Shows the Archived page. */
+  /** Shows the Archived page, filtered by this tag when one is given. */
   archived?: boolean;
+  archivedTag?: string;
+  /** The sidebar's grouping, whether its menu starts open, and the tag it is filtered by. */
+  grouping?: Grouping;
+  groupMenu?: boolean;
+  tagFilter?: string;
+  /** Opens the open session's tag editor with this text in its field. */
+  tagEditor?: string;
   toast?: ToastState;
   now?: number;
   /** The session's usage chip: its data and whether the popover starts open. */
@@ -153,6 +162,10 @@ export function Cockpit(props: {
   // A template for the draft to take up: its text, its place, and the values its fields already have.
   const [draftEntry, setDraftEntry] = useState<DraftEntry | null>(null);
   const [renaming, setRenaming] = useState<LiveSessionMeta | null>(null);
+  // The session whose tag editor is open in the top bar.
+  const [tagging, setTagging] = useState<string | null>(
+    fixture?.tagEditor !== undefined ? selected : null,
+  );
   // The session being deleted, and the one to open when it was the open one.
   const [deleting, setDeleting] = useState<{
     session: LiveSessionMeta;
@@ -263,6 +276,7 @@ export function Cockpit(props: {
     [sessions, devices],
   );
   const archived = archivedCount(archivedGroups);
+  const existingTags = useMemo(() => tagCounts(sessions), [sessions]);
 
   /** Applies a change; `null` when it went through, else why it did not. */
   const apply = useCallback(
@@ -349,11 +363,17 @@ export function Cockpit(props: {
     () => ({
       patch,
       rename: setRenaming,
+      editTags: (s) => {
+        setArchivedOpen(false);
+        setDraft(null);
+        onSelect(s.sessionId);
+        setTagging(s.sessionId);
+      },
       remove: askDelete,
       saveTemplate: (s) => entry.saveAs(s, capabilitiesOf(s)),
       say,
     }),
-    [patch, askDelete, say, entry.saveAs, capabilitiesOf],
+    [patch, askDelete, say, entry.saveAs, capabilitiesOf, onSelect],
   );
 
   function pickSession(id: string) {
@@ -391,7 +411,7 @@ export function Cockpit(props: {
   }, []);
   const addTarget = groups.find((g) => g.name === addFor) ?? null;
 
-  // The session actions' shortcuts act on the selected session: ⌥⌘R rename, ⌥⌘P pin, ⇧⌘A archive.
+  // The session actions' shortcuts act on the selected session: ⌥⌘R rename, ⌥⌘P pin, ⌥⌘T tags, ⇧⌘A archive.
   // ⇧⌘A is also the browser's tab search in Chrome on macOS; the page takes it while it has the focus.
   const shortcut = useRef<(e: KeyboardEvent) => void>(() => undefined);
   // They are ⌘-chords, so they also fire from the composer; a dialog owns the keys while it is open. A held key
@@ -417,6 +437,9 @@ export function Cockpit(props: {
     } else if (e.altKey && !e.shiftKey && e.code === 'KeyP') {
       e.preventDefault();
       void patch(session.sessionId, { pinned: session.pinnedAt === undefined });
+    } else if (e.altKey && !e.shiftKey && e.code === 'KeyT') {
+      e.preventDefault();
+      setTagging((id) => (id === session.sessionId ? null : session.sessionId));
     } else if (e.shiftKey && !e.altKey && e.code === 'KeyA') {
       e.preventDefault();
       void patch(session.sessionId, { archived: !isArchived(session) });
@@ -482,6 +505,9 @@ export function Cockpit(props: {
           {...(fixture?.foldedDirs ? { foldedDirs: fixture.foldedDirs } : {})}
           {...(fixture?.machineViews ? { views: fixture.machineViews } : {})}
           {...(fixture?.menuDevice ? { menuDevice: fixture.menuDevice } : {})}
+          {...(fixture?.grouping ? { grouping: fixture.grouping } : {})}
+          {...(fixture?.groupMenu ? { groupMenu: true } : {})}
+          {...(fixture?.tagFilter ? { tagFilter: fixture.tagFilter } : {})}
           archivedCount={archived}
           archivedOpen={archivedOpen}
           menuFor={(s) => sessionMenu(s, actions)}
@@ -508,6 +534,7 @@ export function Cockpit(props: {
         {archivedOpen ? (
           <ArchivedPage
             groups={archivedGroups}
+            {...(fixture?.archivedTag ? { tag: fixture.archivedTag } : {})}
             now={now}
             onRestore={(ids) => void restore(ids)}
             onDelete={askDelete}
@@ -522,6 +549,22 @@ export function Cockpit(props: {
               {...(fixture?.actionsMenu?.sub ? { menuSub: fixture.actionsMenu.sub } : {})}
               {...(fixture?.actionsMenu?.item ? { menuItem: fixture.actionsMenu.item } : {})}
               {...(draft ? { title: t('New session') } : {})}
+              {...(session && !draft
+                ? {
+                    tags: {
+                      existing: existingTags,
+                      editing: tagging === session.sessionId,
+                      ...(fixture?.tagEditor !== undefined
+                        ? { initialQuery: fixture.tagEditor }
+                        : {}),
+                      onEdit: () => setTagging(session.sessionId),
+                      onAdd: (tag: string) => void patch(session.sessionId, { addTags: [tag] }),
+                      onRemove: (tag: string) =>
+                        void patch(session.sessionId, { removeTags: [tag] }),
+                      onClose: () => setTagging(null),
+                    },
+                  }
+                : {})}
               tokensOnly={props.tokensOnly ?? false}
               {...(fixture?.usage ? { usage: fixture.usage } : {})}
               sidebarFolded={sidebarHidden}

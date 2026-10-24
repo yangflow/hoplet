@@ -37,8 +37,13 @@ describe('requests', () => {
     expect(hoplet.url).toBe('http://core.test:8787');
   });
 
-  it('filters the list by device, provider and state', async () => {
-    const other = session('running', 1, {}, { sessionId: 's2', ownerDeviceId: 'dev2' });
+  it('filters the list by device, provider, state and tag', async () => {
+    const other = session(
+      'running',
+      1,
+      {},
+      { sessionId: 's2', ownerDeviceId: 'dev2', tags: ['auth', 'review'] },
+    );
     const { hoplet } = client(
       on('GET', '/api/sessions', { json: { sessions: [session('ready', 4), other] } }),
     );
@@ -47,6 +52,8 @@ describe('requests', () => {
     ]);
     expect((await hoplet.listSessions({ state: 'ready' })).map((s) => s.sessionId)).toEqual(['s1']);
     expect(await hoplet.listSessions({ provider: 'codex' })).toEqual([]);
+    expect((await hoplet.listSessions({ tag: 'Auth' })).map((s) => s.sessionId)).toEqual(['s2']);
+    expect(await hoplet.listSessions({ tag: 'ui' })).toEqual([]);
   });
 
   it('gets one session', async () => {

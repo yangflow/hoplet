@@ -196,6 +196,19 @@ The mockups, design tokens and app icon behind Hoplet's web UI. The design langu
   `x-done`, `x-old` (the target's agent cannot take rules); A also `a-list`; shared `audit`. `a-differ`, `a-failed`,
   `b-differ`, `c-differ` and `audit` also have `-zh` states, with their strings listed on the page. The `x-old`
   states are not built: every agent the core accepts takes rules. No new icons.
+- `screens/session-organize.html` (#91): tags, pinning, archiving and grouping in the sidebar, three directions; the
+  maintainer confirmed direction A with its recommended options, and it is built. Tags are plain words with no
+  colour, because a hue in Hoplet always means a state. A (`a-*`) keeps the sidebar and adds a row of tag chips
+  under Search, one on at a time, a Group menu in the header (Machine, Project, Last activity; Project follows
+  [ADR 0041](../docs/adr/0041-a-project-across-machines-is-its-git-remote.md)), tags beside the title in the top bar
+  edited in a combobox (also from the row menu and ⌥⌘T), and the same chips on the Archived page. B (`b-*`, sections
+  with Tags listed like folders) and C (`c-*`, a filter field with tokens) were not chosen. States: A `a-default`,
+  `a-pinned`, `a-filter`, `a-project`, `a-time`, `a-archive`, `a-restore`, `a-edit`, `a-empty`, `a-nomatch`, `a-phone`
+  (how A carries over to the native client of #139; the web UI stays desktop only, ADR 0011); B `b-default`,
+  `b-tag`, `b-project`, `b-time`, `b-archive`, `b-edit`, `b-empty`; C `c-default`, `c-filter`, `c-project`,
+  `c-archive`, `c-edit`, `c-empty`. `a-default`, `a-edit`, `a-archive`, `b-default` and `c-filter` also have `-zh`
+  states. In the web UI: `/__states/cockpit/session-tags`, `tags-empty`, `tag-editor`, `tag-filter`, `group-menu`,
+  `group-project`, `group-time`, `archived-tag-filter` and `archived-tag-none`. New icon: `tag`.
 - `tokens.html`: every design token, with the JSON block that `check-tokens.py` compares with
   `web/src/design/tokens.css`.
 - `mark.html`: the app icon and the web UI's mark; the exported icon is `web/public/icon.svg`.

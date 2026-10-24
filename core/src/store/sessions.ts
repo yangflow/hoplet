@@ -170,17 +170,25 @@ export interface SessionStateRecord {
   titleOverride?: string;
   pinnedAt?: number;
   archivedAt?: number;
+  /** Its tags, sorted; absent when it has none. */
+  tags?: string[];
 }
 
-/** A change to it: `undefined` leaves a field as it is, `null` clears it. */
+/**
+ * A change to it: `undefined` leaves a field as it is, `null` clears it. `addTags` and `removeTags` hold
+ * normalized tags (lowercase); removals apply first, a tag the session has or lacks already is a no-op.
+ */
 export interface SessionStateChange {
   titleOverride?: string | null;
   pinnedAt?: number | null;
   archivedAt?: number | null;
+  addTags?: readonly string[];
+  removeTags?: readonly string[];
 }
 
 function stateOf(
   row: Pick<SessionRow, 'title_override' | 'pinned_at' | 'archived_at'>,
+  tags: readonly string[],
 ): SessionStateRecord {
   return {
     ...(row.title_override ? { titleOverride: row.title_override } : {}),
@@ -190,49 +198,85 @@ function stateOf(
     ...(row.archived_at !== null && row.archived_at !== undefined
       ? { archivedAt: Number(row.archived_at) }
       : {}),
+    ...(tags.length > 0 ? { tags: [...tags] } : {}),
   };
+}
+
+function tagsOf(ctx: StoreContext, sessionId: string): string[] {
+  return (
+    ctx.db
+      .prepare('SELECT tag FROM session_tags WHERE session_id = ? ORDER BY tag')
+      .all(sessionId) as { tag: string }[]
+  ).map((r) => r.tag);
 }
 
 /** The user's changes of every session that has any. */
 export function sessionStates(ctx: StoreContext): Map<string, SessionStateRecord> {
+  const tags = new Map<string, string[]>();
+  for (const r of ctx.db
+    .prepare('SELECT session_id, tag FROM session_tags ORDER BY session_id, tag')
+    .all() as { session_id: string; tag: string }[]) {
+    const list = tags.get(r.session_id);
+    if (list) list.push(r.tag);
+    else tags.set(r.session_id, [r.tag]);
+  }
   const rows = ctx.db
     .prepare(
       `SELECT session_id, title_override, pinned_at, archived_at FROM sessions s
-       WHERE (title_override IS NOT NULL OR pinned_at IS NOT NULL OR archived_at IS NOT NULL)
+       WHERE (title_override IS NOT NULL OR pinned_at IS NOT NULL OR archived_at IS NOT NULL
+              OR EXISTS (SELECT 1 FROM session_tags g WHERE g.session_id = s.session_id))
          AND ${NOT_DELETED}`,
     )
     .all() as unknown as SessionRow[];
-  return new Map(rows.map((r) => [r.session_id, stateOf(r)]));
+  return new Map(rows.map((r) => [r.session_id, stateOf(r, tags.get(r.session_id) ?? [])]));
 }
 
 export function sessionState(ctx: StoreContext, sessionId: string): SessionStateRecord | null {
   const row = getRow(ctx, sessionId);
-  return row ? stateOf(row) : null;
+  return row ? stateOf(row, tagsOf(ctx, sessionId)) : null;
 }
 
 /**
  * Applies `change` to a session and returns its state after, or null when there is no such session. Only
- * the three state columns are written: the lines, the cursor and the vendor's title are not touched.
+ * the state columns and its tags are written: the lines, the cursor and the vendor's title are not touched.
  */
 export function updateSessionState(
   ctx: StoreContext,
   sessionId: string,
   change: SessionStateChange,
+  now = Date.now(),
 ): SessionStateRecord | null {
   const row = getRow(ctx, sessionId);
   if (!row) return null;
   const pick = <T>(next: T | null | undefined, current: T | null): T | null =>
     next === undefined ? current : next;
   const title = pick(change.titleOverride, row.title_override);
-  ctx.db
-    .prepare(
-      'UPDATE sessions SET title_override = ?, pinned_at = ?, archived_at = ? WHERE session_id = ?',
-    )
-    .run(
-      title ? title : null,
-      pick(change.pinnedAt, row.pinned_at),
-      pick(change.archivedAt, row.archived_at),
-      sessionId,
-    );
+  ctx.db.exec('BEGIN IMMEDIATE');
+  try {
+    ctx.db
+      .prepare(
+        'UPDATE sessions SET title_override = ?, pinned_at = ?, archived_at = ? WHERE session_id = ?',
+      )
+      .run(
+        title ? title : null,
+        pick(change.pinnedAt, row.pinned_at),
+        pick(change.archivedAt, row.archived_at),
+        sessionId,
+      );
+    for (const tag of change.removeTags ?? []) {
+      ctx.db
+        .prepare('DELETE FROM session_tags WHERE session_id = ? AND tag = ?')
+        .run(sessionId, tag);
+    }
+    for (const tag of change.addTags ?? []) {
+      ctx.db
+        .prepare('INSERT OR IGNORE INTO session_tags(session_id, tag, added_at) VALUES(?, ?, ?)')
+        .run(sessionId, tag, now);
+    }
+    ctx.db.exec('COMMIT');
+  } catch (err) {
+    ctx.db.exec('ROLLBACK');
+    throw err;
+  }
   return sessionState(ctx, sessionId);
 }

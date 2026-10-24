@@ -50,6 +50,7 @@ async function textOf(ctx: Context, words: string[]): Promise<string> {
 export async function sessions(ctx: Context): Promise<number> {
   const deviceRef = str(ctx.flags, 'device');
   const state = str(ctx.flags, 'state');
+  const tag = str(ctx.flags, 'tag');
   if (state !== undefined && !STATES.includes(state as State)) {
     throw new CliError('usage', `--state is one of ${STATES.join(', ')}`);
   }
@@ -57,6 +58,7 @@ export async function sessions(ctx: Context): Promise<number> {
   const found = await ctx.client.listSessions({
     ...(deviceId === undefined ? {} : { deviceId }),
     ...(state === undefined ? {} : { state: state as State }),
+    ...(tag === undefined ? {} : { tag }),
   });
   if (ctx.json) {
     ctx.doc({ sessions: found });

@@ -1,13 +1,86 @@
 import type { Budget, LiveSessionMeta, SessionUsage } from '@hoplet/shared';
 import { useRef, useState } from 'react';
 import { Badge } from '../../components/Badge.tsx';
+import { Button } from '../../components/Button.tsx';
 import { IconButton } from '../../components/IconButton.tsx';
 import { HopletMark, Icon } from '../../components/icons.tsx';
 import { Menu, type MenuEntry } from '../../components/Menu.tsx';
 import { ProviderMark } from '../../components/provider-marks.tsx';
 import { t } from '../../lib/i18n.ts';
 import { displayTitle } from './group.ts';
+import { SHORTCUT } from './session-actions.tsx';
 import { SessionUsageChip } from './session-usage.tsx';
+import { TagEditor } from './tag-editor.tsx';
+
+/** The session's tags in the top bar and what edits them. */
+export type TopBarTags = {
+  /** Every tag in use, with how many sessions carry it. */
+  existing: readonly { tag: string; count: number }[];
+  editing: boolean;
+  /** The text in the editor's field to start with (development fixtures). */
+  initialQuery?: string;
+  onEdit: () => void;
+  onAdd: (tag: string) => void;
+  onRemove: (tag: string) => void;
+  onClose: () => void;
+};
+
+/** The tags after the title, then + (or Add tag when there are none); the editor opens under them. */
+function Tags(props: { tags: readonly string[] } & TopBarTags) {
+  const { tags } = props;
+  const hostRef = useRef<HTMLSpanElement>(null);
+  return (
+    <span className="top-tags" ref={hostRef} data-testid="cockpit.tags">
+      {tags.map((tag) => (
+        <span key={tag} className="tag" data-testid="cockpit.tag">
+          {tag}
+        </span>
+      ))}
+      {tags.length > 0 ? (
+        <IconButton
+          label={t('Edit tags')}
+          hint={SHORTCUT.tags}
+          icon={Icon.plus()}
+          on={props.editing}
+          aria-haspopup="dialog"
+          aria-expanded={props.editing}
+          onClick={props.editing ? props.onClose : props.onEdit}
+          data-testid="cockpit.edit-tags"
+        />
+      ) : (
+        <Button
+          variant="quiet"
+          icon={Icon.tag()}
+          className="add-tag"
+          title={`${t('Add tag')} · ${SHORTCUT.tags}`}
+          aria-haspopup="dialog"
+          aria-expanded={props.editing}
+          aria-keyshortcuts={SHORTCUT.tags}
+          onClick={props.editing ? props.onClose : props.onEdit}
+          data-testid="cockpit.edit-tags"
+        >
+          {t('Add tag')}
+        </Button>
+      )}
+      {props.editing ? (
+        <TagEditor
+          tags={tags}
+          existing={props.existing}
+          {...(props.initialQuery !== undefined ? { initialQuery: props.initialQuery } : {})}
+          onAdd={props.onAdd}
+          onRemove={props.onRemove}
+          onClose={(restore) => {
+            props.onClose();
+            if (restore)
+              hostRef.current
+                ?.querySelector<HTMLElement>('[data-testid="cockpit.edit-tags"]')
+                ?.focus();
+          }}
+        />
+      ) : null}
+    </span>
+  );
+}
 
 /** The session's title and the inspector toggle, which moves into the inspector while it is open. */
 export function TopBar(props: {
@@ -23,6 +96,8 @@ export function TopBar(props: {
   menuOpen?: boolean;
   menuSub?: string;
   menuItem?: string;
+  /** The session's tags and their editor; without it the tags are not shown. */
+  tags?: TopBarTags;
   /** Hides estimated cost in the usage chip. */
   tokensOnly?: boolean;
   /** The usage chip's data, for development fixtures, and whether its popover starts open. */
@@ -58,6 +133,7 @@ export function TopBar(props: {
               {session.configuration.name}
             </span>
           ) : null}
+          {props.tags ? <Tags tags={session.tags ?? []} {...props.tags} /> : null}
         </>
       ) : props.title ? (
         <h1 className="title">{props.title}</h1>

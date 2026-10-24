@@ -126,6 +126,15 @@ const subject: Record<string, Record<string, string>> = {
     'pinned-flat': 'cockpit.pinned',
     archived: 'cockpit.archived-page',
     'archived-empty': 'cockpit.archived-empty',
+    'session-tags': 'cockpit.tags',
+    'tags-empty': 'cockpit.edit-tags',
+    'tag-editor': 'cockpit.tag-editor',
+    'tag-filter': 'cockpit.tag-filter',
+    'group-menu': 'cockpit.group-menu',
+    'group-project': 'cockpit.projects',
+    'group-time': 'cockpit.by-time',
+    'archived-tag-filter': 'cockpit.archived-tags',
+    'archived-tag-none': 'cockpit.archived-no-match',
     'copy-toast': 'toast',
     'completions-commands': 'cockpit.completions',
     'completions-filter': 'cockpit.completions',
@@ -314,8 +323,8 @@ const subject: Record<string, Record<string, string>> = {
   },
 };
 
-test('the registries list 131 cockpit, 80 workspace, 102 settings and 7 action states', () => {
-  expect(screens.cockpit).toHaveLength(131);
+test('the registries list 140 cockpit, 80 workspace, 102 settings and 7 action states', () => {
+  expect(screens.cockpit).toHaveLength(140);
   expect(screens.workspace).toHaveLength(80);
   expect(screens.settings).toHaveLength(102);
   expect(screens.action).toHaveLength(7);

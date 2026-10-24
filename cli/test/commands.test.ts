@@ -163,6 +163,18 @@ describe('sessions', () => {
     expect(docs(json.out)).toMatchObject([{ sessions: [{ sessionId: 's1' }] }]);
   });
 
+  it('lists only the sessions with a tag', async () => {
+    const tagged = [
+      on('GET', '/api/sessions', {
+        json: { sessions: [{ ...session('ready'), tags: ['auth'] }] },
+      }),
+    ];
+    expect(lines((await run(['sessions', '--tag', 'AUTH'], { handlers: tagged })).out)).toEqual([
+      's1\tready\tlaptop\tclaude\t/work/app\tA session',
+    ]);
+    expect(lines((await run(['sessions', '--tag', 'ui'], { handlers: tagged })).out)).toEqual([]);
+  });
+
   it('refuses a bad state and an unknown machine', async () => {
     expect((await run(['sessions', '--state', 'nope'], { handlers })).code).toBe(1);
     const unknown = await run(['sessions', '--device', 'nobody'], { handlers });
