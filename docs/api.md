@@ -539,10 +539,13 @@ takes an optional `path` (absent or `~` is the browse root).
 `PATCH /api/sessions/:sessionId` changes what the user did to a session, beside what its vendor wrote: `title` is
 the name Hoplet shows (stored trimmed, and at most 200 characters after trimming, else `invalid-request`; blank,
 `null` or the vendor's own title clears it, so the vendor's title shows), `pinned` pins or unpins and `archived`
-archives or restores; pinning a pinned session or archiving an archived one keeps its time. A field left out stays as it is, and a
-body that names none of the three is `invalid-request`. The response is the session as `GET` returns it, with
-`titleOverride`, `pinnedAt` and `archivedAt` (the times of the pin and of the archive) present only while set,
-and every browser receives `session.updated`. The change writes no line and moves no cursor, and a session that
+archives or restores; pinning a pinned session or archiving an archived one keeps its time. `removeTags` and then
+`addTags` change the session's tags (each at most 10 tags; a tag is ASCII letters, digits and hyphens starting with
+a letter or digit, at most 32 characters, else `invalid-request`; the core lowercases it): adding a tag the session has or removing one it lacks
+changes nothing, and more than 10 tags after the change is `invalid-request`. A field left out stays as it is, and a
+body that names none of them is `invalid-request`. The response is the session as `GET` returns it, with
+`titleOverride`, `pinnedAt` and `archivedAt` (the times of the pin and of the archive) and `tags` (sorted) present
+only while set, and every browser receives `session.updated`. The change writes no line and moves no cursor, and a session that
 is archived stays archived when lines are appended to it or it is handed off. `GET /api/sessions` returns
 archived sessions too; the client decides what to show.
 
@@ -550,6 +553,11 @@ A session's metadata (the list and `GET /api/sessions/:sessionId`) carries `cont
 `{ sessionId, title }`, while a plan was approved from it into a new session or it was started from one
 ([ADR 0025](adr/0025-a-plan-can-be-approved-into-a-new-session.md)). `title` is the one the list shows for that
 session, or `""` while the session is not in the index yet; the client shows its untitled placeholder then.
+
+A session's metadata carries `repository`, the project it works in across machines
+([ADR 0041](adr/0041-a-project-across-machines-is-its-git-remote.md)): the normalized `origin` remote (host and path,
+such as `github.com/yangflow/hoplet`) of the deepest watched project on the owner that is the session's project
+path or holds it, else of the clone a Hoplet worktree was made from. It is absent when neither has a remote.
 
 ## Error codes
 
@@ -931,7 +939,7 @@ over REST.
 | `session.rules.unenforced` | core → browser | control | `SessionRulesUnenforcedMessage` | No permission rule was checked for a tool call because the Codex hook did not run: `toolUseId` (absent when unknown; the web then shows nothing). Only to the connections subscribed to the session; sent again on subscribe. Kept in memory only |
 | `session.appended` | core → browser | control | `SessionAppendedMessage` | Lines were appended to a session, or a session is new (`isNew`). Sent to every connection |
 | `session.deleted` | core → browser | control | `SessionDeletedMessage` | A session was deleted (its tombstone is written). Carries `sessionId`; drop it from every list. Sent to every connection |
-| `session.updated` | core → browser | control | `SessionUpdatedMessage` | The user renamed, pinned, unpinned, archived or restored a session. Carries the state after the change (`titleOverride`, `pinnedAt`, `archivedAt`; absent means cleared). Sent to every connection |
+| `session.updated` | core → browser | control | `SessionUpdatedMessage` | The user renamed, pinned, unpinned, archived, restored or tagged a session. Carries the state after the change (`titleOverride`, `pinnedAt`, `archivedAt`, `tags`; absent means cleared). Sent to every connection |
 | `device.presence` | core → browser | control | `DevicePresenceMessage` | A device connected or disconnected. Sent to every connection, followed by `session.runtime` for each session the connection is subscribed to |
 | `session.runtime` | core → browser | control | `SessionRuntimeMessage` | The runtime state of a session and its capabilities. Sent to every connection |
 | `session.queue` | core → browser | control | `SessionQueueMessage` | The queue of a session changed; fetch `GET /api/sessions/:sessionId/queue`. Sent to every connection |

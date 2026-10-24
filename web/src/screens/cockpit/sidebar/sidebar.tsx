@@ -9,6 +9,7 @@ import {
   useState,
 } from 'react';
 import { Badge } from '../../../components/Badge.tsx';
+import { Button } from '../../../components/Button.tsx';
 import { IconButton } from '../../../components/IconButton.tsx';
 import { HopletMark, Icon } from '../../../components/icons.tsx';
 import { MachineIcon } from '../../../components/MachineIcon.tsx';
@@ -22,8 +23,20 @@ import { type DeviceGroup, displayTitle } from '../group.ts';
 import type { RuntimeState } from '../model.ts';
 import type { EntryChoice } from '../template-entry.tsx';
 import { DEVICE_ROW, dirKey, useFoldedDirs } from './folded-dirs.ts';
+import { GroupMenu } from './group-menu.tsx';
 import { MachineMenu } from './machine-menu.tsx';
 import { NewMenu } from './new-menu.tsx';
+import {
+  type Bucket,
+  filterByTag,
+  type Grouping,
+  type Located,
+  pinnedAcross,
+  projectGroups,
+  tagCounts,
+  timeGroups,
+  useGrouping,
+} from './organize.ts';
 import { compactRel } from './rel.ts';
 import {
   flatList,
@@ -144,9 +157,22 @@ function DraftRow() {
   );
 }
 
+/** The key the project rows fold under, beside the machines' names. */
+const PROJECT_ROWS = '\u0001project';
+
+const bucketLabel = (b: Bucket): string =>
+  ({
+    today: t('Today'),
+    yesterday: t('Yesterday'),
+    week: t('This week'),
+    earlier: t('Earlier'),
+  })[b];
+
 /** A folder row that folds what it holds: the whole row is the button, the folder glyph says which. */
 function FolderRow(props: {
   name: string;
+  /** A quiet note after the name: how many machines a project joins, or that it has no remote. */
+  note?: string;
   title: string;
   folded: boolean;
   dim: boolean;
@@ -172,7 +198,10 @@ function FolderRow(props: {
         data-testid={props.testid}
       >
         <span className="fi">{folded ? Icon.folder() : Icon.folderOpen()}</span>
-        <span className="dn">{props.name}</span>
+        <span className="dn">
+          {props.name}
+          {props.note ? <span className="prj-o">{props.note}</span> : null}
+        </span>
         {folded ? (
           <span className="rt">
             <span
@@ -221,6 +250,11 @@ export function Sidebar(props: {
   views?: MachineViews;
   /** Starts with the view menu of this machine open (development fixtures). */
   menuDevice?: string;
+  /** The grouping to start with, replacing what the browser remembers, and whether its menu starts open (development fixtures). */
+  grouping?: Grouping;
+  groupMenu?: boolean;
+  /** The tag the list starts filtered by (development fixtures). */
+  tagFilter?: string;
   /** Archived sessions: the footer button opens the Archived page. */
   archivedCount?: number;
   archivedOpen?: boolean;
@@ -247,7 +281,24 @@ export function Sidebar(props: {
   const { selected, runtime, now, host, live, draft } = props;
   const folding = useFoldedDirs(props.foldedDirs);
   const { viewOf, setView } = useMachineViews(props.views);
-  const groups = props.groups;
+  const [grouping, setGrouping] = useGrouping(props.grouping);
+  const [tagPicked, setTag] = useState<string | null>(props.tagFilter ?? null);
+  const tags = useMemo(
+    () => tagCounts(props.groups.flatMap((g) => g.dirs.flatMap((d) => d.sessions))),
+    [props.groups],
+  );
+  // A tag no session carries any more filters nothing: the list shows whole again.
+  const tag = tagPicked !== null && tags.some((x) => x.tag === tagPicked) ? tagPicked : null;
+  const total = useMemo(
+    () => props.groups.reduce((n, g) => n + g.dirs.reduce((m, d) => m + d.sessions.length, 0), 0),
+    [props.groups],
+  );
+  const groups = useMemo(() => filterByTag(props.groups, tag), [props.groups, tag]);
+  const shown = groups.reduce((n, g) => n + g.dirs.reduce((m, d) => m + d.sessions.length, 0), 0);
+  const projects = useMemo(
+    () => (grouping === 'project' ? projectGroups(groups) : []),
+    [grouping, groups],
+  );
   const treeRef = useRef<HTMLElement>(null);
   const [ctx, setCtx] = useState<{
     session: LiveSessionMeta;
@@ -262,11 +313,16 @@ export function Sidebar(props: {
   const scrollPending = useRef(false);
   const { reveal } = folding;
   const atFlat = at ? viewOf(at.view).organize === 'flat' : false;
+  const atProject = projects.find((p) =>
+    p.sessions.some((l) => l.session.sessionId === selected),
+  )?.key;
   // biome-ignore lint/correctness/useExhaustiveDependencies: a new selection reveals again; `at` is read through its parts
   useEffect(() => {
     scrollPending.current = selected !== null;
-    if (at) reveal(dirKey(at.device, DEVICE_ROW), ...(atFlat ? [] : [dirKey(at.device, at.path)]));
-  }, [selected, at?.device, at?.path, atFlat, reveal]);
+    if (atProject) reveal(dirKey(PROJECT_ROWS, atProject));
+    else if (at)
+      reveal(dirKey(at.device, DEVICE_ROW), ...(atFlat ? [] : [dirKey(at.device, at.path)]));
+  }, [selected, at?.device, at?.path, atFlat, atProject, reveal]);
   // A draft's directory opens as well, so its row shows.
   useEffect(() => {
     if (!draft?.deviceName) return;
@@ -362,6 +418,84 @@ export function Sidebar(props: {
         {pinned.map((p) => row(p.session, g.online, p.dir, true))}
         {pinned.length > 0 ? <div className="rule" /> : null}
         {flatList(g, sort).map((p) => row(p.session, g.online, p.dir))}
+      </div>
+    );
+  }
+
+  /** The pinned sessions of every machine, each with its machine and folder: they lead Project and Time. */
+  function pinnedAll() {
+    const pinned = pinnedAcross(groups);
+    if (pinned.length === 0) return null;
+    return (
+      <div className="grp" key="pinned" data-testid="cockpit.pinned">
+        <div className="grp-h">
+          <span className="fi">{Icon.pin()}</span>
+          {t('Pinned')}
+          <span className="cnt">{pinned.length}</span>
+        </div>
+        {pinned.map((l) => row(l.session, l.online, `${l.device} · ${l.dir}`))}
+      </div>
+    );
+  }
+
+  const draftRow = () => (draft && grouping !== 'machine' ? <DraftRow /> : null);
+
+  /** One group per project across machines (ADR 0041); a folder without a remote stays its machine's. */
+  function byProject() {
+    return (
+      <div className="devg" data-testid="cockpit.projects">
+        {draftRow()}
+        {pinnedAll()}
+        {projects.map((p) => {
+          const folded = folding.isFolded(PROJECT_ROWS, p.key);
+          const online = p.sessions.some((l) => l.online);
+          const note = !p.repository
+            ? t('no remote')
+            : p.machines > 1
+              ? t('{n} machines').replace('{n}', String(p.machines))
+              : undefined;
+          return (
+            <div className="grp" key={p.key} data-testid="cockpit.project">
+              <FolderRow
+                name={p.name}
+                {...(note ? { note } : {})}
+                title={p.repository ?? `${p.sessions[0]?.device ?? ''} · ${p.name}`}
+                folded={folded}
+                dim={!online}
+                count={p.sessions.length}
+                urgent={
+                  folded
+                    ? urgentState({ sessions: p.sessions.map((l) => l.session) }, runtime)
+                    : null
+                }
+                hover={false}
+                onToggle={() => folding.toggle(PROJECT_ROWS, p.key)}
+                testid="cockpit.project-toggle"
+              />
+              {folded ? null : p.sessions.map((l: Located) => row(l.session, l.online, l.device))}
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
+  /** The sessions by last activity: Today, Yesterday, This week, Earlier. */
+  function byTime() {
+    return (
+      <div className="devg" data-testid="cockpit.by-time">
+        {draftRow()}
+        {pinnedAll()}
+        {timeGroups(groups, now).map((b) => (
+          <div className="grp" key={b.bucket} data-testid="cockpit.time-bucket">
+            <div className="grp-h">
+              <span className="fi">{Icon.clock()}</span>
+              {bucketLabel(b.bucket)}
+              <span className="cnt">{b.sessions.length}</span>
+            </div>
+            {b.sessions.map((l) => row(l.session, l.online, `${l.device} · ${l.dir}`))}
+          </div>
+        ))}
       </div>
     );
   }
@@ -465,6 +599,11 @@ export function Sidebar(props: {
         <b>Hoplet</b>
         <span className="brand-gap" />
         <span className="brand-buttons">
+          <GroupMenu
+            grouping={grouping}
+            onChange={setGrouping}
+            initialOpen={props.groupMenu ?? false}
+          />
           <IconButton
             label={t('New session')}
             hint="⌘N"
@@ -505,11 +644,50 @@ export function Sidebar(props: {
           <Badge kind="key">⌘K</Badge>
         </span>
       </button>
+      {tags.length > 0 ? (
+        <div
+          className="tag-strip"
+          role="toolbar"
+          aria-label={t('Filter by tag')}
+          data-testid="cockpit.tag-strip"
+        >
+          {tags.map((x) => (
+            <button
+              key={x.tag}
+              type="button"
+              className={`fch${x.tag === tag ? ' on' : ''}`}
+              aria-pressed={x.tag === tag}
+              onClick={() => setTag(x.tag === tag ? null : x.tag)}
+              data-testid="cockpit.tag-chip"
+            >
+              {x.tag}
+              <span className="c">{x.count}</span>
+            </button>
+          ))}
+        </div>
+      ) : null}
+      {tag ? (
+        <div className="fbar" role="status" data-testid="cockpit.tag-filter">
+          <span>
+            {t('{n} of {m} sessions · tagged {tag}')
+              .replace('{n}', String(shown))
+              .replace('{m}', String(total))
+              .replace('{tag}', tag)}
+          </span>
+          <Button variant="quiet" onClick={() => setTag(null)} data-testid="cockpit.tag-clear">
+            {t('Clear')}
+          </Button>
+        </div>
+      ) : null}
       <nav ref={treeRef} className="tree" aria-label={t('Sessions')} data-testid="cockpit.tree">
-        {groups.length === 0 ? (
+        {props.groups.length === 0 ? (
           <p className="tree-empty" data-testid="cockpit.empty">
             {t('No sessions synced yet')}
           </p>
+        ) : grouping === 'project' ? (
+          byProject()
+        ) : grouping === 'time' ? (
+          byTime()
         ) : (
           machines()
         )}

@@ -31,7 +31,7 @@ the error code `forbidden` under a scoped one.
 
 | Command | |
 | --- | --- |
-| `sessions [--device] [--state]` | list sessions (id, state, machine, provider, path, title) |
+| `sessions [--device] [--state] [--tag]` | list sessions (id, state, machine, provider, path, title) |
 | `new --device --path [--provider] [--model] [--set option=value]... [--worktree[=<branch>]] [--wait] "<prompt>"` | start a session; prints its id |
 | `attach <session> [--answer allow\|deny]` | follow the live output; ends with the turn |
 | `send <session> "<text>" [--wait]` (alias `prompt`) | send a prompt; `-` reads it from standard input |

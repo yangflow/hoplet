@@ -1,0 +1,949 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hoplet screen: organizing sessions (#91)</title>
+<script type="application/json" id="tokens">
+{
+  "dark": {
+    "--color-bg": "#131210",
+    "--color-sidebar": "#191715",
+    "--color-surface": "#1c1a17",
+    "--color-raised": "#211e1b",
+    "--color-hover": "#28241f",
+    "--color-selected": "#2c2823",
+    "--color-line": "rgba(255, 238, 220, 0.075)",
+    "--color-highlight": "rgba(255, 244, 232, 0.06)",
+    "--color-text": "#efe9e2",
+    "--color-text-2": "#b8b0a6",
+    "--color-text-3": "#988f85",
+    "--color-accent": "#ff7a1a",
+    "--color-accent-text": "#ff9142",
+    "--color-on-accent": "#1c0d02",
+    "--color-accent-soft": "rgba(255, 122, 26, 0.10)",
+    "--color-attention": "#e8b31a",
+    "--color-attention-text": "#f0c142",
+    "--color-attention-soft": "rgba(232, 179, 26, 0.075)",
+    "--color-attention-ring": "rgba(232, 179, 26, 0.32)",
+    "--color-success": "#4cc38a",
+    "--color-danger": "#ff7366",
+    "--color-on-danger": "#1c0d02",
+    "--color-add-bg": "rgba(76, 195, 138, 0.10)",
+    "--color-add-text": "#86dcae",
+    "--color-del-bg": "rgba(255, 115, 102, 0.10)",
+    "--color-del-text": "#ffa49b",
+    "--color-git-modified": "#d9b77e",
+    "--color-git-untracked": "#6fcf97",
+    "--color-git-deleted": "#ff8a7d",
+    "--color-syntax-keyword": "#d3a6ee",
+    "--color-syntax-string": "#b0d58c",
+    "--color-syntax-comment": "#8f877d",
+    "--color-syntax-number": "#efb57c",
+    "--color-syntax-type": "#7ec3e3",
+    "--color-syntax-function": "#e8d7a4",
+    "--shadow-live": "inset 0 1px 0 rgba(255, 244, 232, 0.06), 0 0 0 1px rgba(0, 0, 0, 0.45), 0 14px 36px rgba(0, 0, 0, 0.42), 0 2px 6px rgba(0, 0, 0, 0.3)",
+    "--shadow-float": "inset 0 1px 0 rgba(255, 244, 232, 0.07), 0 0 0 1px rgba(0, 0, 0, 0.5), 0 18px 40px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.35)",
+    "--shadow-drawer": "inset 1px 0 0 rgba(255, 238, 220, 0.06), -18px 0 40px rgba(0, 0, 0, 0.3)",
+    "--fade-bg": "rgba(19, 18, 16, 0)",
+    "--color-scrim": "rgba(8, 6, 4, 0.42)",
+    "--shadow-accent": "inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 1px 2px rgba(0, 0, 0, 0.2)"
+  },
+  "light": {
+    "--color-bg": "#f8f5f0",
+    "--color-sidebar": "#efebe4",
+    "--color-surface": "#f0ebe4",
+    "--color-raised": "#fffdfa",
+    "--color-hover": "#e8e2d9",
+    "--color-selected": "#e2dbd1",
+    "--color-line": "rgba(60, 40, 20, 0.10)",
+    "--color-highlight": "rgba(255, 255, 255, 0.85)",
+    "--color-text": "#1c1915",
+    "--color-text-2": "#534c44",
+    "--color-text-3": "#675f55",
+    "--color-accent": "#c24e00",
+    "--color-accent-text": "#a64100",
+    "--color-on-accent": "#ffffff",
+    "--color-accent-soft": "rgba(194, 78, 0, 0.08)",
+    "--color-attention": "#c08a00",
+    "--color-attention-text": "#8f6200",
+    "--color-attention-soft": "rgba(192, 138, 0, 0.075)",
+    "--color-attention-ring": "rgba(154, 106, 0, 0.30)",
+    "--color-success": "#1d8550",
+    "--color-danger": "#c3352a",
+    "--color-on-danger": "#ffffff",
+    "--color-add-bg": "rgba(29, 133, 80, 0.09)",
+    "--color-add-text": "#156b3d",
+    "--color-del-bg": "rgba(195, 53, 42, 0.08)",
+    "--color-del-text": "#a82a1f",
+    "--color-git-modified": "#86621c",
+    "--color-git-untracked": "#1a7a47",
+    "--color-git-deleted": "#b42f24",
+    "--color-syntax-keyword": "#8433b5",
+    "--color-syntax-string": "#3f7514",
+    "--color-syntax-comment": "#736b61",
+    "--color-syntax-number": "#9c4f00",
+    "--color-syntax-type": "#17698f",
+    "--color-syntax-function": "#6b5000",
+    "--shadow-live": "inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 0 0 1px rgba(60, 40, 20, 0.08), 0 12px 32px rgba(60, 40, 20, 0.10), 0 2px 6px rgba(60, 40, 20, 0.06)",
+    "--shadow-float": "inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 0 0 1px rgba(60, 40, 20, 0.09), 0 16px 36px rgba(60, 40, 20, 0.12), 0 2px 6px rgba(60, 40, 20, 0.07)",
+    "--shadow-drawer": "inset 1px 0 0 rgba(60, 40, 20, 0.08), -16px 0 36px rgba(60, 40, 20, 0.06)",
+    "--fade-bg": "rgba(248, 245, 240, 0)",
+    "--color-scrim": "rgba(40, 28, 15, 0.13)",
+    "--shadow-accent": "inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 1px 2px rgba(60, 40, 20, 0.2)"
+  },
+  "shared": {
+    "--font-ui": "\"Inter Variable\", -apple-system, system-ui, \"PingFang SC\", sans-serif",
+    "--font-prose": "var(--font-ui)",
+    "--font-mono": "\"JetBrains Mono Variable\", ui-monospace, \"SF Mono\", Menlo, monospace",
+    "--text-meta": "11px",
+    "--leading-meta": "16px",
+    "--text-ui": "13px",
+    "--leading-ui": "20px",
+    "--text-code": "12.5px",
+    "--leading-code": "20px",
+    "--text-body": "15px",
+    "--leading-body": "24px",
+    "--text-title": "15px",
+    "--leading-title": "20px",
+    "--weight-regular": "400",
+    "--weight-medium": "500",
+    "--weight-semibold": "600",
+    "--measure-prose": "68ch",
+    "--icon-size": "16px",
+    "--icon-stroke": "1.5",
+    "--space-1": "4px",
+    "--space-2": "8px",
+    "--space-3": "12px",
+    "--space-4": "16px",
+    "--space-5": "24px",
+    "--space-6": "32px",
+    "--space-7": "48px",
+    "--radius-sm": "6px",
+    "--radius-md": "10px",
+    "--radius-lg": "14px",
+    "--radius-xl": "18px",
+    "--layout-sidebar": "248px",
+    "--layout-inspector": "296px",
+    "--layout-inspector-wide": "720px",
+    "--layout-inspector-list": "220px",
+    "--layout-settings-nav": "208px",
+    "--layout-column": "760px",
+    "--layout-topbar": "52px",
+    "--layout-foot": "44px",
+    "--layout-row-device": "32px",
+    "--layout-row": "28px",
+    "--layout-row-tree": "24px",
+    "--layout-act-verb": "64px",
+    "--layout-gutter": "32px",
+    "--layout-well-max": "240px",
+    "--layout-palette": "560px",
+    "--layout-dialog": "480px",
+    "--layout-popover": "248px",
+    "--layout-modal-top": "96px",
+    "--motion-pulse": "1.6s",
+    "--motion-blink": "1s",
+    "--motion-spin": "0.8s",
+    "--control-icon": "28px",
+    "--control-field": "32px",
+    "--layout-gate": "320px",
+    "--layout-viewport-min": "1024px"
+  }
+}
+</script>
+<style id="token-css"></style>
+<style id="token-css"></style>
+<style>
+@font-face{font-family:"Inter Variable";src:url(../fonts/inter-latin-wght-normal.woff2) format("woff2");font-weight:100 900;font-display:swap}
+@font-face{font-family:"JetBrains Mono Variable";src:url(../fonts/jetbrains-mono-latin-wght-normal.woff2) format("woff2");font-weight:100 800;font-display:swap}
+
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:#131210}
+body.solo{overflow:hidden}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+button:focus-visible{outline:2px solid var(--color-accent);outline-offset:2px}
+svg{display:block;flex:none}
+.spin{animation:rot var(--motion-spin) linear infinite}
+@keyframes rot{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important}}
+
+/* one type scale: meta 11/16 · UI 13/20 · prose 15/24 · title 15/20 600 · mono 12.5/20; weights 400/500/600 */
+.frame{width:1280px;height:800px;overflow:hidden;position:relative;display:grid;grid-template-columns:var(--layout-sidebar) 1fr;grid-template-rows:100%;
+  background:var(--color-bg);color:var(--color-text);font-family:var(--font-ui);font-size:var(--text-ui);line-height:var(--leading-ui);font-weight:var(--weight-regular);
+  -webkit-font-smoothing:antialiased;letter-spacing:-0.003em}
+.frame.with-insp{grid-template-columns:var(--layout-sidebar) 1fr var(--layout-inspector)}
+.frame.nosb,.frame.page{grid-template-columns:1fr}
+.frame.nosb.with-insp{grid-template-columns:1fr var(--layout-inspector)}
+.frame.with-insp.wide{grid-template-columns:1fr var(--layout-inspector-wide)}
+.mono{font-family:var(--font-mono);font-size:var(--text-code);line-height:var(--leading-code);letter-spacing:0}
+.num{font-variant-numeric:tabular-nums}
+.meta{font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3);font-variant-numeric:tabular-nums}
+
+/* icon buttons: the icon carries the intent, the title names it */
+.ib{width:var(--control-icon);height:var(--control-icon);border-radius:var(--radius-sm);display:grid;place-items:center;color:var(--color-text-3);flex:none;position:relative}
+.ib.on{background:var(--color-selected);color:var(--color-text);box-shadow:inset 0 1px 0 var(--color-highlight)}
+.ib[disabled]{opacity:.4;cursor:default}
+.ib.bd{color:var(--color-text-2);background:var(--color-hover);box-shadow:inset 0 1px 0 var(--color-highlight),0 0 0 1px var(--color-line)}
+.light .ib.bd{background:var(--color-raised)}
+.side,.insp{min-height:0;overflow:hidden}
+.side{background:var(--color-sidebar);display:flex;flex-direction:column;min-width:0;box-shadow:inset -1px 0 0 var(--color-line)}
+.brand{position:relative;height:var(--layout-topbar);display:flex;align-items:center;gap:6px;padding:0 var(--space-2) 0 14px;flex:none}
+.brand b{font-size:var(--text-title);line-height:var(--leading-title);font-weight:var(--weight-semibold);letter-spacing:-0.01em}
+.brand .sp{flex:1}
+.brand .hb{display:flex;gap:0}
+.mark{width:20px;height:20px;border-radius:6px;background:var(--color-accent);display:grid;place-items:center;box-shadow:inset 0 1px 0 rgba(255,255,255,.25);flex:none}
+.search{margin:0 var(--space-2);height:var(--control-field);border-radius:var(--radius-sm);background:var(--color-surface);display:flex;align-items:center;gap:var(--space-2);padding:0 var(--space-2);color:var(--color-text-3);flex:none;text-align:left;
+  box-shadow:inset 0 1px 0 var(--color-highlight),0 0 0 1px var(--color-line)}
+.light .search{background:var(--color-raised)}
+.search .lbl{flex:1}
+.kbd{font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3);padding:0 4px;border-radius:4px;box-shadow:inset 0 0 0 1px var(--color-line);font-family:var(--font-ui);font-variant-numeric:tabular-nums}
+.tree{flex:1;overflow:hidden;padding:0 var(--space-2)}
+.devg{padding-top:var(--space-4)}
+.dev{position:relative;height:var(--layout-row-device);display:flex;align-items:center;padding-right:var(--space-1);border-radius:var(--radius-sm);font-weight:var(--weight-semibold);color:var(--color-text);white-space:nowrap}
+.dev .dt{flex:1;min-width:0;height:100%;display:flex;align-items:center;gap:var(--space-2);padding:0 var(--space-2)}
+.dev .dt .dn{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.dev .lead{width:16px;height:16px;display:grid;place-items:center;flex:none}
+.dev .dchv{width:16px;height:16px;display:grid;place-items:center;flex:none;color:var(--color-text-3)}
+.dev .dchv svg{transition:transform .12s}
+.dev.open .dchv svg{transform:rotate(90deg)}
+.dev .ib{width:24px;height:24px;display:none}
+.dev.hov .ib,.dev.menu .ib{display:grid;color:var(--color-text-2)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--color-success);flex:none}
+.dot.off{background:transparent;box-shadow:inset 0 0 0 1.5px var(--color-text-3)}
+/* machine icon: the system's mark in the folder icon's column, the presence dot at its bottom-right, cut into the mark */
+.mch{--md:7px;--mc:5.5px;--mo:-1.5px;position:relative;width:16px;height:16px;display:grid;place-items:center;flex:none;color:var(--color-text-2)}
+.mch svg{display:block;-webkit-mask-image:radial-gradient(circle at 14px 14px,transparent calc(var(--mc) - .5px),#000 var(--mc));mask-image:radial-gradient(circle at 14px 14px,transparent calc(var(--mc) - .5px),#000 var(--mc))}
+.mch .mch-d{position:absolute;right:var(--mo);bottom:var(--mo);width:var(--md);height:var(--md);border-radius:50%;background:var(--color-success)}
+.mch.off{color:var(--color-text-3)}
+.mch.off .mch-d{background:transparent;box-shadow:inset 0 0 0 1.5px var(--color-text-3)}
+
+/* machine resources (#88): a warning glyph on the row */
+.rm{display:flex;align-items:center;flex:none;margin-right:var(--space-1);color:var(--color-attention-text)}
+.rm svg{width:14px;height:14px;flex:none}
+.dev.hov .rm,.dev.menu .rm{display:none}
+.menu-item.dim{color:var(--color-text-2)}
+.sdir,.sess{height:var(--layout-row);display:flex;align-items:center;gap:var(--space-2);padding:0 var(--space-2);border-radius:var(--radius-sm);white-space:nowrap}
+.sdir{color:var(--color-text-2);font-weight:var(--weight-medium)}
+.sdir .fi{width:16px;height:16px;display:grid;place-items:center;flex:none;color:var(--color-text-3)}
+.sdir .dn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.sdir .rt{display:flex;align-items:center;gap:var(--space-2);flex:none}
+.sdir .cnt{font-size:var(--text-meta);line-height:var(--leading-meta);font-weight:var(--weight-regular);color:var(--color-text-3);font-variant-numeric:tabular-nums}
+.sdir .ib{width:24px;height:24px;margin-right:-4px;display:none}
+.sdir.hov{background:var(--color-hover)}
+.sdir.hov .ib{display:grid;color:var(--color-text-2)}
+.sdir.none{color:var(--color-text-3);font-weight:var(--weight-regular);padding-left:32px}
+.sess{color:var(--color-text-2)}
+.sess .t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.sess .m{gap:var(--space-2);min-width:16px;display:flex;align-items:center;justify-content:flex-end;font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3);font-variant-numeric:tabular-nums;flex:none}
+.sess.on{background:var(--color-selected);color:var(--color-text);box-shadow:inset 0 1px 0 var(--color-highlight)}
+.sess.dim{color:var(--color-text-3)}
+.sess.dim.on{color:var(--color-text-2)}
+.sess.two{height:calc(var(--leading-ui) + var(--leading-meta))}
+.sess .t.tt{display:flex;flex-direction:column;overflow:visible}
+.sess .t1,.sess .t2{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.sess .t2{font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3)}
+/* a machine's view options: its name, then Organize and Sort as two radio groups under the row */
+.pop{position:absolute;z-index:30;top:calc(100% - var(--space-1));left:var(--space-2);right:var(--space-2);padding:var(--space-1);border-radius:var(--radius-md);background:var(--color-raised);box-shadow:var(--shadow-float)}
+.menu-title{padding:var(--space-2) var(--space-2) var(--space-1);font-weight:var(--weight-semibold);color:var(--color-text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.menu-label{padding:var(--space-2) var(--space-2) var(--space-1);font-size:var(--text-meta);line-height:var(--leading-meta);font-weight:var(--weight-medium);color:var(--color-text-3)}
+.menu-item{height:var(--layout-row);display:flex;align-items:center;gap:var(--space-2);padding:0 var(--space-2);border-radius:var(--radius-sm);color:var(--color-text);white-space:nowrap}
+.menu-check{width:16px;height:16px;display:grid;place-items:center;flex:none;color:var(--color-text-2)}
+.menu-sep{height:1px;margin:var(--space-1) var(--space-2);background:var(--color-line)}
+.pm{width:16px;height:16px;display:grid;place-items:center;flex:none;color:var(--color-text-3)}
+.sess.on .pm{color:var(--color-text-2)}
+.gl{width:16px;height:16px;display:grid;place-items:center;flex:none;color:var(--color-text-3)}
+.gl .spin{color:var(--color-accent)}
+.need-dot{width:8px;height:8px;border-radius:50%;background:var(--color-attention);box-shadow:0 0 0 3px var(--color-attention-ring)}
+.bad-dot{width:8px;height:8px;border-radius:50%;background:var(--color-danger);flex:none}
+.ready-dot{width:8px;height:8px;border-radius:50%;background:var(--color-accent);flex:none}
+.off-dot{width:8px;height:8px;border-radius:50%;box-shadow:inset 0 0 0 1.5px var(--color-text-3);flex:none}
+.devg.off .dev,.devg.off .sdir,.devg.off .sess{color:var(--color-text-3)}
+.devg.off .dev{font-weight:var(--weight-medium)}
+.devg.off .sess.on{color:var(--color-text-2)}
+.frozen-side .gl .spin{color:var(--color-text-3);animation:none}
+.side-foot{height:var(--layout-foot);display:flex;align-items:center;gap:var(--space-2);padding:0 var(--space-2) 0 var(--space-4);box-shadow:inset 0 1px 0 var(--color-line);flex:none}
+.conn{flex:1;min-width:0;display:flex;align-items:center;gap:var(--space-2);color:var(--color-text-3);white-space:nowrap}
+.conn .lead{width:16px;height:16px;display:grid;place-items:center;flex:none}
+.conn.lost{color:var(--color-danger)}
+.conn.lost .dot{background:var(--color-danger)}
+
+/* modal chrome: command palette and New session */
+.scrim{position:absolute;inset:0;z-index:19;background:var(--color-scrim)}
+.modal{position:absolute;z-index:20;left:50%;top:var(--layout-modal-top);transform:translateX(-50%);border-radius:var(--radius-lg);background:var(--color-raised);box-shadow:var(--shadow-float);overflow:hidden}
+.hl{color:var(--color-accent-text);font-weight:var(--weight-semibold)}
+.kc{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 4px;border-radius:4px;background:var(--color-hover);font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3);font-variant-numeric:tabular-nums;flex:none}
+.pal{width:var(--layout-palette)}
+.pal-in{height:var(--layout-topbar);display:flex;align-items:center;gap:var(--space-3);padding:0 var(--space-4) 0 18px;font-size:var(--text-body);line-height:var(--leading-body);color:var(--color-text)}
+.pal-in .q{display:flex;align-items:center}
+.pal-in svg{color:var(--color-text-3)}
+.pal-in .cr2{width:1.5px;height:20px;background:var(--color-accent);margin-left:2px}
+.pal-b{padding:0 var(--space-2) var(--space-2)}
+.pal-sec{padding:var(--space-3) var(--space-2) var(--space-1);font-size:var(--text-meta);line-height:var(--leading-meta);font-weight:var(--weight-medium);color:var(--color-text-3)}
+.po{height:var(--control-field);display:flex;align-items:center;gap:var(--space-2);padding:0 var(--space-2);border-radius:var(--radius-sm);color:var(--color-text);white-space:nowrap}
+.po .lead{width:16px;height:16px;display:grid;place-items:center;flex:none;color:var(--color-text-3)}
+.po .t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.po .t.ex{color:var(--color-text-2)}
+.po .m{display:flex;align-items:baseline;min-width:0;max-width:52%;font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3);font-variant-numeric:tabular-nums}
+.po .m .ms{overflow:hidden;text-overflow:ellipsis;max-width:150px}
+.po .m .ln{flex:none;white-space:pre}
+.po.on{background:var(--color-selected);box-shadow:inset 0 1px 0 var(--color-highlight)}
+.po.on .lead{color:var(--color-text-2)}
+.po.on .kc{background:var(--color-raised);color:var(--color-text-2);box-shadow:0 0 0 1px var(--color-line)}
+.dark .po.on .kc{background:var(--color-hover)}
+.po.scan{color:var(--color-text-3)}
+.pal-f{height:36px;display:flex;align-items:center;gap:var(--space-4);padding:0 var(--space-4);font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3);box-shadow:inset 0 1px 0 var(--color-line)}
+.pal-f span{display:flex;align-items:center;gap:var(--space-1)}
+/* top bar */
+.main{display:flex;flex-direction:column;min-width:0;min-height:0;overflow:hidden;position:relative}
+.top{height:var(--layout-topbar);display:flex;align-items:center;gap:var(--space-2);padding:0 var(--space-3) 0 var(--space-5);flex:none;box-shadow:inset 0 -1px 0 var(--color-line);white-space:nowrap}
+.nosb .top{padding-left:var(--space-3)}
+.top .title{font-size:var(--text-title);line-height:var(--leading-title);font-weight:var(--weight-semibold);letter-spacing:-0.01em}
+.top .sp{flex:1}
+
+/* conversation */
+.conv{position:relative;flex:1;min-height:0;overflow:auto;scrollbar-width:none;padding:0 0 148px}
+.conv::-webkit-scrollbar{display:none}
+.col{width:min(var(--layout-column),calc(100% - 104px));margin:0 auto;padding-top:var(--space-2)}
+.wide .col{width:calc(100% - 48px)}
+
+.badge{display:flex;align-items:center;gap:var(--space-2);color:var(--color-text-3);font-variant-numeric:tabular-nums}
+/* text buttons: decisions only */
+.btn{height:var(--control-field);display:inline-flex;align-items:center;gap:var(--space-2);padding:0 var(--space-3);border-radius:var(--radius-sm);font-weight:var(--weight-medium);color:var(--color-text);background:var(--color-hover);box-shadow:inset 0 1px 0 var(--color-highlight),0 0 0 1px var(--color-line);white-space:nowrap}
+.light .btn{background:var(--color-raised)}
+.btn.primary{background:var(--color-accent);color:var(--color-on-accent);box-shadow:var(--shadow-accent);font-weight:var(--weight-semibold);padding:0 var(--space-4)}
+.btn.quiet{background:transparent;box-shadow:none;color:var(--color-text-2);padding:0 var(--space-2)}
+.btn svg{color:currentColor}
+.btn[disabled]{opacity:.5;cursor:default}
+
+/* composer */
+.dock{position:absolute;z-index:5;left:0;right:0;bottom:0;padding:var(--space-7) 0 var(--space-4);background:linear-gradient(var(--fade-bg),var(--color-bg) 42%);pointer-events:none}
+.composer{pointer-events:auto;border-radius:var(--radius-xl);background:var(--color-raised);box-shadow:var(--shadow-float);padding:var(--space-3) var(--space-2) var(--space-2) var(--space-4);display:flex;flex-direction:column;gap:var(--space-2)}
+.ph{font-size:var(--text-body);line-height:var(--leading-body);color:var(--color-text-3)}
+.cf{display:flex;align-items:center;gap:var(--space-1);min-height:var(--control-field);margin-left:calc(-1 * var(--space-2))}
+.cf .cst{display:flex;align-items:center;gap:var(--space-2);height:20px;color:var(--color-text-2);margin:0 0 0 var(--space-1);padding-left:var(--space-3);box-shadow:inset 1px 0 0 var(--color-line)}
+.cf .cst.bad{color:var(--color-danger)}
+.cf .r{margin-left:auto;display:flex;align-items:center;gap:var(--space-1)}
+.send{width:var(--control-field);height:var(--control-field);border-radius:50%;display:grid;place-items:center;background:var(--color-accent);color:var(--color-on-accent);box-shadow:var(--shadow-accent);flex:none}
+.send[disabled]{background:var(--color-hover);color:var(--color-text-3);box-shadow:none;cursor:default}
+.composer.cbar{flex-direction:row;align-items:center;gap:var(--space-3);padding:var(--space-3) var(--space-3) var(--space-3) var(--space-5);min-height:56px}
+.composer.cbar .cst{display:flex;align-items:center;gap:var(--space-2);color:var(--color-text-2);flex:1}
+.composer.cbar .cst svg{color:var(--color-text-3)}
+.composer.ro{background:var(--color-surface);box-shadow:inset 0 0 0 1px var(--color-line)}
+.recrow{display:flex;align-items:center;gap:var(--space-3);height:24px;padding-right:var(--space-2)}
+.recrow .rdot{width:8px;height:8px;border-radius:50%;background:var(--color-accent);box-shadow:0 0 0 4px var(--color-accent-soft);animation:pulse var(--motion-pulse) ease-in-out infinite;flex:none}
+.recrow .el{font-size:var(--text-body);line-height:var(--leading-body);color:var(--color-text);font-variant-numeric:tabular-nums;width:36px;flex:none}
+.wave{flex:1;display:flex;align-items:center;justify-content:flex-end;gap:2px;height:24px;overflow:hidden;-webkit-mask-image:linear-gradient(to right,transparent,#000 18%);mask-image:linear-gradient(to right,transparent,#000 18%)}
+.wave i{flex:none;width:3px;border-radius:2px;background:var(--color-accent-text)}
+.cf .note{display:flex;align-items:center;gap:var(--space-2);color:var(--color-text-3);margin-left:var(--space-3)}
+
+.seg{display:inline-flex;gap:2px;padding:2px;border-radius:8px;background:var(--color-bg);box-shadow:inset 0 0 0 1px var(--color-line);position:relative}
+.light .seg{background:var(--color-hover)}
+.seg button{height:24px;display:flex;align-items:center;gap:var(--space-2);padding:0 var(--space-3);border-radius:6px;font-weight:var(--weight-medium);color:var(--color-text-2);white-space:nowrap}
+.seg button .c{font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3);font-variant-numeric:tabular-nums;font-weight:var(--weight-regular)}
+.seg button.on{background:var(--color-selected);color:var(--color-text);box-shadow:inset 0 1px 0 var(--color-highlight),0 0 0 1px var(--color-line)}
+.light .seg button.on{background:var(--color-raised)}
+.seg button.on .c{color:var(--color-text-2)}
+.seg button[disabled]{color:var(--color-text-3);opacity:.6;cursor:default}
+.fld{display:flex;flex-direction:column;gap:var(--space-1)}
+.fld .l{color:var(--color-text-2)}
+.dlg{width:var(--layout-dialog);max-width:calc(100% - 32px);top:36px}
+.dlg-h{padding:var(--space-4) var(--space-4) var(--space-3);font-size:var(--text-title);line-height:var(--leading-title);font-weight:var(--weight-semibold);letter-spacing:-0.01em}
+.dlg-b{padding:0 var(--space-4);display:flex;flex-direction:column;gap:var(--space-2)}
+.dlg-u{display:flex;align-items:center;gap:var(--space-2);min-height:var(--control-icon);color:var(--color-text-3);font-size:var(--text-meta);line-height:var(--leading-meta)}
+.dlg-u .vt{color:var(--color-text-2);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dlg-u .gap{flex:1}
+.dlg-f{display:flex;justify-content:flex-end;gap:var(--space-2);padding:var(--space-4)}
+.tag{display:inline-flex;align-items:center;gap:var(--space-1);height:20px;padding:0 6px;border-radius:4px;background:var(--color-hover);color:var(--color-text-2);font-size:var(--text-meta);line-height:var(--leading-meta);font-weight:var(--weight-medium)}
+.light .tag{background:var(--color-selected)}
+.grp-h{height:var(--layout-row);display:flex;align-items:center;gap:var(--space-2);padding:0 var(--space-2);color:var(--color-text-2);font-weight:var(--weight-medium)}
+.grp-h .fi{width:16px;height:16px;display:grid;place-items:center;color:var(--color-text-3)}
+.grp-h .cnt{margin-left:auto;font-size:var(--text-meta);color:var(--color-text-3);font-weight:var(--weight-regular)}
+.rule{height:1px;margin:var(--space-1) var(--space-2);background:var(--color-line)}
+.toast{position:absolute;left:50%;bottom:var(--space-4);transform:translateX(-50%);z-index:8;height:var(--control-field);display:inline-flex;align-items:center;gap:var(--space-2);padding:0 var(--space-4) 0 var(--space-3);border-radius:999px;background:var(--color-raised);box-shadow:var(--shadow-float);white-space:nowrap}
+.toast svg{color:var(--color-success)}
+.arch-list{width:min(var(--layout-column),calc(100% - 64px));margin:0 auto;padding-top:var(--space-3)}
+.arow{height:44px;display:flex;align-items:center;gap:var(--space-3);padding:0 var(--space-3) 0 var(--space-2);margin:0 calc(-1 * var(--space-2));border-radius:var(--radius-sm)}
+.arow.hov{background:var(--color-hover)}
+.arow .tt{flex:1;min-width:0;display:flex;flex-direction:column}
+.arow .t1,.arow .t2{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.arow .t1{color:var(--color-text-2)}
+.arow .t2{font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3)}
+.arow .m{font-size:var(--text-meta);color:var(--color-text-3);font-variant-numeric:tabular-nums}
+.arow .ib{color:var(--color-text-2)}
+/* stacked view */
+body.stacked{background:#131210;color:#efe9e2;font-family:-apple-system,"SF Pro Text",system-ui,sans-serif;padding:56px 48px 80px;-webkit-font-smoothing:antialiased}
+.intro{max-width:1300px;margin:0 auto 56px}
+.intro h1{font-size:30px;font-weight:600;letter-spacing:-0.02em}
+.intro h1 span{color:#958d83;font-weight:400}
+.intro p{max-width:72ch;color:#b8b0a6;font-size:15px;line-height:1.6;margin:14px 0 0}
+.intro .cols{display:grid;grid-template-columns:1fr 1fr;gap:48px;margin:32px 0 36px;max-width:1100px}
+.intro h2{font-size:22px;font-weight:600;letter-spacing:-0.015em;margin:48px 0 8px}
+.intro h3{font-size:14px;font-weight:600;margin-bottom:10px;color:#efe9e2}
+.intro ul{list-style:none;display:flex;flex-direction:column;gap:8px;font-size:14px;line-height:1.5;color:#b8b0a6}
+.intro li b{color:#efe9e2;font-weight:500}
+.intro .chip{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:8px;vertical-align:-1px}
+.tok{border-collapse:collapse;font-size:12px;color:#b8b0a6;width:100%;max-width:1100px;margin-top:48px}
+.tok th{text-align:left;font-weight:500;color:#958d83;padding:6px 10px;border-bottom:1px solid rgba(255,238,220,.1)}
+.tok td{padding:4px 10px;border-bottom:1px solid rgba(255,238,220,.05);font-family:ui-monospace,"SF Mono",Menlo,monospace;vertical-align:middle;word-break:break-all}
+.tok td:first-child{color:#efe9e2;white-space:nowrap;word-break:normal}
+.sw{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:8px;vertical-align:-2px;box-shadow:0 0 0 1px rgba(255,255,255,.15)}
+.st{max-width:1300px;margin:0 auto 56px}
+.st h2{font-size:18px;font-weight:600;margin-bottom:16px;letter-spacing:-0.01em}
+.st h2 span{color:#958d83;font-weight:400;margin-left:12px;font-size:14px}
+.pair{display:flex;gap:20px}
+.scaled{width:640px;height:400px;overflow:hidden;border-radius:10px;box-shadow:0 0 0 1px rgba(255,255,255,.08)}
+.scaled .frame{transform:scale(.5);transform-origin:0 0}
+.input{height:var(--control-field);border-radius:var(--radius-sm);background:var(--color-bg);box-shadow:inset 0 0 0 1px var(--color-line);display:flex;align-items:center;gap:var(--space-2);padding:0 var(--space-3);color:var(--color-text);white-space:nowrap;overflow:hidden}
+.input.on{box-shadow:inset 0 0 0 1.5px var(--color-accent)}
+.input svg{color:var(--color-text-3)}
+.caret{display:inline-block;width:1.5px;height:16px;background:var(--color-accent);vertical-align:-3px;margin-left:1px}
+.sess.hov{background:var(--color-hover)}
+.sess .ib{width:24px;height:24px;margin-right:-4px;color:var(--color-text-2)}
+.side{position:relative}
+.top .tags{display:flex;align-items:center;gap:var(--space-1);margin-left:var(--space-2)}
+.top .tags .ib{width:24px;height:24px}
+/* a quiet conversation behind the states */
+.convo{display:flex;flex-direction:column;gap:var(--space-4);padding-top:var(--space-5)}
+.um{align-self:flex-end;max-width:72%;padding:var(--space-2) var(--space-4);border-radius:var(--radius-lg);background:var(--color-surface);box-shadow:inset 0 0 0 1px var(--color-line);font-size:var(--text-body);line-height:var(--leading-body)}
+.light .um{background:var(--color-raised)}
+.prose{font-size:var(--text-body);line-height:var(--leading-body);color:var(--color-text);max-width:var(--measure-prose)}
+.prose.dim{color:var(--color-text-2)}
+.skl{display:block;height:10px;border-radius:5px;background:var(--color-hover);margin:7px 0}
+/* a floating list anchored by inline top/left */
+.fpop{position:absolute;z-index:30;padding:var(--space-1);border-radius:var(--radius-md);background:var(--color-raised);box-shadow:var(--shadow-float)}
+.fpop .menu-item .kc{margin-left:auto}
+.fpop .menu-item.on{background:var(--color-selected);box-shadow:inset 0 1px 0 var(--color-highlight)}
+.fpop .menu-item .c{margin-left:auto;font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3);font-variant-numeric:tabular-nums}
+.fpop .menu-item .lead{width:16px;height:16px;display:grid;place-items:center;flex:none;color:var(--color-text-3)}
+.fpop .new{color:var(--color-text-2)}
+.fpop .note{padding:var(--space-2) var(--space-2) var(--space-1);font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3);white-space:normal}
+.newb{font-size:var(--text-meta);line-height:var(--leading-meta);font-weight:var(--weight-semibold);color:var(--color-accent-text);margin-left:var(--space-1)}
+/* the phone frame: drawn inside the 1280 x 800 canvas */
+.frame.canvas{grid-template-columns:1fr;place-items:center;background:var(--color-sidebar)}
+.canvas .cap{position:absolute;left:var(--space-6);top:var(--space-6);width:360px;display:flex;flex-direction:column;gap:var(--space-2);color:var(--color-text-2)}
+.canvas .cap b{color:var(--color-text);font-size:var(--text-title);line-height:var(--leading-title)}
+.phone{width:390px;height:760px;border-radius:44px;background:var(--color-bg);box-shadow:0 0 0 10px var(--color-raised),0 0 0 11px var(--color-line),var(--shadow-float);overflow:hidden;position:relative;display:flex;flex-direction:column}
+.ph-sb{height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;font-weight:var(--weight-semibold);font-size:var(--text-ui)}
+.ph-h{display:flex;align-items:center;gap:var(--space-2);padding:var(--space-2) var(--space-4) var(--space-2) var(--space-5)}
+.ph-h b{font-size:24px;line-height:32px;font-weight:var(--weight-semibold);letter-spacing:-0.02em;flex:1}
+.ph-s{margin:0 var(--space-4);height:36px;border-radius:var(--radius-md);background:var(--color-surface);box-shadow:inset 0 0 0 1px var(--color-line);display:flex;align-items:center;gap:var(--space-2);padding:0 var(--space-3);color:var(--color-text-3)}
+.ph-list{flex:1;overflow:hidden;padding:0 var(--space-2)}
+.ph-g{padding:var(--space-4) var(--space-3) var(--space-1);font-size:var(--text-meta);line-height:var(--leading-meta);font-weight:var(--weight-medium);color:var(--color-text-3);display:flex;align-items:center;gap:var(--space-2)}
+.ph-r{position:relative;height:56px;display:flex;align-items:center;gap:var(--space-3);padding:0 var(--space-3);border-radius:var(--radius-md);overflow:hidden}
+.ph-r .tt{flex:1;min-width:0;display:flex;flex-direction:column}
+.ph-r .t1{font-size:15px;line-height:22px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ph-r .t2{font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ph-r .m{font-size:var(--text-meta);color:var(--color-text-3);display:flex;align-items:center}
+.ph-r + .ph-r{box-shadow:inset 0 1px 0 var(--color-line)}
+.ph-r.sw{padding:0;gap:0;width:100%;box-sizing:border-box}
+.ph-r.sw .slide{position:absolute;top:0;bottom:0;left:-168px;width:100%;box-sizing:border-box;display:flex;align-items:center;gap:var(--space-3);padding:0 var(--space-3)}
+.ph-act{position:absolute;top:0;bottom:0;right:0;display:flex}
+.ph-act button{width:56px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text);background:var(--color-hover)}
+.ph-act button + button{box-shadow:inset 1px 0 0 var(--color-line)}
+.ph-tab{height:72px;display:flex;justify-content:space-around;align-items:flex-start;padding-top:var(--space-2);box-shadow:inset 0 1px 0 var(--color-line);background:var(--color-sidebar)}
+.ph-tab span{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:10px;line-height:14px;color:var(--color-text-3)}
+.ph-tab span.on{color:var(--color-text)}
+/* ---- #91: tags, grouping and the archive ---------------------------------------------------------------------- */
+.tag{flex:none;white-space:nowrap}
+.tag .tx{width:14px;height:14px;display:grid;place-items:center;margin-right:-3px;color:var(--color-text-3)}
+.tag .tx svg{width:12px;height:12px}
+.sess .tm{color:var(--color-text-3);white-space:nowrap}
+.dev .cnt{margin-left:auto}
+.dev.shut .dchv svg{transform:none}
+/* A: the filter strip under Search */
+.strip{position:relative;display:flex;gap:var(--space-1);padding:var(--space-2) var(--space-2) 0;overflow:hidden;flex:none;-webkit-mask-image:linear-gradient(to right,#000 84%,transparent);mask-image:linear-gradient(to right,#000 84%,transparent)}
+.fch{height:24px;display:inline-flex;align-items:center;gap:6px;padding:0 var(--space-2);border-radius:12px;color:var(--color-text-2);box-shadow:inset 0 0 0 1px var(--color-line);white-space:nowrap;flex:none}
+.fch .c{font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3);font-variant-numeric:tabular-nums}
+.fch.on{background:var(--color-selected);color:var(--color-text);box-shadow:inset 0 1px 0 var(--color-highlight),0 0 0 1px var(--color-line)}
+.fch.on .c{color:var(--color-text-2)}
+.fbar{display:flex;align-items:center;gap:var(--space-2);height:28px;padding:0 var(--space-2) 0 var(--space-4);margin-top:var(--space-1);font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3);flex:none}
+.fbar .btn.quiet{height:24px;font-size:var(--text-meta);margin-left:auto}
+.ghint{padding:var(--space-1) var(--space-2) 0 var(--space-4);font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3)}
+.prj-o{font-size:var(--text-meta);line-height:var(--leading-meta);color:var(--color-text-3);font-weight:var(--weight-regular);margin-left:var(--space-1)}
+/* the archived page */
+.apage{flex:1;min-height:0;overflow:hidden}
+.apage .chips{display:flex;gap:var(--space-1);align-items:center;padding-bottom:var(--space-3)}
+.apage .chips .l{color:var(--color-text-3);margin-right:var(--space-2)}
+.apage .mh{display:flex;align-items:center;gap:var(--space-2);height:32px;margin-top:var(--space-3);font-weight:var(--weight-semibold)}
+.apage .fh{display:flex;align-items:center;gap:var(--space-2);height:28px;color:var(--color-text-2);font-weight:var(--weight-medium)}
+.apage .fh .fi{color:var(--color-text-3);display:grid}
+.apage .fh .btn{margin-left:auto;height:24px}
+.arow .rtags{display:flex;gap:var(--space-1)}
+.empty{display:flex;flex-direction:column;align-items:center;gap:var(--space-3);padding:var(--space-7) var(--space-5);text-align:center}
+.empty > svg{width:24px;height:24px;color:var(--color-text-3)}
+.empty b{font-weight:var(--weight-semibold)}
+.empty p{color:var(--color-text-2);max-width:46ch}
+.mini-empty{padding:var(--space-1) var(--space-2) var(--space-2) 32px;color:var(--color-text-3);font-size:var(--text-meta);line-height:var(--leading-meta)}
+/* B: sections */
+.sec{display:flex;align-items:center;gap:var(--space-2);height:28px;padding:0 var(--space-1) 0 var(--space-2);margin-top:var(--space-3);font-size:var(--text-meta);line-height:var(--leading-meta);font-weight:var(--weight-medium);color:var(--color-text-3)}
+.sec .sp{flex:1}
+.sec .ib{width:24px;height:24px}
+.sec .chooser{height:24px;display:inline-flex;align-items:center;gap:var(--space-1);padding:0 var(--space-1) 0 var(--space-2);border-radius:var(--radius-sm);color:var(--color-text-2);font-size:var(--text-meta)}
+.sec .chooser.on{background:var(--color-selected);color:var(--color-text)}
+.sec .chooser svg{width:14px;height:14px}
+.sdir.on{background:var(--color-selected);color:var(--color-text);box-shadow:inset 0 1px 0 var(--color-highlight)}
+.tok-in{min-height:var(--control-field);height:auto;flex-wrap:wrap;gap:var(--space-1);padding:var(--space-1) var(--space-2)}
+/* C: a filter field */
+.qf{margin:0 var(--space-2);min-height:var(--control-field);border-radius:var(--radius-sm);background:var(--color-surface);display:flex;align-items:center;flex-wrap:wrap;gap:var(--space-1);padding:var(--space-1) var(--space-2);color:var(--color-text-3);flex:none;box-shadow:inset 0 1px 0 var(--color-highlight),0 0 0 1px var(--color-line)}
+.light .qf{background:var(--color-raised)}
+.qf.on{box-shadow:inset 0 0 0 1.5px var(--color-accent)}
+.qf .ph2{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.qt{display:inline-flex;align-items:center;height:22px;padding:0 6px;border-radius:4px;background:var(--color-hover);font-family:var(--font-mono);font-size:12px;color:var(--color-text);white-space:nowrap}
+.light .qt{background:var(--color-selected)}
+.qt i{font-style:normal;color:var(--color-text-3)}
+.qtyp{font-family:var(--font-mono);font-size:12px;color:var(--color-text)}
+.qres{display:flex;align-items:center;gap:var(--space-2);height:28px;padding:0 var(--space-2) 0 var(--space-4);font-size:var(--text-meta);color:var(--color-text-3)}
+.qres .btn.quiet{height:24px;font-size:var(--text-meta);margin-left:auto}
+.fpop .menu-item .mono{font-size:12px}
+.fpop .menu-item .d{color:var(--color-text-3);font-size:var(--text-meta);margin-left:auto}
+.inl{display:flex;align-items:center;gap:var(--space-1);height:28px;min-width:260px;padding:0 var(--space-2);border-radius:var(--radius-sm);background:var(--color-bg);box-shadow:inset 0 0 0 1.5px var(--color-accent);margin-left:var(--space-2)}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+const T = JSON.parse(document.getElementById('tokens').textContent);
+const vars = o => Object.entries(o).map(([k, v]) => `${k}:${v};`).join('');
+document.getElementById('token-css').textContent =
+  `.frame{${vars(T.shared)}}.frame.dark{${vars(T.dark)}}.frame.light{${vars(T.light)}}`;
+
+/* icons: one family, Lucide (ISC licence), inlined; 24-unit grid drawn at 16 px, stroke 1.5, round caps and joins */
+const sv = (d, cls = '') => `<svg${cls ? ` class="${cls}"` : ''} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+const rot = (deg, d) => `<g transform="rotate(${deg} 12 12)">${d}</g>`;
+const L = {
+  'panel-left': '<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/>',
+  'panel-right': '<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M15 3v18"/>',
+  plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
+  'chevron-right': '<path d="m9 18 6-6-6-6"/>',
+  'arrow-up': '<path d="m5 12 7-7 7 7"/><path d="M12 19V5"/>',
+  folder: '<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>',
+  globe: '<circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/>',
+  paperclip: '<path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/>',
+  mic: '<path d="M12 19v3"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><rect x="9" y="2" width="6" height="13" rx="3"/>',
+  x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+  check: '<path d="M20 6 9 17l-5-5"/>',
+  'circle-alert': '<circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/>',
+  info: '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>',
+  'rotate-cw': '<path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/>',
+  pencil: '<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/>',
+  laptop: '<path d="M20 16V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v9m16 0H4m16 0 1.28 2.55a1 1 0 0 1-.9 1.45H3.62a1 1 0 0 1-.9-1.45L4 16"/>',
+  contrast: '<circle cx="12" cy="12" r="10"/><path d="M12 18a6 6 0 0 0 0-12v12z"/>',
+  plug: '<path d="M12 22v-5"/><path d="M9 8V2"/><path d="M15 8V2"/><path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z"/>',
+  bell: '<path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/>',
+  trash: '<path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>',
+  'loader-circle': '<path d="M21 12a9 9 0 1 1-6.219-8.56"/>',
+  'chart-column': '<path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/>',
+  pause: '<rect x="14" y="3" width="5" height="18" rx="1"/><rect x="5" y="3" width="5" height="18" rx="1"/>',
+  square: '<rect width="18" height="18" x="3" y="3" rx="2"/>',
+  lock: '<rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+};
+const I = {
+  sidebar: () => sv(L['panel-left']),
+  panel: () => sv(L['panel-right']),
+  plus: () => sv(L.plus),
+  chev: () => sv(L['chevron-right']),
+  down: () => sv(rot(90, L['chevron-right'])),
+  back: () => sv(rot(180, L['chevron-right'])),
+  up: () => sv(L['arrow-up']),
+  folder: () => sv(L.folder),
+  globe: () => sv(L.globe),
+  clip: () => sv(L.paperclip),
+  mic: () => sv(L.mic),
+  x: () => sv(L.x),
+  check: () => sv(L.check),
+  alert: () => sv(L['circle-alert']),
+  info: () => sv(L.info),
+  retry: () => sv(L['rotate-cw']),
+  pen: () => sv(L.pencil),
+  laptop: () => sv(L.laptop),
+  contrast: () => sv(L.contrast),
+  plug: () => sv(L.plug),
+  bell: () => sv(L.bell),
+  trash: () => sv(L.trash),
+  chart: () => sv(L['chart-column']),
+  pause: () => sv(L.pause),
+  stop: () => sv(L.square),
+  lock: () => sv(L.lock),
+};
+const spin = () => sv(L['loader-circle'], 'spin');
+const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+const tip = s => ` title="${s}" aria-label="${s}"`;
+const ib = (icon, s, cls = '', off = false) => `<button class="ib ${cls}"${tip(s)}${off ? ' disabled' : ''}>${icon}</button>`;
+const btn = (label, icon = '', cls = '', s = '', off = false) => `<button class="btn ${cls}"${s ? tip(s) : ''}${off ? ' disabled' : ''}>${icon}${label}</button>`;
+const code = s => `<span class="mono">${esc(s)}</span>`;
+
+/* the interface language of the frame being drawn: the mockup is written in English, Simplified Chinese is the zh-Hans.json wording */
+let Z = false;
+const t = (en, zh) => (Z ? zh : en);
+/* ---- icons used here (Lucide); `tag` and `keyboard` are new to the closed set ------------------------------------ */
+Object.assign(L, {
+  search: '<path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/>',
+  pin: '<path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/>',
+  'pin-off': '<path d="M12 17v5"/><path d="M15 9.34V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H7.89"/><path d="m2 2 20 20"/><path d="M9 9v1.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h11"/>',
+  archive: '<rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/>',
+  'archive-restore': '<rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h2"/><path d="M20 8v11a2 2 0 0 1-2 2h-2"/><path d="m9 15 3-3 3 3"/><path d="M12 12v9"/>',
+  tag: '<path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z"/><circle cx="7.5" cy="7.5" r=".5" fill="currentColor"/>',
+  layers: '<path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"/><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"/><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"/>',
+  clock: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
+  'git-branch': '<line x1="6" x2="6" y1="3" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/>',
+  ellipsis: '<circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>',
+  settings: '<path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/>',
+  'square-pen': '<path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z"/>',
+  'arrow-right-left': '<path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/>',
+  keyboard: '<path d="M10 8h.01"/><path d="M12 12h.01"/><path d="M14 8h.01"/><path d="M16 12h.01"/><path d="M18 8h.01"/><path d="M6 8h.01"/><path d="M7 16h10"/><path d="M8 12h.01"/><rect width="20" height="16" x="2" y="4" rx="2"/>',
+  'layout-template': '<rect width="18" height="7" x="3" y="3" rx="1"/><rect width="9" height="7" x="3" y="14" rx="1"/><rect width="5" height="7" x="16" y="14" rx="1"/>',
+  'folder-open': '<path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"/>',
+  terminal: '<path d="M12 19h8"/><path d="m4 17 6-6-6-6"/>',
+  'corner-down-right': '<path d="m15 10 5 5-5 5"/><path d="M4 4v7a4 4 0 0 0 4 4h12"/>',
+});
+Object.assign(I, {
+  search: () => sv(L.search), pin: () => sv(L.pin), unpin: () => sv(L['pin-off']), archive: () => sv(L.archive),
+  restore: () => sv(L['archive-restore']), tag: () => sv(L.tag), layers: () => sv(L.layers), clock: () => sv(L.clock),
+  branch: () => sv(L['git-branch']), more: () => sv(L.ellipsis), settings: () => sv(L.settings), compose: () => sv(L['square-pen']),
+  handoff: () => sv(L['arrow-right-left']), keys: () => sv(L.keyboard), tpl: () => sv(L['layout-template']),
+  open: () => sv(L['folder-open']), term: () => sv(L.terminal), sub: () => sv(L['corner-down-right']),
+});
+const mark = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--color-on-accent)" stroke-width="3.2" stroke-linecap="round" aria-hidden="true"><path d="M6 18L18 6"/><circle cx="18" cy="6" r=".6" fill="var(--color-on-accent)"/></svg>`;
+const sparkPath = (() => {
+  const R = [11.2, 8.1, 10.3, 9.2, 11, 7.7, 10.6, 9.7, 10, 8.3, 11.1, 8.9], J = [0, .09, -.06, .11, -.04, .08, -.1, .05, .12, -.07, .03, -.09], c = 12;
+  let d = '';
+  R.forEach((r, k) => {
+    const a = (k / R.length) * Math.PI * 2 - Math.PI / 2 + J[k];
+    const pt = (rad, off) => `${(c + rad * Math.cos(a) - off * Math.sin(a)).toFixed(2)} ${(c + rad * Math.sin(a) + off * Math.cos(a)).toFixed(2)}`;
+    d += `M${pt(1, -0.4)}L${pt(r - 1.2, -1.2)}C${pt(r + 0.1, -1.25)} ${pt(r + 0.1, 1.25)} ${pt(r - 1.2, 1.2)}L${pt(1, 0.4)}Z`;
+  });
+  return d;
+})();
+const pmark = () => `<span class="pm" role="img" title="Claude Code" aria-label="Claude Code"><svg width="16" height="16" viewBox="-1.5 -1.5 27 27" aria-hidden="true"><path d="${sparkPath}" fill="currentColor"/><circle cx="12" cy="12" r="1.9" fill="currentColor"/></svg></span>`;
+const fit = (k, cx, cy) => `transform="translate(12 12) scale(${k}) translate(${-cx} ${-cy})"`;
+const SOLID = (tr, d) => `<path fill="currentColor" stroke="none" ${tr} d="${d}"/>`;
+const OS = {
+  macOS: SOLID(fit(1.2, 12.05, 12.1), 'M16.7 12.7c0-2.2 1.8-3.2 1.9-3.3-1-1.5-2.6-1.7-3.2-1.7-1.4-.1-2.6.8-3.3.8s-1.7-.8-2.8-.7c-1.4 0-2.8.8-3.5 2.1-1.5 2.6-.4 6.4 1.1 8.5.7 1 1.6 2.2 2.7 2.2 1.1 0 1.5-.7 2.8-.7s1.7.7 2.8.7c1.2 0 1.9-1 2.6-2.1.8-1.2 1.2-2.3 1.2-2.4 0 0-2.3-.9-2.3-3.4zM14.6 6.3c.6-.7 1-1.7.9-2.7-.9 0-1.9.6-2.5 1.3-.5.6-1 1.6-.9 2.6 1 .1 1.9-.5 2.5-1.2z'),
+  Linux: `<path fill="currentColor" stroke="none" fill-rule="evenodd" ${fit(1.135, 12, 11.75)} d="M12 2.5c-1.9 0-3 1.5-3 3.6 0 1.2.1 1.9-.5 3C7.6 10.7 6 12.8 6 15.4c0 1.2.4 2 1 2.5-.5.4-1.6 1-1.8 1.8-.2.8.4 1.3 1.2 1.3h2.7c.8 0 1.3-.5 1.9-.9.3.1.7.1 1 .1s.7 0 1-.1c.6.4 1.1.9 1.9.9h2.7c.8 0 1.4-.5 1.2-1.3-.2-.8-1.3-1.4-1.8-1.8.6-.5 1-1.3 1-2.5 0-2.6-1.6-4.7-2.5-6.3-.6-1.1-.5-1.8-.5-3 0-2.1-1.1-3.6-3-3.6zM12 10.2c-1.2 0-2.1 1.5-2.1 3.3S10.8 17 12 17s2.1-1.7 2.1-3.5-.9-3.3-2.1-3.3zM10.5 5.3a.6.9 0 1 0 0 1.8.6.9 0 1 0 0-1.8zM13.5 5.3a.6.9 0 1 0 0 1.8.6.9 0 1 0 0-1.8z"/>`,
+};
+const mIcon = (os, on) => `<span class="mch${on ? '' : ' off'}" aria-hidden="true">${sv(OS[os])}<i class="mch-d"></i></span>`;
+const kc = k => `<span class="kc">${k}</span>`;
+
+/* ---- sample data: three machines, four projects, one project on two machines ---------------------------------------- */
+const M = {
+  mbp: { name: 'MacBook Pro', os: 'macOS', on: true },
+  build: { name: 'build-box', os: 'Linux', on: true },
+  studio: { name: 'studio', os: 'macOS', on: false },
+};
+/* a project is its git origin; a folder without a remote stays a folder of its machine */
+const P = {
+  hoplet: { name: 'hoplet', origin: 'github.com/yangflow/hoplet' },
+  docs: { name: 'hoplet-docs', origin: 'github.com/yangflow/hoplet-docs' },
+  infra: { name: 'infra', origin: 'github.com/yangflow/infra' },
+  scratch: { name: 'scratch', origin: null },
+};
+const S = [
+  { id: 1, en: 'Cut the v0.9 release notes', zh: '整理 v0.9 发布说明', m: 'mbp', p: 'hoplet', tags: ['release'], pin: true, st: 'live', age: 'now', day: 0, br: 'release/0.9' },
+  { id: 2, en: 'Fix reconnect after sleep', zh: '修复睡眠后的重连', m: 'mbp', p: 'hoplet', tags: ['bug'], st: 'need', age: '2m', day: 0, br: 'fix/reconnect' },
+  { id: 3, en: 'Session tags schema', zh: '会话标签的 schema', m: 'mbp', p: 'hoplet', tags: [], st: 'idle', age: '14m', day: 0, br: 'feat/91-tags' },
+  { id: 4, en: 'Flaky e2e on CI', zh: 'CI 上不稳定的 e2e', m: 'build', p: 'hoplet', tags: ['ci', 'bug'], pin: true, st: 'live', age: '1m', day: 0, br: 'main' },
+  { id: 5, en: 'Image size audit', zh: '镜像体积审查', m: 'build', p: 'infra', tags: ['ci'], st: 'idle', age: '1h', day: 0, br: 'main' },
+  { id: 6, en: 'Benchmarks for ingest', zh: '摄取基准测试', m: 'build', p: 'hoplet', tags: ['research'], st: 'idle', age: '5h', day: 0, br: 'perf/ingest' },
+  { id: 7, en: 'Rewrite the hosting guide', zh: '重写托管指南', m: 'mbp', p: 'docs', tags: ['release'], st: 'idle', age: '1d', day: 1, br: 'main' },
+  { id: 8, en: 'Shell aliases', zh: 'Shell 别名', m: 'mbp', p: 'scratch', tags: [], st: 'idle', age: '1d', day: 1 },
+  { id: 9, en: 'Compare sync protocols', zh: '比较同步协议', m: 'studio', p: 'hoplet', tags: ['research'], st: 'idle', age: '3d', day: 3, br: 'spike/sync' },
+  { id: 10, en: 'Terraform DNS records', zh: 'Terraform DNS 记录', m: 'studio', p: 'infra', tags: ['ci'], st: 'bad', age: '4d', day: 4, br: 'main' },
+  { id: 11, en: 'Spike: SQLite WAL tuning', zh: '探索：SQLite WAL 调优', m: 'build', p: 'hoplet', tags: ['research'], arch: '2w', age: '3w', day: 20 },
+  { id: 12, en: 'Old onboarding copy', zh: '旧的引导文案', m: 'mbp', p: 'docs', tags: [], arch: '3w', age: '1mo', day: 30 },
+  { id: 13, en: 'Retire the nginx config', zh: '下线 nginx 配置', m: 'studio', p: 'infra', tags: ['ci'], arch: '1mo', age: '2mo', day: 60 },
+];
+const LIVE = S.filter(s => !s.arch);
+const ARCH = S.filter(s => s.arch);
+const TAGS = ['release', 'bug', 'research', 'ci'];
+const count = (tg, list = LIVE) => list.filter(s => s.tags.includes(tg)).length;
+const byId = id => S.find(s => s.id === id);
+const title = s => t(s.en, s.zh);
+const ageT = a => (Z ? ({ now: '刚刚' }[a] || a.replace(/mo$/, ' 个月').replace(/m$/, ' 分').replace(/h$/, ' 小时').replace(/d$/, ' 天').replace(/w$/, ' 周')) : a);
+const glyph = s => s.st === 'live' ? `<span class="gl"${tip(t('Working', '运行中'))}>${spin()}</span>`
+  : s.st === 'need' ? `<span class="gl"${tip(t('Needs you', '需要你'))}><i class="need-dot"></i></span>`
+  : s.st === 'bad' ? `<span class="gl"${tip(t('Failed', '失败'))}><i class="bad-dot"></i></span>` : `<span class="num">${ageT(s.age)}</span>`;
+const tagChip = (x, o = {}) => `<span class="tag${o.on ? ' on' : ''}">${esc(x)}${o.x ? `<button class="tx"${tip(t(`Remove ${x}`, `移除 ${x}`))}>${sv(L.x)}</button>` : ''}</span>`;
+/* a sidebar row: provider mark, title (a second line when given), then the state or the age */
+const row = (s, o = {}) => {
+  const off = !M[s.m].on;
+  const tt = o.sub ? `<span class="t tt"><span class="t1">${esc(title(s))}</span><span class="t2">${o.sub}</span></span>` : `<span class="t">${esc(title(s))}</span>`;
+  const meta = o.tm && s.tags.length ? `<span class="tm">${s.tags.map(esc).join(' · ')}</span>` : '';
+  const pin = o.pinMark && s.pin ? `<span class="gl"${tip(t('Pinned', '已置顶'))}>${I.pin()}</span>` : '';
+  const end = o.end !== undefined ? o.end : `${meta}${pin}${glyph(s)}`;
+  return `<div class="sess${o.sub ? ' two' : ''}${s.id === o.sel ? ' on' : ''}${off ? ' dim' : ''}${o.hov === s.id ? ' hov' : ''}">${pmark()}${tt}<span class="m">${end}</span></div>`;
+};
+const devRow = (k, n, o = {}) => `<div class="dev open${o.hov ? ' hov' : ''}"><span class="dt"><span class="lead">${mIcon(M[k].os, M[k].on)}</span><span class="dn">${M[k].name}</span>${n !== undefined ? `<span class="cnt meta">${n}</span>` : ''}</span><span class="dchv">${I.chev()}</span></div>`;
+const grpH = (icon, label, n) => `<div class="grp-h"><span class="fi">${icon}</span>${label}${n !== undefined ? `<span class="cnt">${n}</span>` : ''}</div>`;
+const dirRow = (label, n, o = {}) => `<div class="sdir${o.hov ? ' hov' : ''}"><span class="fi">${o.icon || I.open()}</span><span class="dn">${label}</span><span class="rt"><span class="cnt">${n}</span></span></div>`;
+const brand = () => `<div class="brand"><span class="mark" aria-hidden="true">${mark}</span><b>Hoplet</b><span class="sp"></span><span class="hb">${ib(I.compose(), t('New session (⌘N)', '新建会话 (⌘N)'))}${ib(I.sidebar(), t('Hide sidebar (⌘\\)', '隐藏侧栏 (⌘\\)'))}</span></div>`;
+const searchBox = (inner) => `<button class="search">${I.search()}<span class="lbl">${inner || t('Search', '搜索')}</span><span class="kbd">⌘K</span></button>`;
+const foot = (archN = ARCH.length, on = false) => `<div class="side-foot"><span class="conn"><span class="lead"><i class="dot"></i></span>hoplet.home.arpa</span>${ib(I.archive(), t(`Archived (${archN})`, `已归档（${archN}）`), on ? 'on' : '')}${ib(I.settings(), t('Settings (⌘,)', '设置 (⌘,)'))}</div>`;
+const side = (body, o = {}) => `<aside class="side">${brand()}${o.search || searchBox()}${o.strip || ''}<div class="tree">${body}</div>${foot(ARCH.length, o.archOn)}${o.pop || ''}</aside>`;
+/* the main column: a session's top bar, a quiet conversation and the composer */
+const convo = s => `<div class="conv"><div class="col convo">
+  <div class="um">${esc(t('The e2e suite fails about one run in five on build-box. Find out why and fix it.', 'build-box 上的 e2e 大约五次失败一次。找出原因并修复。'))}</div>
+  <div class="prose">${esc(t('The failures all come from the reconnect flow: the page asserts the session list before the socket has replayed. I will wait for the replay marker instead of a fixed delay.', '失败都来自重连流程：页面在 socket 重放完成前就断言了会话列表。我会改为等待重放标记，而不是固定延时。'))}</div>
+  <div class="prose dim"><i class="skl" style="width:92%"></i><i class="skl" style="width:76%"></i><i class="skl" style="width:84%"></i></div>
+</div></div>
+<div class="dock"><div class="col"><div class="composer"><div class="ph">${t('Reply…', '回复…')}</div><div class="cf"><span class="cst">${I.branch()}${M[s.m].name} / ${P[s.p].name} / ${s.br || ''}</span><span class="r"><button class="send"${tip(t('Send', '发送'))} disabled>${I.up()}</button></span></div></div></div></div>`;
+const topBar = (s, extra = '') => `<div class="top"><span class="title">${esc(title(s))}</span>${extra}<span class="sp"></span>${ib(I.more(), t('Session menu', '会话菜单'))}${ib(I.panel(), t('Workspace (⌘I)', '工作区 (⌘I)'))}</div>`;
+const sessionMain = (s, extra = '', over = '') => `<main class="main">${topBar(s, extra)}${convo(s)}${over}</main>`;
+/* ==== #91: organizing sessions ===================================================================================== */
+const SEL = 4;
+const hl = (s, q) => { const i = s.indexOf(q); return i < 0 ? `<span>${esc(s)}</span>` : `<span>${esc(s.slice(0, i))}<span class="hl">${esc(q)}</span>${esc(s.slice(i + q.length))}</span>`; };
+const where = s => `${M[s.m].name} · ${P[s.p].name}`;
+const pinnedOf = list => list.filter(s => s.pin);
+/* Machine: today's sidebar (a Pinned group, then folders), per machine */
+const treeMachine = (list, o = {}) => Object.keys(M).map(k => {
+  const ss = list.filter(s => s.m === k);
+  if (!ss.length && o.hideEmpty) return '';
+  if (o.shut) return `<div class="devg${M[k].on ? '' : ' off'}">${devRow(k, ss.length).replace('dev open', 'dev shut')}</div>`;
+  const pins = o.noPins ? [] : ss.filter(s => s.pin);
+  const rest = ss.filter(s => !pins.includes(s));
+  const dirs = [...new Set(rest.map(s => s.p))];
+  return `<div class="devg${M[k].on ? '' : ' off'}">${devRow(k)}${pins.length ? grpH(I.pin(), t('Pinned', '已置顶'), pins.length) + pins.map(s => row(s, { ...o, sub: P[s.p].name })).join('') : ''}${dirs.map(p => { const r = rest.filter(s => s.p === p); return dirRow(P[p].name, r.length) + r.map(s => row(s, o)).join(''); }).join('')}</div>`;
+}).join('');
+/* Project: one group per git origin across machines; a folder without a remote stays its machine's */
+const treeProject = (list, o = {}) => {
+  const pins = o.noPins ? [] : pinnedOf(list);
+  const rest = list.filter(s => !pins.includes(s));
+  const ps = [...new Set(rest.map(s => s.p))];
+  return `<div class="devg">${pins.length ? grpH(I.pin(), t('Pinned', '已置顶'), pins.length) + pins.map(s => row(s, { ...o, sub: where(s) })).join('') : ''}${ps.map(p => {
+    const r = rest.filter(s => s.p === p);
+    const label = P[p].origin ? `${P[p].name}<span class="prj-o">${new Set(r.map(s => s.m)).size > 1 ? t(`${new Set(r.map(s => s.m)).size} machines`, `${new Set(r.map(s => s.m)).size} 台机器`) : ''}</span>` : `${P[p].name}<span class="prj-o">${t('no remote', '无远程仓库')}</span>`;
+    return dirRow(label, r.length, { icon: I.folder() }) + r.map(s => row(s, { ...o, sub: M[s.m].name })).join('');
+  }).join('')}</div>`;
+};
+/* Time: last activity, newest first */
+const BUCKETS = [[0, 0, 'Today', '今天'], [1, 1, 'Yesterday', '昨天'], [2, 6, 'This week', '本周'], [7, 999, 'Earlier', '更早']];
+const treeTime = (list, o = {}) => {
+  const pins = o.noPins ? [] : pinnedOf(list);
+  const rest = list.filter(s => !pins.includes(s));
+  return `<div class="devg">${pins.length ? grpH(I.pin(), t('Pinned', '已置顶'), pins.length) + pins.map(s => row(s, { ...o, sub: where(s) })).join('') : ''}${BUCKETS.map(([a, b, en, zh]) => {
+    const r = rest.filter(s => s.day >= a && s.day <= b);
+    return r.length ? grpH(I.clock(), t(en, zh), r.length) + r.map(s => row(s, { ...o, sub: where(s) })).join('') : '';
+  }).join('')}</div>`;
+};
+const TREE = { machine: treeMachine, project: treeProject, time: treeTime };
+
+/* ---- A: a filter strip and a Group menu ----------------------------------------------------------------------- */
+const stripA = (on, list = LIVE) => `<div class="strip" role="toolbar" aria-label="${t('Filter by tag', '按标签筛选')}">${TAGS.map(x => `<button class="fch${x === on ? ' on' : ''}" aria-pressed="${x === on}">${esc(x)}<span class="c">${count(x, list)}</span></button>`).join('')}</div>`;
+const groupBtn = g => ib(g === 'time' ? I.clock() : I.layers(), t(`Group: ${{ machine: 'Machine', project: 'Project', time: 'Time' }[g]}`, `分组：${{ machine: '机器', project: '项目', time: '时间' }[g]}`));
+const brandA = (g, on) => `<div class="brand"><span class="mark" aria-hidden="true">${mark}</span><b>Hoplet</b><span class="sp"></span><span class="hb">${groupBtn(g).replace('class="ib ', `class="ib ${on ? 'on ' : ''}`)}${ib(I.compose(), t('New session (⌘N)', '新建会话 (⌘N)'))}${ib(I.sidebar(), t('Hide sidebar (⌘\\)', '隐藏侧栏 (⌘\\)'))}</span></div>`;
+const sideA = (o = {}) => {
+  const g = o.group || 'machine';
+  const list = o.tag ? LIVE.filter(s => s.tags.includes(o.tag)) : LIVE;
+  const bar = o.tag ? `<div class="fbar">${t(`${list.length} of ${LIVE.length} sessions · tagged ${o.tag}`, `${LIVE.length} 个会话中的 ${list.length} 个 · 标签 ${o.tag}`)}${btn(t('Clear', '清除'), '', 'quiet')}</div>` : '';
+  const strip = o.noTags ? '' : stripA(o.tag);
+  const body = TREE[g](list, { sel: SEL, hov: o.hov, hideEmpty: !!o.tag });
+  return `<aside class="side">${brandA(g, o.groupOpen)}${searchBox()}${strip}${bar}<div class="tree">${body}</div>${foot(ARCH.length, o.archOn)}${o.pop || ''}</aside>`;
+};
+const groupPop = g => `<div class="fpop" style="top:46px;left:8px;width:232px" role="menu">
+  <div class="menu-label">${t('Group sessions by', '会话分组方式')}</div>
+  ${[['machine', I.laptop(), 'Machine', '机器'], ['project', I.folder(), 'Project', '项目'], ['time', I.clock(), 'Last activity', '最近活动']].map(([k, ic, en, zh]) => `<div class="menu-item${k === g ? ' on' : ''}" role="menuitemradio" aria-checked="${k === g}"><span class="lead">${ic}</span>${t(en, zh)}<span class="menu-check" style="margin-left:auto">${k === g ? I.check() : ''}</span></div>`).join('')}
+  <div class="menu-sep"></div>
+  <div class="note">${t('Project joins the machines that share a git remote. Pinned stays on top in every grouping.', '“项目”把共用同一 git 远程仓库的机器合在一起。任何分组下置顶都在最上面。')}</div></div>`;
+const sessMenu = (s, top, pinned) => `<div class="fpop" style="top:${top}px;left:16px;width:232px" role="menu">
+  <div class="menu-title">${esc(title(s))}</div>
+  <div class="menu-item"><span class="lead">${I.pen()}</span>${t('Rename…', '重命名…')}${kc('⌥⌘R')}</div>
+  <div class="menu-item on"><span class="lead">${pinned ? I.unpin() : I.pin()}</span>${pinned ? t('Unpin', '取消置顶') : t('Pin', '置顶')}${kc('⌥⌘P')}</div>
+  <div class="menu-item"><span class="lead">${I.tag()}</span>${t('Tags…', '标签…')}<span class="newb">${t('new', '新')}</span>${kc('⌥⌘T')}</div>
+  <div class="menu-sep"></div>
+  <div class="menu-item"><span class="lead">${I.archive()}</span>${t('Archive', '归档')}${kc('⇧⌘A')}</div></div>`;
+const topTags = (s, o = {}) => `<span class="tags">${s.tags.map(x => tagChip(x)).join('')}${s.tags.length ? ib(I.plus(), t('Edit tags (⌥⌘T)', '编辑标签 (⌥⌘T)'), o.on ? 'on' : '') : btn(t('Add tag', '添加标签'), I.tag(), 'quiet', t('Add tag (⌥⌘T)', '添加标签 (⌥⌘T)'))}</span>`;
+/* the tag editor: a combobox whose chips are the session's tags */
+const tagEditor = (s, q, style) => {
+  const m = TAGS.filter(x => x.includes(q) && !s.tags.includes(x));
+  return `<div class="fpop" style="${style}" role="dialog" aria-label="${t('Tags', '标签')}">
+  <div class="input on tok-in" role="combobox" aria-expanded="true">${s.tags.map(x => tagChip(x, { x: 1 })).join('')}<span>${esc(q)}<i class="caret"></i></span></div>
+  <div class="menu-label">${t('Existing tags', '已有标签')}</div>
+  ${m.map((x, i) => `<div class="menu-item${i === 0 ? ' on' : ''}" role="option"><span class="lead">${I.tag()}</span>${hl(x, q)}<span class="c">${count(x)}</span></div>`).join('')}
+  <div class="menu-item new" role="option"><span class="lead">${I.plus()}</span>${t(`Create “${q}”`, `创建“${q}”`)}</div>
+  <div class="note">${t('Letters, digits and hyphens, up to 32. Enter adds, Backspace removes the last, Esc closes.', '字母、数字和连字符，最多 32 个字符。回车添加，退格删除最后一个，Esc 关闭。')}</div></div>`;
+};
+/* the Archived page, kept from today, with the tag filter */
+const archPage = (o = {}) => {
+  const A2 = ARCH.filter(s => s.id !== o.gone);
+  const list = (o.tag ? ARCH.filter(s => s.tags.includes(o.tag)) : ARCH).filter(s => s.id !== o.gone);
+  const chips = `<div class="chips"><span class="l">${t('Tag', '标签')}</span>${TAGS.filter(x => count(x, A2) || x === o.tag).map(x => `<button class="fch${x === o.tag ? ' on' : ''}">${esc(x)}<span class="c">${count(x, A2)}</span></button>`).join('')}</div>`;
+  const body = !list.length ? `<div class="empty">${I.archive()}<b>${o.tag ? t(`No archived sessions tagged ${o.tag}`, `没有标签为 ${o.tag} 的已归档会话`) : t('Nothing archived', '没有已归档的会话')}</b><p>${o.tag ? t('The filter is kept while this page is open.', '此页面打开期间保留筛选。') : t('Archive a session from its menu (⇧⌘A). It leaves the sidebar and comes back with Restore.', '从会话菜单归档（⇧⌘A）。它会离开侧栏，可用“恢复”找回。')}</p>${o.tag ? btn(t('Clear filter', '清除筛选')) : ''}</div>`
+    : Object.keys(M).map(k => { const r = list.filter(s => s.m === k); return r.length ? `<div class="mh">${mIcon(M[k].os, M[k].on)}${M[k].name}</div>${[...new Set(r.map(s => s.p))].map(p => `<div class="fh"><span class="fi">${I.folder()}</span>${P[p].name}${btn(t('Restore all', '全部恢复'), '', 'quiet')}</div>${r.filter(s => s.p === p).map(s => `<div class="arow${s.id === o.hov ? ' hov' : ''}">${pmark()}<span class="tt"><span class="t1">${esc(title(s))}</span><span class="t2">${t(`archived ${s.arch} ago`, `${ageT(s.arch)}前归档`)}</span></span><span class="rtags">${s.tags.map(x => tagChip(x)).join('')}</span>${ib(I.restore(), t('Restore', '恢复'))}</div>`).join('')}`).join('')}` : ''; }).join('');
+  return `<main class="main"><div class="top">${ib(I.back(), t('Back', '返回'), 'back')}<span class="title">${t('Archived', '已归档')}</span><span class="cnt2">${ARCH.length - (o.gone ? 1 : 0)}</span><span class="sp"></span></div><div class="apage"><div class="arch-list">${o.empty ? '' : chips}${o.empty ? `<div class="empty">${I.archive()}<b>${t('Nothing archived', '没有已归档的会话')}</b><p>${t('Archive a session from its menu (⇧⌘A). It leaves the sidebar and comes back with Restore.', '从会话菜单归档（⇧⌘A）。它会离开侧栏，可用“恢复”找回。')}</p></div>` : body}</div></div>${o.toast ? `<div class="toast">${I.check()}${t('Restored to build-box · hoplet', '已恢复到 build-box · hoplet')}${btn(t('Undo', '撤销'), '', 'quiet')}</div>` : ''}</main>`;
+};
+/* the phone: direction A at 390 px, for the native client of #139 */
+const phone = () => {
+  const r = (s, swiped) => swiped
+    ? `<div class="ph-r sw"><div class="slide">${pmark()}<span class="tt"><span class="t1">${esc(title(s))}</span><span class="t2">${where(s)}</span></span><span class="m">${glyph(s)}</span></div><div class="ph-act"><button>${I.pin()}${t('Pin', '置顶')}</button><button>${I.tag()}${t('Tags', '标签')}</button><button>${I.archive()}${t('Archive', '归档')}</button></div></div>`
+    : `<div class="ph-r">${pmark()}<span class="tt"><span class="t1">${esc(title(s))}</span><span class="t2">${where(s)}${s.tags.length ? ` · ${s.tags.join(' · ')}` : ''}</span></span><span class="m">${glyph(s)}</span></div>`;
+  return `<div class="cap"><b>${t('A on a phone (390 px)', 'A 在手机上（390 px）')}</b><span>${t('The web UI stays desktop only (ADR 0011). This is how the same model reads in the native client of #139: tag chips scroll sideways, grouping is the Time list with Pinned on top, and a row swipes left to Pin, Tags and Archive. Archived is the last row of the list.', 'Web UI 仍只面向桌面（ADR 0011）。这是同一模型在 #139 原生客户端中的样子：标签横向滚动，分组用“时间”且置顶在上，行左滑出现置顶、标签和归档。已归档是列表的最后一行。')}</span></div>
+  <div class="phone"><div class="ph-sb"><span>9:41</span><span></span></div>
+  <div class="ph-h"><b>${t('Sessions', '会话')}</b>${ib(I.layers(), t('Group', '分组'))}${ib(I.compose(), t('New session', '新建会话'))}</div>
+  <div class="ph-s">${I.search()}${t('Search', '搜索')}</div>
+  <div class="strip" style="padding:12px 16px 4px">${TAGS.map(x => `<button class="fch">${esc(x)}<span class="c">${count(x)}</span></button>`).join('')}</div>
+  <div class="ph-list"><div class="ph-g">${I.pin()}${t('Pinned', '已置顶')}</div>${pinnedOf(LIVE).map(s => r(s)).join('')}
+  <div class="ph-g">${t('Today', '今天')}</div>${[2, 3, 5].map(id => r(byId(id), id === 3)).join('')}
+  <div class="ph-g">${t('Yesterday', '昨天')}</div>${r(byId(7))}
+  <div class="ph-g">${I.archive()}${t('Archived · 3', '已归档 · 3')}</div></div></div>`;
+};
+function pageA(st) {
+  const s = byId(SEL);
+  switch (st) {
+    case 'a-default': return sideA() + sessionMain(s, topTags(s));
+    case 'a-pinned': return sideA({ hov: 3, pop: sessMenu(byId(3), 320, false) }) + sessionMain(s, topTags(s));
+    case 'a-filter': return sideA({ tag: 'bug' }) + sessionMain(s, topTags(s));
+    case 'a-project': return sideA({ group: 'project', groupOpen: true, pop: groupPop('project') }) + sessionMain(s, topTags(s));
+    case 'a-time': return sideA({ group: 'time' }) + sessionMain(s, topTags(s));
+    case 'a-archive': return sideA({ archOn: true }) + archPage({ hov: 11 });
+    case 'a-restore': return sideA({ archOn: true }) + archPage({ gone: 11, toast: true });
+    case 'a-edit': return sideA() + sessionMain(s, topTags(s, { on: true }), tagEditor(s, 're', 'top:46px;left:150px;width:288px'));
+    case 'a-empty': { const s2 = { ...byId(3) }; return sideA({ noTags: true }) + sessionMain(s2, topTags(s2)); }
+    case 'a-nomatch': return sideA({ archOn: true }) + archPage({ tag: 'release' });
+    default: return '';
+  }
+}
+
+/* ---- B: sections (Pinned, Tags, Sessions) ---------------------------------------------------------------------- */
+const sideB = (o = {}) => {
+  const g = o.group || 'machine';
+  const pins = pinnedOf(LIVE);
+  const tagsSec = `<div class="sec">${t('Tags', '标签')}<span class="sp"></span>${ib(I.plus(), t('New tag', '新建标签'))}</div>${o.noTags ? `<div class="mini-empty">${t('No tags yet. Add one from a session’s menu.', '还没有标签。从会话菜单添加。')}</div>` : TAGS.map(x => {
+    const open = x === o.tag;
+    const r = LIVE.filter(s => s.tags.includes(x));
+    return `<div class="sdir${open ? ' on' : ''}"><span class="fi">${I.tag()}</span><span class="dn">${esc(x)}</span><span class="rt"><span class="cnt">${r.length}</span></span></div>${open ? r.map(s => row(s, { sel: SEL, sub: where(s) })).join('') : ''}`;
+  }).join('')}`;
+  const label = { machine: t('By machine', '按机器'), project: t('By project', '按项目'), time: t('By time', '按时间') }[g];
+  const sess = `<div class="sec">${t('Sessions', '会话')}<span class="sp"></span><button class="chooser${o.chooser ? ' on' : ''}">${label}${I.down()}</button></div>${o.tag ? treeMachine(LIVE, { shut: true }) : TREE[g](LIVE.filter(s => !s.pin), { sel: SEL, noPins: true, shut: o.shut })}`;
+  const arch = o.arch ? `<div class="sec">${t('Archived', '已归档')}<span class="sp"></span><span class="meta">${ARCH.length}</span></div>${ARCH.map(s => row(s, { sub: where(s), hov: o.hov, end: s.id === o.hov ? ib(I.restore(), t('Restore', '恢复')) : `<span class="num">${ageT(s.arch)}</span>` })).join('')}` : `<div class="sec">${I.chev()}${t('Archived', '已归档')}<span class="sp"></span><span class="meta">${ARCH.length}</span></div>`;
+  const pinSec = `<div class="sec">${t('Pinned', '已置顶')}</div>${pins.map(s => row(s, { sel: SEL, sub: where(s) })).join('')}`;
+  return `<aside class="side">${brand()}${searchBox()}<div class="tree">${pinSec}${tagsSec}${sess}${o.arch || o.shut ? arch : ''}</div><div class="side-foot"><span class="conn"><span class="lead"><i class="dot"></i></span>hoplet.home.arpa</span>${ib(I.settings(), t('Settings (⌘,)', '设置 (⌘,)'))}</div>${o.pop || ''}</aside>`;
+};
+const chooserPop = g => `<div class="fpop" style="top:392px;left:60px;width:180px" role="menu">${[['machine', 'By machine', '按机器'], ['project', 'By project', '按项目'], ['time', 'By time', '按时间']].map(([k, en, zh]) => `<div class="menu-item${k === g ? ' on' : ''}" role="menuitemradio" aria-checked="${k === g}">${t(en, zh)}<span class="menu-check" style="margin-left:auto">${k === g ? I.check() : ''}</span></div>`).join('')}</div>`;
+const tagDialog = (s, q) => {
+  const m = TAGS.filter(x => x.includes(q) && !s.tags.includes(x));
+  return `<div class="scrim"></div><div class="modal dlg" role="dialog" aria-label="${t('Tags', '标签')}"><div class="dlg-h">${t('Tags', '标签')}</div><div class="dlg-b">
+  <div class="dlg-u"><span class="vt">${esc(title(s))}</span><span class="gap"></span>${M[s.m].name}</div>
+  <div class="input on tok-in">${s.tags.map(x => tagChip(x, { x: 1 })).join('')}<span>${esc(q)}<i class="caret"></i></span></div>
+  <div>${m.map((x, i) => `<div class="menu-item${i === 0 ? ' on' : ''}" style="border-radius:6px${i === 0 ? ';background:var(--color-selected)' : ''}"><span class="menu-check">${I.tag()}</span>${hl(x, q)}<span class="meta" style="margin-left:auto">${count(x)}</span></div>`).join('')}<div class="menu-item" style="color:var(--color-text-2)"><span class="menu-check">${I.plus()}</span>${t(`Create “${q}”`, `创建“${q}”`)}</div></div>
+  <div class="meta">${t('Letters, digits and hyphens, up to 32. A session takes up to 10.', '字母、数字和连字符，最多 32 个字符。每个会话最多 10 个。')}</div>
+  </div><div class="dlg-f">${btn(t('Cancel', '取消'))}${btn(t('Save', '保存'), '', 'primary')}</div></div>`;
+};
+function pageB(st) {
+  const s = byId(SEL);
+  const tags = `<span class="tags">${s.tags.map(x => tagChip(x)).join('')}</span>`;
+  switch (st) {
+    case 'b-default': return sideB() + sessionMain(s, tags);
+    case 'b-tag': return sideB({ tag: 'bug' }) + sessionMain(s, tags);
+    case 'b-project': return sideB({ group: 'project', chooser: true, pop: chooserPop('project') }) + sessionMain(s, tags);
+    case 'b-time': return sideB({ group: 'time' }) + sessionMain(s, tags);
+    case 'b-archive': return sideB({ arch: true, shut: true, hov: 11 }) + sessionMain(s, tags);
+    case 'b-edit': return sideB() + sessionMain(s, tags) + tagDialog(s, 're');
+    case 'b-empty': return sideB({ noTags: true }) + sessionMain(s, '');
+    default: return '';
+  }
+}
+
+/* ---- C: one filter field (tag:, is:, machine:, group:) ----------------------------------------------------------- */
+const qt = (k, v) => `<span class="qt"><i>${k}:</i>${esc(v)}</span>`;
+const sideC = (o = {}) => {
+  const field = `<div class="qf${o.focus ? ' on' : ''}">${I.search()}${(o.tokens || []).map(([k, v]) => qt(k, v)).join('')}${o.typed ? `<span class="qtyp">${esc(o.typed)}<i class="caret"></i></span>` : ''}${!o.tokens && !o.typed ? `<span class="ph2">${t('Filter: tag: is: machine: group:', '筛选：tag: is: machine: group:')}</span><span class="kbd">/</span>` : ''}</div>`;
+  let list = o.arch ? ARCH : LIVE;
+  for (const [k, v] of o.tokens || []) {
+    if (k === 'tag') list = list.filter(s => s.tags.includes(v));
+    if (k === 'machine') list = list.filter(s => M[s.m].name === v);
+  }
+  const res = o.tokens ? `<div class="qres">${o.arch ? t(`${list.length} archived`, `${list.length} 个已归档`) : t(`${list.length} of ${LIVE.length}`, `${LIVE.length} 个中的 ${list.length} 个`)}${btn(t('Clear', '清除'), '', 'quiet')}</div>` : '';
+  const g = o.group || 'machine';
+  const rowO = o.arch ? { sub: where, hov: o.hov } : { sel: SEL, tm: true, hideEmpty: !!o.tokens };
+  const body = !list.length ? `<div class="empty" style="padding:32px 8px">${I.search()}<b>${t('No sessions match', '没有匹配的会话')}</b><p>${t('studio is offline and has no session tagged release. Archived sessions need is:archived.', 'studio 离线，且没有标签为 release 的会话。已归档的会话需要 is:archived。')}</p></div>`
+    : o.arch ? list.map(s => row(s, { sub: where(s), hov: o.hov, end: `${s.id === o.hov ? ib(I.restore(), t('Restore', '恢复')) : `<span class="tm">${s.tags.join(' · ')}</span>`}` })).join('')
+    : TREE[g](list, rowO);
+  return `<aside class="side">${brand()}${field}${res}<div class="tree">${body}</div><div class="side-foot"><span class="conn"><span class="lead"><i class="dot"></i></span>hoplet.home.arpa</span>${ib(I.settings(), t('Settings (⌘,)', '设置 (⌘,)'))}</div>${o.pop || ''}</aside>`;
+};
+const qSuggest = () => `<div class="fpop" style="top:88px;left:8px;width:232px" role="listbox">
+  <div class="menu-label">${t('Tags', '标签')}</div>
+  ${TAGS.filter(x => x.startsWith('b') || x.startsWith('r')).map((x, i) => `<div class="menu-item${i === 0 ? ' on' : ''}"><span class="mono"><span class="meta">tag:</span>${hl(x, x[0])}</span><span class="d">${count(x)}</span></div>`).join('')}
+  <div class="menu-label">${t('Filters', '筛选')}</div>
+  <div class="menu-item"><span class="mono">is:pinned</span><span class="d">${t('pinned only', '仅置顶')}</span></div>
+  <div class="menu-item"><span class="mono">is:archived</span><span class="d">${t('the archive', '已归档')}</span></div>
+  <div class="menu-item"><span class="mono">machine:</span><span class="d">${t('one machine', '一台机器')}</span></div>
+  <div class="menu-item"><span class="mono">group:</span><span class="d">machine · project · time</span></div></div>`;
+const inlineTags = (s, q) => `<span class="inl">${s.tags.map(x => tagChip(x, { x: 1 })).join('')}<span>${esc(q)}<i class="caret"></i></span></span>`;
+const inlineSuggest = (s, q) => `<div class="fpop" style="top:46px;left:160px;width:260px" role="listbox">${TAGS.filter(x => x.includes(q) && !s.tags.includes(x)).map((x, i) => `<div class="menu-item${i === 0 ? ' on' : ''}"><span class="lead">${I.tag()}</span>${hl(x, q)}<span class="c">${count(x)}</span></div>`).join('')}<div class="menu-item new"><span class="lead">${I.plus()}</span>${t(`Create “${q}”`, `创建“${q}”`)}</div><div class="note">${t('Enter adds · Backspace removes · Esc saves and closes', '回车添加 · 退格删除 · Esc 保存并关闭')}</div></div>`;
+function pageC(st) {
+  const s = byId(SEL);
+  const tags = `<span class="tags">${s.tags.map(x => tagChip(x)).join('')}</span>`;
+  switch (st) {
+    case 'c-default': return sideC() + sessionMain(s, tags);
+    case 'c-filter': return sideC({ focus: true, tokens: [['tag', 'bug']], typed: 'tag:r', pop: qSuggest() }) + sessionMain(s, tags);
+    case 'c-project': return sideC({ tokens: [['group', 'project']], group: 'project' }) + sessionMain(s, tags);
+    case 'c-archive': return sideC({ tokens: [['is', 'archived']], arch: true, hov: 11 }) + sessionMain(s, tags);
+    case 'c-edit': return sideC() + sessionMain(s, inlineTags(s, 're'), inlineSuggest(s, 're'));
+    case 'c-empty': return sideC({ tokens: [['tag', 'release'], ['machine', 'studio']] }) + sessionMain(s, tags);
+    default: return '';
+  }
+}
+
+const STATES = [
+  ['a-default', 'A · Tag chips under Search; tags beside the title; grouped by machine as today'],
+  ['a-pinned', 'A · the row’s menu: Pin, and the new Tags… (⌥⌘T); the Pinned group on each machine'],
+  ['a-filter', 'A · one tag chip on: only its sessions, a count and Clear'],
+  ['a-project', 'A · the Group menu: Project joins hoplet on MacBook Pro, build-box and studio'],
+  ['a-time', 'A · grouped by last activity: Pinned, Today, Yesterday, This week'],
+  ['a-archive', 'A · the Archived page (as today) with a tag filter and tags on each row'],
+  ['a-restore', 'A · one session restored, a toast with Undo'],
+  ['a-edit', 'A · editing tags: the session’s chips, matches for “re”, Create'],
+  ['a-empty', 'A · no tags yet: no strip, an Add tag button in the top bar'],
+  ['a-nomatch', 'A · the archive filter matches nothing'],
+  ['a-phone', 'A at phone width, for the #139 client (not the web UI)'],
+  ['a-default-zh', 'A in Simplified Chinese'],
+  ['a-edit-zh', 'A tag editor in Simplified Chinese'],
+  ['a-archive-zh', 'A Archived page in Simplified Chinese'],
+  ['b-default', 'B · sections: Pinned (all machines), Tags like folders, Sessions with a grouping chooser'],
+  ['b-tag', 'B · a tag opened: its sessions with their machine and project'],
+  ['b-project', 'B · the chooser set to By project'],
+  ['b-time', 'B · Sessions by time'],
+  ['b-archive', 'B · Archived as a fold at the bottom of the sidebar, Restore on hover'],
+  ['b-edit', 'B · tags edited in a dialog'],
+  ['b-empty', 'B · no tags yet'],
+  ['b-default-zh', 'B in Simplified Chinese'],
+  ['c-default', 'C · Search becomes a filter field; tags as text at the end of a row'],
+  ['c-filter', 'C · tag:bug set, typing tag:r, suggestions for tags and filters'],
+  ['c-project', 'C · group:project'],
+  ['c-archive', 'C · is:archived, Restore on the row'],
+  ['c-edit', 'C · tags edited in place in the top bar'],
+  ['c-empty', 'C · nothing matches'],
+  ['c-filter-zh', 'C in Simplified Chinese'],
+];
+
+const LANG = new URLSearchParams(location.search).get('lang') === 'zh-Hans';
+function frame(st, scheme) {
+  Z = LANG || st.endsWith('-zh');
+  const base = st.replace(/-zh$/, '');
+  if (base === 'a-phone') return `<div class="frame canvas ${scheme}" data-state="${st}">${phone()}</div>`;
+  const body = base.startsWith('a-') ? pageA(base) : base.startsWith('b-') ? pageB(base) : pageC(base);
+  return `<div class="frame ${scheme}" data-state="${st}">${body}</div>`;
+}
+
+const q = new URLSearchParams(location.search);
+Z = LANG;
+document.documentElement.lang = Z ? 'zh-Hans' : 'en';
+const root = document.getElementById('root');
+const solo = STATES.find(([s]) => s === q.get('state'));
+if (q.get('state') && !solo) {
+  document.body.className = 'solo';
+  root.textContent = `Unknown state: ${q.get('state')}`;
+} else if (solo) {
+  document.body.className = 'solo';
+  root.innerHTML = frame(solo[0], q.get('scheme') === 'light' ? 'light' : 'dark');
+} else {
+  document.body.className = 'stacked';
+  root.innerHTML = `<header class="intro"><h1>Organizing sessions <span>Sidebar · Archived · session menu — #91, direction A confirmed by the maintainer</span></h1>
+    <p>Pin and Archive already exist (the session menu, ⌥⌘P and ⇧⌘A, a Pinned group per machine, the Archived page with Restore). What #91 adds is <b>tags</b> on a session, <b>grouping across machines</b> by project (a project is its git remote, so <code>hoplet</code> on three machines is one group) or by last activity, a tag filter that works on the sidebar and on the archive, and a phone layout. Tags are plain words with no colour: in Hoplet a hue always means a state (orange working, amber needs you, red failed, green online), so a coloured tag would read as one. The sample has three machines (studio is offline), four projects (one without a remote) and four tags.</p>
+    <p><b>A</b> (confirmed) keeps today’s sidebar and adds two things: a row of tag chips under Search, one on at a time, and a Group menu in the header (Machine, Project, Last activity). Tags sit beside the title in the top bar and are edited in a small combobox from there, from the row menu or with ⌥⌘T. The Archived page stays and gets the same chips. <b>B</b> turns the sidebar into sections: Pinned across all machines, Tags listed like folders, then Sessions with a grouping chooser and Archived as a fold at the bottom; tags are edited in a dialog. <b>C</b> keeps the sidebar plain and turns Search into a filter field with tokens (<code>tag:</code>, <code>is:pinned</code>, <code>is:archived</code>, <code>machine:</code>, <code>group:</code>); the archive is a filter, tags are text at the end of a row and are edited in place.</p>
+    <p>Phone width is out of scope for the web UI (ADR 0011: desktop only, at least 1024 px); <code>a-phone</code> shows how A carries over to the native client of #139. New icons: <code>tag</code>. Add <code>?state=&lt;id&gt;&amp;scheme=light|dark</code> for one frame at full size, <code>?lang=zh-Hans</code> for Simplified Chinese.</p></header>` +
+    STATES.map(([s, desc]) => `<section class="st"><h2>${s}<span>${desc}</span></h2><div class="pair">
+      <div class="scaled">${frame(s, 'light')}</div><div class="scaled">${frame(s, 'dark')}</div></div></section>`).join('');
+}
+</script>
+</body>
+</html>

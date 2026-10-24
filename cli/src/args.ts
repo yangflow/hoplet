@@ -13,6 +13,7 @@ const FLAGS: Record<string, FlagKind> = {
   // sessions, new
   device: 'string',
   state: 'string',
+  tag: 'string',
   path: 'string',
   provider: 'string',
   model: 'string',
@@ -63,7 +64,7 @@ export type CommandSpec = {
 /** The commands, by name (`audit list`, `tokens create`, …). */
 export const COMMANDS: Record<string, CommandSpec> = {
   sessions: {
-    flags: ['device', 'state'],
+    flags: ['device', 'state', 'tag'],
     min: 0,
     max: 0,
     usage: 'hoplet sessions [--device <machine>] [--state <state>]',

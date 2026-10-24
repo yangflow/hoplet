@@ -6,6 +6,7 @@ import path from 'node:path';
 import type { ServerMessage } from '@hoplet/shared';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createApi } from '../src/api/index.ts';
+import { repositoryKey, repositoryOf } from '../src/api/origin.ts';
 import { createControl } from '../src/control/index.ts';
 import { Store } from '../src/store/index.ts';
 
@@ -78,6 +79,25 @@ describe('Store session state', () => {
     expect(store.updateSessionState('s1', { titleOverride: null, archivedAt: null })).toEqual({});
     expect(store.sessionStates().size).toBe(0);
     expect(store.updateSessionState('missing', { pinnedAt: 1 })).toBeNull();
+  });
+
+  it('adds and removes tags, sorted, and lists a session that only has tags', () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'hoplet-actions-'));
+    dirs.push(dir);
+    const store = new Store(dir);
+    store.append(
+      { sessionId: 's1', provider: 'claude', projectDir: 'p', filePath: '/s1', deviceId: 'd' },
+      [line],
+    );
+    expect(store.updateSessionState('s1', { addTags: ['ui', 'auth'] })).toEqual({
+      tags: ['auth', 'ui'],
+    });
+    expect(store.sessionStates().get('s1')).toEqual({ tags: ['auth', 'ui'] });
+    expect(
+      store.updateSessionState('s1', { addTags: ['auth'], removeTags: ['ui', 'none'] }),
+    ).toEqual({ tags: ['auth'] });
+    expect(store.updateSessionState('s1', { removeTags: ['auth'] })).toEqual({});
+    expect(store.sessionStates().size).toBe(0);
   });
 
   it('leaves the lines, the cursor and the vendor title alone', () => {
@@ -170,6 +190,72 @@ describe('PATCH /api/sessions/:sessionId', () => {
     expect(Number(repinned.body.pinnedAt)).toBeGreaterThan(Number(first.body.pinnedAt));
   });
 
+  it('tags a session case-insensitively and tells the browsers', async () => {
+    const { call, heard } = await boot();
+    const tagged = await call('PATCH', '/api/sessions/s1', {
+      addTags: ['Auth', 'review', 'auth'],
+    });
+    expect(tagged.status).toBe(200);
+    expect(tagged.body.tags).toEqual(['auth', 'review']);
+    expect(heard.at(-1)).toMatchObject({
+      type: 'session.updated',
+      sessionId: 's1',
+      tags: ['auth', 'review'],
+    });
+    const list = await call('GET', '/api/sessions');
+    const s1 = (list.body.sessions as Record<string, unknown>[]).find((s) => s.sessionId === 's1');
+    expect(s1?.tags).toEqual(['auth', 'review']);
+    const swapped = await call('PATCH', '/api/sessions/s1', {
+      removeTags: ['AUTH'],
+      addTags: ['ui'],
+    });
+    expect(swapped.body.tags).toEqual(['review', 'ui']);
+    const cleared = await call('PATCH', '/api/sessions/s1', { removeTags: ['review', 'ui'] });
+    expect(cleared.body.tags).toBeUndefined();
+    expect(heard.at(-1)).not.toHaveProperty('tags');
+  });
+
+  it('refuses a malformed tag and more than ten tags', async () => {
+    const { call } = await boot();
+    for (const tag of ['', '-lead', 'two words', 'a_b', 'x'.repeat(33)]) {
+      expect((await call('PATCH', '/api/sessions/s1', { addTags: [tag] })).status).toBe(400);
+    }
+    expect((await call('PATCH', '/api/sessions/s1', { addTags: ['x'.repeat(32)] })).status).toBe(
+      200,
+    );
+    const nine = Array.from({ length: 9 }, (_, i) => `t${i}`);
+    expect((await call('PATCH', '/api/sessions/s1', { addTags: nine })).status).toBe(200);
+    const over = await call('PATCH', '/api/sessions/s1', { addTags: ['one-more'] });
+    expect(over.body).toMatchObject({ code: 'invalid-request' });
+    const swap = await call('PATCH', '/api/sessions/s1', {
+      removeTags: ['t0'],
+      addTags: ['one-more'],
+    });
+    expect(swap.status).toBe(200);
+    expect((swap.body.tags as string[]).length).toBe(10);
+  });
+
+  it('names the repository of a session in a watched project', async () => {
+    const { call, store } = await boot();
+    store.append(
+      { sessionId: 's3', provider: 'claude', projectDir: 'p', filePath: '/s3', deviceId: 'dev-a' },
+      ['{"type":"user","cwd":"/src/hoplet/web","message":{"role":"user","content":"hi"}}'],
+    );
+    store.mintDevice('dev-a', 'dev-a');
+    store.setDeviceInventory('dev-a', {
+      at: 1,
+      toolchains: [],
+      gpus: [],
+      repositories: [{ path: '/src/hoplet', origin: 'git@github.com:yangflow/hoplet.git' }],
+    });
+    const list = await call('GET', '/api/sessions');
+    const sessions = list.body.sessions as Record<string, unknown>[];
+    expect(sessions.find((s) => s.sessionId === 's3')?.repository).toBe(
+      'github.com/yangflow/hoplet',
+    );
+    expect(sessions.find((s) => s.sessionId === 's1')).not.toHaveProperty('repository');
+  });
+
   it('refuses an empty change, a bad body and an unknown session', async () => {
     const { call, heard } = await boot();
     expect((await call('PATCH', '/api/sessions/s1', {})).body).toMatchObject({
@@ -181,5 +267,33 @@ describe('PATCH /api/sessions/:sessionId', () => {
     expect(missing.status).toBe(404);
     expect(missing.body).toEqual({ code: 'session-not-found' });
     expect(heard.filter((m) => m.type === 'session.updated')).toEqual([]);
+  });
+});
+
+describe('repository keys', () => {
+  it('normalizes the forms of one remote to one key', () => {
+    for (const url of [
+      'git@github.com:yangflow/hoplet.git',
+      'https://GitHub.com/yangflow/hoplet',
+      'https://github.com/yangflow/hoplet.git/',
+      'ssh://git@github.com:22/yangflow/hoplet.git',
+    ]) {
+      expect(repositoryKey(url)).toBe('github.com/yangflow/hoplet');
+    }
+    expect(repositoryKey('/srv/git/tools.git')).toBe('srv/git/tools');
+    expect(repositoryKey('  ')).toBeNull();
+  });
+
+  it('takes the deepest watched project that holds the path, else the clone', () => {
+    const repos = [
+      { path: '/src/mono', origin: 'https://example.com/a/mono' },
+      { path: '/src/mono/vendor/lib', origin: 'https://example.com/a/lib' },
+      { path: '/src/local', origin: null },
+    ];
+    expect(repositoryOf(repos, '/src/mono/web')).toBe('example.com/a/mono');
+    expect(repositoryOf(repos, '/src/mono/vendor/lib/x')).toBe('example.com/a/lib');
+    expect(repositoryOf(repos, '/src/monolith')).toBeNull();
+    expect(repositoryOf(repos, '/src/local')).toBeNull();
+    expect(repositoryOf(repos, '/src/mono-1a2b3c4d', '/src/mono')).toBe('example.com/a/mono');
   });
 });

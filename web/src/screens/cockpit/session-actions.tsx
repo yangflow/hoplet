@@ -7,7 +7,7 @@ import { isArchived, isPinned } from './group.ts';
 import { lastAnswerMarkdown } from './last-answer.ts';
 
 /** The shortcuts of the actions, shown in the menu and handled by the cockpit. */
-export const SHORTCUT = { rename: '⌥⌘R', pin: '⌥⌘P', archive: '⇧⌘A' } as const;
+export const SHORTCUT = { rename: '⌥⌘R', pin: '⌥⌘P', tags: '⌥⌘T', archive: '⇧⌘A' } as const;
 
 /** The address that opens a session in this core. */
 export function sessionLink(sessionId: string): string {
@@ -18,6 +18,8 @@ export type SessionActions = {
   /** Applies a change to the session's state; resolves when the core has it. */
   patch: (sessionId: string, patch: SessionPatchRequest) => Promise<void>;
   rename: (session: LiveSessionMeta) => void;
+  /** Opens the session with its tag editor open. */
+  editTags: (session: LiveSessionMeta) => void;
   /** Opens the delete dialog (ADR 0023). */
   remove: (session: LiveSessionMeta) => void;
   /** Opens the save dialog, prefilled from the session's first prompt and options. */
@@ -26,7 +28,7 @@ export type SessionActions = {
   say: (text: string, failed?: boolean) => void;
 };
 
-/** The session actions menu: Rename and Pin | Copy, Open in new window and Save as template | Archive | Delete. */
+/** The session actions menu: Rename, Pin and Tags | Copy, Open in new window and Save as template | Archive | Delete. */
 export function sessionMenu(session: LiveSessionMeta, actions: SessionActions): MenuEntry[] {
   const id = session.sessionId;
   const pinned = isPinned(session);
@@ -51,6 +53,14 @@ export function sessionMenu(session: LiveSessionMeta, actions: SessionActions): 
       icon: pinned ? Icon.unpin() : Icon.pin(),
       shortcut: SHORTCUT.pin,
       onSelect: () => void actions.patch(id, { pinned: !pinned }),
+    },
+    {
+      kind: 'item',
+      id: 'tags',
+      label: t('Tags…'),
+      icon: Icon.tag(),
+      shortcut: SHORTCUT.tags,
+      onSelect: () => actions.editTags(session),
     },
     { kind: 'separator', id: 'sep-1' },
     {

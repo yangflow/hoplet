@@ -1039,6 +1039,34 @@ const archivedSessions = (base: LiveSessionMeta[]) =>
         ? { ...s, archivedAt: NOW - 2 * 86_400_000 }
         : s,
   );
+const HOPLET_REPO = 'github.com/repopro/hoplet';
+/** Tags on every session, the remotes the projects share, and a studio clone of the MacBook Pro's hoplet. */
+const tagged = (base: LiveSessionMeta[]) => [
+  ...base.map((s) =>
+    s.sessionId === catalogId
+      ? { ...s, tags: ['sync', 'bug'], repository: HOPLET_REPO }
+      : s.sessionId === handoffId
+        ? { ...s, tags: ['handoff', 'sync'], repository: HOPLET_REPO }
+        : s.sessionId === notesId
+          ? { ...s, tags: ['docs'] }
+          : s.sessionId === appId
+            ? { ...s, tags: ['ios'], repository: 'github.com/repopro/hoplet-app' }
+            : s,
+  ),
+  session({
+    sessionId: '55555555-2222-4333-8444-555555555555',
+    title: 'Retry the snapshot upload',
+    deviceName: 'studio',
+    projectPath: '/Users/mark/src/hoplet',
+    projectDir: '-Users-mark-src-hoplet',
+    ownerDeviceId: 'dev-studio',
+    repository: HOPLET_REPO,
+    tags: ['sync'],
+    updatedAt: NOW - 26 * 3_600_000,
+  }),
+];
+/** The tagged sessions with the handoff session and the office-mini's one archived. */
+const taggedArchive = (base: LiveSessionMeta[]) => archivedSessions(tagged(base));
 const HOME = '/Users/mark';
 const HOME_GITHUB = `${HOME}/github`;
 const dir = (name: string, git = false) => ({ name, git });
@@ -1932,6 +1960,21 @@ export const states: Record<string, () => ReactNode> = {
   ),
   archived: () => <Scene sessions={archivedSessions} fixture={{ archived: true }} />,
   'archived-empty': () => <Scene fixture={{ archived: true }} />,
+  'session-tags': () => <Scene sessions={tagged} />,
+  'tags-empty': () => <Scene />,
+  'tag-editor': () => <Scene sessions={tagged} fixture={{ tagEditor: 're' }} />,
+  'tag-filter': () => <Scene sessions={tagged} fixture={{ tagFilter: 'sync' }} />,
+  'group-menu': () => (
+    <Scene sessions={tagged} fixture={{ grouping: 'project', groupMenu: true }} />
+  ),
+  'group-project': () => <Scene sessions={tagged} fixture={{ grouping: 'project' }} />,
+  'group-time': () => <Scene sessions={tagged} fixture={{ grouping: 'time' }} />,
+  'archived-tag-filter': () => (
+    <Scene sessions={taggedArchive} fixture={{ archived: true, archivedTag: 'sync' }} />
+  ),
+  'archived-tag-none': () => (
+    <Scene sessions={taggedArchive} fixture={{ archived: true, archivedTag: 'docs' }} />
+  ),
   'session-menu-delete': () => <Scene fixture={{ actionsMenu: { item: 'delete' } }} />,
   delete: () => <Scene fixture={deleteFixture({ preview: deletionOf() })} />,
   'delete-worktree': () => (

@@ -1,5 +1,5 @@
 import type { LiveSessionMeta } from '@hoplet/shared';
-import { useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Button } from '../../components/Button.tsx';
 import { IconButton } from '../../components/IconButton.tsx';
 import { Icon } from '../../components/icons.tsx';
@@ -9,6 +9,7 @@ import { t } from '../../lib/i18n.ts';
 import { pageKeysSuspended } from '../../lib/page-keys.ts';
 import { machineLabel, systemOf } from '../../lib/system.ts';
 import { type DeviceGroup, displayTitle } from './group.ts';
+import { filterByTag, tagCounts } from './sidebar/organize.ts';
 import { compactRel } from './sidebar/rel.ts';
 
 /** The archived sessions of the groups, as the page counts them. */
@@ -37,6 +38,15 @@ function Row(props: {
       <span className="t1" title={title}>
         {title}
       </span>
+      {session.tags && session.tags.length > 0 ? (
+        <span className="rtags">
+          {session.tags.map((tag) => (
+            <span key={tag} className="tag" data-testid="cockpit.archived-tag">
+              {tag}
+            </span>
+          ))}
+        </span>
+      ) : null}
       <IconButton
         label={t('Restore')}
         icon={Icon.restore()}
@@ -58,17 +68,26 @@ function Row(props: {
 /**
  * The Archived page in place of the conversation: every archived session by machine, then folder (name, path,
  * count), newest first. Offline machines are listed and restorable. Restoring needs no confirmation; Delete opens the delete dialog.
+ * A row of the archive's tags filters it by one tag while the page is open.
  */
 export function ArchivedPage(props: {
   /** Machines with their folders; only the archived sessions. */
   groups: DeviceGroup[];
+  /** The tag the page starts filtered by (development fixtures). */
+  tag?: string;
   now: number;
   onRestore: (ids: string[]) => void;
   onDelete: (session: LiveSessionMeta) => void;
   onBack: () => void;
 }) {
-  const { groups, onBack } = props;
-  const total = archivedCount(groups);
+  const { onBack } = props;
+  const total = archivedCount(props.groups);
+  const [tag, setTag] = useState<string | null>(props.tag ?? null);
+  const tags = useMemo(
+    () => tagCounts(props.groups.flatMap((g) => g.dirs.flatMap((d) => d.sessions))),
+    [props.groups],
+  );
+  const groups = useMemo(() => filterByTag(props.groups, tag), [props.groups, tag]);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (pageKeysSuspended()) return;
@@ -107,6 +126,52 @@ export function ArchivedPage(props: {
       ) : (
         <div className="arch-scroll">
           <div className="agp">
+            {tags.length > 0 || tag ? (
+              <div
+                className="arch-tags"
+                role="toolbar"
+                aria-label={t('Filter by tag')}
+                data-testid="cockpit.archived-tags"
+              >
+                <span className="l" aria-hidden="true">
+                  {t('Tag')}
+                </span>
+                {[
+                  ...tags,
+                  ...(tag && !tags.some((x) => x.tag === tag) ? [{ tag, count: 0 }] : []),
+                ].map((x) => (
+                  <button
+                    key={x.tag}
+                    type="button"
+                    className={`fch${x.tag === tag ? ' on' : ''}`}
+                    aria-pressed={x.tag === tag}
+                    onClick={() => setTag(x.tag === tag ? null : x.tag)}
+                    data-testid="cockpit.archived-tag-chip"
+                  >
+                    {x.tag}
+                    <span className="c">{x.count}</span>
+                  </button>
+                ))}
+              </div>
+            ) : null}
+            {tag && groups.length === 0 ? (
+              <div className="empty arch-none" data-testid="cockpit.archived-no-match">
+                <div className="empty-in">
+                  <span className="tile" aria-hidden="true">
+                    {Icon.archive()}
+                  </span>
+                  <p className="empty-title">
+                    {t('No archived sessions tagged {tag}').replace('{tag}', tag)}
+                  </p>
+                  <span className="empty-keys">
+                    <span>{t('The filter is kept while this page is open.')}</span>
+                  </span>
+                  <Button onClick={() => setTag(null)} data-testid="cockpit.archived-tag-clear">
+                    {t('Clear filter')}
+                  </Button>
+                </div>
+              </div>
+            ) : null}
             {groups.map((g) => (
               <section
                 key={g.name}

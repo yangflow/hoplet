@@ -46,14 +46,34 @@ export type SessionRuntimeInfo = v.InferOutput<typeof SessionRuntimeInfoSchema>;
 /** The longest title a user gives a session. */
 export const MAX_TITLE_OVERRIDE_CHARS = 200;
 
+/** The most characters of a tag. */
+export const MAX_TAG_CHARS = 32;
+/** The most tags of one session. */
+export const MAX_SESSION_TAGS = 10;
+/** A tag: ASCII letters, digits and hyphens, starting with a letter or digit. */
+export const TAG_PATTERN = /^[A-Za-z0-9][A-Za-z0-9-]*$/;
+
+/**
+ * A session tag (docs/spec.md#organizing-sessions). Tags are global and case-insensitive: the core stores them
+ * lowercase, so `Auth` and `auth` are one tag.
+ */
+export const TagSchema = v.pipe(
+  v.string(),
+  v.minLength(1),
+  v.maxLength(MAX_TAG_CHARS),
+  v.regex(TAG_PATTERN),
+);
+
 /**
  * What the user did to a session in Hoplet, beside what its vendor wrote. An absent field means nothing
- * was done: no title of their own, not pinned (`pinnedAt` is when it was), not archived (`archivedAt`).
+ * was done: no title of their own, not pinned (`pinnedAt` is when it was), not archived (`archivedAt`), no
+ * tags (`tags`, sorted and lowercase).
  */
 export const SessionStateSchema = v.object({
   titleOverride: v.optional(v.string()),
   pinnedAt: v.optional(v.number()),
   archivedAt: v.optional(v.number()),
+  tags: v.optional(v.pipe(v.array(v.string()), v.maxLength(MAX_SESSION_TAGS))),
 });
 export type SessionState = v.InferOutput<typeof SessionStateSchema>;
 
@@ -75,6 +95,11 @@ export const LiveSessionMetaSchema = v.object({
   ownerConnected: v.boolean(),
   runtime: SessionRuntimeInfoSchema,
   ...SessionStateSchema.entries,
+  /**
+   * The project the session works in, across machines (ADR 0041): the normalized `origin` remote of its
+   * repository, such as `github.com/yangflow/hoplet`; absent when the core knows none.
+   */
+  repository: v.optional(v.string()),
   continuedIn: v.optional(SessionContinuationSchema),
   continuedFrom: v.optional(SessionContinuationSchema),
   /** The session whose latest prompt this session's provenance names last (ADR 0035); `null` when the latest prompt came from a user. */
@@ -116,13 +141,16 @@ export type SessionChildrenResponse = v.InferOutput<typeof SessionChildrenRespon
  * PATCH /api/sessions/:id: changes what the user did to the session; a field left out stays as it is.
  * `title` is the session's name in Hoplet: the core stores it trimmed, as `null` when it is blank or the vendor's own
  * title, and refuses more than `MAX_TITLE_OVERRIDE_CHARS` characters after trimming (`invalid-request`). `pinned` and
- * `archived` set or clear the flags; setting one that is set keeps its time. A request that names none of them is
- * `invalid-request`.
+ * `archived` set or clear the flags; setting one that is set keeps its time. `removeTags` then `addTags` change the
+ * tags; adding a tag the session has or removing one it lacks changes nothing, and a result of more than
+ * `MAX_SESSION_TAGS` tags is `invalid-request`. A request that names none of them is `invalid-request`.
  */
 export const SessionPatchRequestSchema = v.object({
   title: v.optional(v.nullable(v.string())),
   pinned: v.optional(v.boolean()),
   archived: v.optional(v.boolean()),
+  addTags: v.optional(v.pipe(v.array(TagSchema), v.maxLength(MAX_SESSION_TAGS))),
+  removeTags: v.optional(v.pipe(v.array(TagSchema), v.maxLength(MAX_SESSION_TAGS))),
 });
 export type SessionPatchRequest = v.InferOutput<typeof SessionPatchRequestSchema>;
 

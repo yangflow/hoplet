@@ -177,7 +177,7 @@ One family, Lucide (ISC), bundled and never fetched: every glyph on a 24-unit gr
 search, panel-left, panel-right, square-pen, plus, chevron-right, arrow-up, arrow-up-right,
 arrow-right-left, file, folder, folder-open, book-open, pencil, file-plus, terminal, plug, globe, lightbulb, image,
 layers, eye, link, square-plus, square, git-branch, git-fork, zap, lock, paperclip, mic, hand, clock, x, check, circle-alert, activity, circle-dashed, minus, shield, shield-alert, shield-check, ban, asterisk, file-pen, list-checks, sparkles, info, rotate-cw, copy,
-settings, laptop, key-round, contrast, ellipsis, text-wrap, loader-circle, pin, pin-off, archive, archive-restore, grip-vertical, trash-2, corner-down-right, arrow-right-to-line, play, pause, bell, bell-off, moon, send, webhook, layout-template, upload, download, sliders-horizontal, undo-2; turned glyphs (a chevron, an arrow) cover the other directions.
+settings, laptop, key-round, contrast, ellipsis, text-wrap, loader-circle, pin, pin-off, archive, archive-restore, grip-vertical, trash-2, corner-down-right, arrow-right-to-line, play, pause, bell, bell-off, moon, send, webhook, layout-template, upload, download, sliders-horizontal, undo-2, tag; turned glyphs (a chevron, an arrow) cover the other directions.
 File-type badges (TypeScript, Markdown, JSON, image, text, other) use the same page and stroke with a tint.
 Provider marks (the Claude mark for Claude Code) are drawn monochrome in the dim text colour, never in brand
 colour, and lead each session row. Icons sit in labels, tool rows and empty states and do not decorate. The

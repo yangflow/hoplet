@@ -410,7 +410,7 @@ export const WIRE_MESSAGES = defineWire({
   },
 
   /**
-   * The user changed a session's title, pin or archive state. Carries the whole state after the change:
+   * The user changed a session's title, pin, archive state or tags. Carries the whole state after the change:
    * a field that is absent is cleared. Broadcast to every authenticated connection; agents ignore it.
    */
   'session.updated': {
@@ -421,6 +421,7 @@ export const WIRE_MESSAGES = defineWire({
       titleOverride: v.optional(v.string()),
       pinnedAt: v.optional(v.number()),
       archivedAt: v.optional(v.number()),
+      tags: v.optional(v.array(v.string())),
     },
   },
 

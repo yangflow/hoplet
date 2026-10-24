@@ -14,7 +14,7 @@ Configuration:
   Nothing is stored on disk by this command.
 
 Sessions:
-  sessions [--device <machine>] [--state <state>]
+  sessions [--device <machine>] [--state <state>] [--tag <tag>]
                           list the sessions
   new --device <machine> --path <dir> [--provider claude|codex] [--model <id>]
       [--set option=value]… [--wait] "<prompt>"

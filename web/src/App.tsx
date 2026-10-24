@@ -279,12 +279,13 @@ export default function App() {
           setSessions((cur) =>
             cur.map((s) => {
               if (s.sessionId !== msg.sessionId) return s;
-              const { titleOverride: _t, pinnedAt: _p, archivedAt: _a, ...rest } = s;
+              const { titleOverride: _t, pinnedAt: _p, archivedAt: _a, tags: _g, ...rest } = s;
               return {
                 ...rest,
                 ...(msg.titleOverride !== undefined ? { titleOverride: msg.titleOverride } : {}),
                 ...(msg.pinnedAt !== undefined ? { pinnedAt: msg.pinnedAt } : {}),
                 ...(msg.archivedAt !== undefined ? { archivedAt: msg.archivedAt } : {}),
+                ...(msg.tags !== undefined && msg.tags.length > 0 ? { tags: msg.tags } : {}),
               };
             }),
           );
