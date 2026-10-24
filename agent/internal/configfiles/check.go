@@ -182,14 +182,42 @@ func linked(cwd, rel string) bool {
 	return false
 }
 
-// checkContent runs the rules of the object's kind on its new text.
-func checkContent(cwd, home, kind, rel string, current *string, text string) error {
+// frontMatterSets lists the keys the front matter of text sets; text has passed checkFrontMatter.
+func frontMatterSets(text string) map[string]bool {
+	set := map[string]bool{}
+	lines := strings.Split(text, "\n")
+	first := 0
+	for first < len(lines) && strings.TrimSpace(lines[first]) == "" {
+		first++
+	}
+	if first == len(lines) || strings.TrimSpace(lines[first]) != "---" {
+		return set
+	}
+	for _, line := range lines[first+1:] {
+		if strings.TrimSpace(line) == "---" {
+			break
+		}
+		if m := frontMatterKey.FindStringSubmatch(line); m != nil {
+			set[m[1]] = true
+		}
+	}
+	return set
+}
+
+// checkContent runs the rules of the object's kind on its new text. The rules are the same for every vendor,
+// and lay adds what one vendor needs to load a skill at all.
+func checkContent(cwd, home string, lay layout, kind, rel string, current *string, text string) error {
 	if kind == KindSkill || kind == KindCommand {
 		if err := checkFrontMatter(text); err != nil {
 			return err
 		}
 		if err := checkShell(text); err != nil {
 			return err
+		}
+		if kind == KindSkill && lay.skillHeader {
+			if set := frontMatterSets(text); !set["name"] || !set["description"] {
+				return refuse(CodeInvalid, "a "+lay.vendor+" skill opens with front matter that sets name and description")
+			}
 		}
 	}
 	return checkImports(cwd, home, rel, current, text)

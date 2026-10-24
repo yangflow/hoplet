@@ -143,7 +143,7 @@ func tools() []toolDef {
 			Name: ToolListSkills,
 			Description: "List the skills and commands of this session's provider, with a one-line description each. " +
 				"The project scope is this session's working directory; the user scope is the user's own directory. " +
-				"At most 200 entries. " + configNotice,
+				"Codex has skills and no commands. At most 200 entries. " + configNotice,
 			InputSchema: obj(map[string]any{
 				"scope": map[string]any{"type": "string", "enum": []string{"project", "user"}, "description": "Where to look (default project)."},
 			}),
@@ -151,7 +151,8 @@ func tools() []toolDef {
 		{
 			Name: ToolReadSkill,
 			Description: "Read a skill or a command by name, a page of at most 32 KiB. A missing one is reported as " +
-				"exists false. Use next as offset to continue. " + configNotice,
+				"exists false; a command of a Codex session is refused (unsupported). Use next as offset to " +
+				"continue. " + configNotice,
 			InputSchema: obj(map[string]any{
 				"name":   map[string]any{"type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,63}$", "description": "A name from list_skills."},
 				"kind":   map[string]any{"type": "string", "enum": []string{"skill", "command"}, "description": "Skill or command (default skill)."},
@@ -161,8 +162,8 @@ func tools() []toolDef {
 		},
 		{
 			Name: ToolReadMemory,
-			Description: "Read this session's memory file (CLAUDE.md), a page of at most 32 KiB. A missing file is " +
-				"reported as exists false. Use next as offset to continue. " + configNotice,
+			Description: "Read this session's memory file (CLAUDE.md for Claude Code, AGENTS.md for Codex), a page " +
+				"of at most 32 KiB. A missing file is reported as exists false. Use next as offset to continue. " + configNotice,
 			InputSchema: obj(map[string]any{
 				"scope":  map[string]any{"type": "string", "enum": []string{"project", "user"}, "description": "Where to look (default project)."},
 				"offset": map[string]any{"type": "integer", "minimum": 0, "description": "Byte offset to continue from (default 0)."},
@@ -205,6 +206,7 @@ func tools() []toolDef {
 				"at once with a pending change: the user sees the diffs and approves or declines them together in " +
 				"Hoplet, and nothing is written before they approve. An applied change takes effect when this session " +
 				"next starts; do not assume this session sees it before. A file may not grant tools (allowed-tools). " +
+				"A Codex skill sets name and description in its front matter, and Codex has no commands. " +
 				"Only the project's files can be changed, never the user's. A refusal names its code (forbidden, " +
 				"stale, unsafe-content, too-large, owner-offline, unsupported) and, where there is one, a reason; after stale, read " +
 				"the file again before proposing. Proposals are limited to " + changeLimits + ".",

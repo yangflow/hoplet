@@ -464,10 +464,13 @@ written until the host approves the diff, and an applied change can be undone fo
 [Configuration changes of a session](api.md#configuration-changes-of-a-session)). The core holds the requests, their
 states and the retention; the owner's agent previews the files with its own diff and, after approval, writes them
 all or nothing, refusing a file that changed since the preview (`stale`). It writes only the project's memory file
-(the one Claude Code reads), `.claude/skills/<name>/SKILL.md` and `.claude/commands/<name>.md`, never through a
-symbolic link, and refuses a skill or command that sets front matter other than `name` and `description`, runs a
-shell command, or imports a file outside the project. Skills and commands are written only for a Claude Code version
-the driver was tested with; Codex sessions are answered `unsupported`. The session proposes with the MCP tools
+(the one the vendor reads: for Claude Code `CLAUDE.md` or the file it reads instead, for Codex `AGENTS.md`), skills
+(`.claude/skills/<name>/SKILL.md`, for Codex `.agents/skills/<name>/SKILL.md`) and Claude Code's commands
+(`.claude/commands/<name>.md`; Codex has none and is answered `unsupported`), never through a symbolic link, and
+refuses a skill or command that sets front matter other than `name` and `description`, runs a shell command, or
+imports a file outside the project. A Codex skill must set both `name` and `description`, and a Codex `AGENTS.md`
+is at most 32 KiB, what Codex reads of its memory files. Skills and commands are written only for a vendor version
+the driver was tested with. The session proposes with the MCP tools
 `propose_config_change`, `propose_memory_change` and `propose_skill_change`, which the vendor asks the user before,
 and reads the state with `get_change`. Each answer says when an object takes effect once applied: `model` and
 `effort` from the next turn, the memory file, skills and commands when the session next starts (the running
@@ -494,8 +497,8 @@ ends with the runtime and is never listed in Settings. The audit log records suc
 `session` and the chain. With `session_mcp` on in the agent's config, a Claude Code or Codex session on that machine has
 the tools `list_machines`, `list_sessions` and `read_session` (MCP server `hoplet`); `read_session` returns a page
 of lines, at most 32 KiB, marked as data. The tools `get_config`, `list_skills`, `read_skill` and `read_memory` read
-the session's own options, skills, commands and `CLAUDE.md` (the project directory or the user's `~/.claude`, read
-only) in pages of at most 32 KiB; Codex sessions are answered `unsupported`. Reading needs no prompt and a `deny` or `ask` rule still wins. The tools
+the session's own options, skills, commands and memory file (`CLAUDE.md` for Claude Code, `AGENTS.md` for Codex;
+the project directory or the vendor's directory in the user's home, read only) in pages of at most 32 KiB. Reading needs no prompt and a `deny` or `ask` rule still wins. The tools
 that send, start or hand off and the Settings screen follow.
 
 ### Child sessions

@@ -119,9 +119,9 @@ func TestHostileNamesAreRefused(t *testing.T) {
 
 func TestUnsupportedProvider(t *testing.T) {
 	r, cwd, _ := newReader(t)
-	_, err := r.Read(cwd, Request{Provider: "codex", Kind: KindMemory, Scope: ScopeProject})
+	_, err := r.Read(cwd, Request{Provider: "gemini", Kind: KindMemory, Scope: ScopeProject})
 	if code(err) != CodeUnsupported {
-		t.Errorf("codex: %v", err)
+		t.Errorf("gemini: %v", err)
 	}
 }
 

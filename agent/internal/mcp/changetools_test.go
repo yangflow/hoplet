@@ -127,6 +127,34 @@ func TestAProposalRefusalNamesTheCodeAndTheReason(t *testing.T) {
 	}
 }
 
+// A Codex session has no command files: its agent refuses the preview, and the tool relays the code and reason.
+func TestACodexCommandProposalRelaysUnsupported(t *testing.T) {
+	c, _, bodies := changeCore(t, 501, `{"code":"unsupported","reason":"Codex has no command files"}`)
+	rep := c.Call(context.Background(), "s1", ToolProposeSkillChange, json.RawMessage(
+		`{"changes":[{"name":"ship","kind":"command","content":"Ship.\n"}],"reason":"r"}`))
+	if !rep.IsError || rep.Text != "Hoplet refused the call: unsupported (reason: Codex has no command files)" {
+		t.Fatalf("refusal = %+v", rep)
+	}
+	if len(*bodies) != 1 || !strings.Contains((*bodies)[0], `"kind":"command"`) {
+		t.Fatalf("bodies = %v", *bodies)
+	}
+}
+
+func TestTheConfigToolsNameTheCodexFiles(t *testing.T) {
+	desc := map[string]string{}
+	for _, tool := range tools() {
+		desc[tool.Name] = tool.Description
+	}
+	if !strings.Contains(desc[ToolReadMemory], "AGENTS.md for Codex") {
+		t.Errorf("read_memory: %s", desc[ToolReadMemory])
+	}
+	for _, name := range []string{ToolListSkills, ToolReadSkill, ToolProposeSkillChange} {
+		if !strings.Contains(desc[name], "Codex") {
+			t.Errorf("%s does not say what Codex has: %s", name, desc[name])
+		}
+	}
+}
+
 func TestGetChangeReadsTheNewestOrOneAndLeavesTheContentOut(t *testing.T) {
 	applied := `{"changeId":"c2","sessionId":"s1","state":"applied","reason":"r","objects":[{"kind":"memory","name":"project","content":"SECRET-CONTENT","diff":"+x","takesEffect":"next-start"}],"createdAt":1,"expiresAt":2,"decidedAt":3,"appliedAt":4,"undoneAt":null,"undoable":true}`
 	c, seen, _ := changeCore(t, 200, `{"changes":[`+applied+`,`+pendingChange("")+`]}`)

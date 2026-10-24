@@ -270,14 +270,17 @@ A request becomes a file in the agent package `configfiles` (the `Writer`), and 
 to a path below the session's working directory: `memory:project` to the file Claude Code reads (an existing `CLAUDE.md`,
 else `.claude/CLAUDE.md`, else an `AGENTS.md` that no `CLAUDE.local.md` here and no memory file above shadows unless one
 imports it, else a new `CLAUDE.md`), `skill:<name>` to `.claude/skills/<name>/SKILL.md` and `command:<name>` to
-`.claude/commands/<name>.md`. It opens the working directory with `os.OpenRoot`, refuses a symbolic link or a
+`.claude/commands/<name>.md`. For Codex `memory:project` is `AGENTS.md` (refused `unsupported` beside an
+`AGENTS.override.md`, which Codex may read instead), `skill:<name>` is `.agents/skills/<name>/SKILL.md`, and a command
+is refused `unsupported`. It opens the working directory with `os.OpenRoot`, refuses a symbolic link or a
 non-regular file on the way, runs the content check on the new text (a skill or command may set only `name` and
 `description` in its front matter and holds no `` !` `` or ```` ```! ```` shell form; a new `@` import stays inside the
 working directory, off the floor's files and off symbolic links), and writes each file to a temporary file in the same
 directory that is renamed over it, keeping its mode (0644 for a new file, 0755 for a new directory). An apply checks
 every hash before it writes and restores what it wrote when a later object fails, so a change set lands whole or not at
 all; applies are serialized in the agent. Skills and commands are written only while the driver reports a vendor
-version it was tested with. Codex sessions are answered `unsupported` until its driver step.
+version it was tested with. A Codex skill must set `name` and `description`, and a Codex `AGENTS.md` larger than
+32 KiB is `too-large`.
 
 ### Session MCP tools
 
