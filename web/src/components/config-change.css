@@ -1,0 +1,233 @@
+/* a session's request to change its configuration (ADR 0036, design/screens/self-config.html B): the parts the
+   card in the turn, its outcome and the review in the inspector share; scoped by .cfx */
+/* the outcome left in the turn */
+.cres {
+  margin: var(--space-2) 0 var(--space-3);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  box-shadow: inset 0 0 0 1px var(--color-line);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.cres-h {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.cres-h b {
+  font-weight: var(--weight-semibold);
+  color: var(--cres-title, inherit);
+}
+.cres-h .meta {
+  margin-left: auto;
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  color: var(--color-text-3);
+  font-variant-numeric: tabular-nums;
+}
+.cres-h > svg {
+  color: var(--cres-tone, var(--color-text-3));
+}
+.cres.ok {
+  --cres-tone: var(--color-success);
+}
+.cres.bad {
+  --cres-tone: var(--color-danger);
+  --cres-title: var(--color-danger);
+}
+.cres-h .spin {
+  color: var(--color-accent);
+}
+.cres-rows {
+  display: flex;
+  flex-direction: column;
+}
+.cres-r {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 28px;
+  min-width: 0;
+  color: var(--color-text-2);
+}
+.cres-r > svg {
+  color: var(--color-text-3);
+  flex: none;
+}
+.cres-r > .nmt {
+  flex: none;
+}
+.cres-r .mono {
+  min-width: 0;
+  flex: 1;
+}
+.cres-r.struck > .nmt,
+.cres-r.struck .mono {
+  text-decoration: line-through;
+  text-decoration-color: var(--color-text-3);
+}
+.cres-f {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.cres-f .meta {
+  margin-left: auto;
+  text-align: right;
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  color: var(--color-text-3);
+}
+.cres > p {
+  margin: 0;
+  color: var(--color-text-2);
+}
+.cres > p b {
+  color: var(--color-text);
+  font-weight: var(--weight-medium);
+}
+
+/* the parts the card, the outcome and the review share */
+.cfx .tag {
+  white-space: nowrap;
+  flex: none;
+}
+.cfx .tag svg {
+  width: 12px;
+  height: 12px;
+}
+.cfx .tag.line {
+  background: none;
+  box-shadow: inset 0 0 0 1px var(--color-line);
+}
+.cfx .tag.att {
+  background: var(--color-attention-soft);
+  color: var(--color-attention-text);
+}
+.cfx .tgs {
+  display: flex;
+  gap: var(--space-1);
+  flex-wrap: wrap;
+  margin: 0 0 var(--space-3);
+}
+.cfx .tgs .tag {
+  height: 24px;
+  padding: 0 var(--space-2);
+}
+.cfx .oc {
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  box-shadow: inset 0 0 0 1px var(--color-line);
+  overflow: hidden;
+}
+.cfx .oc + .oc {
+  margin-top: var(--space-2);
+}
+.cfx .oc-h {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto auto;
+  align-items: center;
+  column-gap: var(--space-3);
+  min-height: 44px;
+  padding: var(--space-2) var(--space-3);
+}
+.cfx .oc-h > svg {
+  color: var(--color-text-3);
+}
+.cfx .nm {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.cfx .nm b {
+  font-weight: var(--weight-medium);
+  color: var(--color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cfx .nm .mono,
+.cfx .cres-r .mono {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--color-text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cfx .cnt {
+  display: inline-flex;
+  gap: var(--space-2);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 16px;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-2);
+  white-space: nowrap;
+}
+.cfx .cnt .a {
+  color: var(--color-add-text);
+}
+.cfx .cnt .d {
+  color: var(--color-del-text);
+}
+.cfx .chkn {
+  display: flex;
+  gap: var(--space-2);
+  align-items: flex-start;
+  color: var(--color-text-2);
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+}
+.cfx .chkn svg {
+  width: 14px;
+  height: 14px;
+  margin-top: 1px;
+  color: var(--color-success);
+  flex: none;
+}
+.cfx .rq-note {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  color: var(--color-text-2);
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+}
+.cfx .rq-note svg {
+  width: 14px;
+  height: 14px;
+  margin-top: 1px;
+  color: var(--color-text-3);
+  flex: none;
+}
+.cfx .ba {
+  display: grid;
+  grid-template-columns: auto 16px auto;
+  justify-content: start;
+  align-items: center;
+  column-gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  box-shadow: inset 0 0 0 1px var(--color-line);
+  font-family: var(--font-mono);
+}
+.light .cfx .ba {
+  background: var(--color-raised);
+}
+.cfx .ba .from {
+  color: var(--color-del-text);
+  text-decoration: line-through;
+  text-decoration-color: var(--color-text-3);
+}
+.cfx .ba .to {
+  color: var(--color-add-text);
+  font-weight: var(--weight-medium);
+}
+.cfx .ba > svg {
+  color: var(--color-text-3);
+}

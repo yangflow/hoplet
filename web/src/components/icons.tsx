@@ -63,6 +63,7 @@ import {
   Shield,
   ShieldAlert,
   ShieldCheck,
+  SlidersHorizontal,
   Sparkles,
   Square,
   SquarePen,
@@ -70,6 +71,7 @@ import {
   Terminal,
   TextWrap,
   Trash2,
+  Undo2,
   Upload,
   Webhook,
   X,
@@ -167,6 +169,8 @@ export const Icon = {
   template: draw(LayoutTemplate),
   upload: draw(Upload),
   download: draw(Download),
+  sliders: draw(SlidersHorizontal),
+  undo: draw(Undo2),
 };
 
 /** The shared icon vocabulary of config values (`CONFIG_ICONS`) mapped to this client's glyphs. */

@@ -12,7 +12,9 @@ import {
   withMachine,
   withoutMachine,
   withReach,
+  withReadConfig,
   withSend,
+  withWriteConfig,
 } from '../lib/session-mcp.ts';
 import { Icon } from './icons.tsx';
 import { Menu } from './Menu.tsx';
@@ -194,6 +196,8 @@ export function Caps(props: {
   const nSend = t('Send prompts and interrupt');
   const nStart = t('Start new sessions');
   const nHandoff = t('Ask to hand this session off');
+  const nRead = t('Read configuration');
+  const nWrite = t('Propose configuration changes');
   return (
     <div className={`mc-caps${compact ? ' compact' : ''}`} data-testid={testid}>
       <Row
@@ -263,6 +267,44 @@ export function Caps(props: {
               testid={`${testid}.handoff`}
             />
           ) : null
+        }
+      />
+      <Row
+        testid={`${testid}.read-config`}
+        icon={Icon.read()}
+        title={nRead}
+        tools={tools('get_config · list_skills · read_skill · read_memory')}
+        metas={[s.writeConfig && t('Included with proposing changes.')]}
+        control={
+          <Switch
+            label={nRead}
+            hideLabel
+            checked={s.readConfig || s.writeConfig}
+            disabled={s.writeConfig}
+            onChange={(on) => onChange(withReadConfig(s, on))}
+            data-testid={`${testid}.read-config.switch`}
+          />
+        }
+      />
+      <Row
+        testid={`${testid}.write-config`}
+        icon={Icon.sliders()}
+        title={nWrite}
+        tools={tools('propose_config_change · propose_memory_change · propose_skill_change')}
+        metas={[
+          !compact &&
+            t(
+              'You confirm every change request, in every permission mode. Nothing is written first.',
+            ),
+        ]}
+        control={
+          <Switch
+            label={nWrite}
+            hideLabel
+            checked={s.writeConfig}
+            onChange={(on) => onChange(withWriteConfig(s, on))}
+            data-testid={`${testid}.write-config.switch`}
+          />
         }
       />
       <Row

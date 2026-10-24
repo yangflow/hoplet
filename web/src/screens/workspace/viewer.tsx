@@ -271,7 +271,8 @@ function DiffLines(props: {
   );
 }
 
-function DiffRow(props: { row: DiffLine; language: Language; children: ReactNode }) {
+/** One row of a diff: a hunk header, a note, or a line with its numbers and its sign. */
+export function DiffRow(props: { row: DiffLine; language: Language; children: ReactNode }) {
   const { row } = props;
   switch (row.kind) {
     case 'fold':

@@ -23,6 +23,7 @@ import {
   withHandoff,
   withReach,
   withSend,
+  withWriteConfig,
 } from '../../lib/session-mcp.ts';
 import { useDevices } from '../../lib/use-devices.ts';
 import { useMcpDefaults } from '../../lib/use-session-mcp.ts';
@@ -173,6 +174,15 @@ function Row(props: {
           data-testid={`${props.testid}.handoff`}
         />
       </span>
+      <span className="ce">
+        <Switch
+          label={sw(t('Propose configuration changes'))}
+          hideLabel
+          checked={s.writeConfig}
+          onChange={(on) => onChange(withWriteConfig(s, on))}
+          data-testid={`${props.testid}.write-config`}
+        />
+      </span>
       <ReachSelect
         value={s.visibility}
         label={name}
@@ -279,6 +289,7 @@ export function McpSection(props: { fixture?: McpFixture | undefined }) {
           <span className="ce">{t('Send')}</span>
           <span className="ce">{t('Start')}</span>
           <span className="ce">{t('Hand-off')}</span>
+          <span className="ce">{t('Propose changes')}</span>
           <span>{t('Reach')}</span>
           <span />
         </div>

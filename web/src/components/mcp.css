@@ -211,7 +211,7 @@ button.mc-tag:hover {
 .mx-h,
 .mx-r {
   display: grid;
-  grid-template-columns: minmax(0, 1.7fr) 112px 64px 64px 72px 104px 56px;
+  grid-template-columns: minmax(0, 1.7fr) 112px 64px 64px 72px 72px 104px 56px;
   align-items: center;
   gap: var(--space-3);
   padding: 0 var(--space-4);

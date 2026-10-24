@@ -12,6 +12,11 @@ import { promptSource } from '../../../lib/provenance.ts';
 import type { Select } from '../composer/mode-menu.tsx';
 import type { RuntimeState } from '../model.ts';
 import { ElidedPanel } from './blocks.tsx';
+import {
+  ConfigChangeResults,
+  type ConfigChangeView,
+  PendingConfigChange,
+} from './config-change-card.tsx';
 import { HandoffCard, HandoffResult } from './handoff-card.tsx';
 import {
   ELIDED_PREVIEW_CHARS,
@@ -413,6 +418,8 @@ export function LiveTurnView(props: {
   handoffs?: HandoffView | undefined;
   /** The permission strips of the children this session started (ADR 0035). */
   childAsks?: ReactNode;
+  /** The session's requests to change its configuration (ADR 0036). */
+  configChanges?: ConfigChangeView | undefined;
 }) {
   const { turn, base, state, now, frozen } = props;
   const failed = turn.phase === 'failed';
@@ -545,6 +552,9 @@ export function LiveTurnView(props: {
                 />
               ))
           : null}
+        {props.configChanges ? (
+          <ConfigChangeResults view={props.configChanges} since={turn.startedAt} />
+        ) : null}
         {props.notice ? (
           <div className="quiet-line" role="status" data-testid="cockpit.permission-notice">
             {Icon.info()}
@@ -589,6 +599,9 @@ export function LiveTurnView(props: {
         {live ? props.childAsks : null}
         {live && props.handoffs ? (
           <PendingHandoffs view={props.handoffs} providerName={props.providerName} now={now} />
+        ) : null}
+        {live && props.configChanges ? (
+          <PendingConfigChange view={props.configChanges} now={now} />
         ) : null}
       </div>
     </section>

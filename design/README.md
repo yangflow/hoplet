@@ -150,6 +150,16 @@ The mockups, design tokens and app icon behind Hoplet's web UI. The design langu
   `unsupported`) and `conv-undo-stale` show what the session or the user sees when a request or an Undo fails.
   Most states also have `-zh` states. Strings that are not in `web/src/i18n/zh-Hans.json` yet are proposals for
   it. New icons: `undo-2`, `zap`, `sliders-horizontal`, `book-open`, `triangle-alert`.
+  Built: B's card in the turn (`config-change`, `config-change-idle` above the composer between turns), the review
+  as a tab of the wide inspector with the objects, the diff, Approve all and Decline (`config-change-review`,
+  `config-change-review-skill`, `config-change-review-setting`, `config-change-review-applied`,
+  `config-change-review-gone`), and what the turn keeps after a decision (`config-change-applying`,
+  `config-change-applied`, `config-change-undone`, `config-change-declined`, `config-change-expired`,
+  `config-change-failed`, `config-change-undo-stale`), all in `/__states/cockpit`; the switches are rows of the
+  inspector's Other sessions tab and a Propose changes column of Settings › Other sessions rather than B's chip and
+  popover. Not built: the content-check warning with its flagged line (`b-review-warn`), the expanded unchanged
+  lines in the review, the notification of a pending request (`b-notify`) and the hand-off target in an expired
+  request.
 - `screens/child-sessions.html` (#81): the UI of child sessions (ADR 0035, decision 6), three directions; the
   maintainer chose A with B's permission strip under a blocked child's row in the parent's turn, and B and C stay
   as the alternatives considered. Built: A as the inspector's Children tab (the `children`, `children-open`,

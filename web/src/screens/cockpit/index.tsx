@@ -4,6 +4,7 @@ import type {
   GlobalSearchHit,
   LiveSessionMeta,
   RuntimeCapabilities,
+  SessionConfigChange,
   SessionPatchRequest,
   SessionRuntimeInfo,
   SessionUsage,
@@ -13,6 +14,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { NotifyHintGate } from '../../components/NotifyHint.tsx';
 import { Toast, type ToastState, useToast } from '../../components/Toast.tsx';
 import { postAddProject } from '../../lib/api.ts';
+import { useConfigChanges } from '../../lib/config-changes.ts';
 import { errorText } from '../../lib/errors.ts';
 import { t } from '../../lib/i18n.ts';
 import { pageKeysSuspended } from '../../lib/page-keys.ts';
@@ -89,6 +91,8 @@ export type CockpitFixture = {
   templates?: TemplateEntryFixture;
   /** The open session's descendants and their permission requests, in place of asking the core. */
   children?: ChildrenFixture;
+  /** The open session's requests to change its configuration, in place of asking the core. */
+  configChanges?: SessionConfigChange[];
 };
 
 export function Cockpit(props: {
@@ -190,8 +194,8 @@ export function Cockpit(props: {
   const wide =
     inspectorOpen &&
     session !== null &&
-    view.tabs.length > 0 &&
-    (view.opened !== null || view.active === 'terminal');
+    (view.review !== null ||
+      (view.tabs.length > 0 && (view.opened !== null || view.active === 'terminal')));
   const sidebarHidden = sidebarFolded || (wide && narrow && !sidebarPinned);
   useEffect(() => {
     if (!wide) setSidebarPinned(false);
@@ -215,6 +219,8 @@ export function Cockpit(props: {
   const busy = session
     ? ['running', 'waiting-permission'].includes(runtimeOf(session).state)
     : false;
+  // Read once for the card in the turn and the review in the inspector.
+  const configChanges = useConfigChanges(selected, fixture?.configChanges);
   // Read once for the inspector's Children tab and the permission strips of the turn.
   const children = useChildren(selected, {
     active: busy,
@@ -577,6 +583,11 @@ export function Cockpit(props: {
                 {...(props.onManageRules ? { onViewRules: props.onManageRules } : {})}
                 onOpenSession={pickSession}
                 kids={children}
+                configChanges={configChanges}
+                onReviewChange={(changeId) => {
+                  setInspectorOpen(true);
+                  inspector.openReview(changeId);
+                }}
                 deviceName={(id) => devices.find((d) => d.deviceId === id)?.name ?? id}
                 {...(props.onSessionStarted ? { onSessionStarted: props.onSessionStarted } : {})}
                 {...(fixture?.conversation ? { fixture: fixture.conversation } : {})}
@@ -609,6 +620,8 @@ export function Cockpit(props: {
           onHide={() => setInspectorOpen(false)}
           kids={children}
           onOpenSession={pickSession}
+          configChanges={configChanges}
+          live={live}
           {...(workspace ? { fixture: workspace } : {})}
         />
       ) : null}

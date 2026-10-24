@@ -14,6 +14,7 @@ import { IconButton } from '../../components/IconButton.tsx';
 import { Icon, Spinner } from '../../components/icons.tsx';
 import { Popover } from '../../components/Popover.tsx';
 import { NO_KIDS } from '../../lib/children.ts';
+import type { ConfigChanges } from '../../lib/config-changes.ts';
 import { clock } from '../../lib/format.ts';
 import { t } from '../../lib/i18n.ts';
 import { pageKeysSuspended } from '../../lib/page-keys.ts';
@@ -22,6 +23,7 @@ import type { ChildrenView } from '../../lib/use-children.ts';
 import { AuditTab, type AuditTabFixture } from './audit-tab.tsx';
 import { BrowserTab } from './browser-tab.tsx';
 import { ChildrenTab, type ChildrenTabFixture } from './children-tab.tsx';
+import { ConfigReview } from './config-review.tsx';
 import type { Handoff, HandoffFixture } from './handoff.ts';
 import { HandoffPanel } from './handoff-panel.tsx';
 import { ChangesList, FilesTree } from './lists.tsx';
@@ -63,6 +65,8 @@ export type WorkspaceFixture = {
   audit?: AuditTabFixture;
   /** The Children tab's open row, reports and cancel dialog, in place of asking the core. */
   childrenTab?: ChildrenTabFixture;
+  /** The object the review of a change request shows first, by `kind:name`. */
+  reviewObject?: string;
 };
 
 /** The Children tab of a caller that reads no tree: nothing to show. */
@@ -116,6 +120,10 @@ export function Inspector(props: {
   /** The session's descendants, read once by the cockpit for this tab and the turn's permission strips. */
   kids?: ChildrenView;
   onOpenSession?: (sessionId: string) => void;
+  /** The session's requests to change its configuration, which the review shows (ADR 0036). */
+  configChanges?: ConfigChanges;
+  /** This window is connected to the core: a request can be decided. */
+  live?: boolean;
   fixture?: WorkspaceFixture;
 }) {
   const { session, data, view, actions, fixture } = props;
@@ -146,6 +154,24 @@ export function Inspector(props: {
         ) ??
         tabs[0] ??
         null);
+
+  // The review of a change request takes the tools' place until a tab is picked or it is closed.
+  const configChanges = props.configChanges;
+  const reviewing = view.review !== null && configChanges !== undefined;
+  const reviewed = reviewing
+    ? (configChanges.changes.find((c) => c.changeId === view.review) ?? null)
+    : null;
+  useEffect(() => {
+    if (!reviewing) return;
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      if (pageKeysSuspended() || e.key !== 'Escape' || e.altKey || e.shiftKey || toolsOpen) return;
+      const target = e.target as HTMLElement | null;
+      if (target?.closest('input, textarea, [contenteditable]')) return;
+      if (e.target === document.body || target?.closest('.ws')) actions.closeReview();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [reviewing, actions, toolsOpen]);
 
   const opened = view.opened;
   const change = opened ? changes.find((c) => c.path === opened.path) : undefined;
@@ -215,7 +241,7 @@ export function Inspector(props: {
   }, [opened, order, actions, toggleWrap, toolsOpen]);
 
   // The terminal needs the room of a viewer, whatever it shows, so the pane does not jump when one opens.
-  const wide = active === 'terminal' || (opened !== null && active !== null);
+  const wide = reviewing || active === 'terminal' || (opened !== null && active !== null);
   const roomy =
     active === 'terminal' ||
     active === 'browser' ||
@@ -246,10 +272,13 @@ export function Inspector(props: {
             tabs={tabs}
             pinned={pinned}
             needsYou={kidNeedsYou}
-            active={active}
+            active={reviewing ? null : active}
+            {...(reviewing
+              ? { review: { label: t('Change request'), onClose: actions.closeReview } }
+              : {})}
             count={data.phase === 'live' || data.phase === 'snapshot' ? changes.length : 0}
             filesOff={filesOff}
-            fold={tabs.length > 2 && active !== 'terminal'}
+            fold={reviewing || (tabs.length > 2 && active !== 'terminal')}
             terminalLive={terminalLive}
             filesWhy={
               git
@@ -292,95 +321,114 @@ export function Inspector(props: {
           data-testid="workspace.hide"
         />
       </header>
-      <div
-        className={split ? 'ws-md' : 'ws-body'}
-        {...(active
-          ? { role: 'tabpanel', id: `${id}-panel`, 'aria-labelledby': `${id}-${active}` }
-          : {})}
-      >
-        {split && opened ? (
-          <Viewer
-            opened={opened}
-            change={change}
-            content={content}
-            order={order}
-            wrap={wrap}
-            online={online}
-            owner={owner}
-            onWrap={toggleWrap}
-            onMode={(mode) => actions.openPath(opened.path, mode)}
-            onStep={(path) => actions.openPath(path, 'diff')}
-            onClose={actions.closeViewer}
-            onLoadFull={loadFull}
+      {reviewing ? (
+        <div
+          className="ws-body"
+          role="tabpanel"
+          id={`${id}-panel`}
+          aria-labelledby={`${id}-review`}
+        >
+          <ConfigReview
+            key={view.review}
+            change={reviewed}
+            busy={configChanges.busy === view.review}
+            decidable={props.live ?? false}
+            initial={fixture?.reviewObject}
+            onDecide={(approve) => configChanges.decide(view.review as string, approve)}
+            onUndo={() => configChanges.undo(view.review as string)}
           />
-        ) : null}
-        <div className={split ? 'ws-mlist' : 'ws-pane'}>
-          {active === 'terminal' ? (
-            <TerminalTab
-              sessionId={session.sessionId}
-              gate={gate}
-              owner={owner}
-              dir={session.projectPath}
-              onLive={setTerminalLive}
-              {...(fixture?.terminal ? { fixture: fixture.terminal } : {})}
-            />
-          ) : active === 'browser' ? (
-            <BrowserTab
-              sessionId={session.sessionId}
-              online={online}
-              owner={owner}
-              {...(fixture?.browser ? { fixture: fixture.browser } : {})}
-            />
-          ) : active === 'sessions' ? (
-            <SessionsTab
-              session={session}
-              {...(fixture?.sessions ? { fixture: fixture.sessions } : {})}
-            />
-          ) : active === 'children' ? (
-            <ChildrenTab
-              session={session}
-              view={kids}
-              onOpenSession={props.onOpenSession}
-              {...(fixture?.childrenTab ? { fixture: fixture.childrenTab } : {})}
-            />
-          ) : active === 'audit' ? (
-            <AuditTab session={session} {...(fixture?.audit ? { fixture: fixture.audit } : {})} />
-          ) : (
-            <ToolBody
-              tool={active}
-              data={data}
-              online={online}
-              owner={owner}
-              compact={wide}
-              selected={opened?.path ?? null}
-              onRetry={props.onRetry}
-              onOpenChange={openChange}
-              onOpenFile={openFile}
-            />
-          )}
-          {roomy ? null : handoffOpen ? (
-            <HandoffPanel
-              handoff={props.handoff}
-              online={online}
-              owner={owner}
-              snapshot={data.phase === 'snapshot' ? data.snapshot : null}
-              busy={props.busy}
-              onClose={() => {
-                actions.setHandoffOpen(false);
-                props.handoff.dismiss();
-              }}
-            />
-          ) : (
-            <HandoffRow
-              data={data}
-              online={online}
-              owner={owner}
-              hasTarget={props.handoff.otherDevices.length > 0}
-              onOpen={() => actions.setHandoffOpen(true)}
-            />
-          )}
         </div>
-      </div>
+      ) : (
+        <div
+          className={split ? 'ws-md' : 'ws-body'}
+          {...(active
+            ? { role: 'tabpanel', id: `${id}-panel`, 'aria-labelledby': `${id}-${active}` }
+            : {})}
+        >
+          {split && opened ? (
+            <Viewer
+              opened={opened}
+              change={change}
+              content={content}
+              order={order}
+              wrap={wrap}
+              online={online}
+              owner={owner}
+              onWrap={toggleWrap}
+              onMode={(mode) => actions.openPath(opened.path, mode)}
+              onStep={(path) => actions.openPath(path, 'diff')}
+              onClose={actions.closeViewer}
+              onLoadFull={loadFull}
+            />
+          ) : null}
+          <div className={split ? 'ws-mlist' : 'ws-pane'}>
+            {active === 'terminal' ? (
+              <TerminalTab
+                sessionId={session.sessionId}
+                gate={gate}
+                owner={owner}
+                dir={session.projectPath}
+                onLive={setTerminalLive}
+                {...(fixture?.terminal ? { fixture: fixture.terminal } : {})}
+              />
+            ) : active === 'browser' ? (
+              <BrowserTab
+                sessionId={session.sessionId}
+                online={online}
+                owner={owner}
+                {...(fixture?.browser ? { fixture: fixture.browser } : {})}
+              />
+            ) : active === 'sessions' ? (
+              <SessionsTab
+                session={session}
+                {...(fixture?.sessions ? { fixture: fixture.sessions } : {})}
+              />
+            ) : active === 'children' ? (
+              <ChildrenTab
+                session={session}
+                view={kids}
+                onOpenSession={props.onOpenSession}
+                {...(fixture?.childrenTab ? { fixture: fixture.childrenTab } : {})}
+              />
+            ) : active === 'audit' ? (
+              <AuditTab session={session} {...(fixture?.audit ? { fixture: fixture.audit } : {})} />
+            ) : (
+              <ToolBody
+                tool={active}
+                data={data}
+                online={online}
+                owner={owner}
+                compact={wide}
+                selected={opened?.path ?? null}
+                onRetry={props.onRetry}
+                onOpenChange={openChange}
+                onOpenFile={openFile}
+              />
+            )}
+            {roomy ? null : handoffOpen ? (
+              <HandoffPanel
+                handoff={props.handoff}
+                online={online}
+                owner={owner}
+                snapshot={data.phase === 'snapshot' ? data.snapshot : null}
+                busy={props.busy}
+                onClose={() => {
+                  actions.setHandoffOpen(false);
+                  props.handoff.dismiss();
+                }}
+              />
+            ) : (
+              <HandoffRow
+                data={data}
+                online={online}
+                owner={owner}
+                hasTarget={props.handoff.otherDevices.length > 0}
+                onOpen={() => actions.setHandoffOpen(true)}
+              />
+            )}
+          </div>
+        </div>
+      )}
     </aside>
   );
 }
@@ -401,6 +449,8 @@ function TabList(props: {
   pinned?: Tool | null;
   /** A child waits for a permission: the attention dot on the Children tab, also folded. */
   needsYou?: boolean;
+  /** The review of a change request, open as a tab of its own after the tools. */
+  review?: { label: string; onClose: () => void };
   onPick: (tool: Tool) => void;
   onClose: (tool: Tool) => void;
 }) {
@@ -412,7 +462,9 @@ function TabList(props: {
     const go = (i: number) => tabs[(i + tabs.length) % tabs.length]?.focus();
     if (e.key === 'ArrowRight') go(at + 1);
     else if (e.key === 'ArrowLeft') go(at - 1);
-    else if (e.key === 'Delete' || e.key === 'Backspace') {
+    else if ((e.key === 'Delete' || e.key === 'Backspace') && at === props.tabs.length) {
+      props.review?.onClose();
+    } else if (e.key === 'Delete' || e.key === 'Backspace') {
       const tool = props.tabs[at];
       if (tool && tool !== props.pinned) props.onClose(tool);
     } else return;
@@ -490,6 +542,33 @@ function TabList(props: {
           </div>
         );
       })}
+      {props.review ? (
+        <div
+          id={`${props.id}-review`}
+          role="tab"
+          tabIndex={0}
+          aria-selected
+          aria-controls={`${props.id}-panel`}
+          className="ws-tab on"
+          title={props.review.label}
+          data-testid="workspace.tab-review"
+        >
+          {Icon.sliders()}
+          <span>{props.review.label}</span>
+          <span
+            className="ws-tab-x"
+            title={`${t('Close')} · Esc`}
+            aria-hidden="true"
+            onClick={(e) => {
+              e.stopPropagation();
+              props.review?.onClose();
+            }}
+            data-testid="workspace.close-review"
+          >
+            {Icon.close()}
+          </span>
+        </div>
+      ) : null}
     </div>
   );
 }

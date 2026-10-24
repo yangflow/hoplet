@@ -18,11 +18,12 @@ export type SessionMcpState = Loaded<SessionMcpSettings> & {
   clearProblem: () => void;
 };
 
-/** The settings are normalized the way the core stores them: Start implies Send. */
+/** The settings are normalized the way the core stores them: Start implies Send, proposing implies reading. */
 function stored(s: SessionMcpSettings): SessionMcpSettings {
   return {
     ...s,
     send: s.send || s.create,
+    readConfig: s.readConfig || s.writeConfig,
     autoApproveHandoff: s.requestHandoff && s.autoApproveHandoff,
     autoApproveMachines: s.requestHandoff ? s.autoApproveMachines : [],
   };

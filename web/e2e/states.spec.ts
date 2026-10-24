@@ -69,6 +69,20 @@ const subject: Record<string, Record<string, string>> = {
     'queue-paused-interrupted': 'queue.resume',
     'handoff-request': 'cockpit.handoff-request',
     'handoff-after': 'cockpit.handoff-result',
+    'config-change': 'cockpit.config-change',
+    'config-change-idle': 'cockpit.config-change',
+    'config-change-review': 'config-review',
+    'config-change-review-skill': 'config-review.view',
+    'config-change-review-setting': 'config-review.view',
+    'config-change-review-applied': 'config-review.undo',
+    'config-change-review-gone': 'config-review.gone',
+    'config-change-applying': 'cockpit.config-change-result',
+    'config-change-applied': 'cockpit.config-change-undo',
+    'config-change-undone': 'cockpit.config-change-result',
+    'config-change-declined': 'cockpit.config-change-result',
+    'config-change-expired': 'cockpit.config-change-result',
+    'config-change-failed': 'cockpit.config-change-result',
+    'config-change-undo-stale': 'cockpit.config-change-dismiss',
     'prompt-from-session': 'cockpit.prompt-source',
     'child-ask': 'cockpit.child-ask.allow',
     'child-ask-idle': 'cockpit.child-ask.open',
@@ -292,8 +306,8 @@ const subject: Record<string, Record<string, string>> = {
   },
 };
 
-test('the registries list 117 cockpit, 72 workspace, 102 settings and 7 action states', () => {
-  expect(screens.cockpit).toHaveLength(117);
+test('the registries list 131 cockpit, 72 workspace, 102 settings and 7 action states', () => {
+  expect(screens.cockpit).toHaveLength(131);
   expect(screens.workspace).toHaveLength(72);
   expect(screens.settings).toHaveLength(102);
   expect(screens.action).toHaveLength(7);

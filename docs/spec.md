@@ -471,7 +471,14 @@ the driver was tested with; Codex sessions are answered `unsupported`. The sessi
 `propose_config_change`, `propose_memory_change` and `propose_skill_change`, which the vendor asks the user before,
 and reads the state with `get_change`. Each answer says when an object takes effect once applied: `model` and
 `effort` from the next turn, the memory file, skills and commands when the session next starts (the running
-conversation keeps the instructions it loaded). The card in the web UI follows.
+conversation keeps the instructions it loaded). In the web UI a pending request is a card in the turn, or above
+the composer between turns, with its objects, its reason, when it expires, Review changes and Decline; Review
+changes opens the request as a tab of the wide inspector with the objects on the left, the selected object's diff
+or setting values on the right, and Approve all and Decline for the whole request. Once decided, the turn keeps the
+outcome: applying, applied with Undo while the earlier versions are kept, undone, declined, expired, not applied
+with the code and, for `stale`, the file that changed, and an Undo the agent refused. The switches are Read
+configuration and Propose configuration changes in the inspector's Other sessions tab, and a Propose changes column in
+Settings › Other sessions. The web UI does not notify of a pending request.
 The abilities `read-config` (on by default) and `write-config` (off by default) are session-token only.
 
 ### Sessions as callers
