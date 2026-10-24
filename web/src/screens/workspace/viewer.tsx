@@ -1,5 +1,21 @@
-import type { WorkspaceChange, WorkspaceDiff, WorkspaceFile } from '@hoplet/shared';
-import { type CSSProperties, type ReactNode, useMemo, useState } from 'react';
+import {
+  type Annotation,
+  type AnnotationSide,
+  MAX_ANNOTATION_SNIPPET_CHARS,
+  type WorkspaceChange,
+  type WorkspaceDiff,
+  type WorkspaceFile,
+} from '@hoplet/shared';
+import {
+  type CSSProperties,
+  Fragment,
+  type PointerEvent,
+  type ReactNode,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { Button } from '../../components/Button.tsx';
 import { Tokens } from '../../components/Code.tsx';
 import { FileBadge, fileKind } from '../../components/file-types.tsx';
@@ -8,9 +24,42 @@ import { Icon, Spinner } from '../../components/icons.tsx';
 import { formatBytes } from '../../lib/format.ts';
 import { type Language, languageOfPath } from '../../lib/highlight.ts';
 import { t } from '../../lib/i18n.ts';
+import {
+  extendSelection,
+  lineOn,
+  type Placement,
+  pendingOf,
+  place,
+  rangeOf,
+  type Selection,
+  shown,
+  snippetOf,
+  startSelection,
+} from './annotations.ts';
+import {
+  CommentsFoot,
+  EditCard,
+  NoteCard,
+  ReviewBar,
+  type ReviewTarget,
+  SendReview,
+} from './annotations-ui.tsx';
 import { Counts, StatusTag } from './lists.tsx';
 import { type DiffLine, gutterFor, largestLine, parseDiff, splitPath, unfold } from './model.ts';
+import type { Annotations } from './use-annotations.ts';
 import type { Loaded, Opened, ViewerContent } from './use-workspace.ts';
+
+/** Review comments in the diff (#84): the session's comments, where they can go, and the fixtures' first state. */
+export type DiffReview = {
+  notes: Annotations;
+  target: ReviewTarget;
+  /** Development fixtures: lines picked with a comment being written, resolved ones shown, the send dialog open. */
+  initial?: {
+    draft?: { side: AnnotationSide; start: number; end: number; body: string };
+    showResolved?: boolean;
+    send?: { note: string };
+  };
+};
 
 /** A message in place of a list or a viewer: glyph, one line, one sentence, at most one action. */
 export function Quiet(props: {
@@ -50,8 +99,15 @@ export function Viewer(props: {
   onStep: (path: string) => void;
   onClose: () => void;
   onLoadFull: () => void;
+  review?: DiffReview;
 }) {
-  const { opened, change, content, order, online } = props;
+  const { opened, change, content, order, online, review } = props;
+  const [showResolved, setShowResolved] = useState(review?.initial?.showResolved ?? false);
+  const [sending, setSending] = useState(review?.initial?.send ?? null);
+  const all = review?.notes.list ?? [];
+  const here = all.filter((a) => a.path === opened.path);
+  const resolvedHere = here.filter((a) => a.state === 'resolved').length;
+  const pending = pendingOf(all);
   const { dir, name } = splitPath(opened.path);
   const diffMode = opened.mode === 'diff';
   const file = content.file?.state === 'ok' ? content.file.value : null;
@@ -152,7 +208,7 @@ export function Viewer(props: {
         />
       </header>
       <section
-        className={`ws-vb${props.wrap ? ' wrap' : ''}`}
+        className={`ws-vb${props.wrap ? ' wrap' : ''}${review && pending.ids.length > 0 ? ' barred' : ''}`}
         // biome-ignore lint/a11y/noNoninteractiveTabindex: the body scrolls sideways and must be reachable by keyboard
         tabIndex={0}
         aria-label={diffMode ? t('Diff') : t('File')}
@@ -167,11 +223,39 @@ export function Viewer(props: {
             owner={props.owner}
             onOpenFile={() => props.onMode('file')}
             onLoadFull={props.onLoadFull}
+            {...(review ? { review: { ...review, showResolved } } : {})}
           />
         ) : (
           <FileBody path={opened.path} loaded={content.file} />
         )}
       </section>
+      {review && diffMode ? (
+        <CommentsFoot
+          open={here.length - resolvedHere}
+          resolved={resolvedHere}
+          showResolved={showResolved}
+          onToggle={() => setShowResolved((v) => !v)}
+        />
+      ) : null}
+      {review && pending.ids.length > 0 ? (
+        <ReviewBar
+          count={pending.ids.length}
+          files={pending.files}
+          onDiscard={() => void review.notes.remove(pending.ids)}
+          onReview={() => setSending({ note: '' })}
+        />
+      ) : null}
+      {review && sending && pending.ids.length > 0 ? (
+        <SendReview
+          notes={review.notes}
+          ids={pending.ids}
+          files={pending.files}
+          target={review.target}
+          initialNote={sending.note}
+          onClose={() => setSending(null)}
+          onSent={() => setSending(null)}
+        />
+      ) : null}
     </section>
   );
 }
@@ -190,6 +274,7 @@ function DiffBody(props: {
   owner: string;
   onOpenFile: () => void;
   onLoadFull: () => void;
+  review?: DiffReview & { showResolved: boolean };
 }) {
   const loaded = props.content.diff;
   if (loaded?.state !== 'ok') return <Pending loaded={loaded} />;
@@ -202,12 +287,15 @@ function DiffBody(props: {
   return (
     <>
       <DiffLines
+        key={props.path}
         diff={diff.diff}
         language={languageOfPath(props.path)}
         full={props.content.full}
         canUnfold={props.online && diff.status !== 'deleted'}
         owner={props.owner}
         onLoadFull={props.onLoadFull}
+        path={props.path}
+        {...(props.review ? { review: props.review } : {})}
       />
       {diff.truncated ? (
         <div className="ws-cut" data-testid="workspace.cut">
@@ -225,7 +313,10 @@ function DiffBody(props: {
   );
 }
 
-/** Diff rows with folded unchanged regions; a fold opens once the file as it is now has been read. */
+/**
+ * Diff rows with folded unchanged regions; a fold opens once the file as it is now has been read. With a review,
+ * a line's + picks it (a drag or a shift-click picks more) for a comment, and the comments sit under their lines.
+ */
 function DiffLines(props: {
   diff: string;
   language: Language;
@@ -233,46 +324,188 @@ function DiffLines(props: {
   canUnfold: boolean;
   owner: string;
   onLoadFull: () => void;
+  path: string;
+  review?: DiffReview & { showResolved: boolean };
 }) {
+  const { review } = props;
   const parsed = useMemo(() => parseDiff(props.diff), [props.diff]);
   const [open, setOpen] = useState<ReadonlySet<number>>(new Set());
   const rows = props.full?.state === 'ok' ? unfold(parsed, open, props.full.value) : parsed;
   const gutter = { '--ws-gutter': gutterFor(largestLine(rows)) } as CSSProperties;
+
+  const draft = review?.initial?.draft;
+  const [sel, setSel] = useState<Selection | null>(
+    draft ? { side: draft.side, anchor: draft.start, head: draft.end } : null,
+  );
+  const [writing, setWriting] = useState(draft !== undefined);
+  const [editing, setEditing] = useState<string | null>(null);
+  const dragging = useRef(false);
+  useEffect(() => {
+    const up = () => {
+      if (!dragging.current) return;
+      dragging.current = false;
+      setWriting(true);
+    };
+    window.addEventListener('pointerup', up);
+    return () => window.removeEventListener('pointerup', up);
+  }, []);
+
+  const range = sel ? rangeOf(sel) : null;
+  const picked = (row: DiffLine) => {
+    const n = sel && range ? lineOn(row, sel.side) : null;
+    return n !== null && range !== null && n >= range.start && n <= range.end;
+  };
+  let pickedLast = -1;
+  rows.forEach((row, i) => {
+    if (picked(row)) pickedLast = i;
+  });
+
+  const cards = new Map<number, { a: Annotation; p: Placement }[]>();
+  for (const a of review ? shown(review.notes.list, props.path, review.showResolved) : []) {
+    const p = place(rows, a);
+    cards.set(p.after, [...(cards.get(p.after) ?? []), { a, p }]);
+  }
+
+  function pick(row: DiffLine, e: PointerEvent) {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    if (e.shiftKey && sel) {
+      setSel(extendSelection(sel, row));
+      setWriting(true);
+      return;
+    }
+    const s = startSelection(row);
+    if (!s) return;
+    setSel(s);
+    setWriting(false);
+    dragging.current = true;
+  }
+  function close() {
+    setSel(null);
+    setWriting(false);
+  }
+
+  const after = (i: number) => {
+    const here = cards.get(i) ?? [];
+    const out: ReactNode[] = here.map(({ a, p }) =>
+      editing === a.id && review ? (
+        <EditCard
+          key={a.id}
+          start={p.startLine}
+          end={p.endLine}
+          initial={a.body}
+          editing
+          error={review.notes.error}
+          onSave={(body) => review.notes.edit(a.id, body)}
+          onCancel={() => setEditing(null)}
+        />
+      ) : (
+        <NoteCard
+          key={a.id}
+          note={a}
+          placement={p}
+          onEdit={() => setEditing(a.id)}
+          onDelete={() => void review?.notes.remove([a.id])}
+          onResolve={(r) => void review?.notes.resolve(a.id, r)}
+        />
+      ),
+    );
+    if (review && sel && range && writing && i === pickedLast) {
+      out.push(
+        <EditCard
+          key="new"
+          start={range.start}
+          end={range.end}
+          initial={draft?.body ?? ''}
+          editing={false}
+          error={review.notes.error}
+          onSave={(body) =>
+            review.notes.add({
+              path: props.path,
+              side: sel.side,
+              startLine: range.start,
+              endLine: range.end,
+              snippet: snippetOf(rows, sel.side, range.start, range.end).slice(
+                0,
+                MAX_ANNOTATION_SNIPPET_CHARS,
+              ),
+              body,
+            })
+          }
+          onCancel={close}
+        />,
+      );
+    }
+    return out;
+  };
+
   return (
-    <div className="ws-diff" style={gutter}>
-      {rows.map((row, i) => (
-        // biome-ignore lint/suspicious/noArrayIndexKey: rows have no identity
-        <DiffRow key={i} row={row} language={props.language}>
-          {row.kind === 'fold' ? (
-            <button
-              type="button"
-              className="ws-fold"
-              disabled={!props.canUnfold}
-              title={
-                props.canUnfold
-                  ? t('Show {n} unchanged lines').replace('{n}', String(row.count))
-                  : t('Files need {name} online').replace('{name}', props.owner)
-              }
-              onClick={() => {
-                setOpen((s) => new Set(s).add(row.id));
-                if (props.full?.state !== 'ok') props.onLoadFull();
-              }}
-              data-testid="workspace.fold"
+    <div className={`ws-diff${review ? ' notes' : ''}`} style={gutter}>
+      {after(-1)}
+      {rows.map((row, i) => {
+        const line = row.kind === 'eq' || row.kind === 'add' || row.kind === 'del';
+        return (
+          // biome-ignore lint/suspicious/noArrayIndexKey: rows have no identity
+          <Fragment key={i}>
+            <DiffRow
+              row={row}
+              language={props.language}
+              picked={picked(row)}
+              {...(review && line
+                ? {
+                    onPick: (e: PointerEvent) => pick(row, e),
+                    onEnter: () => {
+                      if (dragging.current) setSel((s) => s && extendSelection(s, row));
+                    },
+                  }
+                : {})}
             >
-              <span className="ws-fold-i">
-                {props.full?.state === 'loading' && open.has(row.id) ? <Spinner /> : Icon.down()}
-              </span>
-              <span>{t('{n} unchanged lines').replace('{n}', String(row.count))}</span>
-            </button>
-          ) : null}
-        </DiffRow>
-      ))}
+              {row.kind === 'fold' ? (
+                <button
+                  type="button"
+                  className="ws-fold"
+                  disabled={!props.canUnfold}
+                  title={
+                    props.canUnfold
+                      ? t('Show {n} unchanged lines').replace('{n}', String(row.count))
+                      : t('Files need {name} online').replace('{name}', props.owner)
+                  }
+                  onClick={() => {
+                    setOpen((s) => new Set(s).add(row.id));
+                    if (props.full?.state !== 'ok') props.onLoadFull();
+                  }}
+                  data-testid="workspace.fold"
+                >
+                  <span className="ws-fold-i">
+                    {props.full?.state === 'loading' && open.has(row.id) ? (
+                      <Spinner />
+                    ) : (
+                      Icon.down()
+                    )}
+                  </span>
+                  <span>{t('{n} unchanged lines').replace('{n}', String(row.count))}</span>
+                </button>
+              ) : null}
+            </DiffRow>
+            {after(i)}
+          </Fragment>
+        );
+      })}
     </div>
   );
 }
 
 /** One row of a diff: a hunk header, a note, or a line with its numbers and its sign. */
-export function DiffRow(props: { row: DiffLine; language: Language; children: ReactNode }) {
+export function DiffRow(props: {
+  row: DiffLine;
+  language: Language;
+  children: ReactNode;
+  /** The line is in the lines picked for a comment. */
+  picked?: boolean;
+  /** A press on the line's + starts picking lines for a comment; entering the line while pressed extends them. */
+  onPick?: (e: PointerEvent) => void;
+  onEnter?: () => void;
+}) {
   const { row } = props;
   switch (row.kind) {
     case 'fold':
@@ -299,7 +532,23 @@ export function DiffRow(props: { row: DiffLine; language: Language; children: Re
       );
     default:
       return (
-        <div className={`ws-dl${row.kind === 'eq' ? '' : ` ${row.kind}`}`}>
+        <div
+          className={`ws-dl${row.kind === 'eq' ? '' : ` ${row.kind}`}${props.picked ? ' pick' : ''}`}
+          {...(props.onEnter ? { onPointerEnter: props.onEnter } : {})}
+        >
+          {props.onPick ? (
+            <button
+              type="button"
+              className="ws-plus"
+              tabIndex={-1}
+              aria-label={t('Comment on this line')}
+              title={t('Comment on this line')}
+              onPointerDown={props.onPick}
+              data-testid="workspace.comment-plus"
+            >
+              {Icon.plus()}
+            </button>
+          ) : null}
           <span className="n">{row.kind === 'add' ? '' : row.oldNo}</span>
           <span className="n">{row.kind === 'del' ? '' : row.newNo}</span>
           <span className="s">{row.kind === 'add' ? '+' : row.kind === 'del' ? '−' : ' '}</span>

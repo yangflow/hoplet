@@ -209,6 +209,23 @@ The mockups, design tokens and app icon behind Hoplet's web UI. The design langu
   `c-archive`, `c-edit`, `c-empty`. `a-default`, `a-edit`, `a-archive`, `b-default` and `c-filter` also have `-zh`
   states. In the web UI: `/__states/cockpit/session-tags`, `tags-empty`, `tag-editor`, `tag-filter`, `group-menu`,
   `group-project`, `group-time`, `archived-tag-filter` and `archived-tag-none`. New icon: `tag`.
+- `screens/diff-annotations.html` (#84): three directions; the maintainer chose A, built in `screens/workspace/`
+  under `/__states/workspace/comments-*`, `comment-edit` and `review-send*`, and B and C stay as the alternatives
+  considered. Not built: the conversation's Review block with Reply and the Working on it link, and the phone
+  states; a sent card says Sent in review N, since the core does not number turns.
+  Comments on lines of the inspector's Changes diff collect as pending and are sent as the next turn, composed into
+  one message with each comment's path, lines and snippet. The message is an ordinary prompt: it counts against the
+  8,000-character limit and is queued or steered while a turn runs. Sent comments are marked with their review and
+  can be resolved after it; a comment whose lines changed shows Lines changed with the code as sent. A (`a-*`) puts
+  everything inline in the diff: a + over the sign column, a comment box under the selected lines, cards for
+  pending and sent comments, a review bar, a Send review dialog with a note and the exact message, and resolved
+  cards folded to a line. B (`b-*`) adds each comment to a tray above the composer, sent with the normal Send, with
+  dots in the gutter and checkboxes in the sent turn. C (`c-*`) docks the editor at the foot of the diff and
+  collects comments in a Review tab: a draft, then one round per sent turn with checkboxes. States: A `a-hover`,
+  `a-select`, `a-pending`, `a-send`, `a-send-busy`, `a-send-over`, `a-sent`, `a-resolve`, `a-resolved`, `a-phone`;
+  B `b-select`, `b-pending`, `b-send`, `b-sent`, `b-resolve`, `b-phone`; C `c-select`, `c-review`, `c-send`,
+  `c-rounds`, `c-phone`. The `-phone` states are references for the native client at 390 px; the web UI stays
+  desktop-only (ADR 0011). The main states also have `-zh` states; the built strings are in `web/src/i18n/zh-Hans.json`. New icon: `message-square`.
 - `tokens.html`: every design token, with the JSON block that `check-tokens.py` compares with
   `web/src/design/tokens.css`.
 - `mark.html`: the app icon and the web UI's mark; the exported icon is `web/public/icon.svg`.

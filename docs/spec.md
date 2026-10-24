@@ -223,7 +223,19 @@ view (on narrower windows the sidebar folds meanwhile): a changed path opens its
 unchanged regions folded and previous and next file controls, a file opens read-only with syntax highlighting, a
 modified file switches between its diff and its content, an image is shown as a preview (a changed image before
 and after), and another binary file shows only its size. Long lines in a diff or a file scroll sideways and keep
-their columns; a Wrap toggle (⌥Z, remembered in the browser) breaks them under their own line number instead. An
+their columns; a Wrap toggle (⌥Z, remembered in the browser) breaks them under their own line number instead.
+Lines of a diff take review comments (`design/screens/diff-annotations.html`, direction A): a + over the sign column
+starts one, and a click, shift-click or drag picks a range on one side (a removed line is at `HEAD`, any other in
+the working tree); the comment box opens under the last line. Comments are kept by the core with the session, each
+with its path, side, line range and the lines' text as written, and show as cards under their lines; when the diff
+changes a comment follows its text to the nearest lines that hold it, and when the text is gone it says Lines
+changed and shows the code as written. Pending comments can be edited and deleted; a review bar counts them, the
+Changes list counts each path's comments, and Send review opens a dialog with an optional note and the exact
+message the core composes from them (path, lines, snippet and comment, in diff order). The message is an ordinary
+prompt: it counts against the 8,000-character limit (Send is disabled past it), and while a turn runs it is queued,
+or steered when the runtime can steer; it needs the owner online and a session Hoplet runs. Sent comments say which
+review sent them and can be resolved; resolved comments fold out of the diff, and the foot of the diff counts them
+and shows them again. An
 Edit row in a turn opens the file's diff. While the owner is reading the tree the inspector says so, and when the
 owner does not answer it names the failure and offers Try again. While the owner is offline, Changes shows the
 last snapshot's changes and diffs, labelled with the snapshot's time and base commit, and Files says that it
@@ -657,6 +669,8 @@ API, in `shared/src/` (schemas, types and error codes) and `agent/internal/sync/
   `GET /api/sessions/:id/workspace/diff?path=&against=&cursor=&limit=`; `GET /api/sessions/:id/workspace/changes`;
   `GET /api/sessions/:id/snapshot/changes`;
   `GET /api/sessions/:id/snapshot/diff?path=`;
+  `GET|POST /api/sessions/:id/annotations`, `PATCH|DELETE /api/sessions/:id/annotations/:annotationId` and
+  `POST /api/sessions/:id/annotations/send` (review comments on diff lines; `send` previews with `dryRun`);
   `POST /api/sessions/:id/handoff`; `GET /api/devices` (each device with the `system` its agent announced and the `providers` its connected agent
   announced and their capabilities); `POST /api/devices`;
   `GET /api/devices/:id/dirs?path=` (`path` absent or `~` is the browse root; answers `{ path, parent, root, entries, truncated }`

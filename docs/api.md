@@ -110,6 +110,11 @@ Response column names the schema of the success body and its status when it is n
 | DELETE | `/api/sessions/:sessionId/queue/:itemId` | send | control | `QueueVersionQuerySchema` | — | `QueueSchema` | `invalid-request`, `session-not-found`, `queue-conflict` |
 | POST | `/api/sessions/:sessionId/queue/:itemId/steer` | send | control | — | `QueueSteerRequestSchema` | `QueueSchema` | `invalid-json`, `invalid-request`, `too-large`, `session-not-found`, `owner-offline`, `external`, `starting`, `not-running`, `steer-unavailable`, `queue-conflict`, `timeout`, `rejected` |
 | POST | `/api/sessions/:sessionId/steer` | send | control | — | `SteerRequestSchema` | `SteerResultSchema`, 202 | `invalid-json`, `invalid-request`, `too-large`, `session-not-found`, `owner-offline`, `external`, `starting`, `not-running`, `steer-unavailable`, `timeout`, `rejected` |
+| GET | `/api/sessions/:sessionId/annotations` | read | control | — | — | `AnnotationListSchema` | `session-not-found` |
+| POST | `/api/sessions/:sessionId/annotations` | send | control | — | `AnnotationCreateRequestSchema` | `AnnotationListSchema`, 201 | `invalid-json`, `invalid-request`, `too-large`, `session-not-found` |
+| PATCH | `/api/sessions/:sessionId/annotations/:annotationId` | send | control | — | `AnnotationPatchRequestSchema` | `AnnotationListSchema` | `invalid-json`, `invalid-request`, `too-large`, `session-not-found`, `not-found`, `stale` |
+| DELETE | `/api/sessions/:sessionId/annotations/:annotationId` | send | control | — | — | `AnnotationListSchema` | `session-not-found`, `not-found` |
+| POST | `/api/sessions/:sessionId/annotations/send` | send | control | — | `ReviewSendRequestSchema` | `ReviewSendResultSchema` | `invalid-json`, `invalid-request`, `too-large`, `session-not-found`, `not-found`, `stale`, `owner-offline`, `external`, `starting`, `busy`, `over-budget`, `not-running`, `steer-unavailable`, `queue-full`, `queue-conflict`, `timeout`, `rejected` |
 | POST | `/api/sessions/:sessionId/config` | host | control | — | `ConfigRequestSchema` | `RuntimeCommandResultSchema` | `invalid-json`, `invalid-request`, `too-large`, `session-not-found`, `owner-offline`, `external` |
 | POST | `/api/sessions/:sessionId/permission` | answer | control | — | `PermissionRequestSchema` | `RuntimeCommandResultSchema` | `invalid-json`, `invalid-request`, `too-large`, `session-not-found`, `owner-offline`, `request-closed` |
 | POST | `/api/sessions/:sessionId/permission/fresh` | answer | control | — | `FreshPermissionRequestSchema` | `NewSessionResultSchema` | `invalid-json`, `invalid-request`, `too-large`, `session-not-found`, `owner-offline`, `request-closed`, `over-budget`, `target-offline`, `timeout`, `rejected` |
@@ -358,6 +363,24 @@ Behavior a client relies on:
   `POST /queue/:itemId/steer` does the same with a queued message and removes it from the queue. Both answer
   `steer-unavailable` when the provider does not declare `steer` in its capabilities or a permission request is
   open, and `not-running` when no turn runs.
+- Review comments on a session's diff (#84) are kept by the core, so they outlive a closed window, another
+  device and a hand-off. `GET /annotations` lists a session's comments in the order they were added. `POST
+  /annotations` adds a `pending` one `{id, path, side, startLine, endLine, snippet, body}`: `side` is `new` for the
+  working tree's line numbers and `old` for `HEAD`'s, `snippet` is the text of those lines when it was written (the
+  client re-anchors the comment by it once the lines move), a repeated `id` returns the stored one, and a session
+  holds at most 200 (`too-large` with `reason: annotations`). `PATCH /annotations/:annotationId` takes `{body}` for
+  a pending comment, or `{state: "resolved"}` and `{state: "sent"}` to resolve and reopen a sent one; anything else
+  answers `stale`. `DELETE` removes one. Every answer is the session's comments after the change.
+  `POST /annotations/send` `{ids, note, delivery, dryRun, requestId}` composes the pending comments in `ids` (in
+  the order they were added) and the optional note into one message: a heading with the count, the note, then each
+  comment numbered with `path:start-end`, the snippet in a fence and the comment. With `dryRun` it only returns
+  the message (`text`, `chars`, `limit`, the `review` number it would get); the text is exactly what a send
+  delivers. Otherwise the message goes as `delivery`: `prompt` (`POST /prompt`, with `requestId` as the
+  `promptId`), `queue` (`POST /queue`, as the item's `id`) or `steer` (`POST /steer`, as the `steerId`), with their
+  errors, and it is at most 8,000 characters (`too-large`). Once delivered, the comments become `sent` with
+  `sent: {review, at, delivery, messageId}`, the review being the session's next number; a failed delivery leaves
+  them pending. A comment that is no longer pending answers `stale`; repeating a request whose comments went out
+  with its `requestId` returns that review again without sending it twice.
 - A session's settings are config options (ADR 0018): the driver declares them in `capabilities.config` (ACP's
   shape: `select` or `boolean`, `id`, `name`, `category`, `currentValue`; a select value may declare `risk: "high"` and an `icon` from the shared vocabulary `CONFIG_ICONS`). `POST /api/sessions` takes optional
   `config`, option ID to value, for the options it sets, and optional `configuration`, the ID of a provider configuration of the device ([ADR 0028](adr/0028-provider-configurations-live-on-the-machine.md); default: the provider's built-in), which must be enabled and extend `provider` (`invalid-request` otherwise); `POST /api/sessions/:sessionId/config` takes one
@@ -627,8 +650,8 @@ The grant holds `capabilities` and an `allow` list.
 
 | Ability | Lets the token |
 |---|---|
-| `read` | Read what it can see: sessions, their lines, blocks and queue, search, machines and their projects, and open a browser WebSocket |
-| `send` | Send a prompt or a steer, edit the queue, interrupt and upload an image, in the sessions and machines it can see |
+| `read` | Read what it can see: sessions, their lines, blocks, queue and review comments, search, machines and their projects, and open a browser WebSocket |
+| `send` | Send a prompt or a steer, edit the queue and review comments and send a review, interrupt and upload an image, in the sessions and machines it can see |
 | `create` | Start a session on a machine and project it can see (`POST /api/sessions`), read the templates and start one |
 | `answer` | Answer permission requests of the sessions it can see |
 

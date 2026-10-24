@@ -1,4 +1,5 @@
 import type {
+  Annotation,
   HandoffRule,
   HandoffRulesPreview,
   SnapshotChanges,
@@ -313,4 +314,80 @@ export function handoffRules(kind: 'differ' | 'none' | 'same'): HandoffRulesPrev
     targetPath: STUDIO_CLONE,
     rules,
   };
+}
+
+// Review comments on the diff (#84, design/screens/diff-annotations.html). Line numbers are the working tree's
+// lines of chunksDiff and hostingDiff.
+const AT = Date.UTC(2026, 9, 21, 9, 30);
+const comment = (
+  id: number,
+  path: string,
+  startLine: number,
+  endLine: number,
+  snippet: string,
+  body: string,
+  state: Annotation['state'] = 'pending',
+): Annotation => ({
+  id: `aaaaaaaa-0000-4000-8000-${String(id).padStart(12, '0')}`,
+  path,
+  side: 'new',
+  startLine,
+  endLine,
+  snippet,
+  body,
+  state,
+  createdAt: AT + id * 60_000,
+  updatedAt: AT + id * 60_000,
+  ...(state === 'pending'
+    ? {}
+    : { sent: { review: 2, at: AT + 600_000, delivery: 'prompt', messageId: 'msg-review-2' } }),
+});
+const OPEN_THREE = [
+  '  const fh = await open(row.tmp, "a");',
+  '  await fh.write(bytes);',
+  '  await fh.close();',
+].join('\n');
+const COMMIT_LINE = '  await commitIndex(store, row, at + bytes.length);';
+const C_OPEN =
+  'Open the .tmp once per session and keep the handle; opening it for every chunk costs a syscall per append.';
+const C_COMMIT =
+  'If the commit throws, the bytes are already in the .tmp but byte_size is not: say what the retry does.';
+const C_HOSTING = 'Per turn or per session? The spec still says per session.';
+
+/** Two pending comments in chunks.ts and one in hosting.md. */
+export const pendingComments: Annotation[] = [
+  comment(1, 'core/src/store/chunks.ts', 39, 41, OPEN_THREE, C_OPEN),
+  comment(2, 'core/src/store/chunks.ts', 42, 42, COMMIT_LINE, C_COMMIT),
+  comment(3, 'docs/hosting.md', 93, 93, '| Snapshot | 64 MiB | per turn |', C_HOSTING),
+];
+
+/** Sent comments: one on lines that still read as sent, one on lines that have changed since, one resolved. */
+export const sentComments: Annotation[] = [
+  comment(1, 'core/src/store/chunks.ts', 39, 41, OPEN_THREE, C_OPEN, 'resolved'),
+  comment(2, 'core/src/store/chunks.ts', 42, 42, COMMIT_LINE, C_COMMIT, 'sent'),
+  comment(
+    4,
+    'core/src/store/chunks.ts',
+    44,
+    44,
+    '  store.setByteSize(row.id, at + bytes.length);',
+    'Set the byte size in the same transaction as the index row.',
+    'sent',
+  ),
+];
+
+/** The review message as the core composes it, for the send dialog's preview. */
+export function reviewText(
+  list: readonly Annotation[],
+  ids: readonly string[],
+  note: string,
+): string {
+  const picked = list.filter((a) => ids.includes(a.id));
+  const items = picked.map((a, i) => {
+    const lines = a.startLine === a.endLine ? `${a.startLine}` : `${a.startLine}-${a.endLine}`;
+    const lang = a.path.endsWith('.ts') ? 'ts' : a.path.endsWith('.md') ? 'md' : '';
+    return `${i + 1}. ${a.path}:${lines}\n\`\`\`${lang}\n${a.snippet}\n\`\`\`\n${a.body}`;
+  });
+  const heading = `Review comments (${picked.length}) on the working tree.`;
+  return [heading, ...(note ? [note] : []), ...items].join('\n\n');
 }

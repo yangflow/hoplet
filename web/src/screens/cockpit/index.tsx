@@ -657,6 +657,10 @@ export function Cockpit(props: {
           handoff={handoff}
           busy={busy}
           runtimeState={runtimeOf(session).state}
+          canSteer={
+            runtimeOf(session).state === 'running' &&
+            runtimeOf(session).capabilities?.steer === true
+          }
           terminalCapable={
             devices.find((d) => d.deviceId === session.ownerDeviceId)?.terminal === true
           }

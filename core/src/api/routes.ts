@@ -14,6 +14,9 @@ import {
   ActionDecideResponseSchema,
   ActionInspectRequestSchema,
   ActionInspectResponseSchema,
+  AnnotationCreateRequestSchema,
+  AnnotationListSchema,
+  AnnotationPatchRequestSchema,
   AttachmentResultSchema,
   AuditEventSchema,
   AuditEventsQuerySchema,
@@ -86,6 +89,7 @@ import {
   LinesQuerySchema,
   type LiveSessionMeta,
   LiveSessionMetaSchema,
+  MAX_ANNOTATIONS,
   MAX_BUDGETS,
   MAX_CHILD_DIFF_BYTES,
   MAX_CHILD_TREE,
@@ -132,6 +136,8 @@ import {
   QueueSteerRequestSchema,
   QueueVersionQuerySchema,
   ResourceThresholdsSchema,
+  ReviewSendRequestSchema,
+  ReviewSendResultSchema,
   type RuntimeCapabilities,
   RuntimeCommandResultSchema,
   SearchResultSchema,
@@ -239,6 +245,7 @@ import {
   sessionOf,
 } from './principal.ts';
 import { blockOfLine, excerptOf, projectLine } from './projection/index.ts';
+import { composeReview } from './review.ts';
 import { type ApiDeps, defineRoute, type Route } from './router.ts';
 
 const MAX_PROMPT_CHARS = 8_000;
@@ -466,6 +473,9 @@ function checkMessage(
     throw new ApiError('invalid-request', { reason: 'images' });
   }
 }
+
+/** The sessions with a review on its way to them; a second send waits for the first to settle. */
+const reviewsSending = new Set<string>();
 
 function queueResult(result: QueueResult) {
   if (!result.ok) throw new ApiError(result.error === 'full' ? 'queue-full' : 'queue-conflict');
@@ -1331,6 +1341,147 @@ export const routes: readonly Route[] = [
         ),
         d.body.steerId,
       );
+    },
+  }),
+  defineRoute({
+    method: 'GET',
+    path: '/api/sessions/:sessionId/annotations',
+    access: { capability: 'read' },
+    lane: 'control',
+    response: AnnotationListSchema,
+    handler: (d) => {
+      const sessionId = d.params.sessionId ?? '';
+      providerOf(d.store, sessionId);
+      return { annotations: d.store.annotations(sessionId) };
+    },
+  }),
+  defineRoute({
+    method: 'POST',
+    path: '/api/sessions/:sessionId/annotations',
+    access: { capability: 'send' },
+    lane: 'control',
+    bodyLimit: 32 * 1024,
+    body: AnnotationCreateRequestSchema,
+    status: 201,
+    response: AnnotationListSchema,
+    handler: (d) => {
+      const sessionId = d.params.sessionId ?? '';
+      providerOf(d.store, sessionId);
+      const repeated = d.store.annotation(sessionId, d.body.id) !== null;
+      if (!repeated && d.store.annotationCount(sessionId) >= MAX_ANNOTATIONS) {
+        throw new ApiError('too-large', { reason: 'annotations' });
+      }
+      d.store.insertAnnotation(sessionId, d.body, d.now());
+      return { annotations: d.store.annotations(sessionId) };
+    },
+  }),
+  defineRoute({
+    method: 'PATCH',
+    path: '/api/sessions/:sessionId/annotations/:annotationId',
+    access: { capability: 'send' },
+    lane: 'control',
+    bodyLimit: 16 * 1024,
+    body: AnnotationPatchRequestSchema,
+    response: AnnotationListSchema,
+    handler: (d) => {
+      const sessionId = d.params.sessionId ?? '';
+      const id = d.params.annotationId ?? '';
+      providerOf(d.store, sessionId);
+      if (!d.store.annotation(sessionId, id)) throw new ApiError('not-found');
+      const { body, state } = d.body;
+      const changed =
+        body !== undefined
+          ? d.store.editAnnotation(sessionId, id, body, d.now())
+          : state === 'resolved'
+            ? d.store.moveAnnotation(sessionId, id, 'sent', 'resolved', d.now())
+            : d.store.moveAnnotation(sessionId, id, 'resolved', 'sent', d.now());
+      if (!changed) throw new ApiError('stale');
+      return { annotations: d.store.annotations(sessionId) };
+    },
+  }),
+  defineRoute({
+    method: 'DELETE',
+    path: '/api/sessions/:sessionId/annotations/:annotationId',
+    access: { capability: 'send' },
+    lane: 'control',
+    response: AnnotationListSchema,
+    handler: (d) => {
+      const sessionId = d.params.sessionId ?? '';
+      providerOf(d.store, sessionId);
+      if (!d.store.deleteAnnotation(sessionId, d.params.annotationId ?? '')) {
+        throw new ApiError('not-found');
+      }
+      return { annotations: d.store.annotations(sessionId) };
+    },
+  }),
+  defineRoute({
+    method: 'POST',
+    path: '/api/sessions/:sessionId/annotations/send',
+    access: { capability: 'send' },
+    lane: 'control',
+    bodyLimit: 32 * 1024,
+    body: ReviewSendRequestSchema,
+    response: ReviewSendResultSchema,
+    handler: async (d) => {
+      const sessionId = d.params.sessionId ?? '';
+      const owner = ownerOf(d, sessionId);
+      const { ids, delivery, requestId } = d.body;
+      const note = d.body.note?.trim();
+      const all = d.store.annotations(sessionId);
+      const wanted = new Set(ids);
+      const chosen = all.filter((a) => wanted.has(a.id));
+      if (chosen.length !== wanted.size) throw new ApiError('not-found');
+      // A repeated request whose comments went out with it returns the review it sent.
+      if (!d.body.dryRun && chosen.every((a) => a.sent?.messageId === requestId)) {
+        const review = chosen[0]?.sent?.review ?? 0;
+        const text = composeReview(chosen, note);
+        return {
+          text,
+          chars: text.length,
+          limit: MAX_PROMPT_CHARS,
+          review,
+          sent: true,
+          annotations: all,
+        };
+      }
+      if (chosen.some((a) => a.state !== 'pending')) throw new ApiError('stale');
+      const text = composeReview(chosen, note);
+      const review = d.store.nextReview(sessionId);
+      const result = { text, chars: text.length, limit: MAX_PROMPT_CHARS, review };
+      if (d.body.dryRun) return { ...result, sent: false, annotations: all };
+      if (text.length > MAX_PROMPT_CHARS) throw new ApiError('too-large');
+      if (reviewsSending.has(sessionId)) throw new ApiError('stale');
+      reviewsSending.add(sessionId);
+      try {
+        const actor = actorOf(d.principal);
+        if (delivery === 'prompt') {
+          const outcome = await d.control.prompt(sessionId, owner, text, requestId, [], actor);
+          if (!outcome.ok) {
+            throw relayError(
+              outcome,
+              outcome.error === 'owner-offline' ? {} : { promptId: outcome.promptId },
+            );
+          }
+        } else if (delivery === 'queue') {
+          queueResult(
+            d.control.queueAdd(sessionId, { id: requestId, text, attachments: [], actor }),
+          );
+        } else {
+          steerResult(
+            await d.control.steer(sessionId, owner, requestId, text, [], actor),
+            requestId,
+          );
+        }
+        d.store.markAnnotationsSent(sessionId, ids, {
+          review,
+          at: d.now(),
+          delivery,
+          messageId: requestId,
+        });
+      } finally {
+        reviewsSending.delete(sessionId);
+      }
+      return { ...result, sent: true, annotations: d.store.annotations(sessionId) };
     },
   }),
   defineRoute({

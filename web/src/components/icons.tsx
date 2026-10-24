@@ -43,6 +43,7 @@ import {
   ListChecks,
   LoaderCircle,
   Lock,
+  MessageSquare,
   Mic,
   Minus,
   Moon,
@@ -174,6 +175,7 @@ export const Icon = {
   download: draw(Download),
   sliders: draw(SlidersHorizontal),
   undo: draw(Undo2),
+  comment: draw(MessageSquare),
 };
 
 /** The shared icon vocabulary of config values (`CONFIG_ICONS`) mapped to this client's glyphs. */

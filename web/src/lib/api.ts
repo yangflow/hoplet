@@ -1,6 +1,8 @@
 import {
   ActionDecideResponseSchema,
   ActionInspectResponseSchema,
+  type AnnotationCreateRequest,
+  AnnotationListSchema,
   AttachmentResultSchema,
   AuditEventsResponseSchema,
   AuditVerifyResponseSchema,
@@ -61,6 +63,8 @@ import {
   QueueSchema,
   type ResourceThresholds,
   ResourceThresholdsSchema,
+  type ReviewDelivery,
+  ReviewSendResultSchema,
   RuntimeCommandResultSchema,
   SessionChildrenResponseSchema,
   type SessionConfig,
@@ -1104,4 +1108,61 @@ export function postConfigChangeUndo(changeId: string) {
     SessionConfigChangeSchema,
     {},
   );
+}
+
+const annotationsPath = (sessionId: string, tail = '') =>
+  `/api/sessions/${encodeURIComponent(sessionId)}/annotations${tail}`;
+
+/** A session's review comments on its diff (#84). */
+export function fetchAnnotations(sessionId: string, signal?: AbortSignal) {
+  return call(annotationsPath(sessionId), AnnotationListSchema, undefined, signal);
+}
+
+/** Adds a pending comment; a repeated `id` returns the stored one. */
+export function postAnnotation(sessionId: string, annotation: AnnotationCreateRequest) {
+  return call(annotationsPath(sessionId), AnnotationListSchema, annotation);
+}
+
+/** Edits a pending comment's text, or resolves (`resolved`) or reopens (`sent`) a sent one. */
+export function patchAnnotation(
+  sessionId: string,
+  id: string,
+  patch: { body: string } | { state: 'sent' | 'resolved' },
+) {
+  return call(
+    annotationsPath(sessionId, `/${encodeURIComponent(id)}`),
+    AnnotationListSchema,
+    patch,
+    undefined,
+    'PATCH',
+  );
+}
+
+export function deleteAnnotation(sessionId: string, id: string) {
+  return call(
+    annotationsPath(sessionId, `/${encodeURIComponent(id)}`),
+    AnnotationListSchema,
+    undefined,
+    undefined,
+    'DELETE',
+  );
+}
+
+/** Composes the pending comments in `ids` into one message; `dryRun` only returns it, otherwise it is sent. */
+export function postReview(
+  sessionId: string,
+  review: {
+    ids: string[];
+    note: string;
+    delivery: ReviewDelivery;
+    dryRun: boolean;
+    requestId?: string;
+  },
+) {
+  const { note, requestId, ...rest } = review;
+  return call(annotationsPath(sessionId, '/send'), ReviewSendResultSchema, {
+    ...rest,
+    ...(note.trim() ? { note } : {}),
+    requestId: requestId ?? crypto.randomUUID(),
+  });
 }

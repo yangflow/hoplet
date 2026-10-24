@@ -255,6 +255,56 @@
       "response": "SteerResultSchema"
     },
     {
+      "method": "GET",
+      "path": "/api/sessions/:sessionId/annotations",
+      "auth": "read",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": null,
+      "response": "AnnotationListSchema"
+    },
+    {
+      "method": "POST",
+      "path": "/api/sessions/:sessionId/annotations",
+      "auth": "send",
+      "lane": "control",
+      "status": 201,
+      "query": null,
+      "body": "AnnotationCreateRequestSchema",
+      "response": "AnnotationListSchema"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/sessions/:sessionId/annotations/:annotationId",
+      "auth": "send",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": "AnnotationPatchRequestSchema",
+      "response": "AnnotationListSchema"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/sessions/:sessionId/annotations/:annotationId",
+      "auth": "send",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": null,
+      "response": "AnnotationListSchema"
+    },
+    {
+      "method": "POST",
+      "path": "/api/sessions/:sessionId/annotations/send",
+      "auth": "send",
+      "lane": "control",
+      "status": 200,
+      "query": null,
+      "body": "ReviewSendRequestSchema",
+      "response": "ReviewSendResultSchema"
+    },
+    {
       "method": "POST",
       "path": "/api/sessions/:sessionId/config",
       "auth": "host",
@@ -1707,6 +1757,169 @@
       "required": [
         "state"
       ]
+    },
+    "AnnotationCreateRequestSchema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,64}$"
+        },
+        "path": {
+          "type": "string",
+          "pattern": "^\\s*\\S(?:[\\s\\S]{0,4094}\\S)?\\s*$"
+        },
+        "side": {
+          "enum": [
+            "old",
+            "new"
+          ],
+          "type": "string"
+        },
+        "startLine": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000000
+        },
+        "endLine": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000000
+        },
+        "snippet": {
+          "type": "string",
+          "maxLength": 4000
+        },
+        "body": {
+          "type": "string",
+          "pattern": "^\\s*\\S(?:[\\s\\S]{0,3998}\\S)?\\s*$"
+        }
+      },
+      "required": [
+        "id",
+        "path",
+        "side",
+        "startLine",
+        "endLine",
+        "snippet",
+        "body"
+      ]
+    },
+    "AnnotationListSchema": {
+      "type": "object",
+      "properties": {
+        "annotations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_-]{1,64}$"
+              },
+              "path": {
+                "type": "string"
+              },
+              "side": {
+                "enum": [
+                  "old",
+                  "new"
+                ],
+                "type": "string"
+              },
+              "startLine": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "endLine": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "snippet": {
+                "type": "string"
+              },
+              "body": {
+                "type": "string"
+              },
+              "state": {
+                "enum": [
+                  "pending",
+                  "sent",
+                  "resolved"
+                ],
+                "type": "string"
+              },
+              "createdAt": {
+                "type": "number"
+              },
+              "updatedAt": {
+                "type": "number"
+              },
+              "sent": {
+                "type": "object",
+                "properties": {
+                  "review": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "at": {
+                    "type": "number"
+                  },
+                  "delivery": {
+                    "enum": [
+                      "prompt",
+                      "queue",
+                      "steer"
+                    ],
+                    "type": "string"
+                  },
+                  "messageId": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "review",
+                  "at",
+                  "delivery",
+                  "messageId"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "path",
+              "side",
+              "startLine",
+              "endLine",
+              "snippet",
+              "body",
+              "state",
+              "createdAt",
+              "updatedAt"
+            ]
+          }
+        }
+      },
+      "required": [
+        "annotations"
+      ]
+    },
+    "AnnotationPatchRequestSchema": {
+      "type": "object",
+      "properties": {
+        "body": {
+          "type": "string",
+          "pattern": "^\\s*\\S(?:[\\s\\S]{0,3998}\\S)?\\s*$"
+        },
+        "state": {
+          "enum": [
+            "sent",
+            "resolved"
+          ],
+          "type": "string"
+        }
+      },
+      "required": []
     },
     "AttachmentResultSchema": {
       "type": "object",
@@ -8912,6 +9125,163 @@
       "required": [
         "default",
         "machines"
+      ]
+    },
+    "ReviewSendRequestSchema": {
+      "type": "object",
+      "properties": {
+        "ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,64}$"
+          },
+          "minItems": 1,
+          "maxItems": 200
+        },
+        "note": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "delivery": {
+          "enum": [
+            "prompt",
+            "queue",
+            "steer"
+          ],
+          "type": "string"
+        },
+        "dryRun": {
+          "type": "boolean"
+        },
+        "requestId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,64}$"
+        }
+      },
+      "required": [
+        "ids",
+        "delivery",
+        "requestId"
+      ]
+    },
+    "ReviewSendResultSchema": {
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string"
+        },
+        "chars": {
+          "type": "number"
+        },
+        "limit": {
+          "type": "number"
+        },
+        "review": {
+          "type": "number"
+        },
+        "sent": {
+          "type": "boolean"
+        },
+        "annotations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_-]{1,64}$"
+              },
+              "path": {
+                "type": "string"
+              },
+              "side": {
+                "enum": [
+                  "old",
+                  "new"
+                ],
+                "type": "string"
+              },
+              "startLine": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "endLine": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "snippet": {
+                "type": "string"
+              },
+              "body": {
+                "type": "string"
+              },
+              "state": {
+                "enum": [
+                  "pending",
+                  "sent",
+                  "resolved"
+                ],
+                "type": "string"
+              },
+              "createdAt": {
+                "type": "number"
+              },
+              "updatedAt": {
+                "type": "number"
+              },
+              "sent": {
+                "type": "object",
+                "properties": {
+                  "review": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "at": {
+                    "type": "number"
+                  },
+                  "delivery": {
+                    "enum": [
+                      "prompt",
+                      "queue",
+                      "steer"
+                    ],
+                    "type": "string"
+                  },
+                  "messageId": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "review",
+                  "at",
+                  "delivery",
+                  "messageId"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "path",
+              "side",
+              "startLine",
+              "endLine",
+              "snippet",
+              "body",
+              "state",
+              "createdAt",
+              "updatedAt"
+            ]
+          }
+        }
+      },
+      "required": [
+        "text",
+        "chars",
+        "limit",
+        "review",
+        "sent",
+        "annotations"
       ]
     },
     "RuntimeCommandResultSchema": {

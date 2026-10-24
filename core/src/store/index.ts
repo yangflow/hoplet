@@ -4,6 +4,8 @@ import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import type {
+  Annotation,
+  AnnotationState,
   AuditEvent,
   AuditFilter,
   AuditHead,
@@ -44,6 +46,7 @@ import type {
   UsageResponse,
 } from '@hoplet/shared';
 import { migrate } from '../migrations/index.ts';
+import * as annotations from './annotations.ts';
 import * as audit from './audit.ts';
 import { resumeAuditDerive, scheduleAuditDerive } from './audit-derive.ts';
 import * as budgets from './budgets.ts';
@@ -82,6 +85,7 @@ import * as templates from './templates.ts';
 import * as tokens from './tokens.ts';
 import * as usage from './usage.ts';
 
+export type { NewAnnotation } from './annotations.ts';
 export { type AuditInput, AuditUnavailableError } from './audit.ts';
 export { toolInputSummary } from './audit-lines.ts';
 export type { BudgetStatus } from './budgets.ts';
@@ -1032,6 +1036,56 @@ export class Store {
   /** Drops the previous content of changes applied before `before`; returns how many lost it. */
   pruneConfigChangePrevious(before: number): number {
     return configChanges.pruneChangePrevious(this.ctx, before);
+  }
+
+  /** A session's review comments, in the order they were added (#84). */
+  annotations(sessionId: string): Annotation[] {
+    return annotations.listAnnotations(this.ctx, sessionId);
+  }
+
+  annotation(sessionId: string, id: string): Annotation | null {
+    return annotations.getAnnotation(this.ctx, sessionId, id);
+  }
+
+  annotationCount(sessionId: string): number {
+    return annotations.countAnnotations(this.ctx, sessionId);
+  }
+
+  insertAnnotation(sessionId: string, a: annotations.NewAnnotation, at: number): Annotation {
+    return annotations.insertAnnotation(this.ctx, sessionId, a, at);
+  }
+
+  /** Replaces the text of a pending comment; null when it is not pending. */
+  editAnnotation(sessionId: string, id: string, body: string, at: number): Annotation | null {
+    return annotations.editAnnotation(this.ctx, sessionId, id, body, at);
+  }
+
+  /** Resolves or reopens a sent comment; null when it is not in `from`. */
+  moveAnnotation(
+    sessionId: string,
+    id: string,
+    from: AnnotationState,
+    to: AnnotationState,
+    at: number,
+  ): Annotation | null {
+    return annotations.moveAnnotation(this.ctx, sessionId, id, from, to, at);
+  }
+
+  deleteAnnotation(sessionId: string, id: string): boolean {
+    return annotations.deleteAnnotation(this.ctx, sessionId, id);
+  }
+
+  nextReview(sessionId: string): number {
+    return annotations.nextReview(this.ctx, sessionId);
+  }
+
+  /** Marks the pending comments in `ids` sent in one review; false, changing nothing, when one is not pending. */
+  markAnnotationsSent(
+    sessionId: string,
+    ids: readonly string[],
+    sent: Parameters<typeof annotations.markSent>[3],
+  ): boolean {
+    return annotations.markSent(this.ctx, sessionId, ids, sent);
   }
 
   insertHandoffRequest(

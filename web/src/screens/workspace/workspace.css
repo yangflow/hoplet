@@ -365,6 +365,7 @@ ul.ws-list {
 }
 /* the viewer: header over a body that scrolls both ways */
 .ws-viewer {
+  position: relative;
   min-width: 0;
   min-height: 0;
   display: flex;
@@ -603,6 +604,279 @@ ul.ws-list {
 }
 .ws-cut > .icon {
   color: var(--color-text-3);
+}
+
+/* review comments in the diff (#84): a line's + picks it, the picked lines tint, a card sits under them */
+.ws-diff.notes .ws-dl {
+  position: relative;
+}
+.ws-plus {
+  position: absolute;
+  left: calc(2 * var(--ws-gutter, var(--layout-gutter)) - 10px);
+  top: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  display: grid;
+  place-items: center;
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  opacity: 0;
+  cursor: pointer;
+  touch-action: none;
+}
+.ws-plus .icon {
+  width: 14px;
+  height: 14px;
+}
+.ws-dl:hover > .ws-plus,
+.ws-plus:focus-visible {
+  opacity: 1;
+}
+.ws-dl.pick {
+  background: var(--color-accent-soft);
+  box-shadow: inset 3px 0 0 var(--color-accent);
+}
+.ws-dl.pick .n {
+  color: var(--color-accent-text);
+}
+.ws-ann {
+  position: sticky;
+  left: 0;
+  width: calc(100cqw - var(--ws-gutter, var(--layout-gutter)) - 2 * var(--space-3));
+  margin: var(--space-2) var(--space-3) var(--space-2)
+    calc(var(--ws-gutter, var(--layout-gutter)) + var(--space-3));
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  border-radius: var(--radius-md);
+  background: var(--color-raised);
+  box-shadow: var(--shadow-live);
+  font-family: var(--font-ui);
+  font-size: var(--text-ui);
+  line-height: var(--leading-ui);
+  white-space: normal;
+}
+.ws-ann.edit {
+  box-shadow:
+    var(--shadow-live),
+    0 0 0 1.5px var(--color-accent);
+}
+.ws-ann.sent {
+  background: var(--color-surface);
+  box-shadow: inset 0 0 0 1px var(--color-line);
+}
+.light .ws-ann.sent {
+  background: var(--color-raised);
+}
+.ws-ann-h {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: calc(-1 * var(--space-1)) calc(-1 * var(--space-1)) 0 0;
+}
+.ws-ann-b {
+  color: var(--color-text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.ws-ann-f {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.ws-ann-m {
+  margin-right: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-3);
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+}
+.ws-ann-h .ws-ann-m {
+  margin-right: 0;
+}
+.ws-ann-err {
+  color: var(--color-danger);
+}
+.ws-ann.fold {
+  flex-direction: row;
+  align-items: center;
+  padding: var(--space-1) var(--space-3);
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--color-line);
+  color: var(--color-text-3);
+}
+.ws-ann.fold .ws-ann-b {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-text-3);
+}
+.ws-ann-ok {
+  display: grid;
+  color: var(--color-success);
+}
+.ws-ann .tag.acc {
+  background: var(--color-accent-soft);
+  color: var(--color-accent-text);
+}
+.ws-ann .tag.line {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--color-line);
+  color: var(--color-text-3);
+}
+.ws-snip {
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg);
+  box-shadow: inset 0 0 0 1px var(--color-line);
+  font-family: var(--font-mono);
+  font-size: var(--text-code);
+  line-height: var(--leading-code);
+  white-space: pre;
+  overflow: hidden;
+  color: var(--color-text-2);
+}
+/* the pending comments of every file float over the viewer's foot; the diff leaves room under its last line */
+.ws-vb.barred .ws-diff {
+  padding-bottom: 72px;
+}
+.ws-rbar {
+  position: absolute;
+  left: var(--space-3);
+  right: var(--space-3);
+  bottom: var(--space-3);
+  z-index: 3;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-2) 0 var(--space-4);
+  border-radius: var(--radius-lg);
+  background: var(--color-raised);
+  box-shadow: var(--shadow-float);
+}
+.ws-rbar-l {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.ws-rbar-c {
+  font-weight: var(--weight-semibold);
+}
+.ws-rbar-l > span {
+  color: var(--color-text-3);
+}
+.ws-rbar-l > .icon {
+  color: var(--color-accent-text);
+}
+.ws-vfoot {
+  flex: none;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 0 var(--space-2) 0 var(--space-3);
+  box-shadow: inset 0 1px 0 var(--color-line);
+  color: var(--color-text-3);
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  font-variant-numeric: tabular-nums;
+}
+.ws-notes {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  color: var(--color-text-3);
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  font-variant-numeric: tabular-nums;
+}
+.ws-notes.pend {
+  color: var(--color-accent-text);
+}
+.ws-notes .icon {
+  width: 14px;
+  height: 14px;
+}
+
+/* Send review: the note, the message as the core composes it, and how it goes */
+.ws-send-sub {
+  padding: 0 var(--space-4) var(--space-3);
+  color: var(--color-text-3);
+}
+.ws-send .dlg-b {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.ws-send-l {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: calc(-1 * var(--space-2));
+  color: var(--color-text-2);
+}
+.ws-send-l > span:last-child {
+  color: var(--color-text-3);
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  font-variant-numeric: tabular-nums;
+}
+.ws-send-l > .over:last-child {
+  color: var(--color-danger);
+}
+.ws-compose {
+  margin: 0;
+  max-height: 328px;
+  overflow: auto;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  box-shadow: inset 0 0 0 1px var(--color-line);
+  font-family: var(--font-mono);
+  font-size: var(--text-code);
+  line-height: var(--leading-code);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--color-text);
+}
+.ws-send-n {
+  display: flex;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  box-shadow: inset 0 0 0 1px var(--color-line);
+  color: var(--color-text-2);
+}
+.ws-send-n > .icon {
+  flex: none;
+  margin-top: 2px;
+  color: var(--color-text-3);
+}
+.ws-send-n.bad {
+  background: var(--color-del-bg);
+  box-shadow: none;
+  color: var(--color-text);
+}
+.ws-send-n.bad > .icon {
+  color: var(--color-danger);
+}
+.ws-send-f {
+  align-items: center;
+}
+.ws-send-copy {
+  margin-right: auto;
 }
 
 /* images on the checkerboard */

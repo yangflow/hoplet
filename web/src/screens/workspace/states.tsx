@@ -1,4 +1,5 @@
 import type {
+  Annotation,
   DeviceInfo,
   LiveSessionMeta,
   ProviderInfo,
@@ -47,6 +48,9 @@ import {
   live,
   notesDiff,
   notesFile,
+  pendingComments,
+  reviewText,
+  sentComments,
   sketchFile,
   snapshot,
   truncatedListing,
@@ -56,6 +60,7 @@ import type { WorkspaceFixture } from './index.tsx';
 import type { PortsData } from './use-ports.ts';
 import type { TerminalPhase } from './use-terminal.ts';
 import type { Opened, ViewerAnswers, WorkspaceData } from './use-workspace.ts';
+import type { DiffReview } from './viewer.tsx';
 
 // Fixtures for /__states/workspace/<state>: every state of design/screens/workspace.html, the inspector open
 // beside the catalog session. Nothing here is read by the real screen.
@@ -79,6 +84,21 @@ function answers(opened: Opened): ViewerAnswers {
 }
 
 const offlineData: WorkspaceData = { phase: 'snapshot', snapshot };
+
+/** The review comments of a state (#84): the list, its preview, and what the viewer starts with. */
+const comments = (
+  list: Annotation[],
+  initial?: DiffReview['initial'],
+): NonNullable<WorkspaceFixture['annotations']> => ({
+  list,
+  preview: reviewText,
+  ...(initial ? { initial } : {}),
+});
+const REVIEW_NOTE = 'Keep the byte cursor exact; the rest is wording.';
+/** A comment over 8,000 characters, so the review is too long for one message. */
+const longComments: Annotation[] = pendingComments.map((a, i) =>
+  i === 0 ? { ...a, body: `${a.body} ${'Spell out each step of the append. '.repeat(240)}` } : a,
+);
 
 function Inspect(props: {
   offline?: boolean;
@@ -115,6 +135,7 @@ function Inspect(props: {
 const files = { active: 'files' as const };
 const changes = { active: 'changes' as const };
 const open = (path: string, mode: Opened['mode']) => ({ opened: { path, mode } });
+const chunksOpen = { ...changes, ...open('core/src/store/chunks.ts', 'diff') };
 
 /** The clone studio would use, and the handoff runs the panel shows; times are the snapshot's day. */
 const found: CloneCheck = { state: 'found', path: '/Users/mark/github/hoplet' };
@@ -371,6 +392,72 @@ export const states: Record<string, () => ReactNode> = {
       workspace={{
         data: live(),
         view: { ...changes, ...open('core/src/store/chunks.ts', 'diff') },
+      }}
+    />
+  ),
+  'comments-pending': () => (
+    <Inspect
+      workspace={{ data: live(), view: chunksOpen, annotations: comments(pendingComments) }}
+    />
+  ),
+  'comment-edit': () => (
+    <Inspect
+      workspace={{
+        data: live(),
+        view: chunksOpen,
+        annotations: comments([], {
+          draft: { side: 'new', start: 39, end: 41, body: 'Open the .tmp once per session' },
+        }),
+      }}
+    />
+  ),
+  'review-send': () => (
+    <Inspect
+      workspace={{
+        data: live(),
+        view: chunksOpen,
+        annotations: comments(pendingComments, { send: { note: REVIEW_NOTE } }),
+      }}
+    />
+  ),
+  'review-send-busy': () => (
+    <Inspect
+      variant={running(68_000)}
+      workspace={{
+        data: live(),
+        view: chunksOpen,
+        annotations: comments(pendingComments, { send: { note: REVIEW_NOTE } }),
+      }}
+    />
+  ),
+  'review-send-over': () => (
+    <Inspect
+      workspace={{
+        data: live(),
+        view: chunksOpen,
+        annotations: comments(longComments, { send: { note: '' } }),
+      }}
+    />
+  ),
+  'review-send-offline': () => (
+    <Inspect
+      offline
+      workspace={{
+        data: offlineData,
+        view: chunksOpen,
+        annotations: comments(pendingComments, { send: { note: '' } }),
+      }}
+    />
+  ),
+  'comments-sent': () => (
+    <Inspect workspace={{ data: live(), view: chunksOpen, annotations: comments(sentComments) }} />
+  ),
+  'comments-resolved': () => (
+    <Inspect
+      workspace={{
+        data: live(),
+        view: chunksOpen,
+        annotations: comments(sentComments, { showResolved: true }),
       }}
     />
   ),
