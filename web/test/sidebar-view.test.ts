@@ -5,10 +5,12 @@ import { createRoot } from 'react-dom/client';
 import { describe, expect, it } from 'vitest';
 import { buildTree } from '../src/screens/cockpit/group.ts';
 import {
+  adjacent,
   DEFAULT_VIEW,
   flatList,
   loadViews,
   saveViews,
+  sidebarOrder,
   sortSessions,
   VIEWS_KEY,
   viewKey,
@@ -92,6 +94,42 @@ describe('sorting and flattening', () => {
       ['alpha', 'hoplet'],
       ['gamma', 'notes'],
     ]);
+  });
+});
+
+describe('the sidebar order (⌥⌘↑/↓)', () => {
+  const more = [
+    ...list,
+    meta('d', 'delta', 'mac', 'hoplet', { updatedAt: 5, createdAt: 40 }),
+    { ...meta('e', 'epsilon', 'mac', 'notes', { updatedAt: 1, createdAt: 1 }), pinnedAt: 1 },
+  ];
+  const mac = buildTree(more, []).filter((g) => g.name === 'mac');
+  const folders = () => DEFAULT_VIEW;
+
+  it('lists pinned sessions first, then each folder in order', () => {
+    expect(sidebarOrder(mac, folders)).toEqual(['e', 'b', 'd', 'c']);
+  });
+
+  it('follows a flat view and skips folded folders and machines', () => {
+    expect(sidebarOrder(mac, () => ({ organize: 'flat', sort: 'title' }))).toEqual([
+      'e',
+      'b',
+      'd',
+      'c',
+    ]);
+    expect(sidebarOrder(mac, folders, (_, path) => path === '/w/hoplet')).toEqual(['e', 'c']);
+    expect(sidebarOrder(mac, folders, (_, path) => path === '')).toEqual([]);
+  });
+
+  it('steps without wrapping, and enters at an end when nothing in it is selected', () => {
+    const order = ['e', 'b', 'd', 'c'];
+    expect(adjacent(order, 'b', 1)).toBe('d');
+    expect(adjacent(order, 'b', -1)).toBe('e');
+    expect(adjacent(order, 'c', 1)).toBeNull();
+    expect(adjacent(order, 'e', -1)).toBeNull();
+    expect(adjacent(order, null, 1)).toBe('e');
+    expect(adjacent(order, 'gone', -1)).toBe('c');
+    expect(adjacent([], null, 1)).toBeNull();
   });
 });
 

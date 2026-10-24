@@ -13,11 +13,13 @@ import type {
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { NotifyHintGate } from '../../components/NotifyHint.tsx';
 import { Toast, type ToastState, useToast } from '../../components/Toast.tsx';
-import { postAddProject } from '../../lib/api.ts';
+import { postAddProject, postStop } from '../../lib/api.ts';
+import { liveKids } from '../../lib/children.ts';
 import { useConfigChanges } from '../../lib/config-changes.ts';
 import { errorText } from '../../lib/errors.ts';
 import { t } from '../../lib/i18n.ts';
 import { pageKeysSuspended } from '../../lib/page-keys.ts';
+import { shortcutOf } from '../../lib/shortcuts.ts';
 import { type ChildrenFixture, useChildren } from '../../lib/use-children.ts';
 import { useDevices } from '../../lib/use-devices.ts';
 import {
@@ -33,15 +35,23 @@ import { Conversation, type ConversationFixture } from './conversation/conversat
 import { DeleteDialog, type DeleteFixture } from './delete-dialog.tsx';
 import { Draft, type DraftEntry, type DraftFixture, type DraftWhere } from './draft.tsx';
 import { buildTree, isArchived, sessionTargets } from './group.ts';
+import { KeysDialog } from './keys-dialog.tsx';
 import type { NewSessionRequest, RuntimeState, TemplateStart } from './model.ts';
-import { Palette } from './palette.tsx';
+import { CockpitPalette, type PaletteCommands } from './palette-sources.tsx';
 import { RenameDialog } from './rename-dialog.tsx';
 import { type SessionActions, sessionMenu } from './session-actions.tsx';
 import { AddProject, type AddProjectFixture } from './sidebar/add-project.tsx';
+import { dirKey, loadFolded } from './sidebar/folded-dirs.ts';
 import type { Grouping } from './sidebar/organize.ts';
 import { tagCounts } from './sidebar/organize.ts';
 import { Sidebar } from './sidebar/sidebar.tsx';
-import type { MachineViews } from './sidebar/sidebar-view.ts';
+import {
+  adjacent,
+  DEFAULT_VIEW,
+  loadViews,
+  type MachineViews,
+  sidebarOrder,
+} from './sidebar/sidebar-view.ts';
 import { useWatchedProjects } from './sidebar/use-watched-projects.ts';
 import { type TemplateEntryFixture, useTemplateEntry } from './template-entry.tsx';
 import { EmptyState, TopBar } from './topbar.tsx';
@@ -64,6 +74,10 @@ export type CockpitFixture = {
   workspace?: WorkspaceFixture;
   sidebarFolded?: boolean;
   paletteOpen?: boolean;
+  /** Opens the palette asking to confirm this row (`c-stop`). */
+  paletteConfirm?: string;
+  /** Opens Keyboard shortcuts, with this text in its filter. */
+  shortcuts?: { filter?: string };
   /** Opens New session as a draft, here or in the first watched directory. */
   draft?: DraftFixture & Partial<DraftWhere>;
   inspectorOpen?: boolean;
@@ -145,6 +159,9 @@ export function Cockpit(props: {
   const host = props.host ?? (typeof location === 'undefined' ? '' : location.host);
   const [sidebarFolded, setSidebarFolded] = useState(fixture?.sidebarFolded ?? false);
   const [paletteOpen, setPaletteOpen] = useState(fixture?.paletteOpen ?? false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(fixture?.shortcuts !== undefined);
+  // The prompt a draft opened from the palette starts with; `n` opens a fresh draft each time.
+  const [draftText, setDraftText] = useState<{ text: string; n: number } | null>(null);
   // New session is a draft in place of the conversation; it holds where the session will start.
   const [draft, setDraft] = useState<Partial<DraftWhere> | null>(
     fixture?.draft
@@ -210,6 +227,7 @@ export function Cockpit(props: {
     (view.review !== null ||
       (view.tabs.length > 0 && (view.opened !== null || view.active === 'terminal')));
   const sidebarHidden = sidebarFolded || (wide && narrow && !sidebarPinned);
+  const sidebarRows = useRef<readonly string[]>([]);
   useEffect(() => {
     if (!wide) setSidebarPinned(false);
   }, [wide]);
@@ -398,6 +416,7 @@ export function Cockpit(props: {
       setArchivedOpen(false);
       setAddFor(null);
       setPaletteOpen(false);
+      setDraftText(null);
       setDraft(
         target ?? (session ? { deviceName: session.deviceName, path: session.projectPath } : {}),
       );
@@ -405,95 +424,148 @@ export function Cockpit(props: {
     [session],
   );
 
+  /** A draft whose composer starts with the palette's text. */
+  const openNewSessionWith = useCallback(
+    (text: string) => {
+      openNewSession();
+      setDraftText((cur) => ({ text, n: (cur?.n ?? 0) + 1 }));
+    },
+    [openNewSession],
+  );
+
+  /**
+   * Opens the session above or below the selected one in the sidebar's order (⌥⌘↑/↓): the rows it shows, or with
+   * the sidebar hidden, its machines' views.
+   */
+  function step(dir: -1 | 1) {
+    const views = fixture?.machineViews ?? loadViews();
+    const folded = fixture?.foldedDirs ? new Set(fixture.foldedDirs) : loadFolded();
+    const order = sidebarHidden
+      ? sidebarOrder(
+          groups,
+          (key) => views[key] ?? DEFAULT_VIEW,
+          (device, path) => folded.has(dirKey(device, path)),
+        )
+      : sidebarRows.current;
+    const next = adjacent(order, draft || archivedOpen ? null : selected, dir);
+    if (next !== null && (next !== selected || draft || archivedOpen)) pickSession(next);
+  }
+
   const openAddProject = useCallback((deviceName: string) => {
     setPaletteOpen(false);
     setAddFor(deviceName);
   }, []);
   const addTarget = groups.find((g) => g.name === addFor) ?? null;
 
-  // The session actions' shortcuts act on the selected session: ⌥⌘R rename, ⌥⌘P pin, ⌥⌘T tags, ⇧⌘A archive.
-  // ⇧⌘A is also the browser's tab search in Chrome on macOS; the page takes it while it has the focus.
-  const shortcut = useRef<(e: KeyboardEvent) => void>(() => undefined);
-  // They are ⌘-chords, so they also fire from the composer; a dialog owns the keys while it is open. A held key
-  // acts once, and AltGr or an input method composing is not a chord.
-  shortcut.current = (e) => {
-    if (pageKeysSuspended()) return;
-    if (!(e.metaKey || e.ctrlKey) || e.repeat || e.isComposing || e.getModifierState('AltGraph'))
-      return;
-    if (
-      !session ||
-      draft ||
-      archivedOpen ||
-      renaming ||
-      deleting ||
-      fixture?.delete ||
-      paletteOpen ||
-      addFor
-    )
-      return;
-    if (e.altKey && !e.shiftKey && e.code === 'KeyR') {
+  // The page's chords (lib/shortcuts.ts). ⌘-chords fire from the composer too; a dialog owns the keys while it is
+  // open. A held key acts once except ⌥⌘↑/↓, and AltGr or an input method composing is not a chord. ⇧⌘A is also
+  // the browser's tab search in Chrome on macOS; the page takes it while it has the focus.
+  const keys = useRef<(e: KeyboardEvent) => void>(() => undefined);
+  keys.current = (e) => {
+    if (pageKeysSuspended() || e.isComposing || e.getModifierState('AltGraph')) return;
+    const hit = shortcutOf(e);
+    if (!hit || (e.repeat && hit.id !== 'adjacent-session')) return;
+    if (renaming || deleting || fixture?.delete || addFor) return;
+    const overlay = paletteOpen || shortcutsOpen;
+    const onSession = session !== null && !draft && !archivedOpen && !overlay;
+    const act = (run: () => void) => {
       e.preventDefault();
-      setRenaming(session);
-    } else if (e.altKey && !e.shiftKey && e.code === 'KeyP') {
-      e.preventDefault();
-      void patch(session.sessionId, { pinned: session.pinnedAt === undefined });
-    } else if (e.altKey && !e.shiftKey && e.code === 'KeyT') {
-      e.preventDefault();
-      setTagging((id) => (id === session.sessionId ? null : session.sessionId));
-    } else if (e.shiftKey && !e.altKey && e.code === 'KeyA') {
-      e.preventDefault();
-      void patch(session.sessionId, { archived: !isArchived(session) });
+      run();
+    };
+    switch (hit.id) {
+      case 'palette':
+        return act(() => {
+          setShortcutsOpen(false);
+          setPaletteOpen((v) => !v);
+        });
+      case 'shortcuts':
+        return act(() => {
+          setPaletteOpen(false);
+          setShortcutsOpen((v) => !v);
+        });
+      case 'new-session':
+        return act(() => {
+          setShortcutsOpen(false);
+          openNewSession();
+        });
+      case 'sidebar':
+        return act(() => setSidebarFolded((v) => !v));
+      case 'settings':
+        return act(() => {
+          setPaletteOpen(false);
+          setShortcutsOpen(false);
+          props.onSettings?.();
+        });
+      case 'adjacent-session':
+        if (overlay) return;
+        return act(() => step(hit.at === 0 ? -1 : 1));
+      case 'workspace':
+        if (!selected || overlay) return;
+        return act(() => setInspectorOpen((v) => !v));
+      case 'changes':
+      case 'files':
+        if (!selected || overlay) return;
+        return act(() => {
+          setInspectorOpen(true);
+          inspector.openTool(hit.id === 'changes' ? 'changes' : 'files');
+        });
+      case 'rename':
+        if (!onSession || !session) return;
+        return act(() => setRenaming(session));
+      case 'pin':
+        if (!onSession || !session) return;
+        return act(() => void patch(session.sessionId, { pinned: session.pinnedAt === undefined }));
+      case 'tags':
+        if (!onSession || !session) return;
+        return act(() => setTagging((id) => (id === session.sessionId ? null : session.sessionId)));
+      case 'archive':
+        if (!onSession || !session) return;
+        return act(() => void patch(session.sessionId, { archived: !isArchived(session) }));
     }
   };
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => shortcut.current(e);
+    const onKey = (e: KeyboardEvent) => keys.current(e);
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (pageKeysSuspended() || !(e.metaKey || e.ctrlKey) || e.altKey) return;
-      if (e.shiftKey) {
-        // ⇧⌘G and ⇧⌘E open Changes and Files in the inspector.
-        const tool = { g: 'changes', e: 'files' }[e.key.toLowerCase()] as
-          | 'changes'
-          | 'files'
-          | undefined;
-        if (tool && selected) {
-          e.preventDefault();
-          setInspectorOpen(true);
-          inspector.openTool(tool);
-        }
-        return;
-      }
-      if (e.key === 'k') {
-        e.preventDefault();
-        setAddFor(null);
-        setPaletteOpen((v) => !v);
-      } else if (e.key === 'n') {
-        e.preventDefault();
-        openNewSession();
-      } else if (e.key === '\\') {
-        e.preventDefault();
-        setSidebarFolded((v) => !v);
-      } else if (e.key === 'i' && selected) {
-        e.preventDefault();
-        setInspectorOpen((v) => !v);
-      } else if (e.key === ',') {
-        e.preventDefault();
-        props.onSettings?.();
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [selected, openNewSession, inspector, props.onSettings]);
+  const kidsData = children.data.kids;
+  const commands: PaletteCommands = {
+    session: session && !draft && !archivedOpen ? session : null,
+    running: busy,
+    stopsWith: liveKids(kidsData),
+    workspaceOpen: inspectorOpen,
+    sidebarShown: !sidebarHidden,
+    stop: (s, cascade) => {
+      postStop(s.sessionId, cascade).catch((err: unknown) => say(errorText(err), true));
+    },
+    handoff: () => {
+      setInspectorOpen(true);
+      inspector.setHandoffOpen(true);
+    },
+    rename: setRenaming,
+    tags: (s) => setTagging(s.sessionId),
+    patch: (s, change) => void patch(s.sessionId, change),
+    remove: askDelete,
+    saveTemplate: (s) => entry.saveAs(s, capabilitiesOf(s)),
+    workspace: () => setInspectorOpen((v) => !v),
+    tool: (tool) => {
+      setInspectorOpen(true);
+      inspector.openTool(tool);
+    },
+    adjacent: step,
+    newSession: () => openNewSession(),
+    sidebar: () => setSidebarFolded((v) => !v),
+    shortcuts: () => setShortcutsOpen(true),
+    settings: openSettings,
+  };
 
   return (
     <div className={`cockpit${wide ? ' inspector-wide' : ''}`} data-testid="cockpit">
       {sidebarHidden ? null : (
         <Sidebar
           groups={groups}
+          order={sidebarRows}
           selected={draft || archivedOpen ? null : selected}
           runtime={states}
           now={now}
@@ -586,6 +658,8 @@ export function Cockpit(props: {
             ) : null}
             {draft ? (
               <Draft
+                key={draftText?.n ?? 0}
+                {...(draftText ? { initialText: draftText.text } : {})}
                 targets={targets}
                 where={draft}
                 onWhere={setDraft}
@@ -614,7 +688,7 @@ export function Cockpit(props: {
                 runtime={runtimeOf(session)}
                 live={live}
                 aroundLine={aroundLine}
-                shortcuts={!paletteOpen && !addFor}
+                shortcuts={!paletteOpen && !shortcutsOpen && !addFor}
                 voiceAvailable={fixture?.voiceAvailable ?? false}
                 capabilities={capabilitiesOf(session)}
                 system={groups.find((g) => g.name === session.deviceName)?.system ?? null}
@@ -699,20 +773,27 @@ export function Cockpit(props: {
         />
       ) : null}
       {paletteOpen ? (
-        <Palette
+        <CockpitPalette
           sessions={sessions}
+          groups={groups}
           {...(fixture?.query ? { initialQuery: fixture.query } : {})}
           {...(fixture?.search ? { searchFixture: fixture.search } : {})}
+          {...(fixture?.paletteConfirm ? { confirming: fixture.paletteConfirm } : {})}
+          templates={entry.choices}
+          onTemplate={entry.choose}
+          commands={commands}
           onClose={() => setPaletteOpen(false)}
           onSelectSession={pickSession}
           onSelectHit={pickHit}
-          onNewSession={() => openNewSession()}
-          onSettings={openSettings}
-          templates={entry.choices}
-          onTemplate={entry.choose}
-          {...(session && !draft && !archivedOpen
-            ? { onSaveTemplate: () => entry.saveAs(session, capabilitiesOf(session)) }
-            : {})}
+          onMachine={(deviceId) => props.onMachineResources?.(deviceId)}
+          onStartIn={openNewSession}
+          onNewWithText={openNewSessionWith}
+        />
+      ) : null}
+      {shortcutsOpen ? (
+        <KeysDialog
+          {...(fixture?.shortcuts?.filter ? { initialFilter: fixture.shortcuts.filter } : {})}
+          onClose={() => setShortcutsOpen(false)}
         />
       ) : null}
       {entry.dialogs}

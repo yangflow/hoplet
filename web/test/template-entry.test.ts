@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
-import type { Template } from '@hoplet/shared';
+import type { LiveSessionMeta, Template } from '@hoplet/shared';
 import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SessionTarget } from '../src/screens/cockpit/model.ts';
-import { Palette } from '../src/screens/cockpit/palette.tsx';
+import { CockpitPalette, type PaletteCommands } from '../src/screens/cockpit/palette-sources.tsx';
 import { NewMenu } from '../src/screens/cockpit/sidebar/new-menu.tsx';
 import {
   type EntryChoice,
@@ -148,40 +148,97 @@ describe('NewMenu', () => {
 });
 
 describe('Palette templates', () => {
+  const commands = (
+    session: LiveSessionMeta | null,
+    saveTemplate?: () => void,
+  ): PaletteCommands => ({
+    session,
+    running: false,
+    stopsWith: [],
+    workspaceOpen: false,
+    sidebarShown: true,
+    stop: vi.fn(),
+    handoff: vi.fn(),
+    rename: vi.fn(),
+    tags: vi.fn(),
+    patch: vi.fn(),
+    remove: vi.fn(),
+    ...(saveTemplate ? { saveTemplate } : {}),
+    workspace: vi.fn(),
+    tool: vi.fn(),
+    adjacent: vi.fn(),
+    newSession: vi.fn(),
+    sidebar: vi.fn(),
+    shortcuts: vi.fn(),
+    settings: vi.fn(),
+  });
   const base = {
     sessions: [],
+    groups: [],
     searchFixture: { hits: [], scanning: false },
     onClose: vi.fn(),
     onSelectSession: vi.fn(),
     onSelectHit: vi.fn(),
-    onNewSession: vi.fn(),
-    onSettings: vi.fn(),
+    onMachine: vi.fn(),
+    onStartIn: vi.fn(),
+    onNewWithText: vi.fn(),
   };
+  const open = {
+    sessionId: 's1',
+    projectPath: TEMPLATE_PROJECT,
+    projectDir: '',
+    deviceName: MACBOOK.name,
+    title: 'byte cursor catalog',
+    provider: 'claude',
+    ownerConnected: true,
+    createdAt: 1,
+    updatedAt: 2,
+    lineCount: 1,
+    byteSize: 1,
+    ownerEpoch: 0,
+  } as LiveSessionMeta;
 
-  it('lists templates, starts the active one on Enter, and offers the save action', async () => {
+  it('lists templates first and starts the active one on Enter', async () => {
     const onTemplate = vi.fn();
-    const onSaveTemplate = vi.fn();
     await mount(
-      createElement(Palette, {
+      createElement(CockpitPalette, {
         ...base,
+        commands: commands(open, vi.fn()),
         templates: entryChoices([REVIEW, FIX], [target()]),
         onTemplate,
-        onSaveTemplate,
       }),
     );
     const options = [...document.querySelectorAll('[role="option"]')];
     expect(options[0]?.textContent).toContain(REVIEW.name);
     expect(document.body.textContent).toContain('to start');
-    expect(options.some((o) => o.textContent?.includes('Save the current session'))).toBe(true);
     const input = document.querySelector('input[role="combobox"]') as HTMLElement;
     await key(input, 'Enter');
     expect(onTemplate).toHaveBeenCalledWith(REVIEW);
   });
 
+  it('offers to save the open session as a template when a query reaches it', async () => {
+    const saveTemplate = vi.fn();
+    await mount(
+      createElement(CockpitPalette, {
+        ...base,
+        initialQuery: 'save',
+        commands: commands(open, saveTemplate),
+      }),
+    );
+    const save = [...document.querySelectorAll('[role="option"]')].find((o) =>
+      o.textContent?.includes('Save the current session'),
+    );
+    expect(save).toBeDefined();
+    await act(async () => (save as HTMLElement).click());
+    expect(saveTemplate).toHaveBeenCalledWith(open);
+  });
+
   it('hides the save action when there is no session to save', async () => {
     await mount(
-      createElement(Palette, {
+      createElement(CockpitPalette, {
         ...base,
+        initialQuery: 'save',
+        commands: commands(null),
         templates: entryChoices([REVIEW], [target()]),
         onTemplate: vi.fn(),
       }),

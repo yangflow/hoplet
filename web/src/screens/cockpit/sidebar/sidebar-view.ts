@@ -125,3 +125,42 @@ export function flatList(group: DeviceGroup, sort: Sort): Placed[] {
 export function pinnedList(group: DeviceGroup, sort: Sort): Placed[] {
   return placedSessions(group, sort, true);
 }
+
+/**
+ * The sessions in the order the sidebar lists them, skipping folded machines and directories: per machine its
+ * pinned sessions, then its directories' sessions (Folder) or its other sessions (Flat). ⌥⌘↑/↓ walk it.
+ * `isFolded` takes the machine's name and a directory's path, `''` for the machine's own row.
+ */
+export function sidebarOrder(
+  groups: readonly DeviceGroup[],
+  viewOf: (key: string) => MachineView,
+  isFolded: (device: string, path: string) => boolean = () => false,
+): string[] {
+  const out: string[] = [];
+  for (const g of groups) {
+    if (isFolded(g.name, '')) continue;
+    const view = viewOf(viewKey(g));
+    for (const p of pinnedList(g, view.sort)) out.push(p.session.sessionId);
+    if (view.organize === 'flat') {
+      for (const p of flatList(g, view.sort)) out.push(p.session.sessionId);
+      continue;
+    }
+    for (const d of sortedDirs(g, view.sort)) {
+      if (isFolded(g.name, d.path)) continue;
+      for (const s of d.sessions) out.push(s.sessionId);
+    }
+  }
+  return out;
+}
+
+/** The session one step up or down the order from the selected one; the first or the last when none is in it. */
+export function adjacent(
+  order: readonly string[],
+  selected: string | null,
+  step: -1 | 1,
+): string | null {
+  if (order.length === 0) return null;
+  const at = selected === null ? -1 : order.indexOf(selected);
+  if (at < 0) return (step === 1 ? order[0] : order[order.length - 1]) ?? null;
+  return order[at + step] ?? null;
+}

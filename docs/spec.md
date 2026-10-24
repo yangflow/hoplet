@@ -77,9 +77,8 @@ directory, and no directory rows, so Add project stays on the machine row); sort
 (the default), **Created** or **Title**. The Group menu in the sidebar header groups across machines instead
 ([Organizing sessions](#organizing-sessions)). The sidebar follows the
 selected session, however it was selected (a click, the palette, the address): its machine and directory open
-and the row scrolls into view, while every other fold stays as the reader left it. Search (⌘K) opens a
-command palette: sessions whose title matches, line hits across sessions (selecting one opens the session at
-that line) and actions (New session, Settings). New session (⌘N, in the sidebar header and on each directory
+and the row scrolls into view, while every other fold stays as the reader left it. Search (⌘K) opens the
+command palette ([below](#command-palette-and-keyboard-shortcuts)). New session (⌘N, in the sidebar header and on each directory
 row) opens a draft: an empty conversation, shown as the selected row at the top of its directory, whose
 composer chooses the machine (online ones) and the project directory (the machine's watched projects, and Add
 project), with the config options its runtime driver declares ([ADR 0018](adr/0018-session-settings-are-config-options.md)) and, when the machine has more than one enabled provider configuration (or only one that is not the vendor's own), a configuration chip that picks which one runs the session, grouped by vendor, with a configuration whose key is not set dimmed and not selectable, and a link to Settings; the configuration's defaults prefill the options; a directory
@@ -208,6 +207,36 @@ Sessions are organized by tags, pins, the archive and a grouping; none of them c
 - **Archive** is manual only. The Archived page restores, and archiving never deletes data.
 
 The phone layout of these is left to the native client.
+
+### Command palette and keyboard shortcuts
+
+The command palette (⌘K, and Search in the sidebar header) searches sessions, machines, projects and commands
+together, and the lines of every session as the query is typed. With no query it lists the three most recent
+sessions, the Start from a template entries, the commands on the open session (This session, headed by its title)
+and the general ones; a typed query matches letters in order (`st` finds Stop and Settings), ranks a run at the start
+or at a word first, marks the matched letters, and lists Sessions, Machines, Projects, Commands (each with the session
+it acts on) and Lines. The arrows move, Enter opens or runs the active row, ⌃1–⌃9 open a numbered session, ⌘Enter
+starts a new session with the text as its first prompt, and Esc goes back or closes. When nothing matches, the
+palette says what it searched and offers New session with the text as the prompt. A session row opens it; a machine
+opens Settings › Machines on it; a project opens a draft in that directory on the open session's machine when it has
+the project, else on an online one. The commands on the open session are Stop (while a turn runs), Hand off to
+another machine…, Rename…, Pin or Unpin, Tags…, Archive or Restore, Show or hide the workspace, Changes, Files, Save the
+current session as a template… and Delete…; the general ones are New session, Previous and Next session in the
+sidebar, Show or hide the sidebar, Keyboard shortcuts and Settings. Stop asks in place, in the palette: what ends and
+what stays, and the live child sessions that stop with it, each named; Enter stops the session and those children
+(`POST /api/sessions/:sessionId/stop?cascade=true`), Esc goes back to the list. The palette's sources are pluggable:
+each gives its rows, when it shows (with or without a query) and how many.
+
+One list of keyboard shortcuts drives the Keyboard shortcuts dialog, the key hints of menus and tooltips, and the
+page's chords. ⌘/ (or the palette's Keyboard shortcuts) opens the dialog: the shortcuts grouped as General, Sessions,
+Palette, Workspace and Composer, with a filter over their names and keys. The page's chords are ⌘K (palette), ⌘N (new
+session), ⌘\ (sidebar), ⌘, (Settings), ⌘/ (Keyboard shortcuts), ⌥⌘↑ and ⌥⌘↓ (the session above or below the
+selected one in the order the sidebar shows its rows, whatever the grouping, the tag filter and the folds, without
+wrapping; with the sidebar hidden, its machines' views), ⌥⌘R (rename), ⌥⌘P (pin), ⌥⌘T (tags), ⇧⌘A (archive), ⌘I (workspace), ⇧⌘G (Changes) and ⇧⌘E (Files); the composer and the viewer keep
+their own keys, which the dialog lists too. A chord a browser may take first (⌘N, ⌥⌘↑/↓, ⇧⌘A, ⌘I) is marked `*`,
+and every chord has a palette entry, so nothing is reachable only from the keyboard. On Windows and Linux ⌘ reads
+Ctrl. The page's chords are off while another dialog (Rename, Delete, Add project) is open and while Settings
+shows.
 
 ### Workspace inspector
 
