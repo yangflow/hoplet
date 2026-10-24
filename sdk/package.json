@@ -1,7 +1,7 @@
 {
   "name": "@hoplet/sdk",
   "description": "Typed client for the Hoplet REST API and browser WebSocket",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "license": "Apache-2.0",
   "type": "module",
   "sideEffects": false,
