@@ -499,8 +499,14 @@ session may ask for up to 2 hours). A start past a limit is refused (`depth-limi
 or token limit are interrupted and stopped, each audited as `child.limit`. A parent session has the MCP tools
 `wait_children`, `collect_child` (the child's state, its report of up to 6 KiB, the files it changed and its cost, in
 8 KiB), `read_child_diff` and `cancel_child`; `start_session` does not wait, gives the child a new worktree in a git
-project, and puts the instruction to end with a short report in front of the child's first prompt. Planned: the web
-screens for the tree.
+project, and puts the instruction to end with a short report in front of the child's first prompt. In the web UI a
+session with children has a Children tab in its inspector, kept open while it has children: every descendant with its
+state, machine, branch and (for a direct child) elapsed time, a roll-up of the states, and the live count against the
+tree's limit; a row opens in place to the child's report, its token count and the files it changed; a child, a child
+with the live sessions below it, or all of them is cancelled after a dialog that says what stops and what stays; a
+child is opened as a session. A child waiting for a permission marks the tab and shows its request under its row and
+as a strip in the parent's conversation, where Allow and Deny answer it while the window is connected (a plan is
+answered in the child). Planned: the session list as a tree and the cascade choice in the stop dialog.
 
 ### CLI
 

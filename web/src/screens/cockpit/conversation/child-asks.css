@@ -1,0 +1,55 @@
+/* The permission strips of a parent's turn (design/screens/child-sessions.html, direction B). Tokens only. */
+.kw-asks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: var(--space-2) 0;
+}
+.kw-ask {
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-attention-soft);
+  box-shadow: inset 0 0 0 1px var(--color-attention-ring);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.kw-ask > svg {
+  color: var(--color-attention-text);
+  flex: none;
+}
+.kw-ask .tx {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.kw-ask .tx > b {
+  font-weight: var(--weight-medium);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.kw-ask .tx .mono {
+  font-size: var(--text-meta);
+}
+.kw-ask .meta {
+  color: var(--color-text-2);
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+}
+.kw-ask .meta b {
+  font-weight: var(--weight-medium);
+  color: var(--color-text);
+}
+.kw-err {
+  color: var(--color-danger);
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+}
+.kw-act {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}

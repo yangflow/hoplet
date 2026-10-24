@@ -13,12 +13,15 @@ import { Button } from '../../components/Button.tsx';
 import { IconButton } from '../../components/IconButton.tsx';
 import { Icon, Spinner } from '../../components/icons.tsx';
 import { Popover } from '../../components/Popover.tsx';
+import { NO_KIDS } from '../../lib/children.ts';
 import { clock } from '../../lib/format.ts';
 import { t } from '../../lib/i18n.ts';
 import { pageKeysSuspended } from '../../lib/page-keys.ts';
 import { gateOf } from '../../lib/terminal.ts';
+import type { ChildrenView } from '../../lib/use-children.ts';
 import { AuditTab, type AuditTabFixture } from './audit-tab.tsx';
 import { BrowserTab } from './browser-tab.tsx';
+import { ChildrenTab, type ChildrenTabFixture } from './children-tab.tsx';
 import type { Handoff, HandoffFixture } from './handoff.ts';
 import { HandoffPanel } from './handoff-panel.tsx';
 import { ChangesList, FilesTree } from './lists.tsx';
@@ -58,6 +61,18 @@ export type WorkspaceFixture = {
   sessions?: SessionsFixture;
   /** The Audit tab, in place of asking the core. */
   audit?: AuditTabFixture;
+  /** The Children tab's open row, reports and cancel dialog, in place of asking the core. */
+  childrenTab?: ChildrenTabFixture;
+};
+
+/** The Children tab of a caller that reads no tree: nothing to show. */
+const NO_CHILDREN: ChildrenView = {
+  phase: 'live',
+  data: NO_KIDS,
+  error: null,
+  asks: {},
+  refresh: () => {},
+  answered: () => {},
 };
 
 const toolLabel = (tool: Tool) =>
@@ -66,6 +81,7 @@ const toolLabel = (tool: Tool) =>
     files: t('Files'),
     terminal: t('Terminal'),
     browser: t('Browser'),
+    children: t('Children'),
     sessions: t('Other sessions'),
     audit: t('Audit'),
   })[tool];
@@ -75,6 +91,7 @@ const toolIcon: Record<Tool, () => ReturnType<typeof Icon.pen>> = {
   files: Icon.folder,
   terminal: Icon.terminal,
   browser: Icon.globe,
+  children: Icon.fork,
   sessions: Icon.link,
   audit: Icon.listChecks,
 };
@@ -96,6 +113,9 @@ export function Inspector(props: {
   runtimeState: string;
   terminalCapable: boolean;
   onHide: () => void;
+  /** The session's descendants, read once by the cockpit for this tab and the turn's permission strips. */
+  kids?: ChildrenView;
+  onOpenSession?: (sessionId: string) => void;
   fixture?: WorkspaceFixture;
 }) {
   const { session, data, view, actions, fixture } = props;
@@ -109,14 +129,22 @@ export function Inspector(props: {
   const id = useId();
   const focusMenu = useRef(false);
   const [terminalLive, setTerminalLive] = useState(false);
+  const kids = props.kids ?? NO_CHILDREN;
+  // A session that started children always shows their tab: it cannot be closed while they exist.
+  const pinned: Tool | null = session.childCount > 0 ? 'children' : null;
+  const tabs: Tool[] =
+    pinned && !view.tabs.includes(pinned)
+      ? TOOLS.filter((x) => x === pinned || view.tabs.includes(x))
+      : view.tabs;
+  const kidNeedsYou = kids.data.kids.some((k) => k.state === 'blocked');
 
   const active: Tool | null =
-    view.active && view.tabs.includes(view.active)
+    view.active && tabs.includes(view.active)
       ? view.active
       : (view.tabs.find((tab) =>
           tab === 'changes' ? changes.length > 0 || filesOff || data.phase !== 'live' : true,
         ) ??
-        view.tabs[0] ??
+        tabs[0] ??
         null);
 
   const opened = view.opened;
@@ -189,7 +217,11 @@ export function Inspector(props: {
   // The terminal needs the room of a viewer, whatever it shows, so the pane does not jump when one opens.
   const wide = active === 'terminal' || (opened !== null && active !== null);
   const roomy =
-    active === 'terminal' || active === 'browser' || active === 'sessions' || active === 'audit';
+    active === 'terminal' ||
+    active === 'browser' ||
+    active === 'sessions' ||
+    active === 'audit' ||
+    active === 'children';
   // the terminal widens the inspector for itself: no viewer, no list beside it
   const split = wide && active !== 'terminal';
   const gate = gateOf({
@@ -211,11 +243,13 @@ export function Inspector(props: {
         <div className="ws-tabs">
           <TabList
             id={id}
-            tabs={view.tabs}
+            tabs={tabs}
+            pinned={pinned}
+            needsYou={kidNeedsYou}
             active={active}
             count={data.phase === 'live' || data.phase === 'snapshot' ? changes.length : 0}
             filesOff={filesOff}
-            fold={view.tabs.length > 2 && active !== 'terminal'}
+            fold={tabs.length > 2 && active !== 'terminal'}
             terminalLive={terminalLive}
             filesWhy={
               git
@@ -302,6 +336,13 @@ export function Inspector(props: {
               session={session}
               {...(fixture?.sessions ? { fixture: fixture.sessions } : {})}
             />
+          ) : active === 'children' ? (
+            <ChildrenTab
+              session={session}
+              view={kids}
+              onOpenSession={props.onOpenSession}
+              {...(fixture?.childrenTab ? { fixture: fixture.childrenTab } : {})}
+            />
           ) : active === 'audit' ? (
             <AuditTab session={session} {...(fixture?.audit ? { fixture: fixture.audit } : {})} />
           ) : (
@@ -356,6 +397,10 @@ function TabList(props: {
   fold: boolean;
   /** The terminal is open: a green dot on its tab. */
   terminalLive: boolean;
+  /** The tab that has no ×: Children while the session has any. */
+  pinned?: Tool | null;
+  /** A child waits for a permission: the attention dot on the Children tab, also folded. */
+  needsYou?: boolean;
   onPick: (tool: Tool) => void;
   onClose: (tool: Tool) => void;
 }) {
@@ -369,7 +414,7 @@ function TabList(props: {
     else if (e.key === 'ArrowLeft') go(at - 1);
     else if (e.key === 'Delete' || e.key === 'Backspace') {
       const tool = props.tabs[at];
-      if (tool) props.onClose(tool);
+      if (tool && tool !== props.pinned) props.onClose(tool);
     } else return;
     e.preventDefault();
   }
@@ -389,6 +434,8 @@ function TabList(props: {
         const bare = ico || (on && props.tabs.length >= 5);
         const hint = toolHint[tool];
         const dot = tool === 'terminal' && props.terminalLive && !ico;
+        const need = tool === 'children' && props.needsYou === true;
+        const needText = t('A child waits for a permission');
         return (
           <div
             key={tool}
@@ -400,7 +447,9 @@ function TabList(props: {
             aria-disabled={off || undefined}
             className={`ws-tab${on ? ' on' : ''}${off ? ' off' : ''}${ico ? ' ico' : ''}`}
             title={off ? props.filesWhy : hint ? `${toolLabel(tool)} · ${hint}` : toolLabel(tool)}
-            {...(bare ? { 'aria-label': toolLabel(tool) } : {})}
+            {...(bare
+              ? { 'aria-label': need ? `${toolLabel(tool)}, ${needText}` : toolLabel(tool) }
+              : {})}
             onClick={() => (off ? undefined : props.onPick(tool))}
             onKeyDown={(e) => {
               if (!off && (e.key === 'Enter' || e.key === ' ')) {
@@ -416,18 +465,28 @@ function TabList(props: {
               <span className="ws-tab-c">{formatCount(props.count)}</span>
             ) : null}
             {dot ? <span className="ws-live" aria-hidden="true" /> : null}
-            <span
-              className="ws-tab-x"
-              title={t('Close {tool}').replace('{tool}', toolLabel(tool))}
-              aria-hidden="true"
-              onClick={(e) => {
-                e.stopPropagation();
-                props.onClose(tool);
-              }}
-              data-testid={`workspace.close-${tool}`}
-            >
-              {Icon.close()}
-            </span>
+            {need ? (
+              <span
+                className="ws-live need"
+                aria-hidden="true"
+                data-testid="workspace.children-need"
+              />
+            ) : null}
+            {need && !bare ? <span className="sr-only">, {needText}</span> : null}
+            {tool === props.pinned ? null : (
+              <span
+                className="ws-tab-x"
+                title={t('Close {tool}').replace('{tool}', toolLabel(tool))}
+                aria-hidden="true"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  props.onClose(tool);
+                }}
+                data-testid={`workspace.close-${tool}`}
+              >
+                {Icon.close()}
+              </span>
+            )}
           </div>
         );
       })}

@@ -16,6 +16,7 @@ import { postAddProject } from '../../lib/api.ts';
 import { errorText } from '../../lib/errors.ts';
 import { t } from '../../lib/i18n.ts';
 import { pageKeysSuspended } from '../../lib/page-keys.ts';
+import { type ChildrenFixture, useChildren } from '../../lib/use-children.ts';
 import { useDevices } from '../../lib/use-devices.ts';
 import {
   changesOf,
@@ -86,6 +87,8 @@ export type CockpitFixture = {
   usage?: { data: SessionUsage; open?: boolean; budgets?: readonly Budget[] };
   /** The templates of the sidebar menu, the palette and the save dialog, and which of those start open. */
   templates?: TemplateEntryFixture;
+  /** The open session's descendants and their permission requests, in place of asking the core. */
+  children?: ChildrenFixture;
 };
 
 export function Cockpit(props: {
@@ -209,6 +212,15 @@ export function Cockpit(props: {
       props.runtime?.[s.sessionId] ?? s.runtime ?? { state: s.ownerConnected ? 'idle' : 'offline' },
     [props.runtime],
   );
+  const busy = session
+    ? ['running', 'waiting-permission'].includes(runtimeOf(session).state)
+    : false;
+  // Read once for the inspector's Children tab and the permission strips of the turn.
+  const children = useChildren(selected, {
+    active: busy,
+    enabled: (session?.childCount ?? 0) > 0 && (!fixture || fixture.children !== undefined),
+    fixture: fixture?.children,
+  });
   const states = useMemo(() => {
     const out: Record<string, RuntimeState> = {};
     for (const s of sessions) out[s.sessionId] = runtimeOf(s).state;
@@ -564,6 +576,7 @@ export function Cockpit(props: {
                 openDiff={openDiff}
                 {...(props.onManageRules ? { onViewRules: props.onManageRules } : {})}
                 onOpenSession={pickSession}
+                kids={children}
                 deviceName={(id) => devices.find((d) => d.deviceId === id)?.name ?? id}
                 {...(props.onSessionStarted ? { onSessionStarted: props.onSessionStarted } : {})}
                 {...(fixture?.conversation ? { fixture: fixture.conversation } : {})}
@@ -588,12 +601,14 @@ export function Cockpit(props: {
           view={view}
           actions={inspector}
           handoff={handoff}
-          busy={['running', 'waiting-permission'].includes(runtimeOf(session).state)}
+          busy={busy}
           runtimeState={runtimeOf(session).state}
           terminalCapable={
             devices.find((d) => d.deviceId === session.ownerDeviceId)?.terminal === true
           }
           onHide={() => setInspectorOpen(false)}
+          kids={children}
+          onOpenSession={pickSession}
           {...(workspace ? { fixture: workspace } : {})}
         />
       ) : null}

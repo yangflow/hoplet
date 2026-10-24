@@ -152,7 +152,12 @@ The mockups, design tokens and app icon behind Hoplet's web UI. The design langu
   it. New icons: `undo-2`, `zap`, `sliders-horizontal`, `book-open`, `triangle-alert`.
 - `screens/child-sessions.html` (#81): the UI of child sessions (ADR 0035, decision 6), three directions; the
   maintainer chose A with B's permission strip under a blocked child's row in the parent's turn, and B and C stay
-  as the alternatives considered. Shared by all three: the session list as a tree (a parent with a count and the
+  as the alternatives considered. Built: A as the inspector's Children tab (the `children`, `children-open`,
+  `children-blocked`, `children-cancel`, `children-subtree`, `children-cancel-all`, `children-loading`,
+  `children-error` and `children-empty` states in `/__states/workspace`) and B's strip, with Allow and Deny, in the
+  parent's turn or above the composer between turns (`child-ask` and `child-ask-idle` in `/__states/cockpit`). Not
+  built: tokens on every row and for the tree (the core reports a child's usage only when it is collected), the diff
+  of a changed file, the session list as a tree and the stop dialog's cascade choice. Shared by all three: the session list as a tree (a parent with a count and the
   strongest state among its children, indented children with machine and worktree branch, a grandchild, a folded
   parent that keeps its attention dot, "Started by a deleted session") and the stop dialog with "Also stop N
   running children", checked by default. Every cancel says what stops and what stays; worktrees always stay. A

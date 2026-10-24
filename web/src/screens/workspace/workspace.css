@@ -911,6 +911,9 @@ ul.ws-list {
   border-radius: 50%;
   background: var(--color-success);
 }
+.ws-live.need {
+  background: var(--color-attention);
+}
 .ws-live.off {
   background: transparent;
   box-shadow: inset 0 0 0 1.5px var(--color-text-3);

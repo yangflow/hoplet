@@ -437,7 +437,7 @@ button.row:not(.selected):hover {
   color: var(--color-danger);
 }
 .badge-success {
-  color: var(--color-success);
+  color: var(--color-add-text);
 }
 .badge-key {
   display: inline-flex;
