@@ -200,12 +200,17 @@ inspector that opens into the handoff panel, a card in its place that closes wit
 handoff runs, also one another window started. The panel picks a connected target device, and the configuration that continues the session there when that machine does not have the session's own enabled (without a choice Hand off stays disabled; a machine whose configurations of the vendor are all disabled lists them with an Enable button that turns one on there and then preselects it, and a machine that does not offer the vendor says to install it and restart its agent), and asks it for a clone
 of the working tree's `origin` among its watched projects: it names the clone the worktree goes next to, or says
 that the target has none, and then offers to clone the repository into a directory of the target (a proposed
-path under its browse root, which the user may change) or asks for the path of an existing clone. A clone is a
-sixth step before prepare, with the bytes received and a Cancel while it runs. While the owner is offline it says so and shows the last
+path under its browse root, which the user may change) or asks for the path of an existing clone. A clone is an
+extra step before prepare, with the bytes received and a Cancel while it runs. While the owner is offline it says so and shows the last
 snapshot's time, files and size; while a turn runs Hand off waits for its end. During a handoff the panel lists the
-five steps (prepare, transfer with the bytes sent, install, verify, commit) with who did each and how long it took;
-a failure marks its step, names the reason and says that nothing moved, with Hand off to try again; on success it
-names the new worktree and branch, and the session moves to its new owner in the sidebar.
+steps (prepare, transfer with the bytes sent, install, verify, a Rules step when rules are copied, commit) with who did each and how long it took;
+a failure marks its step, names the reason and says that nothing moved, with Hand off to try again (and, when the
+Rules step failed, Hand off without the rules); on success it names the new worktree and branch, and the session
+moves to its new owner in the sidebar. When the source project has rules, the panel shows a checkbox row, Copy
+{n} project rules to {machine}, with the counts by action and what the target already has; it is checked when the
+target lacks any of them, Show lists each rule as copied (+), already there (=) or the target's own (·), and
+unchecking it while a deny rule would not be copied names that rule. When the target has all of them the panel says
+so instead, and after a copy it names the count and points to Settings › Permission rules.
 
 #### Terminal and dev server links
 
@@ -377,8 +382,12 @@ dangerous ones asked about or denied.
   into a shell. They cannot be deleted or edited. Turning one off asks a second time and names the rule.
 - **Where they act**: the core stores the rules and sends each machine the ones that apply to it; the machine's
   agent decides before the request reaches the user, so rules hold while the machine is disconnected and after the
-  agent restarts. A handoff takes the session's rules with it; project rules stay on their machine, and the
-  handoff dialog says so. Planned (#330): copying the source project's rules to the target's from the dialog.
+  agent restarts. A project's rules also apply in every worktree Hoplet made from its clone on that machine (a
+  handoff's or a new session's), so a session in a worktree obeys its clone's rules
+  ([ADR 0037](adr/0037-worktrees-share-their-clones-project-rules-and-a-handoff-can-copy-them.md)). A handoff
+  takes the session's rules with it. Project rules belong to their machine; the handoff panel offers to copy the
+  ones the target's clone lacks, with their paths moved onto that clone, and the target confirms them before the
+  session moves. Only the owner chooses the copy; a session's own handoff request never copies.
   A child session obeys the session rules of every session above it that deny or ask, from its first tool call, and
   gets none of their `allow` rules; its own rules cannot loosen them. Its creation record in the audit log names the
   inherited rules and the machine's rule revision.
@@ -958,12 +967,14 @@ machine to the ID of one the user chose, and `dryRun` stores nothing and answers
 
 ### Handoff
 
-`POST /api/sessions/:id/handoff` with `{ targetDeviceId, targetPath? }`. The core refuses when the target is
+`POST /api/sessions/:id/handoff` with `{ targetDeviceId, targetPath?, cloneInto?, configuration?,
+copyProjectRules? }`. The core refuses when the target is
 not connected, the target is the owner, a handoff of this session is in progress, or the session is `running`
 or `waiting-permission`. Progress is reported to every browser as `handoff.progress`: the step, the time of the
 snapshot of an offline handoff, the bytes sent of the archive and the stored stream during transfer (at most
-four times a second), and on `done` the new worktree and branch, which the response also carries
-(`{ ok, ownerDeviceId, ownerEpoch, worktree, branch, snapshotAt? }`).
+four times a second), the number of rules copied during `rules`, and on `done` the new worktree and branch,
+which the response also carries (`{ ok, ownerDeviceId, ownerEpoch, worktree, branch, snapshotAt?, rulesCopied? }`).
+`GET /api/sessions/:id/handoff/rules` previews the copy for a target machine and clone path.
 
 0. **Clone (only with `cloneInto`).** `device.clone.start` to the target, before the owner is touched: it clones
    the session's `origin` into `cloneInto` with a restricted git, within 600 s and 60 s without progress, and
@@ -994,7 +1005,15 @@ four times a second), and on `done` the new worktree and branch, which the respo
    the file; it is passed to Codex when the thread is resumed.
 3. **Verify.** Before any agent process starts in the worktree, the target reports the SHA-256 and size
    of the installed session file and the git tree hash of the worktree. The core compares them with the stored stream at the current cursor and the snapshot.
-4. **Commit.** In one transaction the core checks that owner and cursor are unchanged, sets the owner to the
+4. **Rules (only with `copyProjectRules`).** The core takes the source machine's enabled project rules of the
+   session's project (its clone when the session is in a worktree Hoplet made, and the session's own path), moves
+   absolute `paths` and `except` patterns under that project onto the target's clone, and keeps those the target's
+   clone lacks (same tool, action and match). It stores them as project rules of the target's clone in one
+   transaction (at most 500 rules in all, else `rejected` `rules-limit`), sends the target its set, which lists
+   them also under the new worktree, and waits for `device.rules.applied` of that revision. A refusal (`rejected`
+   `rules-refused`), a disconnect or the timeout fails the handoff and deletes the copies. Nothing to copy skips the
+   step.
+5. **Commit.** In one transaction the core checks that owner and cursor are unchanged, sets the owner to the
    target, sets `project_path` to the target's worktree and increases `owner_epoch`. It sends `handoff.commit`
    to the target, which starts syncing at the cursor, and to the old owner when connected, which stops
    controlling the session. Appends from the old owner are rejected from then on.

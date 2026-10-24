@@ -434,7 +434,7 @@ messages that name the session by ID and never a path: `device.session.inspect|i
 clone the new worktree belongs to, which the core keeps in `session_worktrees`.
 
 A handoff to a machine with no clone of the repository adds a clone step before the owner is touched
-([ADR 0024](adr/0024-a-handoff-clones-the-repository-on-a-target-that-has-none.md)). The protocol version is 22.
+([ADR 0024](adr/0024-a-handoff-clones-the-repository-on-a-target-that-has-none.md)). The protocol version is 23.
 The control-lane messages are `device.clone.check` (`requestId`, `origin`, optional `cloneInto`) answered by
 `device.clone.checked` (`reason`, `detail`, the proposed `cloneInto`), and `device.clone.start` (`requestId`,
 `handoffId`, `origin`, `cloneInto`) answered by `device.clone.progress` (`received`, optional `total`, at most four
@@ -494,12 +494,19 @@ The core sends each agent its permission rules ([ADR 0029](adr/0029-permission-r
 as `device.rules` on the control lane: a `revision` (the machine's revision, which only grows), `global` (the
 rules of every machine, the built-ins with their switches included), `projects` (`{projectPath, rule}` for the
 project rules of this machine) and `sessions` (`{sessionId, rule}` for the sessions this machine owns). Each rule is
-the agent's `rules.Rule` and carries no target and no timestamp. The core sends it after `device.hello`, after every
-change to a rule, and when a session changes owner or is deleted, to the machines whose set changed. The agent
-refuses a push with an unknown field, an invalid or duplicate rule, or a rule outside its own scope's list, applies
+the agent's `rules.Rule` and carries no target and no timestamp. `projects` lists a rule again under each worktree
+Hoplet made from the rule's project on this machine (the `session_worktrees` rows of the machine whose `clone` is
+the project path, and the worktree a running handoff installed there), unless the worktree lies under the project
+path already, so a session in a worktree obeys its clone's rules
+([ADR 0037](adr/0037-worktrees-share-their-clones-project-rules-and-a-handoff-can-copy-them.md)). The core sends
+the set after `device.hello`, after every change to a rule, when a session changes owner or is deleted, when a
+handoff installed a worktree on the machine, and when a new session is started in a worktree, to the machines
+whose set changed. The agent refuses a push with an unknown field, an invalid rule, an ID that repeats (except a
+project rule repeated with the same body under another path), or a rule outside its own scope's list, applies
 a valid one whole, writes it to `<hoplet_home>/permission-rules.json` and answers `device.rules.applied` with the
 `revision` (and an `error` for a refusal, in which case it keeps the previous set). The core keeps the last applied
-revision of each connected machine in memory.
+revision of each connected machine in memory. A handoff that copies project rules waits for the target's
+`device.rules.applied` of the revision that holds them before it commits.
 
 A child session obeys the `deny` and `ask` rules of the sessions that started it. `device.rules` carries them as
 `inherited` (`{sessionId, rule}`, the child's ID and the ancestor's rule with its own ID), only for children this
@@ -616,7 +623,7 @@ sequenceDiagram
   participant Core
   participant Src as Owner agent
   participant Dst as Target agent
-  Web->>Core: POST /handoff {targetDeviceId, cloneInto?}
+  Web->>Core: POST /handoff {targetDeviceId, cloneInto?, copyProjectRules?}
   opt cloneInto
     Core->>Dst: device.clone.start (origin, cloneInto)
     Dst-->>Core: device.clone.progress, then done or failed
@@ -632,6 +639,11 @@ sequenceDiagram
   Dst->>Dst: resolve clone, add worktree, apply, install session file
   Core->>Dst: handoff.verify
   Dst-->>Core: session SHA-256 and size, tree hash
+  opt copyProjectRules
+    Core->>Core: store the rules the target's clone lacks
+    Core->>Dst: device.rules (also under the new worktree)
+    Dst-->>Core: device.rules.applied
+  end
   Core->>Core: compare, then owner = target, project_path = worktree, owner_epoch + 1 (one transaction)
   Core->>Dst: handoff.commit
   Core->>Src: handoff.commit (when connected)

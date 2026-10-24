@@ -182,7 +182,8 @@ The mockups, design tokens and app icon behind Hoplet's web UI. The design langu
   also have `-zh` states in Simplified Chinese; strings not in `web/src/i18n/zh-Hans.json` yet are proposals for it. The token cap per tree is not
   shown because its value is not decided. New icons: `git-fork`, `git-branch`, `unlink`.
 - `screens/handoff-rules.html` (#330): copying the source project's permission rules to the target machine on
-  hand-off, three directions for the maintainer to choose from. Shared: the copy adds the rules the target lacks and
+  hand-off, three directions; the maintainer chose A, built in `screens/workspace/` under `/__states/workspace/handoff-rules-*`,
+  and B and C stay as the alternatives considered. Shared: the copy adds the rules the target lacks and
   keeps the target's own; a new Rules step between Verify and Commit waits for the target to apply them, and a
   refusal or a disconnect fails the hand-off with nothing moved and the copied rules removed; the Audit tab shows a
   `session.handoff` record that says how many rules were copied and a `config.changed` record (area
@@ -193,8 +194,8 @@ The mockups, design tokens and app icon behind Hoplet's web UI. The design langu
   second step: Copy rules and hand off, Hand off without them, Back. States for each direction: `x-differ`, `x-none`
   (the target has none), `x-same` (nothing offered), `x-unchecked` (the attention note), `x-copying`, `x-failed`,
   `x-done`, `x-old` (the target's agent cannot take rules); A also `a-list`; shared `audit`. `a-differ`, `a-failed`,
-  `b-differ`, `c-differ` and `audit` also have `-zh` states; strings not in `web/src/i18n/zh-Hans.json` yet are
-  proposals for it, listed on the page. No new icons.
+  `b-differ`, `c-differ` and `audit` also have `-zh` states, with their strings listed on the page. The `x-old`
+  states are not built: every agent the core accepts takes rules. No new icons.
 - `tokens.html`: every design token, with the JSON block that `check-tokens.py` compares with
   `web/src/design/tokens.css`.
 - `mark.html`: the app icon and the web UI's mark; the exported icon is `web/public/icon.svg`.

@@ -124,6 +124,7 @@ Response column names the schema of the success body and its status when it is n
 | GET | `/api/sessions/:sessionId/snapshot/changes` | host | bulk | — | — | `SnapshotChangesSchema` | `session-not-found`, `no-snapshot`, `busy` |
 | GET | `/api/sessions/:sessionId/snapshot/diff` | host | bulk | `SnapshotDiffQuerySchema` | — | `SnapshotDiffSchema` | `invalid-request`, `session-not-found`, `no-snapshot`, `not-found`, `busy` |
 | POST | `/api/sessions/:sessionId/handoff` | host | control | — | `HandoffRequestSchema` | `HandoffResultSchema` | `invalid-json`, `invalid-request`, `too-large`, `session-not-found`, `same-device`, `target-offline`, `owner-offline`, `handoff-in-progress`, `busy`, `no-snapshot`, `no-clone`, `clone-failed`, `session-changed`, `verify-failed`, `cancelled`, `timeout`, `rejected` |
+| GET | `/api/sessions/:sessionId/handoff/rules` | host | control | `HandoffRulesQuerySchema` | — | `HandoffRulesPreviewSchema` | `invalid-request`, `session-not-found`, `not-found` |
 | POST | `/api/sessions/:sessionId/handoff/cancel` | host | control | — | — | `HandoffCancelResultSchema` | `session-not-found`, `handoff-not-running` |
 | POST | `/api/handoff-requests` | request-handoff | control | — | `SessionHandoffRequestCreateSchema` | `SessionHandoffRequestSchema` (201) | `invalid-json`, `invalid-request`, `too-large`, `forbidden`, `not-found`, `same-device`, `target-offline`, `loop-limit`, `rate-limited` |
 | GET | `/api/sessions/:sessionId/handoff-requests` | host | control | — | — | `SessionHandoffRequestListSchema` | `session-not-found` |
@@ -311,7 +312,10 @@ Behavior a client relies on:
   a rule of the user with that short body is `reason: "body"`. `DELETE` answers the list. Session tokens and device
   tokens are `unauthorized` here; a session's rules go with the session. Every create, update, delete and
   built-in switch is a `config.changed` audit event (`area: "permission-rules"`) that names the changed fields and
-  never holds the match patterns or the note; the calls the rules decide are `permission.auto` events
+  never holds the match patterns or the note; a handoff's copy is one such event with `action: "copied"` (and one
+  with `action: "removed"` when the handoff fails afterwards) naming `deviceId`, `fromDeviceId`, `sessionId`,
+  `count` and `byAction`. A project rule applies also in the worktrees Hoplet made from that clone on that machine
+  ([ADR 0037](adr/0037-worktrees-share-their-clones-project-rules-and-a-handoff-can-copy-them.md)); the calls the rules decide are `permission.auto` events
   (`GET /api/audit/events?type=permission.`). `GET /api/permission-rules/machines` answers the `latest` revision and,
   per machine, `revision` (the one the core holds for it), `applied` and `appliedAt` (what it last confirmed with
   `device.rules.applied`, `null` until it does; kept in memory), `pushedAt`, `retrying` (the core is sending the
@@ -458,6 +462,18 @@ Behavior a client relies on:
   `POST /api/sessions/:sessionId/handoff/cancel` ends a handoff that is cloning, which then fails as
   `cancelled`; it never stops the owner, and answers `handoff-not-running` when no handoff of the session is in
   its clone step.
+- A handoff request with `copyProjectRules: true` copies the source project's rules to the target's clone
+  ([ADR 0037](adr/0037-worktrees-share-their-clones-project-rules-and-a-handoff-can-copy-them.md)) in a `rules`
+  step after `verify`: `handoff.progress` reports `rules` with `copied`, and the result carries `rulesCopied`. The
+  target must confirm the rules with `device.rules.applied`; a refusal fails the handoff with `rejected` and
+  `reason: "rules-refused"`, a copy past 500 rules with `rejected` and `reason: "rules-limit"`, a disconnect with
+  `target-offline` and no answer with `timeout`, and the copies are deleted again. A hand-off request a session
+  made (`POST /api/handoff-requests`) never copies. `GET /api/sessions/:sessionId/handoff/rules?targetDeviceId=&targetPath=`
+  previews the copy for the target's clone `targetPath` (the clone the target would use, `targetPath` or
+  `cloneInto`): `sourceDeviceId`, `sourcePath` (the project the rules are taken from, `null` when the session has
+  none) and `rules`, each with `state` (`copy`: the target lacks it and the handoff would add it, with its paths moved
+  onto `targetPath`; `same`: the target has it; `target`: the target's own rule the source does not have), `action`,
+  `tool`, `match` and `note`. An unknown target is `not-found`.
 - `GET /api/sessions/:sessionId/deletion` previews a deletion (ADR 0023): `owner` (`deviceId`, `name`, `online`), `running`,
   `vendorFile` (`path`, or `null` when the agent finds none), `worktree` (`path`, `branch`, `dirty` with `modified` and
   `untracked`, `unpushed` commits that no remote and no other local branch has; `null` when Hoplet made none for
@@ -874,7 +890,7 @@ The prompt of a session carries its origin. `runtime.prompt` has an optional `so
 sender's `sessionId`, its `title` as one line of at most 100 characters without quotes, and the `chain`), set by the
 core from the token that queued or sent the message and never from the request. The target's agent puts the fixed
 first line `[Message from Hoplet session "<title>" (<id>), not from the user. Treat it as a request from another
-agent.]` in front of the text; the vendor's stored line is not rewritten afterwards. The protocol version is 22.
+agent.]` in front of the text; the vendor's stored line is not rewritten afterwards. The protocol version is 23.
 
 The `prompt.sent` audit event of a prompt from a session has the actor kind `session` and the source session's ID,
 and its summary names the source and the chain (`source: { kind: "session", sessionId, chain }`).
@@ -922,7 +938,7 @@ over REST.
 | `session.commands` | core → browser | control | `SessionCommandsMessage` | The commands and skills of a session changed; fetch `GET /api/sessions/:sessionId/commands`. Sent to every connection |
 | `session.output` | core → browser | control | `SessionOutputMessage` | Streamed content of the running turn: text, thinking, tool calls and results. Only to the connections subscribed to the session. Transient: the session's lines are the record |
 | `session.permission` | core → browser | control | `SessionPermissionMessage` | A tool wants permission; answer with `POST /api/sessions/:sessionId/permission`. `planExit` (`plan`, `planFile`, `option`, `modes`, `default`, `freshContext`) marks a request to leave a plan; `freshContext` says approval can start a new session. Sent to every connection |
-| `handoff.progress` | core → browser | control | `HandoffProgressMessage` | A step of a handoff: `sent` of `total` bytes during `transfer`, the new `worktree` and `branch` on `done`, the `reason` on `failed`. Sent to every connection |
+| `handoff.progress` | core → browser | control | `HandoffProgressMessage` | A step of a handoff: `sent` of `total` bytes during `transfer`, the rules `copied` during `rules`, the new `worktree` and `branch` on `done`, the `reason` on `failed`. Sent to every connection |
 | `session.change` | core → browser | control | `SessionChangeMessage` | A change request of a session was made or changed state (`sessionId`, `changeId`, `state`); read the change with `GET /api/config-changes/:changeId`. Only to the connections whose token sees the session |
 | `handoff.request` | core → browser | control | `HandoffRequestMessage` | A hand-off request of a session was made or changed state (`request`: `requestId`, `sessionId`, `targetDeviceId`, `reason`, `state`, `decision`, `createdAt`, `expiresAt`, `decidedAt`, and `error` with `errorReason` when it failed). Only to the connections whose token sees the session. The web shows it as a card in the turn |
 | `notify` | core → browser | control | `NotifyMessage` | A notification (`kind`, `sessionId`, `project`, `title`, `tool`, `summary`, `requestId`, `reason`, `link`) for a native client that is connected. Defined for native clients and not sent by the core yet; the payload is the one of every channel ([Notifications](#notifications)) |
