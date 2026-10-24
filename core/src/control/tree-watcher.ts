@@ -4,7 +4,7 @@
 import { log } from '../log/index.ts';
 import type { Store } from '../store/index.ts';
 import { descendantsOf, LIVE_STATES, membersOf } from './tree.ts';
-import type { Control, RuntimeCommandOutcome } from './types.ts';
+import type { CommandActor, Control, RuntimeCommandOutcome } from './types.ts';
 
 /** How often the watcher looks. */
 export const TREE_CHECK_MS = 30_000;
@@ -12,8 +12,12 @@ export const TREE_CHECK_MS = 30_000;
 export interface TreeWatcherOptions {
   store: Store;
   runtime: {
-    interrupt(sessionId: string, ownerDeviceId: string): RuntimeCommandOutcome;
-    stop(sessionId: string, ownerDeviceId: string): RuntimeCommandOutcome;
+    interrupt(
+      sessionId: string,
+      ownerDeviceId: string,
+      actor?: CommandActor,
+    ): RuntimeCommandOutcome;
+    stop(sessionId: string, ownerDeviceId: string, actor?: CommandActor): RuntimeCommandOutcome;
   };
   control: Pick<Control, 'ownerOf' | 'runtimeOf'>;
   now: () => number;
@@ -36,6 +40,9 @@ function intervalEvery(fn: () => void, ms: number): () => void {
   return () => clearInterval(timer);
 }
 
+/** The watcher's interrupts and stops are the core's, on the channel `core`. */
+const CORE = { kind: 'core' } as const;
+
 type Reason = { limit: 'time'; timeLimitMs: number } | { limit: 'tokens'; treeTokens: number };
 
 export function createTreeWatcher(options: TreeWatcherOptions): TreeWatcher {
@@ -51,9 +58,9 @@ export function createTreeWatcher(options: TreeWatcherOptions): TreeWatcher {
   function end(sessionId: string, root: string, reason: Reason): boolean {
     const owner = control.ownerOf(sessionId);
     if (owner === null) return true;
-    const interrupted = runtime.interrupt(sessionId, owner);
+    const interrupted = runtime.interrupt(sessionId, owner, CORE);
     if (!interrupted.ok && interrupted.error === 'owner-offline') return false;
-    const stopped = runtime.stop(sessionId, owner);
+    const stopped = runtime.stop(sessionId, owner, CORE);
     if (!stopped.ok) return false;
     store.markChildEnded(sessionId, 'timed-out');
     store.audit({

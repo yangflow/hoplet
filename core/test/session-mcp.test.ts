@@ -1055,6 +1055,13 @@ describe('a tree of work', () => {
         .filter((e) => e.type === 'session.stopped')
         .map((e) => e.sessionId),
     ).toEqual(expect.arrayContaining(['a1', 'a3']));
+    // A descendant's stop names the session whose stop reached it; the root's does not.
+    const stops = b.audit().filter((e) => e.type === 'session.stopped');
+    expect(stops.find((e) => e.sessionId === 'a3')).toMatchObject({
+      actorKind: 'operator',
+      summary: { cascade: 'a1' },
+    });
+    expect(stops.find((e) => e.sessionId === 'a1')?.summary).toEqual({});
   });
 });
 
@@ -1071,6 +1078,10 @@ describe('the tree watcher', () => {
     expect(events.map((e) => e.sessionId).sort()).toEqual(['a2', 'a3']);
     expect(events[0]?.actorKind).toBe('core');
     expect(JSON.stringify(events[0]?.summary)).toContain('time');
+    // The stop it made is the core's too, not the operator's (the sessions are idle: no interrupt is sent).
+    const stops = b.audit().filter((e) => e.type === 'session.stopped' && e.sessionId === 'a2');
+    expect(stops).toHaveLength(1);
+    expect(stops[0]).toMatchObject({ actorKind: 'core', channel: 'core' });
   });
 
   it('leaves a child within its limit alone', async () => {
@@ -1313,6 +1324,12 @@ describe('the children of a session', () => {
     });
     const event = b.audit().find((e) => e.type === 'child.collected');
     expect(event).toMatchObject({ actorKind: 'session', actorId: 'a1', sessionId: 'a2' });
+    // The release is the parent's stop.
+    expect(b.audit().find((e) => e.type === 'session.stopped')).toMatchObject({
+      sessionId: 'a2',
+      actorKind: 'session',
+      actorId: 'a1',
+    });
     expect(JSON.stringify(event)).not.toContain('All done');
   });
 
@@ -1383,6 +1400,11 @@ describe('the children of a session', () => {
     ]);
     const events = b.audit().filter((e) => e.type === 'child.cancelled');
     expect(events.map((e) => e.sessionId)).toEqual(['a2', 'a4']);
+    expect(events[0]).toMatchObject({ actorKind: 'session', actorId: 'a1', channel: 'rest' });
+    // The stop of a cancel is the parent's, not the operator's.
+    const stops = b.audit().filter((e) => e.type === 'session.stopped');
+    expect(stops.map((e) => e.sessionId)).toEqual(['a2', 'a4']);
+    for (const e of stops) expect(e).toMatchObject({ actorKind: 'session', actorId: 'a1' });
   });
 
   it('cancels the subtree below a child along with it', async () => {

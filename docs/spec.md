@@ -411,7 +411,7 @@ was done to and by sessions, kept apart from the session content.
   overrides, device labels, watched projects and provider defaults, and terminals opened and closed (size,
   duration and byte counts, never what was typed or shown). What a session does to another session is recorded as the
   events above (`prompt.sent`, `session.created`, `handoff.requested`, `handoff.decided`, `token.denied`) with the actor
-  kind `session` (ADR 0034); reads are GETs and are not recorded. `child.limit` is the core stopping a session past a limit of its tree (#81); `child.collected` and `child.cancelled` are a parent collecting or cancelling a child. Planned: `session.op` with child sessions (#81) and
+  kind `session` (ADR 0034); reads are GETs and are not recorded. `child.limit` is the core stopping a session past a limit of its tree (#81); `child.collected` and `child.cancelled` are a parent collecting or cancelling a child. The `session.stopped` and `session.interrupted` that follow carry the same actor as the action that caused them: the parent session for a cancel or a release, the core (channel `core`) for a limit, and a cascade from the stop route names the session it started from. Planned:
   `verify.result` with automatic verification (#79). Sessions that ran before this was built are not back-filled; their tool calls start at the
   end they had. Never prompts, assistant text, tool output, file contents or diffs.
 - **Who**: an actor of kind `operator` (the host token, with the channel `rest` or `link`), `device`, `session`,
@@ -509,7 +509,7 @@ tree's limit; a row opens in place to the child's report, its token count and th
 with the live sessions below it, or all of them is cancelled after a dialog that says what stops and what stays; a
 child is opened as a session. A child waiting for a permission marks the tab and shows its request under its row and
 as a strip in the parent's conversation, where Allow and Deny answer it while the window is connected (a plan is
-answered in the child). Planned: the session list as a tree and the cascade choice in the stop dialog.
+answered in the child). A parent on one machine starting, waiting for, collecting, reading the diff of and cancelling children on another is run end to end against two agents (`scripts/test/children.test.ts`). Planned: the session list as a tree, the cascade choice in the stop dialog, token counts on every row and for the tree (the core reports a child's usage only when it is collected), and the diff of a changed file in the web UI.
 
 ### CLI
 

@@ -95,12 +95,12 @@ of ADR 0005, stated in the log rather than hidden by it; roles would change it (
 | `permission.answered` | an answer, or the ten-minute denial | decision, `answered_by` (`operator`, `link`, `timeout`, `session-end`), the mode a plan exit chose |
 | `permission.auto` | an agent reports a decision by a rule (#98) | decision, rule ID, scope, rule revision |
 | `mode.changed` | a session's permission mode or another config option changes, by a request or by the provider (a plan exit) | option, previous and new value |
-| `session.created`, `session.stopped`, `session.interrupted`, `session.deleted` | a session starts, is stopped, interrupted or deleted | machine, project path, provider and configuration, the options chosen; for a deletion what was removed (ADR 0023) |
+| `session.created`, `session.stopped`, `session.interrupted`, `session.deleted` | a session starts, is stopped, interrupted or deleted | machine, project path, provider and configuration, the options chosen; for a deletion what was removed (ADR 0023); for a stop by a cascade the session it started from (`cascade`). The actor is whoever caused it: the parent session for a child it cancels or releases, the core (channel `core`) for a child past a limit |
 | `session.handoff` | a handoff ends | source and target machine, outcome and failure code; `session.auto_transfer` when an automatic move (not built) does it |
 | `prompt.sent` | a prompt or a steer is accepted | prompt ID, length in characters, number of images; never the text |
 | `child.limit` | the core stops a session past a limit of its tree (#81, [ADR 0035](0035-child-sessions-work-on-parts-of-a-task-in-parallel.md)) | the session's ID, the root of its tree, the limit (`time` or `tokens`) and its value; actor `core` |
 | `child.collected`, `child.cancelled` | a parent session collects a child (ADR 0035), or cancels a child or a descendant | the child's ID, the parent, and for a collect the state, whether it was released, the number of files and the bytes of the report; never the report, the files' content or a diff; actor `session` |
-| `session.op` | one session views or directs another (#67, #81) | the other session's ID, the operation |
+| `session.op` | one session views or directs another (#67) | the other session's ID, the operation |
 | `config.changed` | a setting of the core changes: budgets, notification preferences and webhooks, price overrides, device labels and watched projects, provider defaults, permission rules (#98) | the area, the object ID, the names of the fields changed and, for a field that is not a secret, its previous and new value; a secret's value is never recorded, only that it changed |
 | `verify.result` | an automatic verification finishes (#79) | the check's name, outcome, duration |
 | `device.token.issued` | `mintDevice` | device ID, name, whether it replaced a token (`replaced`: the old token stopped working) |

@@ -111,7 +111,7 @@ export async function startCore(
   const agents: AgentControl = {
     bulk: control.bulk,
     publish: control.publish,
-    attach(deviceId, link) {
+    attach(deviceId, link, providers, hello) {
       const through = (msg: ServerMessage) => intercept.toDevice?.(deviceId, msg) ?? null;
       const wrapped: DeviceLink = {
         isOpen: () => link.isOpen(),
@@ -125,7 +125,8 @@ export async function startCore(
         },
       };
       links.set(link, { link: wrapped, deviceId });
-      control.attach(deviceId, wrapped);
+      // The providers and the hello pass through: the device's capabilities (`sessionMcp`) are in it.
+      control.attach(deviceId, wrapped, providers, hello);
     },
     announceRules: control.announceRules,
     detach(link) {
@@ -180,6 +181,8 @@ export interface AgentOptions {
   /** Claude Code's projects store; by default a directory of the agent's own, for the fake `claude`. */
   claudeProjects?: string;
   env?: Record<string, string>;
+  /** More fields of the agent's config.json, such as `session_mcp`. */
+  config?: Record<string, unknown>;
 }
 
 /** One development machine: its own state root, Claude store and `hoplet-agent` process. */
@@ -211,6 +214,7 @@ export class TestAgent {
         claude_bin: options.binaries.claude,
         exclude_prefixes: [],
         poll_interval_ms: 50,
+        ...options.config,
       }),
     );
   }

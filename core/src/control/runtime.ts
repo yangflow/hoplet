@@ -25,6 +25,7 @@ import {
 } from './permissions.ts';
 import { type ControlState, onlineLink } from './state.ts';
 import type {
+  CommandActor,
   Control,
   ControlReply,
   DeviceLink,
@@ -97,6 +98,12 @@ export type Runtime = Pick<
   /** These devices lost their connection: their sessions are `offline`. */
   detached(deviceIds: string[], link: DeviceLink): void;
 };
+
+/** The actor of an interrupt or a stop; the core's own commands are on the channel `core`. */
+function actorFields(actor: CommandActor | undefined) {
+  if (actor === undefined) return {};
+  return actor.kind === 'core' ? { actor, channel: 'core' as const } : { actor };
+}
 
 function deviceOf(state: ControlState, link: DeviceLink): string | null {
   for (const [deviceId, attached] of state.byDevice) if (attached === link) return deviceId;
@@ -403,7 +410,7 @@ export function createRuntime(state: ControlState): Runtime {
       }
       store.audit({
         type: 'session.interrupted',
-        ...(actor ? { actor } : {}),
+        ...actorFields(actor),
         sessionId,
         deviceId: ownerDeviceId,
       });
@@ -413,10 +420,16 @@ export function createRuntime(state: ControlState): Runtime {
       return { ok: true };
     },
 
-    stop(sessionId, ownerDeviceId): RuntimeCommandOutcome {
+    stop(sessionId, ownerDeviceId, actor, cascadeOf): RuntimeCommandOutcome {
       const link = onlineLink(state, ownerDeviceId);
       if (!link) return { ok: false, error: 'owner-offline' };
-      store.audit({ type: 'session.stopped', sessionId, deviceId: ownerDeviceId });
+      store.audit({
+        type: 'session.stopped',
+        ...actorFields(actor),
+        sessionId,
+        deviceId: ownerDeviceId,
+        ...(cascadeOf !== undefined ? { summary: { cascade: cascadeOf } } : {}),
+      });
       log('info', 'control', 'stop forwarded', { sessionId });
       state.stopping.add(sessionId);
       const msg: RuntimeStop = { v: PROTOCOL_VERSION, type: 'runtime.stop', sessionId };

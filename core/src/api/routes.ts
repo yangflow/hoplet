@@ -875,7 +875,7 @@ export const routes: readonly Route[] = [
         (state === 'done' || state === 'failed') &&
         LIVE_STATES.has(d.control.runtimeOf(child).state)
       ) {
-        released = d.control.stop(child, owner).ok;
+        released = d.control.stop(child, owner, actorOf(d.principal)).ok;
       }
       const collected = fitCollect({
         sessionId: child,
@@ -953,7 +953,7 @@ export const routes: readonly Route[] = [
           if (id === child) throw new ApiError('owner-offline');
           continue;
         }
-        const stopped = d.control.stop(id, owner);
+        const stopped = d.control.stop(id, owner, actorOf(d.principal));
         if (!stopped.ok) {
           if (id === child) throw new ApiError(stopped.error);
           continue;
@@ -1397,7 +1397,7 @@ export const routes: readonly Route[] = [
     response: StopResultSchema,
     handler: (d) => {
       const sessionId = d.params.sessionId ?? '';
-      const outcome = d.control.stop(sessionId, ownerOf(d, sessionId));
+      const outcome = d.control.stop(sessionId, ownerOf(d, sessionId), actorOf(d.principal));
       if (!outcome.ok) throw new ApiError(outcome.error);
       if (d.query.cascade !== 'true') return { ok: true as const };
       // The live descendants follow, best effort: one that cannot be reached is left out of `stopped`.
@@ -1405,7 +1405,7 @@ export const routes: readonly Route[] = [
       for (const { sessionId: id } of descendantsOf(d.store.childChains(), sessionId)) {
         const owner = d.control.ownerOf(id);
         if (owner === null || !LIVE_STATES.has(d.control.runtimeOf(id).state)) continue;
-        if (d.control.stop(id, owner).ok) stopped.push(id);
+        if (d.control.stop(id, owner, actorOf(d.principal), sessionId).ok) stopped.push(id);
       }
       return { ok: true as const, stopped };
     },
