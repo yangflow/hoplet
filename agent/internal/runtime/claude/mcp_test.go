@@ -139,7 +139,7 @@ func mcpHook(t *testing.T, opts Options, withMCP bool, tool string) (string, str
 }
 
 func TestReadToolsOfTheHopletServerAreAllowedWithoutAPrompt(t *testing.T) {
-	for _, tool := range []string{"list_machines", "list_sessions", "read_session", "get_config", "list_skills", "read_skill", "read_memory"} {
+	for _, tool := range []string{"list_machines", "list_sessions", "read_session", "get_config", "list_skills", "read_skill", "read_memory", "get_change"} {
 		d, _ := mcpHook(t, Options{}, true, "mcp__hoplet__"+tool)
 		if d != "allow" {
 			t.Fatalf("%s: decision %q", tool, d)
@@ -154,6 +154,7 @@ func TestOnlyReadToolsOfThisServerInAProcessWithIt(t *testing.T) {
 		tool    string
 	}{
 		{"a tool that is not a read tool", true, "mcp__hoplet__send_message"},
+		{"a write tool", true, "mcp__hoplet__propose_memory_change"},
 		{"another server", true, "mcp__github__read_session"},
 		{"a process without the server", false, "mcp__hoplet__read_session"},
 	}

@@ -1,10 +1,11 @@
 // Requests of sessions to change their own configuration (#69, ADR 0036), with the previous content of what they
 // changed, which undo needs.
-import type {
-  ConfigChangeObject,
-  ConfigChangeState,
-  ConfigObjectKind,
-  SessionConfigChange,
+import {
+  type ConfigChangeObject,
+  type ConfigChangeState,
+  type ConfigObjectKind,
+  configTakesEffect,
+  type SessionConfigChange,
 } from '@hoplet/shared';
 import { type AuditInput, auditedChange } from './audit.ts';
 import type { StoreContext } from './layout.ts';
@@ -58,7 +59,11 @@ function changeOf(row: Row): StoredConfigChange {
     sessionId: row.session_id,
     state,
     reason: row.reason,
-    objects: parsed<ConfigChangeObject[]>(row.objects, []),
+    // An object stored without `takesEffect` gets the answer for its kind.
+    objects: parsed<ConfigChangeObject[]>(row.objects, []).map((o) => ({
+      ...o,
+      takesEffect: o.takesEffect ?? configTakesEffect(o.kind, false),
+    })),
     createdAt: row.created_at,
     expiresAt: row.expires_at,
     decidedAt: row.decided_at,

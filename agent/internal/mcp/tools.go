@@ -30,6 +30,7 @@ const (
 	ToolListSkills = "list_skills"
 	ToolReadSkill  = "read_skill"
 	ToolReadMemory = "read_memory"
+	ToolGetChange  = "get_change"
 	// The two tools that read one's own children (ADR 0035) need only `read`: they change nothing.
 	ToolWaitChildren  = "wait_children"
 	ToolReadChildDiff = "read_child_diff"
@@ -49,12 +50,24 @@ const (
 // ActTools are the tools that change another session.
 var ActTools = []string{ToolSendPrompt, ToolInterruptSession, ToolStartSession, ToolRequestHandoff, ToolCollectChild, ToolCancelChild}
 
+// The tools that propose a change to this session's own configuration (ADR 0036). They need the `write-config`
+// ability, which the session's setting gives, so the vendor asks the user before each call: the built-in
+// permission rule does not cover them. Nothing is written until the user approves the change in Hoplet.
+const (
+	ToolProposeConfigChange = "propose_config_change"
+	ToolProposeMemoryChange = "propose_memory_change"
+	ToolProposeSkillChange  = "propose_skill_change"
+)
+
+// WriteTools are the tools that propose a change to this session's own configuration.
+var WriteTools = []string{ToolProposeConfigChange, ToolProposeMemoryChange, ToolProposeSkillChange}
+
 // IsKnownTool says whether name is a tool this server offers.
 func IsKnownTool(name string) bool {
 	if IsReadTool(name) {
 		return true
 	}
-	for _, t := range ActTools {
+	for _, t := range append(append([]string{}, ActTools...), WriteTools...) {
 		if t == name {
 			return true
 		}
@@ -63,7 +76,7 @@ func IsKnownTool(name string) bool {
 }
 
 // ReadTools are the tools that need only the `read` ability, which the built-in rule allows.
-var ReadTools = []string{ToolListMachines, ToolListSessions, ToolReadSession, ToolGetConfig, ToolListSkills, ToolReadSkill, ToolReadMemory, ToolWaitChildren, ToolReadChildDiff}
+var ReadTools = []string{ToolListMachines, ToolListSessions, ToolReadSession, ToolGetConfig, ToolListSkills, ToolReadSkill, ToolReadMemory, ToolGetChange, ToolWaitChildren, ToolReadChildDiff}
 
 // IsReadTool says whether name is one of ReadTools.
 func IsReadTool(name string) bool {
@@ -153,6 +166,70 @@ func tools() []toolDef {
 			InputSchema: obj(map[string]any{
 				"scope":  map[string]any{"type": "string", "enum": []string{"project", "user"}, "description": "Where to look (default project)."},
 				"offset": map[string]any{"type": "integer", "minimum": 0, "description": "Byte offset to continue from (default 0)."},
+			}),
+		},
+		{
+			Name: ToolProposeConfigChange,
+			Description: "Propose to change this session's own model, effort or both. It returns at once with a " +
+				"pending change: the user approves or declines it in Hoplet, and nothing changes before they approve. " +
+				"An applied change takes effect from this session's next turn. Use values get_config lists; a value " +
+				"marked high risk is refused. A refusal names its code (forbidden, external, owner-offline) " +
+				"and, where there is one, a reason; do not retry a refusal. Proposals are limited to " +
+				changeLimits + ".",
+			InputSchema: obj(map[string]any{
+				"model":  map[string]any{"type": "string", "minLength": 1, "maxLength": maxChangeValueChars, "description": "A model value get_config lists."},
+				"effort": map[string]any{"type": "string", "minLength": 1, "maxLength": maxChangeValueChars, "description": "An effort value get_config lists."},
+				"reason": map[string]any{"type": "string", "minLength": 1, "maxLength": maxReasonChars, "description": "Why the change helps, shown to the user."},
+			}, "reason"),
+		},
+		{
+			Name: ToolProposeMemoryChange,
+			Description: "Propose new content for this project's memory file (the one read_memory reads). Give the " +
+				"whole new file and the hash read_memory returned. It returns at once with a pending change: the user " +
+				"sees the diff and approves or declines it in Hoplet, and nothing is written before they approve. An " +
+				"applied change takes effect when this session next starts; the current conversation keeps the old " +
+				"instructions. Only the project's file can be changed, never the user's. A refusal names its code " +
+				"(forbidden, stale, unsafe-content, too-large, owner-offline, unsupported) and, where there is one, a reason; after " +
+				"stale, read the file again before proposing. Proposals are limited to " + changeLimits + ".",
+			InputSchema: obj(map[string]any{
+				"content":  map[string]any{"type": "string", "description": "The whole new file, at most 64 KiB."},
+				"baseHash": map[string]any{"type": "string", "pattern": "^([0-9a-f]{64})?$", "description": "The hash read_memory returned; empty when the file does not exist."},
+				"reason":   map[string]any{"type": "string", "minLength": 1, "maxLength": maxReasonChars, "description": "Why the change helps, shown to the user."},
+				"scope":    map[string]any{"type": "string", "enum": []string{"project"}, "description": "Only project."},
+			}, "content", "reason"),
+		},
+		{
+			Name: ToolProposeSkillChange,
+			Description: "Propose to create, replace or delete up to 5 of this project's skills or commands in one " +
+				"change. Give each one's whole new file, or delete true, and the hash read_skill returned. It returns " +
+				"at once with a pending change: the user sees the diffs and approves or declines them together in " +
+				"Hoplet, and nothing is written before they approve. An applied change takes effect when this session " +
+				"next starts; do not assume this session sees it before. A file may not grant tools (allowed-tools). " +
+				"Only the project's files can be changed, never the user's. A refusal names its code (forbidden, " +
+				"stale, unsafe-content, too-large, owner-offline, unsupported) and, where there is one, a reason; after stale, read " +
+				"the file again before proposing. Proposals are limited to " + changeLimits + ".",
+			InputSchema: obj(map[string]any{
+				"changes": map[string]any{
+					"type": "array", "minItems": 1, "maxItems": maxChangeObjects,
+					"items": obj(map[string]any{
+						"name":     map[string]any{"type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,63}$", "description": "The skill's or command's name."},
+						"kind":     map[string]any{"type": "string", "enum": []string{"skill", "command"}, "description": "Skill or command (default skill)."},
+						"content":  map[string]any{"type": "string", "description": "The whole new file (a skill's SKILL.md); all contents together at most 64 KiB."},
+						"delete":   map[string]any{"type": "boolean", "description": "Delete it instead; give no content."},
+						"baseHash": map[string]any{"type": "string", "pattern": "^([0-9a-f]{64})?$", "description": "The hash read_skill returned; empty for a new one."},
+						"scope":    map[string]any{"type": "string", "enum": []string{"project"}, "description": "Only project."},
+					}, "name"),
+				},
+				"reason": map[string]any{"type": "string", "minLength": 1, "maxLength": maxReasonChars, "description": "Why the change helps, shown to the user."},
+			}, "changes", "reason"),
+		},
+		{
+			Name: ToolGetChange,
+			Description: "Show the state of a change this session proposed (the newest without changeId): pending, " +
+				"approved, applied, declined, expired, failed or undone, and when each object takes effect " +
+				"(now, next-turn or next-start). It does not return the content.",
+			InputSchema: obj(map[string]any{
+				"changeId": map[string]any{"type": "string", "description": "The ID a propose tool returned (default: the newest)."},
 			}),
 		},
 		{

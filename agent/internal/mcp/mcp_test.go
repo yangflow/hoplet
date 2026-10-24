@@ -57,7 +57,7 @@ func TestInitializeToolsListAndNotification(t *testing.T) {
 	for _, x := range list {
 		names = append(names, x.(map[string]any)["name"].(string))
 	}
-	if strings.Join(names, ",") != "list_machines,list_sessions,read_session,get_config,list_skills,read_skill,read_memory,send_prompt,interrupt_session,start_session,wait_children,collect_child,read_child_diff,cancel_child,request_handoff" {
+	if strings.Join(names, ",") != "list_machines,list_sessions,read_session,get_config,list_skills,read_skill,read_memory,propose_config_change,propose_memory_change,propose_skill_change,get_change,send_prompt,interrupt_session,start_session,wait_children,collect_child,read_child_diff,cancel_child,request_handoff" {
 		t.Fatalf("tools = %v", names)
 	}
 }
@@ -109,7 +109,8 @@ func TestToolsCallAndErrors(t *testing.T) {
 func TestOnlyTheReadToolsAreReadTools(t *testing.T) {
 	for _, tool := range tools() {
 		isAct := tool.Name == ToolSendPrompt || tool.Name == ToolInterruptSession || tool.Name == ToolStartSession || tool.Name == ToolRequestHandoff ||
-			tool.Name == ToolCollectChild || tool.Name == ToolCancelChild
+			tool.Name == ToolCollectChild || tool.Name == ToolCancelChild ||
+			tool.Name == ToolProposeConfigChange || tool.Name == ToolProposeMemoryChange || tool.Name == ToolProposeSkillChange
 		if IsReadTool(tool.Name) == isAct {
 			t.Fatalf("%s: read tool = %v", tool.Name, IsReadTool(tool.Name))
 		}

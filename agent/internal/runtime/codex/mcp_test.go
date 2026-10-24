@@ -159,6 +159,9 @@ func TestHookAllowsTheReadToolsOfTheHopletServerOnlyWithoutARule(t *testing.T) {
 	if r := p.decideHook(context.Background(), call("send_prompt")); r.Decision == hookAllow {
 		t.Errorf("a tool that is not a read tool was allowed: %+v", r)
 	}
+	if r := p.decideHook(context.Background(), call("propose_skill_change")); r.Decision == hookAllow {
+		t.Errorf("a write tool was allowed: %+v", r)
+	}
 	q := hookProcess(t)
 	if r := q.decideHook(context.Background(), call("list_sessions")); r.Decision == hookAllow {
 		t.Errorf("a process without the server was allowed: %+v", r)

@@ -15,8 +15,9 @@ import (
 )
 
 const (
-	// maxRequest bounds one request on the socket.
-	maxRequest = 64 << 10
+	// maxRequest bounds one request on the socket: a proposal carries up to 64 KiB of content, which JSON escaping can
+	// double; the core takes 160 KiB.
+	maxRequest = 160 << 10
 	// readTimeout bounds how long a connection may take to send its request.
 	readTimeout = 10 * time.Second
 	// callBudget bounds one tool call in the daemon; the stdio server gives up a little later.

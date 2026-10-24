@@ -721,7 +721,7 @@ The agent receives the token over its own WebSocket and keeps it in memory: it s
 (`requestId`, `sessionId`) and the core answers `runtime.mcp.token` (`requestId`, `sessionId`, and `token` with
 `expiresAt`, or `reason`: `unknown-session`, `not-owner`, `not-allowed`). Both are control-lane messages; the core
 answers only the device that owns the session and announced `capabilities.sessionMcp` in `device.hello`. The agent
-turns the model's MCP calls (`list_machines`, `list_sessions`, `read_session`, `get_config`, `list_skills`, `read_skill`, `read_memory`, `send_prompt`, `interrupt_session`, `start_session`, `wait_children`, `collect_child`, `read_child_diff`, `cancel_child`, `request_handoff`) into the requests below.
+turns the model's MCP calls (`list_machines`, `list_sessions`, `read_session`, `get_config`, `list_skills`, `read_skill`, `read_memory`, `propose_config_change`, `propose_memory_change`, `propose_skill_change`, `get_change`, `send_prompt`, `interrupt_session`, `start_session`, `wait_children`, `collect_child`, `read_child_diff`, `cancel_child`, `request_handoff`) into the requests below.
 
 A session token reaches only the routes marked for sessions: the list and read of sessions, lines and blocks, the
 device list, prompt, queue (`POST /api/sessions/:sessionId/queue`), interrupt, `POST /api/sessions`, `POST /api/handoff-requests` and its own configuration changes (below); every other route answers `forbidden`. A session sees
@@ -820,10 +820,10 @@ object is `{kind, name, content, baseHash}`. The kinds `memory` (`name` `project
 working directory; `content` is the whole new file, or null to delete a `skill` or `command`;
 `baseHash` is the hash of the file the proposal was made against, empty or absent for a new file. The kind `config` has
 `name` `model` or `effort` and the value as `content`, and ignores `baseHash`. A `name` that does not fit its kind, or an
-object twice, is `invalid-request`. A `config` value is checked as for `POST /api/sessions/:sessionId/config`: an
-unknown option or value is `invalid-request` with the `reason` `unknown-option` or `unknown-value`, a `risk: "high"`
-choice `high-risk`, and a permission `mode` `mode` (it is not changed this way). Content shaped like a credential is
-`unsafe-content`. The core asks the owner's agent to preview the files and answers with the change and its diff:
+object twice, is `invalid-request`. A `config` value must be a value the driver declares for a select option: an
+unknown option or value is `forbidden` with the `reason` `unknown-option` or `unknown-value`, a `risk: "high"`
+choice `high-risk`, and an option of the category `mode` `mode` (it is not changed this way); a session the agent
+does not run (`external`) cannot change an option. Content shaped like a credential is `unsafe-content`. The core asks the owner's agent to preview the files and answers with the change and its diff:
 `owner-offline` when the agent is not connected, `timeout` when it does not answer in time, `unsupported` when it cannot
 write this object (a Codex session; a skill or command while the vendor version is not one the driver was tested with;
 an `AGENTS.md` that a `CLAUDE.md` which does not import it shadows), `stale` when `baseHash` differs from the file now,
@@ -833,7 +833,14 @@ The agent's content check answers `unsafe-content` with the rule as `reason`: `f
 may set only `name` and `description`), `front-matter`, `front-matter-unclosed`, `byte-order-mark`, `shell-command`
 (any `` !` `` and a fence opened with `!`), and for a new `@` import `import-outside` (outside the working directory),
 `import-denied` (a file of the floor) and `import-symlink`. An object the agent would create directories for carries
-`newDirectories`, relative to the working directory. A session has one open request (`request-closed`).
+`newDirectories`, relative to the working directory. A session has one open request: another proposal while one is
+`pending` or `approved` is `forbidden` with the `reason` `request-open`.
+
+Each object of a change carries `takesEffect`, when it reaches the session once the change is applied: `next-turn`
+for `model` and `effort`, which the agent switches before the session's next turn, and `next-start` for the memory
+file, a skill and a command, which the vendor reads when its process starts (the running conversation keeps the
+instructions it loaded). `now` is for a skill or command of a vendor that rescans them while it runs; no driver
+reports that, so no change says `now` yet.
 
 A change is `pending`, `approved`, `applied`, `declined`, `expired`, `failed` or `undone`. The host decides with
 `POST /api/config-changes/:changeId/approve` or `.../decline` (`request-closed` when it is no longer `pending`). An
@@ -847,6 +854,18 @@ the change cannot be undone (`request-closed`). The audit events are `config.cha
 `config.change.decided`, `config.change.applied`, `config.change.failed` and `config.change.undone`; they name the
 object keys (`kind:name`) and never the content. The browser message `session.change` carries the ids and the state
 only, so a browser reads the change over REST.
+
+The MCP tools are these routes. `propose_config_change` (`model`, `effort` or both, and `reason`) proposes `config`
+objects; `propose_memory_change` (`content`, `baseHash` from `read_memory`, `reason`) proposes the `memory` object;
+`propose_skill_change` (`changes`: 1 to 5 of `{name, kind, content | delete, baseHash}`, and `reason`) proposes
+`skill` and `command` objects. The user scope is not offered: a `scope` other than `project` is refused before the
+core is asked, as are a bad name, hash, size or reason. Each answers at once with the pending change's ID and, for
+each object, its `takesEffect` in words (for memory: the current conversation keeps the old instructions); they
+never echo the content or the diff. `get_change` (`changeId`, or the newest of the session without one) is the state,
+the times, `error` and `errorReason`, and each object's `kind`, `name` and `takesEffect`. The three `propose_*` tools
+need `write-config` and Claude Code and Codex ask the user before each call (the built-in rule allows only the read
+tools, `get_change` among them); the change itself still waits for the host's approval. A request on the agent's
+socket is at most 160 KiB, as is the route's body.
 
 The prompt of a session carries its origin. `runtime.prompt` has an optional `source` (`kind: "session"`, the
 sender's `sessionId`, its `title` as one line of at most 100 characters without quotes, and the `chain`), set by the

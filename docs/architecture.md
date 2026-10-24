@@ -254,7 +254,17 @@ The `control` module `config-changes` keeps a session's requests to change its o
 and a test may pass its own. The objects are a closed set of kinds and names, so the core never sees a path. Approval
 sets the options through `runtime.config`, then writes the files; when the files fail, the options are put back. Undo
 is an apply with `restore`, files first and then the options. Expiry and the 30-day pruning of `previous` run on the core's clock.
-The browser is told with `session.change` (ids and state).
+The browser is told with `session.change` (ids and state). Each stored object carries `takesEffect`, computed when the
+request is made by `configTakesEffect` in `shared/`: `next-turn` for an option, `next-start` for the memory file, and
+for a skill or command `now` only where the vendor rescans them while it runs. No driver reports a rescan, so the
+module passes no reload and every file is `next-start`; the wire has no capability for it.
+
+The session's MCP tools `propose_config_change`, `propose_memory_change` and `propose_skill_change` (package
+`agent/internal/mcp`) build the request from their arguments, check the names, hashes, sizes and reason before the core
+is asked, and post it with the session's token; `get_change` reads it back. They return the change's ID, its state
+and each object's `kind`, `name` and `takesEffect`, never the content or the diff. The propose tools are not read
+tools, so the hook does not allow them and the vendor asks the user; `mcp.sock` takes a request of up to 160 KiB, the
+route's body limit, so a proposal of 64 KiB fits after JSON escaping.
 
 A request becomes a file in the agent package `configfiles` (the `Writer`), and nowhere else. It maps a kind and a name
 to a path below the session's working directory: `memory:project` to the file Claude Code reads (an existing `CLAUDE.md`,
@@ -289,12 +299,14 @@ memory until it expires or the core answers 401. The core answers only a device 
 `capabilities.sessionMcp` in `device.hello` and owns the session. The read tools are `list_machines`, `list_sessions` and
 `read_session` (a page of lines by cursor, at most 100 lines and 32 KiB a call, a long entry cut, the result marked
 as data and passed through the scrubber), and `get_config`, `list_skills`, `read_skill` and `read_memory`, which read
-the session's own options, skills, commands and memory file through the `session.config.read` request; a refusal reaches the model as a code, never the request. In Claude Code and Codex
+the session's own options, skills, commands and memory file through the `session.config.read` request, and
+`get_change`, the state of the session's own configuration change; a refusal reaches the model as a code, never the request. In Claude Code and Codex
 they are `mcp__hoplet__<tool>`, match as `mcp:hoplet/<tool>` in the rules, and the Claude and Codex hooks allow the read
 tools when no rule decided. `send_prompt` (queued through `POST /api/sessions/:id/queue`), `interrupt_session` and `start_session`
 (`POST /api/sessions`, with the new session's chain recorded in `session_provenance`)
 act on another session: the hook does not allow them, so the vendor asks the user, and the core checks the grant,
-the target's mode, the chain and the limits again. The core sets `source` on the `runtime.prompt` it sends for such a
+the target's mode, the chain and the limits again. The hook does not allow `propose_config_change`,
+`propose_memory_change` and `propose_skill_change` either (see Configuration changes of a session). The core sets `source` on the `runtime.prompt` it sends for such a
 message, and the target's agent puts the fixed line naming the sender before the text; `runtime.start` carries the same `source`, and the new session's first prompt gets the line. A parent also has `wait_children` and `read_child_diff` (read tools: they change nothing and reach only its own children) and `collect_child` and `cancel_child` (the hook does not allow them either); see Trees of work.
 
 ### A runtime capability
