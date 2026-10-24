@@ -122,6 +122,12 @@ const subject: Record<string, Record<string, string>> = {
     'delete-running': 'cockpit.delete-running',
     'delete-progress': 'cockpit.delete-steps',
     'delete-partial': 'cockpit.delete-retry',
+    'session-menu-export': 'menu.export',
+    'export-dialog': 'cockpit.export-dialog',
+    'export-review': 'cockpit.export-kinds',
+    'export-progress': 'cockpit.export-progress',
+    'export-done': 'cockpit.export-facts',
+    'export-failed': 'cockpit.export-error',
     pinned: 'cockpit.pinned',
     'pinned-flat': 'cockpit.pinned',
     archived: 'cockpit.archived-page',
@@ -314,8 +320,8 @@ const subject: Record<string, Record<string, string>> = {
   },
 };
 
-test('the registries list 131 cockpit, 80 workspace, 102 settings and 7 action states', () => {
-  expect(screens.cockpit).toHaveLength(131);
+test('the registries list 137 cockpit, 80 workspace, 102 settings and 7 action states', () => {
+  expect(screens.cockpit).toHaveLength(137);
   expect(screens.workspace).toHaveLength(80);
   expect(screens.settings).toHaveLength(102);
   expect(screens.action).toHaveLength(7);

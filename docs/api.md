@@ -122,6 +122,7 @@ Response column names the schema of the success body and its status when it is n
 | GET | `/api/sessions/:sessionId/workspace/diff` | host | control | `WorkspaceDiffQuerySchema` | — | `WorkspaceDiffSchema` | `invalid-request`, `session-not-found`, `owner-offline`, `timeout`, `rejected` |
 | GET | `/api/sessions/:sessionId/workspace/changes` | host | control | — | — | `WorkspaceChangesSchema` | `session-not-found`, `owner-offline`, `timeout`, `rejected` |
 | GET | `/api/sessions/:sessionId/snapshot/changes` | host | bulk | — | — | `SnapshotChangesSchema` | `session-not-found`, `no-snapshot`, `busy` |
+| GET | `/api/sessions/:sessionId/export` | host | bulk | `SessionExportQuerySchema` | — | `SessionExportMarkdownSchema`, streamed as Markdown ([Session export](#session-export)) | `invalid-request`, `session-not-found`, `rate-limited`, `busy` |
 | GET | `/api/sessions/:sessionId/snapshot/diff` | host | bulk | `SnapshotDiffQuerySchema` | — | `SnapshotDiffSchema` | `invalid-request`, `session-not-found`, `no-snapshot`, `not-found`, `busy` |
 | POST | `/api/sessions/:sessionId/handoff` | host | control | — | `HandoffRequestSchema` | `HandoffResultSchema` | `invalid-json`, `invalid-request`, `too-large`, `session-not-found`, `same-device`, `target-offline`, `owner-offline`, `handoff-in-progress`, `busy`, `no-snapshot`, `no-clone`, `clone-failed`, `session-changed`, `verify-failed`, `cancelled`, `timeout`, `rejected` |
 | GET | `/api/sessions/:sessionId/handoff/rules` | host | control | `HandoffRulesQuerySchema` | — | `HandoffRulesPreviewSchema` | `invalid-request`, `session-not-found`, `not-found` |
@@ -533,7 +534,8 @@ A value that is not a number reads as the default. The other query parameters ar
 `GET /api/sessions/:sessionId/workspace/file` takes `path` and `at` (`worktree`, the default, or `head`), the
 `GET /api/sessions/:sessionId/workspace/diff` takes `path`, `against` (`head`, the default, or `base`), `cursor` and
 `limit` (see docs/spec.md#workspace), `GET /api/sessions/:sessionId/snapshot/diff` takes `path`,
-`GET /api/devices/:deviceId/clone` takes `origin`, and `GET /api/devices/:deviceId/dirs`
+`GET /api/devices/:deviceId/clone` takes `origin`, `GET /api/sessions/:sessionId/export` takes the parameters in
+[Session export](#session-export), and `GET /api/devices/:deviceId/dirs`
 takes an optional `path` (absent or `~` is the browse root).
 
 `PATCH /api/sessions/:sessionId` changes what the user did to a session, beside what its vendor wrote: `title` is
@@ -551,14 +553,40 @@ A session's metadata (the list and `GET /api/sessions/:sessionId`) carries `cont
 ([ADR 0025](adr/0025-a-plan-can-be-approved-into-a-new-session.md)). `title` is the one the list shows for that
 session, or `""` while the session is not in the index yet; the client shows its untitled placeholder then.
 
-## Error codes
+### Session export
+
+`GET /api/sessions/:sessionId/export` is the one read that covers a whole session
+([ADR 0040](adr/0040-a-session-exports-as-one-streamed-markdown-file.md)): the core writes the session as one
+Markdown file and streams it (`text/markdown; charset=utf-8`, `Content-Disposition: attachment` with a file name
+made from the title, `Cache-Control: no-store`). Only the host token may call it. At most two exports run at once;
+a third answers `rate-limited`. Each call, a preview included, is recorded as `session.exported` before the file
+starts. The query:
+
+| Parameter | Meaning |
+|---|---|
+| `conversation` | `all` (the default: every turn with its tool calls, long output elided), `replies` (the user's messages and the last reply of each turn) or `none` |
+| `summary` | Text written under `## Summary` as given, at most 3 KiB; Hoplet writes no summary of its own |
+| `changes` | `true` adds the net diff against the base, from the owner when it is online and else from the latest snapshot; at most 256 KiB, the files past it named and counted |
+| `commands` | `true` adds a table of the commands run, with their turn and exit code (at most 1,000) |
+| `machines` | `true` adds the machines each turn ran on and the hand-off points, from the audit log |
+| `mask` | The user's own strings to mask, one per line: at most 20, each three characters or more, 1 KiB in all |
+| `tz` | The IANA time zone the times are written in; UTC when absent |
+
+The file opens with front matter (`title`, `session`, `project`, `provider`, `machines` when asked, `turns`,
+`exported`, `hoplet`), a warning to check it before sharing and a table of the session; then the summary, the
+conversation (`### Turn <n> · <machine> · <time>`, tool calls in `<details>`), the commands and the changes.
+`turns` is known before the first turn is written, so a client can show progress. Every part is masked as it
+is written: a value that looks like a credential, and each of the user's strings, becomes
+`[redacted:<kind>]`. Masking is best effort. An export that fails after the file started ends the connection
+without completing the response; the client discards what it received.
+
 
 | Code | HTTP status | Meaning |
 |---|---|---|
 | `unauthorized` | 401 | The host token or API token is missing, wrong, expired or revoked |
 | `invalid-token` | 400 | The action token is malformed, was not signed by this core or does not match any request |
 | `forbidden` | 403 | A scoped API token ([API tokens](#api-tokens)) asked for a machine or project outside its allow-list, for a high-risk configuration option, or for a route its abilities do not cover; a session token asked to prompt or interrupt a session in a more permissive mode than its own (`reason`: `target-mode-more-permissive`, `sender-mode-unknown` or `target-mode-unknown`) |
-| `rate-limited` | 429 | Too many requests to the action routes, or more than 300 in a minute with one API token, or a session prompted other sessions too often ([Sessions as callers](#sessions-as-callers)); retry after `Retry-After` seconds |
+| `rate-limited` | 429 | Too many requests to the action routes, or more than 300 in a minute with one API token, or a session prompted other sessions too often ([Sessions as callers](#sessions-as-callers)), or two session exports are already running ([Session export](#session-export)); retry after `Retry-After` seconds |
 | `self` | 400 | A session addressed itself: a session token asked to prompt or interrupt its own session |
 | `loop-limit` | 409 | The prompt would close a loop or make a chain of more than three sessions ([Sessions as callers](#sessions-as-callers)) |
 | `depth-limit` | 409 | A session started a session more than two levels below the root of its tree ([Child sessions](#child-sessions)) |
@@ -1009,6 +1037,7 @@ routes that use it and the reason. These are the exclusions:
 | `GlobalSearchQuerySchema` | `GET /api/search` | The same as `SessionSearchQuerySchema` |
 | `AuditEventsQuerySchema` | `GET /api/audit/events` | It coerces numbers and splits `actor` into kind and ID (a `transform`) |
 | `AuditExportQuerySchema` | `GET /api/audit/export` | The same as `AuditEventsQuerySchema` |
+| `SessionExportQuerySchema` | `GET /api/sessions/:sessionId/export` | It bounds `summary` and `mask` in UTF-8 bytes and splits `mask` into lines (a `transform`) |
 
 Their parameters are in [Query parameters](#query-parameters). The messages between the agents and the core
 (`/ws/agent`) are not part of this contract.

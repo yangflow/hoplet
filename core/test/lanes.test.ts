@@ -79,7 +79,7 @@ describe('the bulk queue', () => {
 });
 
 describe('REST lanes', () => {
-  it('puts history reads, searches, the audit log and image uploads on the bulk lane and everything else on control', () => {
+  it('puts history reads, searches, exports, the audit log and image uploads on the bulk lane and everything else on control', () => {
     const bulk = routes.filter((r) => r.lane === 'bulk').map((r) => r.path);
     expect(bulk.sort()).toEqual([
       '/api/audit/events',
@@ -89,6 +89,7 @@ describe('REST lanes', () => {
       '/api/search',
       '/api/sessions/:sessionId/blocks/:line/:block',
       '/api/sessions/:sessionId/children/:childId/diff',
+      '/api/sessions/:sessionId/export',
       '/api/sessions/:sessionId/lines',
       '/api/sessions/:sessionId/search',
       '/api/sessions/:sessionId/snapshot/changes',

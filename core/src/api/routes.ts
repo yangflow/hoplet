@@ -134,6 +134,8 @@ import {
   SessionConfigChangeListSchema,
   SessionConfigChangeSchema,
   SessionConfigViewSchema,
+  SessionExportMarkdownSchema,
+  SessionExportQuerySchema,
   SessionHandoffRequestCreateSchema,
   SessionHandoffRequestListSchema,
   SessionHandoffRequestSchema,
@@ -234,6 +236,7 @@ import {
 } from './principal.ts';
 import { blockOfLine, excerptOf, projectLine } from './projection/index.ts';
 import { type ApiDeps, defineRoute, type Route } from './router.ts';
+import { sessionExport } from './session-export.ts';
 
 const MAX_PROMPT_CHARS = 8_000;
 /** One uploaded image: 4 MiB as base64 and its media type (ADR 0017). */
@@ -1578,6 +1581,15 @@ export const routes: readonly Route[] = [
       if (!changes) throw new ApiError('no-snapshot');
       return changes;
     },
+  }),
+  defineRoute({
+    method: 'GET',
+    path: '/api/sessions/:sessionId/export',
+    access: 'host',
+    lane: 'bulk',
+    query: SessionExportQuerySchema,
+    response: SessionExportMarkdownSchema,
+    handler: (d) => sessionExport(d, d.params.sessionId ?? '', d.query),
   }),
   defineRoute({
     method: 'GET',

@@ -922,6 +922,42 @@ export async function fetchAuditExport(
   return res.blob();
 }
 
+/**
+ * The Markdown export of a session (ADR 0040), read as it streams: `onText` gets the whole text so far after each
+ * chunk. Resolves with the file name the core suggests and the text; a dropped connection rejects, and the caller
+ * keeps nothing of it.
+ */
+export async function fetchSessionExport(
+  sessionId: string,
+  query: Record<string, string>,
+  onText: (text: string) => void,
+  signal?: AbortSignal,
+): Promise<{ name: string; text: string }> {
+  const qs = new URLSearchParams(query);
+  const init: RequestInit = { headers: { Authorization: `Bearer ${getToken() ?? ''}` } };
+  if (signal) init.signal = signal;
+  const res = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}/export?${qs}`, init);
+  if (res.status === 401) throw new UnauthorizedError();
+  if (!res.ok || !res.body) {
+    const payload: unknown = await res.json().catch(() => null);
+    const error = safeParse(ErrorResponseSchema, payload);
+    throw error.success
+      ? new ApiError(res.status, error.output.code, error.output.reason)
+      : new ApiError(res.status, null);
+  }
+  const name =
+    /filename="([^"]+)"/.exec(res.headers.get('content-disposition') ?? '')?.[1] ?? 'session.md';
+  const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
+  let text = '';
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    text += value;
+    onText(text);
+  }
+  return { name, text };
+}
+
 /** The permission rules (docs/api.md#permission-rules). */
 export function fetchPermissionRules(query: PermissionRuleListQuery = {}, signal?: AbortSignal) {
   const qs = new URLSearchParams();

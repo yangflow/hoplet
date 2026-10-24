@@ -32,6 +32,41 @@ import type { SearchState } from './use-search.ts';
 // Fixtures for /__states/cockpit/<state>: every state of the design with its conversation and composer.
 // Nothing here is read by the real screen.
 
+/** The head of an exported file, as the core writes it, for the export dialog's states. */
+const EXPORT_SAMPLE = [
+  '---',
+  'title: "Fix chunk offsets after compaction"',
+  'session: 7f3c9a10-2b1e-4c55-9a77-0d6c3e2b8f41',
+  'project: "hoplet"',
+  'provider: claude',
+  'machines: ["MacBook Pro", "studio"]',
+  'turns: 12',
+  'exported: 2026-10-08T14:02:00+02:00',
+  'hoplet: 0.9.0',
+  '---',
+  '',
+  '# Fix chunk offsets after compaction',
+  '',
+  '> **Check before sharing.** Hoplet masked the values that look like credentials,',
+  '> shown as `[redacted:<kind>]`. Other secrets may remain in the text.',
+  '',
+  '## Conversation',
+  '',
+  '### Turn 1 · MacBook Pro · 13:02',
+  '',
+  '> **You:** Use HOPLET_TOKEN=[redacted:hoplet-token] to reach the core.',
+  '',
+  '### Turn 4 · MacBook Pro · 13:40',
+  '',
+  '- Ran `curl https://[redacted:url-credential]@example.com/core` · exit 0',
+  '- Output elided: 412 KiB, see the session in Hoplet',
+  '',
+  '### Turn 9 · studio · 14:20',
+  '',
+  '> **You:** The token is [redacted:github-token].',
+  '',
+].join('\n');
+
 const NOW = Date.UTC(2026, 9, 8, 12, 0, 0);
 const MINUTE = 60_000;
 
@@ -1933,6 +1968,33 @@ export const states: Record<string, () => ReactNode> = {
   archived: () => <Scene sessions={archivedSessions} fixture={{ archived: true }} />,
   'archived-empty': () => <Scene fixture={{ archived: true }} />,
   'session-menu-delete': () => <Scene fixture={{ actionsMenu: { item: 'delete' } }} />,
+  'session-menu-export': () => <Scene fixture={{ actionsMenu: { item: 'export' } }} />,
+  'export-dialog': () => (
+    <Scene
+      fixture={{
+        export: {
+          phase: 'options',
+          options: { summary: 'appendChunk counts the newline in each end offset.' },
+        },
+      }}
+    />
+  ),
+  'export-review': () => (
+    <Scene
+      fixture={{ export: { phase: 'review', text: EXPORT_SAMPLE, options: { summary: null } } }}
+    />
+  ),
+  'export-progress': () => (
+    <Scene fixture={{ export: { phase: 'progress', text: EXPORT_SAMPLE.slice(0, 900) } }} />
+  ),
+  'export-done': () => (
+    <Scene
+      fixture={{ export: { phase: 'done', text: EXPORT_SAMPLE, options: { summary: null } } }}
+    />
+  ),
+  'export-failed': () => (
+    <Scene fixture={{ export: { phase: 'failed', error: 'The connection to Hoplet dropped.' } }} />
+  ),
   delete: () => <Scene fixture={deleteFixture({ preview: deletionOf() })} />,
   'delete-worktree': () => (
     <Scene

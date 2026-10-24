@@ -7,6 +7,7 @@ export * from './config-changes.ts';
 export * from './config-files.ts';
 export * from './deletion.ts';
 export * from './devices.ts';
+export * from './export.ts';
 export * from './hooks.ts';
 export * from './notify.ts';
 export * from './permission-rules.ts';

@@ -138,6 +138,22 @@ test('the top bar holds the title and no machine crumb', async () => {
   await expect(page.getByTestId('cockpit.topbar')).not.toContainText(DEVICE);
 });
 
+test('Export as Markdown streams the session and saves the file when it is complete', async () => {
+  await page.getByTestId('cockpit.session-actions').click();
+  await page.getByTestId('menu.export').click();
+  const dialog = page.getByTestId('cockpit.export-dialog');
+  await expect(dialog).toBeVisible();
+  await page.getByTestId('cockpit.export-preview-button').click();
+  await expect(page.getByTestId('cockpit.export-preview')).toContainText(SHORT_TITLE);
+  const download = page.waitForEvent('download');
+  await page.getByTestId('cockpit.export-confirm').click();
+  const file = await download;
+  expect(file.suggestedFilename()).toMatch(/\.md$/);
+  await expect(page.getByTestId('cockpit.export-facts')).toBeVisible();
+  await page.getByTestId('cockpit.export-done').click();
+  await expect(dialog).toHaveCount(0);
+});
+
 async function send(text: string) {
   const input = page.getByTestId('cockpit.composer-input');
   await expect(input).toBeEnabled();

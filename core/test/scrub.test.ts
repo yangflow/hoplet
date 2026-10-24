@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { containsCredential, scrubCredentials, scrubText } from '../src/scrub/index.ts';
+import {
+  containsCredential,
+  redactForExport,
+  scrubCredentials,
+  scrubText,
+} from '../src/scrub/index.ts';
 
 const R = '[redacted]';
 
@@ -86,5 +91,75 @@ describe('containsCredential (what stored configuration must not hold)', () => {
   it('lets prose through', () => {
     expect(containsCredential('Run the tests with pnpm check before you commit.')).toBe(false);
     expect(containsCredential('Never put a token in the repository.')).toBe(false);
+  });
+});
+
+describe('redactForExport (what an exported session masks)', () => {
+  const cases: [string, string, string][] = [
+    ['an API key', 'key sk-abcdefghijklmnopqrstu here', 'key [redacted:api-key] here'],
+    ['a GitHub token', 'ghp_abcdefghijklmnopqrstuv', '[redacted:github-token]'],
+    [
+      'a Hoplet token after its name',
+      'HOPLET_TOKEN=hpt_abcdefghijklmnopqrstuv',
+      'HOPLET_TOKEN=[redacted:hoplet-token]',
+    ],
+    ['a Slack token', 'xoxb-1234567890-abcdef', '[redacted:slack-token]'],
+    ['an AWS key', 'AKIAABCDEFGHIJKLMNOP', '[redacted:aws-key]'],
+    ['a JWT', 'eyJhbGciOiJI.eyJzdWIiOiIx.sig', '[redacted:jwt]'],
+    [
+      'URL user info',
+      'https://me:pa55@example.com/x',
+      'https://[redacted:url-credential]@example.com/x',
+    ],
+    [
+      'a bearer token',
+      'Authorization: Bearer abc.def',
+      'Authorization: Bearer [redacted:bearer-token]',
+    ],
+    [
+      'a basic credential',
+      'Authorization: Basic dXNlcjpwYXNz1',
+      'Authorization: Basic [redacted:basic-auth]',
+    ],
+    ['a query credential', '/cb?token=abc123&x=1', '/cb?token=[redacted:query-credential]&x=1'],
+    ['a named secret', 'DB_PASSWORD=hunter22', 'DB_PASSWORD=[redacted:named-secret]'],
+    ['a quoted named secret', 'api_key: "my value"', 'api_key: "[redacted:named-secret]"'],
+    ['a flag', '--auth-token s3cretvalue', '--auth-token [redacted:named-secret]'],
+    [
+      'a private key block',
+      '-----BEGIN RSA PRIVATE KEY-----\nMIIE\n-----END RSA PRIVATE KEY-----',
+      '[redacted:private-key]',
+    ],
+  ];
+  for (const [name, input, output] of cases) {
+    it(`masks ${name}`, () => {
+      const r = redactForExport(input);
+      expect(r.text).toBe(output);
+      expect(r.masked).toBe(1);
+    });
+  }
+
+  it("masks the user's strings without regard to case, the longest first", () => {
+    const r = redactForExport('Acme Corp and acme corp-internal', [
+      'acme corp',
+      'Acme Corp-internal',
+    ]);
+    expect(r.text).toBe('[redacted:custom] and [redacted:custom]');
+    expect(r.masked).toBe(2);
+  });
+
+  it('never masks a marker again', () => {
+    const once = redactForExport('x sk-abcdefghijklmnopqrstu', ['redacted', 'api-key']).text;
+    expect(once).toBe('x [redacted:api-key]');
+  });
+
+  it('lets prose, hashes and paths through', () => {
+    for (const text of [
+      'Never put a token in the repository; the auth flow is in core/src/auth.',
+      'commit 4f9c2a1e8b7d6c5f4e3d2c1b0a9f8e7d6c5b4a39 changed core/src/api/session-export.ts',
+      'The password field is empty.',
+    ]) {
+      expect(redactForExport(text)).toEqual({ text, masked: 0 });
+    }
   });
 });

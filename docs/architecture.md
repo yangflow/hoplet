@@ -50,7 +50,7 @@ Claude Code               the session file (writer) and the running process
 | Component | Layer | Owns | May call | Code directory |
 |---|---|---|---|---|
 | config | core | Environment parsing; refuses to start without a host token | log | `core/src/config/` |
-| scrub | core | The credential patterns and the functions that mask them, shared by the log, notifications and the audit log | nothing | `core/src/scrub/` |
+| scrub | core | The credential patterns and the functions that mask them, shared by the log, notifications, the audit log and the Markdown export | nothing | `core/src/scrub/` |
 | log | core | One JSON object per line on stdout, with redaction | scrub | `core/src/log/` |
 | migrations | core | Forward-only schema migrations | nothing | `core/src/migrations/` |
 | store | core | SQLite index, chunk files, verbatim append and recovery, paged reads, search scans, devices, snapshots, the audit log | migrations, log, scrub | `core/src/store/` |
@@ -58,7 +58,7 @@ Claude Code               the session file (writer) and the running process
 | notify | core | Notification rules (preset, overrides, quiet hours), redaction, Web Push and webhook delivery, signed action links and their single use, the VAPID and signing secrets | store, control, log, scrub | `core/src/notify/` |
 | hooks | core | Lifecycle events from control's event stream (ADR 0031), the webhook hooks, HMAC signing, the address check, the persisted delivery queue with retry and backoff, the delivery history, the hook secrets, the script hooks the agents announced (their switch, the `hook.event` sent to the machine and the `hook.result` recorded) | store, control, notify, log, scrub | `core/src/hooks/` |
 | control | core | Runtime state per session, prompt and new-session deduplication, permission routing, handoff state machine, the limits of trees of work and the tree watcher that stops sessions past them ([ADR 0035](adr/0035-child-sessions-work-on-parts-of-a-task-in-parallel.md)), the content check of a session's change requests ([ADR 0036](adr/0036-sessions-change-their-own-configuration-over-mcp.md)), device RPC with timeouts | store, log, scrub | `core/src/control/` |
-| api | core | REST routes, read projection with one mapping per provider, browser WebSocket and subscriptions, WebSocket tickets, static files | store, control, notify, hooks, log, config | `core/src/api/` |
+| api | core | REST routes, read projection with one mapping per provider, browser WebSocket and subscriptions, WebSocket tickets, the Markdown export of a session, static files | store, control, notify, hooks, log, config, scrub | `core/src/api/` |
 | shared | contract | Schemas, derived types and error codes for REST and both WebSockets | nothing | `shared/src/` |
 | sdk | client | `@hoplet/sdk`: the typed client for scripts and tools: REST calls with errors mapped to the stable codes, paged `readSession`, `waitForTurn`, the event stream with ticket and reconnect, the protocol-version check; `shared/` is bundled into its build ([ADR 0033](adr/0033-a-command-line-tool-an-sdk-and-scoped-tokens.md)) | `shared/`, global `fetch` and `WebSocket` | `sdk/src/` |
 | cli | client | `@hoplet/cli`, the `hoplet` command: sessions, `new`, `attach`, `send`, `wait` with exit codes per result, `--json` output, and the host-token commands (interrupt, handoff, devices, audit, tokens); credentials from the environment or a file, nothing stored ([ADR 0033](adr/0033-a-command-line-tool-an-sdk-and-scoped-tokens.md)) | `sdk/`, `node:*` | `cli/src/` |

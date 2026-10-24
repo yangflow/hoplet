@@ -1,0 +1,120 @@
+/* Export as Markdown: the delete dialog's checklist, a radio group, a review list and a progress bar */
+.modal.dx.ex {
+  width: min(520px, calc(100vw - 2 * var(--space-4)));
+}
+.ex .ex-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ex .ex-sec {
+  padding: var(--space-2) var(--space-2) 0;
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  font-weight: var(--weight-medium);
+  color: var(--color-text-3);
+}
+.ex .ex-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.ex .opt.rad .cbx {
+  border-radius: 50%;
+}
+.ex .opt.rad.on .cbx {
+  background: none;
+  box-shadow: inset 0 0 0 5px var(--color-accent);
+}
+.ex .ex-summary {
+  display: block;
+  width: calc(100% - 28px);
+  margin: 0 0 var(--space-2) 28px;
+  resize: vertical;
+}
+.ex .ex-link {
+  border: 0;
+  padding: 0;
+  background: none;
+  font: inherit;
+  color: var(--color-accent-text);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.ex .ex-kinds {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.ex .ex-kinds li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: var(--space-3);
+  padding: var(--space-2);
+  border-bottom: 1px solid var(--color-line);
+}
+.ex .ex-kinds .ol {
+  font-weight: var(--weight-medium);
+}
+.ex .ex-kinds .od {
+  grid-row: 2;
+  font-size: var(--text-meta);
+  line-height: var(--leading-meta);
+  color: var(--color-text-3);
+}
+.ex .ex-kinds .n {
+  grid-row: 1 / span 2;
+  grid-column: 2;
+  align-self: center;
+  color: var(--color-text-2);
+}
+.ex .ex-pre pre {
+  margin: 0;
+  font: inherit;
+  white-space: inherit;
+}
+.ex .ex-pre {
+  margin: 0;
+  max-height: 220px;
+  overflow: auto;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--color-hover);
+  color: var(--color-text-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-code);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.light .ex .ex-pre {
+  background: var(--color-selected);
+}
+.ex .ex-bar {
+  height: 4px;
+  margin: 0 var(--space-2);
+  border-radius: 2px;
+  background: var(--color-line);
+  overflow: hidden;
+}
+.ex .ex-bar > span {
+  display: block;
+  height: 100%;
+  background: var(--color-accent);
+}
+.ex .ex-facts {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: var(--space-4);
+  row-gap: var(--space-1);
+  margin: 0;
+  padding: 0 var(--space-4);
+}
+.ex .ex-facts dt {
+  color: var(--color-text-3);
+}
+.ex .ex-facts dd {
+  margin: 0;
+}

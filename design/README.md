@@ -196,6 +196,21 @@ The mockups, design tokens and app icon behind Hoplet's web UI. The design langu
   `x-done`, `x-old` (the target's agent cannot take rules); A also `a-list`; shared `audit`. `a-differ`, `a-failed`,
   `b-differ`, `c-differ` and `audit` also have `-zh` states, with their strings listed on the page. The `x-old`
   states are not built: every agent the core accepts takes rules. No new icons.
+- `screens/session-export.html` (#93): exporting a session as a Markdown file, three directions and the file's
+  format (the intro shows a sample file); the maintainer chose A and the format, built in `screens/cockpit/`
+  under `/__states/cockpit/export-*`, and B and C stay as the alternatives considered. The options are the
+  conversation (everything, the user's messages and final replies, or none), a summary that starts as the last
+  reply and the user edits (Hoplet writes none), the net diff against the base, the commands, and the machines and
+  hand-off points. Values that look like credentials are masked in the file as `[redacted:<kind>]`, never in the
+  session, with a warning that other secrets may remain; secrets in the mockup are placeholders. A (`a-*`) is a
+  dialog from the session menu with the options, the masked values with a redacted preview and an Also mask list,
+  progress by turn, done and failure. B (`b-*`) is an Export tab in the wide inspector with the options beside the
+  Markdown as it will be written, and a stepper through the masked values. C (`c-*`) offers presets in a submenu
+  (Full transcript, Messages and replies, PR description, Custom…), one confirm sheet and toasts for progress, done
+  and failure. States: A `a-menu`, `a-dialog`, `a-sensitive`, `a-progress`, `a-done`, `a-failed`; B `b-tab`,
+  `b-sensitive`, `b-progress`, `b-done`, `b-failed`; C `c-menu`, `c-confirm`, `c-progress`, `c-done`, `c-failed`;
+  with `-zh` states for the main ones. The web UI has no Show in Finder: the file downloads through the browser.
+  New icons: `file-down`, `triangle-alert`.
 - `tokens.html`: every design token, with the JSON block that `check-tokens.py` compares with
   `web/src/design/tokens.css`.
 - `mark.html`: the app icon and the web UI's mark; the exported icon is `web/public/icon.svg`.

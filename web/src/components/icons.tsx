@@ -23,6 +23,7 @@ import {
   Ellipsis,
   Eye,
   File,
+  FileDown,
   FilePen,
   FilePlus,
   Folder,
@@ -71,6 +72,7 @@ import {
   Terminal,
   TextWrap,
   Trash2,
+  TriangleAlert,
   Undo2,
   Upload,
   Webhook,
@@ -171,6 +173,8 @@ export const Icon = {
   download: draw(Download),
   sliders: draw(SlidersHorizontal),
   undo: draw(Undo2),
+  fileDown: draw(FileDown),
+  warning: draw(TriangleAlert),
 };
 
 /** The shared icon vocabulary of config values (`CONFIG_ICONS`) mapped to this client's glyphs. */

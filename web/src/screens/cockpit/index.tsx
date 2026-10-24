@@ -32,6 +32,7 @@ import { ArchivedPage, archivedCount, withSessions } from './archived.tsx';
 import { Conversation, type ConversationFixture } from './conversation/conversation.tsx';
 import { DeleteDialog, type DeleteFixture } from './delete-dialog.tsx';
 import { Draft, type DraftEntry, type DraftFixture, type DraftWhere } from './draft.tsx';
+import { ExportDialog, type ExportFixture } from './export-dialog.tsx';
 import { buildTree, isArchived, sessionTargets } from './group.ts';
 import type { NewSessionRequest, RuntimeState, TemplateStart } from './model.ts';
 import { Palette } from './palette.tsx';
@@ -81,6 +82,8 @@ export type CockpitFixture = {
   rename?: string;
   /** Opens the delete dialog for the open session, with the owner's answer to what exists. */
   delete?: DeleteFixture;
+  /** Opens the export dialog for the open session in this phase. */
+  export?: ExportFixture;
   /** Shows the Archived page. */
   archived?: boolean;
   toast?: ToastState;
@@ -153,6 +156,7 @@ export function Cockpit(props: {
   // A template for the draft to take up: its text, its place, and the values its fields already have.
   const [draftEntry, setDraftEntry] = useState<DraftEntry | null>(null);
   const [renaming, setRenaming] = useState<LiveSessionMeta | null>(null);
+  const [exporting, setExporting] = useState<LiveSessionMeta | null>(null);
   // The session being deleted, and the one to open when it was the open one.
   const [deleting, setDeleting] = useState<{
     session: LiveSessionMeta;
@@ -351,6 +355,7 @@ export function Cockpit(props: {
       rename: setRenaming,
       remove: askDelete,
       saveTemplate: (s) => entry.saveAs(s, capabilitiesOf(s)),
+      exportMarkdown: setExporting,
       say,
     }),
     [patch, askDelete, say, entry.saveAs, capabilitiesOf],
@@ -635,6 +640,14 @@ export function Cockpit(props: {
             if (target) void patch(target.sessionId, { title });
           }}
           onClose={() => setRenaming(null)}
+        />
+      ) : null}
+      {exporting || fixture?.export ? (
+        <ExportDialog
+          session={(exporting ?? session) as LiveSessionMeta}
+          {...(fixture?.export ? { fixture: fixture.export } : {})}
+          onClose={() => setExporting(null)}
+          say={say}
         />
       ) : null}
       {deleting || fixture?.delete ? (

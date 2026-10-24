@@ -22,11 +22,13 @@ export type SessionActions = {
   remove: (session: LiveSessionMeta) => void;
   /** Opens the save dialog, prefilled from the session's first prompt and options. */
   saveTemplate: (session: LiveSessionMeta) => void;
+  /** Opens the export dialog (ADR 0040). */
+  exportMarkdown: (session: LiveSessionMeta) => void;
   /** Says what happened: a copy was made, or it could not be. */
   say: (text: string, failed?: boolean) => void;
 };
 
-/** The session actions menu: Rename and Pin | Copy, Open in new window and Save as template | Archive | Delete. */
+/** The session actions menu: Rename and Pin | Copy, Open in new window, Save as template and Export | Archive | Delete. */
 export function sessionMenu(session: LiveSessionMeta, actions: SessionActions): MenuEntry[] {
   const id = session.sessionId;
   const pinned = isPinned(session);
@@ -103,6 +105,13 @@ export function sessionMenu(session: LiveSessionMeta, actions: SessionActions): 
       label: t('Save as template…'),
       icon: Icon.template(),
       onSelect: () => actions.saveTemplate(session),
+    },
+    {
+      kind: 'item',
+      id: 'export',
+      label: t('Export as Markdown…'),
+      icon: Icon.fileDown(),
+      onSelect: () => actions.exportMarkdown(session),
     },
     { kind: 'separator', id: 'sep-2' },
     {

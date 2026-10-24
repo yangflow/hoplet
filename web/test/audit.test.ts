@@ -153,6 +153,21 @@ describe('audit summaries', () => {
     expect(summaryParts(event(1276), names).lead).toBe('Exported 61 records as CSV');
   });
 
+  it('name a session export, its conversation and the extra masks', () => {
+    const exported = (summary: Record<string, unknown>) => ({
+      ...event(1285),
+      type: 'session.exported',
+      summary,
+    });
+    expect(
+      summaryParts(exported({ conversation: 'replies', changes: true, masks: 2 }), names),
+    ).toEqual({ lead: 'Session exported as Markdown', mono: 'replies', tail: '2 extra masks' });
+    expect(summaryParts(exported({ conversation: 'all', masks: 0 }), names)).toEqual({
+      lead: 'Session exported as Markdown',
+      mono: 'all',
+    });
+  });
+
   it('show a type it does not know as its type, and never throw', () => {
     const odd = { ...event(1285), type: 'future.thing', summary: { surprise: [1] } };
     expect(summaryParts(odd, names)).toEqual({ lead: 'future.thing' });

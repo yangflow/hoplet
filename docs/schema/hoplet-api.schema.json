@@ -416,6 +416,16 @@
     },
     {
       "method": "GET",
+      "path": "/api/sessions/:sessionId/export",
+      "auth": "host",
+      "lane": "bulk",
+      "status": 200,
+      "query": "SessionExportQuerySchema",
+      "body": null,
+      "response": "SessionExportMarkdownSchema"
+    },
+    {
+      "method": "GET",
       "path": "/api/sessions/:sessionId/snapshot/diff",
       "auth": "host",
       "lane": "bulk",
@@ -1574,6 +1584,13 @@
         "GET /api/sessions/:sessionId/workspace/diff"
       ],
       "reason": "The \"transform\" action cannot be converted to JSON Schema."
+    },
+    {
+      "schema": "SessionExportQuerySchema",
+      "routes": [
+        "GET /api/sessions/:sessionId/export"
+      ],
+      "reason": "The \"max_bytes\" action cannot be converted to JSON Schema."
     },
     {
       "schema": "ConfigFileReadQuerySchema",
@@ -9820,6 +9837,9 @@
         "type",
         "sessionId"
       ]
+    },
+    "SessionExportMarkdownSchema": {
+      "type": "string"
     },
     "SessionHandoffRequestCreateSchema": {
       "type": "object",

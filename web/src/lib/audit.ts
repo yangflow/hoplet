@@ -354,6 +354,21 @@ export function summaryParts(event: AuditEvent, names: AuditNames): SummaryParts
             : t('Exported records'),
       };
     }
+    case 'session.exported': {
+      const conversation = str(s.conversation);
+      const masks = num(s.masks);
+      return {
+        lead: t('Session exported as Markdown'),
+        ...(conversation
+          ? {
+              mono: conversation,
+              ...(masks
+                ? { tail: fill(t('{count} extra masks'), { count: formatCount(masks) }) }
+                : {}),
+            }
+          : {}),
+      };
+    }
     case 'audit.started':
       return { lead: t('Audit log started') };
     case 'audit.checkpoint': {

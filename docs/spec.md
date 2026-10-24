@@ -90,7 +90,8 @@ window is connected to the core and opens Settings. The sidebar folds away.
 sidebar row: right click, the context-menu key or Shift+F10) acts on one session and has three groups:
 **Rename** (⌥⌘R) and **Pin** or **Unpin** (⌥⌘P); **Copy**, a submenu of Session ID, Link (the address that
 opens the session in this web UI) and Last answer as Markdown (the text of the session's last assistant
-message, as Markdown), and **Open in new window**; **Archive** or **Unarchive** (⇧⌘A). A copy is confirmed by a
+message, as Markdown), **Open in new window**, **Save as template…** and **Export as Markdown…**
+([Exporting a session](#exporting-a-session)); **Archive** or **Unarchive** (⇧⌘A). A copy is confirmed by a
 toast that fades after a few seconds. The shortcuts act on the selected session. A last group holds **Delete…**. There
 is no Fork here.
 
@@ -412,7 +413,8 @@ was done to and by sessions, kept apart from the session content.
   action link), calls decided by a permission rule (`permission.auto`: the decision, the rule's ID and scope and the
   rule revision, keyed by the session and the tool use ID), changes to permission rules, mode changes, session stop
   and interrupt, changes to budgets, device tokens issued, the start of the log (`audit.started`), retention
-  checkpoints and exports. Also built: tool calls (`tool.call`: the tool, a scrubbed command of at most 500
+  checkpoints and exports of the log, and session exports (`session.exported`: the options and the number of
+  extra strings to mask, never their text). Also built: tool calls (`tool.call`: the tool, a scrubbed command of at most 500
   characters, the paths a call changes; the core derives them from the session's lines, off the control lane, and
   `audit_cursor` keeps how far it got), permission requests and the denials the core makes on a timeout or at the
   end of a session, session creation, deletion and handoff, prompts and steers sent (their ID and length, never the
@@ -1065,6 +1067,33 @@ the latest stored snapshot (its tracked diff against the base commit and its unt
 snapshot's time and base commit (the changes also with its `origin` and the size of its archive), whether or not the owner is online: `no-snapshot` when there is none and
 `not-found` for a path the snapshot does not change. The core streams the archive to answer and keeps the
 changes of recent snapshots in memory; both are bulk work. The web UI never writes files.
+
+### Exporting a session
+
+Decided in [ADR 0040](adr/0040-a-session-exports-as-one-streamed-markdown-file.md) (#93); the screens are in
+`design/screens/session-export.html` (direction A). A session exports as one Markdown file to share outside
+Hoplet: a pull request description, a review, an incident note.
+
+- **Where**: **Export as Markdown…** in the session menu opens a dialog. It chooses the conversation (every turn
+  with the tool calls, long output elided; the user's messages and final replies; or none) and what else to
+  include: a summary, the net diff against the base, the commands and the machines and hand-offs, all ticked by
+  default. The summary starts from the session's last reply and is edited in the dialog; Hoplet calls no model.
+- **The file**: front matter (title, session ID, project, provider, machines, number of turns, export time and
+  Hoplet version), a warning that masking is best effort, a table of the project, machines, hand-offs, turns and
+  diff totals, the summary, the turns (`### Turn N · machine · time`, tool
+  calls in `<details>`, a tool's output kept only for a command or a failure up to the elision threshold, longer
+  output named with its size), the commands with their machine and exit code, and the net diff, at most 256 KiB,
+  the files past it named. The diff comes from the owner when it is online, else from the latest snapshot.
+- **Masking**: every part passes the credential rules of the audit log and the strings the user adds in the
+  dialog (at most 20, three characters or more, one per line), written as `[redacted:<kind>]`. Masking changes
+  the file, never the session. There is no rule for long random-looking strings.
+- **Review**: **Preview** shows the start of the file and the masked values by kind and turn; strings added under
+  "Also mask" are applied with **Update preview**. **Export** saves the previewed file without asking again.
+- **Progress**: the dialog counts turns and bytes as the file arrives and saves it only when it is complete;
+  **Cancel export** and a failure discard what arrived. The done step names the file, its size and turns, what was
+  masked and elided, and offers **Copy as Markdown**.
+- **Limits**: `GET /api/sessions/:id/export` streams the file on the bulk lane, host token only, at most two at a
+  time (`rate-limited` past that). Each export and each preview is recorded as `session.exported`.
 
 ### Updates
 
