@@ -467,8 +467,11 @@ all or nothing, refusing a file that changed since the preview (`stale`). It wri
 (the one Claude Code reads), `.claude/skills/<name>/SKILL.md` and `.claude/commands/<name>.md`, never through a
 symbolic link, and refuses a skill or command that sets front matter other than `name` and `description`, runs a
 shell command, or imports a file outside the project. Skills and commands are written only for a Claude Code version
-the driver was tested with; Codex sessions are answered `unsupported`. The card in the web UI and the write tools
-follow.
+the driver was tested with; Codex sessions are answered `unsupported`. The session proposes with the MCP tools
+`propose_config_change`, `propose_memory_change` and `propose_skill_change`, which the vendor asks the user before,
+and reads the state with `get_change`. Each answer says when an object takes effect once applied: `model` and
+`effort` from the next turn, the memory file, skills and commands when the session next starts (the running
+conversation keeps the instructions it loaded). The card in the web UI follows.
 The abilities `read-config` (on by default) and `write-config` (off by default) are session-token only.
 
 ### Sessions as callers

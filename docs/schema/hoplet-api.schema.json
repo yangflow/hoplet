@@ -9281,6 +9281,14 @@
                       "items": {
                         "type": "string"
                       }
+                    },
+                    "takesEffect": {
+                      "enum": [
+                        "now",
+                        "next-turn",
+                        "next-start"
+                      ],
+                      "type": "string"
                     }
                   },
                   "required": [
@@ -9289,7 +9297,8 @@
                     "baseHash",
                     "newHash",
                     "content",
-                    "diff"
+                    "diff",
+                    "takesEffect"
                   ]
                 }
               },
@@ -9424,6 +9433,14 @@
                 "items": {
                   "type": "string"
                 }
+              },
+              "takesEffect": {
+                "enum": [
+                  "now",
+                  "next-turn",
+                  "next-start"
+                ],
+                "type": "string"
               }
             },
             "required": [
@@ -9432,7 +9449,8 @@
               "baseHash",
               "newHash",
               "content",
-              "diff"
+              "diff",
+              "takesEffect"
             ]
           }
         },

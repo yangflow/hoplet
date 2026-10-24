@@ -89,6 +89,25 @@ export const SessionConfigChangeCreateSchema = v.pipe(
 );
 export type SessionConfigChangeCreate = v.InferOutput<typeof SessionConfigChangeCreateSchema>;
 
+/**
+ * When an applied object reaches the session (ADR 0036): `now` in the running process, `next-turn` from its next
+ * turn, `next-start` when its process next starts (the running conversation keeps what it loaded).
+ */
+export const CONFIG_TAKES_EFFECT = ['now', 'next-turn', 'next-start'] as const;
+export const ConfigTakesEffectSchema = v.picklist(CONFIG_TAKES_EFFECT);
+export type ConfigTakesEffect = v.InferOutput<typeof ConfigTakesEffectSchema>;
+
+/**
+ * When an object of `kind` takes effect. `model` and `effort` are switched before the session's next turn. The
+ * vendor reads its memory file only when its process starts. A skill or command is `now` only where the driver
+ * reports that the vendor rescans them (`reload`); otherwise, like memory, at the next start.
+ */
+export function configTakesEffect(kind: ConfigObjectKind, reload: boolean): ConfigTakesEffect {
+  if (kind === 'config') return 'next-turn';
+  if (kind === 'memory') return 'next-start';
+  return reload ? 'now' : 'next-start';
+}
+
 /** One object of a stored request, with what the diff and the staleness check were computed from. */
 export const ConfigChangeObjectSchema = v.object({
   kind: ConfigObjectKindSchema,
@@ -103,6 +122,8 @@ export const ConfigChangeObjectSchema = v.object({
   diff: v.string(),
   /** The directories writing the file creates, relative to the session's working directory. */
   newDirectories: v.optional(v.array(v.string())),
+  /** When the object reaches the session once the change is applied. */
+  takesEffect: ConfigTakesEffectSchema,
 });
 export type ConfigChangeObject = v.InferOutput<typeof ConfigChangeObjectSchema>;
 

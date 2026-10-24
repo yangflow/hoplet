@@ -399,6 +399,48 @@ describe('proposing a change', () => {
     });
     expect(b.fake.calls.apply).toHaveLength(0);
   });
+
+  it('says when each object takes effect, in the answer and when read back', async () => {
+    const { b, token } = await allowed();
+    const made = await b.propose(token, [
+      b.memory('rules'),
+      { kind: 'skill', name: 'review', baseHash: '', content: 'steps' },
+      { kind: 'command', name: 'fix', baseHash: '', content: 'do it' },
+      b.option('model', 'opus'),
+    ]);
+    expect(made.status).toBe(201);
+    const expected = [
+      { kind: 'memory', takesEffect: 'next-start' },
+      { kind: 'skill', takesEffect: 'next-start' },
+      { kind: 'command', takesEffect: 'next-start' },
+      { kind: 'config', takesEffect: 'next-turn' },
+    ];
+    expect(made.body.objects).toMatchObject(expected);
+    const got = await b.rest('GET', `/api/config-changes/${made.body.changeId}`, token);
+    expect(got.body.objects).toMatchObject(expected);
+    const list = await b.rest('GET', '/api/sessions/a1/config-changes', token);
+    expect(list.body.changes[0].objects).toMatchObject(expected);
+  });
+
+  it('answers for its kind when a stored object has no takesEffect', async () => {
+    const { b, token } = await allowed();
+    const made = await b.propose(token, [b.memory('rules'), b.option('model', 'opus')]);
+    const stored = b.store.configChange(made.body.changeId);
+    if (!stored) throw new Error('not stored');
+    b.store.insertConfigChange(
+      {
+        ...stored,
+        changeId: 'cc-bare',
+        objects: stored.objects.map(({ takesEffect: _, ...o }) => o) as typeof stored.objects,
+      },
+      { type: 'config.change.requested', sessionId: 'a1', ref: 'cc-bare' },
+    );
+    const got = await b.rest('GET', '/api/config-changes/cc-bare', token);
+    expect(got.body.objects).toMatchObject([
+      { kind: 'memory', takesEffect: 'next-start' },
+      { kind: 'config', takesEffect: 'next-turn' },
+    ]);
+  });
 });
 
 describe('reading changes', () => {

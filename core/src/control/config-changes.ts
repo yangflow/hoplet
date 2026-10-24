@@ -10,6 +10,7 @@ import {
   type ConfigChangeObject,
   type ConfigOption,
   configObjectKey,
+  configTakesEffect,
   MAX_CONFIG_CHANGE_BYTES,
   PROTOCOL_VERSION,
   type SessionConfigChange,
@@ -35,6 +36,13 @@ import type {
 } from './types.ts';
 
 const HOUR = 60 * 60_000;
+
+/**
+ * Whether the session's vendor picks up a changed skill or command while it runs (the driver capability
+ * `selfConfig.reload` of ADR 0036). No driver reports it yet: the vendor spike could not confirm a rescan of the
+ * stream-JSON process, so every file says it takes effect at the next start.
+ */
+const VENDOR_RELOADS = false;
 
 /** What the module returns to control: the interface the API uses and the hooks control feeds. */
 export interface ConfigChangesModule {
@@ -197,6 +205,7 @@ export function createConfigChanges(
           newHash: '',
           content: value,
           diff: `-${o.name}: ${current}\n+${o.name}: ${value}\n`,
+          takesEffect: configTakesEffect('config', VENDOR_RELOADS),
         };
         previous[i] = { kind: 'config', name: o.name, content: current };
       } else {
@@ -225,6 +234,7 @@ export function createConfigChanges(
           content: given.content,
           diff: seen.diff,
           ...(seen.newDirectories?.length ? { newDirectories: seen.newDirectories } : {}),
+          takesEffect: configTakesEffect(given.kind, VENDOR_RELOADS),
         };
         if (bytesOf(seen.previous) > MAX_CONFIG_CHANGE_BYTES) return refusal('too-large');
         previous[i] = { kind: given.kind, name: given.name, content: seen.previous };

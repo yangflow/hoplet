@@ -56,6 +56,14 @@ func (c *Core) Call(ctx context.Context, sessionID, tool string, args json.RawMe
 		return c.readSkill(ctx, sessionID, args)
 	case ToolReadMemory:
 		return c.readMemory(ctx, sessionID, args)
+	case ToolProposeConfigChange:
+		return c.proposeConfigChange(ctx, sessionID, args)
+	case ToolProposeMemoryChange:
+		return c.proposeMemoryChange(ctx, sessionID, args)
+	case ToolProposeSkillChange:
+		return c.proposeSkillChange(ctx, sessionID, args)
+	case ToolGetChange:
+		return c.getChange(ctx, sessionID, args)
 	case ToolSendPrompt:
 		return c.sendPrompt(ctx, sessionID, args)
 	case ToolInterruptSession:
