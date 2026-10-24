@@ -70,6 +70,8 @@ const subject: Record<string, Record<string, string>> = {
     'handoff-request': 'cockpit.handoff-request',
     'handoff-after': 'cockpit.handoff-result',
     'prompt-from-session': 'cockpit.prompt-source',
+    'child-ask': 'cockpit.child-ask.allow',
+    'child-ask-idle': 'cockpit.child-ask.open',
     'plan-pending': 'cockpit.plan',
     'plan-long': 'cockpit.plan-open',
     'plan-modes': 'cockpit.plan-mode-menu',
@@ -183,6 +185,15 @@ const subject: Record<string, Record<string, string>> = {
     'handoff-configuration-enable': 'workspace.handoff-configuration-enable',
     'handoff-configuration-enabling': 'workspace.handoff-configuration-enable',
     'handoff-configuration-none': 'workspace.handoff-configuration-none',
+    children: 'workspace.children.list',
+    'children-open': 'workspace.children.files',
+    'children-blocked': 'workspace.children.ask',
+    'children-cancel': 'workspace.children.cancel-dialog',
+    'children-subtree': 'workspace.children.cancel-dialog',
+    'children-cancel-all': 'workspace.children.cancel-dialog',
+    'children-loading': 'workspace.children.loading',
+    'children-error': 'workspace.children.error',
+    'children-empty': 'workspace.children.empty',
   },
   settings: {
     'rules-revision': 'settings.rules.machines',
@@ -281,9 +292,9 @@ const subject: Record<string, Record<string, string>> = {
   },
 };
 
-test('the registries list 115 cockpit, 63 workspace, 102 settings and 7 action states', () => {
-  expect(screens.cockpit).toHaveLength(115);
-  expect(screens.workspace).toHaveLength(63);
+test('the registries list 117 cockpit, 72 workspace, 102 settings and 7 action states', () => {
+  expect(screens.cockpit).toHaveLength(117);
+  expect(screens.workspace).toHaveLength(72);
   expect(screens.settings).toHaveLength(102);
   expect(screens.action).toHaveLength(7);
 });

@@ -7,6 +7,9 @@ import {
   type BudgetBody,
   BudgetListResponseSchema,
   BudgetSchema,
+  ChildCancelSchema,
+  ChildCollectSchema,
+  ChildStatusesSchema,
   CommandsResultSchema,
   type ConfigSetting,
   type DeleteSessionRequest,
@@ -58,6 +61,7 @@ import {
   type ResourceThresholds,
   ResourceThresholdsSchema,
   RuntimeCommandResultSchema,
+  SessionChildrenResponseSchema,
   type SessionConfig,
   SessionHandoffRequestListSchema,
   SessionHandoffRequestSchema,
@@ -460,6 +464,39 @@ export function deleteSession(sessionId: string, request: DeleteSessionRequest) 
 
 export function postStop(sessionId: string) {
   return call(`/api/sessions/${sessionId}/stop`, RuntimeCommandResultSchema, {});
+}
+
+/** Every descendant of a session in pre-order (ADR 0035). */
+export function fetchChildren(sessionId: string, signal?: AbortSignal) {
+  return call(
+    `/api/sessions/${sessionId}/children`,
+    SessionChildrenResponseSchema,
+    undefined,
+    signal,
+  );
+}
+
+/** The states of the direct children of a session, by creation. */
+export function fetchChildStatuses(sessionId: string, signal?: AbortSignal) {
+  return call(`/api/sessions/${sessionId}/children/status`, ChildStatusesSchema, undefined, signal);
+}
+
+/** A child's report, changes and cost; the child keeps running (`release=false`). */
+export function postChildCollect(sessionId: string, childId: string) {
+  return call(
+    `/api/sessions/${sessionId}/children/${childId}/collect?release=false`,
+    ChildCollectSchema,
+    {},
+  );
+}
+
+/** Interrupts and stops a descendant, and with `subtree` the live sessions below it. */
+export function postChildCancel(sessionId: string, childId: string, subtree: boolean) {
+  return call(
+    `/api/sessions/${sessionId}/children/${childId}/cancel?subtree=${subtree}`,
+    ChildCancelSchema,
+    {},
+  );
 }
 
 /** Starts a session; the response comes when the agent has created and imported it (up to 75 s). */

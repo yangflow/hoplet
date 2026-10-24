@@ -53,6 +53,7 @@ import { loadAppearance } from '../../../lib/prefs.ts';
 import { type RuleDecision, useRuleLines } from '../../../lib/rule-lines.ts';
 import { stateName } from '../../../lib/runtime-state.ts';
 import { useBudget, useBudgetList } from '../../../lib/use-budgets.ts';
+import type { ChildrenView } from '../../../lib/use-children.ts';
 import { usePageVisible } from '../../../lib/visibility.ts';
 import { Composer } from '../composer/composer.tsx';
 import { ModeMenu, modeOption, nextMode } from '../composer/mode-menu.tsx';
@@ -62,6 +63,7 @@ import { SessionWhere } from '../composer/where.tsx';
 import { QueueTray, type TrayFixture } from '../queue/queue-tray.tsx';
 import { useQueue } from '../queue/use-queue.ts';
 import { type ComposerView, composerView } from '../runtime.ts';
+import { ChildAsks } from './child-asks.tsx';
 import { type CardRules, type HandoffView, LiveTurnView, PendingHandoffs } from './live-view.tsx';
 import { PlanOrigin } from './plan-card.tsx';
 import { SessionReader } from './reader.ts';
@@ -152,6 +154,8 @@ export function Conversation(props: {
   onViewRules?: () => void;
   /** Opens another session in the cockpit: the ends of a plan approved into a new session. */
   onOpenSession?: (sessionId: string) => void;
+  /** The children this session started and the requests they wait on: strips in the turn to answer them. */
+  kids?: ChildrenView;
   /** The name of a machine, for the target of a hand-off request. */
   deviceName?: (deviceId: string) => string;
   /** A plan was approved into this new session (ADR 0025): the app opens it. */
@@ -212,6 +216,10 @@ export function Conversation(props: {
       void handoffRequests.decide(requestId, approve).then(setHandoffError);
     },
   };
+
+  const childAsks = props.kids ? (
+    <ChildAsks view={props.kids} decidable={live} onOpenSession={props.onOpenSession} />
+  ) : null;
 
   const [atBottom, setAtBottom] = useState(aroundLine === null);
   const atBottomRef = useRef(atBottom);
@@ -737,6 +745,7 @@ export function Conversation(props: {
                 steering={steeringShown}
                 rules={cardRules}
                 handoffs={handoffs}
+                childAsks={childAsks}
               />
             ) : null
           }
@@ -765,7 +774,10 @@ export function Conversation(props: {
           ) : null}
           <div ref={composerBox}>
             {!showLive || turn?.phase !== 'live' ? (
-              <PendingHandoffs view={handoffs} providerName={provider} now={now} />
+              <>
+                {childAsks}
+                <PendingHandoffs view={handoffs} providerName={provider} now={now} />
+              </>
             ) : null}
             {handoffError ? (
               <p className="banner-error" role="alert" data-testid="cockpit.handoff-error">

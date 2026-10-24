@@ -1,0 +1,31 @@
+/* The parts the views of child sessions share (design/screens/child-sessions.html). Tokens only. */
+.kid-gl.done {
+  color: var(--color-success);
+}
+.kid-gl.can {
+  color: var(--color-text-3);
+}
+.kid-dot-off {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1.5px var(--color-text-3);
+}
+.kid-cs {
+  font-weight: var(--weight-medium);
+}
+.kid-cs.run {
+  color: var(--color-accent-text);
+}
+.kid-cs.need {
+  color: var(--color-attention-text);
+}
+.kid-cs.done {
+  color: var(--color-add-text);
+}
+.kid-cs.out {
+  color: var(--color-danger);
+}
+.kid-cs.can {
+  color: var(--color-text-3);
+}

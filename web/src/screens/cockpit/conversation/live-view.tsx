@@ -411,6 +411,8 @@ export function LiveTurnView(props: {
   rules?: CardRules | undefined;
   /** The session's requests to be handed off to another machine (ADR 0034). */
   handoffs?: HandoffView | undefined;
+  /** The permission strips of the children this session started (ADR 0035). */
+  childAsks?: ReactNode;
 }) {
   const { turn, base, state, now, frozen } = props;
   const failed = turn.phase === 'failed';
@@ -584,6 +586,7 @@ export function LiveTurnView(props: {
               ),
             )
           : null}
+        {live ? props.childAsks : null}
         {live && props.handoffs ? (
           <PendingHandoffs view={props.handoffs} providerName={props.providerName} now={now} />
         ) : null}

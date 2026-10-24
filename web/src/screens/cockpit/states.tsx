@@ -11,6 +11,7 @@ import type {
   SessionRuntimeInfo,
 } from '@hoplet/shared';
 import { type ReactNode, useState } from 'react';
+import { blockedDocs, DOCS_ASK, KID_DOCS, kidsTree } from '../../lib/children-fixtures.ts';
 import { DEPS, FIX, NOTES, REVIEW, templateList } from '../settings/templates-fixtures.ts';
 import { B1, B2, B4, DOCS_PATH, sessionUsage } from '../settings/usage-fixtures.ts';
 import { live as liveWorkspace, snapshot } from '../workspace/fixtures.ts';
@@ -941,6 +942,24 @@ export const running = (elapsed: number, over?: Partial<LiveTurn>): Variant => (
   live: { turn: liveTurn({ rows: runningRows, ...over }), elapsed },
 });
 
+/** The catalog session with five children, the docs child blocked on `pnpm schema`. */
+function childAskScene(variant: Variant) {
+  return (
+    <Scene
+      variant={variant}
+      sessions={(base) =>
+        base.map((s) => (s.sessionId === catalogId ? { ...s, childCount: 5 } : s))
+      }
+      fixture={{
+        children: {
+          data: kidsTree(catalogId, blockedDocs),
+          asks: { [KID_DOCS]: [DOCS_ASK] },
+        },
+      }}
+    />
+  );
+}
+
 /** What the owner answers about deleting a session (ADR 0023); the variants below change one part of it. */
 const deletionOf = (over: Partial<DeletionPreview> = {}): DeletionPreview => ({
   owner: { deviceId: 'dev-macbook', name: 'MacBook Pro', online: true },
@@ -1585,6 +1604,9 @@ export const states: Record<string, () => ReactNode> = {
     />
   ),
   running: () => <Scene variant={running(48_000)} />,
+  // A child the catalog session started waits for a permission: the strip in the turn answers it (ADR 0035).
+  'child-ask': () => childAskScene(running(48_000)),
+  'child-ask-idle': () => childAskScene({}),
   'waiting-permission': () => (
     <Scene
       variant={{

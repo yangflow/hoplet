@@ -6,6 +6,17 @@ import type {
   SessionPort,
 } from '@hoplet/shared';
 import type { ReactNode } from 'react';
+import { NO_KIDS } from '../../lib/children.ts';
+import {
+  blockedDocs,
+  DOCS_ASK,
+  FIXTURES_REPORT,
+  KID_DOCS,
+  KID_FIXTURES,
+  KID_MIGRATION,
+  KID_TESTS,
+  kidsTree,
+} from '../../lib/children-fixtures.ts';
 import { t } from '../../lib/i18n.ts';
 import {
   mcpDevices,
@@ -13,6 +24,7 @@ import {
   ON_SETTINGS,
   WIDE_SETTINGS,
 } from '../../lib/session-mcp-fixtures.ts';
+import type { ChildrenFixture } from '../../lib/use-children.ts';
 import {
   capabilities,
   claudeConfiguration,
@@ -76,6 +88,8 @@ function Inspect(props: {
   devices?: DeviceInfo[];
   /** Changes the session list. */
   sessions?: (base: LiveSessionMeta[]) => LiveSessionMeta[];
+  /** The open session's descendants. */
+  kids?: ChildrenFixture;
   workspace: Omit<WorkspaceFixture, 'viewer'>;
 }) {
   return (
@@ -91,6 +105,7 @@ function Inspect(props: {
             ? { devices: fixtureDevices(!props.offline, false) }
             : {}),
         workspace: { viewer: answers, ...props.workspace },
+        ...(props.kids ? { children: props.kids } : {}),
       }}
     />
   );
@@ -223,6 +238,25 @@ const auditState = (events = AUDIT_EVENTS, extra: { openSeq?: number } = {}) => 
         devices: fixtureDevices(true),
         ...extra,
       },
+    }}
+  />
+);
+/** The Children tab (design/screens/child-sessions.html, direction A) beside the catalog session, which started five. */
+const CATALOG = '11111111-2222-4333-8444-555555555555';
+const withChildren = (count: number) => (base: LiveSessionMeta[]) =>
+  base.map((s) => (s.sessionId === CATALOG ? { ...s, childCount: count } : s));
+const childrenState = (
+  children: ChildrenFixture,
+  tab: NonNullable<WorkspaceFixture['childrenTab']> = {},
+  count = 5,
+) => (
+  <Inspect
+    sessions={withChildren(count)}
+    kids={children}
+    workspace={{
+      data: live(),
+      view: { tabs: [...tools, 'children' as const], active: 'children' as const },
+      childrenTab: tab,
     }}
   />
 );
@@ -605,6 +639,20 @@ export const states: Record<string, () => ReactNode> = {
   'a-inspector': () => auditState(),
   'a-inspector-detail': () => auditState(AUDIT_EVENTS, { openSeq: 1281 }),
   'a-inspector-empty': () => auditState([]),
+  children: () => childrenState({ data: kidsTree(CATALOG) }),
+  'children-open': () =>
+    childrenState(
+      { data: kidsTree(CATALOG) },
+      { open: KID_FIXTURES, collected: { [KID_FIXTURES]: FIXTURES_REPORT } },
+    ),
+  'children-blocked': () =>
+    childrenState({ data: kidsTree(CATALOG, blockedDocs), asks: { [KID_DOCS]: [DOCS_ASK] } }),
+  'children-cancel': () => childrenState({ data: kidsTree(CATALOG) }, { cancel: KID_MIGRATION }),
+  'children-subtree': () => childrenState({ data: kidsTree(CATALOG) }, { cancel: KID_TESTS }),
+  'children-cancel-all': () => childrenState({ data: kidsTree(CATALOG) }, { cancel: 'all' }),
+  'children-loading': () => childrenState({ data: NO_KIDS, loading: true }),
+  'children-error': () => childrenState({ data: NO_KIDS, error: 'Could not reach the core.' }),
+  'children-empty': () => childrenState({ data: NO_KIDS }, {}, 0),
   'browser-ports': () =>
     browserState(ready([port(5173, 'node', 'loopback'), port(4000, 'bun', 'any')], PREVIEW_HOST)),
   'browser-loopback': () => browserState(ready([port(5173, 'node', 'loopback')], PREVIEW_HOST)),
