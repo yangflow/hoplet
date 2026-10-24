@@ -4,6 +4,15 @@ Each release's notes are made from the titles of the pull requests merged since 
 Commits: `feat` under Added, `fix` under Fixed, `perf` under Performance; `release-please-config.json`).
 Versions follow Semantic Versioning.
 
+## [0.11.0](https://github.com/yangflow/hoplet/compare/v0.10.0...v0.11.0) (2026-10-24)
+
+
+### Added
+
+* **core:** Tag, pin, archive and group sessions ([#355](https://github.com/yangflow/hoplet/issues/355)) ([09f9c42](https://github.com/yangflow/hoplet/commit/09f9c4286ded1358225c58a71b579285481af3d4))
+* **web:** Add a command palette and keyboard shortcuts ([#359](https://github.com/yangflow/hoplet/issues/359)) ([836b15c](https://github.com/yangflow/hoplet/commit/836b15c1dfceecdcebecce20820adb051a5b5c6b))
+* **web:** Annotate lines of a diff and send them as the next turn ([#358](https://github.com/yangflow/hoplet/issues/358)) ([870a9d1](https://github.com/yangflow/hoplet/commit/870a9d12c06f5e577a80894cdefaa6c1585e0c82))
+
 ## [0.10.0](https://github.com/yangflow/hoplet/compare/v0.9.0...v0.10.0) (2026-10-24)
 
 
