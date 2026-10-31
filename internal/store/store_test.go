@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"io/fs"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -38,8 +39,8 @@ func TestOpenReopenAndRejectNewerSchema(t *testing.T) {
 	if err := s.db.QueryRowContext(ctx, "PRAGMA user_version").Scan(&v); err != nil {
 		t.Fatal(err)
 	}
-	if v != 1 {
-		t.Fatalf("schema version %d, want 1", v)
+	if want := len(mustMigrations(t)); v != want {
+		t.Fatalf("schema version %d, want %d", v, want)
 	}
 	if _, err := s.db.ExecContext(ctx, "PRAGMA user_version = 99"); err != nil {
 		t.Fatal(err)
@@ -235,4 +236,17 @@ func TestOpenRemovesStaleTempBlobs(t *testing.T) {
 	if _, err := os.Stat(stale); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("stale temp blob survived Open: %v", err)
 	}
+}
+
+func mustMigrations(t *testing.T) []migration {
+	t.Helper()
+	sub, err := fs.Sub(migrations, "migrations")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ms, err := loadMigrations(sub)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return ms
 }
