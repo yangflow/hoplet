@@ -275,6 +275,9 @@ type EnvInfo struct {
 	// Note, when set, says why no proxy is in use when that may surprise
 	// (the system proxy is a PAC file).
 	Note string `json:"note,omitempty"`
+	// Warning, when set, says the shell could not be read again and the
+	// cached environment, without the secrets only the shell has, is in use.
+	Warning string `json:"warning,omitempty"`
 	// Error, when set, says why the login shell could not be read; harnesses
 	// then start with a minimal environment.
 	Error string `json:"error,omitempty"`

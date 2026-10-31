@@ -162,11 +162,30 @@ func noProxyEntry(e string) (string, bool) {
 	return e, true
 }
 
-// redact hides a proxy URL's password.
-func redact(u string) string {
-	p, err := url.Parse(u)
-	if err != nil || p.User == nil {
-		return u
+// ProxyURL parses a proxy setting the way Go's ProxyFromEnvironment does: a
+// value without "://" is taken as an http proxy.
+func ProxyURL(v string) (*url.URL, error) {
+	if !strings.Contains(v, "://") {
+		v = "http://" + v
 	}
-	return p.Redacted()
+	return url.Parse(v)
+}
+
+// RedactProxy hides the user information of a proxy setting for display.
+// A value that cannot be parsed but contains "@" has everything before its
+// last "@" replaced, so no password survives in any form.
+func RedactProxy(v string) string {
+	if !strings.Contains(v, "@") {
+		return v
+	}
+	if u, err := ProxyURL(v); err == nil && u.User != nil {
+		return u.Redacted()
+	}
+	scheme, rest, ok := strings.Cut(v, "://")
+	if !ok {
+		scheme, rest = "", v
+	} else {
+		scheme += "://"
+	}
+	return scheme + "xxxxx@" + rest[strings.LastIndex(rest, "@")+1:]
 }

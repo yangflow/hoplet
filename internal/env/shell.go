@@ -5,11 +5,9 @@ import (
 	"bytes"
 	"context"
 	"os"
-	"os/exec"
 	"os/user"
 	"runtime"
 	"strings"
-	"time"
 )
 
 // UserShell returns the login shell to read the environment from: the user's
@@ -17,11 +15,11 @@ import (
 // passwd file elsewhere), else $SHELL, else /bin/zsh. The daemon runs under
 // launchd or systemd, whose $SHELL need not be the user's shell. Only an
 // absolute path to an executable file is accepted from the sources.
-func UserShell() string {
+func UserShell(ctx context.Context) string {
 	if u, err := user.Current(); err == nil {
 		var s string
 		if runtime.GOOS == "darwin" {
-			s = dsclShell(u.Username)
+			s = dsclShell(ctx, u.Username)
 		} else {
 			s = passwdShell(u.Username)
 		}
@@ -33,27 +31,6 @@ func UserShell() string {
 		return s
 	}
 	return "/bin/zsh"
-}
-
-// DefaultShell is UserShell.
-func DefaultShell() string { return UserShell() }
-
-func usableShell(path string) bool {
-	if path == "" || path[0] != '/' {
-		return false
-	}
-	fi, err := os.Stat(path)
-	return err == nil && fi.Mode().IsRegular() && fi.Mode().Perm()&0o111 != 0
-}
-
-func dsclShell(username string) string {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	out, err := exec.CommandContext(ctx, "/usr/bin/dscl", ".", "-read", "/Users/"+username, "UserShell").Output()
-	if err != nil {
-		return ""
-	}
-	return parseDscl(out)
 }
 
 func passwdShell(username string) string {

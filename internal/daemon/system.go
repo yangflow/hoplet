@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"net/url"
 	"os"
 	"slices"
 	"sort"
@@ -115,7 +114,7 @@ func (s *system) info() proto.EnvInfo { return infoOf(s.state()) }
 func infoOf(snap env.Snapshot, readErr error) proto.EnvInfo {
 	info := proto.EnvInfo{
 		Shell: snap.Shell, Vars: len(snap.Vars), Withheld: nonNil(slices.Clone(snap.Dropped)),
-		Proxy: redactURL(snap.Proxy), ProxySource: string(snap.ProxySource), Note: snap.Note, ResolvedAt: snap.ResolvedAt,
+		Proxy: redactURL(snap.Proxy), ProxySource: string(snap.ProxySource), Note: snap.Note, Warning: snap.Stale, ResolvedAt: snap.ResolvedAt,
 	}
 	if readErr != nil {
 		info.Error = readErr.Error()
@@ -123,17 +122,42 @@ func infoOf(snap env.Snapshot, readErr error) proto.EnvInfo {
 	return info
 }
 
-// redactURL hides a URL's password; a string that is not a URL is hidden
-// whole when it has an "@".
-func redactURL(s string) string {
-	u, err := url.Parse(s)
-	if err != nil {
-		if strings.Contains(s, "@") {
-			return "(unparsable proxy URL)"
+// redactURL hides a proxy URL's password (see env.RedactProxy).
+func redactURL(s string) string { return env.RedactProxy(s) }
+
+// localeVars are the variables that select a locale.
+var localeVars = []string{"LANG", "LC_ALL", "LC_CTYPE"}
+
+func hasLocale(vars []string) bool {
+	for _, kv := range vars {
+		if k, v, _ := strings.Cut(kv, "="); v != "" && slices.Contains(localeVars, k) {
+			return true
 		}
-		return s
 	}
-	return u.Redacted()
+	return false
+}
+
+// environmentCheck summarises the harness environment: fail when the login
+// shell could not be read, warn when it is stale or lacks a locale.
+func environmentCheck(snap env.Snapshot, info proto.EnvInfo) proto.Check {
+	if info.Error != "" {
+		return proto.Check{Name: "environment", Status: proto.CheckFail,
+			Detail: "the login shell could not be read, so harnesses get a minimal environment: " + info.Error}
+	}
+	status := proto.CheckOK
+	d := fmt.Sprintf("%s: %d variables", info.Shell, info.Vars)
+	if len(info.Withheld) > 0 {
+		d += "; credentials withheld: " + strings.Join(info.Withheld, ", ")
+	}
+	if info.Warning != "" {
+		status = proto.CheckWarn
+		d += "; " + info.Warning
+	}
+	if !hasLocale(snap.Vars) {
+		status = proto.CheckWarn
+		d += "; no LANG, LC_ALL or LC_CTYPE: harnesses run in the C locale; set LANG in your shell startup files"
+	}
+	return proto.Check{Name: "environment", Status: status, Detail: d}
 }
 
 // doctor checks the environment, the network path and the harnesses. The
@@ -145,16 +169,7 @@ func (s *system) doctor(ctx context.Context) proto.DoctorReport {
 	snap, readErr := s.state()
 	info := infoOf(snap, readErr)
 	var r proto.DoctorReport
-	if info.Error != "" {
-		r.Checks = append(r.Checks, proto.Check{Name: "environment", Status: proto.CheckFail,
-			Detail: "the login shell could not be read, so harnesses get a minimal environment: " + info.Error})
-	} else {
-		d := fmt.Sprintf("%s: %d variables", info.Shell, info.Vars)
-		if len(info.Withheld) > 0 {
-			d += "; credentials withheld: " + strings.Join(info.Withheld, ", ")
-		}
-		r.Checks = append(r.Checks, proto.Check{Name: "environment", Status: proto.CheckOK, Detail: d})
-	}
+	r.Checks = append(r.Checks, environmentCheck(snap, info))
 	kinds := make([]string, 0, len(s.harnesses))
 	for k := range s.harnesses {
 		kinds = append(kinds, k)

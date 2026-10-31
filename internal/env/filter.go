@@ -59,15 +59,11 @@ func filter(vars map[string]string, allow []string) (kept map[string]string, dro
 	return kept, dropped
 }
 
-// hasUserinfo reports whether v is, or lists, a URL carrying user
-// information (user:password@host).
-func hasUserinfo(v string) bool {
-	if _, rest, ok := strings.Cut(v, "://"); ok {
-		v = rest
-	}
-	authority, _, _ := strings.Cut(v, "/")
-	return strings.Contains(authority, "@")
-}
+// hasUserinfo reports whether a proxy or no-proxy value may carry a
+// password: any "@" counts, however the URL is written, because a password
+// may hold unencoded "/", "?" or "#". A stray "@" only costs one extra read
+// of the shell.
+func hasUserinfo(v string) bool { return strings.Contains(v, "@") }
 
 // stripSecrets removes the proxy and no-proxy variables whose value carries
 // user information from vars and reports whether it removed any. Such a

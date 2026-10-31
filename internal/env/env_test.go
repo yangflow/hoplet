@@ -452,7 +452,7 @@ func TestUsableShell(t *testing.T) {
 			t.Errorf("%q: %v", path, got)
 		}
 	}
-	if s := UserShell(); !strings.HasPrefix(s, "/") || DefaultShell() != s {
+	if s := UserShell(context.Background()); !strings.HasPrefix(s, "/") {
 		t.Errorf("UserShell %q", s)
 	}
 }
@@ -474,5 +474,93 @@ func TestStatic(t *testing.T) {
 	snap, err := s.Environment(context.Background(), true)
 	if err != nil || !slices.Equal(snap.Vars, []string{"PATH=/bin"}) {
 		t.Fatalf("%+v %v", snap, err)
+	}
+}
+
+func TestSchemeLessProxyPasswordIsRedacted(t *testing.T) {
+	shell, dir := fakeShell(t, "export https_proxy=u:pw@127.0.0.1:3128")
+	h := t.TempDir()
+	l := &Login{Home: h, UserHome: dir, Shell: shell, SystemProxy: noProxy}
+	snap, err := l.Environment(context.Background(), false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(snap.Proxy, "pw") || !strings.Contains(snap.Proxy, "127.0.0.1:3128") || snap.ProxySource != ProxyFromShell {
+		t.Fatalf("proxy %q (%s)", snap.Proxy, snap.ProxySource)
+	}
+	b, _ := os.ReadFile(filepath.Join(h, CacheFile))
+	if strings.Contains(string(b), "pw") {
+		t.Fatalf("cache %s", b)
+	}
+}
+
+func TestRedactProxy(t *testing.T) {
+	for in, want := range map[string]string{
+		"http://u:pw@h:1":     "http://u:xxxxx@h:1",
+		"u:pw@h:1":            "http://u:xxxxx@h:1",
+		"http://h:1":          "http://h:1",
+		"h:1":                 "h:1",
+		"":                    "",
+		"http://u:p%zz@h:1":   "http://xxxxx@h:1",
+		"http://u:p/w@h:1":    "http://xxxxx@h:1",
+		"socks5h://a@b:p@c:2": "socks5h://a%40b:xxxxx@c:2",
+		"u:p%zz@h:1":          "xxxxx@h:1",
+	} {
+		if got := RedactProxy(in); got != want {
+			t.Errorf("%q: %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestUserinfoWithSlashIsASecret(t *testing.T) {
+	vars := map[string]string{"HTTPS_PROXY": "http://u:p/w@h:3128", "NO_PROXY": "a,b", "GOPATH": "/go"}
+	if !stripSecrets(vars) || len(vars) != 2 || vars["HTTPS_PROXY"] != "" {
+		t.Fatalf("vars %v", vars)
+	}
+}
+
+func TestFailedSecretReadFallsBackToTheCache(t *testing.T) {
+	shell, dir := fakeShell(t, "export https_proxy=http://u:pw@127.0.0.1:3128\nexport GOPATH=/go")
+	h := t.TempDir()
+	first := &Login{Home: h, UserHome: dir, Shell: shell, SystemProxy: noProxy}
+	if _, err := first.Environment(context.Background(), false); err != nil {
+		t.Fatal(err)
+	}
+	// The next process finds the shell broken.
+	if err := os.WriteFile(shell, []byte("#!/bin/sh\necho 'zsh: syntax error' >&2\nexit 1\n"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	second := &Login{Home: h, UserHome: dir, Shell: shell, SystemProxy: noProxy}
+	snap, err := second.Environment(context.Background(), false)
+	if err != nil {
+		t.Fatalf("fell over instead of using the cache: %v", err)
+	}
+	if v, _ := lookup(snap.Vars, "GOPATH"); v != "/go" {
+		t.Errorf("cached GOPATH = %q", v)
+	}
+	if _, ok := lookup(snap.Vars, "https_proxy"); ok {
+		t.Error("the proxy with a password came from nowhere")
+	}
+	if !strings.Contains(snap.Stale, "could not read") || !strings.Contains(snap.Stale, "syntax error") || strings.Contains(snap.Stale, "pw") {
+		t.Errorf("stale %q", snap.Stale)
+	}
+	// A refresh is forced and still fails.
+	if _, err := second.Environment(context.Background(), true); err == nil {
+		t.Error("a failed refresh succeeded")
+	}
+}
+
+func TestLastLineHidesCredentials(t *testing.T) {
+	for in, hidden := range map[string]bool{
+		"zsh: syntax error":                    false,
+		"+zshrc:3> export GITHUB_TOKEN=ghp_xx": true,
+		"export OPENAI_API_KEY='sk-x'":         true,
+		"+/home/u/.zshrc:1> GOPATH=/go":        false,
+		"first\nsecond":                        false,
+	} {
+		got := lastLine([]byte(in))
+		if (strings.Contains(got, "hidden")) != hidden || strings.Contains(got, "ghp_") || strings.Contains(got, "sk-x") {
+			t.Errorf("%q -> %q", in, got)
+		}
 	}
 }

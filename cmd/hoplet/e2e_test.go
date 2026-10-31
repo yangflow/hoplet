@@ -200,7 +200,7 @@ func TestSessionInTheTerminal(t *testing.T) {
 		t.Fatalf("wait done on an archived session: %q", out)
 	}
 
-	if out := mustCLI(t, "env", "refresh"); !strings.Contains(out, "2 variables") || !strings.Contains(out, "no proxy") {
+	if out := mustCLI(t, "env", "refresh"); !strings.Contains(out, "3 variables") || !strings.Contains(out, "no proxy") {
 		t.Fatalf("env refresh: %q", out)
 	}
 	if out := mustCLI(t, "daemon", "status"); !strings.Contains(out, "daemon dev serving") {

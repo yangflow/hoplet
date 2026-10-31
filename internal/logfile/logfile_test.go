@@ -138,7 +138,7 @@ func TestConcurrentWritesStayWhole(t *testing.T) {
 	}
 }
 
-func TestFailedRotationKeepsLogging(t *testing.T) {
+func TestRotationRecoversOnceTheBlockerIsGone(t *testing.T) {
 	p := filepath.Join(t.TempDir(), "d.log")
 	l, err := Open(p, 10, 1)
 	if err != nil {
@@ -148,18 +148,47 @@ func TestFailedRotationKeepsLogging(t *testing.T) {
 	if _, err := l.Write([]byte("aaaaaaaa\n")); err != nil {
 		t.Fatal(err)
 	}
-	// A non-empty directory at <path>.1 blocks the rename.
-	blocker := p + ".1"
-	if err := os.MkdirAll(filepath.Join(blocker, "x"), 0o700); err != nil {
+	blocker := filepath.Join(p+".1", "x")
+	if err := os.MkdirAll(blocker, 0o700); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := l.Write([]byte("bbbb\n")); err == nil {
 		t.Fatal("the failed rotation was not reported")
 	}
-	if _, err := l.Write([]byte("c")); err != nil {
-		t.Fatalf("later write: %v", err)
+	if err := os.RemoveAll(p + ".1"); err != nil {
+		t.Fatal(err)
 	}
-	if got := read(t, p); !strings.HasSuffix(got, "c") || !strings.HasPrefix(got, "aaaaaaaa\n") {
+	if _, err := l.Write([]byte("cccc\n")); err != nil {
+		t.Fatalf("write after recovery: %v", err)
+	}
+	if got := read(t, p); got != "cccc\n" {
+		t.Fatalf("current %q", got)
+	}
+	if got := read(t, p+".1"); got != "aaaaaaaa\nbbbb\n" {
+		t.Fatalf(".1 %q", got)
+	}
+}
+
+func TestPersistentRotationFailureStillLogs(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "d.log")
+	l, err := Open(p, 10, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+	if _, err := l.Write([]byte("aaaaaaaa\n")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(p+".1", "x"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	for _, line := range []string{"first long line\n", "second long line\n"} {
+		n, err := l.Write([]byte(line))
+		if err == nil || n != len(line) {
+			t.Fatalf("write %q: n=%d err=%v, want the line written and the rotation error", line, n, err)
+		}
+	}
+	if got := read(t, p); got != "aaaaaaaa\nfirst long line\nsecond long line\n" {
 		t.Fatalf("file %q", got)
 	}
 }

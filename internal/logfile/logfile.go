@@ -76,25 +76,27 @@ func (l *File) Write(p []byte) (int, error) {
 			return 0, err
 		}
 	}
+	var rotErr error
 	if l.size > 0 && l.size+int64(len(p)) > l.maxSize {
-		if err := l.rotate(); err != nil {
-			return 0, err
+		// A failed rotation must not lose the line: it is written to the
+		// current file and the rotation error is returned with it.
+		if rotErr = l.rotate(); rotErr != nil && l.f == nil {
+			return 0, rotErr
 		}
 	}
 	n, err := l.f.Write(p)
 	l.size += int64(n)
-	return n, err
+	return n, errors.Join(err, rotErr)
 }
 
 // rotate renames the file to .1 and starts a new one. If that fails, the
-// current path is reopened for appending (best effort) so that later
-// writes keep working, and the rotation error is returned.
+// current path is reopened for appending (best effort) so that writes keep
+// working, and the rotation error is returned.
 func (l *File) rotate() error {
-	if err := l.f.Close(); err != nil {
-		return fmt.Errorf("logfile: %w", err)
-	}
+	f := l.f
 	l.f = nil
-	if err := l.shift(); err != nil {
+	cerr := f.Close()
+	if err := errors.Join(cerr, l.shift()); err != nil {
 		_ = l.open() // on failure the next Write tries again
 		return err
 	}

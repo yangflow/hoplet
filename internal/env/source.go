@@ -31,7 +31,11 @@ type Snapshot struct {
 	ProxySource ProxySource `json:"proxy_source"`
 	// Note says why no proxy is in use when that may surprise (the system
 	// proxy is a PAC file).
-	Note       string    `json:"note,omitempty"`
+	Note string `json:"note,omitempty"`
+	// Stale says why the shell could not be read again when the snapshot
+	// is the cached environment without the secrets only the shell has
+	// (allowed credentials, proxies with a password); empty otherwise.
+	Stale      string    `json:"stale,omitempty"`
 	ResolvedAt time.Time `json:"resolved_at"`
 }
 
@@ -100,19 +104,26 @@ func (l *Login) Environment(ctx context.Context, refresh bool) (Snapshot, error)
 		return Snapshot{}, err
 	}
 	c, ok, err := l.load()
-	read := err != nil || !ok || refresh || c.Shell != l.Shell ||
-		(l.raw == nil && (c.NeedsShell || len(cfg.Env.Allow) > 0))
-	if read {
-		raw, err := login(ctx, l.Shell, l.UserHome)
-		if err != nil {
-			return Snapshot{}, err
-		}
-		l.raw = raw
-		c = cached{Shell: l.Shell, ResolvedAt: time.Now().UTC().Truncate(time.Second)}
-		c.Vars, c.Dropped = filter(raw, nil)
-		c.NeedsShell = stripSecrets(c.Vars)
-		if err := l.save(c); err != nil {
-			return Snapshot{}, err
+	forced := err != nil || !ok || refresh || c.Shell != l.Shell
+	var stale string
+	if forced || (l.raw == nil && (c.NeedsShell || len(cfg.Env.Allow) > 0)) {
+		raw, rerr := login(ctx, l.Shell, l.UserHome)
+		switch {
+		case rerr == nil:
+			l.raw = raw
+			c = cached{Shell: l.Shell, ResolvedAt: time.Now().UTC().Truncate(time.Second)}
+			c.Vars, c.Dropped = filter(raw, nil)
+			c.NeedsShell = stripSecrets(c.Vars)
+			if err := l.save(c); err != nil {
+				return Snapshot{}, err
+			}
+		case forced:
+			return Snapshot{}, rerr
+		default:
+			// Only the secrets needed the shell: keep the cached
+			// environment without them and say so.
+			stale = fmt.Sprintf("could not read %s again (%v); using the environment cached at %s",
+				l.Shell, rerr, c.ResolvedAt.Format(time.RFC3339))
 		}
 	}
 	vars := c.Vars
@@ -123,7 +134,9 @@ func (l *Login) Environment(ctx context.Context, refresh bool) (Snapshot, error)
 	if systemProxy == nil {
 		systemProxy = ReadSystemProxy
 	}
-	return build(ctx, c, vars, cfg, systemProxy)
+	snap, err := build(ctx, c, vars, cfg, systemProxy)
+	snap.Stale = stale
+	return snap, err
 }
 
 // build applies the proxy and makes the snapshot.
@@ -151,12 +164,12 @@ func build(ctx context.Context, c cached, cachedVars map[string]string, cfg conf
 		if sp.URL == "" {
 			src = ProxyNone
 			if sp.PAC != "" {
-				note = "the system proxy is a PAC file (" + redact(sp.PAC) + "); set network.proxy in config.toml"
+				note = "the system proxy is a PAC file (" + RedactProxy(sp.PAC) + "); set network.proxy in config.toml"
 			}
 		}
 		setProxy(vars, sp.URL, mergeNoProxy(noProxy, sp.NoProxy))
 	}
-	snap := Snapshot{Shell: c.Shell, Dropped: c.Dropped, Proxy: redact(proxy), ProxySource: src, Note: note, ResolvedAt: c.ResolvedAt}
+	snap := Snapshot{Shell: c.Shell, Dropped: c.Dropped, Proxy: RedactProxy(proxy), ProxySource: src, Note: note, ResolvedAt: c.ResolvedAt}
 	for k, v := range vars {
 		snap.Vars = append(snap.Vars, k+"="+v)
 	}

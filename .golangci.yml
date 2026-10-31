@@ -47,11 +47,15 @@ linters:
       - path: internal/env/login\.go
         linters: [gosec]
         text: G204
-      # UserShell asks the directory service for the user's shell (dscl with
-      # the account name) and checks that the shell it names is executable.
-      - path: internal/env/shell\.go
+      # dsclShell asks the directory service for the account's shell.
+      - path: internal/env/dscl\.go
         linters: [gosec]
-        text: G204|G703
+        text: G204
+      # usableShell checks that the shell the user database names is an
+      # executable file.
+      - path: internal/env/shellcheck\.go
+        linters: [gosec]
+        text: G703
       # doctor requests the probe URL from the daemon's configuration.
       - path: internal/daemon/probe\.go
         linters: [gosec]

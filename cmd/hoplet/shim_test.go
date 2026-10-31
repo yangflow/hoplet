@@ -64,7 +64,7 @@ func TestMain(m *testing.M) {
 	if os.Getenv("HOPLET_TEST_MAIN") != "" {
 		a := app{
 			stdout: os.Stdout, stderr: os.Stderr, harnesses: map[string]harness.Harness{},
-			env:      env.Static{"PATH=" + os.Getenv("PATH"), "HOPLET_TEST_MAIN=1"},
+			env:      env.Static{"PATH=" + os.Getenv("PATH"), "LANG=en_US.UTF-8", "HOPLET_TEST_MAIN=1"},
 			probeURL: os.Getenv("HOPLET_TEST_PROBE"),
 			agents:   fakeAgents, allowTempBinary: true,
 		}

@@ -80,7 +80,7 @@ func proxyFor(vars []string, target *url.URL) *url.URL {
 	if raw == "" || bypassed(get("NO_PROXY", "no_proxy"), target.Hostname()) {
 		return nil
 	}
-	u, err := url.Parse(raw)
+	u, err := env.ProxyURL(raw)
 	if err != nil || u.Host == "" {
 		return nil
 	}

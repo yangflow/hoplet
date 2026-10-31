@@ -360,3 +360,83 @@ func TestLaterRefreshClearsAStartupReadError(t *testing.T) {
 		t.Fatalf("error not cleared: %+v", got)
 	}
 }
+
+func TestDoctorProbesThroughASchemeLessProxy(t *testing.T) {
+	var mu sync.Mutex
+	var seen []string
+	proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		seen = append(seen, r.URL.String())
+		mu.Unlock()
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer proxy.Close()
+	bare := "u:pw@" + strings.TrimPrefix(proxy.URL, "http://")
+	s := &system{probeURL: "http://probe.example.invalid/"}
+	s.set(env.Snapshot{Vars: []string{"HTTP_PROXY=" + bare, "LANG=en_US.UTF-8"}, Proxy: bare, ProxySource: env.ProxyFromShell}, nil)
+	n := checksByName(s.doctor(context.Background()))["network"]
+	if n.Status != proto.CheckOK || !strings.Contains(n.Detail, "through") || strings.Contains(n.Detail, "pw") {
+		t.Fatalf("network %+v", n)
+	}
+	if info := s.info(); strings.Contains(info.Proxy, "pw") {
+		t.Fatalf("info proxy %q", info.Proxy)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if len(seen) != 1 {
+		t.Fatalf("the proxy saw %v", seen)
+	}
+}
+
+func TestDoctorEnvironmentWarnings(t *testing.T) {
+	s := &system{probeURL: okServer(t).URL}
+	s.set(env.Snapshot{Shell: "/bin/zsh", Vars: []string{"PATH=/bin"}, ProxySource: env.ProxyNone}, nil)
+	e := checksByName(s.doctor(context.Background()))["environment"]
+	if e.Status != proto.CheckWarn || !strings.Contains(e.Detail, "C locale") {
+		t.Fatalf("no locale: %+v", e)
+	}
+	s.set(env.Snapshot{Shell: "/bin/zsh", Vars: []string{"LC_CTYPE=en_US.UTF-8"}, ProxySource: env.ProxyNone}, nil)
+	if e := checksByName(s.doctor(context.Background()))["environment"]; e.Status != proto.CheckOK {
+		t.Fatalf("with locale: %+v", e)
+	}
+	s.set(env.Snapshot{Shell: "/bin/zsh", Vars: []string{"LANG=C"}, ProxySource: env.ProxyNone,
+		Stale: "could not read /bin/zsh again (boom); using the environment cached at 2026-01-01T00:00:00Z"}, nil)
+	info := s.info()
+	if info.Error != "" || !strings.Contains(info.Warning, "boom") {
+		t.Fatalf("info %+v", info)
+	}
+	if e := checksByName(s.doctor(context.Background()))["environment"]; e.Status != proto.CheckWarn || !strings.Contains(e.Detail, "boom") {
+		t.Fatalf("stale: %+v", e)
+	}
+}
+
+// ignoringHarness is a harness whose Probe ignores its context and blocks
+// until released.
+type ignoringHarness struct {
+	*fake.Harness
+	release chan struct{}
+}
+
+func (h ignoringHarness) Probe(context.Context) (harness.Info, error) {
+	<-h.release
+	return harness.Info{}, nil
+}
+
+func TestDoctorAbandonsAProbeThatIgnoresItsContext(t *testing.T) {
+	release := make(chan struct{})
+	t.Cleanup(func() { close(release) })
+	s := &system{
+		harnesses:    map[string]harness.Harness{"deaf": ignoringHarness{&fake.Harness{}, release}},
+		probeURL:     okServer(t).URL,
+		probeTimeout: 50 * time.Millisecond,
+	}
+	s.set(env.Snapshot{ProxySource: env.ProxyNone}, nil)
+	start := time.Now()
+	c := checksByName(s.doctor(context.Background()))
+	if time.Since(start) > 5*time.Second {
+		t.Fatal("doctor waited for the deaf probe")
+	}
+	if d := c["harness deaf"]; d.Status != proto.CheckFail || !strings.Contains(d.Detail, "did not answer") {
+		t.Fatalf("deaf %+v", d)
+	}
+}

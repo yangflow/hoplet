@@ -78,16 +78,16 @@ func (a app) daemonRun(args []string) int {
 		defer f.Close()
 		logw = f
 	}
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
+	defer stop()
 	src := a.env
 	if src == nil {
 		userHome, err := os.UserHomeDir()
 		if err != nil {
 			return a.fail("daemon", err)
 		}
-		src = &env.Login{Home: *dir, UserHome: userHome, Shell: env.UserShell()}
+		src = &env.Login{Home: *dir, UserHome: userHome, Shell: env.UserShell(ctx)}
 	}
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
-	defer stop()
 	d, err := daemon.Start(ctx, daemon.Config{
 		Home: *dir, Version: version, Exe: exe, Harnesses: a.harnesses, Env: src, ProbeURL: a.probeURL,
 		Logger: slog.New(slog.NewJSONHandler(logw, nil)),
