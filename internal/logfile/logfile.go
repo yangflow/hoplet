@@ -19,15 +19,17 @@ const (
 )
 
 // File is a rotating log file. It is safe for concurrent use; each Write
-// lands whole in one file.
+// lands whole in one file. One process owns a file: another process opening
+// the same path would keep writing into a file this one has renamed.
 type File struct {
 	path    string
 	maxSize int64
 	keep    int
 
-	mu   sync.Mutex
-	f    *os.File
-	size int64
+	mu     sync.Mutex
+	f      *os.File // nil after Close, or after a rotation that lost the file
+	closed bool
+	size   int64
 }
 
 // Open opens path for appending (mode 0600, creating its directory 0700).
@@ -66,8 +68,13 @@ func (l *File) open() error {
 func (l *File) Write(p []byte) (int, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	if l.f == nil {
+	if l.closed {
 		return 0, os.ErrClosed
+	}
+	if l.f == nil { // an earlier rotation failed to reopen the file
+		if err := l.open(); err != nil {
+			return 0, err
+		}
 	}
 	if l.size > 0 && l.size+int64(len(p)) > l.maxSize {
 		if err := l.rotate(); err != nil {
@@ -79,11 +86,22 @@ func (l *File) Write(p []byte) (int, error) {
 	return n, err
 }
 
+// rotate renames the file to .1 and starts a new one. If that fails, the
+// current path is reopened for appending (best effort) so that later
+// writes keep working, and the rotation error is returned.
 func (l *File) rotate() error {
 	if err := l.f.Close(); err != nil {
 		return fmt.Errorf("logfile: %w", err)
 	}
 	l.f = nil
+	if err := l.shift(); err != nil {
+		_ = l.open() // on failure the next Write tries again
+		return err
+	}
+	return l.open()
+}
+
+func (l *File) shift() error {
 	for i := l.keep - 1; i >= 1; i-- {
 		err := os.Rename(l.path+"."+strconv.Itoa(i), l.path+"."+strconv.Itoa(i+1))
 		if err != nil && !errors.Is(err, os.ErrNotExist) {
@@ -93,13 +111,14 @@ func (l *File) rotate() error {
 	if err := os.Rename(l.path, l.path+".1"); err != nil {
 		return fmt.Errorf("logfile: %w", err)
 	}
-	return l.open()
+	return nil
 }
 
 // Close closes the file.
 func (l *File) Close() error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	l.closed = true
 	if l.f == nil {
 		return nil
 	}

@@ -137,3 +137,29 @@ func TestConcurrentWritesStayWhole(t *testing.T) {
 		t.Fatalf("%d lines, want 400", lines)
 	}
 }
+
+func TestFailedRotationKeepsLogging(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "d.log")
+	l, err := Open(p, 10, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+	if _, err := l.Write([]byte("aaaaaaaa\n")); err != nil {
+		t.Fatal(err)
+	}
+	// A non-empty directory at <path>.1 blocks the rename.
+	blocker := p + ".1"
+	if err := os.MkdirAll(filepath.Join(blocker, "x"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := l.Write([]byte("bbbb\n")); err == nil {
+		t.Fatal("the failed rotation was not reported")
+	}
+	if _, err := l.Write([]byte("c")); err != nil {
+		t.Fatalf("later write: %v", err)
+	}
+	if got := read(t, p); !strings.HasSuffix(got, "c") || !strings.HasPrefix(got, "aaaaaaaa\n") {
+		t.Fatalf("file %q", got)
+	}
+}

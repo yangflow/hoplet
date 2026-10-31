@@ -10,10 +10,12 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // Label is the LaunchAgent's label.
@@ -69,6 +71,63 @@ type Manager struct {
 	UserHome string // the user's home directory
 	UID      int
 	Run      Runner // launchctl invocations
+
+	// retryDelay is the wait before bootstrap is retried; zero means
+	// defaultRetryDelay.
+	retryDelay time.Duration
+}
+
+// defaultRetryDelay is how long Install waits before retrying a bootstrap
+// that failed with "Input/output error", which launchd answers when the
+// service it just booted out is not gone yet.
+const defaultRetryDelay = 500 * time.Millisecond
+
+// exitStatus returns the exit status of a launchctl that ran and failed.
+func exitStatus(err error) (int, bool) {
+	var ee *exec.ExitError
+	if errors.As(err, &ee) && ee.ExitCode() > 0 {
+		return ee.ExitCode(), true
+	}
+	return 0, false
+}
+
+// notLoaded reports whether a failed bootout or print says the service is
+// not loaded: exit status 3 or 113, or launchctl's wording.
+func notLoaded(out []byte, err error) bool {
+	if code, ok := exitStatus(err); ok && (code == 3 || code == 113) {
+		return true
+	}
+	return bytes.Contains(out, []byte("No such process")) || bytes.Contains(out, []byte("Could not find"))
+}
+
+// bootout unloads the agent; it is not an error when none is loaded.
+func (m Manager) bootout(ctx context.Context) error {
+	out, err := m.Run(ctx, "launchctl", "bootout", m.target())
+	if err == nil || (ctx.Err() == nil && notLoaded(out, err)) {
+		return nil
+	}
+	return fmt.Errorf("launchd: bootout: %w: %s", err, strings.TrimSpace(string(out)))
+}
+
+func (m Manager) bootstrap(ctx context.Context) error {
+	domain := "gui/" + strconv.Itoa(m.UID)
+	out, err := m.Run(ctx, "launchctl", "bootstrap", domain, m.Path())
+	if code, ok := exitStatus(err); ok && code == 5 {
+		delay := m.retryDelay
+		if delay == 0 {
+			delay = defaultRetryDelay
+		}
+		select {
+		case <-time.After(delay):
+		case <-ctx.Done():
+			return fmt.Errorf("launchd: bootstrap: %w", ctx.Err())
+		}
+		out, err = m.Run(ctx, "launchctl", "bootstrap", domain, m.Path())
+	}
+	if err != nil {
+		return fmt.Errorf("launchd: bootstrap: %w: %s", err, strings.TrimSpace(string(out)))
+	}
+	return nil
 }
 
 // Path is the LaunchAgent's plist file.
@@ -93,18 +152,22 @@ func (m Manager) Install(ctx context.Context, a Agent) error {
 	if err := writeFile(m.Path(), Plist(a)); err != nil {
 		return err
 	}
-	// bootout fails when nothing is loaded; that is the normal first install.
-	_, _ = m.Run(ctx, "launchctl", "bootout", m.target())
-	if out, err := m.Run(ctx, "launchctl", "bootstrap", "gui/"+strconv.Itoa(m.UID), m.Path()); err != nil {
-		return fmt.Errorf("launchd: bootstrap: %w: %s", err, strings.TrimSpace(string(out)))
+	// Nothing loaded is the normal first install; any other bootout
+	// failure is reported. Bootstrap right after bootout can answer
+	// "Input/output error" (5) and is retried once.
+	if err := m.bootout(ctx); err != nil {
+		return err
 	}
-	return nil
+	return m.bootstrap(ctx)
 }
 
 // Uninstall unloads the agent, which stops the daemon, and removes the
-// plist. It is not an error if nothing is installed.
+// plist. It is not an error if nothing is installed or loaded; a bootout
+// that fails otherwise is returned and the plist stays.
 func (m Manager) Uninstall(ctx context.Context) error {
-	_, _ = m.Run(ctx, "launchctl", "bootout", m.target())
+	if err := m.bootout(ctx); err != nil {
+		return err
+	}
 	if err := os.Remove(m.Path()); err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return fmt.Errorf("launchd: remove plist: %w", err)
 	}
@@ -144,7 +207,10 @@ func (m Manager) Status(ctx context.Context) (Status, error) {
 	}
 	out, err := m.Run(ctx, "launchctl", "print", m.target())
 	if err != nil {
-		return s, nil // not loaded
+		if _, exited := exitStatus(err); exited && ctx.Err() == nil {
+			return s, nil // launchctl ran and found no such service
+		}
+		return Status{}, fmt.Errorf("launchd: print: %w", err)
 	}
 	s.Loaded = true
 	if g := stateRe.FindSubmatch(out); g != nil {
