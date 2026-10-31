@@ -39,6 +39,10 @@ linters:
       - path: internal/harness/fake/fakeharness/main\.go
         linters: [gosec]
         text: G703
+      # launchCommand runs the claude command line the adapter assembled.
+      - path: internal/harness/claude/launch_exec\.go
+        linters: [gosec]
+        text: G204
       # runCommand runs launchctl with arguments package launchd builds.
       - path: cmd/hoplet/launchctl\.go
         linters: [gosec]
