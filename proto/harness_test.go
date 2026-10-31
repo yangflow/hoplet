@@ -21,3 +21,13 @@ func TestCapabilitiesJSON(t *testing.T) {
 		t.Fatalf("round trip %+v", back)
 	}
 }
+
+func TestCapabilitiesSetModeModelJSON(t *testing.T) {
+	b, err := json.Marshal(Capabilities{SetMode: true, SetModel: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := string(b), `{"set_mode":true,"set_model":true}`; got != want {
+		t.Fatalf("got %s, want %s", got, want)
+	}
+}

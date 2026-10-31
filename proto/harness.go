@@ -14,10 +14,13 @@ const (
 )
 
 // Capabilities says which optional operations a harness supports; clients
-// hide controls for the rest.
+// hide controls for the rest. Fork, Rewind and PlanMode have no Run methods
+// yet; they arrive with M3.
 type Capabilities struct {
 	Steer         bool `json:"steer,omitempty"`
 	Resume        bool `json:"resume,omitempty"`
+	SetMode       bool `json:"set_mode,omitempty"`
+	SetModel      bool `json:"set_model,omitempty"`
 	Fork          bool `json:"fork,omitempty"`
 	Rewind        bool `json:"rewind,omitempty"`
 	PlanMode      bool `json:"plan_mode,omitempty"`
