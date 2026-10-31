@@ -1243,3 +1243,21 @@ gh pr create --title "feat(harness): add harness interfaces and scriptable fake 
 - 审批与提问能被回应；插话立即生效；中断在慢输出期间立即结束本轮；中途退出产生 `aborted` 的轮次结束。
 - 无法识别的行变成 `proto.Error`；stderr 行作为只含原始内容的事件保留。
 - `make check` 本地和 CI 通过。
+
+## 实现与计划的差异（评审后追加）
+
+任务评审和整分支终审之后，接口在合并前重新设计；后续 PR 以 `main` 上的真实代码为准：
+
+| 方面 | 变化 |
+|---|---|
+| 偏移 | `Line.Offset` / `Event.Offset`：每个 Line 至少产生一个 Event 并带偏移，守护进程据此与事件同事务提交偏移、ack exit 记录；合成事件（如 aborted）只带触发行的偏移、不带 Raw |
+| 续接 | `Spec.State{InTurn, Native}` 由守护进程从存储填入；退出或断开时存储里本轮仍开着，由守护进程补写 `TurnEnded{aborted}` |
+| 事件 | `Event.Native`（立即落盘原生会话 ID）、`Event.Exit`（退出码 / 信号）、`Event.Stderr` |
+| Err | nil 表示 harness 已结束；`ErrDetached` 表示传输断开、可重连；其他为适配器错误；调用方 Close 之后为 nil |
+| Stdio | 新增 `Stdin` / `StdinError` 行；`WriteLine(ctx, …)` 返回 nil 只表示已被接受；`Signal(name)`；`Close` 表示释放（shim 下 harness 继续运行，ExecStdio 会终止进程） |
+| 接口 | 新增 `DirectHarness{Start}`（Hermes）；`Run` 新增 `SetMode` / `SetModel`；`Info` 新增 `Models`、`Supported`（版本门控）；能力缺失统一返回 `ErrUnsupported`；`Spec` 预留 `MCP`、`Ephemeral` |
+| proto | `Capabilities` 新增 `SetMode`、`SetModel` |
+| ExecStdio | stdin 用 `os.Pipe`，写入受 ctx 约束；超过 `MaxLine` 的行按块交付；nil env 即空环境；取消时杀整个进程组；退出后每次读取前重设 2 秒截止时间，只限制沉默的后代进程，不因读取方慢而丢输出；`Close` 不会被阻塞写卡住，并杀掉仍有成员的进程组；半行写入之后返回 `ErrPartialWrite` |
+| 假 harness | 可配置能力位；`usage`、`file_change` 事件；`signal`、`ignore_interrupt`、`hang` 步骤；续接（`HOPLET_FAKE_RESUME` + `resume_turn`）；`set_mode` / `set_model` 回显；轮次外的中断静默忽略；剧本步骤校验 |
+| 测试 | 不用 sleep 做同步：背压测试用预装的内存 Stdio，其余等待改为显式屏障 |
+| lint | fake 目录的 gosec 排除收窄为 `build.go` 的 G204 与 `fakeharness/main.go` 的 G703 |
