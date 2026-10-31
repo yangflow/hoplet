@@ -8,7 +8,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -354,11 +353,11 @@ func TestExecStdioPartialWritePoisonsStdin(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
 	defer cancel()
 	err = e.WriteLine(ctx, bytes.Repeat([]byte("x"), 4<<20))
-	if !errors.Is(err, context.DeadlineExceeded) || !strings.Contains(err.Error(), "partial") {
+	if !errors.Is(err, context.DeadlineExceeded) || !errors.Is(err, ErrPartialWrite) {
 		t.Fatalf("first write: %v", err)
 	}
 	err = e.WriteLine(context.Background(), []byte("next"))
-	if err == nil || !strings.Contains(err.Error(), "partial") {
+	if !errors.Is(err, ErrPartialWrite) || errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
 		t.Fatalf("later write: %v", err)
 	}
 }

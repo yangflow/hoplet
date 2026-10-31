@@ -13,14 +13,21 @@ import (
 )
 
 const (
-	// drainBound bounds how long a descendant holding an output pipe can
-	// delay the Exit line after the process itself has exited: once the
+	// drainBound bounds how long a silent descendant holding an output pipe
+	// can delay the Exit line after the process itself has exited: once the
 	// process is gone, each read of its output may wait this long for data.
-	// Time spent blocked delivering a line to a slow reader never counts.
+	// A descendant that keeps writing delays Exit for as long as it writes
+	// (accepted for a probe/test transport). Time spent blocked delivering a
+	// line to a slow reader never counts.
 	drainBound = 2 * time.Second
 	// closeBound bounds how long Close waits for the goroutines to stop.
 	closeBound = 5 * time.Second
 )
+
+// ErrPartialWrite is returned by WriteLine after an earlier WriteLine was
+// cancelled mid-line: the stdin stream is no longer line-aligned and the
+// ExecStdio must be closed.
+var ErrPartialWrite = errors.New("harness: partial stdin write")
 
 // ExecStdio runs a process directly and exposes its stdio as Lines. It is
 // for probes and tests; sessions run through a shim instead. It cannot
@@ -40,7 +47,7 @@ type ExecStdio struct {
 	smu    sync.Mutex // guards exited and group signals
 	exited bool
 
-	werr error // set under wmu once a partial write has poisoned stdin
+	poisoned bool // set under wmu once a partial write has misaligned stdin
 }
 
 func (e *ExecStdio) hasExited() bool {
@@ -239,8 +246,8 @@ func (e *ExecStdio) WriteLine(ctx context.Context, line []byte) error {
 	}
 	e.wmu.Lock()
 	defer e.wmu.Unlock()
-	if e.werr != nil {
-		return e.werr
+	if e.poisoned {
+		return fmt.Errorf("%w: stdin is unusable, close the ExecStdio", ErrPartialWrite)
 	}
 	if err := ctx.Err(); err != nil {
 		return err
@@ -268,8 +275,8 @@ func (e *ExecStdio) WriteLine(ctx context.Context, line []byte) error {
 		if n > 0 && n < len(buf) {
 			// Part of the line is in the pipe; anything written now would
 			// splice into it, so stdin is unusable from here on.
-			e.werr = fmt.Errorf("harness: partial stdin write (%d of %d bytes), stdin is unusable: %w", n, len(buf), err)
-			return e.werr
+			e.poisoned = true
+			return fmt.Errorf("%w (%d of %d bytes): %w", ErrPartialWrite, n, len(buf), err)
 		}
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 			return err
