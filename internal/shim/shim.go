@@ -108,6 +108,7 @@ type shim struct {
 	wg           sync.WaitGroup // accept, serve, stream and the stdin writer
 	quit         chan struct{}  // closed when Run is shutting down
 	exitCh       chan struct{}  // closed once the exit record is written
+	waitDone     chan struct{}  // closed when the wait goroutine returns
 	done         chan struct{}  // closed when the shim may exit
 	doneOnce     sync.Once
 	mu           sync.Mutex
@@ -116,6 +117,7 @@ type shim struct {
 	closing      bool
 	conns        map[net.Conn]struct{}
 	current      net.Conn // the client that owns the child, if any
+	live         *conn    // current, with its write lock
 	lingerTimer  *time.Timer
 	recordFailed bool // spool appends fail; output is discarded
 }
@@ -162,7 +164,12 @@ func Run(ctx context.Context, cfg Config) (err error) {
 	if cfg.wrapSpool != nil {
 		sp.w = cfg.wrapSpool(sp.w)
 	}
-	defer func() { err = errors.Join(err, sp.close()) }()
+	leaveSpoolOpen := false // set when goroutines may still write to it
+	defer func() {
+		if !leaveSpoolOpen {
+			err = errors.Join(err, sp.close())
+		}
+	}()
 	ln, err := listen(cfg.Dir)
 	if err != nil {
 		return err
@@ -175,7 +182,7 @@ func Run(ctx context.Context, cfg Config) (err error) {
 	s := &shim{
 		cfg: cfg, log: lg, spool: sp,
 		stdinQ: make(chan stdinReq, stdinQueueSize),
-		quit:   make(chan struct{}), exitCh: make(chan struct{}), done: make(chan struct{}),
+		quit:   make(chan struct{}), exitCh: make(chan struct{}), waitDone: make(chan struct{}), done: make(chan struct{}),
 		conns: make(map[net.Conn]struct{}),
 	}
 	if err := s.start(); err != nil {
@@ -194,8 +201,12 @@ func Run(ctx context.Context, cfg Config) (err error) {
 	}
 	runErr = errors.Join(runErr, ln.Close())
 	s.shutdown()
+	if runErr != nil && !s.hasExited() {
+		// The child could not be stopped. Free what its goroutines block on,
+		// and keep the spool open if they do not finish.
+		leaveSpoolOpen = !s.abandon()
+	}
 	s.wg.Wait()
-	s.reapGroup()
 	return runErr
 }
 
@@ -339,6 +350,7 @@ func (s *shim) record(kind RecordKind, data []byte, more bool) {
 // wait reaps the child, gives its output DrainTimeout to finish, and writes
 // the exit record.
 func (s *shim) wait() {
+	defer close(s.waitDone)
 	err := s.cmd.Wait()
 	_ = s.stdinFile.Close() // unblocks a writer stuck on a child that never reads
 	deadline := time.Now().Add(s.cfg.DrainTimeout)
@@ -356,9 +368,10 @@ func (s *shim) wait() {
 	s.mu.Unlock()
 	off, aerr := s.spool.append(rec)
 	if aerr != nil {
-		s.log.Error("exit record not written", "error", aerr)
-		off = 0 // only linger can end the shim
+		s.log.Error("exit record not fully written", "error", aerr)
+		// off is 0 when nothing was written; only linger can end the shim then.
 	}
+	s.reapGroup() // the exit record is out; nothing the child left behind may outlive it
 	s.log.Info("child exited", "code", rec.Code, "signal", rec.Signal)
 	s.mu.Lock()
 	s.final = off
@@ -446,6 +459,31 @@ func (s *shim) reapGroup() {
 	if syscall.Kill(-s.pgid, 0) == nil {
 		s.log.Warn("killing leftover descendants", "pgid", s.pgid)
 		s.signal(syscall.SIGKILL)
+	}
+}
+
+// abandon is the last resort for a child that cannot be stopped: it closes
+// the pipes the shim holds so blocked goroutines return, then waits up to
+// KillGrace for them. It reports whether they all finished, which is when
+// the spool is safe to close.
+func (s *shim) abandon() bool {
+	for _, f := range []*os.File{s.stdinFile, s.outR, s.errR} {
+		if f != nil {
+			_ = f.Close() // unblocks the goroutine using it
+		}
+	}
+	finished := make(chan struct{})
+	go func() {
+		s.pumps.Wait()
+		<-s.waitDone
+		close(finished)
+	}()
+	select {
+	case <-finished:
+		return true
+	case <-time.After(s.cfg.KillGrace):
+		s.log.Error("goroutines still running after abandoning the child; leaving the spool open")
+		return false
 	}
 }
 

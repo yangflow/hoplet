@@ -3,6 +3,8 @@ package shim
 import (
 	"bytes"
 	"context"
+	"errors"
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -54,12 +56,14 @@ func TestLongLineIsChunked(t *testing.T) {
 		got, final := recvUntil(t, c, isExit)
 		var total int
 		var lines []Record
+		var rebuilt bytes.Buffer
 		for _, r := range got {
 			if r.Kind != KindStdout {
 				continue
 			}
 			lines = append(lines, r)
 			total += len(r.Data)
+			rebuilt.WriteString(r.Data)
 			if len(r.Data) > ChunkSize {
 				t.Fatalf("record of %d bytes exceeds ChunkSize", len(r.Data))
 			}
@@ -69,8 +73,8 @@ func TestLongLineIsChunked(t *testing.T) {
 				t.Fatalf("record %d of %d has More=%v", i, len(lines), r.More)
 			}
 		}
-		if total != size {
-			t.Fatalf("reassembled %d bytes, want %d", total, size)
+		if total != size || !bytes.Equal(rebuilt.Bytes(), bytes.Repeat([]byte{'a'}, size)) {
+			t.Fatalf("reassembled %d bytes, want exactly %d 'a' bytes", total, size)
 		}
 		if err := c.Ack(final); err != nil {
 			t.Fatal(err)
@@ -112,22 +116,23 @@ func TestExitNotHeldByDescendant(t *testing.T) {
 	})
 	c := dial(t, dir, 0)
 	began := time.Now()
+	hi, _ := recvUntil(t, c, func(r Record) bool { return strings.HasPrefix(r.Data, "hi ") })
+	sleeper := pidAfter(t, hi, "hi ")
+	if syscall.Kill(sleeper, 0) != nil {
+		t.Fatal("the descendant should still be running when its parent's output arrives")
+	}
 	got, final := recvUntil(t, c, isExit)
 	if took := time.Since(began); took > 4*time.Second {
 		t.Fatalf("exit record took %v with a descendant holding the pipes", took)
 	}
-	sleeper := pidAfter(t, got, "hi ")
 	if exit := got[len(got)-1]; exit.Code != 0 || exit.Signal != "" {
 		t.Fatalf("exit %+v", exit)
 	}
-	if syscall.Kill(sleeper, 0) != nil {
-		t.Fatal("descendant should still run until the shim exits")
-	}
+	gone(t, sleeper) // reaped right after the exit record, long before the shim exits
 	if err := c.Ack(final); err != nil {
 		t.Fatal(err)
 	}
 	waitDone(t, done)
-	gone(t, sleeper) // Run kills what the child left behind
 }
 
 func TestCancelEscalatesToKill(t *testing.T) {
@@ -189,4 +194,64 @@ func TestSignalAfterExitRejected(t *testing.T) {
 		t.Fatal(err)
 	}
 	waitDone(t, done)
+}
+
+func TestExitRecordIsLast(t *testing.T) {
+	// Slow appends keep the stdin writer busy while the child exits.
+	dir, done := startShimCfg(context.Background(), t, func(cfg *Config) {
+		cfg.Command = append(cfg.Command, "echo")
+		cfg.wrapSpool = func(f spoolFile) spoolFile { return slowSpool{f} }
+	})
+	c := dial(t, dir, 0)
+	for i := 0; i < 20; i++ {
+		if err := c.Stdin(fmt.Sprint("before ", i)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := c.Stdin("quit"); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 40; i++ { // queued behind quit; the child will never read them
+		if err := c.Stdin(fmt.Sprint("after ", i)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var final int64
+	for { // error frames for the late lines are expected
+		rec, off, err := c.Recv()
+		var se *Error
+		if errors.As(err, &se) {
+			continue
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		if rec.Kind == KindExit {
+			final = off
+			break
+		}
+	}
+	if err := c.Ack(final); err != nil {
+		t.Fatal(err)
+	}
+	waitDone(t, done) // Run returns only after the stdin writer is done
+	b, err := os.ReadFile(SpoolPath(dir))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if int64(len(b)) != final {
+		t.Fatalf("spool is %d bytes but the exit record ends at %d: records follow the exit record", len(b), final)
+	}
+	lines := bytes.Split(bytes.TrimSuffix(b, []byte("\n")), []byte("\n"))
+	if last := lines[len(lines)-1]; !bytes.Contains(last, []byte(`"k":"exit"`)) {
+		t.Fatalf("last record is %s", last)
+	}
+}
+
+// slowSpool delays every write.
+type slowSpool struct{ spoolFile }
+
+func (s slowSpool) Write(b []byte) (int, error) {
+	time.Sleep(3 * time.Millisecond)
+	return s.spoolFile.Write(b)
 }

@@ -1,6 +1,7 @@
 package shim
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"slices"
@@ -140,5 +141,37 @@ func TestFailedAppendLeavesSpoolUnchanged(t *testing.T) {
 	}
 	if after, _ := sp.state(); after != before {
 		t.Fatalf("size moved from %d to %d on a failed append", before, after)
+	}
+}
+
+// failingSync is a spoolFile whose Sync fails.
+type failingSync struct{ spoolFile }
+
+func (failingSync) Sync() error { return errDiskFull }
+
+func TestExitRecordSurvivesSyncFailure(t *testing.T) {
+	path := filepath.Join(t.TempDir(), SpoolName)
+	sp, err := openSpool(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sp.close()
+	sp.w = failingSync{sp.w}
+	_, notify := sp.state()
+	off, err := sp.append(Record{Kind: KindExit, Code: 3})
+	if !errors.Is(err, errDiskFull) {
+		t.Fatalf("append: %v, want the sync error", err)
+	}
+	st, serr := os.Stat(path)
+	if serr != nil {
+		t.Fatal(serr)
+	}
+	if size, _ := sp.state(); size != st.Size() || off != st.Size() {
+		t.Fatalf("size %d, returned offset %d, file length %d: want all equal", size, off, st.Size())
+	}
+	select {
+	case <-notify:
+	default:
+		t.Fatal("readers were not notified of the written record")
 	}
 }

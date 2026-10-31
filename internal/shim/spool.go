@@ -99,14 +99,16 @@ func (s *spool) append(rec Record) (int64, error) {
 	if _, err := s.w.Write(b); err != nil {
 		return 0, errors.Join(fmt.Errorf("shim: append record: %w", err), s.w.Truncate(s.size))
 	}
-	if rec.Kind == KindExit {
-		if err := s.w.Sync(); err != nil {
-			return 0, fmt.Errorf("shim: sync spool: %w", err)
-		}
-	}
 	s.size += int64(len(b))
 	close(s.notify)
 	s.notify = make(chan struct{})
+	if rec.Kind == KindExit {
+		// The record is written and visible to readers even if it is not yet
+		// durable, so the size and the returned offset stay truthful.
+		if err := s.w.Sync(); err != nil {
+			return s.size, fmt.Errorf("shim: sync spool: %w", err)
+		}
+	}
 	return s.size, nil
 }
 

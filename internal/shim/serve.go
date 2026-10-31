@@ -75,7 +75,7 @@ func (s *shim) serve(nc net.Conn) {
 	if err := c.SetReadDeadline(time.Time{}); err != nil {
 		return
 	}
-	if !s.adopt(nc) {
+	if !s.adopt(c) {
 		return
 	}
 	s.log.Info("client connected", "offset", hello.Offset)
@@ -106,7 +106,8 @@ func (s *shim) serve(nc net.Conn) {
 
 // adopt makes nc the live client, closing the one it replaces. It reports
 // false when the shim is shutting down.
-func (s *shim) adopt(nc net.Conn) bool {
+func (s *shim) adopt(c *conn) bool {
+	nc := c.Conn
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.closing {
@@ -116,7 +117,7 @@ func (s *shim) adopt(nc net.Conn) bool {
 		s.log.Info("client replaced")
 		_ = s.current.Close() // its serve goroutine notices and exits
 	}
-	s.current = nc
+	s.current, s.live = nc, c
 	return true
 }
 
@@ -126,7 +127,7 @@ func (s *shim) release(nc net.Conn) {
 	defer s.mu.Unlock()
 	delete(s.conns, nc)
 	if s.current == nc {
-		s.current = nil
+		s.current, s.live = nil, nil
 	}
 }
 
@@ -212,9 +213,32 @@ func (s *shim) enqueueStdin(req stdinReq) error {
 	}
 }
 
+// appendUnlessExited appends rec unless the child has exited. It takes the
+// lock the exit path holds while it marks the child exited, so no record can
+// follow the exit record.
+func (s *shim) appendUnlessExited(rec Record) (written bool, err error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.exited {
+		return false, nil
+	}
+	_, err = s.spool.append(rec)
+	return err == nil, err
+}
+
+// rejectExited tells the live client that a request arrived too late.
+func (s *shim) rejectExited() {
+	s.mu.Lock()
+	live := s.live
+	s.mu.Unlock()
+	if live != nil {
+		_ = live.sendError(CodeExited, "child has exited", 0)
+	}
+}
+
 // stdinLoop writes queued stdin to the child. It records each line before
 // writing it, so the spool shows what was attempted even if the child dies
-// mid-write.
+// mid-write. Once the child has exited it records nothing more.
 func (s *shim) stdinLoop() {
 	defer s.wg.Done()
 	for {
@@ -224,11 +248,16 @@ func (s *shim) stdinLoop() {
 				_ = s.stdinFile.Close() // already closed when the child is gone
 				continue
 			}
-			if _, err := s.spool.append(Record{Kind: KindStdin, Data: req.line}); err != nil {
+			written, err := s.appendUnlessExited(Record{Kind: KindStdin, Data: req.line})
+			if err != nil {
 				s.log.Error("stdin record not written", "error", err)
 			}
+			if !written && err == nil {
+				s.rejectExited()
+				continue
+			}
 			if _, err := s.stdinFile.Write([]byte(req.line + "\n")); err != nil {
-				if _, aerr := s.spool.append(Record{Kind: KindStdinError, Data: err.Error()}); aerr != nil {
+				if _, aerr := s.appendUnlessExited(Record{Kind: KindStdinError, Data: err.Error()}); aerr != nil {
 					s.log.Error("stdin_error record not written", "error", aerr)
 				}
 			}
