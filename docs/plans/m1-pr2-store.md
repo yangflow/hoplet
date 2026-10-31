@@ -1652,3 +1652,19 @@ gh pr create --title "feat(store): add SQLite store with event log and receipts"
 - 压缩后回放得到同样的完整消息，seq 不复用。
 - 迁移前备份，保留最近 3 份；遇到比二进制更新的库版本时拒绝打开。
 - 基准结果已记录；`make check` 本地和 CI 通过。
+
+## 实现与计划的差异（评审后追加）
+
+按任务评审和整分支终审的结论，合并前在计划之外补了以下内容；后续 PR 以 `main` 上的真实代码为准：
+
+| 方面 | 变化 |
+|---|---|
+| 审批 | 新增 `ResolveApproval`：事务内比较并交换，先答者生效；已决定返回 `ErrConflict`，未知返回 `ErrNotFound`；通用 `Append` 遇到过期的决定只记日志不改投影 |
+| 状态 | 会话状态每次由表推导：待审批 > 进行中的轮次 > 最近结束轮次的原因；`turn.ended` 时自动为未决审批追加 `expired` 事件 |
+| 表结构 | `events` 改为普通 rowid 表；审批、回执按会话区分主键；`sessions.version` + 全局 `catalog` 计数；`receipts` 外键与时间索引；`output_sha256` 与 blob 引用索引 |
+| 读取 | 独立的只读连接池（`query_only`，4 连接）；`Snapshot`、`EventsBefore`、`GapSize`、`SessionsSince`、`CatalogVersion`；`PendingApprovals` 返回请求 seq |
+| 写入 | `UpdateSession`；`PruneReceipts`；ingest 偏移只能前进；仅含偏移的追加不改会话；无效条目返回 `ErrInvalid`（逐条隔离由 PR5 的接入层负责） |
+| 校验 | `CreateSession` 校验枚举，重复 ID 返回 `ErrExists`；`Events` 的 limit 必须为正 |
+| 迁移 | 迁移接受 `fs.FS`，可测试多步升级与备份有效性；`-- hoplet:no-transaction` 标记；DSN 统一转义，写事务 `BEGIN IMMEDIATE` |
+| blob | 写入后同步分片目录（新建分片时同步上层目录）；去重时刷新 mtime 防止被 GC；打开时校验摘要格式与大小；`GCBlobs`；启动时清理临时文件 |
+| 基准 | 约 7 万 events/s（追加时推导状态、更新版本号后从 8.2 万下降） |
