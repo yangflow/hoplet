@@ -71,7 +71,10 @@ flowchart LR
 - `daemon.Start(ctx, daemon.Config{Home, Version, Exe, Harnesses map[string]harness.Harness, Env, Logger}) (*Daemon, error)`；`(*Daemon).Close() error`、`Done() <-chan struct{}`、`Err() error`；`daemon.ErrRunning`
 - `home.Dir() (string, error)`、`home.Socket / Lock / Sessions / TokenFile(home) string`、`home.ReadToken`、`home.EnsureToken`；`home.Env = "HOPLET_HOME"`
 - `client.Dial(ctx, client.Options{Socket, Token, DeviceID}) (*Client, error)`、`client.HomeOptions(home, deviceID)`；`(*Client).Call / Subscribe / Hello / Done / Close`；`(*Subscription).Next(ctx, v) / Cancel(ctx)`；`client.ErrClosed`、`client.ErrEnded`
-- `(*Client)` 类型化方法：`Sessions`、`Create`、`Send`、`Respond`、`Interrupt`、`Steer`、`Answer`、`SetPermission`、`Stop`、`Archive`、`Queue`、`EditQueued`、`DeleteQueued`、`MoveQueued`、`SubscribeCatalog`、`SubscribeSession`
+- `(*Client)` 类型化方法：`Sessions`、`Create`、`Send`、`Respond`、`Interrupt`、`Steer`、`Answer`、`SetPermission`、`Stop`、`Archive`、`EventsBefore`、`Queue`、`EditQueued`、`DeleteQueued`、`MoveQueued`、`SubscribeCatalog`、`SubscribeSession`
+- `sessions.events`（`proto.MethodSessionsEvents`）：参数 `proto.EventsParams{Session, BeforeSeq, Limit}`，结果 `proto.EventsPage{Events, More}`（由旧到新；`More` 表示还有更早的事件）；客户端 `(*Client).EventsBefore`
+- `(*session.Manager).Changes() <-chan struct{}`：在 Send 可接受的状态变化后关闭（轮次开始已记录、追上 shim、发送失败、harness 接入 / 退出 / 被停止）；队列发送者同时等待它和 `store.Changes`
+- `store.QueueHead(ctx, id) (msg, sendKey, ok, err)`：队首及其发送键（编辑过的消息为 `key#N`；客户端的键不得含 `#`）
 - `proto.ProtocolMajor = 1`、`proto.APIPath = "/v1"`；服务端错误是 `*proto.APIError{Code, Message}`
 
 ---

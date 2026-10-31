@@ -10,7 +10,7 @@
 | 本地 / 远程 | 同一协议：本机走 Unix socket / 回环；远程走加密隧道（[0006](0006-connectivity-security.md)） |
 | 请求 | `{id, method, params}` → `{id, result \| error}` |
 | 流 | `{sub, item}`；取消 `{sub, cancel}` |
-| 握手 | `hello{protocol_major, device_id}` → `{host, features}`；主版本不符即拒绝 |
+| 握手 | `hello{protocol_major, device_id, token}` → `{host, version, protocol_major}`；主版本不符即拒绝；命令是否可用随各会话的 harness 能力位下发 |
 
 ## 三类订阅
 
