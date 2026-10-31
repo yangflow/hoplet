@@ -298,8 +298,8 @@ func TestPlanExitRestoresNonDefaultMode(t *testing.T) {
 		`proto.ModeChanged {"permission":"auto_edit","plan":true}`,
 		`proto.ModeChanged {"permission":"auto_edit","plan":false}`,
 	}
-	if !slices.Equal(events(p), want) {
-		t.Fatalf("events %q", p.golden)
+	if got := events(p); !slices.Equal(got, want) {
+		t.Fatalf("events %q", got)
 	}
 	if req := lastWrite(t, io)["request"].(map[string]any); req["subtype"] != "set_permission_mode" || req["mode"] != "acceptEdits" {
 		t.Fatalf("restore wrote %v", req)

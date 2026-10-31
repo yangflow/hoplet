@@ -22,11 +22,11 @@ const (
 	optionDeny   = "deny"
 )
 
-// denyMessage is what claude is told when the user denies a tool.
 // writeTimeout bounds the writes the read loop makes by itself, so a stuck
 // transport cannot stall it.
 const writeTimeout = 10 * time.Second
 
+// denyMessage is what claude is told when the user denies a tool.
 const denyMessage = "The user denied this in Hoplet."
 
 // pending is an approval request the adapter has seen and not answered.
