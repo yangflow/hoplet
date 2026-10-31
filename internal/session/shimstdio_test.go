@@ -110,8 +110,8 @@ func TestAssemblerSplitsAtMaxLine(t *testing.T) {
 	for i := range n {
 		lines = append(lines, a.add(shim.Record{Kind: shim.KindStdout, B: chunk, More: true}, int64(i+1))...)
 	}
-	if len(lines) != 1 || len(lines[0].Data) != harness.MaxLine || lines[0].Offset != int64(n) {
-		t.Fatalf("a full buffer must flush at once: %d lines", len(lines))
+	if len(lines) != 1 || len(lines[0].Data) != harness.MaxLine || lines[0].Offset != 0 {
+		t.Fatalf("a full buffer must flush at once, without an offset: %d lines", len(lines))
 	}
 	lines = a.add(shim.Record{Kind: shim.KindStdout, Data: "tail"}, int64(n+1))
 	if len(lines) != 1 || string(lines[0].Data) != "tail" || lines[0].Offset != int64(n+1) {

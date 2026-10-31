@@ -463,3 +463,173 @@ func TestSetPermissionRefusedWithoutCapability(t *testing.T) {
 		t.Fatalf("permission written despite the refusal: %q", got.Permission)
 	}
 }
+
+func spoolCount(t *testing.T, dir, needle string) int {
+	t.Helper()
+	b, err := os.ReadFile(filepath.Join(dir, "spool.jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return strings.Count(string(b), needle)
+}
+
+func hasTurnStarted(req store.AppendRequest) bool {
+	for _, en := range req.Entries {
+		if _, ok := en.Payload.(proto.TurnStarted); ok {
+			return true
+		}
+	}
+	return false
+}
+
+// TestRetryWhileCatchingUpSendsNothing restarts the manager after the
+// harness got the message and started its turn but before that was ingested.
+// The retry must wait for ingestion to catch up instead of sending again.
+func TestRetryWhileCatchingUpSendsNothing(t *testing.T) {
+	e := newEnv(t, fake.Script{Turns: []fake.Turn{{Steps: []fake.Step{{AwaitApproval: "a"}}}}})
+	first := e.manager()
+	first.appendFn = func(ctx context.Context, req store.AppendRequest) (store.AppendResult, error) {
+		if hasTurnStarted(req) {
+			return store.AppendResult{}, errors.New("disk full")
+		}
+		return first.cfg.Store.Append(ctx, req)
+	}
+	sess := e.create(first)
+	ctx := context.Background()
+	want, err := first.Send(ctx, sess.ID, "go", "k1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := first.dir(sess.ID)
+	waitCond(t, "the harness to start its turn", func() bool { return spoolCount(t, dir, "turn_started") == 1 })
+	if err := first.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if _, open, _ := e.store.TurnState(ctx, sess.ID); open {
+		t.Fatal("the turn start was ingested; the test needs it lost")
+	}
+
+	second := e.manager()
+	gate := make(chan struct{})
+	var once sync.Once
+	release := func() { once.Do(func() { close(gate) }) }
+	defer release()
+	defer second.Close()
+	second.appendFn = func(ctx context.Context, req store.AppendRequest) (store.AppendResult, error) {
+		<-gate
+		return second.cfg.Store.Append(ctx, req)
+	}
+	for _, key := range []string{"k1", "k2"} {
+		_, err := second.Send(ctx, sess.ID, "go", key)
+		if !errors.Is(err, ErrBusy) || !strings.Contains(err.Error(), "catching up") {
+			t.Fatalf("send %s while catching up: %v", key, err)
+		}
+	}
+	if n := spoolCount(t, dir, `"k":"stdin"`); n != 1 {
+		t.Fatalf("the harness was sent %d messages", n)
+	}
+	release()
+	e.waitFor(sess.ID, "the turn start", started)
+	got, err := second.Send(ctx, sess.ID, "go", "k1")
+	if err != nil || got != want {
+		t.Fatalf("retry after catching up: %+v %v, want %+v", got, err, want)
+	}
+	if n := spoolCount(t, dir, `"k":"stdin"`); n != 1 {
+		t.Fatalf("the harness was sent %d messages", n)
+	}
+}
+
+// TestExitBatchCommitsAbortWithOffset fails the append carrying the exit once.
+// The abort and the exit offset travel in one append, so after the reattach
+// replays the exit the turn is aborted exactly once and the shim is acked.
+func TestExitBatchCommitsAbortWithOffset(t *testing.T) {
+	e := newEnv(t, fake.Script{Turns: []fake.Turn{{Steps: []fake.Step{
+		{Emit: &fake.Ev{Ev: "delta", ID: "m1", Text: "partial"}},
+		{Exit: intp(3)},
+	}}}})
+	m := e.manager()
+	defer m.Close()
+	var failed atomic.Bool
+	var failedReq store.AppendRequest
+	real := m.appendFn
+	m.appendFn = func(ctx context.Context, req store.AppendRequest) (store.AppendResult, error) {
+		for _, en := range req.Entries {
+			if _, ok := en.Payload.(proto.TurnEnded); ok && !failed.Swap(true) {
+				failedReq = req
+				return store.AppendResult{}, errors.New("disk full")
+			}
+		}
+		return real(ctx, req)
+	}
+	sess := e.create(m)
+	if _, err := m.Send(context.Background(), sess.ID, "go", "k1"); err != nil {
+		t.Fatal(err)
+	}
+	evs := e.waitFor(sess.ID, "turn end", turnEnded)
+	if failedReq.IngestOffset == nil {
+		t.Fatal("the abort was appended without the exit's offset")
+	}
+	if n := count(evs, proto.TypeTurnEnded); n != 1 {
+		t.Fatalf("%d turn ends: %s", n, describe(evs))
+	}
+	if end := payloads(t, evs)[len(evs)-1].(proto.TurnEnded); end.Reason != proto.TurnAborted {
+		t.Fatalf("end %+v", end)
+	}
+	waitShimGone(t, m, sess.ID) // acked after the replayed exit committed
+	e.waitOffsetAtSpoolEnd(m, sess.ID)
+}
+
+func TestArchiveDuringReattachWindow(t *testing.T) {
+	e := newEnv(t, longTurn)
+	m := e.manager()
+	var failed atomic.Bool
+	real := m.appendFn
+	m.appendFn = func(ctx context.Context, req store.AppendRequest) (store.AppendResult, error) {
+		if hasTurnStarted(req) && !failed.Swap(true) {
+			return store.AppendResult{}, errors.New("disk full")
+		}
+		return real(ctx, req)
+	}
+	sess := e.create(m)
+	ctx := context.Background()
+	if _, err := m.Send(ctx, sess.ID, "go", "k1"); err != nil {
+		t.Fatal(err)
+	}
+	waitCond(t, "the failure", failed.Load) // the reattach is now pending or running
+	if err := m.Archive(ctx, sess.ID); err != nil {
+		t.Fatal(err)
+	}
+	waitShimGone(t, m, sess.ID)
+	if err := m.Close(); err != nil { // waits for the reattacher, which must give up
+		t.Fatal(err)
+	}
+	if got, _ := e.store.Session(ctx, sess.ID); got.ArchivedAt == nil {
+		t.Fatal("not archived")
+	}
+	if len(m.live) != 0 {
+		t.Fatal("something attached after the archive")
+	}
+	m.mu.Lock()
+	_, hasLock := m.locks[sess.ID]
+	m.mu.Unlock()
+	if hasLock {
+		t.Fatal("the archived session's lock entry was kept")
+	}
+}
+
+func TestReattachRefusesArchivedSessions(t *testing.T) {
+	e := newEnv(t, longTurn)
+	m := e.manager()
+	defer m.Close()
+	sess := e.create(m)
+	ctx := context.Background()
+	if err := e.store.ArchiveSession(ctx, sess.ID, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.tryReattach(sess.ID, ""); err != nil { // no shim exists: an attach attempt would fail
+		t.Fatalf("tryReattach on an archived session: %v", err)
+	}
+	if _, err := m.ensure(ctx, sess.ID); err == nil || !strings.Contains(err.Error(), "archived") {
+		t.Fatalf("ensure on an archived session: %v", err)
+	}
+}

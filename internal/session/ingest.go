@@ -17,9 +17,6 @@ const (
 	// batchWindow is how long ingestion keeps collecting events after the
 	// first one of a batch before committing them together.
 	batchWindow = 50 * time.Millisecond
-	// failedIngestDelay spaces out reattaching after a failed append, so a
-	// persistent store failure does not spin.
-	failedIngestDelay = 200 * time.Millisecond
 )
 
 // group is consecutive events that belong to the same turn.
@@ -49,6 +46,7 @@ type ingester struct {
 func (m *Manager) ingest(l *live, last uint32, open bool) {
 	var detached, failed bool
 	var failNote string
+	var failDelay time.Duration
 	defer func() {
 		m.mu.Lock()
 		if m.live[l.id] == l {
@@ -61,7 +59,7 @@ func (m *Manager) ingest(l *live, last uint32, open bool) {
 		close(l.done)
 		switch {
 		case failed:
-			m.startReattach(l.id, failedIngestDelay, failNote)
+			m.startReattach(l.id, failDelay, failNote)
 		case detached:
 			m.startReattach(l.id, 0, "")
 		}
@@ -70,7 +68,14 @@ func (m *Manager) ingest(l *live, last uint32, open bool) {
 	fail := func(err error) {
 		m.log.Error("ingest failed; reattaching from the committed offset", "session", l.id, "err", err)
 		failed = true
-		failNote = "ingest failed: " + err.Error() + "; resumed from the committed offset"
+		prior := m.failStreak(l.id)
+		failDelay = ingestBackoff(prior)
+		// A note not yet recorded travels on; a new one is made only for the
+		// first failure of a streak.
+		failNote = l.note
+		if failNote == "" && prior == 0 {
+			failNote = "ingest failed: " + err.Error() + "; resumed from the committed offset"
+		}
 	}
 
 	committed, err := m.cfg.Store.IngestOffset(m.ctx, l.id)
@@ -78,6 +83,7 @@ func (m *Manager) ingest(l *live, last uint32, open bool) {
 		fail(err)
 		return
 	}
+	l.committed.Store(committed)
 	in := &ingester{m: m, l: l, turn: last, inTurn: open, committed: committed}
 	events := l.run.Events()
 	for {
@@ -143,7 +149,20 @@ func (in *ingester) ended(fail func(error)) (detached bool) {
 	if err != nil && !errors.Is(err, harness.ErrDetached) {
 		in.m.log.Error("harness adapter failed", "session", in.l.id, "err", err)
 	}
-	return errors.Is(err, harness.ErrDetached) && !in.m.isClosing()
+	if detached = errors.Is(err, harness.ErrDetached) && !in.m.isClosing(); detached || in.m.isClosing() || !in.inTurn {
+		return detached
+	}
+	// The stream ended without an exit and without the chance of a reattach:
+	// nothing will end the open turn.
+	in.inTurn = false
+	if err := in.add(in.turn, &store.Entry{Payload: proto.TurnEnded{Reason: proto.TurnAborted, Message: "the harness event stream ended"}}, 0); err != nil {
+		fail(err)
+		return false
+	}
+	if err := in.flush(); err != nil {
+		fail(err)
+	}
+	return false
 }
 
 // event adds one event to the current batch, tracking turns.
@@ -242,8 +261,10 @@ func (in *ingester) flush() error {
 	}
 	if req.IngestOffset != nil {
 		in.committed = *req.IngestOffset
+		l.committed.Store(in.committed)
 	}
 	l.note = ""
+	in.m.resetStreak(l.id)
 	for _, e := range g.entries {
 		if _, ok := e.Payload.(proto.TurnStarted); ok {
 			l.pending.Store(false) // the message's turn is recorded as started
@@ -263,14 +284,23 @@ func (in *ingester) exit(ev harness.Event, wasInTurn bool) error {
 		if ev.Exit.Signal != "" {
 			msg = "the harness exited between turns: killed by SIG" + strings.TrimPrefix(ev.Exit.Signal, "SIG")
 		}
-		if err := in.add(0, &store.Entry{Payload: proto.Error{Message: msg}}, 0); err != nil {
+		// In the group being collected, if any, so it commits with the exit's
+		// offset in one append.
+		turn := uint32(0)
+		if len(in.g.entries) > 0 {
+			turn = in.g.turn
+		}
+		if err := in.add(turn, &store.Entry{Payload: proto.Error{Message: msg}}, 0); err != nil {
+			return err
+		}
+	}
+	if in.inTurn { // the adapter normally ends the turn itself
+		in.inTurn = false
+		if err := in.add(in.turn, &store.Entry{Payload: proto.TurnEnded{Reason: proto.TurnAborted, Message: "the harness exited"}}, 0); err != nil {
 			return err
 		}
 	}
 	if err := in.flush(); err != nil {
-		return err
-	}
-	if err := in.m.abortOpenTurn(in.m.ctx, l.id, "the harness exited"); err != nil {
 		return err
 	}
 	l.pending.Store(false)
@@ -285,6 +315,7 @@ func (in *ingester) exit(ev harness.Event, wasInTurn bool) error {
 			in.m.log.Error("ack exit record", "session", l.id, "err", err)
 		}
 	}
+	l.exited.Store(true)
 	return nil
 }
 

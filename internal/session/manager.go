@@ -86,6 +86,11 @@ type Manager struct {
 	appendFn func(context.Context, store.AppendRequest) (store.AppendResult, error)
 	// ready bounds how long a spawned shim may take to accept connections.
 	ready time.Duration
+	// afterPendingRead, when set (tests), runs in Send between reading the
+	// pending flag and reading the turn state.
+	afterPendingRead func()
+	// streak counts consecutive failed ingest runs per session.
+	streak map[proto.SessionID]int
 
 	mu      sync.Mutex
 	live    map[proto.SessionID]*live
@@ -105,15 +110,32 @@ type live struct {
 	done  chan struct{} // closed when ingestion stops
 
 	sendMu sync.Mutex
-	// pending is true from a message being sent until its turn is recorded
-	// started (or the send failed, or the harness exited).
+	// pending is true from a message being sent until a batch recording its
+	// turn as started has committed (or the send failed, or the harness
+	// exited). A StdinError clears it whichever write failed: the shim does
+	// not say which write an error belongs to, so a failure of an earlier
+	// write (a steer, an answer) can also release a message still in flight.
 	pending atomic.Bool
 	// stopping is set by Stop: the harness is expected to exit.
 	stopping atomic.Bool
+	// exited is set once the harness's exit is committed and acknowledged.
+	exited atomic.Bool
+	// committed mirrors the store's ingest offset for this session; syncSize
+	// is the spool size when the connection was made. Until committed
+	// reaches syncSize the store lags the shim, so what it says about turns
+	// is not yet reliable.
+	committed atomic.Int64
+	syncSize  int64
 
 	// Owned by the ingest goroutine.
 	native string // the last native session ID written to the store
 	note   string // an Error to record with the next successful append
+}
+
+// synced reports whether ingestion has caught up with what the shim had
+// recorded when the manager attached. A direct harness has no backlog.
+func (l *live) synced() bool {
+	return l.stdio == nil || l.committed.Load() >= l.syncSize
 }
 
 // New returns a manager; call Recover to reattach to running shims.
@@ -129,7 +151,7 @@ func New(cfg Config) (*Manager, error) {
 	return &Manager{
 		cfg: cfg, log: log, ctx: ctx, cancel: cancel, closeCh: make(chan struct{}),
 		appendFn: cfg.Store.Append, ready: readyTimeout,
-		live: map[proto.SessionID]*live{}, locks: map[proto.SessionID]*sync.Mutex{},
+		streak: map[proto.SessionID]int{}, live: map[proto.SessionID]*live{}, locks: map[proto.SessionID]*sync.Mutex{},
 	}, nil
 }
 
@@ -235,7 +257,14 @@ func (m *Manager) Send(ctx context.Context, id proto.SessionID, text, key string
 	}
 	l.sendMu.Lock()
 	defer l.sendMu.Unlock()
-	last, open, err := m.cfg.Store.TurnState(ctx, id)
+	// pending and synced are read before the turn state: they only turn
+	// favorable after the batch that started the turn has committed, so a
+	// favorable reading here means the turn state read next includes it.
+	st := sendState{pending: l.pending.Load(), synced: l.synced()}
+	if m.afterPendingRead != nil {
+		m.afterPendingRead()
+	}
+	st.last, st.open, err = m.cfg.Store.TurnState(ctx, id)
 	if err != nil {
 		return SendResult{}, err
 	}
@@ -244,24 +273,38 @@ func (m *Manager) Send(ctx context.Context, id proto.SessionID, text, key string
 		return SendResult{}, err
 	}
 	if found {
-		return m.resend(ctx, l, text, rcpt, last, open)
+		return m.resend(ctx, l, text, rcpt, st)
 	}
-	if l.pending.Load() || open {
+	if !st.synced {
+		return SendResult{}, errCatchingUp
+	}
+	if st.pending || st.open {
 		return SendResult{}, ErrBusy
 	}
 	res, err := m.cfg.Store.Append(ctx, store.AppendRequest{
-		Session: id, Turn: last + 1, ReceiptKey: "send:" + key,
+		Session: id, Turn: st.last + 1, ReceiptKey: "send:" + key,
 		Entries: []store.Entry{{Payload: proto.Message{ID: key, Role: proto.RoleUser, Text: text}}},
 	})
 	if err != nil {
 		return SendResult{}, err
 	}
-	out := SendResult{Seq: res.FirstSeq, Turn: last + 1}
+	out := SendResult{Seq: res.FirstSeq, Turn: st.last + 1}
 	return out, m.deliver(ctx, l, text, out)
 }
 
+// sendState is what Send knows when it decides.
+type sendState struct {
+	last            uint32 // the highest turn number in the store
+	open            bool   // that turn is still open
+	pending, synced bool
+}
+
+// errCatchingUp is ErrBusy while ingestion is still catching up with the
+// shim after an attach.
+var errCatchingUp = fmt.Errorf("%w: catching up with the harness", ErrBusy)
+
 // resend handles a retry of a recorded message.
-func (m *Manager) resend(ctx context.Context, l *live, text string, rcpt store.AppendResult, last uint32, open bool) (SendResult, error) {
+func (m *Manager) resend(ctx context.Context, l *live, text string, rcpt store.AppendResult, st sendState) (SendResult, error) {
 	evs, err := m.cfg.Store.Events(ctx, l.id, rcpt.FirstSeq-1, 1)
 	if err != nil {
 		return SendResult{}, err
@@ -270,8 +313,16 @@ func (m *Manager) resend(ctx context.Context, l *live, text string, rcpt store.A
 		return SendResult{}, fmt.Errorf("session: message event %d of %s is missing", rcpt.FirstSeq, l.id)
 	}
 	out := SendResult{Seq: rcpt.FirstSeq, Turn: evs[0].Turn}
-	if last >= out.Turn || l.pending.Load() || open {
-		return out, nil // the turn started, or the message is on its way
+	if st.last >= out.Turn {
+		return out, nil // the turn started
+	}
+	if !st.synced {
+		// The message may well have reached the harness already; sending
+		// again before the log catches up could send it twice.
+		return out, errCatchingUp
+	}
+	if st.pending || st.open {
+		return out, nil // the message is on its way
 	}
 	return out, m.deliver(ctx, l, text, out)
 }
@@ -343,16 +394,43 @@ func (m *Manager) Respond(ctx context.Context, id proto.SessionID, approvalID, o
 			return err
 		}
 	}
-	if _, err := m.cfg.Store.ResolveApproval(ctx, id, turn, time.Now(), proto.ApprovalResolved{
+	res, err := m.cfg.Store.ResolveApproval(ctx, id, turn, time.Now(), proto.ApprovalResolved{
 		ID: approvalID, Outcome: outcome, OptionID: optionID, DecidedBy: decidedBy,
-	}, key); err != nil {
+	}, key)
+	if err != nil {
 		return err
+	}
+	if res.Duplicate {
+		// A retry delivers what was decided, not what this call asked.
+		if approvalID, optionID, err = m.recordedDecision(ctx, id, res.FirstSeq); err != nil {
+			return err
+		}
 	}
 	l, err := m.attached(id)
 	if err != nil {
 		return err
 	}
 	return l.run.Respond(ctx, approvalID, optionID)
+}
+
+// recordedDecision reads the approval decision stored at seq.
+func (m *Manager) recordedDecision(ctx context.Context, id proto.SessionID, seq uint64) (approvalID, optionID string, err error) {
+	evs, err := m.cfg.Store.Events(ctx, id, seq-1, 1)
+	if err != nil {
+		return "", "", err
+	}
+	if len(evs) == 0 || evs[0].Seq != seq {
+		return "", "", fmt.Errorf("session: decision event %d of %s is missing", seq, id)
+	}
+	p, err := evs[0].Decode()
+	if err != nil {
+		return "", "", err
+	}
+	d, ok := p.(proto.ApprovalResolved)
+	if !ok {
+		return "", "", fmt.Errorf("session: event %d of %s is not a decision", seq, id)
+	}
+	return d.ID, d.OptionID, nil
 }
 
 // Interrupt stops the running turn.
@@ -556,6 +634,10 @@ func (m *Manager) attach(ctx context.Context, sess proto.Session, wait bool, not
 		}
 		l.stdio = NewShimStdio(c)
 		l.acker = l.stdio
+		if !wait { // a shim we just started has nothing to catch up with
+			l.syncSize = c.Size()
+		}
+		l.committed.Store(off)
 		spec := m.specFor(sess, open)
 		spec.Resume = "" // attaching to a running harness resumes nothing
 		l.run, err = hh.Attach(ctx, spec, l.stdio)
@@ -682,11 +764,47 @@ func (m *Manager) abortOpenTurn(ctx context.Context, id proto.SessionID, why str
 func (m *Manager) Stop(ctx context.Context, id proto.SessionID) error {
 	unlock := m.lockSession(id)
 	defer unlock()
-	l, err := m.attached(id)
-	if err != nil {
-		return nil
+	return m.stopSession(ctx, id)
+}
+
+// stopSession stops the session's harness, attaching to a shim that is
+// running without a live entry (between a lost connection and the reattach)
+// to do so. The caller holds the session lock.
+func (m *Manager) stopSession(ctx context.Context, id proto.SessionID) error {
+	lastErr := fmt.Errorf("session: could not stop %s", id)
+	for range 3 {
+		l, err := m.attached(id)
+		if err != nil {
+			sess, err := m.cfg.Store.Session(ctx, id)
+			if err != nil {
+				return err
+			}
+			if _, stdio := m.cfg.Harnesses[sess.Harness.Kind].(harness.StdioHarness); !stdio {
+				return nil // a direct harness not running is not started to be stopped
+			}
+			if l, err = m.attach(ctx, sess, false, ""); errors.Is(err, errNoShim) {
+				return nil
+			} else if err != nil {
+				return err
+			}
+		}
+		if err := m.stopLive(ctx, l); err != nil {
+			if l.stdio == nil || ctx.Err() != nil {
+				return err
+			}
+			// The connection may have died under us; let ingestion finish
+			// leaving, then try again over a new one.
+			_ = waitDone(ctx, l.done)
+			lastErr = err
+			continue
+		}
+		if l.stdio == nil || l.exited.Load() {
+			return nil
+		}
+		// The connection ended before the exit was recorded; the harness may
+		// still be there.
 	}
-	return m.stopLive(ctx, l)
+	return lastErr
 }
 
 func (m *Manager) stopLive(ctx context.Context, l *live) error {
@@ -694,7 +812,7 @@ func (m *Manager) stopLive(ctx context.Context, l *live) error {
 	if l.stdio == nil {
 		// A direct harness has no signal to send; closing the run ends it.
 		err := l.run.Close()
-		if werr := waitDone(ctx, l.done, stopWait); werr != nil {
+		if werr := waitDone(ctx, l.done); werr != nil {
 			return errors.Join(err, werr)
 		}
 		return errors.Join(err, m.abortOpenTurn(ctx, l.id, "the session was stopped"))
@@ -702,7 +820,7 @@ func (m *Manager) stopLive(ctx context.Context, l *live) error {
 	if err := l.stdio.Signal("TERM"); err != nil {
 		return fmt.Errorf("session: stop %s: %w", l.id, err)
 	}
-	if err := waitDone(ctx, l.done, stopWait); err == nil {
+	if err := waitDone(ctx, l.done); err == nil {
 		return nil
 	} else if ctx.Err() != nil {
 		return err
@@ -710,11 +828,11 @@ func (m *Manager) stopLive(ctx context.Context, l *live) error {
 	if err := l.stdio.Signal("KILL"); err != nil {
 		return fmt.Errorf("session: kill %s: %w", l.id, err)
 	}
-	return waitDone(ctx, l.done, stopWait)
+	return waitDone(ctx, l.done)
 }
 
-func waitDone(ctx context.Context, done <-chan struct{}, d time.Duration) error {
-	t := time.NewTimer(d)
+func waitDone(ctx context.Context, done <-chan struct{}) error {
+	t := time.NewTimer(stopWait)
 	defer t.Stop()
 	select {
 	case <-done:
@@ -728,10 +846,20 @@ func waitDone(ctx context.Context, done <-chan struct{}, d time.Duration) error 
 
 // Archive stops the session's harness and marks the session archived.
 func (m *Manager) Archive(ctx context.Context, id proto.SessionID) error {
-	if err := m.Stop(ctx, id); err != nil {
+	unlock := m.lockSession(id)
+	defer unlock()
+	if err := m.stopSession(ctx, id); err != nil {
 		return err
 	}
-	return m.cfg.Store.ArchiveSession(ctx, id, time.Now())
+	if err := m.cfg.Store.ArchiveSession(ctx, id, time.Now()); err != nil {
+		return err
+	}
+	// An archived session is never started again, so its lock entry can go.
+	m.mu.Lock()
+	delete(m.locks, id)
+	delete(m.streak, id)
+	m.mu.Unlock()
+	return nil
 }
 
 // Close detaches from every shim without stopping it, as a daemon that
@@ -776,6 +904,28 @@ const (
 	reattachMax      = 5 * time.Second
 )
 
+// failStreak records another failed ingest run and returns how many came
+// before it without a successful append in between.
+func (m *Manager) failStreak(id proto.SessionID) int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	n := m.streak[id]
+	m.streak[id] = n + 1
+	return n
+}
+
+func (m *Manager) resetStreak(id proto.SessionID) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	delete(m.streak, id)
+}
+
+// ingestBackoff is how long to wait before reattaching after the streak-th
+// failed ingest run: 100ms, doubling, capped.
+func ingestBackoff(streak int) time.Duration {
+	return min(reattachBackoff<<min(streak, 10), reattachMax)
+}
+
 // reattach reconnects to a session whose connection ended or whose ingestion
 // failed. Failures other than "no shim" are retried with backoff, since the
 // shim is probably still there.
@@ -818,6 +968,9 @@ func (m *Manager) tryReattach(id proto.SessionID, note string) error {
 	sess, err := m.cfg.Store.Session(m.ctx, id)
 	if err != nil {
 		return err
+	}
+	if sess.ArchivedAt != nil {
+		return nil
 	}
 	_, err = m.attach(m.ctx, sess, false, note)
 	return err

@@ -73,7 +73,7 @@ func stdinCode(code string) bool {
 
 // assembler rebuilds whole lines from chunked records. It never holds more
 // than harness.MaxLine bytes of a line: a longer line comes out as several
-// Lines.
+// Lines, all but the last with Offset 0.
 type assembler struct {
 	partial map[shim.RecordKind][]byte
 }
@@ -95,7 +95,9 @@ func (a *assembler) add(rec shim.Record, off int64) []harness.Line {
 	buf := append(a.partial[rec.Kind], data...)
 	var out []harness.Line
 	for len(buf) > harness.MaxLine || (rec.More && len(buf) == harness.MaxLine) {
-		out = append(out, harness.Line{Kind: kind, Data: buf[:harness.MaxLine:harness.MaxLine], Offset: off})
+		// Only the record's last piece carries its end offset: committing the
+		// offset before the rest of the line is read would lose it on restart.
+		out = append(out, harness.Line{Kind: kind, Data: buf[:harness.MaxLine:harness.MaxLine]})
 		buf = buf[harness.MaxLine:]
 	}
 	if rec.More {
