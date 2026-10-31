@@ -26,10 +26,18 @@ linters:
     rules:
       - path: _test\.go
         linters: [gosec, unparam]
-      # The shim's whole job is to run the harness command the daemon chose.
-      - path: internal/shim/shim\.go
+      # The shim and ExecStdio exist to run the harness command the daemon chose.
+      - path: internal/(shim/shim|harness/execstdio)\.go
         linters: [gosec]
         text: G204
+      # BuildBinary runs `go build` with the output path a test chose.
+      - path: internal/harness/fake/build\.go
+        linters: [gosec]
+        text: G204
+      # fakeharness reads the script file named by its test-controlled environment.
+      - path: internal/harness/fake/fakeharness/main\.go
+        linters: [gosec]
+        text: G703
 
 formatters:
   enable:

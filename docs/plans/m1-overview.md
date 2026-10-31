@@ -66,4 +66,5 @@ PR2、PR3、PR4 互不依赖，可以并行开发；PR6、PR7、PR8 也一样。
 
 - [PR1：骨架与事件类型](m1-pr1-proto.md)（已合并）
 - [PR2：存储](m1-pr2-store.md)（已合并）
-- [PR3：shim](m1-pr3-shim.md)
+- [PR3：shim](m1-pr3-shim.md)（已合并）
+- [PR4：harness 接口与假 harness](m1-pr4-harness.md)
