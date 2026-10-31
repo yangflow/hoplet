@@ -28,6 +28,7 @@ func TestSecondDaemonIsRefused(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() { _ = d.Close() }) // Close is idempotent; this covers an early Fatal
 	if _, err := Start(context.Background(), testConfig(h, script)); !errors.Is(err, ErrRunning) {
 		t.Fatalf("second start: %v, want ErrRunning", err)
 	}
@@ -511,6 +512,14 @@ func TestErrorsAreClassified(t *testing.T) {
 			_, err := c.SubscribeSession(ctx, proto.SessionParams{Session: "nope"})
 			return err
 		}(), proto.CodeNotFound},
+		"send key too long": {func() error {
+			_, err := c.Send(ctx, proto.SendParams{Session: "nope", Text: "x", Key: strings.Repeat("k", store.MaxQueueKey+1)})
+			return err
+		}(), proto.CodeInvalid},
+		"send key with #": {func() error {
+			_, err := c.Send(ctx, proto.SendParams{Session: "nope", Text: "x", Key: "m2#1"})
+			return err
+		}(), proto.CodeInvalid},
 		"queue of unknown session": {func() error {
 			_, err := c.Queue(ctx, "nope")
 			return err

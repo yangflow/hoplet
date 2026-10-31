@@ -58,7 +58,7 @@ func (c *conn) call(ctx context.Context, f proto.ClientFrame) (any, error) {
 		}
 		op := map[string]func(context.Context, proto.SessionID) error{
 			proto.MethodSessionsInterrupt: s.mgr.Interrupt,
-			proto.MethodSessionsStop:      s.mgr.Stop,
+			proto.MethodSessionsStop:      s.queue.stop,
 			proto.MethodSessionsArchive:   s.mgr.Archive,
 		}[f.Method]
 		return done, op(ctx, p.Session)

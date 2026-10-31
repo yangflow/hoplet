@@ -57,6 +57,7 @@ func (m *Manager) ingest(l *live, last uint32, open bool) {
 			m.log.Warn("close run", "session", l.id, "err", err)
 		}
 		close(l.done)
+		m.signalChange() // the session is no longer live
 		switch {
 		case failed:
 			m.startReattach(l.id, failDelay, failNote)
@@ -84,6 +85,7 @@ func (m *Manager) ingest(l *live, last uint32, open bool) {
 		return
 	}
 	l.committed.Store(committed)
+	m.signalChange() // a session with nothing to catch up with is synced now
 	in := &ingester{m: m, l: l, turn: last, inTurn: open, committed: committed}
 	events := l.run.Events()
 	for {
@@ -170,6 +172,7 @@ func (in *ingester) event(ev harness.Event) error {
 	l := in.l
 	if ev.StdinError {
 		l.pending.Store(false)
+		in.m.signalChange()
 	}
 	if ev.Native != "" && ev.Native != l.native {
 		native := ev.Native
@@ -270,6 +273,10 @@ func (in *ingester) flush() error {
 			l.pending.Store(false) // the message's turn is recorded as started
 		}
 	}
+	// The store signaled its own change inside the append, before pending and
+	// committed above were updated; a waiter woken by that may have seen the
+	// old values, so wake waiters again now.
+	in.m.signalChange()
 	*g = group{}
 	return nil
 }
@@ -310,6 +317,7 @@ func (in *ingester) exit(ev harness.Event, wasInTurn bool) error {
 		delete(in.m.live, l.id)
 	}
 	in.m.mu.Unlock()
+	in.m.signalChange()
 	if l.acker != nil && ev.Offset > 0 {
 		if err := l.acker.Ack(ev.Offset); err != nil {
 			in.m.log.Error("ack exit record", "session", l.id, "err", err)

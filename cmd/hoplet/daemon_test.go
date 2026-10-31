@@ -33,12 +33,12 @@ func TestDaemonServesAndStopsOnSIGTERM(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer os.RemoveAll(home)
-	daemon := func() *exec.Cmd {
-		cmd := exec.Command(os.Args[0], "daemon", "--home", home)
+	daemon := func(ctx context.Context) *exec.Cmd {
+		cmd := exec.CommandContext(ctx, os.Args[0], "daemon", "--home", home)
 		cmd.Env = append(os.Environ(), "HOPLET_TEST_MAIN=1")
 		return cmd
 	}
-	first := daemon()
+	first := daemon(context.Background())
 	logPath := home + "/daemon.log"
 	logf, err := os.Create(logPath)
 	if err != nil {
@@ -86,7 +86,10 @@ func TestDaemonServesAndStopsOnSIGTERM(t *testing.T) {
 		t.Fatalf("sessions %v %v", ss, err)
 	}
 
-	second := daemon()
+	// Bounded: a second daemon that wrongly served would never exit.
+	sctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	second := daemon(sctx)
 	out, err := second.CombinedOutput()
 	if code := second.ProcessState.ExitCode(); code != 1 || !bytes.Contains(out, []byte("already running")) {
 		t.Fatalf("second daemon: exit %d (%v), output %q", code, err, out)

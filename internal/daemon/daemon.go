@@ -154,7 +154,8 @@ func Start(ctx context.Context, cfg Config) (d *Daemon, err error) {
 // Done is closed when the daemon stops serving; Err then says why.
 func (d *Daemon) Done() <-chan struct{} { return d.done }
 
-// Err is why serving stopped, or nil if it stopped because of Close.
+// Err is why serving stopped, or nil if it stopped because of Close. Err
+// waits for Done, so on a daemon still serving it blocks until it stops.
 func (d *Daemon) Err() error {
 	<-d.done
 	return d.err
@@ -200,12 +201,24 @@ func takeLock(path string) (*os.File, error) {
 	return f, nil
 }
 
+// tmpSuffix names the temporary socket listen renames over the real one.
+const tmpSuffix = ".new"
+
+// maxSocketPath is the longest Unix socket path every supported platform
+// takes (sun_path is 104 bytes on macOS, including the terminating NUL).
+const maxSocketPath = 103
+
 // listen listens on a temporary path next to sock and renames it over sock,
 // so a client never finds the path missing or owned by a dead daemon once
-// this one serves. The socket file is never removed: removing it could take
-// away a newer daemon's socket.
+// this one serves. The temporary path is fixed, which is safe because the
+// daemon holds the home's lock, and a stale one left by a daemon that died
+// before the rename is removed first. The socket file is never removed:
+// removing it could take away a newer daemon's socket.
 func listen(sock string) (net.Listener, error) {
-	tmp := sock + "." + strconv.Itoa(os.Getpid())
+	tmp := sock + tmpSuffix
+	if len(tmp) > maxSocketPath {
+		return nil, fmt.Errorf("daemon: socket path %s is too long for a Unix socket", sock)
+	}
 	if err := os.Remove(tmp); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return nil, fmt.Errorf("daemon: clear temporary socket: %w", err)
 	}

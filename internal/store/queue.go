@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/yangflow/hoplet/proto"
@@ -25,6 +26,9 @@ func (s *Store) Enqueue(ctx context.Context, id proto.SessionID, key, text strin
 	}
 	if len(key) > MaxQueueKey {
 		return proto.QueuedMessage{}, false, fmt.Errorf("%w: queued message key is too long", ErrInvalid)
+	}
+	if strings.Contains(key, "#") {
+		return proto.QueuedMessage{}, false, fmt.Errorf("%w: queued message keys may not contain #", ErrInvalid)
 	}
 	if text == "" {
 		return proto.QueuedMessage{}, false, fmt.Errorf("%w: queued message needs text", ErrInvalid)
@@ -124,7 +128,9 @@ func scanQueued(r scanner) (proto.QueuedMessage, error) {
 // is false when the queue is empty. A message edited after it was queued is
 // sent under a new key (the key with the number of edits appended), so an
 // edit of a message whose send failed after being recorded becomes a new
-// message rather than a resend of the recorded one.
+// message rather than a resend of the recorded one. Queued keys may not
+// contain '#' (Enqueue refuses them), so an edited message's send key never
+// equals a key a client chose.
 func (s *Store) QueueHead(ctx context.Context, id proto.SessionID) (msg proto.QueuedMessage, sendKey string, ok bool, err error) {
 	err = s.readTx(ctx, func(tx *sql.Tx) error {
 		if err := requireSession(ctx, tx, id); err != nil {
@@ -175,8 +181,11 @@ func (s *Store) QueuedSessions(ctx context.Context) ([]proto.SessionID, error) {
 }
 
 // EditQueued replaces a queued message's text, clears its error and counts
-// the edit (see QueueHead). The write is durable.
+// the edit (see QueueHead). The text may not be empty. The write is durable.
 func (s *Store) EditQueued(ctx context.Context, id proto.SessionID, key, text string) error {
+	if text == "" {
+		return fmt.Errorf("%w: queued message needs text", ErrInvalid)
+	}
 	return s.updateQueued(ctx, id, key, `UPDATE queue SET text = ?, error = '', attempt = attempt + 1 WHERE session_id = ? AND key = ?`, text, id, key)
 }
 

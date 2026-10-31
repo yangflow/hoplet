@@ -175,9 +175,13 @@ func decode(f proto.ClientFrame, v any) error {
 	return nil
 }
 
-// handle answers one request.
+// handle answers one request. Commands run under the server's context, not
+// the connection's: a client that drops after its message is recorded must
+// not cancel the message's delivery to the harness, and since commands are
+// keyed and idempotent the client's retry after reconnecting finds the
+// result. Subscriptions, which serve only this connection, keep its context.
 func (c *conn) handle(f proto.ClientFrame) {
-	res, err := c.call(c.ctx, f)
+	res, err := c.call(c.s.ctx, f)
 	c.respond(f.ID, res, err)
 }
 

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"slices"
+	"strings"
 	"sync"
 
 	"github.com/yangflow/hoplet/internal/session"
@@ -49,10 +50,20 @@ func (q *queuer) lock(id proto.SessionID) func() {
 }
 
 // send sends a message now when the session is idle and nothing is queued
-// ahead of it, and queues it otherwise.
+// ahead of it, and queues it otherwise. It holds the session's queue lock
+// across a send that may start the harness and wait for its shim, so queue
+// edits, moves and deletes for that session wait meanwhile.
 func (q *queuer) send(ctx context.Context, p proto.SendParams) (proto.SendReply, error) {
 	if p.Key == "" {
 		return proto.SendReply{}, invalid("send needs an idempotency key")
+	}
+	// Checked before branching, so a key works the same whether the message
+	// goes out now or waits in the queue.
+	if len(p.Key) > store.MaxQueueKey {
+		return proto.SendReply{}, invalid("send key is too long")
+	}
+	if strings.Contains(p.Key, "#") {
+		return proto.SendReply{}, invalid("send keys may not contain #")
 	}
 	if p.Text == "" {
 		return proto.SendReply{}, invalid("send needs text")
@@ -80,6 +91,22 @@ func (q *queuer) send(ctx context.Context, p proto.SendParams) (proto.SendReply,
 	return proto.SendReply{Queued: true}, nil
 }
 
+// stop stops the session's harness and holds its queue: a head that has not
+// failed is marked failed, so the queue waits until the user edits, moves or
+// deletes it rather than starting the harness again. The stop comes first:
+// a drain woken by it waits for this lock and then sees the failed head.
+func (q *queuer) stop(ctx context.Context, id proto.SessionID) error {
+	defer q.lock(id)()
+	if err := q.mgr.Stop(ctx, id); err != nil {
+		return err
+	}
+	head, _, ok, err := q.store.QueueHead(ctx, id)
+	if err != nil || !ok || head.Error != "" {
+		return err
+	}
+	return q.store.FailQueued(ctx, id, head.Key, "the session was stopped")
+}
+
 func (q *queuer) edit(ctx context.Context, p proto.QueueEditParams) error {
 	defer q.lock(p.Session)()
 	return q.store.EditQueued(ctx, p.Session, p.Key, p.Text)
@@ -96,12 +123,16 @@ func (q *queuer) move(ctx context.Context, p proto.QueueMoveParams) error {
 }
 
 // run sends queued messages until ctx ends, looking at the queues after
-// every store change: a turn ending is a change, and so is any queue edit.
+// every store change (a queue edit, a turn ending) and every manager change
+// (a turn's start recorded, ingestion catching up). The store signals a
+// commit before the manager has updated what Send accepts, so a pass woken
+// by the store alone could see the session still busy and never be woken
+// again.
 func (q *queuer) run(ctx context.Context) {
 	var wg sync.WaitGroup
 	defer wg.Wait()
 	for {
-		changes := q.store.Changes()
+		changes, ready := q.store.Changes(), q.mgr.Changes()
 		ids, err := q.store.QueuedSessions(ctx)
 		if err != nil && ctx.Err() == nil {
 			q.log.Error("list queued sessions", "err", err)
@@ -117,16 +148,17 @@ func (q *queuer) run(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-changes:
+		case <-ready:
 		}
 	}
 }
 
 // drain sends the head of the session's queue if the session takes it. A
 // message whose send failed stays at the head with its error, holding the
-// queue, until the user edits, moves or deletes it. A session another drain
-// is working on is skipped, since that drain ends in a store write that
-// starts another pass; a session a command holds is waited for, because the
-// command's writes may already have been seen by a pass that skipped it.
+// queue, until the user edits, moves or deletes it. At most one drain per
+// session waits for its lock, and it reads the queue and the session afresh
+// once it has the lock, so a pass that finds a drain already waiting can be
+// skipped: the waiting drain sees whatever that pass would have seen.
 func (q *queuer) drain(ctx context.Context, id proto.SessionID) {
 	l := q.sessionLock(id)
 	if !l.TryLock() {

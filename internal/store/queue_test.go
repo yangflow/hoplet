@@ -286,3 +286,19 @@ func TestQueueHeadSendKeyChangesWithEdits(t *testing.T) {
 		t.Fatalf("head of an unknown session: %v", err)
 	}
 }
+
+func TestQueueRefusesEmptyEditsAndReservedKeys(t *testing.T) {
+	ctx := context.Background()
+	s := newStore(t)
+	newSession(t, s, "s")
+	enqueue(t, s, "s", "a")
+	if err := s.EditQueued(ctx, "s", "a", ""); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("empty edit: %v", err)
+	}
+	if msgs, err := s.Queue(ctx, "s"); err != nil || msgs[0].Text != "text a" {
+		t.Fatalf("queue after a refused edit: %+v %v", msgs, err)
+	}
+	if _, _, err := s.Enqueue(ctx, "s", "b#1", "x"); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("key with #: %v", err)
+	}
+}
