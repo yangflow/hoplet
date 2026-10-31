@@ -82,6 +82,10 @@ func TestPutBlobKeepsExistingFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	hourAgo := time.Now().Add(-time.Hour)
+	if err := os.Chtimes(s.blobPath(ref), hourAgo, hourAgo); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := s.PutBlob(strings.NewReader("same bytes")); err != nil {
 		t.Fatal(err)
 	}
@@ -89,8 +93,11 @@ func TestPutBlobKeepsExistingFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !os.SameFile(before, after) || !before.ModTime().Equal(after.ModTime()) {
+	if !os.SameFile(before, after) {
 		t.Fatal("second PutBlob replaced the stored file")
+	}
+	if !after.ModTime().After(hourAgo.Add(time.Minute)) {
+		t.Fatalf("mtime %v not refreshed", after.ModTime())
 	}
 }
 

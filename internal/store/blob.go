@@ -38,7 +38,13 @@ func (s *Store) PutBlob(r io.Reader) (proto.BlobRef, error) {
 	ref := proto.BlobRef{SHA256: hex.EncodeToString(h.Sum(nil)), Size: size}
 	dst := s.blobPath(ref)
 	if _, err := os.Stat(dst); err == nil {
-		return ref, nil // same content already stored; the deferred remove drops the temp file
+		// Same content already stored; the deferred remove drops the temp
+		// file. Refresh the mtime so GCBlobs' grace period covers this put.
+		now := time.Now()
+		if err := os.Chtimes(dst, now, now); err != nil {
+			return proto.BlobRef{}, fmt.Errorf("store: refresh blob: %w", err)
+		}
+		return ref, nil
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return proto.BlobRef{}, fmt.Errorf("store: stat blob: %w", err)
 	}
@@ -119,7 +125,9 @@ func (s *Store) blobPath(ref proto.BlobRef) string {
 // GCBlobs deletes blob files that no event references (as raw event or tool
 // output) and that were last modified more than olderThan ago, and returns
 // how many it deleted. The age floor protects blobs stored just before the
-// event that will reference them is appended.
+// event that will reference them is appended. The grace period relies on
+// PutBlob refreshing the mtime of a blob it finds already stored, so a
+// re-put of old content is protected like a new blob.
 func (s *Store) GCBlobs(ctx context.Context, olderThan time.Duration) (int, error) {
 	root := filepath.Join(s.dir, "blobs")
 	shards, err := os.ReadDir(root)
