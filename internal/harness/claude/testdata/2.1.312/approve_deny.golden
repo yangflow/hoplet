@@ -1,0 +1,37 @@
+write {"type":"user","message":{"role":"user","content":"Use the Write tool to create a file named hello.txt containing the single word hi. Do nothing else."}}
+native 5447e5d2-1317-413a-aa1c-151a5ec48a03 proto.TurnStarted {}
+proto.ToolCall {"id":"toolu_01RFNys97DjwLGCP6pTpJXHL","kind":"edit","name":"Write","summary":"/work/hello.txt","status":"running"}
+proto.ApprovalRequested {"id":"f89f9329-2b4d-4dc4-94ba-076c96abb7eb","kind":"file_change","title":"Write /work/hello.txt","detail":"hello.txt","tool_call_id":"toolu_01RFNys97DjwLGCP6pTpJXHL","options":[{"id":"allow","label":"Allow once","scope":"once"},{"id":"always","label":"Allow for this session","scope":"session"},{"id":"deny","label":"Deny","scope":"deny"}]}
+write {"type":"control_response","response":{"subtype":"success","request_id":"f89f9329-2b4d-4dc4-94ba-076c96abb7eb","response":{"behavior":"allow","updatedInput":{"content":"hi","file_path":"/work/hello.txt"}}}}
+proto.ToolCall {"id":"toolu_01RFNys97DjwLGCP6pTpJXHL","kind":"edit","name":"Write","summary":"/work/hello.txt","status":"done"}
+proto.FileChange {"path":"/work/hello.txt","op":"created"}
+proto.MessageDelta {"message_id":"msg_011CgaQxS6J7pB4Eev5joGQ7/0","text":"已在"}
+proto.MessageDelta {"message_id":"msg_011CgaQxS6J7pB4Eev5joGQ7/0","text":"当前目录创建 `"}
+proto.MessageDelta {"message_id":"msg_011CgaQxS6J7pB4Eev5joGQ7/0","text":"hello.txt`，内"}
+proto.MessageDelta {"message_id":"msg_011CgaQxS6J7pB4Eev5joGQ7/0","text":"容只有 `hi`"}
+proto.MessageDelta {"message_id":"msg_011CgaQxS6J7pB4Eev5joGQ7/0","text":" 一个词"}
+proto.MessageDelta {"message_id":"msg_011CgaQxS6J7pB4Eev5joGQ7/0","text":"。"}
+proto.Message {"id":"msg_011CgaQxS6J7pB4Eev5joGQ7/0","role":"assistant","text":"已在当前目录创建 `hello.txt`，内容只有 `hi` 一个词。"}
+proto.Usage {"input_tokens":47356,"output_tokens":180}
+proto.TurnEnded {"reason":"completed"}
+write {"type":"user","message":{"role":"user","content":"Use the Bash tool to run exactly this command: touch denied.txt"}}
+native 5447e5d2-1317-413a-aa1c-151a5ec48a03 proto.TurnStarted {}
+proto.ToolCall {"id":"toolu_01Xx8omSUYfkU8rhz4JQGGoz","kind":"exec","name":"Bash","summary":"touch denied.txt","status":"running"}
+proto.ApprovalRequested {"id":"3dd3f575-9b95-4c29-ac77-94f6536afda2","kind":"command","title":"Bash touch denied.txt","detail":"Create empty file denied.txt","tool_call_id":"toolu_01Xx8omSUYfkU8rhz4JQGGoz","options":[{"id":"allow","label":"Allow once","scope":"once"},{"id":"always","label":"Always allow","scope":"always"},{"id":"deny","label":"Deny","scope":"deny"}]}
+write {"type":"control_response","response":{"subtype":"success","request_id":"3dd3f575-9b95-4c29-ac77-94f6536afda2","response":{"behavior":"deny","message":"The user denied this in Hoplet."}}}
+proto.ToolCall {"id":"toolu_01Xx8omSUYfkU8rhz4JQGGoz","kind":"exec","name":"Bash","summary":"touch denied.txt","status":"failed"}
+proto.MessageDelta {"message_id":"msg_011CgaQxk9W36xfsEkiAqV6g/1","text":"`touch denied"}
+proto.MessageDelta {"message_id":"msg_011CgaQxk9W36xfsEkiAqV6g/1","text":".txt` 没有执"}
+proto.MessageDelta {"message_id":"msg_011CgaQxk9W36xfsEkiAqV6g/1","text":"行，命"}
+proto.MessageDelta {"message_id":"msg_011CgaQxk9W36xfsEkiAqV6g/1","text":"令被拒绝了"}
+proto.MessageDelta {"message_id":"msg_011CgaQxk9W36xfsEkiAqV6g/1","text":"（返"}
+proto.MessageDelta {"message_id":"msg_011CgaQxk9W36xfsEkiAqV6g/1","text":"回 "}
+proto.MessageDelta {"message_id":"msg_011CgaQxk9W36xfsEkiAqV6g/1","text":"\""}
+proto.MessageDelta {"message_id":"msg_011CgaQxk9W36xfsEkiAqV6g/1","text":"denied by the recorder\""}
+proto.MessageDelta {"message_id":"msg_011CgaQxk9W36xfsEkiAqV6g/1","text":"），所以 `denied."}
+proto.MessageDelta {"message_id":"msg_011CgaQxk9W36xfsEkiAqV6g/1","text":"txt` 没"}
+proto.MessageDelta {"message_id":"msg_011CgaQxk9W36xfsEkiAqV6g/1","text":"有创建。我没有重"}
+proto.MessageDelta {"message_id":"msg_011CgaQxk9W36xfsEkiAqV6g/1","text":"试。"}
+proto.Message {"id":"msg_011CgaQxk9W36xfsEkiAqV6g/1","role":"assistant","text":"`touch denied.txt` 没有执行，命令被拒绝了（返回 \"denied by the recorder\"），所以 `denied.txt` 没有创建。我没有重试。"}
+proto.Usage {"input_tokens":48565,"output_tokens":165}
+proto.TurnEnded {"reason":"completed"}

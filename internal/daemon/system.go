@@ -219,9 +219,22 @@ func (s *system) probeHarness(ctx context.Context, kind string, h harness.Harnes
 		return proto.Check{Name: name, Status: proto.CheckFail, Detail: fmt.Sprintf("did not answer within %v", s.timeout())}
 	case res.err != nil:
 		return proto.Check{Name: name, Status: proto.CheckFail, Detail: res.err.Error()}
-	case !res.info.Supported:
-		return proto.Check{Name: name, Status: proto.CheckWarn, Detail: "version " + res.info.Version + " is outside the verified range; new turns are refused"}
-	default:
-		return proto.Check{Name: name, Status: proto.CheckOK, Detail: "version " + res.info.Version}
 	}
+	c := proto.Check{Name: name, Status: proto.CheckOK, Detail: "version " + res.info.Version}
+	if !res.info.Supported {
+		c.Status, c.Detail = proto.CheckWarn, c.Detail+" is not verified; new turns are refused"
+	}
+	if res.info.Notice != "" {
+		c.Detail += "; " + res.info.Notice
+		if res.info.Attention {
+			c.Status = proto.CheckWarn
+		}
+	}
+	return c
+}
+
+// vars is the environment harnesses start with now.
+func (s *system) vars() []string {
+	snap, _ := s.state()
+	return slices.Clone(snap.Vars)
 }

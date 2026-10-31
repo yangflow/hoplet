@@ -1,0 +1,6 @@
+write {"type":"user","message":{"role":"user","content":"Reply with exactly the word: pong"}}
+native c203a366-06fa-4560-87fa-70eb2abe55f9 proto.TurnStarted {}
+proto.MessageDelta {"message_id":"msg_011CgaQaHmdBg8QZrrCjZTA9/1","text":"pong"}
+proto.Message {"id":"msg_011CgaQaHmdBg8QZrrCjZTA9/1","role":"assistant","text":"pong"}
+proto.Usage {"input_tokens":21953,"output_tokens":56}
+proto.TurnEnded {"reason":"completed"}

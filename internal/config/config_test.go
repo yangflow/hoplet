@@ -47,6 +47,19 @@ allow = ["GH_TOKEN"]
 	}
 }
 
+func TestHarnessFollow(t *testing.T) {
+	for body, want := range map[string]bool{
+		"":                                   true,
+		"[harness.claude]\nfollow = true\n":  true,
+		"[harness.claude]\nfollow = false\n": false,
+	} {
+		c, err := Load(write(t, body))
+		if err != nil || c.Harness.Claude.Follows() != want {
+			t.Errorf("%q: follows %v %v, want %v", body, c.Harness.Claude.Follows(), err, want)
+		}
+	}
+}
+
 func TestLoadRejects(t *testing.T) {
 	for name, tc := range map[string]struct{ body, inErr string }{
 		"unknown key":     {"[network]\nproxi = \"x\"\n", "unknown keys network.proxi"},
@@ -59,6 +72,7 @@ func TestLoadRejects(t *testing.T) {
 		"empty no_proxy":  {"[network]\nno_proxy = [\"\"]\n", "no_proxy"},
 		"spaced no_proxy": {"[network]\nno_proxy = [\"a b\"]\n", "no_proxy"},
 		"comma no_proxy":  {"[network]\nno_proxy = [\"a,b\"]\n", "no_proxy"},
+		"unknown harness": {"[harness.codex]\nfollow = false\n", "unknown keys harness.codex"},
 	} {
 		_, err := Load(write(t, tc.body))
 		if err == nil || !strings.Contains(err.Error(), tc.inErr) {

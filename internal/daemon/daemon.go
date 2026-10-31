@@ -46,6 +46,13 @@ type Config struct {
 	// use; empty means DefaultProbeURL.
 	ProbeURL string
 
+	// Maintenance, when set, runs with the current harness environment
+	// every MaintenanceEvery (default 24h), first after ten minutes or
+	// MaintenanceEvery, whichever is shorter: harness upgrades that check
+	// themselves.
+	Maintenance      func(ctx context.Context, env []string)
+	MaintenanceEvery time.Duration
+
 	// lim overrides the protocol limits (tests); zero fields keep defaults.
 	lim limits
 }
@@ -161,6 +168,13 @@ func Start(ctx context.Context, cfg Config) (d *Daemon, err error) {
 		defer d.wg.Done()
 		q.run(runCtx)
 	}()
+	if cfg.Maintenance != nil {
+		d.wg.Add(1)
+		go func() {
+			defer d.wg.Done()
+			maintain(runCtx, cfg.Maintenance, cfg.MaintenanceEvery, func() []string { return sys.vars() })
+		}()
+	}
 	go func() {
 		defer d.wg.Done()
 		defer close(d.done)
@@ -256,4 +270,23 @@ func listen(sock string) (net.Listener, error) {
 		return nil, errors.Join(fmt.Errorf("daemon: publish socket: %w", err), ln.Close(), os.Remove(tmp))
 	}
 	return ln, nil
+}
+
+// maintain runs fn ten minutes after the start (or after every, when that
+// is shorter) and then every interval, until ctx ends.
+func maintain(ctx context.Context, fn func(context.Context, []string), every time.Duration, env func() []string) {
+	if every <= 0 {
+		every = 24 * time.Hour
+	}
+	t := time.NewTimer(min(10*time.Minute, every))
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+		}
+		fn(ctx, env())
+		t.Reset(every)
+	}
 }

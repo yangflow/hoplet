@@ -1,0 +1,25 @@
+write {"type":"control_request","request_id":"hoplet-x-1","request":{"model":"haiku","subtype":"set_model"}}
+write {"type":"user","message":{"role":"user","content":"Reply with exactly the word: model"}}
+native 646309aa-2ab0-4fe6-b5f9-42c538a0a5d0 proto.TurnStarted {}
+proto.MessageDelta {"message_id":"msg_011CgaYx4Zv2pfMLishtLjVE/1","text":"model"}
+proto.Message {"id":"msg_011CgaYx4Zv2pfMLishtLjVE/1","role":"assistant","text":"model"}
+proto.Usage {"input_tokens":24307,"output_tokens":223}
+proto.TurnEnded {"reason":"completed"}
+write {"type":"user","message":{"role":"user","content":"Use the Bash tool to run exactly: echo two \u003e two.txt"}}
+native 646309aa-2ab0-4fe6-b5f9-42c538a0a5d0 proto.TurnStarted {}
+proto.ToolCall {"id":"toolu_01UJnWE3kT947jKgvptzvAxd","kind":"exec","name":"Bash","summary":"echo two \u003e two.txt","status":"running"}
+proto.ApprovalRequested {"id":"abf7f0f6-0c00-4f22-abac-52e45adfcf62","kind":"command","title":"Bash echo two \u003e two.txt","detail":"Write \"two\" into two.txt in the current directory","tool_call_id":"toolu_01UJnWE3kT947jKgvptzvAxd","options":[{"id":"allow","label":"Allow once","scope":"once"},{"id":"always","label":"Always allow","scope":"always"},{"id":"deny","label":"Deny","scope":"deny"}]}
+write {"type":"control_response","response":{"subtype":"success","request_id":"abf7f0f6-0c00-4f22-abac-52e45adfcf62","response":{"behavior":"allow","updatedInput":{"command":"echo two \u003e two.txt","description":"Write \"two\" into two.txt in the current directory"},"updatedPermissions":[{"behavior":"allow","destination":"localSettings","rules":[{"ruleContent":"echo two *","toolName":"Bash"}],"type":"addRules"},{"destination":"session","directories":["/work"],"type":"addDirectories"}]}}}
+proto.ToolCall {"id":"toolu_01UJnWE3kT947jKgvptzvAxd","kind":"exec","name":"Bash","summary":"echo two \u003e two.txt","status":"done"}
+proto.MessageDelta {"message_id":"msg_011CgaYxSmQekTTK8EK4qtp2/1","text":"已执行 "}
+proto.MessageDelta {"message_id":"msg_011CgaYxSmQekTTK8EK4qtp2/1","text":"`echo two \u003e two.tx"}
+proto.MessageDelta {"message_id":"msg_011CgaYxSmQekTTK8EK4qtp2/1","text":"t`，命"}
+proto.MessageDelta {"message_id":"msg_011CgaYxSmQekTTK8EK4qtp2/1","text":"令没有输出，文件"}
+proto.MessageDelta {"message_id":"msg_011CgaYxSmQekTTK8EK4qtp2/1","text":"已写"}
+proto.MessageDelta {"message_id":"msg_011CgaYxSmQekTTK8EK4qtp2/1","text":"入当前工作目录。"}
+proto.Message {"id":"msg_011CgaYxSmQekTTK8EK4qtp2/1","role":"assistant","text":"已执行 `echo two \u003e two.txt`，命令没有输出，文件已写入当前工作目录。"}
+proto.Usage {"input_tokens":49381,"output_tokens":203}
+proto.TurnEnded {"reason":"completed"}
+write {"type":"user","message":{"role":"user","content":"Use the Bash tool to run exactly: echo two \u003e two.txt"}}
+native 646309aa-2ab0-4fe6-b5f9-42c538a0a5d0 proto.TurnStarted {}
+proto.ToolCall {"id":"toolu_01M6g6mvyHSNqFHvssjtKEtk","kind":"exec","name":"Bash","summary":"echo two \u003e two.txt","status":"running"}

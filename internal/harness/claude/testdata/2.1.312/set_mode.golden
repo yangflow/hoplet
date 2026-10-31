@@ -1,0 +1,16 @@
+write {"type":"control_request","request_id":"hoplet-x-1","request":{"mode":"acceptEdits","subtype":"set_permission_mode"}}
+write {"type":"user","message":{"role":"user","content":"Use the Write tool to create a file named b.txt containing the single letter b. Do nothing else."}}
+native 196560af-6b6c-4fcf-8410-a2bacda5d31d proto.TurnStarted {}
+proto.ToolCall {"id":"toolu_01TYCMeGd1UwFZvntaSuK8qd","kind":"edit","name":"Write","summary":"/work/b.txt","status":"running"}
+proto.ToolCall {"id":"toolu_01TYCMeGd1UwFZvntaSuK8qd","kind":"edit","name":"Write","summary":"/work/b.txt","status":"done"}
+proto.FileChange {"path":"/work/b.txt","op":"created"}
+proto.MessageDelta {"message_id":"msg_011CgaQyRQtrAc9WF6qw23yp/0","text":"已在"}
+proto.MessageDelta {"message_id":"msg_011CgaQyRQtrAc9WF6qw23yp/0","text":"当前工作目录下"}
+proto.MessageDelta {"message_id":"msg_011CgaQyRQtrAc9WF6qw23yp/0","text":"创建 "}
+proto.MessageDelta {"message_id":"msg_011CgaQyRQtrAc9WF6qw23yp/0","text":"`b.txt`，内"}
+proto.MessageDelta {"message_id":"msg_011CgaQyRQtrAc9WF6qw23yp/0","text":"容只有一"}
+proto.MessageDelta {"message_id":"msg_011CgaQyRQtrAc9WF6qw23yp/0","text":"个字母 `b`。"}
+proto.Message {"id":"msg_011CgaQyRQtrAc9WF6qw23yp/0","role":"assistant","text":"已在当前工作目录下创建 `b.txt`，内容只有一个字母 `b`。"}
+proto.Usage {"input_tokens":47351,"output_tokens":179}
+proto.TurnEnded {"reason":"completed"}
+write {"type":"control_request","request_id":"hoplet-x-2","request":{"mode":"plan","subtype":"set_permission_mode"}}

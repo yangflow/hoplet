@@ -1,0 +1,13 @@
+write {"type":"user","message":{"role":"user","content":"Use the Write tool to create a file named noinit.txt containing the word x. Do nothing else."}}
+native 811db5b4-be62-48d9-8b14-9a5fa7bb851d proto.TurnStarted {}
+proto.ToolCall {"id":"toolu_012ik3cEF1dxq49moZWHRdZq","kind":"edit","name":"Write","summary":"/work/noinit.txt","status":"running"}
+proto.ApprovalRequested {"id":"ac63c00d-89b6-434f-8250-6c155e4e3f38","kind":"file_change","title":"Write /work/noinit.txt","detail":"noinit.txt","tool_call_id":"toolu_012ik3cEF1dxq49moZWHRdZq","options":[{"id":"allow","label":"Allow once","scope":"once"},{"id":"always","label":"Allow for this session","scope":"session"},{"id":"deny","label":"Deny","scope":"deny"}]}
+write {"type":"control_response","response":{"subtype":"success","request_id":"ac63c00d-89b6-434f-8250-6c155e4e3f38","response":{"behavior":"allow","updatedInput":{"content":"x","file_path":"/work/noinit.txt"}}}}
+proto.ToolCall {"id":"toolu_012ik3cEF1dxq49moZWHRdZq","kind":"edit","name":"Write","summary":"/work/noinit.txt","status":"done"}
+proto.FileChange {"path":"/work/noinit.txt","op":"created"}
+proto.MessageDelta {"message_id":"msg_011CgaZ8UFF2oMbZQ5xY6Eop/0","text":"已创建 `noinit"}
+proto.MessageDelta {"message_id":"msg_011CgaZ8UFF2oMbZQ5xY6Eop/0","text":".txt`，内容为"}
+proto.MessageDelta {"message_id":"msg_011CgaZ8UFF2oMbZQ5xY6Eop/0","text":" `x`。"}
+proto.Message {"id":"msg_011CgaZ8UFF2oMbZQ5xY6Eop/0","role":"assistant","text":"已创建 `noinit.txt`，内容为 `x`。"}
+proto.Usage {"input_tokens":47373,"output_tokens":173}
+proto.TurnEnded {"reason":"completed"}

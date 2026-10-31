@@ -14,8 +14,10 @@ import (
 	"time"
 
 	"github.com/yangflow/hoplet/internal/client"
+	"github.com/yangflow/hoplet/internal/config"
 	"github.com/yangflow/hoplet/internal/daemon"
 	"github.com/yangflow/hoplet/internal/env"
+	"github.com/yangflow/hoplet/internal/harness/claude"
 	"github.com/yangflow/hoplet/internal/home"
 	"github.com/yangflow/hoplet/internal/launchd"
 	"github.com/yangflow/hoplet/internal/logfile"
@@ -91,9 +93,10 @@ func (a app) daemonRun(args []string) int {
 		}
 		src = &env.Login{Home: *dir, UserHome: userHome, Shell: env.UserShell(ctx)}
 	}
+	logger := slog.New(slog.NewJSONHandler(logw, nil))
 	d, err := daemon.Start(ctx, daemon.Config{
-		Home: *dir, Version: version, Exe: exe, Harnesses: a.harnesses, Env: src, ProbeURL: a.probeURL,
-		Logger: slog.New(slog.NewJSONHandler(logw, nil)),
+		Home: *dir, Version: version, Exe: exe, Harnesses: a.harnesses(*dir), Env: src, ProbeURL: a.probeURL,
+		Logger: logger, Maintenance: a.maintenance(*dir, logger),
 	})
 	if err != nil && ctx.Err() != nil {
 		return 0 // stopped by a signal before it began serving
@@ -299,4 +302,45 @@ func (a app) daemonStatus(args []string) int {
 		return 1
 	}
 	return 0
+}
+
+// maintenance is the daemon's daily work: follow the user's claude, unless
+// the configuration turns that off. It is nil without a self-check.
+func (a app) maintenance(h string, logger *slog.Logger) func(context.Context, []string) {
+	if a.selfCheck == nil {
+		return nil
+	}
+	return func(ctx context.Context, vars []string) {
+		cfg, err := config.Load(h)
+		if err != nil {
+			logger.Warn("harness follow-up skipped", "err", err)
+			return
+		}
+		if !cfg.Harness.Claude.Follows() {
+			return
+		}
+		check := func(ctx context.Context, bin string) error { return a.selfCheck(ctx, bin, vars) }
+		ctx, cancel := context.WithTimeout(ctx, selfCheckTimeout)
+		defer cancel()
+		u, ok := claude.Follow(ctx, h, envValue(vars, "PATH"), check)
+		switch {
+		case !ok:
+			logger.Debug("claude follow-up: nothing to do")
+		case u.Error != "":
+			logger.Warn("claude follow-up failed", "from", u.From, "version", u.Version, "err", u.Error)
+		default:
+			logger.Info("claude followed", "from", u.From, "version", u.Version)
+		}
+	}
+}
+
+// envValue is the value of the first name entry in vars; environment
+// snapshots hold each name once.
+func envValue(vars []string, name string) string {
+	for _, kv := range vars {
+		if k, v, ok := strings.Cut(kv, "="); ok && k == name {
+			return v
+		}
+	}
+	return ""
 }

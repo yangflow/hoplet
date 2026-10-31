@@ -73,14 +73,16 @@ func probeURL() string {
 func TestMain(m *testing.M) {
 	if os.Getenv("HOPLET_TEST_MAIN") != "" {
 		a := app{
-			stdout: os.Stdout, stderr: os.Stderr, harnesses: map[string]harness.Harness{},
+			stdout: os.Stdout, stderr: os.Stderr,
 			env:      env.Static{"PATH=" + os.Getenv("PATH"), "LANG=en_US.UTF-8", "HOPLET_TEST_MAIN=1"},
 			probeURL: probeURL(),
 			agents:   fakeAgents, allowTempBinary: true,
 		}
+		hs := map[string]harness.Harness{}
 		if bin := os.Getenv("HOPLET_TEST_FAKE"); bin != "" {
-			a.harnesses["fake"] = &fake.Harness{Binary: bin, Script: os.Getenv("HOPLET_TEST_SCRIPT")}
+			hs["fake"] = &fake.Harness{Binary: bin, Script: os.Getenv("HOPLET_TEST_SCRIPT")}
 		}
+		a.harnesses = func(string) map[string]harness.Harness { return hs }
 		os.Exit(a.run(os.Args[1:]))
 	}
 	os.Exit(m.Run())
