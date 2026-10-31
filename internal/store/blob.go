@@ -40,14 +40,28 @@ func (s *Store) PutBlob(r io.Reader) (proto.BlobRef, error) {
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return proto.BlobRef{}, fmt.Errorf("store: stat blob: %w", err)
 	}
-	if err := os.MkdirAll(filepath.Dir(dst), 0o700); err != nil {
+	// Two syncs make the blob durable: the shard directory after the rename
+	// (its new entry), and the blobs directory when the shard is created
+	// (the shard's own entry).
+	shard := filepath.Dir(dst)
+	_, statErr := os.Stat(shard)
+	newShard := errors.Is(statErr, os.ErrNotExist)
+	if statErr != nil && !newShard {
+		return proto.BlobRef{}, fmt.Errorf("store: stat blob dir: %w", statErr)
+	}
+	if err := os.MkdirAll(shard, 0o700); err != nil {
 		return proto.BlobRef{}, fmt.Errorf("store: create blob dir: %w", err)
 	}
 	if err := os.Rename(tmp.Name(), dst); err != nil {
 		return proto.BlobRef{}, fmt.Errorf("store: publish blob: %w", err)
 	}
-	if err := syncDir(filepath.Dir(dst)); err != nil {
+	if err := syncDir(shard); err != nil {
 		return proto.BlobRef{}, fmt.Errorf("store: sync blob dir: %w", err)
+	}
+	if newShard {
+		if err := syncDir(filepath.Dir(shard)); err != nil {
+			return proto.BlobRef{}, fmt.Errorf("store: sync blobs dir: %w", err)
+		}
 	}
 	return ref, nil
 }
