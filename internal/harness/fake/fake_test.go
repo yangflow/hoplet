@@ -8,6 +8,7 @@ import (
 	"os"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -544,32 +545,41 @@ func TestCloseKillsHungHarness(t *testing.T) {
 	}
 }
 
-func TestCloseWithoutReaderDoesNotHang(t *testing.T) {
-	steps := make([]Step, 300)
-	for i := range steps {
-		steps[i] = Step{Emit: &Ev{Ev: "delta", ID: "m", Text: "x"}}
-	}
-	r := start(t, Script{Turns: []Turn{{Steps: steps}}})
-	if err := r.Send(context.Background(), "go"); err != nil {
-		t.Fatal(err)
-	}
-	time.Sleep(300 * time.Millisecond) // the events buffer fills and the loop blocks
-	done := make(chan struct{})
-	go func() { r.Close(); close(done) }()
-	select {
-	case <-done:
-	case <-time.After(5 * time.Second):
-		t.Fatal("Close hung with nobody reading Events")
-	}
-}
-
 // stubStdio feeds canned lines to the adapter.
-type stubStdio struct{ lines chan harness.Line }
+type stubStdio struct {
+	lines  chan harness.Line
+	closed atomic.Bool
+}
 
 func (s *stubStdio) WriteLine(context.Context, []byte) error { return nil }
 func (s *stubStdio) Lines() <-chan harness.Line              { return s.lines }
 func (s *stubStdio) Signal(string) error                     { return nil }
-func (s *stubStdio) Close() error                            { return nil }
+func (s *stubStdio) Close() error                            { s.closed.Store(true); return nil }
+
+func TestCloseWithoutReaderDoesNotHang(t *testing.T) {
+	// More lines than the events buffer holds, preloaded and never closed;
+	// nobody reads Events, so the adapter backpressures on its first full
+	// buffer wherever it happens to be.
+	const n = 300
+	stub := &stubStdio{lines: make(chan harness.Line, n)}
+	for i := 0; i < n; i++ {
+		stub.lines <- harness.Line{Kind: harness.Stdout, Data: []byte(`{"ev":"delta","id":"m","text":"x"}`)}
+	}
+	r, err := (&Harness{}).Attach(context.Background(), harness.Spec{}, stub)
+	if err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan struct{})
+	go func() { r.Close(); close(done) }()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Close hung with nobody reading Events")
+	}
+	if !stub.closed.Load() {
+		t.Fatal("transport was not closed")
+	}
+}
 
 func TestEveryLineYieldsAnEventWithOffset(t *testing.T) {
 	stub := &stubStdio{lines: make(chan harness.Line, 8)}

@@ -234,6 +234,9 @@ func (e *ExecStdio) WriteLine(ctx context.Context, line []byte) error {
 		if cerr := ctx.Err(); cerr != nil {
 			return cerr
 		}
+		if errors.Is(err, os.ErrDeadlineExceeded) {
+			return context.DeadlineExceeded // ctx's deadline fired before ctx.Err reported it
+		}
 		return fmt.Errorf("harness: write stdin: %w", err)
 	}
 	return nil

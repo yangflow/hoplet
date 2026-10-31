@@ -143,9 +143,22 @@ func blockedWriter(ctx context.Context, t *testing.T) (*ExecStdio, chan error) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Fill the pipe: a write that times out means the child is not reading
+	// and the pipe is full, so the next write must block.
+	chunk := bytes.Repeat([]byte("x"), 64<<10)
+	for {
+		fctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+		err := e.WriteLine(fctx, chunk)
+		cancel()
+		if errors.Is(err, context.DeadlineExceeded) {
+			break
+		}
+		if err != nil {
+			t.Fatalf("filling the pipe: %v", err)
+		}
+	}
 	errc := make(chan error, 1)
-	go func() { errc <- e.WriteLine(ctx, bytes.Repeat([]byte("x"), 4<<20)) }()
-	time.Sleep(200 * time.Millisecond) // let the write block on the full pipe
+	go func() { errc <- e.WriteLine(ctx, chunk) }()
 	return e, errc
 }
 
@@ -194,7 +207,13 @@ func TestExecStdioCloseWithUnreadLines(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	time.Sleep(200 * time.Millisecond)
+	// Once the first line arrives the child is writing far more than the
+	// Lines buffer holds, and nobody reads it.
+	select {
+	case <-e.Lines():
+	case <-time.After(5 * time.Second):
+		t.Fatal("no output")
+	}
 	begin := time.Now()
 	if err := e.Close(); err != nil {
 		t.Fatalf("close: %v", err)
