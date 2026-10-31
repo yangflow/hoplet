@@ -30,10 +30,14 @@ linters:
       - path: internal/(shim/shim|harness/execstdio)\.go
         linters: [gosec]
         text: G204
-      # The fake harness is test tooling: it runs `go build` and reads the
-      # script file a test points it at.
-      - path: internal/harness/fake/
+      # BuildBinary runs `go build` with the output path a test chose.
+      - path: internal/harness/fake/build\.go
         linters: [gosec]
+        text: G204
+      # fakeharness reads the script file named by its test-controlled environment.
+      - path: internal/harness/fake/fakeharness/main\.go
+        linters: [gosec]
+        text: G703
 
 formatters:
   enable:
