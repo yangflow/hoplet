@@ -13,7 +13,7 @@ flowchart LR
     Srv --> M["session.Manager（5a）"]
     Q --> M
     Srv --> St[("store<br/>+ queue 表")]
-    Q -. "store.Changes()<br/>轮次结束即发下一条" .-> St
+    Q -. "store.Changes() + Manager.Changes()<br/>轮次结束即发下一条" .-> St
     M --> Shim["hoplet shim"]
 ```
 
@@ -4217,3 +4217,19 @@ gh pr create --title "feat(daemon): add daemon and local API" --fill
 - 慢客户端被断开，不影响其他客户端。
 - **验证假设：** 真实守护进程在轮次中途 `kill -9` 后重启，会话续接，事件不缺不重，harness 不重启。
 - `make check` 本地和 CI 通过；测试不泄漏进程。
+
+## 实现与计划的差异（评审后追加）
+
+任务评审、整分支终审及复审之后，合并前在计划之外补了以下内容；后续 PR 以 `main` 上的真实代码为准：
+
+| 方面 | 变化 |
+|---|---|
+| 本机 token | `EnsureToken` 用 `os.Link` 发布，多个进程同时创建也只有一份；`ReadToken` 拒绝组或其他用户可访问的 token 文件 |
+| 主目录 | 已存在的主目录启动时收紧到 0700（`secureHome` 单独成文件，lint 的 G302 排除只覆盖它）；临时 socket 固定为 `daemon.sock.new`，路径超出 Unix socket 长度时报明确错误 |
+| 队列存储 | `Enqueue` 拒绝空文本、超过 256 字节或含 `#` 的键；`EditQueued` 拒绝空文本；新增 `attempt` 列与 `QueueHead`：编辑过的消息以 `key#N` 发送，即编辑后作为新消息发出，发送失败的原消息留在日志里 |
+| 队列投递 | 新增 `session.Manager.Changes()`，投递协程同时等待它和 `store.Changes()`，不会错过"轮次已结束但管理器状态尚未更新"的时刻；各会话并发投递，同一会话最多一个等待者；`sessions.stop` 把队首标记为"会话已停止"，挡住队列（中断本轮则继续投递），已写入 0007 |
+| 协议 | 订阅在读循环里同步登记，紧随其后的取消不会丢；hello 之前的任何帧（包括取消）都拒绝并断开；hello 超时进入 `limits`；正在写的帧不计入出站高水位（一个大快照不会让连接反复断开）；命令在服务器上下文中执行，客户端断开不会打断已记录消息的投递；新增 `sessions.events` 向前翻页；已归档会话返回 `conflict`（新增 `session.ErrArchived`）；空文本发送返回 `invalid` |
+| 握手 | 0005 的握手结果改为 `{host, version, protocol_major}`；命令是否可用随各会话的 harness 能力位下发（PR6） |
+| 客户端 | 请求帧在连接生命周期内写出，调用方的 ctx 只限定等待响应，超时不会关掉共享连接；连接丢失一律报 `ErrClosed`（包括坏帧、本地 Close 时打开的订阅）；`Subscribe` 等待中被取消会补发取消帧；`Close` 幂等，并发调用等第一次完成；新增假守护进程单元测试 |
+| `hoplet daemon` | 启动中途收到信号退出 0；关闭失败与服务错误一并报告；关闭期间再来信号按默认方式结束 |
+| 已接受 | 客户端用原键重试一条已被编辑并发出的消息会再发一次（重试发生在几秒内，远早于编辑）；客户端心跳未单独测试；单个会话的发送在可能拉起 shim 期间持有该会话的队列锁 |
