@@ -46,9 +46,9 @@ type Config struct {
 	// use; empty means DefaultProbeURL.
 	ProbeURL string
 
-	// Maintenance, when set, runs MaintenanceEvery (default a day) with the
-	// harness environment, first ten minutes after the start (or after
-	// MaintenanceEvery when that is shorter): harness upgrades that check
+	// Maintenance, when set, runs with the current harness environment
+	// every MaintenanceEvery (default 24h), first after ten minutes or
+	// MaintenanceEvery, whichever is shorter: harness upgrades that check
 	// themselves.
 	Maintenance      func(ctx context.Context, env []string)
 	MaintenanceEvery time.Duration
