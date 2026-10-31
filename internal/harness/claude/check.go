@@ -24,6 +24,9 @@ const checkStepTimeout = 90 * time.Second
 // nil when every step behaves as the adapter expects: a turn, a command
 // approval and its denial, a permission mode change, an edit, an interrupt
 // and a resume. It uses the user's claude login and a little of its quota.
+// Each run leaves a short session in the user's claude history (keyed by a
+// temporary directory). It never answers "always", so it changes no claude
+// settings.
 func SelfCheck(ctx context.Context, bin string, env []string) (err error) {
 	dir, err := os.MkdirTemp("", "hoplet-check-")
 	if err != nil {
@@ -69,19 +72,18 @@ func SelfCheck(ctx context.Context, bin string, env []string) (err error) {
 	if err := c.run.Send(ctx, "Use the Write tool to create a file named check.txt containing the word ok. Do nothing else."); err != nil {
 		return c.fail("send", err)
 	}
-	if _, err := c.until("a file change", func(p proto.Payload) bool {
-		if _, ok := p.(proto.ApprovalRequested); ok {
-			return true // reported below as the failure it is
+	p, err := c.until("a file change", func(p proto.Payload) bool {
+		if r, ok := p.(proto.ApprovalRequested); ok {
+			return r.Kind == proto.ApprovalFileChange // reported below as the failure it is
 		}
 		_, ok := p.(proto.FileChange)
 		return ok
-	}); err != nil {
+	})
+	if err != nil {
 		return err
 	}
-	if c.last != nil {
-		if _, ok := c.last.(proto.ApprovalRequested); ok {
-			return errors.New("claude: self-check: an edit asked for approval after switching to auto_edit")
-		}
+	if _, ok := p.(proto.ApprovalRequested); ok {
+		return errors.New("claude: self-check: an edit asked for approval after switching to auto_edit")
 	}
 	if err := c.turnEnd(proto.TurnCompleted); err != nil {
 		return err
@@ -105,10 +107,11 @@ func SelfCheck(ctx context.Context, bin string, env []string) (err error) {
 	}
 
 	// A new process resumes the same session.
-	c, err = startCheck(ctx, h, harness.Spec{Mode: proto.ModeConfirm, WorkDir: dir, Env: env, Model: checkModel, Resume: native})
+	nc, err := startCheck(ctx, h, harness.Spec{Mode: proto.ModeConfirm, WorkDir: dir, Env: env, Model: checkModel, Resume: native})
 	if err != nil {
 		return err
 	}
+	c = nc
 	if err := c.run.Send(ctx, "Reply with exactly the word: resumed"); err != nil {
 		return c.fail("send", err)
 	}
@@ -123,10 +126,9 @@ func SelfCheck(ctx context.Context, bin string, env []string) (err error) {
 
 // check is one claude process under self-check.
 type check struct {
-	ctx  context.Context
-	io   *harness.ExecStdio
-	run  harness.Run
-	last proto.Payload
+	ctx context.Context
+	io  *harness.ExecStdio
+	run harness.Run
 }
 
 func startCheck(ctx context.Context, h *Harness, spec harness.Spec) (*check, error) {
@@ -146,7 +148,7 @@ func startCheck(ctx context.Context, h *Harness, spec harness.Spec) (*check, err
 }
 
 func (c *check) close() error {
-	if c.run == nil {
+	if c == nil || c.run == nil {
 		return nil
 	}
 	err := c.run.Close()
@@ -165,7 +167,7 @@ func (c *check) until(what string, match func(proto.Payload) bool) (proto.Payloa
 	for {
 		select {
 		case <-c.ctx.Done():
-			return nil, c.ctx.Err()
+			return nil, fmt.Errorf("claude: self-check: %w", c.ctx.Err())
 		case <-timer.C:
 			return nil, fmt.Errorf("claude: self-check: no %s within %v", what, checkStepTimeout)
 		case ev, ok := <-c.run.Events():
@@ -175,12 +177,19 @@ func (c *check) until(what string, match func(proto.Payload) bool) (proto.Payloa
 			if ev.Payload == nil {
 				continue
 			}
-			c.last = ev.Payload
 			if e, isErr := ev.Payload.(proto.Error); isErr {
 				return nil, fmt.Errorf("claude: self-check: before %s: %s", what, e.Message)
 			}
 			if match(ev.Payload) {
 				return ev.Payload, nil
+			}
+			// Nothing here is for the user to answer: deny and keep
+			// waiting, so a surprise approval fails the step, not hangs it.
+			if r, isReq := ev.Payload.(proto.ApprovalRequested); isReq {
+				if err := c.run.Respond(c.ctx, r.ID, optionDeny); err != nil {
+					return nil, c.fail("deny", err)
+				}
+				continue
 			}
 			if end, ended := ev.Payload.(proto.TurnEnded); ended {
 				return nil, fmt.Errorf("claude: self-check: the turn ended (%s %s) before %s", end.Reason, end.Message, what)

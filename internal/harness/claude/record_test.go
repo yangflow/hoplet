@@ -130,3 +130,95 @@ func TestSanitize(t *testing.T) {
 		t.Errorf("%d lines kept, want 5:\n%s", n, got)
 	}
 }
+
+// sanitized runs Sanitize over entries and returns "dir line" per kept line.
+func sanitized(t *testing.T, dir, home string, entries ...Entry) []string {
+	t.Helper()
+	var in bytes.Buffer
+	for _, e := range entries {
+		b, _ := json.Marshal(e)
+		in.Write(append(b, '\n'))
+	}
+	var out bytes.Buffer
+	if err := Sanitize(&in, &out, dir, home); err != nil {
+		t.Fatal(err)
+	}
+	var lines []string
+	for _, l := range strings.Split(strings.TrimSpace(out.String()), "\n") {
+		if l == "" {
+			continue
+		}
+		var e Entry
+		if err := json.Unmarshal([]byte(l), &e); err != nil {
+			t.Fatal(err)
+		}
+		lines = append(lines, e.Dir+" "+e.Line)
+	}
+	return lines
+}
+
+func TestReplacePath(t *testing.T) {
+	for _, tt := range []struct{ s, from, to, want string }{
+		{"/Users/ann/x and /Users/anna/x", "/Users/ann", "/Users/me", "/Users/me/x and /Users/anna/x"},
+		{`"/Users/ann"`, "/Users/ann", "/Users/me", `"/Users/me"`},
+		{"/Users/ann", "/Users/ann", "/Users/me", "/Users/me"},
+		{"/Users/ann-old", "/Users/ann", "/Users/me", "/Users/ann-old"},
+		{"-Users-ann-proj", "-Users-ann", "-Users-me", "-Users-me-proj"},
+		{"-Users-anna", "-Users-ann", "-Users-me", "-Users-anna"},
+	} {
+		if got := replacePath(tt.s, tt.from, tt.to); got != tt.want {
+			t.Errorf("replacePath(%q, %q) = %q, want %q", tt.s, tt.from, got, tt.want)
+		}
+	}
+}
+
+func TestSanitizeScrubsPathForms(t *testing.T) {
+	dir := t.TempDir()
+	resolved, err := filepath.EvalSymlinks(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	slug := strings.ReplaceAll(resolved, "/", "-")
+	home := "/home/me"
+	got := strings.Join(sanitized(t, dir, home,
+		Entry{Dir: "out", Line: `{"type":"assistant","a":"` + dir + `/x","b":"` + resolved + `/y","c":"~/.claude/projects/` + slug + `","d":"/home/mex","e":"-home-me-z"}`},
+	), "\n")
+	for _, bad := range []string{dir, resolved, slug, "/home/me/", "-home-me-"} {
+		if strings.Contains(got, bad+"\"") || strings.Contains(got, bad+"/") || got == bad {
+			t.Errorf("still has %q:\n%s", bad, got)
+		}
+	}
+	for _, want := range []string{`"a":"/work/x"`, `"b":"/work/y"`, "projects/-work", `"d":"/home/mex"`, `"e":"-Users-me-z"`} {
+		if !strings.Contains(got, want) {
+			t.Errorf("lacks %q:\n%s", want, got)
+		}
+	}
+}
+
+func TestSanitizeDropsHookLines(t *testing.T) {
+	got := sanitized(t, "", "",
+		Entry{Dir: "out", Line: `{"type":"system","subtype":"hook_started","output":"secret"}`},
+		Entry{Dir: "out", Line: `{"type":"system","subtype":"hook_response","output":"secret"}`},
+		Entry{Dir: "out", Line: `{"type":"system","subtype":"status","status":"x"}`},
+	)
+	if len(got) != 1 || strings.Contains(strings.Join(got, ""), "secret") || !strings.Contains(got[0], "status") {
+		t.Fatalf("got %q", got)
+	}
+}
+
+func TestSanitizeCutsAtAnUnansweredApproval(t *testing.T) {
+	req := func(id string) Entry {
+		return Entry{Dir: "out", Line: `{"type":"control_request","request_id":"` + id + `","request":{"subtype":"can_use_tool","tool_name":"Bash","input":{}}}`}
+	}
+	reply := Entry{Dir: "in", Line: `{"type":"control_response","response":{"subtype":"success","request_id":"r1","response":{}}}`}
+	result := Entry{Dir: "out", Line: `{"type":"result","subtype":"success"}`}
+	exit := Entry{Dir: "exit", Line: "0"}
+
+	if got := sanitized(t, "", "", req("r1"), reply, result, exit); len(got) != 4 {
+		t.Fatalf("answered approval cut the recording: %q", got)
+	}
+	got := sanitized(t, "", "", result, req("r2"), result, exit)
+	if len(got) != 1 {
+		t.Fatalf("unanswered approval kept %q", got)
+	}
+}

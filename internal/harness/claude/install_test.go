@@ -1,6 +1,7 @@
 package claude
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"os"
@@ -13,10 +14,13 @@ import (
 type checker struct {
 	err     error
 	checked []string
+	content [][]byte // what each checked file held
 }
 
 func (c *checker) check(_ context.Context, bin string) error {
 	c.checked = append(c.checked, bin)
+	b, _ := os.ReadFile(bin)
+	c.content = append(c.content, b)
 	return c.err
 }
 
@@ -108,13 +112,16 @@ func TestFollow(t *testing.T) {
 
 	// The user's claude updates itself; the follow-up checks and moves.
 	newer, newerDir := fakeClaude(t, "2.1.400")
-	newer, err := filepath.EvalSymlinks(newer) // what Install checks
-	if err != nil {
-		t.Fatal(err)
-	}
 	u, ok := Follow(ctx, home, newerDir, c.check)
-	if !ok || u.Error != "" || u.From != "2.1.312" || u.Version != "2.1.400" || len(c.checked) != 1 || c.checked[0] != newer {
+	if !ok || u.Error != "" || u.From != "2.1.312" || u.Version != "2.1.400" || len(c.checked) != 1 {
 		t.Fatalf("follow %+v %v, checked %v", u, ok, c.checked)
+	}
+	// The check ran on a private copy inside bin/ with the source's content.
+	if got := c.checked[0]; filepath.Dir(got) != filepath.Dir(BinaryPath(home)) {
+		t.Fatalf("checked %s, outside bin/", got)
+	}
+	if want, err := os.ReadFile(newer); err != nil || !bytes.Equal(c.content[0], want) {
+		t.Fatalf("the checked copy differs from the source: %v", err)
 	}
 	if target := link(t, home); target != "claude-2.1.400" {
 		t.Fatalf("link %q", target)
@@ -141,7 +148,75 @@ func TestFollow(t *testing.T) {
 	if err != nil || !info.Attention || !strings.Contains(info.Notice, "2.1.500") || !strings.Contains(info.Notice, "stays on 2.1.400") {
 		t.Fatalf("probe after a failed follow %+v %v", info, err)
 	}
-	if _, ok := Follow(ctx, home, brokenDir, c.check); ok || len(c.checked) != 2 {
-		t.Fatalf("a failed version was checked again: %v", c.checked)
+	if !strings.Contains(info.Notice, "attempt 1 of 3") {
+		t.Fatalf("notice %q lacks the attempt", info.Notice)
+	}
+}
+
+func TestFollowGivesUpAfterThreeAttempts(t *testing.T) {
+	ctx := context.Background()
+	home := t.TempDir()
+	user, _ := fakeClaude(t, "2.1.312")
+	c := &checker{}
+	if _, err := Install(ctx, user, home, c.check); err != nil {
+		t.Fatal(err)
+	}
+	_, brokenDir := fakeClaude(t, "2.1.500")
+	c.err = errors.New("flaky")
+	for i := 1; i <= 3; i++ {
+		u, ok := Follow(ctx, home, brokenDir, c.check)
+		if !ok || u.Attempts != i || len(c.checked) != i {
+			t.Fatalf("attempt %d: %+v %v, checked %d", i, u, ok, len(c.checked))
+		}
+	}
+	if _, ok := Follow(ctx, home, brokenDir, c.check); ok || len(c.checked) != 3 {
+		t.Fatalf("a given-up version was checked again: %d", len(c.checked))
+	}
+	info, err := (&Harness{Binary: BinaryPath(home)}).Probe(ctx)
+	if err != nil || !info.Attention || !strings.Contains(info.Notice, "attempt 3 of 3") || !strings.Contains(info.Notice, "will not try this version again") {
+		t.Fatalf("notice %+v %v", info, err)
+	}
+}
+
+func TestFollowRecordsNothingWhenCancelled(t *testing.T) {
+	home := t.TempDir()
+	user, _ := fakeClaude(t, "2.1.312")
+	c := &checker{}
+	if _, err := Install(context.Background(), user, home, c.check); err != nil {
+		t.Fatal(err)
+	}
+	_, newerDir := fakeClaude(t, "2.1.400")
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	c.err = context.Canceled
+	if u, ok := Follow(ctx, home, newerDir, c.check); ok || u != (Update{}) {
+		t.Fatalf("a cancelled follow recorded %+v %v", u, ok)
+	}
+	if _, ok := lastUpdate(BinaryPath(home)); ok {
+		t.Fatal("a cancelled follow wrote update.json")
+	}
+	c.err = nil
+	n := len(c.checked)
+	if u, ok := Follow(context.Background(), home, newerDir, c.check); !ok || u.Error != "" || len(c.checked) != n+1 {
+		t.Fatalf("the next follow %+v %v, checked %d", u, ok, len(c.checked))
+	}
+}
+
+func TestInstallPrunesCrashedTempCopies(t *testing.T) {
+	home := t.TempDir()
+	user, _ := fakeClaude(t, "2.1.312")
+	dir := filepath.Dir(BinaryPath(home))
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	stale := filepath.Join(dir, ".claude-crashed")
+	if err := os.WriteFile(stale, []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Install(context.Background(), user, home, (&checker{}).check); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(stale); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("leftover temp copy kept: %v", err)
 	}
 }

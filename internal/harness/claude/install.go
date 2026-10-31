@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"slices"
+	"syscall"
 	"time"
 )
 
@@ -31,30 +32,49 @@ type Installed struct {
 // of, and that has not passed the self-check here before, is installed
 // only after check passes; the pass is remembered. Hoplet's copy is
 // pinned: claude's own updater is off for it.
+//
+// The version is read and the check runs against a private copy of src
+// made first, which is then renamed into place: what passed the check is
+// the file that gets installed, even if src changes meanwhile. Installs
+// for one home are serialized by a lock file, because the CLI upgrade and
+// the daemon's follow-up may run at once.
 func Install(ctx context.Context, src, home string, check Checker) (Installed, error) {
 	src, err := filepath.EvalSymlinks(src)
 	if err != nil {
 		return Installed{}, fmt.Errorf("claude: %w", err)
 	}
-	v, err := version(ctx, src)
-	if err != nil {
-		return Installed{}, err
-	}
-	out := Installed{Version: v}
 	bin := BinaryPath(home)
-	if !verified(v) && !localVerified(bin, v) {
-		if err := check(ctx, src); err != nil {
-			return Installed{}, fmt.Errorf("claude %s failed the self-check, so Hoplet keeps its current copy: %w", v, err)
-		}
-		out.Checked = true
-	}
 	dir := filepath.Dir(bin)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return Installed{}, fmt.Errorf("claude: %w", err)
 	}
-	dst := filepath.Join(dir, "claude-"+v)
-	if err := copyFile(src, dst); err != nil {
+	unlock, err := lockInstalls(dir)
+	if err != nil {
 		return Installed{}, err
+	}
+	defer unlock()
+	if err := ctx.Err(); err != nil {
+		return Installed{}, fmt.Errorf("claude: %w", err)
+	}
+	tmp, err := copyFile(src, dir)
+	if err != nil {
+		return Installed{}, err
+	}
+	defer os.Remove(tmp) // a no-op once renamed into place
+	v, err := version(ctx, tmp)
+	if err != nil {
+		return Installed{}, err
+	}
+	out := Installed{Version: v}
+	if !verified(v) && !localVerified(bin, v) {
+		if err := check(ctx, tmp); err != nil {
+			return Installed{}, fmt.Errorf("claude %s failed the self-check, so Hoplet keeps its current copy: %w", v, err)
+		}
+		out.Checked = true
+	}
+	dst := filepath.Join(dir, "claude-"+v)
+	if err := os.Rename(tmp, dst); err != nil {
+		return Installed{}, fmt.Errorf("claude: %w", err)
 	}
 	if out.Checked {
 		if err := addVerified(bin, v); err != nil {
@@ -63,38 +83,65 @@ func Install(ctx context.Context, src, home string, check Checker) (Installed, e
 	}
 	// Publish the link atomically: a daemon starting a session meanwhile
 	// sees the old binary or the new one, never neither.
-	tmp := bin + ".new"
-	if err := os.Remove(tmp); err != nil && !errors.Is(err, os.ErrNotExist) {
+	link := bin + ".new"
+	if err := os.Remove(link); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return Installed{}, fmt.Errorf("claude: %w", err)
 	}
-	if err := os.Symlink(filepath.Base(dst), tmp); err != nil {
+	if err := os.Symlink(filepath.Base(dst), link); err != nil {
 		return Installed{}, fmt.Errorf("claude: %w", err)
 	}
-	if err := os.Rename(tmp, bin); err != nil {
-		return Installed{}, errors.Join(fmt.Errorf("claude: %w", err), os.Remove(tmp))
+	if err := os.Rename(link, bin); err != nil {
+		return Installed{}, errors.Join(fmt.Errorf("claude: %w", err), os.Remove(link))
 	}
 	prune(dir, filepath.Base(dst))
 	return out, nil
 }
 
-// prune removes the copies other than keep, each hundreds of megabytes;
-// processes still running one keep it open until they exit. It is best
-// effort: the install is done, and a leftover copy only costs disk.
+// lockInstalls takes the exclusive install lock of the bin directory dir,
+// waiting for another install to finish, and returns its release.
+func lockInstalls(dir string) (func(), error) {
+	f, err := os.OpenFile(filepath.Clean(filepath.Join(dir, ".install.lock")), os.O_CREATE|os.O_RDWR, 0o600)
+	if err != nil {
+		return nil, fmt.Errorf("claude: %w", err)
+	}
+	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX); err != nil {
+		return nil, errors.Join(fmt.Errorf("claude: lock installs: %w", err), f.Close())
+	}
+	return func() {
+		_ = syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
+		_ = f.Close()
+	}, nil
+}
+
+// prune removes the copies other than keep, each hundreds of megabytes,
+// and the temporary copies a crashed install left behind. The caller holds
+// the install lock, so no temporary copy but its own exists. Processes
+// still running an old copy keep it open until they exit; a session whose
+// daemon resolved the link just before a prune may fail to start once, and
+// the next start uses the new copy. It is best effort: the install is
+// done, and a leftover copy only costs disk.
 func prune(dir, keep string) {
-	old, _ := filepath.Glob(filepath.Join(dir, "claude-*"))
-	for _, p := range old {
-		if filepath.Base(p) != keep {
-			_ = os.Remove(p)
+	for _, pattern := range []string{"claude-*", ".claude-*"} {
+		old, _ := filepath.Glob(filepath.Join(dir, pattern))
+		for _, p := range old {
+			if filepath.Base(p) != keep {
+				_ = os.Remove(p)
+			}
 		}
 	}
 }
 
+// maxFollowAttempts is how many daily tries Follow gives a version that
+// fails the self-check before giving up on it: three daily tries.
+const maxFollowAttempts = 3
+
 // Follow moves Hoplet's copy to the claude the user runs: the claude found
 // on path (the harness environment's PATH), when Hoplet has a copy, the
 // versions differ and the user's passes the self-check (unless this
-// adapter is verified against it). A version that failed is not checked
-// again. It records the outcome for
-// doctor and returns it; nothing to do is not an outcome.
+// adapter is verified against it). A version that failed
+// maxFollowAttempts times in a row is not tried again; one failure may be
+// transient. It records the outcome for doctor and returns it; nothing to
+// do is not an outcome, and neither is a cancelled run.
 func Follow(ctx context.Context, home, path string, check Checker) (Update, bool) {
 	src, err := lookPath(path)
 	if err != nil {
@@ -112,12 +159,21 @@ func Follow(ctx context.Context, home, path string, check Checker) (Update, bool
 	if v == current {
 		return Update{}, false
 	}
-	if last, ok := lastUpdate(BinaryPath(home)); ok && last.Version == v && last.Error != "" {
-		return Update{}, false // this version already failed; don't spend quota again
+	last, hasLast := lastUpdate(BinaryPath(home))
+	failedBefore := hasLast && last.Version == v && last.Error != ""
+	if failedBefore && last.Attempts >= maxFollowAttempts {
+		return Update{}, false // given up on this version; don't spend quota again
 	}
 	u := Update{At: time.Now().UTC().Truncate(time.Second), From: current, Version: v}
 	if _, err := Install(ctx, src, home, check); err != nil {
+		if ctx.Err() != nil {
+			return Update{}, false // shutting down: not the version's fault
+		}
 		u.Error = err.Error()
+		u.Attempts = 1
+		if failedBefore {
+			u.Attempts = last.Attempts + 1
+		}
 	}
 	if b, err := json.MarshalIndent(u, "", "  "); err == nil {
 		_ = writeAtomic(updateFile(BinaryPath(home)), b, 0o600) // doctor shows it; losing it costs a re-check
@@ -139,26 +195,23 @@ func lookPath(path string) (string, error) {
 	return "", exec.ErrNotFound
 }
 
-// copyFile copies src to dst through a temporary file, executable.
-func copyFile(src, dst string) error {
+// copyFile copies src to a new executable temporary file in dir and
+// returns its path.
+func copyFile(src, dir string) (string, error) {
 	in, err := os.Open(filepath.Clean(src))
 	if err != nil {
-		return fmt.Errorf("claude: %w", err)
+		return "", fmt.Errorf("claude: %w", err)
 	}
 	defer in.Close()
-	out, err := os.CreateTemp(filepath.Dir(dst), ".claude-*")
+	out, err := os.CreateTemp(dir, ".claude-*")
 	if err != nil {
-		return fmt.Errorf("claude: %w", err)
+		return "", fmt.Errorf("claude: %w", err)
 	}
-	defer os.Remove(out.Name())
 	_, cerr := io.Copy(out, in)
 	if err := errors.Join(cerr, out.Chmod(0o755), out.Sync(), out.Close()); err != nil {
-		return fmt.Errorf("claude: copy %s: %w", src, err)
+		return "", errors.Join(fmt.Errorf("claude: copy %s: %w", src, err), os.Remove(out.Name()))
 	}
-	if err := os.Rename(out.Name(), dst); err != nil {
-		return fmt.Errorf("claude: %w", err)
-	}
-	return nil
+	return out.Name(), nil
 }
 
 func addVerified(binary, v string) error {

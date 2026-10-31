@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
+	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -77,6 +79,7 @@ func Record(ctx context.Context, cfg RecordConfig, out io.Writer) error {
 	}
 	rec := &recorder{start: time.Now(), out: out, lines: make(chan []byte, 256)}
 	var wg sync.WaitGroup
+	var outErr, errErr error
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
@@ -88,12 +91,19 @@ func Record(ctx context.Context, cfg RecordConfig, out io.Writer) error {
 			rec.write("out", string(line))
 			rec.lines <- line
 		}
+		if outErr = sc.Err(); outErr != nil {
+			_, _ = io.Copy(io.Discard, stdout) // keep draining so claude cannot block
+		}
 	}()
 	go func() {
 		defer wg.Done()
 		sc := bufio.NewScanner(stderr)
+		sc.Buffer(nil, harness.MaxLine)
 		for sc.Scan() {
 			rec.write("err", sc.Text())
+		}
+		if errErr = sc.Err(); errErr != nil {
+			_, _ = io.Copy(io.Discard, stderr)
 		}
 	}()
 	playErr := rec.play(ctx, stdin, cfg.Steps)
@@ -109,7 +119,7 @@ func Record(ctx context.Context, cfg RecordConfig, out io.Writer) error {
 		code, waitErr = ee.ExitCode(), nil
 	}
 	rec.write("exit", fmt.Sprint(code))
-	return errors.Join(playErr, closeErr, waitErr, rec.err)
+	return errors.Join(playErr, closeErr, waitErr, rec.err, outErr, errErr)
 }
 
 type recorder struct {
@@ -214,24 +224,25 @@ func (r *recorder) wait(ctx context.Context, stdin io.Writer, st Step) error {
 
 // Sanitize turns a recording into a fixture: it drops stderr and noise
 // (rate limit events, partial tool input and signatures, which can split
-// or hide paths), reduces claude's initialize answer and init lines to the
-// fields the adapter reads (they list the user's account, skills and
+// or hide paths, and hook system lines, which can carry the output of the
+// user's own hooks), reduces claude's initialize answer and init lines to
+// the fields the adapter reads (they list the user's account, skills and
 // plugins), removes thinking signatures, and replaces dir and home with
-// /work and /Users/me. Timestamps are dropped.
+// /work and /Users/me, as paths (given and symlink-resolved) and as the
+// dash slugs claude names project directories with. Timestamps are
+// dropped.
+//
+// The recording is cut at the first approval request claude sent that was
+// never answered: what follows is the recorder giving up, not claude's
+// protocol.
 func Sanitize(in io.Reader, out io.Writer, dir, home string) error {
 	sc := bufio.NewScanner(in)
 	sc.Buffer(nil, harness.MaxLine)
 	enc := json.NewEncoder(out)
 	enc.SetEscapeHTML(false)
-	scrub := func(s string) string {
-		if dir != "" {
-			s = strings.ReplaceAll(s, dir, "/work")
-		}
-		if home != "" {
-			s = strings.ReplaceAll(s, home, "/Users/me")
-		}
-		return s
-	}
+	scrub := scrubber(dir, home)
+	type kept struct{ dir, line, requestID string }
+	var entries []kept
 	for sc.Scan() {
 		var e Entry
 		if err := json.Unmarshal(sc.Bytes(), &e); err != nil {
@@ -241,9 +252,7 @@ func Sanitize(in io.Reader, out io.Writer, dir, home string) error {
 			continue
 		}
 		if e.Dir == "exit" {
-			if err := enc.Encode(map[string]string{"dir": e.Dir, "line": e.Line}); err != nil {
-				return err
-			}
+			entries = append(entries, kept{dir: e.Dir, line: e.Line})
 			continue
 		}
 		var v map[string]any
@@ -259,11 +268,98 @@ func Sanitize(in io.Reader, out io.Writer, dir, home string) error {
 		if err := le.Encode(stripKey(v, "signature")); err != nil {
 			return err
 		}
-		if err := enc.Encode(map[string]string{"dir": e.Dir, "line": scrub(strings.TrimSpace(b.String()))}); err != nil {
+		k := kept{dir: e.Dir, line: scrub(strings.TrimSpace(b.String()))}
+		if req, _ := v["request"].(map[string]any); e.Dir == "out" && v["type"] == "control_request" && req["subtype"] == "can_use_tool" {
+			k.requestID, _ = v["request_id"].(string)
+		}
+		entries = append(entries, k)
+	}
+	if err := sc.Err(); err != nil {
+		return err
+	}
+	for i, k := range entries {
+		if k.requestID == "" {
+			continue
+		}
+		answered := false
+		for _, later := range entries[i+1:] {
+			if later.dir == "in" && strings.Contains(later.line, k.requestID) {
+				answered = true
+				break
+			}
+		}
+		if !answered {
+			entries = entries[:i]
+			break
+		}
+	}
+	for _, k := range entries {
+		if err := enc.Encode(map[string]string{"dir": k.dir, "line": k.line}); err != nil {
 			return err
 		}
 	}
-	return sc.Err()
+	return nil
+}
+
+// scrubber returns the function that replaces dir and home in a line. For
+// each it covers the given and the symlink-resolved path (macOS temporary
+// directories live under /var, a link to /private/var) and the dash slug
+// claude derives project directory names from. Longer paths go first, as
+// dir may be inside home.
+func scrubber(dir, home string) func(string) string {
+	type pair struct{ from, to string }
+	var pairs []pair
+	add := func(p, to string) {
+		if p == "" {
+			return
+		}
+		forms := []string{p}
+		if r, err := filepath.EvalSymlinks(p); err == nil && r != p {
+			forms = append(forms, r)
+		}
+		for _, f := range forms {
+			pairs = append(pairs, pair{f, to}, pair{strings.ReplaceAll(f, "/", "-"), strings.ReplaceAll(to, "/", "-")})
+		}
+	}
+	add(dir, "/work")
+	add(home, "/Users/me")
+	slices.SortStableFunc(pairs, func(a, b pair) int { return len(b.from) - len(a.from) })
+	return func(s string) string {
+		for _, p := range pairs {
+			s = replacePath(s, p.from, p.to)
+		}
+		return s
+	}
+}
+
+// replacePath replaces the occurrences of the path from in s that end on a
+// path boundary: from "/Users/ann" leaves "/Users/anna/x" alone.
+//
+// A dash slug (no slash in from) continues into a longer slug through a
+// dash, so there a dash is a boundary too.
+func replacePath(s, from, to string) string {
+	slug := !strings.Contains(from, "/")
+	var b strings.Builder
+	for {
+		i := strings.Index(s, from)
+		if i < 0 {
+			break
+		}
+		end := i + len(from)
+		b.WriteString(s[:i])
+		if end < len(s) && isPathChar(s[end]) && (!slug || s[end] != '-') {
+			b.WriteString(from) // part of a longer name
+		} else {
+			b.WriteString(to)
+		}
+		s = s[end:]
+	}
+	b.WriteString(s)
+	return b.String()
+}
+
+func isPathChar(c byte) bool {
+	return c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '.' || c == '_' || c == '-'
 }
 
 // reduce trims a recorded line in place and reports whether to keep it.
@@ -286,6 +382,9 @@ func reduce(dir string, v map[string]any) bool {
 			}
 		}
 	case "system":
+		if st, _ := v["subtype"].(string); strings.Contains(st, "hook") {
+			return false
+		}
 		if v["subtype"] == "init" {
 			for k := range v {
 				switch k {
