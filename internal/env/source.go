@@ -61,7 +61,8 @@ const CacheFile = "env.json"
 // Login is the Source of a real daemon: the login shell's environment,
 // read once and kept in the home's cache file, with the proxy of the
 // configuration, the login shell or the system applied on every call, so
-// a configuration change takes effect at the next daemon start.
+// a configuration change takes effect at the next daemon start or
+// `hoplet env refresh`.
 //
 // Secrets never reach the cache file: withheld credentials, and proxy
 // variables whose value carries a password. The last raw read of the shell
@@ -115,7 +116,9 @@ func (l *Login) Environment(ctx context.Context, refresh bool) (Snapshot, error)
 			c.Vars, c.Dropped = filter(raw, nil)
 			c.NeedsShell = stripSecrets(c.Vars)
 			if err := l.save(c); err != nil {
-				return Snapshot{}, err
+				// What was read is good; only the next process loses
+				// the cache.
+				stale = fmt.Sprintf("could not write the environment cache: %v", err)
 			}
 		case forced:
 			return Snapshot{}, rerr

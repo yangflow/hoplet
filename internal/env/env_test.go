@@ -212,7 +212,9 @@ func TestLoginFailures(t *testing.T) {
 	}
 }
 
-// TestRealZsh reads a real zsh with throwaway startup files.
+// TestRealZsh reads a real zsh with throwaway user startup files in a
+// temporary HOME and ZDOTDIR. The system files (/etc/zshenv, /etc/zprofile,
+// /etc/zshrc) are read too, as they are for any zsh.
 func TestRealZsh(t *testing.T) {
 	zsh, err := exec.LookPath("zsh")
 	if err != nil {
@@ -227,6 +229,7 @@ func TestRealZsh(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	t.Setenv("ZDOTDIR", dir)
 	vars, err := login(context.Background(), zsh, dir)
 	if err != nil {
 		t.Fatal(err)
@@ -460,7 +463,7 @@ func TestUsableShell(t *testing.T) {
 func TestIsCredential(t *testing.T) {
 	for name, want := range map[string]bool{
 		"ANTHROPIC_API_KEY": true, "github_token": true, "AWS_SECRET_ACCESS_KEY": true, "PGPASSWORD": true,
-		"OPENAI_KEY": true, "GITHUB_PAT": true, "SENTRY_DSN": true, "BASIC_AUTH": true, "SESSION_COOKIE": true,
+		"MYSQL_PWD": true, "OP_SESSION_my": true, "BW_SESSION": true, "OPENAI_KEY": true, "GITHUB_PAT": true, "SENTRY_DSN": true, "BASIC_AUTH": true, "SESSION_COOKIE": true,
 		"SSH_AUTH_SOCK": false, "GOPATH": false, "KEYCHAIN": false, "TERM": false, "SSH_KEY_PATH": false,
 	} {
 		if got := IsCredential(name); got != want {
@@ -496,15 +499,16 @@ func TestSchemeLessProxyPasswordIsRedacted(t *testing.T) {
 
 func TestRedactProxy(t *testing.T) {
 	for in, want := range map[string]string{
-		"http://u:pw@h:1":     "http://u:xxxxx@h:1",
-		"u:pw@h:1":            "http://u:xxxxx@h:1",
-		"http://h:1":          "http://h:1",
-		"h:1":                 "h:1",
-		"":                    "",
-		"http://u:p%zz@h:1":   "http://xxxxx@h:1",
-		"http://u:p/w@h:1":    "http://xxxxx@h:1",
-		"socks5h://a@b:p@c:2": "socks5h://a%40b:xxxxx@c:2",
-		"u:p%zz@h:1":          "xxxxx@h:1",
+		"http://u:pw@h:1":            "http://xxxxx@h:1",
+		"u:pw@h:1":                   "http://xxxxx@h:1",
+		"http://TOKEN123@proxy:8080": "http://xxxxx@proxy:8080",
+		"http://h:1":                 "http://h:1",
+		"h:1":                        "h:1",
+		"":                           "",
+		"http://u:p%zz@h:1":          "http://xxxxx@h:1",
+		"http://u:p/w@h:1":           "http://xxxxx@h:1",
+		"socks5h://a@b:p@c:2":        "socks5h://xxxxx@c:2",
+		"u:p%zz@h:1":                 "xxxxx@h:1",
 	} {
 		if got := RedactProxy(in); got != want {
 			t.Errorf("%q: %q, want %q", in, got, want)
@@ -562,5 +566,57 @@ func TestLastLineHidesCredentials(t *testing.T) {
 		if (strings.Contains(got, "hidden")) != hidden || strings.Contains(got, "ghp_") || strings.Contains(got, "sk-x") {
 			t.Errorf("%q -> %q", in, got)
 		}
+	}
+}
+
+func TestURLPasswordStaysInMemory(t *testing.T) {
+	shell, dir := fakeShell(t, "export DATABASE_URL=postgres://u:pw@h/db\nexport PLAIN_URL=https://example.com/x\nexport GIT=ssh://git@github.com/x\nexport MYSQL_PWD=p1\nexport OP_SESSION_acme=p2\nexport BW_SESSION=p3\nexport GOPATH=/go")
+	h := t.TempDir()
+	l := &Login{Home: h, UserHome: dir, Shell: shell, SystemProxy: noProxy}
+	snap, err := l.Environment(context.Background(), false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v, _ := lookup(snap.Vars, "DATABASE_URL"); v != "postgres://u:pw@h/db" {
+		t.Errorf("DATABASE_URL = %q", v)
+	}
+	for _, k := range []string{"MYSQL_PWD", "OP_SESSION_acme", "BW_SESSION"} {
+		if _, ok := lookup(snap.Vars, k); ok {
+			t.Errorf("%s was passed on", k)
+		}
+	}
+	if !slices.Equal(snap.Dropped, []string{"BW_SESSION", "MYSQL_PWD", "OP_SESSION_acme"}) {
+		t.Errorf("dropped %v", snap.Dropped)
+	}
+	b, err := os.ReadFile(filepath.Join(h, CacheFile))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, leak := range []string{"pw", "p1", "p2", "p3", "DATABASE_URL"} {
+		if strings.Contains(string(b), leak) {
+			t.Errorf("cache holds %q: %s", leak, b)
+		}
+	}
+	for _, keep := range []string{"PLAIN_URL", "GIT", "GOPATH", "needs_shell"} {
+		if !strings.Contains(string(b), keep) {
+			t.Errorf("cache lacks %q: %s", keep, b)
+		}
+	}
+}
+
+func TestCacheWriteFailureKeepsTheSnapshot(t *testing.T) {
+	shell, dir := fakeShell(t, "export GOPATH=/go")
+	h := t.TempDir()
+	// A directory where the cache file goes makes the final rename fail.
+	if err := os.MkdirAll(filepath.Join(h, CacheFile, "x"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	l := &Login{Home: h, UserHome: dir, Shell: shell, SystemProxy: noProxy}
+	snap, err := l.Environment(context.Background(), false)
+	if err != nil {
+		t.Fatalf("a cache write failure lost the environment: %v", err)
+	}
+	if v, _ := lookup(snap.Vars, "GOPATH"); v != "/go" || !strings.Contains(snap.Stale, "could not write the environment cache") {
+		t.Fatalf("vars/stale: %q %q", v, snap.Stale)
 	}
 }

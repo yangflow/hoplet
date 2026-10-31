@@ -88,6 +88,9 @@ func (c Config) validate() error {
 		return nil
 	}
 	// The messages never echo the value: it may carry a password.
+	if !strings.Contains(p, "://") {
+		return fmt.Errorf("network.proxy: missing scheme: want an http, https, socks5 or socks5h URL, or %q", ProxyDirect)
+	}
 	u, err := url.Parse(p)
 	if err != nil {
 		return errors.New("network.proxy: not a valid URL")

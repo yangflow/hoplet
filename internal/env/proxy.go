@@ -171,15 +171,18 @@ func ProxyURL(v string) (*url.URL, error) {
 	return url.Parse(v)
 }
 
-// RedactProxy hides the user information of a proxy setting for display.
-// A value that cannot be parsed but contains "@" has everything before its
-// last "@" replaced, so no password survives in any form.
+// RedactProxy hides the user information of a proxy setting for display:
+// the whole of it, user name included, because some proxy services take an
+// API key as the user name. A value that cannot be parsed but contains "@"
+// has everything before its last "@" replaced, so nothing survives in any
+// form.
 func RedactProxy(v string) string {
 	if !strings.Contains(v, "@") {
 		return v
 	}
 	if u, err := ProxyURL(v); err == nil && u.User != nil {
-		return u.Redacted()
+		u.User = url.User("xxxxx")
+		return u.String()
 	}
 	scheme, rest, ok := strings.Cut(v, "://")
 	if !ok {

@@ -22,7 +22,7 @@ func (s *system) probe(ctx context.Context, snap env.Snapshot, info proto.EnvInf
 	proxy := proxyFor(snap.Vars, target)
 	via := "directly"
 	if proxy != nil {
-		via = "through " + proxy.Redacted() + " (" + info.ProxySource + ")"
+		via = "through " + env.RedactProxy(proxy.String()) + " (" + info.ProxySource + ")"
 	}
 	tr := &http.Transport{Proxy: http.ProxyURL(proxy)}
 	defer tr.CloseIdleConnections()

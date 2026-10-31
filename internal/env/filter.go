@@ -1,6 +1,7 @@
 package env
 
 import (
+	"net/url"
 	"slices"
 	"strings"
 )
@@ -15,7 +16,11 @@ var credentialParts = []string{
 }
 
 // credentialSuffixes are name endings of variables that hold secrets.
-var credentialSuffixes = []string{"_KEY", "_PAT", "_DSN", "_AUTH"}
+var credentialSuffixes = []string{"_KEY", "_PAT", "_DSN", "_AUTH", "_PWD"}
+
+// credentialPrefixes are name beginnings of variables that hold secrets
+// (the 1Password CLI names its session token OP_SESSION_<account>).
+var credentialPrefixes = []string{"OP_SESSION_", "BW_SESSION"}
 
 // shellOnly are variables that describe the shell process itself, not the
 // user's environment. TERM is one of them: the login shell has no terminal,
@@ -30,6 +35,11 @@ func IsCredential(name string) bool {
 	up := strings.ToUpper(name)
 	for _, p := range credentialParts {
 		if strings.Contains(up, p) {
+			return true
+		}
+	}
+	for _, p := range credentialPrefixes {
+		if strings.HasPrefix(up, p) {
 			return true
 		}
 	}
@@ -65,13 +75,29 @@ func filter(vars map[string]string, allow []string) (kept map[string]string, dro
 // of the shell.
 func hasUserinfo(v string) bool { return strings.Contains(v, "@") }
 
-// stripSecrets removes the proxy and no-proxy variables whose value carries
-// user information from vars and reports whether it removed any. Such a
-// value is a secret: it is used from memory and never written to disk.
+// urlPassword reports whether v is a URL that carries a password
+// (postgres://user:pw@host/db). A value with "://" and "@" that does not
+// parse counts, since a password may hold characters a URL cannot.
+func urlPassword(v string) bool {
+	if !strings.Contains(v, "://") || !strings.Contains(v, "@") {
+		return false
+	}
+	u, err := url.Parse(v)
+	if err != nil {
+		return true
+	}
+	_, has := u.User.Password()
+	return has
+}
+
+// stripSecrets removes the variables that are secrets by their value from
+// vars and reports whether it removed any: proxy and no-proxy variables
+// that carry user information, and any variable whose value is a URL with
+// a password. Such a value is used from memory and never written to disk.
 func stripSecrets(vars map[string]string) bool {
 	removed := false
-	for _, k := range append(slices.Clone(proxyVars), noProxyVars...) {
-		if v, ok := vars[k]; ok && hasUserinfo(v) {
+	for k, v := range vars {
+		if (slices.Contains(proxyVars, k) || slices.Contains(noProxyVars, k)) && hasUserinfo(v) || urlPassword(v) {
 			delete(vars, k)
 			removed = true
 		}

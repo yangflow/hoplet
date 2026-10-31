@@ -14,7 +14,9 @@ import (
 // shell from the user database (the directory service on macOS, the
 // passwd file elsewhere), else $SHELL, else /bin/zsh. The daemon runs under
 // launchd or systemd, whose $SHELL need not be the user's shell. Only an
-// absolute path to an executable file is accepted from the sources.
+// absolute path to an executable file is accepted from the sources. Linux
+// reads /etc/passwd only, so accounts that come from NSS or LDAP fall back
+// to $SHELL.
 func UserShell(ctx context.Context) string {
 	if u, err := user.Current(); err == nil {
 		var s string

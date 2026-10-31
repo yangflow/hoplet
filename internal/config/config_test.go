@@ -54,6 +54,7 @@ func TestLoadRejects(t *testing.T) {
 		"bad scheme":      {"[network]\nproxy = \"ftp://x\"\n", "network.proxy"},
 		"wrong type":      {"[env]\nallow = \"GH_TOKEN\"\n", "config.toml"},
 		"unknown table":   {"[nope]\nx = 1\n", "unknown keys nope"},
+		"no scheme":       {"[network]\nproxy = \"alice:hunter2@h:1\"\n", "missing scheme"},
 		"no host":         {"[network]\nproxy = \"http://\"\n", "no host"},
 		"empty no_proxy":  {"[network]\nno_proxy = [\"\"]\n", "no_proxy"},
 		"spaced no_proxy": {"[network]\nno_proxy = [\"a b\"]\n", "no_proxy"},
