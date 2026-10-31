@@ -97,7 +97,8 @@ func (s *shim) serve(nc net.Conn) {
 		return
 	}
 	s.log.Info("client connected", "offset", hello.Offset)
-	if err := c.send(Message{Type: MsgWelcome, Version: ProtocolVersion, Pid: s.pgid}); err != nil {
+	spoolSize, _ := s.spool.state()
+	if err := c.send(Message{Type: MsgWelcome, Version: ProtocolVersion, Pid: s.pgid, Offset: spoolSize}); err != nil {
 		return
 	}
 	stop := make(chan struct{})
