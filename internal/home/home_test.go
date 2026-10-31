@@ -82,13 +82,16 @@ func TestEnsureTokenRaceCreatesOnce(t *testing.T) {
 	toks := make([]string, n)
 	errs := make([]error, n)
 	var wg sync.WaitGroup
+	start := make(chan struct{}) // released together, so the calls overlap
 	for i := range n {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
+			<-start
 			toks[i], errs[i] = EnsureToken(h)
 		}()
 	}
+	close(start)
 	wg.Wait()
 	want, err := ReadToken(h)
 	if err != nil {
