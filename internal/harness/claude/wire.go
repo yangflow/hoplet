@@ -1,6 +1,9 @@
 package claude
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"strings"
+)
 
 // line is one stdout line of claude's stream-json output; only the fields
 // the adapter reads are declared.
@@ -17,11 +20,11 @@ type line struct {
 	Response       *controlResult  `json:"response"`
 
 	// result fields
-	IsError        bool     `json:"is_error"`
-	TerminalReason string   `json:"terminal_reason"`
-	Result         string   `json:"result"`
-	Errors         []string `json:"errors"`
-	Usage          *usage   `json:"usage"`
+	IsError        bool            `json:"is_error"`
+	TerminalReason string          `json:"terminal_reason"`
+	Result         string          `json:"result"`
+	Errors         json.RawMessage `json:"errors"`
+	Usage          *usage          `json:"usage"`
 }
 
 type message struct {
@@ -130,4 +133,14 @@ type permission struct {
 
 type suggestion struct {
 	Destination string `json:"destination"`
+}
+
+// errorsText renders a result's errors: a list of strings joined, anything
+// else (the field's shape is not under Hoplet's control) as its JSON text.
+func (l *line) errorsText() string {
+	var list []string
+	if json.Unmarshal(l.Errors, &list) == nil {
+		return strings.Join(list, "; ")
+	}
+	return string(l.Errors)
 }

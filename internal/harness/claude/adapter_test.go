@@ -132,6 +132,17 @@ func lastWrite(t *testing.T, io *fakeStdio) map[string]any {
 	return m
 }
 
+// events returns the recorded events without the writes the run made.
+func events(p *replayer) []string {
+	var out []string
+	for _, g := range p.golden {
+		if !strings.HasPrefix(g, "write ") {
+			out = append(out, g)
+		}
+	}
+	return out
+}
+
 func TestPlanAndModeTracking(t *testing.T) {
 	ctx := context.Background()
 	p, io := liveRun(t, harness.Spec{Mode: proto.ModeAutoReview, Plan: true})
@@ -142,8 +153,8 @@ func TestPlanAndModeTracking(t *testing.T) {
 	// claude leaves plan mode by itself after a plan is approved, back to
 	// its default: the session's mode is restored and the change reported.
 	p.push(harness.Stdout, []byte(`{"type":"system","subtype":"status","permissionMode":"default"}`))
-	if want := `proto.ModeChanged {"permission":"full_auto","plan":false}`; len(p.golden) != 1 || p.golden[0] != want {
-		t.Fatalf("events %q, want %q", p.golden, want)
+	if want := `proto.ModeChanged {"permission":"full_auto","plan":false}`; len(events(p)) != 1 || events(p)[0] != want {
+		t.Fatalf("events %q, want %q", events(p), want)
 	}
 	if req := lastWrite(t, io)["request"].(map[string]any); req["mode"] != "bypassPermissions" {
 		t.Fatalf("restore wrote %v", req)
@@ -159,8 +170,8 @@ func TestPlanAndModeTracking(t *testing.T) {
 		`proto.ModeChanged {"permission":"auto_edit","plan":false}`,
 		`proto.ModeChanged {"permission":"auto_edit","plan":true}`,
 	}
-	if !slices.Equal(p.golden, want) {
-		t.Fatalf("events %q", p.golden)
+	if !slices.Equal(events(p), want) {
+		t.Fatalf("events %q", events(p))
 	}
 	// Hoplet turning plan mode off restores auto_edit, and claude's
 	// confirmation is not reported back.
@@ -171,8 +182,8 @@ func TestPlanAndModeTracking(t *testing.T) {
 		t.Fatalf("SetPlan(false) wrote %v", req)
 	}
 	p.push(harness.Stdout, []byte(`{"type":"system","subtype":"status","permissionMode":"acceptEdits"}`))
-	if len(p.golden) != 3 {
-		t.Fatalf("Hoplet's own change was reported: %q", p.golden)
+	if len(events(p)) != 3 {
+		t.Fatalf("Hoplet's own change was reported: %q", events(p))
 	}
 }
 
@@ -211,8 +222,8 @@ func TestCommandsAndRefusals(t *testing.T) {
 	if resp := lastWrite(t, io)["response"].(map[string]any); resp["subtype"] != "error" || resp["request_id"] != "r9" {
 		t.Fatalf("refusal %v", resp)
 	}
-	if len(p.golden) != 1 || !strings.HasPrefix(p.golden[0], "proto.Error") {
-		t.Fatalf("events %q", p.golden)
+	if len(events(p)) != 1 || !strings.HasPrefix(events(p)[0], "proto.Error") {
+		t.Fatalf("events %q", events(p))
 	}
 }
 
@@ -248,5 +259,69 @@ func TestExitMidTurnAborts(t *testing.T) {
 	}
 	if err := p.run.Err(); err != nil {
 		t.Fatalf("err after an exit: %v", err)
+	}
+}
+
+func TestResultWithUnexpectedErrorsShape(t *testing.T) {
+	p, _ := liveRun(t, harness.Spec{Mode: proto.ModeConfirm})
+	p.push(harness.Stdout, []byte(`{"type":"result","is_error":true,"errors":[{"code":1,"text":"boom"}]}`))
+	if len(p.golden) != 1 || !strings.HasPrefix(p.golden[0], `proto.TurnEnded {"reason":"failed"`) || !strings.Contains(p.golden[0], "boom") {
+		t.Fatalf("events %q", p.golden)
+	}
+}
+
+func TestStdoutClosingWithoutExitDetaches(t *testing.T) {
+	p, io := liveRun(t, harness.Spec{Mode: proto.ModeConfirm})
+	close(io.lines)
+	for range p.run.Events() {
+	}
+	if err := p.run.Err(); !errors.Is(err, harness.ErrDetached) {
+		t.Fatalf("err %v", err)
+	}
+}
+
+func TestMalformedLineDoesNotStopTranslation(t *testing.T) {
+	p, _ := liveRun(t, harness.Spec{Mode: proto.ModeConfirm})
+	p.push(harness.Stdout, []byte(`{not json`))
+	p.push(harness.Stdout, []byte(`{"type":"system","subtype":"init","session_id":"n1","permissionMode":"default"}`))
+	want := []string{`proto.Error {"message":"unparseable claude output"}`, "native n1 proto.TurnStarted {}"}
+	if !slices.Equal(p.golden, want) {
+		t.Fatalf("events %q", p.golden)
+	}
+}
+
+func TestPlanExitRestoresNonDefaultMode(t *testing.T) {
+	p, io := liveRun(t, harness.Spec{Mode: proto.ModeAutoEdit})
+	p.push(harness.Stdout, []byte(`{"type":"system","subtype":"status","permissionMode":"plan"}`))
+	p.push(harness.Stdout, []byte(`{"type":"system","subtype":"status","permissionMode":"default"}`))
+	want := []string{
+		`proto.ModeChanged {"permission":"auto_edit","plan":true}`,
+		`proto.ModeChanged {"permission":"auto_edit","plan":false}`,
+	}
+	if !slices.Equal(events(p), want) {
+		t.Fatalf("events %q", p.golden)
+	}
+	if req := lastWrite(t, io)["request"].(map[string]any); req["subtype"] != "set_permission_mode" || req["mode"] != "acceptEdits" {
+		t.Fatalf("restore wrote %v", req)
+	}
+}
+
+func TestOptionAlwaysNeedsSuggestions(t *testing.T) {
+	p, io := liveRun(t, harness.Spec{Mode: proto.ModeConfirm})
+	if err := p.run.Respond(context.Background(), "unseen", optionAlways); err == nil {
+		t.Fatal("always accepted for an unknown approval")
+	}
+	if n := len(io.written()); n != 0 {
+		t.Fatalf("wrote %d lines", n)
+	}
+}
+
+func TestUnmappableModeReportedOnce(t *testing.T) {
+	p, _ := liveRun(t, harness.Spec{Mode: proto.ModeAutoEdit})
+	for range 3 {
+		p.push(harness.Stdout, []byte(`{"type":"system","subtype":"status","permissionMode":"dontAsk"}`))
+	}
+	if len(p.golden) != 1 || !strings.HasPrefix(p.golden[0], "proto.ModeChanged") {
+		t.Fatalf("events %q", p.golden)
 	}
 }

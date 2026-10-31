@@ -89,12 +89,18 @@ type replayer struct {
 func (p *replayer) push(kind harness.LineKind, data []byte) {
 	p.t.Helper()
 	p.offset += 2
+	before := len(p.io.written())
 	p.io.lines <- harness.Line{Kind: kind, Data: data, Offset: p.offset}
 	p.io.lines <- harness.Line{Kind: harness.Position, Offset: p.offset + 1}
 	for {
 		select {
 		case ev := <-p.run.Events():
 			if ev.Offset == p.offset+1 {
+				// Whatever the run wrote on its own while handling the
+				// line belongs in the golden too.
+				for _, w := range p.io.written()[before:] {
+					p.golden = append(p.golden, "write "+strings.ReplaceAll(string(w), p.run.prefix, "hoplet-x"))
+				}
 				return
 			}
 			p.record(ev)
@@ -128,6 +134,7 @@ func (p *replayer) record(ev harness.Event) {
 func (p *replayer) command(in string) bool {
 	p.t.Helper()
 	ctx := context.Background()
+	n := len(p.io.written())
 	var msg struct {
 		Type    string `json:"type"`
 		Message struct {
@@ -194,7 +201,10 @@ func (p *replayer) command(in string) bool {
 		p.t.Fatalf("command for %s: %v", in, err)
 	}
 	writes := p.io.written()
-	got := writes[len(writes)-1]
+	if len(writes) != n+1 {
+		p.t.Fatalf("for recorded input\n  %s\nthe run wrote %d lines, want 1:\n%q", in, len(writes)-n, writes[n:])
+	}
+	got := writes[n]
 	if !sameInput(p.t, got, []byte(in)) {
 		p.t.Fatalf("for recorded input\n  %s\nthe run wrote\n  %s", in, got)
 	}
@@ -206,7 +216,8 @@ func (p *replayer) command(in string) bool {
 // ignoring the IDs of requests and the text of a denial. An answer must
 // carry the same behavior, and every permission update the recorder sent:
 // the adapter sends all of claude's suggestions, where one early
-// recording sent only some.
+// recording sent only some. When the recording carries an updatedInput the
+// answer must carry an equal one; when it has none the answer may.
 func sameInput(t *testing.T, got, want []byte) bool {
 	t.Helper()
 	var g, w map[string]any
@@ -219,6 +230,9 @@ func sameInput(t *testing.T, got, want []byte) bool {
 		gp, _ := gr["response"].(map[string]any)
 		wp, _ := wr["response"].(map[string]any)
 		if gr["request_id"] != wr["request_id"] || gp["behavior"] != wp["behavior"] {
+			return false
+		}
+		if wi, ok := wp["updatedInput"]; ok && !reflect.DeepEqual(gp["updatedInput"], wi) {
 			return false
 		}
 		gu, _ := gp["updatedPermissions"].([]any)

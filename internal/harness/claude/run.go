@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/yangflow/hoplet/internal/harness"
 	"github.com/yangflow/hoplet/proto"
@@ -22,6 +23,10 @@ const (
 )
 
 // denyMessage is what claude is told when the user denies a tool.
+// writeTimeout bounds the writes the read loop makes by itself, so a stuck
+// transport cannot stall it.
+const writeTimeout = 10 * time.Second
+
 const denyMessage = "The user denied this in Hoplet."
 
 // pending is an approval request the adapter has seen and not answered.
@@ -64,6 +69,8 @@ type run struct {
 	base proto.PermissionMode
 	plan bool
 	want string
+	// observed is the last native mode claude reported.
+	observed string
 }
 
 func newRun(io harness.Stdio, spec harness.Spec) *run {
@@ -313,7 +320,9 @@ func (r *run) controlRequest(id string, req *controlRequest) []proto.Payload {
 	if req.Subtype != "can_use_tool" {
 		// Nothing else is registered with claude, so nothing else should
 		// ask; refuse it rather than leave claude waiting.
-		_ = r.write(context.Background(), responseLine{Type: "control_response", Response: responseInner{
+		ctx, cancel := context.WithTimeout(context.Background(), writeTimeout)
+		defer cancel()
+		_ = r.write(ctx, responseLine{Type: "control_response", Response: responseInner{
 			Subtype: "error", RequestID: id, Error: "Hoplet does not handle " + req.Subtype,
 		}})
 		return []proto.Payload{proto.Error{Message: "claude sent an unsupported control request: " + req.Subtype}}
@@ -401,7 +410,7 @@ func (r *run) result(ln line) []proto.Payload {
 		end.Reason = proto.TurnFailed
 		end.Message = ln.Result
 		if end.Message == "" {
-			end.Message = strings.Join(ln.Errors, "; ")
+			end.Message = ln.errorsText()
 		}
 	}
 	if !r.inTurn {
@@ -439,7 +448,9 @@ func (r *run) wanted() string {
 // mode it returns to its own default, so the session's mode is restored.
 func (r *run) observeMode(mode string) []proto.Payload {
 	r.mu.Lock()
-	if mode == r.want {
+	seen := r.observed
+	r.observed = mode
+	if mode == r.want || mode == seen {
 		r.mu.Unlock()
 		return nil
 	}
@@ -459,7 +470,9 @@ func (r *run) observeMode(mode string) []proto.Payload {
 	changed := proto.ModeChanged{Permission: r.base, Plan: r.plan}
 	r.mu.Unlock()
 	if restore != "" {
-		if err := r.control(context.Background(), map[string]string{"subtype": "set_permission_mode", "mode": restore}); err != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), writeTimeout)
+		defer cancel()
+		if err := r.control(ctx, map[string]string{"subtype": "set_permission_mode", "mode": restore}); err != nil {
 			return []proto.Payload{changed, proto.Error{Message: "could not restore the permission mode after plan mode: " + err.Error()}}
 		}
 	}
@@ -511,7 +524,9 @@ func (r *run) Interrupt(ctx context.Context) error {
 
 // Respond answers a permission request. An approval the adapter has not
 // seen (a daemon that reattached after the request) is answered without
-// the original input or suggestions, which claude accepts.
+// the original input or suggestions, which claude accepts; keeping a
+// permission needs claude's suggestions, so optionAlways without any is an
+// error.
 func (r *run) Respond(ctx context.Context, approvalID, optionID string) error {
 	r.mu.Lock()
 	p := r.approvals[approvalID]
@@ -521,6 +536,9 @@ func (r *run) Respond(ctx context.Context, approvalID, optionID string) error {
 	case optionAllow:
 		perm = permission{Behavior: "allow", UpdatedInput: p.input}
 	case optionAlways:
+		if len(p.suggestions) == 0 {
+			return fmt.Errorf("claude: approval %q has no permission to keep; answer allow or deny", approvalID)
+		}
 		perm = permission{Behavior: "allow", UpdatedInput: p.input, UpdatedPermissions: p.suggestions}
 	case optionDeny:
 		perm = permission{Behavior: "deny", Message: denyMessage}
