@@ -85,7 +85,7 @@ func TestNewEventTruncatesToMillis(t *testing.T) {
 func TestRegisterLegacyUpgrades(t *testing.T) {
 	const legacy EventType = "test.legacy"
 	r := registry{}
-	r.add(decoderKey{legacy, 1}, func(b json.RawMessage) (Payload, error) {
+	r.addLegacy(legacy, 1, func(b json.RawMessage) (Payload, error) {
 		var old struct {
 			Msg string `json:"msg"`
 		}

@@ -93,14 +93,12 @@ func (r registry) decode(e Event) (Payload, error) {
 // defaultRegistry is written only during package init and read-only afterwards.
 var defaultRegistry = registry{}
 
-// registerLegacy registers a decoder for an older version of an event type.
-// upgrade converts the raw payload of that version to the current payload
-// type, so Decode always returns the current type. Init-time only; it panics
-// on a duplicate key.
-//
-//nolint:unused // no legacy versions exist yet
-func registerLegacy(t EventType, v uint16, upgrade func(json.RawMessage) (Payload, error)) {
-	defaultRegistry.add(decoderKey{t, v}, upgrade)
+// addLegacy registers an upgrader for an older version of an event type.
+// upgrade converts that version's raw payload to the current payload type,
+// so Decode always returns the current type. Future legacy versions call it
+// on defaultRegistry during init. It panics on a duplicate key.
+func (r registry) addLegacy(t EventType, v uint16, upgrade func(json.RawMessage) (Payload, error)) {
+	r.add(decoderKey{t, v}, upgrade)
 }
 
 // register makes payload type P decodable at its current version.
