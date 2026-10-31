@@ -97,14 +97,17 @@ func (q *queuer) send(ctx context.Context, p proto.SendParams) (proto.SendReply,
 // a drain woken by it waits for this lock and then sees the failed head.
 func (q *queuer) stop(ctx context.Context, id proto.SessionID) error {
 	defer q.lock(id)()
-	if err := q.mgr.Stop(ctx, id); err != nil {
-		return err
-	}
+	// The queue is held even when stopping fails: a stop the user asked for
+	// must never be followed by the next queued message.
+	serr := q.mgr.Stop(ctx, id)
 	head, _, ok, err := q.store.QueueHead(ctx, id)
-	if err != nil || !ok || head.Error != "" {
-		return err
+	if err == nil && ok && head.Error == "" {
+		err = q.store.FailQueued(ctx, id, head.Key, "the session was stopped")
 	}
-	return q.store.FailQueued(ctx, id, head.Key, "the session was stopped")
+	if errors.Is(err, store.ErrNotFound) && serr != nil {
+		err = nil // no such session: Stop's error says so
+	}
+	return errors.Join(serr, err)
 }
 
 func (q *queuer) edit(ctx context.Context, p proto.QueueEditParams) error {

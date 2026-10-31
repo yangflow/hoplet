@@ -209,7 +209,8 @@ type SessionParams struct {
 
 // EventsParams asks for a page of a session's events older than BeforeSeq,
 // as a client pages back through history from a snapshot. Limit 0, or one
-// above the daemon's page size, asks for a full page.
+// above the daemon's page size, asks for a full page. BeforeSeq 0 has
+// nothing before it, so it returns an empty page.
 type EventsParams struct {
 	Session   SessionID `json:"session"`
 	BeforeSeq uint64    `json:"before_seq"`
