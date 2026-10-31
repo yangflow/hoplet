@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -27,7 +28,7 @@ type ExecSpawner struct {
 	Exe string
 }
 
-// Spawn starts the shim and returns once it is started; use Dial to wait
+// Spawn starts the shim and returns once it is started; use dialWhenReady to wait
 // until it accepts connections.
 func (e ExecSpawner) Spawn(_ context.Context, dir, workDir string, l harness.Launch) error {
 	if len(l.Command) == 0 {
@@ -73,4 +74,18 @@ func dialWhenReady(ctx context.Context, dir string, offset int64) (*shim.Client,
 		}
 		delay = min(2*delay, 200*time.Millisecond)
 	}
+}
+
+// shimLogTail returns the last lines of the shim's log in dir, formatted to
+// follow an error message; empty when there is nothing to show.
+func shimLogTail(dir string) string {
+	b, err := os.ReadFile(filepath.Join(filepath.Clean(dir), "shim.log"))
+	if err != nil || len(b) == 0 {
+		return ""
+	}
+	lines := strings.Split(strings.TrimRight(string(b), "\n"), "\n")
+	if len(lines) > 20 {
+		lines = lines[len(lines)-20:]
+	}
+	return "\nshim.log:\n" + strings.Join(lines, "\n")
 }

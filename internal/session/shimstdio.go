@@ -34,13 +34,16 @@ func NewShimStdio(c *shim.Client) *ShimStdio {
 func (s *ShimStdio) read() {
 	defer s.wg.Done()
 	defer close(s.lines)
-	partial := map[shim.RecordKind][]byte{}
+	var asm assembler
 	for {
 		rec, off, err := s.c.Recv()
 		var serr *shim.Error
 		if errors.As(err, &serr) {
-			// A rejected frame (for example stdin_busy): the connection stays
-			// usable. It has no spool position, so Offset is 0.
+			if !stdinCode(serr.Code) {
+				return // the shim cannot serve this connection: the run reports ErrDetached
+			}
+			// A rejected stdin frame (for example stdin_busy): the connection
+			// stays usable. It has no spool position, so Offset is 0.
 			if !s.send(harness.Line{Kind: harness.StdinError, Data: []byte(serr.Error())}) {
 				return
 			}
@@ -49,33 +52,69 @@ func (s *ShimStdio) read() {
 		if err != nil {
 			return // the connection ended: the run reports ErrDetached
 		}
-		data := []byte(rec.Data)
-		if len(rec.B) > 0 {
-			data = rec.B
-		}
-		kind, ok := lineKind(rec.Kind)
-		if !ok {
-			continue // a start record carries nothing for the harness adapter
-		}
-		if rec.More {
-			partial[rec.Kind] = append(partial[rec.Kind], data...)
-			continue
-		}
-		if p := partial[rec.Kind]; p != nil {
-			data = append(p, data...)
-			delete(partial, rec.Kind)
-		}
-		line := harness.Line{Kind: kind, Data: data, Offset: off}
-		if kind == harness.Exit {
-			line.Code, line.Signal = rec.Code, rec.Signal
-			if rec.Signal != "" && rec.Code == 0 {
-				line.Code = -1
+		for _, line := range asm.add(rec, off) {
+			if !s.send(line) || line.Kind == harness.Exit {
+				return
 			}
 		}
-		if !s.send(line) || kind == harness.Exit {
-			return
+	}
+}
+
+// stdinCode reports whether an error frame code is a rejected stdin write,
+// which leaves the connection usable. Every other code means the shim cannot
+// serve the connection.
+func stdinCode(code string) bool {
+	switch code {
+	case shim.CodeStdinBusy, shim.CodeTooLarge, shim.CodeBadRequest, shim.CodeExited:
+		return true
+	}
+	return false
+}
+
+// assembler rebuilds whole lines from chunked records. It never holds more
+// than harness.MaxLine bytes of a line: a longer line comes out as several
+// Lines.
+type assembler struct {
+	partial map[shim.RecordKind][]byte
+}
+
+// add takes the next record, read at spool offset off (just after it), and
+// returns the lines it completes.
+func (a *assembler) add(rec shim.Record, off int64) []harness.Line {
+	kind, ok := lineKind(rec.Kind)
+	if !ok {
+		return nil // a start record carries nothing for the harness adapter
+	}
+	data := []byte(rec.Data)
+	if len(rec.B) > 0 {
+		data = rec.B
+	}
+	if a.partial == nil {
+		a.partial = map[shim.RecordKind][]byte{}
+	}
+	buf := append(a.partial[rec.Kind], data...)
+	var out []harness.Line
+	for len(buf) > harness.MaxLine || (rec.More && len(buf) == harness.MaxLine) {
+		out = append(out, harness.Line{Kind: kind, Data: buf[:harness.MaxLine:harness.MaxLine], Offset: off})
+		buf = buf[harness.MaxLine:]
+	}
+	if rec.More {
+		if len(buf) > 0 {
+			a.partial[rec.Kind] = append([]byte(nil), buf...)
+		} else {
+			delete(a.partial, rec.Kind)
+		}
+		return out
+	}
+	delete(a.partial, rec.Kind)
+	line := harness.Line{Kind: kind, Data: buf, Offset: off}
+	if kind == harness.Exit {
+		line.Code, line.Signal = rec.Code, rec.Signal
+		if rec.Signal != "" && rec.Code == 0 {
+			line.Code = -1
 		}
 	}
+	return append(out, line)
 }
 
 func lineKind(k shim.RecordKind) (harness.LineKind, bool) {

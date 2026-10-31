@@ -1,16 +1,26 @@
 package session
 
 import (
-	"context"
 	"errors"
+	"fmt"
+	"strings"
+	"time"
 
 	"github.com/yangflow/hoplet/internal/harness"
 	"github.com/yangflow/hoplet/internal/store"
 	"github.com/yangflow/hoplet/proto"
 )
 
-// maxBatch bounds how many events one append commits.
-const maxBatch = 256
+const (
+	// maxBatch bounds how many events one append commits.
+	maxBatch = 256
+	// batchWindow is how long ingestion keeps collecting events after the
+	// first one of a batch before committing them together.
+	batchWindow = 50 * time.Millisecond
+	// failedIngestDelay spaces out reattaching after a failed append, so a
+	// persistent store failure does not spin.
+	failedIngestDelay = 200 * time.Millisecond
+)
 
 // group is consecutive events that belong to the same turn.
 type group struct {
@@ -19,155 +29,274 @@ type group struct {
 	offset  int64 // highest spool offset in the group; 0 if none
 }
 
+// ingester turns a run's events into store appends.
+type ingester struct {
+	m         *Manager
+	l         *live
+	turn      uint32 // the highest turn number
+	inTurn    bool
+	committed int64 // the ingest offset in the store
+	g         group
+	flushNow  bool // the batch should be committed before waiting for more
+}
+
 // ingest commits the run's events until it ends. Raw native lines stay in
 // the session's spool, which the shim keeps until the session is archived.
-func (m *Manager) ingest(ctx context.Context, l *live, last uint32, open bool) {
-	turn, inTurn := last, open
-	committed, _ := m.cfg.Store.IngestOffset(ctx, l.id)
-	var detached bool
+//
+// Any failure to append is fatal for the run: nothing is acknowledged, the
+// run is closed and the session reattaches from the committed offset, so
+// every event is stored exactly once.
+func (m *Manager) ingest(l *live, last uint32, open bool) {
+	var detached, failed bool
+	var failNote string
 	defer func() {
 		m.mu.Lock()
 		if m.live[l.id] == l {
 			delete(m.live, l.id)
 		}
-		closing := m.closing
 		m.mu.Unlock()
+		if err := l.run.Close(); err != nil {
+			m.log.Warn("close run", "session", l.id, "err", err)
+		}
 		close(l.done)
+		switch {
+		case failed:
+			m.startReattach(l.id, failedIngestDelay, failNote)
+		case detached:
+			m.startReattach(l.id, 0, "")
+		}
 		m.wg.Done()
-		if detached && !closing {
-			go m.reattach(ctx, l.id)
-		}
 	}()
-
-	flush := func(g *group) {
-		if len(g.entries) == 0 && g.offset <= committed {
-			return
-		}
-		req := store.AppendRequest{Session: l.id, Turn: g.turn, Entries: g.entries}
-		if g.offset > committed {
-			off := g.offset
-			req.IngestOffset = &off
-		}
-		if err := m.appendTolerant(ctx, req); err != nil {
-			m.log.Error("ingest append failed", "session", l.id, "err", err)
-			return
-		}
-		if req.IngestOffset != nil {
-			committed = *req.IngestOffset
-		}
-		m.notify(l.id)
+	fail := func(err error) {
+		m.log.Error("ingest failed; reattaching from the committed offset", "session", l.id, "err", err)
+		failed = true
+		failNote = "ingest failed: " + err.Error() + "; resumed from the committed offset"
 	}
 
+	committed, err := m.cfg.Store.IngestOffset(m.ctx, l.id)
+	if err != nil {
+		fail(err)
+		return
+	}
+	in := &ingester{m: m, l: l, turn: last, inTurn: open, committed: committed}
 	events := l.run.Events()
 	for {
 		ev, ok := <-events
 		if !ok {
-			detached = errors.Is(l.run.Err(), harness.ErrDetached)
+			detached = in.ended(fail)
 			return
 		}
-		g := &group{}
-		for n := 0; ; n++ {
-			t := uint32(0)
-			switch ev.Payload.(type) {
-			case proto.TurnStarted:
-				turn++
-				inTurn = true
-				t = turn
-			case proto.TurnEnded:
-				t = turn
-				inTurn = false
-			default:
-				if inTurn {
-					t = turn
-				}
-			}
-			if len(g.entries) > 0 && t != g.turn {
-				flush(g)
-				g = &group{}
-			}
-			if len(g.entries) == 0 {
-				g.turn = t
-			}
-			if ev.Native != "" {
-				native := ev.Native
-				if _, err := m.cfg.Store.UpdateSession(ctx, l.id, store.SessionUpdate{NativeID: &native}); err != nil {
-					m.log.Error("record native session", "session", l.id, "err", err)
-				}
-			}
-			if ev.Payload != nil {
-				g.entries = append(g.entries, store.Entry{Payload: ev.Payload})
-			}
-			if ev.Offset > g.offset {
-				g.offset = ev.Offset
+		timer := time.NewTimer(batchWindow)
+		for n := 1; ; n++ {
+			wasInTurn := in.inTurn
+			if err := in.event(ev); err != nil {
+				timer.Stop()
+				fail(err)
+				return
 			}
 			if ev.Exit != nil {
-				flush(g)
-				if err := m.abortOpenTurn(ctx, l.id, "the harness exited"); err != nil {
-					m.log.Error("abort open turn", "session", l.id, "err", err)
+				timer.Stop()
+				if err := in.exit(ev, wasInTurn); err != nil {
+					fail(err)
 				}
-				if ev.Offset > 0 {
-					if err := l.stdio.Ack(ev.Offset); err != nil {
-						m.log.Error("ack exit record", "session", l.id, "err", err)
-					}
-				}
-				g = &group{}
-				break
+				return
 			}
-			if n+1 >= maxBatch {
-				break
-			}
-			select {
-			case next, more := <-events:
-				if !more {
-					flush(g)
-					detached = errors.Is(l.run.Err(), harness.ErrDetached)
+			if in.flushNow {
+				if err := in.flush(); err != nil {
+					timer.Stop()
+					fail(err)
 					return
 				}
-				ev = next
+			}
+			if n >= maxBatch {
+				break
+			}
+			var more bool
+			select {
+			case ev, more = <-events:
+				if !more {
+					timer.Stop()
+					detached = in.ended(fail)
+					return
+				}
 				continue
-			default:
+			case <-timer.C:
 			}
 			break
 		}
-		flush(g)
+		timer.Stop()
+		if err := in.flush(); err != nil {
+			fail(err)
+			return
+		}
 	}
 }
 
-// appendTolerant appends req; if the store rejects it as invalid, it
-// retries entry by entry and replaces each invalid entry with a proto.Error,
-// so one bad harness line never stalls ingestion.
-func (m *Manager) appendTolerant(ctx context.Context, req store.AppendRequest) error {
-	_, err := m.cfg.Store.Append(ctx, req)
-	if !errors.Is(err, store.ErrInvalid) || len(req.Entries) == 0 {
-		return err
+// ended handles the end of the event stream: it commits what is collected
+// and reports whether the transport was lost (so the session reattaches).
+func (in *ingester) ended(fail func(error)) (detached bool) {
+	if err := in.flush(); err != nil {
+		fail(err)
+		return false
 	}
-	for i, e := range req.Entries {
-		one := store.AppendRequest{Session: req.Session, Turn: req.Turn, Entries: []store.Entry{e}}
-		if i == len(req.Entries)-1 {
-			one.IngestOffset = req.IngestOffset
+	err := in.l.run.Err()
+	if err != nil && !errors.Is(err, harness.ErrDetached) {
+		in.m.log.Error("harness adapter failed", "session", in.l.id, "err", err)
+	}
+	return errors.Is(err, harness.ErrDetached) && !in.m.isClosing()
+}
+
+// event adds one event to the current batch, tracking turns.
+func (in *ingester) event(ev harness.Event) error {
+	l := in.l
+	if ev.StdinError {
+		l.pending.Store(false)
+	}
+	if ev.Native != "" && ev.Native != l.native {
+		native := ev.Native
+		if _, err := in.m.cfg.Store.UpdateSession(in.m.ctx, l.id, store.SessionUpdate{NativeID: &native}); err != nil {
+			in.m.log.Error("record native session", "session", l.id, "err", err)
+		} else {
+			l.native = native
 		}
-		if _, err := m.cfg.Store.Append(ctx, one); errors.Is(err, store.ErrInvalid) {
-			one.Entries = []store.Entry{{Payload: proto.Error{Message: "invalid harness event: " + err.Error()}}}
-			one.Turn = 0
-			if _, err := m.cfg.Store.Append(ctx, one); err != nil {
+	}
+	var turn uint32
+	payload := ev.Payload
+	switch payload.(type) {
+	case proto.TurnStarted:
+		if in.inTurn {
+			err := in.add(in.turn, &store.Entry{Payload: proto.TurnEnded{
+				Reason: proto.TurnFailed, Message: "the harness started a new turn without ending the previous one",
+			}}, 0)
+			if err != nil {
 				return err
 			}
-		} else if err != nil {
+		}
+		in.turn++
+		in.inTurn = true
+		turn = in.turn
+	case proto.TurnEnded:
+		if !in.inTurn {
+			payload = nil // nothing to end; the line's offset still counts
+			break
+		}
+		turn = in.turn
+		in.inTurn = false
+		in.flushNow = true
+	default:
+		switch payload.(type) {
+		case proto.ApprovalRequested, proto.Question:
+			in.flushNow = true // someone is waiting to see it
+		}
+		if in.inTurn {
+			turn = in.turn
+		}
+	}
+	var entry *store.Entry
+	if payload != nil {
+		entry = &store.Entry{Payload: payload}
+	}
+	return in.add(turn, entry, ev.Offset)
+}
+
+// add puts an entry (nil for an offset only) of the given turn into the
+// batch, committing the batch first when the turn changes.
+func (in *ingester) add(turn uint32, e *store.Entry, off int64) error {
+	if e != nil {
+		if len(in.g.entries) > 0 && turn != in.g.turn {
+			if err := in.flush(); err != nil {
+				return err
+			}
+		}
+		if len(in.g.entries) == 0 {
+			in.g.turn = turn
+		}
+		in.g.entries = append(in.g.entries, *e)
+	}
+	if off > in.g.offset {
+		in.g.offset = off
+	}
+	return nil
+}
+
+// flush commits the batch: its entries and the highest spool offset in one
+// append. A pending note from an earlier failure rides along once.
+func (in *ingester) flush() error {
+	in.flushNow = false
+	g, l := &in.g, in.l
+	if len(g.entries) == 0 && g.offset <= in.committed {
+		*g = group{}
+		return nil
+	}
+	entries := g.entries
+	if l.note != "" {
+		entries = append([]store.Entry{{Payload: proto.Error{Message: l.note}}}, entries...)
+	}
+	req := store.AppendRequest{Session: l.id, Turn: g.turn, Entries: prepareEntries(g.turn, entries)}
+	if g.offset > in.committed {
+		off := g.offset
+		req.IngestOffset = &off
+	}
+	if _, err := in.m.appendFn(in.m.ctx, req); err != nil {
+		return err
+	}
+	if req.IngestOffset != nil {
+		in.committed = *req.IngestOffset
+	}
+	l.note = ""
+	for _, e := range g.entries {
+		if _, ok := e.Payload.(proto.TurnStarted); ok {
+			l.pending.Store(false) // the message's turn is recorded as started
+		}
+	}
+	*g = group{}
+	return nil
+}
+
+// exit handles the harness's exit: it commits what is collected, closes the
+// turn if one is still open, and only then acknowledges the exit record so
+// the shim may leave.
+func (in *ingester) exit(ev harness.Event, wasInTurn bool) error {
+	l := in.l
+	if !wasInTurn && !l.stopping.Load() && (ev.Exit.Code != 0 || ev.Exit.Signal != "") {
+		msg := fmt.Sprintf("the harness exited between turns: code %d", ev.Exit.Code)
+		if ev.Exit.Signal != "" {
+			msg = "the harness exited between turns: killed by SIG" + strings.TrimPrefix(ev.Exit.Signal, "SIG")
+		}
+		if err := in.add(0, &store.Entry{Payload: proto.Error{Message: msg}}, 0); err != nil {
 			return err
+		}
+	}
+	if err := in.flush(); err != nil {
+		return err
+	}
+	if err := in.m.abortOpenTurn(in.m.ctx, l.id, "the harness exited"); err != nil {
+		return err
+	}
+	l.pending.Store(false)
+	// Nobody may be handed a run whose harness has exited.
+	in.m.mu.Lock()
+	if in.m.live[l.id] == l {
+		delete(in.m.live, l.id)
+	}
+	in.m.mu.Unlock()
+	if l.acker != nil && ev.Offset > 0 {
+		if err := l.acker.Ack(ev.Offset); err != nil {
+			in.m.log.Error("ack exit record", "session", l.id, "err", err)
 		}
 	}
 	return nil
 }
 
-// reattach reconnects to a session whose connection ended without an exit.
-func (m *Manager) reattach(ctx context.Context, id proto.SessionID) {
-	sess, err := m.cfg.Store.Session(ctx, id)
-	if err != nil {
-		return
-	}
-	if _, err := m.attach(ctx, sess, false); err != nil {
-		if err := m.abortOpenTurn(ctx, id, "lost the connection to the harness"); err != nil {
-			m.log.Error("abort open turn", "session", id, "err", err)
+// prepareEntries replaces entries the store would reject with a proto.Error
+// event, so one bad harness line never stalls ingestion.
+func prepareEntries(turn uint32, entries []store.Entry) []store.Entry {
+	out := make([]store.Entry, len(entries))
+	for i, e := range entries {
+		if err := store.ValidateEntry(turn, e); err != nil {
+			e = store.Entry{Payload: proto.Error{Message: "invalid harness event: " + err.Error()}}
 		}
+		out[i] = e
 	}
+	return out
 }

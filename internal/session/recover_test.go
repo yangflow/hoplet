@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -21,45 +22,59 @@ import (
 func TestRecoverMidTurn(t *testing.T) {
 	e := newEnv(t, fake.Script{Session: "n1", Turns: []fake.Turn{{Steps: []fake.Step{
 		{Emit: &fake.Ev{Ev: "delta", ID: "m1", Text: "one "}},
-		{SleepMS: 1500},
+		{Emit: &fake.Ev{Ev: "approval", ID: "a1", Kind: "command", Title: "go on", Options: []fake.Option{{ID: "once", Label: "Once", Scope: "once"}}}},
+		{AwaitApproval: "a1"},
 		{Emit: &fake.Ev{Ev: "delta", ID: "m1", Text: "two"}},
 		{Emit: &fake.Ev{Ev: "message", ID: "m1", Text: "one two"}},
 	}}}})
 	first := e.manager()
 	sess := e.create(first)
-	if err := first.Send(context.Background(), sess.ID, "go", "k1"); err != nil {
+	ctx := context.Background()
+	if _, err := first.Send(ctx, sess.ID, "go", "k1"); err != nil {
 		t.Fatal(err)
 	}
-	e.waitFor(sess.ID, "first delta", func(evs []proto.Event) bool { return count(evs, proto.TypeMessageDelta) == 1 })
+	e.waitFor(sess.ID, "approval", func(evs []proto.Event) bool { return count(evs, proto.TypeApprovalRequest) == 1 })
 	if err := first.Close(); err != nil { // the daemon goes away; the shim and harness keep running
 		t.Fatal(err)
 	}
 
 	second := e.manager()
 	defer second.Close()
-	if err := second.Recover(context.Background()); err != nil {
+	if err := second.Recover(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := second.Respond(ctx, sess.ID, "a1", "once", "device:1", "r1"); err != nil {
 		t.Fatal(err)
 	}
 	evs := e.waitFor(sess.ID, "turn end", turnEnded)
-	want := []proto.EventType{proto.TypeMessage, proto.TypeTurnStarted, proto.TypeMessageDelta, proto.TypeMessageDelta, proto.TypeMessage, proto.TypeTurnEnded}
+	want := []proto.EventType{
+		proto.TypeMessage, proto.TypeTurnStarted, proto.TypeMessageDelta, proto.TypeApprovalRequest,
+		proto.TypeApprovalResolved, proto.TypeMessage, proto.TypeMessageDelta, proto.TypeMessage, proto.TypeTurnEnded,
+	}
 	if len(evs) != len(want) {
 		t.Fatalf("events: %s", describe(evs))
 	}
 	for i, ev := range evs {
-		if ev.Type != want[i] {
+		if ev.Type != want[i] || ev.Seq != uint64(i+1) {
 			t.Fatalf("event %d: %s", i, describe(evs))
 		}
 	}
-	if end := payloads(t, evs)[len(evs)-1].(proto.TurnEnded); end.Reason != proto.TurnCompleted {
+	ps := payloads(t, evs)
+	texts := []string{ps[2].(proto.MessageDelta).Text, ps[5].(proto.Message).Text, ps[6].(proto.MessageDelta).Text, ps[7].(proto.Message).Text}
+	if wantTexts := []string{"one ", "approved:once", "two", "one two"}; !slices.Equal(texts, wantTexts) {
+		t.Fatalf("texts %q, want %q", texts, wantTexts)
+	}
+	if end := ps[len(ps)-1].(proto.TurnEnded); end.Reason != proto.TurnCompleted {
 		t.Fatalf("end %+v", end)
 	}
+	e.waitOffsetAtSpoolEnd(second, sess.ID)
 }
 
 func TestRecoverWithoutShimAbortsOpenTurn(t *testing.T) {
 	e := newEnv(t, fake.Script{Turns: []fake.Turn{{Steps: []fake.Step{{SleepMS: 60_000}}}}})
 	first := e.manager()
 	sess := e.create(first)
-	if err := first.Send(context.Background(), sess.ID, "go", "k1"); err != nil {
+	if _, err := first.Send(context.Background(), sess.ID, "go", "k1"); err != nil {
 		t.Fatal(err)
 	}
 	e.waitFor(sess.ID, "turn start", func(evs []proto.Event) bool { return count(evs, proto.TypeTurnStarted) == 1 })

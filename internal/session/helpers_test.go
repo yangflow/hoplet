@@ -2,10 +2,12 @@ package session
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -76,9 +78,15 @@ func newEnv(t *testing.T, s fake.Script) *env {
 // would create one. The caller closes it.
 func (e *env) manager() *Manager {
 	e.t.Helper()
+	return e.managerWith(map[string]harness.Harness{"fake": &fake.Harness{Binary: fakeExe, Script: e.script}})
+}
+
+// managerWith is manager with the given harnesses.
+func (e *env) managerWith(hs map[string]harness.Harness) *Manager {
+	e.t.Helper()
 	m, err := New(Config{
 		Store: e.store, Root: filepath.Join(e.root, "s"), Spawner: ExecSpawner{Exe: hopletExe},
-		Harnesses: map[string]harness.StdioHarness{"fake": &fake.Harness{Binary: fakeExe, Script: e.script}},
+		Harnesses: hs,
 		Env:       []string{"PATH=" + os.Getenv("PATH")},
 	})
 	if err != nil {
@@ -183,6 +191,73 @@ func stopShims(t *testing.T, root string) {
 			_ = exec.Command("pkill", "-KILL", "-f", pattern).Run()
 			t.Error("shims did not exit after SIGTERM")
 			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}
+
+// waitOffsetAtSpoolEnd waits until ingestion has committed the whole spool.
+func (e *env) waitOffsetAtSpoolEnd(m *Manager, id proto.SessionID) {
+	e.t.Helper()
+	deadline := time.Now().Add(15 * time.Second)
+	for {
+		fi, err := os.Stat(filepath.Join(m.dir(id), "spool.jsonl"))
+		if err != nil {
+			e.t.Fatal(err)
+		}
+		off, err := e.store.IngestOffset(context.Background(), id)
+		if err != nil {
+			e.t.Fatal(err)
+		}
+		if off == fi.Size() {
+			return
+		}
+		if time.Now().After(deadline) {
+			e.t.Fatalf("ingest offset %d never reached the spool end %d", off, fi.Size())
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}
+
+// shimCount counts the shim processes that own dir.
+func shimCount(dir string) int {
+	out, err := exec.Command("pgrep", "-f", "shim --dir "+dir).Output()
+	if err != nil {
+		return 0 // pgrep exits non-zero when nothing matches
+	}
+	return len(strings.Fields(string(out)))
+}
+
+// harnessPid returns the pid of the harness the latest shim in dir started.
+func harnessPid(t *testing.T, dir string) int {
+	t.Helper()
+	b, err := os.ReadFile(filepath.Join(dir, "spool.jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	pid := 0
+	for _, line := range strings.Split(string(b), "\n") {
+		var rec struct {
+			K   string `json:"k"`
+			Pid int    `json:"pid"`
+		}
+		if json.Unmarshal([]byte(line), &rec) == nil && rec.K == "start" {
+			pid = rec.Pid
+		}
+	}
+	if pid == 0 {
+		t.Fatal("no start record in the spool")
+	}
+	return pid
+}
+
+// waitCond polls cond until it holds.
+func waitCond(t *testing.T, what string, cond func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(15 * time.Second)
+	for !cond() {
+		if time.Now().After(deadline) {
+			t.Fatalf("timed out waiting for %s", what)
 		}
 		time.Sleep(20 * time.Millisecond)
 	}

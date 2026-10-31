@@ -22,7 +22,7 @@ func TestSendStreamsIntoStore(t *testing.T) {
 	m := e.manager()
 	defer m.Close()
 	sess := e.create(m)
-	if err := m.Send(context.Background(), sess.ID, "hi", "k1"); err != nil {
+	if _, err := m.Send(context.Background(), sess.ID, "hi", "k1"); err != nil {
 		t.Fatal(err)
 	}
 	evs := e.waitFor(sess.ID, "turn end", turnEnded)
@@ -57,18 +57,35 @@ func TestSendIsIdempotent(t *testing.T) {
 	defer m.Close()
 	sess := e.create(m)
 	ctx := context.Background()
-	if err := m.Send(ctx, sess.ID, "once", "k"); err != nil {
+	first, err := m.Send(ctx, sess.ID, "once", "k1")
+	if err != nil {
 		t.Fatal(err)
 	}
-	e.waitFor(sess.ID, "turn end", turnEnded)
-	if err := m.Send(ctx, sess.ID, "once", "k"); err != nil {
+	e.waitFor(sess.ID, "first turn end", func(evs []proto.Event) bool { return count(evs, proto.TypeTurnEnded) == 1 })
+	retry, err := m.Send(ctx, sess.ID, "once", "k1")
+	if err != nil {
 		t.Fatal(err)
 	}
-	evs := e.waitFor(sess.ID, "settled", func(evs []proto.Event) bool { return turnEnded(evs) })
-	if n := count(evs, proto.TypeTurnStarted); n != 1 {
-		t.Fatalf("retry started %d turns: %s", n, describe(evs))
+	if retry != first || first.Turn != 1 || first.Seq != 1 {
+		t.Fatalf("retry returned %+v, want the original %+v", retry, first)
 	}
-	if err := m.Send(ctx, sess.ID, "", ""); err == nil {
+	if _, err := m.Send(ctx, sess.ID, "twice", "k2"); err != nil {
+		t.Fatal(err)
+	}
+	evs := e.waitFor(sess.ID, "second turn end", func(evs []proto.Event) bool { return count(evs, proto.TypeTurnEnded) == 2 })
+	if n := count(evs, proto.TypeTurnStarted); n != 2 {
+		t.Fatalf("%d turns started: %s", n, describe(evs))
+	}
+	once := 0
+	for _, p := range payloads(t, evs) {
+		if msg, ok := p.(proto.Message); ok && msg.Role == proto.RoleUser && msg.Text == "once" {
+			once++
+		}
+	}
+	if once != 1 {
+		t.Fatalf("user message recorded %d times: %s", once, describe(evs))
+	}
+	if _, err := m.Send(ctx, sess.ID, "", ""); err == nil {
 		t.Fatal("send without key accepted")
 	}
 }
@@ -79,11 +96,11 @@ func TestSendWhileRunningIsBusy(t *testing.T) {
 	defer m.Close()
 	sess := e.create(m)
 	ctx := context.Background()
-	if err := m.Send(ctx, sess.ID, "go", "k1"); err != nil {
+	if _, err := m.Send(ctx, sess.ID, "go", "k1"); err != nil {
 		t.Fatal(err)
 	}
 	e.waitFor(sess.ID, "turn start", func(evs []proto.Event) bool { return count(evs, proto.TypeTurnStarted) == 1 })
-	if err := m.Send(ctx, sess.ID, "more", "k2"); !errors.Is(err, ErrBusy) {
+	if _, err := m.Send(ctx, sess.ID, "more", "k2"); !errors.Is(err, ErrBusy) {
 		t.Fatalf("send during turn: %v", err)
 	}
 }
@@ -97,7 +114,7 @@ func TestApprovalFirstAnswerWins(t *testing.T) {
 	defer m.Close()
 	sess := e.create(m)
 	ctx := context.Background()
-	if err := m.Send(ctx, sess.ID, "go", "k1"); err != nil {
+	if _, err := m.Send(ctx, sess.ID, "go", "k1"); err != nil {
 		t.Fatal(err)
 	}
 	e.waitFor(sess.ID, "approval", func(evs []proto.Event) bool { return count(evs, proto.TypeApprovalRequest) == 1 })
@@ -134,7 +151,7 @@ func TestInterruptEndsTurn(t *testing.T) {
 	defer m.Close()
 	sess := e.create(m)
 	ctx := context.Background()
-	if err := m.Send(ctx, sess.ID, "slow", "k1"); err != nil {
+	if _, err := m.Send(ctx, sess.ID, "slow", "k1"); err != nil {
 		t.Fatal(err)
 	}
 	e.waitFor(sess.ID, "turn start", func(evs []proto.Event) bool { return count(evs, proto.TypeTurnStarted) == 1 })
@@ -155,7 +172,7 @@ func TestHarnessCrashAbortsTurnAndShimExits(t *testing.T) {
 	m := e.manager()
 	defer m.Close()
 	sess := e.create(m)
-	if err := m.Send(context.Background(), sess.ID, "go", "k1"); err != nil {
+	if _, err := m.Send(context.Background(), sess.ID, "go", "k1"); err != nil {
 		t.Fatal(err)
 	}
 	evs := e.waitFor(sess.ID, "turn end", turnEnded)

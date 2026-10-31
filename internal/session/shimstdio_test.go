@@ -100,3 +100,64 @@ func kindString(ks []harness.LineKind) string {
 	}
 	return b.String()
 }
+
+func TestAssemblerSplitsAtMaxLine(t *testing.T) {
+	var a assembler
+	chunk := bytes.Repeat([]byte("x"), shim.ChunkSize)
+	var lines []harness.Line
+	// Chunks that fill MaxLine exactly while the line continues flush at once.
+	n := harness.MaxLine / shim.ChunkSize
+	for i := range n {
+		lines = append(lines, a.add(shim.Record{Kind: shim.KindStdout, B: chunk, More: true}, int64(i+1))...)
+	}
+	if len(lines) != 1 || len(lines[0].Data) != harness.MaxLine || lines[0].Offset != int64(n) {
+		t.Fatalf("a full buffer must flush at once: %d lines", len(lines))
+	}
+	lines = a.add(shim.Record{Kind: shim.KindStdout, Data: "tail"}, int64(n+1))
+	if len(lines) != 1 || string(lines[0].Data) != "tail" || lines[0].Offset != int64(n+1) {
+		t.Fatalf("continuation line %+v", lines)
+	}
+	// A line of exactly MaxLine ends in one Line, with no empty trailer.
+	a = assembler{}
+	for i := range n - 1 {
+		if got := a.add(shim.Record{Kind: shim.KindStdout, B: chunk, More: true}, int64(i+1)); len(got) != 0 {
+			t.Fatalf("early flush at chunk %d", i)
+		}
+	}
+	lines = a.add(shim.Record{Kind: shim.KindStdout, B: chunk}, 99)
+	if len(lines) != 1 || len(lines[0].Data) != harness.MaxLine {
+		t.Fatalf("exact fit: %d lines", len(lines))
+	}
+}
+
+func TestAssemblerKeepsKindsApartAndMapsExit(t *testing.T) {
+	var a assembler
+	if got := a.add(shim.Record{Kind: shim.KindStdout, Data: "a", More: true}, 1); len(got) != 0 {
+		t.Fatal("partial emitted")
+	}
+	got := a.add(shim.Record{Kind: shim.KindStderr, Data: "e"}, 2)
+	if len(got) != 1 || string(got[0].Data) != "e" {
+		t.Fatalf("stderr %+v", got)
+	}
+	got = a.add(shim.Record{Kind: shim.KindStdout, Data: "b"}, 3)
+	if len(got) != 1 || string(got[0].Data) != "ab" {
+		t.Fatalf("stdout %+v", got)
+	}
+	got = a.add(shim.Record{Kind: shim.KindExit, Signal: "TERM"}, 4)
+	if len(got) != 1 || got[0].Code != -1 || got[0].Signal != "TERM" {
+		t.Fatalf("exit %+v", got)
+	}
+}
+
+func TestStdinCode(t *testing.T) {
+	for _, c := range []string{shim.CodeStdinBusy, shim.CodeTooLarge, shim.CodeBadRequest, shim.CodeExited} {
+		if !stdinCode(c) {
+			t.Errorf("%s should be a stdin error", c)
+		}
+	}
+	for _, c := range []string{shim.CodeCorrupt, shim.CodeRecordTooLarge, shim.CodeVersion, shim.CodeBadOffset, "weird"} {
+		if stdinCode(c) {
+			t.Errorf("%s must end the connection", c)
+		}
+	}
+}
