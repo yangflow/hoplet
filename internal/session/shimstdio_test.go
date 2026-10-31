@@ -130,6 +130,16 @@ func TestAssemblerSplitsAtMaxLine(t *testing.T) {
 	}
 }
 
+func TestAssemblerReportsPositionForRecordsWithoutLines(t *testing.T) {
+	var a assembler
+	for _, kind := range []shim.RecordKind{shim.KindStart, "from_the_future"} {
+		got := a.add(shim.Record{Kind: kind, Pid: 7}, 42)
+		if len(got) != 1 || got[0].Kind != harness.Position || got[0].Offset != 42 || len(got[0].Data) != 0 {
+			t.Fatalf("%s record: %+v", kind, got)
+		}
+	}
+}
+
 func TestAssemblerKeepsKindsApartAndMapsExit(t *testing.T) {
 	var a assembler
 	if got := a.add(shim.Record{Kind: shim.KindStdout, Data: "a", More: true}, 1); len(got) != 0 {

@@ -735,3 +735,21 @@ func TestRepeatedRespondIsIgnored(t *testing.T) {
 		t.Fatalf("end %#v", end)
 	}
 }
+
+func TestPositionLineYieldsAnOffsetOnlyEvent(t *testing.T) {
+	stub := &stubStdio{lines: make(chan harness.Line, 2)}
+	r, err := (&Harness{}).Attach(context.Background(), harness.Spec{}, stub)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	stub.lines <- harness.Line{Kind: harness.Position, Offset: 17}
+	stub.lines <- harness.Line{Kind: harness.Exit, Offset: 30}
+	var evs []harness.Event
+	for ev := range r.Events() {
+		evs = append(evs, ev)
+	}
+	if len(evs) != 2 || evs[0].Offset != 17 || evs[0].Payload != nil || evs[0].Raw != nil || evs[0].Native != "" || evs[0].Exit != nil || evs[0].Stderr || evs[0].StdinError {
+		t.Fatalf("events %+v", evs)
+	}
+}

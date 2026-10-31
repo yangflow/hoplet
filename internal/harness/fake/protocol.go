@@ -45,6 +45,9 @@ type Option struct {
 type Script struct {
 	Session    string `json:"session"`
 	ResumeTurn int    `json:"resume_turn,omitempty"`
+	// QuietStart makes the harness write nothing at start (no session
+	// event) until it gets its first op.
+	QuietStart bool   `json:"quiet_start,omitempty"`
 	Turns      []Turn `json:"turns"`
 }
 

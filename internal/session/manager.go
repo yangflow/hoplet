@@ -3,6 +3,15 @@
 // own server), ingests the harness's events into the store (committing the
 // shim's spool offset in the same transaction), and reattaches to running
 // shims after the daemon restarts.
+//
+// Two properties of recovery are accepted on purpose, because the alternative
+// is losing events. After a shim crashed without writing its exit record, a
+// respawned shim in the same directory starts a new process, but the daemon
+// still resumes from its committed offset, so it replays the unacknowledged
+// tail of the old spool before any new output. And a line longer than
+// harness.MaxLine is delivered in several pieces that commit their offset
+// only at the record's final piece: after a restart in the middle of such a
+// line, the entries earlier pieces produced can appear again.
 package session
 
 import (
@@ -899,9 +908,8 @@ func (m *Manager) startReattach(id proto.SessionID, delay time.Duration, note st
 }
 
 const (
-	reattachAttempts = 8
-	reattachBackoff  = 100 * time.Millisecond
-	reattachMax      = 5 * time.Second
+	reattachBackoff = 100 * time.Millisecond
+	reattachMax     = 5 * time.Second
 )
 
 // failStreak records another failed ingest run and returns how many came
@@ -934,14 +942,19 @@ func (m *Manager) reattach(id proto.SessionID, delay time.Duration, note string)
 	if !m.sleep(delay) {
 		return
 	}
+	// Transient failures retry for as long as the manager lives; the
+	// failure is recorded once per streak.
 	backoff := reattachBackoff
-	var err error
-	for attempt := 0; attempt < reattachAttempts; attempt++ {
-		if attempt > 0 && !m.sleep(backoff) {
-			return
+	recorded := false
+	for attempt := 0; ; attempt++ {
+		if attempt > 0 {
+			if !m.sleep(backoff) {
+				return
+			}
+			backoff = min(2*backoff, reattachMax)
 		}
-		backoff = min(2*backoff, reattachMax)
-		if err = m.tryReattach(id, note); err == nil {
+		err := m.tryReattach(id, note)
+		if err == nil {
 			return
 		}
 		if errors.Is(err, errNoShim) {
@@ -953,9 +966,10 @@ func (m *Manager) reattach(id proto.SessionID, delay time.Duration, note string)
 			return
 		}
 		m.log.Warn("reattach failed", "session", id, "attempt", attempt+1, "err", err)
-	}
-	if !m.isClosing() {
-		m.recordAttachError(m.ctx, id, err)
+		if !recorded && !m.isClosing() {
+			recorded = true
+			m.recordAttachError(m.ctx, id, err)
+		}
 	}
 }
 

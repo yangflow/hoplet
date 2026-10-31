@@ -36,7 +36,9 @@ func main() {
 		session, next = resume, script.ResumeTurn
 	}
 	h := &harness{out: json.NewEncoder(os.Stdout), ops: make(chan fake.Op)}
-	h.emit(fake.Ev{Ev: "session", ID: session})
+	if !script.QuietStart {
+		h.emit(fake.Ev{Ev: "session", ID: session})
+	}
 	go h.readOps()
 	for op := range h.ops {
 		switch op.Op {

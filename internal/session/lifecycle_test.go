@@ -606,12 +606,13 @@ func TestArchiveDuringReattachWindow(t *testing.T) {
 	if got, _ := e.store.Session(ctx, sess.ID); got.ArchivedAt == nil {
 		t.Fatal("not archived")
 	}
-	if len(m.live) != 0 {
-		t.Fatal("something attached after the archive")
-	}
 	m.mu.Lock()
+	lives := len(m.live)
 	_, hasLock := m.locks[sess.ID]
 	m.mu.Unlock()
+	if lives != 0 {
+		t.Fatal("something attached after the archive")
+	}
 	if hasLock {
 		t.Fatal("the archived session's lock entry was kept")
 	}
@@ -631,5 +632,122 @@ func TestReattachRefusesArchivedSessions(t *testing.T) {
 	}
 	if _, err := m.ensure(ctx, sess.ID); err == nil || !strings.Contains(err.Error(), "archived") {
 		t.Fatalf("ensure on an archived session: %v", err)
+	}
+}
+
+var quietScript = fake.Script{QuietStart: true, Turns: []fake.Turn{{Steps: []fake.Step{{EchoPrompt: true}}}}}
+
+// sendWhenCaughtUp sends until ingestion has caught up with the shim; any
+// error other than ErrBusy fails the test.
+func sendWhenCaughtUp(t *testing.T, m *Manager, id proto.SessionID, key string) {
+	t.Helper()
+	waitCond(t, "catching up to end", func() bool {
+		_, err := m.Send(context.Background(), id, "go", key)
+		if err != nil && !errors.Is(err, ErrBusy) {
+			t.Fatal(err)
+		}
+		return err == nil
+	})
+}
+
+// TestQuietHarnessCatchesUpAfterRestart: a harness that writes nothing until
+// it gets stdin leaves only the shim's start record in the spool. A new
+// manager must still count itself caught up, or Send would say "catching up"
+// for ever.
+func TestQuietHarnessCatchesUpAfterRestart(t *testing.T) {
+	e := newEnv(t, quietScript)
+	first := e.manager()
+	sess := e.create(first)
+	ctx := context.Background()
+	if _, err := first.ensure(ctx, sess.ID); err != nil { // spawned, nothing written to stdin
+		t.Fatal(err)
+	}
+	if err := first.Close(); err != nil {
+		t.Fatal(err)
+	}
+	second := e.manager()
+	defer second.Close()
+	if err := second.Recover(ctx); err != nil {
+		t.Fatal(err)
+	}
+	sendWhenCaughtUp(t, second, sess.ID, "k1")
+	evs := e.waitFor(sess.ID, "turn end", turnEnded)
+	if n := count(evs, proto.TypeTurnStarted); n != 1 {
+		t.Fatalf("%d turns: %s", n, describe(evs))
+	}
+}
+
+// TestSpawnedShimThatWasNotAttachedInTime: the readiness wait gives up although
+// the shim comes up; the next Send attaches to it and must not be stuck.
+func TestSpawnedShimThatWasNotAttachedInTime(t *testing.T) {
+	e := newEnv(t, quietScript)
+	m := e.manager()
+	defer m.Close()
+	sess := e.create(m)
+	ctx := context.Background()
+	m.ready = time.Nanosecond
+	if _, err := m.Send(ctx, sess.ID, "go", "k1"); err == nil {
+		t.Fatal("send succeeded although the shim could not be reached in time")
+	}
+	waitCond(t, "the shim to come up", func() bool {
+		c, err := shim.Dial(ctx, m.dir(sess.ID), 0)
+		if err != nil {
+			return false
+		}
+		_ = c.Close()
+		return true
+	})
+	m.ready = readyTimeout
+	sendWhenCaughtUp(t, m, sess.ID, "k1")
+	e.waitFor(sess.ID, "turn end", turnEnded)
+}
+
+// flakyAttach fails its next few Attach calls.
+type flakyAttach struct {
+	*fake.Harness
+	failures atomic.Int32
+}
+
+func (f *flakyAttach) Attach(ctx context.Context, spec harness.Spec, io harness.Stdio) (harness.Run, error) {
+	if f.failures.Add(-1) >= 0 {
+		return nil, errors.New("attach glitch")
+	}
+	return f.Harness.Attach(ctx, spec, io)
+}
+
+func TestTransientReattachErrorsRetryAndAreRecordedOnce(t *testing.T) {
+	e := newEnv(t, approvalScript)
+	h := &flakyAttach{Harness: &fake.Harness{Binary: fakeExe, Script: e.script}}
+	m := e.managerWith(map[string]harness.Harness{"fake": h})
+	defer m.Close()
+	sess := e.create(m)
+	ctx := context.Background()
+	if _, err := m.Send(ctx, sess.ID, "go", "k1"); err != nil {
+		t.Fatal(err)
+	}
+	e.waitFor(sess.ID, "approval", func(evs []proto.Event) bool { return count(evs, proto.TypeApprovalRequest) == 1 })
+	old, err := m.attached(sess.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.failures.Store(3)
+	c, err := shim.Dial(ctx, m.dir(sess.ID), 0) // takes the shim over; the next three reattaches fail
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	waitCond(t, "the manager to reattach", func() bool {
+		l, err := m.attached(sess.ID)
+		return err == nil && l != old
+	})
+	if err := m.Respond(ctx, sess.ID, "a1", "once", "device:1", "r1"); err != nil {
+		t.Fatal(err)
+	}
+	evs := e.waitFor(sess.ID, "turn end", turnEnded)
+	if n := count(evs, proto.TypeError); n != 1 {
+		t.Fatalf("%d attach errors recorded, want one per streak: %s", n, describe(evs))
+	}
+	if n := count(evs, proto.TypeApprovalRequest); n != 1 {
+		t.Fatalf("%d approval requests: %s", n, describe(evs))
 	}
 }

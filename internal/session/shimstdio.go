@@ -83,7 +83,9 @@ type assembler struct {
 func (a *assembler) add(rec shim.Record, off int64) []harness.Line {
 	kind, ok := lineKind(rec.Kind)
 	if !ok {
-		return nil // a start record carries nothing for the harness adapter
+		// A start record, or a kind from a newer shim: nothing for the
+		// adapter, but the position still counts towards catching up.
+		return []harness.Line{{Kind: harness.Position, Offset: off}}
 	}
 	data := []byte(rec.Data)
 	if len(rec.B) > 0 {
