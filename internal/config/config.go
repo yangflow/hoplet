@@ -21,7 +21,23 @@ const FileName = "config.toml"
 type Config struct {
 	Network Network `toml:"network"`
 	Env     Env     `toml:"env"`
+	Harness Harness `toml:"harness"`
 }
+
+// Harness configures the harnesses Hoplet runs.
+type Harness struct {
+	Claude HarnessOptions `toml:"claude"`
+}
+
+// HarnessOptions configures one harness.
+type HarnessOptions struct {
+	// Follow, when false, stops the daemon from moving Hoplet's copy to
+	// the version on the user's PATH each day; unset means true.
+	Follow *bool `toml:"follow"`
+}
+
+// Follows reports whether the daemon follows the user's version.
+func (o HarnessOptions) Follows() bool { return o.Follow == nil || *o.Follow }
 
 // Network configures outbound connections of the daemon and its harnesses.
 type Network struct {

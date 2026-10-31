@@ -45,6 +45,10 @@ type Info struct {
 	// Supported is false when Version is outside the verified range. The
 	// daemon then keeps existing sessions read-only and starts no new turns.
 	Supported bool
+	// Notice is something about the installed harness worth showing in
+	// doctor (an automatic upgrade, say); Attention marks it as a problem.
+	Notice    string
+	Attention bool
 }
 
 // State is the resume state the daemon reads from its store when it attaches

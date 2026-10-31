@@ -239,6 +239,8 @@ func TestDoctorHarnessProbeResults(t *testing.T) {
 		harnesses: map[string]harness.Harness{
 			"broken": stubHarness{&fake.Harness{}, harness.Info{}, errors.New("binary missing")},
 			"old":    stubHarness{&fake.Harness{}, harness.Info{Version: "0.1", Supported: false}, nil},
+			"moved":  stubHarness{&fake.Harness{}, harness.Info{Version: "2", Supported: true, Notice: "followed from 1"}, nil},
+			"stuck":  stubHarness{&fake.Harness{}, harness.Info{Version: "1", Supported: true, Notice: "2 failed", Attention: true}, nil},
 		},
 		probeURL: srv.URL,
 	}
@@ -249,6 +251,12 @@ func TestDoctorHarnessProbeResults(t *testing.T) {
 	}
 	if o := c["harness old"]; o.Status != proto.CheckWarn || !strings.Contains(o.Detail, "0.1") {
 		t.Errorf("old %+v", o)
+	}
+	if m := c["harness moved"]; m.Status != proto.CheckOK || m.Detail != "version 2; followed from 1" {
+		t.Errorf("moved %+v", m)
+	}
+	if s := c["harness stuck"]; s.Status != proto.CheckWarn || s.Detail != "version 1; 2 failed" {
+		t.Errorf("stuck %+v", s)
 	}
 }
 
