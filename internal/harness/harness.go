@@ -95,6 +95,9 @@ type Event struct {
 	Offset  int64       // transport position just after the triggering line
 	Native  string      // set where the harness announces its own session ID
 	Exit    *ExitStatus // set on the final event when the harness process ended
+	// StdinError reports that a line written to the harness's stdin failed;
+	// the Payload says why.
+	StdinError bool
 }
 
 // LineKind says where a stdio line came from.
