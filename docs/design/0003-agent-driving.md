@@ -27,6 +27,7 @@ classDiagram
         Steer(text)
         Interrupt()
         Respond(approval)
+        SetMode / SetPlan / SetFast / SetEffort / SetModel
         Events() 事件流
         Close()
     }
@@ -36,6 +37,9 @@ classDiagram
         fork
         rewind
         planMode
+        modes 原生审批档位
+        efforts 思考强度档位
+        fast
         partialStream
         mcpInject
         models
