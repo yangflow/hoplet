@@ -743,7 +743,10 @@ func TestSlowClientIsDisconnected(t *testing.T) {
 
 func TestPlanAndEffortCommands(t *testing.T) {
 	h, script := newHome(t, echoScript)
-	start(t, testConfig(h, script))
+	cfg := testConfig(h, script)
+	// A harness with no plan mode, fast mode or effort.
+	cfg.Harnesses["plain"] = &fake.Harness{Binary: fakeExe, Script: script, Capabilities: &proto.Capabilities{SetMode: true, Modes: []proto.PermissionMode{proto.ModeConfirm}}}
+	start(t, cfg)
 	c := dial(t, h, "device:a")
 	ctx := timeout(t)
 	sess, err := c.Create(ctx, proto.CreateParams{Mode: proto.ModeCode, Harness: "fake", Directory: filepath.Join(h, "work"), Plan: true, Fast: true, Effort: proto.EffortLow})
@@ -768,5 +771,21 @@ func TestPlanAndEffortCommands(t *testing.T) {
 	}
 	if err := c.SetPermission(ctx, proto.SetPermissionParams{Session: sess.ID, Permission: "read_only"}); apiCode(err) != proto.CodeInvalid {
 		t.Fatalf("retired mode: %v", err)
+	}
+	if _, err := c.Create(ctx, proto.CreateParams{Mode: proto.ModePersonal, Harness: "fake", Effort: "huge"}); apiCode(err) != proto.CodeInvalid {
+		t.Fatalf("unknown effort at create: %v", err)
+	}
+	plain, err := c.Create(ctx, proto.CreateParams{Mode: proto.ModeCode, Harness: "plain", Directory: filepath.Join(h, "work")})
+	if err != nil || plain.Permission != proto.ModeConfirm {
+		t.Fatalf("create on a plain harness %+v %v", plain, err)
+	}
+	for name, err := range map[string]error{
+		"plan":   c.SetPlan(ctx, proto.SetPlanParams{Session: plain.ID, Plan: true}),
+		"fast":   c.SetFast(ctx, proto.SetFastParams{Session: plain.ID, Fast: true}),
+		"effort": c.SetEffort(ctx, proto.SetEffortParams{Session: plain.ID, Effort: proto.EffortLow}),
+	} {
+		if apiCode(err) != proto.CodeUnsupported {
+			t.Errorf("%s on a plain harness: %v, want unsupported", name, err)
+		}
 	}
 }

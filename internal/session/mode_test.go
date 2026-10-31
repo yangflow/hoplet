@@ -8,6 +8,7 @@ import (
 
 	"github.com/yangflow/hoplet/internal/harness"
 	"github.com/yangflow/hoplet/internal/harness/fake"
+	"github.com/yangflow/hoplet/internal/store"
 	"github.com/yangflow/hoplet/proto"
 )
 
@@ -145,5 +146,108 @@ func TestHarnessModeChangeUpdatesTheSession(t *testing.T) {
 	got, err := e.store.Session(ctx, sess.ID)
 	if err != nil || got.Plan || got.Permission != proto.ModeAutoEdit {
 		t.Fatalf("after the harness left plan mode %+v %v", got, err)
+	}
+}
+
+// gatedSpy is the fake harness whose first launch waits for gate.
+type gatedSpy struct {
+	specSpy
+	entered chan struct{}
+	gate    chan struct{}
+	once    sync.Once
+}
+
+func (g *gatedSpy) Launch(spec harness.Spec) (harness.Launch, error) {
+	first := false
+	g.once.Do(func() { first = true })
+	if first {
+		close(g.entered)
+		<-g.gate
+	}
+	return g.specSpy.Launch(spec)
+}
+
+// TestSettingDuringStartIsNotLost changes plan mode while the harness is
+// starting: the harness either starts with the new value or receives it.
+func TestSettingDuringStartIsNotLost(t *testing.T) {
+	e := newEnv(t, fake.Script{Session: "n1", Turns: []fake.Turn{{Steps: []fake.Step{{AwaitApproval: "hold"}}}}})
+	spy := &gatedSpy{specSpy: specSpy{Harness: &fake.Harness{Binary: fakeExe, Script: e.script}}, entered: make(chan struct{}), gate: make(chan struct{})}
+	m := e.managerWith(map[string]harness.Harness{"fake": spy})
+	defer m.Close()
+	ctx := context.Background()
+	sess := e.create(m)
+	sent := make(chan error, 1)
+	go func() {
+		_, err := m.Send(ctx, sess.ID, "go", "k1")
+		sent <- err
+	}()
+	<-spy.entered
+	set := make(chan error, 1)
+	go func() { set <- m.SetPlan(ctx, sess.ID, true) }()
+	close(spy.gate)
+	if err := <-sent; err != nil {
+		t.Fatal(err)
+	}
+	if err := <-set; err != nil {
+		t.Fatal(err)
+	}
+	if got := spy.launched(); len(got) == 1 && got[0].Plan {
+		return // the harness started with plan mode on
+	}
+	e.waitFor(sess.ID, "the harness to receive plan mode", func(evs []proto.Event) bool {
+		for _, p := range payloads(t, evs) {
+			if msg, ok := p.(proto.Message); ok && msg.Text == "plan:on" {
+				return true
+			}
+		}
+		return false
+	})
+}
+
+// TestSettingsApplyAtTheNextStart changes settings while the harness is
+// stopped: the next launch carries them.
+func TestSettingsApplyAtTheNextStart(t *testing.T) {
+	echo := fake.Turn{Steps: []fake.Step{{EchoPrompt: true}}}
+	e := newEnv(t, fake.Script{Session: "n1", Turns: []fake.Turn{echo, echo}})
+	spy := &specSpy{Harness: &fake.Harness{Binary: fakeExe, Script: e.script}}
+	m := e.managerWith(map[string]harness.Harness{"fake": spy})
+	defer m.Close()
+	ctx := context.Background()
+	sess := e.create(m)
+	if _, err := m.Send(ctx, sess.ID, "one", "k1"); err != nil {
+		t.Fatal(err)
+	}
+	e.waitFor(sess.ID, "turn 1", turnEnded)
+	if err := m.Stop(ctx, sess.ID); err != nil {
+		t.Fatal(err)
+	}
+	for _, err := range []error{
+		m.SetPermission(ctx, sess.ID, proto.ModeFullAuto), m.SetPlan(ctx, sess.ID, true),
+		m.SetFast(ctx, sess.ID, true), m.SetEffort(ctx, sess.ID, proto.EffortUltra),
+	} {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := m.Send(ctx, sess.ID, "two", "k2"); err != nil {
+		t.Fatal(err)
+	}
+	e.waitFor(sess.ID, "turn 2", func(evs []proto.Event) bool { return count(evs, proto.TypeTurnEnded) == 2 })
+	got := spy.launched()
+	if len(got) != 2 {
+		t.Fatalf("%d launches", len(got))
+	}
+	if s := got[1]; s.Mode != proto.ModeFullAuto || !s.Plan || !s.Fast || s.Effort != proto.EffortUltra {
+		t.Fatalf("second launch spec %+v", s)
+	}
+}
+
+func TestCreateRejectsUnknownEffort(t *testing.T) {
+	e := newEnv(t, fake.Script{Session: "n1"})
+	m := e.manager()
+	defer m.Close()
+	_, err := m.Create(context.Background(), CreateRequest{Mode: proto.ModeCode, Harness: "fake", Directory: e.work, Effort: "huge"})
+	if !errors.Is(err, store.ErrInvalid) {
+		t.Fatalf("unknown effort at create: %v, want ErrInvalid", err)
 	}
 }

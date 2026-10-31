@@ -252,6 +252,9 @@ func (m *Manager) Create(ctx context.Context, req CreateRequest) (proto.Session,
 	if req.Fast && !info.Capabilities.Fast {
 		return proto.Session{}, fmt.Errorf("%w: %s has no fast mode", harness.ErrUnsupported, req.Harness)
 	}
+	if req.Effort != "" && !req.Effort.Valid() {
+		return proto.Session{}, fmt.Errorf("%w: effort %q", store.ErrInvalid, req.Effort)
+	}
 	if req.Effort != "" && !info.Capabilities.HasEffort(req.Effort) {
 		return proto.Session{}, fmt.Errorf("%w: %s has no effort %q", harness.ErrUnsupported, req.Harness, req.Effort)
 	}
@@ -547,14 +550,7 @@ func (m *Manager) SetPermission(ctx context.Context, id proto.SessionID, mode pr
 		return harness.ErrUnsupported
 	}
 	mode = caps.Fallback(mode)
-	if _, err := m.cfg.Store.UpdateSession(ctx, id, store.SessionUpdate{Permission: &mode}); err != nil {
-		return err
-	}
-	l, err := m.attached(id)
-	if err != nil {
-		return nil // not running: the stored mode applies at the next start
-	}
-	return l.run.SetMode(ctx, mode)
+	return m.apply(ctx, id, store.SessionUpdate{Permission: &mode}, func(r harness.Run) error { return r.SetMode(ctx, mode) })
 }
 
 // SetPlan turns plan mode on or off.
@@ -566,14 +562,7 @@ func (m *Manager) SetPlan(ctx context.Context, id proto.SessionID, on bool) erro
 	if !caps.PlanMode {
 		return harness.ErrUnsupported
 	}
-	if _, err := m.cfg.Store.UpdateSession(ctx, id, store.SessionUpdate{Plan: &on}); err != nil {
-		return err
-	}
-	l, err := m.attached(id)
-	if err != nil {
-		return nil // not running: the stored setting applies at the next start
-	}
-	return l.run.SetPlan(ctx, on)
+	return m.apply(ctx, id, store.SessionUpdate{Plan: &on}, func(r harness.Run) error { return r.SetPlan(ctx, on) })
 }
 
 // SetFast turns fast mode on or off.
@@ -585,14 +574,7 @@ func (m *Manager) SetFast(ctx context.Context, id proto.SessionID, on bool) erro
 	if !caps.Fast {
 		return harness.ErrUnsupported
 	}
-	if _, err := m.cfg.Store.UpdateSession(ctx, id, store.SessionUpdate{Fast: &on}); err != nil {
-		return err
-	}
-	l, err := m.attached(id)
-	if err != nil {
-		return nil // not running: the stored setting applies at the next start
-	}
-	return l.run.SetFast(ctx, on)
+	return m.apply(ctx, id, store.SessionUpdate{Fast: &on}, func(r harness.Run) error { return r.SetFast(ctx, on) })
 }
 
 // SetEffort changes how hard the harness thinks.
@@ -607,14 +589,26 @@ func (m *Manager) SetEffort(ctx context.Context, id proto.SessionID, effort prot
 	if !caps.HasEffort(effort) {
 		return harness.ErrUnsupported
 	}
-	if _, err := m.cfg.Store.UpdateSession(ctx, id, store.SessionUpdate{Effort: &effort}); err != nil {
+	return m.apply(ctx, id, store.SessionUpdate{Effort: &effort}, func(r harness.Run) error { return r.SetEffort(ctx, effort) })
+}
+
+// apply stores a setting and, when the harness runs, hands it over. It
+// holds the session lock, which starting a harness also holds: a harness
+// starting meanwhile either reads the new value or is running by the time
+// it is handed over, so the store never claims a setting the harness lacks.
+// The store is written first: if handing over fails, the error says so and
+// the stored value applies when the harness next starts.
+func (m *Manager) apply(ctx context.Context, id proto.SessionID, u store.SessionUpdate, hand func(harness.Run) error) error {
+	unlock := m.lockSession(id)
+	defer unlock()
+	if _, err := m.cfg.Store.UpdateSession(ctx, id, u); err != nil {
 		return err
 	}
 	l, err := m.attached(id)
 	if err != nil {
-		return nil // not running: the stored setting applies at the next start
+		return nil // not running: the stored value applies at the next start
 	}
-	return l.run.SetEffort(ctx, effort)
+	return hand(l.run)
 }
 
 // capabilities probes the harness of a session.
@@ -725,6 +719,9 @@ func (m *Manager) startSpec(ctx context.Context, h harness.Harness, sess proto.S
 		return harness.Spec{}, fmt.Errorf("%w: %s %s", ErrUnsupportedVersion, sess.Harness.Kind, info.Version)
 	}
 	spec := m.specFor(sess, false)
+	// The harness may have changed since the mode was stored (an upgrade,
+	// a downgrade); it gets the nearest mode it has now.
+	spec.Mode = info.Capabilities.Fallback(spec.Mode)
 	if !info.Capabilities.Resume {
 		spec.Resume = "" // the harness can't resume; start fresh
 	}

@@ -97,6 +97,16 @@ func TestSessionPlanAndEffort(t *testing.T) {
 	}
 }
 
+func TestModeChangedOutsideATurn(t *testing.T) {
+	s := newStore(t)
+	newSession(t, s, "s")
+	appendOK(t, s, AppendRequest{Session: "s", Entries: []Entry{{Payload: proto.ModeChanged{Permission: proto.ModeFullAuto, Plan: true}}}})
+	got, err := s.Session(context.Background(), "s")
+	if err != nil || got.Permission != proto.ModeFullAuto || !got.Plan {
+		t.Fatalf("after a change between turns %+v %v", got, err)
+	}
+}
+
 func TestModeChangedUpdatesTheSession(t *testing.T) {
 	ctx := context.Background()
 	s := newStore(t)

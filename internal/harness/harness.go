@@ -73,8 +73,10 @@ type Spec struct {
 	// "inherit".
 	Env  []string
 	Mode proto.PermissionMode
-	// Plan starts the session in plan mode; Fast in fast mode; Effort is
-	// the thinking effort, empty for the harness default.
+	// Plan starts the session in plan mode, with Mode as the permission mode
+	// to restore when plan mode ends; Fast in fast mode; Effort is the
+	// thinking effort, empty for the harness default. Mode is always one of
+	// the harness's Capabilities.Modes.
 	Plan      bool
 	Fast      bool
 	Effort    proto.Effort
@@ -169,7 +171,9 @@ type Launch struct {
 	Dir     string
 }
 
-// Harness is one kind of harness.
+// Harness is one kind of harness. The daemon calls Probe often (every
+// session creation and setting change), so adapters cache its result when
+// probing is expensive.
 type Harness interface {
 	Kind() string
 	Probe(ctx context.Context) (Info, error)
@@ -205,6 +209,10 @@ type Run interface {
 	Interrupt(ctx context.Context) error
 	Respond(ctx context.Context, approvalID, optionID string) error
 	Answer(ctx context.Context, questionID, answer string) error
+	// SetMode changes the permission mode. While plan mode is on it only
+	// changes the mode the adapter restores when plan mode ends: it never
+	// takes the harness out of plan mode. Leaving plan mode is SetPlan(false)
+	// or the harness's own decision, reported as proto.ModeChanged.
 	SetMode(ctx context.Context, mode proto.PermissionMode) error
 	// SetPlan turns plan mode on or off; turning it off restores the
 	// session's permission mode, which the adapter remembers from Spec.Mode

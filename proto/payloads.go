@@ -199,7 +199,10 @@ type Error struct {
 
 // ModeChanged records the harness changing the session's permission mode
 // or plan mode by itself, as when the user approves a plan and the harness
-// leaves plan mode. The store applies it to the session record.
+// leaves plan mode. The store applies it to the session record. Permission
+// is the mode the harness actually runs. Changes the user makes through
+// Hoplet are not events: they change the session record directly, so the
+// event log alone does not hold the history of a session's modes.
 type ModeChanged struct {
 	Permission PermissionMode `json:"permission"`
 	Plan       bool           `json:"plan"`

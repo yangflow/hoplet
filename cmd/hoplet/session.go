@@ -41,7 +41,8 @@ freely, ask before commands), auto_review (the harness asks only for risky
 actions), full_auto (never ask). A harness lacking a mode runs the nearest
 stricter one. Plan mode stops all changes until you approve a plan. Fast
 mode gives faster output at a higher cost. Effort levels: low, medium, high,
-xhigh, max, ultra; each harness offers a subset.
+xhigh, max, ultra; each harness offers a subset. set applies its changes in
+the order permission, plan, fast, effort and stops at the first that fails.
 `
 
 // commandTimeout bounds one request of a command that does not follow a
@@ -510,11 +511,19 @@ func (a app) sessionSet(args []string) int {
 	if code, ok := parse(fs, args, 1, 1); !ok {
 		return code
 	}
-	for name, v := range map[string]string{"plan": *plan, "fast": *fast} {
-		if v != "" && v != "on" && v != "off" {
-			fmt.Fprintf(a.stderr, "hoplet session set: --%s %q: want on or off\n", name, v)
+	for _, f := range []struct{ name, value string }{{"plan", *plan}, {"fast", *fast}} {
+		if f.value != "" && f.value != "on" && f.value != "off" {
+			fmt.Fprintf(a.stderr, "hoplet session set: --%s %q: want on or off\n", f.name, f.value)
 			return 2
 		}
+	}
+	if *perm != "" && !proto.PermissionMode(*perm).Valid() {
+		fmt.Fprintf(a.stderr, "hoplet session set: --permission %q: want confirm, auto_edit, auto_review or full_auto\n", *perm)
+		return 2
+	}
+	if *effort != "" && !proto.Effort(*effort).Valid() {
+		fmt.Fprintf(a.stderr, "hoplet session set: --effort %q: want low, medium, high, xhigh, max or ultra\n", *effort)
+		return 2
 	}
 	if *perm == "" && *plan == "" && *fast == "" && *effort == "" {
 		fmt.Fprintln(a.stderr, "hoplet session set: nothing to change; give --permission, --plan, --fast or --effort")
