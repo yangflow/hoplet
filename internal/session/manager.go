@@ -4,14 +4,23 @@
 // shim's spool offset in the same transaction), and reattaches to running
 // shims after the daemon restarts.
 //
-// Two properties of recovery are accepted on purpose, because the alternative
+// Catching up after an attach waits for the shim's spool to be consumed up to
+// its size at that moment. While a long line is half way at the tail of the
+// spool, the consumed offset stays behind it, so sends are refused until the
+// line completes or a start or exit record flushes it.
+//
+// Three properties of recovery are accepted on purpose, because the alternative
 // is losing events. After a shim crashed without writing its exit record, a
 // respawned shim in the same directory starts a new process, but the daemon
 // still resumes from its committed offset, so it replays the unacknowledged
 // tail of the old spool before any new output. And a line longer than
 // harness.MaxLine is delivered in several pieces that commit their offset
 // only at the record's final piece: after a restart in the middle of such a
-// line, the entries earlier pieces produced can appear again.
+// line, the entries earlier pieces produced can appear again. Likewise, while
+// a long stderr or stdin line spans records, the committed offset stays at its
+// start, so a replay can repeat the stdout turn events recorded in between;
+// ingestion closes the duplicated turn as failed rather than dropping any
+// event.
 package session
 
 import (
@@ -977,8 +986,9 @@ func (m *Manager) reattach(id proto.SessionID, delay time.Duration, note string)
 			return
 		}
 		if permanentAttachError(err) {
-			// Retrying cannot help; leave the turn as it is and say why.
-			if !m.isClosing() {
+			// Retrying cannot help; leave the turn as it is and say why, unless
+			// this streak's failure is already on record.
+			if !recorded && !m.isClosing() {
 				m.recordAttachError(m.ctx, id, err)
 			}
 			return

@@ -805,3 +805,54 @@ func TestPermanentAttachErrors(t *testing.T) {
 		}
 	}
 }
+
+// seqAttach fails its Attach calls with the given errors, in order.
+type seqAttach struct {
+	*fake.Harness
+	mu   sync.Mutex
+	errs []error
+}
+
+func (s *seqAttach) Attach(ctx context.Context, spec harness.Spec, io harness.Stdio) (harness.Run, error) {
+	s.mu.Lock()
+	if len(s.errs) > 0 {
+		err := s.errs[0]
+		s.errs = s.errs[1:]
+		s.mu.Unlock()
+		return nil, err
+	}
+	s.mu.Unlock()
+	return s.Harness.Attach(ctx, spec, io)
+}
+
+func TestStreakThatEndsPermanentRecordsOneError(t *testing.T) {
+	e := newEnv(t, approvalScript)
+	h := &seqAttach{Harness: &fake.Harness{Binary: fakeExe, Script: e.script}}
+	m := e.managerWith(map[string]harness.Harness{"fake": h})
+	defer m.Close()
+	sess := e.create(m)
+	ctx := context.Background()
+	if _, err := m.Send(ctx, sess.ID, "go", "k1"); err != nil {
+		t.Fatal(err)
+	}
+	e.waitFor(sess.ID, "approval", func(evs []proto.Event) bool { return count(evs, proto.TypeApprovalRequest) == 1 })
+	h.mu.Lock()
+	h.errs = []error{errors.New("glitch"), fmt.Errorf("gone: %w", ErrUnknownHarness)}
+	h.mu.Unlock()
+	c, err := shim.Dial(ctx, m.dir(sess.ID), 0) // the reattach fails transiently, then for good
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	done := make(chan struct{})
+	go func() { m.wg.Wait(); close(done) }()
+	select {
+	case <-done:
+	case <-time.After(15 * time.Second):
+		t.Fatal("the reattacher did not stop")
+	}
+	evs, _ := e.store.Events(ctx, sess.ID, 0, 1000)
+	if n := count(evs, proto.TypeError); n != 1 {
+		t.Fatalf("%d attach errors recorded for one streak: %s", n, describe(evs))
+	}
+}

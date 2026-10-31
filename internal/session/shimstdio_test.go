@@ -273,3 +273,33 @@ func TestStartRecordFlushesIncompleteLinesFirst(t *testing.T) {
 		t.Fatalf("new line %+v", got[2])
 	}
 }
+
+// TestExactMultipleOfMaxLineStaysOpen: after a MaxLine piece leaves nothing
+// buffered the line is still open, so an interleaved record stays capped.
+func TestExactMultipleOfMaxLineStaysOpen(t *testing.T) {
+	chunk := bytes.Repeat([]byte("x"), shim.ChunkSize)
+	n := harness.MaxLine / shim.ChunkSize
+	var recs []fedRecord
+	for i := range n {
+		recs = append(recs, fedRecord{shim.Record{Kind: shim.KindStdout, B: chunk, More: true}, int64(100 + i)})
+	}
+	recs = append(recs,
+		fedRecord{shim.Record{Kind: shim.KindStdin, Data: "in"}, 200}, // line open, nothing buffered
+		fedRecord{shim.Record{Kind: shim.KindStdout, Data: "end"}, 300},
+	)
+	s := newShimStdio(nil, feed(recs...), 99) // the line began at 99
+	defer s.Close()
+	got := collect(t, s)
+	if len(got) != 3 {
+		t.Fatalf("%d lines", len(got))
+	}
+	if len(got[0].Data) != harness.MaxLine || got[0].Offset != 0 {
+		t.Fatalf("full piece: %d bytes, offset %d", len(got[0].Data), got[0].Offset)
+	}
+	if got[1].Kind != harness.Stdin || got[1].Offset != 99 {
+		t.Fatalf("interleaved record %+v: its offset must stay at the line's start", got[1])
+	}
+	if string(got[2].Data) != "end" || got[2].Offset != 300 {
+		t.Fatalf("last piece %+v", got[2])
+	}
+}

@@ -118,6 +118,9 @@ func (a *assembler) drop(k shim.RecordKind) {
 func (a *assembler) flush() []harness.Line {
 	var out []harness.Line
 	for _, k := range a.order {
+		if len(a.partial[k]) == 0 {
+			continue // everything of it was already delivered in full pieces
+		}
 		kind, _ := lineKind(k)
 		out = append(out, harness.Line{Kind: kind, Data: a.partial[k]})
 	}
@@ -158,10 +161,8 @@ func (a *assembler) add(rec shim.Record, off int64) []harness.Line {
 		buf = buf[harness.MaxLine:]
 	}
 	if rec.More {
-		if len(buf) == 0 {
-			a.drop(rec.Kind)
-			return out
-		}
+		// The line stays open even with nothing buffered (an exact multiple
+		// of MaxLine so far): its begin offset keeps capping the offsets.
 		if _, had := a.partial[rec.Kind]; !had {
 			a.begin[rec.Kind] = start
 			a.order = append(a.order, rec.Kind)
