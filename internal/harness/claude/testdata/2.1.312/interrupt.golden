@@ -1,0 +1,44 @@
+write {"type":"user","message":{"role":"user","content":"Write the numbers from 1 to 300 as English words, one per line. No tools."}}
+native 65693637-8afd-44bc-9d13-acd55b4eee60 proto.TurnStarted {}
+write {"type":"control_request","request_id":"hoplet-x-1","request":{"subtype":"interrupt"}}
+proto.MessageDelta {"message_id":"msg_011CgaQnn1phsCdNHtqtbLrB/1","text":"以"}
+proto.MessageDelta {"message_id":"msg_011CgaQnn1phsCdNHtqtbLrB/1","text":"下是 "}
+proto.MessageDelta {"message_id":"msg_011CgaQnn1phsCdNHtqtbLrB/1","text":"1 到 300 的英"}
+proto.MessageDelta {"message_id":"msg_011CgaQnn1phsCdNHtqtbLrB/1","text":"文写"}
+proto.MessageDelta {"message_id":"msg_011CgaQnn1phsCdNHtqtbLrB/1","text":"法：\n\none\ntwo\nthree"}
+proto.MessageDelta {"message_id":"msg_011CgaQnn1phsCdNHtqtbLrB/1","text":"\nfour\nfive\nsix\nse"}
+proto.MessageDelta {"message_id":"msg_011CgaQnn1phsCdNHtqtbLrB/1","text":"ven\neight\nnine"}
+proto.MessageDelta {"message_id":"msg_011CgaQnn1phsCdNHtqtbLrB/1","text":"\nten\neleven\ntw"}
+proto.MessageDelta {"message_id":"msg_011CgaQnn1phsCdNHtqtbLrB/1","text":"elve\nthirteen"}
+proto.MessageDelta {"message_id":"msg_011CgaQnn1phsCdNHtqtbLrB/1","text":"\nfourteen\nfifte"}
+proto.MessageDelta {"message_id":"msg_011CgaQnn1phsCdNHtqtbLrB/1","text":"en\nsixteen\nse"}
+proto.MessageDelta {"message_id":"msg_011CgaQnn1phsCdNHtqtbLrB/1","text":"venteen\neighteen"}
+proto.MessageDelta {"message_id":"msg_011CgaQnn1phsCdNHtqtbLrB/1","text":"\nnineteen\ntwen"}
+proto.MessageDelta {"message_id":"msg_011CgaQnn1phsCdNHtqtbLrB/1","text":"ty\ntwenty-one"}
+proto.MessageDelta {"message_id":"msg_011CgaQnn1phsCdNHtqtbLrB/1","text":"\ntwenty-two\ntwen"}
+proto.MessageDelta {"message_id":"msg_011CgaQnn1phsCdNHtqtbLrB/1","text":"ty-three\ntwenty-"}
+proto.MessageDelta {"message_id":"msg_011CgaQnn1phsCdNHtqtbLrB/1","text":"four\ntwenty-five"}
+proto.MessageDelta {"message_id":"msg_011CgaQnn1phsCdNHtqtbLrB/1","text":"\ntwenty-six\ntwen"}
+proto.MessageDelta {"message_id":"msg_011CgaQnn1phsCdNHtqtbLrB/1","text":"ty-seven\ntwenty"}
+proto.MessageDelta {"message_id":"msg_011CgaQnn1phsCdNHtqtbLrB/1","text":"-eight\ntwenty-"}
+proto.MessageDelta {"message_id":"msg_011CgaQnn1phsCdNHtqtbLrB/1","text":"nine\nth"}
+proto.MessageDelta {"message_id":"msg_011CgaQnn1phsCdNHtqtbLrB/1","text":"irty\nthirty-one"}
+proto.MessageDelta {"message_id":"msg_011CgaQnn1phsCdNHtqtbLrB/1","text":"\nthirty-two\nth"}
+proto.MessageDelta {"message_id":"msg_011CgaQnn1phsCdNHtqtbLrB/1","text":"irty-three\nthirty"}
+proto.MessageDelta {"message_id":"msg_011CgaQnn1phsCdNHtqtbLrB/1","text":"-four\nthirty-five"}
+proto.MessageDelta {"message_id":"msg_011CgaQnn1phsCdNHtqtbLrB/1","text":"\nthirty-six\nth"}
+proto.MessageDelta {"message_id":"msg_011CgaQnn1phsCdNHtqtbLrB/1","text":"irty-seven\nthir"}
+proto.MessageDelta {"message_id":"msg_011CgaQnn1phsCdNHtqtbLrB/1","text":"ty-eight\nthirty"}
+proto.MessageDelta {"message_id":"msg_011CgaQnn1phsCdNHtqtbLrB/1","text":"-nine\nforty\nfor"}
+proto.MessageDelta {"message_id":"msg_011CgaQnn1phsCdNHtqtbLrB/1","text":"ty-one\nforty-two"}
+proto.MessageDelta {"message_id":"msg_011CgaQnn1phsCdNHtqtbLrB/1","text":"\nforty-three\nforty"}
+proto.MessageDelta {"message_id":"msg_011CgaQnn1phsCdNHtqtbLrB/1","text":"-four\nforty-five"}
+proto.MessageDelta {"message_id":"msg_011CgaQnn1phsCdNHtqtbLrB/1","text":"\nforty-six\nforty-"}
+proto.Message {"id":"msg_011CgaQnn1phsCdNHtqtbLrB/1","role":"assistant","text":"以下是 1 到 300 的英文写法：\n\none\ntwo\nthree\nfour\nfive\nsix\nseven\neight\nnine\nten\neleven\ntwelve\nthirteen\nfourteen\nfifteen\nsixteen\nseventeen\neighteen\nnineteen\ntwenty\ntwenty-one\ntwenty-two\ntwenty-three\ntwenty-four\ntwenty-five\ntwenty-six\ntwenty-seven\ntwenty-eight\ntwenty-nine\nthirty\nthirty-one\nthirty-two\nthirty-three\nthirty-four\nthirty-five\nthirty-six\nthirty-seven\nthirty-eight\nthirty-nine\nforty\nforty-one\nforty-two\nforty-three\nforty-four\nforty-five\nforty-six\nforty-"}
+proto.TurnEnded {"reason":"interrupted"}
+write {"type":"user","message":{"role":"user","content":"Reply with exactly the word: after"}}
+native 65693637-8afd-44bc-9d13-acd55b4eee60 proto.TurnStarted {}
+proto.MessageDelta {"message_id":"msg_011CgaQoCG6pGQ4NrWRNg1qD/0","text":"after"}
+proto.Message {"id":"msg_011CgaQoCG6pGQ4NrWRNg1qD/0","role":"assistant","text":"after"}
+proto.Usage {"input_tokens":22288,"output_tokens":3}
+proto.TurnEnded {"reason":"completed"}

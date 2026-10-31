@@ -1,0 +1,7 @@
+write {"type":"user","message":{"role":"user","content":"What file did you create earlier in this conversation? Answer with its file name only."}}
+native 5447e5d2-1317-413a-aa1c-151a5ec48a03 proto.TurnStarted {}
+proto.MessageDelta {"message_id":"msg_011CgaQyrD9KLWCFGCD7EDZD/0","text":"h"}
+proto.MessageDelta {"message_id":"msg_011CgaQyrD9KLWCFGCD7EDZD/0","text":"ello.txt"}
+proto.Message {"id":"msg_011CgaQyrD9KLWCFGCD7EDZD/0","role":"assistant","text":"hello.txt"}
+proto.Usage {"input_tokens":25169,"output_tokens":7}
+proto.TurnEnded {"reason":"completed"}
