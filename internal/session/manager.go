@@ -58,6 +58,9 @@ var (
 	// ErrInvalidOption is returned by Respond for an option the approval does
 	// not offer.
 	ErrInvalidOption = errors.New("session: not an option of the approval")
+	// ErrArchived is returned for an operation that needs the harness of an
+	// archived session.
+	ErrArchived = errors.New("session: archived")
 
 	// errNoShim says nothing listens on the session's shim socket.
 	errNoShim = errors.New("session: no shim is running")
@@ -535,7 +538,7 @@ func (m *Manager) ensure(ctx context.Context, id proto.SessionID) (*live, error)
 		return nil, err
 	}
 	if sess.ArchivedAt != nil {
-		return nil, fmt.Errorf("session: %s is archived", id)
+		return nil, fmt.Errorf("%w: %s", ErrArchived, id)
 	}
 	l, err := m.attach(ctx, sess, false, "")
 	if err == nil {

@@ -117,7 +117,11 @@ func TestKill9MidTurnResumes(t *testing.T) {
 		t.Fatal(err)
 	}
 	_ = first.Wait()
-	<-c.Done()
+	select {
+	case <-c.Done():
+	case <-time.After(15 * time.Second):
+		t.Fatal("the client did not notice the daemon's death")
+	}
 	seen := w.events
 
 	startHelper(t, home, script)

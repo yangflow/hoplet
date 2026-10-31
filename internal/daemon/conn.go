@@ -15,9 +15,6 @@ import (
 	"github.com/yangflow/hoplet/proto"
 )
 
-// helloTimeout bounds how long a connection may stay without a hello.
-const helloTimeout = 10 * time.Second
-
 var (
 	errSlow    = errors.New("daemon: client is too slow")
 	errNoHello = errors.New("daemon: no hello in time")
@@ -35,7 +32,7 @@ type conn struct {
 
 	outMu    sync.Mutex
 	out      [][]byte // frames waiting for the writer
-	outBytes int64    // bytes of out plus the frame being written
+	outBytes int64    // bytes of the frames waiting for the writer
 	outWake  chan struct{}
 
 	subMu sync.Mutex
@@ -62,7 +59,7 @@ func (c *conn) serve() {
 		defer bg.Done()
 		c.heartbeat()
 	}()
-	timer := time.AfterFunc(helloTimeout, func() {
+	timer := time.AfterFunc(c.s.lim.hello, func() {
 		if !c.authed.Load() {
 			c.fail(errNoHello)
 		}
@@ -95,6 +92,18 @@ func (c *conn) read() {
 			c.fail(fmt.Errorf("daemon: bad frame: %w", err))
 			return
 		}
+		if !c.authed.Load() {
+			if f.Cancel || f.ID == 0 || f.Method == "" {
+				f.Method = "" // refused as a request that is not a hello
+				if f.ID == 0 {
+					f.ID = 1
+				}
+			}
+			if !c.hello(f) {
+				return
+			}
+			continue
+		}
 		if f.Cancel {
 			c.cancelSub(f.Sub)
 			continue
@@ -103,15 +112,22 @@ func (c *conn) read() {
 			c.fail(errors.New("daemon: a request needs an id and a method"))
 			return
 		}
-		if !c.authed.Load() {
-			if !c.hello(f) {
-				return
+		var sub *subscription
+		if f.Method == proto.MethodSubscribeCatalog || f.Method == proto.MethodSubscribeSession {
+			// Registered here, not in the handler: a cancel that follows
+			// this frame must find the subscription.
+			if sub = c.register(f.ID); sub == nil {
+				c.respond(f.ID, nil, &proto.APIError{Code: proto.CodeBadRequest, Message: "a subscription with this id is open"})
+				continue
 			}
-			continue
 		}
 		c.work.Add(1)
 		go func() {
 			defer c.work.Done()
+			if sub != nil {
+				c.subscribe(f, sub)
+				return
+			}
 			c.handle(f)
 		}()
 	}
@@ -161,13 +177,8 @@ func decode(f proto.ClientFrame, v any) error {
 
 // handle answers one request.
 func (c *conn) handle(f proto.ClientFrame) {
-	switch f.Method {
-	case proto.MethodSubscribeCatalog, proto.MethodSubscribeSession:
-		c.subscribe(f)
-	default:
-		res, err := c.call(c.ctx, f)
-		c.respond(f.ID, res, err)
-	}
+	res, err := c.call(c.ctx, f)
+	c.respond(f.ID, res, err)
 }
 
 // respond queues the response to request id.
@@ -201,8 +212,8 @@ func (c *conn) send(f proto.ServerFrame) {
 		return
 	}
 	c.outMu.Lock()
-	// A frame alone always goes out, however large; frames piling up behind
-	// it mean the client does not keep up.
+	// A frame alone always goes out, however large; frames waiting for the
+	// writer beyond the limit mean the client does not keep up.
 	if c.outBytes > 0 && c.outBytes+int64(len(b)) > c.s.lim.outbound {
 		c.outMu.Unlock()
 		c.fail(errSlow)
@@ -233,12 +244,9 @@ func (c *conn) write() {
 		b := c.out[0]
 		c.out[0] = nil
 		c.out = c.out[1:]
-		c.outMu.Unlock()
-		err := c.ws.Write(c.ctx, websocket.MessageText, b)
-		c.outMu.Lock()
 		c.outBytes -= int64(len(b))
 		c.outMu.Unlock()
-		if err != nil {
+		if err := c.ws.Write(c.ctx, websocket.MessageText, b); err != nil {
 			c.cancel(err)
 			return
 		}
@@ -267,19 +275,31 @@ func (c *conn) heartbeat() {
 	}
 }
 
-// subscribe runs a subscription until it ends, the client cancels it or the
-// connection ends. The response to the request comes first; items follow.
-func (c *conn) subscribe(f proto.ClientFrame) {
-	ctx, cancel := context.WithCancel(c.ctx)
-	defer cancel()
+// subscription is an open subscription's context.
+type subscription struct {
+	ctx    context.Context
+	cancel context.CancelFunc
+}
+
+// register opens the subscription with the given id; it returns nil when the
+// id is in use.
+func (c *conn) register(id uint64) *subscription {
 	c.subMu.Lock()
-	if _, dup := c.subs[f.ID]; dup {
-		c.subMu.Unlock()
-		c.respond(f.ID, nil, &proto.APIError{Code: proto.CodeBadRequest, Message: "a subscription with this id is open"})
-		return
+	defer c.subMu.Unlock()
+	if _, dup := c.subs[id]; dup {
+		return nil
 	}
-	c.subs[f.ID] = cancel
-	c.subMu.Unlock()
+	ctx, cancel := context.WithCancel(c.ctx)
+	c.subs[id] = cancel
+	return &subscription{ctx: ctx, cancel: cancel}
+}
+
+// subscribe runs a registered subscription until it ends, the client cancels
+// it or the connection ends. The response to the request comes first; items
+// follow.
+func (c *conn) subscribe(f proto.ClientFrame, sub *subscription) {
+	ctx := sub.ctx
+	defer sub.cancel()
 	defer func() {
 		c.subMu.Lock()
 		delete(c.subs, f.ID)

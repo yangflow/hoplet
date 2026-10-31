@@ -9,6 +9,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/coder/websocket"
 
@@ -134,8 +135,162 @@ func TestHelloIsRequiredAndChecked(t *testing.T) {
 	if _, err := rawDial(t, h, http.Header{"Origin": {"https://example.com"}}); err == nil {
 		t.Fatal("a handshake with an Origin header was accepted")
 	}
-	if _, err := client.Dial(timeout(t), client.Options{Socket: home.Socket(h), Token: tok, DeviceID: "d"}); err != nil {
+	cl, err := client.Dial(timeout(t), client.Options{Socket: home.Socket(h), Token: tok, DeviceID: "d"})
+	if err != nil {
 		t.Fatalf("client dial: %v", err)
+	}
+	cl.Close()
+}
+
+// rawWrite writes a frame without reading anything back.
+func rawWrite(t *testing.T, ws *websocket.Conn, f proto.ClientFrame) {
+	t.Helper()
+	b, _ := json.Marshal(f)
+	if err := ws.Write(timeout(t), websocket.MessageText, b); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func rawRead(t *testing.T, ws *websocket.Conn) proto.ServerFrame {
+	t.Helper()
+	_, data, err := ws.Read(timeout(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var f proto.ServerFrame
+	if err := json.Unmarshal(data, &f); err != nil {
+		t.Fatal(err)
+	}
+	return f
+}
+
+func rawHello(t *testing.T, h string) *websocket.Conn {
+	t.Helper()
+	tok, err := home.ReadToken(h)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ws, err := rawDial(t, h, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if f := rawCall(t, ws, 1, proto.MethodHello, proto.HelloParams{ProtocolMajor: proto.ProtocolMajor, DeviceID: "raw", Token: tok}); f.Error != nil {
+		t.Fatal(f.Error)
+	}
+	return ws
+}
+
+func TestCancelRightAfterSubscribeEndsTheSubscription(t *testing.T) {
+	h, script := newHome(t, echoScript)
+	start(t, testConfig(h, script))
+	ws := rawHello(t, h)
+	b, _ := json.Marshal(proto.CatalogParams{})
+	rawWrite(t, ws, proto.ClientFrame{ID: 7, Method: proto.MethodSubscribeCatalog, Params: b})
+	rawWrite(t, ws, proto.ClientFrame{Cancel: true, Sub: 7})
+	if f := rawRead(t, ws); f.ID != 7 || f.Error != nil || f.Result == nil {
+		t.Fatalf("response %+v", f)
+	}
+	for {
+		f := rawRead(t, ws)
+		if f.Sub != 7 {
+			t.Fatalf("unexpected frame %+v", f)
+		}
+		if f.End {
+			if f.Error != nil {
+				t.Fatalf("end with error %+v", f.Error)
+			}
+			return
+		}
+	}
+}
+
+func TestCancelBeforeHelloClosesTheConnection(t *testing.T) {
+	h, script := newHome(t, echoScript)
+	start(t, testConfig(h, script))
+	ws, err := rawDial(t, h, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rawWrite(t, ws, proto.ClientFrame{Cancel: true, Sub: 1})
+	for {
+		if _, _, err := ws.Read(timeout(t)); err != nil {
+			if errors.Is(err, context.DeadlineExceeded) {
+				t.Fatal("the connection stayed open")
+			}
+			return
+		}
+	}
+}
+
+func TestSilentConnectionIsClosed(t *testing.T) {
+	h, script := newHome(t, echoScript)
+	cfg := testConfig(h, script)
+	cfg.lim = limits{hello: 200 * time.Millisecond}
+	start(t, cfg)
+	ws, err := rawDial(t, h, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := ws.Read(timeout(t)); err == nil || errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("a connection that never said hello stayed open: %v", err)
+	}
+}
+
+func TestHomeIsTightenedTo0700(t *testing.T) {
+	h, script := newHome(t, echoScript)
+	if err := os.Chmod(h, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	start(t, testConfig(h, script))
+	fi, err := os.Stat(h)
+	if err != nil || fi.Mode().Perm() != 0o700 {
+		t.Fatalf("home mode %v %v", fi.Mode().Perm(), err)
+	}
+}
+
+func TestArchivedSessionRefusesSendsAsConflict(t *testing.T) {
+	h, script := newHome(t, echoScript)
+	start(t, testConfig(h, script))
+	c := dial(t, h, "device:a")
+	sess := create(t, c, h)
+	if err := c.Archive(timeout(t), sess.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.Send(timeout(t), proto.SendParams{Session: sess.ID, Text: "x", Key: "k"}); apiCode(err) != proto.CodeConflict {
+		t.Fatalf("send to an archived session: %v", err)
+	}
+}
+
+func TestQueuedMessageWithReceiptIsDequeuedNotResent(t *testing.T) {
+	h, script := newHome(t, echoScript)
+	d := start(t, testConfig(h, script))
+	c := dial(t, h, "device:a")
+	sess := create(t, c, h)
+	w := watch(t, c, sess.ID, 0)
+	if _, err := c.Send(timeout(t), proto.SendParams{Session: sess.ID, Text: "hi", Key: "k1"}); err != nil {
+		t.Fatal(err)
+	}
+	w.until(turnEnded(1))
+	// As if the daemon had died after the send and before the dequeue.
+	if _, _, err := d.store.Enqueue(timeout(t), sess.ID, "k1", "hi"); err != nil {
+		t.Fatal(err)
+	}
+	w.until(func(w *watcher) bool { return len(w.queue) == 0 })
+	users := 0
+	for _, ev := range w.events {
+		if ev.Type != proto.TypeMessage {
+			continue
+		}
+		p, err := ev.Decode()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if m := p.(proto.Message); m.Role == proto.RoleUser && m.Text == "hi" {
+			users++
+		}
+	}
+	if users != 1 || w.count(proto.TypeTurnStarted) != 1 {
+		t.Fatalf("%d user messages, %d turns:%s", users, w.count(proto.TypeTurnStarted), describe(w.events))
 	}
 }
 

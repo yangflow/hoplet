@@ -120,6 +120,39 @@ func scanQueued(r scanner) (proto.QueuedMessage, error) {
 	return m, nil
 }
 
+// QueueHead returns the next queued message and the key to send it under; ok
+// is false when the queue is empty. A message edited after it was queued is
+// sent under a new key (the key with the number of edits appended), so an
+// edit of a message whose send failed after being recorded becomes a new
+// message rather than a resend of the recorded one.
+func (s *Store) QueueHead(ctx context.Context, id proto.SessionID) (msg proto.QueuedMessage, sendKey string, ok bool, err error) {
+	err = s.readTx(ctx, func(tx *sql.Tx) error {
+		if err := requireSession(ctx, tx, id); err != nil {
+			return err
+		}
+		var created int64
+		var attempt int
+		err := tx.QueryRowContext(ctx, `SELECT key, text, position, created_at, error, attempt FROM queue
+			WHERE session_id = ? ORDER BY position LIMIT 1`, id).Scan(&msg.Key, &msg.Text, &msg.Position, &created, &msg.Error, &attempt)
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil
+		}
+		if err != nil {
+			return fmt.Errorf("store: read queue head: %w", err)
+		}
+		msg.CreatedAt = time.UnixMilli(created).UTC()
+		sendKey, ok = msg.Key, true
+		if attempt > 0 {
+			sendKey = fmt.Sprintf("%s#%d", msg.Key, attempt)
+		}
+		return nil
+	})
+	if err != nil {
+		return proto.QueuedMessage{}, "", false, err
+	}
+	return msg, sendKey, ok, nil
+}
+
 // QueuedSessions returns the sessions whose queue is not empty.
 func (s *Store) QueuedSessions(ctx context.Context) ([]proto.SessionID, error) {
 	rows, err := s.rdb.QueryContext(ctx, `SELECT DISTINCT session_id FROM queue ORDER BY session_id`)
@@ -141,10 +174,10 @@ func (s *Store) QueuedSessions(ctx context.Context) ([]proto.SessionID, error) {
 	return out, nil
 }
 
-// EditQueued replaces a queued message's text and clears its error. The
-// write is durable.
+// EditQueued replaces a queued message's text, clears its error and counts
+// the edit (see QueueHead). The write is durable.
 func (s *Store) EditQueued(ctx context.Context, id proto.SessionID, key, text string) error {
-	return s.updateQueued(ctx, id, key, `UPDATE queue SET text = ?, error = '' WHERE session_id = ? AND key = ?`, text, id, key)
+	return s.updateQueued(ctx, id, key, `UPDATE queue SET text = ?, error = '', attempt = attempt + 1 WHERE session_id = ? AND key = ?`, text, id, key)
 }
 
 // FailQueued records why a queued message could not be sent; the message

@@ -77,6 +77,9 @@ func Start(ctx context.Context, cfg Config) (d *Daemon, err error) {
 	if err := os.MkdirAll(cfg.Home, 0o700); err != nil {
 		return nil, fmt.Errorf("daemon: create home: %w", err)
 	}
+	if err := os.Chmod(cfg.Home, 0o700); err != nil {
+		return nil, fmt.Errorf("daemon: secure home: %w", err)
+	}
 	lock, err := takeLock(home.Lock(cfg.Home))
 	if err != nil {
 		return nil, err
@@ -121,7 +124,7 @@ func Start(ctx context.Context, cfg Config) (d *Daemon, err error) {
 
 	host, _ := os.Hostname()
 	runCtx, cancel := context.WithCancel(context.Background())
-	q := &queuer{store: st, mgr: mgr, log: log, locks: map[proto.SessionID]*sync.Mutex{}}
+	q := &queuer{store: st, mgr: mgr, log: log, locks: map[proto.SessionID]*sync.Mutex{}, waiting: map[proto.SessionID]bool{}}
 	srv := &server{
 		ctx: runCtx, store: st, mgr: mgr, queue: q, token: token,
 		host: host, version: cfg.Version, log: log, lim: cfg.lim.withDefaults(),

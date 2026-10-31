@@ -124,7 +124,7 @@ func apiError(err error) *proto.APIError {
 		code = proto.CodeNotFound
 	case errors.Is(err, store.ErrInvalid), errors.Is(err, session.ErrInvalidOption), errors.Is(err, session.ErrUnknownHarness):
 		code = proto.CodeInvalid
-	case errors.Is(err, store.ErrConflict), errors.Is(err, store.ErrExists):
+	case errors.Is(err, store.ErrConflict), errors.Is(err, store.ErrExists), errors.Is(err, session.ErrArchived):
 		code = proto.CodeConflict
 	case errors.Is(err, session.ErrBusy):
 		code = proto.CodeBusy

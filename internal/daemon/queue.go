@@ -21,18 +21,24 @@ type queuer struct {
 	mgr   *session.Manager
 	log   *slog.Logger
 
-	mu    sync.Mutex
-	locks map[proto.SessionID]*sync.Mutex
+	mu      sync.Mutex
+	locks   map[proto.SessionID]*sync.Mutex
+	waiting map[proto.SessionID]bool // sessions with a drain waiting for the lock
 }
 
-func (q *queuer) lock(id proto.SessionID) func() {
+func (q *queuer) sessionLock(id proto.SessionID) *sync.Mutex {
 	q.mu.Lock()
+	defer q.mu.Unlock()
 	l, ok := q.locks[id]
 	if !ok {
 		l = &sync.Mutex{}
 		q.locks[id] = l
 	}
-	q.mu.Unlock()
+	return l
+}
+
+func (q *queuer) lock(id proto.SessionID) func() {
+	l := q.sessionLock(id)
 	l.Lock()
 	return l.Unlock
 }
@@ -87,6 +93,8 @@ func (q *queuer) move(ctx context.Context, p proto.QueueMoveParams) error {
 // run sends queued messages until ctx ends, looking at the queues after
 // every store change: a turn ending is a change, and so is any queue edit.
 func (q *queuer) run(ctx context.Context) {
+	var wg sync.WaitGroup
+	defer wg.Wait()
 	for {
 		changes := q.store.Changes()
 		ids, err := q.store.QueuedSessions(ctx)
@@ -94,7 +102,11 @@ func (q *queuer) run(ctx context.Context) {
 			q.log.Error("list queued sessions", "err", err)
 		}
 		for _, id := range ids {
-			q.drain(ctx, id)
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				q.drain(ctx, id)
+			}()
 		}
 		select {
 		case <-ctx.Done():
@@ -106,17 +118,34 @@ func (q *queuer) run(ctx context.Context) {
 
 // drain sends the head of the session's queue if the session takes it. A
 // message whose send failed stays at the head with its error, holding the
-// queue, until the user edits, moves or deletes it.
+// queue, until the user edits, moves or deletes it. A session another drain
+// is working on is skipped, since that drain ends in a store write that
+// starts another pass; a session a command holds is waited for, because the
+// command's writes may already have been seen by a pass that skipped it.
 func (q *queuer) drain(ctx context.Context, id proto.SessionID) {
-	defer q.lock(id)()
-	msgs, err := q.store.Queue(ctx, id)
-	if err != nil || len(msgs) == 0 || msgs[0].Error != "" {
+	l := q.sessionLock(id)
+	if !l.TryLock() {
+		q.mu.Lock()
+		if q.waiting[id] {
+			q.mu.Unlock()
+			return
+		}
+		q.waiting[id] = true
+		q.mu.Unlock()
+		l.Lock()
+		q.mu.Lock()
+		delete(q.waiting, id)
+		q.mu.Unlock()
+	}
+	defer l.Unlock()
+	head, sendKey, ok, err := q.store.QueueHead(ctx, id)
+	if err != nil || !ok || head.Error != "" {
 		return
 	}
-	head := msgs[0]
 	// The key makes this safe to repeat: if the daemon dies after the send
-	// and before the delete, the next daemon's send finds the receipt.
-	_, err = q.mgr.Send(ctx, id, head.Text, head.Key)
+	// and before the delete, the next daemon's send finds the receipt. An
+	// edited message goes out under a new key, as a new message.
+	_, err = q.mgr.Send(ctx, id, head.Text, sendKey)
 	switch {
 	case ctx.Err() != nil:
 	case errors.Is(err, session.ErrBusy):

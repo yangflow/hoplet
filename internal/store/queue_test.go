@@ -245,3 +245,44 @@ func TestQueueSurvivesReopen(t *testing.T) {
 		t.Fatalf("after reopen: %+v", msgs)
 	}
 }
+
+func TestQueueHeadSendKeyChangesWithEdits(t *testing.T) {
+	ctx := context.Background()
+	s := newStore(t)
+	newSession(t, s, "s")
+	if _, _, ok, err := s.QueueHead(ctx, "s"); err != nil || ok {
+		t.Fatalf("head of an empty queue: ok %v, %v", ok, err)
+	}
+	enqueue(t, s, "s", "k", "other")
+	head := func() (string, string) {
+		m, sendKey, ok, err := s.QueueHead(ctx, "s")
+		if err != nil || !ok {
+			t.Fatalf("head: ok %v, %v", ok, err)
+		}
+		return m.Key, sendKey
+	}
+	if k, sk := head(); k != "k" || sk != "k" {
+		t.Fatalf("head %s sent as %s, want k as k", k, sk)
+	}
+	for range 2 {
+		if err := s.EditQueued(ctx, "s", "k", "again"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if k, sk := head(); k != "k" || sk != "k#2" {
+		t.Fatalf("edited head %s sent as %s, want k as k#2", k, sk)
+	}
+	// Moving does not change the attempt.
+	if err := s.MoveQueued(ctx, "s", "other", 0); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.MoveQueued(ctx, "s", "k", 0); err != nil {
+		t.Fatal(err)
+	}
+	if k, sk := head(); k != "k" || sk != "k#2" {
+		t.Fatalf("moved head %s sent as %s, want k as k#2", k, sk)
+	}
+	if _, _, _, err := s.QueueHead(ctx, "nope"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("head of an unknown session: %v", err)
+	}
+}
