@@ -10,3 +10,6 @@
 {"session":"s1","seq":10,"ts":"2026-10-31T08:00:09Z","turn":1,"type":"usage","v":1,"payload":{"input_tokens":10,"output_tokens":20}}
 {"session":"s1","seq":11,"ts":"2026-10-31T08:00:10Z","turn":1,"type":"error","v":1,"payload":{"message":"boom"}}
 {"session":"s1","seq":12,"ts":"2026-10-31T08:00:11Z","turn":1,"type":"turn.ended","v":1,"payload":{"reason":"completed"}}
+{"session":"s1","seq":13,"ts":"2026-10-31T08:00:12Z","turn":2,"type":"turn.ended","v":1,"payload":{"reason":"failed","message":"harness exited"}}
+{"session":"s1","seq":14,"ts":"2026-10-31T08:00:13Z","turn":3,"type":"approval.requested","v":1,"payload":{"id":"a2","kind":"tool","title":"Run tool","tool_call_id":"t1","options":[{"id":"deny","label":"Deny","scope":"deny"}]}}
+{"session":"s1","seq":15,"ts":"2026-10-31T08:00:14Z","turn":3,"type":"approval.resolved","v":1,"payload":{"id":"a2","outcome":"expired"}}

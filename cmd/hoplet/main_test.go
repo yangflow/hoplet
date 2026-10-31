@@ -26,6 +26,9 @@ func TestRun(t *testing.T) {
 			if out.String() != c.stdout {
 				t.Fatalf("stdout %q, want %q", out.String(), c.stdout)
 			}
+			if c.code == 0 && errb.Len() != 0 {
+				t.Fatalf("stderr %q, want empty", errb.String())
+			}
 			if !bytes.Contains(errb.Bytes(), []byte(c.inStderr)) {
 				t.Fatalf("stderr %q, want it to contain %q", errb.String(), c.inStderr)
 			}

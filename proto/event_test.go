@@ -84,8 +84,8 @@ func TestNewEventTruncatesToMillis(t *testing.T) {
 
 func TestRegisterLegacyUpgrades(t *testing.T) {
 	const legacy EventType = "test.legacy"
-	k := decoderKey{legacy, 1}
-	registerLegacy(legacy, 1, func(b json.RawMessage) (Payload, error) {
+	r := registry{}
+	r.add(decoderKey{legacy, 1}, func(b json.RawMessage) (Payload, error) {
 		var old struct {
 			Msg string `json:"msg"`
 		}
@@ -94,13 +94,39 @@ func TestRegisterLegacyUpgrades(t *testing.T) {
 		}
 		return Error{Message: old.Msg}, nil
 	})
-	defer delete(decoders, k)
 
-	got, err := Event{Type: legacy, V: 1, Payload: json.RawMessage(`{"msg":"old"}`)}.Decode()
+	got, err := r.decode(Event{Type: legacy, V: 1, Payload: json.RawMessage(`{"msg":"old"}`)})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if want := (Error{Message: "old"}); !reflect.DeepEqual(got, want) {
 		t.Fatalf("got %#v, want %#v", got, want)
+	}
+}
+
+func TestApprovalResolvedValidation(t *testing.T) {
+	cases := []struct {
+		name  string
+		p     ApprovalResolved
+		valid bool
+	}{
+		{"allowed", ApprovalResolved{ID: "a1", Outcome: OutcomeAllowed, OptionID: "once"}, true},
+		{"denied", ApprovalResolved{ID: "a1", Outcome: OutcomeDenied, OptionID: "deny"}, true},
+		{"expired", ApprovalResolved{ID: "a1", Outcome: OutcomeExpired}, true},
+		{"expired with option", ApprovalResolved{ID: "a1", Outcome: OutcomeExpired, OptionID: "once"}, false},
+		{"unknown outcome", ApprovalResolved{ID: "a1", Outcome: "maybe"}, false},
+		{"empty outcome", ApprovalResolved{ID: "a1"}, false},
+		{"no id", ApprovalResolved{Outcome: OutcomeAllowed}, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			_, err := NewEvent("s1", 1, 1, time.Now(), c.p)
+			if c.valid && err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if !c.valid && !errors.Is(err, ErrInvalidPayload) {
+				t.Fatalf("got %v, want ErrInvalidPayload", err)
+			}
+		})
 	}
 }

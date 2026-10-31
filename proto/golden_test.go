@@ -8,6 +8,7 @@ import (
 	"os"
 	"reflect"
 	"testing"
+	"time"
 )
 
 // TestGoldenEventsDecode keeps every persisted event version decodable:
@@ -45,6 +46,9 @@ func TestGoldenEventsDecode(t *testing.T) {
 		if err != nil {
 			t.Fatalf("event %d: %v", n, err)
 		}
+		if !re.Time.Equal(e.Time) {
+			t.Fatalf("event %d: ts %s does not survive; lines must be UTC with at most millisecond precision (re-encoded %s)", n, e.Time.Format(time.RFC3339Nano), re.Time.Format(time.RFC3339Nano))
+		}
 		var want, got any
 		if err := json.Unmarshal(e.Payload, &want); err != nil {
 			t.Fatalf("event %d: %v", n, err)
@@ -59,7 +63,7 @@ func TestGoldenEventsDecode(t *testing.T) {
 	if n == 0 {
 		t.Fatal("no golden events")
 	}
-	for k := range decoders {
+	for k := range defaultRegistry {
 		if !seen[k] {
 			t.Errorf("golden events have no line for %s v%d", k.t, k.v)
 		}

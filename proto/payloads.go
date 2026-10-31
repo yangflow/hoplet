@@ -1,5 +1,7 @@
 package proto
 
+import "fmt"
+
 // Event types. Each payload below documents its current version.
 const (
 	TypeTurnStarted      EventType = "turn.started"
@@ -146,11 +148,14 @@ type ApprovalOption struct {
 
 // ApprovalRequested asks for a decision the harness's permissions require.
 type ApprovalRequested struct {
-	ID      string           `json:"id"`
-	Kind    ApprovalKind     `json:"kind"`
-	Title   string           `json:"title"`
-	Detail  string           `json:"detail,omitempty"`
-	Options []ApprovalOption `json:"options,omitempty"`
+	ID     string       `json:"id"`
+	Kind   ApprovalKind `json:"kind"`
+	Title  string       `json:"title"`
+	Detail string       `json:"detail,omitempty"`
+	// ToolCallID is the ID of the ToolCall this approval gates, when the
+	// harness reports one.
+	ToolCallID string           `json:"tool_call_id,omitempty"`
+	Options    []ApprovalOption `json:"options,omitempty"`
 }
 
 // ApprovalOutcome is how an approval request ended.
@@ -189,6 +194,22 @@ type Usage struct {
 // Error reports a harness or adapter error that did not end the turn.
 type Error struct {
 	Message string `json:"message"`
+}
+
+func (r ApprovalResolved) validate() error {
+	switch r.Outcome {
+	case OutcomeAllowed, OutcomeDenied:
+	case OutcomeExpired:
+		if r.OptionID != "" {
+			return fmt.Errorf("%w: expired approval has option %q", ErrInvalidPayload, r.OptionID)
+		}
+	default:
+		return fmt.Errorf("%w: unknown approval outcome %q", ErrInvalidPayload, r.Outcome)
+	}
+	if r.ID == "" {
+		return fmt.Errorf("%w: approval has no ID", ErrInvalidPayload)
+	}
+	return nil
 }
 
 func (TurnStarted) eventType() EventType       { return TypeTurnStarted }

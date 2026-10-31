@@ -54,29 +54,60 @@ type decoderKey struct {
 // ErrNilPayload is returned by NewEvent when the payload is nil.
 var ErrNilPayload = errors.New("proto: nil payload")
 
-// decoders is written only during package init and read-only afterwards.
-var decoders = map[decoderKey]func(json.RawMessage) (Payload, error){}
+// ErrInvalidPayload is wrapped by errors NewEvent returns for payloads that
+// fail their own consistency checks.
+var ErrInvalidPayload = errors.New("proto: invalid payload")
 
-func addDecoder(k decoderKey, dec func(json.RawMessage) (Payload, error)) {
-	if _, dup := decoders[k]; dup {
+// validator is implemented by payloads that check their own consistency when
+// an event is constructed. Decode never validates: persisted events must
+// always decode.
+type validator interface {
+	validate() error
+}
+
+// registry maps an event type and version to its decoder.
+type registry map[decoderKey]func(json.RawMessage) (Payload, error)
+
+// add registers a decoder. It panics on a duplicate key, so it is for init
+// time only.
+func (r registry) add(k decoderKey, dec func(json.RawMessage) (Payload, error)) {
+	if _, dup := r[k]; dup {
 		panic(fmt.Sprintf("proto: duplicate decoder for %s v%d", k.t, k.v))
 	}
-	decoders[k] = dec
+	r[k] = dec
 }
+
+// decode returns e's payload through the registered decoder.
+func (r registry) decode(e Event) (Payload, error) {
+	dec, ok := r[decoderKey{e.Type, e.V}]
+	if !ok {
+		return nil, fmt.Errorf("%w: %s v%d", ErrUnknownEvent, e.Type, e.V)
+	}
+	p, err := dec(e.Payload)
+	if err != nil {
+		return nil, fmt.Errorf("proto: decode %s v%d: %w", e.Type, e.V, err)
+	}
+	return p, nil
+}
+
+// defaultRegistry is written only during package init and read-only afterwards.
+var defaultRegistry = registry{}
 
 // registerLegacy registers a decoder for an older version of an event type.
 // upgrade converts the raw payload of that version to the current payload
 // type, so Decode always returns the current type. Init-time only; it panics
 // on a duplicate key.
+//
+//nolint:unused // no legacy versions exist yet
 func registerLegacy(t EventType, v uint16, upgrade func(json.RawMessage) (Payload, error)) {
-	addDecoder(decoderKey{t, v}, upgrade)
+	defaultRegistry.add(decoderKey{t, v}, upgrade)
 }
 
 // register makes payload type P decodable at its current version.
 func register[P Payload]() {
 	var zero P
 	k := decoderKey{zero.eventType(), zero.eventVersion()}
-	addDecoder(k, func(b json.RawMessage) (Payload, error) {
+	defaultRegistry.add(k, func(b json.RawMessage) (Payload, error) {
 		var p P
 		if err := json.Unmarshal(b, &p); err != nil {
 			return nil, err
@@ -89,6 +120,11 @@ func register[P Payload]() {
 func NewEvent(session SessionID, seq uint64, turn uint32, t time.Time, p Payload) (Event, error) {
 	if p == nil {
 		return Event{}, ErrNilPayload
+	}
+	if v, ok := p.(validator); ok {
+		if err := v.validate(); err != nil {
+			return Event{}, fmt.Errorf("proto: %s: %w", p.eventType(), err)
+		}
 	}
 	b, err := json.Marshal(p)
 	if err != nil {
@@ -107,13 +143,5 @@ func NewEvent(session SessionID, seq uint64, turn uint32, t time.Time, p Payload
 
 // Decode returns the event's payload as its registered Go type.
 func (e Event) Decode() (Payload, error) {
-	dec, ok := decoders[decoderKey{e.Type, e.V}]
-	if !ok {
-		return nil, fmt.Errorf("%w: %s v%d", ErrUnknownEvent, e.Type, e.V)
-	}
-	p, err := dec(e.Payload)
-	if err != nil {
-		return nil, fmt.Errorf("proto: decode %s v%d: %w", e.Type, e.V, err)
-	}
-	return p, nil
+	return defaultRegistry.decode(e)
 }
