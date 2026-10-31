@@ -2,7 +2,7 @@ write {"type":"user","message":{"role":"user","content":"Use the Write tool to c
 native ef235bce-500f-4d4a-a60e-a8b919ef291a proto.TurnStarted {}
 proto.ToolCall {"id":"toolu_01T2rRDqpoPACfzv8pzmkmad","kind":"edit","name":"Write","summary":"/work/bare.txt","status":"running"}
 proto.ApprovalRequested {"id":"5a5f4b07-68b6-4acb-8d36-42045057bfd4","kind":"file_change","title":"Write /work/bare.txt","detail":"bare.txt","tool_call_id":"toolu_01T2rRDqpoPACfzv8pzmkmad","options":[{"id":"allow","label":"Allow once","scope":"once"},{"id":"always","label":"Allow for this session","scope":"session"},{"id":"deny","label":"Deny","scope":"deny"}]}
-write {"type":"control_response","response":{"subtype":"success","request_id":"5a5f4b07-68b6-4acb-8d36-42045057bfd4","response":{"behavior":"allow","updatedInput":{"file_path":"/work/bare.txt","content":"bare"}}}}
+write {"type":"control_response","response":{"subtype":"success","request_id":"5a5f4b07-68b6-4acb-8d36-42045057bfd4","response":{"behavior":"allow","updatedInput":{"content":"bare","file_path":"/work/bare.txt"}}}}
 proto.ToolCall {"id":"toolu_01T2rRDqpoPACfzv8pzmkmad","kind":"edit","name":"Write","summary":"/work/bare.txt","status":"done"}
 proto.FileChange {"path":"/work/bare.txt","op":"created"}
 proto.MessageDelta {"message_id":"msg_011CgaRMEJmqdNq7rgDLna3c/0","text":"我已在"}
@@ -18,7 +18,7 @@ write {"type":"user","message":{"role":"user","content":"Use the Bash tool to ru
 native ef235bce-500f-4d4a-a60e-a8b919ef291a proto.TurnStarted {}
 proto.ToolCall {"id":"toolu_01RW5WqkjadBrpbJ67vtjQbW","kind":"exec","name":"Bash","summary":"echo one \u003e one.txt","status":"running"}
 proto.ApprovalRequested {"id":"8701d23f-16c6-43c8-a19b-04ceac8d298c","kind":"command","title":"Bash echo one \u003e one.txt","detail":"Write \"one\" to a new file","tool_call_id":"toolu_01RW5WqkjadBrpbJ67vtjQbW","options":[{"id":"allow","label":"Allow once","scope":"once"},{"id":"always","label":"Always allow","scope":"always"},{"id":"deny","label":"Deny","scope":"deny"}]}
-write {"type":"control_response","response":{"subtype":"success","request_id":"8701d23f-16c6-43c8-a19b-04ceac8d298c","response":{"behavior":"allow","updatedInput":{"command":"echo one \u003e one.txt","description":"Write \"one\" to a new file"},"updatedPermissions":[{"type":"addRules","rules":[{"toolName":"Bash","ruleContent":"echo one *"}],"behavior":"allow","destination":"localSettings"},{"type":"addDirectories","directories":["/work"],"destination":"session"}]}}}
+write {"type":"control_response","response":{"subtype":"success","request_id":"8701d23f-16c6-43c8-a19b-04ceac8d298c","response":{"behavior":"allow","updatedInput":{"command":"echo one \u003e one.txt","description":"Write \"one\" to a new file"},"updatedPermissions":[{"behavior":"allow","destination":"localSettings","rules":[{"ruleContent":"echo one *","toolName":"Bash"}],"type":"addRules"},{"destination":"session","directories":["/work"],"type":"addDirectories"}]}}}
 proto.ToolCall {"id":"toolu_01RW5WqkjadBrpbJ67vtjQbW","kind":"exec","name":"Bash","summary":"echo one \u003e one.txt","status":"done"}
 proto.MessageDelta {"message_id":"msg_011CgaRMiNUut5355cR5ZPjB/0","text":"已"}
 proto.MessageDelta {"message_id":"msg_011CgaRMiNUut5355cR5ZPjB/0","text":"执行 `echo one \u003e"}

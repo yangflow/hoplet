@@ -2,7 +2,7 @@ write {"type":"user","message":{"role":"user","content":"Use the Write tool to c
 native 5447e5d2-1317-413a-aa1c-151a5ec48a03 proto.TurnStarted {}
 proto.ToolCall {"id":"toolu_01RFNys97DjwLGCP6pTpJXHL","kind":"edit","name":"Write","summary":"/work/hello.txt","status":"running"}
 proto.ApprovalRequested {"id":"f89f9329-2b4d-4dc4-94ba-076c96abb7eb","kind":"file_change","title":"Write /work/hello.txt","detail":"hello.txt","tool_call_id":"toolu_01RFNys97DjwLGCP6pTpJXHL","options":[{"id":"allow","label":"Allow once","scope":"once"},{"id":"always","label":"Allow for this session","scope":"session"},{"id":"deny","label":"Deny","scope":"deny"}]}
-write {"type":"control_response","response":{"subtype":"success","request_id":"f89f9329-2b4d-4dc4-94ba-076c96abb7eb","response":{"behavior":"allow","updatedInput":{"file_path":"/work/hello.txt","content":"hi"}}}}
+write {"type":"control_response","response":{"subtype":"success","request_id":"f89f9329-2b4d-4dc4-94ba-076c96abb7eb","response":{"behavior":"allow","updatedInput":{"content":"hi","file_path":"/work/hello.txt"}}}}
 proto.ToolCall {"id":"toolu_01RFNys97DjwLGCP6pTpJXHL","kind":"edit","name":"Write","summary":"/work/hello.txt","status":"done"}
 proto.FileChange {"path":"/work/hello.txt","op":"created"}
 proto.MessageDelta {"message_id":"msg_011CgaQxS6J7pB4Eev5joGQ7/0","text":"已在"}

@@ -2,17 +2,17 @@ write {"type":"control_request","request_id":"hoplet-x-1","request":{"mode":"aut
 proto.Error {"message":"claude refused a request: Unsupported control request subtype: set_effort"}
 write {"type":"control_request","request_id":"hoplet-x-2","request":{"settings":{"effortLevel":"low"},"subtype":"apply_flag_settings"}}
 write {"type":"user","message":{"role":"user","content":"Reply with exactly the word: auto"}}
-native 3fa07ee5-37b1-413f-aa49-e59b07c263cb proto.TurnStarted {}
-proto.MessageDelta {"message_id":"msg_011CgaSGoCurRkPC2cHUicAs/0","text":"auto"}
-proto.Message {"id":"msg_011CgaSGoCurRkPC2cHUicAs/0","role":"assistant","text":"auto"}
-proto.Usage {"input_tokens":23561,"output_tokens":4}
+native 8c4a57bd-5c75-46bc-87ae-ec46f5524554 proto.TurnStarted {}
+proto.MessageDelta {"message_id":"msg_011CgaZ8tRHmijD5aqEJJ7ah/0","text":"auto"}
+proto.Message {"id":"msg_011CgaZ8tRHmijD5aqEJJ7ah/0","role":"assistant","text":"auto"}
+proto.Usage {"input_tokens":23574,"output_tokens":4}
 proto.TurnEnded {"reason":"completed"}
 write {"type":"control_request","request_id":"hoplet-x-3","request":{"mode":"plan","subtype":"set_permission_mode"}}
 write {"type":"user","message":{"role":"user","content":"Use the Write tool to create plan.txt containing p."}}
-native 3fa07ee5-37b1-413f-aa49-e59b07c263cb proto.TurnStarted {}
-proto.ToolCall {"id":"toolu_01HD8Uuy2LoSJH1Y5ESpVuoq","kind":"edit","name":"Write","summary":"/Users/me/.claude/plans/use-the-write-tool-curious-ladybug.md","status":"running"}
-proto.ToolCall {"id":"toolu_01HD8Uuy2LoSJH1Y5ESpVuoq","kind":"edit","name":"Write","summary":"/Users/me/.claude/plans/use-the-write-tool-curious-ladybug.md","status":"done"}
-proto.FileChange {"path":"/Users/me/.claude/plans/use-the-write-tool-curious-ladybug.md","op":"created"}
-proto.ToolCall {"id":"toolu_019PYxNSt3iE2SLv9c63oDWi","kind":"other","name":"ToolSearch","summary":"","status":"running"}
-proto.ToolCall {"id":"toolu_019PYxNSt3iE2SLv9c63oDWi","kind":"other","name":"ToolSearch","summary":"","status":"done"}
-proto.ToolCall {"id":"toolu_01KmNf8UcTuxeftNZteozCGG","kind":"other","name":"ExitPlanMode","summary":"","status":"running"}
+native 8c4a57bd-5c75-46bc-87ae-ec46f5524554 proto.TurnStarted {}
+proto.ToolCall {"id":"toolu_01Dp3n9uXsiAoBKMqP2GC2zu","kind":"edit","name":"Write","summary":"/Users/me/.claude/plans/use-the-write-tool-encapsulated-creek.md","status":"running"}
+proto.ToolCall {"id":"toolu_01Dp3n9uXsiAoBKMqP2GC2zu","kind":"edit","name":"Write","summary":"/Users/me/.claude/plans/use-the-write-tool-encapsulated-creek.md","status":"done"}
+proto.FileChange {"path":"/Users/me/.claude/plans/use-the-write-tool-encapsulated-creek.md","op":"created"}
+proto.ToolCall {"id":"toolu_01DfZKkGddAoHLeLia8Jhyvg","kind":"other","name":"ToolSearch","summary":"","status":"running"}
+proto.ToolCall {"id":"toolu_01DfZKkGddAoHLeLia8Jhyvg","kind":"other","name":"ToolSearch","summary":"","status":"done"}
+proto.ToolCall {"id":"toolu_01JiGYU2ukBH6RZiQfhYvDDf","kind":"other","name":"ExitPlanMode","summary":"","status":"running"}
