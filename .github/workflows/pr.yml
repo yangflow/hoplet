@@ -1,0 +1,51 @@
+name: PR
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  title:
+    name: Conventional title
+    runs-on: ubuntu-latest
+    steps:
+      - uses: amannn/action-semantic-pull-request@v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            feat
+            fix
+            perf
+            refactor
+            test
+            docs
+            build
+            ci
+            chore
+
+  dco:
+    name: DCO sign-off
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check every commit is signed off
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          missing=0
+          for sha in $(git rev-list --no-merges "$BASE..$HEAD"); do
+            author=$(git show -s --format='%an <%ae>' "$sha")
+            if ! git show -s --format='%(trailers:key=Signed-off-by,valueonly)' "$sha" | grep -qF "$author"; then
+              echo "::error::$sha is not signed off by its author ($author). Run: git rebase --signoff $BASE"
+              missing=1
+            fi
+          done
+          exit $missing
