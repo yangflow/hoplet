@@ -3,13 +3,16 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"runtime"
 	"strings"
 
 	"github.com/yangflow/hoplet/internal/client"
+	"github.com/yangflow/hoplet/internal/config"
 	"github.com/yangflow/hoplet/internal/home"
 	"github.com/yangflow/hoplet/proto"
 )
@@ -25,6 +28,10 @@ withheld unless config.toml's [env] allow lists them.
 func writeJSONLine(w io.Writer, v any) error { return json.NewEncoder(w).Encode(v) }
 
 func (a app) envCmd(args []string) int {
+	if len(args) > 0 && (args[0] == "help" || args[0] == "-h" || args[0] == "--help") {
+		fmt.Fprint(a.stdout, envUsage)
+		return 0
+	}
 	if len(args) == 0 || args[0] != "refresh" {
 		fmt.Fprint(a.stderr, envUsage)
 		return 2
@@ -119,8 +126,9 @@ func (a app) localChecks(ctx context.Context) []proto.Check {
 	} else {
 		add("token", proto.CheckOK, home.TokenFile(h))
 	}
+	out = append(out, configCheck(h))
 	if runtime.GOOS == "darwin" {
-		out = append(out, launchAgentCheck(ctx))
+		out = append(out, a.launchAgentCheck(ctx))
 	}
 	c, err := dialHome(ctx, h)
 	if err != nil {
@@ -141,8 +149,26 @@ func (a app) localChecks(ctx context.Context) []proto.Check {
 	return append(out, r.Checks...)
 }
 
-func launchAgentCheck(ctx context.Context) proto.Check {
-	m, err := agents()
+func configCheck(h string) proto.Check {
+	path := config.Path(h)
+	fi, err := os.Stat(path)
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		return proto.Check{Name: "config", Status: proto.CheckOK, Detail: "no " + config.FileName}
+	case err != nil:
+		return proto.Check{Name: "config", Status: proto.CheckFail, Detail: err.Error()}
+	}
+	if _, err := config.Load(h); err != nil {
+		return proto.Check{Name: "config", Status: proto.CheckFail, Detail: err.Error()}
+	}
+	if fi.Mode().Perm()&0o077 != 0 {
+		return proto.Check{Name: "config", Status: proto.CheckWarn, Detail: fmt.Sprintf("%s is readable by group or others and may hold a proxy password; chmod 600", path)}
+	}
+	return proto.Check{Name: "config", Status: proto.CheckOK, Detail: path}
+}
+
+func (a app) launchAgentCheck(ctx context.Context) proto.Check {
+	m, err := a.agents()
 	if err != nil {
 		return proto.Check{Name: "launch agent", Status: proto.CheckFail, Detail: err.Error()}
 	}

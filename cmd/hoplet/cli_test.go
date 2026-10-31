@@ -126,8 +126,30 @@ func TestSessionUsage(t *testing.T) {
 	for args, code := range map[string]int{"": 2, "help": 0, "frob": 2, "send onlyid": 2, "new": 2, "wait id --for later": 2} {
 		var out, errb bytes.Buffer
 		argv := append([]string{"session"}, strings.Fields(args)...)
-		if got := run(argv, &out, &errb); got != code {
+		if got := testApp(&out, &errb).run(argv); got != code {
 			t.Errorf("session %s: exit %d, want %d (stderr %q)", args, got, code, errb.String())
+		}
+	}
+}
+
+func TestMatchID(t *testing.T) {
+	ss := []proto.Session{{ID: "abcd1111aaaaaaaa"}, {ID: "abcd2222bbbbbbbb"}, {ID: "ef010000cccccccc"}}
+	for name, tc := range map[string]struct {
+		arg, want, err string
+	}{
+		"exact":           {"ef010000cccccccc", "ef010000cccccccc", ""},
+		"prefix":          {"abcd2", "abcd2222bbbbbbbb", ""},
+		"ambiguous":       {"abcd", "", `"abcd" matches 2 sessions`},
+		"unknown":         {"zzzz", "", `no session "zzzz"`},
+		"too short":       {"ef0", "", `no session "ef0" (use at least 4 characters of an ID)`},
+		"short not exact": {"a", "", "at least 4 characters"},
+	} {
+		got, err := matchID(ss, tc.arg)
+		switch {
+		case tc.err == "" && (err != nil || string(got) != tc.want):
+			t.Errorf("%s: %q, %v", name, got, err)
+		case tc.err != "" && (err == nil || !strings.Contains(err.Error(), tc.err)):
+			t.Errorf("%s: %q, %v; want error %q", name, got, err, tc.err)
 		}
 	}
 }

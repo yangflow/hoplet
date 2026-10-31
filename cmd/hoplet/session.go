@@ -32,6 +32,7 @@ ID may be a unique prefix of at least 4 characters. Every command takes
 wait conditions: idle (no turn running and nothing queued), blocked
 (an approval, a question or a failed queued message waits on you), done
 (idle, blocked, errored or archived: nothing happens until you act).
+idle never comes for an errored session; use done.
 `
 
 // commandTimeout bounds one request of a command that does not follow a
@@ -40,10 +41,11 @@ const commandTimeout = 30 * time.Second
 
 func (a app) session(args []string) int {
 	if len(args) == 0 || args[0] == "help" || args[0] == "-h" || args[0] == "--help" {
-		fmt.Fprint(a.stdout, sessionUsage)
 		if len(args) == 0 {
+			fmt.Fprint(a.stderr, sessionUsage)
 			return 2
 		}
+		fmt.Fprint(a.stdout, sessionUsage)
 		return 0
 	}
 	cmds := map[string]func([]string) int{
@@ -234,8 +236,8 @@ func (a app) sessionWatch(args []string) int {
 			evs := it.Events
 			if it.Snapshot != nil {
 				evs = it.Snapshot.Events
-				if it.Snapshot.More && !*asJSON {
-					fmt.Fprintln(a.stdout, "(earlier events not shown)")
+				if it.Snapshot.More {
+					fmt.Fprintln(a.stderr, "(earlier events not shown)")
 				}
 			}
 			for _, ev := range evs {
@@ -304,49 +306,69 @@ func (a app) sessionWait(args []string) int {
 	if code, ok := parse(fs, args, 1, 1); !ok {
 		return code
 	}
+	if *timeout < 0 {
+		fmt.Fprintln(a.stderr, "hoplet session wait: --timeout must not be negative")
+		return 2
+	}
 	cond := waitCondition(*forFlag)
 	if cond != waitIdle && cond != waitBlocked && cond != waitDone {
 		fmt.Fprintf(a.stderr, "hoplet session wait: --for %q: want idle, blocked or done\n", *forFlag)
 		return 2
 	}
 	return a.withClient("session wait", *timeout, func(ctx context.Context, c *client.Client) error {
-		id, err := resolveID(ctx, c, fs.Arg(0))
-		if err != nil {
-			return err
+		err := a.waitFor(ctx, c, fs.Arg(0), cond, *asJSON)
+		if err != nil && errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			return codeError{3, fmt.Errorf("timed out waiting for %s", cond)}
 		}
-		sub, err := c.SubscribeSession(ctx, proto.SessionParams{Session: id})
-		if err != nil {
-			return err
-		}
-		var p progress
-		for {
-			var it proto.SessionItem
-			if err := sub.Next(ctx, &it); err != nil {
-				if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-					return codeError{3, fmt.Errorf("timed out waiting for %s", cond)}
-				}
-				return err
-			}
+		return err
+	})
+}
+
+// recheckEvery bounds how long wait goes without looking at the session
+// state, for changes that produce no subscription item.
+const recheckEvery = 2 * time.Second
+
+func (a app) waitFor(ctx context.Context, c *client.Client, arg string, cond waitCondition, asJSON bool) error {
+	id, err := resolveID(ctx, c, arg)
+	if err != nil {
+		return err
+	}
+	sub, err := c.SubscribeSession(ctx, proto.SessionParams{Session: id})
+	if err != nil {
+		return err
+	}
+	var p progress
+	for {
+		var it proto.SessionItem
+		nctx, cancel := context.WithTimeout(ctx, recheckEvery)
+		err := sub.Next(nctx, &it)
+		cancel()
+		switch {
+		case err == nil:
 			if it.Snapshot != nil {
 				p = progress{}
 				p.add(it.Snapshot.Events)
 			}
 			p.add(it.Events)
-			st, err := c.Session(ctx, id)
-			if err != nil {
-				return err
-			}
-			if !reached(cond, st, p) {
-				continue
-			}
-			if *asJSON {
-				a.printJSON(st)
-			} else {
-				fmt.Fprintln(a.stdout, describeState(st))
-			}
-			return nil
+		case ctx.Err() == nil && errors.Is(err, context.DeadlineExceeded):
+			// No item for a while: look at the state anyway.
+		default:
+			return err
 		}
-	})
+		st, err := c.Session(ctx, id)
+		if err != nil {
+			return err
+		}
+		if !reached(cond, st, p) {
+			continue
+		}
+		if asJSON {
+			a.printJSON(st)
+		} else {
+			fmt.Fprintln(a.stdout, describeState(st))
+		}
+		return nil
+	}
 }
 
 func describeState(st proto.SessionState) string {

@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -10,6 +9,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"syscall"
 	"time"
 
@@ -22,7 +22,7 @@ import (
 )
 
 const daemonUsage = `usage: hoplet daemon [--home DIR] [--log FILE]
-       hoplet daemon install | uninstall
+       hoplet daemon install | uninstall [--json]
        hoplet daemon status [--json]
 
 Without a subcommand, runs the daemon in the foreground until SIGTERM or
@@ -84,7 +84,7 @@ func (a app) daemonRun(args []string) int {
 		if err != nil {
 			return a.fail("daemon", err)
 		}
-		src = &env.Login{Home: *dir, UserHome: userHome, Shell: env.DefaultShell()}
+		src = &env.Login{Home: *dir, UserHome: userHome, Shell: env.UserShell()}
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
@@ -114,8 +114,8 @@ func (a app) daemonRun(args []string) int {
 	return 0
 }
 
-// agents returns the LaunchAgent manager of the current user.
-func agents() (launchd.Manager, error) {
+// realAgents returns the LaunchAgent manager of the current user.
+func realAgents() (launchd.Manager, error) {
 	if runtime.GOOS != "darwin" {
 		return launchd.Manager{}, errors.New("installing the daemon is only supported on macOS for now")
 	}
@@ -128,10 +128,11 @@ func agents() (launchd.Manager, error) {
 
 func (a app) daemonInstall(args []string) int {
 	fs := a.flags("daemon install", daemonUsage)
+	asJSON := fs.Bool("json", false, "print JSON")
 	if code, ok := parse(fs, args, 0, 0); !ok {
 		return code
 	}
-	m, err := agents()
+	m, err := a.agents()
 	if err != nil {
 		return a.fail("daemon install", err)
 	}
@@ -141,10 +142,13 @@ func (a app) daemonInstall(args []string) int {
 	}
 	exe, err := os.Executable()
 	if err == nil {
-		exe, err = filepath.EvalSymlinks(exe)
+		exe, err = filepath.Abs(exe)
 	}
 	if err != nil {
 		return a.fail("daemon install", err)
+	}
+	if !a.allowTempBinary && transientBinary(exe) {
+		return a.fail("daemon install", fmt.Errorf("%s is a temporary binary; install a built one: go build -o ~/bin/hoplet ./cmd/hoplet", exe))
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), readyWait+10*time.Second)
 	defer cancel()
@@ -156,8 +160,42 @@ func (a app) daemonInstall(args []string) int {
 		return a.fail("daemon install", fmt.Errorf("installed %s, but the daemon does not serve: %w (see %s)", m.Path(), err, launchd.LogFile(h)))
 	}
 	defer c.Close()
+	if s, err := m.Status(ctx); err == nil && (!s.Loaded || s.State != "running") {
+		fmt.Fprintln(a.stderr, "hoplet daemon install: a daemon serves, but not the LaunchAgent's (another daemon may hold the home)")
+	}
+	if *asJSON {
+		a.printJSON(map[string]any{"plist": m.Path(), "serving": true, "version": c.Hello().Version})
+		return 0
+	}
 	fmt.Fprintf(a.stdout, "installed %s\ndaemon %s serving at %s\n", m.Path(), c.Hello().Version, home.Socket(h))
 	return 0
+}
+
+// transientBinary reports whether exe is one that will not outlive the
+// session: a `go run` build or a file under the temp directory.
+func transientBinary(exe string) bool {
+	if strings.Contains(exe, "/go-build") {
+		return true
+	}
+	paths := []string{exe}
+	if r, err := filepath.EvalSymlinks(exe); err == nil {
+		paths = append(paths, r)
+	}
+	tmps := []string{os.TempDir()}
+	if r, err := filepath.EvalSymlinks(os.TempDir()); err == nil {
+		tmps = append(tmps, r)
+	}
+	for _, p := range paths {
+		if strings.Contains(p, "/go-build") {
+			return true
+		}
+		for _, t := range tmps {
+			if strings.HasPrefix(p, filepath.Clean(t)+string(filepath.Separator)) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // waitServing dials the home's daemon until it answers or ctx ends.
@@ -179,15 +217,20 @@ func waitServing(ctx context.Context, h string) (*client.Client, error) {
 
 func (a app) daemonUninstall(args []string) int {
 	fs := a.flags("daemon uninstall", daemonUsage)
+	asJSON := fs.Bool("json", false, "print JSON")
 	if code, ok := parse(fs, args, 0, 0); !ok {
 		return code
 	}
-	m, err := agents()
+	m, err := a.agents()
 	if err != nil {
 		return a.fail("daemon uninstall", err)
 	}
 	if err := m.Uninstall(context.Background()); err != nil {
 		return a.fail("daemon uninstall", err)
+	}
+	if *asJSON {
+		a.printJSON(map[string]string{"uninstalled": m.Path()})
+		return 0
 	}
 	fmt.Fprintln(a.stdout, "uninstalled; running sessions keep their shims and resume when a daemon starts again")
 	return 0
@@ -222,13 +265,13 @@ func (a app) daemonStatus(args []string) int {
 		st.Serving, st.Version, st.Host = true, c.Hello().Version, c.Hello().Host
 		c.Close()
 	}
-	if m, err := agents(); err == nil {
+	if m, err := a.agents(); err == nil {
 		if s, err := m.Status(ctx); err == nil {
 			st.LaunchAgent = &s
 		}
 	}
 	if *asJSON {
-		_ = json.NewEncoder(a.stdout).Encode(st)
+		a.printJSON(st)
 	} else {
 		if st.Serving {
 			fmt.Fprintf(a.stdout, "daemon %s serving at %s (host %s)\n", st.Version, st.Socket, st.Host)

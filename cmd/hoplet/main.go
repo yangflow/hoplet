@@ -14,6 +14,7 @@ import (
 
 	"github.com/yangflow/hoplet/internal/env"
 	"github.com/yangflow/hoplet/internal/harness"
+	"github.com/yangflow/hoplet/internal/launchd"
 	"github.com/yangflow/hoplet/internal/shim"
 )
 
@@ -46,10 +47,15 @@ type app struct {
 	env env.Source
 	// probeURL, when set, replaces what the daemon's doctor reaches (tests).
 	probeURL string
+	// agents returns the LaunchAgent manager; run sets the real one.
+	agents func() (launchd.Manager, error)
+	// allowTempBinary lets `daemon install` use a binary under the temp
+	// directory (tests).
+	allowTempBinary bool
 }
 
 func run(args []string, stdout, stderr io.Writer) int {
-	return app{stdout: stdout, stderr: stderr, harnesses: map[string]harness.Harness{}}.run(args)
+	return app{stdout: stdout, stderr: stderr, harnesses: map[string]harness.Harness{}, agents: realAgents}.run(args)
 }
 
 func (a app) run(args []string) int {

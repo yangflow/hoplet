@@ -120,6 +120,11 @@ func resolveID(ctx context.Context, c *client.Client, arg string) (proto.Session
 	if err != nil {
 		return "", err
 	}
+	return matchID(ss, arg)
+}
+
+// matchID finds the session arg names among ss.
+func matchID(ss []proto.Session, arg string) (proto.SessionID, error) {
 	var matches []proto.SessionID
 	for _, s := range ss {
 		if string(s.ID) == arg {
@@ -133,6 +138,9 @@ func resolveID(ctx context.Context, c *client.Client, arg string) (proto.Session
 	case 1:
 		return matches[0], nil
 	case 0:
+		if len(arg) < 4 {
+			return "", fmt.Errorf("no session %q (use at least 4 characters of an ID)", arg)
+		}
 		return "", fmt.Errorf("no session %q", arg)
 	default:
 		return "", fmt.Errorf("%q matches %d sessions", arg, len(matches))
