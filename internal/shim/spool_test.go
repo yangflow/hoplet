@@ -75,3 +75,70 @@ func TestSpoolAppendNotifyAndReopen(t *testing.T) {
 		t.Fatalf("records after first: %v", kinds)
 	}
 }
+
+func TestOpenSpoolCutsTornTail(t *testing.T) {
+	path := filepath.Join(t.TempDir(), SpoolName)
+	whole := `{"k":"stdout","t":1,"d":"a"}` + "\n"
+	if err := os.WriteFile(path, []byte(whole+`{"k":"std`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	sp, err := openSpool(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sp.close()
+	if size, _ := sp.state(); size != int64(len(whole)) {
+		t.Fatalf("size %d, want %d", size, len(whole))
+	}
+	end, err := sp.append(Record{Kind: KindStdout, Data: "b"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	err = readRecords(path, 0, end, func(r Record, _ int64) error {
+		got = append(got, r.Data)
+		return nil
+	})
+	if err != nil || !slices.Equal(got, []string{"a", "b"}) {
+		t.Fatalf("records %q, %v", got, err)
+	}
+	if !sp.boundary(int64(len(whole))) || sp.boundary(3) || !sp.boundary(0) {
+		t.Fatal("boundary misjudged")
+	}
+}
+
+func TestOpenSpoolWithoutNewline(t *testing.T) {
+	path := filepath.Join(t.TempDir(), SpoolName)
+	if err := os.WriteFile(path, []byte(`{"k":"std`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	sp, err := openSpool(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sp.close()
+	if size, _ := sp.state(); size != 0 {
+		t.Fatalf("size %d, want 0", size)
+	}
+}
+
+func TestFailedAppendLeavesSpoolUnchanged(t *testing.T) {
+	path := filepath.Join(t.TempDir(), SpoolName)
+	sp, err := openSpool(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := sp.append(Record{Kind: KindStdout, Data: "a"}); err != nil {
+		t.Fatal(err)
+	}
+	before, _ := sp.state()
+	if err := sp.close(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := sp.append(Record{Kind: KindStdout, Data: "b"}); err == nil {
+		t.Fatal("append to a closed spool succeeded")
+	}
+	if after, _ := sp.state(); after != before {
+		t.Fatalf("size moved from %d to %d on a failed append", before, after)
+	}
+}

@@ -50,7 +50,9 @@ func TestEchoStdinStderrAndExit(t *testing.T) {
 	if err := c.Stdin("late"); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := c.Recv(); err == nil || !strings.Contains(err.Error(), "exited") {
+	_, _, err := c.Recv()
+	var se *Error
+	if !errors.As(err, &se) || se.Code != CodeExited || !strings.Contains(se.Message, "exited") {
 		t.Fatalf("stdin after exit: %v", err)
 	}
 	if err := c.Ack(final); err != nil {
@@ -77,6 +79,13 @@ func TestCancelStopsChild(t *testing.T) {
 }
 
 func TestLingerEndsShimWithoutAck(t *testing.T) {
-	_, done := startShim(context.Background(), t, 100*time.Millisecond, "tick", "1", "0")
+	dir, done := startShim(context.Background(), t, 100*time.Millisecond, "tick", "1", "0")
 	waitDone(t, done)
+	b, err := os.ReadFile(SpoolPath(dir))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(b, []byte(`"k":"exit"`)) {
+		t.Fatalf("spool has no exit record:\n%s", b)
+	}
 }

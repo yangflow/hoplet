@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 )
 
 // SpoolName is the spool file inside a session directory.
@@ -17,6 +18,9 @@ const SpoolName = "spool.jsonl"
 
 // SpoolPath returns the spool file inside dir.
 func SpoolPath(dir string) string { return filepath.Join(dir, SpoolName) }
+
+// errCorrupt marks a spool line that does not decode.
+var errCorrupt = errors.New("corrupt spool record")
 
 // spool is the append-only record log. Appends are buffered by the OS; the
 // exit record is synced so a finished session's spool is complete on disk.
@@ -28,8 +32,11 @@ type spool struct {
 	notify chan struct{} // closed and replaced on every append
 }
 
+// openSpool opens (creating if needed) the spool at path. Bytes after the
+// last newline are a record torn by a crash; they are cut off so appends
+// start on a record boundary.
 func openSpool(path string) (*spool, error) {
-	f, err := os.OpenFile(filepath.Clean(path), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
+	f, err := os.OpenFile(filepath.Clean(path), os.O_CREATE|os.O_RDWR|os.O_APPEND, 0o600)
 	if err != nil {
 		return nil, fmt.Errorf("shim: open spool: %w", err)
 	}
@@ -37,11 +44,41 @@ func openSpool(path string) (*spool, error) {
 	if err != nil {
 		return nil, errors.Join(fmt.Errorf("shim: stat spool: %w", err), f.Close())
 	}
-	return &spool{f: f, path: path, size: st.Size(), notify: make(chan struct{})}, nil
+	size, err := completeLength(f, st.Size())
+	if err != nil {
+		return nil, errors.Join(err, f.Close())
+	}
+	if size != st.Size() {
+		if err := f.Truncate(size); err != nil {
+			return nil, errors.Join(fmt.Errorf("shim: truncate torn spool tail: %w", err), f.Close())
+		}
+	}
+	return &spool{f: f, path: path, size: size, notify: make(chan struct{})}, nil
 }
 
-// append writes one record and returns the offset just after it.
+// completeLength returns the offset just after the last newline in the first
+// size bytes of f, or 0 when there is none.
+func completeLength(f *os.File, size int64) (int64, error) {
+	buf := make([]byte, 64<<10)
+	for end := size; end > 0; {
+		start := max(end-int64(len(buf)), 0)
+		chunk := buf[:end-start]
+		if _, err := f.ReadAt(chunk, start); err != nil {
+			return 0, fmt.Errorf("shim: scan spool tail: %w", err)
+		}
+		if i := bytes.LastIndexByte(chunk, '\n'); i >= 0 {
+			return start + int64(i) + 1, nil
+		}
+		end = start
+	}
+	return 0, nil
+}
+
+// append stamps rec with the current time, writes it and returns the offset
+// just after it. A failed write is rolled back so the spool never keeps a
+// partial record.
 func (s *spool) append(rec Record) (int64, error) {
+	rec.T = time.Now().UnixMilli()
 	b, err := json.Marshal(rec)
 	if err != nil {
 		return 0, fmt.Errorf("shim: encode record: %w", err)
@@ -50,7 +87,7 @@ func (s *spool) append(rec Record) (int64, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if _, err := s.f.Write(b); err != nil {
-		return 0, fmt.Errorf("shim: append record: %w", err)
+		return 0, errors.Join(fmt.Errorf("shim: append record: %w", err), s.f.Truncate(s.size))
 	}
 	if rec.Kind == KindExit {
 		if err := s.f.Sync(); err != nil {
@@ -68,6 +105,19 @@ func (s *spool) state() (int64, <-chan struct{}) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.size, s.notify
+}
+
+// boundary reports whether off is a place a record can start: the beginning
+// of the spool or just after a newline.
+func (s *spool) boundary(off int64) bool {
+	if off == 0 {
+		return true
+	}
+	var b [1]byte
+	if _, err := s.f.ReadAt(b[:], off-1); err != nil {
+		return false
+	}
+	return b[0] == '\n'
 }
 
 func (s *spool) close() error { return s.f.Close() }
@@ -97,7 +147,7 @@ func readRecords(path string, off, limit int64, fn func(Record, int64) error) er
 		pos += int64(len(line))
 		var rec Record
 		if err := json.Unmarshal(bytes.TrimSuffix(line, []byte{'\n'}), &rec); err != nil {
-			return fmt.Errorf("shim: decode spool record at %d: %w", pos-int64(len(line)), err)
+			return fmt.Errorf("shim: spool record at %d: %w: %w", pos-int64(len(line)), errCorrupt, err)
 		}
 		if err := fn(rec, pos); err != nil {
 			return err

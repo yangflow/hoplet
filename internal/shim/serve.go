@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -29,34 +30,61 @@ func (c *conn) send(m Message) error {
 	return writeFrame(c.Conn, m)
 }
 
+// sendError sends an error frame.
+func (c *conn) sendError(code, text string, off int64) error {
+	return c.send(Message{Type: MsgError, Version: ProtocolVersion, Code: code, Error: text, Offset: off})
+}
+
+// codedError is a request failure with a protocol code.
+type codedError struct{ code, msg string }
+
+func (e *codedError) Error() string { return e.msg }
+
+func coded(code, format string, args ...any) error {
+	return &codedError{code: code, msg: fmt.Sprintf(format, args...)}
+}
+
 // serve handles one client: hello, then records from the requested offset
-// while client frames are applied to the child.
+// while client frames are applied to the child. A client replaces the
+// previous one only once its hello is accepted.
 func (s *shim) serve(nc net.Conn) {
 	c := &conn{Conn: nc}
+	defer s.wg.Done()
+	defer s.release(nc)
 	defer c.Close()
 	var hello Message
 	if err := c.SetReadDeadline(time.Now().Add(helloTimeout)); err != nil {
 		return
 	}
-	if err := readFrame(c, &hello); err != nil || hello.Type != MsgHello {
+	if err := readFrame(c, &hello); err != nil {
+		return
+	}
+	if hello.Type != MsgHello {
+		_ = c.sendError(CodeBadRequest, fmt.Sprintf("expected hello, got %q", hello.Type), 0)
 		return
 	}
 	if hello.Version != ProtocolVersion {
-		_ = c.send(Message{Type: MsgError, Error: fmt.Sprintf("protocol version %d not supported; shim speaks %d", hello.Version, ProtocolVersion)})
+		_ = c.sendError(CodeVersion, fmt.Sprintf("protocol version %d not supported; shim speaks %d", hello.Version, ProtocolVersion), 0)
 		return
 	}
-	if size, _ := s.spool.state(); hello.Offset < 0 || hello.Offset > size {
-		_ = c.send(Message{Type: MsgError, Error: fmt.Sprintf("offset %d outside spool (size %d)", hello.Offset, size)})
+	size, _ := s.spool.state()
+	if hello.Offset < 0 || hello.Offset > size || !s.spool.boundary(hello.Offset) {
+		_ = c.sendError(CodeBadOffset, fmt.Sprintf("offset %d is not a record boundary inside the spool (size %d)", hello.Offset, size), 0)
 		return
 	}
 	if err := c.SetReadDeadline(time.Time{}); err != nil {
 		return
 	}
-	if err := c.send(Message{Type: MsgWelcome, Version: ProtocolVersion, Pid: s.cmd.Process.Pid}); err != nil {
+	if !s.adopt(nc) {
+		return
+	}
+	s.log.Info("client connected", "offset", hello.Offset)
+	if err := c.send(Message{Type: MsgWelcome, Version: ProtocolVersion, Pid: s.pgid}); err != nil {
 		return
 	}
 	stop := make(chan struct{})
 	defer close(stop)
+	s.wg.Add(1)
 	go s.stream(c, hello.Offset, stop)
 	for {
 		var m Message
@@ -64,23 +92,64 @@ func (s *shim) serve(nc net.Conn) {
 			return
 		}
 		if err := s.apply(m); err != nil {
-			if c.send(Message{Type: MsgError, Error: err.Error()}) != nil {
+			code := CodeBadRequest
+			var ce *codedError
+			if errors.As(err, &ce) {
+				code = ce.code
+			}
+			if c.sendError(code, err.Error(), 0) != nil {
 				return
 			}
 		}
 	}
 }
 
+// adopt makes nc the live client, closing the one it replaces. It reports
+// false when the shim is shutting down.
+func (s *shim) adopt(nc net.Conn) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closing {
+		return false
+	}
+	if s.current != nil && s.current != nc {
+		s.log.Info("client replaced")
+		_ = s.current.Close() // its serve goroutine notices and exits
+	}
+	s.current = nc
+	return true
+}
+
+// release forgets nc.
+func (s *shim) release(nc net.Conn) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.conns, nc)
+	if s.current == nc {
+		s.current = nil
+	}
+}
+
 // stream sends every record from off onward, then follows new appends.
 func (s *shim) stream(c *conn, off int64, stop <-chan struct{}) {
+	defer s.wg.Done()
 	for {
 		size, notify := s.spool.state()
 		if size > off {
 			err := readRecords(s.spool.path, off, size, func(rec Record, end int64) error {
+				if err := c.send(Message{Type: MsgRecord, Offset: end, Record: &rec}); err != nil {
+					return err
+				}
 				off = end
-				return c.send(Message{Type: MsgRecord, Offset: end, Record: &rec})
+				return nil
 			})
 			if err != nil {
+				switch {
+				case errors.Is(err, ErrFrameTooLarge):
+					_ = c.sendError(CodeRecordTooLarge, fmt.Sprintf("record at %d does not fit in a frame", off), off)
+				case errors.Is(err, errCorrupt):
+					_ = c.sendError(CodeCorrupt, err.Error(), off)
+				}
 				c.Close()
 				return
 			}
@@ -94,22 +163,26 @@ func (s *shim) stream(c *conn, off int64, stop <-chan struct{}) {
 	}
 }
 
-// apply executes one client frame.
+// apply executes one client frame without ever waiting on the child.
 func (s *shim) apply(m Message) error {
 	switch m.Type {
 	case MsgStdin:
-		return s.writeStdin(m.Data)
-	case MsgCloseStdin:
-		s.stdinMu.Lock()
-		defer s.stdinMu.Unlock()
-		if err := s.stdin.Close(); err != nil {
-			return fmt.Errorf("close stdin: %w", err)
+		if strings.ContainsRune(m.Data, '\n') {
+			return coded(CodeBadRequest, "stdin line contains a newline")
 		}
-		return nil
+		if len(m.Data) > ChunkSize {
+			return coded(CodeTooLarge, "stdin line is %d bytes; the limit is %d", len(m.Data), ChunkSize)
+		}
+		return s.enqueueStdin(stdinReq{line: m.Data})
+	case MsgCloseStdin:
+		return s.enqueueStdin(stdinReq{close: true})
 	case MsgSignal:
 		sig, ok := signals[m.Signal]
 		if !ok {
-			return fmt.Errorf("unknown signal %q", m.Signal)
+			return coded(CodeBadRequest, "unknown signal %q", m.Signal)
+		}
+		if s.hasExited() {
+			return coded(CodeExited, "child has exited")
 		}
 		s.signal(sig)
 		return nil
@@ -122,25 +195,47 @@ func (s *shim) apply(m Message) error {
 		}
 		return nil
 	default:
-		return fmt.Errorf("unexpected %q frame", m.Type)
+		return coded(CodeBadRequest, "unexpected %q frame", m.Type)
 	}
 }
 
-// writeStdin writes one line to the child and records it.
-func (s *shim) writeStdin(line string) error {
-	s.mu.Lock()
-	exited := s.exited
-	s.mu.Unlock()
-	if exited {
-		return errors.New("child has exited")
+// enqueueStdin hands a request to the writer goroutine.
+func (s *shim) enqueueStdin(req stdinReq) error {
+	if s.hasExited() {
+		return coded(CodeExited, "child has exited")
 	}
-	s.stdinMu.Lock()
-	defer s.stdinMu.Unlock()
-	if _, err := s.stdin.Write([]byte(line + "\n")); err != nil {
-		return fmt.Errorf("write stdin: %w", err)
+	select {
+	case s.stdinQ <- req:
+		return nil
+	default:
+		return coded(CodeStdinBusy, "stdin queue is full")
 	}
-	if _, err := s.spool.append(Record{Kind: KindStdin, Data: line}); err != nil {
-		return err
+}
+
+// stdinLoop writes queued stdin to the child. It records each line before
+// writing it, so the spool shows what was attempted even if the child dies
+// mid-write.
+func (s *shim) stdinLoop() {
+	defer s.wg.Done()
+	for {
+		select {
+		case req := <-s.stdinQ:
+			if req.close {
+				_ = s.stdinFile.Close() // already closed when the child is gone
+				continue
+			}
+			if _, err := s.spool.append(Record{Kind: KindStdin, Data: req.line}); err != nil {
+				s.log.Error("stdin record not written", "error", err)
+			}
+			if _, err := s.stdinFile.Write([]byte(req.line + "\n")); err != nil {
+				if _, aerr := s.spool.append(Record{Kind: KindStdinError, Data: err.Error()}); aerr != nil {
+					s.log.Error("stdin_error record not written", "error", aerr)
+				}
+			}
+		case <-s.exitCh:
+			return
+		case <-s.quit:
+			return
+		}
 	}
-	return nil
 }

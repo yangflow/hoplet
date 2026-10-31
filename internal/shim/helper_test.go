@@ -5,7 +5,9 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/signal"
 	"strconv"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -25,6 +27,9 @@ func TestMain(m *testing.M) {
 //	echo        echo stdin lines as "echo:<line>"; "err" writes to stderr; "quit" exits 3
 //	tick N MS   print "tick <i>" N times, MS milliseconds apart, then exit 0
 //	sleep       block until killed
+//	ignoreterm  ignore SIGTERM, print "ready", block until killed
+//	bigline N   write N bytes of 'a' without a newline, then exit 0
+//	rawbytes    write one line of invalid UTF-8, then the line "ok"
 func helperMain(args []string) {
 	switch args[0] {
 	case "echo":
@@ -49,7 +54,29 @@ func helperMain(args []string) {
 		}
 		os.Exit(0)
 	case "sleep":
-		select {}
+		time.Sleep(time.Hour)
+	case "ignoreterm":
+		signal.Ignore(syscall.SIGTERM)
+		fmt.Println("ready")
+		time.Sleep(time.Hour)
+	case "bigline":
+		n, _ := strconv.Atoi(args[1])
+		chunk := make([]byte, 64<<10)
+		for i := range chunk {
+			chunk[i] = 'a'
+		}
+		for n > 0 {
+			w := min(n, len(chunk))
+			if _, err := os.Stdout.Write(chunk[:w]); err != nil {
+				os.Exit(1)
+			}
+			n -= w
+		}
+		os.Exit(0)
+	case "rawbytes":
+		os.Stdout.Write([]byte{0xff, 0xfe, '\n'})
+		fmt.Println("ok")
+		os.Exit(0)
 	}
 	os.Exit(2)
 }
@@ -69,6 +96,16 @@ func shortDir(t *testing.T) string {
 // It returns the dir and a channel carrying Run's result.
 func startShim(ctx context.Context, t *testing.T, linger time.Duration, mode ...string) (string, <-chan error) {
 	t.Helper()
+	return startShimCfg(ctx, t, func(cfg *Config) {
+		cfg.Linger = linger
+		cfg.Command = append(cfg.Command, mode...)
+	})
+}
+
+// startShimCfg is startShim with a hook to adjust the Config before Run. The
+// hook sees Dir, WorkDir, Env and a Command holding just this test binary.
+func startShimCfg(ctx context.Context, t *testing.T, mut func(*Config)) (string, <-chan error) {
+	t.Helper()
 	dir := shortDir(t)
 	exe, err := os.Executable()
 	if err != nil {
@@ -76,16 +113,29 @@ func startShim(ctx context.Context, t *testing.T, linger time.Duration, mode ...
 	}
 	cfg := Config{
 		Dir:     dir,
-		Command: append([]string{exe}, mode...),
+		WorkDir: dir,
+		Command: []string{exe},
 		Env:     append(os.Environ(), "HOPLET_SHIM_HELPER=1"),
-		Linger:  linger,
+		Linger:  time.Minute,
 	}
+	mut(&cfg)
 	done := make(chan error, 1)
 	go func() { done <- Run(ctx, cfg) }()
+	return dir, waitSocket(t, dir, done)
+}
+
+// waitSocket waits for the shim's socket to appear.
+func waitSocket(t *testing.T, dir string, done <-chan error) <-chan error {
+	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
 	for {
 		if _, err := os.Stat(SocketPath(dir)); err == nil {
-			return dir, done
+			return done
+		}
+		select {
+		case err := <-done:
+			t.Fatalf("shim exited before serving: %v", err)
+		default:
 		}
 		if time.Now().After(deadline) {
 			t.Fatal("shim socket never appeared")
