@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -8,6 +9,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/yangflow/hoplet/proto"
 )
@@ -112,4 +114,57 @@ func validDigest(s string) bool {
 
 func (s *Store) blobPath(ref proto.BlobRef) string {
 	return filepath.Join(s.dir, "blobs", ref.SHA256[:2], ref.SHA256[2:])
+}
+
+// GCBlobs deletes blob files that no event references (as raw event or tool
+// output) and that were last modified more than olderThan ago, and returns
+// how many it deleted. The age floor protects blobs stored just before the
+// event that will reference them is appended.
+func (s *Store) GCBlobs(ctx context.Context, olderThan time.Duration) (int, error) {
+	root := filepath.Join(s.dir, "blobs")
+	shards, err := os.ReadDir(root)
+	if err != nil {
+		return 0, fmt.Errorf("store: list blobs: %w", err)
+	}
+	cutoff := time.Now().Add(-olderThan)
+	removed := 0
+	for _, shard := range shards {
+		if !shard.IsDir() || len(shard.Name()) != 2 {
+			continue
+		}
+		files, err := os.ReadDir(filepath.Join(root, shard.Name()))
+		if err != nil {
+			return removed, fmt.Errorf("store: list blobs: %w", err)
+		}
+		for _, f := range files {
+			if err := ctx.Err(); err != nil {
+				return removed, err
+			}
+			digest := shard.Name() + f.Name()
+			if f.IsDir() || !validDigest(digest) {
+				continue
+			}
+			info, err := f.Info()
+			if err != nil {
+				return removed, fmt.Errorf("store: stat blob: %w", err)
+			}
+			if !info.ModTime().Before(cutoff) {
+				continue
+			}
+			var referenced bool
+			err = s.rdb.QueryRowContext(ctx, `SELECT EXISTS (
+				SELECT 1 FROM events WHERE raw_sha256 = ?1 OR output_sha256 = ?1)`, digest).Scan(&referenced)
+			if err != nil {
+				return removed, fmt.Errorf("store: check blob references: %w", err)
+			}
+			if referenced {
+				continue
+			}
+			if err := os.Remove(filepath.Join(root, shard.Name(), f.Name())); err != nil {
+				return removed, fmt.Errorf("store: remove blob: %w", err)
+			}
+			removed++
+		}
+	}
+	return removed, nil
 }

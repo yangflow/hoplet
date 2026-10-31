@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -124,7 +125,7 @@ func TestMigrateTwoSteps(t *testing.T) {
 	if _, err := s.db.ExecContext(ctx, "SELECT test_col FROM sessions"); err != nil {
 		t.Fatalf("migration 2 not applied: %v", err)
 	}
-	bak, err := sql.Open("sqlite", "file:"+filepath.Join(dir, DBName+".v1.bak"))
+	bak, err := sql.Open("sqlite", dsn(filepath.Join(dir, DBName+".v1.bak"), url.Values{"mode": {"ro"}}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -146,5 +147,92 @@ func TestMigrationGapRejected(t *testing.T) {
 	}
 	if _, err := open(context.Background(), t.TempDir(), fsys); err == nil || !strings.Contains(err.Error(), "without gaps") {
 		t.Fatalf("gap accepted: %v", err)
+	}
+}
+
+func TestNoTransactionMigration(t *testing.T) {
+	ctx := context.Background()
+	fsys := fstest.MapFS{
+		"0001_init.sql": {Data: []byte(initSQL(t))},
+		// PRAGMA foreign_keys is a no-op inside a transaction, so seeing it
+		// take effect proves the migration ran outside one.
+		"0002_pragma.sql": {Data: []byte("-- hoplet:no-transaction\nPRAGMA foreign_keys = OFF;\nCREATE TABLE extra (a INTEGER);")},
+	}
+	s, err := open(ctx, t.TempDir(), fsys)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	var v, fk int
+	if err := s.db.QueryRowContext(ctx, "PRAGMA user_version").Scan(&v); err != nil || v != 2 {
+		t.Fatalf("user_version %d, %v; want 2", v, err)
+	}
+	if err := s.db.QueryRowContext(ctx, "PRAGMA foreign_keys").Scan(&fk); err != nil || fk != 0 {
+		t.Fatalf("foreign_keys = %d, %v; migration did not run outside a transaction", fk, err)
+	}
+	if _, err := s.db.ExecContext(ctx, "SELECT a FROM extra"); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestReadsProceedDuringWrite(t *testing.T) {
+	ctx := context.Background()
+	s := newStore(t)
+	newSession(t, s, "s")
+	started, release := make(chan struct{}), make(chan struct{})
+	done := make(chan error, 1)
+	go func() {
+		done <- s.tx(ctx, false, func(tx *sql.Tx) error {
+			if _, err := tx.ExecContext(ctx, "UPDATE sessions SET title = 'writing' WHERE id = 's'"); err != nil {
+				return err
+			}
+			close(started)
+			<-release
+			return nil
+		})
+	}()
+	<-started
+	readCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	sess, err := s.Session(readCtx, "s")
+	close(release)
+	if err != nil {
+		t.Fatalf("read blocked by an open write transaction: %v", err)
+	}
+	if sess.Title != "" {
+		t.Fatalf("read saw uncommitted data: %q", sess.Title)
+	}
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestReaderIsReadOnly(t *testing.T) {
+	s := newStore(t)
+	if _, err := s.rdb.ExecContext(context.Background(), "DELETE FROM sessions"); err == nil {
+		t.Fatal("read pool accepted a write")
+	}
+}
+
+func TestOpenRemovesStaleTempBlobs(t *testing.T) {
+	dir := t.TempDir()
+	s, err := Open(context.Background(), dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Close(); err != nil {
+		t.Fatal(err)
+	}
+	stale := filepath.Join(dir, "blobs", ".tmp-123")
+	if err := os.WriteFile(stale, []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	s, err = Open(context.Background(), dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	if _, err := os.Stat(stale); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("stale temp blob survived Open: %v", err)
 	}
 }

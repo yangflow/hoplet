@@ -19,6 +19,11 @@ var migrations embed.FS
 // keepBackups is how many pre-migration copies of the database are kept.
 const keepBackups = 3
 
+// noTxMarker, as the first line of a migration, makes it run outside a
+// transaction. Some schema changes (PRAGMA foreign_keys, for one) cannot run
+// inside one.
+const noTxMarker = "-- hoplet:no-transaction"
+
 // migration is one numbered schema step.
 type migration struct {
 	version int
@@ -78,6 +83,15 @@ func (s *Store) migrate(ctx context.Context, fsys fs.FS) error {
 		}
 	}
 	for _, m := range ms[current:] {
+		if first, _, _ := strings.Cut(m.sql, "\n"); strings.TrimSuffix(first, "\r") == noTxMarker {
+			if _, err := s.db.ExecContext(ctx, m.sql); err != nil {
+				return fmt.Errorf("store: migration %d: %w", m.version, err)
+			}
+			if _, err := s.db.ExecContext(ctx, fmt.Sprintf("PRAGMA user_version = %d", m.version)); err != nil {
+				return fmt.Errorf("store: set schema version %d: %w", m.version, err)
+			}
+			continue
+		}
 		err := s.tx(ctx, true, func(tx *sql.Tx) error {
 			if _, err := tx.ExecContext(ctx, m.sql); err != nil {
 				return fmt.Errorf("store: migration %d: %w", m.version, err)

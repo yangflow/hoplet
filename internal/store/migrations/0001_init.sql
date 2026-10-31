@@ -13,8 +13,18 @@ CREATE TABLE sessions (
     created_at      INTEGER NOT NULL,
     updated_at      INTEGER NOT NULL,
     archived_at     INTEGER,
-    last_seq        INTEGER NOT NULL DEFAULT 0
+    last_seq        INTEGER NOT NULL DEFAULT 0,
+    version         INTEGER NOT NULL
 ) STRICT;
+
+CREATE INDEX sessions_version ON sessions (version);
+
+CREATE TABLE catalog (
+    id      INTEGER PRIMARY KEY CHECK (id = 1),
+    version INTEGER NOT NULL
+) STRICT;
+
+INSERT INTO catalog (id, version) VALUES (1, 0);
 
 CREATE TABLE events (
     session_id TEXT NOT NULL REFERENCES sessions(id),
@@ -27,10 +37,13 @@ CREATE TABLE events (
     raw_sha256 TEXT,
     raw_size   INTEGER,
     message_id TEXT,
+    output_sha256 TEXT,
     PRIMARY KEY (session_id, seq)
-) STRICT, WITHOUT ROWID;
+) STRICT;
 
 CREATE INDEX events_message ON events (session_id, message_id) WHERE message_id IS NOT NULL;
+CREATE INDEX events_raw ON events (raw_sha256) WHERE raw_sha256 IS NOT NULL;
+CREATE INDEX events_output ON events (output_sha256) WHERE output_sha256 IS NOT NULL;
 
 CREATE TABLE turns (
     session_id TEXT NOT NULL REFERENCES sessions(id),
@@ -56,13 +69,15 @@ CREATE TABLE approvals (
 CREATE INDEX approvals_pending ON approvals (session_id) WHERE status = 'pending';
 
 CREATE TABLE receipts (
-    session_id TEXT NOT NULL,
+    session_id TEXT NOT NULL REFERENCES sessions(id),
     key        TEXT NOT NULL,
     first_seq  INTEGER NOT NULL,
     last_seq   INTEGER NOT NULL,
     created_at INTEGER NOT NULL,
     PRIMARY KEY (session_id, key)
 ) STRICT, WITHOUT ROWID;
+
+CREATE INDEX receipts_created ON receipts (created_at);
 
 CREATE TABLE ingest_offsets (
     session_id TEXT PRIMARY KEY REFERENCES sessions(id),

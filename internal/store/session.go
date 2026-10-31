@@ -14,7 +14,7 @@ import (
 )
 
 const sessionColumns = `id, mode, harness_kind, harness_version, native_id, directory, isolation,
-	owner, origin, status, title, created_at, updated_at, archived_at, last_seq`
+	owner, origin, status, title, created_at, updated_at, archived_at, last_seq, version`
 
 // CreateSession stores a new session. Status defaults to idle and
 // CreatedAt to now; UpdatedAt equals CreatedAt. The write is durable.
@@ -34,7 +34,7 @@ func (s *Store) CreateSession(ctx context.Context, sess proto.Session) (proto.Se
 	sess.LastSeq = 0
 	err := s.tx(ctx, true, func(tx *sql.Tx) error {
 		_, err := tx.ExecContext(ctx, `INSERT INTO sessions (`+sessionColumns+`)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 0)`,
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 0, 0)`,
 			sess.ID, sess.Mode, sess.Harness.Kind, sess.Harness.Version, sess.Harness.NativeID,
 			sess.Directory, sess.Isolation, sess.Owner, sess.Origin, sess.Status, sess.Title,
 			sess.CreatedAt.UnixMilli(), sess.UpdatedAt.UnixMilli())
@@ -44,6 +44,12 @@ func (s *Store) CreateSession(ctx context.Context, sess proto.Session) (proto.Se
 		}
 		if err != nil {
 			return fmt.Errorf("store: create session %s: %w", sess.ID, err)
+		}
+		if err := bumpVersion(ctx, tx, sess.ID); err != nil {
+			return err
+		}
+		if err := tx.QueryRowContext(ctx, `SELECT version FROM sessions WHERE id = ?`, sess.ID).Scan(&sess.Version); err != nil {
+			return fmt.Errorf("store: read session version: %w", err)
 		}
 		return nil
 	})
@@ -92,7 +98,11 @@ func validateSession(sess proto.Session) error {
 
 // Session returns one session, or ErrNotFound.
 func (s *Store) Session(ctx context.Context, id proto.SessionID) (proto.Session, error) {
-	row := s.db.QueryRowContext(ctx, `SELECT `+sessionColumns+` FROM sessions WHERE id = ?`, id)
+	return getSession(ctx, s.rdb, id)
+}
+
+func getSession(ctx context.Context, q queryer, id proto.SessionID) (proto.Session, error) {
+	row := q.QueryRowContext(ctx, `SELECT `+sessionColumns+` FROM sessions WHERE id = ?`, id)
 	sess, err := scanSession(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return proto.Session{}, fmt.Errorf("%w: session %s", ErrNotFound, id)
@@ -102,7 +112,18 @@ func (s *Store) Session(ctx context.Context, id proto.SessionID) (proto.Session,
 
 // Sessions returns all sessions, most recently updated first.
 func (s *Store) Sessions(ctx context.Context) ([]proto.Session, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT `+sessionColumns+` FROM sessions ORDER BY updated_at DESC, id`)
+	return s.listSessions(ctx, `SELECT `+sessionColumns+` FROM sessions ORDER BY updated_at DESC, id`)
+}
+
+// SessionsSince returns the sessions changed after catalog version v, oldest
+// change first. Sessions are never deleted yet, so no tombstones exist;
+// deletion must add them or clients would never learn of removals.
+func (s *Store) SessionsSince(ctx context.Context, v uint64) ([]proto.Session, error) {
+	return s.listSessions(ctx, `SELECT `+sessionColumns+` FROM sessions WHERE version > ? ORDER BY version`, v)
+}
+
+func (s *Store) listSessions(ctx context.Context, query string, args ...any) ([]proto.Session, error) {
+	rows, err := s.rdb.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("store: list sessions: %w", err)
 	}
@@ -121,6 +142,61 @@ func (s *Store) Sessions(ctx context.Context) ([]proto.Session, error) {
 	return out, nil
 }
 
+// CatalogVersion returns the current value of the catalog counter, the
+// highest Version any session carries.
+func (s *Store) CatalogVersion(ctx context.Context) (uint64, error) {
+	var v uint64
+	if err := s.rdb.QueryRowContext(ctx, `SELECT version FROM catalog WHERE id = 1`).Scan(&v); err != nil {
+		return 0, fmt.Errorf("store: read catalog version: %w", err)
+	}
+	return v, nil
+}
+
+// bumpVersion advances the catalog counter and stamps it on the session.
+func bumpVersion(ctx context.Context, tx *sql.Tx, id proto.SessionID) error {
+	if _, err := tx.ExecContext(ctx, `UPDATE catalog SET version = version + 1 WHERE id = 1`); err != nil {
+		return fmt.Errorf("store: bump catalog: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, `UPDATE sessions SET version = (SELECT version FROM catalog WHERE id = 1) WHERE id = ?`, id); err != nil {
+		return fmt.Errorf("store: stamp session version: %w", err)
+	}
+	return nil
+}
+
+// SessionUpdate lists the session fields UpdateSession may change; nil
+// fields are left alone.
+type SessionUpdate struct {
+	NativeID *string
+	Title    *string
+}
+
+// UpdateSession changes a session's harness-native ID and/or title and
+// returns the updated session. The write is durable.
+func (s *Store) UpdateSession(ctx context.Context, id proto.SessionID, u SessionUpdate) (proto.Session, error) {
+	var out proto.Session
+	err := s.tx(ctx, true, func(tx *sql.Tx) error {
+		res, err := tx.ExecContext(ctx, `UPDATE sessions SET native_id = COALESCE(?, native_id), title = COALESCE(?, title) WHERE id = ?`,
+			u.NativeID, u.Title, id)
+		if err != nil {
+			return fmt.Errorf("store: update session %s: %w", id, err)
+		}
+		if n, err := res.RowsAffected(); err != nil {
+			return fmt.Errorf("store: update session %s: %w", id, err)
+		} else if n == 0 {
+			return fmt.Errorf("%w: session %s", ErrNotFound, id)
+		}
+		if err := bumpVersion(ctx, tx, id); err != nil {
+			return err
+		}
+		out, err = getSession(ctx, tx, id)
+		return err
+	})
+	if err != nil {
+		return proto.Session{}, err
+	}
+	return out, nil
+}
+
 // ArchiveSession marks a session archived at t. The write is durable.
 func (s *Store) ArchiveSession(ctx context.Context, id proto.SessionID, t time.Time) error {
 	ms := t.UTC().Truncate(time.Millisecond).UnixMilli()
@@ -134,7 +210,7 @@ func (s *Store) ArchiveSession(ctx context.Context, id proto.SessionID, t time.T
 		} else if n == 0 {
 			return fmt.Errorf("%w: session %s", ErrNotFound, id)
 		}
-		return nil
+		return bumpVersion(ctx, tx, id)
 	})
 }
 
@@ -148,7 +224,7 @@ func scanSession(r scanner) (proto.Session, error) {
 	)
 	err := r.Scan(&sess.ID, &sess.Mode, &sess.Harness.Kind, &sess.Harness.Version, &sess.Harness.NativeID,
 		&sess.Directory, &sess.Isolation, &sess.Owner, &sess.Origin, &sess.Status, &sess.Title,
-		&created, &updated, &archived, &sess.LastSeq)
+		&created, &updated, &archived, &sess.LastSeq, &sess.Version)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return proto.Session{}, err

@@ -32,11 +32,27 @@ var ErrInvalid = errors.New("store: invalid")
 // ErrExists is returned when creating something that already exists.
 var ErrExists = errors.New("store: already exists")
 
+// ErrConflict is returned when a decision arrives for something already
+// decided; the first decision stands.
+var ErrConflict = errors.New("store: conflict")
+
+// readConns is the size of the read-only connection pool.
+const readConns = 4
+
 // Store is Hoplet's database. It is safe for concurrent use; writes are
-// serialized over a single connection.
+// serialized over a single connection, reads use a separate read-only pool
+// and are not blocked by writes.
 type Store struct {
 	dir string
-	db  *sql.DB
+	db  *sql.DB // single writer
+	rdb *sql.DB // read-only pool
+}
+
+// dsn builds a SQLite URI for path with the given query parameters, escaping
+// path characters such as ?, # and %.
+func dsn(path string, query url.Values) string {
+	u := url.URL{Scheme: "file", Path: filepath.ToSlash(path), RawQuery: query.Encode()}
+	return u.String()
 }
 
 // Open opens or creates the store in dir, migrating the schema forward.
@@ -53,17 +69,23 @@ func open(ctx context.Context, dir string, fsys fs.FS) (*Store, error) {
 	if err := os.MkdirAll(filepath.Join(dir, "blobs"), 0o700); err != nil {
 		return nil, fmt.Errorf("store: create dir: %w", err)
 	}
+	tmps, err := filepath.Glob(filepath.Join(dir, "blobs", ".tmp-*"))
+	if err != nil {
+		return nil, fmt.Errorf("store: list stale blobs: %w", err)
+	}
+	for _, f := range tmps {
+		if err := os.Remove(f); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return nil, fmt.Errorf("store: remove stale blob: %w", err)
+		}
+	}
 	path, err := filepath.Abs(filepath.Join(dir, DBName))
 	if err != nil {
 		return nil, fmt.Errorf("store: resolve path: %w", err)
 	}
-	u := url.URL{
-		Scheme: "file",
-		Path:   filepath.ToSlash(path),
-		RawQuery: "_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)" +
-			"&_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)&_txlock=immediate",
-	}
-	db, err := sql.Open("sqlite", u.String())
+	db, err := sql.Open("sqlite", dsn(path, url.Values{
+		"_pragma": {"journal_mode(WAL)", "synchronous(NORMAL)", "foreign_keys(1)", "busy_timeout(5000)"},
+		"_txlock": {"immediate"},
+	}))
 	if err != nil {
 		return nil, fmt.Errorf("store: open: %w", err)
 	}
@@ -73,11 +95,23 @@ func open(ctx context.Context, dir string, fsys fs.FS) (*Store, error) {
 		db.Close()
 		return nil, err
 	}
+	rdb, err := sql.Open("sqlite", dsn(path, url.Values{
+		"_pragma": {"busy_timeout(5000)", "query_only(1)"},
+	}))
+	if err != nil {
+		db.Close()
+		return nil, fmt.Errorf("store: open reader: %w", err)
+	}
+	rdb.SetMaxOpenConns(readConns)
+	if err := rdb.PingContext(ctx); err != nil {
+		return nil, errors.Join(fmt.Errorf("store: open reader: %w", err), rdb.Close(), db.Close())
+	}
+	s.rdb = rdb
 	return s, nil
 }
 
 // Close closes the database.
-func (s *Store) Close() error { return s.db.Close() }
+func (s *Store) Close() error { return errors.Join(s.rdb.Close(), s.db.Close()) }
 
 // tx runs fn in a transaction; durable transactions commit with
 // synchronous=FULL.

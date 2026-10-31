@@ -75,4 +75,7 @@ type Session struct {
 	UpdatedAt  time.Time     `json:"updated_at"`
 	ArchivedAt *time.Time    `json:"archived_at,omitempty"`
 	LastSeq    uint64        `json:"last_seq"`
+	// Version is the store's catalog counter value at this session's last
+	// change; it grows with every change to the session record.
+	Version uint64 `json:"version"`
 }

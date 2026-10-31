@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/yangflow/hoplet/proto"
 )
@@ -53,7 +54,7 @@ func TestAppendProjectsStatusTurnsAndApprovals(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(pending) != 1 || pending[0].ID != "a1" {
+	if len(pending) != 1 || pending[0].Request.ID != "a1" {
 		t.Fatalf("pending %+v", pending)
 	}
 
@@ -258,5 +259,333 @@ func TestEventsRejectsBadLimit(t *testing.T) {
 		if _, err := s.Events(context.Background(), "s", 0, limit); !errors.Is(err, ErrInvalid) {
 			t.Fatalf("limit %d: %v", limit, err)
 		}
+	}
+}
+
+func approvalRow(t *testing.T, s *Store, session, id string) (status, option string) {
+	t.Helper()
+	err := s.db.QueryRowContext(context.Background(),
+		`SELECT status, option_id FROM approvals WHERE session_id = ? AND id = ?`, session, id).Scan(&status, &option)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return status, option
+}
+
+func TestResolveApprovalFirstAnswerWins(t *testing.T) {
+	ctx := context.Background()
+	s := newStore(t)
+	newSession(t, s, "s")
+	appendOK(t, s, AppendRequest{Session: "s", Turn: 1, Entries: []Entry{{Payload: proto.TurnStarted{}}, {Payload: approvalRequest("a1")}}})
+
+	first, err := s.ResolveApproval(ctx, "s", 1, t0, proto.ApprovalResolved{ID: "a1", Outcome: proto.OutcomeAllowed, OptionID: "once", DecidedBy: "device:mac"}, "r1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.FirstSeq != 3 || first.LastSeq != 3 {
+		t.Fatalf("first %+v", first)
+	}
+	if sess, _ := s.Session(ctx, "s"); sess.Status != proto.StatusRunning {
+		t.Fatalf("status %s, want running", sess.Status)
+	}
+	_, err = s.ResolveApproval(ctx, "s", 1, t0, proto.ApprovalResolved{ID: "a1", Outcome: proto.OutcomeDenied, DecidedBy: "device:phone"}, "r2")
+	if !errors.Is(err, ErrConflict) {
+		t.Fatalf("second resolve: %v, want ErrConflict", err)
+	}
+	if status, opt := approvalRow(t, s, "s", "a1"); status != "allowed" || opt != "once" {
+		t.Fatalf("approval row %s/%s, first decision lost", status, opt)
+	}
+	if evs, _ := s.Events(ctx, "s", 0, 100); len(evs) != 3 {
+		t.Fatalf("conflicting resolve wrote events: %d", len(evs))
+	}
+	if _, err := s.ResolveApproval(ctx, "s", 1, t0, proto.ApprovalResolved{ID: "nope", Outcome: proto.OutcomeAllowed}, ""); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("unknown approval: %v, want ErrNotFound", err)
+	}
+	if _, err := s.ResolveApproval(ctx, "missing", 1, t0, proto.ApprovalResolved{ID: "a1", Outcome: proto.OutcomeAllowed}, ""); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("unknown session: %v, want ErrNotFound", err)
+	}
+	replay, err := s.ResolveApproval(ctx, "s", 1, t0, proto.ApprovalResolved{ID: "a1", Outcome: proto.OutcomeAllowed, OptionID: "once", DecidedBy: "device:mac"}, "r1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !replay.Duplicate || replay.FirstSeq != first.FirstSeq || replay.LastSeq != first.LastSeq {
+		t.Fatalf("replay %+v, want duplicate of %+v", replay, first)
+	}
+	if _, err := s.ResolveApproval(ctx, "s", 1, t0, proto.ApprovalResolved{ID: "a1", Outcome: "maybe"}, ""); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("invalid resolution: %v", err)
+	}
+}
+
+func TestAppendStaleResolvedChangesNothing(t *testing.T) {
+	ctx := context.Background()
+	s := newStore(t)
+	newSession(t, s, "s")
+	appendOK(t, s, AppendRequest{Session: "s", Turn: 1, Entries: []Entry{{Payload: proto.TurnStarted{}}, {Payload: approvalRequest("a1")}}})
+	if _, err := s.ResolveApproval(ctx, "s", 1, t0, proto.ApprovalResolved{ID: "a1", Outcome: proto.OutcomeAllowed, OptionID: "once"}, ""); err != nil {
+		t.Fatal(err)
+	}
+	appendOK(t, s, AppendRequest{Session: "s", Turn: 1, Entries: []Entry{
+		{Payload: proto.ApprovalResolved{ID: "a1", Outcome: proto.OutcomeDenied}},
+		{Payload: proto.ApprovalResolved{ID: "unknown", Outcome: proto.OutcomeDenied}},
+	}})
+	if status, opt := approvalRow(t, s, "s", "a1"); status != "allowed" || opt != "once" {
+		t.Fatalf("stale resolved changed the projection: %s/%s", status, opt)
+	}
+	if evs, _ := s.Events(ctx, "s", 0, 100); len(evs) != 5 {
+		t.Fatalf("stale events not logged: %d", len(evs))
+	}
+}
+
+func TestStatusIsDerived(t *testing.T) {
+	ctx := context.Background()
+	s := newStore(t)
+	newSession(t, s, "s")
+	status := func(want proto.SessionStatus) {
+		t.Helper()
+		if got, _ := s.Session(ctx, "s"); got.Status != want {
+			t.Fatalf("status %s, want %s", got.Status, want)
+		}
+	}
+	appendOK(t, s, AppendRequest{Session: "s", Turn: 1, Entries: []Entry{{Payload: proto.TurnStarted{}}, {Payload: approvalRequest("a1")}}})
+	status(proto.StatusWaiting)
+	// A new turn starting while an approval is pending does not unstick it.
+	appendOK(t, s, AppendRequest{Session: "s", Turn: 2, Entries: []Entry{{Payload: proto.TurnStarted{}}}})
+	status(proto.StatusWaiting)
+	if _, err := s.ResolveApproval(ctx, "s", 1, t0, proto.ApprovalResolved{ID: "a1", Outcome: proto.OutcomeAllowed, OptionID: "once"}, ""); err != nil {
+		t.Fatal(err)
+	}
+	status(proto.StatusRunning)
+	// Repeating the request for the resolved approval must not resurrect it.
+	appendOK(t, s, AppendRequest{Session: "s", Turn: 1, Entries: []Entry{{Payload: approvalRequest("a1")}}})
+	status(proto.StatusRunning)
+	if pending, _ := s.PendingApprovals(ctx, "s"); len(pending) != 0 {
+		t.Fatalf("resolved approval pending again: %+v", pending)
+	}
+}
+
+func TestTurnEndedExpiresPendingApprovals(t *testing.T) {
+	for _, tc := range []struct {
+		reason proto.TurnEndReason
+		want   proto.SessionStatus
+	}{{proto.TurnCompleted, proto.StatusIdle}, {proto.TurnFailed, proto.StatusErrored}} {
+		t.Run(string(tc.reason), func(t *testing.T) {
+			ctx := context.Background()
+			s := newStore(t)
+			newSession(t, s, "s")
+			appendOK(t, s, AppendRequest{Session: "s", Turn: 1, Entries: []Entry{
+				{Payload: proto.TurnStarted{}}, {Payload: approvalRequest("a1")}, {Payload: approvalRequest("a2")},
+			}})
+			res := appendOK(t, s, AppendRequest{Session: "s", Turn: 1, Entries: []Entry{{Payload: proto.TurnEnded{Reason: tc.reason}}}})
+			if res.FirstSeq != 4 || res.LastSeq != 6 {
+				t.Fatalf("result %+v, want seqs 4..6 (two expiries then turn.ended)", res)
+			}
+			evs, _ := s.Events(ctx, "s", 3, 100)
+			if len(evs) != 3 || evs[0].Type != proto.TypeApprovalResolved || evs[1].Type != proto.TypeApprovalResolved || evs[2].Type != proto.TypeTurnEnded {
+				t.Fatalf("events %+v", evs)
+			}
+			p, err := evs[0].Decode()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if r := p.(proto.ApprovalResolved); r.Outcome != proto.OutcomeExpired || r.DecidedBy != "hoplet:turn-ended" {
+				t.Fatalf("expiry %+v", r)
+			}
+			if pending, _ := s.PendingApprovals(ctx, "s"); len(pending) != 0 {
+				t.Fatalf("still pending: %+v", pending)
+			}
+			if got, _ := s.Session(ctx, "s"); got.Status != tc.want {
+				t.Fatalf("status %s, want %s", got.Status, tc.want)
+			}
+		})
+	}
+}
+
+func TestAppendInvalidEntries(t *testing.T) {
+	ctx := context.Background()
+	s := newStore(t)
+	newSession(t, s, "s")
+	for name, e := range map[string]Entry{
+		"turn.started without turn": {Payload: proto.TurnStarted{}},
+		"turn.ended without turn":   {Payload: proto.TurnEnded{Reason: proto.TurnCompleted}},
+	} {
+		if _, err := s.Append(ctx, AppendRequest{Session: "s", Entries: []Entry{e}}); !errors.Is(err, ErrInvalid) {
+			t.Fatalf("%s: %v", name, err)
+		}
+	}
+	_, err := s.Append(ctx, AppendRequest{Session: "s", Entries: []Entry{{Payload: proto.ApprovalResolved{ID: "a", Outcome: "maybe"}}}})
+	if !errors.Is(err, ErrInvalid) || !errors.Is(err, proto.ErrInvalidPayload) {
+		t.Fatalf("bad payload: %v, want both ErrInvalid and ErrInvalidPayload", err)
+	}
+}
+
+func TestIngestOffsetIsMonotonic(t *testing.T) {
+	ctx := context.Background()
+	s := newStore(t)
+	newSession(t, s, "s")
+	hi, lo := int64(500), int64(100)
+	appendOK(t, s, AppendRequest{Session: "s", Entries: []Entry{{Payload: proto.Thinking{Text: "x"}}}, IngestOffset: &hi})
+	_, err := s.Append(ctx, AppendRequest{Session: "s", Entries: []Entry{{Payload: proto.Thinking{Text: "y"}}}, IngestOffset: &lo})
+	if !errors.Is(err, ErrInvalid) {
+		t.Fatalf("backwards offset: %v", err)
+	}
+	if evs, _ := s.Events(ctx, "s", 0, 100); len(evs) != 1 {
+		t.Fatalf("rejected append wrote events: %d", len(evs))
+	}
+	if got, _ := s.IngestOffset(ctx, "s"); got != 500 {
+		t.Fatalf("offset %d", got)
+	}
+	appendOK(t, s, AppendRequest{Session: "s", IngestOffset: &hi}) // equal is fine
+}
+
+func TestIngestOnlyLeavesSessionAlone(t *testing.T) {
+	ctx := context.Background()
+	s := newStore(t)
+	newSession(t, s, "s")
+	appendOK(t, s, AppendRequest{Session: "s", Turn: 1, Entries: []Entry{{Payload: proto.TurnStarted{}}}})
+	before, _ := s.Session(ctx, "s")
+	off := int64(9)
+	appendOK(t, s, AppendRequest{Session: "s", Time: t0.Add(time.Hour), IngestOffset: &off})
+	after, _ := s.Session(ctx, "s")
+	if after.UpdatedAt != before.UpdatedAt || after.Status != before.Status || after.Version != before.Version {
+		t.Fatalf("ingest-only append changed the session: before %+v after %+v", before, after)
+	}
+}
+
+func TestSessionVersions(t *testing.T) {
+	ctx := context.Background()
+	s := newStore(t)
+	a := newSession(t, s, "a")
+	b := newSession(t, s, "b")
+	if a.Version != 1 || b.Version != 2 {
+		t.Fatalf("create versions %d, %d", a.Version, b.Version)
+	}
+	appendOK(t, s, AppendRequest{Session: "a", Entries: []Entry{{Payload: proto.Thinking{}}}}) // 3
+	title := "t"
+	if _, err := s.UpdateSession(ctx, "b", SessionUpdate{Title: &title}); err != nil { // 4
+		t.Fatal(err)
+	}
+	if err := s.ArchiveSession(ctx, "a", t0); err != nil { // 5
+		t.Fatal(err)
+	}
+	if v, err := s.CatalogVersion(ctx); err != nil || v != 5 {
+		t.Fatalf("catalog version %d, %v; want 5", v, err)
+	}
+	since, err := s.SessionsSince(ctx, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(since) != 2 || since[0].ID != "b" || since[0].Version != 4 || since[1].ID != "a" || since[1].Version != 5 {
+		t.Fatalf("sessions since 2: %+v", since)
+	}
+}
+
+func TestUpdateSession(t *testing.T) {
+	ctx := context.Background()
+	s := newStore(t)
+	newSession(t, s, "s")
+	native, title := "native-1", "Fix sync"
+	got, err := s.UpdateSession(ctx, "s", SessionUpdate{NativeID: &native, Title: &title})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Harness.NativeID != "native-1" || got.Title != "Fix sync" || got.Version != 2 {
+		t.Fatalf("updated %+v", got)
+	}
+	got, err = s.UpdateSession(ctx, "s", SessionUpdate{Title: &native})
+	if err != nil || got.Harness.NativeID != "native-1" || got.Title != "native-1" {
+		t.Fatalf("partial update %+v, %v", got, err)
+	}
+	if _, err := s.UpdateSession(ctx, "missing", SessionUpdate{Title: &title}); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("missing: %v", err)
+	}
+}
+
+func TestPruneReceipts(t *testing.T) {
+	ctx := context.Background()
+	s := newStore(t)
+	newSession(t, s, "s")
+	appendOK(t, s, AppendRequest{Session: "s", Time: t0, ReceiptKey: "old", Entries: []Entry{{Payload: proto.Thinking{}}}})
+	appendOK(t, s, AppendRequest{Session: "s", Time: t0.Add(2 * time.Hour), ReceiptKey: "new", Entries: []Entry{{Payload: proto.Thinking{}}}})
+	n, err := s.PruneReceipts(ctx, t0.Add(time.Hour))
+	if err != nil || n != 1 {
+		t.Fatalf("pruned %d, %v; want 1", n, err)
+	}
+	if res := appendOK(t, s, AppendRequest{Session: "s", ReceiptKey: "new", Entries: []Entry{{Payload: proto.Thinking{}}}}); !res.Duplicate {
+		t.Fatal("recent receipt was pruned")
+	}
+	if res := appendOK(t, s, AppendRequest{Session: "s", ReceiptKey: "old", Entries: []Entry{{Payload: proto.Thinking{}}}}); res.Duplicate {
+		t.Fatal("pruned receipt still recognized")
+	}
+}
+
+func TestReadHelpers(t *testing.T) {
+	ctx := context.Background()
+	s := newStore(t)
+	newSession(t, s, "s")
+	if _, err := s.Events(ctx, "missing", 0, 10); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("Events unknown session: %v", err)
+	}
+	if _, err := s.EventsBefore(ctx, "missing", 10, 10); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("EventsBefore unknown session: %v", err)
+	}
+	if _, _, err := s.GapSize(ctx, "missing", 0); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("GapSize unknown session: %v", err)
+	}
+	for range 5 {
+		appendOK(t, s, AppendRequest{Session: "s", Entries: []Entry{{Payload: proto.Thinking{Text: "é"}}}})
+	}
+	before, err := s.EventsBefore(ctx, "s", 5, 2)
+	if err != nil || len(before) != 2 || before[0].Seq != 3 || before[1].Seq != 4 {
+		t.Fatalf("EventsBefore: %+v, %v", before, err)
+	}
+	if _, err := s.EventsBefore(ctx, "s", 5, 0); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("EventsBefore limit 0: %v", err)
+	}
+	count, size, err := s.GapSize(ctx, "s", 2)
+	if err != nil || count != 3 {
+		t.Fatalf("GapSize count %d, %v", count, err)
+	}
+	evs, _ := s.Events(ctx, "s", 2, 100)
+	want := int64(0)
+	for _, ev := range evs {
+		want += int64(len(ev.Payload))
+	}
+	if size != want {
+		t.Fatalf("GapSize bytes %d, want %d (byte length, not characters)", size, want)
+	}
+}
+
+func TestSnapshot(t *testing.T) {
+	ctx := context.Background()
+	s := newStore(t)
+	newSession(t, s, "s")
+	appendOK(t, s, AppendRequest{Session: "s", Entries: []Entry{{Payload: proto.Thinking{Text: "before any turn"}}}}) // 1
+	for n := uint32(1); n <= 3; n++ {
+		appendOK(t, s, AppendRequest{Session: "s", Turn: n, Entries: []Entry{
+			{Payload: proto.TurnStarted{}}, {Payload: proto.Thinking{Text: "t"}}, {Payload: proto.TurnEnded{Reason: proto.TurnCompleted}},
+		}}) // 2-4, 5-7, 8-10
+	}
+	appendOK(t, s, AppendRequest{Session: "s", Entries: []Entry{{Payload: proto.Thinking{Text: "after, no turn"}}}}) // 11
+	snap, err := s.Snapshot(ctx, "s", 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if snap.Session.ID != "s" || snap.Session.LastSeq != 11 {
+		t.Fatalf("session %+v", snap.Session)
+	}
+	if len(snap.Events) != 7 || snap.Events[0].Seq != 5 || snap.Events[6].Seq != 11 {
+		t.Fatalf("events from seq %d, %d of them", snap.Events[0].Seq, len(snap.Events))
+	}
+	all, err := s.Snapshot(ctx, "s", 10)
+	if err != nil || len(all.Events) != 11 {
+		t.Fatalf("fewer turns than asked: %d events, %v", len(all.Events), err)
+	}
+	if _, err := s.Snapshot(ctx, "missing", 1); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("unknown session: %v", err)
+	}
+	appendOK(t, s, AppendRequest{Session: "s", Turn: 4, Entries: []Entry{{Payload: approvalRequest("a1")}}})
+	snap, _ = s.Snapshot(ctx, "s", 1)
+	if len(snap.Pending) != 1 || snap.Pending[0].RequestSeq != 12 || snap.Pending[0].Request.ID != "a1" {
+		t.Fatalf("pending %+v", snap.Pending)
 	}
 }

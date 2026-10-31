@@ -1,12 +1,14 @@
 package store
 
 import (
+	"context"
 	"errors"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/yangflow/hoplet/proto"
 )
@@ -89,5 +91,40 @@ func TestPutBlobKeepsExistingFile(t *testing.T) {
 	}
 	if !os.SameFile(before, after) || !before.ModTime().Equal(after.ModTime()) {
 		t.Fatal("second PutBlob replaced the stored file")
+	}
+}
+
+func TestGCBlobs(t *testing.T) {
+	ctx := context.Background()
+	s := newStore(t)
+	newSession(t, s, "s")
+	put := func(content string) proto.BlobRef {
+		t.Helper()
+		ref, err := s.PutBlob(strings.NewReader(content))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return ref
+	}
+	raw, out, orphan, young := put("raw"), put("output"), put("orphan"), put("young")
+	appendOK(t, s, AppendRequest{Session: "s", Entries: []Entry{
+		{Payload: proto.Thinking{Text: "x"}, Raw: &raw},
+		{Payload: proto.ToolCall{ID: "t1", Kind: proto.ToolExec, Name: "bash", Summary: "ls", Status: proto.ToolDone, Output: &out}},
+	}})
+	old := time.Now().Add(-2 * time.Hour)
+	for _, ref := range []proto.BlobRef{raw, out, orphan} {
+		if err := os.Chtimes(s.blobPath(ref), old, old); err != nil {
+			t.Fatal(err)
+		}
+	}
+	n, err := s.GCBlobs(ctx, time.Hour)
+	if err != nil || n != 1 {
+		t.Fatalf("removed %d, %v; want 1", n, err)
+	}
+	for ref, wantPresent := range map[proto.BlobRef]bool{raw: true, out: true, orphan: false, young: true} {
+		_, err := os.Stat(s.blobPath(ref))
+		if present := err == nil; present != wantPresent {
+			t.Fatalf("blob %s present=%v, want %v", ref.SHA256[:8], present, wantPresent)
+		}
 	}
 }
