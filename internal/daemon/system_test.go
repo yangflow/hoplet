@@ -5,13 +5,16 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"slices"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/yangflow/hoplet/internal/env"
+	"github.com/yangflow/hoplet/internal/harness"
 	"github.com/yangflow/hoplet/internal/harness/fake"
 	"github.com/yangflow/hoplet/proto"
 )
@@ -55,8 +58,11 @@ func TestEnvRefresh(t *testing.T) {
 		info.ProxySource != "system" || info.Proxy != "http://127.0.0.1:7890" || info.Error != "" {
 		t.Fatalf("info %+v", info)
 	}
-	if !slices.Equal(src.reads, []bool{false, true}) {
-		t.Fatalf("source reads %v, want a cached read at start and one refresh", src.reads)
+	src.mu.Lock()
+	reads := slices.Clone(src.reads)
+	src.mu.Unlock()
+	if !slices.Equal(reads, []bool{false, true}) {
+		t.Fatalf("source reads %v, want a cached read at start and one refresh", reads)
 	}
 	if got := d.mgr.Env(); !slices.Contains(got, "GEN=xx") {
 		t.Fatalf("manager environment %v", got)
@@ -163,5 +169,194 @@ func TestSessionState(t *testing.T) {
 	}
 	if _, err := c.Session(timeout(t), "nope"); apiCode(err) != proto.CodeNotFound {
 		t.Fatalf("unknown session: %v", err)
+	}
+}
+
+// blockingHarness is a harness whose Probe waits until its context ends.
+type blockingHarness struct{ *fake.Harness }
+
+func (blockingHarness) Probe(ctx context.Context) (harness.Info, error) {
+	<-ctx.Done()
+	return harness.Info{}, ctx.Err()
+}
+
+// stubHarness answers Probe with a fixed result.
+type stubHarness struct {
+	*fake.Harness
+	info harness.Info
+	err  error
+}
+
+func (h stubHarness) Probe(context.Context) (harness.Info, error) { return h.info, h.err }
+
+func checksByName(r proto.DoctorReport) map[string]proto.Check {
+	m := map[string]proto.Check{}
+	for _, ch := range r.Checks {
+		m[ch.Name] = ch
+	}
+	return m
+}
+
+func okServer(t *testing.T) *httptest.Server {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) }))
+	t.Cleanup(srv.Close)
+	return srv
+}
+
+func TestDoctorIsBoundedWhenAProbeHangs(t *testing.T) {
+	srv := okServer(t)
+	s := &system{
+		harnesses:    map[string]harness.Harness{"stuck": blockingHarness{&fake.Harness{}}, "ok": stubHarness{&fake.Harness{}, harness.Info{Version: "2", Supported: true}, nil}},
+		probeURL:     srv.URL,
+		probeTimeout: 50 * time.Millisecond,
+	}
+	s.set(env.Snapshot{Shell: "/bin/zsh", ProxySource: env.ProxyNone}, nil)
+	start := time.Now()
+	r := s.doctor(context.Background())
+	if d := time.Since(start); d > 5*time.Second {
+		t.Fatalf("doctor took %v", d)
+	}
+	var names []string
+	for _, ch := range r.Checks {
+		names = append(names, ch.Name)
+	}
+	if !slices.Equal(names, []string{"environment", "network", "harness ok", "harness stuck"}) {
+		t.Fatalf("checks %v", names)
+	}
+	c := checksByName(r)
+	if st := c["harness stuck"]; st.Status != proto.CheckFail || !strings.Contains(st.Detail, "did not answer within 50ms") {
+		t.Fatalf("stuck %+v", st)
+	}
+	if ok := c["harness ok"]; ok.Status != proto.CheckOK {
+		t.Fatalf("ok %+v", ok)
+	}
+}
+
+func TestDoctorHarnessProbeResults(t *testing.T) {
+	srv := okServer(t)
+	s := &system{
+		harnesses: map[string]harness.Harness{
+			"broken": stubHarness{&fake.Harness{}, harness.Info{}, errors.New("binary missing")},
+			"old":    stubHarness{&fake.Harness{}, harness.Info{Version: "0.1", Supported: false}, nil},
+		},
+		probeURL: srv.URL,
+	}
+	s.set(env.Snapshot{ProxySource: env.ProxyNone}, nil)
+	c := checksByName(s.doctor(context.Background()))
+	if b := c["harness broken"]; b.Status != proto.CheckFail || b.Detail != "binary missing" {
+		t.Errorf("broken %+v", b)
+	}
+	if o := c["harness old"]; o.Status != proto.CheckWarn || !strings.Contains(o.Detail, "0.1") {
+		t.Errorf("old %+v", o)
+	}
+}
+
+func TestDoctorWarnsWhenTheSystemProxyIsAPACFile(t *testing.T) {
+	srv := okServer(t)
+	s := &system{probeURL: srv.URL}
+	s.set(env.Snapshot{ProxySource: env.ProxyNone, Note: "the system proxy is a PAC file (http://wpad/p.pac); set network.proxy in config.toml"}, nil)
+	n := checksByName(s.doctor(context.Background()))["network"]
+	if n.Status != proto.CheckWarn || !strings.Contains(n.Detail, "PAC file") || !strings.Contains(n.Detail, "reached") {
+		t.Fatalf("network %+v", n)
+	}
+}
+
+func TestDoctorProbesThroughAWorkingProxyAndRedactsIt(t *testing.T) {
+	var mu sync.Mutex
+	var seen []string
+	proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		seen = append(seen, r.URL.String())
+		mu.Unlock()
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer proxy.Close()
+	withPassword := strings.Replace(proxy.URL, "http://", "http://u:pw@", 1)
+	s := &system{probeURL: "http://probe.example.invalid/"}
+	s.set(env.Snapshot{
+		Vars: []string{"HTTP_PROXY=" + withPassword}, Proxy: withPassword, ProxySource: env.ProxyFromConfig,
+	}, nil)
+	r := s.doctor(context.Background())
+	n := checksByName(r)["network"]
+	if n.Status != proto.CheckOK || !strings.Contains(n.Detail, "through") || !strings.Contains(n.Detail, "HTTP 204") || strings.Contains(n.Detail, "pw") {
+		t.Fatalf("network %+v", n)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if !slices.Equal(seen, []string{"http://probe.example.invalid/"}) {
+		t.Fatalf("the proxy saw %v", seen)
+	}
+}
+
+func TestProxyFor(t *testing.T) {
+	vars := []string{"HTTPS_PROXY=http://s:1", "http_proxy=http://p:2", "NO_PROXY=localhost, .corp,internal.example"}
+	for _, tc := range []struct{ url, want string }{
+		{"https://api.example.com", "http://s:1"},
+		{"http://api.example.com", "http://p:2"},
+		{"https://localhost", ""},
+		{"https://git.corp", ""},
+		{"https://corp", ""},
+		{"https://a.internal.example", ""},
+		{"https://notcorp.com", "http://s:1"},
+		{"ftp://x.example.com", ""},
+	} {
+		u, _ := url.Parse(tc.url)
+		got := ""
+		if p := proxyFor(vars, u); p != nil {
+			got = p.String()
+		}
+		if got != tc.want {
+			t.Errorf("%s: %q, want %q", tc.url, got, tc.want)
+		}
+	}
+	u, _ := url.Parse("http://x.example.com")
+	if p := proxyFor([]string{"ALL_PROXY=socks5h://s:3", "NO_PROXY=*"}, u); p != nil {
+		t.Errorf("wildcard NO_PROXY: %v", p)
+	}
+	if p := proxyFor([]string{"all_proxy=socks5h://s:3"}, u); p == nil || p.Host != "s:3" {
+		t.Errorf("ALL_PROXY: %v", p)
+	}
+}
+
+// snapSource hands out one fixed snapshot.
+type snapSource struct{ snap env.Snapshot }
+
+func (s snapSource) Environment(context.Context, bool) (env.Snapshot, error) { return s.snap, nil }
+
+func TestRefreshRedactsTheProxyPassword(t *testing.T) {
+	h, script := newHome(t, echoScript)
+	cfg := testConfig(h, script)
+	cfg.Env = snapSource{env.Snapshot{
+		Shell: "/bin/zsh", Vars: []string{"PATH=/bin"},
+		Proxy: "http://u:pw@127.0.0.1:7890", ProxySource: env.ProxyFromShell,
+	}}
+	start(t, cfg)
+	c := dial(t, h, "device:a")
+	info, err := c.RefreshEnv(timeout(t))
+	if err != nil || strings.Contains(info.Proxy, "pw") || !strings.Contains(info.Proxy, "127.0.0.1:7890") {
+		t.Fatalf("info %+v %v", info, err)
+	}
+}
+
+func TestLaterRefreshClearsAStartupReadError(t *testing.T) {
+	h, script := newHome(t, echoScript)
+	cfg := testConfig(h, script)
+	src := &countingSource{fail: true}
+	cfg.Env = src
+	d := start(t, cfg)
+	c := dial(t, h, "device:a")
+	if info := d.srv.sys.info(); info.Error == "" {
+		t.Fatalf("startup read error missing: %+v", info)
+	}
+	src.mu.Lock()
+	src.fail = false
+	src.mu.Unlock()
+	info, err := c.RefreshEnv(timeout(t))
+	if err != nil || info.Error != "" {
+		t.Fatalf("refresh %+v %v", info, err)
+	}
+	if got := d.srv.sys.info(); got.Error != "" {
+		t.Fatalf("error not cleared: %+v", got)
 	}
 }

@@ -272,6 +272,9 @@ type EnvInfo struct {
 	Proxy       string    `json:"proxy,omitempty"`
 	ProxySource string    `json:"proxy_source"`
 	ResolvedAt  time.Time `json:"resolved_at"`
+	// Note, when set, says why no proxy is in use when that may surprise
+	// (the system proxy is a PAC file).
+	Note string `json:"note,omitempty"`
 	// Error, when set, says why the login shell could not be read; harnesses
 	// then start with a minimal environment.
 	Error string `json:"error,omitempty"`

@@ -172,7 +172,11 @@ func apiError(err error) *proto.APIError {
 	return &proto.APIError{Code: code, Message: err.Error()}
 }
 
-// sessionState reads a session with its pending approvals and queue.
+// sessionState reads a session with its pending approvals and queue. The
+// three reads are not one transaction: a concurrent approval or dequeue can
+// give a mixed view (for example status waiting with nothing pending). That
+// is acceptable for a status view, which the next call corrects, and
+// nothing acts on it.
 func (c *conn) sessionState(ctx context.Context, id proto.SessionID) (proto.SessionState, error) {
 	st := c.s.store
 	sess, err := st.Session(ctx, id)

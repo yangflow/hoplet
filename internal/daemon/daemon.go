@@ -131,7 +131,7 @@ func Start(ctx context.Context, cfg Config) (d *Daemon, err error) {
 	if probeURL == "" {
 		probeURL = DefaultProbeURL
 	}
-	sys := &system{src: src, mgr: mgr, harnesses: cfg.Harnesses, probeURL: probeURL, log: log}
+	sys := &system{src: src, mgr: mgr, harnesses: cfg.Harnesses, probeURL: probeURL, probeTimeout: defaultProbeTimeout, log: log}
 	sys.set(snap, envErr)
 	// Recover before serving: a command must never reach a session whose
 	// shim the manager has not reattached to yet.
