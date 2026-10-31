@@ -797,6 +797,12 @@ func (m *Manager) attach(ctx context.Context, sess proto.Session, wait bool, not
 		l.committed.Store(off)
 		spec := m.specFor(sess, open)
 		spec.Resume = "" // attaching to a running harness resumes nothing
+		// The mode the adapter restores after plan mode must be one the
+		// harness has; a failed probe leaves the stored mode, which was
+		// valid when stored.
+		if info, err := hh.Probe(ctx); err == nil {
+			spec.Mode = info.Capabilities.Fallback(spec.Mode)
+		}
 		l.run, err = hh.Attach(ctx, spec, l.stdio)
 		if err != nil {
 			return nil, errors.Join(err, l.stdio.Close())

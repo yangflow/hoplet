@@ -75,8 +75,8 @@ type Spec struct {
 	Mode proto.PermissionMode
 	// Plan starts the session in plan mode, with Mode as the permission mode
 	// to restore when plan mode ends; Fast in fast mode; Effort is the
-	// thinking effort, empty for the harness default. Mode is always one of
-	// the harness's Capabilities.Modes.
+	// thinking effort, empty for the harness default. Mode is one of the
+	// harness's Capabilities.Modes, or confirm when it declares none.
 	Plan      bool
 	Fast      bool
 	Effort    proto.Effort
