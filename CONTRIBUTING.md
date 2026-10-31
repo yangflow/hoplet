@@ -51,7 +51,7 @@ Every commit must be signed off, certifying that you wrote the change or have th
 git commit -s
 ```
 
-This adds a `Signed-off-by: Your Name <you@example.com>` trailer. CI rejects pull requests with unsigned commits. To fix a branch, run `git rebase --signoff main` and force-push.
+This adds a `Signed-off-by: Your Name <you@example.com>` trailer. CI rejects pull requests with unsigned commits; commits made by GitHub bot accounts (such as the release automation) are exempt. To fix a branch, run `git rebase --signoff main` and force-push.
 
 ## Language
 
