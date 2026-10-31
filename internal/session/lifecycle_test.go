@@ -3,6 +3,7 @@ package session
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -749,5 +750,58 @@ func TestTransientReattachErrorsRetryAndAreRecordedOnce(t *testing.T) {
 	}
 	if n := count(evs, proto.TypeApprovalRequest); n != 1 {
 		t.Fatalf("%d approval requests: %s", n, describe(evs))
+	}
+}
+
+// TestReattachGivesUpOnBadOffset: a shim that rejects the committed offset
+// will keep rejecting it, so the reattacher records that once and stops.
+func TestReattachGivesUpOnBadOffset(t *testing.T) {
+	e := newEnv(t, approvalScript)
+	m := e.manager()
+	defer m.Close()
+	sess := e.create(m)
+	ctx := context.Background()
+	if _, err := m.Send(ctx, sess.ID, "go", "k1"); err != nil {
+		t.Fatal(err)
+	}
+	e.waitFor(sess.ID, "approval", func(evs []proto.Event) bool { return count(evs, proto.TypeApprovalRequest) == 1 })
+	far := int64(1 << 30)
+	if _, err := e.store.Append(ctx, store.AppendRequest{Session: sess.ID, IngestOffset: &far}); err != nil {
+		t.Fatal(err)
+	}
+	c, err := shim.Dial(ctx, m.dir(sess.ID), 0) // takes the shim over: the manager reattaches with the far offset
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	done := make(chan struct{})
+	go func() { m.wg.Wait(); close(done) }() // returns only when the reattacher has ended
+	select {
+	case <-done:
+	case <-time.After(15 * time.Second):
+		t.Fatal("the reattacher kept retrying a bad offset")
+	}
+	evs, _ := e.store.Events(ctx, sess.ID, 0, 1000)
+	if n := count(evs, proto.TypeError); n != 1 {
+		t.Fatalf("%d errors recorded: %s", n, describe(evs))
+	}
+	if _, open, _ := e.store.TurnState(ctx, sess.ID); !open {
+		t.Fatal("the turn must stay open")
+	}
+}
+
+func TestPermanentAttachErrors(t *testing.T) {
+	for _, err := range []error{
+		&shim.Error{Code: shim.CodeBadOffset}, &shim.Error{Code: shim.CodeVersion},
+		fmt.Errorf("x: %w", ErrUnknownHarness),
+	} {
+		if !permanentAttachError(err) {
+			t.Errorf("%v should be permanent", err)
+		}
+	}
+	for _, err := range []error{errNoShim, errors.New("glitch"), &shim.Error{Code: shim.CodeCorrupt}} {
+		if permanentAttachError(err) {
+			t.Errorf("%v should be retried", err)
+		}
 	}
 }

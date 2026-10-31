@@ -3,6 +3,7 @@ package session
 import (
 	"bytes"
 	"context"
+	"io"
 	"os"
 	"strings"
 	"testing"
@@ -57,8 +58,8 @@ checked:
 	var kinds []harness.LineKind
 	var stdout [][]byte
 	for _, l := range got {
-		if l.Offset <= last {
-			t.Fatalf("offset %d not after %d", l.Offset, last)
+		if l.Offset < last {
+			t.Fatalf("offset %d went back from %d", l.Offset, last)
 		}
 		last = l.Offset
 		kinds = append(kinds, l.Kind)
@@ -169,5 +170,106 @@ func TestStdinCode(t *testing.T) {
 		if stdinCode(c) {
 			t.Errorf("%s must end the connection", c)
 		}
+	}
+}
+
+// feed returns a record source that replays recs and then fails like a lost
+// connection.
+func feed(recs ...fedRecord) func() (shim.Record, int64, error) {
+	return func() (shim.Record, int64, error) {
+		if len(recs) == 0 {
+			return shim.Record{}, 0, io.EOF
+		}
+		r := recs[0]
+		recs = recs[1:]
+		return r.rec, r.end, nil
+	}
+}
+
+type fedRecord struct {
+	rec shim.Record
+	end int64
+}
+
+func collect(t *testing.T, s *ShimStdio) []harness.Line {
+	t.Helper()
+	var out []harness.Line
+	timeout := time.After(10 * time.Second)
+	for {
+		select {
+		case l, ok := <-s.Lines():
+			if !ok {
+				return out
+			}
+			out = append(out, l)
+		case <-timeout:
+			t.Fatal("timed out")
+		}
+	}
+}
+
+func TestOffsetsStayBehindAnIncompleteLine(t *testing.T) {
+	s := newShimStdio(nil, feed(
+		fedRecord{shim.Record{Kind: shim.KindStdout, Data: "ab", More: true}, 100}, // starts at 10
+		fedRecord{shim.Record{Kind: shim.KindStdin, Data: "in"}, 150},
+		fedRecord{shim.Record{Kind: shim.KindStderr, Data: "err"}, 180},
+		fedRecord{shim.Record{Kind: shim.KindStdout, Data: "cd"}, 250},
+		fedRecord{shim.Record{Kind: shim.KindStdin, Data: "later"}, 300},
+	), 10)
+	defer s.Close()
+	got := collect(t, s)
+	want := []struct {
+		kind harness.LineKind
+		data string
+		off  int64
+	}{
+		{harness.Stdin, "in", 10},     // capped where the stdout line began
+		{harness.Stderr, "err", 10},   // still capped
+		{harness.Stdout, "abcd", 250}, // complete: its own end offset
+		{harness.Stdin, "later", 300},
+	}
+	if len(got) != len(want) {
+		t.Fatalf("lines %+v", got)
+	}
+	for i, w := range want {
+		if got[i].Kind != w.kind || string(got[i].Data) != w.data || got[i].Offset != w.off {
+			t.Fatalf("line %d: %+v, want %+v", i, got[i], w)
+		}
+	}
+}
+
+func TestOffsetCapIsTheEarliestIncompleteLine(t *testing.T) {
+	s := newShimStdio(nil, feed(
+		fedRecord{shim.Record{Kind: shim.KindStdout, Data: "a", More: true}, 20}, // starts at 0
+		fedRecord{shim.Record{Kind: shim.KindStderr, Data: "b", More: true}, 40}, // starts at 20
+		fedRecord{shim.Record{Kind: shim.KindStdout, Data: "c"}, 60},             // stdout done; stderr still open
+		fedRecord{shim.Record{Kind: shim.KindStderr, Data: "d"}, 80},
+	), 0)
+	defer s.Close()
+	got := collect(t, s)
+	if len(got) != 2 || got[0].Offset != 20 || string(got[0].Data) != "ac" || got[1].Offset != 80 || string(got[1].Data) != "bd" {
+		t.Fatalf("lines %+v", got)
+	}
+}
+
+func TestStartRecordFlushesIncompleteLinesFirst(t *testing.T) {
+	s := newShimStdio(nil, feed(
+		fedRecord{shim.Record{Kind: shim.KindStdout, Data: "tail of the old proc", More: true}, 100},
+		fedRecord{shim.Record{Kind: shim.KindStart, Pid: 9}, 130},
+		fedRecord{shim.Record{Kind: shim.KindStdout, Data: "first line of the new one"}, 200},
+	), 0)
+	defer s.Close()
+	got := collect(t, s)
+	if len(got) != 3 {
+		t.Fatalf("lines %+v", got)
+	}
+	if got[0].Kind != harness.Stdout || string(got[0].Data) != "tail of the old proc" || got[0].Offset != 0 {
+		t.Fatalf("truncated tail %+v", got[0])
+	}
+	if got[1].Kind != harness.Position || got[1].Offset != 130 {
+		t.Fatalf("position %+v", got[1])
+	}
+	if string(got[2].Data) != "first line of the new one" || got[2].Offset != 200 {
+		t.Fatalf("new line %+v", got[2])
 	}
 }

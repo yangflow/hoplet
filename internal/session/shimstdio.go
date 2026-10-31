@@ -11,10 +11,18 @@ import (
 
 // ShimStdio is a harness.Stdio over a shim connection. It reassembles
 // chunked records into whole lines and reports each line with the spool
-// offset just after its last chunk, so the daemon can commit offsets with
-// the events they produced.
+// offset the daemon may commit once the line's events are stored.
+//
+// That offset is the end of the line's last record, except while a chunked
+// line is still incomplete: every Line emitted then carries the offset where
+// the earliest incomplete line began, so a committed offset never passes
+// records that have not been turned into a line yet. A restart replays the
+// interleaved records, so those may be seen twice; that is accepted, as
+// losing them would not be.
 type ShimStdio struct {
 	c     *shim.Client
+	recv  func() (shim.Record, int64, error)
+	from  int64
 	lines chan harness.Line
 	done  chan struct{}
 	wg    sync.WaitGroup
@@ -25,7 +33,13 @@ var _ harness.Stdio = (*ShimStdio)(nil)
 
 // NewShimStdio starts reading records from c.
 func NewShimStdio(c *shim.Client) *ShimStdio {
-	s := &ShimStdio{c: c, lines: make(chan harness.Line, 64), done: make(chan struct{})}
+	return newShimStdio(c, c.Recv, c.From())
+}
+
+// newShimStdio reads records from recv, the first starting at spool offset
+// from; c carries the writes and may be nil if there are none.
+func newShimStdio(c *shim.Client, recv func() (shim.Record, int64, error), from int64) *ShimStdio {
+	s := &ShimStdio{c: c, recv: recv, from: from, lines: make(chan harness.Line, 64), done: make(chan struct{})}
 	s.wg.Add(1)
 	go s.read()
 	return s
@@ -34,9 +48,9 @@ func NewShimStdio(c *shim.Client) *ShimStdio {
 func (s *ShimStdio) read() {
 	defer s.wg.Done()
 	defer close(s.lines)
-	var asm assembler
+	asm := assembler{prev: s.from}
 	for {
-		rec, off, err := s.c.Recv()
+		rec, off, err := s.recv()
 		var serr *shim.Error
 		if errors.As(err, &serr) {
 			if !stdinCode(serr.Code) {
@@ -76,16 +90,57 @@ func stdinCode(code string) bool {
 // Lines, all but the last with Offset 0.
 type assembler struct {
 	partial map[shim.RecordKind][]byte
+	begin   map[shim.RecordKind]int64 // where each incomplete line began
+	order   []shim.RecordKind         // the incomplete lines, oldest first
+	prev    int64                     // where the next record starts
+}
+
+// cap limits an offset so it does not pass the earliest incomplete line.
+func (a *assembler) cap(off int64) int64 {
+	if len(a.order) == 0 {
+		return off
+	}
+	return min(off, a.begin[a.order[0]])
+}
+
+func (a *assembler) drop(k shim.RecordKind) {
+	delete(a.partial, k)
+	delete(a.begin, k)
+	for i, o := range a.order {
+		if o == k {
+			a.order = append(a.order[:i], a.order[i+1:]...)
+			break
+		}
+	}
+}
+
+// flush returns the incomplete lines as collected, truncated, with no offset.
+func (a *assembler) flush() []harness.Line {
+	var out []harness.Line
+	for _, k := range a.order {
+		kind, _ := lineKind(k)
+		out = append(out, harness.Line{Kind: kind, Data: a.partial[k]})
+	}
+	a.partial, a.begin, a.order = nil, nil, nil
+	return out
 }
 
 // add takes the next record, read at spool offset off (just after it), and
 // returns the lines it completes.
 func (a *assembler) add(rec shim.Record, off int64) []harness.Line {
+	start := a.prev
+	a.prev = off
+	var out []harness.Line
+	if rec.Kind == shim.KindStart || rec.Kind == shim.KindExit {
+		// A new process, or the end of this one: what the old one left
+		// unfinished must not glue onto what comes next.
+		out = a.flush()
+	}
 	kind, ok := lineKind(rec.Kind)
 	if !ok {
 		// A start record, or a kind from a newer shim: nothing for the
 		// adapter, but the position still counts towards catching up.
-		return []harness.Line{{Kind: harness.Position, Offset: off}}
+		return append(out, harness.Line{Kind: harness.Position, Offset: a.cap(off)})
 	}
 	data := []byte(rec.Data)
 	if len(rec.B) > 0 {
@@ -93,9 +148,9 @@ func (a *assembler) add(rec shim.Record, off int64) []harness.Line {
 	}
 	if a.partial == nil {
 		a.partial = map[shim.RecordKind][]byte{}
+		a.begin = map[shim.RecordKind]int64{}
 	}
 	buf := append(a.partial[rec.Kind], data...)
-	var out []harness.Line
 	for len(buf) > harness.MaxLine || (rec.More && len(buf) == harness.MaxLine) {
 		// Only the record's last piece carries its end offset: committing the
 		// offset before the rest of the line is read would lose it on restart.
@@ -103,15 +158,19 @@ func (a *assembler) add(rec shim.Record, off int64) []harness.Line {
 		buf = buf[harness.MaxLine:]
 	}
 	if rec.More {
-		if len(buf) > 0 {
-			a.partial[rec.Kind] = append([]byte(nil), buf...)
-		} else {
-			delete(a.partial, rec.Kind)
+		if len(buf) == 0 {
+			a.drop(rec.Kind)
+			return out
 		}
+		if _, had := a.partial[rec.Kind]; !had {
+			a.begin[rec.Kind] = start
+			a.order = append(a.order, rec.Kind)
+		}
+		a.partial[rec.Kind] = append([]byte(nil), buf...)
 		return out
 	}
-	delete(a.partial, rec.Kind)
-	line := harness.Line{Kind: kind, Data: buf, Offset: off}
+	a.drop(rec.Kind)
+	line := harness.Line{Kind: kind, Data: buf, Offset: a.cap(off)}
 	if kind == harness.Exit {
 		line.Code, line.Signal = rec.Code, rec.Signal
 		if rec.Signal != "" && rec.Code == 0 {
@@ -170,7 +229,9 @@ func (s *ShimStdio) Close() error {
 	var err error
 	s.once.Do(func() {
 		close(s.done)
-		err = s.c.Close()
+		if s.c != nil {
+			err = s.c.Close()
+		}
 		s.wg.Wait()
 	})
 	return err

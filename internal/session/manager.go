@@ -682,6 +682,17 @@ func (m *Manager) attach(ctx context.Context, sess proto.Session, wait bool, not
 	return l, nil
 }
 
+// permanentAttachError reports errors that retrying will not fix: the shim
+// refuses this daemon's offset or protocol version, or the harness kind is
+// unknown.
+func permanentAttachError(err error) bool {
+	var serr *shim.Error
+	if errors.As(err, &serr) && (serr.Code == shim.CodeBadOffset || serr.Code == shim.CodeVersion) {
+		return true
+	}
+	return errors.Is(err, ErrUnknownHarness)
+}
+
 // noListener reports whether a dial failed because nothing listens: the
 // socket is missing or refuses connections.
 func noListener(err error) bool {
@@ -962,6 +973,13 @@ func (m *Manager) reattach(id proto.SessionID, delay time.Duration, note string)
 				if aerr := m.abortOpenTurn(m.ctx, id, "lost the connection to the harness"); aerr != nil {
 					m.log.Error("abort open turn", "session", id, "err", aerr)
 				}
+			}
+			return
+		}
+		if permanentAttachError(err) {
+			// Retrying cannot help; leave the turn as it is and say why.
+			if !m.isClosing() {
+				m.recordAttachError(m.ctx, id, err)
 			}
 			return
 		}
