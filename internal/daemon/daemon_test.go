@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -737,5 +738,32 @@ func TestSlowClientIsDisconnected(t *testing.T) {
 	// The other client is unaffected.
 	if _, err := c.Sessions(timeout(t)); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestPlanAndEffortCommands(t *testing.T) {
+	h, script := newHome(t, echoScript)
+	start(t, testConfig(h, script))
+	c := dial(t, h, "device:a")
+	ctx := timeout(t)
+	sess, err := c.Create(ctx, proto.CreateParams{Mode: proto.ModeCode, Harness: "fake", Directory: filepath.Join(h, "work"), Plan: true, Effort: proto.EffortLow})
+	if err != nil || !sess.Plan || sess.Effort != proto.EffortLow || sess.Permission != proto.ModeAutoReview {
+		t.Fatalf("create %+v %v", sess, err)
+	}
+	if err := c.SetPlan(ctx, proto.SetPlanParams{Session: sess.ID, Plan: false}); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.SetEffort(ctx, proto.SetEffortParams{Session: sess.ID, Effort: proto.EffortMax}); err != nil {
+		t.Fatal(err)
+	}
+	st, err := c.Session(ctx, sess.ID)
+	if err != nil || st.Session.Plan || st.Session.Effort != proto.EffortMax {
+		t.Fatalf("after the commands %+v %v", st.Session, err)
+	}
+	if err := c.SetEffort(ctx, proto.SetEffortParams{Session: sess.ID, Effort: "huge"}); apiCode(err) != proto.CodeInvalid {
+		t.Fatalf("unknown effort: %v", err)
+	}
+	if err := c.SetPermission(ctx, proto.SetPermissionParams{Session: sess.ID, Permission: "read_only"}); apiCode(err) != proto.CodeInvalid {
+		t.Fatalf("retired mode: %v", err)
 	}
 }

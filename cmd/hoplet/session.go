@@ -18,12 +18,14 @@ import (
 const sessionUsage = `usage: hoplet session <command> [flags]
 
 commands:
-  new      [--mode code|personal] --harness KIND [--dir DIR] [--permission MODE] [--title T] [PROMPT]
+  new      [--mode code|personal] --harness KIND [--dir DIR] [--permission MODE] [--plan]
+           [--effort LEVEL] [--title T] [PROMPT]
   list     [--all]
   send     ID TEXT
   watch    ID [--after SEQ]
   wait     ID [--for idle|blocked|done] [--timeout D]
   approve  ID [APPROVAL] --option OPTION
+  set      ID [--permission MODE] [--plan on|off] [--effort LEVEL]
   archive  ID
 
 ID may be a unique prefix of at least 4 characters. Every command takes
@@ -33,6 +35,12 @@ wait conditions: idle (no turn running and nothing queued), blocked
 (an approval, a question or a failed queued message waits on you), done
 (idle, blocked, errored or archived: nothing happens until you act).
 idle never comes for an errored session; use done.
+
+permission modes: confirm (ask before changes and commands), auto_edit (edit
+freely, ask before commands), auto_review (the harness asks only for risky
+actions), full_auto (never ask). A harness lacking a mode runs the nearest
+stricter one. Plan mode stops all changes until you approve a plan. Effort
+levels: low, medium, high, xhigh, max.
 `
 
 // commandTimeout bounds one request of a command that does not follow a
@@ -50,7 +58,7 @@ func (a app) session(args []string) int {
 	}
 	cmds := map[string]func([]string) int{
 		"new": a.sessionNew, "list": a.sessionList, "send": a.sessionSend, "watch": a.sessionWatch,
-		"wait": a.sessionWait, "approve": a.sessionApprove, "archive": a.sessionArchive,
+		"wait": a.sessionWait, "approve": a.sessionApprove, "set": a.sessionSet, "archive": a.sessionArchive,
 	}
 	cmd, ok := cmds[args[0]]
 	if !ok {
@@ -115,7 +123,9 @@ func (a app) sessionNew(args []string) int {
 	mode := fs.String("mode", "code", "code or personal")
 	kind := fs.String("harness", "", "harness kind")
 	dir := fs.String("dir", ".", "working directory of a code session")
-	perm := fs.String("permission", "", "read_only, confirm, auto_edit or full_auto (default: the mode's)")
+	perm := fs.String("permission", "", "confirm, auto_edit, auto_review or full_auto (default: auto_review for code, confirm for personal)")
+	plan := fs.Bool("plan", false, "start in plan mode")
+	effort := fs.String("effort", "", "low, medium, high, xhigh or max (default: the harness's)")
 	title := fs.String("title", "", "title")
 	asJSON := fs.Bool("json", false, "print JSON")
 	if code, ok := parse(fs, args, 0, -1); !ok {
@@ -125,7 +135,10 @@ func (a app) sessionNew(args []string) int {
 		fmt.Fprintln(a.stderr, "hoplet session new: --harness is required")
 		return 2
 	}
-	p := proto.CreateParams{Mode: proto.Mode(*mode), Harness: *kind, Permission: proto.PermissionMode(*perm), Title: *title}
+	p := proto.CreateParams{
+		Mode: proto.Mode(*mode), Harness: *kind, Permission: proto.PermissionMode(*perm),
+		Plan: *plan, Effort: proto.Effort(*effort), Title: *title,
+	}
 	if p.Mode == proto.ModeCode {
 		abs, err := filepath.Abs(*dir)
 		if err != nil {
@@ -483,4 +496,66 @@ func (a app) sessionArchive(args []string) int {
 		}
 		return nil
 	})
+}
+
+func (a app) sessionSet(args []string) int {
+	fs := a.flags("session set", sessionUsage)
+	perm := fs.String("permission", "", "confirm, auto_edit, auto_review or full_auto")
+	plan := fs.String("plan", "", "on or off")
+	effort := fs.String("effort", "", "low, medium, high, xhigh or max")
+	asJSON := fs.Bool("json", false, "print the session as JSON")
+	if code, ok := parse(fs, args, 1, 1); !ok {
+		return code
+	}
+	if *plan != "" && *plan != "on" && *plan != "off" {
+		fmt.Fprintf(a.stderr, "hoplet session set: --plan %q: want on or off\n", *plan)
+		return 2
+	}
+	if *perm == "" && *plan == "" && *effort == "" {
+		fmt.Fprintln(a.stderr, "hoplet session set: nothing to change; give --permission, --plan or --effort")
+		return 2
+	}
+	return a.withClient("session set", commandTimeout, func(ctx context.Context, c *client.Client) error {
+		id, err := resolveID(ctx, c, fs.Arg(0))
+		if err != nil {
+			return err
+		}
+		if *perm != "" {
+			if err := c.SetPermission(ctx, proto.SetPermissionParams{Session: id, Permission: proto.PermissionMode(*perm)}); err != nil {
+				return err
+			}
+		}
+		if *plan != "" {
+			if err := c.SetPlan(ctx, proto.SetPlanParams{Session: id, Plan: *plan == "on"}); err != nil {
+				return err
+			}
+		}
+		if *effort != "" {
+			if err := c.SetEffort(ctx, proto.SetEffortParams{Session: id, Effort: proto.Effort(*effort)}); err != nil {
+				return err
+			}
+		}
+		st, err := c.Session(ctx, id)
+		if err != nil {
+			return err
+		}
+		if *asJSON {
+			a.printJSON(st.Session)
+			return nil
+		}
+		fmt.Fprintln(a.stdout, describeMode(st.Session))
+		return nil
+	})
+}
+
+// describeMode is a session's permission mode, plan mode and effort.
+func describeMode(s proto.Session) string {
+	out := "permission " + string(s.Permission)
+	if s.Plan {
+		out += ", plan mode on"
+	}
+	if s.Effort != "" {
+		out += ", effort " + string(s.Effort)
+	}
+	return out
 }
