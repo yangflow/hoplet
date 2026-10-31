@@ -54,6 +54,10 @@ func Plist(a Agent) []byte {
 	b.WriteString("\n\t</array>\n\t<key>RunAtLoad</key>\n\t<true/>\n")
 	// Restarted unless it exited cleanly (a SIGTERM from launchctl, say).
 	b.WriteString("\t<key>KeepAlive</key>\n\t<dict>\n\t\t<key>SuccessfulExit</key>\n\t\t<false/>\n\t</dict>\n")
+	// Another daemon holding the lock makes this one exit 1 and launchd
+	// start it again; every 30 s is often enough to take over when the
+	// other one exits and rare enough to keep launchd.log small.
+	b.WriteString("\t<key>ThrottleInterval</key>\n\t<integer>30</integer>\n")
 	for _, k := range []string{"StandardOutPath", "StandardErrorPath"} {
 		b.WriteString("\t<key>" + k + "</key>\n\t")
 		str(launchdLog(a.Home))

@@ -53,6 +53,7 @@ func TestPlist(t *testing.T) {
 		"<string>--home</string>\n\t\t<string>/Users/me/.hoplet</string>",
 		"<string>--log</string>\n\t\t<string>/Users/me/.hoplet/logs/daemon.log</string>",
 		"<key>SuccessfulExit</key>\n\t\t<false/>",
+		"<key>ThrottleInterval</key>\n\t<integer>30</integer>",
 		"<key>StandardErrorPath</key>\n\t<string>/Users/me/.hoplet/logs/launchd.log</string>",
 	} {
 		if !strings.Contains(p, want) {
