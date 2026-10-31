@@ -3,6 +3,7 @@ package home
 import (
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 )
 
@@ -56,5 +57,56 @@ func TestEnsureTokenCreatesOnceWithMode0600(t *testing.T) {
 	}
 	if _, err := EnsureToken(h); err == nil {
 		t.Fatal("accepted an empty token file")
+	}
+}
+
+func TestReadTokenRefusesSharedFile(t *testing.T) {
+	h := t.TempDir()
+	if _, err := EnsureToken(h); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(TokenFile(h), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ReadToken(h); err == nil {
+		t.Fatal("read a token other users can read")
+	}
+	if _, err := EnsureToken(h); err == nil {
+		t.Fatal("EnsureToken accepted a token other users can read")
+	}
+}
+
+func TestEnsureTokenRaceCreatesOnce(t *testing.T) {
+	h := t.TempDir()
+	const n = 8
+	toks := make([]string, n)
+	errs := make([]error, n)
+	var wg sync.WaitGroup
+	for i := range n {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			toks[i], errs[i] = EnsureToken(h)
+		}()
+	}
+	wg.Wait()
+	want, err := ReadToken(h)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := range n {
+		if errs[i] != nil {
+			t.Fatalf("call %d: %v", i, errs[i])
+		}
+		if toks[i] != want {
+			t.Fatalf("call %d returned %q, want %q", i, toks[i], want)
+		}
+	}
+	left, err := filepath.Glob(filepath.Join(h, ".token-*"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(left) != 0 {
+		t.Fatalf("temp files left behind: %v", left)
 	}
 }

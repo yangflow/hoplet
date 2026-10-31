@@ -13,12 +13,21 @@ import (
 // MaxQueue is how many messages may wait in one session's queue.
 const MaxQueue = 100
 
+// MaxQueueKey is the longest idempotency key a queued message may carry, in bytes.
+const MaxQueueKey = 256
+
 // Enqueue appends a message to the session's queue and returns it. key makes
 // the call idempotent: a message already queued under key is returned as it
 // is, with queued false. The write is durable.
 func (s *Store) Enqueue(ctx context.Context, id proto.SessionID, key, text string) (msg proto.QueuedMessage, queued bool, err error) {
 	if key == "" {
 		return proto.QueuedMessage{}, false, fmt.Errorf("%w: queued message needs a key", ErrInvalid)
+	}
+	if len(key) > MaxQueueKey {
+		return proto.QueuedMessage{}, false, fmt.Errorf("%w: queued message key is too long", ErrInvalid)
+	}
+	if text == "" {
+		return proto.QueuedMessage{}, false, fmt.Errorf("%w: queued message needs text", ErrInvalid)
 	}
 	now := time.Now().UTC().Truncate(time.Millisecond)
 	err = s.tx(ctx, true, func(tx *sql.Tx) error {
@@ -191,9 +200,11 @@ func (s *Store) reorder(ctx context.Context, id proto.SessionID, key string, fn 
 			return err
 		}
 		keys := make([]string, len(msgs))
+		old := make(map[string]int, len(msgs))
 		at := -1
 		for i, m := range msgs {
 			keys[i] = m.Key
+			old[m.Key] = m.Position
 			if m.Key == key {
 				at = i
 			}
@@ -210,6 +221,9 @@ func (s *Store) reorder(ctx context.Context, id proto.SessionID, key string, fn 
 			return fmt.Errorf("store: clear queued error: %w", err)
 		}
 		for pos, k := range order {
+			if old[k] == pos {
+				continue
+			}
 			if _, err := tx.ExecContext(ctx, `UPDATE queue SET position = ? WHERE session_id = ? AND key = ?`, pos, id, k); err != nil {
 				return fmt.Errorf("store: reorder queue: %w", err)
 			}

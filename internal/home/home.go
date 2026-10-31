@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -37,12 +38,24 @@ func Lock(home string) string { return filepath.Join(home, "daemon.lock") }
 // Sessions is the parent of the per-session directories.
 func Sessions(home string) string { return filepath.Join(home, "sessions") }
 
-// TokenFile holds the local token that clients on this machine present.
-func TokenFile(home string) string { return filepath.Join(home, "token") }
+// tokenName is the token file's name in the home directory.
+const tokenName = "token"
 
-// ReadToken reads the local token.
+// TokenFile holds the local token that clients on this machine present.
+func TokenFile(home string) string { return filepath.Join(home, tokenName) }
+
+// ReadToken reads the local token. It refuses a token file that other users
+// can read (any group or other permission bit set).
 func ReadToken(home string) (string, error) {
-	b, err := os.ReadFile(TokenFile(home))
+	dir := os.DirFS(home)
+	fi, err := fs.Stat(dir, tokenName)
+	if err != nil {
+		return "", fmt.Errorf("home: read token: %w", err)
+	}
+	if fi.Mode().Perm()&0o077 != 0 {
+		return "", fmt.Errorf("home: token file %s is accessible to other users (mode %v); run chmod 600 on it", TokenFile(home), fi.Mode().Perm())
+	}
+	b, err := fs.ReadFile(dir, tokenName)
 	if err != nil {
 		return "", fmt.Errorf("home: read token: %w", err)
 	}
@@ -69,14 +82,16 @@ func EnsureToken(home string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("home: write token: %w", err)
 	}
+	defer os.Remove(tmp.Name())
 	_, werr := tmp.WriteString(tok + "\n")
 	if err := errors.Join(werr, tmp.Sync(), tmp.Close()); err != nil {
-		os.Remove(tmp.Name())
 		return "", fmt.Errorf("home: write token: %w", err)
 	}
-	// CreateTemp makes the file 0600; the rename publishes it whole.
-	if err := os.Rename(tmp.Name(), TokenFile(home)); err != nil {
-		os.Remove(tmp.Name())
+	// The link publishes the file whole and fails if another process created it first.
+	if err := os.Link(tmp.Name(), TokenFile(home)); err != nil {
+		if errors.Is(err, os.ErrExist) {
+			return ReadToken(home)
+		}
 		return "", fmt.Errorf("home: write token: %w", err)
 	}
 	return tok, nil

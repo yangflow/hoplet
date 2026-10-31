@@ -34,3 +34,59 @@ func TestFrameWireFormat(t *testing.T) {
 		t.Errorf("error text %q", got)
 	}
 }
+
+// TestFrameRoundTrip checks that frames survive a decode and re-encode with
+// identical bytes, and that a request's params decode into their type.
+func TestFrameRoundTrip(t *testing.T) {
+	req := ClientFrame{ID: 1, Method: MethodSessionsSend, Params: json.RawMessage(`{"session":"s","text":"t","key":"k"}`)}
+	b, err := json.Marshal(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var back ClientFrame
+	if err := json.Unmarshal(b, &back); err != nil {
+		t.Fatal(err)
+	}
+	again, err := json.Marshal(back)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(again) != string(b) {
+		t.Fatalf("client frame re-encoded as %s, want %s", again, b)
+	}
+	var sp SendParams
+	if err := json.Unmarshal(back.Params, &sp); err != nil {
+		t.Fatal(err)
+	}
+	if sp.Session != "s" || sp.Text != "t" || sp.Key != "k" {
+		t.Fatalf("send params %+v", sp)
+	}
+
+	for name, v := range map[string]any{
+		"cancel": &ClientFrame{Sub: 2, Cancel: true},
+		"error":  &ServerFrame{ID: 3, Error: &APIError{Code: CodeConflict, Message: "m"}},
+		"item":   &ServerFrame{Sub: 4, Item: json.RawMessage(`{"events":[]}`), End: false},
+	} {
+		b, err := json.Marshal(v)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var out any
+		switch v.(type) {
+		case *ClientFrame:
+			out = new(ClientFrame)
+		default:
+			out = new(ServerFrame)
+		}
+		if err := json.Unmarshal(b, out); err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		again, err := json.Marshal(out)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(again) != string(b) {
+			t.Errorf("%s re-encoded as %s, want %s", name, again, b)
+		}
+	}
+}

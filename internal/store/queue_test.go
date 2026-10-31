@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/yangflow/hoplet/proto"
@@ -56,6 +57,15 @@ func TestEnqueueIsIdempotent(t *testing.T) {
 	if _, _, err := s.Enqueue(ctx, "s", "", "x"); !errors.Is(err, ErrInvalid) {
 		t.Fatalf("empty key: %v", err)
 	}
+	if _, _, err := s.Enqueue(ctx, "s", "b", ""); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("empty text: %v", err)
+	}
+	if _, _, err := s.Enqueue(ctx, "s", strings.Repeat("k", MaxQueueKey+1), "x"); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("key too long: %v", err)
+	}
+	if _, queued, err := s.Enqueue(ctx, "s", strings.Repeat("k", MaxQueueKey), "x"); err != nil || !queued {
+		t.Fatalf("key at the limit: %v %v", queued, err)
+	}
 }
 
 func TestQueueIsBounded(t *testing.T) {
@@ -66,6 +76,9 @@ func TestQueueIsBounded(t *testing.T) {
 	}
 	if _, _, err := s.Enqueue(context.Background(), "s", "over", "x"); !errors.Is(err, ErrInvalid) {
 		t.Fatalf("over the bound: %v", err)
+	}
+	if _, queued, err := s.Enqueue(context.Background(), "s", "0", "again"); err != nil || queued {
+		t.Fatalf("existing key while full: queued %v, err %v", queued, err)
 	}
 }
 
@@ -175,13 +188,60 @@ func TestQueuedSessions(t *testing.T) {
 }
 
 func TestQueueWritesSignalChanges(t *testing.T) {
+	ctx := context.Background()
 	s := newStore(t)
 	newSession(t, s, "s")
-	ch := s.Changes()
-	enqueue(t, s, "s", "a")
-	select {
-	case <-ch:
-	default:
-		t.Fatal("enqueue did not signal a change")
+	enqueue(t, s, "s", "a", "b")
+	for _, op := range []struct {
+		name string
+		run  func() error
+	}{
+		{"enqueue", func() error { _, _, err := s.Enqueue(ctx, "s", "c", "x"); return err }},
+		{"edit", func() error { return s.EditQueued(ctx, "s", "a", "y") }},
+		{"fail", func() error { return s.FailQueued(ctx, "s", "a", "reason") }},
+		{"move", func() error { return s.MoveQueued(ctx, "s", "b", 0) }},
+		{"delete", func() error { return s.DeleteQueued(ctx, "s", "c") }},
+	} {
+		ch := s.Changes()
+		if err := op.run(); err != nil {
+			t.Fatalf("%s: %v", op.name, err)
+		}
+		select {
+		case <-ch:
+		default:
+			t.Fatalf("%s did not signal a change", op.name)
+		}
+	}
+}
+
+func TestQueueSurvivesReopen(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	s, err := Open(ctx, dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	newSession(t, s, "s")
+	enqueue(t, s, "s", "a", "b")
+	if err := s.MoveQueued(ctx, "s", "b", 0); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.FailQueued(ctx, "s", "a", "x"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Close(); err != nil {
+		t.Fatal(err)
+	}
+	s, err = Open(ctx, dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	msgs, err := s.Queue(ctx, "s")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(msgs) != 2 || msgs[0].Key != "b" || msgs[1].Key != "a" || msgs[1].Error != "x" {
+		t.Fatalf("after reopen: %+v", msgs)
 	}
 }
