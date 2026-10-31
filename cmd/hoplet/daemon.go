@@ -12,6 +12,7 @@ import (
 	"syscall"
 
 	"github.com/yangflow/hoplet/internal/daemon"
+	"github.com/yangflow/hoplet/internal/env"
 	"github.com/yangflow/hoplet/internal/harness"
 	"github.com/yangflow/hoplet/internal/home"
 )
@@ -57,10 +58,10 @@ func runDaemon(args []string, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "hoplet daemon: %v\n", err)
 		return 1
 	}
-	var env []string
+	var vars []string
 	for _, k := range harnessEnvKeys {
 		if v, ok := os.LookupEnv(k); ok {
-			env = append(env, k+"="+v)
+			vars = append(vars, k+"="+v)
 		}
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
@@ -69,7 +70,7 @@ func runDaemon(args []string, stderr io.Writer) int {
 		Home: *dir, Version: version, Exe: exe,
 		// Adapters register here as they land.
 		Harnesses: map[string]harness.Harness{},
-		Env:       env,
+		Env:       env.Static(vars),
 		Logger:    slog.New(slog.NewJSONHandler(stderr, nil)),
 	})
 	if err != nil && ctx.Err() != nil {

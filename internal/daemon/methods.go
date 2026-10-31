@@ -86,6 +86,16 @@ func (c *conn) call(ctx context.Context, f proto.ClientFrame) (any, error) {
 			return nil, err
 		}
 		return c.eventsBefore(ctx, p)
+	case proto.MethodSessionsGet:
+		var p proto.SessionRef
+		if err := decode(f, &p); err != nil {
+			return nil, err
+		}
+		return c.sessionState(ctx, p.Session)
+	case proto.MethodEnvRefresh:
+		return s.sys.refresh(ctx)
+	case proto.MethodSystemDoctor:
+		return s.sys.doctor(ctx), nil
 	case proto.MethodQueueList:
 		var p proto.SessionRef
 		if err := decode(f, &p); err != nil {
@@ -160,4 +170,26 @@ func apiError(err error) *proto.APIError {
 		code = proto.CodeUnsupported
 	}
 	return &proto.APIError{Code: code, Message: err.Error()}
+}
+
+// sessionState reads a session with its pending approvals and queue.
+func (c *conn) sessionState(ctx context.Context, id proto.SessionID) (proto.SessionState, error) {
+	st := c.s.store
+	sess, err := st.Session(ctx, id)
+	if err != nil {
+		return proto.SessionState{}, err
+	}
+	pending, err := st.PendingApprovals(ctx, id)
+	if err != nil {
+		return proto.SessionState{}, err
+	}
+	q, err := st.Queue(ctx, id)
+	if err != nil {
+		return proto.SessionState{}, err
+	}
+	out := proto.SessionState{Session: sess, Pending: []proto.ApprovalRequested{}, Queue: nonNil(q)}
+	for _, p := range pending {
+		out.Pending = append(out.Pending, p.Request)
+	}
+	return out, nil
 }

@@ -76,6 +76,9 @@ const (
 	MethodSessionsStop      = "sessions.stop"
 	MethodSessionsArchive   = "sessions.archive"
 	MethodSessionsEvents    = "sessions.events"
+	MethodSessionsGet       = "sessions.get"
+	MethodEnvRefresh        = "env.refresh"
+	MethodSystemDoctor      = "system.doctor"
 	MethodQueueList         = "queue.list"
 	MethodQueueEdit         = "queue.edit"
 	MethodQueueDelete       = "queue.delete"
@@ -246,4 +249,52 @@ type SessionSnapshot struct {
 	Pending []ApprovalRequested `json:"pending,omitempty"`
 	Events  []Event             `json:"events"`
 	More    bool                `json:"more,omitempty"`
+}
+
+// SessionState is a session's record with what waits on the user: its
+// pending approvals and its queue.
+type SessionState struct {
+	Session Session             `json:"session"`
+	Pending []ApprovalRequested `json:"pending"`
+	Queue   []QueuedMessage     `json:"queue"`
+}
+
+// EnvInfo describes the environment harnesses start with. It never carries
+// variable values.
+type EnvInfo struct {
+	Shell string `json:"shell"`
+	// Vars is how many variables are passed on.
+	Vars int `json:"vars"`
+	// Withheld are the names of credential variables not passed on.
+	Withheld []string `json:"withheld"`
+	// Proxy is the proxy URL harnesses use, password redacted; empty for
+	// none. ProxySource is config, shell, system or none.
+	Proxy       string    `json:"proxy,omitempty"`
+	ProxySource string    `json:"proxy_source"`
+	ResolvedAt  time.Time `json:"resolved_at"`
+	// Error, when set, says why the login shell could not be read; harnesses
+	// then start with a minimal environment.
+	Error string `json:"error,omitempty"`
+}
+
+// CheckStatus is the outcome of a doctor check.
+type CheckStatus string
+
+// Check outcomes.
+const (
+	CheckOK   CheckStatus = "ok"
+	CheckWarn CheckStatus = "warn"
+	CheckFail CheckStatus = "fail"
+)
+
+// Check is one doctor check.
+type Check struct {
+	Name   string      `json:"name"`
+	Status CheckStatus `json:"status"`
+	Detail string      `json:"detail"`
+}
+
+// DoctorReport is the daemon's view of its health.
+type DoctorReport struct {
+	Checks []Check `json:"checks"`
 }

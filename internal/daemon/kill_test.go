@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/yangflow/hoplet/internal/client"
+	"github.com/yangflow/hoplet/internal/env"
 	"github.com/yangflow/hoplet/internal/harness"
 	"github.com/yangflow/hoplet/internal/harness/fake"
 	"github.com/yangflow/hoplet/proto"
@@ -30,7 +31,7 @@ func runHelper() int {
 		Harnesses: map[string]harness.Harness{"fake": &fake.Harness{
 			Binary: os.Getenv("HOPLET_TEST_FAKE"), Script: os.Getenv("HOPLET_TEST_SCRIPT"),
 		}},
-		Env: []string{"PATH=" + os.Getenv("PATH")},
+		Env: env.Static{"PATH=" + os.Getenv("PATH")},
 	}
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGTERM, os.Interrupt)

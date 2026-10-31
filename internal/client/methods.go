@@ -104,3 +104,25 @@ func (c *Client) SubscribeCatalog(ctx context.Context, afterVersion uint64) (*Su
 func (c *Client) SubscribeSession(ctx context.Context, p proto.SessionParams) (*Subscription, error) {
 	return c.Subscribe(ctx, proto.MethodSubscribeSession, p)
 }
+
+// Session returns a session's record, pending approvals and queue.
+func (c *Client) Session(ctx context.Context, id proto.SessionID) (proto.SessionState, error) {
+	var out proto.SessionState
+	err := c.Call(ctx, proto.MethodSessionsGet, proto.SessionRef{Session: id}, &out)
+	return out, err
+}
+
+// RefreshEnv makes the daemon read the login shell's environment again for
+// harnesses started from now on.
+func (c *Client) RefreshEnv(ctx context.Context) (proto.EnvInfo, error) {
+	var out proto.EnvInfo
+	err := c.Call(ctx, proto.MethodEnvRefresh, struct{}{}, &out)
+	return out, err
+}
+
+// Doctor returns the daemon's health checks.
+func (c *Client) Doctor(ctx context.Context) (proto.DoctorReport, error) {
+	var out proto.DoctorReport
+	err := c.Call(ctx, proto.MethodSystemDoctor, struct{}{}, &out)
+	return out, err
+}

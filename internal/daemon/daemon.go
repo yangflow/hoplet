@@ -16,6 +16,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/yangflow/hoplet/internal/env"
 	"github.com/yangflow/hoplet/internal/harness"
 	"github.com/yangflow/hoplet/internal/home"
 	"github.com/yangflow/hoplet/internal/session"
@@ -36,9 +37,14 @@ type Config struct {
 	Exe string
 	// Harnesses are the available harnesses by kind.
 	Harnesses map[string]harness.Harness
-	// Env is the complete environment of harness processes.
-	Env    []string
+	// Env provides the environment of harness processes; nil means the
+	// daemon's own PATH, HOME, USER, LOGNAME, SHELL, LANG and TMPDIR.
+	Env    env.Source
 	Logger *slog.Logger
+
+	// ProbeURL is what doctor reaches to check the network path harnesses
+	// use; empty means DefaultProbeURL.
+	ProbeURL string
 
 	// lim overrides the protocol limits (tests); zero fields keep defaults.
 	lim limits
@@ -103,14 +109,30 @@ func Start(ctx context.Context, cfg Config) (d *Daemon, err error) {
 		return nil, err
 	}
 	cleanup = append(cleanup, st.Close)
+	src := cfg.Env
+	if src == nil {
+		src = env.Static(minimalEnv())
+	}
+	// A login shell that cannot be read does not stop the daemon: harnesses
+	// get a minimal environment, doctor reports why, and env.refresh retries.
+	snap, envErr := resolve(ctx, src, false)
+	if envErr != nil {
+		log.Error("read the login shell environment", "err", envErr)
+	}
 	mgr, err := session.New(session.Config{
 		Store: st, Root: home.Sessions(cfg.Home), Spawner: session.ExecSpawner{Exe: cfg.Exe},
-		Harnesses: cfg.Harnesses, Env: cfg.Env, Logger: log,
+		Harnesses: cfg.Harnesses, Env: snap.Vars, Logger: log,
 	})
 	if err != nil {
 		return nil, err
 	}
 	cleanup = append(cleanup, mgr.Close)
+	probeURL := cfg.ProbeURL
+	if probeURL == "" {
+		probeURL = DefaultProbeURL
+	}
+	sys := &system{src: src, mgr: mgr, harnesses: cfg.Harnesses, probeURL: probeURL, log: log}
+	sys.set(snap, envErr)
 	// Recover before serving: a command must never reach a session whose
 	// shim the manager has not reattached to yet.
 	if err := mgr.Recover(ctx); err != nil {
@@ -126,7 +148,7 @@ func Start(ctx context.Context, cfg Config) (d *Daemon, err error) {
 	runCtx, cancel := context.WithCancel(context.Background())
 	q := &queuer{store: st, mgr: mgr, log: log, locks: map[proto.SessionID]*sync.Mutex{}, waiting: map[proto.SessionID]bool{}}
 	srv := &server{
-		ctx: runCtx, store: st, mgr: mgr, queue: q, token: token,
+		ctx: runCtx, store: st, mgr: mgr, queue: q, sys: sys, token: token,
 		host: host, version: cfg.Version, log: log, lim: cfg.lim.withDefaults(),
 	}
 	d = &Daemon{

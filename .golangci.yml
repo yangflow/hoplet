@@ -39,6 +39,14 @@ linters:
       - path: internal/harness/fake/fakeharness/main\.go
         linters: [gosec]
         text: G703
+      # runCommand runs launchctl with arguments package launchd builds.
+      - path: cmd/hoplet/launchctl\.go
+        linters: [gosec]
+        text: G204
+      # doctor requests the probe URL from the daemon's configuration.
+      - path: internal/daemon/probe\.go
+        linters: [gosec]
+        text: G704
       # G302 asks for 0600 or less; the daemon's home is a directory, which
       # needs the execute bit and is tightened to 0700.
       - path: internal/daemon/secure\.go

@@ -79,6 +79,7 @@ type server struct {
 	store   *store.Store
 	mgr     *session.Manager
 	queue   *queuer
+	sys     *system
 	token   string
 	host    string
 	version string
