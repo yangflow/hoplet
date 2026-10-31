@@ -52,7 +52,7 @@ sequenceDiagram
 
 ```
 hoplet session new --mode code --dir . --harness claude "prompt"
-hoplet session list | send | watch | wait | approve | archive
+hoplet session list | send | watch | wait | approve | set | archive
 hoplet pair · hoplet device list | revoke · hoplet daemon install | uninstall | status · hoplet doctor
 hoplet relay · hoplet env refresh · hoplet trigger list | add
 hoplet api schema        # 全部方法的 JSON Schema，给 agent 自己读

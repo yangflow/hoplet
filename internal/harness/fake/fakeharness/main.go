@@ -51,6 +51,12 @@ func main() {
 			next++
 		case "set_mode":
 			h.emit(fake.Ev{Ev: "message", ID: "mode", Text: "mode:" + op.Text})
+		case "set_plan":
+			h.emit(fake.Ev{Ev: "message", ID: "plan", Text: "plan:" + op.Text})
+		case "set_effort":
+			h.emit(fake.Ev{Ev: "message", ID: "effort", Text: "effort:" + op.Text})
+		case "set_fast":
+			h.emit(fake.Ev{Ev: "message", ID: "fast", Text: "fast:" + op.Text})
 		case "set_model":
 			h.emit(fake.Ev{Ev: "message", ID: "model", Text: "model:" + op.Text})
 		case "interrupt":
@@ -211,6 +217,12 @@ func (h *harness) wait(timer <-chan time.Time, done func(fake.Op) bool) bool {
 				h.emit(fake.Ev{Ev: "message", ID: "steer", Text: "steer:" + op.Text})
 			case op.Op == "set_mode":
 				h.emit(fake.Ev{Ev: "message", ID: "mode", Text: "mode:" + op.Text})
+			case op.Op == "set_plan":
+				h.emit(fake.Ev{Ev: "message", ID: "plan", Text: "plan:" + op.Text})
+			case op.Op == "set_effort":
+				h.emit(fake.Ev{Ev: "message", ID: "effort", Text: "effort:" + op.Text})
+			case op.Op == "set_fast":
+				h.emit(fake.Ev{Ev: "message", ID: "fast", Text: "fast:" + op.Text})
 			case op.Op == "set_model":
 				h.emit(fake.Ev{Ev: "message", ID: "model", Text: "model:" + op.Text})
 			case done != nil && done(op):

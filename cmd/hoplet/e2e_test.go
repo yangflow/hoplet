@@ -155,6 +155,15 @@ func TestSessionInTheTerminal(t *testing.T) {
 		t.Fatalf("approve again: exit %d, %q", code, errs)
 	}
 	mustCLI(t, "session", "wait", short, "--for", "idle", "--timeout", "15s")
+	if out := mustCLI(t, "session", "set", short, "--plan", "on", "--fast", "on", "--effort", "high"); out != "permission auto_review, plan mode on, fast mode on, effort high\n" {
+		t.Fatalf("session set: %q", out)
+	}
+	for _, args := range [][]string{{}, {"--effort", "huge"}, {"--permission", "read_only"}, {"--fast", "maybe"}} {
+		if code, _, _ := cli(t, append([]string{"session", "set", short}, args...)...); code != 2 {
+			t.Fatalf("session set %v: exit %d, want 2", args, code)
+		}
+	}
+	mustCLI(t, "session", "set", short, "--plan", "off", "--fast", "off")
 	if code, _, errs := cli(t, "session", "wait", short, "--for", "blocked", "--timeout", "300ms"); code != 3 || !strings.Contains(errs, "timed out") {
 		t.Fatalf("wait blocked on an idle session: exit %d, %q", code, errs)
 	}

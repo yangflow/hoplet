@@ -67,16 +67,22 @@ type Session struct {
 	Harness HarnessRef `json:"harness"`
 	// Permission is the session's permission mode; empty means confirm.
 	Permission PermissionMode `json:"permission,omitempty"`
-	Directory  string         `json:"directory,omitempty"`
-	Isolation  Isolation      `json:"isolation,omitempty"`
-	Owner      Owner          `json:"owner"`
-	Origin     Origin         `json:"origin"`
-	Status     SessionStatus  `json:"status"`
-	Title      string         `json:"title,omitempty"`
-	CreatedAt  time.Time      `json:"created_at"`
-	UpdatedAt  time.Time      `json:"updated_at"`
-	ArchivedAt *time.Time     `json:"archived_at,omitempty"`
-	LastSeq    uint64         `json:"last_seq"`
+	// Plan stops all changes until the user approves the harness's plan.
+	Plan bool `json:"plan,omitempty"`
+	// Fast trades cost for faster output where the harness offers it.
+	Fast bool `json:"fast,omitempty"`
+	// Effort is how hard the harness thinks; empty means its default.
+	Effort     Effort        `json:"effort,omitempty"`
+	Directory  string        `json:"directory,omitempty"`
+	Isolation  Isolation     `json:"isolation,omitempty"`
+	Owner      Owner         `json:"owner"`
+	Origin     Origin        `json:"origin"`
+	Status     SessionStatus `json:"status"`
+	Title      string        `json:"title,omitempty"`
+	CreatedAt  time.Time     `json:"created_at"`
+	UpdatedAt  time.Time     `json:"updated_at"`
+	ArchivedAt *time.Time    `json:"archived_at,omitempty"`
+	LastSeq    uint64        `json:"last_seq"`
 	// Version is the store's catalog counter value at this session's last
 	// change; it grows with every change to the session record.
 	Version uint64 `json:"version"`

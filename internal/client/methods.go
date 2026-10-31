@@ -53,6 +53,21 @@ func (c *Client) SetPermission(ctx context.Context, p proto.SetPermissionParams)
 	return c.Call(ctx, proto.MethodSessionsSetPerm, p, nil)
 }
 
+// SetPlan turns a session's plan mode on or off.
+func (c *Client) SetPlan(ctx context.Context, p proto.SetPlanParams) error {
+	return c.Call(ctx, proto.MethodSessionsSetPlan, p, nil)
+}
+
+// SetFast turns a session's fast mode on or off.
+func (c *Client) SetFast(ctx context.Context, p proto.SetFastParams) error {
+	return c.Call(ctx, proto.MethodSessionsSetFast, p, nil)
+}
+
+// SetEffort changes how hard a session's harness thinks.
+func (c *Client) SetEffort(ctx context.Context, p proto.SetEffortParams) error {
+	return c.Call(ctx, proto.MethodSessionsSetEffort, p, nil)
+}
+
 // Stop stops a session's harness.
 func (c *Client) Stop(ctx context.Context, id proto.SessionID) error {
 	return c.Call(ctx, proto.MethodSessionsStop, proto.SessionRef{Session: id}, nil)

@@ -7,7 +7,7 @@ package fake
 
 // Op is one line Hoplet writes to the fake harness.
 type Op struct {
-	Op     string `json:"op"` // prompt, steer, interrupt, respond, answer, set_mode, set_model
+	Op     string `json:"op"` // prompt, steer, interrupt, respond, answer, set_mode, set_plan, set_effort, set_fast, set_model
 	Text   string `json:"text,omitempty"`
 	ID     string `json:"id,omitempty"`
 	Option string `json:"option,omitempty"`
@@ -15,9 +15,10 @@ type Op struct {
 
 // Ev is one line the fake harness writes. In and Out are the token counts of
 // a usage event; a file_change event uses Name as the path and Kind as the
-// operation.
+// operation; a mode_changed event uses Text as the permission mode and
+// Status "plan" for plan mode.
 type Ev struct {
-	Ev      string   `json:"ev"` // session, turn_started, delta, message, thinking, tool, approval, question, usage, file_change, turn_ended, error
+	Ev      string   `json:"ev"` // session, turn_started, delta, message, thinking, tool, approval, question, usage, file_change, mode_changed, turn_ended, error
 	ID      string   `json:"id,omitempty"`
 	Text    string   `json:"text,omitempty"`
 	Kind    string   `json:"kind,omitempty"`
