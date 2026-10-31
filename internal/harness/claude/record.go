@@ -244,7 +244,9 @@ func Sanitize(in io.Reader, out io.Writer, dir, home string) error {
 	scrub := scrubber(dir, home)
 	type kept struct {
 		dir, line, requestID string
-		cancels              string // the request a control_cancel_request withdraws
+		// resolves is the approval this line settles: the request an
+		// answer replies to, or one claude withdraws.
+		resolves string
 	}
 	var entries []kept
 	for sc.Scan() {
@@ -276,8 +278,12 @@ func Sanitize(in io.Reader, out io.Writer, dir, home string) error {
 		if req, _ := v["request"].(map[string]any); e.Dir == "out" && v["type"] == "control_request" && req["subtype"] == "can_use_tool" {
 			k.requestID, _ = v["request_id"].(string)
 		}
-		if e.Dir == "out" && v["type"] == "control_cancel_request" {
-			k.cancels, _ = v["request_id"].(string)
+		switch {
+		case e.Dir == "out" && v["type"] == "control_cancel_request":
+			k.resolves, _ = v["request_id"].(string)
+		case e.Dir == "in" && v["type"] == "control_response":
+			resp, _ := v["response"].(map[string]any)
+			k.resolves, _ = resp["request_id"].(string)
 		}
 		entries = append(entries, k)
 	}
@@ -290,7 +296,7 @@ func Sanitize(in io.Reader, out io.Writer, dir, home string) error {
 		}
 		answered := false
 		for _, later := range entries[i+1:] {
-			if later.dir == "in" && strings.Contains(later.line, k.requestID) || later.cancels == k.requestID {
+			if later.resolves == k.requestID {
 				answered = true
 				break
 			}

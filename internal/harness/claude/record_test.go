@@ -254,3 +254,11 @@ func TestSanitizeKeepsAWithdrawnApproval(t *testing.T) {
 		t.Fatalf("a withdrawn approval cut the recording: %q", got)
 	}
 }
+
+func TestSanitizeMatchesAnswersByExactID(t *testing.T) {
+	req := Entry{Dir: "out", Line: `{"type":"control_request","request_id":"r1","request":{"subtype":"can_use_tool","tool_name":"Bash","input":{}}}`}
+	other := Entry{Dir: "in", Line: `{"type":"control_response","response":{"subtype":"success","request_id":"r10","response":{"behavior":"allow"}}}`}
+	if got := sanitized(t, "", "", req, other, Entry{Dir: "exit", Line: "0"}); len(got) != 0 {
+		t.Fatalf("an answer to another request kept the recording: %q", got)
+	}
+}
