@@ -65,4 +65,5 @@ PR2、PR3、PR4 互不依赖，可以并行开发；PR6、PR7、PR8 也一样。
 开工某个 PR 前，在本目录写 `m1-prN-<名称>.md`：逐步列出文件、接口、测试代码、命令和 commit，基于当时 `main` 的真实代码。
 
 - [PR1：骨架与事件类型](m1-pr1-proto.md)（已合并）
-- [PR2：存储](m1-pr2-store.md)
+- [PR2：存储](m1-pr2-store.md)（已合并）
+- [PR3：shim](m1-pr3-shim.md)

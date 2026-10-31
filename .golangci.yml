@@ -26,6 +26,10 @@ linters:
     rules:
       - path: _test\.go
         linters: [gosec, unparam]
+      # The shim's whole job is to run the harness command the daemon chose.
+      - path: internal/shim/shim\.go
+        linters: [gosec]
+        text: G204
 
 formatters:
   enable:

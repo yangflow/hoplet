@@ -20,7 +20,7 @@
 ```mermaid
 flowchart TB
     LD["launchd / systemd"] --> D["hoplet daemon<br/>（可随时重启、升级）"]
-    D <-- "Unix socket<br/>断开后按 seq 续读" --> S1["hoplet shim · 会话 A"]
+    D <-- "Unix socket<br/>断开后按字节偏移续读" --> S1["hoplet shim · 会话 A"]
     D <--> S2["hoplet shim · 会话 B"]
     S1 --> C1["claude（stdio）"]
     S1 --> T1["终端 PTY"]
