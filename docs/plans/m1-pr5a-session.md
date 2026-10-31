@@ -2520,3 +2520,19 @@ gh pr create --title "feat(session): run sessions behind shims and ingest into t
 - 中断立即结束本轮；harness 崩溃时本轮记为 aborted、会话为 errored，exit 记录被 ack、shim 退出。
 - 管理器在轮次中途关闭，新管理器 `Recover` 后本轮完整入库，每个事件恰好一次；shim 也不在了时，未结束的轮次被记为 aborted。
 - `make check` 本地和 CI 通过；测试不泄漏进程。
+
+## 实现与计划的差异（评审后追加）
+
+任务评审、整分支终审和五轮复审之后，合并前在计划之外补了以下内容；后续 PR 以 `main` 上的真实代码为准：
+
+| 方面 | 变化 |
+|---|---|
+| 不丢事件 | 批次在追加前用 `store.ValidateEntry` 逐条校验，无效条目替换成 `proto.Error`，再连同偏移一次追加；任何追加失败都结束本次入库、不 ack，从已提交偏移重连（指数退避，上限 5 秒，不限次数）；exit 的 abort 与"轮次之间退出"的错误和 exit 偏移同批提交；轮次外的 TurnEnded 只保留偏移，轮次内又来 TurnStarted 时先把旧轮记为 failed；存储的 TurnEnded 投影只更新未结束的轮次 |
+| 偏移 | 新增 `harness.Position` 行：shim 的 start 记录等也产生只带偏移的事件；分块长行未拼完时，所有行的偏移都封顶在它的起点（包括恰好是 MaxLine 整数倍的行）；start / exit 记录先冲刷未完成的行 |
+| 并发 | 每会话一把锁串行 ensure / attach / spawn / reattach / stop；`pending` + `sendMu` + 先读 pending 再读轮次状态，使 `ErrBusy` 原子；新 attach 的会话在入库追上 shim 的 spool 大小（welcome 帧携带）之前算"正在追平"；Exit 先摘掉会话句柄再 ack |
+| 连接 | 只有"没有 shim 在监听"才中止轮次；`bad_offset`、协议版本、未知 harness 记录一次错误后停止重连；其他错误带退避重连 |
+| Send / Respond | `Send` 返回 `SendResult`，消息已记录但轮次未开始时重发（新增 `store.Receipt`）；`Respond` 校验选项（`ErrInvalidOption`），用请求所在的轮次，重复时投递库里记录的选项 |
+| 生命周期 | `Stop`（TERM → 5 秒 → KILL）、`Archive`（会话锁内 Stop + 归档）；Recover 停掉已归档会话仍在运行的 shim；开新轮次前做版本门控（`ErrUnsupportedVersion`） |
+| API | `Config.Harnesses` 改为 `harness.Harness`，支持 `DirectHarness`（Hermes）；通知改为 `store.Changes()`；新增 `Steer`、`Answer`、`SetPermission`；`harness.Event.StdinError` |
+| 其他 | 50ms 合批窗口；原生会话 ID 变化才写；shim 起不来时附带 `shim.log` 末尾；轮次之间非零退出记一条错误；假 harness 新增 `quiet_start`、重复审批静默忽略 |
+| 已接受并写入包文档 | 未写 exit 就崩溃的 shim 重新拉起后会重放旧尾部；长行封顶期间交错的记录、MaxLine 分块产生的条目在重放后可能重复；长 stderr / stdin 行跨记录时重放可能重复 stdout 的轮次事件；长行写到一半时追平会等待 |
