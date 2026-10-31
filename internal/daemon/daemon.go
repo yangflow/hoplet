@@ -77,8 +77,8 @@ func Start(ctx context.Context, cfg Config) (d *Daemon, err error) {
 	if err := os.MkdirAll(cfg.Home, 0o700); err != nil {
 		return nil, fmt.Errorf("daemon: create home: %w", err)
 	}
-	if err := os.Chmod(cfg.Home, 0o700); err != nil {
-		return nil, fmt.Errorf("daemon: secure home: %w", err)
+	if err := secureHome(cfg.Home); err != nil {
+		return nil, err
 	}
 	lock, err := takeLock(home.Lock(cfg.Home))
 	if err != nil {

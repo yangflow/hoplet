@@ -183,23 +183,31 @@ func rawHello(t *testing.T, h string) *websocket.Conn {
 func TestCancelRightAfterSubscribeEndsTheSubscription(t *testing.T) {
 	h, script := newHome(t, echoScript)
 	start(t, testConfig(h, script))
+	c := dial(t, h, "device:a")
+	sess := create(t, c, h)
 	ws := rawHello(t, h)
-	b, _ := json.Marshal(proto.CatalogParams{})
-	rawWrite(t, ws, proto.ClientFrame{ID: 7, Method: proto.MethodSubscribeCatalog, Params: b})
-	rawWrite(t, ws, proto.ClientFrame{Cancel: true, Sub: 7})
-	if f := rawRead(t, ws); f.ID != 7 || f.Error != nil || f.Result == nil {
-		t.Fatalf("response %+v", f)
-	}
-	for {
-		f := rawRead(t, ws)
-		if f.Sub != 7 {
-			t.Fatalf("unexpected frame %+v", f)
+	catalog, _ := json.Marshal(proto.CatalogParams{})
+	session, _ := json.Marshal(proto.SessionParams{Session: sess.ID})
+	for id, sub := range map[uint64]proto.ClientFrame{
+		7: {ID: 7, Method: proto.MethodSubscribeCatalog, Params: catalog},
+		8: {ID: 8, Method: proto.MethodSubscribeSession, Params: session},
+	} {
+		rawWrite(t, ws, sub)
+		rawWrite(t, ws, proto.ClientFrame{Cancel: true, Sub: id})
+		if f := rawRead(t, ws); f.ID != id || f.Error != nil || f.Result == nil {
+			t.Fatalf("%s: response %+v", sub.Method, f)
 		}
-		if f.End {
-			if f.Error != nil {
-				t.Fatalf("end with error %+v", f.Error)
+		for {
+			f := rawRead(t, ws)
+			if f.Sub != id {
+				t.Fatalf("%s: unexpected frame %+v", sub.Method, f)
 			}
-			return
+			if f.End {
+				if f.Error != nil {
+					t.Fatalf("%s: end with error %+v", sub.Method, f.Error)
+				}
+				break
+			}
 		}
 	}
 }
@@ -275,9 +283,21 @@ func TestQueuedMessageWithReceiptIsDequeuedNotResent(t *testing.T) {
 	if _, _, err := d.store.Enqueue(timeout(t), sess.ID, "k1", "hi"); err != nil {
 		t.Fatal(err)
 	}
-	w.until(func(w *watcher) bool { return len(w.queue) == 0 })
-	users := 0
-	for _, ev := range w.events {
+	// The drainer's send records any second message before it dequeues, so
+	// once the row is gone the log shows whether the message was resent.
+	waitCond(t, "the queued copy to be dequeued", func() bool {
+		q, err := d.store.Queue(context.Background(), sess.ID)
+		return err == nil && len(q) == 0
+	})
+	evs, err := d.store.Events(context.Background(), sess.ID, 0, 1000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	users, turns := 0, 0
+	for _, ev := range evs {
+		if ev.Type == proto.TypeTurnStarted {
+			turns++
+		}
 		if ev.Type != proto.TypeMessage {
 			continue
 		}
@@ -289,8 +309,8 @@ func TestQueuedMessageWithReceiptIsDequeuedNotResent(t *testing.T) {
 			users++
 		}
 	}
-	if users != 1 || w.count(proto.TypeTurnStarted) != 1 {
-		t.Fatalf("%d user messages, %d turns:%s", users, w.count(proto.TypeTurnStarted), describe(w.events))
+	if users != 1 || turns != 1 {
+		t.Fatalf("%d user messages, %d turns:%s", users, turns, describe(evs))
 	}
 }
 

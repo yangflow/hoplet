@@ -16,6 +16,11 @@ import (
 // sends queued messages in order as turns end. Every queue change for a
 // session happens under that session's lock, so a message being sent from
 // the queue cannot be edited, moved or deleted under the sender.
+//
+// An edited message is sent under a new key (see store.QueueHead). A client
+// that retries its original send after the edited message has left the
+// queue therefore sends the message again; clients retry within seconds of
+// a lost reply, long before a user edits a queued message.
 type queuer struct {
 	store *store.Store
 	mgr   *session.Manager

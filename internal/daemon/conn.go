@@ -321,7 +321,9 @@ func (c *conn) subscribe(f proto.ClientFrame, sub *subscription) {
 			c.respond(f.ID, nil, err)
 			return
 		}
-		if _, err := c.s.store.Session(ctx, p.Session); err != nil {
+		// The connection's context, not the subscription's: a subscription
+		// canceled before it starts still gets its response and end.
+		if _, err := c.s.store.Session(c.ctx, p.Session); err != nil {
 			c.respond(f.ID, nil, err)
 			return
 		}
