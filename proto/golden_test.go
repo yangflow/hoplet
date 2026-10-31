@@ -46,6 +46,9 @@ func TestGoldenEventsDecode(t *testing.T) {
 		if err != nil {
 			t.Fatalf("event %d: %v", n, err)
 		}
+		if e.Time.Location() != time.UTC {
+			t.Fatalf("event %d: ts %s is not UTC (use a Z suffix)", n, e.Time.Format(time.RFC3339Nano))
+		}
 		if !re.Time.Equal(e.Time) {
 			t.Fatalf("event %d: ts %s does not survive; lines must be UTC with at most millisecond precision (re-encoded %s)", n, e.Time.Format(time.RFC3339Nano), re.Time.Format(time.RFC3339Nano))
 		}
