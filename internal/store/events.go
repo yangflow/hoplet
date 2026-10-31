@@ -14,6 +14,9 @@ import (
 // Events returns up to limit events of a session with seq > after, in
 // order. Seq gaps are normal: compaction removes superseded deltas.
 func (s *Store) Events(ctx context.Context, id proto.SessionID, after uint64, limit int) ([]proto.Event, error) {
+	if limit <= 0 {
+		return nil, fmt.Errorf("%w: events limit %d", ErrInvalid, limit)
+	}
 	rows, err := s.db.QueryContext(ctx, `SELECT seq, ts, turn, type, v, payload, raw_sha256, raw_size
 		FROM events WHERE session_id = ? AND seq > ? ORDER BY seq LIMIT ?`, id, after, limit)
 	if err != nil {

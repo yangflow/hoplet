@@ -61,3 +61,53 @@ func TestSessions(t *testing.T) {
 		t.Fatal("incomplete session accepted")
 	}
 }
+
+func TestCreateSessionValidation(t *testing.T) {
+	valid := proto.Session{
+		ID: "v", Mode: proto.ModeCode, Harness: proto.HarnessRef{Kind: "claude"},
+		Owner: proto.OwnerMe, Origin: proto.OriginMe,
+	}
+	cases := []struct {
+		name   string
+		mutate func(*proto.Session)
+	}{
+		{"empty id", func(s *proto.Session) { s.ID = "" }},
+		{"empty harness", func(s *proto.Session) { s.Harness.Kind = "" }},
+		{"bad mode", func(s *proto.Session) { s.Mode = "chat" }},
+		{"bad owner", func(s *proto.Session) { s.Owner = "you" }},
+		{"bad origin", func(s *proto.Session) { s.Origin = "cron" }},
+		{"bad isolation", func(s *proto.Session) { s.Isolation = "vm" }},
+		{"personal with isolation", func(s *proto.Session) { s.Mode = proto.ModePersonal; s.Isolation = proto.Isolated }},
+		{"bad status", func(s *proto.Session) { s.Status = "paused" }},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			s := newStore(t)
+			sess := valid
+			tc.mutate(&sess)
+			if _, err := s.CreateSession(context.Background(), sess); !errors.Is(err, ErrInvalid) {
+				t.Fatalf("got %v, want ErrInvalid", err)
+			}
+		})
+	}
+	t.Run("personal without isolation", func(t *testing.T) {
+		s := newStore(t)
+		sess := valid
+		sess.Mode = proto.ModePersonal
+		if _, err := s.CreateSession(context.Background(), sess); err != nil {
+			t.Fatal(err)
+		}
+	})
+}
+
+func TestCreateSessionDuplicate(t *testing.T) {
+	s := newStore(t)
+	newSession(t, s, "dup")
+	_, err := s.CreateSession(context.Background(), proto.Session{
+		ID: "dup", Mode: proto.ModeCode, Harness: proto.HarnessRef{Kind: "claude"},
+		Owner: proto.OwnerMe, Origin: proto.OriginMe,
+	})
+	if !errors.Is(err, ErrExists) {
+		t.Fatalf("got %v, want ErrExists", err)
+	}
+}

@@ -7,6 +7,9 @@ import (
 	"fmt"
 	"time"
 
+	"modernc.org/sqlite"
+	sqlite3 "modernc.org/sqlite/lib"
+
 	"github.com/yangflow/hoplet/proto"
 )
 
@@ -16,11 +19,11 @@ const sessionColumns = `id, mode, harness_kind, harness_version, native_id, dire
 // CreateSession stores a new session. Status defaults to idle and
 // CreatedAt to now; UpdatedAt equals CreatedAt. The write is durable.
 func (s *Store) CreateSession(ctx context.Context, sess proto.Session) (proto.Session, error) {
-	if sess.ID == "" || sess.Mode == "" || sess.Harness.Kind == "" || sess.Owner == "" || sess.Origin == "" {
-		return proto.Session{}, errors.New("store: session needs id, mode, harness kind, owner and origin")
-	}
 	if sess.Status == "" {
 		sess.Status = proto.StatusIdle
+	}
+	if err := validateSession(sess); err != nil {
+		return proto.Session{}, err
 	}
 	if sess.CreatedAt.IsZero() {
 		sess.CreatedAt = time.Now()
@@ -35,6 +38,10 @@ func (s *Store) CreateSession(ctx context.Context, sess proto.Session) (proto.Se
 			sess.ID, sess.Mode, sess.Harness.Kind, sess.Harness.Version, sess.Harness.NativeID,
 			sess.Directory, sess.Isolation, sess.Owner, sess.Origin, sess.Status, sess.Title,
 			sess.CreatedAt.UnixMilli(), sess.UpdatedAt.UnixMilli())
+		var serr *sqlite.Error
+		if errors.As(err, &serr) && serr.Code() == sqlite3.SQLITE_CONSTRAINT_PRIMARYKEY {
+			return fmt.Errorf("%w: session %s", ErrExists, sess.ID)
+		}
 		if err != nil {
 			return fmt.Errorf("store: create session %s: %w", sess.ID, err)
 		}
@@ -44,6 +51,43 @@ func (s *Store) CreateSession(ctx context.Context, sess proto.Session) (proto.Se
 		return proto.Session{}, err
 	}
 	return sess, nil
+}
+
+func validateSession(sess proto.Session) error {
+	bad := func(format string, args ...any) error {
+		return fmt.Errorf("%w: session %s", ErrInvalid, fmt.Sprintf(format, args...))
+	}
+	if sess.ID == "" {
+		return bad("needs an id")
+	}
+	if sess.Harness.Kind == "" {
+		return bad("needs a harness kind")
+	}
+	if sess.Mode != proto.ModeCode && sess.Mode != proto.ModePersonal {
+		return bad("mode %q", sess.Mode)
+	}
+	if sess.Owner != proto.OwnerMe && sess.Owner != proto.OwnerDelegated {
+		return bad("owner %q", sess.Owner)
+	}
+	switch sess.Origin {
+	case proto.OriginMe, proto.OriginIM, proto.OriginSchedule, proto.OriginEvent:
+	default:
+		return bad("origin %q", sess.Origin)
+	}
+	switch sess.Isolation {
+	case "", proto.InPlace, proto.Isolated:
+	default:
+		return bad("isolation %q", sess.Isolation)
+	}
+	if sess.Mode == proto.ModePersonal && sess.Isolation != "" {
+		return bad("isolation %q on a personal session", sess.Isolation)
+	}
+	switch sess.Status {
+	case proto.StatusIdle, proto.StatusRunning, proto.StatusWaiting, proto.StatusErrored:
+	default:
+		return bad("status %q", sess.Status)
+	}
+	return nil
 }
 
 // Session returns one session, or ErrNotFound.

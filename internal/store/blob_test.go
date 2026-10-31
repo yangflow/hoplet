@@ -3,6 +3,7 @@ package store
 import (
 	"errors"
 	"io"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -51,4 +52,42 @@ func readAll(t *testing.T, r io.Reader) string {
 		t.Fatal(err)
 	}
 	return string(b)
+}
+
+func TestBlobRejectsBadReferences(t *testing.T) {
+	s := newStore(t)
+	ref, err := s.PutBlob(strings.NewReader("abc"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	upper := proto.BlobRef{SHA256: strings.ToUpper(ref.SHA256), Size: ref.Size}
+	if _, err := s.OpenBlob(upper); err == nil {
+		t.Fatal("uppercase digest accepted")
+	}
+	wrongSize := proto.BlobRef{SHA256: ref.SHA256, Size: ref.Size + 1}
+	if _, err := s.OpenBlob(wrongSize); err == nil {
+		t.Fatal("size mismatch accepted")
+	}
+}
+
+func TestPutBlobKeepsExistingFile(t *testing.T) {
+	s := newStore(t)
+	ref, err := s.PutBlob(strings.NewReader("same bytes"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	before, err := os.Stat(s.blobPath(ref))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.PutBlob(strings.NewReader("same bytes")); err != nil {
+		t.Fatal(err)
+	}
+	after, err := os.Stat(s.blobPath(ref))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !os.SameFile(before, after) || !before.ModTime().Equal(after.ModTime()) {
+		t.Fatal("second PutBlob replaced the stored file")
+	}
 }

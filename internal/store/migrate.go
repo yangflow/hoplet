@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"embed"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -24,8 +25,8 @@ type migration struct {
 	sql     string
 }
 
-func loadMigrations() ([]migration, error) {
-	entries, err := migrations.ReadDir("migrations")
+func loadMigrations(fsys fs.FS) ([]migration, error) {
+	entries, err := fs.ReadDir(fsys, ".")
 	if err != nil {
 		return nil, fmt.Errorf("store: read migrations: %w", err)
 	}
@@ -39,7 +40,7 @@ func loadMigrations() ([]migration, error) {
 		if err != nil {
 			return nil, fmt.Errorf("store: bad migration name %q: %w", e.Name(), err)
 		}
-		b, err := migrations.ReadFile("migrations/" + e.Name())
+		b, err := fs.ReadFile(fsys, e.Name())
 		if err != nil {
 			return nil, fmt.Errorf("store: read %s: %w", e.Name(), err)
 		}
@@ -56,8 +57,8 @@ func loadMigrations() ([]migration, error) {
 
 // migrate applies pending migrations forward, one transaction each, after
 // backing up an existing database.
-func (s *Store) migrate(ctx context.Context) error {
-	ms, err := loadMigrations()
+func (s *Store) migrate(ctx context.Context, fsys fs.FS) error {
+	ms, err := loadMigrations(fsys)
 	if err != nil {
 		return err
 	}

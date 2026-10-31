@@ -174,3 +174,89 @@ func TestDurableAppendRestoresSynchronous(t *testing.T) {
 		t.Fatalf("synchronous = %d after a durable append, want 1 (NORMAL)", sync)
 	}
 }
+
+func approvalRequest(id string) proto.ApprovalRequested {
+	return proto.ApprovalRequested{
+		ID: id, Kind: proto.ApprovalCommand, Title: "Run command",
+		Options: []proto.ApprovalOption{{ID: "once", Label: "Allow once", Scope: proto.ScopeOnce}},
+	}
+}
+
+func TestApprovalIDsArePerSession(t *testing.T) {
+	ctx := context.Background()
+	s := newStore(t)
+	newSession(t, s, "s1")
+	newSession(t, s, "s2")
+	for _, id := range []proto.SessionID{"s1", "s2"} {
+		appendOK(t, s, AppendRequest{Session: id, Turn: 1, Entries: []Entry{{Payload: approvalRequest("a1")}}})
+	}
+	// A repeated request in one session must not fail the append.
+	appendOK(t, s, AppendRequest{Session: "s1", Turn: 1, Entries: []Entry{{Payload: approvalRequest("a1")}}})
+	for _, id := range []proto.SessionID{"s1", "s2"} {
+		pending, err := s.PendingApprovals(ctx, id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(pending) != 1 {
+			t.Fatalf("%s: pending %+v, want one", id, pending)
+		}
+		if sess, _ := s.Session(ctx, id); sess.Status != proto.StatusWaiting {
+			t.Fatalf("%s: status %s, want waiting", id, sess.Status)
+		}
+	}
+}
+
+func TestRepeatedTurnStartedKeepsFirst(t *testing.T) {
+	ctx := context.Background()
+	s := newStore(t)
+	newSession(t, s, "s")
+	appendOK(t, s, AppendRequest{Session: "s", Turn: 1, Entries: []Entry{{Payload: proto.TurnStarted{}}}})
+	appendOK(t, s, AppendRequest{Session: "s", Turn: 1, Entries: []Entry{{Payload: proto.TurnStarted{}}}})
+	var start uint64
+	if err := s.db.QueryRowContext(ctx, `SELECT start_seq FROM turns WHERE session_id = 's' AND n = 1`).Scan(&start); err != nil {
+		t.Fatal(err)
+	}
+	if start != 1 {
+		t.Fatalf("start_seq = %d, want 1", start)
+	}
+}
+
+func TestReceiptsArePerSession(t *testing.T) {
+	s := newStore(t)
+	newSession(t, s, "s1")
+	newSession(t, s, "s2")
+	for _, id := range []proto.SessionID{"s1", "s2"} {
+		res := appendOK(t, s, AppendRequest{Session: id, ReceiptKey: "same", Entries: []Entry{{Payload: proto.Thinking{Text: "x"}}}})
+		if res.Duplicate || res.FirstSeq != 1 {
+			t.Fatalf("%s: %+v", id, res)
+		}
+	}
+}
+
+func TestIngestOnlyAppendWritesNoEvents(t *testing.T) {
+	ctx := context.Background()
+	s := newStore(t)
+	newSession(t, s, "s")
+	appendOK(t, s, AppendRequest{Session: "s", Entries: []Entry{{Payload: proto.Thinking{Text: "x"}}}})
+	off := int64(77)
+	res := appendOK(t, s, AppendRequest{Session: "s", IngestOffset: &off})
+	if res.FirstSeq != 0 || res.LastSeq != 0 || res.Duplicate {
+		t.Fatalf("ingest-only result %+v, want zero seqs", res)
+	}
+	if got, _ := s.IngestOffset(ctx, "s"); got != 77 {
+		t.Fatalf("offset %d", got)
+	}
+	if sess, _ := s.Session(ctx, "s"); sess.LastSeq != 1 {
+		t.Fatalf("last_seq %d, want 1", sess.LastSeq)
+	}
+}
+
+func TestEventsRejectsBadLimit(t *testing.T) {
+	s := newStore(t)
+	newSession(t, s, "s")
+	for _, limit := range []int{0, -1} {
+		if _, err := s.Events(context.Background(), "s", 0, limit); !errors.Is(err, ErrInvalid) {
+			t.Fatalf("limit %d: %v", limit, err)
+		}
+	}
+}

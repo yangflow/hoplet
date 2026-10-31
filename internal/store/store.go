@@ -12,6 +12,8 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"io/fs"
+	"net/url"
 	"os"
 	"path/filepath"
 
@@ -24,6 +26,12 @@ const DBName = "hoplet.db"
 // ErrNotFound is returned when a session does not exist.
 var ErrNotFound = errors.New("store: not found")
 
+// ErrInvalid is returned when a request carries invalid values.
+var ErrInvalid = errors.New("store: invalid")
+
+// ErrExists is returned when creating something that already exists.
+var ErrExists = errors.New("store: already exists")
+
 // Store is Hoplet's database. It is safe for concurrent use; writes are
 // serialized over a single connection.
 type Store struct {
@@ -33,20 +41,35 @@ type Store struct {
 
 // Open opens or creates the store in dir, migrating the schema forward.
 func Open(ctx context.Context, dir string) (*Store, error) {
+	fsys, err := fs.Sub(migrations, "migrations")
+	if err != nil {
+		return nil, fmt.Errorf("store: migrations: %w", err)
+	}
+	return open(ctx, dir, fsys)
+}
+
+// open is Open with the migrations supplied, so tests can use several steps.
+func open(ctx context.Context, dir string, fsys fs.FS) (*Store, error) {
 	if err := os.MkdirAll(filepath.Join(dir, "blobs"), 0o700); err != nil {
 		return nil, fmt.Errorf("store: create dir: %w", err)
 	}
-	path := filepath.Join(dir, DBName)
-	dsn := "file:" + path +
-		"?_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)" +
-		"&_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)"
-	db, err := sql.Open("sqlite", dsn)
+	path, err := filepath.Abs(filepath.Join(dir, DBName))
+	if err != nil {
+		return nil, fmt.Errorf("store: resolve path: %w", err)
+	}
+	u := url.URL{
+		Scheme: "file",
+		Path:   filepath.ToSlash(path),
+		RawQuery: "_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)" +
+			"&_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)&_txlock=immediate",
+	}
+	db, err := sql.Open("sqlite", u.String())
 	if err != nil {
 		return nil, fmt.Errorf("store: open: %w", err)
 	}
 	db.SetMaxOpenConns(1)
 	s := &Store{dir: dir, db: db}
-	if err := s.migrate(ctx); err != nil {
+	if err := s.migrate(ctx, fsys); err != nil {
 		db.Close()
 		return nil, err
 	}
@@ -78,7 +101,10 @@ func (s *Store) tx(ctx context.Context, durable bool, fn func(*sql.Tx) error) (e
 		return fmt.Errorf("store: begin: %w", err)
 	}
 	if err := fn(tx); err != nil {
-		return errors.Join(err, tx.Rollback())
+		if rerr := tx.Rollback(); rerr != nil && !errors.Is(rerr, sql.ErrTxDone) {
+			err = errors.Join(err, rerr)
+		}
+		return err
 	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("store: commit: %w", err)

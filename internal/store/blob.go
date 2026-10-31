@@ -35,22 +35,36 @@ func (s *Store) PutBlob(r io.Reader) (proto.BlobRef, error) {
 	}
 	ref := proto.BlobRef{SHA256: hex.EncodeToString(h.Sum(nil)), Size: size}
 	dst := s.blobPath(ref)
+	if _, err := os.Stat(dst); err == nil {
+		return ref, nil // same content already stored; the deferred remove drops the temp file
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return proto.BlobRef{}, fmt.Errorf("store: stat blob: %w", err)
+	}
 	if err := os.MkdirAll(filepath.Dir(dst), 0o700); err != nil {
 		return proto.BlobRef{}, fmt.Errorf("store: create blob dir: %w", err)
 	}
 	if err := os.Rename(tmp.Name(), dst); err != nil {
 		return proto.BlobRef{}, fmt.Errorf("store: publish blob: %w", err)
 	}
+	if err := syncDir(filepath.Dir(dst)); err != nil {
+		return proto.BlobRef{}, fmt.Errorf("store: sync blob dir: %w", err)
+	}
 	return ref, nil
+}
+
+// syncDir flushes a directory's entries to disk.
+func syncDir(path string) error {
+	d, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	return errors.Join(d.Sync(), d.Close())
 }
 
 // OpenBlob opens a stored blob, or returns ErrNotFound.
 func (s *Store) OpenBlob(ref proto.BlobRef) (io.ReadCloser, error) {
-	if len(ref.SHA256) != sha256.Size*2 {
+	if !validDigest(ref.SHA256) {
 		return nil, fmt.Errorf("store: bad blob reference %q", ref.SHA256)
-	}
-	if _, err := hex.DecodeString(ref.SHA256); err != nil {
-		return nil, fmt.Errorf("store: bad blob reference %q: %w", ref.SHA256, err)
 	}
 	f, err := os.Open(s.blobPath(ref))
 	if errors.Is(err, os.ErrNotExist) {
@@ -59,7 +73,27 @@ func (s *Store) OpenBlob(ref proto.BlobRef) (io.ReadCloser, error) {
 	if err != nil {
 		return nil, fmt.Errorf("store: open blob: %w", err)
 	}
+	info, err := f.Stat()
+	if err != nil {
+		return nil, errors.Join(fmt.Errorf("store: stat blob: %w", err), f.Close())
+	}
+	if info.Size() != ref.Size {
+		return nil, errors.Join(fmt.Errorf("store: blob %s has %d bytes, reference says %d", ref.SHA256, info.Size(), ref.Size), f.Close())
+	}
 	return f, nil
+}
+
+// validDigest reports whether s is a lowercase hex SHA-256.
+func validDigest(s string) bool {
+	if len(s) != sha256.Size*2 {
+		return false
+	}
+	for _, c := range s {
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
+			return false
+		}
+	}
+	return true
 }
 
 func (s *Store) blobPath(ref proto.BlobRef) string {

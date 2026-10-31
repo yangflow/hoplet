@@ -42,25 +42,27 @@ CREATE TABLE turns (
 ) STRICT, WITHOUT ROWID;
 
 CREATE TABLE approvals (
-    id           TEXT PRIMARY KEY,
     session_id   TEXT NOT NULL REFERENCES sessions(id),
+    id           TEXT NOT NULL,
     request_seq  INTEGER NOT NULL,
     kind         TEXT NOT NULL,
     status       TEXT NOT NULL,
     option_id    TEXT NOT NULL DEFAULT '',
     decided_by   TEXT NOT NULL DEFAULT '',
-    resolved_seq INTEGER
-) STRICT;
+    resolved_seq INTEGER,
+    PRIMARY KEY (session_id, id)
+) STRICT, WITHOUT ROWID;
 
 CREATE INDEX approvals_pending ON approvals (session_id) WHERE status = 'pending';
 
 CREATE TABLE receipts (
-    key        TEXT PRIMARY KEY,
     session_id TEXT NOT NULL,
+    key        TEXT NOT NULL,
     first_seq  INTEGER NOT NULL,
     last_seq   INTEGER NOT NULL,
-    created_at INTEGER NOT NULL
-) STRICT;
+    created_at INTEGER NOT NULL,
+    PRIMARY KEY (session_id, key)
+) STRICT, WITHOUT ROWID;
 
 CREATE TABLE ingest_offsets (
     session_id TEXT PRIMARY KEY REFERENCES sessions(id),

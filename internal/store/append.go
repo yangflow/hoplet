@@ -30,7 +30,8 @@ type AppendRequest struct {
 	IngestOffset *int64
 }
 
-// AppendResult reports the sequence numbers assigned.
+// AppendResult reports the sequence numbers assigned. Both are zero when no
+// events were written, as for an append that only records an ingest offset.
 type AppendResult struct {
 	FirstSeq  uint64
 	LastSeq   uint64
@@ -60,7 +61,7 @@ func (s *Store) Append(ctx context.Context, req AppendRequest) (AppendResult, er
 	var res AppendResult
 	err := s.tx(ctx, durable(req), func(tx *sql.Tx) error {
 		if req.ReceiptKey != "" {
-			err := tx.QueryRowContext(ctx, `SELECT first_seq, last_seq FROM receipts WHERE key = ?`, req.ReceiptKey).
+			err := tx.QueryRowContext(ctx, `SELECT first_seq, last_seq FROM receipts WHERE session_id = ? AND key = ?`, req.Session, req.ReceiptKey).
 				Scan(&res.FirstSeq, &res.LastSeq)
 			if err == nil {
 				res.Duplicate = true
@@ -79,7 +80,9 @@ func (s *Store) Append(ctx context.Context, req AppendRequest) (AppendResult, er
 		if err != nil {
 			return fmt.Errorf("store: read session: %w", err)
 		}
-		res.FirstSeq = last + 1
+		if len(events) > 0 {
+			res.FirstSeq = last + 1
+		}
 		for i := range events {
 			last++
 			events[i].Seq = last
@@ -90,15 +93,17 @@ func (s *Store) Append(ctx context.Context, req AppendRequest) (AppendResult, er
 				return err
 			}
 		}
-		res.LastSeq = last
+		if len(events) > 0 {
+			res.LastSeq = last
+		}
 		_, err = tx.ExecContext(ctx, `UPDATE sessions SET last_seq = ?, status = ?, updated_at = ? WHERE id = ?`,
 			last, status, req.Time.UTC().UnixMilli(), req.Session)
 		if err != nil {
 			return fmt.Errorf("store: update session: %w", err)
 		}
 		if req.ReceiptKey != "" {
-			_, err := tx.ExecContext(ctx, `INSERT INTO receipts (key, session_id, first_seq, last_seq, created_at) VALUES (?, ?, ?, ?, ?)`,
-				req.ReceiptKey, req.Session, res.FirstSeq, res.LastSeq, req.Time.UTC().UnixMilli())
+			_, err := tx.ExecContext(ctx, `INSERT INTO receipts (session_id, key, first_seq, last_seq, created_at) VALUES (?, ?, ?, ?, ?)`,
+				req.Session, req.ReceiptKey, res.FirstSeq, res.LastSeq, req.Time.UTC().UnixMilli())
 			if err != nil {
 				return fmt.Errorf("store: write receipt: %w", err)
 			}
@@ -173,7 +178,8 @@ func project(ctx context.Context, tx *sql.Tx, ev proto.Event, p proto.Payload, s
 		if ev.Turn == 0 {
 			return status, fmt.Errorf("store: turn.started at seq %d has no turn number", ev.Seq)
 		}
-		return proto.StatusRunning, exec(`INSERT INTO turns (session_id, n, start_seq) VALUES (?, ?, ?)`, ev.Session, ev.Turn, ev.Seq)
+		return proto.StatusRunning, exec(`INSERT INTO turns (session_id, n, start_seq) VALUES (?, ?, ?)
+			ON CONFLICT DO NOTHING`, ev.Session, ev.Turn, ev.Seq)
 	case proto.TurnEnded:
 		next := proto.StatusIdle
 		if p.Reason == proto.TurnFailed || p.Reason == proto.TurnAborted {
@@ -181,7 +187,8 @@ func project(ctx context.Context, tx *sql.Tx, ev proto.Event, p proto.Payload, s
 		}
 		return next, exec(`UPDATE turns SET end_seq = ?, reason = ? WHERE session_id = ? AND n = ?`, ev.Seq, p.Reason, ev.Session, ev.Turn)
 	case proto.ApprovalRequested:
-		return proto.StatusWaiting, exec(`INSERT INTO approvals (id, session_id, request_seq, kind, status) VALUES (?, ?, ?, ?, 'pending')`,
+		return proto.StatusWaiting, exec(`INSERT INTO approvals (id, session_id, request_seq, kind, status) VALUES (?, ?, ?, ?, 'pending')
+			ON CONFLICT DO NOTHING`,
 			p.ID, ev.Session, ev.Seq, p.Kind)
 	case proto.ApprovalResolved:
 		if err := exec(`UPDATE approvals SET status = ?, option_id = ?, decided_by = ?, resolved_seq = ? WHERE id = ? AND session_id = ?`,
