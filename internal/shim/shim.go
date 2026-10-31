@@ -35,6 +35,10 @@ const (
 	DefaultKillGrace    = 5 * time.Second
 )
 
+// DefaultSendTimeout bounds every frame the shim writes to a client. A client
+// that stops reading is disconnected and can resume by offset.
+const DefaultSendTimeout = 30 * time.Second
+
 // helloTimeout bounds how long a new connection may take to say hello.
 const helloTimeout = 5 * time.Second
 
@@ -70,6 +74,8 @@ type Config struct {
 	// wrapSpool, when set, wraps the spool's write side. Tests use it to
 	// inject write failures.
 	wrapSpool func(spoolFile) spoolFile
+	// sendTimeout overrides DefaultSendTimeout in tests.
+	sendTimeout time.Duration
 }
 
 // SocketPath returns the shim's socket inside dir.
@@ -119,7 +125,8 @@ type shim struct {
 	current      net.Conn // the client that owns the child, if any
 	live         *conn    // current, with its write lock
 	lingerTimer  *time.Timer
-	recordFailed bool // spool appends fail; output is discarded
+	syncErr      error // the exit record was written but not synced
+	recordFailed bool  // spool appends fail; output is discarded
 }
 
 // Run starts the child and serves clients until a client acknowledges the
@@ -138,6 +145,9 @@ func Run(ctx context.Context, cfg Config) (err error) {
 	}
 	if cfg.DrainTimeout <= 0 {
 		cfg.DrainTimeout = DefaultDrainTimeout
+	}
+	if cfg.sendTimeout <= 0 {
+		cfg.sendTimeout = DefaultSendTimeout
 	}
 	if cfg.KillGrace <= 0 {
 		cfg.KillGrace = DefaultKillGrace
@@ -207,6 +217,9 @@ func Run(ctx context.Context, cfg Config) (err error) {
 		leaveSpoolOpen = !s.abandon()
 	}
 	s.wg.Wait()
+	s.mu.Lock()
+	runErr = errors.Join(runErr, s.syncErr)
+	s.mu.Unlock()
 	return runErr
 }
 
@@ -369,6 +382,11 @@ func (s *shim) wait() {
 	off, aerr := s.spool.append(rec)
 	if aerr != nil {
 		s.log.Error("exit record not fully written", "error", aerr)
+		if off > 0 {
+			s.mu.Lock()
+			s.syncErr = aerr
+			s.mu.Unlock()
+		}
 		// off is 0 when nothing was written; only linger can end the shim then.
 	}
 	s.reapGroup() // the exit record is out; nothing the child left behind may outlive it

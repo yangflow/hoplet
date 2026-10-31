@@ -3,8 +3,10 @@ package shim
 import (
 	"context"
 	"errors"
+	"io"
 	"net"
 	"os"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -289,4 +291,62 @@ func TestCorruptSpoolIsReported(t *testing.T) {
 	}
 	cancel()
 	waitDone(t, done)
+}
+
+func TestStalledClientIsDisconnected(t *testing.T) {
+	const size = 20 << 20
+	dir, done := startShimCfg(context.Background(), t, func(cfg *Config) {
+		cfg.Command = append(cfg.Command, "bigline", strconv.Itoa(size))
+		cfg.sendTimeout = 200 * time.Millisecond
+	})
+	stuck, err := net.Dial("unix", SocketPath(dir))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer stuck.Close()
+	if err := writeFrame(stuck, Message{Type: MsgHello, Version: ProtocolVersion}); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(time.Second) // never read while the child floods; the shim must give up
+	if err := stuck.SetReadDeadline(time.Now().Add(10 * time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := io.Copy(io.Discard, stuck); err != nil {
+		t.Fatalf("the shim kept the stalled connection open: %v", err)
+	}
+	c := dial(t, dir, 0) // resumes correctly from the start
+	got, final := recvUntil(t, c, isExit)
+	total := 0
+	for _, r := range got {
+		if r.Kind == KindStdout {
+			total += len(r.Data)
+		}
+	}
+	if total != size {
+		t.Fatalf("resumed client saw %d bytes, want %d", total, size)
+	}
+	if err := c.Ack(final); err != nil {
+		t.Fatal(err)
+	}
+	waitDone(t, done)
+}
+
+func TestRunReportsExitSyncFailure(t *testing.T) {
+	dir, done := startShimCfg(context.Background(), t, func(cfg *Config) {
+		cfg.Command = append(cfg.Command, "tick", "1", "0")
+		cfg.wrapSpool = func(f spoolFile) spoolFile { return failingSync{f} }
+	})
+	c := dial(t, dir, 0)
+	_, final := recvUntil(t, c, isExit)
+	if err := c.Ack(final); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case err := <-done:
+		if !errors.Is(err, errDiskFull) {
+			t.Fatalf("Run: %v, want the sync error", err)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("shim did not exit")
+	}
 }

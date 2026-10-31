@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"os"
 	"strings"
 	"sync"
 	"syscall"
@@ -22,12 +23,29 @@ var signals = map[string]syscall.Signal{
 type conn struct {
 	net.Conn
 	wmu sync.Mutex
+	// timeout, when positive, bounds each send. A send that times out closes
+	// the connection: the peer stopped reading, and it can reconnect by offset.
+	timeout time.Duration
 }
 
 func (c *conn) send(m Message) error {
 	c.wmu.Lock()
 	defer c.wmu.Unlock()
-	return writeFrame(c.Conn, m)
+	if c.timeout <= 0 {
+		return writeFrame(c.Conn, m)
+	}
+	if err := c.SetWriteDeadline(time.Now().Add(c.timeout)); err != nil {
+		return err
+	}
+	err := writeFrame(c.Conn, m)
+	if errors.Is(err, os.ErrDeadlineExceeded) {
+		_ = c.Close()
+		return err
+	}
+	if cerr := c.SetWriteDeadline(time.Time{}); err == nil && cerr != nil {
+		return cerr
+	}
+	return err
 }
 
 // sendError sends an error frame.
@@ -48,7 +66,7 @@ func coded(code, format string, args ...any) error {
 // while client frames are applied to the child. A client replaces the
 // previous one only once its hello is accepted.
 func (s *shim) serve(nc net.Conn) {
-	c := &conn{Conn: nc}
+	c := &conn{Conn: nc, timeout: s.cfg.sendTimeout}
 	defer s.wg.Done()
 	defer s.release(nc)
 	defer c.Close()
