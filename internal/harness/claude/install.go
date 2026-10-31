@@ -194,7 +194,7 @@ func Follow(ctx context.Context, home, path string, check Checker) (Update, bool
 	if failedBefore && last.Attempts >= maxFollowAttempts {
 		return Update{}, false // given up on this version; don't spend quota again
 	}
-	if failedBefore && now.Sub(last.At) < followRetryAfter {
+	if failedBefore && now.Sub(last.At) < followRetryAfter && !last.At.After(now) {
 		return Update{}, false // tried recently, perhaps by a previous daemon
 	}
 	inst, err := Install(ctx, src, home, check)

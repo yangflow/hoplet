@@ -266,6 +266,12 @@ func TestFollowTriesAFailedVersionOncePerDay(t *testing.T) {
 	if u, ok := Follow(ctx, home, brokenDir, c.check); !ok || u.Attempts != 2 || len(c.checked) != 2 {
 		t.Fatalf("after 21h: %+v %v, checked %d", u, ok, len(c.checked))
 	}
+	// A newer version is not held back by the failed one.
+	_, newerDir := fakeClaude(t, "2.1.600")
+	c.err = nil
+	if u, ok := Follow(ctx, home, newerDir, c.check); !ok || u.Error != "" || u.Version != "2.1.600" || len(c.checked) != 3 {
+		t.Fatalf("newer version: %+v %v, checked %d", u, ok, len(c.checked))
+	}
 }
 
 func TestInstallWithoutACheckerRefusesAnUnverifiedVersion(t *testing.T) {
@@ -312,11 +318,12 @@ func TestNextUpdateCountsOnlySelfCheckFailures(t *testing.T) {
 		{"repeated check failure", prior, true, check, 3, true},
 		{"other failure is not counted", Update{}, false, other, 0, true},
 		{"other failure resets the count", prior, true, other, 0, true},
+		{"check failure after an uncounted one", Update{Version: "2.1.500", Error: "x"}, true, check, 1, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			u := nextUpdate(tt.last, tt.failedBefore, "2.1.400", "2.1.500", tt.err, now)
-			if u.Attempts != tt.wantAttempts || (u.Error != "") != tt.wantErr || u.From != "2.1.400" || !u.At.Equal(now) {
+			if u.Attempts != tt.wantAttempts || (u.Error != "") != tt.wantErr || u.From != "2.1.400" || u.Version != "2.1.500" || !u.At.Equal(now) {
 				t.Fatalf("%+v", u)
 			}
 		})
@@ -328,5 +335,23 @@ func TestNoticeForAnUncountedFailure(t *testing.T) {
 	got, attention := u.notice("2.1.400")
 	if !attention || !strings.Contains(got, "could not move to claude 2.1.500 on 2026-11-01: claude: disk full; it will try again") || strings.Contains(got, "attempt") {
 		t.Fatalf("notice %q %v", got, attention)
+	}
+}
+
+func TestFollowRetriesAfterTheClockWentBack(t *testing.T) {
+	ctx := context.Background()
+	home := t.TempDir()
+	user, _ := fakeClaude(t, "2.1.312")
+	c := &checker{err: errors.New("flaky")}
+	if _, err := Install(ctx, user, home, c.check); err != nil {
+		t.Fatal(err)
+	}
+	_, brokenDir := fakeClaude(t, "2.1.500")
+	if _, ok := Follow(ctx, home, brokenDir, c.check); !ok {
+		t.Fatal("first follow did nothing")
+	}
+	ageUpdate(t, home, -48*time.Hour) // recorded "in the future"
+	if _, ok := Follow(ctx, home, brokenDir, c.check); !ok || len(c.checked) != 2 {
+		t.Fatalf("a failure dated in the future blocked the retry: checked %d", len(c.checked))
 	}
 }
