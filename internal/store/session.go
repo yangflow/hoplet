@@ -14,7 +14,7 @@ import (
 )
 
 const sessionColumns = `id, mode, harness_kind, harness_version, native_id, directory, isolation,
-	owner, origin, status, title, created_at, updated_at, archived_at, last_seq, version, permission`
+	owner, origin, status, title, created_at, updated_at, archived_at, last_seq, version, permission, plan, effort`
 
 // CreateSession stores a new session. Status defaults to idle and
 // CreatedAt to now; UpdatedAt equals CreatedAt. The write is durable.
@@ -37,10 +37,10 @@ func (s *Store) CreateSession(ctx context.Context, sess proto.Session) (proto.Se
 	sess.LastSeq = 0
 	err := s.tx(ctx, true, func(tx *sql.Tx) error {
 		_, err := tx.ExecContext(ctx, `INSERT INTO sessions (`+sessionColumns+`)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 0, 0, ?)`,
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 0, 0, ?, ?, ?)`,
 			sess.ID, sess.Mode, sess.Harness.Kind, sess.Harness.Version, sess.Harness.NativeID,
 			sess.Directory, sess.Isolation, sess.Owner, sess.Origin, sess.Status, sess.Title,
-			sess.CreatedAt.UnixMilli(), sess.UpdatedAt.UnixMilli(), sess.Permission)
+			sess.CreatedAt.UnixMilli(), sess.UpdatedAt.UnixMilli(), sess.Permission, sess.Plan, sess.Effort)
 		var serr *sqlite.Error
 		if errors.As(err, &serr) && serr.Code() == sqlite3.SQLITE_CONSTRAINT_PRIMARYKEY {
 			return fmt.Errorf("%w: session %s", ErrExists, sess.ID)
@@ -96,18 +96,13 @@ func validateSession(sess proto.Session) error {
 	default:
 		return bad("status %q", sess.Status)
 	}
-	if !validPermission(sess.Permission) {
+	if !sess.Permission.Valid() {
 		return bad("permission %q", sess.Permission)
 	}
-	return nil
-}
-
-func validPermission(m proto.PermissionMode) bool {
-	switch m {
-	case proto.ModeReadOnly, proto.ModeConfirm, proto.ModeAutoEdit, proto.ModeFullAuto:
-		return true
+	if sess.Effort != "" && !sess.Effort.Valid() {
+		return bad("effort %q", sess.Effort)
 	}
-	return false
+	return nil
 }
 
 // Session returns one session, or ErrNotFound.
@@ -183,22 +178,29 @@ type SessionUpdate struct {
 	NativeID   *string
 	Title      *string
 	Permission *proto.PermissionMode
+	Plan       *bool
+	Effort     *proto.Effort // an empty effort restores the harness default
 }
 
-// UpdateSession changes a session's harness-native ID, title and/or
-// permission mode and returns the updated session. The write is durable; with nothing to change
-// it writes nothing and returns the current session.
+// UpdateSession changes a session's harness-native ID, title, permission
+// mode, plan mode and/or effort and returns the updated session. The write
+// is durable; with nothing to change it writes nothing and returns the
+// current session.
 func (s *Store) UpdateSession(ctx context.Context, id proto.SessionID, u SessionUpdate) (proto.Session, error) {
-	if u.NativeID == nil && u.Title == nil && u.Permission == nil {
+	if u.NativeID == nil && u.Title == nil && u.Permission == nil && u.Plan == nil && u.Effort == nil {
 		return s.Session(ctx, id)
 	}
-	if u.Permission != nil && !validPermission(*u.Permission) {
+	if u.Permission != nil && !u.Permission.Valid() {
 		return proto.Session{}, fmt.Errorf("%w: permission %q", ErrInvalid, *u.Permission)
+	}
+	if u.Effort != nil && *u.Effort != "" && !u.Effort.Valid() {
+		return proto.Session{}, fmt.Errorf("%w: effort %q", ErrInvalid, *u.Effort)
 	}
 	var out proto.Session
 	err := s.tx(ctx, true, func(tx *sql.Tx) error {
 		res, err := tx.ExecContext(ctx, `UPDATE sessions SET native_id = COALESCE(?, native_id), title = COALESCE(?, title),
-			permission = COALESCE(?, permission) WHERE id = ?`, u.NativeID, u.Title, u.Permission, id)
+			permission = COALESCE(?, permission), plan = COALESCE(?, plan), effort = COALESCE(?, effort) WHERE id = ?`,
+			u.NativeID, u.Title, u.Permission, u.Plan, u.Effort, id)
 		if err != nil {
 			return fmt.Errorf("store: update session %s: %w", id, err)
 		}
@@ -246,7 +248,7 @@ func scanSession(r scanner) (proto.Session, error) {
 	)
 	err := r.Scan(&sess.ID, &sess.Mode, &sess.Harness.Kind, &sess.Harness.Version, &sess.Harness.NativeID,
 		&sess.Directory, &sess.Isolation, &sess.Owner, &sess.Origin, &sess.Status, &sess.Title,
-		&created, &updated, &archived, &sess.LastSeq, &sess.Version, &sess.Permission)
+		&created, &updated, &archived, &sess.LastSeq, &sess.Version, &sess.Permission, &sess.Plan, &sess.Effort)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return proto.Session{}, err

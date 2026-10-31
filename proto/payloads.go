@@ -16,6 +16,7 @@ const (
 	TypeQuestion         EventType = "question"
 	TypeUsage            EventType = "usage"
 	TypeError            EventType = "error"
+	TypeModeChanged      EventType = "mode.changed"
 )
 
 // TurnStarted marks the start of a turn.
@@ -196,6 +197,21 @@ type Error struct {
 	Message string `json:"message"`
 }
 
+// ModeChanged records the harness changing the session's permission mode
+// or plan mode by itself, as when the user approves a plan and the harness
+// leaves plan mode. The store applies it to the session record.
+type ModeChanged struct {
+	Permission PermissionMode `json:"permission"`
+	Plan       bool           `json:"plan"`
+}
+
+func (m ModeChanged) validate() error {
+	if !m.Permission.Valid() {
+		return fmt.Errorf("%w: unknown permission mode %q", ErrInvalidPayload, m.Permission)
+	}
+	return nil
+}
+
 func (r ApprovalResolved) validate() error {
 	switch r.Outcome {
 	case OutcomeAllowed, OutcomeDenied:
@@ -224,6 +240,7 @@ func (ApprovalResolved) eventType() EventType  { return TypeApprovalResolved }
 func (Question) eventType() EventType          { return TypeQuestion }
 func (Usage) eventType() EventType             { return TypeUsage }
 func (Error) eventType() EventType             { return TypeError }
+func (ModeChanged) eventType() EventType       { return TypeModeChanged }
 
 func (TurnStarted) eventVersion() uint16       { return 1 }
 func (TurnEnded) eventVersion() uint16         { return 1 }
@@ -237,6 +254,7 @@ func (ApprovalResolved) eventVersion() uint16  { return 1 }
 func (Question) eventVersion() uint16          { return 1 }
 func (Usage) eventVersion() uint16             { return 1 }
 func (Error) eventVersion() uint16             { return 1 }
+func (ModeChanged) eventVersion() uint16       { return 1 }
 
 func init() {
 	register[TurnStarted]()
@@ -251,4 +269,5 @@ func init() {
 	register[Question]()
 	register[Usage]()
 	register[Error]()
+	register[ModeChanged]()
 }

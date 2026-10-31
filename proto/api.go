@@ -73,6 +73,8 @@ const (
 	MethodSessionsSteer     = "sessions.steer"
 	MethodSessionsAnswer    = "sessions.answer"
 	MethodSessionsSetPerm   = "sessions.set_permission"
+	MethodSessionsSetPlan   = "sessions.set_plan"
+	MethodSessionsSetEffort = "sessions.set_effort"
 	MethodSessionsStop      = "sessions.stop"
 	MethodSessionsArchive   = "sessions.archive"
 	MethodSessionsEvents    = "sessions.events"
@@ -108,11 +110,16 @@ type SessionRef struct {
 
 // CreateParams creates a session.
 type CreateParams struct {
-	Mode       Mode           `json:"mode"`
-	Harness    string         `json:"harness"`
-	Directory  string         `json:"directory,omitempty"`
-	Isolation  Isolation      `json:"isolation,omitempty"`
+	Mode      Mode      `json:"mode"`
+	Harness   string    `json:"harness"`
+	Directory string    `json:"directory,omitempty"`
+	Isolation Isolation `json:"isolation,omitempty"`
+	// Permission defaults to auto_review for code sessions and confirm for
+	// personal ones; the harness runs the nearest mode it has (see
+	// Capabilities.Fallback), which the created session reports.
 	Permission PermissionMode `json:"permission,omitempty"`
+	Plan       bool           `json:"plan,omitempty"`
+	Effort     Effort         `json:"effort,omitempty"`
 	Title      string         `json:"title,omitempty"`
 }
 
@@ -156,6 +163,18 @@ type AnswerParams struct {
 type SetPermissionParams struct {
 	Session    SessionID      `json:"session"`
 	Permission PermissionMode `json:"permission"`
+}
+
+// SetPlanParams turns a session's plan mode on or off.
+type SetPlanParams struct {
+	Session SessionID `json:"session"`
+	Plan    bool      `json:"plan"`
+}
+
+// SetEffortParams changes how hard a session's harness thinks.
+type SetEffortParams struct {
+	Session SessionID `json:"session"`
+	Effort  Effort    `json:"effort"`
 }
 
 // QueuedMessage is a message waiting for the running turn to end. Error,

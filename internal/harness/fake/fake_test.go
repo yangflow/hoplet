@@ -411,7 +411,7 @@ func TestUnsupportedCapabilities(t *testing.T) {
 	if err := r.Steer(ctx, "x"); !errors.Is(err, harness.ErrUnsupported) {
 		t.Fatalf("Steer: %v", err)
 	}
-	if err := r.SetMode(ctx, proto.ModeReadOnly); !errors.Is(err, harness.ErrUnsupported) {
+	if err := r.SetMode(ctx, proto.ModeAutoReview); !errors.Is(err, harness.ErrUnsupported) {
 		t.Fatalf("SetMode: %v", err)
 	}
 	if err := r.SetModel(ctx, "m"); !errors.Is(err, harness.ErrUnsupported) {
