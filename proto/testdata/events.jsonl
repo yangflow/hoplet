@@ -1,0 +1,12 @@
+{"session":"s1","seq":1,"ts":"2026-10-31T08:00:00Z","turn":1,"type":"turn.started","v":1,"payload":{}}
+{"session":"s1","seq":2,"ts":"2026-10-31T08:00:01Z","turn":1,"type":"message.delta","v":1,"payload":{"message_id":"m1","text":"hel"}}
+{"session":"s1","seq":3,"ts":"2026-10-31T08:00:02Z","turn":1,"type":"message","v":1,"payload":{"id":"m1","role":"assistant","text":"hello"}}
+{"session":"s1","seq":4,"ts":"2026-10-31T08:00:03Z","turn":1,"type":"thinking","v":1,"payload":{"text":"plan"}}
+{"session":"s1","seq":5,"ts":"2026-10-31T08:00:04Z","turn":1,"type":"tool.call","v":1,"payload":{"id":"t1","kind":"exec","name":"Bash","summary":"go test","status":"done"}}
+{"session":"s1","seq":6,"ts":"2026-10-31T08:00:05Z","turn":1,"type":"file.change","v":1,"payload":{"path":"a.go","op":"modified"}}
+{"session":"s1","seq":7,"ts":"2026-10-31T08:00:06Z","turn":1,"type":"approval.requested","v":1,"payload":{"id":"a1","kind":"command","title":"Run command","options":[{"id":"once","label":"Allow once"}]}}
+{"session":"s1","seq":8,"ts":"2026-10-31T08:00:07Z","turn":1,"type":"approval.resolved","v":1,"payload":{"id":"a1","option_id":"once","decided_by":"device:iphone"}}
+{"session":"s1","seq":9,"ts":"2026-10-31T08:00:08Z","turn":1,"type":"question","v":1,"payload":{"id":"q1","text":"Which repo?"}}
+{"session":"s1","seq":10,"ts":"2026-10-31T08:00:09Z","turn":1,"type":"usage","v":1,"payload":{"input_tokens":10,"output_tokens":20}}
+{"session":"s1","seq":11,"ts":"2026-10-31T08:00:10Z","turn":1,"type":"error","v":1,"payload":{"message":"boom"}}
+{"session":"s1","seq":12,"ts":"2026-10-31T08:00:11Z","turn":1,"type":"turn.ended","v":1,"payload":{"reason":"completed"}}
