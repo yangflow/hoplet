@@ -204,11 +204,15 @@ func New(cfg Config) (*Manager, error) {
 
 // CreateRequest describes a new session.
 type CreateRequest struct {
-	Mode       proto.Mode
-	Harness    string
-	Directory  string // working directory; required for code sessions
-	Isolation  proto.Isolation
+	Mode      proto.Mode
+	Harness   string
+	Directory string // working directory; required for code sessions
+	Isolation proto.Isolation
+	// Permission defaults to auto_review for code sessions and confirm for
+	// personal ones; either way the harness runs the nearest mode it has.
 	Permission proto.PermissionMode
+	Plan       bool
+	Effort     proto.Effort // empty: the harness default
 	Title      string
 	Origin     proto.Origin
 }
@@ -232,6 +236,21 @@ func (m *Manager) Create(ctx context.Context, req CreateRequest) (proto.Session,
 	if req.Mode == proto.ModeCode && req.Isolation == "" {
 		req.Isolation = proto.InPlace
 	}
+	if req.Permission == "" {
+		req.Permission = proto.ModeConfirm
+		if req.Mode == proto.ModeCode {
+			req.Permission = proto.ModeAutoReview
+		}
+	}
+	if !req.Permission.Valid() {
+		return proto.Session{}, fmt.Errorf("%w: permission %q", store.ErrInvalid, req.Permission)
+	}
+	if req.Plan && !info.Capabilities.PlanMode {
+		return proto.Session{}, fmt.Errorf("%w: %s has no plan mode", harness.ErrUnsupported, req.Harness)
+	}
+	if req.Effort != "" && !info.Capabilities.HasEffort(req.Effort) {
+		return proto.Session{}, fmt.Errorf("%w: %s has no effort %q", harness.ErrUnsupported, req.Harness, req.Effort)
+	}
 	if req.Origin == "" {
 		req.Origin = proto.OriginMe
 	}
@@ -245,7 +264,8 @@ func (m *Manager) Create(ctx context.Context, req CreateRequest) (proto.Session,
 	}
 	sess, err := m.cfg.Store.CreateSession(ctx, proto.Session{
 		ID: id, Mode: req.Mode, Harness: proto.HarnessRef{Kind: req.Harness, Version: info.Version},
-		Directory: req.Directory, Isolation: req.Isolation, Permission: req.Permission,
+		Directory: req.Directory, Isolation: req.Isolation, Permission: info.Capabilities.Fallback(req.Permission),
+		Plan: req.Plan, Effort: req.Effort,
 		Owner: proto.OwnerMe, Origin: req.Origin, Title: req.Title,
 	})
 	if err != nil {
@@ -512,21 +532,17 @@ func (m *Manager) Answer(ctx context.Context, id proto.SessionID, questionID, an
 // (the harness starts with it next time) and applies it to a running
 // harness. It refuses, writing nothing, when the harness cannot change mode.
 func (m *Manager) SetPermission(ctx context.Context, id proto.SessionID, mode proto.PermissionMode) error {
-	sess, err := m.cfg.Store.Session(ctx, id)
+	if !mode.Valid() {
+		return fmt.Errorf("%w: permission %q", store.ErrInvalid, mode)
+	}
+	caps, err := m.capabilities(ctx, id)
 	if err != nil {
 		return err
 	}
-	h, ok := m.cfg.Harnesses[sess.Harness.Kind]
-	if !ok {
-		return fmt.Errorf("%w: %q", ErrUnknownHarness, sess.Harness.Kind)
-	}
-	info, err := h.Probe(ctx)
-	if err != nil {
-		return fmt.Errorf("session: probe %s: %w", sess.Harness.Kind, err)
-	}
-	if !info.Capabilities.SetMode {
+	if !caps.SetMode {
 		return harness.ErrUnsupported
 	}
+	mode = caps.Fallback(mode)
 	if _, err := m.cfg.Store.UpdateSession(ctx, id, store.SessionUpdate{Permission: &mode}); err != nil {
 		return err
 	}
@@ -535,6 +551,64 @@ func (m *Manager) SetPermission(ctx context.Context, id proto.SessionID, mode pr
 		return nil // not running: the stored mode applies at the next start
 	}
 	return l.run.SetMode(ctx, mode)
+}
+
+// SetPlan turns plan mode on or off.
+func (m *Manager) SetPlan(ctx context.Context, id proto.SessionID, on bool) error {
+	caps, err := m.capabilities(ctx, id)
+	if err != nil {
+		return err
+	}
+	if !caps.PlanMode {
+		return harness.ErrUnsupported
+	}
+	if _, err := m.cfg.Store.UpdateSession(ctx, id, store.SessionUpdate{Plan: &on}); err != nil {
+		return err
+	}
+	l, err := m.attached(id)
+	if err != nil {
+		return nil // not running: the stored setting applies at the next start
+	}
+	return l.run.SetPlan(ctx, on)
+}
+
+// SetEffort changes how hard the harness thinks.
+func (m *Manager) SetEffort(ctx context.Context, id proto.SessionID, effort proto.Effort) error {
+	if !effort.Valid() {
+		return fmt.Errorf("%w: effort %q", store.ErrInvalid, effort)
+	}
+	caps, err := m.capabilities(ctx, id)
+	if err != nil {
+		return err
+	}
+	if !caps.HasEffort(effort) {
+		return harness.ErrUnsupported
+	}
+	if _, err := m.cfg.Store.UpdateSession(ctx, id, store.SessionUpdate{Effort: &effort}); err != nil {
+		return err
+	}
+	l, err := m.attached(id)
+	if err != nil {
+		return nil // not running: the stored setting applies at the next start
+	}
+	return l.run.SetEffort(ctx, effort)
+}
+
+// capabilities probes the harness of a session.
+func (m *Manager) capabilities(ctx context.Context, id proto.SessionID) (proto.Capabilities, error) {
+	sess, err := m.cfg.Store.Session(ctx, id)
+	if err != nil {
+		return proto.Capabilities{}, err
+	}
+	h, ok := m.cfg.Harnesses[sess.Harness.Kind]
+	if !ok {
+		return proto.Capabilities{}, fmt.Errorf("%w: %q", ErrUnknownHarness, sess.Harness.Kind)
+	}
+	info, err := h.Probe(ctx)
+	if err != nil {
+		return proto.Capabilities{}, fmt.Errorf("session: probe %s: %w", sess.Harness.Kind, err)
+	}
+	return info.Capabilities, nil
 }
 
 func (m *Manager) attached(id proto.SessionID) (*live, error) {
@@ -604,7 +678,7 @@ func (m *Manager) Env() []string {
 
 func (m *Manager) specFor(sess proto.Session, inTurn bool) harness.Spec {
 	return harness.Spec{
-		Session: sess.ID, WorkDir: m.workDir(sess), Env: m.Env(), Mode: sess.Permission,
+		Session: sess.ID, WorkDir: m.workDir(sess), Env: m.Env(), Mode: sess.Permission, Plan: sess.Plan, Effort: sess.Effort,
 		Resume: sess.Harness.NativeID,
 		State:  harness.State{InTurn: inTurn, Native: sess.Harness.NativeID},
 	}
