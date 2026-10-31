@@ -32,6 +32,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -86,7 +87,7 @@ type Config struct {
 	// Env is the complete, already-whitelisted environment of harness
 	// processes (login-shell environment, proxy variables, MCP token), built
 	// by the daemon. The session package never inherits the daemon's own
-	// environment.
+	// environment. SetEnv replaces it for harnesses started afterwards.
 	Env    []string
 	Logger *slog.Logger
 }
@@ -112,6 +113,9 @@ type Manager struct {
 	afterPendingRead func()
 	// streak counts consecutive failed ingest runs per session.
 	streak map[proto.SessionID]int
+
+	envMu sync.Mutex
+	env   []string // the environment of harnesses started from now on
 
 	mu      sync.Mutex
 	live    map[proto.SessionID]*live
@@ -192,7 +196,7 @@ func New(cfg Config) (*Manager, error) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Manager{
-		cfg: cfg, log: log, ctx: ctx, cancel: cancel, closeCh: make(chan struct{}),
+		cfg: cfg, log: log, ctx: ctx, cancel: cancel, closeCh: make(chan struct{}), env: slices.Clone(cfg.Env),
 		appendFn: cfg.Store.Append, ready: readyTimeout, change: make(chan struct{}),
 		streak: map[proto.SessionID]int{}, live: map[proto.SessionID]*live{}, locks: map[proto.SessionID]*sync.Mutex{},
 	}, nil
@@ -583,9 +587,24 @@ func (m *Manager) ensure(ctx context.Context, id proto.SessionID) (*live, error)
 	return l, nil
 }
 
+// SetEnv replaces the environment of harnesses started from now on;
+// running harnesses keep theirs.
+func (m *Manager) SetEnv(env []string) {
+	m.envMu.Lock()
+	defer m.envMu.Unlock()
+	m.env = slices.Clone(env)
+}
+
+// Env returns the environment harnesses start with now.
+func (m *Manager) Env() []string {
+	m.envMu.Lock()
+	defer m.envMu.Unlock()
+	return slices.Clone(m.env)
+}
+
 func (m *Manager) specFor(sess proto.Session, inTurn bool) harness.Spec {
 	return harness.Spec{
-		Session: sess.ID, WorkDir: m.workDir(sess), Env: m.cfg.Env, Mode: sess.Permission,
+		Session: sess.ID, WorkDir: m.workDir(sess), Env: m.Env(), Mode: sess.Permission,
 		Resume: sess.Harness.NativeID,
 		State:  harness.State{InTurn: inTurn, Native: sess.Harness.NativeID},
 	}

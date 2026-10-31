@@ -7,7 +7,7 @@
 | 项 | 结论 |
 |---|---|
 | 二进制 | 一个 Go 二进制 `hoplet`，子命令区分角色：`daemon` `shim` `relay` 及各 CLI 命令 |
-| 托管 | macOS：LaunchAgent；Linux：`systemd --user` + `loginctl enable-linger`；`hoplet daemon install` 安装。不内嵌在桌面 app（关 app 不能停 agent） |
+| 托管 | macOS：LaunchAgent；Linux：`systemd --user` + `loginctl enable-linger`；`hoplet daemon install` 安装；另一个守护进程持锁时，LaunchAgent 每 30 秒重试一次，对方退出后接管。不内嵌在桌面 app（关 app 不能停 agent） |
 | 会话进程 | 每个活跃会话一个 `hoplet shim`，托管 harness 的 stdio 和该会话所有 PTY（守护进程重启、升级不丢正在进行的轮次） |
 | 单例 | flock；socket 用“新进程监听临时路径 → 原子 rename”接管，清理逻辑永不删 socket（误删会让新守护进程“能连不能用”） |
 | 版本 | 一次握手：主版本不一致即拒绝并提示升级；shim ↔ daemon 协议带版本 |

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/yangflow/hoplet/internal/client"
+	"github.com/yangflow/hoplet/internal/env"
 	"github.com/yangflow/hoplet/internal/harness"
 	"github.com/yangflow/hoplet/internal/harness/fake"
 	"github.com/yangflow/hoplet/proto"
@@ -67,7 +68,7 @@ func fakeHarnesses(script string) map[string]harness.Harness {
 func testConfig(home, script string) Config {
 	return Config{
 		Home: home, Version: "test", Exe: hopletExe, Harnesses: fakeHarnesses(script),
-		Env: []string{"PATH=" + os.Getenv("PATH")},
+		Env: env.Static{"PATH=" + os.Getenv("PATH")},
 	}
 }
 

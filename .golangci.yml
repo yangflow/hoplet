@@ -39,6 +39,27 @@ linters:
       - path: internal/harness/fake/fakeharness/main\.go
         linters: [gosec]
         text: G703
+      # runCommand runs launchctl with arguments package launchd builds.
+      - path: cmd/hoplet/launchctl\.go
+        linters: [gosec]
+        text: G204
+      # login runs the user's own login shell to read its environment.
+      - path: internal/env/login\.go
+        linters: [gosec]
+        text: G204
+      # dsclShell asks the directory service for the account's shell.
+      - path: internal/env/dscl\.go
+        linters: [gosec]
+        text: G204
+      # usableShell checks that the shell the user database names is an
+      # executable file.
+      - path: internal/env/shellcheck\.go
+        linters: [gosec]
+        text: G703
+      # doctor requests the probe URL from the daemon's configuration.
+      - path: internal/daemon/probe\.go
+        linters: [gosec]
+        text: G704
       # G302 asks for 0600 or less; the daemon's home is a directory, which
       # needs the execute bit and is tightened to 0700.
       - path: internal/daemon/secure\.go

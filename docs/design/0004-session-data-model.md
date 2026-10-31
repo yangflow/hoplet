@@ -74,14 +74,17 @@ flowchart LR
 ## 目录布局
 
 ```
-~/.hoplet/
+~/.hoplet/               0700
+  config.toml            配置（network.proxy、[env] allow 等）
+  daemon.sock            本机 API（0600）；daemon.lock 单例锁；token 本机 token（0600）
+  env.json               登录 shell 环境缓存（不含凭证）
   hoplet.db              结构化数据
   blobs/                 大载荷（内容寻址）
   sessions/<id>/         spool.jsonl、shim socket
   artifacts/<session>/   产物
   harness/<kind>/        各适配器私有数据与托管的 CLI 副本
   profile/               个人档案（见 0010）
-  logs/
+  logs/                  daemon.log（按大小轮转）、launchd.log
 ```
 
 ## 演进规则
