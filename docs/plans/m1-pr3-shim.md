@@ -1549,8 +1549,9 @@ func main() {
 }
 GO
 go build -o $W/e2eclient ./internal/shim/e2eclient && rm -rf internal/shim/e2eclient
+$W/e2eclient /nonexistent 0 >/dev/null 2>&1 || true   # 预热：macOS 上新编译的二进制首次启动较慢
 D=$W/s; mkdir -p $D
-($W/hoplet shim --dir $D -- sh -c 'for i in $(seq 1 60); do echo tick $i; sleep 0.05; done' >/dev/null 2>&1 &)
+($W/hoplet shim --dir $D --cwd $D -- sh -c 'for i in $(seq 1 60); do echo tick $i; sleep 0.05; done' >/dev/null 2>&1 &)
 for i in $(seq 1 100); do [ -S $D/shim.sock ] && break; sleep 0.05; done
 $W/e2eclient $D 0 > $W/c1.out & CP=$!; sleep 0.6; kill -9 $CP; wait $CP 2>/dev/null
 LAST=$(grep '^REC' $W/c1.out | tail -1 | awk '{print $2}'); sleep 0.8

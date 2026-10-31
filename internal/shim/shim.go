@@ -66,6 +66,10 @@ type Config struct {
 	KillGrace time.Duration
 	// Logger receives lifecycle events; nil discards them.
 	Logger *slog.Logger
+
+	// wrapSpool, when set, wraps the spool's write side. Tests use it to
+	// inject write failures.
+	wrapSpool func(spoolFile) spoolFile
 }
 
 // SocketPath returns the shim's socket inside dir.
@@ -154,6 +158,9 @@ func Run(ctx context.Context, cfg Config) (err error) {
 	sp, err := openSpool(SpoolPath(cfg.Dir))
 	if err != nil {
 		return err
+	}
+	if cfg.wrapSpool != nil {
+		sp.w = cfg.wrapSpool(sp.w)
 	}
 	defer func() { err = errors.Join(err, sp.close()) }()
 	ln, err := listen(cfg.Dir)

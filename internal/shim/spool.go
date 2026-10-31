@@ -22,11 +22,21 @@ func SpoolPath(dir string) string { return filepath.Join(dir, SpoolName) }
 // errCorrupt marks a spool line that does not decode.
 var errCorrupt = errors.New("corrupt spool record")
 
+// spoolFile is the write side of the spool file. *os.File satisfies it; tests
+// substitute one that fails.
+type spoolFile interface {
+	Write([]byte) (int, error)
+	Sync() error
+	Truncate(int64) error
+	Close() error
+}
+
 // spool is the append-only record log. Appends are buffered by the OS; the
 // exit record is synced so a finished session's spool is complete on disk.
 type spool struct {
 	mu     sync.Mutex
-	f      *os.File
+	f      *os.File  // reads (boundary checks) and the underlying file
+	w      spoolFile // every write goes through here
 	path   string
 	size   int64
 	notify chan struct{} // closed and replaced on every append
@@ -53,7 +63,7 @@ func openSpool(path string) (*spool, error) {
 			return nil, errors.Join(fmt.Errorf("shim: truncate torn spool tail: %w", err), f.Close())
 		}
 	}
-	return &spool{f: f, path: path, size: size, notify: make(chan struct{})}, nil
+	return &spool{f: f, w: f, path: path, size: size, notify: make(chan struct{})}, nil
 }
 
 // completeLength returns the offset just after the last newline in the first
@@ -86,11 +96,11 @@ func (s *spool) append(rec Record) (int64, error) {
 	b = append(b, '\n')
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if _, err := s.f.Write(b); err != nil {
-		return 0, errors.Join(fmt.Errorf("shim: append record: %w", err), s.f.Truncate(s.size))
+	if _, err := s.w.Write(b); err != nil {
+		return 0, errors.Join(fmt.Errorf("shim: append record: %w", err), s.w.Truncate(s.size))
 	}
 	if rec.Kind == KindExit {
-		if err := s.f.Sync(); err != nil {
+		if err := s.w.Sync(); err != nil {
 			return 0, fmt.Errorf("shim: sync spool: %w", err)
 		}
 	}
@@ -120,7 +130,7 @@ func (s *spool) boundary(off int64) bool {
 	return b[0] == '\n'
 }
 
-func (s *spool) close() error { return s.f.Close() }
+func (s *spool) close() error { return s.w.Close() }
 
 // readRecords reads complete records from off up to limit (exclusive) and
 // calls fn with each record and the offset just after it. A trailing
