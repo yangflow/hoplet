@@ -68,14 +68,14 @@ func TestSessionPlanAndEffort(t *testing.T) {
 	sess, err := s.CreateSession(ctx, proto.Session{
 		ID: "p", Mode: proto.ModeCode, Harness: proto.HarnessRef{Kind: "claude"}, Directory: "/work",
 		Isolation: proto.InPlace, Owner: proto.OwnerMe, Origin: proto.OriginMe, CreatedAt: t0,
-		Permission: proto.ModeAutoReview, Plan: true, Effort: proto.EffortHigh,
+		Permission: proto.ModeAutoReview, Plan: true, Fast: true, Effort: proto.EffortHigh,
 	})
-	if err != nil || sess.Permission != proto.ModeAutoReview || !sess.Plan || sess.Effort != proto.EffortHigh {
+	if err != nil || sess.Permission != proto.ModeAutoReview || !sess.Plan || !sess.Fast || sess.Effort != proto.EffortHigh {
 		t.Fatalf("create %+v %v", sess, err)
 	}
 	off, low := false, proto.EffortLow
-	got, err := s.UpdateSession(ctx, "p", SessionUpdate{Plan: &off, Effort: &low})
-	if err != nil || got.Plan || got.Effort != proto.EffortLow || got.Version <= sess.Version {
+	got, err := s.UpdateSession(ctx, "p", SessionUpdate{Plan: &off, Fast: &off, Effort: &low})
+	if err != nil || got.Plan || got.Fast || got.Effort != proto.EffortLow || got.Version <= sess.Version {
 		t.Fatalf("update %+v %v", got, err)
 	}
 	none := proto.Effort("")

@@ -73,9 +73,10 @@ type Spec struct {
 	// "inherit".
 	Env  []string
 	Mode proto.PermissionMode
-	// Plan starts the session in plan mode; Effort is the thinking effort,
-	// empty for the harness default.
+	// Plan starts the session in plan mode; Fast in fast mode; Effort is
+	// the thinking effort, empty for the harness default.
 	Plan      bool
+	Fast      bool
 	Effort    proto.Effort
 	Model     string // empty: the harness default
 	Resume    string // native session ID to resume; empty starts fresh
@@ -210,6 +211,7 @@ type Run interface {
 	// and SetMode.
 	SetPlan(ctx context.Context, on bool) error
 	SetEffort(ctx context.Context, effort proto.Effort) error
+	SetFast(ctx context.Context, on bool) error
 	SetModel(ctx context.Context, model string) error
 	Events() <-chan Event
 	NativeSession() string

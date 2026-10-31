@@ -75,6 +75,7 @@ const (
 	MethodSessionsSetPerm   = "sessions.set_permission"
 	MethodSessionsSetPlan   = "sessions.set_plan"
 	MethodSessionsSetEffort = "sessions.set_effort"
+	MethodSessionsSetFast   = "sessions.set_fast"
 	MethodSessionsStop      = "sessions.stop"
 	MethodSessionsArchive   = "sessions.archive"
 	MethodSessionsEvents    = "sessions.events"
@@ -120,6 +121,7 @@ type CreateParams struct {
 	Permission PermissionMode `json:"permission,omitempty"`
 	Plan       bool           `json:"plan,omitempty"`
 	Effort     Effort         `json:"effort,omitempty"`
+	Fast       bool           `json:"fast,omitempty"`
 	Title      string         `json:"title,omitempty"`
 }
 
@@ -169,6 +171,12 @@ type SetPermissionParams struct {
 type SetPlanParams struct {
 	Session SessionID `json:"session"`
 	Plan    bool      `json:"plan"`
+}
+
+// SetFastParams turns a session's fast mode on or off.
+type SetFastParams struct {
+	Session SessionID `json:"session"`
+	Fast    bool      `json:"fast"`
 }
 
 // SetEffortParams changes how hard a session's harness thinks.

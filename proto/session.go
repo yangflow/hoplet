@@ -69,6 +69,8 @@ type Session struct {
 	Permission PermissionMode `json:"permission,omitempty"`
 	// Plan stops all changes until the user approves the harness's plan.
 	Plan bool `json:"plan,omitempty"`
+	// Fast trades cost for faster output where the harness offers it.
+	Fast bool `json:"fast,omitempty"`
 	// Effort is how hard the harness thinks; empty means its default.
 	Effort     Effort        `json:"effort,omitempty"`
 	Directory  string        `json:"directory,omitempty"`

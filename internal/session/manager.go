@@ -212,6 +212,7 @@ type CreateRequest struct {
 	// personal ones; either way the harness runs the nearest mode it has.
 	Permission proto.PermissionMode
 	Plan       bool
+	Fast       bool
 	Effort     proto.Effort // empty: the harness default
 	Title      string
 	Origin     proto.Origin
@@ -248,6 +249,9 @@ func (m *Manager) Create(ctx context.Context, req CreateRequest) (proto.Session,
 	if req.Plan && !info.Capabilities.PlanMode {
 		return proto.Session{}, fmt.Errorf("%w: %s has no plan mode", harness.ErrUnsupported, req.Harness)
 	}
+	if req.Fast && !info.Capabilities.Fast {
+		return proto.Session{}, fmt.Errorf("%w: %s has no fast mode", harness.ErrUnsupported, req.Harness)
+	}
 	if req.Effort != "" && !info.Capabilities.HasEffort(req.Effort) {
 		return proto.Session{}, fmt.Errorf("%w: %s has no effort %q", harness.ErrUnsupported, req.Harness, req.Effort)
 	}
@@ -265,7 +269,7 @@ func (m *Manager) Create(ctx context.Context, req CreateRequest) (proto.Session,
 	sess, err := m.cfg.Store.CreateSession(ctx, proto.Session{
 		ID: id, Mode: req.Mode, Harness: proto.HarnessRef{Kind: req.Harness, Version: info.Version},
 		Directory: req.Directory, Isolation: req.Isolation, Permission: info.Capabilities.Fallback(req.Permission),
-		Plan: req.Plan, Effort: req.Effort,
+		Plan: req.Plan, Fast: req.Fast, Effort: req.Effort,
 		Owner: proto.OwnerMe, Origin: req.Origin, Title: req.Title,
 	})
 	if err != nil {
@@ -572,6 +576,25 @@ func (m *Manager) SetPlan(ctx context.Context, id proto.SessionID, on bool) erro
 	return l.run.SetPlan(ctx, on)
 }
 
+// SetFast turns fast mode on or off.
+func (m *Manager) SetFast(ctx context.Context, id proto.SessionID, on bool) error {
+	caps, err := m.capabilities(ctx, id)
+	if err != nil {
+		return err
+	}
+	if !caps.Fast {
+		return harness.ErrUnsupported
+	}
+	if _, err := m.cfg.Store.UpdateSession(ctx, id, store.SessionUpdate{Fast: &on}); err != nil {
+		return err
+	}
+	l, err := m.attached(id)
+	if err != nil {
+		return nil // not running: the stored setting applies at the next start
+	}
+	return l.run.SetFast(ctx, on)
+}
+
 // SetEffort changes how hard the harness thinks.
 func (m *Manager) SetEffort(ctx context.Context, id proto.SessionID, effort proto.Effort) error {
 	if !effort.Valid() {
@@ -678,7 +701,7 @@ func (m *Manager) Env() []string {
 
 func (m *Manager) specFor(sess proto.Session, inTurn bool) harness.Spec {
 	return harness.Spec{
-		Session: sess.ID, WorkDir: m.workDir(sess), Env: m.Env(), Mode: sess.Permission, Plan: sess.Plan, Effort: sess.Effort,
+		Session: sess.ID, WorkDir: m.workDir(sess), Env: m.Env(), Mode: sess.Permission, Plan: sess.Plan, Fast: sess.Fast, Effort: sess.Effort,
 		Resume: sess.Harness.NativeID,
 		State:  harness.State{InTurn: inTurn, Native: sess.Harness.NativeID},
 	}

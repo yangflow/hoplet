@@ -39,12 +39,13 @@ const (
 	EffortHigh   Effort = "high"
 	EffortXHigh  Effort = "xhigh"
 	EffortMax    Effort = "max"
+	EffortUltra  Effort = "ultra"
 )
 
 // Valid reports whether e is a known level.
 func (e Effort) Valid() bool {
 	switch e {
-	case EffortLow, EffortMedium, EffortHigh, EffortXHigh, EffortMax:
+	case EffortLow, EffortMedium, EffortHigh, EffortXHigh, EffortMax, EffortUltra:
 		return true
 	}
 	return false
@@ -63,6 +64,8 @@ type Capabilities struct {
 	PlanMode      bool `json:"plan_mode,omitempty"`
 	PartialStream bool `json:"partial_stream,omitempty"`
 	MCPInject     bool `json:"mcp_inject,omitempty"`
+	// Fast is a faster-output mode at a higher cost (see Session.Fast).
+	Fast bool `json:"fast,omitempty"`
 	// Modes are the permission modes the harness has natively; others fall
 	// back to the nearest stricter one (see Fallback).
 	Modes []PermissionMode `json:"modes,omitempty"`

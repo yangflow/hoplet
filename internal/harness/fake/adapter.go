@@ -17,7 +17,7 @@ const Kind = "fake"
 
 // Harness drives the fakeharness binary at Binary with the script at Script.
 // Capabilities overrides what the fake reports and supports; nil means
-// Steer, PartialStream, Resume, SetMode, SetModel, PlanMode, every
+// Steer, PartialStream, Resume, SetMode, SetModel, PlanMode, Fast, every
 // permission mode and every effort level.
 type Harness struct {
 	Binary       string
@@ -32,9 +32,9 @@ func (h *Harness) caps() proto.Capabilities {
 		return *h.Capabilities
 	}
 	return proto.Capabilities{
-		Steer: true, PartialStream: true, Resume: true, SetMode: true, SetModel: true, PlanMode: true,
+		Steer: true, PartialStream: true, Resume: true, SetMode: true, SetModel: true, PlanMode: true, Fast: true,
 		Modes:   []proto.PermissionMode{proto.ModeConfirm, proto.ModeAutoEdit, proto.ModeAutoReview, proto.ModeFullAuto},
-		Efforts: []proto.Effort{proto.EffortLow, proto.EffortMedium, proto.EffortHigh, proto.EffortXHigh, proto.EffortMax},
+		Efforts: []proto.Effort{proto.EffortLow, proto.EffortMedium, proto.EffortHigh, proto.EffortXHigh, proto.EffortMax, proto.EffortUltra},
 	}
 }
 
@@ -279,6 +279,17 @@ func (r *run) SetEffort(ctx context.Context, effort proto.Effort) error {
 		return harness.ErrUnsupported
 	}
 	return r.send(ctx, Op{Op: "set_effort", Text: string(effort)})
+}
+
+func (r *run) SetFast(ctx context.Context, on bool) error {
+	if !r.caps.Fast {
+		return harness.ErrUnsupported
+	}
+	text := "off"
+	if on {
+		text = "on"
+	}
+	return r.send(ctx, Op{Op: "set_fast", Text: text})
 }
 
 func (r *run) SetModel(ctx context.Context, model string) error {

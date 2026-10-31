@@ -58,6 +58,11 @@ func (c *Client) SetPlan(ctx context.Context, p proto.SetPlanParams) error {
 	return c.Call(ctx, proto.MethodSessionsSetPlan, p, nil)
 }
 
+// SetFast turns a session's fast mode on or off.
+func (c *Client) SetFast(ctx context.Context, p proto.SetFastParams) error {
+	return c.Call(ctx, proto.MethodSessionsSetFast, p, nil)
+}
+
 // SetEffort changes how hard a session's harness thinks.
 func (c *Client) SetEffort(ctx context.Context, p proto.SetEffortParams) error {
 	return c.Call(ctx, proto.MethodSessionsSetEffort, p, nil)

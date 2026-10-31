@@ -66,6 +66,8 @@ func TestCreateDefaultsAndFallback(t *testing.T) {
 		"effort at create": errOf(limited.Create(ctx, CreateRequest{Mode: proto.ModeCode, Harness: "fake", Directory: e.work, Effort: proto.EffortMax})),
 		"set plan":         limited.SetPlan(ctx, sess.ID, true),
 		"set effort":       limited.SetEffort(ctx, sess.ID, proto.EffortLow),
+		"fast at create":   errOf(limited.Create(ctx, CreateRequest{Mode: proto.ModeCode, Harness: "fake", Directory: e.work, Fast: true})),
+		"set fast":         limited.SetFast(ctx, sess.ID, true),
 	} {
 		if !errors.Is(err, harness.ErrUnsupported) {
 			t.Errorf("%s: %v, want ErrUnsupported", name, err)
@@ -89,7 +91,7 @@ func TestPlanAndEffortReachTheHarness(t *testing.T) {
 	m := e.managerWith(map[string]harness.Harness{"fake": spy})
 	defer m.Close()
 	ctx := context.Background()
-	sess, err := m.Create(ctx, CreateRequest{Mode: proto.ModeCode, Harness: "fake", Directory: e.work, Plan: true, Effort: proto.EffortMedium})
+	sess, err := m.Create(ctx, CreateRequest{Mode: proto.ModeCode, Harness: "fake", Directory: e.work, Plan: true, Fast: true, Effort: proto.EffortMedium})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -97,7 +99,7 @@ func TestPlanAndEffortReachTheHarness(t *testing.T) {
 		t.Fatal(err)
 	}
 	e.waitFor(sess.ID, "the turn to start", func(evs []proto.Event) bool { return count(evs, proto.TypeTurnStarted) == 1 })
-	if got := spy.launched(); len(got) != 1 || !got[0].Plan || got[0].Effort != proto.EffortMedium || got[0].Mode != proto.ModeAutoReview {
+	if got := spy.launched(); len(got) != 1 || !got[0].Plan || !got[0].Fast || got[0].Effort != proto.EffortMedium || got[0].Mode != proto.ModeAutoReview {
 		t.Fatalf("launch specs %+v", got)
 	}
 	if err := m.SetPlan(ctx, sess.ID, false); err != nil {
@@ -106,18 +108,21 @@ func TestPlanAndEffortReachTheHarness(t *testing.T) {
 	if err := m.SetEffort(ctx, sess.ID, proto.EffortXHigh); err != nil {
 		t.Fatal(err)
 	}
-	evs := e.waitFor(sess.ID, "the harness to see both changes", func(evs []proto.Event) bool { return count(evs, proto.TypeMessage) >= 3 })
+	if err := m.SetFast(ctx, sess.ID, false); err != nil {
+		t.Fatal(err)
+	}
+	evs := e.waitFor(sess.ID, "the harness to see both changes", func(evs []proto.Event) bool { return count(evs, proto.TypeMessage) >= 4 })
 	var texts []string
 	for _, p := range payloads(t, evs) {
 		if msg, ok := p.(proto.Message); ok && msg.Role == proto.RoleAssistant {
 			texts = append(texts, msg.Text)
 		}
 	}
-	if len(texts) != 2 || texts[0] != "plan:off" || texts[1] != "effort:xhigh" {
+	if len(texts) != 3 || texts[0] != "plan:off" || texts[1] != "effort:xhigh" || texts[2] != "fast:off" {
 		t.Fatalf("harness messages %q", texts)
 	}
 	got, err := e.store.Session(ctx, sess.ID)
-	if err != nil || got.Plan || got.Effort != proto.EffortXHigh {
+	if err != nil || got.Plan || got.Fast || got.Effort != proto.EffortXHigh {
 		t.Fatalf("stored %+v %v", got, err)
 	}
 }

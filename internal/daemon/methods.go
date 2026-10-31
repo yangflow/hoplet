@@ -34,7 +34,7 @@ func (c *conn) call(ctx context.Context, f proto.ClientFrame) (any, error) {
 		}
 		return s.mgr.Create(ctx, session.CreateRequest{
 			Mode: p.Mode, Harness: p.Harness, Directory: p.Directory, Isolation: p.Isolation,
-			Permission: p.Permission, Plan: p.Plan, Effort: p.Effort, Title: p.Title, Origin: proto.OriginMe,
+			Permission: p.Permission, Plan: p.Plan, Fast: p.Fast, Effort: p.Effort, Title: p.Title, Origin: proto.OriginMe,
 		})
 	case proto.MethodSessionsSend:
 		var p proto.SendParams
@@ -92,6 +92,12 @@ func (c *conn) call(ctx context.Context, f proto.ClientFrame) (any, error) {
 			return nil, err
 		}
 		return done, s.mgr.SetEffort(ctx, p.Session, p.Effort)
+	case proto.MethodSessionsSetFast:
+		var p proto.SetFastParams
+		if err := decode(f, &p); err != nil {
+			return nil, err
+		}
+		return done, s.mgr.SetFast(ctx, p.Session, p.Fast)
 	case proto.MethodSessionsEvents:
 		var p proto.EventsParams
 		if err := decode(f, &p); err != nil {

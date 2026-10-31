@@ -7,7 +7,7 @@ package fake
 
 // Op is one line Hoplet writes to the fake harness.
 type Op struct {
-	Op     string `json:"op"` // prompt, steer, interrupt, respond, answer, set_mode, set_plan, set_effort, set_model
+	Op     string `json:"op"` // prompt, steer, interrupt, respond, answer, set_mode, set_plan, set_effort, set_fast, set_model
 	Text   string `json:"text,omitempty"`
 	ID     string `json:"id,omitempty"`
 	Option string `json:"option,omitempty"`

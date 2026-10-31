@@ -746,18 +746,21 @@ func TestPlanAndEffortCommands(t *testing.T) {
 	start(t, testConfig(h, script))
 	c := dial(t, h, "device:a")
 	ctx := timeout(t)
-	sess, err := c.Create(ctx, proto.CreateParams{Mode: proto.ModeCode, Harness: "fake", Directory: filepath.Join(h, "work"), Plan: true, Effort: proto.EffortLow})
-	if err != nil || !sess.Plan || sess.Effort != proto.EffortLow || sess.Permission != proto.ModeAutoReview {
+	sess, err := c.Create(ctx, proto.CreateParams{Mode: proto.ModeCode, Harness: "fake", Directory: filepath.Join(h, "work"), Plan: true, Fast: true, Effort: proto.EffortLow})
+	if err != nil || !sess.Plan || !sess.Fast || sess.Effort != proto.EffortLow || sess.Permission != proto.ModeAutoReview {
 		t.Fatalf("create %+v %v", sess, err)
 	}
 	if err := c.SetPlan(ctx, proto.SetPlanParams{Session: sess.ID, Plan: false}); err != nil {
 		t.Fatal(err)
 	}
-	if err := c.SetEffort(ctx, proto.SetEffortParams{Session: sess.ID, Effort: proto.EffortMax}); err != nil {
+	if err := c.SetEffort(ctx, proto.SetEffortParams{Session: sess.ID, Effort: proto.EffortUltra}); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.SetFast(ctx, proto.SetFastParams{Session: sess.ID, Fast: false}); err != nil {
 		t.Fatal(err)
 	}
 	st, err := c.Session(ctx, sess.ID)
-	if err != nil || st.Session.Plan || st.Session.Effort != proto.EffortMax {
+	if err != nil || st.Session.Plan || st.Session.Fast || st.Session.Effort != proto.EffortUltra {
 		t.Fatalf("after the commands %+v %v", st.Session, err)
 	}
 	if err := c.SetEffort(ctx, proto.SetEffortParams{Session: sess.ID, Effort: "huge"}); apiCode(err) != proto.CodeInvalid {

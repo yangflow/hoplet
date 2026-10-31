@@ -66,7 +66,7 @@ func TestModeAndEffortValidity(t *testing.T) {
 			t.Errorf("%q valid", m)
 		}
 	}
-	for _, e := range []Effort{EffortLow, EffortMedium, EffortHigh, EffortXHigh, EffortMax} {
+	for _, e := range []Effort{EffortLow, EffortMedium, EffortHigh, EffortXHigh, EffortMax, EffortUltra} {
 		if !e.Valid() {
 			t.Errorf("%s invalid", e)
 		}
