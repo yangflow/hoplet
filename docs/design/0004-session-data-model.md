@@ -75,7 +75,7 @@ flowchart LR
 
 ```
 ~/.hoplet/               0700
-  config.toml            配置（network.proxy、[env] allow 等）
+  config.toml            配置（network.proxy、[env] allow、[harness.claude] follow 等）
   daemon.sock            本机 API（0600）；daemon.lock 单例锁；token 本机 token（0600）
   env.json               登录 shell 环境缓存（不含凭证）
   hoplet.db              结构化数据

@@ -9,7 +9,7 @@
 
 | harness | 接入方式 | 备注 |
 |---|---|---|
-| Claude Code | 启动 CLI：`--input-format stream-json --output-format stream-json`，stdio 控制协议做审批 / 中断 / 切模式 | 与官方 Agent SDK 同一线协议，不引入 Node 运行时；锁版本 + 契约测试；备选 `--permission-prompt-tool <MCP 工具>` |
+| Claude Code | 启动 CLI：`-p --input-format stream-json --output-format stream-json --permission-prompt-tool stdio`，stdio 控制协议做审批 / 中断 / 切模式 / 切模型 / 改思考强度（`apply_flag_settings`）；`--resume` 续接 | 与官方 Agent SDK 同一线协议，不引入 Node 运行时；Hoplet 托管副本：仓库契约测试（2.1.312 已录制验证）+ 新版本先过本机自检再跟进（[0013](0013-testing-release.md)）；启动环境不得带 `CLAUDECODE` / `CLAUDE_CODE_*`（会被当成子会话而无法登录）；Fast 模式经协议无法开启，暂不支持 |
 | Codex | `codex app-server`（stdio JSON-RPC） | 用其 JSON Schema 生成 Go 类型 |
 | Hermes | 连其 gateway：TUI-gateway JSON-RPC（WebSocket），ACP 备选 | 会话状态由 Hermes gateway 持有，无需 shim |
 | 其他 | Go 自写 ACP 客户端 | 新增一家 ≈ 一份配置 |
@@ -64,4 +64,4 @@ classDiagram
 
 ## 风险与兜底
 
-Claude Code 的 stdio 控制协议在锁定版本下稳定。若变化：该 harness 的会话降级只读，契约测试在升级前拦截。
+Claude Code 的 stdio 控制协议在托管版本下稳定。若新版本改变协议：本机自检不通过，Hoplet 停在旧副本并在 doctor 中告警；修好适配器、录制新版本后再发布 Hoplet。

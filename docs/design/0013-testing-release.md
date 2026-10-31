@@ -53,15 +53,20 @@ flowchart BT
 ## harness 版本托管（修订 0003）
 
 ```mermaid
-flowchart LR
-    New["harness 发布新版本"] --> Rec["hoplet dev record 录制"]
-    Rec --> Test{"契约测试通过？"}
-    Test -- 是 --> Up["hoplet harness upgrade<br/>更新 ~/.hoplet/harness/{kind}/bin 副本"]
-    Test -- 否 --> Fix["先修适配器"]
+flowchart TB
+    U["我终端里的 CLI 自行升级"] --> F["守护进程每天跟进<br/>（或手动 hoplet harness upgrade {kind}）"]
+    F --> K{"版本已验证？<br/>仓库录制过 / 本机自检通过过"}
+    K -- 是 --> Up["更新 ~/.hoplet/harness/{kind}/bin 副本"]
+    K -- 否 --> C{"本机自检通过？"}
+    C -- 是 --> M["记入本机已验证版本"] --> Up
+    C -- 否 --> Stay["保留旧副本；doctor 告警<br/>同一版本不再重试"]
 ```
 
-- Hoplet 使用**自己锁定版本的 CLI 副本**，关闭其自动更新；登录与配置沿用我全局的 `~/.claude`、`CODEX_HOME`。
-- 我在终端里用的 CLI 不受影响。
+- Hoplet 使用**自己托管的 CLI 副本**，关闭其自动更新；登录与配置沿用我全局的 `~/.claude`、`CODEX_HOME`。我在终端里用的 CLI 不受影响，Hoplet 也不替我升级它。
+- **跟进**：守护进程启动 10 分钟后、之后每天一次，查看 harness 环境 PATH 上的 CLI；版本与副本不同就按上图处理。只跟进已安装的副本，首次安装由我执行 `hoplet harness install {kind}`。`config.toml` 中 `[harness.{kind}] follow = false` 可关闭跟进。
+- **本机自检**：用该版本、最便宜的模型、临时目录，经适配器本身走一遍：一轮对话、命令审批与拒绝、切换权限模式后免审批编辑、中断、新进程续接。消耗少量订阅额度，约一分钟。
+- **录制**：`hoplet dev record` 录制真实会话，作为仓库内的契约测试（离线回放 + golden）。只在协议真的变化、需要改适配器时才录新版本并发布 Hoplet；平时的 CLI 小版本靠本机自检跟进，不需要发版。
+- 正在运行的会话继续用启动时的副本；新会话用新副本。
 
 ## 升级
 
@@ -86,4 +91,4 @@ flowchart LR
 
 ## 风险与兜底
 
-录制回放能覆盖 harness 的真实行为。录制只覆盖走过的路径；每次升级额外跑一次手动冒烟测试（需真实订阅）。
+录制回放能覆盖 harness 的真实行为。录制只覆盖走过的路径；本机自检只覆盖核心路径（审批、切模式、中断、续接），Plan 批准等其余行为的变化要靠契约测试或使用中发现。自检失败时停在旧副本，不会让会话坏掉。
