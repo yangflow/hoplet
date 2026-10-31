@@ -9,11 +9,11 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
-	"strings"
 	"syscall"
 
 	"github.com/yangflow/hoplet/internal/harness"
 	"github.com/yangflow/hoplet/internal/harness/claude"
+	"github.com/yangflow/hoplet/internal/home"
 	"github.com/yangflow/hoplet/proto"
 )
 
@@ -79,35 +79,34 @@ func (a app) devRecord(args []string) int {
 	if err != nil {
 		return a.fail("dev record", err)
 	}
+	h, err := home.Dir()
+	if err != nil {
+		return a.fail("dev record", err)
+	}
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+	vars, err := a.harnessEnv(ctx, h)
+	if err != nil {
+		return a.fail("dev record", fmt.Errorf("read the harness environment: %w", err))
+	}
 	out, err := os.Create(*outPath)
 	if err != nil {
 		return a.fail("dev record", err)
 	}
-	defer out.Close()
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
 	err = claude.Record(ctx, claude.RecordConfig{
-		Binary: *bin, Dir: abs, Env: recordEnv(),
+		Binary: *bin, Dir: abs, Env: vars,
 		Spec:  harness.Spec{Mode: proto.PermissionMode(*perm), Plan: *plan, Effort: proto.Effort(*effort)},
 		Steps: steps,
 	}, out)
+	if cerr := out.Close(); err == nil {
+		err = cerr
+	}
 	if err != nil {
+		os.Remove(*outPath)
 		return a.fail("dev record", err)
 	}
 	fmt.Fprintf(a.stdout, "recorded %s\n", *outPath)
 	return 0
-}
-
-// recordEnv is this process's environment minus what the adapter drops
-// itself; a recording runs where its user runs it, logged in as them.
-func recordEnv() []string {
-	var out []string
-	for _, kv := range os.Environ() {
-		if !strings.HasPrefix(kv, "HOPLET_") {
-			out = append(out, kv)
-		}
-	}
-	return out
 }
 
 func (a app) devSanitize(args []string) int {
@@ -131,16 +130,20 @@ func (a app) devSanitize(args []string) int {
 		return a.fail("dev sanitize", err)
 	}
 	defer in.Close()
-	out, err := os.Create(*outPath)
-	if err != nil {
-		return a.fail("dev sanitize", err)
-	}
-	defer out.Close()
 	abs, err := filepath.Abs(*dir)
 	if err != nil {
 		return a.fail("dev sanitize", err)
 	}
-	if err := claude.Sanitize(in, out, abs, userHome); err != nil {
+	out, err := os.Create(*outPath)
+	if err != nil {
+		return a.fail("dev sanitize", err)
+	}
+	err = claude.Sanitize(in, out, abs, userHome)
+	if cerr := out.Close(); err == nil {
+		err = cerr
+	}
+	if err != nil {
+		os.Remove(*outPath)
 		return a.fail("dev sanitize", err)
 	}
 	fmt.Fprintf(a.stdout, "sanitized %s\n", *outPath)

@@ -90,25 +90,24 @@ func TestDaemonFollowsTheUsersClaude(t *testing.T) {
 	newer := fakeClaudeBin(t, "2.1.400")
 	vars := []string{"PATH=" + filepath.Dir(newer) + ":/usr/bin:/bin"}
 	logs := &bytes.Buffer{}
-	work := a.maintenance(h, slog.New(slog.NewTextHandler(logs, nil)))
 
 	// Turned off in the configuration: nothing happens.
+	a.selfCheck = func(_ context.Context, bin string, _ []string) error {
+		checked = append(checked, bin)
+		return nil
+	}
+	work := a.maintenance(h, slog.New(slog.NewTextHandler(logs, nil)))
 	if err := os.WriteFile(config.Path(h), []byte("[harness.claude]\nfollow = false\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	work(context.Background(), vars)
-	if len(checked) != 0 {
-		t.Fatalf("followed although turned off: %v", checked)
+	if target, err := os.Readlink(claude.BinaryPath(h)); len(checked) != 0 || logs.Len() != 0 || err != nil || target != "claude-2.1.312" {
+		t.Fatalf("followed although turned off: %v, log %q, link %q %v", checked, logs, target, err)
 	}
 
 	if err := os.Remove(config.Path(h)); err != nil {
 		t.Fatal(err)
 	}
-	a.selfCheck = func(_ context.Context, bin string, _ []string) error {
-		checked = append(checked, bin)
-		return nil
-	}
-	work = a.maintenance(h, slog.New(slog.NewTextHandler(logs, nil)))
 	work(context.Background(), vars)
 	if len(checked) != 1 || !strings.Contains(logs.String(), "claude followed") {
 		t.Fatalf("checked %v, log %s", checked, logs)
@@ -149,5 +148,32 @@ func TestDevSanitize(t *testing.T) {
 		if code, _, _ := cli(t, args...); code != 2 {
 			t.Errorf("%v: exit %d, want 2", args, code)
 		}
+	}
+}
+
+func TestDevRecordUsesTheHarnessEnvironment(t *testing.T) {
+	t.Setenv("HOPLET_HOME", t.TempDir())
+	t.Setenv("FAKE_API_KEY", "leak")
+	dir := t.TempDir()
+	dump := filepath.Join(dir, "env.txt")
+	bin := filepath.Join(dir, "claude")
+	if err := os.WriteFile(bin, []byte("#!/bin/sh\nenv > '"+dump+"'\n"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	steps := filepath.Join(dir, "steps.json")
+	if err := os.WriteFile(steps, []byte("[]"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var out, errb bytes.Buffer
+	a := testApp(&out, &errb)
+	a.env = env.Static{"PATH=/usr/bin:/bin", "FROM_HARNESS_ENV=1"}
+	rec := filepath.Join(dir, "rec.jsonl")
+	a.run([]string{"dev", "record", "--steps", steps, "--out", rec, "--dir", dir, "--bin", bin})
+	b, err := os.ReadFile(dump)
+	if err != nil {
+		t.Fatalf("claude did not run: %v (%s)", err, errb.String())
+	}
+	if !bytes.Contains(b, []byte("FROM_HARNESS_ENV=1")) || bytes.Contains(b, []byte("FAKE_API_KEY")) {
+		t.Fatalf("recorder environment:\n%s", b)
 	}
 }

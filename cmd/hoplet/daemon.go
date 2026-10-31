@@ -325,6 +325,7 @@ func (a app) maintenance(h string, logger *slog.Logger) func(context.Context, []
 		u, ok := claude.Follow(ctx, h, envValue(vars, "PATH"), check)
 		switch {
 		case !ok:
+			logger.Debug("claude follow-up: nothing to do")
 		case u.Error != "":
 			logger.Warn("claude follow-up failed", "from", u.From, "version", u.Version, "err", u.Error)
 		default:
@@ -333,7 +334,8 @@ func (a app) maintenance(h string, logger *slog.Logger) func(context.Context, []
 	}
 }
 
-// envValue is the value of name in vars.
+// envValue is the value of the first name entry in vars; environment
+// snapshots hold each name once.
 func envValue(vars []string, name string) string {
 	for _, kv := range vars {
 		if k, v, ok := strings.Cut(kv, "="); ok && k == name {

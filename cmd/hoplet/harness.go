@@ -15,6 +15,8 @@ import (
 
 const harnessUsage = `usage: hoplet harness install | upgrade claude [--from PATH] [--json]
 
+The harness name comes before the flags: hoplet harness install claude --from PATH
+
 Copies the claude binary (by default the one on your PATH) into Hoplet's
 home and points Hoplet at it; your logins in ~/.claude stay shared and
 claude's own updater is off for Hoplet's copy. A version the Claude Code
@@ -63,13 +65,13 @@ func (a app) harnessCmd(args []string) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), selfCheckTimeout)
 	defer cancel()
+	vars, err := a.harnessEnv(ctx, h)
+	if err != nil {
+		return a.fail(name, fmt.Errorf("read the harness environment: %w", err))
+	}
 	check := func(ctx context.Context, bin string) error {
 		if a.selfCheck == nil {
 			return errors.New("this build has no self-check")
-		}
-		vars, err := a.harnessEnv(ctx, h)
-		if err != nil {
-			return err
 		}
 		fmt.Fprintln(a.stderr, "running the self-check (about a minute)...")
 		return a.selfCheck(ctx, bin, vars)
