@@ -55,7 +55,7 @@ sequenceDiagram
 
 ```mermaid
 flowchart LR
-    Cfg["network.proxy<br/>默认读 macOS 系统代理"] --> D["daemon 出站<br/>（连中继）"]
+    Cfg["network.proxy（config.toml）<br/>未配置：登录 shell 导出的代理 → macOS 系统代理<br/>direct：不用代理"] --> D["daemon 出站<br/>（连中继）"]
     Cfg --> Env["注入 harness 环境<br/>HTTPS_PROXY · ALL_PROXY · NO_PROXY"]
     Env --> H["claude / codex 访问 API"]
     Pre["启动前连通性预检"] --> H
