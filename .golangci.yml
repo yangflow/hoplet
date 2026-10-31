@@ -26,8 +26,9 @@ linters:
     rules:
       - path: _test\.go
         linters: [gosec, unparam]
-      # The shim and ExecStdio exist to run the harness command the daemon chose.
-      - path: internal/(shim/shim|harness/execstdio)\.go
+      # The shim and ExecStdio exist to run the harness command the daemon chose;
+      # the session spawner runs the hoplet binary itself as the shim.
+      - path: internal/(shim/shim|harness/execstdio|session/spawn)\.go
         linters: [gosec]
         text: G204
       # BuildBinary runs `go build` with the output path a test chose.
