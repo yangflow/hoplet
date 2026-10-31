@@ -58,6 +58,9 @@ var (
 	// ErrInvalidOption is returned by Respond for an option the approval does
 	// not offer.
 	ErrInvalidOption = errors.New("session: not an option of the approval")
+	// ErrArchived is returned for an operation that needs the harness of an
+	// archived session.
+	ErrArchived = errors.New("session: archived")
 
 	// errNoShim says nothing listens on the session's shim socket.
 	errNoShim = errors.New("session: no shim is running")
@@ -115,6 +118,28 @@ type Manager struct {
 	locks   map[proto.SessionID]*sync.Mutex
 	closing bool
 	wg      sync.WaitGroup
+
+	changeMu sync.Mutex
+	change   chan struct{} // closed and replaced after every change to what Send accepts
+}
+
+// Changes returns a channel that is closed after the next change to what
+// Send accepts: a message's turn recorded as started, ingestion catching up
+// with the shim, a send failing, the harness attaching, exiting or being
+// stopped. Take the channel before calling Send, so no change is missed.
+func (m *Manager) Changes() <-chan struct{} {
+	m.changeMu.Lock()
+	defer m.changeMu.Unlock()
+	return m.change
+}
+
+// signalChange wakes the waiters on Changes. Call it only after the change
+// is visible to Send.
+func (m *Manager) signalChange() {
+	m.changeMu.Lock()
+	defer m.changeMu.Unlock()
+	close(m.change)
+	m.change = make(chan struct{})
 }
 
 // live is a session whose harness the manager is attached to.
@@ -168,7 +193,7 @@ func New(cfg Config) (*Manager, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Manager{
 		cfg: cfg, log: log, ctx: ctx, cancel: cancel, closeCh: make(chan struct{}),
-		appendFn: cfg.Store.Append, ready: readyTimeout,
+		appendFn: cfg.Store.Append, ready: readyTimeout, change: make(chan struct{}),
 		streak: map[proto.SessionID]int{}, live: map[proto.SessionID]*live{}, locks: map[proto.SessionID]*sync.Mutex{},
 	}, nil
 }
@@ -357,6 +382,7 @@ func (m *Manager) deliver(ctx context.Context, l *live, text string, msg SendRes
 		return nil
 	}
 	l.pending.Store(false)
+	m.signalChange()
 	_, aerr := m.cfg.Store.Append(ctx, store.AppendRequest{
 		Session: l.id, Turn: msg.Turn,
 		Entries: []store.Entry{{Payload: proto.Error{Message: "send failed: " + err.Error()}}},
@@ -535,7 +561,7 @@ func (m *Manager) ensure(ctx context.Context, id proto.SessionID) (*live, error)
 		return nil, err
 	}
 	if sess.ArchivedAt != nil {
-		return nil, fmt.Errorf("session: %s is archived", id)
+		return nil, fmt.Errorf("%w: %s", ErrArchived, id)
 	}
 	l, err := m.attach(ctx, sess, false, "")
 	if err == nil {
@@ -687,6 +713,7 @@ func (m *Manager) attach(ctx context.Context, sess proto.Session, wait bool, not
 	m.live[sess.ID] = l
 	m.wg.Add(1)
 	m.mu.Unlock()
+	m.signalChange()
 	go m.ingest(l, last, open)
 	return l, nil
 }

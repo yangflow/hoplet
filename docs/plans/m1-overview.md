@@ -72,4 +72,5 @@ PR2、PR3、PR4 互不依赖，可以并行开发；PR6、PR7、PR8 也一样。
 - [PR2：存储](m1-pr2-store.md)（已合并）
 - [PR3：shim](m1-pr3-shim.md)（已合并）
 - [PR4：harness 接口与假 harness](m1-pr4-harness.md)（已合并）
-- [PR5a：会话管理器](m1-pr5a-session.md)
+- [PR5a：会话管理器](m1-pr5a-session.md)（已合并）
+- [PR5b：守护进程与本机 API](m1-pr5b-daemon.md)

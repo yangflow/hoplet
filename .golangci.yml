@@ -39,6 +39,11 @@ linters:
       - path: internal/harness/fake/fakeharness/main\.go
         linters: [gosec]
         text: G703
+      # G302 asks for 0600 or less; the daemon's home is a directory, which
+      # needs the execute bit and is tightened to 0700.
+      - path: internal/daemon/secure\.go
+        linters: [gosec]
+        text: G302
 
 formatters:
   enable:
