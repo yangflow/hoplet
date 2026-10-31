@@ -3,9 +3,11 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
@@ -37,24 +39,46 @@ func run(args []string, stdout, stderr io.Writer) int {
 	}
 }
 
-// runShim parses `hoplet shim --dir DIR [--linger D] -- COMMAND [ARGS...]`.
-// The child inherits the shim's environment; SIGTERM or SIGINT to the shim
+// shimUsage is printed for `hoplet shim --help` and on usage errors.
+const shimUsage = `usage: hoplet shim --dir DIR --cwd DIR [--linger D] -- COMMAND [ARGS...]
+
+The daemon must start the shim in its own session (setsid) with stdin on
+/dev/null, stdout and stderr on DIR/shim.log, and a clean environment free of
+credentials and HOPLET_* internals: the harness inherits that environment.
+The shim ignores SIGHUP, SIGINT and SIGPIPE and stops on SIGTERM, which
+terminates the harness's process group first.
+`
+
+// runShim parses `hoplet shim --dir DIR --cwd DIR [--linger D] -- COMMAND
+// [ARGS...]`. The child inherits the shim's environment; SIGTERM to the shim
 // terminates the child's process group and exits.
 func runShim(args []string, stderr io.Writer) int {
 	fs := flag.NewFlagSet("shim", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	dir := fs.String("dir", "", "session directory for the spool and socket")
+	fs.Usage = func() {
+		fmt.Fprint(stderr, shimUsage)
+		fs.PrintDefaults()
+	}
+	dir := fs.String("dir", "", "session directory for the spool, socket and lock")
+	cwd := fs.String("cwd", "", "working directory of the harness process")
 	linger := fs.Duration("linger", shim.DefaultLinger, "how long to wait for a final ack after the child exits")
 	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
 		return 2
 	}
-	if *dir == "" || fs.NArg() == 0 {
-		fmt.Fprintln(stderr, "usage: hoplet shim --dir DIR [--linger D] -- COMMAND [ARGS...]")
+	if *dir == "" || *cwd == "" || fs.NArg() == 0 {
+		fmt.Fprint(stderr, shimUsage)
 		return 2
 	}
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
+	shim.IgnoreParentSignals()
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM)
 	defer stop()
-	cfg := shim.Config{Dir: *dir, Command: fs.Args(), Env: os.Environ(), Linger: *linger}
+	cfg := shim.Config{
+		Dir: *dir, WorkDir: *cwd, Command: fs.Args(), Env: os.Environ(), Linger: *linger,
+		Logger: slog.New(slog.NewJSONHandler(stderr, nil)),
+	}
 	if err := shim.Run(ctx, cfg); err != nil {
 		fmt.Fprintf(stderr, "hoplet shim: %v\n", err)
 		return 1
