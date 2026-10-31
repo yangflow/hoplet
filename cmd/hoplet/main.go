@@ -14,6 +14,7 @@ import (
 
 	"github.com/yangflow/hoplet/internal/env"
 	"github.com/yangflow/hoplet/internal/harness"
+	"github.com/yangflow/hoplet/internal/harness/claude"
 	"github.com/yangflow/hoplet/internal/launchd"
 	"github.com/yangflow/hoplet/internal/shim"
 )
@@ -26,6 +27,7 @@ const usage = `usage: hoplet <command>
 commands:
   session   create, follow and drive sessions (hoplet session help)
   daemon    run the daemon, or install, uninstall or inspect its LaunchAgent
+  harness   install or upgrade Hoplet's copy of a harness (hoplet harness help)
   env       refresh the environment harnesses start with
   doctor    check the installation, the daemon and its environment
   version   print the version
@@ -39,9 +41,8 @@ func main() {
 // app is one invocation of the command line.
 type app struct {
 	stdout, stderr io.Writer
-	// harnesses are the adapters `hoplet daemon` serves; they register here
-	// as they land.
-	harnesses map[string]harness.Harness
+	// harnesses returns the adapters `hoplet daemon` serves for a home.
+	harnesses func(home string) map[string]harness.Harness
 	// env, when set, replaces the login-shell environment of `hoplet daemon`
 	// (tests).
 	env env.Source
@@ -52,10 +53,19 @@ type app struct {
 	// allowTempBinary lets `daemon install` use a binary under the temp
 	// directory (tests).
 	allowTempBinary bool
+	// selfCheck checks a claude binary before Hoplet switches to it; nil
+	// also turns the daemon's daily follow-up off (tests).
+	selfCheck func(ctx context.Context, bin string, env []string) error
 }
 
 func run(args []string, stdout, stderr io.Writer) int {
-	return app{stdout: stdout, stderr: stderr, harnesses: map[string]harness.Harness{}, agents: realAgents}.run(args)
+	return app{stdout: stdout, stderr: stderr, harnesses: harnesses, agents: realAgents, selfCheck: claude.SelfCheck}.run(args)
+}
+
+// harnesses are the adapters a production daemon serves: each runs
+// Hoplet's own, version-pinned copy of its harness (hoplet harness install).
+func harnesses(home string) map[string]harness.Harness {
+	return map[string]harness.Harness{claude.Kind: &claude.Harness{Binary: claude.BinaryPath(home)}}
 }
 
 func (a app) run(args []string) int {
@@ -74,6 +84,10 @@ func (a app) run(args []string) int {
 		return a.session(args[1:])
 	case "daemon":
 		return a.daemon(args[1:])
+	case "harness":
+		return a.harnessCmd(args[1:])
+	case "dev":
+		return a.dev(args[1:])
 	case "env":
 		return a.envCmd(args[1:])
 	case "doctor":
