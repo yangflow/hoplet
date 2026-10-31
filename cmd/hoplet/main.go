@@ -24,13 +24,15 @@ func main() {
 
 func run(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintln(stderr, "usage: hoplet <command>\n\ncommands:\n  version  print the version\n  shim     run a session's harness process (started by the daemon)")
+		fmt.Fprintln(stderr, "usage: hoplet <command>\n\ncommands:\n  version  print the version\n  daemon   run the daemon\n  shim     run a session's harness process (started by the daemon)")
 		return 2
 	}
 	switch args[0] {
 	case "version":
 		fmt.Fprintln(stdout, version)
 		return 0
+	case "daemon":
+		return runDaemon(args[1:], stderr)
 	case "shim":
 		return runShim(args[1:], stderr)
 	default:
