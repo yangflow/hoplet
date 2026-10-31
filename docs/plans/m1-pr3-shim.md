@@ -1579,3 +1579,21 @@ gh pr create --title "feat(shim): add per-session shim with spool and resume" --
 - 信号发给子进程组；子进程退出后，确认退出记录才退出 shim，否则等待 linger 后退出；ctx 取消时先终止子进程组。
 - spool 读取不返回不完整的行；退出记录落盘。
 - `make check` 本地和 CI 通过；真实进程验证输出已记录。
+
+## 实现与计划的差异（评审后追加）
+
+任务评审和整分支终审之后，合并前在计划之外补了以下内容；后续 PR 以 `main` 上的真实代码为准：
+
+| 方面 | 变化 |
+|---|---|
+| 输出 | 按 1 MiB（`ChunkSize`）分块，未结束的行带 `more`；非 UTF-8 输出放进 `b`（base64）；每条记录带毫秒时间戳 `t` |
+| 退出 | shim 自己持有 `os.Pipe` 两端，`Wait` 与读取并行；退出后最多再读 `DrainTimeout`（2 秒）再写退出记录；退出记录永远是最后一条；写完立即回收整个进程组 |
+| 关停 | TERM → `KillGrace`（5 秒）→ 对进程组 KILL；子进程仍不退出时关闭 shim 持有的管道 fd、有限时等待，spool 只在写入方都结束后才关闭 |
+| 存活 | `IgnoreParentSignals` 接住 HUP / INT / PIPE；只在 TERM 时停止；守护进程必须用 setsid 启动 shim、stdin 指向 `/dev/null`、输出写 `shim.log`、环境不带凭据（PR5 的契约） |
+| 所有权 | `shim.lock` 上的 `flock`，第二个 shim 返回 `ErrLocked` |
+| spool | 打开时截掉尾部半行；写失败回滚到原大小；追加失败后 pump 继续读并丢弃；hello 偏移必须落在记录边界 |
+| 协议 | 错误帧带 `code` 和 `v`（version、bad_offset、corrupt、record_too_large、too_large、exited、stdin_busy、bad_request）；客户端返回 `*Error`；`Dial` 校验 welcome 版本，握手受 ctx 约束；退出信号用 TERM / KILL 等协议名 |
+| stdin | 64 条的有界队列，满了返回 `stdin_busy`；先记录再写管道，写失败记 `stdin_error`；含换行的行被拒绝；信号与确认从不等待 stdin |
+| 连接 | 只有合法 hello 才顶替当前客户端；每帧 30 秒写超时，超时断开（客户端按偏移重连） |
+| 其他 | `Config.WorkDir` / `--cwd` 必填；socket 路径长度检查与 0600 权限；可选 slog 日志；`--help` 退出码 0；`Run` 等待所有 goroutine；退出记录 Sync 失败时 `Run` 返回该错误 |
+| 设计文档 | 0002 中"按 seq 续读"改为"按字节偏移续读" |
