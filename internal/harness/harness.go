@@ -71,8 +71,12 @@ type Spec struct {
 	WorkDir string
 	// Env is the complete child environment; nil means empty, never
 	// "inherit".
-	Env       []string
-	Mode      proto.PermissionMode
+	Env  []string
+	Mode proto.PermissionMode
+	// Plan starts the session in plan mode; Effort is the thinking effort,
+	// empty for the harness default.
+	Plan      bool
+	Effort    proto.Effort
 	Model     string // empty: the harness default
 	Resume    string // native session ID to resume; empty starts fresh
 	State     State
@@ -201,6 +205,11 @@ type Run interface {
 	Respond(ctx context.Context, approvalID, optionID string) error
 	Answer(ctx context.Context, questionID, answer string) error
 	SetMode(ctx context.Context, mode proto.PermissionMode) error
+	// SetPlan turns plan mode on or off; turning it off restores the
+	// session's permission mode, which the adapter remembers from Spec.Mode
+	// and SetMode.
+	SetPlan(ctx context.Context, on bool) error
+	SetEffort(ctx context.Context, effort proto.Effort) error
 	SetModel(ctx context.Context, model string) error
 	Events() <-chan Event
 	NativeSession() string

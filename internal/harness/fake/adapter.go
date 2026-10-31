@@ -17,7 +17,8 @@ const Kind = "fake"
 
 // Harness drives the fakeharness binary at Binary with the script at Script.
 // Capabilities overrides what the fake reports and supports; nil means
-// Steer, PartialStream, Resume, SetMode and SetModel.
+// Steer, PartialStream, Resume, SetMode, SetModel, PlanMode, every
+// permission mode and every effort level.
 type Harness struct {
 	Binary       string
 	Script       string
@@ -30,7 +31,11 @@ func (h *Harness) caps() proto.Capabilities {
 	if h.Capabilities != nil {
 		return *h.Capabilities
 	}
-	return proto.Capabilities{Steer: true, PartialStream: true, Resume: true, SetMode: true, SetModel: true}
+	return proto.Capabilities{
+		Steer: true, PartialStream: true, Resume: true, SetMode: true, SetModel: true, PlanMode: true,
+		Modes:   []proto.PermissionMode{proto.ModeConfirm, proto.ModeAutoEdit, proto.ModeAutoReview, proto.ModeFullAuto},
+		Efforts: []proto.Effort{proto.EffortLow, proto.EffortMedium, proto.EffortHigh, proto.EffortXHigh, proto.EffortMax},
+	}
 }
 
 // Kind reports "fake".
@@ -214,6 +219,8 @@ func translate(line []byte) (proto.Payload, string) {
 		return proto.Usage{InputTokens: ev.In, OutputTokens: ev.Out}, ""
 	case "file_change":
 		return proto.FileChange{Path: ev.Name, Op: proto.FileOp(ev.Kind)}, ""
+	case "mode_changed":
+		return proto.ModeChanged{Permission: proto.PermissionMode(ev.Text), Plan: ev.Status == "plan"}, ""
 	case "error":
 		return proto.Error{Message: ev.Text}, ""
 	}
@@ -254,6 +261,24 @@ func (r *run) SetMode(ctx context.Context, mode proto.PermissionMode) error {
 		return harness.ErrUnsupported
 	}
 	return r.send(ctx, Op{Op: "set_mode", Text: string(mode)})
+}
+
+func (r *run) SetPlan(ctx context.Context, on bool) error {
+	if !r.caps.PlanMode {
+		return harness.ErrUnsupported
+	}
+	text := "off"
+	if on {
+		text = "on"
+	}
+	return r.send(ctx, Op{Op: "set_plan", Text: text})
+}
+
+func (r *run) SetEffort(ctx context.Context, effort proto.Effort) error {
+	if !r.caps.HasEffort(effort) {
+		return harness.ErrUnsupported
+	}
+	return r.send(ctx, Op{Op: "set_effort", Text: string(effort)})
 }
 
 func (r *run) SetModel(ctx context.Context, model string) error {
