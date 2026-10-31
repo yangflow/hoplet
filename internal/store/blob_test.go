@@ -135,3 +135,17 @@ func TestGCBlobs(t *testing.T) {
 		}
 	}
 }
+
+func TestTouchExisting(t *testing.T) {
+	dir := t.TempDir()
+	if kept, err := touchExisting(filepath.Join(dir, "gone")); kept || err != nil {
+		t.Fatalf("missing file: kept=%v err=%v, want false, nil so the caller stores the blob", kept, err)
+	}
+	present := filepath.Join(dir, "here")
+	if err := os.WriteFile(present, []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if kept, err := touchExisting(present); !kept || err != nil {
+		t.Fatalf("existing file: kept=%v err=%v", kept, err)
+	}
+}

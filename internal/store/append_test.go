@@ -498,6 +498,14 @@ func TestUpdateSession(t *testing.T) {
 	if _, err := s.UpdateSession(ctx, "missing", SessionUpdate{Title: &title}); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("missing: %v", err)
 	}
+	before, _ := s.Session(ctx, "s")
+	same, err := s.UpdateSession(ctx, "s", SessionUpdate{})
+	if err != nil || same.Version != before.Version || same.Title != before.Title {
+		t.Fatalf("empty update: %+v, %v; want no change from %+v", same, err, before)
+	}
+	if v, _ := s.CatalogVersion(ctx); v != before.Version {
+		t.Fatalf("empty update bumped the catalog to %d", v)
+	}
 }
 
 func TestPruneReceipts(t *testing.T) {
@@ -579,6 +587,11 @@ func TestSnapshot(t *testing.T) {
 	all, err := s.Snapshot(ctx, "s", 10)
 	if err != nil || len(all.Events) != 11 {
 		t.Fatalf("fewer turns than asked: %d events, %v", len(all.Events), err)
+	}
+	for _, n := range []int{0, -1} {
+		if _, err := s.Snapshot(ctx, "s", n); !errors.Is(err, ErrInvalid) {
+			t.Fatalf("turns %d: %v", n, err)
+		}
 	}
 	if _, err := s.Snapshot(ctx, "missing", 1); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("unknown session: %v", err)

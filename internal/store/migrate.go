@@ -21,7 +21,8 @@ const keepBackups = 3
 
 // noTxMarker, as the first line of a migration, makes it run outside a
 // transaction. Some schema changes (PRAGMA foreign_keys, for one) cannot run
-// inside one.
+// inside one. Such a migration has no rollback if it fails partway, so write
+// it to be safely re-runnable (idempotent statements).
 const noTxMarker = "-- hoplet:no-transaction"
 
 // migration is one numbered schema step.

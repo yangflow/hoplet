@@ -171,8 +171,12 @@ type SessionUpdate struct {
 }
 
 // UpdateSession changes a session's harness-native ID and/or title and
-// returns the updated session. The write is durable.
+// returns the updated session. The write is durable; with nothing to change
+// it writes nothing and returns the current session.
 func (s *Store) UpdateSession(ctx context.Context, id proto.SessionID, u SessionUpdate) (proto.Session, error) {
+	if u.NativeID == nil && u.Title == nil {
+		return s.Session(ctx, id)
+	}
 	var out proto.Session
 	err := s.tx(ctx, true, func(tx *sql.Tx) error {
 		res, err := tx.ExecContext(ctx, `UPDATE sessions SET native_id = COALESCE(?, native_id), title = COALESCE(?, title) WHERE id = ?`,

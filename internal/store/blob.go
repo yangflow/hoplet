@@ -37,16 +37,11 @@ func (s *Store) PutBlob(r io.Reader) (proto.BlobRef, error) {
 	}
 	ref := proto.BlobRef{SHA256: hex.EncodeToString(h.Sum(nil)), Size: size}
 	dst := s.blobPath(ref)
-	if _, err := os.Stat(dst); err == nil {
-		// Same content already stored; the deferred remove drops the temp
-		// file. Refresh the mtime so GCBlobs' grace period covers this put.
-		now := time.Now()
-		if err := os.Chtimes(dst, now, now); err != nil {
-			return proto.BlobRef{}, fmt.Errorf("store: refresh blob: %w", err)
-		}
+	// Same content already stored: keep it and drop the temp file (deferred).
+	if kept, err := touchExisting(dst); err != nil {
+		return proto.BlobRef{}, fmt.Errorf("store: refresh blob: %w", err)
+	} else if kept {
 		return ref, nil
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return proto.BlobRef{}, fmt.Errorf("store: stat blob: %w", err)
 	}
 	// Two syncs make the blob durable: the shard directory after the rename
 	// (its new entry), and the blobs directory when the shard is created
@@ -81,6 +76,18 @@ func syncDir(path string) error {
 		return err
 	}
 	return errors.Join(d.Sync(), d.Close())
+}
+
+// touchExisting refreshes the mtime of the blob at path so GCBlobs' grace
+// period covers this put, and reports whether it exists. A blob that vanished
+// (garbage collected just now) reports false so the caller stores it again.
+func touchExisting(path string) (bool, error) {
+	now := time.Now()
+	err := os.Chtimes(path, now, now)
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	return err == nil, err
 }
 
 // OpenBlob opens a stored blob, or returns ErrNotFound.

@@ -20,6 +20,17 @@ type queryer interface {
 
 const eventColumns = `seq, ts, turn, type, v, payload, raw_sha256, raw_size`
 
+// readTx runs fn in one read transaction on the read pool, so its queries see
+// one snapshot.
+func (s *Store) readTx(ctx context.Context, fn func(*sql.Tx) error) error {
+	tx, err := s.rdb.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("store: begin read: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	return fn(tx)
+}
+
 // requireSession returns ErrNotFound unless the session exists.
 func requireSession(ctx context.Context, q queryer, id proto.SessionID) error {
 	var one int
@@ -72,11 +83,17 @@ func (s *Store) Events(ctx context.Context, id proto.SessionID, after uint64, li
 	if limit <= 0 {
 		return nil, fmt.Errorf("%w: events limit %d", ErrInvalid, limit)
 	}
-	if err := requireSession(ctx, s.rdb, id); err != nil {
-		return nil, err
-	}
-	return queryEvents(ctx, s.rdb, id, `SELECT `+eventColumns+`
-		FROM events WHERE session_id = ? AND seq > ? ORDER BY seq LIMIT ?`, id, after, limit)
+	var out []proto.Event
+	err := s.readTx(ctx, func(tx *sql.Tx) error {
+		if err := requireSession(ctx, tx, id); err != nil {
+			return err
+		}
+		var err error
+		out, err = queryEvents(ctx, tx, id, `SELECT `+eventColumns+`
+			FROM events WHERE session_id = ? AND seq > ? ORDER BY seq LIMIT ?`, id, after, limit)
+		return err
+	})
+	return out, err
 }
 
 // EventsBefore returns up to limit events of a session with seq < before,
@@ -86,26 +103,37 @@ func (s *Store) EventsBefore(ctx context.Context, id proto.SessionID, before uin
 	if limit <= 0 {
 		return nil, fmt.Errorf("%w: events limit %d", ErrInvalid, limit)
 	}
-	if err := requireSession(ctx, s.rdb, id); err != nil {
-		return nil, err
-	}
-	evs, err := queryEvents(ctx, s.rdb, id, `SELECT `+eventColumns+`
-		FROM events WHERE session_id = ? AND seq < ? ORDER BY seq DESC LIMIT ?`, id, before, limit)
-	slices.Reverse(evs)
-	return evs, err
+	var out []proto.Event
+	err := s.readTx(ctx, func(tx *sql.Tx) error {
+		if err := requireSession(ctx, tx, id); err != nil {
+			return err
+		}
+		var err error
+		out, err = queryEvents(ctx, tx, id, `SELECT `+eventColumns+`
+			FROM events WHERE session_id = ? AND seq < ? ORDER BY seq DESC LIMIT ?`, id, before, limit)
+		return err
+	})
+	slices.Reverse(out)
+	return out, err
 }
 
 // GapSize reports how many events a session has with seq > after and their
 // total payload size in bytes, so a client can decide between replaying the
 // gap and fetching a snapshot.
 func (s *Store) GapSize(ctx context.Context, id proto.SessionID, after uint64) (count, bytes int64, err error) {
-	if err := requireSession(ctx, s.rdb, id); err != nil {
-		return 0, 0, err
-	}
-	err = s.rdb.QueryRowContext(ctx, `SELECT count(*), coalesce(sum(length(CAST(payload AS BLOB))), 0)
-		FROM events WHERE session_id = ? AND seq > ?`, id, after).Scan(&count, &bytes)
+	err = s.readTx(ctx, func(tx *sql.Tx) error {
+		if err := requireSession(ctx, tx, id); err != nil {
+			return err
+		}
+		err := tx.QueryRowContext(ctx, `SELECT count(*), coalesce(sum(length(CAST(payload AS BLOB))), 0)
+			FROM events WHERE session_id = ? AND seq > ?`, id, after).Scan(&count, &bytes)
+		if err != nil {
+			return fmt.Errorf("store: measure gap: %w", err)
+		}
+		return nil
+	})
 	if err != nil {
-		return 0, 0, fmt.Errorf("store: measure gap: %w", err)
+		return 0, 0, err
 	}
 	return count, bytes, nil
 }
@@ -185,25 +213,25 @@ func (s *Store) Snapshot(ctx context.Context, id proto.SessionID, turns int) (Se
 	if turns <= 0 {
 		return SessionSnapshot{}, fmt.Errorf("%w: snapshot turns %d", ErrInvalid, turns)
 	}
-	tx, err := s.rdb.BeginTx(ctx, nil)
-	if err != nil {
-		return SessionSnapshot{}, fmt.Errorf("store: begin snapshot: %w", err)
-	}
-	defer func() { _ = tx.Rollback() }()
 	var snap SessionSnapshot
-	if snap.Session, err = getSession(ctx, tx, id); err != nil {
-		return SessionSnapshot{}, err
-	}
-	if snap.Pending, err = pendingApprovals(ctx, tx, id); err != nil {
-		return SessionSnapshot{}, err
-	}
-	var start uint64
-	err = tx.QueryRowContext(ctx, `SELECT start_seq FROM turns WHERE session_id = ? ORDER BY n DESC LIMIT 1 OFFSET ?`, id, turns-1).Scan(&start)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return SessionSnapshot{}, fmt.Errorf("store: find snapshot start: %w", err)
-	}
-	if snap.Events, err = queryEvents(ctx, tx, id, `SELECT `+eventColumns+`
-		FROM events WHERE session_id = ? AND seq >= ? ORDER BY seq`, id, start); err != nil {
+	err := s.readTx(ctx, func(tx *sql.Tx) error {
+		var err error
+		if snap.Session, err = getSession(ctx, tx, id); err != nil {
+			return err
+		}
+		if snap.Pending, err = pendingApprovals(ctx, tx, id); err != nil {
+			return err
+		}
+		var start uint64
+		err = tx.QueryRowContext(ctx, `SELECT start_seq FROM turns WHERE session_id = ? ORDER BY n DESC LIMIT 1 OFFSET ?`, id, turns-1).Scan(&start)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return fmt.Errorf("store: find snapshot start: %w", err)
+		}
+		snap.Events, err = queryEvents(ctx, tx, id, `SELECT `+eventColumns+`
+			FROM events WHERE session_id = ? AND seq >= ? ORDER BY seq`, id, start)
+		return err
+	})
+	if err != nil {
 		return SessionSnapshot{}, err
 	}
 	return snap, nil
