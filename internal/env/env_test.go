@@ -149,7 +149,7 @@ func TestProxyPrecedence(t *testing.T) {
 		https, noProxy  string
 	}{
 		"system":        {"", "", ProxyFromSystem, "http://127.0.0.1:7890", "localhost,127.0.0.1,::1,.local"},
-		"shell wins":    {"export https_proxy=http://10.0.0.1:3128\nexport NO_PROXY=corp", "", ProxyFromShell, "", "corp"},
+		"shell wins":    {"export https_proxy=http://10.0.0.1:3128\nexport NO_PROXY=corp", "", ProxyFromShell, "http://10.0.0.1:3128", "corp,localhost,127.0.0.1,::1"},
 		"config wins":   {"export HTTPS_PROXY=http://10.0.0.1:3128", "[network]\nproxy = \"socks5h://u:pw@127.0.0.1:1080\"\nno_proxy = [\".corp\"]\n", ProxyFromConfig, "socks5h://u:pw@127.0.0.1:1080", "localhost,127.0.0.1,::1,.corp"},
 		"config direct": {"export HTTPS_PROXY=http://10.0.0.1:3128", "[network]\nproxy = \"direct\"\n", ProxyFromConfig, "", ""},
 	} {
@@ -265,10 +265,203 @@ func TestParseScutil(t *testing.T) {
 	}
 }
 
+func TestParseScutilScopedAndPAC(t *testing.T) {
+	scoped := []byte(`<dictionary> {
+  ExceptionsList : <array> {
+    0 : *.local
+  }
+  HTTPEnable : 1
+  HTTPPort : 8080
+  HTTPProxy : 10.1.1.1
+  __SCOPED__ : <dictionary> {
+    en0 : <dictionary> {
+      ExceptionsList : <array> {
+        0 : scoped.example
+      }
+      HTTPEnable : 1
+      HTTPPort : 9999
+      HTTPProxy : 192.168.0.9
+      HTTPSEnable : 1
+      HTTPSPort : 9999
+      HTTPSProxy : 192.168.0.9
+    }
+  }
+}`)
+	if p := parseScutil(scoped); p.URL != "http://10.1.1.1:8080" || !slices.Equal(p.NoProxy, []string{".local"}) {
+		t.Fatalf("scoped: %+v", p)
+	}
+	pac := []byte(`<dictionary> {
+  ProxyAutoConfigEnable : 1
+  ProxyAutoConfigURLString : http://wpad.corp/proxy.pac
+}`)
+	if p := parseScutil(pac); p.URL != "" || p.PAC != "http://wpad.corp/proxy.pac" {
+		t.Fatalf("pac: %+v", p)
+	}
+}
+
+func TestPACSystemProxyIsANote(t *testing.T) {
+	shell, dir := fakeShell(t, "")
+	l := &Login{Home: t.TempDir(), UserHome: dir, Shell: shell, SystemProxy: func(context.Context) (SystemProxy, error) {
+		return SystemProxy{PAC: "http://wpad.corp/proxy.pac"}, nil
+	}}
+	snap, err := l.Environment(context.Background(), false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if snap.ProxySource != ProxyNone || snap.Proxy != "" || !strings.Contains(snap.Note, "PAC file (http://wpad.corp/proxy.pac)") {
+		t.Fatalf("snapshot %+v", snap)
+	}
+}
+
+func TestProxyPasswordNeverReachesTheCache(t *testing.T) {
+	shell, dir := fakeShell(t, "export https_proxy=http://u:pw@127.0.0.1:3128\nexport GOPATH=/go")
+	h := t.TempDir()
+	l := &Login{Home: h, UserHome: dir, Shell: shell, SystemProxy: noProxy}
+	snap, err := l.Environment(context.Background(), false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v, _ := lookup(snap.Vars, "HTTPS_PROXY"); v != "http://u:pw@127.0.0.1:3128" {
+		t.Errorf("HTTPS_PROXY = %q", v)
+	}
+	if strings.Contains(snap.Proxy, "pw") || snap.ProxySource != ProxyFromShell {
+		t.Errorf("proxy %q (%s)", snap.Proxy, snap.ProxySource)
+	}
+	b, err := os.ReadFile(filepath.Join(h, CacheFile))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(b), "pw") || !strings.Contains(string(b), "needs_shell") {
+		t.Fatalf("cache %s", b)
+	}
+	if n := runs(t, dir); n != 1 {
+		t.Fatalf("runs %d", n)
+	}
+
+	// A fresh process reads the shell once more, then not again.
+	l2 := &Login{Home: h, UserHome: dir, Shell: shell, SystemProxy: noProxy}
+	for i := range 3 {
+		s2, err := l2.Environment(context.Background(), false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if v, _ := lookup(s2.Vars, "https_proxy"); v != "http://u:pw@127.0.0.1:3128" {
+			t.Fatalf("call %d: https_proxy = %q", i, v)
+		}
+	}
+	if n := runs(t, dir); n != 2 {
+		t.Fatalf("runs %d, want 2", n)
+	}
+}
+
+func TestAllowedCredentialIsReadOncePerLogin(t *testing.T) {
+	shell, dir := fakeShell(t, "export GH_TOKEN=ghp_allowed")
+	h := t.TempDir()
+	if err := os.WriteFile(config.Path(h), []byte("[env]\nallow = [\"GH_TOKEN\"]\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	l := &Login{Home: h, UserHome: dir, Shell: shell, SystemProxy: noProxy}
+	for range 3 {
+		snap, err := l.Environment(context.Background(), false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if v, _ := lookup(snap.Vars, "GH_TOKEN"); v != "ghp_allowed" {
+			t.Fatalf("GH_TOKEN = %q", v)
+		}
+	}
+	if n := runs(t, dir); n != 1 {
+		t.Fatalf("the shell ran %d times, want once", n)
+	}
+}
+
+func TestCacheIsFilteredOnLoad(t *testing.T) {
+	shell, dir := fakeShell(t, "")
+	h := t.TempDir()
+	planted := `{"shell": "` + shell + `", "vars": {"GOPATH": "/go", "GH_TOKEN": "planted", "TERM": "dumb", "HTTPS_PROXY": "http://u:pw@h:1"}, "resolved_at": "2026-01-01T00:00:00Z"}`
+	if err := os.WriteFile(filepath.Join(h, CacheFile), []byte(planted), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	l := &Login{Home: h, UserHome: dir, Shell: shell, SystemProxy: noProxy}
+	c, ok, err := l.load()
+	if err != nil || !ok {
+		t.Fatalf("load: %v %v", ok, err)
+	}
+	if _, has := c.Vars["GH_TOKEN"]; has || c.Vars["TERM"] != "" || c.Vars["HTTPS_PROXY"] != "" || !c.NeedsShell || c.Vars["GOPATH"] != "/go" {
+		t.Fatalf("not re-filtered: %+v", c)
+	}
+	if !slices.Equal(c.Dropped, []string{"GH_TOKEN"}) {
+		t.Fatalf("dropped %v", c.Dropped)
+	}
+}
+
+func TestLoginSeedsSessionVariables(t *testing.T) {
+	t.Setenv("LANG", "zh_CN.UTF-8")
+	t.Setenv("LC_ALL", "zh_CN.UTF-8")
+	t.Setenv("SSH_AUTH_SOCK", "/tmp/s")
+	t.Setenv("XDG_CONFIG_HOME", "/xdg")
+	t.Setenv("NOT_FORWARDED", "x")
+	shell, dir := fakeShell(t, "")
+	l := &Login{Home: t.TempDir(), UserHome: dir, Shell: shell, SystemProxy: noProxy}
+	snap, err := l.Environment(context.Background(), false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for k, want := range map[string]string{"LANG": "zh_CN.UTF-8", "LC_ALL": "zh_CN.UTF-8", "SSH_AUTH_SOCK": "/tmp/s", "XDG_CONFIG_HOME": "/xdg"} {
+		if v, _ := lookup(snap.Vars, k); v != want {
+			t.Errorf("%s = %q, want %q", k, v, want)
+		}
+	}
+	for _, k := range []string{"TERM", "NOT_FORWARDED"} {
+		if _, ok := lookup(snap.Vars, k); ok {
+			t.Errorf("%s was passed on", k)
+		}
+	}
+}
+
+func TestParseUserShell(t *testing.T) {
+	for name, tc := range map[string]struct{ in, want string }{
+		"inline":    {"UserShell: /bin/zsh\n", "/bin/zsh"},
+		"next line": {"UserShell:\n /opt/homebrew/bin/fish\n", "/opt/homebrew/bin/fish"},
+		"missing":   {"No such key: UserShell\n", ""},
+		"empty":     {"", ""},
+	} {
+		if got := parseDscl([]byte(tc.in)); got != tc.want {
+			t.Errorf("dscl %s: %q, want %q", name, got, tc.want)
+		}
+	}
+	passwd := "root:x:0:0:root:/root:/bin/bash\n# comment\nalice:x:1000:1000:Alice:/home/alice:/usr/bin/fish\nshort:x:1\n"
+	for user, want := range map[string]string{"alice": "/usr/bin/fish", "root": "/bin/bash", "short": "", "nobody": ""} {
+		if got := parsePasswd([]byte(passwd), user); got != want {
+			t.Errorf("passwd %s: %q, want %q", user, got, want)
+		}
+	}
+}
+
+func TestUsableShell(t *testing.T) {
+	dir := t.TempDir()
+	exe, plain := filepath.Join(dir, "sh"), filepath.Join(dir, "plain")
+	if err := os.WriteFile(exe, nil, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(plain, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for path, want := range map[string]bool{exe: true, plain: false, dir: false, "zsh": false, "": false, filepath.Join(dir, "none"): false} {
+		if got := usableShell(path); got != want {
+			t.Errorf("%q: %v", path, got)
+		}
+	}
+	if s := UserShell(); !strings.HasPrefix(s, "/") || DefaultShell() != s {
+		t.Errorf("UserShell %q", s)
+	}
+}
+
 func TestIsCredential(t *testing.T) {
 	for name, want := range map[string]bool{
 		"ANTHROPIC_API_KEY": true, "github_token": true, "AWS_SECRET_ACCESS_KEY": true, "PGPASSWORD": true,
-		"SSH_AUTH_SOCK": false, "GOPATH": false, "KEYCHAIN": false, "TERM": false,
+		"OPENAI_KEY": true, "GITHUB_PAT": true, "SENTRY_DSN": true, "BASIC_AUTH": true, "SESSION_COOKIE": true,
+		"SSH_AUTH_SOCK": false, "GOPATH": false, "KEYCHAIN": false, "TERM": false, "SSH_KEY_PATH": false,
 	} {
 		if got := IsCredential(name); got != want {
 			t.Errorf("%s: %v", name, got)

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -29,7 +30,9 @@ type Network struct {
 	// proxy. "direct" means no proxy at all.
 	Proxy string `toml:"proxy"`
 	// NoProxy lists hosts reached without the proxy, added to the defaults
-	// (localhost and loopback addresses).
+	// (localhost and loopback addresses). Entries pass through to
+	// NO_PROXY as they are: CIDR ranges are not understood by every tool.
+	// An entry must be non-empty and contain no comma or space.
 	NoProxy []string `toml:"no_proxy"`
 }
 
@@ -75,14 +78,27 @@ func Load(home string) (Config, error) {
 }
 
 func (c Config) validate() error {
+	for _, e := range c.Network.NoProxy {
+		if e == "" || strings.ContainsAny(e, ", \t") {
+			return errors.New("network.no_proxy: entries must be non-empty and contain no comma or space")
+		}
+	}
 	p := c.Network.Proxy
 	if p == "" || p == ProxyDirect {
 		return nil
 	}
-	for _, scheme := range []string{"http://", "https://", "socks5://", "socks5h://"} {
-		if strings.HasPrefix(p, scheme) {
-			return nil
-		}
+	// The messages never echo the value: it may carry a password.
+	u, err := url.Parse(p)
+	if err != nil {
+		return errors.New("network.proxy: not a valid URL")
 	}
-	return fmt.Errorf("network.proxy %q: want an http, https, socks5 or socks5h URL, or %q", p, ProxyDirect)
+	switch u.Scheme {
+	case "http", "https", "socks5", "socks5h":
+	default:
+		return fmt.Errorf("network.proxy: scheme %q: want an http, https, socks5 or socks5h URL, or %q", u.Scheme, ProxyDirect)
+	}
+	if u.Hostname() == "" {
+		return errors.New("network.proxy: the URL has no host")
+	}
+	return nil
 }

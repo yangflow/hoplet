@@ -27,6 +27,9 @@ const (
 type SystemProxy struct {
 	URL     string   // "" when none is enabled
 	NoProxy []string // hosts the system reaches directly
+	// PAC is the proxy auto-configuration URL when the system uses one;
+	// it is not evaluated, so it counts as no proxy.
+	PAC string
 }
 
 // proxyVars are the variables that carry a proxy, upper and lower case.
@@ -45,6 +48,19 @@ func shellProxy(vars map[string]string) string {
 		}
 	}
 	return ""
+}
+
+// shellNoProxy returns the no-proxy entries the login shell exports.
+func shellNoProxy(vars map[string]string) []string {
+	var out []string
+	for _, k := range noProxyVars {
+		for _, e := range strings.Split(vars[k], ",") {
+			if e = strings.TrimSpace(e); e != "" && !slices.Contains(out, e) {
+				out = append(out, e)
+			}
+		}
+	}
+	return out
 }
 
 // setProxy replaces the proxy variables in vars with u (none when u is
@@ -79,26 +95,34 @@ func ReadSystemProxy(ctx context.Context) (SystemProxy, error) {
 }
 
 // parseScutil reads `scutil --proxy` output: HTTPS, then HTTP, then SOCKS
-// is used, whichever is enabled first.
+// is used, whichever is enabled first. Only the top-level dictionary
+// counts; the per-interface settings under __SCOPED__ are ignored.
 func parseScutil(out []byte) SystemProxy {
 	kv := map[string]string{}
 	var exceptions []string
+	depth := 0
 	inList := false
 	sc := bufio.NewScanner(bytes.NewReader(out))
 	for sc.Scan() {
 		line := strings.TrimSpace(sc.Text())
 		switch {
-		case strings.HasPrefix(line, "ExceptionsList"):
-			inList = true
-		case inList && line == "}":
-			inList = false
-		case inList:
-			if _, v, ok := strings.Cut(line, " : "); ok {
-				exceptions = append(exceptions, strings.TrimSpace(v))
+		case line == "}":
+			depth--
+			if depth <= 1 {
+				inList = false
 			}
-		default:
+		case strings.HasSuffix(line, "{"):
+			if depth == 1 && strings.HasPrefix(line, "ExceptionsList") {
+				inList = true
+			}
+			depth++
+		case depth == 1:
 			if k, v, ok := strings.Cut(line, " : "); ok {
 				kv[k] = strings.TrimSpace(v)
+			}
+		case depth == 2 && inList:
+			if _, v, ok := strings.Cut(line, " : "); ok {
+				exceptions = append(exceptions, strings.TrimSpace(v))
 			}
 		}
 	}
@@ -109,6 +133,9 @@ func parseScutil(out []byte) SystemProxy {
 			p.URL = (&url.URL{Scheme: c.scheme, Host: net.JoinHostPort(host, port)}).String()
 			break
 		}
+	}
+	if kv["ProxyAutoConfigEnable"] == "1" {
+		p.PAC = kv["ProxyAutoConfigURLString"]
 	}
 	for _, e := range exceptions {
 		if h, ok := noProxyEntry(e); ok {

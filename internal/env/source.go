@@ -6,10 +6,12 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -27,7 +29,10 @@ type Snapshot struct {
 	// for none.
 	Proxy       string      `json:"proxy,omitempty"`
 	ProxySource ProxySource `json:"proxy_source"`
-	ResolvedAt  time.Time   `json:"resolved_at"`
+	// Note says why no proxy is in use when that may surprise (the system
+	// proxy is a PAC file).
+	Note       string    `json:"note,omitempty"`
+	ResolvedAt time.Time `json:"resolved_at"`
 }
 
 // Source provides the harness environment; refresh asks for the login
@@ -53,6 +58,14 @@ const CacheFile = "env.json"
 // read once and kept in the home's cache file, with the proxy of the
 // configuration, the login shell or the system applied on every call, so
 // a configuration change takes effect at the next daemon start.
+//
+// Secrets never reach the cache file: withheld credentials, and proxy
+// variables whose value carries a password. The last raw read of the shell
+// is kept in memory for the Login's lifetime instead, so allowed
+// credentials and such proxies are available after the first read of a
+// process without reading the shell again; a cache that lacks secrets
+// (NeedsShell), or a configuration that allows credentials, makes the
+// first Environment call of a process read the shell once.
 type Login struct {
 	Home string // Hoplet's home directory (cache and configuration)
 	// UserHome is the user's home directory the shell starts in.
@@ -61,19 +74,24 @@ type Login struct {
 	// SystemProxy reads the system proxy; nil means ReadSystemProxy.
 	SystemProxy func(context.Context) (SystemProxy, error)
 
-	mu sync.Mutex
+	mu  sync.Mutex
+	raw map[string]string // the last read of the shell, memory only
 }
 
 // cached is the cache file's content: the filtered login environment.
 type cached struct {
-	Shell      string            `json:"shell"`
-	Vars       map[string]string `json:"vars"`
-	Dropped    []string          `json:"dropped,omitempty"`
-	ResolvedAt time.Time         `json:"resolved_at"`
+	Shell   string            `json:"shell"`
+	Vars    map[string]string `json:"vars"`
+	Dropped []string          `json:"dropped,omitempty"`
+	// NeedsShell is set when secrets were left out of Vars, so a process
+	// that wants them has to read the shell.
+	NeedsShell bool      `json:"needs_shell,omitempty"`
+	ResolvedAt time.Time `json:"resolved_at"`
 }
 
 // Environment returns the harness environment, reading the login shell
-// when refresh is set or nothing is cached.
+// when refresh is set, nothing usable is cached, the shell changed, or the
+// secrets that only the shell has are needed and not yet in memory.
 func (l *Login) Environment(ctx context.Context, refresh bool) (Snapshot, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -82,43 +100,38 @@ func (l *Login) Environment(ctx context.Context, refresh bool) (Snapshot, error)
 		return Snapshot{}, err
 	}
 	c, ok, err := l.load()
-	var raw map[string]string // the shell's output, when read in this call
-	if err != nil || !ok || refresh || c.Shell != l.Shell {
-		if raw, err = login(ctx, l.Shell, l.UserHome); err != nil {
+	read := err != nil || !ok || refresh || c.Shell != l.Shell ||
+		(l.raw == nil && (c.NeedsShell || len(cfg.Env.Allow) > 0))
+	if read {
+		raw, err := login(ctx, l.Shell, l.UserHome)
+		if err != nil {
 			return Snapshot{}, err
 		}
+		l.raw = raw
 		c = cached{Shell: l.Shell, ResolvedAt: time.Now().UTC().Truncate(time.Second)}
 		c.Vars, c.Dropped = filter(raw, nil)
+		c.NeedsShell = stripSecrets(c.Vars)
 		if err := l.save(c); err != nil {
 			return Snapshot{}, err
 		}
 	}
-	// Allowed credentials are never cached: the shell is read again for
-	// them whenever the configuration allows any.
-	if len(cfg.Env.Allow) > 0 {
-		if raw == nil {
-			if raw, err = login(ctx, l.Shell, l.UserHome); err != nil {
-				return Snapshot{}, err
-			}
-		}
-		c.Vars, c.Dropped = filter(raw, cfg.Env.Allow)
+	vars := c.Vars
+	if l.raw != nil {
+		vars, c.Dropped = filter(l.raw, cfg.Env.Allow)
 	}
-	read := l.SystemProxy
-	if read == nil {
-		read = ReadSystemProxy
+	systemProxy := l.SystemProxy
+	if systemProxy == nil {
+		systemProxy = ReadSystemProxy
 	}
-	return build(ctx, c, cfg, read)
+	return build(ctx, c, vars, cfg, systemProxy)
 }
 
 // build applies the proxy and makes the snapshot.
-func build(ctx context.Context, c cached, cfg config.Config, systemProxy func(context.Context) (SystemProxy, error)) (Snapshot, error) {
-	vars := map[string]string{}
-	for k, v := range c.Vars {
-		vars[k] = v
-	}
-	noProxy := append(slices.Clone(defaultNoProxy), cfg.Network.NoProxy...)
+func build(ctx context.Context, c cached, cachedVars map[string]string, cfg config.Config, systemProxy func(context.Context) (SystemProxy, error)) (Snapshot, error) {
+	vars := maps.Clone(cachedVars)
+	noProxy := mergeNoProxy(defaultNoProxy, cfg.Network.NoProxy)
 	var src ProxySource
-	var proxy string
+	var proxy, note string
 	switch p := cfg.Network.Proxy; {
 	case p == config.ProxyDirect:
 		src = ProxyFromConfig
@@ -128,6 +141,7 @@ func build(ctx context.Context, c cached, cfg config.Config, systemProxy func(co
 		setProxy(vars, p, noProxy)
 	case shellProxy(vars) != "":
 		src, proxy = ProxyFromShell, shellProxy(vars)
+		setProxy(vars, proxy, mergeNoProxy(shellNoProxy(vars), noProxy))
 	default:
 		sp, err := systemProxy(ctx)
 		if err != nil {
@@ -136,15 +150,31 @@ func build(ctx context.Context, c cached, cfg config.Config, systemProxy func(co
 		src, proxy = ProxyFromSystem, sp.URL
 		if sp.URL == "" {
 			src = ProxyNone
+			if sp.PAC != "" {
+				note = "the system proxy is a PAC file (" + redact(sp.PAC) + "); set network.proxy in config.toml"
+			}
 		}
-		setProxy(vars, sp.URL, append(noProxy, sp.NoProxy...))
+		setProxy(vars, sp.URL, mergeNoProxy(noProxy, sp.NoProxy))
 	}
-	snap := Snapshot{Shell: c.Shell, Dropped: c.Dropped, Proxy: redact(proxy), ProxySource: src, ResolvedAt: c.ResolvedAt}
+	snap := Snapshot{Shell: c.Shell, Dropped: c.Dropped, Proxy: redact(proxy), ProxySource: src, Note: note, ResolvedAt: c.ResolvedAt}
 	for k, v := range vars {
 		snap.Vars = append(snap.Vars, k+"="+v)
 	}
 	sort.Strings(snap.Vars)
 	return snap, nil
+}
+
+// mergeNoProxy joins no-proxy lists, dropping duplicates and keeping order.
+func mergeNoProxy(lists ...[]string) []string {
+	var out []string
+	for _, l := range lists {
+		for _, e := range l {
+			if e = strings.TrimSpace(e); e != "" && !slices.Contains(out, e) {
+				out = append(out, e)
+			}
+		}
+	}
+	return out
 }
 
 func (l *Login) path() string { return filepath.Join(l.Home, CacheFile) }
@@ -161,6 +191,16 @@ func (l *Login) load() (cached, bool, error) {
 	if err := json.Unmarshal(b, &c); err != nil {
 		return cached{}, false, nil // unreadable: read the shell again
 	}
+	// The file may come from an older build or from someone's hands: filter
+	// it as a fresh read would be.
+	kept, dropped := filter(c.Vars, nil)
+	if stripSecrets(kept) {
+		c.NeedsShell = true
+	}
+	c.Vars = kept
+	c.Dropped = append(c.Dropped, dropped...)
+	slices.Sort(c.Dropped)
+	c.Dropped = slices.Compact(c.Dropped)
 	return c, true, nil
 }
 

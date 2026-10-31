@@ -49,11 +49,15 @@ allow = ["GH_TOKEN"]
 
 func TestLoadRejects(t *testing.T) {
 	for name, tc := range map[string]struct{ body, inErr string }{
-		"unknown key":   {"[network]\nproxi = \"x\"\n", "unknown keys network.proxi"},
-		"bad syntax":    {"[network\n", "config.toml"},
-		"bad scheme":    {"[network]\nproxy = \"ftp://x\"\n", "network.proxy"},
-		"wrong type":    {"[env]\nallow = \"GH_TOKEN\"\n", "config.toml"},
-		"unknown table": {"[nope]\nx = 1\n", "unknown keys nope"},
+		"unknown key":     {"[network]\nproxi = \"x\"\n", "unknown keys network.proxi"},
+		"bad syntax":      {"[network\n", "config.toml"},
+		"bad scheme":      {"[network]\nproxy = \"ftp://x\"\n", "network.proxy"},
+		"wrong type":      {"[env]\nallow = \"GH_TOKEN\"\n", "config.toml"},
+		"unknown table":   {"[nope]\nx = 1\n", "unknown keys nope"},
+		"no host":         {"[network]\nproxy = \"http://\"\n", "no host"},
+		"empty no_proxy":  {"[network]\nno_proxy = [\"\"]\n", "no_proxy"},
+		"spaced no_proxy": {"[network]\nno_proxy = [\"a b\"]\n", "no_proxy"},
+		"comma no_proxy":  {"[network]\nno_proxy = [\"a,b\"]\n", "no_proxy"},
 	} {
 		_, err := Load(write(t, tc.body))
 		if err == nil || !strings.Contains(err.Error(), tc.inErr) {
@@ -62,5 +66,18 @@ func TestLoadRejects(t *testing.T) {
 	}
 	if _, err := Load(write(t, "[network]\nproxy = \"direct\"\n")); err != nil {
 		t.Errorf("direct: %v", err)
+	}
+}
+
+func TestLoadDoesNotEchoPasswords(t *testing.T) {
+	for _, body := range []string{
+		"[network]\nproxy = \"ftp://u:hunter2@h:1\"\n",
+		"[network]\nproxy = \"http://u:hunter2@\"\n",
+		"[network]\nproxy = \"http://u:hunter2@h:bad\"\n",
+	} {
+		_, err := Load(write(t, body))
+		if err == nil || strings.Contains(err.Error(), "hunter2") {
+			t.Errorf("%q: %v", body, err)
+		}
 	}
 }

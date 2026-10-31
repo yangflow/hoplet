@@ -43,6 +43,15 @@ linters:
       - path: cmd/hoplet/launchctl\.go
         linters: [gosec]
         text: G204
+      # login runs the user's own login shell to read its environment.
+      - path: internal/env/login\.go
+        linters: [gosec]
+        text: G204
+      # UserShell asks the directory service for the user's shell (dscl with
+      # the account name) and checks that the shell it names is executable.
+      - path: internal/env/shell\.go
+        linters: [gosec]
+        text: G204|G703
       # doctor requests the probe URL from the daemon's configuration.
       - path: internal/daemon/probe\.go
         linters: [gosec]
