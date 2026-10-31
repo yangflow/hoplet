@@ -98,8 +98,10 @@ func startFake(t *testing.T, script func(f *fakeConn)) *Client {
 		t.Fatal(err)
 	}
 	scriptDone := make(chan struct{})
+	handlerStarted := make(chan struct{})
 	mux := http.NewServeMux()
 	mux.HandleFunc(proto.APIPath, func(w http.ResponseWriter, r *http.Request) {
+		close(handlerStarted)
 		defer close(scriptDone)
 		ws, err := websocket.Accept(w, r, nil)
 		if err != nil {
@@ -120,9 +122,13 @@ func startFake(t *testing.T, script func(f *fakeConn)) *Client {
 	}()
 	t.Cleanup(func() {
 		select {
-		case <-scriptDone:
-		case <-time.After(testTimeout):
-			t.Error("fake script did not finish")
+		case <-handlerStarted:
+			select {
+			case <-scriptDone:
+			case <-time.After(testTimeout):
+				t.Error("fake script did not finish")
+			}
+		default:
 		}
 		_ = srv.Close()
 		wg.Wait()
@@ -177,22 +183,24 @@ func TestMalformedFrameClosesConnection(t *testing.T) {
 }
 
 func TestSubscriptionItemsThenError(t *testing.T) {
-	sent := make(chan struct{})
-	release := make(chan struct{})
 	c := startFake(t, func(f *fakeConn) {
 		fr := f.read()
 		f.ok(fr.ID, struct{}{})
 		f.write(proto.ServerFrame{Sub: fr.ID, Item: json.RawMessage(`1`)})
 		f.write(proto.ServerFrame{Sub: fr.ID, Item: json.RawMessage(`2`)})
 		f.write(proto.ServerFrame{Sub: fr.ID, End: true, Error: &proto.APIError{Code: proto.CodeBusy, Message: "x"}})
-		close(sent)
-		<-release
+		next := f.read()
+		f.ok(next.ID, []proto.Session{})
 	})
 	s, err := c.Subscribe(bg(), proto.MethodSubscribeCatalog, struct{}{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	<-sent
+	// The reader handles frames in order, so once this reply is in, both
+	// items and the end are queued before Next is called.
+	if _, err := c.Sessions(bg()); err != nil {
+		t.Fatal(err)
+	}
 	for want := 1; want <= 2; want++ {
 		var n int
 		if err := s.Next(bg(), &n); err != nil || n != want {
@@ -205,7 +213,64 @@ func TestSubscriptionItemsThenError(t *testing.T) {
 	if !errors.As(err, &ae) || ae.Code != proto.CodeBusy {
 		t.Fatalf("Next err = %v, want busy APIError", err)
 	}
-	close(release)
+}
+
+func TestNextAfterCloseIsErrClosed(t *testing.T) {
+	c := startFake(t, func(f *fakeConn) {
+		fr := f.read()
+		f.ok(fr.ID, struct{}{})
+		waitGone(f)
+	})
+	s, err := c.Subscribe(bg(), proto.MethodSubscribeCatalog, struct{}{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Close(); err != nil {
+		t.Fatal(err)
+	}
+	var n int
+	if err := s.Next(bg(), &n); !errors.Is(err, ErrClosed) {
+		t.Fatalf("Next err = %v, want ErrClosed", err)
+	}
+}
+
+func TestBlockedNextReturnsErrClosedOnClose(t *testing.T) {
+	c := startFake(t, func(f *fakeConn) {
+		fr := f.read()
+		f.ok(fr.ID, struct{}{})
+		waitGone(f)
+	})
+	s, err := c.Subscribe(bg(), proto.MethodSubscribeCatalog, struct{}{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	res := make(chan error, 1)
+	go func() {
+		var n int
+		res <- s.Next(bg(), &n)
+	}()
+	if err := c.Close(); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case err := <-res:
+		if !errors.Is(err, ErrClosed) {
+			t.Fatalf("Next err = %v, want ErrClosed", err)
+		}
+	case <-time.After(testTimeout):
+		t.Fatal("Next still blocked after Close")
+	}
+}
+
+// waitGone reads until the client goes away.
+func waitGone(f *fakeConn) {
+	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
+	defer cancel()
+	for {
+		if _, _, err := f.ws.Read(ctx); err != nil {
+			return
+		}
+	}
 }
 
 func TestCancelSubscription(t *testing.T) {
@@ -317,28 +382,13 @@ func TestCallTimeoutKeepsConnection(t *testing.T) {
 
 func TestConcurrentCallsAndClose(t *testing.T) {
 	const n = 20
-	started := make(chan struct{}, n)
+	allIn := make(chan struct{})
 	c := startFake(t, func(f *fakeConn) {
-		for {
-			ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
-			_, data, err := f.ws.Read(ctx)
-			cancel()
-			if err != nil {
-				return
-			}
-			var fr proto.ClientFrame
-			if json.Unmarshal(data, &fr) != nil {
-				return
-			}
-			b, _ := json.Marshal([]proto.Session{})
-			out, _ := json.Marshal(proto.ServerFrame{ID: fr.ID, Result: b})
-			wctx, wcancel := context.WithTimeout(context.Background(), testTimeout)
-			err = f.ws.Write(wctx, websocket.MessageText, out)
-			wcancel()
-			if err != nil {
-				return
-			}
+		for range n {
+			f.read()
 		}
+		close(allIn)
+		waitGone(f)
 	})
 	var wg sync.WaitGroup
 	errs := make(chan error, n)
@@ -346,13 +396,17 @@ func TestConcurrentCallsAndClose(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			started <- struct{}{}
 			errs <- c.Call(bg(), proto.MethodSessionsList, struct{}{}, nil)
 		}()
 	}
-	<-started
+	<-allIn
+	closeErr := make(chan error, 1)
+	go func() { closeErr <- c.Close() }()
 	if err := c.Close(); err != nil {
 		t.Fatalf("Close = %v", err)
+	}
+	if err := <-closeErr; err != nil {
+		t.Fatalf("concurrent Close = %v", err)
 	}
 	wg.Wait()
 	close(errs)

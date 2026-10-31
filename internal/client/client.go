@@ -56,11 +56,12 @@ type Client struct {
 	done   chan struct{}  // closed when the reader stops
 	wg     sync.WaitGroup // reader and heartbeat
 
-	mu      sync.Mutex
-	closing bool // Close has begun; later losses are not reported
-	next    uint64
-	pending map[uint64]chan proto.ServerFrame
-	subs    map[uint64]*Subscription
+	mu        sync.Mutex
+	closing   bool          // Close has begun; later losses are not reported
+	closeDone chan struct{} // closed when the first Close has finished
+	next      uint64
+	pending   map[uint64]chan proto.ServerFrame
+	subs      map[uint64]*Subscription
 }
 
 // Dial connects and says hello.
@@ -82,7 +83,7 @@ func Dial(ctx context.Context, o Options) (*Client, error) {
 	cctx, cancel := context.WithCancelCause(context.Background())
 	c := &Client{
 		ws: ws, ctx: cctx, cancel: cancel, done: make(chan struct{}),
-		pending: map[uint64]chan proto.ServerFrame{}, subs: map[uint64]*Subscription{},
+		closeDone: make(chan struct{}), pending: map[uint64]chan proto.ServerFrame{}, subs: map[uint64]*Subscription{},
 	}
 	c.wg.Add(2)
 	go c.read()
@@ -105,14 +106,17 @@ func (c *Client) Done() <-chan struct{} { return c.done }
 
 // Close closes the connection; it reports an error only when the closing
 // handshake fails on a connection that was still up.
-// It is idempotent: later calls return nil.
+// It is idempotent: a later or concurrent call waits for the first to
+// finish and returns nil.
 func (c *Client) Close() error {
 	c.mu.Lock()
 	if c.closing {
 		c.mu.Unlock()
+		<-c.closeDone
 		return nil
 	}
 	c.closing = true
+	defer close(c.closeDone)
 	lost := c.ctx.Err() != nil
 	c.mu.Unlock()
 	err := c.ws.Close(websocket.StatusNormalClosure, "")
@@ -179,7 +183,7 @@ func (c *Client) drop() {
 		delete(c.pending, id)
 	}
 	for id, s := range c.subs {
-		s.push(proto.ServerFrame{Sub: id, End: true})
+		s.end(c.err())
 		delete(c.subs, id)
 	}
 }
@@ -353,11 +357,20 @@ func (s *Subscription) push(f proto.ServerFrame) {
 		s.ended = true
 		if f.Error != nil {
 			s.err = f.Error
-		} else if s.c.ctx.Err() != nil {
-			s.err = s.c.err()
 		}
 	default:
 		s.items = append(s.items, f.Item)
+	}
+	s.mu.Unlock()
+	s.signal()
+}
+
+// end ends the subscription with err, which is the connection's.
+func (s *Subscription) end(err error) {
+	s.mu.Lock()
+	if !s.ended {
+		s.ended = true
+		s.err = err
 	}
 	s.mu.Unlock()
 	s.signal()
@@ -400,6 +413,7 @@ func (s *Subscription) Next(ctx context.Context, v any) error {
 		if s.ended {
 			err := s.err
 			s.mu.Unlock()
+			s.signal()
 			if err == nil {
 				return ErrEnded
 			}
