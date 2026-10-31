@@ -49,7 +49,8 @@ type Update struct {
 	From    string    `json:"from,omitempty"`
 	Version string    `json:"version,omitempty"`
 	Error   string    `json:"error,omitempty"`
-	// Attempts counts the consecutive failed follow-ups to Version.
+	// Attempts counts the consecutive follow-ups to Version that failed the
+	// self-check; other failures leave it zero.
 	Attempts int `json:"attempts,omitempty"`
 }
 
@@ -60,13 +61,16 @@ func updateFile(binary string) string { return filepath.Join(filepath.Dir(binary
 func (u Update) notice(current string) (string, bool) {
 	day := u.At.Format(time.DateOnly)
 	switch {
+	case u.Error != "" && u.Version != current && u.Attempts == 0:
+		// Not a self-check failure (those count): Follow retries it.
+		return fmt.Sprintf("Hoplet could not move to claude %s on %s: %s; it will try again", u.Version, day, u.Error), true
 	case u.Error != "" && u.Version != current:
 		again := "Hoplet will try again"
 		if u.Attempts >= maxFollowAttempts {
 			again = "Hoplet will not try this version again"
 		}
 		return fmt.Sprintf("claude %s on your PATH failed the self-check on %s (attempt %d of %d), so Hoplet stays on %s: %s; %s",
-			u.Version, day, max(u.Attempts, 1), maxFollowAttempts, current, u.Error, again), true
+			u.Version, day, u.Attempts, maxFollowAttempts, current, u.Error, again), true
 	case u.Error == "" && u.Version == current:
 		return fmt.Sprintf("followed from %s on %s after a self-check", u.From, day), false
 	}

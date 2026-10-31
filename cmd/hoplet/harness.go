@@ -22,7 +22,9 @@ home and points Hoplet at it; your logins in ~/.claude stay shared and
 claude's own updater is off for Hoplet's copy. A version the Claude Code
 adapter has no recordings of is first run through a self-check on this
 machine (a few short turns on the cheapest model, using your claude login);
-if it fails, Hoplet keeps its current copy. A running daemon picks the copy
+if it fails, Hoplet keeps its current copy. The check needs claude to ask
+before running a shell command: if your own settings or hooks auto-allow
+it, the check fails and Hoplet stays on its current copy. A running daemon picks the copy
 up for new sessions.
 
 The daemon also does this once a day for the claude on your PATH, unless

@@ -27,6 +27,10 @@ const checkStepTimeout = 90 * time.Second
 // Each run leaves a short session in the user's claude history (keyed by a
 // temporary directory). It never answers "always", so it changes no claude
 // settings.
+//
+// The check needs claude to ask before running a shell command. If the
+// user's own settings or hooks auto-allow it, the check fails safely and
+// Hoplet stays on its current copy.
 func SelfCheck(ctx context.Context, bin string, env []string) (err error) {
 	dir, err := os.MkdirTemp("", "hoplet-check-")
 	if err != nil {
@@ -41,7 +45,7 @@ func SelfCheck(ctx context.Context, bin string, env []string) (err error) {
 	defer func() { err = errors.Join(err, c.close()) }()
 
 	// A command needs approval in confirm mode; denying it ends the turn.
-	if err := c.run.Send(ctx, "Use the Bash tool to run exactly this command: touch denied.txt"); err != nil {
+	if err := c.run.Send(ctx, "Use the Bash tool to run exactly this command: mkdir hoplet-self-check-denied"); err != nil {
 		return c.fail("send", err)
 	}
 	a, err := c.until("a command approval", func(p proto.Payload) bool {
@@ -57,7 +61,7 @@ func SelfCheck(ctx context.Context, bin string, env []string) (err error) {
 	if err := c.turnEnd(proto.TurnCompleted); err != nil {
 		return err
 	}
-	if _, statErr := os.Stat(filepath.Join(dir, "denied.txt")); statErr == nil {
+	if _, statErr := os.Stat(filepath.Join(dir, "hoplet-self-check-denied")); statErr == nil {
 		return errors.New("claude: self-check: a denied command ran")
 	}
 	native := c.run.NativeSession()

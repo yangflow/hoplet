@@ -18,6 +18,23 @@ import (
 // one.
 type Checker func(ctx context.Context, bin string) error
 
+// ErrSelfCheck marks an install refused because the claude binary failed
+// the self-check (errors.Is). Other install errors are not the version's
+// fault.
+var ErrSelfCheck = errors.New("claude: self-check failed")
+
+// selfCheckError is a failed self-check of one version.
+type selfCheckError struct {
+	version string
+	err     error
+}
+
+func (e *selfCheckError) Error() string {
+	return fmt.Sprintf("claude %s failed the self-check, so Hoplet keeps its current copy: %v", e.version, e.err)
+}
+
+func (e *selfCheckError) Unwrap() []error { return []error{ErrSelfCheck, e.err} }
+
 // Installed describes an install.
 type Installed struct {
 	Version string `json:"version"`
@@ -69,8 +86,11 @@ func Install(ctx context.Context, src, home string, check Checker) (Installed, e
 	}
 	out := Installed{Version: v}
 	if !verified(v) && !localVerified(bin, v) {
+		if check == nil {
+			return Installed{}, fmt.Errorf("claude: claude %s is not verified and no self-check was given", v)
+		}
 		if err := check(ctx, tmp); err != nil {
-			return Installed{}, fmt.Errorf("claude %s failed the self-check, so Hoplet keeps its current copy: %w", v, err)
+			return Installed{}, &selfCheckError{version: v, err: err}
 		}
 		out.Checked = true
 	}
@@ -137,12 +157,19 @@ func prune(dir, keep string) {
 // fails the self-check before giving up on it: three daily tries.
 const maxFollowAttempts = 3
 
+// followRetryAfter is how long Follow leaves a version that just failed
+// alone; it keeps a daemon that restarts often from spending quota on the
+// same version more than once a day.
+const followRetryAfter = 20 * time.Hour
+
 // Follow moves Hoplet's copy to the claude the user runs: the claude found
 // on path (the harness environment's PATH), when Hoplet has a copy, the
 // versions differ and the user's passes the self-check (unless this
-// adapter is verified against it). A version that failed
-// maxFollowAttempts times in a row is not tried again; one failure may be
-// transient. It records the outcome for doctor and returns it; nothing to
+// adapter is verified against it). A version that failed is tried at most
+// once a day, even across daemon restarts, and not again after
+// maxFollowAttempts self-check failures in a row; one failure may be
+// transient. Only self-check failures count: any other failure is retried.
+// It records the outcome for doctor and returns it; nothing to
 // do is not an outcome, and neither is a cancelled run.
 func Follow(ctx context.Context, home, path string, check Checker) (Update, bool) {
 	src, err := lookPath(path)
@@ -162,28 +189,46 @@ func Follow(ctx context.Context, home, path string, check Checker) (Update, bool
 		return Update{}, false
 	}
 	last, hasLast := lastUpdate(BinaryPath(home))
+	now := time.Now()
 	failedBefore := hasLast && last.Version == v && last.Error != ""
 	if failedBefore && last.Attempts >= maxFollowAttempts {
 		return Update{}, false // given up on this version; don't spend quota again
 	}
-	u := Update{At: time.Now().UTC().Truncate(time.Second), From: current, Version: v}
+	if failedBefore && now.Sub(last.At) < followRetryAfter {
+		return Update{}, false // tried recently, perhaps by a previous daemon
+	}
 	inst, err := Install(ctx, src, home, check)
+	if err != nil && ctx.Err() != nil {
+		return Update{}, false // shutting down: not the version's fault
+	}
 	if err == nil {
-		u.Version = inst.Version // what was installed, in case src changed since it was read
-	} else {
-		if ctx.Err() != nil {
-			return Update{}, false // shutting down: not the version's fault
-		}
-		u.Error = err.Error()
+		v = inst.Version // what was installed, in case src changed since it was read
+	}
+	u := nextUpdate(last, failedBefore, current, v, err, now)
+	if b, err := json.MarshalIndent(u, "", "  "); err == nil {
+		_ = writeAtomic(updateFile(BinaryPath(home)), b, 0o600) // doctor shows it; losing it costs a re-check
+	}
+	return u, true
+}
+
+// nextUpdate is the record of a follow-up of current to v at now that
+// ended with err (nil: installed). last is the previous record, and
+// failedBefore says it was a failure of the same version. Only a failed
+// self-check counts as an attempt; any other failure records zero, so it
+// is retried.
+func nextUpdate(last Update, failedBefore bool, current, v string, err error, now time.Time) Update {
+	u := Update{At: now.UTC().Truncate(time.Second), From: current, Version: v}
+	if err == nil {
+		return u
+	}
+	u.Error = err.Error()
+	if errors.Is(err, ErrSelfCheck) {
 		u.Attempts = 1
 		if failedBefore {
 			u.Attempts = last.Attempts + 1
 		}
 	}
-	if b, err := json.MarshalIndent(u, "", "  "); err == nil {
-		_ = writeAtomic(updateFile(BinaryPath(home)), b, 0o600) // doctor shows it; losing it costs a re-check
-	}
-	return u, true
+	return u
 }
 
 // lookPath finds claude in a PATH value.

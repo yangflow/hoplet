@@ -117,11 +117,20 @@ func binaryStamp(bin string) (stamp, error) {
 	return stamp{path: path, size: fi.Size(), mod: fi.ModTime()}, nil
 }
 
-// version runs bin --version and parses "2.1.312 (Claude Code)".
+// version runs bin --version and parses "2.1.312 (Claude Code)". The probe
+// runs outside the harness environment filter, in the daemon's or CLI's
+// own process, so it gets a minimal environment instead of the caller's:
+// no credential variables reach a binary that has not passed the
+// self-check yet, and claude's updater stays off.
 func version(ctx context.Context, bin string) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, probeTimeout)
 	defer cancel()
-	out, err := exec.CommandContext(ctx, bin, "--version").Output()
+	cmd := exec.CommandContext(ctx, bin, "--version")
+	cmd.Env = []string{"PATH=/usr/bin:/bin:/usr/sbin:/sbin", "DISABLE_AUTOUPDATER=1"}
+	if home, err := os.UserHomeDir(); err == nil {
+		cmd.Env = append(cmd.Env, "HOME="+home)
+	}
+	out, err := cmd.Output()
 	if err != nil {
 		return "", fmt.Errorf("claude: %s --version: %w", bin, err)
 	}
