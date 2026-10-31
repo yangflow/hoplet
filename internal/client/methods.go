@@ -9,19 +9,22 @@ import (
 // Sessions lists every session, most recently updated first.
 func (c *Client) Sessions(ctx context.Context) ([]proto.Session, error) {
 	var out []proto.Session
-	return out, c.Call(ctx, proto.MethodSessionsList, struct{}{}, &out)
+	err := c.Call(ctx, proto.MethodSessionsList, struct{}{}, &out)
+	return out, err
 }
 
 // Create creates a session.
 func (c *Client) Create(ctx context.Context, p proto.CreateParams) (proto.Session, error) {
 	var out proto.Session
-	return out, c.Call(ctx, proto.MethodSessionsCreate, p, &out)
+	err := c.Call(ctx, proto.MethodSessionsCreate, p, &out)
+	return out, err
 }
 
 // Send sends a message, or queues it behind the running turn.
 func (c *Client) Send(ctx context.Context, p proto.SendParams) (proto.SendReply, error) {
 	var out proto.SendReply
-	return out, c.Call(ctx, proto.MethodSessionsSend, p, &out)
+	err := c.Call(ctx, proto.MethodSessionsSend, p, &out)
+	return out, err
 }
 
 // Respond answers an approval; the first answer wins and later ones get a
@@ -63,7 +66,8 @@ func (c *Client) Archive(ctx context.Context, id proto.SessionID) error {
 // Queue returns a session's queued messages, next first.
 func (c *Client) Queue(ctx context.Context, id proto.SessionID) ([]proto.QueuedMessage, error) {
 	var out proto.Queue
-	return out.Messages, c.Call(ctx, proto.MethodQueueList, proto.SessionRef{Session: id}, &out)
+	err := c.Call(ctx, proto.MethodQueueList, proto.SessionRef{Session: id}, &out)
+	return out.Messages, err
 }
 
 // EditQueued changes a queued message's text.

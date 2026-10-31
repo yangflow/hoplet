@@ -53,9 +53,11 @@ type Client struct {
 
 	ctx    context.Context
 	cancel context.CancelCauseFunc
-	done   chan struct{} // closed when the reader stops
+	done   chan struct{}  // closed when the reader stops
+	wg     sync.WaitGroup // reader and heartbeat
 
 	mu      sync.Mutex
+	closing bool // Close has begun; later losses are not reported
 	next    uint64
 	pending map[uint64]chan proto.ServerFrame
 	subs    map[uint64]*Subscription
@@ -82,6 +84,7 @@ func Dial(ctx context.Context, o Options) (*Client, error) {
 		ws: ws, ctx: cctx, cancel: cancel, done: make(chan struct{}),
 		pending: map[uint64]chan proto.ServerFrame{}, subs: map[uint64]*Subscription{},
 	}
+	c.wg.Add(2)
 	go c.read()
 	go c.heartbeat()
 	err = c.Call(ctx, proto.MethodHello, proto.HelloParams{
@@ -102,29 +105,47 @@ func (c *Client) Done() <-chan struct{} { return c.done }
 
 // Close closes the connection; it reports an error only when the closing
 // handshake fails on a connection that was still up.
+// It is idempotent: later calls return nil.
 func (c *Client) Close() error {
+	c.mu.Lock()
+	if c.closing {
+		c.mu.Unlock()
+		return nil
+	}
+	c.closing = true
 	lost := c.ctx.Err() != nil
+	c.mu.Unlock()
 	err := c.ws.Close(websocket.StatusNormalClosure, "")
 	c.cancel(ErrClosed)
-	<-c.done
+	c.wg.Wait()
 	if lost {
 		return nil
 	}
 	return err
 }
 
+// lose ends the connection with cause unless Close has already begun.
+func (c *Client) lose(cause error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if !c.closing {
+		c.cancel(cause)
+	}
+}
+
 func (c *Client) read() {
+	defer c.wg.Done()
 	defer close(c.done)
 	defer c.drop()
 	for {
 		_, data, err := c.ws.Read(c.ctx)
 		if err != nil {
-			c.cancel(fmt.Errorf("%w: %w", ErrClosed, err))
+			c.lose(fmt.Errorf("%w: %w", ErrClosed, err))
 			return
 		}
 		var f proto.ServerFrame
 		if err := json.Unmarshal(data, &f); err != nil {
-			c.cancel(fmt.Errorf("client: bad frame: %w", err))
+			c.lose(fmt.Errorf("%w: bad frame: %w", ErrClosed, err))
 			_ = c.ws.CloseNow()
 			return
 		}
@@ -164,6 +185,7 @@ func (c *Client) drop() {
 }
 
 func (c *Client) heartbeat() {
+	defer c.wg.Done()
 	t := time.NewTicker(ping)
 	defer t.Stop()
 	for {
@@ -176,11 +198,18 @@ func (c *Client) heartbeat() {
 		err := c.ws.Ping(ctx)
 		cancel()
 		if err != nil {
-			c.cancel(fmt.Errorf("%w: heartbeat: %w", ErrClosed, err))
+			c.lose(fmt.Errorf("%w: heartbeat: %w", ErrClosed, err))
 			_ = c.ws.CloseNow()
 			return
 		}
 	}
+}
+
+// gone reports whether the connection is closing or lost.
+func (c *Client) gone() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.closing || c.ctx.Err() != nil
 }
 
 // err is why the connection ended.
@@ -194,14 +223,14 @@ func (c *Client) err() error {
 // request sends a request and returns the channel its response arrives on;
 // sub, when set, is registered before the request goes out so no item is
 // missed.
-func (c *Client) request(ctx context.Context, method string, params any, sub *Subscription) (uint64, chan proto.ServerFrame, error) {
+func (c *Client) request(method string, params any, sub *Subscription) (uint64, chan proto.ServerFrame, error) {
 	b, err := json.Marshal(params)
 	if err != nil {
 		return 0, nil, fmt.Errorf("client: encode params: %w", err)
 	}
 	ch := make(chan proto.ServerFrame, 1)
 	c.mu.Lock()
-	if c.ctx.Err() != nil {
+	if c.closing || c.ctx.Err() != nil {
 		c.mu.Unlock()
 		return 0, nil, c.err()
 	}
@@ -217,8 +246,13 @@ func (c *Client) request(ctx context.Context, method string, params any, sub *Su
 	if err != nil {
 		return 0, nil, fmt.Errorf("client: encode request: %w", err)
 	}
-	if err := c.ws.Write(ctx, websocket.MessageText, frame); err != nil {
+	// The frame is written under the connection's lifetime: a caller's
+	// context firing mid-write would otherwise close the shared connection.
+	if err := c.ws.Write(c.ctx, websocket.MessageText, frame); err != nil {
 		c.forget(id)
+		if c.gone() {
+			return 0, nil, c.err()
+		}
 		return 0, nil, fmt.Errorf("client: send %s: %w", method, err)
 	}
 	return id, ch, nil
@@ -249,8 +283,10 @@ func (c *Client) await(ctx context.Context, id uint64, ch chan proto.ServerFrame
 }
 
 // Call sends a request and decodes its result into result, which may be nil.
+// ctx bounds the wait for the response; the request frame itself is written
+// under the connection's lifetime.
 func (c *Client) Call(ctx context.Context, method string, params, result any) error {
-	id, ch, err := c.request(ctx, method, params, nil)
+	id, ch, err := c.request(method, params, nil)
 	if err != nil {
 		return err
 	}
@@ -267,22 +303,37 @@ func (c *Client) Call(ctx context.Context, method string, params, result any) er
 	return nil
 }
 
-// Subscribe opens a subscription.
+// Subscribe opens a subscription. ctx bounds the wait for the daemon's
+// acceptance; if it ends after the request was sent, the daemon is asked to
+// drop the subscription.
 func (c *Client) Subscribe(ctx context.Context, method string, params any) (*Subscription, error) {
 	s := &Subscription{c: c, wake: make(chan struct{}, 1)}
-	id, ch, err := c.request(ctx, method, params, s)
+	id, ch, err := c.request(method, params, s)
 	if err != nil {
 		return nil, err
 	}
 	if _, err := c.await(ctx, id, ch); err != nil {
 		c.forget(id)
+		if ctx.Err() != nil {
+			c.sendCancel(id)
+		}
 		return nil, err
 	}
 	return s, nil
 }
 
-// Subscription is an open subscription. Its items wait in memory until
-// Next takes them.
+// sendCancel asks the daemon to end subscription id, best effort.
+func (c *Client) sendCancel(id uint64) {
+	b, err := json.Marshal(proto.ClientFrame{Sub: id, Cancel: true})
+	if err != nil {
+		return
+	}
+	_ = c.ws.Write(c.ctx, websocket.MessageText, b)
+}
+
+// Subscription is an open subscription. Received items wait in memory,
+// without bound, until Next takes them: consumers must keep reading or
+// Cancel.
 type Subscription struct {
 	c    *Client
 	id   uint64
@@ -309,19 +360,26 @@ func (s *Subscription) push(f proto.ServerFrame) {
 		s.items = append(s.items, f.Item)
 	}
 	s.mu.Unlock()
+	s.signal()
+}
+
+// signal wakes a waiting Next without blocking.
+func (s *Subscription) signal() {
 	select {
 	case s.wake <- struct{}{}:
 	default:
 	}
 }
 
-// ErrEnded is returned by Next once a subscription the client canceled has
+// ErrEnded is returned by Next once a subscription that ended without an
+// error (canceled by the client, or ended cleanly by the daemon) has
 // delivered its last item.
 var ErrEnded = errors.New("client: subscription ended")
 
 // Next decodes the next item into v, waiting for one. After the last item
-// it returns the subscription's error: the daemon's, the connection's, or
-// ErrEnded.
+// it returns the subscription's error: the daemon's, ErrEnded when it ended
+// without one, or an error wrapping ErrClosed when the connection ended
+// first. Items are delivered in order to whichever caller takes them.
 func (s *Subscription) Next(ctx context.Context, v any) error {
 	for {
 		s.mu.Lock()
@@ -329,7 +387,11 @@ func (s *Subscription) Next(ctx context.Context, v any) error {
 			item := s.items[0]
 			s.items[0] = nil
 			s.items = s.items[1:]
+			more := len(s.items) > 0 || s.ended
 			s.mu.Unlock()
+			if more {
+				s.signal()
+			}
 			if err := json.Unmarshal(item, v); err != nil {
 				return fmt.Errorf("client: decode item: %w", err)
 			}
@@ -354,10 +416,24 @@ func (s *Subscription) Next(ctx context.Context, v any) error {
 
 // Cancel asks the daemon to end the subscription; Next returns the items
 // already received, then ErrEnded.
-func (s *Subscription) Cancel(ctx context.Context) error {
+// It does nothing if the subscription already ended. The frame is written
+// under the connection's lifetime; ctx is not used.
+func (s *Subscription) Cancel(_ context.Context) error {
+	s.mu.Lock()
+	ended := s.ended
+	s.mu.Unlock()
+	if ended {
+		return nil
+	}
 	b, err := json.Marshal(proto.ClientFrame{Sub: s.id, Cancel: true})
 	if err != nil {
 		return err
 	}
-	return s.c.ws.Write(ctx, websocket.MessageText, b)
+	if err := s.c.ws.Write(s.c.ctx, websocket.MessageText, b); err != nil {
+		if s.c.gone() {
+			return s.c.err()
+		}
+		return fmt.Errorf("client: cancel: %w", err)
+	}
+	return nil
 }
