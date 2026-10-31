@@ -63,6 +63,14 @@ func (c *Client) Archive(ctx context.Context, id proto.SessionID) error {
 	return c.Call(ctx, proto.MethodSessionsArchive, proto.SessionRef{Session: id}, nil)
 }
 
+// EventsBefore returns a page of a session's events older than
+// p.BeforeSeq, oldest first; More says older events remain.
+func (c *Client) EventsBefore(ctx context.Context, p proto.EventsParams) (proto.EventsPage, error) {
+	var out proto.EventsPage
+	err := c.Call(ctx, proto.MethodSessionsEvents, p, &out)
+	return out, err
+}
+
 // Queue returns a session's queued messages, next first.
 func (c *Client) Queue(ctx context.Context, id proto.SessionID) ([]proto.QueuedMessage, error) {
 	var out proto.Queue

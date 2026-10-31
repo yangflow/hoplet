@@ -520,6 +520,10 @@ func TestErrorsAreClassified(t *testing.T) {
 			_, err := c.Send(ctx, proto.SendParams{Session: "nope", Text: "x", Key: "m2#1"})
 			return err
 		}(), proto.CodeInvalid},
+		"events of unknown session": {func() error {
+			_, err := c.EventsBefore(ctx, proto.EventsParams{Session: "nope", BeforeSeq: 10})
+			return err
+		}(), proto.CodeNotFound},
 		"queue of unknown session": {func() error {
 			_, err := c.Queue(ctx, "nope")
 			return err

@@ -75,6 +75,7 @@ const (
 	MethodSessionsSetPerm   = "sessions.set_permission"
 	MethodSessionsStop      = "sessions.stop"
 	MethodSessionsArchive   = "sessions.archive"
+	MethodSessionsEvents    = "sessions.events"
 	MethodQueueList         = "queue.list"
 	MethodQueueEdit         = "queue.edit"
 	MethodQueueDelete       = "queue.delete"
@@ -204,6 +205,22 @@ type CatalogItem struct {
 type SessionParams struct {
 	Session  SessionID `json:"session"`
 	AfterSeq uint64    `json:"after_seq"`
+}
+
+// EventsParams asks for a page of a session's events older than BeforeSeq,
+// as a client pages back through history from a snapshot. Limit 0, or one
+// above the daemon's page size, asks for a full page.
+type EventsParams struct {
+	Session   SessionID `json:"session"`
+	BeforeSeq uint64    `json:"before_seq"`
+	Limit     int       `json:"limit,omitempty"`
+}
+
+// EventsPage is a page of a session's events, oldest first, with More set
+// when older events remain.
+type EventsPage struct {
+	Events []Event `json:"events"`
+	More   bool    `json:"more,omitempty"`
 }
 
 // SessionItem carries a session's new events in order, or a Snapshot that

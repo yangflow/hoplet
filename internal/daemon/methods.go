@@ -80,6 +80,12 @@ func (c *conn) call(ctx context.Context, f proto.ClientFrame) (any, error) {
 			return nil, err
 		}
 		return done, s.mgr.SetPermission(ctx, p.Session, p.Permission)
+	case proto.MethodSessionsEvents:
+		var p proto.EventsParams
+		if err := decode(f, &p); err != nil {
+			return nil, err
+		}
+		return c.eventsBefore(ctx, p)
 	case proto.MethodQueueList:
 		var p proto.SessionRef
 		if err := decode(f, &p); err != nil {
@@ -108,6 +114,26 @@ func (c *conn) call(ctx context.Context, f proto.ClientFrame) (any, error) {
 	default:
 		return nil, &proto.APIError{Code: proto.CodeBadRequest, Message: "unknown method " + f.Method}
 	}
+}
+
+// eventsBefore returns a page of the session's events before p.BeforeSeq,
+// oldest first. One event more than the page is read to tell whether older
+// ones remain.
+func (c *conn) eventsBefore(ctx context.Context, p proto.EventsParams) (proto.EventsPage, error) {
+	limit := p.Limit
+	if limit <= 0 || limit > c.s.lim.page {
+		limit = c.s.lim.page
+	}
+	evs, err := c.s.store.EventsBefore(ctx, p.Session, p.BeforeSeq, limit+1)
+	if err != nil {
+		return proto.EventsPage{}, err
+	}
+	page := proto.EventsPage{Events: evs}
+	if len(evs) > limit {
+		page.Events, page.More = evs[1:], true // the oldest is the extra one
+	}
+	page.Events = nonNil(page.Events)
+	return page, nil
 }
 
 func invalid(msg string) error { return &proto.APIError{Code: proto.CodeInvalid, Message: msg} }

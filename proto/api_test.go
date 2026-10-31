@@ -21,6 +21,8 @@ func TestFrameWireFormat(t *testing.T) {
 		"queued":      {SendReply{Queued: true}, `{"queued":true}`},
 		"recorded":    {SendReply{Seq: 7, Turn: 2}, `{"seq":7,"turn":2}`},
 		"empty queue": {SessionItem{Queue: &Queue{Messages: []QueuedMessage{}}}, `{"queue":{"messages":[]}}`},
+		"events page": {EventsPage{Events: []Event{}, More: true}, `{"events":[],"more":true}`},
+		"events args": {EventsParams{Session: "s", BeforeSeq: 11, Limit: 5}, `{"session":"s","before_seq":11,"limit":5}`},
 	} {
 		b, err := json.Marshal(tc.v)
 		if err != nil {

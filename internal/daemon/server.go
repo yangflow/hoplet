@@ -23,7 +23,8 @@ type limits struct {
 	gapBytes      int64
 	snapshotTurns int
 	// page is the most events any session item after the first carries (the
-	// first replays a gap of up to gapEvents).
+	// first replays a gap of up to gapEvents), and the most a page of older
+	// events holds.
 	page int
 	// outbound is how many bytes may wait to be written to one connection
 	// before it is closed as too slow; the client catches up by cursor.

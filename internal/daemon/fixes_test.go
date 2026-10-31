@@ -97,6 +97,59 @@ func TestStopHoldsTheQueue(t *testing.T) {
 	}
 }
 
+func TestEventsBeforePagesBack(t *testing.T) {
+	h, script := newHome(t, echoScript)
+	cfg := testConfig(h, script)
+	cfg.lim = limits{page: 8}
+	d := start(t, cfg)
+	c := dial(t, h, "device:a")
+	ctx := timeout(t)
+	sess := create(t, c, h)
+	for n := uint32(1); n <= 4; n++ {
+		appendTurn(t, d, sess.ID, n) // seqs 1..20
+	}
+	seqs := func(p proto.EventsPage) []uint64 {
+		var out []uint64
+		for _, ev := range p.Events {
+			out = append(out, ev.Seq)
+		}
+		return out
+	}
+	for name, tc := range map[string]struct {
+		before uint64
+		limit  int
+		want   []uint64
+		more   bool
+	}{
+		"middle":         {11, 5, []uint64{6, 7, 8, 9, 10}, true},
+		"start":          {3, 5, []uint64{1, 2}, false},
+		"exact":          {6, 5, []uint64{1, 2, 3, 4, 5}, false},
+		"nothing older":  {1, 5, nil, false},
+		"default limit":  {21, 0, []uint64{13, 14, 15, 16, 17, 18, 19, 20}, true},
+		"limit too high": {21, 100, []uint64{13, 14, 15, 16, 17, 18, 19, 20}, true},
+	} {
+		p, err := c.EventsBefore(ctx, proto.EventsParams{Session: sess.ID, BeforeSeq: tc.before, Limit: tc.limit})
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		if got := seqs(p); !equalSeqs(got, tc.want) || p.More != tc.more || p.Events == nil {
+			t.Errorf("%s: seqs %v more %v, want %v more %v", name, got, p.More, tc.want, tc.more)
+		}
+	}
+}
+
+func equalSeqs(a, b []uint64) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
 func TestUnansweredHeartbeatClosesTheConnection(t *testing.T) {
 	h, script := newHome(t, echoScript)
 	cfg := testConfig(h, script)
