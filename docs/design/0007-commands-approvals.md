@@ -49,7 +49,7 @@ flowchart TB
 
 | 设置 | 说明 |
 |---|---|
-| Plan 开关 | 开启时 harness 只探索、出方案，不改任何东西；批准方案后由 harness 自己退出 Plan，并上报 `mode.changed`，会话记录随之更新（Claude Code：`plan` 模式与 `ExitPlanMode`） |
+| Plan 开关 | 开启时 harness 只探索、出方案，不改任何东西；批准方案后由 harness 自己退出 Plan，并上报 `mode.changed`，会话记录随之更新（Claude Code：`plan` 模式与 `ExitPlanMode`）。Plan 开着时切换审批档位只记下退出 Plan 后要恢复的档位，不会让 harness 离开 Plan |
 | Fast 开关 | 同一模型更快输出、消耗更高，与思考强度无关；harness 用能力位声明是否支持 |
 | 思考强度 | 统一刻度 low / medium / high / xhigh / max / ultra，空表示 harness 默认；各 harness 用能力位声明支持的档位，不支持的隐藏 |
 | 上下文窗口 | 不单设开关：作为模型变体出现在模型列表里（如 Opus · 1M） |

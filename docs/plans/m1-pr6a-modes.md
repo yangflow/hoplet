@@ -44,13 +44,14 @@ flowchart LR
 ## 接口（后续 PR 依赖）
 
 - `proto.PermissionMode`：`ModeConfirm`、`ModeAutoEdit`、`ModeAutoReview`、`ModeFullAuto`，`(PermissionMode).Valid()`
-- `proto.Effort`：`EffortLow` … `EffortMax`，`(Effort).Valid()`
-- `proto.Capabilities{…, Modes []PermissionMode, Efforts []Effort}`、`(Capabilities).Fallback(m)`、`HasEffort(e)`
-- `proto.Session{…, Plan bool, Effort Effort}`；`proto.ModeChanged{Permission, Plan}`（`mode.changed` v1）
-- `proto.CreateParams{…, Plan, Effort}`；`sessions.set_plan`（`SetPlanParams`）、`sessions.set_effort`（`SetEffortParams`）；客户端 `SetPlan`、`SetEffort`
-- `harness.Spec{…, Plan, Effort}`；`harness.Run.SetPlan(ctx, on)`、`SetEffort(ctx, effort)`
-- `(*session.Manager).SetPlan`、`SetEffort`；`session.CreateRequest{…, Plan, Effort}`
-- `store.SessionUpdate{…, Plan *bool, Effort *proto.Effort}`
+- `proto.Effort`：`EffortLow` … `EffortMax`、`EffortUltra`，`(Effort).Valid()`
+- `proto.Capabilities{…, Modes []PermissionMode, Efforts []Effort, Fast bool}`、`(Capabilities).Fallback(m)`、`HasEffort(e)`
+- `proto.Session{…, Plan, Fast bool, Effort Effort}`；`proto.ModeChanged{Permission, Plan}`（`mode.changed` v1）
+- `proto.CreateParams{…, Plan, Fast, Effort}`；`sessions.set_plan`、`sessions.set_fast`、`sessions.set_effort`（`SetPlanParams`、`SetFastParams`、`SetEffortParams`）；客户端 `SetPlan`、`SetFast`、`SetEffort`
+- `harness.Spec{…, Plan, Fast, Effort}`（Plan 与 Mode 同时给出时，以 Plan 启动，Mode 是退出 Plan 后要恢复的档位）；`harness.Run.SetPlan`、`SetFast`、`SetEffort`；Plan 开着时 `SetMode` 只记下要恢复的档位
+- `(*session.Manager).SetPlan`、`SetFast`、`SetEffort`；`session.CreateRequest{…, Plan, Fast, Effort}`
+- `store.SessionUpdate{…, Plan, Fast *bool, Effort *proto.Effort}`
+- `harness.Harness.Probe` 会被频繁调用，代价高的适配器自行缓存
 
 ---
 
@@ -1627,3 +1628,16 @@ gh pr create --title "feat(session): add auto review, plan mode and effort" --fi
 - 旧数据库里的"只读"会话迁移为"需确认 + Plan 开"。
 - `hoplet session set` 能改三项设置并显示结果。
 - `make check` 本地和 CI 通过。
+
+## 实现与计划的差异（评审后追加）
+
+整分支评审之后，合并前在计划之外补了以下内容；后续 PR 以 `main` 上的真实代码为准：
+
+| 方面 | 变化 |
+|---|---|
+| 维护者追加 | 思考强度加 `ultra`（排在 `max` 之上）；新增独立的 Fast 开关（能力位 `Capabilities.Fast`、会话字段、迁移 0004 加 `fast` 列、`sessions.set_fast`、CLI `--fast`） |
+| 竞态 | `SetPermission` / `SetPlan` / `SetFast` / `SetEffort` 在会话锁内写存储并交给 harness，与启动 harness 互斥：启动中途改设置，harness 要么按新值启动、要么启动后立即收到新值 |
+| 档位 | 启动 harness 时再按当时的能力位回退一次档位（harness 升级或降级后能力可能变化） |
+| 接口语义 | Plan 开着时 `SetMode` 只记下退出 Plan 后要恢复的档位；`Spec.Plan` 与 `Spec.Mode` 同时给出时以 Plan 启动；`Probe` 会被频繁调用，代价高的适配器自行缓存；`mode.changed` 只记 harness 自己的改动，用户的改动直接写会话记录 |
+| 错误码 | 新建会话时未知的思考强度返回 `invalid`（与 `set_effort` 一致）；CLI `session set` 在本地校验档位与强度，用法错误退出 2，按 档位 → Plan → Fast → 强度 的顺序执行，遇错即停 |
+| 总计划 | PR6b 与 PR7 都依赖 6a |
