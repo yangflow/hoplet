@@ -4,10 +4,14 @@ import (
 	"bytes"
 	"flag"
 	"io"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/yangflow/hoplet/internal/launchd"
 
 	"github.com/yangflow/hoplet/proto"
 )
@@ -128,6 +132,69 @@ func TestSessionUsage(t *testing.T) {
 		argv := append([]string{"session"}, strings.Fields(args)...)
 		if got := testApp(&out, &errb).run(argv); got != code {
 			t.Errorf("session %s: exit %d, want %d (stderr %q)", args, got, code, errb.String())
+		}
+	}
+}
+
+func TestUsageStreams(t *testing.T) {
+	for args, want := range map[string]struct {
+		code         int
+		stdout, errs bool
+	}{
+		"session":        {2, false, true},
+		"session help":   {0, true, false},
+		"session --help": {0, true, false},
+		"env --help":     {0, true, false},
+		"env":            {2, false, true},
+	} {
+		var out, errb bytes.Buffer
+		code := testApp(&out, &errb).run(strings.Fields(args))
+		if code != want.code || (out.Len() > 0) != want.stdout || (errb.Len() > 0) != want.errs {
+			t.Errorf("%s: exit %d, stdout %d bytes, stderr %d bytes", args, code, out.Len(), errb.Len())
+		}
+	}
+}
+
+func TestConfigCheck(t *testing.T) {
+	h := t.TempDir()
+	if c := configCheck(h); c.Status != proto.CheckOK || !strings.Contains(c.Detail, "no config.toml") {
+		t.Errorf("missing file: %+v", c)
+	}
+	path := filepath.Join(h, "config.toml")
+	if err := os.WriteFile(path, []byte("[network]\nproxy = \"http://u:pw@127.0.0.1:3128\"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if c := configCheck(h); c.Status != proto.CheckOK {
+		t.Errorf("private file: %+v", c)
+	}
+	if err := os.Chmod(path, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if c := configCheck(h); c.Status != proto.CheckWarn || !strings.Contains(c.Detail, "chmod 600") {
+		t.Errorf("shared file: %+v", c)
+	}
+	if err := os.WriteFile(path, []byte("[network]\nproxi = 1\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if c := configCheck(h); c.Status != proto.CheckFail || strings.Contains(c.Detail, "pw") {
+		t.Errorf("bad file: %+v", c)
+	}
+}
+
+func TestInstallGuards(t *testing.T) {
+	if !transientBinary(filepath.Join(os.TempDir(), "go-build123", "b001", "exe", "hoplet")) || !transientBinary(filepath.Join(os.TempDir(), "hoplet")) {
+		t.Error("a temporary binary was accepted")
+	}
+	if transientBinary("/usr/local/bin/hoplet") {
+		t.Error("an installed binary was refused")
+	}
+	for s, want := range map[launchd.Status]bool{
+		{Loaded: true, State: "running"}:     true,
+		{Loaded: true, State: "not running"}: false,
+		{Installed: true}:                    false,
+	} {
+		if agentRunning(s) != want {
+			t.Errorf("%+v: %v", s, !want)
 		}
 	}
 }

@@ -63,6 +63,13 @@ func (a app) session(args []string) int {
 // withClient runs fn with a connection to the daemon and a context that a
 // SIGINT or SIGTERM cancels; timeout 0 means no deadline.
 func (a app) withClient(name string, timeout time.Duration, fn func(ctx context.Context, c *client.Client) error) int {
+	return a.withClientTimeout(name, timeout, "", fn)
+}
+
+// withClientTimeout is withClient for a command whose timeout is part of
+// its contract: when the deadline passes, at any step, it prints
+// timedOut and exits 3.
+func (a app) withClientTimeout(name string, timeout time.Duration, timedOut string, fn func(ctx context.Context, c *client.Client) error) int {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 	if timeout > 0 {
@@ -70,12 +77,21 @@ func (a app) withClient(name string, timeout time.Duration, fn func(ctx context.
 		ctx, cancel = context.WithTimeout(ctx, timeout)
 		defer cancel()
 	}
+	expired := func() bool { return timedOut != "" && errors.Is(ctx.Err(), context.DeadlineExceeded) }
 	c, err := connect(ctx)
 	if err != nil {
+		if expired() {
+			fmt.Fprintf(a.stderr, "hoplet %s: %s\n", name, timedOut)
+			return 3
+		}
 		return a.fail(name, err)
 	}
 	defer c.Close()
 	if err := fn(ctx, c); err != nil {
+		if expired() {
+			fmt.Fprintf(a.stderr, "hoplet %s: %s\n", name, timedOut)
+			return 3
+		}
 		var ce codeError
 		if errors.As(err, &ce) {
 			fmt.Fprintf(a.stderr, "hoplet %s: %v\n", name, ce.err)
@@ -315,12 +331,8 @@ func (a app) sessionWait(args []string) int {
 		fmt.Fprintf(a.stderr, "hoplet session wait: --for %q: want idle, blocked or done\n", *forFlag)
 		return 2
 	}
-	return a.withClient("session wait", *timeout, func(ctx context.Context, c *client.Client) error {
-		err := a.waitFor(ctx, c, fs.Arg(0), cond, *asJSON)
-		if err != nil && errors.Is(ctx.Err(), context.DeadlineExceeded) {
-			return codeError{3, fmt.Errorf("timed out waiting for %s", cond)}
-		}
-		return err
+	return a.withClientTimeout("session wait", *timeout, "timed out waiting for "+string(cond), func(ctx context.Context, c *client.Client) error {
+		return a.waitFor(ctx, c, fs.Arg(0), cond, *asJSON)
 	})
 }
 

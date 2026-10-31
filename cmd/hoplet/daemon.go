@@ -160,7 +160,7 @@ func (a app) daemonInstall(args []string) int {
 		return a.fail("daemon install", fmt.Errorf("installed %s, but the daemon does not serve: %w (see %s)", m.Path(), err, launchd.LogFile(h)))
 	}
 	defer c.Close()
-	if s, err := m.Status(ctx); err == nil && (!s.Loaded || s.State != "running") {
+	if s, err := m.Status(ctx); err == nil && !agentRunning(s) {
 		fmt.Fprintln(a.stderr, "hoplet daemon install: a daemon serves, but not the LaunchAgent's (another daemon may hold the home)")
 	}
 	if *asJSON {
@@ -170,6 +170,9 @@ func (a app) daemonInstall(args []string) int {
 	fmt.Fprintf(a.stdout, "installed %s\ndaemon %s serving at %s\n", m.Path(), c.Hello().Version, home.Socket(h))
 	return 0
 }
+
+// agentRunning reports whether launchd runs the agent's daemon.
+func agentRunning(s launchd.Status) bool { return s.Loaded && s.State == "running" }
 
 // transientBinary reports whether exe is one that will not outlive the
 // session: a `go run` build or a file under the temp directory.

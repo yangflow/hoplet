@@ -20,11 +20,6 @@ import (
 	"github.com/yangflow/hoplet/internal/shim"
 )
 
-// TestMain lets the test binary stand in for the hoplet binary: with
-// HOPLET_TEST_MAIN set it runs the command line it was given. Its daemon
-// starts harnesses with a fixed environment that keeps HOPLET_TEST_MAIN,
-// so the shims it starts (this binary again) run as shims too, and serves
-// the fake harness when HOPLET_TEST_FAKE names its binary.
 // fakeAgents is the LaunchAgent manager of every test: its user home is
 // $HOPLET_TEST_USERHOME and its launchctl is fakeLaunchctl, so no test
 // reaches the real launchctl or ~/Library/LaunchAgents.
@@ -60,6 +55,11 @@ func fakeLaunchctl(userHome string) launchd.Runner {
 	}
 }
 
+// TestMain lets the test binary stand in for the hoplet binary: with
+// HOPLET_TEST_MAIN set it runs the command line it was given. Its daemon
+// starts harnesses with a fixed environment that keeps HOPLET_TEST_MAIN,
+// so the shims it starts (this binary again) run as shims too, and serves
+// the fake harness when HOPLET_TEST_FAKE names its binary.
 func TestMain(m *testing.M) {
 	if os.Getenv("HOPLET_TEST_MAIN") != "" {
 		a := app{
