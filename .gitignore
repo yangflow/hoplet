@@ -1,0 +1,25 @@
+# Build output
+/bin/
+/dist/
+
+# Go
+*.test
+*.out
+coverage.*
+
+# macOS
+.DS_Store
+
+# Xcode
+xcuserdata/
+DerivedData/
+*.xcuserstate
+
+# Editors
+.idea/
+.vscode/
+
+# Local overrides
+hoplet.local.toml
+.env
+.env.*

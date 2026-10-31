@@ -1,0 +1,26 @@
+name: Feature request
+description: Suggest a new capability or a change in behavior
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: You can write in English or Chinese. If this changes a decision in docs/design/, say which doc.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What you're trying to do and what gets in the way.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: How it could work. Mention the mode (Code or Personal) and the components involved.
+    validations:
+      required: true
+  - type: input
+    id: design
+    attributes:
+      label: Related design doc
+      placeholder: docs/design/0008-workspace-lifecycle.md
