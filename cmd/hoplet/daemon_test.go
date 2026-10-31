@@ -53,10 +53,13 @@ func TestDaemonServesAndStopsOnSIGTERM(t *testing.T) {
 	if err := first.Start(); err != nil {
 		t.Fatal(err)
 	}
+	exited := make(chan error, 1)
+	go func() { exited <- first.Wait() }()
+	reaped := false // set once exited has been received from
 	defer func() {
-		if first.ProcessState == nil {
+		if !reaped {
 			_ = first.Process.Kill()
-			_ = first.Wait()
+			t.Logf("daemon stopped: %v", <-exited)
 		}
 	}()
 	var c *client.Client
@@ -65,11 +68,17 @@ func TestDaemonServesAndStopsOnSIGTERM(t *testing.T) {
 		if o, err := client.HomeOptions(home, "device:test"); err == nil {
 			c, _ = client.Dial(context.Background(), o)
 		}
-		if c == nil && time.Now().After(deadline) {
-			t.Fatalf("the daemon never served; log:\n%s", log())
+		if c != nil {
+			break
 		}
-		if c == nil {
-			time.Sleep(20 * time.Millisecond)
+		select {
+		case err := <-exited:
+			reaped = true
+			t.Fatalf("the daemon exited before serving: %v; log:\n%s", err, log())
+		case <-time.After(20 * time.Millisecond):
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("the daemon never served; log:\n%s", log())
 		}
 	}
 	defer c.Close()
@@ -86,7 +95,9 @@ func TestDaemonServesAndStopsOnSIGTERM(t *testing.T) {
 	if err := first.Process.Signal(syscall.SIGTERM); err != nil {
 		t.Fatal(err)
 	}
-	if err := first.Wait(); err != nil {
+	err = <-exited
+	reaped = true
+	if err != nil {
 		t.Fatalf("daemon exit: %v; log:\n%s", err, log())
 	}
 }

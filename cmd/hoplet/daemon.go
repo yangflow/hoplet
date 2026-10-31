@@ -72,6 +72,9 @@ func runDaemon(args []string, stderr io.Writer) int {
 		Env:       env,
 		Logger:    slog.New(slog.NewJSONHandler(stderr, nil)),
 	})
+	if err != nil && ctx.Err() != nil {
+		return 0 // stopped by a signal before it began serving
+	}
 	if errors.Is(err, daemon.ErrRunning) {
 		fmt.Fprintf(stderr, "hoplet daemon: a daemon is already running for %s\n", *dir)
 		return 1
@@ -84,11 +87,9 @@ func runDaemon(args []string, stderr io.Writer) int {
 	case <-ctx.Done():
 	case <-d.Done():
 	}
-	err = d.Close()
-	if err == nil {
-		err = d.Err()
-	}
-	if err != nil {
+	// A second signal while closing kills the process the default way.
+	stop()
+	if err := errors.Join(d.Close(), d.Err()); err != nil {
 		fmt.Fprintf(stderr, "hoplet daemon: %v\n", err)
 		return 1
 	}
