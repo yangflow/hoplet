@@ -4,7 +4,12 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
+	"io"
 	"os"
+	"path/filepath"
+	"strings"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -145,10 +150,12 @@ func blockedWriter(ctx context.Context, t *testing.T) (*ExecStdio, chan error) {
 	}
 	// Fill the pipe: a write that times out means the child is not reading
 	// and the pipe is full, so the next write must block.
-	chunk := bytes.Repeat([]byte("x"), 64<<10)
+	// Two-byte writes are atomic, so a timed-out one writes nothing and does
+	// not poison stdin.
+	small := []byte("x")
 	for {
 		fctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
-		err := e.WriteLine(fctx, chunk)
+		err := e.WriteLine(fctx, small)
 		cancel()
 		if errors.Is(err, context.DeadlineExceeded) {
 			break
@@ -158,7 +165,7 @@ func blockedWriter(ctx context.Context, t *testing.T) (*ExecStdio, chan error) {
 		}
 	}
 	errc := make(chan error, 1)
-	go func() { errc <- e.WriteLine(ctx, chunk) }()
+	go func() { errc <- e.WriteLine(ctx, bytes.Repeat([]byte("x"), 64<<10)) }()
 	return e, errc
 }
 
@@ -225,5 +232,133 @@ func TestExecStdioCloseWithUnreadLines(t *testing.T) {
 	case <-e.finished:
 	default:
 		t.Fatal("goroutines still running after Close")
+	}
+}
+
+func TestExecStdioSlowReaderLosesNothingAfterExit(t *testing.T) {
+	const n = 8000
+	e, err := StartExec(context.Background(), []string{"/bin/sh", "-c", `i=0; while [ $i -lt 8000 ]; do echo line$i; i=$((i+1)); done`}, nil, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer e.Close()
+	first, ok := <-e.Lines()
+	if !ok || string(first.Data) != "line0" {
+		t.Fatalf("first line %+v", first)
+	}
+	// Scenario: the reader stalls for longer than the drain bound while the
+	// child has already exited with most of its output unread.
+	pause := time.NewTimer(drainBound + time.Second)
+	defer pause.Stop()
+	<-pause.C
+	got := 1
+	var exit *Line
+	for l := range e.Lines() {
+		switch l.Kind {
+		case Stdout:
+			if want := fmt.Sprintf("line%d", got); string(l.Data) != want {
+				t.Fatalf("line %d is %q, want %q", got, l.Data, want)
+			}
+			got++
+		case Exit:
+			exit = &l
+		}
+	}
+	if got != n {
+		t.Fatalf("got %d lines, want %d", got, n)
+	}
+	if exit == nil || exit.Code != 0 {
+		t.Fatalf("exit %+v", exit)
+	}
+}
+
+func TestExecStdioDescendantHoldingPipeDoesNotStallExit(t *testing.T) {
+	e, err := StartExec(context.Background(), []string{"/bin/sh", "-c", `sleep 30 & echo hi; exit 0`}, nil, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	begin := time.Now()
+	stdout, _, exit := collect(t, e, drainBound+3*time.Second)
+	if len(stdout) != 1 || string(stdout[0].Data) != "hi" || exit == nil || exit.Code != 0 {
+		t.Fatalf("stdout %+v exit %+v", stdout, exit)
+	}
+	if d := time.Since(begin); d > drainBound+2*time.Second {
+		t.Fatalf("exit took %v", d)
+	}
+	if err := e.Close(); err != nil { // also kills the lingering sleep
+		t.Fatal(err)
+	}
+}
+
+func TestExecStdioCloseKillsDescendantsAfterLeaderExit(t *testing.T) {
+	fifo := filepath.Join(t.TempDir(), "alive")
+	if err := syscall.Mkfifo(fifo, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	// The read end blocks until the descendant opens the write end.
+	opened := make(chan *os.File, 1)
+	go func() {
+		f, err := os.Open(fifo)
+		if err != nil {
+			opened <- nil
+			return
+		}
+		opened <- f
+	}()
+	script := fmt.Sprintf(`sleep 30 >/dev/null 2>&1 3>%q & exit 0`, fifo)
+	e, err := StartExec(context.Background(), []string{"/bin/sh", "-c", script}, nil, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var f *os.File
+	select {
+	case f = <-opened:
+		if f == nil {
+			t.Fatal("open fifo failed")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("descendant never opened the fifo")
+	}
+	defer f.Close()
+	_, _, exit := collect(t, e, 5*time.Second)
+	if exit == nil || exit.Code != 0 {
+		t.Fatalf("exit %+v", exit)
+	}
+	if err := e.Close(); err != nil {
+		t.Fatal(err)
+	}
+	// EOF arrives once the last writer (the descendant) is gone.
+	eof := make(chan error, 1)
+	go func() {
+		_, err := io.ReadAll(f)
+		eof <- err
+	}()
+	select {
+	case err := <-eof:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("descendant survived Close")
+	}
+}
+
+func TestExecStdioPartialWritePoisonsStdin(t *testing.T) {
+	e, err := StartExec(context.Background(), []string{"/bin/sleep", "60"}, nil, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer e.Close()
+	// 4 MiB cannot fit in the pipe, so the deadline always cuts it short
+	// after some bytes went in.
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer cancel()
+	err = e.WriteLine(ctx, bytes.Repeat([]byte("x"), 4<<20))
+	if !errors.Is(err, context.DeadlineExceeded) || !strings.Contains(err.Error(), "partial") {
+		t.Fatalf("first write: %v", err)
+	}
+	err = e.WriteLine(context.Background(), []byte("next"))
+	if err == nil || !strings.Contains(err.Error(), "partial") {
+		t.Fatalf("later write: %v", err)
 	}
 }

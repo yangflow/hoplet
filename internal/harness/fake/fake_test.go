@@ -8,6 +8,7 @@ import (
 	"os"
 	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -400,7 +401,13 @@ func TestExitStatusOnEvents(t *testing.T) {
 
 func TestUnsupportedCapabilities(t *testing.T) {
 	ctx := context.Background()
-	r, _ := startWith(t, Script{Turns: []Turn{{}}}, &proto.Capabilities{}, nil)
+	h := &Harness{Binary: binary, Script: "/x.json", Capabilities: &proto.Capabilities{}}
+	stub := &stubStdio{lines: make(chan harness.Line)}
+	r, err := h.Attach(ctx, harness.Spec{}, stub)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
 	if err := r.Steer(ctx, "x"); !errors.Is(err, harness.ErrUnsupported) {
 		t.Fatalf("Steer: %v", err)
 	}
@@ -410,13 +417,18 @@ func TestUnsupportedCapabilities(t *testing.T) {
 	if err := r.SetModel(ctx, "m"); !errors.Is(err, harness.ErrUnsupported) {
 		t.Fatalf("SetModel: %v", err)
 	}
-	h := &Harness{Binary: binary, Script: "/x.json", Capabilities: &proto.Capabilities{}}
+	if n := stub.writes.Load(); n != 0 {
+		t.Fatalf("unsupported operations wrote %d lines", n)
+	}
 	spec := harness.Spec{Resume: "n1"}
 	if _, err := h.Launch(spec); !errors.Is(err, harness.ErrUnsupported) {
 		t.Fatalf("Launch resume: %v", err)
 	}
-	if _, err := h.Attach(ctx, spec, nil); !errors.Is(err, harness.ErrUnsupported) {
+	if _, err := h.Attach(ctx, spec, stub); !errors.Is(err, harness.ErrUnsupported) {
 		t.Fatalf("Attach resume: %v", err)
+	}
+	if n := stub.writes.Load(); n != 0 {
+		t.Fatalf("resume attempts wrote %d lines", n)
 	}
 	info, err := h.Probe(ctx)
 	if err != nil || info.Capabilities.Steer || !info.Supported {
@@ -491,21 +503,32 @@ func TestUnknownTurnEndReasonFails(t *testing.T) {
 func TestIgnoreInterruptKeepsTurnRunning(t *testing.T) {
 	r := start(t, Script{Turns: []Turn{{Steps: []Step{
 		{IgnoreIntr: true},
-		{SleepMS: 500},
-		{Emit: &Ev{Ev: "message", ID: "m", Text: "done"}},
+		{AwaitApproval: "a"},
 	}}}})
-	if err := r.Send(context.Background(), "go"); err != nil {
+	ctx := context.Background()
+	if err := r.Send(ctx, "go"); err != nil {
 		t.Fatal(err)
 	}
 	next(t, r) // turn started
-	if err := r.Interrupt(context.Background()); err != nil {
+	if err := r.Interrupt(ctx); err != nil {
+		t.Fatal(err)
+	}
+	// Ops are handled in order, so the steer echo proves the interrupt
+	// was already processed (and ignored).
+	if err := r.Steer(ctx, "x"); err != nil {
+		t.Fatal(err)
+	}
+	if m := payloadAs[proto.Message](t, next(t, r)); m.Text != "steer:x" {
+		t.Fatalf("expected the steer echo first, got %#v", m)
+	}
+	if err := r.Respond(ctx, "a", "once"); err != nil {
 		t.Fatal(err)
 	}
 	got := until(t, r)
-	if m := payloadAs[proto.Message](t, got[0]); m.Text != "done" {
-		t.Fatalf("after interrupt: %#v", got)
+	if m := payloadAs[proto.Message](t, got[0]); m.Text != "approved:once" {
+		t.Fatalf("after respond: %#v", got)
 	}
-	if end := payloadAs[proto.TurnEnded](t, got[1]); end.Reason != proto.TurnCompleted {
+	if end := payloadAs[proto.TurnEnded](t, got[len(got)-1]); end.Reason != proto.TurnCompleted {
 		t.Fatalf("end %#v", end)
 	}
 }
@@ -547,14 +570,23 @@ func TestCloseKillsHungHarness(t *testing.T) {
 
 // stubStdio feeds canned lines to the adapter.
 type stubStdio struct {
-	lines  chan harness.Line
-	closed atomic.Bool
+	lines       chan harness.Line
+	closed      atomic.Bool
+	writes      atomic.Int32
+	closeLines  bool // Close also closes lines, like a real transport
+	closeLinesO sync.Once
 }
 
-func (s *stubStdio) WriteLine(context.Context, []byte) error { return nil }
+func (s *stubStdio) WriteLine(context.Context, []byte) error { s.writes.Add(1); return nil }
 func (s *stubStdio) Lines() <-chan harness.Line              { return s.lines }
 func (s *stubStdio) Signal(string) error                     { return nil }
-func (s *stubStdio) Close() error                            { s.closed.Store(true); return nil }
+func (s *stubStdio) Close() error {
+	s.closed.Store(true)
+	if s.closeLines {
+		s.closeLinesO.Do(func() { close(s.lines) })
+	}
+	return nil
+}
 
 func TestCloseWithoutReaderDoesNotHang(t *testing.T) {
 	// More lines than the events buffer holds, preloaded and never closed;
@@ -650,5 +682,20 @@ func waitClosed(t *testing.T, r harness.Run) {
 		case <-timeout:
 			t.Fatal("Events never closed")
 		}
+	}
+}
+
+func TestCloseIsNotDetached(t *testing.T) {
+	stub := &stubStdio{lines: make(chan harness.Line), closeLines: true}
+	r, err := (&Harness{}).Attach(context.Background(), harness.Spec{}, stub)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := r.Close(); err != nil {
+		t.Fatal(err)
+	}
+	waitClosed(t, r)
+	if r.Err() != nil {
+		t.Fatalf("Err after caller-initiated Close: %v", r.Err())
 	}
 }

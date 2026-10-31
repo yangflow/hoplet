@@ -108,6 +108,11 @@ func (r *run) loop() {
 		select {
 		case l, ok := <-lines:
 			if !ok {
+				select {
+				case <-r.done:
+					return // the caller closed the run; that is not a detach
+				default:
+				}
 				r.mu.Lock()
 				r.err = harness.ErrDetached
 				r.mu.Unlock()

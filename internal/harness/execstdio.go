@@ -13,9 +13,11 @@ import (
 )
 
 const (
-	// waitDelay bounds how long descendants holding the output pipes can
-	// delay the Exit line after the process itself has exited.
-	waitDelay = 2 * time.Second
+	// drainBound bounds how long a descendant holding an output pipe can
+	// delay the Exit line after the process itself has exited: once the
+	// process is gone, each read of its output may wait this long for data.
+	// Time spent blocked delivering a line to a slow reader never counts.
+	drainBound = 2 * time.Second
 	// closeBound bounds how long Close waits for the goroutines to stop.
 	closeBound = 5 * time.Second
 )
@@ -37,6 +39,29 @@ type ExecStdio struct {
 
 	smu    sync.Mutex // guards exited and group signals
 	exited bool
+
+	werr error // set under wmu once a partial write has poisoned stdin
+}
+
+func (e *ExecStdio) hasExited() bool {
+	e.smu.Lock()
+	defer e.smu.Unlock()
+	return e.exited
+}
+
+// outReader reads a child's output pipe. After the process has exited every
+// read gets a fresh deadline, so a descendant that keeps the pipe open cannot
+// stall the reader for longer than drainBound.
+type outReader struct {
+	e *ExecStdio
+	f *os.File
+}
+
+func (r outReader) Read(p []byte) (int, error) {
+	if r.e.hasExited() {
+		_ = r.f.SetReadDeadline(time.Now().Add(drainBound)) // fails only if f is closed; Read reports that
+	}
+	return r.f.Read(p)
 }
 
 // StartExec starts command in dir with env. A nil env means an empty
@@ -72,7 +97,6 @@ func StartExec(ctx context.Context, command []string, env []string, dir string) 
 		}
 		return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
 	}
-	cmd.WaitDelay = waitDelay
 	err = cmd.Start()
 	closeAll(inR, outW, errW) // the child has its own copies
 	if err != nil {
@@ -115,7 +139,7 @@ func (e *ExecStdio) send(l Line) bool {
 // stripped, so CRLF stays byte-exact.
 func (e *ExecStdio) read(r *os.File, kind LineKind) {
 	defer e.readers.Done()
-	br := bufio.NewReaderSize(r, 64<<10)
+	br := bufio.NewReaderSize(outReader{e: e, f: r}, 64<<10)
 	var pending []byte
 	for {
 		chunk, err := br.ReadSlice('\n')
@@ -156,6 +180,10 @@ func (e *ExecStdio) wait() {
 	e.smu.Lock()
 	e.exited = true
 	e.smu.Unlock()
+	// A read already blocked when the process exited gets its deadline now.
+	for _, f := range e.outs {
+		_ = f.SetReadDeadline(time.Now().Add(drainBound)) // fails only if f is closed
+	}
 
 	drained := make(chan struct{})
 	go func() {
@@ -164,9 +192,6 @@ func (e *ExecStdio) wait() {
 	}()
 	select {
 	case <-drained:
-	case <-time.After(waitDelay):
-		closeAll(e.outs...)
-		<-drained
 	case <-e.done:
 		closeAll(e.outs...)
 		<-drained
@@ -214,6 +239,9 @@ func (e *ExecStdio) WriteLine(ctx context.Context, line []byte) error {
 	}
 	e.wmu.Lock()
 	defer e.wmu.Unlock()
+	if e.werr != nil {
+		return e.werr
+	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -225,17 +253,26 @@ func (e *ExecStdio) WriteLine(ctx context.Context, line []byte) error {
 		defer close(fired)
 		_ = e.stdin.SetWriteDeadline(time.Now()) // fails only if stdin is closed
 	})
-	_, err := e.stdin.Write(append(append([]byte(nil), line...), '\n'))
+	buf := append(append([]byte(nil), line...), '\n')
+	n, err := e.stdin.Write(buf)
 	if !stop() {
 		<-fired
 	}
 	_ = e.stdin.SetWriteDeadline(time.Time{}) // fails only if stdin is closed
 	if err != nil {
 		if cerr := ctx.Err(); cerr != nil {
-			return cerr
+			err = cerr
+		} else if errors.Is(err, os.ErrDeadlineExceeded) {
+			err = context.DeadlineExceeded // ctx's deadline fired before ctx.Err reported it
 		}
-		if errors.Is(err, os.ErrDeadlineExceeded) {
-			return context.DeadlineExceeded // ctx's deadline fired before ctx.Err reported it
+		if n > 0 && n < len(buf) {
+			// Part of the line is in the pipe; anything written now would
+			// splice into it, so stdin is unusable from here on.
+			e.werr = fmt.Errorf("harness: partial stdin write (%d of %d bytes), stdin is unusable: %w", n, len(buf), err)
+			return e.werr
+		}
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return err
 		}
 		return fmt.Errorf("harness: write stdin: %w", err)
 	}
@@ -276,6 +313,19 @@ func (e *ExecStdio) signal(sig syscall.Signal) error {
 	return nil
 }
 
+// killGroup kills every remaining member of the process group. Once the
+// leader has exited the group is probed first: while any member lives the
+// group ID cannot have been reused.
+func (e *ExecStdio) killGroup() {
+	e.smu.Lock()
+	defer e.smu.Unlock()
+	pgid := -e.cmd.Process.Pid
+	if e.exited && syscall.Kill(pgid, 0) != nil {
+		return
+	}
+	_ = syscall.Kill(pgid, syscall.SIGKILL) // members may have just exited
+}
+
 // Close closes stdin, kills the process group and waits (bounded) for the
 // reader and waiter goroutines to stop. It is safe to call more than once
 // and does not need Lines to be read.
@@ -285,7 +335,7 @@ func (e *ExecStdio) Close() error {
 		if cerr := e.stdin.Close(); cerr != nil && !errors.Is(cerr, os.ErrClosed) {
 			err = cerr
 		}
-		_ = e.signal(syscall.SIGKILL) // fails only if the process already exited
+		e.killGroup()
 		close(e.done)
 	})
 	select {
