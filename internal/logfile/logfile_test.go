@@ -192,3 +192,52 @@ func TestPersistentRotationFailureStillLogs(t *testing.T) {
 		t.Fatalf("file %q", got)
 	}
 }
+
+func TestRotationFailureIsReportedOnceAndBacksOff(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "d.log")
+	l, err := Open(p, 100, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+	var report strings.Builder
+	l.report = &report
+	if _, err := l.Write([]byte(strings.Repeat("a", 90))); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(p+".1", "x"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := l.Write([]byte(strings.Repeat("b", 20))); err == nil { // size 110: fails, retry at 120
+		t.Fatal("the failed rotation was not reported to the caller")
+	}
+	for range 5 { // sizes 112..130 reach 120 once; each failure returns an error
+		_, _ = l.Write([]byte("cc"))
+	}
+	if n := strings.Count(report.String(), "\n"); n != 1 || !strings.Contains(report.String(), "rename") {
+		t.Fatalf("report %q, want one line", report.String())
+	}
+	// Backoff: with the blocker gone, a write below the retry size does
+	// not rotate, one at it does.
+	if err := os.RemoveAll(p + ".1"); err != nil {
+		t.Fatal(err)
+	}
+	size := l.size
+	l.retryAt = size + 4
+	if _, err := l.Write([]byte("dd")); err != nil || read(t, p+".1") != "" {
+		t.Fatalf("rotated before the retry size: %v", err)
+	}
+	if _, err := l.Write([]byte("ee")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := l.Write([]byte("f")); err != nil {
+		t.Fatal(err)
+	}
+	if got := read(t, p); got != "f" {
+		t.Fatalf("current %q after the retry", got)
+	}
+	// A later streak is reported again.
+	if l.reported {
+		t.Fatal("the success did not end the streak")
+	}
+}

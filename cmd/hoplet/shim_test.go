@@ -60,12 +60,22 @@ func fakeLaunchctl(userHome string) launchd.Runner {
 // starts harnesses with a fixed environment that keeps HOPLET_TEST_MAIN,
 // so the shims it starts (this binary again) run as shims too, and serves
 // the fake harness when HOPLET_TEST_FAKE names its binary.
+// probeURL is what the test daemon's doctor reaches: HOPLET_TEST_PROBE, or
+// an address nothing listens on, so that a test that forgets to set one
+// never reaches the network.
+func probeURL() string {
+	if u := os.Getenv("HOPLET_TEST_PROBE"); u != "" {
+		return u
+	}
+	return "http://127.0.0.1:1"
+}
+
 func TestMain(m *testing.M) {
 	if os.Getenv("HOPLET_TEST_MAIN") != "" {
 		a := app{
 			stdout: os.Stdout, stderr: os.Stderr, harnesses: map[string]harness.Harness{},
 			env:      env.Static{"PATH=" + os.Getenv("PATH"), "LANG=en_US.UTF-8", "HOPLET_TEST_MAIN=1"},
-			probeURL: os.Getenv("HOPLET_TEST_PROBE"),
+			probeURL: probeURL(),
 			agents:   fakeAgents, allowTempBinary: true,
 		}
 		if bin := os.Getenv("HOPLET_TEST_FAKE"); bin != "" {

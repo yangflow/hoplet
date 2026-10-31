@@ -121,6 +121,9 @@ func TestDescribeEnv(t *testing.T) {
 	if got != "/bin/zsh: 40 variables; withheld: GITHUB_TOKEN; proxy http://127.0.0.1:7890 (system)" {
 		t.Fatalf("%q", got)
 	}
+	if got := describeEnv(proto.EnvInfo{Shell: "/bin/zsh", Vars: 3, Note: "PAC", Warning: "stale"}); !strings.HasSuffix(got, "; no proxy; note: PAC; warning: stale") {
+		t.Errorf("describeEnv with note and warning: %q", got)
+	}
 	if got := describeEnv(proto.EnvInfo{Shell: "/bin/zsh", Vars: 3}); !strings.HasSuffix(got, "; no proxy") {
 		t.Fatalf("%q", got)
 	}

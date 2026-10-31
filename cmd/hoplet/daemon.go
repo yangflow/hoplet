@@ -34,8 +34,11 @@ uninstall stop the LaunchAgent and remove it
 status    show the LaunchAgent and whether the daemon serves
 `
 
-// readyWait bounds how long install waits for the daemon to serve.
-const readyWait = 15 * time.Second
+// readyWait bounds how long install waits for the daemon to serve. It must
+// exceed the login shell's 15 s timeout: on a first install the daemon
+// reads the shell before it listens, and a startup file that hangs delays
+// serving by that long.
+const readyWait = 30 * time.Second
 
 func (a app) daemon(args []string) int {
 	if len(args) > 0 {

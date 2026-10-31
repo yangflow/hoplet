@@ -6,6 +6,7 @@ package logfile
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -26,10 +27,20 @@ type File struct {
 	maxSize int64
 	keep    int
 
-	mu     sync.Mutex
-	f      *os.File // nil after Close, or after a rotation that lost the file
-	closed bool
-	size   int64
+	// report receives the first rotation failure of a streak (stderr, which
+	// is launchd.log under the agent): slog discards a handler's write
+	// errors, so the failure would otherwise be invisible.
+	report io.Writer
+
+	mu sync.Mutex
+	// retryAt is the size at which a failed rotation is tried again, so a
+	// file that cannot be rotated does not pay for a failed attempt on
+	// every line; reported is set while a failure streak has been reported.
+	retryAt  int64
+	reported bool
+	f        *os.File // nil after Close, or after a rotation that lost the file
+	closed   bool
+	size     int64
 }
 
 // Open opens path for appending (mode 0600, creating its directory 0700).
@@ -44,7 +55,7 @@ func Open(path string, maxSize int64, keep int) (*File, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return nil, fmt.Errorf("logfile: %w", err)
 	}
-	l := &File{path: filepath.Clean(path), maxSize: maxSize, keep: keep}
+	l := &File{path: filepath.Clean(path), maxSize: maxSize, keep: keep, report: os.Stderr}
 	if err := l.open(); err != nil {
 		return nil, err
 	}
@@ -77,16 +88,32 @@ func (l *File) Write(p []byte) (int, error) {
 		}
 	}
 	var rotErr error
-	if l.size > 0 && l.size+int64(len(p)) > l.maxSize {
+	if l.size > 0 && l.size+int64(len(p)) > l.maxSize && l.size >= l.retryAt {
 		// A failed rotation must not lose the line: it is written to the
-		// current file and the rotation error is returned with it.
-		if rotErr = l.rotate(); rotErr != nil && l.f == nil {
-			return 0, rotErr
+		// current file and the rotation error is returned with it. The next
+		// attempt waits until the file has grown by a tenth of the limit.
+		if rotErr = l.rotate(); rotErr != nil {
+			l.retryAt = l.size + max(l.maxSize/10, 1)
+			l.noteFailure(rotErr)
+			if l.f == nil {
+				return 0, rotErr
+			}
+		} else {
+			l.retryAt, l.reported = 0, false
 		}
 	}
 	n, err := l.f.Write(p)
 	l.size += int64(n)
 	return n, errors.Join(err, rotErr)
+}
+
+// noteFailure reports the first rotation failure of a streak.
+func (l *File) noteFailure(err error) {
+	if l.reported || l.report == nil {
+		return
+	}
+	l.reported = true
+	_, _ = fmt.Fprintf(l.report, "%v; the log keeps growing, rotation is retried as it grows\n", err)
 }
 
 // rotate renames the file to .1 and starts a new one. If that fails, the

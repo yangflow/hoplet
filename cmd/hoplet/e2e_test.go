@@ -331,7 +331,9 @@ func TestSeveralApprovals(t *testing.T) {
 // running daemon, with launchctl replaced by a recorder.
 func TestDaemonAgent(t *testing.T) {
 	h, userHome := testHome(t)
-	startDaemonProcess(t, h)
+	probe := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) }))
+	defer probe.Close()
+	startDaemonProcess(t, h, "HOPLET_TEST_PROBE="+probe.URL)
 	plist := launchd.Manager{UserHome: userHome}.Path()
 	launchAgent := func() proto.CheckStatus {
 		_, out, _ := cli(t, "doctor", "--json")

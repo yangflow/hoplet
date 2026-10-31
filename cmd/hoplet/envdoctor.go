@@ -65,6 +65,12 @@ func describeEnv(info proto.EnvInfo) string {
 	} else {
 		s += "; no proxy"
 	}
+	if info.Note != "" {
+		s += "; note: " + info.Note
+	}
+	if info.Warning != "" {
+		s += "; warning: " + info.Warning
+	}
 	return s
 }
 
