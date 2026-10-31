@@ -16,6 +16,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sync"
 
 	_ "modernc.org/sqlite" // registers the "sqlite" driver
 )
@@ -46,6 +47,25 @@ type Store struct {
 	dir string
 	db  *sql.DB // single writer
 	rdb *sql.DB // read-only pool
+
+	mu     sync.Mutex
+	change chan struct{} // closed and replaced after every committed write
+}
+
+// Changes returns a channel that is closed after the next committed write
+// to the store, whichever session or catalog it changes. Take the channel
+// before reading the state you wait on, so no write is missed.
+func (s *Store) Changes() <-chan struct{} {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.change
+}
+
+func (s *Store) signalChange() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	close(s.change)
+	s.change = make(chan struct{})
 }
 
 // dsn builds a SQLite URI for path with the given query parameters, escaping
@@ -90,7 +110,7 @@ func open(ctx context.Context, dir string, fsys fs.FS) (*Store, error) {
 		return nil, fmt.Errorf("store: open: %w", err)
 	}
 	db.SetMaxOpenConns(1)
-	s := &Store{dir: dir, db: db}
+	s := &Store{dir: dir, db: db, change: make(chan struct{})}
 	if err := s.migrate(ctx, fsys); err != nil {
 		db.Close()
 		return nil, err
@@ -143,5 +163,6 @@ func (s *Store) tx(ctx context.Context, durable bool, fn func(*sql.Tx) error) (e
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("store: commit: %w", err)
 	}
+	s.signalChange()
 	return nil
 }

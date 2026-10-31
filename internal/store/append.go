@@ -58,11 +58,14 @@ type AppendResult struct {
 // synchronous=NORMAL, so a shim must not truncate its spool based on them;
 // spools are removed only when a session is archived.
 //
+// A turn.ended for a turn that is not open (never started, or already
+// ended) is stored but changes no projection and expires nothing.
+//
 // Invalid entries (a nil or malformed payload, turn.started or turn.ended
 // without a turn number) fail the whole append with an error wrapping
-// ErrInvalid. Callers ingesting harness data must, on ErrInvalid, retry entry
-// by entry and replace invalid entries with a proto.Error event so ingestion
-// never stalls; the store does not do this itself.
+// ErrInvalid. Callers ingesting harness data check each entry with
+// ValidateEntry first and replace invalid ones with a proto.Error event, so
+// ingestion never stalls; the store does not do this itself.
 func (s *Store) Append(ctx context.Context, req AppendRequest) (AppendResult, error) {
 	if len(req.Entries) == 0 && req.IngestOffset == nil {
 		return AppendResult{}, fmt.Errorf("%w: append needs entries or an ingest offset", ErrInvalid)
@@ -140,21 +143,37 @@ func (s *Store) ResolveApproval(ctx context.Context, session proto.SessionID, tu
 	return out, nil
 }
 
+// ValidateEntry applies the checks Append makes to one entry appended with
+// the given turn number: the payload must be well formed, and turn.started
+// and turn.ended need a turn number. The error wraps ErrInvalid.
+func ValidateEntry(turn uint32, e Entry) error {
+	_, err := newEvent("", turn, time.Time{}, e)
+	return err
+}
+
+func newEvent(session proto.SessionID, turn uint32, t time.Time, e Entry) (proto.Event, error) {
+	switch e.Payload.(type) {
+	case proto.TurnStarted, proto.TurnEnded:
+		if turn == 0 {
+			return proto.Event{}, fmt.Errorf("%w: %T needs a turn number", ErrInvalid, e.Payload)
+		}
+	}
+	ev, err := proto.NewEvent(session, 0, turn, t, e.Payload)
+	if err != nil {
+		return proto.Event{}, fmt.Errorf("%w: %w", ErrInvalid, err)
+	}
+	ev.Raw = e.Raw
+	return ev, nil
+}
+
 // newEvents validates the request's entries and builds their events.
 func newEvents(req AppendRequest) ([]proto.Event, error) {
 	events := make([]proto.Event, 0, len(req.Entries))
 	for _, e := range req.Entries {
-		switch e.Payload.(type) {
-		case proto.TurnStarted, proto.TurnEnded:
-			if req.Turn == 0 {
-				return nil, fmt.Errorf("%w: %T needs a turn number", ErrInvalid, e.Payload)
-			}
-		}
-		ev, err := proto.NewEvent(req.Session, 0, req.Turn, req.Time, e.Payload)
+		ev, err := newEvent(req.Session, req.Turn, req.Time, e)
 		if err != nil {
-			return nil, fmt.Errorf("%w: %w", ErrInvalid, err)
+			return nil, err
 		}
-		ev.Raw = e.Raw
 		events = append(events, ev)
 	}
 	return events, nil
@@ -205,8 +224,14 @@ func writeBatch(ctx context.Context, tx *sql.Tx, req AppendRequest, events []pro
 	for i := range events {
 		p := req.Entries[i].Payload
 		if _, ok := p.(proto.TurnEnded); ok {
-			if last, err = expirePending(ctx, tx, req, last); err != nil {
+			open, err := turnOpen(ctx, tx, req.Session, req.Turn)
+			if err != nil {
 				return res, err
+			}
+			if open {
+				if last, err = expirePending(ctx, tx, req, last); err != nil {
+					return res, err
+				}
 			}
 		}
 		last++
@@ -248,6 +273,19 @@ func writeBatch(ctx context.Context, tx *sql.Tx, req AppendRequest, events []pro
 		}
 	}
 	return res, nil
+}
+
+// turnOpen reports whether the session has turn n and it has not ended.
+func turnOpen(ctx context.Context, tx *sql.Tx, session proto.SessionID, n uint32) (bool, error) {
+	var one int
+	err := tx.QueryRowContext(ctx, `SELECT 1 FROM turns WHERE session_id = ? AND n = ? AND end_seq IS NULL`, session, n).Scan(&one)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("store: read turn %d: %w", n, err)
+	}
+	return true, nil
 }
 
 // expirePending appends an expired approval.resolved event for every pending
@@ -344,7 +382,7 @@ func project(ctx context.Context, tx *sql.Tx, ev proto.Event, p proto.Payload) e
 		q = `INSERT INTO turns (session_id, n, start_seq) VALUES (?, ?, ?) ON CONFLICT DO NOTHING`
 		args = []any{ev.Session, ev.Turn, ev.Seq}
 	case proto.TurnEnded:
-		q = `UPDATE turns SET end_seq = ?, reason = ? WHERE session_id = ? AND n = ?`
+		q = `UPDATE turns SET end_seq = ?, reason = ? WHERE session_id = ? AND n = ? AND end_seq IS NULL`
 		args = []any{ev.Seq, p.Reason, ev.Session, ev.Turn}
 	case proto.ApprovalRequested:
 		q = `INSERT INTO approvals (id, session_id, request_seq, kind, status) VALUES (?, ?, ?, ?, 'pending') ON CONFLICT DO NOTHING`
