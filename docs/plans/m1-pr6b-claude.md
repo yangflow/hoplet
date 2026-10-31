@@ -378,7 +378,7 @@ git commit -s -m "feat(daemon): show harness notices and run daily maintenance"
 
 **文件：** 创建 `internal/harness/claude/{claude,wire,tools,run,state}.go`、`contract_test.go`、`adapter_test.go`
 
-**接口：** 消费任务 1 的 `harness.Info.Notice / Attention`。产生 `claude.Harness`、`Kind`、`BinaryPath`、`ErrNotInstalled`；内部 `newRun`、`verifiedVersions`、`nativeMode`、`hopletMode`；`state.go` 的 `localVerified`、`addVerified`、`Update`、`lastUpdate`、`writeAtomic`（`Probe` 用前两者判断是否支持、用 `lastUpdate` 填提示；其余供任务 3）。
+**接口：** 消费任务 1 的 `harness.Info.Notice / Attention`。产生 `claude.Harness`、`Kind`、`BinaryPath`、`ErrNotInstalled`；内部 `newRun`、`verifiedVersions`、`nativeMode`、`hopletMode`；`state.go` 的 `localVerified`、`readVerified`、`Update`、`lastUpdate`（`Probe` 用 `localVerified` 判断是否支持、用 `lastUpdate` 填提示）；写这两个文件的 `addVerified`、`writeAtomic` 在任务 3 的 `install.go`。
 
 - [ ] **步骤 1：写测试**
 
@@ -4004,3 +4004,19 @@ gh pr create --title "feat(harness/claude): add Claude Code adapter" --fill
 - 审批档位、Plan（含批准方案后恢复原档位并上报）、思考强度、模型可在新建时设置与中途切换；不支持的 ultra / Fast 被拒绝。
 - `hoplet harness install / upgrade claude` 对未录制的版本先跑本机自检，不过则保留旧副本；守护进程每天跟进 PATH 上的 claude，结果在 doctor 中可见，可在配置中关闭；`Probe` 缓存，换了二进制才重新探测。
 - `make check` 本地和 CI 通过。
+
+## 实现与计划的差异（执行中追加）
+
+逐任务评审后在计划代码之外做了以下修改；后续 PR 以 `main` 上的真实代码为准：
+
+| 方面 | 变化 |
+|---|---|
+| 录制 | 原有 4 段录制（`auto_effort`、`no_initialize`、`plan_approve`、`set_model`）实际是 claude 自动更新到 2.1.316 后录的，已用 2.1.312 的二进制重录；10 段录制全部由仓库的 `Sanitize` 从原始录制生成（原有 6 段内容不变，仅键序不同），golden 重新生成并审阅 |
+| 契约测试 | 每条录到的输入必须恰好产生一次写入；适配器自己发出的写入（退出 Plan 后恢复档位、拒绝未知控制请求）写进 golden；`control_response` 还比较 `updatedInput` |
+| 适配器 | claude 报来无法映射的模式（如 `dontAsk`）只上报一次；读循环自己的写入限时 10 秒；没有建议时"始终允许"返回错误而不是悄悄降级；`result` 的 `errors` 字段类型变化不再导致整行解析失败 |
+| 安装与跟进 | 同一主目录的安装用文件锁串行（CLI 升级与守护进程跟进可能同时发生）；先复制到临时文件再对副本做版本检查与自检，最后改名；清理崩溃残留的临时文件；跟进失败按天重试，同一版本连续 3 次失败才放弃，守护进程关闭打断的检查不计入；记录实际安装的版本 |
+| 自检 | 修复续接步骤失败时的空指针；等待轮次结束时遇到的任何审批都拒绝并继续等，切到自动编辑后只有文件修改类审批算失败 |
+| 脱敏 | 路径按边界替换（后面不是字母数字就算结束，宁多勿少）；同时替换给定路径与解析符号链接后的路径、两种项目目录 slug 形式；丢弃 hook 类 system 行；在第一条既未回答也未被 claude 撤回的审批处截断录制 |
+| 命令行 | `hoplet dev record` 用守护进程同样的 harness 环境（过滤凭证）；安装前先读环境，读失败不再被误报为自检失败；输出文件关闭失败时删除半成品 |
+| 已知未处理 | 连续快速切换档位时 claude 的过期回显可能多报一次 `mode.changed`（没有回显时序的录制依据，不做猜测性修复）；安装锁等待不响应 ctx（等待上限是对方的一次自检） |
+
