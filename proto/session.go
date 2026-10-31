@@ -62,19 +62,21 @@ type HarnessRef struct {
 // Session is a conversation with one harness, optionally bound to a
 // working directory.
 type Session struct {
-	ID         SessionID     `json:"id"`
-	Mode       Mode          `json:"mode"`
-	Harness    HarnessRef    `json:"harness"`
-	Directory  string        `json:"directory,omitempty"`
-	Isolation  Isolation     `json:"isolation,omitempty"`
-	Owner      Owner         `json:"owner"`
-	Origin     Origin        `json:"origin"`
-	Status     SessionStatus `json:"status"`
-	Title      string        `json:"title,omitempty"`
-	CreatedAt  time.Time     `json:"created_at"`
-	UpdatedAt  time.Time     `json:"updated_at"`
-	ArchivedAt *time.Time    `json:"archived_at,omitempty"`
-	LastSeq    uint64        `json:"last_seq"`
+	ID      SessionID  `json:"id"`
+	Mode    Mode       `json:"mode"`
+	Harness HarnessRef `json:"harness"`
+	// Permission is the session's permission mode; empty means confirm.
+	Permission PermissionMode `json:"permission,omitempty"`
+	Directory  string         `json:"directory,omitempty"`
+	Isolation  Isolation      `json:"isolation,omitempty"`
+	Owner      Owner          `json:"owner"`
+	Origin     Origin         `json:"origin"`
+	Status     SessionStatus  `json:"status"`
+	Title      string         `json:"title,omitempty"`
+	CreatedAt  time.Time      `json:"created_at"`
+	UpdatedAt  time.Time      `json:"updated_at"`
+	ArchivedAt *time.Time     `json:"archived_at,omitempty"`
+	LastSeq    uint64         `json:"last_seq"`
 	// Version is the store's catalog counter value at this session's last
 	// change; it grows with every change to the session record.
 	Version uint64 `json:"version"`

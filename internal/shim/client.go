@@ -26,8 +26,10 @@ func errorFrame(m Message) *Error {
 // Client is a connection to a shim. Recv must be called from one goroutine;
 // the send methods may be called from any.
 type Client struct {
-	c   *conn
-	pid int
+	c    *conn
+	pid  int
+	size int64
+	from int64
 }
 
 // Dial connects to the shim in dir and resumes from offset. The whole
@@ -77,13 +79,22 @@ func handshake(nc net.Conn, offset int64) (*Client, error) {
 		if m.Version != ProtocolVersion {
 			return nil, &Error{Code: CodeVersion, Message: fmt.Sprintf("shim speaks protocol %d; this client speaks %d", m.Version, ProtocolVersion), Version: m.Version}
 		}
-		return &Client{c: c, pid: m.Pid}, nil
+		return &Client{c: c, pid: m.Pid, size: m.Offset, from: offset}, nil
 	case MsgError:
 		return nil, errorFrame(m)
 	default:
 		return nil, fmt.Errorf("shim: unexpected %q frame", m.Type)
 	}
 }
+
+// Size is the spool's size when the shim accepted this client. A client whose
+// consumed offset has reached Size has caught up with everything recorded
+// before it connected.
+func (c *Client) Size() int64 { return c.size }
+
+// From is the spool offset the client asked to resume from, where the first
+// record it receives starts.
+func (c *Client) From() int64 { return c.from }
 
 // Pid is the child's process ID.
 func (c *Client) Pid() int { return c.pid }

@@ -71,9 +71,11 @@ const (
 )
 
 // Message is one frame. Offset is the spool byte offset: in hello, where to
-// resume; in record, the offset just after that record; in ack, how far the
-// client has durably consumed; in a corrupt or record_too_large error, where
-// the offending record starts.
+// resume; in welcome, the spool's size when the client was accepted (a client
+// that has consumed up to that offset has caught up with everything the shim
+// had recorded by then); in record, the offset just after that record; in
+// ack, how far the client has durably consumed; in a corrupt or
+// record_too_large error, where the offending record starts.
 type Message struct {
 	Type    MessageType `json:"type"`
 	Version int         `json:"v,omitempty"`

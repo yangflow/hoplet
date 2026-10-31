@@ -83,7 +83,8 @@ type Spec struct {
 // Event is one normalized event.
 //
 // Every Line a Stdio delivers yields at least one Event (its Payload may be
-// nil), carrying that Line's Offset, so the daemon can commit offsets along
+// nil), carrying that Line's Offset (a Position line yields an Event with
+// nothing but the Offset), so the daemon can commit offsets along
 // with events and acknowledge the exit record. Raw is the native line; the
 // one exception to "every event carries its raw line" is a synthetic event
 // (such as an aborted TurnEnded), which carries the triggering line's Offset
@@ -95,6 +96,9 @@ type Event struct {
 	Offset  int64       // transport position just after the triggering line
 	Native  string      // set where the harness announces its own session ID
 	Exit    *ExitStatus // set on the final event when the harness process ended
+	// StdinError reports that a line written to the harness's stdin failed;
+	// the Payload says why.
+	StdinError bool
 }
 
 // LineKind says where a stdio line came from.
@@ -107,6 +111,10 @@ const (
 	Stdin      // a line written to the harness's stdin, as recorded by the transport
 	StdinError // a stdin write that failed to reach the harness; Data says why
 	Exit
+	// Position carries only a transport position (Offset), no data: a record
+	// the harness adapter has no use for, such as a shim's start record. The
+	// daemon still needs its offset to know it has caught up.
+	Position
 )
 
 // MaxLine is the longest Line.Data a Stdio delivers; longer lines arrive as

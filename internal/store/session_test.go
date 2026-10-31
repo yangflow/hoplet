@@ -111,3 +111,31 @@ func TestCreateSessionDuplicate(t *testing.T) {
 		t.Fatalf("got %v, want ErrExists", err)
 	}
 }
+
+func TestSessionPermission(t *testing.T) {
+	ctx := context.Background()
+	s := newStore(t)
+	sess := newSession(t, s, "p")
+	if sess.Permission != proto.ModeConfirm {
+		t.Fatalf("default permission %q", sess.Permission)
+	}
+	auto := proto.ModeAutoEdit
+	got, err := s.UpdateSession(ctx, "p", SessionUpdate{Permission: &auto})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Permission != proto.ModeAutoEdit {
+		t.Fatalf("updated permission %q", got.Permission)
+	}
+	if again, _ := s.Session(ctx, "p"); again.Permission != proto.ModeAutoEdit {
+		t.Fatalf("stored permission %q", again.Permission)
+	}
+	bogus := proto.PermissionMode("bogus")
+	if _, err := s.UpdateSession(ctx, "p", SessionUpdate{Permission: &bogus}); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("bogus update: %v", err)
+	}
+	if _, err := s.CreateSession(ctx, proto.Session{ID: "q", Mode: proto.ModeCode, Harness: proto.HarnessRef{Kind: "fake"},
+		Owner: proto.OwnerMe, Origin: proto.OriginMe, Permission: bogus}); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("bogus create: %v", err)
+	}
+}

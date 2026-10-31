@@ -15,7 +15,10 @@
 //
 // Each frame is a 4-byte big-endian length followed by a JSON message. The
 // client opens with a hello carrying ProtocolVersion; the shim answers with
-// a welcome, which means the shim is ready and records follow, or with an
+// a welcome, which means the shim is ready and records follow (the welcome
+// carries the spool's current size in its offset field, so a client can tell
+// when it has caught up; the field is additive and absent from older shims,
+// which reads as 0), or with an
 // error frame (carrying a Code) and closes. A new client replaces the
 // previous one only once its hello is accepted.
 //

@@ -641,6 +641,9 @@ func TestEveryLineYieldsAnEventWithOffset(t *testing.T) {
 	if evs[0].Payload != nil || string(evs[0].Raw) != "in" {
 		t.Fatalf("stdin event %+v", evs[0])
 	}
+	if !evs[1].StdinError || evs[0].StdinError || evs[2].StdinError {
+		t.Fatalf("StdinError flags: %v %v %v", evs[0].StdinError, evs[1].StdinError, evs[2].StdinError)
+	}
 	if e := payloadAs[proto.Error](t, evs[1].Payload); !strings.Contains(e.Message, "broken pipe") || len(evs[1].Raw) == 0 {
 		t.Fatalf("stdin error event %+v", evs[1])
 	}
@@ -697,5 +700,56 @@ func TestCloseIsNotDetached(t *testing.T) {
 	waitClosed(t, r)
 	if r.Err() != nil {
 		t.Fatalf("Err after caller-initiated Close: %v", r.Err())
+	}
+}
+
+// TestRepeatedRespondIsIgnored checks that a decision delivered again, or for
+// an approval nothing awaits, is dropped without an error event.
+func TestRepeatedRespondIsIgnored(t *testing.T) {
+	r := start(t, Script{Turns: []Turn{{Steps: []Step{{AwaitApproval: "a"}}}}})
+	ctx := context.Background()
+	// Outside a turn.
+	if err := r.Respond(ctx, "a", "once"); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.Send(ctx, "go"); err != nil {
+		t.Fatal(err)
+	}
+	next(t, r)                                              // turn started
+	if err := r.Respond(ctx, "other", "once"); err != nil { // not awaited
+		t.Fatal(err)
+	}
+	if err := r.Respond(ctx, "a", "once"); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.Respond(ctx, "a", "once"); err != nil { // repeated after the turn ended
+		t.Fatal(err)
+	}
+	got := until(t, r)
+	for _, p := range got {
+		if e, ok := p.(proto.Error); ok {
+			t.Fatalf("unexpected error event %q in %#v", e.Message, got)
+		}
+	}
+	if end := payloadAs[proto.TurnEnded](t, got[len(got)-1]); end.Reason != proto.TurnCompleted {
+		t.Fatalf("end %#v", end)
+	}
+}
+
+func TestPositionLineYieldsAnOffsetOnlyEvent(t *testing.T) {
+	stub := &stubStdio{lines: make(chan harness.Line, 2)}
+	r, err := (&Harness{}).Attach(context.Background(), harness.Spec{}, stub)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	stub.lines <- harness.Line{Kind: harness.Position, Offset: 17}
+	stub.lines <- harness.Line{Kind: harness.Exit, Offset: 30}
+	var evs []harness.Event
+	for ev := range r.Events() {
+		evs = append(evs, ev)
+	}
+	if len(evs) != 2 || evs[0].Offset != 17 || evs[0].Payload != nil || evs[0].Raw != nil || evs[0].Native != "" || evs[0].Exit != nil || evs[0].Stderr || evs[0].StdinError {
+		t.Fatalf("events %+v", evs)
 	}
 }

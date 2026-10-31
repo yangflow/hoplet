@@ -137,8 +137,11 @@ func (r *run) handle(line harness.Line) (ev harness.Event, final bool) {
 	case harness.Stderr:
 		ev.Stderr = true
 	case harness.Stdin:
+	case harness.Position:
+		ev.Raw = nil // nothing but the offset
 	case harness.StdinError:
 		ev.Payload = proto.Error{Message: "harness stdin write failed: " + string(line.Data)}
+		ev.StdinError = true
 	case harness.Exit:
 		ev.Raw = nil
 		ev.Exit = &harness.ExitStatus{Code: line.Code, Signal: line.Signal}

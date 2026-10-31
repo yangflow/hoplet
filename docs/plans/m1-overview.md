@@ -16,7 +16,7 @@
 | 依赖 | 版本 | 用途 | 引入于 |
 |---|---|---|---|
 | `modernc.org/sqlite` | v1.61.0 | 纯 Go SQLite（无 cgo） | PR2 |
-| `github.com/coder/websocket` | v1.8.15 | 客户端协议的 WebSocket | PR5 |
+| `github.com/coder/websocket` | v1.8.15 | 客户端协议的 WebSocket | PR5b |
 | `github.com/egoist/mygo` | v0.7.3 | 桌面端 | PR9 |
 
 ## PR 拆分与顺序
@@ -26,11 +26,13 @@ flowchart LR
     P1["PR1 骨架 + 事件类型"] --> P2["PR2 存储"]
     P1 --> P3["PR3 shim"]
     P1 --> P4["PR4 harness 接口 + 假 harness"]
-    P2 --> P5["PR5 守护进程 + 本机 API + CLI"]
+    P2 --> P5["PR5a 会话管理器"]
     P3 --> P5
     P4 --> P5
-    P5 --> P6["PR6 Claude Code 适配"]
-    P5 --> P7["PR7 Hermes 适配"]
+    P5 --> P5b["PR5b 守护进程 + 本机 API"]
+    P5b --> P5c["PR5c CLI 与安装"]
+    P5b --> P6["PR6 Claude Code 适配"]
+    P5b --> P7["PR7 Hermes 适配"]
     P5 --> P8["PR8 工作目录 + 会话累计 diff"]
     P6 --> P9["PR9 最简桌面端"]
     P7 --> P9
@@ -45,7 +47,9 @@ PR2、PR3、PR4 互不依赖，可以并行开发；PR6、PR7、PR8 也一样。
 | 2 | `feat(store): add SQLite store with event log and receipts` | 迁移框架；会话 / 轮次 / 事件 / 回执 / 审批表；blob 目录；“事件 + 投影 + 回执”同一事务；增量合批与压缩；丢失契约 | 幂等键重复提交只执行一次；需确认的写入落盘后才返回；压缩后回放结果不变；10 万事件写入基准有记录 |
 | 3 | `feat(shim): add per-session shim with spool and resume` | `hoplet shim`：托管子进程 stdio；`spool.jsonl` 追加；Unix socket 帧协议（带版本）；按偏移续读 | **验证假设：** 客户端被 `kill -9` 后重连，从偏移处续读，不丢、不重；子进程感知不到客户端断开 |
 | 4 | `feat(harness): add harness interfaces and scriptable fake harness` | `Harness` / `Run` 接口、能力位、归一化事件映射约定；`internal/harness/fake`：按剧本输出 Claude stream-json 子集的假 harness 二进制 | 剧本能产生：流式文本、工具调用、审批请求、中途崩溃、慢输出 |
-| 5 | `feat(daemon): add daemon, local API and CLI` | `hoplet daemon`：flock 单例、原子接管 socket、LaunchAgent 安装；登录 shell 环境解析；代理注入；客户端协议（hello、目录 / 会话订阅、命令、审批先答者生效）；`internal/client`；CLI：`session new/send/watch/wait/approve/archive`、`daemon install/status`、`env refresh`、`doctor`（M1 子集） | **验证假设：** 守护进程在轮次中途 `kill -9` 后重启，会话续接，事件不缺；两个客户端抢答同一审批，只有一个生效 |
+| 5a | `feat(session): run sessions behind shims and ingest into the store` | `internal/session`：shim 版 Stdio、shim 启动器、会话管理器（创建、发送、审批先答者生效、中断、续接、脱离）、入库循环；存储补轮次状态与会话权限模式 | **验证假设：** 管理器在轮次中途走开，新管理器续接后本轮完整入库、每个事件恰好一次；两个客户端抢答同一审批只有一个生效 |
+| 5b | `feat(daemon): add daemon and local API` | `hoplet daemon`：flock 单例、原子接管 socket；客户端协议（hello、目录 / 会话订阅、命令及回执、审批）；持久化消息队列；`internal/client`；守护进程先运行 `session.Manager.Recover`，再开始服务任何命令 | **验证假设：** 真实守护进程在轮次中途 `kill -9` 后重启，会话续接、事件不缺 |
+| 5c | `feat(cli): add session CLI, daemon install and doctor` | CLI：`session new/send/watch/wait/approve/archive`、`daemon install/status`（LaunchAgent）、`env refresh`；登录 shell 环境解析；代理注入；`doctor`（M1 子集） | 在终端里用假 harness 跑通一次会话（真实 harness 随 PR6 / PR7 接入） |
 | 6 | `feat(harness/claude): add Claude Code adapter` | **第一步验证假设：** `hoplet dev record` 录制真实 stream-json 会话，确认审批（control_request）、中断、切换权限模式都能走通；随后实现适配器：事件映射、四档会话模式映射、审批转发、版本区间门控；契约测试（录制回放） | 用真实 Claude Code 完成一次“改文件 + 执行命令需审批”的会话；契约测试在 CI 中离线通过 |
 | 7 | `feat(harness/hermes): add Hermes adapter for Personal mode` | **第一步验证假设：** 用 TUI-gateway JSON-RPC 驱动 Hermes（独立 `HERMES_HOME`），确认流式、审批、steer、interrupt；随后实现适配器、gateway 生命周期管理、契约测试 | 用真实 Hermes 完成一次 Personal 对话；守护进程重启后 Hermes 会话能续上 |
 | 8 | `feat(workspace): discover repos and show session diff` | 扫描工作目录下的仓库；会话开始时用私有 index 记录基线（不写用户仓库）；按仓库给出“会话累计”diff（只读） | 多仓库目录下改动能按仓库正确汇总；用户仓库 `.git` 无任何新增 ref / 对象 |
@@ -55,7 +59,7 @@ PR2、PR3、PR4 互不依赖，可以并行开发；PR6、PR7、PR8 也一样。
 
 | 假设 | 在哪验证 | 不成立时 |
 |---|---|---|
-| shim 托管 stdio 后，守护进程重启不影响 harness | PR3、PR5 | 停下，重新讨论 0002 |
+| shim 托管 stdio 后，守护进程重启不影响 harness | PR3、PR5a、PR5b | 停下，重新讨论 0002 |
 | Claude Code stream-json 控制协议覆盖审批、中断、切模式 | PR6 第一步 | 改用 `--permission-prompt-tool <MCP 工具>` 做审批 |
 | Hermes 能通过 TUI-gateway 稳定驱动 | PR7 第一步 | 改用 ACP |
 | 纯 Go SQLite 性能够用 | PR2 基准 | 换 cgo 版本（需同意） |
@@ -67,4 +71,5 @@ PR2、PR3、PR4 互不依赖，可以并行开发；PR6、PR7、PR8 也一样。
 - [PR1：骨架与事件类型](m1-pr1-proto.md)（已合并）
 - [PR2：存储](m1-pr2-store.md)（已合并）
 - [PR3：shim](m1-pr3-shim.md)（已合并）
-- [PR4：harness 接口与假 harness](m1-pr4-harness.md)
+- [PR4：harness 接口与假 harness](m1-pr4-harness.md)（已合并）
+- [PR5a：会话管理器](m1-pr5a-session.md)

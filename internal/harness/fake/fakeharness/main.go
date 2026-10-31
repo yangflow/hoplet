@@ -36,7 +36,9 @@ func main() {
 		session, next = resume, script.ResumeTurn
 	}
 	h := &harness{out: json.NewEncoder(os.Stdout), ops: make(chan fake.Op)}
-	h.emit(fake.Ev{Ev: "session", ID: session})
+	if !script.QuietStart {
+		h.emit(fake.Ev{Ev: "session", ID: session})
+	}
 	go h.readOps()
 	for op := range h.ops {
 		switch op.Op {
@@ -53,7 +55,9 @@ func main() {
 			h.emit(fake.Ev{Ev: "message", ID: "model", Text: "model:" + op.Text})
 		case "interrupt":
 			// Nothing to interrupt.
-		case "steer", "respond", "answer":
+		case "respond":
+			// A decision for an approval nothing awaits (a repeated delivery) is ignored.
+		case "steer", "answer":
 			h.emit(fake.Ev{Ev: "error", Text: op.Op + " outside a turn"})
 		}
 	}
@@ -211,6 +215,8 @@ func (h *harness) wait(timer <-chan time.Time, done func(fake.Op) bool) bool {
 				h.emit(fake.Ev{Ev: "message", ID: "model", Text: "model:" + op.Text})
 			case done != nil && done(op):
 				return true
+			case op.Op == "respond":
+				// Not the awaited approval, or a repeated delivery: ignored.
 			default:
 				h.emit(fake.Ev{Ev: "error", Text: "unexpected " + op.Op})
 			}

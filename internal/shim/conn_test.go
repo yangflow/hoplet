@@ -350,3 +350,28 @@ func TestRunReportsExitSyncFailure(t *testing.T) {
 		t.Fatal("shim did not exit")
 	}
 }
+
+func TestWelcomeCarriesSpoolSize(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	dir, done := startShim(ctx, t, time.Minute, "echo")
+	first := dial(t, dir, 0)
+	if err := first.Stdin("hello"); err != nil {
+		t.Fatal(err)
+	}
+	_, end := recvUntil(t, first, func(r Record) bool { return r.Kind == KindStdout && r.Data == "echo:hello" })
+	second := dial(t, dir, 0)
+	if second.Size() < end || second.Size() != fileSize(t, SpoolPath(dir)) {
+		t.Fatalf("welcome size %d, want the spool size %d (>= %d)", second.Size(), fileSize(t, SpoolPath(dir)), end)
+	}
+	cancel()
+	waitDone(t, done)
+}
+
+func fileSize(t *testing.T, path string) int64 {
+	t.Helper()
+	fi, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return fi.Size()
+}

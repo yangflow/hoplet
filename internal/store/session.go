@@ -14,13 +14,16 @@ import (
 )
 
 const sessionColumns = `id, mode, harness_kind, harness_version, native_id, directory, isolation,
-	owner, origin, status, title, created_at, updated_at, archived_at, last_seq, version`
+	owner, origin, status, title, created_at, updated_at, archived_at, last_seq, version, permission`
 
 // CreateSession stores a new session. Status defaults to idle and
 // CreatedAt to now; UpdatedAt equals CreatedAt. The write is durable.
 func (s *Store) CreateSession(ctx context.Context, sess proto.Session) (proto.Session, error) {
 	if sess.Status == "" {
 		sess.Status = proto.StatusIdle
+	}
+	if sess.Permission == "" {
+		sess.Permission = proto.ModeConfirm
 	}
 	if err := validateSession(sess); err != nil {
 		return proto.Session{}, err
@@ -34,10 +37,10 @@ func (s *Store) CreateSession(ctx context.Context, sess proto.Session) (proto.Se
 	sess.LastSeq = 0
 	err := s.tx(ctx, true, func(tx *sql.Tx) error {
 		_, err := tx.ExecContext(ctx, `INSERT INTO sessions (`+sessionColumns+`)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 0, 0)`,
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 0, 0, ?)`,
 			sess.ID, sess.Mode, sess.Harness.Kind, sess.Harness.Version, sess.Harness.NativeID,
 			sess.Directory, sess.Isolation, sess.Owner, sess.Origin, sess.Status, sess.Title,
-			sess.CreatedAt.UnixMilli(), sess.UpdatedAt.UnixMilli())
+			sess.CreatedAt.UnixMilli(), sess.UpdatedAt.UnixMilli(), sess.Permission)
 		var serr *sqlite.Error
 		if errors.As(err, &serr) && serr.Code() == sqlite3.SQLITE_CONSTRAINT_PRIMARYKEY {
 			return fmt.Errorf("%w: session %s", ErrExists, sess.ID)
@@ -93,7 +96,18 @@ func validateSession(sess proto.Session) error {
 	default:
 		return bad("status %q", sess.Status)
 	}
+	if !validPermission(sess.Permission) {
+		return bad("permission %q", sess.Permission)
+	}
 	return nil
+}
+
+func validPermission(m proto.PermissionMode) bool {
+	switch m {
+	case proto.ModeReadOnly, proto.ModeConfirm, proto.ModeAutoEdit, proto.ModeFullAuto:
+		return true
+	}
+	return false
 }
 
 // Session returns one session, or ErrNotFound.
@@ -166,21 +180,25 @@ func bumpVersion(ctx context.Context, tx *sql.Tx, id proto.SessionID) error {
 // SessionUpdate lists the session fields UpdateSession may change; nil
 // fields are left alone.
 type SessionUpdate struct {
-	NativeID *string
-	Title    *string
+	NativeID   *string
+	Title      *string
+	Permission *proto.PermissionMode
 }
 
-// UpdateSession changes a session's harness-native ID and/or title and
-// returns the updated session. The write is durable; with nothing to change
+// UpdateSession changes a session's harness-native ID, title and/or
+// permission mode and returns the updated session. The write is durable; with nothing to change
 // it writes nothing and returns the current session.
 func (s *Store) UpdateSession(ctx context.Context, id proto.SessionID, u SessionUpdate) (proto.Session, error) {
-	if u.NativeID == nil && u.Title == nil {
+	if u.NativeID == nil && u.Title == nil && u.Permission == nil {
 		return s.Session(ctx, id)
+	}
+	if u.Permission != nil && !validPermission(*u.Permission) {
+		return proto.Session{}, fmt.Errorf("%w: permission %q", ErrInvalid, *u.Permission)
 	}
 	var out proto.Session
 	err := s.tx(ctx, true, func(tx *sql.Tx) error {
-		res, err := tx.ExecContext(ctx, `UPDATE sessions SET native_id = COALESCE(?, native_id), title = COALESCE(?, title) WHERE id = ?`,
-			u.NativeID, u.Title, id)
+		res, err := tx.ExecContext(ctx, `UPDATE sessions SET native_id = COALESCE(?, native_id), title = COALESCE(?, title),
+			permission = COALESCE(?, permission) WHERE id = ?`, u.NativeID, u.Title, u.Permission, id)
 		if err != nil {
 			return fmt.Errorf("store: update session %s: %w", id, err)
 		}
@@ -228,7 +246,7 @@ func scanSession(r scanner) (proto.Session, error) {
 	)
 	err := r.Scan(&sess.ID, &sess.Mode, &sess.Harness.Kind, &sess.Harness.Version, &sess.Harness.NativeID,
 		&sess.Directory, &sess.Isolation, &sess.Owner, &sess.Origin, &sess.Status, &sess.Title,
-		&created, &updated, &archived, &sess.LastSeq, &sess.Version)
+		&created, &updated, &archived, &sess.LastSeq, &sess.Version, &sess.Permission)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return proto.Session{}, err
