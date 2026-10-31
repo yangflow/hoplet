@@ -9,14 +9,28 @@ import (
 	"testing"
 	"time"
 
+	"github.com/yangflow/hoplet/internal/env"
+	"github.com/yangflow/hoplet/internal/harness"
+	"github.com/yangflow/hoplet/internal/harness/fake"
 	"github.com/yangflow/hoplet/internal/shim"
 )
 
 // TestMain lets the test binary stand in for the hoplet binary: with
-// HOPLET_TEST_MAIN set it runs the command line it was given.
+// HOPLET_TEST_MAIN set it runs the command line it was given. Its daemon
+// starts harnesses with a fixed environment that keeps HOPLET_TEST_MAIN,
+// so the shims it starts (this binary again) run as shims too, and serves
+// the fake harness when HOPLET_TEST_FAKE names its binary.
 func TestMain(m *testing.M) {
 	if os.Getenv("HOPLET_TEST_MAIN") != "" {
-		os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
+		a := app{
+			stdout: os.Stdout, stderr: os.Stderr, harnesses: map[string]harness.Harness{},
+			env:      env.Static{"PATH=" + os.Getenv("PATH"), "HOPLET_TEST_MAIN=1"},
+			probeURL: os.Getenv("HOPLET_TEST_PROBE"),
+		}
+		if bin := os.Getenv("HOPLET_TEST_FAKE"); bin != "" {
+			a.harnesses["fake"] = &fake.Harness{Binary: bin, Script: os.Getenv("HOPLET_TEST_SCRIPT")}
+		}
+		os.Exit(a.run(os.Args[1:]))
 	}
 	os.Exit(m.Run())
 }

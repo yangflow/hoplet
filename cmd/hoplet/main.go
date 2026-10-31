@@ -12,31 +12,70 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/yangflow/hoplet/internal/env"
+	"github.com/yangflow/hoplet/internal/harness"
 	"github.com/yangflow/hoplet/internal/shim"
 )
 
 // version is set at build time with -ldflags "-X main.version=v0.1.0".
 var version = "dev"
 
+const usage = `usage: hoplet <command>
+
+commands:
+  session   create, follow and drive sessions (hoplet session help)
+  daemon    run the daemon, or install, uninstall or inspect its LaunchAgent
+  env       refresh the environment harnesses start with
+  doctor    check the installation, the daemon and its environment
+  version   print the version
+  shim      run a session's harness process (started by the daemon)
+`
+
 func main() {
 	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
 }
 
+// app is one invocation of the command line.
+type app struct {
+	stdout, stderr io.Writer
+	// harnesses are the adapters `hoplet daemon` serves; they register here
+	// as they land.
+	harnesses map[string]harness.Harness
+	// env, when set, replaces the login-shell environment of `hoplet daemon`
+	// (tests).
+	env env.Source
+	// probeURL, when set, replaces what the daemon's doctor reaches (tests).
+	probeURL string
+}
+
 func run(args []string, stdout, stderr io.Writer) int {
+	return app{stdout: stdout, stderr: stderr, harnesses: map[string]harness.Harness{}}.run(args)
+}
+
+func (a app) run(args []string) int {
 	if len(args) == 0 {
-		fmt.Fprintln(stderr, "usage: hoplet <command>\n\ncommands:\n  version  print the version\n  daemon   run the daemon\n  shim     run a session's harness process (started by the daemon)")
+		fmt.Fprint(a.stderr, usage)
 		return 2
 	}
 	switch args[0] {
 	case "version":
-		fmt.Fprintln(stdout, version)
+		fmt.Fprintln(a.stdout, version)
 		return 0
+	case "help", "-h", "--help":
+		fmt.Fprint(a.stdout, usage)
+		return 0
+	case "session":
+		return a.session(args[1:])
 	case "daemon":
-		return runDaemon(args[1:], stderr)
+		return a.daemon(args[1:])
+	case "env":
+		return a.envCmd(args[1:])
+	case "doctor":
+		return a.doctor(args[1:])
 	case "shim":
-		return runShim(args[1:], stderr)
+		return runShim(args[1:], a.stderr)
 	default:
-		fmt.Fprintf(stderr, "hoplet: unknown command %q\n", args[0])
+		fmt.Fprintf(a.stderr, "hoplet: unknown command %q\n", args[0])
 		return 2
 	}
 }
