@@ -54,7 +54,7 @@ func (s *Store) PutBlob(r io.Reader) (proto.BlobRef, error) {
 
 // syncDir flushes a directory's entries to disk.
 func syncDir(path string) error {
-	d, err := os.Open(path)
+	d, err := os.Open(filepath.Clean(path))
 	if err != nil {
 		return err
 	}
