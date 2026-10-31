@@ -27,13 +27,15 @@ const (
 	TurnCompleted   TurnEndReason = "completed"
 	TurnInterrupted TurnEndReason = "interrupted"
 	TurnAborted     TurnEndReason = "aborted"
-	TurnFailed      TurnEndReason = "error"
+	TurnFailed      TurnEndReason = "failed"
 )
 
 // TurnEnded marks the end of a turn. Only the harness protocol's own signal
 // produces it, or a harness crash (Reason TurnAborted).
 type TurnEnded struct {
 	Reason TurnEndReason `json:"reason"`
+	// Message says why the turn failed or was aborted.
+	Message string `json:"message,omitempty"`
 }
 
 // MessageDelta is a streamed fragment of a message.
@@ -112,29 +114,62 @@ type FileChange struct {
 	Op   FileOp `json:"op"`
 }
 
-// ApprovalOption is one answer the harness offers, passed through as is.
+// ApprovalKind says what an approval request is about.
+type ApprovalKind string
+
+// Approval kinds.
+const (
+	ApprovalCommand    ApprovalKind = "command"
+	ApprovalFileChange ApprovalKind = "file_change"
+	ApprovalTool       ApprovalKind = "tool"
+	ApprovalHopletTool ApprovalKind = "hoplet_tool"
+)
+
+// ApprovalScope is how far an approval option reaches.
+type ApprovalScope string
+
+// Approval scopes.
+const (
+	ScopeOnce    ApprovalScope = "once"
+	ScopeSession ApprovalScope = "session"
+	ScopeAlways  ApprovalScope = "always"
+	ScopeDeny    ApprovalScope = "deny"
+)
+
+// ApprovalOption is one answer the harness offers. ID and Label carry the
+// harness's native option verbatim; Scope is Hoplet's classification of it.
 type ApprovalOption struct {
-	ID    string `json:"id"`
-	Label string `json:"label"`
-	Scope string `json:"scope,omitempty"`
+	ID    string        `json:"id"`
+	Label string        `json:"label"`
+	Scope ApprovalScope `json:"scope,omitempty"`
 }
 
 // ApprovalRequested asks for a decision the harness's permissions require.
 type ApprovalRequested struct {
 	ID      string           `json:"id"`
-	Kind    string           `json:"kind"`
+	Kind    ApprovalKind     `json:"kind"`
 	Title   string           `json:"title"`
 	Detail  string           `json:"detail,omitempty"`
-	Options []ApprovalOption `json:"options"`
+	Options []ApprovalOption `json:"options,omitempty"`
 }
 
-// ApprovalResolved records the decision; DecidedBy is a device ID or a
-// Hoplet rule ID. Expired is set when the harness withdrew the request.
+// ApprovalOutcome is how an approval request ended.
+type ApprovalOutcome string
+
+// Approval outcomes.
+const (
+	OutcomeAllowed ApprovalOutcome = "allowed"
+	OutcomeDenied  ApprovalOutcome = "denied"
+	OutcomeExpired ApprovalOutcome = "expired"
+)
+
+// ApprovalResolved records the decision. OptionID is the harness option
+// chosen (empty when expired); DecidedBy is a device ID or a Hoplet rule ID.
 type ApprovalResolved struct {
-	ID        string `json:"id"`
-	OptionID  string `json:"option_id,omitempty"`
-	DecidedBy string `json:"decided_by,omitempty"`
-	Expired   bool   `json:"expired,omitempty"`
+	ID        string          `json:"id"`
+	Outcome   ApprovalOutcome `json:"outcome"`
+	OptionID  string          `json:"option_id,omitempty"`
+	DecidedBy string          `json:"decided_by,omitempty"`
 }
 
 // Question is a question the harness asks.
@@ -144,7 +179,8 @@ type Question struct {
 	Options []string `json:"options,omitempty"`
 }
 
-// Usage reports token use.
+// Usage reports token use. The counts are this turn's increment, not session
+// totals. Cache tokens may be added later as optional fields.
 type Usage struct {
 	InputTokens  int64 `json:"input_tokens"`
 	OutputTokens int64 `json:"output_tokens"`

@@ -9,17 +9,18 @@ import (
 )
 
 func TestEventRoundTrip(t *testing.T) {
-	ts := time.Date(2026, 10, 31, 8, 0, 0, 0, time.UTC)
+	ts := time.Date(2026, 10, 31, 8, 0, 0, 5_000_000, time.UTC)
 	payloads := []Payload{
 		TurnStarted{},
 		TurnEnded{Reason: TurnCompleted},
+		TurnEnded{Reason: TurnFailed, Message: "crash"},
 		MessageDelta{MessageID: "m1", Text: "hel"},
 		Message{ID: "m1", Role: RoleAssistant, Text: "hello"},
 		Thinking{Text: "plan"},
 		ToolCall{ID: "t1", Kind: ToolExec, Name: "Bash", Summary: "go test ./...", Status: ToolDone, Output: &BlobRef{SHA256: "ab", Size: 3}},
 		FileChange{Path: "api/main.go", Op: FileModified},
-		ApprovalRequested{ID: "a1", Kind: "command", Title: "Run command", Detail: "go test", Options: []ApprovalOption{{ID: "once", Label: "Allow once"}, {ID: "deny", Label: "Deny"}}},
-		ApprovalResolved{ID: "a1", OptionID: "once", DecidedBy: "device:iphone"},
+		ApprovalRequested{ID: "a1", Kind: ApprovalCommand, Title: "Run command", Detail: "go test", Options: []ApprovalOption{{ID: "once", Label: "Allow once", Scope: ScopeOnce}, {ID: "deny", Label: "Deny", Scope: ScopeDeny}}},
+		ApprovalResolved{ID: "a1", Outcome: OutcomeAllowed, OptionID: "once", DecidedBy: "device:iphone"},
 		Question{ID: "q1", Text: "Which repo?", Options: []string{"api", "web"}},
 		Usage{InputTokens: 10, OutputTokens: 20},
 		Error{Message: "boom"},
@@ -64,14 +65,42 @@ func TestDecodeUnknown(t *testing.T) {
 	}
 }
 
-func TestEveryEventTypeIsRegistered(t *testing.T) {
-	for _, typ := range []EventType{
-		TypeTurnStarted, TypeTurnEnded, TypeMessageDelta, TypeMessage, TypeThinking,
-		TypeToolCall, TypeFileChange, TypeApprovalRequest, TypeApprovalResolved,
-		TypeQuestion, TypeUsage, TypeError,
-	} {
-		if _, ok := decoders[decoderKey{typ, 1}]; !ok {
-			t.Errorf("%s v1 has no decoder", typ)
+func TestNewEventNilPayload(t *testing.T) {
+	if _, err := NewEvent("s1", 1, 0, time.Now(), nil); !errors.Is(err, ErrNilPayload) {
+		t.Fatalf("got %v, want ErrNilPayload", err)
+	}
+}
+
+func TestNewEventTruncatesToMillis(t *testing.T) {
+	ts := time.Date(2026, 10, 31, 8, 0, 0, 123_456_789, time.UTC)
+	e, err := NewEvent("s1", 1, 0, ts, TurnStarted{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := ts.Truncate(time.Millisecond); !e.Time.Equal(want) {
+		t.Fatalf("time %v, want %v", e.Time, want)
+	}
+}
+
+func TestRegisterLegacyUpgrades(t *testing.T) {
+	const legacy EventType = "test.legacy"
+	k := decoderKey{legacy, 1}
+	registerLegacy(legacy, 1, func(b json.RawMessage) (Payload, error) {
+		var old struct {
+			Msg string `json:"msg"`
 		}
+		if err := json.Unmarshal(b, &old); err != nil {
+			return nil, err
+		}
+		return Error{Message: old.Msg}, nil
+	})
+	defer delete(decoders, k)
+
+	got, err := Event{Type: legacy, V: 1, Payload: json.RawMessage(`{"msg":"old"}`)}.Decode()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := (Error{Message: "old"}); !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %#v, want %#v", got, want)
 	}
 }
