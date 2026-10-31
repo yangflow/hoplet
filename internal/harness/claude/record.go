@@ -83,7 +83,6 @@ func Record(ctx context.Context, cfg RecordConfig, out io.Writer) error {
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
-		defer close(rec.lines)
 		sc := bufio.NewScanner(stdout)
 		sc.Buffer(nil, harness.MaxLine)
 		for sc.Scan() {
@@ -91,7 +90,9 @@ func Record(ctx context.Context, cfg RecordConfig, out io.Writer) error {
 			rec.write("out", string(line))
 			rec.lines <- line
 		}
-		if outErr = sc.Err(); outErr != nil {
+		outErr = sc.Err()
+		close(rec.lines) // before draining: play must fail at once, not at a step timeout
+		if outErr != nil {
 			_, _ = io.Copy(io.Discard, stdout) // keep draining so claude cannot block
 		}
 	}()
@@ -233,15 +234,18 @@ func (r *recorder) wait(ctx context.Context, stdin io.Writer, st Step) error {
 // dropped.
 //
 // The recording is cut at the first approval request claude sent that was
-// never answered: what follows is the recorder giving up, not claude's
-// protocol.
+// neither answered nor withdrawn (control_cancel_request): what follows is
+// the recorder giving up, not claude's protocol.
 func Sanitize(in io.Reader, out io.Writer, dir, home string) error {
 	sc := bufio.NewScanner(in)
 	sc.Buffer(nil, harness.MaxLine)
 	enc := json.NewEncoder(out)
 	enc.SetEscapeHTML(false)
 	scrub := scrubber(dir, home)
-	type kept struct{ dir, line, requestID string }
+	type kept struct {
+		dir, line, requestID string
+		cancels              string // the request a control_cancel_request withdraws
+	}
 	var entries []kept
 	for sc.Scan() {
 		var e Entry
@@ -272,6 +276,9 @@ func Sanitize(in io.Reader, out io.Writer, dir, home string) error {
 		if req, _ := v["request"].(map[string]any); e.Dir == "out" && v["type"] == "control_request" && req["subtype"] == "can_use_tool" {
 			k.requestID, _ = v["request_id"].(string)
 		}
+		if e.Dir == "out" && v["type"] == "control_cancel_request" {
+			k.cancels, _ = v["request_id"].(string)
+		}
 		entries = append(entries, k)
 	}
 	if err := sc.Err(); err != nil {
@@ -283,7 +290,7 @@ func Sanitize(in io.Reader, out io.Writer, dir, home string) error {
 		}
 		answered := false
 		for _, later := range entries[i+1:] {
-			if later.dir == "in" && strings.Contains(later.line, k.requestID) {
+			if later.dir == "in" && strings.Contains(later.line, k.requestID) || later.cancels == k.requestID {
 				answered = true
 				break
 			}
@@ -318,7 +325,22 @@ func scrubber(dir, home string) func(string) string {
 			forms = append(forms, r)
 		}
 		for _, f := range forms {
-			pairs = append(pairs, pair{f, to}, pair{strings.ReplaceAll(f, "/", "-"), strings.ReplaceAll(to, "/", "-")})
+			pairs = append(pairs, pair{f, to})
+			for _, slug := range []func(string) string{
+				func(p string) string { return strings.ReplaceAll(p, "/", "-") },
+				func(p string) string { // claude's project directory names
+					return strings.Map(func(r rune) rune {
+						if isAlnum(r) {
+							return r
+						}
+						return '-'
+					}, p)
+				},
+			} {
+				if from := slug(f); from != to && !slices.ContainsFunc(pairs, func(p pair) bool { return p.from == from }) {
+					pairs = append(pairs, pair{from, slug(to)})
+				}
+			}
 		}
 	}
 	add(dir, "/work")
@@ -332,13 +354,12 @@ func scrubber(dir, home string) func(string) string {
 	}
 }
 
-// replacePath replaces the occurrences of the path from in s that end on a
-// path boundary: from "/Users/ann" leaves "/Users/anna/x" alone.
-//
-// A dash slug (no slash in from) continues into a longer slug through a
-// dash, so there a dash is a boundary too.
+// replacePath replaces the occurrences of the path from in s, except those
+// followed by an ASCII letter or digit, which continue into a longer name:
+// from "/Users/ann" leaves "/Users/anna/x" alone. Anything else after
+// it (a slash, a quote, a period, "-", "_", the end) ends the path; erring
+// toward scrubbing too much is intended.
 func replacePath(s, from, to string) string {
-	slug := !strings.Contains(from, "/")
 	var b strings.Builder
 	for {
 		i := strings.Index(s, from)
@@ -347,7 +368,7 @@ func replacePath(s, from, to string) string {
 		}
 		end := i + len(from)
 		b.WriteString(s[:i])
-		if end < len(s) && isPathChar(s[end]) && (!slug || s[end] != '-') {
+		if end < len(s) && isAlnum(rune(s[end])) {
 			b.WriteString(from) // part of a longer name
 		} else {
 			b.WriteString(to)
@@ -358,8 +379,8 @@ func replacePath(s, from, to string) string {
 	return b.String()
 }
 
-func isPathChar(c byte) bool {
-	return c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '.' || c == '_' || c == '-'
+func isAlnum(c rune) bool {
+	return c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9'
 }
 
 // reduce trims a recorded line in place and reports whether to keep it.

@@ -162,7 +162,9 @@ func TestReplacePath(t *testing.T) {
 		{"/Users/ann/x and /Users/anna/x", "/Users/ann", "/Users/me", "/Users/me/x and /Users/anna/x"},
 		{`"/Users/ann"`, "/Users/ann", "/Users/me", `"/Users/me"`},
 		{"/Users/ann", "/Users/ann", "/Users/me", "/Users/me"},
-		{"/Users/ann-old", "/Users/ann", "/Users/me", "/Users/ann-old"},
+		{"/Users/ann-old", "/Users/ann", "/Users/me", "/Users/me-old"},
+		{"/Users/ann_x. /Users/ann.", "/Users/ann", "/Users/me", "/Users/me_x. /Users/me."},
+		{"/w1 /w11", "/w1", "/work", "/work /w11"},
 		{"-Users-ann-proj", "-Users-ann", "-Users-me", "-Users-me-proj"},
 		{"-Users-anna", "-Users-ann", "-Users-me", "-Users-anna"},
 	} {
@@ -220,5 +222,35 @@ func TestSanitizeCutsAtAnUnansweredApproval(t *testing.T) {
 	got := sanitized(t, "", "", result, req("r2"), result, exit)
 	if len(got) != 1 {
 		t.Fatalf("unanswered approval kept %q", got)
+	}
+}
+
+func TestSanitizeScrubsNonAlnumSlug(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "a_b.c")
+	if err := os.Mkdir(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	resolved, err := filepath.EvalSymlinks(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	slug := strings.Map(func(r rune) rune {
+		if isAlnum(r) {
+			return r
+		}
+		return '-'
+	}, resolved)
+	got := strings.Join(sanitized(t, dir, "/home/me", Entry{Dir: "out", Line: `{"type":"assistant","p":"/x/projects/` + slug + `/s.jsonl"}`}), "\n")
+	if strings.Contains(got, "a-b-c") || !strings.Contains(got, "projects/-work/s.jsonl") {
+		t.Fatalf("slug not scrubbed:\n%s", got)
+	}
+}
+
+func TestSanitizeKeepsAWithdrawnApproval(t *testing.T) {
+	req := Entry{Dir: "out", Line: `{"type":"control_request","request_id":"r1","request":{"subtype":"can_use_tool","tool_name":"Bash","input":{}}}`}
+	cancel := Entry{Dir: "out", Line: `{"type":"control_cancel_request","request_id":"r1"}`}
+	result := Entry{Dir: "out", Line: `{"type":"result","subtype":"success"}`}
+	if got := sanitized(t, "", "", req, cancel, result, Entry{Dir: "exit", Line: "0"}); len(got) != 4 {
+		t.Fatalf("a withdrawn approval cut the recording: %q", got)
 	}
 }

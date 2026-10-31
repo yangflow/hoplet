@@ -37,7 +37,9 @@ type Installed struct {
 // made first, which is then renamed into place: what passed the check is
 // the file that gets installed, even if src changes meanwhile. Installs
 // for one home are serialized by a lock file, because the CLI upgrade and
-// the daemon's follow-up may run at once.
+// the daemon's follow-up may run at once: Install waits for another install
+// of the same home, and ctx does not interrupt that wait (the other
+// install's self-check bounds it).
 func Install(ctx context.Context, src, home string, check Checker) (Installed, error) {
 	src, err := filepath.EvalSymlinks(src)
 	if err != nil {
@@ -165,7 +167,10 @@ func Follow(ctx context.Context, home, path string, check Checker) (Update, bool
 		return Update{}, false // given up on this version; don't spend quota again
 	}
 	u := Update{At: time.Now().UTC().Truncate(time.Second), From: current, Version: v}
-	if _, err := Install(ctx, src, home, check); err != nil {
+	inst, err := Install(ctx, src, home, check)
+	if err == nil {
+		u.Version = inst.Version // what was installed, in case src changed since it was read
+	} else {
 		if ctx.Err() != nil {
 			return Update{}, false // shutting down: not the version's fault
 		}
