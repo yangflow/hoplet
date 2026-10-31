@@ -35,7 +35,7 @@ flowchart LR
 - `session wait` 的条件：`idle` = 没有进行中的轮次、最新消息的轮次已结束、队列为空；`blocked` = 有待审批或提问，或队首发送失败；`done` = 以上任一，或出错、已归档。最新消息按“消息记在它开启的轮次下”判断，所以 `send` 之后立刻 `wait` 不会误判为空闲。
 - CLI 不自动重连：`watch` 断线即退出 1；`wait` 超时退出 3；用法错误退出 2。
 - CLI 以 `cli@<主机名>` 作为设备 ID，审批记录里可见。
-- 安装用当前二进制的真实路径（解析符号链接）；`daemon install` 等待守护进程开始服务后才返回。
+- 安装用当前二进制的绝对路径（不解析符号链接，升级后链接仍有效），拒绝临时目录和 `go run` 产生的二进制；`daemon install` 等待守护进程开始服务后才返回（执行中改为不解析符号链接，见文末差异）。
 - `doctor` 的网络检查默认访问 `https://api.anthropic.com`（任何 HTTP 响应都算通），可由 `daemon.Config.ProbeURL` 覆盖；`hoplet` 本身不注册 harness，PR6 / PR7 接入后 doctor 才会列出。
 
 ## 全局约束
@@ -68,7 +68,7 @@ flowchart LR
 ## 接口（后续 PR 依赖）
 
 - `config.Load(home) (config.Config, error)`；`config.Config{Network{Proxy, NoProxy}, Env{Allow}}`；`config.ProxyDirect`
-- `env.Source` 接口 `Environment(ctx, refresh bool) (env.Snapshot, error)`；`env.Login{Home, UserHome, Shell, SystemProxy}`；`env.Static`；`env.DefaultShell()`；`env.IsCredential(name)`
+- `env.Source` 接口 `Environment(ctx, refresh bool) (env.Snapshot, error)`；`env.Login{Home, UserHome, Shell, SystemProxy}`；`env.Static`；`env.UserShell(ctx)`（执行中取代计划里的 `DefaultShell`）；`env.IsCredential(name)`；`env.ProxyURL`、`env.RedactProxy`；`env.Snapshot{…, Note, Stale}`；`proto.EnvInfo{…, Note, Warning}`
 - `daemon.Config{…, Env env.Source, ProbeURL string}`；`daemon.DefaultProbeURL`
 - `(*session.Manager).SetEnv([]string)`、`Env() []string`
 - 协议：`sessions.get` → `proto.SessionState{Session, Pending, Queue}`；`env.refresh` → `proto.EnvInfo`；`system.doctor` → `proto.DoctorReport{Checks []proto.Check{Name, Status ok|warn|fail, Detail}}`；客户端 `Session`、`RefreshEnv`、`Doctor`
@@ -4462,3 +4462,20 @@ gh pr create --title "feat(cli): add session CLI, daemon install and doctor" --f
 - `daemon install` 生成的 plist 通过 `plutil -lint`，安装后守护进程开始服务；`uninstall` 卸干净。
 - 日志写入轮转文件；`doctor` 覆盖 home、token、LaunchAgent、守护进程版本、环境、网络、harness。
 - `make check` 本地和 CI（Linux）通过；测试不泄漏进程、不读真实启动文件、不改真实 LaunchAgent、不访问外网。
+
+## 实现与计划的差异（评审后追加）
+
+任务评审、整分支终审及各轮复审之后，合并前在计划之外补了以下内容；后续 PR 以 `main` 上的真实代码为准：
+
+| 方面 | 变化 |
+|---|---|
+| 登录 shell | 取用户数据库里的 shell（macOS `dscl`，其他平台 `/etc/passwd`），再退到 `$SHELL`、`/bin/zsh`：launchd 下守护进程的 `$SHELL` 不可靠；`UserShell(ctx)` 取代 `DefaultShell`。启动时带上守护进程自己的 `LANG` `LC_*` `TMPDIR` `SSH_AUTH_SOCK` `XDG_*` `__CF_USER_TEXT_ENCODING`，结果去掉 `TERM`；标记带随机数；失败时 stderr 末行若含凭证类名字则换成中性提示 |
+| 秘密不落盘 | 放行的凭证、带用户信息（任何 `@`）的代理值、值为带密码 URL 的变量都只留在内存（每个进程最多重读一次 shell），`env.json` 标记 `needs_shell`；读缓存时重新过滤；凭证名单增加 `*_KEY` `*_PAT` `*_DSN` `*_AUTH` `*_PWD` `*COOKIE*` `OP_SESSION_*` `BW_SESSION` |
+| 代理 | 无 scheme 的代理按 `http://` 解析（`env.ProxyURL`）；展示时整个用户信息都隐去（`env.RedactProxy`），日志、doctor、`env refresh` 同一规则；shell 代理也统一写入大小写各变量并合并 `NO_PROXY`；`scutil` 只读顶层、识别 PAC（`Snapshot.Note` → doctor 网络检查 warn） |
+| 降级 | 被迫重读 shell 失败或缓存写不进去时沿用已读到 / 已缓存的环境，原因放在 `Snapshot.Stale` → `EnvInfo.Warning`（doctor 环境检查 warn）；只有确实没有可用环境时才用最小环境 |
+| doctor | 整体 15 秒、每个 harness 5 秒超时并发探测；网络检查按探测 URL 的 scheme 选代理变量并遵守 `NO_PROXY`；新增 `config` 检查（`config.toml` 可被他人读取时 warn）、无语言环境时 warn；刷新环境串行化 |
+| 日志 | 轮转失败后继续写当前文件，第一次失败在 stderr（`launchd.log`）报告一次，之后按增长 `maxSize/10` 退避重试 |
+| LaunchAgent | 只把 launchctl 的"未加载"当作可忽略；`bootstrap` 遇 I/O 错误重试一次；卸载失败保留 plist；plist 加 `ThrottleInterval 30`（另一个守护进程持锁时每 30 秒重试，对方退出后接管，已写入 0002）；安装记录不解析符号链接的绝对路径，拒绝临时 / `go run` 二进制，等待服务 30 秒，服务的若不是 LaunchAgent 的守护进程则提示 |
+| 命令行 | 测试里 LaunchAgent 管理器可注入（不碰真实 launchctl 与 `~/Library`），网络检查默认指向不可达地址；`wait` 在任何一步超时都退出 3、每 2 秒复查状态、负超时为用法错误；ID 前缀少于 4 位给出提示；`install/uninstall` 支持 `--json`；用法错误输出到 stderr；`env refresh` 显示提示与警告 |
+| 设计文档 | 0003 规则 4（shell 来源、会话变量、秘密只在内存、名字判断的剩余风险、launchd 下的语言环境）、0002（LaunchAgent 重试与接管）、0012（CLI 新增 `session list`、`daemon uninstall`、`doctor`） |
+| 已接受 | Linux 上通过 NSS / LDAP 的账户退到 `$SHELL`（`getent` 随 M2）；名字不像凭证但值里带密码的变量会传给 harness（不写缓存）；`wait --for idle` 在出错的会话上不会返回（用 `done`） |
