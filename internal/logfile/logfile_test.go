@@ -1,0 +1,139 @@
+package logfile
+
+import (
+	"errors"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"sync"
+	"testing"
+)
+
+func read(t *testing.T, path string) string {
+	t.Helper()
+	b, err := os.ReadFile(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return ""
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(b)
+}
+
+func TestRotatesAndKeepsN(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "logs", "d.log")
+	l, err := Open(p, 10, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, s := range []string{"aaaa\n", "bbbb\n", "cccc\n", "dddd\n", "eeee\n"} {
+		if _, err := l.Write([]byte(s)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := l.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if got := read(t, p); got != "eeee\n" {
+		t.Errorf("current %q", got)
+	}
+	if got := read(t, p+".1"); got != "cccc\ndddd\n" {
+		t.Errorf(".1 %q", got)
+	}
+	if got := read(t, p+".2"); got != "aaaa\nbbbb\n" {
+		t.Errorf(".2 %q", got)
+	}
+	if _, err := os.Stat(p + ".3"); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf(".3 exists: %v", err)
+	}
+	fi, err := os.Stat(p)
+	if err != nil || fi.Mode().Perm() != 0o600 {
+		t.Fatalf("mode %v %v", fi.Mode().Perm(), err)
+	}
+	if _, err := l.Write([]byte("x")); !errors.Is(err, os.ErrClosed) {
+		t.Fatalf("write after close: %v", err)
+	}
+}
+
+func TestReopenAppendsAndCountsExistingSize(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "d.log")
+	if err := os.WriteFile(p, []byte("12345678\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	l, err := Open(p, 10, 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+	if _, err := l.Write([]byte("next\n")); err != nil {
+		t.Fatal(err)
+	}
+	if read(t, p+".1") != "12345678\n" || read(t, p) != "next\n" {
+		t.Fatalf("did not rotate a nearly full file: %q / %q", read(t, p+".1"), read(t, p))
+	}
+}
+
+func TestOversizedWriteGoesWhole(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "d.log")
+	l, err := Open(p, 4, 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+	big := strings.Repeat("z", 20)
+	if _, err := l.Write([]byte(big)); err != nil {
+		t.Fatal(err)
+	}
+	if read(t, p) != big {
+		t.Fatal("an oversized write was split or dropped")
+	}
+}
+
+func TestConcurrentWritesStayWhole(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "d.log")
+	l, err := Open(p, 200, 50)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var wg sync.WaitGroup
+	for range 8 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for range 50 {
+				if _, err := l.Write([]byte("0123456789\n")); err != nil {
+					t.Error(err)
+					return
+				}
+			}
+		}()
+	}
+	wg.Wait()
+	if err := l.Close(); err != nil {
+		t.Fatal(err)
+	}
+	// Every line, across the current file and all kept copies, is whole,
+	// and none is lost (50 copies are more than 400 lines need).
+	lines := 0
+	for i := 0; i <= 50; i++ {
+		f := p
+		if i > 0 {
+			f = p + "." + strconv.Itoa(i)
+		}
+		body := read(t, f)
+		if body == "" {
+			continue
+		}
+		for _, line := range strings.Split(strings.TrimSuffix(body, "\n"), "\n") {
+			if line != "0123456789" {
+				t.Fatalf("torn line %q in %s", line, f)
+			}
+			lines++
+		}
+	}
+	if lines != 400 {
+		t.Fatalf("%d lines, want 400", lines)
+	}
+}
