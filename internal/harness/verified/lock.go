@@ -34,7 +34,10 @@ func Lock(ctx context.Context, path string, waiting func()) (unlock func(), err 
 		if err == nil {
 			break
 		}
-		if !errors.Is(err, syscall.EWOULDBLOCK) && !errors.Is(err, syscall.EINTR) {
+		if errors.Is(err, syscall.EINTR) {
+			continue // interrupted, not held by another: try again at once
+		}
+		if !errors.Is(err, syscall.EWOULDBLOCK) {
 			return nil, errors.Join(fmt.Errorf("verified: lock: %w", err), f.Close())
 		}
 		if !told && waiting != nil {
