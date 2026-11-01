@@ -74,6 +74,7 @@ stateDiagram-v2
 | 先答者生效 | 数据库比较并交换；广播 `resolved`，其他设备弹窗消失 |
 | 不超时自动批 | 无人响应就一直等，并推送 |
 | harness 自带超时 | 设为永不，或映射为 `expired` 并同步，绝不静默拒绝 |
+| 在别处结清 | Hermes：审批在其桌面端被回答、超时或随快照消失，而 Hoplet 未回答，记为 `expired`，decided_by `hermes`；重连后快照里仍待处理的审批会重新发出；Hermes 拒绝 Hoplet 的回答时报错 |
 | 审计 | 每次决定写入会话日志：哪台设备、何时、选了什么 |
 
 ## Hoplet 规则（只管 Hoplet 自己的 MCP 工具）

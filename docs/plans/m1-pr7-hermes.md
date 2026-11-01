@@ -30,10 +30,10 @@ flowchart LR
 **本计划的裁决：**
 - 维护者定：接入用 gateway 原生 WebSocket；共用默认 `~/.hermes`（规则同 Claude：配置与数据共用，只有程序版本由 Hoplet 管）；Hoplet 不改 Hermes 的全局设置、不碰凭证；Hoplet 建的会话在 Hermes 桌面端可见；档位三档（需确认 / 自动编辑 / 全自动），智能审批与 Plan 不声明，选了按最近的更严档位回退；命令审批跟随 Hermes 自己的判断。
 - 维护者定（传输）：桥接进程 `hoplet hermes-bridge` 放在 shim 后面，Hermes 成为与 Claude 一样的 stdio harness：守护进程重启时桥接进程照常运行、事件留在 spool；只有 gateway 自己重启才会丢失进行中的轮次（Hermes 本身也会丢），这时用 receipt 补齐。
-- 桥接进程只做搬运：连接、心跳（应答不进 spool）、断线重连（写 `hoplet_bridge` 状态行）、断线期间的请求先留着；收到 SIGTERM 时先中断它看到的进行中轮次再退出。协议逻辑全部在适配器里。
+- 桥接进程只做搬运：连接、心跳（应答不进 spool）、断线重连（写 `hoplet_bridge` 状态行）；不跨连接携带行：重连时在写 `connected` 行之前丢弃此前收到的行，写失败的行直接丢弃，需要的请求由适配器重新接上后重发；收到 SIGTERM 时先中断它看到的进行中轮次再退出。协议逻辑全部在适配器里。
 - 适配器在一个连接拿到会话快照之前不发其他请求（gateway 会以 permission_denied 拒绝）；重新接上已在运行的桥接进程（守护进程重启）时连接本来就已接上。
 - 设置排队：一次只发一个 `session.mutate`，轮次中等轮次结束；同一操作只保留最新的；设置未生效时发出的消息排在设置之后，保证"先设置后消息"的顺序。
-- 轮次结束：`message.complete` 后取 receipt，先报本轮用量再报 `TurnEnded`（守护进程把轮次结束后的事件记到会话级）。连接恢复后若本轮已结束而不知道是哪一轮，记为 aborted 并说明原因，不让轮次悬着。
+- 轮次结束：`message.complete` 后取 receipt，先报本轮用量再报 `TurnEnded`（守护进程把轮次结束后的事件记到会话级）。轮次按 admission 组成有序队列、每次快照对账，每轮恰好一次 TurnStarted / TurnEnded；receipt 非终态最多再问 3 次，`unknown` 或被拒时按 `message.complete` 结束（无用量），没见过它才记 aborted，不让轮次悬着。
 - 审批在 Hermes 别处（桌面端）被回答或超时：记为 expired、decided_by `hermes`。
 - 版本门控：录制覆盖的版本（0.22.5）或本机自检通过的版本才开新轮次；`hoplet harness verify hermes` 手动自检，守护进程每天自动检查新版本（`[harness.hermes] follow = false` 关闭），尝试规则与 Claude 相同（每天至多一次、连续 3 次失败后停止、非自检原因的失败与守护进程关闭打断的检查不计入）。
 - 自检、录制、"本机已验证"的记录逻辑与 Claude 共用：抽出 `internal/harness/verified`（已验证版本、最近一次检查结果、尝试规则）与 `internal/harness/scrub`（按边界替换路径），Claude 改用它们。
@@ -5757,3 +5757,33 @@ gh pr create --title "feat(harness/hermes): add Hermes adapter for Personal mode
 - 档位（需确认 / 自动编辑 / 全自动）、思考强度、Fast、模型可在新建时设置与中途切换，设置一次一个、先于随后的消息生效；插话、中断可用；智能审批与 Plan 回退或拒绝，提问不支持。
 - 未验证的 Hermes 版本拒绝新轮次，`hoplet harness verify hermes` 与每日检查可以验证它。
 - `make check` 本地和 CI 通过。
+
+## 实施偏差
+
+本计划里的代码块是首版；逐任务评审后又修了多轮，最终行为以提交为准，设计文档（0003、0004、0007、0013）已按最终行为写成。主要变化如下。
+
+**任务 1：共用的脱敏与版本记录**
+- `aae9e7a refactor(harness): share version records and path scrubbing`：按计划落地。
+- `ee1c28a fix(harness): make the version-check lock cancellable`、`d8d5d8f fix(harness): poll the version lock only while it is busy`：新增 `verified.Lock`，`hoplet harness verify hermes` 与守护进程每日检查共用一把可取消的锁，不会同时跑两次自检；Claude 的安装锁也改用它，锁文件不变。
+
+**任务 2：桥接进程**
+- `f6905e1 feat(harness/hermes): bridge the Hermes gateway over stdio`：首版。
+- `814a4a1 fix(harness/hermes): harden the bridge's queue, stop and liveness`、`f2ec7d5 test(hermes): make the reconnect test deterministic`、`96d4b9e fix(harness/hermes): close the bridge's remaining gaps`、`696d4be fix(harness/hermes): touch the bridge clock before clearing writing`：不跨连接携带行（替换计划里"断线期间的请求先留着"，由适配器重发）；连续 3 个心跳间隔无帧才重连，阻塞在写 stdout 时不算失联；连接不足 30 秒就断开时不重置退避；停止时先中断进行中的轮次，写请求用不受停止影响的超时上下文；不跟随 HTTP 重定向，`hermes gateway ensure` 非零退出视为失败。
+
+**任务 3：适配器与契约测试**
+- `8f74465 feat(harness/hermes): drive Hermes sessions through the gateway`：首版。
+- `0e3a040 fix(harness/hermes): keep recorded receipts to what the adapter reads`：录制只保留适配器读取的 receipt 字段；Hermes 主目录与登录名（整词，含 JSON 转义之后）也被替换。
+- `2ca7b57 fix(harness/hermes): track turns by admission and resend after drops`、`69631da fix(harness/hermes): keep turns and messages in order across drops`：按 admission 跟踪轮次；断线后清掉在途设置并重新排队，在途的消息、审批回答、`config.set` 重发（消息按 `submission_id` 幂等），interrupt、steer、receipt 不重发；用户消息保持给出的顺序。
+- `fd76318 fix(harness/hermes): order turns through one queue across drops`：轮次组成一个有序队列，每次快照对账，后面轮次的事件先缓冲。
+- `de78c90 fix(harness/hermes): resolve the open turn after a daemon restart`、`f1f2f2f fix(harness/hermes): hold orphan receipts until the snapshot`、`7d08ebc fix(harness/hermes): settle the open turn from the replay order`、`f5dfcc0 fix(harness/hermes): settle restarts from the snapshot alone`：守护进程重启后总发一次 `session.resume`，store 里未结束的轮次以占位记录接手，在本次运行自己的快照到达时统一结清；旧守护进程请求的 receipt 先扣住，不再补发最终回复。另外：中断遇 stale_generation 不重试，steer 遇 stale_generation 报错；快照里消失且 Hoplet 未回答的审批记为 expired，本次运行不认识的待审批重新发出。
+
+**任务 4：本机自检与版本检查**
+- `3d8db88 feat(harness/hermes): verify Hermes versions on this machine`：首版。
+- `44aba5e fix(harness/hermes): tighten the self-check and its records`：准备失败（临时目录）不计入失败次数；中断那一步改为数到 1000。
+
+**任务 5：命令行**
+- `818cb7f feat(cli): run Hermes sessions and steer, interrupt or stop them`：首版。
+- `e8bb2d2 fix(cli): cover env passing, serialize version checks`：补测环境传递，版本检查串行化。
+
+**任务 6：文档**
+- 补丁按计划应用，随后按以上变化改写设计文档与本计划中矛盾的句子。

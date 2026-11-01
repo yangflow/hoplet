@@ -44,7 +44,7 @@ erDiagram
     APPROVAL {
         string kind "命令 / 改文件 / 工具 / Hoplet 工具"
         string status
-        string decided_by "设备 / Hoplet 规则"
+        string decided_by "设备 / Hoplet 规则 / harness（在别处结清）"
     }
 ```
 
