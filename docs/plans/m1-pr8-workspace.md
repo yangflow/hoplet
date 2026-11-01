@@ -2,7 +2,7 @@
 
 > **执行方式：** 按任务顺序逐步执行；每一步用 `- [ ]` 勾选。每个任务结束时 `go test -race ./...` 和 `golangci-lint run ./...` 都应通过。修改已有文件的步骤给出补丁：把代码块存成文件后在仓库根目录执行 `git apply <文件>`；新文件给出完整内容。
 
-**目标：** 会话能看到自己在工作目录下各 git 仓库里改了什么：建会话时（启动 harness 前）给每个仓库记一份基线，之后按需请求“会话累计”diff，按仓库汇总文件、增删行数与 patch。全程不读写用户仓库的 index 与对象，用户的 `.git` 下没有任何文件被新建、修改、删除或改动时间戳。
+**目标：** 会话能看到自己在工作目录下各 git 仓库里改了什么：建会话时（启动 harness 前）给每个仓库记一份基线，之后按需请求“会话累计”diff，按仓库汇总文件、增删行数与 patch。全程不读用户的 index、不往用户仓库写任何东西（只读其 HEAD 的提交与树、配置），用户的 `.git` 下没有任何文件被新建、修改、删除或改动时间戳。
 
 **架构：**
 
@@ -23,7 +23,7 @@ flowchart LR
 - Hoplet 的对象每个仓库一个目录、跨会话共用；index 每个工作树一个。清理（归档时）留到以后，PR8 只清导入 / repack 的残留并在 pack 多时合并。
 - 会话中途新出现的仓库从空树算起（`new`），消失的标 `missing`。
 - 会话目录在某个仓库内部时，diff 整个外层仓库。
-- 不读用户的 index 与对象（复制用户 index 的做法会经钩子、filter、split index 写进 `.git`，且用户 gc 后旧基线失效）：Hoplet 维护自己的 index 当 stat 缓存，内容按磁盘原始字节比较；每个仓库第一次快照要哈希整个工作区。
+- 不读用户的 index、不引用用户的对象做快照（复制用户 index 的做法会经钩子、filter、split index 写进 `.git`，且用户 gc 后旧基线失效）：Hoplet 维护自己的 index 当 stat 缓存，内容按磁盘原始字节比较；每个仓库第一次快照要哈希整个工作区。
 - 不过度设计：罕见布局（`.git` 是符号链接、`core.worktree` 指到别处、partial clone、仓库顶层是主目录或其上层）不支持，该仓库报 `error`“unsupported repository layout”，各有测试证明它不碰 `.git`；只是“包含”会话目录的主目录仓库静默忽略。
 
 **做法要点**（详见 `docs/design/0008` 新增的“会话基线与累计 diff”一节）：
@@ -35,7 +35,7 @@ flowchart LR
 ## 全局约束
 
 - 不新增依赖（调用用户的 `git`，要求 ≥ 2.38）；代码、注释、commit 用英文；设计文档中文；导出标识符有文档注释；库代码不 panic；错误用 `%w` 包装；不用 lint 抑制注释（`.golangci.yml` 里按文件、带理由的 G204 排除是本仓库既有做法）。
-- 不读写用户仓库的 index 与对象；用户 `.git`（含 common dir、子模块的 git 目录、linked worktree 的管理目录）下不得有任何改动：每个碰仓库的测试都用 `assertGitUntouched` 检查。
+- 不读用户的 index、不往用户仓库写任何东西；用户 `.git`（含 common dir、子模块的 git 目录、linked worktree 的管理目录）下不得有任何改动：每个碰仓库的测试都用 `assertGitUntouched` 检查。
 - 测试用 `t.TempDir()` 里的真实 git（缺 git 或版本低于 2.38 时跳过）；不访问网络、不碰真实的 `~/.hoplet`；除“轮询直到条件成立”外不用 sleep 同步；不泄漏进程。
 - 任何文件与 commit 都不得出现个人用户名或本机路径。
 - 分支 `feat/workspace-diff`；commit 带 DCO 签名（`git commit -s`），标题不超过 72 字符；完成前 `make check` 通过。
@@ -6281,3 +6281,15 @@ hoplet session diff <ID>
 git push -u origin feat/workspace-diff
 gh pr create --title "feat(workspace): discover repos and show session diff" --body-file <PR 说明>
 ```
+
+## 实施偏差
+
+本计划的代码块即执行时逐字落下的代码（任务 1–6 的提交与之逐字节一致）。整分支评审后又做了一次收尾：
+
+- `852338a fix(workspace): exact diff sha and final review notes`：
+  - 每个仓库的 `sha` 在按响应上限裁剪之后计算，并涵盖截断标记、实际发出的文件 / patch / skipped 数量、父仓库与是否请求了 patch，所以“sha 不变就不重绘”严格成立。
+  - 文件列表因响应过大被省略时，命令行提示“file list omitted”而不是“no changes”；只要 patch 被截断就提示。
+  - 措辞改准：Hoplet 不读用户的 index、不往用户仓库写任何东西，只读 HEAD 的提交与树以及配置。
+  - `SaveBaseline` 改为每个会话只插入一次。
+  - 父仓库只在一处计算；去掉多余的闭包、类型别名与只给测试用的函数。
+  - 0008 的加固清单补全；启动清理说明为“守护进程启动后第一次做基线或 diff 时运行一次”。
