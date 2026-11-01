@@ -6294,3 +6294,4 @@ gh pr create --title "feat(workspace): discover repos and show session diff" --b
   - 父仓库只在一处计算；去掉多余的闭包、类型别名与只给测试用的函数。
   - 0008 的加固清单补全；启动清理说明为“守护进程启动后第一次做基线或 diff 时运行一次”。
 - `c80ecf5 fix(workspace): give every diff row a sha and fix doc wording`：出错与消失的仓库也带 sha（状态与错误参与计算）；文件列表被省略时的提示涵盖总数上限；两处注释措辞与换行。
+- `20aad5b fix(workspace): treat a gitfile naming no directory as no repository`：CI 上的 git 对坏掉的 gitfile 给出不同的报错，导致它被当成"git 拒绝打开的仓库"。改为直接读 gitfile：指向的目录不存在就不是仓库，不再依赖 git 的措辞。
