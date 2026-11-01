@@ -34,12 +34,12 @@ type spoolRecord struct {
 // from the home directory) wherever it stands as a word.
 func cleaner(dir, home, hermesHome string) func(string) string {
 	paths := scrub.New(dir, home)
-	name := filepath.Base(home)
+	name := scrub.Word(filepath.Base(home), "me")
 	return func(s string) string {
 		if hermesHome != "" && hermesHome != home && !strings.HasPrefix(hermesHome, strings.TrimSuffix(home, "/")+"/") {
 			s = scrub.ReplacePath(s, hermesHome, "/Users/me/.hermes")
 		}
-		return scrub.ReplaceWord(paths(s), name, "me")
+		return name(paths(s))
 	}
 }
 

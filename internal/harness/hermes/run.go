@@ -62,8 +62,8 @@ type request struct {
 	method  string
 	params  map[string]any
 	retried bool
-	epoch   int // the connection it was written on
-	seq     int // its place in the order of writes
+	seq     int  // its place in the order of writes
+	resent  bool // a message written before a drop, to be written again
 }
 
 // pendingEnd is a turn whose message.complete arrived and whose receipt is
@@ -94,17 +94,24 @@ type run struct {
 	once     sync.Once
 
 	// Owned by loop.
-	inTurn    bool
-	turn      string          // the admission of the running turn
-	segment   int             // the assistant message being streamed in this turn
-	text      strings.Builder // its text so far
-	tools     map[string]tool
-	lastTool  string
-	ending    *pendingEnd     // a turn whose message.complete arrived, awaiting its receipt
-	late      map[string]bool // turns ended by a newer turn whose receipt is still due
-	retries   map[string]int  // receipt retries per admission
-	recover   string          // the admission whose receipt a reconnecting run asked for
-	toolsSeen bool
+	inTurn   bool
+	turn     string          // the admission of the running turn
+	segment  int             // the assistant message being streamed in this turn
+	text     strings.Builder // its text so far
+	tools    map[string]tool
+	lastTool string
+	ending   *pendingEnd     // a turn whose message.complete arrived, awaiting its receipt
+	late     map[string]bool // turns ended by a newer turn whose receipt is still due
+	retries  map[string]int  // receipt retries per admission
+	recover  string          // the admission whose receipt a reconnecting run asked for
+	// deferred is a turn that started while Hoplet was disconnected, found
+	// running by a snapshot while the turn before it still awaits its end:
+	// its events wait in deferredEvents until that end is known, so the
+	// turns come out in order. The buffer is bounded; past the bound only
+	// text deltas are dropped (the final message carries the whole text).
+	deferred       string
+	deferredEvents []event
+	toolsSeen      bool
 
 	prefix string
 	n      int // requests written, under mu
@@ -122,12 +129,12 @@ type run struct {
 	err        error
 	generation int64
 	revision   int64
-	admission  string // the current or last turn's admission
 	approvals  map[string]*approval
 	requests   map[string]*request
-	epoch      int             // counts the bridge's connections
-	writes     int             // counts requests written
-	stale      map[string]bool // requests lost with a connection: their answers are dropped
+	epoch      int            // counts the bridge's connections
+	writes     int            // counts requests written
+	stale      map[string]int // requests lost with a connection (and its epoch): their answers are dropped
+	timers     map[*time.Timer]struct{}
 	// attached is true once this connection has a snapshot of the session:
 	// the gateway refuses anything else before that, so requests wait.
 	attached bool
@@ -158,7 +165,7 @@ func newRun(io harness.Stdio, spec harness.Spec) *run {
 		inTurn: spec.State.InTurn, busy: spec.State.InTurn, tools: map[string]tool{},
 		prefix: "hoplet-" + rand.Text()[:8], native: native,
 		approvals: map[string]*approval{}, requests: map[string]*request{},
-		late: map[string]bool{}, retries: map[string]int{}, stale: map[string]bool{}, receiptDelay: receiptRetryDelay,
+		late: map[string]bool{}, retries: map[string]int{}, stale: map[string]int{}, timers: map[*time.Timer]struct{}{}, receiptDelay: receiptRetryDelay,
 		mode: spec.Mode, policy: editAsk, effort: spec.Effort, model: spec.Model,
 	}
 	if native != "" {
@@ -233,6 +240,7 @@ func (r *run) handle(l harness.Line) (evs []harness.Event, final bool) {
 		base.Exit = &harness.ExitStatus{Code: l.Code, Signal: l.Signal}
 		if r.inTurn {
 			r.ending, r.turn, r.recover = nil, "", ""
+			r.deferred, r.deferredEvents = "", nil
 			r.setInTurn(false)
 			base.Payload = proto.TurnEnded{Reason: proto.TurnAborted, Message: "the Hermes bridge exited"}
 		}
@@ -271,6 +279,11 @@ func (r *run) translate(line []byte) (out []proto.Payload, native string) {
 		r.dropInFlight()
 		r.mu.Lock()
 		r.epoch++
+		for id, e := range r.stale {
+			if e < r.epoch-1 { // lost before the previous connection
+				delete(r.stale, id)
+			}
+		}
 		r.mu.Unlock()
 		r.attachSession()
 		return nil, ""
@@ -325,7 +338,7 @@ func (r *run) attachSession() {
 func (r *run) onResponse(f frame) (out []proto.Payload, native string) {
 	id := strings.Trim(string(f.ID), `"`)
 	r.mu.Lock()
-	if r.stale[id] {
+	if _, lost := r.stale[id]; lost {
 		// Written on a connection that is gone: it was sent again or given up.
 		delete(r.stale, id)
 		r.mu.Unlock()
@@ -345,12 +358,7 @@ func (r *run) onResponse(f frame) (out []proto.Payload, native string) {
 	case "session.create", "session.resume":
 		return r.onSnapshot(f.Result, method == "session.create")
 	case "prompt.submit":
-		var a admitted
-		if json.Unmarshal(f.Result, &a) == nil && a.Admission != "" {
-			r.mu.Lock()
-			r.admission = a.Admission
-			r.mu.Unlock()
-		}
+		// Its admission may be a queued turn's: not the running turn's.
 		return nil, ""
 	case "prompt.receipt":
 		var a admitted
@@ -388,6 +396,7 @@ func (r *run) dropInFlight() {
 	var dropped []lost
 	for id, req := range r.requests {
 		if req.method == "session.create" || req.method == "session.resume" {
+			delete(r.requests, id) // attachSession asks again on connecting
 			continue
 		}
 		dropped = append(dropped, lost{id, req})
@@ -395,7 +404,7 @@ func (r *run) dropInFlight() {
 	slices.SortFunc(dropped, func(a, b lost) int { return a.req.seq - b.req.seq })
 	for _, l := range dropped {
 		delete(r.requests, l.id)
-		r.stale[l.id] = true
+		r.stale[l.id] = r.epoch
 		switch l.req.method {
 		case "session.mutate":
 			operation, _ := l.req.params["operation"].(string)
@@ -404,7 +413,7 @@ func (r *run) dropInFlight() {
 				r.mutations = slices.Insert(r.mutations, 0, mutation{operation: operation, payload: payload, retried: l.req.retried})
 			}
 		case "prompt.submit", "approval.respond", "config.set":
-			r.waiting = append(r.waiting, &request{method: l.req.method, params: l.req.params, retried: l.req.retried})
+			r.waiting = append(r.waiting, &request{method: l.req.method, params: l.req.params, retried: l.req.retried, resent: true})
 		}
 	}
 }
@@ -428,10 +437,6 @@ func (r *run) onOrphan(result json.RawMessage) (out []proto.Payload, native stri
 		var a admitted
 		_ = json.Unmarshal(result, &a)
 		return r.onReceipt(a), ""
-	case probe.Admission != "":
-		r.mu.Lock()
-		r.admission = probe.Admission
-		r.mu.Unlock()
 	}
 	return nil, ""
 }
@@ -452,13 +457,12 @@ func (r *run) onSnapshot(result json.RawMessage, created bool) (out []proto.Payl
 	r.attached = true
 	waiting := r.waiting
 	r.waiting = nil
-	admission := r.admission
+	started := ""
 	for _, p := range s.Pending {
 		if p.Status == "started" {
-			admission = p.Admission
+			started = p.Admission
 		}
 	}
-	r.admission = admission
 	// Approvals still open in Hermes are known again (their answers need
 	// their generation); those it no longer lists were settled while
 	// Hoplet was not connected.
@@ -484,11 +488,16 @@ func (r *run) onSnapshot(result json.RawMessage, created bool) (out []proto.Payl
 	if known != s.Session {
 		native = s.Session
 	}
+	// The receipts of turns that ended in favor of a newer one cannot
+	// arrive any more; their usage is lost.
+	clear(r.late)
+	out = append(out, r.meetRunningTurn(s.Running, started)...)
 	if created {
 		// Hermes takes only "ask" at creation; anything looser is a change.
 		policy, _ := editPolicy(r.spec.Mode)
 		r.setPolicyLocked(ctx, policy)
 	}
+	front := 0 // held messages the resent ones went ahead of
 	for _, req := range waiting {
 		if req.method == "approval.respond" {
 			id, _ := req.params["prompt_id"].(string)
@@ -499,11 +508,15 @@ func (r *run) onSnapshot(result json.RawMessage, created bool) (out []proto.Payl
 			req.params["execution_generation"] = p.Generation
 		}
 		r.fillSession(req, s.Session)
-		if req.method == "prompt.submit" {
+		switch {
+		case req.method == "prompt.submit" && req.resent:
+			// Written before the drop, so before everything held since.
+			r.holdFirst(ctx, req, &front)
+		case req.method == "prompt.submit":
 			_ = r.submitLocked(ctx, req)
-			continue
+		default:
+			_ = r.send(ctx, req)
 		}
-		_ = r.send(ctx, req)
 	}
 	r.orderMu.Unlock()
 	r.pumpMutations(ctx)
@@ -511,7 +524,11 @@ func (r *run) onSnapshot(result json.RawMessage, created bool) (out []proto.Payl
 	case r.ending != nil:
 		// The turn's end is still owed: its receipt may have been lost.
 		_ = r.requestReceipt(ctx, r.ending.admission)
-	case r.inTurn && !s.Running:
+	case r.inTurn && (!s.Running || r.deferred != ""):
+		admission := r.turn
+		if admission == "" {
+			admission = started
+		}
 		if admission == "" {
 			// Nothing names the turn that ended: say so rather than keep
 			// it open.
@@ -524,6 +541,76 @@ func (r *run) onSnapshot(result json.RawMessage, created bool) (out []proto.Payl
 		_ = r.requestReceipt(ctx, admission)
 	}
 	return out, native
+}
+
+// holdFirst sends a message written before a drop: ahead of the messages
+// held for pending settings (all written later), after the resent ones
+// already put there (*front of them).
+func (r *run) holdFirst(ctx context.Context, req *request, front *int) {
+	r.mu.Lock()
+	if r.attached && (r.mutating || len(r.mutations) > 0 || len(r.afterSettings) > 0) {
+		r.afterSettings = slices.Insert(r.afterSettings, *front, req)
+		*front++
+		r.mu.Unlock()
+		return
+	}
+	r.mu.Unlock()
+	_ = r.send(ctx, req)
+}
+
+// meetRunningTurn reconciles the turn Hermes says is running with the one
+// Hoplet has. A turn that started while Hoplet was away is started here; if
+// the turn before it is still open, that one ended while away: its end
+// comes first, and the new turn's events wait for it (see deferred).
+func (r *run) meetRunningTurn(running bool, started string) []proto.Payload {
+	cur := r.turn
+	if r.ending != nil {
+		cur = r.ending.admission
+	}
+	if !running || started == "" || started == cur {
+		return nil
+	}
+	switch {
+	case !r.inTurn:
+		r.turn = started
+		r.segment, r.toolsSeen = 0, false
+		r.text.Reset()
+		r.setInTurn(true)
+		return []proto.Payload{proto.TurnStarted{}}
+	case cur == "":
+		r.turn = started
+	case r.deferred != started:
+		r.deferred, r.deferredEvents = started, nil
+	}
+	return nil
+}
+
+// deferEvent keeps an event of the deferred turn. Past the bound only text
+// deltas are dropped: the final message carries the whole text. Its start
+// is not kept either, as the turn is started when its time comes.
+func (r *run) deferEvent(ev event) {
+	const bound = 4096
+	if ev.Type == "message.start" || (ev.Type == "message.delta" && len(r.deferredEvents) >= bound) {
+		return
+	}
+	r.deferredEvents = append(r.deferredEvents, ev)
+}
+
+// startDeferred starts the turn that waited for the end of the one before
+// it, then plays its events; out holds that end.
+func (r *run) startDeferred(out []proto.Payload) []proto.Payload {
+	if r.deferred == "" {
+		return out
+	}
+	events := r.deferredEvents
+	r.turn, r.deferred, r.deferredEvents = r.deferred, "", nil
+	r.segment, r.toolsSeen = 0, false
+	r.text.Reset()
+	out = append(out, proto.TurnStarted{})
+	for _, ev := range events {
+		out = append(out, r.onEvent(ev)...)
+	}
+	return out
 }
 
 // requestReceipt asks how a turn ended.
@@ -585,7 +672,7 @@ func (r *run) onReceipt(a admitted) []proto.Payload {
 		out = append(out, proto.Message{ID: r.messageID(a.Admission), Role: proto.RoleAssistant, Text: a.Result.FinalResponse})
 	}
 	usage()
-	return append(out, r.endTurn(complete, a))
+	return r.startDeferred(append(out, r.endTurn(complete, a)))
 }
 
 // retryReceipt asks again for a receipt that says the turn has not ended,
@@ -596,16 +683,23 @@ func (r *run) retryReceipt(admission, kind string) []proto.Payload {
 		return r.giveUp(admission, kind, "Hermes did not report how the turn ended")
 	}
 	r.retries[admission] = n + 1
-	time.AfterFunc(r.receiptDelay, func() {
-		select {
-		case <-r.done:
-			return
-		default:
-		}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	select {
+	case <-r.done:
+		return nil
+	default:
+	}
+	var t *time.Timer
+	t = time.AfterFunc(r.receiptDelay, func() {
+		r.mu.Lock()
+		delete(r.timers, t)
+		r.mu.Unlock()
 		ctx, cancel := context.WithTimeout(context.Background(), writeTimeout)
 		defer cancel()
 		_ = r.requestReceipt(ctx, admission)
 	})
+	r.timers[t] = struct{}{}
 	return nil
 }
 
@@ -618,10 +712,10 @@ func (r *run) giveUp(admission, kind, reason string) []proto.Payload {
 		delete(r.late, admission)
 		return nil
 	case receiptEnding:
-		return []proto.Payload{r.endTurn(r.ending.complete, admitted{})}
+		return r.startDeferred([]proto.Payload{r.endTurn(r.ending.complete, admitted{})})
 	}
 	r.finishTurn()
-	return []proto.Payload{proto.TurnEnded{Reason: proto.TurnAborted, Message: reason}}
+	return r.startDeferred([]proto.Payload{proto.TurnEnded{Reason: proto.TurnAborted, Message: reason}})
 }
 
 // endTurn closes the running turn and says how it ended.
@@ -634,7 +728,9 @@ func (r *run) endTurn(c *completePayload, a admitted) proto.TurnEnded {
 // finishTurn leaves the running turn; the settings that waited for it go.
 func (r *run) finishTurn() {
 	r.ending, r.turn, r.recover = nil, "", ""
-	r.setInTurn(false)
+	if r.deferred == "" {
+		r.setInTurn(false)
+	}
 	r.segment, r.toolsSeen = 0, false
 	r.text.Reset()
 }
@@ -791,11 +887,16 @@ func (r *run) onEvent(ev event) []proto.Payload {
 	if ev.Generation != nil {
 		r.generation = *ev.Generation
 	}
-	if ev.Admission != "" && (ev.Session == "" || ev.Session == native) {
-		r.admission = ev.Admission
-	}
 	r.mu.Unlock()
 	if ev.Session != "" && native != "" && ev.Session != native {
+		return nil
+	}
+	if r.inTurn && r.turn == "" && ev.Admission != "" {
+		// Reattached to a running bridge: the first event names the turn.
+		r.turn = ev.Admission
+	}
+	if r.deferred != "" && ev.Admission == r.deferred {
+		r.deferEvent(ev)
 		return nil
 	}
 	switch ev.Type {
@@ -915,7 +1016,7 @@ func (r *run) onEvent(ev event) []proto.Payload {
 			return nil // not the running turn's
 		}
 		if admission == "" {
-			admission = r.currentAdmission()
+			admission = r.turn
 		}
 		var out []proto.Payload
 		if p.Text != "" {
@@ -968,17 +1069,7 @@ func (r *run) closeSegment() []proto.Payload {
 	return out
 }
 
-// currentAdmission is the running turn's admission, else the last one seen.
-func (r *run) currentAdmission() string {
-	if r.turn != "" {
-		return r.turn
-	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return r.admission
-}
-
-func (r *run) currentID() string { return r.messageID(r.currentAdmission()) }
+func (r *run) currentID() string { return r.messageID(r.turn) }
 
 func (r *run) messageID(admission string) string {
 	return admission + "/" + strconv.Itoa(r.segment)
@@ -1032,12 +1123,11 @@ func (r *run) send(ctx context.Context, req *request) error {
 		r.mu.Unlock()
 		return nil
 	}
-	// Registered before it is written, so its answer finds it; the
-	// connection it goes out on is the one it is lost with.
+	// Registered before it is written, so its answer finds it.
 	r.n++
 	id := r.prefix + "-" + strconv.Itoa(r.n)
 	r.writes++
-	req.seq, req.epoch = r.writes, r.epoch
+	req.seq = r.writes
 	r.requests[id] = req
 	r.mu.Unlock()
 	b, err := json.Marshal(map[string]any{"jsonrpc": "2.0", "id": id, "method": req.method, "params": req.params})
@@ -1355,6 +1445,12 @@ func (r *run) Close() error {
 	var err error
 	r.once.Do(func() {
 		close(r.done)
+		r.mu.Lock()
+		for t := range r.timers {
+			t.Stop()
+		}
+		clear(r.timers)
+		r.mu.Unlock()
 		err = r.io.Close()
 		<-r.finished
 	})

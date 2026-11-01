@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -777,7 +778,7 @@ func TestANewerPickWinsOverAGuardedModelsConfirmation(t *testing.T) {
 	})
 }
 
-// gatedStdio holds the write of a message until the gate opens.
+// gatedStdio holds the write of one message until the gate opens.
 type gatedStdio struct {
 	*fakeStdio
 	hold string
@@ -794,6 +795,11 @@ func (g *gatedStdio) WriteLine(ctx context.Context, line []byte) error {
 	return g.fakeStdio.WriteLine(ctx, line)
 }
 
+// TestMessagesKeepTheirOrderWhileHeldOnesAreReleased holds the write of a
+// released message and sends another from a second goroutine. Before the
+// ordering lock the second one was written at once, ahead of the first; the
+// test waits (yielding, no sleeping) until it would have been written, and
+// only then opens the gate.
 func TestMessagesKeepTheirOrderWhileHeldOnesAreReleased(t *testing.T) {
 	g := &gatedStdio{fakeStdio: newFakeStdio(), hold: `"text":"m1"`, hit: make(chan struct{}), gate: make(chan struct{})}
 	x := &tester{t: t, io: g.fakeStdio}
@@ -814,11 +820,25 @@ func TestMessagesKeepTheirOrderWhileHeldOnesAreReleased(t *testing.T) {
 	<-g.hit
 	done := make(chan error, 1)
 	go func() { done <- x.run.Send(ctx, "m2") }()
+	wroteM2 := func() bool {
+		for _, w := range x.io.written() {
+			if bytes.Contains(w, []byte(`"text":"m2"`)) {
+				return true
+			}
+		}
+		return false
+	}
+	for range 100000 {
+		if wroteM2() {
+			break
+		}
+		runtime.Gosched()
+	}
 	close(g.gate)
-	g.lines <- harness.Line{Kind: harness.Position, Offset: x.offset}
 	if err := <-done; err != nil {
 		t.Fatal(err)
 	}
+	g.lines <- harness.Line{Kind: harness.Position, Offset: x.offset}
 	for ev := range x.run.Events() {
 		if ev.Offset == x.offset && ev.Raw == nil && ev.Payload == nil {
 			break
@@ -827,6 +847,178 @@ func TestMessagesKeepTheirOrderWhileHeldOnesAreReleased(t *testing.T) {
 	w := x.writes(n + 1)
 	if len(w) != 2 || w[0].Params["text"] != "m1" || w[1].Params["text"] != "m2" {
 		t.Fatalf("order %+v", w)
+	}
+}
+
+func TestResentMessagesKeepTheirPlace(t *testing.T) {
+	x := newTester(t, harness.Spec{Resume: "s1"})
+	x.attach("s1", false)
+	ctx := context.Background()
+	n := len(x.io.written())
+	if err := x.run.Send(ctx, "m1"); err != nil { // in flight
+		t.Fatal(err)
+	}
+	if err := x.run.SetEffort(ctx, proto.EffortLow); err != nil { // in flight
+		t.Fatal(err)
+	}
+	if err := x.run.Send(ctx, "m2"); err != nil { // held for the setting
+		t.Fatal(err)
+	}
+	x.push(`{"hoplet_bridge":"disconnected","error":"gone"}`)
+	x.push(`{"hoplet_bridge":"connected"}`)
+	x.answer(n+2, `{"session_id":"s1","stored_session_id":"s1","running":false,"revision":4,"execution_generation":1}`)
+	if w := x.writes(n + 3); len(w) != 1 || w[0].Method != "session.mutate" {
+		t.Fatalf("after attaching %+v", w)
+	}
+	x.answer(n+3, `{"revision":5,"execution_generation":1}`)
+	w := x.writes(n + 4)
+	if len(w) != 2 || w[0].Params["text"] != "m1" || w[1].Params["text"] != "m2" {
+		t.Fatalf("order %+v", w)
+	}
+}
+
+func TestRecoveryAsksForTheRunningTurnsReceipt(t *testing.T) {
+	x := newTester(t, harness.Spec{Resume: "s1"})
+	x.attach("s1", true)
+	x.push(eventFor("a1", "message.start", `{}`))
+	n := len(x.io.written())
+	if err := x.run.Send(context.Background(), "next"); err != nil {
+		t.Fatal(err)
+	}
+	x.answer(n, `{"admission_id":"a2","status":"queued"}`)
+	x.push(`{"hoplet_bridge":"disconnected","error":"gone"}`)
+	x.push(`{"hoplet_bridge":"connected"}`)
+	x.answer(n+1, `{"session_id":"s1","stored_session_id":"s1","running":false,"revision":2,"execution_generation":1}`)
+	if w := x.writes(n + 2); len(w) != 1 || w[0].Method != "prompt.receipt" || w[0].Params["admission_id"] != "a1" {
+		t.Fatalf("receipt request %+v", w)
+	}
+}
+
+const runningA2 = `{"session_id":"s1","stored_session_id":"s1","running":true,"revision":2,"execution_generation":1,"pending":[{"admission_id":"a2","status":"started"}]}`
+
+func TestATurnThatStartedWhileAwayIsStarted(t *testing.T) {
+	x := newTester(t, harness.Spec{Resume: "s1"})
+	x.attach("s1", false)
+	n := len(x.io.written())
+	x.push(`{"hoplet_bridge":"disconnected","error":"gone"}`)
+	x.push(`{"hoplet_bridge":"connected"}`)
+	if p := x.answer(n, runningA2); len(p) != 1 || p[0] != (proto.TurnStarted{}) {
+		t.Fatalf("snapshot %v", p)
+	}
+	if err := x.run.SetEffort(context.Background(), proto.EffortLow); err != nil {
+		t.Fatal(err)
+	}
+	if len(x.io.written()) != n+1 {
+		t.Fatal("a setting went out while the turn runs")
+	}
+	if p := x.push(complete("a2", "hi")); len(p) != 1 || p[0].(proto.Message).ID != "a2/0" {
+		t.Fatalf("complete %v", p)
+	}
+	p := x.answer(n+1, receipt("a2", "terminal", ""))
+	if len(p) != 1 || p[0] != (proto.TurnEnded{Reason: proto.TurnCompleted}) {
+		t.Fatalf("receipt %v", p)
+	}
+	if w := x.writes(n + 2); len(w) != 1 || w[0].Method != "session.mutate" {
+		t.Fatalf("the setting after the turn %+v", w)
+	}
+}
+
+func TestATurnThatStartedWhileAwayWaitsForTheOneBefore(t *testing.T) {
+	x := newTester(t, harness.Spec{Resume: "s1"})
+	x.attach("s1", false)
+	x.push(eventFor("a1", "message.start", `{}`))
+	n := endedTurn(x) // a1 completed, its receipt asked for
+	x.push(`{"hoplet_bridge":"disconnected","error":"gone"}`)
+	x.push(`{"hoplet_bridge":"connected"}`)
+	if p := x.answer(n+1, runningA2); len(p) != 0 {
+		t.Fatalf("snapshot %v", p)
+	}
+	if w := x.writes(n + 2); len(w) != 1 || w[0].Method != "prompt.receipt" || w[0].Params["admission_id"] != "a1" {
+		t.Fatalf("receipt request %+v", w)
+	}
+	// a2 runs, but a1's end comes first.
+	if p := x.push(eventFor("a2", "message.delta", `{"text":"he"}`)); len(p) != 0 {
+		t.Fatalf("delta %v", p)
+	}
+	if p := x.push(complete("a2", "hello")); len(p) != 0 {
+		t.Fatalf("complete %v", p)
+	}
+	if err := x.run.SetEffort(context.Background(), proto.EffortLow); err != nil {
+		t.Fatal(err)
+	}
+	if len(x.io.written()) != n+3 {
+		t.Fatal("a setting went out while a turn runs")
+	}
+	p := x.answer(n+2, receipt("a1", "terminal", `,"usage":{"input_tokens":1,"output_tokens":1}`))
+	if len(p) != 5 || p[0] != (proto.Usage{InputTokens: 1, OutputTokens: 1}) || p[1] != (proto.TurnEnded{Reason: proto.TurnCompleted}) ||
+		p[2] != (proto.TurnStarted{}) || p[3] != (proto.MessageDelta{MessageID: "a2/0", Text: "he"}) || p[4].(proto.Message).Text != "hello" {
+		t.Fatalf("resolved %v", p)
+	}
+	if w := x.writes(n + 3); len(w) != 1 || w[0].Method != "prompt.receipt" || w[0].Params["admission_id"] != "a2" {
+		t.Fatalf("a2's receipt request %+v", w)
+	}
+	p = x.answer(n+3, receipt("a2", "terminal", ""))
+	if len(p) != 1 || p[0] != (proto.TurnEnded{Reason: proto.TurnCompleted}) {
+		t.Fatalf("a2 end %v", p)
+	}
+	if w := x.writes(n + 4); len(w) != 1 || w[0].Method != "session.mutate" {
+		t.Fatalf("the setting after the turns %+v", w)
+	}
+}
+
+func TestAReattachedRunAdoptsTheTurnFromItsFirstEvent(t *testing.T) {
+	x := newTester(t, harness.Spec{State: harness.State{Native: "s1", InTurn: true}})
+	if p := x.push(eventFor("a7", "message.delta", `{"text":"x"}`)); len(p) != 1 || p[0].(proto.MessageDelta).MessageID != "a7/0" {
+		t.Fatalf("delta %v", p)
+	}
+	n := len(x.io.written())
+	x.push(complete("a7", "x"))
+	if w := x.writes(n); len(w) != 1 || w[0].Params["admission_id"] != "a7" {
+		t.Fatalf("receipt request %+v", w)
+	}
+}
+
+func TestStateAboutLostConnectionsIsBounded(t *testing.T) {
+	x := newTester(t, harness.Spec{Resume: "s1"})
+	x.attach("s1", false)
+	ctx := context.Background()
+	for i := range 4 {
+		n := len(x.io.written())
+		if err := x.run.Send(ctx, fmt.Sprintf("m%d", i)); err != nil {
+			t.Fatal(err)
+		}
+		x.push(`{"hoplet_bridge":"disconnected","error":"gone"}`)
+		x.push(`{"hoplet_bridge":"connected"}`)
+		x.answer(n+1, `{"session_id":"s1","stored_session_id":"s1","running":false,"revision":1,"execution_generation":1}`)
+		x.answer(n+2, `{"admission_id":"a","status":"queued"}`)
+	}
+	x.run.mu.Lock()
+	stale, requests := len(x.run.stale), len(x.run.requests)
+	x.run.mu.Unlock()
+	if stale > 1 || requests != 0 {
+		t.Fatalf("%d stale, %d requests kept", stale, requests)
+	}
+}
+
+func TestClosingStopsTheReceiptTimers(t *testing.T) {
+	x := newTester(t, harness.Spec{Resume: "s1"})
+	x.run.receiptDelay = time.Hour
+	x.attach("s1", false)
+	n := endedTurn(x)
+	x.answer(n, receipt("a1", "started", ""))
+	count := func() int {
+		x.run.mu.Lock()
+		defer x.run.mu.Unlock()
+		return len(x.run.timers)
+	}
+	if count() != 1 {
+		t.Fatalf("%d timers", count())
+	}
+	if err := x.run.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if count() != 0 {
+		t.Fatalf("%d timers after closing", count())
 	}
 }
 

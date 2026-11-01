@@ -104,13 +104,15 @@ func StripKey(v any, key string) any {
 	return v
 }
 
-// ReplaceWord replaces the occurrences of word in s that are whole words:
-// not part of a longer run of letters, digits or underscores. It does
-// nothing for a word shorter than three characters, which would also
-// match unrelated text.
-func ReplaceWord(s, word, to string) string {
+// Word returns the function that replaces word, wherever it stands as a
+// whole word, with to: not part of a longer run of letters, digits or
+// underscores. It also matches right after a JSON escape (`\n`, `\t`, `\"`),
+// as recorded lines are JSON text. A word shorter than three characters
+// would also match unrelated text, so it replaces nothing.
+func Word(word, to string) func(string) string {
 	if len(word) < 3 {
-		return s
+		return func(s string) string { return s }
 	}
-	return regexp.MustCompile(`\b`+regexp.QuoteMeta(word)+`\b`).ReplaceAllLiteralString(s, to)
+	re := regexp.MustCompile(`(^|[^A-Za-z0-9_]|\\[nrtbf"/\\])` + regexp.QuoteMeta(word) + `\b`)
+	return func(s string) string { return re.ReplaceAllString(s, "${1}"+strings.ReplaceAll(to, "$", "$$")) }
 }

@@ -19,13 +19,16 @@ func TestReplacePath(t *testing.T) {
 	}
 }
 
-func TestReplaceWord(t *testing.T) {
+func TestWord(t *testing.T) {
 	for _, tt := range []struct{ s, word, want string }{
 		{"ann wrote ann_x and anna and /Users/ann/x", "ann", "me wrote ann_x and anna and /Users/me/x"},
 		{"an and a", "an", "an and a"},
+		{`{"d":"line\nannie\tannie\"annie\\annie annie"}`, "annie", `{"d":"line\nme\tme\"me\\me me"}`},
+		{`{"d":"annie annie"}`, "annie", `{"d":"me me"}`},
+		{`{"d":"\nannies and nannie"}`, "annie", `{"d":"\nannies and nannie"}`},
 	} {
-		if got := ReplaceWord(tt.s, tt.word, "me"); got != tt.want {
-			t.Errorf("ReplaceWord(%q, %q) = %q, want %q", tt.s, tt.word, got, tt.want)
+		if got := Word(tt.word, "me")(tt.s); got != tt.want {
+			t.Errorf("Word(%q)(%q) = %q, want %q", tt.word, tt.s, got, tt.want)
 		}
 	}
 }
