@@ -4,6 +4,7 @@ package scrub
 
 import (
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 )
@@ -101,4 +102,15 @@ func StripKey(v any, key string) any {
 		}
 	}
 	return v
+}
+
+// ReplaceWord replaces the occurrences of word in s that are whole words:
+// not part of a longer run of letters, digits or underscores. It does
+// nothing for a word shorter than three characters, which would also
+// match unrelated text.
+func ReplaceWord(s, word, to string) string {
+	if len(word) < 3 {
+		return s
+	}
+	return regexp.MustCompile(`\b`+regexp.QuoteMeta(word)+`\b`).ReplaceAllLiteralString(s, to)
 }

@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -27,6 +29,20 @@ type spoolRecord struct {
 	Code int    `json:"code"`
 }
 
+// cleaner scrubs a line: the working directory and the user's home, the
+// Hermes home when it is outside the user's home, and the login name (taken
+// from the home directory) wherever it stands as a word.
+func cleaner(dir, home, hermesHome string) func(string) string {
+	paths := scrub.New(dir, home)
+	name := filepath.Base(home)
+	return func(s string) string {
+		if hermesHome != "" && hermesHome != home && !strings.HasPrefix(hermesHome, strings.TrimSuffix(home, "/")+"/") {
+			s = scrub.ReplacePath(s, hermesHome, "/Users/me/.hermes")
+		}
+		return scrub.ReplaceWord(paths(s), name, "me")
+	}
+}
+
 // Sanitize turns the spool of a real Hermes session into a contract-test
 // fixture: it keeps the bridge's input and output, drops events that only
 // dress a user interface, cuts what a snapshot, a receipt or session info
@@ -37,7 +53,7 @@ func Sanitize(in io.Reader, out io.Writer, dir, home string) error {
 	sc.Buffer(nil, harness.MaxLine+1<<20)
 	enc := json.NewEncoder(out)
 	enc.SetEscapeHTML(false)
-	clean := scrub.New(dir, home)
+	clean := cleaner(dir, home, Home(os.Environ()))
 	var pending strings.Builder // a line continued over several records
 	for sc.Scan() {
 		var r spoolRecord
@@ -105,10 +121,12 @@ func reduce(line string) (string, bool, error) {
 			v["result"] = only(res, kept)
 		case res["tools"] != nil: // session.info
 			v["result"] = map[string]any{}
-		case res["result"] != nil: // a receipt
-			res["result"] = only(res["result"], []string{
+		case res["result"] != nil: // a receipt: its messages and tool outputs go
+			receipt := only(res, []string{"admission_id", "status", "outcome", "usage"})
+			receipt["result"] = only(res["result"], []string{
 				"final_response", "completed", "interrupted", "failed", "failure_reason", "error",
 			})
+			v["result"] = receipt
 		}
 	}
 	b, err := json.Marshal(v)
