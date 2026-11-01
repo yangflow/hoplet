@@ -69,6 +69,11 @@ linters:
       - path: internal/daemon/secure\.go
         linters: [gosec]
         text: G302
+      # run starts the git binary found on the harness PATH, with arguments
+      # built by package workspace.
+      - path: internal/workspace/git\.go
+        linters: [gosec]
+        text: G204
 
 formatters:
   enable:
