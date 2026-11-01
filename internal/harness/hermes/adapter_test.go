@@ -1207,17 +1207,20 @@ func (x *tester) resumes() int {
 
 var restartAborted = proto.TurnEnded{Reason: proto.TurnAborted, Message: "the turn ended while the Hoplet daemon restarted"}
 
+const idle = `{"session_id":"s1","stored_session_id":"s1","running":false,"revision":2,"execution_generation":1}`
+
 // TestAnOrphanReceiptEndsTheOpenTurnAfterARestart is the turn that ended
 // while the daemon was down, after the old daemon had read its
-// message.complete: only the receipt answer is replayed.
+// message.complete: only the receipt answer is replayed. It is held until
+// the snapshot says nothing runs.
 func TestAnOrphanReceiptEndsTheOpenTurnAfterARestart(t *testing.T) {
 	x := restarted(t)
-	p := x.push(orphan("a1", `,"usage":{"input_tokens":5,"output_tokens":3}`))
-	if len(p) != 3 || p[0] != (proto.Message{ID: "a1/0", Role: proto.RoleAssistant, Text: "x"}) ||
-		p[1] != (proto.Usage{InputTokens: 5, OutputTokens: 3}) || p[2] != (proto.TurnEnded{Reason: proto.TurnCompleted}) {
+	if p := x.push(orphan("a1", `,"usage":{"input_tokens":5,"output_tokens":3}`)); len(p) != 0 {
 		t.Fatalf("orphan %v", p)
 	}
-	if p := x.answer(0, `{"session_id":"s1","stored_session_id":"s1","running":false,"revision":2,"execution_generation":1}`); len(p) != 0 {
+	p := x.answer(0, idle)
+	if len(p) != 3 || p[0] != (proto.Message{ID: "a1/0", Role: proto.RoleAssistant, Text: "x"}) ||
+		p[1] != (proto.Usage{InputTokens: 5, OutputTokens: 3}) || p[2] != (proto.TurnEnded{Reason: proto.TurnCompleted}) {
 		t.Fatalf("snapshot %v", p)
 	}
 	n := len(x.io.written())
@@ -1255,32 +1258,63 @@ func TestATurnStartedWhileTheDaemonRestartedEndsTheOpenOne(t *testing.T) {
 	}
 }
 
-// TestAnOrphanReceiptBeforeTheNextStartEndsTheOpenTurn is the same with
-// the receipt answered first.
-func TestAnOrphanReceiptBeforeTheNextStartEndsTheOpenTurn(t *testing.T) {
+// TestAHeldReceiptOfAnEndedTurnYieldsOnlyItsUsage is the receipt answered
+// before the next start: the start still ends the open turn as aborted,
+// and the held receipt, not the new turn's, yields its usage at the
+// snapshot.
+func TestAHeldReceiptOfAnEndedTurnYieldsOnlyItsUsage(t *testing.T) {
 	x := restarted(t)
-	p := x.push(orphan("a1", `,"usage":{"input_tokens":5,"output_tokens":3}`))
-	if len(p) != 3 || p[1] != (proto.Usage{InputTokens: 5, OutputTokens: 3}) || p[2] != (proto.TurnEnded{Reason: proto.TurnCompleted}) {
+	if p := x.push(orphan("a1", `,"usage":{"input_tokens":5,"output_tokens":3}`)); len(p) != 0 {
 		t.Fatalf("orphan %v", p)
 	}
-	if p := x.push(eventFor("a2", "message.start", `{}`)); len(p) != 1 || p[0] != (proto.TurnStarted{}) {
+	if p := x.push(eventFor("a2", "message.start", `{}`)); len(p) != 2 || p[0] != restartAborted || p[1] != (proto.TurnStarted{}) {
 		t.Fatalf("a2 start %v", p)
+	}
+	if p := x.answer(0, runningA2); len(p) != 1 || p[0] != (proto.Usage{InputTokens: 5, OutputTokens: 3}) {
+		t.Fatalf("snapshot %v", p)
+	}
+}
+
+// TestALateReceiptDoesNotEndTheOpenTurnAfterARestart is the old daemon
+// having ended a0 at a7's start, a0's receipt still due, a7 open in the
+// store: a0's receipt yields only its usage, and a7 ends from its own.
+func TestALateReceiptDoesNotEndTheOpenTurnAfterARestart(t *testing.T) {
+	x := restarted(t)
+	if p := x.push(orphan("a0", `,"usage":{"input_tokens":5,"output_tokens":3}`)); len(p) != 0 {
+		t.Fatalf("orphan %v", p)
+	}
+	if p := x.push(eventFor("a7", "message.delta", `{"text":"he"}`)); len(p) != 1 || p[0] != (proto.MessageDelta{MessageID: "a7/0", Text: "he"}) {
+		t.Fatalf("a7 delta %v", p)
+	}
+	snap := `{"session_id":"s1","stored_session_id":"s1","running":true,"revision":2,"execution_generation":1,"pending":[{"admission_id":"a7","status":"started"}]}`
+	if p := x.answer(0, snap); len(p) != 1 || p[0] != (proto.Usage{InputTokens: 5, OutputTokens: 3}) {
+		t.Fatalf("snapshot %v", p)
+	}
+	n := len(x.io.written())
+	if p := x.push(complete("a7", "hello")); len(p) != 1 || p[0] != (proto.Message{ID: "a7/0", Role: proto.RoleAssistant, Text: "hello"}) {
+		t.Fatalf("a7 complete %v", p)
+	}
+	if w := x.writes(n); len(w) != 1 || w[0].Params["admission_id"] != "a7" {
+		t.Fatalf("receipt request %+v", w)
+	}
+	if p := x.answer(n, receipt("a7", "terminal", `,"usage":{"input_tokens":1,"output_tokens":1}`)); len(p) != 2 || p[1] != (proto.TurnEnded{Reason: proto.TurnCompleted}) {
+		t.Fatalf("a7 end %v", p)
 	}
 }
 
 // TestAQueuedTurnIsNotTakenForTheOpenOneAfterARestart is the old daemon
-// holding a2 behind a1, a1's receipt in flight, when it stopped: a1 ends
-// from its receipt and a2 is a turn of its own.
+// holding a2 behind a1, a1's receipt in flight, when it stopped. The input
+// is the same as a late receipt's (above): a2's content is the open turn's,
+// and a1's receipt yields only its usage.
 func TestAQueuedTurnIsNotTakenForTheOpenOneAfterARestart(t *testing.T) {
 	x := restarted(t)
-	p := x.push(orphan("a1", `,"usage":{"input_tokens":5,"output_tokens":3}`))
-	if len(p) != 3 || p[0].(proto.Message).ID != "a1/0" || p[2] != (proto.TurnEnded{Reason: proto.TurnCompleted}) {
+	if p := x.push(orphan("a1", `,"usage":{"input_tokens":5,"output_tokens":3}`)); len(p) != 0 {
 		t.Fatalf("a1's receipt %v", p)
 	}
-	if p := x.push(eventFor("a2", "message.delta", `{"text":"he"}`)); len(p) != 0 {
+	if p := x.push(eventFor("a2", "message.delta", `{"text":"he"}`)); len(p) != 1 {
 		t.Fatalf("a2 delta %v", p)
 	}
-	if p := x.answer(0, runningA2); len(p) != 1 || p[0] != (proto.TurnStarted{}) {
+	if p := x.answer(0, runningA2); len(p) != 1 || p[0] != (proto.Usage{InputTokens: 5, OutputTokens: 3}) {
 		t.Fatalf("snapshot %v", p)
 	}
 	n := len(x.io.written())
@@ -1290,6 +1324,65 @@ func TestAQueuedTurnIsNotTakenForTheOpenOneAfterARestart(t *testing.T) {
 	if p := x.answer(n, receipt("a2", "terminal", "")); len(p) != 1 || p[0] != (proto.TurnEnded{Reason: proto.TurnCompleted}) {
 		t.Fatalf("a2 end %v", p)
 	}
+}
+
+// TestHeldReceiptsAfterARestart covers the other ways the snapshot settles
+// the receipts held for the open turn.
+func TestHeldReceiptsAfterARestart(t *testing.T) {
+	usage := `,"usage":{"input_tokens":5,"output_tokens":3}`
+	used := proto.Usage{InputTokens: 5, OutputTokens: 3}
+	t.Run("running, not adopted", func(t *testing.T) {
+		x := restarted(t)
+		x.push(orphan("a0", usage))
+		snap := `{"session_id":"s1","stored_session_id":"s1","running":true,"revision":2,"execution_generation":1,"pending":[{"admission_id":"a7","status":"started"}]}`
+		if p := x.answer(0, snap); len(p) != 1 || p[0] != used {
+			t.Fatalf("snapshot %v", p)
+		}
+		n := len(x.io.written())
+		if p := x.push(complete("a7", "hi")); len(p) != 1 || p[0].(proto.Message).ID != "a7/0" {
+			t.Fatalf("a7 complete %v", p)
+		}
+		if w := x.writes(n); len(w) != 1 || w[0].Params["admission_id"] != "a7" {
+			t.Fatalf("receipt request %+v", w)
+		}
+	})
+	t.Run("idle, several", func(t *testing.T) {
+		x := restarted(t)
+		x.push(orphan("a0", usage))
+		x.push(orphan("a1", `,"usage":{"input_tokens":1,"output_tokens":1}`))
+		p := x.answer(0, idle)
+		if len(p) != 4 || p[0] != used || p[1].(proto.Message).ID != "a1/0" ||
+			p[2] != (proto.Usage{InputTokens: 1, OutputTokens: 1}) || p[3] != (proto.TurnEnded{Reason: proto.TurnCompleted}) {
+			t.Fatalf("snapshot %v", p)
+		}
+	})
+	t.Run("adopted by an event", func(t *testing.T) {
+		x := restarted(t)
+		x.push(orphan("a0", usage))
+		x.push(orphan("a7", ""))
+		p := x.push(eventFor("a7", "message.delta", `{"text":"x"}`))
+		if len(p) != 3 || p[0] != (proto.MessageDelta{MessageID: "a7/0", Text: "x"}) || p[2] != (proto.TurnEnded{Reason: proto.TurnCompleted}) {
+			t.Fatalf("a7 delta %v", p)
+		}
+		if p := x.answer(0, idle); len(p) != 1 || p[0] != used {
+			t.Fatalf("snapshot %v", p)
+		}
+	})
+	t.Run("refused", func(t *testing.T) {
+		x := restarted(t)
+		x.push(orphan("a1", usage))
+		p := x.refuse(0, "internal", "")
+		if len(p) != 4 || !strings.Contains(p[0].(proto.Error).Message, "session.resume") || p[1].(proto.Message).ID != "a1/0" ||
+			p[2] != used || p[3] != (proto.TurnEnded{Reason: proto.TurnCompleted}) {
+			t.Fatalf("refused %v", p)
+		}
+	})
+	t.Run("refused, none held", func(t *testing.T) {
+		x := restarted(t)
+		if p := x.refuse(0, "internal", ""); len(p) != 2 || p[1] != restartAborted {
+			t.Fatalf("refused %v", p)
+		}
+	})
 }
 
 func TestTheResumeAfterARestartResolvesTheOpenTurn(t *testing.T) {

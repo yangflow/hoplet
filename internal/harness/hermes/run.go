@@ -105,6 +105,11 @@ type run struct {
 	// a running bridge (the daemon restarted) with a turn open in the
 	// store, and the snapshot says where that turn stands.
 	reattach bool
+	// holding is true until that snapshot answers: receipts the old daemon
+	// asked for that arrive while its open turn is not known yet are held
+	// in held, as the snapshot tells which of them ends that turn.
+	holding bool
+	held    []admitted
 	// orderMu orders user messages: it is held from the decision to queue
 	// or write a message through the write, and while queued ones are
 	// released. Lock order: orderMu before mu; orderMu is never taken while
@@ -169,6 +174,7 @@ func newRun(io harness.Stdio, spec harness.Spec) *run {
 	// when it connects.
 	r.attached = native != "" && spec.Resume == ""
 	r.reattach = r.attached && spec.State.InTurn
+	r.holding = r.reattach
 	go r.loop()
 	return r
 }
@@ -347,7 +353,11 @@ func (r *run) onResponse(f frame) (out []proto.Payload, native string) {
 	delete(r.requests, id)
 	r.mu.Unlock()
 	if e := f.rpcErr(); e != nil {
-		return r.onError(req, e), ""
+		out = r.onError(req, e)
+		if req != nil && (req.method == "session.create" || req.method == "session.resume") && r.holding {
+			out = r.releaseHeld(out)
+		}
+		return out, ""
 	}
 	method := ""
 	if req != nil {
@@ -355,7 +365,7 @@ func (r *run) onResponse(f frame) (out []proto.Payload, native string) {
 	}
 	switch method {
 	case "session.create", "session.resume":
-		return r.onSnapshot(f.Result, method == "session.create")
+		return r.onSnapshot(f.Result, method == "session.create", true)
 	case "prompt.submit":
 		// Its admission may be a queued turn's: not the running turn's.
 		return nil, ""
@@ -431,7 +441,7 @@ func (r *run) onOrphan(result json.RawMessage) (out []proto.Payload, native stri
 	}
 	switch {
 	case probe.Stored != nil:
-		return r.onSnapshot(result, false)
+		return r.onSnapshot(result, false, false)
 	case probe.Admission != "" && probe.Status == "terminal" && probe.Result != nil:
 		var a admitted
 		_ = json.Unmarshal(result, &a)
@@ -440,24 +450,80 @@ func (r *run) onOrphan(result json.RawMessage) (out []proto.Payload, native stri
 	return nil, ""
 }
 
-// onOrphanReceipt reads a receipt the old daemon asked for. It asked only
-// for its own open turn, so while that turn's admission is not known the
-// receipt names it and ends it. A receipt of a turn no longer kept (ended
-// as aborted when a newer turn started) yields only its usage.
+// onOrphanReceipt reads a receipt the old daemon asked for. While its
+// open turn's admission is not known, the receipt may be that turn's or an
+// earlier turn's whose receipt was still due: it is held until the
+// snapshot this run asked for tells (see settleHeld). Without that
+// snapshot, the old daemon's open turn is taken to be the one the receipt
+// names. A receipt of a turn no longer kept (ended as aborted when a newer
+// turn started) yields only its usage.
 func (r *run) onOrphanReceipt(a admitted) []proto.Payload {
 	if h := r.unadopted(); h != nil && r.find(a.Admission) == nil {
+		if r.holding {
+			r.held = append(r.held, a)
+			return nil
+		}
 		h.admission = a.Admission
 	}
 	if r.classify(a.Admission) == "" && r.find(a.Admission) == nil {
-		if a.Usage != nil {
-			return []proto.Payload{proto.Usage{InputTokens: a.Usage.Input, OutputTokens: a.Usage.Output}}
-		}
-		return nil
+		return usageOf(a)
 	}
 	return r.onReceipt(a)
 }
 
-func (r *run) onSnapshot(result json.RawMessage, created bool) (out []proto.Payload, native string) {
+func usageOf(a admitted) []proto.Payload {
+	if a.Usage == nil {
+		return nil
+	}
+	return []proto.Payload{proto.Usage{InputTokens: a.Usage.Input, OutputTokens: a.Usage.Output}}
+}
+
+// adoptHeld applies a held receipt of the turn the open one was found to
+// be: that turn is over.
+func (r *run) adoptHeld(out []proto.Payload, admission string) []proto.Payload {
+	for i, a := range r.held {
+		if a.Admission == admission {
+			r.held = slices.Delete(r.held, i, i+1)
+			return append(out, r.onReceipt(a)...)
+		}
+	}
+	return out
+}
+
+// settleHeld applies the held receipts once the snapshot asked for on
+// reattaching has reconciled the queue: the first turn's receipt ends it,
+// the others are earlier turns' and yield only their usage.
+func (r *run) settleHeld(out []proto.Payload) []proto.Payload {
+	held := r.held
+	r.held, r.holding = nil, false
+	for _, a := range held {
+		if r.classify(a.Admission) != "" {
+			out = append(out, r.onReceipt(a)...)
+		} else {
+			out = append(out, usageOf(a)...)
+		}
+	}
+	return out
+}
+
+// releaseHeld applies the held receipts when the snapshot asked for on
+// reattaching was refused: the first names the open turn, and with none
+// the open turn ends as aborted.
+func (r *run) releaseHeld(out []proto.Payload) []proto.Payload {
+	held := r.held
+	r.held, r.holding = nil, false
+	for _, a := range held {
+		out = append(out, r.onOrphanReceipt(a)...)
+	}
+	if h := r.unadopted(); h != nil {
+		h.ended = true
+	}
+	return r.advance(out)
+}
+
+// onSnapshot reads a snapshot; own is true for the answer to this run's
+// own session.create or session.resume.
+func (r *run) onSnapshot(result json.RawMessage, created, own bool) (out []proto.Payload, native string) {
 	var s snapshot
 	if json.Unmarshal(result, &s) != nil || s.Session == "" {
 		return []proto.Payload{proto.Error{Message: "Hermes answered without a session"}}, ""
@@ -504,6 +570,11 @@ func (r *run) onSnapshot(result json.RawMessage, created bool) (out []proto.Payl
 	if known != s.Session {
 		native = s.Session
 	}
+	settle := own && r.holding
+	if h := r.unadopted(); settle && !s.Running && h != nil && len(r.held) > 0 {
+		// Nothing runs: the latest receipt is the open turn's.
+		h.admission = r.held[len(r.held)-1].Admission
+	}
 	r.reconcile(s.Running, started)
 	if created {
 		// Hermes takes only "ask" at creation; anything looser is a change.
@@ -533,6 +604,9 @@ func (r *run) onSnapshot(result json.RawMessage, created bool) (out []proto.Payl
 	}
 	r.orderMu.Unlock()
 	r.pumpMutations(ctx)
+	if settle {
+		out = r.settleHeld(out)
+	}
 	out = r.advance(out)
 	return out, native
 }
@@ -1012,13 +1086,19 @@ func (r *run) onEvent(ev event) []proto.Payload {
 	}
 	// An event of a turn: the first turn's is translated, a later one's
 	// kept until that turn comes first, any other is dropped.
+	adopted := false
 	if h := r.unadopted(); h != nil && ev.Admission != "" && r.find(ev.Admission) == nil {
 		h.admission = ev.Admission // reattached to a running bridge: the running turn's content
+		adopted = true
 	}
 	h := r.head()
 	switch {
 	case h != nil && (ev.Admission == "" || ev.Admission == h.admission):
-		return r.translateEvent(ev)
+		out := r.translateEvent(ev)
+		if adopted {
+			out = r.adoptHeld(out, ev.Admission)
+		}
+		return out
 	case h != nil && r.find(ev.Admission) != nil:
 		r.find(ev.Admission).buffer(ev)
 		return nil
