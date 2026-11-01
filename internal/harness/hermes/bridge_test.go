@@ -29,8 +29,18 @@ type fakeGateway struct {
 	bin   string
 	conns chan *websocket.Conn
 
-	mu  sync.Mutex
-	all []*websocket.Conn // every accepted connection, closed on cleanup
+	mu   sync.Mutex
+	all  []*websocket.Conn // every accepted connection, closed on cleanup
+	gate chan struct{}     // when set, upgrades wait for it to close
+}
+
+// holdUpgrades makes the next upgrades wait until the returned function runs.
+func (g *fakeGateway) holdUpgrades() (open func()) {
+	gate := make(chan struct{})
+	g.mu.Lock()
+	g.gate = gate
+	g.mu.Unlock()
+	return func() { close(gate) }
 }
 
 func newFakeGateway(t *testing.T) *fakeGateway {
@@ -47,6 +57,16 @@ func newFakeGateway(t *testing.T) *fakeGateway {
 		if r.Header.Get("Origin") != "" || !slices.Contains(offered, ticketPrefix+"t1") {
 			http.Error(w, "refused", http.StatusForbidden)
 			return
+		}
+		g.mu.Lock()
+		gate := g.gate
+		g.mu.Unlock()
+		if gate != nil {
+			select {
+			case <-gate:
+			case <-stop:
+				return
+			}
 		}
 		c, err := websocket.Accept(w, r, &websocket.AcceptOptions{Subprotocols: []string{Protocol}})
 		if err != nil {
@@ -316,13 +336,20 @@ func TestBridgeDoesNotCarryLinesAcrossAReconnect(t *testing.T) {
 	in, lines, _ := startBridge(t, g, time.Hour)
 	c := g.accept()
 	nextLine(t, lines)
+	open := g.holdUpgrades() // the bridge cannot report "connected" yet
 	_ = c.CloseNow()
 	if l := nextLine(t, lines); l["hoplet_bridge"] != BridgeDisconnected {
 		t.Fatalf("after a drop %v", l)
 	}
-	if _, err := io.WriteString(in, `{"jsonrpc":"2.0","id":"old","method":"ping","params":{}}`+"\n"); err != nil {
-		t.Fatal(err)
+	// Two writes: when the second returns, the scanner has handed the first
+	// line to the queue. The second may still be on its way, so only the
+	// first is asserted on; both predate the connection.
+	for _, id := range []string{"old1", "old2"} {
+		if _, err := io.WriteString(in, `{"jsonrpc":"2.0","id":"`+id+`","method":"ping","params":{}}`+"\n"); err != nil {
+			t.Fatal(err)
+		}
 	}
+	open()
 	c2 := g.accept()
 	if l := nextLine(t, lines); l["hoplet_bridge"] != BridgeConnected {
 		t.Fatalf("after reconnecting %v", l)
@@ -330,8 +357,14 @@ func TestBridgeDoesNotCarryLinesAcrossAReconnect(t *testing.T) {
 	if _, err := io.WriteString(in, `{"jsonrpc":"2.0","id":"fresh","method":"ping","params":{}}`+"\n"); err != nil {
 		t.Fatal(err)
 	}
-	if f := readFrame(t, c2); f["id"] != "fresh" {
-		t.Fatalf("first frame on the new connection %v", f)
+	for {
+		f := readFrame(t, c2)
+		if f["id"] == "old1" {
+			t.Fatal("a line from before the reconnect was delivered")
+		}
+		if f["id"] == "fresh" {
+			break
+		}
 	}
 }
 
