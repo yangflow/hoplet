@@ -314,11 +314,11 @@ func (b *bridge) relay(ctx context.Context, conn *websocket.Conn) error {
 		}
 		b.writing.Store(true)
 		err = b.write(compact.Bytes())
+		b.touch() // the time spent blocked on Out is not silence
 		b.writing.Store(false)
 		if err != nil {
 			return err
 		}
-		b.touch() // the time spent blocked on Out is not silence
 	}
 }
 

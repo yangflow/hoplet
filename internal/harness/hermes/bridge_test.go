@@ -251,11 +251,13 @@ func TestBridgeKeepsHeartbeatsToItself(t *testing.T) {
 			if !strings.HasPrefix(id, heartbeatID) {
 				continue
 			}
-			select {
+			if c.Write(ctx, websocket.MessageText, []byte(`{"jsonrpc":"2.0","id":"`+id+`","result":{"pong":true}}`)) != nil {
+				return
+			}
+			select { // only now has an answer gone out
 			case pings <- id:
 			default:
 			}
-			_ = c.Write(ctx, websocket.MessageText, []byte(`{"jsonrpc":"2.0","id":"`+id+`","result":{"pong":true}}`))
 		}
 	}()
 	<-pings // at least one answered heartbeat has gone by
