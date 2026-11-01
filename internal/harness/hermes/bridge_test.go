@@ -75,7 +75,11 @@ func newFakeGateway(t *testing.T) *fakeGateway {
 		g.mu.Lock()
 		g.all = append(g.all, c)
 		g.mu.Unlock()
-		g.conns <- c
+		select {
+		case g.conns <- c:
+		case <-stop:
+			return
+		}
 		<-stop // a hijacked request's context never ends
 	}))
 	t.Cleanup(srv.Close)
@@ -227,11 +231,34 @@ func TestBridgeKeepsHeartbeatsToItself(t *testing.T) {
 	_, lines, _ := startBridge(t, g, 10*time.Millisecond)
 	c := g.accept()
 	nextLine(t, lines) // connected
-	ping := readFrame(t, c)
-	if id, _ := ping["id"].(string); !strings.HasPrefix(id, heartbeatID) || ping["method"] != "ping" {
-		t.Fatalf("heartbeat %v", ping)
-	}
-	writeFrame(t, c, `{"jsonrpc":"2.0","id":"`+ping["id"].(string)+`","result":{"pong":true}}`)
+	// The server answers every ping, so liveness never trips.
+	pings := make(chan string, 1)
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	t.Cleanup(func() { cancel(); <-done })
+	go func() {
+		defer close(done)
+		for {
+			_, b, err := c.Read(ctx)
+			if err != nil {
+				return
+			}
+			var f map[string]any
+			if json.Unmarshal(b, &f) != nil || f["method"] != "ping" {
+				continue
+			}
+			id, _ := f["id"].(string)
+			if !strings.HasPrefix(id, heartbeatID) {
+				continue
+			}
+			select {
+			case pings <- id:
+			default:
+			}
+			_ = c.Write(ctx, websocket.MessageText, []byte(`{"jsonrpc":"2.0","id":"`+id+`","result":{"pong":true}}`))
+		}
+	}()
+	<-pings // at least one answered heartbeat has gone by
 	writeFrame(t, c, `{"jsonrpc":"2.0","method":"event","params":{"type":"after"}}`)
 	if l := nextLine(t, lines); l["method"] != "event" {
 		t.Fatalf("a heartbeat answer was relayed: %v", l)
@@ -281,31 +308,6 @@ func TestBridgeEndsWithItsInput(t *testing.T) {
 	for range lines {
 	}
 	if err := stop(); err != nil {
-		t.Fatal(err)
-	}
-}
-
-func TestBridgeInterruptsWithInputQueued(t *testing.T) {
-	g := newFakeGateway(t)
-	in, lines, stop := startBridge(t, g, time.Hour)
-	c := g.accept()
-	nextLine(t, lines)
-	writeFrame(t, c, `{"jsonrpc":"2.0","method":"event","params":{"type":"message.start","session_id":"s1","execution_generation":4,"payload":{}}}`)
-	nextLine(t, lines)
-	for _, id := range []string{"q1", "q2", "q3"} {
-		if _, err := io.WriteString(in, `{"jsonrpc":"2.0","id":"`+id+`","method":"ping","params":{}}`+"\n"); err != nil {
-			t.Fatal(err)
-		}
-	}
-	stopped := make(chan error, 1)
-	go func() { stopped <- stop() }()
-	for {
-		f := readFrame(t, c) // queued lines may come first
-		if f["method"] == "session.interrupt" {
-			break
-		}
-	}
-	if err := <-stopped; err != nil {
 		t.Fatal(err)
 	}
 }

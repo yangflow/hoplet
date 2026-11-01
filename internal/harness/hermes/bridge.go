@@ -39,7 +39,8 @@ const (
 	heartbeatID = "hoplet-hb-"
 )
 
-// maxHeld bounds the commands the bridge holds while it reconnects.
+// maxHeld bounds the lines read from In and not yet sent; reading In waits
+// when it is full.
 const maxHeld = 256
 
 // gatewayWriteTimeout bounds one write to the gateway. Writes do not use the
@@ -63,15 +64,17 @@ type BridgeConfig struct {
 	Backoff time.Duration
 	// Heartbeat is how often the bridge pings the gateway; zero means 15 s.
 	// Three missed heartbeats (no frame at all for three intervals) drop the
-	// connection.
+	// connection; a relay stalled writing to Out does not count as silence.
 	Heartbeat time.Duration
 }
 
 // Bridge connects to the Hermes gateway and relays: every gateway frame
 // becomes a line on Out, every line on In is sent to the gateway. It
 // reconnects when the connection drops, writing a "disconnected" and then a
-// "connected" line, and holds the lines it reads meanwhile. When ctx ends
-// it interrupts a turn it saw start and not end, then returns nil; it also
+// "connected" line. Lines read while disconnected are discarded when the
+// connection returns, and a line whose write fails is dropped: the caller
+// resends what it still needs after it has re-attached. When ctx ends it
+// interrupts a turn it saw start and not end, then returns nil; it also
 // returns when In ends.
 func Bridge(ctx context.Context, cfg BridgeConfig) error {
 	b := &bridge{cfg: cfg, held: make(chan []byte, maxHeld), done: make(chan struct{})}
@@ -131,7 +134,8 @@ type bridge struct {
 	held chan []byte   // lines from In; only readIn sends
 	done chan struct{} // closed when Bridge returns
 
-	lastRx atomic.Int64 // when a frame last arrived, UnixNano
+	lastRx  atomic.Pointer[time.Time] // when a frame last arrived (monotonic)
+	writing atomic.Bool               // the relay is blocked writing to Out
 
 	outMu sync.Mutex
 
@@ -190,7 +194,9 @@ func (b *bridge) session(ctx context.Context, inDone <-chan error) (up time.Dura
 	defer func() { _ = conn.CloseNow() }()
 	// Lines read before this connection were written before the adapter
 	// could see it; it resends what it needs after re-attaching, so they are
-	// discarded rather than delivered ahead of its session.resume.
+	// discarded rather than delivered ahead of its session.resume. Best
+	// effort: a line still in the stdin pipe can slip through, and the adapter
+	// drops answers to requests from an earlier connection.
 	for drained := false; !drained; {
 		select {
 		case <-b.held:
@@ -216,7 +222,7 @@ func (b *bridge) send(ctx context.Context, conn *websocket.Conn, frame []byte) e
 // pump relays in both directions over one connection. It returns only after
 // the relay goroutine has, so no frame reaches Out after pump has.
 func (b *bridge) pump(ctx context.Context, conn *websocket.Conn, inDone <-chan error) error {
-	b.lastRx.Store(time.Now().UnixNano())
+	b.touch()
 	readErr := make(chan error, 1)
 	// Reads end when the connection closes, not when ctx does: stopping
 	// must still reach the step that interrupts the running turn.
@@ -257,7 +263,8 @@ func (b *bridge) pump(ctx context.Context, conn *websocket.Conn, inDone <-chan e
 				return fmt.Errorf("hermes: send: %w", err)
 			}
 		case <-tick.C:
-			if silent := time.Since(time.Unix(0, b.lastRx.Load())); silent > 3*every {
+			// A stalled reader of our stdout is not a dead gateway.
+			if !b.writing.Load() && time.Since(*b.lastRx.Load()) > 3*every {
 				return errors.New("hermes: gateway stopped answering")
 			}
 			n++
@@ -270,6 +277,10 @@ func (b *bridge) pump(ctx context.Context, conn *websocket.Conn, inDone <-chan e
 			// them in order. A failed write ends the drain; with the
 			// connection gone they have nowhere to go.
 			for drained := false; !drained; {
+				if ctx.Err() != nil {
+					b.interrupt(conn)
+					return ctx.Err()
+				}
 				select {
 				case line := <-b.held:
 					drained = b.send(ctx, conn, line) != nil
@@ -293,7 +304,7 @@ func (b *bridge) relay(ctx context.Context, conn *websocket.Conn) error {
 		if err != nil {
 			return fmt.Errorf("hermes: gateway connection: %w", err)
 		}
-		b.lastRx.Store(time.Now().UnixNano())
+		b.touch()
 		var compact bytes.Buffer
 		if json.Compact(&compact, frame) != nil {
 			continue // not JSON: nothing a client can use
@@ -301,10 +312,20 @@ func (b *bridge) relay(ctx context.Context, conn *websocket.Conn) error {
 		if b.observe(compact.Bytes()) {
 			continue
 		}
-		if err := b.write(compact.Bytes()); err != nil {
+		b.writing.Store(true)
+		err = b.write(compact.Bytes())
+		b.writing.Store(false)
+		if err != nil {
 			return err
 		}
+		b.touch() // the time spent blocked on Out is not silence
 	}
+}
+
+// touch records that the gateway is alive now.
+func (b *bridge) touch() {
+	now := time.Now()
+	b.lastRx.Store(&now)
 }
 
 // observe tracks the running turn from a frame and reports whether the
