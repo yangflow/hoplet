@@ -29,7 +29,7 @@ Hoplet 不自建通用权限引擎：harness 自带工具（读写文件、执�
 
 ```mermaid
 flowchart TB
-    Mode["会话模式（Hoplet 统一）"] -- 适配器映射 --> Native["harness 原生权限<br/>Claude：permission mode<br/>Codex：approvalPolicy + sandbox<br/>Hermes：自身审批"]
+    Mode["会话模式（Hoplet 统一）"] -- 适配器映射 --> Native["harness 原生权限<br/>Claude：permission mode<br/>Codex：approvalPolicy + sandbox<br/>Hermes：编辑策略 + yolo"]
     Native -- "需要问" --> Relay["Hoplet 审批转发<br/>推送所有设备 · 先答者生效 · 锁屏可批 · 审计"]
     Native -- "不需要问" --> Run["直接执行"]
     MCP["Hoplet MCP 工具<br/>替我发消息 · 建触发器 · run_on · 改配置"] --> Rules["Hoplet 规则<br/>（真正强制执行）"]

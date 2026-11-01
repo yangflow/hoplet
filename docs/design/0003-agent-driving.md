@@ -1,6 +1,6 @@
 # 0003 Agent 驱动
 
-状态：已采纳 · 2026-10-31（版本托管部分由 [0013](0013-testing-release.md) 修订）
+状态：已采纳 · 2026-10-31（版本托管部分由 [0013](0013-testing-release.md) 修订；Hermes 接入 2026-11-01 修订）
 
 ## 决策
 
@@ -11,8 +11,20 @@
 |---|---|---|
 | Claude Code | 启动 CLI：`-p --input-format stream-json --output-format stream-json --permission-prompt-tool stdio`，stdio 控制协议做审批 / 中断 / 切模式 / 切模型 / 改思考强度（`apply_flag_settings`）；`--resume` 续接 | 与官方 Agent SDK 同一线协议，不引入 Node 运行时；Hoplet 托管副本：仓库契约测试（2.1.312 已录制验证）+ 新版本先过本机自检再跟进（[0013](0013-testing-release.md)）；启动环境不得带 `CLAUDECODE` / `CLAUDE_CODE_*`（会被当成子会话而无法登录）；Fast 模式经协议无法开启，暂不支持 |
 | Codex | `codex app-server`（stdio JSON-RPC） | 用其 JSON Schema 生成 Go 类型 |
-| Hermes | 连其 gateway：TUI-gateway JSON-RPC（WebSocket），ACP 备选 | 会话状态由 Hermes gateway 持有，无需 shim |
+| Hermes | 连其 gateway 的原生协议 `hermes-gateway-v1`（JSON-RPC over WebSocket）；小桥接进程 `hoplet hermes-bridge` 放在 shim 后面：每个 gateway 帧是一行 stdout，每个请求是一行 stdin，断线自行重连 | 共用默认 `~/.hermes`（登录、人格、记忆、技能与我自己的 Hermes 一致；Hoplet 不改其全局设置、不碰凭证）；会话由 gateway 持有，守护进程重启不丢事件；版本门控同 Claude（录制 0.22.5 + 本机自检）；不用 ACP（续接要全量回放、没有 steer） |
 | 其他 | Go 自写 ACP 客户端 | 新增一家 ≈ 一份配置 |
+
+## Hermes 细节
+
+| 项 | 做法 |
+|---|---|
+| 会话 | `session.create` 用 Hoplet 会话 ID 作 `request_id`（重复创建拿回同一会话），来源 `acp`，不带标题（带标题会接上同名旧会话）；会话在 Hermes 桌面端也可见 |
+| 档位 | 需确认 = 编辑逐个确认（编辑策略 `ask`）；自动编辑 = 工作目录内的编辑放行（`workspace_session`）；全自动 = 本会话 yolo + 编辑全部放行（yolo 管不住编辑审批）。命令是否询问始终由 Hermes 自己的危险识别与全局审批模式（manual / smart / off）决定，Hoplet 不改；智能审批与 Plan 不声明（前者是 Hermes 的全局设置，后者只是提示词），选了按最近的更严档位回退 |
+| 设置 | 编辑策略、思考强度（low…ultra）、模型用 `session.mutate`：一次只发一个，轮次中等轮次结束再发；设置未生效前发的消息排在设置之后。yolo、Fast（`service_tier`）用 `config.set`，即时生效 |
+| 轮次 | `message.start` 开始；`message.complete` 后取 `prompt.receipt`：带本轮用量（gateway 的计数是会话累计）与结束原因，再结束轮次 |
+| 断线 | 守护进程重启：桥接进程与 shim 照常运行，事件留在 spool。gateway 重启或桥接进程重启：用 `session.resume`（不带历史）重新接上；本轮已结束就用 receipt 补齐最终回复，始终不加载全量历史（gateway 的事件补发缓冲只有 512 帧，流式输出几秒就溢出） |
+| 停止 | 桥接进程收到 SIGTERM 时先中断它看到的进行中轮次 |
+| 不支持 | 提问（`acp` 来源的会话没有 clarify 工具）、Plan |
 
 ## 统一抽象
 
