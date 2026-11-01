@@ -1,0 +1,48 @@
+write {"id":"x","jsonrpc":"2.0","method":"session.create","params":{"cwd":"/work","editor":{"edit_approval_policy":"ask"},"request_id":"6c4f1152bb59a355","source":"acp"}}
+native local-4978581288be2ed3017f76430b8cf6d1f8ca0a1a00f3ade2e80020ac89135b7d
+write {"id":"x","jsonrpc":"2.0","method":"prompt.submit","params":{"session_id":"local-4978581288be2ed3017f76430b8cf6d1f8ca0a1a00f3ade2e80020ac89135b7d","submission_id":"x","text":"Use the write_file tool to create hello.txt containing hi. Do nothing else."}}
+proto.TurnStarted {}
+proto.ToolCall {"id":"call_1d53d73c3074472aafcf2bf2b689cb18","kind":"edit","name":"write_file","summary":"hello.txt","status":"running"}
+proto.ApprovalRequested {"id":"0c9ec421207b410c807515eecc5c730e","kind":"file_change","title":"Edit /work/hello.txt","detail":"/work/hello.txt","tool_call_id":"call_1d53d73c3074472aafcf2bf2b689cb18","options":[{"id":"once","label":"Allow once","scope":"once"},{"id":"deny","label":"Deny","scope":"deny"}]}
+write {"id":"x","jsonrpc":"2.0","method":"approval.respond","params":{"choice":"deny","execution_generation":1,"prompt_id":"0c9ec421207b410c807515eecc5c730e","session_id":"local-4978581288be2ed3017f76430b8cf6d1f8ca0a1a00f3ade2e80020ac89135b7d"}}
+proto.ToolCall {"id":"call_1d53d73c3074472aafcf2bf2b689cb18","kind":"edit","name":"write_file","summary":"hello.txt","status":"failed"}
+proto.MessageDelta {"message_id":"3de92c3f4b4f4476b6520acad3ffdf75/0","text":"\n\nThe"}
+proto.MessageDelta {"message_id":"3de92c3f4b4f4476b6520acad3ffdf75/0","text":" approval"}
+proto.MessageDelta {"message_id":"3de92c3f4b4f4476b6520acad3ffdf75/0","text":" client"}
+proto.MessageDelta {"message_id":"3de92c3f4b4f4476b6520acad3ffdf75/0","text":" denied"}
+proto.MessageDelta {"message_id":"3de92c3f4b4f4476b6520acad3ffdf75/0","text":" the"}
+proto.MessageDelta {"message_id":"3de92c3f4b4f4476b6520acad3ffdf75/0","text":" write"}
+proto.MessageDelta {"message_id":"3de92c3f4b4f4476b6520acad3ffdf75/0","text":","}
+proto.MessageDelta {"message_id":"3de92c3f4b4f4476b6520acad3ffdf75/0","text":" so"}
+proto.MessageDelta {"message_id":"3de92c3f4b4f4476b6520acad3ffdf75/0","text":" `"}
+proto.MessageDelta {"message_id":"3de92c3f4b4f4476b6520acad3ffdf75/0","text":"hello"}
+proto.MessageDelta {"message_id":"3de92c3f4b4f4476b6520acad3ffdf75/0","text":".txt"}
+proto.MessageDelta {"message_id":"3de92c3f4b4f4476b6520acad3ffdf75/0","text":"`"}
+proto.MessageDelta {"message_id":"3de92c3f4b4f4476b6520acad3ffdf75/0","text":" was"}
+proto.MessageDelta {"message_id":"3de92c3f4b4f4476b6520acad3ffdf75/0","text":" not"}
+proto.MessageDelta {"message_id":"3de92c3f4b4f4476b6520acad3ffdf75/0","text":" created"}
+proto.MessageDelta {"message_id":"3de92c3f4b4f4476b6520acad3ffdf75/0","text":"."}
+proto.Message {"id":"3de92c3f4b4f4476b6520acad3ffdf75/0","role":"assistant","text":"The approval client denied the write, so `hello.txt` was not created.\n\n⚠️ File-mutation verifier: 1 file edit(s) FAILED this turn despite any wording above that may suggest otherwise. Run `git status` or `read_file` to confirm what actually landed.\n  • `hello.txt` — [write_file] Edit approval denied by ACP client; file was not modified."}
+write {"id":"x","jsonrpc":"2.0","method":"prompt.receipt","params":{"admission_id":"3de92c3f4b4f4476b6520acad3ffdf75","include_result":true,"session_id":"local-4978581288be2ed3017f76430b8cf6d1f8ca0a1a00f3ade2e80020ac89135b7d"}}
+proto.Usage {"input_tokens":31317,"output_tokens":43}
+proto.TurnEnded {"reason":"completed"}
+write {"id":"x","jsonrpc":"2.0","method":"prompt.submit","params":{"session_id":"local-4978581288be2ed3017f76430b8cf6d1f8ca0a1a00f3ade2e80020ac89135b7d","submission_id":"x","text":"Use the write_file tool to create hello.txt containing hi. Do nothing else."}}
+proto.TurnStarted {}
+proto.ToolCall {"id":"call_953fb34eff3342c2a69d9e80a538dd17","kind":"edit","name":"write_file","summary":"hello.txt","status":"running"}
+proto.ApprovalRequested {"id":"89a70cb52d1148499f4697ee2d8b6902","kind":"file_change","title":"Edit /work/hello.txt","detail":"/work/hello.txt","tool_call_id":"call_953fb34eff3342c2a69d9e80a538dd17","options":[{"id":"once","label":"Allow once","scope":"once"},{"id":"deny","label":"Deny","scope":"deny"}]}
+write {"id":"x","jsonrpc":"2.0","method":"approval.respond","params":{"choice":"once","execution_generation":2,"prompt_id":"89a70cb52d1148499f4697ee2d8b6902","session_id":"local-4978581288be2ed3017f76430b8cf6d1f8ca0a1a00f3ade2e80020ac89135b7d"}}
+proto.ToolCall {"id":"call_953fb34eff3342c2a69d9e80a538dd17","kind":"edit","name":"write_file","summary":"hello.txt","status":"done"}
+proto.FileChange {"path":"/work/hello.txt","op":"created"}
+proto.MessageDelta {"message_id":"4204ccc19a66431ea0dddc426509cc22/0","text":"\n\nCreated"}
+proto.MessageDelta {"message_id":"4204ccc19a66431ea0dddc426509cc22/0","text":" `"}
+proto.MessageDelta {"message_id":"4204ccc19a66431ea0dddc426509cc22/0","text":"hello"}
+proto.MessageDelta {"message_id":"4204ccc19a66431ea0dddc426509cc22/0","text":".txt"}
+proto.MessageDelta {"message_id":"4204ccc19a66431ea0dddc426509cc22/0","text":"`"}
+proto.MessageDelta {"message_id":"4204ccc19a66431ea0dddc426509cc22/0","text":" containing"}
+proto.MessageDelta {"message_id":"4204ccc19a66431ea0dddc426509cc22/0","text":" `"}
+proto.MessageDelta {"message_id":"4204ccc19a66431ea0dddc426509cc22/0","text":"hi"}
+proto.MessageDelta {"message_id":"4204ccc19a66431ea0dddc426509cc22/0","text":"`."}
+proto.Message {"id":"4204ccc19a66431ea0dddc426509cc22/0","role":"assistant","text":"Created `hello.txt` containing `hi`."}
+write {"id":"x","jsonrpc":"2.0","method":"prompt.receipt","params":{"admission_id":"4204ccc19a66431ea0dddc426509cc22","include_result":true,"session_id":"local-4978581288be2ed3017f76430b8cf6d1f8ca0a1a00f3ade2e80020ac89135b7d"}}
+proto.Usage {"input_tokens":47441,"output_tokens":40}
+proto.TurnEnded {"reason":"completed"}
