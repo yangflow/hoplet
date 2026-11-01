@@ -167,6 +167,12 @@ func (x *tester) answer(i int, result string) []proto.Payload {
 	return x.push(fmt.Sprintf(`{"jsonrpc":"2.0","id":%q,"result":%s}`, x.writes(i)[0].ID, result))
 }
 
+// answerLast pushes a result for the most recent write.
+func (x *tester) answerLast(result string) []proto.Payload {
+	x.t.Helper()
+	return x.answer(len(x.io.written())-1, result)
+}
+
 // attach connects the run to session native.
 func (x *tester) attach(native string, running bool) {
 	x.t.Helper()
@@ -1044,5 +1050,213 @@ func TestSanitizeKeepsOnlyWhatTheAdapterReads(t *testing.T) {
 	}
 	if !strings.Contains(lines[1], `me in /Users/me/.hermes/state.db, annies, ann_x`) {
 		t.Fatalf("scrubbed %s", lines[1])
+	}
+}
+
+// reconnect drops the connection and connects again, answering the resume
+// with a snapshot in which turn running (0 for none) is running.
+func (x *tester) reconnect(running int) []proto.Payload {
+	x.t.Helper()
+	n := len(x.io.written())
+	x.push(`{"hoplet_bridge":"disconnected","error":"gone"}`)
+	x.push(`{"hoplet_bridge":"connected"}`)
+	snap := `{"session_id":"s1","stored_session_id":"s1","running":false,"revision":2,"execution_generation":1}`
+	if running > 0 {
+		snap = fmt.Sprintf(`{"session_id":"s1","stored_session_id":"s1","running":true,"revision":2,"execution_generation":1,"pending":[{"admission_id":"a%d","status":"started"}]}`, running)
+	}
+	return x.answer(n, snap)
+}
+
+// last returns the most recent write.
+func (x *tester) last() rpc {
+	w := x.io.written()
+	return parseRPC(x.t, w[len(w)-1])
+}
+
+func TestASecondDropWhileATurnWaitsEndsBothTurns(t *testing.T) {
+	x := newTester(t, harness.Spec{Resume: "s1"})
+	x.attach("s1", false)
+	n := endedTurn(x) // a1 completed, receipt asked for
+	_ = n
+	if p := x.reconnect(2); len(p) != 0 {
+		t.Fatalf("first snapshot %v", p)
+	}
+	if p := x.push(eventFor("a2", "message.delta", `{"text":"he"}`)); len(p) != 0 {
+		t.Fatalf("delta %v", p)
+	}
+	// a2 finishes during the second outage.
+	if p := x.reconnect(0); len(p) != 0 {
+		t.Fatalf("second snapshot %v", p)
+	}
+	if w := x.last(); w.Method != "prompt.receipt" || w.Params["admission_id"] != "a1" {
+		t.Fatalf("asked %+v", w)
+	}
+	p := x.answerLast(receipt("a1", "terminal", ""))
+	if len(p) != 3 || p[0] != (proto.TurnEnded{Reason: proto.TurnCompleted}) || p[1] != (proto.TurnStarted{}) || p[2] != (proto.MessageDelta{MessageID: "a2/0", Text: "he"}) {
+		t.Fatalf("a1 receipt %v", p)
+	}
+	if w := x.last(); w.Method != "prompt.receipt" || w.Params["admission_id"] != "a2" {
+		t.Fatalf("a2's receipt asked %+v", w)
+	}
+	p = x.answerLast(receipt("a2", "terminal", ""))
+	if len(p) != 2 || p[0].(proto.Message).ID != "a2/0" || p[1] != (proto.TurnEnded{Reason: proto.TurnCompleted}) {
+		t.Fatalf("a2 receipt %v", p)
+	}
+}
+
+func TestAThirdTurnFoundOnASecondDropIsNotLost(t *testing.T) {
+	x := newTester(t, harness.Spec{Resume: "s1"})
+	x.attach("s1", false)
+	endedTurn(x)
+	x.reconnect(2)
+	x.push(eventFor("a2", "message.delta", `{"text":"two"}`))
+	x.reconnect(3)
+	p := x.answerLast(receipt("a1", "terminal", ""))
+	if len(p) != 3 || p[1] != (proto.TurnStarted{}) {
+		t.Fatalf("a1 receipt %v", p) // a1 end, a2 start, a2's delta
+	}
+	n := len(x.io.written())
+	p = x.answerLast(receipt("a2", "terminal", ""))
+	if len(p) != 3 || p[0].(proto.Message).Text != "x" || p[1] != (proto.TurnEnded{Reason: proto.TurnCompleted}) || p[2] != (proto.TurnStarted{}) {
+		t.Fatalf("a2 receipt %v", p) // a2's answer, a2 end, a3 start
+	}
+	if len(x.io.written()) != n {
+		t.Fatalf("a3 is running, not over: %+v", x.last())
+	}
+}
+
+func TestATurnStartingLiveDoesNotOvertakeTheOnesBeforeIt(t *testing.T) {
+	x := newTester(t, harness.Spec{Resume: "s1"})
+	x.attach("s1", false)
+	endedTurn(x)
+	x.reconnect(2)
+	x.push(complete("a2", "two"))
+	// a1's message.complete told how it ended: it ends here, a2 follows.
+	p := x.push(eventFor("a3", "message.start", `{}`))
+	if len(p) != 3 || p[0] != (proto.TurnEnded{Reason: proto.TurnCompleted}) || p[1] != (proto.TurnStarted{}) || p[2].(proto.Message).Text != "two" {
+		t.Fatalf("a3 started %v", p)
+	}
+	p = x.answerLast(receipt("a2", "terminal", ""))
+	if len(p) != 2 || p[0] != (proto.TurnEnded{Reason: proto.TurnCompleted}) || p[1] != (proto.TurnStarted{}) {
+		t.Fatalf("a2 receipt %v", p)
+	}
+}
+
+func TestATurnTheSnapshotStartedIsStartedOnce(t *testing.T) {
+	x := newTester(t, harness.Spec{Resume: "s1"})
+	x.attach("s1", false)
+	if p := x.reconnect(2); len(p) != 1 || p[0] != (proto.TurnStarted{}) {
+		t.Fatalf("snapshot %v", p)
+	}
+	if p := x.push(eventFor("a2", "message.start", `{}`)); len(p) != 0 {
+		t.Fatalf("second start %v", p)
+	}
+}
+
+func TestAnOrphanReceiptDoesNotEndAnotherTurn(t *testing.T) {
+	x := newTester(t, harness.Spec{State: harness.State{Native: "s1", InTurn: true}})
+	if p := x.push(`{"jsonrpc":"2.0","id":"old","result":` + receipt("a0", "terminal", "") + `}`); len(p) != 0 {
+		t.Fatalf("orphan %v", p)
+	}
+	if p := x.push(eventFor("a7", "message.delta", `{"text":"x"}`)); len(p) != 1 {
+		t.Fatalf("the turn went on: %v", p)
+	}
+}
+
+// TestTurnsKeepTheirOrderAcrossTwoDrops runs three turns over two drops,
+// each snapshot finding any of them running (0: none), and checks that
+// every turn the run learns of starts and ends once, in turn, and that the
+// setting that waited goes out only when the last one is over.
+func TestTurnsKeepTheirOrderAcrossTwoDrops(t *testing.T) {
+	for first := 1; first <= 4; first++ {
+		for second := first; second <= 4; second++ {
+			t.Run(fmt.Sprintf("%d_%d", first, second), func(t *testing.T) {
+				x := newTester(t, harness.Spec{Resume: "s1"})
+				x.attach("s1", false)
+				x.push(eventFor("a1", "message.start", `{}`))
+				if err := x.run.SetEffort(context.Background(), proto.EffortLow); err != nil {
+					t.Fatal(err)
+				}
+				var got []proto.Payload
+				open := 1 // a1
+				note := func(p []proto.Payload) {
+					for _, q := range p {
+						switch q.(type) {
+						case proto.TurnStarted:
+							open++
+						case proto.TurnEnded:
+							open--
+						}
+						got = append(got, q)
+					}
+					if open < 0 || open > 1 {
+						t.Fatalf("%d turns open after %v", open, got)
+					}
+					for _, w := range x.io.written() {
+						if parseRPC(t, w).Method == "session.mutate" && open > 0 {
+							t.Fatalf("a setting was sent with a turn open: %v", got)
+						}
+					}
+				}
+				running := func(k int) int {
+					if k == 4 {
+						return 0
+					}
+					return k
+				}
+				note(x.reconnect(running(first)))
+				answered := len(x.io.written()) // the second resume; what the first asked is lost
+				note(x.reconnect(running(second)))
+				// Answer what the run asks, finishing the running turn.
+				finished := false
+				for {
+					w := x.io.written()
+					if answered+1 < len(w) {
+						answered++
+						if r := parseRPC(t, w[answered]); r.Method == "prompt.receipt" {
+							note(x.push(fmt.Sprintf(`{"jsonrpc":"2.0","id":%q,"result":%s}`, r.ID, receipt(r.Params["admission_id"].(string), "terminal", ""))))
+						}
+						continue
+					}
+					if !finished && second < 4 && open == 1 {
+						// The turn Hermes still runs ends now.
+						finished = true
+						note(x.push(complete(fmt.Sprintf("a%d", second), "")))
+						continue
+					}
+					break
+				}
+				if open != 0 {
+					t.Fatalf("%d turns still open: %v", open, got)
+				}
+				starts, ends := 0, 0
+				for _, q := range got {
+					switch q.(type) {
+					case proto.TurnStarted:
+						starts++
+					case proto.TurnEnded:
+						ends++
+					}
+				}
+				// a1 plus a new turn per snapshot that names one.
+				want := 1
+				if first > 1 && first < 4 {
+					want++
+				}
+				if second > first && second < 4 {
+					want++
+				}
+				if starts+1 != want || ends != want { // a1's start came before the first note
+					t.Fatalf("%d starts, %d ends, want %d turns: %v", starts, ends, want, got)
+				}
+				sent := false
+				for _, w := range x.io.written() {
+					sent = sent || parseRPC(t, w).Method == "session.mutate"
+				}
+				if !sent {
+					t.Fatal("the setting never went out")
+				}
+			})
+		}
 	}
 }

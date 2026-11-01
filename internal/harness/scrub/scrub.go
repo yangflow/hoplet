@@ -106,13 +106,13 @@ func StripKey(v any, key string) any {
 
 // Word returns the function that replaces word, wherever it stands as a
 // whole word, with to: not part of a longer run of letters, digits or
-// underscores. It also matches right after a JSON escape (`\n`, `\t`, `\"`),
+// underscores. It also matches right after a JSON escape (`\n`, `\t`, `\"`, `\u201c`),
 // as recorded lines are JSON text. A word shorter than three characters
 // would also match unrelated text, so it replaces nothing.
 func Word(word, to string) func(string) string {
 	if len(word) < 3 {
 		return func(s string) string { return s }
 	}
-	re := regexp.MustCompile(`(^|[^A-Za-z0-9_]|\\[nrtbf"/\\])` + regexp.QuoteMeta(word) + `\b`)
+	re := regexp.MustCompile(`(^|[^A-Za-z0-9_]|\\[nrtbf"/\\]|\\u[0-9a-fA-F]{4})` + regexp.QuoteMeta(word) + `\b`)
 	return func(s string) string { return re.ReplaceAllString(s, "${1}"+strings.ReplaceAll(to, "$", "$$")) }
 }

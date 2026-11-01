@@ -66,13 +66,6 @@ type request struct {
 	resent  bool // a message written before a drop, to be written again
 }
 
-// pendingEnd is a turn whose message.complete arrived and whose receipt is
-// awaited.
-type pendingEnd struct {
-	admission string
-	complete  *completePayload
-}
-
 type approval struct {
 	generation int64
 	answered   bool
@@ -94,24 +87,14 @@ type run struct {
 	once     sync.Once
 
 	// Owned by loop.
-	inTurn   bool
-	turn     string          // the admission of the running turn
-	segment  int             // the assistant message being streamed in this turn
-	text     strings.Builder // its text so far
-	tools    map[string]tool
-	lastTool string
-	ending   *pendingEnd     // a turn whose message.complete arrived, awaiting its receipt
-	late     map[string]bool // turns ended by a newer turn whose receipt is still due
-	retries  map[string]int  // receipt retries per admission
-	recover  string          // the admission whose receipt a reconnecting run asked for
-	// deferred is a turn that started while Hoplet was disconnected, found
-	// running by a snapshot while the turn before it still awaits its end:
-	// its events wait in deferredEvents until that end is known, so the
-	// turns come out in order. The buffer is bounded; past the bound only
-	// text deltas are dropped (the final message carries the whole text).
-	deferred       string
-	deferredEvents []event
-	toolsSeen      bool
+	queue     []*turnRec      // the turns in admission order; the first is shown
+	segment   int             // the assistant message being streamed in this turn
+	text      strings.Builder // its text so far
+	tools     map[string]tool
+	lastTool  string
+	late      map[string]bool // turns ended by a newer turn whose receipt is still due
+	retries   map[string]int  // receipt retries per admission
+	toolsSeen bool
 
 	prefix string
 	n      int // requests written, under mu
@@ -151,7 +134,7 @@ type run struct {
 	// afterSettings are messages sent while settings wait: they go once
 	// the settings are applied, in the order the user gave them.
 	afterSettings []*request
-	// busy mirrors inTurn for the command methods.
+	// busy is true while turns are queued, for the command methods.
 	busy bool
 }
 
@@ -162,11 +145,16 @@ func newRun(io harness.Stdio, spec harness.Spec) *run {
 	}
 	r := &run{
 		io: io, spec: spec, events: make(chan harness.Event, 64), done: make(chan struct{}), finished: make(chan struct{}),
-		inTurn: spec.State.InTurn, busy: spec.State.InTurn, tools: map[string]tool{},
+		busy: spec.State.InTurn, tools: map[string]tool{},
 		prefix: "hoplet-" + rand.Text()[:8], native: native,
 		approvals: map[string]*approval{}, requests: map[string]*request{},
 		late: map[string]bool{}, retries: map[string]int{}, stale: map[string]int{}, timers: map[*time.Timer]struct{}{}, receiptDelay: receiptRetryDelay,
 		mode: spec.Mode, policy: editAsk, effort: spec.Effort, model: spec.Model,
+	}
+	if spec.State.InTurn {
+		// A turn is open that this run has not seen start: the first
+		// event or snapshot names it.
+		r.queue = []*turnRec{{started: true}}
 	}
 	if native != "" {
 		// An attached session already has the mode Hoplet set.
@@ -238,9 +226,8 @@ func (r *run) handle(l harness.Line) (evs []harness.Event, final bool) {
 	case harness.Exit:
 		base.Raw = nil
 		base.Exit = &harness.ExitStatus{Code: l.Code, Signal: l.Signal}
-		if r.inTurn {
-			r.ending, r.turn, r.recover = nil, "", ""
-			r.deferred, r.deferredEvents = "", nil
+		if len(r.queue) > 0 {
+			r.queue = nil
 			r.setInTurn(false)
 			base.Payload = proto.TurnEnded{Reason: proto.TurnAborted, Message: "the Hermes bridge exited"}
 		}
@@ -277,6 +264,8 @@ func (r *run) translate(line []byte) (out []proto.Payload, native string) {
 	case f.Bridge == BridgeConnected:
 		// A new connection: what was in flight on the old one is lost.
 		r.dropInFlight()
+		// Receipts asked for on the old connection will not be answered.
+		clear(r.late)
 		r.mu.Lock()
 		r.epoch++
 		for id, e := range r.stale {
@@ -488,10 +477,7 @@ func (r *run) onSnapshot(result json.RawMessage, created bool) (out []proto.Payl
 	if known != s.Session {
 		native = s.Session
 	}
-	// The receipts of turns that ended in favor of a newer one cannot
-	// arrive any more; their usage is lost.
-	clear(r.late)
-	out = append(out, r.meetRunningTurn(s.Running, started)...)
+	r.reconcile(s.Running, started)
 	if created {
 		// Hermes takes only "ask" at creation; anything looser is a change.
 		policy, _ := editPolicy(r.spec.Mode)
@@ -520,27 +506,176 @@ func (r *run) onSnapshot(result json.RawMessage, created bool) (out []proto.Payl
 	}
 	r.orderMu.Unlock()
 	r.pumpMutations(ctx)
-	switch {
-	case r.ending != nil:
-		// The turn's end is still owed: its receipt may have been lost.
-		_ = r.requestReceipt(ctx, r.ending.admission)
-	case r.inTurn && (!s.Running || r.deferred != ""):
-		admission := r.turn
-		if admission == "" {
-			admission = started
-		}
-		if admission == "" {
-			// Nothing names the turn that ended: say so rather than keep
-			// it open.
-			r.finishTurn()
-			return append(out, proto.TurnEnded{Reason: proto.TurnAborted, Message: "the turn ended while Hoplet was not connected"}), native
-		}
-		// The turn ended while the connection was down: its receipt says
-		// how, and carries its final answer.
-		r.recover = admission
-		_ = r.requestReceipt(ctx, admission)
-	}
+	out = r.advance(out)
 	return out, native
+}
+
+// turnRec is a turn Hoplet knows of. Turns are kept in the order Hermes
+// admitted them; the first is the one Hoplet shows.
+type turnRec struct {
+	admission string
+	started   bool             // its TurnStarted was emitted
+	ended     bool             // known to be over in Hermes; its end comes from its receipt
+	asked     bool             // its receipt was asked for on this connection
+	complete  *completePayload // its message.complete, when seen
+	events    []event          // its events, kept until it is the first
+}
+
+// maxQueuedEvents bounds the events kept for a turn that is not yet the
+// first. Past it only text deltas are dropped: the final message still
+// carries the whole text from message.complete. A segment closed before
+// that by a tool call carries only the text kept.
+const maxQueuedEvents = 4096
+
+func (r *run) head() *turnRec {
+	if len(r.queue) == 0 {
+		return nil
+	}
+	return r.queue[0]
+}
+
+// turnID is the admission of the turn Hoplet shows.
+func (r *run) turnID() string {
+	if h := r.head(); h != nil {
+		return h.admission
+	}
+	return ""
+}
+
+func (r *run) find(admission string) *turnRec {
+	for _, t := range r.queue {
+		if t.admission == admission {
+			return t
+		}
+	}
+	return nil
+}
+
+// enqueue adds a turn behind those known; while turns are queued, settings
+// wait.
+func (r *run) enqueue(admission string) {
+	r.queue = append(r.queue, &turnRec{admission: admission})
+	if len(r.queue) == 1 {
+		r.setInTurn(true)
+	}
+}
+
+// buffer keeps an event of a turn that is not the first yet.
+func (t *turnRec) buffer(ev event) {
+	if ev.Type == "message.delta" && len(t.events) >= maxQueuedEvents {
+		return
+	}
+	t.events = append(t.events, ev)
+}
+
+// pop removes the first turn, whose end has been reported.
+func (r *run) pop() {
+	if h := r.head(); h != nil {
+		delete(r.retries, h.admission)
+		r.queue = r.queue[1:]
+	}
+	r.segment, r.toolsSeen = 0, false
+	r.text.Reset()
+}
+
+// reconcile sets the queue to what a snapshot says: a turn other than the
+// running one is over, the running one is queued if it is not, and the
+// first turn's receipt is asked for again (the old connection took the
+// request with it).
+func (r *run) reconcile(running bool, started string) {
+	for _, t := range r.queue {
+		if t.admission == "" && started != "" {
+			t.admission = started // a turn found after a daemon restart
+		}
+		if !running || (started != "" && t.admission != started) {
+			t.ended = true
+		}
+	}
+	if running && started != "" && r.find(started) == nil {
+		r.enqueue(started)
+	}
+	if h := r.head(); h != nil {
+		h.asked = false
+	}
+}
+
+// advance moves the queue on as far as it can and returns the payloads
+// that come out: a turn that is over is ended from its receipt (asked for
+// once), and the next is started, its kept events played, and so on.
+func (r *run) advance(out []proto.Payload) []proto.Payload {
+	for h := r.head(); h != nil; h = r.head() {
+		switch {
+		case !h.started:
+			h.started = true
+			r.segment, r.toolsSeen = 0, false
+			r.text.Reset()
+			out = append(out, proto.TurnStarted{})
+			events := h.events
+			h.events = nil
+			for _, ev := range events {
+				if r.head() != h {
+					break
+				}
+				out = append(out, r.translateEvent(ev)...)
+			}
+			continue
+		case h.ended && h.admission == "":
+			out = append(out, proto.TurnEnded{Reason: proto.TurnAborted, Message: "the turn ended while Hoplet was not connected"})
+			r.pop()
+			continue
+		case (h.ended || h.complete != nil) && !h.asked:
+			h.asked = true
+			ctx, cancel := context.WithTimeout(context.Background(), writeTimeout)
+			err := r.requestReceipt(ctx, h.admission)
+			cancel()
+			if err != nil {
+				// No receipt coming: end the turn without its usage.
+				out = append(out, r.endWithout(h, "Hermes did not report how the turn ended"))
+				continue
+			}
+		}
+		break
+	}
+	if len(r.queue) == 0 && r.isBusy() {
+		r.setInTurn(false)
+	}
+	return out
+}
+
+// endWithout ends the first turn without a receipt: from its
+// message.complete when there was one, else as aborted.
+func (r *run) endWithout(h *turnRec, reason string) proto.Payload {
+	end := proto.TurnEnded{Reason: proto.TurnAborted, Message: reason}
+	if h.complete != nil {
+		end = turnEnd(h.complete, admitted{})
+	}
+	r.pop()
+	return end
+}
+
+// onStart handles a message.start: a turn is admitted. The first turn, if
+// it is another one, is over by now.
+func (r *run) onStart(admission string) []proto.Payload {
+	if r.find(admission) == nil {
+		if admission != "" || len(r.queue) == 0 {
+			r.enqueue(admission)
+		}
+	}
+	h := r.head()
+	if h == nil || h.admission == admission {
+		return r.advance(nil)
+	}
+	var out []proto.Payload
+	if h.complete != nil {
+		// Its end is known from its message.complete: it ends here, and
+		// its usage follows when the receipt comes.
+		out = append(out, turnEnd(h.complete, admitted{}))
+		r.late[h.admission] = true
+		r.pop()
+	} else {
+		h.ended = true
+	}
+	return r.advance(out)
 }
 
 // holdFirst sends a message written before a drop: ahead of the messages
@@ -558,61 +693,6 @@ func (r *run) holdFirst(ctx context.Context, req *request, front *int) {
 	_ = r.send(ctx, req)
 }
 
-// meetRunningTurn reconciles the turn Hermes says is running with the one
-// Hoplet has. A turn that started while Hoplet was away is started here; if
-// the turn before it is still open, that one ended while away: its end
-// comes first, and the new turn's events wait for it (see deferred).
-func (r *run) meetRunningTurn(running bool, started string) []proto.Payload {
-	cur := r.turn
-	if r.ending != nil {
-		cur = r.ending.admission
-	}
-	if !running || started == "" || started == cur {
-		return nil
-	}
-	switch {
-	case !r.inTurn:
-		r.turn = started
-		r.segment, r.toolsSeen = 0, false
-		r.text.Reset()
-		r.setInTurn(true)
-		return []proto.Payload{proto.TurnStarted{}}
-	case cur == "":
-		r.turn = started
-	case r.deferred != started:
-		r.deferred, r.deferredEvents = started, nil
-	}
-	return nil
-}
-
-// deferEvent keeps an event of the deferred turn. Past the bound only text
-// deltas are dropped: the final message carries the whole text. Its start
-// is not kept either, as the turn is started when its time comes.
-func (r *run) deferEvent(ev event) {
-	const bound = 4096
-	if ev.Type == "message.start" || (ev.Type == "message.delta" && len(r.deferredEvents) >= bound) {
-		return
-	}
-	r.deferredEvents = append(r.deferredEvents, ev)
-}
-
-// startDeferred starts the turn that waited for the end of the one before
-// it, then plays its events; out holds that end.
-func (r *run) startDeferred(out []proto.Payload) []proto.Payload {
-	if r.deferred == "" {
-		return out
-	}
-	events := r.deferredEvents
-	r.turn, r.deferred, r.deferredEvents = r.deferred, "", nil
-	r.segment, r.toolsSeen = 0, false
-	r.text.Reset()
-	out = append(out, proto.TurnStarted{})
-	for _, ev := range events {
-		out = append(out, r.onEvent(ev)...)
-	}
-	return out
-}
-
 // requestReceipt asks how a turn ended.
 func (r *run) requestReceipt(ctx context.Context, admission string) error {
 	native, _ := r.session()
@@ -621,20 +701,18 @@ func (r *run) requestReceipt(ctx context.Context, admission string) error {
 
 // Kinds of turn a receipt can belong to.
 const (
-	receiptLate     = "late"     // ended by a newer turn: only its usage is left
-	receiptEnding   = "ending"   // its message.complete was seen
-	receiptRecovery = "recovery" // it ended while Hoplet was away
+	receiptHead = "head" // the turn Hoplet shows
+	receiptLate = "late" // ended by a newer turn: only its usage is left
 )
 
-// classify says which pending end a receipt for admission settles, if any.
+// classify says which turn a receipt for admission settles, if any: only
+// the one it names.
 func (r *run) classify(admission string) string {
 	switch {
+	case r.head() != nil && r.head().admission == admission:
+		return receiptHead
 	case r.late[admission]:
 		return receiptLate
-	case r.ending != nil && r.ending.admission == admission:
-		return receiptEnding
-	case r.inTurn && r.ending == nil && (admission == r.recover || admission == r.turn || r.turn == ""):
-		return receiptRecovery
 	}
 	return ""
 }
@@ -663,16 +741,16 @@ func (r *run) onReceipt(a admitted) []proto.Payload {
 		usage()
 		return out
 	}
-	var complete *completePayload
-	if r.ending != nil {
-		complete = r.ending.complete
-	} else if a.Result != nil && a.Result.FinalResponse != "" {
+	h := r.head()
+	if h.complete == nil && a.Result != nil && a.Result.FinalResponse != "" {
 		// Recovered after a lost connection: the answer was never streamed
 		// here.
 		out = append(out, proto.Message{ID: r.messageID(a.Admission), Role: proto.RoleAssistant, Text: a.Result.FinalResponse})
 	}
 	usage()
-	return r.startDeferred(append(out, r.endTurn(complete, a)))
+	out = append(out, turnEnd(h.complete, a))
+	r.pop()
+	return r.advance(out)
 }
 
 // retryReceipt asks again for a receipt that says the turn has not ended,
@@ -695,6 +773,11 @@ func (r *run) retryReceipt(admission, kind string) []proto.Payload {
 		r.mu.Lock()
 		delete(r.timers, t)
 		r.mu.Unlock()
+		select {
+		case <-r.done:
+			return
+		default:
+		}
 		ctx, cancel := context.WithTimeout(context.Background(), writeTimeout)
 		defer cancel()
 		_ = r.requestReceipt(ctx, admission)
@@ -703,36 +786,14 @@ func (r *run) retryReceipt(admission, kind string) []proto.Payload {
 	return nil
 }
 
-// giveUp ends a turn whose receipt will not come: from its message.complete
-// when there was one (without usage), else as aborted.
+// giveUp ends a turn whose receipt will not come.
 func (r *run) giveUp(admission, kind, reason string) []proto.Payload {
 	delete(r.retries, admission)
-	switch kind {
-	case receiptLate:
+	if kind == receiptLate {
 		delete(r.late, admission)
 		return nil
-	case receiptEnding:
-		return r.startDeferred([]proto.Payload{r.endTurn(r.ending.complete, admitted{})})
 	}
-	r.finishTurn()
-	return r.startDeferred([]proto.Payload{proto.TurnEnded{Reason: proto.TurnAborted, Message: reason}})
-}
-
-// endTurn closes the running turn and says how it ended.
-func (r *run) endTurn(c *completePayload, a admitted) proto.TurnEnded {
-	end := turnEnd(c, a)
-	r.finishTurn()
-	return end
-}
-
-// finishTurn leaves the running turn; the settings that waited for it go.
-func (r *run) finishTurn() {
-	r.ending, r.turn, r.recover = nil, "", ""
-	if r.deferred == "" {
-		r.setInTurn(false)
-	}
-	r.segment, r.toolsSeen = 0, false
-	r.text.Reset()
+	return r.advance([]proto.Payload{r.endWithout(r.head(), reason)})
 }
 
 // turnEnd classifies a finished turn from its message.complete, when seen,
@@ -891,29 +952,34 @@ func (r *run) onEvent(ev event) []proto.Payload {
 	if ev.Session != "" && native != "" && ev.Session != native {
 		return nil
 	}
-	if r.inTurn && r.turn == "" && ev.Admission != "" {
-		// Reattached to a running bridge: the first event names the turn.
-		r.turn = ev.Admission
-	}
-	if r.deferred != "" && ev.Admission == r.deferred {
-		r.deferEvent(ev)
-		return nil
+	if ev.Type == "message.start" {
+		return r.onStart(ev.Admission)
 	}
 	switch ev.Type {
-	case "message.start":
-		var out []proto.Payload
-		if r.ending != nil && ev.Admission != r.ending.admission {
-			// The turn before is still awaiting its receipt: it ends here,
-			// and its usage follows when the receipt comes.
-			out = append(out, turnEnd(r.ending.complete, admitted{}))
-			r.late[r.ending.admission] = true
-			r.ending = nil
-		}
-		r.setInTurn(true)
-		r.turn, r.recover = ev.Admission, ""
-		r.segment, r.toolsSeen = 0, false
-		r.text.Reset()
-		return append(out, proto.TurnStarted{})
+	case "message.delta", "message.interim", "message.complete", "tool.start", "tool.complete":
+	default:
+		return r.translateEvent(ev)
+	}
+	// An event of a turn: the first turn's is translated, a later one's
+	// kept until that turn comes first, any other is dropped.
+	h := r.head()
+	if h != nil && h.admission == "" && ev.Admission != "" {
+		h.admission = ev.Admission // reattached to a running bridge: the first event names the turn
+	}
+	switch {
+	case h == nil:
+		return nil
+	case ev.Admission == "" || ev.Admission == h.admission:
+		return r.translateEvent(ev)
+	}
+	if t := r.find(ev.Admission); t != nil {
+		t.buffer(ev)
+	}
+	return nil
+}
+
+func (r *run) translateEvent(ev event) []proto.Payload {
+	switch ev.Type {
 	case "message.delta":
 		var p deltaPayload
 		if json.Unmarshal(ev.Payload, &p) != nil {
@@ -1008,28 +1074,17 @@ func (r *run) onEvent(ev event) []proto.Payload {
 		if json.Unmarshal(ev.Payload, &p) != nil {
 			return nil
 		}
-		admission := p.Admission
-		if admission == "" {
-			admission = ev.Admission
-		}
-		if !r.inTurn || (admission != "" && r.turn != "" && admission != r.turn) {
+		h := r.head()
+		if h == nil || h.complete != nil || (p.Admission != "" && p.Admission != h.admission) {
 			return nil // not the running turn's
-		}
-		if admission == "" {
-			admission = r.turn
 		}
 		var out []proto.Payload
 		if p.Text != "" {
 			out = append(out, proto.Message{ID: r.currentID(), Role: proto.RoleAssistant, Text: p.Text})
 		}
-		r.ending = &pendingEnd{admission: admission, complete: &p}
-		ctx, cancel := context.WithTimeout(context.Background(), writeTimeout)
-		defer cancel()
-		if err := r.requestReceipt(ctx, admission); err != nil {
-			// No receipt coming: end the turn without its usage.
-			out = append(out, r.endTurn(&p, admitted{}))
-		}
-		return out
+		h.complete = &p
+		// The turn ends with its receipt, which advance asks for.
+		return r.advance(out)
 	case "error":
 		var p messagePayload
 		if json.Unmarshal(ev.Payload, &p) != nil || p.Message == "" {
@@ -1069,7 +1124,7 @@ func (r *run) closeSegment() []proto.Payload {
 	return out
 }
 
-func (r *run) currentID() string { return r.messageID(r.turn) }
+func (r *run) currentID() string { return r.messageID(r.turnID()) }
 
 func (r *run) messageID(admission string) string {
 	return admission + "/" + strconv.Itoa(r.segment)
@@ -1317,10 +1372,9 @@ func (r *run) setPolicyLocked(ctx context.Context, policy string) {
 	}
 }
 
-// setInTurn is the loop's way to change inTurn, keeping busy in step; a
+// setInTurn is the loop's way to change busy; a
 // turn's end sends the settings that waited for it.
 func (r *run) setInTurn(v bool) {
-	r.inTurn = v
 	r.mu.Lock()
 	r.busy = v
 	r.mu.Unlock()

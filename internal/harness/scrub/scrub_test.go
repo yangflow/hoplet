@@ -25,6 +25,7 @@ func TestWord(t *testing.T) {
 		{"an and a", "an", "an and a"},
 		{`{"d":"line\nannie\tannie\"annie\\annie annie"}`, "annie", `{"d":"line\nme\tme\"me\\me me"}`},
 		{`{"d":"annie annie"}`, "annie", `{"d":"me me"}`},
+		{`{"d":"\u201cannie\u201d and \u00e9annie"}`, "annie", `{"d":"\u201cme\u201d and \u00e9me"}`},
 		{`{"d":"\nannies and nannie"}`, "annie", `{"d":"\nannies and nannie"}`},
 	} {
 		if got := Word(tt.word, "me")(tt.s); got != tt.want {
