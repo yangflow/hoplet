@@ -6293,3 +6293,4 @@ gh pr create --title "feat(workspace): discover repos and show session diff" --b
   - `SaveBaseline` 改为每个会话只插入一次。
   - 父仓库只在一处计算；去掉多余的闭包、类型别名与只给测试用的函数。
   - 0008 的加固清单补全；启动清理说明为“守护进程启动后第一次做基线或 diff 时运行一次”。
+- `c80ecf5 fix(workspace): give every diff row a sha and fix doc wording`：出错与消失的仓库也带 sha（状态与错误参与计算）；文件列表被省略时的提示涵盖总数上限；两处注释措辞与换行。
