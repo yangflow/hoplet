@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -240,18 +241,11 @@ func (g Git) isHomeOrAbove(top string) bool {
 }
 
 // ownsGitDir reports whether the .git in r.Abs is a valid git dir that git
-// resolves to: the directory itself, or the target of a gitfile. When git
-// fails for a reason other than "not a git repository", it returns git's
-// message instead.
+// resolves to: the directory itself, or the target of a gitfile. A gitfile
+// that names no directory is not a repository, whatever git's version says
+// about it. When git fails for a reason other than "not a git repository",
+// it returns git's message instead.
 func (g Git) ownsGitDir(ctx context.Context, r Repo) (own bool, refusal string) {
-	out, err := g.output(ctx, runOpts{Dir: r.Abs, Env: r.gitEnv()}, "rev-parse", "--absolute-git-dir")
-	if err != nil {
-		var ee *exec.ExitError
-		if errors.As(err, &ee) && !strings.Contains(err.Error(), "not a git repository") {
-			return false, err.Error()
-		}
-		return false, ""
-	}
 	want := filepath.Join(r.Abs, ".git")
 	if fi, err := os.Stat(want); err == nil && !fi.IsDir() { // a gitfile
 		b, err := os.ReadFile(filepath.Clean(want))
@@ -263,6 +257,17 @@ func (g Git) ownsGitDir(ctx context.Context, r Repo) (own bool, refusal string) 
 		if !filepath.IsAbs(want) {
 			want = filepath.Join(r.Abs, want)
 		}
+		if fi, err := fs.Stat(os.DirFS(filepath.Dir(want)), filepath.Base(want)); err != nil || !fi.IsDir() {
+			return false, ""
+		}
+	}
+	out, err := g.output(ctx, runOpts{Dir: r.Abs, Env: r.gitEnv()}, "rev-parse", "--absolute-git-dir")
+	if err != nil {
+		var ee *exec.ExitError
+		if errors.As(err, &ee) && !strings.Contains(err.Error(), "not a git repository") {
+			return false, err.Error()
+		}
+		return false, ""
 	}
 	return sameDir(strings.TrimRight(string(out), "\n"), want), ""
 }
