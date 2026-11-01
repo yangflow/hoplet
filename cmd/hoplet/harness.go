@@ -143,8 +143,13 @@ func (a app) harnessVerify(args []string) int {
 	if err != nil {
 		return a.fail(name, fmt.Errorf("read the harness environment: %w", err))
 	}
-	fmt.Fprintln(a.stderr, "checking Hermes (a few minutes at most)...")
-	o, checked, err := hermes.Verify(ctx, hermes.StateDir(h), vars, a.hermesCheck, true)
+	// Say so only when a check really runs: Verify may find the version
+	// covered or recorded.
+	check := func(ctx context.Context, bin string, env []string) error {
+		fmt.Fprintln(a.stderr, "checking Hermes (a few minutes at most)...")
+		return a.hermesCheck(ctx, bin, env)
+	}
+	o, checked, err := hermes.Verify(ctx, hermes.StateDir(h), vars, check, true)
 	if err != nil {
 		return a.fail(name, err)
 	}

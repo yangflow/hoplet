@@ -124,7 +124,12 @@ func (a app) devSanitize(args []string) int {
 	sanitize := map[string]func(io.Reader, io.Writer, string, string) error{
 		claude.Kind: claude.Sanitize, hermes.Kind: hermes.Sanitize,
 	}[*kind]
-	if *inPath == "" || *outPath == "" || *dir == "" || sanitize == nil {
+	if sanitize == nil {
+		fmt.Fprintf(a.stderr, "hoplet dev sanitize: unknown harness %q\n", *kind)
+		fs.Usage()
+		return 2
+	}
+	if *inPath == "" || *outPath == "" || *dir == "" {
 		fs.Usage()
 		return 2
 	}

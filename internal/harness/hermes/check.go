@@ -238,6 +238,17 @@ func Verify(ctx context.Context, dir string, env []string, check Checker, force 
 	if recorded(v) || verified.Has(dir, v) {
 		return verified.Outcome{Version: v}, false, nil
 	}
+	// One check at a time: the forced CLI verify and the daemon's daily
+	// check must not run two sessions or race Save. What the holder before
+	// us recorded decides again.
+	unlock, err := verified.Lock(dir)
+	if err != nil {
+		return verified.Outcome{}, false, err
+	}
+	defer unlock()
+	if verified.Has(dir, v) {
+		return verified.Outcome{Version: v}, false, nil
+	}
 	last, ok := verified.Last(dir)
 	now := time.Now()
 	due, failedBefore := verified.Due(last, ok, v, now)

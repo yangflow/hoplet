@@ -42,6 +42,9 @@ func runBridge(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
+	// After the first signal a second one must end a stuck shutdown: give
+	// the default handling back.
+	go func() { <-ctx.Done(); stop() }()
 	err := hermes.Bridge(ctx, hermes.BridgeConfig{Hermes: *bin, Env: os.Environ(), In: stdin, Out: stdout})
 	if err != nil {
 		fmt.Fprintf(stderr, "hoplet hermes-bridge: %v\n", err)

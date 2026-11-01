@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"syscall"
 	"time"
 
 	"github.com/yangflow/hoplet/internal/harness/verified"
@@ -67,7 +66,7 @@ func Install(ctx context.Context, src, home string, check Checker) (Installed, e
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return Installed{}, fmt.Errorf("claude: %w", err)
 	}
-	unlock, err := lockInstalls(dir)
+	unlock, err := verified.Lock(dir)
 	if err != nil {
 		return Installed{}, err
 	}
@@ -117,22 +116,6 @@ func Install(ctx context.Context, src, home string, check Checker) (Installed, e
 	}
 	prune(dir, filepath.Base(dst))
 	return out, nil
-}
-
-// lockInstalls takes the exclusive install lock of the bin directory dir,
-// waiting for another install to finish, and returns its release.
-func lockInstalls(dir string) (func(), error) {
-	f, err := os.OpenFile(filepath.Clean(filepath.Join(dir, ".install.lock")), os.O_CREATE|os.O_RDWR, 0o600)
-	if err != nil {
-		return nil, fmt.Errorf("claude: %w", err)
-	}
-	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX); err != nil {
-		return nil, errors.Join(fmt.Errorf("claude: lock installs: %w", err), f.Close())
-	}
-	return func() {
-		_ = syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
-		_ = f.Close()
-	}, nil
 }
 
 // prune removes the copies other than keep, each hundreds of megabytes,

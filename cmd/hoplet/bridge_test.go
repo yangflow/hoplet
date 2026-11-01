@@ -6,17 +6,21 @@ import (
 )
 
 func TestBridgeUsage(t *testing.T) {
-	for args, want := range map[string]int{"--help": 0, "": 2, "extra": 2} {
+	for name, c := range map[string]struct {
+		args []string
+		want int
+	}{
+		"help":     {[]string{"--help"}, 0},
+		"no flag":  {nil, 2},
+		"extra":    {[]string{"--hermes", "X", "extra"}, 2},
+		"bad flag": {[]string{"--nope"}, 2},
+	} {
 		var out, errb bytes.Buffer
-		argv := []string{}
-		if args != "" {
-			argv = append(argv, args)
-		}
-		if code := runBridge(argv, &bytes.Buffer{}, &out, &errb); code != want {
-			t.Errorf("hermes-bridge %q: exit %d, want %d", args, code, want)
+		if code := runBridge(c.args, &bytes.Buffer{}, &out, &errb); code != c.want {
+			t.Errorf("hermes-bridge %s: exit %d, want %d", name, code, c.want)
 		}
 		if out.Len() != 0 {
-			t.Errorf("hermes-bridge %q wrote to stdout: %q", args, out.String())
+			t.Errorf("hermes-bridge %s wrote to stdout: %q", name, out.String())
 		}
 	}
 }

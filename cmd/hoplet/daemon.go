@@ -305,8 +305,9 @@ func (a app) daemonStatus(args []string) int {
 	return 0
 }
 
-// maintenance is the daemon's daily work: follow the user's claude, unless
-// the configuration turns that off. It is nil without a self-check.
+// maintenance is the daemon's daily work: follow the user's claude and check
+// a new Hermes version, each unless the configuration turns it off. It is
+// nil without either self-check.
 func (a app) maintenance(h string, logger *slog.Logger) func(context.Context, []string) {
 	if a.selfCheck == nil && a.hermesCheck == nil {
 		return nil
