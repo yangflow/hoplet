@@ -21,9 +21,10 @@ ifneq ($(HAS_GO),)
 	@test -z "$$(golangci-lint fmt --diff ./... 2>&1)" || { golangci-lint fmt --diff ./...; exit 1; }
 endif
 
-lint: ## Run golangci-lint
+lint: ## Run golangci-lint and the desktop's UI checks
 ifneq ($(HAS_GO),)
 	golangci-lint run ./...
+	go tool mygo vet desktop
 endif
 
 test: ## Run tests with the race detector

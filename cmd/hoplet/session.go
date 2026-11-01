@@ -27,6 +27,7 @@ commands:
   wait     ID [--for idle|blocked|done] [--timeout D]
   approve  ID [APPROVAL] --option OPTION
   set      ID [--permission MODE] [--plan on|off] [--fast on|off] [--effort LEVEL]
+           [--title T] [--pinned on|off] [--unread on|off]
   interrupt ID     end the running turn
   steer    ID TEXT  add TEXT to the running turn (harnesses that support it)
   stop     ID      stop the session's harness process
@@ -54,7 +55,9 @@ actions), full_auto (never ask). A harness lacking a mode runs the nearest
 stricter one. Plan mode stops all changes until you approve a plan. Fast
 mode gives faster output at a higher cost. Effort levels: low, medium, high,
 xhigh, max, ultra; each harness offers a subset. set applies its changes in
-the order permission, plan, fast, effort and stops at the first that fails.
+the order permission, plan, fast, effort, then title, pin and unread mark
+together, and stops at the first that fails. An empty --title clears the
+title.
 `
 
 // commandTimeout bounds one request of a command that does not follow a
@@ -525,11 +528,15 @@ func (a app) sessionSet(args []string) int {
 	plan := fs.String("plan", "", "on or off")
 	fast := fs.String("fast", "", "on or off")
 	effort := fs.String("effort", "", "low, medium, high, xhigh, max or ultra")
+	var title optString
+	fs.Var(&title, "title", "the session's title; empty clears it")
+	pinned := fs.String("pinned", "", "on or off")
+	unread := fs.String("unread", "", "on or off")
 	asJSON := fs.Bool("json", false, "print the session as JSON")
 	if code, ok := parse(fs, args, 1, 1); !ok {
 		return code
 	}
-	for _, f := range []struct{ name, value string }{{"plan", *plan}, {"fast", *fast}} {
+	for _, f := range []struct{ name, value string }{{"plan", *plan}, {"fast", *fast}, {"pinned", *pinned}, {"unread", *unread}} {
 		if f.value != "" && f.value != "on" && f.value != "off" {
 			fmt.Fprintf(a.stderr, "hoplet session set: --%s %q: want on or off\n", f.name, f.value)
 			return 2
@@ -543,8 +550,8 @@ func (a app) sessionSet(args []string) int {
 		fmt.Fprintf(a.stderr, "hoplet session set: --effort %q: want low, medium, high, xhigh, max or ultra\n", *effort)
 		return 2
 	}
-	if *perm == "" && *plan == "" && *fast == "" && *effort == "" {
-		fmt.Fprintln(a.stderr, "hoplet session set: nothing to change; give --permission, --plan, --fast or --effort")
+	if *perm == "" && *plan == "" && *fast == "" && *effort == "" && !title.set && *pinned == "" && *unread == "" {
+		fmt.Fprintln(a.stderr, "hoplet session set: nothing to change; give --permission, --plan, --fast, --effort, --title, --pinned or --unread")
 		return 2
 	}
 	return a.withClient("session set", commandTimeout, func(ctx context.Context, c *client.Client) error {
@@ -572,6 +579,14 @@ func (a app) sessionSet(args []string) int {
 				return err
 			}
 		}
+		if up := (proto.UpdateParams{Session: id, Pinned: onOff(*pinned), Unread: onOff(*unread)}); title.set || up.Pinned != nil || up.Unread != nil {
+			if title.set {
+				up.Title = &title.value
+			}
+			if _, err := c.Update(ctx, up); err != nil {
+				return err
+			}
+		}
 		st, err := c.Session(ctx, id)
 		if err != nil {
 			return err
@@ -585,8 +600,31 @@ func (a app) sessionSet(args []string) int {
 	})
 }
 
-// describeMode is a session's permission mode, plan mode, fast mode and
-// effort.
+// optString is a string flag that knows whether it was given, so an empty
+// value can mean "clear".
+type optString struct {
+	value string
+	set   bool
+}
+
+func (o *optString) String() string { return o.value }
+
+func (o *optString) Set(s string) error {
+	o.value, o.set = s, true
+	return nil
+}
+
+// onOff maps an "on" / "off" flag value to a bool; empty means not given.
+func onOff(v string) *bool {
+	if v == "" {
+		return nil
+	}
+	b := v == "on"
+	return &b
+}
+
+// describeMode is a session's permission mode, plan mode, fast mode,
+// effort, pin and unread mark.
 func describeMode(s proto.Session) string {
 	out := "permission " + string(s.Permission)
 	if s.Plan {
@@ -597,6 +635,12 @@ func describeMode(s proto.Session) string {
 	}
 	if s.Effort != "" {
 		out += ", effort " + string(s.Effort)
+	}
+	if s.Pinned {
+		out += ", pinned"
+	}
+	if s.Unread {
+		out += ", unread"
 	}
 	return out
 }

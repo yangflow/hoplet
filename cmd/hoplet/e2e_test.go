@@ -155,7 +155,7 @@ func TestSessionInTheTerminal(t *testing.T) {
 		t.Fatalf("approve again: exit %d, %q", code, errs)
 	}
 	mustCLI(t, "session", "wait", short, "--for", "idle", "--timeout", "15s")
-	if out := mustCLI(t, "session", "set", short, "--plan", "on", "--fast", "on", "--effort", "high"); out != "permission auto_review, plan mode on, fast mode on, effort high\n" {
+	if out := mustCLI(t, "session", "set", short, "--plan", "on", "--fast", "on", "--effort", "high"); out != "permission auto_review, plan mode on, fast mode on, effort high, unread\n" {
 		t.Fatalf("session set: %q", out)
 	}
 	for _, args := range [][]string{{}, {"--effort", "huge"}, {"--permission", "read_only"}, {"--fast", "maybe"}} {
@@ -164,6 +164,12 @@ func TestSessionInTheTerminal(t *testing.T) {
 		}
 	}
 	mustCLI(t, "session", "set", short, "--plan", "off", "--fast", "off")
+	if out := mustCLI(t, "session", "set", short, "--title", "renamed", "--pinned", "on", "--unread", "off"); out != "permission auto_review, effort high, pinned\n" {
+		t.Fatalf("session set list properties: %q", out)
+	}
+	if code, _, _ := cli(t, "session", "set", short, "--pinned", "yes"); code != 2 {
+		t.Fatalf("session set --pinned yes: exit %d, want 2", code)
+	}
 	if code, _, errs := cli(t, "session", "wait", short, "--for", "blocked", "--timeout", "300ms"); code != 3 || !strings.Contains(errs, "timed out") {
 		t.Fatalf("wait blocked on an idle session: exit %d, %q", code, errs)
 	}
@@ -191,7 +197,7 @@ func TestSessionInTheTerminal(t *testing.T) {
 		t.Fatalf("turn 2 messages %q: wait returned before turn 2 ended", texts)
 	}
 
-	if out := mustCLI(t, "session", "list"); !strings.Contains(out, id) || !strings.Contains(out, "e2e") {
+	if out := mustCLI(t, "session", "list"); !strings.Contains(out, id) || !strings.Contains(out, "renamed") {
 		t.Fatalf("list: %q", out)
 	}
 	var listed []proto.Session

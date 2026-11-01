@@ -76,6 +76,7 @@ const (
 	MethodSessionsSetPlan   = "sessions.set_plan"
 	MethodSessionsSetEffort = "sessions.set_effort"
 	MethodSessionsSetFast   = "sessions.set_fast"
+	MethodSessionsUpdate    = "sessions.update"
 	MethodSessionsStop      = "sessions.stop"
 	MethodSessionsArchive   = "sessions.archive"
 	MethodSessionsEvents    = "sessions.events"
@@ -184,6 +185,15 @@ type SetFastParams struct {
 type SetEffortParams struct {
 	Session SessionID `json:"session"`
 	Effort  Effort    `json:"effort"`
+}
+
+// UpdateParams changes a session's list properties; nil fields stay as
+// they are. An empty title is allowed: the session shows untitled.
+type UpdateParams struct {
+	Session SessionID `json:"session"`
+	Title   *string   `json:"title,omitempty"`
+	Pinned  *bool     `json:"pinned,omitempty"`
+	Unread  *bool     `json:"unread,omitempty"`
 }
 
 // QueuedMessage is a message waiting for the running turn to end. Error,
