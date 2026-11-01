@@ -1,0 +1,8 @@
+{
+  "name": "Hoplet",
+  "identifier": "dev.hoplet.desktop",
+  "version": "0.1.0",
+  "out": "build",
+  "icon": "resources/icon.png",
+  "macos": { "minimumSystemVersion": "14.0" }
+}
