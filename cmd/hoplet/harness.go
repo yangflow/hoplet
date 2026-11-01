@@ -10,10 +10,12 @@ import (
 
 	"github.com/yangflow/hoplet/internal/env"
 	"github.com/yangflow/hoplet/internal/harness/claude"
+	"github.com/yangflow/hoplet/internal/harness/hermes"
 	"github.com/yangflow/hoplet/internal/home"
 )
 
 const harnessUsage = `usage: hoplet harness install | upgrade claude [--from PATH] [--json]
+       hoplet harness verify hermes [--json]
 
 The harness name comes before the flags: hoplet harness install claude --from PATH
 
@@ -30,12 +32,22 @@ up for new sessions.
 The daemon also does this once a day for the claude on your PATH, unless
 config.toml sets [harness.claude] follow = false. hoplet doctor shows the
 outcome.
+
+verify hermes runs a similar self-check on the Hermes your PATH finds (an
+edit asked and denied, the same edit in full_auto, an interrupt; on your
+Hermes model, leaving a short session in its history). Hoplet starts new
+Hermes turns only on versions its recordings cover or that passed here.
+The daemon checks a new Hermes version once a day by itself, unless
+config.toml sets [harness.hermes] follow = false.
 `
 
 // selfCheckTimeout bounds install and upgrade, self-check included.
 const selfCheckTimeout = 10 * time.Minute
 
 func (a app) harnessCmd(args []string) int {
+	if len(args) >= 2 && args[0] == "verify" && args[1] == hermes.Kind {
+		return a.harnessVerify(args[2:])
+	}
 	if len(args) < 2 || (args[0] != "install" && args[0] != "upgrade") || args[1] != claude.Kind {
 		if len(args) > 0 && (args[0] == "help" || args[0] == "-h" || args[0] == "--help") {
 			fmt.Fprint(a.stdout, harnessUsage)
@@ -108,4 +120,53 @@ func (a app) harnessEnv(ctx context.Context, h string) ([]string, error) {
 		return nil, err
 	}
 	return snap.Vars, nil
+}
+
+// harnessVerify runs `hoplet harness verify hermes`.
+func (a app) harnessVerify(args []string) int {
+	const name = "harness verify"
+	fs := a.flags(name, harnessUsage)
+	asJSON := fs.Bool("json", false, "print JSON")
+	if code, ok := parse(fs, args, 0, 0); !ok {
+		return code
+	}
+	if a.hermesCheck == nil {
+		return a.fail(name, errors.New("this build has no self-check"))
+	}
+	h, err := home.Dir()
+	if err != nil {
+		return a.fail(name, err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), selfCheckTimeout)
+	defer cancel()
+	vars, err := a.harnessEnv(ctx, h)
+	if err != nil {
+		return a.fail(name, fmt.Errorf("read the harness environment: %w", err))
+	}
+	// Say so only when a check really runs: Verify may find the version
+	// covered or recorded.
+	check := func(ctx context.Context, bin string, env []string) error {
+		fmt.Fprintln(a.stderr, "checking Hermes (a few minutes at most)...")
+		return a.hermesCheck(ctx, bin, env)
+	}
+	o, checked, err := hermes.Verify(ctx, hermes.StateDir(h), vars, check, true, func() { fmt.Fprintln(a.stderr, "waiting for another Hermes check to finish...") })
+	if err != nil {
+		return a.fail(name, err)
+	}
+	if *asJSON {
+		a.printJSON(map[string]any{"harness": hermes.Kind, "version": o.Version, "checked": checked, "error": o.Error})
+	} else {
+		switch {
+		case !checked:
+			fmt.Fprintf(a.stdout, "hermes %s needs no check: Hoplet's recordings cover it, or it passed here before\n", o.Version)
+		case o.Error == "":
+			fmt.Fprintf(a.stdout, "hermes %s passed the self-check\n", o.Version)
+		default:
+			fmt.Fprintf(a.stdout, "hermes %s failed the self-check: %s\n", o.Version, o.Error)
+		}
+	}
+	if o.Error != "" {
+		return 1
+	}
+	return 0
 }

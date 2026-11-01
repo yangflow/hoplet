@@ -1,0 +1,11 @@
+write {"id":"x","jsonrpc":"2.0","method":"session.create","params":{"cwd":"/work","editor":{"edit_approval_policy":"ask"},"request_id":"87e620abd9b81c03","source":"acp"}}
+native local-331db7129ccae07884bfc077846161630277e744596f6f72f91fab1c141c88ba
+write {"id":"x","jsonrpc":"2.0","method":"prompt.submit","params":{"session_id":"local-331db7129ccae07884bfc077846161630277e744596f6f72f91fab1c141c88ba","submission_id":"x","text":"Write the numbers from 1 to 200 as English words, one per line. Use no tools."}}
+proto.TurnStarted {}
+proto.MessageDelta {"message_id":"ad6cf9a64b644128b1bba7d694c1bb80/0","text":"one"}
+proto.MessageDelta {"message_id":"ad6cf9a64b644128b1bba7d694c1bb80/0","text":"\n"}
+write {"id":"x","jsonrpc":"2.0","method":"session.interrupt","params":{"execution_generation":1,"session_id":"local-331db7129ccae07884bfc077846161630277e744596f6f72f91fab1c141c88ba"}}
+proto.Message {"id":"ad6cf9a64b644128b1bba7d694c1bb80/0","role":"assistant","text":"one"}
+write {"id":"x","jsonrpc":"2.0","method":"prompt.receipt","params":{"admission_id":"ad6cf9a64b644128b1bba7d694c1bb80","include_result":true,"session_id":"local-331db7129ccae07884bfc077846161630277e744596f6f72f91fab1c141c88ba"}}
+proto.Usage {"input_tokens":0,"output_tokens":0}
+proto.TurnEnded {"reason":"interrupted"}

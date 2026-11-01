@@ -1,0 +1,79 @@
+write {"id":"x","jsonrpc":"2.0","method":"session.create","params":{"cwd":"/work","editor":{"edit_approval_policy":"ask"},"request_id":"4692d84854f6fc69","source":"acp"}}
+native local-5f5f81327cf1894da4601a77f6426b55cb7728bc51417099206614dc5606a6dc
+write {"id":"x","jsonrpc":"2.0","method":"session.mutate","params":{"expected_generation":0,"expected_revision":0,"operation":"edit_policy","payload":{"policy":"workspace_session"},"request_id":"x","session_id":"local-5f5f81327cf1894da4601a77f6426b55cb7728bc51417099206614dc5606a6dc"}}
+write {"id":"x","jsonrpc":"2.0","method":"prompt.submit","params":{"session_id":"local-5f5f81327cf1894da4601a77f6426b55cb7728bc51417099206614dc5606a6dc","submission_id":"x","text":"Use the write_file tool to create a.txt containing a. Do nothing else."}}
+proto.TurnStarted {}
+proto.ToolCall {"id":"call_b769a2c121fd4a678467afc5f783ebb5","kind":"edit","name":"write_file","summary":"a.txt","status":"running"}
+proto.ToolCall {"id":"call_b769a2c121fd4a678467afc5f783ebb5","kind":"edit","name":"write_file","summary":"a.txt","status":"done"}
+proto.FileChange {"path":"/work/a.txt","op":"created"}
+proto.MessageDelta {"message_id":"e6bdf7b6035a429e9b9e11f88323ec54/0","text":"\n\nCreated"}
+proto.MessageDelta {"message_id":"e6bdf7b6035a429e9b9e11f88323ec54/0","text":" `"}
+proto.MessageDelta {"message_id":"e6bdf7b6035a429e9b9e11f88323ec54/0","text":"a"}
+proto.MessageDelta {"message_id":"e6bdf7b6035a429e9b9e11f88323ec54/0","text":".txt"}
+proto.MessageDelta {"message_id":"e6bdf7b6035a429e9b9e11f88323ec54/0","text":"`"}
+proto.MessageDelta {"message_id":"e6bdf7b6035a429e9b9e11f88323ec54/0","text":" containing"}
+proto.MessageDelta {"message_id":"e6bdf7b6035a429e9b9e11f88323ec54/0","text":" `"}
+proto.MessageDelta {"message_id":"e6bdf7b6035a429e9b9e11f88323ec54/0","text":"a"}
+proto.MessageDelta {"message_id":"e6bdf7b6035a429e9b9e11f88323ec54/0","text":"`."}
+proto.Message {"id":"e6bdf7b6035a429e9b9e11f88323ec54/0","role":"assistant","text":"Created `a.txt` containing `a`."}
+write {"id":"x","jsonrpc":"2.0","method":"prompt.receipt","params":{"admission_id":"e6bdf7b6035a429e9b9e11f88323ec54","include_result":true,"session_id":"local-5f5f81327cf1894da4601a77f6426b55cb7728bc51417099206614dc5606a6dc"}}
+proto.Usage {"input_tokens":47158,"output_tokens":40}
+proto.TurnEnded {"reason":"completed"}
+write {"id":"x","jsonrpc":"2.0","method":"config.set","params":{"key":"yolo","session_id":"local-5f5f81327cf1894da4601a77f6426b55cb7728bc51417099206614dc5606a6dc","value":"1"}}
+write {"id":"x","jsonrpc":"2.0","method":"session.mutate","params":{"expected_generation":2,"expected_revision":2,"operation":"edit_policy","payload":{"policy":"session"},"request_id":"x","session_id":"local-5f5f81327cf1894da4601a77f6426b55cb7728bc51417099206614dc5606a6dc"}}
+write {"id":"x","jsonrpc":"2.0","method":"config.set","params":{"key":"service_tier","session_id":"local-5f5f81327cf1894da4601a77f6426b55cb7728bc51417099206614dc5606a6dc","value":"fast"}}
+write {"id":"x","jsonrpc":"2.0","method":"session.mutate","params":{"expected_generation":3,"expected_revision":3,"operation":"reasoning","payload":{"effort":"low"},"request_id":"x","session_id":"local-5f5f81327cf1894da4601a77f6426b55cb7728bc51417099206614dc5606a6dc"}}
+write {"id":"x","jsonrpc":"2.0","method":"prompt.submit","params":{"session_id":"local-5f5f81327cf1894da4601a77f6426b55cb7728bc51417099206614dc5606a6dc","submission_id":"x","text":"Use the write_file tool to create b.txt containing b. Then use the terminal tool to run exactly: rm -r ./junk"}}
+proto.TurnStarted {}
+proto.ToolCall {"id":"call_942305d59ca14174af42b62d701b65b9","kind":"edit","name":"write_file","summary":"b.txt","status":"running"}
+proto.ToolCall {"id":"call_942305d59ca14174af42b62d701b65b9","kind":"edit","name":"write_file","summary":"b.txt","status":"done"}
+proto.FileChange {"path":"/work/b.txt","op":"created"}
+proto.ToolCall {"id":"call_1a09fe70f32c4ed79c9ac73ae8fb5396","kind":"exec","name":"terminal","summary":"rm -r ./junk","status":"running"}
+proto.ToolCall {"id":"call_1a09fe70f32c4ed79c9ac73ae8fb5396","kind":"exec","name":"terminal","summary":"rm -r ./junk","status":"done"}
+proto.MessageDelta {"message_id":"6fd4f748e9e24ffabaed950e3dc2abe7/0","text":"\n\nCreated"}
+proto.MessageDelta {"message_id":"6fd4f748e9e24ffabaed950e3dc2abe7/0","text":" `"}
+proto.MessageDelta {"message_id":"6fd4f748e9e24ffabaed950e3dc2abe7/0","text":"b"}
+proto.MessageDelta {"message_id":"6fd4f748e9e24ffabaed950e3dc2abe7/0","text":".txt"}
+proto.MessageDelta {"message_id":"6fd4f748e9e24ffabaed950e3dc2abe7/0","text":"`"}
+proto.MessageDelta {"message_id":"6fd4f748e9e24ffabaed950e3dc2abe7/0","text":" containing"}
+proto.MessageDelta {"message_id":"6fd4f748e9e24ffabaed950e3dc2abe7/0","text":" `"}
+proto.MessageDelta {"message_id":"6fd4f748e9e24ffabaed950e3dc2abe7/0","text":"b"}
+proto.MessageDelta {"message_id":"6fd4f748e9e24ffabaed950e3dc2abe7/0","text":"`"}
+proto.MessageDelta {"message_id":"6fd4f748e9e24ffabaed950e3dc2abe7/0","text":" and"}
+proto.MessageDelta {"message_id":"6fd4f748e9e24ffabaed950e3dc2abe7/0","text":" ran"}
+proto.MessageDelta {"message_id":"6fd4f748e9e24ffabaed950e3dc2abe7/0","text":" `"}
+proto.MessageDelta {"message_id":"6fd4f748e9e24ffabaed950e3dc2abe7/0","text":"rm"}
+proto.MessageDelta {"message_id":"6fd4f748e9e24ffabaed950e3dc2abe7/0","text":" -"}
+proto.MessageDelta {"message_id":"6fd4f748e9e24ffabaed950e3dc2abe7/0","text":"r"}
+proto.MessageDelta {"message_id":"6fd4f748e9e24ffabaed950e3dc2abe7/0","text":" ./"}
+proto.MessageDelta {"message_id":"6fd4f748e9e24ffabaed950e3dc2abe7/0","text":"junk"}
+proto.MessageDelta {"message_id":"6fd4f748e9e24ffabaed950e3dc2abe7/0","text":"`"}
+proto.MessageDelta {"message_id":"6fd4f748e9e24ffabaed950e3dc2abe7/0","text":" successfully"}
+proto.MessageDelta {"message_id":"6fd4f748e9e24ffabaed950e3dc2abe7/0","text":"."}
+proto.Message {"id":"6fd4f748e9e24ffabaed950e3dc2abe7/0","role":"assistant","text":"Created `b.txt` containing `b` and ran `rm -r ./junk` successfully."}
+write {"id":"x","jsonrpc":"2.0","method":"prompt.receipt","params":{"admission_id":"6fd4f748e9e24ffabaed950e3dc2abe7","include_result":true,"session_id":"local-5f5f81327cf1894da4601a77f6426b55cb7728bc51417099206614dc5606a6dc"}}
+proto.Usage {"input_tokens":47643,"output_tokens":69}
+proto.TurnEnded {"reason":"completed"}
+write {"id":"x","jsonrpc":"2.0","method":"config.set","params":{"key":"yolo","session_id":"local-5f5f81327cf1894da4601a77f6426b55cb7728bc51417099206614dc5606a6dc","value":"0"}}
+write {"id":"x","jsonrpc":"2.0","method":"session.mutate","params":{"expected_generation":5,"expected_revision":5,"operation":"edit_policy","payload":{"policy":"ask"},"request_id":"x","session_id":"local-5f5f81327cf1894da4601a77f6426b55cb7728bc51417099206614dc5606a6dc"}}
+write {"id":"x","jsonrpc":"2.0","method":"config.set","params":{"key":"service_tier","session_id":"local-5f5f81327cf1894da4601a77f6426b55cb7728bc51417099206614dc5606a6dc","value":"normal"}}
+write {"id":"x","jsonrpc":"2.0","method":"prompt.submit","params":{"session_id":"local-5f5f81327cf1894da4601a77f6426b55cb7728bc51417099206614dc5606a6dc","submission_id":"x","text":"Use the write_file tool to create c.txt containing c. Do nothing else."}}
+proto.TurnStarted {}
+proto.ToolCall {"id":"call_e1f0fa331870491fbe582ef22a1811ea","kind":"edit","name":"write_file","summary":"c.txt","status":"running"}
+proto.ApprovalRequested {"id":"52621ad3c4f546ec9045745e8306e5b6","kind":"file_change","title":"Edit /work/c.txt","detail":"/work/c.txt","tool_call_id":"call_e1f0fa331870491fbe582ef22a1811ea","options":[{"id":"once","label":"Allow once","scope":"once"},{"id":"deny","label":"Deny","scope":"deny"}]}
+write {"id":"x","jsonrpc":"2.0","method":"approval.respond","params":{"choice":"once","execution_generation":7,"prompt_id":"52621ad3c4f546ec9045745e8306e5b6","session_id":"local-5f5f81327cf1894da4601a77f6426b55cb7728bc51417099206614dc5606a6dc"}}
+proto.ToolCall {"id":"call_e1f0fa331870491fbe582ef22a1811ea","kind":"edit","name":"write_file","summary":"c.txt","status":"done"}
+proto.FileChange {"path":"/work/c.txt","op":"created"}
+proto.MessageDelta {"message_id":"966b801d2302495a8fb46be54d9bcfa6/0","text":"\n\nCreated"}
+proto.MessageDelta {"message_id":"966b801d2302495a8fb46be54d9bcfa6/0","text":" `"}
+proto.MessageDelta {"message_id":"966b801d2302495a8fb46be54d9bcfa6/0","text":"c"}
+proto.MessageDelta {"message_id":"966b801d2302495a8fb46be54d9bcfa6/0","text":".txt"}
+proto.MessageDelta {"message_id":"966b801d2302495a8fb46be54d9bcfa6/0","text":"`"}
+proto.MessageDelta {"message_id":"966b801d2302495a8fb46be54d9bcfa6/0","text":" containing"}
+proto.MessageDelta {"message_id":"966b801d2302495a8fb46be54d9bcfa6/0","text":" `"}
+proto.MessageDelta {"message_id":"966b801d2302495a8fb46be54d9bcfa6/0","text":"c"}
+proto.MessageDelta {"message_id":"966b801d2302495a8fb46be54d9bcfa6/0","text":"`."}
+proto.Message {"id":"966b801d2302495a8fb46be54d9bcfa6/0","role":"assistant","text":"Created `c.txt` containing `c`."}
+write {"id":"x","jsonrpc":"2.0","method":"prompt.receipt","params":{"admission_id":"966b801d2302495a8fb46be54d9bcfa6","include_result":true,"session_id":"local-5f5f81327cf1894da4601a77f6426b55cb7728bc51417099206614dc5606a6dc"}}
+proto.Usage {"input_tokens":48250,"output_tokens":40}
+proto.TurnEnded {"reason":"completed"}

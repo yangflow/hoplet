@@ -140,6 +140,11 @@ func Start(ctx context.Context, cfg Config) (d *Daemon, err error) {
 	}
 	sys := &system{src: src, mgr: mgr, harnesses: cfg.Harnesses, probeURL: probeURL, probeTimeout: defaultProbeTimeout, log: log}
 	sys.set(snap, envErr)
+	for _, h := range cfg.Harnesses {
+		if u, ok := h.(harness.EnvUser); ok {
+			u.UseEnv(sys.vars)
+		}
+	}
 	// Recover before serving: a command must never reach a session whose
 	// shim the manager has not reattached to yet.
 	if err := mgr.Recover(ctx); err != nil {

@@ -18,6 +18,7 @@ import (
 	"github.com/yangflow/hoplet/internal/daemon"
 	"github.com/yangflow/hoplet/internal/env"
 	"github.com/yangflow/hoplet/internal/harness/claude"
+	"github.com/yangflow/hoplet/internal/harness/hermes"
 	"github.com/yangflow/hoplet/internal/home"
 	"github.com/yangflow/hoplet/internal/launchd"
 	"github.com/yangflow/hoplet/internal/logfile"
@@ -304,33 +305,70 @@ func (a app) daemonStatus(args []string) int {
 	return 0
 }
 
-// maintenance is the daemon's daily work: follow the user's claude, unless
-// the configuration turns that off. It is nil without a self-check.
+// maintenance is the daemon's daily work: follow the user's claude and check
+// a new Hermes version, each unless the configuration turns it off. It is
+// nil without either self-check.
 func (a app) maintenance(h string, logger *slog.Logger) func(context.Context, []string) {
-	if a.selfCheck == nil {
+	if a.selfCheck == nil && a.hermesCheck == nil {
 		return nil
 	}
 	return func(ctx context.Context, vars []string) {
 		cfg, err := config.Load(h)
 		if err != nil {
 			logger.Warn("harness follow-up skipped", "err", err)
-			return
 		}
-		if !cfg.Harness.Claude.Follows() {
-			return
+		claudeToo, hermesToo := maintenancePlan(cfg, err, a.selfCheck != nil, a.hermesCheck != nil)
+		if claudeToo {
+			a.followClaude(ctx, h, vars, logger)
 		}
-		check := func(ctx context.Context, bin string) error { return a.selfCheck(ctx, bin, vars) }
-		ctx, cancel := context.WithTimeout(ctx, selfCheckTimeout)
-		defer cancel()
-		u, ok := claude.Follow(ctx, h, envValue(vars, "PATH"), check)
-		switch {
-		case !ok:
-			logger.Debug("claude follow-up: nothing to do")
-		case u.Error != "":
-			logger.Warn("claude follow-up failed", "from", u.From, "version", u.Version, "err", u.Error)
-		default:
-			logger.Info("claude followed", "from", u.From, "version", u.Version)
+		if hermesToo {
+			a.checkHermes(ctx, h, vars, logger)
 		}
+	}
+}
+
+// maintenancePlan decides which harnesses the daily work covers: those with
+// a self-check in this build that the configuration does not turn off. If
+// the configuration could not be loaded (loadErr), nothing runs.
+func maintenancePlan(cfg config.Config, loadErr error, haveClaude, haveHermes bool) (followClaude, checkHermes bool) {
+	if loadErr != nil {
+		return false, false
+	}
+	return haveClaude && cfg.Harness.Claude.Follows(), haveHermes && cfg.Harness.Hermes.Follows()
+}
+
+// checkHermes checks the Hermes on the harness PATH if its version is new
+// here.
+func (a app) checkHermes(ctx context.Context, h string, vars []string, logger *slog.Logger) {
+	ctx, cancel := context.WithTimeout(ctx, selfCheckTimeout)
+	defer cancel()
+	o, checked, err := hermes.Verify(ctx, hermes.StateDir(h), vars, a.hermesCheck, false, nil)
+	switch {
+	case err != nil:
+		logger.Debug("hermes check skipped", "err", err)
+	case !checked:
+		logger.Debug("hermes check: nothing to do", "version", o.Version)
+	case o.Error != "":
+		logger.Warn("hermes failed the self-check", "version", o.Version, "err", o.Error)
+	default:
+		logger.Info("hermes passed the self-check", "version", o.Version)
+	}
+}
+
+// followClaude moves Hoplet's copy of claude to the one on the harness
+// PATH if it is new and passes the self-check.
+func (a app) followClaude(ctx context.Context, h string, vars []string, logger *slog.Logger) {
+	check := func(ctx context.Context, bin string) error { return a.selfCheck(ctx, bin, vars) }
+	ctx, cancel := context.WithTimeout(ctx, selfCheckTimeout)
+	defer cancel()
+	u, ok := claude.Follow(ctx, h, envValue(vars, "PATH"), check)
+	switch {
+	case !ok:
+		logger.Debug("claude follow-up: nothing to do")
+	case u.Error != "":
+		logger.Warn("claude follow-up failed", "from", u.From, "version", u.Version, "err", u.Error)
+	default:
+		logger.Info("claude followed", "from", u.From, "version", u.Version)
 	}
 }
 

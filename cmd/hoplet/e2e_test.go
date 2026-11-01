@@ -427,3 +427,64 @@ func TestDaemonLogFile(t *testing.T) {
 		time.Sleep(50 * time.Millisecond)
 	}
 }
+
+func TestSessionSteerInterruptStop(t *testing.T) {
+	h, _ := testHome(t)
+	work := filepath.Join(h, "work")
+	if err := os.MkdirAll(work, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	fakeBin, err := fake.BuildBinary(context.Background(), h)
+	if err != nil {
+		t.Fatal(err)
+	}
+	script, err := fake.WriteScript(h, fake.Script{Session: "n1", Turns: []fake.Turn{
+		{Steps: []fake.Step{{SleepMS: 60_000}}},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	startDaemonProcess(t, h, "HOPLET_TEST_FAKE="+fakeBin, "HOPLET_TEST_SCRIPT="+script)
+	id := strings.TrimSpace(mustCLI(t, "session", "new", "--harness", "fake", "--dir", work, "slow"))
+	// The turn starts once the harness reads the prompt: steer until it is
+	// running.
+	deadline := time.Now().Add(15 * time.Second)
+	for {
+		code, out, _ := cli(t, "session", "steer", id, "faster")
+		if code == 0 {
+			if out != "steered "+id+"\n" {
+				t.Fatalf("steer: %q", out)
+			}
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("steer never reached a running turn")
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	if out := mustCLI(t, "session", "interrupt", id); out != "interrupted "+id+"\n" {
+		t.Fatalf("interrupt: %q", out)
+	}
+	mustCLI(t, "session", "wait", id, "--for", "idle", "--timeout", "15s")
+	var steered, interrupted bool
+	for _, ev := range watchAll(t, id) {
+		p, _ := ev.Decode()
+		switch v := p.(type) {
+		case proto.Message:
+			steered = steered || v.Text == "steer:faster"
+		case proto.TurnEnded:
+			interrupted = interrupted || v.Reason == proto.TurnInterrupted
+		}
+	}
+	if !steered || !interrupted {
+		t.Fatalf("steered %v, interrupted %v", steered, interrupted)
+	}
+	if out := mustCLI(t, "session", "stop", id); out != "stopped "+id+"\n" {
+		t.Fatalf("stop: %q", out)
+	}
+	for _, args := range [][]string{{"steer", id}, {"interrupt"}, {"stop", id, "extra"}} {
+		if code, _, _ := cli(t, append([]string{"session"}, args...)...); code != 2 {
+			t.Errorf("session %v: exit %d, want 2", args, code)
+		}
+	}
+}

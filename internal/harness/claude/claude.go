@@ -35,7 +35,7 @@ const probeTimeout = 10 * time.Second
 // Install).
 func verifiedVersions() []string { return []string{"2.1.312"} }
 
-func verified(v string) bool { return slices.Contains(verifiedVersions(), v) }
+func recorded(v string) bool { return slices.Contains(verifiedVersions(), v) }
 
 // BinaryPath is the managed claude binary in Hoplet's home.
 func BinaryPath(home string) string { return filepath.Join(home, "harness", Kind, "bin", "claude") }
@@ -91,13 +91,13 @@ func (h *Harness) Probe(ctx context.Context) (harness.Info, error) {
 		if err != nil {
 			return harness.Info{}, err
 		}
-		h.cached = harness.Info{Version: v, Capabilities: caps(), Supported: verified(v) || localVerified(h.Binary, v)}
+		h.cached = harness.Info{Version: v, Capabilities: caps(), Supported: recorded(v) || localVerified(h.Binary, v)}
 		h.stamp = st
 	}
 	info := h.cached
 	// Not cached: a failed follow-up leaves the binary as it was.
 	if u, ok := lastUpdate(h.Binary); ok {
-		info.Notice, info.Attention = u.notice(info.Version)
+		info.Notice, info.Attention = notice(u, info.Version)
 	}
 	return info, nil
 }

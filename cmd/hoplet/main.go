@@ -15,6 +15,7 @@ import (
 	"github.com/yangflow/hoplet/internal/env"
 	"github.com/yangflow/hoplet/internal/harness"
 	"github.com/yangflow/hoplet/internal/harness/claude"
+	"github.com/yangflow/hoplet/internal/harness/hermes"
 	"github.com/yangflow/hoplet/internal/launchd"
 	"github.com/yangflow/hoplet/internal/shim"
 )
@@ -32,6 +33,7 @@ commands:
   doctor    check the installation, the daemon and its environment
   version   print the version
   shim      run a session's harness process (started by the daemon)
+  hermes-bridge  relay a Hermes session's gateway over stdio (started by the daemon)
 `
 
 func main() {
@@ -56,16 +58,27 @@ type app struct {
 	// selfCheck checks a claude binary before Hoplet switches to it; nil
 	// also turns the daemon's daily follow-up off (tests).
 	selfCheck func(ctx context.Context, bin string, env []string) error
+	// hermesCheck checks a Hermes version before Hoplet starts turns on
+	// it; nil also turns the daemon's daily check off (tests).
+	hermesCheck hermes.Checker
 }
 
 func run(args []string, stdout, stderr io.Writer) int {
-	return app{stdout: stdout, stderr: stderr, harnesses: harnesses, agents: realAgents, selfCheck: claude.SelfCheck}.run(args)
+	return app{stdout: stdout, stderr: stderr, harnesses: harnesses, agents: realAgents, selfCheck: claude.SelfCheck, hermesCheck: hermes.SelfCheck}.run(args)
 }
 
-// harnesses are the adapters a production daemon serves: each runs
-// Hoplet's own, version-pinned copy of its harness (hoplet harness install).
+// harnesses are the adapters a production daemon serves: claude runs
+// Hoplet's own copy (hoplet harness install); Hermes runs through the
+// user's own gateway, reached by a bridge this executable provides.
 func harnesses(home string) map[string]harness.Harness {
-	return map[string]harness.Harness{claude.Kind: &claude.Harness{Binary: claude.BinaryPath(home)}}
+	exe, err := os.Executable()
+	if err != nil {
+		exe = "" // Launch reports it
+	}
+	return map[string]harness.Harness{
+		claude.Kind: &claude.Harness{Binary: claude.BinaryPath(home)},
+		hermes.Kind: &hermes.Harness{Exe: exe, Dir: hermes.StateDir(home)},
+	}
 }
 
 func (a app) run(args []string) int {
@@ -94,6 +107,8 @@ func (a app) run(args []string) int {
 		return a.doctor(args[1:])
 	case "shim":
 		return runShim(args[1:], a.stderr)
+	case "hermes-bridge":
+		return runBridge(args[1:], os.Stdin, a.stdout, a.stderr)
 	default:
 		fmt.Fprintf(a.stderr, "hoplet: unknown command %q\n", args[0])
 		return 2

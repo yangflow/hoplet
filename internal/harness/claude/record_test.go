@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/yangflow/hoplet/internal/harness"
+	"github.com/yangflow/hoplet/internal/harness/scrub"
 	"github.com/yangflow/hoplet/proto"
 )
 
@@ -157,23 +158,6 @@ func sanitized(t *testing.T, dir, home string, entries ...Entry) []string {
 	return lines
 }
 
-func TestReplacePath(t *testing.T) {
-	for _, tt := range []struct{ s, from, to, want string }{
-		{"/Users/ann/x and /Users/anna/x", "/Users/ann", "/Users/me", "/Users/me/x and /Users/anna/x"},
-		{`"/Users/ann"`, "/Users/ann", "/Users/me", `"/Users/me"`},
-		{"/Users/ann", "/Users/ann", "/Users/me", "/Users/me"},
-		{"/Users/ann-old", "/Users/ann", "/Users/me", "/Users/me-old"},
-		{"/Users/ann_x. /Users/ann.", "/Users/ann", "/Users/me", "/Users/me_x. /Users/me."},
-		{"/w1 /w11", "/w1", "/work", "/work /w11"},
-		{"-Users-ann-proj", "-Users-ann", "-Users-me", "-Users-me-proj"},
-		{"-Users-anna", "-Users-ann", "-Users-me", "-Users-anna"},
-	} {
-		if got := replacePath(tt.s, tt.from, tt.to); got != tt.want {
-			t.Errorf("replacePath(%q, %q) = %q, want %q", tt.s, tt.from, got, tt.want)
-		}
-	}
-}
-
 func TestSanitizeScrubsPathForms(t *testing.T) {
 	dir := t.TempDir()
 	resolved, err := filepath.EvalSymlinks(dir)
@@ -235,7 +219,7 @@ func TestSanitizeScrubsNonAlnumSlug(t *testing.T) {
 		t.Fatal(err)
 	}
 	slug := strings.Map(func(r rune) rune {
-		if isAlnum(r) {
+		if scrub.IsAlnum(r) {
 			return r
 		}
 		return '-'

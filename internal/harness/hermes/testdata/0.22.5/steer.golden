@@ -1,0 +1,39 @@
+write {"id":"x","jsonrpc":"2.0","method":"session.create","params":{"cwd":"/work","editor":{"edit_approval_policy":"ask"},"request_id":"14cd81dbee2db321","source":"acp"}}
+native local-17e92ee1db6674dd99abcdbeb56d28e5ff3bb7f27776a3c1add20c314a5f443d
+write {"id":"x","jsonrpc":"2.0","method":"prompt.submit","params":{"session_id":"local-17e92ee1db6674dd99abcdbeb56d28e5ff3bb7f27776a3c1add20c314a5f443d","submission_id":"x","text":"Use the terminal tool to run exactly: sleep 10 \u0026\u0026 ls. Then tell me what you found."}}
+proto.TurnStarted {}
+proto.MessageDelta {"message_id":"b8973dfd64d44ed69a3c56456f7b9f80/0","text":"I"}
+proto.MessageDelta {"message_id":"b8973dfd64d44ed69a3c56456f7b9f80/0","text":"’ll"}
+proto.MessageDelta {"message_id":"b8973dfd64d44ed69a3c56456f7b9f80/0","text":" run"}
+proto.MessageDelta {"message_id":"b8973dfd64d44ed69a3c56456f7b9f80/0","text":" the"}
+proto.MessageDelta {"message_id":"b8973dfd64d44ed69a3c56456f7b9f80/0","text":" command"}
+write {"id":"x","jsonrpc":"2.0","method":"session.steer","params":{"execution_generation":1,"session_id":"local-17e92ee1db6674dd99abcdbeb56d28e5ff3bb7f27776a3c1add20c314a5f443d","text":"Also tell me how many entries there are."}}
+proto.MessageDelta {"message_id":"b8973dfd64d44ed69a3c56456f7b9f80/0","text":" exactly"}
+proto.MessageDelta {"message_id":"b8973dfd64d44ed69a3c56456f7b9f80/0","text":" as"}
+proto.MessageDelta {"message_id":"b8973dfd64d44ed69a3c56456f7b9f80/0","text":" given"}
+proto.MessageDelta {"message_id":"b8973dfd64d44ed69a3c56456f7b9f80/0","text":" and"}
+proto.MessageDelta {"message_id":"b8973dfd64d44ed69a3c56456f7b9f80/0","text":" report"}
+proto.MessageDelta {"message_id":"b8973dfd64d44ed69a3c56456f7b9f80/0","text":" the"}
+proto.MessageDelta {"message_id":"b8973dfd64d44ed69a3c56456f7b9f80/0","text":" output"}
+proto.MessageDelta {"message_id":"b8973dfd64d44ed69a3c56456f7b9f80/0","text":".\n"}
+proto.Message {"id":"b8973dfd64d44ed69a3c56456f7b9f80/0","role":"assistant","text":"I’ll run the command exactly as given and report the output.\n"}
+proto.ToolCall {"id":"call_7623126fde624c91a7ce3e1b2ded9c87","kind":"exec","name":"terminal","summary":"sleep 10 + 1 command","status":"running"}
+proto.ToolCall {"id":"call_7623126fde624c91a7ce3e1b2ded9c87","kind":"exec","name":"terminal","summary":"sleep 10 + 1 command","status":"done"}
+proto.MessageDelta {"message_id":"b8973dfd64d44ed69a3c56456f7b9f80/1","text":"\n\nThe"}
+proto.MessageDelta {"message_id":"b8973dfd64d44ed69a3c56456f7b9f80/1","text":" command"}
+proto.MessageDelta {"message_id":"b8973dfd64d44ed69a3c56456f7b9f80/1","text":" completed"}
+proto.MessageDelta {"message_id":"b8973dfd64d44ed69a3c56456f7b9f80/1","text":" successfully"}
+proto.MessageDelta {"message_id":"b8973dfd64d44ed69a3c56456f7b9f80/1","text":" and"}
+proto.MessageDelta {"message_id":"b8973dfd64d44ed69a3c56456f7b9f80/1","text":" listed"}
+proto.MessageDelta {"message_id":"b8973dfd64d44ed69a3c56456f7b9f80/1","text":" **"}
+proto.MessageDelta {"message_id":"b8973dfd64d44ed69a3c56456f7b9f80/1","text":"1"}
+proto.MessageDelta {"message_id":"b8973dfd64d44ed69a3c56456f7b9f80/1","text":" entry"}
+proto.MessageDelta {"message_id":"b8973dfd64d44ed69a3c56456f7b9f80/1","text":"**"}
+proto.MessageDelta {"message_id":"b8973dfd64d44ed69a3c56456f7b9f80/1","text":":"}
+proto.MessageDelta {"message_id":"b8973dfd64d44ed69a3c56456f7b9f80/1","text":" `"}
+proto.MessageDelta {"message_id":"b8973dfd64d44ed69a3c56456f7b9f80/1","text":"junk"}
+proto.MessageDelta {"message_id":"b8973dfd64d44ed69a3c56456f7b9f80/1","text":"`."}
+proto.Message {"id":"b8973dfd64d44ed69a3c56456f7b9f80/1","role":"assistant","text":"The command completed successfully and listed **1 entry**: `junk`."}
+write {"id":"x","jsonrpc":"2.0","method":"prompt.receipt","params":{"admission_id":"b8973dfd64d44ed69a3c56456f7b9f80","include_result":true,"session_id":"local-17e92ee1db6674dd99abcdbeb56d28e5ff3bb7f27776a3c1add20c314a5f443d"}}
+proto.Usage {"input_tokens":31412,"output_tokens":174}
+proto.TurnEnded {"reason":"completed"}

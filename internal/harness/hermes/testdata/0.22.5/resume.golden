@@ -1,0 +1,14 @@
+write {"id":"x","jsonrpc":"2.0","method":"session.create","params":{"cwd":"/work","editor":{"edit_approval_policy":"ask"},"request_id":"810619e017189e87","source":"acp"}}
+native local-0801b38c529499dd658bd14f2107b0795bfc04c03b195ebee24a5097c96f753f
+write {"id":"x","jsonrpc":"2.0","method":"prompt.submit","params":{"session_id":"local-0801b38c529499dd658bd14f2107b0795bfc04c03b195ebee24a5097c96f753f","submission_id":"x","text":"Write the numbers from 1 to 200 as English words, one per line. Use no tools."}}
+proto.TurnStarted {}
+proto.TurnEnded {"reason":"aborted","message":"the Hermes bridge exited"}
+-- new bridge
+write {"id":"x","jsonrpc":"2.0","method":"session.resume","params":{"omit_messages":true,"session_id":"local-0801b38c529499dd658bd14f2107b0795bfc04c03b195ebee24a5097c96f753f"}}
+write {"id":"x","jsonrpc":"2.0","method":"prompt.submit","params":{"session_id":"local-0801b38c529499dd658bd14f2107b0795bfc04c03b195ebee24a5097c96f753f","submission_id":"x","text":"Reply with exactly the word: again"}}
+proto.TurnStarted {}
+proto.MessageDelta {"message_id":"7e475cce756e4654ac1b52a5dd3bfb1e/0","text":"again"}
+proto.Message {"id":"7e475cce756e4654ac1b52a5dd3bfb1e/0","role":"assistant","text":"again"}
+write {"id":"x","jsonrpc":"2.0","method":"prompt.receipt","params":{"admission_id":"7e475cce756e4654ac1b52a5dd3bfb1e","include_result":true,"session_id":"local-0801b38c529499dd658bd14f2107b0795bfc04c03b195ebee24a5097c96f753f"}}
+proto.Usage {"input_tokens":15674,"output_tokens":5}
+proto.TurnEnded {"reason":"completed"}
