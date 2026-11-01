@@ -66,7 +66,7 @@ func Install(ctx context.Context, src, home string, check Checker) (Installed, e
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return Installed{}, fmt.Errorf("claude: %w", err)
 	}
-	unlock, err := verified.Lock(dir)
+	unlock, err := verified.Lock(ctx, filepath.Join(dir, ".install.lock"), nil)
 	if err != nil {
 		return Installed{}, err
 	}

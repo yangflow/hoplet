@@ -232,8 +232,12 @@ func TestHarnessVerifyHermes(t *testing.T) {
 		return a.run([]string{"harness", "verify", "hermes"}), out.String()
 	}
 	fail = errors.New("no approval came")
+	errb.Reset()
 	if code, got := verify(); code != 1 || !strings.Contains(got, "failed the self-check") {
 		t.Fatalf("failing: exit %d %q", code, got)
+	}
+	if !strings.Contains(errb.String(), "checking Hermes") {
+		t.Fatalf("a check ran without saying so: %q", errb.String())
 	}
 	fail = nil
 	if code, got := verify(); code != 0 || got != "hermes 0.23.0 passed the self-check\n" {
@@ -326,5 +330,32 @@ func TestDaemonChecksAHermesVersionOnce(t *testing.T) {
 	work(context.Background(), vars)
 	if runs != 1 {
 		t.Fatalf("%d checks of one version, want 1", runs)
+	}
+}
+
+func TestMaintenancePlan(t *testing.T) {
+	off := false
+	var claudeOff, hermesOff, bothOff config.Config
+	claudeOff.Harness.Claude.Follow = &off
+	hermesOff.Harness.Hermes.Follow = &off
+	bothOff.Harness.Claude.Follow, bothOff.Harness.Hermes.Follow = &off, &off
+	for name, c := range map[string]struct {
+		cfg                    config.Config
+		loadErr                error
+		haveClaude, haveHermes bool
+		wantClaude, wantHermes bool
+	}{
+		"both on":              {config.Config{}, nil, true, true, true, true},
+		"claude off":           {claudeOff, nil, true, true, false, true},
+		"hermes off":           {hermesOff, nil, true, true, true, false},
+		"both off":             {bothOff, nil, true, true, false, false},
+		"load error":           {config.Config{}, errors.New("bad toml"), true, true, false, false},
+		"no claude self-check": {config.Config{}, nil, false, true, false, true},
+		"no hermes self-check": {config.Config{}, nil, true, false, true, false},
+	} {
+		gotClaude, gotHermes := maintenancePlan(c.cfg, c.loadErr, c.haveClaude, c.haveHermes)
+		if gotClaude != c.wantClaude || gotHermes != c.wantHermes {
+			t.Errorf("%s: claude %v hermes %v, want %v %v", name, gotClaude, gotHermes, c.wantClaude, c.wantHermes)
+		}
 	}
 }

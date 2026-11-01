@@ -165,18 +165,20 @@ type pipe struct {
 	in     *io.PipeWriter
 	lines  chan harness.Line
 	cancel context.CancelFunc
-	done   chan struct{}
+	done   chan struct{} // closed when the scanner has ended
+	ended  chan struct{} // closed when Bridge has returned and stored err
 	once   sync.Once
-	err    error // what Bridge returned; written before done closes
+	err    error // what Bridge returned; written before ended closes
 }
 
 func startPipe(ctx context.Context, cfg BridgeConfig) *pipe {
 	ctx, cancel := context.WithCancel(ctx)
 	inR, inW := io.Pipe()
 	outR, outW := io.Pipe()
-	p := &pipe{in: inW, lines: make(chan harness.Line, 64), cancel: cancel, done: make(chan struct{})}
+	p := &pipe{in: inW, lines: make(chan harness.Line, 64), cancel: cancel, done: make(chan struct{}), ended: make(chan struct{})}
 	cfg.In, cfg.Out = inR, outW
 	go func() {
+		defer close(p.ended)
 		err := Bridge(ctx, cfg)
 		if !errors.Is(err, context.Canceled) {
 			p.err = err
@@ -187,6 +189,7 @@ func startPipe(ctx context.Context, cfg BridgeConfig) *pipe {
 	go func() {
 		defer close(p.done)
 		defer close(p.lines)
+		defer outR.Close() // a bridge still writing meets an error, not a stuck pipe
 		sc := bufio.NewScanner(outR)
 		sc.Buffer(nil, harness.MaxLine)
 		for sc.Scan() {
@@ -215,6 +218,7 @@ func (p *pipe) Close() error {
 		for range p.lines {
 		}
 		<-p.done
+		<-p.ended
 		err = p.err
 	})
 	return err
@@ -225,8 +229,10 @@ func (p *pipe) Close() error {
 // and records the outcome in dir (Hoplet's directory for this adapter). A
 // version that failed is checked at most once a day and not after
 // verified.MaxAttempts self-check failures, unless force is set. It
-// reports whether it checked; a cancelled check records nothing.
-func Verify(ctx context.Context, dir string, env []string, check Checker, force bool) (verified.Outcome, bool, error) {
+// reports whether it checked; a cancelled check records nothing. Checks of
+// one dir run one at a time: waiting, if not nil, is called once when
+// another check holds the turn, and ctx ends the wait.
+func Verify(ctx context.Context, dir string, env []string, check Checker, force bool, waiting func()) (verified.Outcome, bool, error) {
 	bin, err := Find(env)
 	if err != nil {
 		return verified.Outcome{}, false, err
@@ -241,7 +247,7 @@ func Verify(ctx context.Context, dir string, env []string, check Checker, force 
 	// One check at a time: the forced CLI verify and the daemon's daily
 	// check must not run two sessions or race Save. What the holder before
 	// us recorded decides again.
-	unlock, err := verified.Lock(dir)
+	unlock, err := verified.Lock(ctx, filepath.Join(dir, ".verify.lock"), waiting)
 	if err != nil {
 		return verified.Outcome{}, false, err
 	}

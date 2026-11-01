@@ -1,35 +1,29 @@
 package verified
 
 import (
+	"context"
+	"errors"
+	"path/filepath"
 	"testing"
-	"time"
 )
 
 func TestLockExcludesAnotherHolder(t *testing.T) {
-	dir := t.TempDir() + "/nested" // created by Lock
-	unlock, err := Lock(dir)
+	path := filepath.Join(t.TempDir(), "nested", ".lock") // directory created by Lock
+	unlock, err := Lock(context.Background(), path, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	got := make(chan func())
-	go func() {
-		u, err := Lock(dir)
-		if err != nil {
-			t.Error(err)
-			u = func() {}
-		}
-		got <- u
-	}()
-	select {
-	case <-got:
-		t.Fatal("a second Lock got in while the first was held")
-	case <-time.After(100 * time.Millisecond):
+	cancelled, cancel := context.WithCancel(context.Background())
+	cancel()
+	told := 0
+	if u, err := Lock(cancelled, path, func() { told++ }); !errors.Is(err, context.Canceled) || u != nil || told != 1 {
+		t.Fatalf("a held lock: unlock %v, err %v, told %d", u != nil, err, told)
 	}
 	unlock()
-	select {
-	case u := <-got:
-		u()
-	case <-time.After(10 * time.Second):
-		t.Fatal("the second Lock never got in after the release")
+	told = 0
+	u, err := Lock(cancelled, path, func() { told++ })
+	if err != nil || told != 0 {
+		t.Fatalf("a free lock: err %v, told %d", err, told)
 	}
+	u()
 }

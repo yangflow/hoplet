@@ -316,15 +316,25 @@ func (a app) maintenance(h string, logger *slog.Logger) func(context.Context, []
 		cfg, err := config.Load(h)
 		if err != nil {
 			logger.Warn("harness follow-up skipped", "err", err)
-			return
 		}
-		if a.selfCheck != nil && cfg.Harness.Claude.Follows() {
+		claudeToo, hermesToo := maintenancePlan(cfg, err, a.selfCheck != nil, a.hermesCheck != nil)
+		if claudeToo {
 			a.followClaude(ctx, h, vars, logger)
 		}
-		if a.hermesCheck != nil && cfg.Harness.Hermes.Follows() {
+		if hermesToo {
 			a.checkHermes(ctx, h, vars, logger)
 		}
 	}
+}
+
+// maintenancePlan decides which harnesses the daily work covers: those with
+// a self-check in this build that the configuration does not turn off. If
+// the configuration could not be loaded (loadErr), nothing runs.
+func maintenancePlan(cfg config.Config, loadErr error, haveClaude, haveHermes bool) (followClaude, checkHermes bool) {
+	if loadErr != nil {
+		return false, false
+	}
+	return haveClaude && cfg.Harness.Claude.Follows(), haveHermes && cfg.Harness.Hermes.Follows()
 }
 
 // checkHermes checks the Hermes on the harness PATH if its version is new
@@ -332,7 +342,7 @@ func (a app) maintenance(h string, logger *slog.Logger) func(context.Context, []
 func (a app) checkHermes(ctx context.Context, h string, vars []string, logger *slog.Logger) {
 	ctx, cancel := context.WithTimeout(ctx, selfCheckTimeout)
 	defer cancel()
-	o, checked, err := hermes.Verify(ctx, hermes.StateDir(h), vars, a.hermesCheck, false)
+	o, checked, err := hermes.Verify(ctx, hermes.StateDir(h), vars, a.hermesCheck, false, nil)
 	switch {
 	case err != nil:
 		logger.Debug("hermes check skipped", "err", err)

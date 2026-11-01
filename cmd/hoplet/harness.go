@@ -149,7 +149,7 @@ func (a app) harnessVerify(args []string) int {
 		fmt.Fprintln(a.stderr, "checking Hermes (a few minutes at most)...")
 		return a.hermesCheck(ctx, bin, env)
 	}
-	o, checked, err := hermes.Verify(ctx, hermes.StateDir(h), vars, check, true)
+	o, checked, err := hermes.Verify(ctx, hermes.StateDir(h), vars, check, true, func() { fmt.Fprintln(a.stderr, "waiting for another Hermes check to finish...") })
 	if err != nil {
 		return a.fail(name, err)
 	}
