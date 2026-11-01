@@ -59,11 +59,21 @@ type mutation struct {
 
 // request is a request the adapter sent and has no answer to yet.
 type request struct {
-	method  string
+	method string
+	// params is never changed once the request is handed to send: it may
+	// be encoded on another goroutine. A changed request is a copy (with).
 	params  map[string]any
 	retried bool
 	seq     int  // its place in the order of writes
 	resent  bool // a message written before a drop, to be written again
+}
+
+// with returns a copy of the request with one param set.
+func (q *request) with(key string, v any) *request {
+	c := *q
+	c.params = maps.Clone(q.params)
+	c.params[key] = v
+	return &c
 }
 
 type approval struct {
@@ -97,7 +107,7 @@ type run struct {
 	toolsSeen bool
 
 	prefix string
-	n      int // requests written, under mu
+	n      int // requests written, under mu; a request's seq
 
 	// receiptDelay is the wait before a receipt is asked for again.
 	receiptDelay time.Duration
@@ -124,17 +134,16 @@ type run struct {
 	approvals  map[string]*approval
 	requests   map[string]*request
 	epoch      int            // counts the bridge's connections
-	writes     int            // counts requests written
 	stale      map[string]int // requests lost with a connection (and its epoch): their answers are dropped
 	timers     map[*time.Timer]struct{}
 	// attached is true once this connection has a snapshot of the session:
 	// the gateway refuses anything else before that, so requests wait.
 	attached bool
 	waiting  []*request
-	mode     proto.PermissionMode
 	policy   string // the edit policy Hermes has
-	effort   proto.Effort
-	model    string
+	// attachErr is why Hermes refused to attach the session on this
+	// connection; while it stands, commands fail with it.
+	attachErr error
 	// Session settings go one at a time (each changes the revision the
 	// next must name) and never mid-turn (Hermes refuses them): they queue,
 	// the latest per operation.
@@ -158,7 +167,7 @@ func newRun(io harness.Stdio, spec harness.Spec) *run {
 		prefix: "hoplet-" + rand.Text()[:8], native: native,
 		approvals: map[string]*approval{}, requests: map[string]*request{},
 		late: map[string]bool{}, retries: map[string]int{}, stale: map[string]int{}, timers: map[*time.Timer]struct{}{}, receiptDelay: receiptRetryDelay,
-		mode: spec.Mode, policy: editAsk, effort: spec.Effort, model: spec.Model,
+		policy: editAsk,
 	}
 	if spec.State.InTurn {
 		// A turn is open that this run has not seen start: the first
@@ -278,8 +287,12 @@ func (r *run) translate(line []byte) (out []proto.Payload, native string) {
 	}
 	switch {
 	case f.Bridge == BridgeConnected:
-		// A new connection: what was in flight on the old one is lost.
+		// A new connection: what was in flight on the old one is lost, and
+		// the session is attached again.
 		r.dropInFlight()
+		r.mu.Lock()
+		r.attachErr = nil
+		r.mu.Unlock()
 		// Receipts asked for on the old connection will not be answered.
 		clear(r.late)
 		r.mu.Lock()
@@ -353,11 +366,19 @@ func (r *run) onResponse(f frame) (out []proto.Payload, native string) {
 	delete(r.requests, id)
 	r.mu.Unlock()
 	if e := f.rpcErr(); e != nil {
+		if req == nil {
+			// An earlier daemon's request: what came of it shows in the
+			// events and the next snapshot.
+			return nil, ""
+		}
 		out, resent := r.onError(req, e)
-		if !resent && req != nil && (req.method == "session.create" || req.method == "session.resume") && r.holding {
-			// No snapshot is coming: settle as if nothing ran.
-			out = r.settleHeld(out, false)
-			out = r.advance(out)
+		if !resent && (req.method == "session.create" || req.method == "session.resume") {
+			out = append(out, r.attachRefused(e)...)
+			if r.holding {
+				// No snapshot is coming: settle as if nothing ran.
+				out = r.settleHeld(out, false)
+				out = r.advance(out)
+			}
 		}
 		return out, ""
 	}
@@ -388,6 +409,37 @@ func (r *run) onResponse(f frame) (out []proto.Payload, native string) {
 		return r.onOrphan(f.Result)
 	}
 	return nil, ""
+}
+
+// attachRefused records that Hermes refused to attach the session: the
+// requests waiting for it are dropped, and commands fail until a new
+// connection attaches.
+func (r *run) attachRefused(e *rpcError) []proto.Payload {
+	r.mu.Lock()
+	r.attachErr = fmt.Errorf("hermes: Hermes refused to attach the session: %s", reason(e))
+	dropped := len(r.waiting)
+	r.waiting = nil
+	r.mu.Unlock()
+	if dropped == 0 {
+		return nil
+	}
+	return []proto.Payload{proto.Error{Message: fmt.Sprintf("%d requests were not sent: Hermes refused to attach the session", dropped)}}
+}
+
+// refused returns the error commands fail with while the session is not
+// attached because Hermes refused it.
+func (r *run) refused() error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.attachErr
+}
+
+// reason is why a request was refused.
+func reason(e *rpcError) string {
+	if e.Data.Reason != "" {
+		return e.Data.Reason
+	}
+	return e.Message
 }
 
 // dropInFlight forgets the requests written on a connection that is gone:
@@ -592,9 +644,9 @@ func (r *run) onSnapshot(result json.RawMessage, created, own bool) (out []proto
 			if !ok {
 				continue // settled meanwhile
 			}
-			req.params["execution_generation"] = p.Generation
+			req = req.with("execution_generation", p.Generation)
 		}
-		r.fillSession(req, s.Session)
+		req = r.fillSession(req, s.Session)
 		switch {
 		case req.method == "prompt.submit" && req.resent:
 			// Written before the drop, so before everything held since.
@@ -1038,6 +1090,14 @@ func (r *run) onError(req *request, e *rpcError) (out []proto.Payload, resent bo
 	switch method {
 	case "session.mutate":
 		return r.onMutateRefused(req, reason, e), false
+	case "session.create", "session.resume":
+		if req.retried || (reason != "stale_generation" && reason != "revision_conflict") {
+			msg := "Hermes refused to attach the session: " + reason
+			if e.Data.Detail != "" {
+				msg += " (" + e.Data.Detail + ")"
+			}
+			return []proto.Payload{proto.Error{Message: msg}}, false
+		}
 	case "prompt.receipt":
 		adm, _ := req.params["admission_id"].(string)
 		if kind := r.classify(adm); kind != "" {
@@ -1064,13 +1124,14 @@ func (r *run) onError(req *request, e *rpcError) (out []proto.Payload, resent bo
 		}
 		gen := r.generation
 		r.mu.Unlock()
-		params := req.params
-		if _, ok := params["execution_generation"]; ok {
-			params["execution_generation"] = gen
+		retry := &request{method: req.method, params: req.params}
+		if _, ok := req.params["execution_generation"]; ok {
+			retry = retry.with("execution_generation", gen)
 		}
+		retry.retried = true
 		ctx, cancel := context.WithTimeout(context.Background(), writeTimeout)
 		defer cancel()
-		if err := r.send(ctx, &request{method: req.method, params: params, retried: true}); err == nil {
+		if err := r.send(ctx, retry); err == nil {
 			return nil, true
 		}
 	}
@@ -1340,8 +1401,7 @@ func (r *run) send(ctx context.Context, req *request) error {
 	// Registered before it is written, so its answer finds it.
 	r.n++
 	id := r.prefix + "-" + strconv.Itoa(r.n)
-	r.writes++
-	req.seq = r.writes
+	req.seq = r.n
 	r.requests[id] = req
 	r.mu.Unlock()
 	b, err := json.Marshal(map[string]any{"jsonrpc": "2.0", "id": id, "method": req.method, "params": req.params})
@@ -1368,10 +1428,11 @@ func (r *run) session() (string, int64) {
 }
 
 // fillSession names the session in a request written before it existed.
-func (r *run) fillSession(req *request, native string) {
+func (r *run) fillSession(req *request, native string) *request {
 	if s, ok := req.params["session_id"].(string); ok && s == "" {
-		req.params["session_id"] = native
+		return req.with("session_id", native)
 	}
+	return req
 }
 
 func (r *run) submit(ctx context.Context, text string) error {
@@ -1441,8 +1502,7 @@ func (r *run) pumpLocked(ctx context.Context) {
 		native := r.native
 		r.mu.Unlock()
 		for _, req := range held {
-			r.fillSession(req, native)
-			_ = r.send(ctx, req)
+			_ = r.send(ctx, r.fillSession(req, native))
 		}
 		return
 	}
@@ -1545,22 +1605,36 @@ func (r *run) setInTurn(v bool) {
 }
 
 // Send sends a user message; Hermes queues it if a turn is running.
-func (r *run) Send(ctx context.Context, text string) error { return r.submit(ctx, text) }
+func (r *run) Send(ctx context.Context, text string) error {
+	if err := r.refused(); err != nil {
+		return err
+	}
+	return r.submit(ctx, text)
+}
 
 // Steer adds text to the running turn after its current tool calls.
 func (r *run) Steer(ctx context.Context, text string) error {
+	if err := r.refused(); err != nil {
+		return err
+	}
 	native, gen := r.session()
 	return r.call(ctx, "session.steer", map[string]any{"session_id": native, "execution_generation": gen, "text": text})
 }
 
 // Interrupt ends the running turn.
 func (r *run) Interrupt(ctx context.Context) error {
+	if err := r.refused(); err != nil {
+		return err
+	}
 	native, gen := r.session()
 	return r.call(ctx, "session.interrupt", map[string]any{"session_id": native, "execution_generation": gen})
 }
 
 // Respond answers an approval with one of Hermes's choices.
 func (r *run) Respond(ctx context.Context, approvalID, optionID string) error {
+	if err := r.refused(); err != nil {
+		return err
+	}
 	native, gen := r.session()
 	// Marked before the write, so an event the answer provokes finds it;
 	// taken back if the answer is not taken.
@@ -1593,10 +1667,10 @@ func (r *run) SetMode(ctx context.Context, mode proto.PermissionMode) error {
 	if mode != proto.ModeConfirm && policy == editAsk {
 		return fmt.Errorf("hermes: no permission mode %q", mode)
 	}
+	if err := r.refused(); err != nil {
+		return err
+	}
 	native, _ := r.session()
-	r.mu.Lock()
-	r.mode = mode
-	r.mu.Unlock()
 	value := "0"
 	if yolo {
 		value = "1"
@@ -1614,14 +1688,17 @@ func (r *run) SetPlan(context.Context, bool) error { return harness.ErrUnsupport
 // SetEffort changes the reasoning effort, now or when the running turn
 // ends.
 func (r *run) SetEffort(ctx context.Context, effort proto.Effort) error {
-	r.mu.Lock()
-	r.effort = effort
-	r.mu.Unlock()
+	if err := r.refused(); err != nil {
+		return err
+	}
 	return r.mutate(ctx, "reasoning", map[string]any{"effort": string(effort)})
 }
 
 // SetFast turns Hermes's fast service tier on or off from the next turn.
 func (r *run) SetFast(ctx context.Context, on bool) error {
+	if err := r.refused(); err != nil {
+		return err
+	}
 	native, _ := r.session()
 	value := "normal"
 	if on {
@@ -1632,9 +1709,9 @@ func (r *run) SetFast(ctx context.Context, on bool) error {
 
 // SetModel changes the model; Hermes applies it from the next turn.
 func (r *run) SetModel(ctx context.Context, model string) error {
-	r.mu.Lock()
-	r.model = model
-	r.mu.Unlock()
+	if err := r.refused(); err != nil {
+		return err
+	}
 	return r.mutate(ctx, "model", map[string]any{"model": model})
 }
 

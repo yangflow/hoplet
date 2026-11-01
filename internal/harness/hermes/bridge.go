@@ -175,7 +175,7 @@ func (b *bridge) write(line []byte) error {
 func (b *bridge) status(l bridgeLine) error {
 	line, err := json.Marshal(l)
 	if err != nil {
-		return err
+		return fmt.Errorf("hermes: bridge status: %w", err)
 	}
 	return b.write(line)
 }
@@ -231,9 +231,10 @@ func (b *bridge) pump(ctx context.Context, conn *websocket.Conn, inDone <-chan e
 	defer func() {
 		_ = conn.CloseNow() // the gateway needs no closing handshake
 		if !relayed {
-			// Its error is the connection closing, which is expected here.
+			// Wait for the relay. Its error is the connection closing,
+			// which is expected here.
 			if err := <-readErr; err != nil {
-				_ = conn.CloseNow()
+				return
 			}
 		}
 	}()

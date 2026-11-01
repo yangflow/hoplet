@@ -122,7 +122,11 @@ func (a app) devSanitize(args []string) int {
 		return code
 	}
 	sanitize := map[string]func(io.Reader, io.Writer, string, string) error{
-		claude.Kind: claude.Sanitize, hermes.Kind: hermes.Sanitize,
+		claude.Kind: claude.Sanitize,
+		hermes.Kind: func(in io.Reader, out io.Writer, dir, home string) error {
+			// The shell this runs in has the environment Hermes ran with.
+			return hermes.Sanitize(in, out, dir, home, os.Environ())
+		},
 	}[*kind]
 	if sanitize == nil {
 		fmt.Fprintf(a.stderr, "hoplet dev sanitize: unknown harness %q\n", *kind)

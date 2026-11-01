@@ -143,7 +143,7 @@ func Ticket(ctx context.Context, ep Endpoint) (string, error) {
 		"profile_id": ep.ProfileID, "instance_id": ep.InstanceID, "purpose": "interactive",
 	}})
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("hermes: session ticket: %w", err)
 	}
 	if _, err := conn.Write(append(req, '\n')); err != nil {
 		return "", fmt.Errorf("hermes: control socket: %w", err)

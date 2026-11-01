@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -47,13 +46,14 @@ func cleaner(dir, home, hermesHome string) func(string) string {
 // fixture: it keeps the bridge's input and output, drops events that only
 // dress a user interface, cuts what a snapshot, a receipt or session info
 // carries about the user's own setup (tools, MCP servers, history) and
-// replaces dir and home with /work and /Users/me.
-func Sanitize(in io.Reader, out io.Writer, dir, home string) error {
+// replaces dir and home with /work and /Users/me. env is the environment
+// the Hermes home is found from.
+func Sanitize(in io.Reader, out io.Writer, dir, home string, env []string) error {
 	sc := bufio.NewScanner(in)
 	sc.Buffer(nil, harness.MaxLine+1<<20)
 	enc := json.NewEncoder(out)
 	enc.SetEscapeHTML(false)
-	clean := cleaner(dir, home, Home(os.Environ()))
+	clean := cleaner(dir, home, Home(env))
 	var pending strings.Builder // a line continued over several records
 	for sc.Scan() {
 		var r spoolRecord
@@ -83,7 +83,7 @@ func Sanitize(in io.Reader, out io.Writer, dir, home string) error {
 			continue
 		}
 		if err := enc.Encode(e); err != nil {
-			return err
+			return fmt.Errorf("hermes: fixture entry: %w", err)
 		}
 	}
 	return sc.Err()
@@ -131,7 +131,7 @@ func reduce(line string) (string, bool, error) {
 	}
 	b, err := json.Marshal(v)
 	if err != nil {
-		return "", false, err
+		return "", false, fmt.Errorf("hermes: recorded line: %w", err)
 	}
 	return string(b), true, nil
 }

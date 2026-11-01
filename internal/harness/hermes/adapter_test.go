@@ -1040,7 +1040,6 @@ func TestClosingStopsTheReceiptTimers(t *testing.T) {
 }
 
 func TestSanitizeKeepsOnlyWhatTheAdapterReads(t *testing.T) {
-	t.Setenv("HERMES_HOME", "/data/hermes-x")
 	spool := func(line string) string {
 		b, _ := json.Marshal(map[string]any{"k": "stdout", "d": line})
 		return string(b) + "\n"
@@ -1048,7 +1047,7 @@ func TestSanitizeKeepsOnlyWhatTheAdapterReads(t *testing.T) {
 	in := spool(`{"jsonrpc":"2.0","id":"1","result":{"admission_id":"a1","status":"terminal","outcome":"completed","messages":[{"content":"secret"}],"tool_outputs":["secret"],"result":{"final_response":"hi","tool_outputs":["secret"]},"usage":{"input_tokens":1,"output_tokens":2}}}`) +
 		spool(`{"jsonrpc":"2.0","method":"event","params":{"type":"message.delta","payload":{"text":"annie in /data/hermes-x/state.db, annies, ann_x"}}}`)
 	var out bytes.Buffer
-	if err := Sanitize(strings.NewReader(in), &out, "/work/p", "/home/annie"); err != nil {
+	if err := Sanitize(strings.NewReader(in), &out, "/work/p", "/home/annie", []string{"HERMES_HOME=/data/hermes-x"}); err != nil {
 		t.Fatal(err)
 	}
 	lines := strings.Split(strings.TrimSpace(out.String()), "\n")
@@ -1389,7 +1388,7 @@ func TestHeldReceiptsAfterARestart(t *testing.T) {
 		x := restarted(t)
 		x.push(orphan("a1", withUse))
 		p := x.refuse(0, "internal", "")
-		if len(p) != 3 || !strings.Contains(p[0].(proto.Error).Message, "session.resume") || p[1] != used || p[2] != completed {
+		if len(p) != 3 || !strings.Contains(p[0].(proto.Error).Message, "refused to attach the session") || p[1] != used || p[2] != completed {
 			t.Fatalf("refused %v", p)
 		}
 	})
@@ -1683,5 +1682,74 @@ func TestTurnsKeepTheirOrderAcrossTwoDrops(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+// TestARefusedAttachFailsTheCommands is Hermes refusing to create or
+// resume the session: nothing is sent while the refusal stands, and a new
+// connection attaches again.
+func TestARefusedAttachFailsTheCommands(t *testing.T) {
+	for _, tc := range []struct {
+		name, method string
+		spec         harness.Spec
+	}{
+		{"create", "session.create", harness.Spec{}},
+		{"resume", "session.resume", harness.Spec{Resume: "s1"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			x := newTester(t, tc.spec)
+			ctx := context.Background()
+			if err := x.run.Send(ctx, "early"); err != nil { // waits for the attach
+				t.Fatal(err)
+			}
+			x.push(`{"hoplet_bridge":"connected"}`)
+			if w := x.writes(0); len(w) != 1 || w[0].Method != tc.method {
+				t.Fatalf("on connecting %+v", w)
+			}
+			p := x.refuse(0, "session_not_found", "")
+			if len(p) != 2 || p[0] != (proto.Error{Message: "Hermes refused to attach the session: session_not_found"}) ||
+				p[1] != (proto.Error{Message: "1 requests were not sent: Hermes refused to attach the session"}) {
+				t.Fatalf("refusal %v", p)
+			}
+			for name, call := range map[string]func() error{
+				"Send":      func() error { return x.run.Send(ctx, "hi") },
+				"Respond":   func() error { return x.run.Respond(ctx, "p1", "once") },
+				"Steer":     func() error { return x.run.Steer(ctx, "more") },
+				"Interrupt": func() error { return x.run.Interrupt(ctx) },
+				"SetMode":   func() error { return x.run.SetMode(ctx, proto.ModeFullAuto) },
+				"SetFast":   func() error { return x.run.SetFast(ctx, true) },
+				"SetEffort": func() error { return x.run.SetEffort(ctx, proto.EffortLow) },
+				"SetModel":  func() error { return x.run.SetModel(ctx, "m") },
+			} {
+				if err := call(); err == nil || !strings.Contains(err.Error(), "refused to attach the session: session_not_found") {
+					t.Fatalf("%s: %v", name, err)
+				}
+			}
+			x.run.mu.Lock()
+			waiting := len(x.run.waiting)
+			x.run.mu.Unlock()
+			if len(x.io.written()) != 1 || waiting != 0 {
+				t.Fatalf("%d writes, %d waiting", len(x.io.written()), waiting)
+			}
+			x.push(`{"hoplet_bridge":"connected"}`)
+			if w := x.writes(1); len(w) != 1 || w[0].Method != tc.method {
+				t.Fatalf("on reconnecting %+v", w)
+			}
+			x.answer(1, `{"session_id":"s1","stored_session_id":"s1","running":false,"revision":1,"execution_generation":1}`)
+			n := len(x.io.written())
+			if err := x.run.Send(ctx, "hi"); err != nil {
+				t.Fatal(err)
+			}
+			if w := x.writes(n); len(w) != 1 || w[0].Method != "prompt.submit" || w[0].Params["text"] != "hi" {
+				t.Fatalf("after attaching %+v", w)
+			}
+		})
+	}
+}
+
+func TestAnErrorAnswerToAnEarlierDaemonsRequestIsDropped(t *testing.T) {
+	x := newTester(t, harness.Spec{State: harness.State{Native: "s1"}})
+	if p := x.push(`{"jsonrpc":"2.0","id":"old","error":{"code":4001,"message":"revision_conflict","data":{"reason":"revision_conflict"}}}`); len(p) != 0 {
+		t.Fatalf("orphan error %v", p)
 	}
 }
