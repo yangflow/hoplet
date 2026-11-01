@@ -1,6 +1,7 @@
 package hermes
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -8,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -121,6 +123,7 @@ func newTester(t *testing.T, spec harness.Spec) *tester {
 	}
 	x := &tester{t: t, io: newFakeStdio()}
 	x.run = newRun(x.io, spec)
+	x.run.receiptDelay = time.Millisecond
 	t.Cleanup(func() { _ = x.run.Close() })
 	return x
 }
@@ -171,8 +174,29 @@ func (x *tester) attach(native string, running bool) {
 	x.answer(n, fmt.Sprintf(`{"session_id":%q,"stored_session_id":%q,"running":%v,"revision":1,"execution_generation":1,"pending":[],"prompts":[]}`, native, native, running))
 }
 
-func eventLine(typ, payload string) string {
-	return fmt.Sprintf(`{"jsonrpc":"2.0","method":"event","params":{"type":%q,"session_id":"s1","execution_generation":1,"admission_id":"a1","payload":%s}}`, typ, payload)
+func eventLine(typ, payload string) string { return eventFor("a1", typ, payload) }
+
+func eventFor(admission, typ, payload string) string {
+	return fmt.Sprintf(`{"jsonrpc":"2.0","method":"event","params":{"type":%q,"session_id":"s1","execution_generation":1,"admission_id":%q,"payload":%s}}`, typ, admission, payload)
+}
+
+// refuse pushes a refusal for the i-th write.
+func (x *tester) refuse(i int, reason, data string) []proto.Payload {
+	x.t.Helper()
+	return x.push(fmt.Sprintf(`{"jsonrpc":"2.0","id":%q,"error":{"code":4001,"message":%q,"data":{"reason":%q%s}}}`, x.writes(i)[0].ID, reason, reason, data))
+}
+
+// waitWrites waits until the run has written n lines (a timer wrote the
+// last one).
+func (x *tester) waitWrites(n int) {
+	x.t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
+	for len(x.io.written()) < n {
+		if time.Now().After(deadline) {
+			x.t.Fatalf("the run wrote %d lines, want %d", len(x.io.written()), n)
+		}
+		time.Sleep(time.Millisecond)
+	}
 }
 
 func TestRequestsWaitForTheSnapshot(t *testing.T) {
@@ -201,8 +225,9 @@ func TestCreateUsesTheHopletSessionAndThenItsMode(t *testing.T) {
 		w[0].Params["reasoning"] != "low" || w[0].Params["service_tier"] != "fast" || w[0].Params["title"] != nil {
 		t.Fatalf("create %+v", w)
 	}
-	payloads := x.answer(0, `{"session_id":"s1","stored_session_id":"s1","running":false,"revision":0,"execution_generation":0}`)
-	_ = payloads
+	if payloads := x.answer(0, `{"session_id":"s1","stored_session_id":"s1","running":false,"revision":0,"execution_generation":0}`); len(payloads) != 0 {
+		t.Fatalf("creating produced %v", payloads)
+	}
 	if w := x.writes(1); len(w) != 1 || w[0].Method != "session.mutate" || w[0].Params["operation"] != "edit_policy" {
 		t.Fatalf("after creating %+v", w)
 	}
@@ -214,21 +239,45 @@ func TestCreateUsesTheHopletSessionAndThenItsMode(t *testing.T) {
 func TestStaleGenerationIsRetriedOnce(t *testing.T) {
 	x := newTester(t, harness.Spec{Resume: "s1"})
 	x.attach("s1", true)
+	x.push(eventLine("message.start", `{}`))
+	x.push(eventLine("approval.request", `{"kind":"approval","prompt_id":"p1","execution_generation":1,"command":"x","choices":["once","deny"]}`))
 	n := len(x.io.written())
-	if err := x.run.Interrupt(context.Background()); err != nil {
+	if err := x.run.Respond(context.Background(), "p1", "once"); err != nil {
 		t.Fatal(err)
 	}
-	stale := func(i int) []proto.Payload {
-		return x.push(fmt.Sprintf(`{"jsonrpc":"2.0","id":%q,"error":{"code":4001,"message":"stale_generation","data":{"reason":"stale_generation","execution_generation":5}}}`, x.writes(i)[0].ID))
-	}
+	stale := func(i int) []proto.Payload { return x.refuse(i, "stale_generation", `,"execution_generation":5`) }
 	if p := stale(n); len(p) != 0 {
 		t.Fatalf("first refusal %v", p)
 	}
 	if w := x.writes(n + 1); len(w) != 1 || w[0].Params["execution_generation"] != float64(5) {
 		t.Fatalf("retry %+v", w)
 	}
-	if p := stale(n + 1); len(p) != 1 || !strings.Contains(p[0].(proto.Error).Message, "stale_generation") {
+	p := stale(n + 1)
+	if len(p) != 1 || !strings.Contains(p[0].(proto.Error).Message, "did not take the approval answer: stale_generation") {
 		t.Fatalf("second refusal %v", p)
+	}
+	// The answer was not taken: Hermes settling the approval itself is news.
+	if p := x.push(eventLine("approval.settled", `{"prompt_id":"p1"}`)); len(p) != 1 || p[0].(proto.ApprovalResolved).Outcome != proto.OutcomeExpired {
+		t.Fatalf("settled after a refused answer %v", p)
+	}
+}
+
+func TestInterruptAndSteerAreNotRetriedWhenTheTurnIsOver(t *testing.T) {
+	x := newTester(t, harness.Spec{Resume: "s1"})
+	x.attach("s1", true)
+	n := len(x.io.written())
+	if err := x.run.Interrupt(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if p := x.refuse(n, "stale_generation", `,"execution_generation":5`); len(p) != 0 || len(x.io.written()) != n+1 {
+		t.Fatalf("interrupt: %v, %d writes", p, len(x.io.written())-n)
+	}
+	if err := x.run.Steer(context.Background(), "more"); err != nil {
+		t.Fatal(err)
+	}
+	p := x.refuse(n+1, "stale_generation", `,"execution_generation":5`)
+	if len(p) != 1 || p[0].(proto.Error).Message != "the turn ended before the steer reached Hermes" || len(x.io.written()) != n+2 {
+		t.Fatalf("steer: %v, %d writes", p, len(x.io.written())-n-1)
 	}
 }
 
@@ -432,5 +481,376 @@ func TestAttachingToARunningBridgeNeedsNoNewConnection(t *testing.T) {
 	}
 	if w := x.writes(0); len(w) != 1 || w[0].Method != "prompt.submit" {
 		t.Fatalf("after a daemon restart %+v", w)
+	}
+}
+
+func complete(admission, text string) string {
+	return eventFor(admission, "message.complete", fmt.Sprintf(`{"text":%q,"admission_id":%q,"status":"complete"}`, text, admission))
+}
+
+func receipt(admission, status, usage string) string {
+	return fmt.Sprintf(`{"admission_id":%q,"status":%q,"outcome":"completed","result":{"final_response":"x","completed":true}%s}`, admission, status, usage)
+}
+
+func TestAQueuedNextTurnRacingTheReceiptEndsBothTurns(t *testing.T) {
+	x := newTester(t, harness.Spec{Resume: "s1"})
+	x.attach("s1", false)
+	x.push(eventFor("a1", "message.start", `{}`))
+	n := len(x.io.written())
+	if p := x.push(complete("a1", "one")); len(p) != 1 || p[0].(proto.Message).ID != "a1/0" {
+		t.Fatalf("turn 1 complete %v", p)
+	}
+	// Hermes starts the queued message before the receipt is answered.
+	p := x.push(eventFor("a2", "message.start", `{}`))
+	if len(p) != 2 || p[0] != (proto.TurnEnded{Reason: proto.TurnCompleted}) || p[1] != (proto.TurnStarted{}) {
+		t.Fatalf("turn 2 start %v", p)
+	}
+	p = x.answer(n, receipt("a1", "terminal", `,"usage":{"input_tokens":10,"output_tokens":2}`))
+	if len(p) != 1 || p[0] != (proto.Usage{InputTokens: 10, OutputTokens: 2}) {
+		t.Fatalf("late receipt %v", p)
+	}
+	if p := x.push(complete("a2", "two")); len(p) != 1 || p[0].(proto.Message).Text != "two" || p[0].(proto.Message).ID != "a2/0" {
+		t.Fatalf("turn 2 complete %v", p)
+	}
+	w := x.writes(n + 1)
+	if len(w) != 1 || w[0].Method != "prompt.receipt" || w[0].Params["admission_id"] != "a2" {
+		t.Fatalf("second receipt request %+v", w)
+	}
+	p = x.answer(n+1, receipt("a2", "terminal", `,"usage":{"input_tokens":1,"output_tokens":1}`))
+	if len(p) != 2 || p[0] != (proto.Usage{InputTokens: 1, OutputTokens: 1}) || p[1] != (proto.TurnEnded{Reason: proto.TurnCompleted}) {
+		t.Fatalf("turn 2 receipt %v", p)
+	}
+	if len(x.io.written()) != n+2 {
+		t.Fatalf("extra writes: %d", len(x.io.written())-n)
+	}
+}
+
+func TestACompleteOfAnotherTurnIsIgnored(t *testing.T) {
+	x := newTester(t, harness.Spec{Resume: "s1"})
+	x.attach("s1", false)
+	x.push(eventFor("a2", "message.start", `{}`))
+	n := len(x.io.written())
+	if p := x.push(complete("a1", "old")); len(p) != 0 || len(x.io.written()) != n {
+		t.Fatalf("stray complete %v", p)
+	}
+}
+
+// endedTurn starts a turn and completes it, leaving its receipt request as
+// the last write; it returns that write's index.
+func endedTurn(x *tester) int {
+	x.push(eventLine("message.start", `{}`))
+	n := len(x.io.written())
+	x.push(complete("a1", ""))
+	return n
+}
+
+func TestReceiptsThatDoNotSayHowTheTurnEndedStillEndIt(t *testing.T) {
+	ended := proto.TurnEnded{Reason: proto.TurnCompleted}
+	t.Run("unknown", func(t *testing.T) {
+		x := newTester(t, harness.Spec{Resume: "s1"})
+		x.attach("s1", false)
+		n := endedTurn(x)
+		if p := x.answer(n, `{"admission_id":"a1","status":"unknown"}`); len(p) != 1 || p[0] != ended {
+			t.Fatalf("unknown %v", p)
+		}
+	})
+	t.Run("refused", func(t *testing.T) {
+		x := newTester(t, harness.Spec{Resume: "s1"})
+		x.attach("s1", false)
+		n := endedTurn(x)
+		if p := x.refuse(n, "not_found", ""); len(p) != 1 || p[0] != ended {
+			t.Fatalf("refused %v", p)
+		}
+	})
+	t.Run("started then terminal", func(t *testing.T) {
+		x := newTester(t, harness.Spec{Resume: "s1"})
+		x.attach("s1", false)
+		n := endedTurn(x)
+		if p := x.answer(n, receipt("a1", "started", "")); len(p) != 0 {
+			t.Fatalf("started %v", p)
+		}
+		x.waitWrites(n + 2)
+		if w := x.writes(n + 1); w[0].Method != "prompt.receipt" || w[0].Params["admission_id"] != "a1" {
+			t.Fatalf("retry %+v", w)
+		}
+		p := x.answer(n+1, receipt("a1", "terminal", `,"usage":{"input_tokens":3,"output_tokens":4}`))
+		if len(p) != 2 || p[0] != (proto.Usage{InputTokens: 3, OutputTokens: 4}) || p[1] != ended {
+			t.Fatalf("terminal %v", p)
+		}
+	})
+	t.Run("retries run out", func(t *testing.T) {
+		x := newTester(t, harness.Spec{Resume: "s1"})
+		x.attach("s1", false)
+		n := endedTurn(x)
+		for i := range receiptRetries {
+			if p := x.answer(n+i, receipt("a1", "queued", "")); len(p) != 0 {
+				t.Fatalf("retry %d: %v", i, p)
+			}
+			x.waitWrites(n + i + 2)
+		}
+		if p := x.answer(n+receiptRetries, receipt("a1", "started", "")); len(p) != 1 || p[0] != ended {
+			t.Fatalf("exhausted %v", p)
+		}
+	})
+	t.Run("recovery", func(t *testing.T) {
+		recover := func(t *testing.T) (*tester, int) {
+			x := newTester(t, harness.Spec{Resume: "s1", State: harness.State{InTurn: true, Native: "s1"}})
+			x.push(`{"hoplet_bridge":"connected"}`)
+			x.answer(0, `{"session_id":"s1","stored_session_id":"s1","running":false,"revision":2,"execution_generation":1,"pending":[{"admission_id":"a1","status":"started"}]}`)
+			if w := x.writes(1); len(w) != 1 || w[0].Method != "prompt.receipt" {
+				t.Fatalf("recovery asks %+v", w)
+			}
+			return x, 1
+		}
+		x, n := recover(t)
+		want := proto.TurnEnded{Reason: proto.TurnAborted, Message: "Hermes has no record of the turn"}
+		if p := x.answer(n, `{"admission_id":"a1","status":"unknown"}`); len(p) != 1 || p[0] != want {
+			t.Fatalf("unknown %v", p)
+		}
+		x, n = recover(t)
+		for i := range receiptRetries {
+			x.answer(n+i, receipt("a1", "started", ""))
+			x.waitWrites(n + i + 2)
+		}
+		want.Message = "Hermes did not report how the turn ended"
+		if p := x.answer(n+receiptRetries, receipt("a1", "started", "")); len(p) != 1 || p[0] != want {
+			t.Fatalf("exhausted %v", p)
+		}
+	})
+}
+
+func TestASettingInFlightWhenTheConnectionDropsIsSentAgain(t *testing.T) {
+	x := newTester(t, harness.Spec{Resume: "s1"})
+	x.attach("s1", false)
+	ctx := context.Background()
+	n := len(x.io.written())
+	if err := x.run.SetEffort(ctx, proto.EffortLow); err != nil {
+		t.Fatal(err)
+	}
+	if err := x.run.Send(ctx, "go"); err != nil {
+		t.Fatal(err)
+	}
+	oldID := x.writes(n)[0].ID
+	x.push(`{"hoplet_bridge":"disconnected","error":"gone"}`)
+	x.push(`{"hoplet_bridge":"connected"}`)
+	if w := x.writes(n + 1); len(w) != 1 || w[0].Method != "session.resume" {
+		t.Fatalf("on connecting %+v", w)
+	}
+	x.answer(n+1, `{"session_id":"s1","stored_session_id":"s1","running":false,"revision":4,"execution_generation":1}`)
+	w := x.writes(n + 2)
+	if len(w) != 1 || w[0].Method != "session.mutate" || w[0].Params["operation"] != "reasoning" || w[0].Params["expected_revision"] != float64(4) {
+		t.Fatalf("setting after attaching %+v", w)
+	}
+	// The answer of the lost connection is dropped.
+	if p := x.push(fmt.Sprintf(`{"jsonrpc":"2.0","id":%q,"result":{"revision":99,"execution_generation":9}}`, oldID)); len(p) != 0 || len(x.io.written()) != n+3 {
+		t.Fatalf("stale answer %v", p)
+	}
+	x.answer(n+2, `{"revision":5,"execution_generation":1}`)
+	if w := x.writes(n + 3); len(w) != 1 || w[0].Method != "prompt.submit" || w[0].Params["text"] != "go" {
+		t.Fatalf("message after the setting %+v", w)
+	}
+}
+
+func TestAMessageInFlightWhenTheConnectionDropsIsSentAgainOnce(t *testing.T) {
+	x := newTester(t, harness.Spec{Resume: "s1"})
+	x.attach("s1", false)
+	n := len(x.io.written())
+	if err := x.run.Send(context.Background(), "hello"); err != nil {
+		t.Fatal(err)
+	}
+	first := x.writes(n)[0]
+	x.push(`{"hoplet_bridge":"disconnected","error":"gone"}`)
+	// Held by the bridge, refused by the new connection before it attached:
+	// nothing to report.
+	if p := x.refuse(n, "permission_denied", ""); len(p) != 0 {
+		t.Fatalf("refusal of a lost request %v", p)
+	}
+	x.push(`{"hoplet_bridge":"connected"}`)
+	x.answer(n+1, `{"session_id":"s1","stored_session_id":"s1","running":false,"revision":1,"execution_generation":1}`)
+	w := x.writes(n + 2)
+	if len(w) != 1 || w[0].Method != "prompt.submit" || w[0].Params["text"] != "hello" || w[0].Params["submission_id"] != first.Params["submission_id"] {
+		t.Fatalf("resent %+v (first %+v)", w, first)
+	}
+	// A refusal on the current connection is reported.
+	p := x.refuse(n+2, "permission_denied", "")
+	if len(p) != 1 || !strings.Contains(p[0].(proto.Error).Message, "permission_denied") {
+		t.Fatalf("current refusal %v", p)
+	}
+}
+
+func TestInterruptsAndReceiptsInFlightAreDroppedOnDisconnect(t *testing.T) {
+	x := newTester(t, harness.Spec{Resume: "s1"})
+	x.attach("s1", true)
+	n := len(x.io.written())
+	if err := x.run.Interrupt(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	x.push(`{"hoplet_bridge":"disconnected","error":"gone"}`)
+	x.push(`{"hoplet_bridge":"connected"}`)
+	x.answer(n+1, `{"session_id":"s1","stored_session_id":"s1","running":true,"revision":1,"execution_generation":1}`)
+	if len(x.io.written()) != n+2 {
+		t.Fatalf("something was sent again: %d writes", len(x.io.written())-n)
+	}
+}
+
+func TestApprovalsSettledWhileAwayAreResolved(t *testing.T) {
+	x := newTester(t, harness.Spec{Resume: "s1"})
+	x.attach("s1", true)
+	x.push(eventLine("message.start", `{}`))
+	x.push(eventLine("approval.request", `{"kind":"approval","prompt_id":"p1","execution_generation":1,"command":"x","choices":["once","deny"]}`))
+	x.push(eventLine("approval.request", `{"kind":"approval","prompt_id":"p2","execution_generation":1,"command":"y","choices":["once","deny"]}`))
+	if err := x.run.Respond(context.Background(), "p2", "once"); err != nil {
+		t.Fatal(err)
+	}
+	n := len(x.io.written())
+	x.push(`{"hoplet_bridge":"disconnected","error":"gone"}`)
+	x.push(`{"hoplet_bridge":"connected"}`)
+	p := x.answer(n, `{"session_id":"s1","stored_session_id":"s1","running":true,"revision":1,"execution_generation":1,"prompts":[]}`)
+	if len(p) != 1 || p[0] != (proto.ApprovalResolved{ID: "p1", Outcome: proto.OutcomeExpired, DecidedBy: "hermes"}) {
+		t.Fatalf("after reconnecting %v", p)
+	}
+	// The answer Hoplet gave to p2 was lost with the connection, and p2 is
+	// gone: it is not sent again.
+	if len(x.io.written()) != n+1 {
+		t.Fatalf("sent %d more", len(x.io.written())-n-1)
+	}
+}
+
+func TestAnAnswerWaitsForItsApprovalAfterReconnecting(t *testing.T) {
+	x := newTester(t, harness.Spec{Resume: "s1"})
+	x.attach("s1", true)
+	x.push(eventLine("approval.request", `{"kind":"approval","prompt_id":"p1","execution_generation":1,"command":"x","choices":["once","deny"]}`))
+	n := len(x.io.written())
+	if err := x.run.Respond(context.Background(), "p1", "once"); err != nil {
+		t.Fatal(err)
+	}
+	x.push(`{"hoplet_bridge":"disconnected","error":"gone"}`)
+	x.push(`{"hoplet_bridge":"connected"}`)
+	x.answer(n+1, `{"session_id":"s1","stored_session_id":"s1","running":true,"revision":1,"execution_generation":3,"prompts":[{"kind":"approval","prompt_id":"p1","execution_generation":3}]}`)
+	w := x.writes(n + 2)
+	if len(w) != 1 || w[0].Method != "approval.respond" || w[0].Params["execution_generation"] != float64(3) {
+		t.Fatalf("answer after attaching %+v", w)
+	}
+}
+
+func TestSettledForAnApprovalTheRunDoesNotKnowIsResolved(t *testing.T) {
+	x := newTester(t, harness.Spec{State: harness.State{Native: "s1"}})
+	p := x.push(eventLine("approval.settled", `{"prompt_id":"p9"}`))
+	if len(p) != 1 || p[0] != (proto.ApprovalResolved{ID: "p9", Outcome: proto.OutcomeExpired, DecidedBy: "hermes"}) {
+		t.Fatalf("unknown approval settled %v", p)
+	}
+}
+
+func TestANewerPickWinsOverAGuardedModelsConfirmation(t *testing.T) {
+	const guarded = `{"status":"confirmation_required","confirm":"tok","revision":2,"execution_generation":1}`
+	t.Run("confirmed", func(t *testing.T) {
+		x := newTester(t, harness.Spec{Resume: "s1"})
+		x.attach("s1", false)
+		n := len(x.io.written())
+		if err := x.run.SetModel(context.Background(), "A"); err != nil {
+			t.Fatal(err)
+		}
+		x.answer(n, guarded)
+		w := x.writes(n + 1)
+		payload, _ := w[0].Params["payload"].(map[string]any)
+		if len(w) != 1 || payload["model"] != "A" || payload["confirm"] != "tok" {
+			t.Fatalf("confirmation %+v", w)
+		}
+	})
+	t.Run("superseded", func(t *testing.T) {
+		x := newTester(t, harness.Spec{Resume: "s1"})
+		x.attach("s1", false)
+		n := len(x.io.written())
+		ctx := context.Background()
+		if err := x.run.SetModel(ctx, "A"); err != nil {
+			t.Fatal(err)
+		}
+		if err := x.run.SetModel(ctx, "B"); err != nil {
+			t.Fatal(err)
+		}
+		x.answer(n, guarded)
+		w := x.writes(n + 1)
+		payload, _ := w[0].Params["payload"].(map[string]any)
+		if len(w) != 1 || payload["model"] != "B" || payload["confirm"] != nil {
+			t.Fatalf("newer pick %+v", w)
+		}
+	})
+}
+
+// gatedStdio holds the write of a message until the gate opens.
+type gatedStdio struct {
+	*fakeStdio
+	hold string
+	hit  chan struct{}
+	gate chan struct{}
+	once sync.Once
+}
+
+func (g *gatedStdio) WriteLine(ctx context.Context, line []byte) error {
+	if bytes.Contains(line, []byte(g.hold)) {
+		g.once.Do(func() { close(g.hit) })
+		<-g.gate
+	}
+	return g.fakeStdio.WriteLine(ctx, line)
+}
+
+func TestMessagesKeepTheirOrderWhileHeldOnesAreReleased(t *testing.T) {
+	g := &gatedStdio{fakeStdio: newFakeStdio(), hold: `"text":"m1"`, hit: make(chan struct{}), gate: make(chan struct{})}
+	x := &tester{t: t, io: g.fakeStdio}
+	x.run = newRun(g, harness.Spec{Session: "hs1", Mode: proto.ModeConfirm, Resume: "s1"})
+	t.Cleanup(func() { _ = x.run.Close() })
+	x.attach("s1", false)
+	ctx := context.Background()
+	n := len(x.io.written())
+	if err := x.run.SetEffort(ctx, proto.EffortLow); err != nil {
+		t.Fatal(err)
+	}
+	if err := x.run.Send(ctx, "m1"); err != nil { // waits for the setting
+		t.Fatal(err)
+	}
+	// The setting is applied: the loop releases m1 and stops in its write.
+	x.offset += 2
+	g.lines <- harness.Line{Kind: harness.Stdout, Data: fmt.Appendf(nil, `{"jsonrpc":"2.0","id":%q,"result":{"revision":2,"execution_generation":1}}`, x.writes(n)[0].ID), Offset: x.offset - 1}
+	<-g.hit
+	done := make(chan error, 1)
+	go func() { done <- x.run.Send(ctx, "m2") }()
+	close(g.gate)
+	g.lines <- harness.Line{Kind: harness.Position, Offset: x.offset}
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	for ev := range x.run.Events() {
+		if ev.Offset == x.offset && ev.Raw == nil && ev.Payload == nil {
+			break
+		}
+	}
+	w := x.writes(n + 1)
+	if len(w) != 2 || w[0].Params["text"] != "m1" || w[1].Params["text"] != "m2" {
+		t.Fatalf("order %+v", w)
+	}
+}
+
+func TestSanitizeKeepsOnlyWhatTheAdapterReads(t *testing.T) {
+	t.Setenv("HERMES_HOME", "/data/hermes-x")
+	spool := func(line string) string {
+		b, _ := json.Marshal(map[string]any{"k": "stdout", "d": line})
+		return string(b) + "\n"
+	}
+	in := spool(`{"jsonrpc":"2.0","id":"1","result":{"admission_id":"a1","status":"terminal","outcome":"completed","messages":[{"content":"secret"}],"tool_outputs":["secret"],"result":{"final_response":"hi","tool_outputs":["secret"]},"usage":{"input_tokens":1,"output_tokens":2}}}`) +
+		spool(`{"jsonrpc":"2.0","method":"event","params":{"type":"message.delta","payload":{"text":"annie in /data/hermes-x/state.db, annies, ann_x"}}}`)
+	var out bytes.Buffer
+	if err := Sanitize(strings.NewReader(in), &out, "/work/p", "/home/annie"); err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Split(strings.TrimSpace(out.String()), "\n")
+	if len(lines) != 2 {
+		t.Fatalf("lines %q", lines)
+	}
+	if strings.Contains(lines[0], "secret") || strings.Contains(lines[0], "messages") ||
+		!strings.Contains(lines[0], `\"usage\":{\"input_tokens\":1,\"output_tokens\":2}`) || !strings.Contains(lines[0], `final_response`) {
+		t.Fatalf("receipt %s", lines[0])
+	}
+	if !strings.Contains(lines[1], `me in /Users/me/.hermes/state.db, annies, ann_x`) {
+		t.Fatalf("scrubbed %s", lines[1])
 	}
 }

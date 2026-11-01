@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -20,6 +21,13 @@ import (
 // writeTimeout bounds the requests the read loop sends by itself, so a
 // stuck transport cannot stall it.
 const writeTimeout = 10 * time.Second
+
+// receiptRetries is how often a receipt is asked for again while Hermes
+// still reports the turn as queued or started, receiptRetryDelay apart.
+const (
+	receiptRetries    = 3
+	receiptRetryDelay = time.Second
+)
 
 // Hermes's edit approval policies.
 const (
@@ -54,6 +62,15 @@ type request struct {
 	method  string
 	params  map[string]any
 	retried bool
+	epoch   int // the connection it was written on
+	seq     int // its place in the order of writes
+}
+
+// pendingEnd is a turn whose message.complete arrived and whose receipt is
+// awaited.
+type pendingEnd struct {
+	admission string
+	complete  *completePayload
 }
 
 type approval struct {
@@ -78,16 +95,27 @@ type run struct {
 
 	// Owned by loop.
 	inTurn    bool
+	turn      string          // the admission of the running turn
 	segment   int             // the assistant message being streamed in this turn
 	text      strings.Builder // its text so far
 	tools     map[string]tool
 	lastTool  string
-	ending    *completePayload // a turn whose message.complete arrived, awaiting its receipt
+	ending    *pendingEnd     // a turn whose message.complete arrived, awaiting its receipt
+	late      map[string]bool // turns ended by a newer turn whose receipt is still due
+	retries   map[string]int  // receipt retries per admission
+	recover   string          // the admission whose receipt a reconnecting run asked for
 	toolsSeen bool
 
 	prefix string
-	seqMu  sync.Mutex
-	n      int
+	n      int // requests written, under mu
+
+	// receiptDelay is the wait before a receipt is asked for again.
+	receiptDelay time.Duration
+	// orderMu orders user messages: it is held from the decision to queue
+	// or write a message through the write, and while queued ones are
+	// released. Lock order: orderMu before mu; orderMu is never taken while
+	// holding mu.
+	orderMu sync.Mutex
 
 	mu         sync.Mutex
 	native     string
@@ -97,6 +125,9 @@ type run struct {
 	admission  string // the current or last turn's admission
 	approvals  map[string]*approval
 	requests   map[string]*request
+	epoch      int             // counts the bridge's connections
+	writes     int             // counts requests written
+	stale      map[string]bool // requests lost with a connection: their answers are dropped
 	// attached is true once this connection has a snapshot of the session:
 	// the gateway refuses anything else before that, so requests wait.
 	attached bool
@@ -127,6 +158,7 @@ func newRun(io harness.Stdio, spec harness.Spec) *run {
 		inTurn: spec.State.InTurn, busy: spec.State.InTurn, tools: map[string]tool{},
 		prefix: "hoplet-" + rand.Text()[:8], native: native,
 		approvals: map[string]*approval{}, requests: map[string]*request{},
+		late: map[string]bool{}, retries: map[string]int{}, stale: map[string]bool{}, receiptDelay: receiptRetryDelay,
 		mode: spec.Mode, policy: editAsk, effort: spec.Effort, model: spec.Model,
 	}
 	if native != "" {
@@ -200,6 +232,7 @@ func (r *run) handle(l harness.Line) (evs []harness.Event, final bool) {
 		base.Raw = nil
 		base.Exit = &harness.ExitStatus{Code: l.Code, Signal: l.Signal}
 		if r.inTurn {
+			r.ending, r.turn, r.recover = nil, "", ""
 			r.setInTurn(false)
 			base.Payload = proto.TurnEnded{Reason: proto.TurnAborted, Message: "the Hermes bridge exited"}
 		}
@@ -234,12 +267,15 @@ func (r *run) translate(line []byte) (out []proto.Payload, native string) {
 	}
 	switch {
 	case f.Bridge == BridgeConnected:
+		// A new connection: what was in flight on the old one is lost.
+		r.dropInFlight()
+		r.mu.Lock()
+		r.epoch++
+		r.mu.Unlock()
 		r.attachSession()
 		return nil, ""
 	case f.Bridge == BridgeDisconnected:
-		r.mu.Lock()
-		r.attached = false
-		r.mu.Unlock()
+		r.dropInFlight()
 		return nil, ""
 	case f.Bridge != "":
 		return nil, ""
@@ -289,11 +325,17 @@ func (r *run) attachSession() {
 func (r *run) onResponse(f frame) (out []proto.Payload, native string) {
 	id := strings.Trim(string(f.ID), `"`)
 	r.mu.Lock()
+	if r.stale[id] {
+		// Written on a connection that is gone: it was sent again or given up.
+		delete(r.stale, id)
+		r.mu.Unlock()
+		return nil, ""
+	}
 	req := r.requests[id]
 	delete(r.requests, id)
 	r.mu.Unlock()
-	if f.Error != nil {
-		return r.onError(req, f.Error), ""
+	if e := f.rpcErr(); e != nil {
+		return r.onError(req, e), ""
 	}
 	method := ""
 	if req != nil {
@@ -313,7 +355,10 @@ func (r *run) onResponse(f frame) (out []proto.Payload, native string) {
 	case "prompt.receipt":
 		var a admitted
 		if json.Unmarshal(f.Result, &a) != nil {
-			return nil, ""
+			a = admitted{Status: "unknown"}
+		}
+		if adm, _ := req.params["admission_id"].(string); adm != "" {
+			a.Admission = adm
 		}
 		return r.onReceipt(a), ""
 	case "session.mutate":
@@ -324,6 +369,44 @@ func (r *run) onResponse(f frame) (out []proto.Payload, native string) {
 		return r.onOrphan(f.Result)
 	}
 	return nil, ""
+}
+
+// dropInFlight forgets the requests written on a connection that is gone:
+// the bridge never delivered them, or their answers will not come. Settings
+// go back to their queue and messages, approval answers and config changes
+// wait for the next snapshot; a request that targets the lost turn (an
+// interrupt, a steer, a receipt) is dropped, as the snapshot says where the
+// turn stands. Answers to them are ignored.
+func (r *run) dropInFlight() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.attached, r.mutating = false, false
+	type lost struct {
+		id  string
+		req *request
+	}
+	var dropped []lost
+	for id, req := range r.requests {
+		if req.method == "session.create" || req.method == "session.resume" {
+			continue
+		}
+		dropped = append(dropped, lost{id, req})
+	}
+	slices.SortFunc(dropped, func(a, b lost) int { return a.req.seq - b.req.seq })
+	for _, l := range dropped {
+		delete(r.requests, l.id)
+		r.stale[l.id] = true
+		switch l.req.method {
+		case "session.mutate":
+			operation, _ := l.req.params["operation"].(string)
+			payload, _ := l.req.params["payload"].(map[string]any)
+			if !slices.ContainsFunc(r.mutations, func(m mutation) bool { return m.operation == operation }) {
+				r.mutations = slices.Insert(r.mutations, 0, mutation{operation: operation, payload: payload, retried: l.req.retried})
+			}
+		case "prompt.submit", "approval.respond", "config.set":
+			r.waiting = append(r.waiting, &request{method: l.req.method, params: l.req.params, retried: l.req.retried})
+		}
+	}
 }
 
 // onOrphan reads a response whose request this run did not send: after a
@@ -358,6 +441,10 @@ func (r *run) onSnapshot(result json.RawMessage, created bool) (out []proto.Payl
 	if json.Unmarshal(result, &s) != nil || s.Session == "" {
 		return []proto.Payload{proto.Error{Message: "Hermes answered without a session"}}, ""
 	}
+	ctx, cancel := context.WithTimeout(context.Background(), writeTimeout)
+	defer cancel()
+	// Messages that waited go out in order, before any a caller sends now.
+	r.orderMu.Lock()
 	r.mu.Lock()
 	known := r.native
 	r.native = s.Session
@@ -372,70 +459,184 @@ func (r *run) onSnapshot(result json.RawMessage, created bool) (out []proto.Payl
 		}
 	}
 	r.admission = admission
-	r.mu.Unlock()
-	if known != s.Session {
-		native = s.Session
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), writeTimeout)
-	defer cancel()
-	if created {
-		// Hermes takes only "ask" at creation; anything looser is a change.
-		policy, _ := editPolicy(r.spec.Mode)
-		r.setPolicy(ctx, policy)
-	}
-	for _, req := range waiting {
-		r.fillSession(req, s.Session)
-		if req.method == "prompt.submit" {
-			_ = r.submitRequest(ctx, req)
-			continue
-		}
-		_ = r.send(ctx, req)
-	}
 	// Approvals still open in Hermes are known again (their answers need
-	// their generation).
-	r.mu.Lock()
+	// their generation); those it no longer lists were settled while
+	// Hoplet was not connected.
+	open := map[string]prompt{}
 	for _, p := range s.Prompts {
 		if p.Kind == "approval" {
+			open[p.ID] = p
 			if _, ok := r.approvals[p.ID]; !ok {
 				r.approvals[p.ID] = &approval{generation: p.Generation}
 			}
 		}
 	}
+	for _, id := range slices.Sorted(maps.Keys(r.approvals)) {
+		if _, ok := open[id]; ok {
+			continue
+		}
+		if !r.approvals[id].answered {
+			out = append(out, proto.ApprovalResolved{ID: id, Outcome: proto.OutcomeExpired, DecidedBy: "hermes"})
+		}
+		delete(r.approvals, id)
+	}
 	r.mu.Unlock()
+	if known != s.Session {
+		native = s.Session
+	}
+	if created {
+		// Hermes takes only "ask" at creation; anything looser is a change.
+		policy, _ := editPolicy(r.spec.Mode)
+		r.setPolicyLocked(ctx, policy)
+	}
+	for _, req := range waiting {
+		if req.method == "approval.respond" {
+			id, _ := req.params["prompt_id"].(string)
+			p, ok := open[id]
+			if !ok {
+				continue // settled meanwhile
+			}
+			req.params["execution_generation"] = p.Generation
+		}
+		r.fillSession(req, s.Session)
+		if req.method == "prompt.submit" {
+			_ = r.submitLocked(ctx, req)
+			continue
+		}
+		_ = r.send(ctx, req)
+	}
+	r.orderMu.Unlock()
 	r.pumpMutations(ctx)
-	if r.inTurn && !s.Running {
+	switch {
+	case r.ending != nil:
+		// The turn's end is still owed: its receipt may have been lost.
+		_ = r.requestReceipt(ctx, r.ending.admission)
+	case r.inTurn && !s.Running:
 		if admission == "" {
 			// Nothing names the turn that ended: say so rather than keep
 			// it open.
-			r.setInTurn(false)
-			return []proto.Payload{proto.TurnEnded{Reason: proto.TurnAborted, Message: "the turn ended while Hoplet was not connected"}}, native
+			r.finishTurn()
+			return append(out, proto.TurnEnded{Reason: proto.TurnAborted, Message: "the turn ended while Hoplet was not connected"}), native
 		}
 		// The turn ended while the connection was down: its receipt says
 		// how, and carries its final answer.
-		_ = r.call(ctx, "prompt.receipt", map[string]any{"session_id": s.Session, "admission_id": admission, "include_result": true})
+		r.recover = admission
+		_ = r.requestReceipt(ctx, admission)
 	}
-	return nil, native
+	return out, native
+}
+
+// requestReceipt asks how a turn ended.
+func (r *run) requestReceipt(ctx context.Context, admission string) error {
+	native, _ := r.session()
+	return r.call(ctx, "prompt.receipt", map[string]any{"session_id": native, "admission_id": admission, "include_result": true})
+}
+
+// Kinds of turn a receipt can belong to.
+const (
+	receiptLate     = "late"     // ended by a newer turn: only its usage is left
+	receiptEnding   = "ending"   // its message.complete was seen
+	receiptRecovery = "recovery" // it ended while Hoplet was away
+)
+
+// classify says which pending end a receipt for admission settles, if any.
+func (r *run) classify(admission string) string {
+	switch {
+	case r.late[admission]:
+		return receiptLate
+	case r.ending != nil && r.ending.admission == admission:
+		return receiptEnding
+	case r.inTurn && r.ending == nil && (admission == r.recover || admission == r.turn || r.turn == ""):
+		return receiptRecovery
+	}
+	return ""
 }
 
 func (r *run) onReceipt(a admitted) []proto.Payload {
-	if a.Status != "terminal" || !r.inTurn {
+	kind := r.classify(a.Admission)
+	if kind == "" {
 		return nil
 	}
+	switch a.Status {
+	case "terminal":
+	case "queued", "started":
+		return r.retryReceipt(a.Admission, kind)
+	default:
+		return r.giveUp(a.Admission, kind, "Hermes has no record of the turn")
+	}
+	delete(r.retries, a.Admission)
 	var out []proto.Payload
-	ending := r.ending
-	r.ending = nil
-	if ending == nil && a.Result != nil && a.Result.FinalResponse != "" {
+	usage := func() {
+		if a.Usage != nil {
+			out = append(out, proto.Usage{InputTokens: a.Usage.Input, OutputTokens: a.Usage.Output})
+		}
+	}
+	if kind == receiptLate {
+		delete(r.late, a.Admission)
+		usage()
+		return out
+	}
+	var complete *completePayload
+	if r.ending != nil {
+		complete = r.ending.complete
+	} else if a.Result != nil && a.Result.FinalResponse != "" {
 		// Recovered after a lost connection: the answer was never streamed
 		// here.
 		out = append(out, proto.Message{ID: r.messageID(a.Admission), Role: proto.RoleAssistant, Text: a.Result.FinalResponse})
 	}
-	if a.Usage != nil {
-		out = append(out, proto.Usage{InputTokens: a.Usage.Input, OutputTokens: a.Usage.Output})
+	usage()
+	return append(out, r.endTurn(complete, a))
+}
+
+// retryReceipt asks again for a receipt that says the turn has not ended,
+// a few times, then ends it without one.
+func (r *run) retryReceipt(admission, kind string) []proto.Payload {
+	n := r.retries[admission]
+	if n >= receiptRetries {
+		return r.giveUp(admission, kind, "Hermes did not report how the turn ended")
 	}
+	r.retries[admission] = n + 1
+	time.AfterFunc(r.receiptDelay, func() {
+		select {
+		case <-r.done:
+			return
+		default:
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), writeTimeout)
+		defer cancel()
+		_ = r.requestReceipt(ctx, admission)
+	})
+	return nil
+}
+
+// giveUp ends a turn whose receipt will not come: from its message.complete
+// when there was one (without usage), else as aborted.
+func (r *run) giveUp(admission, kind, reason string) []proto.Payload {
+	delete(r.retries, admission)
+	switch kind {
+	case receiptLate:
+		delete(r.late, admission)
+		return nil
+	case receiptEnding:
+		return []proto.Payload{r.endTurn(r.ending.complete, admitted{})}
+	}
+	r.finishTurn()
+	return []proto.Payload{proto.TurnEnded{Reason: proto.TurnAborted, Message: reason}}
+}
+
+// endTurn closes the running turn and says how it ended.
+func (r *run) endTurn(c *completePayload, a admitted) proto.TurnEnded {
+	end := turnEnd(c, a)
+	r.finishTurn()
+	return end
+}
+
+// finishTurn leaves the running turn; the settings that waited for it go.
+func (r *run) finishTurn() {
+	r.ending, r.turn, r.recover = nil, "", ""
 	r.setInTurn(false)
 	r.segment, r.toolsSeen = 0, false
 	r.text.Reset()
-	return append(out, turnEnd(ending, a))
 }
 
 // turnEnd classifies a finished turn from its message.complete, when seen,
@@ -492,14 +693,20 @@ func (r *run) onMutated(req *request, result json.RawMessage) []proto.Payload {
 	}
 	r.mu.Unlock()
 	if m.Status == "confirmation_required" && req != nil && m.Confirm != "" {
-		// A guarded model: the user picked it, so confirm it.
+		// A guarded model: the user picked it, so confirm it, unless they
+		// have picked again since.
+		operation, _ := req.params["operation"].(string)
 		payload, _ := req.params["payload"].(map[string]any)
 		next := map[string]any{}
 		for k, v := range payload {
 			next[k] = v
 		}
 		next["confirm"] = m.Confirm
-		r.queueMutation(req.params["operation"].(string), next, true)
+		r.mu.Lock()
+		if !slices.ContainsFunc(r.mutations, func(q mutation) bool { return q.operation == operation }) {
+			r.mutations = slices.Insert(r.mutations, 0, mutation{operation: operation, payload: next})
+		}
+		r.mu.Unlock()
 	}
 	if req != nil && req.params["operation"] == "edit_policy" {
 		if p, ok := req.params["payload"].(map[string]any); ok {
@@ -519,10 +726,30 @@ func (r *run) onError(req *request, e *rpcError) []proto.Payload {
 	if reason == "" {
 		reason = e.Message
 	}
-	if req != nil && req.method == "session.mutate" {
-		return r.onMutateRefused(req, reason, e)
+	method := "a request"
+	if req != nil {
+		method = req.method
 	}
-	if req != nil && !req.retried && (reason == "stale_generation" || reason == "revision_conflict") {
+	switch method {
+	case "session.mutate":
+		return r.onMutateRefused(req, reason, e)
+	case "prompt.receipt":
+		adm, _ := req.params["admission_id"].(string)
+		if kind := r.classify(adm); kind != "" {
+			return r.giveUp(adm, kind, "Hermes has no record of the turn")
+		}
+		return nil
+	case "session.interrupt":
+		if reason == "stale_generation" {
+			return nil // the turn it targeted is over
+		}
+	case "session.steer":
+		if reason == "stale_generation" {
+			return []proto.Payload{proto.Error{Message: "the turn ended before the steer reached Hermes"}}
+		}
+	}
+	if req != nil && !req.retried && (reason == "stale_generation" || reason == "revision_conflict") &&
+		(req.method != "approval.respond" || e.Data.Generation != nil) {
 		r.mu.Lock()
 		if e.Data.Generation != nil {
 			r.generation = *e.Data.Generation
@@ -530,27 +757,28 @@ func (r *run) onError(req *request, e *rpcError) []proto.Payload {
 		if e.Data.Revision != nil {
 			r.revision = *e.Data.Revision
 		}
-		gen, rev := r.generation, r.revision
+		gen := r.generation
 		r.mu.Unlock()
 		params := req.params
-		if _, ok := params["execution_generation"]; ok && req.method != "approval.respond" {
+		if _, ok := params["execution_generation"]; ok {
 			params["execution_generation"] = gen
 		}
-		if req.method == "approval.respond" && e.Data.Generation != nil {
-			params["execution_generation"] = gen
-		}
-		_ = rev
 		ctx, cancel := context.WithTimeout(context.Background(), writeTimeout)
 		defer cancel()
 		if err := r.send(ctx, &request{method: req.method, params: params, retried: true}); err == nil {
 			return nil
 		}
 	}
-	method := "a request"
-	if req != nil {
-		method = req.method
-	}
 	msg := fmt.Sprintf("Hermes refused %s: %s", method, reason)
+	if method == "approval.respond" {
+		id, _ := req.params["prompt_id"].(string)
+		r.mu.Lock()
+		if a := r.approvals[id]; a != nil {
+			a.answered = false
+		}
+		r.mu.Unlock()
+		msg = "Hermes did not take the approval answer: " + reason
+	}
 	if e.Data.Detail != "" {
 		msg += " (" + e.Data.Detail + ")"
 	}
@@ -573,15 +801,17 @@ func (r *run) onEvent(ev event) []proto.Payload {
 	switch ev.Type {
 	case "message.start":
 		var out []proto.Payload
+		if r.ending != nil && ev.Admission != r.ending.admission {
+			// The turn before is still awaiting its receipt: it ends here,
+			// and its usage follows when the receipt comes.
+			out = append(out, turnEnd(r.ending.complete, admitted{}))
+			r.late[r.ending.admission] = true
+			r.ending = nil
+		}
 		r.setInTurn(true)
-		r.ending = nil
+		r.turn, r.recover = ev.Admission, ""
 		r.segment, r.toolsSeen = 0, false
 		r.text.Reset()
-		if ev.Admission != "" {
-			r.mu.Lock()
-			r.admission = ev.Admission
-			r.mu.Unlock()
-		}
 		return append(out, proto.TurnStarted{})
 	case "message.delta":
 		var p deltaPayload
@@ -664,41 +894,39 @@ func (r *run) onEvent(ev event) []proto.Payload {
 		a := r.approvals[p.ID]
 		delete(r.approvals, p.ID)
 		r.mu.Unlock()
-		if a == nil || a.answered {
+		if a != nil && a.answered {
 			return nil
 		}
 		// Settled without an answer from Hoplet: in another Hermes client,
-		// or by Hermes's own timeout.
+		// or by Hermes's own timeout. (An approval this run does not know
+		// was raised before Hoplet reattached; the store ignores one that
+		// is not pending.)
 		return []proto.Payload{proto.ApprovalResolved{ID: p.ID, Outcome: proto.OutcomeExpired, DecidedBy: "hermes"}}
 	case "message.complete":
 		var p completePayload
 		if json.Unmarshal(ev.Payload, &p) != nil {
 			return nil
 		}
-		if !r.inTurn {
-			return nil
+		admission := p.Admission
+		if admission == "" {
+			admission = ev.Admission
+		}
+		if !r.inTurn || (admission != "" && r.turn != "" && admission != r.turn) {
+			return nil // not the running turn's
+		}
+		if admission == "" {
+			admission = r.currentAdmission()
 		}
 		var out []proto.Payload
 		if p.Text != "" {
 			out = append(out, proto.Message{ID: r.currentID(), Role: proto.RoleAssistant, Text: p.Text})
 		}
-		r.ending = &p
-		admission := p.Admission
-		if admission == "" {
-			r.mu.Lock()
-			admission = r.admission
-			r.mu.Unlock()
-		}
+		r.ending = &pendingEnd{admission: admission, complete: &p}
 		ctx, cancel := context.WithTimeout(context.Background(), writeTimeout)
 		defer cancel()
-		r.mu.Lock()
-		native := r.native
-		r.mu.Unlock()
-		if err := r.call(ctx, "prompt.receipt", map[string]any{"session_id": native, "admission_id": admission, "include_result": true}); err != nil {
+		if err := r.requestReceipt(ctx, admission); err != nil {
 			// No receipt coming: end the turn without its usage.
-			r.setInTurn(false)
-			r.ending = nil
-			out = append(out, turnEnd(&p, admitted{}))
+			out = append(out, r.endTurn(&p, admitted{}))
 		}
 		return out
 	case "error":
@@ -740,12 +968,17 @@ func (r *run) closeSegment() []proto.Payload {
 	return out
 }
 
-func (r *run) currentID() string {
+// currentAdmission is the running turn's admission, else the last one seen.
+func (r *run) currentAdmission() string {
+	if r.turn != "" {
+		return r.turn
+	}
 	r.mu.Lock()
-	admission := r.admission
-	r.mu.Unlock()
-	return r.messageID(admission)
+	defer r.mu.Unlock()
+	return r.admission
 }
+
+func (r *run) currentID() string { return r.messageID(r.currentAdmission()) }
 
 func (r *run) messageID(admission string) string {
 	return admission + "/" + strconv.Itoa(r.segment)
@@ -791,28 +1024,29 @@ func (r *run) call(ctx context.Context, method string, params map[string]any) er
 	return r.send(ctx, &request{method: method, params: params})
 }
 
+// send writes a request, or holds it until the session is attached.
 func (r *run) send(ctx context.Context, req *request) error {
-	if req.method != "session.create" && req.method != "session.resume" {
-		r.mu.Lock()
-		if !r.attached {
-			r.waiting = append(r.waiting, req)
-			r.mu.Unlock()
-			return nil
-		}
+	r.mu.Lock()
+	if req.method != "session.create" && req.method != "session.resume" && !r.attached {
+		r.waiting = append(r.waiting, req)
 		r.mu.Unlock()
+		return nil
 	}
-	r.seqMu.Lock()
+	// Registered before it is written, so its answer finds it; the
+	// connection it goes out on is the one it is lost with.
 	r.n++
 	id := r.prefix + "-" + strconv.Itoa(r.n)
-	r.seqMu.Unlock()
-	b, err := json.Marshal(map[string]any{"jsonrpc": "2.0", "id": id, "method": req.method, "params": req.params})
-	if err != nil {
-		return fmt.Errorf("hermes: encode: %w", err)
-	}
-	r.mu.Lock()
+	r.writes++
+	req.seq, req.epoch = r.writes, r.epoch
 	r.requests[id] = req
 	r.mu.Unlock()
-	if err := r.io.WriteLine(ctx, b); err != nil {
+	b, err := json.Marshal(map[string]any{"jsonrpc": "2.0", "id": id, "method": req.method, "params": req.params})
+	if err == nil {
+		err = r.io.WriteLine(ctx, b)
+	} else {
+		err = fmt.Errorf("hermes: encode: %w", err)
+	}
+	if err != nil {
 		r.mu.Lock()
 		delete(r.requests, id)
 		r.mu.Unlock()
@@ -823,10 +1057,10 @@ func (r *run) send(ctx context.Context, req *request) error {
 
 // session returns the Hermes session ID (empty before the session
 // exists; a waiting request gets it when it does) and current generation.
-func (r *run) session() (string, int64, error) {
+func (r *run) session() (string, int64) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	return r.native, r.generation, nil
+	return r.native, r.generation
 }
 
 // fillSession names the session in a request written before it existed.
@@ -837,14 +1071,22 @@ func (r *run) fillSession(req *request, native string) {
 }
 
 func (r *run) submit(ctx context.Context, text string) error {
-	native, _, _ := r.session()
+	native, _ := r.session()
 	return r.submitRequest(ctx, &request{method: "prompt.submit", params: map[string]any{"session_id": native, "text": text, "submission_id": rand.Text()}})
 }
 
-// submitRequest sends a message, after the settings still waiting.
+// submitRequest sends a message, after the settings still waiting and
+// after the messages that are queued or being released.
 func (r *run) submitRequest(ctx context.Context, req *request) error {
+	r.orderMu.Lock()
+	defer r.orderMu.Unlock()
+	return r.submitLocked(ctx, req)
+}
+
+// submitLocked is submitRequest for a caller that holds orderMu.
+func (r *run) submitLocked(ctx context.Context, req *request) error {
 	r.mu.Lock()
-	if r.attached && (r.mutating || len(r.mutations) > 0) {
+	if r.attached && (r.mutating || len(r.mutations) > 0 || len(r.afterSettings) > 0) {
 		r.afterSettings = append(r.afterSettings, req)
 		r.mu.Unlock()
 		return nil
@@ -856,15 +1098,15 @@ func (r *run) submitRequest(ctx context.Context, req *request) error {
 // mutate queues a session setting and sends it when nothing else is in
 // flight and no turn runs.
 func (r *run) mutate(ctx context.Context, operation string, payload map[string]any) error {
-	r.queueMutation(operation, payload, false)
+	r.queueMutation(operation, payload)
 	r.pumpMutations(ctx)
 	return nil
 }
 
 // queueMutation queues a setting, replacing a waiting one of the same
-// operation; first puts it at the front (a retry).
-func (r *run) queueMutation(operation string, payload map[string]any, first bool) {
-	r.requeue(mutation{operation: operation, payload: payload}, first)
+// operation.
+func (r *run) queueMutation(operation string, payload map[string]any) {
+	r.requeue(mutation{operation: operation, payload: payload}, false)
 }
 
 func (r *run) requeue(m mutation, first bool) {
@@ -880,6 +1122,13 @@ func (r *run) requeue(m mutation, first bool) {
 
 // pumpMutations sends the next waiting setting if it can go now.
 func (r *run) pumpMutations(ctx context.Context) {
+	r.orderMu.Lock()
+	defer r.orderMu.Unlock()
+	r.pumpLocked(ctx)
+}
+
+// pumpLocked is pumpMutations for a caller that holds orderMu.
+func (r *run) pumpLocked(ctx context.Context) {
 	r.mu.Lock()
 	if !r.mutating && len(r.mutations) == 0 && len(r.afterSettings) > 0 {
 		// The settings are applied: the messages that waited go now.
@@ -956,15 +1205,26 @@ func (r *run) isBusy() bool {
 	return r.busy
 }
 
+// policyChange reports whether the edit policy has to change to policy.
+func (r *run) policyChange(policy string) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.policy != policy || slices.ContainsFunc(r.mutations, func(m mutation) bool { return m.operation == "edit_policy" })
+}
+
 // setPolicy changes Hermes's edit approval policy (see mutate).
 func (r *run) setPolicy(ctx context.Context, policy string) {
-	r.mu.Lock()
-	same := r.policy == policy && !slices.ContainsFunc(r.mutations, func(m mutation) bool { return m.operation == "edit_policy" })
-	r.mu.Unlock()
-	if same {
-		return
+	if r.policyChange(policy) {
+		_ = r.mutate(ctx, "edit_policy", map[string]any{"policy": policy})
 	}
-	_ = r.mutate(ctx, "edit_policy", map[string]any{"policy": policy})
+}
+
+// setPolicyLocked is setPolicy for a caller that holds orderMu.
+func (r *run) setPolicyLocked(ctx context.Context, policy string) {
+	if r.policyChange(policy) {
+		r.queueMutation("edit_policy", map[string]any{"policy": policy})
+		r.pumpLocked(ctx)
+	}
 }
 
 // setInTurn is the loop's way to change inTurn, keeping busy in step; a
@@ -986,37 +1246,37 @@ func (r *run) Send(ctx context.Context, text string) error { return r.submit(ctx
 
 // Steer adds text to the running turn after its current tool calls.
 func (r *run) Steer(ctx context.Context, text string) error {
-	native, gen, err := r.session()
-	if err != nil {
-		return err
-	}
+	native, gen := r.session()
 	return r.call(ctx, "session.steer", map[string]any{"session_id": native, "execution_generation": gen, "text": text})
 }
 
 // Interrupt ends the running turn.
 func (r *run) Interrupt(ctx context.Context) error {
-	native, gen, err := r.session()
-	if err != nil {
-		return err
-	}
+	native, gen := r.session()
 	return r.call(ctx, "session.interrupt", map[string]any{"session_id": native, "execution_generation": gen})
 }
 
 // Respond answers an approval with one of Hermes's choices.
 func (r *run) Respond(ctx context.Context, approvalID, optionID string) error {
-	native, gen, err := r.session()
-	if err != nil {
-		return err
-	}
+	native, gen := r.session()
+	// Marked before the write, so an event the answer provokes finds it;
+	// taken back if the answer is not taken.
 	r.mu.Lock()
-	if a := r.approvals[approvalID]; a != nil {
+	a := r.approvals[approvalID]
+	if a != nil {
 		gen = a.generation
 		a.answered = true
 	}
 	r.mu.Unlock()
-	return r.call(ctx, "approval.respond", map[string]any{
+	err := r.call(ctx, "approval.respond", map[string]any{
 		"session_id": native, "execution_generation": gen, "prompt_id": approvalID, "choice": optionID,
 	})
+	if err != nil && a != nil {
+		r.mu.Lock()
+		a.answered = false
+		r.mu.Unlock()
+	}
+	return err
 }
 
 // Answer is not supported: Hermes sessions Hoplet creates have no
@@ -1030,10 +1290,7 @@ func (r *run) SetMode(ctx context.Context, mode proto.PermissionMode) error {
 	if mode != proto.ModeConfirm && policy == editAsk {
 		return fmt.Errorf("hermes: no permission mode %q", mode)
 	}
-	native, _, err := r.session()
-	if err != nil {
-		return err
-	}
+	native, _ := r.session()
 	r.mu.Lock()
 	r.mode = mode
 	r.mu.Unlock()
@@ -1062,10 +1319,7 @@ func (r *run) SetEffort(ctx context.Context, effort proto.Effort) error {
 
 // SetFast turns Hermes's fast service tier on or off from the next turn.
 func (r *run) SetFast(ctx context.Context, on bool) error {
-	native, _, err := r.session()
-	if err != nil {
-		return err
-	}
+	native, _ := r.session()
 	value := "normal"
 	if on {
 		value = "fast"

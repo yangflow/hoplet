@@ -11,7 +11,21 @@ type frame struct {
 	Method string          `json:"method"`
 	Params json.RawMessage `json:"params"`
 	Result json.RawMessage `json:"result"`
-	Error  *rpcError       `json:"error"`
+	// Error is a gateway error object, or the text of a bridge line's
+	// error; see rpcErr.
+	Error json.RawMessage `json:"error"`
+}
+
+// rpcErr reads the error of a response.
+func (f frame) rpcErr() *rpcError {
+	if len(f.Error) == 0 || string(f.Error) == "null" {
+		return nil
+	}
+	var e rpcError
+	if json.Unmarshal(f.Error, &e) != nil {
+		return &rpcError{Message: string(f.Error)}
+	}
+	return &e
 }
 
 type rpcError struct {
