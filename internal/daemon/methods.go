@@ -8,6 +8,7 @@ import (
 	"github.com/yangflow/hoplet/internal/harness"
 	"github.com/yangflow/hoplet/internal/session"
 	"github.com/yangflow/hoplet/internal/store"
+	"github.com/yangflow/hoplet/internal/workspace"
 	"github.com/yangflow/hoplet/proto"
 )
 
@@ -110,6 +111,18 @@ func (c *conn) call(ctx context.Context, f proto.ClientFrame) (any, error) {
 			return nil, err
 		}
 		return c.sessionState(ctx, p.Session)
+	case proto.MethodSessionsDiff:
+		var p proto.DiffParams
+		if err := decode(f, &p); err != nil {
+			return nil, err
+		}
+		dir, err := s.mgr.WorkDir(ctx, p.Session)
+		if err != nil {
+			return nil, err
+		}
+		// A diff only reads, so unlike the commands above it follows the
+		// connection: a client that goes away stops waiting for it.
+		return s.ws.Diff(c.ctx, p.Session, dir, p)
 	case proto.MethodEnvRefresh:
 		return s.sys.refresh(ctx)
 	case proto.MethodSystemDoctor:
@@ -184,7 +197,7 @@ func apiError(err error) *proto.APIError {
 		code = proto.CodeBusy
 	case errors.Is(err, session.ErrNotRunning):
 		code = proto.CodeNotRunning
-	case errors.Is(err, session.ErrUnsupportedVersion), errors.Is(err, harness.ErrUnsupported):
+	case errors.Is(err, session.ErrUnsupportedVersion), errors.Is(err, harness.ErrUnsupported), errors.Is(err, workspace.ErrNoGit):
 		code = proto.CodeUnsupported
 	}
 	return &proto.APIError{Code: code, Message: err.Error()}

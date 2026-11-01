@@ -15,6 +15,7 @@ import (
 	"github.com/yangflow/hoplet/internal/env"
 	"github.com/yangflow/hoplet/internal/harness"
 	"github.com/yangflow/hoplet/internal/session"
+	"github.com/yangflow/hoplet/internal/workspace"
 	"github.com/yangflow/hoplet/proto"
 )
 
@@ -48,6 +49,8 @@ type system struct {
 	src          env.Source
 	mgr          *session.Manager
 	harnesses    map[string]harness.Harness
+	git          workspace.Git // what baselines and diffs run
+	gitErr       error         // why there is none
 	probeURL     string
 	probeTimeout time.Duration // per check; defaultProbeTimeout when zero
 	log          *slog.Logger
@@ -169,7 +172,7 @@ func (s *system) doctor(ctx context.Context) proto.DoctorReport {
 	snap, readErr := s.state()
 	info := infoOf(snap, readErr)
 	var r proto.DoctorReport
-	r.Checks = append(r.Checks, environmentCheck(snap, info))
+	r.Checks = append(r.Checks, environmentCheck(snap, info), s.gitCheck(ctx))
 	kinds := make([]string, 0, len(s.harnesses))
 	for k := range s.harnesses {
 		kinds = append(kinds, k)
@@ -187,6 +190,26 @@ func (s *system) doctor(ctx context.Context) proto.DoctorReport {
 		r.Checks = append(r.Checks, proto.Check{Name: "harnesses", Status: proto.CheckWarn, Detail: "no harness adapters are registered yet"})
 	}
 	return r
+}
+
+// gitCheck says whether git, which session diffs need, is usable.
+func (s *system) gitCheck(ctx context.Context) proto.Check {
+	const need = "diffs need git 2.38 or newer"
+	err := s.gitErr
+	if err == nil && s.git.Bin == "" {
+		err = workspace.ErrNoGit
+	}
+	if err == nil {
+		ctx, cancel := context.WithTimeout(ctx, s.timeout())
+		defer cancel()
+		v, verr := s.git.Version(ctx)
+		if verr == nil {
+			return proto.Check{Name: "git", Status: proto.CheckOK, Detail: "version " + v}
+		}
+		err = verr
+	}
+	reason := strings.TrimPrefix(err.Error(), workspace.ErrNoGit.Error()+": ")
+	return proto.Check{Name: "git", Status: proto.CheckFail, Detail: need + ": " + reason}
 }
 
 // probeHarness asks a harness for its version within the probe timeout. A
