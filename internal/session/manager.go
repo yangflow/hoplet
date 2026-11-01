@@ -73,6 +73,8 @@ const (
 	readyTimeout = 10 * time.Second
 	// stopWait bounds each of the two waits in Stop.
 	stopWait = 5 * time.Second
+	// baselineTimeout bounds taking a session's baseline in Create.
+	baselineTimeout = 60 * time.Second
 )
 
 // Config configures a Manager.
@@ -90,6 +92,13 @@ type Config struct {
 	// environment. SetEnv replaces it for harnesses started afterwards.
 	Env    []string
 	Logger *slog.Logger
+	// Baseline, when set, is called by Create before the session is stored,
+	// to capture the starting point of the session's diffs in dir, its
+	// working directory, under a deadline. The function it returns saves
+	// that starting point for the new session once it is stored; an error
+	// from it is logged and does not fail Create. Capturing first means
+	// nothing the session does, by any client, can come before the baseline.
+	Baseline func(ctx context.Context, dir string) (save func(ctx context.Context, id proto.SessionID) error)
 }
 
 // Manager runs sessions. Its methods are safe for concurrent use.
@@ -108,6 +117,8 @@ type Manager struct {
 	appendFn func(context.Context, store.AppendRequest) (store.AppendResult, error)
 	// ready bounds how long a spawned shim may take to accept connections.
 	ready time.Duration
+	// baselineTimeout bounds Config.Baseline.
+	baselineTimeout time.Duration
 	// afterPendingRead, when set (tests), runs in Send between reading the
 	// pending flag and reading the turn state.
 	afterPendingRead func()
@@ -197,7 +208,7 @@ func New(cfg Config) (*Manager, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Manager{
 		cfg: cfg, log: log, ctx: ctx, cancel: cancel, closeCh: make(chan struct{}), env: slices.Clone(cfg.Env),
-		appendFn: cfg.Store.Append, ready: readyTimeout, change: make(chan struct{}),
+		appendFn: cfg.Store.Append, ready: readyTimeout, baselineTimeout: baselineTimeout, change: make(chan struct{}),
 		streak: map[proto.SessionID]int{}, live: map[proto.SessionID]*live{}, locks: map[proto.SessionID]*sync.Mutex{},
 	}, nil
 }
@@ -269,6 +280,16 @@ func (m *Manager) Create(ctx context.Context, req CreateRequest) (proto.Session,
 	if err := os.MkdirAll(m.dir(id), 0o700); err != nil {
 		return proto.Session{}, fmt.Errorf("session: create session dir: %w", err)
 	}
+	var saveBaseline func(context.Context, proto.SessionID) error
+	if m.cfg.Baseline != nil {
+		dir := req.Directory
+		if dir == "" {
+			dir = m.dir(id) // personal sessions work in their own directory
+		}
+		bctx, cancel := context.WithTimeout(ctx, m.baselineTimeout)
+		saveBaseline = m.cfg.Baseline(bctx, dir)
+		cancel()
+	}
 	sess, err := m.cfg.Store.CreateSession(ctx, proto.Session{
 		ID: id, Mode: req.Mode, Harness: proto.HarnessRef{Kind: req.Harness, Version: info.Version},
 		Directory: req.Directory, Isolation: req.Isolation, Permission: info.Capabilities.Fallback(req.Permission),
@@ -278,7 +299,22 @@ func (m *Manager) Create(ctx context.Context, req CreateRequest) (proto.Session,
 	if err != nil {
 		return proto.Session{}, errors.Join(err, os.RemoveAll(m.dir(id)))
 	}
+	if saveBaseline != nil {
+		if err := saveBaseline(ctx, id); err != nil {
+			m.log.Warn("baseline unavailable", "session", id, "err", err)
+		}
+	}
 	return sess, nil
+}
+
+// WorkDir returns the directory the session's harness works in: its
+// directory, or for a personal session its own directory under the root.
+func (m *Manager) WorkDir(ctx context.Context, id proto.SessionID) (string, error) {
+	sess, err := m.cfg.Store.Session(ctx, id)
+	if err != nil {
+		return "", err
+	}
+	return m.workDir(sess), nil
 }
 
 func newID() (proto.SessionID, error) {

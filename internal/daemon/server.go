@@ -12,6 +12,7 @@ import (
 
 	"github.com/yangflow/hoplet/internal/session"
 	"github.com/yangflow/hoplet/internal/store"
+	"github.com/yangflow/hoplet/internal/workspace"
 	"github.com/yangflow/hoplet/proto"
 )
 
@@ -78,6 +79,7 @@ type server struct {
 	ctx     context.Context // ends every connection when canceled
 	store   *store.Store
 	mgr     *session.Manager
+	ws      *workspace.Service
 	queue   *queuer
 	sys     *system
 	token   string

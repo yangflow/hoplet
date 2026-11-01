@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"text/tabwriter"
@@ -30,9 +31,17 @@ commands:
   steer    ID TEXT  add TEXT to the running turn (harnesses that support it)
   stop     ID      stop the session's harness process
   archive  ID
+  diff     ID [--stat] [--repo PATH]   what the session changed in its git repositories
 
 ID may be a unique prefix of at least 4 characters. Every command takes
 --json for machine-readable output.
+
+diff compares every git repository under the session's directory with how it
+was when the session was created, and prints a patch per repository (--stat:
+the changed files with line counts). --repo limits it to one repository, by
+its path under the directory. Hoplet writes nothing to your repositories; it
+keeps its own copy of their content (raw bytes, no filters) under its home
+directory.
 
 wait conditions: idle (no turn running and nothing queued), blocked
 (an approval, a question or a failed queued message waits on you), done
@@ -52,6 +61,11 @@ the order permission, plan, fast, effort and stops at the first that fails.
 // session.
 const commandTimeout = 30 * time.Second
 
+// longCallTimeout bounds the two calls that snapshot repositories: creating a
+// session, which waits for its baseline (up to a minute), and asking for a
+// diff.
+const longCallTimeout = 2 * time.Minute
+
 func (a app) session(args []string) int {
 	if len(args) == 0 || args[0] == "help" || args[0] == "-h" || args[0] == "--help" {
 		if len(args) == 0 {
@@ -64,7 +78,7 @@ func (a app) session(args []string) int {
 	cmds := map[string]func([]string) int{
 		"new": a.sessionNew, "list": a.sessionList, "send": a.sessionSend, "watch": a.sessionWatch,
 		"wait": a.sessionWait, "approve": a.sessionApprove, "set": a.sessionSet, "archive": a.sessionArchive,
-		"interrupt": a.sessionInterrupt, "steer": a.sessionSteer, "stop": a.sessionStop,
+		"interrupt": a.sessionInterrupt, "steer": a.sessionSteer, "stop": a.sessionStop, "diff": a.sessionDiff,
 	}
 	cmd, ok := cmds[args[0]]
 	if !ok {
@@ -154,7 +168,7 @@ func (a app) sessionNew(args []string) int {
 		p.Directory = abs
 	}
 	prompt := strings.Join(fs.Args(), " ")
-	return a.withClient("session new", commandTimeout, func(ctx context.Context, c *client.Client) error {
+	return a.withClient("session new", longCallTimeout, func(ctx context.Context, c *client.Client) error {
 		sess, err := c.Create(ctx, p)
 		if err != nil {
 			return err
@@ -632,4 +646,107 @@ func (a app) sessionStop(args []string) int {
 	return a.sessionOneShot("session stop", args, false, func(ctx context.Context, c *client.Client, id proto.SessionID, _ string) error {
 		return c.Stop(ctx, id)
 	}, "stopped")
+}
+
+func (a app) sessionDiff(args []string) int {
+	fs := a.flags("session diff", sessionUsage)
+	stat := fs.Bool("stat", false, "list the changed files with line counts instead of the patch")
+	repo := fs.String("repo", "", "only this repository, by its path under the session's directory")
+	asJSON := fs.Bool("json", false, "print JSON")
+	if code, ok := parse(fs, args, 1, 1); !ok {
+		return code
+	}
+	return a.withClient("session diff", longCallTimeout, func(ctx context.Context, c *client.Client) error {
+		id, err := resolveID(ctx, c, fs.Arg(0))
+		if err != nil {
+			return err
+		}
+		d, err := c.Diff(ctx, proto.DiffParams{Session: id, Repo: *repo, Patch: !*stat})
+		if err != nil {
+			return err
+		}
+		if *asJSON {
+			a.printJSON(d)
+			return nil
+		}
+		a.printDiff(d, *stat)
+		return nil
+	})
+}
+
+// printDiff writes a session diff: a header line per repository, then its
+// patch, or with stat its files.
+func (a app) printDiff(d proto.SessionDiff, stat bool) {
+	if d.BaselineError != "" {
+		fmt.Fprintf(a.stdout, "baseline: %s\n", d.BaselineError)
+	}
+	if len(d.Repos) == 0 {
+		fmt.Fprintln(a.stdout, "no repositories")
+		return
+	}
+	for _, r := range d.Repos {
+		header := "== " + r.Path
+		if r.Branch != "" {
+			header += " (" + r.Branch + ")"
+		}
+		fmt.Fprintf(a.stdout, "%s %s\n", header, r.State)
+		switch {
+		case r.Error != "":
+			fmt.Fprintf(a.stdout, "error: %s\n", r.Error)
+		case r.State == proto.RepoMissing:
+			fmt.Fprintln(a.stdout, "the repository is gone")
+		case len(r.Files) == 0 && r.FilesTruncated:
+			fmt.Fprintln(a.stdout, "(file list omitted: too many files or response too large)")
+		case len(r.Files) == 0 && r.State == proto.RepoNew:
+			fmt.Fprintln(a.stdout, "no files")
+		case len(r.Files) == 0:
+			fmt.Fprintln(a.stdout, "no changes")
+		case stat:
+			for _, f := range r.Files {
+				fmt.Fprintln(a.stdout, statLine(f))
+			}
+		default:
+			fmt.Fprint(a.stdout, r.Patch)
+			if r.Patch != "" && !strings.HasSuffix(r.Patch, "\n") {
+				fmt.Fprintln(a.stdout)
+			}
+			for _, f := range r.Files {
+				if f.Filter != "" {
+					fmt.Fprintf(a.stdout, "%s: changed through filter %s, no patch shown\n", f.Path, f.Filter)
+				}
+			}
+		}
+		if r.Truncated {
+			fmt.Fprintln(a.stdout, "(patch truncated)")
+		}
+		if r.FilesTruncated && len(r.Files) > 0 {
+			fmt.Fprintf(a.stdout, "(only the first %d files are listed)\n", len(r.Files))
+		}
+		for _, f := range r.Skipped {
+			fmt.Fprintf(a.stdout, "skipped (%s): %s", f.Reason, f.Path)
+			if f.Size > 0 {
+				fmt.Fprintf(a.stdout, ", %d bytes", f.Size)
+			}
+			fmt.Fprintln(a.stdout)
+		}
+		if r.SkippedTruncated {
+			fmt.Fprintf(a.stdout, "(only the first %d skipped files are listed)\n", len(r.Skipped))
+		}
+	}
+}
+
+// statLine describes one changed file as "+A -D status path".
+func statLine(f proto.FileDiff) string {
+	adds, dels := strconv.Itoa(f.Additions), strconv.Itoa(f.Deletions)
+	if f.Binary {
+		adds, dels = "-", "-"
+	}
+	path := f.Path
+	if f.OldPath != "" {
+		path = f.OldPath + " -> " + f.Path
+	}
+	if f.Filter != "" {
+		path += " (filter " + f.Filter + ")"
+	}
+	return fmt.Sprintf("+%s -%s %s %s", adds, dels, f.Status, path)
 }

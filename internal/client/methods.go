@@ -127,6 +127,14 @@ func (c *Client) Session(ctx context.Context, id proto.SessionID) (proto.Session
 	return out, err
 }
 
+// Diff returns what a session changed in the git repositories under its
+// working directory since the session began.
+func (c *Client) Diff(ctx context.Context, p proto.DiffParams) (proto.SessionDiff, error) {
+	var out proto.SessionDiff
+	err := c.Call(ctx, proto.MethodSessionsDiff, p, &out)
+	return out, err
+}
+
 // RefreshEnv makes the daemon read the login shell's environment again for
 // harnesses started from now on.
 func (c *Client) RefreshEnv(ctx context.Context) (proto.EnvInfo, error) {

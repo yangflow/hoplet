@@ -80,6 +80,7 @@ const (
 	MethodSessionsArchive   = "sessions.archive"
 	MethodSessionsEvents    = "sessions.events"
 	MethodSessionsGet       = "sessions.get"
+	MethodSessionsDiff      = "sessions.diff"
 	MethodEnvRefresh        = "env.refresh"
 	MethodSystemDoctor      = "system.doctor"
 	MethodQueueList         = "queue.list"
@@ -330,4 +331,101 @@ type Check struct {
 // DoctorReport is the daemon's view of its health.
 type DoctorReport struct {
 	Checks []Check `json:"checks"`
+}
+
+// DiffParams asks for a session's changes since its baseline. Repo limits
+// the answer to one repository (by its path under the working directory);
+// Patch asks for the patch text as well as the file list.
+type DiffParams struct {
+	Session SessionID `json:"session"`
+	Repo    string    `json:"repo,omitempty"`
+	Patch   bool      `json:"patch,omitempty"`
+}
+
+// SessionDiff is everything a session changed in the git repositories under
+// its working directory, per repository. Clients ask again after a turn
+// ends or files change, and skip redrawing a repository whose SHA is
+// unchanged. BaselineAt is when the baseline was taken, absent when there is
+// none; BaselineError says why it is missing or incomplete.
+type SessionDiff struct {
+	Session       SessionID  `json:"session"`
+	BaselineAt    *time.Time `json:"baseline_at,omitempty"`
+	BaselineError string     `json:"baseline_error,omitempty"`
+	Repos         []RepoDiff `json:"repos"`
+}
+
+// RepoState says how a repository's diff was made.
+type RepoState string
+
+// Repository states.
+const (
+	// RepoOK is a repository present at the baseline and now.
+	RepoOK RepoState = "ok"
+	// RepoNew is a repository that appeared after the baseline; its diff
+	// is against the empty tree.
+	RepoNew RepoState = "new"
+	// RepoMissing is a repository the baseline had that is gone.
+	RepoMissing RepoState = "missing"
+	// RepoError is a repository whose diff could not be made; Error says why.
+	RepoError RepoState = "error"
+)
+
+// RepoDiff is one repository's change since the baseline. Path is relative
+// to the working directory ("." for the directory itself); Parent is the
+// path of the repository that contains this one (a submodule or nested
+// repository), empty otherwise. Patch is set only when asked for and is cut
+// at a line boundary, with Truncated set, when it is too large (a response
+// is limited to a few MiB as encoded, so later repositories may get no patch,
+// or no file list). SHA changes whenever anything shown does: the content,
+// branch, state and skipped files, the parent, and how much of the patch and
+// the lists the response carries.
+type RepoDiff struct {
+	Path   string     `json:"path"`
+	Parent string     `json:"parent,omitempty"`
+	Branch string     `json:"branch,omitempty"`
+	State  RepoState  `json:"state"`
+	Error  string     `json:"error,omitempty"`
+	Files  []FileDiff `json:"files"`
+	// FilesTruncated says Files holds only the first files by path.
+	FilesTruncated bool          `json:"files_truncated,omitempty"`
+	Patch          string        `json:"patch,omitempty"`
+	Truncated      bool          `json:"truncated,omitempty"`
+	Skipped        []SkippedFile `json:"skipped,omitempty"`
+	// SkippedTruncated says Skipped holds only the first files by path.
+	SkippedTruncated bool   `json:"skipped_truncated,omitempty"`
+	SHA              string `json:"sha,omitempty"`
+}
+
+// FileStatus is how a file changed.
+type FileStatus string
+
+// File statuses.
+const (
+	FileStatusAdded       FileStatus = "added"
+	FileStatusModified    FileStatus = "modified"
+	FileStatusDeleted     FileStatus = "deleted"
+	FileStatusRenamed     FileStatus = "renamed"
+	FileStatusTypeChanged FileStatus = "type_changed"
+)
+
+// FileDiff is one changed file. OldPath is set for a rename. Binary files
+// have no line counts. Filter names the git clean/smudge filter the file's
+// attributes select; such a file is listed without patch text.
+type FileDiff struct {
+	Path      string     `json:"path"`
+	OldPath   string     `json:"old_path,omitempty"`
+	Status    FileStatus `json:"status"`
+	Additions int        `json:"additions"`
+	Deletions int        `json:"deletions"`
+	Binary    bool       `json:"binary,omitempty"`
+	Filter    string     `json:"filter,omitempty"`
+}
+
+// SkippedFile is a file left out of a repository's snapshots; the version
+// recorded before, if any, is compared instead. Reason is "too large" or
+// "unreadable".
+type SkippedFile struct {
+	Path   string `json:"path"`
+	Size   int64  `json:"size,omitempty"`
+	Reason string `json:"reason,omitempty"`
 }

@@ -21,6 +21,7 @@ import (
 	"github.com/yangflow/hoplet/internal/home"
 	"github.com/yangflow/hoplet/internal/session"
 	"github.com/yangflow/hoplet/internal/store"
+	"github.com/yangflow/hoplet/internal/workspace"
 	"github.com/yangflow/hoplet/proto"
 )
 
@@ -63,6 +64,7 @@ type Daemon struct {
 	lock  *os.File
 	store *store.Store
 	mgr   *session.Manager
+	ws    *workspace.Service
 	srv   *server
 	http  *http.Server
 	queue *queuer
@@ -126,9 +128,16 @@ func Start(ctx context.Context, cfg Config) (d *Daemon, err error) {
 	if envErr != nil {
 		log.Error("read the login shell environment", "err", envErr)
 	}
+	// Without a usable git, baselines and diffs report why instead of
+	// working; doctor says so.
+	git, gitErr := workspace.FindGit(snap.Vars)
+	if gitErr != nil {
+		log.Error("find git", "err", gitErr)
+	}
+	ws := &workspace.Service{Git: git, Home: cfg.Home, Store: st}
 	mgr, err := session.New(session.Config{
 		Store: st, Root: home.Sessions(cfg.Home), Spawner: session.ExecSpawner{Exe: cfg.Exe},
-		Harnesses: cfg.Harnesses, Env: snap.Vars, Logger: log,
+		Harnesses: cfg.Harnesses, Env: snap.Vars, Logger: log, Baseline: ws.CaptureBaseline,
 	})
 	if err != nil {
 		return nil, err
@@ -138,7 +147,7 @@ func Start(ctx context.Context, cfg Config) (d *Daemon, err error) {
 	if probeURL == "" {
 		probeURL = DefaultProbeURL
 	}
-	sys := &system{src: src, mgr: mgr, harnesses: cfg.Harnesses, probeURL: probeURL, probeTimeout: defaultProbeTimeout, log: log}
+	sys := &system{src: src, mgr: mgr, harnesses: cfg.Harnesses, git: git, gitErr: gitErr, probeURL: probeURL, probeTimeout: defaultProbeTimeout, log: log}
 	sys.set(snap, envErr)
 	for _, h := range cfg.Harnesses {
 		if u, ok := h.(harness.EnvUser); ok {
@@ -160,11 +169,11 @@ func Start(ctx context.Context, cfg Config) (d *Daemon, err error) {
 	runCtx, cancel := context.WithCancel(context.Background())
 	q := &queuer{store: st, mgr: mgr, log: log, locks: map[proto.SessionID]*sync.Mutex{}, waiting: map[proto.SessionID]bool{}}
 	srv := &server{
-		ctx: runCtx, store: st, mgr: mgr, queue: q, sys: sys, token: token,
+		ctx: runCtx, store: st, mgr: mgr, ws: ws, queue: q, sys: sys, token: token,
 		host: host, version: cfg.Version, log: log, lim: cfg.lim.withDefaults(),
 	}
 	d = &Daemon{
-		log: log, lock: lock, store: st, mgr: mgr, srv: srv, queue: q,
+		log: log, lock: lock, store: st, mgr: mgr, ws: ws, srv: srv, queue: q,
 		http:   &http.Server{Handler: srv, ReadHeaderTimeout: 10 * time.Second},
 		cancel: cancel, done: make(chan struct{}),
 	}
@@ -211,6 +220,7 @@ func (d *Daemon) Close() error {
 		d.cancel()
 		d.srv.wait()
 		d.wg.Wait()
+		d.ws.Close() // stops and awaits background repacks
 		d.closeErr = errors.Join(err, d.mgr.Close(), d.store.Close(), d.lock.Close())
 	})
 	return d.closeErr

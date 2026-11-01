@@ -22,6 +22,12 @@ func TestFrameWireFormat(t *testing.T) {
 		"recorded":    {SendReply{Seq: 7, Turn: 2}, `{"seq":7,"turn":2}`},
 		"empty queue": {SessionItem{Queue: &Queue{Messages: []QueuedMessage{}}}, `{"queue":{"messages":[]}}`},
 		"events page": {EventsPage{Events: []Event{}, More: true}, `{"events":[],"more":true}`},
+		"diff args":   {DiffParams{Session: "s", Repo: "api", Patch: true}, `{"session":"s","repo":"api","patch":true}`},
+		"diff none":   {SessionDiff{Session: "s", Repos: []RepoDiff{}}, `{"session":"s","repos":[]}`},
+		"repo diff": {RepoDiff{Path: ".", State: RepoNew, Files: []FileDiff{{Path: "a", Status: FileStatusAdded, Additions: 2}}, Skipped: []SkippedFile{{Path: "big", Size: 9, Reason: "too large"}}, SHA: "h"},
+			`{"path":".","state":"new","files":[{"path":"a","status":"added","additions":2,"deletions":0}],"skipped":[{"path":"big","size":9,"reason":"too large"}],"sha":"h"}`},
+		"renamed binary": {FileDiff{Path: "b", OldPath: "a", Status: FileStatusRenamed, Binary: true, Filter: "lfs"},
+			`{"path":"b","old_path":"a","status":"renamed","additions":0,"deletions":0,"binary":true,"filter":"lfs"}`},
 		"events args": {EventsParams{Session: "s", BeforeSeq: 11, Limit: 5}, `{"session":"s","before_seq":11,"limit":5}`},
 	} {
 		b, err := json.Marshal(tc.v)
