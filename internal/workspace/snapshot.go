@@ -204,7 +204,8 @@ type item struct {
 // persistent index for the worktree (see indexPath) as a stat cache and saves
 // it after every round of up to 10000 files or 256 MiB, so a snapshot that is
 // cut short keeps what it hashed and only the first snapshot of a large
-// repository reads every file. The user's index and objects are never read.
+// repository reads every file. The user's index is never read; of the
+// user's objects only the HEAD commit and tree are read.
 // Callers serialize snapshots of one index. Files larger than MaxFile and
 // unreadable files keep the version recorded before and are reported in
 // Skipped. A worktree needing more than 4 GiB to be read is

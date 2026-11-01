@@ -25,9 +25,9 @@
 //
 // Known gaps: on a filesystem that ignores case, a case-only rename that is
 // not committed yet is not seen (as in git status). A file that is ignored,
-// force-added and not committed yet is not part of the file set. A change of line endings alone
-// that keeps a file's size and modification time can go unnoticed under
-// text=auto. A file swapped for a symlink in a parent directory while a
+// force-added and not committed yet is not part of the file set. A change of
+// line endings alone that keeps a file's size and modification time can go
+// unnoticed under text=auto. A file swapped for a symlink in a parent directory while a
 // snapshot runs can be read through. Invalid UTF-8 in a patch is replaced by
 // U+FFFD, as JSON encoding would do.
 package workspace

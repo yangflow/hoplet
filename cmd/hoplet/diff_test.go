@@ -35,7 +35,7 @@ func TestPrintDiff(t *testing.T) {
 		"== api new\nno files\n" +
 		"== web error\nerror: boom\n" +
 		"== old missing\nthe repository is gone\n" +
-		"== huge ok\n(file list omitted: response too large)\n(patch truncated)\n"
+		"== huge ok\n(file list omitted: too many files or response too large)\n(patch truncated)\n"
 	if out.String() != want {
 		t.Fatalf("patch output:\n%s\nwant:\n%s", out.String(), want)
 	}

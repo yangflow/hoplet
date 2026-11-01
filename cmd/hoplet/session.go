@@ -696,7 +696,7 @@ func (a app) printDiff(d proto.SessionDiff, stat bool) {
 		case r.State == proto.RepoMissing:
 			fmt.Fprintln(a.stdout, "the repository is gone")
 		case len(r.Files) == 0 && r.FilesTruncated:
-			fmt.Fprintln(a.stdout, "(file list omitted: response too large)")
+			fmt.Fprintln(a.stdout, "(file list omitted: too many files or response too large)")
 		case len(r.Files) == 0 && r.State == proto.RepoNew:
 			fmt.Fprintln(a.stdout, "no files")
 		case len(r.Files) == 0:

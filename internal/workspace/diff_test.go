@@ -188,7 +188,7 @@ func TestSeveralRepos(t *testing.T) {
 	}
 	gone := f.diff(t, root, proto.DiffParams{})
 	for _, r := range gone.Repos {
-		if r.State != proto.RepoMissing {
+		if r.State != proto.RepoMissing || r.SHA == "" {
 			t.Errorf("after removing the directory: %+v", r)
 		}
 	}

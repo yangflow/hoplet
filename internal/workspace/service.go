@@ -593,15 +593,13 @@ func (s *Service) repoDiff(ctx context.Context, path string, cur *Repo, row *sto
 
 // sealSHA extends the SHA of a repository's content (set by repoDiff) with
 // what the response shows of it, as fit left it: the parent, whether a patch
-// was asked for, the truncation flags and the sizes of the lists. The result
-// is the same exactly when nothing shown has changed.
+// was asked for, the state and error, the truncation flags and the sizes of
+// the lists. The result is the same exactly when nothing shown has changed;
+// error and missing rows, which have no content SHA, get one too.
 func sealSHA(rd *proto.RepoDiff, patch bool) {
-	if rd.SHA == "" {
-		return
-	}
 	h := sha256.New()
 	for _, part := range []string{
-		rd.SHA, rd.Parent, strconv.FormatBool(patch),
+		rd.SHA, rd.Parent, string(rd.State), rd.Error, rd.Branch, strconv.FormatBool(patch),
 		strconv.FormatBool(rd.Truncated), strconv.FormatBool(rd.FilesTruncated), strconv.FormatBool(rd.SkippedTruncated),
 		strconv.Itoa(len(rd.Files)), strconv.Itoa(len(rd.Patch)), strconv.Itoa(len(rd.Skipped)),
 	} {
