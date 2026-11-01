@@ -76,10 +76,22 @@ func (r *run) attachRefused(e *rpcError) []proto.Payload {
 	r.mu.Lock()
 	r.attachErr = fmt.Errorf("hermes: Hermes refused to attach the session: %s", reason(e))
 	dropped := len(r.waiting)
+	for _, req := range r.waiting {
+		if req.method == "approval.respond" {
+			// Not answered after all: a later snapshot may expire it.
+			id, _ := req.params["prompt_id"].(string)
+			if a := r.approvals[id]; a != nil {
+				a.answered = false
+			}
+		}
+	}
 	r.waiting = nil
 	r.mu.Unlock()
-	if dropped == 0 {
+	switch dropped {
+	case 0:
 		return nil
+	case 1:
+		return []proto.Payload{proto.Error{Message: "1 request was not sent: Hermes refused to attach the session"}}
 	}
 	return []proto.Payload{proto.Error{Message: fmt.Sprintf("%d requests were not sent: Hermes refused to attach the session", dropped)}}
 }

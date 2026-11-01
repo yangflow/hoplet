@@ -1708,7 +1708,7 @@ func TestARefusedAttachFailsTheCommands(t *testing.T) {
 			}
 			p := x.refuse(0, "session_not_found", "")
 			if len(p) != 2 || p[0] != (proto.Error{Message: "Hermes refused to attach the session: session_not_found"}) ||
-				p[1] != (proto.Error{Message: "1 requests were not sent: Hermes refused to attach the session"}) {
+				p[1] != (proto.Error{Message: "1 request was not sent: Hermes refused to attach the session"}) {
 				t.Fatalf("refusal %v", p)
 			}
 			for name, call := range map[string]func() error{
@@ -1751,5 +1751,28 @@ func TestAnErrorAnswerToAnEarlierDaemonsRequestIsDropped(t *testing.T) {
 	x := newTester(t, harness.Spec{State: harness.State{Native: "s1"}})
 	if p := x.push(`{"jsonrpc":"2.0","id":"old","error":{"code":4001,"message":"revision_conflict","data":{"reason":"revision_conflict"}}}`); len(p) != 0 {
 		t.Fatalf("orphan error %v", p)
+	}
+}
+
+// TestAnAnswerDroppedWithARefusedAttachLetsTheApprovalExpire is an answer
+// given while the connection was down, dropped when the attach is refused:
+// the approval is not taken as answered, so its settlement elsewhere shows.
+func TestAnAnswerDroppedWithARefusedAttachLetsTheApprovalExpire(t *testing.T) {
+	x := newTester(t, harness.Spec{Resume: "s1"})
+	x.attach("s1", true)
+	x.push(eventLine("approval.request", `{"kind":"approval","prompt_id":"p1","execution_generation":1,"command":"x","choices":["once","deny"]}`))
+	x.push(`{"hoplet_bridge":"disconnected","error":"gone"}`)
+	if err := x.run.Respond(context.Background(), "p1", "once"); err != nil { // waits for the attach
+		t.Fatal(err)
+	}
+	x.push(`{"hoplet_bridge":"connected"}`)
+	p := x.refuse(len(x.io.written())-1, "session_not_found", "")
+	if len(p) != 2 || p[1] != (proto.Error{Message: "1 request was not sent: Hermes refused to attach the session"}) {
+		t.Fatalf("refusal %v", p)
+	}
+	x.push(`{"hoplet_bridge":"connected"}`)
+	p = x.answerLast(`{"session_id":"s1","stored_session_id":"s1","running":true,"revision":1,"execution_generation":1,"prompts":[]}`)
+	if len(p) != 1 || p[0] != (proto.ApprovalResolved{ID: "p1", Outcome: proto.OutcomeExpired, DecidedBy: "hermes"}) {
+		t.Fatalf("after reconnecting %v", p)
 	}
 }

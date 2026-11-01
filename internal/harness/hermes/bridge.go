@@ -224,19 +224,16 @@ func (b *bridge) send(ctx context.Context, conn *websocket.Conn, frame []byte) e
 func (b *bridge) pump(ctx context.Context, conn *websocket.Conn, inDone <-chan error) error {
 	b.touch()
 	readErr := make(chan error, 1)
+	relayDone := make(chan struct{})
 	// Reads end when the connection closes, not when ctx does: stopping
 	// must still reach the step that interrupts the running turn.
-	go func() { readErr <- b.relay(context.WithoutCancel(ctx), conn) }()
-	relayed := false
+	go func() {
+		defer close(relayDone)
+		readErr <- b.relay(context.WithoutCancel(ctx), conn)
+	}()
 	defer func() {
 		_ = conn.CloseNow() // the gateway needs no closing handshake
-		if !relayed {
-			// Wait for the relay. Its error is the connection closing,
-			// which is expected here.
-			if err := <-readErr; err != nil {
-				return
-			}
-		}
+		<-relayDone
 	}()
 	every := b.cfg.Heartbeat
 	if every <= 0 {
@@ -255,7 +252,6 @@ func (b *bridge) pump(ctx context.Context, conn *websocket.Conn, inDone <-chan e
 			b.interrupt(conn)
 			return ctx.Err()
 		case err := <-readErr:
-			relayed = true
 			return err
 		case line := <-b.held:
 			if err := b.send(ctx, conn, line); err != nil {
