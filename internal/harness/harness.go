@@ -183,6 +183,13 @@ type Harness interface {
 	Probe(ctx context.Context) (Info, error)
 }
 
+// EnvUser is a harness that needs the environment harnesses start with
+// outside a session, to find its executable when probing, say. The daemon
+// hands it a function returning the current one before using the harness.
+type EnvUser interface {
+	UseEnv(env func() []string)
+}
+
 // StdioHarness is a harness spoken to over a child process's stdio. ctx in
 // Attach covers only the attaching.
 type StdioHarness interface {

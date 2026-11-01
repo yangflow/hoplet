@@ -54,9 +54,13 @@ func TestHarnessFollow(t *testing.T) {
 		"[harness.claude]\nfollow = false\n": false,
 	} {
 		c, err := Load(write(t, body))
-		if err != nil || c.Harness.Claude.Follows() != want {
+		if err != nil || c.Harness.Claude.Follows() != want || !c.Harness.Hermes.Follows() {
 			t.Errorf("%q: follows %v %v, want %v", body, c.Harness.Claude.Follows(), err, want)
 		}
+	}
+	c, err := Load(write(t, "[harness.hermes]\nfollow = false\n"))
+	if err != nil || c.Harness.Hermes.Follows() || !c.Harness.Claude.Follows() {
+		t.Fatalf("hermes off: %+v %v", c.Harness, err)
 	}
 }
 

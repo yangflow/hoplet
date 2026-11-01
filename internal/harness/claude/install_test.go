@@ -3,13 +3,14 @@ package claude
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/yangflow/hoplet/internal/harness/verified"
 )
 
 // ageUpdate moves the recorded follow-up back in time.
@@ -20,11 +21,7 @@ func ageUpdate(t *testing.T, home string, by time.Duration) {
 		t.Fatal("no update.json")
 	}
 	u.At = u.At.Add(-by)
-	b, err := json.Marshal(u)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := writeAtomic(updateFile(BinaryPath(home)), b, 0o600); err != nil {
+	if err := verified.Save(stateDir(BinaryPath(home)), u); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -300,39 +297,9 @@ func TestSelfCheckFailureIsMarked(t *testing.T) {
 	}
 }
 
-func TestNextUpdateCountsOnlySelfCheckFailures(t *testing.T) {
-	now := time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
-	check := (&selfCheckError{version: "2.1.500", err: errors.New("no approval")})
-	other := errors.New("claude: disk full")
-	prior := Update{Version: "2.1.500", Error: "x", Attempts: 2}
-	tests := []struct {
-		name         string
-		last         Update
-		failedBefore bool
-		err          error
-		wantAttempts int
-		wantErr      bool
-	}{
-		{"success", prior, true, nil, 0, false},
-		{"first check failure", Update{}, false, check, 1, true},
-		{"repeated check failure", prior, true, check, 3, true},
-		{"other failure is not counted", Update{}, false, other, 0, true},
-		{"other failure resets the count", prior, true, other, 0, true},
-		{"check failure after an uncounted one", Update{Version: "2.1.500", Error: "x"}, true, check, 1, true},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			u := nextUpdate(tt.last, tt.failedBefore, "2.1.400", "2.1.500", tt.err, now)
-			if u.Attempts != tt.wantAttempts || (u.Error != "") != tt.wantErr || u.From != "2.1.400" || u.Version != "2.1.500" || !u.At.Equal(now) {
-				t.Fatalf("%+v", u)
-			}
-		})
-	}
-}
-
 func TestNoticeForAnUncountedFailure(t *testing.T) {
 	u := Update{At: time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC), Version: "2.1.500", Error: "claude: disk full"}
-	got, attention := u.notice("2.1.400")
+	got, attention := notice(u, "2.1.400")
 	if !attention || !strings.Contains(got, "could not move to claude 2.1.500 on 2026-11-01: claude: disk full; it will try again") || strings.Contains(got, "attempt") {
 		t.Fatalf("notice %q %v", got, attention)
 	}

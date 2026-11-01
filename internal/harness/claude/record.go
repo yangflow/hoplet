@@ -8,13 +8,12 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
-	"path/filepath"
-	"slices"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/yangflow/hoplet/internal/harness"
+	"github.com/yangflow/hoplet/internal/harness/scrub"
 )
 
 // Step is one step of a recording script.
@@ -241,7 +240,7 @@ func Sanitize(in io.Reader, out io.Writer, dir, home string) error {
 	sc.Buffer(nil, harness.MaxLine)
 	enc := json.NewEncoder(out)
 	enc.SetEscapeHTML(false)
-	scrub := scrubber(dir, home)
+	clean := scrub.New(dir, home)
 	type kept struct {
 		dir, line, requestID string
 		// resolves is the approval this line settles: the request an
@@ -271,10 +270,10 @@ func Sanitize(in io.Reader, out io.Writer, dir, home string) error {
 		var b strings.Builder
 		le := json.NewEncoder(&b)
 		le.SetEscapeHTML(false)
-		if err := le.Encode(stripKey(v, "signature")); err != nil {
+		if err := le.Encode(scrub.StripKey(v, "signature")); err != nil {
 			return err
 		}
-		k := kept{dir: e.Dir, line: scrub(strings.TrimSpace(b.String()))}
+		k := kept{dir: e.Dir, line: clean(strings.TrimSpace(b.String()))}
 		if req, _ := v["request"].(map[string]any); e.Dir == "out" && v["type"] == "control_request" && req["subtype"] == "can_use_tool" {
 			k.requestID, _ = v["request_id"].(string)
 		}
@@ -314,81 +313,6 @@ func Sanitize(in io.Reader, out io.Writer, dir, home string) error {
 	return nil
 }
 
-// scrubber returns the function that replaces dir and home in a line. For
-// each it covers the given and the symlink-resolved path (macOS temporary
-// directories live under /var, a link to /private/var) and the dash slug
-// claude derives project directory names from. Longer paths go first, as
-// dir may be inside home.
-func scrubber(dir, home string) func(string) string {
-	type pair struct{ from, to string }
-	var pairs []pair
-	add := func(p, to string) {
-		if p == "" {
-			return
-		}
-		forms := []string{p}
-		if r, err := filepath.EvalSymlinks(p); err == nil && r != p {
-			forms = append(forms, r)
-		}
-		for _, f := range forms {
-			pairs = append(pairs, pair{f, to})
-			for _, slug := range []func(string) string{
-				func(p string) string { return strings.ReplaceAll(p, "/", "-") },
-				func(p string) string { // claude's project directory names
-					return strings.Map(func(r rune) rune {
-						if isAlnum(r) {
-							return r
-						}
-						return '-'
-					}, p)
-				},
-			} {
-				if from := slug(f); from != to && !slices.ContainsFunc(pairs, func(p pair) bool { return p.from == from }) {
-					pairs = append(pairs, pair{from, slug(to)})
-				}
-			}
-		}
-	}
-	add(dir, "/work")
-	add(home, "/Users/me")
-	slices.SortStableFunc(pairs, func(a, b pair) int { return len(b.from) - len(a.from) })
-	return func(s string) string {
-		for _, p := range pairs {
-			s = replacePath(s, p.from, p.to)
-		}
-		return s
-	}
-}
-
-// replacePath replaces the occurrences of the path from in s, except those
-// followed by an ASCII letter or digit, which continue into a longer name:
-// from "/Users/ann" leaves "/Users/anna/x" alone. Anything else after
-// it (a slash, a quote, a period, "-", "_", the end) ends the path; erring
-// toward scrubbing too much is intended.
-func replacePath(s, from, to string) string {
-	var b strings.Builder
-	for {
-		i := strings.Index(s, from)
-		if i < 0 {
-			break
-		}
-		end := i + len(from)
-		b.WriteString(s[:i])
-		if end < len(s) && isAlnum(rune(s[end])) {
-			b.WriteString(from) // part of a longer name
-		} else {
-			b.WriteString(to)
-		}
-		s = s[end:]
-	}
-	b.WriteString(s)
-	return b.String()
-}
-
-func isAlnum(c rune) bool {
-	return c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9'
-}
-
 // reduce trims a recorded line in place and reports whether to keep it.
 func reduce(dir string, v map[string]any) bool {
 	switch v["type"] {
@@ -423,22 +347,4 @@ func reduce(dir string, v map[string]any) bool {
 		}
 	}
 	return true
-}
-
-func stripKey(v any, key string) any {
-	switch x := v.(type) {
-	case map[string]any:
-		for k, e := range x {
-			if k == key {
-				delete(x, k)
-				continue
-			}
-			x[k] = stripKey(e, key)
-		}
-	case []any:
-		for i, e := range x {
-			x[i] = stripKey(e, key)
-		}
-	}
-	return v
 }

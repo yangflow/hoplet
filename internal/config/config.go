@@ -27,12 +27,14 @@ type Config struct {
 // Harness configures the harnesses Hoplet runs.
 type Harness struct {
 	Claude HarnessOptions `toml:"claude"`
+	Hermes HarnessOptions `toml:"hermes"`
 }
 
 // HarnessOptions configures one harness.
 type HarnessOptions struct {
-	// Follow, when false, stops the daemon from moving Hoplet's copy to
-	// the version on the user's PATH each day; unset means true.
+	// Follow, when false, stops the daemon from following the version on
+	// the user's PATH each day: moving Hoplet's copy of claude to it, or
+	// checking a new Hermes version. Unset means true.
 	Follow *bool `toml:"follow"`
 }
 
