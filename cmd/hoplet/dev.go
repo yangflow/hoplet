@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -13,19 +14,21 @@ import (
 
 	"github.com/yangflow/hoplet/internal/harness"
 	"github.com/yangflow/hoplet/internal/harness/claude"
+	"github.com/yangflow/hoplet/internal/harness/hermes"
 	"github.com/yangflow/hoplet/internal/home"
 	"github.com/yangflow/hoplet/proto"
 )
 
 const devUsage = `usage: hoplet dev record --steps FILE --out FILE [--dir DIR] [--bin PATH]
                          [--permission MODE] [--plan] [--effort LEVEL]
-       hoplet dev sanitize --in FILE --out FILE --dir DIR
+       hoplet dev sanitize [--harness claude|hermes] --in FILE --out FILE --dir DIR
 
 record runs claude the way Hoplet does, plays the steps (a JSON list, see
 the Claude Code adapter's Step) and writes every line both ways to --out.
-It uses your claude login and quota. The recording holds personal paths:
-sanitize it (with the --dir it was recorded in) before committing it as a
-contract-test fixture.
+It uses your claude login and quota. A Hermes recording is the spool of a
+real Hoplet session (sessions/ID/spool.jsonl in Hoplet's home). Recordings
+hold personal paths: sanitize them (with the --dir they were made in)
+before committing them as contract-test fixtures.
 `
 
 func (a app) dev(args []string) int {
@@ -114,10 +117,14 @@ func (a app) devSanitize(args []string) int {
 	inPath := fs.String("in", "", "the recording")
 	outPath := fs.String("out", "", "where to write the fixture")
 	dir := fs.String("dir", "", "the working directory the recording was made in")
+	kind := fs.String("harness", claude.Kind, "claude or hermes")
 	if code, ok := parse(fs, args, 0, 0); !ok {
 		return code
 	}
-	if *inPath == "" || *outPath == "" || *dir == "" {
+	sanitize := map[string]func(io.Reader, io.Writer, string, string) error{
+		claude.Kind: claude.Sanitize, hermes.Kind: hermes.Sanitize,
+	}[*kind]
+	if *inPath == "" || *outPath == "" || *dir == "" || sanitize == nil {
 		fs.Usage()
 		return 2
 	}
@@ -138,7 +145,7 @@ func (a app) devSanitize(args []string) int {
 	if err != nil {
 		return a.fail("dev sanitize", err)
 	}
-	err = claude.Sanitize(in, out, abs, userHome)
+	err = sanitize(in, out, abs, userHome)
 	if cerr := out.Close(); err == nil {
 		err = cerr
 	}

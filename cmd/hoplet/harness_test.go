@@ -177,3 +177,73 @@ func TestDevRecordUsesTheHarnessEnvironment(t *testing.T) {
 		t.Fatalf("recorder environment:\n%s", b)
 	}
 }
+
+// fakeHermesDir writes a hermes executable printing version into a new
+// directory.
+func fakeHermesDir(t *testing.T, version string) string {
+	t.Helper()
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "hermes"), []byte("#!/bin/sh\necho 'Hermes Agent v"+version+" (2026.9.24)'\n"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	return dir
+}
+
+func TestHarnessVerifyHermes(t *testing.T) {
+	h := t.TempDir()
+	t.Setenv("HOPLET_HOME", h)
+	dir := fakeHermesDir(t, "0.23.0")
+	var out, errb bytes.Buffer
+	var fail error
+	runs := 0
+	a := testApp(&out, &errb)
+	a.env = env.Static{"PATH=" + dir}
+	a.hermesCheck = func(_ context.Context, bin string, vars []string) error {
+		if bin != filepath.Join(dir, "hermes") || !slices.Contains(vars, "PATH="+dir) {
+			return errors.New("the self-check did not get the harness environment")
+		}
+		runs++
+		return fail
+	}
+	verify := func() (int, string) {
+		out.Reset()
+		return a.run([]string{"harness", "verify", "hermes"}), out.String()
+	}
+	fail = errors.New("no approval came")
+	if code, got := verify(); code != 1 || !strings.Contains(got, "failed the self-check") {
+		t.Fatalf("failing: exit %d %q", code, got)
+	}
+	fail = nil
+	if code, got := verify(); code != 0 || got != "hermes 0.23.0 passed the self-check\n" {
+		t.Fatalf("passing: exit %d %q", code, got)
+	}
+	if code, got := verify(); code != 0 || !strings.Contains(got, "needs no check") || runs != 2 {
+		t.Fatalf("again: exit %d %q, %d runs", code, got, runs)
+	}
+}
+
+func TestDaemonChecksANewHermes(t *testing.T) {
+	h := t.TempDir()
+	dir := fakeHermesDir(t, "0.23.0")
+	var out, errb bytes.Buffer
+	runs := 0
+	a := testApp(&out, &errb)
+	a.hermesCheck = func(context.Context, string, []string) error { runs++; return nil }
+	logs := &bytes.Buffer{}
+	work := a.maintenance(h, slog.New(slog.NewTextHandler(logs, nil)))
+	vars := []string{"PATH=" + dir}
+	if err := os.WriteFile(config.Path(h), []byte("[harness.hermes]\nfollow = false\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	work(context.Background(), vars)
+	if runs != 0 || logs.Len() != 0 {
+		t.Fatalf("checked although turned off: %d runs, log %s", runs, logs)
+	}
+	if err := os.Remove(config.Path(h)); err != nil {
+		t.Fatal(err)
+	}
+	work(context.Background(), vars)
+	if runs != 1 || !strings.Contains(logs.String(), "hermes passed the self-check") {
+		t.Fatalf("%d runs, log %s", runs, logs)
+	}
+}

@@ -26,6 +26,9 @@ commands:
   wait     ID [--for idle|blocked|done] [--timeout D]
   approve  ID [APPROVAL] --option OPTION
   set      ID [--permission MODE] [--plan on|off] [--fast on|off] [--effort LEVEL]
+  interrupt ID     end the running turn
+  steer    ID TEXT  add TEXT to the running turn (harnesses that support it)
+  stop     ID      stop the session's harness process
   archive  ID
 
 ID may be a unique prefix of at least 4 characters. Every command takes
@@ -61,6 +64,7 @@ func (a app) session(args []string) int {
 	cmds := map[string]func([]string) int{
 		"new": a.sessionNew, "list": a.sessionList, "send": a.sessionSend, "watch": a.sessionWatch,
 		"wait": a.sessionWait, "approve": a.sessionApprove, "set": a.sessionSet, "archive": a.sessionArchive,
+		"interrupt": a.sessionInterrupt, "steer": a.sessionSteer, "stop": a.sessionStop,
 	}
 	cmd, ok := cmds[args[0]]
 	if !ok {
@@ -581,4 +585,51 @@ func describeMode(s proto.Session) string {
 		out += ", effort " + string(s.Effort)
 	}
 	return out
+}
+
+// sessionOneShot runs a command that takes only a session ID (and, with
+// text, one more argument) and prints done.
+func (a app) sessionOneShot(name string, args []string, withText bool, call func(ctx context.Context, c *client.Client, id proto.SessionID, text string) error, done string) int {
+	fs := a.flags(name, sessionUsage)
+	asJSON := fs.Bool("json", false, "print JSON")
+	n := 1
+	if withText {
+		n = 2
+	}
+	if code, ok := parse(fs, args, n, n); !ok {
+		return code
+	}
+	return a.withClient(name, commandTimeout, func(ctx context.Context, c *client.Client) error {
+		id, err := resolveID(ctx, c, fs.Arg(0))
+		if err != nil {
+			return err
+		}
+		if err := call(ctx, c, id, fs.Arg(1)); err != nil {
+			return err
+		}
+		if *asJSON {
+			a.printJSON(map[string]string{done: string(id)})
+		} else {
+			fmt.Fprintln(a.stdout, done, id)
+		}
+		return nil
+	})
+}
+
+func (a app) sessionInterrupt(args []string) int {
+	return a.sessionOneShot("session interrupt", args, false, func(ctx context.Context, c *client.Client, id proto.SessionID, _ string) error {
+		return c.Interrupt(ctx, id)
+	}, "interrupted")
+}
+
+func (a app) sessionSteer(args []string) int {
+	return a.sessionOneShot("session steer", args, true, func(ctx context.Context, c *client.Client, id proto.SessionID, text string) error {
+		return c.Steer(ctx, proto.SteerParams{Session: id, Text: text})
+	}, "steered")
+}
+
+func (a app) sessionStop(args []string) int {
+	return a.sessionOneShot("session stop", args, false, func(ctx context.Context, c *client.Client, id proto.SessionID, _ string) error {
+		return c.Stop(ctx, id)
+	}, "stopped")
 }
