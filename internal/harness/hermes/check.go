@@ -20,6 +20,10 @@ import (
 // checkStepTimeout bounds each step of the self-check.
 const checkStepTimeout = 3 * time.Minute
 
+// errCheckSetup marks a self-check failure before Hermes is involved, such
+// as no temporary directory; it is not the version's fault.
+var errCheckSetup = errors.New("hermes: self-check setup failed")
+
 // Checker checks a hermes executable on this machine; SelfCheck is the
 // real one.
 type Checker func(ctx context.Context, bin string, env []string) error
@@ -32,11 +36,11 @@ type Checker func(ctx context.Context, bin string, env []string) error
 func SelfCheck(ctx context.Context, bin string, env []string) (err error) {
 	dir, err := os.MkdirTemp("", "hoplet-check-")
 	if err != nil {
-		return fmt.Errorf("hermes: self-check: %w", err)
+		return errors.Join(errCheckSetup, err)
 	}
 	defer os.RemoveAll(dir)
-	io := startPipe(ctx, BridgeConfig{Hermes: bin, Env: env})
-	c := &check{ctx: ctx, run: newRun(io, harness.Spec{
+	bridge := startPipe(ctx, BridgeConfig{Hermes: bin, Env: env})
+	c := &check{ctx: ctx, run: newRun(bridge, harness.Spec{
 		Session: proto.SessionID("hoplet-check-" + rand.Text()[:12]), WorkDir: dir, Env: env, Mode: proto.ModeConfirm,
 	})}
 	defer func() { err = errors.Join(err, c.run.Close()) }()
@@ -88,7 +92,7 @@ func SelfCheck(ctx context.Context, bin string, env []string) (err error) {
 		return err
 	}
 
-	if err := c.run.Send(ctx, "Write the numbers from 1 to 300 as English words, one per line. Use no tools."); err != nil {
+	if err := c.run.Send(ctx, "Write the numbers from 1 to 1000 as English words, one per line. Use no tools."); err != nil {
 		return c.fail("send", err)
 	}
 	if _, err := c.until("streamed text", func(p proto.Payload) bool { _, ok := p.(proto.MessageDelta); return ok }); err != nil {
@@ -119,10 +123,13 @@ func (c *check) until(what string, match func(proto.Payload) bool) (proto.Payloa
 		case <-c.ctx.Done():
 			return nil, fmt.Errorf("hermes: self-check: %w", c.ctx.Err())
 		case <-timer.C:
-			return nil, fmt.Errorf("hermes: self-check: no %s within %v", what, checkStepTimeout)
+			return nil, fmt.Errorf("hermes: self-check: timed out after %v waiting for %s", checkStepTimeout, what)
 		case ev, ok := <-c.run.Events():
 			if !ok {
-				return nil, fmt.Errorf("hermes: self-check: the bridge stopped before %s: %w", what, c.run.Err())
+				if err := c.run.Err(); err != nil {
+					return nil, fmt.Errorf("hermes: self-check: the bridge stopped before %s: %w", what, err)
+				}
+				return nil, fmt.Errorf("hermes: self-check: the bridge stopped before %s", what)
 			}
 			if ev.Payload == nil {
 				continue
@@ -160,6 +167,7 @@ type pipe struct {
 	cancel context.CancelFunc
 	done   chan struct{}
 	once   sync.Once
+	err    error // what Bridge returned; written before done closes
 }
 
 func startPipe(ctx context.Context, cfg BridgeConfig) *pipe {
@@ -170,6 +178,9 @@ func startPipe(ctx context.Context, cfg BridgeConfig) *pipe {
 	cfg.In, cfg.Out = inR, outW
 	go func() {
 		err := Bridge(ctx, cfg)
+		if !errors.Is(err, context.Canceled) {
+			p.err = err
+		}
 		outW.CloseWithError(err)
 		inR.Close()
 	}()
@@ -194,16 +205,19 @@ func (p *pipe) WriteLine(_ context.Context, line []byte) error {
 func (p *pipe) Lines() <-chan harness.Line { return p.lines }
 func (p *pipe) Signal(string) error        { return nil }
 
-// Close stops the bridge, interrupting a turn it saw start.
+// Close stops the bridge, interrupting a turn it saw start, and returns the
+// error the bridge ended with, if any.
 func (p *pipe) Close() error {
+	var err error
 	p.once.Do(func() {
 		p.cancel()
 		p.in.Close()
 		for range p.lines {
 		}
 		<-p.done
+		err = p.err
 	})
-	return nil
+	return err
 }
 
 // Verify checks the Hermes the environment finds with check, unless its
@@ -233,6 +247,9 @@ func Verify(ctx context.Context, dir string, env []string, check Checker, force 
 	err = check(ctx, bin, env)
 	if err != nil && ctx.Err() != nil {
 		return verified.Outcome{}, false, ctx.Err() // shutting down: not the version's fault
+	}
+	if errors.Is(err, errCheckSetup) {
+		return verified.Outcome{}, false, err // a local failure: not the version's fault either
 	}
 	if err != nil {
 		err = errors.Join(verified.ErrSelfCheck, err)
