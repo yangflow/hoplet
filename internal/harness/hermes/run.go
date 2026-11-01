@@ -575,7 +575,11 @@ func (r *run) onSnapshot(result json.RawMessage, created, own bool) (out []proto
 		// Nothing runs: the latest receipt is the open turn's.
 		h.admission = r.held[len(r.held)-1].Admission
 	}
-	r.reconcile(s.Running, started)
+	if own || r.unadopted() == nil {
+		// A snapshot the old daemon asked for is older than the replay: it
+		// does not say what became of the store's open turn.
+		r.reconcile(s.Running, started)
+	}
 	if created {
 		// Hermes takes only "ask" at creation; anything looser is a change.
 		policy, _ := editPolicy(r.spec.Mode)
@@ -773,8 +777,17 @@ func (r *run) endWithout(h *turnRec, reason string) proto.Payload {
 // onStart handles a message.start: a turn is admitted. The first turn, if
 // it is another one, is over by now. A start never names the store's open
 // turn after a restart: Hermes runs one turn at a time, so that turn is
-// over, and with no receipt read for it, it ends as aborted.
+// over. It ends from the latest receipt held for it, or as aborted.
 func (r *run) onStart(admission string) []proto.Payload {
+	if h := r.unadopted(); h != nil && len(r.held) > 0 && admission != "" && r.find(admission) == nil &&
+		r.held[len(r.held)-1].Admission != admission {
+		// The replay reached the next start after the receipts the old
+		// daemon asked for: the latest is the open turn's. The new turn is
+		// queued first, so busy holds across the end.
+		h.admission = r.held[len(r.held)-1].Admission
+		r.enqueue(admission)
+		return r.settleHeld(nil)
+	}
 	if r.find(admission) == nil {
 		if admission != "" || len(r.queue) == 0 {
 			r.enqueue(admission)

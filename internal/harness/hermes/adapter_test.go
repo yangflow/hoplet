@@ -1258,21 +1258,67 @@ func TestATurnStartedWhileTheDaemonRestartedEndsTheOpenOne(t *testing.T) {
 	}
 }
 
-// TestAHeldReceiptOfAnEndedTurnYieldsOnlyItsUsage is the receipt answered
-// before the next start: the start still ends the open turn as aborted,
-// and the held receipt, not the new turn's, yields its usage at the
-// snapshot.
-func TestAHeldReceiptOfAnEndedTurnYieldsOnlyItsUsage(t *testing.T) {
+// TestAReplayedStartEndsTheOpenTurnFromItsHeldReceipt is the receipts
+// answered before the next start: the latest ends the open turn, the
+// earlier one yields only its usage, then the new turn starts.
+func TestAReplayedStartEndsTheOpenTurnFromItsHeldReceipt(t *testing.T) {
 	x := restarted(t)
+	x.push(orphan("a0", `,"usage":{"input_tokens":2,"output_tokens":2}`))
 	if p := x.push(orphan("a1", `,"usage":{"input_tokens":5,"output_tokens":3}`)); len(p) != 0 {
 		t.Fatalf("orphan %v", p)
 	}
-	if p := x.push(eventFor("a2", "message.start", `{}`)); len(p) != 2 || p[0] != restartAborted || p[1] != (proto.TurnStarted{}) {
+	p := x.push(eventFor("a2", "message.start", `{}`))
+	if len(p) != 5 || p[0] != (proto.Usage{InputTokens: 2, OutputTokens: 2}) || p[1] != (proto.Message{ID: "a1/0", Role: proto.RoleAssistant, Text: "x"}) ||
+		p[2] != (proto.Usage{InputTokens: 5, OutputTokens: 3}) || p[3] != (proto.TurnEnded{Reason: proto.TurnCompleted}) || p[4] != (proto.TurnStarted{}) {
 		t.Fatalf("a2 start %v", p)
 	}
-	if p := x.answer(0, runningA2); len(p) != 1 || p[0] != (proto.Usage{InputTokens: 5, OutputTokens: 3}) {
+	if p := x.answer(0, runningA2); len(p) != 0 {
 		t.Fatalf("snapshot %v", p)
 	}
+}
+
+// TestAQueuedTurnsReplayedStartFollowsTheOpenTurnAfterARestart is the old
+// daemon dying with a1's receipt in flight, before it read a2's start.
+func TestAQueuedTurnsReplayedStartFollowsTheOpenTurnAfterARestart(t *testing.T) {
+	x := restarted(t)
+	x.push(orphan("a1", ""))
+	if p := x.push(eventFor("a2", "message.start", `{}`)); len(p) != 3 || p[1] != (proto.TurnEnded{Reason: proto.TurnCompleted}) || p[2] != (proto.TurnStarted{}) {
+		t.Fatalf("a2 start %v", p)
+	}
+	if p := x.push(eventFor("a2", "message.delta", `{"text":"he"}`)); len(p) != 1 || p[0] != (proto.MessageDelta{MessageID: "a2/0", Text: "he"}) {
+		t.Fatalf("a2 delta %v", p)
+	}
+	if p := x.answer(0, runningA2); len(p) != 0 {
+		t.Fatalf("snapshot %v", p)
+	}
+	n := len(x.io.written())
+	x.push(complete("a2", "hello"))
+	if p := x.answer(n, receipt("a2", "terminal", "")); len(p) != 1 || p[0] != (proto.TurnEnded{Reason: proto.TurnCompleted}) {
+		t.Fatalf("a2 end %v", p)
+	}
+}
+
+// TestASnapshotTheOldDaemonAskedForLeavesTheOpenTurn checks that only this
+// run's own snapshot settles the store's open turn.
+func TestASnapshotTheOldDaemonAskedForLeavesTheOpenTurn(t *testing.T) {
+	x := restarted(t)
+	if p := x.push(`{"jsonrpc":"2.0","id":"old","result":` + idle + `}`); len(p) != 0 {
+		t.Fatalf("old idle snapshot %v", p)
+	}
+	old := `{"session_id":"s1","stored_session_id":"s1","running":true,"revision":2,"execution_generation":1,"pending":[{"admission_id":"a3","status":"started"}]}`
+	if p := x.push(`{"jsonrpc":"2.0","id":"old","result":` + old + `}`); len(p) != 0 {
+		t.Fatalf("old running snapshot %v", p)
+	}
+	if p := x.push(eventFor("a7", "message.delta", `{"text":"x"}`)); len(p) != 1 || p[0] != (proto.MessageDelta{MessageID: "a7/0", Text: "x"}) {
+		t.Fatalf("a7 delta %v", p)
+	}
+	t.Run("own", func(t *testing.T) {
+		y := restarted(t)
+		y.push(`{"jsonrpc":"2.0","id":"old","result":` + idle + `}`)
+		if p := y.answer(0, idle); len(p) != 1 || p[0] != restartAborted {
+			t.Fatalf("own snapshot %v", p)
+		}
+	})
 }
 
 // TestALateReceiptDoesNotEndTheOpenTurnAfterARestart is the old daemon
@@ -1311,6 +1357,7 @@ func TestAQueuedTurnIsNotTakenForTheOpenOneAfterARestart(t *testing.T) {
 	if p := x.push(orphan("a1", `,"usage":{"input_tokens":5,"output_tokens":3}`)); len(p) != 0 {
 		t.Fatalf("a1's receipt %v", p)
 	}
+	// Not a real replay: had the old daemon read a2's start, a2 would be the store's open turn.
 	if p := x.push(eventFor("a2", "message.delta", `{"text":"he"}`)); len(p) != 1 {
 		t.Fatalf("a2 delta %v", p)
 	}
