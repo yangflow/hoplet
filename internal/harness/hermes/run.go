@@ -102,12 +102,12 @@ type run struct {
 	// receiptDelay is the wait before a receipt is asked for again.
 	receiptDelay time.Duration
 	// reattach asks for a snapshot as the loop starts: the run attached to
-	// a running bridge (the daemon restarted) with a turn open in the
-	// store, and the snapshot says where that turn stands.
+	// a running bridge (the daemon restarted), and the snapshot says where
+	// the store's open turn stands, or finds a turn the store missed.
 	reattach bool
 	// holding is true until that snapshot answers: receipts the old daemon
 	// asked for that arrive while its open turn is not known yet are held
-	// in held, as the snapshot tells which of them ends that turn.
+	// in held, and that snapshot alone settles the open turn.
 	holding bool
 	held    []admitted
 	// orderMu orders user messages: it is held from the decision to queue
@@ -173,7 +173,7 @@ func newRun(io harness.Stdio, spec harness.Spec) *run {
 	// finds its connection attached to the session; a new bridge attaches
 	// when it connects.
 	r.attached = native != "" && spec.Resume == ""
-	r.reattach = r.attached && spec.State.InTurn
+	r.reattach = r.attached
 	r.holding = r.reattach
 	go r.loop()
 	return r
@@ -353,9 +353,11 @@ func (r *run) onResponse(f frame) (out []proto.Payload, native string) {
 	delete(r.requests, id)
 	r.mu.Unlock()
 	if e := f.rpcErr(); e != nil {
-		out = r.onError(req, e)
-		if req != nil && (req.method == "session.create" || req.method == "session.resume") && r.holding {
-			out = r.releaseHeld(out)
+		out, resent := r.onError(req, e)
+		if !resent && req != nil && (req.method == "session.create" || req.method == "session.resume") && r.holding {
+			// No snapshot is coming: settle as if nothing ran.
+			out = r.settleHeld(out, false)
+			out = r.advance(out)
 		}
 		return out, ""
 	}
@@ -453,10 +455,11 @@ func (r *run) onOrphan(result json.RawMessage) (out []proto.Payload, native stri
 // onOrphanReceipt reads a receipt the old daemon asked for. While its
 // open turn's admission is not known, the receipt may be that turn's or an
 // earlier turn's whose receipt was still due: it is held until the
-// snapshot this run asked for tells (see settleHeld). Without that
-// snapshot, the old daemon's open turn is taken to be the one the receipt
-// names. A receipt of a turn no longer kept (ended as aborted when a newer
-// turn started) yields only its usage.
+// snapshot this run asked for settles the open turn (see settleHeld).
+// Without that snapshot coming, the open turn is the one the receipt
+// names. A receipt that does not end the open turn yields nothing, not
+// even its usage: the old daemon may have counted it already, and usage
+// counted twice is worse than a late one lost.
 func (r *run) onOrphanReceipt(a admitted) []proto.Payload {
 	if h := r.unadopted(); h != nil && r.find(a.Admission) == nil {
 		if r.holding {
@@ -465,17 +468,22 @@ func (r *run) onOrphanReceipt(a admitted) []proto.Payload {
 		}
 		h.admission = a.Admission
 	}
-	if r.classify(a.Admission) == "" && r.find(a.Admission) == nil {
-		return usageOf(a)
-	}
-	return r.onReceipt(a)
-}
-
-func usageOf(a admitted) []proto.Payload {
-	if a.Usage == nil {
+	if h := r.head(); h == nil || !h.placeholder || h.admission != a.Admission {
 		return nil
 	}
-	return []proto.Payload{proto.Usage{InputTokens: a.Usage.Input, OutputTokens: a.Usage.Output}}
+	return r.onReceipt(quiet(a))
+}
+
+// quiet drops the final answer from a receipt the old daemon asked for:
+// it emitted that answer when it read the turn's message.complete, which
+// it does before it asks.
+func quiet(a admitted) admitted {
+	if a.Result != nil {
+		res := *a.Result
+		res.FinalResponse = ""
+		a.Result = &res
+	}
+	return a
 }
 
 // adoptHeld applies a held receipt of the turn the open one was found to
@@ -484,41 +492,31 @@ func (r *run) adoptHeld(out []proto.Payload, admission string) []proto.Payload {
 	for i, a := range r.held {
 		if a.Admission == admission {
 			r.held = slices.Delete(r.held, i, i+1)
-			return append(out, r.onReceipt(a)...)
+			return append(out, r.onReceipt(quiet(a))...)
 		}
 	}
 	return out
 }
 
-// settleHeld applies the held receipts once the snapshot asked for on
-// reattaching has reconciled the queue: the first turn's receipt ends it,
-// the others are earlier turns' and yield only their usage.
-func (r *run) settleHeld(out []proto.Payload) []proto.Payload {
+// settleHeld settles the store's open turn when the snapshot asked for on
+// reattaching answers (running says what it found), or when it will not
+// come (running false). If that turn is still unknown and is over (nothing
+// runs, or a newer turn started), the latest receipt held is its own; the
+// others are earlier turns' and are dropped (see onOrphanReceipt). The
+// queue is reconciled before this runs, and advanced after it.
+func (r *run) settleHeld(out []proto.Payload, running bool) []proto.Payload {
 	held := r.held
 	r.held, r.holding = nil, false
-	for _, a := range held {
-		if r.classify(a.Admission) != "" {
-			out = append(out, r.onReceipt(a)...)
-		} else {
-			out = append(out, usageOf(a)...)
+	h := r.unadopted()
+	if h == nil || len(held) == 0 || (running && !h.ended) {
+		if h != nil && !running {
+			h.ended = true
 		}
+		return out
 	}
-	return out
-}
-
-// releaseHeld applies the held receipts when the snapshot asked for on
-// reattaching was refused: the first names the open turn, and with none
-// the open turn ends as aborted.
-func (r *run) releaseHeld(out []proto.Payload) []proto.Payload {
-	held := r.held
-	r.held, r.holding = nil, false
-	for _, a := range held {
-		out = append(out, r.onOrphanReceipt(a)...)
-	}
-	if h := r.unadopted(); h != nil {
-		h.ended = true
-	}
-	return r.advance(out)
+	last := held[len(held)-1]
+	h.admission, h.ended = last.Admission, true
+	return append(out, r.onReceipt(quiet(last))...)
 }
 
 // onSnapshot reads a snapshot; own is true for the answer to this run's
@@ -549,11 +547,15 @@ func (r *run) onSnapshot(result json.RawMessage, created, own bool) (out []proto
 	// their generation); those it no longer lists were settled while
 	// Hoplet was not connected.
 	open := map[string]prompt{}
+	var unknown []proto.Payload
 	for _, p := range s.Prompts {
 		if p.Kind == "approval" {
 			open[p.ID] = p
 			if _, ok := r.approvals[p.ID]; !ok {
 				r.approvals[p.ID] = &approval{generation: p.Generation}
+				a := r.approvalRequested(p)
+				a.ToolCallID = "" // its tool is not known here
+				unknown = append(unknown, a)
 			}
 		}
 	}
@@ -571,11 +573,8 @@ func (r *run) onSnapshot(result json.RawMessage, created, own bool) (out []proto
 		native = s.Session
 	}
 	settle := own && r.holding
-	if h := r.unadopted(); settle && !s.Running && h != nil && len(r.held) > 0 {
-		// Nothing runs: the latest receipt is the open turn's.
-		h.admission = r.held[len(r.held)-1].Admission
-	}
-	if own || r.unadopted() == nil {
+	openTurn := r.unadopted()
+	if own || openTurn == nil {
 		// A snapshot the old daemon asked for is older than the replay: it
 		// does not say what became of the store's open turn.
 		r.reconcile(s.Running, started)
@@ -609,9 +608,20 @@ func (r *run) onSnapshot(result json.RawMessage, created, own bool) (out []proto
 	r.orderMu.Unlock()
 	r.pumpMutations(ctx)
 	if settle {
-		out = r.settleHeld(out)
+		out = r.settleHeld(out, s.Running)
 	}
 	out = r.advance(out)
+	if h := r.head(); own && openTurn != nil && h == openTurn && h.admission != "" && !h.ended && h.complete == nil {
+		// The store's open turn runs: its message.complete may have been
+		// read by the old daemon already, so ask how it ended.
+		h.probe, h.asked = true, true
+		if err := r.requestReceipt(ctx, h.admission); err != nil {
+			h.probe, h.asked = false, false
+		}
+	}
+	// Approvals this run does not know were raised before it reattached or
+	// while it was not connected; the store ignores one it already has.
+	out = append(out, unknown...)
 	return out, native
 }
 
@@ -623,6 +633,8 @@ type turnRec struct {
 	ended       bool             // known to be over in Hermes; its end comes from its receipt
 	asked       bool             // its receipt was asked for on this connection
 	placeholder bool             // the store's open turn after a daemon restart
+	seen        bool             // a placeholder whose events this run translates
+	probe       bool             // a running placeholder's receipt asked for at once
 	complete    *completePayload // its message.complete, when seen
 	events      []event          // its events, kept until it is the first
 }
@@ -675,7 +687,10 @@ func (r *run) enqueue(admission string) {
 	}
 }
 
-// buffer keeps an event of a turn that is not the first yet.
+// buffer keeps an event of a turn that is not the first yet. Kept events
+// are in memory only: their lines are committed, so a daemon restart loses
+// them. A kept approval is listed again by the next snapshot (onSnapshot);
+// the rest are not recovered.
 func (t *turnRec) buffer(ev event) {
 	if ev.Type == "message.delta" && len(t.events) >= maxQueuedEvents {
 		return
@@ -736,6 +751,8 @@ func (r *run) advance(out []proto.Payload) []proto.Payload {
 				out = append(out, r.translateEvent(ev)...)
 			}
 			continue
+		case h.ended && h.admission == "" && h.placeholder && r.holding:
+			// The snapshot asked for on reattaching settles it.
 		case h.ended && h.admission == "":
 			msg := "the turn ended while Hoplet was not connected"
 			if h.placeholder {
@@ -777,17 +794,9 @@ func (r *run) endWithout(h *turnRec, reason string) proto.Payload {
 // onStart handles a message.start: a turn is admitted. The first turn, if
 // it is another one, is over by now. A start never names the store's open
 // turn after a restart: Hermes runs one turn at a time, so that turn is
-// over. It ends from the latest receipt held for it, or as aborted.
+// over. It ends when the snapshot asked for on reattaching settles it
+// (settleHeld), or as aborted.
 func (r *run) onStart(admission string) []proto.Payload {
-	if h := r.unadopted(); h != nil && len(r.held) > 0 && admission != "" && r.find(admission) == nil &&
-		r.held[len(r.held)-1].Admission != admission {
-		// The replay reached the next start after the receipts the old
-		// daemon asked for: the latest is the open turn's. The new turn is
-		// queued first, so busy holds across the end.
-		h.admission = r.held[len(r.held)-1].Admission
-		r.enqueue(admission)
-		return r.settleHeld(nil)
-	}
 	if r.find(admission) == nil {
 		if admission != "" || len(r.queue) == 0 {
 			r.enqueue(admission)
@@ -874,9 +883,11 @@ func (r *run) onReceipt(a admitted) []proto.Payload {
 		return out
 	}
 	h := r.head()
-	if h.complete == nil && a.Result != nil && a.Result.FinalResponse != "" {
+	if h.complete == nil && (!h.placeholder || h.seen) && a.Result != nil && a.Result.FinalResponse != "" {
 		// Recovered after a lost connection: the answer was never streamed
-		// here.
+		// here. The store's open turn after a restart that this run has not
+		// streamed got its answer from the old daemon, or gets it from a
+		// replayed message.complete.
 		out = append(out, proto.Message{ID: r.messageID(a.Admission), Role: proto.RoleAssistant, Text: a.Result.FinalResponse})
 	}
 	usage()
@@ -923,6 +934,11 @@ func (r *run) giveUp(admission, kind, reason string) []proto.Payload {
 	delete(r.retries, admission)
 	if kind == receiptLate {
 		delete(r.late, admission)
+		return nil
+	}
+	if h := r.head(); h.probe && h.complete == nil && !h.ended {
+		// It runs: its own message.complete ends it.
+		h.probe, h.asked = false, false
 		return nil
 	}
 	return r.advance([]proto.Payload{r.endWithout(r.head(), reason)})
@@ -1009,8 +1025,8 @@ func (r *run) onMutated(req *request, result json.RawMessage) []proto.Payload {
 
 // onError retries a request refused for a stale generation or revision
 // once with the fresh values the refusal carries; other refusals become
-// errors.
-func (r *run) onError(req *request, e *rpcError) []proto.Payload {
+// errors. resent reports a retry written.
+func (r *run) onError(req *request, e *rpcError) (out []proto.Payload, resent bool) {
 	reason := e.Data.Reason
 	if reason == "" {
 		reason = e.Message
@@ -1021,20 +1037,20 @@ func (r *run) onError(req *request, e *rpcError) []proto.Payload {
 	}
 	switch method {
 	case "session.mutate":
-		return r.onMutateRefused(req, reason, e)
+		return r.onMutateRefused(req, reason, e), false
 	case "prompt.receipt":
 		adm, _ := req.params["admission_id"].(string)
 		if kind := r.classify(adm); kind != "" {
-			return r.giveUp(adm, kind, "Hermes has no record of the turn")
+			return r.giveUp(adm, kind, "Hermes has no record of the turn"), false
 		}
-		return nil
+		return nil, false
 	case "session.interrupt":
 		if reason == "stale_generation" {
-			return nil // the turn it targeted is over
+			return nil, false // the turn it targeted is over
 		}
 	case "session.steer":
 		if reason == "stale_generation" {
-			return []proto.Payload{proto.Error{Message: "the turn ended before the steer reached Hermes"}}
+			return []proto.Payload{proto.Error{Message: "the turn ended before the steer reached Hermes"}}, false
 		}
 	}
 	if req != nil && !req.retried && (reason == "stale_generation" || reason == "revision_conflict") &&
@@ -1055,7 +1071,7 @@ func (r *run) onError(req *request, e *rpcError) []proto.Payload {
 		ctx, cancel := context.WithTimeout(context.Background(), writeTimeout)
 		defer cancel()
 		if err := r.send(ctx, &request{method: req.method, params: params, retried: true}); err == nil {
-			return nil
+			return nil, true
 		}
 	}
 	msg := fmt.Sprintf("Hermes refused %s: %s", method, reason)
@@ -1071,7 +1087,7 @@ func (r *run) onError(req *request, e *rpcError) []proto.Payload {
 	if e.Data.Detail != "" {
 		msg += " (" + e.Data.Detail + ")"
 	}
-	return []proto.Payload{proto.Error{Message: msg}}
+	return []proto.Payload{proto.Error{Message: msg}}, false
 }
 
 func (r *run) onEvent(ev event) []proto.Payload {
@@ -1100,9 +1116,9 @@ func (r *run) onEvent(ev event) []proto.Payload {
 	// An event of a turn: the first turn's is translated, a later one's
 	// kept until that turn comes first, any other is dropped.
 	adopted := false
-	if h := r.unadopted(); h != nil && ev.Admission != "" && r.find(ev.Admission) == nil {
+	if h := r.unadopted(); h != nil && !h.ended && ev.Admission != "" && r.find(ev.Admission) == nil {
 		h.admission = ev.Admission // reattached to a running bridge: the running turn's content
-		adopted = true
+		h.seen, adopted = true, true
 	}
 	h := r.head()
 	switch {
