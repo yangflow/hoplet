@@ -75,9 +75,6 @@ type App struct {
 	sort     catalog.Sort
 	show     catalog.Show
 	archived bool
-	inbox    bool   // list the sessions that need me, in both modes
-	search   bool   // the search field is open
-	query    string // what the list is filtered by
 	selected string
 	closed   map[string]bool // collapsed directory groups
 	hideSide bool
@@ -123,22 +120,12 @@ func (a *App) Apply(it proto.CatalogItem) {
 	a.markRead()
 }
 
-// SetMode switches between Personal and Code, leaving the inbox.
+// SetMode switches between Personal and Code.
 func (a *App) SetMode(m proto.Mode) {
 	if a.mode != m {
 		a.mode, a.archived, a.selected = m, false, ""
 	}
-	a.inbox = false
 }
-
-// ToggleInbox shows or leaves the inbox: the sessions waiting on me.
-func (a *App) ToggleInbox() { a.inbox, a.archived = !a.inbox, false }
-
-// Search opens the search field over the list.
-func (a *App) Search() { a.search = true }
-
-// closeSearch closes the search field and shows the whole list again.
-func (a *App) closeSearch() { a.search, a.query = false, "" }
 
 // ToggleSidebar hides or shows the sidebar.
 func (a *App) ToggleSidebar() { a.hideSide = !a.hideSide }

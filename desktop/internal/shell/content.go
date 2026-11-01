@@ -7,17 +7,19 @@ import (
 	"github.com/yangflow/hoplet/proto"
 )
 
-// content draws the content area: the selected session's title bar, as
-// tall as the sidebar's top row so both line up with the traffic lights.
-// The conversation comes with the session view.
+// content draws the content area: the selected session's title bar. With
+// the sidebar hidden, the traffic lights and the window buttons move into
+// it, and it grows to the sidebar's top row so they line up. The
+// conversation comes with the session view.
 func (a *App) content(c *ui.Context, k theme.Colors) {
 	bar := c.TitleBar()
 	ui.Column(c).Grow(1).Background(k.Pane).Children(func() {
-		left := float32(16)
+		left, h := float32(20), float32(theme.TitleBar)
 		if a.hideSide {
-			left = bar.Left + 8
+			left, h = bar.Left+8, topHeight(bar)
 		}
-		ui.Row(c).Height(topHeight(bar)).Padding(0, 12, 0, left).Gap(8).AlignItems(ui.Center).DragWindow().Children(func() {
+		ui.Row(c).Height(h).Padding(0, 8, 0, left).Gap(8).AlignItems(ui.Center).
+			BorderWidth(0, 0, 1, 0).BorderColor(k.Line).DragWindow().Children(func() {
 			if a.hideSide {
 				ui.Row(c).Gap(2).Children(func() { a.windowButtons(c, k) })
 			}
@@ -27,6 +29,8 @@ func (a *App) content(c *ui.Context, k theme.Colors) {
 			}
 			if s.Mode == proto.ModeCode {
 				a.harnessIcon(c, k, s.Harness.Kind, theme.IconSize)
+			} else {
+				a.avatarSized(c, k, s, 22)
 			}
 			title := theme.UIStrong.On(ui.Text(c, name(s))).TextColor(k.Fg).SingleLine().Shrink(1)
 			if s.Directory != "" {
@@ -35,7 +39,7 @@ func (a *App) content(c *ui.Context, k theme.Colors) {
 			if title.DoubleClicked() {
 				a.Rename()
 			}
-			iconButton(c, k, a.icons.Menu, "会话菜单", false).Size(24, 24).Menu(func(m *ui.Menu) { a.sessionMenu(m, s) })
+			iconButton(c, k, a.icons.Menu, "会话菜单", false).Size(22, 22).Margin(0, 0, 0, -4).Menu(func(m *ui.Menu) { a.sessionMenu(m, s) })
 		})
 		ui.Box(c).Grow(1).Center().Children(func() {
 			if _, ok := a.current(); !ok {

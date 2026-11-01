@@ -56,7 +56,7 @@ func newApp(t *testing.T) (*App, *host, *ui.Tester, *[]State) {
 
 func TestSidebarLists(t *testing.T) {
 	_, _, tt, states := newApp(t)
-	for _, want := range []string{"hoplet", "site", "Fix sync", "Add tray", "新会话", "未读", "3 小时", "studio"} {
+	for _, want := range []string{"hoplet", "site", "Fix sync", "Add tray", "新会话", "未读", "3 小时", "studio", "全部机器"} {
 		if !tt.HasText(want) {
 			t.Errorf("no %q in %q", want, tt.Texts())
 		}
@@ -125,7 +125,7 @@ func TestSessionMenu(t *testing.T) {
 	if err := tt.RightClick("Add tray"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tt.ChooseMenuItem("在 Finder 中显示"); err != nil {
+	if err := tt.ChooseMenuItem("在 Finder 中显示目录"); err != nil {
 		t.Fatal(err)
 	}
 	if !reflect.DeepEqual(h.revealed, []string{"/w/hoplet"}) {
@@ -187,7 +187,7 @@ func TestModesAndArrange(t *testing.T) {
 	if err := tt.Click("排列"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tt.ChooseMenuItem("需要我处理的"); err != nil {
+	if err := tt.ChooseMenuItem("显示", "需要我处理的  1"); err != nil {
 		t.Fatal(err)
 	}
 	tt.Frame()
@@ -262,38 +262,6 @@ func TestBackForward(t *testing.T) {
 	}})
 	if a.Back(); a.selected != "s1" {
 		t.Fatalf("back over a missing session selected %q", a.selected)
-	}
-}
-
-func TestInboxAndSearch(t *testing.T) {
-	a, _, tt, _ := newApp(t)
-	if r, ok := tt.Find("1"); !ok || r.W == 0 {
-		t.Fatalf("no inbox count in %q", tt.Texts())
-	}
-	if err := tt.Click("收件箱"); err != nil {
-		t.Fatal(err)
-	}
-	if !a.inbox || !tt.HasText("Add tray") || tt.HasText("Fix sync") {
-		t.Fatalf("inbox texts %q", tt.Texts())
-	}
-	if err := tt.Click("Code ⌘2"); err != nil {
-		t.Fatal(err)
-	}
-	if a.inbox {
-		t.Fatal("switching mode kept the inbox")
-	}
-	if err := tt.Click("搜索"); err != nil {
-		t.Fatal(err)
-	}
-	tt.Type("old")
-	tt.Frame()
-	if !tt.HasText("Old idea") || tt.HasText("Fix sync") || tt.HasText("Add tray") {
-		t.Fatalf("search texts %q", tt.Texts())
-	}
-	tt.Key(0, ui.KeyEscape)
-	tt.Frame()
-	if a.search || a.query != "" || !tt.HasText("Fix sync") {
-		t.Fatalf("search not closed: %q", tt.Texts())
 	}
 }
 

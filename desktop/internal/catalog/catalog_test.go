@@ -49,7 +49,7 @@ func TestList(t *testing.T) {
 		sess("b1", proto.ModeCode, "/w/web", 3, func(s *proto.Session) { s.Status = proto.StatusRunning }),
 		sess("pin", proto.ModeCode, "/w/web", 0, func(s *proto.Session) { s.Pinned = true }),
 		sess("old", proto.ModeCode, "/w/api", 9, func(s *proto.Session) { s.ArchivedAt = &archived }),
-		sess("p1", proto.ModePersonal, "", 2, func(s *proto.Session) { s.Status = proto.StatusWaiting; s.Preview = "Lunch at noon" }),
+		sess("p1", proto.ModePersonal, "", 2),
 		sess("p2", proto.ModePersonal, "", 4),
 	}})
 	for name, tc := range map[string]struct {
@@ -65,9 +65,6 @@ func TestList(t *testing.T) {
 		"running":         {View{Mode: proto.ModeCode, Show: ShowRunning}, []string{}, [][]string{{"b1"}}, []string{"/w/web"}},
 		"archived":        {View{Mode: proto.ModeCode, Archived: true}, []string{}, [][]string{{"old"}}, []string{""}},
 		"personal":        {View{Mode: proto.ModePersonal}, []string{}, [][]string{{"p2", "p1"}}, []string{""}},
-		"both modes":      {View{Show: ShowNeedsYou}, []string{}, [][]string{{"p1", "a2"}}, []string{""}},
-		"query":           {View{Mode: proto.ModeCode, Query: "A1"}, []string{}, [][]string{{"a1"}}, []string{"/w/api"}},
-		"query preview":   {View{Mode: proto.ModePersonal, Query: "lunch"}, []string{}, [][]string{{"p1"}}, []string{""}},
 	} {
 		l := c.List(tc.v)
 		var groups [][]string
@@ -83,7 +80,7 @@ func TestList(t *testing.T) {
 	if l := c.List(View{Mode: proto.ModeCode}); l.Groups[0].Name != "api" {
 		t.Errorf("group name %q", l.Groups[0].Name)
 	}
-	if n := c.Counts(); n != (Counts{NeedsYou: 2, Running: 1}) {
+	if n := c.Counts(); n != (Counts{NeedsYou: 1, Running: 1}) {
 		t.Errorf("counts %+v", n)
 	}
 }

@@ -1,6 +1,7 @@
 package shell
 
 import (
+	"fmt"
 	"unicode"
 	"unicode/utf8"
 
@@ -15,26 +16,21 @@ import (
 // list header, the sessions and the footer.
 func (a *App) sidebar(c *ui.Context, k theme.Colors) {
 	bar := c.TitleBar()
-	ui.Column(c).Width(theme.SidebarWidth).Background(k.Side).Children(func() {
-		ui.Row(c).Height(topHeight(bar)).Padding(0, 12, 0, bar.Left+8).Gap(2).AlignItems(ui.Center).DragWindow().Children(func() {
+	ui.Column(c).Width(theme.SidebarWidth).Background(k.Side).BorderWidth(0, 1, 0, 0).BorderColor(k.SideLine).Children(func() {
+		ui.Row(c).Height(topHeight(bar)).Padding(0, 8, 0, bar.Left+8).Gap(2).AlignItems(ui.Center).DragWindow().Children(func() {
 			a.windowButtons(c, k)
 			ui.Spacer(c)
 			a.modeSwitch(c, k)
 		})
-		a.entries(c, k)
-		ui.Row(c).Height(theme.RowHeight).Padding(0, 8, 0, 16).AlignItems(ui.Center).Children(func() {
-			label := "会话"
-			switch {
-			case a.inbox:
-				label = "收件箱"
-			case a.mode == proto.ModePersonal:
-				label = "伙伴"
-			case a.archived:
+		// The machine scope ("全部机器 ▾") comes with several machines.
+		ui.Row(c).Height(theme.RowHeight).Margin(8, 0, 0, 0).Padding(0, 8, 0, 16).AlignItems(ui.Center).Children(func() {
+			label := "全部机器"
+			if a.archived {
 				label = "已归档"
 			}
-			theme.Label.On(ui.Text(c, label)).TextColor(k.Muted).Grow(1)
-			if a.mode == proto.ModeCode && !a.archived && !a.inbox {
-				iconButton(c, k, a.icons.Arrange, "排列", false).Menu(a.arrangeMenu)
+			theme.UIStrong.On(ui.Text(c, label)).TextColor(k.Fg).Grow(1)
+			if a.mode == proto.ModeCode && !a.archived {
+				iconButton(c, k, a.icons.Arrange, "排列", false).Size(26, 26).Menu(a.arrangeMenu)
 			}
 		})
 		ui.Scroll(c).Grow(1).Children(func() { a.list(c, k) })
@@ -70,62 +66,10 @@ func (a *App) windowButtons(c *ui.Context, k theme.Colors) {
 	}
 }
 
-// entries are the rows under the top row: new session, search and the
-// inbox with the count of sessions waiting on me. New session comes with
-// the session view and is disabled until then.
-func (a *App) entries(c *ui.Context, k theme.Colors) {
-	ui.Column(c).Padding(4, 8).Children(func() {
-		entry(c, k, a.icons.New, "新建", "新建会话 ⌘N", false).Disabled(true)
-		if a.search {
-			a.searchField(c, k)
-		} else if entry(c, k, a.icons.Search, "搜索", "搜索 ⌘K", false).Clicked() {
-			a.Search()
-		}
-		inbox := entry(c, k, a.icons.Inbox, "收件箱", "收件箱 ⇧⌘I", a.inbox)
-		if n := a.cat.Counts().NeedsYou; n > 0 {
-			inbox.Children(func() {
-				ui.Box(c).Padding(0, 6).Radius(theme.RadiusPill).Background(k.Attn).Children(func() {
-					theme.Caption.On(ui.Textf(c, "%d", n)).TextColor(k.OnAttn).FontWeight(600).FontFeatures("tnum")
-				})
-			})
-		}
-		if inbox.Clicked() {
-			a.ToggleInbox()
-		}
-	})
-}
-
-// entry is a row of the entries: icon and label; tip names its shortcut.
-// Callers may add children after the label.
-func entry(c *ui.Context, k theme.Colors, icon *ui.SVG, label, tip string, on bool) ui.Element {
-	r := ui.Row(c.Key(label)).Height(theme.RowHeight).Padding(0, 8).Gap(8).AlignItems(ui.Center).
-		Radius(theme.RadiusRow).Label(label).Tooltip(tip)
-	switch {
-	case on:
-		r.Background(k.SelRow)
-	case r.Hovered():
-		r.Background(k.Fill)
-	}
-	return r.Children(func() {
-		ui.Icon(c, icon).FontSize(theme.IconSize).TextColor(k.Fg3)
-		theme.UI.On(ui.Text(c, label)).TextColor(k.Fg).Grow(1)
-	})
-}
-
-// searchField filters the list by title and preview; Escape closes it.
-func (a *App) searchField(c *ui.Context, k theme.Colors) {
-	ui.Row(c).Height(theme.RowHeight).Padding(0, 8).Gap(8).AlignItems(ui.Center).Radius(theme.RadiusRow).Background(k.Fill).Children(func() {
-		ui.Icon(c, a.icons.Search).FontSize(theme.IconSize).TextColor(k.Fg3)
-		in := ui.TextInput(c, &a.query).AutoFocus().Placeholder("搜索会话").Label("搜索会话").Grow(1)
-		if in.Shortcut(0, ui.KeyEscape) {
-			a.closeSearch()
-		}
-	})
-}
-
-// modeSwitch is the Personal | Code segmented switch, icons only.
+// modeSwitch is the Personal | Code segmented switch, icons only; the
+// chosen side is raised.
 func (a *App) modeSwitch(c *ui.Context, k theme.Colors) {
-	ui.Row(c).Padding(2).Gap(2).Radius(theme.RadiusControl).Background(k.Fill2).Children(func() {
+	ui.Row(c).Padding(2).Gap(2).Radius(8).Background(k.Line).Children(func() {
 		for _, m := range []struct {
 			mode proto.Mode
 			icon *ui.SVG
@@ -134,10 +78,15 @@ func (a *App) modeSwitch(c *ui.Context, k theme.Colors) {
 			{proto.ModePersonal, a.icons.Personal, "Personal ⌘1"},
 			{proto.ModeCode, a.icons.Code, "Code ⌘2"},
 		} {
-			b := iconButton(c.Key(m.mode), k, m.icon, m.tip, a.mode == m.mode).Size(30, 24)
-			if a.mode == m.mode {
-				b.Background(k.Raised)
+			on := a.mode == m.mode
+			b := ui.Button(c.Key(m.mode), "").Label(m.tip).Tooltip(m.tip).Size(30, 26).Padding(0).
+				Radius(theme.RadiusControl).Border(0, ui.Transparent).Background(ui.Transparent)
+			color := k.Muted
+			if on {
+				b.Background(k.Raised).Shadow(0, 0.5, 1.5, 0, ui.RGBA(0, 0, 0, .18))
+				color = k.Fg
 			}
+			b.Children(func() { ui.Icon(c, m.icon).FontSize(theme.IconSize).TextColor(color) })
 			if b.Clicked() {
 				a.SetMode(m.mode)
 			}
@@ -145,48 +94,41 @@ func (a *App) modeSwitch(c *ui.Context, k theme.Colors) {
 	})
 }
 
-// arrangeMenu sorts and filters the Code list.
+// arrangeMenu has two submenus: how the Code list is sorted, and which
+// sessions it shows, with their counts.
 func (a *App) arrangeMenu(m *ui.Menu) {
-	for _, s := range []struct {
-		by    catalog.Sort
-		label string
-	}{{catalog.ByUpdated, "最近更新"}, {catalog.ByCreated, "创建时间"}, {catalog.ByName, "名称"}} {
-		if m.Item(s.label).Radio(a.sort == s.by).Chosen() {
-			a.sort = s.by
+	m.Submenu("排序", func(m *ui.Menu) {
+		for _, s := range []struct {
+			by    catalog.Sort
+			label string
+		}{{catalog.ByUpdated, "最近更新"}, {catalog.ByCreated, "创建时间"}, {catalog.ByName, "名称"}} {
+			if m.Item(s.label).Radio(a.sort == s.by).Chosen() {
+				a.sort = s.by
+			}
 		}
-	}
-	m.Separator()
-	for _, s := range []struct {
-		show  catalog.Show
-		label string
-	}{{catalog.ShowAll, "全部"}, {catalog.ShowNeedsYou, "需要我处理的"}, {catalog.ShowRunning, "运行中"}} {
-		if m.Item(s.label).Radio(a.show == s.show).Chosen() {
-			a.show = s.show
+	})
+	m.Submenu("显示", func(m *ui.Menu) {
+		for _, s := range []struct {
+			show  catalog.Show
+			label string
+		}{{catalog.ShowAll, "全部"}, {catalog.ShowNeedsYou, "需要我处理的"}, {catalog.ShowRunning, "运行中"}} {
+			label := s.label
+			if s.show != catalog.ShowAll {
+				label = fmt.Sprintf("%s  %d", s.label, len(all(a.cat.List(catalog.View{Mode: proto.ModeCode, Show: s.show}))))
+			}
+			if m.Item(label).Radio(a.show == s.show).Chosen() {
+				a.show = s.show
+			}
 		}
-	}
+	})
 }
 
 // list draws the sessions of the current view.
 func (a *App) list(c *ui.Context, k theme.Colors) {
-	if a.inbox {
-		waiting := all(a.cat.List(catalog.View{Show: catalog.ShowNeedsYou, Query: a.query}))
-		if len(waiting) == 0 {
-			theme.UI.On(ui.Text(c, "没有需要你的会话")).TextColor(k.Muted).Padding(8, 16)
-			return
-		}
-		ui.Column(c).Padding(0, 8).Children(func() {
-			for _, s := range waiting {
-				a.row(c, k, s)
-			}
-		})
-		return
-	}
-	l := a.cat.List(catalog.View{Mode: a.mode, Archived: a.archived, Sort: a.sort, Show: a.show, Query: a.query})
+	l := a.cat.List(catalog.View{Mode: a.mode, Archived: a.archived, Sort: a.sort, Show: a.show})
 	if len(l.Pinned) == 0 && len(l.Groups) == 0 {
 		empty := "没有会话"
 		switch {
-		case a.query != "":
-			empty = "没有匹配的会话"
 		case a.archived:
 			empty = "没有归档的会话"
 		case a.mode == proto.ModePersonal:
@@ -215,23 +157,24 @@ func (a *App) list(c *ui.Context, k theme.Colors) {
 	})
 }
 
-// groupLabel is a small title over a group of rows.
+// groupLabel is the small title over the pinned sessions.
 func groupLabel(c *ui.Context, k theme.Colors, label string) {
-	ui.Row(c).Height(theme.RowHeight).Padding(0, 8).AlignItems(ui.Center).Children(func() {
+	ui.Row(c).Height(24).Margin(8, 0, 0, 0).Padding(0, 8).AlignItems(ui.Center).Children(func() {
 		theme.Label.On(ui.Text(c, label)).TextColor(k.Muted)
 	})
 }
 
-// groupHeader is a working directory's row: folder icon and name; a click
-// folds the group.
+// groupHeader is a working directory's title: folder icon and name; a
+// click folds the group, hovering shows the full path. The ＋ for a new
+// session in the directory comes with the new-session page.
 func (a *App) groupHeader(c *ui.Context, k theme.Colors, g catalog.Group) {
-	h := ui.Row(c).Height(theme.RowHeight).Padding(0, 8).Gap(6).AlignItems(ui.Center).Tooltip(g.Dir)
+	h := ui.Row(c).Height(26).Margin(10, 0, 0, 0).Padding(0, 6, 0, 8).Gap(6).AlignItems(ui.Center).Tooltip(g.Dir)
 	if h.Clicked() {
 		a.closed[g.Dir] = !a.closed[g.Dir]
 	}
 	h.Children(func() {
-		ui.Icon(c, a.icons.Folder).FontSize(theme.IconSizeInRow).TextColor(k.Fg3)
-		theme.UI.On(ui.Text(c, g.Name)).TextColor(k.Fg3).SingleLine()
+		ui.Icon(c, a.icons.Folder).FontSize(theme.IconSize).TextColor(k.Muted)
+		theme.UIStrong.On(ui.Text(c, g.Name)).TextColor(k.Fg3).SingleLine().Grow(1)
 	})
 }
 
@@ -241,11 +184,13 @@ func (a *App) groupHeader(c *ui.Context, k theme.Colors, g catalog.Group) {
 func (a *App) row(c *ui.Context, k theme.Colors, s proto.Session) {
 	c = c.Key(s.ID)
 	personal := s.Mode == proto.ModePersonal
-	h := float32(theme.RowHeight)
+	r := ui.Row(c).AlignItems(ui.Center).Label(name(s))
 	if personal {
-		h = 44
+		// A companion: two lines beside a 32-point avatar.
+		r.Padding(6, 8).Gap(10).Radius(8)
+	} else {
+		r.Height(theme.RowHeight).Padding(0, 8).Gap(8).Radius(theme.RadiusRow)
 	}
-	r := ui.Row(c).Height(h).Padding(0, 8).Gap(8).AlignItems(ui.Center).Radius(theme.RadiusRow).Label(name(s))
 	hovered := r.Hovered()
 	switch {
 	case a.selected == string(s.ID):
@@ -260,7 +205,7 @@ func (a *App) row(c *ui.Context, k theme.Colors, s proto.Session) {
 		if personal {
 			a.avatar(c, k, s)
 		} else {
-			a.harnessIcon(c, k, s.Harness.Kind, theme.IconSizeInRow)
+			a.harnessIcon(c, k, s.Harness.Kind, theme.IconSize)
 		}
 		ui.Column(c).Grow(1).Shrink(1).AlignItems(ui.Stretch).Children(func() {
 			if a.renaming == s.ID {
@@ -268,12 +213,12 @@ func (a *App) row(c *ui.Context, k theme.Colors, s proto.Session) {
 				return
 			}
 			title := theme.UI
-			if s.Unread || personal {
+			if s.Unread {
 				title = theme.UIStrong
 			}
 			title.On(ui.Text(c, name(s))).TextColor(k.Fg).SingleLine()
 			if personal && s.Preview != "" {
-				theme.Secondary.On(ui.Text(c, s.Preview)).TextColor(k.Muted).SingleLine()
+				theme.Caption.On(ui.Text(c, s.Preview)).TextColor(k.Muted).SingleLine()
 			}
 		})
 		a.trailing(c, k, s, hovered)
@@ -335,12 +280,24 @@ func (a *App) harnessIcon(c *ui.Context, k theme.Colors, kind string, size float
 }
 
 // avatar is a companion's picture: its initial on neutral gray, with its
-// harness in the corner.
-func (a *App) avatar(c *ui.Context, k theme.Colors, s proto.Session) {
-	ui.Box(c).Size(28, 28).Radius(14).Background(k.Fill2).Center().Children(func() {
-		theme.UIStrong.On(ui.Text(c, initial(name(s)))).TextColor(k.Fg2)
-		ui.Box(c).Absolute().Right(-3).Bottom(-3).Padding(1).Radius(theme.RadiusXS).Background(k.Raised).Children(func() {
-			a.harnessIcon(c, k, s.Harness.Kind, 10)
+// harness in a round badge at the corner.
+func (a *App) avatar(c *ui.Context, k theme.Colors, s proto.Session) { a.avatarSized(c, k, s, 32) }
+
+// avatarSized is avatar at size points: 32 in the sidebar, 22 in the
+// title bar.
+func (a *App) avatarSized(c *ui.Context, k theme.Colors, s proto.Session, size float32) {
+	badge := float32(15)
+	if size < 32 {
+		badge = 13
+	}
+	ui.Box(c).Size(size, size).Radius(size / 2).Background(k.Fill2).Center().Children(func() {
+		style := theme.UIStrong
+		if size < 32 {
+			style = theme.Label
+		}
+		style.On(ui.Text(c, initial(name(s)))).TextColor(k.Fg2)
+		ui.Box(c).Absolute().Right(-2).Bottom(-2).Size(badge, badge).Radius(badge/2).Background(k.Side).Border(1, k.Line).Center().Children(func() {
+			a.harnessIcon(c, k, s.Harness.Kind, badge-5)
 		})
 	})
 }
@@ -361,46 +318,43 @@ func (a *App) sessionMenu(m *ui.Menu, s proto.Session) {
 	if s.Pinned {
 		pin = "取消置顶"
 	}
-	act := func(label string, mods ui.Modifiers, key ui.Key, ok bool, do func()) {
-		it := m.Item(label).Disabled(!ok)
-		if key != 0 {
-			it.Shortcut(mods, key)
-		}
-		if it.Chosen() {
+	act := func(label string, key ui.Key, ok bool, do func()) {
+		if m.Item(label).Disabled(!ok).Shortcut(0, key).Chosen() {
 			a.Select(s.ID)
 			do()
 		}
 	}
 	live := s.ArchivedAt == nil
-	act(pin, ui.Shift|ui.Cmd, ui.KeyP, live, a.TogglePin)
-	act("标为未读", ui.Shift|ui.Cmd, ui.KeyU, !s.Unread, a.MarkUnread)
-	act("重命名", 0, 0, true, a.Rename)
-	m.Separator()
-	act("在 Finder 中显示", 0, 0, s.Directory != "", a.Reveal)
-	act("停止", 0, 0, s.Status == proto.StatusRunning, a.Stop)
-	act("归档", ui.Cmd, ui.KeyBackspace, live, a.Archive)
+	// While the menu is open, the letter beside an item chooses it.
+	act(pin, ui.KeyP, live, a.TogglePin)
+	act("标为未读", ui.KeyU, !s.Unread, a.MarkUnread)
+	act("重命名", ui.KeyR, true, a.Rename)
+	act("在 Finder 中显示目录", ui.KeyO, s.Directory != "", a.Reveal)
+	act("停止", ui.KeyS, s.Status == proto.StatusRunning, a.Stop)
+	act("归档", ui.KeyA, live, a.Archive)
 }
 
-// footer shows this machine and the connection, and switches to the
-// archived sessions.
+// footer shows this machine and whether the window reaches its daemon,
+// and switches to the archived sessions. Other machines and paired
+// devices come with several machines; settings come with settings.
 func (a *App) footer(c *ui.Context, k theme.Colors) {
-	ui.Row(c).Height(theme.TitleBar).Padding(0, 8, 0, 16).Gap(6).AlignItems(ui.Center).Children(func() {
-		ui.Icon(c, a.icons.Machine).FontSize(theme.IconSizeInRow).TextColor(k.Fg3)
-		machine := a.machine
-		if machine == "" {
-			machine = "本机"
+	ui.Row(c).Height(theme.TitleBar).Padding(0, 8, 0, 12).Gap(2).AlignItems(ui.Center).BorderWidth(1, 0, 0, 0).BorderColor(k.Line).Children(func() {
+		ui.Row(c).Height(30).Padding(0, 6).Gap(8).AlignItems(ui.Center).Radius(theme.RadiusControl).Grow(1).Shrink(1).Children(func() {
+			ui.Icon(c, a.icons.Machine).FontSize(theme.IconSize).TextColor(k.Fg3)
+			machine := a.machine
+			if machine == "" {
+				machine = "本机"
+			}
+			theme.UI.On(ui.Text(c, machine)).FontWeight(500).TextColor(k.Fg).SingleLine().Shrink(1)
+			if a.connected {
+				ui.Icon(c, a.icons.Connected).FontSize(theme.IconSizeSmall).TextColor(k.Muted).Label("已连接").Tooltip("已连接本机守护进程")
+			} else {
+				ui.Icon(c, a.icons.Offline).FontSize(theme.IconSizeSmall).TextColor(k.Attn).Label("断线").Tooltip("连不上守护进程：" + a.offline)
+			}
+		})
+		if a.mode == proto.ModeCode && iconButton(c, k, a.icons.Archive, "已归档的会话", a.archived).Clicked() {
+			a.archived, a.selected = !a.archived, ""
 		}
-		theme.UI.On(ui.Text(c, machine)).TextColor(k.Fg3).SingleLine().Shrink(1)
-		if a.connected {
-			ui.Icon(c, a.icons.Connected).FontSize(theme.IconSizeSmall).TextColor(k.Muted).Label("已连接").Tooltip("已连接守护进程")
-		} else {
-			ui.Icon(c, a.icons.Offline).FontSize(theme.IconSizeSmall).TextColor(k.Attn).Label("断线").Tooltip("连不上守护进程：" + a.offline)
-		}
-		ui.Spacer(c)
-		if a.mode == proto.ModeCode && iconButton(c, k, a.icons.Archive, "已归档", a.archived).Clicked() {
-			a.archived, a.inbox, a.selected = !a.archived, false, ""
-		}
-		iconButton(c, k, a.icons.Settings, "设置 ⌘,", false).Disabled(true)
 	})
 }
 
