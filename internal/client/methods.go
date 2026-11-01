@@ -68,6 +68,14 @@ func (c *Client) SetEffort(ctx context.Context, p proto.SetEffortParams) error {
 	return c.Call(ctx, proto.MethodSessionsSetEffort, p, nil)
 }
 
+// Update changes a session's title, pin or unread mark and returns the
+// session.
+func (c *Client) Update(ctx context.Context, p proto.UpdateParams) (proto.Session, error) {
+	var out proto.Session
+	err := c.Call(ctx, proto.MethodSessionsUpdate, p, &out)
+	return out, err
+}
+
 // Stop stops a session's harness.
 func (c *Client) Stop(ctx context.Context, id proto.SessionID) error {
 	return c.Call(ctx, proto.MethodSessionsStop, proto.SessionRef{Session: id}, nil)

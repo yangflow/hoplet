@@ -99,6 +99,12 @@ func (c *conn) call(ctx context.Context, f proto.ClientFrame) (any, error) {
 			return nil, err
 		}
 		return done, s.mgr.SetFast(ctx, p.Session, p.Fast)
+	case proto.MethodSessionsUpdate:
+		var p proto.UpdateParams
+		if err := decode(f, &p); err != nil {
+			return nil, err
+		}
+		return s.store.UpdateSession(ctx, p.Session, store.SessionUpdate{Title: p.Title, Pinned: p.Pinned, Unread: p.Unread})
 	case proto.MethodSessionsEvents:
 		var p proto.EventsParams
 		if err := decode(f, &p); err != nil {
