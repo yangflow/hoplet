@@ -5777,6 +5777,9 @@ gh pr create --title "feat(harness/hermes): add Hermes adapter for Personal mode
 - `fd76318 fix(harness/hermes): order turns through one queue across drops`：轮次组成一个有序队列，每次快照对账，后面轮次的事件先缓冲。
 - `de78c90 fix(harness/hermes): resolve the open turn after a daemon restart`、`f1f2f2f fix(harness/hermes): hold orphan receipts until the snapshot`、`7d08ebc fix(harness/hermes): settle the open turn from the replay order`、`f5dfcc0 fix(harness/hermes): settle restarts from the snapshot alone`：守护进程重启后总发一次 `session.resume`，store 里未结束的轮次以占位记录接手，在本次运行自己的快照到达时统一结清；旧守护进程请求的 receipt 先扣住，不再补发最终回复。另外：中断遇 stale_generation 不重试，steer 遇 stale_generation 报错；快照里消失且 Hoplet 未回答的审批记为 expired，本次运行不认识的待审批重新发出。
 
+- `bfae568 fix(harness/hermes): surface a refused attach and close final gaps`、`ef0595c fix(harness/hermes): reset dropped answers and tidy the relay wait`：整分支评审后的收尾。会话被 Hermes 拒绝接入时报错，之后的命令返回错误、不再悄悄排队，重连后恢复；对旧守护进程请求的错误应答直接丢弃；请求发出后其参数不再被改写；`Sanitize` 改为由调用方传入环境。
+- `309c1dc refactor(harness/hermes): split the adapter by responsibility`：纯搬移，适配器拆成 `run.go`（主循环与命令）、`turns.go`（轮次队列、receipt、重启接手）、`requests.go`（发送、排队、设置）。
+
 **任务 4：本机自检与版本检查**
 - `3d8db88 feat(harness/hermes): verify Hermes versions on this machine`：首版。
 - `44aba5e fix(harness/hermes): tighten the self-check and its records`：准备失败（临时目录）不计入失败次数；中断那一步改为数到 1000。
