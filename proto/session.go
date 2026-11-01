@@ -86,4 +86,10 @@ type Session struct {
 	// Version is the store's catalog counter value at this session's last
 	// change; it grows with every change to the session record.
 	Version uint64 `json:"version"`
+	// Pinned keeps the session at the top of lists.
+	Pinned bool `json:"pinned,omitempty"`
+	// Unread says a turn ended that no client has shown yet.
+	Unread bool `json:"unread,omitempty"`
+	// Preview is the first line of the latest complete message.
+	Preview string `json:"preview,omitempty"`
 }

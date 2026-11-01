@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/yangflow/hoplet/proto"
@@ -374,7 +375,7 @@ func insertEvent(ctx context.Context, tx *sql.Tx, ev proto.Event, p proto.Payloa
 }
 
 // project applies one event to the turn and approval projections and, for
-// a mode change, to the session record.
+// a mode change, an ended turn or a complete message, to the session record.
 func project(ctx context.Context, tx *sql.Tx, ev proto.Event, p proto.Payload) error {
 	var q string
 	var args []any
@@ -383,8 +384,19 @@ func project(ctx context.Context, tx *sql.Tx, ev proto.Event, p proto.Payload) e
 		q = `INSERT INTO turns (session_id, n, start_seq) VALUES (?, ?, ?) ON CONFLICT DO NOTHING`
 		args = []any{ev.Session, ev.Turn, ev.Seq}
 	case proto.TurnEnded:
+		if _, err := tx.ExecContext(ctx, `UPDATE sessions SET unread = 1 WHERE id = ?`, ev.Session); err != nil {
+			return fmt.Errorf("store: mark session %s unread: %w", ev.Session, err)
+		}
 		q = `UPDATE turns SET end_seq = ?, reason = ? WHERE session_id = ? AND n = ? AND end_seq IS NULL`
 		args = []any{ev.Seq, p.Reason, ev.Session, ev.Turn}
+	case proto.Message:
+		preview := firstLine(p.Text, previewRunes)
+		if preview == "" {
+			return nil
+		}
+		// An untitled session takes the first line of my first message.
+		q = `UPDATE sessions SET preview = ?, title = CASE WHEN title = '' AND ? THEN ? ELSE title END WHERE id = ?`
+		args = []any{preview, p.Role == proto.RoleUser, firstLine(p.Text, titleRunes), ev.Session}
 	case proto.ApprovalRequested:
 		q = `INSERT INTO approvals (id, session_id, request_seq, kind, status) VALUES (?, ?, ?, ?, 'pending') ON CONFLICT DO NOTHING`
 		args = []any{p.ID, ev.Session, ev.Seq, p.Kind}
@@ -404,6 +416,29 @@ func project(ctx context.Context, tx *sql.Tx, ev proto.Event, p proto.Payload) e
 		return fmt.Errorf("store: project %s at seq %d: %w", ev.Type, ev.Seq, err)
 	}
 	return nil
+}
+
+// Lengths, in runes, of a session's preview and of the title it takes from
+// my first message.
+const (
+	previewRunes = 120
+	titleRunes   = 60
+)
+
+// firstLine returns the first non-blank line of s with runs of white space
+// folded to one space, cut to at most n runes.
+func firstLine(s string, n int) string {
+	for line := range strings.Lines(s) {
+		f := strings.Join(strings.Fields(line), " ")
+		if f == "" {
+			continue
+		}
+		if r := []rune(f); len(r) > n {
+			f = string(r[:n])
+		}
+		return f
+	}
+	return ""
 }
 
 // deriveStatus computes the session status from the projections.
