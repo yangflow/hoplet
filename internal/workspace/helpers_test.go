@@ -17,6 +17,11 @@ import (
 	"github.com/yangflow/hoplet/proto"
 )
 
+func exists(path string) bool {
+	_, err := os.Lstat(path)
+	return err == nil
+}
+
 // testEnv is the environment of git in tests: the PATH, and an empty home
 // so that no user configuration applies.
 func testEnv(t testing.TB) []string {

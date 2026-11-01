@@ -50,13 +50,9 @@ const (
 
 // Snapshot is a repo's content at one moment, as a tree in Hoplet's objects.
 type Snapshot struct {
-	Tree    string        // tree id
-	Skipped []SkippedFile // files left out, keeping their previously recorded version
+	Tree    string              // tree id
+	Skipped []proto.SkippedFile // files left out, keeping their previously recorded version
 }
-
-// SkippedFile is a file a snapshot left out; Reason is ReasonTooLarge or
-// ReasonUnreadable.
-type SkippedFile = proto.SkippedFile
 
 // repoInfo is what git says about a repository's layout.
 type repoInfo struct {
@@ -297,7 +293,7 @@ func (g Git) Snapshot(ctx context.Context, r Repo, objects string) (Snapshot, er
 	if err != nil {
 		return Snapshot{}, err
 	}
-	slices.SortFunc(skipped, func(a, b SkippedFile) int { return strings.Compare(a.Path, b.Path) })
+	slices.SortFunc(skipped, func(a, b proto.SkippedFile) int { return strings.Compare(a.Path, b.Path) })
 	return Snapshot{Tree: strings.TrimSpace(string(out)), Skipped: skipped}, nil
 }
 
@@ -420,7 +416,7 @@ func isNo(v string) bool {
 type plan struct {
 	changes []change
 	items   []item
-	skipped []SkippedFile
+	skipped []proto.SkippedFile
 }
 
 // classify looks at each candidate on disk: removal, symlink, repository
@@ -445,7 +441,7 @@ func (g Git) classify(ctx context.Context, r Repo, idx map[string]indexEntry, pa
 		case errors.Is(err, fs.ErrNotExist) || errors.Is(err, syscall.ENOTDIR):
 			remove()
 		case err != nil:
-			pl.skipped = append(pl.skipped, SkippedFile{Path: p, Reason: ReasonUnreadable})
+			pl.skipped = append(pl.skipped, proto.SkippedFile{Path: p, Reason: ReasonUnreadable})
 		case fi.Mode()&fs.ModeSymlink != 0:
 			// hash-object follows a symlink given by path; the link's text
 			// is the blob, so it is hashed from a file holding the text.
@@ -466,7 +462,7 @@ func (g Git) classify(ctx context.Context, r Repo, idx map[string]indexEntry, pa
 		case !fi.Mode().IsRegular():
 			// Sockets, devices and the like have no content to record.
 		case fi.Size() > g.maxFile():
-			pl.skipped = append(pl.skipped, SkippedFile{Path: p, Size: fi.Size(), Reason: ReasonTooLarge})
+			pl.skipped = append(pl.skipped, proto.SkippedFile{Path: p, Size: fi.Size(), Reason: ReasonTooLarge})
 		default:
 			mode := modeFile // git uses the owner's execute bit
 			if fi.Mode().Perm()&0o100 != 0 {
@@ -559,7 +555,7 @@ func readRaw(path string, max int64) ([]byte, error) {
 // something else meanwhile is removed from the index if it was there; one
 // that cannot be read is returned in unreadable. Files are opened without
 // following a symlink.
-func (g Git) hashItems(ctx context.Context, o runOpts, objects, importDir, tmp string, idx map[string]indexEntry, items []item) (changes []change, unreadable []SkippedFile, err error) {
+func (g Git) hashItems(ctx context.Context, o runOpts, objects, importDir, tmp string, idx map[string]indexEntry, items []item) (changes []change, unreadable []proto.SkippedFile, err error) {
 	marks := filepath.Join(tmp, "marks")
 	pr, pw := io.Pipe()
 	type produced struct {
@@ -647,11 +643,11 @@ func (g Git) hashItems(ctx context.Context, o runOpts, objects, importDir, tmp s
 		}
 	}
 	for _, i := range res.unreadable {
-		unreadable = append(unreadable, SkippedFile{Path: items[i].path, Size: items[i].size, Reason: ReasonUnreadable})
+		unreadable = append(unreadable, proto.SkippedFile{Path: items[i].path, Size: items[i].size, Reason: ReasonUnreadable})
 	}
 	// A file that grew past the limit meanwhile keeps its recorded version.
 	for _, i := range res.tooBig {
-		unreadable = append(unreadable, SkippedFile{Path: items[i].path, Reason: ReasonTooLarge}) // its size now is not known
+		unreadable = append(unreadable, proto.SkippedFile{Path: items[i].path, Reason: ReasonTooLarge}) // its size now is not known
 	}
 	return changes, unreadable, nil
 }
@@ -726,9 +722,4 @@ func sweepTemp(objects string) {
 			_ = os.Remove(f)
 		}
 	}
-}
-
-func exists(path string) bool {
-	_, err := os.Lstat(path)
-	return err == nil
 }

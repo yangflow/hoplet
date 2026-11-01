@@ -42,14 +42,14 @@ func TestBaselineRoundTrip(t *testing.T) {
 		t.Fatalf("baseline %+v, want %+v", got, want)
 	}
 
-	// Saving again replaces the baseline and its repositories.
+	// A session has one baseline: saving again fails and changes nothing.
 	second := Baseline{TakenAt: t0.Add(time.Minute), Error: "timed out", Repos: []BaselineRepo{{Path: "x", Tree: "t9"}}}
-	if err := s.SaveBaseline(ctx, "a", second); err != nil {
-		t.Fatal(err)
+	if err := s.SaveBaseline(ctx, "a", second); err == nil {
+		t.Fatal("a second baseline was saved")
 	}
-	got, _, err = s.Baseline(ctx, "a")
-	if err != nil || got.Error != "timed out" || len(got.Repos) != 1 || got.Repos[0].Path != "x" {
-		t.Fatalf("replaced baseline %+v %v", got, err)
+	again, _, err := s.Baseline(ctx, "a")
+	if err != nil || again.Error != "" || !reflect.DeepEqual(again.Repos, want.Repos) {
+		t.Fatalf("baseline after a refused save %+v %v", again, err)
 	}
 	if _, ok, _ := s.Baseline(ctx, "b"); ok {
 		t.Fatal("another session's baseline changed")

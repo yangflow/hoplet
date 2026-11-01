@@ -295,12 +295,12 @@ func (s *Service) snapshot(ctx context.Context, r Repo) (Snapshot, error) {
 
 // mergeSkipped returns the skipped files of the baseline and of now, once per
 // path (now's entry wins), by path.
-func mergeSkipped(base, now []SkippedFile) []SkippedFile {
-	byPath := map[string]SkippedFile{}
+func mergeSkipped(base, now []proto.SkippedFile) []proto.SkippedFile {
+	byPath := map[string]proto.SkippedFile{}
 	for _, f := range slices.Concat(base, now) {
 		byPath[f.Path] = f
 	}
-	var out []SkippedFile
+	var out []proto.SkippedFile
 	for _, p := range slices.Sorted(maps.Keys(byPath)) {
 		out = append(out, byPath[p])
 	}
@@ -448,6 +448,7 @@ func (s *Service) diff(ctx context.Context, session proto.SessionID, dir string,
 		}
 		rd := s.repoDiff(ctx, path, cur, row, b.Error, p.Patch, budget, min(orDefault(s.maxFiles, maxResponseFiles), filesLeft))
 		size := fit(&rd, budget)
+		sealSHA(&rd, p.Patch)
 		budget -= size
 		filesLeft -= len(rd.Files)
 		out.Repos = append(out.Repos, rd)
@@ -542,7 +543,7 @@ func (s *Service) repoDiff(ctx context.Context, path string, cur *Repo, row *sto
 		return fail(err)
 	}
 	var base string
-	var baseSkipped []SkippedFile
+	var baseSkipped []proto.SkippedFile
 	if row != nil {
 		base, baseSkipped = row.Tree, row.Skipped
 	} else {
@@ -588,6 +589,26 @@ func (s *Service) repoDiff(ctx context.Context, path string, cur *Repo, row *sto
 	}
 	rd.SHA = hex.EncodeToString(h.Sum(nil))
 	return rd
+}
+
+// sealSHA extends the SHA of a repository's content (set by repoDiff) with
+// what the response shows of it, as fit left it: the parent, whether a patch
+// was asked for, the truncation flags and the sizes of the lists. The result
+// is the same exactly when nothing shown has changed.
+func sealSHA(rd *proto.RepoDiff, patch bool) {
+	if rd.SHA == "" {
+		return
+	}
+	h := sha256.New()
+	for _, part := range []string{
+		rd.SHA, rd.Parent, strconv.FormatBool(patch),
+		strconv.FormatBool(rd.Truncated), strconv.FormatBool(rd.FilesTruncated), strconv.FormatBool(rd.SkippedTruncated),
+		strconv.Itoa(len(rd.Files)), strconv.Itoa(len(rd.Patch)), strconv.Itoa(len(rd.Skipped)),
+	} {
+		h.Write([]byte(part))
+		h.Write([]byte{0})
+	}
+	rd.SHA = hex.EncodeToString(h.Sum(nil))
 }
 
 func skippedKey(in []proto.SkippedFile) string {

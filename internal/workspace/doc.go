@@ -3,8 +3,10 @@
 // out what the session changed since.
 //
 // Hoplet writes nothing under the user's repositories: no refs, objects,
-// index, locks or other files, and no modification time changes. It does not
-// even read the user's index or objects. For each repository it keeps its
+// index, locks or other files, and no modification time changes. It never
+// reads the user's index; of the user's objects it reads only the HEAD commit
+// and its tree (ls-tree, a submodule's rev-parse HEAD), and the configuration,
+// read-only. For each repository it keeps its
 // own object directory and, per worktree, its own index (a stat cache). A
 // snapshot hashes the worktree into them: every file tracked at HEAD plus
 // every untracked file that is not ignored, as raw bytes. No clean or smudge
@@ -22,8 +24,8 @@
 // merely encloses the session, which is then not inside that project).
 //
 // Known gaps: on a filesystem that ignores case, a case-only rename that is
-// not committed yet is not seen (as in git status). A file that is ignored, force-added and not
-// committed yet is not part of the file set. A change of line endings alone
+// not committed yet is not seen (as in git status). A file that is ignored,
+// force-added and not committed yet is not part of the file set. A change of line endings alone
 // that keeps a file's size and modification time can go unnoticed under
 // text=auto. A file swapped for a symlink in a parent directory while a
 // snapshot runs can be read through. Invalid UTF-8 in a patch is replaced by

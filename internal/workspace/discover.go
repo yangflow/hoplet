@@ -41,7 +41,8 @@ func (r Repo) gitEnv() []string {
 // directory or a file) is a repository, and the search goes on inside it for
 // submodules and nested repositories. node_modules, vendor, .git and symlinked
 // directories are skipped; directories that cannot be read are skipped
-// silently.
+// silently. Parent is left empty; Git.Discover assigns it once it knows which
+// directories are repositories.
 func Discover(ctx context.Context, root string) ([]Repo, error) {
 	root, err := filepath.Abs(root)
 	if err != nil {
@@ -55,21 +56,20 @@ func Discover(ctx context.Context, root string) ([]Repo, error) {
 		return nil, fmt.Errorf("workspace: %s is not a directory", root)
 	}
 	var repos []Repo
-	if err := walk(ctx, root, ".", 0, "", &repos); err != nil {
+	if err := walk(ctx, root, ".", 0, &repos); err != nil {
 		return nil, err
 	}
 	slices.SortFunc(repos, func(a, b Repo) int { return strings.Compare(a.Path, b.Path) })
 	return repos, nil
 }
 
-func walk(ctx context.Context, root, rel string, depth int, parent string, repos *[]Repo) error {
+func walk(ctx context.Context, root, rel string, depth int, repos *[]Repo) error {
 	if err := ctx.Err(); err != nil {
 		return fmt.Errorf("workspace: discover: %w", err)
 	}
 	abs := filepath.Join(root, filepath.FromSlash(rel))
 	if _, err := os.Lstat(filepath.Join(abs, ".git")); err == nil {
-		*repos = append(*repos, Repo{Path: rel, Abs: abs, Parent: parent})
-		parent = rel
+		*repos = append(*repos, Repo{Path: rel, Abs: abs})
 	}
 	if depth == maxDepth {
 		return nil
@@ -87,7 +87,7 @@ func walk(ctx context.Context, root, rel string, depth int, parent string, repos
 		if rel != "." {
 			child = rel + "/" + name
 		}
-		if err := walk(ctx, root, child, depth+1, parent, repos); err != nil {
+		if err := walk(ctx, root, child, depth+1, repos); err != nil {
 			return err
 		}
 	}

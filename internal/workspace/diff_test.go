@@ -87,18 +87,18 @@ func TestSingleRepoAtTheRoot(t *testing.T) {
 		t.Errorf("ignored files in the patch:\n%s", r.Patch)
 	}
 
-	// Without a patch the files are the same and the SHA does not change.
+	// Without a patch the files are the same, and asking again changes nothing.
 	nop := f.diff(t, repo, proto.DiffParams{}).Repos[0]
-	if nop.Patch != "" || nop.SHA != r.SHA || len(nop.Files) != len(r.Files) {
+	if nop.Patch != "" || nop.SHA == r.SHA || len(nop.Files) != len(r.Files) {
 		t.Errorf("files only: %+v", nop)
 	}
 	// A change shows up in the SHA, and undoing it brings the old one back.
 	write(t, repo, "edit.txt", "one\ntwo\nthree\nfour\n")
-	if again := f.diff(t, repo, proto.DiffParams{}).Repos[0]; again.SHA == r.SHA {
+	if again := f.diff(t, repo, proto.DiffParams{}).Repos[0]; again.SHA == nop.SHA {
 		t.Error("SHA did not change with the content")
 	}
 	write(t, repo, "edit.txt", "one\ntwo\nthree\n")
-	if again := f.diff(t, repo, proto.DiffParams{}).Repos[0]; again.SHA != r.SHA {
+	if again := f.diff(t, repo, proto.DiffParams{}).Repos[0]; again.SHA != nop.SHA {
 		t.Error("SHA changed although the content did not")
 	}
 }
@@ -311,6 +311,31 @@ func TestResponseIsBounded(t *testing.T) {
 	}
 	if b, _ := json.Marshal(d); len(b) > 6000+600 {
 		t.Fatalf("response of %d bytes", len(b))
+	}
+}
+
+// TestSHACoversWhatIsCut: the same repository cut by the response cap and
+// uncut do not share a SHA, so a client redraws once room frees up.
+func TestSHACoversWhatIsCut(t *testing.T) {
+	g := newGit(t)
+	repo := t.TempDir()
+	initRepo(t, g, repo, map[string]string{"base": "x\n"})
+	f := newFixture(t, g)
+	defer guard(t, g, repo)()
+	f.baseline(t, repo)
+	write(t, repo, "big.txt", strings.Repeat("line of text\n", 500))
+	uncut := f.diff(t, repo, proto.DiffParams{Patch: true}).Repos[0]
+	f.svc.maxBytes = 1000
+	cut := f.diff(t, repo, proto.DiffParams{Patch: true}).Repos[0]
+	if uncut.Truncated || !cut.Truncated {
+		t.Fatalf("truncated: uncut %v, cut %v", uncut.Truncated, cut.Truncated)
+	}
+	if cut.SHA == uncut.SHA {
+		t.Fatal("a cut diff and the uncut one share a SHA")
+	}
+	f.svc.maxBytes = 0
+	if again := f.diff(t, repo, proto.DiffParams{Patch: true}).Repos[0]; again.SHA != uncut.SHA {
+		t.Fatal("SHA changed although nothing shown did")
 	}
 }
 

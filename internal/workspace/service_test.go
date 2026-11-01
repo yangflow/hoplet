@@ -350,7 +350,7 @@ func TestHopletIndexRecoversAndIsSwept(t *testing.T) {
 	}
 	f2 := newFixture(t, g)
 	f2.svc.Home, f2.svc.Store = f.home, f.st
-	f2.baseline(t, repo)
+	f2.diff(t, repo, proto.DiffParams{}) // its first call sweeps
 	if exists(filepath.Join(objects, "tmp", "x")) || exists(indexPath(objects, Repo{Abs: repo})+".lock") {
 		t.Fatal("leftovers of a crash were not removed")
 	}
@@ -458,7 +458,7 @@ func TestImportLeftoversAreSwept(t *testing.T) {
 	plant()
 	f2 := newFixture(t, g)
 	f2.svc.Home, f2.svc.Store = f.home, f.st
-	f2.baseline(t, repo)
+	f2.diff(t, repo, proto.DiffParams{}) // its first call sweeps
 	gone("after the service started")
 	// And before each snapshot.
 	plant()

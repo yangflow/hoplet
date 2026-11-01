@@ -32,6 +32,7 @@ func TestDiscover(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	repos = assignParents(repos)
 	var got []string
 	parents := map[string]string{}
 	for _, r := range repos {
@@ -55,6 +56,7 @@ func TestDiscover(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	repos = assignParents(repos)
 	if repos[0].Path != "." || repos[0].Parent != "" || repos[1].Path != "a/b/c" || repos[1].Parent != "." {
 		t.Fatalf("repos %+v", repos[:2])
 	}

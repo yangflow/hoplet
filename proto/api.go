@@ -376,7 +376,9 @@ const (
 // repository), empty otherwise. Patch is set only when asked for and is cut
 // at a line boundary, with Truncated set, when it is too large (a response
 // is limited to a few MiB as encoded, so later repositories may get no patch,
-// or no file list). SHA changes whenever anything shown does.
+// or no file list). SHA changes whenever anything shown does: the content,
+// branch, state and skipped files, the parent, and how much of the patch and
+// the lists the response carries.
 type RepoDiff struct {
 	Path   string     `json:"path"`
 	Parent string     `json:"parent,omitempty"`

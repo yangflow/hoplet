@@ -30,18 +30,14 @@ type Baseline struct {
 	Repos   []BaselineRepo
 }
 
-// SaveBaseline records the session's baseline, replacing any earlier one.
+// SaveBaseline records the session's baseline. A session has one, taken when
+// it is created, so saving a second is an error.
 func (s *Store) SaveBaseline(ctx context.Context, id proto.SessionID, b Baseline) error {
 	return s.tx(ctx, false, func(tx *sql.Tx) error {
 		if err := requireSession(ctx, tx, id); err != nil {
 			return err
 		}
-		// A new baseline replaces the old one's repositories.
-		if _, err := tx.ExecContext(ctx, `DELETE FROM baseline_repos WHERE session_id = ?`, id); err != nil {
-			return fmt.Errorf("store: clear baseline: %w", err)
-		}
-		_, err := tx.ExecContext(ctx, `INSERT INTO baselines (session_id, taken_at, error) VALUES (?, ?, ?)
-			ON CONFLICT (session_id) DO UPDATE SET taken_at = excluded.taken_at, error = excluded.error`,
+		_, err := tx.ExecContext(ctx, `INSERT INTO baselines (session_id, taken_at, error) VALUES (?, ?, ?)`,
 			id, b.TakenAt.UnixMilli(), b.Error)
 		if err != nil {
 			return fmt.Errorf("store: save baseline: %w", err)

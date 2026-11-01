@@ -26,20 +26,22 @@ func TestPrintDiff(t *testing.T) {
 		{Path: "api", State: proto.RepoNew},
 		{Path: "web", State: proto.RepoError, Error: "boom"},
 		{Path: "old", State: proto.RepoMissing},
+		{Path: "huge", State: proto.RepoOK, Files: []proto.FileDiff{}, FilesTruncated: true, Truncated: true},
 	}}
 	var out, errb bytes.Buffer
 	testApp(&out, &errb).printDiff(d, false)
 	want := "baseline: timed out\n" +
-		"== . (main) ok\ndiff --git a/x b/x\n+x\n(patch truncated)\nd.dat: changed through filter lfs, no patch shown\nskipped (too large): big.bin, 99 bytes\nskipped (unreadable): secret\n" +
+		"== . (main) ok\ndiff --git a/x b/x\n+x\nd.dat: changed through filter lfs, no patch shown\n(patch truncated)\nskipped (too large): big.bin, 99 bytes\nskipped (unreadable): secret\n" +
 		"== api new\nno files\n" +
 		"== web error\nerror: boom\n" +
-		"== old missing\nthe repository is gone\n"
+		"== old missing\nthe repository is gone\n" +
+		"== huge ok\n(file list omitted: response too large)\n(patch truncated)\n"
 	if out.String() != want {
 		t.Fatalf("patch output:\n%s\nwant:\n%s", out.String(), want)
 	}
 	out.Reset()
 	testApp(&out, &errb).printDiff(d, true)
-	if !strings.Contains(out.String(), "== . (main) ok\n+1 -0 modified x\n+0 -0 modified d.dat (filter lfs)\nskipped") {
+	if !strings.Contains(out.String(), "== . (main) ok\n+1 -0 modified x\n+0 -0 modified d.dat (filter lfs)\n(patch truncated)\nskipped") {
 		t.Fatalf("stat output:\n%s", out.String())
 	}
 	out.Reset()

@@ -39,8 +39,9 @@ ID may be a unique prefix of at least 4 characters. Every command takes
 diff compares every git repository under the session's directory with how it
 was when the session was created, and prints a patch per repository (--stat:
 the changed files with line counts). --repo limits it to one repository, by
-its path under the directory. Hoplet writes nothing to your repositories; it keeps its own copy of
-their content (raw bytes, no filters) under its home directory.
+its path under the directory. Hoplet writes nothing to your repositories; it
+keeps its own copy of their content (raw bytes, no filters) under its home
+directory.
 
 wait conditions: idle (no turn running and nothing queued), blocked
 (an approval, a question or a failed queued message waits on you), done
@@ -60,9 +61,10 @@ the order permission, plan, fast, effort and stops at the first that fails.
 // session.
 const commandTimeout = 30 * time.Second
 
-// createTimeout bounds creating a session, which waits for its baseline (up
-// to a minute), and asking for a diff, which may snapshot large repositories.
-const createTimeout = 2 * time.Minute
+// longCallTimeout bounds the two calls that snapshot repositories: creating a
+// session, which waits for its baseline (up to a minute), and asking for a
+// diff.
+const longCallTimeout = 2 * time.Minute
 
 func (a app) session(args []string) int {
 	if len(args) == 0 || args[0] == "help" || args[0] == "-h" || args[0] == "--help" {
@@ -166,7 +168,7 @@ func (a app) sessionNew(args []string) int {
 		p.Directory = abs
 	}
 	prompt := strings.Join(fs.Args(), " ")
-	return a.withClient("session new", createTimeout, func(ctx context.Context, c *client.Client) error {
+	return a.withClient("session new", longCallTimeout, func(ctx context.Context, c *client.Client) error {
 		sess, err := c.Create(ctx, p)
 		if err != nil {
 			return err
@@ -654,7 +656,7 @@ func (a app) sessionDiff(args []string) int {
 	if code, ok := parse(fs, args, 1, 1); !ok {
 		return code
 	}
-	return a.withClient("session diff", createTimeout, func(ctx context.Context, c *client.Client) error {
+	return a.withClient("session diff", longCallTimeout, func(ctx context.Context, c *client.Client) error {
 		id, err := resolveID(ctx, c, fs.Arg(0))
 		if err != nil {
 			return err
@@ -693,6 +695,8 @@ func (a app) printDiff(d proto.SessionDiff, stat bool) {
 			fmt.Fprintf(a.stdout, "error: %s\n", r.Error)
 		case r.State == proto.RepoMissing:
 			fmt.Fprintln(a.stdout, "the repository is gone")
+		case len(r.Files) == 0 && r.FilesTruncated:
+			fmt.Fprintln(a.stdout, "(file list omitted: response too large)")
 		case len(r.Files) == 0 && r.State == proto.RepoNew:
 			fmt.Fprintln(a.stdout, "no files")
 		case len(r.Files) == 0:
@@ -706,16 +710,16 @@ func (a app) printDiff(d proto.SessionDiff, stat bool) {
 			if r.Patch != "" && !strings.HasSuffix(r.Patch, "\n") {
 				fmt.Fprintln(a.stdout)
 			}
-			if r.Truncated {
-				fmt.Fprintln(a.stdout, "(patch truncated)")
-			}
 			for _, f := range r.Files {
 				if f.Filter != "" {
 					fmt.Fprintf(a.stdout, "%s: changed through filter %s, no patch shown\n", f.Path, f.Filter)
 				}
 			}
 		}
-		if r.FilesTruncated {
+		if r.Truncated {
+			fmt.Fprintln(a.stdout, "(patch truncated)")
+		}
+		if r.FilesTruncated && len(r.Files) > 0 {
 			fmt.Fprintf(a.stdout, "(only the first %d files are listed)\n", len(r.Files))
 		}
 		for _, f := range r.Skipped {
