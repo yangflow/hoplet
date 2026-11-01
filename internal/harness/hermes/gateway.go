@@ -59,6 +59,9 @@ func Ensure(ctx context.Context, bin string, env []string) (Endpoint, error) {
 	if err := json.Unmarshal(bytes.TrimSpace(lastLine(out)), &res); err != nil {
 		return Endpoint{}, fmt.Errorf("hermes: gateway ensure: %w (%s)", errors.Join(runErr, err), strings.TrimSpace(stderr.String()))
 	}
+	if runErr != nil {
+		return Endpoint{}, fmt.Errorf("hermes: gateway ensure: %w (%s %s %s)", runErr, res.State, res.ReasonCode, strings.TrimSpace(stderr.String()))
+	}
 	if res.State != "ready" || res.Endpoint == nil {
 		return Endpoint{}, fmt.Errorf("hermes: gateway is %s: %s %s", res.State, res.ReasonCode, res.Detail)
 	}
@@ -171,7 +174,8 @@ func Ticket(ctx context.Context, ep Endpoint) (string, error) {
 }
 
 // Dial opens a WebSocket to the gateway with a fresh ticket. It sends no
-// Origin header (the gateway refuses one) and never goes through a proxy.
+// Origin header (the gateway refuses one), never goes through a proxy and
+// never follows a redirect.
 func Dial(ctx context.Context, ep Endpoint) (*websocket.Conn, error) {
 	t, err := Ticket(ctx, ep)
 	if err != nil {
@@ -180,7 +184,10 @@ func Dial(ctx context.Context, ep Endpoint) (*websocket.Conn, error) {
 	u := strings.Replace(ep.APIOrigin, "http://", "ws://", 1) + "/api/ws"
 	c, _, err := websocket.Dial(ctx, u, &websocket.DialOptions{
 		Subprotocols: []string{Protocol, ticketPrefix + t},
-		HTTPClient:   &http.Client{Transport: &http.Transport{Proxy: nil}},
+		HTTPClient: &http.Client{
+			Transport:     &http.Transport{Proxy: nil},
+			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+		},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("hermes: dial gateway: %w", err)

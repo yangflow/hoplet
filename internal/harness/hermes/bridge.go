@@ -10,6 +10,7 @@ import (
 	"io"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/coder/websocket"
@@ -41,6 +42,16 @@ const (
 // maxHeld bounds the commands the bridge holds while it reconnects.
 const maxHeld = 256
 
+// gatewayWriteTimeout bounds one write to the gateway. Writes do not use the
+// stop context: cancelling a write makes the connection close, and the
+// interrupt of a running turn must still go out.
+const gatewayWriteTimeout = 10 * time.Second
+
+// stableAfter is how long a connection must last before the reconnect delay
+// resets: a gateway that accepts and drops at once must not be redialled at
+// the minimum delay.
+const stableAfter = 30 * time.Second
+
 // BridgeConfig configures a bridge.
 type BridgeConfig struct {
 	Hermes string   // the hermes executable
@@ -51,6 +62,8 @@ type BridgeConfig struct {
 	// one second.
 	Backoff time.Duration
 	// Heartbeat is how often the bridge pings the gateway; zero means 15 s.
+	// Three missed heartbeats (no frame at all for three intervals) drop the
+	// connection.
 	Heartbeat time.Duration
 }
 
@@ -61,7 +74,8 @@ type BridgeConfig struct {
 // it interrupts a turn it saw start and not end, then returns nil; it also
 // returns when In ends.
 func Bridge(ctx context.Context, cfg BridgeConfig) error {
-	b := &bridge{cfg: cfg, held: make(chan []byte, maxHeld)}
+	b := &bridge{cfg: cfg, held: make(chan []byte, maxHeld), done: make(chan struct{})}
+	defer close(b.done)
 	inDone := make(chan error, 1)
 	go func() { inDone <- b.readIn() }()
 	backoff := cfg.Backoff
@@ -71,15 +85,21 @@ func Bridge(ctx context.Context, cfg BridgeConfig) error {
 	delay := backoff
 	reported := false // a "disconnected" line is written once per outage
 	for {
-		connected, err := b.session(ctx, inDone)
+		up, connected, err := b.session(ctx, inDone)
+		var in *inputError
 		switch {
 		case ctx.Err() != nil:
 			return nil
 		case errors.Is(err, errInputEnded):
 			return nil
+		case errors.As(err, &in):
+			return in.err
 		}
 		if connected {
-			delay, reported = backoff, false
+			reported = false
+			if up >= stableAfter {
+				delay = backoff
+			}
 		}
 		if !reported {
 			if err := b.status(bridgeLine{Bridge: BridgeDisconnected, Error: err.Error()}); err != nil {
@@ -100,9 +120,18 @@ func Bridge(ctx context.Context, cfg BridgeConfig) error {
 
 var errInputEnded = errors.New("hermes: bridge input ended")
 
+// inputError is an input that ended with an error.
+type inputError struct{ err error }
+
+func (e *inputError) Error() string { return "hermes: bridge input: " + e.err.Error() }
+func (e *inputError) Unwrap() error { return e.err }
+
 type bridge struct {
 	cfg  BridgeConfig
-	held chan []byte // lines from In
+	held chan []byte   // lines from In; only readIn sends
+	done chan struct{} // closed when Bridge returns
+
+	lastRx atomic.Int64 // when a frame last arrived, UnixNano
 
 	outMu sync.Mutex
 
@@ -121,9 +150,12 @@ func (b *bridge) readIn() error {
 		if len(line) == 0 {
 			continue
 		}
-		b.held <- append([]byte(nil), line...)
+		select {
+		case b.held <- append([]byte(nil), line...):
+		case <-b.done:
+			return nil
+		}
 	}
-	close(b.held)
 	return sc.Err()
 }
 
@@ -145,29 +177,60 @@ func (b *bridge) status(l bridgeLine) error {
 }
 
 // session runs one connection until it fails, ctx ends or In ends;
-// connected reports it got as far as connecting.
-func (b *bridge) session(ctx context.Context, inDone <-chan error) (connected bool, err error) {
+// connected reports it got as far as connecting and up how long it lasted.
+func (b *bridge) session(ctx context.Context, inDone <-chan error) (up time.Duration, connected bool, err error) {
 	ep, err := Ensure(ctx, b.cfg.Hermes, b.cfg.Env)
 	if err != nil {
-		return false, err
+		return 0, false, err
 	}
 	conn, err := Dial(ctx, ep)
 	if err != nil {
-		return false, err
+		return 0, false, err
 	}
 	defer func() { _ = conn.CloseNow() }()
-	if err := b.status(bridgeLine{Bridge: BridgeConnected, InstanceID: ep.InstanceID, CodeSHA: ep.CodeSHA, Caps: ep.Capabilities}); err != nil {
-		return true, err
+	// Lines read before this connection were written before the adapter
+	// could see it; it resends what it needs after re-attaching, so they are
+	// discarded rather than delivered ahead of its session.resume.
+	for drained := false; !drained; {
+		select {
+		case <-b.held:
+		default:
+			drained = true
+		}
 	}
-	return true, b.pump(ctx, conn, inDone)
+	start := time.Now()
+	if err := b.status(bridgeLine{Bridge: BridgeConnected, InstanceID: ep.InstanceID, CodeSHA: ep.CodeSHA, Caps: ep.Capabilities}); err != nil {
+		return time.Since(start), true, err
+	}
+	err = b.pump(ctx, conn, inDone)
+	return time.Since(start), true, err
 }
 
-// pump relays in both directions over one connection.
+// send writes one frame to the gateway; stopping does not cancel it.
+func (b *bridge) send(ctx context.Context, conn *websocket.Conn, frame []byte) error {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), gatewayWriteTimeout)
+	defer cancel()
+	return conn.Write(ctx, websocket.MessageText, frame)
+}
+
+// pump relays in both directions over one connection. It returns only after
+// the relay goroutine has, so no frame reaches Out after pump has.
 func (b *bridge) pump(ctx context.Context, conn *websocket.Conn, inDone <-chan error) error {
+	b.lastRx.Store(time.Now().UnixNano())
 	readErr := make(chan error, 1)
 	// Reads end when the connection closes, not when ctx does: stopping
 	// must still reach the step that interrupts the running turn.
 	go func() { readErr <- b.relay(context.WithoutCancel(ctx), conn) }()
+	relayed := false
+	defer func() {
+		_ = conn.CloseNow() // the gateway needs no closing handshake
+		if !relayed {
+			// Its error is the connection closing, which is expected here.
+			if err := <-readErr; err != nil {
+				_ = conn.CloseNow()
+			}
+		}
+	}()
 	every := b.cfg.Heartbeat
 	if every <= 0 {
 		every = heartbeat
@@ -176,46 +239,49 @@ func (b *bridge) pump(ctx context.Context, conn *websocket.Conn, inDone <-chan e
 	defer tick.Stop()
 	n := 0
 	for {
+		if ctx.Err() != nil { // a stop wins over queued lines
+			b.interrupt(conn)
+			return ctx.Err()
+		}
 		select {
 		case <-ctx.Done():
 			b.interrupt(conn)
-			_ = conn.CloseNow() // the gateway needs no closing handshake
 			return ctx.Err()
 		case err := <-readErr:
+			relayed = true
 			return err
-		case line, ok := <-b.held:
-			if !ok {
-				_ = conn.CloseNow() // the gateway needs no closing handshake
-				return errInputEnded
-			}
-			if err := conn.Write(ctx, websocket.MessageText, line); err != nil {
-				// Not sent: keep it for the next connection.
-				b.requeue(line)
+		case line := <-b.held:
+			if err := b.send(ctx, conn, line); err != nil {
+				// Dropped: the connection is gone and the adapter resends
+				// what it still needs once it has re-attached.
 				return fmt.Errorf("hermes: send: %w", err)
 			}
 		case <-tick.C:
+			if silent := time.Since(time.Unix(0, b.lastRx.Load())); silent > 3*every {
+				return errors.New("hermes: gateway stopped answering")
+			}
 			n++
 			ping := fmt.Sprintf(`{"jsonrpc":"2.0","id":"%s%d","method":"ping","params":{}}`, heartbeatID, n)
-			if err := conn.Write(ctx, websocket.MessageText, []byte(ping)); err != nil {
+			if err := b.send(ctx, conn, []byte(ping)); err != nil {
 				return fmt.Errorf("hermes: heartbeat: %w", err)
 			}
 		case err := <-inDone:
-			_ = conn.CloseNow() // the gateway needs no closing handshake
+			// The input is over and every line it read is in held: send
+			// them in order. A failed write ends the drain; with the
+			// connection gone they have nowhere to go.
+			for drained := false; !drained; {
+				select {
+				case line := <-b.held:
+					drained = b.send(ctx, conn, line) != nil
+				default:
+					drained = true
+				}
+			}
 			if err != nil {
-				return err
+				return &inputError{err}
 			}
 			return errInputEnded
 		}
-	}
-}
-
-// requeue puts a line that was not sent back in front of the queue, as far
-// as a channel allows: it goes to the back, which only reorders lines that
-// raced a dropped connection.
-func (b *bridge) requeue(line []byte) {
-	select {
-	case b.held <- line:
-	default:
 	}
 }
 
@@ -227,6 +293,7 @@ func (b *bridge) relay(ctx context.Context, conn *websocket.Conn) error {
 		if err != nil {
 			return fmt.Errorf("hermes: gateway connection: %w", err)
 		}
+		b.lastRx.Store(time.Now().UnixNano())
 		var compact bytes.Buffer
 		if json.Compact(&compact, frame) != nil {
 			continue // not JSON: nothing a client can use
