@@ -16,6 +16,12 @@ var files embed.FS
 // Set holds the parsed icons. Build it once with Load and share it.
 type Set struct {
 	Sidebar   *ui.SVG // collapse or show the sidebar
+	Back      *ui.SVG
+	Forward   *ui.SVG
+	New       *ui.SVG // new session
+	Search    *ui.SVG
+	Inbox     *ui.SVG
+	Settings  *ui.SVG
 	Personal  *ui.SVG // Personal mode
 	Code      *ui.SVG // Code mode
 	Folder    *ui.SVG // working directory group
@@ -39,6 +45,12 @@ func Load() (*Set, error) {
 		path string
 	}{
 		{&s.Sidebar, "lucide/panel-left.svg"},
+		{&s.Back, "lucide/chevron-left.svg"},
+		{&s.Forward, "lucide/chevron-right.svg"},
+		{&s.New, "lucide/plus.svg"},
+		{&s.Search, "lucide/search.svg"},
+		{&s.Inbox, "lucide/inbox.svg"},
+		{&s.Settings, "lucide/settings.svg"},
 		{&s.Personal, "lucide/message-circle.svg"},
 		{&s.Code, "lucide/code-xml.svg"},
 		{&s.Folder, "lucide/folder.svg"},

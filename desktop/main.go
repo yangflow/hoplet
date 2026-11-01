@@ -60,7 +60,9 @@ func run() error {
 	mygo.App.WhenReady(func() {
 		d.win = mygo.NewWindow(mygo.WindowOptions{
 			Title: "Hoplet", Width: 1280, Height: 800, MinWidth: 760, MinHeight: 480,
-			TitleBarStyle: mygo.TitleBarHiddenInset, TitleBarHeight: 52,
+			// The traffic lights sit 19 points down, centered in a 52-point
+			// title bar the sidebar's top row matches.
+			TitleBarStyle: mygo.TitleBarHiddenInset, TrafficLightPosition: &mygo.Point{X: 20, Y: 19},
 			Vibrancy: mygo.VibrancyUnderWindow, StateKey: "main",
 			Content: ui.View(d.app.View),
 		})
@@ -105,6 +107,7 @@ type desktop struct {
 
 	// Session menu items, enabled for the selected session.
 	pin, unread, rename, reveal, stop, archive *mygo.MenuItem
+	back, forward                              *mygo.MenuItem
 }
 
 func (d *desktop) setClient(c *client.Client) {
@@ -186,6 +189,8 @@ func (d *desktop) menu() *mygo.Menu {
 	d.reveal = &mygo.MenuItem{Label: "在 Finder 中显示", Click: d.do(d.app.Reveal)}
 	d.stop = &mygo.MenuItem{Label: "停止", Click: d.do(d.app.Stop)}
 	d.archive = &mygo.MenuItem{Label: "归档", Accelerator: "CmdOrCtrl+Backspace", Click: d.do(d.app.Archive)}
+	d.back = &mygo.MenuItem{Label: "后退", Accelerator: "CmdOrCtrl+[", Click: d.do(d.app.Back)}
+	d.forward = &mygo.MenuItem{Label: "前进", Accelerator: "CmdOrCtrl+]", Click: d.do(d.app.Forward)}
 	return mygo.NewMenu([]*mygo.MenuItem{
 		{Role: mygo.RoleAppMenu},
 		{Label: "文件", Submenu: []*mygo.MenuItem{{Role: mygo.RoleClose}}},
@@ -194,6 +199,11 @@ func (d *desktop) menu() *mygo.Menu {
 		{Label: "视图", Submenu: []*mygo.MenuItem{
 			{Label: "Personal", Accelerator: "CmdOrCtrl+1", Click: d.do(func() { d.app.SetMode(proto.ModePersonal) })},
 			{Label: "Code", Accelerator: "CmdOrCtrl+2", Click: d.do(func() { d.app.SetMode(proto.ModeCode) })},
+			mygo.Separator(),
+			{Label: "搜索", Accelerator: "CmdOrCtrl+K", Click: d.do(d.app.Search)},
+			{Label: "收件箱", Accelerator: "Shift+CmdOrCtrl+I", Click: d.do(d.app.ToggleInbox)},
+			mygo.Separator(),
+			d.back, d.forward,
 			mygo.Separator(),
 			{Label: "显示或隐藏侧栏", Accelerator: "Ctrl+Cmd+S", Click: d.do(d.app.ToggleSidebar)},
 			{Role: mygo.RoleToggleFullScreen},
@@ -218,6 +228,8 @@ func (d *desktop) changed(st shell.State) {
 	d.reveal.SetEnabled(sel.HasDir)
 	d.stop.SetEnabled(sel.Running)
 	d.archive.SetEnabled(live)
+	d.back.SetEnabled(st.CanBack)
+	d.forward.SetEnabled(st.CanForward)
 
 	mygo.App.SetBadgeCount(st.Counts.NeedsYou)
 	if d.tray == nil {

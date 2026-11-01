@@ -7,8 +7,9 @@ import (
 	"github.com/yangflow/hoplet/proto"
 )
 
-// content draws the content area: the selected session's title bar. The
-// conversation comes with the session view.
+// content draws the content area: the selected session's title bar, as
+// tall as the sidebar's top row so both line up with the traffic lights.
+// The conversation comes with the session view.
 func (a *App) content(c *ui.Context, k theme.Colors) {
 	bar := c.TitleBar()
 	ui.Column(c).Grow(1).Background(k.Pane).Children(func() {
@@ -16,9 +17,9 @@ func (a *App) content(c *ui.Context, k theme.Colors) {
 		if a.hideSide {
 			left = bar.Left + 8
 		}
-		ui.Row(c).Height(max(bar.Height, theme.TitleBar)).Padding(0, 12, 0, left).Gap(8).AlignItems(ui.Center).DragWindow().Children(func() {
-			if a.hideSide && iconButton(c, k, a.icons.Sidebar, "显示侧栏 ⌃⌘S", false).Clicked() {
-				a.ToggleSidebar()
+		ui.Row(c).Height(topHeight(bar)).Padding(0, 12, 0, left).Gap(8).AlignItems(ui.Center).DragWindow().Children(func() {
+			if a.hideSide {
+				ui.Row(c).Gap(2).Children(func() { a.windowButtons(c, k) })
 			}
 			s, ok := a.current()
 			if !ok {

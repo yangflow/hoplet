@@ -83,10 +83,13 @@ const (
 
 // View says which sessions the sidebar lists and how.
 type View struct {
-	Mode     proto.Mode
-	Archived bool // list archived sessions instead of live ones
+	Mode     proto.Mode // empty lists both modes, in one group
+	Archived bool       // list archived sessions instead of live ones
 	Sort     Sort
 	Show     Show
+	// Query keeps the sessions whose title or preview contains it,
+	// ignoring case.
+	Query string
 }
 
 // Group is the sessions of one working directory; Dir is empty for
@@ -104,13 +107,14 @@ type List struct {
 }
 
 // List arranges the catalog for v. Code sessions are grouped by working
-// directory, groups ordered by their first session; Personal sessions and
-// archived ones form one group. Pinned live sessions are listed apart.
+// directory, groups ordered by their first session; Personal sessions,
+// archived ones and both modes together form one group. Pinned live
+// sessions are listed apart.
 func (c *Catalog) List(v View) List {
 	var out List
 	var rest []proto.Session
 	for _, s := range c.sessions {
-		if s.Mode != v.Mode || (s.ArchivedAt != nil) != v.Archived || !v.shows(s) {
+		if (v.Mode != "" && s.Mode != v.Mode) || (s.ArchivedAt != nil) != v.Archived || !v.shows(s) {
 			continue
 		}
 		if s.Pinned && !v.Archived {
@@ -141,6 +145,10 @@ func (c *Catalog) List(v View) List {
 }
 
 func (v View) shows(s proto.Session) bool {
+	if q := strings.ToLower(v.Query); q != "" &&
+		!strings.Contains(strings.ToLower(s.Title), q) && !strings.Contains(strings.ToLower(s.Preview), q) {
+		return false
+	}
 	switch v.Show {
 	case ShowNeedsYou:
 		return s.Status == proto.StatusWaiting

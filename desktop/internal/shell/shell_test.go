@@ -229,3 +229,93 @@ func TestAgo(t *testing.T) {
 		}
 	}
 }
+
+func TestBackForward(t *testing.T) {
+	a, _, tt, states := newApp(t)
+	for _, title := range []string{"Fix sync", "Add tray", "Old idea"} {
+		if err := tt.Click(title); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if st := (*states)[len(*states)-1]; !st.CanBack || st.CanForward {
+		t.Fatalf("after three selections %+v", st)
+	}
+	if err := tt.Click("后退 ⌘["); err != nil {
+		t.Fatal(err)
+	}
+	if a.selected != "s2" {
+		t.Fatalf("back selected %q", a.selected)
+	}
+	a.Back()
+	if a.Forward(); a.selected != "s2" {
+		t.Fatalf("back then forward selected %q", a.selected)
+	}
+	// Selecting after going back drops what was ahead.
+	a.Select("s3")
+	tt.Frame()
+	if st := (*states)[len(*states)-1]; st.CanForward || !st.CanBack {
+		t.Fatalf("after a new selection %+v", st)
+	}
+	// Back skips sessions that are gone.
+	a.cat.Apply(proto.CatalogItem{Snapshot: true, Version: 9, Sessions: []proto.Session{
+		{ID: "s1", Mode: proto.ModeCode, Title: "Fix sync"}, {ID: "s3", Mode: proto.ModeCode},
+	}})
+	if a.Back(); a.selected != "s1" {
+		t.Fatalf("back over a missing session selected %q", a.selected)
+	}
+}
+
+func TestInboxAndSearch(t *testing.T) {
+	a, _, tt, _ := newApp(t)
+	if r, ok := tt.Find("1"); !ok || r.W == 0 {
+		t.Fatalf("no inbox count in %q", tt.Texts())
+	}
+	if err := tt.Click("收件箱"); err != nil {
+		t.Fatal(err)
+	}
+	if !a.inbox || !tt.HasText("Add tray") || tt.HasText("Fix sync") {
+		t.Fatalf("inbox texts %q", tt.Texts())
+	}
+	if err := tt.Click("Code ⌘2"); err != nil {
+		t.Fatal(err)
+	}
+	if a.inbox {
+		t.Fatal("switching mode kept the inbox")
+	}
+	if err := tt.Click("搜索"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Type("old")
+	tt.Frame()
+	if !tt.HasText("Old idea") || tt.HasText("Fix sync") || tt.HasText("Add tray") {
+		t.Fatalf("search texts %q", tt.Texts())
+	}
+	tt.Key(0, ui.KeyEscape)
+	tt.Frame()
+	if a.search || a.query != "" || !tt.HasText("Fix sync") {
+		t.Fatalf("search not closed: %q", tt.Texts())
+	}
+}
+
+func TestTopRowCentersOnTrafficLights(t *testing.T) {
+	a, _, tt, _ := newApp(t)
+	tt.SetTitleBar(ui.TitleBar{Height: 52, Left: 78})
+	tt.Frame()
+	for _, name := range []string{"隐藏侧栏 ⌃⌘S", "后退 ⌘[", "前进 ⌘]", "Code ⌘2"} {
+		r, ok := tt.Find(name)
+		if !ok {
+			t.Fatalf("no %s", name)
+		}
+		if mid := r.Y + r.H/2; mid < 25.5 || mid > 26.5 {
+			t.Errorf("%s centered at %.1f, want 26 (the traffic lights)", name, mid)
+		}
+		if name == "隐藏侧栏 ⌃⌘S" && r.X < 78 {
+			t.Errorf("%s at x %.1f under the traffic lights", name, r.X)
+		}
+	}
+	a.ToggleSidebar()
+	tt.Frame()
+	if r, ok := tt.Find("显示侧栏 ⌃⌘S"); !ok || r.Y+r.H/2 < 25.5 || r.Y+r.H/2 > 26.5 || r.X < 78 {
+		t.Fatalf("show-sidebar button at %+v", r)
+	}
+}

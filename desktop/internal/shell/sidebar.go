@@ -16,28 +16,110 @@ import (
 func (a *App) sidebar(c *ui.Context, k theme.Colors) {
 	bar := c.TitleBar()
 	ui.Column(c).Width(theme.SidebarWidth).Background(k.Side).Children(func() {
-		ui.Row(c).Height(max(bar.Height, theme.SideTop)).Padding(0, 12, 0, bar.Left+8).Gap(4).AlignItems(ui.Center).DragWindow().Children(func() {
-			if iconButton(c, k, a.icons.Sidebar, "隐藏侧栏 ⌃⌘S", false).Clicked() {
-				a.ToggleSidebar()
-			}
+		ui.Row(c).Height(topHeight(bar)).Padding(0, 12, 0, bar.Left+8).Gap(2).AlignItems(ui.Center).DragWindow().Children(func() {
+			a.windowButtons(c, k)
 			ui.Spacer(c)
 			a.modeSwitch(c, k)
 		})
+		a.entries(c, k)
 		ui.Row(c).Height(theme.RowHeight).Padding(0, 8, 0, 16).AlignItems(ui.Center).Children(func() {
 			label := "会话"
 			switch {
+			case a.inbox:
+				label = "收件箱"
 			case a.mode == proto.ModePersonal:
 				label = "伙伴"
 			case a.archived:
 				label = "已归档"
 			}
 			theme.Label.On(ui.Text(c, label)).TextColor(k.Muted).Grow(1)
-			if a.mode == proto.ModeCode && !a.archived {
+			if a.mode == proto.ModeCode && !a.archived && !a.inbox {
 				iconButton(c, k, a.icons.Arrange, "排列", false).Menu(a.arrangeMenu)
 			}
 		})
 		ui.Scroll(c).Grow(1).Children(func() { a.list(c, k) })
 		a.footer(c, k)
+	})
+}
+
+// topHeight is the height of the window's top row: the title bar's, which
+// leaves as much room above the traffic lights as below, so the row's
+// center lines up with them; SideTop in full screen, where there is none.
+func topHeight(bar ui.TitleBar) float32 {
+	if bar.Height > 0 {
+		return bar.Height
+	}
+	return theme.SideTop
+}
+
+// windowButtons are the buttons beside the traffic lights: hide or show
+// the sidebar, back and forward.
+func (a *App) windowButtons(c *ui.Context, k theme.Colors) {
+	tip := "隐藏侧栏 ⌃⌘S"
+	if a.hideSide {
+		tip = "显示侧栏 ⌃⌘S"
+	}
+	if iconButton(c, k, a.icons.Sidebar, tip, false).Clicked() {
+		a.ToggleSidebar()
+	}
+	if b := iconButton(c, k, a.icons.Back, "后退 ⌘[", false).Disabled(a.step(-1) < 0); b.Clicked() {
+		a.Back()
+	}
+	if b := iconButton(c, k, a.icons.Forward, "前进 ⌘]", false).Disabled(a.step(1) < 0); b.Clicked() {
+		a.Forward()
+	}
+}
+
+// entries are the rows under the top row: new session, search and the
+// inbox with the count of sessions waiting on me. New session comes with
+// the session view and is disabled until then.
+func (a *App) entries(c *ui.Context, k theme.Colors) {
+	ui.Column(c).Padding(4, 8).Children(func() {
+		entry(c, k, a.icons.New, "新建", "新建会话 ⌘N", false).Disabled(true)
+		if a.search {
+			a.searchField(c, k)
+		} else if entry(c, k, a.icons.Search, "搜索", "搜索 ⌘K", false).Clicked() {
+			a.Search()
+		}
+		inbox := entry(c, k, a.icons.Inbox, "收件箱", "收件箱 ⇧⌘I", a.inbox)
+		if n := a.cat.Counts().NeedsYou; n > 0 {
+			inbox.Children(func() {
+				ui.Box(c).Padding(0, 6).Radius(theme.RadiusPill).Background(k.Attn).Children(func() {
+					theme.Caption.On(ui.Textf(c, "%d", n)).TextColor(k.OnAttn).FontWeight(600).FontFeatures("tnum")
+				})
+			})
+		}
+		if inbox.Clicked() {
+			a.ToggleInbox()
+		}
+	})
+}
+
+// entry is a row of the entries: icon and label; tip names its shortcut.
+// Callers may add children after the label.
+func entry(c *ui.Context, k theme.Colors, icon *ui.SVG, label, tip string, on bool) ui.Element {
+	r := ui.Row(c.Key(label)).Height(theme.RowHeight).Padding(0, 8).Gap(8).AlignItems(ui.Center).
+		Radius(theme.RadiusRow).Label(label).Tooltip(tip)
+	switch {
+	case on:
+		r.Background(k.SelRow)
+	case r.Hovered():
+		r.Background(k.Fill)
+	}
+	return r.Children(func() {
+		ui.Icon(c, icon).FontSize(theme.IconSize).TextColor(k.Fg3)
+		theme.UI.On(ui.Text(c, label)).TextColor(k.Fg).Grow(1)
+	})
+}
+
+// searchField filters the list by title and preview; Escape closes it.
+func (a *App) searchField(c *ui.Context, k theme.Colors) {
+	ui.Row(c).Height(theme.RowHeight).Padding(0, 8).Gap(8).AlignItems(ui.Center).Radius(theme.RadiusRow).Background(k.Fill).Children(func() {
+		ui.Icon(c, a.icons.Search).FontSize(theme.IconSize).TextColor(k.Fg3)
+		in := ui.TextInput(c, &a.query).AutoFocus().Placeholder("搜索会话").Label("搜索会话").Grow(1)
+		if in.Shortcut(0, ui.KeyEscape) {
+			a.closeSearch()
+		}
 	})
 }
 
@@ -86,10 +168,25 @@ func (a *App) arrangeMenu(m *ui.Menu) {
 
 // list draws the sessions of the current view.
 func (a *App) list(c *ui.Context, k theme.Colors) {
-	l := a.cat.List(catalog.View{Mode: a.mode, Archived: a.archived, Sort: a.sort, Show: a.show})
+	if a.inbox {
+		waiting := all(a.cat.List(catalog.View{Show: catalog.ShowNeedsYou, Query: a.query}))
+		if len(waiting) == 0 {
+			theme.UI.On(ui.Text(c, "没有需要你的会话")).TextColor(k.Muted).Padding(8, 16)
+			return
+		}
+		ui.Column(c).Padding(0, 8).Children(func() {
+			for _, s := range waiting {
+				a.row(c, k, s)
+			}
+		})
+		return
+	}
+	l := a.cat.List(catalog.View{Mode: a.mode, Archived: a.archived, Sort: a.sort, Show: a.show, Query: a.query})
 	if len(l.Pinned) == 0 && len(l.Groups) == 0 {
 		empty := "没有会话"
 		switch {
+		case a.query != "":
+			empty = "没有匹配的会话"
 		case a.archived:
 			empty = "没有归档的会话"
 		case a.mode == proto.ModePersonal:
@@ -301,8 +398,9 @@ func (a *App) footer(c *ui.Context, k theme.Colors) {
 		}
 		ui.Spacer(c)
 		if a.mode == proto.ModeCode && iconButton(c, k, a.icons.Archive, "已归档", a.archived).Clicked() {
-			a.archived, a.selected = !a.archived, ""
+			a.archived, a.inbox, a.selected = !a.archived, false, ""
 		}
+		iconButton(c, k, a.icons.Settings, "设置 ⌘,", false).Disabled(true)
 	})
 }
 

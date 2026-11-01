@@ -34,6 +34,9 @@ type State struct {
 	NeedsYou, Running []Entry
 	// Selected is the selected session; its ID is empty when there is none.
 	Selected Selection
+	// CanBack and CanForward say whether Back and Forward have somewhere
+	// to go.
+	CanBack, CanForward bool
 }
 
 // Entry names a session in a menu.
@@ -54,6 +57,7 @@ type Selection struct {
 
 func (s State) equal(o State) bool {
 	return s.Connected == o.Connected && s.Counts == o.Counts && s.Selected == o.Selected &&
+		s.CanBack == o.CanBack && s.CanForward == o.CanForward &&
 		slices.Equal(s.NeedsYou, o.NeedsYou) && slices.Equal(s.Running, o.Running)
 }
 
@@ -71,10 +75,18 @@ type App struct {
 	sort     catalog.Sort
 	show     catalog.Show
 	archived bool
+	inbox    bool   // list the sessions that need me, in both modes
+	search   bool   // the search field is open
+	query    string // what the list is filtered by
 	selected string
 	closed   map[string]bool // collapsed directory groups
 	hideSide bool
 	away     bool // the app is in the background or the window hidden
+
+	// history is the sessions I selected, oldest first; at is the current
+	// one, -1 before the first.
+	history []proto.SessionID
+	at      int
 
 	renaming proto.SessionID
 	draft    string
@@ -88,7 +100,7 @@ type App struct {
 // New returns the app in Code mode, not yet connected. changed is called
 // from the view whenever State changes.
 func New(set *icons.Set, host Host, changed func(State)) *App {
-	return &App{icons: set, host: host, mode: proto.ModeCode, closed: map[string]bool{}, changed: changed}
+	return &App{icons: set, host: host, mode: proto.ModeCode, closed: map[string]bool{}, at: -1, changed: changed}
 }
 
 // Connected records a new connection to the daemon of host.
@@ -111,24 +123,82 @@ func (a *App) Apply(it proto.CatalogItem) {
 	a.markRead()
 }
 
-// SetMode switches between Personal and Code.
+// SetMode switches between Personal and Code, leaving the inbox.
 func (a *App) SetMode(m proto.Mode) {
 	if a.mode != m {
 		a.mode, a.archived, a.selected = m, false, ""
 	}
+	a.inbox = false
 }
+
+// ToggleInbox shows or leaves the inbox: the sessions waiting on me.
+func (a *App) ToggleInbox() { a.inbox, a.archived = !a.inbox, false }
+
+// Search opens the search field over the list.
+func (a *App) Search() { a.search = true }
+
+// closeSearch closes the search field and shows the whole list again.
+func (a *App) closeSearch() { a.search, a.query = false, "" }
 
 // ToggleSidebar hides or shows the sidebar.
 func (a *App) ToggleSidebar() { a.hideSide = !a.hideSide }
 
-// Select selects a session, switching to its mode.
+// maxHistory bounds how far Back goes.
+const maxHistory = 100
+
+// Select selects a session, switching to its mode, and records it for
+// Back and Forward.
 func (a *App) Select(id proto.SessionID) {
+	if !a.open(id) {
+		return
+	}
+	if a.at >= 0 && a.history[a.at] == id {
+		return
+	}
+	a.history = append(a.history[:a.at+1], id)
+	if len(a.history) > maxHistory {
+		a.history = a.history[len(a.history)-maxHistory:]
+	}
+	a.at = len(a.history) - 1
+}
+
+// open selects a session without recording it; it reports whether the
+// session exists.
+func (a *App) open(id proto.SessionID) bool {
 	s, ok := a.cat.Get(id)
 	if !ok {
-		return
+		return false
 	}
 	a.mode, a.archived, a.selected = s.Mode, s.ArchivedAt != nil, string(id)
 	a.markRead()
+	return true
+}
+
+// Back selects the previous session in the history that still exists.
+func (a *App) Back() {
+	if i := a.step(-1); i >= 0 {
+		a.at = i
+		a.open(a.history[i])
+	}
+}
+
+// Forward selects the next session in the history that still exists.
+func (a *App) Forward() {
+	if i := a.step(1); i >= 0 {
+		a.at = i
+		a.open(a.history[i])
+	}
+}
+
+// step returns the index of the nearest session in direction dir (-1 or
+// 1) from the current one that is still in the catalog, or -1.
+func (a *App) step(dir int) int {
+	for i := a.at + dir; i >= 0 && i < len(a.history); i += dir {
+		if _, ok := a.cat.Get(a.history[i]); ok {
+			return i
+		}
+	}
+	return -1
 }
 
 // SetAway records whether I can see the window: not while the app is in
@@ -207,7 +277,7 @@ func (a *App) commitRename() {
 
 // state computes State.
 func (a *App) state() State {
-	st := State{Connected: a.connected, Counts: a.cat.Counts()}
+	st := State{Connected: a.connected, Counts: a.cat.Counts(), CanBack: a.step(-1) >= 0, CanForward: a.step(1) >= 0}
 	if s, ok := a.current(); ok {
 		st.Selected = Selection{ID: s.ID, Pinned: s.Pinned, Running: s.Status == proto.StatusRunning,
 			Archived: s.ArchivedAt != nil, HasDir: s.Directory != ""}
