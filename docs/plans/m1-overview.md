@@ -1,10 +1,10 @@
 # M1 核心闭环 · 总计划
 
-**目标：** 在一台 Mac 上跑通两种模式：用 Claude Code 跑 Code 会话，用 Hermes 跑 Personal 会话，两者共用同一个内核（守护进程、shim、存储、事件协议、审批转发），可以通过 CLI 和最简桌面端使用。
+**目标：** 在一台 Mac 上跑通两种模式：用 Claude Code 跑 Code 会话，用 Hermes 跑 Personal 会话，两者共用同一个内核（守护进程、shim、存储、事件协议、审批转发），可以通过 CLI 和桌面端使用。
 
-**依据：** [设计总览](../README.md)，以及 [0002](../design/0002-process-model.md)–[0005](../design/0005-sync-protocol.md)、[0007](../design/0007-commands-approvals.md)、[0008](../design/0008-workspace-lifecycle.md)、[0013](../design/0013-testing-release.md)。
+**依据：** [设计总览](../README.md)，以及 [0002](../design/0002-process-model.md)–[0005](../design/0005-sync-protocol.md)、[0007](../design/0007-commands-approvals.md)、[0008](../design/0008-workspace-lifecycle.md)、[0013](../design/0013-testing-release.md)、[0014](../design/0014-desktop-ui.md)。
 
-**不在 M1 范围内：** 中继、配对、iOS（M2）；检查点回滚、PR、隔离模式、端口、终端（M3）；个人档案、触发器、Telegram（M4）；Codex 和 ACP（M5）。
+**不在 M1 范围内：** 中继、配对、iOS（M2）；检查点回滚、PR、隔离模式、端口、终端（M3）；个人档案、触发器、Telegram（M4）；Codex 和 ACP（M5）。设计稿里依赖这些功能的界面（多机器、撤销、提交与 PR、终端、伙伴的产物与触发器、个人档案、分叉、语音）在 M1 不显示，功能落地时再接上；M1 的 Personal 侧栏把每个 Personal 会话当作一个伙伴显示，完整的伙伴模型随 M4 个人档案一起做。
 
 ## 全局约束
 
@@ -18,7 +18,16 @@
 | `modernc.org/sqlite` | v1.61.0 | 纯 Go SQLite（无 cgo） | PR2 |
 | `github.com/coder/websocket` | v1.8.15 | 客户端协议的 WebSocket | PR5b |
 | `github.com/BurntSushi/toml` | v1.6.0 | 配置文件（`config.toml`，以及后续的 `rules.toml`、`hoplet.toml`、`mcp.toml`） | PR5c |
-| `github.com/egoist/mygo` | v0.7.3 | 桌面端 | PR9 |
+| `github.com/egoist/mygo` | v0.7.4 | 桌面端（原生 UI、玻璃插件、菜单与托盘） | PR9a |
+
+随仓库分发的第三方资源（只拷贝用到的文件，各自附许可证原文，不引入代码依赖）：
+
+| 资源 | 版本 | 许可 | 用途 | 引入于 |
+|---|---|---|---|---|
+| Lucide（lucide-static） | 1.66.0 | ISC | 界面图标、审批盾牌 | PR9a |
+| Material Icon Theme | 5.40.0 | MIT | 文件与文件夹类型图标 | PR9c |
+| Simple Icons | 16.36.0 | CC0-1.0 | Claude 标志 | PR9a |
+| JetBrains Mono | 2.304 | SIL OFL 1.1 | 代码字体（Regular、SemiBold） | PR9b |
 
 ## PR 拆分与顺序
 
@@ -36,9 +45,11 @@ flowchart LR
     P6a --> P6["PR6b Claude Code 适配"]
     P6a --> P7["PR7 Hermes 适配"]
     P5 --> P8["PR8 工作目录 + 会话累计 diff"]
-    P6 --> P9["PR9 最简桌面端"]
-    P7 --> P9
-    P8 --> P9
+    P6 --> P9a["PR9a 桌面骨架"]
+    P7 --> P9a
+    P8 --> P9a
+    P9a --> P9b["PR9b 会话视图"]
+    P9b --> P9c["PR9c 右栏"]
 ```
 
 PR2、PR3、PR4 互不依赖，可以并行开发。PR6b 与 PR7 都要实现 6a 加的 Run 方法，所以都在 6a 之后；PR6b、PR7、PR8 之间互不依赖。
@@ -56,7 +67,9 @@ PR2、PR3、PR4 互不依赖，可以并行开发。PR6b 与 PR7 都要实现 6a
 | 6b | `feat(harness/claude): add Claude Code adapter` | **第一步验证假设（已完成）：** 录制真实 stream-json 会话，确认审批（control_request）、中断、切换权限模式与模型、思考强度、Plan 批准、续接都能走通（Fast 无法经协议开启）；随后实现适配器：事件映射、审批档位 / Plan / 思考强度映射、审批转发、版本门控与 Probe 缓存；Hoplet 托管的 claude 副本（`hoplet harness install / upgrade claude`，未录制的版本先过本机自检；守护进程每天跟进我 PATH 上的 claude，doctor 显示结果）；`hoplet dev record / sanitize`；契约测试（录制回放 + golden） | 用真实 Claude Code 完成一次“改文件 + 执行命令需审批”的会话；契约测试在 CI 中离线通过 |
 | 7 | `feat(harness/hermes): add Hermes adapter for Personal mode` | **第一步验证假设（已完成）：** 对本机 Hermes 0.22.5 的 gateway 录制真实会话，确认流式、编辑审批、steer、中断、设置切换、断线续接（gateway 原生 WebSocket，共用默认 `~/.hermes`）；随后实现：`hoplet hermes-bridge` 桥接进程（放在 shim 后面）、适配器（事件映射、档位 / 思考强度 / Fast / 模型、审批转发、设置排队、断线后用 receipt 补齐）、版本门控与本机自检（`hoplet harness verify hermes`，守护进程每天检查）、CLI `session interrupt / steer / stop`、契约测试（真实会话 spool 回放 + golden） | 用真实 Hermes 完成一次带编辑审批的对话；守护进程重启后 Hermes 会话能续上 |
 | 8 | `feat(workspace): discover repos and show session diff` | 扫描工作目录下的仓库；建会话时、启动 harness 前记录基线（Hoplet 自己的 index 与对象库，不读用户的 index、不写用户仓库）；按仓库给出“会话累计”diff（`sessions.diff`、`hoplet session diff`） | 多仓库目录下改动能按仓库正确汇总；用户仓库 `.git` 下没有任何文件被新建、修改、删除或改动时间戳 |
-| 9 | `feat(desktop): add minimal desktop app` | 先用 Design 出桌面设计稿；MyGO 实现：侧栏（模式切换、收件箱入口、会话按主机·目录分组）、对话流、待审批固定在输入框上方、输入框（队列、插话、停止）、只读 diff 检查器 | 桌面端完成：新建 Code 会话 → 审批 → 看 diff；新建 Personal 会话 → 对话 |
+| 9a | `feat(desktop): add desktop shell and design system` | 设计系统落地（[0014](../design/0014-desktop-ui.md)：token → `ui.Theme` 与应用自己的语义色、7 档字号、间距圆角）；资源（Lucide、Simple Icons 的 SVG 子集与许可证，标志与应用图标）；全玻璃窗口与标题栏；侧栏（模式切换、Code 按工作目录分组、置顶分区、排列菜单、Personal 伙伴列表、行尾状态、右键菜单、底部本机身份与连接状态、归档列表）；会话的置顶 / 未读 / 重命名（存储迁移 + `sessions.update` + CLI）；原生菜单栏、菜单栏图标、Dock 角标 | 桌面端连上守护进程，侧栏实时反映会话状态；置顶 / 未读 / 重命名在 CLI 与桌面端一致；菜单栏图标显示"需要你"数量 |
+| 9b | `feat(desktop): add session view, composer and approvals` | 正文区（Code：工作组折叠、工具行、代码块、改动卡；Personal：聊天气泡）；输入框（队列、插话、停止、强度与模型、审批档位、Plan）；审批与提问在输入框内；侧栏的新建 / 搜索 / 收件箱入口与目录 ＋；新建页；收件箱；⌘K 命令面板；JetBrains Mono | 桌面端完成：新建 Code 会话 → 审批 → 看到改动；新建 Personal 会话 → 对话 |
+| 9c | `feat(desktop): add changes and files panel` | 右栏：标签查看区、Material Icon Theme 文件图标、变更树 + 连续 diff（`sessions.diff`）、文件树 + 只读文件查看（守护进程新增只读的会话目录列举与读取接口） | 在桌面端看完一次会话的全部改动，并能打开任意文件 |
 
 ## 关键假设的验证点
 
@@ -81,4 +94,5 @@ PR2、PR3、PR4 互不依赖，可以并行开发。PR6b 与 PR7 都要实现 6a
 - [PR6a：审批档位、Plan 与思考强度](m1-pr6a-modes.md)（已合并）
 - [PR6b：Claude Code 适配](m1-pr6b-claude.md)（已合并）
 - [PR7：Hermes 适配](m1-pr7-hermes.md)（已合并）
-- [PR8：工作目录与会话累计 diff](m1-pr8-workspace.md)
+- [PR8：工作目录与会话累计 diff](m1-pr8-workspace.md)（已合并）
+- [PR9a：桌面骨架与设计系统](m1-pr9a-desktop-shell.md)

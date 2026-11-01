@@ -6,6 +6,18 @@
 
 Personal 是一种**模式**，不是某个 harness。默认 harness 是一个设置项，随时可换；模型支持**订阅登录和 API key** 两种方式（凭证都留在 harness 自己的配置里）。
 
+## 伙伴
+
+Personal 里没有按次新建的会话，只有**伙伴**。
+
+| 项 | 结论 |
+|---|---|
+| 伙伴 | 人格 + harness + 一条连续的长会话；各伙伴的 harness 可以不同，新建时默认用 Personal 默认 harness |
+| 档案 | 关于我的档案所有伙伴共用，只存在主宿主上；其他机器上的伙伴在会话开始时向主宿主取；人格各自一份 |
+| 位置 | 伙伴可以建在任何一台机器上（默认主宿主）；客户端按机器筛选，和 Code 会话一致；需要另一台机器的事走 `run_on` |
+| 对话 | 带参与者列表，每条消息记下是哪个伙伴说的；v1 只有一个参与者 |
+| 群聊 | v1 不做；以后就是多个参与者的对话，daemon 负责在 harness 之间转发。发言规则、伙伴互相回复、群聊审批到时再定 |
+
 ## 运行位置
 
 ```mermaid
@@ -22,13 +34,13 @@ flowchart LR
 ```
 ~/.hoplet/profile/          （位于主宿主）
   PROFILE.md                 索引
-  persona.md                 人格（只注入 Personal）
+  personas/<伙伴>.md         各伙伴的人格（只注入该伙伴）
   about-me.md · preferences.md · facts/*.md · people.md …（带 frontmatter）
 ```
 
 ```mermaid
 flowchart LR
-    Prof[("个人档案")] -- "会话开始：压缩到约 8KB<br/>经 harness 原生入口注入" --> H["当前 Personal harness"]
+    Prof[("个人档案")] -- "会话开始：压缩到约 8KB<br/>经 harness 原生入口注入" --> H["伙伴的 harness"]
     H -- "profile_write（带版本检查，记日志）" --> Prof
     Me["我"] -- "在 app 里查看 / 编辑" --> Prof
     C["Code 会话"] -. 只读查询 .-> Prof

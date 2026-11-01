@@ -92,6 +92,7 @@ flowchart LR
 | [0011](design/0011-client-stack.md) | 客户端技术栈 | 桌面 MyGO，iOS SwiftUI，协议类型生成 |
 | [0012](design/0012-orchestration-api.md) | 编排与自动化接口 | 一套服务，三个入口，按会话授权 |
 | [0013](design/0013-testing-release.md) | 测试、升级与发布 | 契约测试 + 假 harness + 性能预算 |
+| [0014](design/0014-desktop-ui.md) | 桌面界面与设计系统 | 全玻璃、石墨 + 青、7 档字号、Lucide 图标；布局与 MyGO 对应 |
 
 ## 里程碑
 
