@@ -144,11 +144,21 @@ func (x *tester) push(line string) []proto.Payload {
 				out = append(out, ev.Payload)
 			}
 			if ev.Offset == x.offset && ev.Raw == nil && ev.Payload == nil {
+				x.checkBusy(line)
 				return out
 			}
 		case <-timeout:
 			x.t.Fatalf("no events for %s", line)
 		}
+	}
+}
+
+// checkBusy fails unless the run is busy exactly while turns are queued.
+// The loop is waiting for the next line, so its state can be read.
+func (x *tester) checkBusy(line string) {
+	x.t.Helper()
+	if busy, queued := x.run.isBusy(), len(x.run.queue); busy != (queued > 0) {
+		x.t.Fatalf("after %s: busy %v with %d turns queued", line, busy, queued)
 	}
 }
 
@@ -1155,11 +1165,195 @@ func TestATurnTheSnapshotStartedIsStartedOnce(t *testing.T) {
 
 func TestAnOrphanReceiptDoesNotEndAnotherTurn(t *testing.T) {
 	x := newTester(t, harness.Spec{State: harness.State{Native: "s1", InTurn: true}})
-	if p := x.push(`{"jsonrpc":"2.0","id":"old","result":` + receipt("a0", "terminal", "") + `}`); len(p) != 0 {
+	if p := x.push(eventFor("a7", "message.delta", `{"text":"x"}`)); len(p) != 1 {
+		t.Fatalf("delta %v", p)
+	}
+	// The open turn is known now: a receipt of another turn ends nothing.
+	if p := x.push(orphan("a0", `,"usage":{"input_tokens":2,"output_tokens":1}`)); len(p) != 1 || p[0] != (proto.Usage{InputTokens: 2, OutputTokens: 1}) {
 		t.Fatalf("orphan %v", p)
 	}
 	if p := x.push(eventFor("a7", "message.delta", `{"text":"x"}`)); len(p) != 1 {
 		t.Fatalf("the turn went on: %v", p)
+	}
+}
+
+// orphan is a receipt answer to a request the old daemon sent.
+func orphan(admission, usage string) string {
+	return `{"jsonrpc":"2.0","id":"old","result":` + receipt(admission, "terminal", usage) + `}`
+}
+
+// restarted is a run attached to a running bridge after a daemon restart,
+// with a turn open in the store; it checks the one resume it sends.
+func restarted(t *testing.T) *tester {
+	t.Helper()
+	x := newTester(t, harness.Spec{State: harness.State{Native: "s1", InTurn: true}})
+	x.push(`{"hoplet_bridge":"keepalive"}`) // the resume is written before any line is read
+	if w := x.writes(0); len(w) != 1 || w[0].Method != "session.resume" || w[0].Params["session_id"] != "s1" || w[0].Params["omit_messages"] != true {
+		t.Fatalf("on reattaching %+v", w)
+	}
+	return x
+}
+
+// resumes counts the session.resume requests written.
+func (x *tester) resumes() int {
+	n := 0
+	for _, w := range x.writes(0) {
+		if w.Method == "session.resume" {
+			n++
+		}
+	}
+	return n
+}
+
+var restartAborted = proto.TurnEnded{Reason: proto.TurnAborted, Message: "the turn ended while the Hoplet daemon restarted"}
+
+// TestAnOrphanReceiptEndsTheOpenTurnAfterARestart is the turn that ended
+// while the daemon was down, after the old daemon had read its
+// message.complete: only the receipt answer is replayed.
+func TestAnOrphanReceiptEndsTheOpenTurnAfterARestart(t *testing.T) {
+	x := restarted(t)
+	p := x.push(orphan("a1", `,"usage":{"input_tokens":5,"output_tokens":3}`))
+	if len(p) != 3 || p[0] != (proto.Message{ID: "a1/0", Role: proto.RoleAssistant, Text: "x"}) ||
+		p[1] != (proto.Usage{InputTokens: 5, OutputTokens: 3}) || p[2] != (proto.TurnEnded{Reason: proto.TurnCompleted}) {
+		t.Fatalf("orphan %v", p)
+	}
+	if p := x.answer(0, `{"session_id":"s1","stored_session_id":"s1","running":false,"revision":2,"execution_generation":1}`); len(p) != 0 {
+		t.Fatalf("snapshot %v", p)
+	}
+	n := len(x.io.written())
+	if err := x.run.SetEffort(context.Background(), proto.EffortLow); err != nil {
+		t.Fatal(err)
+	}
+	if w := x.writes(n); len(w) != 1 || w[0].Method != "session.mutate" {
+		t.Fatalf("setting after the turn %+v", w)
+	}
+	if x.resumes() != 1 {
+		t.Fatalf("%d resumes", x.resumes())
+	}
+}
+
+// TestATurnStartedWhileTheDaemonRestartedEndsTheOpenOne is the next turn
+// starting before the receipt the old daemon asked for is answered: the
+// open turn ends as aborted, and its receipt brings only its usage.
+func TestATurnStartedWhileTheDaemonRestartedEndsTheOpenOne(t *testing.T) {
+	x := restarted(t)
+	if p := x.push(eventFor("a2", "message.start", `{}`)); len(p) != 2 || p[0] != restartAborted || p[1] != (proto.TurnStarted{}) {
+		t.Fatalf("a2 start %v", p)
+	}
+	if p := x.push(orphan("a1", `,"usage":{"input_tokens":5,"output_tokens":3}`)); len(p) != 1 || p[0] != (proto.Usage{InputTokens: 5, OutputTokens: 3}) {
+		t.Fatalf("a1's receipt %v", p)
+	}
+	n := len(x.io.written())
+	if p := x.push(complete("a2", "two")); len(p) != 1 || p[0].(proto.Message).ID != "a2/0" {
+		t.Fatalf("a2 complete %v", p)
+	}
+	if w := x.writes(n); len(w) != 1 || w[0].Method != "prompt.receipt" || w[0].Params["admission_id"] != "a2" {
+		t.Fatalf("a2's receipt request %+v", w)
+	}
+	if p := x.answer(n, receipt("a2", "terminal", "")); len(p) != 1 || p[0] != (proto.TurnEnded{Reason: proto.TurnCompleted}) {
+		t.Fatalf("a2 end %v", p)
+	}
+}
+
+// TestAnOrphanReceiptBeforeTheNextStartEndsTheOpenTurn is the same with
+// the receipt answered first.
+func TestAnOrphanReceiptBeforeTheNextStartEndsTheOpenTurn(t *testing.T) {
+	x := restarted(t)
+	p := x.push(orphan("a1", `,"usage":{"input_tokens":5,"output_tokens":3}`))
+	if len(p) != 3 || p[1] != (proto.Usage{InputTokens: 5, OutputTokens: 3}) || p[2] != (proto.TurnEnded{Reason: proto.TurnCompleted}) {
+		t.Fatalf("orphan %v", p)
+	}
+	if p := x.push(eventFor("a2", "message.start", `{}`)); len(p) != 1 || p[0] != (proto.TurnStarted{}) {
+		t.Fatalf("a2 start %v", p)
+	}
+}
+
+// TestAQueuedTurnIsNotTakenForTheOpenOneAfterARestart is the old daemon
+// holding a2 behind a1, a1's receipt in flight, when it stopped: a1 ends
+// from its receipt and a2 is a turn of its own.
+func TestAQueuedTurnIsNotTakenForTheOpenOneAfterARestart(t *testing.T) {
+	x := restarted(t)
+	p := x.push(orphan("a1", `,"usage":{"input_tokens":5,"output_tokens":3}`))
+	if len(p) != 3 || p[0].(proto.Message).ID != "a1/0" || p[2] != (proto.TurnEnded{Reason: proto.TurnCompleted}) {
+		t.Fatalf("a1's receipt %v", p)
+	}
+	if p := x.push(eventFor("a2", "message.delta", `{"text":"he"}`)); len(p) != 0 {
+		t.Fatalf("a2 delta %v", p)
+	}
+	if p := x.answer(0, runningA2); len(p) != 1 || p[0] != (proto.TurnStarted{}) {
+		t.Fatalf("snapshot %v", p)
+	}
+	n := len(x.io.written())
+	if p := x.push(complete("a2", "hello")); len(p) != 1 || p[0] != (proto.Message{ID: "a2/0", Role: proto.RoleAssistant, Text: "hello"}) {
+		t.Fatalf("a2 complete %v", p)
+	}
+	if p := x.answer(n, receipt("a2", "terminal", "")); len(p) != 1 || p[0] != (proto.TurnEnded{Reason: proto.TurnCompleted}) {
+		t.Fatalf("a2 end %v", p)
+	}
+}
+
+func TestTheResumeAfterARestartResolvesTheOpenTurn(t *testing.T) {
+	t.Run("running", func(t *testing.T) {
+		x := restarted(t)
+		snap := `{"session_id":"s1","stored_session_id":"s1","running":true,"revision":2,"execution_generation":1,"pending":[{"admission_id":"a3","status":"started"}]}`
+		if p := x.answer(0, snap); len(p) != 0 {
+			t.Fatalf("snapshot %v", p)
+		}
+		n := len(x.io.written())
+		if p := x.push(complete("a3", "three")); len(p) != 1 || p[0].(proto.Message).ID != "a3/0" {
+			t.Fatalf("complete %v", p)
+		}
+		if w := x.writes(n); len(w) != 1 || w[0].Method != "prompt.receipt" || w[0].Params["admission_id"] != "a3" {
+			t.Fatalf("receipt request %+v", w)
+		}
+		if p := x.answer(n, receipt("a3", "terminal", "")); len(p) != 1 || p[0] != (proto.TurnEnded{Reason: proto.TurnCompleted}) {
+			t.Fatalf("end %v", p)
+		}
+		if x.resumes() != 1 {
+			t.Fatalf("%d resumes", x.resumes())
+		}
+	})
+	t.Run("idle", func(t *testing.T) {
+		x := restarted(t)
+		if p := x.answer(0, `{"session_id":"s1","stored_session_id":"s1","running":false,"revision":2,"execution_generation":1}`); len(p) != 1 || p[0] != restartAborted {
+			t.Fatalf("snapshot %v", p)
+		}
+		n := len(x.io.written())
+		if err := x.run.SetEffort(context.Background(), proto.EffortLow); err != nil {
+			t.Fatal(err)
+		}
+		if w := x.writes(n); len(w) != 1 || w[0].Method != "session.mutate" {
+			t.Fatalf("setting after the turn %+v", w)
+		}
+	})
+}
+
+func TestAnApprovalOfAQueuedTurnWaitsForIt(t *testing.T) {
+	x := newTester(t, harness.Spec{Resume: "s1"})
+	x.attach("s1", false)
+	x.push(eventFor("a1", "message.start", `{}`))
+	x.push(eventFor("a1", "tool.start", `{"tool_id":"t1","name":"terminal","context":"ls"}`))
+	x.push(complete("a1", ""))
+	x.reconnect(2) // a2 started while away: it waits for a1's receipt
+	for _, l := range []string{
+		eventFor("a2", "tool.start", `{"tool_id":"t2","name":"terminal","context":"rm x"}`),
+		eventFor("a2", "approval.request", `{"kind":"approval","prompt_id":"p2","execution_generation":1,"command":"rm x","choices":["once","deny"]}`),
+		eventFor("a2", "error", `{"message":"slow"}`),
+	} {
+		if p := x.push(l); len(p) != 0 {
+			t.Fatalf("a2's event shown in a1: %v", p)
+		}
+	}
+	if w := x.last(); w.Method != "prompt.receipt" || w.Params["admission_id"] != "a1" {
+		t.Fatalf("asked %+v", w)
+	}
+	p := x.answerLast(receipt("a1", "terminal", ""))
+	if len(p) != 5 || p[0] != (proto.TurnEnded{Reason: proto.TurnCompleted}) || p[1] != (proto.TurnStarted{}) ||
+		p[2].(proto.ToolCall).ID != "t2" || p[4] != (proto.Error{Message: "slow"}) {
+		t.Fatalf("a1 receipt %v", p)
+	}
+	if a := p[3].(proto.ApprovalRequested); a.ID != "p2" || a.ToolCallID != "t2" {
+		t.Fatalf("approval %+v", a)
 	}
 }
 

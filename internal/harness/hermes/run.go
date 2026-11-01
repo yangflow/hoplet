@@ -101,6 +101,10 @@ type run struct {
 
 	// receiptDelay is the wait before a receipt is asked for again.
 	receiptDelay time.Duration
+	// reattach asks for a snapshot as the loop starts: the run attached to
+	// a running bridge (the daemon restarted) with a turn open in the
+	// store, and the snapshot says where that turn stands.
+	reattach bool
 	// orderMu orders user messages: it is held from the decision to queue
 	// or write a message through the write, and while queued ones are
 	// released. Lock order: orderMu before mu; orderMu is never taken while
@@ -153,8 +157,8 @@ func newRun(io harness.Stdio, spec harness.Spec) *run {
 	}
 	if spec.State.InTurn {
 		// A turn is open that this run has not seen start: the first
-		// event or snapshot names it.
-		r.queue = []*turnRec{{started: true}}
+		// receipt, event or snapshot names it.
+		r.queue = []*turnRec{{started: true, placeholder: true}}
 	}
 	if native != "" {
 		// An attached session already has the mode Hoplet set.
@@ -164,6 +168,7 @@ func newRun(io harness.Stdio, spec harness.Spec) *run {
 	// finds its connection attached to the session; a new bridge attaches
 	// when it connects.
 	r.attached = native != "" && spec.Resume == ""
+	r.reattach = r.attached && spec.State.InTurn
 	go r.loop()
 	return r
 }
@@ -180,6 +185,11 @@ func (r *run) emit(ev harness.Event) bool {
 func (r *run) loop() {
 	defer close(r.finished)
 	defer close(r.events)
+	if r.reattach {
+		// Its answer comes after the lines the shim replays, so the
+		// receipts the old daemon asked for are read first.
+		r.attachSession()
+	}
 	lines := r.io.Lines()
 	for {
 		var l harness.Line
@@ -425,9 +435,26 @@ func (r *run) onOrphan(result json.RawMessage) (out []proto.Payload, native stri
 	case probe.Admission != "" && probe.Status == "terminal" && probe.Result != nil:
 		var a admitted
 		_ = json.Unmarshal(result, &a)
-		return r.onReceipt(a), ""
+		return r.onOrphanReceipt(a), ""
 	}
 	return nil, ""
+}
+
+// onOrphanReceipt reads a receipt the old daemon asked for. It asked only
+// for its own open turn, so while that turn's admission is not known the
+// receipt names it and ends it. A receipt of a turn no longer kept (ended
+// as aborted when a newer turn started) yields only its usage.
+func (r *run) onOrphanReceipt(a admitted) []proto.Payload {
+	if h := r.unadopted(); h != nil && r.find(a.Admission) == nil {
+		h.admission = a.Admission
+	}
+	if r.classify(a.Admission) == "" && r.find(a.Admission) == nil {
+		if a.Usage != nil {
+			return []proto.Payload{proto.Usage{InputTokens: a.Usage.Input, OutputTokens: a.Usage.Output}}
+		}
+		return nil
+	}
+	return r.onReceipt(a)
 }
 
 func (r *run) onSnapshot(result json.RawMessage, created bool) (out []proto.Payload, native string) {
@@ -513,12 +540,13 @@ func (r *run) onSnapshot(result json.RawMessage, created bool) (out []proto.Payl
 // turnRec is a turn Hoplet knows of. Turns are kept in the order Hermes
 // admitted them; the first is the one Hoplet shows.
 type turnRec struct {
-	admission string
-	started   bool             // its TurnStarted was emitted
-	ended     bool             // known to be over in Hermes; its end comes from its receipt
-	asked     bool             // its receipt was asked for on this connection
-	complete  *completePayload // its message.complete, when seen
-	events    []event          // its events, kept until it is the first
+	admission   string
+	started     bool             // its TurnStarted was emitted
+	ended       bool             // known to be over in Hermes; its end comes from its receipt
+	asked       bool             // its receipt was asked for on this connection
+	placeholder bool             // the store's open turn after a daemon restart
+	complete    *completePayload // its message.complete, when seen
+	events      []event          // its events, kept until it is the first
 }
 
 // maxQueuedEvents bounds the events kept for a turn that is not yet the
@@ -540,6 +568,15 @@ func (r *run) turnID() string {
 		return h.admission
 	}
 	return ""
+}
+
+// unadopted returns the first turn if it stands for the store's open turn
+// and its admission is not known yet.
+func (r *run) unadopted() *turnRec {
+	if h := r.head(); h != nil && h.placeholder && h.admission == "" {
+		return h
+	}
+	return nil
 }
 
 func (r *run) find(admission string) *turnRec {
@@ -584,8 +621,9 @@ func (r *run) pop() {
 // request with it).
 func (r *run) reconcile(running bool, started string) {
 	for _, t := range r.queue {
-		if t.admission == "" && started != "" {
-			t.admission = started // a turn found after a daemon restart
+		if t.admission == "" && started != "" && r.find(started) == nil {
+			// The store's open turn is the last one started: the one running.
+			t.admission = started
 		}
 		if !running || (started != "" && t.admission != started) {
 			t.ended = true
@@ -608,6 +646,7 @@ func (r *run) advance(out []proto.Payload) []proto.Payload {
 		case !h.started:
 			h.started = true
 			r.segment, r.toolsSeen = 0, false
+			r.lastTool = "" // an approval names a tool of its own turn
 			r.text.Reset()
 			out = append(out, proto.TurnStarted{})
 			events := h.events
@@ -620,7 +659,11 @@ func (r *run) advance(out []proto.Payload) []proto.Payload {
 			}
 			continue
 		case h.ended && h.admission == "":
-			out = append(out, proto.TurnEnded{Reason: proto.TurnAborted, Message: "the turn ended while Hoplet was not connected"})
+			msg := "the turn ended while Hoplet was not connected"
+			if h.placeholder {
+				msg = "the turn ended while the Hoplet daemon restarted"
+			}
+			out = append(out, proto.TurnEnded{Reason: proto.TurnAborted, Message: msg})
 			r.pop()
 			continue
 		case (h.ended || h.complete != nil) && !h.asked:
@@ -654,7 +697,9 @@ func (r *run) endWithout(h *turnRec, reason string) proto.Payload {
 }
 
 // onStart handles a message.start: a turn is admitted. The first turn, if
-// it is another one, is over by now.
+// it is another one, is over by now. A start never names the store's open
+// turn after a restart: Hermes runs one turn at a time, so that turn is
+// over, and with no receipt read for it, it ends as aborted.
 func (r *run) onStart(admission string) []proto.Payload {
 	if r.find(admission) == nil {
 		if admission != "" || len(r.queue) == 0 {
@@ -955,25 +1000,30 @@ func (r *run) onEvent(ev event) []proto.Payload {
 	if ev.Type == "message.start" {
 		return r.onStart(ev.Admission)
 	}
+	// Approvals and errors are kept with their turn too, but one of no
+	// known turn is still shown: it may wait for an answer.
+	loose := false
 	switch ev.Type {
 	case "message.delta", "message.interim", "message.complete", "tool.start", "tool.complete":
+	case "approval.request", "error":
+		loose = true
 	default:
 		return r.translateEvent(ev)
 	}
 	// An event of a turn: the first turn's is translated, a later one's
 	// kept until that turn comes first, any other is dropped.
+	if h := r.unadopted(); h != nil && ev.Admission != "" && r.find(ev.Admission) == nil {
+		h.admission = ev.Admission // reattached to a running bridge: the running turn's content
+	}
 	h := r.head()
-	if h != nil && h.admission == "" && ev.Admission != "" {
-		h.admission = ev.Admission // reattached to a running bridge: the first event names the turn
-	}
 	switch {
-	case h == nil:
-		return nil
-	case ev.Admission == "" || ev.Admission == h.admission:
+	case h != nil && (ev.Admission == "" || ev.Admission == h.admission):
 		return r.translateEvent(ev)
-	}
-	if t := r.find(ev.Admission); t != nil {
-		t.buffer(ev)
+	case h != nil && r.find(ev.Admission) != nil:
+		r.find(ev.Admission).buffer(ev)
+		return nil
+	case loose:
+		return r.translateEvent(ev)
 	}
 	return nil
 }
