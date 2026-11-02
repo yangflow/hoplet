@@ -15,14 +15,39 @@ import (
 )
 
 // Host carries out what the shell asks. Calls must not block: daemon
-// requests run elsewhere and their effects come back through the catalog,
-// their failures through App.Fail.
+// requests run elsewhere and their effects come back through the catalog
+// or the followed session, their failures through App.Fail; a done
+// function runs on the UI thread.
 type Host interface {
 	Update(p proto.UpdateParams)
 	Stop(id proto.SessionID)
 	Archive(id proto.SessionID)
 	// Reveal shows a directory in Finder.
 	Reveal(dir string)
+
+	Create(p proto.CreateParams, done func(proto.Session))
+	Send(p proto.SendParams)
+	Steer(p proto.SteerParams)
+	Interrupt(id proto.SessionID)
+	Respond(p proto.RespondParams)
+	Answer(p proto.AnswerParams)
+	SetPermission(p proto.SetPermissionParams)
+	SetPlan(p proto.SetPlanParams)
+	SetEffort(p proto.SetEffortParams)
+	SetFast(p proto.SetFastParams)
+	SetModel(p proto.SetModelParams)
+	EditQueued(p proto.QueueEditParams)
+	DeleteQueued(p proto.QueueKeyParams)
+	MoveQueued(p proto.QueueMoveParams)
+	Output(p proto.OutputParams, done func(proto.ToolOutput))
+	// Older pages back through a session's events before seq.
+	Older(id proto.SessionID, before uint64, done func(proto.EventsPage))
+	Harnesses(done func([]proto.HarnessInfo))
+	// Follow follows one session's events from after seq, in place of the
+	// session followed before; its items reach App.ApplySession.
+	Follow(id proto.SessionID, after uint64)
+	// ChooseFolder asks for a directory; done is not called when I cancel.
+	ChooseFolder(done func(dir string))
 }
 
 // State is what the window offers outside itself: the menu bar, the menu
@@ -90,6 +115,8 @@ type App struct {
 
 	toast string // an error to show once
 
+	s sessionView // the conversation, the composer and the new-session page
+
 	changed func(State)
 	last    State
 }
@@ -97,12 +124,15 @@ type App struct {
 // New returns the app in Code mode, not yet connected. changed is called
 // from the view whenever State changes.
 func New(set *icons.Set, host Host, changed func(State)) *App {
-	return &App{icons: set, host: host, mode: proto.ModeCode, closed: map[string]bool{}, at: -1, changed: changed}
+	return &App{icons: set, host: host, mode: proto.ModeCode, closed: map[string]bool{}, at: -1, changed: changed, s: newSessionView()}
 }
 
-// Connected records a new connection to the daemon of host.
+// Connected records a new connection to the daemon of host: the followed
+// session resumes and messages written while offline go out.
 func (a *App) Connected(host string) {
 	a.connected, a.machine, a.offline = true, host, ""
+	a.follow()
+	a.flushOutbox()
 }
 
 // Lost records that the connection is gone and why.
@@ -157,7 +187,9 @@ func (a *App) open(id proto.SessionID) bool {
 		return false
 	}
 	a.mode, a.archived, a.selected = s.Mode, s.ArchivedAt != nil, string(id)
+	a.s.newPage = false
 	a.markRead()
+	a.follow()
 	return true
 }
 

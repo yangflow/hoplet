@@ -17,6 +17,7 @@ import (
 	"github.com/yangflow/hoplet/desktop/internal/icons"
 	"github.com/yangflow/hoplet/desktop/internal/link"
 	"github.com/yangflow/hoplet/desktop/internal/shell"
+	"github.com/yangflow/hoplet/desktop/internal/theme"
 	"github.com/yangflow/hoplet/internal/client"
 	"github.com/yangflow/hoplet/proto"
 )
@@ -37,6 +38,9 @@ func run() error {
 	}
 	set, err := icons.Load()
 	if err != nil {
+		return err
+	}
+	if err := theme.RegisterFonts(); err != nil {
 		return err
 	}
 	dial, err := link.DefaultDialer()
@@ -83,6 +87,7 @@ func run() error {
 			Connected: func(c *client.Client, host string) {
 				d.setClient(c)
 				d.win.Update(func() { d.app.Connected(host) })
+				d.Harnesses(d.app.SetHarnesses)
 			},
 			Lost: func(err error) {
 				d.setClient(nil)
@@ -104,10 +109,12 @@ type desktop struct {
 
 	mu sync.Mutex
 	c  *client.Client // the current connection, nil while there is none
+	// unfollow ends following the session followed now.
+	unfollow context.CancelFunc
 
 	// Session menu items, enabled for the selected session.
 	pin, unread, rename, reveal, stop, archive *mygo.MenuItem
-	back, forward                              *mygo.MenuItem
+	back, forward, newSession                  *mygo.MenuItem
 }
 
 func (d *desktop) setClient(c *client.Client) {
@@ -156,6 +163,159 @@ func (d *desktop) Archive(id proto.SessionID) {
 // Reveal implements shell.Host.
 func (d *desktop) Reveal(dir string) { mygo.Shell.ShowItemInFolder(dir) }
 
+// ui runs fn on the UI thread.
+func (d *desktop) ui(fn func()) { d.win.Update(fn) }
+
+// Create implements shell.Host.
+func (d *desktop) Create(p proto.CreateParams, done func(proto.Session)) {
+	d.call(func(ctx context.Context, c *client.Client) error {
+		s, err := c.Create(ctx, p)
+		if err == nil {
+			d.ui(func() { done(s) })
+		}
+		return err
+	})
+}
+
+// Send implements shell.Host.
+func (d *desktop) Send(p proto.SendParams) {
+	d.call(func(ctx context.Context, c *client.Client) error {
+		_, err := c.Send(ctx, p)
+		return err
+	})
+}
+
+// Steer implements shell.Host.
+func (d *desktop) Steer(p proto.SteerParams) {
+	d.call(func(ctx context.Context, c *client.Client) error { return c.Steer(ctx, p) })
+}
+
+// Interrupt implements shell.Host.
+func (d *desktop) Interrupt(id proto.SessionID) {
+	d.call(func(ctx context.Context, c *client.Client) error { return c.Interrupt(ctx, id) })
+}
+
+// Respond implements shell.Host.
+func (d *desktop) Respond(p proto.RespondParams) {
+	d.call(func(ctx context.Context, c *client.Client) error { return c.Respond(ctx, p) })
+}
+
+// Answer implements shell.Host.
+func (d *desktop) Answer(p proto.AnswerParams) {
+	d.call(func(ctx context.Context, c *client.Client) error { return c.Answer(ctx, p) })
+}
+
+// SetPermission implements shell.Host.
+func (d *desktop) SetPermission(p proto.SetPermissionParams) {
+	d.call(func(ctx context.Context, c *client.Client) error { return c.SetPermission(ctx, p) })
+}
+
+// SetPlan implements shell.Host.
+func (d *desktop) SetPlan(p proto.SetPlanParams) {
+	d.call(func(ctx context.Context, c *client.Client) error { return c.SetPlan(ctx, p) })
+}
+
+// SetEffort implements shell.Host.
+func (d *desktop) SetEffort(p proto.SetEffortParams) {
+	d.call(func(ctx context.Context, c *client.Client) error { return c.SetEffort(ctx, p) })
+}
+
+// SetFast implements shell.Host.
+func (d *desktop) SetFast(p proto.SetFastParams) {
+	d.call(func(ctx context.Context, c *client.Client) error { return c.SetFast(ctx, p) })
+}
+
+// SetModel implements shell.Host.
+func (d *desktop) SetModel(p proto.SetModelParams) {
+	d.call(func(ctx context.Context, c *client.Client) error { return c.SetModel(ctx, p) })
+}
+
+// EditQueued implements shell.Host.
+func (d *desktop) EditQueued(p proto.QueueEditParams) {
+	d.call(func(ctx context.Context, c *client.Client) error { return c.EditQueued(ctx, p) })
+}
+
+// DeleteQueued implements shell.Host.
+func (d *desktop) DeleteQueued(p proto.QueueKeyParams) {
+	d.call(func(ctx context.Context, c *client.Client) error { return c.DeleteQueued(ctx, p) })
+}
+
+// MoveQueued implements shell.Host.
+func (d *desktop) MoveQueued(p proto.QueueMoveParams) {
+	d.call(func(ctx context.Context, c *client.Client) error { return c.MoveQueued(ctx, p) })
+}
+
+// Output implements shell.Host.
+func (d *desktop) Output(p proto.OutputParams, done func(proto.ToolOutput)) {
+	d.call(func(ctx context.Context, c *client.Client) error {
+		o, err := c.Output(ctx, p)
+		if err == nil {
+			d.ui(func() { done(o) })
+		}
+		return err
+	})
+}
+
+// Older implements shell.Host.
+func (d *desktop) Older(id proto.SessionID, before uint64, done func(proto.EventsPage)) {
+	d.call(func(ctx context.Context, c *client.Client) error {
+		page, err := c.EventsBefore(ctx, proto.EventsParams{Session: id, BeforeSeq: before})
+		if err == nil {
+			d.ui(func() { done(page) })
+		}
+		return err
+	})
+}
+
+// Harnesses implements shell.Host.
+func (d *desktop) Harnesses(done func([]proto.HarnessInfo)) {
+	d.call(func(ctx context.Context, c *client.Client) error {
+		hs, err := c.Harnesses(ctx)
+		if err == nil {
+			d.ui(func() { done(hs) })
+		}
+		return err
+	})
+}
+
+// Follow implements shell.Host: one session is followed at a time, until
+// another is or the connection ends.
+func (d *desktop) Follow(id proto.SessionID, after uint64) {
+	d.mu.Lock()
+	c := d.c
+	if d.unfollow != nil {
+		d.unfollow()
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	d.unfollow = cancel
+	d.mu.Unlock()
+	if c == nil {
+		return
+	}
+	go func() {
+		err := link.Follow(ctx, c, id, after, func(it proto.SessionItem) {
+			d.ui(func() { d.app.ApplySession(id, it) })
+		})
+		if ctx.Err() == nil {
+			slog.Warn("follow session", "session", id, "err", err)
+		}
+	}()
+}
+
+// ChooseFolder implements shell.Host.
+func (d *desktop) ChooseFolder(done func(string)) {
+	go func() {
+		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: d.win, Title: "选择工作目录", Directory: true, CreateDirectories: true})
+		if err != nil {
+			d.ui(func() { d.app.Fail(err) })
+			return
+		}
+		if len(paths) == 1 {
+			d.ui(func() { done(paths[0]) })
+		}
+	}()
+}
+
 // show brings the window forward.
 func (d *desktop) show() {
 	if d.win != nil {
@@ -189,11 +349,12 @@ func (d *desktop) menu() *mygo.Menu {
 	d.reveal = &mygo.MenuItem{Label: "在 Finder 中显示", Click: d.do(d.app.Reveal)}
 	d.stop = &mygo.MenuItem{Label: "停止", Click: d.do(d.app.Stop)}
 	d.archive = &mygo.MenuItem{Label: "归档", Accelerator: "CmdOrCtrl+Backspace", Click: d.do(d.app.Archive)}
+	d.newSession = &mygo.MenuItem{Label: "新建会话", Accelerator: "CmdOrCtrl+N", Click: d.do(d.app.NewSession)}
 	d.back = &mygo.MenuItem{Label: "后退", Accelerator: "CmdOrCtrl+[", Click: d.do(d.app.Back)}
 	d.forward = &mygo.MenuItem{Label: "前进", Accelerator: "CmdOrCtrl+]", Click: d.do(d.app.Forward)}
 	return mygo.NewMenu([]*mygo.MenuItem{
 		{Role: mygo.RoleAppMenu},
-		{Label: "文件", Submenu: []*mygo.MenuItem{{Role: mygo.RoleClose}}},
+		{Label: "文件", Submenu: []*mygo.MenuItem{d.newSession, mygo.Separator(), {Role: mygo.RoleClose}}},
 		{Role: mygo.RoleEditMenu},
 		{Label: "会话", Submenu: []*mygo.MenuItem{d.pin, d.unread, d.rename, mygo.Separator(), d.reveal, d.stop, d.archive}},
 		{Label: "视图", Submenu: []*mygo.MenuItem{

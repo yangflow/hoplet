@@ -40,11 +40,57 @@ func (a *App) content(c *ui.Context, k theme.Colors) {
 				a.Rename()
 			}
 			iconButton(c, k, a.icons.Menu, "会话菜单", false).Size(22, 22).Margin(0, 0, 0, -4).Menu(func(m *ui.Menu) { a.sessionMenu(m, s) })
-		})
-		ui.Box(c).Grow(1).Center().Children(func() {
-			if _, ok := a.current(); !ok {
-				ui.Icon(c, a.icons.Mark).FontSize(48).TextColor(k.Faint)
+			ui.Spacer(c)
+			d := iconButton(c, k, a.icons.Info, "会话详情 ⌘I", a.s.detailOpen)
+			if d.Clicked() || c.Shortcut(ui.Cmd, ui.KeyI) {
+				a.s.detailOpen = !a.s.detailOpen
 			}
+			ui.Popover(c, d, &a.s.detailOpen, func() { a.details(c, k, s) })
+		})
+		s, ok := a.current()
+		switch {
+		case a.s.newPage:
+			a.newPage(c, k)
+		case ok:
+			a.conversation(c, k, s)
+		default:
+			ui.Box(c).Grow(1).Center().Children(func() {
+				ui.Icon(c, a.icons.Mark).FontSize(48).TextColor(k.Faint)
+			})
+		}
+	})
+}
+
+// details is the session details popover: machine, directory, harness and
+// version, model, effort, plan; and copying the session ID.
+func (a *App) details(c *ui.Context, k theme.Colors, s proto.Session) {
+	h, _ := a.harness(s.Harness.Kind)
+	model, _ := currentModel(s, h)
+	rows := [][2]string{
+		{"机器", a.machine},
+		{"目录", s.Directory},
+		{"harness", s.Harness.Kind + " " + s.Harness.Version},
+		{"模型", model},
+		{"强度", effortName(s.Effort)},
+		{"审批", modeName(s.Permission)},
+	}
+	if s.Plan {
+		rows = append(rows, [2]string{"Plan", "开"})
+	}
+	ui.Column(c).Width(320).Padding(10, 12).Gap(6).Children(func() {
+		for _, r := range rows {
+			if r[1] == "" {
+				continue
+			}
+			ui.Row(c.Key(r[0])).Gap(10).Children(func() {
+				theme.Caption.On(ui.Text(c, r[0])).TextColor(k.Muted).Width(56)
+				theme.Secondary.On(ui.Text(c, r[1])).TextColor(k.Fg).Grow(1).Selectable()
+			})
+		}
+		ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+			theme.Caption.On(ui.Text(c, "会话 ID")).TextColor(k.Muted).Width(56)
+			ui.Text(c, string(s.ID)).Font(theme.Mono).FontSize(12).TextColor(k.Fg3).Grow(1)
+			a.copyButton(c, k, "id:"+string(s.ID), string(s.ID))
 		})
 	})
 }

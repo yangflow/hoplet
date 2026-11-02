@@ -22,6 +22,25 @@ func (a *App) sidebar(c *ui.Context, k theme.Colors) {
 			ui.Spacer(c)
 			a.modeSwitch(c, k)
 		})
+		// Search and the inbox join the new-session entry with the
+		// command palette and the inbox page.
+		ui.Column(c).Padding(0, 8).Children(func() {
+			e := ui.Row(c).Height(theme.RowHeight).Padding(0, 8).Gap(8).AlignItems(ui.Center).Radius(theme.RadiusRow).
+				Label("新建").Tooltip("新建会话 ⌘N")
+			switch {
+			case a.s.newPage:
+				e.Background(k.SelRow)
+			case e.Hovered():
+				e.Background(k.Fill)
+			}
+			if e.Clicked() {
+				a.NewSession()
+			}
+			e.Children(func() {
+				ui.Icon(c, a.icons.New).FontSize(theme.IconSize).TextColor(k.Fg3)
+				theme.UI.On(ui.Text(c, "新建")).TextColor(k.Fg)
+			})
+		})
 		// The machine scope ("全部机器 ▾") comes with several machines.
 		ui.Row(c).Height(theme.RowHeight).Margin(8, 0, 0, 0).Padding(0, 8, 0, 16).AlignItems(ui.Center).Children(func() {
 			label := "全部机器"
@@ -29,8 +48,13 @@ func (a *App) sidebar(c *ui.Context, k theme.Colors) {
 				label = "已归档"
 			}
 			theme.UIStrong.On(ui.Text(c, label)).TextColor(k.Fg).Grow(1)
-			if a.mode == proto.ModeCode && !a.archived {
+			switch {
+			case a.mode == proto.ModeCode && !a.archived:
 				iconButton(c, k, a.icons.Arrange, "排列", false).Size(26, 26).Menu(a.arrangeMenu)
+			case a.mode == proto.ModePersonal:
+				if iconButton(c, k, a.icons.New, "新建伙伴 ⇧⌘N", false).Size(26, 26).Clicked() {
+					a.NewSession()
+				}
 			}
 		})
 		ui.Scroll(c).Grow(1).Children(func() { a.list(c, k) })
@@ -169,12 +193,22 @@ func groupLabel(c *ui.Context, k theme.Colors, label string) {
 // session in the directory comes with the new-session page.
 func (a *App) groupHeader(c *ui.Context, k theme.Colors, g catalog.Group) {
 	h := ui.Row(c).Height(26).Margin(10, 0, 0, 0).Padding(0, 6, 0, 8).Gap(6).AlignItems(ui.Center).Tooltip(g.Dir)
+	hovered := h.Hovered()
 	if h.Clicked() {
 		a.closed[g.Dir] = !a.closed[g.Dir]
 	}
 	h.Children(func() {
 		ui.Icon(c, a.icons.Folder).FontSize(theme.IconSize).TextColor(k.Muted)
 		theme.UIStrong.On(ui.Text(c, g.Name)).TextColor(k.Fg3).SingleLine().Grow(1)
+		// ＋ starts a session in this directory: faint, darker with a
+		// background while the title is hovered.
+		plus := iconButton(c, k, a.icons.New, "在此目录新建会话", hovered).Size(22, 22)
+		if !hovered {
+			plus.Opacity(0.5)
+		}
+		if plus.Clicked() {
+			a.newSessionIn(g.Dir)
+		}
 	})
 }
 

@@ -2,6 +2,7 @@ package shell
 
 import (
 	"errors"
+	"fmt"
 	"reflect"
 	"testing"
 	"time"
@@ -12,18 +13,69 @@ import (
 	"github.com/yangflow/hoplet/proto"
 )
 
-// host records what the shell asks for.
+// host records what the shell asks for; calls holds the 9b requests as
+// the parameters they were given.
 type host struct {
 	updates  []proto.UpdateParams
 	stopped  []proto.SessionID
 	archived []proto.SessionID
 	revealed []string
+	calls    []any
+	followed []proto.SessionID
+	created  func(proto.Session) // the pending Create's done
+	outputs  map[string]proto.ToolOutput
+	models   []proto.HarnessInfo
+	folder   string
 }
 
 func (h *host) Update(p proto.UpdateParams) { h.updates = append(h.updates, p) }
 func (h *host) Stop(id proto.SessionID)     { h.stopped = append(h.stopped, id) }
 func (h *host) Archive(id proto.SessionID)  { h.archived = append(h.archived, id) }
 func (h *host) Reveal(dir string)           { h.revealed = append(h.revealed, dir) }
+func (h *host) Create(p proto.CreateParams, done func(proto.Session)) {
+	h.calls = append(h.calls, p)
+	h.created = done
+}
+func (h *host) Send(p proto.SendParams) {
+	p.Key = "" // random
+	h.calls = append(h.calls, p)
+}
+func (h *host) Steer(p proto.SteerParams)                 { h.calls = append(h.calls, p) }
+func (h *host) Interrupt(id proto.SessionID)              { h.calls = append(h.calls, "interrupt "+string(id)) }
+func (h *host) Respond(p proto.RespondParams)             { p.Key = ""; h.calls = append(h.calls, p) }
+func (h *host) Answer(p proto.AnswerParams)               { h.calls = append(h.calls, p) }
+func (h *host) SetPermission(p proto.SetPermissionParams) { h.calls = append(h.calls, p) }
+func (h *host) SetPlan(p proto.SetPlanParams)             { h.calls = append(h.calls, p) }
+func (h *host) SetEffort(p proto.SetEffortParams)         { h.calls = append(h.calls, p) }
+func (h *host) SetFast(p proto.SetFastParams)             { h.calls = append(h.calls, p) }
+func (h *host) SetModel(p proto.SetModelParams)           { h.calls = append(h.calls, p) }
+func (h *host) EditQueued(p proto.QueueEditParams)        { h.calls = append(h.calls, p) }
+func (h *host) DeleteQueued(p proto.QueueKeyParams)       { h.calls = append(h.calls, p) }
+func (h *host) MoveQueued(p proto.QueueMoveParams)        { h.calls = append(h.calls, p) }
+func (h *host) Output(p proto.OutputParams, done func(proto.ToolOutput)) {
+	h.calls = append(h.calls, p)
+	if o, ok := h.outputs[p.ToolCall]; ok {
+		done(o)
+	}
+}
+func (h *host) Older(id proto.SessionID, before uint64, _ func(proto.EventsPage)) {
+	h.calls = append(h.calls, fmt.Sprintf("older %s %d", id, before))
+}
+func (h *host) Harnesses(done func([]proto.HarnessInfo)) { done(h.models) }
+func (h *host) Follow(id proto.SessionID, _ uint64)      { h.followed = append(h.followed, id) }
+func (h *host) ChooseFolder(done func(string)) {
+	if h.folder != "" {
+		done(h.folder)
+	}
+}
+
+// last returns the last 9b request.
+func (h *host) last() any {
+	if len(h.calls) == 0 {
+		return nil
+	}
+	return h.calls[len(h.calls)-1]
+}
 
 func newApp(t *testing.T) (*App, *host, *ui.Tester, *[]State) {
 	t.Helper()
@@ -287,3 +339,5 @@ func TestTopRowCentersOnTrafficLights(t *testing.T) {
 		t.Fatalf("show-sidebar button at %+v", r)
 	}
 }
+
+var errDaemon = errors.New("dial: no such file")
