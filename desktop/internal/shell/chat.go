@@ -4,7 +4,6 @@ import (
 	"time"
 
 	"github.com/egoist/mygo/ui"
-	"github.com/egoist/mygo/ui/markdown"
 
 	"github.com/yangflow/hoplet/desktop/internal/convo"
 	"github.com/yangflow/hoplet/desktop/internal/theme"
@@ -19,39 +18,34 @@ func (a *App) chat(c *ui.Context, k theme.Colors, s proto.Session, items []convo
 	for i, it := range items {
 		if d := dayLabel(c.Now(), it.Time); d != day && (it.Kind == convo.KindMine || it.Kind == convo.KindText) {
 			day = d
-			ui.Row(c.Key("day:" + it.Key)).FillWidth().Justify(ui.Center).Children(func() {
-				theme.Caption.On(ui.Text(c, d)).TextColor(k.Muted)
-			})
+			dayLine(c.Key("day:"+it.Key), k, d)
 		}
 		last := i == len(items)-1 || items[i+1].Kind != it.Kind
 		c := c.Key(it.Key)
 		switch it.Kind {
 		case convo.KindMine:
-			ui.Row(c).AlignSelf(ui.End).Gap(8).AlignItems(ui.End).Children(func() {
-				ui.Box(c).MaxWidth(0.70*personalColumn).Padding(9, 14).Radius(theme.RadiusComposer).Background(k.Bubble).Children(func() {
-					theme.Reading.On(ui.Text(c, it.Text)).TextColor(k.Fg).Selectable()
-				})
-				a.meAvatar(c, k, last)
-			})
+			a.myBubble(c, k, it, last)
 		case convo.KindText:
-			ui.Row(c).AlignSelf(ui.Start).Gap(8).AlignItems(ui.End).Children(func() {
-				if last {
-					a.avatarSized(c, k, s, 28)
-				} else {
-					ui.Box(c).Size(28, 28)
-				}
-				ui.Box(c).MaxWidth(0.78*personalColumn).Padding(9, 14).Radius(theme.RadiusComposer).Background(k.Raised).Border(1, k.Line).Children(func() {
+			ui.Row(c).AlignSelf(ui.Start).MaxWidth(0.78 * personalColumn).Gap(10).AlignItems(ui.End).Children(func() {
+				a.companionAvatar(c, k, s, last)
+				ui.Box(c).Padding(9, 14).Radius(18, 18, 18, 6).Background(k.Bg).Border(1, k.Line).Children(func() {
 					a.s.md.Theme = mdTheme(c, k)
 					a.s.md.CodeBlock = a.codeBlock(k)
-					if it.Streaming {
-						markdown.Stream(c, it.Text, &a.s.md)
-					} else {
-						markdown.View(c, it.Text, &a.s.md)
-					}
+					renderMarkdown(c, it, &a.s.md)
 				})
 			})
 		case convo.KindWork:
-			ui.Box(c).Padding(0, 0, 0, 36).Children(func() { a.work(c, k, s, it, true) })
+			// The work trace lines up with the bubbles, past the avatar.
+			ui.Row(c).Padding(0, 0, 0, 38).Height(22).Gap(12).AlignItems(ui.Center).Children(func() {
+				w := it.Work
+				theme.UI.On(ui.Text(c, summary(w))).TextColor(k.Fg3).SingleLine().Shrink(1)
+				if w.Failed > 0 {
+					theme.Caption.On(ui.Text(c, "✕")).TextColor(k.Del)
+				}
+				if !w.Running {
+					ui.Text(c, duration(w.End.Sub(w.Start))).Font(theme.Mono).FontSize(11).TextColor(k.Faint)
+				}
+			})
 		case convo.KindError:
 			a.item(c, k, s, it)
 		case convo.KindStopped:
@@ -60,24 +54,69 @@ func (a *App) chat(c *ui.Context, k theme.Colors, s proto.Session, items []convo
 	}
 	if running && (len(items) == 0 || items[len(items)-1].Kind != convo.KindText) {
 		// It is thinking or working: three dots in a small bubble.
-		ui.Row(c.Key("typing")).AlignSelf(ui.Start).Gap(8).Children(func() {
-			a.avatarSized(c, k, s, 28)
-			ui.Box(c).Padding(9, 14).Radius(theme.RadiusComposer).Background(k.Raised).Border(1, k.Line).Label("正在输入").Children(func() {
+		ui.Row(c.Key("typing")).AlignSelf(ui.Start).Gap(10).AlignItems(ui.End).Children(func() {
+			a.companionAvatar(c, k, s, true)
+			ui.Box(c).Padding(9, 14).Radius(18, 18, 18, 6).Background(k.Bg).Border(1, k.Line).Label("正在输入").Children(func() {
 				theme.Reading.On(ui.Text(c, "···")).TextColor(k.Muted)
 			})
 		})
 	}
 }
 
-// meAvatar is my default avatar: a person on dark gray; an empty space of
-// its size when show is false.
+// dayLine separates days: a thin line with the day in its middle.
+func dayLine(c *ui.Context, k theme.Colors, label string) {
+	ui.Row(c).FillWidth().Gap(10).AlignItems(ui.Center).Children(func() {
+		ui.Box(c).Height(1).Grow(1).Background(k.Line)
+		theme.Caption.On(ui.Text(c, label)).TextColor(k.Faint)
+		ui.Box(c).Height(1).Grow(1).Background(k.Line)
+	})
+}
+
+// myBubble is a message of mine in a chat: a gray bubble on the right with
+// my avatar beside the last of a run, its time and copy on hover.
+func (a *App) myBubble(c *ui.Context, k theme.Colors, it convo.Item, last bool) {
+	r := ui.Row(c).AlignSelf(ui.End).MaxWidth(0.75 * personalColumn).Gap(10).AlignItems(ui.End)
+	hovered := r.Hovered()
+	r.Children(func() {
+		ui.Column(c).AlignItems(ui.End).Gap(4).Shrink(1).Children(func() {
+			ui.Box(c).Padding(9, 14).Radius(18, 18, 6, 18).Background(k.Bubble).Children(func() {
+				theme.Reading.On(ui.Text(c, it.Text)).TextColor(k.Fg).Selectable()
+			})
+			row := ui.Row(c).Height(20).Gap(2).AlignItems(ui.Center)
+			if !hovered {
+				row.Opacity(0)
+			}
+			row.Children(func() {
+				theme.Caption.On(ui.Text(c, clock(it.Time))).TextColor(k.Muted)
+				a.copyButton(c, k, it.Key, it.Text)
+			})
+		})
+		a.meAvatar(c, k, last)
+	})
+}
+
+// companionAvatar is the companion's 28-point avatar beside the last
+// bubble of a run; an empty space of its size otherwise.
+func (a *App) companionAvatar(c *ui.Context, k theme.Colors, s proto.Session, show bool) {
+	b := ui.Box(c).Size(28, 28)
+	if !show {
+		return
+	}
+	b.Radius(14).Background(k.Line2).Center().Children(func() {
+		theme.UIStrong.On(ui.Text(c, initial(name(s)))).TextColor(k.Fg2)
+	})
+}
+
+// meAvatar is my default avatar: a person on fg2 (dark gray in the light
+// theme, light gray in the dark one); an empty space of its size when show
+// is false.
 func (a *App) meAvatar(c *ui.Context, k theme.Colors, show bool) {
 	b := ui.Box(c).Size(28, 28)
 	if !show {
 		return
 	}
-	b.Radius(14).Background(k.Fg3).Center().Children(func() {
-		ui.Icon(c, a.icons.Me).FontSize(theme.IconSizeInRow).TextColor(k.OnAccent)
+	b.Radius(14).Background(k.Fg2).Center().Label("我").Children(func() {
+		ui.Icon(c, a.icons.Me).FontSize(theme.IconSizeInRow).TextColor(c.Theme().InverseText)
 	})
 }
 

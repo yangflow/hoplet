@@ -14,6 +14,8 @@ type Colors struct {
 	Popover   ui.Color // popovers and menus drawn in the window: near opaque
 	GlassLine ui.Color // the composer's hairline
 	Raised    ui.Color // selected segment, tab or mode
+	Bg        ui.Color // a companion's bubble, cards on the content
+	Bg2       ui.Color // a tool's output
 	Fill      ui.Color // control fill
 	Fill2     ui.Color // control fill on hover; segmented track
 	Sel       ui.Color // current menu item or option
@@ -51,7 +53,7 @@ func For(dark bool) Colors {
 		return Colors{
 			Pane: ui.RGBA(14, 16, 20, .42), Side: ui.RGBA(255, 255, 255, .05), SideLine: ui.RGBA(255, 255, 255, .07),
 			Glass: ui.RGBA(255, 255, 255, .05), GlassLine: ui.RGBA(255, 255, 255, .12), Popover: ui.RGBA(38, 42, 48, .97),
-			Raised: ui.RGBA(255, 255, 255, .16), Fill: ui.RGBA(255, 255, 255, .06), Fill2: ui.RGBA(255, 255, 255, .10),
+			Raised: ui.RGBA(255, 255, 255, .16), Bg: ui.RGBA(255, 255, 255, .06), Bg2: ui.RGBA(255, 255, 255, .03), Fill: ui.RGBA(255, 255, 255, .06), Fill2: ui.RGBA(255, 255, 255, .10),
 			Sel: ui.RGBA(255, 255, 255, .10), SelRow: ui.RGBA(255, 255, 255, .09),
 			Line: ui.RGBA(255, 255, 255, .08), Line2: ui.RGBA(255, 255, 255, .14),
 			Fg: ui.Hex("#F4F4F5"), Fg2: ui.Hex("#D3D6DB"), Fg3: ui.Hex("#B0B4BB"), Muted: ui.Hex("#8E939B"), Faint: ui.Hex("#666B73"),
@@ -64,7 +66,7 @@ func For(dark bool) Colors {
 	return Colors{
 		Pane: ui.RGBA(255, 255, 255, .10), Side: ui.RGBA(236, 238, 241, .45), SideLine: ui.RGBA(0, 0, 0, .06),
 		Glass: ui.RGBA(120, 128, 140, .10), GlassLine: ui.Transparent, Popover: ui.RGBA(255, 255, 255, .97),
-		Raised: ui.RGBA(255, 255, 255, .88), Fill: ui.RGBA(0, 0, 0, .04), Fill2: ui.RGBA(0, 0, 0, .06),
+		Raised: ui.RGBA(255, 255, 255, .88), Bg: ui.RGBA(255, 255, 255, .40), Bg2: ui.RGBA(255, 255, 255, .20), Fill: ui.RGBA(0, 0, 0, .04), Fill2: ui.RGBA(0, 0, 0, .06),
 		Sel: ui.RGBA(0, 0, 0, .055), SelRow: ui.RGBA(0, 0, 0, .06),
 		Line: ui.RGBA(0, 0, 0, .06), Line2: ui.RGBA(0, 0, 0, .10),
 		Fg: ui.Hex("#23272D"), Fg2: ui.Hex("#383B40"), Fg3: ui.Hex("#53575D"), Muted: ui.Hex("#5E6268"), Faint: ui.Hex("#A0A4AA"),

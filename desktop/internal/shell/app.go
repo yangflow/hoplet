@@ -5,6 +5,7 @@ package shell
 
 import (
 	"slices"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 
@@ -40,6 +41,10 @@ type Host interface {
 	DeleteQueued(p proto.QueueKeyParams)
 	MoveQueued(p proto.QueueMoveParams)
 	Output(p proto.OutputParams, done func(proto.ToolOutput))
+	// Diff reads a session's changes since it began, without patches.
+	Diff(id proto.SessionID, done func(proto.SessionDiff))
+	// Reconnect tries the daemon now rather than at the next retry.
+	Reconnect()
 	// Older pages back through a session's events before seq.
 	Older(id proto.SessionID, before uint64, done func(proto.EventsPage))
 	Harnesses(done func([]proto.HarnessInfo))
@@ -130,13 +135,16 @@ func New(set *icons.Set, host Host, changed func(State)) *App {
 // Connected records a new connection to the daemon of host: the followed
 // session resumes and messages written while offline go out.
 func (a *App) Connected(host string) {
-	a.connected, a.machine, a.offline = true, host, ""
+	a.connected, a.machine, a.offline, a.s.offlineSince = true, host, "", time.Time{}
 	a.follow()
 	a.flushOutbox()
 }
 
 // Lost records that the connection is gone and why.
 func (a *App) Lost(err error) {
+	if a.connected || a.s.offlineSince.IsZero() {
+		a.s.offlineSince = time.Now()
+	}
 	a.connected = false
 	a.offline = err.Error()
 }

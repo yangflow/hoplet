@@ -161,7 +161,21 @@ func (a *App) list(c *ui.Context, k theme.Colors) {
 		theme.UI.On(ui.Text(c, empty)).TextColor(k.Muted).Padding(8, 16)
 		return
 	}
-	ui.Column(c).Padding(0, 8).Children(func() {
+	// ⌘⌥1–9 opens a pinned session; ↑↓ moves among the rows shown while
+	// the list has the focus.
+	for i, s := range l.Pinned[:min(len(l.Pinned), 9)] {
+		if c.Shortcut(ui.Cmd|ui.Alt, ui.Key1+ui.Key(i)) {
+			a.Select(s.ID)
+		}
+	}
+	col := ui.Column(c).Padding(0, 8).Focusable().FocusRing(false)
+	if col.Shortcut(0, ui.KeyUp) {
+		a.move(a.shown(l), -1)
+	}
+	if col.Shortcut(0, ui.KeyDown) {
+		a.move(a.shown(l), 1)
+	}
+	col.Children(func() {
 		if len(l.Pinned) > 0 {
 			groupLabel(c, k, "置顶")
 			for _, s := range l.Pinned {
@@ -179,6 +193,41 @@ func (a *App) list(c *ui.Context, k theme.Colors) {
 			}
 		}
 	})
+}
+
+// shown returns the sessions of a list in the order the rows are drawn,
+// leaving out those of folded groups.
+func (a *App) shown(l catalog.List) []proto.Session {
+	out := append([]proto.Session(nil), l.Pinned...)
+	for _, g := range l.Groups {
+		if !a.closed[g.Dir] {
+			out = append(out, g.Sessions...)
+		}
+	}
+	return out
+}
+
+// move selects the session by rows from the selected one, or the first
+// or last row when none of them is selected.
+func (a *App) move(rows []proto.Session, by int) {
+	if len(rows) == 0 {
+		return
+	}
+	at := -1
+	for i, s := range rows {
+		if string(s.ID) == a.selected {
+			at = i
+		}
+	}
+	switch {
+	case at < 0 && by > 0:
+		at = 0
+	case at < 0:
+		at = len(rows) - 1
+	default:
+		at = max(0, min(len(rows)-1, at+by))
+	}
+	a.Select(rows[at].ID)
 }
 
 // groupLabel is the small title over the pinned sessions.
@@ -263,7 +312,7 @@ func (a *App) row(c *ui.Context, k theme.Colors, s proto.Session) {
 // idle session, or, on hover, pin and archive.
 func (a *App) trailing(c *ui.Context, k theme.Colors, s proto.Session, hovered bool) {
 	switch {
-	case hovered && a.renaming != s.ID:
+	case hovered && a.renaming != s.ID && s.Mode == proto.ModeCode:
 		pin, tip := a.icons.Pin, "置顶 ⇧⌘P"
 		if s.Pinned {
 			pin, tip = a.icons.Unpin, "取消置顶 ⇧⌘P"
@@ -359,6 +408,13 @@ func (a *App) sessionMenu(m *ui.Menu, s proto.Session) {
 		}
 	}
 	live := s.ArchivedAt == nil
+	if s.Mode == proto.ModePersonal {
+		// A companion's menu; editing its persona, clearing its memory and
+		// deleting it come with companions (M4). Companions are not pinned
+		// or archived.
+		act("重命名", ui.KeyR, true, a.Rename)
+		return
+	}
 	// While the menu is open, the letter beside an item chooses it.
 	act(pin, ui.KeyP, live, a.TogglePin)
 	act("标为未读", ui.KeyU, !s.Unread, a.MarkUnread)

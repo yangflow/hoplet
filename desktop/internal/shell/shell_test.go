@@ -16,16 +16,18 @@ import (
 // host records what the shell asks for; calls holds the 9b requests as
 // the parameters they were given.
 type host struct {
-	updates  []proto.UpdateParams
-	stopped  []proto.SessionID
-	archived []proto.SessionID
-	revealed []string
-	calls    []any
-	followed []proto.SessionID
-	created  func(proto.Session) // the pending Create's done
-	outputs  map[string]proto.ToolOutput
-	models   []proto.HarnessInfo
-	folder   string
+	diffs      map[proto.SessionID]proto.SessionDiff
+	reconnects int
+	updates    []proto.UpdateParams
+	stopped    []proto.SessionID
+	archived   []proto.SessionID
+	revealed   []string
+	calls      []any
+	followed   []proto.SessionID
+	created    func(proto.Session) // the pending Create's done
+	outputs    map[string]proto.ToolOutput
+	models     []proto.HarnessInfo
+	folder     string
 }
 
 func (h *host) Update(p proto.UpdateParams) { h.updates = append(h.updates, p) }
@@ -61,6 +63,12 @@ func (h *host) Output(p proto.OutputParams, done func(proto.ToolOutput)) {
 func (h *host) Older(id proto.SessionID, before uint64, _ func(proto.EventsPage)) {
 	h.calls = append(h.calls, fmt.Sprintf("older %s %d", id, before))
 }
+func (h *host) Diff(id proto.SessionID, done func(proto.SessionDiff)) {
+	if d, ok := h.diffs[id]; ok {
+		done(d)
+	}
+}
+func (h *host) Reconnect()                               { h.reconnects++ }
 func (h *host) Harnesses(done func([]proto.HarnessInfo)) { done(h.models) }
 func (h *host) Follow(id proto.SessionID, _ uint64)      { h.followed = append(h.followed, id) }
 func (h *host) ChooseFolder(done func(string)) {
@@ -341,3 +349,58 @@ func TestTopRowCentersOnTrafficLights(t *testing.T) {
 }
 
 var errDaemon = errors.New("dial: no such file")
+
+func TestSidebarKeys(t *testing.T) {
+	a, _, tt, _ := newApp(t)
+	if err := tt.Click("Add tray"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Key(0, ui.KeyDown)
+	if a.selected != "s1" {
+		t.Fatalf("down from Add tray selected %q", a.selected)
+	}
+	tt.Key(0, ui.KeyUp)
+	if a.selected != "s2" {
+		t.Fatalf("up selected %q", a.selected)
+	}
+	s4, _ := a.cat.Get("s4")
+	s4.Pinned = true
+	a.Apply(proto.CatalogItem{Version: 6, Sessions: []proto.Session{s4}})
+	tt.Frame()
+	tt.Key(ui.Cmd|ui.Alt, ui.Key1)
+	if a.selected != "s4" {
+		t.Fatalf("⌘⌥1 selected %q", a.selected)
+	}
+}
+
+func TestCompanionMenuAndDetails(t *testing.T) {
+	a, _, tt, _ := newApp(t)
+	if err := tt.Click("Personal ⌘1"); err != nil {
+		t.Fatal(err)
+	}
+	a.Select("p1")
+	tt.Frame()
+	if err := tt.RightClick("小助手"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.ChooseMenuItem("置顶"); err == nil {
+		t.Fatal("a companion's menu pins")
+	}
+	r, ok := tt.Find("小助手")
+	if !ok {
+		t.Fatal("no row")
+	}
+	tt.Move(r.X+2, r.Y+2)
+	tt.Frame()
+	if tt.HasText("置顶 ⇧⌘P") || tt.HasText("归档 ⌘⌫") {
+		t.Fatal("a companion's row offers pin or archive")
+	}
+	if err := tt.Click("伙伴详情 ⌘I"); err != nil {
+		t.Fatalf("%v in %q", err, tt.Texts())
+	}
+	for _, want := range []string{"Hermes", "studio · 在线"} {
+		if !tt.HasText(want) {
+			t.Errorf("no %q in %q", want, tt.Texts())
+		}
+	}
+}

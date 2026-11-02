@@ -130,22 +130,26 @@ func (a *App) modeControl(c *ui.Context, k theme.Colors, st runSettings, caps pr
 	if b.Clicked() {
 		a.s.permOpen = !a.s.permOpen
 	}
-	popover(c, k, b, &a.s.permOpen, false, 320, func() {
+	popover(c, k, b, &a.s.permOpen, false, 260, func() {
 		keys := []string{"⇧⌘1", "⇧⌘2", "⇧⌘3", "⇧⌘4"}
 		for i, m := range permissionModes() {
 			if !slices.Contains(caps.Modes, m.mode) {
 				continue
 			}
-			r := menuItem(c.Key(m.mode), k, st.perm == m.mode).Label(modeName(m.mode))
+			on := st.perm == m.mode
+			r := menuItem(c.Key(m.mode), k, on).Label(modeName(m.mode))
 			if r.Clicked() {
 				set.perm(m.mode)
 				a.s.permOpen = false
 			}
 			r.Children(func() {
 				ui.Icon(c, a.modeIcon(m.mode)).FontSize(theme.IconSize).TextColor(k.Fg3)
-				theme.UI.On(ui.Text(c, modeName(m.mode))).TextColor(k.Fg)
-				theme.Secondary.On(ui.Text(c, m.what)).TextColor(k.Muted).Grow(1).SingleLine()
-				theme.Caption.On(ui.Text(c, keys[i])).TextColor(k.Faint)
+				ui.Column(c).Grow(1).Padding(4, 0).Children(func() {
+					theme.UI.On(ui.Text(c, modeName(m.mode))).TextColor(k.Fg)
+					theme.Caption.On(ui.Text(c, m.what)).TextColor(k.Muted)
+				})
+				theme.Caption.On(ui.Text(c, keys[i])).TextColor(k.Muted)
+				check(c, k, a, on)
 			})
 		}
 		if caps.PlanMode {
@@ -156,10 +160,12 @@ func (a *App) modeControl(c *ui.Context, k theme.Colors, st runSettings, caps pr
 			}
 			r.Children(func() {
 				ui.Icon(c, a.icons.Plan).FontSize(theme.IconSize).TextColor(k.Fg3)
-				theme.UI.On(ui.Text(c, "Plan")).TextColor(k.Fg)
-				theme.Secondary.On(ui.Text(c, "只想不改，批准计划后才动手")).TextColor(k.Muted).Grow(1).SingleLine()
-				on := st.plan
-				ui.Switch(c, &on).Label("Plan ⇧⇥")
+				ui.Column(c).Grow(1).Padding(4, 0).Children(func() {
+					theme.UI.On(ui.Text(c, "Plan")).TextColor(k.Fg)
+					theme.Caption.On(ui.Text(c, "只想不改")).TextColor(k.Muted)
+				})
+				theme.Caption.On(ui.Text(c, "⇧⇥")).TextColor(k.Muted)
+				check(c, k, a, st.plan)
 			})
 		}
 	})
@@ -225,20 +231,32 @@ func bars(c *ui.Context, k theme.Colors, e proto.Effort) {
 	})
 }
 
+// check is the 14-point mark of a popover row's current choice; an empty
+// space of its size otherwise.
+func check(c *ui.Context, k theme.Colors, a *App, on bool) {
+	if !on {
+		ui.Box(c).Size(14, 14)
+		return
+	}
+	ui.Icon(c, a.icons.Check).FontSize(14).TextColor(k.Fg3)
+}
+
 // effortPill shows the effort as bars, the harness's mark and the model;
-// it opens the effort and model popover, which lists the models of hs
-// (one harness for a session; every installed one on the new-session
-// page, by harness).
+// it opens the effort popover: Fast, the effort with the harness and the
+// model, reset, and a slider over the levels the model takes. The model
+// opens the model list (one harness for a session; every installed one
+// on the new-session page, by harness).
 func (a *App) effortPill(c *ui.Context, k theme.Colors, st runSettings, hs []proto.HarnessInfo, set settingsSink) {
 	h := proto.HarnessInfo{Kind: st.harness}
 	if i := slices.IndexFunc(hs, func(x proto.HarnessInfo) bool { return x.Kind == st.harness }); i >= 0 {
 		h = hs[i]
 	}
 	model, cur := currentModel(st, h)
-	b := ui.Button(c, "").Label("强度与模型").Tooltip(harnessName(h.Kind)+" · "+model+" · 强度 "+effortName(st.effort)).
+	b := ui.Button(c, "").Label("强度与模型").Tooltip(harnessName(h.Kind)+" · "+model+" · 推理强度 "+effortName(st.effort)).
 		Height(theme.RowHeight).Padding(0, 8, 0, 9).Gap(6).Radius(theme.RadiusPill).Border(0, ui.Transparent).Background(k.Fill)
 	if b.Clicked() {
 		a.s.effortOpen = !a.s.effortOpen
+		a.s.modelOpen = false
 		if a.s.effortOpen && a.connected {
 			a.host.Harnesses(a.SetHarnesses)
 		}
@@ -258,70 +276,78 @@ func (a *App) effortPill(c *ui.Context, k theme.Colors, st runSettings, hs []pro
 		if cur != nil && h.Kind == "hermes" {
 			fast = fast && cur.Fast
 		}
-		ui.Row(c).Padding(2, 2, 4, 2).Gap(6).AlignItems(ui.Center).Children(func() {
-			if iconButton(c, k, a.icons.Fast, "Fast：更快，更贵", st.fast).Disabled(!fast).Clicked() {
-				set.fast(!st.fast)
-			}
-			theme.UIStrong.On(ui.Text(c, effortName(st.effort))).TextColor(k.Fg)
-			a.harnessIcon(c, k, h.Kind, theme.IconSizeInRow)
-			theme.UI.On(ui.Text(c, model)).TextColor(k.Fg3).SingleLine().Grow(1)
-			if iconButton(c, k, a.icons.Reset, "恢复默认", false).Clicked() {
-				set.effort("")
-			}
-		})
-		if len(levels) > 0 {
-			// The first segment is the harness's own default.
-			labels := []string{"默认"}
-			sel := 0
-			for i, e := range levels {
-				labels = append(labels, effortName(e))
-				if e == st.effort {
-					sel = i + 1
+		ui.Column(c).Padding(6).Gap(12).Children(func() {
+			ui.Row(c).Gap(6).AlignItems(ui.Start).Children(func() {
+				if iconButton(c, k, a.icons.Fast, "Fast：更快、更贵", st.fast).Disabled(!fast).Clicked() {
+					set.fast(!st.fast)
 				}
-			}
-			if ui.Segmented(c, &sel, labels...).Label("强度").FillWidth().Changed() {
-				if sel == 0 {
-					set.effort("")
-				} else {
-					set.effort(levels[sel-1])
-				}
-			}
-		}
-		for _, hh := range hs {
-			if !hh.Capabilities.SetModel && len(hs) == 1 || len(hh.Models) == 0 {
-				continue
-			}
-			menuSeparator(c, k)
-			label := "模型"
-			if len(hs) > 1 {
-				label = harnessName(hh.Kind)
-			}
-			menuHeader(c, k, label)
-			ui.Scroll(c.Key(hh.Kind)).MaxHeight(240).Children(func() {
-				for i, m := range hh.Models {
-					on := hh.Kind == st.harness && cur != nil && cur.ID == m.ID && cur.Provider == m.Provider
-					r := menuItem(c.Key(i), k, on).Label(m.Name)
-					if r.Clicked() {
-						set.model(hh.Kind, m)
-						a.s.effortOpen = false
+				ui.Column(c).Grow(1).AlignItems(ui.Center).Gap(2).Children(func() {
+					theme.Reading.On(ui.Text(c, effortName(st.effort))).FontWeight(600).TextColor(k.Fg)
+					m := ui.Row(c).Gap(4).AlignItems(ui.Center).Label("换模型").Tooltip("换模型")
+					if m.Clicked() {
+						a.s.modelOpen = !a.s.modelOpen
 					}
-					r.Children(func() {
-						ui.Column(c).Grow(1).Shrink(1).Children(func() {
-							theme.UI.On(ui.Text(c, m.Name)).TextColor(k.Fg).SingleLine()
-							if m.Description != "" {
-								theme.Caption.On(ui.Text(c, m.Description)).TextColor(k.Muted).SingleLine()
-							}
-						})
-						if m.Default && m.ID != "default" { // Claude names its default entry itself
-							theme.Caption.On(ui.Text(c, "默认")).TextColor(k.Muted)
-						}
-						if on {
-							ui.Icon(c, a.icons.Check).FontSize(theme.IconSizeInRow).TextColor(k.Fg3)
-						}
+					m.Children(func() {
+						a.harnessIcon(c, k, h.Kind, theme.IconSizeSmall)
+						theme.Secondary.On(ui.Text(c, model)).TextColor(k.Fg3).SingleLine()
+						ui.Icon(c, a.icons.Expand).FontSize(10).TextColor(k.Faint)
 					})
+					popover(c, k, m, &a.s.modelOpen, false, 240, func() { a.modelList(c, k, st, cur, hs, set) })
+				})
+				if iconButton(c, k, a.icons.Reset, "恢复默认", false).Disabled(st.effort == "").Clicked() {
+					set.effort("")
 				}
 			})
-		}
-		theme.Caption.On(ui.Text(c, "下一条消息起生效")).TextColor(k.Faint).Padding(4, 8, 2, 8)
+			if len(levels) > 0 {
+				// The slider rests on the middle level while the harness's
+				// default is in use; the big label says 默认.
+				v := float64(len(levels) / 2)
+				for i, e := range levels {
+					if e == st.effort {
+						v = float64(i)
+					}
+				}
+				old := v
+				ui.StepSlider(c, &v, 0, float64(len(levels)-1), 1).Label("推理强度").FillWidth()
+				if v != old {
+					set.effort(levels[int(v)])
+				}
+				ui.Row(c).FillWidth().Justify(ui.SpaceBetween).Children(func() {
+					for _, e := range levels {
+						theme.Caption.On(ui.Text(c.Key(e), effortName(e))).TextColor(k.Muted)
+					}
+				})
+			}
+		})
 	})
+}
+
+// modelList lists the models to choose from, by harness when there are
+// several; choosing one applies from the next message.
+func (a *App) modelList(c *ui.Context, k theme.Colors, st runSettings, cur *proto.ModelInfo, hs []proto.HarnessInfo, set settingsSink) {
+	for _, hh := range hs {
+		if len(hh.Models) == 0 || len(hs) == 1 && !hh.Capabilities.SetModel {
+			continue
+		}
+		if len(hs) > 1 {
+			menuHeader(c, k, harnessName(hh.Kind))
+		}
+		ui.Scroll(c.Key(hh.Kind)).MaxHeight(260).Children(func() {
+			for i, m := range hh.Models {
+				on := hh.Kind == st.harness && cur != nil && cur.ID == m.ID && cur.Provider == m.Provider
+				r := menuItem(c.Key(i), k, on).Label(m.Name).Tooltip(m.Description)
+				if r.Clicked() {
+					set.model(hh.Kind, m)
+					a.s.modelOpen, a.s.effortOpen = false, false
+				}
+				r.Children(func() {
+					theme.UI.On(ui.Text(c, m.Name)).TextColor(k.Fg).SingleLine().Grow(1).Shrink(1)
+					if m.Default && m.ID != "default" { // Claude names its default entry itself
+						theme.Caption.On(ui.Text(c, "默认")).TextColor(k.Muted)
+					}
+					check(c, k, a, on)
+				})
+			}
+		})
+	}
 }

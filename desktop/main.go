@@ -47,7 +47,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	d := &desktop{}
+	d := &desktop{wake: make(chan struct{})}
 	d.app = shell.New(set, d, d.changed)
 	mygo.App.SetMenu(d.menu())
 	mygo.App.OnSecondInstance(func([]string, string) { d.show() })
@@ -84,6 +84,7 @@ func run() error {
 		d.tray = tray
 		d.changed(shell.State{})
 		go link.Watch(ctx, dial, link.Handler{
+			Wake: d.wake,
 			Connected: func(c *client.Client, host string) {
 				d.setClient(c)
 				d.win.Update(func() { d.app.Connected(host) })
@@ -106,6 +107,9 @@ type desktop struct {
 	win      *mygo.Window
 	tray     *mygo.Tray
 	quitting bool
+
+	// wake asks the connection to be tried again now.
+	wake chan struct{}
 
 	mu sync.Mutex
 	c  *client.Client // the current connection, nil while there is none
@@ -254,6 +258,25 @@ func (d *desktop) Output(p proto.OutputParams, done func(proto.ToolOutput)) {
 		}
 		return err
 	})
+}
+
+// Diff implements shell.Host.
+func (d *desktop) Diff(id proto.SessionID, done func(proto.SessionDiff)) {
+	d.call(func(ctx context.Context, c *client.Client) error {
+		diff, err := c.Diff(ctx, proto.DiffParams{Session: id})
+		if err == nil {
+			d.ui(func() { done(diff) })
+		}
+		return err
+	})
+}
+
+// Reconnect implements shell.Host.
+func (d *desktop) Reconnect() {
+	select {
+	case d.wake <- struct{}{}:
+	default: // connected, or already trying
+	}
 }
 
 // Older implements shell.Host.

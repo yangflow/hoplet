@@ -3,7 +3,7 @@ package shell
 import (
 	"fmt"
 	"math"
-	"path"
+	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -27,16 +27,16 @@ const (
 func (a *App) conversation(c *ui.Context, k theme.Colors, s proto.Session) {
 	cv := a.conv(s.ID)
 	personal := s.Mode == proto.ModePersonal
-	width := float32(codeColumn)
+	width, gap := float32(codeColumn), float32(14)
 	if personal {
-		width = personalColumn
+		width, gap = personalColumn, 10
 	}
 	sc := &a.s.scroll
 	atEnd := sc.Y >= sc.MaxY-4
 	ui.Box(c).Grow(1).Children(func() {
 		ui.Scroll(c).Fill().TrackScroll(sc).Children(func() {
 			ui.Row(c).FillWidth().Justify(ui.Center).Children(func() {
-				ui.Column(c).Width(width).Padding(20, 32, 24, 32).Gap(14).Children(func() {
+				ui.Column(c).Width(width).Padding(20, 32, 24, 32).Gap(gap).Children(func() {
 					if more, first := cv.More(); more {
 						if ui.Button(c, "更早的消息").Clicked() {
 							a.host.Older(s.ID, first, func(p proto.EventsPage) { cv.Prepend(p) })
@@ -94,7 +94,7 @@ func (a *App) item(c *ui.Context, k theme.Colors, s proto.Session, it convo.Item
 	case convo.KindStopped:
 		separator(c, k, "已停止 · "+clock(it.Time))
 	case convo.KindChanges:
-		a.changes(c, k, it)
+		a.changes(c, k, s, it)
 	}
 }
 
@@ -160,11 +160,20 @@ func (a *App) mine(c *ui.Context, k theme.Colors, it convo.Item) {
 func (a *App) text(c *ui.Context, k theme.Colors, it convo.Item) {
 	a.s.md.Theme = mdTheme(c, k)
 	a.s.md.CodeBlock = a.codeBlock(k)
+	renderMarkdown(c, it, &a.s.md).FillWidth()
+}
+
+// cursor ends text that is still streaming: a solid bar after the last
+// character.
+const cursor = "\u258D"
+
+// renderMarkdown draws an item's text as Markdown; text still streaming
+// reveals as it comes and ends with the cursor.
+func renderMarkdown(c *ui.Context, it convo.Item, o *markdown.Options) ui.Element {
 	if it.Streaming {
-		markdown.Stream(c, it.Text, &a.s.md).FillWidth()
-		return
+		return markdown.Stream(c, it.Text+cursor, o)
 	}
-	markdown.View(c, it.Text, &a.s.md).FillWidth()
+	return markdown.View(c, it.Text, o)
 }
 
 // mdTheme is the Markdown look: reading size, the code font, the accent
@@ -267,10 +276,59 @@ func (a *App) work(c *ui.Context, k theme.Colors, s proto.Session, it convo.Item
 				theme.Caption.On(ui.Textf(c, "更早的 %d 条", len(entries)-3)).TextColor(k.Muted)
 				entries = entries[len(entries)-3:]
 			}
-			for i, e := range entries {
-				a.workStep(c.Key(i), k, s, e)
+			for i, run := range runs(entries) {
+				if len(run) == 1 {
+					a.workStep(c.Key(i), k, s, run[0])
+					continue
+				}
+				a.reads(c.Key(i), k, s, it.Key, i, run)
 			}
 		})
+	})
+}
+
+// runs splits a group's steps into runs: consecutive finished reads go
+// together, every other step alone.
+func runs(entries []convo.Entry) [][]convo.Entry {
+	var out [][]convo.Entry
+	for _, e := range entries {
+		read := e.Tool != nil && e.Tool.Kind == proto.ToolRead && e.Tool.Status == proto.ToolDone
+		if n := len(out); read && n > 0 {
+			prev := out[n-1][0]
+			if prev.Tool != nil && prev.Tool.Kind == proto.ToolRead && prev.Tool.Status == proto.ToolDone {
+				out[n-1] = append(out[n-1], e)
+				continue
+			}
+		}
+		out = append(out, []convo.Entry{e})
+	}
+	return out
+}
+
+// reads draws consecutive reads as one row, 读取了 N 个文件 ›, which opens
+// to the reads.
+func (a *App) reads(c *ui.Context, k theme.Colors, s proto.Session, group string, i int, run []convo.Entry) {
+	key := fmt.Sprintf("reads:%s:%s:%d", s.ID, group, i)
+	open := a.s.open[key]
+	ui.Column(c).Children(func() {
+		r := ui.Row(c).Height(24).Gap(8).AlignItems(ui.Center).Label(fmt.Sprintf("读取了 %d 个文件", len(run)))
+		if r.Clicked() {
+			a.s.open[key] = !open
+		}
+		r.Children(func() {
+			ui.Icon(c, a.icons.Read).FontSize(theme.IconSizeInRow).TextColor(k.Fg3)
+			theme.UI.On(ui.Textf(c, "读取了 %d 个文件", len(run))).TextColor(k.Fg).FontWeight(500)
+			icon := a.icons.Expand
+			if open {
+				icon = a.icons.Menu
+			}
+			ui.Icon(c, icon).FontSize(theme.IconSizeSmall).TextColor(k.Faint)
+		})
+		if open {
+			for j, e := range run {
+				a.workStep(c.Key(j), k, s, e)
+			}
+		}
 	})
 }
 
@@ -320,7 +378,8 @@ func (a *App) workStep(c *ui.Context, k theme.Colors, s proto.Session, e convo.E
 				ui.Text(c, duration(c.Now().Sub(e.Start))+"…").Font(theme.Mono).FontSize(11).TextColor(k.Faint)
 				c.After(time.Second)
 			case tc.Status == proto.ToolFailed:
-				ui.Text(c, "✕ "+duration(e.Duration())).Font(theme.Mono).FontSize(11).TextColor(k.Del)
+				// The exit code joins this when harnesses report it.
+				ui.Text(c, "✕ "+duration(e.Duration())).Font(theme.Mono).FontSize(11).FontWeight(600).TextColor(k.Fg)
 			case hovered:
 				ui.Text(c, duration(e.Duration())).Font(theme.Mono).FontSize(11).TextColor(k.Faint)
 			}
@@ -334,12 +393,13 @@ func (a *App) workStep(c *ui.Context, k theme.Colors, s proto.Session, e convo.E
 // outputLines shows at most this many lines of an output.
 const outputLines = 20
 
-// output draws a tool's output: its first 20 lines, then how many remain.
+// output draws a tool's output in a box: its first 20 lines, then a line
+// saying how many remain, with show all, copy and fold.
 func (a *App) output(c *ui.Context, k theme.Colors, key string) {
 	o := a.s.outputs[key]
-	ui.Column(c).Margin(2, 0, 4, 22).Padding(8, 10).Radius(theme.RadiusRow).Background(k.Fill).Children(func() {
+	ui.Column(c).Margin(4, 0, 4, 22).Radius(8).Border(1, k.Line).Background(k.Bg2).Clip().Children(func() {
 		if o == nil {
-			ui.Spinner(c).Size(12, 12)
+			ui.Box(c).Padding(8, 12).Children(func() { ui.Spinner(c).Size(12, 12) })
 			return
 		}
 		lines := strings.Split(strings.TrimRight(o.Text, "\n"), "\n")
@@ -347,20 +407,26 @@ func (a *App) output(c *ui.Context, k theme.Colors, key string) {
 		if len(shown) > outputLines && !a.s.open[key+":all"] {
 			shown = shown[:outputLines]
 		}
-		ui.Text(c, strings.Join(shown, "\n")).Font(theme.Mono).FontSize(12).LineHeight(19.0 / 12).TextColor(k.Fg2).FontFeatures("liga=0").Selectable()
-		if rest := len(lines) - len(shown); rest > 0 || o.Truncated {
-			ui.Row(c).Gap(4).AlignItems(ui.Center).Children(func() {
-				label := fmt.Sprintf("还有 %d 行", rest)
-				if rest == 0 {
-					label = "输出过长，只显示了开头"
-				}
-				theme.Caption.On(ui.Text(c, label)).TextColor(k.Muted).Grow(1)
-				if rest > 0 && iconButton(c, k, a.icons.Expand, "展开", false).Size(22, 22).Clicked() {
-					a.s.open[key+":all"] = true
-				}
-				a.copyButton(c, k, key, o.Text)
-			})
-		}
+		ui.Text(c, strings.Join(shown, "\n")).Font(theme.Mono).FontSize(12).LineHeight(18.0/12).TextColor(k.Fg2).
+			FontFeatures("liga=0").Padding(8, 12).Selectable()
+		rest := len(lines) - len(shown)
+		ui.Row(c).Padding(2, 6, 2, 12).Gap(2).AlignItems(ui.Center).BorderWidth(1, 0, 0, 0).BorderColor(k.Line).Children(func() {
+			label := ""
+			switch {
+			case rest > 0:
+				label = fmt.Sprintf("还有 %d 行", rest)
+			case o.Truncated:
+				label = "输出过长，只显示了开头"
+			}
+			theme.Caption.On(ui.Text(c, label)).TextColor(k.Muted).Grow(1)
+			if rest > 0 && iconButton(c, k, a.icons.Unfold, "展开全部", false).Size(24, 24).Clicked() {
+				a.s.open[key+":all"] = true
+			}
+			a.copyButton(c, k, key, o.Text)
+			if iconButton(c, k, a.icons.Fold, "折叠", false).Size(24, 24).Clicked() {
+				a.s.open[key] = false
+			}
+		})
 	})
 }
 
@@ -469,19 +535,65 @@ func (a *App) record(c *ui.Context, k theme.Colors, ap *convo.Approval) {
 	})
 }
 
-// changes draws the files a turn changed, at the end of its reply. The
-// rows open the file's diff in the right panel once there is one.
-func (a *App) changes(c *ui.Context, k theme.Colors, it convo.Item) {
-	ui.Column(c).FillWidth().Padding(6, 6).Radius(theme.RadiusCard).Border(1, k.Line).Children(func() {
-		theme.UI.On(ui.Textf(c, "改了 %d 个文件", len(it.Files))).TextColor(k.Fg3).FontWeight(500).Padding(4, 6)
-		for _, f := range it.Files {
-			ui.Row(c).Height(26).Padding(0, 6).Gap(8).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, opLetter(f.Op)).Font(theme.Mono).FontSize(11).FontWeight(600).TextColor(opColor(k, f.Op))
-				theme.UI.On(ui.Text(c, path.Base(f.Path))).TextColor(k.Fg).SingleLine()
-				theme.Caption.On(ui.Text(c, path.Dir(f.Path))).TextColor(k.Faint).SingleLine().Shrink(1)
+// changes draws the files a turn changed, at the end of its reply: a
+// 36-point header with the count and the lines added and removed, then
+// each file with its status, path and lines, from the session's diff. The
+// rows open the file's diff in the right panel once there is one; undoing
+// comes with checkpoints.
+func (a *App) changes(c *ui.Context, k theme.Colors, s proto.Session, it convo.Item) {
+	d := a.diff(s)
+	var add, del int
+	stats := make([]*proto.FileDiff, len(it.Files))
+	for i, f := range it.Files {
+		if st, ok := fileStats(d, s.Directory, f.Path); ok {
+			stats[i] = &st
+			add, del = add+st.Additions, del+st.Deletions
+		}
+	}
+	ui.Column(c).FillWidth().Radius(theme.RadiusCard).Border(1, k.Line).Clip().Children(func() {
+		ui.Row(c).Height(36).Padding(0, 12).Gap(10).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(k.Line).Children(func() {
+			theme.UIStrong.On(ui.Textf(c, "改了 %d 个文件", len(it.Files))).TextColor(k.Fg)
+			if d != nil {
+				lines(c, k, add, del)
+			}
+		})
+		for i, f := range it.Files {
+			r := ui.Row(c.Key(f.Path)).Padding(6, 12).Gap(8).AlignItems(ui.Center)
+			if r.Hovered() {
+				r.Background(k.Fill)
+			}
+			r.Children(func() {
+				ui.Text(c, opLetter(f.Op)).Font(theme.Mono).FontSize(12).TextColor(k.Muted).Width(12)
+				ui.Text(c, relPath(s.Directory, f.Path)).Font(theme.Mono).FontSize(12).TextColor(k.Fg).SingleLine().Grow(1).Shrink(1)
+				if st := stats[i]; st != nil {
+					lines(c, k, st.Additions, st.Deletions)
+				}
 			})
 		}
 	})
+}
+
+// lines shows lines added and removed, +24 −9, in the diff colors.
+func lines(c *ui.Context, k theme.Colors, add, del int) {
+	ui.Row(c).Gap(4).Children(func() {
+		if add > 0 || del == 0 {
+			ui.Textf(c, "+%d", add).Font(theme.Mono).FontSize(12).TextColor(k.Add)
+		}
+		if del > 0 {
+			ui.Textf(c, "−%d", del).Font(theme.Mono).FontSize(12).TextColor(k.Del)
+		}
+	})
+}
+
+// relPath is path relative to dir when it lies inside it.
+func relPath(dir, path string) string {
+	if dir == "" || !filepath.IsAbs(path) {
+		return path
+	}
+	if r, err := filepath.Rel(dir, path); err == nil && !strings.HasPrefix(r, "..") {
+		return r
+	}
+	return path
 }
 
 func opLetter(op proto.FileOp) string {
@@ -492,16 +604,6 @@ func opLetter(op proto.FileOp) string {
 		return "D"
 	}
 	return "M"
-}
-
-func opColor(k theme.Colors, op proto.FileOp) ui.Color {
-	switch op {
-	case proto.FileCreated:
-		return k.Add
-	case proto.FileDeleted:
-		return k.Del
-	}
-	return k.Fg3
 }
 
 // clock is a local time of day, 14:20.

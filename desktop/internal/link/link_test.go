@@ -97,6 +97,35 @@ func TestWatchReconnects(t *testing.T) {
 	}
 }
 
+func TestWatchWakes(t *testing.T) {
+	dir, err := os.MkdirTemp("", "dl")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(dir) })
+	ctx, cancel := context.WithCancel(context.Background())
+	lost := make(chan time.Time, 16)
+	wake := make(chan struct{})
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		Watch(ctx, HomeDialer(dir), Handler{
+			Connected: func(*client.Client, string) {},
+			Lost:      func(error) { lost <- time.Now() },
+			Item:      func(proto.CatalogItem) {},
+			Wake:      wake,
+		})
+	}()
+	t.Cleanup(func() { cancel(); <-done })
+
+	first := <-lost
+	wake <- struct{}{}
+	// Without the wake the second try would come a full retry later.
+	if d := (<-lost).Sub(first); d >= firstRetry {
+		t.Fatalf("tried again after %v, not on waking", d)
+	}
+}
+
 func TestFollowUnknownSession(t *testing.T) {
 	dir, err := os.MkdirTemp("", "dl")
 	if err != nil {

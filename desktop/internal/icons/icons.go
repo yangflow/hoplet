@@ -33,36 +33,41 @@ type Set struct {
 	Mark      *ui.SVG // Hoplet's mark
 
 	// The conversation and the composer.
-	New      *ui.SVG // new session
-	Copy     *ui.SVG
-	Check    *ui.SVG
-	Read     *ui.SVG // tool: read
-	Search   *ui.SVG // tool: search
-	Edit     *ui.SVG // tool: edit
-	Write    *ui.SVG // tool: write a new file
-	Run      *ui.SVG // tool: run a command
-	Web      *ui.SVG // tool: fetch a web page
-	Tool     *ui.SVG // tool: MCP and others
-	Task     *ui.SVG // tool: a subtask
-	Thinking *ui.SVG
-	Allowed  *ui.SVG // a decided approval: allowed
-	Denied   *ui.SVG // a decided approval: denied
-	Confirm  *ui.SVG // permission: confirm
-	AutoEdit *ui.SVG // permission: auto_edit
-	Review   *ui.SVG // permission: auto_review
-	FullAuto *ui.SVG // permission: full_auto
-	Plan     *ui.SVG
-	Steer    *ui.SVG
-	Warning  *ui.SVG
-	Reset    *ui.SVG
-	ToBottom *ui.SVG
-	Send     *ui.SVG
-	Stop     *ui.SVG
-	Expand   *ui.SVG // a folded group or row
-	Fast     *ui.SVG
-	Close    *ui.SVG
-	Me       *ui.SVG // my avatar
-	Info     *ui.SVG // session details
+	New       *ui.SVG // new session
+	Copy      *ui.SVG
+	Check     *ui.SVG
+	Read      *ui.SVG // tool: read
+	Search    *ui.SVG // tool: search
+	Edit      *ui.SVG // tool: edit
+	Write     *ui.SVG // tool: write a new file
+	Run       *ui.SVG // tool: run a command
+	Web       *ui.SVG // tool: fetch a web page
+	Tool      *ui.SVG // tool: MCP and others
+	Task      *ui.SVG // tool: a subtask
+	Thinking  *ui.SVG
+	Allowed   *ui.SVG // a decided approval: allowed
+	Denied    *ui.SVG // a decided approval: denied
+	Confirm   *ui.SVG // permission: confirm
+	AutoEdit  *ui.SVG // permission: auto_edit
+	Review    *ui.SVG // permission: auto_review
+	FullAuto  *ui.SVG // permission: full_auto
+	Plan      *ui.SVG
+	Steer     *ui.SVG
+	Warning   *ui.SVG
+	Reset     *ui.SVG
+	ToBottom  *ui.SVG
+	Send      *ui.SVG
+	Stop      *ui.SVG
+	Expand    *ui.SVG // a folded group or row
+	Fast      *ui.SVG
+	Close     *ui.SVG
+	Me        *ui.SVG // my avatar
+	Info      *ui.SVG // session details
+	Grip      *ui.SVG // drag handle
+	Repos     *ui.SVG // the repositories in a directory
+	Reconnect *ui.SVG
+	Fold      *ui.SVG // fold an opened output
+	Unfold    *ui.SVG // show all of an output
 }
 
 // Load parses every icon.
@@ -118,6 +123,11 @@ func Load() (*Set, error) {
 		{&s.Close, "lucide/x.svg"},
 		{&s.Me, "lucide/user.svg"},
 		{&s.Info, "lucide/info.svg"},
+		{&s.Grip, "lucide/grip-vertical.svg"},
+		{&s.Repos, "lucide/folder-git-2.svg"},
+		{&s.Reconnect, "lucide/refresh-cw.svg"},
+		{&s.Fold, "lucide/chevrons-down-up.svg"},
+		{&s.Unfold, "lucide/chevrons-up-down.svg"},
 	} {
 		data, err := files.ReadFile(f.path)
 		if err != nil {

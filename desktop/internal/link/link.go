@@ -28,6 +28,9 @@ type Handler struct {
 	Lost func(err error)
 	// Item delivers a catalog item.
 	Item func(proto.CatalogItem)
+	// Wake, when it is not nil, ends the wait before connecting again:
+	// reconnecting now, on my asking.
+	Wake <-chan struct{}
 }
 
 // Dialer connects to the daemon.
@@ -83,6 +86,7 @@ func Watch(ctx context.Context, dial Dialer, h Handler) {
 		case <-ctx.Done():
 			return
 		case <-time.After(wait):
+		case <-h.Wake:
 		}
 		wait = min(wait*2, lastRetry)
 	}

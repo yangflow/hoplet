@@ -2,6 +2,7 @@ package shell
 
 import (
 	"crypto/rand"
+	"path/filepath"
 	"slices"
 	"time"
 
@@ -33,6 +34,11 @@ type sessionView struct {
 	copied                                    map[string]time.Time // when each copy button last copied
 	armed                                     time.Time            // the first ⎋ of two that stop a turn
 
+	diffs        map[proto.SessionID]*diffState // each session's changes, as last read
+	queue        ui.ListState                   // the queue tray's rows, which drag to reorder
+	offlineSince time.Time                      // when the connection was lost
+	modelOpen    bool                           // the model list of the effort popover
+
 	newPage bool
 	newPick newChoice
 }
@@ -48,6 +54,7 @@ func newSessionView() sessionView {
 	return sessionView{
 		convos: map[proto.SessionID]*convo.Convo{}, drafts: map[proto.SessionID]string{},
 		open: map[string]bool{}, outputs: map[string]*proto.ToolOutput{}, hidden: map[string]bool{}, copied: map[string]time.Time{},
+		diffs: map[proto.SessionID]*diffState{},
 	}
 }
 
@@ -132,4 +139,47 @@ func (a *App) outbox(id proto.SessionID) []string {
 		}
 	}
 	return out
+}
+
+// diffState is a session's changes as last read, and the event seq they
+// were asked for at.
+type diffState struct {
+	diff  *proto.SessionDiff
+	sent  bool   // a question went out
+	asked uint64 // the conversation's last seq when it did
+}
+
+// diff returns a session's changes, asking again when its conversation
+// moved on since the last ask; nil until the first answer.
+func (a *App) diff(s proto.Session) *proto.SessionDiff {
+	st, ok := a.s.diffs[s.ID]
+	if !ok {
+		st = &diffState{}
+		a.s.diffs[s.ID] = st
+	}
+	if seq := a.conv(s.ID).LastSeq(); a.connected && s.Directory != "" && (!st.sent || seq > st.asked) && !a.conv(s.ID).Running() {
+		st.sent, st.asked = true, seq
+		a.host.Diff(s.ID, func(d proto.SessionDiff) { st.diff = &d })
+	}
+	return st.diff
+}
+
+// fileStats finds a changed file's line counts in a session's diff; path
+// is as the harness reported it, absolute or relative to the directory.
+func fileStats(d *proto.SessionDiff, dir, path string) (proto.FileDiff, bool) {
+	if d == nil {
+		return proto.FileDiff{}, false
+	}
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(dir, path)
+	}
+	for _, r := range d.Repos {
+		root := filepath.Join(dir, r.Path)
+		for _, f := range r.Files {
+			if filepath.Join(root, f.Path) == path {
+				return f, true
+			}
+		}
+	}
+	return proto.FileDiff{}, false
 }

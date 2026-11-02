@@ -27,7 +27,7 @@ func (a *App) newPage(c *ui.Context, k theme.Colors) {
 		title = "新伙伴"
 	}
 	h, _ := a.harness(pick.run.harness)
-	ui.Column(c).Grow(1).AlignItems(ui.Center).Padding(160, 32, 0, 32).Children(func() {
+	ui.Column(c).Grow(1).AlignItems(ui.Center).Padding(200, 32, 0, 32).Children(func() {
 		ui.Column(c).Width(680).Gap(14).Children(func() {
 			theme.Display.On(ui.Text(c, title)).TextColor(k.Fg)
 			ui.Column(c).FillWidth().Padding(12, 14, 10, 14).Gap(10).Radius(theme.RadiusComposer).

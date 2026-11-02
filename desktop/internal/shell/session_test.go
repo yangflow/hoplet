@@ -178,8 +178,11 @@ func TestOfflineOutbox(t *testing.T) {
 	}
 	tt.Type("later")
 	tt.Key(0, ui.KeyEnter)
-	if len(h.calls) != 0 || !tt.HasText("重连后发送") || !tt.HasText("断线 · 消息会在重连后发送") {
+	if len(h.calls) != 0 || !tt.HasText("重连后发送") || !tt.HasText("studio · 0 秒") {
 		t.Fatalf("calls %#v texts %q", h.calls, tt.Texts())
+	}
+	if err := tt.Click("立即重连"); err != nil || h.reconnects != 1 {
+		t.Fatalf("reconnect: %v, %d", err, h.reconnects)
 	}
 	a.Connected("studio")
 	if got := h.last(); !reflect.DeepEqual(got, proto.SendParams{Session: "s1", Text: "later"}) {
@@ -196,6 +199,9 @@ func TestEffortModelAndPermission(t *testing.T) {
 	if err := tt.Click("强度与模型"); err != nil {
 		t.Fatal(err)
 	}
+	if err := tt.Click("换模型"); err != nil {
+		t.Fatal(err)
+	}
 	if err := tt.Click("Haiku 5.5"); err != nil {
 		t.Fatalf("%v in %q", err, tt.Texts())
 	}
@@ -205,9 +211,12 @@ func TestEffortModelAndPermission(t *testing.T) {
 	if err := tt.Click("强度与模型"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tt.Click("高"); err != nil {
+	// The slider rests on the middle level for the default; one step
+	// right is 高.
+	if err := tt.Click("推理强度"); err != nil {
 		t.Fatal(err)
 	}
+	tt.Key(0, ui.KeyRight)
 	if got := h.last(); !reflect.DeepEqual(got, proto.SetEffortParams{Session: "s1", Effort: proto.EffortHigh}) {
 		t.Fatalf("set effort %#v", got)
 	}
@@ -298,6 +307,9 @@ func TestNewSessionPicksHarnessByModel(t *testing.T) {
 	if err := tt.Click("强度与模型"); err != nil {
 		t.Fatal(err)
 	}
+	if err := tt.Click("换模型"); err != nil {
+		t.Fatal(err)
+	}
 	for _, want := range []string{"Claude Code", "Hermes", "Default (recommended)", "codex/m1"} {
 		if !tt.HasText(want) {
 			t.Fatalf("no %q in %q", want, tt.Texts())
@@ -315,5 +327,21 @@ func TestNewSessionPicksHarnessByModel(t *testing.T) {
 	want := proto.CreateParams{Mode: proto.ModeCode, Harness: "hermes", Directory: "/w/site", Permission: proto.ModeAutoReview, Model: "codex/m1", ModelProvider: "local"}
 	if got := h.last(); !reflect.DeepEqual(got, want) {
 		t.Fatalf("create %#v", got)
+	}
+}
+
+func TestContextLine(t *testing.T) {
+	a, h, tt, _ := newApp(t)
+	h.diffs = map[proto.SessionID]proto.SessionDiff{"s1": {Session: "s1", Repos: []proto.RepoDiff{
+		{Path: ".", Branch: "main", State: proto.RepoOK},
+		{Path: "vendor/x", Branch: "dev", State: proto.RepoOK},
+	}}}
+	a.Select("s1")
+	tt.Frame()
+	tt.Frame()
+	for _, want := range []string{"/w/hoplet", "main", "2"} {
+		if !tt.HasText(want) {
+			t.Errorf("no %q in %q", want, tt.Texts())
+		}
 	}
 }
