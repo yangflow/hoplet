@@ -189,26 +189,25 @@ func (a *App) list(c *ui.Context, k theme.Colors) {
 	})
 }
 
-// emptyList says why the list is empty, with at most one thing to do.
+// emptyList says why the list is empty, with no button: new sessions start
+// from the sidebar's 新建, the list header's ＋ or the keys. An empty
+// filter links back to all.
 func (a *App) emptyList(c *ui.Context, k theme.Colors) {
-	text, action, tip := "还没有会话", "新建会话 ⌘N", ""
+	text, tip := "还没有会话", ""
 	switch {
 	case a.archived:
-		text, action = "没有归档的会话", ""
+		text = "没有归档的会话"
 	case !a.connected && a.cat.Version() == 0:
-		text, action = "连接后显示会话", "" // reconnecting is on the machine row
+		text = "连接后显示会话" // reconnecting is on the machine row
 	case a.mode == proto.ModePersonal:
-		text, action = "还没有伙伴", "新建伙伴 ⇧⌘N"
+		text = "还没有伙伴"
 	case a.show == catalog.ShowNeedsYou:
-		text, action, tip = "没有需要你处理的会话", "", "显示全部"
+		text, tip = "没有需要你处理的会话", "显示全部"
 	case a.show == catalog.ShowRunning:
-		text, action, tip = "没有运行中的会话", "", "显示全部"
+		text, tip = "没有运行中的会话", "显示全部"
 	}
 	ui.Column(c).Padding(16, 16).Gap(10).AlignItems(ui.Start).Children(func() {
 		ui.Text(c, text).FontSize(12.5).LineHeight(18.0 / 12.5).TextColor(k.Muted)
-		if action != "" && ui.Button(c, action).Height(24).Padding(0, 8).Radius(6).Border(0, ui.Transparent).Background(k.Fill2).Clicked() {
-			a.NewSession()
-		}
 		if tip != "" && ui.Button(c, tip).Height(18).Padding(0).Background(ui.Transparent).Border(0, ui.Transparent).
 			TextColor(k.Fg3).Underline().Clicked() {
 			a.show = catalog.ShowAll

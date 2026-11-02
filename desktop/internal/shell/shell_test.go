@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -461,13 +462,14 @@ func TestEmptyLists(t *testing.T) {
 	b, _, tb, _ := newApp(t)
 	b.Apply(proto.CatalogItem{Snapshot: true, Version: 7})
 	tb.Frame()
-	if err := tb.Click("新建会话 ⌘N"); err != nil || !b.s.newPage {
-		t.Fatalf("new from an empty list: %v in %q", err, tb.Texts())
+	if !tb.HasText("还没有会话") || tb.HasText("新建会话 ⌘N") {
+		t.Fatalf("an empty list says why, with no button: %q", tb.Texts())
 	}
 	if err := tb.Click("Personal ⌘1"); err != nil {
 		t.Fatal(err)
 	}
-	if !tb.HasText("还没有伙伴") || !tb.HasText("新建伙伴 ⇧⌘N") {
+	// 新建伙伴 is the list header's ＋ alone.
+	if !tb.HasText("还没有伙伴") || strings.Count(strings.Join(tb.Texts(), "|"), "新建伙伴 ⇧⌘N") != 1 {
 		t.Fatalf("no empty companions in %q", tb.Texts())
 	}
 }
