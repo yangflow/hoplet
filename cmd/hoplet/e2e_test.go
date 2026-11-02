@@ -167,6 +167,12 @@ func TestSessionInTheTerminal(t *testing.T) {
 	if out := mustCLI(t, "session", "set", short, "--title", "renamed", "--pinned", "on", "--unread", "off"); out != "permission auto_review, effort high, pinned\n" {
 		t.Fatalf("session set list properties: %q", out)
 	}
+	if out := mustCLI(t, "session", "set", short, "--model", "m1"); !strings.Contains(out, ", model m1") {
+		t.Fatalf("session set --model: %q", out)
+	}
+	if code, _, _ := cli(t, "session", "set", short, "--provider", "p"); code != 2 {
+		t.Fatalf("session set --provider alone: exit %d, want 2", code)
+	}
 	if code, _, _ := cli(t, "session", "set", short, "--pinned", "yes"); code != 2 {
 		t.Fatalf("session set --pinned yes: exit %d, want 2", code)
 	}

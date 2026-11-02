@@ -27,7 +27,7 @@ commands:
   wait     ID [--for idle|blocked|done] [--timeout D]
   approve  ID [APPROVAL] --option OPTION
   set      ID [--permission MODE] [--plan on|off] [--fast on|off] [--effort LEVEL]
-           [--title T] [--pinned on|off] [--unread on|off]
+           [--title T] [--pinned on|off] [--unread on|off] [--model ID [--provider P]]
   interrupt ID     end the running turn
   steer    ID TEXT  add TEXT to the running turn (harnesses that support it)
   stop     ID      stop the session's harness process
@@ -55,8 +55,9 @@ actions), full_auto (never ask). A harness lacking a mode runs the nearest
 stricter one. Plan mode stops all changes until you approve a plan. Fast
 mode gives faster output at a higher cost. Effort levels: low, medium, high,
 xhigh, max, ultra; each harness offers a subset. set applies its changes in
-the order permission, plan, fast, effort, then title, pin and unread mark
-together, and stops at the first that fails. An empty --title clears the
+the order permission, plan, fast, effort, model, then title, pin and unread
+mark together, and stops at the first that fails. A model takes effect from
+the next message; --provider names its provider where the harness has them. An empty --title clears the
 title.
 `
 
@@ -530,6 +531,8 @@ func (a app) sessionSet(args []string) int {
 	effort := fs.String("effort", "", "low, medium, high, xhigh, max or ultra")
 	var title optString
 	fs.Var(&title, "title", "the session's title; empty clears it")
+	model := fs.String("model", "", "the model, from the next message")
+	provider := fs.String("provider", "", "the model's provider, where the harness has them")
 	pinned := fs.String("pinned", "", "on or off")
 	unread := fs.String("unread", "", "on or off")
 	asJSON := fs.Bool("json", false, "print the session as JSON")
@@ -550,8 +553,12 @@ func (a app) sessionSet(args []string) int {
 		fmt.Fprintf(a.stderr, "hoplet session set: --effort %q: want low, medium, high, xhigh, max or ultra\n", *effort)
 		return 2
 	}
-	if *perm == "" && *plan == "" && *fast == "" && *effort == "" && !title.set && *pinned == "" && *unread == "" {
-		fmt.Fprintln(a.stderr, "hoplet session set: nothing to change; give --permission, --plan, --fast, --effort, --title, --pinned or --unread")
+	if *perm == "" && *plan == "" && *fast == "" && *effort == "" && *model == "" && !title.set && *pinned == "" && *unread == "" {
+		fmt.Fprintln(a.stderr, "hoplet session set: nothing to change; give --permission, --plan, --fast, --effort, --model, --title, --pinned or --unread")
+		return 2
+	}
+	if *provider != "" && *model == "" {
+		fmt.Fprintln(a.stderr, "hoplet session set: --provider goes with --model")
 		return 2
 	}
 	return a.withClient("session set", commandTimeout, func(ctx context.Context, c *client.Client) error {
@@ -576,6 +583,11 @@ func (a app) sessionSet(args []string) int {
 		}
 		if *effort != "" {
 			if err := c.SetEffort(ctx, proto.SetEffortParams{Session: id, Effort: proto.Effort(*effort)}); err != nil {
+				return err
+			}
+		}
+		if *model != "" {
+			if err := c.SetModel(ctx, proto.SetModelParams{Session: id, Model: *model, Provider: *provider}); err != nil {
 				return err
 			}
 		}
@@ -635,6 +647,9 @@ func describeMode(s proto.Session) string {
 	}
 	if s.Effort != "" {
 		out += ", effort " + string(s.Effort)
+	}
+	if s.Model != "" {
+		out += ", model " + s.Model
 	}
 	if s.Pinned {
 		out += ", pinned"

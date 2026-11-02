@@ -76,6 +76,25 @@ func (c *Client) Update(ctx context.Context, p proto.UpdateParams) (proto.Sessio
 	return out, err
 }
 
+// SetModel changes a session's model from its next turn.
+func (c *Client) SetModel(ctx context.Context, p proto.SetModelParams) error {
+	return c.Call(ctx, proto.MethodSessionsSetModel, p, nil)
+}
+
+// Harnesses describes the installed harnesses and their models.
+func (c *Client) Harnesses(ctx context.Context) ([]proto.HarnessInfo, error) {
+	var out []proto.HarnessInfo
+	err := c.Call(ctx, proto.MethodHarnessesList, struct{}{}, &out)
+	return out, err
+}
+
+// Output reads a tool call's output.
+func (c *Client) Output(ctx context.Context, p proto.OutputParams) (proto.ToolOutput, error) {
+	var out proto.ToolOutput
+	err := c.Call(ctx, proto.MethodSessionsOutput, p, &out)
+	return out, err
+}
+
 // Stop stops a session's harness.
 func (c *Client) Stop(ctx context.Context, id proto.SessionID) error {
 	return c.Call(ctx, proto.MethodSessionsStop, proto.SessionRef{Session: id}, nil)

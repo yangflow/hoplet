@@ -24,12 +24,15 @@
 package session
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -227,6 +230,10 @@ type CreateRequest struct {
 	Effort     proto.Effort // empty: the harness default
 	Title      string
 	Origin     proto.Origin
+	// Model and ModelProvider pick one of the harness's models; empty
+	// means its default.
+	Model         string
+	ModelProvider string
 }
 
 // Create stores a new session. The harness starts on the first Send.
@@ -293,7 +300,7 @@ func (m *Manager) Create(ctx context.Context, req CreateRequest) (proto.Session,
 	sess, err := m.cfg.Store.CreateSession(ctx, proto.Session{
 		ID: id, Mode: req.Mode, Harness: proto.HarnessRef{Kind: req.Harness, Version: info.Version},
 		Directory: req.Directory, Isolation: req.Isolation, Permission: info.Capabilities.Fallback(req.Permission),
-		Plan: req.Plan, Fast: req.Fast, Effort: req.Effort,
+		Plan: req.Plan, Fast: req.Fast, Effort: req.Effort, Model: req.Model, ModelProvider: req.ModelProvider,
 		Owner: proto.OwnerMe, Origin: req.Origin, Title: req.Title,
 	})
 	if err != nil {
@@ -559,7 +566,19 @@ func (m *Manager) Steer(ctx context.Context, id proto.SessionID, text string) er
 	if err != nil {
 		return err
 	}
-	return l.run.Steer(ctx, text)
+	if err := l.run.Steer(ctx, text); err != nil {
+		return err
+	}
+	// The log keeps what I said into the turn, as a message of mine in it.
+	last, open, err := m.cfg.Store.TurnState(ctx, id)
+	if err != nil || !open {
+		return err // the turn ended meanwhile: the harness had the text
+	}
+	_, err = m.cfg.Store.Append(ctx, store.AppendRequest{
+		Session: id, Turn: last,
+		Entries: []store.Entry{{Payload: proto.Message{ID: "steer-" + rand.Text()[:12], Role: proto.RoleUser, Text: text}}},
+	})
+	return err
 }
 
 // Answer answers a question the harness asked.
@@ -626,6 +645,75 @@ func (m *Manager) SetEffort(ctx context.Context, id proto.SessionID, effort prot
 		return harness.ErrUnsupported
 	}
 	return m.apply(ctx, id, store.SessionUpdate{Effort: &effort}, func(r harness.Run) error { return r.SetEffort(ctx, effort) })
+}
+
+// SetModel changes the model from the next turn.
+func (m *Manager) SetModel(ctx context.Context, id proto.SessionID, model, provider string) error {
+	if model == "" {
+		return fmt.Errorf("%w: no model", store.ErrInvalid)
+	}
+	caps, err := m.capabilities(ctx, id)
+	if err != nil {
+		return err
+	}
+	if !caps.SetModel {
+		return harness.ErrUnsupported
+	}
+	return m.apply(ctx, id, store.SessionUpdate{Model: &model, ModelProvider: &provider},
+		func(r harness.Run) error { return r.SetModel(ctx, model, provider) })
+}
+
+// Harnesses describes the installed harnesses, by kind; one that cannot be
+// probed (not installed) is left out. Models come from the harness's
+// probe, or from listing them where the harness can.
+func (m *Manager) Harnesses(ctx context.Context) []proto.HarnessInfo {
+	kinds := slices.Sorted(maps.Keys(m.cfg.Harnesses))
+	out := []proto.HarnessInfo{}
+	for _, kind := range kinds {
+		h := m.cfg.Harnesses[kind]
+		info, err := h.Probe(ctx)
+		if err != nil {
+			continue
+		}
+		hi := proto.HarnessInfo{Kind: kind, Version: info.Version, Supported: info.Supported, Capabilities: info.Capabilities, Models: info.Models}
+		if l, ok := h.(harness.ModelLister); ok {
+			if models, err := l.Models(ctx); err == nil {
+				hi.Models = models
+			} else {
+				m.log.Warn("list models", "harness", kind, "err", err)
+			}
+		}
+		out = append(out, hi)
+	}
+	return out
+}
+
+// Output reads a tool call's output: at most proto.MaxOutput bytes, cut at
+// the last line end when more remains.
+func (m *Manager) Output(ctx context.Context, id proto.SessionID, toolCall string) (proto.ToolOutput, error) {
+	ref, err := m.cfg.Store.ToolOutput(ctx, id, toolCall)
+	if err != nil {
+		return proto.ToolOutput{}, err
+	}
+	rc, err := m.cfg.Store.OpenBlob(ref)
+	if err != nil {
+		return proto.ToolOutput{}, err
+	}
+	defer rc.Close()
+	b, err := io.ReadAll(io.LimitReader(rc, proto.MaxOutput+1))
+	if err != nil {
+		return proto.ToolOutput{}, fmt.Errorf("session: read tool output: %w", err)
+	}
+	out := proto.ToolOutput{Size: ref.Size}
+	if len(b) > proto.MaxOutput {
+		b = b[:proto.MaxOutput]
+		if i := bytes.LastIndexByte(b, '\n'); i >= 0 {
+			b = b[:i+1]
+		}
+		out.Truncated = true
+	}
+	out.Text = string(b)
+	return out, nil
 }
 
 // apply stores a setting and, when the harness runs, hands it over. It
@@ -732,8 +820,8 @@ func (m *Manager) Env() []string {
 func (m *Manager) specFor(sess proto.Session, inTurn bool) harness.Spec {
 	return harness.Spec{
 		Session: sess.ID, WorkDir: m.workDir(sess), Env: m.Env(), Mode: sess.Permission, Plan: sess.Plan, Fast: sess.Fast, Effort: sess.Effort,
-		Resume: sess.Harness.NativeID,
-		State:  harness.State{InTurn: inTurn, Native: sess.Harness.NativeID},
+		Model: sess.Model, ModelProvider: sess.ModelProvider, Resume: sess.Harness.NativeID,
+		State: harness.State{InTurn: inTurn, Native: sess.Harness.NativeID},
 	}
 }
 

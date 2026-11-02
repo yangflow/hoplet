@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -453,8 +454,10 @@ func TestCommandsReachTheHarness(t *testing.T) {
 	if err := c.SetPermission(ctx, proto.SetPermissionParams{Session: sess.ID, Permission: proto.ModeFullAuto}); err != nil {
 		t.Fatal(err)
 	}
-	w.until(func(w *watcher) bool { return len(w.texts(1)) >= 3 })
-	if got := w.texts(1); got[1] != "steer:faster" || got[2] != "mode:full_auto" {
+	// The steer is in the log as my message, beside the harness's echo; the
+	// two may land in either order.
+	w.until(func(w *watcher) bool { return len(w.texts(1)) >= 4 })
+	if got := w.texts(1); !slices.Contains(got[1:3], "faster") || !slices.Contains(got[1:3], "steer:faster") || got[3] != "mode:full_auto" {
 		t.Fatalf("turn 1 messages %v", got)
 	}
 	if err := c.Respond(ctx, proto.RespondParams{Session: sess.ID, Approval: "a1", Option: "maybe", Key: "r1"}); apiCode(err) != proto.CodeInvalid {
