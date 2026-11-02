@@ -13,11 +13,7 @@ import (
 // conversation comes with the session view.
 func (a *App) content(c *ui.Context, k theme.Colors) {
 	bar := c.TitleBar()
-	bg := k.Pane
-	if s, ok := a.current(); ok && !a.s.newPage && s.Mode == proto.ModePersonal {
-		bg = ui.Transparent // a chat sits lighter than Code's pane
-	}
-	ui.Column(c).Grow(1).Background(bg).Children(func() {
+	ui.Column(c).Grow(1).Background(k.Pane).Children(func() {
 		left, h := float32(20), float32(theme.TitleBar)
 		if a.hideSide {
 			left, h = bar.Left+8, topHeight(bar)
