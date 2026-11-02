@@ -2,6 +2,7 @@ package link
 
 import (
 	"context"
+	"errors"
 	"os"
 	"testing"
 	"time"
@@ -93,5 +94,27 @@ func TestWatchReconnects(t *testing.T) {
 	}
 	if ev := next(t, ch); ev.kind != "item" {
 		t.Fatalf("item after reconnecting %+v", ev)
+	}
+}
+
+func TestFollowUnknownSession(t *testing.T) {
+	dir, err := os.MkdirTemp("", "dl")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(dir) })
+	d := startDaemon(t, dir)
+	t.Cleanup(func() { d.Close() })
+	c, err := HomeDialer(dir)(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	err = Follow(ctx, c, "missing", 0, func(proto.SessionItem) { t.Error("an item for a missing session") })
+	var ae *proto.APIError
+	if !errors.As(err, &ae) || ae.Code != proto.CodeNotFound {
+		t.Fatalf("follow a missing session: %v", err)
 	}
 }

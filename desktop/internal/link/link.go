@@ -106,3 +106,19 @@ func follow(ctx context.Context, c *client.Client, version *uint64, item func(pr
 		item(it)
 	}
 }
+
+// Follow delivers a session's subscription items, from after seq, until
+// the subscription or ctx ends; it returns why it ended.
+func Follow(ctx context.Context, c *client.Client, id proto.SessionID, after uint64, item func(proto.SessionItem)) error {
+	sub, err := c.SubscribeSession(ctx, proto.SessionParams{Session: id, AfterSeq: after})
+	if err != nil {
+		return err
+	}
+	for {
+		var it proto.SessionItem
+		if err := sub.Next(ctx, &it); err != nil {
+			return err
+		}
+		item(it)
+	}
+}

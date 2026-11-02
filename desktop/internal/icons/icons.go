@@ -31,6 +31,38 @@ type Set struct {
 	Menu      *ui.SVG // a session's menu
 	Claude    *ui.SVG // the Claude Code harness
 	Mark      *ui.SVG // Hoplet's mark
+
+	// The conversation and the composer.
+	New      *ui.SVG // new session
+	Copy     *ui.SVG
+	Check    *ui.SVG
+	Read     *ui.SVG // tool: read
+	Search   *ui.SVG // tool: search
+	Edit     *ui.SVG // tool: edit
+	Write    *ui.SVG // tool: write a new file
+	Run      *ui.SVG // tool: run a command
+	Web      *ui.SVG // tool: fetch a web page
+	Tool     *ui.SVG // tool: MCP and others
+	Task     *ui.SVG // tool: a subtask
+	Thinking *ui.SVG
+	Allowed  *ui.SVG // a decided approval: allowed
+	Denied   *ui.SVG // a decided approval: denied
+	Confirm  *ui.SVG // permission: confirm
+	AutoEdit *ui.SVG // permission: auto_edit
+	Review   *ui.SVG // permission: auto_review
+	FullAuto *ui.SVG // permission: full_auto
+	Plan     *ui.SVG
+	Steer    *ui.SVG
+	Warning  *ui.SVG
+	Reset    *ui.SVG
+	ToBottom *ui.SVG
+	Send     *ui.SVG
+	Stop     *ui.SVG
+	Expand   *ui.SVG // a folded group or row
+	Fast     *ui.SVG
+	Close    *ui.SVG
+	Me       *ui.SVG // my avatar
+	Info     *ui.SVG // session details
 }
 
 // Load parses every icon.
@@ -56,6 +88,36 @@ func Load() (*Set, error) {
 		{&s.Menu, "lucide/chevron-down.svg"},
 		{&s.Claude, "simpleicons/claude.svg"},
 		{&s.Mark, "brand/mark.svg"},
+		{&s.New, "lucide/plus.svg"},
+		{&s.Copy, "lucide/copy.svg"},
+		{&s.Check, "lucide/check.svg"},
+		{&s.Read, "lucide/file-text.svg"},
+		{&s.Search, "lucide/search.svg"},
+		{&s.Edit, "lucide/pencil.svg"},
+		{&s.Write, "lucide/file-plus.svg"},
+		{&s.Run, "lucide/terminal.svg"},
+		{&s.Web, "lucide/globe.svg"},
+		{&s.Tool, "lucide/box.svg"},
+		{&s.Task, "lucide/git-branch.svg"},
+		{&s.Thinking, "lucide/message-square-text.svg"},
+		{&s.Allowed, "lucide/shield-check.svg"},
+		{&s.Denied, "lucide/shield-x.svg"},
+		{&s.Confirm, "lucide/shield-question-mark.svg"},
+		{&s.AutoEdit, "lucide/shield-half.svg"},
+		{&s.Review, "lucide/shield-check.svg"},
+		{&s.FullAuto, "lucide/shield-off.svg"},
+		{&s.Plan, "lucide/list-checks.svg"},
+		{&s.Steer, "lucide/corner-down-right.svg"},
+		{&s.Warning, "lucide/triangle-alert.svg"},
+		{&s.Reset, "lucide/rotate-ccw.svg"},
+		{&s.ToBottom, "lucide/arrow-down.svg"},
+		{&s.Send, "lucide/arrow-up.svg"},
+		{&s.Stop, "lucide/square.svg"},
+		{&s.Expand, "lucide/chevron-right.svg"},
+		{&s.Fast, "lucide/zap.svg"},
+		{&s.Close, "lucide/x.svg"},
+		{&s.Me, "lucide/user.svg"},
+		{&s.Info, "lucide/info.svg"},
 	} {
 		data, err := files.ReadFile(f.path)
 		if err != nil {

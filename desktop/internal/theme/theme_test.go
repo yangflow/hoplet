@@ -85,3 +85,9 @@ func TestApply(t *testing.T) {
 		t.Fatalf("texts %q", tt.Texts())
 	}
 }
+
+func TestRegisterFonts(t *testing.T) {
+	if err := RegisterFonts(); err != nil {
+		t.Fatal(err)
+	}
+}
