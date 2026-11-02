@@ -54,7 +54,7 @@ func (a *App) effortLabel(c *ui.Context, k theme.Colors, e proto.Effort) {
 // level, and follows the pointer while dragged; 极限 turns the track into
 // a deep gradient with pixels twinkling, brighter near the knob.
 func (a *App) effortSlider(c *ui.Context, k theme.Colors, levels []proto.Effort, cur proto.Effort, set func(proto.Effort)) {
-	const pad = 14 // half the track's height: the knob stays inside
+	const pad = 16 // half the knob: it stays inside the track's ends
 	n := len(levels)
 	chosen := slices.Index(levels, cur)
 	v := float64(n / 2) // where the keys start from before a level is chosen
@@ -122,20 +122,20 @@ func (a *App) effortSlider(c *ui.Context, k theme.Colors, levels []proto.Effort,
 			p.Fill(ui.Rect{X: x(float32(i)/float32(n-1)) - 2.5, Y: cy - 2.5, W: 5, H: 5}, dot.Alpha(1-g), 2.5)
 		}
 		if chosen >= 0 {
-			kr := ui.Rect{X: kx - 12, Y: cy - 12, W: 24, H: 24}
+			kr := ui.Rect{X: kx - 16, Y: cy - 16, W: 32, H: 32} // past the track by 2 above and below
 			if g > 0 {
-				p.Shadow(kr, 12, 0, 0, 12, 2, k.Accent.Alpha(0.45*g))
+				p.Shadow(kr, 16, 0, 0, 12, 2, k.Accent.Alpha(0.45*g))
 			}
 			if cur == proto.EffortUltra && !still && since < burstTime {
 				burst(p, kx, cy, float32(since)/float32(burstTime))
 				if f := float32(since) / float32(glintTime); f < 1 {
-					p.Shadow(kr, 12, 0, 0, 24, 6, k.Accent.Alpha(0.6*float32(math.Pow(float64(1-f), 1.6))))
+					p.Shadow(kr, 16, 0, 0, 24, 6, k.Accent.Alpha(0.6*float32(math.Pow(float64(1-f), 1.6))))
 				}
 				moving = true
 			}
-			p.Shadow(kr, 12, 0, 1, 3, 0, k.Shadow)
-			p.Fill(kr, k.Popover, 12) // raised is see-through: the track would show
-			p.Fill(kr, k.Raised, 12)
+			p.Shadow(kr, 16, 0, 1, 3, 0, k.Shadow)
+			p.Fill(kr, k.Popover, 16) // raised is see-through: the track would show
+			p.Fill(kr, k.Raised, 16)
 		}
 		if focus {
 			p.FocusRing(r, [4]float32{round, round, round, round})
@@ -150,7 +150,7 @@ func (a *App) effortSlider(c *ui.Context, k theme.Colors, levels []proto.Effort,
 // cy), f of the way through.
 func burst(p *ui.Painter, cx, cy, f float32) {
 	const n = 12
-	d := 12 + 26*(1-(1-f)*(1-f))
+	d := 16 + 26*(1-(1-f)*(1-f))
 	for i := range n {
 		angle := 2 * math.Pi * (float64(i) + float64(hash(i, 4))*0.5) / n
 		x, y := cx+d*float32(math.Cos(angle)), cy+d*float32(math.Sin(angle))
