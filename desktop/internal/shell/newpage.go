@@ -49,7 +49,7 @@ func (a *App) newPage(c *ui.Context, k theme.Colors) {
 					a.offlineLine(c, k, true)
 				case personal:
 					ui.TextInput(c, &pick.name).Placeholder("名字").Label("伙伴的名字").Width(160).Height(26).FontSize(12).
-						Padding(0, 8).Radius(theme.RadiusControl).Border(1, k.Line).Background(k.Bg)
+						Padding(0, 8).Radius(theme.RadiusControl).Border(0, ui.Transparent).Background(k.Fill)
 				default:
 					ui.Row(c).Gap(6).Wrap().AlignItems(ui.Center).Children(func() { a.dirChip(c, k, pick) })
 				}
@@ -159,15 +159,14 @@ func (a *App) defaultHarness() string {
 }
 
 // dirChip shows the chosen working directory; it opens the directories of
-// existing sessions and the folder chooser. Before one is chosen it stands
-// out, as the first thing to do.
+// existing sessions and the folder chooser. Before one is chosen its text
+// is darker, as the first thing to do.
 func (a *App) dirChip(c *ui.Context, k theme.Colors, pick *newChoice) {
 	b := ui.Button(c, "").Label("工作目录").Tooltip(pick.dir).Height(26).Padding(0, 8).Gap(5).
-		Radius(theme.RadiusControl).Border(1, k.Line).Background(k.Bg)
+		Radius(theme.RadiusControl).Border(0, ui.Transparent).Background(k.Fill)
 	label, color := tilde(pick.dir), k.Fg3
 	if pick.dir == "" {
 		label, color = "选择工作目录", k.Fg
-		b.Border(1, k.Line2)
 	}
 	if b.Clicked() {
 		a.s.dirOpen = !a.s.dirOpen
