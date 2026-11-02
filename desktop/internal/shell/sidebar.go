@@ -2,6 +2,7 @@ package shell
 
 import (
 	"fmt"
+	"time"
 	"unicode"
 	"unicode/utf8"
 
@@ -151,14 +152,7 @@ func (a *App) arrangeMenu(m *ui.Menu) {
 func (a *App) list(c *ui.Context, k theme.Colors) {
 	l := a.cat.List(catalog.View{Mode: a.mode, Archived: a.archived, Sort: a.sort, Show: a.show})
 	if len(l.Pinned) == 0 && len(l.Groups) == 0 {
-		empty := "没有会话"
-		switch {
-		case a.archived:
-			empty = "没有归档的会话"
-		case a.mode == proto.ModePersonal:
-			empty = "没有伙伴"
-		}
-		theme.UI.On(ui.Text(c, empty)).TextColor(k.Muted).Padding(8, 16)
+		a.emptyList(c, k)
 		return
 	}
 	// ⌘⌥1–9 opens a pinned session; ↑↓ moves among the rows shown while
@@ -191,6 +185,33 @@ func (a *App) list(c *ui.Context, k theme.Colors) {
 					a.row(c, k, s)
 				}
 			}
+		}
+	})
+}
+
+// emptyList says why the list is empty, with at most one thing to do.
+func (a *App) emptyList(c *ui.Context, k theme.Colors) {
+	text, action, tip := "还没有会话", "新建会话 ⌘N", ""
+	switch {
+	case a.archived:
+		text, action = "没有归档的会话", ""
+	case !a.connected && a.cat.Version() == 0:
+		text, action = "连接后显示会话", "" // reconnecting is on the machine row
+	case a.mode == proto.ModePersonal:
+		text, action = "还没有伙伴", "新建伙伴 ⇧⌘N"
+	case a.show == catalog.ShowNeedsYou:
+		text, action, tip = "没有需要你处理的会话", "", "显示全部"
+	case a.show == catalog.ShowRunning:
+		text, action, tip = "没有运行中的会话", "", "显示全部"
+	}
+	ui.Column(c).Padding(16, 16).Gap(10).AlignItems(ui.Start).Children(func() {
+		ui.Text(c, text).FontSize(12.5).LineHeight(18.0 / 12.5).TextColor(k.Muted)
+		if action != "" && ui.Button(c, action).Height(24).Padding(0, 8).Radius(6).Border(0, ui.Transparent).Background(k.Fill2).Clicked() {
+			a.NewSession()
+		}
+		if tip != "" && ui.Button(c, tip).Height(18).Padding(0).Background(ui.Transparent).Border(0, ui.Transparent).
+			TextColor(k.Fg3).Underline().Clicked() {
+			a.show = catalog.ShowAll
 		}
 	})
 }
@@ -277,9 +298,14 @@ func (a *App) row(c *ui.Context, k theme.Colors, s proto.Session) {
 	hovered := r.Hovered()
 	switch {
 	case a.selected == string(s.ID):
-		r.Background(k.SelRow)
+		r.Background(k.SelRow) // the selection already marks a session made here
+		delete(a.s.flash, s.ID)
 	case hovered:
 		r.Background(k.Fill)
+	default:
+		if lit := a.flashing(c, s.ID); lit > 0 {
+			r.Background(k.Fill2.Alpha(lit))
+		}
 	}
 	if r.Clicked() {
 		a.Select(s.ID)
@@ -306,6 +332,35 @@ func (a *App) row(c *ui.Context, k theme.Colors, s proto.Session) {
 		})
 		a.trailing(c, k, s, hovered)
 	})
+}
+
+// flashTime is how long the row of a session made elsewhere stays lit.
+const flashTime = 1500 * time.Millisecond
+
+// flashing returns how lit the row of a session made elsewhere is, from 1
+// as it appears to 0: easing out, or all at once at the end when the
+// desktop asks for less motion.
+func (a *App) flashing(c *ui.Context, id proto.SessionID) float32 {
+	at, ok := a.s.flash[id]
+	if !ok {
+		return 0
+	}
+	now := c.Now()
+	if at.IsZero() {
+		at = now
+		a.s.flash[id] = at
+	}
+	t := float32(now.Sub(at)) / float32(flashTime)
+	if t >= 1 {
+		delete(a.s.flash, id)
+		return 0
+	}
+	if c.Preferences().ReduceMotion {
+		c.After(at.Add(flashTime).Sub(now))
+		return 1
+	}
+	c.After(16 * time.Millisecond)
+	return 1 - (1 - (1-t)*(1-t)) // eased out
 }
 
 // trailing is the one thing at a row's end: a state mark, the age of an

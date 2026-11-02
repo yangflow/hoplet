@@ -151,7 +151,7 @@ func (a *App) mine(c *ui.Context, k theme.Colors, it convo.Item) {
 		}
 		row.Children(func() {
 			theme.Caption.On(ui.Text(c, clock(it.Time))).TextColor(k.Muted)
-			a.copyButton(c, k, it.Key, it.Text)
+			a.copyButton(c, k, it.Key, it.Text, "复制")
 		})
 	})
 }
@@ -212,7 +212,7 @@ func (a *App) codeBlock(k theme.Colors) func(c *ui.Context, b *markdown.CodeBloc
 						a.s.open[id] = !open
 					}
 				}
-				a.copyButton(c, k, id, code)
+				a.copyButton(c, k, id, code, "复制")
 			})
 			body := b.Body(c)
 			if long && !open {
@@ -223,8 +223,8 @@ func (a *App) codeBlock(k theme.Colors) func(c *ui.Context, b *markdown.CodeBloc
 }
 
 // copyButton copies text; its icon shows a check for 1.5 seconds after.
-func (a *App) copyButton(c *ui.Context, k theme.Colors, id, text string) {
-	icon, tip := a.icons.Copy, "复制"
+func (a *App) copyButton(c *ui.Context, k theme.Colors, id, text, tip string) {
+	icon := a.icons.Copy
 	if at, ok := a.s.copied[id]; ok && c.Now().Sub(at) < 1500*time.Millisecond {
 		icon, tip = a.icons.Check, "已复制"
 	}
@@ -390,42 +390,61 @@ func (a *App) workStep(c *ui.Context, k theme.Colors, s proto.Session, e convo.E
 	})
 }
 
-// outputLines shows at most this many lines of an output.
-const outputLines = 20
+// outputLines is how many lines of an output show before showing all.
+const outputLines = 12
 
-// output draws a tool's output in a box: its first 20 lines, then a line
-// saying how many remain, with show all, copy and fold.
+// output draws a tool's output in a box: its first lines, then a bar
+// saying how many remain or that the daemon kept only the start, with
+// show all or fold back, and copy. A short output that is all there has no
+// bar; its copy button shows on hover.
 func (a *App) output(c *ui.Context, k theme.Colors, key string) {
 	o := a.s.outputs[key]
-	ui.Column(c).Margin(4, 0, 4, 22).Radius(8).Border(1, k.Line).Background(k.Bg2).Clip().Children(func() {
+	box := ui.Column(c).Margin(4, 0, 4, 22).Radius(8).Border(1, k.Line).Background(k.Bg2).Clip()
+	hovered := box.Hovered()
+	box.Children(func() {
 		if o == nil {
 			ui.Box(c).Padding(8, 12).Children(func() { ui.Spinner(c).Size(12, 12) })
 			return
 		}
 		lines := strings.Split(strings.TrimRight(o.Text, "\n"), "\n")
+		all := a.s.open[key+":all"]
 		shown := lines
-		if len(shown) > outputLines && !a.s.open[key+":all"] {
+		if len(shown) > outputLines && !all {
 			shown = shown[:outputLines]
 		}
 		ui.Text(c, strings.Join(shown, "\n")).Font(theme.Mono).FontSize(12).LineHeight(18.0/12).TextColor(k.Fg2).
 			FontFeatures("liga=0").Padding(8, 12).Selectable()
+		copyTip := "复制"
+		if o.Truncated {
+			copyTip = "复制已显示的部分"
+		}
+		if len(lines) <= outputLines && !o.Truncated {
+			if hovered {
+				ui.Box(c).Absolute().Top(4).Right(4).Children(func() { a.copyButton(c, k, key, o.Text, copyTip) })
+			}
+			return
+		}
 		rest := len(lines) - len(shown)
-		ui.Row(c).Padding(2, 6, 2, 12).Gap(2).AlignItems(ui.Center).BorderWidth(1, 0, 0, 0).BorderColor(k.Line).Children(func() {
+		ui.Row(c).Padding(2, 4, 2, 12).Gap(2).AlignItems(ui.Center).BorderWidth(1, 0, 0, 0).BorderColor(k.Line).Children(func() {
 			label := ""
 			switch {
 			case rest > 0:
 				label = fmt.Sprintf("还有 %d 行", rest)
 			case o.Truncated:
-				label = "输出过长，只显示了开头"
+				label = "输出超过 64 KB，只显示开头"
 			}
 			theme.Caption.On(ui.Text(c, label)).TextColor(k.Muted).Grow(1)
-			if rest > 0 && iconButton(c, k, a.icons.Unfold, "展开全部", false).Size(24, 24).Clicked() {
-				a.s.open[key+":all"] = true
+			switch {
+			case rest > 0:
+				if iconButton(c, k, a.icons.Unfold, "展开全部", false).Size(24, 24).Clicked() {
+					a.s.open[key+":all"] = true
+				}
+			case len(lines) > outputLines:
+				if iconButton(c, k, a.icons.Fold, "折叠", false).Size(24, 24).Clicked() {
+					a.s.open[key+":all"] = false
+				}
 			}
-			a.copyButton(c, k, key, o.Text)
-			if iconButton(c, k, a.icons.Fold, "折叠", false).Size(24, 24).Clicked() {
-				a.s.open[key] = false
-			}
+			a.copyButton(c, k, key, o.Text, copyTip)
 		})
 	})
 }

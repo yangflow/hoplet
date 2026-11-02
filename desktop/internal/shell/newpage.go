@@ -30,8 +30,19 @@ func (a *App) newPage(c *ui.Context, k theme.Colors) {
 	ui.Column(c).Grow(1).AlignItems(ui.Center).Padding(200, 32, 0, 32).Children(func() {
 		ui.Column(c).Width(680).Gap(14).Children(func() {
 			theme.Display.On(ui.Text(c, title)).TextColor(k.Fg)
-			ui.Column(c).FillWidth().Padding(12, 14, 10, 14).Gap(10).Radius(theme.RadiusComposer).
-				Background(k.Glass).Border(1, k.GlassLine).Shadow(0, 2, 10, 0, k.Shadow).Children(func() {
+			box := ui.Column(c).FillWidth().Padding(12, 14, 10, 14).Gap(10).Radius(theme.RadiusComposer).
+				Background(k.Glass).Border(1, k.GlassLine).Shadow(0, 2, 10, 0, k.Shadow)
+			a.drawToast(c, k, &box)
+			if !a.connected {
+				// As the composer's offline state: I can write, but which
+				// harnesses and models there are is known only once
+				// connected.
+				box.Border(1, k.Line2).BorderStyle(ui.BorderDashed)
+			}
+			box.Children(func() {
+				if !a.connected {
+					a.offlineLine(c, k, true)
+				}
 				ui.Row(c).Gap(6).Wrap().AlignItems(ui.Center).Children(func() {
 					if personal {
 						ui.TextInput(c, &pick.name).Placeholder("名字").Label("伙伴的名字").Width(160).Height(24).FontSize(12).
@@ -42,12 +53,15 @@ func (a *App) newPage(c *ui.Context, k theme.Colors) {
 				})
 				draft := a.s.drafts[""]
 				hint := "要做什么？"
-				if personal {
+				switch {
+				case !a.connected:
+					hint = "连接后才能新建会话"
+				case personal:
 					hint = "和它说第一句话…"
 				}
 				in := ui.TextArea(c, &draft).Lines(1, 8).MinHeight(0).Placeholder(hint).Label("消息").AutoFocus().
 					FontSize(theme.Reading.Size()).Background(ui.Transparent).Border(0, ui.Transparent).Padding(0)
-				ready := draft != "" && pick.run.harness != "" && (personal || pick.dir != "")
+				ready := a.connected && draft != "" && pick.run.harness != "" && (personal || pick.dir != "")
 				in.OnTextKey(func(key ui.TextKey) bool {
 					if key.Key != ui.KeyEnter || key.Mods != 0 {
 						return false
@@ -65,11 +79,7 @@ func (a *App) newPage(c *ui.Context, k theme.Colors) {
 						a.modeControl(c, k, pick.run, h.Capabilities, set)
 					}
 					ui.Spacer(c)
-					if !a.connected {
-						theme.Secondary.On(ui.Text(c, "未连接")).TextColor(k.Muted)
-					} else {
-						a.effortPill(c, k, pick.run, a.s.harnesses, set)
-					}
+					a.effortPill(c, k, pick.run, a.s.harnesses, set)
 					if round(c, k, a.icons.Send, "发送 ↩", ready).Clicked() && ready {
 						a.create(draft)
 					}
@@ -121,7 +131,7 @@ func (a *App) dirChip(c *ui.Context, k theme.Colors, pick *newChoice) {
 		label = filepath.Base(pick.dir)
 	}
 	b := ui.Button(c, "").Label("工作目录").Tooltip(pick.dir).Height(24).Padding(0, 8).Gap(5).
-		Radius(theme.RadiusControl).Border(1, k.Line).Background(k.Fill)
+		Radius(theme.RadiusControl).Border(1, k.Line).Background(k.Fill).Disabled(!a.connected)
 	if b.Clicked() {
 		a.s.dirOpen = !a.s.dirOpen
 	}

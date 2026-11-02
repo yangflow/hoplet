@@ -272,7 +272,7 @@ func TestOffline(t *testing.T) {
 	if (*states)[len(*states)-1].Connected {
 		t.Fatal("state still connected")
 	}
-	a.Fail(errors.New("session not found"))
+	a.Fail(errors.New("session not found"), nil)
 	tt.Frame()
 	if !tt.HasText("没做成：session not found") {
 		t.Fatalf("no toast in %q", tt.Texts())
@@ -402,5 +402,86 @@ func TestCompanionMenuAndDetails(t *testing.T) {
 		if !tt.HasText(want) {
 			t.Errorf("no %q in %q", want, tt.Texts())
 		}
+	}
+}
+
+func TestToasts(t *testing.T) {
+	a, _, tt, _ := newApp(t)
+	a.Select("s1")
+	tt.Frame()
+	retried := 0
+	a.Fail(errors.New("timeout"), func() { retried++ })
+	tt.Frame()
+	tt.Advance(10 * time.Second)
+	if !tt.HasText("没做成：timeout") {
+		t.Fatalf("a failure went away by itself: %q", tt.Texts())
+	}
+	if err := tt.Click("重试"); err != nil || retried != 1 || tt.HasText("没做成：timeout") {
+		t.Fatalf("retry: %v, %d, %q", err, retried, tt.Texts())
+	}
+	a.Fail(errors.New("gone"), nil)
+	tt.Frame()
+	if tt.HasText("重试") {
+		t.Fatal("a failure that cannot be retried offers to")
+	}
+	if err := tt.Click("关闭"); err != nil || tt.HasText("没做成：gone") {
+		t.Fatalf("close: %v, %q", err, tt.Texts())
+	}
+	a.hint("再按一次 ⎋ 停止")
+	tt.Move(0, 0) // hovering keeps a hint
+	tt.Frame()
+	if !tt.HasText("再按一次 ⎋ 停止") {
+		t.Fatalf("no hint in %q", tt.Texts())
+	}
+	tt.Advance(hintFor + fadeTime)
+	if tt.HasText("再按一次 ⎋ 停止") {
+		t.Fatal("the hint stayed")
+	}
+}
+
+func TestEmptyLists(t *testing.T) {
+	a, _, tt, _ := newApp(t)
+	if err := tt.Click("排列"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.ChooseMenuItem("显示", "运行中  1"); err != nil {
+		t.Fatalf("%v", err)
+	}
+	s3, _ := a.cat.Get("s3")
+	s3.Status = proto.StatusIdle
+	a.Apply(proto.CatalogItem{Version: 6, Sessions: []proto.Session{s3}})
+	tt.Frame()
+	if !tt.HasText("没有运行中的会话") {
+		t.Fatalf("no empty filter in %q", tt.Texts())
+	}
+	if err := tt.Click("显示全部"); err != nil || !tt.HasText("Fix sync") {
+		t.Fatalf("show all: %v", err)
+	}
+
+	b, _, tb, _ := newApp(t)
+	b.Apply(proto.CatalogItem{Snapshot: true, Version: 7})
+	tb.Frame()
+	if err := tb.Click("新建会话 ⌘N"); err != nil || !b.s.newPage {
+		t.Fatalf("new from an empty list: %v in %q", err, tb.Texts())
+	}
+	if err := tb.Click("Personal ⌘1"); err != nil {
+		t.Fatal(err)
+	}
+	if !tb.HasText("还没有伙伴") || !tb.HasText("新建伙伴 ⇧⌘N") {
+		t.Fatalf("no empty companions in %q", tb.Texts())
+	}
+}
+
+func TestNewSessionElsewhereFlashes(t *testing.T) {
+	a, _, tt, _ := newApp(t)
+	a.Apply(proto.CatalogItem{Version: 6, Sessions: []proto.Session{{ID: "s9", Mode: proto.ModeCode, Harness: proto.HarnessRef{Kind: "claude"},
+		Directory: "/w/hoplet", Status: proto.StatusIdle, Title: "From the phone", UpdatedAt: tt.Now()}}})
+	tt.Frame()
+	if _, ok := a.s.flash["s9"]; !ok {
+		t.Fatal("a session made elsewhere does not light")
+	}
+	tt.Advance(flashTime + 50*time.Millisecond)
+	if _, ok := a.s.flash["s9"]; ok {
+		t.Fatal("still lit")
 	}
 }

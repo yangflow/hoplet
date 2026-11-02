@@ -253,7 +253,8 @@ func (a *App) effortPill(c *ui.Context, k theme.Colors, st runSettings, hs []pro
 	}
 	model, cur := currentModel(st, h)
 	b := ui.Button(c, "").Label("强度与模型").Tooltip(harnessName(h.Kind)+" · "+model+" · 推理强度 "+effortName(st.effort)).
-		Height(theme.RowHeight).Padding(0, 8, 0, 9).Gap(6).Radius(theme.RadiusPill).Border(0, ui.Transparent).Background(k.Fill)
+		Height(theme.RowHeight).Padding(0, 8, 0, 9).Gap(6).Radius(theme.RadiusPill).Border(0, ui.Transparent).Background(k.Fill).
+		Disabled(!a.connected) // which models there are is known only once connected
 	if b.Clicked() {
 		a.s.effortOpen = !a.s.effortOpen
 		a.s.modelOpen = false

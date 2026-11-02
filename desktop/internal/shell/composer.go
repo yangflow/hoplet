@@ -32,6 +32,7 @@ func (a *App) composer(c *ui.Context, k theme.Colors, s proto.Session, cv *convo
 	a.queueTray(c, k, s, cv, h.Capabilities.Steer)
 	box := ui.Column(c).FillWidth().Padding(12, 12, 8, 14).Gap(8).Radius(theme.RadiusComposer).
 		Background(k.Glass).Border(1, k.GlassLine).Shadow(0, 2, 10, 0, k.Shadow)
+	a.drawToast(c, k, &box)
 	switch {
 	case ap != nil || asked:
 		box.Border(1, k.AttnLine)
@@ -45,7 +46,7 @@ func (a *App) composer(c *ui.Context, k theme.Colors, s proto.Session, cv *convo
 		case asked:
 			a.questionBody(c, k, q)
 		case !a.connected:
-			a.offlineLine(c, k)
+			a.offlineLine(c, k, false)
 		case s.Mode == proto.ModeCode && s.Directory != "":
 			a.contextLine(c, k, s)
 		}
@@ -110,16 +111,21 @@ func (a *App) contextLine(c *ui.Context, k theme.Colors, s proto.Session) {
 }
 
 // offlineLine is the first line while the daemon is out of reach: the
-// machine and how long it has been gone, and reconnect now.
-func (a *App) offlineLine(c *ui.Context, k theme.Colors) {
+// machine and how long it has been gone, or, on the new-session page,
+// that it is not connected; and reconnect now.
+func (a *App) offlineLine(c *ui.Context, k theme.Colors, newPage bool) {
 	ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
 		ui.Icon(c, a.icons.Offline).FontSize(theme.IconSizeInRow).TextColor(k.Muted)
 		machine := a.machine
 		if machine == "" {
 			machine = "本机"
 		}
-		theme.Secondary.On(ui.Text(c, machine+" · "+duration(c.Now().Sub(a.s.offlineSince)))).TextColor(k.Muted).Grow(1)
-		c.After(time.Second)
+		status := "未连接"
+		if !newPage {
+			status = duration(c.Now().Sub(a.s.offlineSince))
+			c.After(time.Second)
+		}
+		theme.Secondary.On(ui.Text(c, machine+" · "+status)).TextColor(k.Muted).Grow(1)
 		if iconButton(c, k, a.icons.Reconnect, "立即重连", false).Size(24, 24).Clicked() {
 			a.host.Reconnect()
 		}
@@ -243,7 +249,7 @@ func (a *App) stopTurn(s proto.Session) {
 		return
 	}
 	a.s.armed = now
-	a.toast = "再按一次 ⎋ 停止"
+	a.hint("再按一次 ⎋ 停止")
 }
 
 // decide answers an approval: with what I wrote, it denies and sends the

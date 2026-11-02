@@ -88,7 +88,7 @@ func (a *App) myBubble(c *ui.Context, k theme.Colors, it convo.Item, last bool) 
 			}
 			row.Children(func() {
 				theme.Caption.On(ui.Text(c, clock(it.Time))).TextColor(k.Muted)
-				a.copyButton(c, k, it.Key, it.Text)
+				a.copyButton(c, k, it.Key, it.Text, "复制")
 			})
 		})
 		a.meAvatar(c, k, last)

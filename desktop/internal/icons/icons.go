@@ -68,6 +68,7 @@ type Set struct {
 	Reconnect *ui.SVG
 	Fold      *ui.SVG // fold an opened output
 	Unfold    *ui.SVG // show all of an output
+	Failed    *ui.SVG // a toast saying something did not happen
 }
 
 // Load parses every icon.
@@ -128,6 +129,7 @@ func Load() (*Set, error) {
 		{&s.Reconnect, "lucide/refresh-cw.svg"},
 		{&s.Fold, "lucide/chevrons-down-up.svg"},
 		{&s.Unfold, "lucide/chevrons-up-down.svg"},
+		{&s.Failed, "lucide/circle-alert.svg"},
 	} {
 		data, err := files.ReadFile(f.path)
 		if err != nil {

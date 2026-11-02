@@ -118,7 +118,7 @@ type App struct {
 	renaming proto.SessionID
 	draft    string
 
-	toast string // an error to show once
+	toast toast // the note above the composer
 
 	s sessionView // the conversation, the composer and the new-session page
 
@@ -149,11 +149,22 @@ func (a *App) Lost(err error) {
 	a.offline = err.Error()
 }
 
-// Fail shows that something asked of the host did not happen.
-func (a *App) Fail(err error) { a.toast = "没做成：" + err.Error() }
+// Fail shows that something asked of the host did not happen, until it is
+// closed or another note replaces it; retry, when not nil, asks again.
+func (a *App) Fail(err error, retry func()) {
+	a.toast = toast{text: "没做成：" + err.Error(), failed: true, retry: retry}
+}
 
-// Apply brings the session list up to a catalog item.
+// Apply brings the session list up to a catalog item. A session that
+// appears in an update, made elsewhere, lights its row for a moment.
 func (a *App) Apply(it proto.CatalogItem) {
+	if !it.Snapshot && a.cat.Version() > 0 {
+		for _, s := range it.Sessions {
+			if _, ok := a.cat.Get(s.ID); !ok {
+				a.s.flash[s.ID] = time.Time{} // starts when first drawn
+			}
+		}
+	}
 	a.cat.Apply(it)
 	a.markRead()
 }
@@ -332,10 +343,7 @@ func all(l catalog.List) []proto.Session {
 // View draws the window.
 func (a *App) View(c *ui.Context) {
 	k := theme.Apply(c)
-	if a.toast != "" {
-		c.Toast(a.toast)
-		a.toast = ""
-	}
+	a.s.toastShown = false
 	if c.Vibrancy() {
 		c.Root().Background(ui.Transparent)
 	}
@@ -345,6 +353,9 @@ func (a *App) View(c *ui.Context) {
 		}
 		a.content(c, k)
 	})
+	if !a.s.toastShown {
+		a.drawToast(c, k, nil)
+	}
 	if st := a.state(); !st.equal(a.last) {
 		a.last = st
 		if a.changed != nil {

@@ -134,14 +134,14 @@ func (d *desktop) call(fn func(ctx context.Context, c *client.Client) error) {
 	c := d.c
 	d.mu.Unlock()
 	if c == nil {
-		d.app.Fail(errors.New("没有连上守护进程"))
+		d.app.Fail(errors.New("没有连上守护进程"), nil)
 		return
 	}
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), callTimeout)
 		defer cancel()
 		if err := fn(ctx, c); err != nil {
-			d.win.Update(func() { d.app.Fail(err) })
+			d.win.Update(func() { d.app.Fail(err, func() { d.call(fn) }) })
 		}
 	}()
 }
@@ -330,7 +330,7 @@ func (d *desktop) ChooseFolder(done func(string)) {
 	go func() {
 		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: d.win, Title: "选择工作目录", Directory: true, CreateDirectories: true})
 		if err != nil {
-			d.ui(func() { d.app.Fail(err) })
+			d.ui(func() { d.app.Fail(err, nil) })
 			return
 		}
 		if len(paths) == 1 {

@@ -37,6 +37,8 @@ type sessionView struct {
 	diffs        map[proto.SessionID]*diffState // each session's changes, as last read
 	queue        ui.ListState                   // the queue tray's rows, which drag to reorder
 	offlineSince time.Time                      // when the connection was lost
+	flash        map[proto.SessionID]time.Time  // rows of sessions made elsewhere, and when they lit
+	toastShown   bool                           // a composer drew the toast this frame
 	modelOpen    bool                           // the model list of the effort popover
 
 	newPage bool
@@ -54,7 +56,7 @@ func newSessionView() sessionView {
 	return sessionView{
 		convos: map[proto.SessionID]*convo.Convo{}, drafts: map[proto.SessionID]string{},
 		open: map[string]bool{}, outputs: map[string]*proto.ToolOutput{}, hidden: map[string]bool{}, copied: map[string]time.Time{},
-		diffs: map[proto.SessionID]*diffState{},
+		diffs: map[proto.SessionID]*diffState{}, flash: map[proto.SessionID]time.Time{},
 	}
 }
 

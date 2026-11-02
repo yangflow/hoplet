@@ -292,7 +292,7 @@ func TestComposerIsOneLine(t *testing.T) {
 	a.Lost(errDaemon)
 	a.NewSession()
 	tt.Frame()
-	if !tt.HasText("未连接") {
+	if !tt.HasText("studio · 未连接") {
 		t.Fatalf("offline new page %q", tt.Texts())
 	}
 }
@@ -343,5 +343,62 @@ func TestContextLine(t *testing.T) {
 		if !tt.HasText(want) {
 			t.Errorf("no %q in %q", want, tt.Texts())
 		}
+	}
+}
+
+func TestSessionDetails(t *testing.T) {
+	a, h, tt, _ := newApp(t)
+	h.diffs = map[proto.SessionID]proto.SessionDiff{"s1": {Session: "s1", Repos: []proto.RepoDiff{{Path: ".", Branch: "main", State: proto.RepoOK}}}}
+	a.SetHarnesses([]proto.HarnessInfo{claudeHarness()})
+	a.Select("s1")
+	tt.Frame()
+	if err := tt.Click("会话详情 ⌘I"); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"Fix sync", "空闲 · 建于", "studio", "/w/hoplet", "main", "Claude Code", "s1"} {
+		if !hasPrefix(tt.Texts(), want) {
+			t.Errorf("no %q in %q", want, tt.Texts())
+		}
+	}
+	if err := tt.Click("在 Finder 中显示"); err != nil || len(h.revealed) != 1 {
+		t.Fatalf("reveal: %v %v", err, h.revealed)
+	}
+}
+
+func hasPrefix(texts []string, want string) bool {
+	for _, s := range texts {
+		if strings.HasPrefix(s, want) {
+			return true
+		}
+	}
+	return false
+}
+
+func TestOutputFolds(t *testing.T) {
+	a, h, tt, _ := newApp(t)
+	long := strings.Repeat("line\n", 30)
+	h.outputs = map[string]proto.ToolOutput{"t1": {Text: long}, "t2": {Text: "ok\n", Truncated: true}}
+	a.SetHarnesses([]proto.HarnessInfo{claudeHarness()})
+	a.Select("s1")
+	out := &proto.BlobRef{SHA256: "x", Size: 1}
+	a.ApplySession("s1", proto.SessionItem{Snapshot: &proto.SessionSnapshot{Events: events(t, tt.Now(), 1, 1,
+		proto.Message{ID: "k1", Role: proto.RoleUser, Text: "go"},
+		proto.TurnStarted{},
+		proto.ToolCall{ID: "t1", Kind: proto.ToolExec, Name: "Bash", Summary: "a", Status: proto.ToolFailed, Output: out},
+		proto.ToolCall{ID: "t2", Kind: proto.ToolExec, Name: "Bash", Summary: "b", Status: proto.ToolFailed, Output: out},
+		proto.TurnEnded{Reason: proto.TurnCompleted},
+	)}})
+	tt.Frame()
+	tt.Frame()
+	for _, want := range []string{"还有 18 行", "输出超过 64 KB，只显示开头"} {
+		if !tt.HasText(want) {
+			t.Errorf("no %q in %q", want, tt.Texts())
+		}
+	}
+	if err := tt.Click("展开全部"); err != nil || tt.HasText("还有 18 行") {
+		t.Fatalf("show all: %v", err)
+	}
+	if err := tt.Click("折叠"); err != nil || !tt.HasText("还有 18 行") {
+		t.Fatalf("fold: %v", err)
 	}
 }

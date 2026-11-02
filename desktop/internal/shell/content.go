@@ -74,28 +74,82 @@ func (a *App) content(c *ui.Context, k theme.Colors) {
 	})
 }
 
-// details is the session details popover: machine, directory, harness and
-// version, model, effort, permission and plan; and copying the session ID.
+// details is a Code session's details: its harness, name, state and when
+// it was made; then machine, directory, branch, harness and version, model
+// and effort, and permission; under a line, its ID to copy. A row without
+// a value is left out.
 func (a *App) details(c *ui.Context, k theme.Colors, s proto.Session) {
 	h, _ := a.harness(s.Harness.Kind)
 	model, _ := currentModel(runSettings{model: s.Model}, h)
-	rows := [][2]string{
-		{"机器", a.machine},
-		{"目录", tilde(s.Directory)},
-		{"harness", harnessName(s.Harness.Kind) + " " + s.Harness.Version},
-		{"模型", model},
-		{"强度", effortName(s.Effort)},
-		{"审批", modeName(s.Permission)},
-	}
-	if s.Plan {
-		rows = append(rows, [2]string{"Plan", "开"})
-	}
-	detailRows(c, k, rows)
-	ui.Row(c).Padding(0, 6).Gap(6).AlignItems(ui.Center).Children(func() {
-		theme.Caption.On(ui.Text(c, "会话 ID")).TextColor(k.Muted).Width(56)
-		ui.Text(c, string(s.ID)).Font(theme.Mono).FontSize(12).TextColor(k.Fg3).Grow(1)
-		a.copyButton(c, k, "id:"+string(s.ID), string(s.ID))
+	ui.Row(c).Padding(4, 6, 8, 6).Gap(10).AlignItems(ui.Center).Children(func() {
+		a.harnessIcon(c, k, s.Harness.Kind, 18)
+		ui.Column(c).Grow(1).Shrink(1).Children(func() {
+			theme.Reading.On(ui.Text(c, name(s))).FontWeight(600).TextColor(k.Fg).SingleLine()
+			theme.Caption.On(ui.Text(c, statusName(s.Status)+" · 建于 "+s.CreatedAt.Local().Format("1 月 2 日"))).TextColor(k.Muted)
+		})
 	})
+	detailRow(c, k, "机器", a.machine, false, nil)
+	detailRow(c, k, "目录", tilde(s.Directory), true, func() {
+		if iconButton(c, k, a.icons.Folder, "在 Finder 中显示", false).Size(24, 24).Clicked() {
+			a.host.Reveal(s.Directory)
+		}
+	})
+	if d := a.diff(s); d != nil {
+		for _, r := range d.Repos {
+			if r.Path == "." {
+				detailRow(c, k, "分支", r.Branch, true, nil)
+			}
+		}
+	}
+	if s.Harness.Kind != "" {
+		ui.Row(c.Key("harness")).Padding(3, 6).Gap(10).AlignItems(ui.Center).Children(func() {
+			theme.Caption.On(ui.Text(c, "harness")).TextColor(k.Muted).Width(56)
+			ui.Row(c).Grow(1).Gap(6).AlignItems(ui.Baseline).Children(func() {
+				ui.Text(c, harnessName(s.Harness.Kind)).FontSize(12.5).TextColor(k.Fg)
+				theme.Caption.On(ui.Text(c, s.Harness.Version)).Font(theme.Mono).TextColor(k.Muted)
+			})
+		})
+	}
+	detailRow(c, k, "模型", model+" · 推理强度 "+effortName(s.Effort), false, nil)
+	perm := modeName(s.Permission)
+	if s.Plan {
+		perm += " · Plan"
+	}
+	detailRow(c, k, "审批", perm, false, nil)
+	ui.Box(c).Height(1).Margin(6, 6).Background(k.Line)
+	detailRow(c, k, "会话 ID", string(s.ID), true, func() { a.copyButton(c, k, "id:"+string(s.ID), string(s.ID), "复制") })
+}
+
+// detailRow is a label and value row of a details popover, with an
+// optional button at its end; it is left out without a value.
+func detailRow(c *ui.Context, k theme.Colors, label, value string, mono bool, end func()) {
+	if value == "" {
+		return
+	}
+	ui.Row(c.Key(label)).Height(24).Padding(0, 6).Gap(10).AlignItems(ui.Center).Children(func() {
+		theme.Caption.On(ui.Text(c, label)).TextColor(k.Muted).Width(56)
+		v := ui.Text(c, value).FontSize(12.5).TextColor(k.Fg).SingleLine().Grow(1).Shrink(1).Selectable().Tooltip(value)
+		if mono {
+			v.Font(theme.Mono).FontSize(12)
+		}
+		if end != nil {
+			end()
+		}
+	})
+}
+
+// statusName names a session's state.
+func statusName(st proto.SessionStatus) string {
+	switch st {
+	case proto.StatusRunning:
+		return "运行中"
+	case proto.StatusWaiting:
+		return "需要你"
+	case proto.StatusErrored:
+		return "出错了"
+	default:
+		return "空闲"
+	}
 }
 
 // companionDetails is a companion's details: its avatar, name and when it
@@ -117,23 +171,8 @@ func (a *App) companionDetails(c *ui.Context, k theme.Colors, s proto.Session) {
 	if a.connected {
 		machine += " · 在线"
 	}
-	detailRows(c, k, [][2]string{
-		{"harness", harnessName(s.Harness.Kind)},
-		{"模型", model},
-		{"强度", effortName(s.Effort)},
-		{"机器", machine},
-	})
-}
-
-// detailRows are label and value rows of a details popover.
-func detailRows(c *ui.Context, k theme.Colors, rows [][2]string) {
-	for _, r := range rows {
-		if r[1] == "" {
-			continue
-		}
-		ui.Row(c.Key(r[0])).Padding(2, 6).Gap(10).Children(func() {
-			theme.Caption.On(ui.Text(c, r[0])).TextColor(k.Muted).Width(56)
-			theme.Secondary.On(ui.Text(c, r[1])).TextColor(k.Fg).Grow(1).Selectable()
-		})
-	}
+	detailRow(c, k, "harness", harnessName(s.Harness.Kind), false, nil)
+	detailRow(c, k, "模型", model, false, nil)
+	detailRow(c, k, "强度", effortName(s.Effort), false, nil)
+	detailRow(c, k, "机器", machine, false, nil)
 }
