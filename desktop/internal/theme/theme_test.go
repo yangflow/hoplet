@@ -56,6 +56,7 @@ func TestTextContrast(t *testing.T) {
 			"on-accent":          {k.OnAccent, k.Accent},
 			"on-attn":            {k.OnAttn, k.Attn},
 			"fg on selected row": {k.Fg, over(k.SelRow, side)},
+			"tooltip and toast":  {inverseText(dark), k.Fg},
 		} {
 			if r := contrast(pair[0], pair[1]); r < 4.5 {
 				t.Errorf("dark=%v %s: %.2f, want ≥ 4.5", dark, name, r)
@@ -77,7 +78,8 @@ func TestApply(t *testing.T) {
 		tt.Frame()
 		want := For(dark)
 		if colors != want || got.Dark != dark || got.Accent != want.Accent || got.Text != want.Fg ||
-			got.Background != ui.Transparent || got.Radius != RadiusControl || got.FontSize != 13 {
+			got.Background != ui.Transparent || got.Radius != RadiusControl || got.FontSize != 13 ||
+			got.Inverse != want.Fg || got.InverseText.A != 255 {
 			t.Errorf("dark=%v: theme %+v", dark, got)
 		}
 	}

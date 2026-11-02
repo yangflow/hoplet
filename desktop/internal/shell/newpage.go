@@ -21,7 +21,7 @@ func (a *App) newPage(c *ui.Context, k theme.Colors) {
 		pick.harness = a.defaultHarness()
 	}
 	personal := a.mode == proto.ModePersonal
-	title := "在 hoplet 上做什么？"
+	title := "在 Hoplet 上做什么？"
 	if personal {
 		title = "新伙伴"
 	}
@@ -43,7 +43,7 @@ func (a *App) newPage(c *ui.Context, k theme.Colors) {
 				if personal {
 					hint = "和它说第一句话…"
 				}
-				in := ui.TextArea(c, &draft).Lines(1, 8).Placeholder(hint).Label("消息").AutoFocus().
+				in := ui.TextArea(c, &draft).Lines(1, 8).MinHeight(0).Placeholder(hint).Label("消息").AutoFocus().
 					FontSize(theme.Reading.Size()).Background(ui.Transparent).Border(0, ui.Transparent).Padding(0)
 				ready := draft != "" && pick.harness != "" && (personal || pick.dir != "")
 				in.OnTextKey(func(key ui.TextKey) bool {
@@ -87,7 +87,10 @@ func (a *App) defaultHarness() string {
 // harnessChip shows the chosen harness and lists the installed ones.
 func (a *App) harnessChip(c *ui.Context, k theme.Colors, pick *newChoice) {
 	label := pick.harness
-	if label == "" {
+	switch {
+	case !a.connected:
+		label = "未连接"
+	case label == "":
 		label = "没有可用的 harness"
 	}
 	b := ui.Button(c, "").Label("harness").Height(24).Padding(0, 8).Gap(5).Radius(theme.RadiusControl).Border(1, k.Line).Background(k.Fill)

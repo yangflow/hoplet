@@ -84,7 +84,7 @@ func (a *App) input(c *ui.Context, s proto.Session, cv *convo.Convo, ap *proto.A
 	case len(cv.Items()) == 0:
 		hint = "要做什么？"
 	}
-	in := ui.TextArea(c, &draft).Lines(1, 8).Placeholder(hint).Label("消息").Font(ui.Theme{}.Font).
+	in := ui.TextArea(c, &draft).Lines(1, 8).MinHeight(0).Placeholder(hint).Label("消息").Font(ui.Theme{}.Font).
 		FontSize(theme.Reading.Size()).Background(ui.Transparent).Border(0, ui.Transparent).Padding(0)
 	in.OnTextKey(func(key ui.TextKey) bool {
 		text := key.Text()

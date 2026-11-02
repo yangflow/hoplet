@@ -74,6 +74,14 @@ func For(dark bool) Colors {
 	}
 }
 
+// inverseText is the text on tooltips and toasts, whose fill is Fg.
+func inverseText(dark bool) ui.Color {
+	if dark {
+		return ui.Hex("#15181C")
+	}
+	return ui.Hex("#FFFFFF")
+}
+
 // Apply makes the frame use the tokens of the system's appearance and
 // returns its colors. Call it at the top of every frame: it starts from
 // MyGO's theme for the current appearance, so it follows the system.
@@ -87,6 +95,9 @@ func Apply(c *ui.Context) Colors {
 	t.Accent, t.AccentText = k.Accent, k.OnAccent
 	t.Warning, t.Success, t.Danger = k.Attn, k.Add, k.Del
 	t.Selection, t.Focus = k.SelRow, k.AccentFg
+	// Tooltips and toasts: the theme turned over, opaque. Left unset,
+	// MyGO would color their text with the transparent Background.
+	t.Inverse, t.InverseText = k.Fg, inverseText(t.Dark)
 	t.Radius, t.Spacing, t.FontSize = RadiusControl, 4, UI.Size()
 	c.SetTheme(&t)
 	return k

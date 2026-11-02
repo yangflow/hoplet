@@ -95,7 +95,10 @@ func (a *App) NewSession() { a.newSessionIn("") }
 func (a *App) newSessionIn(dir string) {
 	a.s.newPage, a.selected = true, ""
 	a.s.newPick = newChoice{dir: dir}
-	a.host.Harnesses(a.SetHarnesses)
+	if a.connected {
+		// Offline, the list comes when the connection does.
+		a.host.Harnesses(a.SetHarnesses)
+	}
 }
 
 // send sends the draft of the selected session: into the queue while a

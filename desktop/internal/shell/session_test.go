@@ -228,7 +228,7 @@ func TestNewSession(t *testing.T) {
 	if err := tt.Click("新建"); err != nil {
 		t.Fatal(err)
 	}
-	if !tt.HasText("在 hoplet 上做什么？") || !tt.HasText("选择工作目录") {
+	if !tt.HasText("在 Hoplet 上做什么？") || !tt.HasText("选择工作目录") {
 		t.Fatalf("new page %q", tt.Texts())
 	}
 	if err := tt.Click("工作目录"); err != nil {
@@ -269,5 +269,21 @@ func TestPersonalChat(t *testing.T) {
 		if !tt.HasText(want) {
 			t.Errorf("no %q in %q", want, tt.Texts())
 		}
+	}
+}
+
+func TestComposerIsOneLine(t *testing.T) {
+	a, h, tt, _ := newApp(t)
+	h.models = []proto.HarnessInfo{claudeHarness()}
+	a.NewSession()
+	tt.Frame()
+	if r, ok := tt.Find("消息"); !ok || r.H > 30 {
+		t.Fatalf("an empty composer is %v high", r.H)
+	}
+	a.Lost(errDaemon)
+	a.NewSession()
+	tt.Frame()
+	if !tt.HasText("未连接") {
+		t.Fatalf("offline new page %q", tt.Texts())
 	}
 }
