@@ -4,6 +4,8 @@
 
 桌面端的布局、交互与视觉规范。实现用 MyGO 原生 UI（[0011](0011-client-stack.md)）；这里的每个值都能直接对应到 `ui.Theme`、MyGO 组件和玻璃材质，对应关系见文末。
 
+设计稿分两份：桌面布局稿画界面和状态，供审核；Hoplet 设计系统存 token、组件规格和 MyGO 对应，是代码取值的来源。审过的布局先同步进设计系统和本文，再写代码；本文与设计系统保持一致。
+
 ## 窗口
 
 ```mermaid
@@ -37,8 +39,8 @@ flowchart LR
 
 - 分隔线：时间 · 用时 · +/−（不写"第 N 轮"）。
 - 你的消息：右对齐灰气泡；悬停显示时间、编辑并重发（最后一条）、复制、分叉。
-- 工作组：两段回复正文之间的思考和工具调用合成一组。完成后折叠成一行摘要（"思考 · 读取 4 个文件 · 搜索 1 次" · 总耗时）；展开是带左侧细线的树。运行中只显示最近 3 条；有失败时保持展开，摘要标"✕ N 个失败"。
-- 工具行 24 高：动作图标（读取 / 搜索 / 编辑 / 写入 / 运行 / 抓取网页 / MCP / 子任务）· 动词 · 对象（等宽）。耗时悬停才显示；运行中显示"12 秒…"。失败加"✕ 退出码 N"，输出自动展开（最多 20 行，"还有 N 行"）。
+- 工作组：两段回复正文之间的思考和工具调用合成一组。完成后折叠成一行摘要（"思考 · 读取 4 个文件 · 搜索 1 次" · 总耗时）；展开是带左侧细线的树。运行中只显示最近 3 条；有失败时保持展开，摘要标"✕ N 个失败"（等宽 600，`fg`）。
+- 工具行 24 高：动作图标（读取 / 搜索 / 编辑 / 写入 / 运行 / 抓取网页 / MCP / 子任务）· 动词 · 对象（等宽）。耗时悬停才显示；运行中显示"12 秒…"。失败时行尾写"✕ 耗时"（等宽 11、600、`fg`，不用玫红；harness 给出退出码后写"✕ 退出码 N"），输出自动展开（先显示 12 行，"还有 N 行"）。
 - 代码块：头部语言 + 展开 / 复制图标。改动卡：回复末尾"改了 N 个文件"，点文件在右栏打开 diff。
 - 审批记录：盾牌✓ 已允许 / 盾牌✕ 已拒绝 · 对象 · 理由；谁、哪台设备、何时悬停才显示。
 - 插话：虚线气泡，上方插入箭头 + 送达时间。出错：警告图标 · 一句话 · 一个图标按钮（重试 / 压缩并重试 / 重新连接）。
@@ -74,7 +76,7 @@ flowchart LR
 
 ## 视觉规范
 
-**全玻璃：** 整个窗口是玻璃，桌面壁纸透过侧栏（`side`）、正文区（`pane`）和右栏；各区靠明暗区分。浮在内容上的输入框、弹层、菜单是更实的一层（`glass` + `shadow-popover`）。正文区不用玻璃材质，只用半透明底，保证长文与代码清晰。
+**全玻璃：** 整个窗口是玻璃，桌面壁纸透过侧栏（`side`）、正文区（`pane`）和右栏；各区靠明暗区分。浮在内容上的分两层：输入框只铺 `glass` 底与 `glass-line` 细边（不加材质）；窗口里自己画的弹层、菜单、详情和提示条用接近不透明的 `popover` + 1px `line2` + `shadow-popover`。正文区上的卡片（伙伴气泡等）用 `bg`，工具输出框和排队托盘用 `bg2`。正文区不用玻璃材质，只用半透明底，保证长文与代码清晰。
 
 **深浅两套主题，各对应一版标志：**
 
@@ -85,9 +87,12 @@ flowchart LR
 | `accent` + `on-accent` | #3CC4C9 + #0C1A1C | #066A70 + #FFFFFF | 按钮、开关、发送的底与其上的字 |
 | `accent-fg` | #3CC4C9 | #066A70 | 链接、焦点环、运行中、未读 |
 | `attn` + `on-attn` | #F0A35B + #1E1408 | #A85C14 + #FFFFFF | 需要你 |
+| `attn-line` / `attn-glow` | #F0A35B .40 / .10 | #D9822B .40 / .10 | 审批输入框的描边 / 描边外 3px 光晕（深浅都有） |
 | `add` / `del` | #7BC86C / #F0758A | #2E7031 / #B02A55 | diff 新增 / 删除 |
 | `pane` / `side` / `glass` | 白 .06 叠暗、白 .05、白 .05 | 白 .10、浅灰 .45、灰 .10 | 正文区 / 侧栏与右列 / 输入框 |
 | `raised` / `sel` / `sel-row` | 白 .16 / .10 / .09 | 白 .88 / 黑 .055 / .06 | 分段与标签选中项 / 当前菜单项 / 选中行 |
+| `bg` / `bg2` | 白 .06 / .03 | 白 .40 / .20 | 正文区上的卡片、伙伴气泡 / 工具输出框、排队托盘 |
+| `side-line` | 白 .07 | 黑 .06 | 侧栏右边的细边 |
 | `popover` | #262A30 .97 | 白 .97 | 窗口里自己画的弹层（输入框的弹层、新建页的目录与模型）：接近不透明，配 1px `line2` 边框与弹层阴影 |
 
 规则：
@@ -115,7 +120,7 @@ flowchart LR
 |---|---|
 | 主题 | `ui.Theme`：Surface / SurfaceHover = `fill` / `fill2`，Border = `line2`，Text / TextMuted = `fg` / `muted`，Accent / AccentText = `accent` / `on-accent`，Warning = `attn`，Success / Danger = `add` / `del`，Focus = `accent-fg`，Radius 7，Spacing 4，FontSize 13；其余语义色放在应用自己的主题包里，按 `Theme.Dark` 取值 |
 | 玻璃 | 透出桌面靠窗口材质：`Vibrancy: VibrancyUnderWindow` + `TitleBarHiddenInset`，根节点不铺底；侧栏、正文区、右列只铺各自的半透明 token（`side` / `pane`）。`glass.Glass{}` 只模糊窗口自己画在下面的内容，而且在浅色下会把底色压暗；输入框在对话下方、不叠在内容上，只铺 `glass` token |
-| 组件 | 侧栏的行自己画（`ui.Row` + 悬停 / 点击 / 右键菜单）：`ui.SidebarItem` 获得焦点时用强调色填满选中行，违反“选中用中性灰”；分段 `ui.Segmented`；标签 `ui.Tabs`；拖动宽度 `ui.Split`；对话正文 `markdown.Stream`；diff `editor.DiffView`；文件树 `ui.Tree`；弹层 `ui.PopoverBase` 加自己的外框（`popover` 底、圆角 10、内边距 6、弹层阴影），用 `AttachTo` 贴着控件向上弹出，菜单项高 28、圆角 6；右键菜单、菜单栏仍用原生菜单；提示 `Element.Tooltip`；开关 `ui.Switch`；角标 `ui.Badge`；头像自己画（首字 + 中性灰底；`ui.Avatar` 按名字配彩色，违反“只有一种彩色”）；图标 `ui.Icon`（Lucide）/ `ui.Image`（Material） |
+| 组件 | 侧栏的行自己画（`ui.Row` + 悬停 / 点击 / 右键菜单）：`ui.SidebarItem` 获得焦点时用强调色填满选中行，违反“选中用中性灰”；分段 `ui.Segmented`；标签 `ui.Tabs`；拖动宽度 `ui.Split`；对话正文 `markdown.Stream`；diff `editor.DiffView`；文件树 `ui.Tree`；弹层 `ui.PopoverBase` 加自己的外框（`popover` 底、圆角 10、内边距 6、弹层阴影），用 `AttachTo` 贴着控件向上弹出，菜单项高 28、圆角 6；右键菜单、菜单栏仍用原生菜单；会话列表的 ↑↓ 选择用 `ui.List`（`ListState.Selected`），排队托盘拖动排序用 `ListState.Reorder`；推理强度 `ui.StepSlider`；新建页"隔离"勾选 `ui.Checkbox`；提示条用 `c.AddToast` 加 `ui.ToastViewportBase` / `ui.ToastBase` 画外观；动效用 `Element.Jump` / `AnimateTo` / `AnimateColor` / `Transition`，不自己写计时器；悬停提示 `Element.Tooltip`；开关 `ui.Switch`；角标 `ui.Badge`；头像自己画（首字 + 中性灰底；`ui.Avatar` 按名字配彩色，违反“只有一种彩色”）；图标 `ui.Icon`（Lucide）/ `ui.Image`（Material） |
 | 菜单 | `mygo.NewMenu`（应用菜单、右键、Dock）、`mygo.NewTray`（`IconIsTemplate: true`） |
 
 ## M1 范围
