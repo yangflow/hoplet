@@ -4,7 +4,6 @@ import (
 	"crypto/rand"
 	"fmt"
 	"path/filepath"
-	"slices"
 	"time"
 
 	"github.com/egoist/mygo/ui"
@@ -253,23 +252,17 @@ func (a *App) approvalIcon(kind proto.ApprovalKind) *ui.SVG {
 // the left; the effort and model pill and send (stop and steer while a
 // turn runs) on the right.
 func (a *App) controls(c *ui.Context, k theme.Colors, s proto.Session, h proto.HarnessInfo, running bool) {
-	caps := h.Capabilities
+	st := runSettings{harness: s.Harness.Kind, perm: s.Permission, plan: s.Plan, effort: s.Effort, fast: s.Fast, model: s.Model}
+	set := a.sessionSink(s)
 	ui.Row(c).Gap(4).AlignItems(ui.Center).Children(func() {
-		if s.Mode == proto.ModeCode && caps.SetMode {
-			b := iconButton(c, k, a.modeIcon(s.Permission), "审批："+modeName(s.Permission), false)
-			if b.Clicked() {
-				a.s.permOpen = !a.s.permOpen
-			}
-			ui.Popover(c, b, &a.s.permOpen, func() { a.permissionMenu(c, k, s, caps) })
-			if s.Plan && iconButton(c, k, a.icons.Plan, "Plan ⇧⇥", true).Clicked() {
-				a.host.SetPlan(proto.SetPlanParams{Session: s.ID, Plan: false})
-			}
+		if s.Mode == proto.ModeCode {
+			a.modeControl(c, k, st, h.Capabilities, set)
 		}
 		ui.Spacer(c)
-		a.effortPill(c, k, s, h)
+		a.effortPill(c, k, st, []proto.HarnessInfo{h}, set)
 		draft := a.s.drafts[s.ID]
 		if running {
-			if caps.Steer && draft != "" && iconButton(c, k, a.icons.Steer, "插话 ⌘↩", false).Clicked() {
+			if h.Capabilities.Steer && draft != "" && iconButton(c, k, a.icons.Steer, "插话 ⌘↩", false).Clicked() {
 				a.host.Steer(proto.SteerParams{Session: s.ID, Text: draft})
 				a.s.drafts[s.ID] = ""
 			}
@@ -285,6 +278,21 @@ func (a *App) controls(c *ui.Context, k theme.Colors, s proto.Session, h proto.H
 	})
 }
 
+// sessionSink applies a session's settings through the daemon.
+func (a *App) sessionSink(s proto.Session) settingsSink {
+	return settingsSink{
+		perm: func(m proto.PermissionMode) {
+			a.host.SetPermission(proto.SetPermissionParams{Session: s.ID, Permission: m})
+		},
+		plan:   func(on bool) { a.host.SetPlan(proto.SetPlanParams{Session: s.ID, Plan: on}) },
+		effort: func(e proto.Effort) { a.host.SetEffort(proto.SetEffortParams{Session: s.ID, Effort: e}) },
+		fast:   func(on bool) { a.host.SetFast(proto.SetFastParams{Session: s.ID, Fast: on}) },
+		model: func(_ string, m proto.ModelInfo) {
+			a.host.SetModel(proto.SetModelParams{Session: s.ID, Model: m.ID, Provider: m.Provider})
+		},
+	}
+}
+
 // round is the round send or stop button; off grays it.
 func round(c *ui.Context, k theme.Colors, icon *ui.SVG, tip string, on bool) ui.Element {
 	b := ui.Button(c, "").Label(tip).Tooltip(tip).Size(theme.RowHeight, theme.RowHeight).Padding(0).
@@ -295,239 +303,6 @@ func round(c *ui.Context, k theme.Colors, icon *ui.SVG, tip string, on bool) ui.
 		color = k.Faint
 	}
 	return b.Children(func() { ui.Icon(c, icon).FontSize(theme.IconSize).TextColor(color) })
-}
-
-// permissionModes are the modes in order, with what each does.
-func permissionModes() []struct {
-	mode proto.PermissionMode
-	what string
-} {
-	return []struct {
-		mode proto.PermissionMode
-		what string
-	}{
-		{proto.ModeConfirm, "改动和命令都先问我"},
-		{proto.ModeAutoEdit, "编辑直接改，命令仍问"},
-		{proto.ModeAutoReview, "harness 判断风险，只问危险的"},
-		{proto.ModeFullAuto, "什么都不问（慎用）"},
-	}
-}
-
-func modeName(m proto.PermissionMode) string {
-	switch m {
-	case proto.ModeAutoEdit:
-		return "自动编辑"
-	case proto.ModeAutoReview:
-		return "智能审批"
-	case proto.ModeFullAuto:
-		return "全自动"
-	}
-	return "需确认"
-}
-
-func (a *App) modeIcon(m proto.PermissionMode) *ui.SVG {
-	switch m {
-	case proto.ModeAutoEdit:
-		return a.icons.AutoEdit
-	case proto.ModeAutoReview:
-		return a.icons.Review
-	case proto.ModeFullAuto:
-		return a.icons.FullAuto
-	}
-	return a.icons.Confirm
-}
-
-// permissionMenu lists the modes the harness has, then plan mode.
-func (a *App) permissionMenu(c *ui.Context, k theme.Colors, s proto.Session, caps proto.Capabilities) {
-	ui.Column(c).Width(280).Padding(6).Gap(2).Children(func() {
-		for _, m := range permissionModes() {
-			if !slices.Contains(caps.Modes, m.mode) {
-				continue
-			}
-			r := menuRow(c.Key(m.mode), k, s.Permission == m.mode)
-			if r.Clicked() {
-				a.host.SetPermission(proto.SetPermissionParams{Session: s.ID, Permission: m.mode})
-				a.s.permOpen = false
-			}
-			r.Children(func() {
-				ui.Icon(c, a.modeIcon(m.mode)).FontSize(theme.IconSize).TextColor(k.Fg3)
-				ui.Column(c).Grow(1).Children(func() {
-					theme.UI.On(ui.Text(c, modeName(m.mode))).TextColor(k.Fg)
-					theme.Caption.On(ui.Text(c, m.what)).TextColor(k.Muted)
-				})
-			})
-		}
-		if caps.PlanMode {
-			ui.Box(c).Height(1).FillWidth().Background(k.Line).Margin(4, 0)
-			ui.Row(c).Height(36).Padding(0, 8).Gap(10).AlignItems(ui.Center).Children(func() {
-				ui.Icon(c, a.icons.Plan).FontSize(theme.IconSize).TextColor(k.Fg3)
-				ui.Column(c).Grow(1).Children(func() {
-					theme.UI.On(ui.Text(c, "Plan")).TextColor(k.Fg)
-					theme.Caption.On(ui.Text(c, "先给计划，我批准后才动手")).TextColor(k.Muted)
-				})
-				on := s.Plan
-				if ui.Switch(c, &on).Label("Plan ⇧⇥").Changed() {
-					a.host.SetPlan(proto.SetPlanParams{Session: s.ID, Plan: on})
-				}
-			})
-		}
-	})
-}
-
-// menuRow is a row of a popover list; on marks the current choice.
-func menuRow(c *ui.Context, k theme.Colors, on bool) ui.Element {
-	r := ui.Row(c).Height(40).Padding(0, 8).Gap(10).AlignItems(ui.Center).Radius(theme.RadiusRow)
-	switch {
-	case on:
-		r.Background(k.Sel)
-	case r.Hovered():
-		r.Background(k.Fill)
-	}
-	return r
-}
-
-// effortPill shows the effort as bars, the harness and the model; it opens
-// the effort and model popover.
-func (a *App) effortPill(c *ui.Context, k theme.Colors, s proto.Session, h proto.HarnessInfo) {
-	model, _ := currentModel(s, h)
-	b := ui.Button(c, "").Label("强度与模型").Tooltip(fmt.Sprintf("%s · %s · 强度 %s", h.Kind, model, effortName(s.Effort))).
-		Height(theme.RowHeight).Padding(0, 10).Gap(6).Radius(theme.RadiusPill).Border(1, k.Line).Background(ui.Transparent)
-	if b.Clicked() {
-		a.s.effortOpen = !a.s.effortOpen
-		if a.s.effortOpen {
-			a.host.Harnesses(a.SetHarnesses)
-		}
-	}
-	b.Children(func() {
-		bars(c, k, s.Effort)
-		a.harnessIcon(c, k, s.Harness.Kind, theme.IconSizeInRow)
-		theme.Secondary.On(ui.Text(c, model)).TextColor(k.Fg3).SingleLine()
-		ui.Icon(c, a.icons.Menu).FontSize(theme.IconSizeSmall).TextColor(k.Faint)
-	})
-	ui.Popover(c, b, &a.s.effortOpen, func() { a.effortMenu(c, k, s, h) })
-}
-
-func effortName(e proto.Effort) string {
-	switch e {
-	case proto.EffortLow:
-		return "低"
-	case proto.EffortMedium:
-		return "中"
-	case proto.EffortHigh:
-		return "高"
-	case proto.EffortXHigh:
-		return "很高"
-	case proto.EffortMax:
-		return "最高"
-	case proto.EffortUltra:
-		return "极限"
-	}
-	return "默认"
-}
-
-// bars draws the effort as three bars, lit by level.
-func bars(c *ui.Context, k theme.Colors, e proto.Effort) {
-	lit := 2 // the default reads as medium
-	switch e {
-	case proto.EffortLow:
-		lit = 1
-	case proto.EffortHigh, proto.EffortXHigh:
-		lit = 3
-	case proto.EffortMax, proto.EffortUltra:
-		lit = 3
-	}
-	ui.Row(c).Gap(2).AlignItems(ui.End).Label("强度 " + effortName(e)).Children(func() {
-		for i := 1; i <= 3; i++ {
-			color := k.Line2
-			if i <= lit {
-				color = k.Fg3
-			}
-			ui.Box(c.Key(i)).Size(3, float32(3+i*3)).Radius(1).Background(color)
-		}
-	})
-}
-
-// currentModel names the session's model as its harness lists it, and
-// returns the entry when it is listed.
-func currentModel(s proto.Session, h proto.HarnessInfo) (string, *proto.ModelInfo) {
-	for i, m := range h.Models {
-		if s.Model != "" && m.Matches(s.Model) {
-			return m.Name, &h.Models[i]
-		}
-	}
-	if s.Model != "" {
-		return s.Model, nil
-	}
-	for i, m := range h.Models {
-		if m.Default {
-			return m.Name, &h.Models[i]
-		}
-	}
-	return "默认模型", nil
-}
-
-// effortMenu is the effort and model popover: Fast, the current effort and
-// model, reset, the models, the levels the model takes. Changes apply from
-// the next message.
-func (a *App) effortMenu(c *ui.Context, k theme.Colors, s proto.Session, h proto.HarnessInfo) {
-	caps := h.Capabilities
-	_, cur := currentModel(s, h)
-	levels := caps.Efforts
-	fast := caps.Fast
-	if cur != nil && len(cur.Efforts) > 0 {
-		levels = cur.Efforts
-	}
-	if cur != nil && h.Kind == "hermes" {
-		fast = fast && cur.Fast
-	}
-	ui.Column(c).Width(300).Padding(8).Gap(6).Children(func() {
-		ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
-			on := s.Fast
-			fb := iconButton(c, k, a.icons.Fast, "Fast：更快，更贵", on).Disabled(!fast)
-			if fb.Clicked() {
-				a.host.SetFast(proto.SetFastParams{Session: s.ID, Fast: !on})
-			}
-			model, _ := currentModel(s, h)
-			theme.UI.On(ui.Text(c, "强度 "+effortName(s.Effort)+" · "+model)).TextColor(k.Fg).Grow(1).SingleLine()
-			if iconButton(c, k, a.icons.Reset, "恢复默认", false).Clicked() {
-				a.host.SetEffort(proto.SetEffortParams{Session: s.ID, Effort: ""})
-			}
-		})
-		if len(levels) > 0 {
-			labels := make([]string, len(levels))
-			sel := -1
-			for i, e := range levels {
-				labels[i] = effortName(e)
-				if e == s.Effort {
-					sel = i
-				}
-			}
-			if ui.Segmented(c, &sel, labels...).Label("强度").FillWidth().Changed() && sel >= 0 {
-				a.host.SetEffort(proto.SetEffortParams{Session: s.ID, Effort: levels[sel]})
-			}
-		}
-		if caps.SetModel && len(h.Models) > 0 {
-			ui.Box(c).Height(1).FillWidth().Background(k.Line)
-			ui.Scroll(c).MaxHeight(260).Children(func() {
-				for i, m := range h.Models {
-					r := menuRow(c.Key(i), k, cur != nil && cur.ID == m.ID && cur.Provider == m.Provider)
-					if r.Clicked() {
-						a.host.SetModel(proto.SetModelParams{Session: s.ID, Model: m.ID, Provider: m.Provider})
-						a.s.effortOpen = false
-					}
-					r.Children(func() {
-						ui.Column(c).Grow(1).Children(func() {
-							theme.UI.On(ui.Text(c, m.Name)).TextColor(k.Fg).SingleLine()
-							if m.Description != "" {
-								theme.Caption.On(ui.Text(c, m.Description)).TextColor(k.Muted).SingleLine()
-							}
-						})
-					})
-				}
-			})
-		}
-		theme.Caption.On(ui.Text(c, "下一条消息起生效")).TextColor(k.Faint)
-	})
 }
 
 // queueTray shows the messages waiting for the turn to end, and those

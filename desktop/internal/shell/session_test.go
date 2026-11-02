@@ -234,15 +234,15 @@ func TestNewSession(t *testing.T) {
 	if err := tt.Click("工作目录"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tt.ChooseMenuItem("/w/site"); err != nil {
-		t.Fatal(err)
+	if err := tt.Click("/w/site"); err != nil {
+		t.Fatalf("%v in %q", err, tt.Texts())
 	}
 	if err := tt.Click("消息"); err != nil {
 		t.Fatal(err)
 	}
 	tt.Type("add a tray")
 	tt.Key(0, ui.KeyEnter)
-	if got := h.last(); !reflect.DeepEqual(got, proto.CreateParams{Mode: proto.ModeCode, Harness: "claude", Directory: "/w/site"}) {
+	if got := h.last(); !reflect.DeepEqual(got, proto.CreateParams{Mode: proto.ModeCode, Harness: "claude", Directory: "/w/site", Permission: proto.ModeAutoReview}) {
 		t.Fatalf("create %#v", got)
 	}
 	h.created(proto.Session{ID: "n1", Mode: proto.ModeCode, Harness: proto.HarnessRef{Kind: "claude"}, Directory: "/w/site", Status: proto.StatusIdle})
@@ -285,5 +285,35 @@ func TestComposerIsOneLine(t *testing.T) {
 	tt.Frame()
 	if !tt.HasText("未连接") {
 		t.Fatalf("offline new page %q", tt.Texts())
+	}
+}
+
+func TestNewSessionPicksHarnessByModel(t *testing.T) {
+	a, h, tt, _ := newApp(t)
+	hermes := proto.HarnessInfo{Kind: "hermes", Version: "0.22.5", Supported: true, Capabilities: proto.Capabilities{SetModel: true},
+		Models: []proto.ModelInfo{{ID: "codex/m1", Provider: "local", Name: "codex/m1", Description: "local", Default: true}}}
+	h.models = []proto.HarnessInfo{claudeHarness(), hermes}
+	a.NewSession()
+	tt.Frame()
+	if err := tt.Click("强度与模型"); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"Claude Code", "Hermes", "Default (recommended)", "codex/m1"} {
+		if !tt.HasText(want) {
+			t.Fatalf("no %q in %q", want, tt.Texts())
+		}
+	}
+	if err := tt.Click("codex/m1"); err != nil {
+		t.Fatal(err)
+	}
+	a.s.newPick.dir = "/w/site"
+	if err := tt.Click("消息"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Type("hi")
+	tt.Key(0, ui.KeyEnter)
+	want := proto.CreateParams{Mode: proto.ModeCode, Harness: "hermes", Directory: "/w/site", Permission: proto.ModeAutoReview, Model: "codex/m1", ModelProvider: "local"}
+	if got := h.last(); !reflect.DeepEqual(got, want) {
+		t.Fatalf("create %#v", got)
 	}
 }

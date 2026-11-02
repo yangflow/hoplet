@@ -1,0 +1,327 @@
+package shell
+
+import (
+	"slices"
+
+	"github.com/egoist/mygo/ui"
+
+	"github.com/yangflow/hoplet/desktop/internal/theme"
+	"github.com/yangflow/hoplet/proto"
+)
+
+// popover shows a panel above anchor while *open, in the composer's look:
+// a 10-point card with a hairline and the popover shadow, 6 points apart
+// from the anchor. end aligns it with the anchor's end rather than its
+// start.
+func popover(c *ui.Context, k theme.Colors, anchor ui.Element, open *bool, end bool, width float32, fn func()) {
+	ui.PopoverBase(c, anchor, open, func(panel ui.Element) {
+		at, self := ui.AnchorTopStart, ui.AnchorBottomStart
+		if end {
+			at, self = ui.AnchorTopEnd, ui.AnchorBottomEnd
+		}
+		panel.AttachTo(anchor, at, self).Margin(0, 0, 6, 0).Width(width).Padding(6).Gap(1).
+			Radius(theme.RadiusCard).Background(k.Popover).Border(1, k.Line2).Shadow(0, 10, 30, 0, k.Shadow).Children(fn)
+	})
+}
+
+// menuItem is a row of a popover: at least 28 high, a light background
+// when on or hovered.
+func menuItem(c *ui.Context, k theme.Colors, on bool) ui.Element {
+	r := ui.Row(c).MinHeight(theme.RowHeight).Padding(4, 8).Gap(8).AlignItems(ui.Center).Radius(theme.RadiusRow)
+	switch {
+	case on:
+		r.Background(k.Sel)
+	case r.Hovered():
+		r.Background(k.Fill)
+	}
+	return r
+}
+
+// menuHeader names a group of a popover's rows.
+func menuHeader(c *ui.Context, k theme.Colors, label string) {
+	theme.Label.On(ui.Text(c, label)).TextColor(k.Muted).Padding(6, 8, 2, 8)
+}
+
+// menuSeparator is a line between groups of a popover.
+func menuSeparator(c *ui.Context, k theme.Colors) {
+	ui.Box(c).Height(1).FillWidth().Background(k.Line).Margin(4, 6)
+}
+
+// runSettings are what the composer's controls change: a session's, or
+// the new-session page's before the session exists.
+type runSettings struct {
+	harness         string
+	perm            proto.PermissionMode
+	plan            bool
+	effort          proto.Effort
+	fast            bool
+	model, provider string
+}
+
+// settingsSink applies changes to run settings.
+type settingsSink struct {
+	perm   func(proto.PermissionMode)
+	plan   func(bool)
+	effort func(proto.Effort)
+	fast   func(bool)
+	model  func(harness string, m proto.ModelInfo)
+}
+
+// harnessName is a harness's name as its maker writes it.
+func harnessName(kind string) string {
+	switch kind {
+	case "claude":
+		return "Claude Code"
+	case "hermes":
+		return "Hermes"
+	case "codex":
+		return "Codex"
+	}
+	return kind
+}
+
+// permissionModes are the modes in order, with what each does.
+func permissionModes() []struct {
+	mode proto.PermissionMode
+	what string
+} {
+	return []struct {
+		mode proto.PermissionMode
+		what string
+	}{
+		{proto.ModeConfirm, "编辑和命令都问你"},
+		{proto.ModeAutoEdit, "编辑直接改，命令仍问"},
+		{proto.ModeAutoReview, "harness 自己判断风险"},
+		{proto.ModeFullAuto, "什么都不问（慎用）"},
+	}
+}
+
+func modeName(m proto.PermissionMode) string {
+	switch m {
+	case proto.ModeAutoEdit:
+		return "自动编辑"
+	case proto.ModeAutoReview:
+		return "智能审批"
+	case proto.ModeFullAuto:
+		return "全自动"
+	}
+	return "需确认"
+}
+
+func (a *App) modeIcon(m proto.PermissionMode) *ui.SVG {
+	switch m {
+	case proto.ModeAutoEdit:
+		return a.icons.AutoEdit
+	case proto.ModeAutoReview:
+		return a.icons.Review
+	case proto.ModeFullAuto:
+		return a.icons.FullAuto
+	}
+	return a.icons.Confirm
+}
+
+// modeControl is the permission mode's shield and, while plan mode is on,
+// the plan icon; the shield opens the modes the harness has and plan mode.
+func (a *App) modeControl(c *ui.Context, k theme.Colors, st runSettings, caps proto.Capabilities, set settingsSink) {
+	if !caps.SetMode {
+		return
+	}
+	b := iconButton(c, k, a.modeIcon(st.perm), "审批："+modeName(st.perm), a.s.permOpen)
+	if b.Clicked() {
+		a.s.permOpen = !a.s.permOpen
+	}
+	popover(c, k, b, &a.s.permOpen, false, 320, func() {
+		keys := []string{"⇧⌘1", "⇧⌘2", "⇧⌘3", "⇧⌘4"}
+		for i, m := range permissionModes() {
+			if !slices.Contains(caps.Modes, m.mode) {
+				continue
+			}
+			r := menuItem(c.Key(m.mode), k, st.perm == m.mode).Label(modeName(m.mode))
+			if r.Clicked() {
+				set.perm(m.mode)
+				a.s.permOpen = false
+			}
+			r.Children(func() {
+				ui.Icon(c, a.modeIcon(m.mode)).FontSize(theme.IconSize).TextColor(k.Fg3)
+				theme.UI.On(ui.Text(c, modeName(m.mode))).TextColor(k.Fg)
+				theme.Secondary.On(ui.Text(c, m.what)).TextColor(k.Muted).Grow(1).SingleLine()
+				theme.Caption.On(ui.Text(c, keys[i])).TextColor(k.Faint)
+			})
+		}
+		if caps.PlanMode {
+			menuSeparator(c, k)
+			r := menuItem(c, k, false).Label("Plan")
+			if r.Clicked() {
+				set.plan(!st.plan)
+			}
+			r.Children(func() {
+				ui.Icon(c, a.icons.Plan).FontSize(theme.IconSize).TextColor(k.Fg3)
+				theme.UI.On(ui.Text(c, "Plan")).TextColor(k.Fg)
+				theme.Secondary.On(ui.Text(c, "只想不改，批准计划后才动手")).TextColor(k.Muted).Grow(1).SingleLine()
+				on := st.plan
+				ui.Switch(c, &on).Label("Plan ⇧⇥")
+			})
+		}
+	})
+	if st.plan && iconButton(c, k, a.icons.Plan, "Plan ⇧⇥", true).Clicked() {
+		set.plan(false)
+	}
+}
+
+// currentModel finds the model st runs among h's: the one it names, else
+// the harness's default. The name is what the pill shows.
+func currentModel(st runSettings, h proto.HarnessInfo) (string, *proto.ModelInfo) {
+	for i, m := range h.Models {
+		if st.model != "" && m.Matches(st.model) {
+			return m.Name, &h.Models[i]
+		}
+	}
+	if st.model != "" {
+		return st.model, nil
+	}
+	for i, m := range h.Models {
+		if m.Default {
+			return m.Name, &h.Models[i]
+		}
+	}
+	return "默认模型", nil
+}
+
+func effortName(e proto.Effort) string {
+	switch e {
+	case proto.EffortLow:
+		return "低"
+	case proto.EffortMedium:
+		return "中"
+	case proto.EffortHigh:
+		return "高"
+	case proto.EffortXHigh:
+		return "很高"
+	case proto.EffortMax:
+		return "最高"
+	case proto.EffortUltra:
+		return "极限"
+	}
+	return "默认"
+}
+
+// bars draws the effort as three bars, lit by level.
+func bars(c *ui.Context, k theme.Colors, e proto.Effort) {
+	lit := 2 // the default reads as medium
+	switch e {
+	case proto.EffortLow:
+		lit = 1
+	case proto.EffortHigh, proto.EffortXHigh, proto.EffortMax, proto.EffortUltra:
+		lit = 3
+	}
+	ui.Row(c).Gap(2).AlignItems(ui.End).Label("强度 " + effortName(e)).Children(func() {
+		for i := 1; i <= 3; i++ {
+			color := k.Line2
+			if i <= lit {
+				color = k.Fg3
+			}
+			ui.Box(c.Key(i)).Size(3, float32(3+i*3)).Radius(1).Background(color)
+		}
+	})
+}
+
+// effortPill shows the effort as bars, the harness's mark and the model;
+// it opens the effort and model popover, which lists the models of hs
+// (one harness for a session; every installed one on the new-session
+// page, by harness).
+func (a *App) effortPill(c *ui.Context, k theme.Colors, st runSettings, hs []proto.HarnessInfo, set settingsSink) {
+	h := proto.HarnessInfo{Kind: st.harness}
+	if i := slices.IndexFunc(hs, func(x proto.HarnessInfo) bool { return x.Kind == st.harness }); i >= 0 {
+		h = hs[i]
+	}
+	model, cur := currentModel(st, h)
+	b := ui.Button(c, "").Label("强度与模型").Tooltip(harnessName(h.Kind)+" · "+model+" · 强度 "+effortName(st.effort)).
+		Height(theme.RowHeight).Padding(0, 8, 0, 9).Gap(6).Radius(theme.RadiusPill).Border(0, ui.Transparent).Background(k.Fill)
+	if b.Clicked() {
+		a.s.effortOpen = !a.s.effortOpen
+		if a.s.effortOpen && a.connected {
+			a.host.Harnesses(a.SetHarnesses)
+		}
+	}
+	b.Children(func() {
+		bars(c, k, st.effort)
+		a.harnessIcon(c, k, h.Kind, theme.IconSizeInRow)
+		theme.Secondary.On(ui.Text(c, model)).TextColor(k.Fg3).SingleLine()
+		ui.Icon(c, a.icons.Menu).FontSize(theme.IconSizeSmall).TextColor(k.Faint)
+	})
+	popover(c, k, b, &a.s.effortOpen, true, 300, func() {
+		caps := h.Capabilities
+		levels, fast := caps.Efforts, caps.Fast
+		if cur != nil && len(cur.Efforts) > 0 {
+			levels = cur.Efforts
+		}
+		if cur != nil && h.Kind == "hermes" {
+			fast = fast && cur.Fast
+		}
+		ui.Row(c).Padding(2, 2, 4, 2).Gap(6).AlignItems(ui.Center).Children(func() {
+			if iconButton(c, k, a.icons.Fast, "Fast：更快，更贵", st.fast).Disabled(!fast).Clicked() {
+				set.fast(!st.fast)
+			}
+			theme.UIStrong.On(ui.Text(c, effortName(st.effort))).TextColor(k.Fg)
+			a.harnessIcon(c, k, h.Kind, theme.IconSizeInRow)
+			theme.UI.On(ui.Text(c, model)).TextColor(k.Fg3).SingleLine().Grow(1)
+			if iconButton(c, k, a.icons.Reset, "恢复默认", false).Clicked() {
+				set.effort("")
+			}
+		})
+		if len(levels) > 0 {
+			// The first segment is the harness's own default.
+			labels := []string{"默认"}
+			sel := 0
+			for i, e := range levels {
+				labels = append(labels, effortName(e))
+				if e == st.effort {
+					sel = i + 1
+				}
+			}
+			if ui.Segmented(c, &sel, labels...).Label("强度").FillWidth().Changed() {
+				if sel == 0 {
+					set.effort("")
+				} else {
+					set.effort(levels[sel-1])
+				}
+			}
+		}
+		for _, hh := range hs {
+			if !hh.Capabilities.SetModel && len(hs) == 1 || len(hh.Models) == 0 {
+				continue
+			}
+			menuSeparator(c, k)
+			label := "模型"
+			if len(hs) > 1 {
+				label = harnessName(hh.Kind)
+			}
+			menuHeader(c, k, label)
+			ui.Scroll(c.Key(hh.Kind)).MaxHeight(240).Children(func() {
+				for i, m := range hh.Models {
+					on := hh.Kind == st.harness && cur != nil && cur.ID == m.ID && cur.Provider == m.Provider
+					r := menuItem(c.Key(i), k, on).Label(m.Name)
+					if r.Clicked() {
+						set.model(hh.Kind, m)
+						a.s.effortOpen = false
+					}
+					r.Children(func() {
+						ui.Column(c).Grow(1).Shrink(1).Children(func() {
+							theme.UI.On(ui.Text(c, m.Name)).TextColor(k.Fg).SingleLine()
+							if m.Description != "" {
+								theme.Caption.On(ui.Text(c, m.Description)).TextColor(k.Muted).SingleLine()
+							}
+						})
+						if m.Default && m.ID != "default" { // Claude names its default entry itself
+							theme.Caption.On(ui.Text(c, "默认")).TextColor(k.Muted)
+						}
+						if on {
+							ui.Icon(c, a.icons.Check).FontSize(theme.IconSizeInRow).TextColor(k.Fg3)
+						}
+					})
+				}
+			})
+		}
+		theme.Caption.On(ui.Text(c, "下一条消息起生效")).TextColor(k.Faint).Padding(4, 8, 2, 8)
+	})
+}

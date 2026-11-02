@@ -65,11 +65,11 @@ func (a *App) content(c *ui.Context, k theme.Colors) {
 // version, model, effort, plan; and copying the session ID.
 func (a *App) details(c *ui.Context, k theme.Colors, s proto.Session) {
 	h, _ := a.harness(s.Harness.Kind)
-	model, _ := currentModel(s, h)
+	model, _ := currentModel(runSettings{model: s.Model}, h)
 	rows := [][2]string{
 		{"机器", a.machine},
 		{"目录", s.Directory},
-		{"harness", s.Harness.Kind + " " + s.Harness.Version},
+		{"harness", harnessName(s.Harness.Kind) + " " + s.Harness.Version},
 		{"模型", model},
 		{"强度", effortName(s.Effort)},
 		{"审批", modeName(s.Permission)},

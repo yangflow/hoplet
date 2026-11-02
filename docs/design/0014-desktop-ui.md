@@ -88,6 +88,7 @@ flowchart LR
 | `add` / `del` | #7BC86C / #F0758A | #2E7031 / #B02A55 | diff 新增 / 删除 |
 | `pane` / `side` / `glass` | 白 .06 叠暗、白 .05、白 .05 | 白 .10、浅灰 .45、灰 .10 | 正文区 / 侧栏与右列 / 输入框 |
 | `raised` / `sel` / `sel-row` | 白 .16 / .10 / .09 | 白 .88 / 黑 .055 / .06 | 分段与标签选中项 / 当前菜单项 / 选中行 |
+| `popover` | #262A30 .97 | 白 .97 | 窗口里自己画的弹层（输入框的弹层、新建页的目录与模型）：接近不透明，配 1px `line2` 边框与弹层阴影 |
 
 规则：
 
@@ -100,7 +101,7 @@ flowchart LR
 
 **间距与圆角：** 4 的倍数。圆角：行 6 · 控件 7 · 卡片与弹层 10 · 大卡片 14 · 输入框与气泡 18 · 胶囊 999。高度：行 28、密集行 24、标题栏 44。
 
-**图标：** 界面用 Lucide（16 网格、1.4 描边、跟随文字色；尺寸 12 / 14 / 16 / 20；图标按钮 28，密集处 24；必须有悬停提示"名称 快捷键"）。审批档位用 Lucide 盾牌：shield-question-mark、shield-half、shield-check、shield-off。文件类型用 Material Icon Theme 彩色图标。harness：Claude 用 Simple Icons 单色标志，Codex、Hermes 用首字母占位。
+**图标：** 界面用 Lucide（16 网格、1.4 描边、跟随文字色；尺寸 12 / 14 / 16 / 20；图标按钮 28，密集处 24；必须有悬停提示"名称 快捷键"）。审批档位用 Lucide 盾牌：shield-question-mark、shield-half、shield-check、shield-off。文件类型用 Material Icon Theme 彩色图标。harness：Claude 用 Simple Icons 单色标志，Codex、Hermes 用首字母占位；名字写正式名 Claude Code、Codex、Hermes，不写内部代号。
 
 **标志：** 小写 h（竖笔胶囊 + 肩与右腿连成的倒 L），右上一块圆角方块跳出、转 14°，方块是品牌青。深色图标：石墨渐变底 #3A3F47→#15181C、主体 #F4F4F5、方块 #3CC4C9；浅色图标：#FFFFFF→#E7EAEE、主体 #23272D、方块 #066A70。菜单栏、标签页、通知用单色剪影（方块 42% 不透明）。
 
@@ -114,11 +115,11 @@ flowchart LR
 |---|---|
 | 主题 | `ui.Theme`：Surface / SurfaceHover = `fill` / `fill2`，Border = `line2`，Text / TextMuted = `fg` / `muted`，Accent / AccentText = `accent` / `on-accent`，Warning = `attn`，Success / Danger = `add` / `del`，Focus = `accent-fg`，Radius 7，Spacing 4，FontSize 13；其余语义色放在应用自己的主题包里，按 `Theme.Dark` 取值 |
 | 玻璃 | 透出桌面靠窗口材质：`Vibrancy: VibrancyUnderWindow` + `TitleBarHiddenInset`，根节点不铺底；侧栏、正文区、右列只铺各自的半透明 token（`side` / `pane`）。`glass.Glass{}` 只模糊窗口自己画在下面的内容，而且在浅色下会把底色压暗；输入框在对话下方、不叠在内容上，只铺 `glass` token |
-| 组件 | 侧栏的行自己画（`ui.Row` + 悬停 / 点击 / 右键菜单）：`ui.SidebarItem` 获得焦点时用强调色填满选中行，违反“选中用中性灰”；分段 `ui.Segmented`；标签 `ui.Tabs`；拖动宽度 `ui.Split`；对话正文 `markdown.Stream`；diff `editor.DiffView`；文件树 `ui.Tree`；弹层 `ui.Popover`；提示 `Element.Tooltip`；开关 `ui.Switch`；角标 `ui.Badge`；头像自己画（首字 + 中性灰底；`ui.Avatar` 按名字配彩色，违反“只有一种彩色”）；图标 `ui.Icon`（Lucide）/ `ui.Image`（Material） |
+| 组件 | 侧栏的行自己画（`ui.Row` + 悬停 / 点击 / 右键菜单）：`ui.SidebarItem` 获得焦点时用强调色填满选中行，违反“选中用中性灰”；分段 `ui.Segmented`；标签 `ui.Tabs`；拖动宽度 `ui.Split`；对话正文 `markdown.Stream`；diff `editor.DiffView`；文件树 `ui.Tree`；弹层 `ui.PopoverBase` 加自己的外框（`popover` 底、圆角 10、内边距 6、弹层阴影），用 `AttachTo` 贴着控件向上弹出，菜单项高 28、圆角 6；右键菜单、菜单栏仍用原生菜单；提示 `Element.Tooltip`；开关 `ui.Switch`；角标 `ui.Badge`；头像自己画（首字 + 中性灰底；`ui.Avatar` 按名字配彩色，违反“只有一种彩色”）；图标 `ui.Icon`（Lucide）/ `ui.Image`（Material） |
 | 菜单 | `mygo.NewMenu`（应用菜单、右键、Dock）、`mygo.NewTray`（`IconIsTemplate: true`） |
 
 ## M1 范围
 
 依赖后续里程碑的界面在 M1 不显示，功能落地时再接上：多机器与机器范围（M2）；撤销、提交与 PR、终端（M3）；伙伴的人格、产物、触发器、个人档案、替你发送、转交（M4）；分叉、语音输入（未排期）。M1 的 Personal 侧栏把每个 Personal 会话当作一个伙伴显示（名字 = 会话标题，头像 = 首字）。M1 只有本机，列表标题写“全部机器”，不带 ▾ 范围菜单。
 
-PR9b 交付正文区、输入框、审批与提问、新建页，以及侧栏“新建”、目录 ＋ 与 Personal 的 ＋ 新建伙伴；搜索（⌘K 命令面板）与收件箱随 PR9b2。PR9b 里暂不出现的部分（缺后端或属于后面的阶段）：轮次分隔的 +/− 与点击切到“本次”、上下文占用圈、退出码、改动卡的“全部撤销”与点文件打开 diff（右栏随 9c）、出错条上的解决按钮、你的消息的编辑并重发与分叉、＋ 添加附件、/ 命令与 @ 引用文件、语音输入、新建页的机器选择、断线条上的机器与时长；Personal 的结果卡片、建议回复、记住了、触发器消息、来自别处、替你发送、转交。输入框断线时暂存的消息只在内存里，退出应用即丢失。
+PR9b 交付正文区、输入框、审批与提问、新建页（第一行是工作目录，Personal 是伙伴名字；左下审批档位；右下强度胶囊里按 harness 分组选模型，选哪个模型就用哪个 harness），以及侧栏“新建”、目录 ＋ 与 Personal 的 ＋ 新建伙伴；搜索（⌘K 命令面板）与收件箱随 PR9b2。PR9b 里暂不出现的部分（缺后端或属于后面的阶段）：轮次分隔的 +/− 与点击切到“本次”、上下文占用圈、退出码、改动卡的“全部撤销”与点文件打开 diff（右栏随 9c）、出错条上的解决按钮、你的消息的编辑并重发与分叉、＋ 添加附件、/ 命令与 @ 引用文件、语音输入、新建页的机器选择、断线条上的机器与时长；Personal 的结果卡片、建议回复、记住了、触发器消息、来自别处、替你发送、转交。输入框断线时暂存的消息只在内存里，退出应用即丢失。

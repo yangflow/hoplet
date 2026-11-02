@@ -57,6 +57,8 @@ func TestTextContrast(t *testing.T) {
 			"on-attn":            {k.OnAttn, k.Attn},
 			"fg on selected row": {k.Fg, over(k.SelRow, side)},
 			"tooltip and toast":  {inverseText(dark), k.Fg},
+			"text on a popover":  {k.Fg, over(k.Popover, wall(dark))},
+			"muted on a popover": {k.Muted, over(k.Popover, wall(dark))},
 		} {
 			if r := contrast(pair[0], pair[1]); r < 4.5 {
 				t.Errorf("dark=%v %s: %.2f, want ≥ 4.5", dark, name, r)

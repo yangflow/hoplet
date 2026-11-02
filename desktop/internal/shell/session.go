@@ -27,21 +27,21 @@ type sessionView struct {
 	scroll  ui.ScrollState
 	md      markdown.Options
 
-	permOpen, effortOpen, detailOpen bool
-	pick                             int                  // the highlighted option of the approval shown
-	hidden                           map[string]bool      // approvals I put away with ⎋
-	copied                           map[string]time.Time // when each copy button last copied
-	armed                            time.Time            // the first ⎋ of two that stop a turn
+	permOpen, effortOpen, detailOpen, dirOpen bool
+	pick                                      int                  // the highlighted option of the approval shown
+	hidden                                    map[string]bool      // approvals I put away with ⎋
+	copied                                    map[string]time.Time // when each copy button last copied
+	armed                                     time.Time            // the first ⎋ of two that stop a turn
 
 	newPage bool
 	newPick newChoice
 }
 
-// newChoice is what the new-session page has chosen.
+// newChoice is what the new-session page has chosen; harness is run's.
 type newChoice struct {
-	harness string
-	dir     string
-	name    string // a companion's name
+	run  runSettings
+	dir  string
+	name string // a companion's name
 }
 
 func newSessionView() sessionView {
@@ -95,6 +95,9 @@ func (a *App) NewSession() { a.newSessionIn("") }
 func (a *App) newSessionIn(dir string) {
 	a.s.newPage, a.selected = true, ""
 	a.s.newPick = newChoice{dir: dir}
+	if a.mode == proto.ModeCode {
+		a.s.newPick.run.perm = proto.ModeAutoReview // the daemon's default for Code
+	}
 	if a.connected {
 		// Offline, the list comes when the connection does.
 		a.host.Harnesses(a.SetHarnesses)

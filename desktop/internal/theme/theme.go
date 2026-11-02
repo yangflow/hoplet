@@ -11,6 +11,7 @@ type Colors struct {
 	Side      ui.Color // sidebar and the right panel's column
 	SideLine  ui.Color // the sidebar's edge
 	Glass     ui.Color // composer and controls floating over content
+	Popover   ui.Color // popovers and menus drawn in the window: near opaque
 	GlassLine ui.Color // the composer's hairline
 	Raised    ui.Color // selected segment, tab or mode
 	Fill      ui.Color // control fill
@@ -49,7 +50,7 @@ func For(dark bool) Colors {
 	if dark {
 		return Colors{
 			Pane: ui.RGBA(14, 16, 20, .42), Side: ui.RGBA(255, 255, 255, .05), SideLine: ui.RGBA(255, 255, 255, .07),
-			Glass: ui.RGBA(255, 255, 255, .05), GlassLine: ui.RGBA(255, 255, 255, .12),
+			Glass: ui.RGBA(255, 255, 255, .05), GlassLine: ui.RGBA(255, 255, 255, .12), Popover: ui.RGBA(38, 42, 48, .97),
 			Raised: ui.RGBA(255, 255, 255, .16), Fill: ui.RGBA(255, 255, 255, .06), Fill2: ui.RGBA(255, 255, 255, .10),
 			Sel: ui.RGBA(255, 255, 255, .10), SelRow: ui.RGBA(255, 255, 255, .09),
 			Line: ui.RGBA(255, 255, 255, .08), Line2: ui.RGBA(255, 255, 255, .14),
@@ -62,7 +63,7 @@ func For(dark bool) Colors {
 	}
 	return Colors{
 		Pane: ui.RGBA(255, 255, 255, .10), Side: ui.RGBA(236, 238, 241, .45), SideLine: ui.RGBA(0, 0, 0, .06),
-		Glass: ui.RGBA(120, 128, 140, .10), GlassLine: ui.Transparent,
+		Glass: ui.RGBA(120, 128, 140, .10), GlassLine: ui.Transparent, Popover: ui.RGBA(255, 255, 255, .97),
 		Raised: ui.RGBA(255, 255, 255, .88), Fill: ui.RGBA(0, 0, 0, .04), Fill2: ui.RGBA(0, 0, 0, .06),
 		Sel: ui.RGBA(0, 0, 0, .055), SelRow: ui.RGBA(0, 0, 0, .06),
 		Line: ui.RGBA(0, 0, 0, .06), Line2: ui.RGBA(0, 0, 0, .10),

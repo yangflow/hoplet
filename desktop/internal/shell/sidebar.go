@@ -308,7 +308,7 @@ func (a *App) harnessIcon(c *ui.Context, k theme.Colors, kind string, size float
 		ui.Icon(c, a.icons.Claude).FontSize(size).TextColor(k.Fg3).Label("Claude Code")
 		return
 	}
-	ui.Box(c).Size(size, size).Radius(theme.RadiusXS).Background(k.Fill2).Center().Label(kind).Children(func() {
+	ui.Box(c).Size(size, size).Radius(theme.RadiusXS).Background(k.Fill2).Center().Label(harnessName(kind)).Children(func() {
 		ui.Text(c, initial(kind)).FontSize(size * 0.7).FontWeight(600).TextColor(k.Fg3)
 	})
 }
