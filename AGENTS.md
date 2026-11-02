@@ -43,7 +43,7 @@ Instructions for AI coding agents working in this repository. Human contributors
 **Desktop (MyGo)**
 
 - Pinned MyGo version; `go tool mygo vet`; views stay thin and are tested with `ui.Tester`.
-- Use what MyGo provides, as its `docs/ui` and `examples/` for the pinned version show: toasts through `AddToast` / `ToastViewportBase`, motion through `Animate*` / `Transition`, keyboard selection through `ui.List`, popovers through `PopoverBase`. No hand-rolled timers, overlays or key handling in their place. If the official API cannot give what the design asks, raise it as a design change instead of working around it.
+- Use what MyGo provides, as its `docs/ui` and `examples/` for the pinned version show: toasts through `AddToast` / `ToastViewportBase`, motion through `Animate*` / `Transition`, keyboard selection through `ui.List` (or, where its accent-filled selection breaks the design, an element of your own taking keys with `Shortcut`), bases such as `SliderBase` where a widget's look differs from the design, popovers through `PopoverBase`. No hand-rolled timers, overlays or key handling in their place. If the official API cannot give what the design asks, raise it as a design change instead of working around it.
 
 **UI design**
 

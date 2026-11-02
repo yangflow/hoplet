@@ -299,7 +299,7 @@ func (a *App) effortPill(c *ui.Context, k theme.Colors, st runSettings, hs []pro
 					set.effort("")
 				}
 			})
-			if len(levels) > 0 {
+			if len(levels) > 1 {
 				// The slider rests on the middle level while the harness's
 				// default is in use; the big label says 默认.
 				v := float64(len(levels) / 2)
@@ -309,7 +309,7 @@ func (a *App) effortPill(c *ui.Context, k theme.Colors, st runSettings, hs []pro
 					}
 				}
 				old := v
-				ui.StepSlider(c, &v, 0, float64(len(levels)-1), 1).Label("推理强度").FillWidth()
+				stepSlider(c, k, &v, len(levels))
 				if v != old {
 					set.effort(levels[int(v)])
 				}
@@ -351,4 +351,31 @@ func (a *App) modelList(c *ui.Context, k theme.Colors, st runSettings, cur *prot
 			}
 		})
 	}
+}
+
+// stepSlider is the effort slider: a 28-point pill track with a dot for
+// each of n stops and a 24-point knob on the chosen one.
+func stepSlider(c *ui.Context, k theme.Colors, v *float64, n int) {
+	const pad = 14 // half the track's height: the knob stays inside
+	s := ui.SliderBase(c, v, 0, float64(n-1)).Step(1).Label("推理强度").FillWidth().Height(28).PaddingX(pad)
+	focus := s.FocusVisible()
+	s.FocusRing(false).Draw(func(p *ui.Painter, r ui.Rect) {
+		p.Fill(r, k.Sel, r.H/2)
+		if focus {
+			p.FocusRing(r, [4]float32{r.H / 2, r.H / 2, r.H / 2, r.H / 2})
+		}
+		x := func(at float32) float32 {
+			if c.Direction() == ui.RightToLeft {
+				at = 1 - at
+			}
+			return r.X + pad + (r.W-2*pad)*at
+		}
+		cy := r.Y + r.H/2
+		for i := range n {
+			p.Fill(ui.Rect{X: x(float32(i)/float32(n-1)) - 2.5, Y: cy - 2.5, W: 5, H: 5}, k.Faint, 2.5)
+		}
+		knob := ui.Rect{X: x(float32(*v)/float32(n-1)) - 12, Y: cy - 12, W: 24, H: 24}
+		p.Shadow(knob, 12, 0, 1, 3, 0, k.Shadow)
+		p.Fill(knob, k.Raised, 12)
+	})
 }

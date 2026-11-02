@@ -28,10 +28,7 @@ func (a *App) sidebar(c *ui.Context, k theme.Colors) {
 		ui.Column(c).Padding(0, 8).Children(func() {
 			e := ui.Row(c).Height(theme.RowHeight).Padding(0, 8).Gap(8).AlignItems(ui.Center).Radius(theme.RadiusRow).
 				Label("新建").Tooltip("新建会话 ⌘N")
-			switch {
-			case a.s.newPage:
-				e.Background(k.SelRow)
-			case e.Hovered():
+			if e.Hovered() {
 				e.Background(k.Fill)
 			}
 			if e.Clicked() {
@@ -340,8 +337,8 @@ func (a *App) row(c *ui.Context, k theme.Colors, s proto.Session) {
 const flashTime = 1500 * time.Millisecond
 
 // flash lights the row of a session made elsewhere with fill2 as it first
-// shows and fades it out. A fade moves nothing, so it stays when the
-// desktop asks for less motion.
+// shows and fades it out; when the desktop asks for less motion, the
+// light stays for flashTime and goes at once.
 func (a *App) flash(c *ui.Context, k theme.Colors, r ui.Element, id proto.SessionID) {
 	shown, ok := a.s.flash[id]
 	if !ok {
@@ -353,7 +350,11 @@ func (a *App) flash(c *ui.Context, k theme.Colors, r ui.Element, id proto.Sessio
 		a.s.flash[id] = true
 		c.AnimationFrame() // the next frame starts the fade
 	}
-	r.Background(r.AnimateColor("flash", target, ui.Animation{Duration: flashTime}))
+	fade := ui.Animation{Duration: flashTime}
+	if c.Preferences().ReduceMotion {
+		fade = ui.Animation{Delay: flashTime, Duration: time.Millisecond}
+	}
+	r.Background(r.AnimateColor("flash", target, fade))
 	if r.Arrived("flash") {
 		delete(a.s.flash, id)
 	}

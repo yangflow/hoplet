@@ -23,6 +23,14 @@ func (a *App) content(c *ui.Context, k theme.Colors) {
 			if a.hideSide {
 				ui.Row(c).Gap(2).Children(func() { a.windowButtons(c, k) })
 			}
+			if a.s.newPage {
+				title := "新会话"
+				if a.mode == proto.ModePersonal {
+					title = "新伙伴"
+				}
+				theme.UIStrong.On(ui.Text(c, title)).TextColor(k.Fg)
+				return
+			}
 			s, ok := a.current()
 			if !ok {
 				return

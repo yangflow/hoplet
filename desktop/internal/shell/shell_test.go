@@ -485,3 +485,19 @@ func TestNewSessionElsewhereFlashes(t *testing.T) {
 		t.Fatal("still lit")
 	}
 }
+
+func TestFlashWithLessMotion(t *testing.T) {
+	a, _, tt, _ := newApp(t)
+	tt.SetPreferences(ui.Preferences{ReduceMotion: true})
+	a.Apply(proto.CatalogItem{Version: 6, Sessions: []proto.Session{{ID: "s9", Mode: proto.ModeCode, Harness: proto.HarnessRef{Kind: "claude"},
+		Directory: "/w/hoplet", Status: proto.StatusIdle, Title: "From the phone", UpdatedAt: tt.Now()}}})
+	tt.Frame()
+	tt.Advance(flashTime - 100*time.Millisecond)
+	if _, ok := a.s.flash["s9"]; !ok {
+		t.Fatal("the light went before its time")
+	}
+	tt.Advance(200 * time.Millisecond)
+	if _, ok := a.s.flash["s9"]; ok {
+		t.Fatal("still lit")
+	}
+}
