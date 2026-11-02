@@ -306,7 +306,6 @@ func (a *App) effortPill(c *ui.Context, k theme.Colors, st runSettings, hs []pro
 			})
 			if len(levels) > 1 {
 				a.effortSlider(c, k, levels, st.effort, set.effort)
-				effortNames(c, k, levels)
 			}
 		})
 	})

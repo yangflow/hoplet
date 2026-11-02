@@ -147,20 +147,6 @@ func (a *App) effortSlider(c *ui.Context, k theme.Colors, levels []proto.Effort,
 	})
 }
 
-// effortNames puts each level's name centered under its dot: the dots
-// sit knobInset in from the track's ends, as the names' span does.
-func effortNames(c *ui.Context, k theme.Colors, levels []proto.Effort) {
-	const cell = 48 // wide enough for the longest name, centered
-	ui.Box(c).AlignSelf(ui.Stretch).Height(14).Margin(0, knobInset).Children(func() {
-		for i, e := range levels {
-			f := float32(i) / float32(len(levels)-1)
-			ui.Row(c.Key(e)).Width(cell).Justify(ui.Center).Absolute().LeftPercent(100*f).Translate(-cell/2, 0).Children(func() {
-				theme.Caption.On(ui.Text(c, effortName(e))).TextColor(k.Muted).SingleLine()
-			})
-		}
-	})
-}
-
 // burst draws the ring of pixels flying out of the knob centered on (cx,
 // cy), f of the way through.
 func burst(p *ui.Painter, cx, cy, f float32) {
