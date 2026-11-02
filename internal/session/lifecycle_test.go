@@ -436,13 +436,18 @@ func TestSteerAnswerAndSetPermission(t *testing.T) {
 	if err := m.SetPermission(ctx, sess.ID, proto.ModeAutoEdit); err != nil {
 		t.Fatal(err)
 	}
-	evs := e.waitFor(sess.ID, "the three echoes", func(evs []proto.Event) bool { return count(evs, proto.TypeMessage) >= 4 })
-	var texts []string
-	for _, p := range payloads(t, evs) {
-		if msg, ok := p.(proto.Message); ok && msg.Role == proto.RoleAssistant {
-			texts = append(texts, msg.Text)
+	// The steer is recorded as a message of mine too: wait for the
+	// harness's three echoes, not for a count of all messages.
+	echoes := func(evs []proto.Event) []string {
+		var texts []string
+		for _, p := range payloads(t, evs) {
+			if msg, ok := p.(proto.Message); ok && msg.Role == proto.RoleAssistant {
+				texts = append(texts, msg.Text)
+			}
 		}
+		return texts
 	}
+	texts := echoes(e.waitFor(sess.ID, "the three echoes", func(evs []proto.Event) bool { return len(echoes(evs)) >= 3 }))
 	if got := strings.Join(texts, ","); got != "answered:yes,steer:left,mode:"+string(proto.ModeAutoEdit) {
 		t.Fatalf("harness saw %q", got)
 	}
