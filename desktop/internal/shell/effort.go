@@ -12,14 +12,13 @@ import (
 	"github.com/yangflow/hoplet/proto"
 )
 
-// The effort slider's motion: the knob eases to a level fast, then slow;
-// the label's letters rise in one after another; 极限 bursts as it comes
-// and fades as it goes.
+// The effort slider's motion: the label's letters rise in one after
+// another; 极限 bursts as it comes and fades as it goes.
 var (
-	knobMove  = ui.Animation{Duration: 500 * time.Millisecond, Ease: ui.CubicBezier(0.19, 1, 0.22, 1)}
-	labelIn   = ui.Animation{Duration: 320 * time.Millisecond, Ease: ui.CubicBezier(0.25, 0.1, 0.25, 1)}
-	labelOut  = ui.Animation{Duration: 355 * time.Millisecond, Ease: ui.CubicBezier(0.25, 0.1, 0.25, 1)}
-	ultraFade = ui.Animation{Duration: 300 * time.Millisecond}
+	knobSpring = ui.Animation{Spring: ui.SpringOptions{Duration: 300 * time.Millisecond}} // no bounce
+	labelIn    = ui.Animation{Duration: 320 * time.Millisecond, Ease: ui.CubicBezier(0.25, 0.1, 0.25, 1)}
+	labelOut   = ui.Animation{Duration: 355 * time.Millisecond, Ease: ui.CubicBezier(0.25, 0.1, 0.25, 1)}
+	ultraFade  = ui.Animation{Duration: 300 * time.Millisecond}
 )
 
 const (
@@ -51,9 +50,9 @@ func (a *App) effortLabel(c *ui.Context, k theme.Colors, e proto.Effort) {
 }
 
 // effortSlider draws the levels as a pill track filled up to the knob.
-// Before a level is chosen it shows only the dots. The knob eases to a
-// level, and follows the pointer while dragged; 极限 turns the track into
-// a deep gradient with pixels twinkling, brighter near the knob.
+// Before a level is chosen it shows only the dots. The knob springs from
+// level to level; 极限 turns the track into a deep gradient with pixels
+// twinkling, brighter near the knob.
 func (a *App) effortSlider(c *ui.Context, k theme.Colors, levels []proto.Effort, cur proto.Effort, set func(proto.Effort)) {
 	const pad = knobInset
 	n := len(levels)
@@ -68,15 +67,14 @@ func (a *App) effortSlider(c *ui.Context, k theme.Colors, levels []proto.Effort,
 		if e == proto.EffortUltra && cur != e {
 			a.s.ultraAt = c.Now()
 		}
+		chosen = int(v)
 		set(e)
 	}
+	// The knob only rests on a level. A spring without bounce carries it,
+	// keeping its speed as a drag passes level after level.
 	var knob float32
-	if _, _, held := s.Dragged(); held && chosen >= 0 {
-		x, _, _ := s.PointerPosition()
-		w := s.Bounds().W - 2*pad
-		knob = s.Jump("knob", min(max((x-pad)/max(w, 1)*float32(n-1), 0), float32(n-1)))
-	} else if chosen >= 0 {
-		knob = s.AnimateTo("knob", float32(chosen), knobMove)
+	if chosen >= 0 {
+		knob = s.AnimateTo("knob", float32(chosen), knobSpring)
 	}
 	ultra := float32(0)
 	if cur == proto.EffortUltra {

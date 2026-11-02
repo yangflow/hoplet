@@ -253,6 +253,18 @@ func (a *App) effortPill(c *ui.Context, k theme.Colors, st runSettings, hs []pro
 	if i := slices.IndexFunc(hs, func(x proto.HarnessInfo) bool { return x.Kind == st.harness }); i >= 0 {
 		h = hs[i]
 	}
+	// The level just chosen shows at once, before the daemon confirms
+	// it, so the knob does not go back meanwhile.
+	if !a.s.effortOpen || a.s.effortWant == st.effort {
+		a.s.effortWanted = false
+	}
+	if a.s.effortWanted {
+		st.effort = a.s.effortWant
+	}
+	setEffort := func(e proto.Effort) {
+		a.s.effortWant, a.s.effortWanted = e, true
+		set.effort(e)
+	}
 	model, cur := currentModel(st, h)
 	b := ui.Button(c, "").Label("强度与模型").Tooltip(harnessName(h.Kind)+" · "+model+" · 推理强度 "+effortName(st.effort)).
 		Height(theme.RowHeight).Padding(0, 8, 0, 9).Gap(6).Radius(theme.RadiusPill).Border(0, ui.Transparent).Background(k.Fill).
@@ -301,11 +313,11 @@ func (a *App) effortPill(c *ui.Context, k theme.Colors, st runSettings, hs []pro
 					})
 				})
 				if iconButton(c, k, a.icons.Reset, "恢复默认", false).Disabled(st.effort == "").Clicked() {
-					set.effort("")
+					setEffort("")
 				}
 			})
 			if len(levels) > 1 {
-				a.effortSlider(c, k, levels, st.effort, set.effort)
+				a.effortSlider(c, k, levels, st.effort, setEffort)
 			}
 		})
 	})

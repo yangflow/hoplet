@@ -43,6 +43,8 @@ type sessionView struct {
 	modelQuery   string                         // what the model search holds
 	modelPick    int                            // the highlighted model, -1 for the current
 	ultraAt      time.Time                      // when the effort went to 极限, for its burst
+	effortWant   proto.Effort                   // the level just chosen, until the daemon has it
+	effortWanted bool
 
 	newPage bool
 	newPick newChoice
