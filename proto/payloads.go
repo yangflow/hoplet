@@ -17,6 +17,7 @@ const (
 	TypeUsage            EventType = "usage"
 	TypeError            EventType = "error"
 	TypeModeChanged      EventType = "mode.changed"
+	TypeModelChanged     EventType = "model.changed"
 )
 
 // TurnStarted marks the start of a turn.
@@ -215,6 +216,22 @@ func (m ModeChanged) validate() error {
 	return nil
 }
 
+// ModelChanged records the model the harness reports it runs: at the start
+// of a session, and after a model change takes effect. Provider is set for
+// harnesses whose models belong to a provider (Hermes). The store applies
+// it to the session record.
+type ModelChanged struct {
+	Model    string `json:"model"`
+	Provider string `json:"provider,omitempty"`
+}
+
+func (m ModelChanged) validate() error {
+	if m.Model == "" {
+		return fmt.Errorf("%w: model change without a model", ErrInvalidPayload)
+	}
+	return nil
+}
+
 func (r ApprovalResolved) validate() error {
 	switch r.Outcome {
 	case OutcomeAllowed, OutcomeDenied:
@@ -244,6 +261,7 @@ func (Question) eventType() EventType          { return TypeQuestion }
 func (Usage) eventType() EventType             { return TypeUsage }
 func (Error) eventType() EventType             { return TypeError }
 func (ModeChanged) eventType() EventType       { return TypeModeChanged }
+func (ModelChanged) eventType() EventType      { return TypeModelChanged }
 
 func (TurnStarted) eventVersion() uint16       { return 1 }
 func (TurnEnded) eventVersion() uint16         { return 1 }
@@ -258,6 +276,7 @@ func (Question) eventVersion() uint16          { return 1 }
 func (Usage) eventVersion() uint16             { return 1 }
 func (Error) eventVersion() uint16             { return 1 }
 func (ModeChanged) eventVersion() uint16       { return 1 }
+func (ModelChanged) eventVersion() uint16      { return 1 }
 
 func init() {
 	register[TurnStarted]()
@@ -273,4 +292,5 @@ func init() {
 	register[Usage]()
 	register[Error]()
 	register[ModeChanged]()
+	register[ModelChanged]()
 }

@@ -92,4 +92,9 @@ type Session struct {
 	Unread bool `json:"unread,omitempty"`
 	// Preview is the first line of the latest complete message.
 	Preview string `json:"preview,omitempty"`
+	// Model is the model the harness last reported it runs, and
+	// ModelProvider its provider where models have one; empty until the
+	// harness reports.
+	Model         string `json:"model,omitempty"`
+	ModelProvider string `json:"model_provider,omitempty"`
 }

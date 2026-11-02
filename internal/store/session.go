@@ -14,7 +14,7 @@ import (
 )
 
 const sessionColumns = `id, mode, harness_kind, harness_version, native_id, directory, isolation,
-	owner, origin, status, title, created_at, updated_at, archived_at, last_seq, version, permission, plan, effort, fast, pinned, unread, preview`
+	owner, origin, status, title, created_at, updated_at, archived_at, last_seq, version, permission, plan, effort, fast, pinned, unread, preview, model, model_provider`
 
 // CreateSession stores a new session. Status defaults to idle and
 // CreatedAt to now; UpdatedAt equals CreatedAt. The write is durable.
@@ -38,10 +38,11 @@ func (s *Store) CreateSession(ctx context.Context, sess proto.Session) (proto.Se
 	sess.Pinned, sess.Unread, sess.Preview = false, false, ""
 	err := s.tx(ctx, true, func(tx *sql.Tx) error {
 		_, err := tx.ExecContext(ctx, `INSERT INTO sessions (`+sessionColumns+`)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 0, 0, ?, ?, ?, ?, 0, 0, '')`,
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 0, 0, ?, ?, ?, ?, 0, 0, '', ?, ?)`,
 			sess.ID, sess.Mode, sess.Harness.Kind, sess.Harness.Version, sess.Harness.NativeID,
 			sess.Directory, sess.Isolation, sess.Owner, sess.Origin, sess.Status, sess.Title,
-			sess.CreatedAt.UnixMilli(), sess.UpdatedAt.UnixMilli(), sess.Permission, sess.Plan, sess.Effort, sess.Fast)
+			sess.CreatedAt.UnixMilli(), sess.UpdatedAt.UnixMilli(), sess.Permission, sess.Plan, sess.Effort, sess.Fast,
+			sess.Model, sess.ModelProvider)
 		var serr *sqlite.Error
 		if errors.As(err, &serr) && serr.Code() == sqlite3.SQLITE_CONSTRAINT_PRIMARYKEY {
 			return fmt.Errorf("%w: session %s", ErrExists, sess.ID)
@@ -184,16 +185,20 @@ type SessionUpdate struct {
 	Effort     *proto.Effort // an empty effort restores the harness default
 	Pinned     *bool
 	Unread     *bool
+	// Model and ModelProvider record the model asked for; the harness's
+	// model.changed later records the model it runs.
+	Model         *string
+	ModelProvider *string
 }
 
 // UpdateSession changes a session's harness-native ID, title, permission
-// mode, plan mode, fast mode, effort, pin and/or unread mark and returns the
-// updated session. It leaves updated_at alone, so lists keep their order.
+// mode, plan mode, fast mode, effort, pin, unread mark and/or model and
+// returns the updated session. It leaves updated_at alone, so lists keep their order.
 // The write is durable; with nothing to change it writes nothing and
 // returns the current session.
 func (s *Store) UpdateSession(ctx context.Context, id proto.SessionID, u SessionUpdate) (proto.Session, error) {
 	if u.NativeID == nil && u.Title == nil && u.Permission == nil && u.Plan == nil && u.Fast == nil && u.Effort == nil &&
-		u.Pinned == nil && u.Unread == nil {
+		u.Pinned == nil && u.Unread == nil && u.Model == nil && u.ModelProvider == nil {
 		return s.Session(ctx, id)
 	}
 	if u.Permission != nil && !u.Permission.Valid() {
@@ -206,8 +211,9 @@ func (s *Store) UpdateSession(ctx context.Context, id proto.SessionID, u Session
 	err := s.tx(ctx, true, func(tx *sql.Tx) error {
 		res, err := tx.ExecContext(ctx, `UPDATE sessions SET native_id = COALESCE(?, native_id), title = COALESCE(?, title),
 			permission = COALESCE(?, permission), plan = COALESCE(?, plan), fast = COALESCE(?, fast),
-			effort = COALESCE(?, effort), pinned = COALESCE(?, pinned), unread = COALESCE(?, unread) WHERE id = ?`,
-			u.NativeID, u.Title, u.Permission, u.Plan, u.Fast, u.Effort, u.Pinned, u.Unread, id)
+			effort = COALESCE(?, effort), pinned = COALESCE(?, pinned), unread = COALESCE(?, unread),
+			model = COALESCE(?, model), model_provider = COALESCE(?, model_provider) WHERE id = ?`,
+			u.NativeID, u.Title, u.Permission, u.Plan, u.Fast, u.Effort, u.Pinned, u.Unread, u.Model, u.ModelProvider, id)
 		if err != nil {
 			return fmt.Errorf("store: update session %s: %w", id, err)
 		}
@@ -256,7 +262,7 @@ func scanSession(r scanner) (proto.Session, error) {
 	err := r.Scan(&sess.ID, &sess.Mode, &sess.Harness.Kind, &sess.Harness.Version, &sess.Harness.NativeID,
 		&sess.Directory, &sess.Isolation, &sess.Owner, &sess.Origin, &sess.Status, &sess.Title,
 		&created, &updated, &archived, &sess.LastSeq, &sess.Version, &sess.Permission, &sess.Plan, &sess.Effort, &sess.Fast,
-		&sess.Pinned, &sess.Unread, &sess.Preview)
+		&sess.Pinned, &sess.Unread, &sess.Preview, &sess.Model, &sess.ModelProvider)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return proto.Session{}, err

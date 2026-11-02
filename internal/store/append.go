@@ -375,7 +375,8 @@ func insertEvent(ctx context.Context, tx *sql.Tx, ev proto.Event, p proto.Payloa
 }
 
 // project applies one event to the turn and approval projections and, for
-// a mode change, an ended turn or a complete message, to the session record.
+// a mode or model change, an ended turn or a complete message, to the
+// session record.
 func project(ctx context.Context, tx *sql.Tx, ev proto.Event, p proto.Payload) error {
 	var q string
 	var args []any
@@ -404,6 +405,9 @@ func project(ctx context.Context, tx *sql.Tx, ev proto.Event, p proto.Payload) e
 		q = `UPDATE approvals SET status = ?, option_id = ?, decided_by = ?, resolved_seq = ?
 			WHERE session_id = ? AND id = ? AND status = 'pending'`
 		args = []any{p.Outcome, p.OptionID, p.DecidedBy, ev.Seq, ev.Session, p.ID}
+	case proto.ModelChanged:
+		q = `UPDATE sessions SET model = ?, model_provider = ? WHERE id = ?`
+		args = []any{p.Model, p.Provider, ev.Session}
 	case proto.ModeChanged:
 		// The harness changed its mode itself; the session record follows.
 		// The append that carries it bumps the catalog version.

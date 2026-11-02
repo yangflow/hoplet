@@ -13,7 +13,7 @@ func TestSessionJSONRoundTrip(t *testing.T) {
 		ID: "s1", Mode: ModeCode, Harness: HarnessRef{Kind: "claude", Version: "2.1.312", NativeID: "n1"}, Permission: ModeAutoEdit,
 		Directory: "/work", Isolation: InPlace, Owner: OwnerMe, Origin: OriginMe, Status: StatusIdle,
 		Title: "sync", CreatedAt: archived.Add(-time.Hour), UpdatedAt: archived, ArchivedAt: &archived, LastSeq: 7, Version: 9,
-		Pinned: true, Unread: true, Preview: "done",
+		Pinned: true, Unread: true, Preview: "done", Model: "claude-opus-5-5", ModelProvider: "p",
 	}
 	b, err := json.Marshal(in)
 	if err != nil {
