@@ -64,6 +64,12 @@ erDiagram
 - `title`、`pinned`、`unread` 通过 `sessions.update` 修改，CLI 对应 `hoplet session set ID --title T --pinned on|off --unread on|off`。
 - 修改这几项不改 `updated_at`，列表顺序不会因为置顶或已读而跳动；置顶的会话单独排在最前。
 
+### 模型、插话与工具输出
+
+- 会话另记 `model` 与 `model_provider`：建会话时可选，`sessions.set_model` 时记下所选，harness 报告 `model.changed` 时以报告为准；为空表示 harness 的默认模型、尚未报告。harness 下次启动时用这里记的模型。
+- 插话送达 harness 后，守护进程把它作为本轮里一条我的消息记进日志（`Message`，角色 user），所以重新打开会话时插话仍在原处。
+- 工具调用的输出存成 blob，`ToolCall.Output` 指向它；客户端按需用 `sessions.output` 读取（见 0003）。
+
 ## 存储
 
 ```mermaid
