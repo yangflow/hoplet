@@ -113,7 +113,7 @@ flowchart LR
 | 规范 | MyGO |
 |---|---|
 | 主题 | `ui.Theme`：Surface / SurfaceHover = `fill` / `fill2`，Border = `line2`，Text / TextMuted = `fg` / `muted`，Accent / AccentText = `accent` / `on-accent`，Warning = `attn`，Success / Danger = `add` / `del`，Focus = `accent-fg`，Radius 7，Spacing 4，FontSize 13；其余语义色放在应用自己的主题包里，按 `Theme.Dark` 取值 |
-| 玻璃 | 透出桌面靠窗口材质：`Vibrancy: VibrancyUnderWindow` + `TitleBarHiddenInset`，根节点不铺底；侧栏、正文区、右列只铺各自的半透明 token（`side` / `pane`）。`glass.Glass{}` 只模糊窗口自己画在下面的内容，所以只用在浮在对话上的输入框和弹层 |
+| 玻璃 | 透出桌面靠窗口材质：`Vibrancy: VibrancyUnderWindow` + `TitleBarHiddenInset`，根节点不铺底；侧栏、正文区、右列只铺各自的半透明 token（`side` / `pane`）。`glass.Glass{}` 只模糊窗口自己画在下面的内容，而且在浅色下会把底色压暗；输入框在对话下方、不叠在内容上，只铺 `glass` token |
 | 组件 | 侧栏的行自己画（`ui.Row` + 悬停 / 点击 / 右键菜单）：`ui.SidebarItem` 获得焦点时用强调色填满选中行，违反“选中用中性灰”；分段 `ui.Segmented`；标签 `ui.Tabs`；拖动宽度 `ui.Split`；对话正文 `markdown.Stream`；diff `editor.DiffView`；文件树 `ui.Tree`；弹层 `ui.Popover`；提示 `Element.Tooltip`；开关 `ui.Switch`；角标 `ui.Badge`；头像自己画（首字 + 中性灰底；`ui.Avatar` 按名字配彩色，违反“只有一种彩色”）；图标 `ui.Icon`（Lucide）/ `ui.Image`（Material） |
 | 菜单 | `mygo.NewMenu`（应用菜单、右键、Dock）、`mygo.NewTray`（`IconIsTemplate: true`） |
 

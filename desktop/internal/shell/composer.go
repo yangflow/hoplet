@@ -7,7 +7,6 @@ import (
 	"slices"
 	"time"
 
-	"github.com/egoist/mygo/plugins/glass"
 	"github.com/egoist/mygo/ui"
 
 	"github.com/yangflow/hoplet/desktop/internal/convo"
@@ -31,7 +30,7 @@ func (a *App) composer(c *ui.Context, k theme.Colors, s proto.Session, cv *convo
 	q, asked := cv.Question()
 	a.queueTray(c, k, s, cv, h.Capabilities.Steer)
 	box := ui.Column(c).FillWidth().Padding(12, 12, 8, 14).Gap(8).Radius(theme.RadiusComposer).
-		Background(k.Glass).Border(1, k.GlassLine).Shadow(0, 2, 10, 0, k.Shadow).Material(glass.Glass{})
+		Background(k.Glass).Border(1, k.GlassLine).Shadow(0, 2, 10, 0, k.Shadow)
 	switch {
 	case ap != nil || asked:
 		box.Border(1, k.AttnLine)

@@ -4,7 +4,6 @@ import (
 	"path/filepath"
 	"slices"
 
-	"github.com/egoist/mygo/plugins/glass"
 	"github.com/egoist/mygo/ui"
 
 	"github.com/yangflow/hoplet/desktop/internal/catalog"
@@ -30,7 +29,7 @@ func (a *App) newPage(c *ui.Context, k theme.Colors) {
 		ui.Column(c).Width(680).Gap(14).Children(func() {
 			theme.Display.On(ui.Text(c, title)).TextColor(k.Fg)
 			ui.Column(c).FillWidth().Padding(12, 14, 10, 14).Gap(10).Radius(theme.RadiusComposer).
-				Background(k.Glass).Border(1, k.GlassLine).Shadow(0, 2, 10, 0, k.Shadow).Material(glass.Glass{}).Children(func() {
+				Background(k.Glass).Border(1, k.GlassLine).Shadow(0, 2, 10, 0, k.Shadow).Children(func() {
 				ui.Row(c).Gap(6).Wrap().AlignItems(ui.Center).Children(func() {
 					a.harnessChip(c, k, pick)
 					if personal {
