@@ -7,11 +7,13 @@ import "github.com/egoist/mygo/ui"
 // Colors are the semantic colors of one appearance. Surfaces are
 // translucent: the window's material shows through them.
 type Colors struct {
+	Dark bool // the dark appearance's
+
 	Pane      ui.Color // content area
-	Side      ui.Color // sidebar and the right panel's column
+	Side      ui.Color // sidebar and the right panel's column: in dark, nearly the pane
 	SideLine  ui.Color // the sidebar's edge
 	Glass     ui.Color // composer and controls floating over content
-	Popover   ui.Color // popovers and menus drawn in the window: near opaque
+	Popover   ui.Color // popovers and menus drawn in the window, over a blur
 	GlassLine ui.Color // the composer's hairline
 	Raised    ui.Color // selected segment, tab or mode
 	Bg        ui.Color // a companion's bubble, cards on the content
@@ -54,12 +56,13 @@ type Colors struct {
 func For(dark bool) Colors {
 	if dark {
 		return Colors{
-			Pane: ui.RGBA(14, 16, 20, .42), Side: ui.RGBA(255, 255, 255, .05), SideLine: ui.RGBA(255, 255, 255, .07),
-			Glass: ui.RGBA(255, 255, 255, .05), GlassLine: ui.RGBA(255, 255, 255, .12), Popover: ui.RGBA(38, 42, 48, .97),
+			Dark: true,
+			Pane: ui.RGBA(14, 16, 20, .42), Side: ui.RGBA(14, 16, 20, .38), SideLine: ui.RGBA(255, 255, 255, .07),
+			Glass: ui.RGBA(255, 255, 255, .05), GlassLine: ui.RGBA(255, 255, 255, .12), Popover: ui.RGBA(72, 78, 88, .52),
 			Raised: ui.RGBA(255, 255, 255, .16), Bg: ui.RGBA(255, 255, 255, .06), Bg2: ui.RGBA(255, 255, 255, .03), Fill: ui.RGBA(255, 255, 255, .06), Fill2: ui.RGBA(255, 255, 255, .10),
 			Sel: ui.RGBA(255, 255, 255, .10), SelRow: ui.RGBA(255, 255, 255, .09),
 			Line: ui.RGBA(255, 255, 255, .08), Line2: ui.RGBA(255, 255, 255, .14),
-			Fg: ui.Hex("#F4F4F5"), Fg2: ui.Hex("#D3D6DB"), Fg3: ui.Hex("#B0B4BB"), Muted: ui.Hex("#8E939B"), Faint: ui.Hex("#666B73"),
+			Fg: ui.Hex("#F4F4F5"), Fg2: ui.Hex("#D3D6DB"), Fg3: ui.Hex("#B0B4BB"), Muted: ui.Hex("#999EA6"), Faint: ui.Hex("#666B73"),
 			Accent: ui.Hex("#3CC4C9"), OnAccent: ui.Hex("#0C1A1C"), AccentFg: ui.Hex("#3CC4C9"), UltraFrom: ui.Hex("#0D4A50"), UltraTo: ui.Hex("#3CC4C9"),
 			Attn: ui.Hex("#F0A35B"), OnAttn: ui.Hex("#1E1408"), AttnFg: ui.Hex("#F5BB82"), AttnLine: ui.RGBA(240, 163, 91, .40), AttnGlow: ui.RGBA(240, 163, 91, .10),
 			Add: ui.Hex("#7BC86C"), Del: ui.Hex("#F0758A"), AddBg: ui.RGBA(123, 200, 108, .12), DelBg: ui.RGBA(240, 117, 138, .11),

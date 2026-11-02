@@ -38,14 +38,14 @@ func (a *App) toasts(c *ui.Context, k theme.Colors) {
 		viewport.Padding(top+12, 0, 0, left).Justify(ui.Start).AlignItems(ui.Center)
 		for _, t := range toasts {
 			toast := ui.ToastBase(c, t)
-			toast.Root.Row().Height(36).MaxWidth(420).Padding(0, 12).Gap(8).AlignItems(ui.Center).
-				Radius(theme.RadiusCard).Background(k.Popover).Border(1, k.Line2).Shadow(0, 10, 30, 0, k.Shadow).
-				Tooltip(t.Title).Transition(ui.ElementTransition{Enter: &ui.Motion{}, Exit: &ui.Motion{}})
+			toast.Root.MaxWidth(420).Tooltip(t.Title).Transition(ui.ElementTransition{Enter: &ui.Motion{}, Exit: &ui.Motion{}})
 			failed := t.Type == "error"
-			if failed {
-				toast.Root.Padding(0, 6, 0, 12)
-			}
-			toast.Root.Children(func() {
+			frosted(c, k, toast.Root, theme.RadiusCard, func(card ui.Element) {
+				card.Row().Height(36).Padding(0, 12).Gap(8).AlignItems(ui.Center)
+				if failed {
+					card.Padding(0, 6, 0, 12)
+				}
+			}, func() {
 				if failed {
 					ui.Icon(c, a.icons.Failed).FontSize(theme.IconSize).TextColor(k.Fg)
 				}

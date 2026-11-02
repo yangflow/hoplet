@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/egoist/mygo/plugins/glass"
 	"github.com/egoist/mygo/ui"
 
 	"github.com/yangflow/hoplet/desktop/internal/convo"
@@ -30,48 +31,63 @@ func (a *App) composer(c *ui.Context, k theme.Colors, s proto.Session, cv *convo
 	}
 	q, asked := cv.Question()
 	a.queueTray(c, k, s, cv, h.Capabilities.Steer)
-	box := ui.Column(c).FillWidth().Padding(12, 12, 8, 14).Gap(8).Radius(theme.RadiusComposer).
-		Background(k.Glass).Border(1, k.GlassLine).Shadow(0, 2, 10, 0, k.Shadow)
+	// It floats over the conversation: glass in dark; in light, a blur
+	// under the glass fill, as the glass would darken it.
+	frame := ui.Column(c).FillWidth().Radius(theme.RadiusComposer).Border(1, k.GlassLine).Shadow(0, 10, 30, 0, k.Shadow)
+	fill := ui.Transparent
+	if k.Dark {
+		frame.Material(glass.Glass{})
+	} else {
+		frame.Material(glass.Blur{Radius: frostRadius})
+		fill = k.Glass
+	}
 	switch {
 	case ap != nil || asked:
-		box.Border(1, k.AttnLine).Shadow(0, 0, 0, 3, k.AttnGlow)
+		frame.Border(1, k.AttnLine).Shadow(0, 0, 0, 3, k.AttnGlow)
 	case !a.connected:
-		box.Border(1, k.Line2).BorderStyle(ui.BorderDashed)
+		frame.Border(1, k.Line2).BorderStyle(ui.BorderDashed)
 	}
-	box.Children(func() {
-		switch {
-		case ap != nil:
-			a.approvalBody(c, k, s, *ap, len(pending))
-		case asked:
-			a.questionBody(c, k, q)
-		case !a.connected:
-			a.offlineLine(c, k, false)
-		case s.Mode == proto.ModeCode && s.Directory != "":
-			a.contextLine(c, k, s)
-		}
-		if ap != nil || asked {
-			// The input stays, on a line of its own with put away and
-			// confirm the highlighted option.
-			ui.Row(c).Padding(8, 0, 0, 0).Gap(4).AlignItems(ui.Center).BorderWidth(1, 0, 0, 0).BorderColor(k.Line).Children(func() {
-				ui.Box(c).Grow(1).Children(func() { a.input(c, s, cv, ap, q, asked) })
-				if ap != nil && iconButton(c, k, a.icons.Close, "收起 ⎋", false).Size(26, 26).Clicked() {
-					a.s.hidden[ap.ID] = true
-				}
-				if round(c, k, a.icons.Send, "确认所选 ↩", true).Clicked() {
-					if ap != nil {
-						a.decide(s, *ap, a.s.drafts[s.ID])
-					} else {
-						a.answer(s, q, a.s.drafts[s.ID])
-					}
-					a.s.drafts[s.ID] = ""
-				}
-			})
-			a.optionKeys(c, s, ap, q)
-			return
-		}
-		a.input(c, s, cv, ap, q, asked)
-		a.controls(c, k, s, h, running)
+	frame.Children(func() {
+		ui.Column(c).AlignSelf(ui.Stretch).Padding(12, 12, 8, 14).Gap(8).Radius(theme.RadiusComposer).Background(fill).Children(func() { a.composerBody(c, k, s, cv, h, running, ap, pending, q, asked) })
 	})
+}
+
+// composerBody is what the composer holds: an approval or a question with
+// the input under it, or the context line, the input and the controls.
+func (a *App) composerBody(c *ui.Context, k theme.Colors, s proto.Session, cv *convo.Convo, h proto.HarnessInfo, running bool,
+	ap *proto.ApprovalRequested, pending []proto.ApprovalRequested, q proto.Question, asked bool) {
+	switch {
+	case ap != nil:
+		a.approvalBody(c, k, s, *ap, len(pending))
+	case asked:
+		a.questionBody(c, k, q)
+	case !a.connected:
+		a.offlineLine(c, k, false)
+	case s.Mode == proto.ModeCode && s.Directory != "":
+		a.contextLine(c, k, s)
+	}
+	if ap != nil || asked {
+		// The input stays, on a line of its own with put away and
+		// confirm the highlighted option.
+		ui.Row(c).Padding(8, 0, 0, 0).Gap(4).AlignItems(ui.Center).BorderWidth(1, 0, 0, 0).BorderColor(k.Line).Children(func() {
+			ui.Box(c).Grow(1).Children(func() { a.input(c, s, cv, ap, q, asked) })
+			if ap != nil && iconButton(c, k, a.icons.Close, "收起 ⎋", false).Size(26, 26).Clicked() {
+				a.s.hidden[ap.ID] = true
+			}
+			if round(c, k, a.icons.Send, "确认所选 ↩", true).Clicked() {
+				if ap != nil {
+					a.decide(s, *ap, a.s.drafts[s.ID])
+				} else {
+					a.answer(s, q, a.s.drafts[s.ID])
+				}
+				a.s.drafts[s.ID] = ""
+			}
+		})
+		a.optionKeys(c, s, ap, q)
+		return
+	}
+	a.input(c, s, cv, ap, q, asked)
+	a.controls(c, k, s, h, running)
 }
 
 // contextLine is a Code composer's first line, all icons and plain text:

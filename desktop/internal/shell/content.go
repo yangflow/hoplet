@@ -1,6 +1,8 @@
 package shell
 
 import (
+	"slices"
+
 	"github.com/egoist/mygo/ui"
 
 	"github.com/yangflow/hoplet/desktop/internal/theme"
@@ -53,27 +55,30 @@ func (a *App) content(c *ui.Context, k theme.Colors) {
 			if s.Mode == proto.ModePersonal {
 				tip = "伙伴详情 ⌘I"
 			}
-			d := iconButton(c, k, a.icons.Info, tip, a.s.detailOpen)
-			if d.Clicked() || c.Shortcut(ui.Cmd, ui.KeyI) {
+			if iconButton(c, k, a.icons.Details, tip, a.s.detailOpen).Clicked() || c.Shortcut(ui.Cmd, ui.KeyI) {
 				a.s.detailOpen = !a.s.detailOpen
 			}
-			ui.PopoverBase(c, d, &a.s.detailOpen, func(panel ui.Element) {
-				panel.AttachTo(d, ui.AnchorBottomEnd, ui.AnchorTopEnd).Margin(6, 0, 0, 0).Width(320).Padding(10).Gap(4).
-					Radius(theme.RadiusCard).Background(k.Popover).Border(1, k.Line2).Shadow(0, 10, 30, 0, k.Shadow).Children(func() {
-					if s.Mode == proto.ModePersonal {
-						a.companionDetails(c, k, s)
-					} else {
-						a.details(c, k, s)
-					}
-				})
-			})
 		})
 		s, ok := a.current()
 		switch {
 		case a.s.newPage:
 			a.newPage(c, k)
 		case ok:
-			a.conversation(c, k, s)
+			// The details sit beside the conversation, not over it.
+			ui.Row(c).Grow(1).Shrink(1).MinHeight(0).AlignItems(ui.Stretch).Children(func() {
+				ui.Column(c).Grow(1).Shrink(1).Children(func() { a.conversation(c, k, s) })
+				if a.s.detailOpen {
+					ui.Scroll(c).Width(detailsWidth).Children(func() {
+						ui.Column(c).Padding(12, 12, 12, 0).Gap(10).Children(func() {
+							if s.Mode == proto.ModePersonal {
+								a.companionDetails(c, k, s)
+							} else {
+								a.details(c, k, s)
+							}
+						})
+					})
+				}
+			})
 		default:
 			ui.Box(c).Grow(1).Center().Children(func() {
 				ui.Icon(c, a.icons.Mark).FontSize(48).TextColor(k.Faint)
@@ -82,66 +87,95 @@ func (a *App) content(c *ui.Context, k theme.Colors) {
 	})
 }
 
-// details is a Code session's details: its harness, name, state and when
-// it was made; then machine, directory, branch, harness and version, model
-// and effort, and permission; under a line, its ID to copy. A row without
-// a value is left out.
+// detailsWidth is the width of the details column.
+const detailsWidth = 280
+
+// details is a Code session's details in blocks: where it runs (machine,
+// directory, branch), how (harness and version, model and effort,
+// permission) and the session (state and when it was made, its ID to
+// copy). A row without a value is left out, a block without rows too.
 func (a *App) details(c *ui.Context, k theme.Colors, s proto.Session) {
 	h, _ := a.harness(s.Harness.Kind)
 	model, _ := currentModel(runSettings{model: s.Model}, h)
-	ui.Row(c).Padding(4, 6, 8, 6).Gap(10).AlignItems(ui.Center).Children(func() {
-		a.harnessIcon(c, k, s.Harness.Kind, 18)
-		ui.Column(c).Grow(1).Shrink(1).Children(func() {
-			theme.Reading.On(ui.Text(c, name(s))).FontWeight(600).TextColor(k.Fg).SingleLine()
-			theme.Caption.On(ui.Text(c, statusName(s.Status)+" · 建于 "+s.CreatedAt.Local().Format("1 月 2 日"))).TextColor(k.Muted)
-		})
-	})
-	detailRow(c, k, "机器", a.machine, false, nil)
-	detailRow(c, k, "目录", tilde(s.Directory), true, func() {
-		if iconButton(c, k, a.icons.Folder, "在 Finder 中显示", false).Size(24, 24).Clicked() {
-			a.host.Reveal(s.Directory)
-		}
-	})
+	var branch string
 	if d := a.diff(s); d != nil {
 		for _, r := range d.Repos {
 			if r.Path == "." {
-				detailRow(c, k, "分支", r.Branch, true, nil)
+				branch = r.Branch
 			}
 		}
 	}
-	if s.Harness.Kind != "" {
-		ui.Row(c.Key("harness")).Padding(3, 6).Gap(10).AlignItems(ui.Center).Children(func() {
-			theme.Caption.On(ui.Text(c, "harness")).TextColor(k.Muted).Width(56)
-			ui.Row(c).Grow(1).Gap(6).AlignItems(ui.Baseline).Children(func() {
-				ui.Text(c, harnessName(s.Harness.Kind)).FontSize(12.5).TextColor(k.Fg)
-				theme.Caption.On(ui.Text(c, s.Harness.Version)).Font(theme.Mono).TextColor(k.Muted)
-			})
-		})
-	}
-	detailRow(c, k, "模型", model+" · 推理强度 "+effortName(s.Effort), false, nil)
+	a.detailBlock(c, k, "", []detail{
+		{icon: a.icons.Machine, value: a.machine},
+		{icon: a.icons.Folder, value: tilde(s.Directory), tip: s.Directory, mono: true, end: func() {
+			if iconButton(c, k, a.icons.Folder, "在 Finder 中显示", false).Size(24, 24).Clicked() {
+				a.host.Reveal(s.Directory)
+			}
+		}},
+		{icon: a.icons.Task, value: branch, mono: true},
+	})
 	perm := modeName(s.Permission)
 	if s.Plan {
 		perm += " · Plan"
 	}
-	detailRow(c, k, "审批", perm, false, nil)
-	ui.Box(c).Height(1).Margin(6, 6).Background(k.Line)
-	detailRow(c, k, "会话 ID", string(s.ID), true, func() { a.copyButton(c, k, "id:"+string(s.ID), string(s.ID), "复制") })
+	run := []detail{{harness: s.Harness.Kind, value: harnessName(s.Harness.Kind), version: s.Harness.Version}}
+	if s.Harness.Kind == "" {
+		run = nil
+	}
+	run = append(run, detail{icon: a.icons.Thinking, value: model + " · 推理强度 " + effortName(s.Effort)}, detail{icon: a.modeIcon(s.Permission), value: perm})
+	a.detailBlock(c, k, "运行", run)
+	a.detailBlock(c, k, "会话", []detail{
+		{icon: a.icons.Made, value: statusName(s.Status) + " · 建于 " + s.CreatedAt.Local().Format("1 月 2 日")},
+		{icon: a.icons.ID, value: string(s.ID), mono: true, end: func() { a.copyButton(c, k, "id:"+string(s.ID), string(s.ID), "复制会话 ID") }},
+	})
 }
 
-// detailRow is a label and value row of a details popover, with an
-// optional button at its end; it is left out without a value.
-func detailRow(c *ui.Context, k theme.Colors, label, value string, mono bool, end func()) {
-	if value == "" {
+// detail is a row of the details column: an icon, or a harness's mark with
+// its version, a value and maybe a button at its end.
+type detail struct {
+	icon    *ui.SVG
+	harness string
+	version string
+	value   string
+	tip     string
+	mono    bool
+	end     func()
+}
+
+// detailBlock draws a block of the details column: a card with a hairline,
+// its title above the rows unless empty. Rows without a value are left
+// out, and the block without any.
+func (a *App) detailBlock(c *ui.Context, k theme.Colors, title string, rows []detail) {
+	rows = slices.DeleteFunc(rows, func(d detail) bool { return d.value == "" })
+	if len(rows) == 0 {
 		return
 	}
-	ui.Row(c.Key(label)).Height(24).Padding(0, 6).Gap(10).AlignItems(ui.Center).Children(func() {
-		theme.Caption.On(ui.Text(c, label)).TextColor(k.Muted).Width(56)
-		v := ui.Text(c, value).FontSize(12.5).TextColor(k.Fg).SingleLine().Grow(1).Shrink(1).Selectable().Tooltip(value)
-		if mono {
-			v.Font(theme.Mono).FontSize(12)
+	ui.Column(c.Key("block:"+title)).Padding(4, 0).Radius(12).Border(1, k.Line2).Background(k.Bg2).Children(func() {
+		if title != "" {
+			ui.Text(c, title).FontSize(11).FontWeight(600).TextColor(k.Muted).Padding(8, 12, 2, 12)
 		}
-		if end != nil {
-			end()
+		for i, d := range rows {
+			ui.Row(c.Key(i)).Height(32).Padding(0, 12).Gap(10).AlignItems(ui.Center).Children(func() {
+				if d.harness != "" {
+					a.harnessIcon(c, k, d.harness, theme.IconSizeInRow)
+				} else {
+					ui.Icon(c, d.icon).FontSize(theme.IconSizeInRow).TextColor(k.Fg3)
+				}
+				tip := d.tip
+				if tip == "" {
+					tip = d.value
+				}
+				v := ui.Text(c, d.value).FontSize(13).TextColor(k.Fg).SingleLine().Grow(1).Shrink(1).Selectable().Tooltip(tip)
+				if d.mono {
+					v.Font(theme.Mono).FontSize(12)
+				}
+				if d.version != "" {
+					theme.Caption.On(ui.Text(c, d.version)).Font(theme.Mono).TextColor(k.Muted)
+				}
+				if d.end != nil {
+					d.end()
+				}
+			})
 		}
 	})
 }
@@ -160,27 +194,19 @@ func statusName(st proto.SessionStatus) string {
 	}
 }
 
-// companionDetails is a companion's details: its avatar, name and when it
-// was made, then its harness, model and effort, and its machine. Its
-// persona and what it remembers about me come with companions (M4).
+// companionDetails is a companion's details in blocks: its machine, then
+// its harness, model and effort; its name is the title bar's. Its persona
+// and what it remembers about me come with companions (M4).
 func (a *App) companionDetails(c *ui.Context, k theme.Colors, s proto.Session) {
 	h, _ := a.harness(s.Harness.Kind)
 	model, _ := currentModel(runSettings{model: s.Model}, h)
-	ui.Row(c).Padding(4, 6, 8, 6).Gap(10).AlignItems(ui.Center).Children(func() {
-		ui.Box(c).Size(40, 40).Radius(20).Background(k.Line2).Center().Children(func() {
-			theme.Title.On(ui.Text(c, initial(name(s)))).TextColor(k.Fg2)
-		})
-		ui.Column(c).Grow(1).Children(func() {
-			theme.Reading.On(ui.Text(c, name(s))).FontWeight(600).TextColor(k.Fg)
-			theme.Caption.On(ui.Text(c, "建于 "+s.CreatedAt.Local().Format("1 月 2 日"))).TextColor(k.Muted)
-		})
-	})
 	machine := a.machine
 	if a.connected {
 		machine += " · 在线"
 	}
-	detailRow(c, k, "harness", harnessName(s.Harness.Kind), false, nil)
-	detailRow(c, k, "模型", model, false, nil)
-	detailRow(c, k, "强度", effortName(s.Effort), false, nil)
-	detailRow(c, k, "机器", machine, false, nil)
+	a.detailBlock(c, k, "", []detail{{icon: a.icons.Machine, value: machine}})
+	a.detailBlock(c, k, "运行", []detail{
+		{harness: s.Harness.Kind, value: harnessName(s.Harness.Kind), version: s.Harness.Version},
+		{icon: a.icons.Thinking, value: model + " · 推理强度 " + effortName(s.Effort)},
+	})
 }

@@ -9,6 +9,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/egoist/mygo/plugins/glass"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/markdown"
 
@@ -23,21 +24,29 @@ const (
 	personalColumn = 640
 )
 
-// conversation draws a session's conversation over its composer. The
-// column follows new content while it is scrolled to the end.
+// conversation draws a session's conversation under its composer, which
+// floats over it: the conversation scrolls on to the window's bottom, and
+// what passes under the composer shows through it, blurred. The column
+// follows new content while it is scrolled to the end.
 func (a *App) conversation(c *ui.Context, k theme.Colors, s proto.Session) {
 	cv := a.conv(s.ID)
 	personal := s.Mode == proto.ModePersonal
 	width, gap := float32(codeColumn), float32(14)
+	rest := float32(composerCode)
 	if personal {
-		width, gap = personalColumn, 10
+		width, gap, rest = personalColumn, 10, composerPersonal
 	}
+	// The conversation ends above the composer at rest. MyGO does not tell
+	// an element's laid-out size, so while the composer grows (a queue,
+	// an approval, more lines) it covers the last lines, which show
+	// through it.
+	inset := rest + composerBottom
 	sc := &a.s.scroll
 	atEnd := sc.Y >= sc.MaxY-4
 	ui.Box(c).Grow(1).Children(func() {
 		ui.Scroll(c).Fill().TrackScroll(sc).Children(func() {
 			ui.Row(c).FillWidth().Justify(ui.Center).Children(func() {
-				ui.Column(c).Width(width).Padding(20, 32, 24, 32).Gap(gap).Children(func() {
+				ui.Column(c).Width(width).Padding(20, 32, 24+inset, 32).Gap(gap).Children(func() {
 					if more, first := cv.More(); more {
 						if ui.Button(c, "更早的消息").Clicked() {
 							a.host.Older(s.ID, first, func(p proto.EventsPage) { cv.Prepend(p) })
@@ -52,20 +61,32 @@ func (a *App) conversation(c *ui.Context, k theme.Colors, s proto.Session) {
 				})
 			})
 		})
+		// What scrolls toward the composer fades into the pane under it.
+		ui.Box(c).Absolute().Bottom(0).Left(0).Right(0).Height(inset + 10).PassThrough().
+			Material(glass.ScrollEdge{Bottom: true, Background: k.Pane})
 		if atEnd {
 			sc.Y = math.MaxFloat32
-		} else if a.toBottom(c, k, cv.Running()) {
+		} else if a.toBottom(c, k, cv.Running(), inset+8) {
 			sc.Y = math.MaxFloat32
 		}
+		ui.Row(c).Absolute().Bottom(composerBottom).Left(0).Right(0).Justify(ui.Center).PassThrough().Children(func() {
+			ui.Column(c).Width(width - 64).Children(func() { a.composer(c, k, s, cv) })
+		})
 	})
 	if c.Shortcut(ui.Cmd, ui.KeyDown) {
 		sc.Y = math.MaxFloat32
 	}
 	a.modeKeys(c, s)
-	ui.Row(c).FillWidth().Justify(ui.Center).Padding(0, 0, 16, 0).Children(func() {
-		ui.Column(c).Width(width - 64).Children(func() { a.composer(c, k, s, cv) })
-	})
 }
+
+// The floating composer: its height at rest, a Code one with its context
+// line and a Personal one without, and how far it floats above the
+// window's bottom.
+const (
+	composerCode     = 104
+	composerPersonal = 78
+	composerBottom   = 16
+)
 
 // items draws a Code conversation. Turns are not marked: your messages part
 // them, and only a turn on another day than the one before it gets a day
@@ -103,13 +124,12 @@ func (a *App) items(c *ui.Context, k theme.Colors, s proto.Session, items []conv
 // toBottom is the button over the composer that scrolls to the end; while
 // the harness is answering, three dots light in turn in place of its
 // arrow. It reports whether it was clicked.
-func (a *App) toBottom(c *ui.Context, k theme.Colors, running bool) bool {
-	b := ui.Button(c, "").Label("回到底部").Tooltip("回到底部 ⌘↓").Size(32, 32).Padding(0).Radius(16).
-		Background(k.Popover).Border(1, k.Line2).Shadow(0, 6, 18, 0, k.Shadow).
-		Absolute().Bottom(8).Left(0).Right(0).Margin(0, ui.Auto)
+func (a *App) toBottom(c *ui.Context, k theme.Colors, running bool, bottom float32) bool {
+	b := ui.Button(c, "").Label("回到底部").Tooltip("回到底部 ⌘↓").Size(32, 32).Padding(0).
+		Absolute().Bottom(bottom).Left(0).Right(0).Margin(0, ui.Auto)
 	hovered := b.Hovered()
-	b.Children(func() {
-		in := ui.Box(c).Fill().Radius(16).AlignItems(ui.Center).Justify(ui.Center)
+	frosted(c, k, b, 16, func(ui.Element) {}, func() {
+		in := ui.Box(c).Grow(1).Radius(16).AlignItems(ui.Center).Justify(ui.Center)
 		if hovered {
 			in.Background(k.Fill2)
 		}

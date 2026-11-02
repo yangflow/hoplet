@@ -562,3 +562,26 @@ func TestModelProviders(t *testing.T) {
 		t.Fatalf("search keeps only the matching provider: %q", tt.Texts())
 	}
 }
+
+func TestDetailsColumn(t *testing.T) {
+	a, _, tt, _ := newApp(t)
+	tt.SetSize(1300, 820)
+	a.SetHarnesses([]proto.HarnessInfo{claudeHarness()})
+	a.Select("s1")
+	tt.Frame()
+	if strings.Contains(strings.Join(tt.Texts(), "|"), "建于") {
+		t.Fatalf("details show before ⌘I: %q", tt.Texts())
+	}
+	if err := tt.Click("会话详情 ⌘I"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	for _, want := range []string{"建于", "studio", "/w/hoplet", "s1", "复制会话 ID"} {
+		if !tt.HasText(want) && !strings.Contains(strings.Join(tt.Texts(), "|"), want) {
+			t.Errorf("no %q in %q", want, tt.Texts())
+		}
+	}
+	if !tt.HasText("消息") && !strings.Contains(strings.Join(tt.Texts(), "|"), "回复") {
+		t.Errorf("the composer stays beside the details: %q", tt.Texts())
+	}
+}
