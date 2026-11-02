@@ -49,7 +49,7 @@ func TestTurn(t *testing.T) {
 		t.Fatal("not running")
 	}
 	items := c.Items()
-	if want := []Kind{KindMine, KindTurn, KindWork, KindText}; !reflect.DeepEqual(kinds(items), want) {
+	if want := []Kind{KindTurn, KindMine, KindWork, KindText}; !reflect.DeepEqual(kinds(items), want) {
 		t.Fatalf("kinds %v, want %v", kinds(items), want)
 	}
 	if w := items[2].Work; len(w.Entries) != 2 || w.Entries[1].Duration() != time.Second || w.Running || w.Failed != 0 {
@@ -69,10 +69,10 @@ func TestTurn(t *testing.T) {
 		t.Fatalf("pending %+v", got)
 	}
 	items = c.Items()
-	if want := []Kind{KindMine, KindTurn, KindWork, KindText, KindWork, KindApproval, KindMine}; !reflect.DeepEqual(kinds(items), want) {
+	if want := []Kind{KindTurn, KindMine, KindWork, KindText, KindWork, KindApproval, KindMine}; !reflect.DeepEqual(kinds(items), want) {
 		t.Fatalf("kinds %v, want %v", kinds(items), want)
 	}
-	if items[3].Text != "Found it." || items[3].Streaming || !items[6].Steer || items[0].Steer {
+	if items[3].Text != "Found it." || items[3].Streaming || !items[6].Steer || items[1].Steer {
 		t.Fatalf("items %+v", items)
 	}
 	if w := items[4].Work; !w.Running {
@@ -88,14 +88,14 @@ func TestTurn(t *testing.T) {
 		proto.TurnEnded{Reason: proto.TurnInterrupted},                                                             // 17
 	)})
 	items = c.Items()
-	if want := []Kind{KindMine, KindTurn, KindWork, KindText, KindWork, KindApproval, KindMine, KindError, KindStopped, KindChanges}; !reflect.DeepEqual(kinds(items), want) {
+	if want := []Kind{KindTurn, KindMine, KindWork, KindText, KindWork, KindApproval, KindMine, KindError, KindStopped, KindChanges}; !reflect.DeepEqual(kinds(items), want) {
 		t.Fatalf("kinds %v, want %v", kinds(items), want)
 	}
 	if c.Running() || len(c.Pending()) != 0 {
 		t.Fatalf("after the turn: running %v, pending %+v", c.Running(), c.Pending())
 	}
-	if items[1].Duration != 15*time.Second {
-		t.Fatalf("turn took %v", items[1].Duration)
+	if items[0].Duration != 15*time.Second {
+		t.Fatalf("turn took %v", items[0].Duration)
 	}
 	if w := items[4].Work; w.Running || w.Failed != 1 {
 		t.Fatalf("finished group %+v", w)

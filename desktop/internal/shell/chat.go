@@ -38,7 +38,7 @@ func (a *App) chat(c *ui.Context, k theme.Colors, s proto.Session, items []convo
 			// The work trace lines up with the bubbles, past the avatar.
 			ui.Row(c).Padding(0, 0, 0, 38).Height(22).Gap(12).AlignItems(ui.Center).Children(func() {
 				w := it.Work
-				theme.UI.On(ui.Text(c, summary(w))).TextColor(k.Fg3).SingleLine().Shrink(1)
+				theme.UI.On(ui.Text(c, summary(w))).TextColor(k.Muted).SingleLine().Shrink(1)
 				if w.Failed > 0 {
 					theme.Caption.On(ui.Text(c, "✕")).TextColor(k.Fg).FontWeight(600)
 				}

@@ -293,10 +293,12 @@ func (a *App) answer(s proto.Session, q proto.Question, text string) {
 func (a *App) approvalBody(c *ui.Context, k theme.Colors, s proto.Session, ap proto.ApprovalRequested, n int) {
 	ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 		ui.Icon(c, a.approvalIcon(ap.Kind)).FontSize(theme.IconSize).TextColor(k.AttnFg)
-		theme.UIStrong.On(ui.Text(c, ap.Title)).TextColor(k.Fg).SingleLine().Grow(1).Shrink(1)
-		if n > 1 {
-			ui.Textf(c, "1 / %d", n).Font(theme.Mono).FontSize(11).TextColor(k.Muted)
+		title := ap.Title
+		if ap.Kind == proto.ApprovalCommand {
+			title = "运行命令" // the command itself shows below
 		}
+		theme.UIStrong.On(ui.Text(c, title)).TextColor(k.AttnFg).SingleLine().Grow(1).Shrink(1).Tooltip(ap.Title)
+		ui.Textf(c, "1 / %d", n).Font(theme.Mono).FontSize(11).TextColor(k.Muted)
 	})
 	if ap.Detail != "" {
 		ui.Text(c, ap.Detail).Font(theme.Mono).FontSize(12.5).TextColor(k.Fg2).FontFeatures("liga=0").MaxLines(8).

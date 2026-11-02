@@ -257,7 +257,15 @@ func (b *builder) work(ev proto.Event) *Work {
 func (b *builder) event(ev proto.Event, p proto.Payload) {
 	switch p := p.(type) {
 	case proto.TurnStarted:
-		b.turnAt = b.add(Item{Kind: KindTurn, Key: key("turn", ev.Seq), Time: ev.Time, Turn: ev.Turn})
+		turn := Item{Kind: KindTurn, Key: key("turn", ev.Seq), Time: ev.Time, Turn: ev.Turn}
+		if n := len(b.items); n > 0 && b.items[n-1].Kind == KindMine {
+			// The separator heads the turn, above the message that
+			// started it. Nothing holds the index of that message yet.
+			b.items = slices.Insert(b.items, n-1, turn)
+			b.turnAt = n - 1
+		} else {
+			b.turnAt = b.add(turn)
+		}
 		b.sawReply, b.files, b.asked = false, nil, nil
 	case proto.TurnEnded:
 		if b.turnAt >= 0 {

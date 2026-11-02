@@ -75,7 +75,7 @@ func (a *App) item(c *ui.Context, k theme.Colors, s proto.Session, it convo.Item
 	case convo.KindTurn:
 		label := clock(it.Time)
 		if it.Duration > 0 {
-			label += " · " + duration(it.Duration)
+			label += " · 用时 " + duration(it.Duration)
 		}
 		separator(c, k, label)
 	case convo.KindMine:
@@ -185,7 +185,7 @@ func mdTheme(c *ui.Context, k theme.Colors) *markdown.Theme {
 	th.CodeFont = theme.Mono
 	th.Text, th.Muted, th.Link = k.Fg, k.Muted, k.AccentFg
 	th.CodeBackground = k.Fill
-	th.CodeBlockBackground, th.CodeBlockBorder, th.CodeBlockRadius = k.Fill, k.Line, theme.RadiusCard
+	th.CodeBlockBackground, th.CodeBlockBorder, th.CodeBlockRadius = k.Bg, k.Line, theme.RadiusCard
 	return th
 }
 
@@ -200,15 +200,19 @@ func (a *App) codeBlock(k theme.Colors) func(c *ui.Context, b *markdown.CodeBloc
 		long := strings.Count(code, "\n") > codeLines
 		id := fmt.Sprintf("code:%p:%d", b, b.Index)
 		open := a.s.open[id]
-		ui.Column(c).AlignSelf(ui.Stretch).Radius(theme.RadiusCard).Border(1, k.Line).Background(k.Fill).Clip().Children(func() {
-			ui.Row(c).Height(30).Padding(0, 4, 0, 12).AlignItems(ui.Center).Children(func() {
+		ui.Column(c).AlignSelf(ui.Stretch).Radius(theme.RadiusCard).Border(1, k.Line).Background(k.Bg).Clip().Children(func() {
+			ui.Row(c).Height(30).Padding(0, 4, 0, 12).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(k.Line).Children(func() {
 				theme.Caption.On(ui.Text(c, b.Language)).TextColor(k.Muted).Grow(1)
 				if long {
 					tip := "展开"
 					if open {
 						tip = "折叠"
 					}
-					if iconButton(c, k, a.icons.Expand, tip, false).Size(24, 24).Clicked() {
+					icon := a.icons.Unfold
+					if open {
+						icon = a.icons.Fold
+					}
+					if iconButton(c, k, icon, tip, false).Size(24, 24).Clicked() {
 						a.s.open[id] = !open
 					}
 				}
@@ -259,10 +263,14 @@ func (a *App) work(c *ui.Context, k theme.Colors, s proto.Session, it convo.Item
 				chev.Rotate(90)
 			}
 			theme.UI.On(ui.Text(c, summary(w))).TextColor(k.Fg3).SingleLine().Shrink(1)
+			ui.Spacer(c)
+			// Failures sit at the end, before the time.
 			if w.Failed > 0 {
 				theme.Caption.On(ui.Textf(c, "✕ %d 个失败", w.Failed)).TextColor(k.Fg).FontWeight(600)
+				if !w.Running {
+					ui.Text(c, "·").FontSize(11).TextColor(k.Faint)
+				}
 			}
-			ui.Spacer(c)
 			if !w.Running {
 				ui.Text(c, duration(w.End.Sub(w.Start))).Font(theme.Mono).FontSize(11).TextColor(k.Faint)
 			}
@@ -372,15 +380,16 @@ func (a *App) workStep(c *ui.Context, k theme.Colors, s proto.Session, e convo.E
 			}
 			theme.UI.On(ui.Text(c, verb)).TextColor(k.Fg).FontWeight(500)
 			ui.Text(c, tc.Summary).Font(theme.Mono).FontSize(12).TextColor(k.Fg3).FontFeatures("liga=0").SingleLine().Shrink(1)
+			if tc.Status == proto.ToolFailed {
+				// Right after what failed; "✕ 退出码 N" once harnesses
+				// report the exit code.
+				ui.Text(c, "✕").Font(theme.Mono).FontSize(11).FontWeight(600).TextColor(k.Fg)
+			}
 			ui.Spacer(c)
 			switch {
 			case tc.Status == proto.ToolRunning:
 				ui.Text(c, duration(c.Now().Sub(e.Start))+"…").Font(theme.Mono).FontSize(11).TextColor(k.Faint)
 				c.After(time.Second)
-			case tc.Status == proto.ToolFailed:
-				// "✕ 退出码 N" once harnesses report the exit code.
-				ui.Text(c, "✕").Font(theme.Mono).FontSize(11).FontWeight(600).TextColor(k.Fg)
-				ui.Text(c, duration(e.Duration())).Font(theme.Mono).FontSize(11).TextColor(k.Faint)
 			case hovered:
 				ui.Text(c, duration(e.Duration())).Font(theme.Mono).FontSize(11).TextColor(k.Faint)
 			}
