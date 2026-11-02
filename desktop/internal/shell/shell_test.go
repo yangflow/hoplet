@@ -27,6 +27,7 @@ type host struct {
 	followed   []proto.SessionID
 	created    func(proto.Session) // the pending Create's done
 	outputs    map[string]proto.ToolOutput
+	outputErrs map[string]error
 	models     []proto.HarnessInfo
 	folder     string
 }
@@ -55,10 +56,12 @@ func (h *host) SetModel(p proto.SetModelParams)           { h.calls = append(h.c
 func (h *host) EditQueued(p proto.QueueEditParams)        { h.calls = append(h.calls, p) }
 func (h *host) DeleteQueued(p proto.QueueKeyParams)       { h.calls = append(h.calls, p) }
 func (h *host) MoveQueued(p proto.QueueMoveParams)        { h.calls = append(h.calls, p) }
-func (h *host) Output(p proto.OutputParams, done func(proto.ToolOutput)) {
+func (h *host) Output(p proto.OutputParams, done func(proto.ToolOutput, error)) {
 	h.calls = append(h.calls, p)
-	if o, ok := h.outputs[p.ToolCall]; ok {
-		done(o)
+	if err, ok := h.outputErrs[p.ToolCall]; ok {
+		done(proto.ToolOutput{}, err)
+	} else if o, ok := h.outputs[p.ToolCall]; ok {
+		done(o, nil)
 	}
 }
 func (h *host) Older(id proto.SessionID, before uint64, _ func(proto.EventsPage)) {

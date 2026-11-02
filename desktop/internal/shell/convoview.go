@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/markdown"
@@ -47,16 +48,13 @@ func (a *App) conversation(c *ui.Context, k theme.Colors, s proto.Session) {
 						a.chat(c, k, s, items, cv.Running())
 						return
 					}
-					for _, it := range items {
-						a.item(c.Key(it.Key), k, s, it)
-					}
+					a.items(c, k, s, items, cv.Running())
 				})
 			})
 		})
 		if atEnd {
 			sc.Y = math.MaxFloat32
-		} else if iconButton(c, k, a.icons.ToBottom, "回到底部 ⌘↓", false).Absolute().Bottom(8).Left(0).Right(0).Margin(0, ui.Auto).
-			Background(k.Raised).Radius(theme.RadiusPill).Clicked() {
+		} else if a.toBottom(c, k, cv.Running()) {
 			sc.Y = math.MaxFloat32
 		}
 	})
@@ -69,15 +67,83 @@ func (a *App) conversation(c *ui.Context, k theme.Colors, s proto.Session) {
 	})
 }
 
+// items draws a Code conversation. Turns are not marked: your messages part
+// them, and only a turn on another day than the one before it gets a day
+// line. While the harness has not answered your last message yet, a
+// thinking row stands in for its answer.
+func (a *App) items(c *ui.Context, k theme.Colors, s proto.Session, items []convo.Item, running bool) {
+	var day string
+	var waiting *convo.Item
+	for i, it := range items {
+		switch it.Kind {
+		case convo.KindTurn:
+			d := dayLabel(c.Now(), it.Time)
+			if day != "" && d != day {
+				dayLine(c.Key("day:"+it.Key), k, d)
+			}
+			day = d
+			continue
+		case convo.KindMine:
+			waiting = &items[i]
+		default:
+			waiting = nil
+		}
+		a.item(c.Key(it.Key), k, s, it)
+	}
+	if running && waiting != nil {
+		ui.Row(c.Key("thinking")).Height(24).Gap(8).AlignItems(ui.Center).Children(func() {
+			ui.Icon(c, a.icons.Thinking).FontSize(theme.IconSizeInRow).TextColor(k.Muted)
+			theme.UI.On(ui.Text(c, "思考中")).TextColor(k.Muted)
+			ui.Text(c, duration(c.Now().Sub(waiting.Time))+"…").Font(theme.Mono).FontSize(11).TextColor(k.Faint)
+			c.After(time.Second)
+		})
+	}
+}
+
+// toBottom is the button over the composer that scrolls to the end; while
+// the harness is answering, three dots light in turn in place of its
+// arrow. It reports whether it was clicked.
+func (a *App) toBottom(c *ui.Context, k theme.Colors, running bool) bool {
+	b := ui.Button(c, "").Label("回到底部").Tooltip("回到底部 ⌘↓").Size(32, 32).Padding(0).Radius(16).
+		Background(k.Popover).Border(1, k.Line2).Shadow(0, 6, 18, 0, k.Shadow).
+		Absolute().Bottom(8).Left(0).Right(0).Margin(0, ui.Auto)
+	hovered := b.Hovered()
+	b.Children(func() {
+		in := ui.Box(c).Fill().Radius(16).AlignItems(ui.Center).Justify(ui.Center)
+		if hovered {
+			in.Background(k.Fill2)
+		}
+		in.Children(func() {
+			if !running {
+				ui.Icon(c, a.icons.ToBottom).FontSize(14).TextColor(k.Fg2)
+				return
+			}
+			still := c.Preferences().ReduceMotion
+			ui.Box(c).Size(18, 4).Draw(func(p *ui.Painter, r ui.Rect) {
+				t := p.Now().Sub(time.Time{}).Seconds()
+				for i := range 3 {
+					lit := float32([3]float64{1, 0.6, 0.3}[i])
+					if !still {
+						// Each dot falls from full to 30% and back in
+						// 1.2 seconds, a third of the way after the one
+						// before it.
+						f := math.Mod(t/1.2-float64(i)/3, 1)
+						lit = float32(0.3 + 0.7*(0.5+0.5*math.Cos(2*math.Pi*f)))
+					}
+					p.Fill(ui.Rect{X: r.X + float32(i)*7, Y: r.Y, W: 4, H: 4}, k.AccentFg.Alpha(lit), 2)
+				}
+				if !still {
+					p.AnimationFrame()
+				}
+			})
+		})
+	})
+	return b.Clicked()
+}
+
 // item draws one item of a Code conversation.
 func (a *App) item(c *ui.Context, k theme.Colors, s proto.Session, it convo.Item) {
 	switch it.Kind {
-	case convo.KindTurn:
-		label := clock(it.Time)
-		if it.Duration > 0 {
-			label += " · 用时 " + duration(it.Duration)
-		}
-		separator(c, k, label)
 	case convo.KindMine:
 		a.mine(c, k, it)
 	case convo.KindText:
@@ -362,63 +428,123 @@ func (a *App) workStep(c *ui.Context, k theme.Colors, s proto.Session, e convo.E
 	}
 	tc := *e.Tool
 	key := "out:" + string(s.ID) + ":" + tc.ID
+	// A tool still running after its turn ended will not be reported done.
+	unfinished := tc.Status == proto.ToolRunning && !a.conv(s.ID).Running()
+	running := tc.Status == proto.ToolRunning && !unfinished
+	failed := tc.Status == proto.ToolFailed
+	long := utf8.RuneCountInString(tc.Summary) > inputRunes || strings.Contains(tc.Summary, "\n")
+	opens := tc.Output != nil || failed || long
 	open, set := a.s.open[key]
 	if !set {
-		open = tc.Status == proto.ToolFailed
+		open = failed
 	}
+	open = open && opens
 	if open && tc.Output != nil {
-		if _, ok := a.s.outputs[key]; !ok {
-			a.s.outputs[key] = nil // asked
-			a.host.Output(proto.OutputParams{Session: s.ID, ToolCall: tc.ID}, func(o proto.ToolOutput) { a.s.outputs[key] = &o })
-		}
+		a.loadOutput(s, tc, key)
 	}
 	ui.Column(c).Children(func() {
 		r := ui.Row(c).Height(24).Gap(8).AlignItems(ui.Center)
 		hovered := r.Hovered()
-		if tc.Output != nil && r.Clicked() {
+		if opens && r.Clicked() {
 			a.s.open[key] = !open
 		}
 		r.Children(func() {
 			icon, verb := a.action(tc)
-			if tc.Status == proto.ToolRunning {
+			if running {
 				ui.Spinner(c).Size(14, 14)
 			} else {
 				ui.Icon(c, icon).FontSize(theme.IconSizeInRow).TextColor(k.Fg3)
 			}
 			theme.UI.On(ui.Text(c, verb)).TextColor(k.Fg).FontWeight(500)
-			ui.Text(c, tc.Summary).Font(theme.Mono).FontSize(12).TextColor(k.Fg3).FontFeatures("liga=0").SingleLine().Shrink(1)
-			if tc.Status == proto.ToolFailed {
+			ui.Text(c, firstLine(tc.Summary)).Font(theme.Mono).FontSize(12).TextColor(k.Fg3).FontFeatures("liga=0").SingleLine().Shrink(1)
+			if failed {
 				// Right after what failed; "✕ 退出码 N" once harnesses
 				// report the exit code.
 				ui.Text(c, "✕").Font(theme.Mono).FontSize(11).FontWeight(600).TextColor(k.Fg)
 			}
 			ui.Spacer(c)
 			switch {
-			case tc.Status == proto.ToolRunning:
+			case unfinished:
+				ui.Text(c, "未完成").Font(theme.Mono).FontSize(11).TextColor(k.Faint)
+			case running:
 				ui.Text(c, duration(c.Now().Sub(e.Start))+"…").Font(theme.Mono).FontSize(11).TextColor(k.Faint)
 				c.After(time.Second)
 			case hovered:
 				ui.Text(c, duration(e.Duration())).Font(theme.Mono).FontSize(11).TextColor(k.Faint)
 			}
 		})
-		if open {
-			a.output(c, k, key)
+		if !open {
+			return
 		}
+		if long {
+			ui.Text(c, tc.Summary).Font(theme.Mono).FontSize(12).LineHeight(18.0/12).TextColor(k.Fg2).
+				FontFeatures("liga=0").Margin(2, 0, 4, 22).Selectable()
+		}
+		switch {
+		case tc.Output != nil:
+			a.output(c, k, key, func() { a.loadOutput(s, tc, key) })
+		case failed:
+			ui.Row(c).Margin(2, 0, 4, 22).Gap(6).AlignItems(ui.Center).Children(func() {
+				ui.Icon(c, a.icons.Failed).FontSize(13).TextColor(k.Muted)
+				theme.Secondary.On(ui.Text(c, "失败，harness 没给出原因")).TextColor(k.Muted)
+			})
+		}
+	})
+}
+
+// inputRunes is how long a tool's input may be and still show whole in
+// its row; a longer one is written out when the row opens.
+const inputRunes = 48
+
+// firstLine is s up to its first line end.
+func firstLine(s string) string {
+	if i := strings.IndexByte(s, '\n'); i >= 0 {
+		return s[:i]
+	}
+	return s
+}
+
+// loadOutput asks the daemon once for a tool's output; why it could not
+// be read is kept for its box.
+func (a *App) loadOutput(s proto.Session, tc proto.ToolCall, key string) {
+	if _, asked := a.s.outputs[key]; asked {
+		return
+	}
+	a.s.outputs[key] = nil
+	delete(a.s.outputErr, key)
+	a.host.Output(proto.OutputParams{Session: s.ID, ToolCall: tc.ID}, func(o proto.ToolOutput, err error) {
+		if err != nil {
+			a.s.outputErr[key] = err.Error()
+			return
+		}
+		a.s.outputs[key] = &o
 	})
 }
 
 // outputLines is how many lines of an output show before showing all.
 const outputLines = 12
 
-// output draws a tool's output in a box: its first lines, then a bar
+// output draws a tool's output in a box, or why it could not be read
+// with retry: its first lines, then a bar
 // saying how many remain or that the daemon kept only the start, with
 // show all or fold back, and copy. A short output that is all there has no
 // bar; its copy button shows on hover.
-func (a *App) output(c *ui.Context, k theme.Colors, key string) {
+func (a *App) output(c *ui.Context, k theme.Colors, key string, retry func()) {
 	o := a.s.outputs[key]
 	box := ui.Column(c).Margin(4, 0, 4, 22).Radius(8).Border(1, k.Line).Background(k.Bg2).Clip()
 	hovered := box.Hovered()
 	box.Children(func() {
+		if why, ok := a.s.outputErr[key]; ok {
+			ui.Row(c).Padding(4, 4, 4, 12).Gap(8).AlignItems(ui.Center).Children(func() {
+				ui.Icon(c, a.icons.Failed).FontSize(13).TextColor(k.Muted)
+				theme.Secondary.On(ui.Text(c, "没取到输出："+why)).TextColor(k.Muted).Grow(1).Shrink(1)
+				if iconButton(c, k, a.icons.Reconnect, "重试", false).Size(24, 24).Clicked() {
+					delete(a.s.outputs, key)
+					retry()
+				}
+			})
+			return
+		}
 		if o == nil {
 			ui.Box(c).Padding(8, 12).Children(func() { ui.Spinner(c).Size(12, 12) })
 			return

@@ -23,10 +23,11 @@ type sessionView struct {
 	outbox    []proto.SendParams // messages written while offline, in order
 	harnesses []proto.HarnessInfo
 
-	open    map[string]bool              // work groups, tool rows and code blocks I opened or closed
-	outputs map[string]*proto.ToolOutput // loaded tool outputs, by session and call
-	scroll  ui.ScrollState
-	md      markdown.Options
+	open      map[string]bool              // work groups, tool rows and code blocks I opened or closed
+	outputs   map[string]*proto.ToolOutput // loaded tool outputs, by session and call
+	outputErr map[string]string            // why a tool output could not be read
+	scroll    ui.ScrollState
+	md        markdown.Options
 
 	permOpen, effortOpen, detailOpen, dirOpen bool
 	pick                                      int                  // the highlighted option of the approval shown
@@ -60,7 +61,7 @@ type newChoice struct {
 func newSessionView() sessionView {
 	return sessionView{
 		convos: map[proto.SessionID]*convo.Convo{}, drafts: map[proto.SessionID]string{},
-		open: map[string]bool{}, outputs: map[string]*proto.ToolOutput{}, hidden: map[string]bool{}, copied: map[string]time.Time{},
+		open: map[string]bool{}, outputs: map[string]*proto.ToolOutput{}, outputErr: map[string]string{}, hidden: map[string]bool{}, copied: map[string]time.Time{},
 		diffs: map[proto.SessionID]*diffState{}, flash: map[proto.SessionID]bool{},
 	}
 }

@@ -1,6 +1,7 @@
 package shell
 
 import (
+	"errors"
 	"reflect"
 	"strings"
 	"testing"
@@ -481,5 +482,83 @@ func TestEffortDefault(t *testing.T) {
 	tt.Frame()
 	if a.s.newPick.run.effort == "" {
 		t.Fatal("the keys choose no level")
+	}
+}
+
+func TestThinkingRow(t *testing.T) {
+	a, _, tt, _ := newApp(t)
+	selectRunning(t, a, tt)
+	if !tt.HasText("思考中") {
+		t.Fatalf("no thinking row while the harness has not answered: %q", tt.Texts())
+	}
+	if tt.HasText("用时") {
+		t.Fatalf("turns are not marked: %q", tt.Texts())
+	}
+	a.ApplySession("s1", proto.SessionItem{Events: events(t, tt.Now(), 3, 1, proto.Message{ID: "m1", Role: proto.RoleAssistant, Text: "on it"})})
+	tt.Frame()
+	if tt.HasText("思考中") {
+		t.Fatalf("thinking row stays after the answer: %q", tt.Texts())
+	}
+}
+
+func TestToolRowStates(t *testing.T) {
+	a, h, tt, _ := newApp(t)
+	tt.SetSize(1200, 900)
+	h.outputErrs = map[string]error{"t2": errors.New("连接断了")}
+	out := &proto.BlobRef{SHA256: "x", Size: 34}
+	long := "go test ./internal/session/... -run TestHeartbeat -count=1 2>&1 | tail -20"
+	selectRunning(t, a, tt,
+		proto.ToolCall{ID: "t1", Kind: proto.ToolWeb, Name: "WebFetch", Summary: "https://example.com", Status: proto.ToolFailed},
+		proto.ToolCall{ID: "t2", Kind: proto.ToolExec, Name: "Bash", Summary: long, Status: proto.ToolFailed, Output: out},
+		proto.ToolCall{ID: "t3", Kind: proto.ToolWeb, Name: "WebFetch", Summary: "https://example.com/slow", Status: proto.ToolRunning},
+	)
+	tt.Frame()
+	for _, want := range []string{"失败，harness 没给出原因", "没取到输出：连接断了", long} {
+		if !tt.HasText(want) {
+			t.Errorf("no %q in %q", want, tt.Texts())
+		}
+	}
+	delete(h.outputErrs, "t2")
+	h.outputs = map[string]proto.ToolOutput{"t2": {Text: "FAIL\n", Size: 5}}
+	if err := tt.Click("重试"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if !tt.HasText("FAIL") {
+		t.Fatalf("retry shows no output: %q", tt.Texts())
+	}
+	if tt.HasText("未完成") {
+		t.Fatalf("a running tool is unfinished while its turn runs: %q", tt.Texts())
+	}
+	a.ApplySession("s1", proto.SessionItem{Events: events(t, tt.Now(), 6, 1, proto.TurnEnded{Reason: proto.TurnInterrupted})})
+	tt.Frame()
+	if !tt.HasText("未完成") {
+		t.Fatalf("no 未完成 after the turn ended: %q", tt.Texts())
+	}
+}
+
+func TestModelProviders(t *testing.T) {
+	a, h, tt, _ := newApp(t)
+	h.models = []proto.HarnessInfo{{Kind: "hermes", Supported: true, Capabilities: proto.Capabilities{SetModel: true},
+		Models: []proto.ModelInfo{
+			{ID: "codex/a", Provider: "openai-codex", ProviderName: "OpenAI Codex", Name: "codex/a", Default: true},
+			{ID: "codex/b", Provider: "openai-codex", ProviderName: "OpenAI Codex", Name: "codex/b"},
+			{ID: "h4", Provider: "nous", ProviderName: "Nous Portal", Name: "Hermes 4 70B"},
+		}}}
+	a.NewSession()
+	tt.Frame()
+	if err := tt.Click("强度与模型"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("换模型"); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText("OpenAI Codex") || !tt.HasText("Nous Portal") {
+		t.Fatalf("no provider headers: %q", tt.Texts())
+	}
+	tt.Type("hermes")
+	tt.Frame()
+	if tt.HasText("OpenAI Codex") || !tt.HasText("Nous Portal") {
+		t.Fatalf("search keeps only the matching provider: %q", tt.Texts())
 	}
 }

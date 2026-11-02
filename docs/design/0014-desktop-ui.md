@@ -23,7 +23,7 @@ flowchart LR
 |---|---|
 | 顶行 | 红绿灯 · 收起侧栏 ⌃⌘S · 后退 ⌘[ · 前进 ⌘] · 右侧模式切换（只用图标：左 Personal 对话气泡 ⌘1，右 Code `</>` ⌘2） |
 | 入口 | 新建 · 搜索（⌘K）· 收件箱（角标 = 需要你的数量）。图标 + 文字，不写快捷键 |
-| Code 列表 | 标题行"全部机器 ▾"（范围）+ 排列菜单（排序：最近更新 / 创建时间 / 名称；显示：全部 / 需要我处理的 / 运行中）；置顶分区；按**工作目录**分组（文件夹图标 · 目录名 · 右侧 ＋ 在此目录新建会话） |
+| Code 列表 | 标题行"全部机器 ▾"（范围）+ 排列菜单（排序：最近更新 / 创建时间 / 名称；显示：全部 / 需要我处理的 / 运行中）；置顶分区；按**工作目录**分组（文件夹图标 · 目录名 · 右侧 ＋ 在此目录新建会话：平时半透明，指针在标题上时变实不加底，指针在 ＋ 上才加底） |
 | Personal 列表 | 标题行"全部机器 ▾" + ＋ 新建伙伴；伙伴两行：头像（首字、中性灰底，右下 harness 角标）· 名字 · 最近一条消息预览 |
 | 底部 44 | 本机身份按钮（电脑图标 · 本机名（系统主机名，不另起名字） · 连接图标，断开时换成带斜线的）· 归档（Code）/ 个人档案（Personal）· 设置 |
 
@@ -37,10 +37,12 @@ flowchart LR
 
 **Code 对话：**
 
-- 分隔线：时间 · 用时 · +/−（不写"第 N 轮"）。
+- 轮与轮之间不画分隔线、不写时间和用时：靠你的气泡分开；几点发的悬停你的消息就能看到，用时在工作组摘要右端，改动看回复末尾的"改了 N 个文件"。隔天才在那一轮前加日期线（今天 / 昨天 / 周几 / 日期）；"已停止 · 时间"分隔线保留。
+- 等第一段输出：会话在运行、你最后一条消息后面还没有任何东西时，一行 24 高：思考图标 ·"思考中"· 已用时间"12 秒…"（每秒更新）；第一段输出到了就换成它，停止、出错时去掉，不做动画。
+- 回到底部：对话没在最底部时，输入框上方居中浮一个 32 圆按钮（`popover` 底、`line2` 边、弹层阴影、向下箭头 `fg2`）；还在回答时箭头换成三个 `accent-fg` 小点轮流亮（一圈 1.2 秒，减少动态效果时不动）。
 - 你的消息：右对齐灰气泡；悬停时在气泡左边、底边对齐出现时间、编辑并重发（最后一条）、复制、分叉，不占位置。
 - 工作组：两段回复正文之间的思考和工具调用合成一组。完成后折叠成一行摘要（"思考 · 读取 4 个文件 · 搜索 1 次" · 总耗时）；展开是带左侧细线的树。运行中只显示最近 3 条；有失败时保持展开，摘要标"✕ N 个失败"（等宽 600，`fg`）。
-- 工具行 24 高：动作图标（读取 / 搜索 / 编辑 / 写入 / 运行 / 抓取网页 / MCP / 子任务）· 动词 · 对象（等宽）。耗时悬停才显示；运行中显示"12 秒…"。失败时保留动作图标，紧跟对象后面加"✕ 退出码 N"（等宽 11、600、`fg`，不用玫红；harness 没给退出码时只写"✕"），输出自动展开（先显示 12 行，"还有 N 行"）。
+- 工具行 24 高：动作图标（读取 / 搜索 / 编辑 / 写入 / 运行 / 抓取网页 / MCP / 子任务）· 动词 · 对象（等宽）。耗时悬停才显示；运行中显示"12 秒…"。失败时保留动作图标，紧跟对象后面加"✕ 退出码 N"（等宽 11、600、`fg`，不用玫红；harness 没给退出码时只写"✕"），输出自动展开（先显示 12 行，"还有 N 行"）。展开时先写完整的输入（对象超过 48 个字符或有多行时），再是输出；失败且没有输出写"失败，harness 没给出原因"，不画空框；取输出最多等 10 秒，取不到在框里写"没取到输出：原因"带重试，不弹提示条；一轮结束了工具还没报完，转圈换回图标、行尾写"未完成"。
 - 代码块：头部语言 + 展开 / 复制图标。改动卡：回复末尾"改了 N 个文件"，点文件在右栏打开 diff。
 - 审批记录：盾牌✓ 已允许 / 盾牌✕ 已拒绝 · 对象 · 理由；谁、哪台设备、何时悬停才显示。
 - 插话：虚线气泡，上方插入箭头 + 送达时间。出错：警告图标 · 一句话 · 一个图标按钮（重试 / 压缩并重试 / 重新连接）。
@@ -120,7 +122,7 @@ flowchart LR
 |---|---|
 | 主题 | `ui.Theme`：Surface / SurfaceHover = `fill` / `fill2`，Border = `line2`，Text / TextMuted = `fg` / `muted`，Accent / AccentText = `accent` / `on-accent`，Warning = `attn`，Success / Danger = `add` / `del`，Focus = `accent-fg`，Radius 7，Spacing 4，FontSize 13；其余语义色放在应用自己的主题包里，按 `Theme.Dark` 取值 |
 | 玻璃 | 透出桌面靠窗口材质：`Vibrancy: VibrancyUnderWindow` + `TitleBarHiddenInset`，根节点不铺底；侧栏、正文区、右列只铺各自的半透明 token（`side` / `pane`）。`glass.Glass{}` 只模糊窗口自己画在下面的内容，而且在浅色下会把底色压暗；输入框在对话下方、不叠在内容上，只铺 `glass` token |
-| 组件 | 侧栏的行自己画（`ui.Row` + 悬停 / 点击 / 右键菜单）：`ui.SidebarItem` 获得焦点时用强调色填满选中行，违反“选中用中性灰”；分段 `ui.Segmented`；标签 `ui.Tabs`；拖动宽度 `ui.Split`；对话正文 `markdown.Stream`；diff `editor.DiffView`；文件树 `ui.Tree`；弹层 `ui.PopoverBase` 加自己的外框（`popover` 底、圆角 10、内边距 6、弹层阴影），用 `AttachTo` 贴着控件向上弹出，菜单项高 28、圆角 6；右键菜单、菜单栏仍用原生菜单；会话列表的 ↑↓ 选择自己做（可聚焦的列 + 元素上的 `Shortcut`，MyGO 自己的控件写法）：`ui.List` 的 `Selected` 同样用强调色填满选中行；排队托盘拖动排序用 `ListState.Reorder`；推理强度 `ui.SliderBase`（`Step(1)`）自己画（设计系统 EffortPopover）：28 高胶囊轨道（`sel`）从左填到滑块（`accent`）、每档一个 5 点圆点、28 圆滑块（和轨道一样高，`raised` + 阴影），滑块只停在档位上，用不回弹的弹簧（`AnimateTo`，约 0.3 秒）走过去，拖动经过几档时保持速度；没选档时写“默认”、不填不放滑块；极限档轨道换成 `ultra-from` → `ultra-to` 渐变、像素闪烁，进入时迸出的一圈像素淡得比慢得快、不在空中悬停，照 MyGO 的 `examples/effort-slider`；选择模型在同一个弹层里原地切换（ModelPicker：‹ 返回、harness 图标分段、搜索、列表）；新建页"Worktree"勾选 `ui.Checkbox`；提示条用 `c.AddToast` 加 `ui.ToastViewportBase` / `ui.ToastBase` 画外观；动效用 `Element.Jump` / `AnimateTo` / `AnimateColor` / `Transition`，不自己写计时器；悬停提示 `Element.Tooltip`；开关 `ui.Switch`；角标 `ui.Badge`；头像自己画（首字 + 中性灰底；`ui.Avatar` 按名字配彩色，违反“只有一种彩色”）；图标 `ui.Icon`（Lucide）/ `ui.Image`（Material） |
+| 组件 | 侧栏的行自己画（`ui.Row` + 悬停 / 点击 / 右键菜单）：`ui.SidebarItem` 获得焦点时用强调色填满选中行，违反“选中用中性灰”；分段 `ui.Segmented`；标签 `ui.Tabs`；拖动宽度 `ui.Split`；对话正文 `markdown.Stream`；diff `editor.DiffView`；文件树 `ui.Tree`；弹层 `ui.PopoverBase` 加自己的外框（`popover` 底、圆角 10、内边距 6、弹层阴影），用 `AttachTo` 贴着控件向上弹出，菜单项高 28、圆角 6；右键菜单、菜单栏仍用原生菜单；会话列表的 ↑↓ 选择自己做（可聚焦的列 + 元素上的 `Shortcut`，MyGO 自己的控件写法）：`ui.List` 的 `Selected` 同样用强调色填满选中行；排队托盘拖动排序用 `ListState.Reorder`；推理强度 `ui.SliderBase`（`Step(1)`）自己画（设计系统 EffortPopover）：28 高胶囊轨道（`sel`）从左填到滑块（`accent`）、每档一个 5 点圆点、28 圆滑块（和轨道一样高，`raised` + 阴影），滑块只停在档位上，用不回弹的弹簧（`AnimateTo`，约 0.3 秒）走过去，拖动经过几档时保持速度；没选档时写“默认”、不填不放滑块；极限档轨道换成 `ultra-from` → `ultra-to` 渐变、像素闪烁，进入时迸出的一圈像素淡得比慢得快、不在空中悬停，照 MyGO 的 `examples/effort-slider`；选择模型在同一个弹层里原地切换（ModelPicker：‹ 返回、harness 图标分段、搜索、列表；harness 给了供应商时按供应商分组）；新建页"Worktree"勾选 `ui.Checkbox`；提示条用 `c.AddToast` 加 `ui.ToastViewportBase` / `ui.ToastBase` 画外观；动效用 `Element.Jump` / `AnimateTo` / `AnimateColor` / `Transition`，不自己写计时器；悬停提示 `Element.Tooltip`；开关 `ui.Switch`；角标 `ui.Badge`；头像自己画（首字 + 中性灰底；`ui.Avatar` 按名字配彩色，违反“只有一种彩色”）；图标 `ui.Icon`（Lucide）/ `ui.Image`（Material） |
 | 菜单 | `mygo.NewMenu`（应用菜单、右键、Dock）、`mygo.NewTray`（`IconIsTemplate: true`） |
 
 ## M1 范围

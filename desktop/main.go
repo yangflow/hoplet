@@ -25,6 +25,9 @@ import (
 // callTimeout bounds one daemon request the window makes.
 const callTimeout = 30 * time.Second
 
+// outputTimeout is how long a tool's output box waits for it.
+const outputTimeout = 10 * time.Second
+
 func main() {
 	if err := run(); err != nil {
 		slog.Error("hoplet desktop", "err", err)
@@ -250,14 +253,25 @@ func (d *desktop) MoveQueued(p proto.QueueMoveParams) {
 }
 
 // Output implements shell.Host.
-func (d *desktop) Output(p proto.OutputParams, done func(proto.ToolOutput)) {
-	d.call(func(ctx context.Context, c *client.Client) error {
+// The output box says why it has no output, so a failed read is handed
+// back rather than shown as a toast.
+func (d *desktop) Output(p proto.OutputParams, done func(proto.ToolOutput, error)) {
+	d.mu.Lock()
+	c := d.c
+	d.mu.Unlock()
+	if c == nil {
+		done(proto.ToolOutput{}, errors.New("没有连上守护进程"))
+		return
+	}
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), outputTimeout)
+		defer cancel()
 		o, err := c.Output(ctx, p)
-		if err == nil {
-			d.ui(func() { done(o) })
+		if errors.Is(err, context.DeadlineExceeded) {
+			err = errors.New("等了 10 秒没有回应")
 		}
-		return err
-	})
+		d.ui(func() { done(o, err) })
+	}()
 }
 
 // Diff implements shell.Host.

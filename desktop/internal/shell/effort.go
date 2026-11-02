@@ -175,7 +175,8 @@ func twinkle(i int, t float64) float32 {
 // modelPage is the effort popover turned to the models: ‹ back, the
 // harnesses as icon tabs on the new-session page (one harness in a
 // session, which keeps it), a search, and the models of the harness;
-// choosing one applies it and closes the popover.
+// choosing one applies it and closes the popover. Models a harness gives a
+// provider for go under the provider's name.
 func (a *App) modelPage(c *ui.Context, k theme.Colors, st runSettings, cur *proto.ModelInfo, hs []proto.HarnessInfo, set settingsSink) {
 	var tabs []proto.HarnessInfo
 	for _, h := range hs {
@@ -268,6 +269,10 @@ func (a *App) modelPage(c *ui.Context, k theme.Colors, st runSettings, cur *prot
 	}
 	ui.Scroll(c.Key(h.Kind)).MaxHeight(8 * theme.RowHeight).Children(func() {
 		for i, m := range models {
+			// Models of a provider go under its name.
+			if m.ProviderName != "" && (i == 0 || models[i-1].ProviderName != m.ProviderName) {
+				ui.Text(c.Key("provider:"+m.Provider), m.ProviderName).FontSize(11).FontWeight(600).TextColor(k.Muted).Padding(6, 8, 2, 8)
+			}
 			r := menuItem(c.Key(i), k, i == pick).Height(theme.RowHeight).Padding(0, 8).Label(m.Name).Tooltip(m.Description)
 			if r.Clicked() {
 				choose(m)

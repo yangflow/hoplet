@@ -269,10 +269,13 @@ func (a *App) groupHeader(c *ui.Context, k theme.Colors, g catalog.Group) {
 	h.Children(func() {
 		ui.Icon(c, a.icons.Folder).FontSize(theme.IconSize).TextColor(k.Muted)
 		theme.UIStrong.On(ui.Text(c, g.Name)).TextColor(k.Fg3).SingleLine().Grow(1)
-		// ＋ starts a session in this directory: faint, darker with a
-		// background while the title is hovered.
-		plus := iconButton(c, k, a.icons.New, "在此目录新建会话", hovered).Size(22, 22)
-		if !hovered {
+		// ＋ starts a session in this directory: faint, solid while the
+		// title is hovered, with a background only under the pointer.
+		plus := iconButton(c, k, a.icons.New, "在此目录新建会话", false).Size(22, 22)
+		switch {
+		case plus.Hovered():
+			plus.Background(k.Fill2)
+		case !hovered:
 			plus.Opacity(0.5)
 		}
 		if plus.Clicked() {

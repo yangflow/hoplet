@@ -40,7 +40,7 @@ type Host interface {
 	EditQueued(p proto.QueueEditParams)
 	DeleteQueued(p proto.QueueKeyParams)
 	MoveQueued(p proto.QueueMoveParams)
-	Output(p proto.OutputParams, done func(proto.ToolOutput))
+	Output(p proto.OutputParams, done func(proto.ToolOutput, error))
 	// Diff reads a session's changes since it began, without patches.
 	Diff(id proto.SessionID, done func(proto.SessionDiff))
 	// Reconnect tries the daemon now rather than at the next retry.
