@@ -433,7 +433,7 @@ func TestToasts(t *testing.T) {
 	if !tt.HasText("再按一次 ⎋ 停止") {
 		t.Fatalf("no hint in %q", tt.Texts())
 	}
-	tt.Advance(hintFor + fadeTime)
+	tt.Advance(5 * time.Second)
 	if tt.HasText("再按一次 ⎋ 停止") {
 		t.Fatal("the hint stayed")
 	}

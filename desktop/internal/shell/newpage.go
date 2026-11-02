@@ -16,6 +16,11 @@ import (
 // (Personal); the bottom row has the permission mode and the effort and
 // model pill, where the harness is chosen with its model. Sending creates
 // the session and sends the message.
+//
+// Code has three states: no directory yet, where the directory chip
+// stands out and the recent directories wait below the composer; a
+// directory chosen; and offline, where the offline line replaces the
+// first line until the connection is back, the choices kept.
 func (a *App) newPage(c *ui.Context, k theme.Colors) {
 	pick := &a.s.newPick
 	if pick.run.harness == "" {
@@ -32,7 +37,6 @@ func (a *App) newPage(c *ui.Context, k theme.Colors) {
 			theme.Display.On(ui.Text(c, title)).TextColor(k.Fg)
 			box := ui.Column(c).FillWidth().Padding(12, 14, 10, 14).Gap(10).Radius(theme.RadiusComposer).
 				Background(k.Glass).Border(1, k.GlassLine).Shadow(0, 2, 10, 0, k.Shadow)
-			a.drawToast(c, k, &box)
 			if !a.connected {
 				// As the composer's offline state: I can write, but which
 				// harnesses and models there are is known only once
@@ -40,17 +44,15 @@ func (a *App) newPage(c *ui.Context, k theme.Colors) {
 				box.Border(1, k.Line2).BorderStyle(ui.BorderDashed)
 			}
 			box.Children(func() {
-				if !a.connected {
+				switch {
+				case !a.connected:
 					a.offlineLine(c, k, true)
+				case personal:
+					ui.TextInput(c, &pick.name).Placeholder("名字").Label("伙伴的名字").Width(160).Height(26).FontSize(12).
+						Padding(0, 8).Radius(theme.RadiusControl).Border(1, k.Line).Background(k.Bg)
+				default:
+					ui.Row(c).Gap(6).Wrap().AlignItems(ui.Center).Children(func() { a.dirChip(c, k, pick) })
 				}
-				ui.Row(c).Gap(6).Wrap().AlignItems(ui.Center).Children(func() {
-					if personal {
-						ui.TextInput(c, &pick.name).Placeholder("名字").Label("伙伴的名字").Width(160).Height(24).FontSize(12).
-							Padding(0, 8).Radius(theme.RadiusControl).Border(1, k.Line).Background(k.Fill)
-					} else {
-						a.dirChip(c, k, pick)
-					}
-				})
 				draft := a.s.drafts[""]
 				hint := "要做什么？"
 				switch {
@@ -58,6 +60,8 @@ func (a *App) newPage(c *ui.Context, k theme.Colors) {
 					hint = "连接后才能新建会话"
 				case personal:
 					hint = "和它说第一句话…"
+				case pick.dir == "":
+					hint = "先选工作目录"
 				}
 				in := ui.TextArea(c, &draft).Lines(1, 8).MinHeight(0).Placeholder(hint).Label("消息").AutoFocus().
 					FontSize(theme.Reading.Size()).Background(ui.Transparent).Border(0, ui.Transparent).Padding(0)
@@ -85,7 +89,38 @@ func (a *App) newPage(c *ui.Context, k theme.Colors) {
 					}
 				})
 			})
+			if !personal && a.connected && pick.dir == "" {
+				a.recentLine(c, k, pick)
+			}
 		})
+	})
+}
+
+// recentLine offers the last three working directories below the
+// composer, while none is chosen; one click chooses one.
+func (a *App) recentLine(c *ui.Context, k theme.Colors, pick *newChoice) {
+	dirs := a.recentDirs()
+	if len(dirs) == 0 {
+		return
+	}
+	ui.Row(c).Padding(0, 14).Gap(6).Wrap().AlignItems(ui.Center).Children(func() {
+		theme.Caption.On(ui.Text(c, "最近：")).TextColor(k.Muted)
+		for i, dir := range dirs[:min(len(dirs), 3)] {
+			if i > 0 {
+				theme.Caption.On(ui.Text(c, "·")).TextColor(k.Faint)
+			}
+			r := ui.Row(c.Key(dir)).Label(dir).Tooltip(dir)
+			color := k.Muted
+			if r.Hovered() {
+				color = k.Fg
+			}
+			if r.Clicked() {
+				pick.dir = dir
+			}
+			r.Children(func() {
+				ui.Text(c, tilde(dir)).Font(theme.Mono).FontSize(theme.Caption.Size()).TextColor(color)
+			})
+		}
 	})
 }
 
@@ -124,21 +159,26 @@ func (a *App) defaultHarness() string {
 }
 
 // dirChip shows the chosen working directory; it opens the directories of
-// existing sessions and the folder chooser.
+// existing sessions and the folder chooser. Before one is chosen it stands
+// out, as the first thing to do.
 func (a *App) dirChip(c *ui.Context, k theme.Colors, pick *newChoice) {
-	label := "选择工作目录"
-	if pick.dir != "" {
-		label = filepath.Base(pick.dir)
+	b := ui.Button(c, "").Label("工作目录").Tooltip(pick.dir).Height(26).Padding(0, 8).Gap(5).
+		Radius(theme.RadiusControl).Border(1, k.Line).Background(k.Bg)
+	label, color := tilde(pick.dir), k.Fg3
+	if pick.dir == "" {
+		label, color = "选择工作目录", k.Fg
+		b.Border(1, k.Line2)
 	}
-	b := ui.Button(c, "").Label("工作目录").Tooltip(pick.dir).Height(24).Padding(0, 8).Gap(5).
-		Radius(theme.RadiusControl).Border(1, k.Line).Background(k.Fill).Disabled(!a.connected)
 	if b.Clicked() {
 		a.s.dirOpen = !a.s.dirOpen
 	}
 	b.Children(func() {
-		ui.Icon(c, a.icons.Folder).FontSize(theme.IconSizeSmall).TextColor(k.Fg3)
-		ui.Text(c, label).Font(theme.Mono).FontSize(12).TextColor(k.Fg3)
-		ui.Icon(c, a.icons.Menu).FontSize(10).TextColor(k.Faint)
+		ui.Icon(c, a.icons.Folder).FontSize(13).TextColor(color)
+		text := theme.Secondary.On(ui.Text(c, label)).TextColor(color)
+		if pick.dir != "" {
+			text.Font(theme.Mono)
+		}
+		ui.Icon(c, a.icons.Menu).FontSize(11).TextColor(k.Faint)
 	})
 	popover(c, k, b, &a.s.dirOpen, false, 320, func() {
 		dirs := a.recentDirs()
@@ -159,14 +199,14 @@ func (a *App) dirChip(c *ui.Context, k theme.Colors, pick *newChoice) {
 		if len(dirs) > 0 {
 			menuSeparator(c, k)
 		}
-		r := menuItem(c, k, false).Label("选择文件夹…")
+		r := menuItem(c, k, false).Label("选择其他目录…")
 		if r.Clicked() {
 			a.s.dirOpen = false
 			a.host.ChooseFolder(func(dir string) { pick.dir = dir })
 		}
 		r.Children(func() {
 			ui.Icon(c, a.icons.New).FontSize(theme.IconSizeInRow).TextColor(k.Fg3)
-			theme.UI.On(ui.Text(c, "选择文件夹…")).TextColor(k.Fg)
+			theme.UI.On(ui.Text(c, "选择其他目录…")).TextColor(k.Fg)
 		})
 	})
 }

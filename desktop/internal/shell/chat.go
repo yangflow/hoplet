@@ -40,7 +40,7 @@ func (a *App) chat(c *ui.Context, k theme.Colors, s proto.Session, items []convo
 				w := it.Work
 				theme.UI.On(ui.Text(c, summary(w))).TextColor(k.Fg3).SingleLine().Shrink(1)
 				if w.Failed > 0 {
-					theme.Caption.On(ui.Text(c, "✕")).TextColor(k.Del)
+					theme.Caption.On(ui.Text(c, "✕")).TextColor(k.Fg).FontWeight(600)
 				}
 				if !w.Running {
 					ui.Text(c, duration(w.End.Sub(w.Start))).Font(theme.Mono).FontSize(11).TextColor(k.Faint)

@@ -1,83 +1,70 @@
 package shell
 
 import (
-	"time"
-
 	"github.com/egoist/mygo/ui"
 
 	"github.com/yangflow/hoplet/desktop/internal/theme"
 )
 
-const (
-	hintFor  = 4 * time.Second        // how long a hint stays
-	fadeTime = 300 * time.Millisecond // how long it takes to go
-)
+// noteID names the one toast: a new note replaces the one showing.
+const noteID = "note"
 
-// toast is the one note shown above the composer: a failure, which stays
-// until closed, or a hint, which goes after a while. A new one replaces
-// the old.
-type toast struct {
-	text   string
-	failed bool
-	retry  func()    // asks again; nil when it cannot
-	until  time.Time // when a hint goes; zero until it is first drawn
+// hint shows a passing note, which goes after the toasts' 4 seconds.
+func (a *App) hint(text string) { a.pending = ui.Toast{ID: noteID, Title: text} }
+
+// failure is the toast for something that did not happen: it stays until
+// closed; retry, when not nil, asks again.
+func failure(text string, retry func()) ui.Toast {
+	t := ui.Toast{ID: noteID, Type: "error", Title: text, Timeout: -1}
+	if retry != nil {
+		t.Action, t.OnAction = "重试", retry
+	}
+	return t
 }
 
-// hint shows a passing note.
-func (a *App) hint(text string) { a.toast = toast{text: text} }
-
-// drawToast draws the note above composer, or near the bottom of the
-// window when composer is nil, as when no composer is drawn.
-func (a *App) drawToast(c *ui.Context, k theme.Colors, composer *ui.Element) {
-	t := &a.toast
-	if t.text == "" {
-		return
+// toasts adds the note Fail or hint left for the view and draws the toast at the
+// top of the content area, below its title bar: the composer below
+// changes height and would cover it.
+func (a *App) toasts(c *ui.Context, k theme.Colors) {
+	if a.pending.Title != "" {
+		c.AddToast(a.pending)
+		a.pending = ui.Toast{}
 	}
-	now := c.Now()
-	if !t.failed && t.until.IsZero() {
-		t.until = now.Add(hintFor)
+	top, left := float32(theme.TitleBar), float32(theme.SidebarWidth)
+	if a.hideSide {
+		top, left = topHeight(c.TitleBar()), 0
 	}
-	ui.Overlay(c, func() {
-		e := ui.Row(c).Height(36).MaxWidth(420).Padding(0, 6, 0, 12).Gap(8).AlignItems(ui.Center).
-			Radius(10).Background(k.Popover).Border(1, k.Line2).Shadow(0, 10, 30, 0, k.Shadow).Tooltip(t.text)
-		if composer != nil {
-			a.s.toastShown = true
-			e.AttachTo(*composer, ui.AnchorTop, ui.AnchorBottom).Margin(0, 0, 12, 0)
-		} else {
-			e.Absolute().Bottom(24).Left(0).Right(0).Margin(0, ui.Auto)
-		}
-		if !t.failed {
-			e.Padding(0, 12)
-			switch left := t.until.Sub(now); {
-			case e.Hovered():
-				t.until = now.Add(hintFor) // stays while I read it
-				c.After(hintFor)
-			case left <= 0:
-				*t = toast{}
-				return
-			case left < fadeTime:
-				e.Opacity(float32(left) / float32(fadeTime))
-				c.After(16 * time.Millisecond)
-			default:
-				c.After(left - fadeTime)
+	ui.ToastViewportBase(c, func(viewport ui.Element, toasts []ui.Toast) {
+		viewport.Padding(top+12, 0, 0, left).Justify(ui.Start).AlignItems(ui.Center)
+		for _, t := range toasts {
+			toast := ui.ToastBase(c, t)
+			toast.Root.Row().Height(36).MaxWidth(420).Padding(0, 12).Gap(8).AlignItems(ui.Center).
+				Radius(theme.RadiusCard).Background(k.Popover).Border(1, k.Line2).Shadow(0, 10, 30, 0, k.Shadow).
+				Tooltip(t.Title).Transition(ui.ElementTransition{Enter: &ui.Motion{}, Exit: &ui.Motion{}})
+			failed := t.Type == "error"
+			if failed {
+				toast.Root.Padding(0, 6, 0, 12)
 			}
-		}
-		e.Children(func() {
-			if t.failed {
-				ui.Icon(c, a.icons.Failed).FontSize(theme.IconSize).TextColor(k.Fg)
-			}
-			theme.UI.On(ui.Text(c, t.text)).TextColor(k.Fg).SingleLine().Shrink(1)
-			if t.retry != nil {
-				b := ui.Button(c, "重试").Height(24).Padding(0, 8).Radius(6).Border(0, ui.Transparent).Background(k.Fill)
-				if b.Clicked() {
-					retry := t.retry
-					*t = toast{}
-					retry()
+			toast.Root.Children(func() {
+				if failed {
+					ui.Icon(c, a.icons.Failed).FontSize(theme.IconSize).TextColor(k.Fg)
 				}
-			}
-			if t.failed && iconButton(c, k, a.icons.Close, "关闭", false).Size(24, 24).Clicked() {
-				*t = toast{}
-			}
-		})
+				theme.UI.On(ui.Text(c, t.Title)).TextColor(k.Fg).SingleLine().Shrink(1)
+				if t.Action != "" {
+					toast.ActionButton().Height(24).Padding(0, 8).Radius(6).Background(k.Fill).AlignItems(ui.Center).Children(func() {
+						theme.Secondary.On(ui.Text(c, t.Action)).TextColor(k.Fg)
+					})
+				}
+				if failed {
+					close := toast.CloseButton().Label("关闭").Size(24, 24).Radius(6).AlignItems(ui.Center).Justify(ui.Center)
+					if close.Hovered() {
+						close.Background(k.Fill2)
+					}
+					close.Children(func() {
+						ui.Icon(c, a.icons.Close).FontSize(14).TextColor(k.Fg3)
+					})
+				}
+			})
+		}
 	})
 }

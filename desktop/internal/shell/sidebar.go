@@ -156,13 +156,16 @@ func (a *App) list(c *ui.Context, k theme.Colors) {
 		return
 	}
 	// ⌘⌥1–9 opens a pinned session; ↑↓ moves among the rows shown while
-	// the list has the focus.
+	// the list has the focus. The list is a widget of its own rather than
+	// a ui.List, whose chosen row takes the accent color: the selected row
+	// is neutral, and it shows where the focus is, so the list draws no
+	// ring.
 	for i, s := range l.Pinned[:min(len(l.Pinned), 9)] {
 		if c.Shortcut(ui.Cmd|ui.Alt, ui.Key1+ui.Key(i)) {
 			a.Select(s.ID)
 		}
 	}
-	col := ui.Column(c).Padding(0, 8).Focusable().FocusRing(false)
+	col := ui.Column(c).Padding(0, 8).Focusable().FocusRing(false).Role(ui.RoleList).Label("会话")
 	if col.Shortcut(0, ui.KeyUp) {
 		a.move(a.shown(l), -1)
 	}
@@ -303,9 +306,7 @@ func (a *App) row(c *ui.Context, k theme.Colors, s proto.Session) {
 	case hovered:
 		r.Background(k.Fill)
 	default:
-		if lit := a.flashing(c, s.ID); lit > 0 {
-			r.Background(k.Fill2.Alpha(lit))
-		}
+		a.flash(c, k, r, s.ID)
 	}
 	if r.Clicked() {
 		a.Select(s.ID)
@@ -334,33 +335,28 @@ func (a *App) row(c *ui.Context, k theme.Colors, s proto.Session) {
 	})
 }
 
-// flashTime is how long the row of a session made elsewhere stays lit.
+// flashTime is how long the row of a session made elsewhere takes to go
+// out.
 const flashTime = 1500 * time.Millisecond
 
-// flashing returns how lit the row of a session made elsewhere is, from 1
-// as it appears to 0: easing out, or all at once at the end when the
+// flash lights the row of a session made elsewhere with fill2 as it first
+// shows and fades it out. A fade moves nothing, so it stays when the
 // desktop asks for less motion.
-func (a *App) flashing(c *ui.Context, id proto.SessionID) float32 {
-	at, ok := a.s.flash[id]
+func (a *App) flash(c *ui.Context, k theme.Colors, r ui.Element, id proto.SessionID) {
+	shown, ok := a.s.flash[id]
 	if !ok {
-		return 0
+		return
 	}
-	now := c.Now()
-	if at.IsZero() {
-		at = now
-		a.s.flash[id] = at
+	target := k.Fill2.Alpha(0)
+	if !shown {
+		target = k.Fill2
+		a.s.flash[id] = true
+		c.AnimationFrame() // the next frame starts the fade
 	}
-	t := float32(now.Sub(at)) / float32(flashTime)
-	if t >= 1 {
+	r.Background(r.AnimateColor("flash", target, ui.Animation{Duration: flashTime}))
+	if r.Arrived("flash") {
 		delete(a.s.flash, id)
-		return 0
 	}
-	if c.Preferences().ReduceMotion {
-		c.After(at.Add(flashTime).Sub(now))
-		return 1
-	}
-	c.After(16 * time.Millisecond)
-	return 1 - (1 - (1-t)*(1-t)) // eased out
 }
 
 // trailing is the one thing at a row's end: a state mark, the age of an

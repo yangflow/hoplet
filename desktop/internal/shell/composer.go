@@ -32,10 +32,9 @@ func (a *App) composer(c *ui.Context, k theme.Colors, s proto.Session, cv *convo
 	a.queueTray(c, k, s, cv, h.Capabilities.Steer)
 	box := ui.Column(c).FillWidth().Padding(12, 12, 8, 14).Gap(8).Radius(theme.RadiusComposer).
 		Background(k.Glass).Border(1, k.GlassLine).Shadow(0, 2, 10, 0, k.Shadow)
-	a.drawToast(c, k, &box)
 	switch {
 	case ap != nil || asked:
-		box.Border(1, k.AttnLine)
+		box.Border(1, k.AttnLine).Shadow(0, 0, 0, 3, k.AttnGlow)
 	case !a.connected:
 		box.Border(1, k.Line2).BorderStyle(ui.BorderDashed)
 	}

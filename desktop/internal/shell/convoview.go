@@ -260,7 +260,7 @@ func (a *App) work(c *ui.Context, k theme.Colors, s proto.Session, it convo.Item
 			}
 			theme.UI.On(ui.Text(c, summary(w))).TextColor(k.Fg3).SingleLine().Shrink(1)
 			if w.Failed > 0 {
-				theme.Caption.On(ui.Textf(c, "✕ %d 个失败", w.Failed)).TextColor(k.Del)
+				theme.Caption.On(ui.Textf(c, "✕ %d 个失败", w.Failed)).TextColor(k.Fg).FontWeight(600)
 			}
 			ui.Spacer(c)
 			if !w.Running {
@@ -378,8 +378,9 @@ func (a *App) workStep(c *ui.Context, k theme.Colors, s proto.Session, e convo.E
 				ui.Text(c, duration(c.Now().Sub(e.Start))+"…").Font(theme.Mono).FontSize(11).TextColor(k.Faint)
 				c.After(time.Second)
 			case tc.Status == proto.ToolFailed:
-				// The exit code joins this when harnesses report it.
-				ui.Text(c, "✕ "+duration(e.Duration())).Font(theme.Mono).FontSize(11).FontWeight(600).TextColor(k.Fg)
+				// "✕ 退出码 N" once harnesses report the exit code.
+				ui.Text(c, "✕").Font(theme.Mono).FontSize(11).FontWeight(600).TextColor(k.Fg)
+				ui.Text(c, duration(e.Duration())).Font(theme.Mono).FontSize(11).TextColor(k.Faint)
 			case hovered:
 				ui.Text(c, duration(e.Duration())).Font(theme.Mono).FontSize(11).TextColor(k.Faint)
 			}

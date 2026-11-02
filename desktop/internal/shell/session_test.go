@@ -402,3 +402,29 @@ func TestOutputFolds(t *testing.T) {
 		t.Fatalf("fold: %v", err)
 	}
 }
+
+func TestNewPageStates(t *testing.T) {
+	a, h, tt, _ := newApp(t)
+	h.models = []proto.HarnessInfo{claudeHarness()}
+	a.NewSession()
+	tt.Frame()
+	if !tt.HasText("选择工作目录") || !tt.HasText("最近：") {
+		t.Fatalf("no directory yet: %q", tt.Texts())
+	}
+	if err := tt.Click("/w/site"); err != nil || a.s.newPick.dir != "/w/site" {
+		t.Fatalf("recent: %v, %q", err, a.s.newPick.dir)
+	}
+	if tt.HasText("最近：") || tt.HasText("选择工作目录") {
+		t.Fatalf("a directory chosen: %q", tt.Texts())
+	}
+	a.Lost(errDaemon)
+	tt.Frame()
+	if !tt.HasText("studio · 未连接") || tt.HasText("/w/site") {
+		t.Fatalf("offline: %q", tt.Texts())
+	}
+	a.Connected("studio")
+	tt.Frame()
+	if !tt.HasText("/w/site") {
+		t.Fatalf("the directory did not come back: %q", tt.Texts())
+	}
+}

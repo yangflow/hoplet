@@ -51,7 +51,7 @@ func (a *App) content(c *ui.Context, k theme.Colors) {
 			}
 			ui.PopoverBase(c, d, &a.s.detailOpen, func(panel ui.Element) {
 				panel.AttachTo(d, ui.AnchorBottomEnd, ui.AnchorTopEnd).Margin(6, 0, 0, 0).Width(320).Padding(10).Gap(4).
-					Radius(12).Background(k.Popover).Border(1, k.Line2).Shadow(0, 10, 30, 0, k.Shadow).Children(func() {
+					Radius(theme.RadiusCard).Background(k.Popover).Border(1, k.Line2).Shadow(0, 10, 30, 0, k.Shadow).Children(func() {
 					if s.Mode == proto.ModePersonal {
 						a.companionDetails(c, k, s)
 					} else {
