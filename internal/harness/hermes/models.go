@@ -111,7 +111,7 @@ func parseModelOptions(raw json.RawMessage) ([]proto.ModelInfo, error) {
 		}
 		for _, m := range p.Models {
 			out = append(out, proto.ModelInfo{
-				ID: m, Provider: p.Slug, Name: m, Description: p.Name,
+				ID: m, Provider: p.Slug, ProviderName: p.Name, Name: m,
 				Default: p.Current && m == o.Model, Fast: p.Capabilities[m].Fast,
 			})
 		}

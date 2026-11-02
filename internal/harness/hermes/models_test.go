@@ -20,9 +20,9 @@ func TestParseModelOptions(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := []proto.ModelInfo{
-		{ID: "codex/m1", Provider: "local", Name: "codex/m1", Description: "local"},
-		{ID: "codex/m2", Provider: "local", Name: "codex/m2", Description: "local", Default: true},
-		{ID: "c1", Provider: "cloud", Name: "c1", Description: "Cloud", Fast: true},
+		{ID: "codex/m1", Provider: "local", ProviderName: "local", Name: "codex/m1"},
+		{ID: "codex/m2", Provider: "local", ProviderName: "local", Name: "codex/m2", Default: true},
+		{ID: "c1", Provider: "cloud", ProviderName: "Cloud", Name: "c1", Fast: true},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("got %+v\nwant %+v", got, want)

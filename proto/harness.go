@@ -105,19 +105,20 @@ func (c Capabilities) HasEffort(e Effort) bool {
 }
 
 // ModelInfo is a model a harness offers. ID (with Provider, where models
-// belong to a provider) is what sessions.set_model takes; Model is the name
-// the harness reports in model.changed once it runs it, which may differ
-// from ID (an alias). Efforts and Fast are what this model supports; no
+// belong to a provider) is what sessions.set_model takes; ProviderName is
+// the provider's name to show. Model is the name the harness reports in
+// model.changed once it runs it, which may differ from ID (an alias). Efforts and Fast are what this model supports; no
 // Efforts means the harness's Capabilities.Efforts.
 type ModelInfo struct {
-	ID          string   `json:"id"`
-	Provider    string   `json:"provider,omitempty"`
-	Model       string   `json:"model,omitempty"`
-	Name        string   `json:"name"`
-	Description string   `json:"description,omitempty"`
-	Default     bool     `json:"default,omitempty"`
-	Efforts     []Effort `json:"efforts,omitempty"`
-	Fast        bool     `json:"fast,omitempty"`
+	ID           string   `json:"id"`
+	Provider     string   `json:"provider,omitempty"`
+	ProviderName string   `json:"provider_name,omitempty"`
+	Model        string   `json:"model,omitempty"`
+	Name         string   `json:"name"`
+	Description  string   `json:"description,omitempty"`
+	Default      bool     `json:"default,omitempty"`
+	Efforts      []Effort `json:"efforts,omitempty"`
+	Fast         bool     `json:"fast,omitempty"`
 }
 
 // Matches reports whether m is the model a session reports. Only the name

@@ -36,7 +36,7 @@
 | 项 | 做法 |
 |---|---|
 | 当前模型 | harness 报告它在跑的模型时（Claude Code：每轮 `init` 行的 `model`；Hermes：`session.usage`），适配器发 `model.changed`，守护进程记进会话（0004）。我换模型时会话先记下所选，harness 报告后以报告为准 |
-| 模型列表 | `harnesses.list` 返回各 harness 的版本、能力与模型（`ModelInfo`：选项值、实际模型名、显示名、说明、是否默认、支持的强度档位、是否支持 Fast）。Claude Code：适配器每次接上都发 `initialize`，回复里的 `models` 就是列表（含 `default` 一项），守护进程启动后第一次接上 Claude 之前列表为空；Hermes 见上 |
+| 模型列表 | `harnesses.list` 返回各 harness 的版本、能力与模型（`ModelInfo`：选项值、服务商代号与服务商名、实际模型名、显示名、说明、是否默认、支持的强度档位、是否支持 Fast；有服务商名时桌面端按服务商分组）。Claude Code：适配器每次接上都发 `initialize`，回复里的 `models` 就是列表（含 `default` 一项），守护进程启动后第一次接上 Claude 之前列表为空；Hermes 见上 |
 | 换模型 | `sessions.set_model`（模型、服务商），下一条消息起生效；harness 不能换时返回不支持 |
 | 工具输出 | 适配器把工具结果的正文随该 `ToolCall` 事件交给守护进程，守护进程存成 blob，记在 `ToolCall.Output`；客户端用 `sessions.output` 按会话与工具调用读取，最多 64KB，截在行尾并标出截断。Claude Code 取 `tool_result` 的文本；Hermes 暂不提供（Personal 的工作痕迹不展开） |
 
