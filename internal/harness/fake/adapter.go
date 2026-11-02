@@ -23,6 +23,8 @@ type Harness struct {
 	Binary       string
 	Script       string
 	Capabilities *proto.Capabilities
+	// Models are the models Probe reports.
+	Models []proto.ModelInfo
 }
 
 var _ harness.StdioHarness = (*Harness)(nil)
@@ -43,7 +45,7 @@ func (h *Harness) Kind() string { return Kind }
 
 // Probe reports the fake harness's capabilities.
 func (h *Harness) Probe(context.Context) (harness.Info, error) {
-	return harness.Info{Version: "1", Capabilities: h.caps(), Supported: true}, nil
+	return harness.Info{Version: "1", Capabilities: h.caps(), Supported: true, Models: h.Models}, nil
 }
 
 // Launch returns the command, environment and directory for the binary.
@@ -162,6 +164,13 @@ func (r *run) handle(line harness.Line) (ev harness.Event, final bool) {
 			r.mu.Lock()
 			r.native = native
 			r.mu.Unlock()
+		}
+		if _, ok := p.(proto.ToolCall); ok {
+			// A tool event's text is the call's output.
+			var e Ev
+			if json.Unmarshal(line.Data, &e) == nil && e.Text != "" {
+				ev.Output = []byte(e.Text)
+			}
 		}
 		switch p.(type) {
 		case proto.TurnStarted:
@@ -292,7 +301,7 @@ func (r *run) SetFast(ctx context.Context, on bool) error {
 	return r.send(ctx, Op{Op: "set_fast", Text: text})
 }
 
-func (r *run) SetModel(ctx context.Context, model string) error {
+func (r *run) SetModel(ctx context.Context, model, _ string) error {
 	if !r.caps.SetModel {
 		return harness.ErrUnsupported
 	}

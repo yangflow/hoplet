@@ -1,5 +1,6 @@
 write {"type":"user","message":{"role":"user","content":"Use the Write tool to create a file named bare.txt containing the word bare. Do nothing else."}}
 native ef235bce-500f-4d4a-a60e-a8b919ef291a proto.TurnStarted {}
+proto.ModelChanged {"model":"claude-opus-5-5"}
 proto.ToolCall {"id":"toolu_01T2rRDqpoPACfzv8pzmkmad","kind":"edit","name":"Write","summary":"/work/bare.txt","status":"running"}
 proto.ApprovalRequested {"id":"5a5f4b07-68b6-4acb-8d36-42045057bfd4","kind":"file_change","title":"Write /work/bare.txt","detail":"bare.txt","tool_call_id":"toolu_01T2rRDqpoPACfzv8pzmkmad","options":[{"id":"allow","label":"Allow once","scope":"once"},{"id":"always","label":"Allow for this session","scope":"session"},{"id":"deny","label":"Deny","scope":"deny"}]}
 write {"type":"control_response","response":{"subtype":"success","request_id":"5a5f4b07-68b6-4acb-8d36-42045057bfd4","response":{"behavior":"allow","updatedInput":{"content":"bare","file_path":"/work/bare.txt"}}}}

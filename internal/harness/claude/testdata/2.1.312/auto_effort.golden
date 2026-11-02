@@ -3,6 +3,7 @@ proto.Error {"message":"claude refused a request: Unsupported control request su
 write {"type":"control_request","request_id":"hoplet-x-2","request":{"settings":{"effortLevel":"low"},"subtype":"apply_flag_settings"}}
 write {"type":"user","message":{"role":"user","content":"Reply with exactly the word: auto"}}
 native 8c4a57bd-5c75-46bc-87ae-ec46f5524554 proto.TurnStarted {}
+proto.ModelChanged {"model":"claude-opus-5-5"}
 proto.MessageDelta {"message_id":"msg_011CgaZ8tRHmijD5aqEJJ7ah/0","text":"auto"}
 proto.Message {"id":"msg_011CgaZ8tRHmijD5aqEJJ7ah/0","role":"assistant","text":"auto"}
 proto.Usage {"input_tokens":23574,"output_tokens":4}

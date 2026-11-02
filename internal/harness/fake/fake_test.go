@@ -414,7 +414,7 @@ func TestUnsupportedCapabilities(t *testing.T) {
 	if err := r.SetMode(ctx, proto.ModeAutoReview); !errors.Is(err, harness.ErrUnsupported) {
 		t.Fatalf("SetMode: %v", err)
 	}
-	if err := r.SetModel(ctx, "m"); !errors.Is(err, harness.ErrUnsupported) {
+	if err := r.SetModel(ctx, "m", ""); !errors.Is(err, harness.ErrUnsupported) {
 		t.Fatalf("SetModel: %v", err)
 	}
 	if n := stub.writes.Load(); n != 0 {
@@ -463,7 +463,7 @@ func TestSetModeAndModel(t *testing.T) {
 	if m := payloadAs[proto.Message](t, next(t, r)); m.Text != "mode:auto_edit" {
 		t.Fatalf("mode echo %#v", m)
 	}
-	if err := r.SetModel(ctx, "big"); err != nil {
+	if err := r.SetModel(ctx, "big", ""); err != nil {
 		t.Fatal(err)
 	}
 	if m := payloadAs[proto.Message](t, next(t, r)); m.Text != "model:big" {
@@ -539,7 +539,7 @@ func TestInterruptOutsideTurnIsSilent(t *testing.T) {
 	if err := r.Interrupt(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if err := r.SetModel(ctx, "m"); err != nil { // acts as a barrier
+	if err := r.SetModel(ctx, "m", ""); err != nil { // acts as a barrier
 		t.Fatal(err)
 	}
 	if m := payloadAs[proto.Message](t, next(t, r)); m.Text != "model:m" {

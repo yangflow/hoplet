@@ -53,6 +53,9 @@ func (r *run) attachSession() {
 		}
 		if r.spec.Model != "" {
 			params["model"] = r.spec.Model
+			if r.spec.ModelProvider != "" {
+				params["provider"] = r.spec.ModelProvider
+			}
 		}
 		if r.spec.Effort != "" {
 			params["reasoning"] = string(r.spec.Effort)

@@ -48,6 +48,8 @@ type Harness struct {
 	mu     sync.Mutex
 	cached harness.Info
 	stamp  stamp // the binary the cached info is for
+	// models are the models the last session's claude listed.
+	models []proto.ModelInfo
 }
 
 // stamp identifies a binary's contents cheaply: its resolved path, size
@@ -95,6 +97,7 @@ func (h *Harness) Probe(ctx context.Context) (harness.Info, error) {
 		h.stamp = st
 	}
 	info := h.cached
+	info.Models = slices.Clone(h.models)
 	// Not cached: a failed follow-up leaves the binary as it was.
 	if u, ok := lastUpdate(h.Binary); ok {
 		info.Notice, info.Attention = notice(u, info.Version)
@@ -235,7 +238,19 @@ func launchEnv(env []string) []string {
 	return append(out, "DISABLE_AUTOUPDATER=1")
 }
 
-// Attach starts translating io's lines into events.
-func (h *Harness) Attach(_ context.Context, spec harness.Spec, io harness.Stdio) (harness.Run, error) {
-	return newRun(io, spec), nil
+// Attach starts translating io's lines into events and asks claude for its
+// settings, whose answer updates the models Probe reports.
+func (h *Harness) Attach(ctx context.Context, spec harness.Spec, io harness.Stdio) (harness.Run, error) {
+	r := newRun(io, spec, h.setModels)
+	if err := r.initialize(ctx); err != nil {
+		r.Close()
+		return nil, err
+	}
+	return r, nil
+}
+
+func (h *Harness) setModels(m []proto.ModelInfo) {
+	h.mu.Lock()
+	h.models = m
+	h.mu.Unlock()
 }

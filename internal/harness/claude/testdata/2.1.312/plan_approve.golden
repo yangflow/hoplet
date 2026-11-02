@@ -1,6 +1,7 @@
 write {"type":"control_request","request_id":"hoplet-x-1","request":{"mode":"plan","subtype":"set_permission_mode"}}
 write {"type":"user","message":{"role":"user","content":"Create a file named plan.txt containing the letter p. Plan it first, then ask to exit plan mode."}}
 native 9246ea9d-ed36-482a-9d5f-90b0ebc82db7 proto.TurnStarted {}
+proto.ModelChanged {"model":"claude-opus-5-5"}
 proto.ToolCall {"id":"toolu_01Dgk8FvVeGFYEaNsn8pmsVA","kind":"edit","name":"Write","summary":"/Users/me/.claude/plans/create-a-file-named-magical-forest.md","status":"running"}
 proto.ToolCall {"id":"toolu_01Dgk8FvVeGFYEaNsn8pmsVA","kind":"edit","name":"Write","summary":"/Users/me/.claude/plans/create-a-file-named-magical-forest.md","status":"done"}
 proto.FileChange {"path":"/Users/me/.claude/plans/create-a-file-named-magical-forest.md","op":"created"}

@@ -54,6 +54,14 @@ type run struct {
 	blocks map[string]int // content blocks seen per assistant message ID
 	msgID  string         // the message being streamed
 	tools  map[string]tool
+	model  string // the model claude last reported
+	// outputs are tool results waiting to ride on their ToolCall's event.
+	outputs map[string][]byte
+
+	// initID is the request ID of this run's initialize; models receives
+	// the models its answer lists.
+	initID string
+	models func([]proto.ModelInfo)
 
 	prefix string // makes this run's control request IDs unique
 	seq    sync.Mutex
@@ -73,12 +81,12 @@ type run struct {
 	observed string
 }
 
-func newRun(io harness.Stdio, spec harness.Spec) *run {
+func newRun(io harness.Stdio, spec harness.Spec, models func([]proto.ModelInfo)) *run {
 	r := &run{
 		io: io, events: make(chan harness.Event, 64), done: make(chan struct{}), finished: make(chan struct{}),
 		inTurn: spec.State.InTurn, native: spec.State.Native, blocks: map[string]int{}, tools: map[string]tool{},
 		prefix: "hoplet-" + rand.Text()[:8], approvals: map[string]pending{},
-		base: spec.Mode, plan: spec.Plan,
+		base: spec.Mode, plan: spec.Plan, models: models, outputs: map[string][]byte{},
 	}
 	r.want = r.wanted()
 	go r.loop()
@@ -168,6 +176,10 @@ func (r *run) handle(l harness.Line) (evs []harness.Event, final bool) {
 				ev.Native = "" // announced once
 			}
 			ev.Payload = p
+			if tc, ok := p.(proto.ToolCall); ok {
+				ev.Output = r.outputs[tc.ID]
+				delete(r.outputs, tc.ID)
+			}
 			evs = append(evs, ev)
 		}
 		return evs, false
@@ -199,6 +211,10 @@ func (r *run) translate(data []byte) ([]proto.Payload, string) {
 		if ln.PermissionMode != "" {
 			out = append(out, r.observeMode(ln.PermissionMode)...)
 		}
+		if ln.Subtype == "init" && ln.Model != "" && ln.Model != r.model {
+			r.model = ln.Model
+			out = append(out, proto.ModelChanged{Model: ln.Model})
+		}
 		if ln.Subtype == "init" {
 			return out, ln.SessionID // claude announces its session on every turn
 		}
@@ -214,6 +230,11 @@ func (r *run) translate(data []byte) ([]proto.Payload, string) {
 	case "control_response":
 		if ln.Response != nil && ln.Response.Subtype == "error" {
 			return []proto.Payload{proto.Error{Message: "claude refused a request: " + ln.Response.Error}}, ""
+		}
+		if ln.Response != nil && ln.Response.RequestID == r.initID && r.models != nil {
+			if m := modelsOf(ln.Response.Response); len(m) > 0 {
+				r.models(m)
+			}
 		}
 		return nil, ""
 	case "control_cancel_request":
@@ -296,6 +317,9 @@ func (r *run) toolResults(m *message) []proto.Payload {
 			status = proto.ToolFailed
 		}
 		out = append(out, proto.ToolCall{ID: b.ToolUseID, Kind: t.kind, Name: t.name, Summary: summary(t.name, t.input), Status: status})
+		if text := resultText(b.Content); text != "" {
+			r.outputs[b.ToolUseID] = []byte(text)
+		}
 		if !ok || b.IsError {
 			continue
 		}
@@ -594,8 +618,39 @@ func (r *run) SetEffort(ctx context.Context, effort proto.Effort) error {
 // through its stdio protocol.
 func (r *run) SetFast(context.Context, bool) error { return harness.ErrUnsupported }
 
-// SetModel changes the model for the following turns.
-func (r *run) SetModel(ctx context.Context, model string) error {
+// initialize asks claude for its settings; the answer lists its models.
+func (r *run) initialize(ctx context.Context) error {
+	r.initID = r.requestID()
+	return r.write(ctx, requestLine{Type: "control_request", RequestID: r.initID, Request: map[string]string{"subtype": "initialize"}})
+}
+
+// modelsOf reads the models of an initialize answer. Claude lists its
+// default as an entry of its own ("default"), which stays: it follows
+// claude's recommendation as that changes.
+func modelsOf(raw json.RawMessage) []proto.ModelInfo {
+	var a initAnswer
+	if json.Unmarshal(raw, &a) != nil {
+		return nil
+	}
+	var out []proto.ModelInfo
+	for _, m := range a.Models {
+		if m.Value == "" {
+			continue
+		}
+		info := proto.ModelInfo{ID: m.Value, Model: m.ResolvedModel, Name: m.DisplayName, Description: m.Description, Default: m.Value == "default"}
+		for _, e := range m.Efforts {
+			if proto.Effort(e).Valid() {
+				info.Efforts = append(info.Efforts, proto.Effort(e))
+			}
+		}
+		out = append(out, info)
+	}
+	return out
+}
+
+// SetModel changes the model for the following turns; claude's models have
+// no provider.
+func (r *run) SetModel(ctx context.Context, model, _ string) error {
 	return r.control(ctx, map[string]string{"subtype": "set_model", "model": model})
 }
 

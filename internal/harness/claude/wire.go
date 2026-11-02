@@ -12,12 +12,14 @@ type line struct {
 	Subtype   string `json:"subtype"`
 	SessionID string `json:"session_id"`
 	// PermissionMode is claude's mode, on system init and status lines.
-	PermissionMode string          `json:"permissionMode"`
-	Message        *message        `json:"message"`
-	Event          *streamEvent    `json:"event"`
-	RequestID      string          `json:"request_id"`
-	Request        *controlRequest `json:"request"`
-	Response       *controlResult  `json:"response"`
+	PermissionMode string `json:"permissionMode"`
+	// Model is the model claude runs, on system init lines.
+	Model     string          `json:"model"`
+	Message   *message        `json:"message"`
+	Event     *streamEvent    `json:"event"`
+	RequestID string          `json:"request_id"`
+	Request   *controlRequest `json:"request"`
+	Response  *controlResult  `json:"response"`
 
 	// result fields
 	IsError        bool            `json:"is_error"`
@@ -81,9 +83,22 @@ type controlRequest struct {
 }
 
 type controlResult struct {
-	Subtype   string `json:"subtype"`
-	RequestID string `json:"request_id"`
-	Error     string `json:"error"`
+	Subtype   string          `json:"subtype"`
+	RequestID string          `json:"request_id"`
+	Error     string          `json:"error"`
+	Response  json.RawMessage `json:"response"`
+}
+
+// initAnswer is the part of claude's answer to initialize the adapter
+// reads: the models it offers.
+type initAnswer struct {
+	Models []struct {
+		Value         string   `json:"value"`
+		ResolvedModel string   `json:"resolvedModel"`
+		DisplayName   string   `json:"displayName"`
+		Description   string   `json:"description"`
+		Efforts       []string `json:"supportedEffortLevels"`
+	} `json:"models"`
 }
 
 type usage struct {

@@ -37,11 +37,18 @@ var (
 	ErrDetached = errors.New("harness: transport ended without an exit")
 )
 
+// ModelLister is a Harness that can list its models without a session.
+type ModelLister interface {
+	Models(ctx context.Context) ([]proto.ModelInfo, error)
+}
+
 // Info describes an installed harness.
 type Info struct {
 	Version      string
 	Capabilities proto.Capabilities
-	Models       []string
+	// Models are the models the harness offers, as far as it has told the
+	// adapter; empty until then.
+	Models []proto.ModelInfo
 	// Supported is false when Version is outside the verified range. The
 	// daemon then keeps existing sessions read-only and starts no new turns.
 	Supported bool
@@ -81,14 +88,16 @@ type Spec struct {
 	// to restore when plan mode ends; Fast in fast mode; Effort is the
 	// thinking effort, empty for the harness default. Mode is one of the
 	// harness's Capabilities.Modes, or confirm when it declares none.
-	Plan      bool
-	Fast      bool
-	Effort    proto.Effort
-	Model     string // empty: the harness default
-	Resume    string // native session ID to resume; empty starts fresh
-	State     State
-	MCP       []MCPServer
-	Ephemeral bool
+	Plan   bool
+	Fast   bool
+	Effort proto.Effort
+	Model  string // empty: the harness default
+	// ModelProvider is the provider of Model, for harnesses whose models have one.
+	ModelProvider string
+	Resume        string // native session ID to resume; empty starts fresh
+	State         State
+	MCP           []MCPServer
+	Ephemeral     bool
 }
 
 // Event is one normalized event.
@@ -107,6 +116,9 @@ type Event struct {
 	Offset  int64       // transport position just after the triggering line
 	Native  string      // set where the harness announces its own session ID
 	Exit    *ExitStatus // set on the final event when the harness process ended
+	// Output is the output of the ToolCall in Payload, when the harness
+	// reported one; the daemon stores it as the call's output blob.
+	Output []byte
 	// StdinError reports that a line written to the harness's stdin failed;
 	// the Payload says why.
 	StdinError bool
@@ -231,7 +243,7 @@ type Run interface {
 	SetPlan(ctx context.Context, on bool) error
 	SetEffort(ctx context.Context, effort proto.Effort) error
 	SetFast(ctx context.Context, on bool) error
-	SetModel(ctx context.Context, model string) error
+	SetModel(ctx context.Context, model, provider string) error
 	Events() <-chan Event
 	NativeSession() string
 	Err() error

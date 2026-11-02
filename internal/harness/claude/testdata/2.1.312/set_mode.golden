@@ -1,6 +1,7 @@
 write {"type":"control_request","request_id":"hoplet-x-1","request":{"mode":"acceptEdits","subtype":"set_permission_mode"}}
 write {"type":"user","message":{"role":"user","content":"Use the Write tool to create a file named b.txt containing the single letter b. Do nothing else."}}
 native 196560af-6b6c-4fcf-8410-a2bacda5d31d proto.TurnStarted {}
+proto.ModelChanged {"model":"claude-opus-5-5"}
 proto.ToolCall {"id":"toolu_01TYCMeGd1UwFZvntaSuK8qd","kind":"edit","name":"Write","summary":"/work/b.txt","status":"running"}
 proto.ToolCall {"id":"toolu_01TYCMeGd1UwFZvntaSuK8qd","kind":"edit","name":"Write","summary":"/work/b.txt","status":"done"}
 proto.FileChange {"path":"/work/b.txt","op":"created"}

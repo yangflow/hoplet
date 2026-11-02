@@ -1,6 +1,7 @@
 write {"type":"control_request","request_id":"hoplet-x-1","request":{"model":"haiku","subtype":"set_model"}}
 write {"type":"user","message":{"role":"user","content":"Reply with exactly the word: model"}}
 native 646309aa-2ab0-4fe6-b5f9-42c538a0a5d0 proto.TurnStarted {}
+proto.ModelChanged {"model":"claude-haiku-5-5"}
 proto.MessageDelta {"message_id":"msg_011CgaYx4Zv2pfMLishtLjVE/1","text":"model"}
 proto.Message {"id":"msg_011CgaYx4Zv2pfMLishtLjVE/1","role":"assistant","text":"model"}
 proto.Usage {"input_tokens":24307,"output_tokens":223}

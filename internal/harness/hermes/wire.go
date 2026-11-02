@@ -146,6 +146,12 @@ type settledPayload struct {
 	ID string `json:"prompt_id"`
 }
 
+// usagePayload is the part of a session.usage event the adapter reads.
+type usagePayload struct {
+	Model    string `json:"model"`
+	Provider string `json:"provider"`
+}
+
 type infoPayload struct {
 	Revision   *int64 `json:"revision"`
 	Generation *int64 `json:"execution_generation"`

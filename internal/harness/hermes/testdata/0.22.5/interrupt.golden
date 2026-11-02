@@ -5,6 +5,7 @@ proto.TurnStarted {}
 proto.MessageDelta {"message_id":"ad6cf9a64b644128b1bba7d694c1bb80/0","text":"one"}
 proto.MessageDelta {"message_id":"ad6cf9a64b644128b1bba7d694c1bb80/0","text":"\n"}
 write {"id":"x","jsonrpc":"2.0","method":"session.interrupt","params":{"execution_generation":1,"session_id":"local-331db7129ccae07884bfc077846161630277e744596f6f72f91fab1c141c88ba"}}
+proto.ModelChanged {"model":"codex/gpt-6.1-sol","provider":"custom"}
 proto.Message {"id":"ad6cf9a64b644128b1bba7d694c1bb80/0","role":"assistant","text":"one"}
 write {"id":"x","jsonrpc":"2.0","method":"prompt.receipt","params":{"admission_id":"ad6cf9a64b644128b1bba7d694c1bb80","include_result":true,"session_id":"local-331db7129ccae07884bfc077846161630277e744596f6f72f91fab1c141c88ba"}}
 proto.Usage {"input_tokens":0,"output_tokens":0}

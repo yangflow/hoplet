@@ -765,7 +765,7 @@ func TestANewerPickWinsOverAGuardedModelsConfirmation(t *testing.T) {
 		x := newTester(t, harness.Spec{Resume: "s1"})
 		x.attach("s1", false)
 		n := len(x.io.written())
-		if err := x.run.SetModel(context.Background(), "A"); err != nil {
+		if err := x.run.SetModel(context.Background(), "A", ""); err != nil {
 			t.Fatal(err)
 		}
 		x.answer(n, guarded)
@@ -780,10 +780,10 @@ func TestANewerPickWinsOverAGuardedModelsConfirmation(t *testing.T) {
 		x.attach("s1", false)
 		n := len(x.io.written())
 		ctx := context.Background()
-		if err := x.run.SetModel(ctx, "A"); err != nil {
+		if err := x.run.SetModel(ctx, "A", ""); err != nil {
 			t.Fatal(err)
 		}
-		if err := x.run.SetModel(ctx, "B"); err != nil {
+		if err := x.run.SetModel(ctx, "B", ""); err != nil {
 			t.Fatal(err)
 		}
 		x.answer(n, guarded)
@@ -1719,7 +1719,7 @@ func TestARefusedAttachFailsTheCommands(t *testing.T) {
 				"SetMode":   func() error { return x.run.SetMode(ctx, proto.ModeFullAuto) },
 				"SetFast":   func() error { return x.run.SetFast(ctx, true) },
 				"SetEffort": func() error { return x.run.SetEffort(ctx, proto.EffortLow) },
-				"SetModel":  func() error { return x.run.SetModel(ctx, "m") },
+				"SetModel":  func() error { return x.run.SetModel(ctx, "m", "") },
 			} {
 				if err := call(); err == nil || !strings.Contains(err.Error(), "refused to attach the session: session_not_found") {
 					t.Fatalf("%s: %v", name, err)

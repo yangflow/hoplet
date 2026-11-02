@@ -13,7 +13,8 @@ type Op struct {
 	Option string `json:"option,omitempty"`
 }
 
-// Ev is one line the fake harness writes. In and Out are the token counts of
+// Ev is one line the fake harness writes. A tool event's Text is the
+// call's output. In and Out are the token counts of
 // a usage event; a file_change event uses Name as the path and Kind as the
 // operation; a mode_changed event uses Text as the permission mode and
 // Status "plan" for plan mode.

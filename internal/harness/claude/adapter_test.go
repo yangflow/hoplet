@@ -114,7 +114,7 @@ func TestLaunch(t *testing.T) {
 func liveRun(t *testing.T, spec harness.Spec) (*replayer, *fakeStdio) {
 	t.Helper()
 	io := newFakeStdio()
-	p := &replayer{t: t, io: io, run: newRun(io, spec)}
+	p := &replayer{t: t, io: io, run: newRun(io, spec, nil)}
 	t.Cleanup(func() { p.run.Close() })
 	return p, io
 }

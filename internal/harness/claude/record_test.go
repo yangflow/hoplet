@@ -90,7 +90,7 @@ func TestRecord(t *testing.T) {
 func TestSanitize(t *testing.T) {
 	entries := []Entry{
 		{Dir: "in", Line: `{"type":"user","message":{"role":"user","content":"edit /home/me/proj/a.go"}}`},
-		{Dir: "out", Line: `{"type":"control_response","response":{"subtype":"success","request_id":"h1","response":{"commands":[1],"account":{"email":"x"}}}}`},
+		{Dir: "out", Line: `{"type":"control_response","response":{"subtype":"success","request_id":"h1","response":{"commands":[1],"account":{"email":"x"},"models":[{"value":"opus","displayName":"Opus","supportsAutoMode":true}]}}}`},
 		{Dir: "out", Line: `{"type":"system","subtype":"init","session_id":"s","cwd":"/home/me/proj","skills":["mine"],"memory_paths":{"auto":"/home/me/.claude"}}`},
 		{Dir: "out", Line: `{"type":"rate_limit_event"}`},
 		{Dir: "out", Line: `{"type":"stream_event","event":{"type":"content_block_delta","delta":{"type":"input_json_delta","partial_json":"/home/m"}}}`},
@@ -117,12 +117,12 @@ func TestSanitize(t *testing.T) {
 		lines = append(lines, e.Dir+" "+e.Line)
 	}
 	got := strings.Join(lines, "\n") + "\n"
-	for _, bad := range []string{"/home/me", "account", "skills", "memory_paths", "rate_limit", "input_json_delta", "signature", "debug"} {
+	for _, bad := range []string{"/home/me", "account", "skills", "memory_paths", "supportsAutoMode", "rate_limit", "input_json_delta", "signature", "debug"} {
 		if strings.Contains(got, bad) {
 			t.Errorf("sanitized recording still has %q:\n%s", bad, got)
 		}
 	}
-	for _, want := range []string{"edit /work/a.go", `"cwd":"/work"`, `"response":{}`, "exit 0"} {
+	for _, want := range []string{"edit /work/a.go", `"cwd":"/work"`, `"response":{"models":[{"displayName":"Opus","value":"opus"}]}`, "exit 0"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("sanitized recording lacks %q:\n%s", want, got)
 		}
