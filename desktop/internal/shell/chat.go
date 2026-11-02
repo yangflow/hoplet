@@ -73,23 +73,19 @@ func dayLine(c *ui.Context, k theme.Colors, label string) {
 }
 
 // myBubble is a message of mine in a chat: a gray bubble on the right with
-// my avatar beside the last of a run, its time and copy on hover.
+// my avatar beside the last of a run, its time and copy on hover left of
+// it.
 func (a *App) myBubble(c *ui.Context, k theme.Colors, it convo.Item, last bool) {
 	r := ui.Row(c).AlignSelf(ui.End).MaxWidth(0.75 * personalColumn).Gap(10).AlignItems(ui.End)
 	hovered := r.Hovered()
 	r.Children(func() {
-		ui.Column(c).AlignItems(ui.End).Gap(4).Shrink(1).Children(func() {
+		ui.Box(c).Shrink(1).Children(func() {
 			ui.Box(c).Padding(9, 14).Radius(18, 18, 6, 18).Background(k.Bubble).Children(func() {
 				theme.Reading.On(ui.Text(c, it.Text)).TextColor(k.Fg).Selectable()
 			})
-			row := ui.Row(c).Height(20).Gap(2).AlignItems(ui.Center)
-			if !hovered {
-				row.Opacity(0)
+			if hovered {
+				a.mineActions(c, k, it)
 			}
-			row.Children(func() {
-				theme.Caption.On(ui.Text(c, clock(it.Time))).TextColor(k.Muted)
-				a.copyButton(c, k, it.Key, it.Text, "复制")
-			})
 		})
 		a.meAvatar(c, k, last)
 	})

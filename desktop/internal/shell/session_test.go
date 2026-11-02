@@ -310,10 +310,16 @@ func TestNewSessionPicksHarnessByModel(t *testing.T) {
 	if err := tt.Click("换模型"); err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"Claude Code", "Hermes", "Default (recommended)", "codex/m1"} {
+	for _, want := range []string{"Claude Code", "Hermes", "Default (recommended)", "搜索模型"} {
 		if !tt.HasText(want) {
 			t.Fatalf("no %q in %q", want, tt.Texts())
 		}
+	}
+	if tt.HasText("codex/m1") {
+		t.Fatal("another harness's models show before its tab is chosen")
+	}
+	if err := tt.Click("Hermes"); err != nil {
+		t.Fatal(err)
 	}
 	if err := tt.Click("codex/m1"); err != nil {
 		t.Fatal(err)
@@ -426,5 +432,54 @@ func TestNewPageStates(t *testing.T) {
 	tt.Frame()
 	if !tt.HasText("/w/site") {
 		t.Fatalf("the directory did not come back: %q", tt.Texts())
+	}
+}
+
+func TestModelSearch(t *testing.T) {
+	a, h, tt, _ := newApp(t)
+	h.models = []proto.HarnessInfo{claudeHarness()}
+	a.NewSession()
+	tt.Frame()
+	if err := tt.Click("强度与模型"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("换模型"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Type("hai")
+	tt.Frame()
+	if n := strings.Count(strings.Join(tt.Texts(), "|"), "Default (recommended)"); n != 1 || !tt.HasText("Haiku 5.5") { // the pill keeps its own
+		t.Fatalf("search: %q", tt.Texts())
+	}
+	tt.Type("x")
+	tt.Frame()
+	if !tt.HasText("没有匹配“haix”的模型") {
+		t.Fatalf("no match: %q", tt.Texts())
+	}
+	tt.Key(0, ui.KeyEscape)
+	tt.Frame()
+	if a.s.modelOpen || !a.s.effortOpen {
+		t.Fatalf("⎋ goes back to the effort: model %v, effort %v", a.s.modelOpen, a.s.effortOpen)
+	}
+}
+
+func TestEffortDefault(t *testing.T) {
+	a, h, tt, _ := newApp(t)
+	h.models = []proto.HarnessInfo{claudeHarness()}
+	a.NewSession()
+	tt.Frame()
+	if err := tt.Click("强度与模型"); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText("默") || !tt.HasText("认") {
+		t.Fatalf("no 默认 before a level is chosen: %q", tt.Texts())
+	}
+	if err := tt.Click("推理强度"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Key(0, ui.KeyRight)
+	tt.Frame()
+	if a.s.newPick.run.effort == "" {
+		t.Fatal("the keys choose no level")
 	}
 }

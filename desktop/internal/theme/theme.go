@@ -29,9 +29,11 @@ type Colors struct {
 	Muted ui.Color // paths, times, counts
 	Faint ui.Color // placeholders, disabled; never needed information
 
-	Accent   ui.Color // fill of buttons, switches, send
-	OnAccent ui.Color // text on Accent
-	AccentFg ui.Color // links, focus ring, running, unread
+	Accent    ui.Color // fill of buttons, switches, send
+	OnAccent  ui.Color // text on Accent
+	AccentFg  ui.Color // links, focus ring, running, unread
+	UltraFrom ui.Color // the 极限 effort track's gradient, its dark end
+	UltraTo   ui.Color // and its end by the knob
 
 	Attn     ui.Color // needs you: dot, badge, approval outline
 	OnAttn   ui.Color // text on Attn
@@ -58,7 +60,7 @@ func For(dark bool) Colors {
 			Sel: ui.RGBA(255, 255, 255, .10), SelRow: ui.RGBA(255, 255, 255, .09),
 			Line: ui.RGBA(255, 255, 255, .08), Line2: ui.RGBA(255, 255, 255, .14),
 			Fg: ui.Hex("#F4F4F5"), Fg2: ui.Hex("#D3D6DB"), Fg3: ui.Hex("#B0B4BB"), Muted: ui.Hex("#8E939B"), Faint: ui.Hex("#666B73"),
-			Accent: ui.Hex("#3CC4C9"), OnAccent: ui.Hex("#0C1A1C"), AccentFg: ui.Hex("#3CC4C9"),
+			Accent: ui.Hex("#3CC4C9"), OnAccent: ui.Hex("#0C1A1C"), AccentFg: ui.Hex("#3CC4C9"), UltraFrom: ui.Hex("#0D4A50"), UltraTo: ui.Hex("#3CC4C9"),
 			Attn: ui.Hex("#F0A35B"), OnAttn: ui.Hex("#1E1408"), AttnFg: ui.Hex("#F5BB82"), AttnLine: ui.RGBA(240, 163, 91, .40), AttnGlow: ui.RGBA(240, 163, 91, .10),
 			Add: ui.Hex("#7BC86C"), Del: ui.Hex("#F0758A"), AddBg: ui.RGBA(123, 200, 108, .12), DelBg: ui.RGBA(240, 117, 138, .11),
 			Bubble: ui.RGBA(255, 255, 255, .10), Shadow: ui.RGBA(0, 0, 0, .45),
@@ -71,7 +73,7 @@ func For(dark bool) Colors {
 		Sel: ui.RGBA(0, 0, 0, .055), SelRow: ui.RGBA(0, 0, 0, .06),
 		Line: ui.RGBA(0, 0, 0, .06), Line2: ui.RGBA(0, 0, 0, .10),
 		Fg: ui.Hex("#23272D"), Fg2: ui.Hex("#383B40"), Fg3: ui.Hex("#53575D"), Muted: ui.Hex("#5E6268"), Faint: ui.Hex("#A0A4AA"),
-		Accent: ui.Hex("#066A70"), OnAccent: ui.Hex("#FFFFFF"), AccentFg: ui.Hex("#066A70"),
+		Accent: ui.Hex("#066A70"), OnAccent: ui.Hex("#FFFFFF"), AccentFg: ui.Hex("#066A70"), UltraFrom: ui.Hex("#03363B"), UltraTo: ui.Hex("#14A3AB"),
 		Attn: ui.Hex("#A85C14"), OnAttn: ui.Hex("#FFFFFF"), AttnFg: ui.Hex("#8A4B0F"), AttnLine: ui.RGBA(217, 130, 43, .40), AttnGlow: ui.RGBA(217, 130, 43, .10),
 		Add: ui.Hex("#2E7031"), Del: ui.Hex("#B02A55"), AddBg: ui.RGBA(46, 112, 49, .10), DelBg: ui.RGBA(176, 42, 85, .08),
 		Bubble: ui.RGBA(120, 128, 140, .14), Shadow: ui.RGBA(0, 0, 0, .12),

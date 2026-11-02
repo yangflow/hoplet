@@ -138,21 +138,28 @@ func (a *App) mine(c *ui.Context, k theme.Colors, it convo.Item) {
 				theme.Caption.On(ui.Text(c, clock(it.Time))).TextColor(k.Muted)
 			})
 		}
-		b := ui.Box(c).Padding(9, 14).Radius(14).Background(k.Bubble)
-		if it.Steer {
-			b.Background(ui.Transparent).Border(1, k.Line2).BorderStyle(ui.BorderDashed)
-		}
-		b.Children(func() {
-			theme.Reading.On(ui.Text(c, it.Text)).TextColor(k.Fg).Selectable()
+		ui.Box(c).Children(func() {
+			b := ui.Box(c).Padding(9, 14).Radius(14).Background(k.Bubble)
+			if it.Steer {
+				b.Background(ui.Transparent).Border(1, k.Line2).BorderStyle(ui.BorderDashed)
+			}
+			b.Children(func() {
+				theme.Reading.On(ui.Text(c, it.Text)).TextColor(k.Fg).Selectable()
+			})
+			if hovered {
+				a.mineActions(c, k, it)
+			}
 		})
-		row := ui.Row(c).Height(24).Gap(2).AlignItems(ui.Center)
-		if !hovered {
-			row.Opacity(0)
-		}
-		row.Children(func() {
-			theme.Caption.On(ui.Text(c, clock(it.Time))).TextColor(k.Muted)
-			a.copyButton(c, k, it.Key, it.Text, "复制")
-		})
+	})
+}
+
+// mineActions are a message of mine's time and copy, shown on hover left
+// of the bubble, its bottom on the bubble's: out of the flow, they take
+// no room, and the bubble keeps the left of it free.
+func (a *App) mineActions(c *ui.Context, k theme.Colors, it convo.Item) {
+	ui.Row(c).Height(24).Gap(2).AlignItems(ui.Center).Attach(ui.AnchorBottomStart, ui.AnchorBottomEnd).Left(-6).Children(func() {
+		theme.Caption.On(ui.Text(c, clock(it.Time))).TextColor(k.Muted).SingleLine()
+		a.copyButton(c, k, it.Key, it.Text, "复制")
 	})
 }
 

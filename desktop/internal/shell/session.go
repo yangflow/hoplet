@@ -38,7 +38,11 @@ type sessionView struct {
 	queue        ui.ListState                   // the queue tray's rows, which drag to reorder
 	offlineSince time.Time                      // when the connection was lost
 	flash        map[proto.SessionID]bool       // rows of sessions made elsewhere, and whether they lit
-	modelOpen    bool                           // the model list of the effort popover
+	modelOpen    bool                           // the effort popover shows the models
+	modelTab     string                         // the harness whose models show
+	modelQuery   string                         // what the model search holds
+	modelPick    int                            // the highlighted model, -1 for the current
+	ultraAt      time.Time                      // when the effort went to 极限, for its burst
 
 	newPage bool
 	newPick newChoice
