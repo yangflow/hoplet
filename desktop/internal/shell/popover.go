@@ -306,11 +306,7 @@ func (a *App) effortPill(c *ui.Context, k theme.Colors, st runSettings, hs []pro
 			})
 			if len(levels) > 1 {
 				a.effortSlider(c, k, levels, st.effort, set.effort)
-				ui.Row(c).FillWidth().Justify(ui.SpaceBetween).Children(func() {
-					for _, e := range levels {
-						theme.Caption.On(ui.Text(c.Key(e), effortName(e))).TextColor(k.Muted)
-					}
-				})
+				effortNames(c, k, levels)
 			}
 		})
 	})

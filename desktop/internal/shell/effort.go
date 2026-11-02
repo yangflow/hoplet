@@ -23,6 +23,7 @@ var (
 )
 
 const (
+	knobInset     = 16                     // the dots' inset from the track's ends: half the knob
 	letterStagger = 15 * time.Millisecond  // between the letters of a label
 	burstTime     = 650 * time.Millisecond // the ring of pixels as 极限 comes
 	glintTime     = 550 * time.Millisecond // the flash as 极限 comes
@@ -54,7 +55,7 @@ func (a *App) effortLabel(c *ui.Context, k theme.Colors, e proto.Effort) {
 // level, and follows the pointer while dragged; 极限 turns the track into
 // a deep gradient with pixels twinkling, brighter near the knob.
 func (a *App) effortSlider(c *ui.Context, k theme.Colors, levels []proto.Effort, cur proto.Effort, set func(proto.Effort)) {
-	const pad = 16 // half the knob: it stays inside the track's ends
+	const pad = knobInset
 	n := len(levels)
 	chosen := slices.Index(levels, cur)
 	v := float64(n / 2) // where the keys start from before a level is chosen
@@ -142,6 +143,20 @@ func (a *App) effortSlider(c *ui.Context, k theme.Colors, levels []proto.Effort,
 		}
 		if moving {
 			p.AnimationFrame()
+		}
+	})
+}
+
+// effortNames puts each level's name centered under its dot: the dots
+// sit knobInset in from the track's ends, as the names' span does.
+func effortNames(c *ui.Context, k theme.Colors, levels []proto.Effort) {
+	const cell = 48 // wide enough for the longest name, centered
+	ui.Box(c).AlignSelf(ui.Stretch).Height(14).Margin(0, knobInset).Children(func() {
+		for i, e := range levels {
+			f := float32(i) / float32(len(levels)-1)
+			ui.Row(c.Key(e)).Width(cell).Justify(ui.Center).Absolute().LeftPercent(100*f).Translate(-cell/2, 0).Children(func() {
+				theme.Caption.On(ui.Text(c, effortName(e))).TextColor(k.Muted).SingleLine()
+			})
 		}
 	})
 }
