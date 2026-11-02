@@ -22,7 +22,7 @@ var (
 )
 
 const (
-	knobInset     = 16                     // the dots' inset from the track's ends: half the knob
+	knobInset     = 14                     // the dots' inset from the track's ends: half the knob
 	letterStagger = 15 * time.Millisecond  // between the letters of a label
 	burstTime     = 650 * time.Millisecond // the ring of pixels as 极限 comes
 	glintTime     = 550 * time.Millisecond // the flash as 极限 comes
@@ -121,20 +121,20 @@ func (a *App) effortSlider(c *ui.Context, k theme.Colors, levels []proto.Effort,
 			p.Fill(ui.Rect{X: x(float32(i)/float32(n-1)) - 2.5, Y: cy - 2.5, W: 5, H: 5}, dot.Alpha(1-g), 2.5)
 		}
 		if chosen >= 0 {
-			kr := ui.Rect{X: kx - 16, Y: cy - 16, W: 32, H: 32} // past the track by 2 above and below
+			kr := ui.Rect{X: kx - knobInset, Y: cy - knobInset, W: 2 * knobInset, H: 2 * knobInset} // as tall as the track
 			if g > 0 {
-				p.Shadow(kr, 16, 0, 0, 12, 2, k.Accent.Alpha(0.45*g))
+				p.Shadow(kr, knobInset, 0, 0, 12, 2, k.Accent.Alpha(0.45*g))
 			}
 			if cur == proto.EffortUltra && !still && since < burstTime {
 				burst(p, kx, cy, float32(since)/float32(burstTime))
 				if f := float32(since) / float32(glintTime); f < 1 {
-					p.Shadow(kr, 16, 0, 0, 24, 6, k.Accent.Alpha(0.6*float32(math.Pow(float64(1-f), 1.6))))
+					p.Shadow(kr, knobInset, 0, 0, 24, 6, k.Accent.Alpha(0.6*float32(math.Pow(float64(1-f), 1.6))))
 				}
 				moving = true
 			}
-			p.Shadow(kr, 16, 0, 1, 3, 0, k.Shadow)
-			p.Fill(kr, k.Popover, 16) // raised is see-through: the track would show
-			p.Fill(kr, k.Raised, 16)
+			p.Shadow(kr, knobInset, 0, 1, 3, 0, k.Shadow)
+			p.Fill(kr, k.Popover, knobInset) // raised is see-through: the track would show
+			p.Fill(kr, k.Raised, knobInset)
 		}
 		if focus {
 			p.FocusRing(r, [4]float32{round, round, round, round})
@@ -146,14 +146,16 @@ func (a *App) effortSlider(c *ui.Context, k theme.Colors, levels []proto.Effort,
 }
 
 // burst draws the ring of pixels flying out of the knob centered on (cx,
-// cy), f of the way through.
+// cy), f of the way through. A pixel fades faster than it slows down, so
+// none hangs in the air before it goes.
 func burst(p *ui.Painter, cx, cy, f float32) {
 	const n = 12
-	d := 16 + 26*(1-(1-f)*(1-f))
+	out, fade := 1-(1-f)*(1-f), (1-f)*(1-f)
 	for i := range n {
 		angle := 2 * math.Pi * (float64(i) + float64(hash(i, 4))*0.5) / n
+		d := knobInset + (8+12*hash(i, 7))*out
 		x, y := cx+d*float32(math.Cos(angle)), cy+d*float32(math.Sin(angle))
-		p.Fill(ui.Rect{X: x - 1, Y: y - 1, W: 2, H: 2}, ui.RGBA(255, 255, 255, 1-f), 0.5)
+		p.Fill(ui.Rect{X: x - 1, Y: y - 1, W: 2, H: 2}, ui.RGBA(255, 255, 255, fade), 0.5)
 	}
 }
 
