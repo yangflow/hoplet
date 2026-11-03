@@ -92,8 +92,8 @@ const detailsWidth = 280
 
 // details is a Code session's details in blocks: where it runs (machine,
 // directory, branch), how (harness and version, model and effort,
-// permission) and the session (state and when it was made, its ID to
-// copy). A row without a value is left out, a block without rows too.
+// permission) and the session (state and when it was made, its ID and
+// the harness's own ID to copy). A row without a value is left out, a block without rows too.
 func (a *App) details(c *ui.Context, k theme.Colors, s proto.Session) {
 	h, _ := a.harness(s.Harness.Kind)
 	model, _ := currentModel(runSettings{model: s.Model}, h)
@@ -127,6 +127,11 @@ func (a *App) details(c *ui.Context, k theme.Colors, s proto.Session) {
 	a.detailBlock(c, k, "会话", []detail{
 		{icon: a.icons.Made, value: statusName(s.Status) + " · 建于 " + s.CreatedAt.Local().Format("1 月 2 日")},
 		{icon: a.icons.ID, value: string(s.ID), mono: true, end: func() { a.copyButton(c, k, "id:"+string(s.ID), string(s.ID), "复制会话 ID") }},
+		// The harness's own ID, once it started one: what resumes the
+		// session in the harness itself.
+		{harness: s.Harness.Kind, value: s.Harness.NativeID, tip: harnessName(s.Harness.Kind) + " 会话 ID：" + s.Harness.NativeID, mono: true, end: func() {
+			a.copyButton(c, k, "native:"+string(s.ID), s.Harness.NativeID, "复制 "+harnessName(s.Harness.Kind)+" 会话 ID")
+		}},
 	})
 }
 

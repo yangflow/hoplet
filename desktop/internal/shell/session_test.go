@@ -673,6 +673,22 @@ func TestDetailsColumn(t *testing.T) {
 	if !tt.HasText("消息") && !strings.Contains(strings.Join(tt.Texts(), "|"), "回复") {
 		t.Errorf("the composer stays beside the details: %q", tt.Texts())
 	}
+	if tt.HasText("复制 Claude Code 会话 ID") {
+		t.Fatal("a harness session ID before the harness started one")
+	}
+	s1, _ := a.cat.Get("s1")
+	s1.Harness.NativeID = "5447e5d2-1317-413a-aa1c-151a5ec48a03"
+	a.Apply(proto.CatalogItem{Version: a.cat.Version() + 1, Sessions: []proto.Session{s1}})
+	tt.Frame()
+	if !tt.HasText(s1.Harness.NativeID) || !tt.HasText("复制 Claude Code 会话 ID") {
+		t.Fatalf("no harness session ID in %q", tt.Texts())
+	}
+	if err := tt.Click("复制 Claude Code 会话 ID"); err != nil {
+		t.Fatal(err)
+	}
+	if got := tt.Clipboard(); got != s1.Harness.NativeID {
+		t.Fatalf("copied %q", got)
+	}
 }
 
 func TestCodeBlockCopy(t *testing.T) {
