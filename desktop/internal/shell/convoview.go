@@ -9,7 +9,6 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/egoist/mygo/plugins/glass"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/markdown"
 
@@ -61,11 +60,6 @@ func (a *App) conversation(c *ui.Context, k theme.Colors, s proto.Session) {
 				})
 			})
 		})
-		// What scrolls toward the composer blurs more the lower it goes. It
-		// cannot fade out: the window is glass, and MyGO does not fade
-		// content pixel by pixel.
-		ui.Box(c).Absolute().Bottom(0).Left(0).Right(0).Height(inset + 40).PassThrough().
-			Material(glass.Blur{Radius: 8, Mask: &ui.LinearGradient{From: ui.Transparent, To: ui.RGB(0, 0, 0), Angle: 180, End: 0.45}})
 		if atEnd {
 			sc.Y = math.MaxFloat32
 		} else if a.toBottom(c, k, cv.Running(), inset+8) {
@@ -212,9 +206,10 @@ func squares(c *ui.Context, k theme.Colors, still bool) {
 func (a *App) toBottom(c *ui.Context, k theme.Colors, running bool, bottom float32) bool {
 	b := ui.Button(c, "").Label("回到底部").Tooltip("回到底部 ⌘↓").Size(32, 32).Padding(0).
 		Absolute().Bottom(bottom).Left(0).Right(0).Margin(0, ui.Auto)
+	b.Radius(16).Background(k.Popover).Border(1, k.Line2).Shadow(0, 6, 18, 0, k.Shadow)
 	hovered := b.Hovered()
-	frosted(c, k, b, 16, func(ui.Element) {}, func() {
-		in := ui.Box(c).Grow(1).Radius(16).AlignItems(ui.Center).Justify(ui.Center)
+	b.Children(func() {
+		in := ui.Box(c).Fill().Radius(16).AlignItems(ui.Center).Justify(ui.Center)
 		if hovered {
 			in.Background(k.Fill2)
 		}

@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/egoist/mygo/plugins/glass"
 	"github.com/egoist/mygo/ui"
 
 	"github.com/yangflow/hoplet/desktop/internal/convo"
@@ -31,25 +30,17 @@ func (a *App) composer(c *ui.Context, k theme.Colors, s proto.Session, cv *convo
 	}
 	q, asked := cv.Question()
 	a.queueTray(c, k, s, cv, h.Capabilities.Steer)
-	// It floats over the conversation: glass in dark; in light, a blur
-	// under the glass fill, as the glass would darken it.
-	frame := ui.Column(c).FillWidth().Radius(theme.RadiusComposer).Border(1, k.GlassLine).Shadow(0, 10, 30, 0, k.Shadow)
-	fill := ui.Transparent
-	if k.Dark {
-		frame.Material(glass.Glass{})
-	} else {
-		frame.Material(glass.Blur{Radius: frostRadius})
-		fill = k.Glass
-	}
+	// It floats over the conversation on the popover fill, which hides
+	// what scrolls under it.
+	frame := ui.Column(c).FillWidth().Padding(12, 12, 8, 14).Gap(8).Radius(theme.RadiusComposer).
+		Background(k.Popover).Border(1, k.GlassLine).Shadow(0, 10, 30, 0, k.Shadow)
 	switch {
 	case ap != nil || asked:
 		frame.Border(1, k.AttnLine).Shadow(0, 0, 0, 3, k.AttnGlow)
 	case !a.connected:
 		frame.Border(1, k.Line2).BorderStyle(ui.BorderDashed)
 	}
-	frame.Children(func() {
-		ui.Column(c).AlignSelf(ui.Stretch).Padding(12, 12, 8, 14).Gap(8).Radius(theme.RadiusComposer).Background(fill).Children(func() { a.composerBody(c, k, s, cv, h, running, ap, pending, q, asked) })
-	})
+	frame.Children(func() { a.composerBody(c, k, s, cv, h, running, ap, pending, q, asked) })
 }
 
 // composerBody is what the composer holds: an approval or a question with

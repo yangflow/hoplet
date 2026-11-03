@@ -51,7 +51,7 @@ flowchart LR
 
 ## 输入框
 
-- 悬浮：输入框浮在对话上，离底 16、宽同对话列；对话一直滚到窗口底，从它下面滚过的内容透过它看得见、被模糊（深色 `glass.Glass{}`，浅色 `glass.Blur` 加 `glass` 底），从输入框顶部往上 40 到窗口底铺一条渐进模糊（`glass.Blur{Radius: 8}` 带渐变遮罩），内容越往下越糊——窗口是玻璃，MyGO 也不能逐像素降低内容的不透明度，所以不做真正的淡出。弹层、菜单、输入框的模糊半径统一 16。对话底部留出输入框平时的高度：MyGO 读不到元素量好的尺寸，输入框临时长高（排队托盘、审批、多行输入）时会压住最后几行，透过玻璃仍看得见。
+- 悬浮：输入框浮在对话上，离底 16、宽同对话列；对话一直滚到窗口底，从它下面滚过去。输入框用接近不透明的 `popover` 底挡住下面的字，不加玻璃材质和背后模糊（试过，整体反而更乱）。对话底部留出输入框平时的高度：MyGO 读不到元素量好的尺寸，输入框临时长高（排队托盘、审批、多行输入）时会压住最后几行。
 - 第一行（仅 Code）：文件夹 · 目录、分支、仓库数，全用图标。
 - 控件行：左 ＋ 添加、审批档位（盾牌图标随档位变）；右 上下文圈（悬停显示上下文与本周用量，>80% 点击压缩）· 强度胶囊（强度柱 · harness 图标 · 模型名 ⌄）· 发送。运行中发送变停止，旁边多一个插话图标；↩ 排队、⌘↩ 插话、⎋ 停止都只写在悬停提示里。
 - 强度弹层：Fast 开关（不支持时置灰）· 当前强度与模型（点模型名换模型）· 恢复默认 · 按 harness 档位分段的滑杆。审批档位弹层：需确认 / 自动编辑 / 智能审批 / 全自动，Plan 单独一行。
@@ -79,24 +79,24 @@ flowchart LR
 
 ## 视觉规范
 
-**全玻璃：** 整个窗口是玻璃，桌面壁纸透过侧栏（`side`）、正文区（`pane`）和右栏；各区靠明暗区分。浮在内容上的分两层：输入框悬浮在对话上，对话从它下面滚过、透过它被模糊；窗口里自己画的弹层、菜单、提示条和回到底部按钮用 `popover` 铺在背后模糊（`glass.Blur{Radius: 16}`）上，深色更浅更透，+ 1px `line2` + `shadow-popover`。正文区上的卡片（伙伴气泡等）用 `bg`，工具输出框和排队托盘用 `bg2`。正文区不用玻璃材质，只用半透明底，保证长文与代码清晰。
+**全玻璃：** 整个窗口是玻璃，桌面壁纸透过侧栏（`side`）、正文区（`pane`）和右栏；各区靠明暗区分。浮在内容上的：悬浮的输入框和窗口里自己画的弹层、菜单、提示条、回到底部按钮用接近不透明的 `popover` + 1px `line2` + `shadow-popover`，不加背后模糊。正文区上的卡片（伙伴气泡等）用 `bg`，工具输出框和排队托盘用 `bg2`。正文区不用玻璃材质，只用半透明底，保证长文与代码清晰。
 
 **深浅两套主题，各对应一版标志：**
 
 | token | 深色 | 浅色 | 用途 |
 |---|---|---|---|
 | `fg` / `fg2` / `fg3` | #F4F4F5 / #D3D6DB / #B0B4BB | #23272D / #383B40 / #53575D | 正文 / 次要 / 图标与控件 |
-| `muted` / `faint` | #999EA6 / #666B73 | #5E6268 / #A0A4AA | 辅助信息 / 占位与禁用 |
+| `muted` / `faint` | #8E939B / #666B73 | #5E6268 / #A0A4AA | 辅助信息 / 占位与禁用 |
 | `accent` + `on-accent` | #3CC4C9 + #0C1A1C | #066A70 + #FFFFFF | 按钮、开关、发送的底与其上的字 |
 | `accent-fg` | #3CC4C9 | #066A70 | 链接、焦点环、运行中、未读 |
 | `attn` + `on-attn` | #F0A35B + #1E1408 | #A85C14 + #FFFFFF | 需要你 |
 | `attn-line` / `attn-glow` | #F0A35B .40 / .10 | #D9822B .40 / .10 | 审批输入框的描边 / 描边外 3px 光晕（深浅都有） |
 | `add` / `del` | #7BC86C / #F0758A | #2E7031 / #B02A55 | diff 新增 / 删除 |
-| `pane` / `side` / `glass` | 白 .06 叠暗、#0E1014 .38、白 .05 | 白 .10、浅灰 .45、灰 .10 | 正文区 / 侧栏与右列 / 输入框 |
+| `pane` / `side` / `glass` | 白 .06 叠暗、#0E1014 .38、白 .05 | 白 .10、浅灰 .45、灰 .10 | 正文区 / 侧栏与右列 / 新建页的输入框 |
 | `raised` / `sel` / `sel-row` | 白 .16 / .10 / .09 | 白 .88 / 黑 .055 / .06 | 分段与标签选中项 / 当前菜单项 / 选中行 |
 | `bg` / `bg2` | 白 .06 / .03 | 白 .40 / .20 | 正文区上的卡片、伙伴气泡 / 工具输出框、排队托盘 |
 | `side-line` | 白 .07 | 黑 .06 | 侧栏右边的细边 |
-| `popover` | #484E58 .52 | 白 .97 | 窗口里自己画的弹层（输入框的弹层、新建页的目录与模型、提示条、回到底部）：铺在背后模糊（`glass.Blur{Radius: 16}`）上，配 1px `line2` 边框与弹层阴影 |
+| `popover` | #262A30 .97 | 白 .97 | 窗口里自己画的弹层（输入框的弹层、新建页的目录与模型、提示条、回到底部）和悬浮的输入框：接近不透明，配 1px `line2` 边框与弹层阴影，不加背后模糊 |
 
 规则：
 
@@ -122,8 +122,8 @@ flowchart LR
 | 规范 | MyGO |
 |---|---|
 | 主题 | `ui.Theme`：Surface / SurfaceHover = `fill` / `fill2`，Border = `line2`，Text / TextMuted = `fg` / `muted`，Accent / AccentText = `accent` / `on-accent`，Warning = `attn`，Success / Danger = `add` / `del`，Focus = `accent-fg`，Radius 7，Spacing 4，FontSize 13；其余语义色放在应用自己的主题包里，按 `Theme.Dark` 取值 |
-| 玻璃 | 透出桌面靠窗口材质：`Vibrancy: VibrancyUnderWindow` + `TitleBarHiddenInset`，根节点不铺底；侧栏、正文区、右列只铺各自的半透明 token（`side` / `pane`）。`glass.Glass{}` 只模糊窗口自己画在下面的内容，而且在浅色下会把底色压暗；输入框在对话下方、不叠在内容上，只铺 `glass` token |
-| 组件 | 侧栏的行自己画（`ui.Row` + 悬停 / 点击 / 右键菜单）：`ui.SidebarItem` 获得焦点时用强调色填满选中行，违反“选中用中性灰”；分段 `ui.Segmented`；标签 `ui.Tabs`；拖动宽度 `ui.Split`；对话正文 `markdown.Stream`；diff `editor.DiffView`；文件树 `ui.Tree`；弹层 `ui.PopoverBase` 加自己的外框（外层 `glass.Blur{Radius: 16}`，里层 `popover` 底、圆角 10、内边距 6、弹层阴影），用 `AttachTo` 贴着控件向上弹出，菜单项高 28、圆角 6；右键菜单、菜单栏仍用原生菜单；会话列表的 ↑↓ 选择自己做（可聚焦的列 + 元素上的 `Shortcut`，MyGO 自己的控件写法）：`ui.List` 的 `Selected` 同样用强调色填满选中行；排队托盘拖动排序用 `ListState.Reorder`；推理强度 `ui.SliderBase`（`Step(1)`）自己画（设计系统 EffortPopover）：28 高胶囊轨道（`sel`）从左填到滑块（`accent`）、每档一个 5 点圆点、28 圆滑块（和轨道一样高，`raised` + 阴影），滑块只停在档位上，用不回弹的弹簧（`AnimateTo`，约 0.3 秒）走过去，拖动经过几档时保持速度；没选档时写“默认”、不填不放滑块；极限档轨道换成 `ultra-from` → `ultra-to` 渐变、像素闪烁，进入时迸出的一圈像素淡得比慢得快、不在空中悬停，照 MyGO 的 `examples/effort-slider`；选择模型在同一个弹层里原地切换（ModelPicker：‹ 返回、harness 图标分段、搜索、列表；harness 给了供应商时按供应商分组）；新建页"Worktree"勾选 `ui.Checkbox`；提示条用 `c.AddToast` 加 `ui.ToastViewportBase` / `ui.ToastBase` 画外观；动效用 `Element.Jump` / `AnimateTo` / `AnimateColor` / `Transition`，不自己写计时器；悬停提示 `Element.Tooltip`；开关 `ui.Switch`；角标 `ui.Badge`；头像自己画（首字 + 中性灰底；`ui.Avatar` 按名字配彩色，违反“只有一种彩色”）；图标 `ui.Icon`（Lucide）/ `ui.Image`（Material） |
+| 玻璃 | 透出桌面靠窗口材质：`Vibrancy: VibrancyUnderWindow` + `TitleBarHiddenInset`，根节点不铺底；侧栏、正文区、右列只铺各自的半透明 token（`side` / `pane`）。`glass.Glass{}` 只模糊窗口自己画在下面的内容，而且在浅色下会把底色压暗；所以不用它：悬浮的输入框和弹层都铺接近不透明的 `popover`，新建页不悬浮的输入框铺 `glass` token |
+| 组件 | 侧栏的行自己画（`ui.Row` + 悬停 / 点击 / 右键菜单）：`ui.SidebarItem` 获得焦点时用强调色填满选中行，违反“选中用中性灰”；分段 `ui.Segmented`；标签 `ui.Tabs`；拖动宽度 `ui.Split`；对话正文 `markdown.Stream`；diff `editor.DiffView`；文件树 `ui.Tree`；弹层 `ui.PopoverBase` 加自己的外框（`popover` 底、圆角 10、内边距 6、弹层阴影），用 `AttachTo` 贴着控件向上弹出，菜单项高 28、圆角 6；右键菜单、菜单栏仍用原生菜单；会话列表的 ↑↓ 选择自己做（可聚焦的列 + 元素上的 `Shortcut`，MyGO 自己的控件写法）：`ui.List` 的 `Selected` 同样用强调色填满选中行；排队托盘拖动排序用 `ListState.Reorder`；推理强度 `ui.SliderBase`（`Step(1)`）自己画（设计系统 EffortPopover）：28 高胶囊轨道（`sel`）从左填到滑块（`accent`）、每档一个 5 点圆点、28 圆滑块（和轨道一样高，`raised` + 阴影），滑块只停在档位上，用不回弹的弹簧（`AnimateTo`，约 0.3 秒）走过去，拖动经过几档时保持速度；没选档时写“默认”、不填不放滑块；极限档轨道换成 `ultra-from` → `ultra-to` 渐变、像素闪烁，进入时迸出的一圈像素淡得比慢得快、不在空中悬停，照 MyGO 的 `examples/effort-slider`；选择模型在同一个弹层里原地切换（ModelPicker：‹ 返回、harness 图标分段、搜索、列表；harness 给了供应商时按供应商分组）；新建页"Worktree"勾选 `ui.Checkbox`；提示条用 `c.AddToast` 加 `ui.ToastViewportBase` / `ui.ToastBase` 画外观；动效用 `Element.Jump` / `AnimateTo` / `AnimateColor` / `Transition`，不自己写计时器；悬停提示 `Element.Tooltip`；开关 `ui.Switch`；角标 `ui.Badge`；头像自己画（首字 + 中性灰底；`ui.Avatar` 按名字配彩色，违反“只有一种彩色”）；图标 `ui.Icon`（Lucide）/ `ui.Image`（Material） |
 | 菜单 | `mygo.NewMenu`（应用菜单、右键、Dock）、`mygo.NewTray`（`IconIsTemplate: true`） |
 
 ## M1 范围

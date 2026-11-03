@@ -3,7 +3,6 @@ package shell
 import (
 	"slices"
 
-	"github.com/egoist/mygo/plugins/glass"
 	"github.com/egoist/mygo/ui"
 
 	"github.com/yangflow/hoplet/desktop/internal/theme"
@@ -20,27 +19,8 @@ func popover(c *ui.Context, k theme.Colors, anchor ui.Element, open *bool, end b
 		if end {
 			at, self = ui.AnchorTopEnd, ui.AnchorBottomEnd
 		}
-		panel.AttachTo(anchor, at, self).Margin(0, 0, 6, 0).Width(width)
-		frosted(c, k, panel, theme.RadiusCard, func(card ui.Element) { card.Padding(6).Gap(1) }, fn)
-	})
-}
-
-// frostRadius is how much what lies under a popover blurs through it.
-const frostRadius = 16
-
-// frosted makes e a card of the popover look: what lies under it shows
-// through blurred, under the popover fill, a hairline and the popover
-// shadow. The fill is a card inside e, as an element takes a material or a
-// fill, not both; style lays the card out and fn draws its content.
-func frosted(c *ui.Context, k theme.Colors, e ui.Element, radius float32, style func(ui.Element), fn func()) {
-	y, blur := float32(10), float32(30)
-	if k.Dark {
-		y, blur = 16, 40
-	}
-	e.Radius(radius).Material(glass.Blur{Radius: frostRadius}).Border(1, k.Line2).Shadow(0, y, blur, 0, k.Shadow).Children(func() {
-		card := ui.Column(c).AlignSelf(ui.Stretch).Grow(1).Radius(radius).Background(k.Popover)
-		style(card)
-		card.Children(fn)
+		panel.AttachTo(anchor, at, self).Margin(0, 0, 6, 0).Width(width).Padding(6).Gap(1).
+			Radius(theme.RadiusCard).Background(k.Popover).Border(1, k.Line2).Shadow(0, 10, 30, 0, k.Shadow).Children(fn)
 	})
 }
 
