@@ -36,17 +36,22 @@ type sessionView struct {
 	copied                                 map[string]time.Time // when each copy button last copied
 	armed                                  time.Time            // the first ⎋ of two that stop a turn
 
-	diffs        map[proto.SessionID]*diffState // each session's changes, as last read
-	queue        ui.ListState                   // the queue tray's rows, which drag to reorder
-	queueAll     bool                           // the queue shows every message, not its first three
-	offlineSince time.Time                      // when the connection was lost
-	flash        map[proto.SessionID]bool       // rows of sessions made elsewhere, and whether they lit
-	runSub       string                         // the run menu's open submenu: subEffort, subModel or none
-	runHover     string                         // the run menu row the pointer is on
-	modelTab     string                         // the harness whose models show
-	modelQuery   string                         // what the model search holds
-	modelFocus   bool                           // the model search takes the focus this frame
-	modelPick    int                            // the highlighted model, -1 for the current
+	diffs        map[proto.SessionID]*diffState                // each session's changes, as last read
+	queue        ui.ListState                                  // the queue tray's rows, which drag to reorder
+	queueAll     bool                                          // the queue shows every message, not its first three
+	offlineSince time.Time                                     // when the connection was lost
+	flash        map[proto.SessionID]bool                      // rows of sessions made elsewhere, and whether they lit
+	inboxPending map[proto.SessionID][]proto.ApprovalRequested // approvals of sessions waiting on me, as last read
+	inboxAsked   map[proto.SessionID]uint64                    // the session version each was read at
+	inboxDone    map[string]string                             // what I decided, by approval, until it goes
+	inboxSel     int                                           // the selected inbox card
+	inboxFocus   bool                                          // the inbox takes the focus this frame
+	runSub       string                                        // the run menu's open submenu: subEffort, subModel or none
+	runHover     string                                        // the run menu row the pointer is on
+	modelTab     string                                        // the harness whose models show
+	modelQuery   string                                        // what the model search holds
+	modelFocus   bool                                          // the model search takes the focus this frame
+	modelPick    int                                           // the highlighted model, -1 for the current
 
 	newPage bool
 	newPick newChoice
@@ -64,6 +69,7 @@ func newSessionView() sessionView {
 		convos: map[proto.SessionID]*convo.Convo{}, drafts: map[proto.SessionID]string{},
 		open: map[string]bool{}, outputs: map[string]*proto.ToolOutput{}, outputErr: map[string]string{}, hidden: map[string]bool{}, copied: map[string]time.Time{},
 		diffs: map[proto.SessionID]*diffState{}, flash: map[proto.SessionID]bool{},
+		inboxPending: map[proto.SessionID][]proto.ApprovalRequested{}, inboxAsked: map[proto.SessionID]uint64{}, inboxDone: map[string]string{},
 	}
 }
 

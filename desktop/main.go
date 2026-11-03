@@ -324,6 +324,17 @@ func (d *desktop) Harnesses(done func([]proto.HarnessInfo)) {
 	})
 }
 
+// Session implements shell.Host.
+func (d *desktop) Session(id proto.SessionID, done func(proto.SessionState)) {
+	d.call(func(ctx context.Context, c *client.Client) error {
+		st, err := c.Session(ctx, id)
+		if err == nil {
+			d.ui(func() { done(st) })
+		}
+		return err
+	})
+}
+
 // Follow implements shell.Host: one session is followed at a time, until
 // another is or the connection ends.
 func (d *desktop) Follow(id proto.SessionID, after uint64) {

@@ -31,6 +31,8 @@ type host struct {
 	outputs    map[string]proto.ToolOutput
 	outputErrs map[string]error
 	models     []proto.HarnessInfo
+	states     map[proto.SessionID]proto.SessionState // what Session answers
+	asked      []proto.SessionID                      // the sessions Session was asked for
 	folder     string
 }
 
@@ -55,10 +57,16 @@ func (h *host) SetPlan(p proto.SetPlanParams)             { h.calls = append(h.c
 func (h *host) SetEffort(p proto.SetEffortParams)         { h.calls = append(h.calls, p) }
 func (h *host) SetFast(p proto.SetFastParams)             { h.calls = append(h.calls, p) }
 func (h *host) SetUltracode(p proto.SetUltracodeParams)   { h.calls = append(h.calls, p) }
-func (h *host) SetModel(p proto.SetModelParams)           { h.calls = append(h.calls, p) }
-func (h *host) EditQueued(p proto.QueueEditParams)        { h.calls = append(h.calls, p) }
-func (h *host) DeleteQueued(p proto.QueueKeyParams)       { h.calls = append(h.calls, p) }
-func (h *host) MoveQueued(p proto.QueueMoveParams)        { h.calls = append(h.calls, p) }
+func (h *host) Session(id proto.SessionID, done func(proto.SessionState)) {
+	h.asked = append(h.asked, id)
+	if st, ok := h.states[id]; ok {
+		done(st)
+	}
+}
+func (h *host) SetModel(p proto.SetModelParams)     { h.calls = append(h.calls, p) }
+func (h *host) EditQueued(p proto.QueueEditParams)  { h.calls = append(h.calls, p) }
+func (h *host) DeleteQueued(p proto.QueueKeyParams) { h.calls = append(h.calls, p) }
+func (h *host) MoveQueued(p proto.QueueMoveParams)  { h.calls = append(h.calls, p) }
 func (h *host) Output(p proto.OutputParams, done func(proto.ToolOutput, error)) {
 	h.calls = append(h.calls, p)
 	if err, ok := h.outputErrs[p.ToolCall]; ok {

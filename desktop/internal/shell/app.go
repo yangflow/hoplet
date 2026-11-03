@@ -49,6 +49,8 @@ type Host interface {
 	// Older pages back through a session's events before seq.
 	Older(id proto.SessionID, before uint64, done func(proto.EventsPage))
 	Harnesses(done func([]proto.HarnessInfo))
+	// Session reads what a session waits on: its pending approvals.
+	Session(id proto.SessionID, done func(proto.SessionState))
 	// Follow follows one session's events from after seq, in place of the
 	// session followed before; its items reach App.ApplySession.
 	Follow(id proto.SessionID, after uint64)
@@ -240,6 +242,7 @@ func (a *App) OpenInbox() {
 
 func (a *App) showInbox() {
 	a.inbox, a.selected, a.s.newPage = true, "", false
+	a.s.inboxSel, a.s.inboxFocus = 0, true
 }
 
 // open selects a session without recording it; it reports whether the
