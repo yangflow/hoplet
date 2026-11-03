@@ -633,3 +633,25 @@ func TestBackForwardPages(t *testing.T) {
 	a.Back()
 	at("s2")
 }
+
+// The sidebar's inbox entry counts the sessions that need me and opens
+// the inbox, as ⇧⌘I does.
+func TestInboxEntry(t *testing.T) {
+	a, _, tt, _ := newApp(t)
+	if !tt.HasText("1") {
+		t.Fatalf("no badge for the one waiting session in %q", tt.Texts())
+	}
+	if err := tt.Click("收件箱"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if !a.inbox {
+		t.Fatal("the entry does not open the inbox")
+	}
+	a.Select("s1")
+	a.OpenInbox() // as ⇧⌘I does
+	tt.Frame()
+	if !a.inbox || a.selected != "" {
+		t.Fatalf("inbox %v, selected %q", a.inbox, a.selected)
+	}
+}

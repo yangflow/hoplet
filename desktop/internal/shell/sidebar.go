@@ -2,6 +2,7 @@ package shell
 
 import (
 	"fmt"
+	"strconv"
 	"time"
 	"unicode"
 	"unicode/utf8"
@@ -38,6 +39,7 @@ func (a *App) sidebar(c *ui.Context, k theme.Colors) {
 				ui.Icon(c, a.icons.New).FontSize(theme.IconSize).TextColor(k.Fg3)
 				theme.UI.On(ui.Text(c, "新建")).TextColor(k.Fg)
 			})
+			a.inboxEntry(c, k)
 		})
 		// The machine scope ("全部机器 ▾") comes with several machines.
 		ui.Row(c).Height(theme.RowHeight).Margin(8, 0, 0, 0).Padding(0, 8, 0, 16).AlignItems(ui.Center).Children(func() {
@@ -70,6 +72,34 @@ const modeSwitchWidth = 2 + 30 + 2 + 30 + 2
 func sideMin(bar ui.TitleBar) float32 {
 	row := bar.Left + 8 + 3*theme.RowHeight + 2*2 + 12 + modeSwitchWidth + 8
 	return max(theme.SidebarMin, row)
+}
+
+// inboxEntry is the sidebar's way into the inbox: its icon, its name and
+// how many sessions need me, on every machine; the row is selected while
+// the inbox shows.
+func (a *App) inboxEntry(c *ui.Context, k theme.Colors) {
+	n := a.cat.Counts().NeedsYou
+	e := ui.Row(c).Height(theme.RowHeight).Padding(0, 8).Gap(8).AlignItems(ui.Center).Radius(theme.RadiusRow).
+		Label("收件箱").Tooltip("收件箱 ⇧⌘I")
+	switch {
+	case a.inbox:
+		e.Background(k.SelRow)
+	case e.Hovered():
+		e.Background(k.Fill)
+	}
+	if e.Clicked() {
+		a.OpenInbox()
+	}
+	e.Children(func() {
+		ui.Icon(c, a.icons.Inbox).FontSize(theme.IconSize).TextColor(k.Fg3)
+		name := theme.UI.On(ui.Text(c, "收件箱")).TextColor(k.Fg).Grow(1)
+		if a.inbox {
+			name.FontWeight(600)
+		}
+		if n > 0 {
+			ui.Badge(c, strconv.Itoa(n)).Background(k.Attn).TextColor(k.OnAttn)
+		}
+	})
 }
 
 // topHeight is the height of the window's top row: the title bar's, which

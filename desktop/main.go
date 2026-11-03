@@ -53,6 +53,10 @@ func run() error {
 	d := &desktop{wake: make(chan struct{})}
 	d.app = shell.New(set, d, d.changed)
 	mygo.App.SetMenu(d.menu())
+	mygo.App.Dock.SetMenu(mygo.NewMenu([]*mygo.MenuItem{
+		{Label: "新建会话", Click: d.front(func() { d.app.NewSession() })},
+		{Label: "收件箱", Click: d.front(func() { d.app.OpenInbox() })},
+	}))
 	mygo.App.OnSecondInstance(func([]string, string) { d.show() })
 	mygo.App.OnActivate(func(bool) { d.show() })
 	mygo.App.OnBeforeQuit(func(*mygo.QuitEvent) { d.quitting = true })
@@ -383,6 +387,16 @@ func (d *desktop) do(fn func()) func(*mygo.MenuItem, *mygo.Window) {
 	}
 }
 
+// front brings the window forward and runs fn in it.
+func (d *desktop) front(fn func()) func(*mygo.MenuItem, *mygo.Window) {
+	return func(*mygo.MenuItem, *mygo.Window) {
+		d.show()
+		if d.win != nil {
+			d.win.Update(fn)
+		}
+	}
+}
+
 // menu builds the menu bar.
 func (d *desktop) menu() *mygo.Menu {
 	d.pin = &mygo.MenuItem{Label: "置顶", Accelerator: "Shift+CmdOrCtrl+P", Click: d.do(d.app.TogglePin)}
@@ -402,6 +416,8 @@ func (d *desktop) menu() *mygo.Menu {
 		{Label: "视图", Submenu: []*mygo.MenuItem{
 			{Label: "Personal", Accelerator: "CmdOrCtrl+1", Click: d.do(func() { d.app.SetMode(proto.ModePersonal) })},
 			{Label: "Code", Accelerator: "CmdOrCtrl+2", Click: d.do(func() { d.app.SetMode(proto.ModeCode) })},
+			mygo.Separator(),
+			{Label: "收件箱", Accelerator: "Shift+CmdOrCtrl+I", Click: d.do(d.app.OpenInbox)},
 			mygo.Separator(),
 			d.back, d.forward,
 			mygo.Separator(),
