@@ -239,8 +239,7 @@ func (a *App) palette(c *ui.Context, k theme.Colors) {
 		a.s.palOpen = false
 		h.run()
 	}
-	ui.DialogBase(c, &a.s.palOpen, func(backdrop, panel ui.Element) {
-		backdrop.Justify(ui.Start).AlignItems(ui.Center).Padding(96, 0, 0, 0)
+	ui.DialogBase(c, &a.s.palOpen, func(_, panel ui.Element) {
 		panel.Width(600).Radius(14).Clip().Background(k.Popover).Border(1, k.Line2).Shadow(0, 10, 30, 0, k.Shadow).Label("命令面板")
 		ui.Row(c).Height(52).Padding(0, 16).Gap(10).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(k.Line).Children(func() {
 			in := ui.SearchField(c, &a.s.palQuery).Placeholder("搜索会话和命令…").Label("搜索").AutoFocus().Grow(1).

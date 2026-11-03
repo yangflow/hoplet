@@ -140,4 +140,7 @@ func TestCentered(t *testing.T) {
 	if mid := r.X + r.W/2; mid < 580 || mid > 620 {
 		t.Errorf("the palette is centered at %v of 1200", mid)
 	}
+	if mid := r.Y + r.H/2; mid < 410 || mid > 490 {
+		t.Errorf("the palette's middle is at %v of 900", mid)
+	}
 }
