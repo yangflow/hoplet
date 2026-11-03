@@ -10,6 +10,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
+	"github.com/yangflow/hoplet/desktop/internal/catalog"
 	"github.com/yangflow/hoplet/desktop/internal/icons"
 	"github.com/yangflow/hoplet/desktop/internal/theme"
 	"github.com/yangflow/hoplet/proto"
@@ -578,4 +579,57 @@ func TestOpensOnNewSession(t *testing.T) {
 	if !a.s.newPage || !tt.HasText("新伙伴") {
 		t.Fatalf("Personal shows %q", tt.Texts())
 	}
+}
+
+// Back and Forward go through sessions, the inbox and the new-session
+// page, skipping sessions that are gone.
+func TestBackForwardPages(t *testing.T) {
+	a, _, tt, _ := newApp(t)
+	at := func(want string) {
+		t.Helper()
+		tt.Frame()
+		var got string
+		switch {
+		case a.inbox:
+			got = "inbox"
+		case a.s.newPage:
+			got = "new"
+		default:
+			got = a.selected
+		}
+		if got != want {
+			t.Fatalf("at %q, want %q", got, want)
+		}
+	}
+	a.Select("s1")
+	a.OpenInbox()
+	a.NewSession()
+	at("new")
+	a.Back()
+	at("inbox")
+	if !tt.HasText("收件箱") {
+		t.Fatalf("no inbox title in %q", tt.Texts())
+	}
+	a.Back()
+	at("s1")
+	a.Forward()
+	at("inbox")
+	a.Select("s2")
+	a.Forward() // nothing after the newest page
+	at("s2")
+
+	// A session gone from the catalog is skipped.
+	a.Select("s3")
+	a.OpenInbox()
+	var keep []proto.Session
+	for _, s := range a.cat.List(catalog.View{Mode: proto.ModeCode}).Groups {
+		for _, x := range s.Sessions {
+			if x.ID != "s3" {
+				keep = append(keep, x)
+			}
+		}
+	}
+	a.Apply(proto.CatalogItem{Snapshot: true, Version: a.cat.Version() + 1, Sessions: keep})
+	a.Back()
+	at("s2")
 }

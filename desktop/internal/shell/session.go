@@ -117,9 +117,17 @@ func (a *App) harness(kind string) (proto.HarnessInfo, bool) {
 // NewSession opens the new-session page in the current mode.
 func (a *App) NewSession() { a.newSessionIn("") }
 
-// newSessionIn opens the new-session page with a directory already chosen.
+// newSessionIn opens the new-session page with a directory already chosen,
+// and records it for Back and Forward.
 func (a *App) newSessionIn(dir string) {
-	a.s.newPage, a.selected = true, ""
+	a.showNew(dir)
+	a.visit(page{kind: pageNew, mode: a.mode})
+}
+
+// showNew shows the new-session page of the current mode, without
+// recording it.
+func (a *App) showNew(dir string) {
+	a.s.newPage, a.selected, a.inbox = true, "", false
 	a.s.newPick = newChoice{dir: dir}
 	if a.mode == proto.ModeCode {
 		a.s.newPick.run.perm = proto.ModeAutoReview // the daemon's default for Code
