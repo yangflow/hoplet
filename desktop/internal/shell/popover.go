@@ -60,6 +60,7 @@ type runSettings struct {
 
 // settingsSink applies changes to run settings.
 type settingsSink struct {
+	fresh  bool // nothing is set yet: the default effort shows and is sent
 	perm   func(proto.PermissionMode)
 	plan   func(bool)
 	effort func(proto.Effort)
@@ -243,6 +244,28 @@ func check(c *ui.Context, k theme.Colors, a *App, on bool) {
 	ui.Icon(c, a.icons.Check).FontSize(14).TextColor(k.Fg3)
 }
 
+// effortLevels are the effort levels the model takes, or else its
+// harness's.
+func effortLevels(h proto.HarnessInfo, cur *proto.ModelInfo) []proto.Effort {
+	if cur != nil && len(cur.Efforts) > 0 {
+		return cur.Efforts
+	}
+	return h.Capabilities.Efforts
+}
+
+// defaultEffort is the effort a new session starts with, which Hoplet
+// sets rather than leave it to the harness, whose default it cannot see:
+// medium, or the middle of the levels a harness without medium takes.
+func defaultEffort(levels []proto.Effort) proto.Effort {
+	switch {
+	case slices.Contains(levels, proto.EffortMedium):
+		return proto.EffortMedium
+	case len(levels) > 0:
+		return levels[len(levels)/2]
+	}
+	return ""
+}
+
 // effortPill shows the effort as bars, the harness's mark and the model;
 // it opens the effort popover: Fast, the effort with the harness and the
 // model, reset, and a slider over the levels the model takes. The model
@@ -266,6 +289,11 @@ func (a *App) effortPill(c *ui.Context, k theme.Colors, st runSettings, hs []pro
 		set.effort(e)
 	}
 	model, cur := currentModel(st, h)
+	levels := effortLevels(h, cur)
+	def := defaultEffort(levels)
+	if set.fresh && st.effort == "" {
+		st.effort = def
+	}
 	b := ui.Button(c, "").Label("强度与模型").Tooltip(harnessName(h.Kind)+" · "+model+" · 推理强度 "+effortName(st.effort)).
 		Height(theme.RowHeight).Padding(0, 8, 0, 9).Gap(6).Radius(theme.RadiusPill).Border(0, ui.Transparent).Background(k.Fill).
 		Disabled(!a.connected) // which models there are is known only once connected
@@ -283,11 +311,7 @@ func (a *App) effortPill(c *ui.Context, k theme.Colors, st runSettings, hs []pro
 		ui.Icon(c, a.icons.Menu).FontSize(theme.IconSizeSmall).TextColor(k.Faint)
 	})
 	popover(c, k, b, &a.s.effortOpen, true, 300, func() {
-		caps := h.Capabilities
-		levels, fast := caps.Efforts, caps.Fast
-		if cur != nil && len(cur.Efforts) > 0 {
-			levels = cur.Efforts
-		}
+		fast := h.Capabilities.Fast
 		if cur != nil && h.Kind == "hermes" {
 			fast = fast && cur.Fast
 		}
@@ -312,8 +336,8 @@ func (a *App) effortPill(c *ui.Context, k theme.Colors, st runSettings, hs []pro
 						ui.Icon(c, a.icons.Expand).FontSize(10).TextColor(k.Faint)
 					})
 				})
-				if iconButton(c, k, a.icons.Reset, "恢复默认", false).Disabled(st.effort == "").Clicked() {
-					setEffort("")
+				if iconButton(c, k, a.icons.Reset, "恢复默认", false).Disabled(st.effort == def).Clicked() {
+					setEffort(def)
 				}
 			})
 			if len(levels) > 1 {

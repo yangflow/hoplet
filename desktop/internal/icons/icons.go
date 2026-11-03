@@ -62,7 +62,7 @@ type Set struct {
 	Fast      *ui.SVG
 	Close     *ui.SVG
 	Me        *ui.SVG // my avatar
-	Details   *ui.SVG // open or close the session details column
+	Details   *ui.SVG // open or close the session details column (ⓘ)
 	ID        *ui.SVG // a session's ID
 	Made      *ui.SVG // a session's state and when it was made
 	Grip      *ui.SVG // drag handle
@@ -125,7 +125,7 @@ func Load() (*Set, error) {
 		{&s.Fast, "lucide/zap.svg"},
 		{&s.Close, "lucide/x.svg"},
 		{&s.Me, "lucide/user.svg"},
-		{&s.Details, "lucide/panel-right.svg"},
+		{&s.Details, "lucide/info.svg"},
 		{&s.ID, "lucide/id-card.svg"},
 		{&s.Made, "lucide/clock.svg"},
 		{&s.Grip, "lucide/grip-vertical.svg"},

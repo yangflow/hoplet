@@ -252,7 +252,7 @@ func TestNewSession(t *testing.T) {
 	}
 	tt.Type("add a tray")
 	tt.Key(0, ui.KeyEnter)
-	if got := h.last(); !reflect.DeepEqual(got, proto.CreateParams{Mode: proto.ModeCode, Harness: "claude", Directory: "/w/site", Permission: proto.ModeAutoReview}) {
+	if got := h.last(); !reflect.DeepEqual(got, proto.CreateParams{Mode: proto.ModeCode, Harness: "claude", Directory: "/w/site", Permission: proto.ModeAutoReview, Effort: proto.EffortMedium}) {
 		t.Fatalf("create %#v", got)
 	}
 	h.created(proto.Session{ID: "n1", Mode: proto.ModeCode, Harness: proto.HarnessRef{Kind: "claude"}, Directory: "/w/site", Status: proto.StatusIdle})
@@ -472,16 +472,22 @@ func TestEffortDefault(t *testing.T) {
 	if err := tt.Click("强度与模型"); err != nil {
 		t.Fatal(err)
 	}
-	if !tt.HasText("默") || !tt.HasText("认") {
-		t.Fatalf("no 默认 before a level is chosen: %q", tt.Texts())
+	if !tt.HasText("强度 中") {
+		t.Fatalf("a new session does not start at medium: %q", tt.Texts())
 	}
 	if err := tt.Click("推理强度"); err != nil {
 		t.Fatal(err)
 	}
 	tt.Key(0, ui.KeyRight)
 	tt.Frame()
-	if a.s.newPick.run.effort == "" {
-		t.Fatal("the keys choose no level")
+	if a.s.newPick.run.effort != proto.EffortHigh {
+		t.Fatalf("→ from medium chose %q", a.s.newPick.run.effort)
+	}
+	if err := tt.Click("恢复默认"); err != nil {
+		t.Fatal(err)
+	}
+	if a.s.newPick.run.effort != proto.EffortMedium {
+		t.Fatalf("reset chose %q", a.s.newPick.run.effort)
 	}
 }
 

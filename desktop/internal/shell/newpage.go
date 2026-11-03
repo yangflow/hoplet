@@ -129,6 +129,7 @@ func (a *App) recentLine(c *ui.Context, k theme.Colors, pick *newChoice) {
 func (a *App) newSink() settingsSink {
 	r := &a.s.newPick.run
 	return settingsSink{
+		fresh:  true,
 		perm:   func(m proto.PermissionMode) { r.perm = m },
 		plan:   func(on bool) { r.plan = on },
 		effort: func(e proto.Effort) { r.effort = e },
@@ -227,6 +228,11 @@ func (a *App) recentDirs() []string {
 func (a *App) create(text string) {
 	pick := a.s.newPick
 	r := pick.run
+	if r.effort == "" {
+		h, _ := a.harness(r.harness)
+		_, cur := currentModel(r, h)
+		r.effort = defaultEffort(effortLevels(h, cur))
+	}
 	p := proto.CreateParams{Mode: a.mode, Harness: pick.run.harness, Permission: r.perm, Plan: r.plan,
 		Effort: r.effort, Fast: r.fast, Model: r.model, ModelProvider: r.provider}
 	if a.mode == proto.ModeCode {
