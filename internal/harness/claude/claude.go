@@ -209,6 +209,8 @@ func (h *Harness) Launch(spec harness.Spec) (harness.Launch, error) {
 		h.Binary, "-p",
 		"--input-format", "stream-json", "--output-format", "stream-json", "--verbose",
 		"--include-partial-messages", "--permission-prompt-tool", "stdio",
+		// Without it thinking blocks arrive with their text left out.
+		"--thinking-display", "summarized",
 		// Allows switching to bypassPermissions later in the session; it
 		// does not bypass anything by itself.
 		"--allow-dangerously-skip-permissions",
