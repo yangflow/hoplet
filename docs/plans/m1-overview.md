@@ -98,4 +98,5 @@ PR2、PR3、PR4 互不依赖，可以并行开发。PR6b 与 PR7 都要实现 6a
 - [PR7：Hermes 适配](m1-pr7-hermes.md)（已合并）
 - [PR8：工作目录与会话累计 diff](m1-pr8-workspace.md)（已合并）
 - [PR9a：桌面骨架与设计系统](m1-pr9a-desktop-shell.md)（已合并）
-- [PR9b：会话视图、输入框与审批](m1-pr9b-session-view.md)
+- [PR9b：会话视图、输入框与审批](m1-pr9b-session-view.md)（已合并）
+- [PR9b2：收件箱与命令面板](m1-pr9b2-inbox-palette.md)

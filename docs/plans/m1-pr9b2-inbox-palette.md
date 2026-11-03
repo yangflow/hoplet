@@ -93,43 +93,43 @@ type page struct {
 
 文件：`desktop/internal/shell/app.go`、`session.go`、`content.go`、`shell_test.go`。
 
-- [ ] 把 `selected` + `s.newPage` 换成当前 `page`；`history` 记 `page`，后退 / 前进在会话、收件箱、新建页之间走；同一页不重复记。
-- [ ] 测试：会话 → 收件箱 → 新建页，后退依次回到收件箱、会话，前进再回来；归档当前会话后后退跳过它。
-- [ ] commit：`feat(desktop): navigate between sessions, inbox and new page`
+- [x] 把 `selected` + `s.newPage` 换成当前 `page`；`history` 记 `page`，后退 / 前进在会话、收件箱、新建页之间走；同一页不重复记。
+- [x] 测试：会话 → 收件箱 → 新建页，后退依次回到收件箱、会话，前进再回来；归档当前会话后后退跳过它。
+- [x] commit：`feat(desktop): navigate between sessions, inbox and new page`
 
 ### 任务 3：侧栏入口、快捷键与菜单
 
 文件：`sidebar.go`、`desktop/main.go`、`icons/icons.go`、测试。
 
-- [ ] 侧栏“新建”下面加“搜索”（`search`）与“收件箱”（`inbox`，角标 = 需要你的会话数，0 不显示）；当前页是收件箱时整行 `sel-row`。
-- [ ] ⌘K 打开命令面板，⇧⌘I 打开收件箱；菜单栏“视图”加“收件箱 ⇧⌘I”“搜索 ⌘K”；Dock 右键菜单加“收件箱”。
-- [ ] 测试：角标随目录里等你处理的会话数变化；点“收件箱”与 ⇧⌘I 都打开收件箱。
-- [ ] commit：`feat(desktop): add search and inbox entries to the sidebar`
+- [x] 侧栏“新建”下面加“搜索”（`search`）与“收件箱”（`inbox`，角标 = 需要你的会话数，0 不显示）；当前页是收件箱时整行 `sel-row`。
+- [x] ⌘K 打开命令面板，⇧⌘I 打开收件箱；菜单栏“视图”加“收件箱 ⇧⌘I”“搜索 ⌘K”；Dock 右键菜单加“收件箱”。
+- [x] 测试：角标随目录里等你处理的会话数变化；点“收件箱”与 ⇧⌘I 都打开收件箱。
+- [x] commit：`feat(desktop): add search and inbox entries to the sidebar`
 
 ### 任务 4：收件箱
 
 文件：新 `desktop/internal/shell/inbox.go`、`inbox_test.go`，`app.go`（Host 加 `Session`），`desktop/main.go`。
 
-- [ ] 分组（纯函数 `inboxSections(feeds []machineFeed) []inboxSection`，表驱动测试）：需要你（连着的机器上状态 waiting 的会话，每个待审批一张卡）· 已完成，待查看（未读且不在“需要你”里）· 出错（状态 errored）· 断线（每台断开的机器一张卡，下面列它断开前等你处理的会话，灰掉）；组内按更新时间新的在前；空组不显示；全空时空状态一行“没有要你处理的事”。
-- [ ] 待审批：进入收件箱和目录里等你处理的会话版本变化时，对这些会话调 `Host.Session`，结果按会话缓存；离开收件箱不再取。
-- [ ] 卡片：harness 标志 · 标题 · 机器 · 目录 · 时间 · 打开会话；审批卡加类型图标与标题、命令或文件（等宽 `fill` 底）、最多三个选项按钮；待查看卡是预览，悬停出“标为已读”；出错卡是“出错了”加预览；断线卡是断开多久与重连说明。
-- [ ] 处理后：卡片原地显示结果一行再收起（`Transition`，减少动态效果时直接去掉），选中移到下一张。
-- [ ] 键盘：↑↓ 在卡片间移动（中性灰选中，可聚焦的列 + `Shortcut`），↩ 打开会话，1–3 选审批选项。
-- [ ] 测试：分组与排序，含断开的机器（表驱动）；点“允许一次”发出 `sessions.respond` 且选项是单次允许；按 1 处理后选中移到下一张；“全部标为已读”与卡片上的“标为已读”发出 `sessions.update`；守护进程断开时出现断线卡且审批按钮不可用；没有任何事时显示空状态。
-- [ ] commit：`feat(desktop): add the inbox`
+- [x] 分组（纯函数 `inboxSections(feeds []machineFeed) []inboxSection`，表驱动测试）：需要你（连着的机器上状态 waiting 的会话，每个待审批一张卡）· 已完成，待查看（未读且不在“需要你”里）· 出错（状态 errored）· 断线（每台断开的机器一张卡，下面列它断开前等你处理的会话，灰掉）；组内按更新时间新的在前；空组不显示；全空时空状态一行“没有要你处理的事”。
+- [x] 待审批：进入收件箱和目录里等你处理的会话版本变化时，对这些会话调 `Host.Session`，结果按会话缓存；离开收件箱不再取。
+- [x] 卡片：harness 标志 · 标题 · 机器 · 目录 · 时间 · 打开会话；审批卡加类型图标与标题、命令或文件（等宽 `fill` 底）、最多三个选项按钮；待查看卡是预览，悬停出“标为已读”；出错卡是“出错了”加预览；断线卡是断开多久与重连说明。
+- [x] 处理后：卡片原地显示结果一行再收起（`Transition`，减少动态效果时直接去掉），选中移到下一张。
+- [x] 键盘：↑↓ 在卡片间移动（中性灰选中，可聚焦的列 + `Shortcut`），↩ 打开会话，1–3 选审批选项。
+- [x] 测试：分组与排序，含断开的机器（表驱动）；点“允许一次”发出 `sessions.respond` 且选项是单次允许；按 1 处理后选中移到下一张；“全部标为已读”与卡片上的“标为已读”发出 `sessions.update`；守护进程断开时出现断线卡且审批按钮不可用；没有任何事时显示空状态。
+- [x] commit：`feat(desktop): add the inbox`
 
 ### 任务 5：命令面板
 
 文件：新 `desktop/internal/shell/palette.go`、`palette_test.go`。
 
-- [ ] 匹配（纯函数）：会话按标题、目录、预览，命令按名字；不分大小写；排序：开头匹配 > 词首匹配 > 包含；“全部”里每组最多 5 条。
-- [ ] 面板：`ui.Dialog`（居中、宽 600、`popover` 底）+ `ui.SearchField` + 范围 全部 / 会话 / 命令（⌘1–3 只作用于面板）；空输入时列 最近会话 · 快捷操作；行：图标 · 名字 · 灰色位置 · 快捷键；底部键帽提示 ↑↓ 选择、↩ 打开、esc 关闭；没有匹配时一行说明。
-- [ ] 测试：匹配与排序（表驱动）；⌘K 输入标题的一部分、↩ 打开那个会话；在“命令”范围里执行“新建会话”打开新建页；esc 关闭且焦点回到原处。
-- [ ] commit：`feat(desktop): add the command palette`
+- [x] 匹配（纯函数）：会话按标题、目录、预览，命令按名字；不分大小写；排序：开头匹配 > 词首匹配 > 包含；“全部”里每组最多 5 条。
+- [x] 面板：`ui.Dialog`（居中、宽 600、`popover` 底）+ `ui.SearchField` + 范围 全部 / 会话 / 命令（⌘1–3 只作用于面板）；空输入时列 最近会话 · 快捷操作；行：图标 · 名字 · 灰色位置 · 快捷键；底部键帽提示 ↑↓ 选择、↩ 打开、esc 关闭；没有匹配时一行说明。
+- [x] 测试：匹配与排序（表驱动）；⌘K 输入标题的一部分、↩ 打开那个会话；在“命令”范围里执行“新建会话”打开新建页；esc 关闭且焦点回到原处。
+- [x] commit：`feat(desktop): add the command palette`
 
 ### 任务 6：收尾与真实验收
 
-- [ ] `m1-overview.md`：9b 标为已合并，加本计划的链接。
+- [x] `m1-overview.md`：9b 标为已合并，加本计划的链接。
 - [ ] `make check`；重装守护进程后在真实窗口里：让一个 Claude Code 会话请求运行命令，切到另一个会话，从收件箱“允许一次”，回到原会话看到命令执行；⌘K 找到并打开任一会话。
 - [ ] commit：`docs: link the PR9b2 plan`；推送并开 PR。
 
