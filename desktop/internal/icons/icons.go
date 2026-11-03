@@ -1,7 +1,6 @@
 // Package icons embeds the desktop's vendored icons: a subset of Lucide
-// (ISC), file-type icons from Material Icon Theme (MIT), the Claude mark
-// from Simple Icons (CC0) and Hoplet's own mark. Licenses sit beside the
-// files.
+// (ISC), file-type icons from Material Icon Theme (MIT), the harness marks
+// (MIT) and Hoplet's own mark. Licenses sit beside the files.
 package icons
 
 import (
@@ -14,7 +13,7 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-//go:embed lucide/*.svg material/*.svg simpleicons/*.svg brand/*.svg tray/*.png
+//go:embed lucide/*.svg material/*.svg harness/*.svg brand/*.svg tray/*.png
 var files embed.FS
 
 // Set holds the parsed icons. Build it once with Load and share it.
@@ -35,6 +34,8 @@ type Set struct {
 	Offline   *ui.SVG // the daemon is not reachable
 	Menu      *ui.SVG // a session's menu
 	Claude    *ui.SVG // the Claude Code harness
+	Codex     *ui.SVG // the Codex harness
+	Hermes    *ui.SVG // the Hermes harness
 	Mark      *ui.SVG // Hoplet's mark
 
 	// The conversation and the composer.
@@ -103,7 +104,9 @@ func Load() (*Set, error) {
 		{&s.Connected, "lucide/link.svg"},
 		{&s.Offline, "lucide/unlink.svg"},
 		{&s.Menu, "lucide/chevron-down.svg"},
-		{&s.Claude, "simpleicons/claude.svg"},
+		{&s.Claude, "harness/claude-mark.svg"},
+		{&s.Codex, "harness/openai-mark.svg"},
+		{&s.Hermes, "harness/hermes-mark.svg"},
 		{&s.Mark, "brand/mark.svg"},
 		{&s.New, "lucide/plus.svg"},
 		{&s.Copy, "lucide/copy.svg"},
@@ -259,6 +262,19 @@ func fileKind(base string) string {
 // FileType returns the icon of a file by its name, in its own colors.
 func (s *Set) FileType(name string) *ui.SVG {
 	return s.files[fileKind(strings.ToLower(path.Base(name)))]
+}
+
+// Harness is the mark of a harness kind, nil for one without a mark.
+func (s *Set) Harness(kind string) *ui.SVG {
+	switch kind {
+	case "claude":
+		return s.Claude
+	case "codex":
+		return s.Codex
+	case "hermes":
+		return s.Hermes
+	}
+	return nil
 }
 
 // FolderType is the icon of a folder, in its own colors.

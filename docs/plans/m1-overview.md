@@ -26,7 +26,7 @@
 |---|---|---|---|---|
 | Lucide（lucide-static） | 1.66.0 | ISC | 界面图标、审批盾牌 | PR9a |
 | Material Icon Theme | 5.40.0 | MIT | 文件与文件夹类型图标 | PR9c |
-| Simple Icons | 16.36.0 | CC0-1.0 | Claude 标志 | PR9a |
+| harness 标志（svgl 的 Claude、OpenAI 图形；Hermes Agent 的 Nous 图形） | — | MIT | Claude Code、Codex、Hermes 标志 | PR9b2（替换 PR9a 的 Simple Icons） |
 | JetBrains Mono | 2.304 | SIL OFL 1.1 | 代码字体（Regular、SemiBold） | PR9b |
 
 ## PR 拆分与顺序

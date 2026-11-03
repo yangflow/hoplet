@@ -471,11 +471,11 @@ func (a *App) renameInput(c *ui.Context) {
 	}
 }
 
-// harnessIcon is the harness's mark at size: Claude's own, others their
-// initial.
+// harnessIcon is the harness's mark at size, in the text color; a harness
+// without a mark shows its initial.
 func (a *App) harnessIcon(c *ui.Context, k theme.Colors, kind string, size float32) {
-	if kind == "claude" {
-		ui.Icon(c, a.icons.Claude).FontSize(size).TextColor(k.Fg3).Label("Claude Code")
+	if mark := a.icons.Harness(kind); mark != nil {
+		ui.Icon(c, mark).FontSize(size).TextColor(k.Fg3).Label(harnessName(kind))
 		return
 	}
 	ui.Box(c).Size(size, size).Radius(theme.RadiusXS).Background(k.Fill2).Center().Label(harnessName(kind)).Children(func() {

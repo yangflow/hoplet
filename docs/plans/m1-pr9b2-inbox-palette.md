@@ -145,6 +145,13 @@ type page struct {
 - [x] 测试：分组（表驱动之外的整轮用例）、只展开最新一行、结束收起、发送失败后重试。
 - [x] commit：`feat(desktop): fold a turn's steps into one group`
 
+### 任务 8：设计系统定版与 harness 标志（验收中追加）
+
+- [x] 设计系统 token 定版（文字样式 13 个、间距 8 档、圆角 7 档、阴影 4 个、线条、尺寸），画板装上设计系统并新增“0 组件”页。
+- [x] harness 标志换成 Claude 星芒、OpenAI 花形（Codex）、Nous 女孩头像（Hermes），单色跟随文字色，许可证在 `desktop/internal/icons/harness/LICENSE`。
+- [ ] 区域画板用组件重拼、右侧栏拆分、theme 由 tokens.json 生成：下一步。
+- [x] commit：`feat(desktop): draw every harness with its mark`
+
 ## 风险
 
 - `ui.List` 选中行的强调色与“选中用中性灰”冲突：照侧栏会话列表的做法，自己画行并用 `Shortcut` 接 ↑↓。

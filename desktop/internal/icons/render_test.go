@@ -106,7 +106,7 @@ func TestLoad(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if s.Mark == nil || s.Claude == nil || s.Pin == nil {
+	if s.Mark == nil || s.Claude == nil || s.Codex == nil || s.Hermes == nil || s.Pin == nil {
 		t.Fatalf("set %+v", s)
 	}
 	for _, st := range []TrayState{TrayIdle, TrayRunning, TrayOffline} {
@@ -135,5 +135,43 @@ func TestFileType(t *testing.T) {
 	}
 	if s.FolderType() == nil {
 		t.Error("no folder icon")
+	}
+}
+
+// The harness marks are filled with currentColor: drawn as icons they take
+// the text color, so they show on dark and light alike.
+func TestHarnessMarks(t *testing.T) {
+	s, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, kind := range []string{"claude", "codex", "hermes"} {
+		mark := s.Harness(kind)
+		if mark == nil {
+			t.Fatalf("no mark for %s", kind)
+		}
+		tt := ui.NewTester(func(c *ui.Context) {
+			c.Root().Background(ui.Transparent)
+			ui.Icon(c, mark).FontSize(32).TextColor(ui.RGBA(255, 0, 0, 1))
+		}, 32, 32)
+		tt.Frame()
+		img := tt.Image()
+		inked, other := 0, 0
+		for i := 0; i < len(img.Pix); i += 4 {
+			if img.Pix[i+3] < 200 {
+				continue
+			}
+			if img.Pix[i] > 200 && img.Pix[i+1] < 60 && img.Pix[i+2] < 60 {
+				inked++
+			} else {
+				other++
+			}
+		}
+		if inked < 40 || other > inked/10 {
+			t.Errorf("%s: %d pixels in the text color, %d in another", kind, inked, other)
+		}
+	}
+	if s.Harness("fake") != nil {
+		t.Error("a mark for an unknown harness")
 	}
 }
