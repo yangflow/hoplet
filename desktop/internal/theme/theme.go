@@ -67,16 +67,16 @@ func For(dark bool) Colors {
 		}
 	}
 	return Colors{
-		Pane: ui.RGBA(255, 255, 255, .10), Side: ui.RGBA(236, 238, 241, .45), SideLine: ui.RGBA(0, 0, 0, .06),
-		Glass: ui.RGBA(120, 128, 140, .10), GlassLine: ui.Transparent, Popover: ui.RGBA(255, 255, 255, .97),
-		Raised: ui.RGBA(255, 255, 255, .88), Bg: ui.RGBA(255, 255, 255, .40), Bg2: ui.RGBA(255, 255, 255, .20), Fill: ui.RGBA(0, 0, 0, .04), Fill2: ui.RGBA(0, 0, 0, .06),
+		Pane: ui.RGBA(255, 255, 255, .62), Side: ui.RGBA(231, 234, 238, .82), SideLine: ui.RGBA(0, 0, 0, .06),
+		Glass: ui.RGBA(255, 255, 255, .88), GlassLine: ui.RGBA(0, 0, 0, .08), Popover: ui.RGBA(255, 255, 255, .97),
+		Raised: ui.RGBA(255, 255, 255, .88), Bg: ui.RGBA(255, 255, 255, .75), Bg2: ui.RGBA(255, 255, 255, .70), Fill: ui.RGBA(0, 0, 0, .04), Fill2: ui.RGBA(0, 0, 0, .06),
 		Sel: ui.RGBA(0, 0, 0, .055), SelRow: ui.RGBA(0, 0, 0, .06),
 		Line: ui.RGBA(0, 0, 0, .06), Line2: ui.RGBA(0, 0, 0, .10),
 		Fg: ui.Hex("#23272D"), Fg2: ui.Hex("#383B40"), Fg3: ui.Hex("#53575D"), Muted: ui.Hex("#5E6268"), Faint: ui.Hex("#A0A4AA"),
 		Accent: ui.Hex("#066A70"), OnAccent: ui.Hex("#FFFFFF"), AccentFg: ui.Hex("#066A70"), UltraFrom: ui.Hex("#03363B"), UltraTo: ui.Hex("#14A3AB"),
 		Attn: ui.Hex("#A85C14"), OnAttn: ui.Hex("#FFFFFF"), AttnFg: ui.Hex("#8A4B0F"), AttnLine: ui.RGBA(217, 130, 43, .40), AttnGlow: ui.RGBA(217, 130, 43, .10),
 		Add: ui.Hex("#2E7031"), Del: ui.Hex("#B02A55"), AddBg: ui.RGBA(46, 112, 49, .10), DelBg: ui.RGBA(176, 42, 85, .08),
-		Bubble: ui.RGBA(120, 128, 140, .14), Shadow: ui.RGBA(0, 0, 0, .12),
+		Bubble: ui.RGBA(231, 234, 238, .95), Shadow: ui.RGBA(0, 0, 0, .12),
 	}
 }
 
