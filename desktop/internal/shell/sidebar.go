@@ -451,12 +451,12 @@ func (a *App) trailing(c *ui.Context, k theme.Colors, s proto.Session, hovered b
 	}
 }
 
-// renameInput edits a session's title in its row: Enter keeps it, Escape
-// drops it.
+// renameInput edits a session's title in its row: Enter or a press
+// outside it keeps it, Escape drops it.
 func (a *App) renameInput(c *ui.Context) {
 	in := ui.TextInput(c, &a.draft).AutoFocus().Label("标题")
 	switch {
-	case in.Submitted():
+	case in.Submitted(), in.PressedOutside():
 		a.commitRename()
 	case in.Shortcut(0, ui.KeyEscape):
 		a.renaming = ""

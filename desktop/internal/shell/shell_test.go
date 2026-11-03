@@ -663,3 +663,34 @@ func TestInboxEntry(t *testing.T) {
 		t.Fatalf("inbox %v, selected %q", a.inbox, a.selected)
 	}
 }
+
+// Renaming ends with Enter or a press outside the title, which keep the
+// new title, or Escape, which drops it.
+func TestRenameEnds(t *testing.T) {
+	a, h, tt, _ := newApp(t)
+	a.Select("s1")
+	a.Rename()
+	tt.Frame()
+	if !tt.Focused("标题") {
+		t.Fatal("the title is not being edited")
+	}
+	a.draft = "Fix sync now"
+	if err := tt.Click("全部机器"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if a.renaming != "" {
+		t.Fatal("a press outside leaves the title in editing")
+	}
+	if n := len(h.updates); n == 0 || h.updates[n-1].Title == nil || *h.updates[n-1].Title != "Fix sync now" {
+		t.Fatalf("updates %+v", h.updates)
+	}
+	a.Rename()
+	tt.Frame()
+	a.draft = "dropped"
+	tt.Key(0, ui.KeyEscape)
+	tt.Frame()
+	if a.renaming != "" || *h.updates[len(h.updates)-1].Title == "dropped" {
+		t.Fatal("Escape kept the edit")
+	}
+}
