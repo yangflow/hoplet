@@ -2,28 +2,94 @@ package shell
 
 import (
 	"errors"
+	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/egoist/mygo/ui"
 
 	"github.com/yangflow/hoplet/desktop/internal/icons"
+	"github.com/yangflow/hoplet/desktop/internal/theme"
 	"github.com/yangflow/hoplet/proto"
 )
 
-// host records what the shell asks for.
+// host records what the shell asks for; calls holds the 9b requests as
+// the parameters they were given.
 type host struct {
-	updates  []proto.UpdateParams
-	stopped  []proto.SessionID
-	archived []proto.SessionID
-	revealed []string
+	diffs      map[proto.SessionID]proto.SessionDiff
+	reconnects int
+	updates    []proto.UpdateParams
+	stopped    []proto.SessionID
+	archived   []proto.SessionID
+	revealed   []string
+	calls      []any
+	followed   []proto.SessionID
+	created    func(proto.Session) // the pending Create's done
+	outputs    map[string]proto.ToolOutput
+	outputErrs map[string]error
+	models     []proto.HarnessInfo
+	folder     string
 }
 
 func (h *host) Update(p proto.UpdateParams) { h.updates = append(h.updates, p) }
 func (h *host) Stop(id proto.SessionID)     { h.stopped = append(h.stopped, id) }
 func (h *host) Archive(id proto.SessionID)  { h.archived = append(h.archived, id) }
 func (h *host) Reveal(dir string)           { h.revealed = append(h.revealed, dir) }
+func (h *host) Create(p proto.CreateParams, done func(proto.Session)) {
+	h.calls = append(h.calls, p)
+	h.created = done
+}
+func (h *host) Send(p proto.SendParams) {
+	p.Key = "" // random
+	h.calls = append(h.calls, p)
+}
+func (h *host) Steer(p proto.SteerParams)                 { h.calls = append(h.calls, p) }
+func (h *host) Interrupt(id proto.SessionID)              { h.calls = append(h.calls, "interrupt "+string(id)) }
+func (h *host) Respond(p proto.RespondParams)             { p.Key = ""; h.calls = append(h.calls, p) }
+func (h *host) Answer(p proto.AnswerParams)               { h.calls = append(h.calls, p) }
+func (h *host) SetPermission(p proto.SetPermissionParams) { h.calls = append(h.calls, p) }
+func (h *host) SetPlan(p proto.SetPlanParams)             { h.calls = append(h.calls, p) }
+func (h *host) SetEffort(p proto.SetEffortParams)         { h.calls = append(h.calls, p) }
+func (h *host) SetFast(p proto.SetFastParams)             { h.calls = append(h.calls, p) }
+func (h *host) SetUltracode(p proto.SetUltracodeParams)   { h.calls = append(h.calls, p) }
+func (h *host) SetModel(p proto.SetModelParams)           { h.calls = append(h.calls, p) }
+func (h *host) EditQueued(p proto.QueueEditParams)        { h.calls = append(h.calls, p) }
+func (h *host) DeleteQueued(p proto.QueueKeyParams)       { h.calls = append(h.calls, p) }
+func (h *host) MoveQueued(p proto.QueueMoveParams)        { h.calls = append(h.calls, p) }
+func (h *host) Output(p proto.OutputParams, done func(proto.ToolOutput, error)) {
+	h.calls = append(h.calls, p)
+	if err, ok := h.outputErrs[p.ToolCall]; ok {
+		done(proto.ToolOutput{}, err)
+	} else if o, ok := h.outputs[p.ToolCall]; ok {
+		done(o, nil)
+	}
+}
+func (h *host) Older(id proto.SessionID, before uint64, _ func(proto.EventsPage)) {
+	h.calls = append(h.calls, fmt.Sprintf("older %s %d", id, before))
+}
+func (h *host) Diff(id proto.SessionID, done func(proto.SessionDiff)) {
+	if d, ok := h.diffs[id]; ok {
+		done(d)
+	}
+}
+func (h *host) Reconnect()                               { h.reconnects++ }
+func (h *host) Harnesses(done func([]proto.HarnessInfo)) { done(h.models) }
+func (h *host) Follow(id proto.SessionID, _ uint64)      { h.followed = append(h.followed, id) }
+func (h *host) ChooseFolder(done func(string)) {
+	if h.folder != "" {
+		done(h.folder)
+	}
+}
+
+// last returns the last 9b request.
+func (h *host) last() any {
+	if len(h.calls) == 0 {
+		return nil
+	}
+	return h.calls[len(h.calls)-1]
+}
 
 func newApp(t *testing.T) (*App, *host, *ui.Tester, *[]State) {
 	t.Helper()
@@ -212,7 +278,7 @@ func TestOffline(t *testing.T) {
 	if (*states)[len(*states)-1].Connected {
 		t.Fatal("state still connected")
 	}
-	a.Fail(errors.New("session not found"))
+	a.Fail(errors.New("session not found"), nil)
 	tt.Frame()
 	if !tt.HasText("没做成：session not found") {
 		t.Fatalf("no toast in %q", tt.Texts())
@@ -285,5 +351,231 @@ func TestTopRowCentersOnTrafficLights(t *testing.T) {
 	tt.Frame()
 	if r, ok := tt.Find("显示侧栏 ⌃⌘S"); !ok || r.Y+r.H/2 < 25.5 || r.Y+r.H/2 > 26.5 || r.X < 78 {
 		t.Fatalf("show-sidebar button at %+v", r)
+	}
+}
+
+var errDaemon = errors.New("dial: no such file")
+
+func TestSidebarKeys(t *testing.T) {
+	a, _, tt, _ := newApp(t)
+	if err := tt.Click("Add tray"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Key(0, ui.KeyDown)
+	if a.selected != "s1" {
+		t.Fatalf("down from Add tray selected %q", a.selected)
+	}
+	tt.Key(0, ui.KeyUp)
+	if a.selected != "s2" {
+		t.Fatalf("up selected %q", a.selected)
+	}
+	s4, _ := a.cat.Get("s4")
+	s4.Pinned = true
+	a.Apply(proto.CatalogItem{Version: 6, Sessions: []proto.Session{s4}})
+	tt.Frame()
+	tt.Key(ui.Cmd|ui.Alt, ui.Key1)
+	if a.selected != "s4" {
+		t.Fatalf("⌘⌥1 selected %q", a.selected)
+	}
+}
+
+func TestCompanionMenuAndDetails(t *testing.T) {
+	a, _, tt, _ := newApp(t)
+	if err := tt.Click("Personal ⌘1"); err != nil {
+		t.Fatal(err)
+	}
+	a.Select("p1")
+	tt.Frame()
+	if err := tt.RightClick("小助手"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.ChooseMenuItem("置顶"); err == nil {
+		t.Fatal("a companion's menu pins")
+	}
+	r, ok := tt.Find("小助手")
+	if !ok {
+		t.Fatal("no row")
+	}
+	tt.Move(r.X+2, r.Y+2)
+	tt.Frame()
+	if tt.HasText("置顶 ⇧⌘P") || tt.HasText("归档 ⌘⌫") {
+		t.Fatal("a companion's row offers pin or archive")
+	}
+	if err := tt.Click("伙伴详情 ⌘I"); err != nil {
+		t.Fatalf("%v in %q", err, tt.Texts())
+	}
+	for _, want := range []string{"Hermes", "studio · 在线"} {
+		if !tt.HasText(want) {
+			t.Errorf("no %q in %q", want, tt.Texts())
+		}
+	}
+}
+
+func TestToasts(t *testing.T) {
+	a, _, tt, _ := newApp(t)
+	a.Select("s1")
+	tt.Frame()
+	retried := 0
+	a.Fail(errors.New("timeout"), func() { retried++ })
+	tt.Frame()
+	tt.Advance(10 * time.Second)
+	if !tt.HasText("没做成：timeout") {
+		t.Fatalf("a failure went away by itself: %q", tt.Texts())
+	}
+	if err := tt.Click("重试"); err != nil || retried != 1 || tt.HasText("没做成：timeout") {
+		t.Fatalf("retry: %v, %d, %q", err, retried, tt.Texts())
+	}
+	a.Fail(errors.New("gone"), nil)
+	tt.Frame()
+	if tt.HasText("重试") {
+		t.Fatal("a failure that cannot be retried offers to")
+	}
+	if err := tt.Click("关闭"); err != nil || tt.HasText("没做成：gone") {
+		t.Fatalf("close: %v, %q", err, tt.Texts())
+	}
+	a.hint("再按一次 ⎋ 停止")
+	tt.Move(0, 0) // hovering keeps a hint
+	tt.Frame()
+	if !tt.HasText("再按一次 ⎋ 停止") {
+		t.Fatalf("no hint in %q", tt.Texts())
+	}
+	tt.Advance(5 * time.Second)
+	if tt.HasText("再按一次 ⎋ 停止") {
+		t.Fatal("the hint stayed")
+	}
+}
+
+func TestEmptyLists(t *testing.T) {
+	a, _, tt, _ := newApp(t)
+	if err := tt.Click("排列"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.ChooseMenuItem("显示", "运行中  1"); err != nil {
+		t.Fatalf("%v", err)
+	}
+	s3, _ := a.cat.Get("s3")
+	s3.Status = proto.StatusIdle
+	a.Apply(proto.CatalogItem{Version: 6, Sessions: []proto.Session{s3}})
+	tt.Frame()
+	if !tt.HasText("没有运行中的会话") {
+		t.Fatalf("no empty filter in %q", tt.Texts())
+	}
+	if err := tt.Click("显示全部"); err != nil || !tt.HasText("Fix sync") {
+		t.Fatalf("show all: %v", err)
+	}
+
+	b, _, tb, _ := newApp(t)
+	b.Apply(proto.CatalogItem{Snapshot: true, Version: 7})
+	tb.Frame()
+	if !tb.HasText("还没有会话") || tb.HasText("新建会话 ⌘N") {
+		t.Fatalf("an empty list says why, with no button: %q", tb.Texts())
+	}
+	if err := tb.Click("Personal ⌘1"); err != nil {
+		t.Fatal(err)
+	}
+	// 新建伙伴 is the list header's ＋ alone.
+	if !tb.HasText("还没有伙伴") || strings.Count(strings.Join(tb.Texts(), "|"), "新建伙伴 ⇧⌘N") != 1 {
+		t.Fatalf("no empty companions in %q", tb.Texts())
+	}
+}
+
+func TestNewSessionElsewhereFlashes(t *testing.T) {
+	a, _, tt, _ := newApp(t)
+	a.Apply(proto.CatalogItem{Version: 6, Sessions: []proto.Session{{ID: "s9", Mode: proto.ModeCode, Harness: proto.HarnessRef{Kind: "claude"},
+		Directory: "/w/hoplet", Status: proto.StatusIdle, Title: "From the phone", UpdatedAt: tt.Now()}}})
+	tt.Frame()
+	if _, ok := a.s.flash["s9"]; !ok {
+		t.Fatal("a session made elsewhere does not light")
+	}
+	tt.Advance(flashTime + 50*time.Millisecond)
+	if _, ok := a.s.flash["s9"]; ok {
+		t.Fatal("still lit")
+	}
+}
+
+func TestFlashWithLessMotion(t *testing.T) {
+	a, _, tt, _ := newApp(t)
+	tt.SetPreferences(ui.Preferences{ReduceMotion: true})
+	a.Apply(proto.CatalogItem{Version: 6, Sessions: []proto.Session{{ID: "s9", Mode: proto.ModeCode, Harness: proto.HarnessRef{Kind: "claude"},
+		Directory: "/w/hoplet", Status: proto.StatusIdle, Title: "From the phone", UpdatedAt: tt.Now()}}})
+	tt.Frame()
+	tt.Advance(flashTime - 100*time.Millisecond)
+	if _, ok := a.s.flash["s9"]; !ok {
+		t.Fatal("the light went before its time")
+	}
+	tt.Advance(200 * time.Millisecond)
+	if _, ok := a.s.flash["s9"]; ok {
+		t.Fatal("still lit")
+	}
+}
+
+func TestSidebarResizes(t *testing.T) {
+	a, _, tt, _ := newApp(t)
+	if a.side != theme.SidebarWidth {
+		t.Fatalf("starts at %v", a.side)
+	}
+	drag := func(dx float32) {
+		x := a.side
+		tt.Press(x, 400)
+		tt.Move(x+dx, 400)
+		tt.Release(x+dx, 400)
+		tt.Frame()
+	}
+	drag(-30)
+	if a.side != theme.SidebarWidth-30 {
+		t.Fatalf("narrowed to %v", a.side)
+	}
+	drag(-200)
+	if a.side != theme.SidebarMin {
+		t.Fatalf("narrowed past the least to %v", a.side)
+	}
+	drag(400)
+	if a.side != theme.SidebarMax {
+		t.Fatalf("widened past the most to %v", a.side)
+	}
+	if r, ok := tt.Find("全部机器"); !ok || r.X+r.W > a.side {
+		t.Fatalf("the sidebar's header at %+v, width %v", r, a.side)
+	}
+}
+
+// The sidebar stops narrowing where its top row would no longer fit
+// beside the traffic lights.
+func TestSidebarFitsItsTopRow(t *testing.T) {
+	a, _, tt, _ := newApp(t)
+	tt.SetTitleBar(ui.TitleBar{Height: 52, Left: 76})
+	tt.Frame()
+	x := a.side
+	tt.Press(x, 400)
+	tt.Move(x-200, 400)
+	tt.Release(x-200, 400)
+	tt.Frame()
+	least := sideMin(ui.TitleBar{Left: 76})
+	if a.side != least || least <= theme.SidebarMin {
+		t.Fatalf("narrowed to %v, least %v", a.side, least)
+	}
+	r, ok := tt.Find("Code ⌘2")
+	if !ok || r.X+r.W > a.side {
+		t.Fatalf("the mode switch at %+v in a sidebar %v wide", r, a.side)
+	}
+}
+
+// With no session selected (at start, after switching modes or archiving
+// the selected one) the new-session page shows.
+func TestOpensOnNewSession(t *testing.T) {
+	a, _, tt, _ := newApp(t)
+	if !a.s.newPage {
+		t.Fatal("the app opens without the new-session page")
+	}
+	a.Select("s1")
+	tt.Frame()
+	a.Archive()
+	tt.Frame()
+	if !a.s.newPage {
+		t.Fatal("archiving the selected session leaves no page")
+	}
+	a.SetMode(proto.ModePersonal)
+	tt.Frame()
+	if !a.s.newPage || !tt.HasText("新伙伴") {
+		t.Fatalf("Personal shows %q", tt.Texts())
 	}
 }

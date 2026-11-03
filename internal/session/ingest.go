@@ -1,6 +1,7 @@
 package session
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"strings"
@@ -213,6 +214,14 @@ func (in *ingester) event(ev harness.Event) error {
 		if in.inTurn {
 			turn = in.turn
 		}
+	}
+	if tc, ok := payload.(proto.ToolCall); ok && len(ev.Output) > 0 {
+		ref, err := in.m.cfg.Store.PutBlob(bytes.NewReader(ev.Output))
+		if err != nil {
+			return err
+		}
+		tc.Output = &ref
+		payload = tc
 	}
 	var entry *store.Entry
 	if payload != nil {

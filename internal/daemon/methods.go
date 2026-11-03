@@ -35,7 +35,8 @@ func (c *conn) call(ctx context.Context, f proto.ClientFrame) (any, error) {
 		}
 		return s.mgr.Create(ctx, session.CreateRequest{
 			Mode: p.Mode, Harness: p.Harness, Directory: p.Directory, Isolation: p.Isolation,
-			Permission: p.Permission, Plan: p.Plan, Fast: p.Fast, Effort: p.Effort, Title: p.Title, Origin: proto.OriginMe,
+			Permission: p.Permission, Plan: p.Plan, Fast: p.Fast, Ultracode: p.Ultracode, Effort: p.Effort, Title: p.Title, Origin: proto.OriginMe,
+			Model: p.Model, ModelProvider: p.ModelProvider,
 		})
 	case proto.MethodSessionsSend:
 		var p proto.SendParams
@@ -99,6 +100,26 @@ func (c *conn) call(ctx context.Context, f proto.ClientFrame) (any, error) {
 			return nil, err
 		}
 		return done, s.mgr.SetFast(ctx, p.Session, p.Fast)
+	case proto.MethodSessionsSetUltra:
+		var p proto.SetUltracodeParams
+		if err := decode(f, &p); err != nil {
+			return nil, err
+		}
+		return done, s.mgr.SetUltracode(ctx, p.Session, p.Ultracode)
+	case proto.MethodSessionsSetModel:
+		var p proto.SetModelParams
+		if err := decode(f, &p); err != nil {
+			return nil, err
+		}
+		return done, s.mgr.SetModel(ctx, p.Session, p.Model, p.Provider)
+	case proto.MethodSessionsOutput:
+		var p proto.OutputParams
+		if err := decode(f, &p); err != nil {
+			return nil, err
+		}
+		return s.mgr.Output(ctx, p.Session, p.ToolCall)
+	case proto.MethodHarnessesList:
+		return s.mgr.Harnesses(ctx), nil
 	case proto.MethodSessionsUpdate:
 		var p proto.UpdateParams
 		if err := decode(f, &p); err != nil {

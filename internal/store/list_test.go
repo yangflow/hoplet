@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
@@ -69,5 +70,50 @@ func TestFirstLine(t *testing.T) {
 		if got := firstLine(tc.in, tc.n); got != tc.want {
 			t.Errorf("firstLine(%q, %d) = %q, want %q", tc.in, tc.n, got, tc.want)
 		}
+	}
+}
+
+func TestModelChanged(t *testing.T) {
+	ctx := context.Background()
+	s := newStore(t)
+	newSession(t, s, "s")
+	appendOK(t, s, AppendRequest{Session: "s", Turn: 1, Entries: []Entry{
+		{Payload: proto.TurnStarted{}},
+		{Payload: proto.ModelChanged{Model: "gpt-6.1-sol", Provider: "local"}},
+	}})
+	got, _ := s.Session(ctx, "s")
+	if got.Model != "gpt-6.1-sol" || got.ModelProvider != "local" {
+		t.Fatalf("after model.changed %+v", got)
+	}
+	appendOK(t, s, AppendRequest{Session: "s", Turn: 1, Entries: []Entry{{Payload: proto.ModelChanged{Model: "claude-opus-5-5"}}}})
+	if got, _ = s.Session(ctx, "s"); got.Model != "claude-opus-5-5" || got.ModelProvider != "" {
+		t.Fatalf("a model without a provider kept the old one: %+v", got)
+	}
+}
+
+func TestToolOutput(t *testing.T) {
+	ctx := context.Background()
+	s := newStore(t)
+	newSession(t, s, "s")
+	ref, err := s.PutBlob(strings.NewReader("line 1\nline 2\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	appendOK(t, s, AppendRequest{Session: "s", Turn: 1, Entries: []Entry{
+		{Payload: proto.TurnStarted{}},
+		{Payload: proto.ToolCall{ID: "t1", Kind: proto.ToolExec, Name: "Bash", Summary: "ls", Status: proto.ToolRunning}},
+		{Payload: proto.ToolCall{ID: "t1", Kind: proto.ToolExec, Name: "Bash", Summary: "ls", Status: proto.ToolDone, Output: &ref}},
+		{Payload: proto.ToolCall{ID: "t2", Kind: proto.ToolExec, Name: "Bash", Summary: "pwd", Status: proto.ToolDone}},
+	}})
+	got, err := s.ToolOutput(ctx, "s", "t1")
+	if err != nil || got != ref {
+		t.Fatalf("output of t1: %+v %v, want %+v", got, err, ref)
+	}
+	if _, err := s.ToolOutput(ctx, "s", "t2"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("a call without output: %v", err)
+	}
+	m := "claude-opus-5-5"
+	if got, err := s.UpdateSession(ctx, "s", SessionUpdate{Model: &m}); err != nil || got.Model != m {
+		t.Fatalf("update model %+v %v", got, err)
 	}
 }

@@ -236,3 +236,23 @@ func (s *Store) Snapshot(ctx context.Context, id proto.SessionID, turns int) (Se
 	}
 	return snap, nil
 }
+
+// ToolOutput returns the blob holding the output of a session's tool call,
+// from the call's latest event that has one; ErrNotFound when it has none.
+func (s *Store) ToolOutput(ctx context.Context, id proto.SessionID, toolCall string) (proto.BlobRef, error) {
+	var payload string
+	err := s.rdb.QueryRowContext(ctx, `SELECT payload FROM events
+		WHERE session_id = ? AND type = ? AND output_sha256 IS NOT NULL AND json_extract(payload, '$.id') = ?
+		ORDER BY seq DESC LIMIT 1`, id, proto.TypeToolCall, toolCall).Scan(&payload)
+	if errors.Is(err, sql.ErrNoRows) {
+		return proto.BlobRef{}, fmt.Errorf("%w: output of tool call %q in session %s", ErrNotFound, toolCall, id)
+	}
+	if err != nil {
+		return proto.BlobRef{}, fmt.Errorf("store: tool output: %w", err)
+	}
+	var tc proto.ToolCall
+	if err := json.Unmarshal([]byte(payload), &tc); err != nil || tc.Output == nil {
+		return proto.BlobRef{}, fmt.Errorf("store: tool output: unreadable tool call %q", toolCall)
+	}
+	return *tc.Output, nil
+}

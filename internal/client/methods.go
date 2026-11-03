@@ -58,6 +58,11 @@ func (c *Client) SetPlan(ctx context.Context, p proto.SetPlanParams) error {
 	return c.Call(ctx, proto.MethodSessionsSetPlan, p, nil)
 }
 
+// SetUltracode turns a session's Ultracode on or off.
+func (c *Client) SetUltracode(ctx context.Context, p proto.SetUltracodeParams) error {
+	return c.Call(ctx, proto.MethodSessionsSetUltra, p, nil)
+}
+
 // SetFast turns a session's fast mode on or off.
 func (c *Client) SetFast(ctx context.Context, p proto.SetFastParams) error {
 	return c.Call(ctx, proto.MethodSessionsSetFast, p, nil)
@@ -73,6 +78,25 @@ func (c *Client) SetEffort(ctx context.Context, p proto.SetEffortParams) error {
 func (c *Client) Update(ctx context.Context, p proto.UpdateParams) (proto.Session, error) {
 	var out proto.Session
 	err := c.Call(ctx, proto.MethodSessionsUpdate, p, &out)
+	return out, err
+}
+
+// SetModel changes a session's model from its next turn.
+func (c *Client) SetModel(ctx context.Context, p proto.SetModelParams) error {
+	return c.Call(ctx, proto.MethodSessionsSetModel, p, nil)
+}
+
+// Harnesses describes the installed harnesses and their models.
+func (c *Client) Harnesses(ctx context.Context) ([]proto.HarnessInfo, error) {
+	var out []proto.HarnessInfo
+	err := c.Call(ctx, proto.MethodHarnessesList, struct{}{}, &out)
+	return out, err
+}
+
+// Output reads a tool call's output.
+func (c *Client) Output(ctx context.Context, p proto.OutputParams) (proto.ToolOutput, error) {
+	var out proto.ToolOutput
+	err := c.Call(ctx, proto.MethodSessionsOutput, p, &out)
 	return out, err
 }
 

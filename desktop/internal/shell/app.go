@@ -5,6 +5,7 @@ package shell
 
 import (
 	"slices"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 
@@ -15,14 +16,44 @@ import (
 )
 
 // Host carries out what the shell asks. Calls must not block: daemon
-// requests run elsewhere and their effects come back through the catalog,
-// their failures through App.Fail.
+// requests run elsewhere and their effects come back through the catalog
+// or the followed session, their failures through App.Fail; a done
+// function runs on the UI thread.
 type Host interface {
 	Update(p proto.UpdateParams)
 	Stop(id proto.SessionID)
 	Archive(id proto.SessionID)
 	// Reveal shows a directory in Finder.
 	Reveal(dir string)
+
+	Create(p proto.CreateParams, done func(proto.Session))
+	Send(p proto.SendParams)
+	Steer(p proto.SteerParams)
+	Interrupt(id proto.SessionID)
+	Respond(p proto.RespondParams)
+	Answer(p proto.AnswerParams)
+	SetPermission(p proto.SetPermissionParams)
+	SetPlan(p proto.SetPlanParams)
+	SetEffort(p proto.SetEffortParams)
+	SetFast(p proto.SetFastParams)
+	SetUltracode(p proto.SetUltracodeParams)
+	SetModel(p proto.SetModelParams)
+	EditQueued(p proto.QueueEditParams)
+	DeleteQueued(p proto.QueueKeyParams)
+	MoveQueued(p proto.QueueMoveParams)
+	Output(p proto.OutputParams, done func(proto.ToolOutput, error))
+	// Diff reads a session's changes since it began, without patches.
+	Diff(id proto.SessionID, done func(proto.SessionDiff))
+	// Reconnect tries the daemon now rather than at the next retry.
+	Reconnect()
+	// Older pages back through a session's events before seq.
+	Older(id proto.SessionID, before uint64, done func(proto.EventsPage))
+	Harnesses(done func([]proto.HarnessInfo))
+	// Follow follows one session's events from after seq, in place of the
+	// session followed before; its items reach App.ApplySession.
+	Follow(id proto.SessionID, after uint64)
+	// ChooseFolder asks for a directory; done is not called when I cancel.
+	ChooseFolder(done func(dir string))
 }
 
 // State is what the window offers outside itself: the menu bar, the menu
@@ -78,7 +109,8 @@ type App struct {
 	selected string
 	closed   map[string]bool // collapsed directory groups
 	hideSide bool
-	away     bool // the app is in the background or the window hidden
+	side     float32 // the sidebar's width, which its edge drags
+	away     bool    // the app is in the background or the window hidden
 
 	// history is the sessions I selected, oldest first; at is the current
 	// one, -1 before the first.
@@ -88,34 +120,59 @@ type App struct {
 	renaming proto.SessionID
 	draft    string
 
-	toast string // an error to show once
+	pending ui.Toast // a note for the view to show
+
+	s sessionView // the conversation, the composer and the new-session page
 
 	changed func(State)
 	last    State
 }
 
-// New returns the app in Code mode, not yet connected. changed is called
-// from the view whenever State changes.
+// New returns the app in Code mode, not yet connected, on the new-session
+// page, as it is whenever no session is selected. changed is called from
+// the view whenever State changes.
 func New(set *icons.Set, host Host, changed func(State)) *App {
-	return &App{icons: set, host: host, mode: proto.ModeCode, closed: map[string]bool{}, at: -1, changed: changed}
+	a := &App{icons: set, host: host, mode: proto.ModeCode, closed: map[string]bool{}, at: -1, changed: changed, s: newSessionView(), side: theme.SidebarWidth}
+	a.newSessionIn("")
+	return a
 }
 
-// Connected records a new connection to the daemon of host.
+// Connected records a new connection to the daemon of host: the followed
+// session resumes and messages written while offline go out.
 func (a *App) Connected(host string) {
-	a.connected, a.machine, a.offline = true, host, ""
+	a.connected, a.machine, a.offline, a.s.offlineSince = true, host, "", time.Time{}
+	if a.s.newPage {
+		a.host.Harnesses(a.SetHarnesses)
+	}
+	a.follow()
+	a.flushOutbox()
 }
 
 // Lost records that the connection is gone and why.
 func (a *App) Lost(err error) {
+	if a.connected || a.s.offlineSince.IsZero() {
+		a.s.offlineSince = time.Now()
+	}
 	a.connected = false
 	a.offline = err.Error()
 }
 
-// Fail shows that something asked of the host did not happen.
-func (a *App) Fail(err error) { a.toast = "没做成：" + err.Error() }
+// Fail shows that something asked of the host did not happen, until it is
+// closed or another note replaces it; retry, when not nil, asks again.
+func (a *App) Fail(err error, retry func()) {
+	a.pending = failure("没做成："+err.Error(), retry)
+}
 
-// Apply brings the session list up to a catalog item.
+// Apply brings the session list up to a catalog item. A session that
+// appears in an update, made elsewhere, lights its row for a moment.
 func (a *App) Apply(it proto.CatalogItem) {
+	if !it.Snapshot && a.cat.Version() > 0 {
+		for _, s := range it.Sessions {
+			if _, ok := a.cat.Get(s.ID); !ok {
+				a.s.flash[s.ID] = false // lights when first drawn
+			}
+		}
+	}
 	a.cat.Apply(it)
 	a.markRead()
 }
@@ -123,7 +180,8 @@ func (a *App) Apply(it proto.CatalogItem) {
 // SetMode switches between Personal and Code.
 func (a *App) SetMode(m proto.Mode) {
 	if a.mode != m {
-		a.mode, a.archived, a.selected = m, false, ""
+		a.mode, a.archived = m, false
+		a.newSessionIn("")
 	}
 }
 
@@ -157,7 +215,9 @@ func (a *App) open(id proto.SessionID) bool {
 		return false
 	}
 	a.mode, a.archived, a.selected = s.Mode, s.ArchivedAt != nil, string(id)
+	a.s.newPage = false
 	a.markRead()
+	a.follow()
 	return true
 }
 
@@ -250,7 +310,7 @@ func (a *App) Stop() {
 func (a *App) Archive() {
 	if s, ok := a.current(); ok && s.ArchivedAt == nil {
 		a.host.Archive(s.ID)
-		a.selected = ""
+		a.newSessionIn("")
 	}
 }
 
@@ -292,19 +352,16 @@ func all(l catalog.List) []proto.Session {
 // View draws the window.
 func (a *App) View(c *ui.Context) {
 	k := theme.Apply(c)
-	if a.toast != "" {
-		c.Toast(a.toast)
-		a.toast = ""
-	}
 	if c.Vibrancy() {
 		c.Root().Background(ui.Transparent)
 	}
-	ui.Row(c).Fill().AlignItems(ui.Stretch).Children(func() {
-		if !a.hideSide {
-			a.sidebar(c, k)
-		}
-		a.content(c, k)
-	})
+	if a.hideSide {
+		ui.Row(c).Fill().AlignItems(ui.Stretch).Children(func() { a.content(c, k) })
+	} else {
+		ui.Split(c, &a.side, func() { a.sidebar(c, k) }, func() { a.content(c, k) }).Fill()
+		a.side = min(max(a.side, sideMin(c.TitleBar())), theme.SidebarMax)
+	}
+	a.toasts(c, k)
 	if st := a.state(); !st.equal(a.last) {
 		a.last = st
 		if a.changed != nil {

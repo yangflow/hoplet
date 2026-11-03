@@ -260,7 +260,8 @@ func (p *replayer) command(want rpc) {
 			err = p.run.SetEffort(ctx, proto.Effort(effort))
 		case "model":
 			model, _ := payload["model"].(string)
-			err = p.run.SetModel(ctx, model)
+			provider, _ := payload["provider"].(string)
+			err = p.run.SetModel(ctx, model, provider)
 		default:
 			p.t.Fatalf("unexpected session.mutate %v", want.Params)
 		}

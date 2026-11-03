@@ -19,6 +19,7 @@ proto.MessageDelta {"message_id":"b8973dfd64d44ed69a3c56456f7b9f80/0","text":".\
 proto.Message {"id":"b8973dfd64d44ed69a3c56456f7b9f80/0","role":"assistant","text":"I’ll run the command exactly as given and report the output.\n"}
 proto.ToolCall {"id":"call_7623126fde624c91a7ce3e1b2ded9c87","kind":"exec","name":"terminal","summary":"sleep 10 + 1 command","status":"running"}
 proto.ToolCall {"id":"call_7623126fde624c91a7ce3e1b2ded9c87","kind":"exec","name":"terminal","summary":"sleep 10 + 1 command","status":"done"}
+proto.ModelChanged {"model":"codex/gpt-6.1-sol","provider":"custom"}
 proto.MessageDelta {"message_id":"b8973dfd64d44ed69a3c56456f7b9f80/1","text":"\n\nThe"}
 proto.MessageDelta {"message_id":"b8973dfd64d44ed69a3c56456f7b9f80/1","text":" command"}
 proto.MessageDelta {"message_id":"b8973dfd64d44ed69a3c56456f7b9f80/1","text":" completed"}

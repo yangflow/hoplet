@@ -17,12 +17,14 @@ const Kind = "fake"
 
 // Harness drives the fakeharness binary at Binary with the script at Script.
 // Capabilities overrides what the fake reports and supports; nil means
-// Steer, PartialStream, Resume, SetMode, SetModel, PlanMode, Fast, every
+// Steer, PartialStream, Resume, SetMode, SetModel, PlanMode, Fast, Ultracode, every
 // permission mode and every effort level.
 type Harness struct {
 	Binary       string
 	Script       string
 	Capabilities *proto.Capabilities
+	// Models are the models Probe reports.
+	Models []proto.ModelInfo
 }
 
 var _ harness.StdioHarness = (*Harness)(nil)
@@ -32,7 +34,7 @@ func (h *Harness) caps() proto.Capabilities {
 		return *h.Capabilities
 	}
 	return proto.Capabilities{
-		Steer: true, PartialStream: true, Resume: true, SetMode: true, SetModel: true, PlanMode: true, Fast: true,
+		Steer: true, PartialStream: true, Resume: true, SetMode: true, SetModel: true, PlanMode: true, Fast: true, Ultracode: true,
 		Modes:   []proto.PermissionMode{proto.ModeConfirm, proto.ModeAutoEdit, proto.ModeAutoReview, proto.ModeFullAuto},
 		Efforts: []proto.Effort{proto.EffortLow, proto.EffortMedium, proto.EffortHigh, proto.EffortXHigh, proto.EffortMax, proto.EffortUltra},
 	}
@@ -43,7 +45,7 @@ func (h *Harness) Kind() string { return Kind }
 
 // Probe reports the fake harness's capabilities.
 func (h *Harness) Probe(context.Context) (harness.Info, error) {
-	return harness.Info{Version: "1", Capabilities: h.caps(), Supported: true}, nil
+	return harness.Info{Version: "1", Capabilities: h.caps(), Supported: true, Models: h.Models}, nil
 }
 
 // Launch returns the command, environment and directory for the binary.
@@ -163,6 +165,13 @@ func (r *run) handle(line harness.Line) (ev harness.Event, final bool) {
 			r.native = native
 			r.mu.Unlock()
 		}
+		if _, ok := p.(proto.ToolCall); ok {
+			// A tool event's text is the call's output.
+			var e Ev
+			if json.Unmarshal(line.Data, &e) == nil && e.Text != "" {
+				ev.Output = []byte(e.Text)
+			}
+		}
 		switch p.(type) {
 		case proto.TurnStarted:
 			r.inTurn = true
@@ -275,7 +284,7 @@ func (r *run) SetPlan(ctx context.Context, on bool) error {
 }
 
 func (r *run) SetEffort(ctx context.Context, effort proto.Effort) error {
-	if !r.caps.HasEffort(effort) {
+	if effort != "" && !r.caps.HasEffort(effort) {
 		return harness.ErrUnsupported
 	}
 	return r.send(ctx, Op{Op: "set_effort", Text: string(effort)})
@@ -292,7 +301,18 @@ func (r *run) SetFast(ctx context.Context, on bool) error {
 	return r.send(ctx, Op{Op: "set_fast", Text: text})
 }
 
-func (r *run) SetModel(ctx context.Context, model string) error {
+func (r *run) SetUltracode(ctx context.Context, on bool) error {
+	if !r.caps.Ultracode {
+		return harness.ErrUnsupported
+	}
+	text := "off"
+	if on {
+		text = "on"
+	}
+	return r.send(ctx, Op{Op: "set_ultracode", Text: text})
+}
+
+func (r *run) SetModel(ctx context.Context, model, _ string) error {
 	if !r.caps.SetModel {
 		return harness.ErrUnsupported
 	}

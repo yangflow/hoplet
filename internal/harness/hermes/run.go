@@ -66,6 +66,7 @@ type run struct {
 	segment   int             // the assistant message being streamed in this turn
 	text      strings.Builder // its text so far
 	tools     map[string]tool
+	model     string // the model Hermes last reported
 	lastTool  string
 	late      map[string]bool // turns ended by a newer turn whose receipt is still due
 	retries   map[string]int  // receipt retries per admission
@@ -528,6 +529,14 @@ func (r *run) translateEvent(ev event) []proto.Payload {
 			return nil
 		}
 		return []proto.Payload{proto.Error{Message: p.Message}}
+	case "session.usage":
+		// Each turn's usage names the model that ran it.
+		var p usagePayload
+		if json.Unmarshal(ev.Payload, &p) != nil || p.Model == "" || p.Model == r.model {
+			return nil
+		}
+		r.model = p.Model
+		return []proto.Payload{proto.ModelChanged{Model: p.Model, Provider: p.Provider}}
 	case "session.info", "session.updated":
 		var p infoPayload
 		if json.Unmarshal(ev.Payload, &p) == nil {
@@ -689,8 +698,15 @@ func (r *run) SetEffort(ctx context.Context, effort proto.Effort) error {
 	if err := r.refused(); err != nil {
 		return err
 	}
-	return r.mutate(ctx, "reasoning", map[string]any{"effort": string(effort)})
+	var level any // null: Hermes's default
+	if effort != "" {
+		level = string(effort)
+	}
+	return r.mutate(ctx, "reasoning", map[string]any{"effort": level})
 }
+
+// SetUltracode is not supported: Hermes has no Ultracode.
+func (r *run) SetUltracode(context.Context, bool) error { return harness.ErrUnsupported }
 
 // SetFast turns Hermes's fast service tier on or off from the next turn.
 func (r *run) SetFast(ctx context.Context, on bool) error {
@@ -705,12 +721,17 @@ func (r *run) SetFast(ctx context.Context, on bool) error {
 	return r.call(ctx, "config.set", map[string]any{"session_id": native, "key": "service_tier", "value": value})
 }
 
-// SetModel changes the model; Hermes applies it from the next turn.
-func (r *run) SetModel(ctx context.Context, model string) error {
+// SetModel changes the model; Hermes applies it from the next turn. The
+// provider is one of model.options' provider slugs.
+func (r *run) SetModel(ctx context.Context, model, provider string) error {
 	if err := r.refused(); err != nil {
 		return err
 	}
-	return r.mutate(ctx, "model", map[string]any{"model": model})
+	payload := map[string]any{"model": model}
+	if provider != "" {
+		payload["provider"] = provider
+	}
+	return r.mutate(ctx, "model", payload)
 }
 
 func (r *run) Events() <-chan harness.Event { return r.events }

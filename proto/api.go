@@ -76,6 +76,10 @@ const (
 	MethodSessionsSetPlan   = "sessions.set_plan"
 	MethodSessionsSetEffort = "sessions.set_effort"
 	MethodSessionsSetFast   = "sessions.set_fast"
+	MethodSessionsSetUltra  = "sessions.set_ultracode"
+	MethodSessionsSetModel  = "sessions.set_model"
+	MethodSessionsOutput    = "sessions.output"
+	MethodHarnessesList     = "harnesses.list"
 	MethodSessionsUpdate    = "sessions.update"
 	MethodSessionsStop      = "sessions.stop"
 	MethodSessionsArchive   = "sessions.archive"
@@ -124,7 +128,12 @@ type CreateParams struct {
 	Plan       bool           `json:"plan,omitempty"`
 	Effort     Effort         `json:"effort,omitempty"`
 	Fast       bool           `json:"fast,omitempty"`
+	Ultracode  bool           `json:"ultracode,omitempty"`
 	Title      string         `json:"title,omitempty"`
+	// Model and ModelProvider pick a model of HarnessInfo.Models; empty
+	// means the harness's default.
+	Model         string `json:"model,omitempty"`
+	ModelProvider string `json:"model_provider,omitempty"`
 }
 
 // SendParams sends a message; Key makes the request idempotent.
@@ -181,11 +190,44 @@ type SetFastParams struct {
 	Fast    bool      `json:"fast"`
 }
 
-// SetEffortParams changes how hard a session's harness thinks.
+// SetUltracodeParams turns a session's Ultracode on or off.
+type SetUltracodeParams struct {
+	Session   SessionID `json:"session"`
+	Ultracode bool      `json:"ultracode"`
+}
+
+// SetEffortParams changes how hard a session's harness thinks; an empty
+// Effort goes back to the harness's default.
 type SetEffortParams struct {
 	Session SessionID `json:"session"`
 	Effort  Effort    `json:"effort"`
 }
+
+// SetModelParams changes a session's model from its next turn; Provider is
+// required where models belong to a provider.
+type SetModelParams struct {
+	Session  SessionID `json:"session"`
+	Model    string    `json:"model"`
+	Provider string    `json:"provider,omitempty"`
+}
+
+// OutputParams asks for a tool call's output.
+type OutputParams struct {
+	Session  SessionID `json:"session"`
+	ToolCall string    `json:"tool_call"`
+}
+
+// ToolOutput is a tool call's output: at most MaxOutput bytes of it, cut at
+// a line end, with Truncated set when more was cut. Size is the whole
+// output's size.
+type ToolOutput struct {
+	Text      string `json:"text"`
+	Size      int64  `json:"size"`
+	Truncated bool   `json:"truncated,omitempty"`
+}
+
+// MaxOutput bounds the text sessions.output returns.
+const MaxOutput = 64 << 10
 
 // UpdateParams changes a session's list properties; nil fields stay as
 // they are. An empty title is allowed: the session shows untitled.

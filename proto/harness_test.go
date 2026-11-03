@@ -88,3 +88,18 @@ func TestModeChangedValidates(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestModelMatches(t *testing.T) {
+	m := ModelInfo{ID: "opus", Model: "claude-opus-5-5"}
+	for model, want := range map[string]bool{"opus": true, "claude-opus-5-5": true, "haiku": false, "": false} {
+		if got := m.Matches(model); got != want {
+			t.Errorf("Matches(%q) = %v, want %v", model, got, want)
+		}
+	}
+	if (ModelInfo{ID: "gpt"}).Matches("") {
+		t.Error("an empty model matched")
+	}
+	if err := (ModelChanged{}).validate(); err == nil {
+		t.Error("a model change without a model validated")
+	}
+}

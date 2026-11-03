@@ -32,6 +32,8 @@ flowchart LR
 
 原地模式只在“创建 PR 且仓库停在默认分支”时新建 `hoplet/<slug>` 分支。
 
+界面上这个选项是新建页的“Worktree”勾选框（Git 的术语，不译）：不勾 = 原地，勾上 = 隔离。
+
 ## 配置 `hoplet.toml`
 
 ```toml

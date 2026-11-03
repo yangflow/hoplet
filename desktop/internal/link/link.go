@@ -28,6 +28,9 @@ type Handler struct {
 	Lost func(err error)
 	// Item delivers a catalog item.
 	Item func(proto.CatalogItem)
+	// Wake, when it is not nil, ends the wait before connecting again:
+	// reconnecting now, on my asking.
+	Wake <-chan struct{}
 }
 
 // Dialer connects to the daemon.
@@ -83,6 +86,7 @@ func Watch(ctx context.Context, dial Dialer, h Handler) {
 		case <-ctx.Done():
 			return
 		case <-time.After(wait):
+		case <-h.Wake:
 		}
 		wait = min(wait*2, lastRetry)
 	}
@@ -103,6 +107,22 @@ func follow(ctx context.Context, c *client.Client, version *uint64, item func(pr
 			return err
 		}
 		*version = it.Version
+		item(it)
+	}
+}
+
+// Follow delivers a session's subscription items, from after seq, until
+// the subscription or ctx ends; it returns why it ended.
+func Follow(ctx context.Context, c *client.Client, id proto.SessionID, after uint64, item func(proto.SessionItem)) error {
+	sub, err := c.SubscribeSession(ctx, proto.SessionParams{Session: id, AfterSeq: after})
+	if err != nil {
+		return err
+	}
+	for {
+		var it proto.SessionItem
+		if err := sub.Next(ctx, &it); err != nil {
+			return err
+		}
 		item(it)
 	}
 }

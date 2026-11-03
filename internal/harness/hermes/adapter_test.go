@@ -765,7 +765,7 @@ func TestANewerPickWinsOverAGuardedModelsConfirmation(t *testing.T) {
 		x := newTester(t, harness.Spec{Resume: "s1"})
 		x.attach("s1", false)
 		n := len(x.io.written())
-		if err := x.run.SetModel(context.Background(), "A"); err != nil {
+		if err := x.run.SetModel(context.Background(), "A", ""); err != nil {
 			t.Fatal(err)
 		}
 		x.answer(n, guarded)
@@ -780,10 +780,10 @@ func TestANewerPickWinsOverAGuardedModelsConfirmation(t *testing.T) {
 		x.attach("s1", false)
 		n := len(x.io.written())
 		ctx := context.Background()
-		if err := x.run.SetModel(ctx, "A"); err != nil {
+		if err := x.run.SetModel(ctx, "A", ""); err != nil {
 			t.Fatal(err)
 		}
-		if err := x.run.SetModel(ctx, "B"); err != nil {
+		if err := x.run.SetModel(ctx, "B", ""); err != nil {
 			t.Fatal(err)
 		}
 		x.answer(n, guarded)
@@ -1719,7 +1719,7 @@ func TestARefusedAttachFailsTheCommands(t *testing.T) {
 				"SetMode":   func() error { return x.run.SetMode(ctx, proto.ModeFullAuto) },
 				"SetFast":   func() error { return x.run.SetFast(ctx, true) },
 				"SetEffort": func() error { return x.run.SetEffort(ctx, proto.EffortLow) },
-				"SetModel":  func() error { return x.run.SetModel(ctx, "m") },
+				"SetModel":  func() error { return x.run.SetModel(ctx, "m", "") },
 			} {
 				if err := call(); err == nil || !strings.Contains(err.Error(), "refused to attach the session: session_not_found") {
 					t.Fatalf("%s: %v", name, err)
@@ -1774,5 +1774,23 @@ func TestAnAnswerDroppedWithARefusedAttachLetsTheApprovalExpire(t *testing.T) {
 	p = x.answerLast(`{"session_id":"s1","stored_session_id":"s1","running":true,"revision":1,"execution_generation":1,"prompts":[]}`)
 	if len(p) != 1 || p[0] != (proto.ApprovalResolved{ID: "p1", Outcome: proto.OutcomeExpired, DecidedBy: "hermes"}) {
 		t.Fatalf("after reconnecting %v", p)
+	}
+}
+
+// The default effort goes to Hermes as null, which restores its own.
+func TestDefaultEffortIsNull(t *testing.T) {
+	x := newTester(t, harness.Spec{Resume: "s1"})
+	x.attach("s1", false)
+	n := len(x.io.written())
+	if err := x.run.SetEffort(context.Background(), ""); err != nil {
+		t.Fatal(err)
+	}
+	w := x.writes(n)
+	payload, ok := w[0].Params["payload"].(map[string]any)
+	if len(w) != 1 || w[0].Params["operation"] != "reasoning" || !ok || payload["effort"] != nil {
+		t.Fatalf("default effort %+v", w)
+	}
+	if _, has := payload["effort"]; !has {
+		t.Fatalf("no effort in %v", payload)
 	}
 }

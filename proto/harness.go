@@ -66,6 +66,10 @@ type Capabilities struct {
 	MCPInject     bool `json:"mcp_inject,omitempty"`
 	// Fast is a faster-output mode at a higher cost (see Session.Fast).
 	Fast bool `json:"fast,omitempty"`
+	// Ultracode is a session switch that has the harness orchestrate
+	// workflows of agents at any effort (see Session.Ultracode). A model
+	// takes it only when it has the xhigh effort.
+	Ultracode bool `json:"ultracode,omitempty"`
 	// Modes are the permission modes the harness has natively; others fall
 	// back to the nearest stricter one (see Fallback).
 	Modes []PermissionMode `json:"modes,omitempty"`
@@ -102,4 +106,45 @@ func (c Capabilities) HasEffort(e Effort) bool {
 		}
 	}
 	return false
+}
+
+// ModelInfo is a model a harness offers. ID (with Provider, where models
+// belong to a provider) is what sessions.set_model takes; ProviderName is
+// the provider's name to show. Model is the name the harness reports in
+// model.changed once it runs it, which may differ from ID (an alias). Efforts and Fast are what this model supports; no
+// Efforts means the harness's Capabilities.Efforts.
+type ModelInfo struct {
+	ID           string   `json:"id"`
+	Provider     string   `json:"provider,omitempty"`
+	ProviderName string   `json:"provider_name,omitempty"`
+	Model        string   `json:"model,omitempty"`
+	Name         string   `json:"name"`
+	Description  string   `json:"description,omitempty"`
+	Default      bool     `json:"default,omitempty"`
+	Efforts      []Effort `json:"efforts,omitempty"`
+	Fast         bool     `json:"fast,omitempty"`
+	// NoEffort says the model takes no effort at all, whatever the
+	// harness's Capabilities.Efforts.
+	NoEffort bool `json:"no_effort,omitempty"`
+}
+
+// Matches reports whether m is the model a session reports. Only the name
+// counts: a harness may name a provider differently when it reports.
+func (m ModelInfo) Matches(model string) bool {
+	return model == m.ID || (m.Model != "" && model == m.Model)
+}
+
+// HarnessInfo describes a harness for clients choosing one: an installed
+// one, or one Hoplet knows but cannot run (Missing).
+// Models is empty until the harness has told the daemon its models (Claude
+// Code does when a session starts).
+type HarnessInfo struct {
+	Kind         string       `json:"kind"`
+	Version      string       `json:"version"`
+	Supported    bool         `json:"supported"`
+	Capabilities Capabilities `json:"capabilities"`
+	Models       []ModelInfo  `json:"models,omitempty"`
+	// Missing says why the harness cannot run, as when it is not
+	// installed; the rest is then empty.
+	Missing string `json:"missing,omitempty"`
 }

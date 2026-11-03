@@ -6,6 +6,7 @@ proto.TurnStarted {}
 proto.ToolCall {"id":"call_b769a2c121fd4a678467afc5f783ebb5","kind":"edit","name":"write_file","summary":"a.txt","status":"running"}
 proto.ToolCall {"id":"call_b769a2c121fd4a678467afc5f783ebb5","kind":"edit","name":"write_file","summary":"a.txt","status":"done"}
 proto.FileChange {"path":"/work/a.txt","op":"created"}
+proto.ModelChanged {"model":"codex/gpt-6.1-sol","provider":"custom"}
 proto.MessageDelta {"message_id":"e6bdf7b6035a429e9b9e11f88323ec54/0","text":"\n\nCreated"}
 proto.MessageDelta {"message_id":"e6bdf7b6035a429e9b9e11f88323ec54/0","text":" `"}
 proto.MessageDelta {"message_id":"e6bdf7b6035a429e9b9e11f88323ec54/0","text":"a"}

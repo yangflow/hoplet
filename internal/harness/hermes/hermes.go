@@ -59,11 +59,15 @@ type Harness struct {
 	path    string
 	probed  time.Time
 	nowFunc func() time.Time
+	// models are model.options' answer as of listed.
+	models []proto.ModelInfo
+	listed time.Time
 }
 
 var (
 	_ harness.StdioHarness = (*Harness)(nil)
 	_ harness.EnvUser      = (*Harness)(nil)
+	_ harness.ModelLister  = (*Harness)(nil)
 )
 
 // Kind reports "hermes".

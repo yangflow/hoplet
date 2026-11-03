@@ -168,7 +168,7 @@ func (p *replayer) command(in string) bool {
 		case "interrupt":
 			err = p.run.Interrupt(ctx)
 		case "set_model":
-			err = p.run.SetModel(ctx, msg.Request["model"].(string))
+			err = p.run.SetModel(ctx, msg.Request["model"].(string), "")
 		case "set_permission_mode":
 			mode := msg.Request["mode"].(string)
 			p.run.mu.Lock()
@@ -277,7 +277,7 @@ func TestRecordings(t *testing.T) {
 				spec = harness.Spec{Mode: proto.ModeConfirm}
 			}
 			io := newFakeStdio()
-			p := &replayer{t: t, io: io, run: newRun(io, spec)}
+			p := &replayer{t: t, io: io, run: newRun(io, spec, nil)}
 			defer p.run.Close()
 			for _, e := range readFixture(t, file) {
 				switch e.Dir {

@@ -43,6 +43,13 @@ Instructions for AI coding agents working in this repository. Human contributors
 **Desktop (MyGo)**
 
 - Pinned MyGo version; `go tool mygo vet`; views stay thin and are tested with `ui.Tester`.
+- Use what MyGo provides, as its `docs/ui` and `examples/` for the pinned version show: toasts through `AddToast` / `ToastViewportBase`, motion through `Animate*` / `Transition`, keyboard selection through `ui.List` (or, where its accent-filled selection breaks the design, an element of your own taking keys with `Shortcut`), bases such as `SliderBase` where a widget's look differs from the design, popovers through `PopoverBase`. No hand-rolled timers, overlays or key handling in their place. If the official API cannot give what the design asks, raise it as a design change instead of working around it.
+
+**UI design**
+
+- Code takes its tokens, component specs and MyGo mappings from the Hoplet design system and `docs/design/0014-desktop-ui.md`. The desktop layout canvas is where screens and states are drawn for review; once one is approved, sync it into the design system (and 0014) first, then build from there. Build nothing the design does not show: a missing state is designed and approved first. When the result differs from the design, raise it.
+- Icons are Lucide only (`lucide-static`, the version in `docs/design/0014-desktop-ui.md`): copy the official SVG file unchanged into `desktop/internal/icons/lucide/`. Never draw an icon or edit its paths, in code or on the canvas. The exceptions are the ones 0014 names (harness marks, file-type icons).
+- UI text writes the product as Hoplet and harnesses by their product names (Claude Code, Codex, Hermes); lowercase `hoplet` only in commands and paths.
 
 ## Repository layout
 

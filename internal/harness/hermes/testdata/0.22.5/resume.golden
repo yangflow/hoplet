@@ -8,6 +8,7 @@ write {"id":"x","jsonrpc":"2.0","method":"session.resume","params":{"omit_messag
 write {"id":"x","jsonrpc":"2.0","method":"prompt.submit","params":{"session_id":"local-0801b38c529499dd658bd14f2107b0795bfc04c03b195ebee24a5097c96f753f","submission_id":"x","text":"Reply with exactly the word: again"}}
 proto.TurnStarted {}
 proto.MessageDelta {"message_id":"7e475cce756e4654ac1b52a5dd3bfb1e/0","text":"again"}
+proto.ModelChanged {"model":"codex/gpt-6.1-sol","provider":"custom"}
 proto.Message {"id":"7e475cce756e4654ac1b52a5dd3bfb1e/0","role":"assistant","text":"again"}
 write {"id":"x","jsonrpc":"2.0","method":"prompt.receipt","params":{"admission_id":"7e475cce756e4654ac1b52a5dd3bfb1e","include_result":true,"session_id":"local-0801b38c529499dd658bd14f2107b0795bfc04c03b195ebee24a5097c96f753f"}}
 proto.Usage {"input_tokens":15674,"output_tokens":5}

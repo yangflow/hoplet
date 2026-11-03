@@ -24,12 +24,15 @@
 package session
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -224,9 +227,14 @@ type CreateRequest struct {
 	Permission proto.PermissionMode
 	Plan       bool
 	Fast       bool
+	Ultracode  bool
 	Effort     proto.Effort // empty: the harness default
 	Title      string
 	Origin     proto.Origin
+	// Model and ModelProvider pick one of the harness's models; empty
+	// means its default.
+	Model         string
+	ModelProvider string
 }
 
 // Create stores a new session. The harness starts on the first Send.
@@ -266,7 +274,10 @@ func (m *Manager) Create(ctx context.Context, req CreateRequest) (proto.Session,
 	if req.Effort != "" && !req.Effort.Valid() {
 		return proto.Session{}, fmt.Errorf("%w: effort %q", store.ErrInvalid, req.Effort)
 	}
-	if req.Effort != "" && !info.Capabilities.HasEffort(req.Effort) {
+	if req.Ultracode && !info.Capabilities.Ultracode {
+		return proto.Session{}, fmt.Errorf("%w: %s has no Ultracode", harness.ErrUnsupported, req.Harness)
+	}
+	if req.Effort != "" && !slices.Contains(efforts(info, req.Model), req.Effort) {
 		return proto.Session{}, fmt.Errorf("%w: %s has no effort %q", harness.ErrUnsupported, req.Harness, req.Effort)
 	}
 	if req.Origin == "" {
@@ -293,7 +304,7 @@ func (m *Manager) Create(ctx context.Context, req CreateRequest) (proto.Session,
 	sess, err := m.cfg.Store.CreateSession(ctx, proto.Session{
 		ID: id, Mode: req.Mode, Harness: proto.HarnessRef{Kind: req.Harness, Version: info.Version},
 		Directory: req.Directory, Isolation: req.Isolation, Permission: info.Capabilities.Fallback(req.Permission),
-		Plan: req.Plan, Fast: req.Fast, Effort: req.Effort,
+		Plan: req.Plan, Fast: req.Fast, Ultracode: req.Ultracode, Effort: req.Effort, Model: req.Model, ModelProvider: req.ModelProvider,
 		Owner: proto.OwnerMe, Origin: req.Origin, Title: req.Title,
 	})
 	if err != nil {
@@ -559,7 +570,19 @@ func (m *Manager) Steer(ctx context.Context, id proto.SessionID, text string) er
 	if err != nil {
 		return err
 	}
-	return l.run.Steer(ctx, text)
+	if err := l.run.Steer(ctx, text); err != nil {
+		return err
+	}
+	// The log keeps what I said into the turn, as a message of mine in it.
+	last, open, err := m.cfg.Store.TurnState(ctx, id)
+	if err != nil || !open {
+		return err // the turn ended meanwhile: the harness had the text
+	}
+	_, err = m.cfg.Store.Append(ctx, store.AppendRequest{
+		Session: id, Turn: last,
+		Entries: []store.Entry{{Payload: proto.Message{ID: "steer-" + rand.Text()[:12], Role: proto.RoleUser, Text: text}}},
+	})
+	return err
 }
 
 // Answer answers a question the harness asked.
@@ -613,19 +636,130 @@ func (m *Manager) SetFast(ctx context.Context, id proto.SessionID, on bool) erro
 	return m.apply(ctx, id, store.SessionUpdate{Fast: &on}, func(r harness.Run) error { return r.SetFast(ctx, on) })
 }
 
-// SetEffort changes how hard the harness thinks.
+// SetUltracode turns Ultracode on or off.
+func (m *Manager) SetUltracode(ctx context.Context, id proto.SessionID, on bool) error {
+	caps, err := m.capabilities(ctx, id)
+	if err != nil {
+		return err
+	}
+	if !caps.Ultracode {
+		return harness.ErrUnsupported
+	}
+	return m.apply(ctx, id, store.SessionUpdate{Ultracode: &on}, func(r harness.Run) error { return r.SetUltracode(ctx, on) })
+}
+
+// SetEffort changes how hard the harness thinks: one of the levels the
+// session's model has, or empty for the harness's default.
 func (m *Manager) SetEffort(ctx context.Context, id proto.SessionID, effort proto.Effort) error {
-	if !effort.Valid() {
+	if effort != "" && !effort.Valid() {
 		return fmt.Errorf("%w: effort %q", store.ErrInvalid, effort)
+	}
+	sess, err := m.cfg.Store.Session(ctx, id)
+	if err != nil {
+		return err
+	}
+	info, err := m.probe(ctx, sess)
+	if err != nil {
+		return err
+	}
+	if effort != "" && !slices.Contains(efforts(info, sess.Model), effort) {
+		return harness.ErrUnsupported
+	}
+	return m.apply(ctx, id, store.SessionUpdate{Effort: &effort}, func(r harness.Run) error { return r.SetEffort(ctx, effort) })
+}
+
+// efforts are the levels model takes: those the harness listed for it, or
+// the harness's own when it listed none or the model is not known yet. An
+// empty model is the harness's default one.
+func efforts(info harness.Info, model string) []proto.Effort {
+	for _, mi := range info.Models {
+		if (model != "" || !mi.Default) && (model == "" || !mi.Matches(model)) {
+			continue // not the model asked for
+		}
+		if mi.NoEffort {
+			return nil
+		}
+		if len(mi.Efforts) > 0 {
+			return mi.Efforts
+		}
+	}
+	return info.Capabilities.Efforts
+}
+
+// SetModel changes the model from the next turn.
+func (m *Manager) SetModel(ctx context.Context, id proto.SessionID, model, provider string) error {
+	if model == "" {
+		return fmt.Errorf("%w: no model", store.ErrInvalid)
 	}
 	caps, err := m.capabilities(ctx, id)
 	if err != nil {
 		return err
 	}
-	if !caps.HasEffort(effort) {
+	if !caps.SetModel {
 		return harness.ErrUnsupported
 	}
-	return m.apply(ctx, id, store.SessionUpdate{Effort: &effort}, func(r harness.Run) error { return r.SetEffort(ctx, effort) })
+	return m.apply(ctx, id, store.SessionUpdate{Model: &model, ModelProvider: &provider},
+		func(r harness.Run) error { return r.SetModel(ctx, model, provider) })
+}
+
+// Harnesses describes the harnesses Hoplet knows, by kind; one that cannot
+// be probed (not installed, say) says why in Missing. Models come from the
+// harness's probe, or from listing them where the harness can. The
+// harnesses are asked at once, so the slowest sets the wait.
+func (m *Manager) Harnesses(ctx context.Context) []proto.HarnessInfo {
+	kinds := slices.Sorted(maps.Keys(m.cfg.Harnesses))
+	out := make([]proto.HarnessInfo, len(kinds))
+	var wg sync.WaitGroup
+	for i, kind := range kinds {
+		wg.Go(func() { out[i] = m.describe(ctx, kind, m.cfg.Harnesses[kind]) })
+	}
+	wg.Wait()
+	return out
+}
+
+// describe is one harness of Harnesses.
+func (m *Manager) describe(ctx context.Context, kind string, h harness.Harness) proto.HarnessInfo {
+	info, err := h.Probe(ctx)
+	if err != nil {
+		return proto.HarnessInfo{Kind: kind, Missing: err.Error()}
+	}
+	hi := proto.HarnessInfo{Kind: kind, Version: info.Version, Supported: info.Supported, Capabilities: info.Capabilities, Models: info.Models}
+	if l, ok := h.(harness.ModelLister); ok {
+		if models, err := l.Models(ctx); err == nil {
+			hi.Models = models
+		} else {
+			m.log.Warn("list models", "harness", kind, "err", err)
+		}
+	}
+	return hi
+}
+
+// Output reads a tool call's output: at most proto.MaxOutput bytes, cut at
+// the last line end when more remains.
+func (m *Manager) Output(ctx context.Context, id proto.SessionID, toolCall string) (proto.ToolOutput, error) {
+	ref, err := m.cfg.Store.ToolOutput(ctx, id, toolCall)
+	if err != nil {
+		return proto.ToolOutput{}, err
+	}
+	rc, err := m.cfg.Store.OpenBlob(ref)
+	if err != nil {
+		return proto.ToolOutput{}, err
+	}
+	defer rc.Close()
+	b, err := io.ReadAll(io.LimitReader(rc, proto.MaxOutput+1))
+	if err != nil {
+		return proto.ToolOutput{}, fmt.Errorf("session: read tool output: %w", err)
+	}
+	out := proto.ToolOutput{Size: ref.Size}
+	if len(b) > proto.MaxOutput {
+		b = b[:proto.MaxOutput]
+		if i := bytes.LastIndexByte(b, '\n'); i >= 0 {
+			b = b[:i+1]
+		}
+		out.Truncated = true
+	}
+	out.Text = string(b)
+	return out, nil
 }
 
 // apply stores a setting and, when the harness runs, hands it over. It
@@ -653,15 +787,21 @@ func (m *Manager) capabilities(ctx context.Context, id proto.SessionID) (proto.C
 	if err != nil {
 		return proto.Capabilities{}, err
 	}
+	info, err := m.probe(ctx, sess)
+	return info.Capabilities, err
+}
+
+// probe describes the harness a session runs.
+func (m *Manager) probe(ctx context.Context, sess proto.Session) (harness.Info, error) {
 	h, ok := m.cfg.Harnesses[sess.Harness.Kind]
 	if !ok {
-		return proto.Capabilities{}, fmt.Errorf("%w: %q", ErrUnknownHarness, sess.Harness.Kind)
+		return harness.Info{}, fmt.Errorf("%w: %q", ErrUnknownHarness, sess.Harness.Kind)
 	}
 	info, err := h.Probe(ctx)
 	if err != nil {
-		return proto.Capabilities{}, fmt.Errorf("session: probe %s: %w", sess.Harness.Kind, err)
+		return harness.Info{}, fmt.Errorf("session: probe %s: %w", sess.Harness.Kind, err)
 	}
-	return info.Capabilities, nil
+	return info, nil
 }
 
 func (m *Manager) attached(id proto.SessionID) (*live, error) {
@@ -731,9 +871,9 @@ func (m *Manager) Env() []string {
 
 func (m *Manager) specFor(sess proto.Session, inTurn bool) harness.Spec {
 	return harness.Spec{
-		Session: sess.ID, WorkDir: m.workDir(sess), Env: m.Env(), Mode: sess.Permission, Plan: sess.Plan, Fast: sess.Fast, Effort: sess.Effort,
-		Resume: sess.Harness.NativeID,
-		State:  harness.State{InTurn: inTurn, Native: sess.Harness.NativeID},
+		Session: sess.ID, WorkDir: m.workDir(sess), Env: m.Env(), Mode: sess.Permission, Plan: sess.Plan, Fast: sess.Fast, Ultracode: sess.Ultracode,
+		Effort: sess.Effort, Model: sess.Model, ModelProvider: sess.ModelProvider, Resume: sess.Harness.NativeID,
+		State: harness.State{InTurn: inTurn, Native: sess.Harness.NativeID},
 	}
 }
 

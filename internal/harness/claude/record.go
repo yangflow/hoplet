@@ -313,6 +313,26 @@ func Sanitize(in io.Reader, out io.Writer, dir, home string) error {
 	return nil
 }
 
+// reduceModels keeps the fields of initialize's models the adapter reads.
+func reduceModels(v any) []any {
+	list, _ := v.([]any)
+	out := []any{}
+	for _, m := range list {
+		mm, ok := m.(map[string]any)
+		if !ok {
+			continue
+		}
+		kept := map[string]any{}
+		for _, k := range []string{"value", "resolvedModel", "displayName", "description", "supportedEffortLevels"} {
+			if x, ok := mm[k]; ok {
+				kept[k] = x
+			}
+		}
+		out = append(out, kept)
+	}
+	return out
+}
+
 // reduce trims a recorded line in place and reports whether to keep it.
 func reduce(dir string, v map[string]any) bool {
 	switch v["type"] {
@@ -328,7 +348,9 @@ func reduce(dir string, v map[string]any) bool {
 		if dir == "out" {
 			if resp, ok := v["response"].(map[string]any); ok {
 				if inner, ok := resp["response"].(map[string]any); ok && inner["commands"] != nil {
-					resp["response"] = map[string]any{}
+					// The initialize answer: only its models, which the
+					// adapter reads.
+					resp["response"] = map[string]any{"models": reduceModels(inner["models"])}
 				}
 			}
 		}

@@ -43,7 +43,7 @@ func TestProbeCachesPerBinary(t *testing.T) {
 	ctx := context.Background()
 	for range 3 {
 		info, err := h.Probe(ctx)
-		if err != nil || info.Version != "2.1.312" || !info.Supported || !info.Capabilities.PlanMode || info.Capabilities.Fast {
+		if err != nil || info.Version != "2.1.312" || !info.Supported || !info.Capabilities.PlanMode || !info.Capabilities.Fast {
 			t.Fatalf("probe %+v %v", info, err)
 		}
 	}
@@ -81,9 +81,11 @@ func TestLaunch(t *testing.T) {
 		"full auto":   {spec: harness.Spec{Mode: proto.ModeFullAuto}, want: []string{"--permission-mode", "bypassPermissions"}},
 		"plan":        {spec: harness.Spec{Mode: proto.ModeAutoEdit, Plan: true}, want: []string{"--permission-mode", "plan"}},
 		"effort":      {spec: harness.Spec{Mode: proto.ModeConfirm, Effort: proto.EffortXHigh}, want: []string{"--effort", "xhigh"}},
+		"ultracode":   {spec: harness.Spec{Mode: proto.ModeConfirm, Ultracode: true}, want: []string{"--settings", `{"ultracode":true}`}},
 		"resume":      {spec: harness.Spec{Mode: proto.ModeConfirm, Resume: "abc", Model: "sonnet"}, want: []string{"--model", "sonnet", "--resume", "abc"}},
 		"ultra":       {spec: harness.Spec{Mode: proto.ModeConfirm, Effort: proto.EffortUltra}, bad: true},
-		"fast":        {spec: harness.Spec{Mode: proto.ModeConfirm, Fast: true}, bad: true},
+		"fast":        {spec: harness.Spec{Mode: proto.ModeConfirm, Fast: true}, want: []string{"--settings", `{"fastMode":true}`}},
+		"fast ultra":  {spec: harness.Spec{Mode: proto.ModeConfirm, Fast: true, Ultracode: true}, want: []string{"--settings", `{"fastMode":true,"ultracode":true}`}},
 		"bogus mode":  {spec: harness.Spec{Mode: "read_only"}, bad: true},
 	} {
 		tc.spec.WorkDir = "/work"
@@ -114,7 +116,7 @@ func TestLaunch(t *testing.T) {
 func liveRun(t *testing.T, spec harness.Spec) (*replayer, *fakeStdio) {
 	t.Helper()
 	io := newFakeStdio()
-	p := &replayer{t: t, io: io, run: newRun(io, spec)}
+	p := &replayer{t: t, io: io, run: newRun(io, spec, nil)}
 	t.Cleanup(func() { p.run.Close() })
 	return p, io
 }
@@ -196,9 +198,28 @@ func TestCommandsAndRefusals(t *testing.T) {
 	if req := lastWrite(t, io)["request"].(map[string]any); req["subtype"] != "apply_flag_settings" || req["settings"].(map[string]any)["effortLevel"] != "max" {
 		t.Fatalf("SetEffort wrote %v", req)
 	}
+	if err := p.run.SetEffort(ctx, ""); err != nil {
+		t.Fatal(err)
+	}
+	if settings := lastWrite(t, io)["request"].(map[string]any)["settings"].(map[string]any); settings["effortLevel"] != nil {
+		t.Fatalf("SetEffort(default) wrote %v", settings)
+	}
+	for _, on := range []bool{true, false} {
+		if err := p.run.SetFast(ctx, on); err != nil {
+			t.Fatal(err)
+		}
+		if settings := lastWrite(t, io)["request"].(map[string]any)["settings"].(map[string]any); on && settings["fastMode"] != true || !on && settings["fastMode"] != nil {
+			t.Fatalf("SetFast(%v) wrote %v", on, settings)
+		}
+	}
+	if err := p.run.SetUltracode(ctx, true); err != nil {
+		t.Fatal(err)
+	}
+	if req := lastWrite(t, io)["request"].(map[string]any); req["subtype"] != "apply_flag_settings" || req["settings"].(map[string]any)["ultracode"] != true {
+		t.Fatalf("SetUltracode wrote %v", req)
+	}
 	for name, err := range map[string]error{
 		"ultra":  p.run.SetEffort(ctx, proto.EffortUltra),
-		"fast":   p.run.SetFast(ctx, true),
 		"steer":  p.run.Steer(ctx, "x"),
 		"answer": p.run.Answer(ctx, "q", "a"),
 	} {
