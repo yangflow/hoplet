@@ -180,21 +180,22 @@ func rolling(c *ui.Context, k theme.Colors, text string, still bool) {
 }
 
 // squares draws three small squares in the accent that light in turn, a
-// third of a 1.2-second cycle apart; still, they rest at full, 60% and
-// 30%.
+// third of a 1.2-second cycle apart, from the element's Loop, which keeps
+// frames coming while it is built; still, they rest at full, 60% and 30%.
 func squares(c *ui.Context, k theme.Colors, still bool) {
-	ui.Box(c).Size(18, 4).Draw(func(p *ui.Painter, r ui.Rect) {
-		t := p.Now().Sub(time.Time{}).Seconds()
+	b := ui.Box(c).Size(18, 4)
+	var f float64
+	if !still {
+		f = float64(b.Loop("lit", 1200*time.Millisecond, ui.Linear))
+	}
+	b.Draw(func(p *ui.Painter, r ui.Rect) {
 		for i := range 3 {
 			lit := float32([3]float64{1, 0.6, 0.3}[i])
 			if !still {
-				f := math.Mod(t/1.2-float64(i)/3, 1)
-				lit = float32(0.3 + 0.7*(0.5+0.5*math.Cos(2*math.Pi*f)))
+				at := math.Mod(f-float64(i)/3+1, 1)
+				lit = float32(0.3 + 0.7*(0.5+0.5*math.Cos(2*math.Pi*at)))
 			}
 			p.Fill(ui.Rect{X: r.X + float32(i)*7, Y: r.Y, W: 4, H: 4}, k.AccentFg.Alpha(lit), 1)
-		}
-		if !still {
-			p.AnimationFrame()
 		}
 	})
 }
