@@ -66,7 +66,7 @@ func (a *App) content(c *ui.Context, k theme.Colors) {
 		case ok:
 			// The details sit beside the conversation, not over it.
 			ui.Row(c).Grow(1).Shrink(1).MinHeight(0).AlignItems(ui.Stretch).Children(func() {
-				ui.Column(c).Grow(1).Shrink(1).Children(func() { a.conversation(c, k, s) })
+				ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Children(func() { a.conversation(c, k, s) })
 				if a.s.detailOpen {
 					ui.Scroll(c).Width(detailsWidth).Children(func() {
 						ui.Column(c).Padding(12, 12, 12, 0).Gap(10).Children(func() {

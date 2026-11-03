@@ -30,10 +30,8 @@ func (a *App) composer(c *ui.Context, k theme.Colors, s proto.Session, cv *convo
 	}
 	q, asked := cv.Question()
 	a.queueTray(c, k, s, cv, h.Capabilities.Steer)
-	// It floats over the conversation on the popover fill, which hides
-	// what scrolls under it.
 	frame := ui.Column(c).FillWidth().Padding(12, 12, 8, 14).Gap(8).Radius(theme.RadiusComposer).
-		Background(k.Popover).Border(1, k.GlassLine).Shadow(0, 10, 30, 0, k.Shadow)
+		Background(k.Glass).Border(1, k.GlassLine).Shadow(0, 2, 10, 0, k.Shadow)
 	switch {
 	case ap != nil || asked:
 		frame.Border(1, k.AttnLine).Shadow(0, 0, 0, 3, k.AttnGlow)

@@ -605,3 +605,19 @@ func TestDetailsColumn(t *testing.T) {
 		t.Errorf("the composer stays beside the details: %q", tt.Texts())
 	}
 }
+
+func TestCodeBlockCopy(t *testing.T) {
+	a, _, tt, _ := newApp(t)
+	selectRunning(t, a, tt, proto.Message{ID: "m1", Role: proto.RoleAssistant, Text: "看：\n\n```go\nfmt.Println(1)\n```\n"})
+	tt.Frame()
+	if err := tt.Click("复制"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if got := tt.Clipboard(); got != "fmt.Println(1)\n" {
+		t.Fatalf("clipboard %q", got)
+	}
+	if !tt.HasText("已复制") {
+		t.Fatalf("the copy button does not say it copied: %q", tt.Texts())
+	}
+}

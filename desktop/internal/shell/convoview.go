@@ -23,33 +23,23 @@ const (
 	personalColumn = 640
 )
 
-// conversation draws a session's conversation under its composer, which
-// floats over it: the conversation scrolls on to the window's bottom, and
-// what passes under the composer shows through it, blurred. The column
-// follows new content while it is scrolled to the end.
+// conversation draws a session's conversation over its composer. The
+// column follows new content while it is scrolled to the end.
 func (a *App) conversation(c *ui.Context, k theme.Colors, s proto.Session) {
 	cv := a.conv(s.ID)
 	personal := s.Mode == proto.ModePersonal
 	width, gap := float32(codeColumn), float32(14)
-	rest := float32(composerCode)
 	if personal {
-		width, gap, rest = personalColumn, 10, composerPersonal
+		width, gap = personalColumn, 10
 	}
-	// The conversation ends above the composer at rest. MyGO does not tell
-	// an element's laid-out size, so while the composer grows (a queue,
-	// an approval, more lines) it covers the last lines, which show
-	// through it.
-	inset := rest + composerBottom
 	sc := &a.s.scroll
 	atEnd := sc.Y >= sc.MaxY-4
 	ui.Box(c).Grow(1).Children(func() {
 		ui.Scroll(c).Fill().TrackScroll(sc).Children(func() {
 			ui.Row(c).FillWidth().Justify(ui.Center).Children(func() {
-				ui.Column(c).Width(width).Padding(20, 32, 24+inset, 32).Gap(gap).Children(func() {
-					if more, first := cv.More(); more {
-						if ui.Button(c, "更早的消息").Clicked() {
-							a.host.Older(s.ID, first, func(p proto.EventsPage) { cv.Prepend(p) })
-						}
+				ui.Column(c).Width(width).Padding(20, 32, 24, 32).Gap(gap).Children(func() {
+					if more, first := cv.More(); more && a.older(c, k) {
+						a.host.Older(s.ID, first, func(p proto.EventsPage) { cv.Prepend(p) })
 					}
 					items := cv.Items()
 					if personal {
@@ -62,27 +52,36 @@ func (a *App) conversation(c *ui.Context, k theme.Colors, s proto.Session) {
 		})
 		if atEnd {
 			sc.Y = math.MaxFloat32
-		} else if a.toBottom(c, k, cv.Running(), inset+8) {
+		} else if a.toBottom(c, k, cv.Running(), 8) {
 			sc.Y = math.MaxFloat32
 		}
-		ui.Row(c).Absolute().Bottom(composerBottom).Left(0).Right(0).Justify(ui.Center).PassThrough().Children(func() {
-			ui.Column(c).Width(width - 64).Children(func() { a.composer(c, k, s, cv) })
-		})
 	})
 	if c.Shortcut(ui.Cmd, ui.KeyDown) {
 		sc.Y = math.MaxFloat32
 	}
 	a.modeKeys(c, s)
+	// The composer narrows with the window, as the details column beside
+	// the conversation may leave it less room than its width.
+	ui.Row(c).FillWidth().Justify(ui.Center).Padding(0, 0, 16, 0).Children(func() {
+		ui.Column(c).Grow(1).Shrink(1).MaxWidth(width-64).Margin(0, 16).Children(func() { a.composer(c, k, s, cv) })
+	})
 }
 
-// The floating composer: its height at rest, a Code one with its context
-// line and a Personal one without, and how far it floats above the
-// window's bottom.
-const (
-	composerCode     = 104
-	composerPersonal = 78
-	composerBottom   = 16
-)
+// older is the quiet button above a conversation that loads its earlier
+// messages: an up arrow and its name in muted text, centered, with a light
+// fill only under the pointer. It reports whether it was clicked.
+func (a *App) older(c *ui.Context, k theme.Colors) bool {
+	b := ui.Button(c, "").Label("更早的消息").AlignSelf(ui.Center).Height(26).Padding(0, 10).Gap(6).AlignItems(ui.Center).
+		Radius(theme.RadiusPill).Background(ui.Transparent).Border(0, ui.Transparent)
+	if b.Hovered() {
+		b.Background(k.Fill)
+	}
+	b.Children(func() {
+		ui.Icon(c, a.icons.Older).FontSize(theme.IconSizeSmall).TextColor(k.Muted)
+		theme.Secondary.On(ui.Text(c, "更早的消息")).TextColor(k.Muted)
+	})
+	return b.Clicked()
+}
 
 // items draws a Code conversation. Turns are not marked: your messages part
 // them, and only a turn on another day than the one before it gets a day
@@ -315,7 +314,7 @@ func (a *App) mineActions(c *ui.Context, k theme.Colors, it convo.Item) {
 // text draws the harness's text as Markdown, streaming while it comes.
 func (a *App) text(c *ui.Context, k theme.Colors, it convo.Item) {
 	a.s.md.Theme = mdTheme(c, k)
-	a.s.md.CodeBlock = a.codeBlock(k)
+	a.s.md.CodeBlock = a.codeBlock(k, it.Key)
 	renderMarkdown(c, it, &a.s.md).FillWidth()
 }
 
@@ -348,13 +347,15 @@ func mdTheme(c *ui.Context, k theme.Colors) *markdown.Theme {
 // codeLines folds a code block longer than this.
 const codeLines = 30
 
-// codeBlock draws a code block: a 30-point header with the language, then
-// expand (for a long block) and copy as icon buttons.
-func (a *App) codeBlock(k theme.Colors) func(c *ui.Context, b *markdown.CodeBlockView) {
+// codeBlock draws a code block of the text item: a 30-point header with
+// the language, then expand (for a long block) and copy as icon buttons.
+// Its state is kept by the item and the block's place in it, as the view
+// of a block is made anew on each build.
+func (a *App) codeBlock(k theme.Colors, item string) func(c *ui.Context, b *markdown.CodeBlockView) {
 	return func(c *ui.Context, b *markdown.CodeBlockView) {
 		code := b.Code()
 		long := strings.Count(code, "\n") > codeLines
-		id := fmt.Sprintf("code:%p:%d", b, b.Index)
+		id := fmt.Sprintf("code:%s:%d", item, b.Index)
 		open := a.s.open[id]
 		ui.Column(c).AlignSelf(ui.Stretch).Radius(theme.RadiusCard).Border(1, k.Line).Background(k.Bg).Clip().Children(func() {
 			ui.Row(c).Height(30).Padding(0, 4, 0, 12).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(k.Line).Children(func() {

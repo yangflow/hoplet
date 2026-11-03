@@ -56,6 +56,7 @@ type Set struct {
 	Warning   *ui.SVG
 	Reset     *ui.SVG
 	ToBottom  *ui.SVG
+	Older     *ui.SVG // load a conversation's earlier messages
 	Send      *ui.SVG
 	Stop      *ui.SVG
 	Expand    *ui.SVG // a folded group or row
@@ -119,6 +120,7 @@ func Load() (*Set, error) {
 		{&s.Warning, "lucide/triangle-alert.svg"},
 		{&s.Reset, "lucide/rotate-ccw.svg"},
 		{&s.ToBottom, "lucide/arrow-down.svg"},
+		{&s.Older, "lucide/arrow-up.svg"},
 		{&s.Send, "lucide/arrow-up.svg"},
 		{&s.Stop, "lucide/square.svg"},
 		{&s.Expand, "lucide/chevron-right.svg"},

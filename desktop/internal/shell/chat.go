@@ -30,7 +30,7 @@ func (a *App) chat(c *ui.Context, k theme.Colors, s proto.Session, items []convo
 				a.companionAvatar(c, k, s, last)
 				ui.Box(c).Padding(9, 14).Radius(18, 18, 18, 6).Background(k.Bg).Border(1, k.Line).Children(func() {
 					a.s.md.Theme = mdTheme(c, k)
-					a.s.md.CodeBlock = a.codeBlock(k)
+					a.s.md.CodeBlock = a.codeBlock(k, it.Key)
 					renderMarkdown(c, it, &a.s.md)
 				})
 			})
