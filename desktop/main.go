@@ -425,10 +425,11 @@ func (d *desktop) menu() *mygo.Menu {
 		{Role: mygo.RoleEditMenu},
 		{Label: "会话", Submenu: []*mygo.MenuItem{d.pin, d.unread, d.rename, mygo.Separator(), d.reveal, d.stop, d.archive}},
 		{Label: "视图", Submenu: []*mygo.MenuItem{
-			{Label: "Personal", Accelerator: "CmdOrCtrl+1", Click: d.do(func() { d.app.SetMode(proto.ModePersonal) })},
-			{Label: "Code", Accelerator: "CmdOrCtrl+2", Click: d.do(func() { d.app.SetMode(proto.ModeCode) })},
+			{Label: "Personal", Accelerator: "CmdOrCtrl+1", Click: d.do(func() { d.app.ModeKey(proto.ModePersonal) })},
+			{Label: "Code", Accelerator: "CmdOrCtrl+2", Click: d.do(func() { d.app.ModeKey(proto.ModeCode) })},
 			mygo.Separator(),
 			{Label: "收件箱", Accelerator: "Shift+CmdOrCtrl+I", Click: d.do(d.app.OpenInbox)},
+			{Label: "搜索", Accelerator: "CmdOrCtrl+K", Click: d.do(d.app.OpenPalette)},
 			mygo.Separator(),
 			d.back, d.forward,
 			mygo.Separator(),

@@ -39,6 +39,7 @@ func (a *App) sidebar(c *ui.Context, k theme.Colors) {
 				ui.Icon(c, a.icons.New).FontSize(theme.IconSize).TextColor(k.Fg3)
 				theme.UI.On(ui.Text(c, "新建")).TextColor(k.Fg)
 			})
+			a.searchEntry(c, k)
 			a.inboxEntry(c, k)
 		})
 		// The machine scope ("全部机器 ▾") comes with several machines.
@@ -72,6 +73,22 @@ const modeSwitchWidth = 2 + 30 + 2 + 30 + 2
 func sideMin(bar ui.TitleBar) float32 {
 	row := bar.Left + 8 + 3*theme.RowHeight + 2*2 + 12 + modeSwitchWidth + 8
 	return max(theme.SidebarMin, row)
+}
+
+// searchEntry opens the command palette.
+func (a *App) searchEntry(c *ui.Context, k theme.Colors) {
+	e := ui.Row(c).Height(theme.RowHeight).Padding(0, 8).Gap(8).AlignItems(ui.Center).Radius(theme.RadiusRow).
+		Label("搜索").Tooltip("搜索 ⌘K")
+	if a.s.palOpen || e.Hovered() {
+		e.Background(k.Fill)
+	}
+	if e.Clicked() {
+		a.OpenPalette()
+	}
+	e.Children(func() {
+		ui.Icon(c, a.icons.Search).FontSize(theme.IconSize).TextColor(k.Fg3)
+		theme.UI.On(ui.Text(c, "搜索")).TextColor(k.Fg)
+	})
 }
 
 // inboxEntry is the sidebar's way into the inbox: its icon, its name and

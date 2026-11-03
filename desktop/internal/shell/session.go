@@ -46,6 +46,10 @@ type sessionView struct {
 	inboxDone    map[string]string                             // what I decided, by approval, until it goes
 	inboxSel     int                                           // the selected inbox card
 	inboxFocus   bool                                          // the inbox takes the focus this frame
+	palOpen      bool                                          // the command palette shows
+	palQuery     string                                        // what the palette searches for
+	palScope     paletteScope                                  // what it searches: all, sessions or commands
+	palSel       int                                           // the selected row
 	runSub       string                                        // the run menu's open submenu: subEffort, subModel or none
 	runHover     string                                        // the run menu row the pointer is on
 	modelTab     string                                        // the harness whose models show

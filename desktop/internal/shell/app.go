@@ -412,6 +412,10 @@ func (a *App) View(c *ui.Context) {
 		a.side = min(max(a.side, sideMin(c.TitleBar())), theme.SidebarMax)
 	}
 	a.toasts(c, k)
+	if c.Shortcut(ui.Cmd, ui.KeyK) {
+		a.OpenPalette()
+	}
+	a.palette(c, k)
 	if st := a.state(); !st.equal(a.last) {
 		a.last = st
 		if a.changed != nil {
