@@ -159,3 +159,32 @@ func TestContextUsage(t *testing.T) {
 		t.Fatalf("usage %+v %v", u, ok)
 	}
 }
+
+// A message I sent shows, with the turn starting, until the daemon
+// records it; then it shows once.
+func TestEcho(t *testing.T) {
+	var c Convo
+	c.Echo("k1", "hello", t0)
+	items := c.Items()
+	if !c.Starting() || len(items) != 1 || items[0].Kind != KindMine || items[0].Text != "hello" {
+		t.Fatalf("echo: starting %v, items %+v", c.Starting(), items)
+	}
+	c.Apply(proto.SessionItem{Events: log(t, 1, 1, proto.Message{ID: "k1", Role: proto.RoleUser, Text: "hello"}, proto.TurnStarted{})})
+	mine := 0
+	for _, it := range c.Items() {
+		if it.Kind == KindMine {
+			mine++
+			if it.Key == "echo:k1" {
+				t.Fatal("the echo stays after the message is recorded")
+			}
+		}
+	}
+	if c.Starting() || mine != 1 {
+		t.Fatalf("recorded: starting %v, %d of mine", c.Starting(), mine)
+	}
+	c.Echo("k2", "again", t0)
+	c.Unecho()
+	if c.Starting() {
+		t.Fatal("the echo stays after it failed")
+	}
+}

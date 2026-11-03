@@ -156,6 +156,11 @@ func (a *App) send(s proto.Session, text string) {
 		a.s.outbox = append(a.s.outbox, p)
 		return
 	}
+	if !a.conv(s.ID).Running() {
+		// Until the daemon records it (a new session first starts its
+		// harness), it shows as sent.
+		a.conv(s.ID).Echo(p.Key, text, time.Now())
+	}
 	a.host.Send(p)
 }
 

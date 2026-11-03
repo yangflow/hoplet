@@ -43,7 +43,7 @@ func (a *App) conversation(c *ui.Context, k theme.Colors, s proto.Session) {
 					}
 					items := cv.Items()
 					if personal {
-						a.chat(c, k, s, items, cv.Running())
+						a.chat(c, k, s, items, cv.Running() || cv.Starting())
 						return
 					}
 					a.items(c, k, s, items, cv)
@@ -100,8 +100,11 @@ func (a *App) items(c *ui.Context, k theme.Colors, s proto.Session, items []conv
 		}
 		a.item(c.Key(it.Key), k, s, it)
 	}
-	if cv.Running() {
+	switch {
+	case cv.Running():
 		a.working(c.Key("working"), k, items, len(cv.Pending()) > 0, turn)
+	case cv.Starting():
+		a.startingRow(c.Key("working"), k, s)
 	}
 }
 
@@ -131,6 +134,15 @@ func (a *App) working(c *ui.Context, k theme.Colors, items []convo.Item, approva
 			rolling(c, k, duration(c.Now().Sub(since)), c.Preferences().ReduceMotion)
 			c.After(time.Second)
 		}
+	})
+}
+
+// startingRow ends a conversation whose message waits for its harness to
+// start: the working row's squares and 正在启动 and the harness.
+func (a *App) startingRow(c *ui.Context, k theme.Colors, s proto.Session) {
+	ui.Row(c).Height(24).Gap(8).AlignItems(ui.Center).Children(func() {
+		squares(c, k, c.Preferences().ReduceMotion)
+		theme.UI.On(ui.Text(c, "正在启动 "+harnessName(s.Harness.Kind))).TextColor(k.Fg3)
 	})
 }
 
@@ -760,8 +772,9 @@ func toolVerb(tc proto.ToolCall) string {
 	return "调用 %d 个工具"
 }
 
-// record draws a decided approval: a shield, the outcome, what it was
-// about; who decided and when show on hover.
+// record draws a decided approval on one line: a shield, the outcome,
+// what it was about, cut short when long; when it was decided shows on
+// hover.
 func (a *App) record(c *ui.Context, k theme.Colors, ap *convo.Approval) {
 	if ap.Outcome == "" {
 		return // still open: it waits in the composer
@@ -777,15 +790,10 @@ func (a *App) record(c *ui.Context, k theme.Colors, ap *convo.Approval) {
 			icon, label = a.icons.Denied, "未答复"
 		}
 		ui.Icon(c, icon).FontSize(theme.IconSizeInRow).TextColor(k.Fg3)
-		theme.UI.On(ui.Text(c, label)).TextColor(k.Fg).FontWeight(500)
-		ui.Text(c, ap.Request.Title).Font(theme.Mono).FontSize(12).TextColor(k.Fg3).SingleLine().Shrink(1)
-		ui.Spacer(c)
+		theme.UI.On(ui.Text(c, label)).TextColor(k.Fg).FontWeight(500).SingleLine().Shrink(0)
+		ui.Text(c, ap.Request.Title).Font(theme.Mono).FontSize(12).TextColor(k.Fg3).SingleLine().Grow(1).Shrink(1).Tooltip(ap.Request.Title)
 		if hovered {
-			who := ap.DecidedBy
-			if who == "" {
-				who = "harness"
-			}
-			theme.Caption.On(ui.Text(c, who+" · "+clock(ap.At))).TextColor(k.Muted)
+			theme.Caption.On(ui.Text(c, clock(ap.At))).TextColor(k.Muted).SingleLine().Shrink(0)
 		}
 	})
 }

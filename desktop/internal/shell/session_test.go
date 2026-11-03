@@ -863,3 +863,51 @@ func TestRunMenuLongModel(t *testing.T) {
 		t.Fatalf("模型 wraps: %v high, 推理强度 %v", r.H, label.H)
 	}
 }
+
+// A decided approval stays on one line however long its title, and its
+// hover shows only when it was decided.
+func TestApprovalRecordLine(t *testing.T) {
+	a, _, tt, _ := newApp(t)
+	tt.SetSize(900, 700)
+	a.Select("s1")
+	now := tt.Now()
+	long := "Bash " + strings.Repeat("ls -A && which cargo rustc; ", 8)
+	a.ApplySession("s1", proto.SessionItem{Snapshot: &proto.SessionSnapshot{Events: events(t, now, 1, 1,
+		proto.Message{ID: "k1", Role: proto.RoleUser, Text: "go"},
+		proto.TurnStarted{},
+		proto.ApprovalRequested{ID: "a1", Kind: proto.ApprovalCommand, Title: long},
+		proto.ApprovalResolved{ID: "a1", Outcome: proto.OutcomeAllowed, DecidedBy: "desktop@host"},
+		proto.TurnEnded{Reason: proto.TurnCompleted},
+	)}})
+	tt.Frame()
+	label, ok := tt.Find("已允许")
+	title, ok2 := tt.Find(long)
+	if !ok || !ok2 || label.H > 20 || title.H > 20 {
+		t.Fatalf("the record wraps: label %+v, title %+v", label, title)
+	}
+	tt.Move(title.X+10, title.Y+title.H/2)
+	tt.Frame()
+	if tt.HasText("desktop@host") || strings.Contains(strings.Join(tt.Texts(), "|"), "desktop@") {
+		t.Fatalf("the hover names the device: %q", tt.Texts())
+	}
+}
+
+// A new session shows my first message and that its harness is starting
+// at once, before the daemon records the message.
+func TestNewSessionStartsAtOnce(t *testing.T) {
+	a, h, tt, _ := newApp(t)
+	h.models = []proto.HarnessInfo{claudeHarness()}
+	a.NewSession()
+	a.s.newPick.dir = "/w/site"
+	tt.Frame()
+	if err := tt.Click("消息"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Type("add a tray")
+	tt.Key(0, ui.KeyEnter)
+	h.created(proto.Session{ID: "n1", Mode: proto.ModeCode, Harness: proto.HarnessRef{Kind: "claude"}, Directory: "/w/site", Status: proto.StatusIdle})
+	tt.Frame()
+	if !tt.HasText("add a tray") || !tt.HasText("正在启动 Claude Code") {
+		t.Fatalf("the new session waits blank: %q", tt.Texts())
+	}
+}

@@ -94,6 +94,33 @@ type Convo struct {
 	asked   *proto.Question
 	running bool
 	context proto.ContextUsage
+
+	// echo is a message I just sent that the daemon has not recorded yet:
+	// it shows, with the turn starting, until a message of its ID comes.
+	echo     *proto.Message
+	echoAt   time.Time
+	starting bool
+}
+
+// Echo shows a message I just sent, by its idempotency key, until the
+// daemon records it: a new session starts its harness first, which takes
+// a moment.
+func (c *Convo) Echo(key, text string, at time.Time) {
+	c.echo, c.echoAt, c.built = &proto.Message{ID: key, Role: proto.RoleUser, Text: text}, at, false
+}
+
+// Unecho drops the message shown as sent, as when sending failed.
+func (c *Convo) Unecho() {
+	if c.echo != nil {
+		c.echo, c.built = nil, false
+	}
+}
+
+// Starting reports whether a message I sent waits for the daemon, the
+// turn about to start.
+func (c *Convo) Starting() bool {
+	c.build()
+	return c.starting
 }
 
 // Apply brings the conversation up to a subscription item: a snapshot
@@ -202,6 +229,8 @@ type builder struct {
 	files    []proto.FileChange
 	asked    *proto.Question
 	context  proto.ContextUsage
+	echoed   bool // the echo's message is recorded
+	echo     string
 }
 
 func (c *Convo) build() {
@@ -209,6 +238,9 @@ func (c *Convo) build() {
 		return
 	}
 	b := &builder{turnAt: -1, texts: map[string]int{}, tools: map[string]int{}, approval: map[string]int{}, pending: map[string]proto.ApprovalRequested{}}
+	if c.echo != nil {
+		b.echo = c.echo.ID
+	}
 	for _, ev := range c.events {
 		p, err := ev.Decode()
 		if err != nil {
@@ -229,6 +261,13 @@ func (c *Convo) build() {
 				break scan
 			}
 		}
+	}
+	if c.echo != nil && b.echoed {
+		c.echo = nil
+	}
+	c.starting = c.echo != nil
+	if c.starting {
+		b.items = append(b.items, Item{Kind: KindMine, Key: "echo:" + c.echo.ID, Time: c.echoAt, Text: c.echo.Text})
 	}
 	c.items, c.running, c.asked, c.context = b.items, b.turnAt >= 0, b.asked, b.context
 	c.pending = c.pending[:0]
@@ -296,6 +335,7 @@ func (b *builder) event(ev proto.Event, p proto.Payload) {
 		// them in the same append).
 	case proto.Message:
 		if p.Role == proto.RoleUser {
+			b.echoed = b.echoed || b.echo != "" && p.ID == b.echo
 			b.add(Item{Kind: KindMine, Key: key("mine", ev.Seq), Time: ev.Time, Turn: ev.Turn, Text: p.Text, Steer: b.sawReply && b.turnAt >= 0})
 			return
 		}

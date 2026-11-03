@@ -165,6 +165,11 @@ func (a *App) Lost(err error) {
 // closed or another note replaces it; retry, when not nil, asks again.
 func (a *App) Fail(err error, retry func()) {
 	a.pending = failure("没做成："+err.Error(), retry)
+	// A message that did not go out no longer shows as sent; the note
+	// offers to try again.
+	for _, cv := range a.s.convos {
+		cv.Unecho()
+	}
 }
 
 // Apply brings the session list up to a catalog item. A session that
