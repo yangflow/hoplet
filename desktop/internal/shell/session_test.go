@@ -229,11 +229,19 @@ func TestEffortModelAndPermission(t *testing.T) {
 	if got := h.last(); !reflect.DeepEqual(got, proto.SetEffortParams{Session: "s1", Effort: proto.EffortHigh}) {
 		t.Fatalf("set effort %#v", got)
 	}
+	// The effort popover closes first: a click elsewhere while it is up
+	// may only close it.
+	tt.Key(0, ui.KeyEscape)
+	tt.Frame()
+	if a.s.effortOpen {
+		t.Fatal("⎋ leaves the effort popover open")
+	}
 	if err := tt.Click("审批：需确认"); err != nil {
 		t.Fatalf("%v in %q", err, tt.Texts())
 	}
+	tt.Frame()
 	if err := tt.Click("全自动"); err != nil {
-		t.Fatal(err)
+		t.Fatalf("%v in %q", err, tt.Texts())
 	}
 	if got := h.last(); !reflect.DeepEqual(got, proto.SetPermissionParams{Session: "s1", Permission: proto.ModeFullAuto}) {
 		t.Fatalf("set permission %#v", got)
