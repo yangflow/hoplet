@@ -30,7 +30,7 @@ func (a *App) toasts(c *ui.Context, k theme.Colors) {
 		c.AddToast(a.pending)
 		a.pending = ui.Toast{}
 	}
-	top, left := float32(theme.TitleBar), float32(theme.SidebarWidth)
+	top, left := float32(theme.TitleBar), a.side
 	if a.hideSide {
 		top, left = topHeight(c.TitleBar()), 0
 	}

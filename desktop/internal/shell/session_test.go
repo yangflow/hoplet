@@ -205,10 +205,10 @@ func TestEffortModelAndPermission(t *testing.T) {
 	a.SetHarnesses(h.models)
 	a.Select("s1")
 	tt.Frame()
-	if err := tt.Click("强度与模型"); err != nil {
+	if err := tt.Click("模型与强度"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tt.Click("换模型"); err != nil {
+	if err := tt.Click("模型"); err != nil {
 		t.Fatal(err)
 	}
 	if err := tt.Click("Haiku 5.5"); err != nil {
@@ -217,24 +217,40 @@ func TestEffortModelAndPermission(t *testing.T) {
 	if got := h.last(); !reflect.DeepEqual(got, proto.SetModelParams{Session: "s1", Model: "haiku"}) {
 		t.Fatalf("set model %#v", got)
 	}
-	if err := tt.Click("强度与模型"); err != nil {
-		t.Fatal(err)
-	}
-	// The slider rests on the middle level for the default; one step
-	// right is 高.
 	if err := tt.Click("推理强度"); err != nil {
 		t.Fatal(err)
 	}
-	tt.Key(0, ui.KeyRight)
+	if err := tt.Click("High"); err != nil {
+		t.Fatalf("%v in %q", err, tt.Texts())
+	}
 	if got := h.last(); !reflect.DeepEqual(got, proto.SetEffortParams{Session: "s1", Effort: proto.EffortHigh}) {
 		t.Fatalf("set effort %#v", got)
 	}
-	// The effort popover closes first: a click elsewhere while it is up
-	// may only close it.
+	s1, _ := a.cat.Get("s1")
+	s1.Effort = proto.EffortHigh // as the daemon reports it
+	a.Apply(proto.CatalogItem{Version: a.cat.Version() + 1, Sessions: []proto.Session{s1}})
+	tt.Frame()
+	if err := tt.Click("默认"); err != nil {
+		t.Fatal(err)
+	}
+	if got := h.last(); !reflect.DeepEqual(got, proto.SetEffortParams{Session: "s1"}) {
+		t.Fatalf("back to the default effort %#v", got)
+	}
+	if err := tt.Click("计划模式"); err != nil {
+		t.Fatal(err)
+	}
+	if got := h.last(); !reflect.DeepEqual(got, proto.SetPlanParams{Session: "s1", Plan: true}) {
+		t.Fatalf("plan %#v", got)
+	}
+	if tt.HasText("Ultracode") || tt.HasText("快速模式") {
+		t.Fatalf("switches the harness lacks: %q", tt.Texts())
+	}
+	// ⎋ closes the submenu, then the menu.
+	tt.Key(0, ui.KeyEscape)
 	tt.Key(0, ui.KeyEscape)
 	tt.Frame()
-	if a.s.effortOpen {
-		t.Fatal("⎋ leaves the effort popover open")
+	if a.s.runOpen {
+		t.Fatal("⎋ leaves the run menu open")
 	}
 	if err := tt.Click("审批：需确认"); err != nil {
 		t.Fatalf("%v in %q", err, tt.Texts())
@@ -245,6 +261,36 @@ func TestEffortModelAndPermission(t *testing.T) {
 	}
 	if got := h.last(); !reflect.DeepEqual(got, proto.SetPermissionParams{Session: "s1", Permission: proto.ModeFullAuto}) {
 		t.Fatalf("set permission %#v", got)
+	}
+}
+
+// Ultracode shows for a harness that has it, on a model with xhigh, and
+// marks the button while on.
+func TestUltracodeSwitch(t *testing.T) {
+	a, h, tt, _ := newApp(t)
+	ch := claudeHarness()
+	ch.Capabilities.Ultracode = true
+	ch.Models[1].Efforts = []proto.Effort{proto.EffortLow, proto.EffortHigh}
+	ch.Models[0].Efforts = []proto.Effort{proto.EffortLow, proto.EffortHigh, proto.EffortXHigh}
+	h.models = []proto.HarnessInfo{ch}
+	a.SetHarnesses(h.models)
+	a.Select("s1")
+	tt.Frame()
+	if err := tt.Click("模型与强度"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("Ultracode"); err != nil {
+		t.Fatalf("%v in %q", err, tt.Texts())
+	}
+	if got := h.last(); !reflect.DeepEqual(got, proto.SetUltracodeParams{Session: "s1", Ultracode: true}) {
+		t.Fatalf("ultracode %#v", got)
+	}
+	s1, _ := a.cat.Get("s1")
+	s1.Model, s1.Ultracode = "haiku", true
+	a.Apply(proto.CatalogItem{Version: a.cat.Version() + 1, Sessions: []proto.Session{s1}})
+	tt.Frame()
+	if tt.HasText("Ultracode") {
+		t.Fatal("Ultracode offered on a model without xhigh")
 	}
 }
 
@@ -268,7 +314,7 @@ func TestNewSession(t *testing.T) {
 	}
 	tt.Type("add a tray")
 	tt.Key(0, ui.KeyEnter)
-	if got := h.last(); !reflect.DeepEqual(got, proto.CreateParams{Mode: proto.ModeCode, Harness: "claude", Directory: "/w/site", Permission: proto.ModeAutoReview, Effort: proto.EffortMedium}) {
+	if got := h.last(); !reflect.DeepEqual(got, proto.CreateParams{Mode: proto.ModeCode, Harness: "claude", Directory: "/w/site", Permission: proto.ModeAutoReview}) {
 		t.Fatalf("create %#v", got)
 	}
 	h.created(proto.Session{ID: "n1", Mode: proto.ModeCode, Harness: proto.HarnessRef{Kind: "claude"}, Directory: "/w/site", Status: proto.StatusIdle})
@@ -298,12 +344,13 @@ func TestPersonalChat(t *testing.T) {
 	}
 }
 
-func TestComposerIsOneLine(t *testing.T) {
+// An empty composer is two lines high, growing to eight.
+func TestComposerIsTwoLines(t *testing.T) {
 	a, h, tt, _ := newApp(t)
 	h.models = []proto.HarnessInfo{claudeHarness()}
 	a.NewSession()
 	tt.Frame()
-	if r, ok := tt.Find("消息"); !ok || r.H > 30 {
+	if r, ok := tt.Find("消息"); !ok || r.H < 28 || r.H > 40 {
 		t.Fatalf("an empty composer is %v high", r.H)
 	}
 	a.Lost(errDaemon)
@@ -321,10 +368,10 @@ func TestNewSessionPicksHarnessByModel(t *testing.T) {
 	h.models = []proto.HarnessInfo{claudeHarness(), hermes}
 	a.NewSession()
 	tt.Frame()
-	if err := tt.Click("强度与模型"); err != nil {
+	if err := tt.Click("模型与强度"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tt.Click("换模型"); err != nil {
+	if err := tt.Click("模型"); err != nil {
 		t.Fatal(err)
 	}
 	for _, want := range []string{"Claude Code", "Hermes", "Default (recommended)", "搜索模型"} {
@@ -341,6 +388,9 @@ func TestNewSessionPicksHarnessByModel(t *testing.T) {
 	if err := tt.Click("codex/m1"); err != nil {
 		t.Fatal(err)
 	}
+	// Choosing keeps the menu up; ⎋ closes the submenu, then the menu.
+	tt.Key(0, ui.KeyEscape)
+	tt.Key(0, ui.KeyEscape)
 	a.s.newPick.dir = "/w/site"
 	if err := tt.Click("消息"); err != nil {
 		t.Fatal(err)
@@ -457,15 +507,15 @@ func TestModelSearch(t *testing.T) {
 	h.models = []proto.HarnessInfo{claudeHarness()}
 	a.NewSession()
 	tt.Frame()
-	if err := tt.Click("强度与模型"); err != nil {
+	if err := tt.Click("模型与强度"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tt.Click("换模型"); err != nil {
+	if err := tt.Click("模型"); err != nil {
 		t.Fatal(err)
 	}
 	tt.Type("hai")
 	tt.Frame()
-	if n := strings.Count(strings.Join(tt.Texts(), "|"), "Default (recommended)"); n != 1 || !tt.HasText("Haiku 5.5") { // the pill keeps its own
+	if n := strings.Count(strings.Join(tt.Texts(), "|"), "Default (recommended)"); n != 2 || !tt.HasText("Haiku 5.5") { // the button and the 模型 row keep theirs
 		t.Fatalf("search: %q", tt.Texts())
 	}
 	tt.Type("x")
@@ -475,35 +525,38 @@ func TestModelSearch(t *testing.T) {
 	}
 	tt.Key(0, ui.KeyEscape)
 	tt.Frame()
-	if a.s.modelOpen || !a.s.effortOpen {
-		t.Fatalf("⎋ goes back to the effort: model %v, effort %v", a.s.modelOpen, a.s.effortOpen)
+	if a.s.runSub != "" || !a.s.runOpen {
+		t.Fatalf("⎋ closes only the models: submenu %q, menu %v", a.s.runSub, a.s.runOpen)
 	}
 }
 
+// A new session leaves the effort to the harness until a level is chosen,
+// and 默认 goes back to that.
 func TestEffortDefault(t *testing.T) {
 	a, h, tt, _ := newApp(t)
 	h.models = []proto.HarnessInfo{claudeHarness()}
 	a.NewSession()
 	tt.Frame()
-	if err := tt.Click("强度与模型"); err != nil {
-		t.Fatal(err)
+	if !tt.HasText("默认") || a.s.newPick.run.effort != "" {
+		t.Fatalf("a new session starts at %q: %q", a.s.newPick.run.effort, tt.Texts())
 	}
-	if !tt.HasText("中") || !tt.HasText("Default (recommended)") {
-		t.Fatalf("a new session does not start at medium: %q", tt.Texts())
+	if err := tt.Click("模型与强度"); err != nil {
+		t.Fatal(err)
 	}
 	if err := tt.Click("推理强度"); err != nil {
 		t.Fatal(err)
 	}
-	tt.Key(0, ui.KeyRight)
-	tt.Frame()
-	if a.s.newPick.run.effort != proto.EffortHigh {
-		t.Fatalf("→ from medium chose %q", a.s.newPick.run.effort)
-	}
-	if err := tt.Click("恢复默认"); err != nil {
+	if err := tt.Click("High"); err != nil {
 		t.Fatal(err)
 	}
-	if a.s.newPick.run.effort != proto.EffortMedium {
-		t.Fatalf("reset chose %q", a.s.newPick.run.effort)
+	if a.s.newPick.run.effort != proto.EffortHigh {
+		t.Fatalf("chose %q", a.s.newPick.run.effort)
+	}
+	if err := tt.Click("默认"); err != nil {
+		t.Fatal(err)
+	}
+	if a.s.newPick.run.effort != "" {
+		t.Fatalf("默认 chose %q", a.s.newPick.run.effort)
 	}
 }
 
@@ -583,10 +636,10 @@ func TestModelProviders(t *testing.T) {
 		}}}
 	a.NewSession()
 	tt.Frame()
-	if err := tt.Click("强度与模型"); err != nil {
+	if err := tt.Click("模型与强度"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tt.Click("换模型"); err != nil {
+	if err := tt.Click("模型"); err != nil {
 		t.Fatal(err)
 	}
 	if !tt.HasText("OpenAI Codex") || !tt.HasText("Nous Portal") {
@@ -676,5 +729,121 @@ func TestContextRow(t *testing.T) {
 		if !tt.HasText(want) {
 			t.Errorf("no %q above the composer: %q", want, tt.Texts())
 		}
+	}
+}
+
+// A harness that has not listed its models says so in the model submenu,
+// rather than offering another harness's under its button.
+func TestModelMenuWithoutModels(t *testing.T) {
+	a, h, tt, _ := newApp(t)
+	claude := claudeHarness()
+	claude.Models = nil
+	hermes := proto.HarnessInfo{Kind: "hermes", Supported: true, Capabilities: proto.Capabilities{SetModel: true},
+		Models: []proto.ModelInfo{{ID: "codex/m1", Provider: "local", Name: "codex/m1", Default: true}}}
+	h.models = []proto.HarnessInfo{claude, hermes}
+	a.NewSession()
+	tt.Frame()
+	if err := tt.Click("模型与强度"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("模型"); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText("Claude Code 还没有给出模型列表") || tt.HasText("codex/m1") {
+		t.Fatalf("models of the wrong harness: %q", tt.Texts())
+	}
+}
+
+// A harness that cannot run shows, dimmed, on the new-session page, and
+// says how to install it.
+func TestMissingHarness(t *testing.T) {
+	a, h, tt, _ := newApp(t)
+	h.models = []proto.HarnessInfo{claudeHarness(), {Kind: "hermes", Missing: "hermes: Hermes Agent is not installed"}}
+	a.NewSession()
+	tt.Frame()
+	if len(a.s.harnesses) != 1 || len(a.s.missing) != 1 {
+		t.Fatalf("installed %v, missing %v", a.s.harnesses, a.s.missing)
+	}
+	if err := tt.Click("模型与强度"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("模型"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("Hermes"); err != nil {
+		t.Fatalf("%v in %q", err, tt.Texts())
+	}
+	if !tt.HasText("Hermes 未安装") {
+		t.Fatalf("no install hint in %q", tt.Texts())
+	}
+}
+
+// A model that takes no effort has no effort row, nor one on its button.
+func TestModelWithoutEffort(t *testing.T) {
+	a, h, tt, _ := newApp(t)
+	ch := claudeHarness()
+	ch.Models[1].NoEffort = true
+	h.models = []proto.HarnessInfo{ch}
+	a.SetHarnesses(h.models)
+	a.Select("s1")
+	tt.Frame()
+	s1, _ := a.cat.Get("s1")
+	s1.Model = "haiku"
+	a.Apply(proto.CatalogItem{Version: a.cat.Version() + 1, Sessions: []proto.Session{s1}})
+	tt.Frame()
+	if err := tt.Click("模型与强度"); err != nil {
+		t.Fatal(err)
+	}
+	if tt.HasText("推理强度") || tt.HasText("默认") {
+		t.Fatalf("effort offered for a model without it: %q", tt.Texts())
+	}
+}
+
+// The context ring shows once the harness said the window's size, and its
+// tip says the numbers.
+func TestContextRing(t *testing.T) {
+	a, _, tt, _ := newApp(t)
+	a.Select("s1")
+	now := tt.Now()
+	a.ApplySession("s1", proto.SessionItem{Snapshot: &proto.SessionSnapshot{Events: events(t, now, 1, 1,
+		proto.Message{ID: "k1", Role: proto.RoleUser, Text: "hi"},
+		proto.ContextUsage{Used: 84000},
+	)}})
+	tt.Frame()
+	if _, ok := tt.Find("上下文已用 42% · 84K / 200K tokens"); ok {
+		t.Fatal("a ring before the window is known")
+	}
+	a.ApplySession("s1", proto.SessionItem{Events: events(t, now, 3, 1, proto.ContextUsage{Used: 84000, Window: 200000})})
+	tt.Frame()
+	if _, ok := tt.Find("上下文已用 42% · 84K / 200K tokens"); !ok {
+		t.Fatalf("no ring in %q", tt.Texts())
+	}
+}
+
+func TestTokens(t *testing.T) {
+	for n, want := range map[int64]string{999: "999", 84000: "84K", 92500: "92.5K", 1_000_000: "1M", 1_234_567: "1.2M"} {
+		if got := tokens(n); got != want {
+			t.Errorf("tokens(%d) = %q, want %q", n, got, want)
+		}
+	}
+}
+
+// A long model name gives way in the run menu; the row's name keeps its
+// one line.
+func TestRunMenuLongModel(t *testing.T) {
+	a, h, tt, _ := newApp(t)
+	h.models = []proto.HarnessInfo{claudeHarness()}
+	a.NewSession()
+	tt.Frame()
+	if err := tt.Click("模型与强度"); err != nil {
+		t.Fatal(err)
+	}
+	r, ok := tt.Find("模型")
+	if !ok {
+		t.Fatalf("no 模型 row in %q", tt.Texts())
+	}
+	label, _ := tt.Find("推理强度")
+	if r.H > label.H+1 {
+		t.Fatalf("模型 wraps: %v high, 推理强度 %v", r.H, label.H)
 	}
 }

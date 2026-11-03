@@ -22,6 +22,7 @@ type sessionView struct {
 	drafts    map[proto.SessionID]string
 	outbox    []proto.SendParams // messages written while offline, in order
 	harnesses []proto.HarnessInfo
+	missing   []proto.HarnessInfo // harnesses Hoplet knows but cannot run, and why
 
 	open      map[string]bool              // work groups, tool rows and code blocks I opened or closed
 	outputs   map[string]*proto.ToolOutput // loaded tool outputs, by session and call
@@ -29,24 +30,23 @@ type sessionView struct {
 	scroll    ui.ScrollState
 	md        markdown.Options
 
-	permOpen, effortOpen, detailOpen, dirOpen bool
-	pick                                      int                  // the highlighted option of the approval shown
-	hidden                                    map[string]bool      // approvals I put away with ⎋
-	copied                                    map[string]time.Time // when each copy button last copied
-	armed                                     time.Time            // the first ⎋ of two that stop a turn
+	permOpen, runOpen, detailOpen, dirOpen bool
+	pick                                   int                  // the highlighted option of the approval shown
+	hidden                                 map[string]bool      // approvals I put away with ⎋
+	copied                                 map[string]time.Time // when each copy button last copied
+	armed                                  time.Time            // the first ⎋ of two that stop a turn
 
 	diffs        map[proto.SessionID]*diffState // each session's changes, as last read
 	queue        ui.ListState                   // the queue tray's rows, which drag to reorder
 	queueAll     bool                           // the queue shows every message, not its first three
 	offlineSince time.Time                      // when the connection was lost
 	flash        map[proto.SessionID]bool       // rows of sessions made elsewhere, and whether they lit
-	modelOpen    bool                           // the effort popover shows the models
+	runSub       string                         // the run menu's open submenu: subEffort, subModel or none
+	runHover     string                         // the run menu row the pointer is on
 	modelTab     string                         // the harness whose models show
 	modelQuery   string                         // what the model search holds
+	modelFocus   bool                           // the model search takes the focus this frame
 	modelPick    int                            // the highlighted model, -1 for the current
-	ultraAt      time.Time                      // when the effort went to 极限, for its burst
-	effortWant   proto.Effort                   // the level just chosen, until the daemon has it
-	effortWanted bool
 
 	newPage bool
 	newPick newChoice
@@ -92,8 +92,18 @@ func (a *App) ApplySession(id proto.SessionID, it proto.SessionItem) {
 	a.conv(id).Apply(it)
 }
 
-// SetHarnesses records the installed harnesses and their models.
-func (a *App) SetHarnesses(hs []proto.HarnessInfo) { a.s.harnesses = hs }
+// SetHarnesses records the installed harnesses and their models, and
+// apart from them those that cannot run.
+func (a *App) SetHarnesses(hs []proto.HarnessInfo) {
+	a.s.harnesses, a.s.missing = nil, nil
+	for _, h := range hs {
+		if h.Missing != "" {
+			a.s.missing = append(a.s.missing, h)
+		} else {
+			a.s.harnesses = append(a.s.harnesses, h)
+		}
+	}
+}
 
 // harness returns the description of a harness kind.
 func (a *App) harness(kind string) (proto.HarnessInfo, bool) {

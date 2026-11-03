@@ -17,7 +17,7 @@ import (
 // list header, the sessions and the footer.
 func (a *App) sidebar(c *ui.Context, k theme.Colors) {
 	bar := c.TitleBar()
-	ui.Column(c).Width(theme.SidebarWidth).Background(k.Side).BorderWidth(0, 1, 0, 0).BorderColor(k.SideLine).Children(func() {
+	ui.Column(c).Fill().Background(k.Side).Children(func() {
 		ui.Row(c).Height(topHeight(bar)).Padding(0, 8, 0, bar.Left+8).Gap(2).AlignItems(ui.Center).DragWindow().Children(func() {
 			a.windowButtons(c, k)
 			ui.Spacer(c)
@@ -58,6 +58,18 @@ func (a *App) sidebar(c *ui.Context, k theme.Colors) {
 		ui.Scroll(c).Grow(1).Children(func() { a.list(c, k) })
 		a.footer(c, k)
 	})
+}
+
+// modeSwitchWidth is the Personal | Code switch's width: two 30-wide
+// buttons with a 2 gap, in a 2 padding.
+const modeSwitchWidth = 2 + 30 + 2 + 30 + 2
+
+// sideMin is the least the sidebar narrows to: SidebarMin, or what its top
+// row needs beside the traffic lights, whichever is wider, so its buttons
+// always fit.
+func sideMin(bar ui.TitleBar) float32 {
+	row := bar.Left + 8 + 3*theme.RowHeight + 2*2 + 12 + modeSwitchWidth + 8
+	return max(theme.SidebarMin, row)
 }
 
 // topHeight is the height of the window's top row: the title bar's, which

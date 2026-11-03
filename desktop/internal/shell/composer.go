@@ -81,7 +81,7 @@ func (a *App) composerBody(c *ui.Context, k theme.Colors, s proto.Session, cv *c
 		return
 	}
 	a.input(c, s, cv, ap, q, asked)
-	a.controls(c, k, s, h, running)
+	a.controls(c, k, s, cv, h, running)
 }
 
 // tilde writes a path under the home directory with ~.
@@ -138,7 +138,7 @@ func (a *App) input(c *ui.Context, s proto.Session, cv *convo.Convo, ap *proto.A
 	case len(cv.Items()) == 0:
 		hint = "要做什么？"
 	}
-	in := ui.TextArea(c, &draft).Lines(1, 8).MinHeight(0).Placeholder(hint).Label("消息").Font(ui.Theme{}.Font).
+	in := ui.TextArea(c, &draft).Lines(2, 8).MinHeight(0).Placeholder(hint).Label("消息").Font(ui.Theme{}.Font).
 		FontSize(theme.Reading.Size()).Background(ui.Transparent).Border(0, ui.Transparent).Padding(0)
 	in.OnTextKey(func(key ui.TextKey) bool {
 		text := key.Text()
@@ -306,14 +306,14 @@ func (a *App) approvalIcon(kind proto.ApprovalKind) *ui.SVG {
 }
 
 // controls is the composer's bottom row of ghost buttons: the model and
-// effort, the permission mode and plan on the left; steer while a turn
-// runs and send (stop while it runs) on the right. Offline, what I send
-// waits for the connection, which the row says.
-func (a *App) controls(c *ui.Context, k theme.Colors, s proto.Session, h proto.HarnessInfo, running bool) {
-	st := runSettings{harness: s.Harness.Kind, perm: s.Permission, plan: s.Plan, effort: s.Effort, fast: s.Fast, model: s.Model}
+// effort (with Plan, Fast and Ultracode), the permission mode on the left; steer while a turn
+// runs and send (stop while it runs) on the right, after the context
+// ring. Offline, what I send waits for the connection, which the row says.
+func (a *App) controls(c *ui.Context, k theme.Colors, s proto.Session, cv *convo.Convo, h proto.HarnessInfo, running bool) {
+	st := runSettings{harness: s.Harness.Kind, perm: s.Permission, plan: s.Plan, effort: s.Effort, fast: s.Fast, ultracode: s.Ultracode, model: s.Model}
 	set := a.sessionSink(s)
 	ui.Row(c).Gap(2).AlignItems(ui.Center).Children(func() {
-		a.effortPill(c, k, st, []proto.HarnessInfo{h}, set)
+		a.runButton(c, k, st, []proto.HarnessInfo{h}, set)
 		if s.Mode == proto.ModeCode {
 			a.modeControl(c, k, st, h.Capabilities, set)
 		}
@@ -321,6 +321,9 @@ func (a *App) controls(c *ui.Context, k theme.Colors, s proto.Session, h proto.H
 		draft := a.s.drafts[s.ID]
 		if !a.connected {
 			theme.Caption.On(ui.Text(c, "重连后发送")).TextColor(k.Muted).Margin(0, 6)
+		}
+		if u, ok := cv.Context(); ok {
+			a.contextRing(c, k, u)
 		}
 		if running {
 			if h.Capabilities.Steer && draft != "" && iconButton(c, k, a.icons.Steer, "插话 ⌘↩", false).Clicked() {
@@ -348,6 +351,9 @@ func (a *App) sessionSink(s proto.Session) settingsSink {
 		plan:   func(on bool) { a.host.SetPlan(proto.SetPlanParams{Session: s.ID, Plan: on}) },
 		effort: func(e proto.Effort) { a.host.SetEffort(proto.SetEffortParams{Session: s.ID, Effort: e}) },
 		fast:   func(on bool) { a.host.SetFast(proto.SetFastParams{Session: s.ID, Fast: on}) },
+		ultracode: func(on bool) {
+			a.host.SetUltracode(proto.SetUltracodeParams{Session: s.ID, Ultracode: on})
+		},
 		model: func(_ string, m proto.ModelInfo) {
 			a.host.SetModel(proto.SetModelParams{Session: s.ID, Model: m.ID, Provider: m.Provider})
 		},

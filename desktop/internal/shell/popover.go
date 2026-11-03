@@ -54,18 +54,18 @@ type runSettings struct {
 	perm            proto.PermissionMode
 	plan            bool
 	effort          proto.Effort
-	fast            bool
+	fast, ultracode bool
 	model, provider string
 }
 
 // settingsSink applies changes to run settings.
 type settingsSink struct {
-	fresh  bool // nothing is set yet: the default effort shows and is sent
-	perm   func(proto.PermissionMode)
-	plan   func(bool)
-	effort func(proto.Effort)
-	fast   func(bool)
-	model  func(harness string, m proto.ModelInfo)
+	perm      func(proto.PermissionMode)
+	plan      func(bool)
+	effort    func(proto.Effort)
+	fast      func(bool)
+	ultracode func(bool)
+	model     func(harness string, m proto.ModelInfo)
 }
 
 // harnessName is a harness's name as its maker writes it.
@@ -121,16 +121,25 @@ func (a *App) modeIcon(m proto.PermissionMode) *ui.SVG {
 	return a.icons.Confirm
 }
 
-// modeControl is the permission mode's shield and, while plan mode is on,
-// the plan icon; the shield opens the modes the harness has and plan mode.
+// modeControl is the permission mode's button: its shield, its name and
+// ⌄, opening the modes the harness has.
 func (a *App) modeControl(c *ui.Context, k theme.Colors, st runSettings, caps proto.Capabilities, set settingsSink) {
 	if !caps.SetMode {
 		return
 	}
-	b := iconButton(c, k, a.modeIcon(st.perm), "审批："+modeName(st.perm), a.s.permOpen)
+	b := ui.Button(c, "").Label("审批："+modeName(st.perm)).Tooltip("审批："+modeName(st.perm)).
+		Height(theme.RowHeight).Padding(0, 8).Gap(5).Radius(theme.RadiusControl).Border(0, ui.Transparent).Background(ui.Transparent)
+	if a.s.permOpen || b.Hovered() {
+		b.Background(k.Fill2)
+	}
 	if b.Clicked() {
 		a.s.permOpen = !a.s.permOpen
 	}
+	b.Children(func() {
+		ui.Icon(c, a.modeIcon(st.perm)).FontSize(theme.IconSizeInRow).TextColor(k.Fg3)
+		theme.Secondary.On(ui.Text(c, modeName(st.perm))).TextColor(k.Fg2).SingleLine()
+		ui.Icon(c, a.icons.Menu).FontSize(theme.IconSizeSmall).TextColor(k.Faint)
+	})
 	popover(c, k, b, &a.s.permOpen, false, 260, func() {
 		keys := []string{"⇧⌘1", "⇧⌘2", "⇧⌘3", "⇧⌘4"}
 		for i, m := range permissionModes() {
@@ -153,37 +162,7 @@ func (a *App) modeControl(c *ui.Context, k theme.Colors, st runSettings, caps pr
 				check(c, k, a, on)
 			})
 		}
-		if caps.PlanMode {
-			menuSeparator(c, k)
-			r := menuItem(c, k, false).Label("Plan")
-			if r.Clicked() {
-				set.plan(!st.plan)
-			}
-			r.Children(func() {
-				ui.Icon(c, a.icons.Plan).FontSize(theme.IconSize).TextColor(k.Fg3)
-				ui.Column(c).Grow(1).Padding(4, 0).Children(func() {
-					theme.UI.On(ui.Text(c, "Plan")).TextColor(k.Fg)
-					theme.Caption.On(ui.Text(c, "只想不改")).TextColor(k.Muted)
-				})
-				theme.Caption.On(ui.Text(c, "⇧⇥")).TextColor(k.Muted)
-				check(c, k, a, st.plan)
-			})
-		}
 	})
-	if !st.plan {
-		return
-	}
-	// Plan mode on: its icon in the accent, a ghost button that turns it
-	// off.
-	p := ui.Button(c, "").Label("Plan ⇧⇥").Tooltip("Plan ⇧⇥").Size(theme.RowHeight, theme.RowHeight).Padding(0).
-		Radius(theme.RadiusControl).Background(ui.Transparent).Border(0, ui.Transparent)
-	if p.Hovered() {
-		p.Background(k.Fill2)
-	}
-	if p.Clicked() {
-		set.plan(false)
-	}
-	p.Children(func() { ui.Icon(c, a.icons.Plan).FontSize(theme.IconSize).TextColor(k.AccentFg) })
 }
 
 // currentModel finds the model st runs among h's: the one it names, else
@@ -205,20 +184,22 @@ func currentModel(st runSettings, h proto.HarnessInfo) (string, *proto.ModelInfo
 	return "默认模型", nil
 }
 
+// effortName is an effort level as the harnesses name it; empty, the
+// harness's own default, is 默认.
 func effortName(e proto.Effort) string {
 	switch e {
 	case proto.EffortLow:
-		return "低"
+		return "Low"
 	case proto.EffortMedium:
-		return "中"
+		return "Medium"
 	case proto.EffortHigh:
-		return "高"
+		return "High"
 	case proto.EffortXHigh:
-		return "很高"
+		return "X-High"
 	case proto.EffortMax:
-		return "最高"
+		return "Max"
 	case proto.EffortUltra:
-		return "极限"
+		return "Ultra"
 	}
 	return "默认"
 }
@@ -236,108 +217,11 @@ func check(c *ui.Context, k theme.Colors, a *App, on bool) {
 // effortLevels are the effort levels the model takes, or else its
 // harness's.
 func effortLevels(h proto.HarnessInfo, cur *proto.ModelInfo) []proto.Effort {
-	if cur != nil && len(cur.Efforts) > 0 {
+	switch {
+	case cur != nil && cur.NoEffort:
+		return nil
+	case cur != nil && len(cur.Efforts) > 0:
 		return cur.Efforts
 	}
 	return h.Capabilities.Efforts
-}
-
-// defaultEffort is the effort a new session starts with, which Hoplet
-// sets rather than leave it to the harness, whose default it cannot see:
-// medium, or the middle of the levels a harness without medium takes.
-func defaultEffort(levels []proto.Effort) proto.Effort {
-	switch {
-	case slices.Contains(levels, proto.EffortMedium):
-		return proto.EffortMedium
-	case len(levels) > 0:
-		return levels[len(levels)/2]
-	}
-	return ""
-}
-
-// effortPill is the composer's model button: the harness's mark, the
-// model and the effort. It opens the effort popover: Fast, the effort with
-// the harness and the model, reset, and a slider over the levels the model
-// takes. The model opens the model list (one harness for a session; every
-// installed one on the new-session page, by harness).
-func (a *App) effortPill(c *ui.Context, k theme.Colors, st runSettings, hs []proto.HarnessInfo, set settingsSink) {
-	h := proto.HarnessInfo{Kind: st.harness}
-	if i := slices.IndexFunc(hs, func(x proto.HarnessInfo) bool { return x.Kind == st.harness }); i >= 0 {
-		h = hs[i]
-	}
-	// The level just chosen shows at once, before the daemon confirms
-	// it, so the knob does not go back meanwhile.
-	if !a.s.effortOpen || a.s.effortWant == st.effort {
-		a.s.effortWanted = false
-	}
-	if a.s.effortWanted {
-		st.effort = a.s.effortWant
-	}
-	setEffort := func(e proto.Effort) {
-		a.s.effortWant, a.s.effortWanted = e, true
-		set.effort(e)
-	}
-	model, cur := currentModel(st, h)
-	levels := effortLevels(h, cur)
-	def := defaultEffort(levels)
-	if set.fresh && st.effort == "" {
-		st.effort = def
-	}
-	// A ghost button: no fill at rest, a light one under the pointer and
-	// while its popover is up.
-	b := ui.Button(c, "").Label("强度与模型").Tooltip(harnessName(h.Kind)+" · "+model+" · 推理强度 "+effortName(st.effort)).
-		Height(theme.RowHeight).Padding(0, 8).Gap(6).Radius(theme.RadiusControl).Border(0, ui.Transparent).Background(ui.Transparent).
-		Disabled(!a.connected) // which models there are is known only once connected
-	if a.s.effortOpen || b.Hovered() {
-		b.Background(k.Fill2)
-	}
-	if b.Clicked() {
-		a.s.effortOpen = !a.s.effortOpen
-		a.s.modelOpen = false
-		if a.s.effortOpen && a.connected {
-			a.host.Harnesses(a.SetHarnesses)
-		}
-	}
-	b.Children(func() {
-		a.harnessIcon(c, k, h.Kind, theme.IconSizeInRow)
-		theme.Secondary.On(ui.Text(c, model)).TextColor(k.Fg2).SingleLine()
-		theme.Secondary.On(ui.Text(c, "·")).TextColor(k.Faint)
-		theme.Secondary.On(ui.Text(c, effortName(st.effort))).TextColor(k.Fg3).SingleLine()
-		ui.Icon(c, a.icons.Menu).FontSize(theme.IconSizeSmall).TextColor(k.Faint)
-	})
-	popover(c, k, b, &a.s.effortOpen, true, 300, func() {
-		fast := h.Capabilities.Fast
-		if cur != nil && h.Kind == "hermes" {
-			fast = fast && cur.Fast
-		}
-		if a.s.modelOpen {
-			a.modelPage(c, k, st, cur, hs, set)
-			return
-		}
-		ui.Column(c).Padding(6).Gap(12).Children(func() {
-			ui.Row(c).Gap(6).AlignItems(ui.Start).Children(func() {
-				if iconButton(c, k, a.icons.Fast, "Fast：更快、更贵", st.fast).Disabled(!fast).Clicked() {
-					set.fast(!st.fast)
-				}
-				ui.Column(c).Grow(1).AlignItems(ui.Center).Gap(2).Children(func() {
-					a.effortLabel(c, k, st.effort)
-					m := ui.Row(c).Gap(4).AlignItems(ui.Center).Label("换模型").Tooltip("换模型")
-					if m.Clicked() {
-						a.s.modelOpen, a.s.modelTab, a.s.modelQuery, a.s.modelPick = true, st.harness, "", -1
-					}
-					m.Children(func() {
-						a.harnessIcon(c, k, h.Kind, theme.IconSizeSmall)
-						theme.Secondary.On(ui.Text(c, model)).TextColor(k.Fg3).SingleLine()
-						ui.Icon(c, a.icons.Expand).FontSize(10).TextColor(k.Faint)
-					})
-				})
-				if iconButton(c, k, a.icons.Reset, "恢复默认", false).Disabled(st.effort == def).Clicked() {
-					setEffort(def)
-				}
-			})
-			if len(levels) > 1 {
-				a.effortSlider(c, k, levels, st.effort, setEffort)
-			}
-		})
-	})
 }

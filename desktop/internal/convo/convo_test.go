@@ -144,3 +144,18 @@ func TestSnapshotPagesAndQuestion(t *testing.T) {
 		t.Fatalf("after an empty snapshot: %+v", c.Items())
 	}
 }
+
+// The context's use is the last report; the window's size stays once said.
+func TestContextUsage(t *testing.T) {
+	var c Convo
+	if _, ok := c.Context(); ok {
+		t.Fatal("usage before any report")
+	}
+	c.Apply(proto.SessionItem{Events: log(t, 1, 1,
+		proto.ContextUsage{Used: 20000, Window: 200000},
+		proto.ContextUsage{Used: 30000},
+	)})
+	if u, ok := c.Context(); !ok || u != (proto.ContextUsage{Used: 30000, Window: 200000}) {
+		t.Fatalf("usage %+v %v", u, ok)
+	}
+}

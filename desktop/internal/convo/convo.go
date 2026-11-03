@@ -93,6 +93,7 @@ type Convo struct {
 	pending []proto.ApprovalRequested
 	asked   *proto.Question
 	running bool
+	context proto.ContextUsage
 }
 
 // Apply brings the conversation up to a subscription item: a snapshot
@@ -178,6 +179,13 @@ func (c *Convo) Running() bool {
 	return c.running
 }
 
+// Context reports how full the context window is, as the harness last
+// said; false before it said anything.
+func (c *Convo) Context() (proto.ContextUsage, bool) {
+	c.build()
+	return c.context, c.context.Used > 0
+}
+
 // Queue returns the messages waiting for the turn to end.
 func (c *Convo) Queue() []proto.QueuedMessage { return c.queue }
 
@@ -193,6 +201,7 @@ type builder struct {
 	order    []string // pending approval IDs in request order
 	files    []proto.FileChange
 	asked    *proto.Question
+	context  proto.ContextUsage
 }
 
 func (c *Convo) build() {
@@ -221,7 +230,7 @@ func (c *Convo) build() {
 			}
 		}
 	}
-	c.items, c.running, c.asked = b.items, b.turnAt >= 0, b.asked
+	c.items, c.running, c.asked, c.context = b.items, b.turnAt >= 0, b.asked, b.context
 	c.pending = c.pending[:0]
 	for _, id := range b.order {
 		if a, ok := b.pending[id]; ok {
@@ -360,6 +369,11 @@ func (b *builder) event(ev proto.Event, p proto.Payload) {
 		b.asked = &q
 	case proto.Error:
 		b.add(Item{Kind: KindError, Key: key("err", ev.Seq), Time: ev.Time, Turn: ev.Turn, Text: p.Message})
+	case proto.ContextUsage:
+		if p.Window == 0 {
+			p.Window = b.context.Window // the window's size stays once said
+		}
+		b.context = p
 	}
 }
 

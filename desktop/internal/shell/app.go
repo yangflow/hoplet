@@ -36,6 +36,7 @@ type Host interface {
 	SetPlan(p proto.SetPlanParams)
 	SetEffort(p proto.SetEffortParams)
 	SetFast(p proto.SetFastParams)
+	SetUltracode(p proto.SetUltracodeParams)
 	SetModel(p proto.SetModelParams)
 	EditQueued(p proto.QueueEditParams)
 	DeleteQueued(p proto.QueueKeyParams)
@@ -108,7 +109,8 @@ type App struct {
 	selected string
 	closed   map[string]bool // collapsed directory groups
 	hideSide bool
-	away     bool // the app is in the background or the window hidden
+	side     float32 // the sidebar's width, which its edge drags
+	away     bool    // the app is in the background or the window hidden
 
 	// history is the sessions I selected, oldest first; at is the current
 	// one, -1 before the first.
@@ -126,16 +128,22 @@ type App struct {
 	last    State
 }
 
-// New returns the app in Code mode, not yet connected. changed is called
-// from the view whenever State changes.
+// New returns the app in Code mode, not yet connected, on the new-session
+// page, as it is whenever no session is selected. changed is called from
+// the view whenever State changes.
 func New(set *icons.Set, host Host, changed func(State)) *App {
-	return &App{icons: set, host: host, mode: proto.ModeCode, closed: map[string]bool{}, at: -1, changed: changed, s: newSessionView()}
+	a := &App{icons: set, host: host, mode: proto.ModeCode, closed: map[string]bool{}, at: -1, changed: changed, s: newSessionView(), side: theme.SidebarWidth}
+	a.newSessionIn("")
+	return a
 }
 
 // Connected records a new connection to the daemon of host: the followed
 // session resumes and messages written while offline go out.
 func (a *App) Connected(host string) {
 	a.connected, a.machine, a.offline, a.s.offlineSince = true, host, "", time.Time{}
+	if a.s.newPage {
+		a.host.Harnesses(a.SetHarnesses)
+	}
 	a.follow()
 	a.flushOutbox()
 }
@@ -172,7 +180,8 @@ func (a *App) Apply(it proto.CatalogItem) {
 // SetMode switches between Personal and Code.
 func (a *App) SetMode(m proto.Mode) {
 	if a.mode != m {
-		a.mode, a.archived, a.selected = m, false, ""
+		a.mode, a.archived = m, false
+		a.newSessionIn("")
 	}
 }
 
@@ -301,7 +310,7 @@ func (a *App) Stop() {
 func (a *App) Archive() {
 	if s, ok := a.current(); ok && s.ArchivedAt == nil {
 		a.host.Archive(s.ID)
-		a.selected = ""
+		a.newSessionIn("")
 	}
 }
 
@@ -346,12 +355,12 @@ func (a *App) View(c *ui.Context) {
 	if c.Vibrancy() {
 		c.Root().Background(ui.Transparent)
 	}
-	ui.Row(c).Fill().AlignItems(ui.Stretch).Children(func() {
-		if !a.hideSide {
-			a.sidebar(c, k)
-		}
-		a.content(c, k)
-	})
+	if a.hideSide {
+		ui.Row(c).Fill().AlignItems(ui.Stretch).Children(func() { a.content(c, k) })
+	} else {
+		ui.Split(c, &a.side, func() { a.sidebar(c, k) }, func() { a.content(c, k) }).Fill()
+		a.side = min(max(a.side, sideMin(c.TitleBar())), theme.SidebarMax)
+	}
 	a.toasts(c, k)
 	if st := a.state(); !st.equal(a.last) {
 		a.last = st

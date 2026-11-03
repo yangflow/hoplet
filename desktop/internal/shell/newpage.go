@@ -69,7 +69,7 @@ func (a *App) newPage(c *ui.Context, k theme.Colors) {
 				case pick.dir == "":
 					hint = "先选工作目录"
 				}
-				in := ui.TextArea(c, &draft).Lines(1, 8).MinHeight(0).Placeholder(hint).Label("消息").AutoFocus().
+				in := ui.TextArea(c, &draft).Lines(2, 8).MinHeight(0).Placeholder(hint).Label("消息").AutoFocus().
 					FontSize(theme.Reading.Size()).Background(ui.Transparent).Border(0, ui.Transparent).Padding(0)
 				ready := a.connected && draft != "" && pick.run.harness != "" && (personal || pick.dir != "")
 				in.OnTextKey(func(key ui.TextKey) bool {
@@ -85,7 +85,7 @@ func (a *App) newPage(c *ui.Context, k theme.Colors) {
 				a.s.drafts[""] = draft
 				ui.Row(c).Gap(2).AlignItems(ui.Center).Children(func() {
 					set := a.newSink()
-					a.effortPill(c, k, pick.run, a.s.harnesses, set)
+					a.runButton(c, k, pick.run, a.s.harnesses, set)
 					if !personal {
 						a.modeControl(c, k, pick.run, h.Capabilities, set)
 					}
@@ -135,14 +135,14 @@ func (a *App) recentLine(c *ui.Context, k theme.Colors, pick *newChoice) {
 func (a *App) newSink() settingsSink {
 	r := &a.s.newPick.run
 	return settingsSink{
-		fresh:  true,
-		perm:   func(m proto.PermissionMode) { r.perm = m },
-		plan:   func(on bool) { r.plan = on },
-		effort: func(e proto.Effort) { r.effort = e },
-		fast:   func(on bool) { r.fast = on },
+		perm:      func(m proto.PermissionMode) { r.perm = m },
+		plan:      func(on bool) { r.plan = on },
+		effort:    func(e proto.Effort) { r.effort = e },
+		fast:      func(on bool) { r.fast = on },
+		ultracode: func(on bool) { r.ultracode = on },
 		model: func(kind string, m proto.ModelInfo) {
 			if kind != r.harness {
-				r.effort, r.fast = "", false
+				r.effort, r.fast, r.ultracode = "", false, false
 			}
 			r.harness, r.model, r.provider = kind, m.ID, m.Provider
 		},
@@ -234,13 +234,8 @@ func (a *App) recentDirs() []string {
 func (a *App) create(text string) {
 	pick := a.s.newPick
 	r := pick.run
-	if r.effort == "" {
-		h, _ := a.harness(r.harness)
-		_, cur := currentModel(r, h)
-		r.effort = defaultEffort(effortLevels(h, cur))
-	}
 	p := proto.CreateParams{Mode: a.mode, Harness: pick.run.harness, Permission: r.perm, Plan: r.plan,
-		Effort: r.effort, Fast: r.fast, Model: r.model, ModelProvider: r.provider}
+		Effort: r.effort, Fast: r.fast, Ultracode: r.ultracode, Model: r.model, ModelProvider: r.provider}
 	if a.mode == proto.ModeCode {
 		p.Directory = pick.dir
 	} else {

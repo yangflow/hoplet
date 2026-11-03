@@ -227,6 +227,11 @@ func (d *desktop) SetEffort(p proto.SetEffortParams) {
 	d.call(func(ctx context.Context, c *client.Client) error { return c.SetEffort(ctx, p) })
 }
 
+// SetUltracode implements shell.Host.
+func (d *desktop) SetUltracode(p proto.SetUltracodeParams) {
+	d.call(func(ctx context.Context, c *client.Client) error { return c.SetUltracode(ctx, p) })
+}
+
 // SetFast implements shell.Host.
 func (d *desktop) SetFast(p proto.SetFastParams) {
 	d.call(func(ctx context.Context, c *client.Client) error { return c.SetFast(ctx, p) })

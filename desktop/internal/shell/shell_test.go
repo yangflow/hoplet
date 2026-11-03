@@ -11,6 +11,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"github.com/yangflow/hoplet/desktop/internal/icons"
+	"github.com/yangflow/hoplet/desktop/internal/theme"
 	"github.com/yangflow/hoplet/proto"
 )
 
@@ -52,6 +53,7 @@ func (h *host) SetPermission(p proto.SetPermissionParams) { h.calls = append(h.c
 func (h *host) SetPlan(p proto.SetPlanParams)             { h.calls = append(h.calls, p) }
 func (h *host) SetEffort(p proto.SetEffortParams)         { h.calls = append(h.calls, p) }
 func (h *host) SetFast(p proto.SetFastParams)             { h.calls = append(h.calls, p) }
+func (h *host) SetUltracode(p proto.SetUltracodeParams)   { h.calls = append(h.calls, p) }
 func (h *host) SetModel(p proto.SetModelParams)           { h.calls = append(h.calls, p) }
 func (h *host) EditQueued(p proto.QueueEditParams)        { h.calls = append(h.calls, p) }
 func (h *host) DeleteQueued(p proto.QueueKeyParams)       { h.calls = append(h.calls, p) }
@@ -504,5 +506,76 @@ func TestFlashWithLessMotion(t *testing.T) {
 	tt.Advance(200 * time.Millisecond)
 	if _, ok := a.s.flash["s9"]; ok {
 		t.Fatal("still lit")
+	}
+}
+
+func TestSidebarResizes(t *testing.T) {
+	a, _, tt, _ := newApp(t)
+	if a.side != theme.SidebarWidth {
+		t.Fatalf("starts at %v", a.side)
+	}
+	drag := func(dx float32) {
+		x := a.side
+		tt.Press(x, 400)
+		tt.Move(x+dx, 400)
+		tt.Release(x+dx, 400)
+		tt.Frame()
+	}
+	drag(-30)
+	if a.side != theme.SidebarWidth-30 {
+		t.Fatalf("narrowed to %v", a.side)
+	}
+	drag(-200)
+	if a.side != theme.SidebarMin {
+		t.Fatalf("narrowed past the least to %v", a.side)
+	}
+	drag(400)
+	if a.side != theme.SidebarMax {
+		t.Fatalf("widened past the most to %v", a.side)
+	}
+	if r, ok := tt.Find("全部机器"); !ok || r.X+r.W > a.side {
+		t.Fatalf("the sidebar's header at %+v, width %v", r, a.side)
+	}
+}
+
+// The sidebar stops narrowing where its top row would no longer fit
+// beside the traffic lights.
+func TestSidebarFitsItsTopRow(t *testing.T) {
+	a, _, tt, _ := newApp(t)
+	tt.SetTitleBar(ui.TitleBar{Height: 52, Left: 76})
+	tt.Frame()
+	x := a.side
+	tt.Press(x, 400)
+	tt.Move(x-200, 400)
+	tt.Release(x-200, 400)
+	tt.Frame()
+	least := sideMin(ui.TitleBar{Left: 76})
+	if a.side != least || least <= theme.SidebarMin {
+		t.Fatalf("narrowed to %v, least %v", a.side, least)
+	}
+	r, ok := tt.Find("Code ⌘2")
+	if !ok || r.X+r.W > a.side {
+		t.Fatalf("the mode switch at %+v in a sidebar %v wide", r, a.side)
+	}
+}
+
+// With no session selected (at start, after switching modes or archiving
+// the selected one) the new-session page shows.
+func TestOpensOnNewSession(t *testing.T) {
+	a, _, tt, _ := newApp(t)
+	if !a.s.newPage {
+		t.Fatal("the app opens without the new-session page")
+	}
+	a.Select("s1")
+	tt.Frame()
+	a.Archive()
+	tt.Frame()
+	if !a.s.newPage {
+		t.Fatal("archiving the selected session leaves no page")
+	}
+	a.SetMode(proto.ModePersonal)
+	tt.Frame()
+	if !a.s.newPage || !tt.HasText("新伙伴") {
+		t.Fatalf("Personal shows %q", tt.Texts())
 	}
 }
