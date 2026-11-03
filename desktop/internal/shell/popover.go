@@ -170,9 +170,20 @@ func (a *App) modeControl(c *ui.Context, k theme.Colors, st runSettings, caps pr
 			})
 		}
 	})
-	if st.plan && iconButton(c, k, a.icons.Plan, "Plan ⇧⇥", true).Clicked() {
+	if !st.plan {
+		return
+	}
+	// Plan mode on: its icon in the accent, a ghost button that turns it
+	// off.
+	p := ui.Button(c, "").Label("Plan ⇧⇥").Tooltip("Plan ⇧⇥").Size(theme.RowHeight, theme.RowHeight).Padding(0).
+		Radius(theme.RadiusControl).Background(ui.Transparent).Border(0, ui.Transparent)
+	if p.Hovered() {
+		p.Background(k.Fill2)
+	}
+	if p.Clicked() {
 		set.plan(false)
 	}
+	p.Children(func() { ui.Icon(c, a.icons.Plan).FontSize(theme.IconSize).TextColor(k.AccentFg) })
 }
 
 // currentModel finds the model st runs among h's: the one it names, else
@@ -212,28 +223,6 @@ func effortName(e proto.Effort) string {
 	return "默认"
 }
 
-// bars draws the effort as three bars, lit by level.
-func bars(c *ui.Context, k theme.Colors, e proto.Effort) {
-	lit := 0 // the harness's own default: none lit
-	switch e {
-	case proto.EffortLow:
-		lit = 1
-	case proto.EffortMedium:
-		lit = 2
-	case proto.EffortHigh, proto.EffortXHigh, proto.EffortMax, proto.EffortUltra:
-		lit = 3
-	}
-	ui.Row(c).Gap(2).AlignItems(ui.End).Label("强度 " + effortName(e)).Children(func() {
-		for i := 1; i <= 3; i++ {
-			color := k.Line2
-			if i <= lit {
-				color = k.Fg3
-			}
-			ui.Box(c.Key(i)).Size(3, float32(3+i*3)).Radius(1).Background(color)
-		}
-	})
-}
-
 // check is the 14-point mark of a popover row's current choice; an empty
 // space of its size otherwise.
 func check(c *ui.Context, k theme.Colors, a *App, on bool) {
@@ -266,11 +255,11 @@ func defaultEffort(levels []proto.Effort) proto.Effort {
 	return ""
 }
 
-// effortPill shows the effort as bars, the harness's mark and the model;
-// it opens the effort popover: Fast, the effort with the harness and the
-// model, reset, and a slider over the levels the model takes. The model
-// opens the model list (one harness for a session; every installed one
-// on the new-session page, by harness).
+// effortPill is the composer's model button: the harness's mark, the
+// model and the effort. It opens the effort popover: Fast, the effort with
+// the harness and the model, reset, and a slider over the levels the model
+// takes. The model opens the model list (one harness for a session; every
+// installed one on the new-session page, by harness).
 func (a *App) effortPill(c *ui.Context, k theme.Colors, st runSettings, hs []proto.HarnessInfo, set settingsSink) {
 	h := proto.HarnessInfo{Kind: st.harness}
 	if i := slices.IndexFunc(hs, func(x proto.HarnessInfo) bool { return x.Kind == st.harness }); i >= 0 {
@@ -294,9 +283,14 @@ func (a *App) effortPill(c *ui.Context, k theme.Colors, st runSettings, hs []pro
 	if set.fresh && st.effort == "" {
 		st.effort = def
 	}
+	// A ghost button: no fill at rest, a light one under the pointer and
+	// while its popover is up.
 	b := ui.Button(c, "").Label("强度与模型").Tooltip(harnessName(h.Kind)+" · "+model+" · 推理强度 "+effortName(st.effort)).
-		Height(theme.RowHeight).Padding(0, 8, 0, 9).Gap(6).Radius(theme.RadiusPill).Border(0, ui.Transparent).Background(k.Fill).
+		Height(theme.RowHeight).Padding(0, 8).Gap(6).Radius(theme.RadiusControl).Border(0, ui.Transparent).Background(ui.Transparent).
 		Disabled(!a.connected) // which models there are is known only once connected
+	if a.s.effortOpen || b.Hovered() {
+		b.Background(k.Fill2)
+	}
 	if b.Clicked() {
 		a.s.effortOpen = !a.s.effortOpen
 		a.s.modelOpen = false
@@ -305,9 +299,10 @@ func (a *App) effortPill(c *ui.Context, k theme.Colors, st runSettings, hs []pro
 		}
 	}
 	b.Children(func() {
-		bars(c, k, st.effort)
 		a.harnessIcon(c, k, h.Kind, theme.IconSizeInRow)
-		theme.Secondary.On(ui.Text(c, model)).TextColor(k.Fg3).SingleLine()
+		theme.Secondary.On(ui.Text(c, model)).TextColor(k.Fg2).SingleLine()
+		theme.Secondary.On(ui.Text(c, "·")).TextColor(k.Faint)
+		theme.Secondary.On(ui.Text(c, effortName(st.effort))).TextColor(k.Fg3).SingleLine()
 		ui.Icon(c, a.icons.Menu).FontSize(theme.IconSizeSmall).TextColor(k.Faint)
 	})
 	popover(c, k, b, &a.s.effortOpen, true, 300, func() {

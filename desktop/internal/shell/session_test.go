@@ -2,6 +2,7 @@ package shell
 
 import (
 	"errors"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -122,6 +123,13 @@ func TestComposerSendsQueuesAndSteers(t *testing.T) {
 	if !tt.HasText("排队 1") || !tt.HasText("then docs") {
 		t.Fatalf("queue tray %q", tt.Texts())
 	}
+	// A queued message's steer, edit and delete show under the pointer.
+	if tt.HasText("删除") {
+		t.Fatalf("delete shows without the pointer: %q", tt.Texts())
+	}
+	r, _ := tt.Find("then docs")
+	tt.Move(r.X+r.W/2, r.Y+r.H/2)
+	tt.Frame()
 	if err := tt.Click("删除"); err != nil {
 		t.Fatal(err)
 	}
@@ -179,7 +187,7 @@ func TestOfflineOutbox(t *testing.T) {
 	}
 	tt.Type("later")
 	tt.Key(0, ui.KeyEnter)
-	if len(h.calls) != 0 || !tt.HasText("重连后发送") || !tt.HasText("studio · 0 秒") {
+	if len(h.calls) != 0 || !tt.HasText("重连后发送") || !tt.HasText("· 断开 0 秒") {
 		t.Fatalf("calls %#v texts %q", h.calls, tt.Texts())
 	}
 	if err := tt.Click("立即重连"); err != nil || h.reconnects != 1 {
@@ -293,7 +301,7 @@ func TestComposerIsOneLine(t *testing.T) {
 	a.Lost(errDaemon)
 	a.NewSession()
 	tt.Frame()
-	if !tt.HasText("studio · 未连接") {
+	if !tt.HasText("· 未连接") {
 		t.Fatalf("offline new page %q", tt.Texts())
 	}
 }
@@ -426,7 +434,7 @@ func TestNewPageStates(t *testing.T) {
 	}
 	a.Lost(errDaemon)
 	tt.Frame()
-	if !tt.HasText("studio · 未连接") || tt.HasText("/w/site") {
+	if !tt.HasText("· 未连接") || tt.HasText("/w/site") {
 		t.Fatalf("offline: %q", tt.Texts())
 	}
 	a.Connected("studio")
@@ -472,7 +480,7 @@ func TestEffortDefault(t *testing.T) {
 	if err := tt.Click("强度与模型"); err != nil {
 		t.Fatal(err)
 	}
-	if !tt.HasText("强度 中") {
+	if !tt.HasText("中") || !tt.HasText("Default (recommended)") {
 		t.Fatalf("a new session does not start at medium: %q", tt.Texts())
 	}
 	if err := tt.Click("推理强度"); err != nil {
@@ -619,5 +627,46 @@ func TestCodeBlockCopy(t *testing.T) {
 	}
 	if !tt.HasText("已复制") {
 		t.Fatalf("the copy button does not say it copied: %q", tt.Texts())
+	}
+}
+
+func TestQueueFolds(t *testing.T) {
+	a, _, tt, _ := newApp(t)
+	tt.SetSize(1200, 900)
+	selectRunning(t, a, tt)
+	var ms []proto.QueuedMessage
+	for i := range 5 {
+		ms = append(ms, proto.QueuedMessage{Key: fmt.Sprint(i), Text: fmt.Sprintf("message %d", i)})
+	}
+	a.ApplySession("s1", proto.SessionItem{Queue: &proto.Queue{Messages: ms}})
+	tt.Frame()
+	if !tt.HasText("排队 5") || !tt.HasText("message 2") || tt.HasText("message 3") || !tt.HasText("还有 2 条") {
+		t.Fatalf("the queue does not fold past three: %q", tt.Texts())
+	}
+	if err := tt.Click("还有 2 条"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if !tt.HasText("message 4") {
+		t.Fatalf("还有 N 条 does not show the rest: %q", tt.Texts())
+	}
+	a.ApplySession("s1", proto.SessionItem{Events: events(t, tt.Now(), 3, 1, proto.ApprovalRequested{ID: "a1", Kind: proto.ApprovalCommand, Title: "Run go test"})})
+	tt.Frame()
+	if !tt.HasText("排队 5 条") || !strings.Contains(strings.Join(tt.Texts(), "|"), "下一条：message 0") || tt.HasText("message 1") {
+		t.Fatalf("the queue is not one line during an approval: %q", tt.Texts())
+	}
+}
+
+func TestContextRow(t *testing.T) {
+	a, h, tt, _ := newApp(t)
+	h.diffs = map[proto.SessionID]proto.SessionDiff{"s1": {Session: "s1", Repos: []proto.RepoDiff{{Path: ".", Branch: "main", State: proto.RepoOK}}}}
+	a.SetHarnesses([]proto.HarnessInfo{claudeHarness()})
+	a.Select("s1")
+	tt.Frame()
+	tt.Frame()
+	for _, want := range []string{"studio", "本机", "/w/hoplet", "main"} {
+		if !tt.HasText(want) {
+			t.Errorf("no %q above the composer: %q", want, tt.Texts())
+		}
 	}
 }

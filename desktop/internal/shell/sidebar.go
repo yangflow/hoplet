@@ -507,7 +507,7 @@ func (a *App) footer(c *ui.Context, k theme.Colors) {
 func iconButton(c *ui.Context, k theme.Colors, icon *ui.SVG, tip string, on bool) ui.Element {
 	b := ui.Button(c, "").Label(tip).Tooltip(tip).Size(theme.RowHeight, theme.RowHeight).Padding(0).
 		Radius(theme.RadiusControl).Background(ui.Transparent).Border(0, ui.Transparent)
-	if on {
+	if on || b.Hovered() {
 		b.Background(k.Fill2)
 	}
 	return b.Children(func() {

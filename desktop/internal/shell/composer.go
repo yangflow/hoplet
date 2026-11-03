@@ -15,8 +15,10 @@ import (
 	"github.com/yangflow/hoplet/proto"
 )
 
-// composer is the box I write in under the conversation. An approval or a
-// question takes over its top in place; the line I write in stays.
+// composer is what I write in under the conversation, in three layers:
+// the context row (Code), then one box holding the queue on top and what
+// I write below. An approval or a question takes over the lower part in
+// place, the queue folded to a line; the line I write in stays.
 func (a *App) composer(c *ui.Context, k theme.Colors, s proto.Session, cv *convo.Convo) {
 	h, _ := a.harness(s.Harness.Kind)
 	running := cv.Running()
@@ -29,8 +31,10 @@ func (a *App) composer(c *ui.Context, k theme.Colors, s proto.Session, cv *convo
 		}
 	}
 	q, asked := cv.Question()
-	a.queueTray(c, k, s, cv, h.Capabilities.Steer)
-	frame := ui.Column(c).FillWidth().Padding(12, 12, 8, 14).Gap(8).Radius(theme.RadiusComposer).
+	if s.Mode == proto.ModeCode && s.Directory != "" {
+		a.contextRow(c, k, s)
+	}
+	frame := ui.Column(c).FillWidth().Radius(theme.RadiusComposer).Clip().
 		Background(k.Glass).Border(1, k.GlassLine).Shadow(0, 2, 10, 0, k.Shadow)
 	switch {
 	case ap != nil || asked:
@@ -38,11 +42,16 @@ func (a *App) composer(c *ui.Context, k theme.Colors, s proto.Session, cv *convo
 	case !a.connected:
 		frame.Border(1, k.Line2).BorderStyle(ui.BorderDashed)
 	}
-	frame.Children(func() { a.composerBody(c, k, s, cv, h, running, ap, pending, q, asked) })
+	frame.Children(func() {
+		a.queue(c, k, s, cv, h.Capabilities.Steer, ap != nil || asked)
+		ui.Column(c).Padding(12, 10, 8, 14).Gap(8).Children(func() {
+			a.composerBody(c, k, s, cv, h, running, ap, pending, q, asked)
+		})
+	})
 }
 
-// composerBody is what the composer holds: an approval or a question with
-// the input under it, or the context line, the input and the controls.
+// composerBody is what the composer's lower part holds: an approval or a
+// question with the input under it, or the input and the controls.
 func (a *App) composerBody(c *ui.Context, k theme.Colors, s proto.Session, cv *convo.Convo, h proto.HarnessInfo, running bool,
 	ap *proto.ApprovalRequested, pending []proto.ApprovalRequested, q proto.Question, asked bool) {
 	switch {
@@ -50,10 +59,6 @@ func (a *App) composerBody(c *ui.Context, k theme.Colors, s proto.Session, cv *c
 		a.approvalBody(c, k, s, *ap, len(pending))
 	case asked:
 		a.questionBody(c, k, q)
-	case !a.connected:
-		a.offlineLine(c, k, false)
-	case s.Mode == proto.ModeCode && s.Directory != "":
-		a.contextLine(c, k, s)
 	}
 	if ap != nil || asked {
 		// The input stays, on a line of its own with put away and
@@ -77,63 +82,6 @@ func (a *App) composerBody(c *ui.Context, k theme.Colors, s proto.Session, cv *c
 	}
 	a.input(c, s, cv, ap, q, asked)
 	a.controls(c, k, s, h, running)
-}
-
-// contextLine is a Code composer's first line, all icons and plain text:
-// the working directory, the branch and how many repositories it holds,
-// from the session's diff.
-func (a *App) contextLine(c *ui.Context, k theme.Colors, s proto.Session) {
-	ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
-		ui.Icon(c, a.icons.Folder).FontSize(theme.IconSizeInRow).TextColor(k.Muted)
-		ui.Text(c, tilde(s.Directory)).Font(theme.Mono).FontSize(12).TextColor(k.Muted).SingleLine().Tooltip(s.Directory)
-		d := a.diff(s)
-		if d == nil {
-			return
-		}
-		var branch string
-		var repos int
-		for _, r := range d.Repos {
-			if r.State == proto.RepoMissing {
-				continue
-			}
-			repos++
-			if branch == "" || r.Path == "." {
-				branch = r.Branch
-			}
-		}
-		if branch != "" {
-			ui.Icon(c, a.icons.Task).FontSize(theme.IconSizeInRow).TextColor(k.Muted)
-			ui.Text(c, branch).Font(theme.Mono).FontSize(12).TextColor(k.Muted).SingleLine()
-		}
-		if repos > 0 {
-			ui.Row(c).Gap(6).AlignItems(ui.Center).Tooltip(fmt.Sprintf("%d 个仓库", repos)).Children(func() {
-				ui.Icon(c, a.icons.Repos).FontSize(theme.IconSizeInRow).TextColor(k.Muted)
-				theme.Secondary.On(ui.Textf(c, "%d", repos)).TextColor(k.Muted)
-			})
-		}
-	})
-}
-
-// offlineLine is the first line while the daemon is out of reach: the
-// machine and how long it has been gone, or, on the new-session page,
-// that it is not connected; and reconnect now.
-func (a *App) offlineLine(c *ui.Context, k theme.Colors, newPage bool) {
-	ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
-		ui.Icon(c, a.icons.Offline).FontSize(theme.IconSizeInRow).TextColor(k.Muted)
-		machine := a.machine
-		if machine == "" {
-			machine = "本机"
-		}
-		status := "未连接"
-		if !newPage {
-			status = duration(c.Now().Sub(a.s.offlineSince))
-			c.After(time.Second)
-		}
-		theme.Secondary.On(ui.Text(c, machine+" · "+status)).TextColor(k.Muted).Grow(1)
-		if iconButton(c, k, a.icons.Reconnect, "立即重连", false).Size(24, 24).Clicked() {
-			a.host.Reconnect()
-		}
-	})
 }
 
 // tilde writes a path under the home directory with ~.
@@ -357,19 +305,23 @@ func (a *App) approvalIcon(kind proto.ApprovalKind) *ui.SVG {
 	return a.icons.Confirm
 }
 
-// controls is the composer's bottom row: the permission mode and plan on
-// the left; the effort and model pill and send (stop and steer while a
-// turn runs) on the right.
+// controls is the composer's bottom row of ghost buttons: the model and
+// effort, the permission mode and plan on the left; steer while a turn
+// runs and send (stop while it runs) on the right. Offline, what I send
+// waits for the connection, which the row says.
 func (a *App) controls(c *ui.Context, k theme.Colors, s proto.Session, h proto.HarnessInfo, running bool) {
 	st := runSettings{harness: s.Harness.Kind, perm: s.Permission, plan: s.Plan, effort: s.Effort, fast: s.Fast, model: s.Model}
 	set := a.sessionSink(s)
-	ui.Row(c).Gap(4).AlignItems(ui.Center).Children(func() {
+	ui.Row(c).Gap(2).AlignItems(ui.Center).Children(func() {
+		a.effortPill(c, k, st, []proto.HarnessInfo{h}, set)
 		if s.Mode == proto.ModeCode {
 			a.modeControl(c, k, st, h.Capabilities, set)
 		}
 		ui.Spacer(c)
-		a.effortPill(c, k, st, []proto.HarnessInfo{h}, set)
 		draft := a.s.drafts[s.ID]
+		if !a.connected {
+			theme.Caption.On(ui.Text(c, "重连后发送")).TextColor(k.Muted).Margin(0, 6)
+		}
 		if running {
 			if h.Capabilities.Steer && draft != "" && iconButton(c, k, a.icons.Steer, "插话 ⌘↩", false).Clicked() {
 				a.host.Steer(proto.SteerParams{Session: s.ID, Text: draft})
@@ -414,19 +366,39 @@ func round(c *ui.Context, k theme.Colors, icon *ui.SVG, tip string, on bool) ui.
 	return b.Children(func() { ui.Icon(c, icon).FontSize(theme.IconSize).TextColor(color) })
 }
 
-// queueTray shows the messages waiting for the turn to end, and those
-// written while offline, in a tray on top of the composer: steer all and
-// clear, then each message with a handle to drag it to another place,
-// steer, edit and delete.
-func (a *App) queueTray(c *ui.Context, k theme.Colors, s proto.Session, cv *convo.Convo, steer bool) {
+// queueRows is how many queued messages show before the rest fold.
+const queueRows = 3
+
+// queue is the top of the composer while messages wait: those queued for
+// the turn to end and those written while offline. A title with steer
+// all and clear, then up to three messages, each with a handle to drag it
+// to another place and, under the pointer, steer, edit and delete; the
+// rest fold into 还有 N 条. While an approval or a question takes the
+// composer, it is one line.
+func (a *App) queue(c *ui.Context, k theme.Colors, s proto.Session, cv *convo.Convo, steer, folded bool) {
 	queue := cv.Queue()
 	outbox := a.outbox(s.ID)
-	if len(queue) == 0 && len(outbox) == 0 {
+	n := len(queue) + len(outbox)
+	if n == 0 {
 		return
 	}
-	ui.Column(c).FillWidth().Margin(0, 12).Radius(12, 12, 0, 0).Border(1, k.Line).BorderWidth(1, 1, 0, 1).Background(k.Bg2).Children(func() {
-		ui.Row(c).Padding(4, 6, 4, 12).Gap(2).AlignItems(ui.Center).Children(func() {
-			theme.Caption.On(ui.Textf(c, "排队 %d 条", len(queue)+len(outbox))).TextColor(k.Muted).Grow(1)
+	ui.Column(c).Padding(4, 0, 4, 0).BorderWidth(0, 0, 1, 0).BorderColor(k.Line).Children(func() {
+		if folded {
+			var first string
+			if len(queue) > 0 {
+				first = queue[0].Text
+			} else {
+				first = outbox[0]
+			}
+			ui.Row(c).Height(26).Padding(0, 12, 0, 14).Gap(8).AlignItems(ui.Center).Children(func() {
+				ui.Icon(c, a.icons.Plan).FontSize(theme.IconSizeInRow).TextColor(k.Fg3)
+				theme.Secondary.On(ui.Textf(c, "排队 %d 条", n)).TextColor(k.Fg3)
+				theme.Secondary.On(ui.Text(c, "· 下一条："+first)).TextColor(k.Faint).SingleLine().Shrink(1)
+			})
+			return
+		}
+		ui.Row(c).Height(26).Padding(0, 8, 0, 14).Gap(2).AlignItems(ui.Center).Children(func() {
+			theme.Caption.On(ui.Textf(c, "排队 %d", n)).FontWeight(600).TextColor(k.Muted).Grow(1)
 			if steer && len(queue) > 0 && iconButton(c, k, a.icons.Steer, "全部插话", false).Size(24, 24).Clicked() {
 				for _, m := range queue {
 					a.host.Steer(proto.SteerParams{Session: s.ID, Text: m.Text})
@@ -439,6 +411,10 @@ func (a *App) queueTray(c *ui.Context, k theme.Colors, s proto.Session, cv *conv
 				}
 			}
 		})
+		shown := len(queue)
+		if !a.s.queueAll && shown > queueRows {
+			shown = queueRows
+		}
 		a.s.queue.Reorder = func(rows []int, to int) {
 			if len(rows) != 1 || rows[0] >= len(queue) {
 				return
@@ -448,31 +424,48 @@ func (a *App) queueTray(c *ui.Context, k theme.Colors, s proto.Session, cv *conv
 			}
 			a.host.MoveQueued(proto.QueueMoveParams{Session: s.ID, Key: queue[rows[0]].Key, Position: to})
 		}
-		ui.List(c, &a.s.queue, len(queue), func(i int) {
+		ui.List(c, &a.s.queue, shown, func(i int) {
 			m := queue[i]
-			ui.Row(c.Key(m.Key)).Padding(2, 6, 2, 8).Gap(8).AlignItems(ui.Center).BorderWidth(1, 0, 0, 0).BorderColor(k.Line).Children(func() {
+			r := ui.Row(c.Key(m.Key)).Height(30).Margin(0, 4).Padding(0, 6, 0, 8).Gap(8).AlignItems(ui.Center).Radius(theme.RadiusRow)
+			hovered := r.Hovered()
+			if hovered {
+				r.Background(k.Fill)
+			}
+			r.Children(func() {
 				ui.Icon(c, a.icons.Grip).FontSize(theme.IconSizeInRow).TextColor(k.Faint).Label("拖动排序")
 				label := m.Text
 				if m.Error != "" {
 					label = m.Error + " · " + m.Text
 				}
 				theme.UI.On(ui.Text(c, label)).TextColor(k.Fg2).SingleLine().Grow(1).Shrink(1)
-				if steer && iconButton(c, k, a.icons.Steer, "插话", false).Size(24, 24).Clicked() {
+				if !hovered {
+					return
+				}
+				if steer && iconButton(c, k, a.icons.Steer, "插话", false).Size(22, 22).Clicked() {
 					a.host.Steer(proto.SteerParams{Session: s.ID, Text: m.Text})
 					a.host.DeleteQueued(proto.QueueKeyParams{Session: s.ID, Key: m.Key})
 				}
-				if iconButton(c, k, a.icons.Edit, "编辑", false).Size(24, 24).Clicked() {
+				if iconButton(c, k, a.icons.Edit, "编辑", false).Size(22, 22).Clicked() {
 					a.s.drafts[s.ID] = m.Text
 					a.host.DeleteQueued(proto.QueueKeyParams{Session: s.ID, Key: m.Key})
 				}
-				if iconButton(c, k, a.icons.Close, "删除", false).Size(24, 24).Clicked() {
+				if iconButton(c, k, a.icons.Close, "删除", false).Size(22, 22).Clicked() {
 					a.host.DeleteQueued(proto.QueueKeyParams{Session: s.ID, Key: m.Key})
 				}
 			})
-		}).FillWidth().MaxHeight(3 * 30)
+		}).FillWidth()
+		if more := len(queue) - shown; more > 0 {
+			r := ui.Row(c).Height(26).Padding(0, 14).Gap(6).AlignItems(ui.Center).Label(fmt.Sprintf("还有 %d 条", more))
+			if r.Clicked() {
+				a.s.queueAll = true
+			}
+			r.Children(func() {
+				theme.Caption.On(ui.Textf(c, "还有 %d 条", more)).TextColor(k.Muted)
+				ui.Icon(c, a.icons.Menu).FontSize(theme.IconSizeSmall).TextColor(k.Faint)
+			})
+		}
 		for i, t := range outbox {
-			ui.Row(c.Key(fmt.Sprintf("out:%d", i))).Padding(2, 6, 2, 8).Gap(8).MinHeight(28).AlignItems(ui.Center).
-				BorderWidth(1, 0, 0, 0).BorderColor(k.Line).Children(func() {
+			ui.Row(c.Key(fmt.Sprintf("out:%d", i))).Height(30).Margin(0, 4).Padding(0, 6, 0, 8).Gap(8).AlignItems(ui.Center).Children(func() {
 				theme.UI.On(ui.Text(c, t)).TextColor(k.Fg2).SingleLine().Grow(1).Shrink(1)
 				theme.Caption.On(ui.Text(c, "重连后发送")).TextColor(k.Muted)
 			})

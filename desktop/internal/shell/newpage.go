@@ -11,16 +11,17 @@ import (
 	"github.com/yangflow/hoplet/proto"
 )
 
-// newPage is the new-session page: a question over a composer whose first
-// line holds the working directory (Code) or the companion's name
-// (Personal); the bottom row has the permission mode and the effort and
-// model pill, where the harness is chosen with its model. Sending creates
-// the session and sends the message.
+// newPage is the new-session page: a question over the same composer as
+// a session's. Code has the context row above it, where the working
+// directory is chosen; Personal has the companion's name in the box. The
+// bottom row has the model and effort, where the harness is chosen with
+// its model, and the permission mode. Sending creates the session and
+// sends the message.
 //
-// Code has three states: no directory yet, where the directory chip
+// Code has three states: no directory yet, where the directory pill
 // stands out and the recent directories wait below the composer; a
-// directory chosen; and offline, where the offline line replaces the
-// first line until the connection is back, the choices kept.
+// directory chosen; and offline, where the machine pill says so and the
+// box is dashed until the connection is back, the choices kept.
 func (a *App) newPage(c *ui.Context, k theme.Colors) {
 	pick := &a.s.newPick
 	if pick.run.harness == "" {
@@ -35,6 +36,16 @@ func (a *App) newPage(c *ui.Context, k theme.Colors) {
 	ui.Column(c).Grow(1).AlignItems(ui.Center).Padding(200, 32, 0, 32).Children(func() {
 		ui.Column(c).Width(680).Gap(14).Children(func() {
 			theme.Display.On(ui.Text(c, title)).TextColor(k.Fg)
+			if !personal {
+				// The same context row as a session's, where the
+				// directory is chosen; the branch comes once it exists.
+				ui.Row(c).Gap(6).Margin(0, 0, -6, 0).AlignItems(ui.Center).Children(func() {
+					a.machinePill(c, k, true)
+					if a.connected { // the choice waits, hidden, for the connection
+						a.dirChip(c, k, pick)
+					}
+				})
+			}
 			box := ui.Column(c).FillWidth().Padding(12, 14, 10, 14).Gap(10).Radius(theme.RadiusComposer).
 				Background(k.Glass).Border(1, k.GlassLine).Shadow(0, 2, 10, 0, k.Shadow)
 			if !a.connected {
@@ -44,14 +55,9 @@ func (a *App) newPage(c *ui.Context, k theme.Colors) {
 				box.Border(1, k.Line2).BorderStyle(ui.BorderDashed)
 			}
 			box.Children(func() {
-				switch {
-				case !a.connected:
-					a.offlineLine(c, k, true)
-				case personal:
+				if personal {
 					ui.TextInput(c, &pick.name).Placeholder("名字").Label("伙伴的名字").Width(160).Height(26).FontSize(12).
 						Padding(0, 8).Radius(theme.RadiusControl).Border(0, ui.Transparent).Background(k.Fill)
-				default:
-					ui.Row(c).Gap(6).Wrap().AlignItems(ui.Center).Children(func() { a.dirChip(c, k, pick) })
 				}
 				draft := a.s.drafts[""]
 				hint := "要做什么？"
@@ -77,13 +83,13 @@ func (a *App) newPage(c *ui.Context, k theme.Colors) {
 					return true
 				})
 				a.s.drafts[""] = draft
-				ui.Row(c).Gap(4).AlignItems(ui.Center).Children(func() {
+				ui.Row(c).Gap(2).AlignItems(ui.Center).Children(func() {
 					set := a.newSink()
+					a.effortPill(c, k, pick.run, a.s.harnesses, set)
 					if !personal {
 						a.modeControl(c, k, pick.run, h.Capabilities, set)
 					}
 					ui.Spacer(c)
-					a.effortPill(c, k, pick.run, a.s.harnesses, set)
 					if round(c, k, a.icons.Send, "发送 ↩", ready).Clicked() && ready {
 						a.create(draft)
 					}
@@ -159,13 +165,13 @@ func (a *App) defaultHarness() string {
 	return ""
 }
 
-// dirChip shows the chosen working directory; it opens the directories of
-// existing sessions and the folder chooser. Before one is chosen its text
-// is darker, as the first thing to do.
+// dirChip is the context row's directory pill on the new-session page: the
+// chosen working directory, or 选择工作目录 in the text color before one
+// is chosen; it opens the directories of existing sessions and the folder
+// chooser.
 func (a *App) dirChip(c *ui.Context, k theme.Colors, pick *newChoice) {
-	b := ui.Button(c, "").Label("工作目录").Tooltip(pick.dir).Height(26).Padding(0, 8).Gap(5).
-		Radius(theme.RadiusControl).Border(0, ui.Transparent).Background(k.Fill)
-	label, color := tilde(pick.dir), k.Fg3
+	b := contextPill(ui.Button(c, "").Label("工作目录").Tooltip(pick.dir), k)
+	label, color := tilde(pick.dir), k.Fg2
 	if pick.dir == "" {
 		label, color = "选择工作目录", k.Fg
 	}
@@ -173,10 +179,10 @@ func (a *App) dirChip(c *ui.Context, k theme.Colors, pick *newChoice) {
 		a.s.dirOpen = !a.s.dirOpen
 	}
 	b.Children(func() {
-		ui.Icon(c, a.icons.Folder).FontSize(13).TextColor(color)
-		text := theme.Secondary.On(ui.Text(c, label)).TextColor(color)
+		ui.Image(c, a.icons.FolderType()).Size(theme.IconSizeInRow, theme.IconSizeInRow)
+		text := ui.Text(c, label).FontSize(12).TextColor(color)
 		if pick.dir != "" {
-			text.Font(theme.Mono)
+			text.Font(theme.Mono).FontSize(11.5)
 		}
 		ui.Icon(c, a.icons.Menu).FontSize(11).TextColor(k.Faint)
 	})

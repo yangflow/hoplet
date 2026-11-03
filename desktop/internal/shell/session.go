@@ -37,6 +37,7 @@ type sessionView struct {
 
 	diffs        map[proto.SessionID]*diffState // each session's changes, as last read
 	queue        ui.ListState                   // the queue tray's rows, which drag to reorder
+	queueAll     bool                           // the queue shows every message, not its first three
 	offlineSince time.Time                      // when the connection was lost
 	flash        map[proto.SessionID]bool       // rows of sessions made elsewhere, and whether they lit
 	modelOpen    bool                           // the effort popover shows the models
