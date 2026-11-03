@@ -15,3 +15,4 @@
 {"session":"s1","seq":15,"ts":"2026-10-31T08:00:14Z","turn":3,"type":"approval.resolved","v":1,"payload":{"id":"a2","outcome":"expired"}}
 {"session":"s1","seq":16,"ts":"2026-10-31T08:00:15Z","turn":3,"type":"mode.changed","v":1,"payload":{"permission":"auto_edit","plan":false}}
 {"session":"s1","seq":17,"ts":"2026-11-02T08:00:00Z","turn":3,"type":"model.changed","v":1,"payload":{"model":"gpt-6.1-sol","provider":"local"}}
+{"session":"s1","seq":18,"ts":"2026-11-03T08:00:00Z","turn":3,"type":"context.usage","v":1,"payload":{"used":42000,"window":1000000}}

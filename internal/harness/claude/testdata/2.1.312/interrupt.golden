@@ -2,6 +2,7 @@ write {"type":"user","message":{"role":"user","content":"Write the numbers from 
 native 65693637-8afd-44bc-9d13-acd55b4eee60 proto.TurnStarted {}
 proto.ModelChanged {"model":"claude-opus-5-5"}
 write {"type":"control_request","request_id":"hoplet-x-1","request":{"subtype":"interrupt"}}
+proto.ContextUsage {"used":21972}
 proto.MessageDelta {"message_id":"msg_011CgaQnn1phsCdNHtqtbLrB/1","text":"以"}
 proto.MessageDelta {"message_id":"msg_011CgaQnn1phsCdNHtqtbLrB/1","text":"下是 "}
 proto.MessageDelta {"message_id":"msg_011CgaQnn1phsCdNHtqtbLrB/1","text":"1 到 300 的英"}
@@ -41,5 +42,7 @@ write {"type":"user","message":{"role":"user","content":"Reply with exactly the 
 native 65693637-8afd-44bc-9d13-acd55b4eee60 proto.TurnStarted {}
 proto.MessageDelta {"message_id":"msg_011CgaQoCG6pGQ4NrWRNg1qD/0","text":"after"}
 proto.Message {"id":"msg_011CgaQoCG6pGQ4NrWRNg1qD/0","role":"assistant","text":"after"}
+proto.ContextUsage {"used":22291}
 proto.Usage {"input_tokens":22288,"output_tokens":3}
+proto.ContextUsage {"used":22291,"window":1000000}
 proto.TurnEnded {"reason":"completed"}

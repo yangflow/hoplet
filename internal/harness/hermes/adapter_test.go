@@ -1776,3 +1776,21 @@ func TestAnAnswerDroppedWithARefusedAttachLetsTheApprovalExpire(t *testing.T) {
 		t.Fatalf("after reconnecting %v", p)
 	}
 }
+
+// The default effort goes to Hermes as null, which restores its own.
+func TestDefaultEffortIsNull(t *testing.T) {
+	x := newTester(t, harness.Spec{Resume: "s1"})
+	x.attach("s1", false)
+	n := len(x.io.written())
+	if err := x.run.SetEffort(context.Background(), ""); err != nil {
+		t.Fatal(err)
+	}
+	w := x.writes(n)
+	payload, ok := w[0].Params["payload"].(map[string]any)
+	if len(w) != 1 || w[0].Params["operation"] != "reasoning" || !ok || payload["effort"] != nil {
+		t.Fatalf("default effort %+v", w)
+	}
+	if _, has := payload["effort"]; !has {
+		t.Fatalf("no effort in %v", payload)
+	}
+}

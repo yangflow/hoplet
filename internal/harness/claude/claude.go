@@ -45,11 +45,15 @@ type Harness struct {
 	// Binary is the claude executable Hoplet runs (BinaryPath).
 	Binary string
 
-	mu     sync.Mutex
-	cached harness.Info
-	stamp  stamp // the binary the cached info is for
-	// models are the models the last session's claude listed.
-	models []proto.ModelInfo
+	mu      sync.Mutex
+	cached  harness.Info
+	stamp   stamp // the binary the cached info is for
+	envFunc func() []string
+	// models are the models claude listed last, for the binary modelsFor:
+	// a session's claude, or one Models started.
+	models    []proto.ModelInfo
+	modelsFor stamp
+	listing   sync.Mutex // one Models asks claude at a time
 }
 
 // stamp identifies a binary's contents cheaply: its resolved path, size
@@ -65,12 +69,14 @@ var _ harness.StdioHarness = (*Harness)(nil)
 // Kind reports "claude".
 func (h *Harness) Kind() string { return Kind }
 
-// caps is what this adapter supports. Steering, questions and fast mode
-// are not verified yet (claude 2.1.312 keeps fast mode off through its
-// stdio protocol), and claude has no ultra effort.
+// caps is what this adapter supports. Steering and questions are not
+// verified yet, and claude has no ultra effort. Fast mode and Ultracode
+// are claude's own settings: fast mode only on the models that list it
+// (ModelInfo.Fast), Ultracode only on models with xhigh, which claude
+// refuses otherwise.
 func caps() proto.Capabilities {
 	return proto.Capabilities{
-		Resume: true, SetMode: true, SetModel: true, PlanMode: true, PartialStream: true,
+		Resume: true, SetMode: true, SetModel: true, PlanMode: true, PartialStream: true, Fast: true, Ultracode: true,
 		Modes:   []proto.PermissionMode{proto.ModeConfirm, proto.ModeAutoEdit, proto.ModeAutoReview, proto.ModeFullAuto},
 		Efforts: []proto.Effort{proto.EffortLow, proto.EffortMedium, proto.EffortHigh, proto.EffortXHigh, proto.EffortMax},
 	}
@@ -199,9 +205,6 @@ func (h *Harness) Launch(spec harness.Spec) (harness.Launch, error) {
 	if spec.Effort != "" && !caps().HasEffort(spec.Effort) {
 		return harness.Launch{}, fmt.Errorf("%w: effort %s", harness.ErrUnsupported, spec.Effort)
 	}
-	if spec.Fast {
-		return harness.Launch{}, fmt.Errorf("%w: fast mode", harness.ErrUnsupported)
-	}
 	args := []string{
 		h.Binary, "-p",
 		"--input-format", "stream-json", "--output-format", "stream-json", "--verbose",
@@ -217,6 +220,9 @@ func (h *Harness) Launch(spec harness.Spec) (harness.Launch, error) {
 	if spec.Effort != "" {
 		args = append(args, "--effort", string(spec.Effort))
 	}
+	if s := launchSettings(spec); s != "" {
+		args = append(args, "--settings", s)
+	}
 	if spec.Resume != "" {
 		args = append(args, "--resume", spec.Resume)
 	}
@@ -224,6 +230,20 @@ func (h *Harness) Launch(spec harness.Spec) (harness.Launch, error) {
 		args = append(args, "--no-session-persistence")
 	}
 	return harness.Launch{Command: args, Env: launchEnv(spec.Env), Dir: spec.WorkDir}, nil
+}
+
+// launchSettings are the claude settings a session starts with, as the
+// JSON --settings takes; empty when there are none.
+func launchSettings(spec harness.Spec) string {
+	switch {
+	case spec.Fast && spec.Ultracode:
+		return `{"fastMode":true,"ultracode":true}`
+	case spec.Fast:
+		return `{"fastMode":true}`
+	case spec.Ultracode:
+		return `{"ultracode":true}`
+	}
+	return ""
 }
 
 func launchEnv(env []string) []string {
@@ -250,7 +270,11 @@ func (h *Harness) Attach(ctx context.Context, spec harness.Spec, io harness.Stdi
 }
 
 func (h *Harness) setModels(m []proto.ModelInfo) {
+	st, err := binaryStamp(h.Binary)
+	if err != nil {
+		return
+	}
 	h.mu.Lock()
-	h.models = m
+	h.models, h.modelsFor = m, st
 	h.mu.Unlock()
 }

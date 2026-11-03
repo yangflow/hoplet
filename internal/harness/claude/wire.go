@@ -14,8 +14,14 @@ type line struct {
 	// PermissionMode is claude's mode, on system init and status lines.
 	PermissionMode string `json:"permissionMode"`
 	// Model is the model claude runs, on system init lines.
-	Model     string          `json:"model"`
-	Message   *message        `json:"message"`
+	Model   string   `json:"model"`
+	Message *message `json:"message"`
+	// ParentToolUseID marks a subagent's lines; nil for the session's own.
+	ParentToolUseID *string `json:"parent_tool_use_id"`
+	// CompactMetadata is on compact_boundary system lines.
+	CompactMetadata *struct {
+		PostTokens int64 `json:"post_tokens"`
+	} `json:"compact_metadata"`
 	Event     *streamEvent    `json:"event"`
 	RequestID string          `json:"request_id"`
 	Request   *controlRequest `json:"request"`
@@ -27,11 +33,16 @@ type line struct {
 	Result         string          `json:"result"`
 	Errors         json.RawMessage `json:"errors"`
 	Usage          *usage          `json:"usage"`
+	// ModelUsage is per model; its contextWindow is the window's size.
+	ModelUsage map[string]struct {
+		ContextWindow int64 `json:"contextWindow"`
+	} `json:"modelUsage"`
 }
 
 type message struct {
 	ID      string  `json:"id"`
 	Content content `json:"content"`
+	Usage   *usage  `json:"usage"`
 }
 
 // content is a message's content: a list of blocks, or (for user
@@ -98,6 +109,8 @@ type initAnswer struct {
 		DisplayName   string   `json:"displayName"`
 		Description   string   `json:"description"`
 		Efforts       []string `json:"supportedEffortLevels"`
+		Fast          bool     `json:"supportsFastMode"`
+		HasEffort     bool     `json:"supportsEffort"`
 	} `json:"models"`
 }
 
@@ -106,6 +119,14 @@ type usage struct {
 	OutputTokens             int64 `json:"output_tokens"`
 	CacheCreationInputTokens int64 `json:"cache_creation_input_tokens"`
 	CacheReadInputTokens     int64 `json:"cache_read_input_tokens"`
+	// Iterations are the requests of a result's turn, the last one last.
+	Iterations []usage `json:"iterations"`
+}
+
+// held is the tokens a request held in the context: its input, cached
+// or not, and its output.
+func (u usage) held() int64 {
+	return u.InputTokens + u.CacheCreationInputTokens + u.CacheReadInputTokens + u.OutputTokens
 }
 
 // Outgoing lines.

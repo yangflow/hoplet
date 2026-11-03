@@ -55,6 +55,8 @@ type run struct {
 	msgID  string         // the message being streamed
 	tools  map[string]tool
 	model  string // the model claude last reported
+	used   int64  // the context's tokens last reported
+	window int64  // the context window's size, once claude said it
 	// outputs are tool results waiting to ride on their ToolCall's event.
 	outputs map[string][]byte
 
@@ -215,6 +217,9 @@ func (r *run) translate(data []byte) ([]proto.Payload, string) {
 			r.model = ln.Model
 			out = append(out, proto.ModelChanged{Model: ln.Model})
 		}
+		if ln.Subtype == "compact_boundary" && ln.CompactMetadata != nil {
+			out = append(out, r.contextUsage(ln.CompactMetadata.PostTokens, 0)...)
+		}
 		if ln.Subtype == "init" {
 			return out, ln.SessionID // claude announces its session on every turn
 		}
@@ -222,7 +227,11 @@ func (r *run) translate(data []byte) ([]proto.Payload, string) {
 	case "stream_event":
 		return r.stream(ln.Event), ""
 	case "assistant":
-		return r.assistant(ln.Message), ""
+		out := r.assistant(ln.Message)
+		if ln.ParentToolUseID == nil && ln.Message != nil && ln.Message.Usage != nil {
+			out = append(out, r.contextUsage(ln.Message.Usage.held(), 0)...)
+		}
+		return out, ""
 	case "user":
 		return r.toolResults(ln.Message), ""
 	case "control_request":
@@ -425,6 +434,15 @@ func (r *run) result(ln line) []proto.Payload {
 	var out []proto.Payload
 	if u := ln.Usage; u != nil && (u.InputTokens+u.OutputTokens+u.CacheCreationInputTokens+u.CacheReadInputTokens) > 0 {
 		out = append(out, proto.Usage{InputTokens: u.InputTokens + u.CacheCreationInputTokens + u.CacheReadInputTokens, OutputTokens: u.OutputTokens})
+		last := *u
+		if n := len(u.Iterations); n > 0 {
+			last = u.Iterations[n-1]
+		}
+		var window int64
+		for _, m := range ln.ModelUsage {
+			window = max(window, m.ContextWindow)
+		}
+		out = append(out, r.contextUsage(last.held(), window)...)
 	}
 	end := proto.TurnEnded{Reason: proto.TurnCompleted}
 	switch {
@@ -606,17 +624,46 @@ func (r *run) SetPlan(ctx context.Context, on bool) error {
 	return r.setMode(ctx)
 }
 
-// SetEffort changes claude's thinking effort for the following turns.
+// SetEffort changes claude's thinking effort for the following turns;
+// empty goes back to claude's default.
 func (r *run) SetEffort(ctx context.Context, effort proto.Effort) error {
-	if !caps().HasEffort(effort) {
+	if effort != "" && !caps().HasEffort(effort) {
 		return harness.ErrUnsupported
 	}
-	return r.control(ctx, map[string]any{"subtype": "apply_flag_settings", "settings": map[string]string{"effortLevel": string(effort)}})
+	var level any // null: claude's default
+	if effort != "" {
+		level = string(effort)
+	}
+	return r.control(ctx, map[string]any{"subtype": "apply_flag_settings", "settings": map[string]any{"effortLevel": level}})
 }
 
-// SetFast is not supported: claude 2.1.312 keeps fast mode off when asked
-// through its stdio protocol.
-func (r *run) SetFast(context.Context, bool) error { return harness.ErrUnsupported }
+// SetUltracode turns claude's Ultracode on or off for the following turns.
+func (r *run) SetUltracode(ctx context.Context, on bool) error {
+	return r.control(ctx, map[string]any{"subtype": "apply_flag_settings", "settings": map[string]any{"ultracode": on}})
+}
+
+// SetFast turns claude's fast mode on, or off (null: claude's own
+// setting), for the following turns.
+func (r *run) SetFast(ctx context.Context, on bool) error {
+	var v any
+	if on {
+		v = true
+	}
+	return r.control(ctx, map[string]any{"subtype": "apply_flag_settings", "settings": map[string]any{"fastMode": v}})
+}
+
+// contextUsage reports the context's use when it changed: used tokens
+// and, when known, the window's size, which stays once claude said it.
+func (r *run) contextUsage(used, window int64) []proto.Payload {
+	if window == 0 {
+		window = r.window
+	}
+	if used == 0 || used == r.used && window == r.window {
+		return nil
+	}
+	r.used, r.window = used, window
+	return []proto.Payload{proto.ContextUsage{Used: used, Window: window}}
+}
 
 // initialize asks claude for its settings; the answer lists its models.
 func (r *run) initialize(ctx context.Context) error {
@@ -637,7 +684,7 @@ func modelsOf(raw json.RawMessage) []proto.ModelInfo {
 		if m.Value == "" {
 			continue
 		}
-		info := proto.ModelInfo{ID: m.Value, Model: m.ResolvedModel, Name: m.DisplayName, Description: m.Description, Default: m.Value == "default"}
+		info := proto.ModelInfo{ID: m.Value, Model: m.ResolvedModel, Name: m.DisplayName, Description: m.Description, Default: m.Value == "default", Fast: m.Fast, NoEffort: !m.HasEffort}
 		for _, e := range m.Efforts {
 			if proto.Effort(e).Valid() {
 				info.Efforts = append(info.Efforts, proto.Effort(e))

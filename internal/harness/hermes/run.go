@@ -698,8 +698,15 @@ func (r *run) SetEffort(ctx context.Context, effort proto.Effort) error {
 	if err := r.refused(); err != nil {
 		return err
 	}
-	return r.mutate(ctx, "reasoning", map[string]any{"effort": string(effort)})
+	var level any // null: Hermes's default
+	if effort != "" {
+		level = string(effort)
+	}
+	return r.mutate(ctx, "reasoning", map[string]any{"effort": level})
 }
+
+// SetUltracode is not supported: Hermes has no Ultracode.
+func (r *run) SetUltracode(context.Context, bool) error { return harness.ErrUnsupported }
 
 // SetFast turns Hermes's fast service tier on or off from the next turn.
 func (r *run) SetFast(ctx context.Context, on bool) error {

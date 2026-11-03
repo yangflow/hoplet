@@ -18,6 +18,7 @@ const (
 	TypeError            EventType = "error"
 	TypeModeChanged      EventType = "mode.changed"
 	TypeModelChanged     EventType = "model.changed"
+	TypeContextUsage     EventType = "context.usage"
 )
 
 // TurnStarted marks the start of a turn.
@@ -193,6 +194,15 @@ type Usage struct {
 	OutputTokens int64 `json:"output_tokens"`
 }
 
+// ContextUsage reports how full the session's context window is: Used
+// tokens the last request held (input, cache and output), and Window, its
+// size, once the harness has said it (zero until then). A compaction
+// reports the tokens left after it.
+type ContextUsage struct {
+	Used   int64 `json:"used"`
+	Window int64 `json:"window,omitempty"`
+}
+
 // Error reports a harness or adapter error that did not end the turn.
 type Error struct {
 	Message string `json:"message"`
@@ -262,6 +272,7 @@ func (Usage) eventType() EventType             { return TypeUsage }
 func (Error) eventType() EventType             { return TypeError }
 func (ModeChanged) eventType() EventType       { return TypeModeChanged }
 func (ModelChanged) eventType() EventType      { return TypeModelChanged }
+func (ContextUsage) eventType() EventType      { return TypeContextUsage }
 
 func (TurnStarted) eventVersion() uint16       { return 1 }
 func (TurnEnded) eventVersion() uint16         { return 1 }
@@ -277,6 +288,7 @@ func (Usage) eventVersion() uint16             { return 1 }
 func (Error) eventVersion() uint16             { return 1 }
 func (ModeChanged) eventVersion() uint16       { return 1 }
 func (ModelChanged) eventVersion() uint16      { return 1 }
+func (ContextUsage) eventVersion() uint16      { return 1 }
 
 func init() {
 	register[TurnStarted]()
@@ -293,4 +305,5 @@ func init() {
 	register[Error]()
 	register[ModeChanged]()
 	register[ModelChanged]()
+	register[ContextUsage]()
 }

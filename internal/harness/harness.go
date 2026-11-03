@@ -85,13 +85,15 @@ type Spec struct {
 	Env  []string
 	Mode proto.PermissionMode
 	// Plan starts the session in plan mode, with Mode as the permission mode
-	// to restore when plan mode ends; Fast in fast mode; Effort is the
-	// thinking effort, empty for the harness default. Mode is one of the
+	// to restore when plan mode ends; Fast in fast mode; Ultracode with
+	// workflow orchestration on; Effort is the thinking effort, empty for
+	// the harness default. Mode is one of the
 	// harness's Capabilities.Modes, or confirm when it declares none.
-	Plan   bool
-	Fast   bool
-	Effort proto.Effort
-	Model  string // empty: the harness default
+	Plan      bool
+	Fast      bool
+	Ultracode bool
+	Effort    proto.Effort
+	Model     string // empty: the harness default
 	// ModelProvider is the provider of Model, for harnesses whose models have one.
 	ModelProvider string
 	Resume        string // native session ID to resume; empty starts fresh
@@ -241,8 +243,11 @@ type Run interface {
 	// session's permission mode, which the adapter remembers from Spec.Mode
 	// and SetMode.
 	SetPlan(ctx context.Context, on bool) error
+	// SetEffort changes the thinking effort; empty goes back to the
+	// harness's default.
 	SetEffort(ctx context.Context, effort proto.Effort) error
 	SetFast(ctx context.Context, on bool) error
+	SetUltracode(ctx context.Context, on bool) error
 	SetModel(ctx context.Context, model, provider string) error
 	Events() <-chan Event
 	NativeSession() string

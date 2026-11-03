@@ -3,6 +3,8 @@ package claude
 import (
 	"context"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -11,11 +13,12 @@ import (
 	"github.com/yangflow/hoplet/proto"
 )
 
-// initAnswerLine is claude 2.1.312's answer to initialize, cut to two of
-// its models and the fields the adapter reads.
+// initAnswerLine is claude's answer to initialize, cut to three models
+// (one without effort) and the fields the adapter reads.
 const initAnswerLine = `{"type":"control_response","response":{"subtype":"success","request_id":"%s","response":{"commands":[],"models":[` +
-	`{"value":"default","resolvedModel":"claude-opus-5-5","displayName":"Default (recommended)","description":"Opus 5.5 · Best for everyday, complex tasks","supportedEffortLevels":["low","medium","high","xhigh","max"],"supportsFastMode":true},` +
-	`{"value":"haiku","resolvedModel":"claude-haiku-5-5","displayName":"Haiku 5.5","description":"Fastest","supportedEffortLevels":["low","bogus"]}]}}}`
+	`{"value":"default","resolvedModel":"claude-opus-5-5","displayName":"Default (recommended)","description":"Opus 5.5 · Best for everyday, complex tasks","supportsEffort":true,"supportedEffortLevels":["low","medium","high","xhigh","max"],"supportsFastMode":true},` +
+	`{"value":"haiku","resolvedModel":"claude-haiku-5-5","displayName":"Haiku 5.5","description":"Fastest","supportsEffort":true,"supportedEffortLevels":["low","bogus"]},` +
+	`{"value":"old","resolvedModel":"claude-old","displayName":"Old","description":"No effort"}]}}}`
 
 func TestAttachAsksForModels(t *testing.T) {
 	io := newFakeStdio()
@@ -38,9 +41,10 @@ func TestAttachAsksForModels(t *testing.T) {
 	<-r.Events() // the line's event follows its handling
 
 	want := []proto.ModelInfo{
-		{ID: "default", Model: "claude-opus-5-5", Name: "Default (recommended)", Description: "Opus 5.5 · Best for everyday, complex tasks", Default: true,
+		{ID: "default", Model: "claude-opus-5-5", Name: "Default (recommended)", Description: "Opus 5.5 · Best for everyday, complex tasks", Default: true, Fast: true,
 			Efforts: []proto.Effort{proto.EffortLow, proto.EffortMedium, proto.EffortHigh, proto.EffortXHigh, proto.EffortMax}},
 		{ID: "haiku", Model: "claude-haiku-5-5", Name: "Haiku 5.5", Description: "Fastest", Efforts: []proto.Effort{proto.EffortLow}},
+		{ID: "old", Model: "claude-old", Name: "Old", Description: "No effort", NoEffort: true},
 	}
 	h.mu.Lock()
 	got := h.models
@@ -76,5 +80,38 @@ func TestToolResultRidesOnItsEvent(t *testing.T) {
 			t.Fatalf("output %q on %+v", ev.Output, tc)
 		}
 		return
+	}
+}
+
+// Models asks a claude of its own before any session, once per binary: it
+// reads the initialize answer, sends no message, and drops claude's
+// session variables from the environment.
+func TestModelsWithoutASession(t *testing.T) {
+	dir := t.TempDir()
+	bin := filepath.Join(dir, "claude")
+	answer := strings.Replace(initAnswerLine, "%s", "models", 1)
+	script := "#!/bin/sh\necho run >> " + filepath.Join(dir, "runs") + "\nenv > " + filepath.Join(dir, "env") +
+		"\nread line\necho \"$line\" > " + filepath.Join(dir, "request") + "\ncat <<'EOF'\n" + answer + "\nEOF\nsleep 5\n"
+	if err := os.WriteFile(bin, []byte(script), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	h := &Harness{Binary: bin}
+	h.UseEnv(func() []string { return []string{"PATH=/usr/bin:/bin", "CLAUDECODE=1"} })
+	ctx := context.Background()
+	for range 2 {
+		models, err := h.Models(ctx)
+		if err != nil || len(models) != 3 || !models[0].Fast || models[1].Name != "Haiku 5.5" {
+			t.Fatalf("models %+v %v", models, err)
+		}
+	}
+	if n := runs(t, dir); n != 1 {
+		t.Fatalf("claude ran %d times for one binary", n)
+	}
+	req, _ := os.ReadFile(filepath.Join(dir, "request"))
+	if !strings.Contains(string(req), `"subtype":"initialize"`) || strings.Contains(string(req), `"type":"user"`) {
+		t.Fatalf("asked %s", req)
+	}
+	if env, _ := os.ReadFile(filepath.Join(dir, "env")); strings.Contains(string(env), "CLAUDECODE") {
+		t.Fatal("claude's session variables reached the listing claude")
 	}
 }

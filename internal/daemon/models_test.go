@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/yangflow/hoplet/internal/harness/claude"
 	"github.com/yangflow/hoplet/internal/harness/fake"
 	"github.com/yangflow/hoplet/proto"
 )
@@ -22,13 +23,17 @@ func TestModelsAndToolOutput(t *testing.T) {
 	cfg := testConfig(h, script)
 	models := []proto.ModelInfo{{ID: "big", Name: "Big", Default: true}, {ID: "small", Name: "Small"}}
 	cfg.Harnesses["fake"].(*fake.Harness).Models = models
+	cfg.Harnesses["claude"] = &claude.Harness{Binary: filepath.Join(h, "no-claude")} // not installed
 	start(t, cfg)
 	c := dial(t, h, "device:a")
 	ctx := timeout(t)
 
 	hs, err := c.Harnesses(ctx)
-	if err != nil || len(hs) != 1 || hs[0].Kind != "fake" || !reflect.DeepEqual(hs[0].Models, models) || !hs[0].Capabilities.SetModel {
+	if err != nil || len(hs) != 2 || hs[1].Kind != "fake" || !reflect.DeepEqual(hs[1].Models, models) || !hs[1].Capabilities.SetModel {
 		t.Fatalf("harnesses %+v %v", hs, err)
+	}
+	if hs[0].Kind != "claude" || hs[0].Missing == "" || hs[0].Version != "" {
+		t.Fatalf("a harness that is not installed: %+v", hs[0])
 	}
 
 	sess, err := c.Create(ctx, proto.CreateParams{Mode: proto.ModeCode, Harness: "fake", Directory: filepath.Join(h, "work"), Model: "small"})

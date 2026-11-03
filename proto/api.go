@@ -76,6 +76,7 @@ const (
 	MethodSessionsSetPlan   = "sessions.set_plan"
 	MethodSessionsSetEffort = "sessions.set_effort"
 	MethodSessionsSetFast   = "sessions.set_fast"
+	MethodSessionsSetUltra  = "sessions.set_ultracode"
 	MethodSessionsSetModel  = "sessions.set_model"
 	MethodSessionsOutput    = "sessions.output"
 	MethodHarnessesList     = "harnesses.list"
@@ -127,6 +128,7 @@ type CreateParams struct {
 	Plan       bool           `json:"plan,omitempty"`
 	Effort     Effort         `json:"effort,omitempty"`
 	Fast       bool           `json:"fast,omitempty"`
+	Ultracode  bool           `json:"ultracode,omitempty"`
 	Title      string         `json:"title,omitempty"`
 	// Model and ModelProvider pick a model of HarnessInfo.Models; empty
 	// means the harness's default.
@@ -188,7 +190,14 @@ type SetFastParams struct {
 	Fast    bool      `json:"fast"`
 }
 
-// SetEffortParams changes how hard a session's harness thinks.
+// SetUltracodeParams turns a session's Ultracode on or off.
+type SetUltracodeParams struct {
+	Session   SessionID `json:"session"`
+	Ultracode bool      `json:"ultracode"`
+}
+
+// SetEffortParams changes how hard a session's harness thinks; an empty
+// Effort goes back to the harness's default.
 type SetEffortParams struct {
 	Session SessionID `json:"session"`
 	Effort  Effort    `json:"effort"`

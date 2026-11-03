@@ -20,14 +20,14 @@ const sessionUsage = `usage: hoplet session <command> [flags]
 
 commands:
   new      [--mode code|personal] --harness KIND [--dir DIR] [--permission MODE] [--plan]
-           [--fast] [--effort LEVEL] [--title T] [PROMPT]
+           [--fast] [--ultracode] [--effort LEVEL] [--title T] [PROMPT]
   list     [--all]
   send     ID TEXT
   watch    ID [--after SEQ]
   wait     ID [--for idle|blocked|done] [--timeout D]
   approve  ID [APPROVAL] --option OPTION
-  set      ID [--permission MODE] [--plan on|off] [--fast on|off] [--effort LEVEL]
-           [--title T] [--pinned on|off] [--unread on|off] [--model ID [--provider P]]
+  set      ID [--permission MODE] [--plan on|off] [--fast on|off] [--ultracode on|off]
+           [--effort LEVEL|default] [--title T] [--pinned on|off] [--unread on|off] [--model ID [--provider P]]
   interrupt ID     end the running turn
   steer    ID TEXT  add TEXT to the running turn (harnesses that support it)
   stop     ID      stop the session's harness process
@@ -53,9 +53,11 @@ permission modes: confirm (ask before changes and commands), auto_edit (edit
 freely, ask before commands), auto_review (the harness asks only for risky
 actions), full_auto (never ask). A harness lacking a mode runs the nearest
 stricter one. Plan mode stops all changes until you approve a plan. Fast
-mode gives faster output at a higher cost. Effort levels: low, medium, high,
-xhigh, max, ultra; each harness offers a subset. set applies its changes in
-the order permission, plan, fast, effort, model, then title, pin and unread
+mode gives faster output at a higher cost. Ultracode has the harness
+orchestrate workflows of agents (Claude Code, on models with xhigh). Effort
+levels: low, medium, high, xhigh, max, ultra; each model offers a subset, and
+default goes back to the harness's own. set applies its changes in the order
+permission, plan, fast, Ultracode, effort, model, then title, pin and unread
 mark together, and stops at the first that fails. A model takes effect from
 the next message; --provider names its provider where the harness has them. An empty --title clears the
 title.
@@ -150,6 +152,7 @@ func (a app) sessionNew(args []string) int {
 	perm := fs.String("permission", "", "confirm, auto_edit, auto_review or full_auto (default: auto_review for code, confirm for personal)")
 	plan := fs.Bool("plan", false, "start in plan mode")
 	fast := fs.Bool("fast", false, "start in fast mode")
+	ultracode := fs.Bool("ultracode", false, "start with Ultracode on")
 	effort := fs.String("effort", "", "low, medium, high, xhigh, max or ultra (default: the harness's)")
 	title := fs.String("title", "", "title")
 	asJSON := fs.Bool("json", false, "print JSON")
@@ -162,7 +165,7 @@ func (a app) sessionNew(args []string) int {
 	}
 	p := proto.CreateParams{
 		Mode: proto.Mode(*mode), Harness: *kind, Permission: proto.PermissionMode(*perm),
-		Plan: *plan, Fast: *fast, Effort: proto.Effort(*effort), Title: *title,
+		Plan: *plan, Fast: *fast, Ultracode: *ultracode, Effort: proto.Effort(*effort), Title: *title,
 	}
 	if p.Mode == proto.ModeCode {
 		abs, err := filepath.Abs(*dir)
@@ -528,7 +531,8 @@ func (a app) sessionSet(args []string) int {
 	perm := fs.String("permission", "", "confirm, auto_edit, auto_review or full_auto")
 	plan := fs.String("plan", "", "on or off")
 	fast := fs.String("fast", "", "on or off")
-	effort := fs.String("effort", "", "low, medium, high, xhigh, max or ultra")
+	ultracode := fs.String("ultracode", "", "on or off")
+	effort := fs.String("effort", "", "low, medium, high, xhigh, max, ultra or default")
 	var title optString
 	fs.Var(&title, "title", "the session's title; empty clears it")
 	model := fs.String("model", "", "the model, from the next message")
@@ -539,7 +543,7 @@ func (a app) sessionSet(args []string) int {
 	if code, ok := parse(fs, args, 1, 1); !ok {
 		return code
 	}
-	for _, f := range []struct{ name, value string }{{"plan", *plan}, {"fast", *fast}, {"pinned", *pinned}, {"unread", *unread}} {
+	for _, f := range []struct{ name, value string }{{"plan", *plan}, {"fast", *fast}, {"ultracode", *ultracode}, {"pinned", *pinned}, {"unread", *unread}} {
 		if f.value != "" && f.value != "on" && f.value != "off" {
 			fmt.Fprintf(a.stderr, "hoplet session set: --%s %q: want on or off\n", f.name, f.value)
 			return 2
@@ -549,12 +553,12 @@ func (a app) sessionSet(args []string) int {
 		fmt.Fprintf(a.stderr, "hoplet session set: --permission %q: want confirm, auto_edit, auto_review or full_auto\n", *perm)
 		return 2
 	}
-	if *effort != "" && !proto.Effort(*effort).Valid() {
-		fmt.Fprintf(a.stderr, "hoplet session set: --effort %q: want low, medium, high, xhigh, max or ultra\n", *effort)
+	if *effort != "" && *effort != "default" && !proto.Effort(*effort).Valid() {
+		fmt.Fprintf(a.stderr, "hoplet session set: --effort %q: want low, medium, high, xhigh, max, ultra or default\n", *effort)
 		return 2
 	}
-	if *perm == "" && *plan == "" && *fast == "" && *effort == "" && *model == "" && !title.set && *pinned == "" && *unread == "" {
-		fmt.Fprintln(a.stderr, "hoplet session set: nothing to change; give --permission, --plan, --fast, --effort, --model, --title, --pinned or --unread")
+	if *perm == "" && *plan == "" && *fast == "" && *ultracode == "" && *effort == "" && *model == "" && !title.set && *pinned == "" && *unread == "" {
+		fmt.Fprintln(a.stderr, "hoplet session set: nothing to change; give --permission, --plan, --fast, --ultracode, --effort, --model, --title, --pinned or --unread")
 		return 2
 	}
 	if *provider != "" && *model == "" {
@@ -581,8 +585,17 @@ func (a app) sessionSet(args []string) int {
 				return err
 			}
 		}
+		if *ultracode != "" {
+			if err := c.SetUltracode(ctx, proto.SetUltracodeParams{Session: id, Ultracode: *ultracode == "on"}); err != nil {
+				return err
+			}
+		}
 		if *effort != "" {
-			if err := c.SetEffort(ctx, proto.SetEffortParams{Session: id, Effort: proto.Effort(*effort)}); err != nil {
+			level := proto.Effort(*effort)
+			if *effort == "default" {
+				level = ""
+			}
+			if err := c.SetEffort(ctx, proto.SetEffortParams{Session: id, Effort: level}); err != nil {
 				return err
 			}
 		}
@@ -636,7 +649,7 @@ func onOff(v string) *bool {
 }
 
 // describeMode is a session's permission mode, plan mode, fast mode,
-// effort, pin and unread mark.
+// Ultracode, effort, pin and unread mark.
 func describeMode(s proto.Session) string {
 	out := "permission " + string(s.Permission)
 	if s.Plan {
@@ -644,6 +657,9 @@ func describeMode(s proto.Session) string {
 	}
 	if s.Fast {
 		out += ", fast mode on"
+	}
+	if s.Ultracode {
+		out += ", Ultracode on"
 	}
 	if s.Effort != "" {
 		out += ", effort " + string(s.Effort)

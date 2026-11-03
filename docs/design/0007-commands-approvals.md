@@ -38,7 +38,7 @@ flowchart TB
 
 ## 会话模式
 
-审批档位、Plan 开关、Fast 开关、思考强度是四个独立的设置，都可以在会话中途切换。
+审批档位、Plan 开关、Fast 开关、Ultracode 开关、思考强度是五个独立的设置，都可以在会话中途切换。
 
 | 审批档位 | 改文件 | 执行命令 | Claude Code | Codex | 默认用于 |
 |---|---|---|---|---|---|
@@ -50,9 +50,10 @@ flowchart TB
 | 设置 | 说明 |
 |---|---|
 | Plan 开关 | 开启时 harness 只探索、出方案，不改任何东西；批准方案后由 harness 自己退出 Plan，并上报 `mode.changed`，会话记录随之更新（Claude Code：`plan` 模式与 `ExitPlanMode`）。Plan 开着时切换审批档位只记下退出 Plan 后要恢复的档位，不会让 harness 离开 Plan |
-| Fast 开关 | 同一模型更快输出、消耗更高，与思考强度无关；harness 用能力位声明是否支持 |
-| 思考强度 | 统一刻度 low / medium / high / xhigh / max / ultra，空表示 harness 默认；各 harness 用能力位声明支持的档位，不支持的隐藏 |
-| 上下文窗口 | 不单设开关：作为模型变体出现在模型列表里（如 Opus · 1M） |
+| Fast 开关 | 同一模型更快输出、消耗更高，与思考强度无关；harness 用能力位声明是否支持，模型列表再按模型标出（Claude Code 的 `supportsFastMode`），不支持的模型不显示 |
+| Ultracode 开关 | harness 编排多个 agent 的 workflow，与思考强度无关、任何档位都能开（Claude Code 的 `ultracode` 设置）；harness 用能力位声明是否支持，模型还要有 xhigh 档才可用，harness 拒绝时在对话里报错。ultrathink 不是设置：写在消息里由 harness 自己识别，Hoplet 原样发出 |
+| 思考强度 | 统一刻度 low / medium / high / xhigh / max / ultra，空表示 harness 默认；新会话一律从空（默认）开始，Hoplet 不替 harness 定默认档，会话中途可以改回默认。可选档位以模型列出的为准（Claude Code 的 `supportedEffortLevels`），模型没列时用 harness 能力位里的；模型标明不收强度时（Claude Code 的 `supportsEffort` 为假，如 Haiku 4.5）没有强度可选，菜单里不出现“推理强度”一行；守护进程建会话和改强度时都按会话的模型校验 |
+| 上下文窗口 | 不单设开关：harness 给了 1M 变体时作为模型列表里的一项（Claude Code 列出带 `[1m]` 的型号才有）；当前用量见 0003 的 `ContextUsage`，桌面端在输入框控件行用上下文圈显示 |
 
 - 某个 harness 缺少某一档时，取更严的最近一档，并在界面标注。
 - harness 支持 OS 沙箱时默认开启（如 Codex 用 `workspace-write`）。

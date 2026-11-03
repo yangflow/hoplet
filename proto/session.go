@@ -71,6 +71,9 @@ type Session struct {
 	Plan bool `json:"plan,omitempty"`
 	// Fast trades cost for faster output where the harness offers it.
 	Fast bool `json:"fast,omitempty"`
+	// Ultracode has the harness orchestrate workflows of agents, where it
+	// offers that (Capabilities.Ultracode).
+	Ultracode bool `json:"ultracode,omitempty"`
 	// Effort is how hard the harness thinks; empty means its default.
 	Effort     Effort        `json:"effort,omitempty"`
 	Directory  string        `json:"directory,omitempty"`

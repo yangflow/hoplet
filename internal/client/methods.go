@@ -58,6 +58,11 @@ func (c *Client) SetPlan(ctx context.Context, p proto.SetPlanParams) error {
 	return c.Call(ctx, proto.MethodSessionsSetPlan, p, nil)
 }
 
+// SetUltracode turns a session's Ultracode on or off.
+func (c *Client) SetUltracode(ctx context.Context, p proto.SetUltracodeParams) error {
+	return c.Call(ctx, proto.MethodSessionsSetUltra, p, nil)
+}
+
 // SetFast turns a session's fast mode on or off.
 func (c *Client) SetFast(ctx context.Context, p proto.SetFastParams) error {
 	return c.Call(ctx, proto.MethodSessionsSetFast, p, nil)

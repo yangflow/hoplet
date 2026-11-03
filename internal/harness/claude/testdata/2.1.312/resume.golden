@@ -4,5 +4,7 @@ proto.ModelChanged {"model":"claude-opus-5-5"}
 proto.MessageDelta {"message_id":"msg_011CgaQyrD9KLWCFGCD7EDZD/0","text":"h"}
 proto.MessageDelta {"message_id":"msg_011CgaQyrD9KLWCFGCD7EDZD/0","text":"ello.txt"}
 proto.Message {"id":"msg_011CgaQyrD9KLWCFGCD7EDZD/0","role":"assistant","text":"hello.txt"}
+proto.ContextUsage {"used":25170}
 proto.Usage {"input_tokens":25169,"output_tokens":7}
+proto.ContextUsage {"used":25176,"window":1000000}
 proto.TurnEnded {"reason":"completed"}

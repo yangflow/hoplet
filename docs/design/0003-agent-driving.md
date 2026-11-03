@@ -9,7 +9,7 @@
 
 | harness | 接入方式 | 备注 |
 |---|---|---|
-| Claude Code | 启动 CLI：`-p --input-format stream-json --output-format stream-json --permission-prompt-tool stdio`，stdio 控制协议做审批 / 中断 / 切模式 / 切模型 / 改思考强度（`apply_flag_settings`）；`--resume` 续接 | 与官方 Agent SDK 同一线协议，不引入 Node 运行时；Hoplet 托管副本：仓库契约测试（2.1.312 已录制验证）+ 新版本先过本机自检再跟进（[0013](0013-testing-release.md)）；启动环境不得带 `CLAUDECODE` / `CLAUDE_CODE_*`（会被当成子会话而无法登录）；Fast 模式经协议无法开启，暂不支持 |
+| Claude Code | 启动 CLI：`-p --input-format stream-json --output-format stream-json --permission-prompt-tool stdio`，stdio 控制协议做审批 / 中断 / 切模式 / 切模型 / 改思考强度、Fast 与 Ultracode（`apply_flag_settings`，强度与 Fast 给 `null` 回到默认；启动时 Fast 与 Ultracode 放进 `--settings` 的 JSON：`fastMode`、`ultracode`）；`--resume` 续接 | 与官方 Agent SDK 同一线协议，不引入 Node 运行时；Hoplet 托管副本：仓库契约测试（2.1.312 已录制验证）+ 新版本先过本机自检再跟进（[0013](0013-testing-release.md)）；启动环境不得带 `CLAUDECODE` / `CLAUDE_CODE_*`（会被当成子会话而无法登录） |
 | Codex | `codex app-server`（stdio JSON-RPC） | 用其 JSON Schema 生成 Go 类型 |
 | Hermes | 连其 gateway 的原生协议 `hermes-gateway-v1`（JSON-RPC over WebSocket）；小桥接进程 `hoplet hermes-bridge` 放在 shim 后面：每个 gateway 帧是一行 stdout，每个请求是一行 stdin，断线自行重连（不跨连接携带行，需要的请求由适配器重发） | 共用默认 `~/.hermes`（登录、人格、记忆、技能与我自己的 Hermes 一致；Hoplet 不改其全局设置、不碰凭证）；会话由 gateway 持有，守护进程重启不丢事件；版本门控同 Claude（录制 0.22.5 + 本机自检）；不用 ACP（续接要全量回放、没有 steer） |
 | 其他 | Go 自写 ACP 客户端 | 新增一家 ≈ 一份配置 |
@@ -36,7 +36,7 @@
 | 项 | 做法 |
 |---|---|
 | 当前模型 | harness 报告它在跑的模型时（Claude Code：每轮 `init` 行的 `model`；Hermes：`session.usage`），适配器发 `model.changed`，守护进程记进会话（0004）。我换模型时会话先记下所选，harness 报告后以报告为准 |
-| 模型列表 | `harnesses.list` 返回各 harness 的版本、能力与模型（`ModelInfo`：选项值、服务商代号与服务商名、实际模型名、显示名、说明、是否默认、支持的强度档位、是否支持 Fast；有服务商名时桌面端按服务商分组）。Claude Code：适配器每次接上都发 `initialize`，回复里的 `models` 就是列表（含 `default` 一项），守护进程启动后第一次接上 Claude 之前列表为空；Hermes 见上 |
+| 模型列表 | `harnesses.list` 返回各 harness 的版本、能力与模型（`ModelInfo`：选项值、服务商代号与服务商名、实际模型名、显示名、说明、是否默认、支持的强度档位、是否支持 Fast；有服务商名时桌面端按服务商分组）。Claude Code：`initialize` 的回答里就有模型列表（含 `default` 一项；每项带 `supportedEffortLevels`、`supportsFastMode`），会话接上时发一次并更新列表；还没有会话时，守护进程单独起一个 claude（`-p --no-session-persistence`、空 MCP、禁用 hooks），只发 `initialize` 不发消息，读完即停，不耗额度；列表按 claude 二进制缓存，换版本才重新问。守护进程一启动就在后台先问一遍；`harnesses.list` 同时问各 harness，等最慢的那个。装不了 / 探测失败的 harness 也列出，`Missing` 写原因（桌面端在新建页的 harness 列里置灰并写安装方法） |
 | 换模型 | `sessions.set_model`（模型、服务商），下一条消息起生效；harness 不能换时返回不支持 |
 | 工具输出 | 适配器把工具结果的正文随该 `ToolCall` 事件交给守护进程，守护进程存成 blob，记在 `ToolCall.Output`；客户端用 `sessions.output` 按会话与工具调用读取，最多 64KB，截在行尾并标出截断。Claude Code 取 `tool_result` 的文本；Hermes 暂不提供（Personal 的工作痕迹不展开） |
 
@@ -53,7 +53,7 @@ classDiagram
         Steer(text)
         Interrupt()
         Respond(approval)
-        SetMode / SetPlan / SetFast / SetEffort / SetModel
+        SetMode / SetPlan / SetFast / SetUltracode / SetEffort / SetModel
         Events() 事件流
         Close()
     }
@@ -66,6 +66,7 @@ classDiagram
         modes 原生审批档位
         efforts 思考强度档位
         fast
+        ultracode
         partialStream
         mcpInject
     }
@@ -79,7 +80,7 @@ classDiagram
     Info --> Capabilities
 ```
 
-归一化事件：`TurnStarted` `MessageDelta` `Thinking` `ToolCall(read/edit/exec/web/other)` `FileChange` `ApprovalRequested` `Question` `Usage` `ModeChanged` `ModelChanged` `TurnEnded{reason}` `Error`。**每个归一化事件都附带原始事件。**
+归一化事件：`TurnStarted` `MessageDelta` `Thinking` `ToolCall(read/edit/exec/web/other)` `FileChange` `ApprovalRequested` `Question` `Usage` `ContextUsage{used, window}` `ModeChanged` `ModelChanged` `TurnEnded{reason}` `Error`。上下文用量：已用 = 最近一次请求的输入 + 缓存写入 + 缓存读取 + 输出，窗口大小 harness 说了才有（Claude Code：每条回复的 `message.usage`、轮次结束 `result` 的 `usage.iterations` 末项与 `modelUsage.*.contextWindow`、压缩后 `compact_boundary` 的 `post_tokens`）。**每个归一化事件都附带原始事件。**
 
 ## 硬规则
 

@@ -6,14 +6,19 @@ native 8c4a57bd-5c75-46bc-87ae-ec46f5524554 proto.TurnStarted {}
 proto.ModelChanged {"model":"claude-opus-5-5"}
 proto.MessageDelta {"message_id":"msg_011CgaZ8tRHmijD5aqEJJ7ah/0","text":"auto"}
 proto.Message {"id":"msg_011CgaZ8tRHmijD5aqEJJ7ah/0","role":"assistant","text":"auto"}
+proto.ContextUsage {"used":23578}
 proto.Usage {"input_tokens":23574,"output_tokens":4}
+proto.ContextUsage {"used":23578,"window":1000000}
 proto.TurnEnded {"reason":"completed"}
 write {"type":"control_request","request_id":"hoplet-x-3","request":{"mode":"plan","subtype":"set_permission_mode"}}
 write {"type":"user","message":{"role":"user","content":"Use the Write tool to create plan.txt containing p."}}
 native 8c4a57bd-5c75-46bc-87ae-ec46f5524554 proto.TurnStarted {}
 proto.ToolCall {"id":"toolu_01Dp3n9uXsiAoBKMqP2GC2zu","kind":"edit","name":"Write","summary":"/Users/me/.claude/plans/use-the-write-tool-encapsulated-creek.md","status":"running"}
+proto.ContextUsage {"used":25228,"window":1000000}
 proto.ToolCall {"id":"toolu_01Dp3n9uXsiAoBKMqP2GC2zu","kind":"edit","name":"Write","summary":"/Users/me/.claude/plans/use-the-write-tool-encapsulated-creek.md","status":"done"}
 proto.FileChange {"path":"/Users/me/.claude/plans/use-the-write-tool-encapsulated-creek.md","op":"created"}
 proto.ToolCall {"id":"toolu_01DfZKkGddAoHLeLia8Jhyvg","kind":"other","name":"ToolSearch","summary":"","status":"running"}
+proto.ContextUsage {"used":25603,"window":1000000}
 proto.ToolCall {"id":"toolu_01DfZKkGddAoHLeLia8Jhyvg","kind":"other","name":"ToolSearch","summary":"","status":"done"}
 proto.ToolCall {"id":"toolu_01JiGYU2ukBH6RZiQfhYvDDf","kind":"other","name":"ExitPlanMode","summary":"","status":"running"}
+proto.ContextUsage {"used":26615,"window":1000000}
