@@ -1014,3 +1014,23 @@ func TestSendFails(t *testing.T) {
 		t.Fatalf("sent %d times", n)
 	}
 }
+
+// Outside a git repository a change card lists the files with no line
+// counts: no "+0".
+func TestChangesOutsideGit(t *testing.T) {
+	a, h, tt, _ := newApp(t)
+	h.diffs = map[proto.SessionID]proto.SessionDiff{"s1": {Session: "s1"}}
+	a.SetHarnesses([]proto.HarnessInfo{claudeHarness()})
+	a.Select("s1")
+	a.ApplySession("s1", proto.SessionItem{Snapshot: &proto.SessionSnapshot{Events: events(t, tt.Now(), 1, 1,
+		proto.Message{ID: "k1", Role: proto.RoleUser, Text: "go"},
+		proto.TurnStarted{},
+		proto.FileChange{Path: "/w/hoplet/main.rs", Op: proto.FileCreated},
+		proto.TurnEnded{Reason: proto.TurnCompleted},
+	)}})
+	tt.Frame()
+	tt.Frame()
+	if !tt.HasText("改了 1 个文件") || tt.HasText("+0") {
+		t.Fatalf("card %q", tt.Texts())
+	}
+}

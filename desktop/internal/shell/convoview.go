@@ -850,17 +850,18 @@ func toolVerb(tc proto.ToolCall) string {
 func (a *App) changes(c *ui.Context, k theme.Colors, s proto.Session, it convo.Item) {
 	d := a.diff(s)
 	var add, del int
+	counted := false // line counts come only from git repositories
 	stats := make([]*proto.FileDiff, len(it.Files))
 	for i, f := range it.Files {
 		if st, ok := fileStats(d, s.Directory, f.Path); ok {
 			stats[i] = &st
-			add, del = add+st.Additions, del+st.Deletions
+			add, del, counted = add+st.Additions, del+st.Deletions, true
 		}
 	}
 	ui.Column(c).FillWidth().Radius(theme.RadiusCard).Border(1, k.Line).Clip().Children(func() {
 		ui.Row(c).Height(36).Padding(0, 12).Gap(10).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(k.Line).Children(func() {
 			theme.UIStrong.On(ui.Textf(c, "改了 %d 个文件", len(it.Files))).TextColor(k.Fg)
-			if d != nil {
+			if counted {
 				lines(c, k, add, del)
 			}
 		})
