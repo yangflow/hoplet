@@ -485,19 +485,33 @@ func TestEffortDefault(t *testing.T) {
 	}
 }
 
-func TestThinkingRow(t *testing.T) {
+func TestWorkingRow(t *testing.T) {
 	a, _, tt, _ := newApp(t)
 	selectRunning(t, a, tt)
 	if !tt.HasText("思考中") {
-		t.Fatalf("no thinking row while the harness has not answered: %q", tt.Texts())
+		t.Fatalf("no working row while the turn runs: %q", tt.Texts())
 	}
 	if tt.HasText("用时") {
 		t.Fatalf("turns are not marked: %q", tt.Texts())
 	}
-	a.ApplySession("s1", proto.SessionItem{Events: events(t, tt.Now(), 3, 1, proto.Message{ID: "m1", Role: proto.RoleAssistant, Text: "on it"})})
+	a.ApplySession("s1", proto.SessionItem{Events: events(t, tt.Now(), 3, 1,
+		proto.ToolCall{ID: "t1", Kind: proto.ToolExec, Name: "Bash", Summary: "go test ./...", Status: proto.ToolRunning})})
 	tt.Frame()
-	if tt.HasText("思考中") {
-		t.Fatalf("thinking row stays after the answer: %q", tt.Texts())
+	if !tt.HasText("运行命令") {
+		t.Fatalf("the working row does not say a command runs: %q", tt.Texts())
+	}
+	a.ApplySession("s1", proto.SessionItem{Events: events(t, tt.Now(), 4, 1,
+		proto.ApprovalRequested{ID: "a1", Kind: proto.ApprovalCommand, Title: "Run go test"})})
+	tt.Frame()
+	if !tt.HasText("等你审批") {
+		t.Fatalf("the working row does not say it waits on me: %q", tt.Texts())
+	}
+	a.ApplySession("s1", proto.SessionItem{Events: events(t, tt.Now(), 5, 1,
+		proto.ApprovalResolved{ID: "a1", Outcome: proto.OutcomeAllowed, OptionID: "ok"},
+		proto.TurnEnded{Reason: proto.TurnCompleted})})
+	tt.Frame()
+	if tt.HasText("思考中") || tt.HasText("运行命令") || tt.HasText("等你审批") {
+		t.Fatalf("the working row stays after the turn: %q", tt.Texts())
 	}
 }
 

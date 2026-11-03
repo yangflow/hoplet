@@ -57,13 +57,15 @@ func (a *App) conversation(c *ui.Context, k theme.Colors, s proto.Session) {
 						a.chat(c, k, s, items, cv.Running())
 						return
 					}
-					a.items(c, k, s, items, cv.Running())
+					a.items(c, k, s, items, cv)
 				})
 			})
 		})
-		// What scrolls toward the composer fades into the pane under it.
-		ui.Box(c).Absolute().Bottom(0).Left(0).Right(0).Height(inset + 10).PassThrough().
-			Material(glass.ScrollEdge{Bottom: true, Background: k.Pane})
+		// What scrolls toward the composer blurs more the lower it goes. It
+		// cannot fade out: the window is glass, and MyGO does not fade
+		// content pixel by pixel.
+		ui.Box(c).Absolute().Bottom(0).Left(0).Right(0).Height(inset + 40).PassThrough().
+			Material(glass.Blur{Radius: 8, Mask: &ui.LinearGradient{From: ui.Transparent, To: ui.RGB(0, 0, 0), Angle: 180, End: 0.45}})
 		if atEnd {
 			sc.Y = math.MaxFloat32
 		} else if a.toBottom(c, k, cv.Running(), inset+8) {
@@ -90,40 +92,123 @@ const (
 
 // items draws a Code conversation. Turns are not marked: your messages part
 // them, and only a turn on another day than the one before it gets a day
-// line. While the harness has not answered your last message yet, a
-// thinking row stands in for its answer.
-func (a *App) items(c *ui.Context, k theme.Colors, s proto.Session, items []convo.Item, running bool) {
+// line. While a turn runs, a working row ends it.
+func (a *App) items(c *ui.Context, k theme.Colors, s proto.Session, items []convo.Item, cv *convo.Convo) {
 	var day string
-	var waiting *convo.Item
-	for i, it := range items {
-		switch it.Kind {
-		case convo.KindTurn:
+	var turn time.Time
+	for _, it := range items {
+		if it.Kind == convo.KindTurn {
 			d := dayLabel(c.Now(), it.Time)
 			if day != "" && d != day {
 				dayLine(c.Key("day:"+it.Key), k, d)
 			}
-			day = d
+			day, turn = d, it.Time
 			continue
-		case convo.KindMine:
-			waiting = &items[i]
-		default:
-			waiting = nil
 		}
 		a.item(c.Key(it.Key), k, s, it)
 	}
-	if running && waiting != nil {
-		ui.Row(c.Key("thinking")).Height(24).Gap(8).AlignItems(ui.Center).Children(func() {
-			ui.Icon(c, a.icons.Thinking).FontSize(theme.IconSizeInRow).TextColor(k.Muted)
-			theme.UI.On(ui.Text(c, "思考中")).TextColor(k.Muted)
-			ui.Text(c, duration(c.Now().Sub(waiting.Time))+"…").Font(theme.Mono).FontSize(11).TextColor(k.Faint)
-			c.After(time.Second)
-		})
+	if cv.Running() {
+		a.working(c.Key("working"), k, items, len(cv.Pending()) > 0, turn)
 	}
 }
 
+// working is the row that ends a running turn: three squares lighting in
+// turn, what the harness is doing now, and how long the turn has run, its
+// changed digits rolling in. Waiting on an approval, it says so in the
+// needs-you color and its squares rest.
+func (a *App) working(c *ui.Context, k theme.Colors, items []convo.Item, approval bool, since time.Time) {
+	label, color := "思考中", k.Fg3
+	if approval {
+		label, color = "等你审批", k.AttnFg
+	} else if n := len(items); n > 0 {
+		switch last := items[n-1]; {
+		case last.Kind == convo.KindText && last.Streaming:
+			label = "回复中"
+		case last.Kind == convo.KindWork && len(last.Work.Entries) > 0:
+			if e := last.Work.Entries[len(last.Work.Entries)-1]; e.Tool != nil && e.Tool.Status == proto.ToolRunning {
+				label = a.doing(*e.Tool)
+			}
+		}
+	}
+	still := approval || c.Preferences().ReduceMotion
+	ui.Row(c).Height(24).Gap(8).AlignItems(ui.Center).Children(func() {
+		squares(c, k, still)
+		theme.UI.On(ui.Text(c, label)).TextColor(color)
+		if !since.IsZero() {
+			rolling(c, k, duration(c.Now().Sub(since)), c.Preferences().ReduceMotion)
+			c.After(time.Second)
+		}
+	})
+}
+
+// doing names what a running tool is doing, for the working row.
+func (a *App) doing(tc proto.ToolCall) string {
+	switch _, verb := a.action(tc); verb {
+	case "运行":
+		return "运行命令"
+	case "读取":
+		return "读取文件"
+	case "编辑":
+		return "编辑文件"
+	case "写入":
+		return "写入文件"
+	case "搜索", "抓取网页", "子任务":
+		return verb
+	}
+	return "调用工具"
+}
+
+// The motion of the working row: a changed digit of its time rises in
+// while the old one rises out.
+var rollIn = ui.Animation{Duration: 350 * time.Millisecond, Ease: ui.CubicBezier(0.22, 1, 0.36, 1)}
+
+// rolling draws a time whose characters roll when they change: each is
+// keyed by its place from the end and its value, so only a changed one
+// leaves and comes. Its words stand a space of the mono font apart, as a
+// text of one space would lay out empty.
+func rolling(c *ui.Context, k theme.Colors, text string, still bool) {
+	const size = 11
+	words := strings.Fields(text)
+	place := len([]rune(text))
+	ui.Row(c).Gap(size * 0.6).AlignItems(ui.Center).Children(func() {
+		for _, w := range words {
+			ui.Row(c.Key(place)).Children(func() {
+				for _, r := range w {
+					t := ui.Text(c.Key(fmt.Sprintf("%d:%c", place, r)), string(r)).Font(theme.Mono).FontSize(size).TextColor(k.Faint).FontFeatures("tnum")
+					if !still {
+						t.Transition(ui.ElementTransition{Animation: &rollIn, Enter: &ui.Motion{Y: 6}, Exit: &ui.Motion{Y: -6}})
+					}
+					place--
+				}
+			})
+			place-- // the space
+		}
+	})
+}
+
+// squares draws three small squares in the accent that light in turn, a
+// third of a 1.2-second cycle apart; still, they rest at full, 60% and
+// 30%.
+func squares(c *ui.Context, k theme.Colors, still bool) {
+	ui.Box(c).Size(18, 4).Draw(func(p *ui.Painter, r ui.Rect) {
+		t := p.Now().Sub(time.Time{}).Seconds()
+		for i := range 3 {
+			lit := float32([3]float64{1, 0.6, 0.3}[i])
+			if !still {
+				f := math.Mod(t/1.2-float64(i)/3, 1)
+				lit = float32(0.3 + 0.7*(0.5+0.5*math.Cos(2*math.Pi*f)))
+			}
+			p.Fill(ui.Rect{X: r.X + float32(i)*7, Y: r.Y, W: 4, H: 4}, k.AccentFg.Alpha(lit), 1)
+		}
+		if !still {
+			p.AnimationFrame()
+		}
+	})
+}
+
 // toBottom is the button over the composer that scrolls to the end; while
-// the harness is answering, three dots light in turn in place of its
-// arrow. It reports whether it was clicked.
+// the harness is answering, the working row's squares light in place of
+// its arrow. It reports whether it was clicked.
 func (a *App) toBottom(c *ui.Context, k theme.Colors, running bool, bottom float32) bool {
 	b := ui.Button(c, "").Label("回到底部").Tooltip("回到底部 ⌘↓").Size(32, 32).Padding(0).
 		Absolute().Bottom(bottom).Left(0).Right(0).Margin(0, ui.Auto)
@@ -138,24 +223,7 @@ func (a *App) toBottom(c *ui.Context, k theme.Colors, running bool, bottom float
 				ui.Icon(c, a.icons.ToBottom).FontSize(14).TextColor(k.Fg2)
 				return
 			}
-			still := c.Preferences().ReduceMotion
-			ui.Box(c).Size(18, 4).Draw(func(p *ui.Painter, r ui.Rect) {
-				t := p.Now().Sub(time.Time{}).Seconds()
-				for i := range 3 {
-					lit := float32([3]float64{1, 0.6, 0.3}[i])
-					if !still {
-						// Each dot falls from full to 30% and back in
-						// 1.2 seconds, a third of the way after the one
-						// before it.
-						f := math.Mod(t/1.2-float64(i)/3, 1)
-						lit = float32(0.3 + 0.7*(0.5+0.5*math.Cos(2*math.Pi*f)))
-					}
-					p.Fill(ui.Rect{X: r.X + float32(i)*7, Y: r.Y, W: 4, H: 4}, k.AccentFg.Alpha(lit), 2)
-				}
-				if !still {
-					p.AnimationFrame()
-				}
-			})
+			squares(c, k, c.Preferences().ReduceMotion)
 		})
 	})
 	return b.Clicked()

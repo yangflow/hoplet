@@ -26,7 +26,7 @@ func popover(c *ui.Context, k theme.Colors, anchor ui.Element, open *bool, end b
 }
 
 // frostRadius is how much what lies under a popover blurs through it.
-const frostRadius = 18
+const frostRadius = 16
 
 // frosted makes e a card of the popover look: what lies under it shows
 // through blurred, under the popover fill, a hairline and the popover
