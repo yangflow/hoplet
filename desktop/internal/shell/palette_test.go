@@ -110,21 +110,26 @@ func TestPalette(t *testing.T) {
 	}
 }
 
-// The palette and the new-session page sit in the middle of the window.
+// The new-session page keeps its composer at the bottom, as a session
+// does, with the title in the middle of the room above; the palette is in
+// the middle of the window.
 func TestCentered(t *testing.T) {
 	a, _, tt, _ := newApp(t)
 	tt.SetSize(1200, 900)
 	tt.Frame()
 	box, ok := tt.Find("消息")
-	if !ok {
-		t.Fatal("no composer on the new page")
+	title, ok2 := tt.Find("在 Hoplet 上做什么？")
+	if !ok || !ok2 {
+		t.Fatalf("new page %q", tt.Texts())
 	}
-	content := float32(1200) - a.side
-	if mid := box.X + box.W/2; mid < a.side+content/2-40 || mid > a.side+content/2+40 {
-		t.Errorf("the new page's box is centered at %v, the content at %v", mid, a.side+content/2)
+	content := a.side + (float32(1200)-a.side)/2
+	for name, r := range map[string]ui.Rect{"box": box, "title": title} {
+		if mid := r.X + r.W/2; mid < content-40 || mid > content+40 {
+			t.Errorf("the %s is centered at %v, the content at %v", name, mid, content)
+		}
 	}
-	if mid := box.Y + box.H/2; mid < 300 || mid > 600 {
-		t.Errorf("the new page's box sits at %v of 900", mid)
+	if box.Y < 700 || title.Y+title.H > box.Y {
+		t.Errorf("box at %v, title at %v, of 900", box.Y, title.Y)
 	}
 	a.OpenPalette()
 	tt.Frame()

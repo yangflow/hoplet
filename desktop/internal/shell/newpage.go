@@ -33,71 +33,81 @@ func (a *App) newPage(c *ui.Context, k theme.Colors) {
 		title = "新伙伴"
 	}
 	h, _ := a.harness(pick.run.harness)
-	ui.Column(c).Grow(1).AlignItems(ui.Center).Justify(ui.Center).Padding(32).Children(func() {
-		ui.Column(c).Width(680).Gap(14).Children(func() {
-			theme.Display.On(ui.Text(c, title)).TextColor(k.Fg)
-			if !personal {
-				// The same context row as a session's, where the
-				// directory is chosen; the branch comes once it exists.
-				ui.Row(c).Gap(6).Margin(0, 0, -6, 0).AlignItems(ui.Center).Children(func() {
-					a.machinePill(c, k, true)
-					if a.connected { // the choice waits, hidden, for the connection
-						a.dirChip(c, k, pick)
-					}
-				})
-			}
-			box := ui.Column(c).FillWidth().Padding(12, 14, 10, 14).Gap(10).Radius(theme.RadiusComposer).
-				Background(k.Glass).Border(1, k.GlassLine).Shadow(0, 2, 10, 0, k.Shadow)
-			if !a.connected {
-				// As the composer's offline state: I can write, but which
-				// harnesses and models there are is known only once
-				// connected.
-				box.Border(1, k.Line2).BorderStyle(ui.BorderDashed)
-			}
-			box.Children(func() {
-				if personal {
-					ui.TextInput(c, &pick.name).Placeholder("名字").Label("伙伴的名字").Width(160).Height(26).FontSize(12).
-						Padding(0, 8).Radius(theme.RadiusControl).Border(0, ui.Transparent).Background(k.Fill)
+	width := float32(codeColumn)
+	if personal {
+		width = personalColumn
+	}
+	ui.Column(c).Grow(1).Children(func() {
+		// The title in the middle of the room above; the composer at the
+		// bottom, where a session has it.
+		ui.Box(c).Grow(1).Center().Padding(32).Children(func() {
+			theme.Display.On(ui.Text(c, title)).TextColor(k.Fg).TextAlign(ui.Center)
+		})
+		ui.Row(c).FillWidth().Justify(ui.Center).Padding(0, 0, 16, 0).Children(func() {
+			ui.Column(c).Grow(1).Shrink(1).MaxWidth(width-64).Margin(0, 16).Gap(14).Children(func() {
+				if !personal {
+					// The same context row as a session's, where the
+					// directory is chosen; the branch comes once it exists.
+					ui.Row(c).Gap(6).Margin(0, 0, -6, 0).AlignItems(ui.Center).Children(func() {
+						a.machinePill(c, k, true)
+						if a.connected { // the choice waits, hidden, for the connection
+							a.dirChip(c, k, pick)
+						}
+					})
 				}
-				draft := a.s.drafts[""]
-				hint := "要做什么？"
-				switch {
-				case !a.connected:
-					hint = "连接后才能新建会话"
-				case personal:
-					hint = "和它说第一句话…"
-				case pick.dir == "":
-					hint = "先选工作目录"
+				box := ui.Column(c).FillWidth().Padding(12, 14, 10, 14).Gap(10).Radius(theme.RadiusComposer).
+					Background(k.Glass).Border(1, k.GlassLine).Shadow(0, 2, 10, 0, k.Shadow)
+				if !a.connected {
+					// As the composer's offline state: I can write, but which
+					// harnesses and models there are is known only once
+					// connected.
+					box.Border(1, k.Line2).BorderStyle(ui.BorderDashed)
 				}
-				in := ui.TextArea(c, &draft).Lines(2, 8).MinHeight(0).Placeholder(hint).Label("消息").AutoFocus().
-					FontSize(theme.Reading.Size()).Background(ui.Transparent).Border(0, ui.Transparent).Padding(0)
-				ready := a.connected && draft != "" && pick.run.harness != "" && (personal || pick.dir != "")
-				in.OnTextKey(func(key ui.TextKey) bool {
-					if key.Key != ui.KeyEnter || key.Mods != 0 {
-						return false
+				box.Children(func() {
+					if personal {
+						ui.TextInput(c, &pick.name).Placeholder("名字").Label("伙伴的名字").Width(160).Height(26).FontSize(12).
+							Padding(0, 8).Radius(theme.RadiusControl).Border(0, ui.Transparent).Background(k.Fill)
 					}
-					if ready {
-						a.create(key.Text())
-						key.SetText("")
+					draft := a.s.drafts[""]
+					hint := "要做什么？"
+					switch {
+					case !a.connected:
+						hint = "连接后才能新建会话"
+					case personal:
+						hint = "和它说第一句话…"
+					case pick.dir == "":
+						hint = "先选工作目录"
 					}
-					return true
+					in := ui.TextArea(c, &draft).Lines(2, 8).MinHeight(0).Placeholder(hint).Label("消息").AutoFocus().
+						FontSize(theme.Reading.Size()).Background(ui.Transparent).Border(0, ui.Transparent).Padding(0)
+					ready := a.connected && draft != "" && pick.run.harness != "" && (personal || pick.dir != "")
+					in.OnTextKey(func(key ui.TextKey) bool {
+						if key.Key != ui.KeyEnter || key.Mods != 0 {
+							return false
+						}
+						if ready {
+							a.create(key.Text())
+							key.SetText("")
+						}
+						return true
+					})
+					a.s.drafts[""] = draft
+					ui.Row(c).Gap(2).AlignItems(ui.Center).Children(func() {
+						set := a.newSink()
+						a.runButton(c, k, pick.run, a.s.harnesses, set)
+						if !personal {
+							a.modeControl(c, k, pick.run, h.Capabilities, set)
+						}
+						ui.Spacer(c)
+						if round(c, k, a.icons.Send, "发送 ↩", ready).Clicked() && ready {
+							a.create(draft)
+						}
+					})
 				})
-				a.s.drafts[""] = draft
-				ui.Row(c).Gap(2).AlignItems(ui.Center).Children(func() {
-					set := a.newSink()
-					a.runButton(c, k, pick.run, a.s.harnesses, set)
-					if !personal {
-						a.modeControl(c, k, pick.run, h.Capabilities, set)
-					}
-					ui.Spacer(c)
-					if round(c, k, a.icons.Send, "发送 ↩", ready).Clicked() && ready {
-						a.create(draft)
-					}
-				})
+				if !personal && a.connected && pick.dir == "" {
+					a.recentLine(c, k, pick)
+				}
 			})
-			if !personal && a.connected && pick.dir == "" {
-				a.recentLine(c, k, pick)
-			}
 		})
 	})
 }
