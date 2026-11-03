@@ -148,7 +148,7 @@ func TestApprovalInComposer(t *testing.T) {
 	a, h, tt, _ := newApp(t)
 	selectRunning(t, a, tt, proto.ApprovalRequested{ID: "a1", Kind: proto.ApprovalCommand, Title: "Run go test", Detail: "go test -race ./...",
 		Options: []proto.ApprovalOption{{ID: "once", Label: "Allow once", Scope: proto.ScopeOnce}, {ID: "always", Label: "Always allow", Scope: proto.ScopeAlways}, {ID: "no", Label: "Deny", Scope: proto.ScopeDeny}}})
-	for _, want := range []string{"运行命令", "1 / 1", "go test -race ./...", "Allow once", "Always allow", "Deny"} {
+	for _, want := range []string{"运行命令", "1 / 1", "go test -race ./...", "允许一次", "总是允许", "拒绝"} {
 		if !tt.HasText(want) {
 			t.Fatalf("no %q in %q", want, tt.Texts())
 		}

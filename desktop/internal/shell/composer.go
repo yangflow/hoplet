@@ -257,7 +257,7 @@ func (a *App) approvalBody(c *ui.Context, k theme.Colors, s proto.Session, ap pr
 		ui.Text(c, ap.Detail).Font(theme.Mono).FontSize(12.5).TextColor(k.Fg2).FontFeatures("liga=0").MaxLines(8).
 			Padding(8, 10).Radius(theme.RadiusCard).Background(k.Fill).FillWidth().Selectable()
 	}
-	a.options(c, k, len(ap.Options), func(i int) string { return ap.Options[i].Label }, func(i int) {
+	a.options(c, k, len(ap.Options), func(i int) string { return optionName(ap.Options[i]) }, func(i int) {
 		a.s.pick = i
 		a.decide(s, ap, "")
 	})

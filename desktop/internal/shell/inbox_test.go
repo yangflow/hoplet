@@ -120,7 +120,7 @@ func TestInboxApprove(t *testing.T) {
 	if !slices.Contains(h.asked, "s2") || slices.Contains(h.asked, "s1") {
 		t.Fatalf("asked for %v", h.asked)
 	}
-	for _, want := range []string{"需要你 · 1", "Add tray", "go test ./...", "允许一次", "本会话总是允许 go test", "拒绝", "studio · /w/hoplet"} {
+	for _, want := range []string{"需要你 · 1", "Add tray", "go test ./...", "允许一次", "本会话总是允许", "拒绝", "studio · /w/hoplet"} {
 		if !tt.HasText(want) {
 			t.Fatalf("no %q in %q", want, tt.Texts())
 		}
@@ -207,5 +207,27 @@ func TestInboxEmpty(t *testing.T) {
 	tt.Frame()
 	if !tt.HasText("没有要你处理的事") {
 		t.Fatalf("no empty state in %q", tt.Texts())
+	}
+}
+
+// No card shows selected until the keys choose one, the column sits in the
+// middle, and options read in the UI's words.
+func TestInboxLook(t *testing.T) {
+	a, _, tt := inboxApp(t)
+	if a.s.inboxSel != -1 {
+		t.Fatalf("a card selected before any key: %d", a.s.inboxSel)
+	}
+	tt.Key(0, ui.KeyDown)
+	if a.s.inboxSel != 0 {
+		t.Fatalf("↓ selected %d", a.s.inboxSel)
+	}
+	tt.SetSize(1400, 800)
+	tt.Frame()
+	r, ok := tt.Find("想运行命令")
+	if !ok {
+		t.Fatal("no approval card")
+	}
+	if mid := a.side + (1400-a.side)/2; r.X < mid-380-20 || r.X > mid-380+60 {
+		t.Fatalf("the card's text starts at %v, the column's middle is %v", r.X, mid)
 	}
 }

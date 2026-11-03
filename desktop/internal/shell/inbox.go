@@ -183,39 +183,43 @@ func (a *App) inboxPage(c *ui.Context, k theme.Colors) {
 	for _, sec := range secs {
 		flat = append(flat, sec.items...)
 	}
+	// No card shows selected until the keys choose one; until then they
+	// act on the first.
 	a.s.inboxSel = min(a.s.inboxSel, len(flat)-1)
-	sel := flat[a.s.inboxSel]
+	sel := flat[max(a.s.inboxSel, 0)]
 	ui.Scroll(c).Grow(1).Children(func() {
-		col := ui.Column(c).FillWidth().MaxWidth(760).Margin(0, 24).Padding(4, 0, 20, 0).Gap(8).
-			Focusable().FocusRing(false).Role(ui.RoleList).Label("收件箱")
-		if a.s.inboxFocus {
-			col.Focus()
-			a.s.inboxFocus = false
-		}
-		switch {
-		case col.Shortcut(0, ui.KeyUp):
-			a.s.inboxSel = max(a.s.inboxSel-1, 0)
-		case col.Shortcut(0, ui.KeyDown):
-			a.s.inboxSel = min(a.s.inboxSel+1, len(flat)-1)
-		case col.Shortcut(0, ui.KeyEnter):
-			a.openFromInbox(sel)
-		}
-		for i, key := range []ui.Key{ui.Key1, ui.Key2, ui.Key3} {
-			if col.Shortcut(0, key) {
-				if opts := inboxOptions(sel.approval); i < len(opts) {
-					a.inboxDecide(sel, opts[i])
+		ui.Row(c).FillWidth().Justify(ui.Center).Padding(0, 24).Children(func() {
+			col := ui.Column(c).Grow(1).Shrink(1).MaxWidth(760).Padding(4, 0, 20, 0).Gap(8).
+				Focusable().FocusRing(false).Role(ui.RoleList).Label("收件箱")
+			if a.s.inboxFocus {
+				col.Focus()
+				a.s.inboxFocus = false
+			}
+			switch {
+			case col.Shortcut(0, ui.KeyUp):
+				a.s.inboxSel = max(a.s.inboxSel-1, 0)
+			case col.Shortcut(0, ui.KeyDown):
+				a.s.inboxSel = min(a.s.inboxSel+1, len(flat)-1)
+			case col.Shortcut(0, ui.KeyEnter):
+				a.openFromInbox(sel)
+			}
+			for i, key := range []ui.Key{ui.Key1, ui.Key2, ui.Key3} {
+				if col.Shortcut(0, key) {
+					if opts := inboxOptions(sel.approval); i < len(opts) {
+						a.inboxDecide(sel, opts[i])
+					}
 				}
 			}
-		}
-		col.Children(func() {
-			n := 0
-			for _, sec := range secs {
-				a.inboxHeader(c, k, sec)
-				for _, it := range sec.items {
-					a.inboxCard(c, k, it, n)
-					n++
+			col.Children(func() {
+				n := 0
+				for _, sec := range secs {
+					a.inboxHeader(c, k, sec)
+					for _, it := range sec.items {
+						a.inboxCard(c, k, it, n)
+						n++
+					}
 				}
-			}
+			})
 		})
 	})
 }
@@ -335,7 +339,8 @@ func (a *App) inboxBody(c *ui.Context, k theme.Colors, it inboxItem) {
 		}
 		ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
 			for i, o := range inboxOptions(ap) {
-				b := ui.Button(c.Key(o.ID), "").Label(o.Label).Height(theme.RowHeight).Padding(0, 10, 0, 6).Gap(6).
+				label := optionName(o)
+				b := ui.Button(c.Key(o.ID), "").Label(label).Tooltip(o.Label).Height(theme.RowHeight).Padding(0, 10, 0, 6).Gap(6).
 					Radius(theme.RadiusControl).Border(0, ui.Transparent).Background(k.Fill)
 				fg := k.Fg
 				if i == 0 && o.Scope != proto.ScopeDeny {
@@ -347,7 +352,7 @@ func (a *App) inboxBody(c *ui.Context, k theme.Colors, it inboxItem) {
 				}
 				b.Children(func() {
 					ui.Textf(c, "%d", i+1).FontSize(10.5).TextColor(fg).Padding(0, 4).Radius(4).Background(k.Fill2)
-					theme.UI.On(ui.Text(c, o.Label)).TextColor(fg).SingleLine()
+					theme.UI.On(ui.Text(c, label)).TextColor(fg).SingleLine()
 				})
 			}
 		})
@@ -410,6 +415,22 @@ func inboxOptions(ap *proto.ApprovalRequested) []proto.ApprovalOption {
 	return out
 }
 
+// optionName names an approval option in the UI's words by what it
+// does; the harness's own label otherwise.
+func optionName(o proto.ApprovalOption) string {
+	switch o.Scope {
+	case proto.ScopeOnce:
+		return "允许一次"
+	case proto.ScopeSession:
+		return "本会话总是允许"
+	case proto.ScopeAlways:
+		return "总是允许"
+	case proto.ScopeDeny:
+		return "拒绝"
+	}
+	return o.Label
+}
+
 // inboxDecide answers an approval from its card, sending it to the card's
 // machine, and leaves a line of what was decided; the selection moves on.
 func (a *App) inboxDecide(it inboxItem, o proto.ApprovalOption) {
@@ -417,15 +438,8 @@ func (a *App) inboxDecide(it inboxItem, o proto.ApprovalOption) {
 		return
 	}
 	a.host.Respond(proto.RespondParams{Session: it.session.ID, Approval: it.approval.ID, Option: o.ID, Key: "desktop-" + rand.Text()})
-	done := "已" + o.Label
-	switch o.Scope {
-	case proto.ScopeOnce:
-		done = "已允许一次"
-	case proto.ScopeDeny:
-		done = "已拒绝"
-	}
-	a.s.inboxDone[it.approval.ID] = done
-	a.s.inboxSel++
+	a.s.inboxDone[it.approval.ID] = "已" + optionName(o)
+	a.s.inboxSel = max(a.s.inboxSel, 0) + 1
 }
 
 // pruneDone forgets the decisions shown for approvals that no session

@@ -44,7 +44,7 @@ type sessionView struct {
 	inboxPending map[proto.SessionID][]proto.ApprovalRequested // approvals of sessions waiting on me, as last read
 	inboxAsked   map[proto.SessionID]uint64                    // the session version each was read at
 	inboxDone    map[string]string                             // what I decided, by approval, until it goes
-	inboxSel     int                                           // the selected inbox card
+	inboxSel     int                                           // the card the keys chose, -1 before they choose one
 	inboxFocus   bool                                          // the inbox takes the focus this frame
 	palOpen      bool                                          // the command palette shows
 	palQuery     string                                        // what the palette searches for

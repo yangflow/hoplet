@@ -242,7 +242,7 @@ func (a *App) OpenInbox() {
 
 func (a *App) showInbox() {
 	a.inbox, a.selected, a.s.newPage = true, "", false
-	a.s.inboxSel, a.s.inboxFocus = 0, true
+	a.s.inboxSel, a.s.inboxFocus = -1, true
 }
 
 // open selects a session without recording it; it reports whether the
