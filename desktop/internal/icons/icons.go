@@ -1,21 +1,26 @@
 // Package icons embeds the desktop's vendored icons: a subset of Lucide
-// (ISC), the Claude mark from Simple Icons (CC0) and Hoplet's own mark.
-// Licenses sit beside the files.
+// (ISC), file-type icons from Material Icon Theme (MIT), the Claude mark
+// from Simple Icons (CC0) and Hoplet's own mark. Licenses sit beside the
+// files.
 package icons
 
 import (
 	"embed"
 	"fmt"
+	"io/fs"
+	"path"
+	"strings"
 
 	"github.com/egoist/mygo/ui"
 )
 
-//go:embed lucide/*.svg simpleicons/*.svg brand/*.svg tray/*.png
+//go:embed lucide/*.svg material/*.svg simpleicons/*.svg brand/*.svg tray/*.png
 var files embed.FS
 
 // Set holds the parsed icons. Build it once with Load and share it.
 type Set struct {
-	Sidebar   *ui.SVG // collapse or show the sidebar
+	files     map[string]*ui.SVG // file-type icons, by Material Icon Theme name
+	Sidebar   *ui.SVG            // collapse or show the sidebar
 	Back      *ui.SVG
 	Forward   *ui.SVG
 	Personal  *ui.SVG // Personal mode
@@ -145,6 +150,20 @@ func Load() (*Set, error) {
 			return nil, fmt.Errorf("icons: parse %s: %w", f.path, err)
 		}
 	}
+	names, err := fs.Glob(files, "material/*.svg")
+	if err != nil {
+		return nil, fmt.Errorf("icons: %w", err)
+	}
+	s.files = make(map[string]*ui.SVG, len(names))
+	for _, n := range names {
+		data, err := files.ReadFile(n)
+		if err != nil {
+			return nil, fmt.Errorf("icons: %w", err)
+		}
+		if s.files[strings.TrimSuffix(path.Base(n), ".svg")], err = ui.ParseSVG(data); err != nil {
+			return nil, fmt.Errorf("icons: parse %s: %w", n, err)
+		}
+	}
 	return s, nil
 }
 
@@ -176,3 +195,65 @@ func Tray(s TrayState) []byte {
 	data, _ := files.ReadFile(trayFile(s))
 	return data
 }
+
+// fileKind is the Material Icon Theme name of a file's icon, by its whole
+// lowercased name, then its extension, else a plain document.
+func fileKind(base string) string {
+	switch base {
+	case "go.mod", "go.sum":
+		return "go-mod"
+	case "makefile":
+		return "makefile"
+	case "dockerfile":
+		return "docker"
+	case ".gitignore", ".gitattributes", ".gitmodules":
+		return "git"
+	}
+	switch ext := path.Ext(base); ext {
+	case ".go", ".swift", ".json", ".toml", ".html", ".css", ".xml", ".lock", ".java", ".php", ".vue", ".svelte", ".proto":
+		return ext[1:]
+	case ".ts":
+		return "typescript"
+	case ".tsx":
+		return "react_ts"
+	case ".js", ".mjs", ".cjs":
+		return "javascript"
+	case ".jsx":
+		return "react"
+	case ".py":
+		return "python"
+	case ".rs":
+		return "rust"
+	case ".md":
+		return "markdown"
+	case ".yaml", ".yml":
+		return "yaml"
+	case ".sh", ".bash", ".zsh":
+		return "console"
+	case ".scss", ".sass":
+		return "sass"
+	case ".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp":
+		return "image"
+	case ".sql", ".db":
+		return "database"
+	case ".c", ".h":
+		return "c"
+	case ".cpp", ".cc", ".hpp":
+		return "cpp"
+	case ".kt":
+		return "kotlin"
+	case ".rb":
+		return "ruby"
+	case ".ini", ".conf", ".cfg":
+		return "settings"
+	}
+	return "document"
+}
+
+// FileType returns the icon of a file by its name, in its own colors.
+func (s *Set) FileType(name string) *ui.SVG {
+	return s.files[fileKind(strings.ToLower(path.Base(name)))]
+}
+
+// FolderType is the icon of a folder, in its own colors.
+func (s *Set) FolderType() *ui.SVG { return s.files["folder-base"] }

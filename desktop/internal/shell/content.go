@@ -107,7 +107,7 @@ func (a *App) details(c *ui.Context, k theme.Colors, s proto.Session) {
 	}
 	a.detailBlock(c, k, "", []detail{
 		{icon: a.icons.Machine, value: a.machine},
-		{icon: a.icons.Folder, value: tilde(s.Directory), tip: s.Directory, mono: true, end: func() {
+		{image: a.icons.FolderType(), value: tilde(s.Directory), tip: s.Directory, mono: true, end: func() {
 			if iconButton(c, k, a.icons.Folder, "在 Finder 中显示", false).Size(24, 24).Clicked() {
 				a.host.Reveal(s.Directory)
 			}
@@ -134,6 +134,7 @@ func (a *App) details(c *ui.Context, k theme.Colors, s proto.Session) {
 // its version, a value and maybe a button at its end.
 type detail struct {
 	icon    *ui.SVG
+	image   *ui.SVG // an icon in its own colors, as a folder's
 	harness string
 	version string
 	value   string
@@ -156,9 +157,12 @@ func (a *App) detailBlock(c *ui.Context, k theme.Colors, title string, rows []de
 		}
 		for i, d := range rows {
 			ui.Row(c.Key(i)).Height(32).Padding(0, 12).Gap(10).AlignItems(ui.Center).Children(func() {
-				if d.harness != "" {
+				switch {
+				case d.harness != "":
 					a.harnessIcon(c, k, d.harness, theme.IconSizeInRow)
-				} else {
+				case d.image != nil:
+					ui.Image(c, d.image).Size(theme.IconSizeInRow, theme.IconSizeInRow)
+				default:
 					ui.Icon(c, d.icon).FontSize(theme.IconSizeInRow).TextColor(k.Fg3)
 				}
 				tip := d.tip

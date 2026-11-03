@@ -110,7 +110,7 @@ flowchart LR
 
 **间距与圆角：** 4 的倍数。圆角：行 6 · 控件 7 · 卡片与弹层 10 · 大卡片 14 · 输入框与气泡 18 · 胶囊 999。高度：行 28、密集行 24、标题栏 44。
 
-**图标：** 界面用 Lucide（16 网格、1.4 描边、跟随文字色；尺寸 12 / 14 / 16 / 20；图标按钮 28，密集处 24；必须有悬停提示"名称 快捷键"）。审批档位用 Lucide 盾牌：shield-question-mark、shield-half、shield-check、shield-off。文件类型用 Material Icon Theme 彩色图标。harness：Claude 用 Simple Icons 单色标志，Codex、Hermes 用首字母占位；名字写正式名 Claude Code、Codex、Hermes，不写内部代号。
+**图标：** 界面用 Lucide（16 网格、1.4 描边、跟随文字色；尺寸 12 / 14 / 16 / 20；图标按钮 28，密集处 24；必须有悬停提示"名称 快捷键"）。审批档位用 Lucide 盾牌：shield-question-mark、shield-half、shield-check、shield-off。文件类型用 Material Icon Theme 彩色图标（官方 SVG 原样放在 `desktop/internal/icons/material/`，MIT），保留原色：工具行里读取 / 编辑的文件、改动卡片的每个文件前 14；会话详情的目录行用它的文件夹图标；正文里的文件链接不加（Markdown 行内插图标要绕开 MyGO 的渲染）。harness：Claude 用 Simple Icons 单色标志，Codex、Hermes 用首字母占位；名字写正式名 Claude Code、Codex、Hermes，不写内部代号。
 
 **标志：** 小写 h（竖笔胶囊 + 肩与右腿连成的倒 L），右上一块圆角方块跳出、转 14°，方块是品牌青。深色图标：石墨渐变底 #3A3F47→#15181C、主体 #F4F4F5、方块 #3CC4C9；浅色图标：#FFFFFF→#E7EAEE、主体 #23272D、方块 #066A70。菜单栏、标签页、通知用单色剪影（方块 42% 不透明）。
 

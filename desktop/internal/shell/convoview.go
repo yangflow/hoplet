@@ -541,10 +541,12 @@ func (a *App) workStep(c *ui.Context, k theme.Colors, s proto.Session, e convo.E
 				ui.Icon(c, icon).FontSize(theme.IconSizeInRow).TextColor(k.Fg3)
 			}
 			theme.UI.On(ui.Text(c, verb)).TextColor(k.Fg).FontWeight(500)
-			// A file stands out in the accent; a command or a query does not.
+			// A file stands out in the accent after its type's icon; a
+			// command or a query does not.
 			object := k.Fg3
 			if tc.Kind == proto.ToolRead || tc.Kind == proto.ToolEdit {
 				object = k.AccentFg
+				ui.Image(c, a.icons.FileType(tc.Summary)).Size(theme.IconSizeInRow, theme.IconSizeInRow)
 			}
 			ui.Text(c, firstLine(tc.Summary)).Font(theme.Mono).FontSize(12).TextColor(object).FontFeatures("liga=0").SingleLine().Shrink(1)
 			if failed {
@@ -816,6 +818,7 @@ func (a *App) changes(c *ui.Context, k theme.Colors, s proto.Session, it convo.I
 			}
 			r.Children(func() {
 				ui.Text(c, opLetter(f.Op)).Font(theme.Mono).FontSize(12).TextColor(k.Muted).Width(12)
+				ui.Image(c, a.icons.FileType(f.Path)).Size(theme.IconSizeInRow, theme.IconSizeInRow)
 				ui.Text(c, relPath(s.Directory, f.Path)).Font(theme.Mono).FontSize(12).TextColor(k.AccentFg).SingleLine().Grow(1).Shrink(1)
 				if st := stats[i]; st != nil {
 					lines(c, k, st.Additions, st.Deletions)

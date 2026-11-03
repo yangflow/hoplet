@@ -115,3 +115,25 @@ func TestLoad(t *testing.T) {
 		}
 	}
 }
+
+func TestFileType(t *testing.T) {
+	s, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct{ name, want string }{
+		{"cmd/main.go", "go"}, {"go.mod", "go-mod"}, {"Makefile", "makefile"}, {"web/App.TSX", "react_ts"}, {"notes", "document"},
+	} {
+		if got := s.FileType(tc.name); got == nil || got != s.files[tc.want] {
+			t.Errorf("%s: not the %s icon", tc.name, tc.want)
+		}
+	}
+	for _, name := range strings.Fields("a.go a.swift a.json a.toml a.html a.css a.xml a.lock a.java a.php a.vue a.svelte a.proto a.ts a.js a.jsx a.py a.rs a.md a.yml a.sh a.scss a.png a.sql a.c a.cpp a.kt a.rb a.ini Dockerfile .gitignore") {
+		if s.FileType(name) == nil {
+			t.Errorf("%s has no icon file", name)
+		}
+	}
+	if s.FolderType() == nil {
+		t.Error("no folder icon")
+	}
+}
