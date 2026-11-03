@@ -331,15 +331,16 @@ func renderMarkdown(c *ui.Context, it convo.Item, o *markdown.Options) ui.Elemen
 	return markdown.View(c, it.Text, o)
 }
 
-// mdTheme is the Markdown look: reading size, the code font, the accent
-// only for links.
+// mdTheme is the Markdown look: reading size, the code font; what stands
+// out (links, code spans) takes the accent, code spans on a faint accent
+// tint.
 func mdTheme(c *ui.Context, k theme.Colors) *markdown.Theme {
 	th := markdown.DefaultTheme(c.Theme())
 	th.FontSize = theme.Reading.Size()
 	th.LineHeight = 22 / theme.Reading.Size()
 	th.CodeFont = theme.Mono
 	th.Text, th.Muted, th.Link = k.Fg, k.Muted, k.AccentFg
-	th.CodeBackground = k.Fill
+	th.Code, th.CodeBackground = k.AccentFg, k.AccentFg.Alpha(0.08)
 	th.CodeBlockBackground, th.CodeBlockBorder, th.CodeBlockRadius = k.Bg, k.Line, theme.RadiusCard
 	return th
 }
@@ -540,7 +541,12 @@ func (a *App) workStep(c *ui.Context, k theme.Colors, s proto.Session, e convo.E
 				ui.Icon(c, icon).FontSize(theme.IconSizeInRow).TextColor(k.Fg3)
 			}
 			theme.UI.On(ui.Text(c, verb)).TextColor(k.Fg).FontWeight(500)
-			ui.Text(c, firstLine(tc.Summary)).Font(theme.Mono).FontSize(12).TextColor(k.Fg3).FontFeatures("liga=0").SingleLine().Shrink(1)
+			// A file stands out in the accent; a command or a query does not.
+			object := k.Fg3
+			if tc.Kind == proto.ToolRead || tc.Kind == proto.ToolEdit {
+				object = k.AccentFg
+			}
+			ui.Text(c, firstLine(tc.Summary)).Font(theme.Mono).FontSize(12).TextColor(object).FontFeatures("liga=0").SingleLine().Shrink(1)
 			if failed {
 				// Right after what failed; "✕ 退出码 N" once harnesses
 				// report the exit code.
@@ -810,7 +816,7 @@ func (a *App) changes(c *ui.Context, k theme.Colors, s proto.Session, it convo.I
 			}
 			r.Children(func() {
 				ui.Text(c, opLetter(f.Op)).Font(theme.Mono).FontSize(12).TextColor(k.Muted).Width(12)
-				ui.Text(c, relPath(s.Directory, f.Path)).Font(theme.Mono).FontSize(12).TextColor(k.Fg).SingleLine().Grow(1).Shrink(1)
+				ui.Text(c, relPath(s.Directory, f.Path)).Font(theme.Mono).FontSize(12).TextColor(k.AccentFg).SingleLine().Grow(1).Shrink(1)
 				if st := stats[i]; st != nil {
 					lines(c, k, st.Additions, st.Deletions)
 				}
