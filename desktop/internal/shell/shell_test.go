@@ -19,6 +19,7 @@ import (
 // host records what the shell asks for; calls holds the 9b requests as
 // the parameters they were given.
 type host struct {
+	sendErr    error // what Send answers
 	diffs      map[proto.SessionID]proto.SessionDiff
 	reconnects int
 	updates    []proto.UpdateParams
@@ -44,9 +45,12 @@ func (h *host) Create(p proto.CreateParams, done func(proto.Session)) {
 	h.calls = append(h.calls, p)
 	h.created = done
 }
-func (h *host) Send(p proto.SendParams) {
+func (h *host) Send(p proto.SendParams, done func(error)) {
 	p.Key = "" // random
 	h.calls = append(h.calls, p)
+	if done != nil {
+		done(h.sendErr)
+	}
 }
 func (h *host) Steer(p proto.SteerParams)                 { h.calls = append(h.calls, p) }
 func (h *host) Interrupt(id proto.SessionID)              { h.calls = append(h.calls, "interrupt "+string(id)) }

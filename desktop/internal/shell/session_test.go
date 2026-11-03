@@ -66,8 +66,20 @@ func TestCodeConversation(t *testing.T) {
 		proto.TurnEnded{Reason: proto.TurnCompleted},
 	)}})
 	tt.Frame()
+	// The finished turn's steps fold into one line over its reply.
+	if tt.HasText("go test ./...") || !tt.HasText("思考 1 次 · 读取 1 个文件 · 运行 1 条命令") {
+		t.Fatalf("the group stays open: %q", tt.Texts())
+	}
+	if err := tt.Click("思考 1 次 · 读取 1 个文件 · 运行 1 条命令"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if err := tt.Click("go test ./..."); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
 	tt.Frame() // the failed call's output arrives
-	for _, want := range []string{"fix the heartbeat", "思考 · 读取 1 个文件 · 运行 1 条命令", "✕ 1 个失败", "go test ./...",
+	for _, want := range []string{"fix the heartbeat", "思考过程", "✕ 1 个失败", "go test ./...",
 		"FAIL bridge_test.go:12\nexit status 1", "已允许", "Run go test", "改了 1 个文件", "bridge.go"} {
 		if !tt.HasText(want) {
 			t.Errorf("no %q in %q", want, tt.Texts())
@@ -457,11 +469,17 @@ func TestOutputFolds(t *testing.T) {
 	a.ApplySession("s1", proto.SessionItem{Snapshot: &proto.SessionSnapshot{Events: events(t, tt.Now(), 1, 1,
 		proto.Message{ID: "k1", Role: proto.RoleUser, Text: "go"},
 		proto.TurnStarted{},
-		proto.ToolCall{ID: "t1", Kind: proto.ToolExec, Name: "Bash", Summary: "a", Status: proto.ToolFailed, Output: out},
-		proto.ToolCall{ID: "t2", Kind: proto.ToolExec, Name: "Bash", Summary: "b", Status: proto.ToolFailed, Output: out},
+		proto.ToolCall{ID: "t1", Kind: proto.ToolExec, Name: "Bash", Summary: "make a", Status: proto.ToolFailed, Output: out},
+		proto.ToolCall{ID: "t2", Kind: proto.ToolExec, Name: "Bash", Summary: "make b", Status: proto.ToolFailed, Output: out},
 		proto.TurnEnded{Reason: proto.TurnCompleted},
 	)}})
 	tt.Frame()
+	for _, open := range []string{"运行 2 条命令", "make a", "make b"} {
+		if err := tt.Click(open); err != nil {
+			t.Fatal(err)
+		}
+		tt.Frame()
+	}
 	tt.Frame()
 	for _, want := range []string{"还有 18 行", "输出超过 64 KB，只显示开头"} {
 		if !tt.HasText(want) {
@@ -602,6 +620,16 @@ func TestToolRowStates(t *testing.T) {
 		proto.ToolCall{ID: "t3", Kind: proto.ToolWeb, Name: "WebFetch", Summary: "https://example.com/slow", Status: proto.ToolRunning},
 	)
 	tt.Frame()
+	// Only the newest step opens by itself; the failed ones open on a click.
+	if tt.HasText("失败，harness 没给出原因") {
+		t.Fatalf("an earlier step opened by itself: %q", tt.Texts())
+	}
+	for _, open := range []string{"https://example.com", long} {
+		if err := tt.Click(open); err != nil {
+			t.Fatal(err)
+		}
+		tt.Frame()
+	}
 	for _, want := range []string{"失败，harness 没给出原因", "没取到输出：连接断了", long} {
 		if !tt.HasText(want) {
 			t.Errorf("no %q in %q", want, tt.Texts())
@@ -620,6 +648,10 @@ func TestToolRowStates(t *testing.T) {
 		t.Fatalf("a running tool is unfinished while its turn runs: %q", tt.Texts())
 	}
 	a.ApplySession("s1", proto.SessionItem{Events: events(t, tt.Now(), 6, 1, proto.TurnEnded{Reason: proto.TurnInterrupted})})
+	tt.Frame()
+	if err := tt.Click("抓取 2 个网页 · 运行 1 条命令"); err != nil {
+		t.Fatal(err)
+	}
 	tt.Frame()
 	if !tt.HasText("未完成") {
 		t.Fatalf("no 未完成 after the turn ended: %q", tt.Texts())
@@ -880,6 +912,10 @@ func TestApprovalRecordLine(t *testing.T) {
 		proto.TurnEnded{Reason: proto.TurnCompleted},
 	)}})
 	tt.Frame()
+	if err := tt.Click("审批 1 次"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
 	label, ok := tt.Find("已允许")
 	title, ok2 := tt.Find(long)
 	if !ok || !ok2 || label.H > 20 || title.H > 20 {
@@ -909,5 +945,72 @@ func TestNewSessionStartsAtOnce(t *testing.T) {
 	tt.Frame()
 	if !tt.HasText("add a tray") || !tt.HasText("正在启动 Claude Code") {
 		t.Fatalf("the new session waits blank: %q", tt.Texts())
+	}
+}
+
+// A running turn's group is open with only its newest step open; notes
+// between steps join it; the finished turn folds to one line over its
+// reply.
+func TestTurnGroup(t *testing.T) {
+	a, _, tt, _ := newApp(t)
+	tt.SetSize(1200, 900)
+	selectRunning(t, a, tt,
+		proto.Thinking{Text: "first thought"},
+		proto.Message{ID: "n1", Role: proto.RoleAssistant, Text: "Looking at the bridge."},
+		proto.ToolCall{ID: "t1", Kind: proto.ToolRead, Name: "Read", Summary: "bridge.go", Status: proto.ToolDone},
+		proto.Thinking{Text: "second thought"},
+	)
+	tt.Frame()
+	for _, want := range []string{"思考 2 次 · 写了 1 段说明 · 读取 1 个文件", "说明", "Looking at the bridge.", "second thought"} {
+		if !tt.HasText(want) {
+			t.Fatalf("no %q in %q", want, tt.Texts())
+		}
+	}
+	if tt.HasText("first thought") {
+		t.Fatalf("an earlier step is open: %q", tt.Texts())
+	}
+	a.ApplySession("s1", proto.SessionItem{Events: events(t, tt.Now(), 7, 1,
+		proto.Message{ID: "m1", Role: proto.RoleAssistant, Text: "Done."},
+		proto.TurnEnded{Reason: proto.TurnCompleted},
+	)})
+	tt.Frame()
+	if tt.HasText("second thought") || tt.HasText("Looking at the bridge.") || !tt.HasText("Done.") {
+		t.Fatalf("the finished group stays open: %q", tt.Texts())
+	}
+}
+
+// A message that did not go out stays, faded, over why and 重试; a retry
+// that goes through shows it starting again.
+func TestSendFails(t *testing.T) {
+	a, h, tt, _ := newApp(t)
+	a.SetHarnesses([]proto.HarnessInfo{claudeHarness()})
+	a.Select("s1")
+	tt.Frame()
+	h.sendErr = errors.New("Hoplet 托管的 claude 没有安装")
+	if err := tt.Click("消息"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Type("add a tray")
+	tt.Key(0, ui.KeyEnter)
+	tt.Frame()
+	if !tt.HasText("add a tray") || !tt.HasText("没能启动 Claude Code：Hoplet 托管的 claude 没有安装") || tt.HasText("正在启动 Claude Code") {
+		t.Fatalf("no failure bar: %q", tt.Texts())
+	}
+	h.sendErr = nil
+	if err := tt.Click("重试"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if tt.HasText("没能启动 Claude Code：Hoplet 托管的 claude 没有安装") || !tt.HasText("正在启动 Claude Code") {
+		t.Fatalf("the retry did not go: %q", tt.Texts())
+	}
+	n := 0
+	for _, c := range h.calls {
+		if p, ok := c.(proto.SendParams); ok && p.Text == "add a tray" {
+			n++
+		}
+	}
+	if n != 2 {
+		t.Fatalf("sent %d times", n)
 	}
 }

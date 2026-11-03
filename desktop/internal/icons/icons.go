@@ -64,6 +64,7 @@ type Set struct {
 	Send      *ui.SVG
 	Stop      *ui.SVG
 	Expand    *ui.SVG // a folded group or row
+	Note      *ui.SVG // text written between a turn's steps
 	Fast      *ui.SVG
 	Ultracode *ui.SVG // Ultracode: workflows of agents
 	Close     *ui.SVG
@@ -130,6 +131,7 @@ func Load() (*Set, error) {
 		{&s.Send, "lucide/arrow-up.svg"},
 		{&s.Stop, "lucide/square.svg"},
 		{&s.Expand, "lucide/chevron-right.svg"},
+		{&s.Note, "lucide/message-circle.svg"},
 		{&s.Fast, "lucide/zap.svg"},
 		{&s.Ultracode, "lucide/workflow.svg"},
 		{&s.Close, "lucide/x.svg"},

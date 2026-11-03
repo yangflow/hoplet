@@ -161,13 +161,41 @@ func (a *App) send(s proto.Session, text string) {
 		// harness), it shows as sent.
 		a.conv(s.ID).Echo(p.Key, text, time.Now())
 	}
-	a.host.Send(p)
+	a.sendEcho(s, p)
+}
+
+// sendEcho sends a message shown as sent. One that does not go out stays,
+// faded over why, in a Code session; a Personal one goes, as its chat has
+// no place for why.
+func (a *App) sendEcho(s proto.Session, p proto.SendParams) {
+	cv := a.conv(s.ID)
+	a.host.Send(p, func(err error) {
+		switch {
+		case err == nil:
+			cv.Unsent(p.Key, "") // as when the note's retry sent it
+		case s.Mode == proto.ModePersonal:
+			cv.Unecho()
+		default:
+			cv.Unsent(p.Key, err.Error())
+		}
+	})
+}
+
+// resend sends again the message that did not go out, under its key.
+func (a *App) resend(s proto.Session) {
+	cv := a.conv(s.ID)
+	text, key, _, ok := cv.Failed()
+	if !ok {
+		return
+	}
+	cv.Unsent(key, "")
+	a.sendEcho(s, proto.SendParams{Session: s.ID, Text: text, Key: key})
 }
 
 // flushOutbox sends what was written while offline, in order.
 func (a *App) flushOutbox() {
 	for _, p := range a.s.outbox {
-		a.host.Send(p)
+		a.host.Send(p, nil)
 	}
 	a.s.outbox = nil
 }

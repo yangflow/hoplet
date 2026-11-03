@@ -28,25 +28,24 @@ const (
 func (a *App) conversation(c *ui.Context, k theme.Colors, s proto.Session) {
 	cv := a.conv(s.ID)
 	personal := s.Mode == proto.ModePersonal
-	width, gap := float32(codeColumn), float32(14)
+	width := float32(codeColumn)
 	if personal {
-		width, gap = personalColumn, 10
+		width = personalColumn
 	}
 	sc := &a.s.scroll
 	atEnd := sc.Y >= sc.MaxY-4
 	ui.Box(c).Grow(1).Children(func() {
 		ui.Scroll(c).Fill().TrackScroll(sc).Children(func() {
 			ui.Row(c).FillWidth().Justify(ui.Center).Children(func() {
-				ui.Column(c).Width(width).Padding(20, 32, 24, 32).Gap(gap).Children(func() {
+				ui.Column(c).Width(width).Padding(24, 32, 32, 32).Children(func() {
 					if more, first := cv.More(); more && a.older(c, k) {
 						a.host.Older(s.ID, first, func(p proto.EventsPage) { cv.Prepend(p) })
 					}
-					items := cv.Items()
 					if personal {
-						a.chat(c, k, s, items, cv.Running() || cv.Starting())
+						a.chat(c, k, s, cv.Items(), cv.Running() || cv.Starting())
 						return
 					}
-					a.items(c, k, s, items, cv)
+					a.items(c, k, s, cv)
 				})
 			})
 		})
@@ -83,29 +82,79 @@ func (a *App) older(c *ui.Context, k theme.Colors) bool {
 	return b.Clicked()
 }
 
-// items draws a Code conversation. Turns are not marked: your messages part
-// them, and only a turn on another day than the one before it gets a day
-// line. While a turn runs, a working row ends it.
-func (a *App) items(c *ui.Context, k theme.Colors, s proto.Session, items []convo.Item, cv *convo.Convo) {
+// items draws a Code conversation, a turn's steps in one work group.
+// Turns are not marked: your messages part them, and only a turn on
+// another day than the one before it gets a day line. While a turn runs, a
+// working row ends it. A turn starts 24 below the one before, what answers
+// your message 16 below it, and the blocks of an answer stand 12 apart;
+// the working row is 8 under a work group.
+func (a *App) items(c *ui.Context, k theme.Colors, s proto.Session, cv *convo.Convo) {
+	items := cv.Grouped()
 	var day string
 	var turn time.Time
+	prev := convo.Kind(-1)
+	space := func(key string, next convo.Kind, steer bool) {
+		g := float32(12)
+		switch {
+		case prev < 0:
+			g = 0
+		case prev == convo.KindTurn: // under a day line
+			g = 16
+		case next == convo.KindMine && !steer:
+			g = 24
+		case prev == convo.KindMine:
+			g = 16
+		case next < 0 && prev == convo.KindWork:
+			g = 8
+		}
+		if g > 0 {
+			ui.Box(c.Key("gap:" + key)).Height(g).Shrink(0)
+		}
+		prev = next
+	}
 	for _, it := range items {
 		if it.Kind == convo.KindTurn {
 			d := dayLabel(c.Now(), it.Time)
 			if day != "" && d != day {
+				space(it.Key, convo.KindMine, false)
+				prev = convo.KindTurn
 				dayLine(c.Key("day:"+it.Key), k, d)
 			}
 			day, turn = d, it.Time
 			continue
 		}
+		space(it.Key, it.Kind, it.Steer)
 		a.item(c.Key(it.Key), k, s, it)
 	}
+	_, _, why, unsent := cv.Failed()
 	switch {
 	case cv.Running():
+		space("working", -1, false)
 		a.working(c.Key("working"), k, items, len(cv.Pending()) > 0, turn)
 	case cv.Starting():
+		space("working", -1, false)
 		a.startingRow(c.Key("working"), k, s)
+	case unsent:
+		space("working", -1, false)
+		a.unsentBar(c.Key("unsent"), k, s, why)
 	}
+}
+
+// unsentBar stands under a message that did not go out: why, and 重试,
+// which sends it again.
+func (a *App) unsentBar(c *ui.Context, k theme.Colors, s proto.Session, why string) {
+	ui.Row(c).FillWidth().Padding(8, 10, 8, 12).Gap(8).AlignItems(ui.Center).Radius(10).Border(1, k.Line).Background(k.Bg2).Children(func() {
+		ui.Icon(c, a.icons.Failed).FontSize(15).TextColor(k.Del)
+		theme.UI.On(ui.Text(c, "没能启动 "+harnessName(s.Harness.Kind)+"："+why)).TextColor(k.Fg2).Grow(1).Shrink(1)
+		b := ui.Button(c, "").Label("重试").Height(26).Padding(0, 10).Gap(6).AlignItems(ui.Center).Radius(7).Background(k.Fill).Border(0, ui.Transparent)
+		if b.Clicked() {
+			a.resend(s)
+		}
+		b.Children(func() {
+			ui.Icon(c, a.icons.Reconnect).FontSize(13).TextColor(k.Fg)
+			ui.Text(c, "重试").FontSize(12.5).TextColor(k.Fg)
+		})
+	})
 }
 
 // working is the row that ends a running turn: three squares lighting in
@@ -244,9 +293,7 @@ func (a *App) item(c *ui.Context, k theme.Colors, s proto.Session, it convo.Item
 	case convo.KindText:
 		a.text(c, k, it)
 	case convo.KindWork:
-		a.work(c, k, s, it, false)
-	case convo.KindApproval:
-		a.record(c, k, it.Approval)
+		a.work(c, k, s, it)
 	case convo.KindError:
 		ui.Row(c).FillWidth().Padding(8, 12).Gap(8).AlignItems(ui.Center).Radius(theme.RadiusCard).Background(k.Fill).Children(func() {
 			ui.Icon(c, a.icons.Warning).FontSize(theme.IconSize).TextColor(k.AttnFg)
@@ -291,6 +338,9 @@ func (a *App) modeKeys(c *ui.Context, s proto.Session) {
 // reached the turn.
 func (a *App) mine(c *ui.Context, k theme.Colors, it convo.Item) {
 	col := ui.Column(c).AlignSelf(ui.End).AlignItems(ui.End).MaxWidth(0.75 * codeColumn).Gap(4)
+	if it.Unsent {
+		col.Opacity(0.6)
+	}
 	hovered := col.Hovered()
 	col.Children(func() {
 		if it.Steer {
@@ -410,191 +460,207 @@ func (a *App) copyButton(c *ui.Context, k theme.Colors, id, text, tip string) {
 	}
 }
 
-// work draws a work group. A finished group folds into one line unless a
-// step failed; a running one shows its last three steps. folded keeps it
-// one line whatever happens (Personal).
-func (a *App) work(c *ui.Context, k theme.Colors, s proto.Session, it convo.Item, folded bool) {
+// work draws a turn's work group: a 26-point header with what it did,
+// failures and its time, over one 32-point row a step on a rail. A running
+// group is open with only its latest step open; a finished one folds to
+// its header. A row opens to its detail when clicked.
+func (a *App) work(c *ui.Context, k theme.Colors, s proto.Session, it convo.Item) {
 	w := it.Work
 	key := "work:" + string(s.ID) + ":" + it.Key
 	open, set := a.s.open[key]
 	if !set {
-		open = w.Running || w.Failed > 0
-	}
-	if folded {
-		open = false
+		open = w.Running
 	}
 	ui.Column(c).FillWidth().Children(func() {
-		h := ui.Row(c).Height(26).Gap(6).AlignItems(ui.Center)
-		if !folded && h.Clicked() {
+		h := ui.Row(c).Height(26).Gap(6).AlignItems(ui.Center).Label(summary(w))
+		if h.Clicked() {
 			a.s.open[key] = !open
 		}
 		h.Children(func() {
-			chev := ui.Icon(c, a.icons.Expand).FontSize(theme.IconSizeSmall).TextColor(k.Faint)
-			if open {
-				chev.Rotate(90)
-			}
-			theme.UI.On(ui.Text(c, summary(w))).TextColor(k.Fg3).SingleLine().Shrink(1)
-			ui.Spacer(c)
-			// Failures sit at the end, before the time.
-			if w.Failed > 0 {
-				theme.Caption.On(ui.Textf(c, "✕ %d 个失败", w.Failed)).TextColor(k.Fg).FontWeight(600)
-				if !w.Running {
-					ui.Text(c, "·").FontSize(11).TextColor(k.Faint)
-				}
-			}
-			if !w.Running {
-				ui.Text(c, duration(w.End.Sub(w.Start))).Font(theme.Mono).FontSize(11).TextColor(k.Faint)
-			}
-		})
-		if !open {
-			return
-		}
-		ui.Column(c).Margin(2, 0, 0, 4).Padding(0, 0, 0, 14).Gap(2).BorderWidth(0, 0, 0, 1).BorderColor(k.Line).Children(func() {
-			entries := w.Entries
-			if w.Running && len(entries) > 3 {
-				theme.Caption.On(ui.Textf(c, "更早的 %d 条", len(entries)-3)).TextColor(k.Muted)
-				entries = entries[len(entries)-3:]
-			}
-			for i, run := range runs(entries) {
-				if len(run) == 1 {
-					a.workStep(c.Key(i), k, s, run[0])
-					continue
-				}
-				a.reads(c.Key(i), k, s, it.Key, i, run)
-			}
-		})
-	})
-}
-
-// runs splits a group's steps into runs: consecutive finished reads go
-// together, every other step alone.
-func runs(entries []convo.Entry) [][]convo.Entry {
-	var out [][]convo.Entry
-	for _, e := range entries {
-		read := e.Tool != nil && e.Tool.Kind == proto.ToolRead && e.Tool.Status == proto.ToolDone
-		if n := len(out); read && n > 0 {
-			prev := out[n-1][0]
-			if prev.Tool != nil && prev.Tool.Kind == proto.ToolRead && prev.Tool.Status == proto.ToolDone {
-				out[n-1] = append(out[n-1], e)
-				continue
-			}
-		}
-		out = append(out, []convo.Entry{e})
-	}
-	return out
-}
-
-// reads draws consecutive reads as one row, 读取了 N 个文件 ›, which opens
-// to the reads.
-func (a *App) reads(c *ui.Context, k theme.Colors, s proto.Session, group string, i int, run []convo.Entry) {
-	key := fmt.Sprintf("reads:%s:%s:%d", s.ID, group, i)
-	open := a.s.open[key]
-	ui.Column(c).Children(func() {
-		r := ui.Row(c).Height(24).Gap(8).AlignItems(ui.Center).Label(fmt.Sprintf("读取了 %d 个文件", len(run)))
-		if r.Clicked() {
-			a.s.open[key] = !open
-		}
-		r.Children(func() {
-			ui.Icon(c, a.icons.Read).FontSize(theme.IconSizeInRow).TextColor(k.Fg3)
-			theme.UI.On(ui.Textf(c, "读取了 %d 个文件", len(run))).TextColor(k.Fg).FontWeight(500)
 			icon := a.icons.Expand
 			if open {
 				icon = a.icons.Menu
 			}
-			ui.Icon(c, icon).FontSize(theme.IconSizeSmall).TextColor(k.Faint)
-		})
-		if open {
-			for j, e := range run {
-				a.workStep(c.Key(j), k, s, e)
-			}
-		}
-	})
-}
-
-// workStep draws one step of a work group: thinking, or a tool row that opens
-// its output.
-func (a *App) workStep(c *ui.Context, k theme.Colors, s proto.Session, e convo.Entry) {
-	if e.Tool == nil {
-		ui.Column(c).Gap(2).Children(func() {
-			ui.Row(c).Height(24).Gap(8).AlignItems(ui.Center).Children(func() {
-				ui.Icon(c, a.icons.Thinking).FontSize(theme.IconSizeInRow).TextColor(k.Fg3)
-				theme.UI.On(ui.Text(c, "思考")).TextColor(k.Fg).FontWeight(500)
-			})
-			theme.Secondary.On(ui.Text(c, e.Thinking)).TextColor(k.Muted).Padding(0, 0, 0, 22).Selectable()
-		})
-		return
-	}
-	tc := *e.Tool
-	key := "out:" + string(s.ID) + ":" + tc.ID
-	// A tool still running after its turn ended will not be reported done.
-	unfinished := tc.Status == proto.ToolRunning && !a.conv(s.ID).Running()
-	running := tc.Status == proto.ToolRunning && !unfinished
-	failed := tc.Status == proto.ToolFailed
-	long := utf8.RuneCountInString(tc.Summary) > inputRunes || strings.Contains(tc.Summary, "\n")
-	opens := tc.Output != nil || failed || long
-	open, set := a.s.open[key]
-	if !set {
-		open = failed
-	}
-	open = open && opens
-	if open && tc.Output != nil {
-		a.loadOutput(s, tc, key)
-	}
-	ui.Column(c).Children(func() {
-		r := ui.Row(c).Height(24).Gap(8).AlignItems(ui.Center)
-		hovered := r.Hovered()
-		if opens && r.Clicked() {
-			a.s.open[key] = !open
-		}
-		r.Children(func() {
-			icon, verb := a.action(tc)
-			if running {
-				ui.Spinner(c).Size(14, 14)
-			} else {
-				ui.Icon(c, icon).FontSize(theme.IconSizeInRow).TextColor(k.Fg3)
-			}
-			theme.UI.On(ui.Text(c, verb)).TextColor(k.Fg).FontWeight(500)
-			// A file stands out in the accent after its type's icon; a
-			// command or a query does not.
-			object := k.Fg3
-			if tc.Kind == proto.ToolRead || tc.Kind == proto.ToolEdit {
-				object = k.AccentFg
-				ui.Image(c, a.icons.FileType(tc.Summary)).Size(theme.IconSizeInRow, theme.IconSizeInRow)
-			}
-			ui.Text(c, firstLine(tc.Summary)).Font(theme.Mono).FontSize(12).TextColor(object).FontFeatures("liga=0").SingleLine().Shrink(1)
-			if failed {
-				// Right after what failed; "✕ 退出码 N" once harnesses
-				// report the exit code.
-				ui.Text(c, "✕").Font(theme.Mono).FontSize(11).FontWeight(600).TextColor(k.Fg)
+			ui.Icon(c, icon).FontSize(13).TextColor(k.Fg3)
+			theme.UI.On(ui.Text(c, summary(w))).TextColor(k.Fg2).SingleLine().Shrink(1)
+			if w.Failed > 0 {
+				ui.Textf(c, "✕ %d 个失败", w.Failed).Font(theme.Mono).FontSize(11).FontWeight(600).TextColor(k.Fg).Margin(0, 0, 0, 4).SingleLine().Shrink(0)
 			}
 			ui.Spacer(c)
-			switch {
-			case unfinished:
-				ui.Text(c, "未完成").Font(theme.Mono).FontSize(11).TextColor(k.Faint)
-			case running:
-				ui.Text(c, duration(c.Now().Sub(e.Start))+"…").Font(theme.Mono).FontSize(11).TextColor(k.Faint)
-				c.After(time.Second)
-			case hovered:
-				ui.Text(c, duration(e.Duration())).Font(theme.Mono).FontSize(11).TextColor(k.Faint)
+			if !w.Running {
+				ui.Text(c, duration(w.End.Sub(w.Start))).FontSize(11).TextColor(k.Faint).SingleLine().Shrink(0)
 			}
 		})
 		if !open {
 			return
 		}
-		if long {
-			ui.Text(c, tc.Summary).Font(theme.Mono).FontSize(12).LineHeight(18.0/12).TextColor(k.Fg2).
-				FontFeatures("liga=0").Margin(2, 0, 4, 22).Selectable()
+		var shown []convo.Entry
+		for _, e := range w.Entries {
+			if e.Approval != nil && e.Approval.Outcome == "" {
+				continue // still open: it waits in the composer
+			}
+			shown = append(shown, e)
 		}
+		ui.Column(c).FillWidth().Margin(0, 0, 0, 6).Children(func() {
+			for i, e := range shown {
+				latest := w.Running && i == len(shown)-1
+				a.workStep(c.Key(e.Key), k, s, e, latest, i == len(shown)-1)
+			}
+		})
+	})
+}
+
+// rail draws a step's part of the rail its group's steps hang on: a line
+// down the left, to the row's middle on the last step, and a tick across
+// to the step.
+func rail(c *ui.Context, k theme.Colors, last bool) {
+	ui.Box(c).Width(22).AlignSelf(ui.Stretch).Shrink(0).Draw(func(p *ui.Painter, r ui.Rect) {
+		h := r.H
+		if last {
+			h = 16
+		}
+		p.Fill(ui.Rect{X: r.X, Y: r.Y, W: 1, H: h}, k.Line2, 0)
+		p.Fill(ui.Rect{X: r.X, Y: r.Y + 16, W: 14, H: 1}, k.Line2, 0)
+	})
+}
+
+// workStep draws one step of a work group on its row, and its detail when
+// open: thinking's summary, a note's text, a command in full with its
+// output. latest says it is the newest step of a running group, which
+// opens by itself.
+func (a *App) workStep(c *ui.Context, k theme.Colors, s proto.Session, e convo.Entry, latest, last bool) {
+	key := "step:" + string(s.ID) + ":" + e.Key
+	var (
+		icon               *ui.SVG
+		verb, object, tail string
+		file, failed       bool
+		running, unfinish  bool
+		opens              bool
+		tc                 proto.ToolCall
+	)
+	switch {
+	case e.Tool != nil:
+		tc = *e.Tool
+		icon, verb = a.action(tc)
+		object = firstLine(tc.Summary)
+		file = tc.Kind == proto.ToolRead || tc.Kind == proto.ToolEdit
+		if file {
+			object = relPath(s.Directory, object)
+		}
+		failed = tc.Status == proto.ToolFailed
+		// A tool still running after its turn ended will not be reported done.
+		unfinish = tc.Status == proto.ToolRunning && !a.conv(s.ID).Running()
+		running = tc.Status == proto.ToolRunning && !unfinish
+		long := utf8.RuneCountInString(tc.Summary) > inputRunes || strings.Contains(tc.Summary, "\n")
+		opens = tc.Output != nil || failed || long || tc.Kind == proto.ToolExec && tc.Summary != ""
+	case e.Approval != nil:
+		ap := e.Approval
+		icon, verb = a.icons.Allowed, "已允许"
+		switch ap.Outcome {
+		case proto.OutcomeDenied:
+			icon, verb = a.icons.Denied, "已拒绝"
+		case proto.OutcomeExpired:
+			icon, verb = a.icons.Denied, "未答复"
+		}
+		object, tail = ap.Request.Title, clock(ap.At)
+	case e.Note != "":
+		icon, verb, object = a.icons.Note, "说明", firstLine(e.Note)
+		opens = true
+	default:
+		icon, verb = a.icons.Thinking, "思考过程"
+		opens = e.Thinking != ""
+	}
+	open, set := a.s.open[key]
+	if !set {
+		open = latest
+	}
+	open = open && opens
+	if open && tc.Output != nil {
+		a.loadOutput(s, tc, "out:"+string(s.ID)+":"+tc.ID)
+	}
+	ui.Row(c).FillWidth().Children(func() {
+		rail(c, k, last)
+		ui.Column(c).Grow(1).Shrink(1).Children(func() {
+			r := ui.Row(c).Height(32).Gap(8).AlignItems(ui.Center).Label(verb + " " + object)
+			hovered := r.Hovered()
+			if opens && r.Clicked() {
+				a.s.open[key] = !open
+			}
+			r.Children(func() {
+				if running {
+					ui.Spinner(c).Size(15, 15)
+				} else {
+					ui.Icon(c, icon).FontSize(15).TextColor(k.Fg3)
+				}
+				ui.Text(c, verb).FontSize(12.5).TextColor(k.Fg).SingleLine().Shrink(0)
+				if file {
+					ui.Image(c, a.icons.FileType(tc.Summary)).Size(theme.IconSizeInRow, theme.IconSizeInRow)
+				}
+				obj := ui.Text(c, object).TextColor(k.Fg3).SingleLine().Shrink(1)
+				if e.Note != "" {
+					obj.FontSize(12.5)
+				} else {
+					obj.Font(theme.Mono).FontSize(12).FontFeatures("liga=0")
+				}
+				if file {
+					obj.TextColor(k.AccentFg)
+				}
+				if e.Approval != nil {
+					obj.Tooltip(object)
+				}
+				if failed {
+					// "✕ 退出码 N" once harnesses report the exit code.
+					ui.Text(c, "✕").Font(theme.Mono).FontSize(11).FontWeight(600).TextColor(k.Fg)
+				}
+				ui.Spacer(c)
+				switch {
+				case unfinish:
+					ui.Text(c, "未完成").FontSize(11).TextColor(k.Faint)
+				case running:
+					ui.Text(c, duration(c.Now().Sub(e.Start))+"…").FontSize(11).TextColor(k.Faint)
+					c.After(time.Second)
+				case hovered && tail != "":
+					ui.Text(c, tail).FontSize(11).TextColor(k.Faint)
+				case hovered && e.Tool != nil && !open:
+					ui.Text(c, duration(e.Duration())).FontSize(11).TextColor(k.Faint)
+				}
+				if open {
+					ui.Icon(c, a.icons.Menu).FontSize(13).TextColor(k.Fg3)
+				}
+			})
+			if open {
+				a.stepDetail(c, k, s, e, tc, failed)
+			}
+		})
+	})
+}
+
+// stepDetail is what an open step shows under its row, in from its icon.
+func (a *App) stepDetail(c *ui.Context, k theme.Colors, s proto.Session, e convo.Entry, tc proto.ToolCall, failed bool) {
+	prose := func(t string) {
+		ui.Text(c, t).FontSize(12.5).LineHeight(20.0/12.5).TextColor(k.Fg2).Margin(0, 0, 8, 24).Selectable()
+	}
+	switch {
+	case e.Note != "":
+		prose(e.Note)
+	case e.Tool == nil:
+		prose(e.Thinking)
+	default:
+		if tc.Summary != "" {
+			ui.Text(c, tc.Summary).Font(theme.Mono).FontSize(12).LineHeight(18.0/12).TextColor(k.Fg2).
+				FontFeatures("liga=0").Margin(0, 0, 6, 24).Selectable()
+		}
+		key := "out:" + string(s.ID) + ":" + tc.ID
 		switch {
 		case tc.Output != nil:
 			a.output(c, k, key, func() { a.loadOutput(s, tc, key) })
 		case failed:
-			ui.Row(c).Margin(2, 0, 4, 22).Gap(6).AlignItems(ui.Center).Children(func() {
+			ui.Row(c).Margin(0, 0, 8, 24).Gap(6).AlignItems(ui.Center).Children(func() {
 				ui.Icon(c, a.icons.Failed).FontSize(13).TextColor(k.Muted)
 				theme.Secondary.On(ui.Text(c, "失败，harness 没给出原因")).TextColor(k.Muted)
 			})
 		}
-	})
+	}
 }
 
 // inputRunes is how long a tool's input may be and still show whole in
@@ -636,7 +702,7 @@ const outputLines = 12
 // bar; its copy button shows on hover.
 func (a *App) output(c *ui.Context, k theme.Colors, key string, retry func()) {
 	o := a.s.outputs[key]
-	box := ui.Column(c).Margin(4, 0, 4, 22).Radius(8).Border(1, k.Line).Background(k.Bg2).Clip()
+	box := ui.Column(c).Margin(0, 0, 8, 24).Radius(8).Border(1, k.Line).Background(k.Bg2).Clip()
 	hovered := box.Hovered()
 	box.Children(func() {
 		if why, ok := a.s.outputErr[key]; ok {
@@ -720,35 +786,37 @@ func (a *App) action(tc proto.ToolCall) (*ui.SVG, string) {
 	return a.icons.Tool, tc.Name
 }
 
-// summary is a work group's one line: thinking · read N files · …, with
-// the running one saying so.
+// summary is a work group's one line: what it did, counted, in the order
+// it first did each: 思考 N 次 · 运行 N 条命令 · … · 写了 N 段说明.
 func summary(w *convo.Work) string {
-	var think bool
 	counts := map[string]int{}
 	var order []string
 	for _, e := range w.Entries {
-		if e.Tool == nil {
-			think = true
-			continue
+		var part string
+		switch {
+		case e.Tool != nil:
+			part = toolVerb(*e.Tool)
+		case e.Approval != nil:
+			part = "审批 %d 次"
+		case e.Note != "":
+			part = "写了 %d 段说明"
+		default:
+			part = "思考 %d 次"
 		}
-		verb := toolVerb(*e.Tool)
-		if counts[verb] == 0 {
-			order = append(order, verb)
+		if counts[part] == 0 {
+			order = append(order, part)
 		}
-		counts[verb]++
+		counts[part]++
 	}
-	var parts []string
-	if think {
-		parts = append(parts, "思考")
+	// Approvals count only in a group of nothing else.
+	if len(order) > 1 {
+		order = slices.DeleteFunc(order, func(v string) bool { return v == "审批 %d 次" })
 	}
-	for _, v := range order {
-		parts = append(parts, fmt.Sprintf(v, counts[v]))
+	parts := make([]string, len(order))
+	for i, v := range order {
+		parts[i] = fmt.Sprintf(v, counts[v])
 	}
-	out := strings.Join(parts, " · ")
-	if w.Running {
-		out += " · 运行中"
-	}
-	return out
+	return strings.Join(parts, " · ")
 }
 
 // toolVerb is a tool call's part of a summary, with %d for the count.
@@ -758,6 +826,8 @@ func toolVerb(tc proto.ToolCall) string {
 		return "搜索 %d 次"
 	case "Task", "Agent":
 		return "%d 个子任务"
+	case "Write", "write_file":
+		return "写入 %d 个文件"
 	}
 	switch tc.Kind {
 	case proto.ToolRead:
@@ -770,32 +840,6 @@ func toolVerb(tc proto.ToolCall) string {
 		return "抓取 %d 个网页"
 	}
 	return "调用 %d 个工具"
-}
-
-// record draws a decided approval on one line: a shield, the outcome,
-// what it was about, cut short when long; when it was decided shows on
-// hover.
-func (a *App) record(c *ui.Context, k theme.Colors, ap *convo.Approval) {
-	if ap.Outcome == "" {
-		return // still open: it waits in the composer
-	}
-	r := ui.Row(c).Height(24).Gap(8).AlignItems(ui.Center)
-	hovered := r.Hovered()
-	r.Children(func() {
-		icon, label := a.icons.Allowed, "已允许"
-		switch ap.Outcome {
-		case proto.OutcomeDenied:
-			icon, label = a.icons.Denied, "已拒绝"
-		case proto.OutcomeExpired:
-			icon, label = a.icons.Denied, "未答复"
-		}
-		ui.Icon(c, icon).FontSize(theme.IconSizeInRow).TextColor(k.Fg3)
-		theme.UI.On(ui.Text(c, label)).TextColor(k.Fg).FontWeight(500).SingleLine().Shrink(0)
-		ui.Text(c, ap.Request.Title).Font(theme.Mono).FontSize(12).TextColor(k.Fg3).SingleLine().Grow(1).Shrink(1).Tooltip(ap.Request.Title)
-		if hovered {
-			theme.Caption.On(ui.Text(c, clock(ap.At))).TextColor(k.Muted).SingleLine().Shrink(0)
-		}
-	})
 }
 
 // changes draws the files a turn changed, at the end of its reply: a

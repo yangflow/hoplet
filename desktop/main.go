@@ -189,9 +189,18 @@ func (d *desktop) Create(p proto.CreateParams, done func(proto.Session)) {
 }
 
 // Send implements shell.Host.
-func (d *desktop) Send(p proto.SendParams) {
+func (d *desktop) Send(p proto.SendParams, done func(error)) {
+	d.mu.Lock()
+	offline := d.c == nil
+	d.mu.Unlock()
+	if offline && done != nil {
+		done(errors.New("没有连上守护进程"))
+	}
 	d.call(func(ctx context.Context, c *client.Client) error {
 		_, err := c.Send(ctx, p)
+		if done != nil {
+			d.win.Update(func() { done(err) })
+		}
 		return err
 	})
 }

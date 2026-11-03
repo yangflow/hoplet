@@ -188,3 +188,56 @@ func TestEcho(t *testing.T) {
 		t.Fatal("the echo stays after it failed")
 	}
 }
+
+// A turn's steps, its approval and the text between them are one group;
+// only the text after the last step stays apart.
+func TestGrouped(t *testing.T) {
+	a := proto.ApprovalRequested{ID: "a1", Kind: proto.ApprovalCommand, Title: "Run go test"}
+	var c Convo
+	c.Apply(proto.SessionItem{Events: log(t, 1, 1,
+		proto.Message{ID: "k1", Role: proto.RoleUser, Text: "fix it"}, // 1
+		proto.TurnStarted{},                        // 2
+		proto.Message{ID: "m0", Text: "Looking."},  // 3
+		proto.Thinking{Text: "look at the bridge"}, // 4
+		proto.ToolCall{ID: "t1", Kind: proto.ToolRead, Name: "Read", Summary: "bridge.go", Status: proto.ToolDone}, // 5
+		proto.Message{ID: "m1", Text: "The timeout leaks."},                                                        // 6
+		a, // 7
+		proto.ApprovalResolved{ID: "a1", Outcome: proto.OutcomeAllowed, OptionID: "ok"},                            // 8
+		proto.ToolCall{ID: "t2", Kind: proto.ToolExec, Name: "Bash", Summary: "go test", Status: proto.ToolFailed}, // 9
+		proto.Message{ID: "m2", Text: "Fixed."},                                                                    // 10
+	)})
+	items := c.Grouped()
+	if want := []Kind{KindTurn, KindMine, KindWork, KindText}; !reflect.DeepEqual(kinds(items), want) {
+		t.Fatalf("kinds %v, want %v", kinds(items), want)
+	}
+	w := items[2].Work
+	var got []string
+	for _, e := range w.Entries {
+		switch {
+		case e.Tool != nil:
+			got = append(got, "tool "+e.Tool.ID)
+		case e.Approval != nil:
+			got = append(got, "approval "+string(e.Approval.Outcome))
+		case e.Note != "":
+			got = append(got, "note "+e.Note)
+		default:
+			got = append(got, "think "+e.Thinking)
+		}
+	}
+	want := []string{"note Looking.", "think look at the bridge", "tool t1", "note The timeout leaks.", "approval allowed", "tool t2"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("entries %q\nwant %q", got, want)
+	}
+	if items[2].Key != "work:4" || w.Failed != 1 || w.Running || !w.Start.Equal(t0.Add(3*time.Second)) {
+		t.Fatalf("group %q %+v", items[2].Key, w)
+	}
+	if items[3].Text != "Fixed." {
+		t.Fatalf("reply %+v", items[3])
+	}
+	// Before the reply, the group runs.
+	var r Convo
+	r.Apply(proto.SessionItem{Events: log(t, 1, 1, proto.TurnStarted{}, proto.Message{ID: "m0", Text: "Looking."}, proto.Thinking{Text: "hm"})})
+	if g := r.Grouped(); len(g) != 2 || !g[1].Work.Running || len(g[1].Work.Entries) != 2 {
+		t.Fatalf("running group %+v", g)
+	}
+}

@@ -26,7 +26,9 @@ func (a *App) sidebar(c *ui.Context, k theme.Colors) {
 		})
 		// Search and the inbox join the new-session entry with the
 		// command palette and the inbox page.
-		ui.Column(c).Padding(0, 8).Children(func() {
+		// Rows stand 2 apart; the entries sit 4 under the top row and 16
+		// over the list's header, a section of their own.
+		ui.Column(c).Padding(0, 8).Margin(4, 0, 0, 0).Gap(2).Children(func() {
 			e := ui.Row(c).Height(theme.RowHeight).Padding(0, 8).Gap(8).AlignItems(ui.Center).Radius(theme.RadiusRow).
 				Label("新建").Tooltip("新建会话 ⌘N")
 			if e.Hovered() {
@@ -43,12 +45,12 @@ func (a *App) sidebar(c *ui.Context, k theme.Colors) {
 			a.inboxEntry(c, k)
 		})
 		// The machine scope ("全部机器 ▾") comes with several machines.
-		ui.Row(c).Height(theme.RowHeight).Margin(8, 0, 0, 0).Padding(0, 8, 0, 16).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Height(theme.RowHeight).Margin(16, 0, 4, 0).Padding(0, 8, 0, 16).AlignItems(ui.Center).Children(func() {
 			label := "全部机器"
 			if a.archived {
 				label = "已归档"
 			}
-			theme.UIStrong.On(ui.Text(c, label)).TextColor(k.Fg).Grow(1)
+			theme.Label.On(ui.Text(c, label)).TextColor(k.Muted).Grow(1)
 			switch {
 			case a.mode == proto.ModeCode && !a.archived:
 				iconButton(c, k, a.icons.Arrange, "排列", false).Size(26, 26).Menu(a.arrangeMenu)
@@ -221,7 +223,7 @@ func (a *App) list(c *ui.Context, k theme.Colors) {
 			a.Select(s.ID)
 		}
 	}
-	col := ui.Column(c).Padding(0, 8).Focusable().FocusRing(false).Role(ui.RoleList).Label("会话")
+	col := ui.Column(c).Padding(0, 8).Gap(2).Focusable().FocusRing(false).Role(ui.RoleList).Label("会话")
 	if col.Shortcut(0, ui.KeyUp) {
 		a.move(a.shown(l), -1)
 	}
@@ -235,9 +237,9 @@ func (a *App) list(c *ui.Context, k theme.Colors) {
 				a.row(c, k, s)
 			}
 		}
-		for _, g := range l.Groups {
+		for i, g := range l.Groups {
 			if g.Dir != "" {
-				a.groupHeader(c.Key("dir:"+g.Dir), k, g)
+				a.groupHeader(c.Key("dir:"+g.Dir), k, g, i == 0 && len(l.Pinned) == 0)
 			}
 			if !a.closed[g.Dir] {
 				for _, s := range g.Sessions {
@@ -311,23 +313,29 @@ func (a *App) move(rows []proto.Session, by int) {
 
 // groupLabel is the small title over the pinned sessions.
 func groupLabel(c *ui.Context, k theme.Colors, label string) {
-	ui.Row(c).Height(24).Margin(8, 0, 0, 0).Padding(0, 8).AlignItems(ui.Center).Children(func() {
+	// 8 above and below, the list's gap of 2 included.
+	ui.Row(c).Height(24).Margin(8, 0, 6, 0).Padding(0, 8).AlignItems(ui.Center).Children(func() {
 		theme.Label.On(ui.Text(c, label)).TextColor(k.Muted)
 	})
 }
 
 // groupHeader is a working directory's title: folder icon and name; a
 // click folds the group, hovering shows the full path. The ＋ for a new
-// session in the directory comes with the new-session page.
-func (a *App) groupHeader(c *ui.Context, k theme.Colors, g catalog.Group) {
-	h := ui.Row(c).Height(26).Margin(10, 0, 0, 0).Padding(0, 6, 0, 8).Gap(6).AlignItems(ui.Center).Tooltip(g.Dir)
+// session in the directory comes with the new-session page. Groups stand
+// 12 apart, the first 4 under the list's header.
+func (a *App) groupHeader(c *ui.Context, k theme.Colors, g catalog.Group, first bool) {
+	top := float32(10) // with the list's gap of 2
+	if first {
+		top = 4
+	}
+	h := ui.Row(c).Height(28).Margin(top, 0, 0, 0).Padding(0, 6, 0, 8).Gap(6).AlignItems(ui.Center).Tooltip(g.Dir)
 	hovered := h.Hovered()
 	if h.Clicked() {
 		a.closed[g.Dir] = !a.closed[g.Dir]
 	}
 	h.Children(func() {
 		ui.Icon(c, a.icons.Folder).FontSize(theme.IconSize).TextColor(k.Muted)
-		theme.UIStrong.On(ui.Text(c, g.Name)).TextColor(k.Fg3).SingleLine().Grow(1)
+		theme.UI.On(ui.Text(c, g.Name)).FontWeight(500).TextColor(k.Fg2).SingleLine().Grow(1)
 		// ＋ starts a session in this directory: faint, solid while the
 		// title is hovered, with a background only under the pointer.
 		plus := iconButton(c, k, a.icons.New, "在此目录新建会话", false).Size(22, 22)

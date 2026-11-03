@@ -13,13 +13,39 @@ import (
 // chat draws a Personal conversation as a chat: days apart, the
 // companion's bubbles on the left and mine on the right, an avatar beside
 // the last of a run, work folded to one line, and dots while it works.
+//
+// Bubbles of one speaker stand 2 apart, a change of speaker 12, anything
+// else 6; a day line has 12 around it.
 func (a *App) chat(c *ui.Context, k theme.Colors, s proto.Session, items []convo.Item, running bool) {
+	const dayKind = convo.Kind(-2)
+	prev := convo.Kind(-1)
+	space := func(key string, next convo.Kind) {
+		bubble := func(k convo.Kind) bool { return k == convo.KindMine || k == convo.KindText }
+		g := float32(6)
+		switch {
+		case prev == -1:
+			g = 0
+		case prev == next && bubble(next):
+			g = 2
+		case bubble(prev) && bubble(next), prev == dayKind, next == dayKind:
+			g = 12
+		}
+		if g > 0 {
+			ui.Box(c.Key("gap:" + key)).Height(g).Shrink(0)
+		}
+		prev = next
+	}
 	var day string
 	for i, it := range items {
 		if d := dayLabel(c.Now(), it.Time); d != day && (it.Kind == convo.KindMine || it.Kind == convo.KindText) {
 			day = d
+			space("day:"+it.Key, dayKind)
 			dayLine(c.Key("day:"+it.Key), k, d)
 		}
+		if it.Kind == convo.KindTurn || it.Kind == convo.KindApproval || it.Kind == convo.KindChanges {
+			continue // not drawn in a chat
+		}
+		space(it.Key, it.Kind)
 		last := i == len(items)-1 || items[i+1].Kind != it.Kind
 		c := c.Key(it.Key)
 		switch it.Kind {
@@ -38,7 +64,11 @@ func (a *App) chat(c *ui.Context, k theme.Colors, s proto.Session, items []convo
 			// The work trace lines up with the bubbles, past the avatar.
 			ui.Row(c).Padding(0, 0, 0, 38).Height(22).Gap(12).AlignItems(ui.Center).Children(func() {
 				w := it.Work
-				theme.UI.On(ui.Text(c, summary(w))).TextColor(k.Muted).SingleLine().Shrink(1)
+				line := summary(w)
+				if w.Running {
+					line += " · 运行中"
+				}
+				theme.UI.On(ui.Text(c, line)).TextColor(k.Muted).SingleLine().Shrink(1)
 				if w.Failed > 0 {
 					theme.Caption.On(ui.Text(c, "✕")).TextColor(k.Fg).FontWeight(600)
 				}
@@ -54,6 +84,7 @@ func (a *App) chat(c *ui.Context, k theme.Colors, s proto.Session, items []convo
 	}
 	if running && (len(items) == 0 || items[len(items)-1].Kind != convo.KindText) {
 		// It is thinking or working: three dots in a small bubble.
+		space("typing", convo.KindText)
 		ui.Row(c.Key("typing")).AlignSelf(ui.Start).Gap(10).AlignItems(ui.End).Children(func() {
 			a.companionAvatar(c, k, s, true)
 			ui.Box(c).Padding(9, 14).Radius(18, 18, 18, 6).Background(k.Bg).Border(1, k.Line).Label("正在输入").Children(func() {
