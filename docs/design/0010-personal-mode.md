@@ -1,118 +1,86 @@
 # 0010 Personal 模式
 
-状态：已采纳 · 2026-10-31
+状态：当前设计 · 更新：2026-11-04
 
-## 定位
+## 范围与现状
 
-Personal 是一种**模式**，不是某个 harness。默认 harness 是一个设置项，随时可换；模型支持**订阅登录和 API key** 两种方式（凭证都留在 harness 自己的配置里）。
+交付阶段：M4a 伙伴与工具底座。Personal 围绕长期伙伴交代事情，交付答案、办完的事和产物。
 
-## 伙伴
+当前 Personal 使用普通 `Session{mode: personal}`：名字是会话标题，头像取首字。独立伙伴实体、人格入口、产物与转交服务尚未实现。
 
-Personal 里没有按次新建的会话，只有**伙伴**。
-
-| 项 | 结论 |
+| 状态 | 边界 |
 |---|---|
-| 伙伴 | 人格 + harness + 一条连续的长会话；各伙伴的 harness 可以不同，新建时默认用 Personal 默认 harness |
-| 档案 | 关于我的档案所有伙伴共用，只存在主宿主上；其他机器上的伙伴在会话开始时向主宿主取；人格各自一份 |
-| 位置 | 伙伴可以建在任何一台机器上（默认主宿主）；客户端按机器筛选，和 Code 会话一致；需要另一台机器的事走 `run_on` |
-| 对话 | 带参与者列表，每条消息记下是哪个伙伴说的；v1 只有一个参与者 |
-| 群聊 | v1 不做；以后就是多个参与者的对话，daemon 负责在 harness 之间转发。发言规则、伙伴互相回复、群聊审批到时再定 |
+| ◐ 代码现状 | Personal 是普通 Session，标题和首字头像表示伙伴 |
+| ○ 目标 | 独立伙伴身份、人格、事情关联、产物和转交 |
 
-## 运行位置
+## 伙伴与事情
+
+```mermaid
+flowchart TB
+    Me["我"] <--> Main["伙伴主会话<br/>交流 · 协调 · 汇报"]
+    Main --> A["事情 A"]
+    Main --> B["事情 B"]
+    A -. "执行上下文：待定" .-> HA["harness 执行"]
+    B -. "执行上下文：待定" .-> HB["harness 执行"]
+    HA --> Results["结果与产物"]
+    HB --> Results
+    Results --> Main
+```
+
+| 概念 | 当前规则 |
+|---|---|
+| 伙伴 | 人格 + 所选 harness + 连续主会话；各伙伴可选不同 harness |
+| 事情 | 围绕目标、要求和结果跟进；具体实体与执行绑定待定 |
+| 会话 | 保持当前统一 Session 内核；不将原生子执行自动视为新 Session |
+| 参与者 | 消息记录发言伙伴，v1 只有一个参与者 |
+| 生命周期 | 伙伴长期存在；轮次结束不证明事情完成 |
+
+## 选择与位置
+
+| 项 | 规则 |
+|---|---|
+| 模式 | 我明确选择 Personal，不由模型猜测 |
+| harness | Personal 默认 harness 是设置项；新建伙伴时默认使用，可选择其他已支持项 |
+| 模型登录 | 订阅或 API key 由 harness 自己管理，Hoplet 不保管凭证 |
+| 人格 | 各伙伴独立；不擅自改写用户全局人格配置 |
+| 位置 | 可建在任一自有主机，默认常驻主宿主；列表按机器筛选 |
+| 跨机 | 需要另一台机器的操作交给明确授权的远端执行 |
+
+## 能力边界
 
 ```mermaid
 flowchart LR
-    TG["Telegram"] --> V["VPS daemon<br/>Personal 主宿主 · 7×24"]
-    App["iOS / 桌面"] --> V
-    V -- "run_on：需要 Mac 的子任务" --> M["Mac daemon"]
-    M -. "Mac 休眠：排队，并告诉我要等" .-> V
-    GH["GitHub webhook"] -- "/hook/{id}" --> V
+    P["Personal"] -- "转交变更工作" --> C["Code"]
+    C -- "结果 / 进度" --> P
+    P -- "按范围查询与提交" --> M[("共享成长记忆")]
+    P --> Artifacts["会话产物"]
 ```
 
-## 个人档案（可移植记忆）
-
-```
-~/.hoplet/profile/          （位于主宿主）
-  PROFILE.md                 索引
-  personas/<伙伴>.md         各伙伴的人格（只注入该伙伴）
-  about-me.md · preferences.md · facts/*.md · people.md …（带 frontmatter）
-```
-
-```mermaid
-flowchart LR
-    Prof[("个人档案")] -- "会话开始：压缩到约 8KB<br/>经 harness 原生入口注入" --> H["伙伴的 harness"]
-    H -- "profile_write（带版本检查，记日志）" --> Prof
-    Me["我"] -- "在 app 里查看 / 编辑" --> Prof
-    C["Code 会话"] -. 只读查询 .-> Prof
-```
-
-- Hoplet 只负责**存放与注入**；“学什么、怎么整理”交给 harness。
-- harness 自带的记忆照常运行；“关于我的事实”约定写进档案，换 harness 不丢。
-
-## 触发器
-
-```mermaid
-flowchart LR
-    subgraph sources["来源"]
-        Sch["定时<br/>cron / interval / once"]
-        IM["Telegram 消息"]
-        Evt["事件<br/>会话等待 / 出错 / 卡住<br/>PR · CI 变化 · webhook"]
-    end
-    Sch --> T["Trigger<br/>预算 · 启用"]
-    IM --> T
-    Evt --> T
-    T --> A1["开新 Personal 会话"]
-    T --> A2["发给已有会话"]
-    T --> A3["只通知我"]
-```
-
-| 规则 | 说明 |
+| 能力 | 规则 |
 |---|---|
-| 主机离线错过 | 默认跳过并通知；可设为恢复后补跑一次 |
-| 并发 | 同一触发器同时只跑一个 |
-| 创建 / 修改 | 默认问我（Hoplet 规则） |
+| 交流 | 短回答、澄清、优先级调整与结果汇报由主会话承接 |
+| 执行 | 复用 harness 的工具、技能与原生委派；异步能力按版本验证 |
+| 成长 | 使用内核的可迁移记忆；不以原生 Memory 自动代替权威档案 |
+| Code 互通 | 提供目录、摘要与关联；给我已有会话发消息须先托管 |
+| 产物 | 与事情和会话关联，可回到来源查看 |
+| 权限 | 延续原生审批与 Hoplet 工具规则；记忆不授予授权 |
+| 范围外 | 群聊与 Personal 代批不在 v1 范围内 |
 
-## Telegram
+## 验收
 
-| 项 | 结论 |
+| 场景 | 结果 |
 |---|---|
-| 运行 | VPS 上 bot 长轮询，无需公网入口 |
-| 授权 | app 里生成一次性配对码，Telegram 用户 ID 进白名单，其他人消息一律忽略 |
-| 线程 | 每个（通道，聊天）一条线程；空闲 N 小时或 `/new` 切新会话，带摘要 + 档案 |
-| 发消息 | 发给我自己：直接发；替我发给别人：必须我本人确认 |
+| 离开后回来 | 继续同一伙伴的交流，知道未完成事项 |
+| 交代多件事 | 能区分目标、修订和结果，执行状态可追踪 |
+| 转交 Code | 带目录与摘要，结果回到伙伴并等待我审阅变更 |
 
-## 首批琐事：GitHub
+主会话与事情的图示是组织目标，不冻结新实体、接口或界面。未验证的能力不作为当前已实现功能呈现。
 
-```mermaid
-sequenceDiagram
-    participant GH as GitHub
-    participant P as Personal
-    participant Me as 我
-    participant C as Code 会话
-    GH->>P: CI 失败（webhook，轮询兜底）
-    P->>P: 读日志，归纳失败原因
-    P->>Me: Telegram / 推送：“web#42 的 CI 挂了，原因是…，要我开会话修吗？”
-    Me->>P: 修
-    P->>C: 转交：开 Code 会话（对应工作目录 + 失败摘要）
-    C-->>P: 修完一轮 → 通知
-    P->>Me: 汇报结果，等我审 diff
-```
+## 待验证
 
-- 能力来源：GitHub MCP / `gh`，登记在 `mcp.toml`（按模式启用）。
-- 其他琐事（邮件、日历、浏览器……）以后通过接入现成 MCP 扩展，Hoplet 不自己造工具。
-
-## Personal 可用的 Hoplet 工具
-
-`sessions_list/read/status` · `session_create` · `session_send` · `handoff` · `delegate` · `profile_*` · `artifact_save` · `notify_me` · `trigger_create` · `terminal_*` · `run_on`
-
-## 护栏
-
-| 护栏 | 说明 |
+| 项 | 需确认 |
 |---|---|
-| 预算 | 每个触发器、每次自主运行有轮次上限和 token 预算；另有每日总预算；超出即停并通知 |
-| 循环检测 | 重复同一调用或无进展 → 自动暂停 |
-| 代批 | Personal 代答 harness 审批：v1 不做，数据模型已预留 |
-
-## 风险与兜底
-
-harness 能遵守“事实写进档案”的约定。若不遵守，档案会变薄；可加一个低频后台任务，从会话摘要里提炼候选事实，交给我确认后写入。
+| 主会话 | 多件事情的跟进目录、话题指向、中途修订和结果版本 |
+| 执行绑定 | 原生委派与独立 Session 的取舍；并行时如何保持交流响应 |
+| 上下文接续 | 长会话压缩、换 harness、轮换和入口线程切换 |
+| 产物与工作区 | 事情、执行上下文、目录和产物的关联与升级转交 |

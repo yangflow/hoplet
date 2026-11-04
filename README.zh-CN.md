@@ -2,49 +2,63 @@
 
 [English](README.md)
 
-Hoplet 是一个自用的、跨设备的 AI Agent 壳：**Code 模式帮我做产品，Personal 模式帮我处理琐事。** 两种模式共用一个内核，彼此可以转交工作。
+Hoplet 是一个自用的、跨设备的 AI Agent 壳。**Code 模式帮我做产品，Personal 模式帮我处理琐事。** 两种模式共用一个内核，彼此可以转交工作。
 
-> **状态：** 设计已定稿，尚未开始实现。设计文档见 [`docs/`](docs/README.md)。
+> **状态：** 本机内核与桌面对话已有实现，M1 收尾中。以下概览也包含规划能力。
 
 ## 两种模式
 
-| | Code 模式 | Personal 模式 |
+| | Code | Personal |
 |---|---|---|
-| 交付物 | 可审阅的变更：diff、检查点、PR | 结果：答案、做完的事、文件 |
-| 工作空间 | 我选的目录，里面可以有多个 git 仓库 | 代理人自己的工作区 + 我授权的目录 |
-| 触发 | 我 | 我、Telegram、定时、事件（如 CI 失败） |
+| 交付 | 可审阅的变更：diff、检查点、PR | 结果：答案、办完的事、文件 |
+| 工作空间 | 我选的目录，可包含多个仓库 | 伙伴的工作区与授权目录 |
+| 发起 | 我 | 我、定时、消息、事件 |
 
-Hoplet 不自己写 agent，而是通过结构化协议驱动现成的 harness（Claude Code、Codex、Hermes 等），任一模式都可以选用任意 harness。
+两种模式均可选择已支持的 harness。当前有 Claude Code、Hermes 适配，Codex 和 ACP 属于规划。设计中由 Hoplet 持有可迁移成长记忆，harness 提供推理与执行能力。
 
-## 整体结构
+## 架构概览
 
 ```mermaid
 flowchart LR
-    Phone["iOS app"] -- "Noise 加密" --> Relay["hoplet relay<br/>（自己的 VPS）"]
-    Desk["桌面 app"] --> Mac["hoplet daemon<br/>（Mac）"]
-    Relay --- Mac
-    Relay --- VPS["hoplet daemon<br/>（VPS，常驻）"]
-    Mac --> Shim["hoplet shim<br/>每会话一个"] --> H["claude / codex / …"]
+    User["桌面 · iOS · CLI · 通道"] --> Modes["Code / Personal"]
+    Modes --> Core["Hoplet 内核<br/>会话 · 审批 · 记忆 · 产物"]
+    Core --> Harness["现成 harness<br/>Claude Code · Hermes · Codex · ACP"]
+    Harness --> Capabilities["模型 · 工具 · 技能"]
 ```
 
-- 一个 Go 二进制 `hoplet`，同时承担守护进程、会话 shim、中继和 CLI。
-- 守护进程重启、升级不影响会话；手机上可以跟进和审批。
-- 设备与机器之间端到端加密，中继只转发字节。
-- 桌面端基于 [MyGo](https://github.com/egoist/mygo)，iOS 端使用 SwiftUI。
+- 一个 Go 二进制当前提供 daemon、shim、CLI 和 Hermes 桥接；中继属于规划。
+- shim 在 daemon 重启时继续托管本机会话；远程跟进与审批属于规划。
+- 远程访问目标为端到端加密，中继只转发字节。
+- 桌面采用 MyGo 原生 UI，iOS 使用 SwiftUI。
 
-## 路线图
+## 设计导航
 
-| 里程碑 | 范围 |
+| 范围 | 专题 |
 |---|---|
-| M1 核心闭环 | 守护进程、shim、存储、事件；Claude Code 与一个 Personal harness；CLI 与最简桌面 |
-| M2 跨设备 | 中继、配对、iOS、加密推送、Live Activity |
-| M3 工作区 | 检查点与回滚、diff、PR、隔离模式、端口、终端 |
-| M4 Personal | 个人档案、触发器、Telegram、GitHub 琐事、预算 |
-| M5 扩展 | Codex、通用 ACP、扇出 |
+| [产品与架构](docs/README.md#总览) | 边界、分层、交付路线 |
+| [运行与通信](docs/README.md#运行与通信) | 进程、数据、同步、安全、审批 |
+| [Agent 驱动](docs/README.md#agent-驱动) | 通用契约、原生适配、版本管理 |
+| [工作区与编排](docs/README.md#工作区与编排) | 隔离、快照、终端、委派 |
+| [Personal 与成长](docs/README.md#personal-与成长) | 伙伴、记忆、自主运行、集成 |
+| [客户端与交付](docs/README.md#客户端与交付) | 技术栈、设计系统、布局、质量 |
+
+设计文档使用中文。每个专题独立说明当前规则，目录负责导航。
+
+## 交付概览
+
+| 阶段 | 结果 |
+|---|---|
+| M1 | 收尾本机闭环：收件箱、命令面板、文件 / diff 右栏与回归门禁 |
+| M2a / M2b | 先安全网络，再移动访问 |
+| M3 | 工作区增强，独立于网络轨道 |
+| M4a–M4e | 工具桥与伙伴底座；成长、自主、通道和跨机按依赖推进 |
+| M5a–M5c | 新 harness；可写扇出需隔离，手机预览需网络和端口 |
+
+推荐本机主线：**M1 → M4a → M4b**。网络、工作区和新 harness 可独立推进，阶段编号不表示全局串行。
 
 ## 参与贡献
 
-欢迎贡献。请先阅读 [CONTRIBUTING.md](CONTRIBUTING.md)；涉及设计变更的改动，请先开 issue 讨论再写代码。issue 和 PR 可以用中文或英文。
+贡献前阅读 [CONTRIBUTING.md](CONTRIBUTING.md)。设计变更先开 issue 讨论再写代码；issue 与 PR 均可使用中文或英文。
 
 ## 许可证
 

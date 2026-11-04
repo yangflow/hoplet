@@ -1,118 +1,77 @@
-# Hoplet 设计总览
+# Hoplet 设计总览与目录
 
-> 一个自用的、跨设备的 Agent 壳：**Code 模式帮我做产品，Personal 模式帮我处理琐事**，两者共用一个内核、彼此互通。
+状态：当前设计 · 更新：2026-11-04
 
-状态：设计已定稿（2026-10-31），尚未开始实现。
-
-## 两种模式
-
-| | Code 模式 | Personal 模式 |
-|---|---|---|
-| 交付物 | 可审阅的变更：diff、检查点、PR | 结果：答案、做完的事、文件、小脚本 |
-| 心态 | 要审、要控、要回溯 | 交代下去，做完告诉我 |
-| 工作空间 | 我指定的工作目录（可含多个仓库） | 代理人自己的工作区 + 我授权的目录 |
-| 生命周期 | 围绕项目，长期存在 | 围绕一件事；记忆持续积累 |
-| 触发 | 主要由我发起 | 我 / Telegram / 定时 / 事件 |
-
-模式不绑定 harness：任何 harness（Claude Code、Codex、Hermes…）都可以跑任一模式。
-
-## 概念模型
+Code 交付变更，Personal 交付结果；两种模式共用内核，成长记忆归 Hoplet。目录仅作导航，正文独立维护当前规则，变更直接替换旧表述，待验证项不表示已实现。
 
 ```mermaid
 flowchart TB
-    Me["我（iPhone / Mac / Telegram）"]
-    subgraph Hoplet
-        P["Personal 会话<br/>交付结果"]
-        C["Code 会话<br/>交付变更"]
-        Prof[("个人档案")]
-    end
-    H1["harness：Hermes / Claude Code …"]
-    H2["harness：Claude Code / Codex …"]
-    Dir["工作目录<br/>repo-a · repo-b · 非 git 文件"]
-
-    Me --> P
-    Me --> C
-    P -- "转交 / 委托 / 查询" --> C
-    C -- "回报 / 查询档案" --> P
-    P --- Prof
-    C -. 只读 .- Prof
-    P --> H1
-    C --> H2
-    H2 --> Dir
+    Overview["产品 · 架构 · 路线"] --> Runtime["运行与通信"]
+    Overview --> Agent["Agent 驱动"]
+    Overview --> Work["工作区与编排"]
+    Overview --> Personal["Personal 与成长"]
+    Overview --> Clients["客户端与交付"]
 ```
 
-## 系统架构
+## 维护约定
 
-```mermaid
-flowchart LR
-    subgraph clients["客户端"]
-        iOS["iOS（SwiftUI）"]
-        Desk["桌面（MyGO）"]
-        CLI["hoplet CLI"]
-        TG["Telegram"]
-    end
-    subgraph VPS["海外 VPS"]
-        Relay["hoplet relay<br/>哑中继 WSS:443"]
-        DV["hoplet daemon（headless）<br/>Personal 主宿主"]
-    end
-    subgraph Mac
-        DM["hoplet daemon"]
-        S1["shim · 会话 1"]
-        S2["shim · 会话 2"]
-        A1["claude"]
-        A2["codex / 终端"]
-    end
-
-    iOS -- "Noise 加密" --> Relay
-    iOS -. 局域网直连 .-> DM
-    Desk -- 本机 socket --> DM
-    CLI -- 本机 socket --> DM
-    Relay --- DM
-    Relay --- DV
-    TG --- DV
-    DM --> S1 --> A1
-    DM --> S2 --> A2
-    DV -- "run_on（守护进程互调）" --> DM
-```
-
-## 设计文档
-
-| 编号 | 主题 | 一句话结论 |
-|---|---|---|
-| [0001](design/0001-product-scope.md) | 产品边界与模式 | 自用、单人、自有机器；两种模式按交付物区分 |
-| [0002](design/0002-process-model.md) | 进程模型与部署 | 单二进制；系统服务托管；每会话一个 shim |
-| [0003](design/0003-agent-driving.md) | Agent 驱动 | 全部走结构化协议，各家原生接入 |
-| [0004](design/0004-session-data-model.md) | 会话数据模型 | harness 拥有上下文，Hoplet 拥有事件记录 |
-| [0005](design/0005-sync-protocol.md) | 同步协议 | 游标追赶 + 快照兜底 + 合批推送 |
-| [0006](design/0006-connectivity-security.md) | 跨设备与安全 | 一层 Noise，路由可换；海外中继为主 |
-| [0007](design/0007-commands-approvals.md) | 命令与审批 | 权限交给 harness 原生判断，Hoplet 统一模式、转发审批、管自己的工具 |
-| [0008](design/0008-workspace-lifecycle.md) | 工作区生命周期 | 以会话为中心、多仓库、默认原地 |
-| [0009](design/0009-terminal.md) | 终端 | shim 托管 PTY，Ghostty 模拟器做快照 |
-| [0010](design/0010-personal-mode.md) | Personal 模式 | 档案 + 触发器 + Telegram + GitHub 琐事 |
-| [0011](design/0011-client-stack.md) | 客户端技术栈 | 桌面 MyGO，iOS SwiftUI，协议类型生成 |
-| [0012](design/0012-orchestration-api.md) | 编排与自动化接口 | 一套服务，三个入口，按会话授权 |
-| [0013](design/0013-testing-release.md) | 测试、升级与发布 | 契约测试 + 假 harness + 性能预算 |
-| [0014](design/0014-desktop-ui.md) | 桌面界面与设计系统 | 全玻璃、石墨 + 青、7 档字号、Lucide 图标；布局与 MyGO 对应 |
-
-## 里程碑
-
-每个里程碑合入后都能独立使用。
-
-| 里程碑 | 内容 | 完成后能做什么 |
-|---|---|---|
-| **M1 核心闭环** | daemon、shim、存储、事件协议；Claude Code 适配 + 一个 Personal harness 适配；会话累计 diff（只读）；会话模式 + 审批转发；CLI + 最简桌面 | 本机跑通两种模式，验证共享内核 |
-| **M2 跨设备** | 中继、配对、多路由、iOS、加密推送、Live Activity | 离开电脑用手机驱动 |
-| **M3 工作区** | 检查点回滚、三种 diff、PR、隔离模式、端口、终端 | 正式用来做产品 |
-| **M4 Personal** | 个人档案、触发器、Telegram、GitHub 琐事、预算护栏、`run_on`、webhook | 代理人主动处理琐事 |
-| **M5 扩展** | Codex、通用 ACP、扇出、手机预览端口 | 更多 harness，并行尝试 |
-
-## 术语
-
-| 术语 | 含义 |
+| 项 | 统一规则 |
 |---|---|
-| harness | 现成的 agent 程序（Claude Code、Codex、Hermes…），Hoplet 不自己写 |
-| 会话 Session | 一段对话 + 选定的 harness + 可选工作目录；一等实体 |
-| shim | 每个活跃会话一个的小进程，托管 harness 和终端，守护进程重启不影响它 |
-| 主宿主 | 常驻在线、跑 Personal 会话的主机（默认 VPS） |
-| 会话模式 | 审批档位（需确认 / 自动编辑 / 智能审批 / 全自动）+ Plan 开关 + Fast 开关 + 思考强度，由适配器映射到各 harness 的原生设置 |
-| 底线 | Hoplet 能真正强制执行的少数规则（见 0007） |
+| 结构 | 范围与现状 → 流程 / 规则 → 验收 → 待验证 |
+| 状态 | ✓ 代码已有、◐ 部分实现、○ 目标；不代替实际验收结果 |
+| 归属 | 每项详细规则归一个专题，概览仅摘要；重复的存储、验收与入口说明合并到所属能力 |
+| 校正 | 已实现行为以代码为准；预留字段、图示与计划不视为已实现 |
+
+## 总览
+
+| 设计 | 范围 |
+|---|---|
+| [0001 产品边界与模式](design/0001-product-scope.md) | 使用者、模式和交付物 |
+| [0015 架构分层](design/0015-architecture.md) | 共享内核、适配、数据和安全边界 |
+| [0019 交付路线](design/0019-delivery-roadmap.md) | 阶段、前置能力和验收出口 |
+
+## 运行与通信
+
+| 设计 | 范围 |
+|---|---|
+| [0002 进程模型与部署](design/0002-process-model.md) | daemon、shim、relay 与重启 |
+| [0004 会话数据模型](design/0004-session-data-model.md) | 实体、事件、存储和持久性 |
+| [0005 同步协议](design/0005-sync-protocol.md) | 订阅、追赶、快照与背压 |
+| [0006 跨设备连接与安全](design/0006-connectivity-security.md) | 配对、加密、路由与本机保护 |
+| [0007 命令与审批](design/0007-commands-approvals.md) | 队列、档位、审批与工具授权 |
+
+## Agent 驱动
+
+| 设计 | 范围 |
+|---|---|
+| [0003 Agent 驱动](design/0003-agent-driving.md) | 统一抽象、事件与启动环境 |
+| [0020 Hermes 适配](design/0020-hermes-adapter.md) | gateway、轮次、设置与恢复 |
+| [0021 Claude Code 适配](design/0021-claude-adapter.md) | 控制协议、模型探测与事件映射 |
+| [0023 Harness 托管与验证](design/0023-harness-lifecycle.md) | 安装、版本门控、自检与录制 |
+
+## 工作区与编排
+
+| 设计 | 范围 |
+|---|---|
+| [0008 工作区生命周期](design/0008-workspace-lifecycle.md) | 目录、隔离、脚本、检查点与 PR |
+| [0022 工作区快照与累计 diff](design/0022-workspace-snapshots.md) | 私有快照、基线、响应与资源上限 |
+| [0009 终端](design/0009-terminal.md) | PTY、屏幕与终端输入 |
+| [0012 服务入口与编排](design/0012-orchestration-api.md) | 服务入口、等待、扇出与跨机执行 |
+
+## Personal 与成长
+
+| 设计 | 范围 |
+|---|---|
+| [0010 Personal 模式](design/0010-personal-mode.md) | 伙伴、交流、事情与转交 |
+| [0016 成长记忆](design/0016-growth-memory.md) | 提炼、纠错、版本与跨 harness 使用 |
+| [0017 自主运行](design/0017-autonomous-runs.md) | 触发、等待、预算与恢复 |
+| [0018 通道与集成](design/0018-channels-integrations.md) | Telegram、GitHub 与 webhook |
+
+## 客户端与交付
+
+| 设计 | 范围 |
+|---|---|
+| [0011 客户端技术栈](design/0011-client-stack.md) | 桌面、iOS 与协议类型生成 |
+| [0014 桌面设计系统](design/0014-desktop-ui.md) | token、文字、图标与 MyGO 映射 |
+| [0024 桌面布局与交互](design/0024-desktop-layout.md) | 页面、输入、面板与阶段状态 |
+| [0013 测试、升级与发布](design/0013-testing-release.md) | 契约、验收、性能与产品发布 |

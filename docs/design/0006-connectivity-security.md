@@ -1,10 +1,29 @@
 # 0006 跨设备连接与安全
 
-状态：已采纳 · 2026-10-31
+状态：当前设计 · 更新：2026-11-04
+
+## 范围与现状
+
+范围：跨设备身份、路由、中继、代理与终端保护。
 
 前提：iPhone 常开代理 VPN（占用唯一的 VPN 位，所以 Tailscale 不做主路由）；VPS 在海外。
 
-## 一层安全，多条路由
+| 状态 | 边界 |
+|---|---|
+| ✓ 代码已有 | 本机 socket / token / Origin 检查与代理解析 |
+| ○ 目标 | 配对、Noise、路由、中继、设备吊销与生物识别 |
+
+## 当前本机保护
+
+| 项 | 已实现边界 |
+|---|---|
+| 数据根目录 | `~/.hoplet` 或 `HOPLET_HOME`，权限 0700 |
+| socket / token | socket 0600；本机随机 token 文件拒绝组 / 其他用户权限 |
+| 连接 | Unix socket 上的 `/v1` WebSocket；升级前拒绝非空 `Origin` |
+| hello | 校验协议主版本、本机 token 与非空设备 ID；设备 ID 不是配对身份 |
+| 远程 | 当前没有默认 TCP / 回环监听、Noise、配对或 relay |
+
+## 一层安全，多条路由（M2a 目标）
 
 ```mermaid
 flowchart LR
@@ -20,7 +39,7 @@ flowchart LR
 - 连在后面的路由时，后台持续探测前面的路由，能通就切回（回家自动走局域网）。
 - 加密与认证全在应用层；中继、Cloudflare、Tailscale 都只搬运字节。
 
-## 配对与日常连接
+## 配对与日常连接（目标）
 
 ```mermaid
 sequenceDiagram
@@ -40,7 +59,7 @@ sequenceDiagram
 | 多主机 | 每台主机各配对一次，不做信任传递；守护进程互调也走配对 |
 | 防重放 / 降级 | Noise 计数器；只有一个协议版本 |
 
-## 中继
+## 中继（目标）
 
 | 项 | 结论 |
 |---|---|
@@ -51,25 +70,33 @@ sequenceDiagram
 | 保活 | 每段心跳 + 端到端回声探测 |
 | 不做 | UDP / WebRTC 打洞、Cloudflare Workers 中继 |
 
-## 代理（守护进程拿不到 shell 的代理变量）
+## 代理（已实现）
 
 ```mermaid
 flowchart LR
-    Cfg["network.proxy（config.toml）<br/>未配置：登录 shell 导出的代理 → macOS 系统代理<br/>direct：不用代理"] --> D["daemon 出站<br/>（连中继）"]
+    Cfg["network.proxy（config.toml）<br/>未配置：登录 shell 导出的代理 → macOS 系统代理<br/>direct：不用代理"] --> D["daemon 诊断出站<br/>未来用于中继"]
     Cfg --> Env["注入 harness 环境<br/>HTTPS_PROXY · ALL_PROXY · NO_PROXY"]
     Env --> H["claude / codex 访问 API"]
     Pre["启动前连通性预检"] --> H
 ```
 
-## 本机与终端设备
+## 设备保护与推送（M2b 目标）
 
 | 场景 | 措施 |
 |---|---|
-| 本机访问 | Unix socket 0600 + 本机 token；回环 WebSocket 拒绝带 `Origin` 的握手 |
 | 推送 | 正文用设备公钥加密，iOS 通知扩展解密 |
 | iOS 缓存 | 系统 Data Protection |
 | 手机丢失 | 修改 Hoplet 规则与授权必须 Face ID；可选 app 启动锁；任意设备可吊销 |
 
-## 风险与兜底
+## 验收
 
-海外中继在国内的线路稳定。不稳时切 Cloudflare 备用域名；以实测延迟和丢包决定主备。
+| 范围 | 要求 |
+|---|---|
+| 身份 | 拒绝重放、已吊销设备和未配对主机 |
+| 路由 | 加密身份与路由分离，切换不新增信任 |
+| 主备线路 | 实测延迟与丢包决定主备，不稳定时切备用域名 |
+| 本机入口 | 验证 socket 权限、token 与 `Origin` 拒绝规则 |
+
+## 待验证
+
+尚未落地的目标按原生协议、故障恢复与平台约束分别验证。
