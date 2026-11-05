@@ -33,3 +33,26 @@ func TestDiff(t *testing.T) {
 		t.Fatal("diff of an unknown session succeeded")
 	}
 }
+
+func TestFiles(t *testing.T) {
+	c := startFake(t, func(f *fakeConn) {
+		fr := f.read()
+		if fr.Method != proto.MethodFilesList || string(fr.Params) != `{"session":"s1","path":"lib","ignored":true}` {
+			t.Errorf("request %s %s", fr.Method, fr.Params)
+		}
+		f.ok(fr.ID, proto.FileList{Session: "s1", Path: "lib", Entries: []proto.FileEntry{{Path: "lib/a.go", Kind: proto.FileKindFile, Size: 3}}})
+		fr = f.read()
+		if fr.Method != proto.MethodFilesRead || string(fr.Params) != `{"session":"s1","path":"lib/a.go","baseline":true}` {
+			t.Errorf("request %s %s", fr.Method, fr.Params)
+		}
+		f.ok(fr.ID, proto.FileContent{Session: "s1", Path: "lib/a.go", Text: "abc", Size: 3})
+	})
+	l, err := c.Files(bg(), proto.FilesListParams{Session: "s1", Path: "lib", Ignored: true})
+	if err != nil || len(l.Entries) != 1 || l.Entries[0].Path != "lib/a.go" {
+		t.Fatalf("list %+v %v", l, err)
+	}
+	r, err := c.ReadFile(bg(), proto.FilesReadParams{Session: "s1", Path: "lib/a.go", Baseline: true})
+	if err != nil || r.Text != "abc" {
+		t.Fatalf("read %+v %v", r, err)
+	}
+}

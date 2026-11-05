@@ -138,10 +138,10 @@ func (a *App) OpenFilePicker()       // ⌘P
 
 文件：新 `internal/workspace/files.go`、`files_test.go`；`internal/workspace/git.go`（`check-ignore`、读基线 blob）；`internal/daemon/methods.go` 与测试。
 
-- [ ] `List`、`Read` 按“读取规则”实现；基线 blob 用 Hoplet 自己的对象目录 `cat-file`，不碰用户对象库。
-- [ ] 测试（临时目录 + 临时 git 仓库）：根目录与子目录排序；被忽略的默认不列、`Ignored` 时标记；`.git` 不列；`..`、绝对路径、经符号链接父目录的路径报错；符号链接列出不跟随；`All` 跳过被忽略目录并在超过上限时 `Truncated`；读取文本、二进制、超大、不存在；FIFO 不卡住；基线读取：改过的文件拿到旧内容、新文件 `Missing`、非仓库路径报错；用户仓库的 `.git` 在调用前后不变（对象、index、refs）。
-- [ ] 守护进程：两个方法按会话目录调用；未知会话报错；测试走现有的方法测试。
-- [ ] commit：`feat(workspace): list and read a session's files`
+- [x] `List`、`Read` 按“读取规则”实现；基线 blob 用 Hoplet 自己的对象目录 `cat-file`，不碰用户对象库。
+- [x] 测试（临时目录 + 临时 git 仓库）：根目录与子目录排序；被忽略的默认不列、`Ignored` 时标记；`.git` 不列；`..`、绝对路径、经符号链接父目录的路径报错；符号链接列出不跟随；`All` 跳过被忽略目录并在超过上限时 `Truncated`；读取文本、二进制、超大、不存在；FIFO 不卡住；基线读取：改过的文件拿到旧内容、新文件 `Missing`、非仓库路径报错；用户仓库的 `.git` 在调用前后不变（对象、index、refs）。
+- [x] 守护进程：两个方法按会话目录调用；未知会话报错；测试走现有的方法测试。
+- [x] commit：`feat(workspace): list and read a session's files`
 
 ### 任务 4：右栏外框
 

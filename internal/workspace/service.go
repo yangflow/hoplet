@@ -60,8 +60,8 @@ type Service struct {
 
 	// Overrides of the limits above and of the deadline, for tests (0: the
 	// defaults).
-	maxBytes, maxFiles, maxTotalFiles, packLimit int
-	diffTimeout                                  time.Duration
+	maxBytes, maxFiles, maxTotalFiles, packLimit, maxList int
+	diffTimeout                                           time.Duration
 
 	sweepOnce sync.Once
 	mu        sync.Mutex

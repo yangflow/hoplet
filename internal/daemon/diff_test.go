@@ -103,3 +103,51 @@ func mustDoctor(t *testing.T, c *client.Client) proto.DoctorReport {
 	}
 	return r
 }
+
+func TestSessionFiles(t *testing.T) {
+	requireGit(t)
+	h, script := newHome(t, fake.Script{Session: "n1"})
+	work := filepath.Join(h, "work")
+	gitIn(t, work, "init", "-q", "-b", "main")
+	for name, body := range map[string]string{"a.txt": "one\n", ".gitignore": "*.log\n"} {
+		if err := os.WriteFile(filepath.Join(work, name), []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	gitIn(t, work, "add", "-A")
+	gitIn(t, work, "commit", "-q", "-m", "init")
+	start(t, testConfig(h, script))
+	c := dial(t, h, "device:a")
+	sess := create(t, c, h)
+	if err := os.WriteFile(filepath.Join(work, "a.txt"), []byte("two\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(work, "run.log"), []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	l, err := c.Files(timeout(t), proto.FilesListParams{Session: sess.ID})
+	if err != nil || len(l.Entries) != 2 || l.Entries[0].Path != ".gitignore" || l.Entries[1].Path != "a.txt" {
+		t.Fatalf("list: %+v %v", l, err)
+	}
+	now, err := c.ReadFile(timeout(t), proto.FilesReadParams{Session: sess.ID, Path: "a.txt"})
+	if err != nil || now.Text != "two\n" {
+		t.Fatalf("read now: %+v %v", now, err)
+	}
+	was, err := c.ReadFile(timeout(t), proto.FilesReadParams{Session: sess.ID, Path: "a.txt", Baseline: true})
+	if err != nil || was.Text != "one\n" {
+		t.Fatalf("read baseline: %+v %v", was, err)
+	}
+	if _, err := c.ReadFile(timeout(t), proto.FilesReadParams{Session: sess.ID, Path: "../x"}); apiCode(err) != proto.CodeInvalid {
+		t.Fatalf("a path out of the directory: %v", err)
+	}
+	if _, err := c.Files(timeout(t), proto.FilesListParams{Session: sess.ID, Path: "gone"}); apiCode(err) != proto.CodeNotFound {
+		t.Fatalf("a missing directory: %v", err)
+	}
+	if _, err := c.Files(timeout(t), proto.FilesListParams{Session: sess.ID, All: true, Ignored: true}); apiCode(err) != proto.CodeUnsupported {
+		t.Fatalf("every file with the ignored ones: %v", err)
+	}
+	if _, err := c.ReadFile(timeout(t), proto.FilesReadParams{Session: "nope", Path: "a.txt"}); apiCode(err) != proto.CodeNotFound {
+		t.Fatalf("unknown session: %v", err)
+	}
+}

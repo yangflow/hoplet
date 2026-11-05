@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"errors"
+	"io/fs"
 	"path/filepath"
 
 	"github.com/yangflow/hoplet/internal/harness"
@@ -150,6 +151,27 @@ func (c *conn) call(ctx context.Context, f proto.ClientFrame) (any, error) {
 		// A diff only reads, so unlike the commands above it follows the
 		// connection: a client that goes away stops waiting for it.
 		return s.ws.Diff(c.ctx, p.Session, dir, p)
+	case proto.MethodFilesList:
+		var p proto.FilesListParams
+		if err := decode(f, &p); err != nil {
+			return nil, err
+		}
+		dir, err := s.mgr.WorkDir(ctx, p.Session)
+		if err != nil {
+			return nil, err
+		}
+		// Reading files follows the connection too.
+		return s.ws.List(c.ctx, dir, p)
+	case proto.MethodFilesRead:
+		var p proto.FilesReadParams
+		if err := decode(f, &p); err != nil {
+			return nil, err
+		}
+		dir, err := s.mgr.WorkDir(ctx, p.Session)
+		if err != nil {
+			return nil, err
+		}
+		return s.ws.Read(c.ctx, p.Session, dir, p)
 	case proto.MethodEnvRefresh:
 		return s.sys.refresh(ctx)
 	case proto.MethodSystemDoctor:
@@ -214,8 +236,10 @@ func apiError(err error) *proto.APIError {
 	}
 	code := proto.CodeInternal
 	switch {
-	case errors.Is(err, store.ErrNotFound):
+	case errors.Is(err, store.ErrNotFound), errors.Is(err, workspace.ErrNoBaseline), errors.Is(err, fs.ErrNotExist):
 		code = proto.CodeNotFound
+	case errors.Is(err, workspace.ErrInvalidPath):
+		code = proto.CodeInvalid
 	case errors.Is(err, store.ErrInvalid), errors.Is(err, session.ErrInvalidOption), errors.Is(err, session.ErrUnknownHarness):
 		code = proto.CodeInvalid
 	case errors.Is(err, store.ErrConflict), errors.Is(err, store.ErrExists), errors.Is(err, session.ErrArchived):
@@ -224,7 +248,8 @@ func apiError(err error) *proto.APIError {
 		code = proto.CodeBusy
 	case errors.Is(err, session.ErrNotRunning):
 		code = proto.CodeNotRunning
-	case errors.Is(err, session.ErrUnsupportedVersion), errors.Is(err, harness.ErrUnsupported), errors.Is(err, workspace.ErrNoGit):
+	case errors.Is(err, session.ErrUnsupportedVersion), errors.Is(err, harness.ErrUnsupported), errors.Is(err, workspace.ErrNoGit),
+		errors.Is(err, workspace.ErrUnsupported):
 		code = proto.CodeUnsupported
 	}
 	return &proto.APIError{Code: code, Message: err.Error()}
