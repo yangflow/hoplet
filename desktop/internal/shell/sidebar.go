@@ -19,7 +19,7 @@ import (
 func (a *App) sidebar(c *ui.Context, k theme.Colors) {
 	bar := c.TitleBar()
 	ui.Column(c).Fill().Background(k.Side).Children(func() {
-		ui.Row(c).Height(topHeight(bar)).Padding(0, 8, 0, bar.Left+8).Gap(2).AlignItems(ui.Center).DragWindow().Children(func() {
+		ui.Row(c).Height(topHeight(bar)).Padding(0, theme.Space2, 0, bar.Left+theme.Space4).Gap(theme.SpaceHalf).AlignItems(ui.Center).DragWindow().Children(func() {
 			a.windowButtons(c, k)
 			ui.Spacer(c)
 			a.modeSwitch(c, k)
@@ -28,8 +28,8 @@ func (a *App) sidebar(c *ui.Context, k theme.Colors) {
 		// command palette and the inbox page.
 		// Rows stand 2 apart; the entries sit 4 under the top row and 16
 		// over the list's header, a section of their own.
-		ui.Column(c).Padding(0, 8).Margin(4, 0, 0, 0).Gap(2).Children(func() {
-			e := ui.Row(c).Height(theme.RowHeight).Padding(0, 8).Gap(8).AlignItems(ui.Center).Radius(theme.RadiusRow).
+		ui.Column(c).Padding(0, theme.Space2).Margin(theme.Space1, 0, 0, 0).Gap(theme.SpaceHalf).Children(func() {
+			e := ui.Row(c).Height(theme.Row).Padding(0, theme.Space2).Gap(theme.Space2).AlignItems(ui.Center).Radius(theme.RadiusRow).
 				Label("新建").Tooltip("新建会话 ⌘N")
 			if e.Hovered() {
 				e.Background(k.Fill)
@@ -38,14 +38,14 @@ func (a *App) sidebar(c *ui.Context, k theme.Colors) {
 				a.NewSession()
 			}
 			e.Children(func() {
-				ui.Icon(c, a.icons.New).FontSize(theme.IconSize).TextColor(k.Fg3)
+				ui.Icon(c, a.icons.New).FontSize(theme.Icon).TextColor(k.Fg3)
 				theme.UI.On(ui.Text(c, "新建")).TextColor(k.Fg)
 			})
 			a.searchEntry(c, k)
 			a.inboxEntry(c, k)
 		})
 		// The machine scope ("全部机器 ▾") comes with several machines.
-		ui.Row(c).Height(theme.RowHeight).Margin(16, 0, 4, 0).Padding(0, 8, 0, 16).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Height(theme.Row).Margin(theme.Space4, 0, theme.Space1, 0).Padding(0, theme.Space2, 0, theme.Space4).AlignItems(ui.Center).Children(func() {
 			label := "全部机器"
 			if a.archived {
 				label = "已归档"
@@ -53,9 +53,9 @@ func (a *App) sidebar(c *ui.Context, k theme.Colors) {
 			theme.Label.On(ui.Text(c, label)).TextColor(k.Muted).Grow(1)
 			switch {
 			case a.mode == proto.ModeCode && !a.archived:
-				iconButton(c, k, a.icons.Arrange, "排列", false).Size(26, 26).Menu(a.arrangeMenu)
+				iconButton(c, k, a.icons.Arrange, "排列", false).Size(theme.RowGroup, theme.RowGroup).Menu(a.arrangeMenu)
 			case a.mode == proto.ModePersonal:
-				if iconButton(c, k, a.icons.New, "新建伙伴 ⇧⌘N", false).Size(26, 26).Clicked() {
+				if iconButton(c, k, a.icons.New, "新建伙伴 ⇧⌘N", false).Size(theme.RowGroup, theme.RowGroup).Clicked() {
 					a.NewSession()
 				}
 			}
@@ -65,21 +65,21 @@ func (a *App) sidebar(c *ui.Context, k theme.Colors) {
 	})
 }
 
-// modeSwitchWidth is the Personal | Code switch's width: two 30-wide
-// buttons with a 2 gap, in a 2 padding.
-const modeSwitchWidth = 2 + 30 + 2 + 30 + 2
+// modeSwitchWidth is the Personal | Code switch's width: two buttons a
+// row wide, half a space apart and inside.
+const modeSwitchWidth = 2*theme.Row + 3*theme.SpaceHalf
 
 // sideMin is the least the sidebar narrows to: SidebarMin, or what its top
 // row needs beside the traffic lights, whichever is wider, so its buttons
 // always fit.
 func sideMin(bar ui.TitleBar) float32 {
-	row := bar.Left + 8 + 3*theme.RowHeight + 2*2 + 12 + modeSwitchWidth + 8
+	row := bar.Left + theme.Space4 + 3*theme.Row + 2*theme.SpaceHalf + theme.Space3 + modeSwitchWidth + theme.Space2
 	return max(theme.SidebarMin, row)
 }
 
 // searchEntry opens the command palette.
 func (a *App) searchEntry(c *ui.Context, k theme.Colors) {
-	e := ui.Row(c).Height(theme.RowHeight).Padding(0, 8).Gap(8).AlignItems(ui.Center).Radius(theme.RadiusRow).
+	e := ui.Row(c).Height(theme.Row).Padding(0, theme.Space2).Gap(theme.Space2).AlignItems(ui.Center).Radius(theme.RadiusRow).
 		Label("搜索").Tooltip("搜索 ⌘K")
 	if a.s.palOpen || e.Hovered() {
 		e.Background(k.Fill)
@@ -88,7 +88,7 @@ func (a *App) searchEntry(c *ui.Context, k theme.Colors) {
 		a.OpenPalette()
 	}
 	e.Children(func() {
-		ui.Icon(c, a.icons.Search).FontSize(theme.IconSize).TextColor(k.Fg3)
+		ui.Icon(c, a.icons.Search).FontSize(theme.Icon).TextColor(k.Fg3)
 		theme.UI.On(ui.Text(c, "搜索")).TextColor(k.Fg)
 	})
 }
@@ -98,7 +98,7 @@ func (a *App) searchEntry(c *ui.Context, k theme.Colors) {
 // the inbox shows.
 func (a *App) inboxEntry(c *ui.Context, k theme.Colors) {
 	n := a.cat.Counts().NeedsYou
-	e := ui.Row(c).Height(theme.RowHeight).Padding(0, 8).Gap(8).AlignItems(ui.Center).Radius(theme.RadiusRow).
+	e := ui.Row(c).Height(theme.Row).Padding(0, theme.Space2).Gap(theme.Space2).AlignItems(ui.Center).Radius(theme.RadiusRow).
 		Label("收件箱").Tooltip("收件箱 ⇧⌘I")
 	switch {
 	case a.inbox:
@@ -110,10 +110,10 @@ func (a *App) inboxEntry(c *ui.Context, k theme.Colors) {
 		a.OpenInbox()
 	}
 	e.Children(func() {
-		ui.Icon(c, a.icons.Inbox).FontSize(theme.IconSize).TextColor(k.Fg3)
+		ui.Icon(c, a.icons.Inbox).FontSize(theme.Icon).TextColor(k.Fg3)
 		name := theme.UI.On(ui.Text(c, "收件箱")).TextColor(k.Fg).Grow(1)
 		if a.inbox {
-			name.FontWeight(600)
+			name.FontWeight(theme.UIStrong.Weight())
 		}
 		if n > 0 {
 			ui.Badge(c, strconv.Itoa(n)).Background(k.Attn).TextColor(k.OnAttn)
@@ -152,7 +152,7 @@ func (a *App) windowButtons(c *ui.Context, k theme.Colors) {
 // modeSwitch is the Personal | Code segmented switch, icons only; the
 // chosen side is raised.
 func (a *App) modeSwitch(c *ui.Context, k theme.Colors) {
-	ui.Row(c).Padding(2).Gap(2).Radius(8).Background(k.Line).Children(func() {
+	ui.Row(c).Padding(theme.SpaceHalf).Gap(theme.SpaceHalf).Radius(theme.RadiusControl).Background(k.Line).Children(func() {
 		for _, m := range []struct {
 			mode proto.Mode
 			icon *ui.SVG
@@ -162,14 +162,14 @@ func (a *App) modeSwitch(c *ui.Context, k theme.Colors) {
 			{proto.ModeCode, a.icons.Code, "Code ⌘2"},
 		} {
 			on := a.mode == m.mode
-			b := ui.Button(c.Key(m.mode), "").Label(m.tip).Tooltip(m.tip).Size(30, 26).Padding(0).
+			b := ui.Button(c.Key(m.mode), "").Label(m.tip).Tooltip(m.tip).Size(theme.Row, theme.RowGroup).Padding(0).
 				Radius(theme.RadiusControl).Border(0, ui.Transparent).Background(ui.Transparent)
 			color := k.Muted
 			if on {
-				b.Background(k.Raised).Shadow(0, 0.5, 1.5, 0, ui.RGBA(0, 0, 0, .18))
+				k.ShadowRaised.On(b.Background(k.Raised))
 				color = k.Fg
 			}
-			b.Children(func() { ui.Icon(c, m.icon).FontSize(theme.IconSize).TextColor(color) })
+			b.Children(func() { ui.Icon(c, m.icon).FontSize(theme.Icon).TextColor(color) })
 			if b.Clicked() {
 				a.SetMode(m.mode)
 			}
@@ -223,7 +223,7 @@ func (a *App) list(c *ui.Context, k theme.Colors) {
 			a.Select(s.ID)
 		}
 	}
-	col := ui.Column(c).Padding(0, 8).Gap(2).Focusable().FocusRing(false).Role(ui.RoleList).Label("会话")
+	col := ui.Column(c).Padding(0, theme.Space2).Gap(theme.SpaceHalf).Focusable().FocusRing(false).Role(ui.RoleList).Label("会话")
 	if col.Shortcut(0, ui.KeyUp) {
 		a.move(a.shown(l), -1)
 	}
@@ -267,9 +267,9 @@ func (a *App) emptyList(c *ui.Context, k theme.Colors) {
 	case a.show == catalog.ShowRunning:
 		text, tip = "没有运行中的会话", "显示全部"
 	}
-	ui.Column(c).Padding(16, 16).Gap(10).AlignItems(ui.Start).Children(func() {
-		ui.Text(c, text).FontSize(12.5).LineHeight(18.0 / 12.5).TextColor(k.Muted)
-		if tip != "" && ui.Button(c, tip).Height(18).Padding(0).Background(ui.Transparent).Border(0, ui.Transparent).
+	ui.Column(c).Padding(theme.Space4, theme.Space4, 0).Gap(theme.Space2).AlignItems(ui.Start).Children(func() {
+		theme.SecondaryBlock.On(ui.Text(c, text)).TextColor(k.Muted)
+		if tip != "" && theme.SecondaryBlock.On(ui.Button(c, tip)).Height(theme.SecondaryBlock.Line()).Padding(0).Background(ui.Transparent).Border(0, ui.Transparent).
 			TextColor(k.Fg3).Underline().Clicked() {
 			a.show = catalog.ShowAll
 		}
@@ -314,7 +314,7 @@ func (a *App) move(rows []proto.Session, by int) {
 // groupLabel is the small title over the pinned sessions.
 func groupLabel(c *ui.Context, k theme.Colors, label string) {
 	// 8 above and below, the list's gap of 2 included.
-	ui.Row(c).Height(24).Margin(8, 0, 6, 0).Padding(0, 8).AlignItems(ui.Center).Children(func() {
+	ui.Row(c).Height(theme.RowDense).Margin(theme.Space2, 0, theme.Space1Half, 0).Padding(0, theme.Space2).AlignItems(ui.Center).Children(func() {
 		theme.Label.On(ui.Text(c, label)).TextColor(k.Muted)
 	})
 }
@@ -324,21 +324,21 @@ func groupLabel(c *ui.Context, k theme.Colors, label string) {
 // session in the directory comes with the new-session page. Groups stand
 // 12 apart, the first 4 under the list's header.
 func (a *App) groupHeader(c *ui.Context, k theme.Colors, g catalog.Group, first bool) {
-	top := float32(10) // with the list's gap of 2
+	top := float32(theme.Space3 - theme.SpaceHalf) // with the list's gap
 	if first {
-		top = 4
+		top = theme.Space1
 	}
-	h := ui.Row(c).Height(28).Margin(top, 0, 0, 0).Padding(0, 6, 0, 8).Gap(6).AlignItems(ui.Center).Tooltip(g.Dir)
+	h := ui.Row(c).Height(theme.Row).Margin(top, 0, 0, 0).Padding(0, theme.Space1Half, 0, theme.Space2).Gap(theme.Space1Half).AlignItems(ui.Center).Tooltip(g.Dir)
 	hovered := h.Hovered()
 	if h.Clicked() {
 		a.closed[g.Dir] = !a.closed[g.Dir]
 	}
 	h.Children(func() {
-		ui.Icon(c, a.icons.Folder).FontSize(theme.IconSize).TextColor(k.Muted)
-		theme.UI.On(ui.Text(c, g.Name)).FontWeight(500).TextColor(k.Fg2).SingleLine().Grow(1)
+		ui.Icon(c, a.icons.Folder).FontSize(theme.Icon).TextColor(k.Muted)
+		theme.UI.On(ui.Text(c, g.Name)).FontWeight(theme.UIMedium.Weight()).TextColor(k.Fg2).SingleLine().Grow(1)
 		// ＋ starts a session in this directory: faint, solid while the
 		// title is hovered, with a background only under the pointer.
-		plus := iconButton(c, k, a.icons.New, "在此目录新建会话", false).Size(22, 22)
+		plus := iconButton(c, k, a.icons.New, "在此目录新建会话", false).Size(theme.ControlXS, theme.ControlXS)
 		switch {
 		case plus.Hovered():
 			plus.Background(k.Fill2)
@@ -357,12 +357,12 @@ func (a *App) groupHeader(c *ui.Context, k theme.Colors, g catalog.Group, first 
 func (a *App) row(c *ui.Context, k theme.Colors, s proto.Session) {
 	c = c.Key(s.ID)
 	personal := s.Mode == proto.ModePersonal
-	r := ui.Row(c).AlignItems(ui.Center).Label(name(s))
+	r := ui.Row(c).AlignItems(ui.Center).Label(name(s)).Transition(hoverMotion)
 	if personal {
 		// A companion: two lines beside a 32-point avatar.
-		r.Padding(6, 8).Gap(10).Radius(8)
+		r.Padding(theme.Space1Half, theme.Space2).Gap(theme.Space2).Radius(theme.RadiusControl)
 	} else {
-		r.Height(theme.RowHeight).Padding(0, 8).Gap(8).Radius(theme.RadiusRow)
+		r.Height(theme.Row).Padding(0, theme.Space2).Gap(theme.Space2).Radius(theme.RadiusRow)
 	}
 	hovered := r.Hovered()
 	switch {
@@ -381,7 +381,7 @@ func (a *App) row(c *ui.Context, k theme.Colors, s proto.Session) {
 		if personal {
 			a.avatar(c, k, s)
 		} else {
-			a.harnessIcon(c, k, s.Harness.Kind, theme.IconSize)
+			a.harnessIcon(c, k, s.Harness.Kind, theme.Icon)
 		}
 		ui.Column(c).Grow(1).Shrink(1).AlignItems(ui.Stretch).Children(func() {
 			if a.renaming == s.ID {
@@ -403,7 +403,7 @@ func (a *App) row(c *ui.Context, k theme.Colors, s proto.Session) {
 
 // flashTime is how long the row of a session made elsewhere takes to go
 // out.
-const flashTime = 1500 * time.Millisecond
+var flashTime = theme.MotionFlash.Duration
 
 // flash lights the row of a session made elsewhere with fill2 as it first
 // shows and fades it out; when the desktop asks for less motion, the
@@ -438,22 +438,22 @@ func (a *App) trailing(c *ui.Context, k theme.Colors, s proto.Session, hovered b
 		if s.Pinned {
 			pin, tip = a.icons.Unpin, "取消置顶 ⇧⌘P"
 		}
-		if iconButton(c, k, pin, tip, false).Size(24, 24).Clicked() {
+		if iconButton(c, k, pin, tip, false).Size(theme.RowDense, theme.RowDense).Clicked() {
 			a.Select(s.ID)
 			a.TogglePin()
 		}
-		if s.ArchivedAt == nil && iconButton(c, k, a.icons.Archive, "归档 ⌘⌫", false).Size(24, 24).Clicked() {
+		if s.ArchivedAt == nil && iconButton(c, k, a.icons.Archive, "归档 ⌘⌫", false).Size(theme.RowDense, theme.RowDense).Clicked() {
 			a.Select(s.ID)
 			a.Archive()
 		}
 	case s.Status == proto.StatusRunning:
-		ui.Spinner(c).Size(12, 12).Label("运行中")
+		ui.Spinner(c).Size(theme.IconSmall, theme.IconSmall).Label("运行中")
 	case s.Status == proto.StatusWaiting:
-		ui.Box(c).Size(8, 8).Radius(4).Background(k.Attn).Label("需要你")
+		ui.Box(c).Size(theme.Dot, theme.Dot).Radius(theme.RadiusPill).Background(k.Attn).Label("需要你")
 	case s.Status == proto.StatusErrored:
-		ui.Box(c).Size(8, 8).Radius(2).Background(k.Del).Label("出错")
+		ui.Box(c).Size(theme.Dot, theme.Dot).Radius(theme.RadiusMark).Background(k.Fg).Label("出错")
 	case s.Unread:
-		ui.Box(c).Size(6, 6).Radius(3).Background(k.AccentFg).Label("未读")
+		ui.Box(c).Size(theme.DotSmall, theme.DotSmall).Radius(theme.RadiusPill).Background(k.AccentFg).Label("未读")
 	default:
 		theme.Caption.On(ui.Text(c, ago(c.Now(), s.UpdatedAt))).TextColor(k.Muted).FontFeatures("tnum")
 	}
@@ -479,29 +479,31 @@ func (a *App) harnessIcon(c *ui.Context, k theme.Colors, kind string, size float
 		return
 	}
 	ui.Box(c).Size(size, size).Radius(theme.RadiusXS).Background(k.Fill2).Center().Label(harnessName(kind)).Children(func() {
-		ui.Text(c, initial(kind)).FontSize(size * 0.7).FontWeight(600).TextColor(k.Fg3)
+		ui.Text(c, initial(kind)).FontSize(0.7 * size).FontWeight(theme.UIStrong.Weight()).TextColor(k.Fg3)
 	})
 }
 
 // avatar is a companion's picture: its initial on neutral gray, with its
 // harness in a round badge at the corner.
-func (a *App) avatar(c *ui.Context, k theme.Colors, s proto.Session) { a.avatarSized(c, k, s, 32) }
+func (a *App) avatar(c *ui.Context, k theme.Colors, s proto.Session) {
+	a.avatarSized(c, k, s, theme.RowStep)
+}
 
 // avatarSized is avatar at size points: 32 in the sidebar, 22 in the
 // title bar.
 func (a *App) avatarSized(c *ui.Context, k theme.Colors, s proto.Session, size float32) {
-	badge := float32(15)
-	if size < 32 {
-		badge = 13
+	badge := float32(theme.AvatarBadge)
+	if size < theme.RowStep {
+		badge = theme.AvatarBadgeSmall
 	}
 	ui.Box(c).Size(size, size).Radius(size / 2).Background(k.Fill2).Center().Children(func() {
 		style := theme.UIStrong
-		if size < 32 {
+		if size < theme.RowStep {
 			style = theme.Label
 		}
 		style.On(ui.Text(c, initial(name(s)))).TextColor(k.Fg2)
-		ui.Box(c).Absolute().Right(-2).Bottom(-2).Size(badge, badge).Radius(badge/2).Background(k.Side).Border(1, k.Line).Center().Children(func() {
-			a.harnessIcon(c, k, s.Harness.Kind, badge-5)
+		ui.Box(c).Absolute().Right(-2).Bottom(-2).Size(badge, badge).Radius(badge/2).Background(k.Side).Border(theme.LineWidth, k.Line).Center().Children(func() {
+			a.harnessIcon(c, k, s.Harness.Kind, badge-theme.Space1)
 		})
 	})
 }
@@ -549,18 +551,18 @@ func (a *App) sessionMenu(m *ui.Menu, s proto.Session) {
 // and switches to the archived sessions. Other machines and paired
 // devices come with several machines; settings come with settings.
 func (a *App) footer(c *ui.Context, k theme.Colors) {
-	ui.Row(c).Height(theme.TitleBar).Padding(0, 8, 0, 12).Gap(2).AlignItems(ui.Center).BorderWidth(1, 0, 0, 0).BorderColor(k.Line).Children(func() {
-		ui.Row(c).Height(30).Padding(0, 6).Gap(8).AlignItems(ui.Center).Radius(theme.RadiusControl).Grow(1).Shrink(1).Children(func() {
-			ui.Icon(c, a.icons.Machine).FontSize(theme.IconSize).TextColor(k.Fg3)
+	theme.Bar.P(0, theme.Space2, 0, theme.Space3).On(ui.Row(c)).Children(func() {
+		ui.Row(c).Height(theme.Row).Padding(0, theme.Space1Half).Gap(theme.Space2).AlignItems(ui.Center).Radius(theme.RadiusControl).Grow(1).Shrink(1).Children(func() {
+			ui.Icon(c, a.icons.Machine).FontSize(theme.Icon).TextColor(k.Fg3)
 			machine := a.machine
 			if machine == "" {
 				machine = "本机"
 			}
-			theme.UI.On(ui.Text(c, machine)).FontWeight(500).TextColor(k.Fg).SingleLine().Shrink(1)
+			theme.UI.On(ui.Text(c, machine)).FontWeight(theme.UIMedium.Weight()).TextColor(k.Fg).SingleLine().Shrink(1)
 			if a.connected {
-				ui.Icon(c, a.icons.Connected).FontSize(theme.IconSizeSmall).TextColor(k.Muted).Label("已连接").Tooltip("已连接本机守护进程")
+				ui.Icon(c, a.icons.Connected).FontSize(theme.IconSmall).TextColor(k.Muted).Label("已连接").Tooltip("已连接本机守护进程")
 			} else {
-				ui.Icon(c, a.icons.Offline).FontSize(theme.IconSizeSmall).TextColor(k.Attn).Label("断线").Tooltip("连不上守护进程：" + a.offline)
+				ui.Icon(c, a.icons.Offline).FontSize(theme.IconSmall).TextColor(k.Attn).Label("断线").Tooltip("连不上守护进程：" + a.offline)
 			}
 		})
 		if a.mode == proto.ModeCode && iconButton(c, k, a.icons.Archive, "已归档的会话", a.archived).Clicked() {
@@ -572,12 +574,12 @@ func (a *App) footer(c *ui.Context, k theme.Colors) {
 // iconButton is a 28-point button showing only an icon; tip names it for
 // the tooltip and assistive technology.
 func iconButton(c *ui.Context, k theme.Colors, icon *ui.SVG, tip string, on bool) ui.Element {
-	b := ui.Button(c, "").Label(tip).Tooltip(tip).Size(theme.RowHeight, theme.RowHeight).Padding(0).
-		Radius(theme.RadiusControl).Background(ui.Transparent).Border(0, ui.Transparent)
+	b := ui.Button(c, "").Label(tip).Tooltip(tip).Size(theme.Row, theme.Row).Padding(0).
+		Radius(theme.RadiusControl).Background(ui.Transparent).Border(0, ui.Transparent).Transition(hoverMotion)
 	if on || b.Hovered() {
 		b.Background(k.Fill2)
 	}
 	return b.Children(func() {
-		ui.Icon(c, icon).FontSize(theme.IconSize).TextColor(k.Fg3)
+		ui.Icon(c, icon).FontSize(theme.Icon).TextColor(k.Fg3)
 	})
 }

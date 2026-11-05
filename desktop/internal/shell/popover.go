@@ -9,6 +9,14 @@ import (
 	"github.com/yangflow/hoplet/proto"
 )
 
+// hoverMotion is how a row or a button answers the pointer: its fill
+// fades in and out along motion-fast.
+var hoverMotion = ui.ElementTransition{Colors: true, Animation: &theme.MotionFast}
+
+// popMotion is how a popover comes and goes: from motion-scale-pop on the
+// snappy spring, out by fading.
+var popMotion = ui.ElementTransition{Animation: &theme.MotionSnappy, Enter: &ui.Motion{Scale: theme.MotionScalePop}, Exit: &ui.Motion{}}
+
 // popover shows a panel above anchor while *open, in the composer's look:
 // a 10-point card with a hairline and the popover shadow, 6 points apart
 // from the anchor. end aligns it with the anchor's end rather than its
@@ -19,15 +27,16 @@ func popover(c *ui.Context, k theme.Colors, anchor ui.Element, open *bool, end b
 		if end {
 			at, self = ui.AnchorTopEnd, ui.AnchorBottomEnd
 		}
-		panel.AttachTo(anchor, at, self).Margin(0, 0, 6, 0).Width(width).Padding(6).Gap(1).
-			Radius(theme.RadiusCard).Background(k.Popover).Border(1, k.Line2).Shadow(0, 10, 30, 0, k.Shadow).Children(fn)
+		panel.AttachTo(anchor, at, self).Margin(0, 0, theme.Space1Half, 0).Width(width).Padding(theme.Space1Half).Gap(theme.SpaceHalf).
+			Radius(theme.RadiusCard).Background(k.Popover).Border(theme.LineWidth, k.Line2).Transition(popMotion)
+		k.ShadowPopover.On(panel).Children(fn)
 	})
 }
 
 // menuItem is a row of a popover: at least 28 high, a light background
 // when on or hovered.
 func menuItem(c *ui.Context, k theme.Colors, on bool) ui.Element {
-	r := ui.Row(c).MinHeight(theme.RowHeight).Padding(4, 8).Gap(8).AlignItems(ui.Center).Radius(theme.RadiusRow)
+	r := ui.Row(c).MinHeight(theme.Row).Padding(theme.Space1, theme.Space2).Gap(theme.Space2).AlignItems(ui.Center).Radius(theme.RadiusRow).Transition(hoverMotion)
 	switch {
 	case on:
 		r.Background(k.Sel)
@@ -39,12 +48,12 @@ func menuItem(c *ui.Context, k theme.Colors, on bool) ui.Element {
 
 // menuHeader names a group of a popover's rows.
 func menuHeader(c *ui.Context, k theme.Colors, label string) {
-	theme.Label.On(ui.Text(c, label)).TextColor(k.Muted).Padding(6, 8, 2, 8)
+	theme.Label.On(ui.Text(c, label)).TextColor(k.Muted).Padding(theme.Space1Half, theme.Space2, theme.SpaceHalf, theme.Space2)
 }
 
 // menuSeparator is a line between groups of a popover.
 func menuSeparator(c *ui.Context, k theme.Colors) {
-	ui.Box(c).Height(1).FillWidth().Background(k.Line).Margin(4, 6)
+	ui.Box(c).Height(theme.LineWidth).FillWidth().Background(k.Line).Margin(theme.Space1, theme.Space1Half)
 }
 
 // runSettings are what the composer's controls change: a session's, or
@@ -128,7 +137,7 @@ func (a *App) modeControl(c *ui.Context, k theme.Colors, st runSettings, caps pr
 		return
 	}
 	b := ui.Button(c, "").Label("审批："+modeName(st.perm)).Tooltip("审批："+modeName(st.perm)).
-		Height(theme.RowHeight).Padding(0, 8).Gap(5).Radius(theme.RadiusControl).Border(0, ui.Transparent).Background(ui.Transparent)
+		Height(theme.Row).Padding(0, theme.Space2).Gap(theme.Space1Half).Radius(theme.RadiusControl).Border(0, ui.Transparent).Background(ui.Transparent)
 	if a.s.permOpen || b.Hovered() {
 		b.Background(k.Fill2)
 	}
@@ -136,9 +145,9 @@ func (a *App) modeControl(c *ui.Context, k theme.Colors, st runSettings, caps pr
 		a.s.permOpen = !a.s.permOpen
 	}
 	b.Children(func() {
-		ui.Icon(c, a.modeIcon(st.perm)).FontSize(theme.IconSizeInRow).TextColor(k.Fg3)
+		ui.Icon(c, a.modeIcon(st.perm)).FontSize(theme.IconRow).TextColor(k.Fg3)
 		theme.Secondary.On(ui.Text(c, modeName(st.perm))).TextColor(k.Fg2).SingleLine()
-		ui.Icon(c, a.icons.Menu).FontSize(theme.IconSizeSmall).TextColor(k.Faint)
+		ui.Icon(c, a.icons.Menu).FontSize(theme.IconSmall).TextColor(k.Faint)
 	})
 	popover(c, k, b, &a.s.permOpen, false, 260, func() {
 		keys := []string{"⇧⌘1", "⇧⌘2", "⇧⌘3", "⇧⌘4"}
@@ -153,8 +162,8 @@ func (a *App) modeControl(c *ui.Context, k theme.Colors, st runSettings, caps pr
 				a.s.permOpen = false
 			}
 			r.Children(func() {
-				ui.Icon(c, a.modeIcon(m.mode)).FontSize(theme.IconSize).TextColor(k.Fg3)
-				ui.Column(c).Grow(1).Padding(4, 0).Children(func() {
+				ui.Icon(c, a.modeIcon(m.mode)).FontSize(theme.Icon).TextColor(k.Fg3)
+				ui.Column(c).Grow(1).Padding(theme.Space1, 0).Children(func() {
 					theme.UI.On(ui.Text(c, modeName(m.mode))).TextColor(k.Fg)
 					theme.Caption.On(ui.Text(c, m.what)).TextColor(k.Muted)
 				})
@@ -208,10 +217,10 @@ func effortName(e proto.Effort) string {
 // space of its size otherwise.
 func check(c *ui.Context, k theme.Colors, a *App, on bool) {
 	if !on {
-		ui.Box(c).Size(14, 14)
+		ui.Box(c).Size(theme.IconRow, theme.IconRow)
 		return
 	}
-	ui.Icon(c, a.icons.Check).FontSize(14).TextColor(k.Fg3)
+	ui.Icon(c, a.icons.Check).FontSize(theme.IconRow).TextColor(k.Fg3)
 }
 
 // effortLevels are the effort levels the model takes, or else its

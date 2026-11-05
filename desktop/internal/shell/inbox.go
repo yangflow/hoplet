@@ -144,7 +144,7 @@ func (a *App) inboxFeeds() []machineFeed {
 // inboxTitle is the inbox's title bar: its icon, its name and how many
 // cards each group has.
 func (a *App) inboxTitle(c *ui.Context, k theme.Colors) {
-	ui.Icon(c, a.icons.Inbox).FontSize(theme.IconSize).TextColor(k.Fg3)
+	ui.Icon(c, a.icons.Inbox).FontSize(theme.Icon).TextColor(k.Fg3)
 	theme.UIStrong.On(ui.Text(c, "收件箱")).TextColor(k.Fg)
 	var parts []string
 	for _, sec := range inboxSections(a.inboxFeeds()) {
@@ -167,14 +167,18 @@ func shortLabel(k inboxKind) string {
 	return "断线"
 }
 
+// inboxMotion is how a handled card goes: up a little and out, its room
+// closing, the cards under it moving up.
+var inboxMotion = ui.ElementTransition{Animation: &theme.MotionSmooth, Exit: &ui.Motion{Y: -theme.MotionLift, Collapse: true}}
+
 // inboxPage is the inbox: what waits on me, grouped, handled on the cards.
 // ↑↓ move among the cards, ↩ opens the selected one's session, 1–3 choose
 // an approval's options.
 func (a *App) inboxPage(c *ui.Context, k theme.Colors) {
 	secs := inboxSections(a.inboxFeeds())
 	if len(secs) == 0 {
-		ui.Column(c).Grow(1).Center().Gap(10).Children(func() {
-			ui.Icon(c, a.icons.Inbox).FontSize(32).TextColor(k.Faint)
+		ui.Column(c).Grow(1).Center().Gap(theme.Space2).Children(func() {
+			ui.Icon(c, a.icons.Inbox).FontSize(theme.IconEmpty).TextColor(k.Faint)
 			theme.UI.On(ui.Text(c, "没有要你处理的事")).TextColor(k.Muted)
 		})
 		return
@@ -188,8 +192,8 @@ func (a *App) inboxPage(c *ui.Context, k theme.Colors) {
 	a.s.inboxSel = min(a.s.inboxSel, len(flat)-1)
 	sel := flat[max(a.s.inboxSel, 0)]
 	ui.Scroll(c).Grow(1).Children(func() {
-		ui.Row(c).FillWidth().Justify(ui.Center).Padding(0, 24).Children(func() {
-			col := ui.Column(c).Grow(1).Shrink(1).MaxWidth(760).Padding(4, 0, 20, 0).Gap(8).
+		ui.Row(c).FillWidth().Justify(ui.Center).Padding(0, theme.Space6).Children(func() {
+			col := ui.Column(c).Grow(1).Shrink(1).MaxWidth(theme.CodeColumn).Padding(theme.Space6, 0, theme.Space8, 0).Gap(theme.Space3).
 				Focusable().FocusRing(false).Role(ui.RoleList).Label("收件箱")
 			if a.s.inboxFocus {
 				col.Focus()
@@ -227,18 +231,20 @@ func (a *App) inboxPage(c *ui.Context, k theme.Colors) {
 // inboxHeader is a group's title with its count; the unread group can be
 // marked read at once.
 func (a *App) inboxHeader(c *ui.Context, k theme.Colors, sec inboxSection) {
-	ui.Row(c.Key("sec:"+sec.label)).Padding(14, 4, 4, 4).AlignItems(ui.Center).Children(func() {
+	ui.Row(c.Key("sec:"+sec.label)).Padding(theme.Space3, theme.Space1, theme.Space1).AlignItems(ui.Center).Children(func() {
 		theme.Label.On(ui.Textf(c, "%s · %d", sec.label, len(sec.items))).TextColor(k.Muted).Grow(1)
 		if sec.kind != inboxUnread {
 			return
 		}
-		b := ui.Button(c, "").Label("全部标为已读").Padding(0, 4).Background(ui.Transparent).Border(0, ui.Transparent)
+		b := ui.Button(c, "").Label("全部标为已读").Padding(0, theme.Space1).Background(ui.Transparent).Border(0, ui.Transparent)
 		if b.Clicked() {
 			for _, it := range sec.items {
 				a.markReadAt(it)
 			}
 		}
-		b.Children(func() { theme.Caption.On(ui.Text(c, "全部标为已读")).FontWeight(500).TextColor(k.Fg3) })
+		b.Children(func() {
+			theme.Caption.On(ui.Text(c, "全部标为已读")).FontWeight(theme.UIMedium.Weight()).TextColor(k.Fg3)
+		})
 	})
 }
 
@@ -252,19 +258,19 @@ func (a *App) inboxCard(c *ui.Context, k theme.Colors, it inboxItem, n int) {
 	if it.approval != nil && a.s.inboxDone[it.approval.ID] != "" {
 		// Handled: one line of what was decided, until the session moves
 		// on and the card goes.
-		ui.Row(c.Key(key)).Padding(9, 14).Gap(8).AlignItems(ui.Center).Radius(14).Border(1, k.Line2).BorderStyle(ui.BorderDashed).
-			Transition(ui.ElementTransition{Exit: &ui.Motion{Y: -4}}).Children(func() {
-			ui.Icon(c, a.icons.Check).FontSize(theme.IconSizeInRow).TextColor(k.Add)
+		ui.Row(c.Key(key)).Padding(theme.Space2, theme.Space3).Gap(theme.Space2).AlignItems(ui.Center).Radius(theme.RadiusPanel).Border(theme.LineWidth, k.Line2).BorderStyle(ui.BorderDashed).
+			Transition(inboxMotion).Children(func() {
+			ui.Icon(c, a.icons.Check).FontSize(theme.IconRow).TextColor(k.Add)
 			theme.UI.On(ui.Text(c, a.s.inboxDone[it.approval.ID]+" · ")).TextColor(k.Fg3)
 			theme.UI.On(ui.Text(c, name(it.session))).TextColor(k.Fg2).SingleLine().Shrink(1)
 		})
 		return
 	}
 	on := n == a.s.inboxSel
-	card := ui.Column(c.Key(key)).Padding(12, 12, 12, 14).Gap(8).Radius(14).Border(1, k.Line).Background(k.Bg).
-		Transition(ui.ElementTransition{Exit: &ui.Motion{Y: -4}})
+	card := ui.Column(c.Key(key)).Padding(theme.Space3).Gap(theme.Space2).Radius(theme.RadiusPanel).Border(theme.LineWidth, k.Line).Background(k.Bg).
+		Transition(inboxMotion)
 	if on {
-		card.Background(k.Sel).Border(1, k.Line2)
+		card.Background(k.Sel).Border(theme.LineWidth, k.Line2)
 	}
 	hovered := card.Hovered()
 	if card.Clicked() {
@@ -278,16 +284,16 @@ func (a *App) inboxCard(c *ui.Context, k theme.Colors, it inboxItem, n int) {
 			a.offlineCard(c, k, it)
 			return
 		}
-		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Gap(theme.Space2).AlignItems(ui.Center).Children(func() {
 			if it.kind == inboxUnread {
-				ui.Box(c).Size(7, 7).Radius(4).Background(k.AccentFg)
+				ui.Box(c).Size(theme.DotSmall, theme.DotSmall).Radius(theme.RadiusPill).Background(k.AccentFg)
 			}
-			a.harnessIcon(c, k, it.session.Harness.Kind, theme.IconSizeInRow)
+			a.harnessIcon(c, k, it.session.Harness.Kind, theme.IconRow)
 			theme.UIStrong.On(ui.Text(c, name(it.session))).TextColor(k.Fg).SingleLine().Shrink(1)
 			theme.Caption.On(ui.Text(c, it.machine+" · "+where(it.session))).TextColor(k.Muted).SingleLine().Shrink(1)
 			ui.Spacer(c)
 			if it.kind == inboxUnread && hovered {
-				b := ui.Button(c, "").Label("标为已读").Height(24).Padding(0, 8).Radius(theme.RadiusControl).
+				b := ui.Button(c, "").Label("标为已读").Height(theme.RowDense).Padding(0, theme.Space2).Radius(theme.RadiusControl).
 					Border(0, ui.Transparent).Background(k.Fill)
 				if b.Clicked() {
 					a.markReadAt(it)
@@ -295,11 +301,11 @@ func (a *App) inboxCard(c *ui.Context, k theme.Colors, it inboxItem, n int) {
 				b.Children(func() { theme.Secondary.On(ui.Text(c, "标为已读")).TextColor(k.Fg) })
 			}
 			theme.Caption.On(ui.Text(c, ago(c.Now(), it.session.UpdatedAt))).TextColor(k.Muted)
-			if iconButton(c, k, a.icons.Open, "打开会话 ↩", false).Size(24, 24).Clicked() {
+			if iconButton(c, k, a.icons.Open, "打开会话 ↩", false).Size(theme.RowDense, theme.RowDense).Clicked() {
 				a.openFromInbox(it)
 			}
 		})
-		ui.Column(c).Padding(0, 0, 0, 22).Gap(8).Children(func() { a.inboxBody(c, k, it) })
+		ui.Column(c).Padding(0, 0, 0, theme.IconRow+theme.Space2).Gap(theme.Space2).Children(func() { a.inboxBody(c, k, it) })
 	})
 }
 
@@ -311,8 +317,8 @@ func (a *App) inboxBody(c *ui.Context, k theme.Colors, it inboxItem) {
 			theme.UI.On(ui.Text(c, it.session.Preview)).TextColor(k.Fg2).MaxLines(2)
 		}
 	case inboxErrored:
-		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-			ui.Icon(c, a.icons.Failed).FontSize(theme.IconSizeInRow).TextColor(k.Del)
+		ui.Row(c).Gap(theme.Space2).AlignItems(ui.Center).Children(func() {
+			ui.Icon(c, a.icons.Failed).FontSize(theme.IconRow).TextColor(k.Del)
 			text := "出错了"
 			if it.session.Preview != "" {
 				text += " · " + it.session.Preview
@@ -325,8 +331,8 @@ func (a *App) inboxBody(c *ui.Context, k theme.Colors, it inboxItem) {
 			theme.UI.On(ui.Text(c, "等你处理")).TextColor(k.Fg2)
 			return
 		}
-		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-			ui.Icon(c, a.approvalIcon(ap.Kind)).FontSize(theme.IconSizeInRow).TextColor(k.AttnFg)
+		ui.Row(c).Gap(theme.Space2).AlignItems(ui.Center).Children(func() {
+			ui.Icon(c, a.approvalIcon(ap.Kind)).FontSize(theme.IconRow).TextColor(k.AttnFg)
 			title := ap.Title
 			if ap.Kind == proto.ApprovalCommand {
 				title = "想运行命令"
@@ -334,13 +340,13 @@ func (a *App) inboxBody(c *ui.Context, k theme.Colors, it inboxItem) {
 			theme.UI.On(ui.Text(c, title)).TextColor(k.Fg2).SingleLine().Shrink(1).Tooltip(ap.Title)
 		})
 		if ap.Detail != "" {
-			ui.Text(c, ap.Detail).Font(theme.Mono).FontSize(12).TextColor(k.Fg2).FontFeatures("liga=0").MaxLines(4).
-				Padding(7, 10).Radius(10).Background(k.Fill).FillWidth().Selectable()
+			ui.Text(c, ap.Detail).Font(theme.Mono).FontSize(theme.Secondary.Size()).TextColor(k.Fg2).FontFeatures("liga=0").MaxLines(4).
+				Padding(theme.Space1Half, theme.Space3).Radius(theme.RadiusCard).Background(k.Fill).FillWidth().Selectable()
 		}
-		ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Gap(theme.Space1Half).AlignItems(ui.Center).Children(func() {
 			for i, o := range inboxOptions(ap) {
 				label := optionName(o)
-				b := ui.Button(c.Key(o.ID), "").Label(label).Tooltip(o.Label).Height(theme.RowHeight).Padding(0, 10, 0, 6).Gap(6).
+				b := ui.Button(c.Key(o.ID), "").Label(label).Tooltip(o.Label).Height(theme.Row).Padding(0, theme.Space3, 0, theme.Space1Half).Gap(theme.Space1Half).
 					Radius(theme.RadiusControl).Border(0, ui.Transparent).Background(k.Fill)
 				fg := k.Fg
 				if i == 0 && o.Scope != proto.ScopeDeny {
@@ -351,7 +357,7 @@ func (a *App) inboxBody(c *ui.Context, k theme.Colors, it inboxItem) {
 					a.inboxDecide(it, o)
 				}
 				b.Children(func() {
-					ui.Textf(c, "%d", i+1).FontSize(10.5).TextColor(fg).Padding(0, 4).Radius(4).Background(k.Fill2)
+					keyCap(c, k, fmt.Sprint(i+1)).TextColor(fg)
 					theme.UI.On(ui.Text(c, label)).TextColor(fg).SingleLine()
 				})
 			}
@@ -362,8 +368,8 @@ func (a *App) inboxBody(c *ui.Context, k theme.Colors, it inboxItem) {
 // offlineCard is a machine out of reach: for how long, a way to reconnect
 // now, and what waited on me there, grayed.
 func (a *App) offlineCard(c *ui.Context, k theme.Colors, it inboxItem) {
-	ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-		ui.Icon(c, a.icons.Offline).FontSize(theme.IconSizeInRow).TextColor(k.Fg3)
+	ui.Row(c).Gap(theme.Space2).AlignItems(ui.Center).Children(func() {
+		ui.Icon(c, a.icons.Offline).FontSize(theme.IconRow).TextColor(k.Fg3)
 		theme.UIStrong.On(ui.Text(c, it.machine)).TextColor(k.Fg)
 		gone := "正在重连"
 		if !it.since.IsZero() {
@@ -372,21 +378,21 @@ func (a *App) offlineCard(c *ui.Context, k theme.Colors, it inboxItem) {
 		}
 		theme.Caption.On(ui.Text(c, gone)).TextColor(k.Muted)
 		ui.Spacer(c)
-		b := ui.Button(c, "").Label("立即重连").Height(24).Padding(0, 8, 0, 6).Gap(6).Radius(theme.RadiusControl).
+		b := ui.Button(c, "").Label("立即重连").Height(theme.RowDense).Padding(0, theme.Space2, 0, theme.Space1Half).Gap(theme.Space1Half).Radius(theme.RadiusControl).
 			Border(0, ui.Transparent).Background(k.Fill)
 		if b.Clicked() {
 			a.host.Reconnect()
 		}
 		b.Children(func() {
-			ui.Icon(c, a.icons.Reconnect).FontSize(13).TextColor(k.Fg3)
+			ui.Icon(c, a.icons.Reconnect).FontSize(theme.IconRow).TextColor(k.Fg3)
 			theme.Secondary.On(ui.Text(c, "立即重连")).TextColor(k.Fg)
 		})
 	})
-	ui.Column(c).Padding(0, 0, 0, 22).Gap(8).Children(func() {
+	ui.Column(c).Padding(0, 0, 0, theme.IconRow+theme.Space2).Gap(theme.Space2).Children(func() {
 		theme.UI.On(ui.Text(c, "重连后会话自动续上，期间的审批保留。")).TextColor(k.Fg2)
 		for _, s := range it.waiting {
-			ui.Row(c.Key(s.ID)).Padding(8, 10).Gap(8).AlignItems(ui.Center).Radius(10).Border(1, k.Line).Opacity(0.55).Children(func() {
-				a.harnessIcon(c, k, s.Harness.Kind, 13)
+			ui.Row(c.Key(s.ID)).Padding(theme.Space2, theme.Space3).Gap(theme.Space2).AlignItems(ui.Center).Radius(theme.RadiusCard).Border(theme.LineWidth, k.Line).Opacity(0.55).Children(func() {
+				a.harnessIcon(c, k, s.Harness.Kind, theme.IconRow)
 				theme.UI.On(ui.Text(c, name(s))).TextColor(k.Fg).SingleLine().Shrink(1)
 				theme.Caption.On(ui.Text(c, where(s))).TextColor(k.Muted).SingleLine().Shrink(1)
 				ui.Spacer(c)

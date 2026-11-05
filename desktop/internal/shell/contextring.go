@@ -29,7 +29,7 @@ func (a *App) contextRing(c *ui.Context, k theme.Colors, u proto.ContextUsage) {
 		color = k.Attn
 	}
 	tip := contextTip(u)
-	b := ui.Box(c).Size(theme.RowHeight, theme.RowHeight).Radius(theme.RadiusControl).Label(tip).Tooltip(tip)
+	b := ui.Box(c).Size(theme.Row, theme.Row).Radius(theme.RadiusControl).Label(tip).Tooltip(tip)
 	if b.Hovered() {
 		b.Background(k.Fill2)
 	}

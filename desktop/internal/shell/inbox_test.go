@@ -8,6 +8,8 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
+	"github.com/yangflow/hoplet/desktop/internal/theme"
+
 	"github.com/yangflow/hoplet/proto"
 )
 
@@ -227,7 +229,7 @@ func TestInboxLook(t *testing.T) {
 	if !ok {
 		t.Fatal("no approval card")
 	}
-	if mid := a.side + (1400-a.side)/2; r.X < mid-380-20 || r.X > mid-380+60 {
+	if mid, half := a.side+(1400-a.side)/2, float32(theme.CodeColumn)/2; r.X < mid-half || r.X > mid-half+80 {
 		t.Fatalf("the card's text starts at %v, the column's middle is %v", r.X, mid)
 	}
 }

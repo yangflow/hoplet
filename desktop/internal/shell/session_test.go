@@ -148,6 +148,7 @@ func TestComposerSendsQueuesAndSteers(t *testing.T) {
 	if got := h.last(); !reflect.DeepEqual(got, proto.QueueKeyParams{Session: "s1", Key: "q1"}) {
 		t.Fatalf("delete %#v", got)
 	}
+	tt.Advance(time.Second) // the composer settles at its new height
 	if err := tt.Click("停止 ⎋"); err != nil {
 		t.Fatal(err)
 	}
@@ -752,6 +753,7 @@ func TestQueueFolds(t *testing.T) {
 	if !tt.HasText("排队 5") || !tt.HasText("message 2") || tt.HasText("message 3") || !tt.HasText("还有 2 条") {
 		t.Fatalf("the queue does not fold past three: %q", tt.Texts())
 	}
+	tt.Advance(time.Second) // the composer settles at its new height
 	if err := tt.Click("还有 2 条"); err != nil {
 		t.Fatal(err)
 	}

@@ -21,14 +21,14 @@ func (a *App) chat(c *ui.Context, k theme.Colors, s proto.Session, items []convo
 	prev := convo.Kind(-1)
 	space := func(key string, next convo.Kind) {
 		bubble := func(k convo.Kind) bool { return k == convo.KindMine || k == convo.KindText }
-		g := float32(6)
+		g := float32(theme.Space1Half)
 		switch {
 		case prev == -1:
 			g = 0
 		case prev == next && bubble(next):
-			g = 2
+			g = theme.SpaceHalf
 		case bubble(prev) && bubble(next), prev == dayKind, next == dayKind:
-			g = 12
+			g = theme.Space3
 		}
 		if g > 0 {
 			ui.Box(c.Key("gap:" + key)).Height(g).Shrink(0)
@@ -52,9 +52,9 @@ func (a *App) chat(c *ui.Context, k theme.Colors, s proto.Session, items []convo
 		case convo.KindMine:
 			a.myBubble(c, k, it, last)
 		case convo.KindText:
-			ui.Row(c).AlignSelf(ui.Start).MaxWidth(0.78 * personalColumn).Gap(10).AlignItems(ui.End).Children(func() {
+			ui.Row(c).AlignSelf(ui.Start).MaxWidth(0.78 * theme.PersonalColumn).Gap(theme.Space2).AlignItems(ui.End).Children(func() {
 				a.companionAvatar(c, k, s, last)
-				ui.Box(c).Padding(9, 14).Radius(18, 18, 18, 6).Background(k.Bg).Border(1, k.Line).Children(func() {
+				ui.Box(c).Padding(theme.Space2, theme.Space3).Radius(theme.RadiusComposer, theme.RadiusComposer, theme.RadiusComposer, theme.RadiusRow).Background(k.Bg).Border(theme.LineWidth, k.Line).Children(func() {
 					a.s.md.Theme = mdTheme(c, k)
 					a.s.md.CodeBlock = a.codeBlock(k, it.Key)
 					renderMarkdown(c, it, &a.s.md)
@@ -62,7 +62,7 @@ func (a *App) chat(c *ui.Context, k theme.Colors, s proto.Session, items []convo
 			})
 		case convo.KindWork:
 			// The work trace lines up with the bubbles, past the avatar.
-			ui.Row(c).Padding(0, 0, 0, 38).Height(22).Gap(12).AlignItems(ui.Center).Children(func() {
+			ui.Row(c).Padding(0, 0, 0, theme.Row+theme.Space2).Height(theme.ControlXS).Gap(theme.Space3).AlignItems(ui.Center).Children(func() {
 				w := it.Work
 				line := summary(w)
 				if w.Running {
@@ -70,10 +70,10 @@ func (a *App) chat(c *ui.Context, k theme.Colors, s proto.Session, items []convo
 				}
 				theme.UI.On(ui.Text(c, line)).TextColor(k.Muted).SingleLine().Shrink(1)
 				if w.Failed > 0 {
-					theme.Caption.On(ui.Text(c, "✕")).TextColor(k.Fg).FontWeight(600)
+					theme.Caption.On(ui.Text(c, "✕")).TextColor(k.Fg).FontWeight(theme.UIStrong.Weight())
 				}
 				if !w.Running {
-					ui.Text(c, duration(w.End.Sub(w.Start))).Font(theme.Mono).FontSize(11).TextColor(k.Faint)
+					ui.Text(c, duration(w.End.Sub(w.Start))).Font(theme.Mono).FontSize(theme.Caption.Size()).TextColor(k.Faint)
 				}
 			})
 		case convo.KindError:
@@ -85,9 +85,9 @@ func (a *App) chat(c *ui.Context, k theme.Colors, s proto.Session, items []convo
 	if running && (len(items) == 0 || items[len(items)-1].Kind != convo.KindText) {
 		// It is thinking or working: three dots in a small bubble.
 		space("typing", convo.KindText)
-		ui.Row(c.Key("typing")).AlignSelf(ui.Start).Gap(10).AlignItems(ui.End).Children(func() {
+		ui.Row(c.Key("typing")).AlignSelf(ui.Start).Gap(theme.Space2).AlignItems(ui.End).Children(func() {
 			a.companionAvatar(c, k, s, true)
-			ui.Box(c).Padding(9, 14).Radius(18, 18, 18, 6).Background(k.Bg).Border(1, k.Line).Label("正在输入").Children(func() {
+			ui.Box(c).Padding(theme.Space2, theme.Space3).Radius(theme.RadiusComposer, theme.RadiusComposer, theme.RadiusComposer, theme.RadiusRow).Background(k.Bg).Border(theme.LineWidth, k.Line).Label("正在输入").Children(func() {
 				theme.Reading.On(ui.Text(c, "···")).TextColor(k.Muted)
 			})
 		})
@@ -96,10 +96,10 @@ func (a *App) chat(c *ui.Context, k theme.Colors, s proto.Session, items []convo
 
 // dayLine separates days: a thin line with the day in its middle.
 func dayLine(c *ui.Context, k theme.Colors, label string) {
-	ui.Row(c).FillWidth().Gap(10).AlignItems(ui.Center).Children(func() {
-		ui.Box(c).Height(1).Grow(1).Background(k.Line)
+	ui.Row(c).FillWidth().Gap(theme.Space2).AlignItems(ui.Center).Children(func() {
+		ui.Box(c).Height(theme.LineWidth).Grow(1).Background(k.Line)
 		theme.Caption.On(ui.Text(c, label)).TextColor(k.Faint)
-		ui.Box(c).Height(1).Grow(1).Background(k.Line)
+		ui.Box(c).Height(theme.LineWidth).Grow(1).Background(k.Line)
 	})
 }
 
@@ -107,11 +107,11 @@ func dayLine(c *ui.Context, k theme.Colors, label string) {
 // my avatar beside the last of a run, its time and copy on hover left of
 // it.
 func (a *App) myBubble(c *ui.Context, k theme.Colors, it convo.Item, last bool) {
-	r := ui.Row(c).AlignSelf(ui.End).MaxWidth(0.75 * personalColumn).Gap(10).AlignItems(ui.End)
+	r := ui.Row(c).AlignSelf(ui.End).MaxWidth(0.75 * theme.PersonalColumn).Gap(theme.Space2).AlignItems(ui.End)
 	hovered := r.Hovered()
 	r.Children(func() {
 		ui.Box(c).Shrink(1).Children(func() {
-			ui.Box(c).Padding(9, 14).Radius(18, 18, 6, 18).Background(k.Bubble).Children(func() {
+			ui.Box(c).Padding(theme.Space2, theme.Space3).Radius(theme.RadiusPanel).Background(k.Bubble).Children(func() {
 				theme.Reading.On(ui.Text(c, it.Text)).TextColor(k.Fg).Selectable()
 			})
 			if hovered {
@@ -125,11 +125,11 @@ func (a *App) myBubble(c *ui.Context, k theme.Colors, it convo.Item, last bool) 
 // companionAvatar is the companion's 28-point avatar beside the last
 // bubble of a run; an empty space of its size otherwise.
 func (a *App) companionAvatar(c *ui.Context, k theme.Colors, s proto.Session, show bool) {
-	b := ui.Box(c).Size(28, 28)
+	b := ui.Box(c).Size(theme.Row, theme.Row)
 	if !show {
 		return
 	}
-	b.Radius(14).Background(k.Line2).Center().Children(func() {
+	b.Radius(theme.RadiusPanel).Background(k.Line2).Center().Children(func() {
 		theme.UIStrong.On(ui.Text(c, initial(name(s)))).TextColor(k.Fg2)
 	})
 }
@@ -138,12 +138,12 @@ func (a *App) companionAvatar(c *ui.Context, k theme.Colors, s proto.Session, sh
 // theme, light gray in the dark one); an empty space of its size when show
 // is false.
 func (a *App) meAvatar(c *ui.Context, k theme.Colors, show bool) {
-	b := ui.Box(c).Size(28, 28)
+	b := ui.Box(c).Size(theme.Row, theme.Row)
 	if !show {
 		return
 	}
-	b.Radius(14).Background(k.Fg2).Center().Label("我").Children(func() {
-		ui.Icon(c, a.icons.Me).FontSize(theme.IconSizeInRow).TextColor(c.Theme().InverseText)
+	b.Radius(theme.RadiusPanel).Background(k.Fg2).Center().Label("我").Children(func() {
+		ui.Icon(c, a.icons.Me).FontSize(theme.IconRow).TextColor(c.Theme().InverseText)
 	})
 }
 

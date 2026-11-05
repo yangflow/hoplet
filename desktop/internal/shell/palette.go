@@ -240,10 +240,14 @@ func (a *App) palette(c *ui.Context, k theme.Colors) {
 		h.run()
 	}
 	ui.DialogBase(c, &a.s.palOpen, func(_, panel ui.Element) {
-		panel.Width(600).Radius(14).Clip().Background(k.Popover).Border(1, k.Line2).Shadow(0, 10, 30, 0, k.Shadow).Label("命令面板")
-		ui.Row(c).Height(52).Padding(0, 16).Gap(10).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(k.Line).Children(func() {
+		panel.Width(theme.DialogWidth).Radius(theme.RadiusPanel).Clip().Background(k.Popover).Border(theme.LineWidth, k.Line2).Label("命令面板").
+			Transition(ui.ElementTransition{Animation: &theme.MotionBase, Enter: &ui.Motion{Scale: theme.MotionScaleDialog}, Exit: &ui.Motion{}})
+		k.ShadowPopover.On(panel)
+		// The query, then its scope: all, sessions or commands (⌘1–3).
+		theme.ItemRow.H(theme.TitleBar).P(0, theme.Space4).On(ui.Row(c)).BorderWidth(0, 0, theme.LineWidth, 0).BorderColor(k.Line).Children(func() {
+			ui.Icon(c, a.icons.Search).FontSize(theme.Icon).TextColor(k.Muted)
 			in := ui.SearchField(c, &a.s.palQuery).Placeholder("搜索会话和命令…").Label("搜索").AutoFocus().Grow(1).
-				FontSize(15).Background(ui.Transparent).Border(0, ui.Transparent)
+				FontSize(theme.Title.Size()).Background(ui.Transparent).Border(0, ui.Transparent)
 			if in.Changed() {
 				a.s.palSel = 0
 			}
@@ -265,36 +269,40 @@ func (a *App) palette(c *ui.Context, k theme.Colors) {
 				}
 				return true
 			})
-			theme.Caption.On(ui.Text(c, "esc")).TextColor(k.Muted)
-		})
-		ui.Row(c).Padding(8, 10).Gap(4).BorderWidth(0, 0, 1, 0).BorderColor(k.Line).Children(func() {
 			for i, label := range []string{"全部", "会话", "命令"} {
 				on := a.s.palScope == paletteScope(i)
-				t := ui.Row(c.Key(label)).Height(26).Padding(0, 10).Gap(6).AlignItems(ui.Center).Radius(theme.RadiusControl).Label(label)
+				t := theme.Control.P(0, theme.Space2).On(ui.Row(c.Key(label))).Radius(theme.RadiusControl).Label(label)
 				if on {
 					t.Background(k.Sel)
+				} else if t.Hovered() {
+					t.Background(k.Fill2)
 				}
 				if t.Clicked() {
 					a.s.palScope, a.s.palSel = paletteScope(i), 0
 				}
 				t.Children(func() {
-					w := theme.UI.On(ui.Text(c, label)).TextColor(k.Fg3)
+					w := theme.Secondary.On(ui.Textf(c, "%s ⌘%d", label, i+1)).TextColor(k.Fg2)
 					if on {
-						w.TextColor(k.Fg).FontWeight(500)
+						w.TextColor(k.Fg)
 					}
-					theme.Caption.On(ui.Textf(c, "⌘%d", i+1)).TextColor(k.Muted)
 				})
 			}
 		})
-		ui.Scroll(c).MaxHeight(420).Children(func() {
-			ui.Column(c).Padding(6).Children(func() {
+		ui.Scroll(c).MaxHeight(paletteRows * theme.RowStep).Children(func() {
+			theme.StackTight.P(theme.Space2).On(ui.Column(c)).Children(func() {
 				if len(flat) == 0 {
-					theme.UI.On(ui.Text(c, "没有匹配“"+strings.TrimSpace(a.s.palQuery)+"”的会话或命令")).TextColor(k.Muted).Padding(12, 10)
+					theme.UI.On(ui.Text(c, "没有匹配“"+strings.TrimSpace(a.s.palQuery)+"”的会话或命令")).TextColor(k.Muted).Padding(theme.Space3, theme.Space2)
 					return
 				}
 				n := 0
-				for _, g := range groups {
-					theme.Label.On(ui.Text(c.Key("g:"+g.label), g.label)).TextColor(k.Muted).Padding(8, 10, 4, 10)
+				for i, g := range groups {
+					top := float32(0)
+					if i > 0 {
+						top = theme.Space2
+					}
+					theme.ItemRow.H(theme.RowDense).On(ui.Row(c.Key("g:"+g.label))).Margin(top, 0, 0, 0).Children(func() {
+						theme.Label.On(ui.Text(c, g.label)).TextColor(k.Muted)
+					})
 					for _, h := range g.rows {
 						a.paletteRow(c, k, h, n, run)
 						n++
@@ -302,19 +310,29 @@ func (a *App) palette(c *ui.Context, k theme.Colors) {
 				}
 			})
 		})
-		ui.Row(c).Padding(8, 14).Gap(8).AlignItems(ui.Center).BorderWidth(1, 0, 0, 0).BorderColor(k.Line).Children(func() {
+		theme.ItemRow.P(0, theme.Space4).G(theme.Space3).On(ui.Row(c)).BorderWidth(theme.LineWidth, 0, 0, 0).BorderColor(k.Line).Children(func() {
 			for _, kv := range [][2]string{{"↑↓", "选择"}, {"↩", "打开"}, {"esc", "关闭"}} {
-				theme.Caption.On(ui.Text(c, kv[0])).TextColor(k.Muted).Padding(2, 5).Radius(5).Background(k.Fill)
-				theme.Caption.On(ui.Text(c, kv[1])).TextColor(k.Muted)
+				theme.Inline.G(theme.Space1).On(ui.Row(c)).Children(func() {
+					keyCap(c, k, kv[0])
+					theme.Caption.On(ui.Text(c, kv[1])).TextColor(k.Muted)
+				})
 			}
 		})
 	})
 }
 
+// paletteRows is how many rows the palette shows before it scrolls.
+const paletteRows = 12
+
+// keyCap is a key on its cap: monospace small, on fill2, rounded 4.
+func keyCap(c *ui.Context, k theme.Colors, key string) ui.Element {
+	return theme.CodeCaption.On(ui.Text(c, key)).TextColor(k.Muted).Height(theme.Icon).Padding(0, theme.Space1).Radius(theme.RadiusXS).Background(k.Fill2)
+}
+
 // paletteRow is one row: the icon or the harness's mark, the title with
 // the match in the accent, where it is, and its shortcut.
 func (a *App) paletteRow(c *ui.Context, k theme.Colors, h paletteHit, n int, run func(paletteHit)) {
-	r := ui.Row(c.Key(n)).Height(34).Padding(0, 10).Gap(10).AlignItems(ui.Center).Radius(8).Label(h.title)
+	r := theme.ItemRow.H(theme.RowStep).On(ui.Row(c.Key(n))).Radius(theme.RadiusControl).Label(h.title)
 	if n == a.s.palSel {
 		r.Background(k.Sel)
 	}
@@ -326,22 +344,22 @@ func (a *App) paletteRow(c *ui.Context, k theme.Colors, h paletteHit, n int, run
 	}
 	r.Children(func() {
 		if h.session != nil {
-			a.harnessIcon(c, k, h.session.Harness.Kind, theme.IconSize)
+			a.harnessIcon(c, k, h.session.Harness.Kind, theme.Icon)
 		} else {
-			ui.Icon(c, h.icon).FontSize(theme.IconSize).TextColor(k.Fg3)
+			ui.Icon(c, h.icon).FontSize(theme.Icon).TextColor(k.Fg3)
 		}
 		ui.Row(c).Shrink(0).Children(func() {
 			if h.n == 0 || h.at < 0 || h.at+h.n > len(h.title) {
-				ui.Text(c, h.title).FontSize(13.5).TextColor(k.Fg).SingleLine()
+				ui.Text(c, h.title).FontSize(theme.Reading.Size()).TextColor(k.Fg).SingleLine()
 				return
 			}
-			ui.Text(c, h.title[:h.at]).FontSize(13.5).TextColor(k.Fg)
-			ui.Text(c, h.title[h.at:h.at+h.n]).FontSize(13.5).FontWeight(600).TextColor(k.AccentFg)
-			ui.Text(c, h.title[h.at+h.n:]).FontSize(13.5).TextColor(k.Fg)
+			ui.Text(c, h.title[:h.at]).FontSize(theme.Reading.Size()).TextColor(k.Fg)
+			ui.Text(c, h.title[h.at:h.at+h.n]).FontSize(theme.Reading.Size()).FontWeight(theme.UIStrong.Weight()).TextColor(k.AccentFg)
+			ui.Text(c, h.title[h.at+h.n:]).FontSize(theme.Reading.Size()).TextColor(k.Fg)
 		})
 		theme.Secondary.On(ui.Text(c, h.where)).TextColor(k.Muted).SingleLine().Grow(1).Shrink(1)
 		if h.key != "" {
-			theme.Caption.On(ui.Text(c, h.key)).TextColor(k.Muted).Padding(2, 5).Radius(5).Background(k.Fill)
+			keyCap(c, k, h.key)
 		}
 	})
 }

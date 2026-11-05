@@ -33,40 +33,41 @@ func (a *App) newPage(c *ui.Context, k theme.Colors) {
 		title = "新伙伴"
 	}
 	h, _ := a.harness(pick.run.harness)
-	width := float32(codeColumn)
+	width := float32(theme.CodeColumn)
 	if personal {
-		width = personalColumn
+		width = theme.PersonalColumn
 	}
 	ui.Column(c).Grow(1).Children(func() {
 		// The title in the middle of the room above; the composer at the
 		// bottom, where a session has it.
-		ui.Box(c).Grow(1).Center().Padding(32).Children(func() {
+		ui.Box(c).Grow(1).Center().Padding(theme.Space8).Children(func() {
 			theme.Display.On(ui.Text(c, title)).TextColor(k.Fg).TextAlign(ui.Center)
 		})
-		ui.Row(c).FillWidth().Justify(ui.Center).Padding(0, 0, 16, 0).Children(func() {
-			ui.Column(c).Grow(1).Shrink(1).MaxWidth(width-64).Margin(0, 16).Gap(14).Children(func() {
+		ui.Row(c).FillWidth().Justify(ui.Center).Padding(0, 0, theme.Space4, 0).Children(func() {
+			ui.Column(c).Grow(1).Shrink(1).MaxWidth(width-2*theme.Space8).Margin(0, theme.Space4).Gap(theme.Space2).Children(func() {
 				if !personal {
 					// The same context row as a session's, where the
 					// directory is chosen; the branch comes once it exists.
-					ui.Row(c).Gap(6).Margin(0, 0, -6, 0).AlignItems(ui.Center).Children(func() {
+					ui.Row(c).Gap(theme.Space1Half).AlignItems(ui.Center).Children(func() {
 						a.machinePill(c, k, true)
 						if a.connected { // the choice waits, hidden, for the connection
 							a.dirChip(c, k, pick)
 						}
 					})
 				}
-				box := ui.Column(c).FillWidth().Padding(12, 14, 10, 14).Gap(10).Radius(theme.RadiusComposer).
-					Background(k.Glass).Border(1, k.GlassLine).Shadow(0, 2, 10, 0, k.Shadow)
+				box := ui.Column(c).FillWidth().Padding(theme.Space3, theme.Space3, theme.Space2).Gap(theme.Space2).Radius(theme.RadiusComposer).
+					Background(k.Glass).Border(theme.LineWidth, k.GlassLine)
+				k.ShadowComposer.On(box)
 				if !a.connected {
 					// As the composer's offline state: I can write, but which
 					// harnesses and models there are is known only once
 					// connected.
-					box.Border(1, k.Line2).BorderStyle(ui.BorderDashed)
+					box.Border(theme.LineWidth, k.Line2).BorderStyle(ui.BorderDashed)
 				}
 				box.Children(func() {
 					if personal {
-						ui.TextInput(c, &pick.name).Placeholder("名字").Label("伙伴的名字").Width(160).Height(26).FontSize(12).
-							Padding(0, 8).Radius(theme.RadiusControl).Border(0, ui.Transparent).Background(k.Fill)
+						ui.TextInput(c, &pick.name).Placeholder("名字").Label("伙伴的名字").Width(theme.FieldShort).Height(theme.RowGroup).FontSize(theme.Secondary.Size()).
+							Padding(0, theme.Space2).Radius(theme.RadiusControl).Border(0, ui.Transparent).Background(k.Fill)
 					}
 					draft := a.s.drafts[""]
 					hint := "要做什么？"
@@ -92,7 +93,7 @@ func (a *App) newPage(c *ui.Context, k theme.Colors) {
 						return true
 					})
 					a.s.drafts[""] = draft
-					ui.Row(c).Gap(2).AlignItems(ui.Center).Children(func() {
+					ui.Row(c).Gap(theme.SpaceHalf).AlignItems(ui.Center).Children(func() {
 						set := a.newSink()
 						a.runButton(c, k, pick.run, a.s.harnesses, set)
 						if !personal {
@@ -119,7 +120,7 @@ func (a *App) recentLine(c *ui.Context, k theme.Colors, pick *newChoice) {
 	if len(dirs) == 0 {
 		return
 	}
-	ui.Row(c).Padding(0, 14).Gap(6).Wrap().AlignItems(ui.Center).Children(func() {
+	ui.Row(c).Padding(0, theme.Space3).Gap(theme.Space1Half).Wrap().AlignItems(ui.Center).Children(func() {
 		theme.Caption.On(ui.Text(c, "最近：")).TextColor(k.Muted)
 		for i, dir := range dirs[:min(len(dirs), 3)] {
 			if i > 0 {
@@ -189,12 +190,12 @@ func (a *App) dirChip(c *ui.Context, k theme.Colors, pick *newChoice) {
 		a.s.dirOpen = !a.s.dirOpen
 	}
 	b.Children(func() {
-		ui.Image(c, a.icons.FolderType()).Size(theme.IconSizeInRow, theme.IconSizeInRow)
-		text := ui.Text(c, label).FontSize(12).TextColor(color)
+		ui.Image(c, a.icons.FolderType()).Size(theme.IconRow, theme.IconRow)
+		text := ui.Text(c, label).FontSize(theme.Secondary.Size()).TextColor(color)
 		if pick.dir != "" {
-			text.Font(theme.Mono).FontSize(11.5)
+			theme.CodeCaption.On(text)
 		}
-		ui.Icon(c, a.icons.Menu).FontSize(11).TextColor(k.Faint)
+		ui.Icon(c, a.icons.Menu).FontSize(theme.Caption.Size()).TextColor(k.Faint)
 	})
 	popover(c, k, b, &a.s.dirOpen, false, 320, func() {
 		dirs := a.recentDirs()
@@ -207,7 +208,7 @@ func (a *App) dirChip(c *ui.Context, k theme.Colors, pick *newChoice) {
 				pick.dir, a.s.dirOpen = dir, false
 			}
 			r.Children(func() {
-				ui.Icon(c, a.icons.Folder).FontSize(theme.IconSizeInRow).TextColor(k.Fg3)
+				ui.Icon(c, a.icons.Folder).FontSize(theme.IconRow).TextColor(k.Fg3)
 				theme.UI.On(ui.Text(c, filepath.Base(dir))).TextColor(k.Fg)
 				theme.Caption.On(ui.Text(c, filepath.Dir(dir))).TextColor(k.Faint).SingleLine().Shrink(1)
 			})
@@ -221,7 +222,7 @@ func (a *App) dirChip(c *ui.Context, k theme.Colors, pick *newChoice) {
 			a.host.ChooseFolder(func(dir string) { pick.dir = dir })
 		}
 		r.Children(func() {
-			ui.Icon(c, a.icons.New).FontSize(theme.IconSizeInRow).TextColor(k.Fg3)
+			ui.Icon(c, a.icons.New).FontSize(theme.IconRow).TextColor(k.Fg3)
 			theme.UI.On(ui.Text(c, "选择其他目录…")).TextColor(k.Fg)
 		})
 	})
