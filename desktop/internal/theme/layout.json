@@ -1,0 +1,195 @@
+{
+ "name": "Hoplet",
+ "version": 2,
+ "note": "布局规范：从小组件拼到桌面，每一次拼装都用这里的一个布局。数值只取 tokens.json 里的 token；画板的 layout.css 与代码的 theme 都由本文件生成。",
+ "rules": [
+  "固定高度的行里，所有内容都放在中线上（交叉轴居中）。",
+  "多行内容一律顶部对齐。",
+  "子元素的左边对齐到父元素的内边距线；图标放在固定尺寸的格子里，不靠文字基线对齐。",
+  "尺寸只有三种：按内容（hug）、撑满（fill）、固定（取 size token）。",
+  "把尾部内容推到右边只用 spacer，不用外边距。",
+  "间距只放在布局上（gap / padding），组件自己不留外边距。",
+  "细调只用工具 class（间距、高度、宽度都取 token），不在样式里写数值。"
+ ],
+ "patterns": [
+  {
+   "name": "inline",
+   "direction": "row",
+   "gap": "space-1_5",
+   "align": "center",
+   "width": "hug",
+   "usage": "图标加文字、文字加小标签：按钮里、标题栏标题、上下文行的一段。"
+  },
+  {
+   "name": "item-row",
+   "direction": "row",
+   "height": [
+    "row",
+    "row-dense",
+    "row-step",
+    "row-group"
+   ],
+   "padding": [
+    "0",
+    "space-2"
+   ],
+   "gap": "space-2",
+   "align": "center",
+   "width": "fill",
+   "usage": "一行一项：侧栏行、菜单项、目录分组、工作组的一步、改动卡的文件行。高度选一个 size token；尾部用 spacer。"
+  },
+  {
+   "name": "cluster",
+   "direction": "row",
+   "gap": "space-2",
+   "align": "center",
+   "wrap": true,
+   "width": "hug",
+   "usage": "一组并排的控件：审批选项按钮、输入框底部的小按钮、标题栏右侧的图标按钮。"
+  },
+  {
+   "name": "control",
+   "direction": "row",
+   "height": [
+    "row"
+   ],
+   "padding": [
+    "0",
+    "space-3"
+   ],
+   "gap": "space-1_5",
+   "align": "center",
+   "justify": "center",
+   "width": "hug",
+   "usage": "按钮类控件的外形：文字按钮、输入框里的小按钮（配 l-px-2 收窄）。"
+  },
+  {
+   "name": "track",
+   "direction": "row",
+   "padding": [
+    "space-0_5"
+   ],
+   "gap": "space-0_5",
+   "align": "center",
+   "width": "hug",
+   "usage": "分段控件、模式切换的轨道。"
+  },
+  {
+   "name": "stack-tight",
+   "direction": "column",
+   "gap": "space-0_5",
+   "align": "stretch",
+   "width": "fill",
+   "usage": "紧挨的一列行：侧栏的入口组、会话列表、菜单的项。"
+  },
+  {
+   "name": "stack",
+   "direction": "column",
+   "gap": "space-2",
+   "align": "stretch",
+   "width": "fill",
+   "usage": "卡片和弹层里的内容、工作中行在工作组下。"
+  },
+  {
+   "name": "stack-block",
+   "direction": "column",
+   "gap": "space-3",
+   "align": "stretch",
+   "width": "fill",
+   "usage": "回复里的各块（工作组、正文、代码块、改动卡、出错条）。"
+  },
+  {
+   "name": "stack-section",
+   "direction": "column",
+   "gap": "space-4",
+   "align": "stretch",
+   "width": "fill",
+   "usage": "侧栏的分区、你的消息到回复、页面里的大块。"
+  },
+  {
+   "name": "stack-page",
+   "direction": "column",
+   "gap": "space-6",
+   "align": "stretch",
+   "width": "fill",
+   "usage": "一轮与一轮之间、页面的段落。"
+  },
+  {
+   "name": "inset-card",
+   "padding": [
+    "space-3"
+   ],
+   "usage": "卡片、出错条、收件箱卡片的内边距。"
+  },
+  {
+   "name": "inset-panel",
+   "padding": [
+    "space-4"
+   ],
+   "usage": "弹层外框、会话详情一列、单独放在画板上的组件。"
+  },
+  {
+   "name": "indent",
+   "indent": [
+    "icon-row",
+    "space-2"
+   ],
+   "usage": "行首有图标时，下面几行的左边和图标后的文字对齐（缩进 = icon-row + space-2）：收件箱卡片、审批的对象与选项。"
+  },
+  {
+   "name": "center",
+   "direction": "row",
+   "align": "center",
+   "justify": "center",
+   "usage": "两个方向都居中：图标按钮里的图标、空状态、头像里的字。"
+  },
+  {
+   "name": "bar",
+   "direction": "row",
+   "height": [
+    "titlebar"
+   ],
+   "padding": [
+    "0",
+    "space-2",
+    "0",
+    "space-4"
+   ],
+   "gap": "space-1_5",
+   "align": "center",
+   "width": "fill",
+   "usage": "标题栏、右栏顶栏、侧栏底栏：左边内容，spacer，右边按钮。"
+  },
+  {
+   "name": "column",
+   "direction": "column",
+   "max-width": [
+    "code-column",
+    "personal-column"
+   ],
+   "padding": [
+    "space-6",
+    "space-8",
+    "space-8",
+    "space-8"
+   ],
+   "align": "stretch",
+   "width": "fill",
+   "center-self": true,
+   "usage": "对话列：最宽 code-column（Personal 用 personal-column），在正文区水平居中。"
+  },
+  {
+   "name": "spacer",
+   "grow": 1,
+   "usage": "把后面的内容推到行尾。"
+  }
+ ],
+ "utilities": {
+  "note": "细调用的工具 class，值只取 token：l-p / l-px / l-py / l-pt / l-pr / l-pb / l-pl 加间距名（如 l-px-3 = 左右 space-3），l-gap- 加间距名，l-h / l-w / l-sq（宽高相等）/ l-min-h 加尺寸名（如 l-h-row-step、l-sq-row）；不带数值的：l-p-0、l-gap-0、l-h-auto、l-fill（撑满宽）、l-hug（按内容宽）、l-h-full（撑满高）、l-grow（占满剩余，可缩到 0）、l-items-start / center / end / stretch（交叉轴对齐）。",
+  "padding": "spacing",
+  "gap": "spacing",
+  "height": "size",
+  "width": "size",
+  "square": "size"
+ }
+}

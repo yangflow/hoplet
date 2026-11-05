@@ -25,6 +25,7 @@ type sessionView struct {
 	missing   []proto.HarnessInfo // harnesses Hoplet knows but cannot run, and why
 
 	open      map[string]bool              // work groups, tool rows and code blocks I opened or closed
+	steps     map[string]int               // how many steps each open work group showed
 	outputs   map[string]*proto.ToolOutput // loaded tool outputs, by session and call
 	outputErr map[string]string            // why a tool output could not be read
 	scroll    ui.ScrollState
@@ -36,17 +37,27 @@ type sessionView struct {
 	copied                                 map[string]time.Time // when each copy button last copied
 	armed                                  time.Time            // the first ⎋ of two that stop a turn
 
-	diffs        map[proto.SessionID]*diffState // each session's changes, as last read
-	queue        ui.ListState                   // the queue tray's rows, which drag to reorder
-	queueAll     bool                           // the queue shows every message, not its first three
-	offlineSince time.Time                      // when the connection was lost
-	flash        map[proto.SessionID]bool       // rows of sessions made elsewhere, and whether they lit
-	runSub       string                         // the run menu's open submenu: subEffort, subModel or none
-	runHover     string                         // the run menu row the pointer is on
-	modelTab     string                         // the harness whose models show
-	modelQuery   string                         // what the model search holds
-	modelFocus   bool                           // the model search takes the focus this frame
-	modelPick    int                            // the highlighted model, -1 for the current
+	diffs        map[proto.SessionID]*diffState                // each session's changes, as last read
+	queue        ui.ListState                                  // the queue tray's rows, which drag to reorder
+	queueAll     bool                                          // the queue shows every message, not its first three
+	offlineSince time.Time                                     // when the connection was lost
+	flash        map[proto.SessionID]bool                      // rows of sessions made elsewhere, and whether they lit
+	ringPeaked   string                                        // the approval or question whose glow has grown out once
+	inboxPending map[proto.SessionID][]proto.ApprovalRequested // approvals of sessions waiting on me, as last read
+	inboxAsked   map[proto.SessionID]uint64                    // the session version each was read at
+	inboxDone    map[string]string                             // what I decided, by approval, until it goes
+	inboxSel     int                                           // the card the keys chose, -1 before they choose one
+	inboxFocus   bool                                          // the inbox takes the focus this frame
+	palOpen      bool                                          // the command palette shows
+	palQuery     string                                        // what the palette searches for
+	palScope     paletteScope                                  // what it searches: all, sessions or commands
+	palSel       int                                           // the selected row
+	runSub       string                                        // the run menu's open submenu: subEffort, subModel or none
+	runHover     string                                        // the run menu row the pointer is on
+	modelTab     string                                        // the harness whose models show
+	modelQuery   string                                        // what the model search holds
+	modelFocus   bool                                          // the model search takes the focus this frame
+	modelPick    int                                           // the highlighted model, -1 for the current
 
 	newPage bool
 	newPick newChoice
@@ -62,8 +73,9 @@ type newChoice struct {
 func newSessionView() sessionView {
 	return sessionView{
 		convos: map[proto.SessionID]*convo.Convo{}, drafts: map[proto.SessionID]string{},
-		open: map[string]bool{}, outputs: map[string]*proto.ToolOutput{}, outputErr: map[string]string{}, hidden: map[string]bool{}, copied: map[string]time.Time{},
+		open: map[string]bool{}, steps: map[string]int{}, outputs: map[string]*proto.ToolOutput{}, outputErr: map[string]string{}, hidden: map[string]bool{}, copied: map[string]time.Time{},
 		diffs: map[proto.SessionID]*diffState{}, flash: map[proto.SessionID]bool{},
+		inboxPending: map[proto.SessionID][]proto.ApprovalRequested{}, inboxAsked: map[proto.SessionID]uint64{}, inboxDone: map[string]string{},
 	}
 }
 
@@ -117,9 +129,17 @@ func (a *App) harness(kind string) (proto.HarnessInfo, bool) {
 // NewSession opens the new-session page in the current mode.
 func (a *App) NewSession() { a.newSessionIn("") }
 
-// newSessionIn opens the new-session page with a directory already chosen.
+// newSessionIn opens the new-session page with a directory already chosen,
+// and records it for Back and Forward.
 func (a *App) newSessionIn(dir string) {
-	a.s.newPage, a.selected = true, ""
+	a.showNew(dir)
+	a.visit(page{kind: pageNew, mode: a.mode})
+}
+
+// showNew shows the new-session page of the current mode, without
+// recording it.
+func (a *App) showNew(dir string) {
+	a.s.newPage, a.selected, a.inbox = true, "", false
 	a.s.newPick = newChoice{dir: dir}
 	if a.mode == proto.ModeCode {
 		a.s.newPick.run.perm = proto.ModeAutoReview // the daemon's default for Code
@@ -138,13 +158,46 @@ func (a *App) send(s proto.Session, text string) {
 		a.s.outbox = append(a.s.outbox, p)
 		return
 	}
-	a.host.Send(p)
+	if !a.conv(s.ID).Running() {
+		// Until the daemon records it (a new session first starts its
+		// harness), it shows as sent.
+		a.conv(s.ID).Echo(p.Key, text, time.Now())
+	}
+	a.sendEcho(s, p)
+}
+
+// sendEcho sends a message shown as sent. One that does not go out stays,
+// faded over why, in a Code session; a Personal one goes, as its chat has
+// no place for why.
+func (a *App) sendEcho(s proto.Session, p proto.SendParams) {
+	cv := a.conv(s.ID)
+	a.host.Send(p, func(err error) {
+		switch {
+		case err == nil:
+			cv.Unsent(p.Key, "") // as when the note's retry sent it
+		case s.Mode == proto.ModePersonal:
+			cv.Unecho()
+		default:
+			cv.Unsent(p.Key, err.Error())
+		}
+	})
+}
+
+// resend sends again the message that did not go out, under its key.
+func (a *App) resend(s proto.Session) {
+	cv := a.conv(s.ID)
+	text, key, _, ok := cv.Failed()
+	if !ok {
+		return
+	}
+	cv.Unsent(key, "")
+	a.sendEcho(s, proto.SendParams{Session: s.ID, Text: text, Key: key})
 }
 
 // flushOutbox sends what was written while offline, in order.
 func (a *App) flushOutbox() {
 	for _, p := range a.s.outbox {
-		a.host.Send(p)
+		a.host.Send(p, nil)
 	}
 	a.s.outbox = nil
 }

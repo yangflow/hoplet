@@ -4,6 +4,7 @@
 package shell
 
 import (
+	"math"
 	"slices"
 	"time"
 
@@ -27,7 +28,9 @@ type Host interface {
 	Reveal(dir string)
 
 	Create(p proto.CreateParams, done func(proto.Session))
-	Send(p proto.SendParams)
+	// Send sends a message; done follows on the UI thread with nil once
+	// the daemon took it, or why it did not.
+	Send(p proto.SendParams, done func(error))
 	Steer(p proto.SteerParams)
 	Interrupt(id proto.SessionID)
 	Respond(p proto.RespondParams)
@@ -49,6 +52,8 @@ type Host interface {
 	// Older pages back through a session's events before seq.
 	Older(id proto.SessionID, before uint64, done func(proto.EventsPage))
 	Harnesses(done func([]proto.HarnessInfo))
+	// Session reads what a session waits on: its pending approvals.
+	Session(id proto.SessionID, done func(proto.SessionState))
 	// Follow follows one session's events from after seq, in place of the
 	// session followed before; its items reach App.ApplySession.
 	Follow(id proto.SessionID, after uint64)
@@ -102,19 +107,22 @@ type App struct {
 	machine   string // the daemon's host name
 	offline   string // why there is no connection
 
-	mode     proto.Mode
-	sort     catalog.Sort
-	show     catalog.Show
-	archived bool
-	selected string
-	closed   map[string]bool // collapsed directory groups
-	hideSide bool
-	side     float32 // the sidebar's width, which its edge drags
-	away     bool    // the app is in the background or the window hidden
+	mode      proto.Mode
+	sort      catalog.Sort
+	show      catalog.Show
+	archived  bool
+	selected  string
+	closed    map[string]bool // collapsed directory groups
+	hideSide  bool
+	sideMoves bool    // the sidebar is opening or closing
+	side      float32 // the sidebar's width, which its edge drags
+	away      bool    // the app is in the background or the window hidden
 
-	// history is the sessions I selected, oldest first; at is the current
-	// one, -1 before the first.
-	history []proto.SessionID
+	inbox bool // the inbox page shows
+
+	// history is the pages I opened, oldest first; at is the current one,
+	// -1 before the first.
+	history []page
 	at      int
 
 	renaming proto.SessionID
@@ -186,25 +194,59 @@ func (a *App) SetMode(m proto.Mode) {
 }
 
 // ToggleSidebar hides or shows the sidebar.
-func (a *App) ToggleSidebar() { a.hideSide = !a.hideSide }
+func (a *App) ToggleSidebar() { a.hideSide, a.sideMoves = !a.hideSide, true }
 
 // maxHistory bounds how far Back goes.
 const maxHistory = 100
 
-// Select selects a session, switching to its mode, and records it for
-// Back and Forward.
-func (a *App) Select(id proto.SessionID) {
-	if !a.open(id) {
+// pageKind is what a page of the window shows.
+type pageKind int
+
+// Pages.
+const (
+	pageSession pageKind = iota
+	pageInbox
+	pageNew
+)
+
+// page is a place Back and Forward go to: a session, the inbox, or the
+// new-session page of a mode.
+type page struct {
+	kind pageKind
+	id   proto.SessionID
+	mode proto.Mode
+}
+
+// visit adds p to the history after the current page, unless it is the
+// current page.
+func (a *App) visit(p page) {
+	if a.at >= 0 && a.history[a.at] == p {
 		return
 	}
-	if a.at >= 0 && a.history[a.at] == id {
-		return
-	}
-	a.history = append(a.history[:a.at+1], id)
+	a.history = append(a.history[:a.at+1], p)
 	if len(a.history) > maxHistory {
 		a.history = a.history[len(a.history)-maxHistory:]
 	}
 	a.at = len(a.history) - 1
+}
+
+// Select selects a session, switching to its mode, and records it for
+// Back and Forward.
+func (a *App) Select(id proto.SessionID) {
+	if a.open(id) {
+		a.visit(page{kind: pageSession, id: id})
+	}
+}
+
+// OpenInbox shows the inbox and records it for Back and Forward.
+func (a *App) OpenInbox() {
+	a.showInbox()
+	a.visit(page{kind: pageInbox})
+}
+
+func (a *App) showInbox() {
+	a.inbox, a.selected, a.s.newPage = true, "", false
+	a.s.inboxSel, a.s.inboxFocus = -1, true
 }
 
 // open selects a session without recording it; it reports whether the
@@ -215,33 +257,45 @@ func (a *App) open(id proto.SessionID) bool {
 		return false
 	}
 	a.mode, a.archived, a.selected = s.Mode, s.ArchivedAt != nil, string(id)
-	a.s.newPage = false
+	a.s.newPage, a.inbox = false, false
 	a.markRead()
 	a.follow()
 	return true
 }
 
-// Back selects the previous session in the history that still exists.
-func (a *App) Back() {
-	if i := a.step(-1); i >= 0 {
-		a.at = i
-		a.open(a.history[i])
+// Back goes to the previous page in the history that still exists.
+func (a *App) Back() { a.travel(-1) }
+
+// Forward goes to the next page in the history that still exists.
+func (a *App) Forward() { a.travel(1) }
+
+func (a *App) travel(dir int) {
+	i := a.step(dir)
+	if i < 0 {
+		return
+	}
+	a.at = i
+	switch p := a.history[i]; p.kind {
+	case pageSession:
+		a.open(p.id)
+	case pageInbox:
+		a.showInbox()
+	case pageNew:
+		a.mode = p.mode
+		a.showNew("")
 	}
 }
 
-// Forward selects the next session in the history that still exists.
-func (a *App) Forward() {
-	if i := a.step(1); i >= 0 {
-		a.at = i
-		a.open(a.history[i])
-	}
-}
-
-// step returns the index of the nearest session in direction dir (-1 or
-// 1) from the current one that is still in the catalog, or -1.
+// step returns the index of the nearest page in direction dir (-1 or 1)
+// from the current one that still exists, or -1: a session must still be
+// in the catalog.
 func (a *App) step(dir int) int {
 	for i := a.at + dir; i >= 0 && i < len(a.history); i += dir {
-		if _, ok := a.cat.Get(a.history[i]); ok {
+		p := a.history[i]
+		if p.kind != pageSession {
+			return i
+		}
+		if _, ok := a.cat.Get(p.id); ok {
 			return i
 		}
 	}
@@ -355,13 +409,37 @@ func (a *App) View(c *ui.Context) {
 	if c.Vibrancy() {
 		c.Root().Background(ui.Transparent)
 	}
+	a.side = min(max(a.side, sideMin(c.TitleBar())), theme.SidebarMax)
+	// The sidebar opens and closes by its width, along motion-smooth; at
+	// rest and open it sits in a split its edge drags.
+	root := ui.Row(c).Fill().AlignItems(ui.Stretch)
+	target := a.side
 	if a.hideSide {
-		ui.Row(c).Fill().AlignItems(ui.Stretch).Children(func() { a.content(c, k) })
-	} else {
-		ui.Split(c, &a.side, func() { a.sidebar(c, k) }, func() { a.content(c, k) }).Fill()
-		a.side = min(max(a.side, sideMin(c.TitleBar())), theme.SidebarMax)
+		target = 0
 	}
+	shown := root.AnimateTo("side", target, theme.MotionSmooth)
+	if a.sideMoves && (root.Arrived("side") || math.Abs(float64(shown-target)) < 0.5) {
+		a.sideMoves = false
+		c.AnimationFrame() // settle into the split, or let the sidebar go
+	}
+	root.Children(func() {
+		switch {
+		case !a.hideSide && !a.sideMoves:
+			ui.Split(c, &a.side, func() { a.sidebar(c, k) }, func() { a.content(c, k) }).Fill()
+		default:
+			if a.sideMoves || !a.hideSide {
+				ui.Column(c).Width(shown).ClipX().Shrink(0).BorderWidth(0, theme.LineWidth, 0, 0).BorderColor(k.Line).Children(func() {
+					ui.Column(c).Width(a.side).Grow(1).Children(func() { a.sidebar(c, k) })
+				})
+			}
+			ui.Column(c).Grow(1).Shrink(1).MinWidth(0).AlignItems(ui.Stretch).Children(func() { a.content(c, k) })
+		}
+	})
 	a.toasts(c, k)
+	if c.Shortcut(ui.Cmd, ui.KeyK) {
+		a.OpenPalette()
+	}
+	a.palette(c, k)
 	if st := a.state(); !st.equal(a.last) {
 		a.last = st
 		if a.changed != nil {

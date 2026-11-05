@@ -35,33 +35,34 @@ func (a *App) toasts(c *ui.Context, k theme.Colors) {
 		top, left = topHeight(c.TitleBar()), 0
 	}
 	ui.ToastViewportBase(c, func(viewport ui.Element, toasts []ui.Toast) {
-		viewport.Padding(top+12, 0, 0, left).Justify(ui.Start).AlignItems(ui.Center)
+		viewport.Padding(top+theme.Space3, 0, 0, left).Justify(ui.Start).AlignItems(ui.Center)
 		for _, t := range toasts {
 			toast := ui.ToastBase(c, t)
-			toast.Root.Row().Height(36).MaxWidth(420).Padding(0, 12).Gap(8).AlignItems(ui.Center).
-				Radius(theme.RadiusCard).Background(k.Popover).Border(1, k.Line2).Shadow(0, 10, 30, 0, k.Shadow).
-				Tooltip(t.Title).Transition(ui.ElementTransition{Enter: &ui.Motion{}, Exit: &ui.Motion{}})
+			toast.Root.Row().MinHeight(theme.RowStep).MaxWidth(theme.ToastMax).Padding(0, theme.Space3).Gap(theme.Space2).AlignItems(ui.Center).
+				Radius(theme.RadiusCard).Background(k.Popover).Border(theme.LineWidth, k.Line2).
+				Tooltip(t.Title).Transition(ui.ElementTransition{Animation: &theme.MotionBase, Enter: &ui.Motion{Y: -theme.MotionDrop}, Exit: &ui.Motion{Y: -theme.MotionLift}})
+			k.ShadowPopover.On(toast.Root)
 			failed := t.Type == "error"
 			if failed {
-				toast.Root.Padding(0, 6, 0, 12)
+				toast.Root.Padding(0, theme.Space1Half, 0, theme.Space3)
 			}
 			toast.Root.Children(func() {
 				if failed {
-					ui.Icon(c, a.icons.Failed).FontSize(theme.IconSize).TextColor(k.Fg)
+					ui.Icon(c, a.icons.Failed).FontSize(theme.Icon).TextColor(k.Fg)
 				}
 				theme.UI.On(ui.Text(c, t.Title)).TextColor(k.Fg).SingleLine().Shrink(1)
 				if t.Action != "" {
-					toast.ActionButton().Height(24).Padding(0, 8).Radius(6).Background(k.Fill).AlignItems(ui.Center).Children(func() {
+					toast.ActionButton().Height(theme.RowDense).Padding(0, theme.Space2).Radius(theme.RadiusRow).Background(k.Fill).AlignItems(ui.Center).Children(func() {
 						theme.Secondary.On(ui.Text(c, t.Action)).TextColor(k.Fg)
 					})
 				}
 				if failed {
-					close := toast.CloseButton().Label("关闭").Size(24, 24).Radius(6).AlignItems(ui.Center).Justify(ui.Center)
+					close := toast.CloseButton().Label("关闭").Size(theme.RowDense, theme.RowDense).Radius(theme.RadiusRow).AlignItems(ui.Center).Justify(ui.Center)
 					if close.Hovered() {
 						close.Background(k.Fill2)
 					}
 					close.Children(func() {
-						ui.Icon(c, a.icons.Close).FontSize(14).TextColor(k.Fg3)
+						ui.Icon(c, a.icons.Close).FontSize(theme.IconRow).TextColor(k.Fg3)
 					})
 				}
 			})

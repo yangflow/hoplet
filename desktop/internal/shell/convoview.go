@@ -18,35 +18,30 @@ import (
 )
 
 // Widths of the conversation column.
-const (
-	codeColumn     = 720
-	personalColumn = 640
-)
 
 // conversation draws a session's conversation over its composer. The
 // column follows new content while it is scrolled to the end.
 func (a *App) conversation(c *ui.Context, k theme.Colors, s proto.Session) {
 	cv := a.conv(s.ID)
 	personal := s.Mode == proto.ModePersonal
-	width, gap := float32(codeColumn), float32(14)
+	width := float32(theme.CodeColumn)
 	if personal {
-		width, gap = personalColumn, 10
+		width = theme.PersonalColumn
 	}
 	sc := &a.s.scroll
 	atEnd := sc.Y >= sc.MaxY-4
 	ui.Box(c).Grow(1).Children(func() {
 		ui.Scroll(c).Fill().TrackScroll(sc).Children(func() {
 			ui.Row(c).FillWidth().Justify(ui.Center).Children(func() {
-				ui.Column(c).Width(width).Padding(20, 32, 24, 32).Gap(gap).Children(func() {
+				ui.Column(c).Width(width).Padding(theme.Space6, theme.Space8, theme.Space8, theme.Space8).Children(func() {
 					if more, first := cv.More(); more && a.older(c, k) {
 						a.host.Older(s.ID, first, func(p proto.EventsPage) { cv.Prepend(p) })
 					}
-					items := cv.Items()
 					if personal {
-						a.chat(c, k, s, items, cv.Running())
+						a.chat(c, k, s, cv.Items(), cv.Running() || cv.Starting())
 						return
 					}
-					a.items(c, k, s, items, cv)
+					a.items(c, k, s, cv)
 				})
 			})
 		})
@@ -62,8 +57,8 @@ func (a *App) conversation(c *ui.Context, k theme.Colors, s proto.Session) {
 	a.modeKeys(c, s)
 	// The composer narrows with the window, as the details column beside
 	// the conversation may leave it less room than its width.
-	ui.Row(c).FillWidth().Justify(ui.Center).Padding(0, 0, 16, 0).Children(func() {
-		ui.Column(c).Grow(1).Shrink(1).MaxWidth(width-64).Margin(0, 16).Children(func() { a.composer(c, k, s, cv) })
+	ui.Row(c).FillWidth().Justify(ui.Center).Padding(0, 0, theme.Space4, 0).Children(func() {
+		ui.Column(c).Grow(1).Shrink(1).MaxWidth(width-2*theme.Space8).Margin(0, theme.Space4).Children(func() { a.composer(c, k, s, cv) })
 	})
 }
 
@@ -71,38 +66,91 @@ func (a *App) conversation(c *ui.Context, k theme.Colors, s proto.Session) {
 // messages: an up arrow and its name in muted text, centered, with a light
 // fill only under the pointer. It reports whether it was clicked.
 func (a *App) older(c *ui.Context, k theme.Colors) bool {
-	b := ui.Button(c, "").Label("更早的消息").AlignSelf(ui.Center).Height(26).Padding(0, 10).Gap(6).AlignItems(ui.Center).
+	b := ui.Button(c, "").Label("更早的消息").AlignSelf(ui.Center).Height(theme.RowGroup).Padding(0, theme.Space3).Gap(theme.Space1Half).AlignItems(ui.Center).
 		Radius(theme.RadiusPill).Background(ui.Transparent).Border(0, ui.Transparent)
 	if b.Hovered() {
 		b.Background(k.Fill)
 	}
 	b.Children(func() {
-		ui.Icon(c, a.icons.Older).FontSize(theme.IconSizeSmall).TextColor(k.Muted)
+		ui.Icon(c, a.icons.Older).FontSize(theme.IconSmall).TextColor(k.Muted)
 		theme.Secondary.On(ui.Text(c, "更早的消息")).TextColor(k.Muted)
 	})
 	return b.Clicked()
 }
 
-// items draws a Code conversation. Turns are not marked: your messages part
-// them, and only a turn on another day than the one before it gets a day
-// line. While a turn runs, a working row ends it.
-func (a *App) items(c *ui.Context, k theme.Colors, s proto.Session, items []convo.Item, cv *convo.Convo) {
+// items draws a Code conversation, a turn's steps in one work group.
+// Turns are not marked: your messages part them, and only a turn on
+// another day than the one before it gets a day line. While a turn runs, a
+// working row ends it. A turn starts 24 below the one before, what answers
+// your message 16 below it, and the blocks of an answer stand 12 apart;
+// the working row is 8 under a work group.
+func (a *App) items(c *ui.Context, k theme.Colors, s proto.Session, cv *convo.Convo) {
+	items := cv.Grouped()
 	var day string
 	var turn time.Time
+	prev := convo.Kind(-1)
+	space := func(key string, next convo.Kind, steer bool) {
+		g := float32(theme.Space3)
+		switch {
+		case prev < 0:
+			g = 0
+		case prev == convo.KindTurn: // under a day line
+			g = theme.Space4
+		case next == convo.KindMine && !steer:
+			g = theme.Space6
+		case prev == convo.KindMine:
+			g = theme.Space4
+		case next < 0 && prev == convo.KindWork:
+			g = theme.Space2
+		}
+		if g > 0 {
+			ui.Box(c.Key("gap:" + key)).Height(g).Shrink(0)
+		}
+		prev = next
+	}
 	for _, it := range items {
 		if it.Kind == convo.KindTurn {
 			d := dayLabel(c.Now(), it.Time)
 			if day != "" && d != day {
+				space(it.Key, convo.KindMine, false)
+				prev = convo.KindTurn
 				dayLine(c.Key("day:"+it.Key), k, d)
 			}
 			day, turn = d, it.Time
 			continue
 		}
-		a.item(c.Key(it.Key), k, s, it)
+		space(it.Key, it.Kind, it.Steer)
+		ui.Column(c.Key("in:" + it.Key)).FillWidth().Transition(enterMotion).Children(func() { a.item(c.Key(it.Key), k, s, it) })
 	}
-	if cv.Running() {
+	_, _, why, unsent := cv.Failed()
+	switch {
+	case cv.Running():
+		space("working", -1, false)
 		a.working(c.Key("working"), k, items, len(cv.Pending()) > 0, turn)
+	case cv.Starting():
+		space("working", -1, false)
+		a.startingRow(c.Key("working"), k, s)
+	case unsent:
+		space("working", -1, false)
+		a.unsentBar(c.Key("unsent"), k, s, why)
 	}
+}
+
+// unsentBar stands under a message that did not go out: why, and 重试,
+// which sends it again.
+func (a *App) unsentBar(c *ui.Context, k theme.Colors, s proto.Session, why string) {
+	ui.Row(c).FillWidth().MinHeight(theme.RowStep).Padding(0, theme.Space2, 0, theme.Space3).Gap(theme.Space2).AlignItems(ui.Center).Radius(theme.RadiusCard).Border(theme.LineWidth, k.Line).Background(k.Bg2).Children(func() {
+		ui.Icon(c, a.icons.Failed).FontSize(theme.Icon).TextColor(k.Del)
+		theme.UI.On(ui.Text(c, "没能启动 "+harnessName(s.Harness.Kind)+"："+why)).TextColor(k.Fg2).Grow(1).Shrink(1)
+		b := ui.Button(c, "").Label("重试").Height(theme.Row).Padding(0, theme.Space3).Gap(theme.Space1Half).AlignItems(ui.Center).Radius(theme.RadiusControl).Background(k.Fill).Border(0, ui.Transparent)
+		if b.Clicked() {
+			a.resend(s)
+		}
+		b.Children(func() {
+			ui.Icon(c, a.icons.Reconnect).FontSize(theme.IconRow).TextColor(k.Fg)
+			ui.Text(c, "重试").FontSize(theme.CodeInline.Size()).TextColor(k.Fg)
+		})
+	})
 }
 
 // working is the row that ends a running turn: three squares lighting in
@@ -124,13 +172,22 @@ func (a *App) working(c *ui.Context, k theme.Colors, items []convo.Item, approva
 		}
 	}
 	still := approval || c.Preferences().ReduceMotion
-	ui.Row(c).Height(24).Gap(8).AlignItems(ui.Center).Children(func() {
+	ui.Row(c).Height(theme.RowDense).Gap(theme.Space2).AlignItems(ui.Center).Children(func() {
 		squares(c, k, still)
 		theme.UI.On(ui.Text(c, label)).TextColor(color)
 		if !since.IsZero() {
 			rolling(c, k, duration(c.Now().Sub(since)), c.Preferences().ReduceMotion)
 			c.After(time.Second)
 		}
+	})
+}
+
+// startingRow ends a conversation whose message waits for its harness to
+// start: the working row's squares and 正在启动 and the harness.
+func (a *App) startingRow(c *ui.Context, k theme.Colors, s proto.Session) {
+	ui.Row(c).Height(theme.RowDense).Gap(theme.Space2).AlignItems(ui.Center).Children(func() {
+		squares(c, k, c.Preferences().ReduceMotion)
+		theme.UI.On(ui.Text(c, "正在启动 "+harnessName(s.Harness.Kind))).TextColor(k.Fg3)
 	})
 }
 
@@ -151,25 +208,21 @@ func (a *App) doing(tc proto.ToolCall) string {
 	return "调用工具"
 }
 
-// The motion of the working row: a changed digit of its time rises in
-// while the old one rises out.
-var rollIn = ui.Animation{Duration: 350 * time.Millisecond, Ease: ui.CubicBezier(0.22, 1, 0.36, 1)}
-
 // rolling draws a time whose characters roll when they change: each is
 // keyed by its place from the end and its value, so only a changed one
 // leaves and comes. Its words stand a space of the mono font apart, as a
 // text of one space would lay out empty.
 func rolling(c *ui.Context, k theme.Colors, text string, still bool) {
-	const size = 11
+	size := theme.CodeCaption.Size()
 	words := strings.Fields(text)
 	place := len([]rune(text))
-	ui.Row(c).Gap(size * 0.6).AlignItems(ui.Center).Children(func() {
+	ui.Row(c).Gap(0.6 * size).AlignItems(ui.Center).Children(func() {
 		for _, w := range words {
 			ui.Row(c.Key(place)).Children(func() {
 				for _, r := range w {
-					t := ui.Text(c.Key(fmt.Sprintf("%d:%c", place, r)), string(r)).Font(theme.Mono).FontSize(size).TextColor(k.Faint).FontFeatures("tnum")
+					t := theme.CodeCaption.On(ui.Text(c.Key(fmt.Sprintf("%d:%c", place, r)), string(r))).TextColor(k.Faint).FontFeatures("tnum")
 					if !still {
-						t.Transition(ui.ElementTransition{Animation: &rollIn, Enter: &ui.Motion{Y: 6}, Exit: &ui.Motion{Y: -6}})
+						t.Transition(ui.ElementTransition{Animation: &theme.MotionRoll, Enter: &ui.Motion{Y: theme.MotionRise}, Exit: &ui.Motion{Y: -theme.MotionRise}})
 					}
 					place--
 				}
@@ -180,21 +233,22 @@ func rolling(c *ui.Context, k theme.Colors, text string, still bool) {
 }
 
 // squares draws three small squares in the accent that light in turn, a
-// third of a 1.2-second cycle apart; still, they rest at full, 60% and
-// 30%.
+// third of a 1.2-second cycle apart, from the element's Loop, which keeps
+// frames coming while it is built; still, they rest at full, 60% and 30%.
 func squares(c *ui.Context, k theme.Colors, still bool) {
-	ui.Box(c).Size(18, 4).Draw(func(p *ui.Painter, r ui.Rect) {
-		t := p.Now().Sub(time.Time{}).Seconds()
+	b := ui.Box(c).Size(3*theme.Square+2*theme.SquareGap, theme.Square)
+	var f float64
+	if !still {
+		f = float64(b.Loop("lit", theme.MotionLoop.Duration, theme.MotionLoop.Ease))
+	}
+	b.Draw(func(p *ui.Painter, r ui.Rect) {
 		for i := range 3 {
 			lit := float32([3]float64{1, 0.6, 0.3}[i])
 			if !still {
-				f := math.Mod(t/1.2-float64(i)/3, 1)
-				lit = float32(0.3 + 0.7*(0.5+0.5*math.Cos(2*math.Pi*f)))
+				at := math.Mod(f-float64(i)/3+1, 1)
+				lit = float32(0.3 + 0.7*(0.5+0.5*math.Cos(2*math.Pi*at)))
 			}
 			p.Fill(ui.Rect{X: r.X + float32(i)*7, Y: r.Y, W: 4, H: 4}, k.AccentFg.Alpha(lit), 1)
-		}
-		if !still {
-			p.AnimationFrame()
 		}
 	})
 }
@@ -203,18 +257,19 @@ func squares(c *ui.Context, k theme.Colors, still bool) {
 // the harness is answering, the working row's squares light in place of
 // its arrow. It reports whether it was clicked.
 func (a *App) toBottom(c *ui.Context, k theme.Colors, running bool, bottom float32) bool {
-	b := ui.Button(c, "").Label("回到底部").Tooltip("回到底部 ⌘↓").Size(32, 32).Padding(0).
+	b := ui.Button(c, "").Label("回到底部").Tooltip("回到底部 ⌘↓").Size(theme.RowStep, theme.RowStep).Padding(0).
 		Absolute().Bottom(bottom).Left(0).Right(0).Margin(0, ui.Auto)
-	b.Radius(16).Background(k.Popover).Border(1, k.Line2).Shadow(0, 6, 18, 0, k.Shadow)
+	k.ShadowPopover.On(b.Radius(theme.RadiusPill).Background(k.Popover).Border(theme.LineWidth, k.Line2)).
+		Transition(ui.ElementTransition{Animation: &theme.MotionBase, Enter: &ui.Motion{Scale: theme.MotionScalePop}, Exit: &ui.Motion{}})
 	hovered := b.Hovered()
 	b.Children(func() {
-		in := ui.Box(c).Fill().Radius(16).AlignItems(ui.Center).Justify(ui.Center)
+		in := ui.Box(c).Fill().Radius(theme.RadiusPill).AlignItems(ui.Center).Justify(ui.Center)
 		if hovered {
 			in.Background(k.Fill2)
 		}
 		in.Children(func() {
 			if !running {
-				ui.Icon(c, a.icons.ToBottom).FontSize(14).TextColor(k.Fg2)
+				ui.Icon(c, a.icons.ToBottom).FontSize(theme.IconRow).TextColor(k.Fg2)
 				return
 			}
 			squares(c, k, c.Preferences().ReduceMotion)
@@ -231,12 +286,10 @@ func (a *App) item(c *ui.Context, k theme.Colors, s proto.Session, it convo.Item
 	case convo.KindText:
 		a.text(c, k, it)
 	case convo.KindWork:
-		a.work(c, k, s, it, false)
-	case convo.KindApproval:
-		a.record(c, k, it.Approval)
+		a.work(c, k, s, it)
 	case convo.KindError:
-		ui.Row(c).FillWidth().Padding(8, 12).Gap(8).AlignItems(ui.Center).Radius(theme.RadiusCard).Background(k.Fill).Children(func() {
-			ui.Icon(c, a.icons.Warning).FontSize(theme.IconSize).TextColor(k.AttnFg)
+		ui.Row(c).FillWidth().Padding(theme.Space2, theme.Space3).Gap(theme.Space2).AlignItems(ui.Center).Radius(theme.RadiusCard).Background(k.Fill).Children(func() {
+			ui.Icon(c, a.icons.Warning).FontSize(theme.Icon).TextColor(k.AttnFg)
 			theme.UI.On(ui.Text(c, it.Text)).TextColor(k.Fg).Grow(1)
 		})
 	case convo.KindStopped:
@@ -248,10 +301,10 @@ func (a *App) item(c *ui.Context, k theme.Colors, s proto.Session, it convo.Item
 
 // separator is a thin line with a label in its middle.
 func separator(c *ui.Context, k theme.Colors, label string) {
-	ui.Row(c).FillWidth().Gap(10).AlignItems(ui.Center).Children(func() {
-		ui.Box(c).Height(1).Grow(1).Background(k.Line)
-		ui.Text(c, label).Font(theme.Mono).FontSize(11).TextColor(k.Faint).FontFeatures("tnum")
-		ui.Box(c).Height(1).Grow(1).Background(k.Line)
+	ui.Row(c).FillWidth().Gap(theme.Space2).AlignItems(ui.Center).Children(func() {
+		ui.Box(c).Height(theme.LineWidth).Grow(1).Background(k.Line)
+		ui.Text(c, label).Font(theme.Mono).FontSize(theme.Caption.Size()).TextColor(k.Faint).FontFeatures("tnum")
+		ui.Box(c).Height(theme.LineWidth).Grow(1).Background(k.Line)
 	})
 }
 
@@ -277,19 +330,22 @@ func (a *App) modeKeys(c *ui.Context, s proto.Session) {
 // on hover; a steer is dashed, under an insert arrow and the time it
 // reached the turn.
 func (a *App) mine(c *ui.Context, k theme.Colors, it convo.Item) {
-	col := ui.Column(c).AlignSelf(ui.End).AlignItems(ui.End).MaxWidth(0.75 * codeColumn).Gap(4)
+	col := ui.Column(c).AlignSelf(ui.End).AlignItems(ui.End).MaxWidth(0.75 * theme.CodeColumn).Gap(theme.Space1)
+	if it.Unsent {
+		col.Opacity(0.6)
+	}
 	hovered := col.Hovered()
 	col.Children(func() {
 		if it.Steer {
-			ui.Row(c).Gap(4).AlignItems(ui.Center).Tooltip("运行中插话").Children(func() {
-				ui.Icon(c, a.icons.Steer).FontSize(theme.IconSizeSmall).TextColor(k.Muted)
+			ui.Row(c).Gap(theme.Space1).AlignItems(ui.Center).Tooltip("运行中插话").Children(func() {
+				ui.Icon(c, a.icons.Steer).FontSize(theme.IconSmall).TextColor(k.Muted)
 				theme.Caption.On(ui.Text(c, clock(it.Time))).TextColor(k.Muted)
 			})
 		}
 		ui.Box(c).Children(func() {
-			b := ui.Box(c).Padding(9, 14).Radius(14).Background(k.Bubble)
+			b := ui.Box(c).Padding(theme.Space2, theme.Space3).Radius(theme.RadiusPanel).Background(k.Bubble)
 			if it.Steer {
-				b.Background(ui.Transparent).Border(1, k.Line2).BorderStyle(ui.BorderDashed)
+				b.Background(ui.Transparent).Border(theme.LineWidth, k.Line2).BorderStyle(ui.BorderDashed)
 			}
 			b.Children(func() {
 				theme.Reading.On(ui.Text(c, it.Text)).TextColor(k.Fg).Selectable()
@@ -305,7 +361,7 @@ func (a *App) mine(c *ui.Context, k theme.Colors, it convo.Item) {
 // of the bubble, its bottom on the bubble's: out of the flow, they take
 // no room, and the bubble keeps the left of it free.
 func (a *App) mineActions(c *ui.Context, k theme.Colors, it convo.Item) {
-	ui.Row(c).Height(24).Gap(2).AlignItems(ui.Center).Attach(ui.AnchorBottomStart, ui.AnchorBottomEnd).Left(-6).Children(func() {
+	ui.Row(c).Height(theme.RowDense).Gap(theme.SpaceHalf).AlignItems(ui.Center).Attach(ui.AnchorBottomStart, ui.AnchorBottomEnd).Left(-6).Children(func() {
 		theme.Caption.On(ui.Text(c, clock(it.Time))).TextColor(k.Muted).SingleLine()
 		a.copyButton(c, k, it.Key, it.Text, "复制")
 	})
@@ -358,8 +414,8 @@ func (a *App) codeBlock(k theme.Colors, item string) func(c *ui.Context, b *mark
 		long := strings.Count(code, "\n") > codeLines
 		id := fmt.Sprintf("code:%s:%d", item, b.Index)
 		open := a.s.open[id]
-		ui.Column(c).AlignSelf(ui.Stretch).Radius(theme.RadiusCard).Border(1, k.Line).Background(k.Bg).Clip().Children(func() {
-			ui.Row(c).Height(30).Padding(0, 4, 0, 12).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(k.Line).Children(func() {
+		ui.Column(c).AlignSelf(ui.Stretch).Radius(theme.RadiusCard).Border(theme.LineWidth, k.Line).Background(k.Bg).Clip().Children(func() {
+			ui.Row(c).Height(theme.Row).Padding(0, theme.Space1, 0, theme.Space3).AlignItems(ui.Center).BorderWidth(0, 0, theme.LineWidth, 0).BorderColor(k.Line).Children(func() {
 				theme.Caption.On(ui.Text(c, b.Language)).TextColor(k.Muted).Grow(1)
 				if long {
 					tip := "展开"
@@ -370,7 +426,7 @@ func (a *App) codeBlock(k theme.Colors, item string) func(c *ui.Context, b *mark
 					if open {
 						icon = a.icons.Fold
 					}
-					if iconButton(c, k, icon, tip, false).Size(24, 24).Clicked() {
+					if iconButton(c, k, icon, tip, false).Size(theme.RowDense, theme.RowDense).Clicked() {
 						a.s.open[id] = !open
 					}
 				}
@@ -378,7 +434,7 @@ func (a *App) codeBlock(k theme.Colors, item string) func(c *ui.Context, b *mark
 			})
 			body := b.Body(c)
 			if long && !open {
-				body.MaxHeight(codeLines * 19)
+				body.MaxHeight(codeLines * theme.Code.Line())
 			}
 		})
 	}
@@ -387,201 +443,232 @@ func (a *App) codeBlock(k theme.Colors, item string) func(c *ui.Context, b *mark
 // copyButton copies text; its icon shows a check for 1.5 seconds after.
 func (a *App) copyButton(c *ui.Context, k theme.Colors, id, text, tip string) {
 	icon := a.icons.Copy
-	if at, ok := a.s.copied[id]; ok && c.Now().Sub(at) < 1500*time.Millisecond {
+	if at, ok := a.s.copied[id]; ok && c.Now().Sub(at) < theme.MotionFlash.Duration {
 		icon, tip = a.icons.Check, "已复制"
 	}
-	if iconButton(c, k, icon, tip, false).Size(24, 24).Clicked() {
+	if iconButton(c, k, icon, tip, false).Size(theme.RowDense, theme.RowDense).Clicked() {
 		c.WriteClipboard(text)
 		a.s.copied[id] = c.Now()
-		c.After(1500 * time.Millisecond)
+		c.After(theme.MotionFlash.Duration)
 	}
 }
 
-// work draws a work group. A finished group folds into one line unless a
-// step failed; a running one shows its last three steps. folded keeps it
-// one line whatever happens (Personal).
-func (a *App) work(c *ui.Context, k theme.Colors, s proto.Session, it convo.Item, folded bool) {
+// staggered is how many steps arriving together are put one after another;
+// the rest come with the fifth.
+const staggered = 5
+
+// work draws a turn's work group: a 26-point header with what it did,
+// failures and its time, over one 32-point row a step on a rail. A running
+// group is open with only its latest step open; a finished one folds to
+// its header. A row opens to its detail when clicked.
+func (a *App) work(c *ui.Context, k theme.Colors, s proto.Session, it convo.Item) {
 	w := it.Work
 	key := "work:" + string(s.ID) + ":" + it.Key
 	open, set := a.s.open[key]
 	if !set {
-		open = w.Running || w.Failed > 0
-	}
-	if folded {
-		open = false
+		open = w.Running
 	}
 	ui.Column(c).FillWidth().Children(func() {
-		h := ui.Row(c).Height(26).Gap(6).AlignItems(ui.Center)
-		if !folded && h.Clicked() {
+		h := ui.Row(c).Height(theme.RowGroup).Gap(theme.Space1Half).AlignItems(ui.Center).Label(summary(w))
+		if h.Clicked() {
 			a.s.open[key] = !open
 		}
 		h.Children(func() {
-			chev := ui.Icon(c, a.icons.Expand).FontSize(theme.IconSizeSmall).TextColor(k.Faint)
-			if open {
-				chev.Rotate(90)
-			}
-			theme.UI.On(ui.Text(c, summary(w))).TextColor(k.Fg3).SingleLine().Shrink(1)
-			ui.Spacer(c)
-			// Failures sit at the end, before the time.
-			if w.Failed > 0 {
-				theme.Caption.On(ui.Textf(c, "✕ %d 个失败", w.Failed)).TextColor(k.Fg).FontWeight(600)
-				if !w.Running {
-					ui.Text(c, "·").FontSize(11).TextColor(k.Faint)
-				}
-			}
-			if !w.Running {
-				ui.Text(c, duration(w.End.Sub(w.Start))).Font(theme.Mono).FontSize(11).TextColor(k.Faint)
-			}
-		})
-		if !open {
-			return
-		}
-		ui.Column(c).Margin(2, 0, 0, 4).Padding(0, 0, 0, 14).Gap(2).BorderWidth(0, 0, 0, 1).BorderColor(k.Line).Children(func() {
-			entries := w.Entries
-			if w.Running && len(entries) > 3 {
-				theme.Caption.On(ui.Textf(c, "更早的 %d 条", len(entries)-3)).TextColor(k.Muted)
-				entries = entries[len(entries)-3:]
-			}
-			for i, run := range runs(entries) {
-				if len(run) == 1 {
-					a.workStep(c.Key(i), k, s, run[0])
-					continue
-				}
-				a.reads(c.Key(i), k, s, it.Key, i, run)
-			}
-		})
-	})
-}
-
-// runs splits a group's steps into runs: consecutive finished reads go
-// together, every other step alone.
-func runs(entries []convo.Entry) [][]convo.Entry {
-	var out [][]convo.Entry
-	for _, e := range entries {
-		read := e.Tool != nil && e.Tool.Kind == proto.ToolRead && e.Tool.Status == proto.ToolDone
-		if n := len(out); read && n > 0 {
-			prev := out[n-1][0]
-			if prev.Tool != nil && prev.Tool.Kind == proto.ToolRead && prev.Tool.Status == proto.ToolDone {
-				out[n-1] = append(out[n-1], e)
-				continue
-			}
-		}
-		out = append(out, []convo.Entry{e})
-	}
-	return out
-}
-
-// reads draws consecutive reads as one row, 读取了 N 个文件 ›, which opens
-// to the reads.
-func (a *App) reads(c *ui.Context, k theme.Colors, s proto.Session, group string, i int, run []convo.Entry) {
-	key := fmt.Sprintf("reads:%s:%s:%d", s.ID, group, i)
-	open := a.s.open[key]
-	ui.Column(c).Children(func() {
-		r := ui.Row(c).Height(24).Gap(8).AlignItems(ui.Center).Label(fmt.Sprintf("读取了 %d 个文件", len(run)))
-		if r.Clicked() {
-			a.s.open[key] = !open
-		}
-		r.Children(func() {
-			ui.Icon(c, a.icons.Read).FontSize(theme.IconSizeInRow).TextColor(k.Fg3)
-			theme.UI.On(ui.Textf(c, "读取了 %d 个文件", len(run))).TextColor(k.Fg).FontWeight(500)
 			icon := a.icons.Expand
 			if open {
 				icon = a.icons.Menu
 			}
-			ui.Icon(c, icon).FontSize(theme.IconSizeSmall).TextColor(k.Faint)
-		})
-		if open {
-			for j, e := range run {
-				a.workStep(c.Key(j), k, s, e)
-			}
-		}
-	})
-}
-
-// workStep draws one step of a work group: thinking, or a tool row that opens
-// its output.
-func (a *App) workStep(c *ui.Context, k theme.Colors, s proto.Session, e convo.Entry) {
-	if e.Tool == nil {
-		ui.Column(c).Gap(2).Children(func() {
-			ui.Row(c).Height(24).Gap(8).AlignItems(ui.Center).Children(func() {
-				ui.Icon(c, a.icons.Thinking).FontSize(theme.IconSizeInRow).TextColor(k.Fg3)
-				theme.UI.On(ui.Text(c, "思考")).TextColor(k.Fg).FontWeight(500)
-			})
-			theme.Secondary.On(ui.Text(c, e.Thinking)).TextColor(k.Muted).Padding(0, 0, 0, 22).Selectable()
-		})
-		return
-	}
-	tc := *e.Tool
-	key := "out:" + string(s.ID) + ":" + tc.ID
-	// A tool still running after its turn ended will not be reported done.
-	unfinished := tc.Status == proto.ToolRunning && !a.conv(s.ID).Running()
-	running := tc.Status == proto.ToolRunning && !unfinished
-	failed := tc.Status == proto.ToolFailed
-	long := utf8.RuneCountInString(tc.Summary) > inputRunes || strings.Contains(tc.Summary, "\n")
-	opens := tc.Output != nil || failed || long
-	open, set := a.s.open[key]
-	if !set {
-		open = failed
-	}
-	open = open && opens
-	if open && tc.Output != nil {
-		a.loadOutput(s, tc, key)
-	}
-	ui.Column(c).Children(func() {
-		r := ui.Row(c).Height(24).Gap(8).AlignItems(ui.Center)
-		hovered := r.Hovered()
-		if opens && r.Clicked() {
-			a.s.open[key] = !open
-		}
-		r.Children(func() {
-			icon, verb := a.action(tc)
-			if running {
-				ui.Spinner(c).Size(14, 14)
-			} else {
-				ui.Icon(c, icon).FontSize(theme.IconSizeInRow).TextColor(k.Fg3)
-			}
-			theme.UI.On(ui.Text(c, verb)).TextColor(k.Fg).FontWeight(500)
-			// A file stands out in the accent after its type's icon; a
-			// command or a query does not.
-			object := k.Fg3
-			if tc.Kind == proto.ToolRead || tc.Kind == proto.ToolEdit {
-				object = k.AccentFg
-				ui.Image(c, a.icons.FileType(tc.Summary)).Size(theme.IconSizeInRow, theme.IconSizeInRow)
-			}
-			ui.Text(c, firstLine(tc.Summary)).Font(theme.Mono).FontSize(12).TextColor(object).FontFeatures("liga=0").SingleLine().Shrink(1)
-			if failed {
-				// Right after what failed; "✕ 退出码 N" once harnesses
-				// report the exit code.
-				ui.Text(c, "✕").Font(theme.Mono).FontSize(11).FontWeight(600).TextColor(k.Fg)
+			ui.Icon(c, icon).FontSize(theme.UI.Size()).TextColor(k.Fg3)
+			theme.UI.On(ui.Text(c, summary(w))).TextColor(k.Fg2).SingleLine().Shrink(1)
+			if w.Failed > 0 {
+				ui.Textf(c, "✕ %d 个失败", w.Failed).Font(theme.Mono).FontSize(theme.Caption.Size()).FontWeight(theme.UIStrong.Weight()).TextColor(k.Fg).Margin(0, 0, 0, theme.Space1).SingleLine().Shrink(0)
 			}
 			ui.Spacer(c)
-			switch {
-			case unfinished:
-				ui.Text(c, "未完成").Font(theme.Mono).FontSize(11).TextColor(k.Faint)
-			case running:
-				ui.Text(c, duration(c.Now().Sub(e.Start))+"…").Font(theme.Mono).FontSize(11).TextColor(k.Faint)
-				c.After(time.Second)
-			case hovered:
-				ui.Text(c, duration(e.Duration())).Font(theme.Mono).FontSize(11).TextColor(k.Faint)
+			if !w.Running {
+				ui.Text(c, duration(w.End.Sub(w.Start))).FontSize(theme.Caption.Size()).TextColor(k.Faint).SingleLine().Shrink(0)
 			}
 		})
 		if !open {
 			return
 		}
-		if long {
-			ui.Text(c, tc.Summary).Font(theme.Mono).FontSize(12).LineHeight(18.0/12).TextColor(k.Fg2).
-				FontFeatures("liga=0").Margin(2, 0, 4, 22).Selectable()
+		var shown []convo.Entry
+		for _, e := range w.Entries {
+			if e.Approval != nil && e.Approval.Outcome == "" {
+				continue // still open: it waits in the composer
+			}
+			shown = append(shown, e)
 		}
+		// Steps that come while the group is open rise in; several at once
+		// come one after another, motion-stagger apart, the first five.
+		seen, ok := a.s.steps[it.Key]
+		if !ok {
+			seen = len(shown)
+		}
+		a.s.steps[it.Key] = len(shown)
+		ui.Column(c).FillWidth().Margin(0, 0, 0, theme.Space1Half).Children(func() {
+			for i, e := range shown {
+				latest := w.Running && i == len(shown)-1
+				in := theme.MotionBase
+				in.Delay = time.Duration(min(max(i-seen, 0), staggered-1)) * theme.MotionStagger
+				ui.Column(c.Key("in:" + e.Key)).FillWidth().Transition(ui.ElementTransition{Animation: &in, Enter: &ui.Motion{Y: theme.MotionRise}}).Children(func() {
+					a.workStep(c.Key(e.Key), k, s, e, latest, i == len(shown)-1)
+				})
+			}
+		})
+	})
+}
+
+// rail draws a step's part of the rail its group's steps hang on: a line
+// down the left, to the row's middle on the last step, and a tick across
+// to the step.
+func rail(c *ui.Context, k theme.Colors, last bool) {
+	ui.Box(c).Width(theme.ControlXS).AlignSelf(ui.Stretch).Shrink(0).Draw(func(p *ui.Painter, r ui.Rect) {
+		h := r.H
+		if last {
+			h = theme.Icon
+		}
+		p.Fill(ui.Rect{X: r.X, Y: r.Y, W: theme.LineWidth, H: h}, k.Line2, 0)
+		p.Fill(ui.Rect{X: r.X, Y: r.Y + theme.Icon, W: theme.IconRow, H: theme.LineWidth}, k.Line2, 0)
+	})
+}
+
+// workStep draws one step of a work group on its row, and its detail when
+// open: thinking's summary, a note's text, a command in full with its
+// output. latest says it is the newest step of a running group, which
+// opens by itself.
+func (a *App) workStep(c *ui.Context, k theme.Colors, s proto.Session, e convo.Entry, latest, last bool) {
+	key := "step:" + string(s.ID) + ":" + e.Key
+	var (
+		icon               *ui.SVG
+		verb, object, tail string
+		file, failed       bool
+		running, unfinish  bool
+		opens              bool
+		tc                 proto.ToolCall
+	)
+	switch {
+	case e.Tool != nil:
+		tc = *e.Tool
+		icon, verb = a.action(tc)
+		object = firstLine(tc.Summary)
+		file = tc.Kind == proto.ToolRead || tc.Kind == proto.ToolEdit
+		if file {
+			object = relPath(s.Directory, object)
+		}
+		failed = tc.Status == proto.ToolFailed
+		// A tool still running after its turn ended will not be reported done.
+		unfinish = tc.Status == proto.ToolRunning && !a.conv(s.ID).Running()
+		running = tc.Status == proto.ToolRunning && !unfinish
+		long := utf8.RuneCountInString(tc.Summary) > inputRunes || strings.Contains(tc.Summary, "\n")
+		opens = tc.Output != nil || failed || long || tc.Kind == proto.ToolExec && tc.Summary != ""
+	case e.Approval != nil:
+		ap := e.Approval
+		icon, verb = a.icons.Allowed, "已允许"
+		switch ap.Outcome {
+		case proto.OutcomeDenied:
+			icon, verb = a.icons.Denied, "已拒绝"
+		case proto.OutcomeExpired:
+			icon, verb = a.icons.Denied, "未答复"
+		}
+		object, tail = ap.Request.Title, clock(ap.At)
+	case e.Note != "":
+		icon, verb, object = a.icons.Note, "说明", firstLine(e.Note)
+		opens = true
+	default:
+		icon, verb = a.icons.Thinking, "思考过程"
+		opens = e.Thinking != ""
+	}
+	open, set := a.s.open[key]
+	if !set {
+		open = latest
+	}
+	open = open && opens
+	if open && tc.Output != nil {
+		a.loadOutput(s, tc, "out:"+string(s.ID)+":"+tc.ID)
+	}
+	ui.Row(c).FillWidth().Children(func() {
+		rail(c, k, last)
+		ui.Column(c).Grow(1).Shrink(1).Children(func() {
+			r := ui.Row(c).Height(theme.RowStep).Gap(theme.Space2).AlignItems(ui.Center).Label(verb + " " + object)
+			hovered := r.Hovered()
+			if opens && r.Clicked() {
+				a.s.open[key] = !open
+			}
+			r.Children(func() {
+				if running {
+					ui.Spinner(c).Size(theme.Icon, theme.Icon)
+				} else {
+					ui.Icon(c, icon).FontSize(theme.Icon).TextColor(k.Fg3)
+				}
+				ui.Text(c, verb).FontSize(theme.CodeInline.Size()).TextColor(k.Fg).SingleLine().Shrink(0)
+				if file {
+					ui.Image(c, a.icons.FileType(tc.Summary)).Size(theme.IconRow, theme.IconRow)
+				}
+				obj := ui.Text(c, object).TextColor(k.Fg3).SingleLine().Shrink(1)
+				if e.Note != "" {
+					obj.FontSize(theme.CodeInline.Size())
+				} else {
+					obj.Font(theme.Mono).FontSize(theme.Secondary.Size()).FontFeatures("liga=0")
+				}
+				if file {
+					obj.TextColor(k.AccentFg)
+				}
+				if e.Approval != nil {
+					obj.Tooltip(object)
+				}
+				if failed {
+					// "✕ 退出码 N" once harnesses report the exit code.
+					ui.Text(c, "✕").Font(theme.Mono).FontSize(theme.Caption.Size()).FontWeight(theme.UIStrong.Weight()).TextColor(k.Fg)
+				}
+				ui.Spacer(c)
+				switch {
+				case unfinish:
+					ui.Text(c, "未完成").FontSize(theme.Caption.Size()).TextColor(k.Faint)
+				case running:
+					ui.Text(c, duration(c.Now().Sub(e.Start))+"…").FontSize(theme.Caption.Size()).TextColor(k.Faint)
+					c.After(time.Second)
+				case hovered && tail != "":
+					ui.Text(c, tail).FontSize(theme.Caption.Size()).TextColor(k.Faint)
+				case hovered && e.Tool != nil && !open:
+					ui.Text(c, duration(e.Duration())).FontSize(theme.Caption.Size()).TextColor(k.Faint)
+				}
+				if open {
+					ui.Icon(c, a.icons.Menu).FontSize(theme.UI.Size()).TextColor(k.Fg3)
+				}
+			})
+			if open {
+				a.stepDetail(c, k, s, e, tc, failed)
+			}
+		})
+	})
+}
+
+// stepDetail is what an open step shows under its row, in from its icon.
+func (a *App) stepDetail(c *ui.Context, k theme.Colors, s proto.Session, e convo.Entry, tc proto.ToolCall, failed bool) {
+	prose := func(t string) {
+		theme.SecondaryBlock.On(ui.Text(c, t)).TextColor(k.Fg2).Margin(0, 0, theme.Space2, theme.Space6).Selectable()
+	}
+	switch {
+	case e.Note != "":
+		prose(e.Note)
+	case e.Tool == nil:
+		prose(e.Thinking)
+	default:
+		if tc.Summary != "" {
+			theme.Code.On(ui.Text(c, tc.Summary)).TextColor(k.Fg2).
+				Margin(0, 0, theme.Space1Half, theme.Space6).Selectable()
+		}
+		key := "out:" + string(s.ID) + ":" + tc.ID
 		switch {
 		case tc.Output != nil:
 			a.output(c, k, key, func() { a.loadOutput(s, tc, key) })
 		case failed:
-			ui.Row(c).Margin(2, 0, 4, 22).Gap(6).AlignItems(ui.Center).Children(func() {
-				ui.Icon(c, a.icons.Failed).FontSize(13).TextColor(k.Muted)
+			ui.Row(c).Margin(0, 0, theme.Space2, theme.Space6).Gap(theme.Space1Half).AlignItems(ui.Center).Children(func() {
+				ui.Icon(c, a.icons.Failed).FontSize(theme.UI.Size()).TextColor(k.Muted)
 				theme.Secondary.On(ui.Text(c, "失败，harness 没给出原因")).TextColor(k.Muted)
 			})
 		}
-	})
+	}
 }
 
 // inputRunes is how long a tool's input may be and still show whole in
@@ -623,14 +710,14 @@ const outputLines = 12
 // bar; its copy button shows on hover.
 func (a *App) output(c *ui.Context, k theme.Colors, key string, retry func()) {
 	o := a.s.outputs[key]
-	box := ui.Column(c).Margin(4, 0, 4, 22).Radius(8).Border(1, k.Line).Background(k.Bg2).Clip()
+	box := ui.Column(c).Margin(0, 0, theme.Space2, theme.Space6).Radius(theme.RadiusControl).Border(theme.LineWidth, k.Line).Background(k.Bg2).Clip()
 	hovered := box.Hovered()
 	box.Children(func() {
 		if why, ok := a.s.outputErr[key]; ok {
-			ui.Row(c).Padding(4, 4, 4, 12).Gap(8).AlignItems(ui.Center).Children(func() {
-				ui.Icon(c, a.icons.Failed).FontSize(13).TextColor(k.Muted)
+			ui.Row(c).Padding(theme.Space1, theme.Space1, theme.Space1, theme.Space3).Gap(theme.Space2).AlignItems(ui.Center).Children(func() {
+				ui.Icon(c, a.icons.Failed).FontSize(theme.UI.Size()).TextColor(k.Muted)
 				theme.Secondary.On(ui.Text(c, "没取到输出："+why)).TextColor(k.Muted).Grow(1).Shrink(1)
-				if iconButton(c, k, a.icons.Reconnect, "重试", false).Size(24, 24).Clicked() {
+				if iconButton(c, k, a.icons.Reconnect, "重试", false).Size(theme.RowDense, theme.RowDense).Clicked() {
 					delete(a.s.outputs, key)
 					retry()
 				}
@@ -638,7 +725,7 @@ func (a *App) output(c *ui.Context, k theme.Colors, key string, retry func()) {
 			return
 		}
 		if o == nil {
-			ui.Box(c).Padding(8, 12).Children(func() { ui.Spinner(c).Size(12, 12) })
+			ui.Box(c).Padding(theme.Space2, theme.Space3).Children(func() { ui.Spinner(c).Size(theme.IconSmall, theme.IconSmall) })
 			return
 		}
 		lines := strings.Split(strings.TrimRight(o.Text, "\n"), "\n")
@@ -647,8 +734,8 @@ func (a *App) output(c *ui.Context, k theme.Colors, key string, retry func()) {
 		if len(shown) > outputLines && !all {
 			shown = shown[:outputLines]
 		}
-		ui.Text(c, strings.Join(shown, "\n")).Font(theme.Mono).FontSize(12).LineHeight(18.0/12).TextColor(k.Fg2).
-			FontFeatures("liga=0").Padding(8, 12).Selectable()
+		theme.Code.On(ui.Text(c, strings.Join(shown, "\n"))).TextColor(k.Fg2).
+			Padding(theme.Space2, theme.Space3).Selectable()
 		copyTip := "复制"
 		if o.Truncated {
 			copyTip = "复制已显示的部分"
@@ -660,7 +747,7 @@ func (a *App) output(c *ui.Context, k theme.Colors, key string, retry func()) {
 			return
 		}
 		rest := len(lines) - len(shown)
-		ui.Row(c).Padding(2, 4, 2, 12).Gap(2).AlignItems(ui.Center).BorderWidth(1, 0, 0, 0).BorderColor(k.Line).Children(func() {
+		ui.Row(c).Padding(theme.SpaceHalf, theme.Space1, theme.SpaceHalf, theme.Space3).Gap(theme.SpaceHalf).AlignItems(ui.Center).BorderWidth(theme.LineWidth, 0, 0, 0).BorderColor(k.Line).Children(func() {
 			label := ""
 			switch {
 			case rest > 0:
@@ -671,11 +758,11 @@ func (a *App) output(c *ui.Context, k theme.Colors, key string, retry func()) {
 			theme.Caption.On(ui.Text(c, label)).TextColor(k.Muted).Grow(1)
 			switch {
 			case rest > 0:
-				if iconButton(c, k, a.icons.Unfold, "展开全部", false).Size(24, 24).Clicked() {
+				if iconButton(c, k, a.icons.Unfold, "展开全部", false).Size(theme.RowDense, theme.RowDense).Clicked() {
 					a.s.open[key+":all"] = true
 				}
 			case len(lines) > outputLines:
-				if iconButton(c, k, a.icons.Fold, "折叠", false).Size(24, 24).Clicked() {
+				if iconButton(c, k, a.icons.Fold, "折叠", false).Size(theme.RowDense, theme.RowDense).Clicked() {
 					a.s.open[key+":all"] = false
 				}
 			}
@@ -707,35 +794,37 @@ func (a *App) action(tc proto.ToolCall) (*ui.SVG, string) {
 	return a.icons.Tool, tc.Name
 }
 
-// summary is a work group's one line: thinking · read N files · …, with
-// the running one saying so.
+// summary is a work group's one line: what it did, counted, in the order
+// it first did each: 思考 N 次 · 运行 N 条命令 · … · 写了 N 段说明.
 func summary(w *convo.Work) string {
-	var think bool
 	counts := map[string]int{}
 	var order []string
 	for _, e := range w.Entries {
-		if e.Tool == nil {
-			think = true
-			continue
+		var part string
+		switch {
+		case e.Tool != nil:
+			part = toolVerb(*e.Tool)
+		case e.Approval != nil:
+			part = "审批 %d 次"
+		case e.Note != "":
+			part = "写了 %d 段说明"
+		default:
+			part = "思考 %d 次"
 		}
-		verb := toolVerb(*e.Tool)
-		if counts[verb] == 0 {
-			order = append(order, verb)
+		if counts[part] == 0 {
+			order = append(order, part)
 		}
-		counts[verb]++
+		counts[part]++
 	}
-	var parts []string
-	if think {
-		parts = append(parts, "思考")
+	// Approvals count only in a group of nothing else.
+	if len(order) > 1 {
+		order = slices.DeleteFunc(order, func(v string) bool { return v == "审批 %d 次" })
 	}
-	for _, v := range order {
-		parts = append(parts, fmt.Sprintf(v, counts[v]))
+	parts := make([]string, len(order))
+	for i, v := range order {
+		parts[i] = fmt.Sprintf(v, counts[v])
 	}
-	out := strings.Join(parts, " · ")
-	if w.Running {
-		out += " · 运行中"
-	}
-	return out
+	return strings.Join(parts, " · ")
 }
 
 // toolVerb is a tool call's part of a summary, with %d for the count.
@@ -745,6 +834,8 @@ func toolVerb(tc proto.ToolCall) string {
 		return "搜索 %d 次"
 	case "Task", "Agent":
 		return "%d 个子任务"
+	case "Write", "write_file":
+		return "写入 %d 个文件"
 	}
 	switch tc.Kind {
 	case proto.ToolRead:
@@ -759,36 +850,6 @@ func toolVerb(tc proto.ToolCall) string {
 	return "调用 %d 个工具"
 }
 
-// record draws a decided approval: a shield, the outcome, what it was
-// about; who decided and when show on hover.
-func (a *App) record(c *ui.Context, k theme.Colors, ap *convo.Approval) {
-	if ap.Outcome == "" {
-		return // still open: it waits in the composer
-	}
-	r := ui.Row(c).Height(24).Gap(8).AlignItems(ui.Center)
-	hovered := r.Hovered()
-	r.Children(func() {
-		icon, label := a.icons.Allowed, "已允许"
-		switch ap.Outcome {
-		case proto.OutcomeDenied:
-			icon, label = a.icons.Denied, "已拒绝"
-		case proto.OutcomeExpired:
-			icon, label = a.icons.Denied, "未答复"
-		}
-		ui.Icon(c, icon).FontSize(theme.IconSizeInRow).TextColor(k.Fg3)
-		theme.UI.On(ui.Text(c, label)).TextColor(k.Fg).FontWeight(500)
-		ui.Text(c, ap.Request.Title).Font(theme.Mono).FontSize(12).TextColor(k.Fg3).SingleLine().Shrink(1)
-		ui.Spacer(c)
-		if hovered {
-			who := ap.DecidedBy
-			if who == "" {
-				who = "harness"
-			}
-			theme.Caption.On(ui.Text(c, who+" · "+clock(ap.At))).TextColor(k.Muted)
-		}
-	})
-}
-
 // changes draws the files a turn changed, at the end of its reply: a
 // 36-point header with the count and the lines added and removed, then
 // each file with its status, path and lines, from the session's diff. The
@@ -797,29 +858,30 @@ func (a *App) record(c *ui.Context, k theme.Colors, ap *convo.Approval) {
 func (a *App) changes(c *ui.Context, k theme.Colors, s proto.Session, it convo.Item) {
 	d := a.diff(s)
 	var add, del int
+	counted := false // line counts come only from git repositories
 	stats := make([]*proto.FileDiff, len(it.Files))
 	for i, f := range it.Files {
 		if st, ok := fileStats(d, s.Directory, f.Path); ok {
 			stats[i] = &st
-			add, del = add+st.Additions, del+st.Deletions
+			add, del, counted = add+st.Additions, del+st.Deletions, true
 		}
 	}
-	ui.Column(c).FillWidth().Radius(theme.RadiusCard).Border(1, k.Line).Clip().Children(func() {
-		ui.Row(c).Height(36).Padding(0, 12).Gap(10).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(k.Line).Children(func() {
+	ui.Column(c).FillWidth().Radius(theme.RadiusCard).Border(theme.LineWidth, k.Line).Clip().Children(func() {
+		ui.Row(c).Height(theme.RowStep).Padding(0, theme.Space3).Gap(theme.Space2).AlignItems(ui.Center).BorderWidth(0, 0, theme.LineWidth, 0).BorderColor(k.Line).Children(func() {
 			theme.UIStrong.On(ui.Textf(c, "改了 %d 个文件", len(it.Files))).TextColor(k.Fg)
-			if d != nil {
+			if counted {
 				lines(c, k, add, del)
 			}
 		})
 		for i, f := range it.Files {
-			r := ui.Row(c.Key(f.Path)).Padding(6, 12).Gap(8).AlignItems(ui.Center)
+			r := ui.Row(c.Key(f.Path)).Padding(theme.Space1Half, theme.Space3).Gap(theme.Space2).AlignItems(ui.Center)
 			if r.Hovered() {
 				r.Background(k.Fill)
 			}
 			r.Children(func() {
-				ui.Text(c, opLetter(f.Op)).Font(theme.Mono).FontSize(12).TextColor(k.Muted).Width(12)
-				ui.Image(c, a.icons.FileType(f.Path)).Size(theme.IconSizeInRow, theme.IconSizeInRow)
-				ui.Text(c, relPath(s.Directory, f.Path)).Font(theme.Mono).FontSize(12).TextColor(k.AccentFg).SingleLine().Grow(1).Shrink(1)
+				ui.Text(c, opLetter(f.Op)).Font(theme.Mono).FontSize(theme.Secondary.Size()).TextColor(k.Muted).Width(theme.IconSmall)
+				ui.Image(c, a.icons.FileType(f.Path)).Size(theme.IconRow, theme.IconRow)
+				ui.Text(c, relPath(s.Directory, f.Path)).Font(theme.Mono).FontSize(theme.Secondary.Size()).TextColor(k.AccentFg).SingleLine().Grow(1).Shrink(1)
 				if st := stats[i]; st != nil {
 					lines(c, k, st.Additions, st.Deletions)
 				}
@@ -830,12 +892,12 @@ func (a *App) changes(c *ui.Context, k theme.Colors, s proto.Session, it convo.I
 
 // lines shows lines added and removed, +24 −9, in the diff colors.
 func lines(c *ui.Context, k theme.Colors, add, del int) {
-	ui.Row(c).Gap(4).Children(func() {
+	ui.Row(c).Gap(theme.Space1).Children(func() {
 		if add > 0 || del == 0 {
-			ui.Textf(c, "+%d", add).Font(theme.Mono).FontSize(12).TextColor(k.Add)
+			ui.Textf(c, "+%d", add).Font(theme.Mono).FontSize(theme.Secondary.Size()).TextColor(k.Add)
 		}
 		if del > 0 {
-			ui.Textf(c, "−%d", del).Font(theme.Mono).FontSize(12).TextColor(k.Del)
+			ui.Textf(c, "−%d", del).Font(theme.Mono).FontSize(theme.Secondary.Size()).TextColor(k.Del)
 		}
 	})
 }

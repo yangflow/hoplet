@@ -53,6 +53,10 @@ func run() error {
 	d := &desktop{wake: make(chan struct{})}
 	d.app = shell.New(set, d, d.changed)
 	mygo.App.SetMenu(d.menu())
+	mygo.App.Dock.SetMenu(mygo.NewMenu([]*mygo.MenuItem{
+		{Label: "新建会话", Click: d.front(func() { d.app.NewSession() })},
+		{Label: "收件箱", Click: d.front(func() { d.app.OpenInbox() })},
+	}))
 	mygo.App.OnSecondInstance(func([]string, string) { d.show() })
 	mygo.App.OnActivate(func(bool) { d.show() })
 	mygo.App.OnBeforeQuit(func(*mygo.QuitEvent) { d.quitting = true })
@@ -185,9 +189,18 @@ func (d *desktop) Create(p proto.CreateParams, done func(proto.Session)) {
 }
 
 // Send implements shell.Host.
-func (d *desktop) Send(p proto.SendParams) {
+func (d *desktop) Send(p proto.SendParams, done func(error)) {
+	d.mu.Lock()
+	offline := d.c == nil
+	d.mu.Unlock()
+	if offline && done != nil {
+		done(errors.New("没有连上守护进程"))
+	}
 	d.call(func(ctx context.Context, c *client.Client) error {
 		_, err := c.Send(ctx, p)
+		if done != nil {
+			d.win.Update(func() { done(err) })
+		}
 		return err
 	})
 }
@@ -320,6 +333,17 @@ func (d *desktop) Harnesses(done func([]proto.HarnessInfo)) {
 	})
 }
 
+// Session implements shell.Host.
+func (d *desktop) Session(id proto.SessionID, done func(proto.SessionState)) {
+	d.call(func(ctx context.Context, c *client.Client) error {
+		st, err := c.Session(ctx, id)
+		if err == nil {
+			d.ui(func() { done(st) })
+		}
+		return err
+	})
+}
+
 // Follow implements shell.Host: one session is followed at a time, until
 // another is or the connection ends.
 func (d *desktop) Follow(id proto.SessionID, after uint64) {
@@ -383,6 +407,16 @@ func (d *desktop) do(fn func()) func(*mygo.MenuItem, *mygo.Window) {
 	}
 }
 
+// front brings the window forward and runs fn in it.
+func (d *desktop) front(fn func()) func(*mygo.MenuItem, *mygo.Window) {
+	return func(*mygo.MenuItem, *mygo.Window) {
+		d.show()
+		if d.win != nil {
+			d.win.Update(fn)
+		}
+	}
+}
+
 // menu builds the menu bar.
 func (d *desktop) menu() *mygo.Menu {
 	d.pin = &mygo.MenuItem{Label: "置顶", Accelerator: "Shift+CmdOrCtrl+P", Click: d.do(d.app.TogglePin)}
@@ -400,8 +434,11 @@ func (d *desktop) menu() *mygo.Menu {
 		{Role: mygo.RoleEditMenu},
 		{Label: "会话", Submenu: []*mygo.MenuItem{d.pin, d.unread, d.rename, mygo.Separator(), d.reveal, d.stop, d.archive}},
 		{Label: "视图", Submenu: []*mygo.MenuItem{
-			{Label: "Personal", Accelerator: "CmdOrCtrl+1", Click: d.do(func() { d.app.SetMode(proto.ModePersonal) })},
-			{Label: "Code", Accelerator: "CmdOrCtrl+2", Click: d.do(func() { d.app.SetMode(proto.ModeCode) })},
+			{Label: "Personal", Accelerator: "CmdOrCtrl+1", Click: d.do(func() { d.app.ModeKey(proto.ModePersonal) })},
+			{Label: "Code", Accelerator: "CmdOrCtrl+2", Click: d.do(func() { d.app.ModeKey(proto.ModeCode) })},
+			mygo.Separator(),
+			{Label: "收件箱", Accelerator: "Shift+CmdOrCtrl+I", Click: d.do(d.app.OpenInbox)},
+			{Label: "搜索", Accelerator: "CmdOrCtrl+K", Click: d.do(d.app.OpenPalette)},
 			mygo.Separator(),
 			d.back, d.forward,
 			mygo.Separator(),

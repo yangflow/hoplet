@@ -8,12 +8,7 @@ import (
 )
 
 // wall approximates the desktop behind the glass in each appearance.
-func wall(dark bool) ui.Color {
-	if dark {
-		return ui.Hex("#15181C")
-	}
-	return ui.Hex("#DCDFE3")
-}
+func wall(dark bool) ui.Color { return For(dark).Wall }
 
 // over composites c over an opaque bg.
 func over(c, bg ui.Color) ui.Color {
@@ -56,7 +51,7 @@ func TestTextContrast(t *testing.T) {
 			"on-accent":          {k.OnAccent, k.Accent},
 			"on-attn":            {k.OnAttn, k.Attn},
 			"fg on selected row": {k.Fg, over(k.SelRow, side)},
-			"tooltip and toast":  {inverseText(dark), k.Fg},
+			"tooltip and toast":  {For(dark).OnInverse, k.Fg},
 			"text on a popover":  {k.Fg, over(k.Popover, wall(dark))},
 			"muted on a popover": {k.Muted, over(k.Popover, wall(dark))},
 		} {

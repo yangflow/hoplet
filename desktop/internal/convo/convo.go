@@ -40,6 +40,7 @@ type Item struct {
 	Text      string
 	Steer     bool
 	Streaming bool
+	Unsent    bool // a message of mine that did not go out
 
 	Work     *Work
 	Approval *Approval
@@ -56,10 +57,14 @@ type Work struct {
 }
 
 // Entry is one step of a work group: Tool is set for a tool call,
-// Thinking for visible reasoning.
+// Thinking for visible reasoning; in a turn's group, Note for text the
+// harness wrote between steps and Approval for an approval.
 type Entry struct {
+	Key      string // stable across rebuilds
 	Tool     *proto.ToolCall
 	Thinking string
+	Note     string
+	Approval *Approval
 	Start    time.Time
 	End      time.Time // zero while the call runs
 }
@@ -90,10 +95,57 @@ type Convo struct {
 
 	built   bool
 	items   []Item
+	grouped []Item
 	pending []proto.ApprovalRequested
 	asked   *proto.Question
 	running bool
 	context proto.ContextUsage
+
+	// echo is a message I just sent that the daemon has not recorded yet:
+	// it shows, with the turn starting, until a message of its ID comes.
+	echo     *proto.Message
+	echoAt   time.Time
+	echoErr  string // why the echo did not go out
+	starting bool
+}
+
+// Echo shows a message I just sent, by its idempotency key, until the
+// daemon records it: a new session starts its harness first, which takes
+// a moment.
+func (c *Convo) Echo(key, text string, at time.Time) {
+	c.echo, c.echoAt, c.echoErr, c.built = &proto.Message{ID: key, Role: proto.RoleUser, Text: text}, at, "", false
+}
+
+// Unecho drops the message shown as sent.
+func (c *Convo) Unecho() {
+	if c.echo != nil {
+		c.echo, c.built = nil, false
+	}
+}
+
+// Unsent marks the message shown as sent, by its key, as not gone out,
+// and why; an empty why marks it going out again.
+func (c *Convo) Unsent(key, why string) {
+	if c.echo != nil && c.echo.ID == key {
+		c.echoErr, c.built = why, false
+	}
+}
+
+// Failed returns the message that did not go out, its key and why; false
+// when none waits.
+func (c *Convo) Failed() (text, key, why string, ok bool) {
+	c.build()
+	if c.echo == nil || c.echoErr == "" {
+		return "", "", "", false
+	}
+	return c.echo.Text, c.echo.ID, c.echoErr, true
+}
+
+// Starting reports whether a message I sent waits for the daemon, the
+// turn about to start.
+func (c *Convo) Starting() bool {
+	c.build()
+	return c.starting
 }
 
 // Apply brings the conversation up to a subscription item: a snapshot
@@ -157,6 +209,15 @@ func (c *Convo) Items() []Item {
 	return c.items
 }
 
+// Grouped returns the items with each stretch of a turn before its reply
+// in one work group: thinking, tool calls, approvals and the text between
+// them become its entries, and only the text after the last of them stays
+// apart, as the reply.
+func (c *Convo) Grouped() []Item {
+	c.build()
+	return c.grouped
+}
+
 // Pending returns the open approvals, oldest first.
 func (c *Convo) Pending() []proto.ApprovalRequested {
 	c.build()
@@ -202,6 +263,8 @@ type builder struct {
 	files    []proto.FileChange
 	asked    *proto.Question
 	context  proto.ContextUsage
+	echoed   bool // the echo's message is recorded
+	echo     string
 }
 
 func (c *Convo) build() {
@@ -209,6 +272,9 @@ func (c *Convo) build() {
 		return
 	}
 	b := &builder{turnAt: -1, texts: map[string]int{}, tools: map[string]int{}, approval: map[string]int{}, pending: map[string]proto.ApprovalRequested{}}
+	if c.echo != nil {
+		b.echo = c.echo.ID
+	}
 	for _, ev := range c.events {
 		p, err := ev.Decode()
 		if err != nil {
@@ -230,7 +296,15 @@ func (c *Convo) build() {
 			}
 		}
 	}
+	if c.echo != nil && b.echoed {
+		c.echo = nil
+	}
+	c.starting = c.echo != nil && c.echoErr == ""
+	if c.echo != nil {
+		b.items = append(b.items, Item{Kind: KindMine, Key: "echo:" + c.echo.ID, Time: c.echoAt, Text: c.echo.Text, Unsent: c.echoErr != ""})
+	}
 	c.items, c.running, c.asked, c.context = b.items, b.turnAt >= 0, b.asked, b.context
+	c.grouped = group(b.items, c.running)
 	c.pending = c.pending[:0]
 	for _, id := range b.order {
 		if a, ok := b.pending[id]; ok {
@@ -296,6 +370,7 @@ func (b *builder) event(ev proto.Event, p proto.Payload) {
 		// them in the same append).
 	case proto.Message:
 		if p.Role == proto.RoleUser {
+			b.echoed = b.echoed || b.echo != "" && p.ID == b.echo
 			b.add(Item{Kind: KindMine, Key: key("mine", ev.Seq), Time: ev.Time, Turn: ev.Turn, Text: p.Text, Steer: b.sawReply && b.turnAt >= 0})
 			return
 		}
@@ -315,7 +390,7 @@ func (b *builder) event(ev proto.Event, p proto.Payload) {
 	case proto.Thinking:
 		b.sawReply = true
 		w := b.work(ev)
-		w.Entries = append(w.Entries, Entry{Thinking: p.Text, Start: ev.Time, End: ev.Time})
+		w.Entries = append(w.Entries, Entry{Key: key("think", ev.Seq), Thinking: p.Text, Start: ev.Time, End: ev.Time})
 		w.End = ev.Time
 	case proto.ToolCall:
 		b.sawReply = true
@@ -338,7 +413,7 @@ func (b *builder) event(ev proto.Event, p proto.Payload) {
 		}
 		w := b.work(ev)
 		b.tools[p.ID] = len(b.items) - 1
-		e := Entry{Tool: &tc, Start: ev.Time}
+		e := Entry{Key: "tool:" + p.ID, Tool: &tc, Start: ev.Time}
 		if p.Status != proto.ToolRunning {
 			e.End = ev.Time
 		}

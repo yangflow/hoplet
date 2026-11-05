@@ -24,7 +24,7 @@ flowchart LR
 
 | 项 | 入口 |
 |---|---|
-| 启动 | `-p --input-format stream-json --output-format stream-json --verbose --include-partial-messages --permission-prompt-tool stdio` |
+| 启动 | `-p --input-format stream-json --output-format stream-json --verbose --include-partial-messages --permission-prompt-tool stdio --thinking-display summarized`（不带最后一项时思考块只有空文本） |
 | 权限入口 | `--permission-mode`；`--allow-dangerously-skip-permissions` 仅允许后续切全自动，本身不绕过审批 |
 | 控制协议 | 审批、中断、模式、模型、思考强度、Fast 与 Ultracode |
 | 运行中设置 | `apply_flag_settings`；强度与 Fast 给 `null` 回默认 |

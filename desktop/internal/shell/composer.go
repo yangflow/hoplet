@@ -35,16 +35,33 @@ func (a *App) composer(c *ui.Context, k theme.Colors, s proto.Session, cv *convo
 		a.contextRow(c, k, s)
 	}
 	frame := ui.Column(c).FillWidth().Radius(theme.RadiusComposer).Clip().
-		Background(k.Glass).Border(1, k.GlassLine).Shadow(0, 2, 10, 0, k.Shadow)
+		Background(k.Glass).Border(theme.LineWidth, k.GlassLine).Transition(ui.ElementTransition{Size: true, Animation: &theme.MotionSmooth})
+	k.ShadowComposer.On(frame)
 	switch {
 	case ap != nil || asked:
-		frame.Border(1, k.AttnLine).Shadow(0, 0, 0, 3, k.AttnGlow)
+		// Needs you: the outline turns, and the glow grows out to twice its
+		// width once, then settles.
+		id := "q:" + q.ID
+		if ap != nil {
+			id = ap.ID
+		}
+		ring := k.RingAttn
+		if a.s.ringPeaked != id {
+			ring.Spread = frame.AnimateTo("ring", 2*k.RingAttn.Spread, theme.MotionPulse)
+			if frame.Arrived("ring") {
+				a.s.ringPeaked = id
+				c.AnimationFrame()
+			}
+		} else {
+			ring.Spread = frame.AnimateTo("ring", k.RingAttn.Spread, theme.MotionSmooth)
+		}
+		ring.On(frame.Border(theme.LineWidth, k.AttnLine))
 	case !a.connected:
-		frame.Border(1, k.Line2).BorderStyle(ui.BorderDashed)
+		frame.Border(theme.LineWidth, k.Line2).BorderStyle(ui.BorderDashed)
 	}
 	frame.Children(func() {
 		a.queue(c, k, s, cv, h.Capabilities.Steer, ap != nil || asked)
-		ui.Column(c).Padding(12, 10, 8, 14).Gap(8).Children(func() {
+		ui.Column(c).Padding(theme.Space3, theme.Space3, theme.Space2).Gap(theme.Space2).Children(func() {
 			a.composerBody(c, k, s, cv, h, running, ap, pending, q, asked)
 		})
 	})
@@ -63,9 +80,9 @@ func (a *App) composerBody(c *ui.Context, k theme.Colors, s proto.Session, cv *c
 	if ap != nil || asked {
 		// The input stays, on a line of its own with put away and
 		// confirm the highlighted option.
-		ui.Row(c).Padding(8, 0, 0, 0).Gap(4).AlignItems(ui.Center).BorderWidth(1, 0, 0, 0).BorderColor(k.Line).Children(func() {
+		ui.Row(c).Padding(theme.Space2, 0, 0, 0).Gap(theme.Space1).AlignItems(ui.Center).BorderWidth(theme.LineWidth, 0, 0, 0).BorderColor(k.Line).Children(func() {
 			ui.Box(c).Grow(1).Children(func() { a.input(c, s, cv, ap, q, asked) })
-			if ap != nil && iconButton(c, k, a.icons.Close, "收起 ⎋", false).Size(26, 26).Clicked() {
+			if ap != nil && iconButton(c, k, a.icons.Close, "收起 ⎋", false).Size(theme.RowGroup, theme.RowGroup).Clicked() {
 				a.s.hidden[ap.ID] = true
 			}
 			if round(c, k, a.icons.Send, "确认所选 ↩", true).Clicked() {
@@ -244,20 +261,20 @@ func (a *App) answer(s proto.Session, q proto.Question, text string) {
 // the count, what it is about, and its numbered options, the highlighted
 // one with ↩.
 func (a *App) approvalBody(c *ui.Context, k theme.Colors, s proto.Session, ap proto.ApprovalRequested, n int) {
-	ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-		ui.Icon(c, a.approvalIcon(ap.Kind)).FontSize(theme.IconSize).TextColor(k.AttnFg)
+	ui.Row(c).Gap(theme.Space2).AlignItems(ui.Center).Children(func() {
+		ui.Icon(c, a.approvalIcon(ap.Kind)).FontSize(theme.Icon).TextColor(k.AttnFg)
 		title := ap.Title
 		if ap.Kind == proto.ApprovalCommand {
 			title = "运行命令" // the command itself shows below
 		}
 		theme.UIStrong.On(ui.Text(c, title)).TextColor(k.AttnFg).SingleLine().Grow(1).Shrink(1).Tooltip(ap.Title)
-		ui.Textf(c, "1 / %d", n).Font(theme.Mono).FontSize(11).TextColor(k.Muted)
+		ui.Textf(c, "1 / %d", n).Font(theme.Mono).FontSize(theme.Caption.Size()).TextColor(k.Muted)
 	})
 	if ap.Detail != "" {
-		ui.Text(c, ap.Detail).Font(theme.Mono).FontSize(12.5).TextColor(k.Fg2).FontFeatures("liga=0").MaxLines(8).
-			Padding(8, 10).Radius(theme.RadiusCard).Background(k.Fill).FillWidth().Selectable()
+		theme.Code.On(ui.Text(c, ap.Detail)).TextColor(k.Fg2).MaxLines(8).
+			Padding(theme.Space1Half, theme.Space3).Radius(theme.RadiusCard).Background(k.Fill).FillWidth().Selectable()
 	}
-	a.options(c, k, len(ap.Options), func(i int) string { return ap.Options[i].Label }, func(i int) {
+	a.options(c, k, len(ap.Options), func(i int) string { return optionName(ap.Options[i]) }, func(i int) {
 		a.s.pick = i
 		a.decide(s, ap, "")
 	})
@@ -272,9 +289,9 @@ func (a *App) questionBody(c *ui.Context, k theme.Colors, q proto.Question) {
 // options lists numbered choices, 32 high with a key cap; the highlighted
 // one has a light background and ↩.
 func (a *App) options(c *ui.Context, k theme.Colors, n int, label func(int) string, choose func(int)) {
-	ui.Column(c).Gap(2).Children(func() {
+	ui.Column(c).Gap(theme.SpaceHalf).Children(func() {
 		for i := 0; i < n; i++ {
-			r := ui.Row(c.Key(i)).Height(32).Padding(0, 10, 0, 6).Gap(10).AlignItems(ui.Center).Radius(9).Label(label(i))
+			r := ui.Row(c.Key(i)).Height(theme.RowStep).Padding(0, theme.Space2, 0, theme.Space1Half).Gap(theme.Space2).AlignItems(ui.Center).Radius(theme.RadiusControl).Label(label(i))
 			on := i == a.s.pick
 			if on {
 				r.Background(k.Sel)
@@ -283,9 +300,7 @@ func (a *App) options(c *ui.Context, k theme.Colors, n int, label func(int) stri
 				choose(i)
 			}
 			r.Children(func() {
-				ui.Box(c).Size(20, 20).Radius(5).Border(1, k.Line).Background(k.Bg).Center().Children(func() {
-					theme.Caption.On(ui.Textf(c, "%d", i+1)).TextColor(k.Muted)
-				})
+				keyCap(c, k, fmt.Sprint(i+1))
 				theme.UI.On(ui.Text(c, label(i))).TextColor(k.Fg).Grow(1)
 				if on {
 					theme.Caption.On(ui.Text(c, "↩")).TextColor(k.Muted)
@@ -312,7 +327,7 @@ func (a *App) approvalIcon(kind proto.ApprovalKind) *ui.SVG {
 func (a *App) controls(c *ui.Context, k theme.Colors, s proto.Session, cv *convo.Convo, h proto.HarnessInfo, running bool) {
 	st := runSettings{harness: s.Harness.Kind, perm: s.Permission, plan: s.Plan, effort: s.Effort, fast: s.Fast, ultracode: s.Ultracode, model: s.Model}
 	set := a.sessionSink(s)
-	ui.Row(c).Gap(2).AlignItems(ui.Center).Children(func() {
+	ui.Row(c).Gap(theme.SpaceHalf).AlignItems(ui.Center).Children(func() {
 		a.runButton(c, k, st, []proto.HarnessInfo{h}, set)
 		if s.Mode == proto.ModeCode {
 			a.modeControl(c, k, st, h.Capabilities, set)
@@ -320,7 +335,7 @@ func (a *App) controls(c *ui.Context, k theme.Colors, s proto.Session, cv *convo
 		ui.Spacer(c)
 		draft := a.s.drafts[s.ID]
 		if !a.connected {
-			theme.Caption.On(ui.Text(c, "重连后发送")).TextColor(k.Muted).Margin(0, 6)
+			theme.Caption.On(ui.Text(c, "重连后发送")).TextColor(k.Muted).Margin(0, theme.Space1Half)
 		}
 		if u, ok := cv.Context(); ok {
 			a.contextRing(c, k, u)
@@ -362,14 +377,14 @@ func (a *App) sessionSink(s proto.Session) settingsSink {
 
 // round is the round send or stop button; off grays it.
 func round(c *ui.Context, k theme.Colors, icon *ui.SVG, tip string, on bool) ui.Element {
-	b := ui.Button(c, "").Label(tip).Tooltip(tip).Size(theme.RowHeight, theme.RowHeight).Padding(0).
+	b := ui.Button(c, "").Label(tip).Tooltip(tip).Size(theme.Row, theme.Row).Padding(0).
 		Radius(theme.RadiusPill).Border(0, ui.Transparent).Background(k.Accent).Disabled(!on)
 	color := k.OnAccent
 	if !on {
 		b.Background(k.Fill2)
 		color = k.Faint
 	}
-	return b.Children(func() { ui.Icon(c, icon).FontSize(theme.IconSize).TextColor(color) })
+	return b.Children(func() { ui.Icon(c, icon).FontSize(theme.Icon).TextColor(color) })
 }
 
 // queueRows is how many queued messages show before the rest fold.
@@ -388,7 +403,7 @@ func (a *App) queue(c *ui.Context, k theme.Colors, s proto.Session, cv *convo.Co
 	if n == 0 {
 		return
 	}
-	ui.Column(c).Padding(4, 0, 4, 0).BorderWidth(0, 0, 1, 0).BorderColor(k.Line).Children(func() {
+	ui.Column(c).Padding(theme.Space1, 0, theme.Space1, 0).BorderWidth(0, 0, theme.LineWidth, 0).BorderColor(k.Line).Children(func() {
 		if folded {
 			var first string
 			if len(queue) > 0 {
@@ -396,22 +411,22 @@ func (a *App) queue(c *ui.Context, k theme.Colors, s proto.Session, cv *convo.Co
 			} else {
 				first = outbox[0]
 			}
-			ui.Row(c).Height(26).Padding(0, 12, 0, 14).Gap(8).AlignItems(ui.Center).Children(func() {
-				ui.Icon(c, a.icons.Plan).FontSize(theme.IconSizeInRow).TextColor(k.Fg3)
+			ui.Row(c).Height(theme.RowDense).Padding(0, theme.Space3).Gap(theme.Space2).AlignItems(ui.Center).Children(func() {
+				ui.Icon(c, a.icons.Plan).FontSize(theme.IconRow).TextColor(k.Fg3)
 				theme.Secondary.On(ui.Textf(c, "排队 %d 条", n)).TextColor(k.Fg3)
 				theme.Secondary.On(ui.Text(c, "· 下一条："+first)).TextColor(k.Faint).SingleLine().Shrink(1)
 			})
 			return
 		}
-		ui.Row(c).Height(26).Padding(0, 8, 0, 14).Gap(2).AlignItems(ui.Center).Children(func() {
-			theme.Caption.On(ui.Textf(c, "排队 %d", n)).FontWeight(600).TextColor(k.Muted).Grow(1)
-			if steer && len(queue) > 0 && iconButton(c, k, a.icons.Steer, "全部插话", false).Size(24, 24).Clicked() {
+		ui.Row(c).Height(theme.RowDense).Padding(0, theme.Space1, 0, theme.Space3).Gap(theme.SpaceHalf).AlignItems(ui.Center).Children(func() {
+			theme.Caption.On(ui.Textf(c, "排队 %d", n)).FontWeight(theme.UIStrong.Weight()).TextColor(k.Muted).Grow(1)
+			if steer && len(queue) > 0 && iconButton(c, k, a.icons.Steer, "全部插话", false).Size(theme.RowDense, theme.RowDense).Clicked() {
 				for _, m := range queue {
 					a.host.Steer(proto.SteerParams{Session: s.ID, Text: m.Text})
 					a.host.DeleteQueued(proto.QueueKeyParams{Session: s.ID, Key: m.Key})
 				}
 			}
-			if len(queue) > 0 && iconButton(c, k, a.icons.Close, "清空", false).Size(24, 24).Clicked() {
+			if len(queue) > 0 && iconButton(c, k, a.icons.Close, "清空", false).Size(theme.RowDense, theme.RowDense).Clicked() {
 				for _, m := range queue {
 					a.host.DeleteQueued(proto.QueueKeyParams{Session: s.ID, Key: m.Key})
 				}
@@ -432,13 +447,13 @@ func (a *App) queue(c *ui.Context, k theme.Colors, s proto.Session, cv *convo.Co
 		}
 		ui.List(c, &a.s.queue, shown, func(i int) {
 			m := queue[i]
-			r := ui.Row(c.Key(m.Key)).Height(30).Margin(0, 4).Padding(0, 6, 0, 8).Gap(8).AlignItems(ui.Center).Radius(theme.RadiusRow)
+			r := ui.Row(c.Key(m.Key)).Height(theme.Row).Margin(0, theme.Space1).Padding(0, theme.Space1Half, 0, theme.Space2).Gap(theme.Space2).AlignItems(ui.Center).Radius(theme.RadiusRow)
 			hovered := r.Hovered()
 			if hovered {
 				r.Background(k.Fill)
 			}
 			r.Children(func() {
-				ui.Icon(c, a.icons.Grip).FontSize(theme.IconSizeInRow).TextColor(k.Faint).Label("拖动排序")
+				ui.Icon(c, a.icons.Grip).FontSize(theme.IconRow).TextColor(k.Faint).Label("拖动排序")
 				label := m.Text
 				if m.Error != "" {
 					label = m.Error + " · " + m.Text
@@ -447,31 +462,31 @@ func (a *App) queue(c *ui.Context, k theme.Colors, s proto.Session, cv *convo.Co
 				if !hovered {
 					return
 				}
-				if steer && iconButton(c, k, a.icons.Steer, "插话", false).Size(22, 22).Clicked() {
+				if steer && iconButton(c, k, a.icons.Steer, "插话", false).Size(theme.ControlXS, theme.ControlXS).Clicked() {
 					a.host.Steer(proto.SteerParams{Session: s.ID, Text: m.Text})
 					a.host.DeleteQueued(proto.QueueKeyParams{Session: s.ID, Key: m.Key})
 				}
-				if iconButton(c, k, a.icons.Edit, "编辑", false).Size(22, 22).Clicked() {
+				if iconButton(c, k, a.icons.Edit, "编辑", false).Size(theme.ControlXS, theme.ControlXS).Clicked() {
 					a.s.drafts[s.ID] = m.Text
 					a.host.DeleteQueued(proto.QueueKeyParams{Session: s.ID, Key: m.Key})
 				}
-				if iconButton(c, k, a.icons.Close, "删除", false).Size(22, 22).Clicked() {
+				if iconButton(c, k, a.icons.Close, "删除", false).Size(theme.ControlXS, theme.ControlXS).Clicked() {
 					a.host.DeleteQueued(proto.QueueKeyParams{Session: s.ID, Key: m.Key})
 				}
 			})
 		}).FillWidth()
 		if more := len(queue) - shown; more > 0 {
-			r := ui.Row(c).Height(26).Padding(0, 14).Gap(6).AlignItems(ui.Center).Label(fmt.Sprintf("还有 %d 条", more))
+			r := ui.Row(c).Height(theme.RowGroup).Padding(0, theme.Space3).Gap(theme.Space1Half).AlignItems(ui.Center).Label(fmt.Sprintf("还有 %d 条", more))
 			if r.Clicked() {
 				a.s.queueAll = true
 			}
 			r.Children(func() {
 				theme.Caption.On(ui.Textf(c, "还有 %d 条", more)).TextColor(k.Muted)
-				ui.Icon(c, a.icons.Menu).FontSize(theme.IconSizeSmall).TextColor(k.Faint)
+				ui.Icon(c, a.icons.Menu).FontSize(theme.IconSmall).TextColor(k.Faint)
 			})
 		}
 		for i, t := range outbox {
-			ui.Row(c.Key(fmt.Sprintf("out:%d", i))).Height(30).Margin(0, 4).Padding(0, 6, 0, 8).Gap(8).AlignItems(ui.Center).Children(func() {
+			ui.Row(c.Key(fmt.Sprintf("out:%d", i))).Height(theme.Row).Margin(0, theme.Space1).Padding(0, theme.Space1Half, 0, theme.Space2).Gap(theme.Space2).AlignItems(ui.Center).Children(func() {
 				theme.UI.On(ui.Text(c, t)).TextColor(k.Fg2).SingleLine().Grow(1).Shrink(1)
 				theme.Caption.On(ui.Text(c, "重连后发送")).TextColor(k.Muted)
 			})

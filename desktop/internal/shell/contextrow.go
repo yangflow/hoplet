@@ -13,22 +13,22 @@ import (
 // contextPill is a small raised pill of the context row above the
 // composer: 24 high, rounded 6, on the raised fill with a light shadow.
 func contextPill(e ui.Element, k theme.Colors) ui.Element {
-	return e.Height(24).Padding(0, 8).Gap(6).AlignItems(ui.Center).Radius(6).
-		Background(k.Raised).Border(0, ui.Transparent).Shadow(0, 0.5, 1.5, 0, k.Shadow)
+	return k.ShadowRaised.On(e).Height(theme.RowDense).Padding(0, theme.Space2).Gap(theme.Space1Half).AlignItems(ui.Center).Radius(theme.RadiusRow).
+		Background(k.Raised).Border(0, ui.Transparent)
 }
 
 // contextRow is a Code session's row above its composer: the machine,
 // the working directory and the branch, as pills.
 func (a *App) contextRow(c *ui.Context, k theme.Colors, s proto.Session) {
-	ui.Row(c).Gap(6).Margin(0, 0, 8, 0).AlignItems(ui.Center).Children(func() {
+	ui.Row(c).Gap(theme.Space1Half).Margin(0, 0, theme.Space2, 0).AlignItems(ui.Center).Children(func() {
 		a.machinePill(c, k, false)
 		dim := k.Fg2
 		if !a.connected {
 			dim = k.Faint
 		}
 		contextPill(ui.Row(c).Tooltip(s.Directory), k).Children(func() {
-			ui.Image(c, a.icons.FolderType()).Size(theme.IconSizeInRow, theme.IconSizeInRow)
-			ui.Text(c, tilde(s.Directory)).Font(theme.Mono).FontSize(11.5).TextColor(dim).SingleLine()
+			ui.Image(c, a.icons.FolderType()).Size(theme.IconRow, theme.IconRow)
+			theme.CodeCaption.On(ui.Text(c, tilde(s.Directory))).TextColor(dim).SingleLine()
 		})
 		branch, repos := a.branch(s)
 		if branch == "" {
@@ -39,8 +39,8 @@ func (a *App) contextRow(c *ui.Context, k theme.Colors, s proto.Session) {
 			pill.Tooltip(fmt.Sprintf("%d 个仓库", repos))
 		}
 		pill.Children(func() {
-			ui.Icon(c, a.icons.Task).FontSize(13).TextColor(dim)
-			ui.Text(c, branch).Font(theme.Mono).FontSize(11.5).TextColor(dim).SingleLine()
+			ui.Icon(c, a.icons.Task).FontSize(theme.IconRow).TextColor(dim)
+			theme.CodeCaption.On(ui.Text(c, branch)).TextColor(dim).SingleLine()
 		})
 	})
 }
@@ -76,9 +76,9 @@ func (a *App) machinePill(c *ui.Context, k theme.Colors, newPage bool) {
 	}
 	if a.connected {
 		contextPill(ui.Row(c), k).Children(func() {
-			ui.Icon(c, a.icons.Machine).FontSize(13).TextColor(k.Fg2)
-			ui.Text(c, machine).FontSize(12).TextColor(k.Fg2).SingleLine()
-			theme.Caption.On(ui.Text(c, "本机")).FontSize(10.5).TextColor(k.Muted).Padding(0, 4).Radius(4).Background(k.Fill)
+			ui.Icon(c, a.icons.Machine).FontSize(theme.IconRow).TextColor(k.Fg2)
+			ui.Text(c, machine).FontSize(theme.Secondary.Size()).TextColor(k.Fg2).SingleLine()
+			theme.Caption.On(ui.Text(c, "本机")).TextColor(k.Muted).Padding(0, theme.Space1).Radius(theme.RadiusXS).Background(k.Fill)
 		})
 		return
 	}
@@ -92,9 +92,9 @@ func (a *App) machinePill(c *ui.Context, k theme.Colors, newPage bool) {
 		a.host.Reconnect()
 	}
 	b.Children(func() {
-		ui.Icon(c, a.icons.Offline).FontSize(13).TextColor(k.Fg2)
-		ui.Text(c, machine).FontSize(12).TextColor(k.Fg2).SingleLine()
-		ui.Text(c, "· "+status).FontSize(12).TextColor(k.Faint).SingleLine()
-		ui.Icon(c, a.icons.Reconnect).FontSize(12).TextColor(k.Fg3)
+		ui.Icon(c, a.icons.Offline).FontSize(theme.UI.Size()).TextColor(k.Fg2)
+		ui.Text(c, machine).FontSize(theme.Secondary.Size()).TextColor(k.Fg2).SingleLine()
+		ui.Text(c, "· "+status).FontSize(theme.Secondary.Size()).TextColor(k.Faint).SingleLine()
+		ui.Icon(c, a.icons.Reconnect).FontSize(theme.Secondary.Size()).TextColor(k.Fg3)
 	})
 }

@@ -10,6 +10,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
+	"github.com/yangflow/hoplet/desktop/internal/catalog"
 	"github.com/yangflow/hoplet/desktop/internal/icons"
 	"github.com/yangflow/hoplet/desktop/internal/theme"
 	"github.com/yangflow/hoplet/proto"
@@ -18,6 +19,7 @@ import (
 // host records what the shell asks for; calls holds the 9b requests as
 // the parameters they were given.
 type host struct {
+	sendErr    error // what Send answers
 	diffs      map[proto.SessionID]proto.SessionDiff
 	reconnects int
 	updates    []proto.UpdateParams
@@ -30,6 +32,8 @@ type host struct {
 	outputs    map[string]proto.ToolOutput
 	outputErrs map[string]error
 	models     []proto.HarnessInfo
+	states     map[proto.SessionID]proto.SessionState // what Session answers
+	asked      []proto.SessionID                      // the sessions Session was asked for
 	folder     string
 }
 
@@ -41,9 +45,12 @@ func (h *host) Create(p proto.CreateParams, done func(proto.Session)) {
 	h.calls = append(h.calls, p)
 	h.created = done
 }
-func (h *host) Send(p proto.SendParams) {
+func (h *host) Send(p proto.SendParams, done func(error)) {
 	p.Key = "" // random
 	h.calls = append(h.calls, p)
+	if done != nil {
+		done(h.sendErr)
+	}
 }
 func (h *host) Steer(p proto.SteerParams)                 { h.calls = append(h.calls, p) }
 func (h *host) Interrupt(id proto.SessionID)              { h.calls = append(h.calls, "interrupt "+string(id)) }
@@ -54,10 +61,16 @@ func (h *host) SetPlan(p proto.SetPlanParams)             { h.calls = append(h.c
 func (h *host) SetEffort(p proto.SetEffortParams)         { h.calls = append(h.calls, p) }
 func (h *host) SetFast(p proto.SetFastParams)             { h.calls = append(h.calls, p) }
 func (h *host) SetUltracode(p proto.SetUltracodeParams)   { h.calls = append(h.calls, p) }
-func (h *host) SetModel(p proto.SetModelParams)           { h.calls = append(h.calls, p) }
-func (h *host) EditQueued(p proto.QueueEditParams)        { h.calls = append(h.calls, p) }
-func (h *host) DeleteQueued(p proto.QueueKeyParams)       { h.calls = append(h.calls, p) }
-func (h *host) MoveQueued(p proto.QueueMoveParams)        { h.calls = append(h.calls, p) }
+func (h *host) Session(id proto.SessionID, done func(proto.SessionState)) {
+	h.asked = append(h.asked, id)
+	if st, ok := h.states[id]; ok {
+		done(st)
+	}
+}
+func (h *host) SetModel(p proto.SetModelParams)     { h.calls = append(h.calls, p) }
+func (h *host) EditQueued(p proto.QueueEditParams)  { h.calls = append(h.calls, p) }
+func (h *host) DeleteQueued(p proto.QueueKeyParams) { h.calls = append(h.calls, p) }
+func (h *host) MoveQueued(p proto.QueueMoveParams)  { h.calls = append(h.calls, p) }
 func (h *host) Output(p proto.OutputParams, done func(proto.ToolOutput, error)) {
 	h.calls = append(h.calls, p)
 	if err, ok := h.outputErrs[p.ToolCall]; ok {
@@ -577,5 +590,111 @@ func TestOpensOnNewSession(t *testing.T) {
 	tt.Frame()
 	if !a.s.newPage || !tt.HasText("新伙伴") {
 		t.Fatalf("Personal shows %q", tt.Texts())
+	}
+}
+
+// Back and Forward go through sessions, the inbox and the new-session
+// page, skipping sessions that are gone.
+func TestBackForwardPages(t *testing.T) {
+	a, _, tt, _ := newApp(t)
+	at := func(want string) {
+		t.Helper()
+		tt.Frame()
+		var got string
+		switch {
+		case a.inbox:
+			got = "inbox"
+		case a.s.newPage:
+			got = "new"
+		default:
+			got = a.selected
+		}
+		if got != want {
+			t.Fatalf("at %q, want %q", got, want)
+		}
+	}
+	a.Select("s1")
+	a.OpenInbox()
+	a.NewSession()
+	at("new")
+	a.Back()
+	at("inbox")
+	if !tt.HasText("收件箱") {
+		t.Fatalf("no inbox title in %q", tt.Texts())
+	}
+	a.Back()
+	at("s1")
+	a.Forward()
+	at("inbox")
+	a.Select("s2")
+	a.Forward() // nothing after the newest page
+	at("s2")
+
+	// A session gone from the catalog is skipped.
+	a.Select("s3")
+	a.OpenInbox()
+	var keep []proto.Session
+	for _, s := range a.cat.List(catalog.View{Mode: proto.ModeCode}).Groups {
+		for _, x := range s.Sessions {
+			if x.ID != "s3" {
+				keep = append(keep, x)
+			}
+		}
+	}
+	a.Apply(proto.CatalogItem{Snapshot: true, Version: a.cat.Version() + 1, Sessions: keep})
+	a.Back()
+	at("s2")
+}
+
+// The sidebar's inbox entry counts the sessions that need me and opens
+// the inbox, as ⇧⌘I does.
+func TestInboxEntry(t *testing.T) {
+	a, _, tt, _ := newApp(t)
+	if !tt.HasText("1") {
+		t.Fatalf("no badge for the one waiting session in %q", tt.Texts())
+	}
+	if err := tt.Click("收件箱"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if !a.inbox {
+		t.Fatal("the entry does not open the inbox")
+	}
+	a.Select("s1")
+	a.OpenInbox() // as ⇧⌘I does
+	tt.Frame()
+	if !a.inbox || a.selected != "" {
+		t.Fatalf("inbox %v, selected %q", a.inbox, a.selected)
+	}
+}
+
+// Renaming ends with Enter or a press outside the title, which keep the
+// new title, or Escape, which drops it.
+func TestRenameEnds(t *testing.T) {
+	a, h, tt, _ := newApp(t)
+	a.Select("s1")
+	a.Rename()
+	tt.Frame()
+	if !tt.Focused("标题") {
+		t.Fatal("the title is not being edited")
+	}
+	a.draft = "Fix sync now"
+	if err := tt.Click("全部机器"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if a.renaming != "" {
+		t.Fatal("a press outside leaves the title in editing")
+	}
+	if n := len(h.updates); n == 0 || h.updates[n-1].Title == nil || *h.updates[n-1].Title != "Fix sync now" {
+		t.Fatalf("updates %+v", h.updates)
+	}
+	a.Rename()
+	tt.Frame()
+	a.draft = "dropped"
+	tt.Key(0, ui.KeyEscape)
+	tt.Frame()
+	if a.renaming != "" || *h.updates[len(h.updates)-1].Title == "dropped" {
+		t.Fatal("Escape kept the edit")
 	}
 }

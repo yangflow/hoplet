@@ -101,7 +101,7 @@ func TestLaunch(t *testing.T) {
 			t.Fatalf("%s: %v", name, err)
 		}
 		cmd := strings.Join(l.Command, " ")
-		for _, must := range []string{"/h/claude -p", "--input-format stream-json", "--output-format stream-json", "--permission-prompt-tool stdio", strings.Join(tc.want, " ")} {
+		for _, must := range []string{"/h/claude -p", "--input-format stream-json", "--output-format stream-json", "--permission-prompt-tool stdio", "--thinking-display summarized", strings.Join(tc.want, " ")} {
 			if !strings.Contains(cmd, must) {
 				t.Errorf("%s: %q lacks %q", name, cmd, must)
 			}

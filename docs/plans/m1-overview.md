@@ -26,7 +26,7 @@
 |---|---|---|---|---|
 | Lucide（lucide-static） | 1.66.0 | ISC | 界面图标、审批盾牌 | PR9a |
 | Material Icon Theme | 5.40.0 | MIT | 文件与文件夹类型图标 | PR9c |
-| Simple Icons | 16.36.0 | CC0-1.0 | Claude 标志 | PR9a |
+| harness 标志（svgl 的 Claude、OpenAI 图形；Hermes Agent 的 Nous 图形） | — | MIT | Claude Code、Codex、Hermes 标志 | PR9b2（替换 PR9a 的 Simple Icons） |
 | JetBrains Mono | 2.304 | SIL OFL 1.1 | 代码字体（Regular、SemiBold） | PR9b |
 
 ## PR 拆分与顺序
@@ -98,4 +98,5 @@ PR2、PR3、PR4 互不依赖，可以并行开发。PR6b 与 PR7 都要实现 6a
 - [PR7：Hermes 适配](m1-pr7-hermes.md)（已合并）
 - [PR8：工作目录与会话累计 diff](m1-pr8-workspace.md)（已合并）
 - [PR9a：桌面骨架与设计系统](m1-pr9a-desktop-shell.md)（已合并）
-- [PR9b：会话视图、输入框与审批](m1-pr9b-session-view.md)
+- [PR9b：会话视图、输入框与审批](m1-pr9b-session-view.md)（已合并）
+- [PR9b2：收件箱与命令面板](m1-pr9b2-inbox-palette.md)
