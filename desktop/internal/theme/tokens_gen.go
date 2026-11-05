@@ -21,8 +21,6 @@ type Colors struct {
 	Selected       ui.Color
 	Raised         ui.Color
 	Bubble         ui.Color
-	Glass          ui.Color
-	GlassLine      ui.Color
 	Fg             ui.Color
 	Fg2            ui.Color
 	Fg3            ui.Color
@@ -61,15 +59,13 @@ func For(dark bool) Colors {
 			Wall:           ui.Hex("#15181C"),
 			Pane:           ui.RGBA(14, 16, 20, .42),
 			Side:           ui.RGBA(14, 16, 20, .38),
-			Surface:        ui.Hex("#161A20"),
+			Surface:        ui.Hex("#232427"),
 			Fill:           ui.RGBA(255, 255, 255, .06),
 			Hover:          ui.RGBA(255, 255, 255, .10),
 			Pressed:        ui.RGBA(255, 255, 255, .14),
 			Selected:       ui.RGBA(255, 255, 255, .10),
 			Raised:         ui.RGBA(255, 255, 255, .16),
 			Bubble:         ui.RGBA(255, 255, 255, .10),
-			Glass:          ui.RGBA(255, 255, 255, .05),
-			GlassLine:      ui.RGBA(255, 255, 255, .12),
 			Fg:             ui.Hex("#F4F4F5"),
 			Fg2:            ui.Hex("#D3D6DB"),
 			Fg3:            ui.Hex("#B0B4BB"),
@@ -105,15 +101,13 @@ func For(dark bool) Colors {
 		Wall:           ui.Hex("#DCDFE3"),
 		Pane:           ui.RGBA(255, 255, 255, .62),
 		Side:           ui.RGBA(244, 245, 247, .80),
-		Surface:        ui.Hex("#F2F4F7"),
+		Surface:        ui.Hex("#FDFDFD"),
 		Fill:           ui.RGBA(0, 0, 0, .04),
 		Hover:          ui.RGBA(0, 0, 0, .06),
 		Pressed:        ui.RGBA(0, 0, 0, .09),
 		Selected:       ui.RGBA(0, 0, 0, .06),
 		Raised:         ui.RGBA(255, 255, 255, .88),
 		Bubble:         ui.RGBA(231, 234, 238, .95),
-		Glass:          ui.RGBA(255, 255, 255, .88),
-		GlassLine:      ui.RGBA(0, 0, 0, .08),
 		Fg:             ui.Hex("#23272D"),
 		Fg2:            ui.Hex("#383B40"),
 		Fg3:            ui.Hex("#53575D"),

@@ -56,7 +56,7 @@ func (a *App) newPage(c *ui.Context, k theme.Colors) {
 					})
 				}
 				box := ui.Column(c).FillWidth().Padding(theme.Space3, theme.Space3, theme.Space2).Gap(theme.Space2).Radius(theme.RadiusComposer).
-					Background(k.Glass).Border(theme.LineWidth, k.GlassLine)
+					Background(k.Surface).Border(theme.LineWidth, k.Line2)
 				k.ShadowComposer.On(box)
 				if !a.connected {
 					// As the composer's offline state: I can write, but which

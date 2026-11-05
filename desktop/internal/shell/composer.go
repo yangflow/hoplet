@@ -35,7 +35,7 @@ func (a *App) composer(c *ui.Context, k theme.Colors, s proto.Session, cv *convo
 		a.contextRow(c, k, s)
 	}
 	frame := ui.Column(c).FillWidth().Radius(theme.RadiusComposer).Clip().
-		Background(k.Glass).Border(theme.LineWidth, k.GlassLine).Transition(ui.ElementTransition{Size: true, Animation: &theme.MotionSmooth})
+		Background(k.Surface).Border(theme.LineWidth, k.Line2).Transition(ui.ElementTransition{Size: true, Animation: &theme.MotionSmooth})
 	k.ShadowComposer.On(frame)
 	switch {
 	case ap != nil || asked:
