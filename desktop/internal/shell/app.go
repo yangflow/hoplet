@@ -4,6 +4,7 @@
 package shell
 
 import (
+	"math"
 	"slices"
 	"time"
 
@@ -106,15 +107,16 @@ type App struct {
 	machine   string // the daemon's host name
 	offline   string // why there is no connection
 
-	mode     proto.Mode
-	sort     catalog.Sort
-	show     catalog.Show
-	archived bool
-	selected string
-	closed   map[string]bool // collapsed directory groups
-	hideSide bool
-	side     float32 // the sidebar's width, which its edge drags
-	away     bool    // the app is in the background or the window hidden
+	mode      proto.Mode
+	sort      catalog.Sort
+	show      catalog.Show
+	archived  bool
+	selected  string
+	closed    map[string]bool // collapsed directory groups
+	hideSide  bool
+	sideMoves bool    // the sidebar is opening or closing
+	side      float32 // the sidebar's width, which its edge drags
+	away      bool    // the app is in the background or the window hidden
 
 	inbox bool // the inbox page shows
 
@@ -192,7 +194,7 @@ func (a *App) SetMode(m proto.Mode) {
 }
 
 // ToggleSidebar hides or shows the sidebar.
-func (a *App) ToggleSidebar() { a.hideSide = !a.hideSide }
+func (a *App) ToggleSidebar() { a.hideSide, a.sideMoves = !a.hideSide, true }
 
 // maxHistory bounds how far Back goes.
 const maxHistory = 100
@@ -407,12 +409,32 @@ func (a *App) View(c *ui.Context) {
 	if c.Vibrancy() {
 		c.Root().Background(ui.Transparent)
 	}
+	a.side = min(max(a.side, sideMin(c.TitleBar())), theme.SidebarMax)
+	// The sidebar opens and closes by its width, along motion-smooth; at
+	// rest and open it sits in a split its edge drags.
+	root := ui.Row(c).Fill().AlignItems(ui.Stretch)
+	target := a.side
 	if a.hideSide {
-		ui.Row(c).Fill().AlignItems(ui.Stretch).Children(func() { a.content(c, k) })
-	} else {
-		ui.Split(c, &a.side, func() { a.sidebar(c, k) }, func() { a.content(c, k) }).Fill()
-		a.side = min(max(a.side, sideMin(c.TitleBar())), theme.SidebarMax)
+		target = 0
 	}
+	shown := root.AnimateTo("side", target, theme.MotionSmooth)
+	if a.sideMoves && (root.Arrived("side") || math.Abs(float64(shown-target)) < 0.5) {
+		a.sideMoves = false
+		c.AnimationFrame() // settle into the split, or let the sidebar go
+	}
+	root.Children(func() {
+		switch {
+		case !a.hideSide && !a.sideMoves:
+			ui.Split(c, &a.side, func() { a.sidebar(c, k) }, func() { a.content(c, k) }).Fill()
+		default:
+			if a.sideMoves || !a.hideSide {
+				ui.Column(c).Width(shown).ClipX().Shrink(0).BorderWidth(0, theme.LineWidth, 0, 0).BorderColor(k.Line).Children(func() {
+					ui.Column(c).Width(a.side).Grow(1).Children(func() { a.sidebar(c, k) })
+				})
+			}
+			ui.Column(c).Grow(1).Shrink(1).MinWidth(0).AlignItems(ui.Stretch).Children(func() { a.content(c, k) })
+		}
+	})
 	a.toasts(c, k)
 	if c.Shortcut(ui.Cmd, ui.KeyK) {
 		a.OpenPalette()

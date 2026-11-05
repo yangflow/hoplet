@@ -25,6 +25,7 @@ type sessionView struct {
 	missing   []proto.HarnessInfo // harnesses Hoplet knows but cannot run, and why
 
 	open      map[string]bool              // work groups, tool rows and code blocks I opened or closed
+	steps     map[string]int               // how many steps each open work group showed
 	outputs   map[string]*proto.ToolOutput // loaded tool outputs, by session and call
 	outputErr map[string]string            // why a tool output could not be read
 	scroll    ui.ScrollState
@@ -41,6 +42,7 @@ type sessionView struct {
 	queueAll     bool                                          // the queue shows every message, not its first three
 	offlineSince time.Time                                     // when the connection was lost
 	flash        map[proto.SessionID]bool                      // rows of sessions made elsewhere, and whether they lit
+	ringPeaked   string                                        // the approval or question whose glow has grown out once
 	inboxPending map[proto.SessionID][]proto.ApprovalRequested // approvals of sessions waiting on me, as last read
 	inboxAsked   map[proto.SessionID]uint64                    // the session version each was read at
 	inboxDone    map[string]string                             // what I decided, by approval, until it goes
@@ -71,7 +73,7 @@ type newChoice struct {
 func newSessionView() sessionView {
 	return sessionView{
 		convos: map[proto.SessionID]*convo.Convo{}, drafts: map[proto.SessionID]string{},
-		open: map[string]bool{}, outputs: map[string]*proto.ToolOutput{}, outputErr: map[string]string{}, hidden: map[string]bool{}, copied: map[string]time.Time{},
+		open: map[string]bool{}, steps: map[string]int{}, outputs: map[string]*proto.ToolOutput{}, outputErr: map[string]string{}, hidden: map[string]bool{}, copied: map[string]time.Time{},
 		diffs: map[proto.SessionID]*diffState{}, flash: map[proto.SessionID]bool{},
 		inboxPending: map[proto.SessionID][]proto.ApprovalRequested{}, inboxAsked: map[proto.SessionID]uint64{}, inboxDone: map[string]string{},
 	}

@@ -73,7 +73,7 @@ func TestCodeConversation(t *testing.T) {
 	if err := tt.Click("思考 1 次 · 读取 1 个文件 · 运行 1 条命令"); err != nil {
 		t.Fatal(err)
 	}
-	tt.Frame()
+	tt.Advance(time.Second) // the group opens
 	if err := tt.Click("go test ./..."); err != nil {
 		t.Fatal(err)
 	}
@@ -446,6 +446,7 @@ func TestSessionDetails(t *testing.T) {
 			t.Errorf("no %q in %q", want, tt.Texts())
 		}
 	}
+	tt.Advance(time.Second) // the details column opens
 	if err := tt.Click("在 Finder 中显示"); err != nil || len(h.revealed) != 1 {
 		t.Fatalf("reveal: %v %v", err, h.revealed)
 	}
@@ -716,6 +717,7 @@ func TestDetailsColumn(t *testing.T) {
 	if !tt.HasText(s1.Harness.NativeID) || !tt.HasText("复制 Claude Code 会话 ID") {
 		t.Fatalf("no harness session ID in %q", tt.Texts())
 	}
+	tt.Advance(time.Second) // the details column opens
 	if err := tt.Click("复制 Claude Code 会话 ID"); err != nil {
 		t.Fatal(err)
 	}

@@ -246,6 +246,7 @@ var (
 	MotionDrop        float32 = 8
 	MotionScalePop    float32 = 0.95
 	MotionScaleDialog float32 = 0.98
+	MotionScaleDot    float32 = 0.6
 )
 
 // The text styles: only these sizes and the weights 400, 500 and 600.

@@ -39,9 +39,22 @@ func (a *App) composer(c *ui.Context, k theme.Colors, s proto.Session, cv *convo
 	k.ShadowComposer.On(frame)
 	switch {
 	case ap != nil || asked:
-		// Needs you: the outline turns, and the glow grows out once.
+		// Needs you: the outline turns, and the glow grows out to twice its
+		// width once, then settles.
+		id := "q:" + q.ID
+		if ap != nil {
+			id = ap.ID
+		}
 		ring := k.RingAttn
-		ring.Spread = frame.AnimateTo("ring", ring.Spread, theme.MotionPulse)
+		if a.s.ringPeaked != id {
+			ring.Spread = frame.AnimateTo("ring", 2*k.RingAttn.Spread, theme.MotionPulse)
+			if frame.Arrived("ring") {
+				a.s.ringPeaked = id
+				c.AnimationFrame()
+			}
+		} else {
+			ring.Spread = frame.AnimateTo("ring", k.RingAttn.Spread, theme.MotionSmooth)
+		}
 		ring.On(frame.Border(theme.LineWidth, k.AttnLine))
 	case !a.connected:
 		frame.Border(theme.LineWidth, k.Line2).BorderStyle(ui.BorderDashed)

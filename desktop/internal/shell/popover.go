@@ -13,6 +13,15 @@ import (
 // fades in and out along motion-fast.
 var hoverMotion = ui.ElementTransition{Colors: true, Animation: &theme.MotionFast}
 
+// enterMotion is how a new block of a conversation comes: up from below
+// as it fades in.
+var enterMotion = ui.ElementTransition{Animation: &theme.MotionBase, Enter: &ui.Motion{Y: theme.MotionRise}}
+
+// openMotion is how a column beside the conversation opens and closes:
+// its width grows and shrinks, its content cut, the conversation moving
+// with it.
+var openMotion = ui.ElementTransition{Animation: &theme.MotionSmooth, Enter: &ui.Motion{Collapse: true}, Exit: &ui.Motion{Collapse: true}}
+
 // popMotion is how a popover comes and goes: from motion-scale-pop on the
 // snappy spring, out by fading.
 var popMotion = ui.ElementTransition{Animation: &theme.MotionSnappy, Enter: &ui.Motion{Scale: theme.MotionScalePop}, Exit: &ui.Motion{}}

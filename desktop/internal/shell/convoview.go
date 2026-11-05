@@ -120,7 +120,7 @@ func (a *App) items(c *ui.Context, k theme.Colors, s proto.Session, cv *convo.Co
 			continue
 		}
 		space(it.Key, it.Kind, it.Steer)
-		a.item(c.Key(it.Key), k, s, it)
+		ui.Column(c.Key("in:" + it.Key)).FillWidth().Transition(enterMotion).Children(func() { a.item(c.Key(it.Key), k, s, it) })
 	}
 	_, _, why, unsent := cv.Failed()
 	switch {
@@ -453,6 +453,10 @@ func (a *App) copyButton(c *ui.Context, k theme.Colors, id, text, tip string) {
 	}
 }
 
+// staggered is how many steps arriving together are put one after another;
+// the rest come with the fifth.
+const staggered = 5
+
 // work draws a turn's work group: a 26-point header with what it did,
 // failures and its time, over one 32-point row a step on a rail. A running
 // group is open with only its latest step open; a finished one folds to
@@ -494,10 +498,21 @@ func (a *App) work(c *ui.Context, k theme.Colors, s proto.Session, it convo.Item
 			}
 			shown = append(shown, e)
 		}
+		// Steps that come while the group is open rise in; several at once
+		// come one after another, motion-stagger apart, the first five.
+		seen, ok := a.s.steps[it.Key]
+		if !ok {
+			seen = len(shown)
+		}
+		a.s.steps[it.Key] = len(shown)
 		ui.Column(c).FillWidth().Margin(0, 0, 0, theme.Space1Half).Children(func() {
 			for i, e := range shown {
 				latest := w.Running && i == len(shown)-1
-				a.workStep(c.Key(e.Key), k, s, e, latest, i == len(shown)-1)
+				in := theme.MotionBase
+				in.Delay = time.Duration(min(max(i-seen, 0), staggered-1)) * theme.MotionStagger
+				ui.Column(c.Key("in:" + e.Key)).FillWidth().Transition(ui.ElementTransition{Animation: &in, Enter: &ui.Motion{Y: theme.MotionRise}}).Children(func() {
+					a.workStep(c.Key(e.Key), k, s, e, latest, i == len(shown)-1)
+				})
 			}
 		})
 	})
