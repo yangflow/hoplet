@@ -240,7 +240,7 @@ func (a *App) palette(c *ui.Context, k theme.Colors) {
 		h.run()
 	}
 	ui.DialogBase(c, &a.s.palOpen, func(_, panel ui.Element) {
-		panel.Width(theme.DialogWidth).Radius(theme.RadiusPanel).Clip().Background(k.Surface).Border(theme.LineWidth, k.Line2).Label("命令面板").
+		panel.Width(theme.DialogWidth).Radius(theme.RadiusPanel).Clip().Background(k.SurfaceFloat).Border(theme.LineWidth, k.Line2).Label("命令面板").
 			Transition(ui.ElementTransition{Animation: &theme.MotionBase, Enter: &ui.Motion{Scale: theme.MotionScaleDialog}, Exit: &ui.Motion{}})
 		k.ShadowPopover.On(panel)
 		// The query, then its scope: all, sessions or commands (⌘1–3).

@@ -27,7 +27,7 @@ flowchart LR
 - 边界只有三条 1px `line`，且只在侧边栏展开时出现：侧栏右边、右栏左边、右栏里右列的左边。区内不画分隔线：标题栏下、侧栏底栏上、会话详情列左边、右栏的标签栏和路径栏下都没有线
 - 设计稿的桌面画板铺样例壁纸（`wallpaper`），窗口用 `material-window` 近似系统材质；代码里这层由 `VibrancyUnderWindow` 提供，不用这两个值
 - 输入框和其他表面一样铺 `surface`，配 1px `line2` 与 `shadow-composer`
-- 区域上放的一切东西只用一个表面色 `surface`（不透明、中性灰，比正文区亮一级；真实窗口的正文区是中性灰，表面不带色调才不偏色）：输入框、代码块、改动文件卡、工具输出、会话详情、收件箱卡片、伙伴气泡、排队托盘，以及所有窗口里自己画的弹层（菜单、命令面板、模型与 harness 选择、推理强度、打开方式、提示条、回到底部）。高低不靠换颜色，靠边：对话流里的块 1px `line`、无阴影；浮在上面的 1px `line2` + `shadow-popover`。不加背后模糊，不用纯白。正文区不用玻璃材质，只用半透明底，保证长文与代码清晰。
+- 相对取色：区域和表面都是叠在下面一层上的中性白 / 黑（不带色调），不写死颜色，所以不管桌面偏冷偏暖整窗都是一个色调；只有浮层、文字和彩色是固定值。表面 `surface` 用于输入框、代码块、改动文件卡、工具输出、会话详情、收件箱卡片、伙伴气泡、排队托盘：对话流里配 1px `line`、无阴影，输入框配 `line2` + `shadow-composer`。浮层 `surface-float`（菜单、命令面板、模型与 harness 选择、推理强度、打开方式、提示条、回到底部）不透明，配 1px `line2` + `shadow-popover`：窗口本身半透明，浮层哪怕 .97 也会透出字影；glass 插件实测着色 .92 会压暗、.85 会透字，所以不用。正文区不用玻璃材质，只用半透明底，保证长文与代码清晰。配色总览画板把整窗放在偏冷、中性、偏暖三种桌面上，三种都协调才算通过。
 
 ## 颜色
 
@@ -36,11 +36,11 @@ flowchart LR
 | 层 | token | 深色 | 浅色 | 用途 |
 |---|---|---|---|---|
 | 0 设计稿底 | `wall` / `wallpaper` | — | — | 只在设计稿里近似桌面；代码由窗口材质提供 |
-| 1 区域 | `pane` / `side` | #0E1014 .42 / .38 | 白 .62 / #F4F5F7 .80 | 正文区与查看区 / 侧栏与右列；只负责分区 |
-| 2 表面 | `surface` | #232427 | #FDFDFD | 输入框与区域上放的一切东西、所有弹层；不透明、中性灰（不带色调），比正文区亮一级 |
+| 1 区域 | `pane` / `side` | #121214 .42 / .30 | 白 .62 / .38 | 正文区与查看区 / 侧栏与右列；系统材质上一层中性白或黑，透出桌面，不带色调 |
+| 2 表面 | `surface` / `surface-float` | 白 .06 / #2A2A2C | 白 .70 / #FBFBFB | `surface`：叠在区域上的中性层，用于输入框与区域上放的一切东西，随区域变色、永远再亮一级；`surface-float`：浮层，不透明，明度对准 surface 的实际样子 |
 | 3 状态叠加 | `fill` / `hover` / `pressed` / `selected` | 白 .06 / .10 / .14 / .10 | 黑 .04 / .06 / .09 / .06 | 控件平时的底 / 悬停 / 按下 / 选中（菜单当前项、选中行、当前选项） |
 | 3 状态叠加 | `raised` | 白 .16 | 白 .88 | 分段与标签的选中块，配 `shadow-raised` |
-| 4 角色例外 | `bubble` | 白 .10 | #E7EAEE .95 | 你的消息：唯一刻意与 `surface` 不同的底，区分说话人 |
+| 4 角色例外 | `bubble` | 白 .10 | 黑 .05 | 你的消息：叠在正文区上的中性层，唯一与 `surface` 方向相反的底 |
 | 5 文字 | `fg` / `fg2` / `fg3` | #F4F4F5 / #D3D6DB / #B0B4BB | #23272D / #383B40 / #53575D | 正文 / 次要 / 图标与控件 |
 | 5 文字 | `muted` / `faint` / `on-inverse` | #8E939B / #666B73 / #15181C | #5E6268 / #A0A4AA / #FFFFFF | 辅助信息 / 占位与禁用 / 翻过来的小块上的字 |
 | 6 语义 | `accent` + `on-accent` / `accent-fg` | #3CC4C9 + #0C1A1C / #3CC4C9 | #066A70 + #FFFFFF / #066A70 | 按钮、开关、发送的底与字 / 链接、行内代码、文件名、焦点环、运行中、未读 |
@@ -134,12 +134,12 @@ flowchart LR
 | 主题状态 | Accent / AccentText = `accent` / `on-accent`，Warning = `attn`，Success / Danger = `add` / `del`，Focus = `accent-fg` |
 | 基础尺寸 | Radius 8（`radius-control`）、Spacing 4、FontSize 13（`ui`）；其余语义色按 `Theme.Dark` 放在应用主题包 |
 | 窗口材质 | `Vibrancy: VibrancyUnderWindow` + `TitleBarHiddenInset`；根节点不铺底，区域铺半透明 token |
-| 输入框与弹层 | 输入框 `glass` + `glass-line`，弹层 `surface`（不透明）；不用 `glass.Glass{}` |
+| 输入框与弹层 | 输入框 `surface` + `line2` + `shadow-composer`；弹层 `surface-float`（不透明）+ `line2` + `shadow-popover`；不用 `glass.Glass{}` |
 | 侧栏与键盘 | `ui.Row` + 悬停 / 点击 / 右键；可聚焦元素以 `Shortcut` 接键。`ui.SidebarItem` / `ui.List.Selected` 的强调色选中底不符合中性灰选中规范 |
 | 分段 / 标签 | `ui.Segmented` / `ui.Tabs` |
 | 拖动宽度 | `ui.Split`；原生分隔线，悬停 / 拖动时强调色 |
 | Markdown / diff / 文件树 | `markdown.Stream` / `editor.DiffView` / `ui.Tree` |
-| 弹层 | `ui.PopoverBase` + `AttachTo`；`surface`、`radius-card`、内边距 `space-1_5`、`line2` + `shadow-popover`，菜单项高 `row` / `radius-row` |
+| 弹层 | `ui.PopoverBase` + `AttachTo`；`surface-float`、`radius-card`、内边距 `space-1_5`、`line2` + `shadow-popover`，菜单项高 `row` / `radius-row` |
 | 模型与强度菜单 | 嵌套 `ui.PopoverBase` 承载搜索、右侧值和开关；`PopoverMenu` 文字项不足以表达这些控件 |
 | 队列拖动 | `ListState.Reorder` |
 | Worktree / 开关 / 角标 | `ui.Checkbox` / `ui.Switch` / `ui.Badge` |

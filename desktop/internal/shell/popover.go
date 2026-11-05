@@ -37,7 +37,7 @@ func popover(c *ui.Context, k theme.Colors, anchor ui.Element, open *bool, end b
 			at, self = ui.AnchorTopEnd, ui.AnchorBottomEnd
 		}
 		panel.AttachTo(anchor, at, self).Margin(0, 0, theme.Space1Half, 0).Width(width).Padding(theme.Space1Half).Gap(theme.SpaceHalf).
-			Radius(theme.RadiusCard).Background(k.Surface).Border(theme.LineWidth, k.Line2).Transition(popMotion)
+			Radius(theme.RadiusCard).Background(k.SurfaceFloat).Border(theme.LineWidth, k.Line2).Transition(popMotion)
 		k.ShadowPopover.On(panel).Children(fn)
 	})
 }

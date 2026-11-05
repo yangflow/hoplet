@@ -145,7 +145,7 @@ func (a *App) submenu(c *ui.Context, k theme.Colors, row ui.Element, sub string,
 	open := a.s.runSub == sub
 	ui.PopoverBase(c.Key("sub:"+sub), row, &open, func(panel ui.Element) {
 		panel.AttachTo(row, ui.AnchorTopEnd, ui.AnchorTopStart).Margin(0, 0, 0, theme.Space2).Width(width).Gap(theme.SpaceHalf).
-			Radius(theme.RadiusCard).Background(k.Surface).Border(theme.LineWidth, k.Line2).Transition(popMotion)
+			Radius(theme.RadiusCard).Background(k.SurfaceFloat).Border(theme.LineWidth, k.Line2).Transition(popMotion)
 		k.ShadowPopover.On(panel).Children(fn)
 		if padded {
 			panel.Padding(theme.Space1Half)

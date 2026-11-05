@@ -39,7 +39,7 @@ func (a *App) toasts(c *ui.Context, k theme.Colors) {
 		for _, t := range toasts {
 			toast := ui.ToastBase(c, t)
 			toast.Root.Row().MinHeight(theme.RowStep).MaxWidth(theme.ToastMax).Padding(0, theme.Space3).Gap(theme.Space2).AlignItems(ui.Center).
-				Radius(theme.RadiusCard).Background(k.Surface).Border(theme.LineWidth, k.Line2).
+				Radius(theme.RadiusCard).Background(k.SurfaceFloat).Border(theme.LineWidth, k.Line2).
 				Tooltip(t.Title).Transition(ui.ElementTransition{Animation: &theme.MotionBase, Enter: &ui.Motion{Y: -theme.MotionDrop}, Exit: &ui.Motion{Y: -theme.MotionLift}})
 			k.ShadowPopover.On(toast.Root)
 			failed := t.Type == "error"

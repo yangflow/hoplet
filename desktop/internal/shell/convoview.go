@@ -259,7 +259,7 @@ func squares(c *ui.Context, k theme.Colors, still bool) {
 func (a *App) toBottom(c *ui.Context, k theme.Colors, running bool, bottom float32) bool {
 	b := ui.Button(c, "").Label("回到底部").Tooltip("回到底部 ⌘↓").Size(theme.RowStep, theme.RowStep).Padding(0).
 		Absolute().Bottom(bottom).Left(0).Right(0).Margin(0, ui.Auto)
-	k.ShadowPopover.On(b.Radius(theme.RadiusPill).Background(k.Surface).Border(theme.LineWidth, k.Line2)).
+	k.ShadowPopover.On(b.Radius(theme.RadiusPill).Background(k.SurfaceFloat).Border(theme.LineWidth, k.Line2)).
 		Transition(ui.ElementTransition{Animation: &theme.MotionBase, Enter: &ui.Motion{Scale: theme.MotionScalePop}, Exit: &ui.Motion{}})
 	hovered := b.Hovered()
 	b.Children(func() {
