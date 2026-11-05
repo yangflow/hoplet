@@ -129,9 +129,9 @@ func (a *App) OpenFilePicker()       // ⌘P
 
 ### 任务 2：协议
 
-文件：`proto/api.go`、`proto/api_test.go`、`testdata/vectors/`、生成的 Swift 类型。
+文件：`proto/api.go`、`proto/api_test.go`。（Swift 类型与向量随 M2 的 iOS 一起建立，现在仓库里还没有。）
 
-- [ ] 加上面的类型与方法常量；JSON 往返测试（表驱动，含 `omitempty` 的空值）；`make gen` 更新向量与 Swift。
+- [x] 加上面的类型与方法常量；线格式测试（表驱动，含 `omitempty` 的空值）。
 - [ ] commit：`feat(proto): add read-only file listing and reading`
 
 ### 任务 3：守护进程的文件读取

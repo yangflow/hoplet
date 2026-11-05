@@ -86,6 +86,8 @@ const (
 	MethodSessionsEvents    = "sessions.events"
 	MethodSessionsGet       = "sessions.get"
 	MethodSessionsDiff      = "sessions.diff"
+	MethodFilesList         = "files.list"
+	MethodFilesRead         = "files.read"
 	MethodEnvRefresh        = "env.refresh"
 	MethodSystemDoctor      = "system.doctor"
 	MethodQueueList         = "queue.list"
@@ -480,4 +482,64 @@ type SkippedFile struct {
 	Path   string `json:"path"`
 	Size   int64  `json:"size,omitempty"`
 	Reason string `json:"reason,omitempty"`
+}
+
+// FilesListParams lists a session's working directory. Path is a directory
+// relative to it ("" for the directory itself); All lists every file under
+// it instead of one level. Ignored also lists what .gitignore leaves out,
+// marked as such.
+type FilesListParams struct {
+	Session SessionID `json:"session"`
+	Path    string    `json:"path,omitempty"`
+	All     bool      `json:"all,omitempty"`
+	Ignored bool      `json:"ignored,omitempty"`
+}
+
+// FileKind is what a listed entry is.
+type FileKind string
+
+// File kinds. A symbolic link is listed, never followed.
+const (
+	FileKindFile    FileKind = "file"
+	FileKindDir     FileKind = "dir"
+	FileKindSymlink FileKind = "symlink"
+)
+
+// FileEntry is one listed path, relative to the session's working
+// directory. Size is a file's size in bytes.
+type FileEntry struct {
+	Path    string   `json:"path"`
+	Kind    FileKind `json:"kind"`
+	Size    int64    `json:"size,omitempty"`
+	Ignored bool     `json:"ignored,omitempty"`
+}
+
+// FileList is a listing: one directory's entries, directories first and by
+// name, or with All every file by path. Truncated says the listing stopped
+// at its limit.
+type FileList struct {
+	Session   SessionID   `json:"session"`
+	Path      string      `json:"path"`
+	Entries   []FileEntry `json:"entries"`
+	Truncated bool        `json:"truncated,omitempty"`
+}
+
+// FilesReadParams reads one file of a session's working directory as it is
+// now, or with Baseline as the session's baseline recorded it.
+type FilesReadParams struct {
+	Session  SessionID `json:"session"`
+	Path     string    `json:"path"`
+	Baseline bool      `json:"baseline,omitempty"`
+}
+
+// FileContent is a file's text. A binary, too large or missing file has no
+// text and says which; Size is the file's size in bytes when known.
+type FileContent struct {
+	Session  SessionID `json:"session"`
+	Path     string    `json:"path"`
+	Text     string    `json:"text,omitempty"`
+	Size     int64     `json:"size,omitempty"`
+	Binary   bool      `json:"binary,omitempty"`
+	TooLarge bool      `json:"too_large,omitempty"`
+	Missing  bool      `json:"missing,omitempty"`
 }

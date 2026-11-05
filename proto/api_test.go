@@ -29,6 +29,16 @@ func TestFrameWireFormat(t *testing.T) {
 		"renamed binary": {FileDiff{Path: "b", OldPath: "a", Status: FileStatusRenamed, Binary: true, Filter: "lfs"},
 			`{"path":"b","old_path":"a","status":"renamed","additions":0,"deletions":0,"binary":true,"filter":"lfs"}`},
 		"events args": {EventsParams{Session: "s", BeforeSeq: 11, Limit: 5}, `{"session":"s","before_seq":11,"limit":5}`},
+		"list args":   {FilesListParams{Session: "s", Path: "internal", Ignored: true}, `{"session":"s","path":"internal","ignored":true}`},
+		"list all":    {FilesListParams{Session: "s", All: true}, `{"session":"s","all":true}`},
+		"list empty":  {FileList{Session: "s", Entries: []FileEntry{}}, `{"session":"s","path":"","entries":[]}`},
+		"listing": {FileList{Session: "s", Path: "a", Entries: []FileEntry{{Path: "a/b", Kind: FileKindDir}, {Path: "a/c.go", Kind: FileKindFile, Size: 12}, {Path: "a/l", Kind: FileKindSymlink, Ignored: true}}, Truncated: true},
+			`{"session":"s","path":"a","entries":[{"path":"a/b","kind":"dir"},{"path":"a/c.go","kind":"file","size":12},{"path":"a/l","kind":"symlink","ignored":true}],"truncated":true}`},
+		"read args":   {FilesReadParams{Session: "s", Path: "a.go", Baseline: true}, `{"session":"s","path":"a.go","baseline":true}`},
+		"read text":   {FileContent{Session: "s", Path: "a.go", Text: "x", Size: 1}, `{"session":"s","path":"a.go","text":"x","size":1}`},
+		"read binary": {FileContent{Session: "s", Path: "i.png", Size: 9, Binary: true}, `{"session":"s","path":"i.png","size":9,"binary":true}`},
+		"read large":  {FileContent{Session: "s", Path: "big", Size: 9e6, TooLarge: true}, `{"session":"s","path":"big","size":9000000,"too_large":true}`},
+		"read gone":   {FileContent{Session: "s", Path: "x", Missing: true}, `{"session":"s","path":"x","missing":true}`},
 	} {
 		b, err := json.Marshal(tc.v)
 		if err != nil {
