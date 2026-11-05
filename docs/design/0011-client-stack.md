@@ -1,6 +1,15 @@
 # 0011 客户端技术栈
 
-状态：已采纳 · 2026-10-31
+状态：当前设计 · 更新：2026-11-04
+
+## 范围与现状
+
+范围：桌面与 iOS 技术栈、协议类型生成与系统集成。
+
+| 状态 | 边界 |
+|---|---|
+| ✓ 代码已有 | Go / MyGO 桌面与协议客户端 |
+| ○ 目标 | Swift / iOS、Swift 类型生成器与跨语言向量 |
 
 ## 总览
 
@@ -9,9 +18,9 @@ flowchart TB
     Proto["proto/（Go 类型，唯一事实来源）"]
     Proto --> Daemon["daemon / shim / relay（Go）"]
     Proto --> Desk["桌面 app（MyGO 原生 UI）<br/>直接 import 协议包"]
-    Proto -- "tools/swiftgen 生成" --> Swift["Swift Codable"]
+    Proto -. "目标：类型生成" .-> Swift["Swift Codable"]
     Swift --> iOS["iOS app（SwiftUI）"]
-    Vec["testdata/vectors<br/>Go 生成的一致性向量"] --> iOSTest["Swift 测试回放"]
+    Vec["目标：跨语言一致性向量"] -.-> iOSTest["Swift 测试回放"]
 ```
 
 ## 桌面：MyGO 原生 UI
@@ -28,11 +37,7 @@ flowchart TB
 - 桌面 app 只是客户端：内置 `hoplet`，负责安装 LaunchAgent，守护进程独立运行。
 - 先 macOS，Linux 以后（代码基本现成）。
 
-## 终端模拟器（修订 0009）
-
-shim 里用 MyGO 终端插件的 libghostty-vt + `Mirror` 做服务端模拟；`Mirror` 输出标准 VT 序列，iOS 的 SwiftTerm 可直接显示。代价：shim 依赖按平台分发的原生库（含 Linux VPS）。
-
-## iOS：SwiftUI + Swift 协议客户端
+## iOS：SwiftUI + Swift 协议客户端（规划）
 
 | 项 | 结论 |
 |---|---|
@@ -51,6 +56,8 @@ shim 里用 MyGO 终端插件的 libghostty-vt + `Mirror` 做服务端模拟；`
 | App Intents / Siri | “让 Personal 帮我……” |
 | 通知扩展 | 解密推送正文 |
 
+当前没有 `apple/`、Swift 类型生成器或跨语言向量产物，不能把图中的生成链路视为已实现。
+
 ## 不做
 
 Web 客户端、桌面 webview 模式、Android。
@@ -59,6 +66,15 @@ Web 客户端、桌面 webview 模式、Android。
 
 Apple 开发者账号（真机、APNs、签名公证）、Go 1.27+、Xcode。
 
-## 风险与兜底
+## 验收
 
-MyGO 0.x 的 API 足够稳定。锁版本、用 `mygo migrate-ui` 升级；视图层保持很薄，状态都在协议客户端里。
+| 项 | 要求 |
+|---|---|
+| 协议一致性 | Go 向量由 Swift 逐条回放，类型通过生成同步 |
+| MyGO 升级 | 锁定版本，使用 `mygo migrate-ui` 并验证组件 |
+| 状态归属 | 视图保持薄，业务状态在协议客户端与 daemon |
+| 平台能力 | iOS 后台、通知扩展与系统入口按真机验证 |
+
+## 待验证
+
+尚未落地的目标按原生协议、故障恢复与平台约束分别验证。
