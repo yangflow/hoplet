@@ -37,7 +37,7 @@ func popover(c *ui.Context, k theme.Colors, anchor ui.Element, open *bool, end b
 			at, self = ui.AnchorTopEnd, ui.AnchorBottomEnd
 		}
 		panel.AttachTo(anchor, at, self).Margin(0, 0, theme.Space1Half, 0).Width(width).Padding(theme.Space1Half).Gap(theme.SpaceHalf).
-			Radius(theme.RadiusCard).Background(k.Popover).Border(theme.LineWidth, k.Line2).Transition(popMotion)
+			Radius(theme.RadiusCard).Background(k.Surface).Border(theme.LineWidth, k.Line2).Transition(popMotion)
 		k.ShadowPopover.On(panel).Children(fn)
 	})
 }
@@ -48,7 +48,7 @@ func menuItem(c *ui.Context, k theme.Colors, on bool) ui.Element {
 	r := ui.Row(c).MinHeight(theme.Row).Padding(theme.Space1, theme.Space2).Gap(theme.Space2).AlignItems(ui.Center).Radius(theme.RadiusRow).Transition(hoverMotion)
 	switch {
 	case on:
-		r.Background(k.Sel)
+		r.Background(k.Selected)
 	case r.Hovered():
 		r.Background(k.Fill)
 	}
@@ -148,7 +148,7 @@ func (a *App) modeControl(c *ui.Context, k theme.Colors, st runSettings, caps pr
 	b := ui.Button(c, "").Label("审批："+modeName(st.perm)).Tooltip("审批："+modeName(st.perm)).
 		Height(theme.Row).Padding(0, theme.Space2).Gap(theme.Space1Half).Radius(theme.RadiusControl).Border(0, ui.Transparent).Background(ui.Transparent)
 	if a.s.permOpen || b.Hovered() {
-		b.Background(k.Fill2)
+		b.Background(k.Hover)
 	}
 	if b.Clicked() {
 		a.s.permOpen = !a.s.permOpen

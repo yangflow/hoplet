@@ -16,12 +16,12 @@ func Apply(c *ui.Context) Colors {
 	t := *c.Theme()
 	k := For(t.Dark)
 	t.Background = ui.Transparent
-	t.Surface, t.SurfaceHover, t.SurfacePressed = k.Fill, k.Fill2, k.Sel
+	t.Surface, t.SurfaceHover, t.SurfacePressed = k.Fill, k.Hover, k.Pressed
 	t.Border = k.Line2
 	t.Text, t.TextMuted = k.Fg, k.Muted
 	t.Accent, t.AccentText = k.Accent, k.OnAccent
 	t.Warning, t.Success, t.Danger = k.Attn, k.Add, k.Del
-	t.Selection, t.Focus = k.SelRow, k.AccentFg
+	t.Selection, t.Focus = k.Selected, k.AccentFg
 	// Tooltips and toasts: the theme turned over, opaque. Left unset,
 	// MyGO would color their text with the transparent Background.
 	t.Inverse, t.InverseText = k.Fg, k.OnInverse

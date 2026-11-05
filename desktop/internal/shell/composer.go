@@ -291,10 +291,10 @@ func (a *App) questionBody(c *ui.Context, k theme.Colors, q proto.Question) {
 func (a *App) options(c *ui.Context, k theme.Colors, n int, label func(int) string, choose func(int)) {
 	ui.Column(c).Gap(theme.SpaceHalf).Children(func() {
 		for i := 0; i < n; i++ {
-			r := ui.Row(c.Key(i)).Height(theme.RowStep).Padding(0, theme.Space2, 0, theme.Space1Half).Gap(theme.Space2).AlignItems(ui.Center).Radius(theme.RadiusControl).Label(label(i))
+			r := ui.Row(c.Key(i)).Height(theme.RowStep).Padding(0, theme.Space2, 0, theme.Space1Half).Gap(theme.Space2).AlignItems(ui.Center).Radius(theme.RadiusRow).Label(label(i))
 			on := i == a.s.pick
 			if on {
-				r.Background(k.Sel)
+				r.Background(k.Selected)
 			}
 			if r.Clicked() {
 				choose(i)
@@ -381,7 +381,7 @@ func round(c *ui.Context, k theme.Colors, icon *ui.SVG, tip string, on bool) ui.
 		Radius(theme.RadiusPill).Border(0, ui.Transparent).Background(k.Accent).Disabled(!on)
 	color := k.OnAccent
 	if !on {
-		b.Background(k.Fill2)
+		b.Background(k.Hover)
 		color = k.Faint
 	}
 	return b.Children(func() { ui.Icon(c, icon).FontSize(theme.Icon).TextColor(color) })

@@ -105,7 +105,7 @@ func (a *App) inboxEntry(c *ui.Context, k theme.Colors) {
 		Label("收件箱").Tooltip("收件箱 ⇧⌘I")
 	switch {
 	case a.inbox:
-		e.Background(k.SelRow)
+		e.Background(k.Selected)
 	case e.Hovered():
 		e.Background(k.Fill)
 	}
@@ -355,9 +355,9 @@ func (a *App) groupHeader(c *ui.Context, k theme.Colors, g catalog.Group, first 
 		plus := iconButton(c, k, a.icons.New, "在此目录新建会话", false).Size(theme.ControlXS, theme.ControlXS)
 		switch {
 		case plus.Hovered():
-			plus.Background(k.Fill2)
+			plus.Background(k.Hover)
 		case !hovered:
-			plus.Opacity(0.5)
+			plus.Opacity(theme.OpacityFaded)
 		}
 		if plus.Clicked() {
 			a.newSessionIn(g.Dir)
@@ -385,14 +385,14 @@ func (a *App) rowBody(c *ui.Context, k theme.Colors, s proto.Session) {
 	r := ui.Row(c).AlignItems(ui.Center).Label(name(s)).Transition(hoverMotion)
 	if personal {
 		// A companion: two lines beside a 32-point avatar.
-		r.Padding(theme.Space1Half, theme.Space2).Gap(theme.Space2).Radius(theme.RadiusControl)
+		r.Padding(theme.Space1Half, theme.Space2).Gap(theme.Space2).Radius(theme.RadiusRow)
 	} else {
 		r.Height(theme.Row).Padding(0, theme.Space2).Gap(theme.Space2).Radius(theme.RadiusRow)
 	}
 	hovered := r.Hovered()
 	switch {
 	case a.selected == string(s.ID):
-		r.Background(k.SelRow) // the selection already marks a session made here
+		r.Background(k.Selected) // the selection already marks a session made here
 		delete(a.s.flash, s.ID)
 	case hovered:
 		r.Background(k.Fill)
@@ -430,7 +430,7 @@ func (a *App) rowBody(c *ui.Context, k theme.Colors, s proto.Session) {
 // out.
 var flashTime = theme.MotionFlash.Duration
 
-// flash lights the row of a session made elsewhere with fill2 as it first
+// flash lights the row of a session made elsewhere with hover as it first
 // shows and fades it out; when the desktop asks for less motion, the
 // light stays for flashTime and goes at once.
 func (a *App) flash(c *ui.Context, k theme.Colors, r ui.Element, id proto.SessionID) {
@@ -438,9 +438,9 @@ func (a *App) flash(c *ui.Context, k theme.Colors, r ui.Element, id proto.Sessio
 	if !ok {
 		return
 	}
-	target := k.Fill2.Alpha(0)
+	target := k.Hover.Alpha(0)
 	if !shown {
-		target = k.Fill2
+		target = k.Hover
 		a.s.flash[id] = true
 		c.AnimationFrame() // the next frame starts the fade
 	}
@@ -504,7 +504,7 @@ func (a *App) harnessIcon(c *ui.Context, k theme.Colors, kind string, size float
 		ui.Icon(c, mark).FontSize(size).TextColor(k.Fg3).Label(harnessName(kind))
 		return
 	}
-	ui.Box(c).Size(size, size).Radius(theme.RadiusXS).Background(k.Fill2).Center().Label(harnessName(kind)).Children(func() {
+	ui.Box(c).Size(size, size).Radius(theme.RadiusXS).Background(k.Hover).Center().Label(harnessName(kind)).Children(func() {
 		ui.Text(c, initial(kind)).FontSize(0.7 * size).FontWeight(theme.UIStrong.Weight()).TextColor(k.Fg3)
 	})
 }
@@ -522,7 +522,7 @@ func (a *App) avatarSized(c *ui.Context, k theme.Colors, s proto.Session, size f
 	if size < theme.RowStep {
 		badge = theme.AvatarBadgeSmall
 	}
-	ui.Box(c).Size(size, size).Radius(size / 2).Background(k.Fill2).Center().Children(func() {
+	ui.Box(c).Size(size, size).Radius(size / 2).Background(k.Hover).Center().Children(func() {
 		style := theme.UIStrong
 		if size < theme.RowStep {
 			style = theme.Label
@@ -603,7 +603,7 @@ func iconButton(c *ui.Context, k theme.Colors, icon *ui.SVG, tip string, on bool
 	b := ui.Button(c, "").Label(tip).Tooltip(tip).Size(theme.Row, theme.Row).Padding(0).
 		Radius(theme.RadiusControl).Background(ui.Transparent).Border(0, ui.Transparent).Transition(hoverMotion)
 	if on || b.Hovered() {
-		b.Background(k.Fill2)
+		b.Background(k.Hover)
 	}
 	return b.Children(func() {
 		ui.Icon(c, icon).FontSize(theme.Icon).TextColor(k.Fg3)

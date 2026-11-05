@@ -139,7 +139,7 @@ func (a *App) items(c *ui.Context, k theme.Colors, s proto.Session, cv *convo.Co
 // unsentBar stands under a message that did not go out: why, and 重试,
 // which sends it again.
 func (a *App) unsentBar(c *ui.Context, k theme.Colors, s proto.Session, why string) {
-	ui.Row(c).FillWidth().MinHeight(theme.RowStep).Padding(0, theme.Space2, 0, theme.Space3).Gap(theme.Space2).AlignItems(ui.Center).Radius(theme.RadiusCard).Border(theme.LineWidth, k.Line).Background(k.Bg2).Children(func() {
+	ui.Row(c).FillWidth().MinHeight(theme.RowStep).Padding(0, theme.Space2, 0, theme.Space3).Gap(theme.Space2).AlignItems(ui.Center).Radius(theme.RadiusCard).Border(theme.LineWidth, k.Line).Background(k.Surface).Children(func() {
 		ui.Icon(c, a.icons.Failed).FontSize(theme.Icon).TextColor(k.Del)
 		theme.UI.On(ui.Text(c, "没能启动 "+harnessName(s.Harness.Kind)+"："+why)).TextColor(k.Fg2).Grow(1).Shrink(1)
 		b := ui.Button(c, "").Label("重试").Height(theme.Row).Padding(0, theme.Space3).Gap(theme.Space1Half).AlignItems(ui.Center).Radius(theme.RadiusControl).Background(k.Fill).Border(0, ui.Transparent)
@@ -259,13 +259,13 @@ func squares(c *ui.Context, k theme.Colors, still bool) {
 func (a *App) toBottom(c *ui.Context, k theme.Colors, running bool, bottom float32) bool {
 	b := ui.Button(c, "").Label("回到底部").Tooltip("回到底部 ⌘↓").Size(theme.RowStep, theme.RowStep).Padding(0).
 		Absolute().Bottom(bottom).Left(0).Right(0).Margin(0, ui.Auto)
-	k.ShadowPopover.On(b.Radius(theme.RadiusPill).Background(k.Popover).Border(theme.LineWidth, k.Line2)).
+	k.ShadowPopover.On(b.Radius(theme.RadiusPill).Background(k.Surface).Border(theme.LineWidth, k.Line2)).
 		Transition(ui.ElementTransition{Animation: &theme.MotionBase, Enter: &ui.Motion{Scale: theme.MotionScalePop}, Exit: &ui.Motion{}})
 	hovered := b.Hovered()
 	b.Children(func() {
 		in := ui.Box(c).Fill().Radius(theme.RadiusPill).AlignItems(ui.Center).Justify(ui.Center)
 		if hovered {
-			in.Background(k.Fill2)
+			in.Background(k.Hover)
 		}
 		in.Children(func() {
 			if !running {
@@ -332,7 +332,7 @@ func (a *App) modeKeys(c *ui.Context, s proto.Session) {
 func (a *App) mine(c *ui.Context, k theme.Colors, it convo.Item) {
 	col := ui.Column(c).AlignSelf(ui.End).AlignItems(ui.End).MaxWidth(0.75 * theme.CodeColumn).Gap(theme.Space1)
 	if it.Unsent {
-		col.Opacity(0.6)
+		col.Opacity(theme.OpacityFaded)
 	}
 	hovered := col.Hovered()
 	col.Children(func() {
@@ -343,7 +343,7 @@ func (a *App) mine(c *ui.Context, k theme.Colors, it convo.Item) {
 			})
 		}
 		ui.Box(c).Children(func() {
-			b := ui.Box(c).Padding(theme.Space2, theme.Space3).Radius(theme.RadiusPanel).Background(k.Bubble)
+			b := ui.Box(c).Padding(theme.Space2, theme.Space3).Radius(theme.RadiusComposer).Background(k.Bubble)
 			if it.Steer {
 				b.Background(ui.Transparent).Border(theme.LineWidth, k.Line2).BorderStyle(ui.BorderDashed)
 			}
@@ -397,7 +397,7 @@ func mdTheme(c *ui.Context, k theme.Colors) *markdown.Theme {
 	th.CodeFont = theme.Mono
 	th.Text, th.Muted, th.Link = k.Fg, k.Muted, k.AccentFg
 	th.Code, th.CodeBackground = k.AccentFg, k.AccentFg.Alpha(0.08)
-	th.CodeBlockBackground, th.CodeBlockBorder, th.CodeBlockRadius = k.Bg, k.Line, theme.RadiusCard
+	th.CodeBlockBackground, th.CodeBlockBorder, th.CodeBlockRadius = k.Surface, k.Line, theme.RadiusCard
 	return th
 }
 
@@ -414,7 +414,7 @@ func (a *App) codeBlock(k theme.Colors, item string) func(c *ui.Context, b *mark
 		long := strings.Count(code, "\n") > codeLines
 		id := fmt.Sprintf("code:%s:%d", item, b.Index)
 		open := a.s.open[id]
-		ui.Column(c).AlignSelf(ui.Stretch).Radius(theme.RadiusCard).Border(theme.LineWidth, k.Line).Background(k.Bg).Clip().Children(func() {
+		ui.Column(c).AlignSelf(ui.Stretch).Radius(theme.RadiusCard).Border(theme.LineWidth, k.Line).Background(k.Surface).Clip().Children(func() {
 			ui.Row(c).Height(theme.Row).Padding(0, theme.Space1, 0, theme.Space3).AlignItems(ui.Center).BorderWidth(0, 0, theme.LineWidth, 0).BorderColor(k.Line).Children(func() {
 				theme.Caption.On(ui.Text(c, b.Language)).TextColor(k.Muted).Grow(1)
 				if long {
@@ -710,7 +710,7 @@ const outputLines = 12
 // bar; its copy button shows on hover.
 func (a *App) output(c *ui.Context, k theme.Colors, key string, retry func()) {
 	o := a.s.outputs[key]
-	box := ui.Column(c).Margin(0, 0, theme.Space2, theme.Space6).Radius(theme.RadiusControl).Border(theme.LineWidth, k.Line).Background(k.Bg2).Clip()
+	box := ui.Column(c).Margin(0, 0, theme.Space2, theme.Space6).Radius(theme.RadiusCard).Border(theme.LineWidth, k.Line).Background(k.Surface).Clip()
 	hovered := box.Hovered()
 	box.Children(func() {
 		if why, ok := a.s.outputErr[key]; ok {

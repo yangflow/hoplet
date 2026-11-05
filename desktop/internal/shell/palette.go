@@ -240,7 +240,7 @@ func (a *App) palette(c *ui.Context, k theme.Colors) {
 		h.run()
 	}
 	ui.DialogBase(c, &a.s.palOpen, func(_, panel ui.Element) {
-		panel.Width(theme.DialogWidth).Radius(theme.RadiusPanel).Clip().Background(k.Popover).Border(theme.LineWidth, k.Line2).Label("命令面板").
+		panel.Width(theme.DialogWidth).Radius(theme.RadiusPanel).Clip().Background(k.Surface).Border(theme.LineWidth, k.Line2).Label("命令面板").
 			Transition(ui.ElementTransition{Animation: &theme.MotionBase, Enter: &ui.Motion{Scale: theme.MotionScaleDialog}, Exit: &ui.Motion{}})
 		k.ShadowPopover.On(panel)
 		// The query, then its scope: all, sessions or commands (⌘1–3).
@@ -273,9 +273,9 @@ func (a *App) palette(c *ui.Context, k theme.Colors) {
 				on := a.s.palScope == paletteScope(i)
 				t := theme.Control.P(0, theme.Space2).On(ui.Row(c.Key(label))).Radius(theme.RadiusControl).Label(label)
 				if on {
-					t.Background(k.Sel)
+					t.Background(k.Selected)
 				} else if t.Hovered() {
-					t.Background(k.Fill2)
+					t.Background(k.Hover)
 				}
 				if t.Clicked() {
 					a.s.palScope, a.s.palSel = paletteScope(i), 0
@@ -324,17 +324,17 @@ func (a *App) palette(c *ui.Context, k theme.Colors) {
 // paletteRows is how many rows the palette shows before it scrolls.
 const paletteRows = 12
 
-// keyCap is a key on its cap: monospace small, on fill2, rounded 4.
+// keyCap is a key on its cap: caption text on fill, rounded xs.
 func keyCap(c *ui.Context, k theme.Colors, key string) ui.Element {
-	return theme.CodeCaption.On(ui.Text(c, key)).TextColor(k.Muted).Height(theme.Icon).Padding(0, theme.Space1).Radius(theme.RadiusXS).Background(k.Fill2)
+	return theme.Caption.On(ui.Text(c, key)).TextColor(k.Muted).Height(theme.Icon).Padding(0, theme.Space1).Radius(theme.RadiusXS).Background(k.Fill)
 }
 
 // paletteRow is one row: the icon or the harness's mark, the title with
 // the match in the accent, where it is, and its shortcut.
 func (a *App) paletteRow(c *ui.Context, k theme.Colors, h paletteHit, n int, run func(paletteHit)) {
-	r := theme.ItemRow.H(theme.RowStep).On(ui.Row(c.Key(n))).Radius(theme.RadiusControl).Label(h.title)
+	r := theme.ItemRow.H(theme.RowStep).On(ui.Row(c.Key(n))).Radius(theme.RadiusRow).Label(h.title)
 	if n == a.s.palSel {
-		r.Background(k.Sel)
+		r.Background(k.Selected)
 	}
 	if r.Hovered() {
 		a.s.palSel = n

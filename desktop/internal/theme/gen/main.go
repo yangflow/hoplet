@@ -51,6 +51,7 @@ type tokens struct {
 	Size    family `json:"size"`
 	Line    family `json:"line"`
 	Motion  family `json:"motion"`
+	Opacity family `json:"opacity"`
 }
 
 type pattern struct {
@@ -235,6 +236,16 @@ func genTokens(t tokens) []byte {
 		}
 		b.WriteString(")\n\n")
 	}
+
+	b.WriteString("// Opacities: how faint a disabled or a receding element is.\nconst (\n")
+	for _, tk := range t.Opacity.Tokens {
+		f, err := strconv.ParseFloat(str(tk.Value), 64)
+		if err != nil {
+			log.Fatalf("%s: unknown value %q", tk.Name, str(tk.Value))
+		}
+		fmt.Fprintf(&b, "\t%s = %s\n", goName(tk.Name), num(f))
+	}
+	b.WriteString(")\n\n")
 
 	b.WriteString("// Motion: animations, durations, distances and scales.\nvar (\n")
 	for _, tk := range t.Motion.Tokens {

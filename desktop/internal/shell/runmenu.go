@@ -41,7 +41,7 @@ func (a *App) runButton(c *ui.Context, k theme.Colors, st runSettings, hs []prot
 		Height(theme.Row).Padding(0, theme.Space2).Gap(theme.Space1Half).Radius(theme.RadiusControl).Border(0, ui.Transparent).Background(ui.Transparent).
 		Disabled(!a.connected) // which models there are is known only once connected
 	if a.s.runOpen || b.Hovered() {
-		b.Background(k.Fill2)
+		b.Background(k.Hover)
 	}
 	if b.Clicked() {
 		a.s.runOpen, a.s.runSub = !a.s.runOpen, ""
@@ -145,7 +145,7 @@ func (a *App) submenu(c *ui.Context, k theme.Colors, row ui.Element, sub string,
 	open := a.s.runSub == sub
 	ui.PopoverBase(c.Key("sub:"+sub), row, &open, func(panel ui.Element) {
 		panel.AttachTo(row, ui.AnchorTopEnd, ui.AnchorTopStart).Margin(0, 0, 0, theme.Space2).Width(width).Gap(theme.SpaceHalf).
-			Radius(theme.RadiusCard).Background(k.Popover).Border(theme.LineWidth, k.Line2).Transition(popMotion)
+			Radius(theme.RadiusCard).Background(k.Surface).Border(theme.LineWidth, k.Line2).Transition(popMotion)
 		k.ShadowPopover.On(panel).Children(fn)
 		if padded {
 			panel.Padding(theme.Space1Half)
@@ -225,10 +225,10 @@ func (a *App) modelMenu(c *ui.Context, k theme.Colors, row ui.Element, st runSet
 						}
 						b.Children(func() {
 							if h.Missing != "" {
-								ui.Box(c).Opacity(0.4).Children(func() { a.harnessIcon(c, k, h.Kind, 15) })
+								ui.Box(c).Opacity(theme.OpacityFaded).Children(func() { a.harnessIcon(c, k, h.Kind, theme.Icon) })
 								return
 							}
-							a.harnessIcon(c, k, h.Kind, 15)
+							a.harnessIcon(c, k, h.Kind, theme.Icon)
 						})
 					}
 				})

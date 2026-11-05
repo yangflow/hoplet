@@ -31,7 +31,7 @@ func (a *App) contextRing(c *ui.Context, k theme.Colors, u proto.ContextUsage) {
 	tip := contextTip(u)
 	b := ui.Box(c).Size(theme.Row, theme.Row).Radius(theme.RadiusControl).Label(tip).Tooltip(tip)
 	if b.Hovered() {
-		b.Background(k.Fill2)
+		b.Background(k.Hover)
 	}
 	b.Draw(func(p *ui.Painter, r ui.Rect) {
 		const radius, width = 6, 2

@@ -14,24 +14,21 @@ type Colors struct {
 	Wall           ui.Color
 	Pane           ui.Color
 	Side           ui.Color
+	Surface        ui.Color
+	Fill           ui.Color
+	Hover          ui.Color
+	Pressed        ui.Color
+	Selected       ui.Color
+	Raised         ui.Color
+	Bubble         ui.Color
 	Glass          ui.Color
 	GlassLine      ui.Color
-	Popover        ui.Color
-	Raised         ui.Color
-	Bg             ui.Color
-	Bg2            ui.Color
-	Fill           ui.Color
-	Fill2          ui.Color
-	Sel            ui.Color
-	SelRow         ui.Color
-	Line           ui.Color
-	Line2          ui.Color
 	Fg             ui.Color
-	OnInverse      ui.Color
 	Fg2            ui.Color
 	Fg3            ui.Color
 	Muted          ui.Color
 	Faint          ui.Color
+	OnInverse      ui.Color
 	Accent         ui.Color
 	OnAccent       ui.Color
 	AccentFg       ui.Color
@@ -44,7 +41,8 @@ type Colors struct {
 	Del            ui.Color
 	AddBg          ui.Color
 	DelBg          ui.Color
-	Bubble         ui.Color
+	Line           ui.Color
+	Line2          ui.Color
 	Shadow         ui.Color
 	LogoTileTop    ui.Color
 	LogoTileBottom ui.Color
@@ -63,24 +61,21 @@ func For(dark bool) Colors {
 			Wall:           ui.Hex("#15181C"),
 			Pane:           ui.RGBA(14, 16, 20, .42),
 			Side:           ui.RGBA(14, 16, 20, .38),
+			Surface:        ui.Hex("#161A20"),
+			Fill:           ui.RGBA(255, 255, 255, .06),
+			Hover:          ui.RGBA(255, 255, 255, .10),
+			Pressed:        ui.RGBA(255, 255, 255, .14),
+			Selected:       ui.RGBA(255, 255, 255, .10),
+			Raised:         ui.RGBA(255, 255, 255, .16),
+			Bubble:         ui.RGBA(255, 255, 255, .10),
 			Glass:          ui.RGBA(255, 255, 255, .05),
 			GlassLine:      ui.RGBA(255, 255, 255, .12),
-			Popover:        ui.RGBA(38, 42, 48, .97),
-			Raised:         ui.RGBA(255, 255, 255, .16),
-			Bg:             ui.RGBA(255, 255, 255, .06),
-			Bg2:            ui.RGBA(255, 255, 255, .03),
-			Fill:           ui.RGBA(255, 255, 255, .06),
-			Fill2:          ui.RGBA(255, 255, 255, .10),
-			Sel:            ui.RGBA(255, 255, 255, .10),
-			SelRow:         ui.RGBA(255, 255, 255, .09),
-			Line:           ui.RGBA(255, 255, 255, .08),
-			Line2:          ui.RGBA(255, 255, 255, .14),
 			Fg:             ui.Hex("#F4F4F5"),
-			OnInverse:      ui.Hex("#15181C"),
 			Fg2:            ui.Hex("#D3D6DB"),
 			Fg3:            ui.Hex("#B0B4BB"),
 			Muted:          ui.Hex("#8E939B"),
 			Faint:          ui.Hex("#666B73"),
+			OnInverse:      ui.Hex("#15181C"),
 			Accent:         ui.Hex("#3CC4C9"),
 			OnAccent:       ui.Hex("#0C1A1C"),
 			AccentFg:       ui.Hex("#3CC4C9"),
@@ -93,7 +88,8 @@ func For(dark bool) Colors {
 			Del:            ui.Hex("#F0758A"),
 			AddBg:          ui.RGBA(123, 200, 108, .12),
 			DelBg:          ui.RGBA(240, 117, 138, .11),
-			Bubble:         ui.RGBA(255, 255, 255, .10),
+			Line:           ui.RGBA(255, 255, 255, .08),
+			Line2:          ui.RGBA(255, 255, 255, .14),
 			Shadow:         ui.RGBA(0, 0, 0, .45),
 			LogoTileTop:    ui.Hex("#3A3F47"),
 			LogoTileBottom: ui.Hex("#15181C"),
@@ -109,24 +105,21 @@ func For(dark bool) Colors {
 		Wall:           ui.Hex("#DCDFE3"),
 		Pane:           ui.RGBA(255, 255, 255, .62),
 		Side:           ui.RGBA(244, 245, 247, .80),
+		Surface:        ui.Hex("#F2F4F7"),
+		Fill:           ui.RGBA(0, 0, 0, .04),
+		Hover:          ui.RGBA(0, 0, 0, .06),
+		Pressed:        ui.RGBA(0, 0, 0, .09),
+		Selected:       ui.RGBA(0, 0, 0, .06),
+		Raised:         ui.RGBA(255, 255, 255, .88),
+		Bubble:         ui.RGBA(231, 234, 238, .95),
 		Glass:          ui.RGBA(255, 255, 255, .88),
 		GlassLine:      ui.RGBA(0, 0, 0, .08),
-		Popover:        ui.RGBA(255, 255, 255, .97),
-		Raised:         ui.RGBA(255, 255, 255, .88),
-		Bg:             ui.RGBA(255, 255, 255, .75),
-		Bg2:            ui.RGBA(255, 255, 255, .70),
-		Fill:           ui.RGBA(0, 0, 0, .04),
-		Fill2:          ui.RGBA(0, 0, 0, .06),
-		Sel:            ui.RGBA(0, 0, 0, .055),
-		SelRow:         ui.RGBA(0, 0, 0, .06),
-		Line:           ui.RGBA(0, 0, 0, .06),
-		Line2:          ui.RGBA(0, 0, 0, .10),
 		Fg:             ui.Hex("#23272D"),
-		OnInverse:      ui.Hex("#FFFFFF"),
 		Fg2:            ui.Hex("#383B40"),
 		Fg3:            ui.Hex("#53575D"),
 		Muted:          ui.Hex("#5E6268"),
 		Faint:          ui.Hex("#A0A4AA"),
+		OnInverse:      ui.Hex("#FFFFFF"),
 		Accent:         ui.Hex("#066A70"),
 		OnAccent:       ui.Hex("#FFFFFF"),
 		AccentFg:       ui.Hex("#066A70"),
@@ -139,7 +132,8 @@ func For(dark bool) Colors {
 		Del:            ui.Hex("#B02A55"),
 		AddBg:          ui.RGBA(46, 112, 49, .10),
 		DelBg:          ui.RGBA(176, 42, 85, .08),
-		Bubble:         ui.RGBA(231, 234, 238, .95),
+		Line:           ui.RGBA(0, 0, 0, .06),
+		Line2:          ui.RGBA(0, 0, 0, .10),
 		Shadow:         ui.RGBA(0, 0, 0, .12),
 		LogoTileTop:    ui.Hex("#FFFFFF"),
 		LogoTileBottom: ui.Hex("#E7EAEE"),
@@ -226,6 +220,12 @@ const (
 	PersonalColumn   = 640
 	WindowWidth      = 1440
 	WindowHeight     = 900
+)
+
+// Opacities: how faint a disabled or a receding element is.
+const (
+	OpacityDisabled = 0.45
+	OpacityFaded    = 0.6
 )
 
 // Motion: animations, durations, distances and scales.

@@ -158,7 +158,7 @@ func (a *App) detailBlock(c *ui.Context, k theme.Colors, title string, rows []de
 	if len(rows) == 0 {
 		return
 	}
-	ui.Column(c.Key("block:"+title)).Padding(theme.Space1, 0).Radius(theme.RadiusCard).Border(theme.LineWidth, k.Line2).Background(k.Bg2).Children(func() {
+	ui.Column(c.Key("block:"+title)).Padding(theme.Space1, 0).Radius(theme.RadiusCard).Border(theme.LineWidth, k.Line).Background(k.Surface).Children(func() {
 		if title != "" {
 			ui.Text(c, title).FontSize(theme.Caption.Size()).FontWeight(theme.UIStrong.Weight()).TextColor(k.Muted).Padding(theme.Space2, theme.Space3, theme.SpaceHalf, theme.Space3)
 		}
