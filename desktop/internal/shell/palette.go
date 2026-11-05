@@ -245,7 +245,6 @@ func (a *App) palette(c *ui.Context, k theme.Colors) {
 		k.ShadowPopover.On(panel)
 		// The query, then its scope: all, sessions or commands (⌘1–3).
 		theme.ItemRow.H(theme.TitleBar).P(0, theme.Space4).On(ui.Row(c)).BorderWidth(0, 0, theme.LineWidth, 0).BorderColor(k.Line).Children(func() {
-			ui.Icon(c, a.icons.Search).FontSize(theme.Icon).TextColor(k.Muted)
 			in := ui.SearchField(c, &a.s.palQuery).Placeholder("搜索会话和命令…").Label("搜索").AutoFocus().Grow(1).
 				FontSize(theme.Title.Size()).Background(ui.Transparent).Border(0, ui.Transparent)
 			if in.Changed() {
