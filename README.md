@@ -4,47 +4,61 @@
 
 Hoplet is a personal, cross-device shell for AI agents. **Code mode builds products; Personal mode handles chores.** Both modes share one core and can hand work to each other.
 
-> **Status:** design complete, implementation not started. The design docs (in Chinese) live in [`docs/`](docs/README.md).
+> **Status:** the local core and desktop conversation have implementations; M1 closure is in progress. The overview also includes planned capabilities.
 
 ## Two modes
 
-| | Code mode | Personal mode |
+| | Code | Personal |
 |---|---|---|
-| Delivers | A reviewable change: diff, checkpoints, PRs | A result: an answer, a finished task, a file |
-| Workspace | A directory you pick, which may hold several git repos | The agent's own workspace plus directories you grant |
-| Triggered by | You | You, Telegram, schedules, events (e.g. failing CI) |
+| Delivers | Reviewable changes: diffs, checkpoints, PRs | Results: answers, completed work, files |
+| Works in | A directory you choose, possibly with several repositories | A companion's workspace and authorized directories |
+| Started by | You | You, schedules, messages, events |
 
-Hoplet does not ship its own agent. It drives existing harnesses — Claude Code, Codex, Hermes and others — through their structured protocols, and either mode can use any of them.
+Either mode can use a supported harness. Claude Code and Hermes have adapters; Codex and ACP are planned. The design assigns portable growth memory to Hoplet, with reasoning and execution provided by harnesses.
 
-## How it fits together
+## Architecture overview
 
 ```mermaid
 flowchart LR
-    Phone["iOS app"] -- "Noise-encrypted" --> Relay["hoplet relay<br/>(your VPS)"]
-    Desk["Desktop app"] --> Mac["hoplet daemon<br/>(Mac)"]
-    Relay --- Mac
-    Relay --- VPS["hoplet daemon<br/>(VPS, always on)"]
-    Mac --> Shim["hoplet shim<br/>one per session"] --> H["claude / codex / …"]
+    User["Desktop · iOS · CLI · Channels"] --> Modes["Code / Personal"]
+    Modes --> Core["Hoplet core<br/>Sessions · Approvals · Memory · Artifacts"]
+    Core --> Harness["Existing harnesses<br/>Claude Code · Hermes · Codex · ACP"]
+    Harness --> Capabilities["Models · Tools · Skills"]
 ```
 
-- One Go binary (`hoplet`) runs as daemon, per-session shim, relay and CLI.
-- Sessions survive daemon restarts and upgrades; you can follow and approve them from your phone.
-- End-to-end encrypted between your devices and your machines; the relay only forwards bytes.
-- Desktop app built with [MyGo](https://github.com/egoist/mygo); iOS app in SwiftUI.
+- One Go binary currently provides daemon, shim, CLI, and Hermes bridge roles; the relay is planned.
+- Shims keep local sessions running across daemon restarts; remote follow-up and approvals are planned.
+- Remote access is designed for end-to-end encryption and a byte-forwarding relay.
+- The desktop uses MyGo native UI; iOS uses SwiftUI.
 
-## Roadmap
+## Design map
 
-| Milestone | Scope |
+| Area | Topics |
 |---|---|
-| M1 Core loop | Daemon, shim, storage, events; Claude Code and one Personal harness; CLI and minimal desktop |
-| M2 Cross-device | Relay, pairing, iOS app, encrypted push, Live Activity |
-| M3 Workspace | Checkpoints and rollback, diffs, PRs, isolated mode, ports, terminals |
-| M4 Personal | Profile, triggers, Telegram, GitHub chores, budgets |
-| M5 Extensions | Codex, generic ACP, fan-out |
+| [Product and architecture](docs/README.md#总览) | Scope, layers, delivery route |
+| [Runtime and communication](docs/README.md#运行与通信) | Processes, data, sync, security, approvals |
+| [Agent driving](docs/README.md#agent-驱动) | Shared contracts, native adapters, version management |
+| [Workspace and orchestration](docs/README.md#工作区与编排) | Isolation, snapshots, terminals, delegation |
+| [Personal and growth](docs/README.md#personal-与成长) | Companions, memory, autonomy, integrations |
+| [Clients and delivery](docs/README.md#客户端与交付) | Technology, design system, layouts, quality |
+
+The design documents are in Chinese. Each topic states its current rules independently; the index provides navigation.
+
+## Delivery overview
+
+| Stage | Outcome |
+|---|---|
+| M1 | Close the local loop: inbox, command palette, file / diff panel, regression gates |
+| M2a / M2b | Secure network, then mobile access |
+| M3 | Workspace enhancement, independent of the network lane |
+| M4a–M4e | Tool bridge and companions; growth, autonomy, channels, cross-host execution by dependency |
+| M5a–M5c | New harnesses; writable fan-out needs isolation, mobile preview needs network and ports |
+
+The recommended local path is **M1 → M4a → M4b**. Networking, workspace work, and additional harnesses can progress independently. Stage numbers do not impose one global sequence.
 
 ## Contributing
 
-Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) first; for anything that changes the design, open an issue to discuss it before writing code. Issues and pull requests may be written in English or Chinese.
+Read [CONTRIBUTING.md](CONTRIBUTING.md) before contributing. Discuss design changes in an issue before writing code. Issues and pull requests may be in English or Chinese.
 
 ## License
 
