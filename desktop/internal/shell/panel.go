@@ -190,10 +190,16 @@ func (a *App) main(c *ui.Context, k theme.Colors, room float32) {
 	}
 	zoom := want && ps.zoom && len(ps.tabs) > 0
 	row := ui.Row(c).Grow(1).Shrink(1).MinWidth(0).AlignItems(ui.Stretch)
-	shown := row.AnimateTo("panel", target, theme.MotionSmooth)
+	// Whole DIPs, as the sidebar's.
+	shown := float32(math.Round(float64(row.AnimateTo("panel", target, theme.MotionSmooth))))
 	if a.panelMoves && (row.Arrived("panel") || math.Abs(float64(shown-target)) < 0.5) {
 		a.panelMoves = false
 		c.AnimationFrame()
+	}
+	// The viewer shows with a tab open, and while it folds after the last.
+	viewer := ps != nil && (len(ps.tabs) > 0 || a.panelMoves && a.viewerWas)
+	if !a.panelMoves {
+		a.viewerWas = ps != nil && len(ps.tabs) > 0
 	}
 	row.Children(func() {
 		switch {
@@ -211,7 +217,7 @@ func (a *App) main(c *ui.Context, k theme.Colors, room float32) {
 			col.Children(func() {
 				ui.Row(c).Grow(1).AlignItems(ui.Stretch).Children(func() {
 					a.viewer(c, k, ps, 0)
-					a.rail(c, k, s, ps)
+					a.rail(c, k, s, ps, railWidth(ps))
 				})
 			})
 		case want && !a.panelMoves && len(ps.tabs) > 0:
@@ -219,7 +225,7 @@ func (a *App) main(c *ui.Context, k theme.Colors, room float32) {
 			sp := ui.Split(c, &first, func() { a.content(c, k) }, func() {
 				ui.Row(c).Grow(1).AlignItems(ui.Stretch).Children(func() {
 					a.viewer(c, k, ps, 0)
-					a.rail(c, k, s, ps)
+					a.rail(c, k, s, ps, railWidth(ps))
 				})
 			})
 			if sp.Grow(1).Changed() {
@@ -231,14 +237,18 @@ func (a *App) main(c *ui.Context, k theme.Colors, room float32) {
 			if shown <= 0.5 || ps == nil {
 				return
 			}
-			// The column keeps its width and the viewer, drawn at its own,
-			// is uncovered from the left as the panel widens.
+			// With the viewer, the column keeps its width and the viewer,
+			// drawn at its own, is uncovered from the left as the panel
+			// widens. Alone, the column goes from one width to the other,
+			// and opens and closes clipped.
 			rail := railWidth(ps)
 			ui.Row(c).Width(shown).ClipX().Shrink(0).AlignItems(ui.Stretch).BorderWidth(0, 0, 0, theme.LineWidth).BorderColor(k.Line).Children(func() {
-				if shown > rail+0.5 {
+				if viewer {
 					a.viewer(c, k, ps, max(a.panelW, shown)-rail)
+					a.rail(c, k, s, ps, rail)
+					return
 				}
-				a.rail(c, k, s, ps)
+				a.rail(c, k, s, ps, max(shown, rail))
 			})
 		}
 	})
@@ -263,10 +273,10 @@ func (a *App) viewer(c *ui.Context, k theme.Colors, ps *panelState, width float3
 	})
 }
 
-// rail draws the panel's column with its own top bar; its edge is a
-// hairline.
-func (a *App) rail(c *ui.Context, k theme.Colors, s proto.Session, ps *panelState) {
-	ui.Column(c).Width(railWidth(ps)).Shrink(0).Background(k.Side).BorderWidth(0, 0, 0, theme.LineWidth).BorderColor(k.Line).Children(func() {
+// rail draws the panel's column, width wide, with its own top bar; its
+// edge is a hairline.
+func (a *App) rail(c *ui.Context, k theme.Colors, s proto.Session, ps *panelState, width float32) {
+	ui.Column(c).Width(width).Shrink(0).Background(k.Side).BorderWidth(0, 0, 0, theme.LineWidth).BorderColor(k.Line).Children(func() {
 		a.railHead(c, k, s, ps)
 		ui.Box(c).Grow(1) // the file tree or the changes
 	})
@@ -280,10 +290,10 @@ func (a *App) panelTabs(c *ui.Context, k theme.Colors, ps *panelState) {
 	// top row takes the traffic lights and the window buttons, as the
 	// content area's title bar does.
 	lights := ps.zoom && a.hideSide
-	left, h := float32(theme.Space2), float32(theme.TitleBar)
+	bar := c.TitleBar()
+	left, h := float32(theme.Space2), a.titleHeight(bar)
 	if lights {
-		bar := c.TitleBar()
-		left, h = bar.Left+theme.Space4, topHeight(bar)
+		left = bar.Left + theme.Space4
 	}
 	ui.Row(c).Height(h).Padding(0, theme.Space2, 0, left).Gap(theme.SpaceHalf).AlignItems(ui.Center).DragWindow().Children(func() {
 		if lights {
@@ -377,7 +387,7 @@ func (a *App) railHead(c *ui.Context, k theme.Colors, s proto.Session, ps *panel
 			changed += len(r.Files)
 		}
 	}
-	ui.Row(c).Height(theme.TitleBar).Padding(0, theme.Space2).Gap(theme.Space1Half).AlignItems(ui.Center).DragWindow().Children(func() {
+	ui.Row(c).Height(a.titleHeight(c.TitleBar())).Padding(0, theme.Space2).Gap(theme.Space1Half).AlignItems(ui.Center).DragWindow().Children(func() {
 		ui.Row(c).Padding(theme.SpaceHalf).Gap(theme.SpaceHalf).Radius(theme.RadiusControl).Background(k.Line).Children(func() {
 			for _, opt := range []struct {
 				col  panelColumn
@@ -389,13 +399,22 @@ func (a *App) railHead(c *ui.Context, k theme.Colors, s proto.Session, ps *panel
 				{columnChanges, a.icons.Changes, "变更 ⌥⌘D", changed},
 			} {
 				on := ps.column == opt.col
-				b := ui.Button(c.Key(opt.tip), "").Label(opt.tip).Tooltip(opt.tip).Height(theme.RowDense).Padding(0, theme.Space2).Gap(theme.Space1).
-					Radius(theme.RadiusRow).Border(0, ui.Transparent).Background(ui.Transparent)
+				// As the sidebar's mode switch: a segment a row square, wider
+				// by the count it carries.
+				b := ui.Button(c.Key(opt.tip), "").Label(opt.tip).Tooltip(opt.tip).Height(theme.RowGroup).MinWidth(theme.Row).Padding(0).Gap(theme.Space1).
+					Radius(theme.RadiusControl).Border(0, ui.Transparent).Background(ui.Transparent)
+				color := k.Muted
+				if on {
+					color = k.Fg
+				}
 				face := func() {
-					ui.Icon(c, opt.icon).FontSize(theme.IconRow).TextColor(k.Fg3)
+					ui.Icon(c, opt.icon).FontSize(theme.Icon).TextColor(color)
 					if opt.n > 0 {
-						theme.CodeCaption.On(ui.Text(c, strconv.Itoa(opt.n))).TextColor(k.Muted)
+						theme.CodeCaption.On(ui.Text(c, strconv.Itoa(opt.n))).TextColor(color)
 					}
+				}
+				if opt.n > 0 {
+					b.Padding(0, theme.Space2)
 				}
 				b.Children(func() {
 					if !on {
@@ -404,7 +423,7 @@ func (a *App) railHead(c *ui.Context, k theme.Colors, s proto.Session, ps *panel
 					}
 					// The raised block, its face on it, slides from the old
 					// column to the new.
-					pill := ui.Row(c.Key("pill")).Absolute().Left(0).Top(0).Fill().Gap(theme.Space1).Center().Radius(theme.RadiusRow).Background(k.Raised).
+					pill := ui.Row(c.Key("pill")).Absolute().Left(0).Top(0).Fill().Gap(theme.Space1).Center().Radius(theme.RadiusControl).Background(k.Raised).
 						Transition(ui.ElementTransition{Match: railPill{}, Animation: &theme.MotionSnappy})
 					k.ShadowRaised.On(pill).Children(face)
 					// Under the block, the face keeps the button its width.
@@ -417,7 +436,7 @@ func (a *App) railHead(c *ui.Context, k theme.Colors, s proto.Session, ps *panel
 			}
 		})
 		ui.Spacer(c)
-		if iconButton(c, k, a.icons.Panel, "收起右栏 ⌥⌘I", true).Clicked() {
+		if iconButton(c, k, a.icons.Panel, "收起右栏 ⌥⌘I", false).Clicked() {
 			a.TogglePanel()
 		}
 	})

@@ -16,9 +16,9 @@ import (
 func (a *App) content(c *ui.Context, k theme.Colors) {
 	bar := c.TitleBar()
 	ui.Column(c).Grow(1).Background(k.Pane).Children(func() {
-		left, h := float32(theme.Space4), float32(theme.TitleBar)
+		left, h := float32(theme.Space4), a.titleHeight(bar)
 		if a.hideSide {
-			left, h = bar.Left+theme.Space4, topHeight(bar)
+			left = bar.Left + theme.Space4
 		}
 		ui.Row(c).Height(h).Padding(0, theme.Space2, 0, left).Gap(theme.Space1Half).AlignItems(ui.Center).DragWindow().Children(func() {
 			if a.hideSide {
@@ -223,4 +223,14 @@ func (a *App) companionDetails(c *ui.Context, k theme.Colors, s proto.Session) {
 		{harness: s.Harness.Kind, value: harnessName(s.Harness.Kind), version: s.Harness.Version},
 		{icon: a.icons.Thinking, value: model + " · 推理强度 " + effortName(s.Effort)},
 	})
+}
+
+// titleHeight is the height of the content area's title bar and of the
+// right panel's top rows beside it: the sidebar's top row's with the
+// sidebar hidden, where the traffic lights come down to it.
+func (a *App) titleHeight(bar ui.TitleBar) float32 {
+	if a.hideSide {
+		return topHeight(bar)
+	}
+	return theme.TitleBar
 }

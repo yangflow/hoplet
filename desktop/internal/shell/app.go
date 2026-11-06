@@ -122,6 +122,7 @@ type App struct {
 	panelMoves  bool    // the right panel is changing width
 	panelTarget float32 // the width the right panel moves to
 	width       float32 // the window's width in the last frame
+	viewerWas   bool    // the right panel last rested with its viewer
 	panelW      float32 // the right panel's width, which its edge drags
 	sideAuto    bool    // the right panel hid the sidebar to make room
 
@@ -431,7 +432,9 @@ func (a *App) View(c *ui.Context) {
 	if a.hideSide {
 		target = 0
 	}
-	shown := root.AnimateTo("side", target, theme.MotionSmooth)
+	// Whole DIPs: a fractional width puts the centered conversation on a
+	// different subpixel each frame, and its text shimmers as it moves.
+	shown := float32(math.Round(float64(root.AnimateTo("side", target, theme.MotionSmooth))))
 	if a.sideMoves && (root.Arrived("side") || math.Abs(float64(shown-target)) < 0.5) {
 		a.sideMoves = false
 		c.AnimationFrame() // settle into the split, or let the sidebar go
