@@ -296,16 +296,24 @@ func (a *App) railHead(c *ui.Context, k theme.Colors, s proto.Session, ps *panel
 				on := ps.column == opt.col
 				b := ui.Button(c.Key(opt.tip), "").Label(opt.tip).Tooltip(opt.tip).Height(theme.RowDense).Padding(0, theme.Space2).Gap(theme.Space1).
 					Radius(theme.RadiusRow).Border(0, ui.Transparent).Background(ui.Transparent)
-				b.Children(func() {
-					if on {
-						pill := ui.Box(c.Key("pill")).Absolute().Left(0).Top(0).Fill().Radius(theme.RadiusRow).Background(k.Raised).
-							Transition(ui.ElementTransition{Match: railPill{}, Animation: &theme.MotionSnappy})
-						k.ShadowRaised.On(pill)
-					}
+				face := func() {
 					ui.Icon(c, opt.icon).FontSize(theme.IconRow).TextColor(k.Fg3)
 					if opt.n > 0 {
 						theme.CodeCaption.On(ui.Text(c, strconv.Itoa(opt.n))).TextColor(k.Muted)
 					}
+				}
+				b.Children(func() {
+					if !on {
+						face()
+						return
+					}
+					// The raised block, its face on it, slides from the old
+					// column to the new.
+					pill := ui.Row(c.Key("pill")).Absolute().Left(0).Top(0).Fill().Gap(theme.Space1).Center().Radius(theme.RadiusRow).Background(k.Raised).
+						Transition(ui.ElementTransition{Match: railPill{}, Animation: &theme.MotionSnappy})
+					k.ShadowRaised.On(pill).Children(face)
+					// Under the block, the face keeps the button its width.
+					ui.Row(c).Gap(theme.Space1).Opacity(0).Children(face)
 				})
 				if b.Clicked() {
 					ps.column = opt.col
