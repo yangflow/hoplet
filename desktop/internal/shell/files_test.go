@@ -119,6 +119,13 @@ func TestFileTreeShowsIgnored(t *testing.T) {
 	if !last.Ignored || last.Path != "" {
 		t.Errorf("listed %+v after showing ignored files", h.listed)
 	}
+	if err := tt.Click("隐藏被忽略的文件"); err != nil {
+		t.Fatalf("the button does not turn to hiding them: %v", err)
+	}
+	settle(tt)
+	if _, ok := tt.Find("显示被忽略的文件"); !ok {
+		t.Error("the button does not turn back to showing them")
+	}
 }
 
 func TestFileTreeOpensAFileOnce(t *testing.T) {
@@ -224,5 +231,20 @@ func TestFileTreeReadsAgainAfterChange(t *testing.T) {
 	settle(tt)
 	if got := len(h.listed) - listed; got != 2 {
 		t.Errorf("listed %d directories again, want the root and internal", got)
+	}
+}
+
+// TestFileTreeRetriesOnReconnect reads again what could not be read once
+// the daemon is reached again.
+func TestFileTreeRetriesOnReconnect(t *testing.T) {
+	a, h, tt := openTree(t)
+	ps := a.panelFor("s1")
+	ps.tree.dirs = map[string]*dirListing{"": {err: "method not found"}}
+	settle(tt)
+	listed := len(h.listed)
+	a.Connected("studio")
+	settle(tt)
+	if len(h.listed) != listed+1 || !tt.HasText("notes.md") {
+		t.Errorf("listed %d more times after reconnecting, texts %q", len(h.listed)-listed, tt.Texts())
 	}
 }

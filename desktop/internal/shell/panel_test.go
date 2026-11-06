@@ -58,30 +58,52 @@ func TestPanelOpensAndCloses(t *testing.T) {
 }
 
 // TestPanelMakesRoom opens the panel in a window too narrow for the
-// sidebar, the conversation and the panel's column: the sidebar goes, and
-// comes back when the panel closes. Narrower still, the panel waits for
-// room.
+// sidebar, the conversation and the panel's column even at their least:
+// the sidebar, opened earlier, yields and comes back when the panel
+// closes or the window widens. Narrower still, the panel waits for room.
 func TestPanelMakesRoom(t *testing.T) {
 	a, _, tt, _ := newApp(t)
-	tt.SetSize(1000, 700)
+	tt.SetSize(960, 700)
 	a.Select("s1")
 	settle(tt)
 	a.TogglePanel()
 	settle(tt)
 	if !a.hideSide || !panelShown(tt) {
-		t.Fatalf("1000 wide: sidebar hidden %v, panel shown %v", a.hideSide, panelShown(tt))
+		t.Fatalf("960 wide: sidebar hidden %v, panel shown %v", a.hideSide, panelShown(tt))
 	}
 	a.TogglePanel()
 	settle(tt)
 	if a.hideSide {
 		t.Error("the sidebar stays hidden after the panel closed")
 	}
-
-	tt.SetSize(700, 700)
 	a.TogglePanel()
 	settle(tt)
-	if panelShown(tt) {
-		t.Error("the panel shows with less than content-min left for the conversation")
+	tt.SetSize(1100, 700)
+	settle(tt)
+	if a.hideSide || !panelShown(tt) {
+		t.Errorf("1100 wide: sidebar hidden %v, panel shown %v", a.hideSide, panelShown(tt))
+	}
+
+	tt.SetSize(700, 700)
+	settle(tt)
+	if panelShown(tt) || !a.panelOpen {
+		t.Errorf("700 wide: panel shown %v, open %v", panelShown(tt), a.panelOpen)
+	}
+}
+
+// TestPanelSqueezes narrows the sidebar and the column to their least
+// before either yields.
+func TestPanelSqueezes(t *testing.T) {
+	a, _, tt, _ := newApp(t)
+	tt.SetSize(1000, 700)
+	a.Select("s1")
+	a.TogglePanel()
+	settle(tt)
+	if a.hideSide || !panelShown(tt) {
+		t.Fatalf("1000 wide: sidebar hidden %v, panel shown %v", a.hideSide, panelShown(tt))
+	}
+	if a.fit.side != theme.SidebarMin || a.fit.panel != theme.PanelRailMin || a.side != theme.SidebarWidth {
+		t.Errorf("sidebar %v (kept %v), column %v", a.fit.side, a.side, a.fit.panel)
 	}
 }
 
@@ -112,11 +134,11 @@ func TestPanelViewerOnOpen(t *testing.T) {
 	}
 }
 
-// TestPanelYieldsToSidebar shows the sidebar the panel hid: it stays, and
-// the panel that no longer fits beside it closes.
+// TestPanelYieldsToSidebar shows the sidebar the panel hid: now the later
+// one, it stays and the panel yields, still open, until there is room.
 func TestPanelYieldsToSidebar(t *testing.T) {
 	a, _, tt, _ := newApp(t)
-	tt.SetSize(1000, 700)
+	tt.SetSize(960, 700)
 	a.Select("s1")
 	settle(tt)
 	a.TogglePanel()
@@ -127,8 +149,16 @@ func TestPanelYieldsToSidebar(t *testing.T) {
 	a.ToggleSidebar()
 	settle(tt)
 	settle(tt)
-	if a.hideSide || a.panelOpen || panelShown(tt) {
+	if a.hideSide || !a.panelOpen || panelShown(tt) {
 		t.Errorf("sidebar hidden %v, panel open %v, shown %v", a.hideSide, a.panelOpen, panelShown(tt))
+	}
+	if err := tt.Click("显示右栏 ⌥⌘I"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tt)
+	settle(tt)
+	if !a.hideSide || !panelShown(tt) {
+		t.Errorf("the panel brought forward: sidebar hidden %v, panel shown %v", a.hideSide, panelShown(tt))
 	}
 }
 
@@ -229,5 +259,79 @@ func TestPanelRailCountsChanges(t *testing.T) {
 	tt.Frame()
 	if a.panelFor("s1").column != columnChanges {
 		t.Error("the switch did not move to the changes")
+	}
+}
+
+// TestPanelEdgesDrag drags the panel's edge, which sizes the column alone
+// and the viewer with a tab open, and the line between viewer and column.
+func TestPanelEdgesDrag(t *testing.T) {
+	a, _, tt, _ := newApp(t)
+	tt.SetSize(1700, 900)
+	a.Select("s1")
+	a.TogglePanel()
+	settle(tt)
+	drag := func(x, dx float32) {
+		tt.Press(x, 400)
+		tt.Move(x+dx, 400)
+		tt.Release(x+dx, 400)
+		settle(tt)
+	}
+	drag(1700-a.fit.panel, -40)
+	if a.railW != theme.PanelRail+40 || a.fit.panel != a.railW {
+		t.Fatalf("column dragged to %v, shows %v", a.railW, a.fit.panel)
+	}
+	drag(1700-a.fit.panel, -400)
+	if a.railW != theme.PanelRailMax {
+		t.Fatalf("column dragged past its most to %v", a.railW)
+	}
+	a.openTab(a.panelFor("s1"), panelTab{path: "cmd/main.go"})
+	settle(tt)
+	if want := (1700 - a.fit.side) / 2; a.fit.panel != want {
+		t.Fatalf("the viewer opened to %v, want half, %v", a.fit.panel, want)
+	}
+	drag(1700-a.fit.rail, 100)
+	if a.railW != theme.PanelRailMax-100 || a.fit.rail != a.railW {
+		t.Fatalf("the line between viewer and column dragged the column to %v", a.railW)
+	}
+	drag(1700-a.fit.panel, 60)
+	if a.panelW == 0 || a.fit.panel != a.panelW {
+		t.Errorf("the panel's edge dragged it to %v, shows %v", a.panelW, a.fit.panel)
+	}
+}
+
+// TestDetailsDockOrFloat docks the details while the content area has room
+// for them, floats them on ⌘I without, and docks them again once it does.
+func TestDetailsDockOrFloat(t *testing.T) {
+	a, _, tt, _ := newApp(t)
+	tt.SetSize(theme.WindowWidth, theme.WindowHeight)
+	a.Select("s1")
+	settle(tt)
+	a.ToggleDetails()
+	settle(tt)
+	if !a.s.detailOpen || a.s.detailFloat || !tt.HasText("复制会话 ID") {
+		t.Fatalf("1440, no panel: open %v, float %v", a.s.detailOpen, a.s.detailFloat)
+	}
+	a.TogglePanel()
+	settle(tt)
+	if tt.HasText("复制会话 ID") {
+		t.Fatal("the details stay docked beside the panel")
+	}
+	if err := tt.Click("会话详情 ⌘I"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tt)
+	if !a.s.detailFloat || !tt.HasText("复制会话 ID") {
+		t.Fatalf("⌘I without room: float %v, texts %q", a.s.detailFloat, tt.Texts())
+	}
+	tt.Press(400, 600) // outside
+	tt.Release(400, 600)
+	settle(tt)
+	if a.s.detailFloat || !a.s.detailOpen {
+		t.Errorf("a click outside: float %v, open %v", a.s.detailFloat, a.s.detailOpen)
+	}
+	a.TogglePanel()
+	settle(tt)
+	if !tt.HasText("复制会话 ID") {
+		t.Error("the details do not dock again once there is room")
 	}
 }

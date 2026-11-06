@@ -32,6 +32,7 @@ type sessionView struct {
 	md        markdown.Options
 
 	permOpen, runOpen, detailOpen, dirOpen bool
+	detailFloat                            bool                 // the details float, short of room to dock
 	pick                                   int                  // the highlighted option of the approval shown
 	hidden                                 map[string]bool      // approvals I put away with ⎋
 	copied                                 map[string]time.Time // when each copy button last copied

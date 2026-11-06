@@ -208,7 +208,7 @@ func (a *App) paletteCommands() []paletteEntry {
 		pin = "取消置顶"
 	}
 	cmds = append(cmds,
-		paletteEntry{title: "会话详情", key: "⌘I", icon: a.icons.Details, run: func() { a.s.detailOpen = !a.s.detailOpen }},
+		paletteEntry{title: "会话详情", key: "⌘I", icon: a.icons.Details, run: a.ToggleDetails},
 		paletteEntry{title: pin, key: "⇧⌘P", icon: a.icons.Pin, run: a.TogglePin},
 		paletteEntry{title: "标为未读", key: "⇧⌘U", icon: a.icons.Menu, run: a.MarkUnread},
 		paletteEntry{title: "重命名", icon: a.icons.Edit, run: a.Rename},

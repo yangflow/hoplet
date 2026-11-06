@@ -36,6 +36,19 @@ type dirListing struct {
 	err       string
 }
 
+// retry forgets what the panel could not read, so that it is asked for
+// again: the directories, the files and their baselines.
+func (ps *panelState) retry() {
+	for dir, l := range ps.tree.dirs {
+		if l.err != "" && !l.loaded {
+			delete(ps.tree.dirs, dir)
+		}
+	}
+	for _, v := range ps.views {
+		v.err, v.baseErr = "", ""
+	}
+}
+
 // treeRow is a row of the file tree.
 type treeRow struct {
 	entry   proto.FileEntry
@@ -210,7 +223,13 @@ func (a *App) fileColumn(c *ui.Context, k theme.Colors, s proto.Session, ps *pan
 	ui.Row(c).Height(theme.Row).Padding(0, theme.Space1, 0, theme.Space2).Gap(theme.Space1).AlignItems(ui.Center).Children(func() {
 		ui.SearchField(c, &t.query).Placeholder("筛选文件").Label("筛选文件").Grow(1).Height(theme.Row).
 			FontSize(theme.Secondary.Size()).Radius(theme.RadiusControl).Background(k.Fill).Border(0, ui.Transparent)
-		if iconButton(c, k, a.icons.Ignored, "显示被忽略的文件", t.ignored).Clicked() {
+		// The eye says whether the ignored files show; the tip, what a
+		// click does.
+		eye, tip := a.icons.Ignored, "显示被忽略的文件"
+		if t.ignored {
+			eye, tip = a.icons.Shown, "隐藏被忽略的文件"
+		}
+		if iconButton(c, k, eye, tip, t.ignored).Clicked() {
 			t.ignored = !t.ignored
 			t.dirs, t.all = nil, nil // listed again, with or without them
 			a.refreshTree(s, t)

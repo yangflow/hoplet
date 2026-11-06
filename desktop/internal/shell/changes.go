@@ -149,8 +149,8 @@ func (a *App) showChange(s proto.Session, key string) {
 	if ps.ch.folded != nil {
 		delete(ps.ch.folded, key)
 	}
-	if !a.panelOpen {
-		a.TogglePanel()
+	if !a.panelOpen || a.fit.panel == 0 {
+		a.bringPanel()
 	}
 }
 

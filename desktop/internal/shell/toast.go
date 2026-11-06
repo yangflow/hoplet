@@ -30,10 +30,7 @@ func (a *App) toasts(c *ui.Context, k theme.Colors) {
 		c.AddToast(a.pending)
 		a.pending = ui.Toast{}
 	}
-	top, left := a.titleHeight(c.TitleBar()), a.side
-	if a.hideSide {
-		left = 0
-	}
+	top, left := a.titleHeight(c.TitleBar()), a.fit.side
 	ui.ToastViewportBase(c, func(viewport ui.Element, toasts []ui.Toast) {
 		viewport.Padding(top+theme.Space3, 0, 0, left).Justify(ui.Start).AlignItems(ui.Center)
 		for _, t := range toasts {

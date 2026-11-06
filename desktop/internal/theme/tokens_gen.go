@@ -199,12 +199,13 @@ const (
 	SidebarWidth     = 260
 	SidebarMin       = 220
 	SidebarMax       = 360
-	PanelWidth       = 640
 	PanelRail        = 260
-	PanelMin         = 420
-	PanelMax         = 960
+	PanelRailMin     = 220
+	PanelRailMax     = 360
+	ViewerMin        = 360
 	ContentMin       = 560
 	DetailsWidth     = 280
+	DetailsDock      = 1048
 	DialogWidth      = 600
 	ToastMax         = 420
 	FieldShort       = 160

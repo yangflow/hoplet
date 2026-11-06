@@ -69,33 +69,25 @@ func (a *App) panelSession() (proto.Session, bool) {
 	return s, true
 }
 
-// TogglePanel opens or closes the right panel. Opening it hides the
-// sidebar when only that makes room; closing it gives that sidebar back.
+// TogglePanel opens or closes the right panel. Open but yielding its
+// place, it comes forward instead, as one I just opened.
 func (a *App) TogglePanel() {
-	s, ok := a.panelSession()
-	if !ok {
+	if _, ok := a.panelSession(); !ok {
 		return
 	}
-	a.panelOpen = !a.panelOpen
-	if a.panelOpen {
-		a.makeRoom(a.panelFor(s.ID))
-	} else {
-		a.giveBack(nil)
+	if a.panelOpen && a.fit.panel > 0 {
+		a.panelOpen = false
+		return
 	}
+	a.bringPanel()
 }
 
-// panelWidth is how wide the right panel is beside a content area of the
-// given room, and whether it fits there at all: the column alone with no
-// tab open, the viewer and the column with one, narrowed to leave the
-// conversation content-min but not below panel-min.
-func (a *App) panelWidth(ps *panelState, room float32) (float32, bool) {
-	avail := room - theme.ContentMin
-	if len(ps.tabs) == 0 {
-		w := railWidth(ps)
-		return w, w <= avail
-	}
-	w := min(a.panelW, avail)
-	return w, w >= theme.PanelMin
+// bringPanel opens the right panel as the column I opened last: short of
+// room, an earlier one yields to it.
+func (a *App) bringPanel() {
+	a.panelOpen = true
+	a.clock++
+	a.panelAt = a.clock
 }
 
 // panelMotion is how the panel goes from one width to another: along
@@ -109,48 +101,15 @@ func panelMotion(from, to float32) ui.Animation {
 	return m
 }
 
-// railWidth is the column's width, the same for the file tree and the
-// changes: switching them moves nothing else.
-func railWidth(*panelState) float32 { return theme.PanelRail }
-
-// makeRoom hides the sidebar when the panel, as it grows, fits only
-// without it.
-func (a *App) makeRoom(ps *panelState) {
-	if a.hideSide || !a.panelOpen {
-		return
+// fitColumns lays out the sidebar and the right panel in the window as
+// it was last drawn.
+func (a *App) fitColumns(sideMin float32) fitOut {
+	in := fitIn{width: a.width, sideOpen: !a.sideClosed, side: a.side, sideMin: sideMin, sideAt: a.sideAt,
+		rail: a.railW, panel: a.panelW, panelAt: a.panelAt}
+	if s, ok := a.panelSession(); ok && a.panelOpen {
+		in.panelOpen, in.viewer = true, len(a.panelFor(s.ID).tabs) > 0
 	}
-	if _, ok := a.panelWidth(ps, a.width-a.side); ok {
-		return
-	}
-	if _, ok := a.panelWidth(ps, a.width); ok {
-		a.hideSide, a.sideMoves, a.sideAuto = true, true, true
-	}
-}
-
-// giveBack shows the sidebar the panel hid, once the panel, closed or
-// shrunk, leaves room for it. With ps nil the panel is closed.
-func (a *App) giveBack(ps *panelState) {
-	if !a.sideAuto {
-		return
-	}
-	if ps != nil {
-		if _, ok := a.panelWidth(ps, a.width-a.side); !ok {
-			return
-		}
-	}
-	a.hideSide, a.sideMoves, a.sideAuto = false, true, false
-}
-
-// sideShown is the sidebar, shown by me: the panel that no longer fits
-// beside it closes, rather than take the sidebar back.
-func (a *App) sideShown() {
-	s, ok := a.panelSession()
-	if !ok || !a.panelOpen {
-		return
-	}
-	if _, ok := a.panelWidth(a.panelFor(s.ID), a.width-a.side); !ok {
-		a.panelOpen = false
-	}
+	return fit(in)
 }
 
 // ShowPanel opens the right panel on a column.
@@ -159,13 +118,10 @@ func (a *App) ShowPanel(col panelColumn) {
 	if !ok {
 		return
 	}
-	ps := a.panelFor(s.ID)
-	ps.column = col
-	if !a.panelOpen {
-		a.TogglePanel()
-		return
+	a.panelFor(s.ID).column = col
+	if !a.panelOpen || a.fit.panel == 0 {
+		a.bringPanel()
 	}
-	a.makeRoom(ps)
 }
 
 // ShowTree opens the right panel on the file tree. ⌥⌘I, ⌥⌘E and ⌥⌘D
@@ -179,20 +135,18 @@ func (a *App) ShowChanges() { a.ShowPanel(columnChanges) }
 // palette searches files, it opens the palette.
 func (a *App) OpenFilePicker() { a.OpenPalette() }
 
-// main draws the content area and, beside it, the right panel. The panel
-// changes width (opening, closing, the viewer coming and going) along
-// motion-smooth; at rest with the viewer open it sits in a split its edge
-// drags. A panel that does not fit beside content-min of conversation
-// waits, closed, until the window has room.
+// main draws the content area and, beside it, the right panel as fit
+// leaves it. The panel changes width (opening, closing, the viewer coming
+// and going) along motion-base; at rest it sits in a split its edge drags,
+// the viewer and the column in another.
 func (a *App) main(c *ui.Context, k theme.Colors, room float32) {
 	s, ok := a.panelSession()
 	var ps *panelState
-	target, fits := float32(0), false
 	if ok {
 		ps = a.panelFor(s.ID)
-		target, fits = a.panelWidth(ps, room)
 	}
-	want := ok && a.panelOpen && fits
+	target := a.fit.panel
+	want := ps != nil && target > 0
 	if !want {
 		target = 0
 	}
@@ -231,20 +185,22 @@ func (a *App) main(c *ui.Context, k theme.Colors, room float32) {
 			col.Children(func() {
 				ui.Row(c).Grow(1).AlignItems(ui.Stretch).Children(func() {
 					a.viewer(c, k, s, ps, 0)
-					a.rail(c, k, s, ps, railWidth(ps))
+					a.rail(c, k, s, ps, a.fit.rail)
 				})
 			})
-		case want && !a.panelMoves && len(ps.tabs) > 0:
+		case want && !a.panelMoves:
 			first := room - target
-			sp := ui.Split(c, &first, func() { a.content(c, k) }, func() {
-				ui.Row(c).Grow(1).AlignItems(ui.Stretch).Children(func() {
-					a.viewer(c, k, s, ps, 0)
-					a.rail(c, k, s, ps, railWidth(ps))
-				})
-			})
+			sp := ui.Split(c, &first, func() { a.content(c, k) }, func() { a.panelBody(c, k, s, ps, target) })
 			if sp.Grow(1).Changed() {
-				a.panelW = min(max(room-first, theme.PanelMin), theme.PanelMax, room-theme.ContentMin)
-				a.panelTarget, _ = a.panelWidth(ps, room) // dragged there: nothing to animate
+				w := room - first
+				if len(ps.tabs) > 0 {
+					w = min(max(w, theme.ViewerMin+a.fit.rail), room-theme.ContentMin)
+					a.panelW = w
+				} else {
+					w = min(max(w, theme.PanelRailMin), theme.PanelRailMax, room-theme.ContentMin)
+					a.railW = w
+				}
+				a.fit.panel, a.panelTarget = w, w // dragged there: nothing to animate
 			}
 		default:
 			ui.Column(c).Grow(1).Shrink(1).MinWidth(0).AlignItems(ui.Stretch).Children(func() { a.content(c, k) })
@@ -255,10 +211,10 @@ func (a *App) main(c *ui.Context, k theme.Colors, room float32) {
 			// drawn at its own, is uncovered from the left as the panel
 			// widens. Alone, the column goes from one width to the other,
 			// and opens and closes clipped.
-			rail := railWidth(ps)
+			rail := max(a.fit.rail, a.railShown)
 			ui.Row(c).Width(shown).ClipX().Shrink(0).AlignItems(ui.Stretch).BorderWidth(0, 0, 0, theme.LineWidth).BorderColor(k.Line).Children(func() {
 				if viewer {
-					a.viewer(c, k, s, ps, max(a.panelW, shown)-rail)
+					a.viewer(c, k, s, ps, max(shown, a.panelFrom, a.panelTarget)-rail)
 					a.rail(c, k, s, ps, rail)
 					return
 				}
@@ -266,6 +222,24 @@ func (a *App) main(c *ui.Context, k theme.Colors, room float32) {
 			})
 		}
 	})
+	if a.fit.rail > 0 {
+		a.railShown = a.fit.rail
+	}
+}
+
+// panelBody is the panel at rest, width wide: the column alone, or the
+// viewer and the column in a split whose edge sizes the column.
+func (a *App) panelBody(c *ui.Context, k theme.Colors, s proto.Session, ps *panelState, width float32) {
+	if len(ps.tabs) == 0 {
+		a.rail(c, k, s, ps, 0)
+		return
+	}
+	first := width - a.fit.rail
+	sp := ui.Split(c, &first, func() { a.viewer(c, k, s, ps, 0) }, func() { a.rail(c, k, s, ps, 0) })
+	if sp.Fill().Changed() {
+		r := min(max(width-first, theme.PanelRailMin), theme.PanelRailMax, width-theme.ViewerMin)
+		a.railW, a.fit.rail = r, r
+	}
 }
 
 // viewer draws the panel's viewer: its tabs over the current tab. With
@@ -301,7 +275,13 @@ func (a *App) viewer(c *ui.Context, k theme.Colors, s proto.Session, ps *panelSt
 // rail draws the panel's column, width wide, with its own top bar; its
 // edge is a hairline.
 func (a *App) rail(c *ui.Context, k theme.Colors, s proto.Session, ps *panelState, width float32) {
-	ui.Column(c).Width(width).Shrink(0).Background(k.Side).BorderWidth(0, 0, 0, theme.LineWidth).BorderColor(k.Line).Children(func() {
+	col := ui.Column(c).Background(k.Side)
+	if width > 0 {
+		col.Width(width).Shrink(0).BorderWidth(0, 0, 0, theme.LineWidth).BorderColor(k.Line)
+	} else {
+		col.Grow(1).Shrink(1).MinWidth(0) // in a split, whose line is its edge
+	}
+	col.Children(func() {
 		a.railHead(c, k, s, ps)
 		if ps.column == columnChanges {
 			a.changesColumn(c, k, s, ps)
@@ -390,7 +370,6 @@ func (a *App) closeTab(ps *panelState, i int) {
 	}
 	if len(ps.tabs) == 0 {
 		ps.zoom = false
-		a.giveBack(ps)
 	}
 }
 
@@ -402,9 +381,13 @@ func (a *App) openTab(ps *panelState, t panelTab) {
 			return
 		}
 	}
+	// The viewer opening comes forward, as a column I opened.
+	if len(ps.tabs) == 0 {
+		a.clock++
+		a.panelAt = a.clock
+	}
 	ps.tabs = append(ps.tabs, t)
 	ps.active = len(ps.tabs) - 1
-	a.makeRoom(ps)
 }
 
 // railHead is the column's top bar, as tall as the tabs: the file tree or
@@ -460,7 +443,6 @@ func (a *App) railHead(c *ui.Context, k theme.Colors, s proto.Session, ps *panel
 				})
 				if b.Clicked() {
 					ps.column = opt.col
-					a.makeRoom(ps)
 				}
 			}
 		})
