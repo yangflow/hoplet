@@ -38,6 +38,8 @@ type panelState struct {
 	zoom   bool
 	focus  bool // the spread viewer takes the focus in its next frame
 	ch     changesTab
+	tree   fileTree
+	views  map[string]*fileView // open files, by path relative to the working directory
 }
 
 // railPill is the identity of the column switch's raised block.
@@ -286,7 +288,12 @@ func (a *App) viewer(c *ui.Context, k theme.Colors, s proto.Session, ps *panelSt
 				ui.Column(c).Grow(1).MinHeight(0).AlignItems(ui.Stretch).Children(func() { a.changesView(c, k, s, ps) })
 				return
 			}
-			ui.Box(c).Grow(1).Background(k.Pane) // a file's view comes with the file tree
+			if ps.active >= 0 && ps.active < len(ps.tabs) {
+				p := ps.tabs[ps.active].path
+				ui.Column(c.Key(p)).Grow(1).MinHeight(0).AlignItems(ui.Stretch).Children(func() { a.fileTab(c, k, s, ps, p) })
+				return
+			}
+			ui.Box(c).Grow(1).Background(k.Pane)
 		})
 	})
 }
@@ -300,7 +307,7 @@ func (a *App) rail(c *ui.Context, k theme.Colors, s proto.Session, ps *panelStat
 			a.changesColumn(c, k, s, ps)
 			return
 		}
-		ui.Box(c).Grow(1) // the file tree
+		a.fileColumn(c, k, s, ps)
 	})
 }
 

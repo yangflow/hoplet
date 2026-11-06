@@ -24,6 +24,10 @@ type host struct {
 	patched    []proto.SessionID // the sessions DiffPatch was asked for
 	held       bool              // DiffPatch answers only when pending runs
 	pending    func()
+	lists      map[string]proto.FileList    // what Files answers, by directory
+	listed     []proto.FilesListParams      // what Files was asked
+	contents   map[string]proto.FileContent // what ReadFile answers, by path ("base:" for the baseline)
+	read       []proto.FilesReadParams      // what ReadFile was asked
 	reconnects int
 	updates    []proto.UpdateParams
 	stopped    []proto.SessionID
@@ -100,6 +104,24 @@ func (h *host) DiffPatch(id proto.SessionID, done func(proto.SessionDiff, error)
 		done(d, nil)
 	}
 }
+func (h *host) Files(p proto.FilesListParams, done func(proto.FileList, error)) {
+	h.listed = append(h.listed, p)
+	if fl, ok := h.lists[p.Path]; ok {
+		done(fl, nil)
+	}
+}
+func (h *host) ReadFile(p proto.FilesReadParams, done func(proto.FileContent, error)) {
+	h.read = append(h.read, p)
+	key := p.Path
+	if p.Baseline {
+		key = "base:" + key
+	}
+	if fc, ok := h.contents[key]; ok {
+		done(fc, nil)
+	}
+}
+func (h *host) Open(path string)                         { h.calls = append(h.calls, "open "+path) }
+func (h *host) CopyPath(path string)                     { h.calls = append(h.calls, "copy "+path) }
 func (h *host) Reconnect()                               { h.reconnects++ }
 func (h *host) Harnesses(done func([]proto.HarnessInfo)) { done(h.models) }
 func (h *host) Follow(id proto.SessionID, _ uint64)      { h.followed = append(h.followed, id) }

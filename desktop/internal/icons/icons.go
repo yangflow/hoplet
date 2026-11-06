@@ -88,6 +88,8 @@ type Set struct {
 	Changes    *ui.SVG // the changes column and tab
 	Maximize   *ui.SVG // the viewer over the whole content area
 	SideBySide *ui.SVG // a diff's old and new side by side
+	Ignored    *ui.SVG // show the files .gitignore leaves out
+	Reveal     *ui.SVG // show a file in Finder
 }
 
 // Load parses every icon.
@@ -162,6 +164,8 @@ func Load() (*Set, error) {
 		{&s.Changes, "lucide/diff.svg"},
 		{&s.Maximize, "lucide/maximize-2.svg"},
 		{&s.SideBySide, "lucide/columns-2.svg"},
+		{&s.Ignored, "lucide/eye-off.svg"},
+		{&s.Reveal, "lucide/folder-open.svg"},
 	} {
 		data, err := files.ReadFile(f.path)
 		if err != nil {

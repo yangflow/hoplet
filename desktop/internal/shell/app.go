@@ -50,6 +50,15 @@ type Host interface {
 	// DiffPatch reads them with their patches; done follows with the
 	// answer or why there is none.
 	DiffPatch(id proto.SessionID, done func(proto.SessionDiff, error))
+	// Files lists a session's working directory; ReadFile reads one of
+	// its files, now or at the baseline. done follows with the answer or
+	// why there is none.
+	Files(p proto.FilesListParams, done func(proto.FileList, error))
+	ReadFile(p proto.FilesReadParams, done func(proto.FileContent, error))
+	// Open opens a file with its default application; CopyPath puts its
+	// path on the clipboard.
+	Open(path string)
+	CopyPath(path string)
 	// Reconnect tries the daemon now rather than at the next retry.
 	Reconnect()
 	// Older pages back through a session's events before seq.
