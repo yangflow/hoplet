@@ -118,13 +118,15 @@ type App struct {
 	side      float32 // the sidebar's width, which its edge drags
 	away      bool    // the app is in the background or the window hidden
 
-	panelOpen   bool    // I opened the right panel
-	panelMoves  bool    // the right panel is changing width
-	panelTarget float32 // the width the right panel moves to
-	width       float32 // the window's width in the last frame
-	viewerWas   bool    // the right panel last rested with its viewer
-	panelW      float32 // the right panel's width, which its edge drags
-	sideAuto    bool    // the right panel hid the sidebar to make room
+	panelOpen   bool         // I opened the right panel
+	panelMoves  bool         // the right panel is changing width
+	panelTarget float32      // the width the right panel moves to
+	panelFrom   float32      // the width it moves from
+	panelMotion ui.Animation // how it moves there
+	width       float32      // the window's width in the last frame
+	viewerWas   bool         // the right panel last rested with its viewer
+	panelW      float32      // the right panel's width, which its edge drags
+	sideAuto    bool         // the right panel hid the sidebar to make room
 
 	inbox bool // the inbox page shows
 
@@ -434,7 +436,7 @@ func (a *App) View(c *ui.Context) {
 	}
 	// Whole DIPs: a fractional width puts the centered conversation on a
 	// different subpixel each frame, and its text shimmers as it moves.
-	shown := float32(math.Round(float64(root.AnimateTo("side", target, theme.MotionSmooth))))
+	shown := float32(math.Round(float64(root.AnimateTo("side", target, theme.MotionBase))))
 	if a.sideMoves && (root.Arrived("side") || math.Abs(float64(shown-target)) < 0.5) {
 		a.sideMoves = false
 		c.AnimationFrame() // settle into the split, or let the sidebar go

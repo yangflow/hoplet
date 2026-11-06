@@ -165,7 +165,9 @@ func (a *App) modeSwitch(c *ui.Context, k theme.Colors) {
 			{proto.ModeCode, a.icons.Code, "Code ⌘2"},
 		} {
 			on := a.mode == m.mode
-			b := ui.Button(c.Key(m.mode), "").Label(m.tip).Tooltip(m.tip).Size(theme.Row, theme.RowGroup).Padding(0).
+			// A segment a dense row square: with the switch's 2 around it, the
+			// switch is as tall as an icon button.
+			b := ui.Button(c.Key(m.mode), "").Label(m.tip).Tooltip(m.tip).Size(theme.RowDense, theme.RowDense).Padding(0).
 				Radius(theme.RadiusControl).Border(0, ui.Transparent).Background(ui.Transparent)
 			color := k.Muted
 			if on {
@@ -179,7 +181,7 @@ func (a *App) modeSwitch(c *ui.Context, k theme.Colors) {
 				// The raised block, the icon on it, slides from the old
 				// mode to the new.
 				pill := ui.Box(c.Key("pill")).Absolute().Left(0).Top(0).Fill().Center().Radius(theme.RadiusControl).Background(k.Raised).
-					Transition(ui.ElementTransition{Match: modePill{}, Animation: &theme.MotionSnappy})
+					Transition(ui.ElementTransition{Match: modePill{}, Animation: &theme.MotionBase})
 				k.ShadowRaised.On(pill).Children(func() {
 					ui.Icon(c, m.icon).FontSize(theme.Icon).TextColor(color)
 				})
@@ -373,7 +375,7 @@ func (a *App) row(c *ui.Context, k theme.Colors, s proto.Session) {
 	// it move down.
 	w := ui.Column(c.Key("in:" + string(s.ID))).FillWidth()
 	if _, fresh := a.s.flash[s.ID]; fresh {
-		w.Transition(ui.ElementTransition{Animation: &theme.MotionSmooth, Enter: &ui.Motion{Collapse: true}})
+		w.Transition(ui.ElementTransition{Animation: &theme.MotionBase, Enter: &ui.Motion{Collapse: true}})
 	}
 	w.Children(func() { a.rowBody(c, k, s) })
 }
@@ -475,7 +477,7 @@ func (a *App) trailing(c *ui.Context, k theme.Colors, s proto.Session, hovered b
 		ui.Spinner(c).Size(theme.IconSmall, theme.IconSmall).Label("运行中")
 	case s.Status == proto.StatusWaiting:
 		ui.Box(c).Size(theme.Dot, theme.Dot).Radius(theme.RadiusPill).Background(k.Attn).Label("需要你").
-			Transition(ui.ElementTransition{Animation: &theme.MotionSnappy, Enter: &ui.Motion{Scale: theme.MotionScaleDot}})
+			Transition(ui.ElementTransition{Animation: &theme.MotionFast, Enter: &ui.Motion{Scale: theme.MotionScaleDot}})
 	case s.Status == proto.StatusErrored:
 		ui.Box(c).Size(theme.Dot, theme.Dot).Radius(theme.RadiusMark).Background(k.Fg).Label("出错")
 	case s.Unread:

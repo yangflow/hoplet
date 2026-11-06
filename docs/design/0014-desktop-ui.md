@@ -88,11 +88,11 @@ flowchart LR
 
 ## 尺寸
 
-全部取设计系统的 token。间距 2 · 4 · 6 · 8 · 12 · 16 · 24 · 32；圆角 4（小件）· 6（行）· 8（控件）· 10（卡片与弹层）· 14（大卡片）· 18（输入框与气泡）· 胶囊；高度：行 28、密集行 24、工作组的一步 32、标题栏 44；弹层宽 232 / 128 / 280（模型列 +40）；右列 220（文件树）/ 260（变更）；diff 竖条 3。窗口几何（侧栏、正文列、右栏的宽度与收起阈值）在 `layout.json`。
+全部取设计系统的 token。间距 2 · 4 · 6 · 8 · 12 · 16 · 24 · 32；圆角 4（小件）· 6（行）· 8（控件）· 10（卡片与弹层）· 14（大卡片）· 18（输入框与气泡）· 胶囊；高度：行 28、密集行 24、工作组的一步 32、标题栏 52（整排顶栏同高，与红绿灯同一中线；弹层顶行 44）；弹层宽 232 / 128 / 280（模型列 +40）；右列 260（文件树与变更同宽）；diff 竖条 3。窗口几何（侧栏、正文列、右栏的宽度与收起阈值）在 `layout.json`。
 
 ## 图标
 
- 界面用 Lucide（16 网格、1.4 描边、跟随文字色；尺寸 12 / 14 / 16，空状态 32；图标按钮 28，密集处 24，行尾小按钮 22；必须有悬停提示"名称 快捷键"）。审批档位用 Lucide 盾牌：shield-question-mark、shield-half、shield-check、shield-off。文件类型用 Material Icon Theme 彩色图标（官方 SVG 原样放在 `desktop/internal/icons/material/`，MIT），保留原色：工具行里读取 / 编辑的文件、改动卡片的每个文件前 14；会话详情的目录行用它的文件夹图标；正文里的文件链接不加（Markdown 行内插图标要绕开 MyGO 的渲染）。harness 标志单色、跟随文字色（`desktop/internal/icons/harness/`，原样使用，许可证在同目录）：Claude Code 用 Claude 星芒，Codex 用 OpenAI 花形标志，Hermes 用 Nous 女孩头像；没有标志的 harness 用首字母占位；名字写正式名 Claude Code、Codex、Hermes，不写内部代号。
+ 界面用 Lucide（16 网格、1.4 描边、跟随文字色；尺寸 12 / 14 / 16，空状态 32；图标按钮 28，密集处 24，行尾小按钮 22；分段切换（Personal / Code、文件树 / 变更）与图标按钮同高 28：每段 24 见方、外围 2；必须有悬停提示"名称 快捷键"）。审批档位用 Lucide 盾牌：shield-question-mark、shield-half、shield-check、shield-off。文件类型用 Material Icon Theme 彩色图标（官方 SVG 原样放在 `desktop/internal/icons/material/`，MIT），保留原色：工具行里读取 / 编辑的文件、改动卡片的每个文件前 14；会话详情的目录行用它的文件夹图标；正文里的文件链接不加（Markdown 行内插图标要绕开 MyGO 的渲染）。harness 标志单色、跟随文字色（`desktop/internal/icons/harness/`，原样使用，许可证在同目录）：Claude Code 用 Claude 星芒，Codex 用 OpenAI 花形标志，Hermes 用 Nous 女孩头像；没有标志的 harness 用首字母占位；名字写正式名 Claude Code、Codex、Hermes，不写内部代号。
 
 ## 标志
 
@@ -104,7 +104,7 @@ flowchart LR
 
 | 类别 | 规则 |
 |---|---|
-| 空间（弹簧） | 小件 `ui.Snappy`：弹层与菜单从 0.95 放大、分段与标签的选中块用 `Match` 滑到新位置、状态圆点从 0.6 出现、chevron 转向。大块 `ui.Smooth`：侧栏、右栏、会话详情开合用 `Size` 过渡加裁切；工作组、折叠条、排队托盘展开，列表行插入、移除、重排用 `Collapse`；输入框长高 |
+| 空间（曲线，不用弹簧） | 一律固定时长、不回弹。小件 `motion-fast`（120 ms EaseOut）：弹层与菜单从 0.95 放大、状态圆点从 0.6 出现、chevron 转向。大块 `motion-base`（200 ms EaseOut）：侧栏、右栏、会话详情开合改宽度并裁切，右栏一次移动超过侧栏宽度时时长按距离的平方根加长，最多 4/3；分段与标签的选中块用 `Match` 滑到新位置；工作组、折叠条、排队托盘展开，列表行插入、移除、重排用 `Collapse`；输入框长高。宽度变化时内容只跟随一次：正文区、对话列不再挂自己的过渡去追赶；面板内容按最终宽度排好再裁切，不逐帧重排；动画中的宽度取整到整点 |
 | 颜色与透明度 | 悬停、按下、退出、交叉淡化 120 ms EaseOut；进入 200 ms EaseOut，从下方 6 上移（消息、工作组的一步、改动卡、出错条）；退出向上 4（收件箱卡片、提示条）；提示条从标题栏下方向下 8 进入，停 4 秒，悬停不计时 |
 | 错开 | 同一刻进来的几步每项错开 30 ms，最多 5 项 |
 | 数字 | 用时、角标、计数逐位滚动 350 ms `CubicBezier(0.22, 1, 0.36, 1)` |
@@ -145,7 +145,7 @@ flowchart LR
 | 队列拖动 | `ListState.Reorder` |
 | Worktree / 开关 / 角标 | `ui.Checkbox` / `ui.Switch` / `ui.Badge` |
 | 提示条 | `c.AddToast` + `ui.ToastViewportBase` / `ui.ToastBase` |
-| 动效 | `Element.Jump` / `AnimateTo` / `AnimateColor` / `Transition` / `Match` / `Collapse`，弹簧 `ui.Snappy` / `ui.Smooth`，不自建计时器 |
+| 动效 | `Element.Jump` / `AnimateTo` / `AnimateColor` / `Transition` / `Match` / `Collapse`，曲线取 `motion` token，不用弹簧，不自建计时器 |
 | 悬停提示 | `Element.Tooltip` |
 | 头像 | 首字 + 中性灰底；`ui.Avatar` 按名字配色不符合单一彩色规范 |
 | 图标 | `ui.Icon`（Lucide）/ `ui.Image`（Material） |

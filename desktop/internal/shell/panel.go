@@ -4,6 +4,7 @@ import (
 	"math"
 	"path"
 	"strconv"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 
@@ -94,13 +95,20 @@ func (a *App) panelWidth(ps *panelState, room float32) (float32, bool) {
 	return w, w >= theme.PanelMin
 }
 
-// railWidth is the column's width: the file tree's or the changes'.
-func railWidth(ps *panelState) float32 {
-	if ps.column == columnChanges {
-		return theme.PanelChanges
-	}
-	return theme.PanelTree
+// panelMotion is how the panel goes from one width to another: along
+// motion-base, a wide move taking longer, up to a third more, so that it
+// travels at about the sidebar's pace rather than twice as fast.
+func panelMotion(from, to float32) ui.Animation {
+	scale := math.Sqrt(math.Abs(float64(to-from)) / theme.SidebarWidth)
+	scale = min(max(scale, 1), 4.0/3)
+	m := theme.MotionBase
+	m.Duration = time.Duration(float64(m.Duration) * scale)
+	return m
 }
+
+// railWidth is the column's width, the same for the file tree and the
+// changes: switching them moves nothing else.
+func railWidth(*panelState) float32 { return theme.PanelChanges }
 
 // makeRoom hides the sidebar when the panel, as it grows, fits only
 // without it.
@@ -186,12 +194,15 @@ func (a *App) main(c *ui.Context, k theme.Colors, room float32) {
 		target = 0
 	}
 	if target != a.panelTarget {
-		a.panelTarget, a.panelMoves = target, true
+		a.panelFrom, a.panelTarget, a.panelMoves = a.panelTarget, target, true
 	}
 	zoom := want && ps.zoom && len(ps.tabs) > 0
 	row := ui.Row(c).Grow(1).Shrink(1).MinWidth(0).AlignItems(ui.Stretch)
 	// Whole DIPs, as the sidebar's.
-	shown := float32(math.Round(float64(row.AnimateTo("panel", target, theme.MotionSmooth))))
+	if a.panelMoves && a.panelFrom != a.panelTarget {
+		a.panelMotion = panelMotion(a.panelFrom, target)
+	}
+	shown := float32(math.Round(float64(row.AnimateTo("panel", target, a.panelMotion))))
 	if a.panelMoves && (row.Arrived("panel") || math.Abs(float64(shown-target)) < 0.5) {
 		a.panelMoves = false
 		c.AnimationFrame()
@@ -399,9 +410,9 @@ func (a *App) railHead(c *ui.Context, k theme.Colors, s proto.Session, ps *panel
 				{columnChanges, a.icons.Changes, "变更 ⌥⌘D", changed},
 			} {
 				on := ps.column == opt.col
-				// As the sidebar's mode switch: a segment a row square, wider
-				// by the count it carries.
-				b := ui.Button(c.Key(opt.tip), "").Label(opt.tip).Tooltip(opt.tip).Height(theme.RowGroup).MinWidth(theme.Row).Padding(0).Gap(theme.Space1).
+				// As the sidebar's mode switch: a segment a dense row square,
+				// wider by the count it carries.
+				b := ui.Button(c.Key(opt.tip), "").Label(opt.tip).Tooltip(opt.tip).Height(theme.RowDense).MinWidth(theme.RowDense).Padding(0).Gap(theme.Space1).
 					Radius(theme.RadiusControl).Border(0, ui.Transparent).Background(ui.Transparent)
 				color := k.Muted
 				if on {
@@ -424,7 +435,7 @@ func (a *App) railHead(c *ui.Context, k theme.Colors, s proto.Session, ps *panel
 					// The raised block, its face on it, slides from the old
 					// column to the new.
 					pill := ui.Row(c.Key("pill")).Absolute().Left(0).Top(0).Fill().Gap(theme.Space1).Center().Radius(theme.RadiusControl).Background(k.Raised).
-						Transition(ui.ElementTransition{Match: railPill{}, Animation: &theme.MotionSnappy})
+						Transition(ui.ElementTransition{Match: railPill{}, Animation: &theme.MotionBase})
 					k.ShadowRaised.On(pill).Children(face)
 					// Under the block, the face keeps the button its width.
 					ui.Row(c).Gap(theme.Space1).Opacity(0).Children(face)

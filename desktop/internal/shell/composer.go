@@ -35,7 +35,7 @@ func (a *App) composer(c *ui.Context, k theme.Colors, s proto.Session, cv *convo
 		a.contextRow(c, k, s)
 	}
 	frame := ui.Column(c).FillWidth().Radius(theme.RadiusComposer).Clip().
-		Background(k.Surface).Border(theme.LineWidth, k.Line2).Transition(ui.ElementTransition{Size: true, Animation: &theme.MotionSmooth})
+		Background(k.Surface).Border(theme.LineWidth, k.Line2).Transition(ui.ElementTransition{Size: true, Animation: &theme.MotionBase})
 	k.ShadowComposer.On(frame)
 	switch {
 	case ap != nil || asked:
@@ -53,7 +53,7 @@ func (a *App) composer(c *ui.Context, k theme.Colors, s proto.Session, cv *convo
 				c.AnimationFrame()
 			}
 		} else {
-			ring.Spread = frame.AnimateTo("ring", k.RingAttn.Spread, theme.MotionSmooth)
+			ring.Spread = frame.AnimateTo("ring", k.RingAttn.Spread, theme.MotionBase)
 		}
 		ring.On(frame.Border(theme.LineWidth, k.AttnLine))
 	case !a.connected:

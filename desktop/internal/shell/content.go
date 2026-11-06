@@ -74,7 +74,9 @@ func (a *App) content(c *ui.Context, k theme.Colors) {
 		case ok:
 			// The details sit beside the conversation, not over it.
 			ui.Row(c).Grow(1).Shrink(1).MinHeight(0).AlignItems(ui.Stretch).Children(func() {
-				ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Transition(ui.ElementTransition{Animation: &theme.MotionSmooth}).Children(func() { a.conversation(c, k, s) })
+				// No transition of its own: it follows the details as they open,
+				// frame by frame, rather than chase them a beat behind.
+				ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Children(func() { a.conversation(c, k, s) })
 				if a.s.detailOpen {
 					ui.Scroll(c.Key("details")).Width(theme.DetailsWidth).ClipX().Transition(openMotion).Children(func() {
 						ui.Column(c).Padding(theme.Space3, theme.Space3, theme.Space3, 0).Gap(theme.Space3).Children(func() {
@@ -226,11 +228,6 @@ func (a *App) companionDetails(c *ui.Context, k theme.Colors, s proto.Session) {
 }
 
 // titleHeight is the height of the content area's title bar and of the
-// right panel's top rows beside it: the sidebar's top row's with the
-// sidebar hidden, where the traffic lights come down to it.
-func (a *App) titleHeight(bar ui.TitleBar) float32 {
-	if a.hideSide {
-		return topHeight(bar)
-	}
-	return theme.TitleBar
-}
+// right panel's top rows beside it: the sidebar's top row's, so that every
+// button along the top sits on the traffic lights' center line.
+func (a *App) titleHeight(bar ui.TitleBar) float32 { return topHeight(bar) }

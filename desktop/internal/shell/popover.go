@@ -20,11 +20,11 @@ var enterMotion = ui.ElementTransition{Animation: &theme.MotionBase, Enter: &ui.
 // openMotion is how a column beside the conversation opens and closes:
 // its width grows and shrinks, its content cut, the conversation moving
 // with it.
-var openMotion = ui.ElementTransition{Animation: &theme.MotionSmooth, Enter: &ui.Motion{Collapse: true}, Exit: &ui.Motion{Collapse: true}}
+var openMotion = ui.ElementTransition{Animation: &theme.MotionBase, Enter: &ui.Motion{Collapse: true}, Exit: &ui.Motion{Collapse: true}}
 
 // popMotion is how a popover comes and goes: from motion-scale-pop on the
 // snappy spring, out by fading.
-var popMotion = ui.ElementTransition{Animation: &theme.MotionSnappy, Enter: &ui.Motion{Scale: theme.MotionScalePop}, Exit: &ui.Motion{}}
+var popMotion = ui.ElementTransition{Animation: &theme.MotionFast, Enter: &ui.Motion{Scale: theme.MotionScalePop}, Exit: &ui.Motion{}}
 
 // popover shows a panel above anchor while *open, in the composer's look:
 // a 10-point card with a hairline and the popover shadow, 6 points apart

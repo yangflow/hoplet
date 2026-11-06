@@ -169,7 +169,7 @@ func shortLabel(k inboxKind) string {
 
 // inboxMotion is how a handled card goes: up a little and out, its room
 // closing, the cards under it moving up.
-var inboxMotion = ui.ElementTransition{Animation: &theme.MotionSmooth, Exit: &ui.Motion{Y: -theme.MotionLift, Collapse: true}}
+var inboxMotion = ui.ElementTransition{Animation: &theme.MotionBase, Exit: &ui.Motion{Y: -theme.MotionLift, Collapse: true}}
 
 // inboxPage is the inbox: what waits on me, grouped, handled on the cards.
 // ↑↓ move among the cards, ↩ opens the selected one's session, 1–3 choose
