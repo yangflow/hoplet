@@ -81,6 +81,12 @@ type Set struct {
 	Failed    *ui.SVG // a toast saying something did not happen
 	Inbox     *ui.SVG // the inbox
 	Open      *ui.SVG // open a session from elsewhere, as an inbox card
+
+	// The right panel.
+	Panel    *ui.SVG // show or hide the right panel
+	Tree     *ui.SVG // the file tree column
+	Changes  *ui.SVG // the changes column and tab
+	Maximize *ui.SVG // the viewer over the whole content area
 }
 
 // Load parses every icon.
@@ -150,6 +156,10 @@ func Load() (*Set, error) {
 		{&s.Failed, "lucide/circle-alert.svg"},
 		{&s.Inbox, "lucide/inbox.svg"},
 		{&s.Open, "lucide/external-link.svg"},
+		{&s.Panel, "lucide/panel-right.svg"},
+		{&s.Tree, "lucide/folder-tree.svg"},
+		{&s.Changes, "lucide/diff.svg"},
+		{&s.Maximize, "lucide/maximize-2.svg"},
 	} {
 		data, err := files.ReadFile(f.path)
 		if err != nil {

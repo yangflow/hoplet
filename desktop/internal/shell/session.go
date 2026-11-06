@@ -59,6 +59,8 @@ type sessionView struct {
 	modelFocus   bool                                          // the model search takes the focus this frame
 	modelPick    int                                           // the highlighted model, -1 for the current
 
+	panels map[proto.SessionID]*panelState // each Code session's right panel
+
 	newPage bool
 	newPick newChoice
 }

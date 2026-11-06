@@ -118,6 +118,11 @@ type App struct {
 	side      float32 // the sidebar's width, which its edge drags
 	away      bool    // the app is in the background or the window hidden
 
+	panelOpen  bool    // I opened the right panel
+	panelMoves bool    // the right panel is opening or closing
+	panelW     float32 // the right panel's width, which its edge drags
+	sideAuto   bool    // the right panel hid the sidebar to make room
+
 	inbox bool // the inbox page shows
 
 	// history is the pages I opened, oldest first; at is the current one,
@@ -140,7 +145,7 @@ type App struct {
 // page, as it is whenever no session is selected. changed is called from
 // the view whenever State changes.
 func New(set *icons.Set, host Host, changed func(State)) *App {
-	a := &App{icons: set, host: host, mode: proto.ModeCode, closed: map[string]bool{}, at: -1, changed: changed, s: newSessionView(), side: theme.SidebarWidth}
+	a := &App{icons: set, host: host, mode: proto.ModeCode, closed: map[string]bool{}, at: -1, changed: changed, s: newSessionView(), side: theme.SidebarWidth, panelW: theme.PanelWidth}
 	a.newSessionIn("")
 	return a
 }
@@ -194,7 +199,7 @@ func (a *App) SetMode(m proto.Mode) {
 }
 
 // ToggleSidebar hides or shows the sidebar.
-func (a *App) ToggleSidebar() { a.hideSide, a.sideMoves = !a.hideSide, true }
+func (a *App) ToggleSidebar() { a.hideSide, a.sideMoves, a.sideAuto = !a.hideSide, true, false }
 
 // maxHistory bounds how far Back goes.
 const maxHistory = 100
@@ -410,6 +415,7 @@ func (a *App) View(c *ui.Context) {
 		c.Root().Background(ui.Transparent)
 	}
 	a.side = min(max(a.side, sideMin(c.TitleBar())), theme.SidebarMax)
+	width, _ := c.Size()
 	// The sidebar opens and closes by its width, along motion-smooth; at
 	// rest and open it sits in a split its edge drags.
 	root := ui.Row(c).Fill().AlignItems(ui.Stretch)
@@ -425,14 +431,14 @@ func (a *App) View(c *ui.Context) {
 	root.Children(func() {
 		switch {
 		case !a.hideSide && !a.sideMoves:
-			ui.Split(c, &a.side, func() { a.sidebar(c, k) }, func() { a.content(c, k) }).Fill()
+			ui.Split(c, &a.side, func() { a.sidebar(c, k) }, func() { a.main(c, k, width-a.side, width) }).Fill()
 		default:
 			if a.sideMoves || !a.hideSide {
 				ui.Column(c).Width(shown).ClipX().Shrink(0).BorderWidth(0, theme.LineWidth, 0, 0).BorderColor(k.Line).Children(func() {
 					ui.Column(c).Width(a.side).Grow(1).Children(func() { a.sidebar(c, k) })
 				})
 			}
-			ui.Column(c).Grow(1).Shrink(1).MinWidth(0).AlignItems(ui.Stretch).Children(func() { a.content(c, k) })
+			ui.Row(c).Grow(1).Shrink(1).MinWidth(0).AlignItems(ui.Stretch).Children(func() { a.main(c, k, width-shown, width) })
 		}
 	})
 	a.toasts(c, k)

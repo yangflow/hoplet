@@ -61,6 +61,9 @@ func (a *App) content(c *ui.Context, k theme.Colors) {
 			if iconButton(c, k, a.icons.Details, tip, a.s.detailOpen).Clicked() || c.Shortcut(ui.Cmd, ui.KeyI) {
 				a.s.detailOpen = !a.s.detailOpen
 			}
+			if _, ok := a.panelSession(); ok && !a.panelOpen && iconButton(c, k, a.icons.Panel, "显示右栏 ⌥⌘I", false).Clicked() {
+				a.TogglePanel()
+			}
 		})
 		s, ok := a.current()
 		switch {
