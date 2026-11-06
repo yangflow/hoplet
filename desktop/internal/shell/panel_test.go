@@ -10,6 +10,18 @@ import (
 	"github.com/yangflow/hoplet/proto"
 )
 
+// panelShown reports whether the right panel is on screen.
+func panelShown(tt *ui.Tester) bool {
+	_, ok := tt.Find("收起右栏 ⌥⌘I")
+	return ok
+}
+
+// viewerShown reports whether the panel's viewer is on screen.
+func viewerShown(tt *ui.Tester) bool {
+	_, ok := tt.Find("放大到占满正文区")
+	return ok
+}
+
 // settle lets a panel or sidebar move finish.
 func settle(tt *ui.Tester) {
 	tt.Frame()
@@ -23,14 +35,14 @@ func TestPanelOpensAndCloses(t *testing.T) {
 	tt.SetSize(1700, 900)
 	a.Select("s1")
 	settle(tt)
-	if tt.HasText("从右侧打开文件或变更") {
+	if panelShown(tt) {
 		t.Fatal("the panel shows before it is opened")
 	}
 	if err := tt.Click("显示右栏 ⌥⌘I"); err != nil {
 		t.Fatal(err)
 	}
 	settle(tt)
-	if !tt.HasText("从右侧打开文件或变更") || a.hideSide {
+	if !panelShown(tt) || a.hideSide {
 		t.Fatalf("open with room for both: texts %q, sidebar hidden %v", tt.Texts(), a.hideSide)
 	}
 	if _, ok := tt.Find("显示右栏 ⌥⌘I"); ok {
@@ -40,23 +52,24 @@ func TestPanelOpensAndCloses(t *testing.T) {
 		t.Fatal(err)
 	}
 	settle(tt)
-	if tt.HasText("从右侧打开文件或变更") {
+	if panelShown(tt) {
 		t.Error("the panel stays after closing")
 	}
 }
 
 // TestPanelMakesRoom opens the panel in a window too narrow for the
-// sidebar, the conversation and the panel: the sidebar goes, and comes back
-// when the panel closes. Narrower still, the panel waits for room.
+// sidebar, the conversation and the panel's column: the sidebar goes, and
+// comes back when the panel closes. Narrower still, the panel waits for
+// room.
 func TestPanelMakesRoom(t *testing.T) {
 	a, _, tt, _ := newApp(t)
-	tt.SetSize(theme.WindowWidth, theme.WindowHeight)
+	tt.SetSize(1000, 700)
 	a.Select("s1")
 	settle(tt)
 	a.TogglePanel()
 	settle(tt)
-	if !a.hideSide || !tt.HasText("从右侧打开文件或变更") {
-		t.Fatalf("1440 wide: sidebar hidden %v, texts %q", a.hideSide, tt.Texts())
+	if !a.hideSide || !panelShown(tt) {
+		t.Fatalf("1000 wide: sidebar hidden %v, panel shown %v", a.hideSide, panelShown(tt))
 	}
 	a.TogglePanel()
 	settle(tt)
@@ -64,11 +77,58 @@ func TestPanelMakesRoom(t *testing.T) {
 		t.Error("the sidebar stays hidden after the panel closed")
 	}
 
-	tt.SetSize(1000, 700)
+	tt.SetSize(700, 700)
 	a.TogglePanel()
 	settle(tt)
-	if tt.HasText("从右侧打开文件或变更") {
+	if panelShown(tt) {
 		t.Error("the panel shows with less than content-min left for the conversation")
+	}
+}
+
+// TestPanelViewerOnOpen checks that the viewer comes with the first tab
+// and goes with the last: until then the panel is its column alone.
+func TestPanelViewerOnOpen(t *testing.T) {
+	a, _, tt, _ := newApp(t)
+	tt.SetSize(theme.WindowWidth, theme.WindowHeight)
+	a.Select("s1")
+	a.TogglePanel()
+	settle(tt)
+	if !panelShown(tt) || viewerShown(tt) {
+		t.Fatalf("opened: panel %v, viewer %v", panelShown(tt), viewerShown(tt))
+	}
+	ps := a.panelFor("s1")
+	a.openTab(ps, panelTab{path: "cmd/main.go"})
+	settle(tt)
+	if !viewerShown(tt) || a.hideSide {
+		t.Fatalf("a file open at 1440: viewer %v, sidebar hidden %v", viewerShown(tt), a.hideSide)
+	}
+	if want := float32(theme.WindowWidth) - a.side - theme.ContentMin; a.panelTarget != want {
+		t.Errorf("the panel is %v wide beside the sidebar, want %v", a.panelTarget, want)
+	}
+	a.closeTab(ps, 0)
+	settle(tt)
+	if viewerShown(tt) || !panelShown(tt) {
+		t.Errorf("last tab closed: viewer %v, panel %v", viewerShown(tt), panelShown(tt))
+	}
+}
+
+// TestPanelYieldsToSidebar shows the sidebar the panel hid: it stays, and
+// the panel that no longer fits beside it closes.
+func TestPanelYieldsToSidebar(t *testing.T) {
+	a, _, tt, _ := newApp(t)
+	tt.SetSize(1000, 700)
+	a.Select("s1")
+	settle(tt)
+	a.TogglePanel()
+	settle(tt)
+	if !a.hideSide {
+		t.Fatal("the panel did not hide the sidebar")
+	}
+	a.ToggleSidebar()
+	settle(tt)
+	settle(tt)
+	if a.hideSide || a.panelOpen || panelShown(tt) {
+		t.Errorf("sidebar hidden %v, panel open %v, shown %v", a.hideSide, a.panelOpen, panelShown(tt))
 	}
 }
 
@@ -82,7 +142,7 @@ func TestPanelOnlyForCodeSessions(t *testing.T) {
 	}
 	a.TogglePanel()
 	settle(tt)
-	if a.panelOpen || tt.HasText("从右侧打开文件或变更") {
+	if a.panelOpen || panelShown(tt) {
 		t.Error("the panel opened for a companion")
 	}
 }
@@ -101,7 +161,7 @@ func TestPanelKeepsEachSession(t *testing.T) {
 	}
 	a.Select("s2")
 	settle(tt)
-	if a.panelFor("s2").column != columnTree || tt.HasText("main.go") || !tt.HasText("从右侧打开文件或变更") {
+	if a.panelFor("s2").column != columnTree || tt.HasText("main.go") || !panelShown(tt) {
 		t.Errorf("s2 shows s1's panel: texts %q", tt.Texts())
 	}
 	a.Select("s1")
