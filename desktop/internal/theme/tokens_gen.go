@@ -176,8 +176,8 @@ const (
 
 // Fixed sizes, in points.
 const (
-	TitleBar         = 44
-	SideTop          = 52
+	TitleBar         = 52
+	BarCompact       = 44
 	Row              = 28
 	RowDense         = 24
 	RowStep          = 32
@@ -200,8 +200,7 @@ const (
 	SidebarMin       = 220
 	SidebarMax       = 360
 	PanelWidth       = 640
-	PanelTree        = 220
-	PanelChanges     = 260
+	PanelRail        = 260
 	PanelMin         = 420
 	PanelMax         = 960
 	ContentMin       = 560
@@ -229,8 +228,6 @@ const (
 var (
 	MotionFast                = ui.Animation{Duration: 120 * time.Millisecond, Ease: ui.CubicBezier(0, 0, 0.58, 1)}
 	MotionBase                = ui.Animation{Duration: 200 * time.Millisecond, Ease: ui.CubicBezier(0, 0, 0.58, 1)}
-	MotionSnappy              = ui.Snappy
-	MotionSmooth              = ui.Smooth
 	MotionRoll                = ui.Animation{Duration: 350 * time.Millisecond, Ease: ui.CubicBezier(0.22, 1, 0.36, 1)}
 	MotionPulse               = ui.Animation{Duration: 600 * time.Millisecond, Ease: ui.CubicBezier(0.22, 1, 0.36, 1)}
 	MotionLoop                = ui.Animation{Duration: 1200 * time.Millisecond, Ease: ui.Linear}

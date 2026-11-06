@@ -131,7 +131,7 @@ func topHeight(bar ui.TitleBar) float32 {
 	if bar.Height > 0 {
 		return bar.Height
 	}
-	return theme.SideTop
+	return theme.TitleBar
 }
 
 // windowButtons are the buttons beside the traffic lights: hide or show
@@ -579,7 +579,7 @@ func (a *App) sessionMenu(m *ui.Menu, s proto.Session) {
 // and switches to the archived sessions. Other machines and paired
 // devices come with several machines; settings come with settings.
 func (a *App) footer(c *ui.Context, k theme.Colors) {
-	theme.Bar.P(0, theme.Space2, 0, theme.Space3).On(ui.Row(c)).Children(func() {
+	theme.Bar.H(theme.BarCompact).P(0, theme.Space2, 0, theme.Space3).On(ui.Row(c)).Children(func() {
 		ui.Row(c).Height(theme.Row).Padding(0, theme.Space1Half).Gap(theme.Space2).AlignItems(ui.Center).Radius(theme.RadiusControl).Grow(1).Shrink(1).Children(func() {
 			ui.Icon(c, a.icons.Machine).FontSize(theme.Icon).TextColor(k.Fg3)
 			machine := a.machine

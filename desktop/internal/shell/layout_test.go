@@ -35,7 +35,7 @@ func TestLayoutFromTokens(t *testing.T) {
 		t.Fatal("no details button")
 	}
 	near("title bar button", details.H, theme.Row)
-	near("title bar middle", details.Y+details.H/2, theme.SideTop/2) // on the traffic lights' line
+	near("title bar middle", details.Y+details.H/2, theme.TitleBar/2) // on the traffic lights' line
 	stop, ok := tt.Find("停止 ⎋")
 	if !ok {
 		t.Fatal("no stop button")

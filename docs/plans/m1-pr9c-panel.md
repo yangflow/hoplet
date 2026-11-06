@@ -122,17 +122,18 @@ func (a *App) OpenFilePicker()       // ⌘P
 
 ### 任务 1：设计同步与画板补齐
 
-- [ ] 0024“右栏”与“M1 范围”：裁决 1、2、5 写进去（M1 不显示范围三段、撤销、终端；打开方式弹层只有用默认应用打开、复制路径）；0008“当前目录与隔离边界”的文件 / diff 行与 0005 的方法表加 `files.list` / `files.read` 及上面的读取规则；0019 的 M1 交付边界同步。
-- [ ] 画板补 M1 状态（深浅各一）：变更列无三段；无改动（“没有改动”）；目录不是 git 仓库（变更列一行说明，文件树照常）；基线缺失（变更列写原因）；文件标签：二进制、超过 2 MiB、已删除、读取失败；文件树：加载中、空目录、列举被截断；⌘P 与命令面板“文件”范围（有结果、无匹配）；打开方式弹层的新内容；右栏收起时标题栏的 `panel-right` 按钮。
-- [ ] 请维护者确认；确认后同步设计系统的 RightPanel 组件 README / preview 与 `mygo.md` 对应表。
-- [ ] commit：`docs(design): settle the right panel for M1`
+- [x] 0024“右栏”与“M1 范围”：裁决 1、2、5 写进去（M1 不显示范围三段、撤销、终端；打开方式弹层只有用默认应用打开、复制路径）；0008“当前目录与隔离边界”的文件 / diff 行与 0005 的方法表加 `files.list` / `files.read` 及上面的读取规则；0019 的 M1 交付边界同步。
+- [x] 画板补 M1 状态（深浅各一）：变更列无三段；无改动（“没有改动”）；目录不是 git 仓库（变更列一行说明，文件树照常）；基线缺失（变更列写原因）；文件标签：二进制、超过 2 MiB、已删除、读取失败；文件树：加载中、空目录、列举被截断；⌘P 与命令面板“文件”范围（有结果、无匹配）；打开方式弹层的新内容；右栏收起时标题栏的 `panel-right` 按钮。
+- [x] 请维护者确认。
+- [x] 同步设计系统：右栏各组件的 README / preview 与 `mygo.md` 对应表；任务 4 修正后的尺寸与动效同步进 `tokens.json`、README 与画板（`titlebar` 52、新增 `bar-compact` 44 并去掉 `side-top`，右列只留 `panel-rail` 260，去掉弹簧 `motion-snappy` / `motion-smooth`；只有右列时查看区不出现，旧的空查看区状态删去）。
+- [x] commit：`docs(design): settle the right panel and the color layers`
 
 ### 任务 2：协议
 
 文件：`proto/api.go`、`proto/api_test.go`。（Swift 类型与向量随 M2 的 iOS 一起建立，现在仓库里还没有。）
 
 - [x] 加上面的类型与方法常量；线格式测试（表驱动，含 `omitempty` 的空值）。
-- [ ] commit：`feat(proto): add read-only file listing and reading`
+- [x] commit：`feat(proto): add read-only file listing and reading`
 
 ### 任务 3：守护进程的文件读取
 
@@ -147,9 +148,9 @@ func (a *App) OpenFilePicker()       // ⌘P
 
 文件：新 `desktop/internal/shell/panel.go`、`panel_test.go`；`app.go`、`content.go`、`desktop/main.go`（菜单与快捷键）。
 
-- [x] 右栏：宽取 `layout.json`（默认 640，可拖 420–960，`ui.Split`）；默认收起，⌥⌘I 与标题栏 `panel-right` 开合，`Smooth` 尺寸过渡加裁切；正文区窄于 560 时自动收起；只对 Code 会话出现。
-- [x] 查看区标签栏（高 44）：标签 = 图标 + 名字，当前 `raised` 底、`ui-medium`、带 ✕；＋ 菜单只有“文件 ⌘P”；最右 ⤢ 放大到占满正文区（再按或 ⎋ 还原）。没有标签时查看区空状态。
-- [x] 右列（宽 220 文件树 / 260 变更）：顶栏与标签栏同高，切换 文件树 / 变更（带改动数），最右收起右栏；⌥⌘E / ⌥⌘D 打开右栏并切到对应列。边界只在右栏左边与右列左边各一条 `line`。
+- [x] 右栏：宽取 `layout.json`（默认 640，可拖 420–960，`ui.Split`）；默认收起，⌥⌘I 与标题栏 `panel-right` 开合；打开时只有右列，开第一个标签时查看区从左侧展开、关掉最后一个时收起；宽度沿 `motion-base` 变化并裁切；正文区留不下 560 时右栏先变窄、再收起侧栏，你打开侧栏时侧栏优先；只对 Code 会话出现。
+- [x] 查看区标签栏（高 52，与标题栏同高）：标签 = 图标 + 名字，当前 `raised` 底、`ui-medium`、带 ✕；＋ 菜单只有“文件 ⌘P”；最右 ⤢ 放大到占满正文区（再按或 ⎋ 还原）。
+- [x] 右列（宽 260，文件树与变更同宽）：顶栏与标签栏同高，切换 文件树 / 变更（带改动数），最右收起右栏；⌥⌘E / ⌥⌘D 打开右栏并切到对应列。边界只在右栏左边与右列左边各一条 `line`。
 - [x] 菜单栏“视图”：右栏 ⌥⌘I、文件树 ⌥⌘E、变更 ⌥⌘D（快捷键只放在菜单里，同 ⌃⌘S，视图里不再重复接）；打开文件 ⌘P 与“编辑 › 复制路径 ⌥⌘C”随任务 6、7。
 - [x] 测试：⌥⌘I 开合；窄窗口自动收起；Personal 会话没有右栏；切会话时右栏状态按会话保留（打开的标签、所选列）。
 - [x] commit：`feat(desktop): add the right panel frame`

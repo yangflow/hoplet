@@ -158,7 +158,7 @@
    "gap": "space-1_5",
    "align": "center",
    "width": "fill",
-   "usage": "标题栏、右栏顶栏、侧栏底栏：左边内容，spacer，右边按钮。"
+   "usage": "标题栏、右栏的标签栏与右列顶栏：左边内容，spacer，右边按钮。侧栏底栏同样排，高换成 bar-compact。"
   },
   {
    "name": "column",

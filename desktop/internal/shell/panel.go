@@ -108,7 +108,7 @@ func panelMotion(from, to float32) ui.Animation {
 
 // railWidth is the column's width, the same for the file tree and the
 // changes: switching them moves nothing else.
-func railWidth(*panelState) float32 { return theme.PanelChanges }
+func railWidth(*panelState) float32 { return theme.PanelRail }
 
 // makeRoom hides the sidebar when the panel, as it grows, fits only
 // without it.
