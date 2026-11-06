@@ -37,6 +37,7 @@ type panelState struct {
 	column panelColumn
 	zoom   bool
 	focus  bool // the spread viewer takes the focus in its next frame
+	ch     changesTab
 }
 
 // railPill is the identity of the column switch's raised block.
@@ -227,7 +228,7 @@ func (a *App) main(c *ui.Context, k theme.Colors, room float32) {
 			}
 			col.Children(func() {
 				ui.Row(c).Grow(1).AlignItems(ui.Stretch).Children(func() {
-					a.viewer(c, k, ps, 0)
+					a.viewer(c, k, s, ps, 0)
 					a.rail(c, k, s, ps, railWidth(ps))
 				})
 			})
@@ -235,7 +236,7 @@ func (a *App) main(c *ui.Context, k theme.Colors, room float32) {
 			first := room - target
 			sp := ui.Split(c, &first, func() { a.content(c, k) }, func() {
 				ui.Row(c).Grow(1).AlignItems(ui.Stretch).Children(func() {
-					a.viewer(c, k, ps, 0)
+					a.viewer(c, k, s, ps, 0)
 					a.rail(c, k, s, ps, railWidth(ps))
 				})
 			})
@@ -255,7 +256,7 @@ func (a *App) main(c *ui.Context, k theme.Colors, room float32) {
 			rail := railWidth(ps)
 			ui.Row(c).Width(shown).ClipX().Shrink(0).AlignItems(ui.Stretch).BorderWidth(0, 0, 0, theme.LineWidth).BorderColor(k.Line).Children(func() {
 				if viewer {
-					a.viewer(c, k, ps, max(a.panelW, shown)-rail)
+					a.viewer(c, k, s, ps, max(a.panelW, shown)-rail)
 					a.rail(c, k, s, ps, rail)
 					return
 				}
@@ -268,10 +269,12 @@ func (a *App) main(c *ui.Context, k theme.Colors, room float32) {
 // viewer draws the panel's viewer: its tabs over the current tab. With
 // width 0 it fills what the column leaves; otherwise it keeps that width,
 // clipped from the left, while the panel opens or closes.
-func (a *App) viewer(c *ui.Context, k theme.Colors, ps *panelState, width float32) {
+func (a *App) viewer(c *ui.Context, k theme.Colors, s proto.Session, ps *panelState, width float32) {
 	outer := ui.Row(c).Grow(1).Shrink(1).MinWidth(0).AlignItems(ui.Stretch).Justify(ui.End).ClipX()
 	outer.Children(func() {
-		col := ui.Column(c).Background(k.Pane).AlignItems(ui.Stretch)
+		// The pane lies under each part rather than the whole: the
+		// changes' editors lay their own.
+		col := ui.Column(c).AlignItems(ui.Stretch)
 		if width > 0 {
 			col.Width(width).Shrink(0)
 		} else {
@@ -279,7 +282,11 @@ func (a *App) viewer(c *ui.Context, k theme.Colors, ps *panelState, width float3
 		}
 		col.Children(func() {
 			a.panelTabs(c, k, ps)
-			ui.Box(c).Grow(1) // the tab's content comes with the changes and the file view
+			if ps.active >= 0 && ps.active < len(ps.tabs) && ps.tabs[ps.active].changes {
+				ui.Column(c).Grow(1).MinHeight(0).AlignItems(ui.Stretch).Children(func() { a.changesView(c, k, s, ps) })
+				return
+			}
+			ui.Box(c).Grow(1).Background(k.Pane) // a file's view comes with the file tree
 		})
 	})
 }
@@ -289,7 +296,11 @@ func (a *App) viewer(c *ui.Context, k theme.Colors, ps *panelState, width float3
 func (a *App) rail(c *ui.Context, k theme.Colors, s proto.Session, ps *panelState, width float32) {
 	ui.Column(c).Width(width).Shrink(0).Background(k.Side).BorderWidth(0, 0, 0, theme.LineWidth).BorderColor(k.Line).Children(func() {
 		a.railHead(c, k, s, ps)
-		ui.Box(c).Grow(1) // the file tree or the changes
+		if ps.column == columnChanges {
+			a.changesColumn(c, k, s, ps)
+			return
+		}
+		ui.Box(c).Grow(1) // the file tree
 	})
 }
 
@@ -306,7 +317,7 @@ func (a *App) panelTabs(c *ui.Context, k theme.Colors, ps *panelState) {
 	if lights {
 		left = bar.Left + theme.Space4
 	}
-	ui.Row(c).Height(h).Padding(0, theme.Space2, 0, left).Gap(theme.SpaceHalf).AlignItems(ui.Center).DragWindow().Children(func() {
+	ui.Row(c).Height(h).Padding(0, theme.Space2, 0, left).Gap(theme.SpaceHalf).AlignItems(ui.Center).Background(k.Pane).DragWindow().Children(func() {
 		if lights {
 			ui.Row(c).Gap(theme.SpaceHalf).Children(func() { a.windowButtons(c, k) })
 		}

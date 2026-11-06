@@ -21,6 +21,9 @@ import (
 type host struct {
 	sendErr    error // what Send answers
 	diffs      map[proto.SessionID]proto.SessionDiff
+	patched    []proto.SessionID // the sessions DiffPatch was asked for
+	held       bool              // DiffPatch answers only when pending runs
+	pending    func()
 	reconnects int
 	updates    []proto.UpdateParams
 	stopped    []proto.SessionID
@@ -85,6 +88,16 @@ func (h *host) Older(id proto.SessionID, before uint64, _ func(proto.EventsPage)
 func (h *host) Diff(id proto.SessionID, done func(proto.SessionDiff)) {
 	if d, ok := h.diffs[id]; ok {
 		done(d)
+	}
+}
+func (h *host) DiffPatch(id proto.SessionID, done func(proto.SessionDiff, error)) {
+	h.patched = append(h.patched, id)
+	if h.held {
+		h.pending = func() { h.DiffPatch(id, done) }
+		return
+	}
+	if d, ok := h.diffs[id]; ok {
+		done(d, nil)
 	}
 }
 func (h *host) Reconnect()                               { h.reconnects++ }

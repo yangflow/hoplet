@@ -247,6 +247,18 @@ func (c *Convo) Context() (proto.ContextUsage, bool) {
 	return c.context, c.context.Used > 0
 }
 
+// Changed returns the seq of the last event that can change the session's
+// files, a turn ending or a file changing; 0 with none held.
+func (c *Convo) Changed() uint64 {
+	for i := len(c.events) - 1; i >= 0; i-- {
+		switch c.events[i].Type {
+		case proto.TypeTurnEnded, proto.TypeFileChange:
+			return c.events[i].Seq
+		}
+	}
+	return 0
+}
+
 // Queue returns the messages waiting for the turn to end.
 func (c *Convo) Queue() []proto.QueuedMessage { return c.queue }
 

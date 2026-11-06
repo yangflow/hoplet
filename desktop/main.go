@@ -303,6 +303,26 @@ func (d *desktop) Diff(id proto.SessionID, done func(proto.SessionDiff)) {
 	})
 }
 
+// DiffPatch implements shell.Host.
+func (d *desktop) DiffPatch(id proto.SessionID, done func(proto.SessionDiff, error)) {
+	d.mu.Lock()
+	c := d.c
+	d.mu.Unlock()
+	if c == nil {
+		done(proto.SessionDiff{}, errors.New("没有连上守护进程"))
+		return
+	}
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), outputTimeout)
+		defer cancel()
+		diff, err := c.Diff(ctx, proto.DiffParams{Session: id, Patch: true})
+		if errors.Is(err, context.DeadlineExceeded) {
+			err = errors.New("等了 10 秒没有回应")
+		}
+		d.ui(func() { done(diff, err) })
+	}()
+}
+
 // Reconnect implements shell.Host.
 func (d *desktop) Reconnect() {
 	select {

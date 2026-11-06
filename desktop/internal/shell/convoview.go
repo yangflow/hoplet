@@ -852,9 +852,9 @@ func toolVerb(tc proto.ToolCall) string {
 
 // changes draws the files a turn changed, at the end of its reply: a
 // 36-point header with the count and the lines added and removed, then
-// each file with its status, path and lines, from the session's diff. The
-// rows open the file's diff in the right panel once there is one; undoing
-// comes with checkpoints.
+// each file with its status, path and lines, from the session's diff. A
+// row opens the right panel's changes on its file; undoing comes with
+// checkpoints.
 func (a *App) changes(c *ui.Context, k theme.Colors, s proto.Session, it convo.Item) {
 	d := a.diff(s)
 	var add, del int
@@ -874,9 +874,13 @@ func (a *App) changes(c *ui.Context, k theme.Colors, s proto.Session, it convo.I
 			}
 		})
 		for i, f := range it.Files {
-			r := ui.Row(c.Key(f.Path)).Padding(theme.Space1Half, theme.Space3).Gap(theme.Space2).AlignItems(ui.Center)
+			key := relPath(s.Directory, f.Path)
+			r := ui.Row(c.Key(f.Path)).Padding(theme.Space1Half, theme.Space3).Gap(theme.Space2).AlignItems(ui.Center).Label(key)
 			if r.Hovered() {
 				r.Background(k.Fill)
+			}
+			if r.Clicked() {
+				a.showChange(s, key)
 			}
 			r.Children(func() {
 				ui.Text(c, opLetter(f.Op)).Font(theme.Mono).FontSize(theme.Secondary.Size()).TextColor(k.Muted).Width(theme.IconSmall)

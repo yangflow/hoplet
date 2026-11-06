@@ -139,7 +139,8 @@ flowchart LR
 | 侧栏与键盘 | `ui.Row` + 悬停 / 点击 / 右键；可聚焦元素以 `Shortcut` 接键。`ui.SidebarItem` / `ui.List.Selected` 的强调色选中底不符合中性灰选中规范 |
 | 分段 / 标签 | `ui.Segmented` / `ui.Tabs` |
 | 拖动宽度 | `ui.Split`；原生分隔线，悬停 / 拖动时强调色 |
-| Markdown / diff / 文件树 | `markdown.Stream` / `editor.DiffView` / `ui.Tree` |
+| Markdown / diff | `markdown.Stream` / `editor.DiffView`（变更标签每个文件一个 `SetPatch` + `FitContent`，折叠条用 `RenderSeparator`；行的底色由 DiffView 按 `add` / `del` 与 `pane` 混出，与 `add-bg` / `del-bg` 相近而不逐值相同） |
+| 文件树 / 变更树 | `ui.Row` 自己画行（Lucide chevron、文件图标、行尾 M / A / D 与计数）+ `Shortcut` 接 ↑↓←→↩：`ui.Tree` 的项只有文字，`ui.Outline` 的选中是强调色填满 |
 | 弹层 | `ui.PopoverBase` + `AttachTo`；`surface-float`、`radius-card`、内边距 `space-1_5`、`line2` + `shadow-popover`，菜单项高 `row` / `radius-row` |
 | 模型与强度菜单 | 嵌套 `ui.PopoverBase` 承载搜索、右侧值和开关；`PopoverMenu` 文字项不足以表达这些控件 |
 | 队列拖动 | `ListState.Reorder` |

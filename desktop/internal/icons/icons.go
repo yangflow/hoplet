@@ -83,10 +83,11 @@ type Set struct {
 	Open      *ui.SVG // open a session from elsewhere, as an inbox card
 
 	// The right panel.
-	Panel    *ui.SVG // show or hide the right panel
-	Tree     *ui.SVG // the file tree column
-	Changes  *ui.SVG // the changes column and tab
-	Maximize *ui.SVG // the viewer over the whole content area
+	Panel      *ui.SVG // show or hide the right panel
+	Tree       *ui.SVG // the file tree column
+	Changes    *ui.SVG // the changes column and tab
+	Maximize   *ui.SVG // the viewer over the whole content area
+	SideBySide *ui.SVG // a diff's old and new side by side
 }
 
 // Load parses every icon.
@@ -160,6 +161,7 @@ func Load() (*Set, error) {
 		{&s.Tree, "lucide/folder-tree.svg"},
 		{&s.Changes, "lucide/diff.svg"},
 		{&s.Maximize, "lucide/maximize-2.svg"},
+		{&s.SideBySide, "lucide/columns-2.svg"},
 	} {
 		data, err := files.ReadFile(f.path)
 		if err != nil {

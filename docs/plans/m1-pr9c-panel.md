@@ -34,7 +34,7 @@ flowchart LR
 
 - 不新增 Go 依赖；新图标只用 Lucide 1.66.0 官方 SVG（9c 要用的已在 #21 加入），文件图标用已有的 Material Icon Theme 5.40.0。
 - 只读：守护进程新接口不写用户目录、不写用户仓库，直接读用户仓库的 git 命令只增加 `check-ignore --no-index`（同 0022 的安全环境）。
-- 只用 MyGO 自带的组件与做法：`ui.Split`、`ui.Tabs` / `Segmented`、`ui.Tree`、`editor.DiffView`、只读 `editor`（`ReadOnly`）、`ui.PopoverBase`、`Shortcut`、`Transition` / `AnimateTo`；不自己写计时器与浮层。
+- 只用 MyGO 自带的组件与做法：`ui.Split`、`ui.Tabs` / `Segmented`、`editor.DiffView`、只读 `editor`（`ReadOnly`）、`ui.PopoverBase`、`Shortcut`、`Transition` / `AnimateTo`；不自己写计时器与浮层。
 - 尺寸、颜色、时长只取 `theme` 的 token（守卫测试）；新尺寸先进设计系统再 `go generate`。
 - 代码、注释、commit 用英文；设计文档与界面文字中文；改了 `proto/` 运行 `make gen`。
 - 视图用 `ui.Tester` 测；测试不访问网络、不碰真实的 `~/.hoplet`；不用 sleep 同步。
@@ -95,7 +95,7 @@ type FileContent struct {
 }
 
 // shell.Host 新增：
-DiffPatch(id proto.SessionID, done func(proto.SessionDiff)) // sessions.diff，Patch: true
+DiffPatch(id proto.SessionID, done func(proto.SessionDiff, error)) // sessions.diff，Patch: true
 Files(p proto.FilesListParams, done func(proto.FileList, error))
 ReadFile(p proto.FilesReadParams, done func(proto.FileContent, error))
 Open(path string)     // 用默认应用打开（MyGO OpenPath）
@@ -159,12 +159,12 @@ func (a *App) OpenFilePicker()       // ⌘P
 
 文件：新 `desktop/internal/shell/changes.go`、`changes_test.go`；`session.go`（改动卡点文件）。
 
-- [ ] 变更列：汇总“N 个文件 · +a −b”· 每个仓库一节（仓库名 · 分支 · 合计；无改动写“无改动”；`error` / `missing` 写原因）· 按目录成树（`ui.Tree`，行高 24、缩进 16，状态 M / A / D / R，M、R 中性灰）。点文件打开唯一的“变更”标签并滚到该文件。
-- [ ] 变更标签：所有改动文件的 diff 连续排开（每个文件一个 `DiffState.SetPatch`，`FitContent`，外层一个滚动视图）；文件标题行 ⌄ · 状态 · 文件图标 · 文件名 · 目录 · +/− · 打开文件；折叠条用 `RenderSeparator`：由相邻 hunk 的行号算“N 行未改动”，后接 hunk 头里的函数名；标题行与折叠条不铺底；增删行 `add-bg` / `del-bg` + 3 宽竖条（`DiffBars`）。二进制、带 filter、被截断的文件各一行说明。
-- [ ] 刷新：打开右栏、`TurnEnded`、`FileChange` 时请求，`sha` 不变的仓库不重建。
-- [ ] 正文区改动卡：点文件打开右栏的变更标签并滚到该文件（9b 留下的）。
-- [ ] 测试：分组与汇总（纯函数，表驱动：多仓库、子仓库、无改动、出错、重命名）；N 行未改动的计算（表驱动，含首尾）；点变更列的文件滚到对应文件；sha 不变不重建；点改动卡的文件打开变更标签。
-- [ ] commit：`feat(desktop): show a session's changes in the panel`
+- [x] 变更列：汇总“N 个文件 · +a −b”· 每个仓库一节（仓库名 · 分支 · 合计；无改动写“无改动”；`error` / `missing` 写原因）· 按目录成树（自己画行，同侧栏：`ui.Tree` 的项只有文字、`ui.Outline` 的选中是强调色填满；行高 24、缩进 16，状态 M / A / D / R，M、R 中性灰）。点文件打开唯一的“变更”标签并滚到该文件。
+- [x] 变更标签：所有改动文件的 diff 连续排开（每个文件一个 `DiffState.SetPatch`，`FitContent`，外层一个滚动视图）；文件标题行 ⌄ · 状态 · 文件图标 · 文件名 · 目录 · +/− · 打开文件；折叠条用 `RenderSeparator`：由相邻 hunk 的行号算“N 行未改动”，后接 hunk 头里的函数名；标题行与折叠条不铺底；增删行 `add-bg` / `del-bg` + 3 宽竖条（`DiffBars`）。二进制、带 filter、被截断的文件各一行说明。
+- [x] 刷新：打开右栏、`TurnEnded`、`FileChange` 时请求，`sha` 不变的仓库不重建。
+- [x] 正文区改动卡：点文件打开右栏的变更标签并滚到该文件（9b 留下的）。
+- [x] 测试：分组与汇总（纯函数，表驱动：多仓库、子仓库、无改动、出错、重命名）；N 行未改动的计算（表驱动，含首尾）；点变更列的文件滚到对应文件；sha 不变不重建；点改动卡的文件打开变更标签。
+- [x] commit：`feat(desktop): show a session's changes in the panel`
 
 ### 任务 6：文件树与文件查看
 

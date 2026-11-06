@@ -47,6 +47,9 @@ type Host interface {
 	Output(p proto.OutputParams, done func(proto.ToolOutput, error))
 	// Diff reads a session's changes since it began, without patches.
 	Diff(id proto.SessionID, done func(proto.SessionDiff))
+	// DiffPatch reads them with their patches; done follows with the
+	// answer or why there is none.
+	DiffPatch(id proto.SessionID, done func(proto.SessionDiff, error))
 	// Reconnect tries the daemon now rather than at the next retry.
 	Reconnect()
 	// Older pages back through a session's events before seq.
