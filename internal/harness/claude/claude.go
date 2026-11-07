@@ -327,6 +327,10 @@ func (h *Harness) Attach(ctx context.Context, spec harness.Spec, io harness.Stdi
 	return r, nil
 }
 
+// KeepsPersona reports that Claude Code keeps the system prompt a session
+// started with: a resumed session ignores a changed --append-system-prompt.
+func (h *Harness) KeepsPersona() bool { return true }
+
 func (h *Harness) setModels(m []proto.ModelInfo) {
 	st, err := binaryStamp(h.Binary)
 	if err != nil {

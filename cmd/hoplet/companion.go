@@ -25,9 +25,10 @@ persona (persona.md) and the main session that talks as it. Its name is the
 main session's title (hoplet session set ID --title NAME renames it).
 
 persona prints the persona; --set replaces it with FILE, or standard input
-for -, and says when the change takes effect: Claude Code reads it when the
-main session next starts; Hermes keeps the persona a session began with, so
-once the main session has run, a new main session is needed.
+for -, and says when the change takes effect: a main session that has not
+run yet reads it when it starts; Claude Code and Hermes keep the persona a
+session began with, so once the main session has run, a new main session is
+needed.
 
 list leaves out companions whose main session is archived; --all lists them.
 ID may be a unique prefix of at least 4 characters. Every command takes

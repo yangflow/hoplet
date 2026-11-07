@@ -389,3 +389,11 @@ func TestLaunchWithTools(t *testing.T) {
 		t.Fatalf("without tools: %v %v %v", l.Command, l.Files, err)
 	}
 }
+
+// A resumed Claude Code session keeps the system prompt it started with.
+func TestKeepsPersona(t *testing.T) {
+	var h harness.Harness = &Harness{}
+	if k, ok := h.(harness.PersonaKeeper); !ok || !k.KeepsPersona() {
+		t.Fatal("Claude Code must report that it keeps the persona")
+	}
+}
