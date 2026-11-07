@@ -4,6 +4,7 @@ package daemon
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -63,6 +64,9 @@ type Config struct {
 	// Relays are the relays to register with; pairing codes list them,
 	// as RelayConnectPath routes, after Routes.
 	Relays []string
+	// RelayTLS, when set, is the TLS configuration relays are dialed with
+	// (tests trust a test certificate with it); nil means the system's.
+	RelayTLS *tls.Config
 
 	// lim overrides the protocol limits (tests); zero fields keep defaults.
 	lim limits
@@ -216,6 +220,10 @@ func Start(ctx context.Context, cfg Config) (d *Daemon, err error) {
 			}
 		})
 	}
+	for _, u := range cfg.Relays {
+		r := newRelayer(srv, u, cfg.RelayTLS)
+		d.wg.Go(func() { r.run(runCtx) })
+	}
 	d.wg.Add(2)
 	go func() {
 		defer d.wg.Done()
@@ -239,7 +247,7 @@ func Start(ctx context.Context, cfg Config) (d *Daemon, err error) {
 			log.Error("serve", "err", err)
 		}
 	}()
-	log.Info("daemon started", "home", cfg.Home, "pid", os.Getpid(), "id", identity.ID(), "listen", cfg.Listen)
+	log.Info("daemon started", "home", cfg.Home, "pid", os.Getpid(), "id", identity.ID(), "listen", cfg.Listen, "relays", cfg.Relays)
 	return d, nil
 }
 

@@ -121,6 +121,13 @@ func (s *server) serveNoise(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer s.leave()
+	s.serveRemote(ws)
+}
+
+// serveRemote serves the client protocol inside a Noise channel over ws,
+// a connection from the direct listener or one dialed back to a relay.
+// The caller has entered it.
+func (s *server) serveRemote(ws *websocket.Conn) {
 	wc := noise.NewWSConn(ws)
 	ch, peer, err := s.handshake(wc)
 	if err != nil {

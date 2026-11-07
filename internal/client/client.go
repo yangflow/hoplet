@@ -51,6 +51,7 @@ func HomeOptions(dir, deviceID string) (Options, error) {
 type Client struct {
 	fc    frame.Conn
 	hello proto.HelloResult
+	route string // the route a remote client came through
 
 	ctx    context.Context
 	cancel context.CancelCauseFunc
@@ -105,6 +106,10 @@ func start(ctx context.Context, fc frame.Conn, hello proto.HelloParams) (*Client
 
 // Hello is what the daemon said about itself.
 func (c *Client) Hello() proto.HelloResult { return c.hello }
+
+// Route is the route a client from DialRemote or Pair reached its host
+// through; empty for the local socket.
+func (c *Client) Route() string { return c.route }
 
 // Done is closed when the connection is lost or closed.
 func (c *Client) Done() <-chan struct{} { return c.done }

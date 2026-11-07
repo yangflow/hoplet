@@ -26,3 +26,17 @@ func TestDialRemoteChecks(t *testing.T) {
 		}
 	}
 }
+
+func TestRouteURL(t *testing.T) {
+	const id noise.HostID = "abcdefghijklmnopqrstuvwxyz"
+	for route, want := range map[string]string{
+		"ws://192.0.2.1:7443":                     "ws://192.0.2.1:7443/v1/noise",
+		"ws://192.0.2.1:7443/":                    "ws://192.0.2.1:7443/v1/noise",
+		"wss://relay.example.com/v1/connect":      "wss://relay.example.com/v1/connect?host=" + string(id),
+		"wss://relay.example.com:8443/v1/connect": "wss://relay.example.com:8443/v1/connect?host=" + string(id),
+	} {
+		if got, err := routeURL(route, id); err != nil || got != want {
+			t.Errorf("%s: %q %v, want %q", route, got, err, want)
+		}
+	}
+}

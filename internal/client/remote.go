@@ -2,8 +2,11 @@ package client
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
+	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -20,9 +23,15 @@ const routeTimeout = 15 * time.Second
 
 // Remote says how to reach another host over Noise.
 type Remote struct {
-	Routes   []string // tried in order; "ws://host:port" or "wss://host"
-	HostKey  []byte   // the host's public key, from pairing
+	// Routes are tried in order: a direct route ("ws://host:port") or a
+	// relay's connect URL ("wss://relay/v1/connect").
+	Routes   []string
+	HostKey  []byte // the host's public key, from pairing
 	Identity noise.Identity
+	// TLS, when set, is the TLS configuration wss:// routes are dialed
+	// with (tests trust a test certificate with it); nil means the
+	// system's.
+	TLS *tls.Config
 }
 
 // DialRemote connects to a paired host and says hello.
@@ -49,7 +58,7 @@ func dialRemote(ctx context.Context, r Remote, cfg noise.DialConfig) (*Client, e
 	cfg.Identity, cfg.PeerStatic, cfg.MaxFrame = r.Identity, r.HostKey, readLimit
 	var errs []error
 	for _, route := range r.Routes {
-		c, err := dialRoute(ctx, route, cfg, want)
+		c, err := dialRoute(ctx, route, r.TLS, cfg, want)
 		if err == nil {
 			return c, nil
 		}
@@ -61,10 +70,33 @@ func dialRemote(ctx context.Context, r Remote, cfg noise.DialConfig) (*Client, e
 	return nil, fmt.Errorf("client: reach host %s: %w", want, errors.Join(errs...))
 }
 
-func dialRoute(ctx context.Context, route string, cfg noise.DialConfig, want noise.HostID) (*Client, error) {
+// routeURL is where a route is dialed for the host with ID host: a relay
+// route asks the relay for the host, a direct route is the host's own
+// Noise path.
+func routeURL(route string, host noise.HostID) (string, error) {
+	u, err := url.Parse(route)
+	if err != nil {
+		return "", fmt.Errorf("client: route: %w", err)
+	}
+	if u.Path == proto.RelayConnectPath {
+		u.RawQuery = url.Values{"host": {string(host)}}.Encode()
+		return u.String(), nil
+	}
+	return strings.TrimSuffix(route, "/") + proto.NoisePath, nil
+}
+
+func dialRoute(ctx context.Context, route string, tlsConf *tls.Config, cfg noise.DialConfig, want noise.HostID) (*Client, error) {
 	ctx, cancel := context.WithTimeout(ctx, routeTimeout)
 	defer cancel()
-	ws, resp, err := websocket.Dial(ctx, strings.TrimSuffix(route, "/")+proto.NoisePath, nil)
+	u, err := routeURL(route, want)
+	if err != nil {
+		return nil, err
+	}
+	var opts *websocket.DialOptions
+	if tlsConf != nil {
+		opts = &websocket.DialOptions{HTTPClient: &http.Client{Transport: &http.Transport{TLSClientConfig: tlsConf.Clone()}}}
+	}
+	ws, resp, err := websocket.Dial(ctx, u, opts)
 	if resp != nil && resp.Body != nil {
 		resp.Body.Close()
 	}
@@ -84,5 +116,6 @@ func dialRoute(ctx context.Context, route string, cfg noise.DialConfig, want noi
 		_ = c.Close()
 		return nil, fmt.Errorf("client: the host says it is %q, want %s", c.hello.HostID, want)
 	}
+	c.route = route
 	return c, nil
 }

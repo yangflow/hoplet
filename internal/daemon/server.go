@@ -37,14 +37,19 @@ type limits struct {
 	ping, pingTimeout time.Duration
 	// readLimit is the largest frame a client may send.
 	readLimit int64
-	// hello bounds how long a connection may stay without a hello.
+	// hello bounds how long a connection may stay without a hello, and
+	// how long a relay may take to confirm a registration.
 	hello time.Duration
+	// relayRetry is the first wait before a relay is dialed again; each
+	// later wait doubles up to relayRetryMax.
+	relayRetry, relayRetryMax time.Duration
 }
 
 func (l limits) withDefaults() limits {
 	def := limits{
 		gapEvents: 500, gapBytes: 1 << 20, snapshotTurns: 3, page: 500,
 		outbound: 8 << 20, ping: 15 * time.Second, pingTimeout: 10 * time.Second, readLimit: 1 << 20, hello: 10 * time.Second,
+		relayRetry: time.Second, relayRetryMax: 30 * time.Second,
 	}
 	if l.gapEvents == 0 {
 		l.gapEvents = def.gapEvents
@@ -72,6 +77,12 @@ func (l limits) withDefaults() limits {
 	}
 	if l.hello == 0 {
 		l.hello = def.hello
+	}
+	if l.relayRetry == 0 {
+		l.relayRetry = def.relayRetry
+	}
+	if l.relayRetryMax == 0 {
+		l.relayRetryMax = def.relayRetryMax
 	}
 	return l
 }
