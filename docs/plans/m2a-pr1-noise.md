@@ -145,7 +145,7 @@ var (
 
 ### 任务 0：建分支
 
-- [ ] 从 `main` 建 `feat/noise-channel`；`go get github.com/flynn/noise@v1.1.0 golang.org/x/crypto@v0.58.0`，`go mod tidy`，确认 `go.mod` 只多这两项（及其间接依赖）。
+- [x] 从 `main` 建 `feat/noise-channel`；`go get github.com/flynn/noise@v1.1.0 golang.org/x/crypto@v0.58.0`，`go mod tidy`，确认 `go.mod` 只多这两项（及其间接依赖）。
 
 ### 任务 1：私密文件与身份密钥
 
@@ -195,9 +195,9 @@ var (
 
 ### 任务 4：同步设计文档、全量检查
 
-- [ ] 0006 与总计划中的套件已在本计划合入时改为 SHA256；实现与本文“协议细节”有出入时，先改本文与 0006 再合入。
-- [ ] `make check`，报告真实输出。
-- [ ] 在本文末尾追加“实现与计划的差异”。
+- [x] 0006 与总计划中的套件已在本计划合入时改为 SHA256；实现与本文“协议细节”有出入时，先改本文与 0006 再合入。
+- [x] `make check`，报告真实输出。
+- [x] 在本文末尾追加“实现与计划的差异”。
 - [ ] 推送并开 PR：`feat(noise): add identity keys and Noise channel`。
 
 ## 完成标准
@@ -205,3 +205,14 @@ var (
 - `internal/noise` 有上述接口与测试，`make check` 通过。
 - 没有任何守护进程、CLI、客户端协议的行为变化；`go.mod` 只多两个直接依赖。
 - 总计划 PR1 的验收项全部有对应测试（“过期配对码”属于配对码格式，随 PR2）。
+
+## 实现与计划的差异
+
+| 项 | 计划 | 实现 | 原因 |
+|---|---|---|---|
+| 配对握手 | IKpsk2 | IKpsk1（`PresharedKeyPlacement = 1`） | IKpsk2 的响应方读第一条消息时还没混入 PSK，错误 PSK 要到发起方读第二条才暴露；IKpsk1 让响应方在第一条就拒绝。0006 与总计划已同步 |
+| XN 拒绝 | 响应方 `ErrRefused`，发起方失败 | 响应方 `ErrRefused`；发起方写完第三条即完成握手，只能从连接随即关闭看出被拒 | XN 的最后一条消息由发起方发出，响应方没有机会回应答 |
+| 依赖 | `go mod tidy` 后只多两项 | 手工改 `go.mod`，不跑 `go mod tidy` | `main` 上本就缺一条经 MyGo 引入的 `golang.org/x/net` 间接依赖，`tidy` 会把这条无关改动带进来 |
+| `home` 辅助函数 | 只有 `ReadPrivate` / `EnsurePrivate` | 另加 `IdentityFile`、`ReadIdentity`、`EnsureIdentity` | 身份文件的路径与读写集中在 `home`，`noise` 只做解析 |
+| `DialConfig` | 未写明 | `PSK` 与 `Payload` 只在配对时允许，日常与中继注册带了直接报错 | 避免日常握手误带配对载荷 |
+| pong 回复 | 读方收到 ping 即回 pong | 读方把待回的 pong 交给通道自己的一个 goroutine 发送，最多 16 个未回；超出 → `ErrFrame` | 读方若自己写 pong，双方写者都卡在对端缓冲满、读者又在等写锁时会互相死等 |
