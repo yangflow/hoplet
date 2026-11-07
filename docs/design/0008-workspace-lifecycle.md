@@ -9,7 +9,7 @@
 | 状态 | 边界 |
 |---|---|
 | ✓ 代码已有 | 仓库发现、原地目录、基线与累计 diff |
-| ○ 目标 | 真正 worktree 隔离、PR、脚本、检查点、端口；只读文件接口（M1 PR9c） |
+| ○ 目标 | 真正 worktree 隔离、PR、脚本、检查点、端口；只读文件接口 |
 
 ## 以会话为中心
 
@@ -35,7 +35,7 @@ flowchart LR
 | Code | 使用传入的真实目录，累计 diff 已实现 |
 | Personal | 未指定目录时在 `~/.hoplet/sessions/<id>/` 工作 |
 | `Isolation` | 接受并存储枚举，但 `workDir` 未创建 worktree 或镜像；不能当作现有隔离保证 |
-| 文件 / diff | 有 `sessions.diff`（会话累计、未提交、分支、单个提交）与 `sessions.commits`；只读的 `files.list` / `files.read` 见下节（M1 PR9c） |
+| 文件 / diff | 有 `sessions.diff`（会话累计、未提交、分支、单个提交）与 `sessions.commits`；只读的 `files.list` / `files.read` 见下节 |
 
 ## 只读文件接口
 
@@ -50,7 +50,7 @@ flowchart LR
 |---|---|
 | 路径 | 相对会话目录、清理后不得为绝对路径或以 `..` 开头；任一级父目录是符号链接时视为不存在；符号链接本身列为符号链接，不跟随、不读取 |
 | 列一层 | 按名字排序、目录在前；默认不列被忽略的路径和 `.git`，`ignored` 时列出并标记；`.git` 与 `.DS_Store`（系统写的杂项文件）从不列出 |
-| 忽略 | 按所在仓库的 `git check-ignore --no-index`（去掉全部 `GIT_*` 环境变量，关闭 hooks、filter 与 fsmonitor，不写用户仓库）；不在仓库里的路径不算忽略。已跟踪但匹配忽略规则的文件也会标成忽略，M1 接受 |
+| 忽略 | 按所在仓库的 `git check-ignore --no-index`（去掉全部 `GIT_*` 环境变量，关闭 hooks、filter 与 fsmonitor，不写用户仓库）；不在仓库里的路径不算忽略。已跟踪但匹配忽略规则的文件也会标成忽略，目前接受 |
 | 列全部 | `all` 只列文件，深度不限，跳过被忽略的目录、`.git`、`.DS_Store` 与符号链接目录；最多 20000 项 |
 | 读当前 | 只打开普通文件（`O_NOFOLLOW\|O_NONBLOCK` + fstat）；大于 2 MiB 为 `too_large`；前 8000 字节含 NUL 或不是 UTF-8 为 `binary` |
 | 读基线 | 累计范围：从 Hoplet 私有对象库里该仓库基线的树取 blob，不读用户对象；不在仓库里或没有基线时报错，基线里没有该文件为 `missing`。其他范围读该范围旧的一侧（`HEAD`、分叉点或父提交的树），只读用户对象 |
@@ -97,7 +97,7 @@ include = [".env", "config/*.local"]
 
 另按进程树把监听端口归属到会话；以后可经加密通道代理到手机预览。
 
-## 检查点与回滚（M3）
+## 检查点与回滚（目标）
 
 ```mermaid
 sequenceDiagram
@@ -122,15 +122,15 @@ sequenceDiagram
 
 ## diff 与 PR
 
-| diff 视图 | 范围 | 阶段 |
+| diff 视图 | 范围 | 状态 |
 |---|---|---|
-| 本轮改动 | 本轮 before → after | M3 |
-| 会话累计 | 建会话时的基线 → 现在 | M1 |
-| 未提交的改动 | 每个仓库 HEAD → 现在 | M1 |
-| 分支改动 | 每个仓库与默认分支的分叉点 → 现在（含未提交的） | M1 |
-| 一个提交 | 父提交 → 该提交（一次只看一个仓库） | M1 |
+| 本轮改动 | 本轮 before → after | 目标 |
+| 会话累计 | 建会话时的基线 → 现在 | 已有 |
+| 未提交的改动 | 每个仓库 HEAD → 现在 | 已有 |
+| 分支改动 | 每个仓库与默认分支的分叉点 → 现在（含未提交的） | 已有 |
+| 一个提交 | 父提交 → 该提交（一次只看一个仓库） | 已有 |
 
-刷新：M1 由客户端按需请求；以后再加 FSEvents 防抖 + 每 2 分钟补漏的推送。单个仓库的 patch ≤ 3MiB，带 sha，无变化不重绘。
+刷新：当前由客户端按需请求；以后再加 FSEvents 防抖 + 每 2 分钟补漏的推送。单个仓库的 patch ≤ 3MiB，带 sha，无变化不重绘。
 
 ```mermaid
 flowchart LR

@@ -23,13 +23,13 @@
 | hello | 校验协议主版本、本机 token 与非空设备 ID；设备 ID 不是配对身份 |
 | 远程 | 默认不监听 TCP；配置 `network.listen` 后才有直连监听，只接受 Noise 通道；配置 `network.relays` 后向中继注册，经回拨连接服务客户端 |
 
-## 一层安全，多条路由（M2a 目标）
+## 一层安全，多条路由
 
 ```mermaid
 flowchart LR
     C["客户端"] == "Noise IK 加密会话<br/>（与路由无关）" ==> D["守护进程"]
     subgraph routes["路由：按序尝试"]
-        R1["① 局域网直连<br/>Bonjour（M2b）"]
+        R1["① 局域网直连<br/>Bonjour（随 iOS）"]
         R2["② 直连地址<br/>手动配置，默认关"]
         R3["③ 海外中继<br/>WSS:443"]
         R4["备用：中继第二域名<br/>经 Cloudflare 代理"]
@@ -38,7 +38,7 @@ flowchart LR
 
 - 按序尝试；连在后面的路由时，后台定时探测前面的路由，能通就新建连接、按游标重新订阅、再关旧连接（回家自动走局域网）。
 - 加密与认证全在应用层；中继、Cloudflare、Tailscale 都只搬运字节。
-- M2a 只有直连地址与中继两条；Bonjour 随 iOS（M2b），iOS 用系统 Network.framework 发现，守护进程只做广播。
+- 当前只有直连地址与中继两条；Bonjour 随 iOS 提供，iOS 用系统 Network.framework 发现，守护进程只做广播。
 
 | 项 | 结论 |
 |---|---|
@@ -56,7 +56,7 @@ flowchart LR
 sequenceDiagram
     participant M as Mac / VPS
     participant P as iPhone
-    M->>M: hoplet pair：配对码（M2b 起另出二维码）<br/>主机 ID · 主机公钥 · 路由 · 一次性 PSK（10 分钟）
+    M->>M: hoplet pair：配对码（有 iOS 后另出二维码）<br/>主机 ID · 主机公钥 · 路由 · 一次性 PSK（10 分钟）
     P->>M: 扫码，以 PSK 完成 Noise 握手
     M->>M: 记录设备公钥
     Note over P,M: 之后每次连接
@@ -114,7 +114,7 @@ flowchart LR
     Pre["启动前连通性预检"] --> H
 ```
 
-## 设备保护与推送（M2b 目标）
+## 设备保护与推送（目标）
 
 | 场景 | 措施 |
 |---|---|
@@ -128,7 +128,7 @@ flowchart LR
 |---|---|
 | 身份 | 拒绝重放、已吊销设备和未配对主机 |
 | 路由 | 加密身份与路由分离，切换不新增信任 |
-| 主备线路 | M2a 按配置顺序，失败切备用域名；按实测延迟与丢包定主备待有实际数据后再定 |
+| 主备线路 | 按配置顺序，失败切备用域名；按实测延迟与丢包定主备待有实际数据后再定 |
 | 本机入口 | 验证 socket 权限、token 与 `Origin` 拒绝规则 |
 
 ## 待验证

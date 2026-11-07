@@ -1,6 +1,6 @@
 # 0021 Claude Code 适配
 
-状态：当前设计 · 更新：2026-11-04
+状态：当前设计 · 更新：2026-11-07
 
 ## 范围与现状
 
@@ -57,6 +57,18 @@ flowchart LR
 | MCP | `Spec.MCP` 未使用，不声明已注入 |
 | Ephemeral | 只加 `--no-session-persistence`；不能据此承诺禁工具、hooks 或原生记忆 |
 
+## MCP 与人格
+
+2.1.316 实测，已采用，尚未实现。
+
+| 项 | 规则 |
+|---|---|
+| 注入 | `--mcp-config` 传 stdio 服务；会话 token 只放在这一项的 `env` 里，Bash 等工具的环境看不到 |
+| 共存 | 启动不加 `--strict-mcp-config`，用户自己的 MCP 服务照常加载 |
+| 放行 | Hoplet 自己的工具以 `--allowedTools mcp__hoplet__*` 放行，否则每次调用都会经 `--permission-prompt-tool stdio` 变成审批 |
+| 握手 | 先以 `server/discover`（协议 2026-07-28）探测，`initialize` 用 2025-11-25；服务须正常应答不认识的方法 |
+| 人格 | 伙伴的人格经 `--append-system-prompt` 传入，下次启动生效 |
+
 ## 模型探测
 
 ```mermaid
@@ -106,6 +118,6 @@ flowchart LR
 
 ## 待验证
 
-更多版本控制、提问、steer、MCP、禁工具和原生记忆副作用控制未验证。停止整轮时子代理落到哪个状态未录制。
+更多版本控制、提问、steer、其他版本的 MCP、禁工具和原生记忆副作用控制未验证。停止整轮时子代理落到哪个状态未录制。
 
 2.1.312 录制确认：无界面模式下用 `TaskCreate` / `TaskUpdate`；`TodoWrite` 仍保留映射。较新的模型默认不给任务工具，只有设了 `CLAUDE_CODE_ENABLE_TODO_TOOLS=1` 才有，所以 Hoplet 启动时设它（见环境与版本）。较旧的模型要先经 `ToolSearch` 取到任务工具，这次 `ToolSearch` 作为普通工具调用显示。

@@ -18,7 +18,7 @@ flowchart LR
     CLI["CLI"] --> Local["Unix socket 上的 /v1 WebSocket"]
     Desktop["桌面"] --> Local
     Local --> Hello["hello / 本机 token"] --> Service["同一 daemon 服务"]
-    Agent["harness"] -. "M4a：尚未实现" .-> MCP["会话 MCP token"]
+    Agent["harness"] -. "尚未实现" .-> MCP["会话 MCP token"]
     MCP -.-> Service
 ```
 
@@ -59,27 +59,36 @@ flowchart LR
 | blocked | waiting 审批态或队首失败 |
 | done | idle / blocked / errored / archived；表示等待可结束，不证明事情交付完成 |
 
-## 工具桥与伙伴服务（M4a 目标）
+## 工具桥与伙伴服务（目标）
 
 ```mermaid
 flowchart LR
-    Harness["工作 harness"] --> Token["会话身份"] --> Scope{"工具与目标范围"}
-    Scope --> Read["会话查询 / 状态 / 产物"]
-    Scope --> Control["创建 / 投递 / 转交"]
-    Scope --> Future["后续记忆与自主能力"]
+    Harness["工作 harness"] -- "stdio" --> Bridge["hoplet mcp"]
+    Bridge -- "Unix socket · 会话 token" --> Service["同一 daemon 服务"]
+    Service --> Scope{"工具与目标范围"}
 ```
 
-| 调用方 | 目标权限 |
+| 项 | 规则 |
 |---|---|
-| Code | 获准范围只读记忆、本会话终端和产物、转交与 notify |
-| Personal | 按工具授权；给我已有会话发消息必须先托管 |
-| 提炼任务 | 不注入可调用业务工具；只返回候选，由 daemon 提交 |
+| 传输 | stdio：harness 的 MCP 配置运行 `hoplet mcp`，它连本机 daemon socket 转发；不开 TCP 端口 |
+| 实现 | 官方 MCP Go SDK `github.com/modelcontextprotocol/go-sdk`，固定版本 |
+| token | 每次启动 harness 新生成，存储只留 SHA-256；daemon 重启后仍有效，会话归档后作废，只对本会话有效 |
+| 传递 | token 只放在这一项 MCP 配置的 `env` 里，不进 harness 的 shell 环境 |
+| 轮换 | 原生协议不允许运行中换配置时（如 Hermes），在下一个空闲点轮换 |
+| 规则 | 先不加载 `rules.toml`，默认规则写在代码里 |
 
-产物工具 `artifact.publish` 与 `artifact.db.*` 只作用于本会话的产物。
+| 工具 | 作用 | 调用方与范围 |
+|---|---|---|
+| `sessions_list`、`session_get` | 读会话目录与单个会话状态 | 所有会话；只读 |
+| `session_create` | 建委派子会话 | 仅 Personal；新会话为 Personal、归属托管、关联调用方 |
+| `session_send` | 给会话发消息 | 仅 Personal；目标必须是托管会话 |
+| `handoff` | 转交 Code | 仅 Personal；建归属于我的 Code 会话，带目录、摘要与关联 |
+| `report` | 交回结果 | 有父会话的会话；结果持久记录，按父会话空闲 / 忙投递或排队 |
+| `artifact_publish`、`artifact_db_*` | 产物 | 所有会话；只作用于本会话的产物 |
 
-工具桥先复用现有服务，再增加稳定伙伴身份、会话关联、产物入口与回报订阅。MCP 注入、权限映射和原生协议能力先验证；不以提示词代替服务校验。
+`notify_me` 推迟到推送或交互通道就绪。提炼任务不注入可调用业务工具，只返回候选，由 daemon 提交。工具桥复用现有服务，不以提示词代替服务校验。
 
-## 记忆服务入口（M4b 目标）
+## 记忆服务入口（目标）
 
 | 操作 | 输入与回执边界 |
 |---|---|
@@ -119,4 +128,4 @@ flowchart LR
 
 ## 待验证
 
-MCP 传输与注入、工具范围、伙伴关联、持久订阅与回执、跨机输入 / 产物传输及取消语义均需定稿。对外 SDK 不在范围内。
+持久订阅与回执、跨机输入 / 产物传输及取消语义均需定稿。对外 SDK 不在范围内。

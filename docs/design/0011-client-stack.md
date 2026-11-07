@@ -56,7 +56,7 @@ flowchart TB
 | Share Extension | 任意 app 里分享给 Personal |
 | App Intents / Siri | “让 Personal 帮我……” |
 | 通知扩展 | 解密推送正文 |
-| 产物查看 | SwiftUI `WebView` / `WebPage` 加自定义协议处理器，与桌面同一桥接契约（M2b） |
+| 产物查看 | SwiftUI `WebView` / `WebPage` 加自定义协议处理器，与桌面同一桥接契约 |
 
 当前没有 `apple/`、Swift 类型生成器或跨语言向量产物，不能把图中的生成链路视为已实现。
 
