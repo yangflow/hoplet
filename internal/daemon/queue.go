@@ -185,7 +185,7 @@ func (q *queuer) drain(ctx context.Context, id proto.SessionID) {
 	// The key makes this safe to repeat: if the daemon dies after the send
 	// and before the delete, the next daemon's send finds the receipt. An
 	// edited message goes out under a new key, as a new message.
-	_, err = q.mgr.Send(ctx, id, head.Text, sendKey)
+	_, err = q.mgr.SendFrom(ctx, id, head.From, head.Text, sendKey)
 	switch {
 	case ctx.Err() != nil:
 	case errors.Is(err, session.ErrBusy):
