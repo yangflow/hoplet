@@ -186,7 +186,7 @@ func (a *App) OpenFilePicker()       // ⌘P
 
 ### 任务 8：收尾与真实验收
 
-- [ ] `m1-overview.md`：9b2 标为已合并，9c 行按裁决 2 更新，加本计划的链接。
+- [x] `m1-overview.md`：9b2 标为已合并，9c 行按裁决 2 更新，加本计划的链接。
 - [ ] `make check`；重装守护进程后在真实窗口里（深浅两套）：让 Claude Code 在一个两仓库的目录里改几处文件，在右栏看完全部改动；从文件树和 ⌘P 各打开一个文件，显示更改、左右对比；核对动效与减少动态效果。
 - [ ] commit：`docs: link the PR9c plan`；推送并开 PR。
 
