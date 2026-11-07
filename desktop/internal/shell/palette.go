@@ -2,7 +2,10 @@ package shell
 
 import (
 	"cmp"
+	"maps"
+	"path"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/egoist/mygo/ui"
@@ -15,21 +18,24 @@ import (
 // paletteScope is what the command palette searches.
 type paletteScope int
 
-// Palette scopes, ⌘1–3 in the palette.
+// Palette scopes, ⌘1–4 in the palette; files only while a Code session
+// shows.
 const (
 	scopeAll paletteScope = iota
 	scopeSessions
 	scopeCommands
+	scopeFiles
 )
 
-// paletteEntry is a row of the command palette: a session to open or a
-// command to run.
+// paletteEntry is a row of the command palette: a session to open, a
+// command to run or a file to open.
 type paletteEntry struct {
-	session *proto.Session // a session, else a command
-	title   string
-	where   string // a session's machine and place
-	text    string // more of a session to match: its preview
-	key     string // a command's shortcut
+	session *proto.Session // a session, else a command or a file
+	file    string         // a file's path in the working directory
+	title   string         // a file's name
+	where   string         // a session's machine and place, a file's directory
+	text    string         // more of a session to match: its preview
+	key     string         // a command's shortcut
 	icon    *ui.SVG
 	run     func()
 }
@@ -63,9 +69,10 @@ func matchScore(q, s string) (score, at int) {
 }
 
 // paletteResults are the groups the palette shows for q in scope: with no
-// q, the recent sessions and the quick commands; else the sessions and the
-// commands that match, best first, five of each in scopeAll.
-func paletteResults(sessions, commands []paletteEntry, quick []string, q string, scope paletteScope) []paletteGroup {
+// q, the recent sessions and the quick commands; else the sessions, the
+// commands and the files that match, best first, five of each in scopeAll.
+// A file's name matching ranks above its path matching.
+func paletteResults(sessions, commands, files []paletteEntry, quick []string, q string, scope paletteScope) []paletteGroup {
 	q = strings.TrimSpace(q)
 	var out []paletteGroup
 	add := func(label string, rows []paletteHit) {
@@ -73,6 +80,7 @@ func paletteResults(sessions, commands []paletteEntry, quick []string, q string,
 			out = append(out, paletteGroup{label: label, rows: rows})
 		}
 	}
+	in := func(s paletteScope) bool { return scope == scopeAll || scope == s }
 	if q == "" {
 		var recent, cmds []paletteHit
 		for _, e := range sessions[:min(len(sessions), 5)] {
@@ -83,10 +91,10 @@ func paletteResults(sessions, commands []paletteEntry, quick []string, q string,
 				cmds = append(cmds, paletteHit{paletteEntry: e})
 			}
 		}
-		if scope != scopeCommands {
+		if in(scopeSessions) {
 			add("最近会话", recent)
 		}
-		if scope != scopeSessions {
+		if in(scopeCommands) {
 			add("快捷操作", cmds)
 		}
 		return out
@@ -100,7 +108,14 @@ func paletteResults(sessions, commands []paletteEntry, quick []string, q string,
 		for _, e := range es {
 			score, at := matchScore(q, e.title)
 			n := len(q)
-			if score == 0 {
+			switch {
+			case score > 0 && e.file != "":
+				score += 3 // above every match in the path
+			case score > 0:
+			case e.file != "":
+				n = 0
+				score, _ = matchScore(q, e.file)
+			default:
 				n = 0
 				for _, s := range []string{e.where, e.text} {
 					if sc, _ := matchScore(q, s); sc > 0 {
@@ -122,11 +137,14 @@ func paletteResults(sessions, commands []paletteEntry, quick []string, q string,
 		}
 		return out
 	}
-	if scope != scopeCommands {
+	if in(scopeSessions) {
 		add("会话", rank(sessions))
 	}
-	if scope != scopeSessions {
+	if in(scopeCommands) {
 		add("命令", rank(commands))
+	}
+	if in(scopeFiles) {
+		add("文件", rank(files))
 	}
 	return out
 }
@@ -147,6 +165,102 @@ func (a *App) ModeKey(m proto.Mode) {
 // OpenPalette shows the command palette (⌘K).
 func (a *App) OpenPalette() {
 	a.s.palOpen, a.s.palQuery, a.s.palScope, a.s.palSel = true, "", scopeAll, 0
+}
+
+// OpenFilePicker shows the command palette on its files (⌘P), or on all
+// of it when no Code session shows.
+func (a *App) OpenFilePicker() {
+	a.OpenPalette()
+	if _, ok := a.panelSession(); ok {
+		a.s.palScope = scopeFiles
+	}
+}
+
+// filePicker is every file of a session's working directory as the
+// palette searches them, read once and again after the session changed
+// its files.
+type filePicker struct {
+	list *proto.FileList
+	at   uint64 // the conversation's last change when the list was read
+	wait bool
+}
+
+// paletteFiles are the files the palette offers: those of the Code
+// session that shows, the ones .gitignore leaves out left out. It reads
+// them the first time and after the session changed its files; until the
+// answer comes it offers what it read before.
+func (a *App) paletteFiles(s proto.Session) (files []paletteEntry, truncated bool) {
+	fp := &a.panelFor(s.ID).picker
+	at := a.conv(s.ID).Changed()
+	if a.connected && !fp.wait && (fp.list == nil || at > fp.at) {
+		fp.wait, fp.at = true, at
+		a.host.Files(proto.FilesListParams{Session: s.ID, All: true}, func(fl proto.FileList, err error) {
+			fp.wait = false
+			if err == nil {
+				fp.list = &fl
+			}
+		})
+	}
+	if fp.list == nil {
+		return nil, false
+	}
+	for _, e := range fp.list.Entries {
+		if e.Kind == proto.FileKindDir {
+			continue
+		}
+		dir := path.Dir(e.Path)
+		if dir == "." {
+			dir = ""
+		}
+		files = append(files, paletteEntry{file: e.Path, title: path.Base(e.Path), where: dir,
+			run: func() { a.openFromPalette(s.ID, e.Path) }})
+	}
+	return files, fp.list.Truncated
+}
+
+// pickFiles are the files the palette offers in the files scope before
+// anything is typed: the right panel's open files in tab order, then the
+// ones the session changed that are not open, deleted ones left out.
+func (a *App) pickFiles(s proto.Session) []paletteGroup {
+	entry := func(p string) paletteHit {
+		dir := path.Dir(p)
+		if dir == "." {
+			dir = ""
+		}
+		return paletteHit{paletteEntry: paletteEntry{file: p, title: path.Base(p), where: dir,
+			run: func() { a.openFromPalette(s.ID, p) }}}
+	}
+	var open, changed []paletteHit
+	seen := map[string]bool{}
+	for _, t := range a.panelFor(s.ID).tabs {
+		if t.path != "" && !seen[t.path] {
+			seen[t.path] = true
+			open = append(open, entry(t.path))
+		}
+	}
+	marks, _ := changedMarks(a.diff(s))
+	for _, p := range slices.Sorted(maps.Keys(marks)) {
+		if !seen[p] && marks[p] != "D" {
+			changed = append(changed, entry(p))
+		}
+	}
+	var gs []paletteGroup
+	if len(open) > 0 {
+		gs = append(gs, paletteGroup{label: "已打开", rows: open})
+	}
+	if len(changed) > 0 {
+		gs = append(gs, paletteGroup{label: "有改动", rows: changed})
+	}
+	return gs
+}
+
+// openFromPalette opens a file in a tab of the right panel, bringing the
+// panel forward.
+func (a *App) openFromPalette(id proto.SessionID, p string) {
+	a.openFile(a.panelFor(id), p)
+	if !a.panelOpen || a.fit.panel == 0 {
+		a.bringPanel()
+	}
 }
 
 // paletteSessions are the sessions the palette offers, the ones I opened
@@ -208,7 +322,7 @@ func (a *App) paletteCommands() []paletteEntry {
 		pin = "取消置顶"
 	}
 	cmds = append(cmds,
-		paletteEntry{title: "会话详情", key: "⌘I", icon: a.icons.Details, run: func() { a.s.detailOpen = !a.s.detailOpen }},
+		paletteEntry{title: "会话详情", key: "⌘I", icon: a.icons.Details, run: a.ToggleDetails},
 		paletteEntry{title: pin, key: "⇧⌘P", icon: a.icons.Pin, run: a.TogglePin},
 		paletteEntry{title: "标为未读", key: "⇧⌘U", icon: a.icons.Menu, run: a.MarkUnread},
 		paletteEntry{title: "重命名", icon: a.icons.Edit, run: a.Rename},
@@ -223,13 +337,31 @@ func (a *App) paletteCommands() []paletteEntry {
 }
 
 // palette draws the command palette while it is open: a search over the
-// sessions and the commands, ⌘1–3 for the scope, ↑↓ to choose, ↩ to open
-// or run, esc to close.
+// sessions, the commands and the Code session's files, ⌘1–4 for the
+// scope, ↑↓ to choose, ↩ to open or run, esc to close.
 func (a *App) palette(c *ui.Context, k theme.Colors) {
 	if !a.s.palOpen {
 		return
 	}
-	groups := paletteResults(a.paletteSessions(), a.paletteCommands(), []string{"新建会话", "收件箱", "切到 Personal", "切到 Code"}, a.s.palQuery, a.s.palScope)
+	scopes := []string{"全部", "会话", "命令"}
+	s, code := a.panelSession()
+	if code {
+		scopes = append(scopes, "文件")
+	} else if a.s.palScope == scopeFiles {
+		a.s.palScope = scopeAll
+	}
+	query := strings.TrimSpace(a.s.palQuery)
+	var files []paletteEntry
+	truncated := false
+	var groups []paletteGroup
+	if code && a.s.palScope == scopeFiles && query == "" {
+		groups = a.pickFiles(s)
+	} else {
+		if code && (a.s.palScope == scopeFiles || a.s.palScope == scopeAll && query != "") {
+			files, truncated = a.paletteFiles(s)
+		}
+		groups = paletteResults(a.paletteSessions(), a.paletteCommands(), files, []string{"新建会话", "收件箱", "切到 Personal", "切到 Code"}, a.s.palQuery, a.s.palScope)
+	}
 	var flat []paletteHit
 	for _, g := range groups {
 		flat = append(flat, g.rows...)
@@ -240,13 +372,16 @@ func (a *App) palette(c *ui.Context, k theme.Colors) {
 		h.run()
 	}
 	ui.DialogBase(c, &a.s.palOpen, func(_, panel ui.Element) {
-		panel.Width(theme.DialogWidth).Radius(theme.RadiusPanel).Clip().Background(k.Popover).Border(theme.LineWidth, k.Line2).Label("命令面板").
+		panel.Width(theme.DialogWidth).Radius(theme.RadiusPanel).Clip().Background(k.SurfaceFloat).Border(theme.LineWidth, k.Line2).Label("命令面板").
 			Transition(ui.ElementTransition{Animation: &theme.MotionBase, Enter: &ui.Motion{Scale: theme.MotionScaleDialog}, Exit: &ui.Motion{}})
 		k.ShadowPopover.On(panel)
-		// The query, then its scope: all, sessions or commands (⌘1–3).
-		theme.ItemRow.H(theme.TitleBar).P(0, theme.Space4).On(ui.Row(c)).BorderWidth(0, 0, theme.LineWidth, 0).BorderColor(k.Line).Children(func() {
-			ui.Icon(c, a.icons.Search).FontSize(theme.Icon).TextColor(k.Muted)
-			in := ui.SearchField(c, &a.s.palQuery).Placeholder("搜索会话和命令…").Label("搜索").AutoFocus().Grow(1).
+		// The query, then its scope: all, sessions, commands or files (⌘1–4).
+		theme.ItemRow.H(theme.BarCompact).P(0, theme.Space4).On(ui.Row(c)).BorderWidth(0, 0, theme.LineWidth, 0).BorderColor(k.Line).Children(func() {
+			placeholder := "搜索会话和命令…"
+			if a.s.palScope == scopeFiles {
+				placeholder = "搜索文件…"
+			}
+			in := ui.SearchField(c, &a.s.palQuery).Placeholder(placeholder).Label("搜索").AutoFocus().Grow(1).
 				FontSize(theme.Title.Size()).Background(ui.Transparent).Border(0, ui.Transparent)
 			if in.Changed() {
 				a.s.palSel = 0
@@ -254,28 +389,26 @@ func (a *App) palette(c *ui.Context, k theme.Colors) {
 			if in.Submitted() && len(flat) > 0 {
 				run(flat[a.s.palSel])
 			}
-			in.OnTextKey(func(key ui.TextKey) bool {
-				switch {
-				case key.Mods == ui.Cmd && key.Key >= ui.Key1 && key.Key <= ui.Key3:
-					a.s.palScope, a.s.palSel = paletteScope(key.Key-ui.Key1), 0
-				case key.Mods != 0:
-					return false
-				case key.Key == ui.KeyUp:
-					a.s.palSel = max(a.s.palSel-1, 0)
-				case key.Key == ui.KeyDown:
-					a.s.palSel = min(a.s.palSel+1, max(len(flat)-1, 0))
-				default:
-					return false
+			// The field holds the focus, so its shortcuts come before the
+			// window's: ⌘1–4 pick the scope rather than the mode.
+			for i := range scopes {
+				if in.Shortcut(ui.Cmd, ui.Key1+ui.Key(i)) {
+					a.s.palScope, a.s.palSel = paletteScope(i), 0
 				}
-				return true
-			})
-			for i, label := range []string{"全部", "会话", "命令"} {
+			}
+			if in.Shortcut(0, ui.KeyUp) {
+				a.s.palSel = max(a.s.palSel-1, 0)
+			}
+			if in.Shortcut(0, ui.KeyDown) {
+				a.s.palSel = min(a.s.palSel+1, max(len(flat)-1, 0))
+			}
+			for i, label := range scopes {
 				on := a.s.palScope == paletteScope(i)
 				t := theme.Control.P(0, theme.Space2).On(ui.Row(c.Key(label))).Radius(theme.RadiusControl).Label(label)
 				if on {
-					t.Background(k.Sel)
+					t.Background(k.Selected)
 				} else if t.Hovered() {
-					t.Background(k.Fill2)
+					t.Background(k.Hover)
 				}
 				if t.Clicked() {
 					a.s.palScope, a.s.palSel = paletteScope(i), 0
@@ -290,8 +423,15 @@ func (a *App) palette(c *ui.Context, k theme.Colors) {
 		})
 		ui.Scroll(c).MaxHeight(paletteRows * theme.RowStep).Children(func() {
 			theme.StackTight.P(theme.Space2).On(ui.Column(c)).Children(func() {
-				if len(flat) == 0 {
-					theme.UI.On(ui.Text(c, "没有匹配“"+strings.TrimSpace(a.s.palQuery)+"”的会话或命令")).TextColor(k.Muted).Padding(theme.Space3, theme.Space2)
+				switch {
+				case len(flat) > 0:
+				case query == "":
+					return // the files scope with no open or changed files
+				case a.s.palScope == scopeFiles:
+					theme.UI.On(ui.Text(c, "没有匹配的文件")).TextColor(k.Muted).Padding(theme.Space3, theme.Space2)
+					return
+				default:
+					theme.UI.On(ui.Text(c, "没有匹配“"+query+"”的会话或命令")).TextColor(k.Muted).Padding(theme.Space3, theme.Space2)
 					return
 				}
 				n := 0
@@ -307,6 +447,11 @@ func (a *App) palette(c *ui.Context, k theme.Colors) {
 						a.paletteRow(c, k, h, n, run)
 						n++
 					}
+				}
+				if truncated {
+					theme.ItemRow.H(theme.RowDense).On(ui.Row(c.Key("truncated"))).Margin(theme.Space2, 0, 0, 0).Children(func() {
+						theme.Caption.On(ui.Text(c, "只搜索了前 "+strconv.Itoa(len(files))+" 个文件")).TextColor(k.Muted)
+					})
 				}
 			})
 		})
@@ -324,17 +469,18 @@ func (a *App) palette(c *ui.Context, k theme.Colors) {
 // paletteRows is how many rows the palette shows before it scrolls.
 const paletteRows = 12
 
-// keyCap is a key on its cap: monospace small, on fill2, rounded 4.
+// keyCap is a key on its cap: caption text on fill, rounded xs.
 func keyCap(c *ui.Context, k theme.Colors, key string) ui.Element {
-	return theme.CodeCaption.On(ui.Text(c, key)).TextColor(k.Muted).Height(theme.Icon).Padding(0, theme.Space1).Radius(theme.RadiusXS).Background(k.Fill2)
+	return theme.Caption.On(ui.Text(c, key)).TextColor(k.Muted).Height(theme.Icon).Padding(0, theme.Space1).Radius(theme.RadiusXS).Background(k.Fill)
 }
 
-// paletteRow is one row: the icon or the harness's mark, the title with
-// the match in the accent, where it is, and its shortcut.
+// paletteRow is one row: the icon, the harness's mark or the file's
+// type, the title with the match in the accent, where it is, and its
+// shortcut.
 func (a *App) paletteRow(c *ui.Context, k theme.Colors, h paletteHit, n int, run func(paletteHit)) {
-	r := theme.ItemRow.H(theme.RowStep).On(ui.Row(c.Key(n))).Radius(theme.RadiusControl).Label(h.title)
+	r := theme.ItemRow.H(theme.RowStep).On(ui.Row(c.Key(n))).Radius(theme.RadiusRow).Label(h.title)
 	if n == a.s.palSel {
-		r.Background(k.Sel)
+		r.Background(k.Selected)
 	}
 	if r.Hovered() {
 		a.s.palSel = n
@@ -343,9 +489,16 @@ func (a *App) paletteRow(c *ui.Context, k theme.Colors, h paletteHit, n int, run
 		run(h)
 	}
 	r.Children(func() {
-		if h.session != nil {
+		switch {
+		case h.session != nil:
 			a.harnessIcon(c, k, h.session.Harness.Kind, theme.Icon)
-		} else {
+		case h.file != "":
+			ui.Row(c).Size(theme.Icon, theme.Icon).Shrink(0).AlignItems(ui.Center).Justify(ui.Center).Children(func() {
+				if img := a.icons.FileType(h.title); img != nil {
+					ui.Image(c, img).Size(theme.IconRow, theme.IconRow)
+				}
+			})
+		default:
 			ui.Icon(c, h.icon).FontSize(theme.Icon).TextColor(k.Fg3)
 		}
 		ui.Row(c).Shrink(0).Children(func() {

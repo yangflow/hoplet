@@ -108,6 +108,21 @@ flowchart LR
 
 当前不使用 `Spec.MCP`，不声明 MCP 注入；也没有实现隔离提炼入口。继承原生记忆不表示与 Hoplet 成长记忆自动同步。
 
+## 任务清单
+
+- 来源是 `todo_list` 工具 `tool.start` 的参数：`merge` 为假时整表替换，为真时按 `id` 合并；结果正文拿不到，所以不靠结果
+- 适配器维护任务表，每次调用后发 `todo.list`；`content` → `Text`，没有进行中的说法，`Active` 为空；`parent` 子任务拍平
+- 0.22.5 录制确认 `tool.start` 带完整参数（`{todos:[{id,content,status}], merge}`）
+
+## 子代理
+
+- 来源是 `delegate_task` 工具：每个委派的任务一个 `subagent`（`goal` 或 `tasks[].goal`；只有一个任务时 `ID` 是调用 ID，多个时为 `调用ID/序号`），`goal` 首行 → `Title`，没有类型，`Type` 为空；这次调用不发 `ToolCall`；完整的 `goal` 作为记录开头的任务（带 `Agent` 的用户消息）
+- 0.22.5 的委派在后台进行：`tool.complete` 立即返回，结果文本是 JSON `{"status":"dispatched","mode":"background","subagent_ids":[…],…}`。这时子代理仍为 `running`、记 `Background`，按 `subagent_ids` 的顺序对应各任务；结果不是 `dispatched` 时随调用结束，记 `done`，`is_error` 时记 `failed`
+- gateway 转发子代理事件 `subagent.*`，带 Hermes 自己的 `subagent_id` 和 `task_index`。调用还在进行时先到的 `subagent.spawn_requested` / `subagent.start` 按 `task_index` 对上这次调用的任务
+- `subagent.tool` → 子代理记录里的工具调用（事件带 `Agent`，`tool_name` → `Name`，`text` 首行 → `Summary`）；Hermes 不报单个工具何时结束，下一个工具开始或子代理结束时记 `done`。`subagent.thinking` / `subagent.progress` 不用
+- `subagent.complete` 结束子代理：`status` 为 `completed` → `done`，`failed` / `error` → `failed`，其余 → `stopped`；`summary` → `Summary`，`input_tokens + output_tokens` → `Tokens`，`tool_count` → `ToolUses`，`duration_seconds` → `DurationMS`
+- 子代理多在轮次结束之后才完成，这些事件不属于任何轮次也照常处理。全部完成后 Hermes 自己开一轮（`message.start` 的 `display_kind` 为 `async_delegation_complete`，有新的 `admission_id`），按普通轮次显示
+
 ## 工具输出
 
 当前接入不提供工具结果正文；不能从缺失输出推导执行证据。

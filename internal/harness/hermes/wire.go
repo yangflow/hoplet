@@ -125,6 +125,30 @@ type toolPayload struct {
 	Context string          `json:"context"`
 	Args    json.RawMessage `json:"args"`
 	IsError bool            `json:"is_error"`
+	// Result is a completed call's result: Hermes sends JSON as text.
+	Result json.RawMessage `json:"result"`
+}
+
+// subagentPayload is a subagent.* event: one subagent of a delegate_task
+// call, which Hermes names by its own ID.
+type subagentPayload struct {
+	ID              string  `json:"subagent_id"`
+	TaskIndex       int     `json:"task_index"`
+	ToolName        string  `json:"tool_name"`
+	Text            string  `json:"text"`
+	ToolCount       int     `json:"tool_count"`
+	Status          string  `json:"status"`
+	Summary         string  `json:"summary"`
+	InputTokens     int64   `json:"input_tokens"`
+	OutputTokens    int64   `json:"output_tokens"`
+	DurationSeconds float64 `json:"duration_seconds"`
+}
+
+// dispatched is a delegate_task result that sent its subagents off in the
+// background: their IDs in task order.
+type dispatched struct {
+	Status      string   `json:"status"`
+	SubagentIDs []string `json:"subagent_ids"`
 }
 
 type completePayload struct {

@@ -1,6 +1,6 @@
 # 0004 会话数据模型
 
-状态：当前设计 · 更新：2026-11-04
+状态：当前设计 · 更新：2026-11-07
 
 ## 范围与现状
 
@@ -47,7 +47,8 @@ erDiagram
 | 规划实体 | 状态 |
 |---|---|
 | 配对设备、主机目录 | 未实现 |
-| 检查点组、会话 links、产物目录 | 未实现独立实体与完整服务 |
+| 检查点组、会话 links | 未实现独立实体与完整服务 |
+| 产物、产物数据 | 未实现；产物属于会话，按版本存放，数据跨版本保留，随会话删除 |
 | 伙伴、事情、成长条目 | 未冻结 SQL schema 或协议 |
 
 ### 列表属性
@@ -105,7 +106,7 @@ flowchart LR
   hoplet.db              结构化数据
   blobs/                 大载荷（内容寻址）
   sessions/<id>/         spool.jsonl、shim socket
-  artifacts/<session>/   产物（规划）
+  artifacts/<session>/   产物各版本内容（目标）
   harness/<kind>/        各适配器私有数据与托管的 CLI 副本
   profile/               成长记忆（规划）
   logs/                  daemon.log（按大小轮转）、launchd.log

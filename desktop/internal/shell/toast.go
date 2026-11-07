@@ -30,16 +30,13 @@ func (a *App) toasts(c *ui.Context, k theme.Colors) {
 		c.AddToast(a.pending)
 		a.pending = ui.Toast{}
 	}
-	top, left := float32(theme.TitleBar), a.side
-	if a.hideSide {
-		top, left = topHeight(c.TitleBar()), 0
-	}
+	top, left := a.titleHeight(c.TitleBar()), a.fit.side
 	ui.ToastViewportBase(c, func(viewport ui.Element, toasts []ui.Toast) {
 		viewport.Padding(top+theme.Space3, 0, 0, left).Justify(ui.Start).AlignItems(ui.Center)
 		for _, t := range toasts {
 			toast := ui.ToastBase(c, t)
 			toast.Root.Row().MinHeight(theme.RowStep).MaxWidth(theme.ToastMax).Padding(0, theme.Space3).Gap(theme.Space2).AlignItems(ui.Center).
-				Radius(theme.RadiusCard).Background(k.Popover).Border(theme.LineWidth, k.Line2).
+				Radius(theme.RadiusCard).Background(k.SurfaceFloat).Border(theme.LineWidth, k.Line2).
 				Tooltip(t.Title).Transition(ui.ElementTransition{Animation: &theme.MotionBase, Enter: &ui.Motion{Y: -theme.MotionDrop}, Exit: &ui.Motion{Y: -theme.MotionLift}})
 			k.ShadowPopover.On(toast.Root)
 			failed := t.Type == "error"
@@ -59,7 +56,7 @@ func (a *App) toasts(c *ui.Context, k theme.Colors) {
 				if failed {
 					close := toast.CloseButton().Label("关闭").Size(theme.RowDense, theme.RowDense).Radius(theme.RadiusRow).AlignItems(ui.Center).Justify(ui.Center)
 					if close.Hovered() {
-						close.Background(k.Fill2)
+						close.Background(k.Hover)
 					}
 					close.Children(func() {
 						ui.Icon(c, a.icons.Close).FontSize(theme.IconRow).TextColor(k.Fg3)

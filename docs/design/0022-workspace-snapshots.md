@@ -1,10 +1,10 @@
 # 0022 工作区快照与累计 diff
 
-状态：当前设计 · 更新：2026-11-04
+状态：当前设计 · 更新：2026-11-07
 
 ## 范围与现状
 
-范围：M1 的 git 基线、私有快照、累计 diff 与资源上限。
+范围：M1 的 git 基线、私有快照、累计 diff、其他 diff 范围、提交列表与资源上限。
 
 ```mermaid
 flowchart LR
@@ -19,6 +19,7 @@ flowchart LR
 | 状态 | 边界 |
 |---|---|
 | ✓ 代码已有 | 私有快照、累计 diff、并发合并、响应裁剪与对象维护 |
+| ○ 目标（M1 PR9c） | 未提交 / 分支 / 单个提交三种范围、提交列表 |
 
 ## 仓库发现
 
@@ -31,7 +32,7 @@ flowchart LR
 
 ## 文件与对象
 
-- Hoplet 自己的对象目录（每个仓库一个，`<home>/objects/<common git dir 路径的哈希>/`）和自己的 index（每个工作树一个，`index-<路径哈希>`，当 stat 缓存）。不读用户的 index，不写用户仓库；用户的对象只读 HEAD 的提交与树（不读文件内容）。 对象目录里没有 alternates，所以用户 `git gc` 不会弄坏旧基线。
+- Hoplet 自己的对象目录（每个仓库一个，`<home>/objects/<common git dir 路径的哈希>/`）和自己的 index（每个工作树一个，`index-<路径哈希>`，当 stat 缓存）。不读用户的 index，不写用户仓库。累计 diff 从用户的对象只读 HEAD 的提交与树（不读文件内容）；其他范围与提交列表另外只读用户的对象（含文件内容），见“其他范围”。对象目录里没有 alternates 文件，所以用户 `git gc` 不会弄坏旧基线。
 - 文件集合 = HEAD 中跟踪的路径 ∪ 未跟踪且未被忽略的路径（`status.showUntrackedFiles=no` 时没有这一项）∪ Hoplet index 里已有的。内容按磁盘上的原始字节：不运行 filter，不做 eol / ident 编码转换；执行位只看属主位。带 filter（如 LFS）的文件只列出、不给 patch。
 - 子模块和嵌入的仓库记为它们 `HEAD` 的提交（gitlink）。路径的任何一级父目录是符号链接时，该路径视为不存在，符号链接本身按符号链接记。大于 50MiB 或读不了的文件沿用之前记录的版本，列在 `skipped` 里（基线的和现在的合并）。只打开普通文件（`O_NOFOLLOW|O_NONBLOCK` 加 fstat），FIFO 之类不会卡住。
 - 文件内容用 `git fast-import` 写成 pack（在 Hoplet 自己的裸仓库 `fi.git` 里运行，崩溃报告也落在那里）。每 10000 个文件或 256MiB 一轮，每轮存一次 index，所以被 60 秒上限打断的快照下次接着做。单个快照要读超过 4GiB 的仓库为 `error`（“repository too large to snapshot”）。
@@ -42,7 +43,30 @@ flowchart LR
 - `GIT_NO_LAZY_FETCH=1`、`GIT_OPTIONAL_LOCKS=0`、`GIT_TERMINAL_PROMPT=0`
 - `index.threads=1`
 - 关闭 gc / maintenance / fsmonitor / untracked cache / split index
-- 在工作目录下发现的仓库用 `GIT_CEILING_DIRECTORIES` 不让 git 越过它的上一级。直接读用户仓库的只有只读的 `rev-parse`（含子模块的 `rev-parse HEAD`）、`config`、`ls-tree HEAD`、`symbolic-ref`。
+- 在工作目录下发现的仓库用 `GIT_CEILING_DIRECTORIES` 不让 git 越过它的上一级。直接读用户仓库的只有只读的 `rev-parse`（含子模块的 `rev-parse HEAD`）、`config`、`ls-tree HEAD`、`symbolic-ref`；其他范围与提交列表再加只读的 `merge-base`、`log`、`ls-tree`、`cat-file`。
+
+## 其他范围
+
+`sessions.diff` 带 `range`：空或 `session` 是累计（上文）；另外三种不要基线，仓库按现在发现的列出（不出现 `missing`），文件集合、filter、预算、并发合并与 sha 规则同累计。
+
+| 范围 | 旧的一侧 | 新的一侧 |
+|---|---|---|
+| `uncommitted` 未提交的改动 | `HEAD` 的树；还没有提交时为空树 | 现在的快照 |
+| `branch` 分支改动 | `merge-base HEAD <默认分支>` 的树 | 现在的快照 |
+| `commit` 一个提交（`commit` 给出它的 sha） | 它第一个父提交的树；根提交为空树 | 它的树（不做快照） |
+
+- 默认分支：`refs/remotes/origin/HEAD` 指向的分支，没有时依次试 `refs/heads/main`、`refs/heads/master`；都没有时该仓库为 `error`（“no default branch”）。`RepoDiff.base` 写比较的分支名（去掉 `origin/`）。
+- 快照在 Hoplet 自己的对象目录里，用户的提交与树在用户的对象库里：`diff-tree` 运行时 `GIT_OBJECT_DIRECTORY` 仍是 Hoplet 的目录，用 `GIT_ALTERNATE_OBJECT_DIRECTORIES` 临时挂上用户的对象目录（只读，只在这次命令的环境里，不写 alternates 文件）。写对象（空树）只落进 Hoplet 的目录。
+- 提交不在用户仓库里（sha 不对、浅克隆缺对象）时该仓库为 `error`。`commit` 只对指定的一个仓库有意义：请求必须带 `repo`，否则报参数错误。
+- `files.read` 带同样的 `range` / `commit`：`baseline` 读旧的一侧，否则读新的一侧（`commit` 时是那个提交里的文件，其余是磁盘上的文件）。用户对象里的文件用只读的 `ls-tree` / `cat-file` 读，2 MiB 与二进制的规则同上。
+
+## 提交列表
+
+`sessions.commits`（参数：会话、可选的仓库）给每个仓库列提交，供“提交”范围挑选：
+
+- 当前分支相对默认分支多出的提交（`log <默认分支>..HEAD`），新的在前，最多 200 条；当前就在默认分支上、多出的为 0 条、或没有默认分支时，列 `HEAD` 最近的 50 条。还没有提交时列表为空。
+- 每条：sha、标题（第一行，非 UTF-8 的字节换成 U+FFFD）；另给 `base`（比较的分支名）和 `truncated`。
+- 只读，不做快照，不进入 diff 的并发合并；每个请求 60 秒时限。
 
 ## 不支持的布局
 

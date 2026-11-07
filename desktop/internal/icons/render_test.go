@@ -122,7 +122,7 @@ func TestFileType(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, tc := range []struct{ name, want string }{
-		{"cmd/main.go", "go"}, {"go.mod", "go-mod"}, {"Makefile", "makefile"}, {"web/App.TSX", "react_ts"}, {"notes", "document"},
+		{"cmd/main.go", "go"}, {"go.mod", "go-mod"}, {"Makefile", "makefile"}, {"web/App.TSX", "react_ts"}, {"notes", "file"}, {".DS_Store", "file"}, {"todo.txt", "document"},
 	} {
 		if got := s.FileType(tc.name); got == nil || got != s.files[tc.want] {
 			t.Errorf("%s: not the %s icon", tc.name, tc.want)

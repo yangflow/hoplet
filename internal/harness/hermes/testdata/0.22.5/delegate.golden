@@ -1,0 +1,160 @@
+write {"id":"x","jsonrpc":"2.0","method":"session.create","params":{"cwd":"/work","editor":{"edit_approval_policy":"ask"},"request_id":"53326ab1717fc917","source":"acp","yolo":true}}
+native local-bb1132d7c952f399c97477358bdf5761565f1664e5f80b8c0adbb37b2764510f
+write {"id":"x","jsonrpc":"2.0","method":"session.mutate","params":{"expected_generation":0,"expected_revision":0,"operation":"edit_policy","payload":{"policy":"session"},"request_id":"x","session_id":"local-bb1132d7c952f399c97477358bdf5761565f1664e5f80b8c0adbb37b2764510f"}}
+write {"id":"x","jsonrpc":"2.0","method":"prompt.submit","params":{"session_id":"local-bb1132d7c952f399c97477358bdf5761565f1664e5f80b8c0adbb37b2764510f","submission_id":"x","text":"Keep it short. 1) Use your todo tool to make a todo list of three items: 'Find the bridge', 'Read the notes', 'Summarize'; mark the first in progress. 2) Use delegate_task once with TWO tasks in parallel: one finds which file defines Reconnect, the other reads docs/notes.md and reports its first line. 3) Then use delegate_task once more with a single task that counts the files in this directory. 4) Update the todo list to mark all items completed, then reply with one sentence."}}
+proto.TurnStarted {}
+proto.MessageDelta {"message_id":"ae346cb01ba74aa1b2e6b06d516616ad/0","text":"I"}
+proto.MessageDelta {"message_id":"ae346cb01ba74aa1b2e6b06d516616ad/0","text":"’ll"}
+proto.MessageDelta {"message_id":"ae346cb01ba74aa1b2e6b06d516616ad/0","text":" run"}
+proto.MessageDelta {"message_id":"ae346cb01ba74aa1b2e6b06d516616ad/0","text":" the"}
+proto.MessageDelta {"message_id":"ae346cb01ba74aa1b2e6b06d516616ad/0","text":" two"}
+proto.MessageDelta {"message_id":"ae346cb01ba74aa1b2e6b06d516616ad/0","text":" look"}
+proto.MessageDelta {"message_id":"ae346cb01ba74aa1b2e6b06d516616ad/0","text":"ups"}
+proto.MessageDelta {"message_id":"ae346cb01ba74aa1b2e6b06d516616ad/0","text":" in"}
+proto.MessageDelta {"message_id":"ae346cb01ba74aa1b2e6b06d516616ad/0","text":" parallel"}
+proto.MessageDelta {"message_id":"ae346cb01ba74aa1b2e6b06d516616ad/0","text":","}
+proto.MessageDelta {"message_id":"ae346cb01ba74aa1b2e6b06d516616ad/0","text":" then"}
+proto.MessageDelta {"message_id":"ae346cb01ba74aa1b2e6b06d516616ad/0","text":" count"}
+proto.MessageDelta {"message_id":"ae346cb01ba74aa1b2e6b06d516616ad/0","text":" the"}
+proto.MessageDelta {"message_id":"ae346cb01ba74aa1b2e6b06d516616ad/0","text":" files"}
+proto.MessageDelta {"message_id":"ae346cb01ba74aa1b2e6b06d516616ad/0","text":" and"}
+proto.MessageDelta {"message_id":"ae346cb01ba74aa1b2e6b06d516616ad/0","text":" complete"}
+proto.MessageDelta {"message_id":"ae346cb01ba74aa1b2e6b06d516616ad/0","text":" the"}
+proto.MessageDelta {"message_id":"ae346cb01ba74aa1b2e6b06d516616ad/0","text":" checklist"}
+proto.MessageDelta {"message_id":"ae346cb01ba74aa1b2e6b06d516616ad/0","text":".\n"}
+proto.Message {"id":"ae346cb01ba74aa1b2e6b06d516616ad/0","role":"assistant","text":"I’ll run the two lookups in parallel, then count the files and complete the checklist.\n"}
+proto.ToolCall {"id":"call_d6f9f0fb0e244584b01a479cdc4fd52c","kind":"other","name":"tool_describe","summary":"Reading tool details · 1 tool","status":"running"}
+proto.ToolCall {"id":"call_d6f9f0fb0e244584b01a479cdc4fd52c","kind":"other","name":"tool_describe","summary":"Reading tool details · 1 tool","status":"done"}
+proto.ModelChanged {"model":"codex/gpt-6.1-sol","provider":"custom"}
+proto.TodoList {"items":[{"id":"1","text":"Find the bridge","status":"in_progress"},{"id":"2","text":"Read the notes","status":"pending"},{"id":"3","text":"Summarize","status":"pending"}]}
+proto.Subagent {"id":"call_67c511a1be92415db86305bb81b81b3b/1","call_id":"call_67c511a1be92415db86305bb81b81b3b","title":"Find which file defines Reconnect. Search the working directory and report exact path and definition line, with evidence. Read-only. Be concise.","status":"running"}
+agent call_67c511a1be92415db86305bb81b81b3b/1 proto.Message {"id":"call_67c511a1be92415db86305bb81b81b3b/1/task","role":"user","text":"Find which file defines Reconnect. Search the working directory and report exact path and definition line, with evidence. Read-only. Be concise."}
+proto.Subagent {"id":"call_67c511a1be92415db86305bb81b81b3b/2","call_id":"call_67c511a1be92415db86305bb81b81b3b","title":"Read docs/notes.md and report its exact first line. Read-only. Be concise.","status":"running"}
+agent call_67c511a1be92415db86305bb81b81b3b/2 proto.Message {"id":"call_67c511a1be92415db86305bb81b81b3b/2/task","role":"user","text":"Read docs/notes.md and report its exact first line. Read-only. Be concise."}
+proto.Subagent {"id":"call_67c511a1be92415db86305bb81b81b3b/1","call_id":"call_67c511a1be92415db86305bb81b81b3b","title":"Find which file defines Reconnect. Search the working directory and report exact path and definition line, with evidence. Read-only. Be concise.","status":"running","background":true}
+proto.Subagent {"id":"call_67c511a1be92415db86305bb81b81b3b/2","call_id":"call_67c511a1be92415db86305bb81b81b3b","title":"Read docs/notes.md and report its exact first line. Read-only. Be concise.","status":"running","background":true}
+agent call_67c511a1be92415db86305bb81b81b3b/2 proto.ToolCall {"id":"call_67c511a1be92415db86305bb81b81b3b/2/1","kind":"read","name":"read_file","summary":"notes.md L1","status":"running"}
+agent call_67c511a1be92415db86305bb81b81b3b/1 proto.ToolCall {"id":"call_67c511a1be92415db86305bb81b81b3b/1/1","kind":"exec","name":"terminal","summary":"rg -n --hidden --glob '!.git' '\\bReconnect\\b' .","status":"running"}
+proto.Subagent {"id":"call_eaec8cbfab6b41e08cc291d98f3cb902","call_id":"call_eaec8cbfab6b41e08cc291d98f3cb902","title":"Count files in this directory using a real tool. Report the number of immediate regular files, and separately recursive regular files (so the interpretation is clear). Include hidden files and exclude directories. Read-only, concise.","status":"running"}
+agent call_eaec8cbfab6b41e08cc291d98f3cb902 proto.Message {"id":"call_eaec8cbfab6b41e08cc291d98f3cb902/task","role":"user","text":"Count files in this directory using a real tool. Report the number of immediate regular files, and separately recursive regular files (so the interpretation is clear). Include hidden files and exclude directories. Read-only, concise."}
+proto.Subagent {"id":"call_eaec8cbfab6b41e08cc291d98f3cb902","call_id":"call_eaec8cbfab6b41e08cc291d98f3cb902","title":"Count files in this directory using a real tool. Report the number of immediate regular files, and separately recursive regular files (so the interpretation is clear). Include hidden files and exclude directories. Read-only, concise.","status":"running","background":true}
+agent call_67c511a1be92415db86305bb81b81b3b/2 proto.ToolCall {"id":"call_67c511a1be92415db86305bb81b81b3b/2/1","kind":"read","name":"read_file","summary":"notes.md L1","status":"done"}
+proto.Subagent {"id":"call_67c511a1be92415db86305bb81b81b3b/2","call_id":"call_67c511a1be92415db86305bb81b81b3b","title":"Read docs/notes.md and report its exact first line. Read-only. Be concise.","status":"done","background":true,"tokens":26851,"tool_uses":1,"duration_ms":7770,"summary":"`# Notes`"}
+proto.MessageDelta {"message_id":"ae346cb01ba74aa1b2e6b06d516616ad/1","text":"\n\nBoth"}
+proto.MessageDelta {"message_id":"ae346cb01ba74aa1b2e6b06d516616ad/1","text":" look"}
+proto.MessageDelta {"message_id":"ae346cb01ba74aa1b2e6b06d516616ad/1","text":"ups"}
+proto.MessageDelta {"message_id":"ae346cb01ba74aa1b2e6b06d516616ad/1","text":" and"}
+proto.MessageDelta {"message_id":"ae346cb01ba74aa1b2e6b06d516616ad/1","text":" the"}
+proto.MessageDelta {"message_id":"ae346cb01ba74aa1b2e6b06d516616ad/1","text":" file"}
+proto.MessageDelta {"message_id":"ae346cb01ba74aa1b2e6b06d516616ad/1","text":" count"}
+proto.MessageDelta {"message_id":"ae346cb01ba74aa1b2e6b06d516616ad/1","text":" are"}
+proto.MessageDelta {"message_id":"ae346cb01ba74aa1b2e6b06d516616ad/1","text":" running"}
+proto.MessageDelta {"message_id":"ae346cb01ba74aa1b2e6b06d516616ad/1","text":";"}
+proto.MessageDelta {"message_id":"ae346cb01ba74aa1b2e6b06d516616ad/1","text":" I"}
+proto.MessageDelta {"message_id":"ae346cb01ba74aa1b2e6b06d516616ad/1","text":"’ll"}
+proto.MessageDelta {"message_id":"ae346cb01ba74aa1b2e6b06d516616ad/1","text":" mark"}
+proto.MessageDelta {"message_id":"ae346cb01ba74aa1b2e6b06d516616ad/1","text":" the"}
+proto.MessageDelta {"message_id":"ae346cb01ba74aa1b2e6b06d516616ad/1","text":" checklist"}
+proto.MessageDelta {"message_id":"ae346cb01ba74aa1b2e6b06d516616ad/1","text":" complete"}
+proto.MessageDelta {"message_id":"ae346cb01ba74aa1b2e6b06d516616ad/1","text":" when"}
+proto.MessageDelta {"message_id":"ae346cb01ba74aa1b2e6b06d516616ad/1","text":" their"}
+proto.MessageDelta {"message_id":"ae346cb01ba74aa1b2e6b06d516616ad/1","text":" results"}
+proto.MessageDelta {"message_id":"ae346cb01ba74aa1b2e6b06d516616ad/1","text":" arrive"}
+proto.MessageDelta {"message_id":"ae346cb01ba74aa1b2e6b06d516616ad/1","text":"."}
+proto.Message {"id":"ae346cb01ba74aa1b2e6b06d516616ad/1","role":"assistant","text":"Both lookups and the file count are running; I’ll mark the checklist complete when their results arrive."}
+write {"id":"x","jsonrpc":"2.0","method":"prompt.receipt","params":{"admission_id":"ae346cb01ba74aa1b2e6b06d516616ad","include_result":true,"session_id":"local-bb1132d7c952f399c97477358bdf5761565f1664e5f80b8c0adbb37b2764510f"}}
+proto.Usage {"input_tokens":82788,"output_tokens":472}
+proto.TurnEnded {"reason":"completed"}
+agent call_eaec8cbfab6b41e08cc291d98f3cb902 proto.ToolCall {"id":"call_eaec8cbfab6b41e08cc291d98f3cb902/1","kind":"exec","name":"terminal","summary":"python3 -c 'import os, stat; root=\".\"; regular=lambda p: stat.S_ISREG(os.stat(p, follow_symlinks=False).st_mode); immediate=sum(regular(e.path) for e in os.scandir(root)); recursive=sum(regular(os.path.join(base, name)) for base, dirs, files in os.walk(root, followlinks=False) for name in files); print(f\"Immediate regular files: {immediate}\\nRecursive regular files: {recursive}\")'","status":"running"}
+agent call_67c511a1be92415db86305bb81b81b3b/1 proto.ToolCall {"id":"call_67c511a1be92415db86305bb81b81b3b/1/1","kind":"exec","name":"terminal","summary":"rg -n --hidden --glob '!.git' '\\bReconnect\\b' .","status":"done"}
+proto.Subagent {"id":"call_67c511a1be92415db86305bb81b81b3b/1","call_id":"call_67c511a1be92415db86305bb81b81b3b","title":"Find which file defines Reconnect. Search the working directory and report exact path and definition line, with evidence. Read-only. Be concise.","status":"done","background":true,"tokens":27020,"tool_uses":1,"duration_ms":15120,"summary":"`Reconnect` is defined in [net/bridge.go:4](/work/net/bridge.go:4).\n\nEvidence from `rg -n`:\n\n```go\nfunc Reconnect() error { return nil }\n```\n\nRead-only search; no files changed."}
+proto.TurnStarted {}
+agent call_eaec8cbfab6b41e08cc291d98f3cb902 proto.ToolCall {"id":"call_eaec8cbfab6b41e08cc291d98f3cb902/1","kind":"exec","name":"terminal","summary":"python3 -c 'import os, stat; root=\".\"; regular=lambda p: stat.S_ISREG(os.stat(p, follow_symlinks=False).st_mode); immediate=sum(regular(e.path) for e in os.scandir(root)); recursive=sum(regular(os.path.join(base, name)) for base, dirs, files in os.walk(root, followlinks=False) for name in files); print(f\"Immediate regular files: {immediate}\\nRecursive regular files: {recursive}\")'","status":"done"}
+proto.Subagent {"id":"call_eaec8cbfab6b41e08cc291d98f3cb902","call_id":"call_eaec8cbfab6b41e08cc291d98f3cb902","title":"Count files in this directory using a real tool. Report the number of immediate regular files, and separately recursive regular files (so the interpretation is clear). Include hidden files and exclude directories. Read-only, concise.","status":"done","background":true,"tokens":27083,"tool_uses":1,"duration_ms":13930,"summary":"- Immediate regular files: **0**\n- Recursive regular files: **2**\n\nCounted using Python; hidden files included, directories and symlinks excluded."}
+proto.TodoList {"items":[{"id":"1","text":"Find the bridge","status":"completed"},{"id":"2","text":"Read the notes","status":"completed"},{"id":"3","text":"Summarize","status":"in_progress"}]}
+proto.MessageDelta {"message_id":"39fab6ef14524891aac445f70f9ce28e/0","text":"\n\n`"}
+proto.MessageDelta {"message_id":"39fab6ef14524891aac445f70f9ce28e/0","text":"Reconnect"}
+proto.MessageDelta {"message_id":"39fab6ef14524891aac445f70f9ce28e/0","text":"`"}
+proto.MessageDelta {"message_id":"39fab6ef14524891aac445f70f9ce28e/0","text":" is"}
+proto.MessageDelta {"message_id":"39fab6ef14524891aac445f70f9ce28e/0","text":" defined"}
+proto.MessageDelta {"message_id":"39fab6ef14524891aac445f70f9ce28e/0","text":" in"}
+proto.MessageDelta {"message_id":"39fab6ef14524891aac445f70f9ce28e/0","text":" `"}
+proto.MessageDelta {"message_id":"39fab6ef14524891aac445f70f9ce28e/0","text":"net"}
+proto.MessageDelta {"message_id":"39fab6ef14524891aac445f70f9ce28e/0","text":"/"}
+proto.MessageDelta {"message_id":"39fab6ef14524891aac445f70f9ce28e/0","text":"bridge"}
+proto.MessageDelta {"message_id":"39fab6ef14524891aac445f70f9ce28e/0","text":".go"}
+proto.MessageDelta {"message_id":"39fab6ef14524891aac445f70f9ce28e/0","text":":"}
+proto.MessageDelta {"message_id":"39fab6ef14524891aac445f70f9ce28e/0","text":"4"}
+proto.MessageDelta {"message_id":"39fab6ef14524891aac445f70f9ce28e/0","text":"`,"}
+proto.MessageDelta {"message_id":"39fab6ef14524891aac445f70f9ce28e/0","text":" the"}
+proto.MessageDelta {"message_id":"39fab6ef14524891aac445f70f9ce28e/0","text":" notes"}
+proto.MessageDelta {"message_id":"39fab6ef14524891aac445f70f9ce28e/0","text":" begin"}
+proto.MessageDelta {"message_id":"39fab6ef14524891aac445f70f9ce28e/0","text":" with"}
+proto.MessageDelta {"message_id":"39fab6ef14524891aac445f70f9ce28e/0","text":" `"}
+proto.MessageDelta {"message_id":"39fab6ef14524891aac445f70f9ce28e/0","text":"#"}
+proto.MessageDelta {"message_id":"39fab6ef14524891aac445f70f9ce28e/0","text":" Notes"}
+proto.MessageDelta {"message_id":"39fab6ef14524891aac445f70f9ce28e/0","text":"`,"}
+proto.MessageDelta {"message_id":"39fab6ef14524891aac445f70f9ce28e/0","text":" and"}
+proto.MessageDelta {"message_id":"39fab6ef14524891aac445f70f9ce28e/0","text":" the"}
+proto.MessageDelta {"message_id":"39fab6ef14524891aac445f70f9ce28e/0","text":" file"}
+proto.MessageDelta {"message_id":"39fab6ef14524891aac445f70f9ce28e/0","text":" count"}
+proto.MessageDelta {"message_id":"39fab6ef14524891aac445f70f9ce28e/0","text":" is"}
+proto.MessageDelta {"message_id":"39fab6ef14524891aac445f70f9ce28e/0","text":" still"}
+proto.MessageDelta {"message_id":"39fab6ef14524891aac445f70f9ce28e/0","text":" running"}
+proto.MessageDelta {"message_id":"39fab6ef14524891aac445f70f9ce28e/0","text":"."}
+proto.Message {"id":"39fab6ef14524891aac445f70f9ce28e/0","role":"assistant","text":"`Reconnect` is defined in `net/bridge.go:4`, the notes begin with `# Notes`, and the file count is still running."}
+write {"id":"x","jsonrpc":"2.0","method":"prompt.receipt","params":{"admission_id":"39fab6ef14524891aac445f70f9ce28e","include_result":true,"session_id":"local-bb1132d7c952f399c97477358bdf5761565f1664e5f80b8c0adbb37b2764510f"}}
+proto.Usage {"input_tokens":35978,"output_tokens":135}
+proto.TurnEnded {"reason":"completed"}
+proto.TurnStarted {}
+proto.TodoList {"items":[{"id":"1","text":"Find the bridge","status":"completed"},{"id":"2","text":"Read the notes","status":"completed"},{"id":"3","text":"Summarize","status":"completed"}]}
+proto.MessageDelta {"message_id":"e367d3dccf2d4a6196a217e347bc2dd6/0","text":"\n\nAll"}
+proto.MessageDelta {"message_id":"e367d3dccf2d4a6196a217e347bc2dd6/0","text":" three"}
+proto.MessageDelta {"message_id":"e367d3dccf2d4a6196a217e347bc2dd6/0","text":" todos"}
+proto.MessageDelta {"message_id":"e367d3dccf2d4a6196a217e347bc2dd6/0","text":" are"}
+proto.MessageDelta {"message_id":"e367d3dccf2d4a6196a217e347bc2dd6/0","text":" complete"}
+proto.MessageDelta {"message_id":"e367d3dccf2d4a6196a217e347bc2dd6/0","text":":"}
+proto.MessageDelta {"message_id":"e367d3dccf2d4a6196a217e347bc2dd6/0","text":" `"}
+proto.MessageDelta {"message_id":"e367d3dccf2d4a6196a217e347bc2dd6/0","text":"Reconnect"}
+proto.MessageDelta {"message_id":"e367d3dccf2d4a6196a217e347bc2dd6/0","text":"`"}
+proto.MessageDelta {"message_id":"e367d3dccf2d4a6196a217e347bc2dd6/0","text":" is"}
+proto.MessageDelta {"message_id":"e367d3dccf2d4a6196a217e347bc2dd6/0","text":" defined"}
+proto.MessageDelta {"message_id":"e367d3dccf2d4a6196a217e347bc2dd6/0","text":" in"}
+proto.MessageDelta {"message_id":"e367d3dccf2d4a6196a217e347bc2dd6/0","text":" `"}
+proto.MessageDelta {"message_id":"e367d3dccf2d4a6196a217e347bc2dd6/0","text":"net"}
+proto.MessageDelta {"message_id":"e367d3dccf2d4a6196a217e347bc2dd6/0","text":"/"}
+proto.MessageDelta {"message_id":"e367d3dccf2d4a6196a217e347bc2dd6/0","text":"bridge"}
+proto.MessageDelta {"message_id":"e367d3dccf2d4a6196a217e347bc2dd6/0","text":".go"}
+proto.MessageDelta {"message_id":"e367d3dccf2d4a6196a217e347bc2dd6/0","text":":"}
+proto.MessageDelta {"message_id":"e367d3dccf2d4a6196a217e347bc2dd6/0","text":"4"}
+proto.MessageDelta {"message_id":"e367d3dccf2d4a6196a217e347bc2dd6/0","text":"`,"}
+proto.MessageDelta {"message_id":"e367d3dccf2d4a6196a217e347bc2dd6/0","text":" `"}
+proto.MessageDelta {"message_id":"e367d3dccf2d4a6196a217e347bc2dd6/0","text":"docs"}
+proto.MessageDelta {"message_id":"e367d3dccf2d4a6196a217e347bc2dd6/0","text":"/"}
+proto.MessageDelta {"message_id":"e367d3dccf2d4a6196a217e347bc2dd6/0","text":"notes"}
+proto.MessageDelta {"message_id":"e367d3dccf2d4a6196a217e347bc2dd6/0","text":".md"}
+proto.MessageDelta {"message_id":"e367d3dccf2d4a6196a217e347bc2dd6/0","text":"`"}
+proto.MessageDelta {"message_id":"e367d3dccf2d4a6196a217e347bc2dd6/0","text":" begins"}
+proto.MessageDelta {"message_id":"e367d3dccf2d4a6196a217e347bc2dd6/0","text":" with"}
+proto.MessageDelta {"message_id":"e367d3dccf2d4a6196a217e347bc2dd6/0","text":" `"}
+proto.MessageDelta {"message_id":"e367d3dccf2d4a6196a217e347bc2dd6/0","text":"#"}
+proto.MessageDelta {"message_id":"e367d3dccf2d4a6196a217e347bc2dd6/0","text":" Notes"}
+proto.MessageDelta {"message_id":"e367d3dccf2d4a6196a217e347bc2dd6/0","text":"`,"}
+proto.MessageDelta {"message_id":"e367d3dccf2d4a6196a217e347bc2dd6/0","text":" and"}
+proto.MessageDelta {"message_id":"e367d3dccf2d4a6196a217e347bc2dd6/0","text":" the"}
+proto.MessageDelta {"message_id":"e367d3dccf2d4a6196a217e347bc2dd6/0","text":" directory"}
+proto.MessageDelta {"message_id":"e367d3dccf2d4a6196a217e347bc2dd6/0","text":" contains"}
+proto.MessageDelta {"message_id":"e367d3dccf2d4a6196a217e347bc2dd6/0","text":" "}
+proto.MessageDelta {"message_id":"e367d3dccf2d4a6196a217e347bc2dd6/0","text":"0"}
+proto.MessageDelta {"message_id":"e367d3dccf2d4a6196a217e347bc2dd6/0","text":" immediate"}
+proto.MessageDelta {"message_id":"e367d3dccf2d4a6196a217e347bc2dd6/0","text":" files"}
+proto.MessageDelta {"message_id":"e367d3dccf2d4a6196a217e347bc2dd6/0","text":" and"}
+proto.MessageDelta {"message_id":"e367d3dccf2d4a6196a217e347bc2dd6/0","text":" "}
+proto.MessageDelta {"message_id":"e367d3dccf2d4a6196a217e347bc2dd6/0","text":"2"}
+proto.MessageDelta {"message_id":"e367d3dccf2d4a6196a217e347bc2dd6/0","text":" files"}
+proto.MessageDelta {"message_id":"e367d3dccf2d4a6196a217e347bc2dd6/0","text":" recursively"}
+proto.MessageDelta {"message_id":"e367d3dccf2d4a6196a217e347bc2dd6/0","text":"."}
+proto.Message {"id":"e367d3dccf2d4a6196a217e347bc2dd6/0","role":"assistant","text":"All three todos are complete: `Reconnect` is defined in `net/bridge.go:4`, `docs/notes.md` begins with `# Notes`, and the directory contains 0 immediate files and 2 files recursively."}
+write {"id":"x","jsonrpc":"2.0","method":"prompt.receipt","params":{"admission_id":"e367d3dccf2d4a6196a217e347bc2dd6","include_result":true,"session_id":"local-bb1132d7c952f399c97477358bdf5761565f1664e5f80b8c0adbb37b2764510f"}}
+proto.Usage {"input_tokens":37102,"output_tokens":126}
+proto.TurnEnded {"reason":"completed"}

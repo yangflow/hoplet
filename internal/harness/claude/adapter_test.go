@@ -89,7 +89,7 @@ func TestLaunch(t *testing.T) {
 		"bogus mode":  {spec: harness.Spec{Mode: "read_only"}, bad: true},
 	} {
 		tc.spec.WorkDir = "/work"
-		tc.spec.Env = []string{"PATH=/bin", "CLAUDECODE=1", "CLAUDE_CODE_ENTRYPOINT=desktop", "ANTHROPIC_BASE_URL=https://gw", "DISABLE_AUTOUPDATER=0"}
+		tc.spec.Env = []string{"PATH=/bin", "CLAUDECODE=1", "CLAUDE_CODE_ENTRYPOINT=desktop", "CLAUDE_CODE_ENABLE_TODO_TOOLS=0", "ANTHROPIC_BASE_URL=https://gw", "DISABLE_AUTOUPDATER=0"}
 		l, err := h.Launch(tc.spec)
 		if tc.bad {
 			if err == nil {
@@ -106,7 +106,7 @@ func TestLaunch(t *testing.T) {
 				t.Errorf("%s: %q lacks %q", name, cmd, must)
 			}
 		}
-		if l.Dir != "/work" || !slices.Equal(l.Env, []string{"PATH=/bin", "ANTHROPIC_BASE_URL=https://gw", "DISABLE_AUTOUPDATER=1"}) {
+		if l.Dir != "/work" || !slices.Equal(l.Env, []string{"PATH=/bin", "ANTHROPIC_BASE_URL=https://gw", "DISABLE_AUTOUPDATER=1", "CLAUDE_CODE_ENABLE_TODO_TOOLS=1"}) {
 			t.Errorf("%s: dir %q env %v", name, l.Dir, l.Env)
 		}
 	}

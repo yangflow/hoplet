@@ -1,10 +1,10 @@
 # 0014 桌面设计系统
 
-状态：当前设计 · 更新：2026-11-05
+状态：当前设计 · 更新：2026-11-07
 
 ## 范围与现状
 
-范围：视觉 token、文字、图标、动效和 MyGO 组件映射。布局与交互见 [0024](0024-desktop-layout.md)。
+范围：视觉 token、文字、图标、动效和 MyGO 组件映射；页面布局与交互不在本文。
 
 ```mermaid
 flowchart LR
@@ -26,38 +26,47 @@ flowchart LR
 - 各区靠明暗区分。底色跟着标志走：深色取深色标志（石墨），浅色取浅色标志的底：正文区取白端，侧栏只比正文区暗一点（不发灰），你的气泡取 #E7EAEE
 - 边界只有三条 1px `line`，且只在侧边栏展开时出现：侧栏右边、右栏左边、右栏里右列的左边。区内不画分隔线：标题栏下、侧栏底栏上、会话详情列左边、右栏的标签栏和路径栏下都没有线
 - 设计稿的桌面画板铺样例壁纸（`wallpaper`），窗口用 `material-window` 近似系统材质；代码里这层由 `VibrancyUnderWindow` 提供，不用这两个值
-- 输入框在浅色下加一条 `glass-line` 细边（黑 .08）。输入框只铺 `glass` 底与 `glass-line` 细边
-- 窗口里自己画的弹层、菜单、提示条、回到底部按钮用接近不透明的 `popover` + 1px `line2` + `shadow-popover`，不加背后模糊。正文区上的卡片（伙伴气泡等）用 `bg`，工具输出框和排队托盘用 `bg2`。正文区不用玻璃材质，只用半透明底，保证长文与代码清晰。
+- 输入框和其他表面一样铺 `surface`，配 1px `line2` 与 `shadow-composer`
+- 相对取色：区域和表面都是叠在下面一层上的中性白 / 黑（不带色调），不写死颜色，所以不管桌面偏冷偏暖整窗都是一个色调；只有浮层、文字和彩色是固定值。表面 `surface` 用于输入框、代码块、改动文件卡、工具输出、会话详情、收件箱卡片、伙伴气泡、任务与排队托盘：对话流里配 1px `line`、无阴影，输入框配 `line2` + `shadow-composer`。浮层 `surface-float`（菜单、命令面板、模型与 harness 选择、推理强度、打开方式、提示条、回到底部）不透明，配 1px `line2` + `shadow-popover`：窗口本身半透明，浮层哪怕 .97 也会透出字影；glass 插件实测着色 .92 会压暗、.85 会透字，所以不用。正文区不用玻璃材质，只用半透明底，保证长文与代码清晰。配色总览画板把整窗放在偏冷、中性、偏暖三种桌面上，三种都协调才算通过。
 
 ## 颜色
 
-| token | 深色 | 浅色 | 用途 |
-|---|---|---|---|
-| `fg` / `fg2` / `fg3` | #F4F4F5 / #D3D6DB / #B0B4BB | #23272D / #383B40 / #53575D | 正文 / 次要 / 图标与控件 |
-| `muted` / `faint` | #8E939B / #666B73 | #5E6268 / #A0A4AA | 辅助信息 / 占位与禁用 |
-| `accent` + `on-accent` | #3CC4C9 + #0C1A1C | #066A70 + #FFFFFF | 按钮、开关、发送的底与其上的字 |
-| `accent-fg` | #3CC4C9 | #066A70 | 需要突出显示的一律用它：链接、行内代码（8% 淡底）、文件名（工具行读取 / 编辑的路径、改动卡片）；焦点环、运行中、未读 |
-| `attn` + `on-attn` | #F0A35B + #1E1408 | #A85C14 + #FFFFFF | 需要你 |
-| `attn-line` / `attn-glow` | #F0A35B .40 / .10 | #D9822B .40 / .10 | 审批输入框的描边 / 描边外 3px 光晕（深浅都有） |
-| `add` / `del` | #7BC86C / #F0758A | #2E7031 / #B02A55 | diff 新增 / 删除 |
-| `pane` / `side` / `glass` | 白 .06 叠暗、#0E1014 .38、白 .05 | 白 .62、#F4F5F7 .80、白 .88 | 正文区与右栏查看区 / 侧栏与右列 / 输入框 |
-| `raised` / `sel` / `sel-row` | 白 .16 / .10 / .09 | 白 .88 / 黑 .055 / .06 | 分段与标签选中项 / 当前菜单项 / 选中行 |
-| `bg` / `bg2` | 白 .06 / .03 | 白 .75 / .70 | 正文区上的卡片、伙伴气泡 / 工具输出框、排队托盘 |
-| `fill` / `fill2` | 白 .06 / .10 | 黑 .04 / .06 | 控件底 / 悬停 |
-| `line` / `line2` | 白 .08 / .14 | 黑 .06 / .10 | 三条边界与卡片、输出框自己的边 / 控件边 |
-| `glass-line` | 白 .12 | 黑 .08 | 输入框细边 |
-| `attn-fg` | #F5BB82 | #8A4B0F | 需要你的文字 |
-| `add-bg` / `del-bg` | #7BC86C .12 / #F0758A .11 | #2E7031 .10 / #B02A55 .08 | diff 淡底 |
-| `bubble` | 白 .10 | #E7EAEE .95 | 我的消息气泡 |
-| `shadow` | 黑 .45 | 黑 .12 | 弹层阴影 |
-| `popover` | #262A30 .97 | 白 .97 | 窗口里自己画的弹层（输入框的弹层、新建页的目录与模型、提示条、回到底部）：接近不透明，配 1px `line2` 边框与弹层阴影，不加背后模糊 |
+按层组织：每个颜色只回答它在哪一层、起什么作用；同一层的东西同一个颜色，层与层之间靠明暗、细边和阴影区分。tokens.json 里每个颜色都标了层。
+
+| 层 | token | 深色 | 浅色 | 用途 |
+|---|---|---|---|---|
+| 0 设计稿底 | `wall` / `wallpaper` | — | — | 只在设计稿里近似桌面；代码由窗口材质提供 |
+| 1 区域 | `pane` / `side` | #121214 .62 / .50 | 白 .62 / .38 | 正文区与查看区 / 侧栏与右列；系统材质上一层中性白或黑，透出桌面，不带色调 |
+| 2 表面 | `surface` / `surface-float` | 白 .06 / #323234 | 白 .70 / #FBFBFB | `surface`：叠在区域上的中性层，用于输入框与区域上放的一切东西，随区域变色、永远再亮一级；`surface-float`：浮层，不透明，明度对准 surface 的实际样子 |
+| 3 状态叠加 | `fill` / `hover` / `selected` / `pressed` | 白 .04 / .06 / .09 / .13 | 黑 .035 / .05 / .08 / .11 | 叠加阶梯四档，一档比一档深：控件平时的底 / 悬停 / 选中（比悬停深一档）/ 按下 |
+| 3 状态叠加 | `raised` | 白 .16 | 白 .88 | 分段与标签的选中块，配 `shadow-raised` |
+| 4 角色例外 | `bubble` | 白 .09 | 黑 .05 | 你的消息：叠在正文区上的中性层，唯一与 `surface` 方向相反的底 |
+| 5 文字 | `fg` / `fg2` / `fg3` | #FDFDFD / #E2E2E2 / #C3C3C3 | #2A2A2A / #3D3D3D / #515151 | 正文 / 次要 / 图标与控件；零色相，≥9.5 / 7.5 / 5.5:1 |
+| 5 文字 | `muted` / `faint` / `on-inverse` | #B1B1B1 / #858585 / #252526 | #5E5E5E / #848484 / #FFFFFF | 辅助信息 ≥4.5:1 / 占位与禁用 ≥2.6:1 / 翻过来的小块上的字 |
+| 6 语义 | `accent` + `on-accent` / `accent-fg` | #3CC4C9 + #0C1A1C / #3CC4C9 | #066A70 + #FFFFFF / #06696F | 按钮、开关、发送的底与字 / 链接、行内代码、文件名、焦点环、运行中、未读 |
+| 6 语义 | `attn` + `on-attn` / `attn-fg` / `attn-line` / `attn-glow` | #F0A35B + #1E1408 / #F5BB82 / .40 / .10 | #A85C14 + #FFFFFF / #8A4B0F / #D9822B .40 / .10 | 需要你：圆点与角标 / 文字 / 审批输入框描边 / 光晕 |
+| 6 语义 | `add` / `del` / `add-bg` / `del-bg` | #7BC86C / #F496A6 / .12 / .11 | #2C6B2F / #AE2A54 / .10 / .08 | diff 新增 / 删除 / 淡底 |
+| 7 边与阴影 | `line` / `line2` / `shadow` | 白 .08 / .14 / 黑 .45 | 黑 .06 / .10 / .12 | 对话流里的块与三条边界 / 浮层与控件的边 / 阴影色 |
+| 7 标志 | `logo-*` | — | — | 标志与 App 图标，`logo-body` = `fg`、`logo-piece` = `accent` |
 
 规则：
 
 - 一种彩色：青色只给可操作的元素和需要注意的状态，不用在背景、壁纸、中性灰和选中底上。
 - 四种有含义的颜色在色相上拉开：青 182°、绿 110–123°、琥珀 29°、玫红 341–350°。新增 / 删除只出现在 diff 和行数里；琥珀只表示需要你；文件状态 M、R 用中性灰。
 - 状态先靠形状，其次颜色。
-- 文字在玻璃上 ≥4.5:1（两个主题在设计稿上都核过，真实材质待实测）；`faint` 不承载必须读到的信息。焦点环 2px 实线 `accent-fg`。
+- 对比度审计：tokens.json 的 `audit` 一节写明窗口材质参考色、承载文字的底（区域、表面、浮层、选中行、你的消息，按 token 层层叠出）和每档目标：`fg` ≥9.5、`fg2` ≥7.5、`fg3` ≥5.5、`muted` / `accent-fg` / `attn-fg` / `add` / `del` ≥4.5、`faint` ≥2.6（只用于占位与禁用），`on-accent` / `on-attn` 在各自底上 ≥4.5。`desktop/internal/theme` 的测试按它计算深浅两套，画板“配色：token”有同一张表；不过审计的颜色改动不能合入。两套参考色都由真实窗口实测的正文区反推（浅色 #F2F3F3、深色 #252527 时的材质）。焦点环 2px 实线 `accent-fg`。
+- 文字五档是零色相中性灰，由对比度目标生成，不手挑；标志主体保留品牌石墨色，与 `fg` 相差不到一级。
+- 透明度只取 `opacity-disabled` 0.45（不能用）与 `opacity-faded` 0.6（还能用但退到后面：行尾平时的 ＋、没送出的消息、没装的 harness）。
+
+## 组件规则
+
+设计系统 README 的“组件规则”是唯一来源，这里只列要点：
+
+- **圆角按角色**：小件 `radius-xs` · 行 `radius-row`（侧栏行、菜单项、文件树、命令面板的行、审批选项）· 控件 `radius-control` · 表面 `radius-card`（对话流里的块与小浮层）· 大浮层 `radius-panel`（命令面板）· 输入框与气泡 `radius-composer` · 圆 `radius-pill`。
+- **交互状态**：悬停 `hover`、按下 `pressed`、选中 `selected`、分段选中 `raised`、禁用 `opacity-disabled`；叠加层半透明，叠在区域或表面上。
+- **空、加载、出错**：空写一行事实（筛选造成的加“显示全部”）；加载在那一行行尾转圈，不用骨架屏；出错一行原因加一个能解决的操作，不用红色。
+- **键帽**：`caption` 字、`fill` 底、`radius-xs`、高 `icon`。
+- **命名**：组件按层命名（`A` 小组件、`C` 控件、`M` 大组件、`P` 页面、`D` 桌面），布局画板上的组件板是唯一来源，设计系统的组件页由它们生成。
 
 ## 字体
 
@@ -79,11 +88,11 @@ flowchart LR
 
 ## 尺寸
 
-全部取设计系统的 token。间距 2 · 4 · 6 · 8 · 12 · 16 · 24 · 32；圆角 4（小件）· 6（行）· 8（控件）· 10（卡片与弹层）· 14（大卡片）· 18（输入框与气泡）· 胶囊；高度：行 28、密集行 24、工作组的一步 32、标题栏 44；弹层宽 232 / 128 / 280（模型列 +40）；右列 220（文件树）/ 260（变更）；diff 竖条 3。窗口几何（侧栏、正文列、右栏的宽度与收起阈值）在 `layout.json`。
+全部取设计系统的 token。间距 2 · 4 · 6 · 8 · 12 · 16 · 24 · 32；圆角 4（小件）· 6（行）· 8（控件）· 10（卡片与弹层）· 14（大卡片）· 18（输入框与气泡）· 胶囊；高度：行 28、密集行 24、工作组的一步 32、标题栏 52（`titlebar`：整排顶栏同高，与红绿灯同一中线）、矮一档的横栏 44（`bar-compact`：命令面板的搜索行、侧栏底栏）；弹层宽 232 / 128 / 280（模型列 +40；打开方式弹层同 232）；右列 260（`panel-rail`：文件树与变更同宽）；diff 竖条 3。窗口几何（侧栏、正文列、右栏的宽度与收起阈值）在 `layout.json`。
 
 ## 图标
 
- 界面用 Lucide（16 网格、1.4 描边、跟随文字色；尺寸 12 / 14 / 16，空状态 32；图标按钮 28，密集处 24，行尾小按钮 22；必须有悬停提示"名称 快捷键"）。审批档位用 Lucide 盾牌：shield-question-mark、shield-half、shield-check、shield-off。文件类型用 Material Icon Theme 彩色图标（官方 SVG 原样放在 `desktop/internal/icons/material/`，MIT），保留原色：工具行里读取 / 编辑的文件、改动卡片的每个文件前 14；会话详情的目录行用它的文件夹图标；正文里的文件链接不加（Markdown 行内插图标要绕开 MyGO 的渲染）。harness 标志单色、跟随文字色（`desktop/internal/icons/harness/`，原样使用，许可证在同目录）：Claude Code 用 Claude 星芒，Codex 用 OpenAI 花形标志，Hermes 用 Nous 女孩头像；没有标志的 harness 用首字母占位；名字写正式名 Claude Code、Codex、Hermes，不写内部代号。
+ 界面用 Lucide（16 网格、1.4 描边、跟随文字色；尺寸 12 / 14 / 16，空状态 32；图标按钮 28，密集处 24，行尾小按钮 22；分段切换（Personal / Code、文件树 / 变更）与图标按钮同高 28：每段 24 见方、外围 2；必须有悬停提示"名称 快捷键"）。审批档位用 Lucide 盾牌：shield-question-mark、shield-half、shield-check、shield-off。文件类型用 Material Icon Theme 彩色图标（官方 SVG 原样放在 `desktop/internal/icons/material/`，MIT），保留原色：工具行里读取 / 编辑的文件、改动卡片的每个文件前 14；会话详情的目录行用它的文件夹图标；正文里的文件链接不加（Markdown 行内插图标要绕开 MyGO 的渲染）。harness 标志单色、跟随文字色（`desktop/internal/icons/harness/`，原样使用，许可证在同目录）：Claude Code 用 Claude 星芒，Codex 用 OpenAI 花形标志，Hermes 用 Nous 女孩头像；没有标志的 harness 用首字母占位；名字写正式名 Claude Code、Codex、Hermes，不写内部代号。
 
 ## 标志
 
@@ -95,13 +104,13 @@ flowchart LR
 
 | 类别 | 规则 |
 |---|---|
-| 空间（弹簧） | 小件 `ui.Snappy`：弹层与菜单从 0.95 放大、分段与标签的选中块用 `Match` 滑到新位置、状态圆点从 0.6 出现、chevron 转向。大块 `ui.Smooth`：侧栏、右栏、会话详情开合用 `Size` 过渡加裁切；工作组、折叠条、排队托盘展开，列表行插入、移除、重排用 `Collapse`；输入框长高 |
+| 空间（曲线，不用弹簧） | 一律固定时长、不回弹。小件 `motion-fast`（120 ms EaseOut）：弹层与菜单从 0.95 放大、状态圆点从 0.6 出现、chevron 转向。大块 `motion-base`（200 ms EaseOut）：侧栏、右栏、会话详情开合改宽度并裁切，右栏一次移动超过侧栏宽度时时长按距离的平方根加长，最多 4/3；分段与标签的选中块用 `Match` 滑到新位置；工作组、折叠条、任务与排队托盘展开，列表行插入、移除、重排用 `Collapse`；输入框长高。宽度变化时内容只跟随一次：正文区、对话列不再挂自己的过渡去追赶；面板内容按最终宽度排好再裁切，不逐帧重排；动画中的宽度取整到整点 |
 | 颜色与透明度 | 悬停、按下、退出、交叉淡化 120 ms EaseOut；进入 200 ms EaseOut，从下方 6 上移（消息、工作组的一步、改动卡、出错条）；退出向上 4（收件箱卡片、提示条）；提示条从标题栏下方向下 8 进入，停 4 秒，悬停不计时 |
 | 错开 | 同一刻进来的几步每项错开 30 ms，最多 5 项 |
 | 数字 | 用时、角标、计数逐位滚动 350 ms `CubicBezier(0.22, 1, 0.36, 1)` |
 | 进行中 | 工作中方块 `Loop` 1200 ms、`ui.Spinner` |
 | 需要你 | 审批到来时输入框内容交叉淡化、长高、描边变色，光晕从 0 扩到 6 再收到 3 一次（600 ms），这是唯一主动抓眼的动效 |
-| 提示 | 新会话插入侧栏时整行 `fill2` 在 1.5 秒内淡出一次；收件箱卡片处理后先收成一行确认、停 1.5 秒再上移淡出，下面的卡片平滑补位 |
+| 提示 | 新会话插入侧栏时整行 `hover` 在 1.5 秒内淡出一次；收件箱卡片处理后先收成一行确认、停 1.5 秒再上移淡出，下面的卡片平滑补位 |
 | 减少动态效果 | 位移、缩放、尺寸即时，只留不超过 120 ms 的淡入淡出，循环停住 |
 
 ## 文字
@@ -122,24 +131,28 @@ flowchart LR
 
 | 对象 | 原生 API / 映射 |
 |---|---|
-| 主题 | `ui.Theme`；Surface / SurfaceHover = `fill` / `fill2`，Border = `line2`，Text / TextMuted = `fg` / `muted` |
+| 主题 | `ui.Theme`；Surface / SurfaceHover / SurfacePressed = `fill` / `hover` / `pressed`，Border = `line2`，Text / TextMuted = `fg` / `muted` |
 | 主题状态 | Accent / AccentText = `accent` / `on-accent`，Warning = `attn`，Success / Danger = `add` / `del`，Focus = `accent-fg` |
 | 基础尺寸 | Radius 8（`radius-control`）、Spacing 4、FontSize 13（`ui`）；其余语义色按 `Theme.Dark` 放在应用主题包 |
 | 窗口材质 | `Vibrancy: VibrancyUnderWindow` + `TitleBarHiddenInset`；根节点不铺底，区域铺半透明 token |
-| 输入框与弹层 | 输入框 `glass` + `glass-line`，弹层 `popover`；`glass.Glass{}` 只模糊窗口内内容且压暗浅色，不用于此材质方案 |
+| 输入框与弹层 | 输入框 `surface` + `line2` + `shadow-composer`；弹层 `surface-float`（不透明）+ `line2` + `shadow-popover`；不用 `glass.Glass{}` |
 | 侧栏与键盘 | `ui.Row` + 悬停 / 点击 / 右键；可聚焦元素以 `Shortcut` 接键。`ui.SidebarItem` / `ui.List.Selected` 的强调色选中底不符合中性灰选中规范 |
 | 分段 / 标签 | `ui.Segmented` / `ui.Tabs` |
 | 拖动宽度 | `ui.Split`；原生分隔线，悬停 / 拖动时强调色 |
-| Markdown / diff / 文件树 | `markdown.Stream` / `editor.DiffView` / `ui.Tree` |
-| 弹层 | `ui.PopoverBase` + `AttachTo`；`popover`、圆角 10、内边距 6、阴影，菜单项高 28 / 圆角 6 |
+| Markdown / diff | `markdown.Stream` / `editor.DiffView`（变更标签每个文件一个 `SetPatch` + `FitContent`；点折叠条时换成该文件新旧全文（`Old` / `New`），由 `DiffSeparator.ExpandAll` 在原处展开；折叠条用 `RenderSeparator`；行的底色由 DiffView 按 `add` / `del` 与 `pane` 混出，与 `add-bg` / `del-bg` 相近而不逐值相同） |
+| 文件树 / 变更树 | `ui.Row` 自己画行（Lucide chevron、文件图标、行尾 M / A / D 与计数）+ `Shortcut` 接 ↑↓←→↩：`ui.Tree` 的项只有文字，`ui.Outline` 的选中是强调色填满 |
+| 弹层 | `ui.PopoverBase` + `AttachTo`；`surface-float`、`radius-card`、内边距 `space-1_5`、`line2` + `shadow-popover`，菜单项高 `row` / `radius-row` |
 | 模型与强度菜单 | 嵌套 `ui.PopoverBase` 承载搜索、右侧值和开关；`PopoverMenu` 文字项不足以表达这些控件 |
 | 队列拖动 | `ListState.Reorder` |
 | Worktree / 开关 / 角标 | `ui.Checkbox` / `ui.Switch` / `ui.Badge` |
 | 提示条 | `c.AddToast` + `ui.ToastViewportBase` / `ui.ToastBase` |
-| 动效 | `Element.Jump` / `AnimateTo` / `AnimateColor` / `Transition` / `Match` / `Collapse`，弹簧 `ui.Snappy` / `ui.Smooth`，不自建计时器 |
+| 动效 | `Element.Jump` / `AnimateTo` / `AnimateColor` / `Transition` / `Match` / `Collapse`，曲线取 `motion` token，不用弹簧，不自建计时器 |
 | 悬停提示 | `Element.Tooltip` |
 | 头像 | 首字 + 中性灰底；`ui.Avatar` 按名字配色不符合单一彩色规范 |
-| 图标 | `ui.Icon`（Lucide）/ `ui.Image`（Material） |
+| 查找栏 | `editor.State` / `editor.DiffState` 的 `RenderFindBar` 自己画外观：`ui.TextInputBase` 交给 `FindBar.QueryInput`，开关 `ui.ToggleBase`，按钮 `ui.ButtonBase(c).KeepFocus()`；默认查找栏是英文、带选区内查找与替换，外观不合 |
+| 搜索框 | `ui.Row` + Lucide `search` + `ui.TextInput` + 有字时 `x` 清除按钮：`ui.SearchField` 的清除按钮用主题 Background 画 ×，Hoplet 的 Background 透明，× 看不见；菜单外 ⎋ 清空、提示“清除 esc”，菜单里 ⎋ 照旧关菜单、提示只写“清除” |
+| 自动换行 | `editor.State.SoftWrap` / `editor.DiffState.Wrap` |
+| 图标 | `ui.Icon`（Lucide）/ `ui.Image`（Material；不认识的文件用 Material 的 `file`，`document` 只给文本文件） |
 | 菜单与托盘 | `mygo.NewMenu` / `mygo.NewTray`，托盘 `IconIsTemplate: true` |
 
 MyGO 升级通过 `mygo migrate-ui` 迁移并验证；视图保持薄，禁止用计时器、覆盖层或自行绘图绕过现成组件。缺失能力先调整并审核设计。

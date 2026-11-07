@@ -19,6 +19,8 @@ const (
 	TypeModeChanged      EventType = "mode.changed"
 	TypeModelChanged     EventType = "model.changed"
 	TypeContextUsage     EventType = "context.usage"
+	TypeTodoList         EventType = "todo.list"
+	TypeSubagent         EventType = "subagent"
 )
 
 // TurnStarted marks the start of a turn.
@@ -258,6 +260,89 @@ func (r ApprovalResolved) validate() error {
 	return nil
 }
 
+// TodoStatus is the state of a task on the harness's task list.
+type TodoStatus string
+
+// Task states.
+const (
+	TodoPending    TodoStatus = "pending"
+	TodoInProgress TodoStatus = "in_progress"
+	TodoCompleted  TodoStatus = "completed"
+	TodoCancelled  TodoStatus = "cancelled"
+)
+
+// TodoItem is one task on the list. Active is how the harness words the
+// task while it is in progress ("Running the tests"); empty when it gives
+// none.
+type TodoItem struct {
+	ID     string     `json:"id"`
+	Text   string     `json:"text"`
+	Active string     `json:"active,omitempty"`
+	Status TodoStatus `json:"status"`
+}
+
+// TodoList is the whole task list the harness keeps for itself, sent in
+// full after every change; only the latest one counts. Nested tasks are
+// flattened in order.
+type TodoList struct {
+	Items []TodoItem `json:"items"`
+}
+
+func (l TodoList) validate() error {
+	for _, it := range l.Items {
+		switch it.Status {
+		case TodoPending, TodoInProgress, TodoCompleted, TodoCancelled:
+		default:
+			return fmt.Errorf("%w: unknown task status %q", ErrInvalidPayload, it.Status)
+		}
+	}
+	return nil
+}
+
+// SubagentStatus is the state of a subagent.
+type SubagentStatus string
+
+// Subagent states.
+const (
+	SubagentRunning SubagentStatus = "running"
+	SubagentDone    SubagentStatus = "done"
+	SubagentFailed  SubagentStatus = "failed"
+	SubagentStopped SubagentStatus = "stopped"
+)
+
+// Subagent is a subagent the harness sent off within a turn, sent in full
+// on every change; only the latest one per ID counts. It replaces the tool
+// call that spawned it (CallID). Type is the harness's kind of subagent,
+// empty when it gives none; Background means the main agent does not wait
+// for it, so it may run past the end of its turn. Summary is the result it
+// handed back. The subagent's own events carry its ID in Event.Agent.
+type Subagent struct {
+	ID         string         `json:"id"`
+	CallID     string         `json:"call_id,omitempty"`
+	Type       string         `json:"type,omitempty"`
+	Title      string         `json:"title"`
+	Status     SubagentStatus `json:"status"`
+	Background bool           `json:"background,omitempty"`
+	Tokens     int64          `json:"tokens,omitempty"`
+	ToolUses   int            `json:"tool_uses,omitempty"`
+	// DurationMS is how long it ran, in milliseconds, once the harness
+	// says.
+	DurationMS int64  `json:"duration_ms,omitempty"`
+	Summary    string `json:"summary,omitempty"`
+}
+
+func (a Subagent) validate() error {
+	if a.ID == "" {
+		return fmt.Errorf("%w: subagent has no ID", ErrInvalidPayload)
+	}
+	switch a.Status {
+	case SubagentRunning, SubagentDone, SubagentFailed, SubagentStopped:
+	default:
+		return fmt.Errorf("%w: unknown subagent status %q", ErrInvalidPayload, a.Status)
+	}
+	return nil
+}
+
 func (TurnStarted) eventType() EventType       { return TypeTurnStarted }
 func (TurnEnded) eventType() EventType         { return TypeTurnEnded }
 func (MessageDelta) eventType() EventType      { return TypeMessageDelta }
@@ -273,6 +358,8 @@ func (Error) eventType() EventType             { return TypeError }
 func (ModeChanged) eventType() EventType       { return TypeModeChanged }
 func (ModelChanged) eventType() EventType      { return TypeModelChanged }
 func (ContextUsage) eventType() EventType      { return TypeContextUsage }
+func (TodoList) eventType() EventType          { return TypeTodoList }
+func (Subagent) eventType() EventType          { return TypeSubagent }
 
 func (TurnStarted) eventVersion() uint16       { return 1 }
 func (TurnEnded) eventVersion() uint16         { return 1 }
@@ -289,6 +376,8 @@ func (Error) eventVersion() uint16             { return 1 }
 func (ModeChanged) eventVersion() uint16       { return 1 }
 func (ModelChanged) eventVersion() uint16      { return 1 }
 func (ContextUsage) eventVersion() uint16      { return 1 }
+func (TodoList) eventVersion() uint16          { return 1 }
+func (Subagent) eventVersion() uint16          { return 1 }
 
 func init() {
 	register[TurnStarted]()
@@ -306,4 +395,6 @@ func init() {
 	register[ModeChanged]()
 	register[ModelChanged]()
 	register[ContextUsage]()
+	register[TodoList]()
+	register[Subagent]()
 }

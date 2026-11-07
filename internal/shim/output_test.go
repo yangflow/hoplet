@@ -255,3 +255,30 @@ func (s slowSpool) Write(b []byte) (int, error) {
 	time.Sleep(3 * time.Millisecond)
 	return s.spoolFile.Write(b)
 }
+
+// TestAckBeforeFinalIsKept acknowledges the exit record after it is in the
+// spool but before the shim has taken note of its offset: the shim ends at
+// once instead of lingering.
+func TestAckBeforeFinalIsKept(t *testing.T) {
+	release := make(chan struct{})
+	dir, done := startShimCfg(context.Background(), t, func(cfg *Config) {
+		cfg.Command = append(cfg.Command, "tick", "1", "0")
+		cfg.Linger = time.Hour
+		cfg.exitWritten = func() { <-release }
+	})
+	c := dial(t, dir, 0)
+	_, final := recvUntil(t, c, isExit)
+	if err := c.Ack(final); err != nil {
+		t.Fatal(err)
+	}
+	// Frames are served in order: the reply to the signal means the ack
+	// was handled.
+	if err := c.Signal("KILL"); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := c.Recv(); asError(t, err).Code != CodeExited {
+		t.Fatalf("signal after exit: %v", err)
+	}
+	close(release)
+	waitDone(t, done)
+}

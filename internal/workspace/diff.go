@@ -19,11 +19,21 @@ var (
 	patchFlags = []string{"-p", "--src-prefix=a/", "--dst-prefix=b/", "-U3"}
 )
 
+// diffEnv is the object environment of a diff: Hoplet's objects and index,
+// and with alt also the user's objects, read-only (see withUserObjects).
+func (g Git) diffEnv(objects string, r Repo) []string {
+	env := objectEnv(objects, indexPath(objects, r))
+	if g.alt != "" {
+		env = append(env, "GIT_ALTERNATE_OBJECT_DIRECTORIES="+g.alt)
+	}
+	return env
+}
+
 // DiffFiles lists the files that differ between the trees base and now, by
 // path, with their line counts. A file whose attributes select a git filter
 // carries the filter's name in Filter.
 func (g Git) DiffFiles(ctx context.Context, r Repo, objects, base, now string) ([]proto.FileDiff, error) {
-	o, err := g.repoOpts(ctx, r, objectEnv(objects, indexPath(objects, r))...)
+	o, err := g.repoOpts(ctx, r, g.diffEnv(objects, r)...)
 	if err != nil {
 		return nil, err
 	}
@@ -62,7 +72,7 @@ func (g Git) Diff(ctx context.Context, r Repo, objects, base, now string) (files
 	if err != nil || len(files) == 0 {
 		return files, "", false, err
 	}
-	o, err := g.repoOpts(ctx, r, objectEnv(objects, indexPath(objects, r))...)
+	o, err := g.repoOpts(ctx, r, g.diffEnv(objects, r)...)
 	if err != nil {
 		return nil, "", false, err
 	}

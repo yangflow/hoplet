@@ -18,7 +18,7 @@ type queryer interface {
 	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
 }
 
-const eventColumns = `seq, ts, turn, type, v, payload, raw_sha256, raw_size`
+const eventColumns = `seq, ts, turn, type, v, payload, raw_sha256, raw_size, agent`
 
 // readTx runs fn in one read transaction on the read pool, so its queries see
 // one snapshot.
@@ -44,6 +44,10 @@ func requireSession(ctx context.Context, q queryer, id proto.SessionID) error {
 	return nil
 }
 
+// agentIs matches the events of one record: the session's own
+// conversation for an empty agent argument, else that subagent's.
+const agentIs = `coalesce(agent, '') = ?`
+
 // queryEvents runs a query selecting eventColumns for session id.
 func queryEvents(ctx context.Context, q queryer, id proto.SessionID, query string, args ...any) ([]proto.Event, error) {
 	rows, err := q.QueryContext(ctx, query, args...)
@@ -59,12 +63,14 @@ func queryEvents(ctx context.Context, q queryer, id proto.SessionID, query strin
 			payload string
 			rawSHA  sql.NullString
 			rawSize sql.NullInt64
+			agent   sql.NullString
 		)
-		if err := rows.Scan(&ev.Seq, &ts, &ev.Turn, &ev.Type, &ev.V, &payload, &rawSHA, &rawSize); err != nil {
+		if err := rows.Scan(&ev.Seq, &ts, &ev.Turn, &ev.Type, &ev.V, &payload, &rawSHA, &rawSize, &agent); err != nil {
 			return nil, fmt.Errorf("store: scan event: %w", err)
 		}
 		ev.Time = time.UnixMilli(ts).UTC()
 		ev.Payload = json.RawMessage(payload)
+		ev.Agent = agent.String
 		if rawSHA.Valid {
 			ev.Raw = &proto.BlobRef{SHA256: rawSHA.String, Size: rawSize.Int64}
 		}
@@ -97,9 +103,10 @@ func (s *Store) Events(ctx context.Context, id proto.SessionID, after uint64, li
 }
 
 // EventsBefore returns up to limit events of a session with seq < before,
-// the newest ones, in ascending order. It returns ErrNotFound for an unknown
-// session.
-func (s *Store) EventsBefore(ctx context.Context, id proto.SessionID, before uint64, limit int) ([]proto.Event, error) {
+// the newest ones, in ascending order: the session's own conversation when
+// agent is empty, else only that subagent's record. It returns ErrNotFound
+// for an unknown session.
+func (s *Store) EventsBefore(ctx context.Context, id proto.SessionID, agent string, before uint64, limit int) ([]proto.Event, error) {
 	if limit <= 0 {
 		return nil, fmt.Errorf("%w: events limit %d", ErrInvalid, limit)
 	}
@@ -110,7 +117,7 @@ func (s *Store) EventsBefore(ctx context.Context, id proto.SessionID, before uin
 		}
 		var err error
 		out, err = queryEvents(ctx, tx, id, `SELECT `+eventColumns+`
-			FROM events WHERE session_id = ? AND seq < ? ORDER BY seq DESC LIMIT ?`, id, before, limit)
+			FROM events WHERE session_id = ? AND `+agentIs+` AND seq < ? ORDER BY seq DESC LIMIT ?`, id, agent, before, limit)
 		return err
 	})
 	slices.Reverse(out)
@@ -207,8 +214,9 @@ type SessionSnapshot struct {
 }
 
 // Snapshot reads, in one read transaction, a session, its pending approvals
-// and all events from the start of its last turns turns (all events when it
-// has fewer). Events after that point that belong to no turn are included.
+// and all events of its own conversation from the start of its last turns
+// turns (all events when it has fewer); subagents' records are left out.
+// Events after that point that belong to no turn are included.
 func (s *Store) Snapshot(ctx context.Context, id proto.SessionID, turns int) (SessionSnapshot, error) {
 	if turns <= 0 {
 		return SessionSnapshot{}, fmt.Errorf("%w: snapshot turns %d", ErrInvalid, turns)
@@ -228,7 +236,7 @@ func (s *Store) Snapshot(ctx context.Context, id proto.SessionID, turns int) (Se
 			return fmt.Errorf("store: find snapshot start: %w", err)
 		}
 		snap.Events, err = queryEvents(ctx, tx, id, `SELECT `+eventColumns+`
-			FROM events WHERE session_id = ? AND seq >= ? ORDER BY seq`, id, start)
+			FROM events WHERE session_id = ? AND agent IS NULL AND seq >= ? ORDER BY seq`, id, start)
 		return err
 	})
 	if err != nil {

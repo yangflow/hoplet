@@ -167,6 +167,30 @@ func (c *Client) Diff(ctx context.Context, p proto.DiffParams) (proto.SessionDif
 	return out, err
 }
 
+// Commits lists the commits a session's repositories offer for a commit
+// range.
+func (c *Client) Commits(ctx context.Context, p proto.CommitsParams) (proto.SessionCommits, error) {
+	var out proto.SessionCommits
+	err := c.Call(ctx, proto.MethodSessionsCommits, p, &out)
+	return out, err
+}
+
+// Files lists a directory of a session's working directory, or with All
+// every file under it.
+func (c *Client) Files(ctx context.Context, p proto.FilesListParams) (proto.FileList, error) {
+	var out proto.FileList
+	err := c.Call(ctx, proto.MethodFilesList, p, &out)
+	return out, err
+}
+
+// ReadFile reads a file of a session's working directory, now or as the
+// session's baseline recorded it.
+func (c *Client) ReadFile(ctx context.Context, p proto.FilesReadParams) (proto.FileContent, error) {
+	var out proto.FileContent
+	err := c.Call(ctx, proto.MethodFilesRead, p, &out)
+	return out, err
+}
+
 // RefreshEnv makes the daemon read the login shell's environment again for
 // harnesses started from now on.
 func (c *Client) RefreshEnv(ctx context.Context) (proto.EnvInfo, error) {

@@ -21,6 +21,17 @@ import (
 type host struct {
 	sendErr    error // what Send answers
 	diffs      map[proto.SessionID]proto.SessionDiff
+	patched    []proto.SessionID            // the sessions DiffPatch was asked for
+	ranged     map[string]proto.SessionDiff // what DiffPatch answers for a range, by "range" or "commit:sha"
+	diffAsked  []proto.DiffParams           // what DiffPatch was asked
+	commits    proto.SessionCommits         // what Commits answers
+	commitsFor []proto.CommitsParams        // what Commits was asked
+	held       bool                         // DiffPatch answers only when pending runs
+	pending    func()
+	lists      map[string]proto.FileList    // what Files answers, by directory
+	listed     []proto.FilesListParams      // what Files was asked
+	contents   map[string]proto.FileContent // what ReadFile answers, by path ("base:" for the baseline)
+	read       []proto.FilesReadParams      // what ReadFile was asked
 	reconnects int
 	updates    []proto.UpdateParams
 	stopped    []proto.SessionID
@@ -35,6 +46,7 @@ type host struct {
 	states     map[proto.SessionID]proto.SessionState // what Session answers
 	asked      []proto.SessionID                      // the sessions Session was asked for
 	folder     string
+	records    map[string]proto.EventsPage // what Older answers for a subagent's record
 }
 
 func (h *host) Update(p proto.UpdateParams) { h.updates = append(h.updates, p) }
@@ -79,14 +91,68 @@ func (h *host) Output(p proto.OutputParams, done func(proto.ToolOutput, error)) 
 		done(o, nil)
 	}
 }
-func (h *host) Older(id proto.SessionID, before uint64, _ func(proto.EventsPage)) {
-	h.calls = append(h.calls, fmt.Sprintf("older %s %d", id, before))
+func (h *host) Older(p proto.EventsParams, done func(proto.EventsPage)) {
+	if p.Agent != "" {
+		h.calls = append(h.calls, fmt.Sprintf("older %s %s %d", p.Session, p.Agent, p.BeforeSeq))
+		if page, ok := h.records[p.Agent]; ok {
+			done(page)
+		}
+		return
+	}
+	h.calls = append(h.calls, fmt.Sprintf("older %s %d", p.Session, p.BeforeSeq))
 }
 func (h *host) Diff(id proto.SessionID, done func(proto.SessionDiff)) {
 	if d, ok := h.diffs[id]; ok {
 		done(d)
 	}
 }
+func (h *host) DiffPatch(p proto.DiffParams, done func(proto.SessionDiff, error)) {
+	h.patched = append(h.patched, p.Session)
+	h.diffAsked = append(h.diffAsked, p)
+	if h.held {
+		h.pending = func() { h.DiffPatch(p, done) }
+		return
+	}
+	if p.Range != "" && p.Range != proto.DiffRangeSession {
+		key := string(p.Range)
+		if p.Range == proto.DiffRangeCommit {
+			key = "commit:" + p.Commit
+		}
+		if d, ok := h.ranged[key]; ok {
+			done(d, nil)
+		}
+		return
+	}
+	if d, ok := h.diffs[p.Session]; ok {
+		done(d, nil)
+	}
+}
+func (h *host) Commits(p proto.CommitsParams, done func(proto.SessionCommits, error)) {
+	h.commitsFor = append(h.commitsFor, p)
+	done(h.commits, nil)
+}
+func (h *host) Files(p proto.FilesListParams, done func(proto.FileList, error)) {
+	h.listed = append(h.listed, p)
+	key := p.Path
+	if p.All {
+		key = "*" // every file, as the filter and the palette read them
+	}
+	if fl, ok := h.lists[key]; ok {
+		done(fl, nil)
+	}
+}
+func (h *host) ReadFile(p proto.FilesReadParams, done func(proto.FileContent, error)) {
+	h.read = append(h.read, p)
+	key := p.Path
+	if p.Baseline {
+		key = "base:" + key
+	}
+	if fc, ok := h.contents[key]; ok {
+		done(fc, nil)
+	}
+}
+func (h *host) Open(path string)                         { h.calls = append(h.calls, "open "+path) }
+func (h *host) CopyPath(path string)                     { h.calls = append(h.calls, "copy "+path) }
 func (h *host) Reconnect()                               { h.reconnects++ }
 func (h *host) Harnesses(done func([]proto.HarnessInfo)) { done(h.models) }
 func (h *host) Follow(id proto.SessionID, _ uint64)      { h.followed = append(h.followed, id) }

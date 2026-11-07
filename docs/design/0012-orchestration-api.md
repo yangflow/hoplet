@@ -1,6 +1,6 @@
 # 0012 服务入口与编排
 
-状态：当前设计 · 更新：2026-11-04
+状态：当前设计 · 更新：2026-11-07
 
 ## 范围与现状
 
@@ -32,7 +32,7 @@ flowchart LR
 | 会话目录 | `sessions.list`、`sessions.create`、`sessions.get`、`sessions.update`、`sessions.archive` |
 | 输入与控制 | `sessions.send`、`sessions.respond`、`sessions.interrupt`、`sessions.steer`、`sessions.stop`、`sessions.answer` |
 | 运行设置 | `sessions.set_permission`、`sessions.set_plan`、`sessions.set_fast`、`sessions.set_ultracode`、`sessions.set_effort`、`sessions.set_model` |
-| 记录与输出 | `sessions.events`、`sessions.output`、`sessions.diff` |
+| 记录与输出 | `sessions.events`、`sessions.output`、`sessions.diff`、`sessions.commits` |
 | 队列 | `queue.list`、`queue.edit`、`queue.delete`、`queue.move` |
 | 订阅 | `subscribe.catalog`、`subscribe.session` |
 | 诊断 | `harnesses.list`、`env.refresh`、`system.doctor` |
@@ -74,6 +74,8 @@ flowchart LR
 | Code | 获准范围只读记忆、本会话终端和产物、转交与 notify |
 | Personal | 按工具授权；给我已有会话发消息必须先托管 |
 | 提炼任务 | 不注入可调用业务工具；只返回候选，由 daemon 提交 |
+
+产物工具 `artifact.publish` 与 `artifact.db.*` 只作用于本会话的产物。
 
 工具桥先复用现有服务，再增加稳定伙伴身份、会话关联、产物入口与回报订阅。MCP 注入、权限映射和原生协议能力先验证；不以提示词代替服务校验。
 
@@ -117,4 +119,4 @@ flowchart LR
 
 ## 待验证
 
-MCP 传输与注入、工具范围、伙伴关联和产物字段、持久订阅与回执、跨机输入 / 产物传输及取消语义均需定稿。对外 SDK 不在范围内。
+MCP 传输与注入、工具范围、伙伴关联、持久订阅与回执、跨机输入 / 产物传输及取消语义均需定稿。对外 SDK 不在范围内。

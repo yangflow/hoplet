@@ -303,6 +303,97 @@ func (d *desktop) Diff(id proto.SessionID, done func(proto.SessionDiff)) {
 	})
 }
 
+// DiffPatch implements shell.Host.
+func (d *desktop) DiffPatch(p proto.DiffParams, done func(proto.SessionDiff, error)) {
+	d.mu.Lock()
+	c := d.c
+	d.mu.Unlock()
+	if c == nil {
+		done(proto.SessionDiff{}, errors.New("没有连上守护进程"))
+		return
+	}
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), outputTimeout)
+		defer cancel()
+		p.Patch = true
+		diff, err := c.Diff(ctx, p)
+		if errors.Is(err, context.DeadlineExceeded) {
+			err = errors.New("等了 10 秒没有回应")
+		}
+		d.ui(func() { done(diff, err) })
+	}()
+}
+
+// Commits implements shell.Host.
+func (d *desktop) Commits(p proto.CommitsParams, done func(proto.SessionCommits, error)) {
+	d.mu.Lock()
+	c := d.c
+	d.mu.Unlock()
+	if c == nil {
+		done(proto.SessionCommits{}, errors.New("没有连上守护进程"))
+		return
+	}
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), outputTimeout)
+		defer cancel()
+		cs, err := c.Commits(ctx, p)
+		if errors.Is(err, context.DeadlineExceeded) {
+			err = errors.New("等了 10 秒没有回应")
+		}
+		d.ui(func() { done(cs, err) })
+	}()
+}
+
+// Files implements shell.Host.
+func (d *desktop) Files(p proto.FilesListParams, done func(proto.FileList, error)) {
+	d.mu.Lock()
+	c := d.c
+	d.mu.Unlock()
+	if c == nil {
+		done(proto.FileList{}, errors.New("没有连上守护进程"))
+		return
+	}
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), outputTimeout)
+		defer cancel()
+		fl, err := c.Files(ctx, p)
+		if errors.Is(err, context.DeadlineExceeded) {
+			err = errors.New("等了 10 秒没有回应")
+		}
+		d.ui(func() { done(fl, err) })
+	}()
+}
+
+// ReadFile implements shell.Host.
+func (d *desktop) ReadFile(p proto.FilesReadParams, done func(proto.FileContent, error)) {
+	d.mu.Lock()
+	c := d.c
+	d.mu.Unlock()
+	if c == nil {
+		done(proto.FileContent{}, errors.New("没有连上守护进程"))
+		return
+	}
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), outputTimeout)
+		defer cancel()
+		fc, err := c.ReadFile(ctx, p)
+		if errors.Is(err, context.DeadlineExceeded) {
+			err = errors.New("等了 10 秒没有回应")
+		}
+		d.ui(func() { done(fc, err) })
+	}()
+}
+
+// Open implements shell.Host.
+func (d *desktop) Open(path string) {
+	if err := mygo.Shell.OpenPath(path); err != nil {
+		d.ui(func() { d.app.Fail(fmt.Errorf("打不开：%w", err), nil) })
+	}
+}
+
+// CopyPath implements shell.Host.
+func (d *desktop) CopyPath(path string) { mygo.Clipboard.WriteText(path) }
+
 // Reconnect implements shell.Host.
 func (d *desktop) Reconnect() {
 	select {
@@ -312,9 +403,9 @@ func (d *desktop) Reconnect() {
 }
 
 // Older implements shell.Host.
-func (d *desktop) Older(id proto.SessionID, before uint64, done func(proto.EventsPage)) {
+func (d *desktop) Older(p proto.EventsParams, done func(proto.EventsPage)) {
 	d.call(func(ctx context.Context, c *client.Client) error {
-		page, err := c.EventsBefore(ctx, proto.EventsParams{Session: id, BeforeSeq: before})
+		page, err := c.EventsBefore(ctx, p)
 		if err == nil {
 			d.ui(func() { done(page) })
 		}
@@ -428,9 +519,10 @@ func (d *desktop) menu() *mygo.Menu {
 	d.newSession = &mygo.MenuItem{Label: "新建会话", Accelerator: "CmdOrCtrl+N", Click: d.do(d.app.NewSession)}
 	d.back = &mygo.MenuItem{Label: "后退", Accelerator: "CmdOrCtrl+[", Click: d.do(d.app.Back)}
 	d.forward = &mygo.MenuItem{Label: "前进", Accelerator: "CmdOrCtrl+]", Click: d.do(d.app.Forward)}
+	copyPath := &mygo.MenuItem{Label: "复制路径", Accelerator: "Alt+CmdOrCtrl+C", Click: d.do(d.app.CopyPath)}
 	return mygo.NewMenu([]*mygo.MenuItem{
 		{Role: mygo.RoleAppMenu},
-		{Label: "文件", Submenu: []*mygo.MenuItem{d.newSession, mygo.Separator(), {Role: mygo.RoleClose}}},
+		{Label: "文件", Submenu: []*mygo.MenuItem{d.newSession, mygo.Separator(), copyPath, mygo.Separator(), {Role: mygo.RoleClose}}},
 		{Role: mygo.RoleEditMenu},
 		{Label: "会话", Submenu: []*mygo.MenuItem{d.pin, d.unread, d.rename, mygo.Separator(), d.reveal, d.stop, d.archive}},
 		{Label: "视图", Submenu: []*mygo.MenuItem{
@@ -439,10 +531,14 @@ func (d *desktop) menu() *mygo.Menu {
 			mygo.Separator(),
 			{Label: "收件箱", Accelerator: "Shift+CmdOrCtrl+I", Click: d.do(d.app.OpenInbox)},
 			{Label: "搜索", Accelerator: "CmdOrCtrl+K", Click: d.do(d.app.OpenPalette)},
+			{Label: "打开文件", Accelerator: "CmdOrCtrl+P", Click: d.do(d.app.OpenFilePicker)},
 			mygo.Separator(),
 			d.back, d.forward,
 			mygo.Separator(),
 			{Label: "显示或隐藏侧栏", Accelerator: "Ctrl+Cmd+S", Click: d.do(d.app.ToggleSidebar)},
+			{Label: "显示或隐藏右栏", Accelerator: "Alt+CmdOrCtrl+I", Click: d.do(d.app.TogglePanel)},
+			{Label: "文件树", Accelerator: "Alt+CmdOrCtrl+E", Click: d.do(d.app.ShowTree)},
+			{Label: "变更", Accelerator: "Alt+CmdOrCtrl+D", Click: d.do(d.app.ShowChanges)},
 			{Role: mygo.RoleToggleFullScreen},
 		}},
 		{Role: mygo.RoleWindowMenu},

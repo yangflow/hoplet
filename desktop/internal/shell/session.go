@@ -18,6 +18,7 @@ import (
 // composer's popovers and the new-session page.
 type sessionView struct {
 	convos    map[proto.SessionID]*convo.Convo
+	records   map[agentKey]*convo.Convo // subagents' records opened in the viewer
 	followed  proto.SessionID
 	drafts    map[proto.SessionID]string
 	outbox    []proto.SendParams // messages written while offline, in order
@@ -31,11 +32,12 @@ type sessionView struct {
 	scroll    ui.ScrollState
 	md        markdown.Options
 
-	permOpen, runOpen, detailOpen, dirOpen bool
-	pick                                   int                  // the highlighted option of the approval shown
-	hidden                                 map[string]bool      // approvals I put away with ⎋
-	copied                                 map[string]time.Time // when each copy button last copied
-	armed                                  time.Time            // the first ⎋ of two that stop a turn
+	permOpen, runOpen, detailOpen bool
+	detailFloat                   bool                 // the details float, short of room to dock
+	pick                          int                  // the highlighted option of the approval shown
+	hidden                        map[string]bool      // approvals I put away with ⎋
+	copied                        map[string]time.Time // when each copy button last copied
+	armed                         time.Time            // the first ⎋ of two that stop a turn
 
 	diffs        map[proto.SessionID]*diffState                // each session's changes, as last read
 	queue        ui.ListState                                  // the queue tray's rows, which drag to reorder
@@ -50,7 +52,7 @@ type sessionView struct {
 	inboxFocus   bool                                          // the inbox takes the focus this frame
 	palOpen      bool                                          // the command palette shows
 	palQuery     string                                        // what the palette searches for
-	palScope     paletteScope                                  // what it searches: all, sessions or commands
+	palScope     paletteScope                                  // what it searches: all, sessions, commands or files
 	palSel       int                                           // the selected row
 	runSub       string                                        // the run menu's open submenu: subEffort, subModel or none
 	runHover     string                                        // the run menu row the pointer is on
@@ -58,6 +60,8 @@ type sessionView struct {
 	modelQuery   string                                        // what the model search holds
 	modelFocus   bool                                          // the model search takes the focus this frame
 	modelPick    int                                           // the highlighted model, -1 for the current
+
+	panels map[proto.SessionID]*panelState // each Code session's right panel
 
 	newPage bool
 	newPick newChoice
@@ -72,7 +76,7 @@ type newChoice struct {
 
 func newSessionView() sessionView {
 	return sessionView{
-		convos: map[proto.SessionID]*convo.Convo{}, drafts: map[proto.SessionID]string{},
+		convos: map[proto.SessionID]*convo.Convo{}, records: map[agentKey]*convo.Convo{}, drafts: map[proto.SessionID]string{},
 		open: map[string]bool{}, steps: map[string]int{}, outputs: map[string]*proto.ToolOutput{}, outputErr: map[string]string{}, hidden: map[string]bool{}, copied: map[string]time.Time{},
 		diffs: map[proto.SessionID]*diffState{}, flash: map[proto.SessionID]bool{},
 		inboxPending: map[proto.SessionID][]proto.ApprovalRequested{}, inboxAsked: map[proto.SessionID]uint64{}, inboxDone: map[string]string{},
@@ -99,9 +103,39 @@ func (a *App) follow() {
 	a.host.Follow(s.ID, a.conv(s.ID).LastSeq())
 }
 
-// ApplySession brings a session's conversation up to a subscription item.
+// agentKey names a subagent's record: its session and its ID.
+type agentKey struct {
+	session proto.SessionID
+	agent   string
+}
+
+// record returns a subagent's record, read from the daemon on first use;
+// what comes after follows the session's subscription.
+func (a *App) record(id proto.SessionID, agent string) *convo.Convo {
+	key := agentKey{id, agent}
+	r, ok := a.s.records[key]
+	if !ok {
+		r = convo.Record(agent)
+		a.s.records[key] = r
+		a.host.Older(proto.EventsParams{Session: id, Agent: agent, BeforeSeq: a.conv(id).LastSeq() + 1}, func(p proto.EventsPage) { r.Prepend(p) })
+	}
+	return r
+}
+
+// ApplySession brings a session's conversation up to a subscription item,
+// and the records of its subagents open in the viewer. A snapshot leaves
+// a gap in them, so they are read again.
 func (a *App) ApplySession(id proto.SessionID, it proto.SessionItem) {
 	a.conv(id).Apply(it)
+	for key, r := range a.s.records {
+		switch {
+		case key.session != id:
+		case it.Snapshot != nil:
+			delete(a.s.records, key)
+		default:
+			r.Apply(proto.SessionItem{Events: it.Events})
+		}
+	}
 }
 
 // SetHarnesses records the installed harnesses and their models, and

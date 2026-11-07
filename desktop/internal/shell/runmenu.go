@@ -41,7 +41,7 @@ func (a *App) runButton(c *ui.Context, k theme.Colors, st runSettings, hs []prot
 		Height(theme.Row).Padding(0, theme.Space2).Gap(theme.Space1Half).Radius(theme.RadiusControl).Border(0, ui.Transparent).Background(ui.Transparent).
 		Disabled(!a.connected) // which models there are is known only once connected
 	if a.s.runOpen || b.Hovered() {
-		b.Background(k.Fill2)
+		b.Background(k.Hover)
 	}
 	if b.Clicked() {
 		a.s.runOpen, a.s.runSub = !a.s.runOpen, ""
@@ -145,7 +145,7 @@ func (a *App) submenu(c *ui.Context, k theme.Colors, row ui.Element, sub string,
 	open := a.s.runSub == sub
 	ui.PopoverBase(c.Key("sub:"+sub), row, &open, func(panel ui.Element) {
 		panel.AttachTo(row, ui.AnchorTopEnd, ui.AnchorTopStart).Margin(0, 0, 0, theme.Space2).Width(width).Gap(theme.SpaceHalf).
-			Radius(theme.RadiusCard).Background(k.Popover).Border(theme.LineWidth, k.Line2).Transition(popMotion)
+			Radius(theme.RadiusCard).Background(k.SurfaceFloat).Border(theme.LineWidth, k.Line2).Transition(popMotion)
 		k.ShadowPopover.On(panel).Children(fn)
 		if padded {
 			panel.Padding(theme.Space1Half)
@@ -225,10 +225,10 @@ func (a *App) modelMenu(c *ui.Context, k theme.Colors, row ui.Element, st runSet
 						}
 						b.Children(func() {
 							if h.Missing != "" {
-								ui.Box(c).Opacity(0.4).Children(func() { a.harnessIcon(c, k, h.Kind, 15) })
+								ui.Box(c).Opacity(theme.OpacityFaded).Children(func() { a.harnessIcon(c, k, h.Kind, theme.Icon) })
 								return
 							}
-							a.harnessIcon(c, k, h.Kind, 15)
+							a.harnessIcon(c, k, h.Kind, theme.Icon)
 						})
 					}
 				})
@@ -264,15 +264,8 @@ func (a *App) modelList(c *ui.Context, k theme.Colors, h proto.HarnessInfo, st r
 		set.model(h.Kind, m)
 		a.s.modelPick = -1
 	}
-	ui.Row(c).Height(theme.Row).Margin(0, 0, theme.SpaceHalf, 0).Padding(0, theme.Space2).Gap(theme.Space1Half).AlignItems(ui.Center).Radius(theme.RadiusControl).Background(k.Fill).Children(func() {
-		ui.Icon(c, a.icons.Search).FontSize(theme.IconRow).TextColor(k.Muted)
-		in := ui.TextInput(c, &a.s.modelQuery).Placeholder("搜索模型").Label("搜索模型").AutoFocus().Grow(1).
-			FontSize(theme.Secondary.Size()).Background(ui.Transparent).Border(0, ui.Transparent).Padding(0)
-		if a.s.modelFocus {
-			in.Focus()
-			a.s.modelFocus = false
-		}
-		in.OnTextKey(func(key ui.TextKey) bool {
+	ui.Box(c).Margin(0, 0, theme.SpaceHalf, 0).Children(func() {
+		in := a.searchField(c, k, &a.s.modelQuery, "搜索模型", func(key ui.TextKey) bool {
 			switch {
 			case key.Mods != 0:
 				return false
@@ -290,7 +283,11 @@ func (a *App) modelList(c *ui.Context, k theme.Colors, h proto.HarnessInfo, st r
 				return false
 			}
 			return true
-		})
+		}).AutoFocus()
+		if a.s.modelFocus {
+			in.Focus()
+			a.s.modelFocus = false
+		}
 	})
 	switch {
 	case len(h.Models) == 0:

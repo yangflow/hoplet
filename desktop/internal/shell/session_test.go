@@ -309,18 +309,15 @@ func TestUltracodeSwitch(t *testing.T) {
 
 func TestNewSession(t *testing.T) {
 	a, h, tt, _ := newApp(t)
-	h.models = []proto.HarnessInfo{claudeHarness()}
+	h.models, h.folder = []proto.HarnessInfo{claudeHarness()}, "/w/site"
 	if err := tt.Click("新建"); err != nil {
 		t.Fatal(err)
 	}
 	if !tt.HasText("在 Hoplet 上做什么？") || !tt.HasText("选择工作目录") {
 		t.Fatalf("new page %q", tt.Texts())
 	}
-	if err := tt.Click("工作目录"); err != nil {
+	if err := tt.Click("工作目录"); err != nil { // the folder picker opens at once
 		t.Fatal(err)
-	}
-	if err := tt.Click("/w/site"); err != nil {
-		t.Fatalf("%v in %q", err, tt.Texts())
 	}
 	if err := tt.Click("消息"); err != nil {
 		t.Fatal(err)
@@ -339,7 +336,14 @@ func TestNewSession(t *testing.T) {
 func TestPersonalChat(t *testing.T) {
 	a, _, tt, _ := newApp(t)
 	a.Select("p1")
+	// The events sit an hour back: run the clock past the day's first two
+	// hours, so that they fall on today whenever the test runs.
 	now := tt.Now()
+	y, m, d := now.Date()
+	if since := now.Sub(time.Date(y, m, d, 0, 0, 0, 0, now.Location())); since < 2*time.Hour {
+		tt.Advance(2*time.Hour - since)
+		now = tt.Now()
+	}
 	evs := events(t, now, 1, 1,
 		proto.Message{ID: "k1", Role: proto.RoleUser, Text: "下个月去东京"},
 		proto.TurnStarted{},
@@ -498,16 +502,17 @@ func TestOutputFolds(t *testing.T) {
 
 func TestNewPageStates(t *testing.T) {
 	a, h, tt, _ := newApp(t)
-	h.models = []proto.HarnessInfo{claudeHarness()}
+	h.models, h.folder = []proto.HarnessInfo{claudeHarness()}, "/w/site"
 	a.NewSession()
 	tt.Frame()
-	if !tt.HasText("选择工作目录") || !tt.HasText("最近：") {
+	if !tt.HasText("选择工作目录") || tt.HasText("最近：") {
 		t.Fatalf("no directory yet: %q", tt.Texts())
 	}
-	if err := tt.Click("/w/site"); err != nil || a.s.newPick.dir != "/w/site" {
-		t.Fatalf("recent: %v, %q", err, a.s.newPick.dir)
+	if err := tt.Click("工作目录"); err != nil || a.s.newPick.dir != "/w/site" {
+		t.Fatalf("pick: %v, %q", err, a.s.newPick.dir)
 	}
-	if tt.HasText("最近：") || tt.HasText("选择工作目录") {
+	tt.Frame()
+	if tt.HasText("选择工作目录") || !tt.HasText("/w/site") {
 		t.Fatalf("a directory chosen: %q", tt.Texts())
 	}
 	a.Lost(errDaemon)

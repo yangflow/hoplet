@@ -44,9 +44,9 @@ func cleaner(dir, home, hermesHome string) func(string) string {
 
 // Sanitize turns the spool of a real Hermes session into a contract-test
 // fixture: it keeps the bridge's input and output, drops events that only
-// dress a user interface, cuts what a snapshot, a receipt or session info
-// carries about the user's own setup (tools, MCP servers, history) and
-// replaces dir and home with /work and /Users/me. env is the environment
+// dress a user interface, cuts what a snapshot, a receipt, session info or
+// a subagent event carries about the user's own setup (tools, toolsets, MCP
+// servers, history) and replaces dir and home with /work and /Users/me. env is the environment
 // the Hermes home is found from.
 func Sanitize(in io.Reader, out io.Writer, dir, home string, env []string) error {
 	sc := bufio.NewScanner(in)
@@ -113,6 +113,9 @@ func reduce(line string) (string, bool, error) {
 		}
 		if typ == "session.info" {
 			p["payload"] = only(p["payload"], kept)
+		}
+		if pl, ok := p["payload"].(map[string]any); ok && strings.HasPrefix(typ, "subagent.") {
+			delete(pl, "toolsets") // the user's own tools and MCP servers
 		}
 	}
 	if res, ok := v["result"].(map[string]any); ok {

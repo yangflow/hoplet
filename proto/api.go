@@ -86,6 +86,9 @@ const (
 	MethodSessionsEvents    = "sessions.events"
 	MethodSessionsGet       = "sessions.get"
 	MethodSessionsDiff      = "sessions.diff"
+	MethodSessionsCommits   = "sessions.commits"
+	MethodFilesList         = "files.list"
+	MethodFilesRead         = "files.read"
 	MethodEnvRefresh        = "env.refresh"
 	MethodSystemDoctor      = "system.doctor"
 	MethodQueueList         = "queue.list"
@@ -298,6 +301,9 @@ type EventsParams struct {
 	Session   SessionID `json:"session"`
 	BeforeSeq uint64    `json:"before_seq"`
 	Limit     int       `json:"limit,omitempty"`
+	// Agent asks for that subagent's record instead of the session's own
+	// conversation, which never includes subagents' events.
+	Agent string `json:"agent,omitempty"`
 }
 
 // EventsPage is a page of a session's events, oldest first, with More set
@@ -385,14 +391,33 @@ type DoctorReport struct {
 	Checks []Check `json:"checks"`
 }
 
-// DiffParams asks for a session's changes since its baseline. Repo limits
-// the answer to one repository (by its path under the working directory);
-// Patch asks for the patch text as well as the file list.
+// DiffParams asks for a session's changes over a range, by default since
+// its baseline. Repo limits the answer to one repository (by its path under
+// the working directory); Patch asks for the patch text as well as the file
+// list. Commit names the commit of DiffRangeCommit, which needs Repo.
 type DiffParams struct {
 	Session SessionID `json:"session"`
 	Repo    string    `json:"repo,omitempty"`
 	Patch   bool      `json:"patch,omitempty"`
+	Range   DiffRange `json:"range,omitempty"`
+	Commit  string    `json:"commit,omitempty"`
 }
+
+// DiffRange says what a diff compares; empty means DiffRangeSession.
+type DiffRange string
+
+// Diff ranges.
+const (
+	// DiffRangeSession compares the session's baseline with now.
+	DiffRangeSession DiffRange = "session"
+	// DiffRangeUncommitted compares each repository's HEAD with now.
+	DiffRangeUncommitted DiffRange = "uncommitted"
+	// DiffRangeBranch compares where HEAD forked from the default branch
+	// with now, uncommitted changes included.
+	DiffRangeBranch DiffRange = "branch"
+	// DiffRangeCommit compares one commit with its first parent.
+	DiffRangeCommit DiffRange = "commit"
+)
 
 // SessionDiff is everything a session changed in the git repositories under
 // its working directory, per repository. Clients ask again after a turn
@@ -446,6 +471,8 @@ type RepoDiff struct {
 	// SkippedTruncated says Skipped holds only the first files by path.
 	SkippedTruncated bool   `json:"skipped_truncated,omitempty"`
 	SHA              string `json:"sha,omitempty"`
+	// Base is the default branch DiffRangeBranch compares with.
+	Base string `json:"base,omitempty"`
 }
 
 // FileStatus is how a file changed.
@@ -480,4 +507,100 @@ type SkippedFile struct {
 	Path   string `json:"path"`
 	Size   int64  `json:"size,omitempty"`
 	Reason string `json:"reason,omitempty"`
+}
+
+// FilesListParams lists a session's working directory. Path is a directory
+// relative to it ("" for the directory itself); All lists every file under
+// it instead of one level. Ignored also lists what .gitignore leaves out,
+// marked as such.
+type FilesListParams struct {
+	Session SessionID `json:"session"`
+	Path    string    `json:"path,omitempty"`
+	All     bool      `json:"all,omitempty"`
+	Ignored bool      `json:"ignored,omitempty"`
+}
+
+// FileKind is what a listed entry is.
+type FileKind string
+
+// File kinds. A symbolic link is listed, never followed.
+const (
+	FileKindFile    FileKind = "file"
+	FileKindDir     FileKind = "dir"
+	FileKindSymlink FileKind = "symlink"
+)
+
+// FileEntry is one listed path, relative to the session's working
+// directory. Size is a file's size in bytes.
+type FileEntry struct {
+	Path    string   `json:"path"`
+	Kind    FileKind `json:"kind"`
+	Size    int64    `json:"size,omitempty"`
+	Ignored bool     `json:"ignored,omitempty"`
+}
+
+// FileList is a listing: one directory's entries, directories first and by
+// name, or with All every file by path. Truncated says the listing stopped
+// at its limit.
+type FileList struct {
+	Session   SessionID   `json:"session"`
+	Path      string      `json:"path"`
+	Entries   []FileEntry `json:"entries"`
+	Truncated bool        `json:"truncated,omitempty"`
+}
+
+// FilesReadParams reads one file of a session's working directory as it is
+// now, or with Baseline as the session's baseline recorded it. Range and
+// Commit pick the sides of another diff range instead: Baseline reads its
+// old side, otherwise its new side (the file in Commit for DiffRangeCommit,
+// the file on disk for the others).
+type FilesReadParams struct {
+	Session  SessionID `json:"session"`
+	Path     string    `json:"path"`
+	Baseline bool      `json:"baseline,omitempty"`
+	Range    DiffRange `json:"range,omitempty"`
+	Commit   string    `json:"commit,omitempty"`
+}
+
+// CommitsParams lists the commits of a session's repositories, or of one.
+type CommitsParams struct {
+	Session SessionID `json:"session"`
+	Repo    string    `json:"repo,omitempty"`
+}
+
+// SessionCommits lists commits per repository, for DiffRangeCommit.
+type SessionCommits struct {
+	Session SessionID     `json:"session"`
+	Repos   []RepoCommits `json:"repos"`
+}
+
+// RepoCommits are the commits of the current branch that the default branch
+// (Base) does not have, newest first; on the default branch, or when there
+// are none, the latest commits of HEAD. Truncated says there are more.
+// Error says why the repository could not be listed.
+type RepoCommits struct {
+	Path      string   `json:"path"`
+	Base      string   `json:"base,omitempty"`
+	Commits   []Commit `json:"commits"`
+	Truncated bool     `json:"truncated,omitempty"`
+	Error     string   `json:"error,omitempty"`
+}
+
+// Commit is one listed commit: its full id and the first line of its
+// message.
+type Commit struct {
+	SHA     string `json:"sha"`
+	Subject string `json:"subject"`
+}
+
+// FileContent is a file's text. A binary, too large or missing file has no
+// text and says which; Size is the file's size in bytes when known.
+type FileContent struct {
+	Session  SessionID `json:"session"`
+	Path     string    `json:"path"`
+	Text     string    `json:"text,omitempty"`
+	Size     int64     `json:"size,omitempty"`
+	Binary   bool      `json:"binary,omitempty"`
+	TooLarge bool      `json:"too_large,omitempty"`
+	Missing  bool      `json:"missing,omitempty"`
 }

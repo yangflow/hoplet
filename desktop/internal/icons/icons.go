@@ -49,7 +49,10 @@ type Set struct {
 	Run       *ui.SVG // tool: run a command
 	Web       *ui.SVG // tool: fetch a web page
 	Tool      *ui.SVG // tool: MCP and others
-	Task      *ui.SVG // tool: a subtask
+	Task      *ui.SVG // a branch
+	Agent     *ui.SVG // a subagent
+	Todos     *ui.SVG // the task list
+	Todo      *ui.SVG // a task not started
 	Thinking  *ui.SVG
 	Allowed   *ui.SVG // a decided approval: allowed
 	Denied    *ui.SVG // a decided approval: denied
@@ -81,6 +84,27 @@ type Set struct {
 	Failed    *ui.SVG // a toast saying something did not happen
 	Inbox     *ui.SVG // the inbox
 	Open      *ui.SVG // open a session from elsewhere, as an inbox card
+
+	// The right panel.
+	Panel      *ui.SVG // show or hide the right panel
+	Tree       *ui.SVG // the file tree column
+	Changes    *ui.SVG // the changes column and tab
+	Maximize   *ui.SVG // the viewer over the whole content area
+	SideBySide *ui.SVG // a diff's old and new side by side
+	Ignored    *ui.SVG // the files .gitignore leaves out are hidden
+	Shown      *ui.SVG // and shown
+	Reveal     *ui.SVG // show a file in Finder
+	Flat       *ui.SVG // list changed files without their directories
+	Nested     *ui.SVG // list changed files by directory
+	Source     *ui.SVG // a Markdown file's source in place of its preview
+	Wrap       *ui.SVG // wrap long lines in the viewer
+
+	// The find bar over a file's code.
+	MatchCase *ui.SVG
+	WholeWord *ui.SVG
+	Regexp    *ui.SVG
+	FindUp    *ui.SVG // the previous match
+	FindDown  *ui.SVG // the next match
 }
 
 // Load parses every icon.
@@ -119,6 +143,9 @@ func Load() (*Set, error) {
 		{&s.Web, "lucide/globe.svg"},
 		{&s.Tool, "lucide/box.svg"},
 		{&s.Task, "lucide/git-branch.svg"},
+		{&s.Agent, "lucide/bot.svg"},
+		{&s.Todos, "lucide/list-todo.svg"},
+		{&s.Todo, "lucide/circle.svg"},
 		{&s.Thinking, "lucide/brain.svg"},
 		{&s.Allowed, "lucide/shield-check.svg"},
 		{&s.Denied, "lucide/shield-x.svg"},
@@ -150,6 +177,23 @@ func Load() (*Set, error) {
 		{&s.Failed, "lucide/circle-alert.svg"},
 		{&s.Inbox, "lucide/inbox.svg"},
 		{&s.Open, "lucide/external-link.svg"},
+		{&s.Panel, "lucide/panel-right.svg"},
+		{&s.Tree, "lucide/folder-tree.svg"},
+		{&s.Changes, "lucide/diff.svg"},
+		{&s.Maximize, "lucide/maximize-2.svg"},
+		{&s.SideBySide, "lucide/columns-2.svg"},
+		{&s.Ignored, "lucide/eye-off.svg"},
+		{&s.Shown, "lucide/eye.svg"},
+		{&s.Reveal, "lucide/folder-open.svg"},
+		{&s.Flat, "lucide/list.svg"},
+		{&s.Nested, "lucide/list-tree.svg"},
+		{&s.Source, "lucide/file-code.svg"},
+		{&s.Wrap, "lucide/text-wrap.svg"},
+		{&s.MatchCase, "lucide/case-sensitive.svg"},
+		{&s.WholeWord, "lucide/whole-word.svg"},
+		{&s.Regexp, "lucide/regex.svg"},
+		{&s.FindUp, "lucide/arrow-up.svg"},
+		{&s.FindDown, "lucide/arrow-down.svg"},
 	} {
 		data, err := files.ReadFile(f.path)
 		if err != nil {
@@ -255,8 +299,10 @@ func fileKind(base string) string {
 		return "ruby"
 	case ".ini", ".conf", ".cfg":
 		return "settings"
+	case ".txt", ".text", ".rtf":
+		return "document"
 	}
-	return "document"
+	return "file"
 }
 
 // FileType returns the icon of a file by its name, in its own colors.

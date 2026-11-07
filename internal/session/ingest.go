@@ -225,7 +225,7 @@ func (in *ingester) event(ev harness.Event) error {
 	}
 	var entry *store.Entry
 	if payload != nil {
-		entry = &store.Entry{Payload: payload}
+		entry = &store.Entry{Payload: payload, Agent: ev.Agent}
 	}
 	return in.add(turn, entry, ev.Offset)
 }

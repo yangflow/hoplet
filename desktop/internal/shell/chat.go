@@ -54,7 +54,7 @@ func (a *App) chat(c *ui.Context, k theme.Colors, s proto.Session, items []convo
 		case convo.KindText:
 			ui.Row(c).AlignSelf(ui.Start).MaxWidth(0.78 * theme.PersonalColumn).Gap(theme.Space2).AlignItems(ui.End).Children(func() {
 				a.companionAvatar(c, k, s, last)
-				ui.Box(c).Padding(theme.Space2, theme.Space3).Radius(theme.RadiusComposer, theme.RadiusComposer, theme.RadiusComposer, theme.RadiusRow).Background(k.Bg).Border(theme.LineWidth, k.Line).Children(func() {
+				ui.Box(c).Padding(theme.Space2, theme.Space3).Radius(theme.RadiusComposer, theme.RadiusComposer, theme.RadiusComposer, theme.RadiusRow).Background(k.Surface).Border(theme.LineWidth, k.Line).Children(func() {
 					a.s.md.Theme = mdTheme(c, k)
 					a.s.md.CodeBlock = a.codeBlock(k, it.Key)
 					renderMarkdown(c, it, &a.s.md)
@@ -87,7 +87,7 @@ func (a *App) chat(c *ui.Context, k theme.Colors, s proto.Session, items []convo
 		space("typing", convo.KindText)
 		ui.Row(c.Key("typing")).AlignSelf(ui.Start).Gap(theme.Space2).AlignItems(ui.End).Children(func() {
 			a.companionAvatar(c, k, s, true)
-			ui.Box(c).Padding(theme.Space2, theme.Space3).Radius(theme.RadiusComposer, theme.RadiusComposer, theme.RadiusComposer, theme.RadiusRow).Background(k.Bg).Border(theme.LineWidth, k.Line).Label("正在输入").Children(func() {
+			ui.Box(c).Padding(theme.Space2, theme.Space3).Radius(theme.RadiusComposer, theme.RadiusComposer, theme.RadiusComposer, theme.RadiusRow).Background(k.Surface).Border(theme.LineWidth, k.Line).Label("正在输入").Children(func() {
 				theme.Reading.On(ui.Text(c, "···")).TextColor(k.Muted)
 			})
 		})
@@ -111,7 +111,7 @@ func (a *App) myBubble(c *ui.Context, k theme.Colors, it convo.Item, last bool) 
 	hovered := r.Hovered()
 	r.Children(func() {
 		ui.Box(c).Shrink(1).Children(func() {
-			ui.Box(c).Padding(theme.Space2, theme.Space3).Radius(theme.RadiusPanel).Background(k.Bubble).Children(func() {
+			ui.Box(c).Padding(theme.Space2, theme.Space3).Radius(theme.RadiusComposer).Background(k.Bubble).Children(func() {
 				theme.Reading.On(ui.Text(c, it.Text)).TextColor(k.Fg).Selectable()
 			})
 			if hovered {
@@ -129,7 +129,7 @@ func (a *App) companionAvatar(c *ui.Context, k theme.Colors, s proto.Session, sh
 	if !show {
 		return
 	}
-	b.Radius(theme.RadiusPanel).Background(k.Line2).Center().Children(func() {
+	b.Radius(theme.RadiusPill).Background(k.Line2).Center().Children(func() {
 		theme.UIStrong.On(ui.Text(c, initial(name(s)))).TextColor(k.Fg2)
 	})
 }
@@ -142,7 +142,7 @@ func (a *App) meAvatar(c *ui.Context, k theme.Colors, show bool) {
 	if !show {
 		return
 	}
-	b.Radius(theme.RadiusPanel).Background(k.Fg2).Center().Label("我").Children(func() {
+	b.Radius(theme.RadiusPill).Background(k.Fg2).Center().Label("我").Children(func() {
 		ui.Icon(c, a.icons.Me).FontSize(theme.IconRow).TextColor(c.Theme().InverseText)
 	})
 }

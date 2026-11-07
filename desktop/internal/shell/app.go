@@ -47,10 +47,26 @@ type Host interface {
 	Output(p proto.OutputParams, done func(proto.ToolOutput, error))
 	// Diff reads a session's changes since it began, without patches.
 	Diff(id proto.SessionID, done func(proto.SessionDiff))
+	// DiffPatch reads them with their patches, over p's range; done
+	// follows with the answer or why there is none.
+	DiffPatch(p proto.DiffParams, done func(proto.SessionDiff, error))
+	// Commits lists the commits a session's repositories can show one
+	// at a time; done follows with the answer or why there is none.
+	Commits(p proto.CommitsParams, done func(proto.SessionCommits, error))
+	// Files lists a session's working directory; ReadFile reads one of
+	// its files, now or at the baseline. done follows with the answer or
+	// why there is none.
+	Files(p proto.FilesListParams, done func(proto.FileList, error))
+	ReadFile(p proto.FilesReadParams, done func(proto.FileContent, error))
+	// Open opens a file with its default application; CopyPath puts its
+	// path on the clipboard.
+	Open(path string)
+	CopyPath(path string)
 	// Reconnect tries the daemon now rather than at the next retry.
 	Reconnect()
-	// Older pages back through a session's events before seq.
-	Older(id proto.SessionID, before uint64, done func(proto.EventsPage))
+	// Older pages back through a session's events before p.BeforeSeq:
+	// its own conversation's, or with p.Agent a subagent's record.
+	Older(p proto.EventsParams, done func(proto.EventsPage))
 	Harnesses(done func([]proto.HarnessInfo))
 	// Session reads what a session waits on: its pending approvals.
 	Session(id proto.SessionID, done func(proto.SessionState))
@@ -107,16 +123,36 @@ type App struct {
 	machine   string // the daemon's host name
 	offline   string // why there is no connection
 
-	mode      proto.Mode
-	sort      catalog.Sort
-	show      catalog.Show
-	archived  bool
-	selected  string
-	closed    map[string]bool // collapsed directory groups
-	hideSide  bool
-	sideMoves bool    // the sidebar is opening or closing
-	side      float32 // the sidebar's width, which its edge drags
-	away      bool    // the app is in the background or the window hidden
+	mode       proto.Mode
+	sort       catalog.Sort
+	show       catalog.Show
+	archived   bool
+	wrap       bool // the file tabs wrap their long lines
+	selected   string
+	closed     map[string]bool // collapsed directory groups
+	sideClosed bool            // I closed the sidebar
+	hideSide   bool            // the sidebar is off screen: closed, or yielding its place
+	sideMoves  bool            // the sidebar is opening or closing
+	side       float32         // the sidebar's width, which its edge drags
+	sideShown  float32         // the width it last showed at
+	away       bool            // the app is in the background or the window hidden
+
+	panelOpen   bool         // I opened the right panel; it may yield its place
+	panelMoves  bool         // the right panel is changing width
+	panelTarget float32      // the width the right panel moves to
+	panelFrom   float32      // the width it moves from
+	panelMotion ui.Animation // how it moves there
+	width       float32      // the window's width in the last frame
+	viewerWas   bool         // the right panel last rested with its viewer
+	panelW      float32      // the panel's width with the viewer, as its edge dragged it; 0 shares the room evenly
+	railW       float32      // the panel's column's width, which its edge drags
+	railShown   float32      // the width the column last showed at
+
+	// clock orders the columns as I opened them: sideAt and panelAt are
+	// when, the sidebar's 0 until I open it. Short of room the earliest
+	// yields. fit is the window's columns as last laid out.
+	clock, sideAt, panelAt int
+	fit                    fitOut
 
 	inbox bool // the inbox page shows
 
@@ -140,7 +176,7 @@ type App struct {
 // page, as it is whenever no session is selected. changed is called from
 // the view whenever State changes.
 func New(set *icons.Set, host Host, changed func(State)) *App {
-	a := &App{icons: set, host: host, mode: proto.ModeCode, closed: map[string]bool{}, at: -1, changed: changed, s: newSessionView(), side: theme.SidebarWidth}
+	a := &App{icons: set, host: host, mode: proto.ModeCode, closed: map[string]bool{}, at: -1, changed: changed, s: newSessionView(), side: theme.SidebarWidth, railW: theme.PanelRail}
 	a.newSessionIn("")
 	return a
 }
@@ -154,6 +190,10 @@ func (a *App) Connected(host string) {
 	}
 	a.follow()
 	a.flushOutbox()
+	// What the panels could not read, a daemon reached again may answer.
+	for _, ps := range a.s.panels {
+		ps.retry()
+	}
 }
 
 // Lost records that the connection is gone and why.
@@ -193,8 +233,17 @@ func (a *App) SetMode(m proto.Mode) {
 	}
 }
 
-// ToggleSidebar hides or shows the sidebar.
-func (a *App) ToggleSidebar() { a.hideSide, a.sideMoves = !a.hideSide, true }
+// ToggleSidebar closes or opens the sidebar. Open but yielding its place,
+// it comes forward instead, as one I just opened.
+func (a *App) ToggleSidebar() {
+	if !a.sideClosed && !a.hideSide {
+		a.sideClosed = true
+		return
+	}
+	a.sideClosed = false
+	a.clock++
+	a.sideAt = a.clock
+}
 
 // maxHistory bounds how far Back goes.
 const maxHistory = 100
@@ -409,15 +458,24 @@ func (a *App) View(c *ui.Context) {
 	if c.Vibrancy() {
 		c.Root().Background(ui.Transparent)
 	}
-	a.side = min(max(a.side, sideMin(c.TitleBar())), theme.SidebarMax)
-	// The sidebar opens and closes by its width, along motion-smooth; at
-	// rest and open it sits in a split its edge drags.
-	root := ui.Row(c).Fill().AlignItems(ui.Stretch)
-	target := a.side
-	if a.hideSide {
-		target = 0
+	least := sideMin(c.TitleBar())
+	a.side = min(max(a.side, least), theme.SidebarMax)
+	width, _ := c.Size()
+	a.width = width
+	a.fit = a.fitColumns(least)
+	if hide := a.fit.side == 0; hide != a.hideSide {
+		a.hideSide, a.sideMoves = hide, true
 	}
-	shown := root.AnimateTo("side", target, theme.MotionSmooth)
+	if a.fit.side > 0 {
+		a.sideShown = a.fit.side
+	}
+	// The sidebar opens and closes by its width, along motion-base; at
+	// rest and shown it sits in a split its edge drags.
+	root := ui.Row(c).Fill().AlignItems(ui.Stretch)
+	target := a.fit.side
+	// Whole DIPs: a fractional width puts the centered conversation on a
+	// different subpixel each frame, and its text shimmers as it moves.
+	shown := float32(math.Round(float64(root.AnimateTo("side", target, theme.MotionBase))))
 	if a.sideMoves && (root.Arrived("side") || math.Abs(float64(shown-target)) < 0.5) {
 		a.sideMoves = false
 		c.AnimationFrame() // settle into the split, or let the sidebar go
@@ -425,19 +483,25 @@ func (a *App) View(c *ui.Context) {
 	root.Children(func() {
 		switch {
 		case !a.hideSide && !a.sideMoves:
-			ui.Split(c, &a.side, func() { a.sidebar(c, k) }, func() { a.content(c, k) }).Fill()
+			w := a.fit.side
+			if ui.Split(c, &w, func() { a.sidebar(c, k) }, func() { a.main(c, k, width-a.fit.side) }).Fill().Changed() {
+				a.side = min(max(w, least), theme.SidebarMax)
+			}
 		default:
 			if a.sideMoves || !a.hideSide {
 				ui.Column(c).Width(shown).ClipX().Shrink(0).BorderWidth(0, theme.LineWidth, 0, 0).BorderColor(k.Line).Children(func() {
-					ui.Column(c).Width(a.side).Grow(1).Children(func() { a.sidebar(c, k) })
+					ui.Column(c).Width(a.sideShown).Grow(1).Children(func() { a.sidebar(c, k) })
 				})
 			}
-			ui.Column(c).Grow(1).Shrink(1).MinWidth(0).AlignItems(ui.Stretch).Children(func() { a.content(c, k) })
+			ui.Row(c).Grow(1).Shrink(1).MinWidth(0).AlignItems(ui.Stretch).Children(func() { a.main(c, k, width-shown) })
 		}
 	})
 	a.toasts(c, k)
 	if c.Shortcut(ui.Cmd, ui.KeyK) {
 		a.OpenPalette()
+	}
+	if c.Shortcut(ui.Cmd, ui.KeyP) {
+		a.OpenFilePicker()
 	}
 	a.palette(c, k)
 	if st := a.state(); !st.equal(a.last) {

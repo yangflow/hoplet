@@ -35,7 +35,7 @@ func TestLayoutFromTokens(t *testing.T) {
 		t.Fatal("no details button")
 	}
 	near("title bar button", details.H, theme.Row)
-	near("title bar middle", details.Y+details.H/2, theme.TitleBar/2)
+	near("title bar middle", details.Y+details.H/2, theme.TitleBar/2) // on the traffic lights' line
 	stop, ok := tt.Find("停止 ⎋")
 	if !ok {
 		t.Fatal("no stop button")
@@ -64,7 +64,7 @@ func TestSidebarOpensByWidth(t *testing.T) {
 	open := composer()
 	a.ToggleSidebar()
 	tt.Frame()
-	tt.Advance(theme.MotionSmooth.Spring.Duration / 4)
+	tt.Advance(theme.MotionBase.Duration / 4)
 	tt.Frame()
 	mid := composer()
 	tt.Advance(time.Second)
@@ -76,6 +76,7 @@ func TestSidebarOpensByWidth(t *testing.T) {
 		t.Fatal("the sidebar stays after closing")
 	}
 	a.ToggleSidebar()
+	tt.Frame()
 	tt.Advance(time.Second)
 	if x := composer(); x != open {
 		t.Fatalf("opened with the composer at %v, want %v", x, open)

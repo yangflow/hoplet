@@ -20,11 +20,11 @@ var enterMotion = ui.ElementTransition{Animation: &theme.MotionBase, Enter: &ui.
 // openMotion is how a column beside the conversation opens and closes:
 // its width grows and shrinks, its content cut, the conversation moving
 // with it.
-var openMotion = ui.ElementTransition{Animation: &theme.MotionSmooth, Enter: &ui.Motion{Collapse: true}, Exit: &ui.Motion{Collapse: true}}
+var openMotion = ui.ElementTransition{Animation: &theme.MotionBase, Enter: &ui.Motion{Collapse: true}, Exit: &ui.Motion{Collapse: true}}
 
 // popMotion is how a popover comes and goes: from motion-scale-pop on the
 // snappy spring, out by fading.
-var popMotion = ui.ElementTransition{Animation: &theme.MotionSnappy, Enter: &ui.Motion{Scale: theme.MotionScalePop}, Exit: &ui.Motion{}}
+var popMotion = ui.ElementTransition{Animation: &theme.MotionFast, Enter: &ui.Motion{Scale: theme.MotionScalePop}, Exit: &ui.Motion{}}
 
 // popover shows a panel above anchor while *open, in the composer's look:
 // a 10-point card with a hairline and the popover shadow, 6 points apart
@@ -37,7 +37,7 @@ func popover(c *ui.Context, k theme.Colors, anchor ui.Element, open *bool, end b
 			at, self = ui.AnchorTopEnd, ui.AnchorBottomEnd
 		}
 		panel.AttachTo(anchor, at, self).Margin(0, 0, theme.Space1Half, 0).Width(width).Padding(theme.Space1Half).Gap(theme.SpaceHalf).
-			Radius(theme.RadiusCard).Background(k.Popover).Border(theme.LineWidth, k.Line2).Transition(popMotion)
+			Radius(theme.RadiusCard).Background(k.SurfaceFloat).Border(theme.LineWidth, k.Line2).Transition(popMotion)
 		k.ShadowPopover.On(panel).Children(fn)
 	})
 }
@@ -48,7 +48,7 @@ func menuItem(c *ui.Context, k theme.Colors, on bool) ui.Element {
 	r := ui.Row(c).MinHeight(theme.Row).Padding(theme.Space1, theme.Space2).Gap(theme.Space2).AlignItems(ui.Center).Radius(theme.RadiusRow).Transition(hoverMotion)
 	switch {
 	case on:
-		r.Background(k.Sel)
+		r.Background(k.Selected)
 	case r.Hovered():
 		r.Background(k.Fill)
 	}
@@ -148,7 +148,7 @@ func (a *App) modeControl(c *ui.Context, k theme.Colors, st runSettings, caps pr
 	b := ui.Button(c, "").Label("审批："+modeName(st.perm)).Tooltip("审批："+modeName(st.perm)).
 		Height(theme.Row).Padding(0, theme.Space2).Gap(theme.Space1Half).Radius(theme.RadiusControl).Border(0, ui.Transparent).Background(ui.Transparent)
 	if a.s.permOpen || b.Hovered() {
-		b.Background(k.Fill2)
+		b.Background(k.Hover)
 	}
 	if b.Clicked() {
 		a.s.permOpen = !a.s.permOpen

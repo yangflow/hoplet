@@ -167,14 +167,14 @@ func TestSanitizeScrubsPathForms(t *testing.T) {
 	slug := strings.ReplaceAll(resolved, "/", "-")
 	home := "/home/me"
 	got := strings.Join(sanitized(t, dir, home,
-		Entry{Dir: "out", Line: `{"type":"assistant","a":"` + dir + `/x","b":"` + resolved + `/y","c":"~/.claude/projects/` + slug + `","d":"/home/mex","e":"-home-me-z"}`},
+		Entry{Dir: "out", Line: `{"type":"assistant","a":"` + dir + `/x","b":"` + resolved + `/y","c":"~/.claude/projects/` + slug + `","d":"/home/mex","e":"-home-me-z","f":"/private/tmp/claude-501/-work/s/tasks/a.output"}`},
 	), "\n")
 	for _, bad := range []string{dir, resolved, slug, "/home/me/", "-home-me-"} {
 		if strings.Contains(got, bad+"\"") || strings.Contains(got, bad+"/") || got == bad {
 			t.Errorf("still has %q:\n%s", bad, got)
 		}
 	}
-	for _, want := range []string{`"a":"/work/x"`, `"b":"/work/y"`, "projects/-work", `"d":"/home/mex"`, `"e":"-Users-me-z"`} {
+	for _, want := range []string{`"a":"/work/x"`, `"b":"/work/y"`, "projects/-work", `"d":"/home/mex"`, `"e":"-Users-me-z"`, `"f":"/tmp/claude/-work/s/tasks/a.output"`} {
 		if !strings.Contains(got, want) {
 			t.Errorf("lacks %q:\n%s", want, got)
 		}

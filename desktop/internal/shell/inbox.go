@@ -169,7 +169,7 @@ func shortLabel(k inboxKind) string {
 
 // inboxMotion is how a handled card goes: up a little and out, its room
 // closing, the cards under it moving up.
-var inboxMotion = ui.ElementTransition{Animation: &theme.MotionSmooth, Exit: &ui.Motion{Y: -theme.MotionLift, Collapse: true}}
+var inboxMotion = ui.ElementTransition{Animation: &theme.MotionBase, Exit: &ui.Motion{Y: -theme.MotionLift, Collapse: true}}
 
 // inboxPage is the inbox: what waits on me, grouped, handled on the cards.
 // ↑↓ move among the cards, ↩ opens the selected one's session, 1–3 choose
@@ -258,7 +258,7 @@ func (a *App) inboxCard(c *ui.Context, k theme.Colors, it inboxItem, n int) {
 	if it.approval != nil && a.s.inboxDone[it.approval.ID] != "" {
 		// Handled: one line of what was decided, until the session moves
 		// on and the card goes.
-		ui.Row(c.Key(key)).Padding(theme.Space2, theme.Space3).Gap(theme.Space2).AlignItems(ui.Center).Radius(theme.RadiusPanel).Border(theme.LineWidth, k.Line2).BorderStyle(ui.BorderDashed).
+		ui.Row(c.Key(key)).Padding(theme.Space2, theme.Space3).Gap(theme.Space2).AlignItems(ui.Center).Radius(theme.RadiusCard).Border(theme.LineWidth, k.Line2).BorderStyle(ui.BorderDashed).
 			Transition(inboxMotion).Children(func() {
 			ui.Icon(c, a.icons.Check).FontSize(theme.IconRow).TextColor(k.Add)
 			theme.UI.On(ui.Text(c, a.s.inboxDone[it.approval.ID]+" · ")).TextColor(k.Fg3)
@@ -267,10 +267,10 @@ func (a *App) inboxCard(c *ui.Context, k theme.Colors, it inboxItem, n int) {
 		return
 	}
 	on := n == a.s.inboxSel
-	card := ui.Column(c.Key(key)).Padding(theme.Space3).Gap(theme.Space2).Radius(theme.RadiusPanel).Border(theme.LineWidth, k.Line).Background(k.Bg).
+	card := ui.Column(c.Key(key)).Padding(theme.Space3).Gap(theme.Space2).Radius(theme.RadiusCard).Border(theme.LineWidth, k.Line).Background(k.Surface).
 		Transition(inboxMotion)
 	if on {
-		card.Background(k.Sel).Border(theme.LineWidth, k.Line2)
+		card.Background(k.Selected).Border(theme.LineWidth, k.Line2)
 	}
 	hovered := card.Hovered()
 	if card.Clicked() {

@@ -60,8 +60,8 @@ type Service struct {
 
 	// Overrides of the limits above and of the deadline, for tests (0: the
 	// defaults).
-	maxBytes, maxFiles, maxTotalFiles, packLimit int
-	diffTimeout                                  time.Duration
+	maxBytes, maxFiles, maxTotalFiles, packLimit, maxList int
+	diffTimeout                                           time.Duration
 
 	sweepOnce sync.Once
 	mu        sync.Mutex
@@ -308,7 +308,7 @@ func mergeSkipped(base, now []proto.SkippedFile) []proto.SkippedFile {
 }
 
 // Diff works out what the session changed in each git repository under dir
-// since its baseline. A repository that cannot be diffed is reported with
+// since its baseline, or over another range p names. A repository that cannot be diffed is reported with
 // state error; the call itself fails only for an unknown session or an
 // unusable git. At most one computation runs per session; identical requests
 // that arrive while it runs share the next one, which starts after it, so
@@ -325,7 +325,11 @@ func (s *Service) Diff(ctx context.Context, session proto.SessionID, dir string,
 	// The limit counts from the request's arrival, queue wait included.
 	ctx, cancelTimeout := context.WithTimeout(ctx, orDefault(s.diffTimeout, defaultDiffTimeout))
 	defer cancelTimeout()
-	key := strings.Join([]string{dir, p.Repo, strconv.FormatBool(p.Patch)}, "\x00")
+	if err := checkRange(p.Range, p.Repo, p.Commit); err != nil {
+		return proto.SessionDiff{}, err
+	}
+	p.Range = rangeOf(p.Range)
+	key := strings.Join([]string{dir, p.Repo, strconv.FormatBool(p.Patch), string(p.Range), p.Commit}, "\x00")
 	s.mu.Lock()
 	if s.sessions == nil {
 		s.sessions = map[proto.SessionID]*sessionFlights{}
@@ -401,6 +405,9 @@ func (s *Service) diff(ctx context.Context, session proto.SessionID, dir string,
 		s.beforeDiff(ctx)
 	}
 	s.sweep()
+	if p.Range != proto.DiffRangeSession {
+		return s.rangeDiff(ctx, session, dir, p)
+	}
 	b, ok, err := s.Store.Baseline(ctx, session)
 	if err != nil {
 		return proto.SessionDiff{}, err
