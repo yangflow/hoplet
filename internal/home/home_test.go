@@ -1,8 +1,10 @@
 package home
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 )
@@ -111,5 +113,52 @@ func TestEnsureTokenRaceCreatesOnce(t *testing.T) {
 	}
 	if len(left) != 0 {
 		t.Fatalf("temp files left behind: %v", left)
+	}
+}
+
+func TestEnsurePrivateInSubdirectory(t *testing.T) {
+	h := t.TempDir()
+	if _, err := ReadIdentity(h); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("read missing identity: %v", err)
+	}
+	calls := 0
+	fresh := func() (string, error) { calls++; return "abc", nil }
+	v, err := EnsureIdentity(h, fresh)
+	if err != nil || v != "abc" {
+		t.Fatalf("ensure %q %v", v, err)
+	}
+	if v, err = EnsureIdentity(h, fresh); err != nil || v != "abc" || calls != 1 {
+		t.Fatalf("second ensure %q %v, %d calls", v, err, calls)
+	}
+	fi, err := os.Stat(IdentityFile(h))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fi.Mode().Perm() != 0o600 {
+		t.Fatalf("file mode %v", fi.Mode().Perm())
+	}
+	di, err := os.Stat(filepath.Dir(IdentityFile(h)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if di.Mode().Perm() != 0o700 {
+		t.Fatalf("dir mode %v", di.Mode().Perm())
+	}
+	if err := os.Chmod(IdentityFile(h), 0o640); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ReadIdentity(h); err == nil || !strings.Contains(err.Error(), "chmod 600") {
+		t.Fatalf("read shared identity: %v", err)
+	}
+}
+
+func TestEnsurePrivateKeepsFreshError(t *testing.T) {
+	h := t.TempDir()
+	boom := errors.New("boom")
+	if _, err := EnsureIdentity(h, func() (string, error) { return "", boom }); !errors.Is(err, boom) {
+		t.Fatalf("err %v", err)
+	}
+	if _, err := os.Stat(IdentityFile(h)); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("file after failed ensure: %v", err)
 	}
 }
