@@ -19,8 +19,9 @@ const pairUsage = `usage: hoplet pair [--json]
 
 Prints a pairing code for this machine. On the other machine, run
 hoplet host add CODE within ten minutes; the code works once, and a new
-hoplet pair replaces it. The code carries network.routes from config.toml:
-set it, and network.listen, first.
+hoplet pair replaces it. The code carries network.routes and
+network.relays from config.toml: set one of them first (network.routes
+with network.listen).
 `
 
 const hostUsage = `usage: hoplet host <command> [flags]
@@ -127,7 +128,7 @@ func (a app) hostAdd(args []string) int {
 			return err
 		}
 		hostname, _ := os.Hostname()
-		r := client.Remote{Routes: code.Routes, HostKey: code.Key, Identity: id}
+		r := client.Remote{Routes: code.Routes, HostKey: code.Key, Identity: id, TLS: a.relayTLS}
 		rc, err := client.Pair(ctx, r, code.PSK, pair.DisplayName(hostname))
 		if err != nil {
 			return err

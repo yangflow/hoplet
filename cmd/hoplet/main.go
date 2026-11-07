@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"flag"
 	"fmt"
@@ -12,6 +13,7 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/yangflow/hoplet/internal/env"
 	"github.com/yangflow/hoplet/internal/harness"
@@ -31,6 +33,7 @@ commands:
   pair      print a pairing code another machine joins with
   host      add, list or remove the hosts this machine reaches
   device    list or revoke the devices paired with this machine
+  relay     run a relay, or manage the hosts it serves (hoplet relay help)
   daemon    run the daemon, or install, uninstall or inspect its LaunchAgent
   harness   install or upgrade Hoplet's copy of a harness (hoplet harness help)
   env       refresh the environment harnesses start with
@@ -71,6 +74,12 @@ type app struct {
 	// host, when set, is the paired host session and device commands run
 	// on (--host).
 	host string
+	// relayTLS, when set, is the TLS configuration relays are reached with
+	// instead of the system's (tests trust a test certificate with it).
+	relayTLS *tls.Config
+	// probeEvery, when set, replaces how often `session watch` on a later
+	// route tries the earlier ones (tests).
+	probeEvery time.Duration
 }
 
 func run(args []string, stdout, stderr io.Writer) int {
@@ -116,6 +125,8 @@ func (a app) run(args []string) int {
 		return a.device(args[1:])
 	case "daemon":
 		return a.daemon(args[1:])
+	case "relay":
+		return a.relayCmd(args[1:])
 	case "harness":
 		return a.harnessCmd(args[1:])
 	case "dev":

@@ -4,6 +4,7 @@ package daemon
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -60,6 +61,12 @@ type Config struct {
 	Listen string
 	// Routes are the addresses written into pairing codes.
 	Routes []string
+	// Relays are the relays to register with; pairing codes list them,
+	// as RelayConnectPath routes, after Routes.
+	Relays []string
+	// RelayTLS, when set, is the TLS configuration relays are dialed with
+	// (tests trust a test certificate with it); nil means the system's.
+	RelayTLS *tls.Config
 
 	// lim overrides the protocol limits (tests); zero fields keep defaults.
 	lim limits
@@ -197,7 +204,7 @@ func Start(ctx context.Context, cfg Config) (d *Daemon, err error) {
 	srv := &server{
 		ctx: runCtx, store: st, mgr: mgr, ws: ws, queue: q, sys: sys, token: token,
 		host: host, version: cfg.Version, log: log, lim: cfg.lim.withDefaults(),
-		identity: identity, routes: cfg.Routes, now: now, peers: map[string]map[*conn]struct{}{},
+		identity: identity, routes: pairingRoutes(cfg.Routes, cfg.Relays), now: now, peers: map[string]map[*conn]struct{}{},
 	}
 	d = &Daemon{
 		log: log, lock: lock, store: st, mgr: mgr, ws: ws, srv: srv, queue: q,
@@ -212,6 +219,10 @@ func Start(ctx context.Context, cfg Config) (d *Daemon, err error) {
 				log.Error("serve the direct listener", "err", err)
 			}
 		})
+	}
+	for _, u := range cfg.Relays {
+		r := newRelayer(srv, u, cfg.RelayTLS)
+		d.wg.Go(func() { r.run(runCtx) })
 	}
 	d.wg.Add(2)
 	go func() {
@@ -236,7 +247,7 @@ func Start(ctx context.Context, cfg Config) (d *Daemon, err error) {
 			log.Error("serve", "err", err)
 		}
 	}()
-	log.Info("daemon started", "home", cfg.Home, "pid", os.Getpid(), "id", identity.ID(), "listen", cfg.Listen)
+	log.Info("daemon started", "home", cfg.Home, "pid", os.Getpid(), "id", identity.ID(), "listen", cfg.Listen, "relays", cfg.Relays)
 	return d, nil
 }
 

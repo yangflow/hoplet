@@ -17,6 +17,15 @@ const APIPath = "/v1"
 // the client protocol there inside a Noise channel.
 const NoisePath = "/v1/noise"
 
+// The relay's paths. A daemon keeps a control connection on RelayHostPath;
+// a client asks for a host on RelayConnectPath?host=ID; the daemon answers
+// each client with a new connection on RelayAcceptPath?stream=TOKEN.
+const (
+	RelayHostPath    = "/v1/host"
+	RelayConnectPath = "/v1/connect"
+	RelayAcceptPath  = "/v1/accept"
+)
+
 // ClientFrame is one frame a client sends: a request (ID and Method set) or
 // the cancellation of a subscription (Sub and Cancel set).
 type ClientFrame struct {

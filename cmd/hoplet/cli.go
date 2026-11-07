@@ -112,34 +112,46 @@ func (a app) connect(ctx context.Context) (*client.Client, error) {
 	if a.host == "" {
 		return connect(ctx)
 	}
-	h, err := home.Dir()
+	r, err := a.remote(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return dialHost(ctx, h, a.host)
+	return client.DialRemote(ctx, r)
 }
 
-// dialHost reaches the paired host named name (or with that ID) from home:
-// the local daemon knows the host, the identity key proves this machine.
-func dialHost(ctx context.Context, h, name string) (*client.Client, error) {
+// remote says how to reach the host --host names.
+func (a app) remote(ctx context.Context) (client.Remote, error) {
+	h, err := home.Dir()
+	if err != nil {
+		return client.Remote{}, err
+	}
+	r, err := hostRemote(ctx, h, a.host)
+	r.TLS = a.relayTLS
+	return r, err
+}
+
+// hostRemote says how to reach the paired host named name (or with that
+// ID) from home: the local daemon knows the host, the identity key proves
+// this machine.
+func hostRemote(ctx context.Context, h, name string) (client.Remote, error) {
 	local, err := dialHome(ctx, h)
 	if err != nil {
-		return nil, err
+		return client.Remote{}, err
 	}
 	hosts, err := local.Hosts(ctx)
 	_ = local.Close()
 	if err != nil {
-		return nil, err
+		return client.Remote{}, err
 	}
 	i := slices.IndexFunc(hosts, func(x proto.Host) bool { return x.Name == name || x.ID == name })
 	if i < 0 {
-		return nil, fmt.Errorf("no host is named %q (see `hoplet host list`)", name)
+		return client.Remote{}, fmt.Errorf("no host is named %q (see `hoplet host list`)", name)
 	}
 	id, err := noise.LoadIdentity(h)
 	if err != nil {
-		return nil, err
+		return client.Remote{}, err
 	}
-	return client.DialRemote(ctx, client.Remote{Routes: hosts[i].Routes, HostKey: hosts[i].Key, Identity: id})
+	return client.Remote{Routes: hosts[i].Routes, HostKey: hosts[i].Key, Identity: id}, nil
 }
 
 // newKey returns an idempotency key for one command.

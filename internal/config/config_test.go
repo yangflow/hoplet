@@ -98,6 +98,10 @@ func TestLoadRejects(t *testing.T) {
 	if err != nil || c.Network.Listen != "0.0.0.0:7443" || len(c.Network.Routes) != 3 {
 		t.Errorf("listen and routes: %+v %v", c.Network, err)
 	}
+	c, err = Load(write(t, "[network]\nrelays = [\"wss://relay.example\", \"wss://backup.example:8443\"]\n"))
+	if err != nil || len(c.Network.Relays) != 2 {
+		t.Errorf("relays: %+v %v", c.Network, err)
+	}
 }
 
 func TestLoadDoesNotEchoPasswords(t *testing.T) {

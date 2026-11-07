@@ -61,6 +61,10 @@ type Network struct {
 	// order of preference, written into pairing codes: ws:// or wss:// with
 	// a host and an optional port, no path or query.
 	Routes []string `toml:"routes"`
+	// Relays are the relays this host registers with, in order of
+	// preference: wss:// with a host and an optional port, no path or
+	// query. Pairing codes list them after Routes.
+	Relays []string `toml:"relays"`
 }
 
 // Env configures the environment of harness processes.
@@ -113,6 +117,15 @@ func (c Config) validate() error {
 	for _, r := range c.Network.Routes {
 		if err := checkRoute(r); err != nil {
 			return fmt.Errorf("network.routes: %q: %w", r, err)
+		}
+	}
+	for _, r := range c.Network.Relays {
+		err := checkRoute(r)
+		if err == nil && !strings.HasPrefix(r, "wss://") {
+			err = errors.New("want a wss:// URL: a relay is reached over TLS")
+		}
+		if err != nil {
+			return fmt.Errorf("network.relays: %q: %w", r, err)
 		}
 	}
 	for _, e := range c.Network.NoProxy {

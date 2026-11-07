@@ -57,7 +57,7 @@ flowchart LR
 |---|---|
 | 心跳 | 每 15s 一次 ping（本机为 WebSocket Ping，远程为 Noise 通道的 ping / pong），10s 未响应则断开；hello 等待上限 10s |
 | 桌面重连 | `desktop/internal/link` 按 1s 起倍增至 30s，支持手动立即重试；当前无抖动和 5 分钟上限 |
-| CLI 重连 | `session watch` 断开后按 1s 起倍增至 30s 重拨，从已打印的最后一个 seq 重新订阅，快照里已打印的事件不再输出 |
+| CLI 重连 | `session watch` 断开后按 1s 起倍增至 30s 重拨，从已打印的最后一个 seq 重新订阅，快照里已打印的事件不再输出；对另一台主机 watch 时，连在后面的路由上每 60s 试前面的路由，通了就在新连接上同样重新订阅后关旧连接，stderr 打印 “switched to <路由>” |
 | 慢客户端 | 待写队列 8 MiB 高水位，超出断开自身；单独的大响应可发出，不能把高水位当单帧硬上限 |
 | 幂等 | `sessions.send` / `sessions.respond` 使用持久化 key / 回执；不能泛称所有请求均有回执 |
 | 分页与帧 | 事件页 500 条，客户端读入帧上限 1 MiB；旧消息按 `before_seq` 向前翻页 |
