@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -20,30 +21,73 @@ import (
 	"github.com/yangflow/hoplet/internal/harness/fake"
 	"github.com/yangflow/hoplet/internal/launchd"
 	"github.com/yangflow/hoplet/internal/shim"
+	"github.com/yangflow/hoplet/internal/systemd"
 )
 
-// fakeAgents is the LaunchAgent manager of every test: its user home is
-// $HOPLET_TEST_USERHOME and its launchctl is fakeLaunchctl, so no test
-// reaches the real launchctl or ~/Library/LaunchAgents.
-func fakeAgents() (launchd.Manager, error) {
+// fakeService is the daemon's service in every test: a LaunchAgent, or a
+// systemd user service when HOPLET_TEST_SERVICE is systemd, under
+// $HOPLET_TEST_USERHOME with launchctl and systemctl replaced by fakes, so
+// no test reaches the real ones or the user's own files.
+func fakeService() (service, error) {
 	userHome := os.Getenv("HOPLET_TEST_USERHOME")
 	if userHome == "" {
-		return launchd.Manager{}, errors.New("HOPLET_TEST_USERHOME is not set")
+		return nil, errors.New("HOPLET_TEST_USERHOME is not set")
 	}
-	return launchd.Manager{UserHome: userHome, UID: os.Getuid(), Run: fakeLaunchctl(userHome)}, nil
+	if os.Getenv("HOPLET_TEST_SERVICE") == "systemd" {
+		s := newSystemdService(filepath.Join(userHome, ".config"), filepath.Join(userHome, "linger"), "tester", nil)
+		s.m.Run = fakeSystemctl(userHome, s.m.Path())
+		return s, nil
+	}
+	return launchdService{launchd.Manager{UserHome: userHome, UID: os.Getuid(), Run: fakeLaunchctl(userHome)}}, nil
+}
+
+// fakeRelaySystem is where `relay install` puts the relay in every test:
+// under $HOPLET_TEST_USERHOME, with systemctl replaced by a fake. The
+// command runs as root when HOPLET_TEST_ROOT is 1.
+func fakeRelaySystem() (relaySystem, error) {
+	userHome := os.Getenv("HOPLET_TEST_USERHOME")
+	if userHome == "" {
+		return relaySystem{}, errors.New("HOPLET_TEST_USERHOME is not set")
+	}
+	units := filepath.Join(userHome, "etc", "systemd", "system")
+	return relaySystem{
+		root: os.Getenv("HOPLET_TEST_ROOT") == "1", units: units, dir: filepath.Join(userHome, "var", "lib", "hoplet-relay"),
+		exe: "/usr/local/bin/hoplet", run: fakeSystemctl(userHome, filepath.Join(units, systemd.RelayUnit)),
+	}, nil
+}
+
+// logCall appends a command line to name under userHome.
+func logCall(userHome, name string, args []string) error {
+	f, err := os.OpenFile(filepath.Join(userHome, name), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+	if err != nil {
+		return err
+	}
+	_, werr := f.WriteString(strings.Join(args, " ") + "\n")
+	return errors.Join(werr, f.Close())
+}
+
+// fakeSystemctl records each call in systemctl.log under userHome and
+// answers `show` as a running, enabled service only while unit exists.
+func fakeSystemctl(userHome, unit string) systemd.Runner {
+	return func(_ context.Context, name string, args ...string) ([]byte, error) {
+		if err := logCall(userHome, "systemctl.log", append([]string{name}, args...)); err != nil {
+			return nil, err
+		}
+		if slices.Contains(args, "show") {
+			if _, err := os.Stat(unit); err != nil {
+				return []byte("LoadState=not-found\nActiveState=inactive\nSubState=dead\nMainPID=0\nExecMainStatus=0\n"), nil
+			}
+			return []byte("LoadState=loaded\nUnitFileState=enabled\nActiveState=active\nSubState=running\nMainPID=" + strconv.Itoa(os.Getpid()) + "\nExecMainStatus=0\n"), nil
+		}
+		return nil, nil
+	}
 }
 
 // fakeLaunchctl records each call in launchctl.log under userHome and
 // answers `print` as a running agent only while its plist exists.
 func fakeLaunchctl(userHome string) launchd.Runner {
 	return func(_ context.Context, name string, args ...string) ([]byte, error) {
-		line := name + " " + strings.Join(args, " ") + "\n"
-		f, err := os.OpenFile(filepath.Join(userHome, "launchctl.log"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
-		if err != nil {
-			return nil, err
-		}
-		_, werr := f.WriteString(line)
-		if err := errors.Join(werr, f.Close()); err != nil {
+		if err := logCall(userHome, "launchctl.log", append([]string{name}, args...)); err != nil {
 			return nil, err
 		}
 		if len(args) > 0 && args[0] == "print" {
@@ -96,7 +140,7 @@ func TestMain(m *testing.M) {
 			stdout: os.Stdout, stderr: os.Stderr,
 			env:      env.Static{"PATH=" + os.Getenv("PATH"), "LANG=en_US.UTF-8", "HOPLET_TEST_MAIN=1"},
 			probeURL: probeURL(),
-			agents:   fakeAgents, allowTempBinary: true,
+			service:  fakeService, relaySystem: fakeRelaySystem, allowTempBinary: true,
 			relayTLS: testRelayTLS(),
 		}
 		if d, err := time.ParseDuration(os.Getenv("HOPLET_TEST_PROBE_EVERY")); err == nil {

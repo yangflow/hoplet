@@ -64,6 +64,9 @@ type Config struct {
 	// Relays are the relays to register with; pairing codes list them,
 	// as RelayConnectPath routes, after Routes.
 	Relays []string
+	// NetworkErr, when set, is why the network settings above could not be
+	// read; doctor reports it.
+	NetworkErr error
 	// RelayTLS, when set, is the TLS configuration relays are dialed with
 	// (tests trust a test certificate with it); nil means the system's.
 	RelayTLS *tls.Config
@@ -169,7 +172,10 @@ func Start(ctx context.Context, cfg Config) (d *Daemon, err error) {
 	if probeURL == "" {
 		probeURL = DefaultProbeURL
 	}
-	sys := &system{src: src, mgr: mgr, harnesses: cfg.Harnesses, git: git, gitErr: gitErr, probeURL: probeURL, probeTimeout: defaultProbeTimeout, log: log}
+	sys := &system{
+		src: src, mgr: mgr, harnesses: cfg.Harnesses, git: git, gitErr: gitErr, probeURL: probeURL, probeTimeout: defaultProbeTimeout, log: log,
+		listen: cfg.Listen, routes: cfg.Routes, networkErr: cfg.NetworkErr,
+	}
 	sys.set(snap, envErr)
 	for _, h := range cfg.Harnesses {
 		if u, ok := h.(harness.EnvUser); ok {
@@ -222,6 +228,7 @@ func Start(ctx context.Context, cfg Config) (d *Daemon, err error) {
 	}
 	for _, u := range cfg.Relays {
 		r := newRelayer(srv, u, cfg.RelayTLS)
+		sys.relays = append(sys.relays, r)
 		d.wg.Go(func() { r.run(runCtx) })
 	}
 	d.wg.Add(2)

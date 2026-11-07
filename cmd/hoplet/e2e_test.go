@@ -33,7 +33,7 @@ func cli(t *testing.T, args ...string) (code int, stdout, stderr string) {
 
 // testApp is a command line whose LaunchAgent is the fake one.
 func testApp(out, errb io.Writer) app {
-	return app{stdout: out, stderr: errb, harnesses: func(string) map[string]harness.Harness { return nil }, agents: fakeAgents, allowTempBinary: true, relayTLS: testRelayTLS()}
+	return app{stdout: out, stderr: errb, harnesses: func(string) map[string]harness.Harness { return nil }, service: fakeService, relaySystem: fakeRelaySystem, allowTempBinary: true, relayTLS: testRelayTLS()}
 }
 
 // testHome makes a short temporary Hoplet home (Unix socket paths are
@@ -416,6 +416,110 @@ func TestDaemonAgent(t *testing.T) {
 		t.Errorf("plist after uninstall: %v", err)
 	}
 	if out := mustCLI(t, "daemon", "status"); !strings.Contains(out, "not installed") {
+		t.Errorf("status after uninstall: %q", out)
+	}
+}
+
+// TestDaemonSystemd installs, inspects and removes the systemd user
+// service against a running daemon, with systemctl replaced by a recorder.
+func TestDaemonSystemd(t *testing.T) {
+	h, userHome := testHome(t)
+	t.Setenv("HOPLET_TEST_SERVICE", "systemd")
+	probe := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) }))
+	defer probe.Close()
+	startDaemonProcess(t, h, "HOPLET_TEST_PROBE="+probe.URL)
+	unit := filepath.Join(userHome, ".config", "systemd", "user", "hoplet.service")
+	check := func() proto.Check {
+		_, out, _ := cli(t, "doctor", "--json")
+		var rep proto.DoctorReport
+		if err := json.Unmarshal([]byte(out), &rep); err != nil {
+			t.Fatalf("doctor --json: %v\n%s", err, out)
+		}
+		for _, ch := range rep.Checks {
+			if ch.Name == "launch agent" {
+				t.Errorf("a launch agent check on systemd: %+v", ch)
+			}
+			if ch.Name == "systemd" {
+				return ch
+			}
+		}
+		return proto.Check{}
+	}
+	if c := check(); c.Status != proto.CheckWarn || !strings.Contains(c.Detail, "not installed") {
+		t.Errorf("before install: %+v", c)
+	}
+
+	code, out, errs := cli(t, "daemon", "install")
+	if code != 0 || !strings.Contains(out, "installed "+unit) || !strings.Contains(out, "serving") {
+		t.Fatalf("install: exit %d %q %q", code, out, errs)
+	}
+	if !strings.Contains(errs, "lingering is off for tester") || !strings.Contains(errs, "sudo loginctl enable-linger tester") {
+		t.Errorf("no linger hint: %q", errs)
+	}
+	exe, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(unit)
+	if err != nil {
+		t.Fatalf("no unit under the fake user home: %v", err)
+	}
+	if !strings.Contains(string(b), "\nExecStart=") || !strings.Contains(string(b), "KillMode=process") || !strings.Contains(string(b), " daemon --home ") {
+		t.Errorf("unit:\n%s", b)
+	}
+	log, _ := os.ReadFile(filepath.Join(userHome, "systemctl.log"))
+	if !strings.Contains(string(log), "systemctl --user daemon-reload\nsystemctl --user enable hoplet.service\nsystemctl --user restart hoplet.service\n") {
+		t.Errorf("systemctl calls:\n%s", log)
+	}
+	if out := mustCLI(t, "daemon", "status"); !strings.Contains(out, "systemd service active (running), enabled") || !strings.Contains(out, "enable-linger") {
+		t.Errorf("status: %q", out)
+	}
+	var st struct {
+		LaunchAgent any `json:"launch_agent"`
+		Systemd     struct {
+			Installed bool   `json:"installed"`
+			Unit      string `json:"unit"`
+			Program   string `json:"program"`
+			Enabled   bool   `json:"enabled"`
+			Linger    *bool  `json:"linger"`
+		} `json:"systemd"`
+	}
+	if err := json.Unmarshal([]byte(mustCLI(t, "daemon", "status", "--json")), &st); err != nil || st.LaunchAgent != nil ||
+		!st.Systemd.Installed || st.Systemd.Unit != unit || !st.Systemd.Enabled || st.Systemd.Linger == nil || *st.Systemd.Linger {
+		t.Errorf("status --json: %+v %v", st, err)
+	}
+	if c := check(); c.Status != proto.CheckWarn || !strings.Contains(c.Detail, "enable-linger") {
+		t.Errorf("without linger: %+v", c)
+	}
+
+	if err := os.MkdirAll(filepath.Join(userHome, "linger"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(userHome, "linger", "tester"), nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if c := check(); c.Status != proto.CheckOK {
+		t.Errorf("with linger: %+v", c)
+	}
+	var inst struct {
+		Unit    string `json:"unit"`
+		Serving bool   `json:"serving"`
+	}
+	code, out, errs = cli(t, "daemon", "install", "--json")
+	if err := json.Unmarshal([]byte(out), &inst); code != 0 || err != nil || inst.Unit != unit || !inst.Serving || strings.Contains(errs, "linger") {
+		t.Errorf("install --json: exit %d %+v %v %q", code, inst, err, errs)
+	}
+	if st.Systemd.Program != exe && !sameFile(st.Systemd.Program, exe) {
+		t.Errorf("program %q, want %q", st.Systemd.Program, exe)
+	}
+
+	if out := mustCLI(t, "daemon", "uninstall"); !strings.Contains(out, "uninstalled") {
+		t.Fatalf("uninstall: %q", out)
+	}
+	if _, err := os.Stat(unit); !os.IsNotExist(err) {
+		t.Errorf("unit after uninstall: %v", err)
+	}
+	if out := mustCLI(t, "daemon", "status"); !strings.Contains(out, "systemd service not installed") {
 		t.Errorf("status after uninstall: %q", out)
 	}
 }

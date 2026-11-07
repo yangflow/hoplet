@@ -11,7 +11,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/yangflow/hoplet/internal/home"
 	"github.com/yangflow/hoplet/internal/launchd"
+	"github.com/yangflow/hoplet/internal/noise"
 
 	"github.com/yangflow/hoplet/proto"
 )
@@ -155,6 +157,26 @@ func TestUsageStreams(t *testing.T) {
 		if code != want.code || (out.Len() > 0) != want.stdout || (errb.Len() > 0) != want.errs {
 			t.Errorf("%s: exit %d, stdout %d bytes, stderr %d bytes", args, code, out.Len(), errb.Len())
 		}
+	}
+}
+
+func TestIdentityCheck(t *testing.T) {
+	h := t.TempDir()
+	if c := identityCheck(h); c.Status != proto.CheckWarn || !strings.Contains(c.Detail, "the daemon creates it") {
+		t.Errorf("missing key: %+v", c)
+	}
+	id, err := noise.EnsureIdentity(h)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c := identityCheck(h); c.Status != proto.CheckOK || c.Detail != "host ID "+string(id.ID()) {
+		t.Errorf("key: %+v", c)
+	}
+	if err := os.Chmod(home.IdentityFile(h), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if c := identityCheck(h); c.Status != proto.CheckFail || !strings.Contains(c.Detail, "chmod 600") {
+		t.Errorf("shared key: %+v", c)
 	}
 }
 

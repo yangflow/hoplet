@@ -19,7 +19,6 @@ import (
 	"github.com/yangflow/hoplet/internal/harness"
 	"github.com/yangflow/hoplet/internal/harness/claude"
 	"github.com/yangflow/hoplet/internal/harness/hermes"
-	"github.com/yangflow/hoplet/internal/launchd"
 	"github.com/yangflow/hoplet/internal/shim"
 )
 
@@ -60,8 +59,11 @@ type app struct {
 	env env.Source
 	// probeURL, when set, replaces what the daemon's doctor reaches (tests).
 	probeURL string
-	// agents returns the LaunchAgent manager; run sets the real one.
-	agents func() (launchd.Manager, error)
+	// service returns the daemon's service manager; run sets the real one.
+	service func() (service, error)
+	// relaySystem returns where `relay install` puts the relay; run sets
+	// the real one.
+	relaySystem func() (relaySystem, error)
 	// allowTempBinary lets `daemon install` use a binary under the temp
 	// directory (tests).
 	allowTempBinary bool
@@ -83,7 +85,7 @@ type app struct {
 }
 
 func run(args []string, stdout, stderr io.Writer) int {
-	return app{stdout: stdout, stderr: stderr, harnesses: harnesses, agents: realAgents, selfCheck: claude.SelfCheck, hermesCheck: hermes.SelfCheck}.run(args)
+	return app{stdout: stdout, stderr: stderr, harnesses: harnesses, service: realService, relaySystem: realRelaySystem, selfCheck: claude.SelfCheck, hermesCheck: hermes.SelfCheck}.run(args)
 }
 
 // harnesses are the adapters a production daemon serves: claude runs

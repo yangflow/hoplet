@@ -8,12 +8,12 @@ import (
 	"io"
 	"io/fs"
 	"os"
-	"runtime"
 	"strings"
 
 	"github.com/yangflow/hoplet/internal/client"
 	"github.com/yangflow/hoplet/internal/config"
 	"github.com/yangflow/hoplet/internal/home"
+	"github.com/yangflow/hoplet/internal/noise"
 	"github.com/yangflow/hoplet/proto"
 )
 
@@ -76,9 +76,10 @@ func describeEnv(info proto.EnvInfo) string {
 
 const doctorUsage = `usage: hoplet doctor [--json]
 
-Checks the home directory, the daemon, its LaunchAgent, the environment and
-network path harnesses use, and the harness adapters. Exits 1 if any check
-fails.
+Checks the home directory, the identity key, the daemon and its service
+(LaunchAgent or systemd), the environment and network path harnesses use,
+the direct listener and relays, and the harness adapters. Exits 1 if any
+check fails.
 `
 
 func (a app) doctor(args []string) int {
@@ -132,9 +133,9 @@ func (a app) localChecks(ctx context.Context) []proto.Check {
 	} else {
 		add("token", proto.CheckOK, home.TokenFile(h))
 	}
-	out = append(out, configCheck(h))
-	if runtime.GOOS == "darwin" {
-		out = append(out, a.launchAgentCheck(ctx))
+	out = append(out, identityCheck(h), configCheck(h))
+	if m, err := a.service(); err == nil {
+		out = append(out, m.check(ctx))
 	}
 	c, err := dialHome(ctx, h)
 	if err != nil {
@@ -155,6 +156,19 @@ func (a app) localChecks(ctx context.Context) []proto.Check {
 	return append(out, r.Checks...)
 }
 
+// identityCheck reports the host's identity key, which the daemon creates
+// when it first starts.
+func identityCheck(h string) proto.Check {
+	id, err := noise.LoadIdentity(h)
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		return proto.Check{Name: "identity", Status: proto.CheckWarn, Detail: "no identity key yet; the daemon creates it when it starts"}
+	case err != nil:
+		return proto.Check{Name: "identity", Status: proto.CheckFail, Detail: err.Error()}
+	}
+	return proto.Check{Name: "identity", Status: proto.CheckOK, Detail: "host ID " + string(id.ID())}
+}
+
 func configCheck(h string) proto.Check {
 	path := config.Path(h)
 	fi, err := os.Stat(path)
@@ -171,28 +185,6 @@ func configCheck(h string) proto.Check {
 		return proto.Check{Name: "config", Status: proto.CheckWarn, Detail: fmt.Sprintf("%s is readable by group or others and may hold a proxy password; chmod 600", path)}
 	}
 	return proto.Check{Name: "config", Status: proto.CheckOK, Detail: path}
-}
-
-func (a app) launchAgentCheck(ctx context.Context) proto.Check {
-	m, err := a.agents()
-	if err != nil {
-		return proto.Check{Name: "launch agent", Status: proto.CheckFail, Detail: err.Error()}
-	}
-	s, err := m.Status(ctx)
-	if err != nil {
-		return proto.Check{Name: "launch agent", Status: proto.CheckFail, Detail: err.Error()}
-	}
-	exe, _ := os.Executable()
-	switch {
-	case !s.Installed:
-		return proto.Check{Name: "launch agent", Status: proto.CheckWarn, Detail: "not installed; the daemon will not start at login (hoplet daemon install)"}
-	case !s.Loaded:
-		return proto.Check{Name: "launch agent", Status: proto.CheckFail, Detail: m.Path() + " is installed but not loaded (hoplet daemon install)"}
-	case exe != "" && s.Program != exe && !sameFile(s.Program, exe):
-		return proto.Check{Name: "launch agent", Status: proto.CheckWarn, Detail: fmt.Sprintf("runs %s, not this binary %s", s.Program, exe)}
-	default:
-		return proto.Check{Name: "launch agent", Status: proto.CheckOK, Detail: fmt.Sprintf("%s, pid %d", s.State, s.PID)}
-	}
 }
 
 func sameFile(a, b string) bool {

@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"syscall"
 
 	"github.com/yangflow/hoplet/internal/noise"
 )
@@ -111,7 +112,9 @@ func allowed(dir string, id noise.HostID) (bool, error) {
 	return slices.Contains(ids, id), nil
 }
 
-// write replaces dir's allowlist with ids, mode 0600, in one rename.
+// write replaces dir's allowlist with ids, mode 0600, in one rename. Run
+// as root, it gives the file to dir's owner: a relay that runs as its own
+// user reads the allowlist root wrote for it.
 func write(dir string, ids []noise.HostID) error {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return fmt.Errorf("relay: allowlist: %w", err)
@@ -126,6 +129,9 @@ func write(dir string, ids []noise.HostID) error {
 	}
 	defer os.Remove(tmp.Name())
 	_, werr := tmp.WriteString(b.String())
+	if werr == nil && os.Geteuid() == 0 {
+		werr = matchOwner(tmp, dir)
+	}
 	if err := errors.Join(werr, tmp.Sync(), tmp.Close()); err != nil {
 		return fmt.Errorf("relay: allowlist: %w", err)
 	}
@@ -133,4 +139,17 @@ func write(dir string, ids []noise.HostID) error {
 		return fmt.Errorf("relay: allowlist: %w", err)
 	}
 	return nil
+}
+
+// matchOwner gives f the owner and group of dir.
+func matchOwner(f *os.File, dir string) error {
+	fi, err := os.Stat(dir)
+	if err != nil {
+		return err
+	}
+	st, ok := fi.Sys().(*syscall.Stat_t)
+	if !ok {
+		return fmt.Errorf("relay: no owner for %s", dir)
+	}
+	return f.Chown(int(st.Uid), int(st.Gid))
 }
