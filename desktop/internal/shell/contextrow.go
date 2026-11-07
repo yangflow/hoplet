@@ -18,7 +18,9 @@ func contextPill(e ui.Element, k theme.Colors) ui.Element {
 }
 
 // contextRow is a Code session's row above its composer: the machine,
-// the working directory and the branch, as pills.
+// the working directory and the branch, as pills. When the row is short
+// of room the machine name and the directory are cut short; the 本机
+// mark and the branch stay whole.
 func (a *App) contextRow(c *ui.Context, k theme.Colors, s proto.Session) {
 	ui.Row(c).Gap(theme.Space1Half).Margin(0, 0, theme.Space2, 0).AlignItems(ui.Center).Children(func() {
 		a.machinePill(c, k, false)
@@ -26,15 +28,15 @@ func (a *App) contextRow(c *ui.Context, k theme.Colors, s proto.Session) {
 		if !a.connected {
 			dim = k.Faint
 		}
-		contextPill(ui.Row(c).Tooltip(s.Directory), k).Children(func() {
+		contextPill(ui.Row(c).Tooltip(s.Directory), k).Shrink(1).Children(func() {
 			ui.Image(c, a.icons.FolderType()).Size(theme.IconRow, theme.IconRow)
-			theme.CodeCaption.On(ui.Text(c, tilde(s.Directory))).TextColor(dim).SingleLine()
+			theme.CodeCaption.On(ui.Text(c, tilde(s.Directory))).TextColor(dim).SingleLine().Shrink(1)
 		})
 		branch, repos := a.branch(s)
 		if branch == "" {
 			return
 		}
-		pill := contextPill(ui.Row(c), k)
+		pill := contextPill(ui.Row(c), k).Shrink(0)
 		if repos > 1 {
 			pill.Tooltip(fmt.Sprintf("%d 个仓库", repos))
 		}
@@ -75,10 +77,10 @@ func (a *App) machinePill(c *ui.Context, k theme.Colors, newPage bool) {
 		machine = "本机"
 	}
 	if a.connected {
-		contextPill(ui.Row(c), k).Children(func() {
+		contextPill(ui.Row(c), k).Shrink(1).Children(func() {
 			ui.Icon(c, a.icons.Machine).FontSize(theme.IconRow).TextColor(k.Fg2)
-			ui.Text(c, machine).FontSize(theme.Secondary.Size()).TextColor(k.Fg2).SingleLine()
-			theme.Caption.On(ui.Text(c, "本机")).TextColor(k.Muted).Padding(0, theme.Space1).Radius(theme.RadiusXS).Background(k.Fill)
+			ui.Text(c, machine).FontSize(theme.Secondary.Size()).TextColor(k.Fg2).SingleLine().Shrink(1)
+			theme.Caption.On(ui.Text(c, "本机")).TextColor(k.Muted).Padding(0, theme.Space1).Radius(theme.RadiusXS).Background(k.Fill).SingleLine().Shrink(0)
 		})
 		return
 	}
@@ -87,7 +89,7 @@ func (a *App) machinePill(c *ui.Context, k theme.Colors, newPage bool) {
 		status = "断开 " + duration(c.Now().Sub(a.s.offlineSince))
 		c.After(time.Second)
 	}
-	b := contextPill(ui.Button(c, "").Label("立即重连").Tooltip("立即重连"), k)
+	b := contextPill(ui.Button(c, "").Label("立即重连").Tooltip("立即重连"), k).Shrink(0)
 	if b.Clicked() {
 		a.host.Reconnect()
 	}
