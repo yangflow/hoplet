@@ -8,7 +8,6 @@ import (
 	"io"
 	"io/fs"
 	"os"
-	"runtime"
 	"strings"
 
 	"github.com/yangflow/hoplet/internal/client"
@@ -76,9 +75,10 @@ func describeEnv(info proto.EnvInfo) string {
 
 const doctorUsage = `usage: hoplet doctor [--json]
 
-Checks the home directory, the daemon, its LaunchAgent, the environment and
-network path harnesses use, and the harness adapters. Exits 1 if any check
-fails.
+Checks the home directory, the identity key, the daemon and its service
+(LaunchAgent or systemd), the environment and network path harnesses use,
+the direct listener and relays, and the harness adapters. Exits 1 if any
+check fails.
 `
 
 func (a app) doctor(args []string) int {
@@ -133,8 +133,8 @@ func (a app) localChecks(ctx context.Context) []proto.Check {
 		add("token", proto.CheckOK, home.TokenFile(h))
 	}
 	out = append(out, configCheck(h))
-	if runtime.GOOS == "darwin" {
-		out = append(out, a.launchAgentCheck(ctx))
+	if m, err := a.service(); err == nil {
+		out = append(out, m.check(ctx))
 	}
 	c, err := dialHome(ctx, h)
 	if err != nil {
@@ -171,28 +171,6 @@ func configCheck(h string) proto.Check {
 		return proto.Check{Name: "config", Status: proto.CheckWarn, Detail: fmt.Sprintf("%s is readable by group or others and may hold a proxy password; chmod 600", path)}
 	}
 	return proto.Check{Name: "config", Status: proto.CheckOK, Detail: path}
-}
-
-func (a app) launchAgentCheck(ctx context.Context) proto.Check {
-	m, err := a.agents()
-	if err != nil {
-		return proto.Check{Name: "launch agent", Status: proto.CheckFail, Detail: err.Error()}
-	}
-	s, err := m.Status(ctx)
-	if err != nil {
-		return proto.Check{Name: "launch agent", Status: proto.CheckFail, Detail: err.Error()}
-	}
-	exe, _ := os.Executable()
-	switch {
-	case !s.Installed:
-		return proto.Check{Name: "launch agent", Status: proto.CheckWarn, Detail: "not installed; the daemon will not start at login (hoplet daemon install)"}
-	case !s.Loaded:
-		return proto.Check{Name: "launch agent", Status: proto.CheckFail, Detail: m.Path() + " is installed but not loaded (hoplet daemon install)"}
-	case exe != "" && s.Program != exe && !sameFile(s.Program, exe):
-		return proto.Check{Name: "launch agent", Status: proto.CheckWarn, Detail: fmt.Sprintf("runs %s, not this binary %s", s.Program, exe)}
-	default:
-		return proto.Check{Name: "launch agent", Status: proto.CheckOK, Detail: fmt.Sprintf("%s, pid %d", s.State, s.PID)}
-	}
 }
 
 func sameFile(a, b string) bool {
