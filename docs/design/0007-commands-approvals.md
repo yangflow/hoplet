@@ -8,7 +8,7 @@
 
 | 状态 | 边界 |
 |---|---|
-| ✓ 代码已有 | 消息队列、原生审批、运行设置、停止与归档 |
+| ✓ 代码已有 | 消息队列（含子会话的回报）、原生审批、运行设置、停止与归档；委派、转交与回报工具的默认规则 |
 | ○ 目标 | MCP 工具规则、规则编辑、生物识别与高级会话操作 |
 
 ## 命令集
@@ -17,7 +17,7 @@
 |---|---|
 | ✓ 当前 | 发送、原生能力允许的 steer / 中断 / 审批、运行设置、停止、归档、队列管理 |
 | ◐ 有入口但不支持 | `sessions.answer`；当前 Claude Code / Hermes 均不提供提问回答能力 |
-| ○ 规划 | 回滚、fork、转交、委托与 Hoplet MCP 工具授权 |
+| ○ 规划 | 回滚、fork、转交与委派的公开命令、可配置的 Hoplet MCP 工具授权 |
 
 harness 不支持的命令按能力位隐藏；预留字段不代表实现。
 
@@ -100,9 +100,11 @@ stateDiagram-v2
 | 替我发消息给别人 | **必须我本人确认** |
 | `trigger_create` / 修改触发器 | 问我 |
 | `run_on` 到其他主机 | 按目标会话的模式执行 |
-| `session_send` 到我开的会话 | 只在该会话托管给 Personal 时允许 |
+| `session_send` | 只到调用方自己用 `session_create` 建的托管子会话；我开的会话、别人的子会话、转交的 Code 会话都拒绝 |
+| `session_create` / `handoff` | 只给 Personal；转交的 Code 会话权限为 confirm，审批到我这里 |
+| `report` | 只给有父会话的会话，只交给直接的父会话 |
 
-规则目标存放于 `~/.hoplet/rules.toml`，当前尚无该配置加载与执行服务。工具桥先不加载它：读会话直接放行、`session_send` 只到托管会话、`session_create` / `handoff` 只给 Personal，这些默认写在代码里；`notify_me` 推迟。
+规则目标存放于 `~/.hoplet/rules.toml`，当前尚无该配置加载与执行服务。工具桥先不加载它：上表中读会话、`session_send`、`session_create`、`handoff`、`report` 的默认写在代码里；`notify_me` 推迟。
 
 ### 成长记忆与授权
 

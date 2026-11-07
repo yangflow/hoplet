@@ -8,7 +8,7 @@
 
 | 状态 | 边界 |
 |---|---|
-| ✓ 代码已有 | 会话、轮次、事件、审批、回执、队列、偏移、基线与 blob、伙伴 |
+| ✓ 代码已有 | 会话、轮次、事件、审批、回执、队列、偏移、基线与 blob、伙伴、父会话与回报 |
 | ○ 目标 | 事情、成长条目、设备、检查点组、会话 links 与产物服务 |
 
 ## 核心原则
@@ -30,6 +30,8 @@ erDiagram
     SESSION ||--o{ APPROVAL : raises
     SESSION ||--o{ RECEIPT : deduplicates
     SESSION ||--o{ QUEUED_MESSAGE : queues
+    SESSION ||--o{ SESSION : "parent of"
+    SESSION ||--o{ REPORT : receives
     SESSION ||--o| INGEST_OFFSET : resumes
     SESSION ||--o| BASELINE : captures
     SESSION ||--o{ BASELINE_REPO : compares
@@ -41,9 +43,10 @@ erDiagram
 | `mode` | `personal` / `code` |
 | harness | kind、version、native_id；原生 ID 是续接指针 |
 | 状态 | idle / running / waiting / errored；归档另记 `archived_at` |
-| owner / origin | 类型已有预留；当前公开创建入口写入 `me`，不代表已实现委派、IM 或定时入口 |
+| owner / origin | 公开创建入口写入 `me`；`session_create` 建的子会话 owner 为 `delegated`，`handoff` 建的 Code 会话 owner 为 `me`；IM 与定时入口未实现 |
+| `parent` | 建这个会话的会话，建时写入、之后不改，不能是自己；为空表示不是委派或转交来的 |
 | isolation | 已有字段；当前目录选择没有 worktree 实现，不能据此视为隔离 |
-| 目录 | Code 必填；Personal 未指定目录时，伙伴主会话用伙伴目录 `companions/<id>/`（迁移时已有原生会话的留在 `sessions/<id>/`），其他 Personal 会话用 `sessions/<id>/` |
+| 目录 | Code 必填；Personal 未指定目录时，伙伴主会话用伙伴目录 `companions/<id>/`（迁移时已有原生会话的留在 `sessions/<id>/`），有父会话的 Personal 会话与其他 Personal 会话用 `sessions/<id>/` |
 
 | 规划实体 | 状态 |
 |---|---|
@@ -67,6 +70,21 @@ erDiagram
 - 新建没有父会话的 Personal 会话时，会话与伙伴行在同一事务里写入，任一失败都不留下另一个。
 - 迁移只加表、加行：每个 Personal 会话（含已归档的）插一行，`sessions` 与 `events` 不变。
 - 人格不进数据库，在伙伴目录的 `persona.md`。
+
+### 父会话与回报
+
+- `sessions.parent` 引用父会话；有父会话的 Personal 会话不是伙伴，不建伙伴行。
+- 回报是父会话队列里的一条消息：`queue.from_session` 记它来自哪个会话，我的消息为空；编辑保留来源。投递后父会话日志里的 `Message` 记原文，`from` 为来源会话。
+- `reports` 表一行一个入过队的回报键：
+
+| 列 | 含义 |
+|---|---|
+| `parent` | 收回报的会话，引用 `sessions(id)` |
+| `key` | 回报的键，与队列的键相同 |
+| `created_at` | 入队时间 |
+
+- 主键 `(parent, key)`。`Store.Report` 在一个事务里插 `reports` 行并入队；键已在就什么都不做，所以一个键只入队一次，我删掉的回报也不会再出现。父会话不存在、已归档、队列已满时整体回滚，键不被占用。
+- 迁移只加列、加表：已有会话的 `parent`、已有队列消息的 `from_session` 为空。
 
 ### 列表属性
 
