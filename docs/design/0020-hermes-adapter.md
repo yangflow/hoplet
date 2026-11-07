@@ -116,8 +116,10 @@ flowchart LR
 |---|---|
 | 注入 | `session.create` 的 `editor.mcp_servers`：stdio 服务为 `{name, command, args, env}`，`env` 是 `[{name, value}]`；服务由 gateway 按会话持有，凭证只在这一项的 `env` 里 |
 | 工具名 | gateway 改名为 `mcp__editor_<name>_<hash>__<tool>`，模型可能先用 `tool_describe` 查出再调；调用不经审批 |
-| 重连 | `session.resume` 带同一份 `editor` 重新挂载；配置不同时拒绝，报 `acp_mcp_policy_conflict` |
-| 换配置 | 先不带 `editor` 续接，在会话空闲时发 `session.mutate` 的 `editor_mcp`（带 revision / generation），再带新配置续接；运行中不能换，所以会话 token 在下一个空闲点轮换 |
+| 持久 | 配置连同 token 存在 Hermes 的会话里；不带 `editor` 续接（新连接也一样）按存下的配置重启服务 |
+| 续接 | 一律不带 `editor`；带不同配置续接会被拒绝（`acp_mcp_policy_conflict`） |
+| 换配置 | 会话空闲时发 `session.mutate` 的 `editor_mcp`（带 revision / generation），下次续接起生效；运行中不能换 |
+| token | 随会话不变：新会话在 `session.create` 里带上；之前建的会话第一次挂载时经 `editor_mcp` 挂上 |
 | 人格入口 | 工作目录的 `HERMES.md`（向上找到 git 根为止取最近的一份） |
 | 人格时机 | 系统提示在会话首轮构建并冻结在会话上，换模型等少数情况才重建；改 `HERMES.md` 对已有会话不保证生效 |
 | 不可用 | gateway 的 `session.create` 不接受 `messages`（报 `invalid_params`）；MCP 服务 `initialize` 返回的 `instructions` 不进提示词；`personality` 作用于整个配置档，不用 |
