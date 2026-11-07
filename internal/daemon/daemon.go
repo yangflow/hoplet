@@ -238,6 +238,8 @@ func Start(ctx context.Context, cfg Config) (d *Daemon, err error) {
 		defer d.wg.Done()
 		q.run(runCtx)
 	}()
+	ho := &handoffs{store: st, log: log, seen: map[proto.SessionID]uint64{}}
+	d.wg.Go(func() { ho.run(runCtx) })
 	// The harnesses' models are asked for now, so the first client to ask
 	// does not wait for a harness started to list them.
 	d.wg.Go(func() { mgr.Harnesses(runCtx) })
