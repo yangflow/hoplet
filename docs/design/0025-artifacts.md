@@ -8,17 +8,17 @@
 
 | 状态 | 边界 |
 |---|---|
-| ○ 目标 | 产物服务、工具桥发布、桌面查看与页面能力（M4a）；iOS 查看（M2b） |
+| ○ 目标 | 产物服务、工具桥发布、桌面查看与页面能力；iOS 查看 |
 
 产物是会话交出的可查看结果：一页 HTML、一篇 Markdown、一张图、一份表格。它属于会话，带版本，在桌面和手机上都能打开；HTML 产物还能在声明并获准后调用少量本机能力。
 
 ```mermaid
 flowchart LR
-    Harness["harness"] -- "工具桥 artifact.publish" --> Service["daemon 产物服务"]
+    Harness["harness"] -- "工具桥 artifact_publish" --> Service["daemon 产物服务"]
     CLI["CLI"] --> Service
     Service --> Store[("SQLite · artifacts/")]
     Desk["桌面 ui.WebView<br/>不可信页面"] -- "hoplet-artifact://" --> DH["桌面协议处理器"]
-    Phone["iOS WebView<br/>（M2b）"] -- "hoplet-artifact://" --> IH["iOS 协议处理器"]
+    Phone["iOS WebView"] -- "hoplet-artifact://" --> IH["iOS 协议处理器"]
     DH -- "同步协议" --> Service
     IH -- "同步协议" --> Service
     Service -- "ask：投递消息" --> Queue["所属会话队列"]
@@ -44,7 +44,7 @@ flowchart LR
 
 | 入口 | 规则 |
 |---|---|
-| 工具桥 `artifact.publish` | 会话身份调用，只能发布到本会话；入口文件与附带文件按相对路径给出 |
+| 工具桥 `artifact_publish` | 会话身份调用，只能发布到本会话；入口文件与附带文件按相对路径给出 |
 | CLI `hoplet artifact publish` | 指定会话与文件或目录，走同一服务 |
 | 页面 `publish` | 见“页面能力”；不能修改能力声明 |
 
@@ -71,7 +71,7 @@ flowchart LR
 | 能力 | 规则 |
 |---|---|
 | `publish` | 页面把自身状态写成新版本。请求带上它所基于的版本，不是最新版本时返回 `conflict`，页面重新加载到最新版本。只有我在客户端里查看时能调用；harness 改产物走工具桥重新发布 |
-| `db` | 每个产物一份数据，按“集合 / 文档”存 JSON：取、写、删、列与订阅变化。单个文档 ≤ 256 KiB，每个产物合计 ≤ 16 MiB。数据跨版本保留，随会话删除。harness 经工具桥 `artifact.db.*` 读写同一份数据 |
+| `db` | 每个产物一份数据，按“集合 / 文档”存 JSON：取、写、删、列与订阅变化。单个文档 ≤ 256 KiB，每个产物合计 ≤ 16 MiB。数据跨版本保留，随会话删除。harness 经工具桥 `artifact_db_*` 读写同一份数据 |
 | `files` | 只读本会话目录，复用会话文件接口与它的上限：超过 2 MiB、二进制文件、目录外的路径（含符号链接指出目录）一律拒绝 |
 | `ask` | 向所属会话投递一条消息，走现有队列与审批；消息在对话里可见并标注来源产物。轮次结束后把 harness 的最终回复交给页面；会话忙时排队，出错、被停止或会话归档时页面收到错误。每个页面同一时刻最多一条未完成的 `ask`。内核不直接调用模型 |
 
@@ -88,8 +88,8 @@ flowchart LR
 
 | 端 | 实现 | 阶段 |
 |---|---|---|
-| 桌面 | MyGo `ui.WebView` + `mygo.Protocol.HandleFunc` + 内容规则 | M4a |
-| iOS | SwiftUI `WebView` / `WebPage` + 自定义协议处理器 | M2b |
+| 桌面 | MyGo `ui.WebView` + `mygo.Protocol.HandleFunc` + 内容规则 | 先做 |
+| iOS | SwiftUI `WebView` / `WebPage` + 自定义协议处理器 | 随 iOS |
 
 两端使用同一地址格式、同一桥接脚本、同一请求与错误码；Swift 端按 `testdata/vectors/` 的向量回放验证。
 
@@ -103,12 +103,12 @@ flowchart LR
 | 确认 | 首次调用确认一次，撤销后再次调用重新确认，拒绝后本次加载不再询问 |
 | `ask` | 消息进入所属会话并在对话里可见，回复回到页面；会话忙时排队 |
 | 远端 | 配对机器上的产物在本机客户端可看、能力可用 |
-| 两端 | iOS 回放向量与桌面一致（M2b） |
+| 两端 | iOS 回放向量与桌面一致 |
 
 ## 待验证
 
 | 项 | 需确认 |
 |---|---|
-| 内容规则 | 不可信页面里 WebSocket、`fetch` 到其他协议等请求在 macOS 与 iOS 上都被挡住 |
+| 内容规则 | 不可信页面里 WebSocket、`fetch` 到其他协议等请求在 macOS 与 iOS 上都被挡住；桌面实现产物前先用原型确认 |
 | iOS 协议处理器 | `WebPage` 的自定义协议处理能否读取 `POST` 请求体 |
 | 上限 | 16 MiB / 64 个文件 / 256 KiB 文档是否合适 |

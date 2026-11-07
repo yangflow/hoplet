@@ -1,6 +1,6 @@
 # 0007 命令与审批
 
-状态：当前设计 · 更新：2026-11-04
+状态：当前设计 · 更新：2026-11-07
 
 ## 范围与现状
 
@@ -102,7 +102,7 @@ stateDiagram-v2
 | `run_on` 到其他主机 | 按目标会话的模式执行 |
 | `session_send` 到我开的会话 | 只在该会话托管给 Personal 时允许 |
 
-规则目标存放于 `~/.hoplet/rules.toml`，当前尚无该配置加载与执行服务。
+规则目标存放于 `~/.hoplet/rules.toml`，当前尚无该配置加载与执行服务。工具桥先不加载它：读会话直接放行、`session_send` 只到托管会话、`session_create` / `handoff` 只给 Personal，这些默认写在代码里；`notify_me` 推迟。
 
 ### 成长记忆与授权
 

@@ -1,6 +1,6 @@
 # 0020 Hermes 适配
 
-状态：当前设计 · 更新：2026-11-04
+状态：当前设计 · 更新：2026-11-07
 
 ## 范围与现状
 
@@ -108,6 +108,20 @@ flowchart LR
 
 当前不使用 `Spec.MCP`，不声明 MCP 注入；也没有实现隔离提炼入口。继承原生记忆不表示与 Hoplet 成长记忆自动同步。
 
+## MCP 与人格
+
+0.22.5 实测，已采用，尚未实现。
+
+| 项 | 规则 |
+|---|---|
+| 注入 | `session.create` 的 `editor.mcp_servers`：stdio 服务为 `{name, command, args, env}`，`env` 是 `[{name, value}]`；服务由 gateway 按会话持有，凭证只在这一项的 `env` 里 |
+| 工具名 | gateway 改名为 `mcp__editor_<name>_<hash>__<tool>`，模型可能先用 `tool_describe` 查出再调；调用不经审批 |
+| 重连 | `session.resume` 带同一份 `editor` 重新挂载；配置不同时拒绝，报 `acp_mcp_policy_conflict` |
+| 换配置 | 先不带 `editor` 续接，在会话空闲时发 `session.mutate` 的 `editor_mcp`（带 revision / generation），再带新配置续接；运行中不能换，所以会话 token 在下一个空闲点轮换 |
+| 人格入口 | 工作目录的 `HERMES.md`（向上找到 git 根为止取最近的一份） |
+| 人格时机 | 系统提示在会话首轮构建并冻结在会话上，换模型等少数情况才重建；改 `HERMES.md` 对已有会话不保证生效 |
+| 不可用 | gateway 的 `session.create` 不接受 `messages`（报 `invalid_params`）；MCP 服务 `initialize` 返回的 `instructions` 不进提示词；`personality` 作用于整个配置档，不用 |
+
 ## 任务清单
 
 - 来源是 `todo_list` 工具 `tool.start` 的参数：`merge` 为假时整表替换，为真时按 `id` 合并；结果正文拿不到，所以不靠结果
@@ -136,4 +150,4 @@ flowchart LR
 
 ## 待验证
 
-更多版本协议、MCP 注入、隔离提炼与原生子执行的可见性 / 用量 / 恢复未验证。
+更多版本协议、隔离提炼与原生子执行的可见性 / 用量 / 恢复未验证。MCP 注入只在 0.22.5 实测过。
