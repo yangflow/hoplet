@@ -41,6 +41,21 @@ func fakeService() (service, error) {
 	return launchdService{launchd.Manager{UserHome: userHome, UID: os.Getuid(), Run: fakeLaunchctl(userHome)}}, nil
 }
 
+// fakeRelaySystem is where `relay install` puts the relay in every test:
+// under $HOPLET_TEST_USERHOME, with systemctl replaced by a fake. The
+// command runs as root when HOPLET_TEST_ROOT is 1.
+func fakeRelaySystem() (relaySystem, error) {
+	userHome := os.Getenv("HOPLET_TEST_USERHOME")
+	if userHome == "" {
+		return relaySystem{}, errors.New("HOPLET_TEST_USERHOME is not set")
+	}
+	units := filepath.Join(userHome, "etc", "systemd", "system")
+	return relaySystem{
+		root: os.Getenv("HOPLET_TEST_ROOT") == "1", units: units, dir: filepath.Join(userHome, "var", "lib", "hoplet-relay"),
+		exe: "/usr/local/bin/hoplet", run: fakeSystemctl(userHome, filepath.Join(units, systemd.RelayUnit)),
+	}, nil
+}
+
 // logCall appends a command line to name under userHome.
 func logCall(userHome, name string, args []string) error {
 	f, err := os.OpenFile(filepath.Join(userHome, name), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
@@ -125,7 +140,7 @@ func TestMain(m *testing.M) {
 			stdout: os.Stdout, stderr: os.Stderr,
 			env:      env.Static{"PATH=" + os.Getenv("PATH"), "LANG=en_US.UTF-8", "HOPLET_TEST_MAIN=1"},
 			probeURL: probeURL(),
-			service:  fakeService, allowTempBinary: true,
+			service:  fakeService, relaySystem: fakeRelaySystem, allowTempBinary: true,
 			relayTLS: testRelayTLS(),
 		}
 		if d, err := time.ParseDuration(os.Getenv("HOPLET_TEST_PROBE_EVERY")); err == nil {

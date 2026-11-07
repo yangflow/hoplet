@@ -61,6 +61,9 @@ type app struct {
 	probeURL string
 	// service returns the daemon's service manager; run sets the real one.
 	service func() (service, error)
+	// relaySystem returns where `relay install` puts the relay; run sets
+	// the real one.
+	relaySystem func() (relaySystem, error)
 	// allowTempBinary lets `daemon install` use a binary under the temp
 	// directory (tests).
 	allowTempBinary bool
@@ -82,7 +85,7 @@ type app struct {
 }
 
 func run(args []string, stdout, stderr io.Writer) int {
-	return app{stdout: stdout, stderr: stderr, harnesses: harnesses, service: realService, selfCheck: claude.SelfCheck, hermesCheck: hermes.SelfCheck}.run(args)
+	return app{stdout: stdout, stderr: stderr, harnesses: harnesses, service: realService, relaySystem: realRelaySystem, selfCheck: claude.SelfCheck, hermesCheck: hermes.SelfCheck}.run(args)
 }
 
 // harnesses are the adapters a production daemon serves: claude runs

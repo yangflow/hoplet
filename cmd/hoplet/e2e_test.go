@@ -33,7 +33,7 @@ func cli(t *testing.T, args ...string) (code int, stdout, stderr string) {
 
 // testApp is a command line whose LaunchAgent is the fake one.
 func testApp(out, errb io.Writer) app {
-	return app{stdout: out, stderr: errb, harnesses: func(string) map[string]harness.Harness { return nil }, service: fakeService, allowTempBinary: true, relayTLS: testRelayTLS()}
+	return app{stdout: out, stderr: errb, harnesses: func(string) map[string]harness.Harness { return nil }, service: fakeService, relaySystem: fakeRelaySystem, allowTempBinary: true, relayTLS: testRelayTLS()}
 }
 
 // testHome makes a short temporary Hoplet home (Unix socket paths are

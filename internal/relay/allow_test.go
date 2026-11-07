@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"syscall"
 	"testing"
 
 	"github.com/yangflow/hoplet/internal/noise"
@@ -82,5 +83,34 @@ func TestListRefuses(t *testing.T) {
 		if err := Allow(dir, idB); err == nil {
 			t.Errorf("%s: allow wrote over a bad file", name)
 		}
+	}
+}
+
+// TestMatchOwner checks what a root write does to the allowlist, as far as
+// a test without root can: the file gets the directory's owner and group.
+func TestMatchOwner(t *testing.T) {
+	dir := t.TempDir()
+	f, err := os.CreateTemp(dir, "x")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	if err := matchOwner(f, dir); err != nil {
+		t.Fatal(err)
+	}
+	fi, err := f.Stat()
+	if err != nil {
+		t.Fatal(err)
+	}
+	di, err := os.Stat(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, want := fi.Sys().(*syscall.Stat_t), di.Sys().(*syscall.Stat_t)
+	if got.Uid != want.Uid || got.Gid != want.Gid {
+		t.Fatalf("owner %d:%d, directory %d:%d", got.Uid, got.Gid, want.Uid, want.Gid)
+	}
+	if err := matchOwner(f, filepath.Join(dir, "missing")); err == nil {
+		t.Fatal("a missing directory gave an owner")
 	}
 }
