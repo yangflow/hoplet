@@ -1,6 +1,6 @@
 # 0004 会话数据模型
 
-状态：当前设计 · 更新：2026-11-07
+状态：当前设计 · 更新：2026-11-08
 
 ## 范围与现状
 
@@ -8,8 +8,8 @@
 
 | 状态 | 边界 |
 |---|---|
-| ✓ 代码已有 | 会话、轮次、事件、审批、回执、队列、偏移、基线与 blob |
-| ○ 目标 | 独立伙伴、成长条目、设备、检查点组、会话 links 与产物服务 |
+| ✓ 代码已有 | 会话、轮次、事件、审批、回执、队列、偏移、基线与 blob、伙伴 |
+| ○ 目标 | 事情、成长条目、设备、检查点组、会话 links 与产物服务 |
 
 ## 核心原则
 
@@ -33,6 +33,7 @@ erDiagram
     SESSION ||--o| INGEST_OFFSET : resumes
     SESSION ||--o| BASELINE : captures
     SESSION ||--o{ BASELINE_REPO : compares
+    COMPANION ||--|| SESSION : "main session"
 ```
 
 | 会话属性 | 当前行为 |
@@ -42,14 +43,30 @@ erDiagram
 | 状态 | idle / running / waiting / errored；归档另记 `archived_at` |
 | owner / origin | 类型已有预留；当前公开创建入口写入 `me`，不代表已实现委派、IM 或定时入口 |
 | isolation | 已有字段；当前目录选择没有 worktree 实现，不能据此视为隔离 |
-| 目录 | Code 必填；Personal 未指定目录时使用 `sessions/<id>/` |
+| 目录 | Code 必填；Personal 未指定目录时，伙伴主会话用伙伴目录 `companions/<id>/`（迁移时已有原生会话的留在 `sessions/<id>/`），其他 Personal 会话用 `sessions/<id>/` |
 
 | 规划实体 | 状态 |
 |---|---|
 | 配对设备、主机目录 | 未实现 |
 | 检查点组、会话 links | 未实现独立实体与完整服务 |
 | 产物、产物数据 | 未实现；产物属于会话，按版本存放，数据跨版本保留，随会话删除 |
-| 伙伴、事情、成长条目 | 未冻结 SQL schema 或协议 |
+| 事情、成长条目 | 未冻结 SQL schema 或协议 |
+
+### 伙伴
+
+`companions` 表一行一个伙伴：
+
+| 列 | 含义 |
+|---|---|
+| `id` | 8 字节随机十六进制，与会话 ID 同样生成；支持至少 4 个字符的唯一前缀 |
+| `main_session` | 主会话，唯一，引用 `sessions(id)` |
+| `in_session_dir` | 为 1 时主会话在会话目录里工作；只由迁移写入，给迁移时已有原生会话的主会话 |
+| `created_at` | 创建时间；迁移来的取会话的创建时间 |
+
+- 名字、harness、归档时间不另存，读时取自主会话。
+- 新建没有父会话的 Personal 会话时，会话与伙伴行在同一事务里写入，任一失败都不留下另一个。
+- 迁移只加表、加行：每个 Personal 会话（含已归档的）插一行，`sessions` 与 `events` 不变。
+- 人格不进数据库，在伙伴目录的 `persona.md`。
 
 ### 列表属性
 

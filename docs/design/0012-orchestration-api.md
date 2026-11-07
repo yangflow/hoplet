@@ -1,6 +1,6 @@
 # 0012 服务入口与编排
 
-状态：当前设计 · 更新：2026-11-07
+状态：当前设计 · 更新：2026-11-08
 
 ## 范围与现状
 
@@ -8,7 +8,7 @@
 
 | 状态 | 边界 |
 |---|---|
-| ✓ 代码已有 | 本机 API、CLI、订阅和客户端 wait；会话工具桥与 `sessions_list`、`session_get` |
+| ✓ 代码已有 | 本机 API、CLI、订阅和客户端 wait；伙伴与人格；会话工具桥与 `sessions_list`、`session_get` |
 | ○ 目标 | 伙伴 / 产物工具、持久跟进、扇出与跨机 |
 
 ## 当前入口
@@ -33,9 +33,17 @@ flowchart LR
 | 输入与控制 | `sessions.send`、`sessions.respond`、`sessions.interrupt`、`sessions.steer`、`sessions.stop`、`sessions.answer` |
 | 运行设置 | `sessions.set_permission`、`sessions.set_plan`、`sessions.set_fast`、`sessions.set_ultracode`、`sessions.set_effort`、`sessions.set_model` |
 | 记录与输出 | `sessions.events`、`sessions.output`、`sessions.diff`、`sessions.commits` |
+| 伙伴 | `companions.list`、`companions.get`、`companions.create`、`companions.persona`、`companions.set_persona` |
 | 队列 | `queue.list`、`queue.edit`、`queue.delete`、`queue.move` |
 | 订阅 | `subscribe.catalog`、`subscribe.session` |
 | 诊断 | `harnesses.list`、`env.refresh`、`system.doctor` |
+
+伙伴方法的规则：
+
+- `companions.list` 默认不含主会话已归档的，`all` 为真时全部列出；`list`、`get`、`create` 返回的伙伴带本机主机 ID。
+- `companions.create` 的参数与 `sessions.create` 相同，只是没有 `mode`、`directory`、`isolation`；返回伙伴和主会话。用 `sessions.create` 建没有父会话的 Personal 会话也建伙伴。
+- `companions.set_persona` 收 `{id, text}`，返回 `applies`：`next_launch`（主会话启动时生效）或 `new_main_session`（主会话已续接原生会话，只对新主会话生效）。
+- 已配对的远程设备与 `sessions.*` 一样可调；会话 token 的连接不能调。
 
 `answer` 有服务入口，但当前两家适配器均返回不支持；其他动作也以适配器能力为准。`sessions.get` 的会话、待审批、队列分开读取，允许瞬间混合视图；写入决定以事务校验为准。
 
@@ -43,10 +51,11 @@ flowchart LR
 
 | 项 | 当前行为 |
 |---|---|
-| 主命令 | session、daemon、harness、env、doctor、version、shim、hermes-bridge；开发入口有 record / sanitize |
+| 主命令 | session、companion、daemon、harness、env、doctor、version、shim、hermes-bridge；开发入口有 record / sanitize |
 | session | new / list / send / watch / wait / approve / set / interrupt / steer / stop / archive / diff，支持 `--json` |
 | `session set` | 顺序为 permission → plan → fast → Ultracode → effort → model → title / pinned / unread；首个失败即停止，之前已生效的项不回滚 |
-| ID | session 命令可用至少 4 字符的唯一前缀 |
+| companion | list [--all] / show / new / persona [--set FILE\|-]，支持 `--json` 与 `--host`；`persona --set` 按 `applies` 说明何时生效 |
+| ID | session 与 companion 命令可用至少 4 字符的唯一前缀 |
 | watch | 文本或 JSONL 事件，不提供完整 TUI |
 | wait | 客户端使用订阅并每 2s 重查状态，不是 daemon 的持久化后台任务 |
 | 未实现命令 | pair / device / relay / trigger / api schema，以及终端、fork、回滚、转交 / 委派的公开命令 |

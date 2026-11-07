@@ -1,6 +1,6 @@
 # 0020 Hermes 适配
 
-状态：当前设计 · 更新：2026-11-07
+状态：当前设计 · 更新：2026-11-08
 
 ## 范围与现状
 
@@ -8,8 +8,8 @@
 
 | 状态 | 边界 |
 |---|---|
-| ✓ 代码已有 | 0.22.5 录制契约对应的 bridge、设置、审批、轮次与续接；Hoplet MCP 注入 |
-| ○ 目标 | 人格、隔离提炼与原生子执行观测 |
+| ✓ 代码已有 | 0.22.5 录制契约对应的 bridge、设置、审批、轮次与续接；Hoplet MCP 注入与伙伴人格 |
+| ○ 目标 | 隔离提炼与原生子执行观测 |
 
 ## 接入
 
@@ -110,7 +110,7 @@ flowchart LR
 
 ## MCP 与人格
 
-0.22.5 实测，已采用；MCP 已实现，人格尚未实现。
+0.22.5 实测，已采用并实现。
 
 | 项 | 规则 |
 |---|---|
@@ -120,7 +120,7 @@ flowchart LR
 | 续接 | 一律不带 `editor`；带不同配置续接会被拒绝（`acp_mcp_policy_conflict`） |
 | 换配置 | 会话空闲时发 `session.mutate` 的 `editor_mcp`（带 revision / generation），下次续接起生效；运行中不能换 |
 | token | 随会话不变：新会话在 `session.create` 里带上；之前建的会话第一次挂载时经 `editor_mcp` 挂上（daemon 发现会话没有 token 时签发），消息等它发完再提交 |
-| 人格入口 | 工作目录的 `HERMES.md`（向上找到 git 根为止取最近的一份） |
+| 人格入口 | 工作目录的 `HERMES.md`（向上找到 git 根为止取最近的一份）；伙伴主会话每次启动时，daemon 在启动 shim 前把适配器生成的 `HERMES.md` 以 0600 写进工作目录（先写临时文件再改名），写失败即启动失败；不是主会话的不写 |
 | 人格时机 | 系统提示在会话首轮构建并冻结在会话上，换模型等少数情况才重建；改 `HERMES.md` 对已有会话不保证生效 |
 | 不可用 | gateway 的 `session.create` 不接受 `messages`（报 `invalid_params`）；MCP 服务 `initialize` 返回的 `instructions` 不进提示词；`personality` 作用于整个配置档，不用 |
 
