@@ -105,9 +105,13 @@ func (m *Manager) ingest(l *live, last uint32, open bool) {
 			}
 			if ev.Exit != nil {
 				timer.Stop()
-				if err := in.exit(ev, wasInTurn); err != nil {
+				replaced, err := in.exit(ev, wasInTurn)
+				if err != nil {
 					fail(err)
 				}
+				// An earlier process's exit: the shim's own process follows
+				// it, over a new run.
+				detached = replaced && err == nil
 				return
 			}
 			if in.flushNow {
@@ -292,9 +296,16 @@ func (in *ingester) flush() error {
 
 // exit handles the harness's exit: it commits what is collected, closes the
 // turn if one is still open, and only then acknowledges the exit record so
-// the shim may leave.
-func (in *ingester) exit(ev harness.Event, wasInTurn bool) error {
+// the shim may leave. replaced reports the exit of a process before the
+// shim's own, read from the tail it left unread: nothing is acknowledged,
+// and the session reattaches past it.
+func (in *ingester) exit(ev harness.Event, wasInTurn bool) (replaced bool, err error) {
 	l := in.l
+	replaced = ev.Offset > 0 && ev.Offset <= l.prior
+	if replaced {
+		// No send may reach this run once the store has caught up.
+		l.replaced.Store(true)
+	}
 	if !wasInTurn && !l.stopping.Load() && (ev.Exit.Code != 0 || ev.Exit.Signal != "") {
 		msg := fmt.Sprintf("the harness exited between turns: code %d", ev.Exit.Code)
 		if ev.Exit.Signal != "" {
@@ -307,19 +318,22 @@ func (in *ingester) exit(ev harness.Event, wasInTurn bool) error {
 			turn = in.g.turn
 		}
 		if err := in.add(turn, &store.Entry{Payload: proto.Error{Message: msg}}, 0); err != nil {
-			return err
+			return replaced, err
 		}
 	}
 	if in.inTurn { // the adapter normally ends the turn itself
 		in.inTurn = false
 		if err := in.add(in.turn, &store.Entry{Payload: proto.TurnEnded{Reason: proto.TurnAborted, Message: "the harness exited"}}, 0); err != nil {
-			return err
+			return replaced, err
 		}
 	}
 	if err := in.flush(); err != nil {
-		return err
+		return replaced, err
 	}
 	l.pending.Store(false)
+	if replaced {
+		return true, nil
+	}
 	// Nobody may be handed a run whose harness has exited.
 	in.m.mu.Lock()
 	if in.m.live[l.id] == l {
@@ -333,7 +347,7 @@ func (in *ingester) exit(ev harness.Event, wasInTurn bool) error {
 		}
 	}
 	l.exited.Store(true)
-	return nil
+	return false, nil
 }
 
 // prepareEntries replaces entries the store would reject with a proto.Error

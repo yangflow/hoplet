@@ -3,6 +3,7 @@ package session
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -125,4 +126,66 @@ func killShim(t *testing.T, dir string) {
 		}
 	}
 	_ = syscall.Kill(-start.Pid, syscall.SIGKILL) // the harness may already be gone
+}
+
+// TestRespawnAfterUningestedExit loses the daemon, then the harness (whose
+// shim records its exit), then the shim: the next send replays the old
+// process's exit and goes on to the process the new shim starts.
+func TestRespawnAfterUningestedExit(t *testing.T) {
+	e := newEnv(t, fake.Script{Session: "n1", ResumeTurn: 1, Turns: []fake.Turn{
+		{Steps: []fake.Step{{EchoPrompt: true}}}, {Steps: []fake.Step{{EchoPrompt: true}}},
+	}})
+	first := e.manager()
+	sess := e.create(first)
+	ctx := context.Background()
+	if _, err := first.Send(ctx, sess.ID, "one", "k1"); err != nil {
+		t.Fatal(err)
+	}
+	e.waitFor(sess.ID, "first turn end", turnEnded)
+	if err := first.Close(); err != nil { // the daemon goes away; the shim and harness keep running
+		t.Fatal(err)
+	}
+	dir := first.dir(sess.ID)
+	if err := syscall.Kill(-harnessPid(t, dir), syscall.SIGKILL); err != nil {
+		t.Fatal(err)
+	}
+	waitCond(t, "the exit record", func() bool {
+		b, err := os.ReadFile(filepath.Join(dir, "spool.jsonl"))
+		return err == nil && strings.Contains(string(b), `"k":"exit"`)
+	})
+	killShim(t, dir)
+	waitShimGone(t, first, sess.ID)
+
+	second := e.manager()
+	defer second.Close()
+	if err := second.Recover(ctx); err != nil {
+		t.Fatal(err)
+	}
+	var err error
+	waitCond(t, "the send to be accepted", func() bool {
+		changes := second.Changes()
+		if _, err = second.Send(ctx, sess.ID, "two", "k2"); !errors.Is(err, ErrBusy) {
+			return true
+		}
+		<-changes
+		return false
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	evs := e.waitFor(sess.ID, "second turn end", func(evs []proto.Event) bool { return count(evs, proto.TypeTurnEnded) == 2 })
+	ps := payloads(t, evs)
+	var errs []string
+	for _, p := range ps {
+		if pe, ok := p.(proto.Error); ok {
+			errs = append(errs, pe.Message)
+		}
+	}
+	if len(errs) != 1 || !strings.Contains(errs[0], "killed by SIGKILL") {
+		t.Fatalf("errors %q in %s", errs, describe(evs))
+	}
+	if end := ps[len(ps)-1].(proto.TurnEnded); end.Reason != proto.TurnCompleted {
+		t.Fatalf("end %+v in %s", end, describe(evs))
+	}
+	e.waitOffsetAtSpoolEnd(second, sess.ID)
 }
