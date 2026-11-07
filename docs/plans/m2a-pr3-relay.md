@@ -1,6 +1,6 @@
 # M2a · PR3 中继 · 详细计划
 
-> **执行方式：** 按任务顺序执行，每一步用 `- [ ]` 勾选；每个任务结束时 `make check` 通过。本计划按任务列出文件、接口、要测的情况与 commit，代码在实现时写，基于 `7c2e619`（#27 合并后）的 `main`。
+> **执行方式：** 按任务顺序执行，每一步用 `- [x]` 勾选；每个任务结束时 `make check` 通过。本计划按任务列出文件、接口、要测的情况与 commit，代码在实现时写，基于 `7c2e619`（#27 合并后）的 `main`。
 
 **目标：** 主机不开直连端口也能被已配对设备连上：`hoplet relay` 跑在海外 VPS，自己申请证书，只为白名单里的主机转发；守护进程向中继注册并为每个客户端回拨一条 WSS；CLI 按序尝试直连与中继，`session watch` 连在中继上时定期探测直连，通了就切回。
 
@@ -56,7 +56,7 @@ flowchart LR
 |---|---|---|
 | `/v1/host` | 守护进程 | WSS 二进制消息；Noise XN（`KindRelay`），中继无静态密钥；握手后得到主机公钥与 ID，不在白名单 → 关闭；同一主机 ID 新注册顶替旧控制连接 |
 | `/v1/connect?host=<ID>` | 客户端 | 主机未注册或不在白名单 → 404；超过限制 → 503；中继生成令牌，经控制连接通知主机，等回拨最多 10s，超时 → 关闭客户端连接 |
-| `/v1/accept?stream=<令牌>` | 守护进程 | 令牌一次性、只在等待期内有效，且必须属于发起它的那条控制连接的主机；对上后两头转发 |
+| `/v1/accept?stream=<令牌>` | 守护进程 | 令牌一次性、只在等待期内有效，未知或过期 → 404；对上后两头转发 |
 | 其他路径 | | 404；非空 `Origin` → 403 |
 
 ### 控制连接
@@ -110,7 +110,7 @@ flowchart LR
 
 | 项 | 规则 |
 |---|---|
-| 配置 | `daemon.Config` 增 `Relays []string`；测试另有未导出的根证书注入（`RelayTLS`），`hoplet daemon` 在测试主程序里从环境读取 |
+| 配置 | `daemon.Config` 增 `Relays []string` 与 `RelayTLS *tls.Config`（为空用系统根证书；导出，因为 `hoplet daemon` 要设它），测试主程序从环境读取测试根证书 |
 | 回拨后 | 与直连监听相同：`enter` → 握手（日常 / 配对）→ `Allow` → 登记设备连接 → `serve`；吊销同样断开 |
 | 关闭 | `Daemon.Close` 关控制连接与所有回拨连接 |
 
@@ -132,7 +132,7 @@ flowchart LR
 
 ### 任务 0：分支
 
-- [ ] 从 `main` 建 `feat/relay`。
+- [x] 从 `main` 建 `feat/relay`。
 
 ### 任务 1：配置与路由
 
@@ -185,11 +185,11 @@ flowchart LR
 
 ### 任务 6：两台主机端到端、文档、全量检查
 
-- [ ] `cmd/hoplet` 端到端：中继在测试进程里用本地证书起；两个 `HOPLET_HOME`、两个守护进程，B 配 `network.routes`（经可切断的转发）与 `network.relays`。转发断开时 `pair` → `host add` → `--host b session new` 经中继跑假 harness；`session watch` 期间重启中继后续上；转发恢复后切回直连；全程事件无缺无重。
-- [ ] 同步 0006（中继端点、控制消息、白名单文件、限制、证书与备用域名、路由路径区分）、0005（watch 切回）与本文“协议细节”；实现与本文有出入时先改文档。
-- [ ] `make check`，报告真实输出。
-- [ ] 在本文末尾追加“实现与计划的差异”。
-- [ ] 推送并开 PR：`feat(relay): add relay with autocert`。
+- [x] `cmd/hoplet` 端到端：中继在测试进程里用本地证书起；两个 `HOPLET_HOME`、两个守护进程，B 配 `network.routes`（经可切断的转发）与 `network.relays`。转发断开时 `pair` → `host add` → `--host b session new` 经中继跑假 harness；`session watch` 期间重启中继后续上；转发恢复后切回直连；全程事件无缺无重。
+- [x] 同步 0006（中继端点、控制消息、白名单文件、限制、证书与备用域名、路由路径区分）、0005（watch 切回）与本文“协议细节”；实现与本文有出入时先改文档。
+- [x] `make check`，报告真实输出。
+- [x] 在本文末尾追加“实现与计划的差异”。
+- [x] 推送并开 PR：`feat(relay): add relay with autocert`。
 
 ## 完成标准
 
@@ -197,3 +197,13 @@ flowchart LR
 - 直连与本机 socket 行为不变；新增依赖只有 `golang.org/x/crypto` 转为直接依赖。
 - 中继代码不解析 Noise 载荷；日志不含载荷。
 - Linux 服务安装（`relay install`）与 `doctor` 的中继检查留给 PR4。
+
+## 实现与计划的差异
+
+- **令牌是全局一张表。** 回拨请求不带主机身份，“令牌必须属于发起它的那条控制连接的主机”无从核对；128 位令牌只经该主机的加密控制连接下发，已足够。删去“用别的主机的令牌回拨”这条测试。
+- **客户端经中继拨号提前到任务 4。** `Remote.TLS`、`routeURL` 与 `Client.Route()` 在守护进程测试里就要用。
+- **`daemon.Config.RelayTLS` 是导出字段。** `cmd/hoplet` 要设它；中继的限制仍是 `relay.Server` 的未导出字段，测试经它改小。
+- **守护进程复用已有时限。** 等 `registered` 用 hello 时限（10s），控制连接心跳用通道心跳的 15s / 10s。
+- **新增间接依赖 `golang.org/x/net`。** `acme/autocert` 需要它，由 `go mod tidy` 引入；直接依赖只多了 `golang.org/x/crypto`。
+- **测试辅助。** `internal/testnet.TLS` 给出 `httptest` 的证书与信任它的根证书；`cmd/hoplet` 的测试把该证书写成 PEM，经 `HOPLET_TEST_RELAY_CA` 交给子进程；watch 探测间隔经 `HOPLET_TEST_PROBE_EVERY` 改小。
+- **端到端测试随任务 5 提交。** 任务 5 要测的 watch 切回需要两台主机加中继的完整环境，与任务 6 的端到端是同一个测试（`TestReachAHostThroughARelay`）。
