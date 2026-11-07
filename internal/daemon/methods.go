@@ -143,6 +143,48 @@ func (c *conn) call(ctx context.Context, f proto.ClientFrame) (any, error) {
 			return nil, err
 		}
 		return sessionState(ctx, s.store, p.Session)
+	case proto.MethodCompanionsList:
+		var p proto.CompanionsListParams
+		if err := decode(f, &p); err != nil {
+			return nil, err
+		}
+		cs, err := s.mgr.Companions(ctx, p.All)
+		for i := range cs {
+			cs[i].Host = string(s.identity.ID())
+		}
+		return proto.CompanionsList{Companions: cs}, err
+	case proto.MethodCompanionsGet:
+		var p proto.CompanionRef
+		if err := decode(f, &p); err != nil {
+			return nil, err
+		}
+		comp, err := s.mgr.Companion(ctx, string(p.ID))
+		comp.Host = string(s.identity.ID())
+		return comp, err
+	case proto.MethodCompanionsCreate:
+		var p proto.CompanionCreateParams
+		if err := decode(f, &p); err != nil {
+			return nil, err
+		}
+		sess, comp, err := s.mgr.CreateCompanion(ctx, session.CreateRequest{
+			Harness: p.Harness, Permission: p.Permission, Plan: p.Plan, Fast: p.Fast, Ultracode: p.Ultracode, Effort: p.Effort,
+			Title: p.Title, Origin: proto.OriginMe, Model: p.Model, ModelProvider: p.ModelProvider,
+		})
+		comp.Host = string(s.identity.ID())
+		return proto.CompanionCreated{Companion: comp, Session: sess}, err
+	case proto.MethodCompanionsPersona:
+		var p proto.CompanionRef
+		if err := decode(f, &p); err != nil {
+			return nil, err
+		}
+		return s.mgr.Persona(ctx, string(p.ID))
+	case proto.MethodCompanionsSetPers:
+		var p proto.Persona
+		if err := decode(f, &p); err != nil {
+			return nil, err
+		}
+		applies, err := s.mgr.SetPersona(ctx, string(p.ID), p.Text)
+		return proto.SetPersonaResult{Applies: applies}, err
 	case proto.MethodToolsList, proto.MethodToolsCall:
 		caller, err := c.toolCaller(ctx)
 		if err != nil {

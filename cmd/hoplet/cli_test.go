@@ -150,6 +150,8 @@ func TestUsageStreams(t *testing.T) {
 		"session help":   {0, true, false},
 		"session --help": {0, true, false},
 		"env --help":     {0, true, false},
+		"companion":      {2, false, true},
+		"companion help": {0, true, false},
 		"env":            {2, false, true},
 	} {
 		var out, errb bytes.Buffer
