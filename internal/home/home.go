@@ -38,6 +38,9 @@ func Lock(home string) string { return filepath.Join(home, "daemon.lock") }
 // Sessions is the parent of the per-session directories.
 func Sessions(home string) string { return filepath.Join(home, "sessions") }
 
+// Companions is the parent of the per-companion directories.
+func Companions(home string) string { return filepath.Join(home, "companions") }
+
 // tokenName is the token file's name in the home directory.
 const tokenName = "token"
 

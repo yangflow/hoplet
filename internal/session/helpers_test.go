@@ -85,7 +85,7 @@ func (e *env) manager() *Manager {
 func (e *env) managerWith(hs map[string]harness.Harness) *Manager {
 	e.t.Helper()
 	m, err := New(Config{
-		Store: e.store, Root: filepath.Join(e.root, "s"), Spawner: ExecSpawner{Exe: hopletExe},
+		Store: e.store, Root: filepath.Join(e.root, "s"), Companions: filepath.Join(e.root, "c"), Spawner: ExecSpawner{Exe: hopletExe},
 		Harnesses: hs,
 		Env:       []string{"PATH=" + os.Getenv("PATH")},
 	})

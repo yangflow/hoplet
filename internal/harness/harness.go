@@ -81,6 +81,12 @@ type MCPPersister interface {
 	PersistsMCP() bool
 }
 
+// PersonaKeeper is a harness that keeps the persona a native session
+// started with: a resumed session ignores a changed one.
+type PersonaKeeper interface {
+	KeepsPersona() bool
+}
+
 // Spec is what a session needs from its harness.
 //
 // MCP, when set, is injected; adapters of harnesses without
@@ -111,6 +117,10 @@ type Spec struct {
 	State         State
 	MCP           []MCPServer
 	Ephemeral     bool
+	// Companion marks a companion's main session, and Persona is the
+	// companion's persona, empty for none. Other sessions get neither.
+	Companion bool
+	Persona   string
 }
 
 // Event is one normalized event.
@@ -204,6 +214,9 @@ type Launch struct {
 	// Files are written, mode 0600, into Spec.Dir before the harness
 	// starts: file name (no path) to content.
 	Files map[string][]byte
+	// WorkFiles are written the same way into Spec.WorkDir, each replacing
+	// the file of that name whole.
+	WorkFiles map[string][]byte
 }
 
 // Harness is one kind of harness. The daemon calls Probe often (every

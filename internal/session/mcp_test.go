@@ -172,13 +172,13 @@ func TestToolTokenPersisted(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	spec := m.specFor(sess, false)
+	spec := mustSpec(t, m, sess)
 	spec.State.Native = "n1"
 	if got, err := m.persistedTools(ctx, h, info, spec); err != nil || got != nil {
 		t.Fatalf("a created session with a token: %+v %v", got, err)
 	}
 	other := e.create(m)
-	spec = m.specFor(other, false)
+	spec = mustSpec(t, m, other)
 	spec.State.Native = "n2"
 	got, err := m.persistedTools(ctx, h, info, spec)
 	if err != nil {
@@ -188,7 +188,7 @@ func TestToolTokenPersisted(t *testing.T) {
 		t.Fatalf("a session created before tools: %q %v", id, err)
 	}
 	notPersisting := &mcpHarness{Harness: h.Harness}
-	if got, err := m.persistedTools(ctx, notPersisting, info, m.specFor(other, false)); err != nil || got != nil {
+	if got, err := m.persistedTools(ctx, notPersisting, info, mustSpec(t, m, other)); err != nil || got != nil {
 		t.Fatalf("a harness that forgets: %+v %v", got, err)
 	}
 }
@@ -206,7 +206,7 @@ func TestNoToolsWithout(t *testing.T) {
 	}
 	noInject := info
 	noInject.Capabilities.MCPInject = false
-	ephemeral := m.specFor(sess, false)
+	ephemeral := mustSpec(t, m, sess)
 	ephemeral.Ephemeral = true
 	for name, c := range map[string]struct {
 		info    harness.Info
@@ -214,8 +214,8 @@ func TestNoToolsWithout(t *testing.T) {
 		command []string
 	}{
 		"ephemeral":         {info, ephemeral, testMCPCommand},
-		"harness without":   {noInject, m.specFor(sess, false), testMCPCommand},
-		"no server command": {info, m.specFor(sess, false), nil},
+		"harness without":   {noInject, mustSpec(t, m, sess), testMCPCommand},
+		"no server command": {info, mustSpec(t, m, sess), nil},
 	} {
 		m.cfg.MCPCommand = c.command
 		if got, err := m.issueTools(ctx, c.info, c.spec); err != nil || got != nil {
@@ -225,4 +225,13 @@ func TestNoToolsWithout(t *testing.T) {
 	if has, err := e.store.HasSessionToken(ctx, sess.ID); err != nil || has {
 		t.Fatalf("token issued: %v %v", has, err)
 	}
+}
+
+func mustSpec(t *testing.T, m *Manager, sess proto.Session) harness.Spec {
+	t.Helper()
+	spec, err := m.specFor(context.Background(), sess, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return spec
 }

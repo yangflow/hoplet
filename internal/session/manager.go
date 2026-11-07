@@ -30,6 +30,7 @@ package session
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
@@ -92,6 +93,8 @@ type Config struct {
 	Store *store.Store
 	// Root is the parent of the per-session directories.
 	Root string
+	// Companions is the parent of the per-companion directories.
+	Companions string
 	// Harnesses are the available harnesses by kind. A StdioHarness runs
 	// behind a shim; a DirectHarness is started and resumed directly.
 	Harnesses map[string]harness.Harness
@@ -218,8 +221,8 @@ func (l *live) synced() bool {
 
 // New returns a manager; call Recover to reattach to running shims.
 func New(cfg Config) (*Manager, error) {
-	if cfg.Store == nil || cfg.Root == "" || cfg.Spawner == nil {
-		return nil, errors.New("session: store, root and spawner are required")
+	if cfg.Store == nil || cfg.Root == "" || cfg.Companions == "" || cfg.Spawner == nil {
+		return nil, errors.New("session: store, roots and spawner are required")
 	}
 	log := cfg.Logger
 	if log == nil {
@@ -254,21 +257,28 @@ type CreateRequest struct {
 	ModelProvider string
 }
 
-// Create stores a new session. The harness starts on the first Send.
+// Create stores a new session. The harness starts on the first Send. A
+// personal session is a new companion's main session.
 func (m *Manager) Create(ctx context.Context, req CreateRequest) (proto.Session, error) {
+	sess, _, err := m.create(ctx, req)
+	return sess, err
+}
+
+// create stores a new session and, for a personal one, its companion.
+func (m *Manager) create(ctx context.Context, req CreateRequest) (proto.Session, *proto.Companion, error) {
 	h, ok := m.cfg.Harnesses[req.Harness]
 	if !ok {
-		return proto.Session{}, fmt.Errorf("%w: %q", ErrUnknownHarness, req.Harness)
+		return proto.Session{}, nil, fmt.Errorf("%w: %q", ErrUnknownHarness, req.Harness)
 	}
 	info, err := h.Probe(ctx)
 	if err != nil {
-		return proto.Session{}, fmt.Errorf("session: probe %s: %w", req.Harness, err)
+		return proto.Session{}, nil, fmt.Errorf("session: probe %s: %w", req.Harness, err)
 	}
 	if !info.Supported {
-		return proto.Session{}, fmt.Errorf("%w: %s %s", ErrUnsupportedVersion, req.Harness, info.Version)
+		return proto.Session{}, nil, fmt.Errorf("%w: %s %s", ErrUnsupportedVersion, req.Harness, info.Version)
 	}
 	if req.Mode == proto.ModeCode && req.Directory == "" {
-		return proto.Session{}, errors.New("session: a code session needs a directory")
+		return proto.Session{}, nil, errors.New("session: a code session needs a directory")
 	}
 	if req.Mode == proto.ModeCode && req.Isolation == "" {
 		req.Isolation = proto.InPlace
@@ -280,69 +290,99 @@ func (m *Manager) Create(ctx context.Context, req CreateRequest) (proto.Session,
 		}
 	}
 	if !req.Permission.Valid() {
-		return proto.Session{}, fmt.Errorf("%w: permission %q", store.ErrInvalid, req.Permission)
+		return proto.Session{}, nil, fmt.Errorf("%w: permission %q", store.ErrInvalid, req.Permission)
 	}
 	if req.Plan && !info.Capabilities.PlanMode {
-		return proto.Session{}, fmt.Errorf("%w: %s has no plan mode", harness.ErrUnsupported, req.Harness)
+		return proto.Session{}, nil, fmt.Errorf("%w: %s has no plan mode", harness.ErrUnsupported, req.Harness)
 	}
 	if req.Fast && !info.Capabilities.Fast {
-		return proto.Session{}, fmt.Errorf("%w: %s has no fast mode", harness.ErrUnsupported, req.Harness)
+		return proto.Session{}, nil, fmt.Errorf("%w: %s has no fast mode", harness.ErrUnsupported, req.Harness)
 	}
 	if req.Effort != "" && !req.Effort.Valid() {
-		return proto.Session{}, fmt.Errorf("%w: effort %q", store.ErrInvalid, req.Effort)
+		return proto.Session{}, nil, fmt.Errorf("%w: effort %q", store.ErrInvalid, req.Effort)
 	}
 	if req.Ultracode && !info.Capabilities.Ultracode {
-		return proto.Session{}, fmt.Errorf("%w: %s has no Ultracode", harness.ErrUnsupported, req.Harness)
+		return proto.Session{}, nil, fmt.Errorf("%w: %s has no Ultracode", harness.ErrUnsupported, req.Harness)
 	}
 	if req.Effort != "" && !slices.Contains(efforts(info, req.Model), req.Effort) {
-		return proto.Session{}, fmt.Errorf("%w: %s has no effort %q", harness.ErrUnsupported, req.Harness, req.Effort)
+		return proto.Session{}, nil, fmt.Errorf("%w: %s has no effort %q", harness.ErrUnsupported, req.Harness, req.Effort)
 	}
 	if req.Origin == "" {
 		req.Origin = proto.OriginMe
 	}
 	id, err := newID()
 	if err != nil {
-		return proto.Session{}, err
+		return proto.Session{}, nil, err
 	}
-	// The directory comes first so a stored session always has one.
+	// The directories come first so a stored session always has them.
 	if err := os.MkdirAll(m.dir(id), 0o700); err != nil {
-		return proto.Session{}, fmt.Errorf("session: create session dir: %w", err)
+		return proto.Session{}, nil, fmt.Errorf("session: create session dir: %w", err)
+	}
+	dirs := []string{m.dir(id)}
+	workDir := req.Directory
+	var cid proto.CompanionID
+	if req.Mode == proto.ModePersonal {
+		sid, err := newID()
+		if err != nil {
+			return proto.Session{}, nil, errors.Join(err, os.RemoveAll(m.dir(id)))
+		}
+		cid = proto.CompanionID(sid)
+		workDir = m.companionDir(cid)
+		dirs = append(dirs, workDir)
+		if err := newCompanionDir(workDir); err != nil {
+			return proto.Session{}, nil, errors.Join(err, removeAll(dirs))
+		}
 	}
 	var saveBaseline func(context.Context, proto.SessionID) error
 	if m.cfg.Baseline != nil {
-		dir := req.Directory
-		if dir == "" {
-			dir = m.dir(id) // personal sessions work in their own directory
-		}
 		bctx, cancel := context.WithTimeout(ctx, m.baselineTimeout)
-		saveBaseline = m.cfg.Baseline(bctx, dir)
+		saveBaseline = m.cfg.Baseline(bctx, workDir)
 		cancel()
 	}
-	sess, err := m.cfg.Store.CreateSession(ctx, proto.Session{
+	rec := proto.Session{
 		ID: id, Mode: req.Mode, Harness: proto.HarnessRef{Kind: req.Harness, Version: info.Version},
 		Directory: req.Directory, Isolation: req.Isolation, Permission: info.Capabilities.Fallback(req.Permission),
 		Plan: req.Plan, Fast: req.Fast, Ultracode: req.Ultracode, Effort: req.Effort, Model: req.Model, ModelProvider: req.ModelProvider,
 		Owner: proto.OwnerMe, Origin: req.Origin, Title: req.Title,
-	})
+	}
+	var (
+		sess proto.Session
+		comp *proto.Companion
+	)
+	if cid == "" {
+		sess, err = m.cfg.Store.CreateSession(ctx, rec)
+	} else {
+		var c store.Companion
+		sess, c, err = m.cfg.Store.CreateCompanion(ctx, rec, cid)
+		comp = m.companion(c)
+	}
 	if err != nil {
-		return proto.Session{}, errors.Join(err, os.RemoveAll(m.dir(id)))
+		return proto.Session{}, nil, errors.Join(err, removeAll(dirs))
 	}
 	if saveBaseline != nil {
 		if err := saveBaseline(ctx, id); err != nil {
 			m.log.Warn("baseline unavailable", "session", id, "err", err)
 		}
 	}
-	return sess, nil
+	return sess, comp, nil
 }
 
-// WorkDir returns the directory the session's harness works in: its
-// directory, or for a personal session its own directory under the root.
+func removeAll(dirs []string) error {
+	var errs []error
+	for _, d := range dirs {
+		errs = append(errs, os.RemoveAll(d))
+	}
+	return errors.Join(errs...)
+}
+
+// WorkDir returns the directory the session's harness works in.
 func (m *Manager) WorkDir(ctx context.Context, id proto.SessionID) (string, error) {
 	sess, err := m.cfg.Store.Session(ctx, id)
 	if err != nil {
 		return "", err
 	}
-	return m.workDir(sess), nil
+	dir, _, err := m.workDir(ctx, sess)
+	return dir, err
 }
 
 func newID() (proto.SessionID, error) {
@@ -891,19 +931,40 @@ func (m *Manager) Env() []string {
 	return slices.Clone(m.env)
 }
 
-func (m *Manager) specFor(sess proto.Session, inTurn bool) harness.Spec {
-	return harness.Spec{
-		Session: sess.ID, WorkDir: m.workDir(sess), Dir: m.dir(sess.ID), Env: m.Env(), Mode: sess.Permission, Plan: sess.Plan, Fast: sess.Fast, Ultracode: sess.Ultracode,
-		Effort: sess.Effort, Model: sess.Model, ModelProvider: sess.ModelProvider, Resume: sess.Harness.NativeID,
-		State: harness.State{InTurn: inTurn, Native: sess.Harness.NativeID},
+// specFor is the session's spec, without the persona.
+func (m *Manager) specFor(ctx context.Context, sess proto.Session, inTurn bool) (harness.Spec, error) {
+	dir, comp, err := m.workDir(ctx, sess)
+	if err != nil {
+		return harness.Spec{}, err
 	}
+	return harness.Spec{
+		Session: sess.ID, WorkDir: dir, Dir: m.dir(sess.ID), Env: m.Env(), Mode: sess.Permission, Plan: sess.Plan, Fast: sess.Fast, Ultracode: sess.Ultracode,
+		Effort: sess.Effort, Model: sess.Model, ModelProvider: sess.ModelProvider, Resume: sess.Harness.NativeID,
+		State: harness.State{InTurn: inTurn, Native: sess.Harness.NativeID}, Companion: comp != nil,
+	}, nil
 }
 
-func (m *Manager) workDir(sess proto.Session) string {
-	if sess.Directory != "" {
-		return sess.Directory
+// workDir is the directory the session's harness works in, and the
+// companion whose main session it is, if any. A session with a directory
+// works there; a companion's main session works in the companion's
+// directory, unless it worked in its session directory before companions
+// existed; any other session works in its session directory.
+func (m *Manager) workDir(ctx context.Context, sess proto.Session) (string, *store.Companion, error) {
+	if sess.Mode != proto.ModePersonal {
+		return cmp.Or(sess.Directory, m.dir(sess.ID)), nil, nil
 	}
-	return m.dir(sess.ID) // personal sessions work in their own directory
+	c, err := m.cfg.Store.CompanionByMain(ctx, sess.ID)
+	switch {
+	case errors.Is(err, store.ErrNotFound):
+		return cmp.Or(sess.Directory, m.dir(sess.ID)), nil, nil
+	case err != nil:
+		return "", nil, err
+	case sess.Directory != "":
+		return sess.Directory, &c, nil
+	case c.InSessionDir:
+		return m.dir(sess.ID), &c, nil
+	}
+	return m.companionDir(c.ID), &c, nil
 }
 
 // startSpec is the spec for starting a harness: the resume ID is dropped when
@@ -916,7 +977,15 @@ func (m *Manager) startSpec(ctx context.Context, h harness.Harness, sess proto.S
 	if !info.Supported {
 		return harness.Spec{}, info, fmt.Errorf("%w: %s %s", ErrUnsupportedVersion, sess.Harness.Kind, info.Version)
 	}
-	spec := m.specFor(sess, false)
+	spec, err := m.specFor(ctx, sess, false)
+	if err != nil {
+		return harness.Spec{}, info, err
+	}
+	if spec.Companion {
+		if spec.Persona, err = m.launchPersona(ctx, sess.ID); err != nil {
+			return harness.Spec{}, info, err
+		}
+	}
 	// The harness may have changed since the mode was stored (an upgrade,
 	// a downgrade); it gets the nearest mode it has now.
 	spec.Mode = info.Capabilities.Fallback(spec.Mode)
@@ -1010,6 +1079,9 @@ func (m *Manager) spawn(ctx context.Context, sess proto.Session) error {
 	if err := writeFiles(m.dir(sess.ID), l.Files); err != nil {
 		return err
 	}
+	if err := writeWorkFiles(spec.WorkDir, l.WorkFiles); err != nil {
+		return err
+	}
 	return m.cfg.Spawner.Spawn(ctx, m.dir(sess.ID), spec.WorkDir, l)
 }
 
@@ -1064,7 +1136,10 @@ func (m *Manager) attach(ctx context.Context, sess proto.Session, prior int64, n
 			l.syncSize = c.Size()
 		}
 		l.committed.Store(off)
-		spec := m.specFor(sess, open)
+		spec, err := m.specFor(ctx, sess, open)
+		if err != nil {
+			return nil, errors.Join(err, l.stdio.Close())
+		}
 		spec.Resume = "" // attaching to a running harness resumes nothing
 		// The mode the adapter restores after plan mode must be one the
 		// harness has; a failed probe leaves the stored mode, which was

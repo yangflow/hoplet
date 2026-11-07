@@ -223,6 +223,9 @@ func (h *Harness) Launch(spec harness.Spec) (harness.Launch, error) {
 	if spec.Effort != "" {
 		args = append(args, "--effort", string(spec.Effort))
 	}
+	if spec.Persona != "" {
+		args = append(args, "--append-system-prompt", spec.Persona)
+	}
 	if s := launchSettings(spec); s != "" {
 		args = append(args, "--settings", s)
 	}

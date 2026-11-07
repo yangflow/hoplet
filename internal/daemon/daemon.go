@@ -162,7 +162,7 @@ func Start(ctx context.Context, cfg Config) (d *Daemon, err error) {
 	}
 	ws := &workspace.Service{Git: git, Home: cfg.Home, Store: st}
 	mgr, err := session.New(session.Config{
-		Store: st, Root: home.Sessions(cfg.Home), Spawner: session.ExecSpawner{Exe: cfg.Exe},
+		Store: st, Root: home.Sessions(cfg.Home), Companions: home.Companions(cfg.Home), Spawner: session.ExecSpawner{Exe: cfg.Exe},
 		MCPCommand: []string{cfg.Exe, "mcp", "--home", cfg.Home},
 		Harnesses:  cfg.Harnesses, Env: snap.Vars, Logger: log, Baseline: ws.CaptureBaseline,
 	})
