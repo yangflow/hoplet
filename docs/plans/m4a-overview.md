@@ -12,7 +12,7 @@
 
 1. **MCP 走 stdio。** harness 的 MCP 配置运行 `hoplet mcp`，它连本机 daemon socket 转发；不开 TCP 端口。
 2. **用官方 MCP Go SDK。** `github.com/modelcontextprotocol/go-sdk`，固定版本。
-3. **会话 token。** 每次启动 harness 新生成，存储只留 SHA-256；daemon 重启后仍有效，会话归档后作废，只对本会话有效；只放在 MCP 配置项的 `env` 里。
+3. **会话 token。** 存储只留 SHA-256；daemon 重启后仍有效，会话归档后作废，只对本会话有效；只放在 MCP 配置项的 `env` 里。Claude Code 每次启动新生成；Hermes 随会话不变（2026-11-07 补充裁决，见下方实测）。
 4. **M4a 工具集。** `sessions_list`、`session_get`、`session_create`（仅 Personal，新会话归属托管、关联父会话）、`session_send`（只到托管会话）、`handoff`、`report`、`artifact_publish`、`artifact_db_*`。`notify_me` 推迟；不加载 `rules.toml`，默认规则写在代码里。
 5. **伙伴实体最小化。** 只有 ID、名字、主机、harness、主会话；每个已有 Personal 会话迁成一个伙伴。
 6. **不设“事情”实体。** 一件事由一个委派子会话承担，结果经持久回报交回：父会话空闲时投递，忙时排队。harness 自己的子代理照常可用，不跟踪。
@@ -26,7 +26,7 @@
 | harness | 已确认 |
 |---|---|
 | Claude Code 2.1.316 | `--mcp-config` 的 stdio 服务可用，token 只在 MCP 进程环境里；不加 `--strict-mcp-config`，用户自己的 MCP 照常加载；需 `--allowedTools mcp__hoplet__*`，否则每次调用都变成审批；`--append-system-prompt` 生效 |
-| Hermes 0.22.5 | `session.create` 的 `editor.mcp_servers` 可用，调用不经审批；同一配置续接可重新挂载，配置不同报 `acp_mcp_policy_conflict`，要在空闲时经 `session.mutate` 的 `editor_mcp` 换；`messages` 不被接受；工作目录的 `HERMES.md` 生效，系统提示冻结在会话上 |
+| Hermes 0.22.5 | `session.create` 的 `editor.mcp_servers` 可用，调用不经审批；同一配置续接可重新挂载，配置不同报 `acp_mcp_policy_conflict`；配置连同 token 存在 Hermes 会话里，不带 `editor` 续接照样重启服务，空闲时经 `session.mutate` 的 `editor_mcp` 换配置、下次续接生效；`messages` 不被接受；工作目录的 `HERMES.md` 生效，系统提示冻结在会话上 |
 
 ## 全局约束
 
@@ -67,7 +67,7 @@ flowchart LR
 | 假设 | 在哪验证 | 不成立时 |
 |---|---|---|
 | 托管的 Claude Code 新版本仍按 2.1.316 的方式加载 `--mcp-config` 与 `--allowedTools` | PR1 录制 | 按新版本调整并重录；未验证版本不注入 |
-| Hermes 空闲时换 `editor_mcp` 不影响会话记录与模型缓存之外的状态 | PR1 录制 | 改为 token 跟随会话、不按启动轮换，并更新 0012 |
+| go-sdk v1.8.0 能应答 Claude Code 的 `server/discover` 探测并以 2025-11-25 完成 `initialize` | PR1 录制 | 停下讨论：换版本或自己应答探测 |
 | MyGo WebView 的内容规则能挡住不可信页面的外部请求 | PR4 前原型 | 停下，重新讨论 0025 |
 
 ## 每个 PR 的详细计划

@@ -72,9 +72,9 @@ flowchart LR
 |---|---|
 | 传输 | stdio：harness 的 MCP 配置运行 `hoplet mcp`，它连本机 daemon socket 转发；不开 TCP 端口 |
 | 实现 | 官方 MCP Go SDK `github.com/modelcontextprotocol/go-sdk`，固定版本 |
-| token | 每次启动 harness 新生成，存储只留 SHA-256；daemon 重启后仍有效，会话归档后作废，只对本会话有效 |
-| 传递 | token 只放在这一项 MCP 配置的 `env` 里，不进 harness 的 shell 环境 |
-| 轮换 | 原生协议不允许运行中换配置时（如 Hermes），在下一个空闲点轮换 |
+| token | 存储只留 SHA-256，只对本会话有效，daemon 重启后仍有效，会话归档后作废；Claude Code 每次启动新生成；Hermes 把 MCP 配置存在自己的会话里，token 随会话不变 |
+| 传递 | token 只放在这一项 MCP 配置的 `env` 里，不进 harness 的 shell 环境，也不进命令行 |
+| 连接 | `hoplet mcp` 以会话 token 发 hello；这样的连接绑定到该会话，只能调 `tools.list`、`tools.call`；工具定义、参数校验与范围检查都在 daemon，`hoplet mcp` 只转发 |
 | 规则 | 先不加载 `rules.toml`，默认规则写在代码里 |
 
 | 工具 | 作用 | 调用方与范围 |

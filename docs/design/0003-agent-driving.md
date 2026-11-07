@@ -145,7 +145,7 @@ harness 在一轮里派出的子代理（agent 交给另一个 agent 去做的�
 | 1 | 轮次结束只认协议信号，不靠“安静多久”推断；进程崩溃 → 标记 `aborted` |
 | 2 | 身份以 Hoplet 会话 ID 为准；harness 的 session id 只是记录在案的指针 |
 | 3 | 凭证留在 harness 自己的存储（订阅登录或 API key 配置）；Hoplet 不保管，只用 `hoplet doctor` 检查 |
-| 4 | MCP 注入为目标：每次启动 harness 生成会话 token，经 MCP 配置注入；提炼任务禁工具。当前并未注入 |
+| 4 | MCP 注入为目标：每个会话一个工具 token，经 MCP 配置注入；提炼任务禁工具。当前并未注入 |
 | 5 | 未经验证的版本：已有会话只读回放，禁止开新轮次 |
 | 6 | 小任务隔离、禁工具与成长提炼都是目标能力；当前 `Ephemeral` 仅在 Claude 启动时加 `--no-session-persistence`，不等于禁工具或禁原生记忆副作用 |
 
