@@ -21,8 +21,12 @@ import (
 type host struct {
 	sendErr    error // what Send answers
 	diffs      map[proto.SessionID]proto.SessionDiff
-	patched    []proto.SessionID // the sessions DiffPatch was asked for
-	held       bool              // DiffPatch answers only when pending runs
+	patched    []proto.SessionID            // the sessions DiffPatch was asked for
+	ranged     map[string]proto.SessionDiff // what DiffPatch answers for a range, by "range" or "commit:sha"
+	diffAsked  []proto.DiffParams           // what DiffPatch was asked
+	commits    proto.SessionCommits         // what Commits answers
+	commitsFor []proto.CommitsParams        // what Commits was asked
+	held       bool                         // DiffPatch answers only when pending runs
 	pending    func()
 	lists      map[string]proto.FileList    // what Files answers, by directory
 	listed     []proto.FilesListParams      // what Files was asked
@@ -102,15 +106,30 @@ func (h *host) Diff(id proto.SessionID, done func(proto.SessionDiff)) {
 		done(d)
 	}
 }
-func (h *host) DiffPatch(id proto.SessionID, done func(proto.SessionDiff, error)) {
-	h.patched = append(h.patched, id)
+func (h *host) DiffPatch(p proto.DiffParams, done func(proto.SessionDiff, error)) {
+	h.patched = append(h.patched, p.Session)
+	h.diffAsked = append(h.diffAsked, p)
 	if h.held {
-		h.pending = func() { h.DiffPatch(id, done) }
+		h.pending = func() { h.DiffPatch(p, done) }
 		return
 	}
-	if d, ok := h.diffs[id]; ok {
+	if p.Range != "" && p.Range != proto.DiffRangeSession {
+		key := string(p.Range)
+		if p.Range == proto.DiffRangeCommit {
+			key = "commit:" + p.Commit
+		}
+		if d, ok := h.ranged[key]; ok {
+			done(d, nil)
+		}
+		return
+	}
+	if d, ok := h.diffs[p.Session]; ok {
 		done(d, nil)
 	}
+}
+func (h *host) Commits(p proto.CommitsParams, done func(proto.SessionCommits, error)) {
+	h.commitsFor = append(h.commitsFor, p)
+	done(h.commits, nil)
 }
 func (h *host) Files(p proto.FilesListParams, done func(proto.FileList, error)) {
 	h.listed = append(h.listed, p)

@@ -3,6 +3,7 @@ package shell
 import (
 	"path"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
@@ -33,8 +34,9 @@ type changeRow struct {
 	repo     *proto.RepoDiff
 	file     proto.FileDiff
 	add, del int
-	clean    bool // a repository without changes
-	open     bool // a directory showing its files
+	clean    bool   // a repository without changes
+	open     bool   // a directory showing its files
+	dir      string // a flat list's file's directory in its repository
 }
 
 // changeNode is a directory of a repository's changes. A directory
@@ -160,6 +162,12 @@ func repoNote(r proto.RepoDiff) string {
 // then its changed files by directory. closed holds the directories
 // folded away.
 func changeRows(d *proto.SessionDiff, dir string, closed map[string]bool) []changeRow {
+	return changeList(d, dir, closed, false)
+}
+
+// changeList lays out the changes column by directory, or flat: each
+// repository's files by path, one level under its heading.
+func changeList(d *proto.SessionDiff, dir string, closed map[string]bool, flat bool) []changeRow {
 	if d == nil || changesNote(d) != "" {
 		return nil
 	}
@@ -176,6 +184,10 @@ func changeRows(d *proto.SessionDiff, dir string, closed map[string]bool) []chan
 			continue
 		}
 		rows = append(rows, head)
+		if flat {
+			rows = appendFlat(rows, r)
+			continue
+		}
 		rows = appendNode(rows, changeTree(r.Files), r, 1, closed)
 	}
 	return rows
@@ -193,6 +205,21 @@ func appendNode(rows []changeRow, n *changeNode, r *proto.RepoDiff, depth int, c
 	for _, f := range n.files {
 		rows = append(rows, changeRow{kind: changeFile, depth: depth, key: inRepo(r.Path, f.Path), label: path.Base(f.Path),
 			repo: r, file: f, add: f.Additions, del: f.Deletions})
+	}
+	return rows
+}
+
+// appendFlat lists a repository's files by path, each with its directory.
+func appendFlat(rows []changeRow, r *proto.RepoDiff) []changeRow {
+	files := slices.Clone(r.Files)
+	slices.SortFunc(files, func(a, b proto.FileDiff) int { return strings.Compare(a.Path, b.Path) })
+	for _, f := range files {
+		dir := path.Dir(f.Path)
+		if dir == "." {
+			dir = ""
+		}
+		rows = append(rows, changeRow{kind: changeFile, depth: 1, key: inRepo(r.Path, f.Path), label: path.Base(f.Path),
+			repo: r, file: f, add: f.Additions, del: f.Deletions, dir: dir})
 	}
 	return rows
 }

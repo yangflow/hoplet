@@ -1,12 +1,8 @@
 package shell
 
 import (
-	"path/filepath"
-	"slices"
-
 	"github.com/egoist/mygo/ui"
 
-	"github.com/yangflow/hoplet/desktop/internal/catalog"
 	"github.com/yangflow/hoplet/desktop/internal/theme"
 	"github.com/yangflow/hoplet/proto"
 )
@@ -105,39 +101,8 @@ func (a *App) newPage(c *ui.Context, k theme.Colors) {
 						}
 					})
 				})
-				if !personal && a.connected && pick.dir == "" {
-					a.recentLine(c, k, pick)
-				}
 			})
 		})
-	})
-}
-
-// recentLine offers the last three working directories below the
-// composer, while none is chosen; one click chooses one.
-func (a *App) recentLine(c *ui.Context, k theme.Colors, pick *newChoice) {
-	dirs := a.recentDirs()
-	if len(dirs) == 0 {
-		return
-	}
-	ui.Row(c).Padding(0, theme.Space3).Gap(theme.Space1Half).Wrap().AlignItems(ui.Center).Children(func() {
-		theme.Caption.On(ui.Text(c, "最近：")).TextColor(k.Muted)
-		for i, dir := range dirs[:min(len(dirs), 3)] {
-			if i > 0 {
-				theme.Caption.On(ui.Text(c, "·")).TextColor(k.Faint)
-			}
-			r := ui.Row(c.Key(dir)).Label(dir).Tooltip(dir)
-			color := k.Muted
-			if r.Hovered() {
-				color = k.Fg
-			}
-			if r.Clicked() {
-				pick.dir = dir
-			}
-			r.Children(func() {
-				ui.Text(c, tilde(dir)).Font(theme.Mono).FontSize(theme.Caption.Size()).TextColor(color)
-			})
-		}
 	})
 }
 
@@ -178,16 +143,15 @@ func (a *App) defaultHarness() string {
 
 // dirChip is the context row's directory pill on the new-session page: the
 // chosen working directory, or 选择工作目录 in the text color before one
-// is chosen; it opens the directories of existing sessions and the folder
-// chooser.
+// is chosen; it opens the folder chooser.
 func (a *App) dirChip(c *ui.Context, k theme.Colors, pick *newChoice) {
-	b := contextPill(ui.Button(c, "").Label("工作目录").Tooltip(pick.dir), k)
+	b := hoverPill(contextPill(ui.Button(c, "").Label("工作目录").Tooltip(pick.dir), k), k)
 	label, color := tilde(pick.dir), k.Fg2
 	if pick.dir == "" {
 		label, color = "选择工作目录", k.Fg
 	}
 	if b.Clicked() {
-		a.s.dirOpen = !a.s.dirOpen
+		a.host.ChooseFolder(func(dir string) { pick.dir = dir })
 	}
 	b.Children(func() {
 		ui.Image(c, a.icons.FolderType()).Size(theme.IconRow, theme.IconRow)
@@ -197,47 +161,6 @@ func (a *App) dirChip(c *ui.Context, k theme.Colors, pick *newChoice) {
 		}
 		ui.Icon(c, a.icons.Menu).FontSize(theme.Caption.Size()).TextColor(k.Faint)
 	})
-	popover(c, k, b, &a.s.dirOpen, false, 320, func() {
-		dirs := a.recentDirs()
-		if len(dirs) > 0 {
-			menuHeader(c, k, "最近用过")
-		}
-		for _, dir := range dirs {
-			r := menuItem(c.Key(dir), k, dir == pick.dir).Label(dir).Tooltip(dir)
-			if r.Clicked() {
-				pick.dir, a.s.dirOpen = dir, false
-			}
-			r.Children(func() {
-				ui.Icon(c, a.icons.Folder).FontSize(theme.IconRow).TextColor(k.Fg3)
-				theme.UI.On(ui.Text(c, filepath.Base(dir))).TextColor(k.Fg)
-				theme.Caption.On(ui.Text(c, filepath.Dir(dir))).TextColor(k.Faint).SingleLine().Shrink(1)
-			})
-		}
-		if len(dirs) > 0 {
-			menuSeparator(c, k)
-		}
-		r := menuItem(c, k, false).Label("选择其他目录…")
-		if r.Clicked() {
-			a.s.dirOpen = false
-			a.host.ChooseFolder(func(dir string) { pick.dir = dir })
-		}
-		r.Children(func() {
-			ui.Icon(c, a.icons.New).FontSize(theme.IconRow).TextColor(k.Fg3)
-			theme.UI.On(ui.Text(c, "选择其他目录…")).TextColor(k.Fg)
-		})
-	})
-}
-
-// recentDirs are the working directories of Code sessions, most recently
-// used first.
-func (a *App) recentDirs() []string {
-	var dirs []string
-	for _, s := range all(a.cat.List(catalog.View{Mode: proto.ModeCode})) {
-		if s.Directory != "" && !slices.Contains(dirs, s.Directory) {
-			dirs = append(dirs, s.Directory)
-		}
-	}
-	return dirs
 }
 
 // create creates the session the page describes, with its settings, and

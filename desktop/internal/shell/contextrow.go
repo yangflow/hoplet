@@ -17,10 +17,20 @@ func contextPill(e ui.Element, k theme.Colors) ui.Element {
 		Background(k.Raised).Border(0, ui.Transparent)
 }
 
+// hoverPill gives a context pill that does something the hover tint over
+// its raised fill under the pointer.
+func hoverPill(e ui.Element, k theme.Colors) ui.Element {
+	if e.Hovered() {
+		e.Background(k.Hover.Over(k.Raised))
+	}
+	return e
+}
+
 // contextRow is a Code session's row above its composer: the machine,
 // the working directory and the branch, as pills. When the row is short
 // of room the machine name and the directory are cut short; the 本机
-// mark and the branch stay whole.
+// mark and the branch stay whole. The directory shows in Finder; the
+// branch opens the changes.
 func (a *App) contextRow(c *ui.Context, k theme.Colors, s proto.Session) {
 	ui.Row(c).Gap(theme.Space1Half).Margin(0, 0, theme.Space2, 0).AlignItems(ui.Center).Children(func() {
 		a.machinePill(c, k, false)
@@ -28,7 +38,11 @@ func (a *App) contextRow(c *ui.Context, k theme.Colors, s proto.Session) {
 		if !a.connected {
 			dim = k.Faint
 		}
-		contextPill(ui.Row(c).Tooltip(s.Directory), k).Shrink(1).Children(func() {
+		dir := hoverPill(contextPill(ui.Button(c, "").Label("在 Finder 中显示").Tooltip(s.Directory), k), k).Shrink(1)
+		if dir.Clicked() {
+			a.host.Reveal(s.Directory)
+		}
+		dir.Children(func() {
 			ui.Image(c, a.icons.FolderType()).Size(theme.IconRow, theme.IconRow)
 			theme.CodeCaption.On(ui.Text(c, tilde(s.Directory))).TextColor(dim).SingleLine().Shrink(1)
 		})
@@ -36,9 +50,12 @@ func (a *App) contextRow(c *ui.Context, k theme.Colors, s proto.Session) {
 		if branch == "" {
 			return
 		}
-		pill := contextPill(ui.Row(c), k).Shrink(0)
+		pill := hoverPill(contextPill(ui.Button(c, "").Label("变更"), k), k).Shrink(0)
 		if repos > 1 {
 			pill.Tooltip(fmt.Sprintf("%d 个仓库", repos))
+		}
+		if pill.Clicked() {
+			a.ShowChanges()
 		}
 		pill.Children(func() {
 			ui.Icon(c, a.icons.Task).FontSize(theme.IconRow).TextColor(dim)

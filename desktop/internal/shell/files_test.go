@@ -248,3 +248,49 @@ func TestFileTreeRetriesOnReconnect(t *testing.T) {
 		t.Errorf("listed %d more times after reconnecting, texts %q", len(h.listed)-listed, tt.Texts())
 	}
 }
+
+func TestMarkdownPreview(t *testing.T) {
+	a, _, tt := openTree(t)
+	ps := a.panelFor("s1")
+	a.openFile(ps, "notes.md")
+	settle(tt)
+	v := ps.viewFor("notes.md")
+	if !tt.HasText("显示源码") || tt.HasText("显示预览") || !tt.HasText("Notes") {
+		t.Fatalf("no preview: %q", tt.Texts())
+	}
+	if err := tt.Click("显示源码"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tt)
+	if !v.source || !tt.HasText("显示预览") {
+		t.Fatalf("no source: %q", tt.Texts())
+	}
+	if err := tt.Click("显示预览"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tt)
+	if v.source || !tt.HasText("显示源码") {
+		t.Fatalf("no preview again: %q", tt.Texts())
+	}
+	// Its changes show in its source, which it keeps to after.
+	if err := tt.Click("显示更改"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tt)
+	if v.show != showChanges || !v.source || !tt.HasText("显示预览") {
+		t.Fatalf("show %v, source %v: %q", v.show, v.source, tt.Texts())
+	}
+	if err := tt.Click("显示预览"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tt)
+	if v.show != showText || v.source {
+		t.Errorf("show %v, source %v", v.show, v.source)
+	}
+	// Other files have no preview.
+	a.openFile(ps, "internal/bridge.go")
+	settle(tt)
+	if tt.HasText("显示源码") || tt.HasText("显示预览") {
+		t.Errorf("a preview toggle on a Go file: %q", tt.Texts())
+	}
+}

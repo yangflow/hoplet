@@ -32,7 +32,7 @@ flowchart LR
 | 会话目录 | `sessions.list`、`sessions.create`、`sessions.get`、`sessions.update`、`sessions.archive` |
 | 输入与控制 | `sessions.send`、`sessions.respond`、`sessions.interrupt`、`sessions.steer`、`sessions.stop`、`sessions.answer` |
 | 运行设置 | `sessions.set_permission`、`sessions.set_plan`、`sessions.set_fast`、`sessions.set_ultracode`、`sessions.set_effort`、`sessions.set_model` |
-| 记录与输出 | `sessions.events`、`sessions.output`、`sessions.diff` |
+| 记录与输出 | `sessions.events`、`sessions.output`、`sessions.diff`、`sessions.commits` |
 | 队列 | `queue.list`、`queue.edit`、`queue.delete`、`queue.move` |
 | 订阅 | `subscribe.catalog`、`subscribe.session` |
 | 诊断 | `harnesses.list`、`env.refresh`、`system.doctor` |

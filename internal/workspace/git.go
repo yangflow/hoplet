@@ -59,6 +59,11 @@ type Git struct {
 	// next, so a snapshot cut short keeps its progress.
 	filesPerChunk int
 
+	// alt, when set, is the user's object directory, which diffs may read
+	// next to Hoplet's (never written: git writes only to
+	// GIT_OBJECT_DIRECTORY, and no alternates file is made).
+	alt string
+
 	// Test hooks.
 	hashed     func(paths []string) // called with the files of each stored batch
 	afterChunk func(n int)          // called after the n-th round was saved

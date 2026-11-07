@@ -8,6 +8,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
+	"github.com/egoist/mygo/ui/markdown"
 
 	"github.com/yangflow/hoplet/desktop/internal/theme"
 	"github.com/yangflow/hoplet/proto"
@@ -36,6 +37,8 @@ type fileView struct {
 	baseWait bool
 
 	show    fileShow
+	source  bool // a Markdown file shows its source rather than its preview
+	md      markdown.Options
 	ed      editor.State
 	diff    editor.DiffState
 	opening bool // the open-with popover shows
@@ -101,6 +104,15 @@ func (a *App) readBase(s proto.Session, p string, v *fileView) {
 	})
 }
 
+// isMarkdown reports a file that previews as Markdown.
+func isMarkdown(p string) bool {
+	switch strings.ToLower(path.Ext(p)) {
+	case ".md", ".markdown":
+		return true
+	}
+	return false
+}
+
 // contentNote says why a file shows no text, "" when it does.
 func contentNote(fc *proto.FileContent, err string) string {
 	switch {
@@ -143,6 +155,13 @@ func (a *App) fileTab(c *ui.Context, k theme.Colors, s proto.Session, ps *panelS
 		})
 	case v.content == nil || v.show != showText && v.base == nil:
 		ui.Box(c).Grow(1).Background(k.Pane) // read in a moment
+	case v.show == showText && isMarkdown(p) && !v.source:
+		v.md.Theme = mdTheme(c, k)
+		ui.Scroll(c.Key("preview")).Grow(1).MinHeight(0).Background(k.Pane).Children(func() {
+			ui.Column(c).FillWidth().Padding(theme.Space4, theme.Space6).Children(func() {
+				markdown.View(c, v.content.Text, &v.md).FillWidth()
+			})
+		})
 	case v.show == showText:
 		st := &v.ed
 		st.ReadOnly, st.NoActiveLine, st.Label = true, true, path.Base(p)
@@ -204,12 +223,26 @@ func (a *App) pathBar(c *ui.Context, k theme.Colors, s proto.Session, p string, 
 			}
 			theme.UIMedium.On(ui.Text(c, path.Base(p))).TextColor(k.Fg).SingleLine().Shrink(0)
 		})
+		if isMarkdown(p) {
+			source := v.source || v.show != showText
+			tip := "显示源码"
+			if source {
+				tip = "显示预览"
+			}
+			if denseButton(c.Key("source"), k, a.icons.Source, tip, source).Clicked() {
+				v.show, v.source = showText, !source
+			}
+		}
 		if changed {
+			// A Markdown file shows its changes in its source, and keeps
+			// to it after.
 			if denseButton(c, k, a.icons.Changes, "显示更改", v.show == showChanges).Clicked() {
 				v.toggle(showChanges)
+				v.source = true
 			}
 			if denseButton(c, k, a.icons.SideBySide, "左右对比", v.show == showSplit).Clicked() {
 				v.toggle(showSplit)
+				v.source = true
 			}
 		}
 		abs := filepath.Join(s.Directory, filepath.FromSlash(p))

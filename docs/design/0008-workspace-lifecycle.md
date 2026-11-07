@@ -1,6 +1,6 @@
 # 0008 工作区生命周期
 
-状态：当前设计 · 更新：2026-11-05
+状态：当前设计 · 更新：2026-11-07
 
 ## 范围与现状
 
@@ -35,7 +35,7 @@ flowchart LR
 | Code | 使用传入的真实目录，累计 diff 已实现 |
 | Personal | 未指定目录时在 `~/.hoplet/sessions/<id>/` 工作 |
 | `Isolation` | 接受并存储枚举，但 `workDir` 未创建 worktree 或镜像；不能当作现有隔离保证 |
-| 文件 / diff | 有 `sessions.diff`；只读的 `files.list` / `files.read` 见下节（M1 PR9c） |
+| 文件 / diff | 有 `sessions.diff`（会话累计、未提交、分支、单个提交）与 `sessions.commits`；只读的 `files.list` / `files.read` 见下节（M1 PR9c） |
 
 ## 只读文件接口
 
@@ -44,7 +44,7 @@ flowchart LR
 | 方法 | 参数 | 结果 |
 |---|---|---|
 | `files.list` | 会话、目录（相对会话目录，空为根）、`all`、`ignored` | 条目：路径、种类（文件 / 目录 / 符号链接）、大小、是否被忽略；超出上限标 `truncated` |
-| `files.read` | 会话、路径、`baseline` | 文本、大小，或 `binary` / `too_large` / `missing` |
+| `files.read` | 会话、路径、`baseline`、diff 范围（`range` / `commit`） | 文本、大小，或 `binary` / `too_large` / `missing` |
 
 | 规则 | 说明 |
 |---|---|
@@ -53,7 +53,7 @@ flowchart LR
 | 忽略 | 按所在仓库的 `git check-ignore --no-index`（去掉全部 `GIT_*` 环境变量，关闭 hooks、filter 与 fsmonitor，不写用户仓库）；不在仓库里的路径不算忽略。已跟踪但匹配忽略规则的文件也会标成忽略，M1 接受 |
 | 列全部 | `all` 只列文件，深度不限，跳过被忽略的目录、`.git` 与符号链接目录；最多 20000 项 |
 | 读当前 | 只打开普通文件（`O_NOFOLLOW\|O_NONBLOCK` + fstat）；大于 2 MiB 为 `too_large`；前 8000 字节含 NUL 或不是 UTF-8 为 `binary` |
-| 读基线 | 从 Hoplet 私有对象库里该仓库基线的树取 blob，不读用户对象；不在仓库里或没有基线时报错，基线里没有该文件为 `missing` |
+| 读基线 | 累计范围：从 Hoplet 私有对象库里该仓库基线的树取 blob，不读用户对象；不在仓库里或没有基线时报错，基线里没有该文件为 `missing`。其他范围读该范围旧的一侧（`HEAD`、分叉点或父提交的树），只读用户对象 |
 
 ## 原地 vs 隔离（规划）
 
@@ -126,7 +126,9 @@ sequenceDiagram
 |---|---|---|
 | 本轮改动 | 本轮 before → after | M3 |
 | 会话累计 | 建会话时的基线 → 现在 | M1 |
-| 分支改动 | 每个仓库 merge-base → HEAD | M3 |
+| 未提交的改动 | 每个仓库 HEAD → 现在 | M1 |
+| 分支改动 | 每个仓库与默认分支的分叉点 → 现在（含未提交的） | M1 |
+| 一个提交 | 父提交 → 该提交（一次只看一个仓库） | M1 |
 
 刷新：M1 由客户端按需请求；以后再加 FSEvents 防抖 + 每 2 分钟补漏的推送。单个仓库的 patch ≤ 3MiB，带 sha，无变化不重绘。
 

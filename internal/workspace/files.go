@@ -320,7 +320,8 @@ func (s *Service) lsFiles(ctx context.Context, r Repo) ([]string, error) {
 }
 
 // Read reads a file of the session's working directory dir as it is now,
-// or with Baseline as the session's baseline recorded it. A file larger
+// or with Baseline as the session's baseline recorded it; with another
+// Range, a side of that range (see proto.FilesReadParams). A file larger
 // than maxReadBytes, binary (a NUL in its first bytes, or not UTF-8) or
 // missing comes back without text, saying which.
 func (s *Service) Read(ctx context.Context, session proto.SessionID, dir string, p proto.FilesReadParams) (proto.FileContent, error) {
@@ -332,6 +333,12 @@ func (s *Service) Read(ctx context.Context, session proto.SessionID, dir string,
 		return proto.FileContent{}, fmt.Errorf("%w: no file named", ErrInvalidPath)
 	}
 	out := proto.FileContent{Session: session, Path: rel}
+	if err := checkRange(p.Range, ".", p.Commit); err != nil {
+		return proto.FileContent{}, err
+	}
+	if rng := rangeOf(p.Range); rng != proto.DiffRangeSession && (p.Baseline || rng == proto.DiffRangeCommit) {
+		return s.readRange(ctx, dir, rel, p, out)
+	}
 	if p.Baseline {
 		return s.readBaseline(ctx, session, dir, rel, out)
 	}
@@ -416,8 +423,13 @@ func (s *Service) readBaseline(ctx context.Context, session proto.SessionID, dir
 	if err != nil {
 		return proto.FileContent{}, fmt.Errorf("workspace: %w", err)
 	}
-	o := runOpts{Dir: r.Abs, Env: append(r.gitEnv(), objectEnv(objects, "")...)}
-	line, err := s.Git.output(ctx, o, "ls-tree", "-l", "-z", tree, "--", filepath.ToSlash(inRepo))
+	return s.readTree(ctx, runOpts{Dir: r.Abs, Env: append(r.gitEnv(), objectEnv(objects, "")...)}, tree, filepath.ToSlash(inRepo), out)
+}
+
+// readTree reads the file at path (relative to the repository) in tree,
+// with the objects o reaches.
+func (s *Service) readTree(ctx context.Context, o runOpts, tree, path string, out proto.FileContent) (proto.FileContent, error) {
+	line, err := s.Git.output(ctx, o, "ls-tree", "-l", "-z", tree, "--", path)
 	if err != nil {
 		return proto.FileContent{}, err
 	}

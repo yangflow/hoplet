@@ -47,9 +47,12 @@ type Host interface {
 	Output(p proto.OutputParams, done func(proto.ToolOutput, error))
 	// Diff reads a session's changes since it began, without patches.
 	Diff(id proto.SessionID, done func(proto.SessionDiff))
-	// DiffPatch reads them with their patches; done follows with the
-	// answer or why there is none.
-	DiffPatch(id proto.SessionID, done func(proto.SessionDiff, error))
+	// DiffPatch reads them with their patches, over p's range; done
+	// follows with the answer or why there is none.
+	DiffPatch(p proto.DiffParams, done func(proto.SessionDiff, error))
+	// Commits lists the commits a session's repositories can show one
+	// at a time; done follows with the answer or why there is none.
+	Commits(p proto.CommitsParams, done func(proto.SessionCommits, error))
 	// Files lists a session's working directory; ReadFile reads one of
 	// its files, now or at the baseline. done follows with the answer or
 	// why there is none.

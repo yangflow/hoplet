@@ -167,6 +167,14 @@ func (c *Client) Diff(ctx context.Context, p proto.DiffParams) (proto.SessionDif
 	return out, err
 }
 
+// Commits lists the commits a session's repositories offer for a commit
+// range.
+func (c *Client) Commits(ctx context.Context, p proto.CommitsParams) (proto.SessionCommits, error) {
+	var out proto.SessionCommits
+	err := c.Call(ctx, proto.MethodSessionsCommits, p, &out)
+	return out, err
+}
+
 // Files lists a directory of a session's working directory, or with All
 // every file under it.
 func (c *Client) Files(ctx context.Context, p proto.FilesListParams) (proto.FileList, error) {

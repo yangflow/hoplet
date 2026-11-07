@@ -151,6 +151,16 @@ func (c *conn) call(ctx context.Context, f proto.ClientFrame) (any, error) {
 		// A diff only reads, so unlike the commands above it follows the
 		// connection: a client that goes away stops waiting for it.
 		return s.ws.Diff(c.ctx, p.Session, dir, p)
+	case proto.MethodSessionsCommits:
+		var p proto.CommitsParams
+		if err := decode(f, &p); err != nil {
+			return nil, err
+		}
+		dir, err := s.mgr.WorkDir(ctx, p.Session)
+		if err != nil {
+			return nil, err
+		}
+		return s.ws.Commits(c.ctx, p.Session, dir, p)
 	case proto.MethodFilesList:
 		var p proto.FilesListParams
 		if err := decode(f, &p); err != nil {

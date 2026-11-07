@@ -32,12 +32,12 @@ type sessionView struct {
 	scroll    ui.ScrollState
 	md        markdown.Options
 
-	permOpen, runOpen, detailOpen, dirOpen bool
-	detailFloat                            bool                 // the details float, short of room to dock
-	pick                                   int                  // the highlighted option of the approval shown
-	hidden                                 map[string]bool      // approvals I put away with ⎋
-	copied                                 map[string]time.Time // when each copy button last copied
-	armed                                  time.Time            // the first ⎋ of two that stop a turn
+	permOpen, runOpen, detailOpen bool
+	detailFloat                   bool                 // the details float, short of room to dock
+	pick                          int                  // the highlighted option of the approval shown
+	hidden                        map[string]bool      // approvals I put away with ⎋
+	copied                        map[string]time.Time // when each copy button last copied
+	armed                         time.Time            // the first ⎋ of two that stop a turn
 
 	diffs        map[proto.SessionID]*diffState                // each session's changes, as last read
 	queue        ui.ListState                                  // the queue tray's rows, which drag to reorder

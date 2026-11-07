@@ -23,6 +23,8 @@ func TestFrameWireFormat(t *testing.T) {
 		"empty queue": {SessionItem{Queue: &Queue{Messages: []QueuedMessage{}}}, `{"queue":{"messages":[]}}`},
 		"events page": {EventsPage{Events: []Event{}, More: true}, `{"events":[],"more":true}`},
 		"diff args":   {DiffParams{Session: "s", Repo: "api", Patch: true}, `{"session":"s","repo":"api","patch":true}`},
+		"diff range":  {DiffParams{Session: "s", Repo: "api", Range: DiffRangeCommit, Commit: "abc"}, `{"session":"s","repo":"api","range":"commit","commit":"abc"}`},
+		"commits":     {SessionCommits{Session: "s", Repos: []RepoCommits{{Path: ".", Base: "main", Commits: []Commit{{SHA: "abc", Subject: "fix"}}, Truncated: true}}}, `{"session":"s","repos":[{"path":".","base":"main","commits":[{"sha":"abc","subject":"fix"}],"truncated":true}]}`},
 		"diff none":   {SessionDiff{Session: "s", Repos: []RepoDiff{}}, `{"session":"s","repos":[]}`},
 		"repo diff": {RepoDiff{Path: ".", State: RepoNew, Files: []FileDiff{{Path: "a", Status: FileStatusAdded, Additions: 2}}, Skipped: []SkippedFile{{Path: "big", Size: 9, Reason: "too large"}}, SHA: "h"},
 			`{"path":".","state":"new","files":[{"path":"a","status":"added","additions":2,"deletions":0}],"skipped":[{"path":"big","size":9,"reason":"too large"}],"sha":"h"}`},

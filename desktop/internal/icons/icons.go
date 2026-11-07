@@ -94,6 +94,9 @@ type Set struct {
 	Ignored    *ui.SVG // the files .gitignore leaves out are hidden
 	Shown      *ui.SVG // and shown
 	Reveal     *ui.SVG // show a file in Finder
+	Flat       *ui.SVG // list changed files without their directories
+	Nested     *ui.SVG // list changed files by directory
+	Source     *ui.SVG // a Markdown file's source in place of its preview
 }
 
 // Load parses every icon.
@@ -174,6 +177,9 @@ func Load() (*Set, error) {
 		{&s.Ignored, "lucide/eye-off.svg"},
 		{&s.Shown, "lucide/eye.svg"},
 		{&s.Reveal, "lucide/folder-open.svg"},
+		{&s.Flat, "lucide/list.svg"},
+		{&s.Nested, "lucide/list-tree.svg"},
+		{&s.Source, "lucide/file-code.svg"},
 	} {
 		data, err := files.ReadFile(f.path)
 		if err != nil {

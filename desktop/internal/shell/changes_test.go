@@ -108,7 +108,7 @@ func TestChangesFileOpensTab(t *testing.T) {
 	if ps.active < 0 || !ps.tabs[ps.active].changes {
 		t.Fatalf("tabs %+v, active %d", ps.tabs, ps.active)
 	}
-	for _, want := range []string{"变更 · 累计 · 2 个文件", "internal", "9 行未改动", "26 行未改动", "func (b *bridge) silent() bool", "第 1–2 行"} {
+	for _, want := range []string{"会话累计", "· 2 个文件", "internal", "9 行未改动", "26 行未改动", "func (b *bridge) silent() bool", "第 1–2 行"} {
 		if !strings.Contains(strings.Join(tt.Texts(), "\n"), want) {
 			t.Errorf("no %q in the tab: %q", want, tt.Texts())
 		}
