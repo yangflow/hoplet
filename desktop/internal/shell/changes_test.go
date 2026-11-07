@@ -203,6 +203,17 @@ func TestChangesHeadingFolds(t *testing.T) {
 	if ps.ch.folded["internal/bridge.go"] {
 		t.Fatal("bridge.go still folded")
 	}
+	tt.Move(1, 1) // off every heading
+	settle(tt)
+	if _, ok := tt.Find("打开文件"); ok {
+		t.Fatal("the heading's tools show with no pointer on it")
+	}
+	r, ok := tt.Find("折叠 bridge.go")
+	if !ok {
+		t.Fatal("no heading for bridge.go")
+	}
+	tt.Move(r.X+r.W/2, r.Y+r.H/2)
+	settle(tt)
 	if err := tt.Click("打开文件"); err != nil {
 		t.Fatal(err)
 	}

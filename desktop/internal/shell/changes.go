@@ -556,14 +556,13 @@ func (a *App) fileChangeView(c *ui.Context, k theme.Colors, s proto.Session, ps 
 			dir = ""
 		}
 		theme.Secondary.On(ui.Text(c, dir)).TextColor(k.Muted).SingleLine().Grow(1).Shrink(1)
-		lineCounts(c, k, row.add, row.del)
-		// The heading's tools keep their place, shown only under the
-		// pointer.
-		open := denseButton(c, k, a.icons.Open, "打开文件", false)
+		// The counts end the heading; under the pointer its tools take
+		// their place, the heading as wide as before.
 		if !head.Hovered() {
-			open.Invisible()
+			ui.Row(c).Padding(0, theme.Space1, 0, 0).Shrink(0).Children(func() { lineCounts(c, k, row.add, row.del) })
+			return
 		}
-		if open.Clicked() {
+		if denseButton(c, k, a.icons.Open, "打开文件", false).Clicked() {
 			a.openTab(ps, panelTab{path: row.key})
 		}
 	})
@@ -577,7 +576,7 @@ func (a *App) fileChangeView(c *ui.Context, k theme.Colors, s proto.Session, ps 
 		return
 	}
 	st := fc.diff
-	st.Theme = ct
+	st.Theme, st.RenderFindBar = ct, a.findBar(k)
 	st.Layout = editor.DiffUnified
 	if ch.split {
 		st.Layout = editor.DiffSplit

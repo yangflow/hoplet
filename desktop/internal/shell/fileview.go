@@ -166,12 +166,12 @@ func (a *App) fileTab(c *ui.Context, k theme.Colors, s proto.Session, ps *panelS
 		st := &v.ed
 		st.ReadOnly, st.NoActiveLine, st.Label = true, true, path.Base(p)
 		st.Font, st.LineHeight = codeFont(), theme.Code.Line()/theme.Code.Size()
-		st.Theme, st.FitContent = codeTheme(c, k), true
+		st.Theme, st.FitContent, st.SoftWrap, st.RenderFindBar = codeTheme(c, k), true, a.wrap, a.findBar(k)
 		quietScroll(c, k, func() { editor.View(c, st).FillWidth() })
 	default:
 		d := &v.diff
 		d.Font, d.LineHeight, d.Theme, d.Indicators = codeFont(), theme.Code.Line()/theme.Code.Size(), codeTheme(c, k), editor.DiffBars
-		d.Layout = editor.DiffUnified
+		d.Layout, d.Wrap, d.RenderFindBar = editor.DiffUnified, a.wrap, a.findBar(k)
 		if v.show == showSplit {
 			d.Layout = editor.DiffSplit
 		}
@@ -208,8 +208,9 @@ func codeFont() ui.Font {
 	return ui.Font{Family: theme.Mono, Size: theme.Code.Size(), Features: "liga=0"}
 }
 
-// pathBar is the line over a file: where it is, then showing its changes,
-// side by side, revealing it in Finder and opening it elsewhere.
+// pathBar is the line over a file: where it is, then a Markdown file's
+// source, wrapping lines, showing its changes, side by side, revealing it
+// in Finder and opening it elsewhere.
 func (a *App) pathBar(c *ui.Context, k theme.Colors, s proto.Session, p string, v *fileView, changed bool) {
 	ui.Row(c).Height(theme.RowStep).Padding(0, theme.Space1, 0, theme.Space3).Gap(theme.SpaceHalf).AlignItems(ui.Center).Background(k.Pane).Children(func() {
 		ui.Row(c).Grow(1).Shrink(1).MinWidth(0).Gap(theme.Space1).AlignItems(ui.Center).Clip().Children(func() {
@@ -231,6 +232,12 @@ func (a *App) pathBar(c *ui.Context, k theme.Colors, s proto.Session, p string, 
 			}
 			if denseButton(c.Key("source"), k, a.icons.Source, tip, source).Clicked() {
 				v.show, v.source = showText, !source
+			}
+		}
+		// Every file tab wraps its lines, or none; a preview has none.
+		if !isMarkdown(p) || v.source || v.show != showText {
+			if denseButton(c, k, a.icons.Wrap, "自动换行", a.wrap).Clicked() {
+				a.wrap = !a.wrap
 			}
 		}
 		if changed {

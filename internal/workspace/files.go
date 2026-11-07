@@ -80,9 +80,13 @@ func resolve(dir, rel string) (string, error) {
 	return abs, nil
 }
 
+// dsStore is the file Finder leaves in the directories it shows: never
+// listed, whatever .gitignore says.
+const dsStore = ".DS_Store"
+
 // List lists a session's working directory dir: one directory's entries,
 // directories first and then by name, or with All every file under it. It
-// leaves out .git and, unless Ignored, what .gitignore ignores; symbolic
+// leaves out .git, .DS_Store and, unless Ignored, what .gitignore ignores; symbolic
 // links are listed and never followed.
 func (s *Service) List(ctx context.Context, dir string, p proto.FilesListParams) (proto.FileList, error) {
 	rel, err := cleanRel(p.Path)
@@ -118,7 +122,7 @@ func (s *Service) List(ctx context.Context, dir string, p proto.FilesListParams)
 	}
 	var entries []proto.FileEntry
 	for _, de := range des {
-		if de.Name() == ".git" {
+		if de.Name() == ".git" || de.Name() == dsStore {
 			continue
 		}
 		e := proto.FileEntry{Path: path.Join(rel, de.Name())}
@@ -224,10 +228,13 @@ func (s *Service) ignoredIn(ctx context.Context, abs string, repos []Repo, entri
 // listAll lists every file under abs, in the working directory dir:
 // inside a repository what git ls-files reports as not ignored, without
 // reading the repository's index; outside any repository every file. It
-// skips .git and symbolic links, and stops at maxListEntries.
+// skips .git, .DS_Store and symbolic links, and stops at maxListEntries.
 func (s *Service) listAll(ctx context.Context, dir, abs string, repos []Repo) ([]proto.FileEntry, bool, error) {
 	var entries []proto.FileEntry
 	add := func(p string) {
+		if path.Base(p) == dsStore {
+			return
+		}
 		fi, err := os.Lstat(filepath.Join(dir, filepath.FromSlash(p)))
 		if err != nil || !fi.Mode().IsRegular() {
 			return

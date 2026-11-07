@@ -37,7 +37,7 @@ func entryPaths(l proto.FileList) []string {
 
 // filesFixture is a working directory holding a repository with an ignored
 // directory, a symbolic link and a nested repository, beside a directory
-// that is not in git.
+// that is not in git, and Finder's .DS_Store files.
 func filesFixture(t *testing.T, g Git) (fixture, string) {
 	t.Helper()
 	f := newFixture(t, g)
@@ -56,6 +56,10 @@ func filesFixture(t *testing.T, g Git) (fixture, string) {
 	}
 	initRepo(t, g, filepath.Join(repo, "vendored"), map[string]string{"v.go": "package v\n"})
 	write(t, dir, "notes/todo.md", "todo")
+	// Finder's files, in and out of the repository: never listed.
+	for _, p := range []string{".DS_Store", "app/.DS_Store", "notes/.DS_Store"} {
+		write(t, dir, p, "\x00Bud1")
+	}
 	return f, dir
 }
 

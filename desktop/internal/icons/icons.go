@@ -97,6 +97,14 @@ type Set struct {
 	Flat       *ui.SVG // list changed files without their directories
 	Nested     *ui.SVG // list changed files by directory
 	Source     *ui.SVG // a Markdown file's source in place of its preview
+	Wrap       *ui.SVG // wrap long lines in the viewer
+
+	// The find bar over a file's code.
+	MatchCase *ui.SVG
+	WholeWord *ui.SVG
+	Regexp    *ui.SVG
+	FindUp    *ui.SVG // the previous match
+	FindDown  *ui.SVG // the next match
 }
 
 // Load parses every icon.
@@ -180,6 +188,12 @@ func Load() (*Set, error) {
 		{&s.Flat, "lucide/list.svg"},
 		{&s.Nested, "lucide/list-tree.svg"},
 		{&s.Source, "lucide/file-code.svg"},
+		{&s.Wrap, "lucide/text-wrap.svg"},
+		{&s.MatchCase, "lucide/case-sensitive.svg"},
+		{&s.WholeWord, "lucide/whole-word.svg"},
+		{&s.Regexp, "lucide/regex.svg"},
+		{&s.FindUp, "lucide/arrow-up.svg"},
+		{&s.FindDown, "lucide/arrow-down.svg"},
 	} {
 		data, err := files.ReadFile(f.path)
 		if err != nil {
@@ -285,8 +299,10 @@ func fileKind(base string) string {
 		return "ruby"
 	case ".ini", ".conf", ".cfg":
 		return "settings"
+	case ".txt", ".text", ".rtf":
+		return "document"
 	}
-	return "document"
+	return "file"
 }
 
 // FileType returns the icon of a file by its name, in its own colors.

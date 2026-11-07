@@ -244,8 +244,7 @@ func (a *App) commitMenu(c *ui.Context, k theme.Colors, ch *changesTab) {
 	})
 	menuSeparator(c, k)
 	ui.Box(c).Padding(0, theme.SpaceHalf, theme.SpaceHalf, theme.SpaceHalf).Children(func() {
-		ui.SearchField(c, &ch.query).Placeholder("搜索提交").Label("搜索提交").AutoFocus().FillWidth().Height(theme.Row).
-			FontSize(theme.Secondary.Size()).Radius(theme.RadiusControl).Background(k.Fill).Border(0, ui.Transparent)
+		a.searchField(c, k, &ch.query, "搜索提交", func(ui.TextKey) bool { return false }).AutoFocus()
 	})
 	repo, _ := ch.commitRepo()
 	rc := ch.repoCommits()

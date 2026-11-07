@@ -127,6 +127,7 @@ type App struct {
 	sort       catalog.Sort
 	show       catalog.Show
 	archived   bool
+	wrap       bool // the file tabs wrap their long lines
 	selected   string
 	closed     map[string]bool // collapsed directory groups
 	sideClosed bool            // I closed the sidebar

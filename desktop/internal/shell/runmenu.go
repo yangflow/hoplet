@@ -264,15 +264,8 @@ func (a *App) modelList(c *ui.Context, k theme.Colors, h proto.HarnessInfo, st r
 		set.model(h.Kind, m)
 		a.s.modelPick = -1
 	}
-	ui.Row(c).Height(theme.Row).Margin(0, 0, theme.SpaceHalf, 0).Padding(0, theme.Space2).Gap(theme.Space1Half).AlignItems(ui.Center).Radius(theme.RadiusControl).Background(k.Fill).Children(func() {
-		ui.Icon(c, a.icons.Search).FontSize(theme.IconRow).TextColor(k.Muted)
-		in := ui.TextInput(c, &a.s.modelQuery).Placeholder("搜索模型").Label("搜索模型").AutoFocus().Grow(1).
-			FontSize(theme.Secondary.Size()).Background(ui.Transparent).Border(0, ui.Transparent).Padding(0)
-		if a.s.modelFocus {
-			in.Focus()
-			a.s.modelFocus = false
-		}
-		in.OnTextKey(func(key ui.TextKey) bool {
+	ui.Box(c).Margin(0, 0, theme.SpaceHalf, 0).Children(func() {
+		in := a.searchField(c, k, &a.s.modelQuery, "搜索模型", func(key ui.TextKey) bool {
 			switch {
 			case key.Mods != 0:
 				return false
@@ -290,7 +283,11 @@ func (a *App) modelList(c *ui.Context, k theme.Colors, h proto.HarnessInfo, st r
 				return false
 			}
 			return true
-		})
+		}).AutoFocus()
+		if a.s.modelFocus {
+			in.Focus()
+			a.s.modelFocus = false
+		}
 	})
 	switch {
 	case len(h.Models) == 0:

@@ -221,8 +221,7 @@ func (a *App) fileColumn(c *ui.Context, k theme.Colors, s proto.Session, ps *pan
 	t := &ps.tree
 	a.refreshTree(s, t)
 	ui.Row(c).Height(theme.Row).Padding(0, theme.Space1, 0, theme.Space2).Gap(theme.Space1).AlignItems(ui.Center).Children(func() {
-		ui.SearchField(c, &t.query).Placeholder("筛选文件").Label("筛选文件").Grow(1).Height(theme.Row).
-			FontSize(theme.Secondary.Size()).Radius(theme.RadiusControl).Background(k.Fill).Border(0, ui.Transparent)
+		ui.Box(c).Grow(1).Children(func() { a.searchField(c, k, &t.query, "筛选文件", nil) })
 		// The eye says whether the ignored files show; the tip, what a
 		// click does.
 		eye, tip := a.icons.Ignored, "显示被忽略的文件"

@@ -149,7 +149,10 @@ flowchart LR
 | 动效 | `Element.Jump` / `AnimateTo` / `AnimateColor` / `Transition` / `Match` / `Collapse`，曲线取 `motion` token，不用弹簧，不自建计时器 |
 | 悬停提示 | `Element.Tooltip` |
 | 头像 | 首字 + 中性灰底；`ui.Avatar` 按名字配色不符合单一彩色规范 |
-| 图标 | `ui.Icon`（Lucide）/ `ui.Image`（Material） |
+| 查找栏 | `editor.State` / `editor.DiffState` 的 `RenderFindBar` 自己画外观：`ui.TextInputBase` 交给 `FindBar.QueryInput`，开关 `ui.ToggleBase`，按钮 `ui.ButtonBase(c).KeepFocus()`；默认查找栏是英文、带选区内查找与替换，外观不合 |
+| 搜索框 | `ui.Row` + Lucide `search` + `ui.TextInput` + 有字时 `x` 清除按钮：`ui.SearchField` 的清除按钮用主题 Background 画 ×，Hoplet 的 Background 透明，× 看不见；菜单外 ⎋ 清空、提示“清除 esc”，菜单里 ⎋ 照旧关菜单、提示只写“清除” |
+| 自动换行 | `editor.State.SoftWrap` / `editor.DiffState.Wrap` |
+| 图标 | `ui.Icon`（Lucide）/ `ui.Image`（Material；不认识的文件用 Material 的 `file`，`document` 只给文本文件） |
 | 菜单与托盘 | `mygo.NewMenu` / `mygo.NewTray`，托盘 `IconIsTemplate: true` |
 
 MyGO 升级通过 `mygo migrate-ui` 迁移并验证；视图保持薄，禁止用计时器、覆盖层或自行绘图绕过现成组件。缺失能力先调整并审核设计。
