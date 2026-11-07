@@ -26,7 +26,7 @@ flowchart LR
     Harness --> Capabilities["Models · Tools · Skills"]
 ```
 
-- One Go binary currently provides daemon, shim, CLI, and Hermes bridge roles; the relay is planned.
+- One Go binary currently provides daemon, shim, CLI, and Hermes bridge roles, plus the relay; on Linux, `hoplet daemon install` and `sudo hoplet relay install` set them up as systemd services.
 - Shims keep local sessions running across daemon restarts; remote follow-up and approvals are planned.
 - Remote access is designed for end-to-end encryption and a byte-forwarding relay.
 - The desktop uses MyGo native UI; iOS uses SwiftUI.

@@ -1,6 +1,6 @@
 # 0002 进程模型与部署
 
-状态：当前设计 · 更新：2026-11-04
+状态：当前设计 · 更新：2026-11-07
 
 ## 范围与现状
 
@@ -8,15 +8,15 @@
 
 | 状态 | 边界 |
 |---|---|
-| ✓ 代码已有 | 本机 daemon、stdio shim、macOS LaunchAgent 与偏移续接 |
-| ○ 目标 | Linux 服务安装、PTY、电源断言、中继与配对 |
+| ✓ 代码已有 | 本机 daemon、stdio shim、macOS LaunchAgent、Linux systemd 用户服务、中继与系统服务、偏移续接 |
+| ○ 目标 | PTY、电源断言、iOS 配对 |
 
 ## 决策
 
 | 项 | 结论 |
 |---|---|
-| 二进制 | 当前有 `daemon`、`shim`、CLI 与 `hermes-bridge`；`relay` 是后续目标 |
-| 托管 | 当前 `daemon install` 只支持 macOS LaunchAgent，锁占用时按 30s 节奏重试；Linux systemd 安装是目标，不是现有命令能力 |
+| 二进制 | `daemon`、`shim`、`relay`、CLI 与 `hermes-bridge` |
+| 托管 | `daemon install`：macOS 装 LaunchAgent；Linux 装 systemd 用户服务 `hoplet.service`（`~/.config/systemd/user`，`Restart=on-failure`、`RestartSec=30`、不限重启次数，`KillMode=process` 让 shim 与 harness 在停服务时存活，`WantedBy=default.target`），未开启 linger 时提示 `sudo loginctl enable-linger <用户>`，否则登出即停；两者锁占用时都按 30s 节奏重试；其他平台报不支持 |
 | 会话进程 | 每个活跃会话一个 shim，当前托管 harness / bridge stdio；PTY 托管未实现 |
 | 单例 | flock；socket 用“新进程监听临时路径 → 原子 rename”接管，清理逻辑永不删 socket（误删会让新守护进程“能连不能用”） |
 | 版本 | 一次握手：主版本不一致即拒绝并提示升级；shim ↔ daemon 协议带版本 |
@@ -73,7 +73,7 @@ shim 和原生进程保持运行时，daemon 重启不终止正在进行的轮�
 | 主机 | 运行 | 作用 |
 |---|---|---|
 | Mac | `hoplet daemon` + 桌面 app | Code 会话主力；合盖即离线 |
-| 海外 VPS（规划） | relay + headless daemon + systemd 用户服务 | 常驻主宿主；relay 与 systemd 安装尚未落地 |
+| 海外 VPS | `hoplet-relay.service`（系统服务）+ headless daemon（systemd 用户服务，开启 linger） | 常驻主宿主 |
 
 ## 恢复边界
 
@@ -93,7 +93,7 @@ shim 和原生进程保持运行时，daemon 重启不终止正在进行的轮�
 | 范围 | 条件 |
 |---|---|
 | 重启 | 正常完整行按偏移接续，超长 / 交错重放边界可解释 |
-| 服务 | macOS 安装与锁接管符合代码；Linux 不宣称已支持安装 |
+| 服务 | macOS / Linux 安装、卸载与锁接管符合代码；Linux 未开启 linger 时安装与 doctor 都提示 |
 
 ## 待验证
 

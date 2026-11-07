@@ -26,7 +26,7 @@ flowchart LR
     Harness --> Capabilities["模型 · 工具 · 技能"]
 ```
 
-- 一个 Go 二进制当前提供 daemon、shim、CLI 和 Hermes 桥接；中继属于规划。
+- 一个 Go 二进制当前提供 daemon、shim、CLI 、Hermes 桥接和中继；在 Linux 上，`hoplet daemon install` 与 `sudo hoplet relay install` 把它们装成 systemd 服务。
 - shim 在 daemon 重启时继续托管本机会话；远程跟进与审批属于规划。
 - 远程访问目标为端到端加密，中继只转发字节。
 - 桌面采用 MyGo 原生 UI，iOS 使用 SwiftUI。

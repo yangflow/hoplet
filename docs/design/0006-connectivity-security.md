@@ -10,8 +10,8 @@
 
 | 状态 | 边界 |
 |---|---|
-| ✓ 代码已有 | 本机 socket / token / Origin 检查、代理解析；配对、Noise、直连地址路由、设备吊销（CLI）；中继（`hoplet relay`、注册与回拨、CLI 经中继拨号与切回直连） |
-| ○ 目标 | 中继服务安装与诊断、局域网发现、iOS 配对与生物识别 |
+| ✓ 代码已有 | 本机 socket / token / Origin 检查、代理解析；配对、Noise、直连地址路由、设备吊销（CLI）；中继（`hoplet relay`、注册与回拨、CLI 经中继拨号与切回直连、Linux 系统服务安装、doctor 监听与注册检查） |
+| ○ 目标 | 局域网发现、iOS 配对与生物识别 |
 
 ## 当前本机保护
 
@@ -88,6 +88,7 @@ flowchart LR
 | 项 | 结论 |
 |---|---|
 | 形态 | `hoplet relay --domain <域名> [--domain <备用>] [--listen :443] [--dir <目录>]`，部署在海外 VPS，前台运行到 SIGTERM / SIGINT；哑转发，不缓存、不解密，日志不记载荷 |
+| 系统服务 | Linux 上 `sudo hoplet relay install --domain <域名>… [--listen :443]` 写 `/etc/systemd/system/hoplet-relay.service` 并启用、（重）启动；`DynamicUser`、`StateDirectory=hoplet-relay`（`/var/lib/hoplet-relay`，0700）、只给 `CAP_NET_BIND_SERVICE`、`NoNewPrivileges`，`Restart=on-failure`、`RestartSec=5`；需 root，二进制须在固定位置且其他用户可执行；`sudo hoplet relay uninstall` 停用并删除单元，保留证书与白名单；装了服务时 `relay allow / deny / list` 默认用服务目录，root 写白名单后把属主改回目录属主 |
 | 协议 | 只用 TCP 443 上的 WSS；域名 + Let's Encrypt，流量像普通网站（国内到海外的 UDP 常被限速、干扰） |
 | 证书 | 内置 ACME（TLS-ALPN-01，同一监听端口），只为 `--domain` 列出的域名签发，缓存在 `<目录>/certs`；SNI 不在列表里（含空 SNI，如经 Cloudflare 代理的备用域名）时回第一个域名的证书，Cloudflare 用 Full（非 strict）模式 |
 | 白名单 | `<目录>/allow`：每行一个主机 ID，0600，组 / 其他用户可访问或有非 ID 行则拒绝使用；`hoplet relay allow / deny / list [--json]` 直接改文件；中继在每次注册与每个客户端连接时重读，不需重启 |
@@ -99,6 +100,7 @@ flowchart LR
 | 限制 | 每主机并发流 64、每客户端 IP 等待回拨的连接 8，超出 503 |
 | 保活 | 控制连接：通道 ping / pong，15s 一次，10s 无回应断开（双方）；转发的每一段：中继发 WebSocket Ping，15s 一次，10s 无回应关闭该流；端到端仍是 Noise 通道的 ping / pong |
 | 重连 | 守护进程对每个中继各保持一条控制连接，断开或被拒后按 1s 起倍增至 30s 重拨，注册成功后复位；中继重启后自动恢复 |
+| 诊断 | `hoplet doctor` 检查：`listener`（直连监听地址与 `network.routes`，未配置监听为 ok，有监听无路由为 warn）；每个中继一项 `relay <地址>`：已注册 → ok（注册时间），最近一次失败 → fail（附白名单提示），尚未尝试 → warn |
 | 可见性 | 只见密文、主机 ID、客户端 IP 与字节数；日志记主机注册与离开、流的结束与上下行字节数 |
 | 不做 | UDP / WebRTC 打洞、Cloudflare Workers 中继 |
 

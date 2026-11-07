@@ -85,7 +85,7 @@
 
 ### 任务 0：分支
 
-- [ ] 从 `main` 建 `feat/linux-services`。
+- [x] 从 `main` 建 `feat/linux-services`。
 
 ### 任务 1：systemd unit 与管理器
 
@@ -125,10 +125,10 @@
 
 ### 任务 5：文档与全量检查
 
-- [ ] 同步 0002（Linux 服务安装落地、`KillMode=process`、linger）、0006（中继服务与 doctor 检查）、0013（doctor 项）、`README.md` 与 `README.zh-CN.md` 的安装说明；实现与本文有出入时先改文档。
-- [ ] `make check`，报告真实输出。
-- [ ] 在本文末尾追加“实现与计划的差异”。
-- [ ] 推送并开 PR：`feat(cli): install daemon and relay as Linux services`。
+- [x] 同步 0002（Linux 服务安装落地、`KillMode=process`、linger）、0006（中继服务与 doctor 检查）、0013（doctor 项）、`README.md` 与 `README.zh-CN.md` 的安装说明；实现与本文有出入时先改文档。
+- [x] `make check`，报告真实输出。
+- [x] 在本文末尾追加“实现与计划的差异”。
+- [x] 推送并开 PR：`feat(cli): install daemon and relay as Linux services`。
 
 ## 完成标准
 
@@ -136,3 +136,11 @@
 - macOS 的安装、状态与 doctor 输出不变。
 - 不新增依赖；测试不需要 root、不碰真实的 systemd。
 - 两台主机实测（Mac 与 VPS，经中继）在本 PR 合并后进行，不属于本 PR。
+
+## 实现与计划的差异
+
+- `relay install` 不提供 `--json`：它只在 VPS 上由人执行一次，输出 unit 路径、域名与监听地址、目录和下一步命令即可。
+- `listener` 检查在 ok 时同时列出监听地址与 `network.routes`，便于核对对外地址；未配置监听的 detail 写明 `network.listen is not set`。
+- 中继注册失败的 detail 附白名单提示（`hoplet relay allow <id>`），因为白名单外是首次部署最常见的失败原因。
+- doctor 中 `listener` 与各 `relay <URL>` 排在 `git` 之后、`network` 之前，先看本机能否被连到，再看出站。
+- root 写白名单后改属主由 `TestMatchOwner` 直接测试（以文件属主比对），不另注入 chown 记录。

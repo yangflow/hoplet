@@ -1,6 +1,6 @@
 # 0013 测试、升级与发布
 
-状态：当前设计 · 更新：2026-11-04
+状态：当前设计 · 更新：2026-11-07
 
 ## 范围与现状
 
@@ -56,7 +56,7 @@ flowchart BT
 | 工具 | 内容 |
 |---|---|
 | 日志 | slog JSON、自动轮转、带会话 ID；默认不打逐 token 日志 |
-| `hoplet doctor` | harness 版本、代理连通、登录 shell 环境、权限、中继、APNs 密钥、libghostty |
+| `hoplet doctor` | 已有：home 权限、token、主机身份密钥、config、服务（LaunchAgent / systemd，含 linger）、daemon 版本、登录 shell 环境、git、直连监听、中继注册、代理连通、harness 适配；目标：APNs 密钥、libghostty |
 | `hoplet status --json` | 基础运行指标 |
 
 ## 当前检查链路
