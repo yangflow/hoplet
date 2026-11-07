@@ -8,18 +8,18 @@
 
 | 状态 | 边界 |
 |---|---|
-| ✓ 代码已有 | 本机 WebSocket、目录 / 会话订阅、分页、快照、队列与背压 |
-| ○ 目标 | 远程加密传输、终端帧、APNs 与 iOS 缓存 |
+| ✓ 代码已有 | 本机 WebSocket、经直连地址的 Noise 通道、目录 / 会话订阅、分页、快照、队列与背压 |
+| ○ 目标 | 中继、终端帧、APNs 与 iOS 缓存 |
 
 ## 传输与信封
 
 | 项 | 结论 |
 |---|---|
-| 连接 | 当前 HTTP/WebSocket 运行在 Unix socket 上，路径 `/v1`；服务端发送 JSON 文本帧 |
-| 远程 / 二进制 | Noise 隧道、终端与大块数据帧属于规划 |
+| 连接 | 本机：HTTP/WebSocket 运行在 Unix socket 上，路径 `/v1`，JSON 文本帧；远程：`/v1/noise`，一条 WebSocket 二进制消息 = 一条 Noise 消息，通道里每帧仍是同样的 JSON |
+| 二进制 | 终端与大块数据帧属于规划 |
 | 请求 | `{id, method, params}` → `{id, result \| error}` |
 | 流 | `{sub, item}`；取消 `{sub, cancel}` |
-| 握手 | 首帧 `hello{protocol_major, device_id, token}` → `{host, version, protocol_major}`；主版本为 1，错误 token / 空设备 ID 被拒绝 |
+| 握手 | 首帧 `hello{protocol_major, device_id, token}` → `{host, version, protocol_major, host_id}`；主版本为 1；本机连接错误 token / 空设备 ID 被拒绝；远程连接忽略 `token` 与 `device_id`，设备 ID 为 Noise 握手认证的公钥的主机 ID；`host_id` 是守护进程身份公钥的主机 ID，远程客户端核对它等于握手对方 |
 
 ## 三类订阅
 
@@ -55,8 +55,9 @@ flowchart LR
 
 | 问题 | 机制 |
 |---|---|
-| 心跳 | 每 15s 发 WebSocket Ping，10s 未响应则断开；hello 等待上限 10s |
+| 心跳 | 每 15s 一次 ping（本机为 WebSocket Ping，远程为 Noise 通道的 ping / pong），10s 未响应则断开；hello 等待上限 10s |
 | 桌面重连 | `desktop/internal/link` 按 1s 起倍增至 30s，支持手动立即重试；当前无抖动和 5 分钟上限 |
+| CLI 重连 | `session watch` 断开后按 1s 起倍增至 30s 重拨，从已打印的最后一个 seq 重新订阅，快照里已打印的事件不再输出 |
 | 慢客户端 | 待写队列 8 MiB 高水位，超出断开自身；单独的大响应可发出，不能把高水位当单帧硬上限 |
 | 幂等 | `sessions.send` / `sessions.respond` 使用持久化 key / 回执；不能泛称所有请求均有回执 |
 | 分页与帧 | 事件页 500 条，客户端读入帧上限 1 MiB；旧消息按 `before_seq` 向前翻页 |
