@@ -19,7 +19,8 @@
 | ✓ | Claude Code / Hermes 适配、模型与运行设置、托管与自检 | `internal/harness` |
 | ✓ | 桌面侧栏、会话、新建、输入、审批、详情、上下文圈、收件箱、命令面板与右栏（累计改动、文件树、只读查看、⌘P）；主题由设计系统 token 生成 | `desktop/internal/shell`、`desktop/internal/theme` |
 | ✓ | 身份密钥与 Noise 通道、配对与直连、中继（autocert、白名单）、Linux 服务与 doctor 检查 | `internal/noise`、`internal/pair`、`internal/relay`、`internal/systemd` |
-| ○ | iOS、MCP、伙伴实体、产物、记忆、自主、集成与跨机 | 当前没有对应服务；枚举和接口预留不等于实现 |
+| ✓ | 会话工具桥：会话 token、`hoplet mcp`、两家适配注入，工具 `sessions_list`、`session_get` | `internal/tools`、`cmd/hoplet/mcp.go` |
+| ○ | iOS、其余 MCP 工具、伙伴实体、产物、记忆、自主、集成与跨机 | 当前没有对应服务；枚举和接口预留不等于实现 |
 
 M1 代码已合入，`make check` 通过；两种模式的整体验收由维护者确认。M2a 代码已合入，Mac 与 VPS 两台主机的实测尚未进行。
 

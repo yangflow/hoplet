@@ -83,51 +83,53 @@
 
 ### 任务 1：协议
 
-- [ ] `proto/api.go`：`HelloParams.SessionToken`；`MethodToolsList`、`MethodToolsCall`；`ToolInfo`、`ToolsListResult`、`ToolsCallParams`、`ToolsCallResult`
-- [ ] `make gen` 重新生成 Swift
-- [ ] 测试：新类型的 JSON 往返与字段名
-- [ ] commit：`feat(proto): add session tokens and tool calls`
+- [x] `proto/api.go`：`HelloParams.SessionToken`；`MethodToolsList`、`MethodToolsCall`；`ToolInfo`、`ToolsListResult`、`ToolsCallParams`、`ToolsCallResult`
+- [x] `make gen` 重新生成 Swift
+- [x] 测试：新类型的 JSON 往返与字段名
+- [x] commit：`feat(proto): add session tokens and tool calls`
 
 ### 任务 2：存储
 
-- [ ] `internal/store/migrations/0011_session_tokens.sql`
-- [ ] `internal/store/tokens.go`：`SetSessionToken(ctx, id, hash, t)`、`SessionByToken(ctx, hash) (proto.SessionID, error)`、`HasSessionToken(ctx, id) (bool, error)`；`ArchiveSession` 一并删行
-- [ ] 测试：签发后查得到；重签后旧哈希查不到；归档后查不到；别的会话的哈希不串；从 0010 的库迁移后数据不变
-- [ ] commit：`feat(store): store session token hashes`
+- [x] `internal/store/migrations/0011_session_tokens.sql`
+- [x] `internal/store/tokens.go`：`SetSessionToken(ctx, id, hash, t)`、`SessionByToken(ctx, hash) (proto.SessionID, error)`、`HasSessionToken(ctx, id) (bool, error)`；`ArchiveSession` 一并删行
+- [x] 测试：签发后查得到；重签后旧哈希查不到；归档后查不到；别的会话的哈希不串；从 0010 的库迁移后数据不变
+- [x] commit：`feat(store): store session token hashes`
 
 ### 任务 3：daemon 的工具连接
 
-- [ ] `internal/tools/`：工具表与 `sessions_list`、`session_get`
-- [ ] `internal/daemon/conn.go`：hello 的会话分支；连接记下调用方会话；按调用方过滤方法
-- [ ] `internal/daemon/methods.go`：`tools.list`、`tools.call`
-- [ ] 测试：带有效 token 的连接列出两个工具并调通；错误 token、归档会话的 token 被拒；会话连接调 `sessions.list` 被拒；普通连接调 `tools.call` 被拒；远程连接带 `session_token` 被拒；重开 store 后 token 仍有效；`session_get` 的前缀与不存在
-- [ ] commit：`feat(daemon): serve tools to session connections`
+- [x] `internal/tools/`：工具表与 `sessions_list`、`session_get`
+- [x] `internal/daemon/conn.go`：hello 的会话分支；连接记下调用方会话；按调用方过滤方法
+- [x] `internal/daemon/methods.go`：`tools.list`、`tools.call`
+- [x] 测试：带有效 token 的连接列出两个工具并调通；错误 token、归档会话的 token 被拒；会话连接调 `sessions.list` 被拒；普通连接调 `tools.call` 被拒；远程连接带 `session_token` 被拒；重开 store 后 token 仍有效；`session_get` 的前缀与不存在
+- [x] commit：`feat(daemon): serve tools to session connections`
 
 ### 任务 4：`hoplet mcp`
 
-- [ ] `go get github.com/modelcontextprotocol/go-sdk@v1.8.0`
-- [ ] `cmd/hoplet/mcp.go`：命令与转发
-- [ ] 测试：起测试 daemon，管道接 `hoplet mcp`，用 go-sdk 客户端完成握手、列工具、调 `sessions_list`；没有 token、token 错误时退出 1 且 stderr 说明；daemon 断开后退出
-- [ ] 测试：录一份 Claude Code 2.1.316 对 MCP 服务的握手（`server/discover` 探测后 `initialize` 2025-11-25），在测试里回放给 `hoplet mcp`，应答与录制一致
-- [ ] commit：`feat(cli): add hoplet mcp bridge`
+- [x] `go get github.com/modelcontextprotocol/go-sdk@v1.8.0`
+- [x] `cmd/hoplet/mcp.go`：命令与转发
+- [x] 测试：起测试 daemon，管道接 `hoplet mcp`，用 go-sdk 客户端完成握手、列工具、调 `sessions_list`；没有 token、token 错误时退出 1 且 stderr 说明；daemon 断开后退出
+- [x] 测试：录一份 Claude Code 2.1.316 对 MCP 服务的握手（实录：`server/discover` 协议 2026-07-28 探测后直接 `tools/list`，不发 `initialize`），在测试里回放给 `hoplet mcp`，应答与录制一致
+- [x] commit：`feat(cli): add hoplet mcp bridge`
 
 ### 任务 5：注入
 
-- [ ] `internal/harness/harness.go`：`MCPServer`、`Spec.Dir`、`Launch.Files`、`PersistsMCP`
-- [ ] `internal/session/manager.go`：按上表签发 token、填 `Spec.MCP` 与 `Spec.Dir`、写 `Launch.Files`；`Config` 加 MCP 命令（daemon 的二进制与 home）
-- [ ] `internal/harness/claude/claude.go`：`mcp.json`、`--mcp-config`、`--allowedTools`；`MCPInject`
-- [ ] `internal/harness/hermes/requests.go`：create 带 `mcp_servers`；已有会话排 `editor_mcp`；`PersistsMCP`；`MCPInject`
-- [ ] 测试（manager，用假 harness）：Claude 型每次 Launch 换 token、Attach 不换；Hermes 型只在没有 token 或没有原生 ID 时签发；`Ephemeral` 与 `MCPInject` 为假时不注入；文件 0600；token 不在 `Launch.Env`、`Launch.Command` 与 shim 日志里
-- [ ] 测试（Claude）：带 MCP 的参数与 `mcp.json` 按 golden；不带 MCP 的参数不变
-- [ ] 测试（Hermes）：create 参数按录制向量；续接不带 `editor`；已有会话忙时 `editor_mcp` 排队、空闲后发一次
-- [ ] commit：`feat(harness): inject the Hoplet MCP server`
+- [x] `internal/harness/harness.go`：`MCPServer`、`Spec.Dir`、`Launch.Files`、`PersistsMCP`
+- [x] `internal/session/manager.go`：按上表签发 token、填 `Spec.MCP` 与 `Spec.Dir`、写 `Launch.Files`；`Config` 加 MCP 命令（daemon 的二进制与 home）
+- [x] `internal/harness/claude/claude.go`：`mcp.json`、`--mcp-config`、`--allowedTools`；`MCPInject`
+- [x] `internal/harness/hermes/requests.go`：create 带 `mcp_servers`；已有会话排 `editor_mcp`；`PersistsMCP`；`MCPInject`
+- [x] 测试（manager，用假 harness）：Claude 型每次 Launch 换 token、Attach 不换；Hermes 型只在没有 token 或没有原生 ID 时签发；`Ephemeral` 与 `MCPInject` 为假时不注入；文件 0600；token 不在 `Launch.Env`、`Launch.Command` 与 shim 日志里
+- [x] 测试（Claude）：带 MCP 的参数与 `mcp.json` 按 golden；不带 MCP 的参数不变
+- [x] 测试（Hermes）：create 参数按录制向量；续接不带 `editor`；已有会话忙时 `editor_mcp` 排队、空闲后发一次
+- [x] commit：`feat(harness): inject the Hoplet MCP server`
 
 ### 任务 6：实测与文档
 
-- [ ] 本机实测：Claude Code 2.1.316 与 Hermes 0.22.5 各新建一个会话，让模型调 `sessions_list`；Hermes 再测 daemon 重启后续接仍可调用、已有会话第一次挂载
-- [ ] 按实测结果更新 0012、0003、0020、0021 的现状（“尚未实现” → 已有），0019 的基线
-- [ ] `make check`
-- [ ] commit：`docs: record the session tool bridge`
+- [x] 本机实测：Claude Code 2.1.316 与 Hermes 0.22.5 各新建一个会话，让模型调 `sessions_list`；Hermes 再测 daemon 重启后续接仍可调用、已有会话第一次挂载
+- [x] 按实测结果更新 0012、0003、0020、0021 的现状（“尚未实现” → 已有），0019 的基线
+- [x] `make check`
+- [x] commit：`docs: record the session tool bridge`
+
+实测结果（2026-11-07）：Claude Code 2.1.316 新会话调 `mcp__hoplet__sessions_list` 不经审批；Hermes 0.22.5 新会话经 `editor.mcp_servers` 挂上（工具名 `mcp__editor_hoplet_<hash>__sessions_list`），daemon 重启后续接用同一 token 照常调用；没有 token 的已有会话接回时签发新 token、空闲时发一次 `editor_mcp`，停掉重接后新 token 生效。
 
 PR 标题：`feat(mcp): add session tool bridge`。
 

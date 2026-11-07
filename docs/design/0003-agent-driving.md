@@ -8,8 +8,8 @@
 
 | 状态 | 边界 |
 |---|---|
-| ✓ 代码已有 | Claude Code / Hermes 的统一接口、事件、模型和环境 |
-| ○ 目标 | MCP、禁工具提炼、fork / rewind 和新能力验证 |
+| ✓ 代码已有 | Claude Code / Hermes 的统一接口、事件、模型和环境；Hoplet MCP 服务注入 |
+| ○ 目标 | 禁工具提炼、fork / rewind 和新能力验证 |
 
 ## 执行路径
 
@@ -76,7 +76,7 @@ classDiagram
 | `Run.Events` | 持续消费；读慢会形成背压，不丢事件 |
 | `ErrDetached` | 传输断开，不等于原生进程退出，可重新接上 |
 | `Run.Close` | shim 路径释放连接、原生进程可继续；直接进程不能保证脱离所有者运行 |
-| 预留 | `Fork` / `Rewind` 没有 Run 方法；`Spec.MCP` 当前两个适配器忽略 |
+| 预留 | `Fork` / `Rewind` 没有 Run 方法 |
 
 ## 事件契约
 
@@ -145,7 +145,7 @@ harness 在一轮里派出的子代理（agent 交给另一个 agent 去做的�
 | 1 | 轮次结束只认协议信号，不靠“安静多久”推断；进程崩溃 → 标记 `aborted` |
 | 2 | 身份以 Hoplet 会话 ID 为准；harness 的 session id 只是记录在案的指针 |
 | 3 | 凭证留在 harness 自己的存储（订阅登录或 API key 配置）；Hoplet 不保管，只用 `hoplet doctor` 检查 |
-| 4 | MCP 注入为目标：每个会话一个工具 token，经 MCP 配置注入；提炼任务禁工具。当前并未注入 |
+| 4 | 每个会话一个工具 token，经 MCP 配置注入（`Spec.MCP`，只给声明 `MCPInject` 的适配器）；`Ephemeral` 不注入。会把 MCP 配置存进自己会话的 harness 实现 `PersistsMCP`，token 随会话不变；其余每次启动新签发 |
 | 5 | 未经验证的版本：已有会话只读回放，禁止开新轮次 |
 | 6 | 小任务隔离、禁工具与成长提炼都是目标能力；当前 `Ephemeral` 仅在 Claude 启动时加 `--no-session-persistence`，不等于禁工具或禁原生记忆副作用 |
 
