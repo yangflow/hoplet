@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -49,4 +50,11 @@ func (s *Store) HasSessionToken(ctx context.Context, id proto.SessionID) (bool, 
 		return false, fmt.Errorf("store: token of %s: %w", id, err)
 	}
 	return n > 0, nil
+}
+
+// TokenHash is the stored form of a session token: tokens themselves are
+// never stored.
+func TokenHash(token string) []byte {
+	sum := sha256.Sum256([]byte(token))
+	return sum[:]
 }

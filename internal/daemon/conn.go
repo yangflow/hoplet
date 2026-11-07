@@ -2,7 +2,6 @@ package daemon
 
 import (
 	"context"
-	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/json"
 	"errors"
@@ -161,7 +160,7 @@ func (c *conn) hello(f proto.ClientFrame) bool {
 		err = &proto.APIError{Code: proto.CodeUnauthorized, Message: "session tokens are only for this host"}
 	case p.SessionToken != "":
 		var id proto.SessionID
-		if id, err = c.s.store.SessionByToken(c.ctx, hashToken(p.SessionToken)); err == nil {
+		if id, err = c.s.store.SessionByToken(c.ctx, store.TokenHash(p.SessionToken)); err == nil {
 			c.caller = id
 		} else if errors.Is(err, store.ErrNotFound) {
 			err = &proto.APIError{Code: proto.CodeUnauthorized, Message: "unknown session token"}
@@ -379,10 +378,4 @@ func (c *conn) cancelSub(id uint64) {
 	if cancel, ok := c.subs[id]; ok {
 		cancel()
 	}
-}
-
-// hashToken is the stored form of a session token.
-func hashToken(token string) []byte {
-	sum := sha256.Sum256([]byte(token))
-	return sum[:]
 }

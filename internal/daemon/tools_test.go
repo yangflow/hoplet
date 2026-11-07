@@ -12,6 +12,7 @@ import (
 	"github.com/yangflow/hoplet/internal/frame"
 	"github.com/yangflow/hoplet/internal/harness/fake"
 	"github.com/yangflow/hoplet/internal/home"
+	"github.com/yangflow/hoplet/internal/store"
 	"github.com/yangflow/hoplet/proto"
 )
 
@@ -47,10 +48,10 @@ func TestToolConnections(t *testing.T) {
 	c := dial(t, h, "test")
 	a, b := create(t, c, h), create(t, c, h)
 	now := time.Now()
-	if err := d.store.SetSessionToken(timeout(t), a.ID, hashToken("token-a"), now); err != nil {
+	if err := d.store.SetSessionToken(timeout(t), a.ID, store.TokenHash("token-a"), now); err != nil {
 		t.Fatal(err)
 	}
-	if err := d.store.SetSessionToken(timeout(t), b.ID, hashToken("token-b"), now); err != nil {
+	if err := d.store.SetSessionToken(timeout(t), b.ID, store.TokenHash("token-b"), now); err != nil {
 		t.Fatal(err)
 	}
 

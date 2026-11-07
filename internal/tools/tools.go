@@ -16,6 +16,10 @@ import (
 	"github.com/yangflow/hoplet/proto"
 )
 
+// TokenEnv is the variable that carries a session's token to its tool
+// bridge, only in that MCP server's own environment.
+const TokenEnv = "HOPLET_SESSION_TOKEN" //nolint:gosec // a variable name, not a credential
+
 // Source is what the tools read, the same services the client API uses.
 type Source interface {
 	Sessions(ctx context.Context) ([]proto.Session, error)
