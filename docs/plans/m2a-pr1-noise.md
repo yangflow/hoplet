@@ -2,7 +2,7 @@
 
 > **执行方式：** 按任务顺序执行，每一步用 `- [ ]` 勾选；每个任务结束时 `make check` 通过。本计划按任务列出文件、接口、要测的情况与 commit，代码在实现时写，基于 `9527dae`（#23 合并后）的 `main`。
 
-**目标：** 提供一条与传输无关的加密通道：每个 `HOPLET_HOME` 一把长期身份密钥；在“收发一条消息”的连接上完成 IK（日常）、IKpsk2（配对）、XN（中继注册）三种握手；握手后按帧收发任意长度的数据，并有端到端 ping / pong。PR1 不接入守护进程、不开监听、不改客户端协议。
+**目标：** 提供一条与传输无关的加密通道：每个 `HOPLET_HOME` 一把长期身份密钥；在“收发一条消息”的连接上完成 IK（日常）、IKpsk1（配对）、XN（中继注册）三种握手；握手后按帧收发任意长度的数据，并有端到端 ping / pong。PR1 不接入守护进程、不开监听、不改客户端协议。
 
 **验收（M2a 总计划）：** 握手往返；重放、乱序、篡改、错误 PSK、未知静态公钥均失败；大于 64 KiB 的帧分片往返一致；身份文件权限过宽拒绝。
 
@@ -13,7 +13,7 @@
 ```mermaid
 flowchart LR
     Home["home：私密文件读写<br/>keys/identity 0600"] --> Id["noise.Identity<br/>X25519 · 主机 ID"]
-    Id --> HS["noise.Dial / noise.Accept<br/>IK · IKpsk2 · XN"]
+    Id --> HS["noise.Dial / noise.Accept<br/>IK · IKpsk1 · XN"]
     MC["MsgConn<br/>收发一条消息（PR2 接 WebSocket）"] --> HS
     HS --> Ch["noise.Channel<br/>ReadFrame · WriteFrame · Ping"]
 ```
@@ -21,6 +21,7 @@ flowchart LR
 ## 维护者的裁决（2026-11-07）
 
 1. **哈希用 SHA256。** 套件为 `25519_ChaChaPoly_SHA256`：iOS 的 CryptoKit 自带 Curve25519、ChaChaPoly、SHA256，没有 BLAKE2s；Swift 只需实现 Noise 状态机。0006 与总计划同步改正。
+2. **配对用 IKpsk1（实现中改，2026-11-07）。** IKpsk2 把 PSK 混在响应方的消息末尾，守护进程读第一条消息时验证不了 PSK：会在验证前记下设备、用掉 PSK，知道主机公钥的人发一条消息就能把一次性 PSK 烧掉。IKpsk1 把 PSK 混在第一条消息末尾，守护进程读完即已验证 PSK 与设备公钥。0006 与总计划同步改正。
 
 ## 全局约束
 
@@ -34,13 +35,13 @@ flowchart LR
 
 | 项 | 规则 |
 |---|---|
-| 套件 | `Noise_IK_25519_ChaChaPoly_SHA256`、`Noise_IKpsk2_25519_ChaChaPoly_SHA256`、`Noise_XN_25519_ChaChaPoly_SHA256` |
-| 握手类型 | 发起方第一条消息前加 1 字节类型：`1` 日常 IK、`2` 配对 IKpsk2、`3` 中继注册 XN；未知类型立即失败。路由（直连路径、中继）不必区分握手 |
+| 套件 | `Noise_IK_25519_ChaChaPoly_SHA256`、`Noise_IKpsk1_25519_ChaChaPoly_SHA256`、`Noise_XN_25519_ChaChaPoly_SHA256` |
+| 握手类型 | 发起方第一条消息前加 1 字节类型：`1` 日常 IK、`2` 配对 IKpsk1、`3` 中继注册 XN；未知类型立即失败。路由（直连路径、中继）不必区分握手 |
 | prologue | `hoplet/1` 后接类型字节；版本与类型都绑进握手，被改即握手失败 |
 | 身份 | 32 字节 X25519 私钥，十六进制一行存 `keys/identity`（目录 0700、文件 0600），公钥由私钥推导、不另存 |
 | 主机 ID | `SHA-256(公钥)` 前 16 字节，小写 base32 无填充（26 个字符） |
-| 响应方放行 | IK / IKpsk2 读完第一条消息、XN 读完第三条消息后，用对方静态公钥与首条载荷调用放行函数；拒绝即关闭连接，不回第二条消息 |
-| 首条载荷 | IK 为空；IKpsk2 带发起方的显示名（UTF-8，≤ 64 字节）；XN 为空 |
+| 响应方放行 | IK / IKpsk1 读完第一条消息、XN 读完第三条消息后，用对方静态公钥与首条载荷调用放行函数；拒绝即关闭连接，不回第二条消息。XN 的发起方写完第三条消息就完成握手，被拒只表现为随后连接关闭 |
+| 首条载荷 | IK 为空；IKpsk1 带发起方的显示名（UTF-8，≤ 64 字节）；XN 为空 |
 | PSK | 32 字节；响应方在读第一条消息前从调用方取得 |
 | 握手消息大小 | 每条 ≤ 65535 字节，超出视为失败 |
 | 传输消息 | 一条底层消息 = 一条 Noise 传输消息：密文 = 1 字节标志 + 片段 + 16 字节标签 |
@@ -88,7 +89,7 @@ type Kind byte
 
 const (
 	KindDaily Kind = 1 // Noise IK
-	KindPair  Kind = 2 // Noise IKpsk2
+	KindPair  Kind = 2 // Noise IKpsk1
 	KindRelay Kind = 3 // Noise XN, initiator proves its key to a relay
 )
 
@@ -167,14 +168,14 @@ var (
 - 往返：双方得到对方静态公钥（XN 的发起方没有）；`Allow` 收到正确的类型、公钥与载荷；`Accept` 返回的类型正确。
 - 未知类型字节、`Kinds` 里没有的类型 → `ErrKind`，响应方不回任何消息。
 - IK：发起方用了错误的响应方公钥 → 响应方 `ErrHandshake`；`Allow` 拒绝（未配对 / 已吊销）→ 响应方返回包装了 `Allow` 错误的 `ErrRefused`，发起方读到连接关闭而失败。
-- IKpsk2：PSK 不同 → `ErrHandshake`；`PSK()` 返回 nil（没有进行中的配对）→ `ErrRefused`；载荷超过 64 字节发起方直接报错。
+- IKpsk1：PSK 不同 → `ErrHandshake`；`PSK()` 返回 nil（没有进行中的配对）→ `ErrRefused`；载荷超过 64 字节发起方直接报错。
 - XN：`Allow` 拿到的是发起方公钥；拒绝时返回 `ErrRefused`。
 - prologue：把第一条消息的类型字节从 1 改成 2 后转发 → 失败（不能把日常握手当配对握手接受）。
 - 篡改握手消息任意一个字节 → `ErrHandshake`；截断 → `ErrHandshake`；超过 65535 字节 → `ErrHandshake`。
 - `ctx` 取消或超时时 `Dial` / `Accept` 立即返回并关闭连接，不留 goroutine（不引入新依赖，用 `runtime.NumGoroutine` 前后对比）。
 - 确定的随机源下，同一配置两次握手的消息字节完全相同（为 M2b 生成向量预备，不落盘）。
 
-**commit：** `feat(noise): add IK, IKpsk2 and XN handshakes`
+**commit：** `feat(noise): add IK, IKpsk1 and XN handshakes`
 
 ### 任务 3：通道与帧
 

@@ -25,7 +25,7 @@
 
 | 依赖 | 版本 | 用途 | 引入于 |
 |---|---|---|---|
-| `github.com/flynn/noise` | v1.1.0 | Noise IK / IKpsk2 / XN 握手与传输 | PR1 |
+| `github.com/flynn/noise` | v1.1.0 | Noise IK / IKpsk1 / XN 握手与传输 | PR1 |
 | `golang.org/x/crypto` | v0.58.0 | flynn/noise 的密码原语；中继的 `acme/autocert` | PR1 |
 
 - 加密与认证全在应用层；直连与中继只搬运字节。中继不缓存、不解密、不记录载荷。
@@ -42,7 +42,7 @@
 | 身份密钥 | 每个 `HOPLET_HOME` 一对长期 X25519 密钥，`keys/identity`，0600；守护进程作响应方、本机 CLI 作发起方都用它 |
 | 主机 ID | 公钥 SHA-256 的前 16 字节，小写 base32 无填充；显示名默认系统主机名 |
 | 发起配对 | 主机 B：`hoplet pair` 经本机 API `pairing.start` 让守护进程生成一次性 32 字节 PSK（只存内存，10 分钟，用一次即作废），打印配对码 `hoplet1:` + base64url（主机 ID、主机公钥、路由、PSK、过期时间） |
-| 加入 | 主机 A：`hoplet host add <配对码> [--name]`，以 `Noise_IKpsk2_25519_ChaChaPoly_SHA256` 握手；首条消息载荷带设备名。B 记下 A 的公钥（`devices`），A 记下 B 的公钥、路由与名字（`hosts`） |
+| 加入 | 主机 A：`hoplet host add <配对码> [--name]`，以 `Noise_IKpsk1_25519_ChaChaPoly_SHA256` 握手；首条消息载荷带设备名。B 记下 A 的公钥（`devices`），A 记下 B 的公钥、路由与名字（`hosts`） |
 | 日常连接 | `Noise_IK_25519_ChaChaPoly_SHA256`；守护进程在第一条消息解出发起方公钥后，未配对或已吊销即断开 |
 | prologue | `hoplet/1` 加 1 字节握手类型（日常 / 配对 / 中继注册），版本与类型绑进握手；只有这一个版本 |
 | 吊销 | `hoplet device list / revoke <ID>`；吊销立刻断开该设备的在线连接。`hoplet host list / remove` 管理本机已知的主机 |
@@ -96,7 +96,7 @@ PR4 与 PR1–PR3 互不依赖，可以并行开发。
 
 | PR | 标题 | 主要内容 | 验收 |
 |---|---|---|---|
-| 1 | `feat(noise): add identity keys and Noise channel` | `internal/noise`：身份密钥生成与读取（权限检查）、主机 ID；IK / IKpsk2 / XN 握手封装；分片帧、ping / pong；通道建在“收发一条消息”的接口上 | 握手往返；重放、乱序、篡改、错误 PSK、未知静态公钥均失败；大于 64 KiB 的帧分片往返一致；身份文件权限过宽拒绝 |
+| 1 | `feat(noise): add identity keys and Noise channel` | `internal/noise`：身份密钥生成与读取（权限检查）、主机 ID；IK / IKpsk1 / XN 握手封装；分片帧、ping / pong；通道建在“收发一条消息”的接口上 | 握手往返；重放、乱序、篡改、错误 PSK、未知静态公钥均失败；大于 64 KiB 的帧分片往返一致；身份文件权限过宽拒绝 |
 | 2 | `feat(daemon): pair devices and accept them over Noise` | 存储迁移：`devices`、`hosts`；守护进程连接改建在帧连接上；`pairing.start`、`devices.list / revoke`；`network.listen` 直连监听；`internal/client` 远程拨号；CLI `pair`、`host add/list/remove`、`device list/revoke`、全局 `--host` | 过期或已用过的配对码被拒；本机起两个 `HOPLET_HOME` 的守护进程：配对后经直连跑通一次假 harness 会话；断线后按游标追赶无缺无重；吊销后在线连接立刻断开、重连被拒；未配对公钥被拒 |
 | 3 | `feat(relay): add relay with autocert` | `hoplet relay`、白名单命令；守护进程控制连接（XN）与回拨；客户端经中继拨号；路由顺序、后台探测与切回 | 测试里用本地 TLS 证书起中继：经中继跑通会话；不在白名单的主机注册被拒；中继看到的都是密文；中继重启后守护进程与客户端自动恢复；直连恢复后切回直连且不丢事件 |
 | 4 | `feat(cli): install daemon and relay as Linux services` | `daemon install/uninstall/status` 支持 systemd 用户服务（未开 linger 时提示 `loginctl enable-linger`，不代跑 sudo）；`relay install` 以 root 写系统服务（`AmbientCapabilities=CAP_NET_BIND_SERVICE`）；`doctor` 加身份密钥、监听、中继连通 | Linux 上生成的 unit 文件 golden 一致；未开 linger 有明确提示；macOS 行为不变 |

@@ -7,9 +7,11 @@
 // 25519_ChaChaPoly_SHA256:
 //
 //   - KindDaily, Noise IK: a paired device reaches a host whose key it knows.
-//   - KindPair, Noise IKpsk2: a device pairs with a host using the one-time
+//   - KindPair, Noise IKpsk1: a device pairs with a host using the one-time
 //     secret from a pairing code.
 //   - KindRelay, Noise XN: a host proves its key to a relay that has none.
+//     The host's handshake ends with its own last message, so a relay that
+//     refuses it shows only as the connection closing.
 //
 // The initiator's first message is prefixed with the kind byte, and the
 // prologue is "hoplet/1" followed by the same byte, so the protocol version
