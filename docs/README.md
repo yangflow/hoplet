@@ -57,6 +57,7 @@ flowchart TB
 | [0022 工作区快照与累计 diff](design/0022-workspace-snapshots.md) | 私有快照、基线、响应与资源上限 |
 | [0009 终端](design/0009-terminal.md) | PTY、屏幕与终端输入 |
 | [0012 服务入口与编排](design/0012-orchestration-api.md) | 服务入口、等待、扇出与跨机执行 |
+| [0025 产物](design/0025-artifacts.md) | 版本、发布、查看、页面能力与授权 |
 
 ## Personal 与成长
 

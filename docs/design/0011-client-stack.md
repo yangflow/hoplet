@@ -1,6 +1,6 @@
 # 0011 客户端技术栈
 
-状态：当前设计 · 更新：2026-11-04
+状态：当前设计 · 更新：2026-11-07
 
 ## 范围与现状
 
@@ -32,8 +32,9 @@ flowchart TB
 | 审阅变更 | diff 查看器、代码编辑器 |
 | 终端 | 终端插件（libghostty-vt） |
 | 系统集成 | 通知、托盘、单实例、全局快捷键、自动更新、签名公证、Liquid Glass |
+| HTML 产物 | `ui.WebView`，不可信页面加自定义协议 |
 
-- 不用 webview 模式；纯 Go、无 cgo。
+- 应用界面全部是原生 UI，不做 web 前端；只有 HTML 产物用 `ui.WebView` 嵌在原生界面里，一律按不可信页面加载。纯 Go、无 cgo。
 - 桌面 app 只是客户端：内置 `hoplet`，负责安装 LaunchAgent，守护进程独立运行。
 - 先 macOS，Linux 以后（代码基本现成）。
 
@@ -55,12 +56,13 @@ flowchart TB
 | Share Extension | 任意 app 里分享给 Personal |
 | App Intents / Siri | “让 Personal 帮我……” |
 | 通知扩展 | 解密推送正文 |
+| 产物查看 | SwiftUI `WebView` / `WebPage` 加自定义协议处理器，与桌面同一桥接契约（M2b） |
 
 当前没有 `apple/`、Swift 类型生成器或跨语言向量产物，不能把图中的生成链路视为已实现。
 
 ## 不做
 
-Web 客户端、桌面 webview 模式、Android。
+Web 客户端、web 前端的应用界面、Android。
 
 ## 前置条件
 
