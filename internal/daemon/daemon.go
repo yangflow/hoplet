@@ -60,6 +60,9 @@ type Config struct {
 	Listen string
 	// Routes are the addresses written into pairing codes.
 	Routes []string
+	// Relays are the relays to register with; pairing codes list them,
+	// as RelayConnectPath routes, after Routes.
+	Relays []string
 
 	// lim overrides the protocol limits (tests); zero fields keep defaults.
 	lim limits
@@ -197,7 +200,7 @@ func Start(ctx context.Context, cfg Config) (d *Daemon, err error) {
 	srv := &server{
 		ctx: runCtx, store: st, mgr: mgr, ws: ws, queue: q, sys: sys, token: token,
 		host: host, version: cfg.Version, log: log, lim: cfg.lim.withDefaults(),
-		identity: identity, routes: cfg.Routes, now: now, peers: map[string]map[*conn]struct{}{},
+		identity: identity, routes: pairingRoutes(cfg.Routes, cfg.Relays), now: now, peers: map[string]map[*conn]struct{}{},
 	}
 	d = &Daemon{
 		log: log, lock: lock, store: st, mgr: mgr, ws: ws, srv: srv, queue: q,

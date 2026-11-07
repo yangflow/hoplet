@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -71,10 +72,20 @@ func (p *pairing) open(psk []byte, expires time.Time) {
 	p.psk, p.expires = psk, expires
 }
 
+// pairingRoutes lists the routes a pairing code carries: the direct
+// routes, then each relay's connect URL.
+func pairingRoutes(direct, relays []string) []string {
+	rs := slices.Clone(direct)
+	for _, r := range relays {
+		rs = append(rs, strings.TrimSuffix(r, "/")+proto.RelayConnectPath)
+	}
+	return rs
+}
+
 // startPairing opens a new pairing and returns its code.
 func (s *server) startPairing() (proto.PairingCode, error) {
 	if len(s.routes) == 0 {
-		return proto.PairingCode{}, invalid("no routes to put in a pairing code: set network.routes (and network.listen) in config.toml, then restart the daemon")
+		return proto.PairingCode{}, invalid("no routes to put in a pairing code: set network.routes (with network.listen) or network.relays in config.toml, then restart the daemon")
 	}
 	psk := make([]byte, noise.PSKSize)
 	if _, err := rand.Read(psk); err != nil {

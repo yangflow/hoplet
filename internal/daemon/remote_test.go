@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net"
 	"net/http"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -123,8 +124,24 @@ func TestNoListenerWithoutConfig(t *testing.T) {
 		t.Fatalf("listening on %s without network.listen", a)
 	}
 	c := dial(t, h, "cli")
-	if _, err := c.StartPairing(timeout(t)); apiCode(err) != proto.CodeInvalid || !strings.Contains(err.Error(), "network.routes") {
+	if _, err := c.StartPairing(timeout(t)); apiCode(err) != proto.CodeInvalid || !strings.Contains(err.Error(), "network.routes") || !strings.Contains(err.Error(), "network.relays") {
 		t.Fatalf("pairing without routes: %v", err)
+	}
+}
+
+func TestPairingRoutes(t *testing.T) {
+	for name, tc := range map[string]struct {
+		direct, relays, want []string
+	}{
+		"none":        {nil, nil, nil},
+		"direct only": {[]string{"ws://192.0.2.1:7443"}, nil, []string{"ws://192.0.2.1:7443"}},
+		"relays only": {nil, []string{"wss://r.example", "wss://b.example/"}, []string{"wss://r.example/v1/connect", "wss://b.example/v1/connect"}},
+		"direct first": {[]string{"ws://192.0.2.1:7443"}, []string{"wss://r.example"},
+			[]string{"ws://192.0.2.1:7443", "wss://r.example/v1/connect"}},
+	} {
+		if got := pairingRoutes(tc.direct, tc.relays); !slices.Equal(got, tc.want) {
+			t.Errorf("%s: %q, want %q", name, got, tc.want)
+		}
 	}
 }
 

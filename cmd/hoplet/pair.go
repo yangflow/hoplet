@@ -19,8 +19,9 @@ const pairUsage = `usage: hoplet pair [--json]
 
 Prints a pairing code for this machine. On the other machine, run
 hoplet host add CODE within ten minutes; the code works once, and a new
-hoplet pair replaces it. The code carries network.routes from config.toml:
-set it, and network.listen, first.
+hoplet pair replaces it. The code carries network.routes and
+network.relays from config.toml: set one of them first (network.routes
+with network.listen).
 `
 
 const hostUsage = `usage: hoplet host <command> [flags]

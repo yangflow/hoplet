@@ -104,7 +104,7 @@ func (a app) daemonRun(args []string) int {
 	d, err := daemon.Start(ctx, daemon.Config{
 		Home: *dir, Version: version, Exe: exe, Harnesses: a.harnesses(*dir), Env: src, ProbeURL: a.probeURL,
 		Logger: logger, Maintenance: a.maintenance(*dir, logger),
-		Listen: cfg.Network.Listen, Routes: cfg.Network.Routes,
+		Listen: cfg.Network.Listen, Routes: cfg.Network.Routes, Relays: cfg.Network.Relays,
 	})
 	if err != nil && ctx.Err() != nil {
 		return 0 // stopped by a signal before it began serving
