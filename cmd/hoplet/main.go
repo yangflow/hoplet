@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"flag"
 	"fmt"
@@ -12,6 +13,7 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/yangflow/hoplet/internal/env"
 	"github.com/yangflow/hoplet/internal/harness"
@@ -72,6 +74,12 @@ type app struct {
 	// host, when set, is the paired host session and device commands run
 	// on (--host).
 	host string
+	// relayTLS, when set, is the TLS configuration relays are reached with
+	// instead of the system's (tests trust a test certificate with it).
+	relayTLS *tls.Config
+	// probeEvery, when set, replaces how often `session watch` on a later
+	// route tries the earlier ones (tests).
+	probeEvery time.Duration
 }
 
 func run(args []string, stdout, stderr io.Writer) int {

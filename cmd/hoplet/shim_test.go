@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"os"
 	"os/exec"
@@ -70,6 +72,24 @@ func probeURL() string {
 	return "http://127.0.0.1:1"
 }
 
+// testRelayTLS trusts the certificate in the PEM file HOPLET_TEST_RELAY_CA
+// names, for a test's relay; nil without it.
+func testRelayTLS() *tls.Config {
+	f := os.Getenv("HOPLET_TEST_RELAY_CA")
+	if f == "" {
+		return nil
+	}
+	b, err := os.ReadFile(f)
+	if err != nil {
+		panic(err)
+	}
+	roots := x509.NewCertPool()
+	if !roots.AppendCertsFromPEM(b) {
+		panic("no certificate in " + f)
+	}
+	return &tls.Config{RootCAs: roots, MinVersion: tls.VersionTLS12}
+}
+
 func TestMain(m *testing.M) {
 	if os.Getenv("HOPLET_TEST_MAIN") != "" {
 		a := app{
@@ -77,6 +97,10 @@ func TestMain(m *testing.M) {
 			env:      env.Static{"PATH=" + os.Getenv("PATH"), "LANG=en_US.UTF-8", "HOPLET_TEST_MAIN=1"},
 			probeURL: probeURL(),
 			agents:   fakeAgents, allowTempBinary: true,
+			relayTLS: testRelayTLS(),
+		}
+		if d, err := time.ParseDuration(os.Getenv("HOPLET_TEST_PROBE_EVERY")); err == nil {
+			a.probeEvery = d
 		}
 		hs := map[string]harness.Harness{}
 		if bin := os.Getenv("HOPLET_TEST_FAKE"); bin != "" {

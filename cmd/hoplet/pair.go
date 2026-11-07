@@ -128,7 +128,7 @@ func (a app) hostAdd(args []string) int {
 			return err
 		}
 		hostname, _ := os.Hostname()
-		r := client.Remote{Routes: code.Routes, HostKey: code.Key, Identity: id}
+		r := client.Remote{Routes: code.Routes, HostKey: code.Key, Identity: id, TLS: a.relayTLS}
 		rc, err := client.Pair(ctx, r, code.PSK, pair.DisplayName(hostname))
 		if err != nil {
 			return err

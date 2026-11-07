@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -283,13 +284,19 @@ func (a app) sessionWatch(args []string) int {
 			return err
 		}
 		w := watcher{a: a, id: id, last: *after, asJSON: *asJSON}
-		defer func() { _ = c.Close() }() // the latest connection
+		if a.host != "" {
+			if w.remote, err = a.remote(ctx); err != nil {
+				return err
+			}
+		}
 		for {
-			err := w.follow(ctx, c)
+			c, err = w.follow(ctx, c)
 			if ctx.Err() != nil {
+				_ = c.Close()
 				return nil // interrupted
 			}
 			if _, ok := errors.AsType[*proto.APIError](err); ok {
+				_ = c.Close()
 				return err
 			}
 			fmt.Fprintf(a.stderr, "hoplet session watch: disconnected: %v\n", err)
@@ -302,6 +309,10 @@ func (a app) sessionWatch(args []string) int {
 	})
 }
 
+// probeEvery is how often a watch on a later route of a host tries the
+// earlier ones.
+const probeEvery = time.Minute
+
 // watcher prints one session's events, remembering the last it printed so
 // a new subscription continues after it.
 type watcher struct {
@@ -309,38 +320,128 @@ type watcher struct {
 	id     proto.SessionID
 	last   uint64
 	asJSON bool
+	// remote is how to reach the host when the watch is on another host;
+	// its routes are the ones a probe tries.
+	remote client.Remote
 }
 
 // follow subscribes on c and prints events until the subscription ends.
-func (w *watcher) follow(ctx context.Context, c *client.Client) error {
+// While c is on a later route, it tries the earlier ones every probeEvery
+// and moves to the first that answers: it subscribes there after the last
+// event printed, then closes c. It returns the connection in use.
+func (w *watcher) follow(ctx context.Context, c *client.Client) (*client.Client, error) {
 	sub, err := c.SubscribeSession(ctx, proto.SessionParams{Session: w.id, AfterSeq: w.last})
 	if err != nil {
-		return err
+		return c, err
 	}
+	p := w.probe(ctx, c.Route())
+	defer func() { p.stop() }()
 	for {
 		var it proto.SessionItem
-		if err := sub.Next(ctx, &it); err != nil {
-			return err
-		}
-		evs := it.Events
-		if it.Snapshot != nil {
-			evs = it.Snapshot.Events
-		}
-		// A snapshot may repeat what was printed before a reconnect.
-		evs = slices.DeleteFunc(slices.Clone(evs), func(ev proto.Event) bool { return ev.Seq <= w.last })
-		if it.Snapshot != nil && (len(evs) > 0 && evs[0].Seq > w.last+1 || len(evs) == 0 && it.Snapshot.More) {
-			fmt.Fprintln(w.a.stderr, "(earlier events not shown)")
-		}
-		for _, ev := range evs {
-			if w.asJSON {
-				if err := writeJSONLine(w.a.stdout, ev); err != nil {
-					return err
-				}
-			} else if line := render(ev); line != "" {
-				fmt.Fprintln(w.a.stdout, line)
+		err := sub.Next(p.ctx, &it)
+		if err != nil && ctx.Err() == nil && p.ctx.Err() != nil {
+			// A probe reached an earlier route.
+			to := p.take()
+			if next, err := to.SubscribeSession(ctx, proto.SessionParams{Session: w.id, AfterSeq: w.last}); err == nil {
+				_ = c.Close()
+				c, sub = to, next
+				fmt.Fprintf(w.a.stderr, "hoplet session watch: switched to %s\n", c.Route())
+			} else {
+				_ = to.Close()
 			}
-			w.last = ev.Seq
+			p = w.probe(ctx, c.Route())
+			continue
 		}
+		if err != nil {
+			return c, err
+		}
+		if err := w.print(it); err != nil {
+			return c, err
+		}
+	}
+}
+
+// print writes the events of it that come after the last one printed.
+func (w *watcher) print(it proto.SessionItem) error {
+	evs := it.Events
+	if it.Snapshot != nil {
+		evs = it.Snapshot.Events
+	}
+	// A snapshot may repeat what was printed before a reconnect.
+	evs = slices.DeleteFunc(slices.Clone(evs), func(ev proto.Event) bool { return ev.Seq <= w.last })
+	if it.Snapshot != nil && (len(evs) > 0 && evs[0].Seq > w.last+1 || len(evs) == 0 && it.Snapshot.More) {
+		fmt.Fprintln(w.a.stderr, "(earlier events not shown)")
+	}
+	for _, ev := range evs {
+		if w.asJSON {
+			if err := writeJSONLine(w.a.stdout, ev); err != nil {
+				return err
+			}
+		} else if line := render(ev); line != "" {
+			fmt.Fprintln(w.a.stdout, line)
+		}
+		w.last = ev.Seq
+	}
+	return nil
+}
+
+// prober tries a host's earlier routes in the background. Its ctx ends,
+// besides with the watch, when a route answered; take returns that
+// connection.
+type prober struct {
+	ctx    context.Context
+	cancel context.CancelFunc
+	done   chan struct{}
+	found  chan *client.Client
+}
+
+// probe starts trying the routes before route, if there are any.
+func (w *watcher) probe(ctx context.Context, route string) *prober {
+	pctx, cancel := context.WithCancel(ctx)
+	p := &prober{ctx: pctx, cancel: cancel, done: make(chan struct{}), found: make(chan *client.Client, 1)}
+	i := slices.Index(w.remote.Routes, route)
+	if i <= 0 {
+		close(p.done)
+		return p
+	}
+	r := w.remote
+	r.Routes = r.Routes[:i]
+	every := cmp.Or(w.a.probeEvery, probeEvery)
+	go func() {
+		defer close(p.done)
+		t := time.NewTicker(every)
+		defer t.Stop()
+		for {
+			select {
+			case <-pctx.Done():
+				return
+			case <-t.C:
+			}
+			// A failed probe changes nothing and prints nothing.
+			if c, err := client.DialRemote(pctx, r); err == nil {
+				p.found <- c
+				cancel()
+				return
+			}
+		}
+	}()
+	return p
+}
+
+// take returns the connection a probe made.
+func (p *prober) take() *client.Client {
+	<-p.done
+	return <-p.found
+}
+
+// stop ends the probing and closes a connection it made and nobody took.
+func (p *prober) stop() {
+	p.cancel()
+	<-p.done
+	select {
+	case c := <-p.found:
+		_ = c.Close()
+	default:
 	}
 }
 

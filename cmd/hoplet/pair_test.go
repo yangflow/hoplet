@@ -236,7 +236,11 @@ func TestPairAndReachAHost(t *testing.T) {
 	}
 
 	// B revokes A by a prefix: A's connections end and new ones fail.
-	held, err := dialHost(ctx, a, "b")
+	rem, err := hostRemote(ctx, a, "b")
+	if err != nil {
+		t.Fatal(err)
+	}
+	held, err := client.DialRemote(ctx, rem)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -338,14 +342,42 @@ func (w *watch) stop(t *testing.T) string {
 
 // syncBuffer is a bytes.Buffer a process writes while the test reads it.
 type syncBuffer struct {
-	mu sync.Mutex
-	b  bytes.Buffer
+	mu      sync.Mutex
+	b       bytes.Buffer
+	changed chan struct{}
 }
 
 func (s *syncBuffer) Write(p []byte) (int, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.changed != nil {
+		close(s.changed)
+		s.changed = nil
+	}
 	return s.b.Write(p)
+}
+
+// wait returns once the buffer holds text.
+func (s *syncBuffer) wait(t *testing.T, text string) {
+	t.Helper()
+	timeout := time.After(30 * time.Second)
+	for {
+		s.mu.Lock()
+		if strings.Contains(s.b.String(), text) {
+			s.mu.Unlock()
+			return
+		}
+		if s.changed == nil {
+			s.changed = make(chan struct{})
+		}
+		changed := s.changed
+		s.mu.Unlock()
+		select {
+		case <-changed:
+		case <-timeout:
+			t.Fatalf("waited for %q in:\n%s", text, s)
+		}
+	}
 }
 
 func (s *syncBuffer) String() string {
