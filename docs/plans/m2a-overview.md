@@ -118,3 +118,4 @@ PR4 与 PR1–PR3 互不依赖，可以并行开发。
 - [PR1：身份密钥与 Noise 通道](m2a-pr1-noise.md)
 - [PR2：配对与直连](m2a-pr2-pair-direct.md)
 - [PR3：中继](m2a-pr3-relay.md)
+- [PR4：Linux 服务与 doctor](m2a-pr4-linux.md)
