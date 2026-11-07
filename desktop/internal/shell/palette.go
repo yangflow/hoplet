@@ -2,6 +2,7 @@ package shell
 
 import (
 	"cmp"
+	"maps"
 	"path"
 	"slices"
 	"strconv"
@@ -217,6 +218,42 @@ func (a *App) paletteFiles(s proto.Session) (files []paletteEntry, truncated boo
 	return files, fp.list.Truncated
 }
 
+// pickFiles are the files the palette offers in the files scope before
+// anything is typed: the right panel's open files in tab order, then the
+// ones the session changed that are not open, deleted ones left out.
+func (a *App) pickFiles(s proto.Session) []paletteGroup {
+	entry := func(p string) paletteHit {
+		dir := path.Dir(p)
+		if dir == "." {
+			dir = ""
+		}
+		return paletteHit{paletteEntry: paletteEntry{file: p, title: path.Base(p), where: dir,
+			run: func() { a.openFromPalette(s.ID, p) }}}
+	}
+	var open, changed []paletteHit
+	seen := map[string]bool{}
+	for _, t := range a.panelFor(s.ID).tabs {
+		if t.path != "" && !seen[t.path] {
+			seen[t.path] = true
+			open = append(open, entry(t.path))
+		}
+	}
+	marks, _ := changedMarks(a.diff(s))
+	for _, p := range slices.Sorted(maps.Keys(marks)) {
+		if !seen[p] && marks[p] != "D" {
+			changed = append(changed, entry(p))
+		}
+	}
+	var gs []paletteGroup
+	if len(open) > 0 {
+		gs = append(gs, paletteGroup{label: "已打开", rows: open})
+	}
+	if len(changed) > 0 {
+		gs = append(gs, paletteGroup{label: "有改动", rows: changed})
+	}
+	return gs
+}
+
 // openFromPalette opens a file in a tab of the right panel, bringing the
 // panel forward.
 func (a *App) openFromPalette(id proto.SessionID, p string) {
@@ -316,10 +353,15 @@ func (a *App) palette(c *ui.Context, k theme.Colors) {
 	query := strings.TrimSpace(a.s.palQuery)
 	var files []paletteEntry
 	truncated := false
-	if code && (a.s.palScope == scopeFiles || a.s.palScope == scopeAll && query != "") {
-		files, truncated = a.paletteFiles(s)
+	var groups []paletteGroup
+	if code && a.s.palScope == scopeFiles && query == "" {
+		groups = a.pickFiles(s)
+	} else {
+		if code && (a.s.palScope == scopeFiles || a.s.palScope == scopeAll && query != "") {
+			files, truncated = a.paletteFiles(s)
+		}
+		groups = paletteResults(a.paletteSessions(), a.paletteCommands(), files, []string{"新建会话", "收件箱", "切到 Personal", "切到 Code"}, a.s.palQuery, a.s.palScope)
 	}
-	groups := paletteResults(a.paletteSessions(), a.paletteCommands(), files, []string{"新建会话", "收件箱", "切到 Personal", "切到 Code"}, a.s.palQuery, a.s.palScope)
 	var flat []paletteHit
 	for _, g := range groups {
 		flat = append(flat, g.rows...)
@@ -335,7 +377,11 @@ func (a *App) palette(c *ui.Context, k theme.Colors) {
 		k.ShadowPopover.On(panel)
 		// The query, then its scope: all, sessions, commands or files (⌘1–4).
 		theme.ItemRow.H(theme.BarCompact).P(0, theme.Space4).On(ui.Row(c)).BorderWidth(0, 0, theme.LineWidth, 0).BorderColor(k.Line).Children(func() {
-			in := ui.SearchField(c, &a.s.palQuery).Placeholder("搜索会话和命令…").Label("搜索").AutoFocus().Grow(1).
+			placeholder := "搜索会话和命令…"
+			if a.s.palScope == scopeFiles {
+				placeholder = "搜索文件…"
+			}
+			in := ui.SearchField(c, &a.s.palQuery).Placeholder(placeholder).Label("搜索").AutoFocus().Grow(1).
 				FontSize(theme.Title.Size()).Background(ui.Transparent).Border(0, ui.Transparent)
 			if in.Changed() {
 				a.s.palSel = 0
@@ -343,21 +389,19 @@ func (a *App) palette(c *ui.Context, k theme.Colors) {
 			if in.Submitted() && len(flat) > 0 {
 				run(flat[a.s.palSel])
 			}
-			in.OnTextKey(func(key ui.TextKey) bool {
-				switch {
-				case key.Mods == ui.Cmd && key.Key >= ui.Key1 && int(key.Key-ui.Key1) < len(scopes):
-					a.s.palScope, a.s.palSel = paletteScope(key.Key-ui.Key1), 0
-				case key.Mods != 0:
-					return false
-				case key.Key == ui.KeyUp:
-					a.s.palSel = max(a.s.palSel-1, 0)
-				case key.Key == ui.KeyDown:
-					a.s.palSel = min(a.s.palSel+1, max(len(flat)-1, 0))
-				default:
-					return false
+			// The field holds the focus, so its shortcuts come before the
+			// window's: ⌘1–4 pick the scope rather than the mode.
+			for i := range scopes {
+				if in.Shortcut(ui.Cmd, ui.Key1+ui.Key(i)) {
+					a.s.palScope, a.s.palSel = paletteScope(i), 0
 				}
-				return true
-			})
+			}
+			if in.Shortcut(0, ui.KeyUp) {
+				a.s.palSel = max(a.s.palSel-1, 0)
+			}
+			if in.Shortcut(0, ui.KeyDown) {
+				a.s.palSel = min(a.s.palSel+1, max(len(flat)-1, 0))
+			}
 			for i, label := range scopes {
 				on := a.s.palScope == paletteScope(i)
 				t := theme.Control.P(0, theme.Space2).On(ui.Row(c.Key(label))).Radius(theme.RadiusControl).Label(label)
@@ -382,7 +426,7 @@ func (a *App) palette(c *ui.Context, k theme.Colors) {
 				switch {
 				case len(flat) > 0:
 				case query == "":
-					return // the files scope before anything is typed
+					return // the files scope with no open or changed files
 				case a.s.palScope == scopeFiles:
 					theme.UI.On(ui.Text(c, "没有匹配的文件")).TextColor(k.Muted).Padding(theme.Space3, theme.Space2)
 					return
@@ -406,7 +450,7 @@ func (a *App) palette(c *ui.Context, k theme.Colors) {
 				}
 				if truncated {
 					theme.ItemRow.H(theme.RowDense).On(ui.Row(c.Key("truncated"))).Margin(theme.Space2, 0, 0, 0).Children(func() {
-						theme.Secondary.On(ui.Text(c, "只搜索了前 "+strconv.Itoa(len(files))+" 个文件")).TextColor(k.Muted)
+						theme.Caption.On(ui.Text(c, "只搜索了前 "+strconv.Itoa(len(files))+" 个文件")).TextColor(k.Muted)
 					})
 				}
 			})

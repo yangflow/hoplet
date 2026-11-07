@@ -178,6 +178,63 @@ func TestPaletteFindsFiles(t *testing.T) {
 	}
 }
 
+// Before anything is typed, ⌘P offers the open files in tab order, then
+// the changed ones that are not open; ↩ opens the one chosen. It reads the full
+// list only once something is typed. With neither, it offers nothing; ⌘1
+// there picks the scope, not the mode.
+func TestPalettePicksFiles(t *testing.T) {
+	a, h, tt, _ := newApp(t)
+	h.diffs = map[proto.SessionID]proto.SessionDiff{"s1": changedDiff("a1")}
+	a.Select("s1")
+	settle(tt)
+	a.openFile(a.panelFor("s1"), "notes.md")
+	a.openFile(a.panelFor("s1"), "docs/plan.md")
+	tt.Key(ui.Cmd, ui.KeyP)
+	settle(tt)
+	texts := tt.Texts()
+	order := []string{"已打开", "notes.md", "plan.md", "有改动", "bridge.go"}
+	at := 0
+	for i, s := range texts {
+		if at < len(order) && s == order[at] {
+			at++
+		}
+		if s == "有改动" && slices.Contains(texts[i:], "notes.md") {
+			t.Errorf("notes.md is open, yet among the changed: %q", texts[i:])
+		}
+	}
+	if at < len(order) {
+		t.Fatalf("want %q in order in %q", order, texts)
+	}
+	if tt.HasText("搜索会话和命令…") {
+		t.Errorf("placeholder in the files scope: %q", texts)
+	}
+	for _, p := range h.listed {
+		if p.All {
+			t.Errorf("read every file before anything was typed: %+v", p)
+		}
+	}
+	tt.Key(0, ui.KeyDown)
+	tt.Frame()
+	tt.Key(0, ui.KeyEnter)
+	settle(tt)
+	if ps := a.panelFor("s1"); a.s.palOpen || ps.tabs[ps.active].path != "docs/plan.md" {
+		t.Fatalf("↩: palette %v, tabs %v at %d", a.s.palOpen, ps.tabs, ps.active)
+	}
+
+	a.Select("s4")
+	settle(tt)
+	tt.Key(ui.Cmd, ui.KeyP)
+	settle(tt)
+	if !a.s.palOpen || tt.HasText("已打开") || tt.HasText("有改动") {
+		t.Errorf("nothing open or changed: open %v in %q", a.s.palOpen, tt.Texts())
+	}
+	tt.Key(ui.Cmd, ui.Key1)
+	tt.Frame()
+	if a.s.palScope != scopeAll || a.mode != proto.ModeCode {
+		t.Errorf("⌘1 in the palette: scope %v, mode %v", a.s.palScope, a.mode)
+	}
+}
+
 // ⌘K finds a session by part of its title and opens it; a command runs
 // from the commands scope; esc closes.
 func TestPalette(t *testing.T) {
