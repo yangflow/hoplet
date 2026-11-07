@@ -4,7 +4,7 @@
 
 ## 范围与现状
 
-范围：视觉 token、文字、图标、动效和 MyGO 组件映射。布局与交互见 [0024](0024-desktop-layout.md)。
+范围：视觉 token、文字、图标、动效和 MyGO 组件映射；页面布局与交互不在本文。
 
 ```mermaid
 flowchart LR
