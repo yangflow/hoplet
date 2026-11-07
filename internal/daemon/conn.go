@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/json"
 	"errors"
@@ -11,6 +12,7 @@ import (
 	"time"
 
 	"github.com/yangflow/hoplet/internal/frame"
+	"github.com/yangflow/hoplet/internal/store"
 	"github.com/yangflow/hoplet/proto"
 )
 
@@ -32,6 +34,9 @@ type conn struct {
 	// is set by hello, before any request is handled.
 	remote bool
 	device string
+	// caller is set by a hello with a session token: the connection is
+	// that session's tool bridge and may call only the tools methods.
+	caller proto.SessionID
 
 	outMu    sync.Mutex
 	out      [][]byte // frames waiting for the writer
@@ -115,6 +120,10 @@ func (c *conn) read() {
 			c.fail(errors.New("daemon: a request needs an id and a method"))
 			return
 		}
+		if c.caller != "" && f.Method != proto.MethodToolsList && f.Method != proto.MethodToolsCall {
+			c.respond(f.ID, nil, &proto.APIError{Code: proto.CodeUnauthorized, Message: "a session's tool connection may call only the tools methods"})
+			continue
+		}
 		var sub *subscription
 		if f.Method == proto.MethodSubscribeCatalog || f.Method == proto.MethodSubscribeSession {
 			// Registered here, not in the handler: a cancel that follows
@@ -148,6 +157,15 @@ func (c *conn) hello(f proto.ClientFrame) bool {
 	case p.ProtocolMajor != proto.ProtocolMajor:
 		err = &proto.APIError{Code: proto.CodeVersion, Message: fmt.Sprintf(
 			"the daemon speaks protocol %d, the client %d; upgrade the older one", proto.ProtocolMajor, p.ProtocolMajor)}
+	case p.SessionToken != "" && c.remote:
+		err = &proto.APIError{Code: proto.CodeUnauthorized, Message: "session tokens are only for this host"}
+	case p.SessionToken != "":
+		var id proto.SessionID
+		if id, err = c.s.store.SessionByToken(c.ctx, hashToken(p.SessionToken)); err == nil {
+			c.caller = id
+		} else if errors.Is(err, store.ErrNotFound) {
+			err = &proto.APIError{Code: proto.CodeUnauthorized, Message: "unknown session token"}
+		}
 	case c.remote:
 		// The handshake authenticated the device; token and device ID are
 		// not used.
@@ -165,7 +183,7 @@ func (c *conn) hello(f proto.ClientFrame) bool {
 		_ = c.fc.Shutdown()
 		return false
 	}
-	if !c.remote {
+	if !c.remote && c.caller == "" {
 		c.device = p.DeviceID
 	}
 	c.authed.Store(true)
@@ -361,4 +379,10 @@ func (c *conn) cancelSub(id uint64) {
 	if cancel, ok := c.subs[id]; ok {
 		cancel()
 	}
+}
+
+// hashToken is the stored form of a session token.
+func hashToken(token string) []byte {
+	sum := sha256.Sum256([]byte(token))
+	return sum[:]
 }

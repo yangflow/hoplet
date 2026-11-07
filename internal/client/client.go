@@ -34,6 +34,9 @@ type Options struct {
 	Socket   string
 	Token    string
 	DeviceID string
+	// SessionToken, when set, makes the connection a session's tool
+	// connection; Token and DeviceID are then not sent.
+	SessionToken string
 }
 
 // HomeOptions returns the options for the daemon of a home directory.
@@ -82,9 +85,11 @@ func Dial(ctx context.Context, o Options) (*Client, error) {
 		return nil, fmt.Errorf("client: dial %s: %w", o.Socket, err)
 	}
 	ws.SetReadLimit(readLimit)
-	return start(ctx, frame.WebSocket(ws), proto.HelloParams{
-		ProtocolMajor: proto.ProtocolMajor, DeviceID: o.DeviceID, Token: o.Token,
-	})
+	hello := proto.HelloParams{ProtocolMajor: proto.ProtocolMajor, DeviceID: o.DeviceID, Token: o.Token}
+	if o.SessionToken != "" {
+		hello = proto.HelloParams{ProtocolMajor: proto.ProtocolMajor, SessionToken: o.SessionToken}
+	}
+	return start(ctx, frame.WebSocket(ws), hello)
 }
 
 // start runs a client on fc and says hello.

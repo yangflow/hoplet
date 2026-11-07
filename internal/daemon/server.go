@@ -8,6 +8,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/yangflow/hoplet/internal/tools"
+
 	"github.com/coder/websocket"
 
 	"github.com/yangflow/hoplet/internal/frame"
@@ -95,6 +97,7 @@ type server struct {
 	ws      *workspace.Service
 	queue   *queuer
 	sys     *system
+	tools   *tools.Set
 	token   string
 	host    string
 	version string

@@ -142,7 +142,20 @@ func (c *conn) call(ctx context.Context, f proto.ClientFrame) (any, error) {
 		if err := decode(f, &p); err != nil {
 			return nil, err
 		}
-		return c.sessionState(ctx, p.Session)
+		return sessionState(ctx, s.store, p.Session)
+	case proto.MethodToolsList, proto.MethodToolsCall:
+		caller, err := c.toolCaller(ctx)
+		if err != nil {
+			return nil, err
+		}
+		if f.Method == proto.MethodToolsList {
+			return proto.ToolsListResult{Tools: s.tools.List(caller)}, nil
+		}
+		var p proto.ToolsCallParams
+		if err := decode(f, &p); err != nil {
+			return nil, err
+		}
+		return s.tools.Call(ctx, caller, p.Name, p.Arguments)
 	case proto.MethodSessionsDiff:
 		var p proto.DiffParams
 		if err := decode(f, &p); err != nil {
@@ -324,8 +337,7 @@ func apiError(err error) *proto.APIError {
 // give a mixed view (for example status waiting with nothing pending). That
 // is acceptable for a status view, which the next call corrects, and
 // nothing acts on it.
-func (c *conn) sessionState(ctx context.Context, id proto.SessionID) (proto.SessionState, error) {
-	st := c.s.store
+func sessionState(ctx context.Context, st *store.Store, id proto.SessionID) (proto.SessionState, error) {
 	sess, err := st.Session(ctx, id)
 	if err != nil {
 		return proto.SessionState{}, err
@@ -343,4 +355,31 @@ func (c *conn) sessionState(ctx context.Context, id proto.SessionID) (proto.Sess
 		out.Pending = append(out.Pending, p.Request)
 	}
 	return out, nil
+}
+
+// toolCaller is the session a tool connection acts for, read afresh so
+// that a session archived since hello no longer calls tools.
+func (c *conn) toolCaller(ctx context.Context) (proto.Session, error) {
+	if c.caller == "" {
+		return proto.Session{}, &proto.APIError{Code: proto.CodeUnauthorized, Message: "tools are only for a session's tool connection"}
+	}
+	sess, err := c.s.store.Session(ctx, c.caller)
+	if err != nil {
+		return proto.Session{}, err
+	}
+	if sess.ArchivedAt != nil {
+		return proto.Session{}, &proto.APIError{Code: proto.CodeUnauthorized, Message: "the session is archived"}
+	}
+	return sess, nil
+}
+
+// toolSource gives the tools the same reads the client API makes.
+type toolSource struct{ store *store.Store }
+
+func (t toolSource) Sessions(ctx context.Context) ([]proto.Session, error) {
+	return t.store.Sessions(ctx)
+}
+
+func (t toolSource) State(ctx context.Context, id proto.SessionID) (proto.SessionState, error) {
+	return sessionState(ctx, t.store, id)
 }

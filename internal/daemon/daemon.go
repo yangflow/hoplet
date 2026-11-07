@@ -23,6 +23,7 @@ import (
 	"github.com/yangflow/hoplet/internal/noise"
 	"github.com/yangflow/hoplet/internal/session"
 	"github.com/yangflow/hoplet/internal/store"
+	"github.com/yangflow/hoplet/internal/tools"
 	"github.com/yangflow/hoplet/internal/workspace"
 	"github.com/yangflow/hoplet/proto"
 )
@@ -208,7 +209,7 @@ func Start(ctx context.Context, cfg Config) (d *Daemon, err error) {
 	runCtx, cancel := context.WithCancel(context.Background())
 	q := &queuer{store: st, mgr: mgr, log: log, locks: map[proto.SessionID]*sync.Mutex{}, waiting: map[proto.SessionID]bool{}}
 	srv := &server{
-		ctx: runCtx, store: st, mgr: mgr, ws: ws, queue: q, sys: sys, token: token,
+		ctx: runCtx, store: st, mgr: mgr, ws: ws, queue: q, sys: sys, token: token, tools: tools.New(toolSource{st}),
 		host: host, version: cfg.Version, log: log, lim: cfg.lim.withDefaults(),
 		identity: identity, routes: pairingRoutes(cfg.Routes, cfg.Relays), now: now, peers: map[string]map[*conn]struct{}{},
 	}
