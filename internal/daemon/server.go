@@ -10,6 +10,7 @@ import (
 
 	"github.com/coder/websocket"
 
+	"github.com/yangflow/hoplet/internal/frame"
 	"github.com/yangflow/hoplet/internal/session"
 	"github.com/yangflow/hoplet/internal/store"
 	"github.com/yangflow/hoplet/internal/workspace"
@@ -123,7 +124,7 @@ func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer s.conns.Done()
 	s.active.Add(1)
 	defer s.active.Add(-1)
-	newConn(s, ws).serve()
+	newConn(s, frame.WebSocket(ws)).serve()
 }
 
 // wait refuses new connections and waits for every connection to end;

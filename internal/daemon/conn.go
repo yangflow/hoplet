@@ -10,8 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/coder/websocket"
-
+	"github.com/yangflow/hoplet/internal/frame"
 	"github.com/yangflow/hoplet/proto"
 )
 
@@ -23,7 +22,7 @@ var (
 // conn is one client connection.
 type conn struct {
 	s      *server
-	ws     *websocket.Conn
+	fc     frame.Conn
 	ctx    context.Context
 	cancel context.CancelCauseFunc
 
@@ -41,9 +40,9 @@ type conn struct {
 	work sync.WaitGroup // request handlers, subscriptions included
 }
 
-func newConn(s *server, ws *websocket.Conn) *conn {
+func newConn(s *server, fc frame.Conn) *conn {
 	ctx, cancel := context.WithCancelCause(s.ctx)
-	return &conn{s: s, ws: ws, ctx: ctx, cancel: cancel, outWake: make(chan struct{}, 1), subs: map[uint64]context.CancelFunc{}}
+	return &conn{s: s, fc: fc, ctx: ctx, cancel: cancel, outWake: make(chan struct{}, 1), subs: map[uint64]context.CancelFunc{}}
 }
 
 // serve runs the connection until the client leaves, the connection fails
@@ -69,7 +68,7 @@ func (c *conn) serve() {
 	c.cancel(context.Canceled)
 	c.work.Wait()
 	bg.Wait()
-	_ = c.ws.CloseNow()
+	_ = c.fc.Close()
 }
 
 // fail ends the connection abruptly; the client reconnects and catches up
@@ -77,13 +76,13 @@ func (c *conn) serve() {
 func (c *conn) fail(err error) {
 	c.s.log.Info("closing connection", "err", err)
 	c.cancel(err)
-	_ = c.ws.CloseNow()
+	_ = c.fc.Close()
 }
 
 // read handles incoming frames until the connection ends.
 func (c *conn) read() {
 	for {
-		_, data, err := c.ws.Read(c.ctx)
+		data, err := c.fc.ReadFrame(c.ctx)
 		if err != nil {
 			return
 		}
@@ -155,8 +154,8 @@ func (c *conn) hello(f proto.ClientFrame) bool {
 		b, _ := json.Marshal(proto.ServerFrame{ID: f.ID, Error: apiError(err)})
 		ctx, cancel := context.WithTimeout(c.ctx, 5*time.Second)
 		defer cancel()
-		_ = c.ws.Write(ctx, websocket.MessageText, b)
-		_ = c.ws.Close(websocket.StatusPolicyViolation, "hello refused")
+		_ = c.fc.WriteFrame(ctx, b)
+		_ = c.fc.Shutdown()
 		return false
 	}
 	c.device = p.DeviceID
@@ -250,7 +249,7 @@ func (c *conn) write() {
 		c.out = c.out[1:]
 		c.outBytes -= int64(len(b))
 		c.outMu.Unlock()
-		if err := c.ws.Write(c.ctx, websocket.MessageText, b); err != nil {
+		if err := c.fc.WriteFrame(c.ctx, b); err != nil {
 			c.cancel(err)
 			return
 		}
@@ -268,7 +267,7 @@ func (c *conn) heartbeat() {
 		case <-t.C:
 		}
 		ctx, cancel := context.WithTimeout(c.ctx, c.s.lim.pingTimeout)
-		err := c.ws.Ping(ctx)
+		err := c.fc.Ping(ctx)
 		cancel()
 		if err != nil {
 			if c.ctx.Err() == nil {
