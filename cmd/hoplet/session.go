@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os/signal"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -43,6 +44,9 @@ the changed files with line counts). --repo limits it to one repository, by
 its path under the directory. Hoplet writes nothing to your repositories; it
 keeps its own copy of their content (raw bytes, no filters) under its home
 directory.
+
+watch follows the session until interrupted; after a lost connection it
+reconnects and continues after the last event it printed.
 
 wait conditions: idle (no turn running and nothing queued), blocked
 (an approval, a question or a failed queued message waits on you), done
@@ -112,7 +116,7 @@ func (a app) withClientTimeout(name string, timeout time.Duration, timedOut stri
 		defer cancel()
 	}
 	expired := func() bool { return timedOut != "" && errors.Is(ctx.Err(), context.DeadlineExceeded) }
-	c, err := connect(ctx)
+	c, err := a.connect(ctx)
 	if err != nil {
 		if expired() {
 			fmt.Fprintf(a.stderr, "hoplet %s: %s\n", name, timedOut)
@@ -278,36 +282,97 @@ func (a app) sessionWatch(args []string) int {
 		if err != nil {
 			return err
 		}
-		sub, err := c.SubscribeSession(ctx, proto.SessionParams{Session: id, AfterSeq: *after})
-		if err != nil {
-			return err
-		}
+		w := watcher{a: a, id: id, last: *after, asJSON: *asJSON}
+		defer func() { _ = c.Close() }() // the latest connection
 		for {
-			var it proto.SessionItem
-			if err := sub.Next(ctx, &it); err != nil {
-				if ctx.Err() != nil {
-					return nil // interrupted
-				}
+			err := w.follow(ctx, c)
+			if ctx.Err() != nil {
+				return nil // interrupted
+			}
+			if _, ok := errors.AsType[*proto.APIError](err); ok {
 				return err
 			}
-			evs := it.Events
-			if it.Snapshot != nil {
-				evs = it.Snapshot.Events
-				if it.Snapshot.More {
-					fmt.Fprintln(a.stderr, "(earlier events not shown)")
-				}
+			fmt.Fprintf(a.stderr, "hoplet session watch: disconnected: %v\n", err)
+			_ = c.Close()
+			if c, err = a.redial(ctx); err != nil {
+				return nil // interrupted while waiting
 			}
-			for _, ev := range evs {
-				if *asJSON {
-					if err := writeJSONLine(a.stdout, ev); err != nil {
-						return err
-					}
-				} else if line := render(ev); line != "" {
-					fmt.Fprintln(a.stdout, line)
-				}
-			}
+			fmt.Fprintln(a.stderr, "hoplet session watch: reconnected")
 		}
 	})
+}
+
+// watcher prints one session's events, remembering the last it printed so
+// a new subscription continues after it.
+type watcher struct {
+	a      app
+	id     proto.SessionID
+	last   uint64
+	asJSON bool
+}
+
+// follow subscribes on c and prints events until the subscription ends.
+func (w *watcher) follow(ctx context.Context, c *client.Client) error {
+	sub, err := c.SubscribeSession(ctx, proto.SessionParams{Session: w.id, AfterSeq: w.last})
+	if err != nil {
+		return err
+	}
+	for {
+		var it proto.SessionItem
+		if err := sub.Next(ctx, &it); err != nil {
+			return err
+		}
+		evs := it.Events
+		if it.Snapshot != nil {
+			evs = it.Snapshot.Events
+		}
+		// A snapshot may repeat what was printed before a reconnect.
+		evs = slices.DeleteFunc(slices.Clone(evs), func(ev proto.Event) bool { return ev.Seq <= w.last })
+		if it.Snapshot != nil && (len(evs) > 0 && evs[0].Seq > w.last+1 || len(evs) == 0 && it.Snapshot.More) {
+			fmt.Fprintln(w.a.stderr, "(earlier events not shown)")
+		}
+		for _, ev := range evs {
+			if w.asJSON {
+				if err := writeJSONLine(w.a.stdout, ev); err != nil {
+					return err
+				}
+			} else if line := render(ev); line != "" {
+				fmt.Fprintln(w.a.stdout, line)
+			}
+			w.last = ev.Seq
+		}
+	}
+}
+
+// Reconnect backoff: the first retry waits retryFirst, each later one
+// twice as long up to retryMax.
+const (
+	retryFirst = time.Second
+	retryMax   = 30 * time.Second
+)
+
+// redial connects again after a lost connection, with backoff, until it
+// succeeds or ctx ends.
+func (a app) redial(ctx context.Context) (*client.Client, error) {
+	wait := retryFirst
+	for {
+		t := time.NewTimer(wait)
+		select {
+		case <-ctx.Done():
+			t.Stop()
+			return nil, ctx.Err()
+		case <-t.C:
+		}
+		c, err := a.connect(ctx)
+		if err == nil {
+			return c, nil
+		}
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		fmt.Fprintf(a.stderr, "hoplet session watch: reconnecting: %v\n", err)
+		wait = min(2*wait, retryMax)
+	}
 }
 
 // waitCondition is a `session wait --for` value.

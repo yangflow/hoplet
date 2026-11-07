@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/yangflow/hoplet/internal/noise"
 )
@@ -94,4 +95,17 @@ func Parse(s string) (Code, error) {
 		return Code{}, fmt.Errorf("%w: no routes or no expiry", ErrCode)
 	}
 	return Code{ID: id, Key: key, Name: w.Name, Routes: w.Routes, PSK: psk, Expires: time.Unix(w.Exp, 0)}, nil
+}
+
+// DisplayName is a machine's name as a pairing shows it: name cut to
+// noise.MaxNameSize bytes on a UTF-8 boundary, "Hoplet" when empty.
+func DisplayName(name string) string {
+	if name == "" {
+		return "Hoplet"
+	}
+	for len(name) > noise.MaxNameSize {
+		_, size := utf8.DecodeLastRuneInString(name)
+		name = name[:len(name)-size]
+	}
+	return name
 }

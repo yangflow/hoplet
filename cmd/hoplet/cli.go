@@ -8,10 +8,12 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/yangflow/hoplet/internal/client"
 	"github.com/yangflow/hoplet/internal/home"
+	"github.com/yangflow/hoplet/internal/noise"
 	"github.com/yangflow/hoplet/proto"
 )
 
@@ -102,6 +104,42 @@ func connect(ctx context.Context) (*client.Client, error) {
 		return nil, err
 	}
 	return dialHome(ctx, h)
+}
+
+// connect dials the daemon the command runs on: this machine's, or with
+// --host a paired host's.
+func (a app) connect(ctx context.Context) (*client.Client, error) {
+	if a.host == "" {
+		return connect(ctx)
+	}
+	h, err := home.Dir()
+	if err != nil {
+		return nil, err
+	}
+	return dialHost(ctx, h, a.host)
+}
+
+// dialHost reaches the paired host named name (or with that ID) from home:
+// the local daemon knows the host, the identity key proves this machine.
+func dialHost(ctx context.Context, h, name string) (*client.Client, error) {
+	local, err := dialHome(ctx, h)
+	if err != nil {
+		return nil, err
+	}
+	hosts, err := local.Hosts(ctx)
+	_ = local.Close()
+	if err != nil {
+		return nil, err
+	}
+	i := slices.IndexFunc(hosts, func(x proto.Host) bool { return x.Name == name || x.ID == name })
+	if i < 0 {
+		return nil, fmt.Errorf("no host is named %q (see `hoplet host list`)", name)
+	}
+	id, err := noise.LoadIdentity(h)
+	if err != nil {
+		return nil, err
+	}
+	return client.DialRemote(ctx, client.Remote{Routes: hosts[i].Routes, HostKey: hosts[i].Key, Identity: id})
 }
 
 // newKey returns an idempotency key for one command.

@@ -83,23 +83,10 @@ func (s *server) startPairing() (proto.PairingCode, error) {
 	exp := s.now().Add(pairingTTL).Truncate(time.Second)
 	s.pair.open(psk, exp)
 	code := pair.Code{
-		ID: s.identity.ID(), Key: s.identity.Public(), Name: displayName(s.host),
+		ID: s.identity.ID(), Key: s.identity.Public(), Name: pair.DisplayName(s.host),
 		Routes: s.routes, PSK: psk, Expires: exp,
 	}
 	return proto.PairingCode{Code: code.String(), ExpiresAt: exp}, nil
-}
-
-// displayName is name cut to noise.MaxNameSize bytes on a UTF-8 boundary,
-// "Hoplet" when empty.
-func displayName(name string) string {
-	if name == "" {
-		return "Hoplet"
-	}
-	for len(name) > noise.MaxNameSize {
-		_, size := utf8.DecodeLastRuneInString(name)
-		name = name[:len(name)-size]
-	}
-	return name
 }
 
 // serveNoise is the direct listener's handler: it serves the client

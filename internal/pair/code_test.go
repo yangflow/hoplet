@@ -66,3 +66,17 @@ func TestParseRejects(t *testing.T) {
 		}
 	}
 }
+
+func TestDisplayName(t *testing.T) {
+	long := strings.Repeat("a", 63) + "é" // 65 bytes: the é does not fit
+	for in, want := range map[string]string{
+		"":                      "Hoplet",
+		"mac":                   "mac",
+		long:                    strings.Repeat("a", 63),
+		strings.Repeat("b", 64): strings.Repeat("b", 64),
+	} {
+		if got := DisplayName(in); got != want {
+			t.Errorf("DisplayName(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
