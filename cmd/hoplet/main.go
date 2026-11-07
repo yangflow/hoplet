@@ -31,6 +31,7 @@ commands:
   pair      print a pairing code another machine joins with
   host      add, list or remove the hosts this machine reaches
   device    list or revoke the devices paired with this machine
+  relay     run a relay, or manage the hosts it serves (hoplet relay help)
   daemon    run the daemon, or install, uninstall or inspect its LaunchAgent
   harness   install or upgrade Hoplet's copy of a harness (hoplet harness help)
   env       refresh the environment harnesses start with
@@ -116,6 +117,8 @@ func (a app) run(args []string) int {
 		return a.device(args[1:])
 	case "daemon":
 		return a.daemon(args[1:])
+	case "relay":
+		return a.relayCmd(args[1:])
 	case "harness":
 		return a.harnessCmd(args[1:])
 	case "dev":
