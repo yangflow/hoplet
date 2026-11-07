@@ -66,17 +66,25 @@ func TestHarnessFollow(t *testing.T) {
 
 func TestLoadRejects(t *testing.T) {
 	for name, tc := range map[string]struct{ body, inErr string }{
-		"unknown key":     {"[network]\nproxi = \"x\"\n", "unknown keys network.proxi"},
-		"bad syntax":      {"[network\n", "config.toml"},
-		"bad scheme":      {"[network]\nproxy = \"ftp://x\"\n", "network.proxy"},
-		"wrong type":      {"[env]\nallow = \"GH_TOKEN\"\n", "config.toml"},
-		"unknown table":   {"[nope]\nx = 1\n", "unknown keys nope"},
-		"no scheme":       {"[network]\nproxy = \"alice:hunter2@h:1\"\n", "missing scheme"},
-		"no host":         {"[network]\nproxy = \"http://\"\n", "no host"},
-		"empty no_proxy":  {"[network]\nno_proxy = [\"\"]\n", "no_proxy"},
-		"spaced no_proxy": {"[network]\nno_proxy = [\"a b\"]\n", "no_proxy"},
-		"comma no_proxy":  {"[network]\nno_proxy = [\"a,b\"]\n", "no_proxy"},
-		"unknown harness": {"[harness.codex]\nfollow = false\n", "unknown keys harness.codex"},
+		"unknown key":       {"[network]\nproxi = \"x\"\n", "unknown keys network.proxi"},
+		"bad syntax":        {"[network\n", "config.toml"},
+		"bad scheme":        {"[network]\nproxy = \"ftp://x\"\n", "network.proxy"},
+		"wrong type":        {"[env]\nallow = \"GH_TOKEN\"\n", "config.toml"},
+		"unknown table":     {"[nope]\nx = 1\n", "unknown keys nope"},
+		"no scheme":         {"[network]\nproxy = \"alice:hunter2@h:1\"\n", "missing scheme"},
+		"no host":           {"[network]\nproxy = \"http://\"\n", "no host"},
+		"empty no_proxy":    {"[network]\nno_proxy = [\"\"]\n", "no_proxy"},
+		"spaced no_proxy":   {"[network]\nno_proxy = [\"a b\"]\n", "no_proxy"},
+		"comma no_proxy":    {"[network]\nno_proxy = [\"a,b\"]\n", "no_proxy"},
+		"unknown harness":   {"[harness.codex]\nfollow = false\n", "unknown keys harness.codex"},
+		"listen no port":    {"[network]\nlisten = \"0.0.0.0\"\n", "network.listen"},
+		"listen empty port": {"[network]\nlisten = \"0.0.0.0:\"\n", "network.listen"},
+		"route scheme":      {"[network]\nroutes = [\"http://h:1\"]\n", "network.routes"},
+		"route no host":     {"[network]\nroutes = [\"ws://:1\"]\n", "network.routes"},
+		"route path":        {"[network]\nroutes = [\"ws://h:1/v1/noise\"]\n", "network.routes"},
+		"route query":       {"[network]\nroutes = [\"wss://h?x=1\"]\n", "network.routes"},
+		"route user":        {"[network]\nroutes = [\"wss://u@h\"]\n", "network.routes"},
+		"route bare":        {"[network]\nroutes = [\"h:1\"]\n", "network.routes"},
 	} {
 		_, err := Load(write(t, tc.body))
 		if err == nil || !strings.Contains(err.Error(), tc.inErr) {
@@ -85,6 +93,10 @@ func TestLoadRejects(t *testing.T) {
 	}
 	if _, err := Load(write(t, "[network]\nproxy = \"direct\"\n")); err != nil {
 		t.Errorf("direct: %v", err)
+	}
+	c, err := Load(write(t, "[network]\nlisten = \"0.0.0.0:7443\"\nroutes = [\"ws://192.0.2.1:7443\", \"wss://b.example\", \"ws://[2001:db8::1]:7443\"]\n"))
+	if err != nil || c.Network.Listen != "0.0.0.0:7443" || len(c.Network.Routes) != 3 {
+		t.Errorf("listen and routes: %+v %v", c.Network, err)
 	}
 }
 

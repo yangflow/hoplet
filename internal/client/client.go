@@ -13,6 +13,7 @@ import (
 
 	"github.com/coder/websocket"
 
+	"github.com/yangflow/hoplet/internal/frame"
 	"github.com/yangflow/hoplet/internal/home"
 	"github.com/yangflow/hoplet/proto"
 )
@@ -48,7 +49,7 @@ func HomeOptions(dir, deviceID string) (Options, error) {
 // use. A lost connection is not reestablished: dial again and resume
 // subscriptions from their cursors.
 type Client struct {
-	ws    *websocket.Conn
+	fc    frame.Conn
 	hello proto.HelloResult
 
 	ctx    context.Context
@@ -80,18 +81,22 @@ func Dial(ctx context.Context, o Options) (*Client, error) {
 		return nil, fmt.Errorf("client: dial %s: %w", o.Socket, err)
 	}
 	ws.SetReadLimit(readLimit)
+	return start(ctx, frame.WebSocket(ws), proto.HelloParams{
+		ProtocolMajor: proto.ProtocolMajor, DeviceID: o.DeviceID, Token: o.Token,
+	})
+}
+
+// start runs a client on fc and says hello.
+func start(ctx context.Context, fc frame.Conn, hello proto.HelloParams) (*Client, error) {
 	cctx, cancel := context.WithCancelCause(context.Background())
 	c := &Client{
-		ws: ws, ctx: cctx, cancel: cancel, done: make(chan struct{}),
+		fc: fc, ctx: cctx, cancel: cancel, done: make(chan struct{}),
 		closeDone: make(chan struct{}), pending: map[uint64]chan proto.ServerFrame{}, subs: map[uint64]*Subscription{},
 	}
 	c.wg.Add(2)
 	go c.read()
 	go c.heartbeat()
-	err = c.Call(ctx, proto.MethodHello, proto.HelloParams{
-		ProtocolMajor: proto.ProtocolMajor, DeviceID: o.DeviceID, Token: o.Token,
-	}, &c.hello)
-	if err != nil {
+	if err := c.Call(ctx, proto.MethodHello, hello, &c.hello); err != nil {
 		c.Close()
 		return nil, err
 	}
@@ -119,7 +124,7 @@ func (c *Client) Close() error {
 	defer close(c.closeDone)
 	lost := c.ctx.Err() != nil
 	c.mu.Unlock()
-	err := c.ws.Close(websocket.StatusNormalClosure, "")
+	err := c.fc.Shutdown()
 	c.cancel(ErrClosed)
 	c.wg.Wait()
 	if lost {
@@ -142,7 +147,7 @@ func (c *Client) read() {
 	defer close(c.done)
 	defer c.drop()
 	for {
-		_, data, err := c.ws.Read(c.ctx)
+		data, err := c.fc.ReadFrame(c.ctx)
 		if err != nil {
 			c.lose(fmt.Errorf("%w: %w", ErrClosed, err))
 			return
@@ -150,7 +155,7 @@ func (c *Client) read() {
 		var f proto.ServerFrame
 		if err := json.Unmarshal(data, &f); err != nil {
 			c.lose(fmt.Errorf("%w: bad frame: %w", ErrClosed, err))
-			_ = c.ws.CloseNow()
+			_ = c.fc.Close()
 			return
 		}
 		c.mu.Lock()
@@ -199,11 +204,11 @@ func (c *Client) heartbeat() {
 		case <-t.C:
 		}
 		ctx, cancel := context.WithTimeout(c.ctx, pingWait)
-		err := c.ws.Ping(ctx)
+		err := c.fc.Ping(ctx)
 		cancel()
 		if err != nil {
 			c.lose(fmt.Errorf("%w: heartbeat: %w", ErrClosed, err))
-			_ = c.ws.CloseNow()
+			_ = c.fc.Close()
 			return
 		}
 	}
@@ -252,7 +257,7 @@ func (c *Client) request(method string, params any, sub *Subscription) (uint64, 
 	}
 	// The frame is written under the connection's lifetime: a caller's
 	// context firing mid-write would otherwise close the shared connection.
-	if err := c.ws.Write(c.ctx, websocket.MessageText, frame); err != nil {
+	if err := c.fc.WriteFrame(c.ctx, frame); err != nil {
 		c.forget(id)
 		if c.gone() {
 			return 0, nil, c.err()
@@ -332,7 +337,7 @@ func (c *Client) sendCancel(id uint64) {
 	if err != nil {
 		return
 	}
-	_ = c.ws.Write(c.ctx, websocket.MessageText, b)
+	_ = c.fc.WriteFrame(c.ctx, b)
 }
 
 // Subscription is an open subscription. Received items wait in memory,
@@ -443,7 +448,7 @@ func (s *Subscription) Cancel(_ context.Context) error {
 	if err != nil {
 		return err
 	}
-	if err := s.c.ws.Write(s.c.ctx, websocket.MessageText, b); err != nil {
+	if err := s.c.fc.WriteFrame(s.c.ctx, b); err != nil {
 		if s.c.gone() {
 			return s.c.err()
 		}

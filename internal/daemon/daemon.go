@@ -19,6 +19,7 @@ import (
 	"github.com/yangflow/hoplet/internal/env"
 	"github.com/yangflow/hoplet/internal/harness"
 	"github.com/yangflow/hoplet/internal/home"
+	"github.com/yangflow/hoplet/internal/noise"
 	"github.com/yangflow/hoplet/internal/session"
 	"github.com/yangflow/hoplet/internal/store"
 	"github.com/yangflow/hoplet/internal/workspace"
@@ -54,8 +55,16 @@ type Config struct {
 	Maintenance      func(ctx context.Context, env []string)
 	MaintenanceEvery time.Duration
 
+	// Listen is the host:port of the direct listener, where paired devices
+	// connect over Noise; empty means none.
+	Listen string
+	// Routes are the addresses written into pairing codes.
+	Routes []string
+
 	// lim overrides the protocol limits (tests); zero fields keep defaults.
 	lim limits
+	// now is the clock pairing codes expire by (tests); nil means time.Now.
+	now func() time.Time
 }
 
 // Daemon is a running daemon.
@@ -67,6 +76,8 @@ type Daemon struct {
 	ws    *workspace.Service
 	srv   *server
 	http  *http.Server
+	net   *http.Server // the direct listener; nil without one
+	netLn net.Listener
 	queue *queuer
 
 	cancel context.CancelFunc
@@ -110,6 +121,10 @@ func Start(ctx context.Context, cfg Config) (d *Daemon, err error) {
 		}
 	}()
 	token, err := home.EnsureToken(cfg.Home)
+	if err != nil {
+		return nil, err
+	}
+	identity, err := noise.EnsureIdentity(cfg.Home)
 	if err != nil {
 		return nil, err
 	}
@@ -164,18 +179,39 @@ func Start(ctx context.Context, cfg Config) (d *Daemon, err error) {
 		return nil, err
 	}
 	cleanup = append(cleanup, ln.Close)
+	var netLn net.Listener
+	if cfg.Listen != "" {
+		if netLn, err = net.Listen("tcp", cfg.Listen); err != nil {
+			return nil, fmt.Errorf("daemon: listen on %s: %w", cfg.Listen, err)
+		}
+		cleanup = append(cleanup, netLn.Close)
+	}
 
 	host, _ := os.Hostname()
+	now := cfg.now
+	if now == nil {
+		now = time.Now
+	}
 	runCtx, cancel := context.WithCancel(context.Background())
 	q := &queuer{store: st, mgr: mgr, log: log, locks: map[proto.SessionID]*sync.Mutex{}, waiting: map[proto.SessionID]bool{}}
 	srv := &server{
 		ctx: runCtx, store: st, mgr: mgr, ws: ws, queue: q, sys: sys, token: token,
 		host: host, version: cfg.Version, log: log, lim: cfg.lim.withDefaults(),
+		identity: identity, routes: cfg.Routes, now: now, peers: map[string]map[*conn]struct{}{},
 	}
 	d = &Daemon{
 		log: log, lock: lock, store: st, mgr: mgr, ws: ws, srv: srv, queue: q,
 		http:   &http.Server{Handler: srv, ReadHeaderTimeout: 10 * time.Second},
 		cancel: cancel, done: make(chan struct{}),
+	}
+	if netLn != nil {
+		d.netLn = netLn
+		d.net = &http.Server{Handler: http.HandlerFunc(srv.serveNoise), ReadHeaderTimeout: 10 * time.Second}
+		d.wg.Go(func() {
+			if err := d.net.Serve(netLn); !errors.Is(err, http.ErrServerClosed) {
+				log.Error("serve the direct listener", "err", err)
+			}
+		})
 	}
 	d.wg.Add(2)
 	go func() {
@@ -200,8 +236,16 @@ func Start(ctx context.Context, cfg Config) (d *Daemon, err error) {
 			log.Error("serve", "err", err)
 		}
 	}()
-	log.Info("daemon started", "home", cfg.Home, "pid", os.Getpid())
+	log.Info("daemon started", "home", cfg.Home, "pid", os.Getpid(), "id", identity.ID(), "listen", cfg.Listen)
 	return d, nil
+}
+
+// NetworkAddr is the direct listener's address, empty without one.
+func (d *Daemon) NetworkAddr() string {
+	if d.netLn == nil {
+		return ""
+	}
+	return d.netLn.Addr().String()
 }
 
 // Done is closed when the daemon stops serving; Err then says why.
@@ -220,6 +264,9 @@ func (d *Daemon) Err() error {
 func (d *Daemon) Close() error {
 	d.closeOnce.Do(func() {
 		err := d.http.Close()
+		if d.net != nil {
+			err = errors.Join(err, d.net.Close())
+		}
 		d.cancel()
 		d.srv.wait()
 		d.wg.Wait()

@@ -95,9 +95,16 @@ func (a app) daemonRun(args []string) int {
 		src = &env.Login{Home: *dir, UserHome: userHome, Shell: env.UserShell(ctx)}
 	}
 	logger := slog.New(slog.NewJSONHandler(logw, nil))
+	// A broken config.toml leaves the daemon up, without the direct
+	// listener, so doctor can report it.
+	cfg, err := config.Load(*dir)
+	if err != nil {
+		logger.Warn("direct listener off: the configuration does not load", "err", err)
+	}
 	d, err := daemon.Start(ctx, daemon.Config{
 		Home: *dir, Version: version, Exe: exe, Harnesses: a.harnesses(*dir), Env: src, ProbeURL: a.probeURL,
 		Logger: logger, Maintenance: a.maintenance(*dir, logger),
+		Listen: cfg.Network.Listen, Routes: cfg.Network.Routes,
 	})
 	if err != nil && ctx.Err() != nil {
 		return 0 // stopped by a signal before it began serving

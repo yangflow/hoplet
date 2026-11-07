@@ -157,7 +157,7 @@ PR3 在 `Remote` 里加中继路由与切换；`frameConn` 与 `DialRemote` 的�
 
 ### 任务 0：建分支
 
-- [ ] 从 `main` 建 `feat/pair-direct`。
+- [x] 从 `main` 建 `feat/pair-direct`。
 
 ### 任务 1：帧连接（纯重构）
 
@@ -214,10 +214,10 @@ PR3 在 `Remote` 里加中继路由与切换；`frameConn` 与 `DialRemote` 的�
 
 ### 任务 6：两台主机端到端、文档、全量检查
 
-- [ ] `cmd/hoplet` 端到端：两个 `HOPLET_HOME`、两个守护进程，`pair` → `host add` → `--host b session new` 跑假 harness 一轮 → `session watch` 中途切断转发后续上 → `device revoke` → 再连被拒。
-- [ ] 同步 0005（远程 hello、`host_id`）、0006（配对码格式、`network.routes`、本机限定方法）与本文“协议细节”；实现与本文有出入时先改文档。
-- [ ] `make check`，报告真实输出。
-- [ ] 在本文末尾追加“实现与计划的差异”。
+- [x] `cmd/hoplet` 端到端：两个 `HOPLET_HOME`、两个守护进程，`pair` → `host add` → `--host b session new` 跑假 harness 一轮 → `session watch` 中途切断转发后续上 → `device revoke` → 再连被拒。
+- [x] 同步 0005（远程 hello、`host_id`）、0006（配对码格式、`network.routes`、本机限定方法）与本文“协议细节”；实现与本文有出入时先改文档。
+- [x] `make check`，报告真实输出。
+- [x] 在本文末尾追加“实现与计划的差异”。
 - [ ] 推送并开 PR：`feat(daemon): pair devices and accept them over Noise`。
 
 ## 完成标准
@@ -225,3 +225,18 @@ PR3 在 `Remote` 里加中继路由与切换；`frameConn` 与 `DialRemote` 的�
 - 总计划 PR2 的验收项全部有对应测试。
 - 本机 socket 路径行为不变；没有新增依赖。
 - `--host` 只在 `session` 与 `device` 子命令上生效，其他命令明确拒绝。
+
+## 实现与计划的差异
+
+| 项 | 计划 | 实现 | 原因 |
+|---|---|---|---|
+| 帧连接 | `internal/daemon/frame.go` 里的 `frameConn` | 独立包 `internal/frame`，导出 `frame.Conn`、`frame.WebSocket`、`frame.Noise` | 客户端也用同一个接口，放在守护进程包里客户端无法引用 |
+| 帧连接测试 | 随任务 1 | 单独一个 commit `test(frame): cover the WebSocket frame conn` | 任务 1 提交时漏了，补在任务 2 之前 |
+| 可切断的转发 | 未写明放在哪 | `internal/testnet.Forwarder`，守护进程测试与 `cmd/hoplet` 测试共用 | 两处都要在测试里切断直连 |
+| 路由超时 | 未写明 | 每条路由的拨号、握手与 hello 共限时 15s | 一条不通的路由不能用完后面路由的时间 |
+| 配对码名字的 UTF-8 | 解码时检查 | 不检查 | 配对码是 JSON，解码已把非法 UTF-8 替换掉；握手载荷里的设备名照计划检查 |
+| 本机限定方法 | 未写明形式 | `localOnly(method)` 函数里的 `switch` | 不用可变的全局表 |
+| 显示名截断 | 守护进程内部 | `pair.DisplayName`，守护进程与 CLI 共用 | 发码方与加入方用同一条规则 |
+| 配置读不出 | 未写明 | `hoplet daemon` 记一条警告、照常启动，不开直连监听 | 与会话环境一致：守护进程还在，`doctor` 才能报告配置错误 |
+| 端到端测试 | 任务 6 | 随任务 5 写在 `cmd/hoplet/pair_test.go`（`TestPairAndReachAHost`），任务 5 的 CLI 情况与任务 6 的完整流程在同一测试里 | 两者要的两台守护进程、假 harness 与转发完全相同，分开只会重复启动 |
+| 吊销后的 `session watch` | 未写明 | 照常按退避重拨，每次失败打印原因，直到 `Ctrl-C` | 被拒的握手在拨号方看来只是连接关闭，与断网分不开；不另加协议去区分 |

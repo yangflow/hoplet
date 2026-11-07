@@ -13,6 +13,10 @@ const ProtocolMajor = 1
 // APIPath is the URL path the daemon serves the client protocol on.
 const APIPath = "/v1"
 
+// NoisePath is the URL path of the direct listener: other devices reach
+// the client protocol there inside a Noise channel.
+const NoisePath = "/v1/noise"
+
 // ClientFrame is one frame a client sends: a request (ID and Method set) or
 // the cancellation of a subscription (Sub and Cancel set).
 type ClientFrame struct {
@@ -97,9 +101,17 @@ const (
 	MethodQueueMove         = "queue.move"
 	MethodSubscribeCatalog  = "subscribe.catalog"
 	MethodSubscribeSession  = "subscribe.session"
+	MethodPairingStart      = "pairing.start"
+	MethodDevicesList       = "devices.list"
+	MethodDevicesRevoke     = "devices.revoke"
+	MethodHostsAdd          = "hosts.add"
+	MethodHostsList         = "hosts.list"
+	MethodHostsRemove       = "hosts.remove"
 )
 
-// HelloParams opens a connection; it must be the first request.
+// HelloParams opens a connection; it must be the first request. A device
+// connected over Noise sends neither token nor device ID: its device ID is
+// the host ID of the key it proved in the handshake.
 type HelloParams struct {
 	ProtocolMajor int    `json:"protocol_major"`
 	DeviceID      string `json:"device_id"`
@@ -111,6 +123,43 @@ type HelloResult struct {
 	Host          string `json:"host"`
 	Version       string `json:"version"`
 	ProtocolMajor int    `json:"protocol_major"`
+	// HostID is the host ID of the daemon's identity key.
+	HostID string `json:"host_id"`
+}
+
+// PairingCode is a one-time pairing code and when it expires.
+type PairingCode struct {
+	Code      string    `json:"code"`
+	ExpiresAt time.Time `json:"expires_at"`
+}
+
+// Device is a device paired with this host.
+type Device struct {
+	ID        string     `json:"id"`
+	Name      string     `json:"name"`
+	PairedAt  time.Time  `json:"paired_at"`
+	RevokedAt *time.Time `json:"revoked_at,omitempty"`
+}
+
+// DeviceRef names a device by its ID or a unique prefix of at least four
+// characters.
+type DeviceRef struct {
+	ID string `json:"id"`
+}
+
+// Host is another host this one reaches: a pairing code accepted here.
+// AddedAt is set by the daemon.
+type Host struct {
+	ID      string    `json:"id"`
+	Key     []byte    `json:"key"`
+	Name    string    `json:"name"`
+	Routes  []string  `json:"routes"`
+	AddedAt time.Time `json:"added_at"`
+}
+
+// HostRef names a host by its name or ID.
+type HostRef struct {
+	Host string `json:"host"`
 }
 
 // SessionRef names a session.

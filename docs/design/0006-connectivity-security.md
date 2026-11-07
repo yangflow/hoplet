@@ -10,8 +10,8 @@
 
 | 状态 | 边界 |
 |---|---|
-| ✓ 代码已有 | 本机 socket / token / Origin 检查与代理解析 |
-| ○ 目标 | 配对、Noise、路由、中继、设备吊销与生物识别 |
+| ✓ 代码已有 | 本机 socket / token / Origin 检查、代理解析；配对、Noise、直连地址路由、设备吊销（CLI） |
+| ○ 目标 | 中继、局域网发现、iOS 配对与生物识别 |
 
 ## 当前本机保护
 
@@ -21,7 +21,7 @@
 | socket / token | socket 0600；本机随机 token 文件拒绝组 / 其他用户权限 |
 | 连接 | Unix socket 上的 `/v1` WebSocket；升级前拒绝非空 `Origin` |
 | hello | 校验协议主版本、本机 token 与非空设备 ID；设备 ID 不是配对身份 |
-| 远程 | 当前没有默认 TCP / 回环监听、Noise、配对或 relay |
+| 远程 | 默认不监听 TCP；配置 `network.listen` 后才有直连监听，只接受 Noise 通道；没有 relay |
 
 ## 一层安全，多条路由（M2a 目标）
 
@@ -45,9 +45,10 @@ flowchart LR
 | Noise 模式 | 套件 `25519_ChaChaPoly_SHA256`（iOS CryptoKit 原生支持）；日常 IK，配对 IKpsk1，中继注册 XN；发起方首条消息前带 1 字节握手类型，prologue 为 `hoplet/1` 加该类型字节 |
 | 通道帧 | 一条 WebSocket 二进制消息 = 一条 Noise 传输消息（≤ 65535 字节）；上层帧带 1 字节标志分片，另有端到端 ping / pong |
 | 通道里的协议 | 仍是本机同一套客户端协议；hello 不带 token，设备身份取握手认证的公钥 |
-| 直连监听 | `network.listen` 配置后才监听，明文 WebSocket `/v1/noise`，拒绝非空 `Origin` |
+| 直连监听 | `network.listen`（`host:port`）配置后才监听，明文 WebSocket 只服务 `/v1/noise`，其他路径 404，非空 `Origin` 403；读上限 65536 字节；只接受日常与配对握手，握手限时 10s |
+| 路由地址 | `network.routes`：`ws://` 或 `wss://` + 主机[:端口]，不带路径、查询与用户信息；客户端拨 `<路由>/v1/noise`，按序尝试，每条限时 15s |
 
-## 配对与日常连接（目标）
+## 配对与日常连接
 
 ```mermaid
 sequenceDiagram
@@ -64,10 +65,11 @@ sequenceDiagram
 |---|---|
 | 密钥 | 每个守护进程、每台设备一对长期 X25519 密钥；主机 ID 由公钥哈希得出 |
 | PSK | 守护进程只在内存保存，10 分钟过期，用一次即作废；再发一个配对码即作废上一个 |
-| 配对码 | `hoplet1:` + base64url 的紧凑 JSON：主机 ID、主机公钥、显示名、路由、PSK、过期时间；路由取自 `network.routes`（对外可达的地址，与监听地址分开配置），为空时不发码 |
-| 加入 | 加入方的 CLI 读本机身份密钥直接握手；对方主机的公钥、名字与路由记在加入方守护进程，之后 `--host <名字>` 按它连接 |
-| 权限 | 发配对码只限本机连接；列出与吊销设备本机与已配对设备都可；会话操作两者相同 |
-| 吊销 | 任一已配对设备上操作，或 `hoplet device revoke` |
+| 配对码 | `hoplet1:` + base64url（无填充）的紧凑 JSON `{"id","key","name","routes","psk","exp"}`：主机 ID、主机公钥、显示名（默认系统主机名，截到 64 字节的 UTF-8 边界）、路由、PSK、过期时间（Unix 秒）；`key`、`psk` 为 base64url；`id` 必须等于公钥算出的主机 ID，否则视为损坏；路由取自 `network.routes`（对外可达的地址，与监听地址分开配置），为空时不发码 |
+| 放行 | 配对握手的首条载荷是加入方的显示名（非空 UTF-8，≤ 64 字节）；PSK 验证通过、且仍是当前配对码时才放行并立即作废；错误 PSK 不消耗配对码；同一公钥再次配对更新名字并清除吊销 |
+| 加入 | 加入方的 CLI 先在本地查过期与名字冲突（不拨号、不用掉配对码），再读本机身份密钥直接握手；对方主机的公钥、名字与路由记在加入方守护进程（同名不同 ID 冲突），之后 `--host <名字或 ID>` 按它连接，只用于 `session` 与 `device` 命令 |
+| 权限 | `pairing.start` 与 `hosts.add / list / remove` 只限本机连接，远程调用返回 `unauthorized`；`devices.list / revoke` 本机与已配对设备都可；会话操作两者相同，审批的 `decided_by` 为远程设备的主机 ID |
+| 吊销 | 任一已配对设备上操作，或 `hoplet device revoke`（完整 ID 或 ≥ 4 字符的唯一前缀）；写入吊销时间后立即断开该设备所有在线连接，之后的握手被拒 |
 | 多主机 | 每台主机各配对一次，不做信任传递；守护进程互调也走配对 |
 | 防重放 / 降级 | Noise 计数器；只有一个协议版本 |
 

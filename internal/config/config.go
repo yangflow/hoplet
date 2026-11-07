@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"net"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -41,7 +42,8 @@ type HarnessOptions struct {
 // Follows reports whether the daemon follows the user's version.
 func (o HarnessOptions) Follows() bool { return o.Follow == nil || *o.Follow }
 
-// Network configures outbound connections of the daemon and its harnesses.
+// Network configures the daemon's network: outbound connections of the
+// daemon and its harnesses, and how other devices reach it.
 type Network struct {
 	// Proxy is the proxy URL (http://, https://, socks5://, socks5h://).
 	// Empty means: the proxy the login shell exports, else the macOS system
@@ -52,6 +54,13 @@ type Network struct {
 	// NO_PROXY as they are: CIDR ranges are not understood by every tool.
 	// An entry must be non-empty and contain no comma or space.
 	NoProxy []string `toml:"no_proxy"`
+	// Listen is the host:port the direct listener binds, such as
+	// "0.0.0.0:7443". Empty means no listener.
+	Listen string `toml:"listen"`
+	// Routes are the addresses other devices dial to reach this host, in
+	// order of preference, written into pairing codes: ws:// or wss:// with
+	// a host and an optional port, no path or query.
+	Routes []string `toml:"routes"`
 }
 
 // Env configures the environment of harness processes.
@@ -96,6 +105,16 @@ func Load(home string) (Config, error) {
 }
 
 func (c Config) validate() error {
+	if l := c.Network.Listen; l != "" {
+		if _, port, err := net.SplitHostPort(l); err != nil || port == "" {
+			return errors.New("network.listen: want host:port, such as 0.0.0.0:7443")
+		}
+	}
+	for _, r := range c.Network.Routes {
+		if err := checkRoute(r); err != nil {
+			return fmt.Errorf("network.routes: %q: %w", r, err)
+		}
+	}
 	for _, e := range c.Network.NoProxy {
 		if e == "" || strings.ContainsAny(e, ", \t") {
 			return errors.New("network.no_proxy: entries must be non-empty and contain no comma or space")
@@ -120,6 +139,25 @@ func (c Config) validate() error {
 	}
 	if u.Hostname() == "" {
 		return errors.New("network.proxy: the URL has no host")
+	}
+	return nil
+}
+
+// checkRoute reports whether r is a route: ws:// or wss://, a host, an
+// optional port, nothing else.
+func checkRoute(r string) error {
+	u, err := url.Parse(r)
+	if err != nil {
+		return errors.New("not a valid URL")
+	}
+	if u.Scheme != "ws" && u.Scheme != "wss" {
+		return errors.New("want a ws:// or wss:// URL")
+	}
+	if u.Hostname() == "" {
+		return errors.New("the URL has no host")
+	}
+	if u.User != nil || (u.Path != "" && u.Path != "/") || u.RawQuery != "" || u.Fragment != "" || u.Opaque != "" {
+		return errors.New("want only a host and a port, no path, query or user")
 	}
 	return nil
 }

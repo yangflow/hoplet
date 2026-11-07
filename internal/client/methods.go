@@ -205,3 +205,41 @@ func (c *Client) Doctor(ctx context.Context) (proto.DoctorReport, error) {
 	err := c.Call(ctx, proto.MethodSystemDoctor, struct{}{}, &out)
 	return out, err
 }
+
+// StartPairing opens a pairing and returns its one-time code; local
+// connections only.
+func (c *Client) StartPairing(ctx context.Context) (proto.PairingCode, error) {
+	var out proto.PairingCode
+	err := c.Call(ctx, proto.MethodPairingStart, struct{}{}, &out)
+	return out, err
+}
+
+// Devices lists the devices paired with the host, revoked ones included.
+func (c *Client) Devices(ctx context.Context) ([]proto.Device, error) {
+	var out []proto.Device
+	err := c.Call(ctx, proto.MethodDevicesList, struct{}{}, &out)
+	return out, err
+}
+
+// RevokeDevice revokes a device by its ID or a unique prefix of at least
+// four characters and ends its connections.
+func (c *Client) RevokeDevice(ctx context.Context, id string) error {
+	return c.Call(ctx, proto.MethodDevicesRevoke, proto.DeviceRef{ID: id}, nil)
+}
+
+// AddHost records a host this one reaches; local connections only.
+func (c *Client) AddHost(ctx context.Context, h proto.Host) error {
+	return c.Call(ctx, proto.MethodHostsAdd, h, nil)
+}
+
+// Hosts lists the hosts this one reaches; local connections only.
+func (c *Client) Hosts(ctx context.Context) ([]proto.Host, error) {
+	var out []proto.Host
+	err := c.Call(ctx, proto.MethodHostsList, struct{}{}, &out)
+	return out, err
+}
+
+// RemoveHost forgets a host by name or ID; local connections only.
+func (c *Client) RemoveHost(ctx context.Context, host string) error {
+	return c.Call(ctx, proto.MethodHostsRemove, proto.HostRef{Host: host}, nil)
+}
