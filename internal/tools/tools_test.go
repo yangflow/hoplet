@@ -16,6 +16,38 @@ import (
 type fakeSource struct {
 	sessions []proto.Session
 	err      error
+	got      *changes // what the tools asked to change
+}
+
+// changes records the calls that change something.
+type changes struct {
+	creates []Create
+	sends   []proto.SendParams
+	reports []report
+	failure error // returned by every change
+}
+
+type report struct {
+	parent, from proto.SessionID
+	key, text    string
+}
+
+func (f fakeSource) Create(_ context.Context, c Create) (proto.Session, error) {
+	f.got.creates = append(f.got.creates, c)
+	if f.got.failure != nil {
+		return proto.Session{}, f.got.failure
+	}
+	return proto.Session{ID: "new00001", Mode: c.Mode, Parent: c.Parent, Owner: c.Owner}, nil
+}
+
+func (f fakeSource) Send(_ context.Context, p proto.SendParams) (proto.SendReply, error) {
+	f.got.sends = append(f.got.sends, p)
+	return proto.SendReply{Queued: true}, f.got.failure
+}
+
+func (f fakeSource) Report(_ context.Context, parent, from proto.SessionID, key, text string) error {
+	f.got.reports = append(f.got.reports, report{parent, from, key, text})
+	return f.got.failure
 }
 
 func (f fakeSource) Sessions(context.Context) ([]proto.Session, error) { return f.sessions, f.err }
@@ -36,6 +68,7 @@ func TestTools(t *testing.T) {
 		{ID: "abcd2222", Title: "two"},
 		{ID: "efgh3333", Title: "gone", ArchivedAt: &archived},
 	}}
+	src.got = &changes{}
 	set := New(src)
 	caller := proto.Session{ID: "abcd1111", Mode: proto.ModeCode}
 	var names []string
