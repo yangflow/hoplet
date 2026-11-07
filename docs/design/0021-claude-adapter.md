@@ -87,6 +87,9 @@ flowchart LR
 | 轮末 `result.usage.iterations` 末项 | 补齐上下文用量 |
 | `modelUsage.*.contextWindow` | 窗口大小 |
 | `compact_boundary.post_tokens` | 压缩后已用量 |
+| `TaskCreate` / `TaskUpdate` 的输入（旧的 `TodoWrite` 同样） | 维护任务表，发 `todo.list`；`subject` → `Text`，`activeForm` → `Active`；`blocks` / `blockedBy` 不传 |
+| `Agent`（旧名 `Task`）工具调用 | 发 `subagent`：`subagent_type` → `Type`，`description` → `Title`，`run_in_background` → `Background`；这次调用本身不发 `ToolCall`，它的 `tool_result` 文本 → `Summary`，`is_error` → `failed` |
+| 带 `parent_tool_use_id` 的行 | 归到那次调用的子代理，事件带 `Agent`；不算主对话的正文、思考和上下文用量 |
 
 保留原始协议事件。审批、中断、切模式、模型、强度和续接通过控制协议处理，不靠 PTY 或静默时长推断完成。
 
@@ -100,4 +103,4 @@ flowchart LR
 
 ## 待验证
 
-更多版本控制、提问、steer、MCP、禁工具和原生记忆副作用控制未验证。
+更多版本控制、提问、steer、MCP、禁工具和原生记忆副作用控制未验证。无界面模式下实际用 `TaskCreate` / `TaskUpdate` 还是 `TodoWrite`，以录制为准，两套都映射。子代理需录制：后台子代理在轮次结束后怎样报告完成与结果、用量与用时从哪一行取、停止整轮时子代理落到哪个状态。
