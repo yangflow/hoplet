@@ -23,6 +23,7 @@ import (
 	"github.com/yangflow/hoplet/internal/noise"
 	"github.com/yangflow/hoplet/internal/session"
 	"github.com/yangflow/hoplet/internal/store"
+	"github.com/yangflow/hoplet/internal/tools"
 	"github.com/yangflow/hoplet/internal/workspace"
 	"github.com/yangflow/hoplet/proto"
 )
@@ -162,7 +163,8 @@ func Start(ctx context.Context, cfg Config) (d *Daemon, err error) {
 	ws := &workspace.Service{Git: git, Home: cfg.Home, Store: st}
 	mgr, err := session.New(session.Config{
 		Store: st, Root: home.Sessions(cfg.Home), Spawner: session.ExecSpawner{Exe: cfg.Exe},
-		Harnesses: cfg.Harnesses, Env: snap.Vars, Logger: log, Baseline: ws.CaptureBaseline,
+		MCPCommand: []string{cfg.Exe, "mcp", "--home", cfg.Home},
+		Harnesses:  cfg.Harnesses, Env: snap.Vars, Logger: log, Baseline: ws.CaptureBaseline,
 	})
 	if err != nil {
 		return nil, err
@@ -208,7 +210,7 @@ func Start(ctx context.Context, cfg Config) (d *Daemon, err error) {
 	runCtx, cancel := context.WithCancel(context.Background())
 	q := &queuer{store: st, mgr: mgr, log: log, locks: map[proto.SessionID]*sync.Mutex{}, waiting: map[proto.SessionID]bool{}}
 	srv := &server{
-		ctx: runCtx, store: st, mgr: mgr, ws: ws, queue: q, sys: sys, token: token,
+		ctx: runCtx, store: st, mgr: mgr, ws: ws, queue: q, sys: sys, token: token, tools: tools.New(toolSource{st}),
 		host: host, version: cfg.Version, log: log, lim: cfg.lim.withDefaults(),
 		identity: identity, routes: pairingRoutes(cfg.Routes, cfg.Relays), now: now, peers: map[string]map[*conn]struct{}{},
 	}

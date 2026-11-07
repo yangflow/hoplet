@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"strings"
 	"sync"
@@ -1801,5 +1802,88 @@ func TestDefaultEffortIsNull(t *testing.T) {
 	}
 	if _, has := payload["effort"]; !has {
 		t.Fatalf("no effort in %v", payload)
+	}
+}
+
+var toolServers = []harness.MCPServer{{Name: "hoplet", Command: []string{"/opt/hoplet", "mcp", "--home", "/h"}, Env: []string{"HOPLET_SESSION_TOKEN=tok"}}}
+
+const toolServersJSON = `[{"name":"hoplet","command":"/opt/hoplet","args":["mcp","--home","/h"],"env":[{"name":"HOPLET_SESSION_TOKEN","value":"tok"}]}]`
+
+func wantToolServers(t *testing.T, got any) {
+	t.Helper()
+	var want any
+	if err := json.Unmarshal([]byte(toolServersJSON), &want); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("mcp_servers %v", got)
+	}
+}
+
+func TestCreateMountsTheTools(t *testing.T) {
+	x := newTester(t, harness.Spec{Session: "hop1", Mode: proto.ModeConfirm, MCP: toolServers})
+	x.push(`{"hoplet_bridge":"connected"}`)
+	w := x.writes(0)
+	if len(w) != 1 || w[0].Method != "session.create" {
+		t.Fatalf("create %+v", w)
+	}
+	editor, _ := w[0].Params["editor"].(map[string]any)
+	wantToolServers(t, editor["mcp_servers"])
+	x.answer(0, `{"session_id":"s1","stored_session_id":"s1","running":false,"revision":0,"execution_generation":0}`)
+	for _, w := range x.writes(1) {
+		if w.Params["operation"] == "editor_mcp" {
+			t.Fatalf("a created session mounted its tools again: %+v", w)
+		}
+	}
+}
+
+func TestResumeMountsToolsOnce(t *testing.T) {
+	x := newTester(t, harness.Spec{Resume: "s1", MCP: toolServers})
+	x.push(`{"hoplet_bridge":"connected"}`)
+	if w := x.writes(0); len(w) != 1 || w[0].Params["editor"] != nil {
+		t.Fatalf("resume %+v", w)
+	}
+	x.answer(0, `{"session_id":"s1","stored_session_id":"s1","running":false,"revision":1,"execution_generation":1}`)
+	w := x.writes(1)
+	if len(w) != 1 || w[0].Method != "session.mutate" || w[0].Params["operation"] != "editor_mcp" {
+		t.Fatalf("after attaching %+v", w)
+	}
+	payload, _ := w[0].Params["payload"].(map[string]any)
+	wantToolServers(t, payload["mcp_servers"])
+	x.answer(1, `{"revision":2,"execution_generation":1}`)
+	if w := x.writes(2); len(w) != 0 {
+		t.Fatalf("after mounting %+v", w)
+	}
+}
+
+func TestResumeWithoutTools(t *testing.T) {
+	x := newTester(t, harness.Spec{Resume: "s1"})
+	x.attach("s1", false)
+	if w := x.writes(1); len(w) != 0 {
+		t.Fatalf("after attaching %+v", w)
+	}
+}
+
+func TestToolsMountAfterTheTurn(t *testing.T) {
+	x := newTester(t, harness.Spec{Resume: "s1", MCP: toolServers})
+	x.attach("s1", true)
+	if w := x.writes(1); len(w) != 1 || w[0].Params["operation"] != "editor_mcp" {
+		t.Fatalf("after attaching %+v", w)
+	}
+	// Hermes is mid-turn: the mount waits for the turn to end.
+	x.push(eventLine("message.start", `{}`))
+	if p := x.refuse(1, "session_busy", ""); len(p) != 0 {
+		t.Fatalf("refusal %v", p)
+	}
+	x.push(eventLine("message.complete", `{"text":"","admission_id":"a1","status":"complete"}`))
+	r := len(x.io.written()) - 1
+	x.answer(r, `{"admission_id":"a1","status":"terminal","outcome":"completed","result":{}}`)
+	w := x.writes(r + 1)
+	if len(w) != 1 || w[0].Params["operation"] != "editor_mcp" {
+		t.Fatalf("after the turn %+v", w)
+	}
+	x.answer(r+1, `{"revision":2,"execution_generation":1}`)
+	if w := x.writes(r + 2); len(w) != 0 {
+		t.Fatalf("mounted twice %+v", w)
 	}
 }

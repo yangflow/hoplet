@@ -41,6 +41,11 @@ func TestFrameWireFormat(t *testing.T) {
 		"read binary": {FileContent{Session: "s", Path: "i.png", Size: 9, Binary: true}, `{"session":"s","path":"i.png","size":9,"binary":true}`},
 		"read large":  {FileContent{Session: "s", Path: "big", Size: 9e6, TooLarge: true}, `{"session":"s","path":"big","size":9000000,"too_large":true}`},
 		"read gone":   {FileContent{Session: "s", Path: "x", Missing: true}, `{"session":"s","path":"x","missing":true}`},
+		"tool hello":  {HelloParams{ProtocolMajor: 1, SessionToken: "k"}, `{"protocol_major":1,"device_id":"","token":"","session_token":"k"}`},
+		"tools": {ToolsListResult{Tools: []ToolInfo{{Name: "session_get", Description: "d", InputSchema: json.RawMessage(`{"type":"object"}`)}}},
+			`{"tools":[{"name":"session_get","description":"d","input_schema":{"type":"object"}}]}`},
+		"tool call":   {ToolsCallParams{Name: "session_get", Arguments: json.RawMessage(`{"id":"abcd"}`)}, `{"name":"session_get","arguments":{"id":"abcd"}}`},
+		"tool result": {ToolsCallResult{Text: "no such session", IsError: true}, `{"text":"no such session","is_error":true}`},
 	} {
 		b, err := json.Marshal(tc.v)
 		if err != nil {

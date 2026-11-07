@@ -4,12 +4,12 @@
 
 ## 范围与现状
 
-范围：本机 API、CLI、目标 MCP 工具桥与跨会话 / 跨机服务。
+范围：本机 API、CLI、MCP 工具桥与跨会话 / 跨机服务。
 
 | 状态 | 边界 |
 |---|---|
-| ✓ 代码已有 | 本机 API、CLI、订阅和客户端 wait |
-| ○ 目标 | 会话 MCP、伙伴 / 产物工具、持久跟进、扇出与跨机 |
+| ✓ 代码已有 | 本机 API、CLI、订阅和客户端 wait；会话工具桥与 `sessions_list`、`session_get` |
+| ○ 目标 | 伙伴 / 产物工具、持久跟进、扇出与跨机 |
 
 ## 当前入口
 
@@ -18,11 +18,11 @@ flowchart LR
     CLI["CLI"] --> Local["Unix socket 上的 /v1 WebSocket"]
     Desktop["桌面"] --> Local
     Local --> Hello["hello / 本机 token"] --> Service["同一 daemon 服务"]
-    Agent["harness"] -. "尚未实现" .-> MCP["会话 MCP token"]
-    MCP -.-> Service
+    Agent["harness"] -- "stdio" --> Bridge["hoplet mcp"]
+    Bridge -- "hello / 会话 token" --> Service
 ```
 
-本机 token 是当前认证机制；`device_id` 是客户端提供的审计标识，不是已实现的配对公钥身份。当前没有 MCP 服务、会话工具 token 或按 Code / Personal 区分的 MCP 鉴权。
+本机 token 是客户端的认证机制；`device_id` 是客户端提供的审计标识，不是已实现的配对公钥身份。harness 经 `hoplet mcp` 以会话 token 连接，只能调工具方法；当前工具不按 Code / Personal 区分调用方。
 
 ## 已实现 API
 
@@ -59,7 +59,7 @@ flowchart LR
 | blocked | waiting 审批态或队首失败 |
 | done | idle / blocked / errored / archived；表示等待可结束，不证明事情交付完成 |
 
-## 工具桥与伙伴服务（目标）
+## 工具桥与伙伴服务
 
 ```mermaid
 flowchart LR
@@ -86,7 +86,7 @@ flowchart LR
 | `report` | 交回结果 | 有父会话的会话；结果持久记录，按父会话空闲 / 忙投递或排队 |
 | `artifact_publish`、`artifact_db_*` | 产物 | 所有会话；只作用于本会话的产物 |
 
-`notify_me` 推迟到推送或交互通道就绪。提炼任务不注入可调用业务工具，只返回候选，由 daemon 提交。工具桥复用现有服务，不以提示词代替服务校验。
+当前已有 `sessions_list`、`session_get`，其余工具为目标。`notify_me` 推迟到推送或交互通道就绪。提炼任务不注入可调用业务工具，只返回候选，由 daemon 提交。工具桥复用现有服务，不以提示词代替服务校验。
 
 ## 记忆服务入口（目标）
 

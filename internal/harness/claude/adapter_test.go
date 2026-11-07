@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -344,5 +345,40 @@ func TestUnmappableModeReportedOnce(t *testing.T) {
 	}
 	if len(p.golden) != 1 || !strings.HasPrefix(p.golden[0], "proto.ModeChanged") {
 		t.Fatalf("events %q", p.golden)
+	}
+}
+
+func TestLaunchWithTools(t *testing.T) {
+	h := &Harness{Binary: "/h/claude"}
+	spec := harness.Spec{Mode: proto.ModeConfirm, WorkDir: "/work", Dir: "/s", Env: []string{"PATH=/bin"}, MCP: []harness.MCPServer{{
+		Name: "hoplet", Command: []string{"/opt/hoplet", "mcp", "--home", "/h"}, Env: []string{"HOPLET_SESSION_TOKEN=tok"},
+	}}}
+	l, err := h.Launch(spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cmd := strings.Join(l.Command, " ")
+	if !strings.Contains(cmd, "--mcp-config /s/mcp.json --allowedTools mcp__hoplet__*") || strings.Contains(cmd, "--strict-mcp-config") {
+		t.Fatalf("command %q", cmd)
+	}
+	for _, s := range append(slices.Clone(l.Env), l.Command...) {
+		if strings.Contains(s, "tok") {
+			t.Fatalf("token in %q", s)
+		}
+	}
+	var got, want any
+	if err := json.Unmarshal(l.Files["mcp.json"], &got); err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal([]byte(`{"mcpServers":{"hoplet":{"type":"stdio","command":"/opt/hoplet","args":["mcp","--home","/h"],"env":{"HOPLET_SESSION_TOKEN":"tok"}}}}`), &want); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(got, want) || len(l.Files) != 1 {
+		t.Fatalf("files %s", l.Files["mcp.json"])
+	}
+
+	spec.MCP = nil
+	if l, err := h.Launch(spec); err != nil || l.Files != nil || strings.Contains(strings.Join(l.Command, " "), "mcp") {
+		t.Fatalf("without tools: %v %v %v", l.Command, l.Files, err)
 	}
 }

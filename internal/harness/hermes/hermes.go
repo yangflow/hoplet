@@ -83,7 +83,7 @@ var ErrNotInstalled = errors.New("hermes: Hermes Agent is not installed (no herm
 // here have no question tool.
 func caps() proto.Capabilities {
 	return proto.Capabilities{
-		Steer: true, Resume: true, SetMode: true, SetModel: true, PartialStream: true, Fast: true,
+		Steer: true, Resume: true, SetMode: true, SetModel: true, PartialStream: true, Fast: true, MCPInject: true,
 		Modes:   []proto.PermissionMode{proto.ModeConfirm, proto.ModeAutoEdit, proto.ModeFullAuto},
 		Efforts: []proto.Effort{proto.EffortLow, proto.EffortMedium, proto.EffortHigh, proto.EffortXHigh, proto.EffortMax, proto.EffortUltra},
 	}
@@ -234,6 +234,10 @@ func nativeMode(m proto.PermissionMode) (string, error) {
 	policy, _ := editPolicy(m)
 	return policy, nil
 }
+
+// PersistsMCP reports that Hermes keeps a session's MCP servers in the
+// session: its token is issued once, not at every launch.
+func (h *Harness) PersistsMCP() bool { return true }
 
 // Attach starts translating the bridge's lines into events.
 func (h *Harness) Attach(_ context.Context, spec harness.Spec, io harness.Stdio) (harness.Run, error) {

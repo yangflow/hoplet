@@ -8,8 +8,8 @@
 
 | 状态 | 边界 |
 |---|---|
-| ✓ 代码已有 | 2.1.312 控制、模型探测、设置与续接 |
-| ○ 目标 | steer、提问回答、MCP 与完整提炼隔离 |
+| ✓ 代码已有 | 2.1.312 控制、模型探测、设置与续接；Hoplet MCP 注入（2.1.316 实测） |
+| ○ 目标 | steer、提问回答、人格与完整提炼隔离 |
 
 ## 接入
 
@@ -54,19 +54,19 @@ flowchart LR
 | 审批 / 中断 / 设置 / 续接 | 已实现 |
 | steer / 提问回答 | `Run.Steer` / `Run.Answer` 返回不支持 |
 | 思考强度 | low / medium / high / xhigh / max，按模型再限制；不声明 ultra |
-| MCP | `Spec.MCP` 未使用，不声明已注入 |
+| MCP | `Spec.MCP` 有值时写会话目录的 `mcp.json`（0600）并以 `--mcp-config` 传路径，token 不进命令行 |
 | Ephemeral | 只加 `--no-session-persistence`；不能据此承诺禁工具、hooks 或原生记忆 |
 
 ## MCP 与人格
 
-2.1.316 实测，已采用，尚未实现。
+2.1.316 实测，已采用；MCP 已实现，人格尚未实现。
 
 | 项 | 规则 |
 |---|---|
 | 注入 | `--mcp-config` 传 stdio 服务；会话 token 只放在这一项的 `env` 里，Bash 等工具的环境看不到 |
 | 共存 | 启动不加 `--strict-mcp-config`，用户自己的 MCP 服务照常加载 |
 | 放行 | Hoplet 自己的工具以 `--allowedTools mcp__hoplet__*` 放行，否则每次调用都会经 `--permission-prompt-tool stdio` 变成审批 |
-| 握手 | 先以 `server/discover`（协议 2026-07-28）探测，`initialize` 用 2025-11-25；服务须正常应答不认识的方法 |
+| 握手 | 以 `server/discover`（协议 2026-07-28）探测，随后直接 `subscriptions/listen`、`tools/list`、`tools/call`，不发 `initialize`；录制的握手在测试里回放 |
 | 人格 | 伙伴的人格经 `--append-system-prompt` 传入，下次启动生效 |
 
 ## 模型探测

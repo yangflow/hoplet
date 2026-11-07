@@ -236,7 +236,8 @@ func (s *Store) UpdateSession(ctx context.Context, id proto.SessionID, u Session
 	return out, nil
 }
 
-// ArchiveSession marks a session archived at t. The write is durable.
+// ArchiveSession marks a session archived at t and drops its tool token.
+// The write is durable.
 func (s *Store) ArchiveSession(ctx context.Context, id proto.SessionID, t time.Time) error {
 	ms := t.UTC().Truncate(time.Millisecond).UnixMilli()
 	return s.tx(ctx, true, func(tx *sql.Tx) error {
@@ -248,6 +249,9 @@ func (s *Store) ArchiveSession(ctx context.Context, id proto.SessionID, t time.T
 			return fmt.Errorf("store: archive session %s: %w", id, err)
 		} else if n == 0 {
 			return fmt.Errorf("%w: session %s", ErrNotFound, id)
+		}
+		if _, err := tx.ExecContext(ctx, `DELETE FROM session_tokens WHERE session_id = ?`, id); err != nil {
+			return fmt.Errorf("store: archive session %s: %w", id, err)
 		}
 		return bumpVersion(ctx, tx, id)
 	})

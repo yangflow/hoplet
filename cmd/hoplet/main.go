@@ -40,6 +40,7 @@ commands:
   version   print the version
   shim      run a session's harness process (started by the daemon)
   hermes-bridge  relay a Hermes session's gateway over stdio (started by the daemon)
+  mcp       serve a session's Hoplet tools to its harness (started by the harness)
 
 --host NAME runs session and device commands on a paired host, by its name
 or ID (hoplet host list).
@@ -141,6 +142,8 @@ func (a app) run(args []string) int {
 		return runShim(args[1:], a.stderr)
 	case "hermes-bridge":
 		return runBridge(args[1:], os.Stdin, a.stdout, a.stderr)
+	case "mcp":
+		return a.mcpCmd(args[1:], os.Stdin, nopWriteCloser{a.stdout})
 	default:
 		fmt.Fprintf(a.stderr, "hoplet: unknown command %q\n", args[0])
 		return 2
@@ -218,3 +221,8 @@ func runShim(args []string, stderr io.Writer) int {
 	}
 	return 0
 }
+
+// nopWriteCloser leaves the writer open when closed.
+type nopWriteCloser struct{ io.Writer }
+
+func (nopWriteCloser) Close() error { return nil }

@@ -116,15 +116,20 @@ const (
 	MethodHostsAdd          = "hosts.add"
 	MethodHostsList         = "hosts.list"
 	MethodHostsRemove       = "hosts.remove"
+	MethodToolsList         = "tools.list"
+	MethodToolsCall         = "tools.call"
 )
 
 // HelloParams opens a connection; it must be the first request. A device
 // connected over Noise sends neither token nor device ID: its device ID is
-// the host ID of the key it proved in the handshake.
+// the host ID of the key it proved in the handshake. A session's tool
+// bridge sends SessionToken instead of Token and DeviceID; its connection
+// acts for that session and may call only the tools methods.
 type HelloParams struct {
 	ProtocolMajor int    `json:"protocol_major"`
 	DeviceID      string `json:"device_id"`
 	Token         string `json:"token"`
+	SessionToken  string `json:"session_token,omitempty"`
 }
 
 // HelloResult describes the daemon.
@@ -661,4 +666,30 @@ type FileContent struct {
 	Binary   bool      `json:"binary,omitempty"`
 	TooLarge bool      `json:"too_large,omitempty"`
 	Missing  bool      `json:"missing,omitempty"`
+}
+
+// ToolInfo describes a tool a session may call.
+type ToolInfo struct {
+	Name        string          `json:"name"`
+	Description string          `json:"description"`
+	InputSchema json.RawMessage `json:"input_schema"`
+}
+
+// ToolsListResult lists the tools the calling session may call.
+type ToolsListResult struct {
+	Tools []ToolInfo `json:"tools"`
+}
+
+// ToolsCallParams calls a tool. Arguments is a JSON object.
+type ToolsCallParams struct {
+	Name      string          `json:"name"`
+	Arguments json.RawMessage `json:"arguments,omitempty"`
+}
+
+// ToolsCallResult is a tool's answer. IsError marks a failure the model
+// should read (bad arguments, a session that does not exist), as opposed
+// to a protocol error.
+type ToolsCallResult struct {
+	Text    string `json:"text"`
+	IsError bool   `json:"is_error,omitempty"`
 }

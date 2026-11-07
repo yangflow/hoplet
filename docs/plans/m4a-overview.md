@@ -67,7 +67,7 @@ flowchart LR
 | 假设 | 在哪验证 | 不成立时 |
 |---|---|---|
 | 托管的 Claude Code 新版本仍按 2.1.316 的方式加载 `--mcp-config` 与 `--allowedTools` | PR1 录制 | 按新版本调整并重录；未验证版本不注入 |
-| go-sdk v1.8.0 能应答 Claude Code 的 `server/discover` 探测并以 2025-11-25 完成 `initialize` | PR1 录制 | 停下讨论：换版本或自己应答探测 |
+| go-sdk v1.8.0 能应答 Claude Code 的 `server/discover` 探测（PR1 录制已确认：协议 2026-07-28，不发 `initialize`） | PR1 录制 | 停下讨论：换版本或自己应答探测 |
 | MyGo WebView 的内容规则能挡住不可信页面的外部请求 | PR4 前原型 | 停下，重新讨论 0025 |
 
 ## 每个 PR 的详细计划
