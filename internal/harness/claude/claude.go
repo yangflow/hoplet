@@ -9,6 +9,7 @@ package claude
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -76,7 +77,7 @@ func (h *Harness) Kind() string { return Kind }
 // refuses otherwise.
 func caps() proto.Capabilities {
 	return proto.Capabilities{
-		Resume: true, SetMode: true, SetModel: true, PlanMode: true, PartialStream: true, Fast: true, Ultracode: true,
+		Resume: true, SetMode: true, SetModel: true, PlanMode: true, PartialStream: true, Fast: true, Ultracode: true, MCPInject: true,
 		Modes:   []proto.PermissionMode{proto.ModeConfirm, proto.ModeAutoEdit, proto.ModeAutoReview, proto.ModeFullAuto},
 		Efforts: []proto.Effort{proto.EffortLow, proto.EffortMedium, proto.EffortHigh, proto.EffortXHigh, proto.EffortMax},
 	}
@@ -231,7 +232,56 @@ func (h *Harness) Launch(spec harness.Spec) (harness.Launch, error) {
 	if spec.Ephemeral {
 		args = append(args, "--no-session-persistence")
 	}
-	return harness.Launch{Command: args, Env: launchEnv(spec.Env), Dir: spec.WorkDir}, nil
+	l := harness.Launch{Command: args, Env: launchEnv(spec.Env), Dir: spec.WorkDir}
+	if len(spec.MCP) > 0 {
+		cfg, err := mcpConfig(spec.MCP)
+		if err != nil {
+			return harness.Launch{}, err
+		}
+		// The configuration, token included, goes in a private file:
+		// never on the command line.
+		l.Files = map[string][]byte{mcpFile: cfg}
+		l.Command = append(l.Command, "--mcp-config", filepath.Join(spec.Dir, mcpFile))
+		for _, s := range spec.MCP {
+			// Hoplet's own tools are checked by the daemon; asking the user
+			// for each call would only repeat that.
+			l.Command = append(l.Command, "--allowedTools", "mcp__"+s.Name+"__*")
+		}
+	}
+	return l, nil
+}
+
+// mcpFile is the session's MCP configuration, in Spec.Dir.
+const mcpFile = "mcp.json"
+
+// mcpConfig is the --mcp-config file for servers.
+func mcpConfig(servers []harness.MCPServer) ([]byte, error) {
+	type server struct {
+		Type    string            `json:"type"`
+		Command string            `json:"command"`
+		Args    []string          `json:"args"`
+		Env     map[string]string `json:"env,omitempty"`
+	}
+	m := map[string]server{}
+	for _, s := range servers {
+		if s.Name == "" || len(s.Command) == 0 {
+			return nil, fmt.Errorf("claude: MCP server %q has no command", s.Name)
+		}
+		srv := server{Type: "stdio", Command: s.Command[0], Args: append([]string{}, s.Command[1:]...)}
+		for _, kv := range s.Env {
+			k, v, _ := strings.Cut(kv, "=")
+			if srv.Env == nil {
+				srv.Env = map[string]string{}
+			}
+			srv.Env[k] = v
+		}
+		m[s.Name] = srv
+	}
+	b, err := json.Marshal(map[string]any{"mcpServers": m})
+	if err != nil {
+		return nil, fmt.Errorf("claude: MCP config: %w", err)
+	}
+	return b, nil
 }
 
 // launchSettings are the claude settings a session starts with, as the

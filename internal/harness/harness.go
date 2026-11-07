@@ -65,21 +65,32 @@ type State struct {
 	Native string // the harness's own session ID, if already known
 }
 
-// MCPServer is an MCP server Hoplet injects into a harness session.
+// MCPServer is a stdio MCP server Hoplet injects into a harness session.
+// Env holds K=V pairs for that server's process only: it carries the
+// session's token and never reaches the harness's own environment.
 type MCPServer struct {
-	Name  string
-	URL   string
-	Token string
+	Name    string
+	Command []string
+	Env     []string
+}
+
+// MCPPersister is a harness that stores a session's MCP configuration in
+// the session itself and restarts the servers on resume. The daemon then
+// issues a session's token once instead of at every launch.
+type MCPPersister interface {
+	PersistsMCP() bool
 }
 
 // Spec is what a session needs from its harness.
 //
-// MCP injection lands in a later PR: MCP is reserved and adapters ignore it
-// for now. Ephemeral marks an isolated one-shot side task (no tools, no
-// persistence).
+// MCP, when set, is injected; adapters of harnesses without
+// Capabilities.MCPInject never get it. Ephemeral marks an isolated
+// one-shot side task (no tools, no persistence).
 type Spec struct {
 	Session proto.SessionID
 	WorkDir string
+	// Dir is the session's private directory, where Launch.Files go.
+	Dir string
 	// Env is the complete child environment; nil means empty, never
 	// "inherit".
 	Env  []string
@@ -190,6 +201,9 @@ type Launch struct {
 	Command []string
 	Env     []string
 	Dir     string
+	// Files are written, mode 0600, into Spec.Dir before the harness
+	// starts: file name (no path) to content.
+	Files map[string][]byte
 }
 
 // Harness is one kind of harness. The daemon calls Probe often (every

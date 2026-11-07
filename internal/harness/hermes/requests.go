@@ -8,7 +8,9 @@ import (
 	"maps"
 	"slices"
 	"strconv"
+	"strings"
 
+	"github.com/yangflow/hoplet/internal/harness"
 	"github.com/yangflow/hoplet/proto"
 )
 
@@ -47,9 +49,13 @@ func (r *run) attachSession() {
 	ctx, cancel := context.WithTimeout(context.Background(), writeTimeout)
 	defer cancel()
 	if native == "" {
+		editor := map[string]any{"edit_approval_policy": editAsk}
+		if len(r.spec.MCP) > 0 {
+			editor["mcp_servers"] = mcpServers(r.spec.MCP)
+		}
 		params := map[string]any{
 			"request_id": string(r.spec.Session), "source": "acp", "cwd": r.spec.WorkDir,
-			"editor": map[string]any{"edit_approval_policy": editAsk},
+			"editor": editor,
 		}
 		if r.spec.Model != "" {
 			params["model"] = r.spec.Model
@@ -70,6 +76,25 @@ func (r *run) attachSession() {
 		return
 	}
 	_ = r.call(ctx, "session.resume", map[string]any{"session_id": native, "omit_messages": true})
+}
+
+// mcpServers is the editor's mcp_servers for servers. Hermes keeps them,
+// token included, in the session and restarts them on every resume.
+func mcpServers(servers []harness.MCPServer) []map[string]any {
+	out := make([]map[string]any, 0, len(servers))
+	for _, s := range servers {
+		env := make([]map[string]string, 0, len(s.Env))
+		for _, kv := range s.Env {
+			k, v, _ := strings.Cut(kv, "=")
+			env = append(env, map[string]string{"name": k, "value": v})
+		}
+		srv := map[string]any{"name": s.Name, "args": []string{}, "env": env}
+		if len(s.Command) > 0 {
+			srv["command"], srv["args"] = s.Command[0], s.Command[1:]
+		}
+		out = append(out, srv)
+	}
+	return out
 }
 
 // attachRefused records that Hermes refused to attach the session: the

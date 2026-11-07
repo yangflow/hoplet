@@ -149,6 +149,11 @@ func newRun(io harness.Stdio, spec harness.Spec) *run {
 	if native != "" {
 		// An attached session already has the mode Hoplet set.
 		r.policy, _ = editPolicy(spec.Mode)
+		if len(spec.MCP) > 0 {
+			// A session created without Hoplet's tools gets them once,
+			// when idle; Hermes starts them from the next resume on.
+			r.mutations = append(r.mutations, mutation{operation: "editor_mcp", payload: map[string]any{"mcp_servers": mcpServers(spec.MCP)}})
+		}
 	}
 	// Attaching to a bridge that is already running (the daemon restarted)
 	// finds its connection attached to the session; a new bridge attaches

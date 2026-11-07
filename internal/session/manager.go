@@ -44,6 +44,7 @@ import (
 	"github.com/yangflow/hoplet/internal/harness"
 	"github.com/yangflow/hoplet/internal/shim"
 	"github.com/yangflow/hoplet/internal/store"
+	"github.com/yangflow/hoplet/internal/tools"
 	"github.com/yangflow/hoplet/proto"
 )
 
@@ -89,8 +90,12 @@ type Config struct {
 	// behind a shim; a DirectHarness is started and resumed directly.
 	Harnesses map[string]harness.Harness
 	Spawner   Spawner
+	// MCPCommand is the command line of Hoplet's MCP server (hoplet mcp),
+	// injected with the session's token into harnesses that take MCP
+	// servers; empty injects nothing.
+	MCPCommand []string
 	// Env is the complete, already-whitelisted environment of harness
-	// processes (login-shell environment, proxy variables, MCP token), built
+	// processes (login-shell environment, proxy variables), built
 	// by the daemon. The session package never inherits the daemon's own
 	// environment. SetEnv replaces it for harnesses started afterwards.
 	Env    []string
@@ -871,7 +876,7 @@ func (m *Manager) Env() []string {
 
 func (m *Manager) specFor(sess proto.Session, inTurn bool) harness.Spec {
 	return harness.Spec{
-		Session: sess.ID, WorkDir: m.workDir(sess), Env: m.Env(), Mode: sess.Permission, Plan: sess.Plan, Fast: sess.Fast, Ultracode: sess.Ultracode,
+		Session: sess.ID, WorkDir: m.workDir(sess), Dir: m.dir(sess.ID), Env: m.Env(), Mode: sess.Permission, Plan: sess.Plan, Fast: sess.Fast, Ultracode: sess.Ultracode,
 		Effort: sess.Effort, Model: sess.Model, ModelProvider: sess.ModelProvider, Resume: sess.Harness.NativeID,
 		State: harness.State{InTurn: inTurn, Native: sess.Harness.NativeID},
 	}
@@ -886,13 +891,13 @@ func (m *Manager) workDir(sess proto.Session) string {
 
 // startSpec is the spec for starting a harness: the resume ID is dropped when
 // the harness cannot resume.
-func (m *Manager) startSpec(ctx context.Context, h harness.Harness, sess proto.Session) (harness.Spec, error) {
+func (m *Manager) startSpec(ctx context.Context, h harness.Harness, sess proto.Session) (harness.Spec, harness.Info, error) {
 	info, err := h.Probe(ctx)
 	if err != nil {
-		return harness.Spec{}, fmt.Errorf("session: probe %s: %w", sess.Harness.Kind, err)
+		return harness.Spec{}, info, fmt.Errorf("session: probe %s: %w", sess.Harness.Kind, err)
 	}
 	if !info.Supported {
-		return harness.Spec{}, fmt.Errorf("%w: %s %s", ErrUnsupportedVersion, sess.Harness.Kind, info.Version)
+		return harness.Spec{}, info, fmt.Errorf("%w: %s %s", ErrUnsupportedVersion, sess.Harness.Kind, info.Version)
 	}
 	spec := m.specFor(sess, false)
 	// The harness may have changed since the mode was stored (an upgrade,
@@ -901,7 +906,61 @@ func (m *Manager) startSpec(ctx context.Context, h harness.Harness, sess proto.S
 	if !info.Capabilities.Resume {
 		spec.Resume = "" // the harness can't resume; start fresh
 	}
-	return spec, nil
+	return spec, info, nil
+}
+
+// issueTools gives the session a new tool token and returns the MCP
+// server that carries it, or nil when the session gets no tools: no MCP
+// command, a harness that takes no MCP servers, or a one-shot side task.
+// A new token replaces the session's old one.
+func (m *Manager) issueTools(ctx context.Context, info harness.Info, spec harness.Spec) ([]harness.MCPServer, error) {
+	if len(m.cfg.MCPCommand) == 0 || !info.Capabilities.MCPInject || spec.Ephemeral {
+		return nil, nil
+	}
+	token := rand.Text()
+	if err := m.cfg.Store.SetSessionToken(ctx, spec.Session, store.TokenHash(token), time.Now()); err != nil {
+		return nil, fmt.Errorf("session: issue tool token: %w", err)
+	}
+	return []harness.MCPServer{{Name: "hoplet", Command: slices.Clone(m.cfg.MCPCommand), Env: []string{tools.TokenEnv + "=" + token}}}, nil
+}
+
+// persistedTools is the MCP server for a harness that keeps a session's
+// MCP servers: a token is issued only for a session that has none yet or
+// is about to be created; any other session already carries its token.
+func (m *Manager) persistedTools(ctx context.Context, h harness.Harness, info harness.Info, spec harness.Spec) ([]harness.MCPServer, error) {
+	if !persistsMCP(h) {
+		return nil, nil
+	}
+	if spec.State.Native != "" {
+		has, err := m.cfg.Store.HasSessionToken(ctx, spec.Session)
+		if err != nil || has {
+			return nil, err
+		}
+	}
+	return m.issueTools(ctx, info, spec)
+}
+
+// persistsMCP reports whether h keeps a session's MCP servers itself.
+func persistsMCP(h harness.Harness) bool {
+	p, ok := h.(harness.MCPPersister)
+	return ok && p.PersistsMCP()
+}
+
+// writeFiles writes a launch's files, mode 0600, into dir.
+func writeFiles(dir string, files map[string][]byte) error {
+	for name, b := range files {
+		if name == "" || filepath.Base(name) != name {
+			return fmt.Errorf("session: launch file %q is not a plain name", name)
+		}
+		p := filepath.Join(dir, name)
+		if err := os.WriteFile(p, b, 0o600); err != nil {
+			return fmt.Errorf("session: write %s: %w", name, err)
+		}
+		if err := os.Chmod(p, 0o600); err != nil { // an older file kept its mode
+			return fmt.Errorf("session: write %s: %w", name, err)
+		}
+	}
+	return nil
 }
 
 func (m *Manager) spawn(ctx context.Context, sess proto.Session) error {
@@ -913,9 +972,16 @@ func (m *Manager) spawn(ctx context.Context, sess proto.Session) error {
 	if !ok {
 		return fmt.Errorf("session: harness %q does not run behind a shim", sess.Harness.Kind)
 	}
-	spec, err := m.startSpec(ctx, h, sess)
+	spec, info, err := m.startSpec(ctx, h, sess)
 	if err != nil {
 		return err
+	}
+	if !persistsMCP(h) {
+		// The harness forgets its MCP servers when it exits: every launch
+		// gets a new token.
+		if spec.MCP, err = m.issueTools(ctx, info, spec); err != nil {
+			return err
+		}
 	}
 	l, err := sh.Launch(spec)
 	if err != nil {
@@ -923,6 +989,9 @@ func (m *Manager) spawn(ctx context.Context, sess proto.Session) error {
 	}
 	if err := os.MkdirAll(m.dir(sess.ID), 0o700); err != nil {
 		return fmt.Errorf("session: create session dir: %w", err)
+	}
+	if err := writeFiles(m.dir(sess.ID), l.Files); err != nil {
+		return err
 	}
 	return m.cfg.Spawner.Spawn(ctx, m.dir(sess.ID), spec.WorkDir, l)
 }
@@ -978,13 +1047,16 @@ func (m *Manager) attach(ctx context.Context, sess proto.Session, wait bool, not
 		// valid when stored.
 		if info, err := hh.Probe(ctx); err == nil {
 			spec.Mode = info.Capabilities.Fallback(spec.Mode)
+			if spec.MCP, err = m.persistedTools(ctx, h, info, spec); err != nil {
+				return nil, errors.Join(err, l.stdio.Close())
+			}
 		}
 		l.run, err = hh.Attach(ctx, spec, l.stdio)
 		if err != nil {
 			return nil, errors.Join(err, l.stdio.Close())
 		}
 	case harness.DirectHarness:
-		spec, err := m.startSpec(ctx, h, sess)
+		spec, _, err := m.startSpec(ctx, h, sess)
 		if err != nil {
 			return nil, err
 		}
