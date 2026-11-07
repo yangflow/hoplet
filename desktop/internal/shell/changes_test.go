@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/egoist/mygo/ui"
+	"github.com/egoist/mygo/ui/editor"
 
 	"github.com/yangflow/hoplet/proto"
 )
@@ -107,7 +108,7 @@ func TestChangesFileOpensTab(t *testing.T) {
 	if ps.active < 0 || !ps.tabs[ps.active].changes {
 		t.Fatalf("tabs %+v, active %d", ps.tabs, ps.active)
 	}
-	for _, want := range []string{"变更 · 累计 · 2 个文件", "internal", "9 行未改动", "26 行未改动", "func (b *bridge) silent() bool"} {
+	for _, want := range []string{"变更 · 累计 · 2 个文件", "internal", "9 行未改动", "26 行未改动", "func (b *bridge) silent() bool", "第 1–2 行"} {
 		if !strings.Contains(strings.Join(tt.Texts(), "\n"), want) {
 			t.Errorf("no %q in the tab: %q", want, tt.Texts())
 		}
@@ -176,5 +177,55 @@ func TestChangeCardOpensChanges(t *testing.T) {
 	ps := a.panelFor("s1")
 	if ps.active < 0 || !ps.tabs[ps.active].changes || ps.ch.chosen != "internal/bridge.go" {
 		t.Errorf("tabs %+v, active %d, chosen %q", ps.tabs, ps.active, ps.ch.chosen)
+	}
+}
+
+// TestChangesHeadingFolds folds a file from anywhere on its heading, and
+// its open button opens the file without folding it.
+func TestChangesHeadingFolds(t *testing.T) {
+	a, _, tt := openChanges(t)
+	if err := tt.Click("notes.md"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tt)
+	ps := a.panelFor("s1")
+	if err := tt.Click("折叠 bridge.go"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tt)
+	if !ps.ch.folded["internal/bridge.go"] || !tt.HasText("展开 bridge.go") {
+		t.Fatalf("bridge.go not folded: %v", ps.ch.folded)
+	}
+	if err := tt.Click("展开 bridge.go"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tt)
+	if ps.ch.folded["internal/bridge.go"] {
+		t.Fatal("bridge.go still folded")
+	}
+	if err := tt.Click("打开文件"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tt)
+	if ps.ch.folded["internal/bridge.go"] || ps.ch.folded["notes.md"] {
+		t.Fatalf("the open button folded a file: %v", ps.ch.folded)
+	}
+	if ps.active < 0 || ps.tabs[ps.active].path == "" {
+		t.Fatalf("the open button opened no file: %+v", ps.tabs)
+	}
+}
+
+func TestHunkLines(t *testing.T) {
+	for _, tc := range []struct {
+		h    editor.PatchHunk
+		want string
+	}{
+		{editor.PatchHunk{OldStart: 1, OldLines: 3, NewStart: 1, NewLines: 8}, "第 1–8 行"},
+		{editor.PatchHunk{OldStart: 4, OldLines: 1, NewStart: 4, NewLines: 1}, "第 4 行"},
+		{editor.PatchHunk{OldStart: 1, OldLines: 3}, "第 1–3 行"}, // only removes lines
+	} {
+		if got := hunkLines(tc.h); got != tc.want {
+			t.Errorf("hunkLines(%+v) = %q, want %q", tc.h, got, tc.want)
+		}
 	}
 }

@@ -419,20 +419,21 @@ func (a *App) fileChangeView(c *ui.Context, k theme.Colors, ps *panelState, row 
 		h = &ui.Handle{}
 		ch.heads[row.key] = h
 	}
-	head := ui.Row(c).Height(theme.RowStep).Padding(0, theme.Space1, 0, theme.Space2).Gap(theme.Space2).AlignItems(ui.Center).Background(k.Pane).Bind(h)
+	chev, tip := a.icons.Menu, "折叠 "+row.label
+	if folded {
+		chev, tip = a.icons.Expand, "展开 "+row.label
+	}
+	// The whole heading folds the file; its open button only opens it.
+	head := ui.Row(c).Height(theme.RowStep).Padding(0, theme.Space1, 0, theme.Space2).Gap(theme.Space2).AlignItems(ui.Center).Background(k.Pane).
+		Label(tip).Bind(h)
+	if head.Clicked() {
+		if ch.folded == nil {
+			ch.folded = map[string]bool{}
+		}
+		ch.folded[row.key] = !folded
+	}
 	head.Children(func() {
-		chev, tip := a.icons.Menu, "折叠 "+row.label
-		if folded {
-			chev, tip = a.icons.Expand, "展开 "+row.label
-		}
-		fold := ui.Button(c.Key("fold"), "").Label(tip).Size(theme.IconSmall, theme.IconSmall).Padding(0).Border(0, ui.Transparent).Background(ui.Transparent)
-		fold.Children(func() { ui.Icon(c, chev).FontSize(theme.IconSmall).TextColor(k.Fg3) })
-		if fold.Clicked() {
-			if ch.folded == nil {
-				ch.folded = map[string]bool{}
-			}
-			ch.folded[row.key] = !folded
-		}
+		ui.Icon(c, chev).FontSize(theme.IconSmall).TextColor(k.Fg3).Shrink(0)
 		mark := statusMark(row.file.Status)
 		bg, fg := k.Hover, k.Fg3
 		switch mark {
@@ -473,32 +474,54 @@ func (a *App) fileChangeView(c *ui.Context, k theme.Colors, ps *panelState, row 
 	if ch.split {
 		st.Layout = editor.DiffSplit
 	}
-	gaps := map[string][2]string{}
+	gaps := map[string]gap{}
 	for i, hk := range fc.hunks {
 		header := "@@ -" + strconv.Itoa(hk.OldStart) + "," + strconv.Itoa(hk.OldLines) + " +" + strconv.Itoa(hk.NewStart) + "," + strconv.Itoa(hk.NewLines) + " @@"
 		if hk.Section != "" {
 			header += " " + hk.Section
 		}
-		n := ""
+		// The bar above a change says how many lines it folds, or, with
+		// none before it, where the change is.
+		n, folds := hunkLines(hk), false
 		if g := unchangedBefore(fc.hunks, i); g > 0 {
-			n = strconv.Itoa(g) + " 行未改动"
+			n, folds = strconv.Itoa(g)+" 行未改动", true
 		}
-		gaps[header] = [2]string{n, hk.Section}
+		gaps[header] = gap{n, hk.Section, folds}
 	}
 	st.RenderSeparator = func(c *ui.Context, sep ui.Element, sp *editor.DiffSeparator) {
 		g := gaps[sp.Header]
 		sep.Padding(theme.Space1, 0).Children(func() { // on the editor's pane
 			ui.Row(c).FillWidth().Height(theme.RowDense).Padding(0, theme.Space2).Gap(theme.Space2).AlignItems(ui.Center).Children(func() {
-				if g[0] != "" {
+				if g.folds {
 					ui.Icon(c, a.icons.Unfold).FontSize(theme.IconSmall).TextColor(k.Muted)
-					theme.Caption.On(ui.Text(c, g[0])).TextColor(k.Muted)
 				}
+				theme.Caption.On(ui.Text(c, g.lines)).TextColor(k.Muted)
 				ui.Spacer(c)
-				theme.CodeCaption.On(ui.Text(c, g[1])).TextColor(k.Muted).SingleLine().Shrink(1)
+				theme.CodeCaption.On(ui.Text(c, g.section)).TextColor(k.Muted).SingleLine().Shrink(1)
 			})
 		})
 	}
 	editor.DiffView(c, st).FillWidth()
+}
+
+// gap is the bar above a change of a file: its lines, the function it
+// sits in, and whether the lines are unchanged ones folded away.
+type gap struct {
+	lines, section string
+	folds          bool
+}
+
+// hunkLines is where a change is, on the new side, or on the old one
+// for a change that only removes lines: "第 3–8 行".
+func hunkLines(h editor.PatchHunk) string {
+	start, n := h.NewStart, h.NewLines
+	if n == 0 {
+		start, n = h.OldStart, h.OldLines
+	}
+	if n <= 1 {
+		return "第 " + strconv.Itoa(start) + " 行"
+	}
+	return "第 " + strconv.Itoa(start) + "–" + strconv.Itoa(start+n-1) + " 行"
 }
 
 // denseButton is a dense row's icon button, its icon on hover or when on.
