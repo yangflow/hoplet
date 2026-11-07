@@ -495,6 +495,9 @@ func (a *App) View(c *ui.Context) {
 	if c.Shortcut(ui.Cmd, ui.KeyK) {
 		a.OpenPalette()
 	}
+	if c.Shortcut(ui.Cmd, ui.KeyP) {
+		a.OpenFilePicker()
+	}
 	a.palette(c, k)
 	if st := a.state(); !st.equal(a.last) {
 		a.last = st

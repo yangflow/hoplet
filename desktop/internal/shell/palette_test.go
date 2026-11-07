@@ -1,6 +1,8 @@
 package shell
 
 import (
+	"encoding/json"
+	"path"
 	"slices"
 	"testing"
 
@@ -38,6 +40,11 @@ func TestPaletteResults(t *testing.T) {
 		sessions = append(sessions, sess("sync "+string(rune('a'+i)), "vps · /srv"))
 	}
 	commands := []paletteEntry{{title: "新建会话"}, {title: "收件箱"}, {title: "归档"}}
+	var files []paletteEntry
+	for _, p := range []string{"internal/bridge/run.go", "docs/design/0020-hermes-bridge.md", "abridged.txt",
+		"internal/harness/hermes/bridge.go", "internal/harness/hermes/bridge_test.go", "internal/harness/hermes/z.go"} {
+		files = append(files, paletteEntry{file: p, title: path.Base(p), where: path.Dir(p)})
+	}
 	titles := func(gs []paletteGroup) []string {
 		var out []string
 		for _, g := range gs {
@@ -60,12 +67,114 @@ func TestPaletteResults(t *testing.T) {
 		"where matches": {"srv", scopeSessions, []string{"会话:", "Sync docs", "sync a", "sync b", "sync c", "sync d"}},
 		"commands":      {"收件", scopeAll, []string{"命令:", "收件箱"}},
 		"nothing":       {"gemini", scopeAll, nil},
+		"empty, files":  {"", scopeFiles, nil},
+		"name first":    {"bridge", scopeFiles, []string{"文件:", "bridge.go", "bridge_test.go", "0020-hermes-bridge.md", "abridged.txt", "run.go"}},
+		"then the path": {"hermes", scopeFiles, []string{"文件:", "0020-hermes-bridge.md", "bridge.go", "bridge_test.go", "z.go"}},
+		"files in all":  {"bridge", scopeAll, []string{"文件:", "bridge.go", "bridge_test.go", "0020-hermes-bridge.md", "abridged.txt", "run.go"}},
+		"five in all":   {"go", scopeAll, []string{"文件:", "run.go", "bridge.go", "bridge_test.go", "z.go"}},
 	} {
 		t.Run(name, func(t *testing.T) {
-			if got := titles(paletteResults(sessions, commands, []string{"新建会话", "收件箱"}, tc.q, tc.scope)); !slices.Equal(got, tc.want) {
+			if got := titles(paletteResults(sessions, commands, files, []string{"新建会话", "收件箱"}, tc.q, tc.scope)); !slices.Equal(got, tc.want) {
 				t.Fatalf("got %q\nwant %q", got, tc.want)
 			}
 		})
+	}
+}
+
+// A file's name shows its match; a match in its path only does not.
+func TestPaletteFileMatch(t *testing.T) {
+	files := []paletteEntry{
+		{file: "internal/harness/hermes/bridge.go", title: "bridge.go", where: "internal/harness/hermes"},
+		{file: "internal/hermes/run.go", title: "run.go", where: "internal/hermes"},
+	}
+	gs := paletteResults(nil, nil, files, nil, "hermes", scopeFiles)
+	if len(gs) != 1 || len(gs[0].rows) != 2 {
+		t.Fatalf("groups %v", gs)
+	}
+	for _, h := range gs[0].rows {
+		if h.n != 0 {
+			t.Errorf("%s shows a match in its name at %d+%d", h.file, h.at, h.n)
+		}
+	}
+	gs = paletteResults(nil, nil, files, nil, "bri", scopeFiles)
+	if h := gs[0].rows[0]; h.at != 0 || h.n != 3 {
+		t.Errorf("bridge.go shows its match at %d+%d, want 0+3", h.at, h.n)
+	}
+}
+
+// ⌘P opens the palette on the session's files: typing part of a name and
+// ↩ opens it in the right panel. The list is read once, and again after
+// the session changes a file; a list cut short says so. A Personal
+// session has no files to find.
+func TestPaletteFindsFiles(t *testing.T) {
+	a, h, tt, _ := newApp(t)
+	h.lists = map[string]proto.FileList{"*": {Entries: []proto.FileEntry{fileEntry("docs/notes.md"), fileEntry("internal/harness/bridge.go")}}}
+	a.Select("s1")
+	settle(tt)
+	all := func() int {
+		n := 0
+		for _, p := range h.listed {
+			if p.All && !p.Ignored {
+				n++
+			}
+		}
+		return n
+	}
+	tt.Key(ui.Cmd, ui.KeyP)
+	tt.Frame()
+	if !a.s.palOpen || a.s.palScope != scopeFiles || !tt.HasText("文件 ⌘4") {
+		t.Fatalf("⌘P: open %v, scope %v in %q", a.s.palOpen, a.s.palScope, tt.Texts())
+	}
+	tt.Type("brid")
+	tt.Frame()
+	if !tt.HasText("internal/harness") {
+		t.Fatalf("no bridge.go in %q", tt.Texts())
+	}
+	tt.Key(0, ui.KeyEnter)
+	settle(tt)
+	ps := a.panelFor("s1")
+	if a.s.palOpen || !a.panelOpen || len(ps.tabs) != 1 || ps.tabs[0].path != "internal/harness/bridge.go" {
+		t.Fatalf("↩: palette %v, panel %v, tabs %v", a.s.palOpen, a.panelOpen, ps.tabs)
+	}
+
+	a.OpenFilePicker()
+	tt.Frame()
+	tt.Type("zzz")
+	tt.Frame()
+	if !tt.HasText("没有匹配的文件") {
+		t.Errorf("no match: %q", tt.Texts())
+	}
+	if n := all(); n != 1 {
+		t.Errorf("read every file %d times, want once", n)
+	}
+	tt.Key(0, ui.KeyEscape)
+	tt.Frame()
+
+	h.lists["*"] = proto.FileList{Entries: []proto.FileEntry{fileEntry("docs/notes.md"), fileEntry("docs/plan.md")}, Truncated: true}
+	payload, err := json.Marshal(proto.FileChange{Path: "/w/hoplet/docs/plan.md", Op: proto.FileCreated})
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.ApplySession("s1", proto.SessionItem{Events: []proto.Event{{Session: "s1", Seq: 9, Type: proto.TypeFileChange, V: 1, Payload: payload}}})
+	a.OpenFilePicker()
+	tt.Frame()
+	tt.Type("md")
+	tt.Frame()
+	if n := all(); n != 2 {
+		t.Errorf("read every file %d times after a change, want twice", n)
+	}
+	if !tt.HasText("plan.md") || !tt.HasText("只搜索了前 2 个文件") {
+		t.Errorf("cut short: %q", tt.Texts())
+	}
+	tt.Key(0, ui.KeyEscape)
+	tt.Frame()
+
+	a.Select("p1")
+	settle(tt)
+	tt.Key(ui.Cmd, ui.KeyP)
+	tt.Frame()
+	if a.s.palScope != scopeAll || tt.HasText("文件 ⌘4") {
+		t.Errorf("⌘P in a Personal session: scope %v in %q", a.s.palScope, tt.Texts())
 	}
 }
 

@@ -180,9 +180,9 @@ func (a *App) OpenFilePicker()       // ⌘P
 
 文件：`palette.go`、`palette_test.go`。
 
-- [ ] 命令面板加范围“文件”（⌘4），⌘P 直接打开到这个范围；第一次打开时 `files.list` + `All`，之后在 `TurnEnded` / `FileChange` 后失效重取；匹配按文件名 > 路径，规则同会话；行：文件图标 · 文件名 · 灰色目录；↩ 打开文件标签。列表被截断时底部一行说明。
-- [ ] 测试：匹配与排序（表驱动）；⌘P 输入文件名一部分、↩ 打开该文件；截断说明。
-- [ ] commit：`feat(desktop): find files from the palette`
+- [x] 命令面板加范围“文件”（⌘4），⌘P 直接打开到这个范围；第一次打开时 `files.list` + `All`，之后在 `TurnEnded` / `FileChange` 后失效重取；匹配按文件名 > 路径，规则同会话；行：文件图标 · 文件名 · 灰色目录；↩ 打开文件标签。列表被截断时底部一行说明。
+- [x] 测试：匹配与排序（表驱动）；⌘P 输入文件名一部分、↩ 打开该文件；截断说明。
+- [x] commit：`feat(desktop): find files from the palette`
 
 ### 任务 8：收尾与真实验收
 

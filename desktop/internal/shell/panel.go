@@ -39,6 +39,7 @@ type panelState struct {
 	focus  bool // the spread viewer takes the focus in its next frame
 	ch     changesTab
 	tree   fileTree
+	picker filePicker
 	views  map[string]*fileView // open files, by path relative to the working directory
 }
 
@@ -130,10 +131,6 @@ func (a *App) ShowTree() { a.ShowPanel(columnTree) }
 
 // ShowChanges opens the right panel on the changes.
 func (a *App) ShowChanges() { a.ShowPanel(columnChanges) }
-
-// OpenFilePicker finds a file to open in the right panel. Until the
-// palette searches files, it opens the palette.
-func (a *App) OpenFilePicker() { a.OpenPalette() }
 
 // main draws the content area and, beside it, the right panel as fit
 // leaves it. The panel changes width (opening, closing, the viewer coming

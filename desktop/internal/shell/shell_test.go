@@ -106,7 +106,11 @@ func (h *host) DiffPatch(id proto.SessionID, done func(proto.SessionDiff, error)
 }
 func (h *host) Files(p proto.FilesListParams, done func(proto.FileList, error)) {
 	h.listed = append(h.listed, p)
-	if fl, ok := h.lists[p.Path]; ok {
+	key := p.Path
+	if p.All {
+		key = "*" // every file, as the filter and the palette read them
+	}
+	if fl, ok := h.lists[key]; ok {
 		done(fl, nil)
 	}
 }

@@ -51,7 +51,7 @@ type sessionView struct {
 	inboxFocus   bool                                          // the inbox takes the focus this frame
 	palOpen      bool                                          // the command palette shows
 	palQuery     string                                        // what the palette searches for
-	palScope     paletteScope                                  // what it searches: all, sessions or commands
+	palScope     paletteScope                                  // what it searches: all, sessions, commands or files
 	palSel       int                                           // the selected row
 	runSub       string                                        // the run menu's open submenu: subEffort, subModel or none
 	runHover     string                                        // the run menu row the pointer is on

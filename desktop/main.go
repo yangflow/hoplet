@@ -510,6 +510,7 @@ func (d *desktop) menu() *mygo.Menu {
 			mygo.Separator(),
 			{Label: "收件箱", Accelerator: "Shift+CmdOrCtrl+I", Click: d.do(d.app.OpenInbox)},
 			{Label: "搜索", Accelerator: "CmdOrCtrl+K", Click: d.do(d.app.OpenPalette)},
+			{Label: "打开文件", Accelerator: "CmdOrCtrl+P", Click: d.do(d.app.OpenFilePicker)},
 			mygo.Separator(),
 			d.back, d.forward,
 			mygo.Separator(),
