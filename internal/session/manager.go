@@ -9,11 +9,16 @@
 // spool, the consumed offset stays behind it, so sends are refused until the
 // line completes or a start or exit record flushes it.
 //
+// A shim spawned in a directory whose spool the daemon has not read to the
+// end resumes from the committed offset, so the old process's unread tail is
+// ingested before any new output, and sends wait until it is. An exit record
+// in that tail closes the old process's turn without ending the session:
+// ingestion reattaches past it to the process the new shim started.
+//
 // Three properties of recovery are accepted on purpose, because the alternative
-// is losing events. After a shim crashed without writing its exit record, a
-// respawned shim in the same directory starts a new process, but the daemon
-// still resumes from its committed offset, so it replays the unacknowledged
-// tail of the old spool before any new output. And a line longer than
+// is losing events. After a shim crashed without writing its exit record,
+// the replayed tail ends without one, so nothing tells the adapter the old
+// process is gone before the new one's output. And a line longer than
 // harness.MaxLine is delivered in several pieces that commit their offset
 // only at the record's final piece: after a restart in the middle of such a
 // line, the entries earlier pieces produced can appear again. Likewise, while
@@ -31,6 +36,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"log/slog"
 	"maps"
 	"os"
@@ -181,6 +187,12 @@ type live struct {
 	stopping atomic.Bool
 	// exited is set once the harness's exit is committed and acknowledged.
 	exited atomic.Bool
+	// prior is the spool's size before this shim started: records up to it
+	// are the tail of earlier processes. An exit among them ends that old
+	// process, not this shim's, so ingestion sets replaced and the session
+	// reattaches from there.
+	prior    int64
+	replaced atomic.Bool
 	// committed mirrors the store's ingest offset for this session; syncSize
 	// is the spool size when the connection was made. Until committed
 	// reaches syncSize the store lags the shim, so what it says about turns
@@ -196,7 +208,7 @@ type live struct {
 // synced reports whether ingestion has caught up with what the shim had
 // recorded when the manager attached. A direct harness has no backlog.
 func (l *live) synced() bool {
-	return l.stdio == nil || l.committed.Load() >= l.syncSize
+	return l.stdio == nil || (!l.replaced.Load() && l.committed.Load() >= l.syncSize)
 }
 
 // New returns a manager; call Recover to reattach to running shims.
@@ -834,7 +846,7 @@ func (m *Manager) ensure(ctx context.Context, id proto.SessionID) (*live, error)
 	if sess.ArchivedAt != nil {
 		return nil, fmt.Errorf("%w: %s", ErrArchived, id)
 	}
-	l, err := m.attach(ctx, sess, false, "")
+	l, err := m.attach(ctx, sess, -1, "")
 	if err == nil {
 		return l, nil
 	}
@@ -842,10 +854,15 @@ func (m *Manager) ensure(ctx context.Context, id proto.SessionID) (*live, error)
 		m.recordAttachError(ctx, id, err)
 		return nil, err
 	}
+	// Nothing writes the spool now; the new shim appends after this.
+	prior, err := spoolSize(m.dir(id))
+	if err != nil {
+		return nil, err
+	}
 	if err := m.spawn(ctx, sess); err != nil {
 		return nil, err
 	}
-	l, err = m.attach(ctx, sess, true, "")
+	l, err = m.attach(ctx, sess, prior, "")
 	if err != nil {
 		err = fmt.Errorf("%w%s", err, shimLogTail(m.dir(id)))
 		m.recordAttachError(ctx, id, err)
@@ -928,11 +945,13 @@ func (m *Manager) spawn(ctx context.Context, sess proto.Session) error {
 }
 
 // attach connects to the session's harness and starts ingesting; the caller
-// holds the session lock. For a shim it resumes from the committed offset;
-// with wait it retries until a just-spawned shim is ready, without it fails
-// with errNoShim at once if no shim is listening. A direct harness is
-// started (resumed). note is an Error to record with the first append.
-func (m *Manager) attach(ctx context.Context, sess proto.Session, wait bool, note string) (*live, error) {
+// holds the session lock. For a shim it resumes from the committed offset.
+// A negative prior dials a running shim and fails with errNoShim at once if
+// none is listening; otherwise the shim was just spawned, prior is the
+// spool's size before it started, and attach retries until it is ready. A
+// direct harness is started (resumed). note is an Error to record with the
+// first append.
+func (m *Manager) attach(ctx context.Context, sess proto.Session, prior int64, note string) (*live, error) {
 	if l, err := m.attached(sess.ID); err == nil {
 		return l, nil
 	}
@@ -952,6 +971,7 @@ func (m *Manager) attach(ctx context.Context, sess proto.Session, wait bool, not
 	switch hh := h.(type) {
 	case harness.StdioHarness:
 		var c *shim.Client
+		wait := prior >= 0
 		if wait {
 			dctx, cancel := context.WithTimeout(ctx, m.ready)
 			c, err = dialWhenReady(dctx, m.dir(sess.ID), off)
@@ -967,7 +987,11 @@ func (m *Manager) attach(ctx context.Context, sess proto.Session, wait bool, not
 		}
 		l.stdio = NewShimStdio(c)
 		l.acker = l.stdio
-		if !wait { // a shim we just started has nothing to catch up with
+		if wait {
+			// A shim we just started has only what earlier processes left
+			// unread to catch up with.
+			l.syncSize, l.prior = prior, prior
+		} else {
 			l.syncSize = c.Size()
 		}
 		l.committed.Store(off)
@@ -1011,6 +1035,18 @@ func (m *Manager) attach(ctx context.Context, sess proto.Session, wait bool, not
 	m.signalChange()
 	go m.ingest(l, last, open)
 	return l, nil
+}
+
+// spoolSize is the size of the spool in dir; 0 if there is none yet.
+func spoolSize(dir string) (int64, error) {
+	fi, err := os.Stat(shim.SpoolPath(dir))
+	if errors.Is(err, fs.ErrNotExist) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, fmt.Errorf("session: stat spool: %w", err)
+	}
+	return fi.Size(), nil
 }
 
 // permanentAttachError reports errors that retrying will not fix: the shim
@@ -1078,7 +1114,7 @@ func (m *Manager) recoverOne(ctx context.Context, sess proto.Session) error {
 			return err
 		}
 	}
-	l, err := m.attach(ctx, sess, false, "")
+	l, err := m.attach(ctx, sess, -1, "")
 	switch {
 	case err == nil:
 		if sess.ArchivedAt != nil {
@@ -1133,7 +1169,7 @@ func (m *Manager) stopSession(ctx context.Context, id proto.SessionID) error {
 			if _, stdio := m.cfg.Harnesses[sess.Harness.Kind].(harness.StdioHarness); !stdio {
 				return nil // a direct harness not running is not started to be stopped
 			}
-			if l, err = m.attach(ctx, sess, false, ""); errors.Is(err, errNoShim) {
+			if l, err = m.attach(ctx, sess, -1, ""); errors.Is(err, errNoShim) {
 				return nil
 			} else if err != nil {
 				return err
@@ -1336,7 +1372,7 @@ func (m *Manager) tryReattach(id proto.SessionID, note string) error {
 	if sess.ArchivedAt != nil {
 		return nil
 	}
-	_, err = m.attach(m.ctx, sess, false, note)
+	_, err = m.attach(m.ctx, sess, -1, note)
 	return err
 }
 
