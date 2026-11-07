@@ -318,6 +318,9 @@ type QueuedMessage struct {
 	Position  int       `json:"position"`
 	CreatedAt time.Time `json:"created_at"`
 	Error     string    `json:"error,omitempty"`
+	// From is the session whose report this message is; empty for messages
+	// the user sent.
+	From SessionID `json:"from,omitempty"`
 }
 
 // QueueEditParams changes a queued message's text.

@@ -65,6 +65,9 @@ type Message struct {
 	ID   string `json:"id"`
 	Role Role   `json:"role"`
 	Text string `json:"text"`
+	// From is the session whose report this user message is; empty for
+	// messages the user sent.
+	From SessionID `json:"from,omitempty"`
 }
 
 // Thinking is the harness's visible reasoning.

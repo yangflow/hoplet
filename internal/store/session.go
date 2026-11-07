@@ -14,7 +14,7 @@ import (
 )
 
 const sessionColumns = `id, mode, harness_kind, harness_version, native_id, directory, isolation,
-	owner, origin, status, title, created_at, updated_at, archived_at, last_seq, version, permission, plan, effort, fast, pinned, unread, preview, model, model_provider, ultracode`
+	owner, origin, status, title, created_at, updated_at, archived_at, last_seq, version, permission, plan, effort, fast, pinned, unread, preview, model, model_provider, ultracode, parent`
 
 // CreateSession stores a new session. Status defaults to idle and
 // CreatedAt to now; UpdatedAt equals CreatedAt. The write is durable.
@@ -43,12 +43,17 @@ func (s *Store) createSession(ctx context.Context, sess proto.Session, also func
 	sess.LastSeq = 0
 	sess.Pinned, sess.Unread, sess.Preview = false, false, ""
 	err := s.tx(ctx, true, func(tx *sql.Tx) error {
+		if sess.Parent != "" {
+			if err := requireSession(ctx, tx, sess.Parent); err != nil {
+				return err
+			}
+		}
 		_, err := tx.ExecContext(ctx, `INSERT INTO sessions (`+sessionColumns+`)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 0, 0, ?, ?, ?, ?, 0, 0, '', ?, ?, ?)`,
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 0, 0, ?, ?, ?, ?, 0, 0, '', ?, ?, ?, ?)`,
 			sess.ID, sess.Mode, sess.Harness.Kind, sess.Harness.Version, sess.Harness.NativeID,
 			sess.Directory, sess.Isolation, sess.Owner, sess.Origin, sess.Status, sess.Title,
 			sess.CreatedAt.UnixMilli(), sess.UpdatedAt.UnixMilli(), sess.Permission, sess.Plan, sess.Effort, sess.Fast,
-			sess.Model, sess.ModelProvider, sess.Ultracode)
+			sess.Model, sess.ModelProvider, sess.Ultracode, sess.Parent)
 		var serr *sqlite.Error
 		if errors.As(err, &serr) && serr.Code() == sqlite3.SQLITE_CONSTRAINT_PRIMARYKEY {
 			return fmt.Errorf("%w: session %s", ErrExists, sess.ID)
@@ -112,6 +117,9 @@ func validateSession(sess proto.Session) error {
 	}
 	if sess.Effort != "" && !sess.Effort.Valid() {
 		return bad("effort %q", sess.Effort)
+	}
+	if sess.Parent == sess.ID {
+		return bad("is its own parent")
 	}
 	return nil
 }
@@ -277,7 +285,7 @@ func scanSession(r scanner) (proto.Session, error) {
 	err := r.Scan(&sess.ID, &sess.Mode, &sess.Harness.Kind, &sess.Harness.Version, &sess.Harness.NativeID,
 		&sess.Directory, &sess.Isolation, &sess.Owner, &sess.Origin, &sess.Status, &sess.Title,
 		&created, &updated, &archived, &sess.LastSeq, &sess.Version, &sess.Permission, &sess.Plan, &sess.Effort, &sess.Fast,
-		&sess.Pinned, &sess.Unread, &sess.Preview, &sess.Model, &sess.ModelProvider, &sess.Ultracode)
+		&sess.Pinned, &sess.Unread, &sess.Preview, &sess.Model, &sess.ModelProvider, &sess.Ultracode, &sess.Parent)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return proto.Session{}, err
