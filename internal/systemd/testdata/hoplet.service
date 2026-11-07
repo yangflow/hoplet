@@ -1,0 +1,12 @@
+[Unit]
+Description=Hoplet daemon
+StartLimitIntervalSec=0
+
+[Service]
+ExecStart=/usr/local/bin/hoplet daemon --home /home/me/.hoplet --log /home/me/.hoplet/logs/daemon.log
+Restart=on-failure
+RestartSec=30
+KillMode=process
+
+[Install]
+WantedBy=default.target
