@@ -1,6 +1,7 @@
 package shell
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -333,5 +334,27 @@ func TestDetailsDockOrFloat(t *testing.T) {
 	settle(tt)
 	if !tt.HasText("复制会话 ID") {
 		t.Error("the details do not dock again once there is room")
+	}
+}
+
+// TestConversationNarrowsBesidePanel keeps the conversation inside the
+// content area when the panel leaves it less than the column's width.
+func TestConversationNarrowsBesidePanel(t *testing.T) {
+	a, _, tt, _ := newApp(t)
+	const width = 1200
+	tt.SetSize(width, 900)
+	a.SetHarnesses([]proto.HarnessInfo{claudeHarness()})
+	a.Select("s1")
+	text := strings.TrimSpace(strings.Repeat("wide ", 200))
+	a.ApplySession("s1", proto.SessionItem{Snapshot: &proto.SessionSnapshot{Events: events(t, tt.Now(), 1, 1, proto.Message{ID: "k1", Role: proto.RoleAssistant, Text: text})}})
+	settle(tt)
+	a.TogglePanel()
+	settle(tt)
+	r, ok := tt.Find(text)
+	if !ok {
+		t.Fatal("the message does not show")
+	}
+	if right, edge := r.X+r.W, float32(width)-a.fit.panel; a.fit.panel == 0 || right > edge {
+		t.Errorf("panel %v: the message ends at %v, past %v", a.fit.panel, right, edge)
 	}
 }

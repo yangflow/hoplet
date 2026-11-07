@@ -379,7 +379,7 @@ func (a *App) changesView(c *ui.Context, k theme.Colors, s proto.Session, ps *pa
 	// never laid twice.
 	// The list is as tall as its files, up to the tab's height; the pane
 	// fills what it leaves below.
-	ui.Scroll(c.Key("diffs")).Shrink(1).MinHeight(0).TrackScroll(&ch.scroll).Children(func() {
+	ui.Scroll(c.Key("diffs")).Shrink(1).MinHeight(0).Scrollbars(false).TrackScroll(&ch.scroll).Children(func() {
 		for _, f := range files {
 			a.fileChangeView(c.Key(f.key), k, ps, f, ct)
 		}

@@ -208,27 +208,26 @@ func (a *App) detailsPopover(c *ui.Context, k theme.Colors, head, button ui.Elem
 		return
 	}
 	ui.PopoverBase(c, button, &a.s.detailFloat, func(panel ui.Element) {
-		panel.AttachTo(head, ui.AnchorBottomEnd, ui.AnchorTopEnd).Margin(0, theme.Space2, 0, 0).Width(theme.DetailsWidth).Padding(theme.Space1Half).
-			Radius(theme.RadiusCard).Background(k.SurfaceFloat).Border(theme.LineWidth, k.Line2).Transition(popMotion).Label("会话详情")
-		k.ShadowPopover.On(panel).Children(func() {
-			for i, g := range a.detailGroups(c, k, s) {
-				if i > 0 {
-					ui.Box(c).Height(theme.LineWidth).Margin(theme.Space1, theme.Space1Half).Background(k.Line)
-				}
+		panel.AttachTo(head, ui.AnchorBottomEnd, ui.AnchorTopEnd).Margin(0, theme.Space2, 0, 0).Width(theme.DetailsWidth).Gap(theme.Space2).
+			Transition(popMotion).Label("会话详情").Children(func() {
+			for _, g := range a.detailGroups(c, k, s) {
 				a.detailBlock(c, k, g, true)
 			}
 		})
 	})
 }
 
-// detailBlock draws a block of the details: docked, a card with a
-// hairline; flat on the popover, the rows alone. Its title goes above the
-// rows unless empty.
-func (a *App) detailBlock(c *ui.Context, k theme.Colors, g detailGroup, flat bool) {
+// detailBlock draws a block of the details as a card with a hairline:
+// docked, on the surface beside the conversation; floating, with the
+// popover's opaque surface, edge and shadow, so the conversation never
+// reads through. Its title goes above the rows unless empty.
+func (a *App) detailBlock(c *ui.Context, k theme.Colors, g detailGroup, float bool) {
 	title, rows := g.title, g.rows
-	block := ui.Column(c.Key("block:"+title)).Padding(theme.Space1, 0)
-	if !flat {
-		block.Radius(theme.RadiusCard).Border(theme.LineWidth, k.Line).Background(k.Surface)
+	block := ui.Column(c.Key("block:"+title)).Padding(theme.Space1, 0).Radius(theme.RadiusCard)
+	if float {
+		k.ShadowPopover.On(block.Background(k.SurfaceFloat).Border(theme.LineWidth, k.Line2))
+	} else {
+		block.Background(k.Surface).Border(theme.LineWidth, k.Line)
 	}
 	block.Children(func() {
 		if title != "" {

@@ -11,13 +11,29 @@ import (
 
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/markdown"
+	"github.com/egoist/mygo/ui/shader"
 
 	"github.com/yangflow/hoplet/desktop/internal/convo"
 	"github.com/yangflow/hoplet/desktop/internal/theme"
 	"github.com/yangflow/hoplet/proto"
 )
 
-// Widths of the conversation column.
+// edgeFade fades what it draws to nothing over its first Top and last
+// Bottom DIPs, by its own opacity rather than a color laid over it, as the
+// pane under it shows the desktop through.
+var edgeFade = shader.MustCompile(`package main
+
+var Top float
+var Bottom float
+
+func ColorEffect(pos vec2, color vec4) vec4 {
+	t := min(pos.y/Top, (rectSize().y-pos.y)/Bottom)
+	if t >= 1 {
+		return color
+	}
+	return color * smoothstep(0, 1, t)
+}
+`)
 
 // conversation draws a session's conversation over its composer. The
 // column follows new content while it is scrolled to the end.
@@ -31,9 +47,17 @@ func (a *App) conversation(c *ui.Context, k theme.Colors, s proto.Session) {
 	sc := &a.s.scroll
 	atEnd := sc.Y >= sc.MaxY-4
 	ui.Box(c).Grow(1).Children(func() {
-		ui.Scroll(c).Fill().TrackScroll(sc).Children(func() {
+		// What scrolls fades out under the top row and above the composer,
+		// over the column's top and bottom padding, so at either end
+		// nothing it shows fades. A conversation that fits reaches neither
+		// edge, and goes without the effect's offscreen layer.
+		var fade ui.Effect
+		if sc.MaxY > 0 {
+			fade = edgeFade.Effect(shader.Options{Uniforms: map[string]any{"Top": float32(theme.Space6), "Bottom": float32(theme.Space8)}})
+		}
+		ui.Scroll(c).Fill().Scrollbars(false).Effect(fade).TrackScroll(sc).Children(func() {
 			ui.Row(c).FillWidth().Justify(ui.Center).Children(func() {
-				ui.Column(c).Width(width).Padding(theme.Space6, theme.Space8, theme.Space8, theme.Space8).Children(func() {
+				ui.Column(c).Grow(1).Shrink(1).MinWidth(0).MaxWidth(width).Padding(theme.Space6, theme.Space8, theme.Space8, theme.Space8).Children(func() {
 					if more, first := cv.More(); more && a.older(c, k) {
 						a.host.Older(s.ID, first, func(p proto.EventsPage) { cv.Prepend(p) })
 					}

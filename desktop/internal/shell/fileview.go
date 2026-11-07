@@ -147,8 +147,8 @@ func (a *App) fileTab(c *ui.Context, k theme.Colors, s proto.Session, ps *panelS
 		st := &v.ed
 		st.ReadOnly, st.NoActiveLine, st.Label = true, true, path.Base(p)
 		st.Font, st.LineHeight = codeFont(), theme.Code.Line()/theme.Code.Size()
-		st.Theme = codeTheme(c, k)
-		editor.View(c, st).Grow(1)
+		st.Theme, st.FitContent = codeTheme(c, k), true
+		quietScroll(c, k, func() { editor.View(c, st).FillWidth() })
 	default:
 		d := &v.diff
 		d.Font, d.LineHeight, d.Theme, d.Indicators = codeFont(), theme.Code.Line()/theme.Code.Size(), codeTheme(c, k), editor.DiffBars
@@ -172,8 +172,16 @@ func (a *App) fileTab(c *ui.Context, k theme.Colors, s proto.Session, ps *panelS
 				}
 			})
 		}
-		editor.DiffView(c, d).Grow(1)
+		d.FitContent = true
+		quietScroll(c, k, func() { editor.DiffView(c, d).FillWidth() })
 	}
+}
+
+// quietScroll scrolls an editor as high as its lines without a scroll
+// bar, the pane filling what it leaves below.
+func quietScroll(c *ui.Context, k theme.Colors, view func()) {
+	ui.Scroll(c.Key("text")).Shrink(1).MinHeight(0).Scrollbars(false).Children(view)
+	ui.Box(c).Grow(1).Background(k.Pane)
 }
 
 // codeFont is the code font at the code style's size, its ligatures off.

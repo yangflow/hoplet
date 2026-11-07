@@ -339,7 +339,14 @@ func TestNewSession(t *testing.T) {
 func TestPersonalChat(t *testing.T) {
 	a, _, tt, _ := newApp(t)
 	a.Select("p1")
+	// The events sit an hour back: run the clock past the day's first two
+	// hours, so that they fall on today whenever the test runs.
 	now := tt.Now()
+	y, m, d := now.Date()
+	if since := now.Sub(time.Date(y, m, d, 0, 0, 0, 0, now.Location())); since < 2*time.Hour {
+		tt.Advance(2*time.Hour - since)
+		now = tt.Now()
+	}
 	evs := events(t, now, 1, 1,
 		proto.Message{ID: "k1", Role: proto.RoleUser, Text: "下个月去东京"},
 		proto.TurnStarted{},
