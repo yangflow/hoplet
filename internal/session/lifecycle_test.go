@@ -365,7 +365,7 @@ func TestVersionGateRefusesSpawn(t *testing.T) {
 func TestSlowShimStartIncludesLogTail(t *testing.T) {
 	e := newEnv(t, longTurn)
 	m, err := New(Config{
-		Store: e.store, Root: filepath.Join(e.root, "s"), Spawner: ExecSpawner{Exe: "/bin/sh"}, // fails: "shim" is no script
+		Store: e.store, Root: filepath.Join(e.root, "s"), Companions: filepath.Join(e.root, "c"), Spawner: ExecSpawner{Exe: "/bin/sh"}, // fails: "shim" is no script
 		Harnesses: map[string]harness.Harness{"fake": &fake.Harness{Binary: fakeExe, Script: e.script}},
 		Env:       []string{"PATH=" + os.Getenv("PATH")},
 	})

@@ -118,6 +118,11 @@ const (
 	MethodHostsRemove       = "hosts.remove"
 	MethodToolsList         = "tools.list"
 	MethodToolsCall         = "tools.call"
+	MethodCompanionsList    = "companions.list"
+	MethodCompanionsGet     = "companions.get"
+	MethodCompanionsCreate  = "companions.create"
+	MethodCompanionsPersona = "companions.persona"
+	MethodCompanionsSetPers = "companions.set_persona"
 )
 
 // HelloParams opens a connection; it must be the first request. A device

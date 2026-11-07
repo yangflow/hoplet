@@ -29,6 +29,7 @@ const usage = `usage: hoplet [--host NAME] <command>
 
 commands:
   session   create, follow and drive sessions (hoplet session help)
+  companion create companions and edit their personas (hoplet companion help)
   pair      print a pairing code another machine joins with
   host      add, list or remove the hosts this machine reaches
   device    list or revoke the devices paired with this machine
@@ -42,7 +43,7 @@ commands:
   hermes-bridge  relay a Hermes session's gateway over stdio (started by the daemon)
   mcp       serve a session's Hoplet tools to its harness (started by the harness)
 
---host NAME runs session and device commands on a paired host, by its name
+--host NAME runs session, companion and device commands on a paired host, by its name
 or ID (hoplet host list).
 `
 
@@ -53,6 +54,8 @@ func main() {
 // app is one invocation of the command line.
 type app struct {
 	stdout, stderr io.Writer
+	// stdin is what `-` reads; nil means the process's standard input.
+	stdin io.Reader
 	// harnesses returns the adapters `hoplet daemon` serves for a home.
 	harnesses func(home string) map[string]harness.Harness
 	// env, when set, replaces the login-shell environment of `hoplet daemon`
@@ -74,7 +77,7 @@ type app struct {
 	// hermesCheck checks a Hermes version before Hoplet starts turns on
 	// it; nil also turns the daemon's daily check off (tests).
 	hermesCheck hermes.Checker
-	// host, when set, is the paired host session and device commands run
+	// host, when set, is the paired host session, companion and device commands run
 	// on (--host).
 	host string
 	// relayTLS, when set, is the TLS configuration relays are reached with
@@ -120,6 +123,8 @@ func (a app) run(args []string) int {
 		return 0
 	case "session":
 		return a.session(args[1:])
+	case "companion":
+		return a.companion(args[1:])
 	case "pair":
 		return a.pair(args[1:])
 	case "host":
@@ -150,7 +155,7 @@ func (a app) run(args []string) int {
 	}
 }
 
-// runOnHost runs `--host NAME <command>`: only session and device
+// runOnHost runs `--host NAME <command>`: only session, companion and device
 // commands reach another host.
 func (a app) runOnHost(args []string) int {
 	name, rest := strings.TrimPrefix(args[0], "--host="), args[1:]
@@ -166,9 +171,9 @@ func (a app) runOnHost(args []string) int {
 		return 2
 	}
 	switch rest[0] {
-	case "session", "device":
+	case "session", "companion", "device":
 	default:
-		fmt.Fprintf(a.stderr, "hoplet: --host works with session and device commands, not %q\n", rest[0])
+		fmt.Fprintf(a.stderr, "hoplet: --host works with session, companion and device commands, not %q\n", rest[0])
 		return 2
 	}
 	a.host = name

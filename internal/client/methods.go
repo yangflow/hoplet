@@ -243,3 +243,40 @@ func (c *Client) Hosts(ctx context.Context) ([]proto.Host, error) {
 func (c *Client) RemoveHost(ctx context.Context, host string) error {
 	return c.Call(ctx, proto.MethodHostsRemove, proto.HostRef{Host: host}, nil)
 }
+
+// Companions lists the companions; all includes those whose main session
+// is archived.
+func (c *Client) Companions(ctx context.Context, all bool) ([]proto.Companion, error) {
+	var out proto.CompanionsList
+	err := c.Call(ctx, proto.MethodCompanionsList, proto.CompanionsListParams{All: all}, &out)
+	return out.Companions, err
+}
+
+// Companion returns a companion by its ID or a unique prefix of at least 4
+// characters.
+func (c *Client) Companion(ctx context.Context, id string) (proto.Companion, error) {
+	var out proto.Companion
+	err := c.Call(ctx, proto.MethodCompanionsGet, proto.CompanionRef{ID: proto.CompanionID(id)}, &out)
+	return out, err
+}
+
+// CreateCompanion creates a companion and its main session.
+func (c *Client) CreateCompanion(ctx context.Context, p proto.CompanionCreateParams) (proto.CompanionCreated, error) {
+	var out proto.CompanionCreated
+	err := c.Call(ctx, proto.MethodCompanionsCreate, p, &out)
+	return out, err
+}
+
+// Persona returns a companion's persona.
+func (c *Client) Persona(ctx context.Context, id string) (proto.Persona, error) {
+	var out proto.Persona
+	err := c.Call(ctx, proto.MethodCompanionsPersona, proto.CompanionRef{ID: proto.CompanionID(id)}, &out)
+	return out, err
+}
+
+// SetPersona replaces a companion's persona.
+func (c *Client) SetPersona(ctx context.Context, id, text string) (proto.SetPersonaResult, error) {
+	var out proto.SetPersonaResult
+	err := c.Call(ctx, proto.MethodCompanionsSetPers, proto.Persona{ID: proto.CompanionID(id), Text: text}, &out)
+	return out, err
+}

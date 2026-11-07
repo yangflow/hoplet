@@ -19,6 +19,12 @@ const sessionColumns = `id, mode, harness_kind, harness_version, native_id, dire
 // CreateSession stores a new session. Status defaults to idle and
 // CreatedAt to now; UpdatedAt equals CreatedAt. The write is durable.
 func (s *Store) CreateSession(ctx context.Context, sess proto.Session) (proto.Session, error) {
+	return s.createSession(ctx, sess, nil)
+}
+
+// createSession stores a new session and runs also, if set, in the same
+// transaction.
+func (s *Store) createSession(ctx context.Context, sess proto.Session, also func(*sql.Tx, proto.Session) error) (proto.Session, error) {
 	if sess.Status == "" {
 		sess.Status = proto.StatusIdle
 	}
@@ -55,6 +61,9 @@ func (s *Store) CreateSession(ctx context.Context, sess proto.Session) (proto.Se
 		}
 		if err := tx.QueryRowContext(ctx, `SELECT version FROM sessions WHERE id = ?`, sess.ID).Scan(&sess.Version); err != nil {
 			return fmt.Errorf("store: read session version: %w", err)
+		}
+		if also != nil {
+			return also(tx, sess)
 		}
 		return nil
 	})

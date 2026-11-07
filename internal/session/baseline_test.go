@@ -49,7 +49,7 @@ func (b *baselineCalls) fn(ctx context.Context, dir string) func(context.Context
 func (e *env) managerBaseline(b *baselineCalls) *Manager {
 	e.t.Helper()
 	m, err := New(Config{
-		Store: e.store, Root: filepath.Join(e.root, "s"), Spawner: ExecSpawner{Exe: hopletExe},
+		Store: e.store, Root: filepath.Join(e.root, "s"), Companions: filepath.Join(e.root, "c"), Spawner: ExecSpawner{Exe: hopletExe},
 		Harnesses: map[string]harness.Harness{"fake": &fake.Harness{Binary: fakeExe, Script: e.script}},
 		Baseline:  b.fn,
 	})
@@ -70,7 +70,13 @@ func TestCreateCapturesTheBaselineBeforeTheSessionExists(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(b.captured) != 2 || b.captured[0] != e.work || b.captured[1] != m.dir(personal.ID) {
+	// A personal session is a companion's main session, working in the
+	// companion's directory.
+	comp, err := e.store.CompanionByMain(ctx, personal.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(b.captured) != 2 || b.captured[0] != e.work || b.captured[1] != m.companionDir(comp.ID) {
 		t.Fatalf("captured %v", b.captured)
 	}
 	// Nothing was visible when the baseline was captured; it was saved for
@@ -87,7 +93,7 @@ func TestCreateCapturesTheBaselineBeforeTheSessionExists(t *testing.T) {
 	if dir, err := m.WorkDir(ctx, code.ID); err != nil || dir != e.work {
 		t.Fatalf("work dir %q %v", dir, err)
 	}
-	if dir, err := m.WorkDir(ctx, personal.ID); err != nil || dir != m.dir(personal.ID) {
+	if dir, err := m.WorkDir(ctx, personal.ID); err != nil || dir != m.companionDir(comp.ID) {
 		t.Fatalf("personal work dir %q %v", dir, err)
 	}
 	if _, err := m.WorkDir(ctx, "nope"); !errors.Is(err, store.ErrNotFound) {

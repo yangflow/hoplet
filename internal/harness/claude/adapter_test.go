@@ -88,6 +88,8 @@ func TestLaunch(t *testing.T) {
 		"fast":        {spec: harness.Spec{Mode: proto.ModeConfirm, Fast: true}, want: []string{"--settings", `{"fastMode":true}`}},
 		"fast ultra":  {spec: harness.Spec{Mode: proto.ModeConfirm, Fast: true, Ultracode: true}, want: []string{"--settings", `{"fastMode":true,"ultracode":true}`}},
 		"bogus mode":  {spec: harness.Spec{Mode: "read_only"}, bad: true},
+		"persona": {spec: harness.Spec{Mode: proto.ModeConfirm, Companion: true, Persona: "Start with: OK, partner.\n\n- be brief"},
+			want: []string{"--append-system-prompt", "Start with: OK, partner.\n\n- be brief"}},
 	} {
 		tc.spec.WorkDir = "/work"
 		tc.spec.Env = []string{"PATH=/bin", "CLAUDECODE=1", "CLAUDE_CODE_ENTRYPOINT=desktop", "CLAUDE_CODE_ENABLE_TODO_TOOLS=0", "ANTHROPIC_BASE_URL=https://gw", "DISABLE_AUTOUPDATER=0"}
@@ -100,6 +102,11 @@ func TestLaunch(t *testing.T) {
 		}
 		if err != nil {
 			t.Fatalf("%s: %v", name, err)
+		}
+		// The persona is one argument, and no persona adds none.
+		if i := slices.Index(l.Command, "--append-system-prompt"); (i >= 0) != (tc.spec.Persona != "") ||
+			i >= 0 && (i+1 >= len(l.Command) || l.Command[i+1] != tc.spec.Persona) {
+			t.Errorf("%s: persona in %q", name, l.Command)
 		}
 		cmd := strings.Join(l.Command, " ")
 		for _, must := range []string{"/h/claude -p", "--input-format stream-json", "--output-format stream-json", "--permission-prompt-tool stdio", "--thinking-display summarized", strings.Join(tc.want, " ")} {
@@ -380,5 +387,13 @@ func TestLaunchWithTools(t *testing.T) {
 	spec.MCP = nil
 	if l, err := h.Launch(spec); err != nil || l.Files != nil || strings.Contains(strings.Join(l.Command, " "), "mcp") {
 		t.Fatalf("without tools: %v %v %v", l.Command, l.Files, err)
+	}
+}
+
+// A resumed Claude Code session keeps the system prompt it started with.
+func TestKeepsPersona(t *testing.T) {
+	var h harness.Harness = &Harness{}
+	if k, ok := h.(harness.PersonaKeeper); !ok || !k.KeepsPersona() {
+		t.Fatal("Claude Code must report that it keeps the persona")
 	}
 }

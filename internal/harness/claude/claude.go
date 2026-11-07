@@ -223,6 +223,9 @@ func (h *Harness) Launch(spec harness.Spec) (harness.Launch, error) {
 	if spec.Effort != "" {
 		args = append(args, "--effort", string(spec.Effort))
 	}
+	if spec.Persona != "" {
+		args = append(args, "--append-system-prompt", spec.Persona)
+	}
 	if s := launchSettings(spec); s != "" {
 		args = append(args, "--settings", s)
 	}
@@ -323,6 +326,10 @@ func (h *Harness) Attach(ctx context.Context, spec harness.Spec, io harness.Stdi
 	}
 	return r, nil
 }
+
+// KeepsPersona reports that Claude Code keeps the system prompt a session
+// started with: a resumed session ignores a changed --append-system-prompt.
+func (h *Harness) KeepsPersona() bool { return true }
 
 func (h *Harness) setModels(m []proto.ModelInfo) {
 	st, err := binaryStamp(h.Binary)
