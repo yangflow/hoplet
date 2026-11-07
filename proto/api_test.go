@@ -3,11 +3,13 @@ package proto
 import (
 	"encoding/json"
 	"testing"
+	"time"
 )
 
 // TestFrameWireFormat pins the JSON shape of protocol frames: every client
 // depends on it.
 func TestFrameWireFormat(t *testing.T) {
+	archived := time.Unix(1, 0).UTC()
 	for name, tc := range map[string]struct {
 		v    any
 		want string
@@ -46,6 +48,14 @@ func TestFrameWireFormat(t *testing.T) {
 			`{"tools":[{"name":"session_get","description":"d","input_schema":{"type":"object"}}]}`},
 		"tool call":   {ToolsCallParams{Name: "session_get", Arguments: json.RawMessage(`{"id":"abcd"}`)}, `{"name":"session_get","arguments":{"id":"abcd"}}`},
 		"tool result": {ToolsCallResult{Text: "no such session", IsError: true}, `{"text":"no such session","is_error":true}`},
+		"companion": {Companion{ID: "c1", Name: "Ada", Host: "h", Harness: HarnessRef{Kind: "claude"}, Main: "s1", Dir: "/c/c1", CreatedAt: time.Unix(0, 0).UTC(), ArchivedAt: &archived},
+			`{"id":"c1","name":"Ada","host":"h","harness":{"kind":"claude"},"main":"s1","dir":"/c/c1","created_at":"1970-01-01T00:00:00Z","archived_at":"1970-01-01T00:00:01Z"}`},
+		"companion ref":   {CompanionRef{ID: "c1"}, `{"id":"c1"}`},
+		"companions all":  {CompanionsListParams{All: true}, `{"all":true}`},
+		"no companions":   {CompanionsList{Companions: []Companion{}}, `{"companions":[]}`},
+		"companion new":   {CompanionCreateParams{Harness: "hermes", Permission: ModeConfirm, Title: "Ada", Model: "m"}, `{"harness":"hermes","permission":"confirm","title":"Ada","model":"m"}`},
+		"persona":         {Persona{ID: "c1", Text: "be kind"}, `{"id":"c1","text":"be kind"}`},
+		"persona applies": {SetPersonaResult{Applies: AppliesNewMainSession}, `{"applies":"new_main_session"}`},
 	} {
 		b, err := json.Marshal(tc.v)
 		if err != nil {
