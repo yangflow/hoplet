@@ -74,6 +74,10 @@ type Config struct {
 	// wrapSpool, when set, wraps the spool's write side. Tests use it to
 	// inject write failures.
 	wrapSpool func(spoolFile) spoolFile
+	// exitWritten, when set, runs once the exit record is in the spool,
+	// before the shim takes note of its offset. Tests use it to act in
+	// between.
+	exitWritten func()
 	// sendTimeout overrides DefaultSendTimeout in tests.
 	sendTimeout time.Duration
 }
@@ -120,6 +124,7 @@ type shim struct {
 	mu           sync.Mutex
 	exited       bool // the child is gone and its output drained
 	final        int64
+	acked        int64 // the furthest offset a client has acknowledged
 	closing      bool
 	conns        map[net.Conn]struct{}
 	current      net.Conn // the client that owns the child, if any
@@ -389,13 +394,22 @@ func (s *shim) wait() {
 		}
 		// off is 0 when nothing was written; only linger can end the shim then.
 	}
+	if s.cfg.exitWritten != nil {
+		s.cfg.exitWritten()
+	}
 	s.reapGroup() // the exit record is out; nothing the child left behind may outlive it
 	s.log.Info("child exited", "code", rec.Code, "signal", rec.Signal)
 	s.mu.Lock()
 	s.final = off
+	// A client may have read the exit record and acknowledged it before
+	// final was set.
+	acked := off > 0 && s.acked >= off
 	s.lingerTimer = time.AfterFunc(s.cfg.Linger, s.finish)
 	s.mu.Unlock()
 	close(s.exitCh)
+	if acked {
+		s.finish()
+	}
 }
 
 // exitRecord describes how the child ended.

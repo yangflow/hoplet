@@ -208,6 +208,7 @@ func (s *shim) apply(m Message) error {
 		return nil
 	case MsgAck:
 		s.mu.Lock()
+		s.acked = max(s.acked, m.Offset)
 		finished := s.exited && s.final > 0 && m.Offset >= s.final
 		s.mu.Unlock()
 		if finished {
