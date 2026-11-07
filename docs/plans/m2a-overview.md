@@ -41,11 +41,11 @@
 |---|---|
 | 身份密钥 | 每个 `HOPLET_HOME` 一对长期 X25519 密钥，`keys/identity`，0600；守护进程作响应方、本机 CLI 作发起方都用它 |
 | 主机 ID | 公钥 SHA-256 的前 16 字节，小写 base32 无填充；显示名默认系统主机名 |
-| 发起配对 | 主机 B：`hoplet pair` 经本机 API `pairing.start` 让守护进程生成一次性 32 字节 PSK（只存内存，10 分钟，用一次即作废），打印配对码 `hoplet1:` + base64url（主机 ID、主机公钥、路由、PSK、过期时间） |
+| 发起配对 | 主机 B：`hoplet pair` 经本机 API `pairing.start` 让守护进程生成一次性 32 字节 PSK（只存内存，10 分钟，用一次即作废），打印配对码 `hoplet1:` + base64url（主机 ID、主机公钥、显示名、路由、PSK、过期时间） |
 | 加入 | 主机 A：`hoplet host add <配对码> [--name]`，以 `Noise_IKpsk1_25519_ChaChaPoly_SHA256` 握手；首条消息载荷带设备名。B 记下 A 的公钥（`devices`），A 记下 B 的公钥、路由与名字（`hosts`） |
 | 日常连接 | `Noise_IK_25519_ChaChaPoly_SHA256`；守护进程在第一条消息解出发起方公钥后，未配对或已吊销即断开 |
 | prologue | `hoplet/1` 加 1 字节握手类型（日常 / 配对 / 中继注册），版本与类型绑进握手；只有这一个版本 |
-| 吊销 | `hoplet device list / revoke <ID>`；吊销立刻断开该设备的在线连接。`hoplet host list / remove` 管理本机已知的主机 |
+| 吊销 | `hoplet device list / revoke <ID>`；吊销立刻断开该设备的在线连接，本机与已配对设备都可操作；发配对码只限本机。`hoplet host list / remove` 管理本机已知的主机 |
 
 ### 通道帧
 
@@ -65,7 +65,7 @@ flowchart LR
 
 | 路由 | 方案 |
 |---|---|
-| 直连 | 守护进程可选监听 `network.listen`（`config.toml`，默认关），明文 WebSocket `/v1/noise`，拒绝非空 `Origin`；Noise 负责加密与认证 |
+| 直连 | 守护进程可选监听 `network.listen`（`config.toml`，默认关），明文 WebSocket `/v1/noise`，拒绝非空 `Origin`；Noise 负责加密与认证。对外可达的地址写在 `network.routes`，配对码从这里取路由 |
 | 中继 | `wss://<域名>/v1/host`（守护进程控制连接，XN 握手证明主机身份，必须在白名单里）、`/v1/connect?host=<ID>`（客户端）、`/v1/accept?stream=<令牌>`（守护进程为某个客户端回拨） |
 | 顺序 | 主机记录里的路由按序尝试：直连地址 → 中继主域名 → 中继备用域名；连在后面的路由时每 60s 探测前面的路由，能通就新建连接、按游标重新订阅、再关旧连接（追赶保证不丢不重） |
 | 守护进程侧 | 配置 `network.relays`（按序的中继 URL）后保持控制连接，断开按 1s 起倍增至 30s 重连 |
@@ -116,3 +116,4 @@ PR4 与 PR1–PR3 互不依赖，可以并行开发。
 开工某个 PR 前，在本目录写 `m2a-prN-<名称>.md`：逐步列出文件、接口、测试、命令和 commit，基于当时 `main` 的真实代码。
 
 - [PR1：身份密钥与 Noise 通道](m2a-pr1-noise.md)
+- [PR2：配对与直连](m2a-pr2-pair-direct.md)
