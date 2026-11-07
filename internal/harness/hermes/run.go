@@ -62,10 +62,16 @@ type run struct {
 	once     sync.Once
 
 	// Owned by loop.
-	queue     []*turnRec      // the turns in admission order; the first is shown
-	segment   int             // the assistant message being streamed in this turn
-	text      strings.Builder // its text so far
-	tools     map[string]tool
+	queue   []*turnRec      // the turns in admission order; the first is shown
+	segment int             // the assistant message being streamed in this turn
+	text    strings.Builder // its text so far
+	tools   map[string]tool
+	// todos is the task list; hidden are task list calls, which are not
+	// shown as tool calls. agents are the subagents of delegate_task calls
+	// that have not ended, by Hoplet ID.
+	todos []proto.TodoItem
+	agents
+	hidden    map[string]bool
 	model     string // the model Hermes last reported
 	lastTool  string
 	late      map[string]bool // turns ended by a newer turn whose receipt is still due
@@ -129,7 +135,7 @@ func newRun(io harness.Stdio, spec harness.Spec) *run {
 	}
 	r := &run{
 		io: io, spec: spec, events: make(chan harness.Event, 64), done: make(chan struct{}), finished: make(chan struct{}),
-		busy: spec.State.InTurn, tools: map[string]tool{},
+		busy: spec.State.InTurn, tools: map[string]tool{}, agents: newAgents(), hidden: map[string]bool{},
 		prefix: "hoplet-" + rand.Text()[:8], native: native,
 		approvals: map[string]*approval{}, requests: map[string]*request{},
 		late: map[string]bool{}, retries: map[string]int{}, stale: map[string]int{}, timers: map[*time.Timer]struct{}{}, receiptDelay: receiptRetryDelay,
@@ -235,6 +241,9 @@ func (r *run) handle(l harness.Line) (evs []harness.Event, final bool) {
 			ev := base
 			if i > 0 {
 				ev.Native = ""
+			}
+			if t, ok := p.(tagged); ok {
+				ev.Agent, p = t.agent, t.Payload
 			}
 			ev.Payload = p
 			evs = append(evs, ev)
@@ -449,6 +458,13 @@ func (r *run) translateEvent(ev event) []proto.Payload {
 			return nil
 		}
 		out := r.closeSegment()
+		switch p.Name {
+		case todoTool:
+			r.hidden[p.ID] = true
+			return append(out, r.todo(p.Args)...)
+		case delegateTool:
+			return append(out, r.delegate(p.ID, p.Args)...)
+		}
 		t := tool{name: p.Name, kind: toolKind(p.Name)}
 		if path := editPath(p.Name, p.Args); path != "" {
 			t.path = r.absolute(path)
@@ -462,6 +478,13 @@ func (r *run) translateEvent(ev event) []proto.Payload {
 		var p toolPayload
 		if json.Unmarshal(ev.Payload, &p) != nil || p.ID == "" {
 			return nil
+		}
+		if r.hidden[p.ID] {
+			delete(r.hidden, p.ID)
+			return nil
+		}
+		if _, ok := r.calls[p.ID]; ok {
+			return r.delegated(p.ID, p.IsError, p.Result)
 		}
 		t, ok := r.tools[p.ID]
 		if !ok {
@@ -529,6 +552,12 @@ func (r *run) translateEvent(ev event) []proto.Payload {
 			return nil
 		}
 		return []proto.Payload{proto.Error{Message: p.Message}}
+	case "subagent.spawn_requested", "subagent.start", "subagent.tool", "subagent.complete":
+		var p subagentPayload
+		if json.Unmarshal(ev.Payload, &p) != nil || p.ID == "" {
+			return nil
+		}
+		return r.subagent(ev.Type, p)
 	case "session.usage":
 		// Each turn's usage names the model that ran it.
 		var p usagePayload

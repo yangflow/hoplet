@@ -59,6 +59,16 @@ type run struct {
 	window int64  // the context window's size, once claude said it
 	// outputs are tool results waiting to ride on their ToolCall's event.
 	outputs map[string][]byte
+	// hidden are task list calls, which are not shown as tool calls.
+	hidden map[string]bool
+	// subs are the subagents not yet ended, by the call that sent them;
+	// nested maps a call made inside a subagent's record to that subagent.
+	subs   map[string]proto.Subagent
+	nested map[string]string
+	// todos is the task list; creating holds the tasks of TaskCreate calls
+	// whose result, which names the task's number, has not come yet.
+	todos    []proto.TodoItem
+	creating map[string]proto.TodoItem
 
 	// initID is the request ID of this run's initialize; models receives
 	// the models its answer lists.
@@ -89,6 +99,7 @@ func newRun(io harness.Stdio, spec harness.Spec, models func([]proto.ModelInfo))
 		inTurn: spec.State.InTurn, native: spec.State.Native, blocks: map[string]int{}, tools: map[string]tool{},
 		prefix: "hoplet-" + rand.Text()[:8], approvals: map[string]pending{},
 		base: spec.Mode, plan: spec.Plan, models: models, outputs: map[string][]byte{},
+		hidden: map[string]bool{}, subs: map[string]proto.Subagent{}, nested: map[string]string{}, creating: map[string]proto.TodoItem{},
 	}
 	r.want = r.wanted()
 	go r.loop()
@@ -177,6 +188,9 @@ func (r *run) handle(l harness.Line) (evs []harness.Event, final bool) {
 			if i > 0 {
 				ev.Native = "" // announced once
 			}
+			if t, ok := p.(tagged); ok {
+				ev.Agent, p = t.agent, t.Payload
+			}
 			ev.Payload = p
 			if tc, ok := p.(proto.ToolCall); ok {
 				ev.Output = r.outputs[tc.ID]
@@ -217,6 +231,12 @@ func (r *run) translate(data []byte) ([]proto.Payload, string) {
 			r.model = ln.Model
 			out = append(out, proto.ModelChanged{Model: ln.Model})
 		}
+		if ln.Subtype == "task_notification" {
+			var n taskNotification
+			if json.Unmarshal(data, &n) == nil {
+				out = append(out, r.ended(n)...)
+			}
+		}
 		if ln.Subtype == "compact_boundary" && ln.CompactMetadata != nil {
 			out = append(out, r.contextUsage(ln.CompactMetadata.PostTokens, 0)...)
 		}
@@ -225,15 +245,18 @@ func (r *run) translate(data []byte) ([]proto.Payload, string) {
 		}
 		return out, ""
 	case "stream_event":
+		if r.owner(ln.ParentToolUseID) != "" {
+			return nil, "" // a subagent's record holds whole messages
+		}
 		return r.stream(ln.Event), ""
 	case "assistant":
-		out := r.assistant(ln.Message)
+		out := r.assistant(ln.Message, r.owner(ln.ParentToolUseID))
 		if ln.ParentToolUseID == nil && ln.Message != nil && ln.Message.Usage != nil {
 			out = append(out, r.contextUsage(ln.Message.Usage.held(), 0)...)
 		}
 		return out, ""
 	case "user":
-		return r.toolResults(ln.Message), ""
+		return r.toolResults(ln.Message, r.owner(ln.ParentToolUseID), ln.ToolUseResult), ""
 	case "control_request":
 		return r.controlRequest(ln.RequestID, ln.Request), ""
 	case "control_response":
@@ -282,9 +305,10 @@ func (r *run) stream(e *streamEvent) []proto.Payload {
 
 func blockID(msg string, i int) string { return msg + "/" + strconv.Itoa(i) }
 
-// assistant maps a message's blocks. claude writes one line per content
-// block, in block order, so a block's index is the count seen so far.
-func (r *run) assistant(m *message) []proto.Payload {
+// assistant maps a message's blocks, of the session's own conversation or
+// of agent's record. claude writes one line per content block, in block
+// order, so a block's index is the count seen so far.
+func (r *run) assistant(m *message, agent string) []proto.Payload {
 	if m == nil {
 		return nil
 	}
@@ -294,23 +318,36 @@ func (r *run) assistant(m *message) []proto.Payload {
 		r.blocks[m.ID] = i + 1
 		switch b.Type {
 		case "text":
-			out = append(out, proto.Message{ID: blockID(m.ID, i), Role: proto.RoleAssistant, Text: b.Text})
+			out = append(out, tag([]proto.Payload{proto.Message{ID: blockID(m.ID, i), Role: proto.RoleAssistant, Text: b.Text}}, agent)...)
 		case "thinking":
 			if b.Thinking != "" {
-				out = append(out, proto.Thinking{Text: b.Thinking})
+				out = append(out, tag([]proto.Payload{proto.Thinking{Text: b.Thinking}}, agent)...)
 			}
 		case "tool_use":
+			if agent == "" && isTodoTool(b.Name) {
+				r.hidden[b.ID] = true
+				out = append(out, r.todo(b.ID, b.Name, b.Input)...)
+				continue
+			}
+			if agent == "" && isAgentTool(b.Name) {
+				out = append(out, r.spawn(b.ID, b.Input)...)
+				continue
+			}
+			if agent != "" && isAgentTool(b.Name) {
+				r.nested[b.ID] = agent
+			}
 			kind := toolKind(b.Name)
 			r.tools[b.ID] = tool{name: b.Name, kind: kind, input: b.Input}
-			out = append(out, proto.ToolCall{ID: b.ID, Kind: kind, Name: b.Name, Summary: summary(b.Name, b.Input), Status: proto.ToolRunning})
+			out = append(out, tag([]proto.Payload{proto.ToolCall{ID: b.ID, Kind: kind, Name: b.Name, Summary: summary(b.Name, b.Input), Status: proto.ToolRunning}}, agent)...)
 		}
 	}
 	return out
 }
 
-// toolResults maps the results of tool calls; a successful file tool also
-// reports the file it changed.
-func (r *run) toolResults(m *message) []proto.Payload {
+// toolResults maps the results of tool calls, of the session's own
+// conversation or of agent's record; a successful file tool also reports
+// the file it changed. extra is what claude adds about the call.
+func (r *run) toolResults(m *message, agent string, extra *toolUseResult) []proto.Payload {
 	if m == nil {
 		return nil
 	}
@@ -319,13 +356,22 @@ func (r *run) toolResults(m *message) []proto.Payload {
 		if b.Type != "tool_result" {
 			continue
 		}
+		if r.hidden[b.ToolUseID] {
+			delete(r.hidden, b.ToolUseID)
+			out = append(out, r.created(b)...)
+			continue
+		}
+		if _, ok := r.subs[b.ToolUseID]; ok && agent == "" {
+			out = append(out, r.finish(b.ToolUseID, b, extra)...)
+			continue
+		}
 		t, ok := r.tools[b.ToolUseID]
 		delete(r.tools, b.ToolUseID)
 		status := proto.ToolDone
 		if b.IsError {
 			status = proto.ToolFailed
 		}
-		out = append(out, proto.ToolCall{ID: b.ToolUseID, Kind: t.kind, Name: t.name, Summary: summary(t.name, t.input), Status: status})
+		out = append(out, tag([]proto.Payload{proto.ToolCall{ID: b.ToolUseID, Kind: t.kind, Name: t.name, Summary: summary(t.name, t.input), Status: status}}, agent)...)
 		if text := resultText(b.Content); text != "" {
 			r.outputs[b.ToolUseID] = []byte(text)
 		}
@@ -455,6 +501,7 @@ func (r *run) result(ln line) []proto.Payload {
 			end.Message = ln.errorsText()
 		}
 	}
+	out = append(out, r.stopSubagents()...)
 	if !r.inTurn {
 		// A result outside a turn (claude never sent init) still ends one;
 		// the daemon ignores ends of turns it never opened.
@@ -464,6 +511,7 @@ func (r *run) result(ln line) []proto.Payload {
 	r.msgID = ""
 	clear(r.blocks)
 	clear(r.tools)
+	clear(r.hidden)
 	r.mu.Lock()
 	clear(r.approvals) // the store expires what is still pending
 	r.mu.Unlock()

@@ -533,7 +533,7 @@ func TestReadHelpers(t *testing.T) {
 	if _, err := s.Events(ctx, "missing", 0, 10); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("Events unknown session: %v", err)
 	}
-	if _, err := s.EventsBefore(ctx, "missing", 10, 10); !errors.Is(err, ErrNotFound) {
+	if _, err := s.EventsBefore(ctx, "missing", "", 10, 10); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("EventsBefore unknown session: %v", err)
 	}
 	if _, _, err := s.GapSize(ctx, "missing", 0); !errors.Is(err, ErrNotFound) {
@@ -542,11 +542,11 @@ func TestReadHelpers(t *testing.T) {
 	for range 5 {
 		appendOK(t, s, AppendRequest{Session: "s", Entries: []Entry{{Payload: proto.Thinking{Text: "é"}}}})
 	}
-	before, err := s.EventsBefore(ctx, "s", 5, 2)
+	before, err := s.EventsBefore(ctx, "s", "", 5, 2)
 	if err != nil || len(before) != 2 || before[0].Seq != 3 || before[1].Seq != 4 {
 		t.Fatalf("EventsBefore: %+v, %v", before, err)
 	}
-	if _, err := s.EventsBefore(ctx, "s", 5, 0); !errors.Is(err, ErrInvalid) {
+	if _, err := s.EventsBefore(ctx, "s", "", 5, 0); !errors.Is(err, ErrInvalid) {
 		t.Fatalf("EventsBefore limit 0: %v", err)
 	}
 	count, size, err := s.GapSize(ctx, "s", 2)
@@ -600,5 +600,49 @@ func TestSnapshot(t *testing.T) {
 	snap, _ = s.Snapshot(ctx, "s", 1)
 	if len(snap.Pending) != 1 || snap.Pending[0].RequestSeq != 12 || snap.Pending[0].Request.ID != "a1" {
 		t.Fatalf("pending %+v", snap.Pending)
+	}
+}
+
+// TestAgentRecords keeps subagents' events out of the session's own
+// conversation and its preview, and pages through one subagent's record.
+func TestAgentRecords(t *testing.T) {
+	ctx := context.Background()
+	s := newStore(t)
+	newSession(t, s, "s")
+	appendOK(t, s, AppendRequest{Session: "s", Turn: 1, Entries: []Entry{
+		{Payload: proto.TurnStarted{}},
+		{Payload: proto.Subagent{ID: "a1", Title: "Look around", Status: proto.SubagentRunning}},
+		{Payload: proto.Message{ID: "p", Role: proto.RoleUser, Text: "Find the pump"}, Agent: "a1"},
+		{Payload: proto.Thinking{Text: "sub"}, Agent: "a1"},
+		{Payload: proto.Thinking{Text: "other"}, Agent: "a2"},
+		{Payload: proto.Message{ID: "m", Role: proto.RoleAssistant, Text: "Main reply"}},
+	}})
+	main, err := s.EventsBefore(ctx, "s", "", 100, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(main) != 3 || main[1].Type != proto.TypeSubagent {
+		t.Fatalf("own conversation: %+v", main)
+	}
+	rec, err := s.EventsBefore(ctx, "s", "a1", 100, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rec) != 2 || rec[0].Agent != "a1" || rec[1].Agent != "a1" {
+		t.Fatalf("a1 record: %+v", rec)
+	}
+	snap, err := s.Snapshot(ctx, "s", 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(snap.Events) != 3 {
+		t.Fatalf("snapshot has %d events, want the 3 of the own conversation", len(snap.Events))
+	}
+	if snap.Session.Preview != "Main reply" {
+		t.Fatalf("preview %q", snap.Session.Preview)
+	}
+	all, err := s.Events(ctx, "s", 0, 100)
+	if err != nil || len(all) != 6 {
+		t.Fatalf("Events after 0: %d, %v", len(all), err)
 	}
 }

@@ -300,6 +300,9 @@ type EventsParams struct {
 	Session   SessionID `json:"session"`
 	BeforeSeq uint64    `json:"before_seq"`
 	Limit     int       `json:"limit,omitempty"`
+	// Agent asks for that subagent's record instead of the session's own
+	// conversation, which never includes subagents' events.
+	Agent string `json:"agent,omitempty"`
 }
 
 // EventsPage is a page of a session's events, oldest first, with More set

@@ -28,7 +28,10 @@ type Event struct {
 	Seq     uint64    `json:"seq"`
 	Time    time.Time `json:"ts"`
 	// Turn numbers turns from 1; 0 (omitted) means the event belongs to no turn.
-	Turn    uint32          `json:"turn,omitempty"`
+	Turn uint32 `json:"turn,omitempty"`
+	// Agent is the ID of the subagent whose record the event belongs to;
+	// empty for the session's own conversation.
+	Agent   string          `json:"agent,omitempty"`
 	Type    EventType       `json:"type"`
 	V       uint16          `json:"v"`
 	Payload json.RawMessage `json:"payload"`

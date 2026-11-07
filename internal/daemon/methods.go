@@ -214,7 +214,7 @@ func (c *conn) eventsBefore(ctx context.Context, p proto.EventsParams) (proto.Ev
 	if limit <= 0 || limit > c.s.lim.page {
 		limit = c.s.lim.page
 	}
-	evs, err := c.s.store.EventsBefore(ctx, p.Session, p.BeforeSeq, limit+1)
+	evs, err := c.s.store.EventsBefore(ctx, p.Session, p.Agent, p.BeforeSeq, limit+1)
 	if err != nil {
 		return proto.EventsPage{}, err
 	}

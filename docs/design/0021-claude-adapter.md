@@ -35,7 +35,7 @@ flowchart LR
 
 - 与官方 Agent SDK 同一线协议，不引入 Node 运行时
 - 使用 Hoplet 托管副本，仓库录制验证或本机自检通过后才接受新轮次（2.1.312 已录制验证）
-- 启动环境不得带 `CLAUDECODE` / `CLAUDE_CODE_*`（会被当成子会话而无法登录）
+- 启动环境去掉继承来的 `CLAUDECODE` / `CLAUDE_CODE_*`（会被当成子会话而无法登录），只由 Hoplet 设 `CLAUDE_CODE_ENABLE_TODO_TOOLS=1`：较新的模型默认不给任务工具，不设就没有任务清单
 
 ## 模式与模型
 
@@ -87,9 +87,12 @@ flowchart LR
 | 轮末 `result.usage.iterations` 末项 | 补齐上下文用量 |
 | `modelUsage.*.contextWindow` | 窗口大小 |
 | `compact_boundary.post_tokens` | 压缩后已用量 |
-| `TaskCreate` / `TaskUpdate` 的输入（旧的 `TodoWrite` 同样） | 维护任务表，发 `todo.list`；`subject` → `Text`，`activeForm` → `Active`；`blocks` / `blockedBy` 不传 |
-| `Agent`（旧名 `Task`）工具调用 | 发 `subagent`：`subagent_type` → `Type`，`description` → `Title`，`run_in_background` → `Background`；这次调用本身不发 `ToolCall`，它的 `tool_result` 文本 → `Summary`，`is_error` → `failed` |
-| 带 `parent_tool_use_id` 的行 | 归到那次调用的子代理，事件带 `Agent`；不算主对话的正文、思考和上下文用量 |
+| `TaskCreate` / `TaskUpdate` 的输入（旧的 `TodoWrite` 同样） | 维护任务表，发 `todo.list`；`subject` → `Text`，`activeForm` → `Active`；`blocks` / `blockedBy` 不传。`TaskCreate` 的输入不带 ID，等它的 `tool_result`（`Task #N created…`）给出 ID 才加入任务表；出错或认不出时不加 |
+| `Agent`（旧名 `Task`）工具调用 | 发 `subagent`：`subagent_type` → `Type`，`description` → `Title`，`run_in_background` → `Background`；这次调用本身不发 `ToolCall`；`prompt` 作为记录开头的任务（带 `Agent` 的用户消息）；它的 `tool_result` → `Summary`：优先取该行 `tool_use_result.content` 的文本，否则取结果正文并去掉 `agentId:` 行、`<usage>` 块和交回报告时外加的框（`<tools-used-before-summary>` 段与 `[Subagent hand-back] … The report follows:` 引言，报告本身的两格缩进一并去掉）；`is_error` → `failed`；后台调用的结果（`status: async_launched`）只表示已启动，仍为 `running` |
+| `<usage>` 块（`total_tokens`、`tool_uses`、`duration_ms`）或该行的 `tool_use_result`（`totalTokens`、`totalToolUseCount`、`totalDurationMs`） | 子代理的 `Tokens`、`ToolUses`、`DurationMS` |
+| `system` 行 `task_notification`（`tool_use_id`、`status`、`summary`、`usage`） | 子代理结束：`completed` → `done`，`failed` → `failed`，其余 → `stopped`；`summary` → `Summary`，`usage` 的 `total_tokens`、`tool_uses`、`duration_ms` 同上取。前台和后台子代理都有这一行，可能在 `tool_result` 之前或之后；先到的定下状态，后到的不再改。后台子代理只有这一行报告结束，常在轮次结束之后 |
+| 轮末仍在跑的前台子代理 | 记 `stopped` |
+| 带 `parent_tool_use_id` 的行 | 归到那次调用的子代理，事件带 `Agent`；不算主对话的正文、思考和上下文用量；子代理再派出的子代理，其行归到最外层那个 |
 
 保留原始协议事件。审批、中断、切模式、模型、强度和续接通过控制协议处理，不靠 PTY 或静默时长推断完成。
 
@@ -103,4 +106,6 @@ flowchart LR
 
 ## 待验证
 
-更多版本控制、提问、steer、MCP、禁工具和原生记忆副作用控制未验证。无界面模式下实际用 `TaskCreate` / `TaskUpdate` 还是 `TodoWrite`，以录制为准，两套都映射。子代理需录制：后台子代理在轮次结束后怎样报告完成与结果、用量与用时从哪一行取、停止整轮时子代理落到哪个状态。
+更多版本控制、提问、steer、MCP、禁工具和原生记忆副作用控制未验证。停止整轮时子代理落到哪个状态未录制。
+
+2.1.312 录制确认：无界面模式下用 `TaskCreate` / `TaskUpdate`；`TodoWrite` 仍保留映射。较新的模型默认不给任务工具，只有设了 `CLAUDE_CODE_ENABLE_TODO_TOOLS=1` 才有，所以 Hoplet 启动时设它（见环境与版本）。较旧的模型要先经 `ToolSearch` 取到任务工具，这次 `ToolSearch` 作为普通工具调用显示。

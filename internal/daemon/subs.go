@@ -156,7 +156,7 @@ func (c *conn) catchUp(ctx context.Context, p proto.SessionParams) (proto.Sessio
 		out.Pending = append(out.Pending, pa.Request)
 	}
 	if len(snap.Events) > 0 {
-		older, err := st.EventsBefore(ctx, p.Session, snap.Events[0].Seq, 1)
+		older, err := st.EventsBefore(ctx, p.Session, "", snap.Events[0].Seq, 1)
 		if err != nil {
 			return proto.SessionItem{}, 0, err
 		}

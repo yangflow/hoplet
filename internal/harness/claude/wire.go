@@ -18,6 +18,9 @@ type line struct {
 	Message *message `json:"message"`
 	// ParentToolUseID marks a subagent's lines; nil for the session's own.
 	ParentToolUseID *string `json:"parent_tool_use_id"`
+	// ToolUseResult is what claude adds to a tool result line about the
+	// call; read for subagents.
+	ToolUseResult *toolUseResult `json:"tool_use_result"`
 	// CompactMetadata is on compact_boundary system lines.
 	CompactMetadata *struct {
 		PostTokens int64 `json:"post_tokens"`
@@ -37,6 +40,43 @@ type line struct {
 	ModelUsage map[string]struct {
 		ContextWindow int64 `json:"contextWindow"`
 	} `json:"modelUsage"`
+}
+
+// toolUseResult is the part of a subagent call's result details the
+// adapter reads; its shape is not under Hoplet's control, so a field that
+// does not fit is dropped.
+type toolUseResult struct {
+	TotalTokens       int64 `json:"totalTokens"`
+	TotalToolUseCount int   `json:"totalToolUseCount"`
+	TotalDurationMS   int64 `json:"totalDurationMs"`
+	// Content is the subagent's report, block by block, without the frame
+	// the result text wraps it in.
+	Content []struct {
+		Text string `json:"text"`
+	} `json:"content"`
+}
+
+// taskNotification is the system line claude sends when a subagent ends,
+// foreground or background: the call that sent it off, how it ended, its
+// report and what it used.
+type taskNotification struct {
+	ToolUseID string `json:"tool_use_id"`
+	Status    string `json:"status"`
+	Summary   string `json:"summary"`
+	Usage     struct {
+		TotalTokens int64 `json:"total_tokens"`
+		ToolUses    int   `json:"tool_uses"`
+		DurationMS  int64 `json:"duration_ms"`
+	} `json:"usage"`
+}
+
+func (t *toolUseResult) UnmarshalJSON(b []byte) error {
+	type plain toolUseResult
+	var p plain
+	if json.Unmarshal(b, &p) == nil {
+		*t = toolUseResult(p)
+	}
+	return nil
 }
 
 type message struct {

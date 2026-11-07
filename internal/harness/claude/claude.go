@@ -248,8 +248,11 @@ func launchSettings(spec harness.Spec) string {
 	return ""
 }
 
+// launchEnv is the environment claude runs in: none of the variables that
+// would make it a nested session, no self-update, and its task tools on,
+// which newer models only get when asked for.
 func launchEnv(env []string) []string {
-	out := make([]string, 0, len(env)+1)
+	out := make([]string, 0, len(env)+2)
 	for _, kv := range env {
 		name, _, _ := strings.Cut(kv, "=")
 		if name == "CLAUDECODE" || strings.HasPrefix(name, "CLAUDE_CODE_") || name == "DISABLE_AUTOUPDATER" {
@@ -257,7 +260,7 @@ func launchEnv(env []string) []string {
 		}
 		out = append(out, kv)
 	}
-	return append(out, "DISABLE_AUTOUPDATER=1")
+	return append(out, "DISABLE_AUTOUPDATER=1", "CLAUDE_CODE_ENABLE_TODO_TOOLS=1")
 }
 
 // Attach starts translating io's lines into events and asks claude for its

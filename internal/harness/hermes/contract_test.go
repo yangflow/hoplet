@@ -134,7 +134,11 @@ func (p *replayer) push(kind harness.LineKind, data []byte, code int) {
 			}
 			if ev.Payload != nil {
 				b, _ := json.Marshal(ev.Payload)
-				p.golden = append(p.golden, fmt.Sprintf("%T %s", ev.Payload, b))
+				agent := ""
+				if ev.Agent != "" {
+					agent = "agent " + ev.Agent + " "
+				}
+				p.golden = append(p.golden, fmt.Sprintf("%s%T %s", agent, ev.Payload, b))
 			}
 			if final && ev.Exit != nil {
 				p.drain()
@@ -323,7 +327,8 @@ func sameRequest(got, want rpc) bool {
 
 // specs are the settings each recording's session was created with.
 var specs = map[string]harness.Spec{
-	"modes": {Mode: proto.ModeAutoEdit},
+	"modes":    {Mode: proto.ModeAutoEdit},
+	"delegate": {Mode: proto.ModeFullAuto},
 }
 
 // TestRecordings replays the bridge's recorded output through the adapter,

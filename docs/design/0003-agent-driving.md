@@ -107,11 +107,11 @@ harness 在一轮里派出的子代理（agent 交给另一个 agent 去做的�
 
 | 项 | 规则 |
 |---|---|
-| 事件 | `subagent`，载荷 `Subagent{ID, CallID, Type, Title, Status, Background, Tokens, ToolUses, Duration, Summary}`；`CallID` 是派出它的那次工具调用，`Type` 是 harness 给的子代理类型（不给时为空），`Summary` 是交回给主代理的结果 |
+| 事件 | `subagent`，载荷 `Subagent{ID, CallID, Type, Title, Status, Background, Tokens, ToolUses, DurationMS, Summary}`；`CallID` 是派出它的那次工具调用，`Type` 是 harness 给的子代理类型（不给时为空），`Summary` 是交回给主代理的结果 |
 | 状态 | `running` / `done` / `failed` / `stopped`；`Background` 为真表示主代理不等它、它可以跨过本轮结束继续跑 |
 | 快照 | 按 `ID` 每次发整条，不发增量；各端对同一 `ID` 只看最新一条 |
 | 派出 | 派出子代理的那次工具调用不再作为 `ToolCall` 发出，由 `subagent` 代替 |
-| 记录 | 子代理自己的事件（思考、工具调用、正文）带 `Event.Agent`（子代理 `ID`），主对话的事件不带；daemon 照常存进会话的事件日志。`sessions.events` 不带 `agent` 时不返回这些事件，带 `agent` 时只返回那个子代理的记录；实时推送照发，客户端主对话跳过带 `Agent` 的事件 |
+| 记录 | 子代理自己的事件（思考、工具调用、正文）带 `Event.Agent`（子代理 `ID`），主对话的事件不带；daemon 照常存进会话的事件日志。`sessions.events` 不带 `agent` 时不返回这些事件，带 `agent` 时只返回那个子代理的记录；实时推送照发，客户端主对话跳过带 `Agent` 的事件；记录的第一条是带 `Agent` 的用户消息，即交给它的任务 |
 | 不支持 | 子代理再派出的子代理拍平到最外层那个的记录里；不单独停止或插话某个子代理，停止整轮会停掉它们；子代理记录不是新会话 |
 
 ## 模型与工具输出

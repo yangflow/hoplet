@@ -15,6 +15,9 @@ import (
 type Entry struct {
 	Payload proto.Payload
 	Raw     *proto.BlobRef
+	// Agent is the subagent whose record the entry belongs to; empty for
+	// the session's own conversation.
+	Agent string
 }
 
 // AppendRequest appends entries to a session's log in one transaction.
@@ -164,6 +167,7 @@ func newEvent(session proto.SessionID, turn uint32, t time.Time, e Entry) (proto
 		return proto.Event{}, fmt.Errorf("%w: %w", ErrInvalid, err)
 	}
 	ev.Raw = e.Raw
+	ev.Agent = e.Agent
 	return ev, nil
 }
 
@@ -365,9 +369,13 @@ func insertEvent(ctx context.Context, tx *sql.Tx, ev proto.Event, p proto.Payloa
 		rawSHA = sql.NullString{String: ev.Raw.SHA256, Valid: true}
 		rawSize = sql.NullInt64{Int64: ev.Raw.Size, Valid: true}
 	}
-	_, err := tx.ExecContext(ctx, `INSERT INTO events (session_id, seq, ts, turn, type, v, payload, raw_sha256, raw_size, message_id, output_sha256)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		ev.Session, ev.Seq, ev.Time.UnixMilli(), ev.Turn, ev.Type, ev.V, string(ev.Payload), rawSHA, rawSize, messageID(p), outputSHA(p))
+	var agent sql.NullString
+	if ev.Agent != "" {
+		agent = sql.NullString{String: ev.Agent, Valid: true}
+	}
+	_, err := tx.ExecContext(ctx, `INSERT INTO events (session_id, seq, ts, turn, type, v, payload, raw_sha256, raw_size, message_id, output_sha256, agent)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		ev.Session, ev.Seq, ev.Time.UnixMilli(), ev.Turn, ev.Type, ev.V, string(ev.Payload), rawSHA, rawSize, messageID(p), outputSHA(p), agent)
 	if err != nil {
 		return fmt.Errorf("store: insert event %d: %w", ev.Seq, err)
 	}
@@ -378,6 +386,9 @@ func insertEvent(ctx context.Context, tx *sql.Tx, ev proto.Event, p proto.Payloa
 // a mode or model change, an ended turn or a complete message, to the
 // session record.
 func project(ctx context.Context, tx *sql.Tx, ev proto.Event, p proto.Payload) error {
+	if _, ok := p.(proto.Message); ok && ev.Agent != "" {
+		return nil // a subagent's messages are not the session's preview
+	}
 	var q string
 	var args []any
 	switch p := p.(type) {

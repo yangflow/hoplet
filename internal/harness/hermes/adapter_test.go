@@ -112,6 +112,9 @@ type tester struct {
 	io     *fakeStdio
 	run    *run
 	offset int64
+	// agents are the subagents the last push's payloads belong to, one
+	// per payload, empty for the session's own.
+	agents []string
 }
 
 func newTester(t *testing.T, spec harness.Spec) *tester {
@@ -136,12 +139,14 @@ func (x *tester) push(line string) []proto.Payload {
 	x.io.lines <- harness.Line{Kind: harness.Stdout, Data: []byte(line), Offset: x.offset - 1}
 	x.io.lines <- harness.Line{Kind: harness.Position, Offset: x.offset}
 	var out []proto.Payload
+	x.agents = nil
 	timeout := time.After(10 * time.Second)
 	for {
 		select {
 		case ev := <-x.run.Events():
 			if ev.Payload != nil {
 				out = append(out, ev.Payload)
+				x.agents = append(x.agents, ev.Agent)
 			}
 			if ev.Offset == x.offset && ev.Raw == nil && ev.Payload == nil {
 				x.checkBusy(line)
@@ -1045,14 +1050,18 @@ func TestSanitizeKeepsOnlyWhatTheAdapterReads(t *testing.T) {
 		return string(b) + "\n"
 	}
 	in := spool(`{"jsonrpc":"2.0","id":"1","result":{"admission_id":"a1","status":"terminal","outcome":"completed","messages":[{"content":"secret"}],"tool_outputs":["secret"],"result":{"final_response":"hi","tool_outputs":["secret"]},"usage":{"input_tokens":1,"output_tokens":2}}}`) +
-		spool(`{"jsonrpc":"2.0","method":"event","params":{"type":"message.delta","payload":{"text":"annie in /data/hermes-x/state.db, annies, ann_x"}}}`)
+		spool(`{"jsonrpc":"2.0","method":"event","params":{"type":"message.delta","payload":{"text":"annie in /data/hermes-x/state.db, annies, ann_x"}}}`) +
+		spool(`{"jsonrpc":"2.0","method":"event","params":{"type":"subagent.start","payload":{"subagent_id":"sa-0","toolsets":["secret-mcp"]}}}`)
 	var out bytes.Buffer
 	if err := Sanitize(strings.NewReader(in), &out, "/work/p", "/home/annie", []string{"HERMES_HOME=/data/hermes-x"}); err != nil {
 		t.Fatal(err)
 	}
 	lines := strings.Split(strings.TrimSpace(out.String()), "\n")
-	if len(lines) != 2 {
+	if len(lines) != 3 {
 		t.Fatalf("lines %q", lines)
+	}
+	if strings.Contains(lines[2], "secret") || !strings.Contains(lines[2], "sa-0") {
+		t.Fatalf("subagent %s", lines[2])
 	}
 	if strings.Contains(lines[0], "secret") || strings.Contains(lines[0], "messages") ||
 		!strings.Contains(lines[0], `\"usage\":{\"input_tokens\":1,\"output_tokens\":2}`) || !strings.Contains(lines[0], `final_response`) {

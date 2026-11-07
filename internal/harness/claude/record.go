@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -222,6 +223,9 @@ func (r *recorder) wait(ctx context.Context, stdin io.Writer, st Step) error {
 	}
 }
 
+// tempRoot is claude's per-user temporary directory.
+var tempRoot = regexp.MustCompile(`(?:/private)?/tmp/claude-[0-9]+`)
+
 // Sanitize turns a recording into a fixture: it drops stderr and noise
 // (rate limit events, partial tool input and signatures, which can split
 // or hide paths, and hook system lines, which can carry the output of the
@@ -229,8 +233,9 @@ func (r *recorder) wait(ctx context.Context, stdin io.Writer, st Step) error {
 // the fields the adapter reads (they list the user's account, skills and
 // plugins), removes thinking signatures, and replaces dir and home with
 // /work and /Users/me, as paths (given and symlink-resolved) and as the
-// dash slugs claude names project directories with. Timestamps are
-// dropped.
+// dash slugs claude names project directories with. Claude's temporary
+// root, /tmp/claude-<uid> (where a background subagent's output file
+// lives), becomes /tmp/claude. Timestamps are dropped.
 //
 // The recording is cut at the first approval request claude sent that was
 // neither answered nor withdrawn (control_cancel_request): what follows is
@@ -240,7 +245,8 @@ func Sanitize(in io.Reader, out io.Writer, dir, home string) error {
 	sc.Buffer(nil, harness.MaxLine)
 	enc := json.NewEncoder(out)
 	enc.SetEscapeHTML(false)
-	clean := scrub.New(dir, home)
+	paths := scrub.New(dir, home)
+	clean := func(s string) string { return tempRoot.ReplaceAllString(paths(s), "/tmp/claude") }
 	type kept struct {
 		dir, line, requestID string
 		// resolves is the approval this line settles: the request an

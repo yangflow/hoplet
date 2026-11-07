@@ -118,6 +118,9 @@ func (p *replayer) record(ev harness.Event) {
 	if ev.Native != "" {
 		line = "native " + ev.Native + " "
 	}
+	if ev.Agent != "" {
+		line += "agent " + ev.Agent + " "
+	}
 	if ev.Payload != nil {
 		b, err := json.Marshal(ev.Payload)
 		if err != nil {

@@ -118,6 +118,9 @@ type Event struct {
 	Offset  int64       // transport position just after the triggering line
 	Native  string      // set where the harness announces its own session ID
 	Exit    *ExitStatus // set on the final event when the harness process ended
+	// Agent is the subagent whose record Payload belongs to; empty for the
+	// session's own conversation.
+	Agent string
 	// Output is the output of the ToolCall in Payload, when the harness
 	// reported one; the daemon stores it as the call's output blob.
 	Output []byte
