@@ -61,8 +61,9 @@ type Host interface {
 	CopyPath(path string)
 	// Reconnect tries the daemon now rather than at the next retry.
 	Reconnect()
-	// Older pages back through a session's events before seq.
-	Older(id proto.SessionID, before uint64, done func(proto.EventsPage))
+	// Older pages back through a session's events before p.BeforeSeq:
+	// its own conversation's, or with p.Agent a subagent's record.
+	Older(p proto.EventsParams, done func(proto.EventsPage))
 	Harnesses(done func([]proto.HarnessInfo))
 	// Session reads what a session waits on: its pending approvals.
 	Session(id proto.SessionID, done func(proto.SessionState))

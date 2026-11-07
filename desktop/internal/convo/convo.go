@@ -56,12 +56,13 @@ type Work struct {
 	End     time.Time
 }
 
-// Entry is one step of a work group: Tool is set for a tool call,
-// Thinking for visible reasoning; in a turn's group, Note for text the
-// harness wrote between steps and Approval for an approval.
+// Entry is one step of a work group: Tool is set for a tool call, Agent
+// for a subagent, Thinking for visible reasoning; in a turn's group, Note
+// for text the harness wrote between steps and Approval for an approval.
 type Entry struct {
 	Key      string // stable across rebuilds
 	Tool     *proto.ToolCall
+	Agent    *proto.Subagent
 	Thinking string
 	Note     string
 	Approval *Approval
@@ -77,6 +78,26 @@ func (e Entry) Duration() time.Duration {
 	return e.End.Sub(e.Start)
 }
 
+// Subagent is a subagent sent out, as last reported, and when it was sent
+// and ended; End is zero while it runs.
+type Subagent struct {
+	proto.Subagent
+	Start time.Time
+	End   time.Time
+}
+
+// Took is how long it ran: as the harness reported, or else from when it
+// was sent until it ended or now.
+func (g Subagent) Took(now time.Time) time.Duration {
+	switch {
+	case g.DurationMS > 0:
+		return time.Duration(g.DurationMS) * time.Millisecond
+	case g.End.IsZero():
+		return now.Sub(g.Start)
+	}
+	return g.End.Sub(g.Start)
+}
+
 // Approval is a decided approval.
 type Approval struct {
 	Request   proto.ApprovalRequested
@@ -88,6 +109,9 @@ type Approval struct {
 
 // Convo is one session's conversation. The zero value is empty.
 type Convo struct {
+	// agent, when set, makes this the record of that subagent: only its
+	// events count. Otherwise its events are left out.
+	agent   string
 	session proto.Session
 	events  []proto.Event
 	more    bool // older events exist before the first one held
@@ -100,6 +124,9 @@ type Convo struct {
 	asked   *proto.Question
 	running bool
 	context proto.ContextUsage
+	todos   []proto.TodoItem
+	agents  []Subagent
+	live    bool // a record whose subagent still runs
 
 	// echo is a message I just sent that the daemon has not recorded yet:
 	// it shows, with the turn starting, until a message of its ID comes.
@@ -108,6 +135,9 @@ type Convo struct {
 	echoErr  string // why the echo did not go out
 	starting bool
 }
+
+// Record returns an empty record of a subagent's own events.
+func Record(agent string) *Convo { return &Convo{agent: agent} }
 
 // Echo shows a message I just sent, by its idempotency key, until the
 // daemon records it: a new session starts its harness first, which takes
@@ -259,6 +289,49 @@ func (c *Convo) Changed() uint64 {
 	return 0
 }
 
+// Todos returns the task list the harness last reported; nil before it
+// reported one.
+func (c *Convo) Todos() []proto.TodoItem {
+	c.build()
+	return c.todos
+}
+
+// Agents returns the subagents sent out, each as last reported, in the
+// order they were sent.
+func (c *Convo) Agents() []Subagent {
+	c.build()
+	return c.agents
+}
+
+// Agent returns a subagent as last reported.
+func (c *Convo) Agent(id string) (Subagent, bool) {
+	for _, g := range c.Agents() {
+		if g.ID == id {
+			return g, true
+		}
+	}
+	return Subagent{}, false
+}
+
+// Live marks a record's subagent as still running, which keeps its last
+// work group open.
+func (c *Convo) Live(on bool) {
+	if c.live != on {
+		c.live, c.built = on, false
+	}
+}
+
+// Task returns what a record's subagent was asked to do: its first
+// message, which is mine.
+func (c *Convo) Task() string {
+	for _, it := range c.Items() {
+		if it.Kind == KindMine {
+			return it.Text
+		}
+	}
+	return ""
+}
+
 // Queue returns the messages waiting for the turn to end.
 func (c *Convo) Queue() []proto.QueuedMessage { return c.queue }
 
@@ -269,6 +342,9 @@ type builder struct {
 	sawReply bool
 	texts    map[string]int // message ID → item index
 	tools    map[string]int // tool call ID → index of its work group
+	agentAt  map[string]int // subagent ID → index of its work group
+	agents   []Subagent
+	todos    []proto.TodoItem
 	approval map[string]int // approval ID → item index
 	pending  map[string]proto.ApprovalRequested
 	order    []string // pending approval IDs in request order
@@ -283,11 +359,14 @@ func (c *Convo) build() {
 	if c.built {
 		return
 	}
-	b := &builder{turnAt: -1, texts: map[string]int{}, tools: map[string]int{}, approval: map[string]int{}, pending: map[string]proto.ApprovalRequested{}}
+	b := &builder{turnAt: -1, texts: map[string]int{}, tools: map[string]int{}, agentAt: map[string]int{}, approval: map[string]int{}, pending: map[string]proto.ApprovalRequested{}}
 	if c.echo != nil {
 		b.echo = c.echo.ID
 	}
 	for _, ev := range c.events {
+		if ev.Agent != c.agent {
+			continue // another record's
+		}
 		p, err := ev.Decode()
 		if err != nil {
 			continue // a type this client does not know yet
@@ -315,7 +394,8 @@ func (c *Convo) build() {
 	if c.echo != nil {
 		b.items = append(b.items, Item{Kind: KindMine, Key: "echo:" + c.echo.ID, Time: c.echoAt, Text: c.echo.Text, Unsent: c.echoErr != ""})
 	}
-	c.items, c.running, c.asked, c.context = b.items, b.turnAt >= 0, b.asked, b.context
+	c.items, c.running, c.asked, c.context = b.items, b.turnAt >= 0 || c.live, b.asked, b.context
+	c.todos, c.agents = b.todos, b.agents
 	c.grouped = group(b.items, c.running)
 	c.pending = c.pending[:0]
 	for _, id := range b.order {
@@ -434,6 +514,10 @@ func (b *builder) event(ev proto.Event, p proto.Payload) {
 		}
 		w.Entries = append(w.Entries, e)
 		w.End = ev.Time
+	case proto.Subagent:
+		b.subagent(ev, p)
+	case proto.TodoList:
+		b.todos = p.Items
 	case proto.FileChange:
 		for _, f := range b.files {
 			if f.Path == p.Path {
@@ -462,6 +546,51 @@ func (b *builder) event(ev proto.Event, p proto.Payload) {
 		}
 		b.context = p
 	}
+}
+
+// subagent adds a subagent sent out to the work group it was sent in, or
+// updates it where it is.
+func (b *builder) subagent(ev proto.Event, p proto.Subagent) {
+	g := p
+	b.sawReply = true
+	if i, ok := b.agentAt[p.ID]; ok {
+		for j := range b.agents {
+			if g := &b.agents[j]; g.ID == p.ID {
+				g.Subagent = p
+				if p.Status != proto.SubagentRunning && g.End.IsZero() {
+					g.End = ev.Time
+				}
+			}
+		}
+		w := b.items[i].Work
+		for j := range w.Entries {
+			if e := &w.Entries[j]; e.Agent != nil && e.Agent.ID == p.ID {
+				e.Agent = &g
+				if p.Status != proto.SubagentRunning && e.End.IsZero() {
+					e.End = ev.Time
+					if !p.Background {
+						// One in the background may end long after
+						// its group: the group keeps its own time.
+						w.End = ev.Time
+					}
+				}
+			}
+		}
+		return
+	}
+	run := Subagent{Subagent: p, Start: ev.Time}
+	if p.Status != proto.SubagentRunning {
+		run.End = ev.Time
+	}
+	b.agents = append(b.agents, run)
+	w := b.work(ev)
+	b.agentAt[p.ID] = len(b.items) - 1
+	e := Entry{Key: "agent:" + p.ID, Agent: &g, Start: ev.Time}
+	if p.Status != proto.SubagentRunning {
+		e.End = ev.Time
+	}
+	w.Entries = append(w.Entries, e)
+	w.End = ev.Time
 }
 
 func key(kind string, seq uint64) string {

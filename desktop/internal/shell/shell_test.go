@@ -42,6 +42,7 @@ type host struct {
 	states     map[proto.SessionID]proto.SessionState // what Session answers
 	asked      []proto.SessionID                      // the sessions Session was asked for
 	folder     string
+	records    map[string]proto.EventsPage // what Older answers for a subagent's record
 }
 
 func (h *host) Update(p proto.UpdateParams) { h.updates = append(h.updates, p) }
@@ -86,8 +87,15 @@ func (h *host) Output(p proto.OutputParams, done func(proto.ToolOutput, error)) 
 		done(o, nil)
 	}
 }
-func (h *host) Older(id proto.SessionID, before uint64, _ func(proto.EventsPage)) {
-	h.calls = append(h.calls, fmt.Sprintf("older %s %d", id, before))
+func (h *host) Older(p proto.EventsParams, done func(proto.EventsPage)) {
+	if p.Agent != "" {
+		h.calls = append(h.calls, fmt.Sprintf("older %s %s %d", p.Session, p.Agent, p.BeforeSeq))
+		if page, ok := h.records[p.Agent]; ok {
+			done(page)
+		}
+		return
+	}
+	h.calls = append(h.calls, fmt.Sprintf("older %s %d", p.Session, p.BeforeSeq))
 }
 func (h *host) Diff(id proto.SessionID, done func(proto.SessionDiff)) {
 	if d, ok := h.diffs[id]; ok {

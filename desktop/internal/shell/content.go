@@ -1,10 +1,12 @@
 package shell
 
 import (
+	"fmt"
 	"slices"
 
 	"github.com/egoist/mygo/ui"
 
+	"github.com/yangflow/hoplet/desktop/internal/convo"
 	"github.com/yangflow/hoplet/desktop/internal/theme"
 	"github.com/yangflow/hoplet/proto"
 )
@@ -113,7 +115,7 @@ func (a *App) details(c *ui.Context, k theme.Colors, s proto.Session) []detailGr
 			}
 		}
 	}
-	place := detailGroup{"", []detail{
+	place := detailGroup{title: "", rows: []detail{
 		{icon: a.icons.Machine, value: a.machine},
 		{image: a.icons.FolderType(), value: tilde(s.Directory), tip: s.Directory, mono: true, end: func() {
 			if iconButton(c, k, a.icons.Folder, "在 Finder 中显示", false).Size(theme.RowDense, theme.RowDense).Clicked() {
@@ -131,7 +133,7 @@ func (a *App) details(c *ui.Context, k theme.Colors, s proto.Session) []detailGr
 		run = nil
 	}
 	run = append(run, detail{icon: a.icons.Thinking, value: model + " · 推理强度 " + effortName(s.Effort)}, detail{icon: a.modeIcon(s.Permission), value: perm})
-	return []detailGroup{place, {"运行", run}, {"会话", []detail{
+	gs := []detailGroup{place, {title: "运行", rows: run}, {title: "会话", rows: []detail{
 		{icon: a.icons.Made, value: statusName(s.Status) + " · 建于 " + s.CreatedAt.Local().Format("1 月 2 日")},
 		{icon: a.icons.ID, value: string(s.ID), mono: true, end: func() { a.copyButton(c, k, "id:"+string(s.ID), string(s.ID), "复制会话 ID") }},
 		// The harness's own ID, once it started one: what resumes the
@@ -140,6 +142,69 @@ func (a *App) details(c *ui.Context, k theme.Colors, s proto.Session) []detailGr
 			a.copyButton(c, k, "native:"+string(s.ID), s.Harness.NativeID, "复制 "+harnessName(s.Harness.Kind)+" 会话 ID")
 		}},
 	}}}
+	if agents := a.conv(s.ID).Agents(); len(agents) > 0 {
+		gs = append(gs, detailGroup{title: "子代理", body: func() { a.agentRows(c, k, s, agents) }})
+	}
+	return gs
+}
+
+// agentRows are the details' subagents: those running first, each with a
+// spinner, its title and time; the finished ones fold into 已结束 N 个,
+// folded at first, and open to their state, title and time or 已停止.
+// A row opens the subagent's record in the viewer.
+func (a *App) agentRows(c *ui.Context, k theme.Colors, s proto.Session, agents []convo.Subagent) {
+	var ended []convo.Subagent
+	row := func(g convo.Subagent) {
+		r := ui.Row(c.Key(g.ID)).Height(theme.RowStep).Padding(0, theme.Space3).Gap(theme.Space2).AlignItems(ui.Center).Label(g.Title)
+		if r.Hovered() {
+			r.Background(k.Fill)
+		}
+		if r.Clicked() {
+			a.openAgent(s, g.ID)
+		}
+		r.Children(func() {
+			color := k.Fg
+			if g.Status == proto.SubagentRunning {
+				ui.Spinner(c).Size(theme.IconRow, theme.IconRow)
+			} else {
+				ui.Icon(c, a.agentIcon(g.Status)).FontSize(theme.IconRow).TextColor(k.Fg3)
+				color = k.Fg2
+			}
+			ui.Text(c, g.Title).FontSize(theme.UI.Size()).TextColor(color).SingleLine().Grow(1).Shrink(1).Tooltip(g.Title)
+			theme.Caption.On(ui.Text(c, agentTime(c, g))).TextColor(k.Faint).SingleLine().Shrink(0)
+		})
+	}
+	for _, g := range agents {
+		if g.Status == proto.SubagentRunning {
+			row(g)
+		} else {
+			ended = append(ended, g)
+		}
+	}
+	if len(ended) == 0 {
+		return
+	}
+	key := "agents:" + string(s.ID)
+	open := a.s.open[key]
+	h := ui.Row(c).Height(theme.RowStep).Padding(0, theme.Space3).Gap(theme.Space2).AlignItems(ui.Center).Label(fmt.Sprintf("已结束 %d 个", len(ended)))
+	if h.Clicked() {
+		a.s.open[key] = !open
+	}
+	h.Children(func() {
+		icon := a.icons.Expand
+		if open {
+			icon = a.icons.Menu
+		}
+		ui.Icon(c, icon).FontSize(theme.IconRow).TextColor(k.Fg3)
+		theme.UI.On(ui.Textf(c, "已结束 %d 个", len(ended))).TextColor(k.Fg2)
+	})
+	if open {
+		ui.Column(c).Transition(openMotion).Children(func() {
+			for _, g := range ended {
+				row(g)
+			}
+		})
+	}
 }
 
 // detail is a row of the details column: an icon, or a harness's mark with
@@ -160,6 +225,7 @@ type detail struct {
 type detailGroup struct {
 	title string
 	rows  []detail
+	body  func() // rows of its own in place of rows
 }
 
 // detailGroups is a session's details in blocks, rows without a value and
@@ -172,7 +238,7 @@ func (a *App) detailGroups(c *ui.Context, k theme.Colors, s proto.Session) []det
 	out := gs[:0]
 	for _, g := range gs {
 		g.rows = slices.DeleteFunc(g.rows, func(d detail) bool { return d.value == "" })
-		if len(g.rows) > 0 {
+		if len(g.rows) > 0 || g.body != nil {
 			out = append(out, g)
 		}
 	}
@@ -233,6 +299,10 @@ func (a *App) detailBlock(c *ui.Context, k theme.Colors, g detailGroup, float bo
 		if title != "" {
 			ui.Text(c, title).FontSize(theme.Caption.Size()).FontWeight(theme.UIStrong.Weight()).TextColor(k.Muted).Padding(theme.Space2, theme.Space3, theme.SpaceHalf, theme.Space3)
 		}
+		if g.body != nil {
+			g.body()
+			return
+		}
 		for i, d := range rows {
 			ui.Row(c.Key(i)).Height(theme.RowStep).Padding(0, theme.Space3).Gap(theme.Space2).AlignItems(ui.Center).Children(func() {
 				switch {
@@ -286,7 +356,7 @@ func (a *App) companionDetails(s proto.Session) []detailGroup {
 	if a.connected {
 		machine += " · 在线"
 	}
-	return []detailGroup{{"", []detail{{icon: a.icons.Machine, value: machine}}}, {"运行", []detail{
+	return []detailGroup{{title: "", rows: []detail{{icon: a.icons.Machine, value: machine}}}, {title: "运行", rows: []detail{
 		{harness: s.Harness.Kind, value: harnessName(s.Harness.Kind), version: s.Harness.Version},
 		{icon: a.icons.Thinking, value: model + " · 推理强度 " + effortName(s.Effort)},
 	}}}

@@ -21,11 +21,12 @@ const (
 	columnChanges
 )
 
-// panelTab is a tab of the right panel's viewer: a file, or the one
-// changes tab.
+// panelTab is a tab of the right panel's viewer: a file, the one changes
+// tab, or a subagent's record.
 type panelTab struct {
 	changes bool
 	path    string // the file, relative to the working directory
+	agent   string // the subagent, by ID
 }
 
 // panelState is a session's right panel: its tabs, the current one, the
@@ -254,7 +255,12 @@ func (a *App) viewer(c *ui.Context, k theme.Colors, s proto.Session, ps *panelSt
 			col.Grow(1).Shrink(1).MinWidth(0)
 		}
 		col.Children(func() {
-			a.panelTabs(c, k, ps)
+			a.panelTabs(c, k, s, ps)
+			if ps.active >= 0 && ps.active < len(ps.tabs) && ps.tabs[ps.active].agent != "" {
+				id := ps.tabs[ps.active].agent
+				ui.Column(c.Key("agent:" + id)).Grow(1).MinHeight(0).AlignItems(ui.Stretch).Background(k.Pane).Children(func() { a.agentView(c, k, s, id) })
+				return
+			}
 			if ps.active >= 0 && ps.active < len(ps.tabs) && ps.tabs[ps.active].changes {
 				ui.Column(c).Grow(1).MinHeight(0).AlignItems(ui.Stretch).Children(func() { a.changesView(c, k, s, ps) })
 				return
@@ -291,7 +297,7 @@ func (a *App) rail(c *ui.Context, k theme.Colors, s proto.Session, ps *panelStat
 // panelTabs is the viewer's tab bar: a tab per open file and the changes,
 // the current one raised with its ✕; a menu to open more, and at the end
 // the button that spreads the viewer over the content area.
-func (a *App) panelTabs(c *ui.Context, k theme.Colors, ps *panelState) {
+func (a *App) panelTabs(c *ui.Context, k theme.Colors, s proto.Session, ps *panelState) {
 	// Spread over the content area with the sidebar hidden, the viewer's
 	// top row takes the traffic lights and the window buttons, as the
 	// content area's title bar does.
@@ -308,7 +314,13 @@ func (a *App) panelTabs(c *ui.Context, k theme.Colors, ps *panelState) {
 		for i, t := range ps.tabs {
 			on := i == ps.active
 			name := "变更"
-			if !t.changes {
+			switch {
+			case t.agent != "":
+				name = "子代理"
+				if g, ok := a.conv(s.ID).Agent(t.agent); ok && g.Title != "" {
+					name = g.Title
+				}
+			case !t.changes:
 				name = path.Base(t.path)
 			}
 			b := ui.Button(c.Key(strconv.Itoa(i)+name), "").Label(name).Height(theme.Row).Padding(0, theme.Space2).Gap(theme.Space1Half).
@@ -322,6 +334,8 @@ func (a *App) panelTabs(c *ui.Context, k theme.Colors, ps *panelState) {
 			b.Children(func() {
 				if t.changes {
 					ui.Icon(c, a.icons.Changes).FontSize(theme.IconRow).TextColor(k.Fg3)
+				} else if t.agent != "" {
+					ui.Icon(c, a.icons.Agent).FontSize(theme.IconRow).TextColor(k.Fg3)
 				} else if img := a.icons.FileType(t.path); img != nil {
 					ui.Image(c, img).Size(theme.IconRow, theme.IconRow)
 				}

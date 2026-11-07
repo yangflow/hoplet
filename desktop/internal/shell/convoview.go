@@ -59,7 +59,7 @@ func (a *App) conversation(c *ui.Context, k theme.Colors, s proto.Session) {
 			ui.Row(c).FillWidth().Justify(ui.Center).Children(func() {
 				ui.Column(c).Grow(1).Shrink(1).MinWidth(0).MaxWidth(width).Padding(theme.Space6, theme.Space8, theme.Space8, theme.Space8).Children(func() {
 					if more, first := cv.More(); more && a.older(c, k) {
-						a.host.Older(s.ID, first, func(p proto.EventsPage) { cv.Prepend(p) })
+						a.host.Older(proto.EventsParams{Session: s.ID, BeforeSeq: first}, func(p proto.EventsPage) { cv.Prepend(p) })
 					}
 					if personal {
 						a.chat(c, k, s, cv.Items(), cv.Running() || cv.Starting())
@@ -192,6 +192,8 @@ func (a *App) working(c *ui.Context, k theme.Colors, items []convo.Item, approva
 		case last.Kind == convo.KindWork && len(last.Work.Entries) > 0:
 			if e := last.Work.Entries[len(last.Work.Entries)-1]; e.Tool != nil && e.Tool.Status == proto.ToolRunning {
 				label = a.doing(*e.Tool)
+			} else if e.Agent != nil && e.Agent.Status == proto.SubagentRunning {
+				label = fmt.Sprintf("子代理运行中 · %d 个", runningAgents(last.Work, false))
 			}
 		}
 	}
@@ -226,7 +228,7 @@ func (a *App) doing(tc proto.ToolCall) string {
 		return "编辑文件"
 	case "写入":
 		return "写入文件"
-	case "搜索", "抓取网页", "子任务":
+	case "搜索", "抓取网页":
 		return verb
 	}
 	return "调用工具"
@@ -535,6 +537,10 @@ func (a *App) work(c *ui.Context, k theme.Colors, s proto.Session, it convo.Item
 				in := theme.MotionBase
 				in.Delay = time.Duration(min(max(i-seen, 0), staggered-1)) * theme.MotionStagger
 				ui.Column(c.Key("in:" + e.Key)).FillWidth().Transition(ui.ElementTransition{Animation: &in, Enter: &ui.Motion{Y: theme.MotionRise}}).Children(func() {
+					if e.Agent != nil {
+						a.agentStep(c.Key(e.Key), k, s, e, i == len(shown)-1)
+						return
+					}
 					a.workStep(c.Key(e.Key), k, s, e, latest, i == len(shown)-1)
 				})
 			}
@@ -545,15 +551,80 @@ func (a *App) work(c *ui.Context, k theme.Colors, s proto.Session, it convo.Item
 // rail draws a step's part of the rail its group's steps hang on: a line
 // down the left, to the row's middle on the last step, and a tick across
 // to the step.
-func rail(c *ui.Context, k theme.Colors, last bool) {
+func rail(c *ui.Context, k theme.Colors, last bool) { railAt(c, k, last, theme.RowStep/2) }
+
+// railAt is rail for a row whose middle is mid below its top.
+func railAt(c *ui.Context, k theme.Colors, last bool, mid float32) {
 	ui.Box(c).Width(theme.ControlXS).AlignSelf(ui.Stretch).Shrink(0).Draw(func(p *ui.Painter, r ui.Rect) {
 		h := r.H
 		if last {
-			h = theme.Icon
+			h = mid
 		}
 		p.Fill(ui.Rect{X: r.X, Y: r.Y, W: theme.LineWidth, H: h}, k.Line2, 0)
-		p.Fill(ui.Rect{X: r.X, Y: r.Y + theme.Icon, W: theme.IconRow, H: theme.LineWidth}, k.Line2, 0)
+		p.Fill(ui.Rect{X: r.X, Y: r.Y + mid, W: theme.IconRow, H: theme.LineWidth}, k.Line2, 0)
 	})
+}
+
+// agentStep draws a subagent of a work group on a 24-point row that is a
+// link: a spinner while it runs, else its mark; its type and title; ✕ when
+// it failed; how long it ran, or 已停止. A click opens its record in the
+// viewer.
+func (a *App) agentStep(c *ui.Context, k theme.Colors, s proto.Session, e convo.Entry, last bool) {
+	g := *e.Agent
+	kind := g.Type
+	if kind == "" {
+		kind = "子代理"
+	}
+	ui.Row(c).FillWidth().Children(func() {
+		railAt(c, k, last, theme.RowDense/2)
+		r := ui.Row(c).Grow(1).Shrink(1).Height(theme.RowDense).Padding(0, theme.Space1).Margin(0, 0, 0, -theme.Space1).Gap(theme.Space2).AlignItems(ui.Center).Radius(theme.RadiusRow).Label(kind + " " + g.Title)
+		if r.Hovered() {
+			r.Background(k.Fill)
+		}
+		if r.Clicked() {
+			a.openAgent(s, g.ID)
+		}
+		r.Children(func() {
+			if g.Status == proto.SubagentRunning {
+				ui.Spinner(c).Size(theme.Icon, theme.Icon)
+			} else {
+				ui.Icon(c, a.icons.Agent).FontSize(theme.Icon).TextColor(k.Fg3)
+			}
+			ui.Text(c, kind).FontSize(theme.CodeInline.Size()).TextColor(k.Fg).SingleLine().Shrink(0)
+			ui.Text(c, g.Title).FontSize(theme.CodeInline.Size()).TextColor(k.Fg3).SingleLine().Shrink(1)
+			if g.Status == proto.SubagentFailed {
+				ui.Text(c, "✕").Font(theme.Mono).FontSize(theme.Caption.Size()).FontWeight(theme.UIStrong.Weight()).TextColor(k.Fg)
+			}
+			ui.Spacer(c)
+			ui.Text(c, agentTime(c, convo.Subagent{Subagent: g, Start: e.Start, End: e.End})).FontSize(theme.Caption.Size()).TextColor(k.Faint).SingleLine().Shrink(0)
+			ui.Icon(c, a.icons.Expand).FontSize(theme.IconSmall).TextColor(k.Faint)
+		})
+	})
+}
+
+// agentTime is a subagent's time at the end of its row: 48 秒… while it
+// runs, 后台 · 2 分 10 秒… in the background, 已停止 once stopped.
+func agentTime(c *ui.Context, g convo.Subagent) string {
+	switch g.Status {
+	case proto.SubagentStopped:
+		return "已停止"
+	case proto.SubagentRunning:
+		c.After(time.Second)
+		t := duration(g.Took(c.Now())) + "…"
+		if g.Background {
+			t = "后台 · " + t
+		}
+		return t
+	}
+	return duration(g.Took(c.Now()))
+}
+
+// openAgent opens a subagent's record in the viewer.
+func (a *App) openAgent(s proto.Session, id string) {
+	a.openTab(a.panelFor(s.ID), panelTab{agent: id})
+	if !a.panelOpen || a.fit.panel == 0 {
+		a.bringPanel()
+	}
 }
 
 // workStep draws one step of a work group on its row, and its detail when
@@ -800,8 +871,6 @@ func (a *App) action(tc proto.ToolCall) (*ui.SVG, string) {
 	switch tc.Name {
 	case "Grep", "Glob", "search_files":
 		return a.icons.Search, "搜索"
-	case "Task", "Agent":
-		return a.icons.Task, "子任务"
 	case "Write", "write_file":
 		return a.icons.Write, "写入"
 	}
@@ -828,6 +897,8 @@ func summary(w *convo.Work) string {
 		switch {
 		case e.Tool != nil:
 			part = toolVerb(*e.Tool)
+		case e.Agent != nil:
+			part = "派出 %d 个子代理"
 		case e.Approval != nil:
 			part = "审批 %d 次"
 		case e.Note != "":
@@ -848,7 +919,22 @@ func summary(w *convo.Work) string {
 	for i, v := range order {
 		parts[i] = fmt.Sprintf(v, counts[v])
 	}
+	if n := runningAgents(w, true); n > 0 && !w.Running {
+		parts = append(parts, fmt.Sprintf("%d 个在后台运行", n))
+	}
 	return strings.Join(parts, " · ")
+}
+
+// runningAgents counts a group's subagents still running; background
+// says only those the turn did not wait for.
+func runningAgents(w *convo.Work, background bool) int {
+	n := 0
+	for _, e := range w.Entries {
+		if g := e.Agent; g != nil && g.Status == proto.SubagentRunning && (!background || g.Background) {
+			n++
+		}
+	}
+	return n
 }
 
 // toolVerb is a tool call's part of a summary, with %d for the count.
@@ -856,8 +942,6 @@ func toolVerb(tc proto.ToolCall) string {
 	switch tc.Name {
 	case "Grep", "Glob", "search_files":
 		return "搜索 %d 次"
-	case "Task", "Agent":
-		return "%d 个子任务"
 	case "Write", "write_file":
 		return "写入 %d 个文件"
 	}

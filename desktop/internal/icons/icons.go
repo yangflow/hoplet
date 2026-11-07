@@ -49,7 +49,10 @@ type Set struct {
 	Run       *ui.SVG // tool: run a command
 	Web       *ui.SVG // tool: fetch a web page
 	Tool      *ui.SVG // tool: MCP and others
-	Task      *ui.SVG // tool: a subtask
+	Task      *ui.SVG // a branch
+	Agent     *ui.SVG // a subagent
+	Todos     *ui.SVG // the task list
+	Todo      *ui.SVG // a task not started
 	Thinking  *ui.SVG
 	Allowed   *ui.SVG // a decided approval: allowed
 	Denied    *ui.SVG // a decided approval: denied
@@ -129,6 +132,9 @@ func Load() (*Set, error) {
 		{&s.Web, "lucide/globe.svg"},
 		{&s.Tool, "lucide/box.svg"},
 		{&s.Task, "lucide/git-branch.svg"},
+		{&s.Agent, "lucide/bot.svg"},
+		{&s.Todos, "lucide/list-todo.svg"},
+		{&s.Todo, "lucide/circle.svg"},
 		{&s.Thinking, "lucide/brain.svg"},
 		{&s.Allowed, "lucide/shield-check.svg"},
 		{&s.Denied, "lucide/shield-x.svg"},

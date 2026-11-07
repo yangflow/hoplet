@@ -382,9 +382,9 @@ func (d *desktop) Reconnect() {
 }
 
 // Older implements shell.Host.
-func (d *desktop) Older(id proto.SessionID, before uint64, done func(proto.EventsPage)) {
+func (d *desktop) Older(p proto.EventsParams, done func(proto.EventsPage)) {
 	d.call(func(ctx context.Context, c *client.Client) error {
-		page, err := c.EventsBefore(ctx, proto.EventsParams{Session: id, BeforeSeq: before})
+		page, err := c.EventsBefore(ctx, p)
 		if err == nil {
 			d.ui(func() { done(page) })
 		}

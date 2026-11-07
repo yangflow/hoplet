@@ -60,6 +60,7 @@ func (a *App) composer(c *ui.Context, k theme.Colors, s proto.Session, cv *convo
 		frame.Border(theme.LineWidth, k.Line2).BorderStyle(ui.BorderDashed)
 	}
 	frame.Children(func() {
+		a.todos(c, k, s, cv, ap != nil || asked)
 		a.queue(c, k, s, cv, h.Capabilities.Steer, ap != nil || asked)
 		ui.Column(c).Padding(theme.Space3, theme.Space3, theme.Space2).Gap(theme.Space2).Children(func() {
 			a.composerBody(c, k, s, cv, h, running, ap, pending, q, asked)
@@ -99,6 +100,110 @@ func (a *App) composerBody(c *ui.Context, k theme.Colors, s proto.Session, cv *c
 	}
 	a.input(c, s, cv, ap, q, asked)
 	a.controls(c, k, s, cv, h, running)
+}
+
+// todos is the task tray at the composer's top, over the queue, while the
+// harness keeps a task list: one line with how many tasks are done of
+// those not cancelled and the one in progress, which opens to a row a
+// task. All done, it says so, and goes once the turn ends. An approval or
+// a question folds it to its line.
+func (a *App) todos(c *ui.Context, k theme.Colors, s proto.Session, cv *convo.Convo, folded bool) {
+	items := cv.Todos()
+	total, done := 0, 0
+	var now string
+	for _, t := range items {
+		switch t.Status {
+		case proto.TodoCancelled:
+			continue
+		case proto.TodoCompleted:
+			done++
+		case proto.TodoInProgress:
+			if now == "" {
+				now = t.Active
+				if now == "" {
+					now = t.Text
+				}
+			}
+		}
+		total++
+	}
+	all := total > 0 && done == total
+	if len(items) == 0 || all && !cv.Running() {
+		return
+	}
+	key := "todos:" + string(s.ID)
+	open := !a.s.open[key] && !folded // open unless I folded it
+	ui.Column(c.Key("todos")).Padding(theme.Space1, 0).BorderWidth(0, 0, theme.LineWidth, 0).BorderColor(k.Line).Transition(openMotion).Children(func() {
+		label := fmt.Sprintf("任务 %d / %d", done, total)
+		h := ui.Row(c).Height(theme.RowDense).Padding(0, theme.Space2, 0, theme.Space3).Gap(theme.Space2).AlignItems(ui.Center).Label(label)
+		if !folded && h.Clicked() {
+			a.s.open[key] = open
+		}
+		h.Children(func() {
+			icon := a.icons.Todos
+			if all {
+				icon, label, now = a.icons.Check, "全部完成", ""
+			}
+			ui.Icon(c, icon).FontSize(theme.IconRow).TextColor(k.Fg3)
+			theme.Secondary.On(ui.Text(c, label)).TextColor(k.Fg3).SingleLine().Shrink(0)
+			if now != "" && !open {
+				theme.Secondary.On(ui.Text(c, "· "+now)).TextColor(k.Faint).SingleLine().Shrink(1)
+			}
+			ui.Spacer(c)
+			if !folded {
+				icon := a.icons.Unfold
+				if open {
+					icon = a.icons.Fold
+				}
+				ui.Icon(c, icon).FontSize(theme.IconSmall).TextColor(k.Faint)
+			}
+		})
+		if !open {
+			return
+		}
+		ui.Column(c).Transition(openMotion).Children(func() {
+			for _, t := range items {
+				a.todo(c.Key(t.ID), k, t)
+			}
+		})
+	})
+}
+
+// todo is a task's row in the tray: done with a check in muted text, in
+// progress with a dot and its -ing wording in strong text, not started
+// with a circle, cancelled with ✕ and struck through.
+func (a *App) todo(c *ui.Context, k theme.Colors, t proto.TodoItem) {
+	ui.Row(c).Height(theme.RowDense).Padding(0, theme.Space3).Gap(theme.Space2).AlignItems(ui.Center).Children(func() {
+		text := t.Text
+		mark := func(icon *ui.SVG, color ui.Color) { ui.Icon(c, icon).FontSize(theme.IconSmall).TextColor(color) }
+		ui.Box(c).Size(theme.IconRow, theme.IconRow).Center().Shrink(0).Children(func() {
+			switch t.Status {
+			case proto.TodoCompleted:
+				mark(a.icons.Check, k.Muted)
+			case proto.TodoInProgress:
+				ui.Box(c).Size(theme.Dot, theme.Dot).Radius(theme.RadiusPill).Background(k.AccentFg)
+			case proto.TodoCancelled:
+				mark(a.icons.Close, k.Faint)
+			default:
+				mark(a.icons.Todo, k.Fg3)
+			}
+		})
+		var tx ui.Element
+		switch t.Status {
+		case proto.TodoCompleted:
+			tx = theme.UI.On(ui.Text(c, text)).TextColor(k.Muted)
+		case proto.TodoInProgress:
+			if t.Active != "" {
+				text = t.Active
+			}
+			tx = theme.UIStrong.On(ui.Text(c, text)).TextColor(k.Fg)
+		case proto.TodoCancelled:
+			tx = theme.UI.On(ui.Text(c, text)).TextColor(k.Faint).Strikethrough()
+		default:
+			tx = theme.UI.On(ui.Text(c, text)).TextColor(k.Fg2)
+		}
+		tx.SingleLine().Shrink(1).Tooltip(text)
+	})
 }
 
 // tilde writes a path under the home directory with ~.
