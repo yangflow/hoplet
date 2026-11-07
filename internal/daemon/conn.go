@@ -27,7 +27,11 @@ type conn struct {
 	cancel context.CancelCauseFunc
 
 	authed atomic.Bool
-	device string // set by hello, before any request is handled
+	// remote is set for a device connected over Noise; its device is the
+	// host ID of its key, set before serving. A local connection's device
+	// is set by hello, before any request is handled.
+	remote bool
+	device string
 
 	outMu    sync.Mutex
 	out      [][]byte // frames waiting for the writer
@@ -144,6 +148,9 @@ func (c *conn) hello(f proto.ClientFrame) bool {
 	case p.ProtocolMajor != proto.ProtocolMajor:
 		err = &proto.APIError{Code: proto.CodeVersion, Message: fmt.Sprintf(
 			"the daemon speaks protocol %d, the client %d; upgrade the older one", proto.ProtocolMajor, p.ProtocolMajor)}
+	case c.remote:
+		// The handshake authenticated the device; token and device ID are
+		// not used.
 	case subtle.ConstantTimeCompare([]byte(p.Token), []byte(c.s.token)) != 1:
 		err = &proto.APIError{Code: proto.CodeUnauthorized, Message: "wrong token"}
 	case p.DeviceID == "":
@@ -158,9 +165,13 @@ func (c *conn) hello(f proto.ClientFrame) bool {
 		_ = c.fc.Shutdown()
 		return false
 	}
-	c.device = p.DeviceID
+	if !c.remote {
+		c.device = p.DeviceID
+	}
 	c.authed.Store(true)
-	c.respond(f.ID, proto.HelloResult{Host: c.s.host, Version: c.s.version, ProtocolMajor: proto.ProtocolMajor}, nil)
+	c.respond(f.ID, proto.HelloResult{
+		Host: c.s.host, Version: c.s.version, ProtocolMajor: proto.ProtocolMajor, HostID: string(c.s.identity.ID()),
+	}, nil)
 	return true
 }
 

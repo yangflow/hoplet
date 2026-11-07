@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/yangflow/hoplet/internal/harness"
+	"github.com/yangflow/hoplet/internal/noise"
 	"github.com/yangflow/hoplet/internal/session"
 	"github.com/yangflow/hoplet/internal/store"
 	"github.com/yangflow/hoplet/internal/workspace"
@@ -17,6 +18,9 @@ import (
 func (c *conn) call(ctx context.Context, f proto.ClientFrame) (any, error) {
 	s := c.s
 	done := struct{}{}
+	if c.remote && localOnly(f.Method) {
+		return nil, &proto.APIError{Code: proto.CodeUnauthorized, Message: f.Method + " is only for this host's own clients"}
+	}
 	switch f.Method {
 	case proto.MethodHello:
 		return nil, &proto.APIError{Code: proto.CodeBadRequest, Message: "hello was already said"}
@@ -211,9 +215,59 @@ func (c *conn) call(ctx context.Context, f proto.ClientFrame) (any, error) {
 			return nil, err
 		}
 		return done, s.queue.move(ctx, p)
+	case proto.MethodPairingStart:
+		return s.startPairing()
+	case proto.MethodDevicesList:
+		ds, err := s.store.Devices(ctx, "")
+		out := make([]proto.Device, len(ds))
+		for i, d := range ds {
+			out[i] = proto.Device{ID: d.ID, Name: d.Name, PairedAt: d.PairedAt, RevokedAt: d.RevokedAt}
+		}
+		return out, err
+	case proto.MethodDevicesRevoke:
+		var p proto.DeviceRef
+		if err := decode(f, &p); err != nil {
+			return nil, err
+		}
+		return done, s.revoke(ctx, p.ID)
+	case proto.MethodHostsAdd:
+		var p proto.Host
+		if err := decode(f, &p); err != nil {
+			return nil, err
+		}
+		if id, err := noise.IDOf(p.Key); err != nil || string(id) != p.ID {
+			return nil, invalid("the host ID does not match its key")
+		}
+		if p.Name == "" || len(p.Routes) == 0 {
+			return nil, invalid("a host needs a name and routes")
+		}
+		return done, s.store.AddHost(ctx, store.Host{ID: p.ID, PublicKey: p.Key, Name: p.Name, Routes: p.Routes, AddedAt: s.now()})
+	case proto.MethodHostsList:
+		hs, err := s.store.Hosts(ctx)
+		out := make([]proto.Host, len(hs))
+		for i, h := range hs {
+			out[i] = proto.Host{ID: h.ID, Key: h.PublicKey, Name: h.Name, Routes: h.Routes, AddedAt: h.AddedAt}
+		}
+		return out, err
+	case proto.MethodHostsRemove:
+		var p proto.HostRef
+		if err := decode(f, &p); err != nil {
+			return nil, err
+		}
+		return done, s.store.RemoveHost(ctx, p.Host)
 	default:
 		return nil, &proto.APIError{Code: proto.CodeBadRequest, Message: "unknown method " + f.Method}
 	}
+}
+
+// localOnly reports whether a device connected over Noise may not call
+// method: pairing hands out access to this host, and its hosts are its own.
+func localOnly(method string) bool {
+	switch method {
+	case proto.MethodPairingStart, proto.MethodHostsAdd, proto.MethodHostsList, proto.MethodHostsRemove:
+		return true
+	}
+	return false
 }
 
 // eventsBefore returns a page of the session's events before p.BeforeSeq,

@@ -11,6 +11,7 @@ import (
 	"github.com/coder/websocket"
 
 	"github.com/yangflow/hoplet/internal/frame"
+	"github.com/yangflow/hoplet/internal/noise"
 	"github.com/yangflow/hoplet/internal/session"
 	"github.com/yangflow/hoplet/internal/store"
 	"github.com/yangflow/hoplet/internal/workspace"
@@ -89,6 +90,14 @@ type server struct {
 	log     *slog.Logger
 	lim     limits
 
+	identity noise.Identity
+	routes   []string         // written into pairing codes
+	now      func() time.Time // the clock pairing codes expire by
+	pair     pairing
+
+	peersMu sync.Mutex
+	peers   map[string]map[*conn]struct{} // remote connections by device
+
 	mu     sync.Mutex
 	closed bool // set by wait; no connection starts after it
 	conns  sync.WaitGroup
@@ -113,18 +122,30 @@ func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ws.SetReadLimit(s.lim.readLimit)
-	s.mu.Lock()
-	if s.closed {
-		s.mu.Unlock()
+	if !s.enter() {
 		_ = ws.CloseNow()
 		return
 	}
-	s.conns.Add(1)
-	s.mu.Unlock()
-	defer s.conns.Done()
-	s.active.Add(1)
-	defer s.active.Add(-1)
+	defer s.leave()
 	newConn(s, frame.WebSocket(ws)).serve()
+}
+
+// enter counts a new connection, or reports false once wait has begun.
+func (s *server) enter() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return false
+	}
+	s.conns.Add(1)
+	s.active.Add(1)
+	return true
+}
+
+// leave uncounts a connection enter counted.
+func (s *server) leave() {
+	s.active.Add(-1)
+	s.conns.Done()
 }
 
 // wait refuses new connections and waits for every connection to end;
