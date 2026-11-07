@@ -55,6 +55,13 @@ type system struct {
 	probeTimeout time.Duration // per check; defaultProbeTimeout when zero
 	log          *slog.Logger
 
+	// The direct listener and relays, which doctor reports; relays is set
+	// before serving starts and not changed after.
+	listen     string
+	routes     []string
+	networkErr error
+	relays     []*relayer
+
 	// refreshMu serialises refreshes so that the snapshot and the
 	// manager's environment are applied in the order they were read.
 	refreshMu sync.Mutex
@@ -172,7 +179,10 @@ func (s *system) doctor(ctx context.Context) proto.DoctorReport {
 	snap, readErr := s.state()
 	info := infoOf(snap, readErr)
 	var r proto.DoctorReport
-	r.Checks = append(r.Checks, environmentCheck(snap, info), s.gitCheck(ctx))
+	r.Checks = append(r.Checks, environmentCheck(snap, info), s.gitCheck(ctx), s.listenerCheck())
+	for _, rl := range s.relays {
+		r.Checks = append(r.Checks, rl.check())
+	}
 	kinds := make([]string, 0, len(s.harnesses))
 	for k := range s.harnesses {
 		kinds = append(kinds, k)
@@ -190,6 +200,21 @@ func (s *system) doctor(ctx context.Context) proto.DoctorReport {
 		r.Checks = append(r.Checks, proto.Check{Name: "harnesses", Status: proto.CheckWarn, Detail: "no harness adapters are registered yet"})
 	}
 	return r
+}
+
+// listenerCheck reports the direct listener.
+func (s *system) listenerCheck() proto.Check {
+	const name = "listener"
+	switch {
+	case s.networkErr != nil:
+		return proto.Check{Name: name, Status: proto.CheckWarn, Detail: "off, and relays too: the configuration does not load: " + s.networkErr.Error()}
+	case s.listen == "":
+		return proto.Check{Name: name, Status: proto.CheckOK, Detail: "off (network.listen is not set)"}
+	case len(s.routes) == 0:
+		return proto.Check{Name: name, Status: proto.CheckWarn, Detail: "listening on " + s.listen + ", but network.routes is empty, so pairing codes do not point devices at it"}
+	default:
+		return proto.Check{Name: name, Status: proto.CheckOK, Detail: "listening on " + s.listen + "; routes " + strings.Join(s.routes, ", ")}
+	}
 }
 
 // gitCheck says whether git, which session diffs need, is usable.

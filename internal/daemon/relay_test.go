@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log/slog"
 	"net"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -147,6 +148,45 @@ func startOnRelay(t *testing.T, s fake.Script, r *testRelay, allow bool) *relayH
 	return &relayHost{hostB: &hostB{d: d, home: h, local: dial(t, h, "cli@b")}, id: id, logs: l}
 }
 
+// relayCheck is doctor's check of b's one relay.
+func (b *relayHost) relayCheck(t *testing.T) proto.Check {
+	t.Helper()
+	rs := b.d.srv.sys.relays
+	if len(rs) != 1 {
+		t.Fatalf("%d relayers", len(rs))
+	}
+	c := rs[0].check()
+	if !strings.HasPrefix(c.Name, "relay wss://") {
+		t.Errorf("name %q", c.Name)
+	}
+	return c
+}
+
+func TestRelayCheckBeforeTheFirstAttempt(t *testing.T) {
+	r := &relayer{s: &server{identity: newIdentity(t)}, url: "wss://relay.example.com"}
+	if c := r.check(); c.Status != proto.CheckWarn || c.Detail != "connecting" || c.Name != "relay wss://relay.example.com" {
+		t.Fatalf("%+v", c)
+	}
+}
+
+func TestListenerCheck(t *testing.T) {
+	for name, tc := range map[string]struct {
+		s    *system
+		want proto.CheckStatus
+		has  string
+	}{
+		"off":        {&system{}, proto.CheckOK, "off"},
+		"no routes":  {&system{listen: ":7777"}, proto.CheckWarn, "network.routes is empty"},
+		"on":         {&system{listen: ":7777", routes: []string{"tcp://host:7777"}}, proto.CheckOK, "listening on :7777; routes tcp://host:7777"},
+		"bad config": {&system{listen: ":7777", networkErr: errors.New("line 3: bad")}, proto.CheckWarn, "the configuration does not load: line 3: bad"},
+	} {
+		c := tc.s.listenerCheck()
+		if c.Name != "listener" || c.Status != tc.want || !strings.Contains(c.Detail, tc.has) {
+			t.Errorf("%s: %+v", name, c)
+		}
+	}
+}
+
 // pairOverRelay pairs a new device with b through the relay.
 func (b *relayHost) pairOverRelay(t *testing.T, r *testRelay) (noise.Identity, client.Remote) {
 	t.Helper()
@@ -207,10 +247,16 @@ func TestRelayRegistrationNeedsTheAllowlist(t *testing.T) {
 	r := startRelay(t)
 	b := startOnRelay(t, echoScript, r, false)
 	b.logs.wait(t, "relay refused the registration or is unreachable", 2)
+	if c := b.relayCheck(t); c.Status != proto.CheckFail || !strings.Contains(c.Detail, "not registered") || !strings.Contains(c.Detail, "hoplet relay allow "+string(b.id.ID())) {
+		t.Errorf("refused: %+v", c)
+	}
 	if err := relay.Allow(r.dir, b.id.ID()); err != nil {
 		t.Fatal(err)
 	}
 	b.logs.wait(t, "registered with relay", 1)
+	if c := b.relayCheck(t); c.Status != proto.CheckOK || !strings.Contains(c.Detail, "registered since") {
+		t.Errorf("registered: %+v", c)
+	}
 	_, rem := b.pairOverRelay(t, r)
 	dialRemote(t, rem)
 }
@@ -229,6 +275,9 @@ func TestRelayRestart(t *testing.T) {
 		t.Fatal("a connection outlived the relay")
 	}
 	b.logs.wait(t, "registered with relay", 2)
+	if c := b.relayCheck(t); c.Status != proto.CheckOK {
+		t.Errorf("registered again: %+v", c)
+	}
 	c = dialRemote(t, rem)
 	if _, err := c.Devices(timeout(t)); err != nil {
 		t.Fatal(err)

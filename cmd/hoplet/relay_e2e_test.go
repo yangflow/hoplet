@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"encoding/pem"
 	"fmt"
 	"log/slog"
@@ -196,6 +197,29 @@ func TestReachAHostThroughARelay(t *testing.T) {
 	}
 	id := strings.TrimSpace(mustCLI(t, "--host", "b", "session", "new", "--harness", "fake", "--dir", work, "first"))
 	mustCLI(t, "--host", "b", "session", "wait", id, "--for", "idle", "--timeout", "15s")
+
+	// The session came through the relay, so B is registered: doctor says
+	// so, along with the listener and B's identity.
+	onB()
+	_, out, _ := cli(t, "doctor", "--json")
+	var rep proto.DoctorReport
+	if err := json.Unmarshal([]byte(out), &rep); err != nil {
+		t.Fatalf("doctor --json: %v\n%s", err, out)
+	}
+	checks := map[string]proto.Check{}
+	for _, c := range rep.Checks {
+		checks[c.Name] = c
+	}
+	for name, has := range map[string]string{
+		"identity":         "host ID " + string(bID.ID()),
+		"listener":         "listening on " + listen + "; routes " + fw.URL(),
+		"relay " + r.url(): "registered since",
+	} {
+		if c := checks[name]; c.Status != proto.CheckOK || !strings.Contains(c.Detail, has) {
+			t.Errorf("doctor %s: %+v", name, c)
+		}
+	}
+	onA()
 
 	// The watch is on the relay; a relay restart ends its connection and
 	// it continues once B has registered again.

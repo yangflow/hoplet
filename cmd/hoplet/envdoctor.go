@@ -13,6 +13,7 @@ import (
 	"github.com/yangflow/hoplet/internal/client"
 	"github.com/yangflow/hoplet/internal/config"
 	"github.com/yangflow/hoplet/internal/home"
+	"github.com/yangflow/hoplet/internal/noise"
 	"github.com/yangflow/hoplet/proto"
 )
 
@@ -132,7 +133,7 @@ func (a app) localChecks(ctx context.Context) []proto.Check {
 	} else {
 		add("token", proto.CheckOK, home.TokenFile(h))
 	}
-	out = append(out, configCheck(h))
+	out = append(out, identityCheck(h), configCheck(h))
 	if m, err := a.service(); err == nil {
 		out = append(out, m.check(ctx))
 	}
@@ -153,6 +154,19 @@ func (a app) localChecks(ctx context.Context) []proto.Check {
 		return out
 	}
 	return append(out, r.Checks...)
+}
+
+// identityCheck reports the host's identity key, which the daemon creates
+// when it first starts.
+func identityCheck(h string) proto.Check {
+	id, err := noise.LoadIdentity(h)
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		return proto.Check{Name: "identity", Status: proto.CheckWarn, Detail: "no identity key yet; the daemon creates it when it starts"}
+	case err != nil:
+		return proto.Check{Name: "identity", Status: proto.CheckFail, Detail: err.Error()}
+	}
+	return proto.Check{Name: "identity", Status: proto.CheckOK, Detail: "host ID " + string(id.ID())}
 }
 
 func configCheck(h string) proto.Check {

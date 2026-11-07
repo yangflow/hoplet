@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/coder/websocket"
@@ -26,6 +27,33 @@ type relayer struct {
 	s    *server
 	url  string // wss://relay[:port], no path
 	http *http.Client
+
+	mu           sync.Mutex
+	registeredAt time.Time // when the current registration began; zero without one
+	lastErr      error     // why the last control connection failed or ended
+}
+
+// setState records a registration (err nil, at t) or its loss.
+func (r *relayer) setState(t time.Time, err error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.registeredAt, r.lastErr = t, err
+}
+
+// check reports the registration for doctor.
+func (r *relayer) check() proto.Check {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	name := "relay " + r.url
+	switch {
+	case !r.registeredAt.IsZero():
+		return proto.Check{Name: name, Status: proto.CheckOK, Detail: "registered since " + r.registeredAt.Format(time.RFC3339)}
+	case r.lastErr != nil:
+		return proto.Check{Name: name, Status: proto.CheckFail,
+			Detail: "not registered: " + r.lastErr.Error() + " (is this host in the relay's allowlist? hoplet relay allow " + string(r.s.identity.ID()) + ")"}
+	default:
+		return proto.Check{Name: name, Status: proto.CheckWarn, Detail: "connecting"}
+	}
 }
 
 func newRelayer(s *server, base string, roots *tls.Config) *relayer {
@@ -47,6 +75,7 @@ func (r *relayer) run(ctx context.Context) {
 		if ctx.Err() != nil {
 			return
 		}
+		r.setState(time.Time{}, err)
 		if registered {
 			wait = r.s.lim.relayRetry
 			log.Warn("relay connection lost", "err", err)
@@ -74,6 +103,7 @@ func (r *relayer) session(ctx context.Context) (registered bool, err error) {
 		return false, err
 	}
 	defer ch.Close()
+	r.setState(r.s.now(), nil)
 	r.s.log.Info("registered with relay", "relay", r.url)
 	ctx, stop := context.WithCancel(ctx)
 	defer stop()

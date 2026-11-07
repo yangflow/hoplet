@@ -98,14 +98,14 @@ func (a app) daemonRun(args []string) int {
 	logger := slog.New(slog.NewJSONHandler(logw, nil))
 	// A broken config.toml leaves the daemon up, without the direct
 	// listener, so doctor can report it.
-	cfg, err := config.Load(*dir)
-	if err != nil {
-		logger.Warn("direct listener off: the configuration does not load", "err", err)
+	cfg, cfgErr := config.Load(*dir)
+	if cfgErr != nil {
+		logger.Warn("direct listener off: the configuration does not load", "err", cfgErr)
 	}
 	d, err := daemon.Start(ctx, daemon.Config{
 		Home: *dir, Version: version, Exe: exe, Harnesses: a.harnesses(*dir), Env: src, ProbeURL: a.probeURL,
 		Logger: logger, Maintenance: a.maintenance(*dir, logger),
-		Listen: cfg.Network.Listen, Routes: cfg.Network.Routes, Relays: cfg.Network.Relays, RelayTLS: a.relayTLS,
+		Listen: cfg.Network.Listen, Routes: cfg.Network.Routes, Relays: cfg.Network.Relays, NetworkErr: cfgErr, RelayTLS: a.relayTLS,
 	})
 	if err != nil && ctx.Err() != nil {
 		return 0 // stopped by a signal before it began serving

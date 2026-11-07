@@ -140,7 +140,7 @@ func TestDoctorReportsProxyFailureAndMissingHarnesses(t *testing.T) {
 			}
 		}
 	}
-	if !slices.Equal(names, []string{"environment", "git", "network", "harnesses"}) {
+	if !slices.Equal(names, []string{"environment", "git", "listener", "network", "harnesses"}) {
 		t.Fatalf("checks %v", names)
 	}
 }
@@ -221,7 +221,7 @@ func TestDoctorIsBoundedWhenAProbeHangs(t *testing.T) {
 	for _, ch := range r.Checks {
 		names = append(names, ch.Name)
 	}
-	if !slices.Equal(names, []string{"environment", "git", "network", "harness ok", "harness stuck"}) {
+	if !slices.Equal(names, []string{"environment", "git", "listener", "network", "harness ok", "harness stuck"}) {
 		t.Fatalf("checks %v", names)
 	}
 	c := checksByName(r)
