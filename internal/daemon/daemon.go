@@ -2,6 +2,8 @@
 // manager and serves the client protocol on a Unix socket.
 package daemon
 
+//go:generate go test -run ^TestResumeVectors$ . -args -update
+
 import (
 	"context"
 	"crypto/tls"

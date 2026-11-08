@@ -36,7 +36,7 @@ endif
 
 swift-test: ## Run the Swift package tests
 ifneq ($(HAS_XCODE),)
-	swift format lint --strict -r apple/HopletKit/Tests apple/HopletKit/Sources/HopletProto/JSONValue.swift apple/HopletKit/Sources/HopletProto/ProtoCoding.swift
+	swift format lint --strict -r apple/HopletKit/Tests apple/HopletKit/Sources/HopletProto/JSONValue.swift apple/HopletKit/Sources/HopletProto/ProtoCoding.swift apple/HopletKit/Sources/HopletClient
 	swift test --package-path apple/HopletKit -Xswiftc -warnings-as-errors
 endif
 
