@@ -8,8 +8,8 @@
 
 | 状态 | 边界 |
 |---|---|
-| ✓ 代码已有 | 会话、轮次、事件、审批、回执、队列、偏移、基线与 blob、伙伴、父会话与回报 |
-| ○ 目标 | 事情、成长条目、设备、检查点组、会话 links 与产物服务 |
+| ✓ 代码已有 | 会话、轮次、事件、审批、回执、队列、偏移、基线与 blob、伙伴、父会话与回报、产物与版本 |
+| ○ 目标 | 事情、成长条目、设备、检查点组、会话 links |
 
 ## 核心原则
 
@@ -52,7 +52,6 @@ erDiagram
 |---|---|
 | 配对设备、主机目录 | 未实现 |
 | 检查点组、会话 links | 未实现独立实体与完整服务 |
-| 产物 | 未实现；产物属于会话，按版本存放，随会话删除 |
 | 事情、成长条目 | 未冻结 SQL schema 或协议 |
 
 ### 伙伴
@@ -68,6 +67,18 @@ erDiagram
 
 - 名字、harness、归档时间不另存，读时取自主会话。
 - 新建没有父会话的 Personal 会话时，会话与伙伴行在同一事务里写入，任一失败都不留下另一个。
+
+### 产物
+
+`artifacts` 表一行一个产物，`artifact_versions` 表一行一个版本；版本写入后不改：
+
+| 表 | 列 |
+|---|---|
+| `artifacts` | `id`（8 字节随机十六进制）、`session_id`、`name`、`kind`、`created_at`；`(session_id, name)` 唯一 |
+| `artifact_versions` | `artifact_id`、`version`（从 1 递增）、`entry`、`by`（`harness` / `cli`）、`files`、`size`、`created_at`；主键 `(artifact_id, version)` |
+
+- 一次发布在一个事务里：核对会话存在且未归档，按 `(session, name)` 找或建产物（kind 不同被拒），写版本行，并在所属会话日志追加 `ArtifactPublished`。
+- 文件在 `artifacts/<session>/<id>/v<n>/`，由产物服务写入；存储只记行。
 - 迁移只加表、加行：每个 Personal 会话（含已归档的）插一行，`sessions` 与 `events` 不变。
 - 人格不进数据库，在伙伴目录的 `persona.md`。
 
@@ -141,7 +152,7 @@ flowchart LR
   hoplet.db              结构化数据
   blobs/                 大载荷（内容寻址）
   sessions/<id>/         spool.jsonl、shim socket
-  artifacts/<session>/   产物各版本内容（目标）
+  artifacts/<session>/   产物各版本内容：<id>/v<n>/
   harness/<kind>/        各适配器私有数据与托管的 CLI 副本
   profile/               成长记忆（规划）
   logs/                  daemon.log（按大小轮转）、launchd.log

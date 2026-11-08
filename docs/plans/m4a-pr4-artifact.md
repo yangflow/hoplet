@@ -81,40 +81,67 @@
 
 ### 任务 1：协议与存储
 
-- [ ] `proto/`：`Artifact`、`ArtifactPublished`、三个方法的参数与返回；`make gen`
-- [ ] `internal/store/migrations/0014_artifacts.sql`；`internal/store/artifacts.go`：`PublishArtifact`、`Artifacts`、`ArtifactVersion`
-- [ ] 测试：新类型的 JSON 与向量；从 0013 迁移后会话与事件不变；同名再发布版本递增、kind 不同被拒；不同会话同名互不影响；会话不存在、已归档被拒；事件写进所属会话日志并记在打开的轮次
-- [ ] commit：`feat(store): record artifacts and versions`
+- [x] `proto/`：`Artifact`、`ArtifactPublished`、三个方法的参数与返回；`make gen`
+- [x] `internal/store/migrations/0014_artifacts.sql`；`internal/store/artifacts.go`：`PublishArtifact`、`Artifacts`、`ArtifactVersion`
+- [x] 测试：新类型的 JSON 与向量；从 0013 迁移后会话与事件不变；同名再发布版本递增、kind 不同被拒；不同会话同名互不影响；会话不存在、已归档被拒；事件写进所属会话日志并记在打开的轮次
+- [x] commit：`feat(store): record artifacts and versions`
 
 ### 任务 2：产物服务
 
-- [ ] `internal/artifact`：名字、kind、路径与上限检查；临时目录写入、改名、记录；启动清理；分块读
-- [ ] 测试：单文件与带附带文件的 HTML；超 64 个文件、超 16 MiB、不支持的扩展名（含 `.svg`）、附带文件在入口目录之外、符号链接指出目录、非普通文件，均整次失败且不留目录；记录失败时删掉 `v<n>`；启动清理删掉孤立目录、保留有记录的版本；分块读完与原文件一致，越界路径与不存在的版本 `not_found`；旧版本发布新版本后不变
-- [ ] commit：`feat(artifact): publish and read artifact versions`
+- [x] `internal/artifact`：名字、kind、路径与上限检查；临时目录写入、改名、记录；启动清理；分块读
+- [x] 测试：单文件与带附带文件的 HTML；超 64 个文件、超 16 MiB、不支持的扩展名（含 `.svg`）、附带文件在入口目录之外、符号链接指出目录、非普通文件，均整次失败且不留目录；记录失败时删掉 `v<n>`；启动清理删掉孤立目录、保留有记录的版本；分块读完与原文件一致，越界路径与不存在的版本 `not_found`；旧版本发布新版本后不变
+- [x] commit：`feat(artifact): publish and read artifact versions`
 
 ### 任务 3：工具与 API
 
-- [ ] `internal/tools`：`artifact_publish`；`Source` 增加发布方法
-- [ ] `internal/daemon`：建产物服务并在启动时清理；`artifacts.publish`（加入仅本机方法）、`artifacts.list`、`artifacts.read`；工具发布按调用方会话工作目录解析路径
-- [ ] 测试（tools，假 Source）：参数校验；路径越出工作目录（含 `..` 与符号链接）被拒
-- [ ] 测试（daemon）：假 harness 经 `hoplet mcp` 调 `artifact_publish`，会话日志里有发布事件、`artifacts.list` 列出它；远端连接调用 `artifacts.publish` 被拒，`artifacts.list` / `artifacts.read` 可用；分块读大文件
-- [ ] commit：`feat(daemon): serve artifacts over the API and tool bridge`
+- [x] `internal/tools`：`artifact_publish`；`Source` 增加发布方法
+- [x] `internal/daemon`：建产物服务并在启动时清理；`artifacts.publish`（加入仅本机方法）、`artifacts.list`、`artifacts.read`；工具发布按调用方会话工作目录解析路径
+- [x] 测试（tools，假 Source）：参数校验；路径越出工作目录（含 `..` 与符号链接）被拒
+- [x] 测试（daemon）：假 harness 经 `hoplet mcp` 调 `artifact_publish`，会话日志里有发布事件、`artifacts.list` 列出它；远端连接调用 `artifacts.publish` 被拒，`artifacts.list` / `artifacts.read` 可用；分块读大文件
+- [x] commit：`feat(daemon): serve artifacts over the API and tool bridge`
 
 ### 任务 4：CLI
 
-- [ ] `cmd/hoplet/artifact.go`：`publish`、`list`，`--json`；事件输出加发布行
-- [ ] 测试：文件与目录发布（目录跳过点文件、无 `index.html` 报错）、默认名字、`--host` 报错、`list` 输出
-- [ ] commit：`feat(cli): publish and list artifacts`
+- [x] `cmd/hoplet/artifact.go`：`publish`、`list`，`--json`；事件输出加发布行
+- [x] 测试：文件与目录发布（目录跳过点文件、无 `index.html` 报错）、默认名字、`--host` 报错、`list` 输出
+- [x] commit：`feat(cli): publish and list artifacts`
 
 ### 任务 5：实测与文档
 
-- [ ] 本机实测：Claude Code 与 Hermes 会话各让 harness 写一页带脚本与图片的 HTML 并 `artifact_publish`，再改一版发布；用 CLI 发布一个目录；`artifacts.read` 读回内容与原文件一致；从配对设备列出并读取
-- [ ] 0025：实现的部分从目标改为现状；0004：`artifacts` / `artifact_versions` 表与文件布局；0012：`artifact_publish` 改为现状；0019 的基线
-- [ ] 本计划勾选并记下实测结果
-- [ ] `make check`
-- [ ] commit：`docs: record the artifact service`
+- [x] 本机实测：Claude Code 与 Hermes 会话各让 harness 写一页带脚本与图片的 HTML 并 `artifact_publish`，再改一版发布；用 CLI 发布一个目录；`artifacts.read` 读回内容与原文件一致；从配对设备列出并读取
+- [x] 0025：实现的部分从目标改为现状；0004：`artifacts` / `artifact_versions` 表与文件布局；0012：`artifact_publish` 改为现状；0019 的基线
+- [x] 本计划勾选并记下实测结果
+- [x] `make check`
+- [x] commit：`docs: record the artifact service`
 
 PR 标题：`feat(artifact): add artifact service and CLI`。
+
+## 结果（2026-11-08）
+
+### 与计划不同之处
+
+| 项 | 计划 | 实际 |
+|---|---|---|
+| Swift 类型与向量 | `make gen` 重新生成，新类型进 `testdata/vectors/` | 仓库里还没有 `make gen` 与 `testdata/vectors/`；新事件进 `proto/testdata/events.jsonl` 的解码样例，新类型的 JSON 在 `proto/api_test.go` 里测 |
+| daemon 测试 | 假 harness 经 `hoplet mcp` 调 `artifact_publish` | 假 harness 不会调 MCP 工具；daemon 测试用会话 token 的工具连接直接调用，真实的 `hoplet mcp` 转发在 `cmd/hoplet/mcp_test.go` 里测 |
+| 工具路径 | 相对会话工作目录 | 同时接受工作目录内的绝对路径（harness 常给绝对路径），越出仍被拒 |
+| 存储读方法 | `Artifacts`、`ArtifactVersion` | 另加 `ArtifactByName`（发布前取下一版本号）与 `ArtifactVersions`（启动清理） |
+| `--host` | 报“发布只支持本机” | `artifact` 命令加入 `--host` 可用的命令；`list` 可对配对主机运行，`publish` 报错 |
+| CLI 默认名字 | 文件名 | 文件名带扩展名（如 `notes.md`），目录取目录名 |
+
+### 本机实测
+
+临时 home、本机 Claude Code 2.1.316 与 Hermes 0.22.5：
+
+| 项 | 结果 |
+|---|---|
+| Claude Code 会话写 `report/`（index.html 引 app.js 与 4×4 PNG）并 `artifact_publish` | v1 发布，会话日志出现 `published report v1 (html)`；改 app.js 再发布得 v2，v1 的 app.js 不变，两版 PNG 与原文件一致 |
+| Hermes 会话（模型 `zcode/GLM-5.3`）同样写 `page/` 并发布、再改一版 | v1、v2 都发布，内容与原文件一致；Hermes 默认模型对该账号不可用，第一轮失败，换模型后正常，与产物无关 |
+| CLI 发布目录（index.html、3 MB 的 `assets/app.js`、`.git/`、`.env`） | `published site v1 (html, 2 files)`，点文件与点目录未发布 |
+| `artifacts.read` 读回 | 本机：3 MB 文件分 3 次读完，与原文件一致，Content-Type `text/javascript` |
+| 配对设备 | 另一 home 经直连配对后 `--host live artifact list` 列出产物；读 3 MB 文件（3 次）、PNG（`image/png`）、Hermes 页面入口，均与原文件一致；`--host live artifact publish` 报“publish only works on this machine” |
+
+两页都没有引用外部资源，路径都在工作目录内，大小远低于上限；风险表前三项这次没有出现。
 
 ## 风险
 
