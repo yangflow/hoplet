@@ -69,7 +69,7 @@ func TestToolConnections(t *testing.T) {
 	for _, tl := range list.Tools {
 		names = append(names, tl.Name)
 	}
-	if strings.Join(names, ",") != "sessions_list,session_get" {
+	if strings.Join(names, ",") != "sessions_list,session_get,artifact_publish" {
 		t.Fatalf("tools = %v", names)
 	}
 

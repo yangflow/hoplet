@@ -41,6 +41,9 @@ func Sessions(home string) string { return filepath.Join(home, "sessions") }
 // Companions is the parent of the per-companion directories.
 func Companions(home string) string { return filepath.Join(home, "companions") }
 
+// Artifacts holds the files of every artifact version.
+func Artifacts(home string) string { return filepath.Join(home, "artifacts") }
+
 // tokenName is the token file's name in the home directory.
 const tokenName = "token"
 

@@ -123,6 +123,9 @@ const (
 	MethodCompanionsCreate  = "companions.create"
 	MethodCompanionsPersona = "companions.persona"
 	MethodCompanionsSetPers = "companions.set_persona"
+	MethodArtifactsPublish  = "artifacts.publish"
+	MethodArtifactsList     = "artifacts.list"
+	MethodArtifactsRead     = "artifacts.read"
 )
 
 // HelloParams opens a connection; it must be the first request. A device

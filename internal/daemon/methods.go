@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"path/filepath"
 
+	"github.com/yangflow/hoplet/internal/artifact"
 	"github.com/yangflow/hoplet/internal/harness"
 	"github.com/yangflow/hoplet/internal/noise"
 	"github.com/yangflow/hoplet/internal/session"
@@ -242,6 +243,28 @@ func (c *conn) call(ctx context.Context, f proto.ClientFrame) (any, error) {
 			return nil, err
 		}
 		return s.ws.Read(c.ctx, p.Session, dir, p)
+	case proto.MethodArtifactsPublish:
+		var p proto.ArtifactsPublishParams
+		if err := decode(f, &p); err != nil {
+			return nil, err
+		}
+		return s.arts.Publish(ctx, artifact.Request{Session: p.Session, Name: p.Name, Entry: p.Entry, Files: p.Files, By: proto.ArtifactByCLI})
+	case proto.MethodArtifactsList:
+		var p proto.ArtifactsListParams
+		if err := decode(f, &p); err != nil {
+			return nil, err
+		}
+		if _, err := s.store.Session(ctx, p.Session); err != nil {
+			return nil, err
+		}
+		list, err := s.store.Artifacts(ctx, p.Session)
+		return proto.ArtifactsList{Artifacts: nonNil(list)}, err
+	case proto.MethodArtifactsRead:
+		var p proto.ArtifactsReadParams
+		if err := decode(f, &p); err != nil {
+			return nil, err
+		}
+		return s.arts.Read(ctx, p)
 	case proto.MethodEnvRefresh:
 		return s.sys.refresh(ctx)
 	case proto.MethodSystemDoctor:
@@ -317,10 +340,11 @@ func (c *conn) call(ctx context.Context, f proto.ClientFrame) (any, error) {
 }
 
 // localOnly reports whether a device connected over Noise may not call
-// method: pairing hands out access to this host, and its hosts are its own.
+// method: pairing hands out access to this host, its hosts are its own,
+// and publishing reads files by their paths on this machine.
 func localOnly(method string) bool {
 	switch method {
-	case proto.MethodPairingStart, proto.MethodHostsAdd, proto.MethodHostsList, proto.MethodHostsRemove:
+	case proto.MethodPairingStart, proto.MethodHostsAdd, proto.MethodHostsList, proto.MethodHostsRemove, proto.MethodArtifactsPublish:
 		return true
 	}
 	return false
@@ -356,9 +380,10 @@ func apiError(err error) *proto.APIError {
 	}
 	code := proto.CodeInternal
 	switch {
-	case errors.Is(err, store.ErrNotFound), errors.Is(err, workspace.ErrNoBaseline), errors.Is(err, fs.ErrNotExist):
+	case errors.Is(err, store.ErrNotFound), errors.Is(err, workspace.ErrNoBaseline), errors.Is(err, fs.ErrNotExist),
+		errors.Is(err, artifact.ErrNotFound):
 		code = proto.CodeNotFound
-	case errors.Is(err, workspace.ErrInvalidPath):
+	case errors.Is(err, workspace.ErrInvalidPath), errors.Is(err, artifact.ErrInvalid):
 		code = proto.CodeInvalid
 	case errors.Is(err, store.ErrInvalid), errors.Is(err, session.ErrInvalidOption), errors.Is(err, session.ErrUnknownHarness):
 		code = proto.CodeInvalid
@@ -423,6 +448,7 @@ type toolSource struct {
 	store *store.Store
 	mgr   *session.Manager
 	queue *queuer
+	arts  *artifact.Service
 }
 
 // forModel turns an error the model can act on into a tools.Failure.
@@ -458,6 +484,16 @@ func (t toolSource) Send(ctx context.Context, p proto.SendParams) (proto.SendRep
 func (t toolSource) Report(ctx context.Context, parent, from proto.SessionID, key, text string) error {
 	_, _, err := t.store.Report(ctx, parent, from, key, text)
 	return forModel(err)
+}
+
+func (t toolSource) WorkDir(ctx context.Context, id proto.SessionID) (string, error) {
+	dir, err := t.mgr.WorkDir(ctx, id)
+	return dir, forModel(err)
+}
+
+func (t toolSource) Publish(ctx context.Context, r artifact.Request) (proto.Artifact, error) {
+	a, err := t.arts.Publish(ctx, r)
+	return a, forModel(err)
 }
 
 func (t toolSource) Sessions(ctx context.Context) ([]proto.Session, error) {

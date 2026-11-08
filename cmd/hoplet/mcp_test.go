@@ -175,7 +175,8 @@ func TestMCPBridge(t *testing.T) {
 	for _, tl := range tools.Tools {
 		names = append(names, tl.Name)
 	}
-	if strings.Join(names, ",") != "session_get,sessions_list" && strings.Join(names, ",") != "sessions_list,session_get" {
+	slices.Sort(names)
+	if strings.Join(names, ",") != "artifact_publish,session_get,sessions_list" {
 		t.Fatalf("tools = %v", names)
 	}
 	r, err := cs.CallTool(ctx, &mcp.CallToolParams{Name: "sessions_list", Arguments: map[string]any{}})
@@ -188,6 +189,13 @@ func TestMCPBridge(t *testing.T) {
 	r, err = cs.CallTool(ctx, &mcp.CallToolParams{Name: "session_get", Arguments: map[string]any{"id": "nope-nope"}})
 	if err != nil || !r.IsError {
 		t.Fatalf("session_get of a missing session = %+v, %v", r, err)
+	}
+	if err := os.WriteFile(filepath.Join(h, "notes.md"), []byte("# Notes"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	r, err = cs.CallTool(ctx, &mcp.CallToolParams{Name: "artifact_publish", Arguments: map[string]any{"name": "notes", "entry": "notes.md"}})
+	if err != nil || r.IsError || !strings.Contains(r.Content[0].(*mcp.TextContent).Text, `"kind":"markdown","version":1`) {
+		t.Fatalf("artifact_publish = %+v, %v", r, err)
 	}
 
 	for name, token := range map[string]string{"no token": "", "wrong token": "bad-token"} {

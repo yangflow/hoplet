@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/yangflow/hoplet/internal/artifact"
 	"github.com/yangflow/hoplet/internal/store"
 	"github.com/yangflow/hoplet/proto"
 )
@@ -33,6 +34,10 @@ type Source interface {
 	Send(ctx context.Context, p proto.SendParams) (proto.SendReply, error)
 	// Report queues text for parent as a report from session from.
 	Report(ctx context.Context, parent, from proto.SessionID, key, text string) error
+	// WorkDir is the directory a session's harness works in.
+	WorkDir(ctx context.Context, id proto.SessionID) (string, error)
+	// Publish publishes a version of an artifact.
+	Publish(ctx context.Context, r artifact.Request) (proto.Artifact, error)
 }
 
 // tool is one tool: what the model sees and what a call does. A call's
@@ -105,7 +110,7 @@ func New(src Source) *Set {
 				return src.State(ctx, id)
 			},
 		},
-	}, delegationTools(src)...)}
+	}, append(delegationTools(src), artifactTools(src)...)...)}
 }
 
 // List returns the tools caller may call.

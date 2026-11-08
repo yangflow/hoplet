@@ -280,3 +280,26 @@ func (c *Client) SetPersona(ctx context.Context, id, text string) (proto.SetPers
 	err := c.Call(ctx, proto.MethodCompanionsSetPers, proto.Persona{ID: proto.CompanionID(id), Text: text}, &out)
 	return out, err
 }
+
+// PublishArtifact publishes files on the daemon's machine as a new version
+// of a session's artifact; local connections only.
+func (c *Client) PublishArtifact(ctx context.Context, p proto.ArtifactsPublishParams) (proto.Artifact, error) {
+	var out proto.Artifact
+	err := c.Call(ctx, proto.MethodArtifactsPublish, p, &out)
+	return out, err
+}
+
+// Artifacts lists a session's artifacts at their latest versions, the most
+// recently published first.
+func (c *Client) Artifacts(ctx context.Context, session proto.SessionID) ([]proto.Artifact, error) {
+	var out proto.ArtifactsList
+	err := c.Call(ctx, proto.MethodArtifactsList, proto.ArtifactsListParams{Session: session}, &out)
+	return out.Artifacts, err
+}
+
+// ReadArtifact reads one chunk of a file of an artifact version.
+func (c *Client) ReadArtifact(ctx context.Context, p proto.ArtifactsReadParams) (proto.ArtifactChunk, error) {
+	var out proto.ArtifactChunk
+	err := c.Call(ctx, proto.MethodArtifactsRead, p, &out)
+	return out, err
+}

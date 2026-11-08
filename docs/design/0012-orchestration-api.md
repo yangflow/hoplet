@@ -8,8 +8,8 @@
 
 | 状态 | 边界 |
 |---|---|
-| ✓ 代码已有 | 本机 API、CLI、订阅和客户端 wait；伙伴与人格；会话工具桥与 `sessions_list`、`session_get`、`session_create`、`session_send`、`handoff`、`report` |
-| ○ 目标 | 产物工具、持久跟进、扇出与跨机 |
+| ✓ 代码已有 | 本机 API、CLI、订阅和客户端 wait；伙伴与人格；会话工具桥与 `sessions_list`、`session_get`、`session_create`、`session_send`、`handoff`、`report`、`artifact_publish`；`hoplet artifact` |
+| ○ 目标 | 持久跟进、扇出与跨机 |
 
 ## 当前入口
 
@@ -51,12 +51,13 @@ flowchart LR
 
 | 项 | 当前行为 |
 |---|---|
-| 主命令 | session、companion、daemon、harness、env、doctor、version、shim、hermes-bridge；开发入口有 record / sanitize |
+| 主命令 | session、companion、artifact、daemon、harness、env、doctor、version、shim、hermes-bridge；开发入口有 record / sanitize |
 | session | new / list / send / watch / wait / approve / set / interrupt / steer / stop / archive / diff，支持 `--json` |
 | `session set` | 顺序为 permission → plan → fast → Ultracode → effort → model → title / pinned / unread；首个失败即停止，之前已生效的项不回滚 |
 | companion | list [--all] / show / new / persona [--set FILE\|-]，支持 `--json` 与 `--host`；`persona --set` 按 `applies` 说明何时生效 |
-| ID | session 与 companion 命令可用至少 4 字符的唯一前缀 |
-| watch | 文本或 JSONL 事件，不提供完整 TUI |
+| artifact | publish SESSION PATH [--name NAME] / list SESSION，支持 `--json`；`list` 支持 `--host`，`publish` 只在本机 |
+| ID | session、companion 与 artifact 命令可用至少 4 字符的唯一前缀 |
+| watch | 文本或 JSONL 事件，不提供完整 TUI；产物发布显示为 `published <name> v<n> (<kind>)` |
 | wait | 客户端使用订阅并每 2s 重查状态，不是 daemon 的持久化后台任务 |
 | 未实现命令 | pair / device / relay / trigger / api schema，以及终端、fork、回滚、转交 / 委派的公开命令 |
 
@@ -93,9 +94,9 @@ flowchart LR
 | `session_send` | 给子会话发消息 | 仅 Personal；参数 `id`、`text`；目标须是调用方的直接子会话且归属托管；经消息队列发送或排队，返回 `{seq, turn}` 或 `{queued}` |
 | `handoff` | 转交 Code | 仅 Personal；参数 `directory`（必填）、`summary`（必填）、`title`、`harness`；建归属于我的 Code 会话，父会话为调用方，权限 confirm；`summary` 立即发出；返回 Code 会话 |
 | `report` | 交回结果 | 有父会话的会话；参数 `text`；以随机键交给父会话的消息队列，返回 `{queued}`，投递由队列完成 |
-| `artifact_publish` | 发布产物 | 所有会话；参数 `name`、`entry`、`files`，路径相对会话工作目录；只发布到本会话 |
+| `artifact_publish` | 发布产物 | 所有会话；参数 `name`（必填）、`entry`（必填）、`files`，路径相对会话工作目录，解析符号链接后不能越出；以来源 `harness` 只发布到本会话；返回 `{id, name, kind, version}` |
 
-当前已有读会话、委派、转交与回报的工具，产物工具为目标。看不见的工具硬调用得到“没有这个工具”；ID 参数支持至少 4 个字符的唯一前缀；参数错误、范围不符、父会话已归档、队列已满都以工具失败返回给模型。`notify_me` 推迟到推送或交互通道就绪。提炼任务不注入可调用业务工具，只返回候选，由 daemon 提交。工具桥复用现有服务，不以提示词代替服务校验。
+当前已有读会话、委派、转交、回报与发布产物的工具。看不见的工具硬调用得到“没有这个工具”；ID 参数支持至少 4 个字符的唯一前缀；参数错误、范围不符、父会话已归档、队列已满都以工具失败返回给模型。`notify_me` 推迟到推送或交互通道就绪。提炼任务不注入可调用业务工具，只返回候选，由 daemon 提交。工具桥复用现有服务，不以提示词代替服务校验。
 
 ## 记忆服务入口（目标）
 

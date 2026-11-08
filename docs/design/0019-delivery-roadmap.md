@@ -22,7 +22,8 @@
 | ✓ | 会话工具桥：会话 token、`hoplet mcp`、两家适配注入，工具 `sessions_list`、`session_get`、`session_create`、`session_send`、`handoff`、`report` | `internal/tools`、`cmd/hoplet/mcp.go` |
 | ✓ | 伙伴实体、伙伴目录与人格（`persona.md`，Claude Code 经 `--append-system-prompt`，Hermes 经生成的 `HERMES.md`）、`companions.*` 与 `hoplet companion` | `internal/store/companions.go`、`internal/session/companion.go`、`cmd/hoplet/companion.go` |
 | ✓ | 委派子会话与回报（走父会话的消息队列，按键只入队一次）、转交 Code 与自动回报 | `internal/tools/delegate.go`、`internal/store/queue.go`、`internal/daemon/handoff.go` |
-| ○ | iOS、产物工具、产物、记忆、自主、集成与跨机 | 当前没有对应服务；枚举和接口预留不等于实现 |
+| ✓ | 产物服务：版本存放与启动清理、工具 `artifact_publish`、`artifacts.*` 与 `hoplet artifact`，配对设备可列出与读取 | `internal/artifact`、`internal/store/artifacts.go`、`internal/tools/artifact.go`、`cmd/hoplet/artifact.go` |
+| ○ | iOS、产物查看、记忆、自主、集成与跨机 | 当前没有对应服务；枚举和接口预留不等于实现 |
 
 M1 代码已合入，`make check` 通过；两种模式的整体验收由维护者确认。M2a 代码已合入，Mac 与 VPS 两台主机的实测尚未进行。
 
