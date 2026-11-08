@@ -1,4 +1,3 @@
-import Dispatch
 import Synchronization
 
 @testable import SimulatorHelperCore
@@ -30,10 +29,16 @@ final class FakeInput: DeviceInput {
   /// Number of upcoming touch-up events that fail.
   let failingUps = Mutex(0)
 
-  /// When set, the first touch-up blocks the calling thread, ignoring
-  /// cancellation, after running the closure, until `release()`.
+  /// When set, the first touch-up suspends, ignoring cancellation, after
+  /// running the closure, until `release()`. It must not block a thread: the
+  /// loop under test needs the concurrency pool, which may have only one.
   private let stuck = Mutex<(@Sendable () -> Void)?>(nil)
-  private let gate = DispatchSemaphore(value: 0)
+  private let gate = Mutex<Gate>(Gate())
+
+  private struct Gate {
+    var released = false
+    var waiter: CheckedContinuation<Void, Never>?
+  }
 
   init(log: EventLog) { self.log = log }
 
@@ -41,9 +46,24 @@ final class FakeInput: DeviceInput {
     stuck.withLock { $0 = onStuck }
   }
 
-  func release() { gate.signal() }
+  func release() {
+    let waiter = gate.withLock { state in
+      defer { state.waiter = nil }
+      state.released = true
+      return state.waiter
+    }
+    waiter?.resume()
+  }
 
-  private func blockUntilReleased() { gate.wait() }
+  private func waitUntilReleased() async {
+    await withCheckedContinuation { continuation in
+      let released = gate.withLock { state in
+        if !state.released { state.waiter = continuation }
+        return state.released
+      }
+      if released { continuation.resume() }
+    }
+  }
 
   func touch(x: Double, y: Double, phase: TouchPhase, edge: TouchEdge) async throws {
     log.record(.touch(x: x, y: y, phase: phase, edge: edge))
@@ -54,7 +74,7 @@ final class FakeInput: DeviceInput {
       })
     {
       onStuck()
-      blockUntilReleased()
+      await waitUntilReleased()
     }
     if phase == .up {
       let fails = failingUps.withLock { count -> Bool in
