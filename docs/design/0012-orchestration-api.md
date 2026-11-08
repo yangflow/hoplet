@@ -93,7 +93,7 @@ flowchart LR
 | `session_send` | 给子会话发消息 | 仅 Personal；参数 `id`、`text`；目标须是调用方的直接子会话且归属托管；经消息队列发送或排队，返回 `{seq, turn}` 或 `{queued}` |
 | `handoff` | 转交 Code | 仅 Personal；参数 `directory`（必填）、`summary`（必填）、`title`、`harness`；建归属于我的 Code 会话，父会话为调用方，权限 confirm；`summary` 立即发出；返回 Code 会话 |
 | `report` | 交回结果 | 有父会话的会话；参数 `text`；以随机键交给父会话的消息队列，返回 `{queued}`，投递由队列完成 |
-| `artifact_publish`、`artifact_db_*` | 产物 | 所有会话；只作用于本会话的产物 |
+| `artifact_publish` | 发布产物 | 所有会话；参数 `name`、`entry`、`files`，路径相对会话工作目录；只发布到本会话 |
 
 当前已有读会话、委派、转交与回报的工具，产物工具为目标。看不见的工具硬调用得到“没有这个工具”；ID 参数支持至少 4 个字符的唯一前缀；参数错误、范围不符、父会话已归档、队列已满都以工具失败返回给模型。`notify_me` 推迟到推送或交互通道就绪。提炼任务不注入可调用业务工具，只返回候选，由 daemon 提交。工具桥复用现有服务，不以提示词代替服务校验。
 
