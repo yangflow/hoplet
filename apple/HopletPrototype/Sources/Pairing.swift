@@ -1,4 +1,7 @@
+import AVFoundation
+import HopletClient
 import SwiftUI
+import VisionKit
 
 /// How the phone stands with one host.
 enum HostLink: String, CaseIterable, Identifiable {
@@ -6,18 +9,6 @@ enum HostLink: String, CaseIterable, Identifiable {
   case reconnecting = "重连中"
   case offline = "断线"
   case revoked = "已吊销"
-
-  var id: String { rawValue }
-}
-
-/// What the prototype does when a code is scanned or pasted, so each path can be reviewed.
-enum PairDemo: String, CaseIterable, Identifiable {
-  case success = "成功"
-  case invalid = "不是配对码"
-  case expired = "配对码过期"
-  case unreachable = "连不上"
-  case rejected = "配对码失效"
-  case noCamera = "没有相机权限"
 
   var id: String { rawValue }
 }
@@ -90,6 +81,7 @@ private struct PairCommand: View {
 struct PairView: View {
   @Environment(Store.self) private var store
   @Environment(\.dismiss) private var dismiss
+  @Environment(\.openURL) private var openURL
 
   private enum Stage: Equatable {
     case scan, confirm, connecting, done, unreachable, rejected
@@ -98,7 +90,10 @@ struct PairView: View {
   @State private var stage = Stage.scan
   @State private var notice: String?
   @State private var deviceName = "iPhone"
-  private let hostName = "MacBook"
+  @State private var code: PairingCode?
+  @State private var camera = AVCaptureDevice.authorizationStatus(for: .video)
+
+  private var hostName: String { code?.name ?? "" }
 
   var body: some View {
     NavigationStack {
@@ -131,28 +126,38 @@ struct PairView: View {
     }
     .sensoryFeedback(.error, trigger: notice) { _, new in new != nil }
     .sensoryFeedback(.success, trigger: stage) { _, new in new == .done }
+    .task {
+      store.startDiscovery()
+      if camera == .notDetermined {
+        _ = await AVCaptureDevice.requestAccess(for: .video)
+        camera = AVCaptureDevice.authorizationStatus(for: .video)
+      }
+    }
   }
 
   @ViewBuilder private var scan: some View {
-    if store.pairDemo == .noCamera {
+    if camera == .denied || camera == .restricted {
       ContentUnavailableView {
         Label("没有相机权限", systemImage: "camera")
       } description: {
         Text("在系统设置里打开，或粘贴配对码")
       } actions: {
-        Button("打开设置") {}.buttonStyle(.glass)
+        Button("打开设置") {
+          if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
+        }
+        .buttonStyle(.glass)
       }
       .safeAreaBar(edge: .bottom) { pasteBar }
     } else {
       ZStack {
         Color.black.ignoresSafeArea()
-        Button(action: submit) {
-          Image(systemName: "viewfinder")
-            .font(.system(size: 250, weight: .ultraLight))
-            .foregroundStyle(.white)
+        if camera == .authorized, DataScannerViewController.isSupported {
+          QRScanner(onCode: submit).ignoresSafeArea()
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel("模拟扫码")
+        Image(systemName: "viewfinder")
+          .font(.system(size: 250, weight: .ultraLight))
+          .foregroundStyle(.white)
+          .accessibilityHidden(true)
       }
       .safeAreaBar(edge: .bottom) { pasteBar }
       .environment(\.colorScheme, .dark)
@@ -165,7 +170,9 @@ struct PairView: View {
         .font(.subheadline.weight(notice == nil ? .regular : .semibold))
         .foregroundStyle(notice == nil ? .secondary : .primary)
         .contentTransition(.opacity)
-      Button(action: submit) {
+      Button {
+        submit(UIPasteboard.general.string ?? "")
+      } label: {
         Label("粘贴配对码", systemImage: "doc.on.clipboard").frame(maxWidth: .infinity)
       }
       .buttonStyle(.glass)
@@ -241,14 +248,13 @@ struct PairView: View {
     }
   }
 
-  private func submit() {
-    switch store.pairDemo {
-    case .invalid: show(notice: "不是 Hoplet 配对码")
-    case .expired: show(notice: "配对码已过期，重新运行 hoplet pair")
-    default:
-      notice = nil
-      withAnimation { stage = .confirm }
-    }
+  private func submit(_ text: String) {
+    guard stage == .scan else { return }
+    guard let parsed = PairingCode(text) else { return show(notice: "不是 Hoplet 配对码") }
+    guard parsed.expires > .now else { return show(notice: "配对码已过期，重新运行 hoplet pair") }
+    notice = nil
+    code = parsed
+    withAnimation { stage = .confirm }
   }
 
   private func show(notice text: String) {
@@ -257,23 +263,68 @@ struct PairView: View {
   }
 
   private func connect() {
+    guard let code else { return }
     withAnimation { stage = .connecting }
     Task {
-      try? await Task.sleep(for: .seconds(1.2))
-      switch store.pairDemo {
-      case .unreachable: withAnimation { stage = .unreachable }
-      case .rejected: withAnimation { stage = .rejected }
-      default:
+      do {
+        try await store.pair(code, deviceName: deviceName)
         withAnimation { stage = .done }
         try? await Task.sleep(for: .seconds(1))
-        store.finishPairing(hostName)
+        store.finishPairing(code.name)
         dismiss()
+      } catch NoiseError.pairingRefused {
+        withAnimation { stage = .rejected }
+      } catch {
+        withAnimation { stage = .unreachable }
       }
     }
   }
 }
 
-/// Every pairing and connection state, reachable from Settings for review.
+/// The system QR scanner; reports every code it recognizes.
+private struct QRScanner: UIViewControllerRepresentable {
+  let onCode: (String) -> Void
+
+  func makeUIViewController(context: Context) -> DataScannerViewController {
+    let scanner = DataScannerViewController(
+      recognizedDataTypes: [.barcode(symbologies: [.qr])], isHighlightingEnabled: false)
+    scanner.delegate = context.coordinator
+    try? scanner.startScanning()
+    return scanner
+  }
+
+  func updateUIViewController(_ scanner: DataScannerViewController, context: Context) {
+    context.coordinator.onCode = onCode
+  }
+
+  static func dismantleUIViewController(
+    _ scanner: DataScannerViewController, coordinator: Coordinator
+  ) {
+    scanner.stopScanning()
+  }
+
+  func makeCoordinator() -> Coordinator { Coordinator(onCode: onCode) }
+
+  final class Coordinator: NSObject, DataScannerViewControllerDelegate {
+    var onCode: (String) -> Void
+    private var last: String?
+
+    init(onCode: @escaping (String) -> Void) { self.onCode = onCode }
+
+    func dataScanner(
+      _ scanner: DataScannerViewController, didAdd items: [RecognizedItem],
+      allItems: [RecognizedItem]
+    ) {
+      for case .barcode(let barcode) in items {
+        guard let text = barcode.payloadStringValue, text != last else { continue }
+        last = text
+        onCode(text)
+      }
+    }
+  }
+}
+
+/// The sample host's connection states, reachable from Settings for review.
 struct ConnectionDemoSection: View {
   @Environment(Store.self) private var store
 
@@ -282,11 +333,7 @@ struct ConnectionDemoSection: View {
   }
 
   var body: some View {
-    @Bindable var store = store
     Section("配对与断线") {
-      Picker("配对结果", selection: $store.pairDemo) {
-        ForEach(PairDemo.allCases) { Text($0.rawValue).tag($0) }
-      }
       Picker("MacBook 连接", selection: macBook) {
         ForEach(HostLink.allCases) { Text($0.rawValue).tag($0) }
       }
