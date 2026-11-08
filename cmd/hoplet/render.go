@@ -59,6 +59,8 @@ func render(ev proto.Event) string {
 		if len(p.Options) > 0 {
 			s += "\n  options: " + strings.Join(p.Options, " | ")
 		}
+	case proto.ArtifactPublished:
+		s = fmt.Sprintf("published %s v%d (%s)", p.Name, p.Version, p.Kind)
 	case proto.Error:
 		s = "error: " + p.Message
 	case proto.MessageDelta, proto.Usage:

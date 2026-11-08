@@ -72,8 +72,9 @@ func TestRender(t *testing.T) {
 			Options: []proto.ApprovalOption{{ID: "once", Label: "Allow once"}, {ID: "no", Label: "Deny"}}},
 		"✓ approval a1 allowed (once) by cli@mac": proto.ApprovalResolved{ID: "a1", Outcome: proto.OutcomeAllowed, OptionID: "once", DecidedBy: "cli@mac"},
 		"? question q1: Which?\n  options: a | b": proto.Question{ID: "q1", Text: "Which?", Options: []string{"a", "b"}},
-		"error: boom": proto.Error{Message: "boom"},
-		"":            proto.MessageDelta{MessageID: "m", Text: "par"},
+		"published report v2 (html)":              proto.ArtifactPublished{Artifact: "a1", Name: "report", Kind: proto.ArtifactHTML, Version: 2, By: proto.ArtifactByHarness},
+		"error: boom":                             proto.Error{Message: "boom"},
+		"":                                        proto.MessageDelta{MessageID: "m", Text: "par"},
 	} {
 		if got := render(event(t, 2, p)); got != want {
 			t.Errorf("render %T: %q, want %q", p, got, want)
