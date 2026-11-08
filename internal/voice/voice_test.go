@@ -64,6 +64,9 @@ func (p *fakeProvider) Name() string                { return "fake" }
 func (p *fakeProvider) Probe(context.Context) error { return p.probeErr }
 func (p *fakeProvider) Start(_ context.Context, req StartRequest) (Call, error) {
 	p.req = req
+	if p.probeErr != nil {
+		return nil, p.probeErr
+	}
 	if p.block != nil {
 		<-p.block
 	}
