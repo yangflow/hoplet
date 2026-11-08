@@ -12,6 +12,8 @@ public actor CommandLoop {
   public static let stepInterval = 0.016
   /// Longest a single command may run.
   public static let commandTimeout = 15.0
+  /// How long a hardware button stays pressed.
+  public static let buttonHold = 0.1
 
   private struct ActiveTouch {
     var x: Double
@@ -43,6 +45,7 @@ public actor CommandLoop {
   private var running: Running?
   private var generation = 0
   private var activeTouch: ActiveTouch?
+  private var heldButton: HardwareButton?
   private var heldModifiers: [UInt32] = []
 
   /// - Parameter write: receives each response as one JSON line.
@@ -71,8 +74,7 @@ public actor CommandLoop {
       if await !handle(event) { break }
     }
     reader.cancel()
-    await liftIfNeeded()
-    await releaseHeldModifiers()
+    await releaseEverything()
   }
 
   /// Asks the loop to stop. Callable from any thread, including a signal
@@ -95,8 +97,7 @@ public actor CommandLoop {
       if let error {
         let failure = (error as? HelperError) ?? HelperError(.inputFailed, "\(error)")
         write(Response.failure(current.id, failure).line())
-        await liftIfNeeded()
-        await releaseHeldModifiers()
+        await releaseEverything()
       } else {
         write(Response.success(current.id).line())
       }
@@ -188,14 +189,13 @@ public actor CommandLoop {
       try await press([HIDUsage.leftCommand, HIDUsage.v])
     case .button(let button):
       try Task.checkCancellation()
+      // Marked before sending: a send that is cut short still gets a release.
+      heldButton = button
       try await input.button(button, isDown: true)
-      do {
-        try Task.checkCancellation()
-        try await input.button(button, isDown: false)
-      } catch {
-        try? await input.button(button, isDown: false)
-        throw error
-      }
+      try await clock.sleep(seconds: Self.buttonHold)
+      try Task.checkCancellation()
+      try await input.button(button, isDown: false)
+      heldButton = nil
     }
   }
 
@@ -231,6 +231,18 @@ public actor CommandLoop {
     if phase == .down { activeTouch = ActiveTouch(x: x, y: y, edge: edge) }
     try await input.touch(x: x, y: y, phase: phase, edge: edge)
     if phase == .up { activeTouch = nil }
+  }
+
+  private func releaseEverything() async {
+    await liftIfNeeded()
+    await releaseHeldButton()
+    await releaseHeldModifiers()
+  }
+
+  private func releaseHeldButton() async {
+    guard let button = heldButton else { return }
+    heldButton = nil
+    try? await input.button(button, isDown: false)
   }
 
   private func liftIfNeeded() async {

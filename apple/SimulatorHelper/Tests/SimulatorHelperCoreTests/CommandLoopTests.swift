@@ -88,7 +88,20 @@ struct CommandLoopTests {
 
   @Test func homeButton() async {
     let log = await runLoop([#"{"id":1,"op":"button","name":"home"}"#], responses: 1)
-    #expect(log.all.dropLast() == [.button(.home, down: true), .button(.home, down: false)])
+    #expect(
+      log.all.dropLast() == [
+        .button(.home, down: true), .sleep(CommandLoop.buttonHold), .button(.home, down: false),
+      ])
+  }
+
+  @Test func terminationDuringButtonHoldReleasesTheButton() async {
+    let result = await runLoop(
+      [#"{"id":1,"op":"button","name":"home"}"#], responses: 1,
+      prepare: { h in h.clock.setHangAction { h.loop.terminate() } },
+      hangOn: CommandLoop.buttonHold)
+    #expect(result.all.last == .button(.home, down: false))
+    #expect(result.all.filter { $0 == .button(.home, down: false) }.count == 1)
+    #expect(result.responses[0].contains(#""code":"cancelled""#))
   }
 
   @Test func badLinesGetErrorsAndLoopContinues() async {

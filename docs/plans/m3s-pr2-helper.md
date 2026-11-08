@@ -45,7 +45,7 @@ SwiftPM 包，产物 `hoplet-simulator-helper`。纯逻辑（协议编解码、�
 | 项 | 规则 |
 |---|---|
 | 串行 | 一个进程同时只执行一条命令，按到达顺序 |
-| 所需符号 | 类 `SimServiceContext`、`_TtC12SimulatorKit24SimDeviceLegacyHIDClient`；函数 `IndigoHIDMessageForMouseNSEvent`、`IndigoHIDMessageForKeyboardArbitrary`、`IndigoHIDMessageForButton` |
+| 所需符号 | 类 `SimServiceContext`、`_TtC12SimulatorKit24SimDeviceLegacyHIDClient`；函数 `IndigoHIDMessageForMouseNSEvent`、`IndigoHIDMessageForKeyboardArbitrary`、`IndigoHIDMessageForHIDArbitrary` |
 | 开发者目录 | `xcode-select -p` 的结果，由进程自己读取，不写死 |
 | 抬起保证 | 标准输入关闭、收到 SIGTERM 或单条命令超过 15 秒时，若有进行中的触摸先发抬起，再退出 |
 
