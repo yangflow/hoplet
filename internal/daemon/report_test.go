@@ -59,7 +59,7 @@ func TestReportsWaitForTheParentsTurn(t *testing.T) {
 		t.Fatal(err)
 	}
 	w.until(func(w *watcher) bool { return w.count(proto.TypeApprovalRequest) == 1 })
-	if _, queued, err := d.store.Report(ctx, parent.ID, child.ID, "r1", "found it"); err != nil || !queued {
+	if _, queued, err := d.store.Report(ctx, parent.ID, child.ID, proto.ReportDone, "r1", "found it"); err != nil || !queued {
 		t.Fatalf("report %v %v", queued, err)
 	}
 	w.until(func(w *watcher) bool { return len(w.queue) == 1 && w.queue[0].From == child.ID })
@@ -72,10 +72,10 @@ func TestReportsWaitForTheParentsTurn(t *testing.T) {
 		t.Fatalf("turn 2 messages %q", got)
 	}
 	w.until(func(w *watcher) bool { return len(w.queue) == 0 })
-	if _, queued, err := d.store.Report(ctx, parent.ID, child.ID, "r1", "found it"); err != nil || queued {
+	if _, queued, err := d.store.Report(ctx, parent.ID, child.ID, proto.ReportDone, "r1", "found it"); err != nil || queued {
 		t.Fatalf("report again %v %v", queued, err)
 	}
-	if _, _, err := d.store.Report(ctx, parent.ID, child.ID, "r2", "more"); err != nil {
+	if _, _, err := d.store.Report(ctx, parent.ID, child.ID, proto.ReportDone, "r2", "more"); err != nil {
 		t.Fatal(err)
 	}
 	w.until(turnEnded(3))
@@ -104,7 +104,7 @@ func TestReportsSurviveARestart(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, queued, err := st.Report(context.Background(), parent.ID, child.ID, "r1", "found it"); err != nil || !queued {
+	if _, queued, err := st.Report(context.Background(), parent.ID, child.ID, proto.ReportDone, "r1", "found it"); err != nil || !queued {
 		t.Fatalf("report %v %v", queued, err)
 	}
 	if err := st.Close(); err != nil {
@@ -118,7 +118,7 @@ func TestReportsSurviveARestart(t *testing.T) {
 	})
 	c := dial(t, h, "device:a")
 	watch(t, c, parent.ID, 0).until(turnEnded(1))
-	if _, queued, err := d.store.Report(timeout(t), parent.ID, child.ID, "r1", "found it"); err != nil || queued {
+	if _, queued, err := d.store.Report(timeout(t), parent.ID, child.ID, proto.ReportDone, "r1", "found it"); err != nil || queued {
 		t.Fatalf("report again %v %v", queued, err)
 	}
 	if rs := reportsOf(t, d.store, parent.ID); len(rs) != 1 || rs[0].Text != "found it" {

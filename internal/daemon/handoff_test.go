@@ -1,6 +1,8 @@
 package daemon
 
 import (
+	"context"
+	"fmt"
 	"log/slog"
 	"path/filepath"
 	"slices"
@@ -8,6 +10,7 @@ import (
 
 	"github.com/yangflow/hoplet/internal/harness/fake"
 	"github.com/yangflow/hoplet/internal/session"
+	"github.com/yangflow/hoplet/internal/store"
 	"github.com/yangflow/hoplet/proto"
 )
 
@@ -65,6 +68,13 @@ func TestHandoffReportsProgress(t *testing.T) {
 	if got := texts(); !slices.Equal(got, want) {
 		t.Fatalf("reports %q, want %q", got, want)
 	}
+	var status []proto.ReportStatus
+	for _, m := range reportsOf(t, d.store, parent.ID) {
+		status = append(status, m.Report)
+	}
+	if want := []proto.ReportStatus{proto.ReportApproval, proto.ReportDone, proto.ReportDone}; !slices.Equal(status, want) {
+		t.Fatalf("report statuses %v, want %v", status, want)
+	}
 
 	// A reporter that has seen nothing, as after a restart, reports
 	// nothing again.
@@ -102,5 +112,57 @@ func TestHandoffReportsProgress(t *testing.T) {
 	}
 	if got := texts(); !slices.Equal(got, want) {
 		t.Fatalf("reports to an archived parent %q", got)
+	}
+}
+
+// TestHandoffReportsAFailedTurn checks that a handed-off turn that ends in
+// an error reports as one, with the error when there is no reply.
+func TestHandoffReportsAFailedTurn(t *testing.T) {
+	ctx := context.Background()
+	st, err := store.Open(ctx, t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	parent, err := st.CreateSession(ctx, proto.Session{ID: "p", Mode: proto.ModePersonal, Harness: proto.HarnessRef{Kind: "fake"},
+		Owner: proto.OwnerMe, Origin: proto.OriginMe})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, end := range []proto.TurnEnded{
+		{Reason: proto.TurnFailed, Message: "boom"},
+		{Reason: proto.TurnAborted},
+		{Reason: proto.TurnInterrupted},
+	} {
+		id := proto.SessionID(fmt.Sprintf("c%d", i))
+		if _, err := st.CreateSession(ctx, proto.Session{ID: id, Mode: proto.ModeCode, Harness: proto.HarnessRef{Kind: "fake"},
+			Directory: t.TempDir(), Isolation: proto.InPlace, Owner: proto.OwnerMe, Origin: proto.OriginMe, Parent: parent.ID}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := st.Append(ctx, store.AppendRequest{Session: id, Turn: 1, Entries: []store.Entry{{Payload: proto.TurnStarted{}}, {Payload: end}}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ho := &handoffs{store: st, log: slog.New(slog.DiscardHandler), seen: map[proto.SessionID]uint64{}}
+	ho.check(ctx)
+	q, err := st.Queue(ctx, parent.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[proto.SessionID]proto.QueuedMessage{}
+	for _, m := range q {
+		got[m.From] = m
+	}
+	for id, want := range map[proto.SessionID]struct {
+		status proto.ReportStatus
+		text   string
+	}{
+		"c0": {proto.ReportError, "The turn failed: boom"},
+		"c1": {proto.ReportError, noReply},
+		"c2": {proto.ReportDone, noReply},
+	} {
+		if m := got[id]; m.Report != want.status || m.Text != want.text {
+			t.Errorf("%s: %q %q, want %q %q", id, m.Report, m.Text, want.status, want.text)
+		}
 	}
 }

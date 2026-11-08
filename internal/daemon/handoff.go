@@ -78,7 +78,7 @@ func (h *handoffs) report(ctx context.Context, s proto.Session) error {
 		if p.Request.Detail != "" {
 			text += "\n\n" + p.Request.Detail
 		}
-		if err := h.send(ctx, s, "approval:"+p.Request.ID, text); err != nil {
+		if err := h.send(ctx, s, proto.ReportApproval, "approval:"+p.Request.ID, text); err != nil {
 			return err
 		}
 	}
@@ -86,11 +86,16 @@ func (h *handoffs) report(ctx context.Context, s proto.Session) error {
 		ended bool
 		turn  uint32
 		reply string
+		end   proto.TurnEnded
 	)
 	for _, ev := range snap.Events {
 		switch ev.Type {
 		case proto.TypeTurnEnded:
-			ended, turn = true, ev.Turn
+			p, err := ev.Decode()
+			if err != nil {
+				return err
+			}
+			ended, turn, end = true, ev.Turn, p.(proto.TurnEnded)
 		case proto.TypeMessage:
 			p, err := ev.Decode()
 			if err != nil {
@@ -104,16 +109,24 @@ func (h *handoffs) report(ctx context.Context, s proto.Session) error {
 	if !ended {
 		return nil
 	}
-	if reply == "" {
+	status := proto.ReportDone
+	if end.Reason == proto.TurnFailed || end.Reason == proto.TurnAborted {
+		status = proto.ReportError
+	}
+	switch {
+	case reply != "":
+	case status == proto.ReportError && end.Message != "":
+		reply = "The turn failed: " + end.Message
+	default:
 		reply = noReply
 	}
-	return h.send(ctx, s, fmt.Sprintf("turn:%d", turn), reply)
+	return h.send(ctx, s, status, fmt.Sprintf("turn:%d", turn), reply)
 }
 
 // send reports text from s to its parent; a parent that is archived or
 // gone gets nothing.
-func (h *handoffs) send(ctx context.Context, s proto.Session, what, text string) error {
-	_, _, err := h.store.Report(ctx, s.Parent, s.ID, "handoff:"+string(s.ID)+":"+what, text)
+func (h *handoffs) send(ctx context.Context, s proto.Session, status proto.ReportStatus, what, text string) error {
+	_, _, err := h.store.Report(ctx, s.Parent, s.ID, status, "handoff:"+string(s.ID)+":"+what, text)
 	if errors.Is(err, store.ErrNotFound) || errors.Is(err, store.ErrInvalid) {
 		h.log.Debug("handoff report skipped", "session", s.ID, "parent", s.Parent, "err", err)
 		return nil

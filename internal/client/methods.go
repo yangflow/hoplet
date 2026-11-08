@@ -297,6 +297,14 @@ func (c *Client) Artifacts(ctx context.Context, session proto.SessionID) ([]prot
 	return out.Artifacts, err
 }
 
+// ArtifactVersions lists an artifact at each of its versions, the newest
+// first.
+func (c *Client) ArtifactVersions(ctx context.Context, id proto.ArtifactID) ([]proto.Artifact, error) {
+	var out proto.ArtifactsVersions
+	err := c.Call(ctx, proto.MethodArtifactsVersions, proto.ArtifactsVersionsParams{Artifact: id}, &out)
+	return out.Versions, err
+}
+
 // ReadArtifact reads one chunk of a file of an artifact version.
 func (c *Client) ReadArtifact(ctx context.Context, p proto.ArtifactsReadParams) (proto.ArtifactChunk, error) {
 	var out proto.ArtifactChunk

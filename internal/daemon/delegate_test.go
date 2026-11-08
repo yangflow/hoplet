@@ -3,6 +3,7 @@ package daemon
 import (
 	"encoding/json"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -72,7 +73,7 @@ func TestDelegation(t *testing.T) {
 	if got := pw.texts(1); len(got) != 2 || got[0] != "found it" || got[1] != want {
 		t.Fatalf("companion turn 1 %q", got)
 	}
-	if rs := reportsOf(t, d.store, comp.ID); len(rs) != 1 || rs[0].From != child.ID {
+	if rs := reportsOf(t, d.store, comp.ID); len(rs) != 1 || rs[0].From != child.ID || rs[0].Report != proto.ReportDone {
 		t.Fatalf("reports %+v", rs)
 	}
 
@@ -96,6 +97,21 @@ func TestDelegation(t *testing.T) {
 		t.Fatalf("handed off %+v", code)
 	}
 	watch(t, c, code.ID, 0).until(turnEnded(1))
+	var got []proto.SessionDelegated
+	evs, err := d.store.Events(timeout(t), comp.ID, 0, 1000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, ev := range evs {
+		if ev.Type == proto.TypeSessionDelegated {
+			p, _ := ev.Decode()
+			got = append(got, p.(proto.SessionDelegated))
+		}
+	}
+	if want := []proto.SessionDelegated{{Session: child.ID, Kind: proto.DelegatedSession, Title: "Look up"},
+		{Session: code.ID, Kind: proto.HandedOff}}; !slices.Equal(got, want) {
+		t.Fatalf("delegations %+v, want %+v", got, want)
+	}
 	if r := callTool(t, ct, "session_send", `{"id":"`+string(code.ID)+`","text":"x"}`); !r.IsError {
 		t.Fatalf("send to the handed-off session %+v", r)
 	}

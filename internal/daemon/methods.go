@@ -259,6 +259,13 @@ func (c *conn) call(ctx context.Context, f proto.ClientFrame) (any, error) {
 		}
 		list, err := s.store.Artifacts(ctx, p.Session)
 		return proto.ArtifactsList{Artifacts: nonNil(list)}, err
+	case proto.MethodArtifactsVersions:
+		var p proto.ArtifactsVersionsParams
+		if err := decode(f, &p); err != nil {
+			return nil, err
+		}
+		list, err := s.store.ArtifactHistory(ctx, p.Artifact)
+		return proto.ArtifactsVersions{Versions: list}, err
 	case proto.MethodArtifactsRead:
 		var p proto.ArtifactsReadParams
 		if err := decode(f, &p); err != nil {
@@ -482,7 +489,7 @@ func (t toolSource) Send(ctx context.Context, p proto.SendParams) (proto.SendRep
 }
 
 func (t toolSource) Report(ctx context.Context, parent, from proto.SessionID, key, text string) error {
-	_, _, err := t.store.Report(ctx, parent, from, key, text)
+	_, _, err := t.store.Report(ctx, parent, from, proto.ReportDone, key, text)
 	return forModel(err)
 }
 

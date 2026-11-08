@@ -23,7 +23,7 @@ func TestSendFromNamesTheSource(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := m.SendFrom(ctx, parent.ID, src.ID, "found it", "r1"); err != nil {
+	if _, err := m.SendFrom(ctx, parent.ID, src.ID, proto.ReportError, "found it", "r1"); err != nil {
 		t.Fatal(err)
 	}
 	evs := e.waitFor(parent.ID, "turn end", turnEnded)
@@ -37,7 +37,7 @@ func TestSendFromNamesTheSource(t *testing.T) {
 			}
 		}
 	}
-	if len(user) != 1 || user[0].Text != "found it" || user[0].From != src.ID {
+	if len(user) != 1 || user[0].Text != "found it" || user[0].From != src.ID || user[0].Report != proto.ReportError {
 		t.Fatalf("logged %+v", user)
 	}
 	want := `[Report from Hoplet session ` + string(src.ID) + ` "Look up"]` + "\n\nfound it"
@@ -45,7 +45,7 @@ func TestSendFromNamesTheSource(t *testing.T) {
 		t.Fatalf("harness got %+v, want %q", echo, want)
 	}
 	// A retry of the recorded report keeps what was recorded.
-	res, err := m.SendFrom(ctx, parent.ID, src.ID, "found it", "r1")
+	res, err := m.SendFrom(ctx, parent.ID, src.ID, proto.ReportError, "found it", "r1")
 	if err != nil || res.Turn != 1 {
 		t.Fatalf("retry %+v %v", res, err)
 	}

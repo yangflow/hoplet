@@ -325,6 +325,8 @@ type QueuedMessage struct {
 	// From is the session whose report this message is; empty for messages
 	// the user sent.
 	From SessionID `json:"from,omitempty"`
+	// Report is how things stood in From when it reported.
+	Report ReportStatus `json:"report,omitempty"`
 }
 
 // QueueEditParams changes a queued message's text.
