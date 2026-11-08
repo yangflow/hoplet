@@ -23,6 +23,7 @@ const (
 	TypeSubagent          EventType = "subagent"
 	TypeArtifactPublished EventType = "artifact.published"
 	TypeSessionDelegated  EventType = "session.delegated"
+	TypeMemorySaved       EventType = "memory.saved"
 )
 
 // TurnStarted marks the start of a turn.
@@ -131,6 +132,50 @@ func (d SessionDelegated) validate() error {
 	}
 	if d.Kind != DelegatedSession && d.Kind != HandedOff {
 		return fmt.Errorf("%w: unknown delegation kind %q", ErrInvalidPayload, d.Kind)
+	}
+	return nil
+}
+
+// MemorySaveAction says what a save did to a memory entry.
+type MemorySaveAction string
+
+// Memory save actions.
+const (
+	MemoryCreated MemorySaveAction = "created"
+	MemoryUpdated MemorySaveAction = "updated"
+)
+
+// MemorySaveActor says who saved a memory entry without the user editing it.
+type MemorySaveActor string
+
+// Memory save actors.
+const (
+	MemoryByCompanion  MemorySaveActor = "companion"
+	MemoryByExtraction MemorySaveActor = "extraction"
+)
+
+// MemorySaved records, in the source session's log, that a memory entry was
+// saved without the user editing it. It carries no entry text, so that
+// withdrawing the entry leaves nothing of it in the log.
+type MemorySaved struct {
+	Entry   string           `json:"entry"`
+	Version int              `json:"version"`
+	Action  MemorySaveAction `json:"action"`
+	Actor   MemorySaveActor  `json:"actor"`
+}
+
+func (m MemorySaved) validate() error {
+	if m.Entry == "" {
+		return fmt.Errorf("%w: memory save has no entry", ErrInvalidPayload)
+	}
+	if m.Version <= 0 {
+		return fmt.Errorf("%w: memory save has version %d", ErrInvalidPayload, m.Version)
+	}
+	if m.Action != MemoryCreated && m.Action != MemoryUpdated {
+		return fmt.Errorf("%w: unknown memory save action %q", ErrInvalidPayload, m.Action)
+	}
+	if m.Actor != MemoryByCompanion && m.Actor != MemoryByExtraction {
+		return fmt.Errorf("%w: unknown memory save actor %q", ErrInvalidPayload, m.Actor)
 	}
 	return nil
 }
@@ -429,6 +474,7 @@ func (ContextUsage) eventType() EventType      { return TypeContextUsage }
 func (TodoList) eventType() EventType          { return TypeTodoList }
 func (Subagent) eventType() EventType          { return TypeSubagent }
 func (SessionDelegated) eventType() EventType  { return TypeSessionDelegated }
+func (MemorySaved) eventType() EventType       { return TypeMemorySaved }
 
 func (TurnStarted) eventVersion() uint16       { return 1 }
 func (TurnEnded) eventVersion() uint16         { return 1 }
@@ -448,8 +494,10 @@ func (ContextUsage) eventVersion() uint16      { return 1 }
 func (TodoList) eventVersion() uint16          { return 1 }
 func (Subagent) eventVersion() uint16          { return 1 }
 func (SessionDelegated) eventVersion() uint16  { return 1 }
+func (MemorySaved) eventVersion() uint16       { return 1 }
 
 func init() {
+	register[MemorySaved]()
 	register[TurnStarted]()
 	register[TurnEnded]()
 	register[MessageDelta]()

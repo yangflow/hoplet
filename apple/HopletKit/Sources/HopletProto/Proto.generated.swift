@@ -328,6 +328,7 @@ public enum EventType: RawRepresentable, Codable, Hashable, Sendable, ProtoZero 
   case subagent
   case artifactPublished
   case sessionDelegated
+  case memorySaved
   case unknown(String)
 
   public init(rawValue: String) {
@@ -351,6 +352,7 @@ public enum EventType: RawRepresentable, Codable, Hashable, Sendable, ProtoZero 
     case "subagent": self = .subagent
     case "artifact.published": self = .artifactPublished
     case "session.delegated": self = .sessionDelegated
+    case "memory.saved": self = .memorySaved
     default: self = .unknown(rawValue)
     }
   }
@@ -376,6 +378,7 @@ public enum EventType: RawRepresentable, Codable, Hashable, Sendable, ProtoZero 
     case .subagent: return "subagent"
     case .artifactPublished: return "artifact.published"
     case .sessionDelegated: return "session.delegated"
+    case .memorySaved: return "memory.saved"
     case .unknown(let value): return value
     }
   }
@@ -553,6 +556,56 @@ public enum DelegationKind: RawRepresentable, Codable, Hashable, Sendable, Proto
     switch self {
     case .delegate: return "delegate"
     case .handoff: return "handoff"
+    case .unknown(let value): return value
+    }
+  }
+
+  public static var protoZero: Self { Self(rawValue: "") }
+  public var isProtoZero: Bool { rawValue.isEmpty }
+}
+
+public enum MemorySaveAction: RawRepresentable, Codable, Hashable, Sendable, ProtoZero {
+  case created
+  case updated
+  case unknown(String)
+
+  public init(rawValue: String) {
+    switch rawValue {
+    case "created": self = .created
+    case "updated": self = .updated
+    default: self = .unknown(rawValue)
+    }
+  }
+
+  public var rawValue: String {
+    switch self {
+    case .created: return "created"
+    case .updated: return "updated"
+    case .unknown(let value): return value
+    }
+  }
+
+  public static var protoZero: Self { Self(rawValue: "") }
+  public var isProtoZero: Bool { rawValue.isEmpty }
+}
+
+public enum MemorySaveActor: RawRepresentable, Codable, Hashable, Sendable, ProtoZero {
+  case companion
+  case extraction
+  case unknown(String)
+
+  public init(rawValue: String) {
+    switch rawValue {
+    case "companion": self = .companion
+    case "extraction": self = .extraction
+    default: self = .unknown(rawValue)
+    }
+  }
+
+  public var rawValue: String {
+    switch self {
+    case .companion: return "companion"
+    case .extraction: return "extraction"
     case .unknown(let value): return value
     }
   }
@@ -4699,6 +4752,51 @@ public struct SessionDelegated: Codable, Hashable, Sendable, ProtoZero {
   public var isProtoZero: Bool { false }
 }
 
+public struct MemorySaved: Codable, Hashable, Sendable, ProtoZero {
+  public var entry: String
+  public var version: Int
+  public var action: MemorySaveAction
+  public var actor: MemorySaveActor
+
+  public init(
+    entry: String = .protoZero,
+    version: Int = .protoZero,
+    action: MemorySaveAction = .protoZero,
+    actor: MemorySaveActor = .protoZero
+  ) {
+    self.entry = entry
+    self.version = version
+    self.action = action
+    self.actor = actor
+  }
+
+  private enum CodingKeys: String, CodingKey {
+    case entry = "entry"
+    case version = "version"
+    case action = "action"
+    case actor = "actor"
+  }
+
+  public init(from decoder: any Decoder) throws {
+    let c = try decoder.container(keyedBy: CodingKeys.self)
+    entry = try c.decodeOrZero(String.self, forKey: .entry)
+    version = try c.decodeOrZero(Int.self, forKey: .version)
+    action = try c.decodeOrZero(MemorySaveAction.self, forKey: .action)
+    actor = try c.decodeOrZero(MemorySaveActor.self, forKey: .actor)
+  }
+
+  public func encode(to encoder: any Encoder) throws {
+    var c = encoder.container(keyedBy: CodingKeys.self)
+    try c.encode(entry, forKey: .entry)
+    try c.encode(version, forKey: .version)
+    try c.encode(action, forKey: .action)
+    try c.encode(actor, forKey: .actor)
+  }
+
+  public static var protoZero: Self { Self() }
+  public var isProtoZero: Bool { false }
+}
+
 public struct Thinking: Codable, Hashable, Sendable, ProtoZero {
   public var text: String
 
@@ -6302,6 +6400,7 @@ public enum EventPayload: Hashable, Sendable {
   case todoList(TodoList)
   case subagent(Subagent)
   case sessionDelegated(SessionDelegated)
+  case memorySaved(MemorySaved)
   case unknown(type: EventType, v: UInt16)
 }
 
@@ -6328,6 +6427,7 @@ extension Event {
     case ("todo.list", 1): return .todoList(try payload.decode(TodoList.self))
     case ("subagent", 1): return .subagent(try payload.decode(Subagent.self))
     case ("session.delegated", 1): return .sessionDelegated(try payload.decode(SessionDelegated.self))
+    case ("memory.saved", 1): return .memorySaved(try payload.decode(MemorySaved.self))
     default: return .unknown(type: type, v: v)
     }
   }
