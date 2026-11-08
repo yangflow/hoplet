@@ -536,7 +536,7 @@ func TestApplyReportsAutomaticSaves(t *testing.T) {
 		{"extraction creates", func(f *writes) Write {
 			return extraction(create("Likes tea", f.said("p", before)), "p", 1, 100)
 		}, OutcomeApplied, &created, proto.MemoryByExtraction, 1},
-		{"user creates", func(f *writes) Write {
+		{"user creates", func(*writes) Write {
 			return Write{Actor: ActorUser, Action: ActionCreate, Category: CategoryFact, Scope: repoScope, Body: "Likes tea"}
 		}, OutcomeApplied, nil, "", 0},
 		{"companion withdraws", func(f *writes) Write {
@@ -544,7 +544,7 @@ func TestApplyReportsAutomaticSaves(t *testing.T) {
 			return Write{Actor: ActorCompanion, Action: ActionWithdraw, Target: e.ID, ExpectedVersion: e.Version, Reason: "asked", Session: "p", Evidence: []Evidence{f.said("p", after)}}
 		}, OutcomeApplied, nil, "", 0},
 		{"candidate", func(f *writes) Write { return create("Likes tea", f.observed("p", before)) }, OutcomeCandidate, nil, "", 0},
-		{"rejected", func(f *writes) Write {
+		{"rejected", func(*writes) Write {
 			return create("Likes tea", Evidence{EvidenceUserStated, "event:p/999"})
 		}, OutcomeRejected, nil, "", 0},
 	}
