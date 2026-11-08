@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -130,6 +131,9 @@ func (a app) hostAdd(args []string) int {
 		hostname, _ := os.Hostname()
 		r := client.Remote{Routes: code.Routes, HostKey: code.Key, Identity: id, TLS: a.relayTLS}
 		rc, err := client.Pair(ctx, r, code.PSK, pair.DisplayName(hostname))
+		if errors.Is(err, noise.ErrPairingRefused) {
+			return fmt.Errorf("%w; run `hoplet pair` on the host for a new code", err)
+		}
 		if err != nil {
 			return err
 		}

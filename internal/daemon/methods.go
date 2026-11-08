@@ -9,6 +9,7 @@ import (
 	"github.com/yangflow/hoplet/internal/artifact"
 	"github.com/yangflow/hoplet/internal/harness"
 	"github.com/yangflow/hoplet/internal/memory"
+	"github.com/yangflow/hoplet/internal/memory/extract"
 	"github.com/yangflow/hoplet/internal/noise"
 	"github.com/yangflow/hoplet/internal/session"
 	"github.com/yangflow/hoplet/internal/store"
@@ -71,7 +72,13 @@ func (c *conn) call(ctx context.Context, f proto.ClientFrame) (any, error) {
 			proto.MethodSessionsStop:      s.queue.stop,
 			proto.MethodSessionsArchive:   s.mgr.Archive,
 		}[f.Method]
-		return done, op(ctx, p.Session)
+		if err := op(ctx, p.Session); err != nil {
+			return nil, err
+		}
+		if f.Method == proto.MethodSessionsArchive {
+			s.extract.Enqueue(p.Session, extract.TriggerArchive)
+		}
+		return done, nil
 	case proto.MethodSessionsSteer:
 		var p proto.SteerParams
 		if err := decode(f, &p); err != nil {
@@ -368,6 +375,17 @@ func (c *conn) call(ctx context.Context, f proto.ClientFrame) (any, error) {
 		return s.profileWithdraw(ctx, p)
 	case proto.MethodProfileCandidates:
 		return s.profileCandidates(ctx)
+	case proto.MethodProfileExtraction:
+		return s.extract.Status(ctx)
+	case proto.MethodProfileExtractionSet:
+		var p proto.ProfileExtractionSetParams
+		if err := decode(f, &p); err != nil {
+			return nil, err
+		}
+		if err := s.extract.SetEnabled(ctx, p.Enabled); err != nil {
+			return nil, err
+		}
+		return s.extract.Status(ctx)
 	case proto.MethodProfileAccept:
 		var p proto.ProfileAcceptParams
 		if err := decode(f, &p); err != nil {
@@ -394,7 +412,8 @@ func (c *conn) call(ctx context.Context, f proto.ClientFrame) (any, error) {
 func localOnly(method string) bool {
 	switch method {
 	case proto.MethodProfileList, proto.MethodProfileGet, proto.MethodProfileUpdate, proto.MethodProfileWithdraw,
-		proto.MethodProfileCandidates, proto.MethodProfileAccept, proto.MethodProfileReject:
+		proto.MethodProfileCandidates, proto.MethodProfileAccept, proto.MethodProfileReject,
+		proto.MethodProfileExtraction, proto.MethodProfileExtractionSet:
 		return true
 	case proto.MethodPairingStart, proto.MethodHostsAdd, proto.MethodHostsList, proto.MethodHostsRemove, proto.MethodArtifactsPublish:
 		return true
@@ -503,6 +522,8 @@ type toolSource struct {
 	queue *queuer
 	arts  *artifact.Service
 	sim   tools.Simulator
+	// extract is told when a session reaches the end of a stage.
+	extract *extract.Worker
 }
 
 // forModel turns an error the model can act on into a tools.Failure.
@@ -524,6 +545,9 @@ func (t toolSource) Create(ctx context.Context, c tools.Create) (proto.Session, 
 	if err != nil {
 		return proto.Session{}, forModel(err)
 	}
+	if c.Owner == proto.OwnerMe && c.Parent != "" && t.extract != nil {
+		t.extract.Enqueue(c.Parent, extract.TriggerHandoff)
+	}
 	if _, err := t.queue.send(ctx, proto.SendParams{Session: sess.ID, Text: c.Prompt, Key: "create:" + string(sess.ID)}); err != nil {
 		return sess, forModel(err)
 	}
@@ -537,6 +561,9 @@ func (t toolSource) Send(ctx context.Context, p proto.SendParams) (proto.SendRep
 
 func (t toolSource) Report(ctx context.Context, parent, from proto.SessionID, key, text string) error {
 	_, _, err := t.store.Report(ctx, parent, from, proto.ReportDone, key, text)
+	if err == nil && t.extract != nil {
+		t.extract.Enqueue(from, extract.TriggerReport)
+	}
 	return forModel(err)
 }
 

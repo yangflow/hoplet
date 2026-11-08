@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/yangflow/hoplet/internal/client"
+	"github.com/yangflow/hoplet/internal/noise"
 	"github.com/yangflow/hoplet/proto"
 )
 
@@ -302,6 +303,9 @@ func (a app) sessionWatch(args []string) int {
 			fmt.Fprintf(a.stderr, "hoplet session watch: disconnected: %v\n", err)
 			_ = c.Close()
 			if c, err = a.redial(ctx); err != nil {
+				if errors.Is(err, noise.ErrDeviceRefused) {
+					return err
+				}
 				return nil // interrupted while waiting
 			}
 			fmt.Fprintln(a.stderr, "hoplet session watch: reconnected")
@@ -453,7 +457,7 @@ const (
 )
 
 // redial connects again after a lost connection, with backoff, until it
-// succeeds or ctx ends.
+// succeeds, ctx ends or the host refuses this device.
 func (a app) redial(ctx context.Context) (*client.Client, error) {
 	wait := retryFirst
 	for {
@@ -470,6 +474,9 @@ func (a app) redial(ctx context.Context) (*client.Client, error) {
 		}
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
+		}
+		if errors.Is(err, noise.ErrDeviceRefused) {
+			return nil, err
 		}
 		fmt.Fprintf(a.stderr, "hoplet session watch: reconnecting: %v\n", err)
 		wait = min(2*wait, retryMax)

@@ -103,6 +103,29 @@ type ProfileCandidate struct {
 	CreatedAt       time.Time    `json:"created_at"`
 }
 
+// ProfileExtractionHarness is one harness in ProfileExtractionStatus. Used is
+// today's runs; Unsupported says why this harness does not extract, empty
+// when it does.
+type ProfileExtractionHarness struct {
+	Kind        string `json:"kind"`
+	Used        int    `json:"used"`
+	Unsupported string `json:"unsupported,omitempty"`
+}
+
+// ProfileExtractionStatus is the result of profile.extraction. DailyLimit
+// applies to each harness; Failed counts today's runs that gave up.
+type ProfileExtractionStatus struct {
+	Enabled    bool                       `json:"enabled"`
+	DailyLimit int                        `json:"daily_limit"`
+	Failed     int                        `json:"failed"`
+	Harnesses  []ProfileExtractionHarness `json:"harnesses"`
+}
+
+// ProfileExtractionSetParams turns background extraction on or off.
+type ProfileExtractionSetParams struct {
+	Enabled bool `json:"enabled"`
+}
+
 // ProfileCandidates is the result of profile.candidates.
 type ProfileCandidates struct {
 	Candidates []ProfileCandidate `json:"candidates"`

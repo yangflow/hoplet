@@ -15,6 +15,7 @@ import (
 	"github.com/yangflow/hoplet/internal/artifact"
 	"github.com/yangflow/hoplet/internal/frame"
 	"github.com/yangflow/hoplet/internal/memory"
+	"github.com/yangflow/hoplet/internal/memory/extract"
 	"github.com/yangflow/hoplet/internal/noise"
 	"github.com/yangflow/hoplet/internal/session"
 	"github.com/yangflow/hoplet/internal/store"
@@ -101,6 +102,7 @@ type server struct {
 	sys     *system
 	arts    *artifact.Service
 	memory  *memory.Service
+	extract *extract.Worker
 	tools   *tools.Set
 	token   string
 	host    string

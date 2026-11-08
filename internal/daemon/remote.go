@@ -30,9 +30,9 @@ const pairingTTL = 10 * time.Minute
 const minDevicePrefix = 4
 
 var (
-	errRevoked  = errors.New("daemon: device revoked")
-	errUnpaired = errors.New("daemon: device not paired")
-	errPSKUsed  = errors.New("daemon: the pairing code is used, replaced or expired")
+	errRevoked  = fmt.Errorf("daemon: device revoked: %w", noise.ErrDeviceRefused)
+	errUnpaired = fmt.Errorf("daemon: device not paired: %w", noise.ErrDeviceRefused)
+	errPSKUsed  = fmt.Errorf("daemon: the pairing code is used, replaced or expired: %w", noise.ErrPairingRefused)
 	errBadName  = errors.New("daemon: the display name must be non-empty UTF-8")
 )
 

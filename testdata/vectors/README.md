@@ -15,6 +15,6 @@ Bytes are lowercase hex. Handshake messages include the leading kind byte on the
 
 In `steps`, each entry lists the transport messages `from` wrote. A `frame` step of `size` N carries bytes `i % 251` for `i` in `0..<N`.
 
-Negative channel cases continue from the handshake in `channel.json` and read as the initiator. `error` is `decrypt`, `frame`, `too_large` or `handshake`.
+Negative channel cases continue from the handshake in `channel.json` and read as the initiator. `error` is `decrypt`, `frame`, `too_large`, `handshake`, `device_refused` or `pairing_refused`.
 
 In `resume.json`, a client holding `have` subscribes from the cursor and applies `items` in order; `want` is the state it must end with.

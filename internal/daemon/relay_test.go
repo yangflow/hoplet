@@ -229,7 +229,7 @@ func TestRelayPairingAndSessions(t *testing.T) {
 
 	stranger := rem
 	stranger.Identity = newIdentity(t)
-	if _, err := client.DialRemote(timeout(t), stranger); !errors.Is(err, noise.ErrHandshake) {
+	if _, err := client.DialRemote(timeout(t), stranger); !errors.Is(err, noise.ErrDeviceRefused) {
 		t.Fatalf("unpaired device over the relay: %v", err)
 	}
 
