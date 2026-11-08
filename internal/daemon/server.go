@@ -12,6 +12,7 @@ import (
 
 	"github.com/coder/websocket"
 
+	"github.com/yangflow/hoplet/internal/artifact"
 	"github.com/yangflow/hoplet/internal/frame"
 	"github.com/yangflow/hoplet/internal/noise"
 	"github.com/yangflow/hoplet/internal/session"
@@ -97,6 +98,7 @@ type server struct {
 	ws      *workspace.Service
 	queue   *queuer
 	sys     *system
+	arts    *artifact.Service
 	tools   *tools.Set
 	token   string
 	host    string

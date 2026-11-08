@@ -71,7 +71,7 @@ func readAll(t *testing.T, s *Service, id proto.ArtifactID, version int, rel str
 func tree(t *testing.T, root string) []string {
 	t.Helper()
 	var out []string
-	err := filepath.WalkDir(root, func(p string, d os.DirEntry, err error) error {
+	err := filepath.WalkDir(root, func(p string, _ os.DirEntry, err error) error {
 		if errors.Is(err, os.ErrNotExist) {
 			return nil
 		}

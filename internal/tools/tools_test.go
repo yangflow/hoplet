@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/yangflow/hoplet/internal/artifact"
 	"github.com/yangflow/hoplet/internal/store"
 	"github.com/yangflow/hoplet/proto"
 )
@@ -16,15 +17,17 @@ import (
 type fakeSource struct {
 	sessions []proto.Session
 	err      error
+	workDir  string
 	got      *changes // what the tools asked to change
 }
 
 // changes records the calls that change something.
 type changes struct {
-	creates []Create
-	sends   []proto.SendParams
-	reports []report
-	failure error // returned by every change
+	creates   []Create
+	sends     []proto.SendParams
+	reports   []report
+	publishes []artifact.Request
+	failure   error // returned by every change
 }
 
 type report struct {
@@ -48,6 +51,13 @@ func (f fakeSource) Send(_ context.Context, p proto.SendParams) (proto.SendReply
 func (f fakeSource) Report(_ context.Context, parent, from proto.SessionID, key, text string) error {
 	f.got.reports = append(f.got.reports, report{parent, from, key, text})
 	return f.got.failure
+}
+
+func (f fakeSource) WorkDir(context.Context, proto.SessionID) (string, error) { return f.workDir, nil }
+
+func (f fakeSource) Publish(_ context.Context, r artifact.Request) (proto.Artifact, error) {
+	f.got.publishes = append(f.got.publishes, r)
+	return proto.Artifact{ID: "art1", Name: r.Name, Kind: proto.ArtifactHTML, Version: 2}, f.got.failure
 }
 
 func (f fakeSource) Sessions(context.Context) ([]proto.Session, error) { return f.sessions, f.err }
@@ -78,7 +88,7 @@ func TestTools(t *testing.T) {
 			t.Errorf("%s: schema is not JSON", ti.Name)
 		}
 	}
-	if got := strings.Join(names, ","); got != "sessions_list,session_get" {
+	if got := strings.Join(names, ","); got != "sessions_list,session_get,artifact_publish" {
 		t.Fatalf("tools %s", got)
 	}
 

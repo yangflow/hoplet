@@ -249,7 +249,7 @@ func copyAll(dir string, srcs []source) (int64, error) {
 // copyFile copies the regular file from to to, failing when it holds more
 // than budget bytes.
 func copyFile(to, from string, budget int64) (n int64, err error) {
-	in, err := os.Open(from)
+	in, err := os.Open(filepath.Clean(from))
 	if err != nil {
 		return 0, fmt.Errorf("%w: %w", ErrInvalid, err)
 	}
@@ -264,7 +264,7 @@ func copyFile(to, from string, budget int64) (n int64, err error) {
 	if err := os.MkdirAll(filepath.Dir(to), 0o700); err != nil {
 		return 0, fmt.Errorf("artifact: %w", err)
 	}
-	out, err := os.OpenFile(to, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	out, err := os.OpenFile(filepath.Clean(to), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
 	if err != nil {
 		return 0, fmt.Errorf("artifact: %w", err)
 	}
@@ -296,7 +296,7 @@ func syncTree(dir string) error {
 }
 
 func syncDir(dir string) error {
-	f, err := os.Open(dir)
+	f, err := os.Open(filepath.Clean(dir))
 	if err != nil {
 		return fmt.Errorf("artifact: %w", err)
 	}
@@ -333,8 +333,8 @@ func (s *Service) Read(ctx context.Context, p proto.ArtifactsReadParams) (proto.
 	if !filepath.IsLocal(filepath.FromSlash(rel)) {
 		return proto.ArtifactChunk{}, fmt.Errorf("%w: %s", ErrNotFound, p.Path)
 	}
-	full := filepath.Join(s.Root, string(a.Session), string(a.ID), "v"+strconv.Itoa(a.Version), filepath.FromSlash(rel))
-	f, err := os.Open(full)
+	vdir := filepath.Join(s.Root, string(a.Session), string(a.ID), "v"+strconv.Itoa(a.Version))
+	f, err := os.OpenInRoot(vdir, filepath.FromSlash(rel))
 	if errors.Is(err, os.ErrNotExist) {
 		return proto.ArtifactChunk{}, fmt.Errorf("%w: %s", ErrNotFound, rel)
 	}
