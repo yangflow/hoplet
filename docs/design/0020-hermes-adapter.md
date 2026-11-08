@@ -100,7 +100,7 @@ flowchart LR
 
 ## 模型
 
-- 当前模型取自每轮的 `session.usage`（`model`、`provider`），变化时报告 `model.changed`
+- 当前模型取自每轮的 `session.usage`（`model`、`provider`），变化时报告 `model.changed`。用户自定义的服务商，Hermes 报的都是运行类别 `custom`，不是该条目的代号；拿 `custom` 再开会话，Hermes 走的是模型配置里的裸地址，而不是用户的条目。所以报回 `custom` 且模型是 Hoplet 最近选的那个（建会话时给的，或之后换的）时，报告用 Hoplet 选它时带的服务商代号；Hoplet 没选过的模型照 Hermes 的报告
 - 模型列表在会话之外单独连一次 gateway 调 `model.options`，取已登录服务商的模型（当前服务商在前），缓存 10 分钟
 - 换模型用 `session.mutate` 的 `model`，带服务商代号。`session.usage` 报的服务商名（如 `custom`）与 `model.options` 里的服务商代号可能不同，所以判断“当前是哪个模型”只比模型名
 
