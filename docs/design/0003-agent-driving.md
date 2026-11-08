@@ -25,7 +25,7 @@ flowchart LR
 |---|---|
 | Claude Code | CLI stdio stream-json 与控制协议 |
 | Hermes | gateway JSON-RPC / WebSocket，经 shim 后的 bridge 搬运 |
-| Codex（目标） | `codex app-server` stdio JSON-RPC，按 JSON Schema 生成 Go 类型 |
+| Codex（目标） | `codex app-server` stdio JSON-RPC，手写用到的协议子集，由录制契约测试保证 |
 | ACP（目标） | Go ACP 客户端 |
 
 会话只走结构化协议；PTY 留给用户终端。优先原生能力，不用更弱的包装协议替换已有接入。
