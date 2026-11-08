@@ -20,3 +20,5 @@
 {"session":"s1","seq":20,"ts":"2026-11-07T08:00:01Z","turn":2,"type":"subagent","v":1,"payload":{"id":"toolu_1","call_id":"toolu_1","type":"Explore","title":"Find the heartbeat code","status":"done","tokens":1200,"tool_uses":4,"duration_ms":48000,"summary":"It lives in bridge.go."}}
 {"session":"s1","seq":21,"ts":"2026-11-07T08:00:02Z","turn":2,"agent":"toolu_1","type":"thinking","v":1,"payload":{"text":"look for pump"}}
 {"session":"s1","seq":22,"ts":"2026-11-08T08:00:00Z","turn":2,"type":"artifact.published","v":1,"payload":{"artifact":"a1","name":"report","kind":"html","version":2,"by":"harness"}}
+{"session":"s1","seq":23,"ts":"2026-11-08T08:00:01Z","turn":2,"type":"session.delegated","v":1,"payload":{"session":"s2","kind":"delegate","title":"Find hotels in Shinjuku"}}
+{"session":"s1","seq":24,"ts":"2026-11-08T08:00:02Z","turn":3,"type":"message","v":1,"payload":{"id":"m9","role":"user","text":"Waiting for the user to approve: Run tests","from":"s3","report":"approval"}}

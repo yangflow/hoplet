@@ -111,6 +111,17 @@ type ArtifactsList struct {
 	Artifacts []Artifact `json:"artifacts"`
 }
 
+// ArtifactsVersionsParams lists every version of an artifact.
+type ArtifactsVersionsParams struct {
+	Artifact ArtifactID `json:"artifact"`
+}
+
+// ArtifactsVersions is an artifact at each of its versions, the newest
+// first.
+type ArtifactsVersions struct {
+	Versions []Artifact `json:"versions"`
+}
+
 // MaxArtifactChunk is the most bytes one artifacts.read returns.
 const MaxArtifactChunk = 1 << 20
 

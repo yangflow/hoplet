@@ -22,6 +22,7 @@ const (
 	TypeTodoList          EventType = "todo.list"
 	TypeSubagent          EventType = "subagent"
 	TypeArtifactPublished EventType = "artifact.published"
+	TypeSessionDelegated  EventType = "session.delegated"
 )
 
 // TurnStarted marks the start of a turn.
@@ -69,6 +70,69 @@ type Message struct {
 	// From is the session whose report this user message is; empty for
 	// messages the user sent.
 	From SessionID `json:"from,omitempty"`
+	// Report is how things stood in From when it reported; empty on
+	// messages without From and on reports recorded before it existed,
+	// which read as ReportDone.
+	Report ReportStatus `json:"report,omitempty"`
+}
+
+// ReportStatus is how things stood in a session when it reported to its
+// parent.
+type ReportStatus string
+
+// Report statuses.
+const (
+	// ReportDone: the session finished what it reported on.
+	ReportDone ReportStatus = "done"
+	// ReportError: the session's turn ended in an error.
+	ReportError ReportStatus = "error"
+	// ReportApproval: the session waits for the user to approve something.
+	ReportApproval ReportStatus = "approval"
+)
+
+func (m Message) validate() error {
+	switch m.Report {
+	case "":
+		return nil
+	case ReportDone, ReportError, ReportApproval:
+	default:
+		return fmt.Errorf("%w: unknown report status %q", ErrInvalidPayload, m.Report)
+	}
+	if m.From == "" {
+		return fmt.Errorf("%w: a report status needs the session that reported", ErrInvalidPayload)
+	}
+	return nil
+}
+
+// DelegationKind says how a session came to be created for its parent.
+type DelegationKind string
+
+// Delegation kinds.
+const (
+	// DelegatedSession: a delegated Personal child session.
+	DelegatedSession DelegationKind = "delegate"
+	// HandedOff: a Code session handed off to me.
+	HandedOff DelegationKind = "handoff"
+)
+
+// SessionDelegated records, in the parent's log, a session it created
+// through the tool bridge.
+type SessionDelegated struct {
+	Session SessionID      `json:"session"`
+	Kind    DelegationKind `json:"kind"`
+	// Title is the new session's title when it was created; it may change
+	// later.
+	Title string `json:"title,omitempty"`
+}
+
+func (d SessionDelegated) validate() error {
+	if d.Session == "" {
+		return fmt.Errorf("%w: delegation has no session", ErrInvalidPayload)
+	}
+	if d.Kind != DelegatedSession && d.Kind != HandedOff {
+		return fmt.Errorf("%w: unknown delegation kind %q", ErrInvalidPayload, d.Kind)
+	}
+	return nil
 }
 
 // Thinking is the harness's visible reasoning.
@@ -364,6 +428,7 @@ func (ModelChanged) eventType() EventType      { return TypeModelChanged }
 func (ContextUsage) eventType() EventType      { return TypeContextUsage }
 func (TodoList) eventType() EventType          { return TypeTodoList }
 func (Subagent) eventType() EventType          { return TypeSubagent }
+func (SessionDelegated) eventType() EventType  { return TypeSessionDelegated }
 
 func (TurnStarted) eventVersion() uint16       { return 1 }
 func (TurnEnded) eventVersion() uint16         { return 1 }
@@ -382,6 +447,7 @@ func (ModelChanged) eventVersion() uint16      { return 1 }
 func (ContextUsage) eventVersion() uint16      { return 1 }
 func (TodoList) eventVersion() uint16          { return 1 }
 func (Subagent) eventVersion() uint16          { return 1 }
+func (SessionDelegated) eventVersion() uint16  { return 1 }
 
 func init() {
 	register[TurnStarted]()
@@ -401,4 +467,5 @@ func init() {
 	register[ContextUsage]()
 	register[TodoList]()
 	register[Subagent]()
+	register[SessionDelegated]()
 }

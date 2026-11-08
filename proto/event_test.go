@@ -131,3 +131,32 @@ func TestApprovalResolvedValidation(t *testing.T) {
 		})
 	}
 }
+
+func TestDelegationAndReportValidation(t *testing.T) {
+	cases := []struct {
+		name  string
+		p     Payload
+		valid bool
+	}{
+		{"delegate", SessionDelegated{Session: "s2", Kind: DelegatedSession, Title: "t"}, true},
+		{"handoff without title", SessionDelegated{Session: "s2", Kind: HandedOff}, true},
+		{"no session", SessionDelegated{Kind: HandedOff}, false},
+		{"unknown kind", SessionDelegated{Session: "s2", Kind: "spawn"}, false},
+		{"plain message", Message{ID: "m", Role: RoleUser, Text: "hi"}, true},
+		{"report without status", Message{ID: "m", Role: RoleUser, Text: "hi", From: "s2"}, true},
+		{"report", Message{ID: "m", Role: RoleUser, Text: "hi", From: "s2", Report: ReportError}, true},
+		{"status without from", Message{ID: "m", Role: RoleUser, Text: "hi", Report: ReportDone}, false},
+		{"unknown status", Message{ID: "m", Role: RoleUser, Text: "hi", From: "s2", Report: "late"}, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			_, err := NewEvent("s1", 1, 1, time.Now(), c.p)
+			if c.valid && err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if !c.valid && !errors.Is(err, ErrInvalidPayload) {
+				t.Fatalf("got %v, want ErrInvalidPayload", err)
+			}
+		})
+	}
+}

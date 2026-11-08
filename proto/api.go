@@ -126,6 +126,7 @@ const (
 	MethodArtifactsPublish  = "artifacts.publish"
 	MethodArtifactsList     = "artifacts.list"
 	MethodArtifactsRead     = "artifacts.read"
+	MethodArtifactsVersions = "artifacts.versions"
 )
 
 // HelloParams opens a connection; it must be the first request. A device
