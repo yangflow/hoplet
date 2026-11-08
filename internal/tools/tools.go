@@ -56,6 +56,14 @@ func (f *Failure) Error() string { return f.Message }
 
 func failf(format string, a ...any) error { return &Failure{fmt.Sprintf(format, a...)} }
 
+// imageResult is what a tool returns to answer with an image as well as
+// its value: Value becomes the result's text, Image its only image. A
+// failure returns no imageResult, so a failed call never carries an image.
+type imageResult struct {
+	Value any
+	Image proto.ToolImage
+}
+
 // Set is the tool table.
 type Set struct {
 	tools []tool
@@ -142,11 +150,15 @@ func (s *Set) Call(ctx context.Context, caller proto.Session, name string, args 
 		if err != nil {
 			return proto.ToolsCallResult{}, err
 		}
+		var images []proto.ToolImage
+		if ir, ok := v.(imageResult); ok {
+			v, images = ir.Value, []proto.ToolImage{ir.Image}
+		}
 		b, err := json.Marshal(v)
 		if err != nil {
 			return proto.ToolsCallResult{}, fmt.Errorf("tools: encode %s result: %w", name, err)
 		}
-		return proto.ToolsCallResult{Text: string(b)}, nil
+		return proto.ToolsCallResult{Text: string(b), Images: images}, nil
 	}
 	return proto.ToolsCallResult{Text: "no tool named " + name, IsError: true}, nil
 }

@@ -110,6 +110,10 @@ func forward(c toolClient, name string) mcp.ToolHandler {
 		if err := c.Call(ctx, proto.MethodToolsCall, p, &r); err != nil {
 			return nil, err
 		}
-		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: r.Text}}, IsError: r.IsError}, nil
+		content := []mcp.Content{&mcp.TextContent{Text: r.Text}}
+		for _, img := range r.Images {
+			content = append(content, &mcp.ImageContent{MIMEType: img.MIME, Data: img.Data})
+		}
+		return &mcp.CallToolResult{Content: content, IsError: r.IsError}, nil
 	}
 }

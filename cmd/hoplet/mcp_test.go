@@ -219,3 +219,54 @@ func TestMCPUsage(t *testing.T) {
 		}
 	}
 }
+
+// resultClient answers every tool call with one fixed result.
+type resultClient struct {
+	fakeTools
+	result proto.ToolsCallResult
+}
+
+func (c resultClient) Call(ctx context.Context, method string, params, result any) error {
+	if method != proto.MethodToolsCall {
+		return c.fakeTools.Call(ctx, method, params, result)
+	}
+	b, err := json.Marshal(c.result)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(b, result)
+}
+
+func TestForwardImages(t *testing.T) {
+	png := []byte{0x89, 'P', 'N', 'G'}
+	for name, tc := range map[string]struct {
+		result    proto.ToolsCallResult
+		wantTypes []string
+		isErr     bool
+	}{
+		"text then images": {proto.ToolsCallResult{Text: "{}", Images: []proto.ToolImage{{MIME: "image/png", Data: png}, {MIME: "image/jpeg", Data: png}}}, []string{"text", "image/png", "image/jpeg"}, false},
+		"text only":        {proto.ToolsCallResult{Text: "[]"}, []string{"text"}, false},
+		"failure":          {proto.ToolsCallResult{Text: "busy", IsError: true}, []string{"text"}, true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			res, err := forward(resultClient{result: tc.result}, "sessions_list")(context.Background(), &mcp.CallToolRequest{Params: &mcp.CallToolParamsRaw{Name: "sessions_list"}})
+			if err != nil || res.IsError != tc.isErr || len(res.Content) != len(tc.wantTypes) {
+				t.Fatalf("result = %+v, %v", res, err)
+			}
+			for i, want := range tc.wantTypes {
+				switch c := res.Content[i].(type) {
+				case *mcp.TextContent:
+					if want != "text" || i != 0 || c.Text != tc.result.Text {
+						t.Errorf("content %d = %+v", i, c)
+					}
+				case *mcp.ImageContent:
+					if c.MIMEType != want || string(c.Data) != string(png) {
+						t.Errorf("content %d = %+v", i, c)
+					}
+				default:
+					t.Errorf("content %d is %T", i, c)
+				}
+			}
+		})
+	}
+}

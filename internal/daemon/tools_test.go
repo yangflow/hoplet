@@ -13,6 +13,7 @@ import (
 	"github.com/yangflow/hoplet/internal/harness/fake"
 	"github.com/yangflow/hoplet/internal/home"
 	"github.com/yangflow/hoplet/internal/store"
+	"github.com/yangflow/hoplet/internal/tools"
 	"github.com/yangflow/hoplet/proto"
 )
 
@@ -158,4 +159,26 @@ func TestRemoteSessionTokenRefused(t *testing.T) {
 		t.Fatalf("frame = %+v", f)
 	}
 	c.cancel(context.Canceled)
+}
+
+// TestToolImageOverTheConnection sends a 1 MiB image from the daemon to a
+// tool connection, the largest a screenshot is expected to be.
+func TestToolImageOverTheConnection(t *testing.T) {
+	h, script := newHome(t, fake.Script{})
+	d := start(t, testConfig(h, script))
+	c := dial(t, h, "test")
+	s := create(t, c, h)
+	if err := d.store.SetSessionToken(timeout(t), s.ID, store.TokenHash("token-img"), time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	d.srv.tools = tools.ImageProbe(1 << 20)
+	tc, err := dialTools(timeout(t), h, "token-img")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { tc.Close() })
+	r := callTool(t, tc, "image_probe", "{}")
+	if r.IsError || len(r.Images) != 1 || len(r.Images[0].Data) != 1<<20 || r.Images[0].MIME != "image/png" {
+		t.Fatalf("image result: error %v, %d images", r.IsError, len(r.Images))
+	}
 }

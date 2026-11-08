@@ -124,3 +124,33 @@ func TestTools(t *testing.T) {
 		t.Error("service failure became a tool result")
 	}
 }
+
+func TestImageResult(t *testing.T) {
+	img := proto.ToolImage{MIME: "image/png", Data: []byte{0x89, 'P', 'N', 'G'}}
+	var failErr error
+	set := &Set{tools: []tool{{
+		info:    proto.ToolInfo{Name: "shot"},
+		visible: func(proto.Session) bool { return true },
+		call: func(context.Context, proto.Session, json.RawMessage) (any, error) {
+			return imageResult{Value: map[string]int{"width": 2}, Image: img}, failErr
+		},
+	}}}
+	caller := proto.Session{ID: "abcd1111"}
+
+	r, err := set.Call(context.Background(), caller, "shot", nil)
+	if err != nil || r.IsError || r.Text != `{"width":2}` || len(r.Images) != 1 || r.Images[0].MIME != "image/png" || string(r.Images[0].Data) != string(img.Data) {
+		t.Fatalf("image result = %+v, %v", r, err)
+	}
+
+	failErr = failf("device is busy")
+	r, err = set.Call(context.Background(), caller, "shot", nil)
+	if err != nil || !r.IsError || r.Text != "device is busy" || r.Images != nil {
+		t.Fatalf("failure = %+v, %v", r, err)
+	}
+
+	// A plain value carries no images.
+	r, err = New(fakeSource{}).Call(context.Background(), caller, "sessions_list", nil)
+	if err != nil || r.Images != nil {
+		t.Fatalf("plain result = %+v, %v", r, err)
+	}
+}
