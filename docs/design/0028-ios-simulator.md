@@ -43,7 +43,8 @@ flowchart LR
 
 | 项 | 规则 |
 |---|---|
-| 加载 | 运行时从 `xcode-select -p` 推出框架路径并 `dlopen`，不做链接；路径不写死 |
+| 加载 | 运行时 `dlopen`，不做链接：CoreSimulator 在 `/Library/Developer/PrivateFrameworks`，SimulatorKit 在 `xcode-select -p` 同级的 `SharedFrameworks`；Xcode 路径不写死 |
+| 签名 | Developer ID 加 hardened runtime，不加库验证例外授权 |
 | 探测 | 启动时检查所需类、方法、符号是否齐全，把结果和 Xcode 版本回报给 daemon |
 | 探测失败 | 进程报告后退出；设备服务标记 `input_unsupported`，`simctl` 能力照常 |
 | 坐标 | 辅助进程只收比例坐标（0–1） |
@@ -144,6 +145,7 @@ Xcode 27.2、iOS 26.5、iPhone 17 Pro，用一次性程序在专用模拟器上�
 | 工具闭环 | Claude Code 2.1.319 经工具完成启动设备、安装、启动 App、截图，模型读出屏幕上提示词里没有的随机词；截图 402×874，等于设备点 |
 | 占用 | 两个会话的工具桥连接抢同一设备：后者 `simulator_launch` 得到 `simulator_busy` 并写明持有会话，截图和 `simulator_open_url` 不受影响，持有者可重入 |
 | `app_path` | 越出工作目录时失败，未执行安装 |
+| 签名 | 公证通过（Accepted）的探针，Developer ID 加 hardened runtime、无例外授权，能加载 CoreSimulator 与 SimulatorKit 并找到所需的类；探针只验证加载，未注入触摸 |
 
 ## 验收
 
@@ -167,4 +169,4 @@ Xcode 27.2、iOS 26.5、iPhone 17 Pro，用一次性程序在专用模拟器上�
 | 其他边缘与硬件键 | 边缘参数 1、2、4 的含义；锁屏、侧边键的取值 |
 | Home 键 | 更多次数的稳定性 |
 | 版本跨度 | 较旧 Xcode 上探测与消息格式是否一致 |
-| 签名 | 公证后的辅助进程能否加载 Xcode 内的私有框架（库验证可能需要例外授权） |
+| 签名后注入 | 公证后的辅助进程实际注入触摸是否正常 |
