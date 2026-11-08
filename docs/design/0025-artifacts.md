@@ -8,8 +8,8 @@
 
 | 状态 | 边界 |
 |---|---|
-| ✓ 代码已有 | 产物服务（版本存放、启动清理）、工具桥 `artifact_publish`、`hoplet artifact publish` / `list`、`artifacts.list` / `artifacts.versions` / `artifacts.read`（本机与配对设备）、会话日志里的发布事件 |
-| ○ 目标 | 桌面查看；iOS 查看 |
+| ✓ 代码已有 | 产物服务（版本存放、启动清理）、工具桥 `artifact_publish`、`hoplet artifact publish` / `list`、`artifacts.list` / `artifacts.versions` / `artifacts.read`（本机与配对设备）、会话日志里的发布事件、桌面查看（本机会话的产物） |
+| ○ 目标 | 桌面查看配对机器的产物（桌面现在只连本机）；iOS 查看 |
 | 待定 | 页面能力：产物能在客户端里查看并实际使用后再定 |
 
 产物是会话交出的可查看结果：一页 HTML、一篇 Markdown、一张图、一份表格。Personal 交付结果，产物是结果的正式形态：属于会话，带版本，在桌面和手机上都能打开，对话里有一行指向它。
