@@ -3430,30 +3430,69 @@ public struct ToolsCallParams: Codable, Hashable, Sendable, ProtoZero {
 public struct ToolsCallResult: Codable, Hashable, Sendable, ProtoZero {
   public var text: String
   public var isError: Bool
+  public var images: [ToolImage]
 
   public init(
     text: String = .protoZero,
-    isError: Bool = .protoZero
+    isError: Bool = .protoZero,
+    images: [ToolImage] = .protoZero
   ) {
     self.text = text
     self.isError = isError
+    self.images = images
   }
 
   private enum CodingKeys: String, CodingKey {
     case text = "text"
     case isError = "is_error"
+    case images = "images"
   }
 
   public init(from decoder: any Decoder) throws {
     let c = try decoder.container(keyedBy: CodingKeys.self)
     text = try c.decodeOrZero(String.self, forKey: .text)
     isError = try c.decodeOrZero(Bool.self, forKey: .isError)
+    images = try c.decodeOrZero([ToolImage].self, forKey: .images)
   }
 
   public func encode(to encoder: any Encoder) throws {
     var c = encoder.container(keyedBy: CodingKeys.self)
     try c.encode(text, forKey: .text)
     try c.encodeUnlessZero(isError, forKey: .isError)
+    try c.encodeUnlessZero(images, forKey: .images)
+  }
+
+  public static var protoZero: Self { Self() }
+  public var isProtoZero: Bool { false }
+}
+
+public struct ToolImage: Codable, Hashable, Sendable, ProtoZero {
+  public var mime: String
+  public var data: Data
+
+  public init(
+    mime: String = .protoZero,
+    data: Data = .protoZero
+  ) {
+    self.mime = mime
+    self.data = data
+  }
+
+  private enum CodingKeys: String, CodingKey {
+    case mime = "mime"
+    case data = "data"
+  }
+
+  public init(from decoder: any Decoder) throws {
+    let c = try decoder.container(keyedBy: CodingKeys.self)
+    mime = try c.decodeOrZero(String.self, forKey: .mime)
+    data = try c.decodeOrZero(Data.self, forKey: .data)
+  }
+
+  public func encode(to encoder: any Encoder) throws {
+    var c = encoder.container(keyedBy: CodingKeys.self)
+    try c.encode(mime, forKey: .mime)
+    try c.encode(data, forKey: .data)
   }
 
   public static var protoZero: Self { Self() }
