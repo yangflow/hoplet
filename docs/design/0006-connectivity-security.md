@@ -38,7 +38,7 @@ flowchart LR
 
 - 按序尝试；连在后面的路由时，后台定时探测前面的路由，能通就新建连接、按游标重新订阅、再关旧连接（回家自动走局域网）。
 - 加密与认证全在应用层；中继、Cloudflare、Tailscale 都只搬运字节。
-- 当前只有直连地址与中继两条；Bonjour 随 iOS 提供，iOS 用系统 Network.framework 发现，守护进程只做广播。
+- Bonjour 由 iOS 用系统 Network.framework 发现，守护进程只做广播：直连监听不在回环地址上时，以主机 ID 为实例名发布 `_hoplet._tcp`（TXT 带 `v=` 协议主版本），不含机器名；广播只提供地址，身份仍由 Noise 认证。发布失败只记警告，不影响守护进程。CLI 不使用 Bonjour，仍走直连地址与中继。
 
 | 项 | 结论 |
 |---|---|

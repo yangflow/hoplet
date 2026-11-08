@@ -230,6 +230,8 @@ func TestContract(t *testing.T) {
 		mode   proto.PermissionMode
 		plan   bool
 		resume string
+		soul   string
+		effort proto.Effort
 	}{
 		{name: "basic"}, {name: "interrupt"}, {name: "reattach"},
 		{name: "resume", resume: "01a1bb41-4ef7-7fb2-bf42-6d83400a667e"},
@@ -239,6 +241,7 @@ func TestContract(t *testing.T) {
 		{name: "steer"},
 		{name: "plan", plan: true},
 		{name: "settings"},
+		{name: "persona", mode: proto.ModeConfirm, soul: "The codeword is heron. When asked for the codeword, answer with it.", effort: proto.EffortLow},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -246,7 +249,7 @@ func TestContract(t *testing.T) {
 			if mode == "" {
 				mode = proto.ModeFullAuto
 			}
-			spec := harness.Spec{WorkDir: "/work", Mode: mode, Plan: c.plan, Resume: c.resume}
+			spec := harness.Spec{WorkDir: "/work", Mode: mode, Plan: c.plan, Resume: c.resume, Persona: c.soul, Effort: c.effort}
 			path := filepath.Join("testdata", PinnedVersion, c.name+".jsonl")
 			f, err := os.Open(path)
 			if err != nil {

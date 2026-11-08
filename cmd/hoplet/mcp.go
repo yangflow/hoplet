@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -16,11 +17,11 @@ import (
 	"github.com/yangflow/hoplet/proto"
 )
 
-const mcpUsage = `usage: hoplet mcp --home DIR
+const mcpUsage = `usage: hoplet mcp --home DIR [--token-file FILE]
 
 Serves a session's Hoplet tools to its harness as an MCP server on stdio.
-It connects to the daemon of DIR with the session token in
-HOPLET_SESSION_TOKEN and forwards every tool call to it. The daemon writes
+It connects to the daemon of DIR with the session token in FILE, or in
+HOPLET_SESSION_TOKEN without --token-file, and forwards every tool call to it. The daemon writes
 it into the harness's MCP configuration; it is not run by hand.
 `
 
@@ -36,6 +37,7 @@ func (a app) mcpCmd(args []string, stdin io.ReadCloser, stdout io.WriteCloser) i
 		fs.PrintDefaults()
 	}
 	dir := fs.String("home", "", "home directory of the daemon")
+	tokenFile := fs.String("token-file", "", "file holding the session token")
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return 0
@@ -46,9 +48,9 @@ func (a app) mcpCmd(args []string, stdin io.ReadCloser, stdout io.WriteCloser) i
 		fs.Usage()
 		return 2
 	}
-	token := os.Getenv(tools.TokenEnv)
-	if token == "" {
-		fmt.Fprintf(a.stderr, "hoplet mcp: %s is not set\n", tools.TokenEnv)
+	token, err := sessionToken(*tokenFile)
+	if err != nil {
+		fmt.Fprintf(a.stderr, "hoplet mcp: %v\n", err)
 		return 1
 	}
 	ctx := context.Background()
@@ -63,6 +65,26 @@ func (a app) mcpCmd(args []string, stdin io.ReadCloser, stdout io.WriteCloser) i
 		return 1
 	}
 	return 0
+}
+
+// sessionToken reads the token from file, or the environment when file is
+// empty.
+func sessionToken(file string) (string, error) {
+	if file == "" {
+		if t := os.Getenv(tools.TokenEnv); t != "" {
+			return t, nil
+		}
+		return "", fmt.Errorf("%s is not set", tools.TokenEnv)
+	}
+	b, err := os.ReadFile(file) //nolint:gosec // the path the daemon configured
+	if err != nil {
+		return "", fmt.Errorf("read the token file: %w", err)
+	}
+	t := strings.TrimSpace(string(b))
+	if t == "" {
+		return "", errors.New("the token file is empty")
+	}
+	return t, nil
 }
 
 // toolClient is the daemon connection serveMCP forwards to.

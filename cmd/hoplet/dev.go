@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 
 	"github.com/yangflow/hoplet/internal/harness"
@@ -16,16 +17,18 @@ import (
 	"github.com/yangflow/hoplet/internal/harness/codex"
 	"github.com/yangflow/hoplet/internal/harness/hermes"
 	"github.com/yangflow/hoplet/internal/home"
+	"github.com/yangflow/hoplet/internal/tools"
 	"github.com/yangflow/hoplet/proto"
 )
 
 const devUsage = `usage: hoplet dev record [--harness claude|codex] --steps FILE --out FILE [--dir DIR] [--bin PATH]
-                         [--permission MODE] [--plan] [--effort LEVEL] [--resume ID]
+                         [--permission MODE] [--plan] [--effort LEVEL] [--resume ID] [--persona TEXT] [--mcp COMMAND]
        hoplet dev sanitize [--harness claude|codex|hermes] --in FILE --out FILE --dir DIR
 
 record runs the harness the way Hoplet does, plays the steps (a JSON list,
 see the adapter's Step) and writes every line both ways to --out. It uses
-your login and quota. --resume continues a Codex thread. A Hermes recording is the spool of a
+your login and quota. --resume continues a Codex thread; --persona and --mcp give a new one
+an instruction and a tool server. A Hermes recording is the spool of a
 real Hoplet session (sessions/ID/spool.jsonl in Hoplet's home). Recordings
 hold personal paths: sanitize them (with the --dir they were made in)
 before committing them as contract-test fixtures.
@@ -60,6 +63,8 @@ func (a app) devRecord(args []string) int {
 	effort := fs.String("effort", "", "effort level")
 	kind := fs.String("harness", claude.Kind, "claude or codex")
 	resume := fs.String("resume", "", "the Codex thread to resume")
+	persona := fs.String("persona", "", "a persona for a new Codex thread")
+	mcpServer := fs.String("mcp", "", "command of an MCP server to give Codex as hoplet")
 	if code, ok := parse(fs, args, 0, 0); !ok {
 		return code
 	}
@@ -96,6 +101,10 @@ func (a app) devRecord(args []string) int {
 	}
 	spec := harness.Spec{Mode: proto.PermissionMode(*perm), Plan: *plan, Effort: proto.Effort(*effort), Resume: *resume}
 	if *kind == codex.Kind {
+		spec.Persona = *persona
+		if *mcpServer != "" {
+			spec.MCP = []harness.MCPServer{{Name: "hoplet", Command: strings.Fields(*mcpServer), Env: []string{tools.TokenEnv + "=record"}}}
+		}
 		var steps []codex.Step
 		if err = json.Unmarshal(b, &steps); err == nil {
 			err = codex.Record(ctx, codex.RecordConfig{Binary: *bin, Dir: abs, Env: vars, Spec: spec, Steps: steps}, out)

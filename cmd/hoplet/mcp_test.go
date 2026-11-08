@@ -273,3 +273,33 @@ func TestForwardImages(t *testing.T) {
 		})
 	}
 }
+
+func TestSessionToken(t *testing.T) {
+	dir := t.TempDir()
+	good, empty := filepath.Join(dir, "good"), filepath.Join(dir, "empty")
+	if err := os.WriteFile(good, []byte("from-file\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(empty, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(tools.TokenEnv, "from-env")
+	for _, c := range []struct {
+		file, want string
+		fails      bool
+	}{
+		{file: "", want: "from-env"},
+		{file: good, want: "from-file"},
+		{file: empty, fails: true},
+		{file: filepath.Join(dir, "gone"), fails: true},
+	} {
+		got, err := sessionToken(c.file)
+		if (err != nil) != c.fails || got != c.want {
+			t.Errorf("%q: %q, %v", c.file, got, err)
+		}
+	}
+	t.Setenv(tools.TokenEnv, "")
+	if _, err := sessionToken(""); err == nil {
+		t.Error("no token anywhere was accepted")
+	}
+}

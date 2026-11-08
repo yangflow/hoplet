@@ -23,6 +23,7 @@ import (
 	"github.com/yangflow/hoplet/internal/config"
 	"github.com/yangflow/hoplet/internal/env"
 	"github.com/yangflow/hoplet/internal/harness/claude"
+	"github.com/yangflow/hoplet/internal/harness/codex"
 )
 
 // harnessApp is a command line whose self-check succeeds unless fail is
@@ -432,5 +433,53 @@ func TestProxyClient(t *testing.T) {
 	u, err := tr.Proxy(&http.Request{URL: &url.URL{Scheme: "https", Host: "example.com"}})
 	if err != nil || u.Host != "127.0.0.1:7890" {
 		t.Fatalf("proxy %v %v", u, err)
+	}
+}
+
+func TestHarnessVerifyCodex(t *testing.T) {
+	h := t.TempDir()
+	t.Setenv("HOPLET_HOME", h)
+	var out, errb bytes.Buffer
+	a := testApp(&out, &errb)
+	a.env = env.Static{"PATH=/usr/bin:/bin"}
+	bin := codex.BinaryPath(h)
+	if err := os.MkdirAll(filepath.Dir(bin), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	write := func(v string) {
+		t.Helper()
+		if err := os.WriteFile(bin, []byte("#!/bin/sh\necho codex-cli "+v+"\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	verify := func() (int, string) {
+		out.Reset()
+		return a.run([]string{"harness", "verify", "codex"}), out.String()
+	}
+	write(codex.PinnedVersion)
+	runs := 0
+	var fail error
+	a.codexCheck = func(_ context.Context, got string, vars []string) error {
+		if got != bin || !slices.Contains(vars, "PATH=/usr/bin:/bin") {
+			return errors.New("the self-check did not get the harness environment")
+		}
+		runs++
+		return fail
+	}
+	if code, got := verify(); code != 0 || runs != 0 || !strings.Contains(got, "needs no check") {
+		t.Fatalf("recorded: exit %d, runs %d, %q", code, runs, got)
+	}
+	write("9.9.9")
+	fail = errors.New("no approval came")
+	if code, got := verify(); code != 1 || !strings.Contains(got, "failed the self-check") {
+		t.Fatalf("failing: exit %d %q", code, got)
+	}
+	fail = nil
+	if code, got := verify(); code != 0 || !strings.Contains(got, "passed the self-check") {
+		t.Fatalf("passing: exit %d %q", code, got)
+	}
+	runs = 0
+	if code, _ := verify(); code != 0 || runs != 0 {
+		t.Fatalf("passed before: exit %d, runs %d", code, runs)
 	}
 }
