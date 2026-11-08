@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/yangflow/hoplet/internal/tools"
+	"github.com/yangflow/hoplet/internal/voice"
 
 	"github.com/coder/websocket"
 
@@ -104,6 +105,7 @@ type server struct {
 	memory  *memory.Service
 	extract *extract.Worker
 	tools   *tools.Set
+	voice   *voice.Manager
 	token   string
 	host    string
 	version string

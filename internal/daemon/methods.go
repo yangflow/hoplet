@@ -28,6 +28,9 @@ func (c *conn) call(ctx context.Context, f proto.ClientFrame) (any, error) {
 	switch f.Method {
 	case proto.MethodHello:
 		return nil, &proto.APIError{Code: proto.CodeBadRequest, Message: "hello was already said"}
+	case proto.MethodVoiceProbe, proto.MethodVoiceStart, proto.MethodVoiceConfirm,
+		proto.MethodVoiceHeartbeat, proto.MethodVoiceStop:
+		return c.voiceCall(ctx, f)
 	case proto.MethodSessionsList:
 		ss, err := s.store.Sessions(ctx)
 		return nonNil(ss), err
