@@ -87,6 +87,12 @@ type PersonaKeeper interface {
 	KeepsPersona() bool
 }
 
+// CodeDigester is a harness with an entry for a Code session's memory
+// digest. Companion main sessions use the persona's entry on every harness.
+type CodeDigester interface {
+	TakesCodeDigest() bool
+}
+
 // Spec is what a session needs from its harness.
 //
 // MCP, when set, is injected; adapters of harnesses without
@@ -121,6 +127,9 @@ type Spec struct {
 	// companion's persona, empty for none. Other sessions get neither.
 	Companion bool
 	Persona   string
+	// Profile is the memory digest for this start, empty for none. Adapters
+	// deliver it through the persona's entry.
+	Profile string
 }
 
 // Event is one normalized event.

@@ -88,6 +88,10 @@ func TestLaunch(t *testing.T) {
 		"fast":        {spec: harness.Spec{Mode: proto.ModeConfirm, Fast: true}, want: []string{"--settings", `{"fastMode":true}`}},
 		"fast ultra":  {spec: harness.Spec{Mode: proto.ModeConfirm, Fast: true, Ultracode: true}, want: []string{"--settings", `{"fastMode":true,"ultracode":true}`}},
 		"bogus mode":  {spec: harness.Spec{Mode: "read_only"}, bad: true},
+		"digest only": {spec: harness.Spec{Mode: proto.ModeConfirm, Profile: "digest"},
+			want: []string{"--append-system-prompt", "digest"}},
+		"persona and digest": {spec: harness.Spec{Mode: proto.ModeConfirm, Companion: true, Persona: "be brief", Profile: "digest"},
+			want: []string{"--append-system-prompt", "be brief\n\ndigest"}},
 		"persona": {spec: harness.Spec{Mode: proto.ModeConfirm, Companion: true, Persona: "Start with: OK, partner.\n\n- be brief"},
 			want: []string{"--append-system-prompt", "Start with: OK, partner.\n\n- be brief"}},
 	} {
@@ -104,8 +108,8 @@ func TestLaunch(t *testing.T) {
 			t.Fatalf("%s: %v", name, err)
 		}
 		// The persona is one argument, and no persona adds none.
-		if i := slices.Index(l.Command, "--append-system-prompt"); (i >= 0) != (tc.spec.Persona != "") ||
-			i >= 0 && (i+1 >= len(l.Command) || l.Command[i+1] != tc.spec.Persona) {
+		if i := slices.Index(l.Command, "--append-system-prompt"); (i >= 0) != (systemPrompt(tc.spec) != "") ||
+			i >= 0 && (i+1 >= len(l.Command) || l.Command[i+1] != systemPrompt(tc.spec)) {
 			t.Errorf("%s: persona in %q", name, l.Command)
 		}
 		cmd := strings.Join(l.Command, " ")

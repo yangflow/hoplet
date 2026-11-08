@@ -112,6 +112,24 @@ func TestLaunch(t *testing.T) {
 			t.Errorf("persona %q: work files %q", persona, l.WorkFiles)
 		}
 	}
+	for _, tc := range []struct{ persona, profile, want string }{
+		{"be brief", "digest", note + "\nbe brief\n\ndigest"},
+		{"", "digest", note + "\ndigest"},
+	} {
+		l, err := h.Launch(harness.Spec{Mode: proto.ModeConfirm, Env: env, WorkDir: "/work", Companion: true, Persona: tc.persona, Profile: tc.profile})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := string(l.WorkFiles["HERMES.md"]); got != tc.want {
+			t.Errorf("%q + %q: %q", tc.persona, tc.profile, got)
+		}
+	}
+	if l, err := h.Launch(harness.Spec{Mode: proto.ModeConfirm, Env: env, WorkDir: "/work", Profile: "digest"}); err != nil || l.WorkFiles != nil {
+		t.Errorf("a Code session got a context file: %q, %v", l.WorkFiles, err)
+	}
+	if _, ok := any(h).(harness.CodeDigester); ok {
+		t.Error("Hermes has no entry for a Code session's digest")
+	}
 	if _, err := h.Launch(harness.Spec{Mode: proto.ModeAutoReview, Env: env}); err == nil {
 		t.Fatal("a mode Hermes lacks launched")
 	}
