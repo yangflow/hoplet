@@ -176,9 +176,9 @@ func TestApplyEvidence(t *testing.T) {
 		{"none", func(_ *writes) Write { return create("x") }},
 		{"bad format", func(_ *writes) Write { return create("x", Evidence{EvidenceObserved, "note:p/1"}) }},
 		{"op reference", func(_ *writes) Write { return create("x", Evidence{EvidenceUserStated, "op:abc"}) }},
-		{"missing event", func(f *writes) Write { return create("x", Evidence{EvidenceObserved, "event:p/999"}) }},
+		{"missing event", func(_ *writes) Write { return create("x", Evidence{EvidenceObserved, "event:p/999"}) }},
 		{"other session", func(f *writes) Write { return create("x", f.observed("q", before)) }},
-		{"missing artifact", func(f *writes) Write { return create("x", Evidence{EvidenceObserved, "artifact:nope/1"}) }},
+		{"missing artifact", func(_ *writes) Write { return create("x", Evidence{EvidenceObserved, "artifact:nope/1"}) }},
 		{"assistant as user", func(f *writes) Write {
 			return create("x", Evidence{EvidenceUserStated, f.observed("p", before).Ref})
 		}},
@@ -374,7 +374,7 @@ func TestApplyRetry(t *testing.T) {
 	}{
 		{"applied", func(f *writes) Write { return create("a", f.said("p", after)) }, OutcomeApplied},
 		{"candidate", func(f *writes) Write { return create("b", f.observed("p", after)) }, OutcomeCandidate},
-		{"rejected", func(f *writes) Write { return create("c") }, OutcomeRejected},
+		{"rejected", func(_ *writes) Write { return create("c") }, OutcomeRejected},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
