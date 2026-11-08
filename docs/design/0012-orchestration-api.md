@@ -95,6 +95,7 @@ flowchart LR
 | `handoff` | 转交 Code | 仅 Personal；参数 `directory`（必填）、`summary`（必填）、`title`、`harness`；建归属于我的 Code 会话，父会话为调用方，权限 confirm；`summary` 立即发出；返回 Code 会话 |
 | `report` | 交回结果 | 有父会话的会话；参数 `text`；以随机键交给父会话的消息队列，返回 `{queued}`，投递由队列完成 |
 | `artifact_publish` | 发布产物 | 所有会话；参数 `name`（必填）、`entry`（必填）、`files`，路径相对会话工作目录，解析符号链接后不能越出；以来源 `harness` 只发布到本会话；返回 `{id, name, kind, version}` |
+| `simulator_*` | 操作本机 iOS 模拟器：`list`、`boot`、`launch`、`screenshot`、`open_url`；目标：`tap`、`swipe`、`text`、`button` | 仅 Code 会话且主机为 macOS；`launch` 与输入类操作须持有设备占用；`screenshot` 的结果带图片内容 |
 
 回报带状态：子会话调用 `report` 为 `done`；转交的 Code 会话由 daemon 代为回报，等待审批为 `approval`，一轮正常结束为 `done`，以失败或中止结束为 `error`（没有回复时正文为失败原因）。委派与转交成功后父会话日志里有一条 `session.delegated`。
 

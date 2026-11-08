@@ -60,6 +60,7 @@ flowchart TB
 | [0012 服务入口与编排](design/0012-orchestration-api.md) | 服务入口、等待、扇出与跨机执行 |
 | [0025 产物](design/0025-artifacts.md) | 版本、发布、查看、页面能力与授权 |
 | [0027 语音通话](design/0027-voice-calls.md) | 语音服务接缝、控制器、生命周期与桌面通话 |
+| [0028 iOS 模拟器](design/0028-ios-simulator.md) | 设备服务、辅助进程、agent 工具、占用与桌面面板 |
 
 ## Personal 与成长
 

@@ -456,6 +456,7 @@ type toolSource struct {
 	mgr   *session.Manager
 	queue *queuer
 	arts  *artifact.Service
+	sim   tools.Simulator
 }
 
 // forModel turns an error the model can act on into a tools.Failure.
@@ -502,6 +503,8 @@ func (t toolSource) Publish(ctx context.Context, r artifact.Request) (proto.Arti
 	a, err := t.arts.Publish(ctx, r)
 	return a, forModel(err)
 }
+
+func (t toolSource) Simulator() tools.Simulator { return t.sim }
 
 func (t toolSource) Sessions(ctx context.Context) ([]proto.Session, error) {
 	return t.store.Sessions(ctx)
