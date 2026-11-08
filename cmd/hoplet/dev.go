@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -14,18 +13,19 @@ import (
 
 	"github.com/yangflow/hoplet/internal/harness"
 	"github.com/yangflow/hoplet/internal/harness/claude"
+	"github.com/yangflow/hoplet/internal/harness/codex"
 	"github.com/yangflow/hoplet/internal/harness/hermes"
 	"github.com/yangflow/hoplet/internal/home"
 	"github.com/yangflow/hoplet/proto"
 )
 
-const devUsage = `usage: hoplet dev record --steps FILE --out FILE [--dir DIR] [--bin PATH]
-                         [--permission MODE] [--plan] [--effort LEVEL]
-       hoplet dev sanitize [--harness claude|hermes] --in FILE --out FILE --dir DIR
+const devUsage = `usage: hoplet dev record [--harness claude|codex] --steps FILE --out FILE [--dir DIR] [--bin PATH]
+                         [--permission MODE] [--plan] [--effort LEVEL] [--resume ID]
+       hoplet dev sanitize [--harness claude|codex|hermes] --in FILE --out FILE --dir DIR
 
-record runs claude the way Hoplet does, plays the steps (a JSON list, see
-the Claude Code adapter's Step) and writes every line both ways to --out.
-It uses your claude login and quota. A Hermes recording is the spool of a
+record runs the harness the way Hoplet does, plays the steps (a JSON list,
+see the adapter's Step) and writes every line both ways to --out. It uses
+your login and quota. --resume continues a Codex thread. A Hermes recording is the spool of a
 real Hoplet session (sessions/ID/spool.jsonl in Hoplet's home). Recordings
 hold personal paths: sanitize them (with the --dir they were made in)
 before committing them as contract-test fixtures.
@@ -58,10 +58,12 @@ func (a app) devRecord(args []string) int {
 	perm := fs.String("permission", "confirm", "permission mode")
 	plan := fs.Bool("plan", false, "start in plan mode")
 	effort := fs.String("effort", "", "effort level")
+	kind := fs.String("harness", claude.Kind, "claude or codex")
+	resume := fs.String("resume", "", "the Codex thread to resume")
 	if code, ok := parse(fs, args, 0, 0); !ok {
 		return code
 	}
-	if *stepsPath == "" || *outPath == "" {
+	if *stepsPath == "" || *outPath == "" || (*kind != claude.Kind && *kind != codex.Kind) {
 		fs.Usage()
 		return 2
 	}
@@ -69,13 +71,9 @@ func (a app) devRecord(args []string) int {
 	if err != nil {
 		return a.fail("dev record", err)
 	}
-	var steps []claude.Step
-	if err := json.Unmarshal(b, &steps); err != nil {
-		return a.fail("dev record", fmt.Errorf("%s: %w", *stepsPath, err))
-	}
 	if *bin == "" {
-		if *bin, err = exec.LookPath("claude"); err != nil {
-			return a.fail("dev record", errors.New("no claude on PATH; give --bin"))
+		if *bin, err = exec.LookPath(*kind); err != nil {
+			return a.fail("dev record", fmt.Errorf("no %s on PATH; give --bin", *kind))
 		}
 	}
 	abs, err := filepath.Abs(*dir)
@@ -96,11 +94,18 @@ func (a app) devRecord(args []string) int {
 	if err != nil {
 		return a.fail("dev record", err)
 	}
-	err = claude.Record(ctx, claude.RecordConfig{
-		Binary: *bin, Dir: abs, Env: vars,
-		Spec:  harness.Spec{Mode: proto.PermissionMode(*perm), Plan: *plan, Effort: proto.Effort(*effort)},
-		Steps: steps,
-	}, out)
+	spec := harness.Spec{Mode: proto.PermissionMode(*perm), Plan: *plan, Effort: proto.Effort(*effort), Resume: *resume}
+	if *kind == codex.Kind {
+		var steps []codex.Step
+		if err = json.Unmarshal(b, &steps); err == nil {
+			err = codex.Record(ctx, codex.RecordConfig{Binary: *bin, Dir: abs, Env: vars, Spec: spec, Steps: steps}, out)
+		}
+	} else {
+		var steps []claude.Step
+		if err = json.Unmarshal(b, &steps); err == nil {
+			err = claude.Record(ctx, claude.RecordConfig{Binary: *bin, Dir: abs, Env: vars, Spec: spec, Steps: steps}, out)
+		}
+	}
 	if cerr := out.Close(); err == nil {
 		err = cerr
 	}
@@ -117,12 +122,13 @@ func (a app) devSanitize(args []string) int {
 	inPath := fs.String("in", "", "the recording")
 	outPath := fs.String("out", "", "where to write the fixture")
 	dir := fs.String("dir", "", "the working directory the recording was made in")
-	kind := fs.String("harness", claude.Kind, "claude or hermes")
+	kind := fs.String("harness", claude.Kind, "claude, codex or hermes")
 	if code, ok := parse(fs, args, 0, 0); !ok {
 		return code
 	}
 	sanitize := map[string]func(io.Reader, io.Writer, string, string) error{
 		claude.Kind: claude.Sanitize,
+		codex.Kind:  codex.Sanitize,
 		hermes.Kind: func(in io.Reader, out io.Writer, dir, home string) error {
 			// The shell this runs in has the environment Hermes ran with.
 			return hermes.Sanitize(in, out, dir, home, os.Environ())

@@ -1,0 +1,13 @@
+write {"id":"hoplet-x-1","method":"initialize","params":{"capabilities":{"experimentalApi":true},"clientInfo":{"name":"hoplet","title":"Hoplet","version":"1"}}}
+write {"method":"initialized"}
+write {"id":"hoplet-x-2","method":"thread/resume","params":{"approvalPolicy":"never","approvalsReviewer":"user","cwd":"/work","excludeTurns":true,"sandbox":"danger-full-access","threadId":"01a1baee-1102-7391-b028-dfa42f438db5"}}
+native 01a1baee-1102-7391-b028-dfa42f438db5 proto.ModelChanged {"model":"gpt-6-luna"}
+proto.ContextUsage {"used":23795,"window":828400}
+proto.Usage {"input_tokens":23790,"output_tokens":5}
+write {"id":"hoplet-x-3","method":"turn/start","params":{"input":[{"text":"Reply with the single word again.","type":"text"}],"threadId":"01a1baee-1102-7391-b028-dfa42f438db5"}}
+proto.TurnStarted {}
+proto.MessageDelta {"message_id":"msg_0f2afb44fed9a9bd016af05de3cfb487d0b5f7a3374342ca04","text":"done"}
+proto.Message {"id":"msg_0f2afb44fed9a9bd016af05de3cfb487d0b5f7a3374342ca04","role":"assistant","text":"done"}
+proto.ContextUsage {"used":26491,"window":828400}
+proto.Usage {"input_tokens":26486,"output_tokens":5}
+proto.TurnEnded {"reason":"completed"}

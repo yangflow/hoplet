@@ -1,0 +1,19 @@
+write {"id":"hoplet-x-1","method":"initialize","params":{"capabilities":{"experimentalApi":true},"clientInfo":{"name":"hoplet","title":"Hoplet","version":"1"}}}
+write {"method":"initialized"}
+write {"id":"hoplet-x-2","method":"thread/start","params":{"approvalPolicy":"never","approvalsReviewer":"user","cwd":"/work","sandbox":"danger-full-access"}}
+native 01a1baee-1102-7391-b028-dfa42f438db5 proto.ModelChanged {"model":"gpt-6-luna"}
+write {"id":"hoplet-x-3","method":"turn/start","params":{"input":[{"text":"Run the shell command `printf hoplet`, then create the file note.txt containing the word hi, then reply with the single word done.","type":"text"}],"threadId":"01a1baee-1102-7391-b028-dfa42f438db5"}}
+proto.TurnStarted {}
+proto.ToolCall {"id":"exec-fa1b4725-6a5a-45f5-bfb3-77ce0261866e","kind":"exec","name":"Shell","summary":"printf hoplet","status":"running"}
+proto.ToolCall {"id":"exec-fa1b4725-6a5a-45f5-bfb3-77ce0261866e","kind":"exec","name":"Shell","summary":"printf hoplet","status":"done"} output="hoplet"
+proto.ContextUsage {"used":23592,"window":828400}
+proto.Usage {"input_tokens":23557,"output_tokens":35}
+proto.ToolCall {"id":"exec-c0c6b5cf-3a58-4e4a-b793-32f8cccc8584","kind":"exec","name":"Shell","summary":"printf hi \u003e note.txt","status":"running"}
+proto.ToolCall {"id":"exec-c0c6b5cf-3a58-4e4a-b793-32f8cccc8584","kind":"exec","name":"Shell","summary":"printf hi \u003e note.txt","status":"done"}
+proto.ContextUsage {"used":23767,"window":828400}
+proto.Usage {"input_tokens":23670,"output_tokens":97}
+proto.MessageDelta {"message_id":"msg_0800bacb509f960d016af05dc703b487d0ab64e65917871c66","text":"done"}
+proto.Message {"id":"msg_0800bacb509f960d016af05dc703b487d0ab64e65917871c66","role":"assistant","text":"done"}
+proto.ContextUsage {"used":23795,"window":828400}
+proto.Usage {"input_tokens":23790,"output_tokens":5}
+proto.TurnEnded {"reason":"completed"}
