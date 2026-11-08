@@ -48,6 +48,9 @@ type threadParams struct {
 	ExcludeTurns      bool   `json:"excludeTurns,omitempty"`
 
 	DeveloperInstructions string `json:"developerInstructions,omitempty"`
+
+	// Config overrides configuration for this thread, by dotted key.
+	Config map[string]any `json:"config,omitempty"`
 }
 
 type threadResult struct {

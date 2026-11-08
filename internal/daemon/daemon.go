@@ -188,9 +188,10 @@ func Start(ctx context.Context, cfg Config) (d *Daemon, err error) {
 	if gitErr == nil {
 		repoIdentity = func(ctx context.Context, dir string) (string, bool) { return git.RepoIdentity(ctx, dir, host) }
 	}
+	mcpCommand := []string{cfg.Exe, "mcp", "--home", cfg.Home}
 	mgr, err := session.New(session.Config{
 		Store: st, Root: home.Sessions(cfg.Home), Companions: home.Companions(cfg.Home), Spawner: session.ExecSpawner{Exe: cfg.Exe},
-		MCPCommand: []string{cfg.Exe, "mcp", "--home", cfg.Home},
+		MCPCommand: mcpCommand,
 		Harnesses:  cfg.Harnesses, Env: snap.Vars, Logger: log, Baseline: ws.CaptureBaseline,
 		Memory: mem, Host: host, RepoIdentity: repoIdentity,
 	})
@@ -249,7 +250,7 @@ func Start(ctx context.Context, cfg Config) (d *Daemon, err error) {
 		Store: st, Memory: mem, Harnesses: cfg.Harnesses, Scopes: mgr.ProfileScopes, Env: mgr.Env, Log: log,
 	})
 	srv := &server{
-		voice:   voice.New(cfg.Voice, log),
+		voice:   voice.New(cfg.Voice, &voiceController{store: st, command: mcpCommand, log: log}, log),
 		extract: ext,
 		ctx:     runCtx, store: st, mgr: mgr, ws: ws, queue: q, sys: sys, token: token, arts: arts, memory: mem,
 		tools: tools.New(toolSource{store: st, mgr: mgr, queue: q, arts: arts, sim: sim, mem: mem, extract: ext}),

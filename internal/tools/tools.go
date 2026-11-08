@@ -31,6 +31,8 @@ type Source interface {
 	// stored but the prompt could not be sent, it returns the session with
 	// the error.
 	Create(ctx context.Context, c Create) (proto.Session, error)
+	// LatestReply is the text of the session's latest assistant message.
+	LatestReply(ctx context.Context, id proto.SessionID) (string, error)
 	// Send sends a message, queueing it while a turn runs.
 	Send(ctx context.Context, p proto.SendParams) (proto.SendReply, error)
 	// Report queues text for parent as a report from session from.
@@ -49,8 +51,17 @@ type Source interface {
 // *Failure is shown to the model; any other error fails the request.
 type tool struct {
 	info    proto.ToolInfo
-	visible func(caller proto.Session) bool
+	visible func(caller proto.Session) bool // ignored on a voice tool
+	voice   bool                            // only for a voice call's controller, which has nothing else
 	call    func(ctx context.Context, caller proto.Session, args json.RawMessage) (any, error)
+}
+
+// allowed reports whether caller may use t.
+func (t tool) allowed(caller proto.Session) bool {
+	if caller.Mode == proto.ModeVoice || t.voice {
+		return caller.Mode == proto.ModeVoice && t.voice
+	}
+	return t.visible(caller)
 }
 
 // Failure is a call that failed in a way the model should read and can
@@ -84,6 +95,10 @@ type Set struct {
 // New returns the tool table over src.
 func New(src Source) *Set {
 	everyone := func(proto.Session) bool { return true }
+	vt := voiceTools(src)
+	for i := range vt {
+		vt[i].voice = true
+	}
 	return &Set{tools: append([]tool{
 		{
 			info: proto.ToolInfo{
@@ -130,14 +145,14 @@ func New(src Source) *Set {
 				return src.State(ctx, id)
 			},
 		},
-	}, slices.Concat(delegationTools(src), artifactTools(src), simulatorTools(src), profileTools(src))...)}
+	}, slices.Concat(vt, delegationTools(src), artifactTools(src), simulatorTools(src), profileTools(src))...)}
 }
 
 // List returns the tools caller may call.
 func (s *Set) List(caller proto.Session) []proto.ToolInfo {
 	out := []proto.ToolInfo{}
 	for _, t := range s.tools {
-		if t.visible(caller) {
+		if t.allowed(caller) {
 			out = append(out, t.info)
 		}
 	}
@@ -148,7 +163,7 @@ func (s *Set) List(caller proto.Session) []proto.ToolInfo {
 // as a result with IsError set; the error is for everything else.
 func (s *Set) Call(ctx context.Context, caller proto.Session, name string, args json.RawMessage) (proto.ToolsCallResult, error) {
 	for _, t := range s.tools {
-		if t.info.Name != name || !t.visible(caller) {
+		if t.info.Name != name || !t.allowed(caller) {
 			continue
 		}
 		v, err := t.call(ctx, caller, args)

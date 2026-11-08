@@ -55,6 +55,7 @@ func (c *conn) call(ctx context.Context, f proto.ClientFrame) (any, error) {
 		if err := decode(f, &p); err != nil {
 			return nil, err
 		}
+		p.Via = ""
 		return s.queue.send(ctx, p)
 	case proto.MethodSessionsRespond:
 		var p proto.RespondParams
@@ -551,7 +552,7 @@ func (t toolSource) Create(ctx context.Context, c tools.Create) (proto.Session, 
 	if c.Owner == proto.OwnerMe && c.Parent != "" && t.extract != nil {
 		t.extract.Enqueue(c.Parent, extract.TriggerHandoff)
 	}
-	if _, err := t.queue.send(ctx, proto.SendParams{Session: sess.ID, Text: c.Prompt, Key: "create:" + string(sess.ID)}); err != nil {
+	if _, err := t.queue.send(ctx, proto.SendParams{Session: sess.ID, Text: c.Prompt, Key: "create:" + string(sess.ID), Via: c.Via}); err != nil {
 		return sess, forModel(err)
 	}
 	return t.store.Session(ctx, sess.ID)
@@ -611,6 +612,10 @@ func (p profileSource) Apply(ctx context.Context, w memory.Write) (memory.Result
 
 func (t toolSource) Sessions(ctx context.Context) ([]proto.Session, error) {
 	return t.store.Sessions(ctx)
+}
+
+func (t toolSource) LatestReply(ctx context.Context, id proto.SessionID) (string, error) {
+	return t.store.LatestReply(ctx, id)
 }
 
 func (t toolSource) State(ctx context.Context, id proto.SessionID) (proto.SessionState, error) {

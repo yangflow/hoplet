@@ -3,6 +3,7 @@ package daemon
 import (
 	"bytes"
 	"context"
+	"errors"
 	"log/slog"
 	"strings"
 	"sync"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/yangflow/hoplet/internal/client"
 	"github.com/yangflow/hoplet/internal/harness/fake"
+	"github.com/yangflow/hoplet/internal/store"
 	"github.com/yangflow/hoplet/internal/voice"
 	"github.com/yangflow/hoplet/proto"
 )
@@ -141,5 +143,69 @@ func TestDaemonCloseEndsTheCall(t *testing.T) {
 	case <-call.done:
 	default:
 		t.Fatal("the call outlived the daemon")
+	}
+}
+
+func TestVoiceControllerRecordsTheCall(t *testing.T) {
+	ctx := timeout(t)
+	h, script := newHome(t, fake.Script{})
+	d := start(t, testConfig(h, script))
+	c := &voiceController{store: d.store, command: []string{"/bin/hoplet", "mcp"}, log: slog.New(slog.DiscardHandler)}
+
+	begin := func() (*voiceControl, string) {
+		ctl, err := c.Begin(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		v := ctl.(*voiceControl)
+		_, token, _ := strings.Cut(v.tools[0].Env[0], "=")
+		return v, token
+	}
+
+	silent, token := begin()
+	if _, err := d.store.SessionByToken(ctx, store.TokenHash(token)); err != nil {
+		t.Fatal(err)
+	}
+	silent.End()
+	if s, err := d.store.Session(ctx, silent.id); err != nil || s.ArchivedAt == nil {
+		t.Fatalf("a silent call stayed: %+v %v", s, err)
+	}
+
+	v, token := begin()
+	v.Transcript(proto.RoleUser, "seg1", "hello")
+	v.End()
+	if _, err := d.store.SessionByToken(ctx, store.TokenHash(token)); !errors.Is(err, store.ErrNotFound) {
+		t.Fatalf("the token outlived the call: %v", err)
+	}
+	s, err := d.store.Session(ctx, v.id)
+	if err != nil || s.ArchivedAt != nil {
+		t.Fatalf("session: %+v %v", s, err)
+	}
+	evs, err := d.store.Events(ctx, v.id, 0, 10)
+	if err != nil || len(evs) != 1 {
+		t.Fatalf("events: %+v %v", evs, err)
+	}
+	if ss, err := d.store.Sessions(ctx); err != nil || len(ss) != 0 {
+		t.Fatalf("listed: %+v %v", ss, err)
+	}
+}
+
+func TestVoiceSessionTakesNoMessages(t *testing.T) {
+	ctx := timeout(t)
+	h, script := newHome(t, fake.Script{})
+	d := start(t, testConfig(h, script))
+	c := &voiceController{store: d.store, command: []string{"x"}, log: slog.New(slog.DiscardHandler)}
+	ctl, err := c.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ctl.End()
+	id := ctl.(*voiceControl).id
+	cl := dial(t, h, "desk")
+	var reply proto.SendReply
+	err = cl.Call(ctx, proto.MethodSessionsSend, proto.SendParams{Session: id, Text: "hi", Key: "k"}, &reply)
+	var api *proto.APIError
+	if !errors.As(err, &api) || api.Code != proto.CodeInvalid {
+		t.Fatalf("send: %v", err)
 	}
 }

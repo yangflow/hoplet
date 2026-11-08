@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/yangflow/hoplet/internal/harness"
 	"github.com/yangflow/hoplet/proto"
 )
 
@@ -29,6 +30,24 @@ const (
 type StartRequest struct {
 	Offer string
 	Voice string
+	// Tools are the MCP servers the call's model gets.
+	Tools []harness.MCPServer
+	// Transcript receives each final piece of transcript, in order; nil
+	// discards them. role says who spoke, id names the piece.
+	Transcript func(role proto.Role, id, text string)
+}
+
+// Controller provides what a call works with besides its media.
+type Controller interface {
+	Begin(ctx context.Context) (Control, error)
+}
+
+// Control is what a controller provides for one call.
+type Control interface {
+	Tools() []harness.MCPServer
+	Transcript(role proto.Role, id, text string)
+	// End is called once, after the call has stopped.
+	End()
 }
 
 // Provider is a voice service a host can use. Probe and Start report a
@@ -60,6 +79,7 @@ type active struct {
 	id     proto.VoiceCallID
 	device string
 	call   Call
+	ctl    Control       // nil without a controller
 	beat   chan struct{} // wakes the watcher to extend the deadline
 	gone   chan struct{} // closed when the call is over
 }
@@ -74,6 +94,7 @@ type ended struct {
 // Manager holds the host's voice call.
 type Manager struct {
 	provider Provider
+	control  Controller
 	log      *slog.Logger
 
 	mu     sync.Mutex
@@ -83,9 +104,10 @@ type Manager struct {
 	wg     sync.WaitGroup
 }
 
-// New returns a manager using provider; nil means the host has none.
-func New(provider Provider, log *slog.Logger) *Manager {
-	return &Manager{provider: provider, log: log}
+// New returns a manager using provider, nil meaning the host has none, and
+// control, nil meaning calls have no tools and keep no transcript.
+func New(provider Provider, control Controller, log *slog.Logger) *Manager {
+	return &Manager{provider: provider, control: control, log: log}
 }
 
 // Probe says whether the host can take a call now. A failed check is an
@@ -127,15 +149,31 @@ func (m *Manager) Start(ctx context.Context, device string, p proto.VoiceStartPa
 	}
 	ctx, cancel := context.WithTimeout(ctx, startTimeout)
 	defer cancel()
-	call, err := m.provider.Start(ctx, StartRequest{Offer: p.Offer, Voice: p.Voice})
+	req := StartRequest{Offer: p.Offer, Voice: p.Voice}
+	if m.control != nil {
+		ctl, err := m.control.Begin(ctx)
+		if err != nil {
+			m.release(c)
+			m.log.Warn("voice controller not started", "err", err)
+			return proto.VoiceStartResult{}, publicError(proto.CodeVoiceMedia)
+		}
+		c.ctl, req.Tools, req.Transcript = ctl, ctl.Tools(), ctl.Transcript
+	}
+	call, err := m.provider.Start(ctx, req)
 	if err != nil {
 		m.release(c)
+		if c.ctl != nil {
+			c.ctl.End()
+		}
 		code := m.reason(err)
 		m.log.Info("voice call not started", "reason", code)
 		return proto.VoiceStartResult{}, publicError(code)
 	}
 	if !m.attach(c, call) {
 		m.stop(call)
+		if c.ctl != nil {
+			c.ctl.End()
+		}
 		return proto.VoiceStartResult{}, publicError(proto.CodeVoiceEnded)
 	}
 	m.log.Info("voice call started", "call", c.id)
@@ -284,6 +322,9 @@ func (m *Manager) finish(c *active, reason proto.ErrorCode) {
 	m.log.Info("voice call ended", "call", c.id, "reason", reason)
 	if call != nil {
 		m.stop(call)
+		if c.ctl != nil {
+			c.ctl.End()
+		}
 	}
 }
 
