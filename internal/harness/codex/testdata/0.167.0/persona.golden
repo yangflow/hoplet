@@ -1,0 +1,41 @@
+write {"id":"hoplet-x-1","method":"initialize","params":{"capabilities":{"experimentalApi":true},"clientInfo":{"name":"hoplet","title":"Hoplet","version":"1"}}}
+write {"method":"initialized"}
+write {"id":"hoplet-x-2","method":"thread/start","params":{"approvalPolicy":"untrusted","approvalsReviewer":"user","cwd":"/work","developerInstructions":"The codeword is heron. When asked for the codeword, answer with it.","sandbox":"workspace-write"}}
+native 01a1bb5b-0a33-7593-bc59-0863986e7615 proto.ModelChanged {"model":"gpt-6-luna"}
+write {"id":"hoplet-x-3","method":"thread/settings/update","params":{"effort":"low","threadId":"01a1bb5b-0a33-7593-bc59-0863986e7615"}}
+write {"id":"hoplet-x-4","method":"turn/start","params":{"input":[{"text":"What is the codeword? Reply with only the codeword.","type":"text"}],"threadId":"01a1bb5b-0a33-7593-bc59-0863986e7615"}}
+proto.TurnStarted {}
+proto.MessageDelta {"message_id":"msg_052091674ef2c485016af079a6ede887d091682e94e05194ee","text":"her"}
+proto.MessageDelta {"message_id":"msg_052091674ef2c485016af079a6ede887d091682e94e05194ee","text":"on"}
+proto.Message {"id":"msg_052091674ef2c485016af079a6ede887d091682e94e05194ee","role":"assistant","text":"heron"}
+proto.ContextUsage {"used":24066,"window":828400}
+proto.Usage {"input_tokens":24060,"output_tokens":6}
+proto.TurnEnded {"reason":"completed"}
+write {"id":"hoplet-x-5","method":"thread/settings/update","params":{"collaborationMode":{"mode":"plan","settings":{"developer_instructions":null,"model":"gpt-6-luna","reasoning_effort":"low"}},"threadId":"01a1bb5b-0a33-7593-bc59-0863986e7615"}}
+write {"id":"hoplet-x-6","method":"turn/start","params":{"input":[{"text":"What is the codeword? Reply with only the codeword.","type":"text"}],"threadId":"01a1bb5b-0a33-7593-bc59-0863986e7615"}}
+proto.TurnStarted {}
+proto.MessageDelta {"message_id":"msg_052091674ef2c485016af079a8648887d08d01eef2b3bf3861","text":"her"}
+proto.MessageDelta {"message_id":"msg_052091674ef2c485016af079a8648887d08d01eef2b3bf3861","text":"on"}
+proto.Message {"id":"msg_052091674ef2c485016af079a8648887d08d01eef2b3bf3861","role":"assistant","text":"heron"}
+proto.ContextUsage {"used":25892,"window":828400}
+proto.Usage {"input_tokens":25886,"output_tokens":6}
+proto.TurnEnded {"reason":"completed"}
+write {"id":"hoplet-x-7","method":"thread/settings/update","params":{"collaborationMode":{"mode":"default","settings":{"developer_instructions":null,"model":"gpt-6-luna","reasoning_effort":"low"}},"threadId":"01a1bb5b-0a33-7593-bc59-0863986e7615"}}
+write {"id":"hoplet-x-8","method":"turn/start","params":{"input":[{"text":"Call the echo tool of the hoplet MCP server with text hi. Then reply with exactly what it returned.","type":"text"}],"threadId":"01a1bb5b-0a33-7593-bc59-0863986e7615"}}
+proto.TurnStarted {}
+proto.ContextUsage {"used":26165,"window":828400}
+proto.Usage {"input_tokens":26124,"output_tokens":41}
+proto.ToolCall {"id":"exec-98798f13-7fd7-4aef-9585-dce5208b29ac","kind":"other","name":"echo","summary":"hoplet: echo","status":"running"}
+proto.ToolCall {"id":"exec-98798f13-7fd7-4aef-9585-dce5208b29ac","kind":"other","name":"echo","summary":"hoplet: echo","status":"done"} output="echo:hi:token-ok"
+proto.ContextUsage {"used":26280,"window":828400}
+proto.Usage {"input_tokens":26249,"output_tokens":31}
+proto.MessageDelta {"message_id":"msg_052091674ef2c485016af079aed93c87d0bb289ae3348ccba5","text":"echo"}
+proto.MessageDelta {"message_id":"msg_052091674ef2c485016af079aed93c87d0bb289ae3348ccba5","text":":"}
+proto.MessageDelta {"message_id":"msg_052091674ef2c485016af079aed93c87d0bb289ae3348ccba5","text":"hi"}
+proto.MessageDelta {"message_id":"msg_052091674ef2c485016af079aed93c87d0bb289ae3348ccba5","text":":"}
+proto.MessageDelta {"message_id":"msg_052091674ef2c485016af079aed93c87d0bb289ae3348ccba5","text":"token"}
+proto.MessageDelta {"message_id":"msg_052091674ef2c485016af079aed93c87d0bb289ae3348ccba5","text":"-ok"}
+proto.Message {"id":"msg_052091674ef2c485016af079aed93c87d0bb289ae3348ccba5","role":"assistant","text":"echo:hi:token-ok"}
+proto.ContextUsage {"used":26331,"window":828400}
+proto.Usage {"input_tokens":26321,"output_tokens":10}
+proto.TurnEnded {"reason":"completed"}

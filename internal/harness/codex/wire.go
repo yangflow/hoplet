@@ -46,6 +46,8 @@ type threadParams struct {
 	ApprovalsReviewer string `json:"approvalsReviewer"`
 	Ephemeral         bool   `json:"ephemeral,omitempty"`
 	ExcludeTurns      bool   `json:"excludeTurns,omitempty"`
+
+	DeveloperInstructions string `json:"developerInstructions,omitempty"`
 }
 
 type threadResult struct {
