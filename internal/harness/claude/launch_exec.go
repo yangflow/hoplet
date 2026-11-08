@@ -31,3 +31,8 @@ func verifySignature(ctx context.Context, path string) error {
 	}
 	return nil
 }
+
+// extractCommand runs the managed binary for one isolated extraction.
+func extractCommand(ctx context.Context, bin string, args []string) *exec.Cmd {
+	return exec.CommandContext(ctx, bin, args...)
+}

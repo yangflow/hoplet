@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os/exec"
 	"strings"
 	"time"
 
@@ -94,8 +93,3 @@ func lastLine(s string) string {
 	return s
 }
 
-// extractCommand runs the managed binary. It lives apart for the same lint
-// exclusion as launchCommand.
-func extractCommand(ctx context.Context, bin string, args []string) *exec.Cmd {
-	return exec.CommandContext(ctx, bin, args...)
-}
