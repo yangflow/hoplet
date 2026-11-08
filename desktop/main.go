@@ -128,6 +128,16 @@ type desktop struct {
 	back, forward, newSession                  *mygo.MenuItem
 }
 
+// errNoDaemon says a request found no connection.
+var errNoDaemon = errors.New("没有连上守护进程")
+
+// client returns the current connection, nil while there is none.
+func (d *desktop) client() *client.Client {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.c
+}
+
 func (d *desktop) setClient(c *client.Client) {
 	d.mu.Lock()
 	d.c = c
@@ -383,6 +393,78 @@ func (d *desktop) ReadFile(p proto.FilesReadParams, done func(proto.FileContent,
 		d.ui(func() { done(fc, err) })
 	}()
 }
+
+// Artifacts implements shell.Host.
+func (d *desktop) Artifacts(id proto.SessionID, done func([]proto.Artifact, error)) {
+	d.artifactCall(done, func(ctx context.Context, c *client.Client) ([]proto.Artifact, error) {
+		return c.Artifacts(ctx, id)
+	})
+}
+
+// ArtifactVersions implements shell.Host.
+func (d *desktop) ArtifactVersions(id proto.ArtifactID, done func([]proto.Artifact, error)) {
+	d.artifactCall(done, func(ctx context.Context, c *client.Client) ([]proto.Artifact, error) {
+		return c.ArtifactVersions(ctx, id)
+	})
+}
+
+// artifactCall runs a listing off the UI thread and hands back its answer
+// or why there is none.
+func (d *desktop) artifactCall(done func([]proto.Artifact, error), fn func(context.Context, *client.Client) ([]proto.Artifact, error)) {
+	c := d.client()
+	if c == nil {
+		done(nil, errNoDaemon)
+		return
+	}
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), callTimeout)
+		defer cancel()
+		as, err := fn(ctx, c)
+		d.ui(func() { done(as, err) })
+	}()
+}
+
+// ReadArtifact implements shell.Host.
+func (d *desktop) ReadArtifact(p proto.ArtifactsReadParams, done func([]byte, error)) {
+	c := d.client()
+	if c == nil {
+		done(nil, errNoDaemon)
+		return
+	}
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), callTimeout)
+		defer cancel()
+		data, err := readArtifact(ctx, c, p)
+		d.ui(func() { done(data, err) })
+	}()
+}
+
+// readArtifact reads a whole file of an artifact version, chunk by chunk.
+func readArtifact(ctx context.Context, c *client.Client, p proto.ArtifactsReadParams) ([]byte, error) {
+	var data []byte
+	for {
+		p.Offset = int64(len(data))
+		ch, err := c.ReadArtifact(ctx, p)
+		if err != nil {
+			return nil, err
+		}
+		data = append(data, ch.Data...)
+		if len(ch.Data) == 0 || int64(len(data)) >= ch.Size {
+			return data, nil
+		}
+	}
+}
+
+// ArtifactPage implements shell.Host.
+func (d *desktop) ArtifactPage(proto.ArtifactID, int, func(error)) (ui.NativeWebView, error) {
+	return nil, errors.New("HTML 产物还不能显示")
+}
+
+// ReloadArtifactPage implements shell.Host.
+func (d *desktop) ReloadArtifactPage(proto.ArtifactID, int) {}
+
+// CloseArtifactPages implements shell.Host.
+func (d *desktop) CloseArtifactPages(proto.ArtifactID) {}
 
 // Open implements shell.Host.
 func (d *desktop) Open(path string) {

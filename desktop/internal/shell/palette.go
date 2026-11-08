@@ -171,7 +171,7 @@ func (a *App) OpenPalette() {
 // of it when no Code session shows.
 func (a *App) OpenFilePicker() {
 	a.OpenPalette()
-	if _, ok := a.panelSession(); ok {
+	if _, ok := a.codePanelSession(); ok {
 		a.s.palScope = scopeFiles
 	}
 }
@@ -344,7 +344,7 @@ func (a *App) palette(c *ui.Context, k theme.Colors) {
 		return
 	}
 	scopes := []string{"全部", "会话", "命令"}
-	s, code := a.panelSession()
+	s, code := a.codePanelSession()
 	if code {
 		scopes = append(scopes, "文件")
 	} else if a.s.palScope == scopeFiles {

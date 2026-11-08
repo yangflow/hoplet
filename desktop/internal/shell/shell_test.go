@@ -19,34 +19,43 @@ import (
 // host records what the shell asks for; calls holds the 9b requests as
 // the parameters they were given.
 type host struct {
-	sendErr    error // what Send answers
-	diffs      map[proto.SessionID]proto.SessionDiff
-	patched    []proto.SessionID            // the sessions DiffPatch was asked for
-	ranged     map[string]proto.SessionDiff // what DiffPatch answers for a range, by "range" or "commit:sha"
-	diffAsked  []proto.DiffParams           // what DiffPatch was asked
-	commits    proto.SessionCommits         // what Commits answers
-	commitsFor []proto.CommitsParams        // what Commits was asked
-	held       bool                         // DiffPatch answers only when pending runs
-	pending    func()
-	lists      map[string]proto.FileList    // what Files answers, by directory
-	listed     []proto.FilesListParams      // what Files was asked
-	contents   map[string]proto.FileContent // what ReadFile answers, by path ("base:" for the baseline)
-	read       []proto.FilesReadParams      // what ReadFile was asked
-	reconnects int
-	updates    []proto.UpdateParams
-	stopped    []proto.SessionID
-	archived   []proto.SessionID
-	revealed   []string
-	calls      []any
-	followed   []proto.SessionID
-	created    func(proto.Session) // the pending Create's done
-	outputs    map[string]proto.ToolOutput
-	outputErrs map[string]error
-	models     []proto.HarnessInfo
-	states     map[proto.SessionID]proto.SessionState // what Session answers
-	asked      []proto.SessionID                      // the sessions Session was asked for
-	folder     string
-	records    map[string]proto.EventsPage // what Older answers for a subagent's record
+	sendErr     error // what Send answers
+	diffs       map[proto.SessionID]proto.SessionDiff
+	patched     []proto.SessionID            // the sessions DiffPatch was asked for
+	ranged      map[string]proto.SessionDiff // what DiffPatch answers for a range, by "range" or "commit:sha"
+	diffAsked   []proto.DiffParams           // what DiffPatch was asked
+	commits     proto.SessionCommits         // what Commits answers
+	commitsFor  []proto.CommitsParams        // what Commits was asked
+	held        bool                         // DiffPatch answers only when pending runs
+	pending     func()
+	lists       map[string]proto.FileList             // what Files answers, by directory
+	listed      []proto.FilesListParams               // what Files was asked
+	contents    map[string]proto.FileContent          // what ReadFile answers, by path ("base:" for the baseline)
+	read        []proto.FilesReadParams               // what ReadFile was asked
+	artifacts   map[proto.SessionID][]proto.Artifact  // what Artifacts answers
+	listedArts  []proto.SessionID                     // what Artifacts was asked
+	artVersions map[proto.ArtifactID][]proto.Artifact // what ArtifactVersions answers
+	artFiles    map[string][]byte                     // what ReadArtifact answers, by "id/vN"
+	artErr      error                                 // why ReadArtifact fails
+	readArts    []proto.ArtifactsReadParams           // what ReadArtifact was asked
+	pages       []string                              // what ArtifactPage made, by "id/vN"
+	reloads     []string                              // what ReloadArtifactPage loaded, by "id/vN"
+	closedArts  []proto.ArtifactID
+	reconnects  int
+	updates     []proto.UpdateParams
+	stopped     []proto.SessionID
+	archived    []proto.SessionID
+	revealed    []string
+	calls       []any
+	followed    []proto.SessionID
+	created     func(proto.Session) // the pending Create's done
+	outputs     map[string]proto.ToolOutput
+	outputErrs  map[string]error
+	models      []proto.HarnessInfo
+	states      map[proto.SessionID]proto.SessionState // what Session answers
+	asked       []proto.SessionID                      // the sessions Session was asked for
+	folder      string
+	records     map[string]proto.EventsPage // what Older answers for a subagent's record
 }
 
 func (h *host) Update(p proto.UpdateParams) { h.updates = append(h.updates, p) }
@@ -151,6 +160,29 @@ func (h *host) ReadFile(p proto.FilesReadParams, done func(proto.FileContent, er
 		done(fc, nil)
 	}
 }
+func (h *host) Artifacts(id proto.SessionID, done func([]proto.Artifact, error)) {
+	h.listedArts = append(h.listedArts, id)
+	done(h.artifacts[id], nil)
+}
+func (h *host) ArtifactVersions(id proto.ArtifactID, done func([]proto.Artifact, error)) {
+	done(h.artVersions[id], nil)
+}
+func (h *host) ReadArtifact(p proto.ArtifactsReadParams, done func([]byte, error)) {
+	h.readArts = append(h.readArts, p)
+	if h.artErr != nil {
+		done(nil, h.artErr)
+		return
+	}
+	done(h.artFiles[fmt.Sprintf("%s/v%d", p.Artifact, p.Version)], nil)
+}
+func (h *host) ArtifactPage(id proto.ArtifactID, version int, _ func(error)) (ui.NativeWebView, error) {
+	h.pages = append(h.pages, fmt.Sprintf("%s/v%d", id, version))
+	return nil, nil
+}
+func (h *host) ReloadArtifactPage(id proto.ArtifactID, version int) {
+	h.reloads = append(h.reloads, fmt.Sprintf("%s/v%d", id, version))
+}
+func (h *host) CloseArtifactPages(id proto.ArtifactID)   { h.closedArts = append(h.closedArts, id) }
 func (h *host) Open(path string)                         { h.calls = append(h.calls, "open "+path) }
 func (h *host) CopyPath(path string)                     { h.calls = append(h.calls, "copy "+path) }
 func (h *host) Reconnect()                               { h.reconnects++ }

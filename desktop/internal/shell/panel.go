@@ -19,14 +19,16 @@ type panelColumn int
 const (
 	columnTree panelColumn = iota
 	columnChanges
+	columnArtifacts
 )
 
 // panelTab is a tab of the right panel's viewer: a file, the one changes
-// tab, or a subagent's record.
+// tab, a subagent's record or an artifact.
 type panelTab struct {
-	changes bool
-	path    string // the file, relative to the working directory
-	agent   string // the subagent, by ID
+	changes  bool
+	path     string           // the file, relative to the working directory
+	agent    string           // the subagent, by ID
+	artifact proto.ArtifactID // the artifact; the version it shows is its view's
 }
 
 // panelState is a session's right panel: its tabs, the current one, the
@@ -42,6 +44,7 @@ type panelState struct {
 	tree   fileTree
 	picker filePicker
 	views  map[string]*fileView // open files, by path relative to the working directory
+	arts   artifactList
 }
 
 // railPill is the identity of the column switch's raised block.
@@ -60,12 +63,21 @@ func (a *App) panelFor(id proto.SessionID) *panelState {
 	return ps
 }
 
-// panelSession is the session the right panel belongs to: a Code session
-// shown in the content area. Personal sessions, the inbox and the new
-// page have none.
+// panelSession is the session the right panel belongs to: the session
+// shown in the content area. The inbox and the new page have none.
 func (a *App) panelSession() (proto.Session, bool) {
 	s, ok := a.current()
-	if !ok || a.inbox || a.s.newPage || s.Mode != proto.ModeCode {
+	if !ok || a.inbox || a.s.newPage {
+		return proto.Session{}, false
+	}
+	return s, true
+}
+
+// codePanelSession is panelSession for what only a Code session's panel
+// has: its files and changes.
+func (a *App) codePanelSession() (proto.Session, bool) {
+	s, ok := a.panelSession()
+	if !ok || s.Mode != proto.ModeCode {
 		return proto.Session{}, false
 	}
 	return s, true
@@ -116,7 +128,7 @@ func (a *App) fitColumns(sideMin float32) fitOut {
 
 // ShowPanel opens the right panel on a column.
 func (a *App) ShowPanel(col panelColumn) {
-	s, ok := a.panelSession()
+	s, ok := a.codePanelSession()
 	if !ok {
 		return
 	}
@@ -145,6 +157,9 @@ func (a *App) main(c *ui.Context, k theme.Colors, room float32) {
 	}
 	target := a.fit.panel
 	want := ps != nil && target > 0
+	if want {
+		a.syncArtifacts(s, ps)
+	}
 	if !want {
 		target = 0
 	}
@@ -375,6 +390,10 @@ func (a *App) panelTabs(c *ui.Context, k theme.Colors, s proto.Session, ps *pane
 
 // closeTab closes tab i; the current tab moves to its neighbor.
 func (a *App) closeTab(ps *panelState, i int) {
+	if id := ps.tabs[i].artifact; id != "" {
+		delete(ps.arts.views, id)
+		a.host.CloseArtifactPages(id)
+	}
 	ps.tabs = append(ps.tabs[:i], ps.tabs[i+1:]...)
 	if ps.active >= len(ps.tabs) {
 		ps.active = len(ps.tabs) - 1

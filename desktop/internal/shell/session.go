@@ -127,6 +127,7 @@ func (a *App) record(id proto.SessionID, agent string) *convo.Convo {
 // a gap in them, so they are read again.
 func (a *App) ApplySession(id proto.SessionID, it proto.SessionItem) {
 	a.conv(id).Apply(it)
+	a.artifactEvents(id, it)
 	for key, r := range a.s.records {
 		switch {
 		case key.session != id:

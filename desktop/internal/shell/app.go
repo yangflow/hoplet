@@ -58,6 +58,20 @@ type Host interface {
 	// why there is none.
 	Files(p proto.FilesListParams, done func(proto.FileList, error))
 	ReadFile(p proto.FilesReadParams, done func(proto.FileContent, error))
+	// Artifacts lists a session's artifacts at their latest versions;
+	// ArtifactVersions lists every version of one, newest first; ReadArtifact
+	// reads a whole file of a version. done follows with the answer or why
+	// there is none.
+	Artifacts(id proto.SessionID, done func([]proto.Artifact, error))
+	ArtifactVersions(id proto.ArtifactID, done func([]proto.Artifact, error))
+	ReadArtifact(p proto.ArtifactsReadParams, done func([]byte, error))
+	// ArtifactPage returns the untrusted page showing a version of an HTML
+	// artifact, made on first use; failed follows when it does not load.
+	// ReloadArtifactPage loads it again; CloseArtifactPages drops an
+	// artifact's pages.
+	ArtifactPage(id proto.ArtifactID, version int, failed func(error)) (ui.NativeWebView, error)
+	ReloadArtifactPage(id proto.ArtifactID, version int)
+	CloseArtifactPages(id proto.ArtifactID)
 	// Open opens a file with its default application; CopyPath puts its
 	// path on the clipboard.
 	Open(path string)
