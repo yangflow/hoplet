@@ -32,7 +32,7 @@ func (s *Service) Screenshot(ctx context.Context, caller proto.SessionID, device
 		return Shot{}, err
 	}
 	if d.Scale <= 0 {
-		return Shot{}, fmt.Errorf("screen scale of device %q is unavailable", d.Name)
+		return Shot{}, fmt.Errorf("screen scale of device %q is unavailable, so the image cannot be sized in device points; use a newer device type", d.Name)
 	}
 	dir, err := os.MkdirTemp("", "hoplet-shot-")
 	if err != nil {

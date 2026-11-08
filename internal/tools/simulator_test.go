@@ -4,11 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/yangflow/hoplet/internal/simulator"
 	"github.com/yangflow/hoplet/proto"
@@ -232,10 +234,89 @@ func TestSimulatorErrors(t *testing.T) {
 			t.Errorf("%s = %+v", name, r)
 		}
 
-		other := errors.New("disk on fire")
+		other := errors.New("simctl launch: xcrun: exit status 1: disk on fire")
 		set = New(fakeSource{sim: &fakeSim{err: other}, got: &changes{}})
-		if _, err := set.Call(context.Background(), codeCaller, name, json.RawMessage(args)); !errors.Is(err, other) {
-			t.Errorf("%s: err = %v, want the failure path of other errors", name, err)
+		if r = simCallTool(t, set, name, args); !r.IsError || r.Text != other.Error() || r.Images != nil {
+			t.Errorf("%s = %+v, want the failure's text for the model", name, r)
 		}
+	}
+}
+
+// scriptedRunner stands in for xcrun and plutil behind a real simulator.Service.
+type scriptedRunner struct {
+	verb string // the simctl verb that fails with err
+	err  error
+	// geometry is whether plutil reports a screen for the device type.
+	geometry bool
+}
+
+func (r scriptedRunner) Run(_ context.Context, name string, args ...string) ([]byte, error) {
+	if name == "plutil" {
+		if !r.geometry {
+			return []byte(`{"capabilities":{}}`), nil
+		}
+		return []byte(`{"capabilities":{"ScreenDimensionsCapability":{"main-screen-scale":3,"main-screen-width":1179,"main-screen-height":2556}}}`), nil
+	}
+	if len(args) > 1 && args[1] == r.verb {
+		return nil, r.err
+	}
+	switch strings.Join(args, " ") {
+	case "simctl list -j devices":
+		return []byte(`{"devices":{"com.apple.CoreSimulator.SimRuntime.iOS-18-0":[{"name":"Phone","udid":"UDID-1","state":"Booted","isAvailable":true,"deviceTypeIdentifier":"type.phone"}]}}`), nil
+	case "simctl list -j devicetypes":
+		return []byte(`{"devicetypes":[{"identifier":"type.phone","bundlePath":"/types/Phone.simdevicetype"}]}`), nil
+	}
+	return nil, nil
+}
+
+func realSimSet(r simulator.Runner) *Set {
+	sim := simulator.New(r, time.Now, func(context.Context, proto.SessionID) bool { return true })
+	return New(fakeSource{sim: sim, got: &changes{}})
+}
+
+func TestSimulatorCommandFailuresReachTheModel(t *testing.T) {
+	stderr := func(verb, msg string) scriptedRunner {
+		return scriptedRunner{verb: verb, err: fmt.Errorf("xcrun: exit status 1: %s", msg), geometry: true}
+	}
+	for name, tc := range map[string]struct {
+		runner     scriptedRunner
+		tool, args string
+		want       []string
+	}{
+		"bad bundle id": {
+			stderr("launch", "The request to open \"com.example.nope\" failed."),
+			"simulator_launch", `{"device":"UDID-1","bundle_id":"com.example.nope"}`,
+			[]string{"simctl launch:", "com.example.nope"},
+		},
+		"bad url": {
+			stderr("openurl", "The URL is invalid."),
+			"simulator_open_url", `{"device":"UDID-1","url":"nope"}`,
+			[]string{"simctl openurl:", "The URL is invalid."},
+		},
+		"toolchain missing keeps its code": {
+			scriptedRunner{verb: "list", err: errors.New("xcrun: error: invalid active developer path")},
+			"simulator_list", `{}`,
+			[]string{"simulator_unavailable:"},
+		},
+		"device type without a screen": {
+			scriptedRunner{},
+			"simulator_screenshot", `{"device":"UDID-1"}`,
+			[]string{`screen scale of device "Phone" is unavailable`, "newer device type"},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			r, err := realSimSet(tc.runner).Call(context.Background(), codeCaller, tc.tool, json.RawMessage(tc.args))
+			if err != nil {
+				t.Fatalf("protocol error: %v", err)
+			}
+			if !r.IsError {
+				t.Fatalf("result = %+v, want IsError", r)
+			}
+			for _, w := range tc.want {
+				if !strings.Contains(r.Text, w) {
+					t.Fatalf("text %q lacks %q", r.Text, w)
+				}
+			}
+		})
 	}
 }

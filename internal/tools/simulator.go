@@ -47,14 +47,14 @@ type simulatorDone struct {
 // optionalDevice is the schema of a device argument that may be omitted.
 const optionalDevice = `"device":{"type":"string","description":"Device name or UDID; omit to use the device this session holds"}`
 
-// simulatorFailure turns a simulator.Error into a Failure whose text
-// starts with its code.
+// simulatorFailure makes any simulator error a Failure the model reads: a
+// simulator.Error keeps its code prefix, anything else keeps its own text.
 func simulatorFailure(err error) error {
 	var e *simulator.Error
 	if errors.As(err, &e) {
 		return &Failure{e.Error()}
 	}
-	return err
+	return &Failure{err.Error()}
 }
 
 // simulatorTools are for Code sessions on a host with simulators; src's
