@@ -304,12 +304,12 @@ func (v *fileView) toggle(way fileShow) {
 // CopyPath copies the path of the file the right panel shows, from the
 // menu bar.
 func (a *App) CopyPath() {
-	s, ok := a.panelSession()
+	s, ok := a.codePanelSession()
 	if !ok || !a.panelOpen {
 		return
 	}
 	ps := a.panelFor(s.ID)
-	if ps.active < 0 || ps.active >= len(ps.tabs) || ps.tabs[ps.active].changes {
+	if ps.active < 0 || ps.active >= len(ps.tabs) || ps.tabs[ps.active].path == "" {
 		return
 	}
 	a.host.CopyPath(filepath.Join(s.Directory, filepath.FromSlash(ps.tabs[ps.active].path)))

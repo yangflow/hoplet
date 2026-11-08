@@ -98,6 +98,8 @@ type Set struct {
 	Nested     *ui.SVG // list changed files by directory
 	Source     *ui.SVG // a Markdown file's source in place of its preview
 	Wrap       *ui.SVG // wrap long lines in the viewer
+	Picture    *ui.SVG // an image artifact
+	Sheet      *ui.SVG // a CSV artifact
 
 	// The find bar over a file's code.
 	MatchCase *ui.SVG
@@ -189,6 +191,8 @@ func Load() (*Set, error) {
 		{&s.Nested, "lucide/list-tree.svg"},
 		{&s.Source, "lucide/file-code.svg"},
 		{&s.Wrap, "lucide/text-wrap.svg"},
+		{&s.Picture, "lucide/image.svg"},
+		{&s.Sheet, "lucide/table.svg"},
 		{&s.MatchCase, "lucide/case-sensitive.svg"},
 		{&s.WholeWord, "lucide/whole-word.svg"},
 		{&s.Regexp, "lucide/regex.svg"},

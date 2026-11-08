@@ -19,14 +19,16 @@ type panelColumn int
 const (
 	columnTree panelColumn = iota
 	columnChanges
+	columnArtifacts
 )
 
 // panelTab is a tab of the right panel's viewer: a file, the one changes
-// tab, or a subagent's record.
+// tab, a subagent's record or an artifact.
 type panelTab struct {
-	changes bool
-	path    string // the file, relative to the working directory
-	agent   string // the subagent, by ID
+	changes  bool
+	path     string           // the file, relative to the working directory
+	agent    string           // the subagent, by ID
+	artifact proto.ArtifactID // the artifact; the version it shows is its view's
 }
 
 // panelState is a session's right panel: its tabs, the current one, the
@@ -42,6 +44,7 @@ type panelState struct {
 	tree   fileTree
 	picker filePicker
 	views  map[string]*fileView // open files, by path relative to the working directory
+	arts   artifactList
 }
 
 // railPill is the identity of the column switch's raised block.
@@ -60,12 +63,21 @@ func (a *App) panelFor(id proto.SessionID) *panelState {
 	return ps
 }
 
-// panelSession is the session the right panel belongs to: a Code session
-// shown in the content area. Personal sessions, the inbox and the new
-// page have none.
+// panelSession is the session the right panel belongs to: the session
+// shown in the content area. The inbox and the new page have none.
 func (a *App) panelSession() (proto.Session, bool) {
 	s, ok := a.current()
-	if !ok || a.inbox || a.s.newPage || s.Mode != proto.ModeCode {
+	if !ok || a.inbox || a.s.newPage {
+		return proto.Session{}, false
+	}
+	return s, true
+}
+
+// codePanelSession is panelSession for what only a Code session's panel
+// has: its files and changes.
+func (a *App) codePanelSession() (proto.Session, bool) {
+	s, ok := a.panelSession()
+	if !ok || s.Mode != proto.ModeCode {
 		return proto.Session{}, false
 	}
 	return s, true
@@ -116,7 +128,7 @@ func (a *App) fitColumns(sideMin float32) fitOut {
 
 // ShowPanel opens the right panel on a column.
 func (a *App) ShowPanel(col panelColumn) {
-	s, ok := a.panelSession()
+	s, ok := a.codePanelSession()
 	if !ok {
 		return
 	}
@@ -145,6 +157,9 @@ func (a *App) main(c *ui.Context, k theme.Colors, room float32) {
 	}
 	target := a.fit.panel
 	want := ps != nil && target > 0
+	if want {
+		a.syncArtifacts(s, ps)
+	}
 	if !want {
 		target = 0
 	}
@@ -261,6 +276,11 @@ func (a *App) viewer(c *ui.Context, k theme.Colors, s proto.Session, ps *panelSt
 				ui.Column(c.Key("agent:" + id)).Grow(1).MinHeight(0).AlignItems(ui.Stretch).Background(k.Pane).Children(func() { a.agentView(c, k, s, id) })
 				return
 			}
+			if ps.active >= 0 && ps.active < len(ps.tabs) && ps.tabs[ps.active].artifact != "" {
+				id := ps.tabs[ps.active].artifact
+				ui.Column(c.Key("artifact:" + string(id))).Grow(1).MinHeight(0).AlignItems(ui.Stretch).Background(k.Pane).Children(func() { a.artifactTab(c, k, ps, id) })
+				return
+			}
 			if ps.active >= 0 && ps.active < len(ps.tabs) && ps.tabs[ps.active].changes {
 				ui.Column(c).Grow(1).MinHeight(0).AlignItems(ui.Stretch).Children(func() { a.changesView(c, k, s, ps) })
 				return
@@ -286,6 +306,10 @@ func (a *App) rail(c *ui.Context, k theme.Colors, s proto.Session, ps *panelStat
 	}
 	col.Children(func() {
 		a.railHead(c, k, s, ps)
+		if s.Mode == proto.ModePersonal || ps.column == columnArtifacts {
+			a.artifactColumn(c, k, ps)
+			return
+		}
 		if ps.column == columnChanges {
 			a.changesColumn(c, k, s, ps)
 			return
@@ -314,11 +338,17 @@ func (a *App) panelTabs(c *ui.Context, k theme.Colors, s proto.Session, ps *pane
 		for i, t := range ps.tabs {
 			on := i == ps.active
 			name := "变更"
+			var kind proto.ArtifactKind
 			switch {
 			case t.agent != "":
 				name = "子代理"
 				if g, ok := a.conv(s.ID).Agent(t.agent); ok && g.Title != "" {
 					name = g.Title
+				}
+			case t.artifact != "":
+				name = "产物"
+				if v := ps.arts.views[t.artifact]; v != nil {
+					name, kind = v.latest.Name, v.latest.Kind
 				}
 			case !t.changes:
 				name = path.Base(t.path)
@@ -336,6 +366,8 @@ func (a *App) panelTabs(c *ui.Context, k theme.Colors, s proto.Session, ps *pane
 					ui.Icon(c, a.icons.Changes).FontSize(theme.IconRow).TextColor(k.Fg3)
 				} else if t.agent != "" {
 					ui.Icon(c, a.icons.Agent).FontSize(theme.IconRow).TextColor(k.Fg3)
+				} else if t.artifact != "" {
+					ui.Icon(c, a.artifactIcon(kind)).FontSize(theme.IconRow).TextColor(k.Fg3)
 				} else if img := a.icons.FileType(t.path); img != nil {
 					ui.Image(c, img).Size(theme.IconRow, theme.IconRow)
 				}
@@ -360,11 +392,13 @@ func (a *App) panelTabs(c *ui.Context, k theme.Colors, s proto.Session, ps *pane
 				ps.active = i
 			}
 		}
-		iconButton(c, k, a.icons.New, "打开文件 ⌘P", false).Menu(func(m *ui.Menu) {
-			if m.Item("文件").Shortcut(ui.Cmd, ui.KeyP).Chosen() {
-				a.OpenFilePicker()
-			}
-		})
+		if s.Mode == proto.ModeCode {
+			iconButton(c, k, a.icons.New, "打开文件 ⌘P", false).Menu(func(m *ui.Menu) {
+				if m.Item("文件").Shortcut(ui.Cmd, ui.KeyP).Chosen() {
+					a.OpenFilePicker()
+				}
+			})
+		}
 		ui.Spacer(c)
 		if iconButton(c, k, a.icons.Maximize, "放大到占满正文区", ps.zoom).Clicked() {
 			ps.zoom = !ps.zoom
@@ -375,6 +409,10 @@ func (a *App) panelTabs(c *ui.Context, k theme.Colors, s proto.Session, ps *pane
 
 // closeTab closes tab i; the current tab moves to its neighbor.
 func (a *App) closeTab(ps *panelState, i int) {
+	if id := ps.tabs[i].artifact; id != "" {
+		delete(ps.arts.views, id)
+		a.host.CloseArtifactPages(id)
+	}
 	ps.tabs = append(ps.tabs[:i], ps.tabs[i+1:]...)
 	if ps.active >= len(ps.tabs) {
 		ps.active = len(ps.tabs) - 1
@@ -401,65 +439,81 @@ func (a *App) openTab(ps *panelState, t panelTab) {
 	ps.active = len(ps.tabs) - 1
 }
 
-// railHead is the column's top bar, as tall as the tabs: the file tree or
-// the changes, with how many files changed, and the panel's own close.
+// railHead is the column's top bar, as tall as the tabs: the switch among
+// the file tree, the changes with how many files changed and the artifacts,
+// or a Personal session's one column named; and the panel's own close.
 func (a *App) railHead(c *ui.Context, k theme.Colors, s proto.Session, ps *panelState) {
+	personal := s.Mode == proto.ModePersonal
 	changed := 0
-	if d := a.diff(s); d != nil {
-		for _, r := range d.Repos {
-			changed += len(r.Files)
+	if !personal {
+		if d := a.diff(s); d != nil {
+			for _, r := range d.Repos {
+				changed += len(r.Files)
+			}
 		}
 	}
 	ui.Row(c).Height(a.titleHeight(c.TitleBar())).Padding(0, theme.Space2).Gap(theme.Space1Half).AlignItems(ui.Center).DragWindow().Children(func() {
-		ui.Row(c).Padding(theme.SpaceHalf).Gap(theme.SpaceHalf).Radius(theme.RadiusControl).Background(k.Line).Children(func() {
-			for _, opt := range []struct {
-				col  panelColumn
-				icon *ui.SVG
-				tip  string
-				n    int
-			}{
-				{columnTree, a.icons.Tree, "文件树 ⌥⌘E", -1},
-				{columnChanges, a.icons.Changes, "变更 ⌥⌘D", changed},
-			} {
-				on := ps.column == opt.col
-				// As the sidebar's mode switch: a segment a dense row square,
-				// wider by the count it carries.
-				b := ui.Button(c.Key(opt.tip), "").Label(opt.tip).Tooltip(opt.tip).Height(theme.RowDense).MinWidth(theme.RowDense).Padding(0).Gap(theme.Space1).
-					Radius(theme.RadiusControl).Border(0, ui.Transparent).Background(ui.Transparent)
-				color := k.Muted
-				if on {
-					color = k.Fg
-				}
-				face := func() {
-					ui.Icon(c, opt.icon).FontSize(theme.Icon).TextColor(color)
-					if opt.n > 0 {
-						theme.CodeCaption.On(ui.Text(c, strconv.Itoa(opt.n))).TextColor(color)
-					}
-				}
-				if opt.n > 0 {
-					b.Padding(0, theme.Space2)
-				}
-				b.Children(func() {
-					if !on {
-						face()
-						return
-					}
-					// The raised block, its face on it, slides from the old
-					// column to the new.
-					pill := ui.Row(c.Key("pill")).Absolute().Left(0).Top(0).Fill().Gap(theme.Space1).Center().Radius(theme.RadiusControl).Background(k.Raised).
-						Transition(ui.ElementTransition{Match: railPill{}, Animation: &theme.MotionBase})
-					k.ShadowRaised.On(pill).Children(face)
-					// Under the block, the face keeps the button its width.
-					ui.Row(c).Gap(theme.Space1).Opacity(0).Children(face)
-				})
-				if b.Clicked() {
-					ps.column = opt.col
-				}
-			}
-		})
+		if personal {
+			theme.UIMedium.On(ui.Text(c, "产物")).TextColor(k.Fg).Margin(0, 0, 0, theme.Space1)
+		}
+		a.railSwitch(c, k, ps, changed, personal)
 		ui.Spacer(c)
 		if iconButton(c, k, a.icons.Panel, "收起右栏 ⌥⌘I", false).Clicked() {
 			a.TogglePanel()
+		}
+	})
+}
+
+// railSwitch is the segmented switch among a Code session's columns.
+func (a *App) railSwitch(c *ui.Context, k theme.Colors, ps *panelState, changed int, personal bool) {
+	if personal {
+		return
+	}
+	ui.Row(c).Padding(theme.SpaceHalf).Gap(theme.SpaceHalf).Radius(theme.RadiusControl).Background(k.Line).Children(func() {
+		for _, opt := range []struct {
+			col  panelColumn
+			icon *ui.SVG
+			tip  string
+			n    int
+		}{
+			{columnTree, a.icons.Tree, "文件树 ⌥⌘E", -1},
+			{columnChanges, a.icons.Changes, "变更 ⌥⌘D", changed},
+			{columnArtifacts, a.icons.Tool, "产物", -1},
+		} {
+			on := ps.column == opt.col
+			// As the sidebar's mode switch: a segment a dense row square,
+			// wider by the count it carries.
+			b := ui.Button(c.Key(opt.tip), "").Label(opt.tip).Tooltip(opt.tip).Height(theme.RowDense).MinWidth(theme.RowDense).Padding(0).Gap(theme.Space1).
+				Radius(theme.RadiusControl).Border(0, ui.Transparent).Background(ui.Transparent)
+			color := k.Muted
+			if on {
+				color = k.Fg
+			}
+			face := func() {
+				ui.Icon(c, opt.icon).FontSize(theme.Icon).TextColor(color)
+				if opt.n > 0 {
+					theme.CodeCaption.On(ui.Text(c, strconv.Itoa(opt.n))).TextColor(color)
+				}
+			}
+			if opt.n > 0 {
+				b.Padding(0, theme.Space2)
+			}
+			b.Children(func() {
+				if !on {
+					face()
+					return
+				}
+				// The raised block, its face on it, slides from the old
+				// column to the new.
+				pill := ui.Row(c.Key("pill")).Absolute().Left(0).Top(0).Fill().Gap(theme.Space1).Center().Radius(theme.RadiusControl).Background(k.Raised).
+					Transition(ui.ElementTransition{Match: railPill{}, Animation: &theme.MotionBase})
+				k.ShadowRaised.On(pill).Children(face)
+				// Under the block, the face keeps the button its width.
+				ui.Row(c).Gap(theme.Space1).Opacity(0).Children(face)
+			})
+			if b.Clicked() {
+				ps.column = opt.col
+			}
 		}
 	})
 }

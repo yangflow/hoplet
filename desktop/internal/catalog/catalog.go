@@ -38,6 +38,18 @@ func (c *Catalog) Get(id proto.SessionID) (proto.Session, bool) {
 	return s, ok
 }
 
+// Children returns the sessions a session delegated or handed off, by ID.
+func (c *Catalog) Children(id proto.SessionID) []proto.Session {
+	var out []proto.Session
+	for _, s := range c.sessions {
+		if s.Parent == id {
+			out = append(out, s)
+		}
+	}
+	slices.SortFunc(out, func(a, b proto.Session) int { return cmp.Compare(a.ID, b.ID) })
+	return out
+}
+
 // Counts are what the menu bar icon and the Dock show.
 type Counts struct {
 	NeedsYou int // live sessions waiting on me

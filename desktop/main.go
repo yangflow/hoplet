@@ -14,6 +14,7 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
+	"github.com/yangflow/hoplet/desktop/internal/artifactpage"
 	"github.com/yangflow/hoplet/desktop/internal/icons"
 	"github.com/yangflow/hoplet/desktop/internal/link"
 	"github.com/yangflow/hoplet/desktop/internal/shell"
@@ -51,6 +52,10 @@ func run() error {
 		return err
 	}
 	d := &desktop{wake: make(chan struct{})}
+	d.pages = artifactpage.New(d.readPageFile)
+	if err := d.pages.Register(); err != nil {
+		return err
+	}
 	d.app = shell.New(set, d, d.changed)
 	mygo.App.SetMenu(d.menu())
 	mygo.App.Dock.SetMenu(mygo.NewMenu([]*mygo.MenuItem{
@@ -69,6 +74,11 @@ func run() error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	mygo.App.WhenReady(func() {
+		go func() {
+			if err := d.pages.Prepare(); err != nil {
+				slog.Error("artifact pages", "err", err)
+			}
+		}()
 		d.win = mygo.NewWindow(mygo.WindowOptions{
 			Title: "Hoplet", Width: 1280, Height: 800, MinWidth: 760, MinHeight: 480,
 			// The traffic lights sit 19 points down, centered in a 52-point
@@ -111,6 +121,7 @@ func run() error {
 // and the Dock.
 type desktop struct {
 	app      *shell.App
+	pages    *artifactpage.Pages
 	win      *mygo.Window
 	tray     *mygo.Tray
 	quitting bool
@@ -126,6 +137,16 @@ type desktop struct {
 	// Session menu items, enabled for the selected session.
 	pin, unread, rename, reveal, stop, archive *mygo.MenuItem
 	back, forward, newSession                  *mygo.MenuItem
+}
+
+// errNoDaemon says a request found no connection.
+var errNoDaemon = errors.New("没有连上守护进程")
+
+// client returns the current connection, nil while there is none.
+func (d *desktop) client() *client.Client {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.c
 }
 
 func (d *desktop) setClient(c *client.Client) {
@@ -382,6 +403,89 @@ func (d *desktop) ReadFile(p proto.FilesReadParams, done func(proto.FileContent,
 		}
 		d.ui(func() { done(fc, err) })
 	}()
+}
+
+// Artifacts implements shell.Host.
+func (d *desktop) Artifacts(id proto.SessionID, done func([]proto.Artifact, error)) {
+	d.artifactCall(done, func(ctx context.Context, c *client.Client) ([]proto.Artifact, error) {
+		return c.Artifacts(ctx, id)
+	})
+}
+
+// ArtifactVersions implements shell.Host.
+func (d *desktop) ArtifactVersions(id proto.ArtifactID, done func([]proto.Artifact, error)) {
+	d.artifactCall(done, func(ctx context.Context, c *client.Client) ([]proto.Artifact, error) {
+		return c.ArtifactVersions(ctx, id)
+	})
+}
+
+// artifactCall runs a listing off the UI thread and hands back its answer
+// or why there is none.
+func (d *desktop) artifactCall(done func([]proto.Artifact, error), fn func(context.Context, *client.Client) ([]proto.Artifact, error)) {
+	c := d.client()
+	if c == nil {
+		done(nil, errNoDaemon)
+		return
+	}
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), callTimeout)
+		defer cancel()
+		as, err := fn(ctx, c)
+		d.ui(func() { done(as, err) })
+	}()
+}
+
+// ReadArtifact implements shell.Host.
+func (d *desktop) ReadArtifact(p proto.ArtifactsReadParams, done func([]byte, error)) {
+	c := d.client()
+	if c == nil {
+		done(nil, errNoDaemon)
+		return
+	}
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), callTimeout)
+		defer cancel()
+		data, _, err := readArtifact(ctx, c, p)
+		d.ui(func() { done(data, err) })
+	}()
+}
+
+// readArtifact reads a whole file of an artifact version, chunk by chunk.
+func readArtifact(ctx context.Context, c *client.Client, p proto.ArtifactsReadParams) ([]byte, string, error) {
+	var data []byte
+	for {
+		p.Offset = int64(len(data))
+		ch, err := c.ReadArtifact(ctx, p)
+		if err != nil {
+			return nil, "", err
+		}
+		data = append(data, ch.Data...)
+		if len(ch.Data) == 0 || int64(len(data)) >= ch.Size {
+			return data, ch.ContentType, nil
+		}
+	}
+}
+
+// ArtifactPage implements shell.Host.
+func (d *desktop) ArtifactPage(id proto.ArtifactID, version int, failed func(error)) (ui.NativeWebView, error) {
+	return d.pages.Page(d.win, id, version, func(err error) { d.ui(func() { failed(err) }) })
+}
+
+// ReloadArtifactPage implements shell.Host.
+func (d *desktop) ReloadArtifactPage(id proto.ArtifactID, version int) { d.pages.Reload(id, version) }
+
+// CloseArtifactPages implements shell.Host.
+func (d *desktop) CloseArtifactPages(id proto.ArtifactID) { d.pages.Close(id) }
+
+// readPageFile reads a file for an artifact page.
+func (d *desktop) readPageFile(ctx context.Context, p proto.ArtifactsReadParams) ([]byte, string, error) {
+	c := d.client()
+	if c == nil {
+		return nil, "", errNoDaemon
+	}
+	ctx, cancel := context.WithTimeout(ctx, callTimeout)
+	defer cancel()
+	return readArtifact(ctx, c, p)
 }
 
 // Open implements shell.Host.

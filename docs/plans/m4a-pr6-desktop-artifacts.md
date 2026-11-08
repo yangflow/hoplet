@@ -54,39 +54,64 @@
 
 ### 任务 1：取数与状态
 
-- [ ] `desktop/internal/icons`：加 `image.svg`、`table.svg`（lucide-static 1.66.0 原文件）并登记
-- [ ] `shell/app.go`：`Host` 加上表四个方法；`panelColumn` 加 `columnArtifacts`；`panelTab` 加产物标签（产物 ID、在看的版本、是否跟最新）
-- [ ] `shell/artifacts.go`（新）：列表状态、合并伙伴与子会话、事件触发的重取、标签的版本切换
-- [ ] `desktop/main.go`：实现前三个方法（经 `link` 的客户端，分块读完）
-- [ ] 测试（`shell`，假 Host）：发布事件到来后列表重取并把那一行移到最前；伙伴列表含子会话的；看最新的标签换版本，看旧版本的标签不换只改提示
-- [ ] commit：`feat(desktop): load session artifacts`
+- [x] `desktop/internal/icons`：加 `image.svg`、`table.svg`（lucide-static 1.66.0 原文件）并登记
+- [x] `shell/app.go`：`Host` 加上表四个方法；`panelColumn` 加 `columnArtifacts`；`panelTab` 加产物标签（产物 ID、在看的版本、是否跟最新）
+- [x] `shell/artifacts.go`（新）：列表状态、合并伙伴与子会话、事件触发的重取、标签的版本切换
+- [x] `desktop/main.go`：实现前三个方法（经 `link` 的客户端，分块读完）
+- [x] 测试（`shell`，假 Host）：发布事件到来后列表重取并把那一行移到最前；伙伴列表含子会话的；看最新的标签换版本，看旧版本的标签不换只改提示
+- [x] commit：`feat(desktop): load session artifacts`
 
 ### 任务 2：右列与 Personal 右栏
 
-- [ ] `shell/panel.go`：Code 第三段；Personal 的 `panelSession()` 对产物放行，右列只有列表、顶栏写“产物”
-- [ ] 列表视图与空状态
-- [ ] 测试（`ui.Tester`）：Code 三段切换别处不动；Personal 无切换；点一行开标签、再点切过去；开着的行选中
-- [ ] commit：`feat(desktop): list artifacts in the right panel`
+- [x] `shell/panel.go`：Code 第三段；Personal 的 `panelSession()` 对产物放行，右列只有列表、顶栏写“产物”
+- [x] 列表视图与空状态
+- [x] 测试（`ui.Tester`）：Code 三段切换别处不动；Personal 无切换；点一行开标签、再点切过去；开着的行选中
+- [x] commit：`feat(desktop): list artifacts in the right panel`
 
 ### 任务 3：产物标签
 
-- [ ] `shell/artifactview.go`（新）：顶行、版本菜单、旧版本提示、打不开与重试；Markdown `markdown.View`，图片 `ui.Image`，CSV `ui.Table`（标准库 `encoding/csv` 解析），文本同文件视图
-- [ ] 测试（`ui.Tester`）：版本菜单顺序与打勾；“回到最新”；读失败显示原因，“重试”再读一次；CSV 成表
-- [ ] commit：`feat(desktop): view artifact versions`
+- [x] `shell/artifactview.go`（新）：顶行、版本菜单、旧版本提示、打不开与重试；Markdown `markdown.View`，图片 `ui.Image`，CSV `ui.Table`（标准库 `encoding/csv` 解析），文本同文件视图
+- [x] 测试（`ui.Tester`）：版本菜单顺序与打勾；“回到最新”；读失败显示原因，“重试”再读一次；CSV 成表
+- [x] commit：`feat(desktop): view artifact versions`
 
 ### 任务 4：HTML 与协议处理器
 
-- [ ] `desktop/main.go` 或 `desktop/internal/artifactpage`（新）：注册协议、`ArtifactPage`、`CallerPage` 核对、导航规则
-- [ ] 测试：处理器对别的产物、别的版本、越出版本目录返回 404 且不调 daemon（假读取函数记调用）；Content-Type 正确
-- [ ] 本机实测：PR4 实测用过的那页带脚本与图片的 HTML 能显示；0025 隔离表各项在桌面上复查一遍；配对机器的产物可看
-- [ ] commit：`feat(desktop): load html artifacts as untrusted pages`
+- [x] `desktop/main.go` 或 `desktop/internal/artifactpage`（新）：注册协议、`ArtifactPage`、`CallerPage` 核对、导航规则
+- [x] 测试：处理器对别的产物、别的版本、越出版本目录返回 404 且不调 daemon（假读取函数记调用）；Content-Type 正确
+- [x] 本机实测：PR4 实测用过的那页带脚本与图片的 HTML 能显示；0025 隔离表各项在桌面上复查一遍
+- [x] commit：`feat(desktop): load html artifacts as untrusted pages`
 
 ### 任务 5：文档
 
-- [ ] 0025：桌面查看改为现状；0024：产物各条从目标改为现状
-- [ ] 本计划勾选并记下实测
-- [ ] `make check`、`go tool mygo vet`
-- [ ] commit：`docs: record the desktop artifact viewer`
+- [x] 0025：桌面查看改为现状；0024：产物各条从目标改为现状
+- [x] 本计划勾选并记下实测
+- [x] `make check`、`go tool mygo vet`
+- [x] commit：`docs: record the desktop artifact viewer`
+
+## 实施记录
+
+- `ArtifactPage` 多一个 `failed` 回调（入口读不到、加载失败时显示“打不开这个版本”），`Host` 另加 `ReloadArtifactPage`、`CloseArtifactPages`。
+- 处理器不取 `CallerPage` 的地址，而是用页面到“产物 + 版本”的登记表：页面建好先登记再 `LoadURL`，首次加载时页面地址还不可靠。
+- 导航只留本产物的本版本；内容规则启动时编译一次，没编译好就不建页面，显示错误与“重试”。
+- `artifactview` 的列表部分随任务 2 的提交一起进入。
+- 配对机器：桌面现在只连本机，没有到配对机器的连接，验收表“远端”一项在桌面上还不成立，0025 记为目标。
+
+### 本机实测
+
+临时 home、临时 daemon，会话直接写入存储（临时 home 没有登录，harness 自检不过），`hoplet artifact publish` 发布一个目录（`index.html` 引样式、脚本与图片）。打包的 App 打开产物：
+
+| 项 | 结果 |
+|---|---|
+| 显示 | 脚本运行，样式生效，本地图片显示 |
+| `CallerPage` | 入口与子资源请求都拿得到页面 |
+| 外部图片、`fetch https` | 未加载 / 失败 |
+| 请求别的版本 | 404，未转给 daemon |
+| 请求别的产物 | 被页面的跨源限制挡下，未转给 daemon |
+| 脚本 `window.open`、脚本导航到外部 | 无窗口，页面不动，未打开系统浏览器 |
+| 脚本导航到别的版本 | 被拦，页面仍在本版本 |
+| 调用 Go | 页面上有 `window.mygo` 对象，调用由 MyGo 拒绝（MyGo 的测试覆盖，这次没有在真机调用） |
+
+点击外部链接交给系统浏览器这一条没有实测。
 
 PR 标题：`feat(desktop): list and view artifacts`。
 
