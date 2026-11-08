@@ -8,6 +8,7 @@ import (
 
 	"github.com/yangflow/hoplet/internal/artifact"
 	"github.com/yangflow/hoplet/internal/harness"
+	"github.com/yangflow/hoplet/internal/memory"
 	"github.com/yangflow/hoplet/internal/noise"
 	"github.com/yangflow/hoplet/internal/session"
 	"github.com/yangflow/hoplet/internal/store"
@@ -496,6 +497,7 @@ func (c *conn) toolCaller(ctx context.Context) (proto.Session, error) {
 // error a client would get as anything but an internal error is the
 // model's to read, so it comes back as a tools.Failure.
 type toolSource struct {
+	mem   *memory.Service
 	store *store.Store
 	mgr   *session.Manager
 	queue *queuer
@@ -549,6 +551,33 @@ func (t toolSource) Publish(ctx context.Context, r artifact.Request) (proto.Arti
 }
 
 func (t toolSource) Simulator() tools.Simulator { return t.sim }
+
+func (t toolSource) Profile() tools.ProfileSource { return profileSource{mem: t.mem, mgr: t.mgr} }
+
+// profileSource gives the profile tools the memory service. Get keeps
+// store.ErrNotFound, which the tool answers in its own words.
+type profileSource struct {
+	mem *memory.Service
+	mgr *session.Manager
+}
+
+func (p profileSource) Scopes(ctx context.Context, sess proto.Session) ([]memory.Scope, error) {
+	return p.mgr.ProfileScopes(ctx, sess)
+}
+
+func (p profileSource) List(ctx context.Context, scopes []memory.Scope, q store.MemoryQuery) ([]memory.Entry, error) {
+	entries, err := p.mem.InScope(ctx, scopes, q)
+	return entries, forModel(err)
+}
+
+func (p profileSource) Get(ctx context.Context, scopes []memory.Scope, id string) (memory.Entry, error) {
+	return p.mem.GetInScope(ctx, scopes, id)
+}
+
+func (p profileSource) Apply(ctx context.Context, w memory.Write) (memory.Result, error) {
+	r, err := p.mem.Apply(ctx, w)
+	return r, forModel(err)
+}
 
 func (t toolSource) Sessions(ctx context.Context) ([]proto.Session, error) {
 	return t.store.Sessions(ctx)

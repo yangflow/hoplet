@@ -170,10 +170,20 @@ func Start(ctx context.Context, cfg Config) (d *Daemon, err error) {
 		log.Error("find git", "err", gitErr)
 	}
 	ws := &workspace.Service{Git: git, Home: cfg.Home, Store: st}
+	mem, err := memory.Open(ctx, memory.Config{Root: home.Profile(cfg.Home), Store: st, Sessions: st, Log: log})
+	if err != nil {
+		return nil, fmt.Errorf("daemon: open memory: %w", err)
+	}
+	host, _ := os.Hostname()
+	var repoIdentity func(context.Context, string) (string, bool)
+	if gitErr == nil {
+		repoIdentity = func(ctx context.Context, dir string) (string, bool) { return git.RepoIdentity(ctx, dir, host) }
+	}
 	mgr, err := session.New(session.Config{
 		Store: st, Root: home.Sessions(cfg.Home), Companions: home.Companions(cfg.Home), Spawner: session.ExecSpawner{Exe: cfg.Exe},
 		MCPCommand: []string{cfg.Exe, "mcp", "--home", cfg.Home},
 		Harnesses:  cfg.Harnesses, Env: snap.Vars, Logger: log, Baseline: ws.CaptureBaseline,
+		Memory: mem, Host: host, RepoIdentity: repoIdentity,
 	})
 	if err != nil {
 		return nil, err
@@ -202,10 +212,6 @@ func Start(ctx context.Context, cfg Config) (d *Daemon, err error) {
 	if err := arts.Clean(ctx); err != nil {
 		return nil, fmt.Errorf("daemon: clean artifacts: %w", err)
 	}
-	mem, err := memory.Open(ctx, memory.Config{Root: home.Profile(cfg.Home), Store: st, Sessions: st, Log: log})
-	if err != nil {
-		return nil, fmt.Errorf("daemon: open memory: %w", err)
-	}
 	ln, err := listen(home.Socket(cfg.Home))
 	if err != nil {
 		return nil, err
@@ -219,7 +225,6 @@ func Start(ctx context.Context, cfg Config) (d *Daemon, err error) {
 		cleanup = append(cleanup, netLn.Close)
 	}
 
-	host, _ := os.Hostname()
 	now := cfg.now
 	if now == nil {
 		now = time.Now
@@ -232,7 +237,7 @@ func Start(ctx context.Context, cfg Config) (d *Daemon, err error) {
 	q := &queuer{store: st, mgr: mgr, log: log, locks: map[proto.SessionID]*sync.Mutex{}, waiting: map[proto.SessionID]bool{}}
 	srv := &server{
 		ctx: runCtx, store: st, mgr: mgr, ws: ws, queue: q, sys: sys, token: token, arts: arts, memory: mem,
-		tools: tools.New(toolSource{store: st, mgr: mgr, queue: q, arts: arts, sim: sim}),
+		tools: tools.New(toolSource{store: st, mgr: mgr, queue: q, arts: arts, sim: sim, mem: mem}),
 		host:  host, version: cfg.Version, log: log, lim: cfg.lim.withDefaults(),
 		identity: identity, routes: pairingRoutes(cfg.Routes, cfg.Relays), now: now, peers: map[string]map[*conn]struct{}{},
 	}
