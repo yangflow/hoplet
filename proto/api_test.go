@@ -60,6 +60,15 @@ func TestFrameWireFormat(t *testing.T) {
 		"companion new":   {CompanionCreateParams{Harness: "hermes", Permission: ModeConfirm, Title: "Ada", Model: "m"}, `{"harness":"hermes","permission":"confirm","title":"Ada","model":"m"}`},
 		"persona":         {Persona{ID: "c1", Text: "be kind"}, `{"id":"c1","text":"be kind"}`},
 		"persona applies": {SetPersonaResult{Applies: AppliesNewMainSession}, `{"applies":"new_main_session"}`},
+		"artifact": {Artifact{ID: "a1", Session: "s1", Name: "report", Kind: ArtifactHTML, Version: 2, Entry: "index.html", By: ArtifactByCLI, Files: 3, Size: 42, CreatedAt: time.Unix(0, 0).UTC(), UpdatedAt: time.Unix(1, 0).UTC()},
+			`{"id":"a1","session":"s1","name":"report","kind":"html","version":2,"entry":"index.html","by":"cli","files":3,"size":42,"created_at":"1970-01-01T00:00:00Z","updated_at":"1970-01-01T00:00:01Z"}`},
+		"artifact publish": {ArtifactsPublishParams{Session: "s1", Name: "report", Entry: "/w/index.html", Files: []string{"/w/app.js"}},
+			`{"session":"s1","name":"report","entry":"/w/index.html","files":["/w/app.js"]}`},
+		"artifact list":  {ArtifactsListParams{Session: "s1"}, `{"session":"s1"}`},
+		"no artifacts":   {ArtifactsList{Artifacts: []Artifact{}}, `{"artifacts":[]}`},
+		"artifact read":  {ArtifactsReadParams{Artifact: "a1", Version: 1, Path: "app.js", Offset: 1048576}, `{"artifact":"a1","version":1,"path":"app.js","offset":1048576}`},
+		"artifact entry": {ArtifactsReadParams{Artifact: "a1"}, `{"artifact":"a1"}`},
+		"artifact chunk": {ArtifactChunk{Data: []byte("hi"), Size: 2, ContentType: "text/html; charset=utf-8"}, `{"data":"aGk=","size":2,"content_type":"text/html; charset=utf-8"}`},
 	} {
 		b, err := json.Marshal(tc.v)
 		if err != nil {
