@@ -37,7 +37,7 @@ flowchart TB
 - 应用界面全部是原生 UI，不做 web 前端；只有 HTML 产物用 `ui.WebView` 嵌在原生界面里，一律按不可信页面加载。纯 Go、无 cgo。
 - 桌面 app 只是客户端：内置 `hoplet`，负责安装 LaunchAgent，守护进程独立运行。
 - 先 macOS，Linux 以后（代码基本现成）。
-- macOS 上唯一的 Swift 组件是 iOS 模拟器辅助进程：Go 无法直接调用模拟器的私有框架，它作为独立进程运行，桌面仍是纯 Go、无 cgo。
+- macOS 上计划引入的唯一 Swift 组件是 iOS 模拟器辅助进程（规划中，尚未实现）：Go 无法直接调用模拟器的私有框架，它将作为独立进程运行，桌面仍是纯 Go、无 cgo。
 
 ## iOS：SwiftUI + Swift 协议客户端（规划）
 
