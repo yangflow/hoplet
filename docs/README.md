@@ -58,6 +58,7 @@ flowchart TB
 | [0009 终端](design/0009-terminal.md) | PTY、屏幕与终端输入 |
 | [0012 服务入口与编排](design/0012-orchestration-api.md) | 服务入口、等待、扇出与跨机执行 |
 | [0025 产物](design/0025-artifacts.md) | 版本、发布、查看、页面能力与授权 |
+| [0027 语音通话](design/0027-voice-calls.md) | 语音服务接缝、控制器、生命周期与桌面通话 |
 
 ## Personal 与成长
 
