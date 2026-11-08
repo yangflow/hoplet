@@ -37,6 +37,31 @@ var (
 	ErrDetached = errors.New("harness: transport ended without an exit")
 )
 
+// ExtractRequest is one isolated extraction run. Env is the environment
+// sessions start in, Dir an empty directory, Model the source session's
+// model, System the instructions and Input the material.
+type ExtractRequest struct {
+	Env    []string
+	Dir    string
+	Model  string
+	System string
+	Input  string
+}
+
+// ExtractResult is the harness's reply to an extraction.
+type ExtractResult struct {
+	Output string
+	Usage  proto.Usage
+}
+
+// Extractor is a harness able to run one isolated extraction: no tools, no
+// native memory, no hooks and no session left behind.
+type Extractor interface {
+	// ExtractSupport says why this installed version cannot, "" when it can.
+	ExtractSupport(info Info) string
+	Extract(ctx context.Context, r ExtractRequest) (ExtractResult, error)
+}
+
 // ModelLister is a Harness that can list its models without a session.
 type ModelLister interface {
 	Models(ctx context.Context) ([]proto.ModelInfo, error)
