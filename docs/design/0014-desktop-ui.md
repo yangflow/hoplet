@@ -90,9 +90,11 @@ flowchart LR
 
 全部取设计系统的 token。间距 2 · 4 · 6 · 8 · 12 · 16 · 24 · 32；圆角 4（小件）· 6（行）· 8（控件）· 10（卡片与弹层）· 14（大卡片）· 18（输入框与气泡）· 胶囊；高度：行 28、密集行 24、工作组的一步 32、标题栏 52（`titlebar`：整排顶栏同高，与红绿灯同一中线）、矮一档的横栏 44（`bar-compact`：命令面板的搜索行、侧栏底栏）；弹层宽 232 / 128 / 280（模型列 +40；打开方式弹层同 232）；右列 260（`panel-rail`：文件树与变更同宽）；diff 竖条 3。窗口几何（侧栏、正文列、右栏的宽度与收起阈值）在 `layout.json`。
 
+通话：通话条高 56（`call-bar`），点阵 168（`call-dots`），收起后 14（`call-dots-small`，退成 3×3）。
+
 ## 图标
 
- iOS 用 SF Symbols，以下只管桌面。界面用 Lucide（16 网格、1.4 描边、跟随文字色；尺寸 12 / 14 / 16，空状态 32；图标按钮 28，密集处 24，行尾小按钮 22；分段切换（Personal / Code、文件树 / 变更 / 产物）与图标按钮同高 28：每段 24 见方、外围 2；必须有悬停提示"名称 快捷键"）。审批档位用 Lucide 盾牌：shield-question-mark、shield-half、shield-check、shield-off。文件类型用 Material Icon Theme 彩色图标（官方 SVG 原样放在 `desktop/internal/icons/material/`，MIT），保留原色：工具行里读取 / 编辑的文件、改动卡片的每个文件前 14；会话详情的目录行用它的文件夹图标；正文里的文件链接不加（Markdown 行内插图标要绕开 MyGO 的渲染）。harness 标志单色、跟随文字色（`desktop/internal/icons/harness/`，原样使用，许可证在同目录）：Claude Code 用 Claude 星芒，Codex 用 OpenAI 花形标志，Hermes 用 Nous 女孩头像；没有标志的 harness 用首字母占位；名字写正式名 Claude Code、Codex、Hermes，不写内部代号。
+ iOS 用 SF Symbols，以下只管桌面。界面用 Lucide（16 网格、1.4 描边、跟随文字色；尺寸 12 / 14 / 16，通话条按钮 20（`icon-call`，挂断的 `phone` 由外层容器转 135°，SVG 不改），空状态 32；图标按钮 28，密集处 24，行尾小按钮 22；分段切换（Personal / Code、文件树 / 变更 / 产物）与图标按钮同高 28：每段 24 见方、外围 2；必须有悬停提示"名称 快捷键"）。审批档位用 Lucide 盾牌：shield-question-mark、shield-half、shield-check、shield-off。文件类型用 Material Icon Theme 彩色图标（官方 SVG 原样放在 `desktop/internal/icons/material/`，MIT），保留原色：工具行里读取 / 编辑的文件、改动卡片的每个文件前 14；会话详情的目录行用它的文件夹图标；正文里的文件链接不加（Markdown 行内插图标要绕开 MyGO 的渲染）。harness 标志单色、跟随文字色（`desktop/internal/icons/harness/`，原样使用，许可证在同目录）：Claude Code 用 Claude 星芒，Codex 用 OpenAI 花形标志，Hermes 用 Nous 女孩头像；没有标志的 harness 用首字母占位；名字写正式名 Claude Code、Codex、Hermes，不写内部代号。
 
 ## 标志
 
@@ -109,6 +111,7 @@ flowchart LR
 | 错开 | 同一刻进来的几步每项错开 30 ms，最多 5 项 |
 | 数字 | 用时、角标、计数逐位滚动 350 ms `CubicBezier(0.22, 1, 0.36, 1)` |
 | 进行中 | 工作中方块 `Loop` 1200 ms、`ui.Spinner` |
+| 通话点阵 | 37 个点共用一个 `Loop`，按距离或角度算缩放和透明度：连接中 2400 ms 一起呼吸（`motion-call-breathe`）、聆听 2200 ms 弱波（`motion-call-listen`）、说话 1200 ms 强波（`motion-call-speak`）、处理中 1600 ms 绕圈（`motion-call-sweep`）、静音不动；减少动态效果时不动 |
 | 需要你 | 审批到来时输入框内容交叉淡化、长高、描边变色，光晕从 0 扩到 6 再收到 3 一次（600 ms），这是唯一主动抓眼的动效 |
 | 提示 | 新会话插入侧栏时整行 `hover` 在 1.5 秒内淡出一次；收件箱卡片处理后先收成一行确认、停 1.5 秒再上移淡出，下面的卡片平滑补位 |
 | 减少动态效果 | 位移、缩放、尺寸即时，只留不超过 120 ms 的淡入淡出，循环停住 |
@@ -155,6 +158,7 @@ flowchart LR
 | 查找栏 | `editor.State` / `editor.DiffState` 的 `RenderFindBar` 自己画外观：`ui.TextInputBase` 交给 `FindBar.QueryInput`，开关 `ui.ToggleBase`，按钮 `ui.ButtonBase(c).KeepFocus()`；默认查找栏是英文、带选区内查找与替换，外观不合 |
 | 搜索框 | `ui.Row` + Lucide `search` + `ui.TextInput` + 有字时 `x` 清除按钮：`ui.SearchField` 的清除按钮用主题 Background 画 ×，Hoplet 的 Background 透明，× 看不见；菜单外 ⎋ 清空、提示“清除 esc”，菜单里 ⎋ 照旧关菜单、提示只写“清除” |
 | 自动换行 | `editor.State.SoftWrap` / `editor.DiffState.Wrap` |
+| 语音通话 | 点阵用一个 `Loop` 相位算每个点的 `Scale` 与 `Opacity`，不用计时器；通话条自己画（`ui.Row`）；确认 `ui.DialogBase`，选机器 `ui.PopoverBase` |
 | 图标 | `ui.Icon`（Lucide）/ `ui.Image`（Material；不认识的文件用 Material 的 `file`，`document` 只给文本文件） |
 | 菜单与托盘 | `mygo.NewMenu` / `mygo.NewTray`，托盘 `IconIsTemplate: true` |
 
