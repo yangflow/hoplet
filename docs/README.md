@@ -48,6 +48,7 @@ flowchart TB
 | [0020 Hermes 适配](design/0020-hermes-adapter.md) | gateway、轮次、设置与恢复 |
 | [0021 Claude Code 适配](design/0021-claude-adapter.md) | 控制协议、模型探测与事件映射 |
 | [0023 Harness 托管与验证](design/0023-harness-lifecycle.md) | 安装、版本门控、自检与录制 |
+| [0028 Codex 适配](design/0028-codex-adapter.md) | app-server、托管安装、权限映射、工具与人格 |
 
 ## 工作区与编排
 
