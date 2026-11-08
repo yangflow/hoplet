@@ -9,6 +9,9 @@ type Mode string
 const (
 	ModeCode     Mode = "code"
 	ModePersonal Mode = "personal"
+	// ModeVoice is the hidden session of one voice call. Clients and session
+	// tools never list it.
+	ModeVoice Mode = "voice"
 )
 
 // Isolation says whether a Code session works in the real directory.

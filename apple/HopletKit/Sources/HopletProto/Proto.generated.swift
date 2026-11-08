@@ -75,6 +75,28 @@ public enum ErrorCode: RawRepresentable, Codable, Hashable, Sendable, ProtoZero 
   public var isProtoZero: Bool { rawValue.isEmpty }
 }
 
+public enum Via: RawRepresentable, Codable, Hashable, Sendable, ProtoZero {
+  case voice
+  case unknown(String)
+
+  public init(rawValue: String) {
+    switch rawValue {
+    case "voice": self = .voice
+    default: self = .unknown(rawValue)
+    }
+  }
+
+  public var rawValue: String {
+    switch self {
+    case .voice: return "voice"
+    case .unknown(let value): return value
+    }
+  }
+
+  public static var protoZero: Self { Self(rawValue: "") }
+  public var isProtoZero: Bool { rawValue.isEmpty }
+}
+
 public enum CheckStatus: RawRepresentable, Codable, Hashable, Sendable, ProtoZero {
   case ok
   case warn
@@ -883,12 +905,14 @@ public enum SubagentStatus: RawRepresentable, Codable, Hashable, Sendable, Proto
 public enum Mode: RawRepresentable, Codable, Hashable, Sendable, ProtoZero {
   case code
   case personal
+  case voice
   case unknown(String)
 
   public init(rawValue: String) {
     switch rawValue {
     case "code": self = .code
     case "personal": self = .personal
+    case "voice": self = .voice
     default: self = .unknown(rawValue)
     }
   }
@@ -897,6 +921,7 @@ public enum Mode: RawRepresentable, Codable, Hashable, Sendable, ProtoZero {
     switch self {
     case .code: return "code"
     case .personal: return "personal"
+    case .voice: return "voice"
     case .unknown(let value): return value
     }
   }
@@ -1562,21 +1587,25 @@ public struct SendParams: Codable, Hashable, Sendable, ProtoZero {
   public var session: SessionID
   public var text: String
   public var key: String
+  public var via: Via
 
   public init(
     session: SessionID = .protoZero,
     text: String = .protoZero,
-    key: String = .protoZero
+    key: String = .protoZero,
+    via: Via = .protoZero
   ) {
     self.session = session
     self.text = text
     self.key = key
+    self.via = via
   }
 
   private enum CodingKeys: String, CodingKey {
     case session = "session"
     case text = "text"
     case key = "key"
+    case via = "via"
   }
 
   public init(from decoder: any Decoder) throws {
@@ -1584,6 +1613,7 @@ public struct SendParams: Codable, Hashable, Sendable, ProtoZero {
     session = try c.decodeOrZero(SessionID.self, forKey: .session)
     text = try c.decodeOrZero(String.self, forKey: .text)
     key = try c.decodeOrZero(String.self, forKey: .key)
+    via = try c.decodeOrZero(Via.self, forKey: .via)
   }
 
   public func encode(to encoder: any Encoder) throws {
@@ -1591,6 +1621,7 @@ public struct SendParams: Codable, Hashable, Sendable, ProtoZero {
     try c.encode(session, forKey: .session)
     try c.encode(text, forKey: .text)
     try c.encode(key, forKey: .key)
+    try c.encodeUnlessZero(via, forKey: .via)
   }
 
   public static var protoZero: Self { Self() }
@@ -2082,6 +2113,7 @@ public struct QueuedMessage: Codable, Hashable, Sendable, ProtoZero {
   public var error: String
   public var from: SessionID
   public var report: ReportStatus
+  public var via: Via
 
   public init(
     key: String = .protoZero,
@@ -2090,7 +2122,8 @@ public struct QueuedMessage: Codable, Hashable, Sendable, ProtoZero {
     createdAt: Date = .protoZero,
     error: String = .protoZero,
     from: SessionID = .protoZero,
-    report: ReportStatus = .protoZero
+    report: ReportStatus = .protoZero,
+    via: Via = .protoZero
   ) {
     self.key = key
     self.text = text
@@ -2099,6 +2132,7 @@ public struct QueuedMessage: Codable, Hashable, Sendable, ProtoZero {
     self.error = error
     self.from = from
     self.report = report
+    self.via = via
   }
 
   private enum CodingKeys: String, CodingKey {
@@ -2109,6 +2143,7 @@ public struct QueuedMessage: Codable, Hashable, Sendable, ProtoZero {
     case error = "error"
     case from = "from"
     case report = "report"
+    case via = "via"
   }
 
   public init(from decoder: any Decoder) throws {
@@ -2120,6 +2155,7 @@ public struct QueuedMessage: Codable, Hashable, Sendable, ProtoZero {
     error = try c.decodeOrZero(String.self, forKey: .error)
     from = try c.decodeOrZero(SessionID.self, forKey: .from)
     report = try c.decodeOrZero(ReportStatus.self, forKey: .report)
+    via = try c.decodeOrZero(Via.self, forKey: .via)
   }
 
   public func encode(to encoder: any Encoder) throws {
@@ -2131,6 +2167,7 @@ public struct QueuedMessage: Codable, Hashable, Sendable, ProtoZero {
     try c.encodeUnlessZero(error, forKey: .error)
     try c.encodeUnlessZero(from, forKey: .from)
     try c.encodeUnlessZero(report, forKey: .report)
+    try c.encodeUnlessZero(via, forKey: .via)
   }
 
   public static var protoZero: Self { Self() }
@@ -4699,19 +4736,22 @@ public struct Message: Codable, Hashable, Sendable, ProtoZero {
   public var text: String
   public var from: SessionID
   public var report: ReportStatus
+  public var via: Via
 
   public init(
     id: String = .protoZero,
     role: Role = .protoZero,
     text: String = .protoZero,
     from: SessionID = .protoZero,
-    report: ReportStatus = .protoZero
+    report: ReportStatus = .protoZero,
+    via: Via = .protoZero
   ) {
     self.id = id
     self.role = role
     self.text = text
     self.from = from
     self.report = report
+    self.via = via
   }
 
   private enum CodingKeys: String, CodingKey {
@@ -4720,6 +4760,7 @@ public struct Message: Codable, Hashable, Sendable, ProtoZero {
     case text = "text"
     case from = "from"
     case report = "report"
+    case via = "via"
   }
 
   public init(from decoder: any Decoder) throws {
@@ -4729,6 +4770,7 @@ public struct Message: Codable, Hashable, Sendable, ProtoZero {
     text = try c.decodeOrZero(String.self, forKey: .text)
     from = try c.decodeOrZero(SessionID.self, forKey: .from)
     report = try c.decodeOrZero(ReportStatus.self, forKey: .report)
+    via = try c.decodeOrZero(Via.self, forKey: .via)
   }
 
   public func encode(to encoder: any Encoder) throws {
@@ -4738,6 +4780,7 @@ public struct Message: Codable, Hashable, Sendable, ProtoZero {
     try c.encode(text, forKey: .text)
     try c.encodeUnlessZero(from, forKey: .from)
     try c.encodeUnlessZero(report, forKey: .report)
+    try c.encodeUnlessZero(via, forKey: .via)
   }
 
   public static var protoZero: Self { Self() }

@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -22,7 +23,37 @@ import (
 )
 
 // voiceInstructions is what the realtime session's backing thread is told.
-const voiceInstructions = "You are the voice of Hoplet on a phone call. Keep replies short and spoken. Do not use tools."
+const voiceInstructions = `You are the voice of Hoplet on a phone call. Keep replies short and spoken.
+You can only list and read Hoplet sessions, send a message to an existing session, and hand a task off to a new Code session.
+Before you send or hand off, read out the target and the content and wait for the user to agree aloud.
+If you cannot tell which session the user means, ask; never guess. Do not read session IDs aloud; use titles.
+You cannot answer approvals: read out what is waiting and tell the user to answer on a screen.`
+
+// voiceToolServer is the name of the MCP server carrying Hoplet's tools.
+const voiceToolServer = "hoplet"
+
+// voiceOffFeatures are Codex's own capabilities a call's model must not have:
+// it reaches Hoplet's tools and nothing else.
+var voiceOffFeatures = []string{
+	"apps", "browser_use", "browser_use_external", "code_mode_host", "computer_use", "goals", "hooks", "image_generation",
+	"in_app_browser", "memories", "multi_agent", "plugins", "shell_snapshot", "shell_tool", "skill_search", "sleep_tool",
+	"tool_suggest", "unified_exec", "view_image",
+}
+
+// voiceThreadConfig turns off everything but Hoplet's tools. servers are the
+// MCP servers the user configured.
+func voiceThreadConfig(servers []string) map[string]any {
+	cfg := map[string]any{"web_search": "disabled"}
+	for _, f := range voiceOffFeatures {
+		cfg["features."+f] = false
+	}
+	for _, s := range servers {
+		if s != voiceToolServer {
+			cfg["mcp_servers."+s+".enabled"] = false
+		}
+	}
+	return cfg
+}
 
 // VoiceProvider offers voice calls through Codex's subscription voice. It
 // runs a process of its own for each call; nothing about the call touches
@@ -32,7 +63,7 @@ type VoiceProvider struct {
 	Env    env.Source
 
 	// open replaces the process (tests); nil means running Binary.
-	open func(ctx context.Context) (*voiceProcess, error)
+	open func(ctx context.Context, args []string) (*voiceProcess, error)
 }
 
 var _ voice.Provider = (*VoiceProvider)(nil)
@@ -49,7 +80,7 @@ func (p *VoiceProvider) Name() string { return "Codex" }
 
 // Probe implements voice.Provider.
 func (p *VoiceProvider) Probe(ctx context.Context) error {
-	c, err := p.connect(ctx)
+	c, err := p.connect(ctx, nil)
 	if err != nil {
 		return err
 	}
@@ -59,10 +90,16 @@ func (p *VoiceProvider) Probe(ctx context.Context) error {
 
 // Start implements voice.Provider. All checks run on the call's own process.
 func (p *VoiceProvider) Start(ctx context.Context, req voice.StartRequest) (voice.Call, error) {
-	c, err := p.connect(ctx)
+	home, args, err := voiceHome(req.Tools)
 	if err != nil {
 		return nil, err
 	}
+	c, err := p.connect(ctx, args)
+	if err != nil {
+		_ = os.RemoveAll(home)
+		return nil, err
+	}
+	c.dir = home
 	if err := c.check(ctx); err != nil {
 		c.close()
 		return nil, err
@@ -74,12 +111,38 @@ func (p *VoiceProvider) Start(ctx context.Context, req voice.StartRequest) (voic
 	return c, nil
 }
 
-func (p *VoiceProvider) connect(ctx context.Context) (*voiceConn, error) {
+// voiceHome makes a call's private directory, holding the empty directory
+// the thread works in and the tool token, and returns it with the command
+// line that gives the call its tools.
+func voiceHome(tools []harness.MCPServer) (string, []string, error) {
+	home, err := os.MkdirTemp("", "hoplet-voice-")
+	if err != nil {
+		return "", nil, fmt.Errorf("codex: voice directory: %w", err)
+	}
+	args, files, err := mcpOverrides(harness.Spec{Dir: home, MCP: tools})
+	if err == nil {
+		err = os.Mkdir(filepath.Join(home, voiceWorkDir), 0o700)
+	}
+	for name, b := range files {
+		if err == nil {
+			err = os.WriteFile(filepath.Join(home, name), b, 0o600)
+		}
+	}
+	if err != nil {
+		_ = os.RemoveAll(home)
+		return "", nil, fmt.Errorf("codex: voice directory: %w", err)
+	}
+	return home, args, nil
+}
+
+const voiceWorkDir = "work"
+
+func (p *VoiceProvider) connect(ctx context.Context, args []string) (*voiceConn, error) {
 	open := p.open
 	if open == nil {
 		open = p.run
 	}
-	proc, err := open(ctx)
+	proc, err := open(ctx, args)
 	if err != nil {
 		return nil, err
 	}
@@ -96,7 +159,7 @@ func (p *VoiceProvider) connect(ctx context.Context) (*voiceConn, error) {
 }
 
 // run starts Binary, after making sure the package has what a call needs.
-func (p *VoiceProvider) run(ctx context.Context) (*voiceProcess, error) {
+func (p *VoiceProvider) run(ctx context.Context, args []string) (*voiceProcess, error) {
 	if _, err := os.Stat(p.Binary); err != nil {
 		return nil, &proto.APIError{Code: proto.CodeVoiceNoHarness, Message: "no codex"}
 	}
@@ -109,7 +172,7 @@ func (p *VoiceProvider) run(ctx context.Context) (*voiceProcess, error) {
 		return nil, fmt.Errorf("codex: voice environment: %w", err)
 	}
 	// Not ctx: the process outlives the request that starts the call.
-	cmd := launchCommand(context.Background(), harness.Launch{Command: []string{p.Binary, "app-server"}, Env: snap.Vars, Dir: os.TempDir()})
+	cmd := launchCommand(context.Background(), harness.Launch{Command: slices.Concat([]string{p.Binary}, args, []string{"app-server"}), Env: snap.Vars, Dir: os.TempDir()})
 	in, err := cmd.StdinPipe()
 	if err != nil {
 		return nil, fmt.Errorf("codex: voice stdin: %w", err)
@@ -145,7 +208,9 @@ type voiceConn struct {
 
 	readyOnce, endOnce, closeOnce sync.Once
 	ready, ended, closed          chan struct{}
-	dir                           string // the thread's empty working directory
+	dir                           string // the call's private directory
+	servers                       []string
+	transcript                    func(role proto.Role, id, text string)
 }
 
 func (c *voiceConn) read() {
@@ -225,7 +290,31 @@ func (c *voiceConn) notification(m message) {
 		c.end(classify(p.Message))
 	case "thread/realtime/closed":
 		c.end(nil)
+	case "thread/realtime/item/completed":
+		c.segment(m.Params)
 	}
+}
+
+// segment passes a final piece of transcript on. Nothing else about the
+// item is kept.
+func (c *voiceConn) segment(params json.RawMessage) {
+	var p struct {
+		Item struct {
+			Type string     `json:"type"`
+			ID   string     `json:"id"`
+			Role proto.Role `json:"role"`
+			Text string     `json:"text"`
+		} `json:"item"`
+	}
+	if c.transcript == nil || json.Unmarshal(params, &p) != nil {
+		return
+	}
+	it := p.Item
+	if it.Type != "transcriptSegment" || it.ID == "" || strings.TrimSpace(it.Text) == "" ||
+		(it.Role != proto.RoleUser && it.Role != proto.RoleAssistant) {
+		return
+	}
+	c.transcript(it.Role, it.ID, it.Text)
 }
 
 func (c *voiceConn) checkReady() {
@@ -319,6 +408,7 @@ func (c *voiceConn) check(ctx context.Context) error {
 		Config struct {
 			ModelProvider  string                     `json:"model_provider"`
 			ModelProviders map[string]json.RawMessage `json:"model_providers"`
+			MCPServers     map[string]struct{}        `json:"mcp_servers"`
 			WSBase         string                     `json:"experimental_realtime_ws_base_url"`
 			WebRTCBase     string                     `json:"experimental_realtime_webrtc_call_base_url"`
 			WSModel        string                     `json:"experimental_realtime_ws_model"`
@@ -328,6 +418,9 @@ func (c *voiceConn) check(ctx context.Context) error {
 		return err
 	}
 	cfg := config.Config
+	for name := range cfg.MCPServers {
+		c.servers = append(c.servers, name)
+	}
 	_, overridden := cfg.ModelProviders["openai"]
 	if (cfg.ModelProvider != "" && cfg.ModelProvider != "openai") || overridden || cfg.WSBase != "" || cfg.WebRTCBase != "" || cfg.WSModel != "" {
 		return &proto.APIError{Code: proto.CodeVoiceNotSubscribed, Message: "a custom service is configured"}
@@ -338,11 +431,7 @@ func (c *voiceConn) check(ctx context.Context) error {
 // begin opens the thread and starts the call. The response to the start is
 // only an acknowledgement: the call is up once both notifications arrived.
 func (c *voiceConn) begin(ctx context.Context, req voice.StartRequest) error {
-	dir, err := os.MkdirTemp("", "hoplet-voice-")
-	if err != nil {
-		return fmt.Errorf("codex: voice directory: %w", err)
-	}
-	c.dir = dir
+	c.transcript = req.Transcript
 	var th struct {
 		Thread struct {
 			ID string `json:"id"`
@@ -350,8 +439,8 @@ func (c *voiceConn) begin(ctx context.Context, req voice.StartRequest) error {
 		ModelProvider string `json:"modelProvider"`
 	}
 	if err := c.request(ctx, "thread/start", threadParams{
-		Cwd: dir, ApprovalPolicy: "never", Sandbox: "read-only", ApprovalsReviewer: "user", Ephemeral: true,
-		DeveloperInstructions: voiceInstructions,
+		Cwd: filepath.Join(c.dir, voiceWorkDir), ApprovalPolicy: "never", Sandbox: "read-only", ApprovalsReviewer: "user", Ephemeral: true,
+		DeveloperInstructions: voiceInstructions, Config: voiceThreadConfig(c.servers),
 	}, &th); err != nil {
 		return err
 	}

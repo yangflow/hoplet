@@ -11,6 +11,7 @@ import (
 	"testing/synctest"
 	"time"
 
+	"github.com/yangflow/hoplet/internal/harness"
 	"github.com/yangflow/hoplet/proto"
 )
 
@@ -78,7 +79,7 @@ func (p *fakeProvider) Start(_ context.Context, req StartRequest) (Call, error) 
 
 func newManager(p Provider) (*Manager, *bytes.Buffer) {
 	var logs bytes.Buffer
-	return New(p, slog.New(slog.NewTextHandler(&logs, nil))), &logs
+	return New(p, nil, slog.New(slog.NewTextHandler(&logs, nil))), &logs
 }
 
 func code(err error) proto.ErrorCode {
@@ -304,4 +305,57 @@ func TestCloseDuringStartStopsTheCall(t *testing.T) {
 			t.Fatal("the late call kept running")
 		}
 	})
+}
+
+type fakeControl struct {
+	began, ended int
+	beginErr     error
+}
+
+func (f *fakeControl) Begin(context.Context) (Control, error) {
+	f.began++
+	return f, f.beginErr
+}
+func (f *fakeControl) Tools() []harness.MCPServer            { return []harness.MCPServer{{Name: "hoplet"}} }
+func (f *fakeControl) Transcript(proto.Role, string, string) {}
+func (f *fakeControl) End()                                  { f.ended++ }
+
+func TestControlEndsWithTheCall(t *testing.T) {
+	log := slog.New(slog.DiscardHandler)
+	ctx := context.Background()
+
+	bad := &fakeControl{}
+	m := New(&fakeProvider{startErr: errors.New("boom")}, bad, log)
+	if _, err := m.Start(ctx, "d", proto.VoiceStartParams{Offer: "o"}); err == nil {
+		t.Fatal("started")
+	}
+	if bad.ended != 1 {
+		t.Fatalf("failed start: ended %d", bad.ended)
+	}
+
+	refused := &fakeControl{beginErr: errors.New("no")}
+	m = New(&fakeProvider{}, refused, log)
+	if _, err := m.Start(ctx, "d", proto.VoiceStartParams{Offer: "o"}); err == nil {
+		t.Fatal("started without a controller")
+	}
+
+	good := &fakeControl{}
+	m = New(&fakeProvider{call: newFakeCall()}, good, log)
+	res, err := m.Start(ctx, "d", proto.VoiceStartParams{Offer: "o"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if good.ended != 0 {
+		t.Fatal("ended during the call")
+	}
+	if err := m.Stop("d", res.Call); err != nil {
+		t.Fatal(err)
+	}
+	if good.ended != 1 {
+		t.Fatalf("after stop: ended %d", good.ended)
+	}
+	m.Close()
+	if good.ended != 1 {
+		t.Fatalf("after close: ended %d", good.ended)
+	}
 }

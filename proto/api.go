@@ -240,7 +240,15 @@ type SendParams struct {
 	Session SessionID `json:"session"`
 	Text    string    `json:"text"`
 	Key     string    `json:"key"`
+	// Via is set by Hoplet's own tools; a client's value is ignored.
+	Via Via `json:"via,omitempty"`
 }
+
+// Via names the channel a message came through; empty for everything else.
+type Via string
+
+// ViaVoice marks a message sent from a voice call.
+const ViaVoice Via = "voice"
 
 // SendReply says where the message went: recorded as event Seq in Turn, or
 // queued behind the running turn.
@@ -351,6 +359,8 @@ type QueuedMessage struct {
 	From SessionID `json:"from,omitempty"`
 	// Report is how things stood in From when it reported.
 	Report ReportStatus `json:"report,omitempty"`
+	// Via is the channel the message came through.
+	Via Via `json:"via,omitempty"`
 }
 
 // QueueEditParams changes a queued message's text.

@@ -64,6 +64,10 @@ func (f fakeSource) Publish(_ context.Context, r artifact.Request) (proto.Artifa
 	return proto.Artifact{ID: "art1", Name: r.Name, Kind: proto.ArtifactHTML, Version: 2}, f.got.failure
 }
 
+func (f fakeSource) LatestReply(context.Context, proto.SessionID) (string, error) {
+	return "the latest reply", nil
+}
+
 func (f fakeSource) Sessions(context.Context) ([]proto.Session, error) { return f.sessions, f.err }
 
 func (f fakeSource) Simulator() Simulator { return f.sim }

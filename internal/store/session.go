@@ -98,7 +98,7 @@ func validateSession(sess proto.Session) error {
 	if sess.Harness.Kind == "" {
 		return bad("needs a harness kind")
 	}
-	if sess.Mode != proto.ModeCode && sess.Mode != proto.ModePersonal {
+	if sess.Mode != proto.ModeCode && sess.Mode != proto.ModePersonal && sess.Mode != proto.ModeVoice {
 		return bad("mode %q", sess.Mode)
 	}
 	if sess.Owner != proto.OwnerMe && sess.Owner != proto.OwnerDelegated {
@@ -148,16 +148,17 @@ func getSession(ctx context.Context, q queryer, id proto.SessionID) (proto.Sessi
 	return sess, err
 }
 
-// Sessions returns all sessions, most recently updated first.
+// Sessions returns all sessions but the hidden voice ones, most recently
+// updated first.
 func (s *Store) Sessions(ctx context.Context) ([]proto.Session, error) {
-	return s.listSessions(ctx, `SELECT `+sessionColumns+` FROM sessions ORDER BY updated_at DESC, id`)
+	return s.listSessions(ctx, `SELECT `+sessionColumns+` FROM sessions WHERE mode != ?`+` ORDER BY updated_at DESC, id`, proto.ModeVoice)
 }
 
 // SessionsSince returns the sessions changed after catalog version v, oldest
 // change first. Sessions are never deleted yet, so no tombstones exist;
 // deletion must add them or clients would never learn of removals.
 func (s *Store) SessionsSince(ctx context.Context, v uint64) ([]proto.Session, error) {
-	return s.listSessions(ctx, `SELECT `+sessionColumns+` FROM sessions WHERE version > ? ORDER BY version`, v)
+	return s.listSessions(ctx, `SELECT `+sessionColumns+` FROM sessions WHERE version > ? AND mode != ? ORDER BY version`, v, proto.ModeVoice)
 }
 
 func (s *Store) listSessions(ctx context.Context, query string, args ...any) ([]proto.Session, error) {
@@ -278,6 +279,11 @@ func (s *Store) ArchiveSession(ctx context.Context, id proto.SessionID, t time.T
 			return fmt.Errorf("%w: session %s", ErrNotFound, id)
 		}
 		if _, err := tx.ExecContext(ctx, `DELETE FROM session_tokens WHERE session_id = ?`, id); err != nil {
+			return fmt.Errorf("store: archive session %s: %w", id, err)
+		}
+		// A voice call's transcript goes with its archive.
+		if _, err := tx.ExecContext(ctx, `DELETE FROM events WHERE session_id = ?1
+			AND EXISTS (SELECT 1 FROM sessions WHERE id = ?1 AND mode = ?2)`, id, proto.ModeVoice); err != nil {
 			return fmt.Errorf("store: archive session %s: %w", id, err)
 		}
 		return bumpVersion(ctx, tx, id)

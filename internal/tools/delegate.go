@@ -28,6 +28,7 @@ type Create struct {
 	ModelProvider string
 	Effort        proto.Effort
 	Prompt        string
+	Via           proto.Via // the channel the prompt came through
 }
 
 func personal(caller proto.Session) bool { return caller.Mode == proto.ModePersonal }

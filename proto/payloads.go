@@ -75,6 +75,9 @@ type Message struct {
 	// messages without From and on reports recorded before it existed,
 	// which read as ReportDone.
 	Report ReportStatus `json:"report,omitempty"`
+	// Via is the channel the message came through; empty for everything else
+	// and on messages recorded before it existed.
+	Via Via `json:"via,omitempty"`
 }
 
 // ReportStatus is how things stood in a session when it reported to its

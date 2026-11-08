@@ -14,6 +14,8 @@ import (
 	"time"
 
 	"github.com/yangflow/hoplet/internal/env"
+	"github.com/yangflow/hoplet/internal/harness"
+	"github.com/yangflow/hoplet/internal/tools"
 	"github.com/yangflow/hoplet/internal/voice"
 	"github.com/yangflow/hoplet/proto"
 )
@@ -118,7 +120,7 @@ func newVoiceProvider(t *testing.T, on map[string]func(*voiceServer, json.RawMes
 		return nil
 	}
 	t.Cleanup(func() { _ = stop() })
-	p := &VoiceProvider{open: func(context.Context) (*voiceProcess, error) {
+	p := &VoiceProvider{open: func(context.Context, []string) (*voiceProcess, error) {
 		return &voiceProcess{in: inW, out: outR, stop: stop}, nil
 	}}
 	return p, s
@@ -231,6 +233,9 @@ func TestVoiceStart(t *testing.T) {
 	if s.saw("thread/realtime/stop") == nil {
 		t.Fatal("the call was not stopped at the service")
 	}
+	if th.Config["features.shell_tool"] != false || th.Config["web_search"] != "disabled" {
+		t.Fatalf("the model keeps other tools: %v", th.Config)
+	}
 	if _, err := os.Stat(th.Cwd); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("working directory kept: %v", err)
 	}
@@ -307,5 +312,80 @@ func TestVoiceCallEndedByTheService(t *testing.T) {
 				t.Fatalf("got %v", call.Err())
 			}
 		})
+	}
+}
+
+func TestVoiceGivesTheCallItsTools(t *testing.T) {
+	p, _ := newVoiceProvider(t, nil)
+	var got []string
+	open := p.open
+	p.open = func(ctx context.Context, args []string) (*voiceProcess, error) {
+		got = args
+		return open(ctx, args)
+	}
+	call, err := p.Start(voiceCtx(t), voice.StartRequest{Offer: voiceOffer, Tools: []harness.MCPServer{
+		{Name: "hoplet", Command: []string{"/bin/hoplet", "mcp"}, Env: []string{tools.TokenEnv + "=secret-token"}},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = call.Stop(voiceCtx(t)) }()
+	joined := strings.Join(got, " ")
+	if !strings.Contains(joined, "mcp_servers.hoplet.command") || strings.Contains(joined, "secret-token") {
+		t.Fatalf("args: %v", got)
+	}
+}
+
+func TestVoiceTurnsOffOtherServers(t *testing.T) {
+	p, s := newVoiceProvider(t, map[string]func(*voiceServer, json.RawMessage, json.RawMessage){
+		"config/read": func(s *voiceServer, id, _ json.RawMessage) {
+			s.reply(id, map[string]any{"config": map[string]any{"mcp_servers": map[string]any{"mine": map[string]any{"command": "x"}}}})
+		},
+	})
+	call, err := p.Start(voiceCtx(t), voice.StartRequest{Offer: voiceOffer})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = call.Stop(voiceCtx(t)) }()
+	var th threadParams
+	if err := json.Unmarshal(s.saw("thread/start"), &th); err != nil {
+		t.Fatal(err)
+	}
+	if th.Config["mcp_servers.mine.enabled"] != false {
+		t.Fatalf("config: %v", th.Config)
+	}
+}
+
+func TestVoiceTranscriptIsFinalSegmentsOnly(t *testing.T) {
+	p, s := newVoiceProvider(t, nil)
+	type line struct {
+		role     proto.Role
+		id, text string
+	}
+	lines := make(chan line, 4)
+	call, err := p.Start(voiceCtx(t), voice.StartRequest{Offer: voiceOffer, Transcript: func(role proto.Role, id, text string) {
+		lines <- line{role, id, text}
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = call.Stop(voiceCtx(t)) }()
+	item := func(typ, id, role, text string) {
+		s.note("thread/realtime/item/completed", map[string]any{"item": map[string]any{"type": typ, "id": id, "role": role, "text": text}})
+	}
+	item("other", "a", "user", "not a segment")
+	item("transcriptSegment", "b", "system", "not a speaker")
+	item("transcriptSegment", "c", "user", " ")
+	item("transcriptSegment", "d", "assistant", "said")
+	select {
+	case got := <-lines:
+		if got != (line{proto.RoleAssistant, "d", "said"}) {
+			t.Fatalf("line: %+v", got)
+		}
+	case <-voiceCtx(t).Done():
+		t.Fatal("no transcript")
+	}
+	if len(lines) != 0 {
+		t.Fatalf("extra lines: %d", len(lines))
 	}
 }

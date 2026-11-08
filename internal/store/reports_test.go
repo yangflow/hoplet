@@ -209,8 +209,8 @@ func TestDelegationMigration(t *testing.T) {
 	if got := dumpRows(t, s, "events"); !slices.Equal(got, events) || len(got) == 0 {
 		t.Fatalf("events changed:\n%v\nwant\n%v", got, events)
 	}
-	// Migration 15 adds the report column after from_session.
-	if got := dumpQuery(t, s, queueRows); !slices.Equal(got, withEmpty(withEmpty(queue))) || len(got) == 0 {
+	// Later migrations add the report and via columns after from_session.
+	if got := dumpQuery(t, s, queueRows); !slices.Equal(got, withEmpty(withEmpty(withEmpty(queue)))) || len(got) == 0 {
 		t.Fatalf("queue changed:\n%v\nwant\n%v", got, queue)
 	}
 	if sess, err := s.Session(ctx, "code"); err != nil || sess.Parent != "" {

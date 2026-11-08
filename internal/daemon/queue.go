@@ -68,6 +68,9 @@ func (q *queuer) send(ctx context.Context, p proto.SendParams) (proto.SendReply,
 	if p.Text == "" {
 		return proto.SendReply{}, invalid("send needs text")
 	}
+	if s, err := q.store.Session(ctx, p.Session); err == nil && s.Mode == proto.ModeVoice {
+		return proto.SendReply{}, invalid("a voice call takes no messages")
+	}
 	defer q.lock(p.Session)()
 	msgs, err := q.store.Queue(ctx, p.Session)
 	if err != nil {
@@ -77,7 +80,7 @@ func (q *queuer) send(ctx context.Context, p proto.SendParams) (proto.SendReply,
 		return proto.SendReply{Queued: true}, nil // a retry of a queued message
 	}
 	if len(msgs) == 0 {
-		res, err := q.mgr.Send(ctx, p.Session, p.Text, p.Key)
+		res, err := q.mgr.SendFrom(ctx, p.Session, "", "", p.Via, p.Text, p.Key)
 		if err == nil {
 			return proto.SendReply{Seq: res.Seq, Turn: res.Turn}, nil
 		}
@@ -85,7 +88,7 @@ func (q *queuer) send(ctx context.Context, p proto.SendParams) (proto.SendReply,
 			return proto.SendReply{}, err
 		}
 	}
-	if _, _, err := q.store.Enqueue(ctx, p.Session, p.Key, p.Text); err != nil {
+	if _, _, err := q.store.EnqueueVia(ctx, p.Session, p.Key, p.Text, p.Via); err != nil {
 		return proto.SendReply{}, err
 	}
 	return proto.SendReply{Queued: true}, nil
@@ -185,7 +188,7 @@ func (q *queuer) drain(ctx context.Context, id proto.SessionID) {
 	// The key makes this safe to repeat: if the daemon dies after the send
 	// and before the delete, the next daemon's send finds the receipt. An
 	// edited message goes out under a new key, as a new message.
-	_, err = q.mgr.SendFrom(ctx, id, head.From, head.Report, head.Text, sendKey)
+	_, err = q.mgr.SendFrom(ctx, id, head.From, head.Report, head.Via, head.Text, sendKey)
 	switch {
 	case ctx.Err() != nil:
 	case errors.Is(err, session.ErrBusy):
