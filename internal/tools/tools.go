@@ -41,6 +41,8 @@ type Source interface {
 	Publish(ctx context.Context, r artifact.Request) (proto.Artifact, error)
 	// Simulator is the iOS simulator service, nil when this host has none.
 	Simulator() Simulator
+	// Profile is the user's memory.
+	Profile() ProfileSource
 }
 
 // tool is one tool: what the model sees and what a call does. A call's
@@ -128,7 +130,7 @@ func New(src Source) *Set {
 				return src.State(ctx, id)
 			},
 		},
-	}, slices.Concat(delegationTools(src), artifactTools(src), simulatorTools(src))...)}
+	}, slices.Concat(delegationTools(src), artifactTools(src), simulatorTools(src), profileTools(src))...)}
 }
 
 // List returns the tools caller may call.

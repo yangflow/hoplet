@@ -20,7 +20,10 @@ type fakeSource struct {
 	workDir  string
 	got      *changes // what the tools asked to change
 	sim      Simulator
+	profile  ProfileSource
 }
+
+func (f fakeSource) Profile() ProfileSource { return f.profile }
 
 // changes records the calls that change something.
 type changes struct {
@@ -91,7 +94,7 @@ func TestTools(t *testing.T) {
 			t.Errorf("%s: schema is not JSON", ti.Name)
 		}
 	}
-	if got := strings.Join(names, ","); got != "sessions_list,session_get,artifact_publish" {
+	if got := strings.Join(names, ","); got != "sessions_list,session_get,artifact_publish,profile_list,profile_read,profile_write" {
 		t.Fatalf("tools %s", got)
 	}
 
