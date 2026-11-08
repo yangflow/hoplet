@@ -37,7 +37,7 @@ func TestAcquire(t *testing.T) {
 			if tt.holder != "" {
 				s.holders["U"] = holderEntry{session: tt.holder, lastInput: testNow.Add(-tt.idle)}
 			}
-			err := s.acquire(context.Background(), tt.caller, "U")
+			err := s.acquire(context.Background(), tt.caller, "U", 0)
 			var se *Error
 			if tt.wantBusy {
 				if !errors.As(err, &se) || se.Code != CodeBusy || !strings.Contains(se.Message, string(tt.holder)) {
@@ -65,7 +65,7 @@ func TestAcquireConcurrent(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			errs[i] = s.acquire(context.Background(), proto.SessionID("ses_"+string(rune('a'+i))), "U")
+			errs[i] = s.acquire(context.Background(), proto.SessionID("ses_"+string(rune('a'+i))), "U", 0)
 		}()
 	}
 	wg.Wait()
@@ -93,7 +93,7 @@ func TestAcquireConcurrentExpiredHolder(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if s.acquire(context.Background(), proto.SessionID("ses_"+string(rune('a'+i))), "U") == nil {
+			if s.acquire(context.Background(), proto.SessionID("ses_"+string(rune('a'+i))), "U", 0) == nil {
 				mu.Lock()
 				wins++
 				mu.Unlock()
@@ -276,5 +276,191 @@ func TestOpenURL(t *testing.T) {
 	var se *Error
 	if err := s.OpenURL(ctx, "ses_1", "UDID-A17", "myapp://x"); !errors.As(err, &se) || se.Code != CodeNotBooted {
 		t.Fatalf("err = %v", err)
+	}
+}
+
+func wantBusy(t *testing.T, err error, holder proto.SessionID) {
+	t.Helper()
+	var se *Error
+	if !errors.As(err, &se) || se.Code != CodeBusy || !strings.Contains(se.Message, string(holder)) {
+		t.Fatalf("err = %v, want busy naming %s", err, holder)
+	}
+}
+
+func TestLaunchKeepsLeaseWhileInFlight(t *testing.T) {
+	const firstInstall = 108 * time.Second
+	ctx := context.Background()
+	tests := []struct {
+		name    string
+		failing string // the simctl verb that fails, if any
+	}{
+		{name: "success"},
+		{name: "failed install", failing: "install"},
+		{name: "failed launch", failing: "launch"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			clock := &fakeClock{now: testNow}
+			f := listRunner()
+			s := newSvc(f)
+			s.now = clock.Now
+			var midInstall error
+			f.hook = func(_ string, args []string) ([]byte, error, bool) {
+				if len(args) < 2 {
+					return nil, nil, false
+				}
+				if args[1] == "install" {
+					clock.Advance(firstInstall)
+					midInstall = s.Launch(ctx, "ses_2", "UDID-A18", "com.example.other", "")
+				}
+				if args[1] == tt.failing {
+					return nil, errors.New("simctl failed"), true
+				}
+				return nil, nil, false
+			}
+			err := s.Launch(ctx, "ses_1", "UDID-A18", "com.example.app", "/work/App.app")
+			if (err != nil) != (tt.failing != "") {
+				t.Fatalf("err = %v", err)
+			}
+			wantBusy(t, midInstall, "ses_1")
+
+			// The idle window restarts when the operation ends.
+			if d, err := s.resolve(ctx, "ses_1", ""); err != nil || d.UDID != "UDID-A18" {
+				t.Fatalf("right after Launch: d = %+v, err = %v", d, err)
+			}
+			if got := s.holders["UDID-A18"]; got.inFlight != 0 || !got.lastInput.Equal(clock.Now()) {
+				t.Fatalf("entry after Launch = %+v", got)
+			}
+			clock.Advance(leaseIdle - time.Millisecond)
+			wantBusy(t, s.acquire(ctx, "ses_2", "UDID-A18", 0), "ses_1")
+			clock.Advance(time.Millisecond)
+			if err := s.acquire(ctx, "ses_2", "UDID-A18", 0); err != nil {
+				t.Fatalf("idle lease not released: %v", err)
+			}
+		})
+	}
+}
+
+func TestLaunchReentryCountsInFlight(t *testing.T) {
+	ctx := context.Background()
+	clock := &fakeClock{now: testNow}
+	f := listRunner()
+	s := newSvc(f)
+	s.now = clock.Now
+	nested := false
+	var afterNested error
+	f.hook = func(_ string, args []string) ([]byte, error, bool) {
+		if len(args) > 1 && args[1] == "install" && !nested {
+			nested = true
+			if err := s.Launch(ctx, "ses_1", "UDID-A18", "com.example.app", ""); err != nil {
+				t.Errorf("reentrant Launch: %v", err)
+			}
+			// The outer Launch is still running, so the lease must hold.
+			clock.Advance(2 * leaseIdle)
+			afterNested = s.acquire(ctx, "ses_2", "UDID-A18", 0)
+		}
+		return nil, nil, false
+	}
+	if err := s.Launch(ctx, "ses_1", "UDID-A18", "com.example.app", "/work/App.app"); err != nil {
+		t.Fatal(err)
+	}
+	wantBusy(t, afterNested, "ses_1")
+	if got := s.holders["UDID-A18"].inFlight; got != 0 {
+		t.Fatalf("inFlight = %d, want 0", got)
+	}
+}
+
+// A dead holder loses the lease even with a Launch in flight, and the end of
+// that Launch must not touch the new holder's entry.
+func TestLaunchEndLeavesNewHolderAlone(t *testing.T) {
+	s := newSvc(listRunner())
+	s.alive = func(_ context.Context, id proto.SessionID) bool { return id != "ses_dead" }
+	s.holders["U"] = holderEntry{session: "ses_dead", lastInput: testNow, inFlight: 1}
+	if err := s.acquire(context.Background(), "ses_1", "U", 0); err != nil {
+		t.Fatal(err)
+	}
+	want := holderEntry{session: "ses_1", lastInput: testNow}
+	if got := s.holders["U"]; got != want {
+		t.Fatalf("entry = %+v, want %+v", got, want)
+	}
+	s.finishOp("ses_dead", "U")
+	if got := s.holders["U"]; got != want {
+		t.Fatalf("entry after the old Launch ended = %+v, want %+v", got, want)
+	}
+}
+
+// An in-flight counter that moves during the unlocked alive check makes the
+// check stale: the decision is retried instead of acting on it.
+func TestAcquireRetriesWhenInFlightChanges(t *testing.T) {
+	s := newSvc(listRunner())
+	s.holders["U"] = holderEntry{session: "ses_2", lastInput: testNow, inFlight: 1}
+	checks := 0
+	s.alive = func(context.Context, proto.SessionID) bool {
+		checks++
+		if checks == 1 {
+			s.finishOp("ses_2", "U")
+			return false
+		}
+		return true
+	}
+	wantBusy(t, s.acquire(context.Background(), "ses_1", "U", 0), "ses_2")
+	if checks != 2 {
+		t.Fatalf("alive checks = %d, want 2", checks)
+	}
+}
+
+func TestHolderOfKeepsEntryWhenInFlightChanges(t *testing.T) {
+	s := newSvc(listRunner())
+	s.holders["U"] = holderEntry{session: "ses_2", lastInput: testNow, inFlight: 1}
+	s.alive = func(context.Context, proto.SessionID) bool {
+		s.finishOp("ses_2", "U")
+		return false
+	}
+	if got := s.holderOf(context.Background(), "U"); got != "" {
+		t.Fatalf("holder = %q", got)
+	}
+	if _, held := s.holders["U"]; !held {
+		t.Fatal("entry that changed during the alive check was dropped")
+	}
+}
+
+func TestExpiredIgnoresInFlight(t *testing.T) {
+	s := newSvc(listRunner())
+	old := testNow.Add(-time.Hour)
+	if s.expired(holderEntry{session: "a", lastInput: old, inFlight: 1}) {
+		t.Fatal("in-flight lease expired")
+	}
+	if !s.expired(holderEntry{session: "a", lastInput: old}) {
+		t.Fatal("idle lease did not expire")
+	}
+}
+
+func TestLaunchConcurrentOneWinner(t *testing.T) {
+	ctx := context.Background()
+	f := listRunner()
+	s := newSvc(f)
+	s.holders["UDID-A18"] = holderEntry{session: "old", lastInput: testNow.Add(-time.Hour)}
+	const n = 16
+	var wg sync.WaitGroup
+	errs := make([]error, n)
+	for i := range n {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			errs[i] = s.Launch(ctx, proto.SessionID("ses_"+string(rune('a'+i))), "UDID-A18", "com.example.app", "")
+		}()
+	}
+	wg.Wait()
+	wins := 0
+	for _, err := range errs {
+		if err == nil {
+			wins++
+		}
+	}
+	if wins != 1 {
+		t.Fatalf("%d launches succeeded, want 1", wins)
+	}
+	if got := s.holders["UDID-A18"].inFlight; got != 0 {
+		t.Fatalf("inFlight = %d, want 0", got)
 	}
 }

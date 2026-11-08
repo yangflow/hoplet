@@ -77,6 +77,9 @@ type Device struct {
 type holderEntry struct {
 	session   proto.SessionID
 	lastInput time.Time
+	// inFlight counts running operations; the lease cannot expire while it
+	// is positive.
+	inFlight int
 }
 
 // Service wraps simctl and tracks which session holds which device.
@@ -161,7 +164,22 @@ func (s *Service) resolve(ctx context.Context, caller proto.SessionID, device st
 const leaseIdle = 60 * time.Second
 
 func (s *Service) expired(e holderEntry) bool {
-	return s.now().Sub(e.lastInput) >= leaseIdle
+	return e.inFlight == 0 && s.now().Sub(e.lastInput) >= leaseIdle
+}
+
+// finishOp ends an operation started by acquire with ops 1 and restarts the
+// idle window. It leaves the entry alone if another session has since taken
+// the device.
+func (s *Service) finishOp(caller proto.SessionID, udid string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	e, ok := s.holders[udid]
+	if !ok || e.session != caller || e.inFlight == 0 {
+		return
+	}
+	e.inFlight--
+	e.lastInput = s.now()
+	s.holders[udid] = e
 }
 
 // holderOf returns the live holder of a device: expired holds and holds of
@@ -193,13 +211,18 @@ func (s *Service) holderOf(ctx context.Context, udid string) proto.SessionID {
 // acquire gives caller the lease on a device, or fails with CodeBusy naming
 // the holder. The alive check runs outside the lock; after it the table is
 // re-checked and the decision is retried if another caller changed the entry,
-// so two callers never both win.
-func (s *Service) acquire(ctx context.Context, caller proto.SessionID, udid string) error {
+// so two callers never both win. Entries compare by value, so a change to the
+// in-flight count also forces a retry. ops is added to the caller's in-flight
+// count; each one must be ended with finishOp.
+func (s *Service) acquire(ctx context.Context, caller proto.SessionID, udid string, ops int) error {
 	for {
 		s.mu.Lock()
 		e, held := s.holders[udid]
 		if !held || e.session == caller || s.expired(e) {
-			s.holders[udid] = holderEntry{session: caller, lastInput: s.now()}
+			if held && e.session == caller {
+				ops += e.inFlight
+			}
+			s.holders[udid] = holderEntry{session: caller, lastInput: s.now(), inFlight: ops}
 			s.mu.Unlock()
 			return nil
 		}
@@ -213,7 +236,7 @@ func (s *Service) acquire(ctx context.Context, caller proto.SessionID, udid stri
 			continue
 		}
 		if !alive {
-			s.holders[udid] = holderEntry{session: caller, lastInput: s.now()}
+			s.holders[udid] = holderEntry{session: caller, lastInput: s.now(), inFlight: ops}
 			s.mu.Unlock()
 			return nil
 		}
@@ -224,7 +247,8 @@ func (s *Service) acquire(ctx context.Context, caller proto.SessionID, udid stri
 
 // Launch installs the app at appPath (when given) and launches bundleID on a
 // booted device. It takes the device lease first; a refused lease runs
-// nothing, and a failed install or launch keeps the lease.
+// nothing, and a failed install or launch keeps the lease. The lease cannot
+// expire while Launch runs, and its idle window restarts when Launch ends.
 func (s *Service) Launch(ctx context.Context, caller proto.SessionID, device, bundleID, appPath string) error {
 	d, err := s.resolve(ctx, caller, device)
 	if err != nil {
@@ -233,9 +257,10 @@ func (s *Service) Launch(ctx context.Context, caller proto.SessionID, device, bu
 	if err := requireBooted(d); err != nil {
 		return err
 	}
-	if err := s.acquire(ctx, caller, d.UDID); err != nil {
+	if err := s.acquire(ctx, caller, d.UDID, 1); err != nil {
 		return err
 	}
+	defer s.finishOp(caller, d.UDID)
 	if appPath != "" {
 		if _, err := s.simctl(ctx, "install", d.UDID, appPath); err != nil {
 			return err

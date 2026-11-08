@@ -30,16 +30,20 @@ type fakeRunner struct {
 
 func (f *fakeRunner) Run(_ context.Context, name string, args ...string) ([]byte, error) {
 	f.mu.Lock()
-	defer f.mu.Unlock()
 	f.calls = append(f.calls, call{name, args})
-	if f.err != nil {
-		return nil, f.err
+	hook, err := f.hook, f.err
+	f.mu.Unlock()
+	if err != nil {
+		return nil, err
 	}
-	if f.hook != nil {
-		if out, err, ok := f.hook(name, args); ok {
+	// The hook runs unlocked so it can call back into the service.
+	if hook != nil {
+		if out, err, ok := hook(name, args); ok {
 			return out, err
 		}
 	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	return []byte(f.out[strings.Join(args, " ")]), nil
 }
 
@@ -72,6 +76,24 @@ func plutilKey(bundle string) string {
 
 // testNow is the fixed clock tests inject.
 var testNow = time.Unix(1_000_000, 0)
+
+// fakeClock is a clock tests advance by hand.
+type fakeClock struct {
+	mu  sync.Mutex
+	now time.Time
+}
+
+func (c *fakeClock) Now() time.Time {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.now
+}
+
+func (c *fakeClock) Advance(d time.Duration) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.now = c.now.Add(d)
+}
 
 func newSvc(f *fakeRunner) *Service {
 	return New(f, func() time.Time { return testNow }, func(context.Context, proto.SessionID) bool { return true })
