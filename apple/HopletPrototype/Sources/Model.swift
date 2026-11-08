@@ -85,6 +85,29 @@ final class Store {
   /// The mode a new group is being named for, and the session to move into it, if any.
   var newGroup: (mode: Mode, sessionID: String?)?
 
+  var links: [String: HostLink] = ["MacBook": .online, "Mac mini": .online, "VPS": .offline]
+  var hasHosts = true
+  var pairDemo = PairDemo.success
+
+  func link(_ host: String) -> HostLink { links[host] ?? .offline }
+  func isOffline(_ host: String) -> Bool { link(host) != .online }
+
+  /// The prototype's reconnect always succeeds, after a moment.
+  func reconnect(_ host: String) {
+    withAnimation { links[host] = .reconnecting }
+    Task {
+      try? await Task.sleep(for: .seconds(1.5))
+      withAnimation { links[host] = .online }
+    }
+  }
+
+  func finishPairing(_ host: String) {
+    withAnimation {
+      links[host] = .online
+      hasHosts = true
+    }
+  }
+
   var needsYou: [Session] { sessions.filter { $0.pending != nil } }
   private var ordered: [Session] { sessions.filter(\.pinned) + sessions.filter { !$0.pinned } }
   var recent: [Session] { ordered.filter { $0.pending == nil && $0.status != .running } }

@@ -6,7 +6,11 @@ struct HopletPrototypeApp: App {
 
   var body: some Scene {
     WindowGroup {
-      RootView().environment(store).tint(.primary)
+      Group {
+        if store.hasHosts { RootView() } else { WelcomeView() }
+      }
+      .environment(store)
+      .tint(.primary)
     }
   }
 }
@@ -70,11 +74,19 @@ struct RootView: View {
 
 /// One mark at the end of the row; only an idle session shows its time.
 struct RowCorner: View {
+  @Environment(Store.self) private var store
   let session: Session
+
+  private var disconnected: Bool {
+    let link = store.link(session.host)
+    return link == .offline || link == .revoked
+  }
 
   var body: some View {
     Group {
-      if session.pending != nil {
+      if disconnected {
+        Image(systemName: "wifi.slash").foregroundStyle(.tertiary).accessibilityLabel("断线")
+      } else if session.pending != nil {
         dot(.needsYou).accessibilityLabel("需要你")
       } else {
         switch session.status {
@@ -151,6 +163,7 @@ struct HarnessMark: View {
 
 /// Two lines beside the harness mark; separators and disclosure arrows are left out on purpose.
 struct SessionRow: View {
+  @Environment(Store.self) private var store
   let session: Session
   var subtitle: String?
   var symbol: String?
@@ -163,7 +176,9 @@ struct SessionRow: View {
           Text(session.title).lineLimit(1)
             .fontWeight(session.status == .unread ? .semibold : .medium)
           Spacer()
-          if symbol == nil {
+          if symbol == nil || store.link(session.host) == .offline
+            || store.link(session.host) == .revoked
+          {
             RowCorner(session: session)
           } else {
             Text(session.time).font(.footnote).foregroundStyle(.tertiary)
@@ -262,29 +277,18 @@ struct SearchView: View {
 
 struct SettingsView: View {
   @Environment(\.dismiss) private var dismiss
+  @Environment(Store.self) private var store
   @State private var notify = true
+  @State private var pairing = false
 
   var body: some View {
     NavigationStack {
       Form {
         Section("设备") {
-          LabeledContent {
-            OnlineDot(online: true)
-          } label: {
-            Label("MacBook", systemImage: "laptopcomputer")
-          }
-          LabeledContent {
-            OnlineDot(online: true)
-          } label: {
-            Label("Mac mini", systemImage: "macmini")
-          }
-          LabeledContent {
-            OnlineDot(online: false)
-          } label: {
-            Label("VPS", systemImage: "server.rack")
-          }
-          Button("配对新设备", systemImage: "qrcode.viewfinder") {}
+          ForEach(Host.all) { host in deviceRow(host) }
+          Button("配对新设备", systemImage: "qrcode.viewfinder") { pairing = true }
         }
+        ConnectionDemoSection()
         Section("通知") {
           Toggle("需要你时通知", isOn: $notify).tint(.green)
         }
@@ -297,6 +301,29 @@ struct SettingsView: View {
           Button("关闭", systemImage: "xmark") { dismiss() }
         }
       }
+    }
+    .sheet(isPresented: $pairing) { PairView() }
+  }
+
+  /// An offline row reconnects when tapped; a revoked device has to pair again.
+  @ViewBuilder private func deviceRow(_ host: Host) -> some View {
+    let link = store.link(host.name)
+    let row = LabeledContent {
+      if link == .revoked {
+        Text("重新配对")
+      } else {
+        HostLinkMark(link: link)
+      }
+    } label: {
+      Label(host.name, systemImage: host.symbol)
+    }
+    switch link {
+    case .offline:
+      Button { store.reconnect(host.name) } label: { row }.accessibilityHint("重新连接")
+    case .revoked:
+      Button { pairing = true } label: { row }
+    case .online, .reconnecting:
+      row
     }
   }
 }
