@@ -71,7 +71,7 @@ func TestToolConnections(t *testing.T) {
 	for _, tl := range list.Tools {
 		names = append(names, tl.Name)
 	}
-	if strings.Join(names, ",") != "sessions_list,session_get,artifact_publish,simulator_list,simulator_boot,simulator_launch,simulator_screenshot,simulator_open_url" {
+	if strings.Join(names, ",") != "sessions_list,session_get,artifact_publish,simulator_list,simulator_boot,simulator_launch,simulator_screenshot,simulator_tap,simulator_swipe,simulator_text,simulator_button,simulator_open_url" {
 		t.Fatalf("tools = %v", names)
 	}
 
