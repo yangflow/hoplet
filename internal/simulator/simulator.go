@@ -85,14 +85,15 @@ type Service struct {
 	now   func() time.Time
 	alive func(context.Context, proto.SessionID) bool
 
-	mu      sync.Mutex
-	holders map[string]holderEntry // keyed by UDID
+	mu       sync.Mutex
+	holders  map[string]holderEntry // keyed by UDID
+	geometry map[string]geometry    // keyed by device type identifier
 }
 
 // New returns a Service. alive reports whether a session still exists and is
 // not archived; now supplies the clock.
 func New(r Runner, now func() time.Time, alive func(context.Context, proto.SessionID) bool) *Service {
-	return &Service{run: r, now: now, alive: alive, holders: map[string]holderEntry{}}
+	return &Service{run: r, now: now, alive: alive, holders: map[string]holderEntry{}, geometry: map[string]geometry{}}
 }
 
 // Devices lists available simulator devices.

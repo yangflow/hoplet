@@ -3,6 +3,7 @@ package simulator
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os/exec"
 	"reflect"
 	"strings"
@@ -23,6 +24,8 @@ type fakeRunner struct {
 	calls []call
 	out   map[string]string // keyed by joined args
 	err   error
+	// hook, when set, runs after the call is recorded and may return a result.
+	hook func(name string, args []string) ([]byte, error, bool)
 }
 
 func (f *fakeRunner) Run(_ context.Context, name string, args ...string) ([]byte, error) {
@@ -32,25 +35,52 @@ func (f *fakeRunner) Run(_ context.Context, name string, args ...string) ([]byte
 	if f.err != nil {
 		return nil, f.err
 	}
+	if f.hook != nil {
+		if out, err, ok := f.hook(name, args); ok {
+			return out, err
+		}
+	}
 	return []byte(f.out[strings.Join(args, " ")]), nil
 }
 
 const listJSON = `{"devices":{
  "com.apple.CoreSimulator.SimRuntime.iOS-18-0":[
-  {"name":"Phone A","udid":"UDID-A18","state":"Booted","isAvailable":true},
-  {"name":"Phone Twin","udid":"UDID-T1","state":"Shutdown","isAvailable":true},
-  {"name":"Phone Gone","udid":"UDID-G","state":"Shutdown","isAvailable":false}],
+  {"name":"Phone A","udid":"UDID-A18","state":"Booted","isAvailable":true,"deviceTypeIdentifier":"type.phone-a"},
+  {"name":"Phone Twin","udid":"UDID-T1","state":"Shutdown","isAvailable":true,"deviceTypeIdentifier":"type.phone-twin"},
+  {"name":"Phone Gone","udid":"UDID-G","state":"Shutdown","isAvailable":false,"deviceTypeIdentifier":"type.phone-a"}],
  "com.apple.CoreSimulator.SimRuntime.iOS-17-5":[
-  {"name":"Phone A","udid":"UDID-A17","state":"Shutdown","isAvailable":true},
-  {"name":"Phone Twin","udid":"UDID-T2","state":"Shutdown","isAvailable":true}],
- "com.apple.CoreSimulator.SimRuntime.watchOS-11-0":[]}}`
+  {"name":"Phone A","udid":"UDID-A17","state":"Shutdown","isAvailable":true,"deviceTypeIdentifier":"type.phone-a"},
+  {"name":"Phone Twin","udid":"UDID-T2","state":"Shutdown","isAvailable":true,"deviceTypeIdentifier":"type.phone-twin"}],
+ "com.apple.CoreSimulator.SimRuntime.watchOS-11-0":[
+  {"name":"Watch","udid":"UDID-W","state":"Shutdown","isAvailable":true,"deviceTypeIdentifier":"type.watch"}]}}`
+
+const deviceTypesJSON = `{"devicetypes":[
+ {"name":"Phone A","identifier":"type.phone-a","bundlePath":"/types/PhoneA.simdevicetype"},
+ {"name":"Phone Twin","identifier":"type.phone-twin","bundlePath":"/types/PhoneTwin.simdevicetype"},
+ {"name":"Watch","identifier":"type.watch","bundlePath":"/types/Watch.simdevicetype"}]}`
+
+// capabilitiesJSON is plutil's JSON rendering of a device type's
+// capabilities.plist, reduced to the keys the service reads. Width and height
+// are pixels.
+func capabilitiesJSON(scale, w, h int) string {
+	return fmt.Sprintf(`{"capabilities":{"ScreenDimensionsCapability":{"main-screen-scale":%d,"main-screen-width":%d,"main-screen-height":%d}}}`, scale, w, h)
+}
+
+func plutilKey(bundle string) string {
+	return "-convert json -o - " + bundle + "/Contents/Resources/capabilities.plist"
+}
 
 func newSvc(f *fakeRunner) *Service {
 	return New(f, time.Now, func(context.Context, proto.SessionID) bool { return true })
 }
 
 func listRunner() *fakeRunner {
-	return &fakeRunner{out: map[string]string{"simctl list -j devices": listJSON}}
+	return &fakeRunner{out: map[string]string{
+		"simctl list -j devices":                    listJSON,
+		"simctl list -j devicetypes":                deviceTypesJSON,
+		plutilKey("/types/PhoneA.simdevicetype"):    capabilitiesJSON(3, 1179, 2556),
+		plutilKey("/types/PhoneTwin.simdevicetype"): capabilitiesJSON(2, 750, 1334),
+	}}
 }
 
 func TestDevices(t *testing.T) {
@@ -62,10 +92,10 @@ func TestDevices(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := []Device{
-		{Name: "Phone A", UDID: "UDID-A17", State: "Shutdown", Runtime: "iOS-17-5"},
-		{Name: "Phone Twin", UDID: "UDID-T2", State: "Shutdown", Runtime: "iOS-17-5"},
-		{Name: "Phone A", UDID: "UDID-A18", State: "Booted", Runtime: "iOS-18-0", Holder: "ses_1"},
-		{Name: "Phone Twin", UDID: "UDID-T1", State: "Shutdown", Runtime: "iOS-18-0"},
+		{Name: "Phone A", UDID: "UDID-A17", State: "Shutdown", Runtime: "iOS-17-5", Width: 393, Height: 852, Scale: 3},
+		{Name: "Phone Twin", UDID: "UDID-T2", State: "Shutdown", Runtime: "iOS-17-5", Width: 375, Height: 667, Scale: 2},
+		{Name: "Phone A", UDID: "UDID-A18", State: "Booted", Runtime: "iOS-18-0", Holder: "ses_1", Width: 393, Height: 852, Scale: 3},
+		{Name: "Phone Twin", UDID: "UDID-T1", State: "Shutdown", Runtime: "iOS-18-0", Width: 375, Height: 667, Scale: 2},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("devices = %+v\nwant %+v", got, want)
