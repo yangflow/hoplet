@@ -155,7 +155,7 @@ type Manager struct {
 
 	mu      sync.Mutex
 	live    map[proto.SessionID]*live
-	locks   map[proto.SessionID]*sync.Mutex
+	locks   map[proto.SessionID]*sessionLock
 	closing bool
 	wg      sync.WaitGroup
 
@@ -240,7 +240,7 @@ func New(cfg Config) (*Manager, error) {
 	return &Manager{
 		cfg: cfg, log: log, ctx: ctx, cancel: cancel, closeCh: make(chan struct{}), env: slices.Clone(cfg.Env),
 		appendFn: cfg.Store.Append, ready: readyTimeout, baselineTimeout: baselineTimeout, change: make(chan struct{}),
-		streak: map[proto.SessionID]int{}, live: map[proto.SessionID]*live{}, locks: map[proto.SessionID]*sync.Mutex{},
+		streak: map[proto.SessionID]int{}, live: map[proto.SessionID]*live{}, locks: map[proto.SessionID]*sessionLock{},
 	}, nil
 }
 
@@ -414,16 +414,31 @@ func (m *Manager) dir(id proto.SessionID) string { return filepath.Join(m.cfg.Ro
 
 // lockSession serializes lifecycle work (attach, spawn, reattach, stop) on
 // one session, so only one connection to its shim is made at a time.
+// An entry lasts only while someone holds or awaits the lock.
 func (m *Manager) lockSession(id proto.SessionID) func() {
 	m.mu.Lock()
 	l, ok := m.locks[id]
 	if !ok {
-		l = &sync.Mutex{}
+		l = &sessionLock{}
 		m.locks[id] = l
 	}
+	l.refs++
 	m.mu.Unlock()
-	l.Lock()
-	return l.Unlock
+	l.mu.Lock()
+	return func() {
+		l.mu.Unlock()
+		m.mu.Lock()
+		defer m.mu.Unlock()
+		if l.refs--; l.refs == 0 {
+			delete(m.locks, id)
+		}
+	}
+}
+
+// sessionLock is a session's lifecycle lock; refs is guarded by Manager.mu.
+type sessionLock struct {
+	mu   sync.Mutex
+	refs int
 }
 
 func (m *Manager) isClosing() bool {
@@ -1433,9 +1448,7 @@ func (m *Manager) Archive(ctx context.Context, id proto.SessionID) error {
 	if err := m.cfg.Store.ArchiveSession(ctx, id, time.Now()); err != nil {
 		return err
 	}
-	// An archived session is never started again, so its lock entry can go.
 	m.mu.Lock()
-	delete(m.locks, id)
 	delete(m.streak, id)
 	m.mu.Unlock()
 	return nil

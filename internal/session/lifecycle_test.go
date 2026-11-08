@@ -641,6 +641,25 @@ func TestReattachRefusesArchivedSessions(t *testing.T) {
 	}
 }
 
+func TestLateReattachLeavesNoLockEntry(t *testing.T) {
+	e := newEnv(t, longTurn)
+	m := e.manager()
+	defer m.Close()
+	sess := e.create(m)
+	if err := m.Archive(context.Background(), sess.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.tryReattach(sess.ID, ""); err != nil {
+		t.Fatal(err)
+	}
+	m.mu.Lock()
+	_, hasLock := m.locks[sess.ID]
+	m.mu.Unlock()
+	if hasLock {
+		t.Fatal("a reattach after the archive left a lock entry")
+	}
+}
+
 var quietScript = fake.Script{QuietStart: true, Turns: []fake.Turn{{Steps: []fake.Step{{EchoPrompt: true}}}}}
 
 // sendWhenCaughtUp sends until ingestion has caught up with the shim; any
