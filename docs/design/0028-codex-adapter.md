@@ -45,7 +45,8 @@ flowchart LR
 | 智能审批 | `on-request` | `workspace-write` | `auto_review` |
 | 全自动 | `never` | `danger-full-access` | `user` |
 
-- Plan 是独立开关，映射到回合的 `collaborationMode: plan`，计划内容以 `plan` 条目到达。
+- Plan 是独立开关，通过 `thread/settings/update` 的 `collaborationMode` 设置，并带上当前模型和 Effort。计划内容以 `plan` 条目或普通回复到达，两者都显示为助手消息。
+- 切换权限同样走 `thread/settings/update`。只有进出全自动才改沙箱，其余三档共用一个沙箱，不覆盖用户配置里的网络设置。
 - `workspace-write` 的可写范围包含系统临时目录，这是 Codex 自身的沙箱规则。
 - 审批选项原样透传 `availableDecisions`（例如 `accept`、带命令规则的 `acceptWithExecpolicyAmendment`、`cancel`），Hoplet 不补造选项。
 - 智能审批下被判定不放行的操作不会问我，模型会收到被拒结果并自行说明。
@@ -88,4 +89,3 @@ Codex 自带的多代理显示为普通工具行，不建 Hoplet 子会话。
 |---|---|
 | 完整独立包是否含语音组件 | 安装实现时检查包内容 |
 | `auto_review` 的事件形态 | 一次实测中模型直接得到被拒结果，未见审核事件，录制时再确认 |
-| 中断与 steer 的事件顺序 | 录制时确认 |

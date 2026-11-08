@@ -52,7 +52,8 @@ type threadResult struct {
 	Thread struct {
 		ID string `json:"id"`
 	} `json:"thread"`
-	Model string `json:"model"`
+	Model           string `json:"model"`
+	ReasoningEffort string `json:"reasoningEffort"`
 }
 
 type textInput struct {
@@ -64,6 +65,47 @@ type turnStartParams struct {
 	ThreadID string      `json:"threadId"`
 	Input    []textInput `json:"input"`
 }
+
+type turnSteerParams struct {
+	ThreadID       string      `json:"threadId"`
+	ExpectedTurnID string      `json:"expectedTurnId"`
+	Input          []textInput `json:"input"`
+}
+
+// threadSettingsParams change a thread's settings from its next turn on.
+// A field left empty keeps its value.
+type threadSettingsParams struct {
+	ThreadID          string             `json:"threadId"`
+	ApprovalPolicy    string             `json:"approvalPolicy,omitempty"`
+	ApprovalsReviewer string             `json:"approvalsReviewer,omitempty"`
+	SandboxPolicy     *sandboxPolicy     `json:"sandboxPolicy,omitempty"`
+	Model             string             `json:"model,omitempty"`
+	Effort            string             `json:"effort,omitempty"`
+	CollaborationMode *collaborationMode `json:"collaborationMode,omitempty"`
+}
+
+type sandboxPolicy struct {
+	Type string `json:"type"`
+}
+
+type collaborationMode struct {
+	Mode     string                `json:"mode"`
+	Settings collaborationSettings `json:"settings"`
+}
+
+// collaborationSettings has no omitempty on purpose: a null effort or
+// instructions field means the mode's own default.
+type collaborationSettings struct {
+	Model                 string  `json:"model"`
+	ReasoningEffort       *string `json:"reasoning_effort"`
+	DeveloperInstructions *string `json:"developer_instructions"`
+}
+
+// Collaboration modes.
+const (
+	collabPlan    = "plan"
+	collabDefault = "default"
+)
 
 type turnInterruptParams struct {
 	ThreadID string `json:"threadId"`
@@ -107,7 +149,77 @@ type notification struct {
 	Error      *struct {
 		Message string `json:"message"`
 	} `json:"error"`
-	WillRetry bool `json:"willRetry"`
+	WillRetry bool            `json:"willRetry"`
+	RequestID json.RawMessage `json:"requestId"` // serverRequest/resolved
+}
+
+// Requests the server makes of the user.
+const (
+	methodCommandApproval    = "item/commandExecution/requestApproval"
+	methodFileApproval       = "item/fileChange/requestApproval"
+	methodPermissionApproval = "item/permissions/requestApproval"
+	methodUserInput          = "item/tool/requestUserInput"
+)
+
+// approvalParams holds the fields of the three approval requests.
+type approvalParams struct {
+	ItemID             string            `json:"itemId"`
+	Command            string            `json:"command"`
+	CommandActions     []commandAction   `json:"commandActions"`
+	Reason             string            `json:"reason"`
+	AvailableDecisions []json.RawMessage `json:"availableDecisions"`
+	Permissions        json.RawMessage   `json:"permissions"`
+}
+
+type userInputParams struct {
+	Questions []userQuestion `json:"questions"`
+}
+
+type userQuestion struct {
+	ID       string `json:"id"`
+	Question string `json:"question"`
+	IsSecret bool   `json:"isSecret"`
+	Options  []struct {
+		Label string `json:"label"`
+	} `json:"options"`
+}
+
+type approvalReply struct {
+	Decision json.RawMessage `json:"decision"`
+}
+
+type permissionsReply struct {
+	Permissions json.RawMessage `json:"permissions"`
+	Scope       string          `json:"scope"`
+}
+
+type userInputAnswer struct {
+	Answers []string `json:"answers"`
+}
+
+type userInputReply struct {
+	Answers map[string]userInputAnswer `json:"answers"`
+}
+
+type modelListParams struct {
+	Cursor string `json:"cursor,omitempty"`
+}
+
+type modelListResult struct {
+	Data       []model `json:"data"`
+	NextCursor string  `json:"nextCursor"`
+}
+
+type model struct {
+	ID                        string `json:"id"`
+	Model                     string `json:"model"`
+	DisplayName               string `json:"displayName"`
+	Description               string `json:"description"`
+	Hidden                    bool   `json:"hidden"`
+	IsDefault                 bool   `json:"isDefault"`
+	SupportedReasoningEfforts []struct {
+		ReasoningEffort string `json:"reasoningEffort"`
+	} `json:"supportedReasoningEfforts"`
 }
 
 type thread struct {
@@ -133,7 +245,7 @@ type item struct {
 	ID     string `json:"id"`
 	Status string `json:"status"`
 
-	Text string `json:"text"` // agentMessage
+	Text string `json:"text"` // agentMessage, plan
 
 	Summary []string `json:"summary"` // reasoning
 	Content []string `json:"content"` // reasoning
@@ -172,6 +284,7 @@ type mcpResult struct {
 // Item types.
 const (
 	itemAgentMessage = "agentMessage"
+	itemPlan         = "plan"
 	itemReasoning    = "reasoning"
 	itemCommand      = "commandExecution"
 	itemFileChange   = "fileChange"

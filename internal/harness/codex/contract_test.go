@@ -48,12 +48,13 @@ func (f *fakeStdio) Close() error               { return nil }
 
 // replayer drives runs through a recording.
 type replayer struct {
-	t      *testing.T
-	io     *fakeStdio
-	run    *run
-	offset int64
-	seen   int // writes already compared
-	golden []string
+	t                  *testing.T
+	io                 *fakeStdio
+	run                *run
+	offset             int64
+	seen               int    // writes already compared
+	approval, question string // the last asked
+	golden             []string
 }
 
 func (p *replayer) attach(spec harness.Spec) {
@@ -115,6 +116,12 @@ func (p *replayer) record(ev harness.Event) {
 	if ev.Payload == nil && ev.Native == "" {
 		return
 	}
+	switch q := ev.Payload.(type) {
+	case proto.ApprovalRequested:
+		p.approval = q.ID
+	case proto.Question:
+		p.question = q.ID
+	}
 	line := ""
 	if ev.Native != "" {
 		line = "native " + ev.Native + " "
@@ -132,25 +139,75 @@ func (p *replayer) record(ev harness.Event) {
 	p.golden = append(p.golden, strings.TrimSpace(line))
 }
 
+// setting issues the Hoplet command a recorded settings update stands for.
+func (p *replayer) setting(approval, reviewer, model, effort string, collab *collaborationMode) error {
+	ctx := context.Background()
+	switch {
+	case collab != nil:
+		return p.run.SetPlan(ctx, collab.Mode == collabPlan)
+	case model != "":
+		return p.run.SetModel(ctx, model, "")
+	case effort != "":
+		return p.run.SetEffort(ctx, proto.Effort(effort))
+	}
+	for _, mode := range caps().Modes {
+		if m, err := nativeMode(mode); err == nil && m.approval == approval && m.reviewer == reviewer {
+			return p.run.SetMode(ctx, mode)
+		}
+	}
+	return fmt.Errorf("no mode has approval %q and reviewer %q", approval, reviewer)
+}
+
 // input issues the Hoplet command a recorded input line stands for, then
 // checks the run wrote exactly that line.
 func (p *replayer) input(in string) {
 	p.t.Helper()
 	var m struct {
-		Method string `json:"method"`
+		ID     json.RawMessage `json:"id"`
+		Method string          `json:"method"`
 		Params struct {
-			Input []textInput `json:"input"`
+			Input             []textInput        `json:"input"`
+			ApprovalPolicy    string             `json:"approvalPolicy"`
+			ApprovalsReviewer string             `json:"approvalsReviewer"`
+			SandboxPolicy     *sandboxPolicy     `json:"sandboxPolicy"`
+			Model             string             `json:"model"`
+			Effort            string             `json:"effort"`
+			CollaborationMode *collaborationMode `json:"collaborationMode"`
 		} `json:"params"`
+		Result struct {
+			Decision json.RawMessage            `json:"decision"`
+			Answers  map[string]userInputAnswer `json:"answers"`
+		} `json:"result"`
 	}
 	if err := json.Unmarshal([]byte(in), &m); err != nil {
 		p.t.Fatal(err)
 	}
+	ctx := context.Background()
 	var err error
 	switch m.Method {
 	case "turn/start":
-		err = p.run.Send(context.Background(), m.Params.Input[0].Text)
+		err = p.run.Send(ctx, m.Params.Input[0].Text)
 	case "turn/interrupt":
-		err = p.run.Interrupt(context.Background())
+		err = p.run.Interrupt(ctx)
+	case "turn/steer":
+		err = p.run.Steer(ctx, m.Params.Input[0].Text)
+	case methodSettings:
+		if p.seen >= len(p.io.written()) { // not written by the thread's opening
+			err = p.setting(m.Params.ApprovalPolicy, m.Params.ApprovalsReviewer, m.Params.Model, m.Params.Effort, m.Params.CollaborationMode)
+		}
+	case "":
+		switch {
+		case len(m.Result.Decision) > 0:
+			var option string
+			if json.Unmarshal(m.Result.Decision, &option) != nil {
+				option = string(m.Result.Decision)
+			}
+			err = p.run.Respond(ctx, p.approval, option)
+		case m.Result.Answers != nil:
+			for _, a := range m.Result.Answers {
+				err = p.run.Answer(ctx, p.question, a.Answers[0])
+			}
+		}
 	}
 	if err != nil {
 		p.t.Fatalf("command for %s: %v", in, err)
@@ -170,13 +227,26 @@ func (p *replayer) input(in string) {
 func TestContract(t *testing.T) {
 	cases := []struct {
 		name   string
+		mode   proto.PermissionMode
+		plan   bool
 		resume string
 	}{
-		{"basic", ""}, {"interrupt", ""}, {"reattach", ""}, {"resume", "01a1baee-1102-7391-b028-dfa42f438db5"},
+		{name: "basic"}, {name: "interrupt"}, {name: "reattach"},
+		{name: "resume", resume: "01a1bb41-4ef7-7fb2-bf42-6d83400a667e"},
+		{name: "approve", mode: proto.ModeConfirm},
+		{name: "deny", mode: proto.ModeConfirm},
+		{name: "filechange", mode: proto.ModeConfirm},
+		{name: "steer"},
+		{name: "plan", plan: true},
+		{name: "settings"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			spec := harness.Spec{WorkDir: "/work", Mode: proto.ModeFullAuto, Resume: c.resume}
+			mode := c.mode
+			if mode == "" {
+				mode = proto.ModeFullAuto
+			}
+			spec := harness.Spec{WorkDir: "/work", Mode: mode, Plan: c.plan, Resume: c.resume}
 			path := filepath.Join("testdata", PinnedVersion, c.name+".jsonl")
 			f, err := os.Open(path)
 			if err != nil {

@@ -1,0 +1,18 @@
+write {"id":"hoplet-x-1","method":"initialize","params":{"capabilities":{"experimentalApi":true},"clientInfo":{"name":"hoplet","title":"Hoplet","version":"1"}}}
+write {"method":"initialized"}
+write {"id":"hoplet-x-2","method":"thread/start","params":{"approvalPolicy":"untrusted","approvalsReviewer":"user","cwd":"/work","sandbox":"workspace-write"}}
+native 01a1bb41-4ef7-74c1-b474-345ef3be9ac5 proto.ModelChanged {"model":"gpt-6-luna"}
+write {"id":"hoplet-x-3","method":"turn/start","params":{"input":[{"text":"Run the shell command `date +%Y` and reply with its output.","type":"text"}],"threadId":"01a1bb41-4ef7-74c1-b474-345ef3be9ac5"}}
+proto.TurnStarted {}
+proto.ToolCall {"id":"exec-79f81a73-732a-4cea-a0ed-96749e7b473c","kind":"exec","name":"Shell","summary":"date +%Y","status":"running"}
+proto.ApprovalRequested {"id":"0:exec-79f81a73-732a-4cea-a0ed-96749e7b473c","kind":"command","title":"date +%Y","tool_call_id":"exec-79f81a73-732a-4cea-a0ed-96749e7b473c","options":[{"id":"accept","label":"Allow once","scope":"once"},{"id":"{\"acceptWithExecpolicyAmendment\":{\"execpolicy_amendment\":[\"date\",\"+%Y\"]}}","label":"Always allow this command","scope":"always"},{"id":"cancel","label":"Deny and stop","scope":"deny"}]}
+write {"id":0,"result":{"decision":"accept"}}
+proto.ToolCall {"id":"exec-79f81a73-732a-4cea-a0ed-96749e7b473c","kind":"exec","name":"Shell","summary":"date +%Y","status":"done"} output="2026\n"
+proto.ContextUsage {"used":21289,"window":828400}
+proto.Usage {"input_tokens":21254,"output_tokens":35}
+proto.MessageDelta {"message_id":"msg_0564768856c5becd016af07311d81c87d0916a261551854bbf","text":"202"}
+proto.MessageDelta {"message_id":"msg_0564768856c5becd016af07311d81c87d0916a261551854bbf","text":"6"}
+proto.Message {"id":"msg_0564768856c5becd016af07311d81c87d0916a261551854bbf","role":"assistant","text":"2026"}
+proto.ContextUsage {"used":21321,"window":828400}
+proto.Usage {"input_tokens":21315,"output_tokens":6}
+proto.TurnEnded {"reason":"completed"}

@@ -1,0 +1,42 @@
+write {"id":"hoplet-x-1","method":"initialize","params":{"capabilities":{"experimentalApi":true},"clientInfo":{"name":"hoplet","title":"Hoplet","version":"1"}}}
+write {"method":"initialized"}
+write {"id":"hoplet-x-2","method":"thread/start","params":{"approvalPolicy":"untrusted","approvalsReviewer":"user","cwd":"/work","sandbox":"workspace-write"}}
+native 01a1bb41-4ef7-7541-96d5-652ff3d4332a proto.ModelChanged {"model":"gpt-6-luna"}
+write {"id":"hoplet-x-3","method":"turn/start","params":{"input":[{"text":"Run the shell command `date +%m` and reply with its output.","type":"text"}],"threadId":"01a1bb41-4ef7-7541-96d5-652ff3d4332a"}}
+proto.TurnStarted {}
+proto.MessageDelta {"message_id":"msg_06f13f601b13876a016af0730f64cc87d090e7f23b89344f90","text":"我"}
+proto.MessageDelta {"message_id":"msg_06f13f601b13876a016af0730f64cc87d090e7f23b89344f90","text":"将"}
+proto.MessageDelta {"message_id":"msg_06f13f601b13876a016af0730f64cc87d090e7f23b89344f90","text":"按"}
+proto.MessageDelta {"message_id":"msg_06f13f601b13876a016af0730f64cc87d090e7f23b89344f90","text":"要求"}
+proto.MessageDelta {"message_id":"msg_06f13f601b13876a016af0730f64cc87d090e7f23b89344f90","text":"运行"}
+proto.MessageDelta {"message_id":"msg_06f13f601b13876a016af0730f64cc87d090e7f23b89344f90","text":"这"}
+proto.MessageDelta {"message_id":"msg_06f13f601b13876a016af0730f64cc87d090e7f23b89344f90","text":"条"}
+proto.MessageDelta {"message_id":"msg_06f13f601b13876a016af0730f64cc87d090e7f23b89344f90","text":"命"}
+proto.MessageDelta {"message_id":"msg_06f13f601b13876a016af0730f64cc87d090e7f23b89344f90","text":"令"}
+proto.MessageDelta {"message_id":"msg_06f13f601b13876a016af0730f64cc87d090e7f23b89344f90","text":"。"}
+proto.Message {"id":"msg_06f13f601b13876a016af0730f64cc87d090e7f23b89344f90","role":"assistant","text":"我将按要求运行这条命令。"}
+proto.ToolCall {"id":"exec-7b413440-fe72-4534-80dc-9c86487f8ffb","kind":"exec","name":"Shell","summary":"date +%m","status":"running"}
+proto.ApprovalRequested {"id":"0:exec-7b413440-fe72-4534-80dc-9c86487f8ffb","kind":"command","title":"date +%m","tool_call_id":"exec-7b413440-fe72-4534-80dc-9c86487f8ffb","options":[{"id":"accept","label":"Allow once","scope":"once"},{"id":"{\"acceptWithExecpolicyAmendment\":{\"execpolicy_amendment\":[\"date\",\"+%m\"]}}","label":"Always allow this command","scope":"always"},{"id":"cancel","label":"Deny and stop","scope":"deny"}]}
+write {"id":0,"result":{"decision":"decline"}}
+proto.ToolCall {"id":"exec-7b413440-fe72-4534-80dc-9c86487f8ffb","kind":"exec","name":"Shell","summary":"date +%m","status":"failed"}
+proto.ContextUsage {"used":21268,"window":828400}
+proto.Usage {"input_tokens":21216,"output_tokens":52}
+proto.MessageDelta {"message_id":"msg_06f13f601b13876a016af07312487887d099d31201c34935c7","text":"命"}
+proto.MessageDelta {"message_id":"msg_06f13f601b13876a016af07312487887d099d31201c34935c7","text":"令"}
+proto.MessageDelta {"message_id":"msg_06f13f601b13876a016af07312487887d099d31201c34935c7","text":"未"}
+proto.MessageDelta {"message_id":"msg_06f13f601b13876a016af07312487887d099d31201c34935c7","text":"能"}
+proto.MessageDelta {"message_id":"msg_06f13f601b13876a016af07312487887d099d31201c34935c7","text":"运行"}
+proto.MessageDelta {"message_id":"msg_06f13f601b13876a016af07312487887d099d31201c34935c7","text":"："}
+proto.MessageDelta {"message_id":"msg_06f13f601b13876a016af07312487887d099d31201c34935c7","text":"执行"}
+proto.MessageDelta {"message_id":"msg_06f13f601b13876a016af07312487887d099d31201c34935c7","text":"请求"}
+proto.MessageDelta {"message_id":"msg_06f13f601b13876a016af07312487887d099d31201c34935c7","text":"被"}
+proto.MessageDelta {"message_id":"msg_06f13f601b13876a016af07312487887d099d31201c34935c7","text":"拒"}
+proto.MessageDelta {"message_id":"msg_06f13f601b13876a016af07312487887d099d31201c34935c7","text":"绝"}
+proto.MessageDelta {"message_id":"msg_06f13f601b13876a016af07312487887d099d31201c34935c7","text":"，因此"}
+proto.MessageDelta {"message_id":"msg_06f13f601b13876a016af07312487887d099d31201c34935c7","text":"没有"}
+proto.MessageDelta {"message_id":"msg_06f13f601b13876a016af07312487887d099d31201c34935c7","text":"输出"}
+proto.MessageDelta {"message_id":"msg_06f13f601b13876a016af07312487887d099d31201c34935c7","text":"。"}
+proto.Message {"id":"msg_06f13f601b13876a016af07312487887d099d31201c34935c7","role":"assistant","text":"命令未能运行：执行请求被拒绝，因此没有输出。"}
+proto.ContextUsage {"used":21385,"window":828400}
+proto.Usage {"input_tokens":21366,"output_tokens":19}
+proto.TurnEnded {"reason":"completed"}

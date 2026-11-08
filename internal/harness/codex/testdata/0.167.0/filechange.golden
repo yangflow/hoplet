@@ -1,0 +1,56 @@
+write {"id":"hoplet-x-1","method":"initialize","params":{"capabilities":{"experimentalApi":true},"clientInfo":{"name":"hoplet","title":"Hoplet","version":"1"}}}
+write {"method":"initialized"}
+write {"id":"hoplet-x-2","method":"thread/start","params":{"approvalPolicy":"untrusted","approvalsReviewer":"user","cwd":"/work","sandbox":"workspace-write"}}
+native 01a1bb43-5726-71b1-8fa2-c21bb9d7d4d1 proto.ModelChanged {"model":"gpt-6-luna"}
+write {"id":"hoplet-x-3","method":"turn/start","params":{"input":[{"text":"Using your file edit tool (apply_patch), not a shell command, create notes-rec.txt containing the word hi. Then stop.","type":"text"}],"threadId":"01a1bb43-5726-71b1-8fa2-c21bb9d7d4d1"}}
+proto.TurnStarted {}
+proto.MessageDelta {"message_id":"msg_09bbc16e69393bf1016af07396343887d08462ef60eb9c2321","text":"我"}
+proto.MessageDelta {"message_id":"msg_09bbc16e69393bf1016af07396343887d08462ef60eb9c2321","text":"会"}
+proto.MessageDelta {"message_id":"msg_09bbc16e69393bf1016af07396343887d08462ef60eb9c2321","text":"仅"}
+proto.MessageDelta {"message_id":"msg_09bbc16e69393bf1016af07396343887d08462ef60eb9c2321","text":"用"}
+proto.MessageDelta {"message_id":"msg_09bbc16e69393bf1016af07396343887d08462ef60eb9c2321","text":" `"}
+proto.MessageDelta {"message_id":"msg_09bbc16e69393bf1016af07396343887d08462ef60eb9c2321","text":"apply"}
+proto.MessageDelta {"message_id":"msg_09bbc16e69393bf1016af07396343887d08462ef60eb9c2321","text":"_patch"}
+proto.MessageDelta {"message_id":"msg_09bbc16e69393bf1016af07396343887d08462ef60eb9c2321","text":"`"}
+proto.MessageDelta {"message_id":"msg_09bbc16e69393bf1016af07396343887d08462ef60eb9c2321","text":" 创建"}
+proto.MessageDelta {"message_id":"msg_09bbc16e69393bf1016af07396343887d08462ef60eb9c2321","text":" `"}
+proto.MessageDelta {"message_id":"msg_09bbc16e69393bf1016af07396343887d08462ef60eb9c2321","text":"notes"}
+proto.MessageDelta {"message_id":"msg_09bbc16e69393bf1016af07396343887d08462ef60eb9c2321","text":"-rec"}
+proto.MessageDelta {"message_id":"msg_09bbc16e69393bf1016af07396343887d08462ef60eb9c2321","text":".txt"}
+proto.MessageDelta {"message_id":"msg_09bbc16e69393bf1016af07396343887d08462ef60eb9c2321","text":"`"}
+proto.MessageDelta {"message_id":"msg_09bbc16e69393bf1016af07396343887d08462ef60eb9c2321","text":"，"}
+proto.MessageDelta {"message_id":"msg_09bbc16e69393bf1016af07396343887d08462ef60eb9c2321","text":"内容"}
+proto.MessageDelta {"message_id":"msg_09bbc16e69393bf1016af07396343887d08462ef60eb9c2321","text":"为"}
+proto.MessageDelta {"message_id":"msg_09bbc16e69393bf1016af07396343887d08462ef60eb9c2321","text":" `"}
+proto.MessageDelta {"message_id":"msg_09bbc16e69393bf1016af07396343887d08462ef60eb9c2321","text":"hi"}
+proto.MessageDelta {"message_id":"msg_09bbc16e69393bf1016af07396343887d08462ef60eb9c2321","text":"`"}
+proto.MessageDelta {"message_id":"msg_09bbc16e69393bf1016af07396343887d08462ef60eb9c2321","text":"，"}
+proto.MessageDelta {"message_id":"msg_09bbc16e69393bf1016af07396343887d08462ef60eb9c2321","text":"然后"}
+proto.MessageDelta {"message_id":"msg_09bbc16e69393bf1016af07396343887d08462ef60eb9c2321","text":"停止"}
+proto.MessageDelta {"message_id":"msg_09bbc16e69393bf1016af07396343887d08462ef60eb9c2321","text":"。"}
+proto.Message {"id":"msg_09bbc16e69393bf1016af07396343887d08462ef60eb9c2321","role":"assistant","text":"我会仅用 `apply_patch` 创建 `notes-rec.txt`，内容为 `hi`，然后停止。"}
+proto.ToolCall {"id":"exec-c3edab40-1682-4b71-bbab-180dc1480adb","kind":"edit","name":"Edit","summary":"/work/notes-rec.txt","status":"running"}
+proto.ApprovalRequested {"id":"0:exec-c3edab40-1682-4b71-bbab-180dc1480adb","kind":"file_change","title":"Edit files","tool_call_id":"exec-c3edab40-1682-4b71-bbab-180dc1480adb","options":[{"id":"accept","label":"Allow once","scope":"once"},{"id":"acceptForSession","label":"Allow for this session","scope":"session"},{"id":"decline","label":"Deny","scope":"deny"},{"id":"cancel","label":"Deny and stop","scope":"deny"}]}
+write {"id":0,"result":{"decision":"accept"}}
+proto.ToolCall {"id":"exec-c3edab40-1682-4b71-bbab-180dc1480adb","kind":"edit","name":"Edit","summary":"/work/notes-rec.txt","status":"done"}
+proto.FileChange {"path":"/work/notes-rec.txt","op":"created"}
+proto.ContextUsage {"used":21340,"window":828400}
+proto.Usage {"input_tokens":21264,"output_tokens":76}
+proto.MessageDelta {"message_id":"msg_09bbc16e69393bf1016af07399565c87d08999ca73493a3923","text":"已"}
+proto.MessageDelta {"message_id":"msg_09bbc16e69393bf1016af07399565c87d08999ca73493a3923","text":"创建"}
+proto.MessageDelta {"message_id":"msg_09bbc16e69393bf1016af07399565c87d08999ca73493a3923","text":" `"}
+proto.MessageDelta {"message_id":"msg_09bbc16e69393bf1016af07399565c87d08999ca73493a3923","text":"notes"}
+proto.MessageDelta {"message_id":"msg_09bbc16e69393bf1016af07399565c87d08999ca73493a3923","text":"-rec"}
+proto.MessageDelta {"message_id":"msg_09bbc16e69393bf1016af07399565c87d08999ca73493a3923","text":".txt"}
+proto.MessageDelta {"message_id":"msg_09bbc16e69393bf1016af07399565c87d08999ca73493a3923","text":"`"}
+proto.MessageDelta {"message_id":"msg_09bbc16e69393bf1016af07399565c87d08999ca73493a3923","text":"，"}
+proto.MessageDelta {"message_id":"msg_09bbc16e69393bf1016af07399565c87d08999ca73493a3923","text":"内容"}
+proto.MessageDelta {"message_id":"msg_09bbc16e69393bf1016af07399565c87d08999ca73493a3923","text":"为"}
+proto.MessageDelta {"message_id":"msg_09bbc16e69393bf1016af07399565c87d08999ca73493a3923","text":" `"}
+proto.MessageDelta {"message_id":"msg_09bbc16e69393bf1016af07399565c87d08999ca73493a3923","text":"hi"}
+proto.MessageDelta {"message_id":"msg_09bbc16e69393bf1016af07399565c87d08999ca73493a3923","text":"`"}
+proto.MessageDelta {"message_id":"msg_09bbc16e69393bf1016af07399565c87d08999ca73493a3923","text":"。"}
+proto.Message {"id":"msg_09bbc16e69393bf1016af07399565c87d08999ca73493a3923","role":"assistant","text":"已创建 `notes-rec.txt`，内容为 `hi`。"}
+proto.ContextUsage {"used":21382,"window":828400}
+proto.Usage {"input_tokens":21364,"output_tokens":18}
+proto.TurnEnded {"reason":"completed"}

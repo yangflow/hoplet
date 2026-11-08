@@ -22,10 +22,17 @@ import (
 // Step is one step of a recording script.
 //
 //	{"do":"send","text":"..."}        send a user message
-//	{"do":"wait","for":"turn_ended"}  wait for turn_started, tool_running or
-//	                                  turn_ended; "timeout" is in seconds,
+//	{"do":"wait","for":"turn_ended"}  wait for turn_started, tool_running,
+//	                                  approval, question or turn_ended; "timeout" is in seconds,
 //	                                  default 120
 //	{"do":"interrupt"}                interrupt the turn
+//	{"do":"steer","text":"..."}       add to the turn
+//	{"do":"respond","text":"accept"}  answer the last approval waited for
+//	{"do":"answer","text":"..."}      answer the last question waited for
+//	{"do":"mode","text":"auto_edit"}  set the permission mode
+//	{"do":"plan","text":"on"}         turn plan mode on, or off
+//	{"do":"model","text":"..."}       set the model
+//	{"do":"effort","text":"low"}      set the effort
 //	{"do":"reattach"}                 connect anew to the running server, as
 //	                                  after a daemon restart
 type Step struct {
@@ -151,6 +158,10 @@ func wanted(ev harness.Event, what string) bool {
 		return what == "turn_ended"
 	case proto.ToolCall:
 		return what == "tool_running" && p.Status == proto.ToolRunning
+	case proto.ApprovalRequested:
+		return what == "approval"
+	case proto.Question:
+		return what == "question"
 	}
 	return false
 }
@@ -166,6 +177,7 @@ func play(ctx context.Context, p *procStdio, spec harness.Spec, steps []Step) (e
 		return err
 	}
 	inTurn := false
+	var last harness.Event // what the last wait stopped at
 	for _, s := range steps {
 		switch s.Do {
 		case "send":
@@ -173,6 +185,22 @@ func play(ctx context.Context, p *procStdio, spec harness.Spec, steps []Step) (e
 			inTurn = true
 		case "interrupt":
 			err = r.Interrupt(ctx)
+		case "steer":
+			err = r.Steer(ctx, s.Text)
+		case "respond":
+			a, _ := last.Payload.(proto.ApprovalRequested)
+			err = r.Respond(ctx, a.ID, s.Text)
+		case "answer":
+			q, _ := last.Payload.(proto.Question)
+			err = r.Answer(ctx, q.ID, s.Text)
+		case "mode":
+			err = r.SetMode(ctx, proto.PermissionMode(s.Text))
+		case "plan":
+			err = r.SetPlan(ctx, s.Text == "on")
+		case "model":
+			err = r.SetModel(ctx, s.Text, "")
+		case "effort":
+			err = r.SetEffort(ctx, proto.Effort(s.Text))
 		case "reattach":
 			native := r.NativeSession()
 			if err := r.Close(); err != nil {
@@ -187,7 +215,7 @@ func play(ctx context.Context, p *procStdio, spec harness.Spec, steps []Step) (e
 			go r.loop()
 			err = r.start(ctx)
 		case "wait":
-			err = waitFor(ctx, r, s)
+			last, err = waitFor(ctx, r, s)
 			if s.For == "turn_ended" {
 				inTurn = false
 			}
@@ -201,7 +229,7 @@ func play(ctx context.Context, p *procStdio, spec harness.Spec, steps []Step) (e
 	return nil
 }
 
-func waitFor(ctx context.Context, r *run, s Step) error {
+func waitFor(ctx context.Context, r *run, s Step) (harness.Event, error) {
 	limit := s.Timeout
 	if limit == 0 {
 		limit = 120
@@ -211,15 +239,15 @@ func waitFor(ctx context.Context, r *run, s Step) error {
 		select {
 		case ev, ok := <-r.events:
 			if !ok {
-				return errors.New("codex: the run ended")
+				return harness.Event{}, errors.New("codex: the run ended")
 			}
 			if wanted(ev, s.For) {
-				return nil
+				return ev, nil
 			}
 		case <-timeout:
-			return fmt.Errorf("codex: nothing matched %q within %ds", s.For, limit)
+			return harness.Event{}, fmt.Errorf("codex: nothing matched %q within %ds", s.For, limit)
 		case <-ctx.Done():
-			return ctx.Err()
+			return harness.Event{}, ctx.Err()
 		}
 	}
 }
@@ -231,7 +259,7 @@ var requestIDs = regexp.MustCompile(`hoplet-[0-9a-f]{8}-`)
 var droppedMethods = map[string]bool{
 	"account/updated": true, "account/rateLimits/updated": true, "remoteControl/status/changed": true,
 	"mcpServer/startupStatus/updated": true, "turn/moderationMetadata": true, "thread/status/changed": true,
-	"thread/started": true,
+	"thread/started": true, "thread/settings/updated": true,
 }
 
 // Sanitize turns a recording into a contract-test fixture: it drops events
@@ -280,7 +308,7 @@ func reduce(line string) (string, bool, error) {
 	if res, ok := v["result"].(map[string]any); ok {
 		switch t, isThread := res["thread"].(map[string]any); {
 		case isThread:
-			v["result"] = map[string]any{"thread": map[string]any{"id": t["id"]}, "model": res["model"]}
+			v["result"] = map[string]any{"thread": map[string]any{"id": t["id"]}, "model": res["model"], "reasoningEffort": res["reasoningEffort"]}
 		case res["userAgent"] != nil: // initialize: where Codex lives here
 			v["result"] = map[string]any{}
 		}
