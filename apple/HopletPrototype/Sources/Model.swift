@@ -1,3 +1,4 @@
+import HopletClient
 import SwiftUI
 
 enum Mode: String { case personal = "Personal", code = "Code" }
@@ -87,13 +88,35 @@ final class Store {
 
   var links: [String: HostLink] = ["MacBook": .online, "Mac mini": .online, "VPS": .offline]
   var hasHosts = true
-  var pairDemo = PairDemo.success
+  let connections = HostConnections()
+
+  /// The sample hosts, with any paired host of the same name replacing its sample.
+  var hosts: [Host] {
+    let paired = connections.paired.map {
+      Host(name: $0.name, symbol: "laptopcomputer", online: link($0.name) == .online)
+    }
+    return Host.all.filter { sample in !paired.contains { $0.name == sample.name } } + paired
+  }
+
+  init() {
+    connections.onChange = { [weak self] name, link in
+      withAnimation { self?.links[name] = link }
+    }
+    connections.start()
+  }
 
   func link(_ host: String) -> HostLink { links[host] ?? .offline }
   func isOffline(_ host: String) -> Bool { link(host) != .online }
 
-  /// The prototype's reconnect always succeeds, after a moment.
+  func startDiscovery() { connections.startDiscovery() }
+
+  func pair(_ code: PairingCode, deviceName: String) async throws {
+    try await connections.pair(code, deviceName: deviceName)
+  }
+
+  /// A paired host redials; a sample host always succeeds, after a moment.
   func reconnect(_ host: String) {
+    if connections.reconnect(name: host) { return }
     withAnimation { links[host] = .reconnecting }
     Task {
       try? await Task.sleep(for: .seconds(1.5))
