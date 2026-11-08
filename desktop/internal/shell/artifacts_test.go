@@ -97,3 +97,62 @@ func TestTabFollowsLatestOnlyWhenOnLatest(t *testing.T) {
 		t.Errorf("on an old version: v%d %q latest v%d", v.showing(), v.text, v.latest.Version)
 	}
 }
+
+func TestRailSwitchesToArtifacts(t *testing.T) {
+	a, h, tt, _ := newApp(t)
+	tt.SetSize(1700, 900)
+	h.artifacts = map[proto.SessionID][]proto.Artifact{"s1": {art("x", "s1", "报告", 3, 2)}}
+	a.Select("s1")
+	a.ShowTree()
+	settle(tt)
+	if err := tt.Click("产物"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tt)
+	for _, want := range []string{"报告", "v3"} {
+		if !tt.HasText(want) {
+			t.Errorf("no %q in %q", want, tt.Texts())
+		}
+	}
+	if !tt.HasText("Fix sync") {
+		t.Error("switching columns moved the content area")
+	}
+	if a.panelFor("s1").column != columnArtifacts {
+		t.Error("the column did not change")
+	}
+}
+
+func TestPersonalRailHasOnlyArtifacts(t *testing.T) {
+	a, _, tt, _ := newApp(t)
+	tt.SetSize(1700, 900)
+	a.Select("p1")
+	a.TogglePanel()
+	settle(tt)
+	if _, ok := tt.Find("文件树 ⌥⌘E"); ok {
+		t.Error("a Personal session offers the file tree")
+	}
+	for _, want := range []string{"产物", "还没有产物"} {
+		if !tt.HasText(want) {
+			t.Errorf("no %q in %q", want, tt.Texts())
+		}
+	}
+}
+
+func TestRowOpensItsTabOnce(t *testing.T) {
+	a, h, tt, _ := newApp(t)
+	tt.SetSize(1700, 900)
+	h.artifacts = map[proto.SessionID][]proto.Artifact{"s1": {art("x", "s1", "报告", 1, 2)}}
+	a.Select("s1")
+	a.ShowPanel(columnArtifacts)
+	settle(tt)
+	ps := a.panelFor("s1")
+	for range 2 {
+		if err := tt.Click("报告"); err != nil {
+			t.Fatal(err)
+		}
+		settle(tt)
+	}
+	if len(ps.tabs) != 1 || ps.tabs[0].artifact != "x" || ps.active != 0 {
+		t.Errorf("tabs %+v, active %d", ps.tabs, ps.active)
+	}
+}

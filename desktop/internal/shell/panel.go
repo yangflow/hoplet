@@ -301,6 +301,10 @@ func (a *App) rail(c *ui.Context, k theme.Colors, s proto.Session, ps *panelStat
 	}
 	col.Children(func() {
 		a.railHead(c, k, s, ps)
+		if s.Mode == proto.ModePersonal || ps.column == columnArtifacts {
+			a.artifactColumn(c, k, ps)
+			return
+		}
 		if ps.column == columnChanges {
 			a.changesColumn(c, k, s, ps)
 			return
@@ -420,65 +424,81 @@ func (a *App) openTab(ps *panelState, t panelTab) {
 	ps.active = len(ps.tabs) - 1
 }
 
-// railHead is the column's top bar, as tall as the tabs: the file tree or
-// the changes, with how many files changed, and the panel's own close.
+// railHead is the column's top bar, as tall as the tabs: the switch among
+// the file tree, the changes with how many files changed and the artifacts,
+// or a Personal session's one column named; and the panel's own close.
 func (a *App) railHead(c *ui.Context, k theme.Colors, s proto.Session, ps *panelState) {
+	personal := s.Mode == proto.ModePersonal
 	changed := 0
-	if d := a.diff(s); d != nil {
-		for _, r := range d.Repos {
-			changed += len(r.Files)
+	if !personal {
+		if d := a.diff(s); d != nil {
+			for _, r := range d.Repos {
+				changed += len(r.Files)
+			}
 		}
 	}
 	ui.Row(c).Height(a.titleHeight(c.TitleBar())).Padding(0, theme.Space2).Gap(theme.Space1Half).AlignItems(ui.Center).DragWindow().Children(func() {
-		ui.Row(c).Padding(theme.SpaceHalf).Gap(theme.SpaceHalf).Radius(theme.RadiusControl).Background(k.Line).Children(func() {
-			for _, opt := range []struct {
-				col  panelColumn
-				icon *ui.SVG
-				tip  string
-				n    int
-			}{
-				{columnTree, a.icons.Tree, "文件树 ⌥⌘E", -1},
-				{columnChanges, a.icons.Changes, "变更 ⌥⌘D", changed},
-			} {
-				on := ps.column == opt.col
-				// As the sidebar's mode switch: a segment a dense row square,
-				// wider by the count it carries.
-				b := ui.Button(c.Key(opt.tip), "").Label(opt.tip).Tooltip(opt.tip).Height(theme.RowDense).MinWidth(theme.RowDense).Padding(0).Gap(theme.Space1).
-					Radius(theme.RadiusControl).Border(0, ui.Transparent).Background(ui.Transparent)
-				color := k.Muted
-				if on {
-					color = k.Fg
-				}
-				face := func() {
-					ui.Icon(c, opt.icon).FontSize(theme.Icon).TextColor(color)
-					if opt.n > 0 {
-						theme.CodeCaption.On(ui.Text(c, strconv.Itoa(opt.n))).TextColor(color)
-					}
-				}
-				if opt.n > 0 {
-					b.Padding(0, theme.Space2)
-				}
-				b.Children(func() {
-					if !on {
-						face()
-						return
-					}
-					// The raised block, its face on it, slides from the old
-					// column to the new.
-					pill := ui.Row(c.Key("pill")).Absolute().Left(0).Top(0).Fill().Gap(theme.Space1).Center().Radius(theme.RadiusControl).Background(k.Raised).
-						Transition(ui.ElementTransition{Match: railPill{}, Animation: &theme.MotionBase})
-					k.ShadowRaised.On(pill).Children(face)
-					// Under the block, the face keeps the button its width.
-					ui.Row(c).Gap(theme.Space1).Opacity(0).Children(face)
-				})
-				if b.Clicked() {
-					ps.column = opt.col
-				}
-			}
-		})
+		if personal {
+			theme.UIMedium.On(ui.Text(c, "产物")).TextColor(k.Fg).Margin(0, 0, 0, theme.Space1)
+		}
+		a.railSwitch(c, k, ps, changed, personal)
 		ui.Spacer(c)
 		if iconButton(c, k, a.icons.Panel, "收起右栏 ⌥⌘I", false).Clicked() {
 			a.TogglePanel()
+		}
+	})
+}
+
+// railSwitch is the segmented switch among a Code session's columns.
+func (a *App) railSwitch(c *ui.Context, k theme.Colors, ps *panelState, changed int, personal bool) {
+	if personal {
+		return
+	}
+	ui.Row(c).Padding(theme.SpaceHalf).Gap(theme.SpaceHalf).Radius(theme.RadiusControl).Background(k.Line).Children(func() {
+		for _, opt := range []struct {
+			col  panelColumn
+			icon *ui.SVG
+			tip  string
+			n    int
+		}{
+			{columnTree, a.icons.Tree, "文件树 ⌥⌘E", -1},
+			{columnChanges, a.icons.Changes, "变更 ⌥⌘D", changed},
+			{columnArtifacts, a.icons.Tool, "产物", -1},
+		} {
+			on := ps.column == opt.col
+			// As the sidebar's mode switch: a segment a dense row square,
+			// wider by the count it carries.
+			b := ui.Button(c.Key(opt.tip), "").Label(opt.tip).Tooltip(opt.tip).Height(theme.RowDense).MinWidth(theme.RowDense).Padding(0).Gap(theme.Space1).
+				Radius(theme.RadiusControl).Border(0, ui.Transparent).Background(ui.Transparent)
+			color := k.Muted
+			if on {
+				color = k.Fg
+			}
+			face := func() {
+				ui.Icon(c, opt.icon).FontSize(theme.Icon).TextColor(color)
+				if opt.n > 0 {
+					theme.CodeCaption.On(ui.Text(c, strconv.Itoa(opt.n))).TextColor(color)
+				}
+			}
+			if opt.n > 0 {
+				b.Padding(0, theme.Space2)
+			}
+			b.Children(func() {
+				if !on {
+					face()
+					return
+				}
+				// The raised block, its face on it, slides from the old
+				// column to the new.
+				pill := ui.Row(c.Key("pill")).Absolute().Left(0).Top(0).Fill().Gap(theme.Space1).Center().Radius(theme.RadiusControl).Background(k.Raised).
+					Transition(ui.ElementTransition{Match: railPill{}, Animation: &theme.MotionBase})
+				k.ShadowRaised.On(pill).Children(face)
+				// Under the block, the face keeps the button its width.
+				ui.Row(c).Gap(theme.Space1).Opacity(0).Children(face)
+			})
+			if b.Clicked() {
+				ps.column = opt.col
+			}
 		}
 	})
 }
