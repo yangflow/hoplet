@@ -59,6 +59,13 @@ func failf(format string, a ...any) error { return &Failure{fmt.Sprintf(format, 
 // imageResult is what a tool returns to answer with an image as well as
 // its value: Value becomes the result's text, Image its only image. A
 // failure returns no imageResult, so a failed call never carries an image.
+//
+// An image travels base64-encoded in one response frame on a session-token
+// connection, which carries only tools.list and tools.call responses and no
+// event streams. The daemon drops a connection whose unwritten frames pass
+// its outbound limit (8 MiB), so images must stay small: a screenshot is
+// downscaled to device points (about 402x874 RGBA, 1.4 MiB raw, under 2 MiB
+// as base64), which leaves room for at least four unread responses at once.
 type imageResult struct {
 	Value any
 	Image proto.ToolImage

@@ -1,10 +1,12 @@
 package daemon
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -178,7 +180,33 @@ func TestToolImageOverTheConnection(t *testing.T) {
 	}
 	t.Cleanup(func() { tc.Close() })
 	r := callTool(t, tc, "image_probe", "{}")
-	if r.IsError || len(r.Images) != 1 || len(r.Images[0].Data) != 1<<20 || r.Images[0].MIME != "image/png" {
+	if r.IsError || len(r.Images) != 1 || r.Images[0].MIME != "image/png" || !bytes.Equal(r.Images[0].Data, tools.ProbePattern(1<<20)) {
 		t.Fatalf("image result: error %v, %d images", r.IsError, len(r.Images))
+	}
+
+	// Several images in flight on one connection fit its outbound queue
+	// and leave the connection usable.
+	const n = 4
+	var wg sync.WaitGroup
+	errs := make(chan error, n)
+	for range n {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			var r proto.ToolsCallResult
+			if err := tc.Call(timeout(t), proto.MethodToolsCall, proto.ToolsCallParams{Name: "image_probe", Arguments: json.RawMessage("{}")}, &r); err != nil {
+				errs <- err
+			} else if len(r.Images) != 1 || !bytes.Equal(r.Images[0].Data, tools.ProbePattern(1<<20)) {
+				errs <- errors.New("image differs")
+			}
+		}()
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		t.Error(err)
+	}
+	if r := callTool(t, tc, "image_probe", "{}"); r.IsError || len(r.Images) != 1 {
+		t.Fatalf("connection after concurrent images: %+v", r.IsError)
 	}
 }
