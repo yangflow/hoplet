@@ -3,7 +3,6 @@ package shim
 import (
 	"context"
 	"errors"
-	"io"
 	"net"
 	"os"
 	"strconv"
@@ -307,28 +306,61 @@ func TestStalledClientIsDisconnected(t *testing.T) {
 	if err := writeFrame(stuck, Message{Type: MsgHello, Version: ProtocolVersion}); err != nil {
 		t.Fatal(err)
 	}
-	time.Sleep(time.Second) // never read while the child floods; the shim must give up
-	if err := stuck.SetReadDeadline(time.Now().Add(10 * time.Second)); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := io.Copy(io.Discard, stuck); err != nil {
-		t.Fatalf("the shim kept the stalled connection open: %v", err)
-	}
-	c := dial(t, dir, 0) // resumes correctly from the start
-	got, final := recvUntil(t, c, isExit)
-	total := 0
-	for _, r := range got {
-		if r.Kind == KindStdout {
-			total += len(r.Data)
+	waitPeerClosed(t, stuck) // never read while the child floods; the shim must give up
+
+	// The resumed client is held to the same short send timeout, so a busy
+	// machine can get it dropped too. It reconnects by offset, as any client
+	// the shim dropped would, and must still see every byte exactly once.
+	var (
+		c     *Client
+		off   int64
+		total int
+	)
+	for {
+		if c == nil {
+			c = dial(t, dir, off)
+		}
+		rec, end, err := c.Recv()
+		if err != nil {
+			var shimErr *Error
+			if errors.As(err, &shimErr) {
+				t.Fatal(err)
+			}
+			c = nil
+			continue
+		}
+		off = end
+		if rec.Kind == KindStdout {
+			total += len(rec.Data)
+		}
+		if isExit(rec) {
+			break
 		}
 	}
 	if total != size {
 		t.Fatalf("resumed client saw %d bytes, want %d", total, size)
 	}
-	if err := c.Ack(final); err != nil {
+	if err := c.Ack(off); err != nil {
 		t.Fatal(err)
 	}
 	waitDone(t, done)
+}
+
+// waitPeerClosed waits for the shim to close nc without reading from it, since
+// a read would relieve the very stall under test. Frames the shim ignores keep
+// being accepted until it closes the connection; then the write fails.
+func waitPeerClosed(t *testing.T, nc net.Conn) {
+	t.Helper()
+	timeout := time.After(30 * time.Second)
+	tick := time.NewTicker(10 * time.Millisecond)
+	defer tick.Stop()
+	for writeFrame(nc, Message{Type: MsgAck}) == nil {
+		select {
+		case <-tick.C:
+		case <-timeout:
+			t.Fatal("the shim kept the stalled connection open")
+		}
+	}
 }
 
 func TestRunReportsExitSyncFailure(t *testing.T) {
