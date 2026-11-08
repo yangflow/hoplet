@@ -528,6 +528,51 @@ func (d *desktop) Harnesses(done func([]proto.HarnessInfo)) {
 	})
 }
 
+// Companions implements shell.Host.
+func (d *desktop) Companions(done func([]proto.Companion, error)) {
+	c := d.client()
+	if c == nil {
+		done(nil, errNoDaemon)
+		return
+	}
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), callTimeout)
+		defer cancel()
+		cs, err := c.Companions(ctx, true)
+		d.ui(func() { done(cs, err) })
+	}()
+}
+
+// Persona implements shell.Host.
+func (d *desktop) Persona(id proto.CompanionID, done func(string, error)) {
+	c := d.client()
+	if c == nil {
+		done("", errNoDaemon)
+		return
+	}
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), callTimeout)
+		defer cancel()
+		p, err := c.Persona(ctx, string(id))
+		d.ui(func() { done(p.Text, err) })
+	}()
+}
+
+// SetPersona implements shell.Host.
+func (d *desktop) SetPersona(id proto.CompanionID, text string, done func(proto.SetPersonaResult, error)) {
+	c := d.client()
+	if c == nil {
+		done(proto.SetPersonaResult{}, errNoDaemon)
+		return
+	}
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), callTimeout)
+		defer cancel()
+		r, err := c.SetPersona(ctx, string(id), text)
+		d.ui(func() { done(r, err) })
+	}()
+}
+
 // Session implements shell.Host.
 func (d *desktop) Session(id proto.SessionID, done func(proto.SessionState)) {
 	d.call(func(ctx context.Context, c *client.Client) error {
