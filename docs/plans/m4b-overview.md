@@ -52,7 +52,7 @@ flowchart LR
 
 | PR | 标题 | 主要内容 | 验收 |
 |---|---|---|---|
-| 1 | `feat(memory): add entry storage and commit log` | 新包 `internal/memory`；条目类型与严格 frontmatter 编解码；迁移 `0016`（审计含旧版本正文、提炼运行、注入记录、检索索引，索引与持久表分开）；意图 → 原子写 → 标记提交；启动恢复；重建索引与 `PROFILE.md`；扫描手改文件 | 每个失败点崩溃后状态正确且不重复写入；期望版本不符被拒；重建索引不动审计；手改合法的记一次用户编辑，不合法的不进索引且文件不动；未知字段被拒 |
+| 1 | `feat(memory): add entry storage and commit log` | 新包 `internal/memory`；条目类型与严格 frontmatter 编解码；迁移 `0016`（审计含旧版本正文、检索索引，索引与持久表分开；提炼运行和注入记录的表随 PR4、PR3 加）；意图 → 原子写 → 标记提交；启动恢复；重建索引与 `PROFILE.md`；扫描手改文件 | 每个失败点崩溃后状态正确且不重复写入；期望版本不符被拒；重建索引不动审计；手改合法的记一次用户编辑，不合法的不进索引且文件不动；未知字段被拒 |
 | 2 | `feat(memory): add write service and profile CLI` | 写入服务：三个来源、证据校验、凭据拒绝、生效门槛、候选、撤回、旧材料拦截；daemon API；CLI `hoplet profile list / show / edit / withdraw / candidates / accept / reject` | 0016 “更新与纠错”表逐条有表驱动测试；纠正后回放旧材料不复活；撤回内容重现被拦截，晚于撤回的 `user_stated` 可恢复；写入失败不报已保存 |
 | 3 | `feat(memory): inject summaries and add read tools` | 启动摘要选择（约 8KB 加索引）；Claude 的 `--append-system-prompt` 与 Hermes 的 `HERMES.md` 同人格一起注入；Code 会话入口；注入记录；工具 `profile_list`、`profile_read`、`profile_write` | 选择顺序与预算按表测试；非生效条目不注入不检索；Code 调用 `profile_write` 被拒；两家启动参数 / 生成文件按录制核对；摘要失败时会话照常启动并记录失败；假 harness 跑通“写入 → 换 harness → 取到” |
 | 4 | `feat(memory): extract candidates in the background` | 适配器的隔离运行（只 Claude 2.1.319，能力位标明）；触发器、队列、选材、32KB 与每日 20 次预算、重试、进度持久化；输出解析并经 PR2 服务提交；开关 | 启动参数与环境按 0021 核对；未验证版本与 Hermes 不创建运行并报原因；预算用尽材料保留；崩溃重试不重复提交；注入内容与提炼事件不进材料；非法输出最多重试 2 次；不阻塞前台 |
@@ -69,7 +69,7 @@ PR3 和 PR4 互不依赖，可以并行。
 
 | 假设 | 在哪验证 | 不成立时 |
 |---|---|---|
-| 依赖中的 SQLite 带 FTS5，且对中文短词可用 | PR1 开工前实测 | 条目量小，改为对索引做子串匹配，并改 0016 的“全文检索”表述 |
+| 依赖中的 SQLite 带 FTS5，且对中文短词可用 | PR1 开工前实测（2026-11-08：不可用，两字中文词查不到） | 已改为对索引做子串匹配，0016 已修正 |
 | Hermes Code 会话有受支持的启动注入入口 | PR3 录制 | 该组合标记能力不足，读取工具照常；提出来讨论，不绕过 |
 | 闲置 30 分钟能从现有会话状态判断 | PR4 计划时读代码 | 停下讨论触发方式 |
 | 用户级和插件 hook 被 `disableAllHooks` 关闭 | PR4 录制 | 该版本不启用提炼 |
