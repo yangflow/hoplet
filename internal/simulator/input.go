@@ -44,8 +44,8 @@ func unsupportedInput(msg string) error {
 
 // probeInput reports nil when the input helper exists and its probe passes.
 // The probe result is cached per Xcode path, so a change of the selected
-// Xcode probes again. A missing file or an unreadable Xcode path is not
-// cached.
+// Xcode probes again. Only a passing probe is cached: a failed one, a missing
+// file or an unreadable Xcode path is checked again on the next call.
 func (s *Service) probeInput(ctx context.Context) error {
 	path := ""
 	if s.helperFile != nil {
@@ -71,12 +71,11 @@ func (s *Service) probeInput(ctx context.Context) error {
 	res, ok := s.probes[xcode]
 	s.pmu.Unlock()
 	if !ok {
-		var answered bool
-		res, answered = s.runProbe(ctx, path)
+		res = s.runProbe(ctx, path)
 		if ctx.Err() != nil {
 			return fmt.Errorf("probe simulator input: %w", context.Cause(ctx))
 		}
-		if answered {
+		if res.ok {
 			s.pmu.Lock()
 			s.probes[xcode] = res
 			s.pmu.Unlock()
@@ -88,21 +87,20 @@ func (s *Service) probeInput(ctx context.Context) error {
 	return nil
 }
 
-// runProbe runs the helper's probe. answered is true only when the helper
-// printed a parsed answer, which is the only result worth caching.
-func (s *Service) runProbe(ctx context.Context, path string) (res probeResult, answered bool) {
+// runProbe runs the helper's probe.
+func (s *Service) runProbe(ctx context.Context, path string) probeResult {
 	out, err := s.run.Run(ctx, path, "--probe")
 	var r wireResponse
 	if jerr := json.Unmarshal([]byte(strings.TrimSpace(string(out))), &r); jerr == nil {
 		if err == nil && r.OK {
-			return probeResult{ok: true}, true
+			return probeResult{ok: true}
 		}
-		return probeResult{msg: probeMessage(r)}, true
+		return probeResult{msg: probeMessage(r)}
 	}
 	if err != nil {
-		return probeResult{msg: "the simulator input probe failed: " + err.Error()}, false
+		return probeResult{msg: "the simulator input probe failed: " + err.Error()}
 	}
-	return probeResult{msg: "the simulator input probe printed no result"}, false
+	return probeResult{msg: "the simulator input probe printed no result"}
 }
 
 // start launches a helper for a device.
@@ -187,13 +185,14 @@ func (s *Service) drop(udid string, e *helperEntry) {
 
 // helperBroken reports whether a failed command leaves the helper unusable:
 // anything but an ordinary failure response, since the helper ends itself
-// after a timeout or cancellation.
+// after a timeout or cancellation, and an input_failed helper may hold a stale
+// device client (for example after a device reboot).
 func helperBroken(err error) bool {
 	var se *Error
 	if !errors.As(err, &se) {
 		return true
 	}
-	return se.Code == "timeout" || se.Code == "cancelled"
+	return se.Code == "timeout" || se.Code == "cancelled" || se.Code == CodeInputFailed
 }
 
 // helperDo sends one command to the device's helper under the command limit.

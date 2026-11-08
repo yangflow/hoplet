@@ -38,6 +38,10 @@ func runHelper(arguments: [String]) async -> Int32 {
   }
 
   let loop = CommandLoop(input: input, write: output.write)
+  // Interrupt and hangup are ignored so the end of standard input lifts any
+  // touch and exits; only termination has a handler.
+  signal(SIGINT, SIG_IGN)
+  signal(SIGHUP, SIG_IGN)
   signal(SIGTERM, SIG_IGN)
   let termination = DispatchSource.makeSignalSource(signal: SIGTERM, queue: .global())
   termination.setEventHandler { loop.terminate() }

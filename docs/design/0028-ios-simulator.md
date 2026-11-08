@@ -8,8 +8,8 @@
 
 | 状态 | 边界 |
 |---|---|
-| ✓ 已交付 | `simctl` 设备服务与占用；工具结果带图片；工具 `simulator_list`、`simulator_boot`、`simulator_launch`、`simulator_screenshot`、`simulator_open_url`；Swift 辅助进程；输入工具 `simulator_tap`、`simulator_swipe`、`simulator_text`、`simulator_button` |
-| ○ 目标 | 桌面实时面板与帧流；“人”的占用 |
+| ✓ 已交付 | `simctl` 设备服务与占用；工具结果带图片；工具 `simulator_list`、`simulator_boot`、`simulator_launch`、`simulator_screenshot`、`simulator_open_url`；Swift 辅助进程；输入工具 `simulator_tap`、`simulator_swipe`、`simulator_text`、`simulator_button`（代码层面已交付；发布构建尚未包含辅助进程，打包落地前输入不可用） |
+| ○ 目标 | 桌面实时面板与帧流；“人”的占用；随桌面打包、统一签名公证 |
 | 已验证 | 输入与取帧的技术路径，见“验证基线” |
 | 不做 | 真机、Linux、配对机器的模拟器、多点触控、由 Hoplet 创建或删除设备 |
 
@@ -35,7 +35,7 @@ flowchart LR
 
 - `simctl` 能做的事都由 Go 直接调用，私有接口只用于输入和取帧。Xcode 升级弄坏私有接口时，截图、安装、启动不受影响。
 - 辅助进程是独立进程，桌面和 daemon 仍是纯 Go、无 cgo。不引入第三方依赖。
-- 辅助进程放在 `apple/SimulatorHelper`，用 Swift 6 严格并发，随桌面 app 一起签名公证，与内置的 `hoplet` 同目录。找不到辅助进程时按“输入不可用”处理。
+- 辅助进程放在 `apple/SimulatorHelper`，用 Swift 6 严格并发，目标是随桌面 app 一起签名公证，与内置的 `hoplet` 同目录；目前尚未打包，只验证过手动公证的构建。找不到辅助进程时按“输入不可用”处理。
 
 ## 辅助进程
 
@@ -50,8 +50,9 @@ flowchart LR
 | 坐标 | 辅助进程只收比例坐标（0–1） |
 | 触摸 | 按下、移动都发按下事件（移动是位置变化的按下），最后发抬起；移动事件类型不被消息函数接受 |
 | 边缘手势 | 从屏幕边缘开始的手势在所有消息上带边缘参数；底边取值 3 |
-| 抬起保证 | 标准输入关闭、收到终止信号或命令超时，先给进行中的触摸发抬起，再退出 |
+| 抬起保证 | 标准输入关闭、收到终止信号或命令超时，先给进行中的触摸发抬起，再退出；进程退出的瞬间，迟到的按下可能在约一毫秒的窗口内落在抬起前后 |
 | 崩溃 | daemon 不自动重试正在执行的命令，返回失败；下一条命令重新拉起 |
+| 信号 | 忽略 SIGINT 与 SIGHUP，由标准输入关闭触发抬起并退出；SIGTERM 有自己的处理 |
 
 ## Agent 工具
 
@@ -92,7 +93,9 @@ flowchart LR
 | `simulator_busy` | 设备被其他占用者持有，错误里写明占用者 |
 | `unsupported` | 多点触控、未验证的边缘与硬件键 |
 | `invalid_argument` | 参数不合法：坐标超出屏幕、`duration` 超出 0–10 秒 |
-| `input_failed` | 输入命令执行失败，或辅助进程在命令执行中退出 |
+| `input_failed` | 输入命令执行失败，或辅助进程在命令执行中退出，或打开设备失败（未启动、未知、无法连接）；该辅助进程在下一条命令时被替换 |
+| `timeout` | 辅助进程内单条命令超过时限；进程随后退出，下一条命令重新拉起 |
+| `cancelled` | 命令被中断；进程随后退出，下一条命令重新拉起 |
 
 参数校验在取得占用之前完成，校验失败不占用设备。发送前发现辅助进程已退出时重新拉起；已发出的命令仍按失败返回，不重试。
 
@@ -177,4 +180,5 @@ Xcode 27.2、iOS 26.5、iPhone 17 Pro，Claude Code 2.1.319，用一次性程序
 | 其他边缘与硬件键 | 边缘参数 1、2、4 的含义；锁屏、侧边键的取值 |
 | Home 键 | 更多次数的稳定性 |
 | 版本跨度 | 较旧 Xcode 上探测与消息格式是否一致 |
+| 设备重启后旧 HID 客户端的行为 | 设备重启后，沿用的旧客户端是报错还是静默成功 |
 | 非英文键盘 | 设备键盘为拼音等输入法时，ASCII 走 HID 键入不可靠；是否改走剪贴板或切换键盘 |

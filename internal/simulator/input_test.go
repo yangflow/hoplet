@@ -403,8 +403,37 @@ func TestTextStopsAtFirstFailedChunk(t *testing.T) {
 	if n := len(env.helpers()[0].requests()); n != 1 {
 		t.Fatalf("%d commands sent after the first failed", n)
 	}
-	if env.helpers()[0].isClosed() {
-		t.Fatal("helper dropped after an ordinary failure response")
+	if !env.helpers()[0].isClosed() {
+		t.Fatal("helper kept after an input_failed response")
+	}
+}
+
+func TestInputFailedReplacesHelperOnNextCommand(t *testing.T) {
+	env := newInputEnv(t)
+	ctx := context.Background()
+	env.onMake = func(h *fakeHelper) {
+		if len(env.made) == 1 {
+			h.err = &Error{Code: CodeInputFailed, Message: "stale client"}
+		}
+	}
+	wantCode(t, env.s.Tap(ctx, "ses_1", bootedUDID, 1, 1, 0), CodeInputFailed)
+	if err := env.s.Tap(ctx, "ses_1", bootedUDID, 1, 1, 0); err != nil {
+		t.Fatal(err)
+	}
+	hs := env.helpers()
+	if len(hs) != 2 || !hs[0].isClosed() || len(hs[0].requests()) != 1 || len(hs[1].requests()) != 1 {
+		t.Fatalf("%d helpers; the failed command must not be retried and the next must run on a new helper", len(hs))
+	}
+}
+
+func TestFailedProbeIsNotCached(t *testing.T) {
+	env := newInputEnv(t)
+	ctx := context.Background()
+	env.f.out["--probe"] = `{"ok":false,"missing":["x"]}`
+	wantCode(t, env.s.Tap(ctx, "ses_1", bootedUDID, 1, 1, 0), CodeInputUnsupported)
+	env.f.out["--probe"] = `{"ok":true,"xcode":"16.0","missing":[]}`
+	if err := env.s.Tap(ctx, "ses_1", bootedUDID, 1, 1, 0); err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -489,21 +518,21 @@ func TestProbeCachedPerXcodePath(t *testing.T) {
 	if n := env.countCalls(env.file, "--probe"); n != 1 {
 		t.Fatalf("probe ran %d times, want 1", n)
 	}
-	// A different selected Xcode probes again, and a failing probe there
-	// does not touch the cached answer for the first.
+	// A different selected Xcode probes again; a failing probe there is not
+	// cached, so it probes on every call, and the first answer stays cached.
 	env.f.out["-p"] = "/Xcode-B"
 	env.f.out["--probe"] = `{"ok":false,"missing":["x"]}`
 	wantCode(t, env.s.Tap(ctx, "ses_1", bootedUDID, 1, 1, 0), CodeInputUnsupported)
 	wantCode(t, env.s.Tap(ctx, "ses_1", bootedUDID, 1, 1, 0), CodeInputUnsupported)
-	if n := env.countCalls(env.file, "--probe"); n != 2 {
-		t.Fatalf("probe ran %d times, want 2", n)
+	if n := env.countCalls(env.file, "--probe"); n != 3 {
+		t.Fatalf("probe ran %d times, want 3", n)
 	}
 	env.f.out["-p"] = "/Xcode-A"
 	if err := env.s.Tap(ctx, "ses_1", bootedUDID, 1, 1, 0); err != nil {
 		t.Fatal(err)
 	}
-	if n := env.countCalls(env.file, "--probe"); n != 2 {
-		t.Fatalf("probe ran %d times after switching back, want 2", n)
+	if n := env.countCalls(env.file, "--probe"); n != 3 {
+		t.Fatalf("probe ran %d times after switching back, want 3", n)
 	}
 }
 
@@ -523,14 +552,15 @@ func TestOneHelperPerDevice(t *testing.T) {
 func TestCrashFailsCommandAndNextRestarts(t *testing.T) {
 	env := newInputEnv(t)
 	ctx := context.Background()
-	crash := errors.New("simulator helper exited: signal: killed")
+	crash := &Error{Code: CodeInputFailed, Message: "simulator helper exited: signal: killed"}
 	env.onMake = func(h *fakeHelper) {
 		if len(env.made) == 1 {
 			h.err = crash
 		}
 	}
 	err := env.s.Tap(ctx, "ses_1", bootedUDID, 1, 1, 0)
-	if !errors.Is(err, crash) {
+	wantCode(t, err, CodeInputFailed)
+	if !strings.Contains(err.Error(), "signal: killed") {
 		t.Fatalf("err = %v", err)
 	}
 	hs := env.helpers()

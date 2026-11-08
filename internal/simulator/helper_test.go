@@ -116,9 +116,13 @@ func TestStdioProbe(t *testing.T) {
 		name     string
 		line     string
 		wantCode string
+		wantMsg  string
 	}{
-		{"ok", `{"ok":true,"xcode":"16.0","missing":[]}`, ""},
-		{"failed", `{"ok":false,"xcode":"16.0","missing":["SimServiceContext"]}`, CodeInputUnsupported},
+		{"ok", `{"ok":true,"xcode":"16.0","missing":[]}`, "", ""},
+		{"failed", `{"ok":false,"xcode":"16.0","missing":["SimServiceContext"]}`, CodeInputUnsupported, "SimServiceContext"},
+		{"missing with message", `{"ok":false,"xcode":"16.0","missing":["SimServiceContext"],"message":"symbols gone"}`, CodeInputUnsupported, "symbols gone"},
+		{"device not booted", `{"ok":false,"xcode":"16.0","missing":[],"message":"device is not booted"}`, CodeInputFailed, "device is not booted"},
+		{"device unknown", `{"ok":false,"xcode":"16.0","missing":[],"message":"unknown device"}`, CodeInputFailed, "unknown device"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -133,7 +137,7 @@ func TestStdioProbe(t *testing.T) {
 				return
 			}
 			var se *Error
-			if !errors.As(err, &se) || se.Code != tc.wantCode || !strings.Contains(se.Message, "SimServiceContext") {
+			if !errors.As(err, &se) || se.Code != tc.wantCode || !strings.Contains(se.Message, tc.wantMsg) {
 				t.Fatalf("err = %v", err)
 			}
 			select {
@@ -210,8 +214,12 @@ func TestStdioCrashFailsInFlightAndLater(t *testing.T) {
 	_, _ = tail.Write([]byte("fatal: boom"))
 	c.exit()
 	err := <-errs
-	if err == nil || !strings.Contains(err.Error(), "fatal: boom") {
+	var se *Error
+	if !errors.As(err, &se) || se.Code != CodeInputFailed || !strings.Contains(se.Message, "fatal: boom") || errors.Is(err, errHelperNotRunning) {
 		t.Fatalf("in-flight err = %v", err)
+	}
+	if !helperBroken(err) {
+		t.Fatal("an exit during a command must count as broken")
 	}
 	if err := h.Do(context.Background(), HelperRequest{Op: "paste"}); err == nil {
 		t.Fatal("command after exit succeeded")

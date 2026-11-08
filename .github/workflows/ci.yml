@@ -34,7 +34,7 @@ jobs:
         env:
           BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: |
-          if git diff --name-only "$BASE" HEAD | grep -qE '^(apple/HopletKit/|proto/|tools/swiftgen/|testdata/vectors/)'; then
+          if git diff --name-only "$BASE" HEAD | grep -qE '^(apple/HopletKit/|apple/SimulatorHelper/|proto/|tools/swiftgen/|testdata/vectors/)'; then
             echo "swift=true" >> "$GITHUB_OUTPUT"
           else
             echo "swift=false" >> "$GITHUB_OUTPUT"

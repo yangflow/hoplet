@@ -247,12 +247,22 @@ func (h *stdioHelper) awaitProbe(ctx context.Context) (Helper, error) {
 	}
 	if !r.OK {
 		_ = h.Close()
-		return nil, &Error{Code: CodeInputUnsupported, Message: probeMessage(r)}
+		code := CodeInputUnsupported
+		// A message without missing symbols means the device could not be
+		// opened (not booted, unknown, not connectable), which is a failure
+		// of this command, not of the Xcode.
+		if r.Message != "" && len(r.Missing) == 0 {
+			code = CodeInputFailed
+		}
+		return nil, &Error{Code: code, Message: probeMessage(r)}
 	}
 	return h, nil
 }
 
 func probeMessage(r wireResponse) string {
+	if r.Message != "" {
+		return r.Message
+	}
 	msg := "the simulator input helper reported that this Xcode is not supported"
 	if len(r.Missing) > 0 {
 		msg += "; missing: " + strings.Join(r.Missing, ", ")
@@ -307,7 +317,8 @@ func (h *stdioHelper) Do(ctx context.Context, req HelperRequest) error {
 		case r := <-ch:
 			return responseError(r)
 		default:
-			return h.exitErr
+			// The command was sent, so it is not retried.
+			return &Error{Code: CodeInputFailed, Message: h.exitErr.Error()}
 		}
 	case <-ctx.Done():
 		forget()

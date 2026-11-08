@@ -29,6 +29,8 @@ public enum PrivateInterface {
   public static let hidClientClass = "_TtC12SimulatorKit24SimDeviceLegacyHIDClient"
   public static let sharedContextSelector = "sharedServiceContextForDeveloperDir:error:"
   public static let defaultDeviceSetSelector = "defaultDeviceSetWithError:"
+  public static let deviceSetClass = "SimDeviceSet"
+  public static let deviceClass = "SimDevice"
   public static let hidClientInitSelector = "initWithDevice:error:"
   public static let hidClientSendSelector =
     "sendWithMessage:freeWhenDone:completionQueue:completion:"
@@ -44,6 +46,9 @@ public enum PrivateInterface {
     .objcClass(hidClientClass),
     .classMethod(className: serviceContextClass, selector: sharedContextSelector),
     .instanceMethod(className: serviceContextClass, selector: defaultDeviceSetSelector),
+    .instanceMethod(className: deviceSetClass, selector: "devices"),
+    .instanceMethod(className: deviceClass, selector: "UDID"),
+    .instanceMethod(className: deviceClass, selector: "state"),
     .instanceMethod(className: hidClientClass, selector: hidClientInitSelector),
     .instanceMethod(className: hidClientClass, selector: hidClientSendSelector),
     .function(mouseMessageFunction),
