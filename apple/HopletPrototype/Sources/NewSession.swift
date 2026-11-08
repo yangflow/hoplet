@@ -66,7 +66,9 @@ struct NewSessionView: View {
 
   @State private var prompt = ""
   @State private var name = ""
-  @State private var hosts = Host.all
+  private var hosts: [Host] {
+    Host.all.map { Host(name: $0.name, symbol: $0.symbol, online: !store.isOffline($0.name)) }
+  }
   @State private var hostName = "MacBook"
   @State private var directories = Workdir.recent
   @State private var workdir: Workdir? = Workdir.recent[0]
@@ -283,8 +285,7 @@ struct NewSessionView: View {
   }
 
   private func reconnect() {
-    guard let index = hosts.firstIndex(where: { $0.name == hostName }) else { return }
-    withAnimation { hosts[index].online = true }
+    store.reconnect(hostName)
   }
 
   private func create() {

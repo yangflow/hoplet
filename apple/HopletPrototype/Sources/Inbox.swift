@@ -38,15 +38,16 @@ struct InboxView: View {
   }
 
   private func needsYouRow(_ session: Session) -> some View {
-    Button {
-      handling = session
+    let offline = store.isOffline(session.host)
+    return Button {
+      if offline { path.append(session.id) } else { handling = session }
     } label: {
       SessionRow(session: session, subtitle: ask(session), symbol: icon(session))
     }
     .buttonStyle(.plain)
     .listRowSeparator(.hidden)
     .swipeActions(edge: .leading, allowsFullSwipe: true) {
-      if case .approval = session.pending {
+      if !offline, case .approval = session.pending {
         Button("允许一次", systemImage: "checkmark") {
           store.resolve(session.id, summary: "已允许，正在运行")
         }
@@ -54,7 +55,7 @@ struct InboxView: View {
       }
     }
     .swipeActions(edge: .trailing) {
-      if case .approval = session.pending {
+      if !offline, case .approval = session.pending {
         Button("拒绝", systemImage: "xmark", role: .destructive) {
           store.resolve(session.id, summary: "你已拒绝")
         }
