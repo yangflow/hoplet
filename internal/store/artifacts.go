@@ -218,13 +218,18 @@ func scanArtifact(r scanner) (proto.Artifact, error) {
 // harness, to a session's log: in its open turn, or after its last turn
 // when none is open.
 func appendRecord(ctx context.Context, tx *sql.Tx, id proto.SessionID, now time.Time, p proto.Payload) error {
+	return appendKeyedRecord(ctx, tx, id, now, p, "")
+}
+
+// appendKeyedRecord is appendRecord with a receipt key.
+func appendKeyedRecord(ctx context.Context, tx *sql.Tx, id proto.SessionID, now time.Time, p proto.Payload, key string) error {
 	var turn uint32
 	err := tx.QueryRowContext(ctx, `SELECT n FROM turns WHERE session_id = ? AND end_seq IS NULL ORDER BY n DESC LIMIT 1`,
 		id).Scan(&turn)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return fmt.Errorf("store: read open turn: %w", err)
 	}
-	req := AppendRequest{Session: id, Turn: turn, Time: now, Entries: []Entry{{Payload: p}}}
+	req := AppendRequest{Session: id, Turn: turn, Time: now, Entries: []Entry{{Payload: p}}, ReceiptKey: key}
 	events, err := newEvents(req)
 	if err != nil {
 		return err

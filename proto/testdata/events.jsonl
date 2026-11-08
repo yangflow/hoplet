@@ -22,3 +22,4 @@
 {"session":"s1","seq":22,"ts":"2026-11-08T08:00:00Z","turn":2,"type":"artifact.published","v":1,"payload":{"artifact":"a1","name":"report","kind":"html","version":2,"by":"harness"}}
 {"session":"s1","seq":23,"ts":"2026-11-08T08:00:01Z","turn":2,"type":"session.delegated","v":1,"payload":{"session":"s2","kind":"delegate","title":"Find hotels in Shinjuku"}}
 {"session":"s1","seq":24,"ts":"2026-11-08T08:00:02Z","turn":3,"type":"message","v":1,"payload":{"id":"m9","role":"user","text":"Waiting for the user to approve: Run tests","from":"s3","report":"approval"}}
+{"session":"s1","seq":25,"ts":"2026-11-08T08:00:03Z","turn":3,"type":"memory.saved","v":1,"payload":{"entry":"e1","version":1,"action":"created","actor":"companion"}}

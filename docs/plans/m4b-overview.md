@@ -44,7 +44,7 @@ flowchart LR
     P1["PR1 条目存储与提交"] --> P2["PR2 写入服务与 CLI"]
     P2 --> P3["PR3 注入与读取工具"]
     P2 --> P4["PR4 后台提炼"]
-    P3 --> P5["PR5 同步协议与事件"]
+    P3 --> P5["PR5 “记住了”事件"]
     P4 --> P5
     C["画板：成长记忆页、详情、候选、聊天内、设置（待审定）"] --> P6
     P5 --> P6["PR6 桌面成长记忆"]
@@ -56,7 +56,7 @@ flowchart LR
 | 2 | `feat(memory): add write service and profile CLI` | 写入服务：三个来源、证据校验、凭据拒绝、生效门槛、候选、撤回、旧材料拦截；daemon API；CLI `hoplet profile list / show / edit / withdraw / candidates / accept / reject` | 0016 “更新与纠错”表逐条有表驱动测试；纠正后回放旧材料不复活；撤回内容重现被拦截，晚于撤回的 `user_stated` 可恢复；写入失败不报已保存 |
 | 3 | `feat(memory): inject summaries and add read tools` | 启动摘要选择（约 8KB 加索引）；Claude 的 `--append-system-prompt` 与 Hermes 的 `HERMES.md` 同人格一起注入；Code 会话入口；注入记录；工具 `profile_list`、`profile_read`、`profile_write` | 选择顺序与预算按表测试；非生效条目不注入不检索；Code 调用 `profile_write` 被拒；两家启动参数 / 生成文件按录制核对；摘要失败时会话照常启动并记录失败；假 harness 跑通“写入 → 换 harness → 取到” |
 | 4 | `feat(memory): extract candidates in the background` | 适配器的隔离运行（只 Claude 2.1.319，能力位标明）；触发器、队列、选材、32KB 与每日 20 次预算、重试、进度持久化；输出解析并经 PR2 服务提交；开关 | 启动参数与环境按 0021 核对；未验证版本与 Hermes 不创建运行并报原因；预算用尽材料保留；崩溃重试不重复提交；注入内容与提炼事件不进材料；非法输出最多重试 2 次；不阻塞前台 |
-| 5 | `feat(memory): sync entries and report saves` | 同步协议方法：列表、详情、版本历史、候选、编辑、撤回、确认、拒绝、提炼状态；会话日志新事件“记住了”；`make gen` | 配对设备按权限可读写；版本冲突如实返回；旧日志照常解码；新事件进日志且不进提炼材料 |
+| 5 | `feat(memory): report saves in the session log` | 会话日志新事件“记住了”；自动保存后写入，不触发提炼；`make gen`。管理方法已随 PR2、PR4 落地，只限本机客户端 | 只有自动保存实际生效才有事件；重放只记一条；旧日志照常解码；新事件不进提炼材料，也不算新证据 |
 | 6 | `feat(desktop): add growth memory views` | 成长记忆页、条目详情、候选、聊天内一行、设置项 | 与审定画板一致；`ui.Tester` 覆盖编辑、撤回、确认；真实 app 跑通验收 |
 
 PR3 和 PR4 互不依赖，可以并行。

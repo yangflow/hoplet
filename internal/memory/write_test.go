@@ -497,3 +497,121 @@ func TestApplyFailedRename(t *testing.T) {
 		t.Fatalf("%+v, %v", res, err)
 	}
 }
+
+func (f *writes) saves(session proto.SessionID) []proto.MemorySaved {
+	f.t.Helper()
+	evs, err := f.st.Events(context.Background(), session, 0, 1000)
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	var out []proto.MemorySaved
+	for _, ev := range evs {
+		if ev.Type != proto.TypeMemorySaved {
+			continue
+		}
+		p, err := ev.Decode()
+		if err != nil {
+			f.t.Fatal(err)
+		}
+		out = append(out, p.(proto.MemorySaved))
+	}
+	return out
+}
+
+func TestApplyReportsAutomaticSaves(t *testing.T) {
+	created, updated := proto.MemoryCreated, proto.MemoryUpdated
+	cases := []struct {
+		name    string
+		write   func(f *writes) Write
+		want    Outcome
+		action  *proto.MemorySaveAction
+		actor   proto.MemorySaveActor
+		version int
+	}{
+		{"companion creates", func(f *writes) Write { return create("Likes tea", f.said("p", before)) }, OutcomeApplied, &created, proto.MemoryByCompanion, 1},
+		{"companion updates", func(f *writes) Write {
+			e := f.apply(create("Likes tea", f.said("p", before))).Entry
+			return update(e, "Likes green tea", f.said("p", after))
+		}, OutcomeApplied, &updated, proto.MemoryByCompanion, 2},
+		{"extraction creates", func(f *writes) Write {
+			return extraction(create("Likes tea", f.said("p", before)), "p", 1, 100)
+		}, OutcomeApplied, &created, proto.MemoryByExtraction, 1},
+		{"user creates", func(*writes) Write {
+			return Write{Actor: ActorUser, Action: ActionCreate, Category: CategoryFact, Scope: repoScope, Body: "Likes tea"}
+		}, OutcomeApplied, nil, "", 0},
+		{"companion withdraws", func(f *writes) Write {
+			e := f.apply(create("Likes tea", f.said("p", before))).Entry
+			return Write{Actor: ActorCompanion, Action: ActionWithdraw, Target: e.ID, ExpectedVersion: e.Version, Reason: "asked", Session: "p", Evidence: []Evidence{f.said("p", after)}}
+		}, OutcomeApplied, nil, "", 0},
+		{"candidate", func(f *writes) Write { return create("Likes tea", f.observed("p", before)) }, OutcomeCandidate, nil, "", 0},
+		{"rejected", func(*writes) Write {
+			return create("Likes tea", Evidence{EvidenceUserStated, "event:p/999"})
+		}, OutcomeRejected, nil, "", 0},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			f := newWrites(t)
+			w := c.write(f)
+			base := len(f.saves("p"))
+			res := f.apply(w)
+			if res.Outcome != c.want {
+				t.Fatalf("outcome = %+v", res)
+			}
+			got := f.saves("p")[base:]
+			if c.action == nil {
+				if len(got) != 0 {
+					t.Fatalf("saves = %+v", got)
+				}
+				return
+			}
+			want := proto.MemorySaved{Entry: res.Entry.ID, Version: c.version, Action: *c.action, Actor: c.actor}
+			if len(got) != 1 || got[0] != want {
+				t.Fatalf("saves = %+v, want %+v", got, want)
+			}
+		})
+	}
+}
+
+func TestReportFailureKeepsTheSaveAndRetries(t *testing.T) {
+	f := newWrites(t)
+	w := create("Likes tea", f.said("p", before))
+	w.OpID = "once"
+	f.svc.hook = func(point string) error {
+		if point == "report" {
+			return errors.New("no room")
+		}
+		return nil
+	}
+	if res := f.apply(w); res.Outcome != OutcomeApplied {
+		t.Fatalf("%+v", res)
+	}
+	if got := f.saves("p"); len(got) != 0 {
+		t.Fatalf("saves = %+v", got)
+	}
+	f.svc.hook = nil
+	f.apply(w)
+	f.apply(w)
+	if got := f.saves("p"); len(got) != 1 {
+		t.Fatalf("saves after retries = %+v", got)
+	}
+}
+
+func TestReportLeavesTheSessionQuiet(t *testing.T) {
+	f := newWrites(t)
+	w := create("Likes tea", f.said("p", before))
+	was, err := f.st.Session(context.Background(), "p")
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.apply(w)
+	now, err := f.st.Session(context.Background(), "p")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if now.LastSeq != was.LastSeq+1 {
+		t.Fatalf("last seq %d after %d", now.LastSeq, was.LastSeq)
+	}
+	if now.Unread != was.Unread || now.Preview != was.Preview || !now.UpdatedAt.Equal(was.UpdatedAt) {
+		t.Fatalf("session moved: %+v after %+v", now, was)
+	}
+}

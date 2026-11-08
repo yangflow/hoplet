@@ -254,8 +254,8 @@ func writeBatch(ctx context.Context, tx *sql.Tx, req AppendRequest, events []pro
 		if err != nil {
 			return res, err
 		}
-		_, err = tx.ExecContext(ctx, `UPDATE sessions SET last_seq = ?, status = ?, updated_at = ? WHERE id = ?`,
-			last, status, req.Time.UTC().UnixMilli(), req.Session)
+		_, err = tx.ExecContext(ctx, `UPDATE sessions SET last_seq = ?, status = ?, updated_at = CASE WHEN ? THEN updated_at ELSE ? END WHERE id = ?`,
+			last, status, onlyMemorySaved(req.Entries), req.Time.UTC().UnixMilli(), req.Session)
 		if err != nil {
 			return res, fmt.Errorf("store: update session: %w", err)
 		}
@@ -278,6 +278,17 @@ func writeBatch(ctx context.Context, tx *sql.Tx, req AppendRequest, events []pro
 		}
 	}
 	return res, nil
+}
+
+// onlyMemorySaved reports whether entries are all memory saves, which can land
+// long after a session went quiet and must not move it up the list.
+func onlyMemorySaved(entries []Entry) bool {
+	for _, e := range entries {
+		if _, ok := e.Payload.(proto.MemorySaved); !ok {
+			return false
+		}
+	}
+	return true
 }
 
 // turnOpen reports whether the session has turn n and it has not ended.
