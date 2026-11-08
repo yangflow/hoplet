@@ -173,7 +173,10 @@ func TestMCPBridge(t *testing.T) {
 	}
 	var names []string
 	for _, tl := range tools.Tools {
-		names = append(names, tl.Name)
+		// The simulator tools appear only on a macOS host.
+		if !strings.HasPrefix(tl.Name, "simulator_") {
+			names = append(names, tl.Name)
+		}
 	}
 	slices.Sort(names)
 	if strings.Join(names, ",") != "artifact_publish,session_get,sessions_list" {

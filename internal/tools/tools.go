@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/yangflow/hoplet/internal/artifact"
@@ -38,6 +39,8 @@ type Source interface {
 	WorkDir(ctx context.Context, id proto.SessionID) (string, error)
 	// Publish publishes a version of an artifact.
 	Publish(ctx context.Context, r artifact.Request) (proto.Artifact, error)
+	// Simulator is the iOS simulator service, nil when this host has none.
+	Simulator() Simulator
 }
 
 // tool is one tool: what the model sees and what a call does. A call's
@@ -125,7 +128,7 @@ func New(src Source) *Set {
 				return src.State(ctx, id)
 			},
 		},
-	}, append(delegationTools(src), artifactTools(src)...)...)}
+	}, slices.Concat(delegationTools(src), artifactTools(src), simulatorTools(src))...)}
 }
 
 // List returns the tools caller may call.

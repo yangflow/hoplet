@@ -15,7 +15,6 @@ import (
 	"github.com/yangflow/hoplet/internal/harness/fake"
 	"github.com/yangflow/hoplet/internal/home"
 	"github.com/yangflow/hoplet/internal/store"
-	"github.com/yangflow/hoplet/internal/tools"
 	"github.com/yangflow/hoplet/proto"
 )
 
@@ -72,7 +71,7 @@ func TestToolConnections(t *testing.T) {
 	for _, tl := range list.Tools {
 		names = append(names, tl.Name)
 	}
-	if strings.Join(names, ",") != "sessions_list,session_get,artifact_publish" {
+	if strings.Join(names, ",") != "sessions_list,session_get,artifact_publish,simulator_list,simulator_boot,simulator_launch,simulator_screenshot,simulator_open_url" {
 		t.Fatalf("tools = %v", names)
 	}
 
@@ -173,14 +172,13 @@ func TestToolImageOverTheConnection(t *testing.T) {
 	if err := d.store.SetSessionToken(timeout(t), s.ID, store.TokenHash("token-img"), time.Now()); err != nil {
 		t.Fatal(err)
 	}
-	d.srv.tools = tools.ImageProbe(1 << 20)
 	tc, err := dialTools(timeout(t), h, "token-img")
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { tc.Close() })
-	r := callTool(t, tc, "image_probe", "{}")
-	if r.IsError || len(r.Images) != 1 || r.Images[0].MIME != "image/png" || !bytes.Equal(r.Images[0].Data, tools.ProbePattern(1<<20)) {
+	r := callTool(t, tc, "simulator_screenshot", fakeDeviceArgs)
+	if r.IsError || len(r.Images) != 1 || r.Images[0].MIME != "image/png" || !bytes.Equal(r.Images[0].Data, fakeScreenshot()) {
 		t.Fatalf("image result: error %v, %d images", r.IsError, len(r.Images))
 	}
 
@@ -194,9 +192,9 @@ func TestToolImageOverTheConnection(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			var r proto.ToolsCallResult
-			if err := tc.Call(timeout(t), proto.MethodToolsCall, proto.ToolsCallParams{Name: "image_probe", Arguments: json.RawMessage("{}")}, &r); err != nil {
+			if err := tc.Call(timeout(t), proto.MethodToolsCall, proto.ToolsCallParams{Name: "simulator_screenshot", Arguments: json.RawMessage(fakeDeviceArgs)}, &r); err != nil {
 				errs <- err
-			} else if len(r.Images) != 1 || !bytes.Equal(r.Images[0].Data, tools.ProbePattern(1<<20)) {
+			} else if len(r.Images) != 1 || !bytes.Equal(r.Images[0].Data, fakeScreenshot()) {
 				errs <- errors.New("image differs")
 			}
 		}()
@@ -206,7 +204,7 @@ func TestToolImageOverTheConnection(t *testing.T) {
 	for err := range errs {
 		t.Error(err)
 	}
-	if r := callTool(t, tc, "image_probe", "{}"); r.IsError || len(r.Images) != 1 {
+	if r := callTool(t, tc, "simulator_screenshot", fakeDeviceArgs); r.IsError || len(r.Images) != 1 {
 		t.Fatalf("connection after concurrent images: %+v", r.IsError)
 	}
 }

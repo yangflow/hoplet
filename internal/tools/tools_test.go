@@ -19,6 +19,7 @@ type fakeSource struct {
 	err      error
 	workDir  string
 	got      *changes // what the tools asked to change
+	sim      Simulator
 }
 
 // changes records the calls that change something.
@@ -61,6 +62,8 @@ func (f fakeSource) Publish(_ context.Context, r artifact.Request) (proto.Artifa
 }
 
 func (f fakeSource) Sessions(context.Context) ([]proto.Session, error) { return f.sessions, f.err }
+
+func (f fakeSource) Simulator() Simulator { return f.sim }
 
 func (f fakeSource) State(_ context.Context, id proto.SessionID) (proto.SessionState, error) {
 	for _, s := range f.sessions {

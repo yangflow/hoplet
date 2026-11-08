@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"sync"
 	"syscall"
@@ -23,6 +24,7 @@ import (
 	"github.com/yangflow/hoplet/internal/home"
 	"github.com/yangflow/hoplet/internal/noise"
 	"github.com/yangflow/hoplet/internal/session"
+	"github.com/yangflow/hoplet/internal/simulator"
 	"github.com/yangflow/hoplet/internal/store"
 	"github.com/yangflow/hoplet/internal/tools"
 	"github.com/yangflow/hoplet/internal/workspace"
@@ -77,6 +79,9 @@ type Config struct {
 	lim limits
 	// now is the clock pairing codes expire by (tests); nil means time.Now.
 	now func() time.Time
+	// simulator replaces the host's simulator service (tests); nil means
+	// the service of this host, if it has one.
+	simulator tools.Simulator
 }
 
 // Daemon is a running daemon.
@@ -212,11 +217,15 @@ func Start(ctx context.Context, cfg Config) (d *Daemon, err error) {
 	if now == nil {
 		now = time.Now
 	}
+	sim := cfg.simulator
+	if sim == nil {
+		sim = hostSimulator(runtime.GOOS, simulator.ExecRunner{}, time.Now, sessionAlive(st))
+	}
 	runCtx, cancel := context.WithCancel(context.Background())
 	q := &queuer{store: st, mgr: mgr, log: log, locks: map[proto.SessionID]*sync.Mutex{}, waiting: map[proto.SessionID]bool{}}
 	srv := &server{
 		ctx: runCtx, store: st, mgr: mgr, ws: ws, queue: q, sys: sys, token: token, arts: arts,
-		tools: tools.New(toolSource{store: st, mgr: mgr, queue: q, arts: arts}),
+		tools: tools.New(toolSource{store: st, mgr: mgr, queue: q, arts: arts, sim: sim}),
 		host:  host, version: cfg.Version, log: log, lim: cfg.lim.withDefaults(),
 		identity: identity, routes: pairingRoutes(cfg.Routes, cfg.Relays), now: now, peers: map[string]map[*conn]struct{}{},
 	}
