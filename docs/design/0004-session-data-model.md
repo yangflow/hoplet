@@ -111,6 +111,7 @@ erDiagram
 
 - `title`、`pinned`、`unread` 通过 `sessions.update` 修改，CLI 对应 `hoplet session set ID --title T --pinned on|off --unread on|off`。
 - 修改这几项不改 `updated_at`，列表顺序不会因为置顶或已读而跳动；置顶的会话单独排在最前。
+- 目标：会话另记所属的自定义分组，分组按模式由守护进程保存，空分组也保留；删除分组只把会话移出。修改同样不改 `updated_at`。
 
 ### 模型、插话与工具输出
 
@@ -167,6 +168,7 @@ flowchart LR
 | 编辑 | 修改后使用新 attempt key，作为新消息发送；旧请求重试不覆盖编辑 |
 | 失败队首 | 持久化错误并阻塞后续，编辑 / 移动 / 删除后可继续 |
 | 归档 | 停止 harness 并持久化归档时间；当前不自动删除会话目录或 spool |
+| 恢复（目标） | 清除归档时间，harness 下次发送时再启动；归档时已移除的 worktree 如何恢复待定 |
 
 ## 演进规则
 

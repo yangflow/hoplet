@@ -36,8 +36,9 @@ func (a *App) chat(c *ui.Context, k theme.Colors, s proto.Session, items []convo
 		prev = next
 	}
 	var day string
+	who := a.mainSession(s) // a child session speaks as its companion
 	for i, it := range items {
-		if d := dayLabel(c.Now(), it.Time); d != day && (it.Kind == convo.KindMine || it.Kind == convo.KindText) {
+		if d := dayLabel(c.Now(), it.Time); d != day && dated(it.Kind) {
 			day = d
 			space("day:"+it.Key, dayKind)
 			dayLine(c.Key("day:"+it.Key), k, d)
@@ -53,7 +54,7 @@ func (a *App) chat(c *ui.Context, k theme.Colors, s proto.Session, items []convo
 			a.myBubble(c, k, it, last)
 		case convo.KindText:
 			ui.Row(c).AlignSelf(ui.Start).MaxWidth(0.78 * theme.PersonalColumn).Gap(theme.Space2).AlignItems(ui.End).Children(func() {
-				a.companionAvatar(c, k, s, last)
+				a.companionAvatar(c, k, who, last)
 				ui.Box(c).Padding(theme.Space2, theme.Space3).Radius(theme.RadiusComposer, theme.RadiusComposer, theme.RadiusComposer, theme.RadiusRow).Background(k.Surface).Border(theme.LineWidth, k.Line).Children(func() {
 					a.s.md.Theme = mdTheme(c, k)
 					a.s.md.CodeBlock = a.codeBlock(k, it.Key)
@@ -80,18 +81,27 @@ func (a *App) chat(c *ui.Context, k theme.Colors, s proto.Session, items []convo
 			a.item(c, k, s, it)
 		case convo.KindStopped:
 			separator(c, k, "已停止 · "+clock(it.Time))
+		case convo.KindEvent:
+			a.eventRow(c, k, s, it)
+		case convo.KindReport:
+			a.reportCard(c, k, it, items)
 		}
 	}
 	if running && (len(items) == 0 || items[len(items)-1].Kind != convo.KindText) {
 		// It is thinking or working: three dots in a small bubble.
 		space("typing", convo.KindText)
 		ui.Row(c.Key("typing")).AlignSelf(ui.Start).Gap(theme.Space2).AlignItems(ui.End).Children(func() {
-			a.companionAvatar(c, k, s, true)
+			a.companionAvatar(c, k, who, true)
 			ui.Box(c).Padding(theme.Space2, theme.Space3).Radius(theme.RadiusComposer, theme.RadiusComposer, theme.RadiusComposer, theme.RadiusRow).Background(k.Surface).Border(theme.LineWidth, k.Line).Label("正在输入").Children(func() {
 				theme.Reading.On(ui.Text(c, "···")).TextColor(k.Muted)
 			})
 		})
 	}
+}
+
+// dated reports whether an item of this kind can start a new day.
+func dated(k convo.Kind) bool {
+	return k == convo.KindMine || k == convo.KindText || k == convo.KindEvent || k == convo.KindReport
 }
 
 // dayLine separates days: a thin line with the day in its middle.

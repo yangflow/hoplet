@@ -153,6 +153,9 @@ func (c *Catalog) List(v View) List {
 }
 
 func (v View) shows(s proto.Session) bool {
+	if s.Mode == proto.ModePersonal && s.Parent != "" {
+		return false // a child session opens from its companion's chat
+	}
 	switch v.Show {
 	case ShowNeedsYou:
 		return s.Status == proto.StatusWaiting

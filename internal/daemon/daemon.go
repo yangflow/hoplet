@@ -22,6 +22,7 @@ import (
 	"github.com/yangflow/hoplet/internal/env"
 	"github.com/yangflow/hoplet/internal/harness"
 	"github.com/yangflow/hoplet/internal/home"
+	"github.com/yangflow/hoplet/internal/memory"
 	"github.com/yangflow/hoplet/internal/noise"
 	"github.com/yangflow/hoplet/internal/session"
 	"github.com/yangflow/hoplet/internal/simulator"
@@ -199,6 +200,10 @@ func Start(ctx context.Context, cfg Config) (d *Daemon, err error) {
 	if err := arts.Clean(ctx); err != nil {
 		return nil, fmt.Errorf("daemon: clean artifacts: %w", err)
 	}
+	mem, err := memory.Open(ctx, memory.Config{Root: home.Profile(cfg.Home), Store: st, Log: log})
+	if err != nil {
+		return nil, fmt.Errorf("daemon: open memory: %w", err)
+	}
 	ln, err := listen(home.Socket(cfg.Home))
 	if err != nil {
 		return nil, err
@@ -224,7 +229,7 @@ func Start(ctx context.Context, cfg Config) (d *Daemon, err error) {
 	runCtx, cancel := context.WithCancel(context.Background())
 	q := &queuer{store: st, mgr: mgr, log: log, locks: map[proto.SessionID]*sync.Mutex{}, waiting: map[proto.SessionID]bool{}}
 	srv := &server{
-		ctx: runCtx, store: st, mgr: mgr, ws: ws, queue: q, sys: sys, token: token, arts: arts,
+		ctx: runCtx, store: st, mgr: mgr, ws: ws, queue: q, sys: sys, token: token, arts: arts, memory: mem,
 		tools: tools.New(toolSource{store: st, mgr: mgr, queue: q, arts: arts, sim: sim}),
 		host:  host, version: cfg.Version, log: log, lim: cfg.lim.withDefaults(),
 		identity: identity, routes: pairingRoutes(cfg.Routes, cfg.Relays), now: now, peers: map[string]map[*conn]struct{}{},

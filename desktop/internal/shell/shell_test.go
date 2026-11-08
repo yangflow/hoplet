@@ -41,6 +41,11 @@ type host struct {
 	pages       []string                              // what ArtifactPage made, by "id/vN"
 	reloads     []string                              // what ReloadArtifactPage loaded, by "id/vN"
 	closedArts  []proto.ArtifactID
+	companions  []proto.Companion
+	personas    map[proto.CompanionID]string
+	savedPerson []string // what SetPersona was asked to save
+	personaErr  error    // why SetPersona fails
+	applies     proto.PersonaApplies
 	reconnects  int
 	updates     []proto.UpdateParams
 	stopped     []proto.SessionID
@@ -163,6 +168,14 @@ func (h *host) ReadFile(p proto.FilesReadParams, done func(proto.FileContent, er
 func (h *host) Artifacts(id proto.SessionID, done func([]proto.Artifact, error)) {
 	h.listedArts = append(h.listedArts, id)
 	done(h.artifacts[id], nil)
+}
+func (h *host) Companions(done func([]proto.Companion, error)) { done(h.companions, nil) }
+func (h *host) Persona(id proto.CompanionID, done func(string, error)) {
+	done(h.personas[id], nil)
+}
+func (h *host) SetPersona(_ proto.CompanionID, text string, done func(proto.SetPersonaResult, error)) {
+	h.savedPerson = append(h.savedPerson, text)
+	done(proto.SetPersonaResult{Applies: h.applies}, h.personaErr)
 }
 func (h *host) ArtifactVersions(id proto.ArtifactID, done func([]proto.Artifact, error)) {
 	done(h.artVersions[id], nil)

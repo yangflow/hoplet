@@ -6,7 +6,7 @@
 
 **验收：** harness 经工具完成“启动设备 → 装 App → 启动 → 截图”；两个会话抢同一设备，后者得到 `simulator_busy`；Personal 会话和非 macOS 主机看不到工具；越出工作目录的 `app_path` 失败。
 
-**依据：** [0027](../design/0027-ios-simulator.md)、[0012](../design/0012-orchestration-api.md)。
+**依据：** [0028](../design/0028-ios-simulator.md)、[0012](../design/0012-orchestration-api.md)。
 
 ## 分期
 
@@ -103,7 +103,7 @@ PR2、PR3 的详细计划在各自关卡通过后再写。占用放在 PR1，因
 ### 任务 6：真机验收与文档
 
 - [x] 用一台**专用的新建模拟器**手动走完验收，结束后删除；不操作其他会话可能在用的设备
-- [ ] 分别确认 Claude Code 和 Hermes 收到的截图模型能看到；任何一家不能时记入 0027 待验证并停下来提出
-- [x] 更新状态：0027“范围与现状”、0012 工具表（去掉“目标”）、0019 已交付内容
+- [ ] 分别确认 Claude Code 和 Hermes 收到的截图模型能看到；任何一家不能时记入 0028 待验证并停下来提出
+- [x] 更新状态：0028“范围与现状”、0012 工具表（去掉“目标”）、0019 已交付内容
 - [x] 运行 `make check`，贴出真实结果
 - [x] commit：`docs: mark simulator tools delivered`

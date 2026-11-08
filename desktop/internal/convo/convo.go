@@ -26,6 +26,8 @@ const (
 	KindError                // something went wrong
 	KindStopped              // the turn was stopped
 	KindChanges              // the files a turn changed
+	KindEvent                // a delegation, a handoff or a publication
+	KindReport               // a report from another session
 )
 
 // Item is one entry of the conversation.
@@ -45,6 +47,25 @@ type Item struct {
 	Work     *Work
 	Approval *Approval
 	Files    []proto.FileChange
+	Event    *Event
+	Report   *Report
+}
+
+// Event is something the session made elsewhere. Delegation is set for a
+// session it delegated or handed off, Artifact for a version it published.
+type Event struct {
+	Delegation proto.DelegationKind
+	Session    proto.SessionID
+	Artifact   proto.ArtifactID
+	Kind       proto.ArtifactKind
+	Version    int
+	Title      string // as recorded; a session's current title may differ
+}
+
+// Report is another session's report; its body is the item's Text.
+type Report struct {
+	From   proto.SessionID
+	Status proto.ReportStatus
 }
 
 // Work is a group of thinking and tool calls.
@@ -242,7 +263,8 @@ func (c *Convo) Items() []Item {
 // Grouped returns the items with each stretch of a turn before its reply
 // in one work group: thinking, tool calls, approvals and the text between
 // them become its entries, and only the text after the last of them stays
-// apart, as the reply.
+// apart, as the reply. Grouped is what a Code conversation shows, where a
+// publication is no row and a report reads as a message.
 func (c *Convo) Grouped() []Item {
 	c.build()
 	return c.grouped
@@ -460,7 +482,19 @@ func (b *builder) event(ev proto.Event, p proto.Payload) {
 		b.turnAt, b.files, b.asked = -1, nil, nil
 		// The turn's open approvals expire with it (the store resolves
 		// them in the same append).
+	case proto.SessionDelegated:
+		b.add(Item{Kind: KindEvent, Key: key("event", ev.Seq), Time: ev.Time, Turn: ev.Turn, Event: &Event{Delegation: p.Kind, Session: p.Session, Title: p.Title}})
+	case proto.ArtifactPublished:
+		b.add(Item{Kind: KindEvent, Key: key("event", ev.Seq), Time: ev.Time, Turn: ev.Turn, Event: &Event{Artifact: p.Artifact, Kind: p.Kind, Version: p.Version, Title: p.Name}})
 	case proto.Message:
+		if p.Role == proto.RoleUser && p.From != "" {
+			status := p.Report
+			if status == "" {
+				status = proto.ReportDone // recorded before reports had a status
+			}
+			b.add(Item{Kind: KindReport, Key: key("report", ev.Seq), Time: ev.Time, Turn: ev.Turn, Text: p.Text, Report: &Report{From: p.From, Status: status}})
+			return
+		}
 		if p.Role == proto.RoleUser {
 			b.echoed = b.echoed || b.echo != "" && p.ID == b.echo
 			b.add(Item{Kind: KindMine, Key: key("mine", ev.Seq), Time: ev.Time, Turn: ev.Turn, Text: p.Text, Steer: b.sawReply && b.turnAt >= 0})

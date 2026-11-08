@@ -393,7 +393,7 @@ func (a *App) rowBody(c *ui.Context, k theme.Colors, s proto.Session) {
 	}
 	hovered := r.Hovered()
 	switch {
-	case a.selected == string(s.ID):
+	case a.selected == string(s.ID) || a.inChild(s):
 		r.Background(k.Selected) // the selection already marks a session made here
 		delete(a.s.flash, s.ID)
 	case hovered:

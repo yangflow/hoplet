@@ -58,7 +58,8 @@ flowchart TB
 | [0009 终端](design/0009-terminal.md) | PTY、屏幕与终端输入 |
 | [0012 服务入口与编排](design/0012-orchestration-api.md) | 服务入口、等待、扇出与跨机执行 |
 | [0025 产物](design/0025-artifacts.md) | 版本、发布、查看、页面能力与授权 |
-| [0027 iOS 模拟器](design/0027-ios-simulator.md) | 设备服务、辅助进程、agent 工具、占用与桌面面板 |
+| [0027 语音通话](design/0027-voice-calls.md) | 语音服务接缝、控制器、生命周期与桌面通话 |
+| [0028 iOS 模拟器](design/0028-ios-simulator.md) | 设备服务、辅助进程、agent 工具、占用与桌面面板 |
 
 ## Personal 与成长
 
@@ -76,4 +77,5 @@ flowchart TB
 | [0011 客户端技术栈](design/0011-client-stack.md) | 桌面、iOS 与协议类型生成 |
 | [0014 桌面设计系统](design/0014-desktop-ui.md) | token（生成主题代码）、文字、图标、动效与 MyGO 映射 |
 | [0024 桌面布局与交互](design/0024-desktop-layout.md) | 页面、输入、面板与阶段状态 |
+| [0026 iOS 界面](design/0026-ios-ui.md) | 页面、手势、颜色、图标与文案 |
 | [0013 测试、升级与发布](design/0013-testing-release.md) | 契约、验收、性能与产品发布 |

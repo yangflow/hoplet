@@ -48,7 +48,8 @@ Instructions for AI coding agents working in this repository. Human contributors
 **UI design**
 
 - Code takes its tokens, component specs and MyGo mappings from the Hoplet design system and `docs/design/0014-desktop-ui.md`. The desktop layout canvas is where screens and states are drawn for review; once one is approved, sync it into the design system (and 0014) first, then build from there. Build nothing the design does not show: a missing state is designed and approved first. When the result differs from the design, raise it.
-- Icons are Lucide only (`lucide-static`, the version in `docs/design/0014-desktop-ui.md`): copy the official SVG file unchanged into `desktop/internal/icons/lucide/`. Never draw an icon or edit its paths, in code or on the canvas. The exceptions are the ones 0014 names (harness marks, file-type icons).
+- iOS screens, colors and gestures follow `docs/design/0026-ios-ui.md`; icons there are SF Symbols, plus the same monochrome harness marks.
+- Desktop icons are Lucide only (`lucide-static`, the version in `docs/design/0014-desktop-ui.md`): copy the official SVG file unchanged into `desktop/internal/icons/lucide/`. Never draw an icon or edit its paths, in code or on the canvas. The exceptions are the ones 0014 names (harness marks, file-type icons).
 - UI text writes the product as Hoplet and harnesses by their product names (Claude Code, Codex, Hermes); lowercase `hoplet` only in commands and paths.
 
 ## Repository layout

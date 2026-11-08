@@ -241,3 +241,53 @@ func TestGrouped(t *testing.T) {
 		t.Fatalf("running group %+v", g)
 	}
 }
+
+func TestDelegationsAndReports(t *testing.T) {
+	var c Convo
+	c.Apply(proto.SessionItem{Events: log(t, 1, 1,
+		proto.SessionDelegated{Session: "child", Kind: proto.DelegatedSession, Title: "Look into it"},
+		proto.SessionDelegated{Session: "code", Kind: proto.HandedOff, Title: "Fix it"},
+		proto.ArtifactPublished{Artifact: "a1", Name: "report", Kind: proto.ArtifactHTML, Version: 2, By: proto.ArtifactByCLI},
+		proto.Message{ID: "r1", Role: proto.RoleUser, Text: "done", From: "child"},
+		proto.Message{ID: "r2", Role: proto.RoleUser, Text: "stuck", From: "code", Report: proto.ReportError},
+		proto.Message{ID: "r3", Role: proto.RoleUser, Text: "mine"},
+	)})
+	items := c.Items()
+	want := []Kind{KindEvent, KindEvent, KindEvent, KindReport, KindReport, KindMine}
+	if got := kinds(items); !reflect.DeepEqual(got, want) {
+		t.Fatalf("kinds = %v, want %v", got, want)
+	}
+	if e := items[0].Event; e.Delegation != proto.DelegatedSession || e.Session != "child" || e.Title != "Look into it" {
+		t.Errorf("delegation = %+v", e)
+	}
+	if e := items[1].Event; e.Delegation != proto.HandedOff || e.Session != "code" {
+		t.Errorf("handoff = %+v", e)
+	}
+	if e := items[2].Event; e.Delegation != "" || e.Artifact != "a1" || e.Version != 2 || e.Title != "report" {
+		t.Errorf("publication = %+v", e)
+	}
+	if r := items[3].Report; r.From != "child" || r.Status != proto.ReportDone || items[3].Text != "done" {
+		t.Errorf("a report without a status = %+v", r)
+	}
+	if r := items[4].Report; r.From != "code" || r.Status != proto.ReportError {
+		t.Errorf("report = %+v", r)
+	}
+}
+
+func TestCodeConversationKeepsItsRows(t *testing.T) {
+	var c Convo
+	c.Apply(proto.SessionItem{Events: log(t, 1, 1,
+		proto.TurnStarted{},
+		proto.Thinking{Text: "a"},
+		proto.ArtifactPublished{Artifact: "a1", Name: "report", Kind: proto.ArtifactHTML, Version: 1, By: proto.ArtifactByCLI},
+		proto.Thinking{Text: "b"},
+		proto.Message{ID: "r", Role: proto.RoleUser, Text: "hi", From: "s2"},
+	)})
+	got := c.Grouped()
+	if want := []Kind{KindTurn, KindWork, KindMine}; !reflect.DeepEqual(kinds(got), want) {
+		t.Fatalf("kinds = %v, want %v", kinds(got), want)
+	}
+	if n := len(got[1].Work.Entries); n != 2 {
+		t.Errorf("a publication split the work group: %d entries", n)
+	}
+}
