@@ -276,6 +276,11 @@ func (a *App) viewer(c *ui.Context, k theme.Colors, s proto.Session, ps *panelSt
 				ui.Column(c.Key("agent:" + id)).Grow(1).MinHeight(0).AlignItems(ui.Stretch).Background(k.Pane).Children(func() { a.agentView(c, k, s, id) })
 				return
 			}
+			if ps.active >= 0 && ps.active < len(ps.tabs) && ps.tabs[ps.active].artifact != "" {
+				id := ps.tabs[ps.active].artifact
+				ui.Column(c.Key("artifact:" + string(id))).Grow(1).MinHeight(0).AlignItems(ui.Stretch).Background(k.Pane).Children(func() { a.artifactTab(c, k, ps, id) })
+				return
+			}
 			if ps.active >= 0 && ps.active < len(ps.tabs) && ps.tabs[ps.active].changes {
 				ui.Column(c).Grow(1).MinHeight(0).AlignItems(ui.Stretch).Children(func() { a.changesView(c, k, s, ps) })
 				return
@@ -333,11 +338,17 @@ func (a *App) panelTabs(c *ui.Context, k theme.Colors, s proto.Session, ps *pane
 		for i, t := range ps.tabs {
 			on := i == ps.active
 			name := "变更"
+			var kind proto.ArtifactKind
 			switch {
 			case t.agent != "":
 				name = "子代理"
 				if g, ok := a.conv(s.ID).Agent(t.agent); ok && g.Title != "" {
 					name = g.Title
+				}
+			case t.artifact != "":
+				name = "产物"
+				if v := ps.arts.views[t.artifact]; v != nil {
+					name, kind = v.latest.Name, v.latest.Kind
 				}
 			case !t.changes:
 				name = path.Base(t.path)
@@ -355,6 +366,8 @@ func (a *App) panelTabs(c *ui.Context, k theme.Colors, s proto.Session, ps *pane
 					ui.Icon(c, a.icons.Changes).FontSize(theme.IconRow).TextColor(k.Fg3)
 				} else if t.agent != "" {
 					ui.Icon(c, a.icons.Agent).FontSize(theme.IconRow).TextColor(k.Fg3)
+				} else if t.artifact != "" {
+					ui.Icon(c, a.artifactIcon(kind)).FontSize(theme.IconRow).TextColor(k.Fg3)
 				} else if img := a.icons.FileType(t.path); img != nil {
 					ui.Image(c, img).Size(theme.IconRow, theme.IconRow)
 				}
@@ -379,11 +392,13 @@ func (a *App) panelTabs(c *ui.Context, k theme.Colors, s proto.Session, ps *pane
 				ps.active = i
 			}
 		}
-		iconButton(c, k, a.icons.New, "打开文件 ⌘P", false).Menu(func(m *ui.Menu) {
-			if m.Item("文件").Shortcut(ui.Cmd, ui.KeyP).Chosen() {
-				a.OpenFilePicker()
-			}
-		})
+		if s.Mode == proto.ModeCode {
+			iconButton(c, k, a.icons.New, "打开文件 ⌘P", false).Menu(func(m *ui.Menu) {
+				if m.Item("文件").Shortcut(ui.Cmd, ui.KeyP).Chosen() {
+					a.OpenFilePicker()
+				}
+			})
+		}
 		ui.Spacer(c)
 		if iconButton(c, k, a.icons.Maximize, "放大到占满正文区", ps.zoom).Clicked() {
 			ps.zoom = !ps.zoom

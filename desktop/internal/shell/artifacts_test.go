@@ -1,9 +1,12 @@
 package shell
 
 import (
+	"errors"
 	"slices"
 	"testing"
 	"time"
+
+	"github.com/egoist/mygo/ui"
 
 	"github.com/yangflow/hoplet/proto"
 )
@@ -154,5 +157,104 @@ func TestRowOpensItsTabOnce(t *testing.T) {
 	}
 	if len(ps.tabs) != 1 || ps.tabs[0].artifact != "x" || ps.active != 0 {
 		t.Errorf("tabs %+v, active %d", ps.tabs, ps.active)
+	}
+}
+
+// openedArtifact opens a tab on artifact x, of a kind, whose two versions
+// are listed.
+func openedArtifact(t *testing.T, kind proto.ArtifactKind, h func(*host)) (*App, *host, *ui.Tester, *artifactView) {
+	t.Helper()
+	a, fake, tt, _ := newApp(t)
+	tt.SetSize(1700, 900)
+	latest, old := art("x", "s1", "报告", 2, 2), art("x", "s1", "报告", 1, 1)
+	latest.Kind, old.Kind = kind, kind
+	fake.artifacts = map[proto.SessionID][]proto.Artifact{"s1": {latest}}
+	fake.artVersions = map[proto.ArtifactID][]proto.Artifact{"x": {latest, old}}
+	h(fake)
+	a.Select("s1")
+	a.ShowPanel(columnArtifacts)
+	settle(tt)
+	ps := a.panelFor("s1")
+	a.openArtifact(ps, latest)
+	settle(tt)
+	return a, fake, tt, ps.arts.views["x"]
+}
+
+func TestVersionMenuAndBackToLatest(t *testing.T) {
+	_, _, tt, v := openedArtifact(t, proto.ArtifactMarkdown, func(h *host) {
+		h.artFiles = map[string][]byte{"x/v1": []byte("第一版"), "x/v2": []byte("第二版")}
+	})
+	if !tt.HasText("· 最新") || !tt.HasText("第二版") {
+		t.Fatalf("texts %q", tt.Texts())
+	}
+	if err := tt.Click("版本 v2"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tt)
+	texts := tt.Texts()
+	if a, b := slices.Index(texts, "v2"), slices.Index(texts, "v1"); a < 0 || b < 0 || a > b {
+		t.Errorf("menu order in %q", texts)
+	}
+	if err := tt.Click("v1"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tt)
+	if v.menu || !tt.HasText("这是旧版本，最新是 v2") || !tt.HasText("第一版") {
+		t.Fatalf("on v1: menu %v, texts %q", v.menu, tt.Texts())
+	}
+	if err := tt.Click("回到最新"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tt)
+	if tt.HasText("这是旧版本，最新是 v2") || !tt.HasText("第二版") {
+		t.Errorf("back on the latest: %q", tt.Texts())
+	}
+}
+
+func TestFailedReadRetries(t *testing.T) {
+	var fake *host
+	_, _, tt, v := openedArtifact(t, proto.ArtifactMarkdown, func(h *host) {
+		fake = h
+		h.artErr = errors.New("file not found")
+		h.artFiles = map[string][]byte{"x/v2": []byte("好了")}
+	})
+	if !tt.HasText("打不开这个版本") || !tt.HasText("读不了 a.md：file not found") {
+		t.Fatalf("texts %q", tt.Texts())
+	}
+	asked := len(fake.readArts)
+	fake.artErr = nil
+	if err := tt.Click("重试"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tt)
+	if len(fake.readArts) != asked+1 || v.err != "" || !tt.HasText("好了") {
+		t.Errorf("reads %d after %d, err %q, texts %q", len(fake.readArts), asked, v.err, tt.Texts())
+	}
+}
+
+func TestCSVShowsAsATable(t *testing.T) {
+	_, _, tt, v := openedArtifact(t, proto.ArtifactCSV, func(h *host) {
+		h.artFiles = map[string][]byte{"x/v2": []byte("名字,数量\n苹果,3\n")}
+	})
+	if len(v.rows) != 2 {
+		t.Fatalf("rows %q", v.rows)
+	}
+	for _, want := range []string{"名字", "数量", "苹果", "3"} {
+		if !tt.HasText(want) {
+			t.Errorf("no %q in %q", want, tt.Texts())
+		}
+	}
+}
+
+func TestHTMLUsesTheHostPageAndCloses(t *testing.T) {
+	a, fake, tt, _ := openedArtifact(t, proto.ArtifactHTML, func(*host) {})
+	if !slices.Equal(fake.pages, []string{"x/v2"}) || len(fake.readArts) != 0 {
+		t.Errorf("pages %q, reads %v", fake.pages, fake.readArts)
+	}
+	ps := a.panelFor("s1")
+	a.closeTab(ps, 0)
+	settle(tt)
+	if !slices.Equal(fake.closedArts, []proto.ArtifactID{"x"}) {
+		t.Errorf("closed %v", fake.closedArts)
 	}
 }
