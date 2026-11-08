@@ -69,7 +69,7 @@ func TestHarnessInstall(t *testing.T) {
 		t.Fatalf("passing upgrade: exit %d %q %q", code, out, errs)
 	}
 
-	for _, args := range [][]string{{"harness"}, {"harness", "install"}, {"harness", "install", "codex"}, {"harness", "remove", "claude"}} {
+	for _, args := range [][]string{{"harness"}, {"harness", "install"}, {"harness", "install", "nope"}, {"harness", "install", "codex", "extra"}, {"harness", "remove", "claude"}} {
 		if code, _, _ := cli(t, args...); code != 2 {
 			t.Errorf("%v: exit %d, want 2", args, code)
 		}

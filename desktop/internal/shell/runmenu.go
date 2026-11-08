@@ -327,6 +327,8 @@ func (a *App) missingHarness(c *ui.Context, k theme.Colors, h proto.HarnessInfo)
 		switch h.Kind {
 		case "claude":
 			ui.Text(c, "在终端运行 hoplet harness install claude").FontSize(theme.CodeInline.Size()).TextColor(k.Muted)
+		case "codex":
+			ui.Text(c, "在终端运行 hoplet harness install codex").FontSize(theme.CodeInline.Size()).TextColor(k.Muted)
 		case "hermes":
 			ui.Text(c, "安装 Hermes Agent 后，再运行 hoplet harness verify hermes").FontSize(theme.CodeInline.Size()).TextColor(k.Muted)
 		}
