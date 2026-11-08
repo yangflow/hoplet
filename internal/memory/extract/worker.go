@@ -198,9 +198,17 @@ func (w *Worker) scan(ctx context.Context, triggers map[proto.SessionID]string) 
 		if s.LastSeq <= through {
 			continue
 		}
+		// A saved memory is this worker's own echo, not new evidence.
+		last, err := w.cfg.Store.LastSeqExcept(ctx, s.ID, proto.TypeMemorySaved)
+		if err != nil {
+			return err
+		}
+		if last <= through {
+			continue
+		}
 		trigger, ok := triggers[s.ID]
 		if !ok {
-			if trigger, err = w.idle(ctx, s); err != nil {
+			if trigger, err = w.idle(ctx, s, last); err != nil {
 				return err
 			}
 			if trigger == "" {
@@ -215,20 +223,20 @@ func (w *Worker) scan(ctx context.Context, triggers map[proto.SessionID]string) 
 		if !can {
 			continue
 		}
-		if err := w.plan(ctx, s, through, trigger); err != nil {
+		if err := w.plan(ctx, s, through, last, trigger); err != nil {
 			w.logErr(ctx, "plan extraction", s.ID, err)
 		}
 	}
 	return nil
 }
 
-// idle returns triggerIdle when the session has been quiet long enough and
-// has something a failed run has not already given up on.
-func (w *Worker) idle(ctx context.Context, s proto.Session) (string, error) {
+// idle returns triggerIdle when the session has been quiet since event seq
+// long enough and has something a failed run has not already given up on.
+func (w *Worker) idle(ctx context.Context, s proto.Session, seq uint64) (string, error) {
 	if s.Status != proto.StatusIdle && s.ArchivedAt == nil {
 		return "", nil
 	}
-	last, err := w.cfg.Store.EventBySeq(ctx, s.ID, s.LastSeq)
+	last, err := w.cfg.Store.EventBySeq(ctx, s.ID, seq)
 	if err != nil {
 		return "", err
 	}
@@ -246,10 +254,11 @@ func (w *Worker) idle(ctx context.Context, s proto.Session) (string, error) {
 	return triggerIdle, nil
 }
 
-// plan creates the session's next run, unless there is nothing to read or
-// the day's budget is spent, which leaves the material for later.
-func (w *Worker) plan(ctx context.Context, s proto.Session, through uint64, trigger string) error {
-	m, err := Select(ctx, w.cfg.Store, s.ID, through+1, s.LastSeq)
+// plan creates the session's next run over the events after through up to
+// last, unless there is nothing to read or the day's budget is spent, which
+// leaves the material for later.
+func (w *Worker) plan(ctx context.Context, s proto.Session, through, last uint64, trigger string) error {
+	m, err := Select(ctx, w.cfg.Store, s.ID, through+1, last)
 	if err != nil {
 		return err
 	}

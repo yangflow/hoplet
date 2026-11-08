@@ -443,3 +443,39 @@ func TestEnqueueDoesNotWaitForARun(t *testing.T) {
 	cancel()
 	<-done
 }
+
+func TestSavedEventIsNotEvidence(t *testing.T) {
+	r := newRig(t)
+	seq := r.session("s", "claude", "m1")
+	r.h.replies = []string{createOp(seq, "global", "Likes tea")}
+	r.now = start.Add(IdleAfter)
+	r.w.cycle(context.Background())
+	sess, err := r.st.Session(context.Background(), "s")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.h.count() != 1 || sess.LastSeq != seq+1 {
+		t.Fatalf("calls = %d, last seq = %d", r.h.count(), sess.LastSeq)
+	}
+	saved, err := r.st.EventBySeq(context.Background(), "s", sess.LastSeq)
+	if err != nil || saved.Type != proto.TypeMemorySaved {
+		t.Fatalf("last event = %+v, %v", saved, err)
+	}
+
+	r.now = r.now.Add(2 * IdleAfter)
+	r.w.cycle(context.Background())
+	if r.h.count() != 1 || r.runs() != 1 {
+		t.Fatalf("calls = %d, runs = %d", r.h.count(), r.runs())
+	}
+
+	next := put(t, r.st, "s", r.now, "", said("I like coffee"))
+	r.h.replies = []string{createOp(next, "global", "Likes coffee")}
+	r.now = r.now.Add(IdleAfter)
+	r.w.cycle(context.Background())
+	if r.h.count() != 2 || !strings.Contains(r.h.calls[1].Input, "coffee") || strings.Contains(r.h.calls[1].Input, "memory") {
+		t.Fatalf("calls = %+v", r.h.calls)
+	}
+	if r.progress("s") != next {
+		t.Fatalf("progress = %d, want %d", r.progress("s"), next)
+	}
+}

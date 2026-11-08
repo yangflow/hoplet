@@ -181,6 +181,21 @@ func advanceExtraction(ctx context.Context, tx *sql.Tx, id proto.SessionID, seq 
 	return nil
 }
 
+// LastSeqExcept returns the sequence number of the session's last event of
+// any type but skip, 0 when it has none.
+func (s *Store) LastSeqExcept(ctx context.Context, id proto.SessionID, skip proto.EventType) (uint64, error) {
+	var seq uint64
+	err := s.rdb.QueryRowContext(ctx, `SELECT seq FROM events WHERE session_id = ? AND type <> ? ORDER BY seq DESC LIMIT 1`,
+		string(id), string(skip)).Scan(&seq)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, fmt.Errorf("store: read last event of %s: %w", id, err)
+	}
+	return seq, nil
+}
+
 // MemoryExtractionProgress returns the last event of the session that has
 // been read; 0 when none has.
 func (s *Store) MemoryExtractionProgress(ctx context.Context, id proto.SessionID) (uint64, error) {
