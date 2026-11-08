@@ -8,8 +8,8 @@
 
 | 状态 | 边界 |
 |---|---|
-| ✓ 代码已有 | Go / MyGO 桌面与协议客户端、Swift 类型生成器（`tools/swiftgen`）、`apple/HopletKit` 的协议类型与 Noise / 通道 / 配对码向量 |
-| ○ 目标 | iOS 协议客户端与续传向量 |
+| ✓ 代码已有 | Go / MyGO 桌面与协议客户端、Swift 类型生成器（`tools/swiftgen`）、`apple/HopletKit` 的协议类型、向量回放与单条连接的协议客户端（Noise、请求、订阅、心跳、游标续传） |
+| ○ 目标 | iOS 多路由连接、自动重连与 Bonjour |
 
 ## 总览
 
