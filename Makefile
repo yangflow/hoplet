@@ -38,6 +38,8 @@ swift-test: ## Run the Swift package tests
 ifneq ($(HAS_XCODE),)
 	swift format lint --strict -r apple/HopletKit/Tests apple/HopletKit/Sources/HopletProto/JSONValue.swift apple/HopletKit/Sources/HopletProto/ProtoCoding.swift
 	swift test --package-path apple/HopletKit -Xswiftc -warnings-as-errors
+	swift format lint --strict -r apple/SimulatorHelper/Sources apple/SimulatorHelper/Tests
+	swift test --package-path apple/SimulatorHelper -Xswiftc -warnings-as-errors
 endif
 
 gen: ## Regenerate generated code
