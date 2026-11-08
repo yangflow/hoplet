@@ -38,6 +38,7 @@ type Provider interface {
 	// Name names the service for clients.
 	Name() string
 	Probe(ctx context.Context) error
+	// Start runs the same checks as Probe before the call begins.
 	Start(ctx context.Context, req StartRequest) (Call, error)
 }
 
@@ -126,7 +127,7 @@ func (m *Manager) Start(ctx context.Context, device string, p proto.VoiceStartPa
 	}
 	ctx, cancel := context.WithTimeout(ctx, startTimeout)
 	defer cancel()
-	call, err := m.begin(ctx, p)
+	call, err := m.provider.Start(ctx, StartRequest{Offer: p.Offer, Voice: p.Voice})
 	if err != nil {
 		m.release(c)
 		code := m.reason(err)
@@ -202,13 +203,6 @@ func (m *Manager) reserve(device string) (*active, error) {
 		beat: make(chan struct{}, 1), gone: make(chan struct{}),
 	}
 	return m.cur, nil
-}
-
-func (m *Manager) begin(ctx context.Context, p proto.VoiceStartParams) (Call, error) {
-	if err := m.provider.Probe(ctx); err != nil {
-		return nil, err
-	}
-	return m.provider.Start(ctx, StartRequest{Offer: p.Offer, Voice: p.Voice})
 }
 
 // release gives up a reservation whose call never began.

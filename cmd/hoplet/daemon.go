@@ -17,6 +17,7 @@ import (
 	"github.com/yangflow/hoplet/internal/daemon"
 	"github.com/yangflow/hoplet/internal/env"
 	"github.com/yangflow/hoplet/internal/harness/claude"
+	"github.com/yangflow/hoplet/internal/harness/codex"
 	"github.com/yangflow/hoplet/internal/harness/hermes"
 	"github.com/yangflow/hoplet/internal/home"
 	"github.com/yangflow/hoplet/internal/launchd"
@@ -104,6 +105,7 @@ func (a app) daemonRun(args []string) int {
 	}
 	d, err := daemon.Start(ctx, daemon.Config{
 		Home: *dir, Version: version, Exe: exe, Harnesses: a.harnesses(*dir), Env: src, ProbeURL: a.probeURL,
+		Voice:  &codex.VoiceProvider{Binary: codex.BinaryPath(*dir), Env: src},
 		Logger: logger, Maintenance: a.maintenance(*dir, logger),
 		Listen: cfg.Network.Listen, Routes: cfg.Network.Routes, Relays: cfg.Network.Relays, NetworkErr: cfgErr, RelayTLS: a.relayTLS,
 	})
