@@ -67,6 +67,7 @@ flowchart LR
 | 项 | 规则 |
 |---|---|
 | 归属 | 发起通话的设备独占，其他设备看不到实时状态 |
+| 信令 | `voice.probe`、`voice.start`（带 offer，返回 answer）、`voice.confirm`（主机确认后才开麦）、`voice.heartbeat`、`voice.stop`；通话已结束时后续请求返回固定错误码 |
 | 保活 | 5 秒心跳，15 秒无心跳结束 |
 | 麦克风 | 协商完成且主机确认后才打开 |
 | 挂断 | 先关本地音频，再通知主机 |

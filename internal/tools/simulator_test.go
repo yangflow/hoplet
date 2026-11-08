@@ -28,6 +28,9 @@ type simCall struct {
 	method                         string
 	caller                         proto.SessionID
 	device, bundleID, appPath, url string
+	// input holds the arguments of an input call: Tap and Swipe take the
+	// points and duration, Text the text, Button the name and Swipe the edge.
+	input string
 }
 
 func (f *fakeSim) Devices(context.Context) ([]simulator.Device, error) {
@@ -55,9 +58,29 @@ func (f *fakeSim) OpenURL(_ context.Context, caller proto.SessionID, device, url
 	return f.err
 }
 
+func (f *fakeSim) Tap(_ context.Context, caller proto.SessionID, device string, x, y float64, d time.Duration) error {
+	f.calls = append(f.calls, simCall{method: "tap", caller: caller, device: device, input: fmt.Sprintf("%v %v %v", x, y, d)})
+	return f.err
+}
+
+func (f *fakeSim) Swipe(_ context.Context, caller proto.SessionID, device string, x, y, x2, y2 float64, d time.Duration, edge string) error {
+	f.calls = append(f.calls, simCall{method: "swipe", caller: caller, device: device, input: fmt.Sprintf("%v %v %v %v %v %s", x, y, x2, y2, d, edge)})
+	return f.err
+}
+
+func (f *fakeSim) Text(_ context.Context, caller proto.SessionID, device, text string) error {
+	f.calls = append(f.calls, simCall{method: "text", caller: caller, device: device, input: text})
+	return f.err
+}
+
+func (f *fakeSim) Button(_ context.Context, caller proto.SessionID, device, name string) error {
+	f.calls = append(f.calls, simCall{method: "button", caller: caller, device: device, input: name})
+	return f.err
+}
+
 var (
 	codeCaller = proto.Session{ID: "code0001", Mode: proto.ModeCode}
-	simNames   = []string{"simulator_list", "simulator_boot", "simulator_launch", "simulator_screenshot", "simulator_open_url"}
+	simNames   = []string{"simulator_list", "simulator_boot", "simulator_launch", "simulator_screenshot", "simulator_tap", "simulator_swipe", "simulator_text", "simulator_button", "simulator_open_url"}
 )
 
 func simCallTool(t *testing.T, set *Set, name, args string) proto.ToolsCallResult {
@@ -122,6 +145,19 @@ func TestSimulatorToolArguments(t *testing.T) {
 		"launch unknown":          {"simulator_launch", `{"bundle_id":"b","nope":1}`, "bad arguments"},
 		"screenshot unknown":      {"simulator_screenshot", `{"nope":1}`, "bad arguments"},
 		"open_url unknown":        {"simulator_open_url", `{"url":"u","nope":1}`, "bad arguments"},
+		"tap without y":           {"simulator_tap", `{"x":1}`, "x and y are required"},
+		"tap without x":           {"simulator_tap", `{"y":1,"device":"x"}`, "x and y are required"},
+		"swipe without x2":        {"simulator_swipe", `{"x":1,"y":1,"y2":2}`, "x, y, x2 and y2 are required"},
+		"swipe without anything":  {"simulator_swipe", `{}`, "x, y, x2 and y2 are required"},
+		"text without text":       {"simulator_text", `{"device":"x"}`, "text is required"},
+		"text empty":              {"simulator_text", `{"text":""}`, "text is required"},
+		"button without name":     {"simulator_button", `{}`, "name is required"},
+		"button blank name":       {"simulator_button", `{"name":" "}`, "name is required"},
+		"tap unknown":             {"simulator_tap", `{"x":1,"y":1,"nope":1}`, "bad arguments"},
+		"swipe unknown":           {"simulator_swipe", `{"x":1,"y":1,"x2":1,"y2":1,"nope":1}`, "bad arguments"},
+		"text unknown":            {"simulator_text", `{"text":"a","nope":1}`, "bad arguments"},
+		"button unknown":          {"simulator_button", `{"name":"home","nope":1}`, "bad arguments"},
+		"tap wrong type":          {"simulator_tap", `{"x":"1","y":1}`, "bad arguments"},
 		"list takes no device":    {"simulator_list", `{"device":"x"}`, "bad arguments"},
 		"boot needs real device":  {"simulator_boot", `{"device":"  "}`, "device is required"},
 		"launch app_path missing": {"simulator_launch", `{"bundle_id":"b","app_path":"none.app"}`, "none.app"},
@@ -218,6 +254,73 @@ func TestSimulatorToolCalls(t *testing.T) {
 	}
 }
 
+func TestSimulatorInputToolCalls(t *testing.T) {
+	for name, tc := range map[string]struct {
+		tool, args string
+		want       simCall
+	}{
+		"tap":             {"simulator_tap", `{"x":10.5,"y":20}`, simCall{method: "tap", input: "10.5 20 0s"}},
+		"long press":      {"simulator_tap", `{"device":"Phone","x":0,"y":0,"duration":0.75}`, simCall{method: "tap", device: "Phone", input: "0 0 750ms"}},
+		"swipe":           {"simulator_swipe", `{"x":1,"y":2,"x2":3,"y2":4}`, simCall{method: "swipe", input: "1 2 3 4 0s "}},
+		"swipe from edge": {"simulator_swipe", `{"device":"Phone","x":1,"y":2,"x2":3,"y2":4,"duration":1,"edge":"bottom"}`, simCall{method: "swipe", device: "Phone", input: "1 2 3 4 1s bottom"}},
+		"text":            {"simulator_text", `{"text":"héllo world"}`, simCall{method: "text", input: "héllo world"}},
+		"button":          {"simulator_button", `{"device":"Phone","name":"home"}`, simCall{method: "button", device: "Phone", input: "home"}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			sim := &fakeSim{}
+			r := simCallTool(t, New(fakeSource{sim: sim, got: &changes{}}), tc.tool, tc.args)
+			tc.want.caller = codeCaller.ID
+			if r.IsError || r.Text != `{"ok":true}` || r.Images != nil || len(sim.calls) != 1 || sim.calls[0] != tc.want {
+				t.Fatalf("result %+v, calls %+v, want %+v", r, sim.calls, tc.want)
+			}
+		})
+	}
+}
+
+func TestSimulatorInputToolDescriptions(t *testing.T) {
+	want := map[string][]string{
+		"simulator_tap":    {"device points", "simulator_screenshot", "no holder", "0.5 seconds", "long press"},
+		"simulator_swipe":  {"device points", "no holder", "simulator_button"},
+		"simulator_text":   {"no holder"},
+		"simulator_button": {"no holder", "home"},
+	}
+	for _, info := range New(fakeSource{sim: &fakeSim{}, got: &changes{}}).List(codeCaller) {
+		for _, w := range want[info.Name] {
+			if !strings.Contains(info.Description, w) {
+				t.Errorf("%s description %q lacks %q", info.Name, info.Description, w)
+			}
+		}
+		delete(want, info.Name)
+	}
+	if len(want) != 0 {
+		t.Errorf("missing tools: %v", want)
+	}
+}
+
+func TestSimulatorInputErrorCodes(t *testing.T) {
+	inputs := map[string]string{
+		"simulator_tap":    `{"x":1,"y":1}`,
+		"simulator_swipe":  `{"x":1,"y":1,"x2":2,"y2":2}`,
+		"simulator_text":   `{"text":"a"}`,
+		"simulator_button": `{"name":"home"}`,
+	}
+	for _, code := range []string{
+		simulator.CodeBusy, simulator.CodeInputUnsupported, simulator.CodeUnsupported,
+		simulator.CodeInvalidArgument, simulator.CodeInputFailed,
+	} {
+		for tool, args := range inputs {
+			t.Run(code+"/"+tool, func(t *testing.T) {
+				err := fmt.Errorf("simulator op: %w", &simulator.Error{Code: code, Message: "detail"})
+				set := New(fakeSource{sim: &fakeSim{err: err}, got: &changes{}})
+				r := simCallTool(t, set, tool, args)
+				if !r.IsError || r.Text != code+": detail" || r.Images != nil {
+					t.Fatalf("result = %+v, want %q", r, code+": detail")
+				}
+			})
+		}
+	}
+}
+
 func TestSimulatorErrors(t *testing.T) {
 	calls := map[string]string{
 		"simulator_list":       `{}`,
@@ -225,6 +328,10 @@ func TestSimulatorErrors(t *testing.T) {
 		"simulator_launch":     `{"bundle_id":"b"}`,
 		"simulator_screenshot": `{}`,
 		"simulator_open_url":   `{"url":"u"}`,
+		"simulator_tap":        `{"x":1,"y":1}`,
+		"simulator_swipe":      `{"x":1,"y":1,"x2":2,"y2":2}`,
+		"simulator_text":       `{"text":"a"}`,
+		"simulator_button":     `{"name":"home"}`,
 	}
 	busy := &simulator.Error{Code: simulator.CodeBusy, Message: "held by session code0002"}
 	for name, args := range calls {

@@ -67,7 +67,7 @@ struct NewSessionView: View {
   @State private var prompt = ""
   @State private var name = ""
   private var hosts: [Host] {
-    Host.all.map { Host(name: $0.name, symbol: $0.symbol, online: !store.isOffline($0.name)) }
+    store.hosts.map { Host(name: $0.name, symbol: $0.symbol, online: !store.isOffline($0.name)) }
   }
   @State private var hostName = "MacBook"
   @State private var directories = Workdir.recent

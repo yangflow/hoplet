@@ -54,6 +54,23 @@ func (fakeSimulator) Screenshot(context.Context, proto.SessionID, string) (simul
 
 func (fakeSimulator) OpenURL(context.Context, proto.SessionID, string, string) error { return nil }
 
+func (fakeSimulator) Tap(context.Context, proto.SessionID, string, float64, float64, time.Duration) error {
+	return nil
+}
+
+func (fakeSimulator) Swipe(context.Context, proto.SessionID, string, float64, float64, float64, float64, time.Duration, string) error {
+	return nil
+}
+
+func (fakeSimulator) Text(context.Context, proto.SessionID, string, string) error { return nil }
+
+func (fakeSimulator) Button(_ context.Context, _ proto.SessionID, _, name string) error {
+	if name != "home" {
+		return &simulator.Error{Code: simulator.CodeUnsupported, Message: "button " + name}
+	}
+	return nil
+}
+
 // TestSimulatorToolsThroughBridge has a harness's MCP client call the
 // simulator tools through `hoplet mcp`, as a Code session's harness does.
 func TestSimulatorToolsThroughBridge(t *testing.T) {
@@ -95,6 +112,25 @@ func TestSimulatorToolsThroughBridge(t *testing.T) {
 	img := r.Content[1].(*mcp.ImageContent)
 	if img.MIMEType != "image/png" || !bytes.Equal(img.Data, fakeScreenshot()) {
 		t.Fatalf("image: %s, %d bytes", img.MIMEType, len(img.Data))
+	}
+
+	for name, args := range map[string]map[string]any{
+		"simulator_tap":    {"device": fakeDeviceName, "x": 100, "y": 200, "duration": 0.8},
+		"simulator_swipe":  {"x": 10, "y": 300, "x2": 10, "y2": 100},
+		"simulator_text":   {"text": "hello"},
+		"simulator_button": {"name": "home"},
+	} {
+		r, err = cs.CallTool(timeout(t), &mcp.CallToolParams{Name: name, Arguments: args})
+		if err != nil || r.IsError || len(r.Content) != 1 {
+			t.Fatalf("%s = %+v, %v", name, r, err)
+		}
+		if text := r.Content[0].(*mcp.TextContent).Text; text != `{"ok":true}` {
+			t.Fatalf("%s text = %s", name, text)
+		}
+	}
+	r, err = cs.CallTool(timeout(t), &mcp.CallToolParams{Name: "simulator_button", Arguments: map[string]any{"name": "lock"}})
+	if err != nil || !r.IsError || r.Content[0].(*mcp.TextContent).Text != "unsupported: button lock" {
+		t.Fatalf("simulator_button lock = %+v, %v", r, err)
 	}
 }
 
