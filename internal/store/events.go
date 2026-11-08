@@ -102,6 +102,27 @@ func (s *Store) Events(ctx context.Context, id proto.SessionID, after uint64, li
 	return out, err
 }
 
+// EventBySeq returns one event of a session; ErrNotFound for an unknown
+// session or sequence number.
+func (s *Store) EventBySeq(ctx context.Context, id proto.SessionID, seq uint64) (proto.Event, error) {
+	var out []proto.Event
+	err := s.readTx(ctx, func(tx *sql.Tx) error {
+		if err := requireSession(ctx, tx, id); err != nil {
+			return err
+		}
+		var err error
+		out, err = queryEvents(ctx, tx, id, `SELECT `+eventColumns+` FROM events WHERE session_id = ? AND seq = ?`, id, seq)
+		return err
+	})
+	if err != nil {
+		return proto.Event{}, err
+	}
+	if len(out) == 0 {
+		return proto.Event{}, fmt.Errorf("%w: event %s/%d", ErrNotFound, id, seq)
+	}
+	return out[0], nil
+}
+
 // EventsBefore returns up to limit events of a session with seq < before,
 // the newest ones, in ascending order: the session's own conversation when
 // agent is empty, else only that subagent's record. It returns ErrNotFound
