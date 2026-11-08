@@ -3,13 +3,15 @@
 # Go targets are skipped until the module exists, so `make check` stays green
 # while the repository holds only docs.
 HAS_GO := $(wildcard go.mod)
+# Swift checks need Xcode, so they run on Macs only.
+HAS_XCODE := $(shell command -v xcodebuild 2>/dev/null)
 
-.PHONY: help check fmt fmt-check lint test gen gen-check
+.PHONY: help check fmt fmt-check lint test swift-test gen gen-check
 
 help: ## Show available targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-10s %s\n", $$1, $$2}'
 
-check: fmt-check lint test gen-check ## Run every check CI runs
+check: fmt-check lint test swift-test gen-check ## Run every check CI runs
 
 fmt: ## Format Go code
 ifneq ($(HAS_GO),)
@@ -30,6 +32,12 @@ endif
 test: ## Run tests with the race detector
 ifneq ($(HAS_GO),)
 	go test -race ./...
+endif
+
+swift-test: ## Run the Swift package tests
+ifneq ($(HAS_XCODE),)
+	swift format lint --strict -r apple/HopletKit/Tests apple/HopletKit/Sources/HopletProto/JSONValue.swift apple/HopletKit/Sources/HopletProto/ProtoCoding.swift
+	swift test --package-path apple/HopletKit -Xswiftc -warnings-as-errors
 endif
 
 gen: ## Regenerate generated code

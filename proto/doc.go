@@ -11,3 +11,5 @@
 // current payload type. Decode therefore always returns the current type.
 // Old decoders are never deleted.
 package proto
+
+//go:generate go run ../tools/swiftgen -proto . -out ../apple/HopletKit/Sources/HopletProto/Proto.generated.swift

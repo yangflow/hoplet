@@ -23,3 +23,6 @@ DerivedData/
 hoplet.local.toml
 .env
 .env.*
+
+# Swift package build output
+.build/
