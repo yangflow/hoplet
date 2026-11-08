@@ -31,6 +31,7 @@ import (
 	"github.com/yangflow/hoplet/internal/simulator"
 	"github.com/yangflow/hoplet/internal/store"
 	"github.com/yangflow/hoplet/internal/tools"
+	"github.com/yangflow/hoplet/internal/voice"
 	"github.com/yangflow/hoplet/internal/workspace"
 	"github.com/yangflow/hoplet/proto"
 )
@@ -78,6 +79,9 @@ type Config struct {
 	// RelayTLS, when set, is the TLS configuration relays are dialed with
 	// (tests trust a test certificate with it); nil means the system's.
 	RelayTLS *tls.Config
+
+	// Voice is the host's voice service; nil means none.
+	Voice voice.Provider
 
 	// lim overrides the protocol limits (tests); zero fields keep defaults.
 	lim limits
@@ -245,6 +249,7 @@ func Start(ctx context.Context, cfg Config) (d *Daemon, err error) {
 		Store: st, Memory: mem, Harnesses: cfg.Harnesses, Scopes: mgr.ProfileScopes, Env: mgr.Env, Log: log,
 	})
 	srv := &server{
+		voice:   voice.New(cfg.Voice, log),
 		extract: ext,
 		ctx:     runCtx, store: st, mgr: mgr, ws: ws, queue: q, sys: sys, token: token, arts: arts, memory: mem,
 		tools: tools.New(toolSource{store: st, mgr: mgr, queue: q, arts: arts, sim: sim, mem: mem, extract: ext}),
@@ -333,6 +338,7 @@ func (d *Daemon) Close() error {
 			d.stopAnnounce()
 			err = errors.Join(err, d.net.Close())
 		}
+		d.srv.voice.Close() // a call does not outlive the daemon
 		d.cancel()
 		d.srv.wait()
 		d.wg.Wait()

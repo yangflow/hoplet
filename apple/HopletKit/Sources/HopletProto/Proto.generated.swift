@@ -13,6 +13,14 @@ public enum ErrorCode: RawRepresentable, Codable, Hashable, Sendable, ProtoZero 
   case unsupported
   case notRunning
   case `internal`
+  case voiceNoHarness
+  case voiceNotSubscribed
+  case voiceNoComponent
+  case voiceBusy
+  case voiceMedia
+  case voiceQuota
+  case voiceNotEnabled
+  case voiceEnded
   case unknown(String)
 
   public init(rawValue: String) {
@@ -27,6 +35,14 @@ public enum ErrorCode: RawRepresentable, Codable, Hashable, Sendable, ProtoZero 
     case "unsupported": self = .unsupported
     case "not_running": self = .notRunning
     case "internal": self = .`internal`
+    case "voice_no_harness": self = .voiceNoHarness
+    case "voice_not_subscribed": self = .voiceNotSubscribed
+    case "voice_no_component": self = .voiceNoComponent
+    case "voice_busy": self = .voiceBusy
+    case "voice_media": self = .voiceMedia
+    case "voice_quota": self = .voiceQuota
+    case "voice_not_enabled": self = .voiceNotEnabled
+    case "voice_ended": self = .voiceEnded
     default: self = .unknown(rawValue)
     }
   }
@@ -43,6 +59,14 @@ public enum ErrorCode: RawRepresentable, Codable, Hashable, Sendable, ProtoZero 
     case .unsupported: return "unsupported"
     case .notRunning: return "not_running"
     case .`internal`: return "internal"
+    case .voiceNoHarness: return "voice_no_harness"
+    case .voiceNotSubscribed: return "voice_not_subscribed"
+    case .voiceNoComponent: return "voice_no_component"
+    case .voiceBusy: return "voice_busy"
+    case .voiceMedia: return "voice_media"
+    case .voiceQuota: return "voice_quota"
+    case .voiceNotEnabled: return "voice_not_enabled"
+    case .voiceEnded: return "voice_ended"
     case .unknown(let value): return value
     }
   }
@@ -989,6 +1013,13 @@ public enum SessionStatus: RawRepresentable, Codable, Hashable, Sendable, ProtoZ
     }
   }
 
+  public static var protoZero: Self { Self(rawValue: "") }
+  public var isProtoZero: Bool { rawValue.isEmpty }
+}
+
+public struct VoiceCallID: RawRepresentable, Codable, Hashable, Sendable, ProtoZero {
+  public var rawValue: String
+  public init(rawValue: String) { self.rawValue = rawValue }
   public static var protoZero: Self { Self(rawValue: "") }
   public var isProtoZero: Bool { rawValue.isEmpty }
 }
@@ -6372,6 +6403,144 @@ public struct Session: Codable, Hashable, Sendable, ProtoZero {
     try c.encodeUnlessZero(model, forKey: .model)
     try c.encodeUnlessZero(modelProvider, forKey: .modelProvider)
     try c.encodeUnlessZero(parent, forKey: .parent)
+  }
+
+  public static var protoZero: Self { Self() }
+  public var isProtoZero: Bool { false }
+}
+
+public struct VoiceProbeResult: Codable, Hashable, Sendable, ProtoZero {
+  public var provider: String
+  public var available: Bool
+  public var reason: ErrorCode
+  public var busyDevice: String
+
+  public init(
+    provider: String = .protoZero,
+    available: Bool = .protoZero,
+    reason: ErrorCode = .protoZero,
+    busyDevice: String = .protoZero
+  ) {
+    self.provider = provider
+    self.available = available
+    self.reason = reason
+    self.busyDevice = busyDevice
+  }
+
+  private enum CodingKeys: String, CodingKey {
+    case provider = "provider"
+    case available = "available"
+    case reason = "reason"
+    case busyDevice = "busy_device"
+  }
+
+  public init(from decoder: any Decoder) throws {
+    let c = try decoder.container(keyedBy: CodingKeys.self)
+    provider = try c.decodeOrZero(String.self, forKey: .provider)
+    available = try c.decodeOrZero(Bool.self, forKey: .available)
+    reason = try c.decodeOrZero(ErrorCode.self, forKey: .reason)
+    busyDevice = try c.decodeOrZero(String.self, forKey: .busyDevice)
+  }
+
+  public func encode(to encoder: any Encoder) throws {
+    var c = encoder.container(keyedBy: CodingKeys.self)
+    try c.encodeUnlessZero(provider, forKey: .provider)
+    try c.encode(available, forKey: .available)
+    try c.encodeUnlessZero(reason, forKey: .reason)
+    try c.encodeUnlessZero(busyDevice, forKey: .busyDevice)
+  }
+
+  public static var protoZero: Self { Self() }
+  public var isProtoZero: Bool { false }
+}
+
+public struct VoiceStartParams: Codable, Hashable, Sendable, ProtoZero {
+  public var offer: String
+  public var voice: String
+
+  public init(
+    offer: String = .protoZero,
+    voice: String = .protoZero
+  ) {
+    self.offer = offer
+    self.voice = voice
+  }
+
+  private enum CodingKeys: String, CodingKey {
+    case offer = "offer"
+    case voice = "voice"
+  }
+
+  public init(from decoder: any Decoder) throws {
+    let c = try decoder.container(keyedBy: CodingKeys.self)
+    offer = try c.decodeOrZero(String.self, forKey: .offer)
+    voice = try c.decodeOrZero(String.self, forKey: .voice)
+  }
+
+  public func encode(to encoder: any Encoder) throws {
+    var c = encoder.container(keyedBy: CodingKeys.self)
+    try c.encode(offer, forKey: .offer)
+    try c.encodeUnlessZero(voice, forKey: .voice)
+  }
+
+  public static var protoZero: Self { Self() }
+  public var isProtoZero: Bool { false }
+}
+
+public struct VoiceStartResult: Codable, Hashable, Sendable, ProtoZero {
+  public var call: VoiceCallID
+  public var answer: String
+
+  public init(
+    call: VoiceCallID = .protoZero,
+    answer: String = .protoZero
+  ) {
+    self.call = call
+    self.answer = answer
+  }
+
+  private enum CodingKeys: String, CodingKey {
+    case call = "call"
+    case answer = "answer"
+  }
+
+  public init(from decoder: any Decoder) throws {
+    let c = try decoder.container(keyedBy: CodingKeys.self)
+    call = try c.decodeOrZero(VoiceCallID.self, forKey: .call)
+    answer = try c.decodeOrZero(String.self, forKey: .answer)
+  }
+
+  public func encode(to encoder: any Encoder) throws {
+    var c = encoder.container(keyedBy: CodingKeys.self)
+    try c.encode(call, forKey: .call)
+    try c.encode(answer, forKey: .answer)
+  }
+
+  public static var protoZero: Self { Self() }
+  public var isProtoZero: Bool { false }
+}
+
+public struct VoiceCallRef: Codable, Hashable, Sendable, ProtoZero {
+  public var call: VoiceCallID
+
+  public init(
+    call: VoiceCallID = .protoZero
+  ) {
+    self.call = call
+  }
+
+  private enum CodingKeys: String, CodingKey {
+    case call = "call"
+  }
+
+  public init(from decoder: any Decoder) throws {
+    let c = try decoder.container(keyedBy: CodingKeys.self)
+    call = try c.decodeOrZero(VoiceCallID.self, forKey: .call)
+  }
+
+  public func encode(to encoder: any Encoder) throws {
+    var c = encoder.container(keyedBy: CodingKeys.self)
+    try c.encode(call, forKey: .call)
   }
 
   public static var protoZero: Self { Self() }
