@@ -28,8 +28,8 @@ func (s *Service) Screenshot(ctx context.Context, caller proto.SessionID, device
 	if err != nil {
 		return Shot{}, err
 	}
-	if d.State != "Booted" {
-		return Shot{}, &Error{Code: CodeNotBooted, Message: fmt.Sprintf("device %q is %s; boot it first", d.Name, d.State)}
+	if err := requireBooted(d); err != nil {
+		return Shot{}, err
 	}
 	if d.Scale <= 0 {
 		return Shot{}, fmt.Errorf("screen scale of device %q is unavailable", d.Name)

@@ -44,7 +44,7 @@ func (s *Service) list(ctx context.Context) ([]Device, error) {
 				UDID:    e.UDID,
 				State:   e.State,
 				Runtime: strings.TrimPrefix(runtime, runtimePrefix),
-				Holder:  s.holderOf(e.UDID),
+				Holder:  s.holderOf(ctx, e.UDID),
 			})
 			typeOf[e.UDID] = e.TypeID
 		}

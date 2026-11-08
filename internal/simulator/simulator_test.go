@@ -70,8 +70,11 @@ func plutilKey(bundle string) string {
 	return "-convert json -o - " + bundle + "/Contents/Resources/capabilities.plist"
 }
 
+// testNow is the fixed clock tests inject.
+var testNow = time.Unix(1_000_000, 0)
+
 func newSvc(f *fakeRunner) *Service {
-	return New(f, time.Now, func(context.Context, proto.SessionID) bool { return true })
+	return New(f, func() time.Time { return testNow }, func(context.Context, proto.SessionID) bool { return true })
 }
 
 func listRunner() *fakeRunner {
@@ -86,7 +89,7 @@ func listRunner() *fakeRunner {
 func TestDevices(t *testing.T) {
 	f := listRunner()
 	s := newSvc(f)
-	s.holders["UDID-A18"] = holderEntry{session: "ses_1", lastInput: time.Unix(0, 0)}
+	s.holders["UDID-A18"] = holderEntry{session: "ses_1", lastInput: testNow}
 	got, err := s.Devices(context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -127,7 +130,7 @@ func TestResolve(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			s := newSvc(listRunner())
 			for u, h := range tt.held {
-				s.holders[u] = holderEntry{session: h}
+				s.holders[u] = holderEntry{session: h, lastInput: testNow}
 			}
 			d, err := s.resolve(context.Background(), proto.SessionID(tt.caller), tt.device)
 			if tt.wantCode != "" {

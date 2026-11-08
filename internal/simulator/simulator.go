@@ -156,10 +156,113 @@ func (s *Service) resolve(ctx context.Context, caller proto.SessionID, device st
 	return Device{}, &Error{Code: CodeNotFound, Message: fmt.Sprintf("%d devices are named %q; specify a UDID: %s", len(named), device, strings.Join(udids, ", "))}
 }
 
-func (s *Service) holderOf(udid string) proto.SessionID {
+// leaseIdle is how long a holder may go without input before others can take
+// the device. Exactly leaseIdle counts as expired.
+const leaseIdle = 60 * time.Second
+
+func (s *Service) expired(e holderEntry) bool {
+	return s.now().Sub(e.lastInput) >= leaseIdle
+}
+
+// holderOf returns the live holder of a device: expired holds and holds of
+// sessions that are no longer alive are dropped and read as free.
+func (s *Service) holderOf(ctx context.Context, udid string) proto.SessionID {
 	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.holders[udid].session
+	e, ok := s.holders[udid]
+	if ok && s.expired(e) {
+		delete(s.holders, udid)
+		ok = false
+	}
+	s.mu.Unlock()
+	if !ok {
+		return ""
+	}
+	// alive may be slow, so it runs without the lock; the entry is only
+	// dropped if it is still the one that was checked.
+	if s.alive(ctx, e.session) {
+		return e.session
+	}
+	s.mu.Lock()
+	if s.holders[udid] == e {
+		delete(s.holders, udid)
+	}
+	s.mu.Unlock()
+	return ""
+}
+
+// acquire gives caller the lease on a device, or fails with CodeBusy naming
+// the holder. The alive check runs outside the lock; after it the table is
+// re-checked and the decision is retried if another caller changed the entry,
+// so two callers never both win.
+func (s *Service) acquire(ctx context.Context, caller proto.SessionID, udid string) error {
+	for {
+		s.mu.Lock()
+		e, held := s.holders[udid]
+		if !held || e.session == caller || s.expired(e) {
+			s.holders[udid] = holderEntry{session: caller, lastInput: s.now()}
+			s.mu.Unlock()
+			return nil
+		}
+		s.mu.Unlock()
+
+		alive := s.alive(ctx, e.session)
+
+		s.mu.Lock()
+		if s.holders[udid] != e {
+			s.mu.Unlock()
+			continue
+		}
+		if !alive {
+			s.holders[udid] = holderEntry{session: caller, lastInput: s.now()}
+			s.mu.Unlock()
+			return nil
+		}
+		s.mu.Unlock()
+		return &Error{Code: CodeBusy, Message: fmt.Sprintf("device %s is held by session %s; use another device or wait until it is idle", udid, e.session)}
+	}
+}
+
+// Launch installs the app at appPath (when given) and launches bundleID on a
+// booted device. It takes the device lease first; a refused lease runs
+// nothing, and a failed install or launch keeps the lease.
+func (s *Service) Launch(ctx context.Context, caller proto.SessionID, device, bundleID, appPath string) error {
+	d, err := s.resolve(ctx, caller, device)
+	if err != nil {
+		return err
+	}
+	if err := requireBooted(d); err != nil {
+		return err
+	}
+	if err := s.acquire(ctx, caller, d.UDID); err != nil {
+		return err
+	}
+	if appPath != "" {
+		if _, err := s.simctl(ctx, "install", d.UDID, appPath); err != nil {
+			return err
+		}
+	}
+	_, err = s.simctl(ctx, "launch", d.UDID, bundleID)
+	return err
+}
+
+// OpenURL opens a URL or deep link on a booted device. It needs no lease.
+func (s *Service) OpenURL(ctx context.Context, caller proto.SessionID, device, url string) error {
+	d, err := s.resolve(ctx, caller, device)
+	if err != nil {
+		return err
+	}
+	if err := requireBooted(d); err != nil {
+		return err
+	}
+	_, err = s.simctl(ctx, "openurl", d.UDID, url)
+	return err
+}
+
+func requireBooted(d Device) error {
+	if d.State != "Booted" {
+		return &Error{Code: CodeNotBooted, Message: fmt.Sprintf("device %q is %s; boot it first", d.Name, d.State)}
+	}
+	return nil
 }
 
 // simctl runs xcrun simctl and maps a missing toolchain to CodeUnavailable.
