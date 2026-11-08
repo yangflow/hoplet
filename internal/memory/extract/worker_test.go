@@ -479,3 +479,18 @@ func TestSavedEventIsNotEvidence(t *testing.T) {
 		t.Fatalf("progress = %d, want %d", r.progress("s"), next)
 	}
 }
+
+func TestSavedEventDoesNotDelayIdle(t *testing.T) {
+	r := newRig(t)
+	seq := r.session("s", "claude", "m1")
+	saved := proto.MemorySaved{Entry: "e1", Version: 1, Action: proto.MemoryCreated, Actor: proto.MemoryByCompanion}
+	if err := r.st.AppendMemorySaved(context.Background(), "s", start.Add(20*time.Minute), saved, "k"); err != nil {
+		t.Fatal(err)
+	}
+	r.h.replies = []string{createOp(seq, "global", "Likes tea")}
+	r.now = start.Add(IdleAfter)
+	r.w.cycle(context.Background())
+	if r.h.count() != 1 {
+		t.Fatalf("calls = %d", r.h.count())
+	}
+}
