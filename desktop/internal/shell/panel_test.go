@@ -163,18 +163,33 @@ func TestPanelYieldsToSidebar(t *testing.T) {
 	}
 }
 
-func TestPanelOnlyForCodeSessions(t *testing.T) {
+// TestCompanionPanelHasOnlyArtifacts checks that a companion's right panel
+// offers its artifacts and none of a Code session's columns.
+func TestCompanionPanelHasOnlyArtifacts(t *testing.T) {
 	a, _, tt, _ := newApp(t)
 	tt.SetSize(1700, 900)
 	a.Select("p1")
 	settle(tt)
-	if _, ok := tt.Find("显示右栏 ⌥⌘I"); ok {
-		t.Error("a companion offers the right panel")
+	if _, ok := tt.Find("显示右栏 ⌥⌘I"); !ok {
+		t.Error("a companion offers no right panel")
+	}
+	a.ShowChanges()
+	settle(tt)
+	if a.panelOpen {
+		t.Error("the changes column opened for a companion")
 	}
 	a.TogglePanel()
 	settle(tt)
-	if a.panelOpen || panelShown(tt) {
-		t.Error("the panel opened for a companion")
+	if !a.panelOpen || !panelShown(tt) {
+		t.Fatal("the panel did not open for a companion")
+	}
+	if !tt.HasText("产物") {
+		t.Errorf("no artifacts head: %q", tt.Texts())
+	}
+	for _, name := range []string{"文件树 ⌥⌘E", "变更 ⌥⌘D"} {
+		if _, ok := tt.Find(name); ok {
+			t.Errorf("a companion's panel offers %s", name)
+		}
 	}
 }
 
