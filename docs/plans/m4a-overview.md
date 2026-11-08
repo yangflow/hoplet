@@ -48,9 +48,10 @@ flowchart LR
     P1["PR1 工具桥"] --> P2["PR2 伙伴与人格"]
     P2 --> P3["PR3 委派、回报与转交"]
     P1 --> Proto["WebView 原型"] --> P4["PR4 产物服务与 CLI"]
-    C["画板：伙伴、结果卡、转交、产物"] --> D["桌面 PR"]
-    P3 --> D
-    P4 --> D
+    C["画板：伙伴、结果卡、转交、产物（已审定）"] --> P6
+    P3 --> P5["PR5 委派事件、回报状态与版本"]
+    P4 --> P5
+    P5 --> P6["PR6 桌面产物"] --> P7["PR7 桌面伙伴与人格"]
 ```
 
 | PR | 标题 | 主要内容 | 验收 |
@@ -59,8 +60,11 @@ flowchart LR
 | 2 | `feat(companion): add companions and personas` | 存储迁移：伙伴表，已有 Personal 会话各迁成一个伙伴；伙伴目录与 `persona.md`；主会话工作目录改为伙伴目录；Claude 传 `--append-system-prompt`，Hermes 启动前生成 `HERMES.md`；API 与 CLI `companion list / show / new / persona` | 迁移前后会话与事件不变；新建伙伴得到目录与空人格；两家启动参数 / 生成的文件与人格一致；改人格后新主会话生效 |
 | 3 | `feat(session): delegate child sessions and report back` | 会话关联父会话；`session_create`、`session_send`、`report`、`handoff`；持久回报：父会话空闲时投递，忙时排队；`handoff` 的 Code 会话在轮次结束或等待审批时自动回报 | Code 会话调用 `session_create` / `session_send` / `handoff` 被拒；`session_send` 到非托管会话被拒；父会话忙时回报排队、空闲后投递一次；daemon 重启后未投递的回报不丢不重 |
 | 4 | `feat(artifact): add artifact service and CLI` | 先在草稿里做 WebView 内容规则原型，结论写进 0025（已完成）；产物存储、版本与上限；`artifact_publish`；同步协议 `artifacts.list` / `artifacts.read`；CLI `hoplet artifact publish / list` | 0025 验收表中不依赖界面的各项 |
+| 5 | `feat(session): add delegation events, report status and artifact versions` | 父会话日志里的 `session.delegated`；回报消息带状态；`artifacts.versions` | 委派与转交各有一条事件；回报状态正确；配对设备能列出版本；旧日志照常解码 |
+| 6 | `feat(desktop): list and view artifacts` | Code 右列“产物”段、Personal 右栏、产物标签与版本菜单；HTML 经 `hoplet-artifact://` 按不可信页面加载 | 0025 的隔离与远端两项在桌面成立 |
+| 7 | `feat(desktop): add companion chats, child sessions and personas` | 侧栏只列伙伴；事件行与回报卡；子会话标题栏；伙伴详情的人格块与编辑人格 | 从回报卡进子会话继续对话并回到伙伴 |
 
-桌面部分（伙伴人格入口、结果卡、转交、产物标签与右栏列表）先在画板上画出并审定，同步进设计系统与 0014 后另起 PR，不在上表内。
+桌面界面已在画板上审定并同步进设计系统、0014 与 0024（#43）。
 
 ## 关键假设的验证点
 
