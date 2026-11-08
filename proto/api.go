@@ -64,6 +64,16 @@ const (
 	CodeUnsupported  ErrorCode = "unsupported"
 	CodeNotRunning   ErrorCode = "not_running"
 	CodeInternal     ErrorCode = "internal"
+
+	// Why a voice call cannot start or has ended.
+	CodeVoiceNoHarness     ErrorCode = "voice_no_harness"
+	CodeVoiceNotSubscribed ErrorCode = "voice_not_subscribed"
+	CodeVoiceNoComponent   ErrorCode = "voice_no_component"
+	CodeVoiceBusy          ErrorCode = "voice_busy"
+	CodeVoiceMedia         ErrorCode = "voice_media"
+	CodeVoiceQuota         ErrorCode = "voice_quota"
+	CodeVoiceNotEnabled    ErrorCode = "voice_not_enabled"
+	CodeVoiceEnded         ErrorCode = "voice_ended"
 )
 
 // APIError is an error the daemon returns.
@@ -127,6 +137,11 @@ const (
 	MethodArtifactsList        = "artifacts.list"
 	MethodArtifactsRead        = "artifacts.read"
 	MethodArtifactsVersions    = "artifacts.versions"
+	MethodVoiceProbe           = "voice.probe"
+	MethodVoiceStart           = "voice.start"
+	MethodVoiceConfirm         = "voice.confirm"
+	MethodVoiceHeartbeat       = "voice.heartbeat"
+	MethodVoiceStop            = "voice.stop"
 	MethodProfileList          = "profile.list"
 	MethodProfileGet           = "profile.get"
 	MethodProfileUpdate        = "profile.update"

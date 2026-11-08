@@ -3,6 +3,7 @@ import SwiftUI
 @main
 struct HopletPrototypeApp: App {
   @State private var store = Store()
+  @Environment(\.scenePhase) private var scenePhase
 
   var body: some Scene {
     WindowGroup {
@@ -11,6 +12,9 @@ struct HopletPrototypeApp: App {
       }
       .environment(store)
       .tint(.primary)
+      .onChange(of: scenePhase) { _, phase in
+        if phase == .active { store.connections.reconnectAll() }
+      }
     }
   }
 }
@@ -285,7 +289,7 @@ struct SettingsView: View {
     NavigationStack {
       Form {
         Section("设备") {
-          ForEach(Host.all) { host in deviceRow(host) }
+          ForEach(store.hosts) { host in deviceRow(host) }
           Button("配对新设备", systemImage: "qrcode.viewfinder") { pairing = true }
         }
         ConnectionDemoSection()

@@ -20,6 +20,17 @@ const (
 	CodeNotFound    = "device_not_found"
 	CodeNotBooted   = "device_not_booted"
 	CodeBusy        = "simulator_busy"
+
+	// CodeInputUnsupported means the input helper is missing or failed its
+	// probe, so input operations are unavailable; simctl ones still work.
+	CodeInputUnsupported = "input_unsupported"
+	// CodeUnsupported marks a request for something not verified: other
+	// screen edges, other hardware buttons.
+	CodeUnsupported = "unsupported"
+	// CodeInvalidArgument marks an argument outside its allowed range.
+	CodeInvalidArgument = "invalid_argument"
+	// CodeInputFailed is the code of a helper failure that carries none.
+	CodeInputFailed = "input_failed"
 )
 
 // Limits on simulator operations. Launch's limit covers install and launch
@@ -50,13 +61,28 @@ type Runner interface {
 	Run(ctx context.Context, name string, args ...string) ([]byte, error)
 }
 
+// StdinRunner is a Runner that can also feed a command's standard input. The
+// clipboard path of Text needs it.
+type StdinRunner interface {
+	Runner
+	RunStdin(ctx context.Context, stdin []byte, name string, args ...string) ([]byte, error)
+}
+
 // ExecRunner is the production Runner backed by os/exec.
 type ExecRunner struct{}
 
 // Run executes name with args; a failing command's error includes its stderr.
-func (ExecRunner) Run(ctx context.Context, name string, args ...string) ([]byte, error) {
-	cmd := exec.CommandContext(ctx, name, args...) //nolint:gosec // the caller chooses the command; Service only passes xcrun and plutil
+func (r ExecRunner) Run(ctx context.Context, name string, args ...string) ([]byte, error) {
+	return r.RunStdin(ctx, nil, name, args...)
+}
+
+// RunStdin is Run with stdin as the command's standard input.
+func (ExecRunner) RunStdin(ctx context.Context, stdin []byte, name string, args ...string) ([]byte, error) {
+	cmd := exec.CommandContext(ctx, name, args...) //nolint:gosec // the caller chooses the command; Service only passes xcrun, plutil, xcode-select and the input helper
 	cmd.WaitDelay = killGrace
+	if stdin != nil {
+		cmd.Stdin = bytes.NewReader(stdin)
+	}
 	out, err := cmd.Output()
 	if err != nil {
 		var ee *exec.ExitError
@@ -105,6 +131,19 @@ type Service struct {
 	mu       sync.Mutex
 	holders  map[string]holderEntry // keyed by UDID
 	geometry map[string]geometry    // keyed by device type identifier
+
+	// helperFile locates the input helper; empty when there is none.
+	helperFile func() string
+	// starter starts a helper; nil starts the file helperFile names.
+	starter    HelperStarter
+	inputLimit time.Duration
+
+	pmu    sync.Mutex
+	probes map[string]probeResult // keyed by Xcode path
+
+	hmu     sync.Mutex
+	helpers map[string]*helperEntry // keyed by UDID
+	closed  bool
 }
 
 // New returns a Service. alive reports whether a session still exists and is
@@ -114,12 +153,23 @@ func New(r Runner, now func() time.Time, alive func(context.Context, proto.Sessi
 		run: r, now: now, alive: alive,
 		bootLimit: bootTimeout, launchLimit: launchTimeout, opLimit: opTimeout,
 		holders: map[string]holderEntry{}, geometry: map[string]geometry{},
+		helperFile: defaultHelperFile, inputLimit: inputTimeout,
+		probes: map[string]probeResult{}, helpers: map[string]*helperEntry{},
 	}
 }
 
 // Devices lists available simulator devices.
 func (s *Service) Devices(ctx context.Context) ([]Device, error) {
-	return s.list(ctx)
+	devices, err := s.list(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if len(devices) > 0 && s.probeInput(ctx) == nil {
+		for i := range devices {
+			devices[i].InputAvailable = true
+		}
+	}
+	return devices, nil
 }
 
 // Boot boots a device and waits until it is usable. It succeeds when the
@@ -321,7 +371,22 @@ func (s *Service) simctlWithin(ctx context.Context, d time.Duration, args ...str
 // simctl runs xcrun simctl, reports a hit deadline as a timeout and maps a
 // missing toolchain to CodeUnavailable.
 func (s *Service) simctl(ctx context.Context, args ...string) ([]byte, error) {
-	out, err := s.run.Run(ctx, "xcrun", append([]string{"simctl"}, args...)...)
+	return s.simctlStdin(ctx, nil, args...)
+}
+
+// simctlStdin is simctl with stdin fed to the command; a nil stdin feeds
+// nothing.
+func (s *Service) simctlStdin(ctx context.Context, stdin []byte, args ...string) ([]byte, error) {
+	full := append([]string{"simctl"}, args...)
+	var out []byte
+	var err error
+	if sr, ok := s.run.(StdinRunner); ok && stdin != nil {
+		out, err = sr.RunStdin(ctx, stdin, "xcrun", full...)
+	} else if stdin != nil {
+		return nil, errors.New("simctl " + args[0] + ": the runner cannot feed standard input")
+	} else {
+		out, err = s.run.Run(ctx, "xcrun", full...)
+	}
 	if err != nil {
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			cause := context.Cause(ctx)

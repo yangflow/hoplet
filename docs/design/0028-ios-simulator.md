@@ -8,8 +8,8 @@
 
 | 状态 | 边界 |
 |---|---|
-| ✓ 已交付 | `simctl` 设备服务与占用；工具结果带图片；工具 `simulator_list`、`simulator_boot`、`simulator_launch`、`simulator_screenshot`、`simulator_open_url` |
-| ○ 目标 | Swift 辅助进程、输入工具（`simulator_tap`、`simulator_swipe`、`simulator_text`、`simulator_button`）、桌面实时面板；交付前 `simulator_list` 的“输入是否可用”恒为否 |
+| ✓ 已交付 | `simctl` 设备服务与占用；工具结果带图片；工具 `simulator_list`、`simulator_boot`、`simulator_launch`、`simulator_screenshot`、`simulator_open_url`；Swift 辅助进程；输入工具 `simulator_tap`、`simulator_swipe`、`simulator_text`、`simulator_button`（代码层面已交付；发布构建尚未包含辅助进程，打包落地前输入不可用） |
+| ○ 目标 | 桌面实时面板与帧流；“人”的占用；随桌面打包、统一签名公证 |
 | 已验证 | 输入与取帧的技术路径，见“验证基线” |
 | 不做 | 真机、Linux、配对机器的模拟器、多点触控、由 Hoplet 创建或删除设备 |
 
@@ -35,7 +35,7 @@ flowchart LR
 
 - `simctl` 能做的事都由 Go 直接调用，私有接口只用于输入和取帧。Xcode 升级弄坏私有接口时，截图、安装、启动不受影响。
 - 辅助进程是独立进程，桌面和 daemon 仍是纯 Go、无 cgo。不引入第三方依赖。
-- 辅助进程放在 `apple/SimulatorHelper`，用 Swift 6 严格并发，随桌面 app 一起签名公证，与内置的 `hoplet` 同目录。找不到辅助进程时按“输入不可用”处理。
+- 辅助进程放在 `apple/SimulatorHelper`，用 Swift 6 严格并发，目标是随桌面 app 一起签名公证，与内置的 `hoplet` 同目录；目前尚未打包，只验证过手动公证的构建。找不到辅助进程时按“输入不可用”处理。
 
 ## 辅助进程
 
@@ -50,8 +50,9 @@ flowchart LR
 | 坐标 | 辅助进程只收比例坐标（0–1） |
 | 触摸 | 按下、移动都发按下事件（移动是位置变化的按下），最后发抬起；移动事件类型不被消息函数接受 |
 | 边缘手势 | 从屏幕边缘开始的手势在所有消息上带边缘参数；底边取值 3 |
-| 抬起保证 | 标准输入关闭、收到终止信号或命令超时，先给进行中的触摸发抬起，再退出 |
+| 抬起保证 | 标准输入关闭、收到终止信号或命令超时，先给进行中的触摸发抬起，再退出；进程退出的瞬间，迟到的按下可能在约一毫秒的窗口内落在抬起前后 |
 | 崩溃 | daemon 不自动重试正在执行的命令，返回失败；下一条命令重新拉起 |
+| 信号 | 忽略 SIGINT 与 SIGHUP，由标准输入关闭触发抬起并退出；SIGTERM 有自己的处理 |
 
 ## Agent 工具
 
@@ -91,6 +92,12 @@ flowchart LR
 | `device_not_found` / `device_not_booted` | 设备不存在 / 未启动 |
 | `simulator_busy` | 设备被其他占用者持有，错误里写明占用者 |
 | `unsupported` | 多点触控、未验证的边缘与硬件键 |
+| `invalid_argument` | 参数不合法：坐标超出屏幕、`duration` 超出 0–10 秒 |
+| `input_failed` | 输入命令执行失败，或辅助进程在命令执行中退出，或打开设备失败（未启动、未知、无法连接）；该辅助进程在下一条命令时被替换 |
+| `timeout` | 辅助进程内单条命令超过时限；进程随后退出，下一条命令重新拉起 |
+| `cancelled` | 命令被中断；进程随后退出，下一条命令重新拉起 |
+
+参数校验在取得占用之前完成，校验失败不占用设备。发送前发现辅助进程已退出时重新拉起；已发出的命令仍按失败返回，不重试。
 
 ## 占用
 
@@ -133,19 +140,23 @@ flowchart LR
 
 ## 验证基线
 
-Xcode 27.2、iOS 26.5、iPhone 17 Pro，用一次性程序在专用模拟器上验证。
+Xcode 27.2、iOS 26.5、iPhone 17 Pro，Claude Code 2.1.319，用一次性程序和 Hoplet 工具在专用模拟器上验证。
 
 | 能力 | 结果 |
 |---|---|
 | 取帧 | `framebufferSurface` 返回 1206×2622 BGRA 的 IOSurface；滚动时约 56 fps，整帧复制约 2.3 ms |
 | 点击、滚动 | 比例坐标准确；连续按下事件可驱动滚动 |
 | 键入 | HID 键码输入 ASCII 成功 |
-| Home 键 | 2 次均回到桌面 |
+| Home 键 | 走任意 HID 消息（page 0x0C、usage 0x40、target 0x33），按住 100 毫秒，经辅助进程 5 次均回到桌面；按键消息的按键码未能回到桌面 |
 | 底边手势 | 边缘参数 3 触发，6 次均离开 App，其中 3 次确认回到桌面，另外 3 次落点未确认；参数 0 的对照 6 次均未触发 |
 | 工具闭环 | Claude Code 2.1.319 经工具完成启动设备、安装、启动 App、截图，模型读出屏幕上提示词里没有的随机词；截图 402×874，等于设备点 |
-| 占用 | 两个会话的工具桥连接抢同一设备：后者 `simulator_launch` 得到 `simulator_busy` 并写明持有会话，截图和 `simulator_open_url` 不受影响，持有者可重入 |
+| 占用 | 两个会话的工具桥连接抢同一设备：后者 `simulator_launch` 得到 `simulator_busy` 并写明持有会话，截图和 `simulator_open_url` 不受影响，持有者可重入；输入工具同样，第二个 Claude Code 会话的点击、滑动、键入、Home 均得到 `simulator_busy`，截图正常 |
 | `app_path` | 越出工作目录时失败，未执行安装 |
-| 签名 | 公证通过（Accepted）的探针，Developer ID 加 hardened runtime、无例外授权，能加载 CoreSimulator 与 SimulatorKit 并找到所需的类；探针只验证加载，未注入触摸 |
+| 签名 | 公证通过（Accepted）的辅助进程，Developer ID 加 hardened runtime、无例外授权，探测通过并能注入触摸、键盘与 Home |
+| 输入闭环 | 公证后的辅助进程，Claude Code 2.1.319 经工具启动设备、安装并启动 App、截图取坐标、点击、再截图，读出点击后才出现的随机词（1 次）；App 内记录到按下、抬起各 1 次，坐标与工具参数一致。滑动 1 次使列表从 Row 0 滚到 Row 9；Home 1 次回到桌面 |
+| 键入与键盘 | 英文键盘下 `Az9 QuIcK-T5` 含大写与空格，逐字正确（1 次）。设备默认语言为中文时键盘是拼音，HID 键码进入输入法：同一串的空格丢失，个别小写串被组合成候选词 |
+| 抬起 | 9 秒滑动进行到约 3 秒时杀掉 daemon（1 次）：App 约 6 毫秒后收到抬起，辅助进程约 80 毫秒后退出；重启后新进程的点击是一次正常的按下与抬起 |
+| 降级 | 辅助进程缺失、探测返回失败各 1 次：`simulator_list` 输入不可用，4 个输入工具返回 `input_unsupported`，截图、安装、启动正常 |
 
 ## 验收
 
@@ -169,4 +180,5 @@ Xcode 27.2、iOS 26.5、iPhone 17 Pro，用一次性程序在专用模拟器上�
 | 其他边缘与硬件键 | 边缘参数 1、2、4 的含义；锁屏、侧边键的取值 |
 | Home 键 | 更多次数的稳定性 |
 | 版本跨度 | 较旧 Xcode 上探测与消息格式是否一致 |
-| 签名后注入 | 公证后的辅助进程实际注入触摸是否正常 |
+| 设备重启后旧 HID 客户端的行为 | 设备重启后，沿用的旧客户端是报错还是静默成功 |
+| 非英文键盘 | 设备键盘为拼音等输入法时，ASCII 走 HID 键入不可靠；是否改走剪贴板或切换键盘 |

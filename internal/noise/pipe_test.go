@@ -40,7 +40,7 @@ func (p *pipeEnd) ReadMessage(ctx context.Context) ([]byte, error) {
 	case m := <-p.in:
 		return m, nil
 	case <-p.shared.done:
-		// Like a real connection, deliver what was written before the close.
+		// Like a stream, the pipe delivers what was written before the close.
 		select {
 		case m := <-p.in:
 			return m, nil

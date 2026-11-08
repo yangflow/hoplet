@@ -65,6 +65,7 @@ public actor Connection {
   private var pending: [UInt64: CheckedContinuation<JSONValue, any Swift.Error>] = [:]
   private var subscribers: [UInt64: Subscriber] = [:]
   private var awaitedPong: Data?
+  private var lossWaiters: [CheckedContinuation<Void, Never>] = []
   public private(set) var hello = HelloResult()
 
   private init(transport: any MessageTransport, channel: NoiseChannel) {
@@ -220,6 +221,8 @@ public actor Connection {
     subscribers = [:]
     for waiter in waiters.values { waiter.resume(throwing: error) }
     for subscriber in open.values { subscriber.finish(error) }
+    for waiter in lossWaiters { waiter.resume() }
+    lossWaiters = []
     outbound.finish()
     for task in tasks { task.cancel() }
     let transport = self.transport
@@ -229,6 +232,12 @@ public actor Connection {
   /// Closes the connection. Open calls and subscriptions fail with
   /// `ConnectionError.closed`.
   public func close() { lose(ConnectionError.closed) }
+
+  /// Returns once the connection has stopped working.
+  public func waitUntilLost() async {
+    if failure != nil { return }
+    await withCheckedContinuation { lossWaiters.append($0) }
+  }
 
   private func send(_ frame: ClientFrame) throws {
     if let failure { throw failure }

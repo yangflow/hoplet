@@ -31,6 +31,7 @@ import (
 	"github.com/yangflow/hoplet/internal/simulator"
 	"github.com/yangflow/hoplet/internal/store"
 	"github.com/yangflow/hoplet/internal/tools"
+	"github.com/yangflow/hoplet/internal/voice"
 	"github.com/yangflow/hoplet/internal/workspace"
 	"github.com/yangflow/hoplet/proto"
 )
@@ -79,6 +80,9 @@ type Config struct {
 	// (tests trust a test certificate with it); nil means the system's.
 	RelayTLS *tls.Config
 
+	// Voice is the host's voice service; nil means none.
+	Voice voice.Provider
+
 	// lim overrides the protocol limits (tests); zero fields keep defaults.
 	lim limits
 	// now is the clock pairing codes expire by (tests); nil means time.Now.
@@ -101,6 +105,9 @@ type Daemon struct {
 	netLn        net.Listener
 	stopAnnounce func() // ends the local network announcement; set with net
 	queue        *queuer
+	// simHelpers owns the simulator helper processes; nil without a
+	// simulator service.
+	simHelpers simulatorHelpers
 
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
@@ -235,12 +242,14 @@ func Start(ctx context.Context, cfg Config) (d *Daemon, err error) {
 	if sim == nil {
 		sim = hostSimulator(runtime.GOOS, simulator.ExecRunner{}, time.Now, sessionAlive(st))
 	}
+	simHelpers, _ := sim.(simulatorHelpers)
 	runCtx, cancel := context.WithCancel(context.Background())
 	q := &queuer{store: st, mgr: mgr, log: log, locks: map[proto.SessionID]*sync.Mutex{}, waiting: map[proto.SessionID]bool{}}
 	ext := extract.New(extract.Config{
 		Store: st, Memory: mem, Harnesses: cfg.Harnesses, Scopes: mgr.ProfileScopes, Env: mgr.Env, Log: log,
 	})
 	srv := &server{
+		voice:   voice.New(cfg.Voice, log),
 		extract: ext,
 		ctx:     runCtx, store: st, mgr: mgr, ws: ws, queue: q, sys: sys, token: token, arts: arts, memory: mem,
 		tools: tools.New(toolSource{store: st, mgr: mgr, queue: q, arts: arts, sim: sim, mem: mem, extract: ext}),
@@ -274,6 +283,10 @@ func Start(ctx context.Context, cfg Config) (d *Daemon, err error) {
 	}()
 	ho := &handoffs{store: st, log: log, seen: map[proto.SessionID]uint64{}}
 	d.wg.Go(func() { ho.run(runCtx) })
+	if simHelpers != nil {
+		d.simHelpers = simHelpers
+		d.wg.Go(func() { reapSimulator(runCtx, simHelpers, simulatorReapEvery, time.Now) })
+	}
 	d.wg.Go(func() { ext.Run(runCtx) })
 	// The harnesses' models are asked for now, so the first client to ask
 	// does not wait for a harness started to list them.
@@ -325,10 +338,14 @@ func (d *Daemon) Close() error {
 			d.stopAnnounce()
 			err = errors.Join(err, d.net.Close())
 		}
+		d.srv.voice.Close() // a call does not outlive the daemon
 		d.cancel()
 		d.srv.wait()
 		d.wg.Wait()
 		d.ws.Close() // stops and awaits background repacks
+		if d.simHelpers != nil {
+			err = errors.Join(err, d.simHelpers.Close())
+		}
 		d.closeErr = errors.Join(err, d.mgr.Close(), d.store.Close(), d.lock.Close())
 	})
 	return d.closeErr
