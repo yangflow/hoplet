@@ -6,6 +6,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
+	"github.com/yangflow/hoplet/desktop/internal/catalog"
 	"github.com/yangflow/hoplet/desktop/internal/theme"
 	"github.com/yangflow/hoplet/proto"
 )
@@ -96,5 +97,49 @@ func TestPublicationOpensItsTab(t *testing.T) {
 	ps := a.panelFor("p1")
 	if len(ps.tabs) != 1 || ps.tabs[0].artifact != "a1" {
 		t.Errorf("tabs = %+v", ps.tabs)
+	}
+}
+
+func TestChildSessionStaysUnderItsCompanion(t *testing.T) {
+	a, _, tt, _ := newApp(t)
+	tt.SetSize(1700, 900)
+	companionWithWork(t, a, tt)
+	for _, l := range a.cat.List(catalog.View{Mode: proto.ModePersonal}).Groups {
+		for _, s := range l.Sessions {
+			if s.ID == "c1" {
+				t.Error("the child is listed in the sidebar")
+			}
+		}
+	}
+	a.Select("c1")
+	settle(tt)
+	if p, _ := a.cat.Get("p1"); !a.inChild(p) {
+		t.Error("the companion's row is not selected")
+	}
+	if !tt.HasText("小助手") || !tt.HasText("查酒店") {
+		t.Fatalf("no title with its companion: %q", tt.Texts())
+	}
+	if err := tt.Click("回到 小助手"); err != nil {
+		t.Fatal(err)
+	}
+	if a.selected != "p1" {
+		t.Errorf("selected %q", a.selected)
+	}
+	if _, ok := tt.Find("回到 小助手"); ok {
+		t.Error("the main session has a link back")
+	}
+}
+
+func TestCodeSidebarListsHandedOffSessions(t *testing.T) {
+	a, _, tt, _ := newApp(t)
+	companionWithWork(t, a, tt)
+	var found bool
+	for _, g := range a.cat.List(catalog.View{Mode: proto.ModeCode}).Groups {
+		for _, s := range g.Sessions {
+			found = found || s.ID == "k1"
+		}
+	}
+	if !found {
+		t.Error("the handed-off session left the Code sidebar")
 	}
 }

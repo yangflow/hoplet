@@ -32,6 +32,26 @@ func (a *App) mainSession(s proto.Session) proto.Session {
 	return s
 }
 
+// inChild reports whether a child session of a companion is what shows,
+// s being the companion's main session.
+func (a *App) inChild(s proto.Session) bool {
+	cur, ok := a.current()
+	return ok && cur.ID != s.ID && cur.Mode == proto.ModePersonal && a.mainSession(cur).ID == s.ID
+}
+
+// companionLink is what stands before a child session's title: its
+// companion's name, a link back to the main session, and a chevron.
+func (a *App) companionLink(c *ui.Context, k theme.Colors, main proto.Session) {
+	l := theme.UI.On(ui.Text(c, name(main))).TextColor(k.Muted).SingleLine().Shrink(0).Label("回到 " + name(main))
+	if l.Hovered() {
+		l.TextColor(k.Fg2)
+	}
+	if l.Clicked() {
+		a.Select(main.ID)
+	}
+	ui.Icon(c, a.icons.Expand).FontSize(theme.IconRow).TextColor(k.Faint)
+}
+
 // eventRow is a delegation, a handoff or a publication in a chat: a thin
 // outline around one line, the whole of it a link.
 func (a *App) eventRow(c *ui.Context, k theme.Colors, s proto.Session, it convo.Item) {

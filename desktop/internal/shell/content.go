@@ -46,7 +46,10 @@ func (a *App) content(c *ui.Context, k theme.Colors) {
 			if s.Mode == proto.ModeCode {
 				a.harnessIcon(c, k, s.Harness.Kind, theme.Icon)
 			} else {
-				a.avatarSized(c, k, s, theme.AvatarSmall)
+				a.avatarSized(c, k, a.mainSession(s), theme.AvatarSmall)
+			}
+			if main := a.mainSession(s); main.ID != s.ID {
+				a.companionLink(c, k, main)
 			}
 			title := theme.UIStrong.On(ui.Text(c, name(s))).TextColor(k.Fg).SingleLine().Shrink(1)
 			if s.Directory != "" {
