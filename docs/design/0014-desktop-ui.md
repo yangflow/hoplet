@@ -1,6 +1,6 @@
 # 0014 桌面设计系统
 
-状态：当前设计 · 更新：2026-11-07
+状态：当前设计 · 更新：2026-11-08
 
 ## 范围与现状
 
@@ -27,7 +27,7 @@ flowchart LR
 - 边界只有三条 1px `line`，且只在侧边栏展开时出现：侧栏右边、右栏左边、右栏里右列的左边。区内不画分隔线：标题栏下、侧栏底栏上、会话详情列左边、右栏的标签栏和路径栏下都没有线
 - 设计稿的桌面画板铺样例壁纸（`wallpaper`），窗口用 `material-window` 近似系统材质；代码里这层由 `VibrancyUnderWindow` 提供，不用这两个值
 - 输入框和其他表面一样铺 `surface`，配 1px `line2` 与 `shadow-composer`
-- 相对取色：区域和表面都是叠在下面一层上的中性白 / 黑（不带色调），不写死颜色，所以不管桌面偏冷偏暖整窗都是一个色调；只有浮层、文字和彩色是固定值。表面 `surface` 用于输入框、代码块、改动文件卡、工具输出、会话详情、收件箱卡片、伙伴气泡、任务与排队托盘：对话流里配 1px `line`、无阴影，输入框配 `line2` + `shadow-composer`。浮层 `surface-float`（菜单、命令面板、模型与 harness 选择、推理强度、打开方式、提示条、回到底部）不透明，配 1px `line2` + `shadow-popover`：窗口本身半透明，浮层哪怕 .97 也会透出字影；glass 插件实测着色 .92 会压暗、.85 会透字，所以不用。正文区不用玻璃材质，只用半透明底，保证长文与代码清晰。配色总览画板把整窗放在偏冷、中性、偏暖三种桌面上，三种都协调才算通过。
+- 相对取色：区域和表面都是叠在下面一层上的中性白 / 黑（不带色调），不写死颜色，所以不管桌面偏冷偏暖整窗都是一个色调；只有浮层、文字和彩色是固定值。表面 `surface` 用于输入框、代码块、改动文件卡、工具输出、会话详情、收件箱卡片、伙伴气泡、回报卡、任务与排队托盘：对话流里配 1px `line`、无阴影，输入框配 `line2` + `shadow-composer`。浮层 `surface-float`（菜单、命令面板、模型与 harness 选择、推理强度、打开方式、产物版本菜单、编辑人格、提示条、回到底部）不透明，配 1px `line2` + `shadow-popover`：窗口本身半透明，浮层哪怕 .97 也会透出字影；glass 插件实测着色 .92 会压暗、.85 会透字，所以不用。正文区不用玻璃材质，只用半透明底，保证长文与代码清晰。配色总览画板把整窗放在偏冷、中性、偏暖三种桌面上，三种都协调才算通过。
 
 ## 颜色
 
@@ -92,7 +92,7 @@ flowchart LR
 
 ## 图标
 
- 界面用 Lucide（16 网格、1.4 描边、跟随文字色；尺寸 12 / 14 / 16，空状态 32；图标按钮 28，密集处 24，行尾小按钮 22；分段切换（Personal / Code、文件树 / 变更）与图标按钮同高 28：每段 24 见方、外围 2；必须有悬停提示"名称 快捷键"）。审批档位用 Lucide 盾牌：shield-question-mark、shield-half、shield-check、shield-off。文件类型用 Material Icon Theme 彩色图标（官方 SVG 原样放在 `desktop/internal/icons/material/`，MIT），保留原色：工具行里读取 / 编辑的文件、改动卡片的每个文件前 14；会话详情的目录行用它的文件夹图标；正文里的文件链接不加（Markdown 行内插图标要绕开 MyGO 的渲染）。harness 标志单色、跟随文字色（`desktop/internal/icons/harness/`，原样使用，许可证在同目录）：Claude Code 用 Claude 星芒，Codex 用 OpenAI 花形标志，Hermes 用 Nous 女孩头像；没有标志的 harness 用首字母占位；名字写正式名 Claude Code、Codex、Hermes，不写内部代号。
+ 界面用 Lucide（16 网格、1.4 描边、跟随文字色；尺寸 12 / 14 / 16，空状态 32；图标按钮 28，密集处 24，行尾小按钮 22；分段切换（Personal / Code、文件树 / 变更 / 产物）与图标按钮同高 28：每段 24 见方、外围 2；必须有悬停提示"名称 快捷键"）。审批档位用 Lucide 盾牌：shield-question-mark、shield-half、shield-check、shield-off。文件类型用 Material Icon Theme 彩色图标（官方 SVG 原样放在 `desktop/internal/icons/material/`，MIT），保留原色：工具行里读取 / 编辑的文件、改动卡片的每个文件前 14；会话详情的目录行用它的文件夹图标；正文里的文件链接不加（Markdown 行内插图标要绕开 MyGO 的渲染）。harness 标志单色、跟随文字色（`desktop/internal/icons/harness/`，原样使用，许可证在同目录）：Claude Code 用 Claude 星芒，Codex 用 OpenAI 花形标志，Hermes 用 Nous 女孩头像；没有标志的 harness 用首字母占位；名字写正式名 Claude Code、Codex、Hermes，不写内部代号。
 
 ## 标志
 
@@ -146,6 +146,9 @@ flowchart LR
 | 队列拖动 | `ListState.Reorder` |
 | Worktree / 开关 / 角标 | `ui.Checkbox` / `ui.Switch` / `ui.Badge` |
 | 提示条 | `c.AddToast` + `ui.ToastViewportBase` / `ui.ToastBase` |
+| 产物 | 网页 `ui.WebView`（`PageOptions.Untrusted`，`hoplet-artifact://` 经 `mygo.Protocol.HandleFunc`）；Markdown `markdown.Stream`；版本菜单 `ui.PopoverBase` |
+| 编辑人格 | `ui.DialogBase` 自己画外框（`surface-float`、`radius-panel`）+ `ui.TextArea` |
+| 事件行与回报卡 | 可点的 `ui.Row` 自己画外框；回报正文用文字的最大行数截到 3 行 |
 | 动效 | `Element.Jump` / `AnimateTo` / `AnimateColor` / `Transition` / `Match` / `Collapse`，曲线取 `motion` token，不用弹簧，不自建计时器 |
 | 悬停提示 | `Element.Tooltip` |
 | 头像 | 首字 + 中性灰底；`ui.Avatar` 按名字配色不符合单一彩色规范 |
