@@ -339,6 +339,8 @@ func (r *run) initialized(m message) []proto.Payload {
 		method = "thread/resume"
 		params.ThreadID, params.ExcludeTurns = r.spec.Resume, true
 		params.Ephemeral = false
+	} else {
+		params.DeveloperInstructions = r.instructions()
 	}
 	err := r.inLoop(func(ctx context.Context) error {
 		if err := r.write(ctx, message{Method: "initialized"}); err != nil {
@@ -350,6 +352,17 @@ func (r *run) initialized(m message) []proto.Payload {
 		return r.startFailed(err.Error())
 	}
 	return nil
+}
+
+// instructions is what a new thread is told about who it is.
+func (r *run) instructions() string {
+	var parts []string
+	for _, p := range []string{r.spec.Persona, r.spec.Profile} {
+		if p != "" {
+			parts = append(parts, p)
+		}
+	}
+	return strings.Join(parts, "\n\n")
 }
 
 func (r *run) threadOpened(m message) ([]proto.Payload, string) {

@@ -18,7 +18,7 @@ import (
 
 const harnessUsage = `usage: hoplet harness install | upgrade claude [--json]
        hoplet harness install | upgrade codex [--json]
-       hoplet harness verify hermes [--json]
+       hoplet harness verify hermes | codex [--json]
 
 The harness name comes before the flags: hoplet harness install claude --json
 
@@ -41,7 +41,9 @@ install codex downloads the official Codex package of the version Hoplet is
 pinned to from GitHub (about 170 MB), checks it against the release's
 published SHA-256 and keeps it in Hoplet's home. Your Codex login and
 configuration stay yours, and the Codex you run in a terminal is untouched.
-Nothing is switched if the check fails.
+Nothing is switched if the check fails. Hoplet does not follow newer Codex
+releases: the pinned version moves when Hoplet is upgraded, and a pinned
+version without recordings must first pass a self-check here.
 
 verify hermes runs a similar self-check on the Hermes your PATH finds (an
 edit asked and denied, the same edit in full_auto, an interrupt; on your
@@ -49,6 +51,10 @@ Hermes model, leaving a short session in its history). Hoplet starts new
 Hermes turns only on versions its recordings cover or that passed here.
 The daemon checks a new Hermes version once a day by itself, unless
 config.toml sets [harness.hermes] follow = false.
+
+verify codex runs the self-check on Hoplet's copy of Codex (a command asked
+and denied, the same command after a mode switch, an interrupt, a resume in
+a new process). It only runs for a version without recordings.
 `
 
 // selfCheckTimeout bounds a Hermes self-check.
@@ -61,6 +67,9 @@ const installTimeout = 30 * time.Minute
 func (a app) harnessCmd(args []string) int {
 	if len(args) >= 2 && args[0] == "verify" && args[1] == hermes.Kind {
 		return a.harnessVerify(args[2:])
+	}
+	if len(args) >= 2 && args[0] == "verify" && args[1] == codex.Kind {
+		return a.harnessVerifyCodex(args[2:])
 	}
 	if len(args) >= 2 && (args[0] == "install" || args[0] == "upgrade") && args[1] == codex.Kind {
 		return a.harnessInstallCodex(args[0], args[2:])
@@ -137,7 +146,7 @@ func (a app) harnessInstallCodex(verb string, args []string) int {
 	if !*asJSON {
 		fmt.Fprintf(a.stderr, "fetching Codex %s...\n", codex.PinnedVersion)
 	}
-	got, err := codex.Install(ctx, h, codex.Source{})
+	got, err := codex.Install(ctx, h, codex.Source{Check: a.checkCodex(h)})
 	if err != nil {
 		return a.fail(name, err)
 	}
@@ -148,6 +157,58 @@ func (a app) harnessInstallCodex(verb string, args []string) int {
 	fmt.Fprintf(a.stdout, "installed Codex %s at %s\n", got.Version, codex.BinaryPath(h))
 	if !got.Voice {
 		fmt.Fprintln(a.stdout, "this package has no voice component")
+	}
+	return 0
+}
+
+// checkCodex runs the self-check in the environment harnesses get.
+func (a app) checkCodex(h string) func(context.Context, string) error {
+	return func(ctx context.Context, bin string) error {
+		if a.codexCheck == nil {
+			return errors.New("this build has no self-check")
+		}
+		vars, err := a.harnessEnv(ctx, h)
+		if err != nil {
+			return fmt.Errorf("read the harness environment: %w", err)
+		}
+		fmt.Fprintln(a.stderr, "checking Codex (a few minutes at most)...")
+		return a.codexCheck(ctx, bin, vars)
+	}
+}
+
+// harnessVerifyCodex runs `hoplet harness verify codex`.
+func (a app) harnessVerifyCodex(args []string) int {
+	const name = "harness verify"
+	fs := a.flags(name, harnessUsage)
+	asJSON := fs.Bool("json", false, "print JSON")
+	if code, ok := parse(fs, args, 0, 0); !ok {
+		return code
+	}
+	h, err := home.Dir()
+	if err != nil {
+		return a.fail(name, err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), installTimeout)
+	defer cancel()
+	waiting := func() { fmt.Fprintln(a.stderr, "waiting for another Codex check to finish...") }
+	o, checked, err := codex.Verify(ctx, codex.BinaryPath(h), a.checkCodex(h), waiting)
+	if err != nil {
+		return a.fail(name, err)
+	}
+	if *asJSON {
+		a.printJSON(map[string]any{"harness": codex.Kind, "version": o.Version, "checked": checked, "error": o.Error})
+	} else {
+		switch {
+		case !checked:
+			fmt.Fprintf(a.stdout, "Codex %s needs no check: Hoplet's recordings cover it, or it passed here before\n", o.Version)
+		case o.Error == "":
+			fmt.Fprintf(a.stdout, "Codex %s passed the self-check\n", o.Version)
+		default:
+			fmt.Fprintf(a.stdout, "Codex %s failed the self-check: %s\n", o.Version, o.Error)
+		}
+	}
+	if o.Error != "" {
+		return 1
 	}
 	return 0
 }
