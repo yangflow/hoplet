@@ -1,7 +1,12 @@
 import Foundation
 
 /// Runs commands one at a time against a `DeviceInput` and keeps the lift
-/// guarantee: a touch that went down is always lifted before the loop ends.
+/// guarantee: a touch that went down is lifted before the loop ends, even when
+/// a device call is stuck and ignores cancellation.
+///
+/// Commands run in unstructured tasks. The loop reacts to whichever comes
+/// first: the command finishing, its timeout, a termination request, or stdin
+/// closing. After an interruption it never waits for the abandoned task.
 public actor CommandLoop {
   /// Interval between interpolated swipe events.
   public static let stepInterval = 0.016
@@ -14,18 +19,31 @@ public actor CommandLoop {
     var edge: TouchEdge
   }
 
-  private enum Outcome {
-    case finished(Error?)
-    case timedOut
-    case sleepCancelled
+  private enum Event: Sendable {
+    case line(String)
+    case stdinClosed
+    case terminate
+    case finished(generation: Int, error: (any Error)?)
+    case timeout(generation: Int)
+  }
+
+  private struct Running {
+    let generation: Int
+    let id: RequestID?
+    let task: Task<Void, Never>
+    let timer: Task<Void, Never>
   }
 
   private let input: any DeviceInput
   private let clock: any HelperClock
   private let write: @Sendable (String) -> Void
+  private let events: AsyncStream<Event>
+  private let sink: AsyncStream<Event>.Continuation
+  private var pending: [String] = []
+  private var running: Running?
+  private var generation = 0
   private var activeTouch: ActiveTouch?
-  private var terminated = false
-  private var runTask: Task<Void, Never>?
+  private var heldModifiers: [UInt32] = []
 
   /// - Parameter write: receives each response as one JSON line.
   public init(
@@ -36,95 +54,114 @@ public actor CommandLoop {
     self.input = input
     self.clock = clock
     self.write = write
+    (events, sink) = AsyncStream<Event>.makeStream()
   }
 
   /// Handles request lines in arrival order until the stream finishes, a
-  /// command times out, or `terminate()` is called. A touch still in progress
-  /// is lifted before this returns.
+  /// command times out, or `terminate()` is called. A command in flight when
+  /// stdin closes is interrupted and buffered commands are dropped. A touch in
+  /// progress is lifted before this returns.
   public func run(lines: AsyncStream<String>) async {
-    let task = Task { await self.loop(lines) }
-    runTask = task
-    if terminated { task.cancel() }
-    await task.value
-    runTask = nil
-  }
-
-  /// Asks the loop to stop. Safe to call from a signal handler's task.
-  public func terminate() {
-    terminated = true
-    runTask?.cancel()
-  }
-
-  private func loop(_ lines: AsyncStream<String>) async {
-    for await line in lines {
-      if terminated { break }
-      if await !handle(line: line) { break }
+    let sink = self.sink
+    let reader = Task {
+      for await line in lines { sink.yield(.line(line)) }
+      sink.yield(.stdinClosed)
     }
-    // Lift in a fresh task: this one may already be cancelled.
-    await Task { await self.liftIfNeeded() }.value
+    for await event in events {
+      if await !handle(event) { break }
+    }
+    reader.cancel()
+    await liftIfNeeded()
+    await releaseHeldModifiers()
+  }
+
+  /// Asks the loop to stop. Callable from any thread, including a signal
+  /// handler's task; may be called before `run`.
+  public nonisolated func terminate() {
+    sink.yield(.terminate)
   }
 
   /// Returns false when the loop must end.
-  private func handle(line: String) async -> Bool {
-    let request: Request
-    switch Request.decode(line: line) {
-    case .failure(let failure):
-      write(Response.failure(failure.id, failure.error).line())
+  private func handle(_ event: Event) async -> Bool {
+    switch event {
+    case .line(let line):
+      pending.append(line)
+      pump()
       return true
-    case .success(let decoded):
-      request = decoded
-    }
-
-    switch await executeWithTimeout(request.command) {
-    case .finished(nil):
-      write(Response.success(request.id).line())
-      return true
-    case .finished(let error?):
-      if error is CancellationError {
-        write(Response.failure(request.id, HelperError(.cancelled, "helper is stopping")).line())
-        return false
+    case .finished(let finished, let error):
+      guard let current = running, current.generation == finished else { return true }
+      current.timer.cancel()
+      running = nil
+      if let error {
+        let failure = (error as? HelperError) ?? HelperError(.inputFailed, "\(error)")
+        write(Response.failure(current.id, failure).line())
+        await liftIfNeeded()
+        await releaseHeldModifiers()
+      } else {
+        write(Response.success(current.id).line())
       }
-      let failure = (error as? HelperError) ?? HelperError(.inputFailed, "\(error)")
-      write(Response.failure(request.id, failure).line())
-      await liftIfNeeded()
+      pump()
       return true
-    case .timedOut:
+    case .timeout(let timedOut):
+      guard running?.generation == timedOut else { return true }
       let message = "command exceeded \(Int(Self.commandTimeout)) seconds"
-      write(Response.failure(request.id, HelperError(.timeout, message)).line())
+      interrupt(HelperError(.timeout, message))
       return false
-    case .sleepCancelled:
+    case .terminate:
+      interrupt(HelperError(.cancelled, "helper is stopping"))
+      return false
+    case .stdinClosed:
+      interrupt(HelperError(.cancelled, "stdin closed"))
       return false
     }
   }
 
-  private func executeWithTimeout(_ command: Command) async -> Outcome {
-    let clock = self.clock
-    return await withTaskGroup(of: Outcome.self) { group in
-      group.addTask {
-        do {
-          try await self.execute(command)
-          return .finished(nil)
-        } catch {
-          return .finished(error)
-        }
+  /// Abandons the command in flight, if any, and answers it with `error`.
+  private func interrupt(_ error: HelperError) {
+    guard let current = running else { return }
+    running = nil
+    current.task.cancel()
+    current.timer.cancel()
+    write(Response.failure(current.id, error).line())
+  }
+
+  /// Starts the next valid pending command if none is running.
+  private func pump() {
+    while running == nil, !pending.isEmpty {
+      let line = pending.removeFirst()
+      switch Request.decode(line: line) {
+      case .failure(let failure):
+        write(Response.failure(failure.id, failure.error).line())
+      case .success(let request):
+        start(request)
       }
-      group.addTask {
-        do {
-          try await clock.sleep(seconds: Self.commandTimeout)
-          return .timedOut
-        } catch {
-          return .sleepCancelled
-        }
-      }
-      var result = Outcome.sleepCancelled
-      for await outcome in group {
-        if case .sleepCancelled = outcome { continue }
-        result = outcome
-        break
-      }
-      group.cancelAll()
-      return result
     }
+  }
+
+  private func start(_ request: Request) {
+    generation += 1
+    let current = generation
+    let command = request.command
+    let sink = self.sink
+    let clock = self.clock
+    let task = Task {
+      var failure: (any Error)?
+      do {
+        try await self.execute(command)
+      } catch {
+        failure = error
+      }
+      sink.yield(.finished(generation: current, error: failure))
+    }
+    let timer = Task {
+      do {
+        try await clock.sleep(seconds: Self.commandTimeout)
+        sink.yield(.timeout(generation: current))
+      } catch {
+        // Cancelled because the command ended first.
+      }
+    }
+    running = Running(generation: current, id: request.id, task: task, timer: timer)
   }
 
   private func execute(_ command: Command) async throws {
@@ -150,30 +187,46 @@ public actor CommandLoop {
     case .paste:
       try await press([HIDUsage.leftCommand, HIDUsage.v])
     case .button(let button):
+      try Task.checkCancellation()
       try await input.button(button, isDown: true)
-      try await input.button(button, isDown: false)
+      do {
+        try Task.checkCancellation()
+        try await input.button(button, isDown: false)
+      } catch {
+        try? await input.button(button, isDown: false)
+        throw error
+      }
     }
   }
 
   /// Presses each usage in turn. A modifier stays held until the next
   /// non-modifier usage has been pressed and released; modifiers still held
-  /// at the end are released in reverse order.
+  /// at the end, or after a failure, are released in reverse order.
   private func press(_ usages: [UInt32]) async throws {
-    var held: [UInt32] = []
-    for usage in usages {
-      try await input.key(usage: usage, isDown: true)
-      if HIDUsage.isModifier(usage) {
-        held.append(usage)
-        continue
+    do {
+      for usage in usages {
+        try await key(usage, isDown: true)
+        if HIDUsage.isModifier(usage) { continue }
+        try await key(usage, isDown: false)
+        for modifier in heldModifiers.reversed() { try await key(modifier, isDown: false) }
       }
-      try await input.key(usage: usage, isDown: false)
-      for modifier in held.reversed() { try await input.key(usage: modifier, isDown: false) }
-      held.removeAll()
+      for modifier in heldModifiers.reversed() { try await key(modifier, isDown: false) }
+    } catch {
+      await releaseHeldModifiers()
+      throw error
     }
-    for modifier in held.reversed() { try await input.key(usage: modifier, isDown: false) }
+  }
+
+  private func key(_ usage: UInt32, isDown: Bool) async throws {
+    try Task.checkCancellation()
+    // Marked before sending: a send that is cut short still gets a release.
+    if isDown && HIDUsage.isModifier(usage) { heldModifiers.append(usage) }
+    try await input.key(usage: usage, isDown: isDown)
+    if !isDown { heldModifiers.removeAll { $0 == usage } }
   }
 
   private func touch(x: Double, y: Double, phase: TouchPhase, edge: TouchEdge) async throws {
+    try Task.checkCancellation()
     // Marked before sending: a send that is cut short still gets a lift.
     if phase == .down { activeTouch = ActiveTouch(x: x, y: y, edge: edge) }
     try await input.touch(x: x, y: y, phase: phase, edge: edge)
@@ -188,5 +241,12 @@ public actor CommandLoop {
     } catch {
       // Nothing more can be done; the caller is about to exit.
     }
+  }
+
+  private func releaseHeldModifiers() async {
+    for modifier in heldModifiers.reversed() {
+      try? await input.key(usage: modifier, isDown: false)
+    }
+    heldModifiers.removeAll()
   }
 }

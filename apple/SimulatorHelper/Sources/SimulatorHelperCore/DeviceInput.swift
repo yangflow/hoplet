@@ -31,6 +31,10 @@ public enum HIDUsage {
 
 /// The device-facing side of the helper. The production implementation talks
 /// to private frameworks; tests use a recording fake.
+///
+/// Implementations must be safe to call concurrently: when a call is stuck,
+/// the loop abandons it and sends the lift from another task while the stuck
+/// call may still be running.
 public protocol DeviceInput: Sendable {
   /// Sends one touch event at a ratio position (0...1, origin top-left).
   func touch(x: Double, y: Double, phase: TouchPhase, edge: TouchEdge) async throws

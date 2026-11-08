@@ -83,6 +83,15 @@ struct ProtocolTests {
     #expect(failure.error.code == .invalidRequest)
   }
 
+  @Test func badOpKeepsTheId() {
+    guard case .failure(let failure) = Request.decode(line: #"{"id":5,"op":7}"#) else {
+      Issue.record("expected failure")
+      return
+    }
+    #expect(failure.error.code == .invalidRequest)
+    #expect(failure.id == .number(5))
+  }
+
   @Test func responseLines() {
     #expect(Response.success(.number(3)).line() == #"{"id":3,"ok":true}"#)
     #expect(

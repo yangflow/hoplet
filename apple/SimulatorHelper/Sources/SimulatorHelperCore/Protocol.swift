@@ -94,8 +94,11 @@ public struct RequestFailure: Error, Sendable, Equatable {
   public let error: HelperError
 }
 
-private struct Envelope: Decodable {
+private struct IDField: Decodable {
   let id: RequestID?
+}
+
+private struct OpField: Decodable {
   let op: String?
 }
 
@@ -115,17 +118,17 @@ extension Request {
   public static func decode(line: String) -> Result<Request, RequestFailure> {
     let data = Data(line.utf8)
     let decoder = JSONDecoder()
-    let envelope: Envelope
+    let id: RequestID?
     do {
-      envelope = try decoder.decode(Envelope.self, from: data)
+      id = try decoder.decode(IDField.self, from: data).id
     } catch {
-      // The envelope may fail on a bad id type only; still try to be precise.
+      // Not a JSON object, or the id has an unusable type.
       return .failure(
         RequestFailure(id: nil, error: HelperError(.invalidRequest, "not a valid request object")))
     }
-    guard let op = envelope.op else {
+    guard let op = (try? decoder.decode(OpField.self, from: data))?.op else {
       return .failure(
-        RequestFailure(id: envelope.id, error: HelperError(.invalidRequest, "missing op")))
+        RequestFailure(id: id, error: HelperError(.invalidRequest, "missing or invalid op")))
     }
     let fields: Fields
     do {
@@ -133,16 +136,16 @@ extension Request {
     } catch {
       return .failure(
         RequestFailure(
-          id: envelope.id, error: HelperError(.invalidArgument, "fields have the wrong type")))
+          id: id, error: HelperError(.invalidArgument, "fields have the wrong type")))
     }
     do {
       let command = try Command.validated(op: op, fields: fields)
-      return .success(Request(id: envelope.id, command: command))
+      return .success(Request(id: id, command: command))
     } catch let error as HelperError {
-      return .failure(RequestFailure(id: envelope.id, error: error))
+      return .failure(RequestFailure(id: id, error: error))
     } catch {
       return .failure(
-        RequestFailure(id: envelope.id, error: HelperError(.invalidRequest, "\(error)")))
+        RequestFailure(id: id, error: HelperError(.invalidRequest, "\(error)")))
     }
   }
 }

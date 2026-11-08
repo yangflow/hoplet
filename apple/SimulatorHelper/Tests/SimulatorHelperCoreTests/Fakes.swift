@@ -1,3 +1,4 @@
+import Dispatch
 import Synchronization
 
 @testable import SimulatorHelperCore
@@ -29,10 +30,32 @@ final class FakeInput: DeviceInput {
   /// Number of upcoming touch-up events that fail.
   let failingUps = Mutex(0)
 
+  /// When set, the first touch-up blocks the calling thread, ignoring
+  /// cancellation, after running the closure, until `release()`.
+  private let stuck = Mutex<(@Sendable () -> Void)?>(nil)
+  private let gate = DispatchSemaphore(value: 0)
+
   init(log: EventLog) { self.log = log }
+
+  func makeFirstUpStuck(onStuck: @escaping @Sendable () -> Void) {
+    stuck.withLock { $0 = onStuck }
+  }
+
+  func release() { gate.signal() }
+
+  private func blockUntilReleased() { gate.wait() }
 
   func touch(x: Double, y: Double, phase: TouchPhase, edge: TouchEdge) async throws {
     log.record(.touch(x: x, y: y, phase: phase, edge: edge))
+    if phase == .up,
+      let onStuck = stuck.withLock({ value in
+        defer { value = nil }
+        return value
+      })
+    {
+      onStuck()
+      blockUntilReleased()
+    }
     if phase == .up {
       let fails = failingUps.withLock { count -> Bool in
         defer { if count > 0 { count -= 1 } }
@@ -42,8 +65,12 @@ final class FakeInput: DeviceInput {
     }
   }
 
+  /// A key-down with this usage fails.
+  let failingKeyDown = Mutex<UInt32?>(nil)
+
   func key(usage: UInt32, isDown: Bool) async throws {
     log.record(.key(usage, down: isDown))
+    if isDown && failingKeyDown.withLock({ $0 }) == usage { throw FakeFailure() }
   }
 
   func button(_ button: HardwareButton, isDown: Bool) async throws {
@@ -85,20 +112,49 @@ final class FakeClock: HelperClock {
   }
 }
 
-/// Feeds `lines` to a fresh loop and returns once the loop has ended.
+/// What a test can reach while the loop runs.
+struct Harness {
+  let loop: CommandLoop
+  let clock: FakeClock
+  let input: FakeInput
+  /// Closes the fake stdin.
+  let closeInput: @Sendable () -> Void
+}
+
+/// Feeds `lines` to a fresh loop, closes stdin after `responses` responses
+/// were written (unless the loop ended first), and returns once the loop has
+/// ended.
 func runLoop(
   _ lines: [String],
-  log: EventLog = EventLog(),
-  prepare: (CommandLoop, FakeClock, FakeInput) -> Void = { _, _, _ in },
+  responses expected: Int,
+  prepare: (Harness) -> Void = { _ in },
   hangOn: Double? = nil
 ) async -> EventLog {
+  let log = EventLog()
   let input = FakeInput(log: log)
   let clock = FakeClock(log: log, hangOn: hangOn)
-  let loop = CommandLoop(input: input, clock: clock) { log.record(.response($0)) }
-  prepare(loop, clock, input)
+  let (responses, responseSink) = AsyncStream<Void>.makeStream()
+  let loop = CommandLoop(input: input, clock: clock) {
+    log.record(.response($0))
+    responseSink.yield(())
+  }
   let (stream, continuation) = AsyncStream<String>.makeStream()
+  prepare(
+    Harness(loop: loop, clock: clock, input: input, closeInput: { continuation.finish() }))
   for line in lines { continuation.yield(line) }
-  continuation.finish()
+  let closer = Task {
+    var seen = 0
+    if expected == 0 { continuation.finish() }
+    for await _ in responses {
+      seen += 1
+      if seen >= expected {
+        continuation.finish()
+        return
+      }
+    }
+  }
   await loop.run(lines: stream)
+  closer.cancel()
+  input.release()
   return log
 }
