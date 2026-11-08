@@ -61,7 +61,13 @@ type sessionView struct {
 	modelFocus   bool                                          // the model search takes the focus this frame
 	modelPick    int                                           // the highlighted model, -1 for the current
 
-	panels map[proto.SessionID]*panelState // each Code session's right panel
+	panels map[proto.SessionID]*panelState // each session's right panel
+
+	companions   map[proto.SessionID]proto.Companion // by main session
+	companionsIn map[proto.SessionID]bool            // main sessions a listing was asked for
+	personas     map[proto.CompanionID]string        // each companion's persona, as last read
+	personaAsked map[proto.CompanionID]bool
+	personaEdit  personaEdit
 
 	newPage bool
 	newPick newChoice
@@ -79,6 +85,7 @@ func newSessionView() sessionView {
 		convos: map[proto.SessionID]*convo.Convo{}, records: map[agentKey]*convo.Convo{}, drafts: map[proto.SessionID]string{},
 		open: map[string]bool{}, steps: map[string]int{}, outputs: map[string]*proto.ToolOutput{}, outputErr: map[string]string{}, hidden: map[string]bool{}, copied: map[string]time.Time{},
 		diffs: map[proto.SessionID]*diffState{}, flash: map[proto.SessionID]bool{},
+		companions: map[proto.SessionID]proto.Companion{}, companionsIn: map[proto.SessionID]bool{}, personas: map[proto.CompanionID]string{}, personaAsked: map[proto.CompanionID]bool{},
 		inboxPending: map[proto.SessionID][]proto.ApprovalRequested{}, inboxAsked: map[proto.SessionID]uint64{}, inboxDone: map[string]string{},
 	}
 }

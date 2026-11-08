@@ -46,7 +46,10 @@ func (a *App) content(c *ui.Context, k theme.Colors) {
 			if s.Mode == proto.ModeCode {
 				a.harnessIcon(c, k, s.Harness.Kind, theme.Icon)
 			} else {
-				a.avatarSized(c, k, s, theme.AvatarSmall)
+				a.avatarSized(c, k, a.mainSession(s), theme.AvatarSmall)
+			}
+			if main := a.mainSession(s); main.ID != s.ID {
+				a.companionLink(c, k, main)
 			}
 			title := theme.UIStrong.On(ui.Text(c, name(s))).TextColor(k.Fg).SingleLine().Shrink(1)
 			if s.Directory != "" {
@@ -133,7 +136,17 @@ func (a *App) details(c *ui.Context, k theme.Colors, s proto.Session) []detailGr
 		run = nil
 	}
 	run = append(run, detail{icon: a.icons.Thinking, value: model + " · 推理强度 " + effortName(s.Effort)}, detail{icon: a.modeIcon(s.Permission), value: perm})
-	gs := []detailGroup{place, {title: "运行", rows: run}, {title: "会话", rows: []detail{
+	gs := []detailGroup{place, {title: "运行", rows: run}, a.sessionBlock(c, k, s)}
+	if agents := a.conv(s.ID).Agents(); len(agents) > 0 {
+		gs = append(gs, detailGroup{title: "子代理", body: func() { a.agentRows(c, k, s, agents) }})
+	}
+	return gs
+}
+
+// sessionBlock is the details' block on the session itself: its state and
+// when it was made, its ID and the harness's own ID to copy.
+func (a *App) sessionBlock(c *ui.Context, k theme.Colors, s proto.Session) detailGroup {
+	return detailGroup{title: "会话", rows: []detail{
 		{icon: a.icons.Made, value: statusName(s.Status) + " · 建于 " + s.CreatedAt.Local().Format("1 月 2 日")},
 		{icon: a.icons.ID, value: string(s.ID), mono: true, end: func() { a.copyButton(c, k, "id:"+string(s.ID), string(s.ID), "复制会话 ID") }},
 		// The harness's own ID, once it started one: what resumes the
@@ -141,11 +154,7 @@ func (a *App) details(c *ui.Context, k theme.Colors, s proto.Session) []detailGr
 		{harness: s.Harness.Kind, value: s.Harness.NativeID, tip: harnessName(s.Harness.Kind) + " 会话 ID：" + s.Harness.NativeID, mono: true, end: func() {
 			a.copyButton(c, k, "native:"+string(s.ID), s.Harness.NativeID, "复制 "+harnessName(s.Harness.Kind)+" 会话 ID")
 		}},
-	}}}
-	if agents := a.conv(s.ID).Agents(); len(agents) > 0 {
-		gs = append(gs, detailGroup{title: "子代理", body: func() { a.agentRows(c, k, s, agents) }})
-	}
-	return gs
+	}}
 }
 
 // agentRows are the details' subagents: those running first, each with a
@@ -226,12 +235,13 @@ type detailGroup struct {
 	title string
 	rows  []detail
 	body  func() // rows of its own in place of rows
+	end   func() // at the end of the title's line
 }
 
 // detailGroups is a session's details in blocks, rows without a value and
 // blocks without rows left out.
 func (a *App) detailGroups(c *ui.Context, k theme.Colors, s proto.Session) []detailGroup {
-	gs := a.companionDetails(s)
+	gs := a.companionDetails(c, k, s)
 	if s.Mode != proto.ModePersonal {
 		gs = a.details(c, k, s)
 	}
@@ -296,7 +306,13 @@ func (a *App) detailBlock(c *ui.Context, k theme.Colors, g detailGroup, float bo
 		block.Background(k.Surface).Border(theme.LineWidth, k.Line)
 	}
 	block.Children(func() {
-		if title != "" {
+		switch {
+		case title != "" && g.end != nil:
+			ui.Row(c).Padding(theme.Space1, theme.Space1Half, 0, theme.Space3).AlignItems(ui.Center).Children(func() {
+				ui.Text(c, title).FontSize(theme.Caption.Size()).FontWeight(theme.UIStrong.Weight()).TextColor(k.Muted).Grow(1)
+				g.end()
+			})
+		case title != "":
 			ui.Text(c, title).FontSize(theme.Caption.Size()).FontWeight(theme.UIStrong.Weight()).TextColor(k.Muted).Padding(theme.Space2, theme.Space3, theme.SpaceHalf, theme.Space3)
 		}
 		if g.body != nil {
@@ -346,20 +362,42 @@ func statusName(st proto.SessionStatus) string {
 	}
 }
 
-// companionDetails is a companion's details in blocks: its machine, then
-// its harness, model and effort; its name is the title bar's. Its persona
-// and what it remembers about me come with companions (M4).
-func (a *App) companionDetails(s proto.Session) []detailGroup {
+// companionDetails is a companion's details in blocks: on its main session
+// its persona; then its machine and directory, its harness, model and
+// effort, and the session. Its name is the title bar's.
+func (a *App) companionDetails(c *ui.Context, k theme.Colors, s proto.Session) []detailGroup {
 	h, _ := a.harness(s.Harness.Kind)
 	model, _ := currentModel(runSettings{model: s.Model}, h)
 	machine := a.machine
 	if a.connected {
 		machine += " · 在线"
 	}
-	return []detailGroup{{title: "", rows: []detail{{icon: a.icons.Machine, value: machine}}}, {title: "运行", rows: []detail{
+	co, known := a.s.companions[a.mainSession(s).ID]
+	var gs []detailGroup
+	if known && s.Parent == "" {
+		text := a.persona(co.ID)
+		gs = append(gs, detailGroup{title: "人格", end: func() {
+			if iconButton(c, k, a.icons.Edit, "编辑人格", false).Size(theme.RowDense, theme.RowDense).Clicked() {
+				a.editPersona(co)
+			}
+		}, body: func() {
+			if text != "" {
+				theme.Secondary.On(ui.Text(c, text)).TextColor(k.Fg2).MaxLines(4).Padding(theme.SpaceHalf, theme.Space3, theme.Space2, theme.Space3)
+			}
+		}})
+	}
+	place := []detail{{icon: a.icons.Machine, value: machine}}
+	if known {
+		place = append(place, detail{image: a.icons.FolderType(), value: tilde(co.Dir), tip: co.Dir, mono: true, end: func() {
+			if iconButton(c, k, a.icons.Folder, "在 Finder 中显示", false).Size(theme.RowDense, theme.RowDense).Clicked() {
+				a.host.Reveal(co.Dir)
+			}
+		}})
+	}
+	return append(gs, detailGroup{title: "", rows: place}, detailGroup{title: "运行", rows: []detail{
 		{harness: s.Harness.Kind, value: harnessName(s.Harness.Kind), version: s.Harness.Version},
 		{icon: a.icons.Thinking, value: model + " · 推理强度 " + effortName(s.Effort)},
-	}}}
+	}}, a.sessionBlock(c, k, s))
 }
 
 // titleHeight is the height of the content area's title bar and of the

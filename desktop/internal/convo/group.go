@@ -6,6 +6,7 @@ package convo
 // as it is. running says the last turn still runs: its last group runs
 // unless text followed it.
 func group(items []Item, running bool) []Item {
+	items = codeItems(items)
 	out := make([]Item, 0, len(items))
 	for i := 0; i < len(items); {
 		if !folds(items[i].Kind) {
@@ -35,6 +36,21 @@ func group(items []Item, running bool) []Item {
 				return out
 			}
 		}
+	}
+	return out
+}
+
+// codeItems leaves out the rows only a companion's chat draws.
+func codeItems(items []Item) []Item {
+	out := make([]Item, 0, len(items))
+	for _, it := range items {
+		switch it.Kind {
+		case KindEvent:
+			continue
+		case KindReport:
+			it.Kind = KindMine
+		}
+		out = append(out, it)
 	}
 	return out
 }

@@ -72,6 +72,12 @@ type Host interface {
 	ArtifactPage(id proto.ArtifactID, version int, failed func(error)) (ui.NativeWebView, error)
 	ReloadArtifactPage(id proto.ArtifactID, version int)
 	CloseArtifactPages(id proto.ArtifactID)
+	// Companions lists the companions, archived ones too; Persona reads
+	// one's persona; SetPersona replaces it. done follows with the answer
+	// or why there is none.
+	Companions(done func([]proto.Companion, error))
+	Persona(id proto.CompanionID, done func(string, error))
+	SetPersona(id proto.CompanionID, text string, done func(proto.SetPersonaResult, error))
 	// Open opens a file with its default application; CopyPath puts its
 	// path on the clipboard.
 	Open(path string)
@@ -204,6 +210,8 @@ func (a *App) Connected(host string) {
 	}
 	a.follow()
 	a.flushOutbox()
+	a.s.personaAsked = map[proto.CompanionID]bool{}
+	a.loadCompanions()
 	// What the panels could not read, a daemon reached again may answer.
 	for _, ps := range a.s.panels {
 		ps.retry()
@@ -237,6 +245,7 @@ func (a *App) Apply(it proto.CatalogItem) {
 	}
 	a.cat.Apply(it)
 	a.markRead()
+	a.findCompanions(it.Sessions)
 }
 
 // SetMode switches between Personal and Code.
@@ -518,6 +527,7 @@ func (a *App) View(c *ui.Context) {
 		a.OpenFilePicker()
 	}
 	a.palette(c, k)
+	a.personaDialog(c, k)
 	if st := a.state(); !st.equal(a.last) {
 		a.last = st
 		if a.changed != nil {
