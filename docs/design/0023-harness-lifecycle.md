@@ -1,6 +1,6 @@
 # 0023 Harness 托管与验证
 
-状态：当前设计 · 更新：2026-11-04
+状态：当前设计 · 更新：2026-11-08
 
 ## 范围与现状
 
@@ -15,7 +15,7 @@
 
 ```mermaid
 flowchart TB
-    Change["原生版本变化 / 手动检查"] --> Verified{"已录制或已通过本机验证？"}
+    Change["stable 渠道版本变化 / 原生版本变化 / 手动检查"] --> Verified{"已录制或已通过本机验证？"}
     Verified -- "否" --> Check{"自检通过？"}
     Check -- "是" --> Save["保存本机验证结果"] --> Kind{"运行形态"}
     Verified -- "是" --> Kind
@@ -27,21 +27,23 @@ flowchart TB
 ## 托管范围（Claude Code）
 
 - Hoplet 使用**自己托管的 CLI 副本**，关闭其自动更新
-- Claude Code 登录与配置沿用全局 `~/.claude`。我在终端里用的 CLI 不受影响，Hoplet 也不替我升级它。
+- 副本只来自官方发布，不从本机复制：`https://downloads.claude.ai/claude-code-releases` 的 `stable` 给出版本号，`<版本>/manifest.json` 给出各平台的 SHA256，`<版本>/<平台>/claude` 是二进制。平台为 `darwin-x64`、`darwin-arm64`、`linux-x64`、`linux-arm64`、`linux-x64-musl`、`linux-arm64-musl`
+- 校验 manifest 里的 SHA256，不一致不切换；macOS 再用系统 `codesign` 验证签名。manifest 的 GPG 签名不验，以免引入新依赖，其真实性靠 HTTPS 保证
+- Claude Code 登录与配置沿用全局 `~/.claude`，没登录过的要自己登录一次。我在终端里用的 CLI 不受影响，Hoplet 也不替我升级它。
 - 切换后删除旧副本（每份约 300 MB）
 - 正在运行的会话已打开旧文件，继续用到结束
 - 新会话用新副本。
 
 | CLI | 当前范围 |
 |---|---|
-| `harness install / upgrade claude` | 安装或升级托管副本 |
+| `harness install / upgrade claude` | 从官方发布下载 `stable` 渠道当前版本，校验后安装或升级托管副本；没录制过的版本先过本机自检 |
 | `harness install / upgrade codex` | 从官方发布下载完整独立包，校验后安装或升级托管副本 |
 | `harness verify hermes` | 验证原生安装，不负责升级 |
 
 ## 跟进策略
 
-- 守护进程启动 10 分钟后、之后每天一次，查看 harness 环境 PATH 上的 CLI
-- 版本与副本不同就按上图处理。只跟进已安装的副本，首次安装由我执行 `hoplet harness install claude`。自检失败的版本最多每天试一次（重启守护进程也不会多试），连续 3 次失败后不再尝试
+- 守护进程启动 10 分钟后、之后每天一次，Claude Code 查看 `stable` 渠道的版本，Hermes 查看 harness 环境 PATH 上的 CLI
+- 版本与副本不同就按上图处理，`stable` 回退时副本也跟着回退。只跟进已安装的副本，首次安装由我执行 `hoplet harness install claude`。下载失败（网络、校验）不计入失败次数，副本不变，下次检查再试。自检失败的版本最多每天试一次（重启守护进程也不会多试），连续 3 次失败后不再尝试
 - 守护进程关闭打断的检查和非自检原因的失败不计入。`config.toml` 中 `[harness.{kind}] follow = false` 可关闭跟进。
 
 ## 本机自检
