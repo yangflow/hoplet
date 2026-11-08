@@ -4,8 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
+	"net/url"
 	"os"
-	"os/exec"
 	"time"
 
 	"github.com/yangflow/hoplet/internal/env"
@@ -15,14 +16,15 @@ import (
 	"github.com/yangflow/hoplet/internal/home"
 )
 
-const harnessUsage = `usage: hoplet harness install | upgrade claude [--from PATH] [--json]
+const harnessUsage = `usage: hoplet harness install | upgrade claude [--json]
        hoplet harness install | upgrade codex [--json]
        hoplet harness verify hermes [--json]
 
-The harness name comes before the flags: hoplet harness install claude --from PATH
+The harness name comes before the flags: hoplet harness install claude --json
 
-Copies the claude binary (by default the one on your PATH) into Hoplet's
-home and points Hoplet at it; your logins in ~/.claude stay shared and
+Downloads the current stable release of Claude Code from the official
+release host, checks it against the release's checksum, and points Hoplet
+at the copy in its home; your logins in ~/.claude stay shared and
 claude's own updater is off for Hoplet's copy. A version the Claude Code
 adapter has no recordings of is first run through a self-check on this
 machine (a few short turns on the cheapest model, using your claude login);
@@ -31,7 +33,7 @@ before running a shell command: if your own settings or hooks auto-allow
 it, the check fails and Hoplet stays on its current copy. A running daemon picks the copy
 up for new sessions.
 
-The daemon also does this once a day for the claude on your PATH, unless
+The daemon also does this once a day when the stable release changes, unless
 config.toml sets [harness.claude] follow = false. hoplet doctor shows the
 outcome.
 
@@ -49,11 +51,12 @@ The daemon checks a new Hermes version once a day by itself, unless
 config.toml sets [harness.hermes] follow = false.
 `
 
-// selfCheckTimeout bounds install and upgrade, self-check included.
+// selfCheckTimeout bounds a Hermes self-check.
 const selfCheckTimeout = 10 * time.Minute
 
-// codexInstallTimeout bounds downloading and unpacking the Codex package.
-const codexInstallTimeout = 30 * time.Minute
+// installTimeout bounds downloading a harness release and, for Claude Code,
+// its self-check.
+const installTimeout = 30 * time.Minute
 
 func (a app) harnessCmd(args []string) int {
 	if len(args) >= 2 && args[0] == "verify" && args[1] == hermes.Kind {
@@ -72,17 +75,9 @@ func (a app) harnessCmd(args []string) int {
 	}
 	name := "harness " + args[0]
 	fs := a.flags(name, harnessUsage)
-	from := fs.String("from", "", "the claude binary to copy (default: claude on PATH)")
 	asJSON := fs.Bool("json", false, "print JSON")
 	if code, ok := parse(fs, args[2:], 0, 0); !ok {
 		return code
-	}
-	if *from == "" {
-		p, err := exec.LookPath("claude")
-		if err != nil {
-			return a.fail(name, errors.New("no claude on PATH; give --from"))
-		}
-		*from = p
 	}
 	h, err := home.Dir()
 	if err != nil {
@@ -91,7 +86,7 @@ func (a app) harnessCmd(args []string) int {
 	if err := os.MkdirAll(h, 0o700); err != nil {
 		return a.fail(name, err)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), selfCheckTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), installTimeout)
 	defer cancel()
 	vars, err := a.harnessEnv(ctx, h)
 	if err != nil {
@@ -104,7 +99,10 @@ func (a app) harnessCmd(args []string) int {
 		fmt.Fprintln(a.stderr, "running the self-check (about a minute)...")
 		return a.selfCheck(ctx, bin, vars)
 	}
-	got, err := claude.Install(ctx, *from, h, check)
+	if !*asJSON {
+		fmt.Fprintln(a.stderr, "fetching Claude Code...")
+	}
+	got, err := claude.Install(ctx, h, a.claudeSource(vars), check)
 	if err != nil {
 		return a.fail(name, err)
 	}
@@ -134,7 +132,7 @@ func (a app) harnessInstallCodex(verb string, args []string) int {
 	if err := os.MkdirAll(h, 0o700); err != nil {
 		return a.fail(name, err)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), codexInstallTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), installTimeout)
 	defer cancel()
 	if !*asJSON {
 		fmt.Fprintf(a.stderr, "fetching Codex %s...\n", codex.PinnedVersion)
@@ -186,7 +184,7 @@ func (a app) harnessVerify(args []string) int {
 	if err != nil {
 		return a.fail(name, err)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), selfCheckTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), installTimeout)
 	defer cancel()
 	vars, err := a.harnessEnv(ctx, h)
 	if err != nil {
@@ -218,4 +216,37 @@ func (a app) harnessVerify(args []string) int {
 		return 1
 	}
 	return 0
+}
+
+// claudeSource is where Claude Code releases come from: the official host,
+// through the proxy the harness environment names, because the daemon's own
+// environment may have none.
+func (a app) claudeSource(vars []string) claude.Source {
+	if a.claudeRelease.BaseURL != "" {
+		return a.claudeRelease
+	}
+	return claude.Source{Client: proxyClient(vars)}
+}
+
+// proxyClient is an HTTP client using the proxy in vars, or nil for the
+// default client when vars name none.
+func proxyClient(vars []string) *http.Client {
+	for _, name := range []string{"HTTPS_PROXY", "https_proxy", "ALL_PROXY", "all_proxy"} {
+		v := envValue(vars, name)
+		if v == "" {
+			continue
+		}
+		u, err := url.Parse(v)
+		if err != nil || u.Host == "" {
+			return nil
+		}
+		t, ok := http.DefaultTransport.(*http.Transport)
+		if !ok {
+			return nil
+		}
+		t = t.Clone()
+		t.Proxy = http.ProxyURL(u)
+		return &http.Client{Transport: t}
+	}
+	return nil
 }

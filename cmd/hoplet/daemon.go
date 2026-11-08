@@ -289,7 +289,7 @@ func (a app) daemonStatus(args []string) int {
 	return 0
 }
 
-// maintenance is the daemon's daily work: follow the user's claude and check
+// maintenance is the daemon's daily work: follow Claude Code's stable channel and check
 // a new Hermes version, each unless the configuration turns it off. It is
 // nil without either self-check.
 func (a app) maintenance(h string, logger *slog.Logger) func(context.Context, []string) {
@@ -339,13 +339,13 @@ func (a app) checkHermes(ctx context.Context, h string, vars []string, logger *s
 	}
 }
 
-// followClaude moves Hoplet's copy of claude to the one on the harness
-// PATH if it is new and passes the self-check.
+// followClaude moves Hoplet's copy of claude to the stable channel's version
+// if it is new and passes the self-check.
 func (a app) followClaude(ctx context.Context, h string, vars []string, logger *slog.Logger) {
 	check := func(ctx context.Context, bin string) error { return a.selfCheck(ctx, bin, vars) }
-	ctx, cancel := context.WithTimeout(ctx, selfCheckTimeout)
+	ctx, cancel := context.WithTimeout(ctx, installTimeout)
 	defer cancel()
-	u, ok := claude.Follow(ctx, h, envValue(vars, "PATH"), check)
+	u, ok := claude.Follow(ctx, h, a.claudeSource(vars), check)
 	switch {
 	case !ok:
 		logger.Debug("claude follow-up: nothing to do")

@@ -77,6 +77,9 @@ type app struct {
 	// selfCheck checks a claude binary before Hoplet switches to it; nil
 	// also turns the daemon's daily follow-up off (tests).
 	selfCheck func(ctx context.Context, bin string, env []string) error
+	// claudeRelease, when set, replaces the official Claude Code release
+	// host (tests).
+	claudeRelease claude.Source
 	// hermesCheck checks a Hermes version before Hoplet starts turns on
 	// it; nil also turns the daemon's daily check off (tests).
 	hermesCheck hermes.Checker

@@ -3,15 +3,85 @@ package claude
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/yangflow/hoplet/internal/harness/verified"
 )
+
+const testPlatform = "test-platform"
+
+// release is a fake release host.
+type release struct {
+	t      *testing.T
+	srv    *httptest.Server
+	mu     sync.Mutex
+	stable string
+	bodies map[string][]byte
+	sums   map[string]string // overrides of the published checksum
+	gets   int               // binary downloads served
+	verify error             // what Source.Verify returns
+}
+
+func newRelease(t *testing.T) *release {
+	t.Helper()
+	r := &release{t: t, bodies: map[string][]byte{}, sums: map[string]string{}}
+	r.srv = httptest.NewServer(http.HandlerFunc(r.serve))
+	t.Cleanup(r.srv.Close)
+	return r
+}
+
+func (r *release) serve(w http.ResponseWriter, req *http.Request) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	parts := strings.Split(strings.TrimPrefix(req.URL.Path, "/"), "/")
+	switch {
+	case len(parts) == 1 && parts[0] == "stable":
+		_, _ = w.Write([]byte(r.stable + "\n"))
+	case len(parts) == 2 && parts[1] == "manifest.json" && r.bodies[parts[0]] != nil:
+		body := r.bodies[parts[0]]
+		sum := sha256.Sum256(body)
+		checksum := hex.EncodeToString(sum[:])
+		if o, ok := r.sums[parts[0]]; ok {
+			checksum = o
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"platforms": map[string]any{testPlatform: map[string]any{"checksum": checksum, "size": len(body)}}})
+	case len(parts) == 3 && parts[1] == testPlatform && parts[2] == "claude" && r.bodies[parts[0]] != nil:
+		r.gets++
+		_, _ = w.Write(r.bodies[parts[0]])
+	default:
+		http.NotFound(w, req)
+	}
+}
+
+// publish makes version the stable channel's and returns its binary.
+func (r *release) publish(version string) []byte {
+	r.t.Helper()
+	bin, _ := fakeClaude(r.t, version)
+	body, err := os.ReadFile(bin)
+	if err != nil {
+		r.t.Fatal(err)
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.stable = version
+	r.bodies[version] = body
+	return body
+}
+
+func (r *release) source() Source {
+	return Source{BaseURL: r.srv.URL, Platform: testPlatform, Client: r.srv.Client(), Verify: func(context.Context, string) error { return r.verify }}
+}
 
 // ageUpdate moves the recorded follow-up back in time.
 func ageUpdate(t *testing.T, home string, by time.Duration) {
@@ -50,10 +120,11 @@ func link(t *testing.T, home string) string {
 }
 
 func TestInstallVerifiedVersionSkipsTheSelfCheck(t *testing.T) {
-	bin, _ := fakeClaude(t, "2.1.312")
+	rel := newRelease(t)
+	rel.publish("2.1.312")
 	home := t.TempDir()
 	c := &checker{}
-	got, err := Install(context.Background(), bin, home, c.check)
+	got, err := Install(context.Background(), home, rel.source(), c.check)
 	if err != nil || got != (Installed{Version: "2.1.312"}) || len(c.checked) != 0 {
 		t.Fatalf("install %+v %v, checked %v", got, err, c.checked)
 	}
@@ -68,16 +139,17 @@ func TestInstallVerifiedVersionSkipsTheSelfCheck(t *testing.T) {
 		t.Fatalf("probe of the installed copy %+v %v", info, err)
 	}
 	// Installing again replaces the link in place.
-	if _, err := Install(context.Background(), bin, home, c.check); err != nil {
+	if _, err := Install(context.Background(), home, rel.source(), c.check); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestInstallChecksAnUnknownVersionOnce(t *testing.T) {
-	bin, _ := fakeClaude(t, "2.1.400")
+	rel := newRelease(t)
+	rel.publish("2.1.400")
 	home := t.TempDir()
 	c := &checker{}
-	got, err := Install(context.Background(), bin, home, c.check)
+	got, err := Install(context.Background(), home, rel.source(), c.check)
 	if err != nil || got != (Installed{Version: "2.1.400", Checked: true}) || len(c.checked) != 1 {
 		t.Fatalf("install %+v %v, checked %v", got, err, c.checked)
 	}
@@ -85,50 +157,52 @@ func TestInstallChecksAnUnknownVersionOnce(t *testing.T) {
 		t.Fatalf("a version that passed here is unsupported: %+v %v", info, err)
 	}
 	// The pass is remembered.
-	got, err = Install(context.Background(), bin, home, c.check)
+	got, err = Install(context.Background(), home, rel.source(), c.check)
 	if err != nil || got.Checked || len(c.checked) != 1 {
 		t.Fatalf("second install %+v %v, checked %v", got, err, c.checked)
 	}
 }
 
 func TestInstallRefusesAVersionThatFailsTheSelfCheck(t *testing.T) {
-	good, _ := fakeClaude(t, "2.1.312")
+	rel := newRelease(t)
+	rel.publish("2.1.312")
 	home := t.TempDir()
-	if _, err := Install(context.Background(), good, home, (&checker{}).check); err != nil {
+	if _, err := Install(context.Background(), home, rel.source(), (&checker{}).check); err != nil {
 		t.Fatal(err)
 	}
-	bad, _ := fakeClaude(t, "2.1.400")
+	rel.publish("2.1.400")
 	c := &checker{err: errors.New("no approval came")}
-	if _, err := Install(context.Background(), bad, home, c.check); err == nil || !strings.Contains(err.Error(), "failed the self-check") || !strings.Contains(err.Error(), "no approval came") {
+	if _, err := Install(context.Background(), home, rel.source(), c.check); err == nil || !strings.Contains(err.Error(), "failed the self-check") || !strings.Contains(err.Error(), "no approval came") {
 		t.Fatalf("failed check installed: %v", err)
 	}
 	if target := link(t, home); target != "claude-2.1.312" {
 		t.Fatalf("a refused install changed the link to %q", target)
 	}
 	if _, err := os.Stat(BinaryPath(home) + "-2.1.400"); !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("a refused version was copied: %v", err)
+		t.Fatalf("a refused version was kept: %v", err)
 	}
 }
 
 func TestFollow(t *testing.T) {
+	rel := newRelease(t)
 	ctx := context.Background()
 	home := t.TempDir()
-	user, dir := fakeClaude(t, "2.1.312")
+	rel.publish("2.1.312")
 	c := &checker{}
 
-	if _, ok := Follow(ctx, home, dir, c.check); ok {
+	if _, ok := Follow(ctx, home, rel.source(), c.check); ok {
 		t.Fatal("followed without a copy of Hoplet's")
 	}
-	if _, err := Install(ctx, user, home, c.check); err != nil {
+	if _, err := Install(ctx, home, rel.source(), c.check); err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := Follow(ctx, home, "/nonexistent:"+dir, c.check); ok {
+	if _, ok := Follow(ctx, home, rel.source(), c.check); ok {
 		t.Fatal("followed the same version")
 	}
 
-	// The user's claude updates itself; the follow-up checks and moves.
-	newer, newerDir := fakeClaude(t, "2.1.400")
-	u, ok := Follow(ctx, home, newerDir, c.check)
+	// The stable channel moves; the follow-up checks and moves too.
+	newer := rel.publish("2.1.400")
+	u, ok := Follow(ctx, home, rel.source(), c.check)
 	if !ok || u.Error != "" || u.From != "2.1.312" || u.Version != "2.1.400" || len(c.checked) != 1 {
 		t.Fatalf("follow %+v %v, checked %v", u, ok, c.checked)
 	}
@@ -136,8 +210,8 @@ func TestFollow(t *testing.T) {
 	if got := c.checked[0]; filepath.Dir(got) != filepath.Dir(BinaryPath(home)) {
 		t.Fatalf("checked %s, outside bin/", got)
 	}
-	if want, err := os.ReadFile(newer); err != nil || !bytes.Equal(c.content[0], want) {
-		t.Fatalf("the checked copy differs from the source: %v", err)
+	if !bytes.Equal(c.content[0], newer) {
+		t.Fatal("the checked copy differs from the release")
 	}
 	if target := link(t, home); target != "claude-2.1.400" {
 		t.Fatalf("link %q", target)
@@ -151,9 +225,9 @@ func TestFollow(t *testing.T) {
 	}
 
 	// A version that fails stays out, once.
-	_, brokenDir := fakeClaude(t, "2.1.500")
+	rel.publish("2.1.500")
 	c.err = errors.New("interrupt ignored")
-	u, ok = Follow(ctx, home, brokenDir, c.check)
+	u, ok = Follow(ctx, home, rel.source(), c.check)
 	if !ok || !strings.Contains(u.Error, "interrupt ignored") || len(c.checked) != 2 {
 		t.Fatalf("failed follow %+v %v, checked %v", u, ok, c.checked)
 	}
@@ -170,23 +244,24 @@ func TestFollow(t *testing.T) {
 }
 
 func TestFollowGivesUpAfterThreeAttempts(t *testing.T) {
+	rel := newRelease(t)
 	ctx := context.Background()
 	home := t.TempDir()
-	user, _ := fakeClaude(t, "2.1.312")
+	rel.publish("2.1.312")
 	c := &checker{}
-	if _, err := Install(ctx, user, home, c.check); err != nil {
+	if _, err := Install(ctx, home, rel.source(), c.check); err != nil {
 		t.Fatal(err)
 	}
-	_, brokenDir := fakeClaude(t, "2.1.500")
+	rel.publish("2.1.500")
 	c.err = errors.New("flaky")
 	for i := 1; i <= 3; i++ {
-		u, ok := Follow(ctx, home, brokenDir, c.check)
+		u, ok := Follow(ctx, home, rel.source(), c.check)
 		if !ok || u.Attempts != i || len(c.checked) != i {
 			t.Fatalf("attempt %d: %+v %v, checked %d", i, u, ok, len(c.checked))
 		}
 		ageUpdate(t, home, 24*time.Hour) // a day passes
 	}
-	if _, ok := Follow(ctx, home, brokenDir, c.check); ok || len(c.checked) != 3 {
+	if _, ok := Follow(ctx, home, rel.source(), c.check); ok || len(c.checked) != 3 {
 		t.Fatalf("a given-up version was checked again: %d", len(c.checked))
 	}
 	info, err := (&Harness{Binary: BinaryPath(home)}).Probe(ctx)
@@ -196,17 +271,18 @@ func TestFollowGivesUpAfterThreeAttempts(t *testing.T) {
 }
 
 func TestFollowRecordsNothingWhenCancelled(t *testing.T) {
+	rel := newRelease(t)
 	home := t.TempDir()
-	user, _ := fakeClaude(t, "2.1.312")
+	rel.publish("2.1.312")
 	c := &checker{}
-	if _, err := Install(context.Background(), user, home, c.check); err != nil {
+	if _, err := Install(context.Background(), home, rel.source(), c.check); err != nil {
 		t.Fatal(err)
 	}
-	_, newerDir := fakeClaude(t, "2.1.400")
+	rel.publish("2.1.400")
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	c.err = context.Canceled
-	if u, ok := Follow(ctx, home, newerDir, c.check); ok || u != (Update{}) {
+	if u, ok := Follow(ctx, home, rel.source(), c.check); ok || u != (Update{}) {
 		t.Fatalf("a cancelled follow recorded %+v %v", u, ok)
 	}
 	if _, ok := lastUpdate(BinaryPath(home)); ok {
@@ -214,14 +290,15 @@ func TestFollowRecordsNothingWhenCancelled(t *testing.T) {
 	}
 	c.err = nil
 	n := len(c.checked)
-	if u, ok := Follow(context.Background(), home, newerDir, c.check); !ok || u.Error != "" || len(c.checked) != n+1 {
+	if u, ok := Follow(context.Background(), home, rel.source(), c.check); !ok || u.Error != "" || len(c.checked) != n+1 {
 		t.Fatalf("the next follow %+v %v, checked %d", u, ok, len(c.checked))
 	}
 }
 
 func TestInstallPrunesCrashedTempCopies(t *testing.T) {
+	rel := newRelease(t)
 	home := t.TempDir()
-	user, _ := fakeClaude(t, "2.1.312")
+	rel.publish("2.1.312")
 	dir := filepath.Dir(BinaryPath(home))
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		t.Fatal(err)
@@ -230,7 +307,7 @@ func TestInstallPrunesCrashedTempCopies(t *testing.T) {
 	if err := os.WriteFile(stale, []byte("x"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := Install(context.Background(), user, home, (&checker{}).check); err != nil {
+	if _, err := Install(context.Background(), home, rel.source(), (&checker{}).check); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(stale); !errors.Is(err, os.ErrNotExist) {
@@ -239,42 +316,44 @@ func TestInstallPrunesCrashedTempCopies(t *testing.T) {
 }
 
 func TestFollowTriesAFailedVersionOncePerDay(t *testing.T) {
+	rel := newRelease(t)
 	ctx := context.Background()
 	home := t.TempDir()
-	user, _ := fakeClaude(t, "2.1.312")
+	rel.publish("2.1.312")
 	c := &checker{}
-	if _, err := Install(ctx, user, home, c.check); err != nil {
+	if _, err := Install(ctx, home, rel.source(), c.check); err != nil {
 		t.Fatal(err)
 	}
-	_, brokenDir := fakeClaude(t, "2.1.500")
+	rel.publish("2.1.500")
 	c.err = errors.New("flaky")
-	if _, ok := Follow(ctx, home, brokenDir, c.check); !ok || len(c.checked) != 1 {
+	if _, ok := Follow(ctx, home, rel.source(), c.check); !ok || len(c.checked) != 1 {
 		t.Fatalf("first follow, checked %d", len(c.checked))
 	}
 	// A restarted daemon follows again at once: no second check.
-	if _, ok := Follow(ctx, home, brokenDir, c.check); ok || len(c.checked) != 1 {
+	if _, ok := Follow(ctx, home, rel.source(), c.check); ok || len(c.checked) != 1 {
 		t.Fatalf("a failure just recorded was retried: checked %d", len(c.checked))
 	}
 	ageUpdate(t, home, 19*time.Hour)
-	if _, ok := Follow(ctx, home, brokenDir, c.check); ok || len(c.checked) != 1 {
+	if _, ok := Follow(ctx, home, rel.source(), c.check); ok || len(c.checked) != 1 {
 		t.Fatalf("retried after 19h: checked %d", len(c.checked))
 	}
 	ageUpdate(t, home, 2*time.Hour)
-	if u, ok := Follow(ctx, home, brokenDir, c.check); !ok || u.Attempts != 2 || len(c.checked) != 2 {
+	if u, ok := Follow(ctx, home, rel.source(), c.check); !ok || u.Attempts != 2 || len(c.checked) != 2 {
 		t.Fatalf("after 21h: %+v %v, checked %d", u, ok, len(c.checked))
 	}
 	// A newer version is not held back by the failed one.
-	_, newerDir := fakeClaude(t, "2.1.600")
+	rel.publish("2.1.600")
 	c.err = nil
-	if u, ok := Follow(ctx, home, newerDir, c.check); !ok || u.Error != "" || u.Version != "2.1.600" || len(c.checked) != 3 {
+	if u, ok := Follow(ctx, home, rel.source(), c.check); !ok || u.Error != "" || u.Version != "2.1.600" || len(c.checked) != 3 {
 		t.Fatalf("newer version: %+v %v, checked %d", u, ok, len(c.checked))
 	}
 }
 
 func TestInstallWithoutACheckerRefusesAnUnverifiedVersion(t *testing.T) {
-	bin, _ := fakeClaude(t, "2.1.400")
+	rel := newRelease(t)
+	rel.publish("2.1.400")
 	home := t.TempDir()
-	_, err := Install(context.Background(), bin, home, nil)
+	_, err := Install(context.Background(), home, rel.source(), nil)
 	if err == nil || !strings.Contains(err.Error(), "no self-check was given") {
 		t.Fatalf("install without a checker: %v", err)
 	}
@@ -282,16 +361,17 @@ func TestInstallWithoutACheckerRefusesAnUnverifiedVersion(t *testing.T) {
 		t.Fatalf("an unverified version was linked: %v", err)
 	}
 	// A verified version needs no checker.
-	good, _ := fakeClaude(t, "2.1.312")
-	if _, err := Install(context.Background(), good, home, nil); err != nil {
+	rel.publish("2.1.312")
+	if _, err := Install(context.Background(), home, rel.source(), nil); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestSelfCheckFailureIsMarked(t *testing.T) {
-	bin, _ := fakeClaude(t, "2.1.400")
+	rel := newRelease(t)
+	rel.publish("2.1.400")
 	c := &checker{err: errors.New("boom")}
-	_, err := Install(context.Background(), bin, t.TempDir(), c.check)
+	_, err := Install(context.Background(), t.TempDir(), rel.source(), c.check)
 	if !errors.Is(err, ErrSelfCheck) || !errors.Is(err, c.err) {
 		t.Fatalf("error %v is not ErrSelfCheck wrapping the cause", err)
 	}
@@ -306,19 +386,104 @@ func TestNoticeForAnUncountedFailure(t *testing.T) {
 }
 
 func TestFollowRetriesAfterTheClockWentBack(t *testing.T) {
+	rel := newRelease(t)
 	ctx := context.Background()
 	home := t.TempDir()
-	user, _ := fakeClaude(t, "2.1.312")
+	rel.publish("2.1.312")
 	c := &checker{err: errors.New("flaky")}
-	if _, err := Install(ctx, user, home, c.check); err != nil {
+	if _, err := Install(ctx, home, rel.source(), c.check); err != nil {
 		t.Fatal(err)
 	}
-	_, brokenDir := fakeClaude(t, "2.1.500")
-	if _, ok := Follow(ctx, home, brokenDir, c.check); !ok {
+	rel.publish("2.1.500")
+	if _, ok := Follow(ctx, home, rel.source(), c.check); !ok {
 		t.Fatal("first follow did nothing")
 	}
 	ageUpdate(t, home, -48*time.Hour) // recorded "in the future"
-	if _, ok := Follow(ctx, home, brokenDir, c.check); !ok || len(c.checked) != 2 {
+	if _, ok := Follow(ctx, home, rel.source(), c.check); !ok || len(c.checked) != 2 {
 		t.Fatalf("a failure dated in the future blocked the retry: checked %d", len(c.checked))
+	}
+}
+
+func TestInstallDoesNotDownloadWhatIsInPlace(t *testing.T) {
+	rel := newRelease(t)
+	rel.publish("2.1.312")
+	home := t.TempDir()
+	for range 2 {
+		if _, err := Install(context.Background(), home, rel.source(), nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if rel.gets != 1 {
+		t.Fatalf("downloaded %d times", rel.gets)
+	}
+}
+
+func TestFollowsTheChannelBack(t *testing.T) {
+	rel := newRelease(t)
+	home := t.TempDir()
+	c := &checker{}
+	rel.publish("2.1.400")
+	if _, err := Install(context.Background(), home, rel.source(), c.check); err != nil {
+		t.Fatal(err)
+	}
+	rel.publish("2.1.312")
+	if u, ok := Follow(context.Background(), home, rel.source(), c.check); !ok || u.Error != "" || link(t, home) != "claude-2.1.312" {
+		t.Fatalf("follow %+v %v, link %s", u, ok, link(t, home))
+	}
+}
+
+func TestBadDownloadsDoNotSwitch(t *testing.T) {
+	tests := []struct {
+		name  string
+		spoil func(r *release)
+		want  string
+	}{
+		{"checksum", func(r *release) { r.sums["2.1.400"] = strings.Repeat("a", 64) }, "checksum mismatch"},
+		{"signature", func(r *release) { r.verify = errors.New("not signed") }, "not signed"},
+		{"another version", func(r *release) { r.bodies["2.1.400"] = r.bodies["2.1.312"] }, "reports version"},
+		{"no build", func(r *release) { r.stable = "2.1.401"; r.bodies["2.1.401"] = nil }, "2.1.401"},
+		{"strange channel", func(r *release) { r.stable = "../evil" }, "unexpected version"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rel := newRelease(t)
+			home := t.TempDir()
+			c := &checker{}
+			rel.publish("2.1.312")
+			if _, err := Install(context.Background(), home, rel.source(), c.check); err != nil {
+				t.Fatal(err)
+			}
+			rel.publish("2.1.400")
+			tt.spoil(rel)
+			if _, err := Install(context.Background(), home, rel.source(), c.check); err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("got %v", err)
+			}
+			if target := link(t, home); target != "claude-2.1.312" {
+				t.Fatalf("link %q", target)
+			}
+			if len(c.checked) != 0 {
+				t.Fatalf("self-checked a bad download: %v", c.checked)
+			}
+			left, _ := filepath.Glob(filepath.Join(filepath.Dir(BinaryPath(home)), ".claude-*"))
+			if len(left) != 0 {
+				t.Fatalf("left %q", left)
+			}
+		})
+	}
+}
+
+func TestFailedDownloadIsNotCounted(t *testing.T) {
+	rel := newRelease(t)
+	home := t.TempDir()
+	c := &checker{}
+	rel.publish("2.1.312")
+	if _, err := Install(context.Background(), home, rel.source(), c.check); err != nil {
+		t.Fatal(err)
+	}
+	rel.publish("2.1.400")
+	rel.sums["2.1.400"] = strings.Repeat("a", 64)
+	u, ok := Follow(context.Background(), home, rel.source(), c.check)
+	if !ok || !strings.Contains(u.Error, "checksum mismatch") || u.Attempts != 0 || len(c.checked) != 0 {
+		t.Fatalf("follow %+v %v, checked %v", u, ok, c.checked)
 	}
 }
