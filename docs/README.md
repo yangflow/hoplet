@@ -75,4 +75,5 @@ flowchart TB
 | [0011 客户端技术栈](design/0011-client-stack.md) | 桌面、iOS 与协议类型生成 |
 | [0014 桌面设计系统](design/0014-desktop-ui.md) | token（生成主题代码）、文字、图标、动效与 MyGO 映射 |
 | [0024 桌面布局与交互](design/0024-desktop-layout.md) | 页面、输入、面板与阶段状态 |
+| [0026 iOS 界面](design/0026-ios-ui.md) | 页面、手势、颜色、图标与文案 |
 | [0013 测试、升级与发布](design/0013-testing-release.md) | 契约、验收、性能与产品发布 |
