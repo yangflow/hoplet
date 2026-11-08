@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
@@ -92,29 +93,24 @@ func (p *procStdio) Signal(string) error { return nil }
 // Close keeps the process running, so a recording can connect anew.
 func (p *procStdio) Close() error { return nil }
 
-// Record runs Codex through this adapter, plays the steps and writes every
-// line in both directions to out. The recording holds what Codex printed,
-// personal paths included: Sanitize it before committing it as a fixture.
-func Record(ctx context.Context, cfg RecordConfig, out io.Writer) error {
-	spec := cfg.Spec
-	spec.WorkDir, spec.Env = cfg.Dir, cfg.Env
-	l, err := (&Harness{Binary: cfg.Binary}).Launch(spec)
-	if err != nil {
-		return err
-	}
+// startProcess runs l and connects it to a procStdio that writes every line
+// to out. stop closes stdin, kills the process and records its exit.
+func startProcess(ctx context.Context, l harness.Launch, out io.Writer) (_ *procStdio, stop func() error, _ error) {
 	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
 	cmd := launchCommand(ctx, l)
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
-		return fmt.Errorf("codex: %w", err)
+		cancel()
+		return nil, nil, fmt.Errorf("codex: %w", err)
 	}
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		return fmt.Errorf("codex: %w", err)
+		cancel()
+		return nil, nil, fmt.Errorf("codex: %w", err)
 	}
 	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("codex: %w", err)
+		cancel()
+		return nil, nil, fmt.Errorf("codex: %w", err)
 	}
 	enc := json.NewEncoder(out)
 	enc.SetEscapeHTML(false)
@@ -133,20 +129,52 @@ func Record(ctx context.Context, cfg RecordConfig, out io.Writer) error {
 			}
 		}
 	}()
+	return p, func() error {
+		closeErr := stdin.Close()
+		cancel()
+		waitErr := cmd.Wait()
+		code := 0
+		var ee *exec.ExitError
+		if errors.As(waitErr, &ee) {
+			code, waitErr = ee.ExitCode(), nil
+		}
+		if ctx.Err() != nil { // killed by the cancel above: the normal way out
+			waitErr = nil
+		}
+		p.record("exit", strconv.Itoa(code))
+		return errors.Join(closeErr, waitErr, p.err)
+	}, nil
+}
+
+// Record runs Codex through this adapter, plays the steps and writes every
+// line in both directions to out. The recording holds what Codex printed,
+// personal paths included: Sanitize it before committing it as a fixture.
+func Record(ctx context.Context, cfg RecordConfig, out io.Writer) error {
+	spec := cfg.Spec
+	spec.WorkDir, spec.Env = cfg.Dir, cfg.Env
+	if len(spec.MCP) > 0 && spec.Dir == "" {
+		dir, err := os.MkdirTemp("", "hoplet-record-")
+		if err != nil {
+			return fmt.Errorf("codex: %w", err)
+		}
+		defer os.RemoveAll(dir)
+		spec.Dir = dir
+	}
+	l, err := (&Harness{Binary: cfg.Binary}).Launch(spec)
+	if err != nil {
+		return err
+	}
+	for name, b := range l.Files {
+		if err := os.WriteFile(filepath.Join(spec.Dir, name), b, 0o600); err != nil {
+			return fmt.Errorf("codex: %w", err)
+		}
+	}
+	p, stop, err := startProcess(ctx, l, out)
+	if err != nil {
+		return err
+	}
 	playErr := play(ctx, p, spec, cfg.Steps)
-	closeErr := stdin.Close()
-	cancel()
-	waitErr := cmd.Wait()
-	code := 0
-	var ee *exec.ExitError
-	if errors.As(waitErr, &ee) {
-		code, waitErr = ee.ExitCode(), nil
-	}
-	if ctx.Err() != nil { // killed by the cancel above: the normal way out
-		waitErr = nil
-	}
-	p.record("exit", strconv.Itoa(code))
-	return errors.Join(playErr, closeErr, waitErr, p.err)
+	return errors.Join(playErr, stop())
 }
 
 // wanted reports whether ev is what a wait step waits for.

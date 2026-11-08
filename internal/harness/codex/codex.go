@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/yangflow/hoplet/internal/harness"
+	"github.com/yangflow/hoplet/internal/harness/verified"
 	"github.com/yangflow/hoplet/proto"
 )
 
@@ -33,7 +34,7 @@ const probeTimeout = 10 * time.Second
 
 // recordedVersions are the versions this adapter's contract tests cover. Add
 // a version only together with its recordings in testdata.
-func recordedVersions() []string { return []string{PinnedVersion} }
+func recordedVersions() []string { return []string{"0.167.0"} }
 
 func recorded(v string) bool { return slices.Contains(recordedVersions(), v) }
 
@@ -41,6 +42,9 @@ func recorded(v string) bool { return slices.Contains(recordedVersions(), v) }
 func BinaryPath(home string) string {
 	return filepath.Join(home, "harness", Kind, currentLink, "bin", "codex")
 }
+
+// stateDir is where Hoplet keeps what it knows about the managed copy bin.
+func stateDir(bin string) string { return filepath.Dir(filepath.Dir(filepath.Dir(bin))) }
 
 // ErrNotInstalled says Hoplet's copy of Codex is missing.
 var ErrNotInstalled = errors.New("codex: Hoplet's copy of Codex is not installed (run `hoplet harness install codex`)")
@@ -74,7 +78,7 @@ func (h *Harness) Kind() string { return Kind }
 // caps is what this adapter supports.
 func caps() proto.Capabilities {
 	return proto.Capabilities{
-		Steer: true, Resume: true, SetMode: true, SetModel: true, PlanMode: true, PartialStream: true,
+		Steer: true, Resume: true, SetMode: true, SetModel: true, PlanMode: true, PartialStream: true, MCPInject: true,
 		Modes:   []proto.PermissionMode{proto.ModeConfirm, proto.ModeAutoEdit, proto.ModeAutoReview, proto.ModeFullAuto},
 		Efforts: []proto.Effort{proto.EffortLow, proto.EffortMedium, proto.EffortHigh, proto.EffortXHigh, proto.EffortMax, proto.EffortUltra},
 	}
@@ -93,11 +97,22 @@ func (h *Harness) Probe(ctx context.Context) (harness.Info, error) {
 		if err != nil {
 			return harness.Info{}, err
 		}
-		h.cached = harness.Info{Version: v, Capabilities: caps(), Supported: recorded(v)}
+		h.cached = harness.Info{Version: v, Capabilities: caps()}
 		h.stamp = st
 	}
-	return h.cached, nil
+	info := h.cached
+	dir := stateDir(h.Binary)
+	// Not cached: a self-check can pass or fail for the same binary.
+	info.Supported = recorded(info.Version) || verified.Has(dir, info.Version)
+	if o, ok := verified.Last(dir); ok {
+		info.Notice, info.Attention = notice(o, info.Version)
+	}
+	return info, nil
 }
+
+// KeepsPersona reports that a resumed thread keeps the instructions it was
+// started with: thread/resume ignores new ones.
+func (h *Harness) KeepsPersona() bool { return true }
 
 func binaryStamp(bin string) (stamp, error) {
 	path, err := filepath.EvalSymlinks(bin)
@@ -170,7 +185,12 @@ func (h *Harness) Launch(spec harness.Spec) (harness.Launch, error) {
 	if _, err := nativeMode(spec.Mode); err != nil {
 		return harness.Launch{}, err
 	}
-	return harness.Launch{Command: []string{h.Binary, "app-server"}, Env: slices.Clone(spec.Env), Dir: spec.WorkDir}, nil
+	args, files, err := mcpOverrides(spec)
+	if err != nil {
+		return harness.Launch{}, err
+	}
+	cmd := append([]string{h.Binary, "app-server"}, args...)
+	return harness.Launch{Command: cmd, Env: slices.Clone(spec.Env), Dir: spec.WorkDir, Files: files}, nil
 }
 
 // Attach connects to a codex app-server: one just launched, or one already

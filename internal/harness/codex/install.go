@@ -41,6 +41,11 @@ type Source struct {
 	BaseURL string
 	Target  string
 	Client  *http.Client
+	// Check runs the self-check on a version the adapter has no recordings
+	// of, before Hoplet switches to it.
+	Check func(ctx context.Context, bin string) error
+
+	recorded func(string) bool // the versions needing no check; nil for the adapter's
 }
 
 // Installed describes an install.
@@ -88,7 +93,7 @@ func target() (string, error) {
 // is switched unless the package matches its published SHA-256 and carries
 // the pinned version; installs for one home are serialized by a lock file.
 func Install(ctx context.Context, home string, src Source) (Installed, error) {
-	dir := filepath.Dir(filepath.Dir(filepath.Dir(BinaryPath(home))))
+	dir := stateDir(BinaryPath(home))
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return Installed{}, fmt.Errorf("codex: %w", err)
 	}
@@ -120,6 +125,9 @@ func Install(ctx context.Context, home string, src Source) (Installed, error) {
 	if err != nil {
 		return Installed{}, err
 	}
+	if err := src.gate(ctx, dir, rec.Version, staging); err != nil {
+		return Installed{}, err
+	}
 	dst := filepath.Join(dir, rec.Version)
 	if err := os.RemoveAll(dst); err != nil { // only a broken earlier install gets here
 		return Installed{}, fmt.Errorf("codex: %w", err)
@@ -141,6 +149,28 @@ func Install(ctx context.Context, home string, src Source) (Installed, error) {
 	}
 	prune(dir, rec.Version)
 	return Installed{Version: rec.Version, Voice: rec.Voice}, nil
+}
+
+// gate refuses a version that has no recordings and fails the self-check;
+// the copy in use is not touched until this passes.
+func (s Source) gate(ctx context.Context, dir, v, staging string) error {
+	known, check := s.recorded, s.Check
+	if known == nil {
+		known = recorded
+	}
+	if check == nil {
+		check = func(context.Context, string) error {
+			return errors.Join(errCheckSetup, errors.New("this build has no self-check"))
+		}
+	}
+	o, _, err := verifyVersion(ctx, dir, v, filepath.Join(staging, "bin", "codex"), known, check, nil)
+	if err != nil {
+		return err
+	}
+	if o.Error != "" {
+		return fmt.Errorf("codex: staying on the current copy: %s: %s", v, o.Error)
+	}
+	return nil
 }
 
 // fetch downloads, verifies and unpacks the package into staging.

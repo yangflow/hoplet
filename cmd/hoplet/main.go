@@ -83,6 +83,8 @@ type app struct {
 	// hermesCheck checks a Hermes version before Hoplet starts turns on
 	// it; nil also turns the daemon's daily check off (tests).
 	hermesCheck hermes.Checker
+	// codexCheck checks a Codex version without recordings (nil in tests).
+	codexCheck codex.Checker
 	// host, when set, is the paired host session, companion, artifact and
 	// device commands run on (--host).
 	host string
@@ -95,7 +97,7 @@ type app struct {
 }
 
 func run(args []string, stdout, stderr io.Writer) int {
-	return app{stdout: stdout, stderr: stderr, harnesses: harnesses, service: realService, relaySystem: realRelaySystem, selfCheck: claude.SelfCheck, hermesCheck: hermes.SelfCheck}.run(args)
+	return app{stdout: stdout, stderr: stderr, harnesses: harnesses, service: realService, relaySystem: realRelaySystem, selfCheck: claude.SelfCheck, hermesCheck: hermes.SelfCheck, codexCheck: codex.SelfCheck}.run(args)
 }
 
 // harnesses are the adapters a production daemon serves: claude runs
