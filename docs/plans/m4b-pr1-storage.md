@@ -163,34 +163,34 @@ func (s *Service) Scan(ctx context.Context) error
 
 ### 任务 1：条目编解码
 
-- [ ] `internal/memory/entry.go`：`Entry`、`Category`、`Status`、`Scope`、`Evidence`、`Actor` 及校验；`internal/memory/frontmatter.go`：`Encode`、`Decode`
-- [ ] 测试（表驱动）：往返相等；含中文、冒号、引号、换行的 `value` 与 `ref`；上表每种错误各一例；正文上限；`superseded` 与 `replaced_by` 的约束；`FuzzDecode`，种子含合法文件，只断言不 panic 且成功时往返相等
-- [ ] commit：`feat(memory): encode entries as Markdown with frontmatter`
+- [x] `internal/memory/entry.go`：`Entry`、`Category`、`Status`、`Scope`、`Evidence`、`Actor` 及校验；`internal/memory/frontmatter.go`：`Encode`、`Decode`
+- [x] 测试（表驱动）：往返相等；含中文、冒号、引号、换行的 `value` 与 `ref`；上表每种错误各一例；正文上限；`superseded` 与 `replaced_by` 的约束；`FuzzDecode`，种子含合法文件，只断言不 panic 且成功时往返相等
+- [x] commit：`feat(memory): encode entries as Markdown with frontmatter`
 
 ### 任务 2：存储
 
-- [ ] `internal/store/migrations/0016_memory.sql`；`internal/store/memory.go`
-- [ ] 测试：从 0015 迁移后会话与事件不变；同 ID 重复 begin 的两种结果；同条目同版本第二次 `committed` 被唯一索引拒绝；`ReplaceMemoryIndex` 不动 `memory_ops`；`LIKE` 中 `%`、`_`、`\` 按字面匹配；两字中文词能查到；过滤条件组合
-- [ ] commit：`feat(store): record memory operations and index`
+- [x] `internal/store/migrations/0016_memory.sql`；`internal/store/memory.go`
+- [x] 测试：从 0015 迁移后会话与事件不变；同 ID 重复 begin 的两种结果；同条目同版本第二次 `committed` 被唯一索引拒绝；`ReplaceMemoryIndex` 不动 `memory_ops`；`LIKE` 中 `%`、`_`、`\` 按字面匹配；两字中文词能查到；过滤条件组合
+- [x] commit：`feat(store): record memory operations and index`
 
 ### 任务 3：提交与恢复
 
-- [ ] `internal/home`：`Profile`；`internal/memory/service.go`：`Open`、`Commit`、`Get`、`Search`、`History`、`Problems`；`internal/memory/recover.go`
-- [ ] 测试：新建和更新后文件、审计、索引一致；`ExpectedVersion` 过期被拒且文件不变；同 ID 重试不产生新版本；4 个失败点各崩溃一次，重开后：`after-begin` 和 `after-temp` 为旧版本且操作 `failed`，临时文件被清除，`after-rename` 和 `after-finish` 为新版本且操作 `committed`；重开后用同一操作 ID 重试，结果一致且不重复写入；rename 失败时返回错误且不是已提交；`-race` 下并发提交同一条目只有一个成功；`History` 返回旧版本内容
-- [ ] commit：`feat(memory): commit entries with crash recovery`
+- [x] `internal/home`：`Profile`；`internal/memory/service.go`：`Open`、`Commit`、`Get`、`Search`、`History`、`Problems`；`internal/memory/recover.go`
+- [x] 测试：新建和更新后文件、审计、索引一致；`ExpectedVersion` 过期被拒且文件不变；同 ID 重试不产生新版本；4 个失败点各崩溃一次，重开后：`after-begin` 和 `after-temp` 为旧版本且操作 `failed`，临时文件被清除，`after-rename` 和 `after-finish` 为新版本且操作 `committed`；重开后用同一操作 ID 重试，结果一致且不重复写入；rename 失败时返回错误且不是已提交；`-race` 下并发提交同一条目只有一个成功；`History` 返回旧版本内容
+- [x] commit：`feat(memory): commit entries with crash recovery`
 
 ### 任务 4：扫描与重建
 
-- [ ] `internal/memory/scan.go`、`internal/memory/profile.go`
-- [ ] 测试：手改正文后版本加一、`actor = file`、文件版本号被写回；再次扫描无新操作；不合法文件不进索引、不被改动、出现在 `Problems`，修好后恢复；已索引条目改坏后从检索消失；删除文件后的处理；路径与内容不一致；清空索引后 `Scan` 恢复且不产生新操作；`PROFILE.md` 只含 `active`；`PROFILE.md` 写失败时 `Commit` 仍成功且下次提交重新生成
-- [ ] commit：`feat(memory): scan entry files and rebuild the index`
+- [x] `internal/memory/scan.go`、`internal/memory/profile.go`
+- [x] 测试：手改正文后版本加一、`actor = file`、文件版本号被写回；再次扫描无新操作；不合法文件不进索引、不被改动、出现在 `Problems`，修好后恢复；已索引条目改坏后从检索消失；删除文件后的处理；路径与内容不一致；清空索引后 `Scan` 恢复且不产生新操作；`PROFILE.md` 只含 `active`；`PROFILE.md` 写失败时 `Commit` 仍成功且下次提交重新生成
+- [x] commit：`feat(memory): scan entry files and rebuild the index`
 
 ### 任务 5：接入 daemon
 
-- [ ] `internal/daemon/daemon.go`：在 `arts.Clean` 之后、监听之前 `memory.Open`，服务放到 `server`；此 PR 不暴露方法
-- [ ] 测试：daemon 启动时恢复一个 `pending` 操作（预置数据）；`profile/` 不存在时启动会创建
-- [ ] `make check`，把结果写入本计划的“结果”一节，更新 0016 的状态
-- [ ] commit：`feat(daemon): open the memory service at startup`
+- [x] `internal/daemon/daemon.go`：在 `arts.Clean` 之后、监听之前 `memory.Open`，服务放到 `server`；此 PR 不暴露方法
+- [x] 测试：daemon 启动时恢复一个 `pending` 操作（预置数据）；`profile/` 不存在时启动会创建
+- [x] `make check`，把结果写入本计划的“结果”一节，更新 0016 的状态
+- [x] commit：`feat(daemon): open the memory service at startup`
 
 ## 风险
 
@@ -199,3 +199,18 @@ func (s *Service) Scan(ctx context.Context) error
 | 用户用编辑器保存时恰好扫描，读到半截文件 | 扫描只在启动和显式调用时发生；读到不合法内容也只是记问题，下次扫描恢复 |
 | 迁移编号被并行工作占用 | 实现时取当时 `main` 的下一个编号 |
 | `after-rename` 崩溃后恢复前用户改了文件 | 恢复按哈希判定为失败，扫描再按用户编辑处理，不丢用户内容 |
+
+## 结果
+
+`make check` 通过（golangci-lint、`go tool mygo vet desktop`、`go test -race ./...`）；`FuzzDecode` 另跑 15 秒，约 41 万次执行无失败。
+
+实现时与上文不同的地方：
+
+| 项 | 实际做法 | 原因 |
+|---|---|---|
+| 同 ID 重试的判断 | 放在版本检查之前，比较时忽略 `Version` 和 `UpdatedAt`；新增 `MemoryOpByID` | 提交成功后索引版本已变，先查版本会把重试判成冲突；`UpdatedAt` 每次不同，只比哈希也认不出重试 |
+| 扫描的操作 ID | 随机生成，不由条目 ID 和文件哈希派生 | 派生的 ID 在崩溃后对应一条 `failed` 操作，同一次手改就永远记不进去；重复由恢复流程和哈希判断防住 |
+| `Commit` 额外拒绝 | 文件有扫描未收录的手改时返回 `ErrConflict`；改变已有条目的分类返回 `ErrInvalid` | 前者避免覆盖用户手改，后者避免新旧目录留下两个文件 |
+| 同一 ID 出现在多个路径 | 第二个文件记入问题列表 | 否则每次扫描结果来回变化 |
+
+0016 的行为没有变化，文档不用改。
