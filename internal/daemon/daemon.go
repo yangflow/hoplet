@@ -90,16 +90,17 @@ type Config struct {
 
 // Daemon is a running daemon.
 type Daemon struct {
-	log   *slog.Logger
-	lock  *os.File
-	store *store.Store
-	mgr   *session.Manager
-	ws    *workspace.Service
-	srv   *server
-	http  *http.Server
-	net   *http.Server // the direct listener; nil without one
-	netLn net.Listener
-	queue *queuer
+	log          *slog.Logger
+	lock         *os.File
+	store        *store.Store
+	mgr          *session.Manager
+	ws           *workspace.Service
+	srv          *server
+	http         *http.Server
+	net          *http.Server // the direct listener; nil without one
+	netLn        net.Listener
+	stopAnnounce func() // ends the local network announcement; set with net
+	queue        *queuer
 
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
@@ -259,6 +260,7 @@ func Start(ctx context.Context, cfg Config) (d *Daemon, err error) {
 				log.Error("serve the direct listener", "err", err)
 			}
 		})
+		d.stopAnnounce = advertise(netLn.Addr(), identity.ID(), log)
 	}
 	for _, u := range cfg.Relays {
 		r := newRelayer(srv, u, cfg.RelayTLS)
@@ -320,6 +322,7 @@ func (d *Daemon) Close() error {
 	d.closeOnce.Do(func() {
 		err := d.http.Close()
 		if d.net != nil {
+			d.stopAnnounce()
 			err = errors.Join(err, d.net.Close())
 		}
 		d.cancel()
