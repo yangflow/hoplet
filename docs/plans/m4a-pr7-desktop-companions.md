@@ -53,37 +53,62 @@
 
 ### 任务 1：对话条目
 
-- [ ] `convo/convo.go`：`KindEvent`、`KindReport` 与条目字段；`Apply` 处理 `session.delegated`、`ArtifactPublished` 与带 `From` 的消息
-- [ ] 测试：三种事件进对的条目；带 `From` 的消息不再是我的气泡；缺状态的旧回报按完成
-- [ ] commit：`feat(desktop): read delegation and report items`
+- [x] `convo/convo.go`：`KindEvent`、`KindReport` 与条目字段；`Apply` 处理 `session.delegated`、`ArtifactPublished` 与带 `From` 的消息
+- [x] 测试：三种事件进对的条目；带 `From` 的消息不再是我的气泡；缺状态的旧回报按完成
+- [x] commit：`feat(desktop): read delegation and report items`
 
 ### 任务 2：事件行与回报卡
 
-- [ ] `shell/chat.go`：两种视图与点开的去向；`shell/session.go` 在 Personal 里打开子会话时保持侧栏选中伙伴
-- [ ] 测试（`ui.Tester`）：宽度不超 78%；三种状态的首行文字；点事件行与回报卡分别打开子会话、切到 Code、开产物标签
-- [ ] commit：`feat(desktop): show delegations and reports in companion chats`
+- [x] `shell/chat.go`：两种视图与点开的去向；`shell/session.go` 在 Personal 里打开子会话时保持侧栏选中伙伴
+- [x] 测试（`ui.Tester`）：宽度不超 78%；三种状态的首行文字；点事件行与回报卡分别打开子会话、切到 Code、开产物标签
+- [x] commit：`feat(desktop): show delegations and reports in companion chats`
 
 ### 任务 3：侧栏与标题栏
 
-- [ ] `shell/sidebar.go`：Personal 过滤 `Parent`；子会话选中时伙伴行选中
-- [ ] `shell/content.go`：子会话标题前的伙伴链接
-- [ ] 测试：子会话不出现在侧栏；标题栏链接回主会话；Code 侧栏不变（转交的 Code 会话照常列出）
-- [ ] commit：`feat(desktop): open child sessions under their companion`
+- [x] `shell/sidebar.go`：Personal 过滤 `Parent`；子会话选中时伙伴行选中
+- [x] `shell/content.go`：子会话标题前的伙伴链接
+- [x] 测试：子会话不出现在侧栏；标题栏链接回主会话；Code 侧栏不变（转交的 Code 会话照常列出）
+- [x] commit：`feat(desktop): open child sessions under their companion`
 
 ### 任务 4：伙伴详情与编辑人格
 
-- [ ] `shell/app.go`：`Host` 加上表三个方法；`desktop/main.go` 实现
-- [ ] `shell/content.go`：`companionDetails` 按上表重写；`shell/persona.go`（新）：弹窗
-- [ ] 测试（`ui.Tester`）：主会话有人格块、子会话没有；目录行无分支；两种生效说明；取消不调 `SetPersona`；保存调一次并关窗；保存失败留在弹窗里并报错
-- [ ] commit：`feat(desktop): show and edit companion personas`
+- [x] `shell/app.go`：`Host` 加上表三个方法；`desktop/main.go` 实现
+- [x] `shell/content.go`：`companionDetails` 按上表重写；`shell/persona.go`（新）：弹窗
+- [x] 测试（`ui.Tester`）：主会话有人格块、子会话没有；目录行无分支；两种生效说明；取消不调 `SetPersona`；保存调一次并关窗；保存失败留在弹窗里并报错
+- [x] commit：`feat(desktop): show and edit companion personas`
 
 ### 任务 5：实测与文档
 
-- [ ] 本机实测：Claude Code 与 Hermes 伙伴各委派一个子会话、转交一次 Code、发布一个产物；从回报卡进子会话继续说一句，再点标题栏回主会话；改人格后按说明生效
-- [ ] 0024、0010：对应各条从目标改为现状
-- [ ] 本计划勾选并记下实测
-- [ ] `make check`、`go tool mygo vet`
-- [ ] commit：`docs: record the companion desktop views`
+- [x] 本机实测：Claude Code 与 Hermes 伙伴各委派一个子会话、转交一次 Code、发布一个产物；从回报卡进子会话继续说一句，再点标题栏回主会话；保存人格
+- [ ] 本机实测未完成的两项：改人格后在新启动的主会话里生效；点转交行切到 Code（见实施记录）
+- [x] 0024、0010：对应各条从目标改为现状
+- [x] 本计划勾选并记下实测
+- [x] `make check`、`go tool mygo vet`
+- [x] commit：`docs: record the companion desktop views`
+
+## 实施记录
+
+- 事件行、回报卡与跳转放在新文件 `shell/delegation.go`，`chat.go` 只分发。
+- 子会话对话里的头像用伙伴的，和主会话一致。
+- 保存失败留在弹窗里，原因用 toast 报。编辑框高度 240。
+- Code 对话把回报按“我的消息”显示、丢弃事件行，分组不变。
+
+### 本机实测
+
+临时数据目录、临时 daemon，harness 用各自已有的登录。打包的 App：
+
+| 项 | 结果 |
+|---|---|
+| Claude Code 伙伴：委派、转交、发布 | 三条事件行与两张回报卡正确，子会话回报“完成” |
+| Hermes 伙伴：委派、转交、发布 | 用 Hermes 跑的子会话与转交因本机模型配置失败（`custom` 没有凭证、默认模型被网关拒绝），失败状态正确写回；伙伴改用 Claude Code 重做后事件行与回报卡正确 |
+| 侧栏 | Personal 只列伙伴，打开子会话时伙伴行保持选中 |
+| 回报卡进子会话 | 能打开；继续说一句得到回复 |
+| 标题栏伙伴链接 | 回到主会话 |
+| 发布行 | 右栏打开产物标签，内容正确 |
+| 伙伴详情 | 人格块、机器（在线）、目录（无分支）、运行、会话按设计显示 |
+| 编辑人格 | 说明为“保存后，新的主会话才会用上”；保存写入 `persona.md`，弹窗关闭 |
+
+没有测到：人格在新启动的主会话里生效（目前桌面没有换主会话的入口，daemon 的测试覆盖）；点转交行切到 Code（实测时窗口同时被别人操作，无法确认是这次点击造成的，`ui.Tester` 覆盖）；Hermes 跑子会话成功的路径（本机配置所限）。
 
 PR 标题：`feat(desktop): add companion chats, child sessions and personas`。
 
