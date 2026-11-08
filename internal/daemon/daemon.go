@@ -25,6 +25,7 @@ import (
 	"github.com/yangflow/hoplet/internal/harness"
 	"github.com/yangflow/hoplet/internal/home"
 	"github.com/yangflow/hoplet/internal/memory"
+	"github.com/yangflow/hoplet/internal/memory/extract"
 	"github.com/yangflow/hoplet/internal/noise"
 	"github.com/yangflow/hoplet/internal/session"
 	"github.com/yangflow/hoplet/internal/simulator"
@@ -235,9 +236,13 @@ func Start(ctx context.Context, cfg Config) (d *Daemon, err error) {
 	}
 	runCtx, cancel := context.WithCancel(context.Background())
 	q := &queuer{store: st, mgr: mgr, log: log, locks: map[proto.SessionID]*sync.Mutex{}, waiting: map[proto.SessionID]bool{}}
+	ext := extract.New(extract.Config{
+		Store: st, Memory: mem, Harnesses: cfg.Harnesses, Scopes: mgr.ProfileScopes, Env: mgr.Env, Log: log,
+	})
 	srv := &server{
-		ctx: runCtx, store: st, mgr: mgr, ws: ws, queue: q, sys: sys, token: token, arts: arts, memory: mem,
-		tools: tools.New(toolSource{store: st, mgr: mgr, queue: q, arts: arts, sim: sim, mem: mem}),
+		extract: ext,
+		ctx:     runCtx, store: st, mgr: mgr, ws: ws, queue: q, sys: sys, token: token, arts: arts, memory: mem,
+		tools: tools.New(toolSource{store: st, mgr: mgr, queue: q, arts: arts, sim: sim, mem: mem, extract: ext}),
 		host:  host, version: cfg.Version, log: log, lim: cfg.lim.withDefaults(),
 		identity: identity, routes: pairingRoutes(cfg.Routes, cfg.Relays), now: now, peers: map[string]map[*conn]struct{}{},
 	}
@@ -267,6 +272,7 @@ func Start(ctx context.Context, cfg Config) (d *Daemon, err error) {
 	}()
 	ho := &handoffs{store: st, log: log, seen: map[proto.SessionID]uint64{}}
 	d.wg.Go(func() { ho.run(runCtx) })
+	d.wg.Go(func() { ext.Run(runCtx) })
 	// The harnesses' models are asked for now, so the first client to ask
 	// does not wait for a harness started to list them.
 	d.wg.Go(func() { mgr.Harnesses(runCtx) })

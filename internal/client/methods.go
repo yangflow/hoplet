@@ -347,6 +347,20 @@ func (c *Client) ProfileCandidates(ctx context.Context) (proto.ProfileCandidates
 	return out, err
 }
 
+// ProfileExtraction says how background extraction stands.
+func (c *Client) ProfileExtraction(ctx context.Context) (proto.ProfileExtractionStatus, error) {
+	var out proto.ProfileExtractionStatus
+	err := c.Call(ctx, proto.MethodProfileExtraction, struct{}{}, &out)
+	return out, err
+}
+
+// SetProfileExtraction turns background extraction on or off.
+func (c *Client) SetProfileExtraction(ctx context.Context, on bool) (proto.ProfileExtractionStatus, error) {
+	var out proto.ProfileExtractionStatus
+	err := c.Call(ctx, proto.MethodProfileExtractionSet, proto.ProfileExtractionSetParams{Enabled: on}, &out)
+	return out, err
+}
+
 // ProfileAccept carries out a candidate.
 func (c *Client) ProfileAccept(ctx context.Context, p proto.ProfileAcceptParams) (proto.ProfileEntry, error) {
 	var out proto.ProfileEntry

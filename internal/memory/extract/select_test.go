@@ -88,10 +88,10 @@ func TestSelectBoundary(t *testing.T) {
 	at := time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC)
 	overhead := len(`[1] user: ""` + "\n")
 	cases := []struct {
-		name   string
-		extra  int
-		lines  int
-		to     uint64
+		name  string
+		extra int
+		lines int
+		to    uint64
 	}{
 		{"exactly full", 0, 2, 2},
 		{"one byte over", 1, 1, 1},
