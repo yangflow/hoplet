@@ -13,7 +13,7 @@ import (
 // recoverOps removes abandoned temp files and settles each pending op: if
 // the file already holds its content it committed, otherwise it failed.
 func (s *Service) recoverOps(ctx context.Context) error {
-	err := filepath.WalkDir(filepath.Join(s.root, entriesDir), func(p string, d fs.DirEntry, err error) error {
+	err := filepath.WalkDir(s.root, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}

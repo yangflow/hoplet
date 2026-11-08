@@ -61,7 +61,8 @@ type Service struct {
 	mu sync.Mutex // serializes writes to the files
 }
 
-// Open prepares the profile directory and finishes any interrupted commit.
+// Open prepares the profile directory, finishes any interrupted commit and
+// scans the entry files.
 func Open(ctx context.Context, cfg Config) (*Service, error) {
 	if cfg.Root == "" || cfg.Store == nil {
 		return nil, fmt.Errorf("%w: memory: a root and a store are required", store.ErrInvalid)
@@ -75,6 +76,9 @@ func Open(ctx context.Context, cfg Config) (*Service, error) {
 	}
 	s := &Service{root: cfg.Root, store: cfg.Store, log: log}
 	if err := s.recoverOps(ctx); err != nil {
+		return nil, err
+	}
+	if err := s.Scan(ctx); err != nil {
 		return nil, err
 	}
 	return s, nil
