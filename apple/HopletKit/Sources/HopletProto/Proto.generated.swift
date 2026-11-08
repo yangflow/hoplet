@@ -5308,6 +5308,657 @@ public struct Subagent: Codable, Hashable, Sendable, ProtoZero {
   public var isProtoZero: Bool { false }
 }
 
+public struct ProfileScope: Codable, Hashable, Sendable, ProtoZero {
+  public var kind: String
+  public var value: String
+
+  public init(
+    kind: String = .protoZero,
+    value: String = .protoZero
+  ) {
+    self.kind = kind
+    self.value = value
+  }
+
+  private enum CodingKeys: String, CodingKey {
+    case kind = "kind"
+    case value = "value"
+  }
+
+  public init(from decoder: any Decoder) throws {
+    let c = try decoder.container(keyedBy: CodingKeys.self)
+    kind = try c.decodeOrZero(String.self, forKey: .kind)
+    value = try c.decodeOrZero(String.self, forKey: .value)
+  }
+
+  public func encode(to encoder: any Encoder) throws {
+    var c = encoder.container(keyedBy: CodingKeys.self)
+    try c.encode(kind, forKey: .kind)
+    try c.encodeUnlessZero(value, forKey: .value)
+  }
+
+  public static var protoZero: Self { Self() }
+  public var isProtoZero: Bool { false }
+}
+
+public struct ProfileEvidence: Codable, Hashable, Sendable, ProtoZero {
+  public var kind: String
+  public var ref: String
+
+  public init(
+    kind: String = .protoZero,
+    ref: String = .protoZero
+  ) {
+    self.kind = kind
+    self.ref = ref
+  }
+
+  private enum CodingKeys: String, CodingKey {
+    case kind = "kind"
+    case ref = "ref"
+  }
+
+  public init(from decoder: any Decoder) throws {
+    let c = try decoder.container(keyedBy: CodingKeys.self)
+    kind = try c.decodeOrZero(String.self, forKey: .kind)
+    ref = try c.decodeOrZero(String.self, forKey: .ref)
+  }
+
+  public func encode(to encoder: any Encoder) throws {
+    var c = encoder.container(keyedBy: CodingKeys.self)
+    try c.encode(kind, forKey: .kind)
+    try c.encode(ref, forKey: .ref)
+  }
+
+  public static var protoZero: Self { Self() }
+  public var isProtoZero: Bool { false }
+}
+
+public struct ProfileEntry: Codable, Hashable, Sendable, ProtoZero {
+  public var id: String
+  public var version: Int
+  public var category: String
+  public var status: String
+  public var scope: ProfileScope
+  public var evidence: [ProfileEvidence]
+  public var validUntil: Date?
+  public var replacedBy: String
+  public var updatedAt: Date
+  public var title: String
+  public var body: String
+
+  public init(
+    id: String = .protoZero,
+    version: Int = .protoZero,
+    category: String = .protoZero,
+    status: String = .protoZero,
+    scope: ProfileScope = .protoZero,
+    evidence: [ProfileEvidence] = .protoZero,
+    validUntil: Date? = nil,
+    replacedBy: String = .protoZero,
+    updatedAt: Date = .protoZero,
+    title: String = .protoZero,
+    body: String = .protoZero
+  ) {
+    self.id = id
+    self.version = version
+    self.category = category
+    self.status = status
+    self.scope = scope
+    self.evidence = evidence
+    self.validUntil = validUntil
+    self.replacedBy = replacedBy
+    self.updatedAt = updatedAt
+    self.title = title
+    self.body = body
+  }
+
+  private enum CodingKeys: String, CodingKey {
+    case id = "id"
+    case version = "version"
+    case category = "category"
+    case status = "status"
+    case scope = "scope"
+    case evidence = "evidence"
+    case validUntil = "valid_until"
+    case replacedBy = "replaced_by"
+    case updatedAt = "updated_at"
+    case title = "title"
+    case body = "body"
+  }
+
+  public init(from decoder: any Decoder) throws {
+    let c = try decoder.container(keyedBy: CodingKeys.self)
+    id = try c.decodeOrZero(String.self, forKey: .id)
+    version = try c.decodeOrZero(Int.self, forKey: .version)
+    category = try c.decodeOrZero(String.self, forKey: .category)
+    status = try c.decodeOrZero(String.self, forKey: .status)
+    scope = try c.decodeOrZero(ProfileScope.self, forKey: .scope)
+    evidence = try c.decodeOrZero([ProfileEvidence].self, forKey: .evidence)
+    validUntil = try c.decodeIfPresent(Date.self, forKey: .validUntil)
+    replacedBy = try c.decodeOrZero(String.self, forKey: .replacedBy)
+    updatedAt = try c.decodeOrZero(Date.self, forKey: .updatedAt)
+    title = try c.decodeOrZero(String.self, forKey: .title)
+    body = try c.decodeOrZero(String.self, forKey: .body)
+  }
+
+  public func encode(to encoder: any Encoder) throws {
+    var c = encoder.container(keyedBy: CodingKeys.self)
+    try c.encode(id, forKey: .id)
+    try c.encode(version, forKey: .version)
+    try c.encode(category, forKey: .category)
+    try c.encode(status, forKey: .status)
+    try c.encode(scope, forKey: .scope)
+    try c.encode(evidence, forKey: .evidence)
+    try c.encodeIfPresent(validUntil, forKey: .validUntil)
+    try c.encodeUnlessZero(replacedBy, forKey: .replacedBy)
+    try c.encode(updatedAt, forKey: .updatedAt)
+    try c.encode(title, forKey: .title)
+    try c.encode(body, forKey: .body)
+  }
+
+  public static var protoZero: Self { Self() }
+  public var isProtoZero: Bool { false }
+}
+
+public struct ProfileVersion: Codable, Hashable, Sendable, ProtoZero {
+  public var version: Int
+  public var actor: String
+  public var reason: String
+  public var content: String
+  public var at: Date
+
+  public init(
+    version: Int = .protoZero,
+    actor: String = .protoZero,
+    reason: String = .protoZero,
+    content: String = .protoZero,
+    at: Date = .protoZero
+  ) {
+    self.version = version
+    self.actor = actor
+    self.reason = reason
+    self.content = content
+    self.at = at
+  }
+
+  private enum CodingKeys: String, CodingKey {
+    case version = "version"
+    case actor = "actor"
+    case reason = "reason"
+    case content = "content"
+    case at = "at"
+  }
+
+  public init(from decoder: any Decoder) throws {
+    let c = try decoder.container(keyedBy: CodingKeys.self)
+    version = try c.decodeOrZero(Int.self, forKey: .version)
+    actor = try c.decodeOrZero(String.self, forKey: .actor)
+    reason = try c.decodeOrZero(String.self, forKey: .reason)
+    content = try c.decodeOrZero(String.self, forKey: .content)
+    at = try c.decodeOrZero(Date.self, forKey: .at)
+  }
+
+  public func encode(to encoder: any Encoder) throws {
+    var c = encoder.container(keyedBy: CodingKeys.self)
+    try c.encode(version, forKey: .version)
+    try c.encode(actor, forKey: .actor)
+    try c.encode(reason, forKey: .reason)
+    try c.encode(content, forKey: .content)
+    try c.encode(at, forKey: .at)
+  }
+
+  public static var protoZero: Self { Self() }
+  public var isProtoZero: Bool { false }
+}
+
+public struct ProfileListParams: Codable, Hashable, Sendable, ProtoZero {
+  public var category: String
+  public var status: String
+  public var all: Bool
+  public var scope: ProfileScope?
+  public var text: String
+  public var limit: Int
+
+  public init(
+    category: String = .protoZero,
+    status: String = .protoZero,
+    all: Bool = .protoZero,
+    scope: ProfileScope? = nil,
+    text: String = .protoZero,
+    limit: Int = .protoZero
+  ) {
+    self.category = category
+    self.status = status
+    self.all = all
+    self.scope = scope
+    self.text = text
+    self.limit = limit
+  }
+
+  private enum CodingKeys: String, CodingKey {
+    case category = "category"
+    case status = "status"
+    case all = "all"
+    case scope = "scope"
+    case text = "text"
+    case limit = "limit"
+  }
+
+  public init(from decoder: any Decoder) throws {
+    let c = try decoder.container(keyedBy: CodingKeys.self)
+    category = try c.decodeOrZero(String.self, forKey: .category)
+    status = try c.decodeOrZero(String.self, forKey: .status)
+    all = try c.decodeOrZero(Bool.self, forKey: .all)
+    scope = try c.decodeIfPresent(ProfileScope.self, forKey: .scope)
+    text = try c.decodeOrZero(String.self, forKey: .text)
+    limit = try c.decodeOrZero(Int.self, forKey: .limit)
+  }
+
+  public func encode(to encoder: any Encoder) throws {
+    var c = encoder.container(keyedBy: CodingKeys.self)
+    try c.encodeUnlessZero(category, forKey: .category)
+    try c.encodeUnlessZero(status, forKey: .status)
+    try c.encodeUnlessZero(all, forKey: .all)
+    try c.encodeIfPresent(scope, forKey: .scope)
+    try c.encodeUnlessZero(text, forKey: .text)
+    try c.encodeUnlessZero(limit, forKey: .limit)
+  }
+
+  public static var protoZero: Self { Self() }
+  public var isProtoZero: Bool { false }
+}
+
+public struct ProfileList: Codable, Hashable, Sendable, ProtoZero {
+  public var entries: [ProfileEntry]
+
+  public init(
+    entries: [ProfileEntry] = .protoZero
+  ) {
+    self.entries = entries
+  }
+
+  private enum CodingKeys: String, CodingKey {
+    case entries = "entries"
+  }
+
+  public init(from decoder: any Decoder) throws {
+    let c = try decoder.container(keyedBy: CodingKeys.self)
+    entries = try c.decodeOrZero([ProfileEntry].self, forKey: .entries)
+  }
+
+  public func encode(to encoder: any Encoder) throws {
+    var c = encoder.container(keyedBy: CodingKeys.self)
+    try c.encode(entries, forKey: .entries)
+  }
+
+  public static var protoZero: Self { Self() }
+  public var isProtoZero: Bool { false }
+}
+
+public struct ProfileRef: Codable, Hashable, Sendable, ProtoZero {
+  public var id: String
+
+  public init(
+    id: String = .protoZero
+  ) {
+    self.id = id
+  }
+
+  private enum CodingKeys: String, CodingKey {
+    case id = "id"
+  }
+
+  public init(from decoder: any Decoder) throws {
+    let c = try decoder.container(keyedBy: CodingKeys.self)
+    id = try c.decodeOrZero(String.self, forKey: .id)
+  }
+
+  public func encode(to encoder: any Encoder) throws {
+    var c = encoder.container(keyedBy: CodingKeys.self)
+    try c.encode(id, forKey: .id)
+  }
+
+  public static var protoZero: Self { Self() }
+  public var isProtoZero: Bool { false }
+}
+
+public struct ProfileDetail: Codable, Hashable, Sendable, ProtoZero {
+  public var entry: ProfileEntry
+  public var history: [ProfileVersion]
+
+  public init(
+    entry: ProfileEntry = .protoZero,
+    history: [ProfileVersion] = .protoZero
+  ) {
+    self.entry = entry
+    self.history = history
+  }
+
+  private enum CodingKeys: String, CodingKey {
+    case entry = "entry"
+    case history = "history"
+  }
+
+  public init(from decoder: any Decoder) throws {
+    let c = try decoder.container(keyedBy: CodingKeys.self)
+    entry = try c.decodeOrZero(ProfileEntry.self, forKey: .entry)
+    history = try c.decodeOrZero([ProfileVersion].self, forKey: .history)
+  }
+
+  public func encode(to encoder: any Encoder) throws {
+    var c = encoder.container(keyedBy: CodingKeys.self)
+    try c.encode(entry, forKey: .entry)
+    try c.encode(history, forKey: .history)
+  }
+
+  public static var protoZero: Self { Self() }
+  public var isProtoZero: Bool { false }
+}
+
+public struct ProfileUpdateParams: Codable, Hashable, Sendable, ProtoZero {
+  public var id: String
+  public var expectedVersion: Int
+  public var body: String
+  public var scope: ProfileScope?
+  public var opId: String
+
+  public init(
+    id: String = .protoZero,
+    expectedVersion: Int = .protoZero,
+    body: String = .protoZero,
+    scope: ProfileScope? = nil,
+    opId: String = .protoZero
+  ) {
+    self.id = id
+    self.expectedVersion = expectedVersion
+    self.body = body
+    self.scope = scope
+    self.opId = opId
+  }
+
+  private enum CodingKeys: String, CodingKey {
+    case id = "id"
+    case expectedVersion = "expected_version"
+    case body = "body"
+    case scope = "scope"
+    case opId = "op_id"
+  }
+
+  public init(from decoder: any Decoder) throws {
+    let c = try decoder.container(keyedBy: CodingKeys.self)
+    id = try c.decodeOrZero(String.self, forKey: .id)
+    expectedVersion = try c.decodeOrZero(Int.self, forKey: .expectedVersion)
+    body = try c.decodeOrZero(String.self, forKey: .body)
+    scope = try c.decodeIfPresent(ProfileScope.self, forKey: .scope)
+    opId = try c.decodeOrZero(String.self, forKey: .opId)
+  }
+
+  public func encode(to encoder: any Encoder) throws {
+    var c = encoder.container(keyedBy: CodingKeys.self)
+    try c.encode(id, forKey: .id)
+    try c.encode(expectedVersion, forKey: .expectedVersion)
+    try c.encode(body, forKey: .body)
+    try c.encodeIfPresent(scope, forKey: .scope)
+    try c.encode(opId, forKey: .opId)
+  }
+
+  public static var protoZero: Self { Self() }
+  public var isProtoZero: Bool { false }
+}
+
+public struct ProfileWithdrawParams: Codable, Hashable, Sendable, ProtoZero {
+  public var id: String
+  public var expectedVersion: Int
+  public var reason: String
+  public var opId: String
+
+  public init(
+    id: String = .protoZero,
+    expectedVersion: Int = .protoZero,
+    reason: String = .protoZero,
+    opId: String = .protoZero
+  ) {
+    self.id = id
+    self.expectedVersion = expectedVersion
+    self.reason = reason
+    self.opId = opId
+  }
+
+  private enum CodingKeys: String, CodingKey {
+    case id = "id"
+    case expectedVersion = "expected_version"
+    case reason = "reason"
+    case opId = "op_id"
+  }
+
+  public init(from decoder: any Decoder) throws {
+    let c = try decoder.container(keyedBy: CodingKeys.self)
+    id = try c.decodeOrZero(String.self, forKey: .id)
+    expectedVersion = try c.decodeOrZero(Int.self, forKey: .expectedVersion)
+    reason = try c.decodeOrZero(String.self, forKey: .reason)
+    opId = try c.decodeOrZero(String.self, forKey: .opId)
+  }
+
+  public func encode(to encoder: any Encoder) throws {
+    var c = encoder.container(keyedBy: CodingKeys.self)
+    try c.encode(id, forKey: .id)
+    try c.encode(expectedVersion, forKey: .expectedVersion)
+    try c.encodeUnlessZero(reason, forKey: .reason)
+    try c.encode(opId, forKey: .opId)
+  }
+
+  public static var protoZero: Self { Self() }
+  public var isProtoZero: Bool { false }
+}
+
+public struct ProfileWriteResult: Codable, Hashable, Sendable, ProtoZero {
+  public var outcome: String
+  public var entry: ProfileEntry?
+  public var code: String
+  public var reason: String
+
+  public init(
+    outcome: String = .protoZero,
+    entry: ProfileEntry? = nil,
+    code: String = .protoZero,
+    reason: String = .protoZero
+  ) {
+    self.outcome = outcome
+    self.entry = entry
+    self.code = code
+    self.reason = reason
+  }
+
+  private enum CodingKeys: String, CodingKey {
+    case outcome = "outcome"
+    case entry = "entry"
+    case code = "code"
+    case reason = "reason"
+  }
+
+  public init(from decoder: any Decoder) throws {
+    let c = try decoder.container(keyedBy: CodingKeys.self)
+    outcome = try c.decodeOrZero(String.self, forKey: .outcome)
+    entry = try c.decodeIfPresent(ProfileEntry.self, forKey: .entry)
+    code = try c.decodeOrZero(String.self, forKey: .code)
+    reason = try c.decodeOrZero(String.self, forKey: .reason)
+  }
+
+  public func encode(to encoder: any Encoder) throws {
+    var c = encoder.container(keyedBy: CodingKeys.self)
+    try c.encode(outcome, forKey: .outcome)
+    try c.encodeIfPresent(entry, forKey: .entry)
+    try c.encodeUnlessZero(code, forKey: .code)
+    try c.encodeUnlessZero(reason, forKey: .reason)
+  }
+
+  public static var protoZero: Self { Self() }
+  public var isProtoZero: Bool { false }
+}
+
+public struct ProfileCandidate: Codable, Hashable, Sendable, ProtoZero {
+  public var entry: ProfileEntry
+  public var action: String
+  public var target: String
+  public var expectedVersion: Int
+  public var actor: String
+  public var reason: String
+  public var createdAt: Date
+
+  public init(
+    entry: ProfileEntry = .protoZero,
+    action: String = .protoZero,
+    target: String = .protoZero,
+    expectedVersion: Int = .protoZero,
+    actor: String = .protoZero,
+    reason: String = .protoZero,
+    createdAt: Date = .protoZero
+  ) {
+    self.entry = entry
+    self.action = action
+    self.target = target
+    self.expectedVersion = expectedVersion
+    self.actor = actor
+    self.reason = reason
+    self.createdAt = createdAt
+  }
+
+  private enum CodingKeys: String, CodingKey {
+    case entry = "entry"
+    case action = "action"
+    case target = "target"
+    case expectedVersion = "expected_version"
+    case actor = "actor"
+    case reason = "reason"
+    case createdAt = "created_at"
+  }
+
+  public init(from decoder: any Decoder) throws {
+    let c = try decoder.container(keyedBy: CodingKeys.self)
+    entry = try c.decodeOrZero(ProfileEntry.self, forKey: .entry)
+    action = try c.decodeOrZero(String.self, forKey: .action)
+    target = try c.decodeOrZero(String.self, forKey: .target)
+    expectedVersion = try c.decodeOrZero(Int.self, forKey: .expectedVersion)
+    actor = try c.decodeOrZero(String.self, forKey: .actor)
+    reason = try c.decodeOrZero(String.self, forKey: .reason)
+    createdAt = try c.decodeOrZero(Date.self, forKey: .createdAt)
+  }
+
+  public func encode(to encoder: any Encoder) throws {
+    var c = encoder.container(keyedBy: CodingKeys.self)
+    try c.encode(entry, forKey: .entry)
+    try c.encode(action, forKey: .action)
+    try c.encodeUnlessZero(target, forKey: .target)
+    try c.encode(expectedVersion, forKey: .expectedVersion)
+    try c.encode(actor, forKey: .actor)
+    try c.encode(reason, forKey: .reason)
+    try c.encode(createdAt, forKey: .createdAt)
+  }
+
+  public static var protoZero: Self { Self() }
+  public var isProtoZero: Bool { false }
+}
+
+public struct ProfileCandidates: Codable, Hashable, Sendable, ProtoZero {
+  public var candidates: [ProfileCandidate]
+
+  public init(
+    candidates: [ProfileCandidate] = .protoZero
+  ) {
+    self.candidates = candidates
+  }
+
+  private enum CodingKeys: String, CodingKey {
+    case candidates = "candidates"
+  }
+
+  public init(from decoder: any Decoder) throws {
+    let c = try decoder.container(keyedBy: CodingKeys.self)
+    candidates = try c.decodeOrZero([ProfileCandidate].self, forKey: .candidates)
+  }
+
+  public func encode(to encoder: any Encoder) throws {
+    var c = encoder.container(keyedBy: CodingKeys.self)
+    try c.encode(candidates, forKey: .candidates)
+  }
+
+  public static var protoZero: Self { Self() }
+  public var isProtoZero: Bool { false }
+}
+
+public struct ProfileAcceptParams: Codable, Hashable, Sendable, ProtoZero {
+  public var id: String
+  public var scope: ProfileScope?
+  public var opId: String
+
+  public init(
+    id: String = .protoZero,
+    scope: ProfileScope? = nil,
+    opId: String = .protoZero
+  ) {
+    self.id = id
+    self.scope = scope
+    self.opId = opId
+  }
+
+  private enum CodingKeys: String, CodingKey {
+    case id = "id"
+    case scope = "scope"
+    case opId = "op_id"
+  }
+
+  public init(from decoder: any Decoder) throws {
+    let c = try decoder.container(keyedBy: CodingKeys.self)
+    id = try c.decodeOrZero(String.self, forKey: .id)
+    scope = try c.decodeIfPresent(ProfileScope.self, forKey: .scope)
+    opId = try c.decodeOrZero(String.self, forKey: .opId)
+  }
+
+  public func encode(to encoder: any Encoder) throws {
+    var c = encoder.container(keyedBy: CodingKeys.self)
+    try c.encode(id, forKey: .id)
+    try c.encodeIfPresent(scope, forKey: .scope)
+    try c.encode(opId, forKey: .opId)
+  }
+
+  public static var protoZero: Self { Self() }
+  public var isProtoZero: Bool { false }
+}
+
+public struct ProfileRejectParams: Codable, Hashable, Sendable, ProtoZero {
+  public var id: String
+  public var opId: String
+
+  public init(
+    id: String = .protoZero,
+    opId: String = .protoZero
+  ) {
+    self.id = id
+    self.opId = opId
+  }
+
+  private enum CodingKeys: String, CodingKey {
+    case id = "id"
+    case opId = "op_id"
+  }
+
+  public init(from decoder: any Decoder) throws {
+    let c = try decoder.container(keyedBy: CodingKeys.self)
+    id = try c.decodeOrZero(String.self, forKey: .id)
+    opId = try c.decodeOrZero(String.self, forKey: .opId)
+  }
+
+  public func encode(to encoder: any Encoder) throws {
+    var c = encoder.container(keyedBy: CodingKeys.self)
+    try c.encode(id, forKey: .id)
+    try c.encode(opId, forKey: .opId)
+  }
+
+  public static var protoZero: Self { Self() }
+  public var isProtoZero: Bool { false }
+}
+
 public struct HarnessRef: Codable, Hashable, Sendable, ProtoZero {
   public var kind: String
   public var version: String

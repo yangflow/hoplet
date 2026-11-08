@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/yangflow/hoplet/internal/store"
+	"github.com/yangflow/hoplet/proto"
 )
 
 const (
@@ -26,7 +27,14 @@ const (
 type Config struct {
 	Root  string // the profile directory
 	Store *store.Store
-	Log   *slog.Logger
+	// Sessions answers what mode a session is in; Store when nil.
+	Sessions Sessions
+	Log      *slog.Logger
+}
+
+// Sessions looks up the sessions that write to memory.
+type Sessions interface {
+	Session(ctx context.Context, id proto.SessionID) (proto.Session, error)
 }
 
 // Op is one requested write. Commit sets Entry's Version and UpdatedAt.
@@ -53,10 +61,11 @@ type hook func(point string) error
 
 // Service owns the entry files, their audit log and their index.
 type Service struct {
-	root  string
-	store *store.Store
-	log   *slog.Logger
-	hook  hook
+	root     string
+	store    *store.Store
+	sessions Sessions
+	log      *slog.Logger
+	hook     hook
 
 	mu sync.Mutex // serializes writes to the files
 }
@@ -74,7 +83,11 @@ func Open(ctx context.Context, cfg Config) (*Service, error) {
 	if err := os.MkdirAll(filepath.Join(cfg.Root, entriesDir), 0o700); err != nil {
 		return nil, fmt.Errorf("memory: create profile: %w", err)
 	}
-	s := &Service{root: cfg.Root, store: cfg.Store, log: log}
+	sessions := cfg.Sessions
+	if sessions == nil {
+		sessions = cfg.Store
+	}
+	s := &Service{root: cfg.Root, store: cfg.Store, sessions: sessions, log: log}
 	if err := s.recoverOps(ctx); err != nil {
 		return nil, err
 	}
@@ -121,6 +134,11 @@ func (s *Service) Commit(ctx context.Context, op Op) (Entry, error) {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.commit(ctx, op)
+}
+
+// commit is Commit for a caller that holds s.mu.
+func (s *Service) commit(ctx context.Context, op Op) (Entry, error) {
 	if e, done, err := s.repeated(ctx, op); done {
 		return e, err
 	}

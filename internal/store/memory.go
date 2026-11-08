@@ -14,6 +14,8 @@ const (
 	MemoryOpPending   = "pending"
 	MemoryOpCommitted = "committed"
 	MemoryOpFailed    = "failed"
+	// MemoryOpRejected is a write the memory rules refused.
+	MemoryOpRejected = "rejected"
 )
 
 // MemoryOp is one write to a memory entry.
@@ -164,6 +166,26 @@ func (s *Store) FailMemoryOp(ctx context.Context, id string) error {
 	})
 }
 
+// RecordMemoryRejection durably records a refused write, ignoring op.State
+// and the timestamps. An operation with this ID is ErrExists.
+func (s *Store) RecordMemoryRejection(ctx context.Context, op MemoryOp) error {
+	if op.ID == "" {
+		return fmt.Errorf("%w: a memory operation needs an ID", ErrInvalid)
+	}
+	now := ms(time.Now())
+	return s.tx(ctx, true, func(tx *sql.Tx) error {
+		_, err := tx.ExecContext(ctx, `INSERT INTO memory_ops (id, entry_id, expected_version, new_version, actor, reason, content, hash, state, created_at, finished_at)
+			VALUES (?, ?, ?, 0, ?, ?, ?, ?, 'rejected', ?, ?)`, op.ID, op.EntryID, op.ExpectedVersion, op.Actor, op.Reason, op.Content, op.Hash, now, now)
+		if isConstraint(err) {
+			return fmt.Errorf("%w: memory operation %s", ErrExists, op.ID)
+		}
+		if err != nil {
+			return fmt.Errorf("store: record memory rejection %s: %w", op.ID, err)
+		}
+		return nil
+	})
+}
+
 // MemoryOpByID returns one operation in any state.
 func (s *Store) MemoryOpByID(ctx context.Context, id string) (MemoryOp, error) {
 	op, err := scanMemoryOp(s.rdb.QueryRowContext(ctx, `SELECT `+memoryOpColumns+` FROM memory_ops WHERE id = ?`, id))
@@ -204,6 +226,12 @@ func (s *Store) PendingMemoryOps(ctx context.Context) ([]MemoryOp, error) {
 // MemoryOps returns an entry's committed operations, newest version first.
 func (s *Store) MemoryOps(ctx context.Context, entryID string) ([]MemoryOp, error) {
 	return s.queryMemoryOps(ctx, `SELECT `+memoryOpColumns+` FROM memory_ops WHERE entry_id = ? AND state = 'committed' ORDER BY new_version DESC`, entryID)
+}
+
+// AllCommittedMemoryOps returns every committed operation, each entry's in
+// version order.
+func (s *Store) AllCommittedMemoryOps(ctx context.Context) ([]MemoryOp, error) {
+	return s.queryMemoryOps(ctx, `SELECT `+memoryOpColumns+` FROM memory_ops WHERE state = 'committed' ORDER BY entry_id, new_version`)
 }
 
 const memoryRowColumns = `id, version, category, status, scope_kind, scope_value, title, body, hash, updated_at`
