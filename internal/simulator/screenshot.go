@@ -40,7 +40,7 @@ func (s *Service) Screenshot(ctx context.Context, caller proto.SessionID, device
 	}
 	defer os.RemoveAll(dir)
 	file := filepath.Join(dir, "screen.png")
-	if _, err := s.simctl(ctx, "io", d.UDID, "screenshot", "--type=png", file); err != nil {
+	if _, err := s.simctlWithin(ctx, s.opLimit, "io", d.UDID, "screenshot", "--type=png", file); err != nil {
 		return Shot{}, err
 	}
 	data, err := os.ReadFile(file) //nolint:gosec // file lives in a directory this function created

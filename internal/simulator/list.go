@@ -21,7 +21,7 @@ type listOutput struct {
 
 // list returns available devices sorted by runtime, name and UDID.
 func (s *Service) list(ctx context.Context) ([]Device, error) {
-	out, err := s.simctl(ctx, "list", "-j", "devices")
+	out, err := s.simctlWithin(ctx, s.opLimit, "list", "-j", "devices")
 	if err != nil {
 		return nil, err
 	}
@@ -88,8 +88,11 @@ type capabilitiesOutput struct {
 
 // fillGeometry sets Scale, Width and Height (device points) from each device
 // type's capabilities. A device type that cannot be read keeps zeros and is
-// retried on the next call; successful reads are cached per device type.
+// retried on the next call; successful reads are cached per device type. All
+// reads of one call share a single limit.
 func (s *Service) fillGeometry(ctx context.Context, devices []Device, typeOf map[string]string) {
+	ctx, cancel := withLimit(ctx, s.opLimit)
+	defer cancel()
 	geo := map[string]geometry{}
 	var bundles map[string]string
 	bundlesLoaded := false

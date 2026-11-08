@@ -22,7 +22,17 @@ const (
 	CodeBusy        = "simulator_busy"
 )
 
-const bootTimeout = 120 * time.Second
+// Limits on simulator operations. Launch's limit covers install and launch
+// together; every other simctl or plutil operation gets opTimeout.
+const (
+	bootTimeout   = 120 * time.Second
+	launchTimeout = 300 * time.Second
+	opTimeout     = 60 * time.Second
+)
+
+// killGrace is how long a killed command may hold its output pipes open before
+// ExecRunner stops waiting, so a surviving child cannot outlast a limit.
+const killGrace = 5 * time.Second
 
 const runtimePrefix = "com.apple.CoreSimulator.SimRuntime."
 
@@ -45,7 +55,9 @@ type ExecRunner struct{}
 
 // Run executes name with args; a failing command's error includes its stderr.
 func (ExecRunner) Run(ctx context.Context, name string, args ...string) ([]byte, error) {
-	out, err := exec.CommandContext(ctx, name, args...).Output() //nolint:gosec // the caller chooses the command; Service only passes xcrun and plutil
+	cmd := exec.CommandContext(ctx, name, args...) //nolint:gosec // the caller chooses the command; Service only passes xcrun and plutil
+	cmd.WaitDelay = killGrace
+	out, err := cmd.Output()
 	if err != nil {
 		var ee *exec.ExitError
 		if errors.As(err, &ee) {
@@ -88,6 +100,8 @@ type Service struct {
 	now   func() time.Time
 	alive func(context.Context, proto.SessionID) bool
 
+	bootLimit, launchLimit, opLimit time.Duration
+
 	mu       sync.Mutex
 	holders  map[string]holderEntry // keyed by UDID
 	geometry map[string]geometry    // keyed by device type identifier
@@ -96,7 +110,11 @@ type Service struct {
 // New returns a Service. alive reports whether a session still exists and is
 // not archived; now supplies the clock.
 func New(r Runner, now func() time.Time, alive func(context.Context, proto.SessionID) bool) *Service {
-	return &Service{run: r, now: now, alive: alive, holders: map[string]holderEntry{}, geometry: map[string]geometry{}}
+	return &Service{
+		run: r, now: now, alive: alive,
+		bootLimit: bootTimeout, launchLimit: launchTimeout, opLimit: opTimeout,
+		holders: map[string]holderEntry{}, geometry: map[string]geometry{},
+	}
 }
 
 // Devices lists available simulator devices.
@@ -111,12 +129,8 @@ func (s *Service) Boot(ctx context.Context, device string) error {
 	if err != nil {
 		return err
 	}
-	ctx, cancel := context.WithTimeout(ctx, bootTimeout)
-	defer cancel()
-	if _, err := s.simctl(ctx, "bootstatus", d.UDID, "-b"); err != nil {
-		return err
-	}
-	return nil
+	_, err = s.simctlWithin(ctx, s.bootLimit, "bootstatus", d.UDID, "-b")
+	return err
 }
 
 // resolve finds a device by UDID, then by name. A blank device selects the
@@ -261,6 +275,8 @@ func (s *Service) Launch(ctx context.Context, caller proto.SessionID, device, bu
 		return err
 	}
 	defer s.finishOp(caller, d.UDID)
+	ctx, cancel := withLimit(ctx, s.launchLimit)
+	defer cancel()
 	if appPath != "" {
 		if _, err := s.simctl(ctx, "install", d.UDID, appPath); err != nil {
 			return err
@@ -279,7 +295,7 @@ func (s *Service) OpenURL(ctx context.Context, caller proto.SessionID, device, u
 	if err := requireBooted(d); err != nil {
 		return err
 	}
-	_, err = s.simctl(ctx, "openurl", d.UDID, url)
+	_, err = s.simctlWithin(ctx, s.opLimit, "openurl", d.UDID, url)
 	return err
 }
 
@@ -290,10 +306,30 @@ func requireBooted(d Device) error {
 	return nil
 }
 
-// simctl runs xcrun simctl and maps a missing toolchain to CodeUnavailable.
+// withLimit bounds ctx by d; a command killed by the bound reports d.
+func withLimit(ctx context.Context, d time.Duration) (context.Context, context.CancelFunc) {
+	return context.WithTimeoutCause(ctx, d, fmt.Errorf("timed out after %s", d))
+}
+
+// simctlWithin runs one simctl command under its own limit.
+func (s *Service) simctlWithin(ctx context.Context, d time.Duration, args ...string) ([]byte, error) {
+	ctx, cancel := withLimit(ctx, d)
+	defer cancel()
+	return s.simctl(ctx, args...)
+}
+
+// simctl runs xcrun simctl, reports a hit deadline as a timeout and maps a
+// missing toolchain to CodeUnavailable.
 func (s *Service) simctl(ctx context.Context, args ...string) ([]byte, error) {
 	out, err := s.run.Run(ctx, "xcrun", append([]string{"simctl"}, args...)...)
 	if err != nil {
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			cause := context.Cause(ctx)
+			if errors.Is(cause, context.DeadlineExceeded) {
+				cause = errors.New("timed out")
+			}
+			return nil, fmt.Errorf("simctl %s: %w", args[0], cause)
+		}
 		if unavailable(err) {
 			return nil, &Error{Code: CodeUnavailable, Message: "xcrun simctl is not available: " + err.Error()}
 		}
@@ -307,5 +343,10 @@ func unavailable(err error) bool {
 		return true
 	}
 	msg := err.Error()
-	return strings.Contains(msg, "unable to find utility") || strings.Contains(msg, "active developer directory")
+	for _, known := range []string{"unable to find utility", "active developer directory", "invalid active developer path"} {
+		if strings.Contains(msg, known) {
+			return true
+		}
+	}
+	return false
 }

@@ -213,3 +213,116 @@ func TestBoot(t *testing.T) {
 		t.Fatalf("blank device err = %v", err)
 	}
 }
+
+// blockingRunner waits for the context on the commands block selects, the way
+// a hung simctl does until it is killed.
+type blockingRunner struct {
+	*fakeRunner
+	block func(name string, args []string) bool
+}
+
+func (b *blockingRunner) Run(ctx context.Context, name string, args ...string) ([]byte, error) {
+	if b.block(name, args) {
+		<-ctx.Done()
+		return nil, fmt.Errorf("%s: %w", name, errors.New("signal: killed"))
+	}
+	return b.fakeRunner.Run(ctx, name, args...)
+}
+
+func simctlVerb(verb string) func(string, []string) bool {
+	return func(_ string, args []string) bool { return len(args) > 1 && args[0] == "simctl" && args[1] == verb }
+}
+
+func TestOperationsAreBounded(t *testing.T) {
+	ctx := context.Background()
+	screenshot := func(s *Service) error { _, err := s.Screenshot(ctx, "ses_1", "UDID-A18"); return err }
+	devices := func(s *Service) error { _, err := s.Devices(ctx); return err }
+	boot := func(s *Service) error { return s.Boot(ctx, "UDID-A17") }
+	launch := func(s *Service) error { return s.Launch(ctx, "ses_1", "UDID-A18", "b", "/work/App.app") }
+	openURL := func(s *Service) error { return s.OpenURL(ctx, "ses_1", "UDID-A18", "myapp://x") }
+	tests := []struct {
+		name  string
+		block func(string, []string) bool
+		op    func(*Service) error
+		limit func(*Service) *time.Duration
+		want  string
+	}{
+		{"list", simctlVerb("list"), devices, func(s *Service) *time.Duration { return &s.opLimit }, "simctl list: timed out after 1ms"},
+		{"boot", simctlVerb("bootstatus"), boot, func(s *Service) *time.Duration { return &s.bootLimit }, "simctl bootstatus: timed out after 1ms"},
+		{"install", simctlVerb("install"), launch, func(s *Service) *time.Duration { return &s.launchLimit }, "simctl install: timed out after 1ms"},
+		{"launch", simctlVerb("launch"), launch, func(s *Service) *time.Duration { return &s.launchLimit }, "simctl launch: timed out after 1ms"},
+		{"screenshot", simctlVerb("io"), screenshot, func(s *Service) *time.Duration { return &s.opLimit }, "simctl io: timed out after 1ms"},
+		{"open url", simctlVerb("openurl"), openURL, func(s *Service) *time.Duration { return &s.opLimit }, "simctl openurl: timed out after 1ms"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := New(&blockingRunner{fakeRunner: listRunner(), block: tt.block}, func() time.Time { return testNow }, func(context.Context, proto.SessionID) bool { return true })
+			*tt.limit(s) = time.Millisecond
+			err := tt.op(s)
+			if err == nil || !strings.Contains(err.Error(), tt.want) || strings.Contains(err.Error(), "signal: killed") {
+				t.Fatalf("err = %v, want %q", err, tt.want)
+			}
+		})
+	}
+}
+
+func TestGeometryIsBounded(t *testing.T) {
+	for name, block := range map[string]func(string, []string) bool{
+		"devicetypes": func(_ string, args []string) bool { return strings.Join(args, " ") == "simctl list -j devicetypes" },
+		"plutil":      func(name string, _ []string) bool { return name == "plutil" },
+	} {
+		t.Run(name, func(t *testing.T) {
+			s := New(&blockingRunner{fakeRunner: listRunner(), block: block}, func() time.Time { return testNow }, func(context.Context, proto.SessionID) bool { return true })
+			s.opLimit = time.Millisecond
+			devices, err := s.Devices(context.Background())
+			if err != nil || len(devices) != 4 {
+				t.Fatalf("devices = %+v, err = %v", devices, err)
+			}
+			for _, d := range devices {
+				if d.Scale != 0 {
+					t.Fatalf("device %+v has geometry", d)
+				}
+			}
+		})
+	}
+}
+
+func TestDefaultLimits(t *testing.T) {
+	s := newSvc(listRunner())
+	if s.bootLimit != 120*time.Second || s.launchLimit != 300*time.Second || s.opLimit != 60*time.Second {
+		t.Fatalf("limits = %v, %v, %v", s.bootLimit, s.launchLimit, s.opLimit)
+	}
+}
+
+// A deadline set by the caller is reported as a timeout too, without claiming
+// one of the service's own limits.
+func TestCallerDeadlineReadsAsTimeout(t *testing.T) {
+	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
+	defer cancel()
+	s := New(&blockingRunner{fakeRunner: listRunner(), block: simctlVerb("list")}, func() time.Time { return testNow }, func(context.Context, proto.SessionID) bool { return true })
+	_, err := s.Devices(ctx)
+	if err == nil || err.Error() != "simctl list: timed out" || strings.Contains(err.Error(), "signal: killed") {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestUnavailable(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{"xcrun missing", &exec.Error{Name: "xcrun", Err: exec.ErrNotFound}, true},
+		{"no simctl utility", errors.New("xcrun: exit status 72: xcrun: error: unable to find utility \"simctl\", not a developer tool or in PATH"), true},
+		{"no active developer directory", errors.New("xcrun: exit status 1: xcode-select: error: tool 'xcrun' requires Xcode, but active developer directory '/Library/Developer/CommandLineTools' is a command line tools instance"), true},
+		{"invalid active developer path", errors.New("xcrun: exit status 1: xcrun: error: invalid active developer path (/Library/Developer/CommandLineTools), missing xcrun"), true},
+		{"other failure", errors.New("xcrun: exit status 149: An error was encountered processing the command"), false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := unavailable(tt.err); got != tt.want {
+				t.Fatalf("unavailable = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
