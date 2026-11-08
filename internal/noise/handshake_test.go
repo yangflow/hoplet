@@ -210,19 +210,57 @@ func TestHandshakeRefusalReachesInitiator(t *testing.T) {
 		{"code used", KindPair, func(_ *DialConfig, a *AcceptConfig) { a.Allow = refuse(ErrPairingRefused) }, ErrPairingRefused},
 		{"pair internal error", KindPair, func(_ *DialConfig, a *AcceptConfig) { a.Allow = refuse(internal) }, ErrHandshake},
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			d, a, _, _ := configs(t, tt.kind)
-			tt.change(&d, &a)
-			dial, acc := run(t, d, a, nil)
-			if !errors.Is(dial.err, tt.want) {
-				t.Fatalf("dial: %v, want %v", dial.err, tt.want)
-			}
-			if acc.err == nil || acc.ch != nil {
-				t.Fatalf("accept served a refused handshake: %v", acc.err)
-			}
-		})
+	transports := []struct {
+		name  string
+		conns func(t *testing.T) (dialer, acceptor MsgConn)
+	}{
+		{"pipe", func(*testing.T) (MsgConn, MsgConn) { return newPipe() }},
+		{"websocket", func(t *testing.T) (MsgConn, MsgConn) {
+			c, s := wsPair(t)
+			return c, NewWSConn(s)
+		}},
 	}
+	for _, tr := range transports {
+		for _, tt := range tests {
+			t.Run(tr.name+"/"+tt.name, func(t *testing.T) {
+				d, a, _, _ := configs(t, tt.kind)
+				tt.change(&d, &a)
+				dc, ac := tr.conns(t)
+				ctx := t.Context()
+				var acc side
+				accepted := make(chan struct{})
+				go func() {
+					defer close(accepted)
+					acc.ch, acc.kind, acc.err = Accept(ctx, ac, a)
+				}()
+				// The answer must survive the responder closing the
+				// connection before the initiator gets to read it.
+				_, err := Dial(ctx, lateReader{dc, accepted}, d)
+				<-accepted
+				if !errors.Is(err, tt.want) {
+					t.Fatalf("dial: %v, want %v", err, tt.want)
+				}
+				if acc.err == nil || acc.ch != nil {
+					t.Fatalf("accept served a refused handshake: %v", acc.err)
+				}
+			})
+		}
+	}
+}
+
+// lateReader holds its reads until open is closed.
+type lateReader struct {
+	MsgConn
+	open <-chan struct{}
+}
+
+func (r lateReader) ReadMessage(ctx context.Context) ([]byte, error) {
+	select {
+	case <-r.open:
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+	return r.MsgConn.ReadMessage(ctx)
 }
 
 func TestDialChecksConfig(t *testing.T) {
