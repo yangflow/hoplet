@@ -188,9 +188,11 @@ flowchart LR
 | 模式 | Claude Code | Hermes |
 |---|---|---|
 | Personal 主会话 | `--append-system-prompt`，与人格同传 | 生成的 `HERMES.md`，与人格同放 |
-| Code | 同一入口，只放摘要 | 入口实施时实测，与现有约定冲突时提出 |
+| Code | 同一入口，只放摘要 | 不注入，记录为 `unsupported`；`HERMES.md` 是项目约定文件，读取工具照常可用 |
 
-委派的子会话不注入摘要，按需用读取工具。
+委派的 Personal 子会话不注入摘要，按需用读取工具；转交出去的 Code 会话按 Code 注入。
+
+适用范围由会话决定：全局、当前主机，Personal 再加所属伙伴，有工作目录的会话再加所在仓库。仓库范围的值是规范化后的 `origin`（`host/path`，不含协议、凭据和 `.git`）；没有可用 `origin` 时为 `主机名:仓库根目录`。`profile_write` 只收范围种类，值取自调用会话；`profile_list`、`profile_read` 只看调用方适用的范围，范围外按不存在处理。
 
 | 工具（`hoplet mcp`，范围由会话 token 决定） | 可用于 | 说明 |
 |---|---|---|
@@ -249,7 +251,7 @@ CLI：`hoplet profile list | show | edit | withdraw | candidates | accept | reje
 |---|---|
 | 预算默认值 | 批次大小、每日次数、闲置时长在真实使用后调整 |
 | Hermes 提炼 | 出现能在运行期间关闭工具、记忆和会话持久化的入口后再启用 |
-| Hermes Code 注入与续接 | Code 会话的启动入口和续接语义 |
+| Hermes Code 注入 | 出现不占用项目 `HERMES.md` 的 Code 会话入口后再启用 |
 | 原生控制 | 会话级控制是否可用；不支持时保留兼容与遗忘限制 |
 | 技能 | 格式、加载、同名优先级、可写性、依赖与候选回收 |
 | 多机缓存 | 离线候选、纠正投递、版本过期和重连对账 |

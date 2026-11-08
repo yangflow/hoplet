@@ -179,7 +179,7 @@ func TestMCPBridge(t *testing.T) {
 		}
 	}
 	slices.Sort(names)
-	if strings.Join(names, ",") != "artifact_publish,session_get,sessions_list" {
+	if strings.Join(names, ",") != "artifact_publish,profile_list,profile_read,profile_write,session_get,sessions_list" {
 		t.Fatalf("tools = %v", names)
 	}
 	r, err := cs.CallTool(ctx, &mcp.CallToolParams{Name: "sessions_list", Arguments: map[string]any{}})

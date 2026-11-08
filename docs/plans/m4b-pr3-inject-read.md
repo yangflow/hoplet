@@ -122,28 +122,28 @@ type ProfileSource interface {
 
 ### 任务 1：摘要
 
-- [ ] `internal/memory/digest.go`
-- [ ] 测试（表驱动）：类别与范围顺序；更新时间；刚好放满和超出 1 字节；大条目进索引、后面小条目仍进正文；索引超限的条数；`candidate`、`stale`、`superseded`、`withdrawn` 不进；范围外不进；没有条目时为空
-- [ ] commit：`feat(memory): select a startup digest by scope`
+- [x] `internal/memory/digest.go`
+- [x] 测试（表驱动）：类别与范围顺序；更新时间；刚好放满和超出 1 字节；大条目进索引、后面小条目仍进正文；索引超限的条数；`candidate`、`stale`、`superseded`、`withdrawn` 不进；范围外不进；没有条目时为空
+- [x] commit：`feat(memory): select a startup digest by scope`
 
 ### 任务 2：启动注入与记录
 
-- [ ] 迁移和 `store` 方法；`Spec.Profile`；`Capabilities.CodeDigest`；Claude、Hermes 适配；`Manager.startSpec` 取摘要，启动成功后写记录；`profileScopes`、`repoScope`
-- [ ] 测试：两家启动参数和生成文件按录制向量核对；人格与摘要各自为空的四种组合；Code 走 Claude 有摘要，走 Hermes 没写 `HERMES.md`、记录为 `unsupported`；子会话无摘要、转交的 Code 有；续接不生成、不写记录；摘要失败（注入错误）时会话照常启动且记录 `failed`；`repoScope` 有 `origin`、无 `origin`、不在仓库内
-- [ ] commit：`feat(session): inject the profile digest at launch`
+- [x] 迁移和 `store` 方法；`Spec.Profile`；`Capabilities.CodeDigest`；Claude、Hermes 适配；`Manager.startSpec` 取摘要，启动成功后写记录；`profileScopes`、`repoScope`
+- [x] 测试：两家启动参数和生成文件按录制向量核对；人格与摘要各自为空的四种组合；Code 走 Claude 有摘要，走 Hermes 没写 `HERMES.md`、记录为 `unsupported`；子会话无摘要、转交的 Code 有；续接不生成、不写记录；摘要失败（注入错误）时会话照常启动且记录 `failed`；`repoScope` 有 `origin`、无 `origin`、不在仓库内
+- [x] commit：`feat(session): inject the profile digest at launch`
 
 ### 任务 3：工具
 
-- [ ] `internal/tools/profile.go`；`Source` 的 daemon 实现
-- [ ] 测试：Code 调用 `profile_write` 被拒且无审计；Personal 的写入生效、转候选、被拒三种结果原样返回；范围外读取按不存在；非生效条目不可读不可列；重试同一调用不重复写入；版本冲突转 `Failure`；范围值不能由调用方指定
-- [ ] commit：`feat(tools): add profile read and write tools`
+- [x] `internal/tools/profile.go`；`Source` 的 daemon 实现
+- [x] 测试：Code 调用 `profile_write` 被拒且无审计；Personal 的写入生效、转候选、被拒三种结果原样返回；范围外读取按不存在；非生效条目不可读不可列；重试同一调用不重复写入；版本冲突转 `Failure`；范围值不能由调用方指定
+- [x] commit：`feat(tools): add profile read and write tools`
 
 ### 任务 4：端到端与设计同步
 
-- [ ] `internal/daemon`：假 harness 跑通“伙伴写入 → 新建另一 harness 的会话 → 启动参数里有这条 → `profile_read` 取到”，并核对注入记录的条目和版本
-- [ ] 按取舍 1、3 更新 0016；真实 Hermes 运行（取舍 6）的结果写进 0020
-- [ ] `make check`，把真实结果写入本计划“结果”一节
-- [ ] commit：`docs(memory): record injection decisions and results`
+- [x] `internal/daemon`：假 harness 跑通“伙伴写入 → 新建另一 harness 的会话 → 启动参数里有这条 → `profile_read` 取到”，并核对注入记录的条目和版本
+- [x] 按取舍 1、3 更新 0016；真实 Hermes 运行（取舍 6）的结果写进 0020
+- [x] `make check`，把真实结果写入本计划“结果”一节
+- [x] commit：`docs(memory): record injection decisions and results`
 
 ## 风险
 
@@ -153,3 +153,18 @@ type ProfileSource interface {
 | 记忆正文含指令性文字进系统提示 | 开头声明不代表授权；提炼和写入的证据校验限制来源；残余风险在 0016 已说明 |
 | 条目很多时索引过长 | 索引 4 KiB 上限，其余只统计条数，用 `profile_list` 查 |
 | 伙伴用长摘要后命令行参数过长 | 人格 64 KiB 加摘要 12 KiB，低于 macOS 和 Linux 的单参数上限 |
+
+## 结果
+
+与计划不同的地方：
+
+| 计划 | 实际 | 原因 |
+|---|---|---|
+| `memory_injections.created_at` 用 TEXT | INTEGER 毫秒 | 与库里其他时间列一致 |
+| `Capabilities.CodeDigest` | 可选接口 `harness.CodeDigester` | 这是 daemon 内部的事，不需要改协议 |
+| 续接不生成摘要 | 续接也生成但不写记录 | Hermes 每次启动都重写 `HERMES.md`，不带摘要会把已有内容抹掉；一条路径更简单 |
+| `Manager.profileScopes`、`repoScope` | 导出的 `ProfileScopes`，仓库身份由 `Git.RepoIdentity` 提供 | 工具也要用；git 细节留在 `workspace` |
+
+补充：`profile_write` 的修改和撤回先按调用方范围检查目标，范围外返回 `no entry <id>`，不能靠 ID 改别的伙伴的条目。
+
+Hermes 0.22.5 实测：说明、人格加摘要的 `HERMES.md`，模型按人格要求开头并答出摘要里的事实，注入扫描没有丢弃。
