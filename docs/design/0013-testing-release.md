@@ -65,7 +65,8 @@ flowchart BT
 |---|---|
 | `make check` | fmt-check → lint → `go tool mygo vet desktop` → `go test -race ./...` → gen-check，前一步失败则后续不执行 |
 | CI | Go 1.27，安装 golangci-lint 2.15.0，执行同一 `make check` |
-| 生成 | `go generate ./...` 后比较 Git 状态；当前没有 `go:generate` 指令，不代表已生成 Swift |
+| 生成 | `go generate ./...` 后比较 Git 状态，覆盖 `proto/` 生成的 Swift 类型 |
+| Swift | 有 Xcode 的机器上 `make check` 含 `swift format` 与 `swift test`；CI 在相关路径变动时用 macOS 任务运行 |
 | 现有测试 | 假 harness、原生录制回放、daemon / shim / store / workspace / 桌面组件测试 |
 | 后续测试 | Noise、iOS、跨语言向量、MCP、记忆、自主与跨机随能力落地 |
 
