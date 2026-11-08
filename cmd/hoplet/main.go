@@ -18,6 +18,7 @@ import (
 	"github.com/yangflow/hoplet/internal/env"
 	"github.com/yangflow/hoplet/internal/harness"
 	"github.com/yangflow/hoplet/internal/harness/claude"
+	"github.com/yangflow/hoplet/internal/harness/codex"
 	"github.com/yangflow/hoplet/internal/harness/hermes"
 	"github.com/yangflow/hoplet/internal/shim"
 )
@@ -103,6 +104,7 @@ func harnesses(home string) map[string]harness.Harness {
 	}
 	return map[string]harness.Harness{
 		claude.Kind: &claude.Harness{Binary: claude.BinaryPath(home)},
+		codex.Kind:  &codex.Harness{Binary: codex.BinaryPath(home)},
 		hermes.Kind: &hermes.Harness{Exe: exe, Dir: hermes.StateDir(home)},
 	}
 }
