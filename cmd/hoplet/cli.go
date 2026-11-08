@@ -116,7 +116,11 @@ func (a app) connect(ctx context.Context) (*client.Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	return client.DialRemote(ctx, r)
+	c, err := client.DialRemote(ctx, r)
+	if errors.Is(err, noise.ErrDeviceRefused) {
+		return nil, fmt.Errorf("%w; to use this host again, run `hoplet pair` on it, then `hoplet host add CODE`", err)
+	}
+	return c, err
 }
 
 // remote says how to reach the host --host names.

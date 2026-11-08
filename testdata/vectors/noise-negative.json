@@ -62,6 +62,68 @@
       "first_message": "0291aaafc8b5498661d28b5f515a4f65d4c52c8e5a01cde17f403062cca2136311d172f702f7ee5038b2564ca83762b7d3f01ca00557b56137defd82680afcba8d78de6eac0c405699c262dbc4c5edf182d7090c693059dccba9c56cdfa8cbaddb9f655f4bb1eb55f612cf2465e7",
       "response": "7bf5530582f482019c9bc2bf072c5314d525a010f7d063e9ea6cd1fdfdbf954514b2088d98f91130d354a3e0b0985d03",
       "error": "handshake"
+    },
+    {
+      "name": "device_refused",
+      "kind": 1,
+      "initiator_static_private": "c0416250fa96a16f9a3383784b0f7dd3ea9b7f0ecd30bc3f4a8b8859ea1219ee",
+      "initiator_ephemeral_private": "f903831fc941366c8d548a509ba0ce1662a66c5278932c1e989f272d8461c066",
+      "responder_static_public": "dad55c37b46f93a4311e12fafa8c720186b1fd1429ae075779408775408b0130",
+      "first_message": "0191aaafc8b5498661d28b5f515a4f65d4c52c8e5a01cde17f403062cca2136311a8827d0e55c0df742043aff20dab5a47ab91dd30e499cd1e6af8f7d331fdbbc13185a9634aa10b97bda9696e3ad0e10cf16db68df8b28b00bf6466d542faa391",
+      "response": "7bf5530582f482019c9bc2bf072c5314d525a010f7d063e9ea6cd1fdfdbf954574851e3609bbcbdbfdf6c57f4983633fab",
+      "error": "device_refused"
+    },
+    {
+      "name": "tampered_device_refusal",
+      "kind": 1,
+      "initiator_static_private": "c0416250fa96a16f9a3383784b0f7dd3ea9b7f0ecd30bc3f4a8b8859ea1219ee",
+      "initiator_ephemeral_private": "f903831fc941366c8d548a509ba0ce1662a66c5278932c1e989f272d8461c066",
+      "responder_static_public": "dad55c37b46f93a4311e12fafa8c720186b1fd1429ae075779408775408b0130",
+      "first_message": "0191aaafc8b5498661d28b5f515a4f65d4c52c8e5a01cde17f403062cca2136311a8827d0e55c0df742043aff20dab5a47ab91dd30e499cd1e6af8f7d331fdbbc13185a9634aa10b97bda9696e3ad0e10cf16db68df8b28b00bf6466d542faa391",
+      "response": "7bf5530582f482019c9bc2bf072c5314d525a010f7d063e9ea6cd1fdfdbf954574851e3609bbcbdbfdf6c57f4983633faa",
+      "error": "handshake"
+    },
+    {
+      "name": "unknown_daily_payload",
+      "kind": 1,
+      "initiator_static_private": "c0416250fa96a16f9a3383784b0f7dd3ea9b7f0ecd30bc3f4a8b8859ea1219ee",
+      "initiator_ephemeral_private": "f903831fc941366c8d548a509ba0ce1662a66c5278932c1e989f272d8461c066",
+      "responder_static_public": "dad55c37b46f93a4311e12fafa8c720186b1fd1429ae075779408775408b0130",
+      "first_message": "0191aaafc8b5498661d28b5f515a4f65d4c52c8e5a01cde17f403062cca2136311a8827d0e55c0df742043aff20dab5a47ab91dd30e499cd1e6af8f7d331fdbbc13185a9634aa10b97bda9696e3ad0e10cf16db68df8b28b00bf6466d542faa391",
+      "response": "7bf5530582f482019c9bc2bf072c5314d525a010f7d063e9ea6cd1fdfdbf95457791ab58a97f8f9b168c8d494b480fb2e5",
+      "error": "handshake"
+    },
+    {
+      "name": "pairing_refused",
+      "kind": 2,
+      "initiator_static_private": "c0416250fa96a16f9a3383784b0f7dd3ea9b7f0ecd30bc3f4a8b8859ea1219ee",
+      "initiator_ephemeral_private": "f903831fc941366c8d548a509ba0ce1662a66c5278932c1e989f272d8461c066",
+      "responder_static_public": "dad55c37b46f93a4311e12fafa8c720186b1fd1429ae075779408775408b0130",
+      "psk": "91fb5dc109252b1de3c6f36fc149f7dc19564b5b0ba637d0db8a9945cbe20f21",
+      "first_message": "0291aaafc8b5498661d28b5f515a4f65d4c52c8e5a01cde17f403062cca2136311d172f702f7ee5038b2564ca83762b7d3f01ca00557b56137defd82680afcba8d78de6eac0c405699c262dbc4c5edf182d7090c693059dccba9c56cdfa8cbaddb9f655f4bb1eb55f612cf2465e7",
+      "response": "01",
+      "error": "pairing_refused"
+    },
+    {
+      "name": "unknown_pairing_refusal",
+      "kind": 2,
+      "initiator_static_private": "c0416250fa96a16f9a3383784b0f7dd3ea9b7f0ecd30bc3f4a8b8859ea1219ee",
+      "initiator_ephemeral_private": "f903831fc941366c8d548a509ba0ce1662a66c5278932c1e989f272d8461c066",
+      "responder_static_public": "dad55c37b46f93a4311e12fafa8c720186b1fd1429ae075779408775408b0130",
+      "psk": "91fb5dc109252b1de3c6f36fc149f7dc19564b5b0ba637d0db8a9945cbe20f21",
+      "first_message": "0291aaafc8b5498661d28b5f515a4f65d4c52c8e5a01cde17f403062cca2136311d172f702f7ee5038b2564ca83762b7d3f01ca00557b56137defd82680afcba8d78de6eac0c405699c262dbc4c5edf182d7090c693059dccba9c56cdfa8cbaddb9f655f4bb1eb55f612cf2465e7",
+      "response": "02",
+      "error": "handshake"
+    },
+    {
+      "name": "plaintext_refusal_on_daily",
+      "kind": 1,
+      "initiator_static_private": "c0416250fa96a16f9a3383784b0f7dd3ea9b7f0ecd30bc3f4a8b8859ea1219ee",
+      "initiator_ephemeral_private": "f903831fc941366c8d548a509ba0ce1662a66c5278932c1e989f272d8461c066",
+      "responder_static_public": "dad55c37b46f93a4311e12fafa8c720186b1fd1429ae075779408775408b0130",
+      "first_message": "0191aaafc8b5498661d28b5f515a4f65d4c52c8e5a01cde17f403062cca2136311a8827d0e55c0df742043aff20dab5a47ab91dd30e499cd1e6af8f7d331fdbbc13185a9634aa10b97bda9696e3ad0e10cf16db68df8b28b00bf6466d542faa391",
+      "response": "01",
+      "error": "handshake"
     }
   ],
   "channel": [

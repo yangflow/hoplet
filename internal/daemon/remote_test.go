@@ -171,7 +171,7 @@ func TestPairing(t *testing.T) {
 
 	refused := func(what string, c pair.Code, psk []byte) {
 		t.Helper()
-		if _, err := client.Pair(timeout(t), remoteOf(c, newIdentity(t)), psk, "x"); !errors.Is(err, noise.ErrHandshake) {
+		if _, err := client.Pair(timeout(t), remoteOf(c, newIdentity(t)), psk, "x"); !errors.Is(err, noise.ErrPairingRefused) {
 			t.Fatalf("%s: %v, want a refused handshake", what, err)
 		}
 	}
@@ -209,7 +209,7 @@ func TestDailyConnection(t *testing.T) {
 	b := startB(t, fake.Script{Session: "n1", Turns: []fake.Turn{approvalTurn}}, limits{})
 	a := newIdentity(t)
 	code := b.code(t)
-	if _, err := client.DialRemote(timeout(t), remoteOf(code, a)); !errors.Is(err, noise.ErrHandshake) {
+	if _, err := client.DialRemote(timeout(t), remoteOf(code, a)); !errors.Is(err, noise.ErrDeviceRefused) {
 		t.Fatalf("unpaired device: %v", err)
 	}
 	r := b.pairWith(t, a, "laptop")
@@ -290,7 +290,7 @@ func TestRevokeEndsConnections(t *testing.T) {
 	case <-timeout(t).Done():
 		t.Fatal("the revoked device stayed connected")
 	}
-	if _, err := client.DialRemote(timeout(t), r); !errors.Is(err, noise.ErrHandshake) {
+	if _, err := client.DialRemote(timeout(t), r); !errors.Is(err, noise.ErrDeviceRefused) {
 		t.Fatalf("revoked device reconnected: %v", err)
 	}
 	if ds, _ := b.local.Devices(timeout(t)); len(ds) != 1 || ds[0].RevokedAt == nil {

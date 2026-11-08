@@ -266,4 +266,20 @@ func TestReachAHostThroughARelay(t *testing.T) {
 	if n := strings.Count(stderr, "switched to"); n != 1 {
 		t.Errorf("switched %d times:\n%s", n, stderr)
 	}
+
+	// Refusals cross the relay, with the direct route dead again.
+	fw.SetTarget(freeAddr(t))
+	if c, _, errs := cli(t, "host", "add", codeText, "--name", "b2"); c != 1 || !strings.Contains(errs, noise.ErrPairingRefused.Error()) {
+		t.Fatalf("reused code through the relay: exit %d, %q", c, errs)
+	}
+	aID, err := noise.EnsureIdentity(a)
+	if err != nil {
+		t.Fatal(err)
+	}
+	onB()
+	mustCLI(t, "device", "revoke", string(aID.ID()))
+	onA()
+	if c, _, errs := cli(t, "--host", "b", "session", "list"); c != 1 || !strings.Contains(errs, noise.ErrDeviceRefused.Error()) {
+		t.Fatalf("revoked through the relay: exit %d, %q", c, errs)
+	}
 }

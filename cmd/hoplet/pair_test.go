@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -162,8 +163,8 @@ func TestPairAndReachAHost(t *testing.T) {
 	if out := mustCLI(t, "host", "add", codeText, "--name", "b"); !strings.Contains(out, "Added host b ("+string(code.ID)+")") {
 		t.Fatalf("host add: %q", out)
 	}
-	if c, _, _ := cli(t, "host", "add", codeText, "--name", "b2"); c != 1 {
-		t.Fatalf("host add with a used code: exit %d, want 1", c)
+	if c, _, errs := cli(t, "host", "add", codeText, "--name", "b2"); c != 1 || !strings.Contains(errs, noise.ErrPairingRefused.Error()) || !strings.Contains(errs, "hoplet pair") {
+		t.Fatalf("host add with a used code: exit %d, %q", c, errs)
 	}
 	if out := mustCLI(t, "host", "list"); !strings.Contains(out, "b ") || !strings.Contains(out, string(code.ID)) {
 		t.Fatalf("host list: %q", out)
@@ -245,6 +246,10 @@ func TestPairAndReachAHost(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer held.Close()
+	onA()
+	revoked := startWatch(t, "--host", "b", "session", "watch", id, "--json")
+	revoked.until(t, lastSeq(ctx, t, localB, id))
+	onB()
 	mustCLI(t, "device", "revoke", string(aID.ID())[:6])
 	select {
 	case <-held.Done():
@@ -252,8 +257,24 @@ func TestPairAndReachAHost(t *testing.T) {
 		t.Fatal("A's connection outlived the revocation")
 	}
 	onA()
-	if c, _, _ := cli(t, "--host", "b", "session", "list"); c != 1 {
-		t.Fatalf("session list after the revocation: exit %d, want 1", c)
+	if c, _, errs := cli(t, "--host", "b", "session", "list"); c != 1 || !strings.Contains(errs, noise.ErrDeviceRefused.Error()) || !strings.Contains(errs, "hoplet pair") {
+		t.Fatalf("session list after the revocation: exit %d, %q", c, errs)
+	}
+	// The watch ends instead of retrying a device the host refuses.
+	if err := revoked.cmd.Wait(); err == nil {
+		t.Fatal("watch exited cleanly after the revocation")
+	}
+	if errs := revoked.stderr.String(); !strings.Contains(errs, noise.ErrDeviceRefused.Error()) || strings.Contains(errs, "reconnecting") {
+		t.Fatalf("watch stderr after the revocation: %q", errs)
+	}
+	// A key the host has never seen gets the same answer.
+	stranger, err := noise.NewIdentity()
+	if err != nil {
+		t.Fatal(err)
+	}
+	rem.Identity = stranger
+	if _, err := client.DialRemote(ctx, rem); !errors.Is(err, noise.ErrDeviceRefused) {
+		t.Fatalf("unpaired device: %v", err)
 	}
 }
 

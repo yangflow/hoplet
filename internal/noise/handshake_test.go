@@ -192,6 +192,39 @@ func TestHandshakeRefusals(t *testing.T) {
 	}
 }
 
+func TestHandshakeRefusalReachesInitiator(t *testing.T) {
+	refuse := func(err error) func(Kind, []byte, []byte) error {
+		return func(Kind, []byte, []byte) error { return err }
+	}
+	internal := errors.New("store unavailable")
+	tests := []struct {
+		name   string
+		kind   Kind
+		change func(d *DialConfig, a *AcceptConfig)
+		want   error
+	}{
+		{"device refused", KindDaily, func(_ *DialConfig, a *AcceptConfig) { a.Allow = refuse(ErrDeviceRefused) }, ErrDeviceRefused},
+		{"daily internal error", KindDaily, func(_ *DialConfig, a *AcceptConfig) { a.Allow = refuse(internal) }, ErrHandshake},
+		{"no pairing open", KindPair, func(_ *DialConfig, a *AcceptConfig) { a.PSK = func() []byte { return nil } }, ErrPairingRefused},
+		{"wrong secret", KindPair, func(d *DialConfig, _ *AcceptConfig) { d.PSK = bytes.Repeat([]byte{8}, PSKSize) }, ErrPairingRefused},
+		{"code used", KindPair, func(_ *DialConfig, a *AcceptConfig) { a.Allow = refuse(ErrPairingRefused) }, ErrPairingRefused},
+		{"pair internal error", KindPair, func(_ *DialConfig, a *AcceptConfig) { a.Allow = refuse(internal) }, ErrHandshake},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			d, a, _, _ := configs(t, tt.kind)
+			tt.change(&d, &a)
+			dial, acc := run(t, d, a, nil)
+			if !errors.Is(dial.err, tt.want) {
+				t.Fatalf("dial: %v, want %v", dial.err, tt.want)
+			}
+			if acc.err == nil || acc.ch != nil {
+				t.Fatalf("accept served a refused handshake: %v", acc.err)
+			}
+		})
+	}
+}
+
 func TestDialChecksConfig(t *testing.T) {
 	id, host := mustIdentity(t), mustIdentity(t).Public()
 	tests := []struct {
