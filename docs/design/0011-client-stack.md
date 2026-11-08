@@ -8,8 +8,8 @@
 
 | 状态 | 边界 |
 |---|---|
-| ✓ 代码已有 | Go / MyGO 桌面与协议客户端、Swift 类型生成器（`tools/swiftgen`）与 `apple/HopletKit` 的协议类型 |
-| ○ 目标 | iOS 协议客户端与跨语言向量 |
+| ✓ 代码已有 | Go / MyGO 桌面与协议客户端、Swift 类型生成器（`tools/swiftgen`）、`apple/HopletKit` 的协议类型与 Noise / 通道 / 配对码向量 |
+| ○ 目标 | iOS 协议客户端与续传向量 |
 
 ## 总览
 
@@ -59,7 +59,7 @@ flowchart TB
 | 通知扩展 | 解密推送正文 |
 | 产物查看 | SwiftUI `WebView` / `WebPage` 加自定义协议处理器，与桌面同一桥接契约 |
 
-Swift 类型由 `make gen` 生成并经 golden 事件回放验证；跨语言向量尚无产物，`apple/HopletPrototype` 是不接后端的界面原型。
+Swift 类型由 `make gen` 生成并经 golden 事件回放验证；跨语言向量在 `testdata/vectors/`，由 `make gen` 从 Go 实现生成，Swift 回放待协议客户端落地；`apple/HopletPrototype` 是不接后端的界面原型。
 
 ## 语音媒体（目标）
 

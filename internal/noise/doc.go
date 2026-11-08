@@ -24,3 +24,5 @@
 // dropped or altered message fail to decrypt, and any failure ends the
 // channel.
 package noise
+
+//go:generate go test -run ^TestVectors$ . -args -update
