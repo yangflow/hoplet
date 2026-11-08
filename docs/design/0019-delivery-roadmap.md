@@ -8,7 +8,7 @@
 
 | 状态 | 边界 |
 |---|---|
-| ◐ 代码现状 | M1 本机闭环与 M2a 安全网络代码已合入；M2a 两台主机实测待做 |
+| ◐ 代码现状 | M1 本机闭环、M2a 安全网络与 M4a 工具桥与伙伴底座代码已合入；M2a 两台主机实测待做 |
 | ○ 目标 | 后续轨道按实际依赖推进，不按编号全局串行 |
 
 ## 当前基线
@@ -23,9 +23,10 @@
 | ✓ | 伙伴实体、伙伴目录与人格（`persona.md`，Claude Code 经 `--append-system-prompt`，Hermes 经生成的 `HERMES.md`）、`companions.*` 与 `hoplet companion` | `internal/store/companions.go`、`internal/session/companion.go`、`cmd/hoplet/companion.go` |
 | ✓ | 委派子会话与回报（走父会话的消息队列，按键只入队一次）、转交 Code 与自动回报 | `internal/tools/delegate.go`、`internal/store/queue.go`、`internal/daemon/handoff.go` |
 | ✓ | 产物服务：版本存放与启动清理、工具 `artifact_publish`、`artifacts.*` 与 `hoplet artifact`，配对设备可列出与读取 | `internal/artifact`、`internal/store/artifacts.go`、`internal/tools/artifact.go`、`cmd/hoplet/artifact.go` |
-| ○ | iOS、产物查看、记忆、自主、集成与跨机 | 当前没有对应服务；枚举和接口预留不等于实现 |
+| ✓ | 桌面的产物列表与查看（HTML 按不可信页面加载）、伙伴对话的事件行与回报卡、子会话、伙伴详情与编辑人格 | `desktop/internal/shell`、`desktop/internal/artifactpage` |
+| ○ | iOS、记忆、自主、集成与跨机 | 当前没有对应服务；枚举和接口预留不等于实现 |
 
-M1 代码已合入，`make check` 通过；两种模式的整体验收由维护者确认。M2a 代码已合入，Mac 与 VPS 两台主机的实测尚未进行。
+M1 代码已合入，`make check` 通过；两种模式的整体验收由维护者确认。M2a 代码已合入，Mac 与 VPS 两台主机的实测尚未进行。M4a 代码已合入，Claude Code 伙伴的委派、转交与发布已在桌面实测；Hermes 子会话跑通、配对机器上查看产物尚未验证。
 
 ## 实际依赖
 
