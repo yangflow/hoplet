@@ -50,9 +50,13 @@ type Harness struct {
 	// Binary is the codex executable Hoplet runs (BinaryPath).
 	Binary string
 
-	mu     sync.Mutex
-	cached harness.Info
-	stamp  stamp // the binary the cached info is for
+	mu        sync.Mutex
+	cached    harness.Info
+	stamp     stamp // the binary the cached info is for
+	envFunc   func() []string
+	models    []proto.ModelInfo
+	modelsFor stamp      // the binary models is for
+	listing   sync.Mutex // one listing at a time
 }
 
 // stamp identifies a binary's contents cheaply.
@@ -67,13 +71,12 @@ var _ harness.StdioHarness = (*Harness)(nil)
 // Kind reports "codex".
 func (h *Harness) Kind() string { return Kind }
 
-// caps is what this adapter supports. Without approvals, the only modes it
-// can honestly offer are the one that asks (and is refused) and the one
-// that never asks.
+// caps is what this adapter supports.
 func caps() proto.Capabilities {
 	return proto.Capabilities{
-		Resume: true, PartialStream: true,
-		Modes: []proto.PermissionMode{proto.ModeConfirm, proto.ModeFullAuto},
+		Steer: true, Resume: true, SetMode: true, SetModel: true, PlanMode: true, PartialStream: true,
+		Modes:   []proto.PermissionMode{proto.ModeConfirm, proto.ModeAutoEdit, proto.ModeAutoReview, proto.ModeFullAuto},
+		Efforts: []proto.Effort{proto.EffortLow, proto.EffortMedium, proto.EffortHigh, proto.EffortXHigh, proto.EffortMax, proto.EffortUltra},
 	}
 }
 
@@ -161,8 +164,8 @@ func (h *Harness) Launch(spec harness.Spec) (harness.Launch, error) {
 	if h.Binary == "" {
 		return harness.Launch{}, errors.New("codex: no binary")
 	}
-	if spec.Plan || spec.Fast || spec.Ultracode {
-		return harness.Launch{}, fmt.Errorf("%w: plan, fast and ultracode", harness.ErrUnsupported)
+	if spec.Fast || spec.Ultracode {
+		return harness.Launch{}, fmt.Errorf("%w: fast and ultracode", harness.ErrUnsupported)
 	}
 	if _, err := nativeMode(spec.Mode); err != nil {
 		return harness.Launch{}, err

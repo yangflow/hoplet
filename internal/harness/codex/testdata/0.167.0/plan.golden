@@ -1,0 +1,67 @@
+write {"id":"hoplet-x-1","method":"initialize","params":{"capabilities":{"experimentalApi":true},"clientInfo":{"name":"hoplet","title":"Hoplet","version":"1"}}}
+write {"method":"initialized"}
+write {"id":"hoplet-x-2","method":"thread/start","params":{"approvalPolicy":"never","approvalsReviewer":"user","cwd":"/work","sandbox":"danger-full-access"}}
+native 01a1bb41-4ef7-7c91-9fc9-6c003e1d807f proto.ModelChanged {"model":"gpt-6-luna"}
+write {"id":"hoplet-x-3","method":"thread/settings/update","params":{"collaborationMode":{"mode":"plan","settings":{"developer_instructions":null,"model":"gpt-6-luna","reasoning_effort":"low"}},"threadId":"01a1bb41-4ef7-7c91-9fc9-6c003e1d807f"}}
+write {"id":"hoplet-x-4","method":"turn/start","params":{"input":[{"text":"I want a small greeting script. Use the request_user_input tool to ask me one question: which language, with options Go and Python. Then give a three step plan.","type":"text"}],"threadId":"01a1bb41-4ef7-7c91-9fc9-6c003e1d807f"}}
+proto.TurnStarted {}
+proto.MessageDelta {"message_id":"msg_072083f68c3b33fb016af0730fff5c87d085071e2645151c7c","text":"我"}
+proto.MessageDelta {"message_id":"msg_072083f68c3b33fb016af0730fff5c87d085071e2645151c7c","text":"先"}
+proto.MessageDelta {"message_id":"msg_072083f68c3b33fb016af0730fff5c87d085071e2645151c7c","text":"按"}
+proto.MessageDelta {"message_id":"msg_072083f68c3b33fb016af0730fff5c87d085071e2645151c7c","text":"你的"}
+proto.MessageDelta {"message_id":"msg_072083f68c3b33fb016af0730fff5c87d085071e2645151c7c","text":"要求"}
+proto.MessageDelta {"message_id":"msg_072083f68c3b33fb016af0730fff5c87d085071e2645151c7c","text":"确认"}
+proto.MessageDelta {"message_id":"msg_072083f68c3b33fb016af0730fff5c87d085071e2645151c7c","text":"脚"}
+proto.MessageDelta {"message_id":"msg_072083f68c3b33fb016af0730fff5c87d085071e2645151c7c","text":"本"}
+proto.MessageDelta {"message_id":"msg_072083f68c3b33fb016af0730fff5c87d085071e2645151c7c","text":"语言"}
+proto.MessageDelta {"message_id":"msg_072083f68c3b33fb016af0730fff5c87d085071e2645151c7c","text":"，然后"}
+proto.MessageDelta {"message_id":"msg_072083f68c3b33fb016af0730fff5c87d085071e2645151c7c","text":"给"}
+proto.MessageDelta {"message_id":"msg_072083f68c3b33fb016af0730fff5c87d085071e2645151c7c","text":"出"}
+proto.MessageDelta {"message_id":"msg_072083f68c3b33fb016af0730fff5c87d085071e2645151c7c","text":"三"}
+proto.MessageDelta {"message_id":"msg_072083f68c3b33fb016af0730fff5c87d085071e2645151c7c","text":"步"}
+proto.MessageDelta {"message_id":"msg_072083f68c3b33fb016af0730fff5c87d085071e2645151c7c","text":"计划"}
+proto.MessageDelta {"message_id":"msg_072083f68c3b33fb016af0730fff5c87d085071e2645151c7c","text":"。"}
+proto.Message {"id":"msg_072083f68c3b33fb016af0730fff5c87d085071e2645151c7c","role":"assistant","text":"我先按你的要求确认脚本语言，然后给出三步计划。"}
+proto.Question {"id":"0:language","text":"问候脚本使用哪种语言？","options":["Go","Python"]}
+write {"id":0,"result":{"answers":{"language":{"answers":["Go"]}}}}
+proto.ContextUsage {"used":22493,"window":828400}
+proto.Usage {"input_tokens":22391,"output_tokens":102}
+proto.MessageDelta {"message_id":"msg_072083f68c3b33fb016af0731320f887d0a346bba6eb2a3349","text":"1"}
+proto.MessageDelta {"message_id":"msg_072083f68c3b33fb016af0731320f887d0a346bba6eb2a3349","text":"."}
+proto.MessageDelta {"message_id":"msg_072083f68c3b33fb016af0731320f887d0a346bba6eb2a3349","text":" 确"}
+proto.MessageDelta {"message_id":"msg_072083f68c3b33fb016af0731320f887d0a346bba6eb2a3349","text":"认"}
+proto.MessageDelta {"message_id":"msg_072083f68c3b33fb016af0731320f887d0a346bba6eb2a3349","text":"使用"}
+proto.MessageDelta {"message_id":"msg_072083f68c3b33fb016af0731320f887d0a346bba6eb2a3349","text":" Go"}
+proto.MessageDelta {"message_id":"msg_072083f68c3b33fb016af0731320f887d0a346bba6eb2a3349","text":"。\n"}
+proto.MessageDelta {"message_id":"msg_072083f68c3b33fb016af0731320f887d0a346bba6eb2a3349","text":"2"}
+proto.MessageDelta {"message_id":"msg_072083f68c3b33fb016af0731320f887d0a346bba6eb2a3349","text":"."}
+proto.MessageDelta {"message_id":"msg_072083f68c3b33fb016af0731320f887d0a346bba6eb2a3349","text":" 编"}
+proto.MessageDelta {"message_id":"msg_072083f68c3b33fb016af0731320f887d0a346bba6eb2a3349","text":"写"}
+proto.MessageDelta {"message_id":"msg_072083f68c3b33fb016af0731320f887d0a346bba6eb2a3349","text":"一个"}
+proto.MessageDelta {"message_id":"msg_072083f68c3b33fb016af0731320f887d0a346bba6eb2a3349","text":"简"}
+proto.MessageDelta {"message_id":"msg_072083f68c3b33fb016af0731320f887d0a346bba6eb2a3349","text":"短"}
+proto.MessageDelta {"message_id":"msg_072083f68c3b33fb016af0731320f887d0a346bba6eb2a3349","text":"脚"}
+proto.MessageDelta {"message_id":"msg_072083f68c3b33fb016af0731320f887d0a346bba6eb2a3349","text":"本"}
+proto.MessageDelta {"message_id":"msg_072083f68c3b33fb016af0731320f887d0a346bba6eb2a3349","text":"，"}
+proto.MessageDelta {"message_id":"msg_072083f68c3b33fb016af0731320f887d0a346bba6eb2a3349","text":"输出"}
+proto.MessageDelta {"message_id":"msg_072083f68c3b33fb016af0731320f887d0a346bba6eb2a3349","text":"问"}
+proto.MessageDelta {"message_id":"msg_072083f68c3b33fb016af0731320f887d0a346bba6eb2a3349","text":"候"}
+proto.MessageDelta {"message_id":"msg_072083f68c3b33fb016af0731320f887d0a346bba6eb2a3349","text":"语"}
+proto.MessageDelta {"message_id":"msg_072083f68c3b33fb016af0731320f887d0a346bba6eb2a3349","text":"。\n"}
+proto.MessageDelta {"message_id":"msg_072083f68c3b33fb016af0731320f887d0a346bba6eb2a3349","text":"3"}
+proto.MessageDelta {"message_id":"msg_072083f68c3b33fb016af0731320f887d0a346bba6eb2a3349","text":"."}
+proto.MessageDelta {"message_id":"msg_072083f68c3b33fb016af0731320f887d0a346bba6eb2a3349","text":" 查看"}
+proto.MessageDelta {"message_id":"msg_072083f68c3b33fb016af0731320f887d0a346bba6eb2a3349","text":"脚"}
+proto.MessageDelta {"message_id":"msg_072083f68c3b33fb016af0731320f887d0a346bba6eb2a3349","text":"本"}
+proto.MessageDelta {"message_id":"msg_072083f68c3b33fb016af0731320f887d0a346bba6eb2a3349","text":"内容"}
+proto.MessageDelta {"message_id":"msg_072083f68c3b33fb016af0731320f887d0a346bba6eb2a3349","text":"，"}
+proto.MessageDelta {"message_id":"msg_072083f68c3b33fb016af0731320f887d0a346bba6eb2a3349","text":"确认"}
+proto.MessageDelta {"message_id":"msg_072083f68c3b33fb016af0731320f887d0a346bba6eb2a3349","text":"它"}
+proto.MessageDelta {"message_id":"msg_072083f68c3b33fb016af0731320f887d0a346bba6eb2a3349","text":"能"}
+proto.MessageDelta {"message_id":"msg_072083f68c3b33fb016af0731320f887d0a346bba6eb2a3349","text":"直接"}
+proto.MessageDelta {"message_id":"msg_072083f68c3b33fb016af0731320f887d0a346bba6eb2a3349","text":"运行"}
+proto.MessageDelta {"message_id":"msg_072083f68c3b33fb016af0731320f887d0a346bba6eb2a3349","text":"。"}
+proto.Message {"id":"msg_072083f68c3b33fb016af0731320f887d0a346bba6eb2a3349","role":"assistant","text":"1. 确认使用 Go。\n2. 编写一个简短脚本，输出问候语。\n3. 查看脚本内容，确认它能直接运行。"}
+proto.ContextUsage {"used":22557,"window":828400}
+proto.Usage {"input_tokens":22516,"output_tokens":41}
+proto.TurnEnded {"reason":"completed"}

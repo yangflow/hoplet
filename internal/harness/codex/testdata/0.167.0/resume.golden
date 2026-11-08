@@ -1,13 +1,14 @@
 write {"id":"hoplet-x-1","method":"initialize","params":{"capabilities":{"experimentalApi":true},"clientInfo":{"name":"hoplet","title":"Hoplet","version":"1"}}}
 write {"method":"initialized"}
-write {"id":"hoplet-x-2","method":"thread/resume","params":{"approvalPolicy":"never","approvalsReviewer":"user","cwd":"/work","excludeTurns":true,"sandbox":"danger-full-access","threadId":"01a1baee-1102-7391-b028-dfa42f438db5"}}
-native 01a1baee-1102-7391-b028-dfa42f438db5 proto.ModelChanged {"model":"gpt-6-luna"}
-proto.ContextUsage {"used":23795,"window":828400}
-proto.Usage {"input_tokens":23790,"output_tokens":5}
-write {"id":"hoplet-x-3","method":"turn/start","params":{"input":[{"text":"Reply with the single word again.","type":"text"}],"threadId":"01a1baee-1102-7391-b028-dfa42f438db5"}}
+write {"id":"hoplet-x-2","method":"thread/resume","params":{"approvalPolicy":"never","approvalsReviewer":"user","cwd":"/work","excludeTurns":true,"sandbox":"danger-full-access","threadId":"01a1bb41-4ef7-7fb2-bf42-6d83400a667e"}}
+native 01a1bb41-4ef7-7fb2-bf42-6d83400a667e proto.ModelChanged {"model":"gpt-5.6-luna"}
+proto.ContextUsage {"used":40498,"window":828400}
+proto.Usage {"input_tokens":40493,"output_tokens":5}
+write {"id":"hoplet-x-3","method":"thread/settings/update","params":{"collaborationMode":{"mode":"default","settings":{"developer_instructions":null,"model":"gpt-5.6-luna","reasoning_effort":"low"}},"threadId":"01a1bb41-4ef7-7fb2-bf42-6d83400a667e"}}
+write {"id":"hoplet-x-4","method":"turn/start","params":{"input":[{"text":"Reply with the single word again.","type":"text"}],"threadId":"01a1bb41-4ef7-7fb2-bf42-6d83400a667e"}}
 proto.TurnStarted {}
-proto.MessageDelta {"message_id":"msg_0f2afb44fed9a9bd016af05de3cfb487d0b5f7a3374342ca04","text":"done"}
-proto.Message {"id":"msg_0f2afb44fed9a9bd016af05de3cfb487d0b5f7a3374342ca04","role":"assistant","text":"done"}
-proto.ContextUsage {"used":26491,"window":828400}
-proto.Usage {"input_tokens":26486,"output_tokens":5}
+proto.MessageDelta {"message_id":"msg_0cb15218f387b7a5016af07404ba7c87d09d48b502dddfce5f","text":"three"}
+proto.Message {"id":"msg_0cb15218f387b7a5016af07404ba7c87d09d48b502dddfce5f","role":"assistant","text":"three"}
+proto.ContextUsage {"used":43225,"window":828400}
+proto.Usage {"input_tokens":43189,"output_tokens":36}
 proto.TurnEnded {"reason":"completed"}

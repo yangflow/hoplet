@@ -24,8 +24,11 @@ const writeTimeout = 10 * time.Second
 const maxOutput = 1 << 20
 
 // refusedNotice tells the user Codex asked for something this adapter
-// cannot put to them yet.
-const refusedNotice = "Codex asked for an approval or an answer Hoplet cannot show yet, so it was refused"
+// cannot put to them.
+const refusedNotice = "Codex asked for something Hoplet cannot show, so it was refused"
+
+// methodSettings changes a thread's settings.
+const methodSettings = "thread/settings/update"
 
 // requestKind says what a response answers.
 type requestKind int
@@ -35,6 +38,7 @@ const (
 	reqThread
 	reqTurn
 	reqTurnsList
+	reqChecked // nothing to do with the result, but a refusal is shown
 	reqOther
 )
 
@@ -56,13 +60,34 @@ type run struct {
 	outputs map[string][]byte // command output so far, per item
 	last    tokenCounts       // the session's totals last reported, zero until then
 
-	mu       sync.Mutex
-	native   string
-	turnID   string
-	seq      int
-	pending  map[string]requestKind
-	startErr error
-	err      error
+	mu          sync.Mutex
+	native      string
+	turnID      string
+	seq         int
+	pending     map[string]requestKind
+	startErr    error
+	err         error
+	plan        bool
+	model       string
+	effort      proto.Effort
+	baseEffort  string                     // the effort Codex chose for the thread
+	closed      map[string]bool            // server requests answered or withdrawn, by raw ID
+	permissions map[string]requestedAccess // permission approvals open, by approval ID
+	questions   map[string]*questionSet    // questions open, by question ID
+}
+
+// requestedAccess is a permission approval waiting for its answer.
+type requestedAccess struct {
+	rpc     json.RawMessage
+	profile json.RawMessage
+}
+
+// questionSet is one requestUserInput call: Codex takes all its answers at
+// once, in a single reply.
+type questionSet struct {
+	rpc     json.RawMessage
+	native  map[string]string // question ID to Codex's ID, for those not yet answered
+	answers map[string]userInputAnswer
 }
 
 func newRun(io harness.Stdio, spec harness.Spec) (*run, error) {
@@ -83,6 +108,8 @@ func newRun(io harness.Stdio, spec harness.Spec) (*run, error) {
 		prefix:   "hoplet-" + hex.EncodeToString(id[:]),
 		inTurn:   spec.State.InTurn, native: spec.State.Native,
 		outputs: map[string][]byte{}, pending: map[string]requestKind{},
+		plan: spec.Plan, model: spec.Model, effort: spec.Effort,
+		closed: map[string]bool{}, permissions: map[string]requestedAccess{}, questions: map[string]*questionSet{},
 	}, nil
 }
 
@@ -250,14 +277,21 @@ func (r *run) translate(line []byte) (out []proto.Payload, nativeID string) {
 	return nil, ""
 }
 
-// serverRequest refuses what the server asks of the user: an approval is
-// declined, anything else answered with an error, so a turn never hangs on
-// a question nobody can see.
+// serverRequest puts what the server asks to the user. Anything this adapter
+// cannot show is answered with an error at once, so a turn never hangs on a
+// question nobody can see.
 func (r *run) serverRequest(m message) []proto.Payload {
-	reply := message{ID: m.ID, Error: &rpcError{Code: -32601, Message: "not supported by this client"}}
-	if strings.HasSuffix(m.Method, "/requestApproval") {
-		reply = message{ID: m.ID, Result: json.RawMessage(`{"decision":"decline"}`)}
+	var out []proto.Payload
+	switch m.Method {
+	case methodCommandApproval, methodFileApproval, methodPermissionApproval:
+		out = r.approval(m)
+	case methodUserInput:
+		out = r.userInput(m)
 	}
+	if out != nil {
+		return out
+	}
+	reply := message{ID: m.ID, Error: &rpcError{Code: -32601, Message: "not supported by this client"}}
 	if err := r.inLoop(func(ctx context.Context) error { return r.write(ctx, reply) }); err != nil {
 		return []proto.Payload{proto.Error{Message: err.Error()}}
 	}
@@ -287,6 +321,10 @@ func (r *run) response(m message) ([]proto.Payload, string) {
 		return r.turnAccepted(m), ""
 	case reqTurnsList:
 		r.turnFound(m)
+	case reqChecked:
+		if m.Error != nil {
+			return []proto.Payload{proto.Error{Message: m.Error.Message}}, ""
+		}
 	}
 	return nil, ""
 }
@@ -324,12 +362,64 @@ func (r *run) threadOpened(m message) ([]proto.Payload, string) {
 	}
 	r.mu.Lock()
 	r.native = res.Thread.ID
-	r.mu.Unlock()
-	close(r.ready)
-	if res.Model == "" {
-		return nil, res.Thread.ID
+	if res.Model != "" {
+		r.model = res.Model
 	}
-	return []proto.Payload{proto.ModelChanged{Model: res.Model}}, res.Thread.ID
+	r.baseEffort = res.ReasoningEffort
+	settings := r.startSettings()
+	r.mu.Unlock()
+	var out []proto.Payload
+	if settings != nil { // written before Send can be, so the first turn has them
+		err := r.inLoop(func(ctx context.Context) error {
+			return r.request(ctx, methodSettings, settings, reqChecked)
+		})
+		if err != nil {
+			out = append(out, proto.Error{Message: err.Error()})
+		}
+	}
+	close(r.ready)
+	if res.Model != "" {
+		out = append(out, proto.ModelChanged{Model: res.Model})
+	}
+	return out, res.Thread.ID
+}
+
+// startSettings are the session's settings thread/start and thread/resume
+// cannot carry; nil when there are none. A resumed thread is told its plan
+// state either way, so one left in plan mode cannot stay there. Call with
+// r.mu held.
+func (r *run) startSettings() *threadSettingsParams {
+	p := threadSettingsParams{ThreadID: r.native, Effort: string(r.effort)}
+	if r.plan || r.spec.Resume != "" {
+		p.CollaborationMode = r.collaboration()
+	}
+	if p.Effort == "" && p.CollaborationMode == nil {
+		return nil
+	}
+	return &p
+}
+
+// collaboration is the collaboration mode the settings mean. Call with r.mu
+// held.
+func (r *run) collaboration() *collaborationMode {
+	mode := collabDefault
+	if r.plan {
+		mode = collabPlan
+	}
+	c := &collaborationMode{Mode: mode, Settings: collaborationSettings{Model: r.model}}
+	if e := r.currentEffort(); e != "" {
+		c.Settings.ReasoningEffort = &e
+	}
+	return c
+}
+
+// currentEffort is the effort in force: the session's, or Codex's own. Call
+// with r.mu held.
+func (r *run) currentEffort() string {
+	if r.effort != "" {
+		return string(r.effort)
+	}
+	return r.baseEffort
 }
 
 // startFailed makes every command fail with why the thread could not open.
@@ -407,7 +497,9 @@ func (r *run) notification(m message) []proto.Payload {
 		if n.Item != nil {
 			return r.itemCompleted(*n.Item)
 		}
-	case "item/agentMessage/delta":
+	case "serverRequest/resolved":
+		r.requestClosed(n.RequestID)
+	case "item/agentMessage/delta", "item/plan/delta":
 		return []proto.Payload{proto.MessageDelta{MessageID: n.ItemID, Text: n.Delta}}
 	case "item/commandExecution/outputDelta":
 		if len(r.outputs[n.ItemID]) < maxOutput {
@@ -456,7 +548,7 @@ func itemStarted(it item) []proto.Payload {
 
 func (r *run) itemCompleted(it item) []proto.Payload {
 	switch it.Type {
-	case itemAgentMessage:
+	case itemAgentMessage, itemPlan:
 		return []proto.Payload{proto.Message{ID: it.ID, Role: proto.RoleAssistant, Text: it.Text}}
 	case itemReasoning:
 		text := strings.Join(append(append([]string(nil), it.Summary...), it.Content...), "\n\n")
@@ -588,45 +680,106 @@ func (r *run) Send(ctx context.Context, text string) error {
 	return r.request(ctx, "turn/start", turnStartParams{ThreadID: id, Input: []textInput{{Type: "text", Text: text}}}, reqTurn)
 }
 
-// Interrupt stops the turn under way; the turn's end arrives as an event.
-func (r *run) Interrupt(ctx context.Context) error {
-	id, err := r.thread(ctx)
+// currentTurn waits until the thread and its running turn are known.
+func (r *run) currentTurn(ctx context.Context) (thread, turn string, err error) {
+	thread, err = r.thread(ctx)
 	if err != nil {
-		return err
+		return "", "", err
 	}
 	select {
 	case <-r.located:
 	case <-ctx.Done():
-		return fmt.Errorf("codex: %w", ctx.Err())
+		return "", "", fmt.Errorf("codex: %w", ctx.Err())
 	case <-r.finished:
-		return errors.New("codex: the run has ended")
+		return "", "", errors.New("codex: the run has ended")
 	}
 	r.mu.Lock()
-	t := r.turnID
-	r.mu.Unlock()
-	if t == "" {
-		return errors.New("codex: no turn to interrupt")
+	defer r.mu.Unlock()
+	if r.turnID == "" {
+		return "", "", errors.New("codex: no turn under way")
+	}
+	return thread, r.turnID, nil
+}
+
+// Interrupt stops the turn under way; the turn's end arrives as an event.
+func (r *run) Interrupt(ctx context.Context) error {
+	id, t, err := r.currentTurn(ctx)
+	if err != nil {
+		return err
 	}
 	return r.request(ctx, "turn/interrupt", turnInterruptParams{ThreadID: id, TurnID: t}, reqOther)
 }
 
-// Steer is not supported yet.
-func (r *run) Steer(context.Context, string) error { return harness.ErrUnsupported }
+// Steer adds text to the turn under way.
+func (r *run) Steer(ctx context.Context, text string) error {
+	id, t, err := r.currentTurn(ctx)
+	if err != nil {
+		return err
+	}
+	return r.request(ctx, "turn/steer", turnSteerParams{ThreadID: id, ExpectedTurnID: t, Input: []textInput{{Type: "text", Text: text}}}, reqChecked)
+}
 
-// Respond is not supported yet.
-func (r *run) Respond(context.Context, string, string) error { return harness.ErrUnsupported }
+// update changes the thread's settings; they apply from the next turn.
+// change runs with r.mu held and fills in what changes.
+func (r *run) update(ctx context.Context, change func(*threadSettingsParams)) error {
+	id, err := r.thread(ctx)
+	if err != nil {
+		return err
+	}
+	p := threadSettingsParams{ThreadID: id}
+	r.mu.Lock()
+	change(&p)
+	r.mu.Unlock()
+	return r.request(ctx, methodSettings, p, reqChecked)
+}
 
-// Answer is not supported yet.
-func (r *run) Answer(context.Context, string, string) error { return harness.ErrUnsupported }
+// SetMode changes the permission mode. The sandbox is sent only when it
+// differs, so a change between the modes that share one keeps what the
+// user's configuration says about it.
+func (r *run) SetMode(ctx context.Context, mode proto.PermissionMode) error {
+	m, err := nativeMode(mode)
+	if err != nil {
+		return err
+	}
+	return r.update(ctx, func(p *threadSettingsParams) {
+		p.ApprovalPolicy, p.ApprovalsReviewer = m.approval, m.reviewer
+		if m.sandbox != r.params.Sandbox {
+			p.SandboxPolicy = &sandboxPolicy{Type: nativeSandboxPolicy(m.sandbox)}
+			r.params.Sandbox = m.sandbox
+		}
+	})
+}
 
-// SetMode is not supported yet.
-func (r *run) SetMode(context.Context, proto.PermissionMode) error { return harness.ErrUnsupported }
+func nativeSandboxPolicy(sandbox string) string {
+	if sandbox == "danger-full-access" {
+		return "dangerFullAccess"
+	}
+	return "workspaceWrite"
+}
 
-// SetPlan is not supported yet.
-func (r *run) SetPlan(context.Context, bool) error { return harness.ErrUnsupported }
+// SetPlan turns plan mode on or off. It is independent of the permission
+// mode, which stays as it is.
+func (r *run) SetPlan(ctx context.Context, on bool) error {
+	return r.update(ctx, func(p *threadSettingsParams) {
+		r.plan = on
+		p.CollaborationMode = r.collaboration()
+	})
+}
 
-// SetEffort is not supported yet.
-func (r *run) SetEffort(context.Context, proto.Effort) error { return harness.ErrUnsupported }
+// SetEffort changes the thinking effort; empty goes back to the one Codex
+// chose for the thread.
+func (r *run) SetEffort(ctx context.Context, effort proto.Effort) error {
+	if effort != "" && !caps().HasEffort(effort) {
+		return harness.ErrUnsupported
+	}
+	return r.update(ctx, func(p *threadSettingsParams) {
+		r.effort = effort
+		p.Effort = r.currentEffort()
+		if r.plan {
+			p.CollaborationMode = r.collaboration()
+		}
+	})
+}
 
 // SetFast is not supported.
 func (r *run) SetFast(context.Context, bool) error { return harness.ErrUnsupported }
@@ -634,8 +787,16 @@ func (r *run) SetFast(context.Context, bool) error { return harness.ErrUnsupport
 // SetUltracode is not supported.
 func (r *run) SetUltracode(context.Context, bool) error { return harness.ErrUnsupported }
 
-// SetModel is not supported yet.
-func (r *run) SetModel(context.Context, string, string) error { return harness.ErrUnsupported }
+// SetModel changes the model.
+func (r *run) SetModel(ctx context.Context, model, _ string) error {
+	return r.update(ctx, func(p *threadSettingsParams) {
+		r.model = model
+		p.Model = model
+		if r.plan {
+			p.CollaborationMode = r.collaboration()
+		}
+	})
+}
 
 // Events delivers the normalized events.
 func (r *run) Events() <-chan harness.Event { return r.events }
