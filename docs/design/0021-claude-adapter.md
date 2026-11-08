@@ -126,6 +126,7 @@ flowchart LR
 | 参数 | `-p --tools "" --strict-mcp-config --mcp-config '{"mcpServers":{}}' --no-session-persistence --setting-sources user --settings '{"disableAllHooks":true}' --disable-slash-commands --system-prompt <提炼指令> --model <来源会话的模型>` |
 | 环境 | 在启动环境的基础上加 `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1`、`CLAUDE_CODE_DISABLE_CLAUDE_MDS=1` |
 | 实测 | 工具、MCP、slash 为空；项目与用户规则不进上下文；项目 hook 不触发；会话不可恢复；结果带用量 |
+| hook 范围 | 对照实测用 `--settings` 传入的 hook：`disableAllHooks` 为 false 时触发，为 true 时不触发。用户级 hook 要改 `~/.claude`，未单独实测 |
 | 不用 | `--bare` 不支持 OAuth 登录；`--setting-sources ""` 在已登录的机器上报未登录 |
 
 ## 待验证

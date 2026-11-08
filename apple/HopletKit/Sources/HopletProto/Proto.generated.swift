@@ -5860,6 +5860,117 @@ public struct ProfileCandidate: Codable, Hashable, Sendable, ProtoZero {
   public var isProtoZero: Bool { false }
 }
 
+public struct ProfileExtractionHarness: Codable, Hashable, Sendable, ProtoZero {
+  public var kind: String
+  public var used: Int
+  public var unsupported: String
+
+  public init(
+    kind: String = .protoZero,
+    used: Int = .protoZero,
+    unsupported: String = .protoZero
+  ) {
+    self.kind = kind
+    self.used = used
+    self.unsupported = unsupported
+  }
+
+  private enum CodingKeys: String, CodingKey {
+    case kind = "kind"
+    case used = "used"
+    case unsupported = "unsupported"
+  }
+
+  public init(from decoder: any Decoder) throws {
+    let c = try decoder.container(keyedBy: CodingKeys.self)
+    kind = try c.decodeOrZero(String.self, forKey: .kind)
+    used = try c.decodeOrZero(Int.self, forKey: .used)
+    unsupported = try c.decodeOrZero(String.self, forKey: .unsupported)
+  }
+
+  public func encode(to encoder: any Encoder) throws {
+    var c = encoder.container(keyedBy: CodingKeys.self)
+    try c.encode(kind, forKey: .kind)
+    try c.encode(used, forKey: .used)
+    try c.encodeUnlessZero(unsupported, forKey: .unsupported)
+  }
+
+  public static var protoZero: Self { Self() }
+  public var isProtoZero: Bool { false }
+}
+
+public struct ProfileExtractionStatus: Codable, Hashable, Sendable, ProtoZero {
+  public var enabled: Bool
+  public var dailyLimit: Int
+  public var failed: Int
+  public var harnesses: [ProfileExtractionHarness]
+
+  public init(
+    enabled: Bool = .protoZero,
+    dailyLimit: Int = .protoZero,
+    failed: Int = .protoZero,
+    harnesses: [ProfileExtractionHarness] = .protoZero
+  ) {
+    self.enabled = enabled
+    self.dailyLimit = dailyLimit
+    self.failed = failed
+    self.harnesses = harnesses
+  }
+
+  private enum CodingKeys: String, CodingKey {
+    case enabled = "enabled"
+    case dailyLimit = "daily_limit"
+    case failed = "failed"
+    case harnesses = "harnesses"
+  }
+
+  public init(from decoder: any Decoder) throws {
+    let c = try decoder.container(keyedBy: CodingKeys.self)
+    enabled = try c.decodeOrZero(Bool.self, forKey: .enabled)
+    dailyLimit = try c.decodeOrZero(Int.self, forKey: .dailyLimit)
+    failed = try c.decodeOrZero(Int.self, forKey: .failed)
+    harnesses = try c.decodeOrZero([ProfileExtractionHarness].self, forKey: .harnesses)
+  }
+
+  public func encode(to encoder: any Encoder) throws {
+    var c = encoder.container(keyedBy: CodingKeys.self)
+    try c.encode(enabled, forKey: .enabled)
+    try c.encode(dailyLimit, forKey: .dailyLimit)
+    try c.encode(failed, forKey: .failed)
+    try c.encode(harnesses, forKey: .harnesses)
+  }
+
+  public static var protoZero: Self { Self() }
+  public var isProtoZero: Bool { false }
+}
+
+public struct ProfileExtractionSetParams: Codable, Hashable, Sendable, ProtoZero {
+  public var enabled: Bool
+
+  public init(
+    enabled: Bool = .protoZero
+  ) {
+    self.enabled = enabled
+  }
+
+  private enum CodingKeys: String, CodingKey {
+    case enabled = "enabled"
+  }
+
+  public init(from decoder: any Decoder) throws {
+    let c = try decoder.container(keyedBy: CodingKeys.self)
+    enabled = try c.decodeOrZero(Bool.self, forKey: .enabled)
+  }
+
+  public func encode(to encoder: any Encoder) throws {
+    var c = encoder.container(keyedBy: CodingKeys.self)
+    try c.encode(enabled, forKey: .enabled)
+  }
+
+  public static var protoZero: Self { Self() }
+  public var isProtoZero: Bool { false }
+}
+
 public struct ProfileCandidates: Codable, Hashable, Sendable, ProtoZero {
   public var candidates: [ProfileCandidate]
 

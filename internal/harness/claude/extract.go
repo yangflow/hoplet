@@ -92,4 +92,3 @@ func lastLine(s string) string {
 	}
 	return s
 }
-
