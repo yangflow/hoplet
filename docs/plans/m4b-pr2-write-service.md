@@ -193,18 +193,18 @@ hoplet profile reject ID
 
 ### 任务 1：存储支持
 
-- [ ] 迁移 `memory_candidates`
-- [ ] `internal/store/memory.go`：`MemoryOpRejected` 常量、`RecordMemoryRejection`、`AllCommittedMemoryOps`
-- [ ] `internal/store/memory_candidates.go`：`AddMemoryCandidate`、`MemoryCandidate`、`OpenMemoryCandidates`、`DecideMemoryCandidate`
-- [ ] `internal/store/events.go`：`EventBySeq`，未知会话或序号返回 `ErrNotFound`
-- [ ] 测试：从上一版迁移后数据不变；被拒记录不出现在 `MemoryOps`，同 ID 再次记录返回 `ErrExists`；候选状态只能从 `open` 变一次；`ReplaceMemoryIndex` 不动候选；`EventBySeq` 的三种结果
-- [ ] commit：`feat(store): record memory candidates and rejections`
+- [x] 迁移 `memory_candidates`
+- [x] `internal/store/memory.go`：`MemoryOpRejected` 常量、`RecordMemoryRejection`、`AllCommittedMemoryOps`
+- [x] `internal/store/memory_candidates.go`：`AddMemoryCandidate`、`MemoryCandidate`、`OpenMemoryCandidates`、`DecideMemoryCandidate`
+- [x] `internal/store/events.go`：`EventBySeq`，未知会话或序号返回 `ErrNotFound`
+- [x] 测试：从上一版迁移后数据不变；被拒记录不出现在 `MemoryOps`，同 ID 再次记录返回 `ErrExists`；候选状态只能从 `open` 变一次；`ReplaceMemoryIndex` 不动候选；`EventBySeq` 的三种结果
+- [x] commit：`feat(store): record memory candidates and rejections`
 
 ### 任务 2：写入服务
 
-- [ ] `internal/memory/credential.go`、`write.go`、`evidence.go`、`replay.go`、`gate.go`
-- [ ] `Service` 增加配置项 `Sessions`（只读接口，取会话模式）；`Apply` 全程持有写锁，把 PR1 的 `Commit` 拆成加锁的外层和不加锁的内层
-- [ ] 测试（全部表驱动，一行对应 0016 表中的一条）：
+- [x] `internal/memory/credential.go`、`write.go`、`evidence.go`、`replay.go`、`gate.go`
+- [x] `Service` 增加配置项 `Sessions`（只读接口，取会话模式）；`Apply` 全程持有写锁，把 PR1 的 `Commit` 拆成加锁的外层和不加锁的内层
+- [x] 测试（全部表驱动，一行对应 0016 表中的一条）：
   - 用户写入带期望版本，立即生效，证据为 `op:`
   - 伙伴：Code 会话被拒；别的会话的证据被拒；`user_stated` 指向助手消息、子会话回报、子代理记录时被拒；不存在的事件被拒
   - 提炼：区间外的证据被拒
@@ -214,23 +214,23 @@ hoplet profile reject ID
   - 重试：`applied`、`candidate`、`rejected` 三种结果都不重复写入
   - 旧材料：拦截表每行各一条；晚于纠正的 `observed` 仍进候选；晚于撤回的 `user_stated` 恢复（`update`、`create` 各一条）；手改文件视同用户变更
   - 失败：rename 失败时 `Apply` 返回错误，不是 `applied`
-- [ ] commit：`feat(memory): validate writes from every source`
+- [x] commit：`feat(memory): validate writes from every source`
 
 ### 任务 3：候选
 
-- [ ] `internal/memory/candidate.go`：`Candidates`、`Accept`、`Reject`
-- [ ] 测试：三种动作的确认；调整范围；目标版本已变时冲突且候选仍打开；拒绝后同样内容被 `withdrawn_replay` 拦截；每一步之间用失败点崩溃后，同一 `opID` 重试能走完且不重复写入；已决定的候选不能再操作
-- [ ] commit：`feat(memory): accept and reject candidates`
+- [x] `internal/memory/candidate.go`：`Candidates`、`Accept`、`Reject`
+- [x] 测试：三种动作的确认；调整范围；目标版本已变时冲突且候选仍打开；拒绝后同样内容被 `withdrawn_replay` 拦截；每一步之间用失败点崩溃后，同一 `opID` 重试能走完且不重复写入；已决定的候选不能再操作
+- [x] commit：`feat(memory): accept and reject candidates`
 
 ### 任务 4：daemon 方法与 CLI
 
-- [ ] `proto/profile.go`、`proto/api.go`，`make gen`
-- [ ] `internal/daemon/methods.go`、`localOnly`；`internal/daemon/daemon.go` 传入 `Sessions`
-- [ ] `internal/client/methods.go`
-- [ ] `cmd/hoplet/profile.go`，`main.go` 加命令和用法
-- [ ] 测试：每个方法经 socket 跑通；经 Noise 连接调用被拒；版本冲突如实返回；CLI 表驱动覆盖七个命令的文本与 `--json` 输出、参数错误；`--host` 被拒；写入失败时 CLI 非零退出且不打印已保存
-- [ ] `make check`，把结果写入本计划的“结果”一节
-- [ ] commit：`feat(memory): add profile methods and CLI`
+- [x] `proto/profile.go`、`proto/api.go`，`make gen`
+- [x] `internal/daemon/methods.go`、`localOnly`；`internal/daemon/daemon.go` 传入 `Sessions`
+- [x] `internal/client/methods.go`
+- [x] `cmd/hoplet/profile.go`，`main.go` 加命令和用法
+- [x] 测试：每个方法经 socket 跑通；经 Noise 连接调用被拒；版本冲突如实返回；CLI 表驱动覆盖七个命令的文本与 `--json` 输出、参数错误；`--host` 被拒；写入失败时 CLI 非零退出且不打印已保存
+- [x] `make check`，把结果写入本计划的“结果”一节
+- [x] commit：`feat(memory): add profile methods and CLI`
 
 ## 风险
 
@@ -240,3 +240,19 @@ hoplet profile reject ID
 | 正文比较漏掉改写过的旧结论 | 已知限制，靠 `update` 的目标时间拦截和 PR4 的模型判断补足 |
 | 确认候选的两步之间崩溃 | 操作 ID 确定，重试走完；目标已提交时第一步按重试返回 |
 | 迁移编号被并行工作占用 | 实现时取当时 `main` 的下一个编号 |
+
+## 结果
+
+`make check` 通过：`golangci-lint` 0 issues，`go tool mygo vet desktop` 通过，`go test -race ./...` 34 个包全部通过，生成代码无差异。
+
+与计划的出入：
+
+- 任务 2、3 合成一个 commit：`feat(memory): validate writes and decide candidates`。
+- 产物版本的证据时间取 `UpdatedAt`：`CreatedAt` 是产物首次发布的时间。
+- 提炼写入因版本冲突转候选时，记录目标的当前版本作为期望版本，否则这条候选永远无法确认。
+- 旧材料拦截先判撤回规则，再判目标时间和被替换正文，返回更具体的代码。
+- `profile.accept` 的范围对 `create`、`update` 都有效，对 `withdraw` 是无效参数。
+- `profile.list` 增加 `All` 参数，供 `--all` 使用。
+- 确认或拒绝的某一步失败后，用 `<操作 ID>.N` 重试这一步。
+
+已知限制：确认候选崩溃在两步之间时，要用同一个操作 ID 重试才能走完；CLI 每次生成新的操作 ID，这种情况下用户可以拒绝这条候选。
