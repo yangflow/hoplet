@@ -34,3 +34,27 @@ func sessionAlive(st *store.Store) func(context.Context, proto.SessionID) bool {
 		return sess.ArchivedAt == nil
 	}
 }
+
+// simulatorReapEvery is how often idle simulator helpers are looked for.
+const simulatorReapEvery = 15 * time.Second
+
+// simulatorHelpers is the part of a simulator service that owns helper
+// processes.
+type simulatorHelpers interface {
+	ReapIdle(now time.Time) int
+	Close() error
+}
+
+// reapSimulator closes idle simulator helpers every period until ctx ends.
+func reapSimulator(ctx context.Context, h simulatorHelpers, every time.Duration, now func() time.Time) {
+	t := time.NewTicker(every)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			h.ReapIdle(now())
+		}
+	}
+}

@@ -97,6 +97,9 @@ type Daemon struct {
 	net   *http.Server // the direct listener; nil without one
 	netLn net.Listener
 	queue *queuer
+	// simHelpers owns the simulator helper processes; nil without a
+	// simulator service.
+	simHelpers simulatorHelpers
 
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
@@ -226,6 +229,7 @@ func Start(ctx context.Context, cfg Config) (d *Daemon, err error) {
 	if sim == nil {
 		sim = hostSimulator(runtime.GOOS, simulator.ExecRunner{}, time.Now, sessionAlive(st))
 	}
+	simHelpers, _ := sim.(simulatorHelpers)
 	runCtx, cancel := context.WithCancel(context.Background())
 	q := &queuer{store: st, mgr: mgr, log: log, locks: map[proto.SessionID]*sync.Mutex{}, waiting: map[proto.SessionID]bool{}}
 	srv := &server{
@@ -260,6 +264,10 @@ func Start(ctx context.Context, cfg Config) (d *Daemon, err error) {
 	}()
 	ho := &handoffs{store: st, log: log, seen: map[proto.SessionID]uint64{}}
 	d.wg.Go(func() { ho.run(runCtx) })
+	if simHelpers != nil {
+		d.simHelpers = simHelpers
+		d.wg.Go(func() { reapSimulator(runCtx, simHelpers, simulatorReapEvery, time.Now) })
+	}
 	// The harnesses' models are asked for now, so the first client to ask
 	// does not wait for a harness started to list them.
 	d.wg.Go(func() { mgr.Harnesses(runCtx) })
@@ -313,6 +321,9 @@ func (d *Daemon) Close() error {
 		d.srv.wait()
 		d.wg.Wait()
 		d.ws.Close() // stops and awaits background repacks
+		if d.simHelpers != nil {
+			err = errors.Join(err, d.simHelpers.Close())
+		}
 		d.closeErr = errors.Join(err, d.mgr.Close(), d.store.Close(), d.lock.Close())
 	})
 	return d.closeErr
