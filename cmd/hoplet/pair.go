@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"text/tabwriter"
@@ -18,8 +19,9 @@ import (
 
 const pairUsage = `usage: hoplet pair [--json]
 
-Prints a pairing code for this machine. On the other machine, run
-hoplet host add CODE within ten minutes; the code works once, and a new
+Prints a pairing code for this machine, with a QR code in a terminal for
+the Hoplet iOS app. On the other machine, run hoplet host add CODE within
+ten minutes; the code works once, and a new
 hoplet pair replaces it. The code carries network.routes and
 network.relays from config.toml: set one of them first (network.routes
 with network.listen).
@@ -61,9 +63,25 @@ func (a app) pair(args []string) int {
 			return nil
 		}
 		fmt.Fprintln(a.stdout, pc.Code)
+		if isTerminal(a.stdout) {
+			// The text code above still works if the QR code cannot be drawn.
+			if drawn, err := pair.RenderQR(pc.Code); err == nil {
+				fmt.Fprintf(a.stdout, "\n%s", drawn)
+			}
+		}
 		fmt.Fprintf(a.stdout, "\nOn the other machine, run hoplet host add with this code before %s.\n", pc.ExpiresAt.Local().Format("15:04"))
 		return nil
 	})
+}
+
+// isTerminal reports whether w is a terminal.
+func isTerminal(w io.Writer) bool {
+	f, ok := w.(*os.File)
+	if !ok {
+		return false
+	}
+	info, err := f.Stat()
+	return err == nil && info.Mode()&os.ModeCharDevice != 0
 }
 
 // subcommand runs the command args[0] names among cmds, or prints usage.
