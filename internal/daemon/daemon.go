@@ -195,7 +195,7 @@ func Start(ctx context.Context, cfg Config) (d *Daemon, err error) {
 	if err := arts.Clean(ctx); err != nil {
 		return nil, fmt.Errorf("daemon: clean artifacts: %w", err)
 	}
-	mem, err := memory.Open(ctx, memory.Config{Root: home.Profile(cfg.Home), Store: st, Log: log})
+	mem, err := memory.Open(ctx, memory.Config{Root: home.Profile(cfg.Home), Store: st, Sessions: st, Log: log})
 	if err != nil {
 		return nil, fmt.Errorf("daemon: open memory: %w", err)
 	}

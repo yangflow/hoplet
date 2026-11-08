@@ -173,9 +173,9 @@ func TestApplyEvidence(t *testing.T) {
 		name string
 		make func(f *writes) Write
 	}{
-		{"none", func(f *writes) Write { return create("x") }},
-		{"bad format", func(f *writes) Write { return create("x", Evidence{EvidenceObserved, "note:p/1"}) }},
-		{"op reference", func(f *writes) Write { return create("x", Evidence{EvidenceUserStated, "op:abc"}) }},
+		{"none", func(_ *writes) Write { return create("x") }},
+		{"bad format", func(_ *writes) Write { return create("x", Evidence{EvidenceObserved, "note:p/1"}) }},
+		{"op reference", func(_ *writes) Write { return create("x", Evidence{EvidenceUserStated, "op:abc"}) }},
 		{"missing event", func(f *writes) Write { return create("x", Evidence{EvidenceObserved, "event:p/999"}) }},
 		{"other session", func(f *writes) Write { return create("x", f.observed("q", before)) }},
 		{"missing artifact", func(f *writes) Write { return create("x", Evidence{EvidenceObserved, "artifact:nope/1"}) }},

@@ -127,6 +127,13 @@ const (
 	MethodArtifactsList     = "artifacts.list"
 	MethodArtifactsRead     = "artifacts.read"
 	MethodArtifactsVersions = "artifacts.versions"
+	MethodProfileList       = "profile.list"
+	MethodProfileGet        = "profile.get"
+	MethodProfileUpdate     = "profile.update"
+	MethodProfileWithdraw   = "profile.withdraw"
+	MethodProfileCandidates = "profile.candidates"
+	MethodProfileAccept     = "profile.accept"
+	MethodProfileReject     = "profile.reject"
 )
 
 // HelloParams opens a connection; it must be the first request. A device

@@ -341,6 +341,46 @@ func (c *conn) call(ctx context.Context, f proto.ClientFrame) (any, error) {
 			return nil, err
 		}
 		return done, s.store.RemoveHost(ctx, p.Host)
+	case proto.MethodProfileList:
+		var p proto.ProfileListParams
+		if err := decode(f, &p); err != nil {
+			return nil, err
+		}
+		return s.profileList(ctx, p)
+	case proto.MethodProfileGet:
+		var p proto.ProfileRef
+		if err := decode(f, &p); err != nil {
+			return nil, err
+		}
+		return s.profileGet(ctx, p.ID)
+	case proto.MethodProfileUpdate:
+		var p proto.ProfileUpdateParams
+		if err := decode(f, &p); err != nil {
+			return nil, err
+		}
+		return s.profileUpdate(ctx, p)
+	case proto.MethodProfileWithdraw:
+		var p proto.ProfileWithdrawParams
+		if err := decode(f, &p); err != nil {
+			return nil, err
+		}
+		return s.profileWithdraw(ctx, p)
+	case proto.MethodProfileCandidates:
+		return s.profileCandidates(ctx)
+	case proto.MethodProfileAccept:
+		var p proto.ProfileAcceptParams
+		if err := decode(f, &p); err != nil {
+			return nil, err
+		}
+		e, err := s.memory.Accept(ctx, p.ID, p.OpID, profileScope(p.Scope))
+		return profileEntry(e), err
+	case proto.MethodProfileReject:
+		var p proto.ProfileRejectParams
+		if err := decode(f, &p); err != nil {
+			return nil, err
+		}
+		e, err := s.memory.Reject(ctx, p.ID, p.OpID)
+		return profileEntry(e), err
 	default:
 		return nil, &proto.APIError{Code: proto.CodeBadRequest, Message: "unknown method " + f.Method}
 	}
@@ -348,9 +388,13 @@ func (c *conn) call(ctx context.Context, f proto.ClientFrame) (any, error) {
 
 // localOnly reports whether a device connected over Noise may not call
 // method: pairing hands out access to this host, its hosts are its own,
-// and publishing reads files by their paths on this machine.
+// publishing reads files by their paths on this machine, and the profile
+// stays with this machine's own clients for now.
 func localOnly(method string) bool {
 	switch method {
+	case proto.MethodProfileList, proto.MethodProfileGet, proto.MethodProfileUpdate, proto.MethodProfileWithdraw,
+		proto.MethodProfileCandidates, proto.MethodProfileAccept, proto.MethodProfileReject:
+		return true
 	case proto.MethodPairingStart, proto.MethodHostsAdd, proto.MethodHostsList, proto.MethodHostsRemove, proto.MethodArtifactsPublish:
 		return true
 	}

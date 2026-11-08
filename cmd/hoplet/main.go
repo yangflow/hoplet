@@ -31,6 +31,7 @@ commands:
   session   create, follow and drive sessions (hoplet session help)
   companion create companions and edit their personas (hoplet companion help)
   artifact  publish and list a session's artifacts (hoplet artifact help)
+  profile   review and correct what Hoplet remembers (hoplet profile help)
   pair      print a pairing code another machine joins with
   host      add, list or remove the hosts this machine reaches
   device    list or revoke the devices paired with this machine
@@ -128,6 +129,8 @@ func (a app) run(args []string) int {
 		return a.companion(args[1:])
 	case "artifact":
 		return a.artifact(args[1:])
+	case "profile":
+		return a.profile(args[1:])
 	case "pair":
 		return a.pair(args[1:])
 	case "host":

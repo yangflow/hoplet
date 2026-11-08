@@ -311,3 +311,52 @@ func (c *Client) ReadArtifact(ctx context.Context, p proto.ArtifactsReadParams) 
 	err := c.Call(ctx, proto.MethodArtifactsRead, p, &out)
 	return out, err
 }
+
+// ProfileList returns the memory entries that match p.
+func (c *Client) ProfileList(ctx context.Context, p proto.ProfileListParams) (proto.ProfileList, error) {
+	var out proto.ProfileList
+	err := c.Call(ctx, proto.MethodProfileList, p, &out)
+	return out, err
+}
+
+// ProfileGet returns a memory entry and its history.
+func (c *Client) ProfileGet(ctx context.Context, id string) (proto.ProfileDetail, error) {
+	var out proto.ProfileDetail
+	err := c.Call(ctx, proto.MethodProfileGet, proto.ProfileRef{ID: id}, &out)
+	return out, err
+}
+
+// ProfileUpdate replaces a memory entry's body as the user.
+func (c *Client) ProfileUpdate(ctx context.Context, p proto.ProfileUpdateParams) (proto.ProfileWriteResult, error) {
+	var out proto.ProfileWriteResult
+	err := c.Call(ctx, proto.MethodProfileUpdate, p, &out)
+	return out, err
+}
+
+// ProfileWithdraw withdraws a memory entry as the user.
+func (c *Client) ProfileWithdraw(ctx context.Context, p proto.ProfileWithdrawParams) (proto.ProfileWriteResult, error) {
+	var out proto.ProfileWriteResult
+	err := c.Call(ctx, proto.MethodProfileWithdraw, p, &out)
+	return out, err
+}
+
+// ProfileCandidates returns the changes waiting for the user.
+func (c *Client) ProfileCandidates(ctx context.Context) (proto.ProfileCandidates, error) {
+	var out proto.ProfileCandidates
+	err := c.Call(ctx, proto.MethodProfileCandidates, struct{}{}, &out)
+	return out, err
+}
+
+// ProfileAccept carries out a candidate.
+func (c *Client) ProfileAccept(ctx context.Context, p proto.ProfileAcceptParams) (proto.ProfileEntry, error) {
+	var out proto.ProfileEntry
+	err := c.Call(ctx, proto.MethodProfileAccept, p, &out)
+	return out, err
+}
+
+// ProfileReject withdraws a candidate.
+func (c *Client) ProfileReject(ctx context.Context, p proto.ProfileRejectParams) (proto.ProfileEntry, error) {
+	var out proto.ProfileEntry
+	err := c.Call(ctx, proto.MethodProfileReject, p, &out)
+	return out, err
+}
