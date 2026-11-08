@@ -4,5 +4,7 @@
   "version": "0.1.0",
   "out": "build",
   "icon": "resources/icon.png",
-  "macos": { "minimumSystemVersion": "14.0" }
+  "macos": { "minimumSystemVersion": "14.0",
+    "infoPlist": { "NSMicrophoneUsageDescription": "Hoplet uses the microphone for voice calls." },
+    "entitlements": "entitlements.plist" }
 }
