@@ -28,6 +28,11 @@ const helperCloseWait = 3 * time.Second
 // stderrTail is how much of a helper's standard error is kept for errors.
 const stderrTail = 4096
 
+// errHelperNotRunning marks a command that was not sent because its helper
+// had already exited. Nothing reached the helper, so a fresh one may take the
+// command.
+var errHelperNotRunning = errors.New("simulator helper is not running")
+
 // HelperRequest is one command for the input helper. Coordinates are ratios
 // of the screen, 0 to 1.
 type HelperRequest struct {
@@ -262,7 +267,7 @@ func probeMessage(r wireResponse) string {
 func (h *stdioHelper) Do(ctx context.Context, req HelperRequest) error {
 	select {
 	case <-h.exited:
-		return h.exitErr
+		return fmt.Errorf("%w: %w", errHelperNotRunning, h.exitErr)
 	default:
 	}
 	h.mu.Lock()
@@ -289,7 +294,7 @@ func (h *stdioHelper) Do(ctx context.Context, req HelperRequest) error {
 		forget()
 		select {
 		case <-h.exited:
-			return h.exitErr
+			return fmt.Errorf("%w: %w", errHelperNotRunning, h.exitErr)
 		default:
 		}
 		return fmt.Errorf("send simulator helper command: %w", err)

@@ -32,24 +32,78 @@ func asciiUsage(r rune) (usage int, shift, ok bool) {
 	case ' ':
 		return 0x2C, false, true
 	}
-	if u, ok := plainSymbols[r]; ok {
-		return u, false, true
-	}
-	if u, ok := shiftedSymbols[r]; ok {
-		return u, true, true
+	return symbolUsage(r)
+}
+
+// symbolUsage maps punctuation on the US layout.
+func symbolUsage(r rune) (usage int, shift, ok bool) {
+	switch r {
+	case '-':
+		return 0x2D, false, true
+	case '=':
+		return 0x2E, false, true
+	case '[':
+		return 0x2F, false, true
+	case ']':
+		return 0x30, false, true
+	case '\\':
+		return 0x31, false, true
+	case ';':
+		return 0x33, false, true
+	case '\'':
+		return 0x34, false, true
+	case '`':
+		return 0x35, false, true
+	case ',':
+		return 0x36, false, true
+	case '.':
+		return 0x37, false, true
+	case '/':
+		return 0x38, false, true
+	case '!':
+		return 30, true, true
+	case '@':
+		return 31, true, true
+	case '#':
+		return 32, true, true
+	case '$':
+		return 33, true, true
+	case '%':
+		return 34, true, true
+	case '^':
+		return 35, true, true
+	case '&':
+		return 36, true, true
+	case '*':
+		return 37, true, true
+	case '(':
+		return 38, true, true
+	case ')':
+		return 39, true, true
+	case '_':
+		return 0x2D, true, true
+	case '+':
+		return 0x2E, true, true
+	case '{':
+		return 0x2F, true, true
+	case '}':
+		return 0x30, true, true
+	case '|':
+		return 0x31, true, true
+	case ':':
+		return 0x33, true, true
+	case '"':
+		return 0x34, true, true
+	case '~':
+		return 0x35, true, true
+	case '<':
+		return 0x36, true, true
+	case '>':
+		return 0x37, true, true
+	case '?':
+		return 0x38, true, true
 	}
 	return 0, false, false
-}
-
-var plainSymbols = map[rune]int{
-	'-': 0x2D, '=': 0x2E, '[': 0x2F, ']': 0x30, '\\': 0x31,
-	';': 0x33, '\'': 0x34, '`': 0x35, ',': 0x36, '.': 0x37, '/': 0x38,
-}
-
-var shiftedSymbols = map[rune]int{
-	'!': 30, '@': 31, '#': 32, '$': 33, '%': 34, '^': 35, '&': 36, '*': 37, '(': 38, ')': 39,
-	'_': 0x2D, '+': 0x2E, '{': 0x2F, '}': 0x30, '|': 0x31,
-	':': 0x33, '"': 0x34, '~': 0x35, '<': 0x36, '>': 0x37, '?': 0x38,
 }
 
 // keyChunks maps text to keys commands. ok is false when any character has no

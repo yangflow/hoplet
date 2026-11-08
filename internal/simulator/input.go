@@ -20,6 +20,9 @@ const (
 	helperIdle   = 60 * time.Second
 	// maxGesture bounds the duration of a tap or swipe.
 	maxGesture = 10 * time.Second
+	// probeLimit bounds finding the Xcode path and probing, so a hung probe
+	// cannot hold a lease or a device listing.
+	probeLimit = 10 * time.Second
 )
 
 type probeResult struct {
@@ -54,9 +57,12 @@ func (s *Service) probeInput(ctx context.Context) error {
 	if _, err := os.Stat(path); err != nil {
 		return unsupportedInput("the simulator input helper is missing: " + filepath.Base(path))
 	}
-	ctx, cancel := withLimit(ctx, s.opLimit)
+	ctx, cancel := withLimit(ctx, probeLimit)
 	defer cancel()
 	out, err := s.run.Run(ctx, "xcode-select", "-p")
+	if ctx.Err() != nil {
+		return fmt.Errorf("probe simulator input: %w", context.Cause(ctx))
+	}
 	xcode := strings.TrimSpace(string(out))
 	if err != nil || xcode == "" {
 		return unsupportedInput("cannot read the selected Xcode path")
@@ -65,13 +71,16 @@ func (s *Service) probeInput(ctx context.Context) error {
 	res, ok := s.probes[xcode]
 	s.pmu.Unlock()
 	if !ok {
-		res = s.runProbe(ctx, path)
+		var answered bool
+		res, answered = s.runProbe(ctx, path)
 		if ctx.Err() != nil {
-			return unsupportedInput("the simulator input probe did not finish: " + context.Cause(ctx).Error())
+			return fmt.Errorf("probe simulator input: %w", context.Cause(ctx))
 		}
-		s.pmu.Lock()
-		s.probes[xcode] = res
-		s.pmu.Unlock()
+		if answered {
+			s.pmu.Lock()
+			s.probes[xcode] = res
+			s.pmu.Unlock()
+		}
 	}
 	if !res.ok {
 		return unsupportedInput(res.msg)
@@ -79,19 +88,21 @@ func (s *Service) probeInput(ctx context.Context) error {
 	return nil
 }
 
-func (s *Service) runProbe(ctx context.Context, path string) probeResult {
+// runProbe runs the helper's probe. answered is true only when the helper
+// printed a parsed answer, which is the only result worth caching.
+func (s *Service) runProbe(ctx context.Context, path string) (res probeResult, answered bool) {
 	out, err := s.run.Run(ctx, path, "--probe")
 	var r wireResponse
 	if jerr := json.Unmarshal([]byte(strings.TrimSpace(string(out))), &r); jerr == nil {
 		if err == nil && r.OK {
-			return probeResult{ok: true}
+			return probeResult{ok: true}, true
 		}
-		return probeResult{msg: probeMessage(r)}
+		return probeResult{msg: probeMessage(r)}, true
 	}
 	if err != nil {
-		return probeResult{msg: "the simulator input probe failed: " + err.Error()}
+		return probeResult{msg: "the simulator input probe failed: " + err.Error()}, false
 	}
-	return probeResult{msg: "the simulator input probe printed no result"}
+	return probeResult{msg: "the simulator input probe printed no result"}, false
 }
 
 // start launches a helper for a device.
@@ -191,18 +202,27 @@ func helperBroken(err error) bool {
 func (s *Service) helperDo(ctx context.Context, udid string, req HelperRequest) error {
 	ctx, cancel := withLimit(ctx, s.inputLimit)
 	defer cancel()
-	e, err := s.helperFor(ctx, udid)
-	if err != nil {
-		return err
-	}
-	defer s.helperDone(e)
-	if err := e.h.Do(ctx, req); err != nil {
+	// A helper that died while idle rejects the command before sending it;
+	// that is not a retry, so a fresh helper gets one go.
+	var err error
+	for range 2 {
+		var e *helperEntry
+		if e, err = s.helperFor(ctx, udid); err != nil {
+			return err
+		}
+		err = e.h.Do(ctx, req)
+		s.helperDone(e)
+		if err == nil {
+			return nil
+		}
 		if helperBroken(err) {
 			s.drop(udid, e)
 		}
-		return fmt.Errorf("simulator %s: %w", req.Op, err)
+		if !errors.Is(err, errHelperNotRunning) {
+			break
+		}
 	}
-	return nil
+	return fmt.Errorf("simulator %s: %w", req.Op, err)
 }
 
 // ReapIdle closes the helpers that have been idle for more than a minute
@@ -283,7 +303,7 @@ func checkDuration(d time.Duration) error {
 // ratio converts a coordinate in device points to a 0 to 1 ratio of size.
 func ratio(axis string, v float64, size int) (float64, error) {
 	if size <= 0 {
-		return 0, fmt.Errorf("screen size of the device is unavailable, so a %s point cannot be converted", axis)
+		return 0, &Error{Code: CodeInputFailed, Message: fmt.Sprintf("screen size of the device is unavailable, so a %s point cannot be converted", axis)}
 	}
 	if !(v >= 0 && v <= float64(size)) {
 		return 0, invalid("%s %g is outside the screen (0 to %d points)", axis, v, size)
@@ -358,10 +378,15 @@ func (s *Service) Text(ctx context.Context, caller proto.SessionID, device, text
 	}
 	return s.withInput(ctx, caller, device, check, func(d Device) error {
 		if chunks, ok := keyChunks(text); ok {
+			total, sent := 0, 0
+			for _, c := range chunks {
+				total += typedChars(c)
+			}
 			for _, c := range chunks {
 				if err := s.helperDo(ctx, d.UDID, HelperRequest{Op: "keys", Usages: c}); err != nil {
-					return err
+					return fmt.Errorf("%w (%d of %d characters were typed)", err, sent, total)
 				}
+				sent += typedChars(c)
 			}
 			return nil
 		}
@@ -370,6 +395,18 @@ func (s *Service) Text(ctx context.Context, caller proto.SessionID, device, text
 		}
 		return s.helperDo(ctx, d.UDID, HelperRequest{Op: "paste"})
 	})
+}
+
+// typedChars counts the characters a keys command types: one non-modifier
+// usage each.
+func typedChars(usages []int) int {
+	n := 0
+	for _, u := range usages {
+		if u < 0xE0 || u > 0xE7 {
+			n++
+		}
+	}
+	return n
 }
 
 func (s *Service) simctlStdinWithin(ctx context.Context, d time.Duration, stdin []byte, args ...string) ([]byte, error) {

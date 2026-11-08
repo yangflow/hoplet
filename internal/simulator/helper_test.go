@@ -30,6 +30,12 @@ func newFakeChild(stubborn bool) (*fakeChild, *stdioHelper, *tailBuffer) {
 	outR, outW := io.Pipe()
 	c := &fakeChild{stdin: stdin, reqs: make(chan string, 16), outW: outW, done: make(chan struct{}), stubborn: stubborn}
 	tail := &tailBuffer{max: stderrTail}
+	// Only a helper that ignores end of input should reach the kill path;
+	// the others get all the time they need.
+	closeWait := time.Minute
+	if stubborn {
+		closeWait = 5 * time.Millisecond
+	}
 	go func() {
 		sc := bufio.NewScanner(reqR)
 		for sc.Scan() {
@@ -39,7 +45,7 @@ func newFakeChild(stubborn bool) (*fakeChild, *stdioHelper, *tailBuffer) {
 			c.exit()
 		}
 	}()
-	return c, newStdioHelper(stdin, outR, c, tail, 5*time.Millisecond), tail
+	return c, newStdioHelper(stdin, outR, c, tail, closeWait), tail
 }
 
 func (c *fakeChild) exit() {

@@ -707,3 +707,116 @@ func TestDefaultHelperFileBesideExecutable(t *testing.T) {
 		t.Fatalf("got %s want %s", got, want)
 	}
 }
+
+func TestHelperDiedWhileIdleIsRestarted(t *testing.T) {
+	env := newInputEnv(t)
+	ctx := context.Background()
+	if err := env.s.Tap(ctx, "ses_1", bootedUDID, 1, 1, 0); err != nil {
+		t.Fatal(err)
+	}
+	first := env.helpers()[0]
+	// The helper dies while idle: it rejects the next command unsent.
+	first.mu.Lock()
+	first.err = errors.Join(errHelperNotRunning, errors.New("signal: killed"))
+	first.mu.Unlock()
+	if err := env.s.Tap(ctx, "ses_1", bootedUDID, 2, 2, 0); err != nil {
+		t.Fatal(err)
+	}
+	hs := env.helpers()
+	if len(hs) != 2 || !first.isClosed() {
+		t.Fatalf("%d helpers, first closed = %v", len(hs), first.isClosed())
+	}
+	if got := hs[1].requests(); len(got) != 1 || got[0].X != 2.0/393 {
+		t.Fatalf("new helper got %+v", got)
+	}
+}
+
+func TestRestartHappensOnce(t *testing.T) {
+	env := newInputEnv(t)
+	env.onMake = func(h *fakeHelper) { h.err = errHelperNotRunning }
+	err := env.s.Tap(context.Background(), "ses_1", bootedUDID, 1, 1, 0)
+	if !errors.Is(err, errHelperNotRunning) || len(env.helpers()) != 2 {
+		t.Fatalf("err = %v, %d helpers", err, len(env.helpers()))
+	}
+}
+
+func TestStdioIdleDeathRejectsUnsent(t *testing.T) {
+	c, h, _ := started(t, false)
+	c.say(t, `{"ok":true}`)
+	if _, err := h.awaitProbe(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	c.exit()
+	<-h.exited
+	if err := h.Do(context.Background(), HelperRequest{Op: "paste"}); !errors.Is(err, errHelperNotRunning) {
+		t.Fatalf("err = %v", err)
+	}
+	if len(c.reqs) != 0 {
+		t.Fatal("a command was written to a dead helper")
+	}
+}
+
+func TestProbeWithoutAnswerIsNotCached(t *testing.T) {
+	env := newInputEnv(t)
+	probeErr := errors.New("exit status 1")
+	env.f.hook = func(_ string, args []string) ([]byte, error, bool) {
+		if len(args) == 1 && args[0] == "--probe" {
+			return nil, probeErr, true
+		}
+		return nil, nil, false
+	}
+	ctx := context.Background()
+	wantCode(t, env.s.Tap(ctx, "ses_1", bootedUDID, 1, 1, 0), CodeInputUnsupported)
+	env.f.mu.Lock()
+	env.f.hook = nil
+	env.f.mu.Unlock()
+	if err := env.s.Tap(ctx, "ses_1", bootedUDID, 1, 1, 0); err != nil {
+		t.Fatalf("transient probe failure was cached: %v", err)
+	}
+}
+
+func TestProbeCanceledReturnsCause(t *testing.T) {
+	env := newInputEnv(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	env.f.hook = func(_ string, args []string) ([]byte, error, bool) {
+		if len(args) == 1 && args[0] == "--probe" {
+			cancel()
+			return nil, ctx.Err(), true
+		}
+		return nil, nil, false
+	}
+	err := env.s.Tap(ctx, "ses_1", bootedUDID, 1, 1, 0)
+	var se *Error
+	if !errors.Is(err, context.Canceled) || errors.As(err, &se) {
+		t.Fatalf("err = %v", err)
+	}
+	if env.s.holders[bootedUDID].inFlight != 0 {
+		t.Fatal("lease left in flight")
+	}
+}
+
+func TestUnknownGeometryHasStableCode(t *testing.T) {
+	env := newInputEnv(t)
+	delete(env.f.out, "simctl list -j devicetypes")
+	wantCode(t, env.s.Tap(context.Background(), "ses_1", bootedUDID, 1, 1, 0), CodeInputFailed)
+}
+
+func TestTextPartialFailureCountsCharacters(t *testing.T) {
+	env := newInputEnv(t)
+	calls := 0
+	env.onMake = func(h *fakeHelper) {
+		h.hook = func(context.Context, HelperRequest) error {
+			calls++
+			if calls == 2 {
+				return &Error{Code: CodeInputFailed, Message: "no"}
+			}
+			return nil
+		}
+	}
+	// 100 plain characters: chunks of 64 and 36; the second fails.
+	err := env.s.Text(context.Background(), "ses_1", bootedUDID, strings.Repeat("a", 100))
+	wantCode(t, err, CodeInputFailed)
+	if !strings.Contains(err.Error(), "64 of 100 characters were typed") {
+		t.Fatalf("err = %v", err)
+	}
+}
