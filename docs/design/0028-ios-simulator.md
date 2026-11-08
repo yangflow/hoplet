@@ -8,8 +8,8 @@
 
 | 状态 | 边界 |
 |---|---|
-| ✓ 已交付 | `simctl` 设备服务与占用；工具结果带图片；工具 `simulator_list`、`simulator_boot`、`simulator_launch`、`simulator_screenshot`、`simulator_open_url` |
-| ○ 目标 | Swift 辅助进程、输入工具（`simulator_tap`、`simulator_swipe`、`simulator_text`、`simulator_button`）、桌面实时面板；交付前 `simulator_list` 的“输入是否可用”恒为否 |
+| ✓ 已交付 | `simctl` 设备服务与占用；工具结果带图片；工具 `simulator_list`、`simulator_boot`、`simulator_launch`、`simulator_screenshot`、`simulator_open_url`；Swift 辅助进程；输入工具 `simulator_tap`、`simulator_swipe`、`simulator_text`、`simulator_button` |
+| ○ 目标 | 桌面实时面板与帧流；“人”的占用 |
 | 已验证 | 输入与取帧的技术路径，见“验证基线” |
 | 不做 | 真机、Linux、配对机器的模拟器、多点触控、由 Hoplet 创建或删除设备 |
 
@@ -91,6 +91,10 @@ flowchart LR
 | `device_not_found` / `device_not_booted` | 设备不存在 / 未启动 |
 | `simulator_busy` | 设备被其他占用者持有，错误里写明占用者 |
 | `unsupported` | 多点触控、未验证的边缘与硬件键 |
+| `invalid_argument` | 参数不合法：坐标超出屏幕、`duration` 超出 0–10 秒 |
+| `input_failed` | 输入命令执行失败，或辅助进程在命令执行中退出 |
+
+参数校验在取得占用之前完成，校验失败不占用设备。发送前发现辅助进程已退出时重新拉起；已发出的命令仍按失败返回，不重试。
 
 ## 占用
 
@@ -133,7 +137,7 @@ flowchart LR
 
 ## 验证基线
 
-Xcode 27.2、iOS 26.5、iPhone 17 Pro，用一次性程序在专用模拟器上验证。
+Xcode 27.2、iOS 26.5、iPhone 17 Pro，Claude Code 2.1.319，用一次性程序和 Hoplet 工具在专用模拟器上验证。
 
 | 能力 | 结果 |
 |---|---|
@@ -143,9 +147,13 @@ Xcode 27.2、iOS 26.5、iPhone 17 Pro，用一次性程序在专用模拟器上�
 | Home 键 | 走任意 HID 消息（page 0x0C、usage 0x40、target 0x33），按住 100 毫秒，经辅助进程 5 次均回到桌面；按键消息的按键码未能回到桌面 |
 | 底边手势 | 边缘参数 3 触发，6 次均离开 App，其中 3 次确认回到桌面，另外 3 次落点未确认；参数 0 的对照 6 次均未触发 |
 | 工具闭环 | Claude Code 2.1.319 经工具完成启动设备、安装、启动 App、截图，模型读出屏幕上提示词里没有的随机词；截图 402×874，等于设备点 |
-| 占用 | 两个会话的工具桥连接抢同一设备：后者 `simulator_launch` 得到 `simulator_busy` 并写明持有会话，截图和 `simulator_open_url` 不受影响，持有者可重入 |
+| 占用 | 两个会话的工具桥连接抢同一设备：后者 `simulator_launch` 得到 `simulator_busy` 并写明持有会话，截图和 `simulator_open_url` 不受影响，持有者可重入；输入工具同样，第二个 Claude Code 会话的点击、滑动、键入、Home 均得到 `simulator_busy`，截图正常 |
 | `app_path` | 越出工作目录时失败，未执行安装 |
-| 签名 | 公证通过（Accepted）的探针，Developer ID 加 hardened runtime、无例外授权，能加载 CoreSimulator 与 SimulatorKit 并找到所需的类；探针只验证加载，未注入触摸 |
+| 签名 | 公证通过（Accepted）的辅助进程，Developer ID 加 hardened runtime、无例外授权，探测通过并能注入触摸、键盘与 Home |
+| 输入闭环 | 公证后的辅助进程，Claude Code 2.1.319 经工具启动设备、安装并启动 App、截图取坐标、点击、再截图，读出点击后才出现的随机词（1 次）；App 内记录到按下、抬起各 1 次，坐标与工具参数一致。滑动 1 次使列表从 Row 0 滚到 Row 9；Home 1 次回到桌面 |
+| 键入与键盘 | 英文键盘下 `Az9 QuIcK-T5` 含大写与空格，逐字正确（1 次）。设备默认语言为中文时键盘是拼音，HID 键码进入输入法：同一串的空格丢失，个别小写串被组合成候选词 |
+| 抬起 | 9 秒滑动进行到约 3 秒时杀掉 daemon（1 次）：App 约 6 毫秒后收到抬起，辅助进程约 80 毫秒后退出；重启后新进程的点击是一次正常的按下与抬起 |
+| 降级 | 辅助进程缺失、探测返回失败各 1 次：`simulator_list` 输入不可用，4 个输入工具返回 `input_unsupported`，截图、安装、启动正常 |
 
 ## 验收
 
@@ -169,4 +177,4 @@ Xcode 27.2、iOS 26.5、iPhone 17 Pro，用一次性程序在专用模拟器上�
 | 其他边缘与硬件键 | 边缘参数 1、2、4 的含义；锁屏、侧边键的取值 |
 | Home 键 | 更多次数的稳定性 |
 | 版本跨度 | 较旧 Xcode 上探测与消息格式是否一致 |
-| 签名后注入 | 公证后的辅助进程实际注入触摸是否正常 |
+| 非英文键盘 | 设备键盘为拼音等输入法时，ASCII 走 HID 键入不可靠；是否改走剪贴板或切换键盘 |

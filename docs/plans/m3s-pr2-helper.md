@@ -77,7 +77,7 @@ SwiftPM 包，产物 `hoplet-simulator-helper`。纯逻辑（协议编解码、�
 ### 任务 2：私有接口实现
 
 - [ ] 动态加载、`--probe`、HID 客户端、触摸 / 键盘 / Home 消息、SIGTERM 处理
-- [ ] 在专用模拟器上确认 `home` 的按键码，并记入 0028 验证基线
+- [ ] 在专用模拟器上确认 `home` 的 HID 用法，并记入 0028 验证基线
 - [ ] 真机验证：探测结果；点击位置；滑动驱动滚动；ASCII 键入；Home 回桌面；SIGTERM 时无残留按下
 - [ ] commit：`feat(simulator): inject input through the helper`
 
