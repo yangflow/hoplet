@@ -116,6 +116,8 @@ type run struct {
 	// attachErr is why Hermes refused to attach the session on this
 	// connection; while it stands, commands fail with it.
 	attachErr error
+	// chosen is the model and provider Hoplet last asked Hermes for.
+	chosen modelChoice
 	// Session settings go one at a time (each changes the revision the
 	// next must name) and never mid-turn (Hermes refuses them): they queue,
 	// the latest per operation.
@@ -139,7 +141,7 @@ func newRun(io harness.Stdio, spec harness.Spec) *run {
 		prefix: "hoplet-" + rand.Text()[:8], native: native,
 		approvals: map[string]*approval{}, requests: map[string]*request{},
 		late: map[string]bool{}, retries: map[string]int{}, stale: map[string]int{}, timers: map[*time.Timer]struct{}{}, receiptDelay: receiptRetryDelay,
-		policy: editAsk,
+		policy: editAsk, chosen: modelChoice{model: spec.Model, provider: spec.ModelProvider},
 	}
 	if spec.State.InTurn {
 		// A turn is open that this run has not seen start: the first
@@ -570,7 +572,7 @@ func (r *run) translateEvent(ev event) []proto.Payload {
 			return nil
 		}
 		r.model = p.Model
-		return []proto.Payload{proto.ModelChanged{Model: p.Model, Provider: p.Provider}}
+		return []proto.Payload{proto.ModelChanged{Model: p.Model, Provider: r.reportedProvider(p)}}
 	case "session.info", "session.updated":
 		var p infoPayload
 		if json.Unmarshal(ev.Payload, &p) == nil {
@@ -765,7 +767,36 @@ func (r *run) SetModel(ctx context.Context, model, provider string) error {
 	if provider != "" {
 		payload["provider"] = provider
 	}
+	r.mu.Lock()
+	r.chosen = modelChoice{model: model, provider: provider}
+	r.mu.Unlock()
 	return r.mutate(ctx, "model", payload)
+}
+
+// modelChoice is a model and the provider slug it was asked for with.
+type modelChoice struct{ model, provider string }
+
+// customProvider is the provider Hermes reports for a model on any
+// provider the user defined: the runtime class, not the entry's slug.
+// Asked for by that name, Hermes runs the bare endpoint of its model
+// config instead of the user's entry.
+const customProvider = "custom"
+
+// reportedProvider is the provider to record for a session.usage. For a
+// model on a provider the user defined it is the slug Hoplet asked for
+// that model with; Hermes reports only the class. A model Hoplet did not
+// ask for keeps what Hermes reports.
+func (r *run) reportedProvider(p usagePayload) string {
+	if p.Provider != customProvider {
+		return p.Provider
+	}
+	r.mu.Lock()
+	c := r.chosen
+	r.mu.Unlock()
+	if c.provider != "" && c.model == p.Model {
+		return c.provider
+	}
+	return p.Provider
 }
 
 func (r *run) Events() <-chan harness.Event { return r.events }

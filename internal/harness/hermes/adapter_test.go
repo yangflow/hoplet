@@ -1900,3 +1900,41 @@ func TestToolsMountAfterTheTurn(t *testing.T) {
 		t.Fatalf("mounted twice %+v", w)
 	}
 }
+
+// TestAUserDefinedProviderIsReportedByItsSlug checks the provider recorded
+// for a usage that names the custom class: the slug Hoplet asked for the
+// same model with, else what Hermes reports.
+func TestAUserDefinedProviderIsReportedByItsSlug(t *testing.T) {
+	usage := func(model, provider string) string {
+		return eventLine("session.usage", fmt.Sprintf(`{"model":%q,"provider":%q}`, model, provider))
+	}
+	tests := []struct {
+		name            string
+		spec            harness.Spec
+		set             [2]string // a model and provider picked after attaching
+		model, provider string    // what Hermes reports
+		want            string
+	}{
+		{"started with it", harness.Spec{Resume: "s1", Model: "glm", ModelProvider: "magpie"}, [2]string{}, "glm", "custom", "magpie"},
+		{"picked", harness.Spec{Resume: "s1"}, [2]string{"glm", "magpie"}, "glm", "custom", "magpie"},
+		{"picked after starting", harness.Spec{Resume: "s1", Model: "glm", ModelProvider: "magpie"}, [2]string{"m2", "otter"}, "m2", "custom", "otter"},
+		{"another model", harness.Spec{Resume: "s1", Model: "glm", ModelProvider: "magpie"}, [2]string{}, "m2", "custom", "custom"},
+		{"no provider asked", harness.Spec{Resume: "s1", Model: "glm"}, [2]string{}, "glm", "custom", "custom"},
+		{"a named provider", harness.Spec{Resume: "s1", Model: "glm", ModelProvider: "magpie"}, [2]string{}, "glm", "cloud", "cloud"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			x := newTester(t, tt.spec)
+			x.attach("s1", false)
+			if tt.set[0] != "" {
+				if err := x.run.SetModel(context.Background(), tt.set[0], tt.set[1]); err != nil {
+					t.Fatal(err)
+				}
+			}
+			p := x.push(usage(tt.model, tt.provider))
+			if want := (proto.ModelChanged{Model: tt.model, Provider: tt.want}); len(p) != 1 || p[0] != want {
+				t.Fatalf("got %v, want %v", p, want)
+			}
+		})
+	}
+}
