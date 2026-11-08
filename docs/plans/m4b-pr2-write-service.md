@@ -243,7 +243,7 @@ hoplet profile reject ID
 
 ## 结果
 
-`make check` 通过：`golangci-lint` 0 issues，`go tool mygo vet desktop` 通过，`go test -race ./...` 34 个包全部通过，生成代码无差异。
+`make check` 通过：`golangci-lint` 0 issues，`go tool mygo vet desktop` 通过，`go test -race ./...` 38 个包全部通过，Swift 测试 13 项全部通过，生成代码无差异（均在合并最新 `main` 之后）。
 
 与计划的出入：
 
