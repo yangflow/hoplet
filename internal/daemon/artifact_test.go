@@ -113,6 +113,13 @@ func TestArtifactPublishThroughTools(t *testing.T) {
 	if err != nil || len(list) != 1 || list[0].Version != 2 {
 		t.Fatalf("list %+v %v", list, err)
 	}
+	vs, err := c.ArtifactVersions(timeout(t), got.ID)
+	if err != nil || len(vs) != 2 || vs[0].Version != 2 || vs[1].Version != 1 || vs[1].By != proto.ArtifactByHarness || vs[1].Files != 2 {
+		t.Fatalf("versions %+v %v", vs, err)
+	}
+	if _, err := c.ArtifactVersions(timeout(t), "nope"); apiCode(err) != proto.CodeNotFound {
+		t.Fatalf("versions of a missing artifact: %v", err)
+	}
 	if b := readArtifact(t, c, proto.ArtifactsReadParams{Artifact: got.ID, Version: 1, Path: "app.js"}); !bytes.Equal(b, big) {
 		t.Fatal("version 1 changed")
 	}
@@ -157,6 +164,9 @@ func TestArtifactsOverNoise(t *testing.T) {
 	list, err := c.Artifacts(timeout(t), sess.ID)
 	if err != nil || len(list) != 1 || list[0].ID != a.ID {
 		t.Fatalf("list over Noise %+v %v", list, err)
+	}
+	if vs, err := c.ArtifactVersions(timeout(t), a.ID); err != nil || len(vs) != 1 || vs[0].ID != a.ID {
+		t.Fatalf("versions over Noise %+v %v", vs, err)
 	}
 	if got := readArtifact(t, c, proto.ArtifactsReadParams{Artifact: a.ID, Path: "big.bin"}); !bytes.Equal(got, big) {
 		t.Fatalf("read over Noise: %d bytes, want %d", len(got), len(big))

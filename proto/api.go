@@ -126,6 +126,7 @@ const (
 	MethodArtifactsPublish  = "artifacts.publish"
 	MethodArtifactsList     = "artifacts.list"
 	MethodArtifactsRead     = "artifacts.read"
+	MethodArtifactsVersions = "artifacts.versions"
 )
 
 // HelloParams opens a connection; it must be the first request. A device
@@ -324,6 +325,8 @@ type QueuedMessage struct {
 	// From is the session whose report this message is; empty for messages
 	// the user sent.
 	From SessionID `json:"from,omitempty"`
+	// Report is how things stood in From when it reported.
+	Report ReportStatus `json:"report,omitempty"`
 }
 
 // QueueEditParams changes a queued message's text.

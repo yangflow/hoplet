@@ -8,7 +8,7 @@
 
 | 状态 | 边界 |
 |---|---|
-| ✓ 代码已有 | 产物服务（版本存放、启动清理）、工具桥 `artifact_publish`、`hoplet artifact publish` / `list`、`artifacts.list` / `artifacts.read`（本机与配对设备）、会话日志里的发布事件 |
+| ✓ 代码已有 | 产物服务（版本存放、启动清理）、工具桥 `artifact_publish`、`hoplet artifact publish` / `list`、`artifacts.list` / `artifacts.versions` / `artifacts.read`（本机与配对设备）、会话日志里的发布事件 |
 | ○ 目标 | 桌面查看；iOS 查看 |
 | 待定 | 页面能力：产物能在客户端里查看并实际使用后再定 |
 
@@ -66,7 +66,7 @@ flowchart LR
 
 ## 读取
 
-`artifacts.list` 列出会话的产物（最新版本，按最新版本时间倒序），CLI 为 `hoplet artifact list`；`artifacts.read` 读某个版本的一个文件：
+`artifacts.list` 列出会话的产物（最新版本，按最新版本时间倒序），CLI 为 `hoplet artifact list`；`artifacts.versions` 列出一个产物的全部版本（每项是该版本的产物信息：版本号、时间、文件数、来源，从新到旧），不存在的产物返回 `not_found`，本机与配对设备可调用；`artifacts.read` 读某个版本的一个文件：
 
 | 项 | 规则 |
 |---|---|

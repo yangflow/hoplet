@@ -57,28 +57,35 @@ daemon 投递回报时把状态随消息写入；排队中的回报同样带状�
 
 ### 任务 1：协议
 
-- [ ] `proto/payloads.go`：`SessionDelegated`（`TypeSessionDelegated = "session.delegated"`，v1，校验 `session` 非空、`kind` 合法）；`Message.Report ReportStatus`（`omitempty`）与三个常量
-- [ ] `proto/artifact.go` / `proto/api.go`：`MethodArtifactsVersions`、`ArtifactsVersionsParams`、`ArtifactsVersions`
-- [ ] `proto/testdata/events.jsonl` 加新事件与带 `report` 的消息；旧样例照常解码
-- [ ] 测试：新事件与新类型的 JSON 往返；缺字段校验失败
-- [ ] commit：`feat(proto): add delegation events, report status and versions`
+- [x] `proto/payloads.go`：`SessionDelegated`（`TypeSessionDelegated = "session.delegated"`，v1，校验 `session` 非空、`kind` 合法）；`Message.Report ReportStatus`（`omitempty`）与三个常量
+- [x] `proto/artifact.go` / `proto/api.go`：`MethodArtifactsVersions`、`ArtifactsVersionsParams`、`ArtifactsVersions`
+- [x] `proto/testdata/events.jsonl` 加新事件与带 `report` 的消息；旧样例照常解码
+- [x] 测试：新事件与新类型的 JSON 往返；缺字段校验失败
+- [x] commit：`feat(proto): add delegation events, report status and versions`
 
 ### 任务 2：daemon 与客户端
 
-- [ ] `internal/daemon`：`session_create`、`handoff` 成功后向父会话追加 `SessionDelegated`；回报投递时写 `Report`（`toolSource.Report` 为 `done`，`handoffs.report` 按上表）
-- [ ] `internal/daemon`：`artifacts.versions`，本机与配对设备可用；存储用已有的 `ArtifactVersions`
-- [ ] `internal/client`：`ArtifactVersions(ctx, id)`
-- [ ] 测试（daemon）：托管父会话经工具建子会话、转交 Code 后父会话日志各有一条事件；失败的建立不写；回报消息带对的状态（含排队后投递）；配对设备列出版本，不存在的产物 `not_found`
-- [ ] commit：`feat(daemon): record delegations and report status`
+- [x] `internal/daemon`：`session_create`、`handoff` 成功后向父会话追加 `SessionDelegated`；回报投递时写 `Report`（`toolSource.Report` 为 `done`，`handoffs.report` 按上表）
+- [x] `internal/daemon`：`artifacts.versions`，本机与配对设备可用；存储用已有的 `ArtifactVersions`
+- [x] `internal/client`：`ArtifactVersions(ctx, id)`
+- [x] 测试（daemon）：托管父会话经工具建子会话、转交 Code 后父会话日志各有一条事件；失败的建立不写；回报消息带对的状态（含排队后投递）；配对设备列出版本，不存在的产物 `not_found`
+- [x] commit：`feat(daemon): record delegations and report status`
 
 ### 任务 3：CLI 与文档
 
-- [ ] `cmd/hoplet`：事件输出加委派行与回报状态（不加新命令）
-- [ ] 0004：新事件与 `Message.report`；0012：回报带状态；0025：`artifacts.versions`
-- [ ] `make check`
-- [ ] commit：`docs: record delegation events and artifact versions`
+- [x] `cmd/hoplet`：事件输出加委派行与回报状态（不加新命令）
+- [x] 0004：新事件与 `Message.report`；0012：回报带状态；0025：`artifacts.versions`
+- [x] `make check`
+- [x] commit：`docs: record delegation events and artifact versions`
 
 PR 标题：`feat(session): add delegation events, report status and artifact versions`。
+
+## 实施记录
+
+- 委派事件写在存储建会话的同一个事务里（`createSession`），不在工具层另写：建立与事件一起成功或一起回滚，重复建立不重写。
+- 回报状态要跨重启随排队消息保存，队列表加了 `report` 列（迁移 15）；与“不改已有表”不同，只加一列、默认为空，旧行照常读。
+- 存储方法名为 `ArtifactHistory`（`ArtifactVersions` 留给客户端）。
+- CLI `session watch`：回报显示为 `< report from <会话> (<状态>)`，委派显示为 `delegated to` / `handed off to <会话> <标题>`。
 
 ## 风险
 

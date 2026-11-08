@@ -23,7 +23,8 @@ func (s *Store) CreateSession(ctx context.Context, sess proto.Session) (proto.Se
 }
 
 // createSession stores a new session and runs also, if set, in the same
-// transaction.
+// transaction. A session with a parent is recorded in the parent's log as a
+// SessionDelegated event.
 func (s *Store) createSession(ctx context.Context, sess proto.Session, also func(*sql.Tx, proto.Session) error) (proto.Session, error) {
 	if sess.Status == "" {
 		sess.Status = proto.StatusIdle
@@ -66,6 +67,15 @@ func (s *Store) createSession(ctx context.Context, sess proto.Session, also func
 		}
 		if err := tx.QueryRowContext(ctx, `SELECT version FROM sessions WHERE id = ?`, sess.ID).Scan(&sess.Version); err != nil {
 			return fmt.Errorf("store: read session version: %w", err)
+		}
+		if sess.Parent != "" {
+			kind := proto.DelegatedSession
+			if sess.Mode == proto.ModeCode {
+				kind = proto.HandedOff
+			}
+			if err := appendRecord(ctx, tx, sess.Parent, sess.CreatedAt, proto.SessionDelegated{Session: sess.ID, Kind: kind, Title: sess.Title}); err != nil {
+				return err
+			}
 		}
 		if also != nil {
 			return also(tx, sess)

@@ -28,7 +28,7 @@ func (s *Store) Enqueue(ctx context.Context, id proto.SessionID, key, text strin
 		if err := requireSession(ctx, tx, id); err != nil {
 			return err
 		}
-		msg, queued, err = appendQueued(ctx, tx, id, key, text, "")
+		msg, queued, err = appendQueued(ctx, tx, id, key, text, "", "")
 		return err
 	})
 	if err != nil {
@@ -37,17 +37,23 @@ func (s *Store) Enqueue(ctx context.Context, id proto.SessionID, key, text strin
 	return msg, queued, nil
 }
 
-// Report queues a report from session from to session parent under key.
+// Report queues a report from session from to session parent under key,
+// with how things stood in from when it reported.
 // A key is queued at most once per parent: when parent was already given
 // key, Report does nothing and returns queued false, even if the message
 // has since been sent or deleted. Reports to an archived session fail with
 // ErrInvalid. The write is durable.
-func (s *Store) Report(ctx context.Context, parent, from proto.SessionID, key, text string) (msg proto.QueuedMessage, queued bool, err error) {
+func (s *Store) Report(ctx context.Context, parent, from proto.SessionID, status proto.ReportStatus, key, text string) (msg proto.QueuedMessage, queued bool, err error) {
 	if err := checkQueued(key, text); err != nil {
 		return proto.QueuedMessage{}, false, err
 	}
 	if from == "" {
 		return proto.QueuedMessage{}, false, fmt.Errorf("%w: a report needs a source", ErrInvalid)
+	}
+	switch status {
+	case proto.ReportDone, proto.ReportError, proto.ReportApproval:
+	default:
+		return proto.QueuedMessage{}, false, fmt.Errorf("%w: unknown report status %q", ErrInvalid, status)
 	}
 	now := time.Now().UTC().Truncate(time.Millisecond)
 	err = s.tx(ctx, true, func(tx *sql.Tx) error {
@@ -70,7 +76,7 @@ func (s *Store) Report(ctx context.Context, parent, from proto.SessionID, key, t
 		if n, err := res.RowsAffected(); err != nil || n == 0 {
 			return err // reported before
 		}
-		msg, queued, err = appendQueued(ctx, tx, parent, key, text, from)
+		msg, queued, err = appendQueued(ctx, tx, parent, key, text, from, status)
 		return err
 	})
 	if err != nil {
@@ -96,7 +102,7 @@ func checkQueued(key, text string) error {
 }
 
 // appendQueued appends a message to the queue of a session known to exist.
-func appendQueued(ctx context.Context, tx *sql.Tx, id proto.SessionID, key, text string, from proto.SessionID) (proto.QueuedMessage, bool, error) {
+func appendQueued(ctx context.Context, tx *sql.Tx, id proto.SessionID, key, text string, from proto.SessionID, status proto.ReportStatus) (proto.QueuedMessage, bool, error) {
 	m, err := queuedMessage(ctx, tx, id, key)
 	if err == nil {
 		return m, false, nil
@@ -112,12 +118,12 @@ func appendQueued(ctx context.Context, tx *sql.Tx, id proto.SessionID, key, text
 		return proto.QueuedMessage{}, false, fmt.Errorf("%w: the queue of %s is full", ErrInvalid, id)
 	}
 	now := time.Now().UTC().Truncate(time.Millisecond)
-	_, err = tx.ExecContext(ctx, `INSERT INTO queue (session_id, key, text, position, created_at, from_session) VALUES (?, ?, ?, ?, ?, ?)`,
-		id, key, text, n, now.UnixMilli(), from)
+	_, err = tx.ExecContext(ctx, `INSERT INTO queue (session_id, key, text, position, created_at, from_session, report) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		id, key, text, n, now.UnixMilli(), from, status)
 	if err != nil {
 		return proto.QueuedMessage{}, false, fmt.Errorf("store: enqueue: %w", err)
 	}
-	return proto.QueuedMessage{Key: key, Text: text, Position: n, CreatedAt: now, From: from}, true, nil
+	return proto.QueuedMessage{Key: key, Text: text, Position: n, CreatedAt: now, From: from, Report: status}, true, nil
 }
 
 // Queue returns the session's queued messages, next first.
@@ -135,7 +141,7 @@ func (s *Store) Queue(ctx context.Context, id proto.SessionID) ([]proto.QueuedMe
 }
 
 func queue(ctx context.Context, q queryer, id proto.SessionID) ([]proto.QueuedMessage, error) {
-	rows, err := q.QueryContext(ctx, `SELECT key, text, position, created_at, error, from_session FROM queue
+	rows, err := q.QueryContext(ctx, `SELECT key, text, position, created_at, error, from_session, report FROM queue
 		WHERE session_id = ? ORDER BY position`, id)
 	if err != nil {
 		return nil, fmt.Errorf("store: read queue: %w", err)
@@ -156,7 +162,7 @@ func queue(ctx context.Context, q queryer, id proto.SessionID) ([]proto.QueuedMe
 }
 
 func queuedMessage(ctx context.Context, q queryer, id proto.SessionID, key string) (proto.QueuedMessage, error) {
-	m, err := scanQueued(q.QueryRowContext(ctx, `SELECT key, text, position, created_at, error, from_session FROM queue
+	m, err := scanQueued(q.QueryRowContext(ctx, `SELECT key, text, position, created_at, error, from_session, report FROM queue
 		WHERE session_id = ? AND key = ?`, id, key))
 	if errors.Is(err, sql.ErrNoRows) {
 		return proto.QueuedMessage{}, fmt.Errorf("%w: queued message %s", ErrNotFound, key)
@@ -167,7 +173,7 @@ func queuedMessage(ctx context.Context, q queryer, id proto.SessionID, key strin
 func scanQueued(r scanner) (proto.QueuedMessage, error) {
 	var m proto.QueuedMessage
 	var created int64
-	if err := r.Scan(&m.Key, &m.Text, &m.Position, &created, &m.Error, &m.From); err != nil {
+	if err := r.Scan(&m.Key, &m.Text, &m.Position, &created, &m.Error, &m.From, &m.Report); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return proto.QueuedMessage{}, err
 		}
@@ -191,8 +197,8 @@ func (s *Store) QueueHead(ctx context.Context, id proto.SessionID) (msg proto.Qu
 		}
 		var created int64
 		var attempt int
-		err := tx.QueryRowContext(ctx, `SELECT key, text, position, created_at, error, from_session, attempt FROM queue
-			WHERE session_id = ? ORDER BY position LIMIT 1`, id).Scan(&msg.Key, &msg.Text, &msg.Position, &created, &msg.Error, &msg.From, &attempt)
+		err := tx.QueryRowContext(ctx, `SELECT key, text, position, created_at, error, from_session, report, attempt FROM queue
+			WHERE session_id = ? ORDER BY position LIMIT 1`, id).Scan(&msg.Key, &msg.Text, &msg.Position, &created, &msg.Error, &msg.From, &msg.Report, &attempt)
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil
 		}

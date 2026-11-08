@@ -73,6 +73,10 @@ func TestRender(t *testing.T) {
 		"✓ approval a1 allowed (once) by cli@mac": proto.ApprovalResolved{ID: "a1", Outcome: proto.OutcomeAllowed, OptionID: "once", DecidedBy: "cli@mac"},
 		"? question q1: Which?\n  options: a | b": proto.Question{ID: "q1", Text: "Which?", Options: []string{"a", "b"}},
 		"published report v2 (html)":              proto.ArtifactPublished{Artifact: "a1", Name: "report", Kind: proto.ArtifactHTML, Version: 2, By: proto.ArtifactByHarness},
+		"< report from s3 (approval)\n  waiting":  proto.Message{ID: "m", Role: proto.RoleUser, Text: "waiting", From: "s3", Report: proto.ReportApproval},
+		"< report from s3 (done)\n  ok":           proto.Message{ID: "m", Role: proto.RoleUser, Text: "ok", From: "s3"},
+		"delegated to s4 Look up":                 proto.SessionDelegated{Session: "s4", Kind: proto.DelegatedSession, Title: "Look up"},
+		"handed off to s5":                        proto.SessionDelegated{Session: "s5", Kind: proto.HandedOff},
 		"error: boom":                             proto.Error{Message: "boom"},
 		"":                                        proto.MessageDelta{MessageID: "m", Text: "par"},
 	} {

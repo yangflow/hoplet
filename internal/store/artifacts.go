@@ -68,20 +68,9 @@ func (s *Store) PublishArtifact(ctx context.Context, v proto.Artifact) (proto.Ar
 		if err != nil {
 			return fmt.Errorf("store: record artifact version: %w", err)
 		}
-		var turn uint32
-		err = tx.QueryRowContext(ctx, `SELECT n FROM turns WHERE session_id = ? AND end_seq IS NULL ORDER BY n DESC LIMIT 1`,
-			v.Session).Scan(&turn)
-		if err != nil && !errors.Is(err, sql.ErrNoRows) {
-			return fmt.Errorf("store: read open turn: %w", err)
-		}
-		req := AppendRequest{Session: v.Session, Turn: turn, Time: now, Entries: []Entry{{Payload: proto.ArtifactPublished{
+		if err := appendRecord(ctx, tx, v.Session, now, proto.ArtifactPublished{
 			Artifact: v.ID, Name: v.Name, Kind: v.Kind, Version: v.Version, By: v.By,
-		}}}}
-		events, err := newEvents(req)
-		if err != nil {
-			return err
-		}
-		if _, err := writeBatch(ctx, tx, req, events); err != nil {
+		}); err != nil {
 			return err
 		}
 		out, err = artifactVersion(ctx, tx, v.ID, v.Version)
@@ -129,6 +118,31 @@ func (s *Store) ArtifactVersion(ctx context.Context, id proto.ArtifactID, n int)
 		return latestArtifact(ctx, s.rdb, `a.id = ?`, id)
 	}
 	return artifactVersion(ctx, s.rdb, id, n)
+}
+
+// ArtifactHistory returns an artifact at each of its versions, the newest
+// first; ErrNotFound when there is no such artifact.
+func (s *Store) ArtifactHistory(ctx context.Context, id proto.ArtifactID) ([]proto.Artifact, error) {
+	rows, err := s.rdb.QueryContext(ctx, artifactSelect+` WHERE a.id = ? ORDER BY v.version DESC`, id)
+	if err != nil {
+		return nil, fmt.Errorf("store: list artifact history: %w", err)
+	}
+	defer rows.Close()
+	var out []proto.Artifact
+	for rows.Next() {
+		a, err := scanArtifact(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, a)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("store: list artifact history: %w", err)
+	}
+	if len(out) == 0 {
+		return nil, fmt.Errorf("%w: artifact %s", ErrNotFound, id)
+	}
+	return out, nil
 }
 
 // ArtifactVersions returns every recorded version number of an artifact
@@ -198,4 +212,23 @@ func scanArtifact(r scanner) (proto.Artifact, error) {
 	a.CreatedAt = time.UnixMilli(created).UTC()
 	a.UpdatedAt = time.UnixMilli(updated).UTC()
 	return a, nil
+}
+
+// appendRecord appends an event the daemon records itself, not one from the
+// harness, to a session's log: in its open turn, or after its last turn
+// when none is open.
+func appendRecord(ctx context.Context, tx *sql.Tx, id proto.SessionID, now time.Time, p proto.Payload) error {
+	var turn uint32
+	err := tx.QueryRowContext(ctx, `SELECT n FROM turns WHERE session_id = ? AND end_seq IS NULL ORDER BY n DESC LIMIT 1`,
+		id).Scan(&turn)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("store: read open turn: %w", err)
+	}
+	req := AppendRequest{Session: id, Turn: turn, Time: now, Entries: []Entry{{Payload: p}}}
+	events, err := newEvents(req)
+	if err != nil {
+		return err
+	}
+	_, err = writeBatch(ctx, tx, req, events)
+	return err
 }

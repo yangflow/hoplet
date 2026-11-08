@@ -436,14 +436,14 @@ type SendResult struct {
 // key returns the original result, and resends the message only if it never
 // reached the harness (its turn has not started and nothing is in flight).
 func (m *Manager) Send(ctx context.Context, id proto.SessionID, text, key string) (SendResult, error) {
-	return m.SendFrom(ctx, id, "", text, key)
+	return m.SendFrom(ctx, id, "", "", text, key)
 }
 
 // SendFrom is Send for a message from session from, a report to its parent
-// (empty for the user's own message). The log records text as it is, with
+// with how things stood in from (both empty for the user's own message). The log records text as it is, with
 // its source; the harness gets text after a line naming the source, so the
 // model knows the user did not write it.
-func (m *Manager) SendFrom(ctx context.Context, id, from proto.SessionID, text, key string) (SendResult, error) {
+func (m *Manager) SendFrom(ctx context.Context, id, from proto.SessionID, report proto.ReportStatus, text, key string) (SendResult, error) {
 	if key == "" {
 		return SendResult{}, errors.New("session: send needs an idempotency key")
 	}
@@ -479,7 +479,7 @@ func (m *Manager) SendFrom(ctx context.Context, id, from proto.SessionID, text, 
 	}
 	res, err := m.cfg.Store.Append(ctx, store.AppendRequest{
 		Session: id, Turn: st.last + 1, ReceiptKey: "send:" + key,
-		Entries: []store.Entry{{Payload: proto.Message{ID: key, Role: proto.RoleUser, Text: text, From: from}}},
+		Entries: []store.Entry{{Payload: proto.Message{ID: key, Role: proto.RoleUser, Text: text, From: from, Report: report}}},
 	})
 	if err != nil {
 		return SendResult{}, err
