@@ -1,0 +1,40 @@
+{
+  "description": "Pairing handshake, then one frame each way.",
+  "pattern": "Noise_IKpsk1_25519_ChaChaPoly_SHA256",
+  "kind": 2,
+  "prologue": "686f706c65742f3102",
+  "initiator": {
+    "static_private": "c0416250fa96a16f9a3383784b0f7dd3ea9b7f0ecd30bc3f4a8b8859ea1219ee",
+    "static_public": "c3d38f15b3fa70f5631e0b802ddab1d23e656d1b568b233f60e88fef960a886a",
+    "ephemeral_private": "f903831fc941366c8d548a509ba0ce1662a66c5278932c1e989f272d8461c066"
+  },
+  "responder": {
+    "static_private": "4159825baa187b508d3b1348f4d4de3e58c928596e71fa549ffe3df93ea15804",
+    "static_public": "dad55c37b46f93a4311e12fafa8c720186b1fd1429ae075779408775408b0130",
+    "ephemeral_private": "e64623330c6b7493ace0d764b546315fc62124a3ce3cfe5618df9d64c5473c6f"
+  },
+  "psk": "91fb5dc109252b1de3c6f36fc149f7dc19564b5b0ba637d0db8a9945cbe20f21",
+  "payload": "e6b58be8af95206950686f6e65",
+  "messages": [
+    "0291aaafc8b5498661d28b5f515a4f65d4c52c8e5a01cde17f403062cca2136311d172f702f7ee5038b2564ca83762b7d3f01ca00557b56137defd82680afcba8d78de6eac0c405699c262dbc4c5edf182d7090c693059dccba9c56cdfa8cbaddb9f655f4bb1eb55f612cf2465e7",
+    "7bf5530582f482019c9bc2bf072c5314d525a010f7d063e9ea6cd1fdfdbf954514b2088d98f91130d354a3e0b0985d02"
+  ],
+  "steps": [
+    {
+      "from": "initiator",
+      "kind": "frame",
+      "size": 5,
+      "messages": [
+        "1c4e9670bd2314e907bca581bae29f8cdc2f9e24a284"
+      ]
+    },
+    {
+      "from": "responder",
+      "kind": "frame",
+      "size": 5,
+      "messages": [
+        "ef4de5b596052aca97ebc8b2f42e04e031c77cc06290"
+      ]
+    }
+  ]
+}

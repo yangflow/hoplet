@@ -8,8 +8,8 @@
 
 | 状态 | 边界 |
 |---|---|
-| ✓ 代码已有 | Go / MyGO 桌面与协议客户端 |
-| ○ 目标 | Swift / iOS、Swift 类型生成器与跨语言向量 |
+| ✓ 代码已有 | Go / MyGO 桌面与协议客户端、Swift 类型生成器（`tools/swiftgen`）、`apple/HopletKit` 的协议类型与 Noise / 通道 / 配对码向量 |
+| ○ 目标 | iOS 协议客户端与续传向量 |
 
 ## 总览
 
@@ -37,6 +37,7 @@ flowchart TB
 - 应用界面全部是原生 UI，不做 web 前端；只有 HTML 产物用 `ui.WebView` 嵌在原生界面里，一律按不可信页面加载。纯 Go、无 cgo。
 - 桌面 app 只是客户端：内置 `hoplet`，负责安装 LaunchAgent，守护进程独立运行。
 - 先 macOS，Linux 以后（代码基本现成）。
+- macOS 上计划引入的唯一 Swift 组件是 iOS 模拟器辅助进程（规划中，尚未实现）：Go 无法直接调用模拟器的私有框架，它将作为独立进程运行，桌面仍是纯 Go、无 cgo。
 
 ## iOS：SwiftUI + Swift 协议客户端（规划）
 
@@ -58,7 +59,7 @@ flowchart TB
 | 通知扩展 | 解密推送正文 |
 | 产物查看 | SwiftUI `WebView` / `WebPage` 加自定义协议处理器，与桌面同一桥接契约 |
 
-当前没有 `apple/`、Swift 类型生成器或跨语言向量产物，不能把图中的生成链路视为已实现。
+Swift 类型由 `make gen` 生成并经 golden 事件回放验证；跨语言向量在 `testdata/vectors/`，由 `make gen` 从 Go 实现生成，Swift 回放待协议客户端落地；`apple/HopletPrototype` 是不接后端的界面原型。
 
 ## 语音媒体（目标）
 

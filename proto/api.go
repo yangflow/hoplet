@@ -711,6 +711,14 @@ type ToolsCallParams struct {
 // should read (bad arguments, a session that does not exist), as opposed
 // to a protocol error.
 type ToolsCallResult struct {
-	Text    string `json:"text"`
-	IsError bool   `json:"is_error,omitempty"`
+	Text    string      `json:"text"`
+	IsError bool        `json:"is_error,omitempty"`
+	Images  []ToolImage `json:"images,omitempty"`
+}
+
+// ToolImage is an image a tool result carries, such as a screenshot. Data
+// is the raw bytes; JSON encodes them as base64.
+type ToolImage struct {
+	MIME string `json:"mime"`
+	Data []byte `json:"data"`
 }

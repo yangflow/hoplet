@@ -81,7 +81,7 @@ func inside(dir, p string) (string, error) {
 		abs = filepath.Join(dir, abs)
 	}
 	abs = filepath.Clean(abs)
-	outside := failf("%s is outside your working directory %s; write the files there and publish them from it", p, dir)
+	outside := failf("%s is outside your working directory %s; keep the files there", p, dir)
 	if rel, err := filepath.Rel(dir, abs); err != nil || !filepath.IsLocal(rel) {
 		return "", outside
 	}

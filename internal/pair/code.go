@@ -2,6 +2,8 @@
 // can pair with it once.
 package pair
 
+//go:generate go test -run ^TestVectors$ . -args -update
+
 import (
 	"encoding/base64"
 	"encoding/json"
