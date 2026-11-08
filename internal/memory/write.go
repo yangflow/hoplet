@@ -82,6 +82,48 @@ func (s *Service) Apply(ctx context.Context, w Write) (Result, error) {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	res, err := s.apply(ctx, w)
+	if err == nil {
+		s.reportSaved(ctx, w, res)
+	}
+	return res, err
+}
+
+// reportSaved puts an automatic save in its source session's log. The entry
+// is already on disk, so a failure here costs only the line in the chat. A
+// retried OpID that failed here reports it then, once.
+func (s *Service) reportSaved(ctx context.Context, w Write, res Result) {
+	var saved proto.MemorySaved
+	switch w.Action {
+	case ActionCreate:
+		saved.Action = proto.MemoryCreated
+	case ActionUpdate:
+		saved.Action = proto.MemoryUpdated
+	default:
+		return
+	}
+	switch w.Actor {
+	case ActorCompanion:
+		saved.Actor = proto.MemoryByCompanion
+	case ActorExtraction:
+		saved.Actor = proto.MemoryByExtraction
+	default:
+		return
+	}
+	if res.Outcome != OutcomeApplied || w.source() == "" {
+		return
+	}
+	saved.Entry, saved.Version = res.Entry.ID, res.Entry.Version
+	err := s.at("report")
+	if err == nil {
+		err = s.store.AppendMemorySaved(ctx, w.source(), time.Now(), saved, "memory_saved:"+w.OpID)
+	}
+	if err != nil {
+		s.log.Warn("report memory save", "op", w.OpID, "session", w.source(), "err", err)
+	}
+}
+
+func (s *Service) apply(ctx context.Context, w Write) (Result, error) {
 	if res, done, err := s.earlierResult(ctx, w); done {
 		return res, err
 	}
