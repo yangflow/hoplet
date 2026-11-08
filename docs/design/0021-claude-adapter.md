@@ -117,8 +117,19 @@ flowchart LR
 | 能力 | 不显示或接受未支持的 steer / 提问 / MCP |
 | 模型 | 列表按二进制缓存，模型限制用于设置校验 |
 
+## 隔离提炼
+
+只对 2.1.319 启用，其他版本重新实测后才加入。
+
+| 项 | 设置 |
+|---|---|
+| 参数 | `-p --tools "" --strict-mcp-config --mcp-config '{"mcpServers":{}}' --no-session-persistence --setting-sources user --settings '{"disableAllHooks":true}' --disable-slash-commands --system-prompt <提炼指令> --model <来源会话的模型>` |
+| 环境 | 在启动环境的基础上加 `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1`、`CLAUDE_CODE_DISABLE_CLAUDE_MDS=1` |
+| 实测 | 工具、MCP、slash 为空；项目与用户规则不进上下文；项目 hook 不触发；会话不可恢复；结果带用量 |
+| 不用 | `--bare` 不支持 OAuth 登录；`--setting-sources ""` 在已登录的机器上报未登录 |
+
 ## 待验证
 
-更多版本控制、提问、steer、其他版本的 MCP、禁工具和原生记忆副作用控制未验证。停止整轮时子代理落到哪个状态未录制。
+更多版本控制、提问、steer、其他版本的 MCP 与隔离组合未验证。停止整轮时子代理落到哪个状态未录制。
 
 2.1.312 录制确认：无界面模式下用 `TaskCreate` / `TaskUpdate`；`TodoWrite` 仍保留映射。较新的模型默认不给任务工具，只有设了 `CLAUDE_CODE_ENABLE_TODO_TOOLS=1` 才有，所以 Hoplet 启动时设它（见环境与版本）。较旧的模型要先经 `ToolSearch` 取到任务工具，这次 `ToolSearch` 作为普通工具调用显示。
