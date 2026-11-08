@@ -276,7 +276,7 @@ func (s *Service) place(target string, data []byte) (crashed bool, err error) {
 }
 
 func syncDir(dir string) error {
-	d, err := os.Open(dir)
+	d, err := os.Open(dir) //nolint:gosec // the entry directory this service owns
 	if err != nil {
 		return fmt.Errorf("memory: open directory: %w", err)
 	}

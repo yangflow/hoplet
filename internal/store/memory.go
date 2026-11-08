@@ -176,8 +176,8 @@ func (s *Store) MemoryOpByID(ctx context.Context, id string) (MemoryOp, error) {
 	return op, nil
 }
 
-func (s *Store) queryMemoryOps(ctx context.Context, where string, args ...any) (_ []MemoryOp, err error) {
-	rows, err := s.rdb.QueryContext(ctx, `SELECT `+memoryOpColumns+` FROM memory_ops WHERE `+where, args...)
+func (s *Store) queryMemoryOps(ctx context.Context, query string, args ...any) (_ []MemoryOp, err error) {
+	rows, err := s.rdb.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("store: list memory operations: %w", err)
 	}
@@ -198,12 +198,12 @@ func (s *Store) queryMemoryOps(ctx context.Context, where string, args ...any) (
 
 // PendingMemoryOps returns the unfinished operations, oldest first.
 func (s *Store) PendingMemoryOps(ctx context.Context) ([]MemoryOp, error) {
-	return s.queryMemoryOps(ctx, `state = 'pending' ORDER BY created_at, id`)
+	return s.queryMemoryOps(ctx, `SELECT `+memoryOpColumns+` FROM memory_ops WHERE state = 'pending' ORDER BY created_at, id`)
 }
 
 // MemoryOps returns an entry's committed operations, newest version first.
 func (s *Store) MemoryOps(ctx context.Context, entryID string) ([]MemoryOp, error) {
-	return s.queryMemoryOps(ctx, `entry_id = ? AND state = 'committed' ORDER BY new_version DESC`, entryID)
+	return s.queryMemoryOps(ctx, `SELECT `+memoryOpColumns+` FROM memory_ops WHERE entry_id = ? AND state = 'committed' ORDER BY new_version DESC`, entryID)
 }
 
 const memoryRowColumns = `id, version, category, status, scope_kind, scope_value, title, body, hash, updated_at`
@@ -238,33 +238,18 @@ var likeEscaper = strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
 // SearchMemoryIndex returns the matching rows, most recently updated first.
 // Text is a literal substring of the title or body.
 func (s *Store) SearchMemoryIndex(ctx context.Context, q MemoryQuery) (_ []MemoryRow, err error) {
-	var (
-		where []string
-		args  []any
-	)
-	for _, f := range []struct{ column, value string }{
-		{"category", q.Category}, {"status", q.Status}, {"scope_kind", q.ScopeKind}, {"scope_value", q.ScopeValue},
-	} {
-		if f.value != "" {
-			where = append(where, f.column+" = ?")
-			args = append(args, f.value)
-		}
+	limit, like := -1, ""
+	if q.Limit > 0 {
+		limit = q.Limit
 	}
 	if q.Text != "" {
-		like := "%" + likeEscaper.Replace(q.Text) + "%"
-		where = append(where, `(title LIKE ? ESCAPE '\' OR body LIKE ? ESCAPE '\')`)
-		args = append(args, like, like)
+		like = "%" + likeEscaper.Replace(q.Text) + "%"
 	}
-	query := `SELECT ` + memoryRowColumns + ` FROM memory_index`
-	if len(where) > 0 {
-		query += ` WHERE ` + strings.Join(where, " AND ")
-	}
-	query += ` ORDER BY updated_at DESC, id`
-	if q.Limit > 0 {
-		query += ` LIMIT ?`
-		args = append(args, q.Limit)
-	}
-	rows, err := s.rdb.QueryContext(ctx, query, args...)
+	rows, err := s.rdb.QueryContext(ctx, `SELECT `+memoryRowColumns+` FROM memory_index
+		WHERE (?1 = '' OR category = ?1) AND (?2 = '' OR status = ?2)
+			AND (?3 = '' OR scope_kind = ?3) AND (?4 = '' OR scope_value = ?4)
+			AND (?5 = '' OR title LIKE ?5 ESCAPE '\' OR body LIKE ?5 ESCAPE '\')
+		ORDER BY updated_at DESC, id LIMIT ?6`, q.Category, q.Status, q.ScopeKind, q.ScopeValue, like, limit)
 	if err != nil {
 		return nil, fmt.Errorf("store: search memory: %w", err)
 	}
@@ -287,10 +272,11 @@ func (s *Store) SearchMemoryIndex(ctx context.Context, q MemoryQuery) (_ []Memor
 // transaction. It never touches the operation log.
 func (s *Store) ReplaceMemoryIndex(ctx context.Context, rows []MemoryRow, problems []MemoryProblem) error {
 	return s.tx(ctx, true, func(tx *sql.Tx) error {
-		for _, table := range []string{"memory_index", "memory_problems"} {
-			if _, err := tx.ExecContext(ctx, `DELETE FROM `+table); err != nil {
-				return fmt.Errorf("store: clear %s: %w", table, err)
-			}
+		if _, err := tx.ExecContext(ctx, `DELETE FROM memory_index`); err != nil {
+			return fmt.Errorf("store: clear memory index: %w", err)
+		}
+		if _, err := tx.ExecContext(ctx, `DELETE FROM memory_problems`); err != nil {
+			return fmt.Errorf("store: clear memory problems: %w", err)
 		}
 		for _, r := range rows {
 			if err := upsertMemoryRow(ctx, tx, r); err != nil {

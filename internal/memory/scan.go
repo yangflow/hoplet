@@ -96,7 +96,7 @@ func load(p, rel string, d fs.DirEntry) (Entry, []byte, error) {
 	if !d.Type().IsRegular() {
 		return Entry{}, nil, invalid("not a regular file")
 	}
-	data, err := os.ReadFile(p)
+	data, err := os.ReadFile(p) //nolint:gosec // a regular file found under the private profile directory
 	if err != nil {
 		return Entry{}, nil, fmt.Errorf("memory: read: %w", err)
 	}

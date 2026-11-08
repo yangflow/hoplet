@@ -18,7 +18,7 @@ func (s *Service) recoverOps(ctx context.Context) error {
 			return err
 		}
 		if !d.IsDir() && strings.HasPrefix(d.Name(), tempPrefix) {
-			return os.Remove(p)
+			return os.Remove(p) //nolint:gosec // the walk stays in the private profile directory
 		}
 		return nil
 	})
