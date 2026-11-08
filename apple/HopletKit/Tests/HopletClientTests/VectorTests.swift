@@ -114,6 +114,7 @@ private struct HandshakeNegative: Decodable {
   var psk: String?
   var firstMessage: String
   var response: String
+  var error: String
 
   enum CodingKeys: String, CodingKey {
     case name
@@ -124,6 +125,7 @@ private struct HandshakeNegative: Decodable {
     case psk
     case firstMessage = "first_message"
     case response
+    case error
   }
 }
 
@@ -156,7 +158,11 @@ private struct Negatives: Decodable {
 
   @Test func badResponsesAreRejected() throws {
     let negatives: Negatives = try vector("noise-negative.json")
-    #expect(negatives.handshake.count == 6)
+    let expected: [String: NoiseError] = [
+      "handshake": .handshake, "device_refused": .deviceRefused,
+      "pairing_refused": .pairingRefused,
+    ]
+    #expect(negatives.handshake.count == 12)
     for c in negatives.handshake {
       let pairing = c.kind == NoiseKind.pair.rawValue
       var hs = try NoiseHandshake(
@@ -165,7 +171,7 @@ private struct Negatives: Decodable {
         payload: pairing ? Data("测试 iPhone".utf8) : Data(),
         ephemeral: key(c.initiatorEphemeralPrivate))
       #expect(try hs.writeFirst() == hex(c.firstMessage), "\(c.name)")
-      #expect(throws: NoiseError.handshake, "\(c.name)") {
+      #expect(throws: expected[c.error]!, "\(c.name)") {
         _ = try hs.readResponse(hex(c.response))
       }
     }

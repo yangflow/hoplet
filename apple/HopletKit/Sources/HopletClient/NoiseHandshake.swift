@@ -4,6 +4,10 @@ import Foundation
 /// Why a Noise handshake or channel failed.
 public enum NoiseError: Swift.Error, Equatable, Sendable {
   case handshake
+  /// The host's authenticated answer that this device is not paired or was revoked.
+  case deviceRefused
+  /// The pairing code is no longer valid; unauthenticated.
+  case pairingRefused
   case decrypt
   case frame
   case tooLarge
@@ -24,6 +28,8 @@ public enum NoiseKind: UInt8, Sendable {
 
 let noiseKeySize = 32
 let noiseTagSize = 16
+/// The refusal byte: a daily response's payload, or a pairing response by itself.
+let noiseRefusal: UInt8 = 1
 
 struct CipherState: Sendable {
   private var key: SymmetricKey?
@@ -181,7 +187,9 @@ struct NoiseHandshake {
 
   /// Reads the response (e, ee, se) and returns the send and receive ciphers.
   mutating func readResponse(_ message: Data) throws -> (send: CipherState, recv: CipherState) {
+    if kind == .pair, message == Data([noiseRefusal]) { throw NoiseError.pairingRefused }
     guard message.count >= noiseKeySize + noiseTagSize else { throw NoiseError.handshake }
+    let body: Data
     do {
       let split = message.startIndex + noiseKeySize
       let re = Data(message[..<split])
@@ -189,11 +197,13 @@ struct NoiseHandshake {
       if psk != nil { state.mixKey(re) }
       state.mixKey(try dh(ephemeral, re))
       state.mixKey(try dh(identity, re))
-      _ = try state.decryptAndHash(Data(message[split...]))
-      let (send, recv) = state.split()
-      return (send, recv)
+      body = try state.decryptAndHash(Data(message[split...]))
     } catch {
       throw NoiseError.handshake
     }
+    if kind == .daily, !body.isEmpty {
+      throw body == Data([noiseRefusal]) ? NoiseError.deviceRefused : NoiseError.handshake
+    }
+    return state.split()
   }
 }

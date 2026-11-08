@@ -43,6 +43,13 @@ const (
 	maxMessage = fnoise.MaxMsgLen
 	// DefaultMaxFrame is the largest frame a channel assembles by default.
 	DefaultMaxFrame = 16 << 20
+	// deviceRefusal is the payload of a daily handshake's response when the
+	// host refuses the device; the response is authenticated by the host's
+	// key, and no channel follows it.
+	deviceRefusal byte = 1
+	// pairingRefusal is the whole, unauthenticated response to a pairing
+	// handshake the host refuses.
+	pairingRefusal byte = 1
 )
 
 var suite = fnoise.NewCipherSuite(fnoise.DH25519, fnoise.CipherChaChaPoly, fnoise.HashSHA256)
@@ -53,9 +60,16 @@ var (
 	ErrKind      = errors.New("noise: unknown or unaccepted handshake kind")
 	ErrHandshake = errors.New("noise: handshake failed")
 	ErrRefused   = errors.New("noise: peer refused")
-	ErrDecrypt   = errors.New("noise: message failed to decrypt")
-	ErrFrame     = errors.New("noise: bad frame")
-	ErrTooLarge  = errors.New("noise: frame too large")
+	// ErrDeviceRefused is the host's authenticated answer that this device
+	// is not paired or was revoked. An Allow error wrapping it sends that
+	// answer.
+	ErrDeviceRefused = errors.New("noise: the host refused this device")
+	// ErrPairingRefused says the pairing code is no longer valid. It is
+	// unauthenticated. An Allow error wrapping it sends that answer.
+	ErrPairingRefused = errors.New("noise: the pairing code is no longer valid")
+	ErrDecrypt        = errors.New("noise: message failed to decrypt")
+	ErrFrame          = errors.New("noise: bad frame")
+	ErrTooLarge       = errors.New("noise: frame too large")
 )
 
 // MsgConn carries whole messages in order. Read and write may be called
@@ -94,7 +108,8 @@ type AcceptConfig struct {
 	PSK func() []byte
 	// Allow decides once the initiator's public key is known, before the
 	// responder sends anything that completes the handshake; an error
-	// refuses the connection.
+	// refuses the connection. Wrapping ErrDeviceRefused or ErrPairingRefused
+	// tells the initiator why; any other error just closes the connection.
 	Allow func(kind Kind, peer, payload []byte) error
 	// MaxFrame bounds frames the channel reads; 0 means DefaultMaxFrame.
 	MaxFrame int
@@ -167,8 +182,18 @@ func dial(ctx context.Context, c MsgConn, cfg DialConfig) (*Channel, error) {
 		if err != nil {
 			return nil, err
 		}
-		if _, send, recv, err = hs.ReadMessage(nil, in); err != nil {
+		if cfg.Kind == KindPair && len(in) == 1 && in[0] == pairingRefusal {
+			return nil, ErrPairingRefused
+		}
+		var payload []byte
+		if payload, send, recv, err = hs.ReadMessage(nil, in); err != nil {
 			return nil, fmt.Errorf("%w: %w", ErrHandshake, err)
+		}
+		if cfg.Kind == KindDaily && len(payload) != 0 {
+			if len(payload) == 1 && payload[0] == deviceRefusal {
+				return nil, ErrDeviceRefused
+			}
+			return nil, fmt.Errorf("%w: unexpected response payload", ErrHandshake)
 		}
 		if send != nil {
 			return newChannel(c, send, recv, hs.PeerStatic(), cfg.MaxFrame), nil
@@ -218,6 +243,7 @@ func accept(ctx context.Context, c MsgConn, cfg AcceptConfig) (*Channel, Kind, e
 				psk = cfg.PSK()
 			}
 			if len(psk) != PSKSize {
+				refusePairing(ctx, c)
 				return nil, kind, fmt.Errorf("%w: no pairing is open", ErrRefused)
 			}
 		}
@@ -234,6 +260,9 @@ func accept(ctx context.Context, c MsgConn, cfg AcceptConfig) (*Channel, Kind, e
 	for {
 		payload, recv, send, err := hs.ReadMessage(nil, in)
 		if err != nil {
+			if kind == KindPair {
+				refusePairing(ctx, c)
+			}
 			return nil, kind, fmt.Errorf("%w: %w", ErrHandshake, err)
 		}
 		if peer := hs.PeerStatic(); !allowed && len(peer) == KeySize {
@@ -242,6 +271,12 @@ func accept(ctx context.Context, c MsgConn, cfg AcceptConfig) (*Channel, Kind, e
 			}
 			if cfg.Allow != nil {
 				if err := cfg.Allow(kind, peer, payload); err != nil {
+					switch {
+					case kind == KindDaily && errors.Is(err, ErrDeviceRefused):
+						refuseDevice(ctx, c, hs)
+					case kind == KindPair && errors.Is(err, ErrPairingRefused):
+						refusePairing(ctx, c)
+					}
 					return nil, kind, fmt.Errorf("%w: %w", ErrRefused, err)
 				}
 			}
@@ -264,6 +299,21 @@ func accept(ctx context.Context, c MsgConn, cfg AcceptConfig) (*Channel, Kind, e
 			return nil, kind, err
 		}
 	}
+}
+
+// refuseDevice answers a daily handshake with the authenticated refusal.
+// The handshake's keys are dropped, so no channel can follow; the caller
+// closes the connection. Delivery is best effort.
+func refuseDevice(ctx context.Context, c MsgConn, hs *fnoise.HandshakeState) {
+	if msg, _, _, err := hs.WriteMessage(nil, []byte{deviceRefusal}); err == nil {
+		_ = c.WriteMessage(ctx, msg)
+	}
+}
+
+// refusePairing answers a pairing handshake with the plaintext refusal.
+// Delivery is best effort.
+func refusePairing(ctx context.Context, c MsgConn) {
+	_ = c.WriteMessage(ctx, []byte{pairingRefusal})
 }
 
 func readHandshake(ctx context.Context, c MsgConn) ([]byte, error) {

@@ -150,6 +150,8 @@ type sessionSpec struct {
 	psk      []byte
 	payload  []byte
 	maxFrame int
+	// responsePayload is the responder's payload in raw handshakes.
+	responsePayload []byte
 }
 
 // session is a handshaken pair of channels over a recording pipe.
@@ -375,7 +377,7 @@ func rawHandshake(t *testing.T, spec sessionSpec, iniLabel, suffix string) (firs
 	if _, _, _, err = res.ReadMessage(nil, first[1:]); err != nil {
 		t.Fatal(err)
 	}
-	second, _, _, err = res.WriteMessage(nil, nil)
+	second, _, _, err = res.WriteMessage(nil, spec.responsePayload)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -383,8 +385,8 @@ func rawHandshake(t *testing.T, spec sessionSpec, iniLabel, suffix string) (firs
 }
 
 // checkHandshakeNegative dials with the real implementation and answers
-// with response, which must make the initiator fail.
-func checkHandshakeNegative(t *testing.T, spec sessionSpec, response []byte) []byte {
+// with response, which must make the initiator fail with want.
+func checkHandshakeNegative(t *testing.T, spec sessionSpec, response []byte, want error) []byte {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -406,8 +408,8 @@ func checkHandshakeNegative(t *testing.T, spec sessionSpec, response []byte) []b
 	if err := peer.WriteMessage(ctx, response); err != nil {
 		t.Fatal(err)
 	}
-	if err := <-done; !errors.Is(err, ErrHandshake) {
-		t.Fatalf("dial = %v, want ErrHandshake", err)
+	if err := <-done; !errors.Is(err, want) {
+		t.Fatalf("dial = %v, want %v", err, want)
 	}
 	return first
 }
@@ -428,17 +430,33 @@ func buildHandshakeNegatives(t *testing.T) []handshakeNegative {
 	_, badPSK := rawHandshake(t, wrongPSK, "initiator", "")
 	_, otherSession := rawHandshake(t, dailySpec(), "another initiator", "")
 
+	respondWith := func(payload ...byte) []byte {
+		spec := dailySpec()
+		spec.responsePayload = payload
+		_, m := rawHandshake(t, spec, "initiator", "")
+		return m
+	}
+	refused := respondWith(deviceRefusal)
+
 	cases := []struct {
 		name     string
 		spec     sessionSpec
 		response []byte
+		want     error
+		code     string
 	}{
-		{"tampered_response", dailySpec(), flipLast(good)},
-		{"truncated_response", dailySpec(), good[:40]},
-		{"wrong_prologue", dailySpec(), badPrologue},
-		{"response_from_another_session", dailySpec(), otherSession},
-		{"wrong_psk", pairSpec(), badPSK},
-		{"tampered_pair_response", pairSpec(), flipLast(goodPair)},
+		{"tampered_response", dailySpec(), flipLast(good), ErrHandshake, "handshake"},
+		{"truncated_response", dailySpec(), good[:40], ErrHandshake, "handshake"},
+		{"wrong_prologue", dailySpec(), badPrologue, ErrHandshake, "handshake"},
+		{"response_from_another_session", dailySpec(), otherSession, ErrHandshake, "handshake"},
+		{"wrong_psk", pairSpec(), badPSK, ErrHandshake, "handshake"},
+		{"tampered_pair_response", pairSpec(), flipLast(goodPair), ErrHandshake, "handshake"},
+		{"device_refused", dailySpec(), refused, ErrDeviceRefused, "device_refused"},
+		{"tampered_device_refusal", dailySpec(), flipLast(refused), ErrHandshake, "handshake"},
+		{"unknown_daily_payload", dailySpec(), respondWith(2), ErrHandshake, "handshake"},
+		{"pairing_refused", pairSpec(), []byte{pairingRefusal}, ErrPairingRefused, "pairing_refused"},
+		{"unknown_pairing_refusal", pairSpec(), []byte{2}, ErrHandshake, "handshake"},
+		{"plaintext_refusal_on_daily", dailySpec(), []byte{pairingRefusal}, ErrHandshake, "handshake"},
 	}
 
 	iniID, resID := vectorIdentity(t, "initiator"), vectorIdentity(t, "responder")
@@ -448,7 +466,7 @@ func buildHandshakeNegatives(t *testing.T) []handshakeNegative {
 	}
 	out := make([]handshakeNegative, 0, len(cases))
 	for _, c := range cases {
-		first := checkHandshakeNegative(t, c.spec, c.response)
+		first := checkHandshakeNegative(t, c.spec, c.response, c.want)
 		out = append(out, handshakeNegative{
 			Name:            c.name,
 			Kind:            int(c.spec.kind),
@@ -458,7 +476,7 @@ func buildHandshakeNegatives(t *testing.T) []handshakeNegative {
 			PSK:             hex.EncodeToString(c.spec.psk),
 			FirstMessage:    hex.EncodeToString(first),
 			Response:        hex.EncodeToString(c.response),
-			Error:           "handshake",
+			Error:           c.code,
 		})
 	}
 	return out

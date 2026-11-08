@@ -46,7 +46,8 @@ func Pair(ctx context.Context, r Remote, psk []byte, name string) (*Client, erro
 }
 
 // dialRemote tries the routes in order; the error names every route's
-// failure.
+// failure. A host that refuses this device ends the search: its answer is
+// authenticated and holds on every route.
 func dialRemote(ctx context.Context, r Remote, cfg noise.DialConfig) (*Client, error) {
 	want, err := noise.IDOf(r.HostKey)
 	if err != nil {
@@ -61,6 +62,9 @@ func dialRemote(ctx context.Context, r Remote, cfg noise.DialConfig) (*Client, e
 		c, err := dialRoute(ctx, route, r.TLS, cfg, want)
 		if err == nil {
 			return c, nil
+		}
+		if errors.Is(err, noise.ErrDeviceRefused) {
+			return nil, fmt.Errorf("client: reach host %s: %w", want, err)
 		}
 		errs = append(errs, fmt.Errorf("%s: %w", route, err))
 		if ctx.Err() != nil {
