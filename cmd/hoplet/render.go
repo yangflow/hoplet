@@ -26,6 +26,14 @@ func render(ev proto.Event) string {
 	case proto.Message:
 		switch p.Role {
 		case proto.RoleUser:
+			if p.From != "" {
+				status := p.Report
+				if status == "" {
+					status = proto.ReportDone
+				}
+				s = fmt.Sprintf("< report from %s (%s)\n  %s", p.From, status, indent(p.Text, "  "))
+				break
+			}
 			s = "> " + indent(p.Text, "  ")
 		default:
 			s = p.Text
@@ -58,6 +66,15 @@ func render(ev proto.Event) string {
 		s = fmt.Sprintf("? question %s: %s", p.ID, p.Text)
 		if len(p.Options) > 0 {
 			s += "\n  options: " + strings.Join(p.Options, " | ")
+		}
+	case proto.SessionDelegated:
+		verb := "delegated to"
+		if p.Kind == proto.HandedOff {
+			verb = "handed off to"
+		}
+		s = fmt.Sprintf("%s %s", verb, p.Session)
+		if p.Title != "" {
+			s += " " + p.Title
 		}
 	case proto.ArtifactPublished:
 		s = fmt.Sprintf("published %s v%d (%s)", p.Name, p.Version, p.Kind)

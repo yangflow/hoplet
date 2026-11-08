@@ -85,7 +85,8 @@ erDiagram
 ### 父会话与回报
 
 - `sessions.parent` 引用父会话；有父会话的 Personal 会话不是伙伴，不建伙伴行。
-- 回报是父会话队列里的一条消息：`queue.from_session` 记它来自哪个会话，我的消息为空；编辑保留来源。投递后父会话日志里的 `Message` 记原文，`from` 为来源会话。
+- 建有父会话的会话时，在同一个事务里向父会话日志追加 `session.delegated`（v1）：`session` 为新会话，`kind` 为 `delegate`（托管子会话）或 `handoff`（转交的 Code 会话），`title` 为建立时的标题；父会话正在跑一轮时事件落在这一轮里。建立失败不写，重复建立不重写。
+- 回报是父会话队列里的一条消息：`queue.from_session` 记它来自哪个会话，`queue.report` 记回报状态（`done` / `error` / `approval`），我的消息两列都为空；编辑保留来源与状态。投递后父会话日志里的 `Message` 记原文，`from` 为来源会话，`report` 为状态；`report` 可省略，旧消息没有该字段，有 `from` 时按 `done` 看待。
 - `reports` 表一行一个入过队的回报键：
 
 | 列 | 含义 |
@@ -95,7 +96,7 @@ erDiagram
 | `created_at` | 入队时间 |
 
 - 主键 `(parent, key)`。`Store.Report` 在一个事务里插 `reports` 行并入队；键已在就什么都不做，所以一个键只入队一次，我删掉的回报也不会再出现。父会话不存在、已归档、队列已满时整体回滚，键不被占用。
-- 迁移只加列、加表：已有会话的 `parent`、已有队列消息的 `from_session` 为空。
+- 迁移只加列、加表：已有会话的 `parent`、已有队列消息的 `from_session` 与 `report` 为空。
 
 ### 列表属性
 
