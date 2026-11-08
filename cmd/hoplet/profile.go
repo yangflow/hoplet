@@ -25,6 +25,7 @@ commands:
   candidates
   accept      ID [--scope KIND[:VALUE]]
   reject      ID
+  extraction  [on|off|status]
 
 The profile is what Hoplet remembers long-term. list shows active entries;
 --status picks another status and --all lists every status. candidates lists
@@ -45,6 +46,7 @@ func (a app) profile(args []string) int {
 	cmds := map[string]func([]string) int{
 		"list": a.profileList, "show": a.profileShow, "edit": a.profileEdit, "withdraw": a.profileWithdraw,
 		"candidates": a.profileCandidates, "accept": a.profileAccept, "reject": a.profileReject,
+		"extraction": a.profileExtraction,
 	}
 	cmd, ok := cmds[args[0]]
 	if !ok {
@@ -274,6 +276,51 @@ func (a app) profileCandidates(args []string) int {
 		fmt.Fprintln(tw, "ID\tACTION\tTARGET\tFROM\tSCOPE\tTITLE")
 		for _, cand := range cs.Candidates {
 			fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\n", cand.Entry.ID, cand.Action, cand.Target, cand.Actor, scopeText(cand.Entry.Scope), cand.Entry.Title)
+		}
+		return tw.Flush()
+	})
+}
+
+func (a app) profileExtraction(args []string) int {
+	fs := a.flags("profile extraction", profileUsage)
+	asJSON := fs.Bool("json", false, "print JSON")
+	if code, ok := parse(fs, args, 0, 1); !ok {
+		return code
+	}
+	action := "status"
+	if fs.NArg() == 1 {
+		action = fs.Arg(0)
+	}
+	if action != "status" && action != "on" && action != "off" {
+		fmt.Fprintf(a.stderr, "hoplet profile extraction: unknown action %q\n", action)
+		return 2
+	}
+	return a.withClient("profile extraction", commandTimeout, func(ctx context.Context, c *client.Client) error {
+		var (
+			st  proto.ProfileExtractionStatus
+			err error
+		)
+		if action == "status" {
+			st, err = c.ProfileExtraction(ctx)
+		} else {
+			st, err = c.SetProfileExtraction(ctx, action == "on")
+		}
+		if err != nil {
+			return err
+		}
+		if *asJSON {
+			a.printJSON(st)
+			return nil
+		}
+		state := "on"
+		if !st.Enabled {
+			state = "off"
+		}
+		fmt.Fprintf(a.stdout, "Background extraction: %s\nFailed today: %d\n", state, st.Failed)
+		tw := tabwriter.NewWriter(a.stdout, 0, 4, 2, ' ', 0)
+		fmt.Fprintln(tw, "HARNESS\tTODAY\tNOTE")
+		for _, h := range st.Harnesses {
+			fmt.Fprintf(tw, "%s\t%d/%d\t%s\n", h.Kind, h.Used, st.DailyLimit, h.Unsupported)
 		}
 		return tw.Flush()
 	})
