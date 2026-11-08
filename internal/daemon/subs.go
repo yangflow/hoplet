@@ -13,25 +13,10 @@ import (
 func (c *conn) catalog(ctx context.Context, sub uint64, p proto.CatalogParams) error {
 	st := c.s.store
 	changes := st.Changes()
-	cur, err := st.CatalogVersion(ctx)
+	item, err := c.catalogStart(ctx, p)
 	if err != nil {
 		return err
 	}
-	var item proto.CatalogItem
-	if p.AfterVersion == 0 || p.AfterVersion > cur {
-		item.Snapshot = true
-		item.Sessions, err = st.Sessions(ctx)
-	} else {
-		item.Sessions, err = st.SessionsSince(ctx, p.AfterVersion)
-		item.Version = p.AfterVersion
-	}
-	if err != nil {
-		return err
-	}
-	if item.Sessions == nil {
-		item.Sessions = []proto.Session{}
-	}
-	item.Version = maxVersion(item.Sessions, item.Version)
 	if err := c.item(sub, item); err != nil {
 		return err
 	}
@@ -55,6 +40,31 @@ func (c *conn) catalog(ctx context.Context, sub uint64, p proto.CatalogParams) e
 			return err
 		}
 	}
+}
+
+// catalogStart returns the first item of a catalog subscription.
+func (c *conn) catalogStart(ctx context.Context, p proto.CatalogParams) (proto.CatalogItem, error) {
+	st := c.s.store
+	cur, err := st.CatalogVersion(ctx)
+	if err != nil {
+		return proto.CatalogItem{}, err
+	}
+	var item proto.CatalogItem
+	if p.AfterVersion == 0 || p.AfterVersion > cur {
+		item.Snapshot = true
+		item.Sessions, err = st.Sessions(ctx)
+	} else {
+		item.Sessions, err = st.SessionsSince(ctx, p.AfterVersion)
+		item.Version = p.AfterVersion
+	}
+	if err != nil {
+		return proto.CatalogItem{}, err
+	}
+	if item.Sessions == nil {
+		item.Sessions = []proto.Session{}
+	}
+	item.Version = maxVersion(item.Sessions, item.Version)
+	return item, nil
 }
 
 func maxVersion(ss []proto.Session, v uint64) uint64 {

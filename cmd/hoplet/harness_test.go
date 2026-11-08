@@ -3,13 +3,21 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/yangflow/hoplet/internal/config"
@@ -32,6 +40,52 @@ func harnessApp(out, errb *bytes.Buffer, checked *[]string, fail error) app {
 	return a
 }
 
+// claudeRelease is a fake Claude Code release host; publish moves its
+// stable channel.
+type claudeRelease struct {
+	t      *testing.T
+	stable atomic.Value
+	bodies sync.Map
+	source claude.Source
+}
+
+func newClaudeRelease(t *testing.T) *claudeRelease {
+	t.Helper()
+	r := &claudeRelease{t: t}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		parts := strings.Split(strings.TrimPrefix(req.URL.Path, "/"), "/")
+		if parts[0] == "stable" {
+			fmt.Fprintln(w, r.stable.Load())
+			return
+		}
+		v, ok := r.bodies.Load(parts[0])
+		if !ok {
+			http.NotFound(w, req)
+			return
+		}
+		body, _ := v.([]byte)
+		if parts[len(parts)-1] == "claude" {
+			_, _ = w.Write(body)
+			return
+		}
+		sum := sha256.Sum256(body)
+		fmt.Fprintf(w, `{"platforms":{"test":{"checksum":%q,"size":%d}}}`, hex.EncodeToString(sum[:]), len(body))
+	}))
+	t.Cleanup(srv.Close)
+	r.source = claude.Source{BaseURL: srv.URL, Platform: "test", Client: srv.Client(), Verify: func(context.Context, string) error { return nil }}
+	return r
+}
+
+func (r *claudeRelease) publish(version string) {
+	r.t.Helper()
+	body, err := os.ReadFile(fakeClaudeBin(r.t, version))
+	if err != nil {
+		r.t.Fatal(err)
+	}
+	r.bodies.Store(version, body)
+	r.stable.Store(version)
+}
+
 func fakeClaudeBin(t *testing.T, version string) string {
 	t.Helper()
 	bin := filepath.Join(t.TempDir(), "claude")
@@ -45,31 +99,34 @@ func TestHarnessInstall(t *testing.T) {
 	h := t.TempDir()
 	t.Setenv("HOPLET_HOME", h)
 	var checked []string
+	rel := newClaudeRelease(t)
 	hoplet := func(fail error, args ...string) (int, string, string) {
 		var out, errb bytes.Buffer
-		code := harnessApp(&out, &errb, &checked, fail).run(args)
+		a := harnessApp(&out, &errb, &checked, fail)
+		a.claudeRelease = rel.source
+		code := a.run(args)
 		return code, out.String(), errb.String()
 	}
-	bin := fakeClaudeBin(t, "2.1.312")
-	if code, out, errs := hoplet(nil, "harness", "install", "claude", "--from", bin); code != 0 || out != "installed claude 2.1.312 at "+claude.BinaryPath(h)+"\n" || len(checked) != 0 {
+	rel.publish("2.1.312")
+	if code, out, errs := hoplet(nil, "harness", "install", "claude"); code != 0 || out != "installed claude 2.1.312 at "+claude.BinaryPath(h)+"\n" || len(checked) != 0 {
 		t.Fatalf("install: exit %d %q %q, checked %v", code, out, errs, checked)
 	}
 	var got map[string]any
-	_, out, _ := hoplet(nil, "harness", "upgrade", "claude", "--from", bin, "--json")
+	_, out, _ := hoplet(nil, "harness", "upgrade", "claude", "--json")
 	if err := json.Unmarshal([]byte(out), &got); err != nil || got["version"] != "2.1.312" || got["checked"] != false {
 		t.Fatalf("upgrade --json %v %v", got, err)
 	}
 
 	// A version without recordings needs the self-check.
-	bad := fakeClaudeBin(t, "2.1.400")
-	if code, _, errs := hoplet(errors.New("no approval came"), "harness", "upgrade", "claude", "--from", bad); code != 1 || !strings.Contains(errs, "failed the self-check") || len(checked) != 1 {
+	rel.publish("2.1.400")
+	if code, _, errs := hoplet(errors.New("no approval came"), "harness", "upgrade", "claude"); code != 1 || !strings.Contains(errs, "failed the self-check") || len(checked) != 1 {
 		t.Fatalf("failing upgrade: exit %d %q, checked %v", code, errs, checked)
 	}
-	if code, out, errs := hoplet(nil, "harness", "upgrade", "claude", "--from", bad); code != 0 || out != "claude 2.1.400 passed the self-check\ninstalled claude 2.1.400 at "+claude.BinaryPath(h)+"\n" || !strings.Contains(errs, "self-check") {
+	if code, out, errs := hoplet(nil, "harness", "upgrade", "claude"); code != 0 || out != "claude 2.1.400 passed the self-check\ninstalled claude 2.1.400 at "+claude.BinaryPath(h)+"\n" || !strings.Contains(errs, "self-check") {
 		t.Fatalf("passing upgrade: exit %d %q %q", code, out, errs)
 	}
 
-	for _, args := range [][]string{{"harness"}, {"harness", "install"}, {"harness", "install", "codex"}, {"harness", "remove", "claude"}} {
+	for _, args := range [][]string{{"harness"}, {"harness", "install"}, {"harness", "install", "nope"}, {"harness", "install", "codex", "extra"}, {"harness", "remove", "claude"}} {
 		if code, _, _ := cli(t, args...); code != 2 {
 			t.Errorf("%v: exit %d, want 2", args, code)
 		}
@@ -79,16 +136,19 @@ func TestHarnessInstall(t *testing.T) {
 	}
 }
 
-func TestDaemonFollowsTheUsersClaude(t *testing.T) {
+func TestDaemonFollowsTheStableChannel(t *testing.T) {
 	h := t.TempDir()
 	var checked []string
 	var out, errb bytes.Buffer
 	a := harnessApp(&out, &errb, &checked, nil)
-	if _, err := claude.Install(context.Background(), fakeClaudeBin(t, "2.1.312"), h, nil); err != nil {
+	rel := newClaudeRelease(t)
+	a.claudeRelease = rel.source
+	rel.publish("2.1.312")
+	if _, err := claude.Install(context.Background(), h, rel.source, nil); err != nil {
 		t.Fatal(err)
 	}
-	newer := fakeClaudeBin(t, "2.1.400")
-	vars := []string{"PATH=" + filepath.Dir(newer) + ":/usr/bin:/bin"}
+	rel.publish("2.1.400")
+	vars := []string{"PATH=/usr/bin:/bin"}
 	logs := &bytes.Buffer{}
 
 	// Turned off in the configuration: nothing happens.
@@ -357,5 +417,20 @@ func TestMaintenancePlan(t *testing.T) {
 		if gotClaude != c.wantClaude || gotHermes != c.wantHermes {
 			t.Errorf("%s: claude %v hermes %v, want %v %v", name, gotClaude, gotHermes, c.wantClaude, c.wantHermes)
 		}
+	}
+}
+
+func TestProxyClient(t *testing.T) {
+	if proxyClient([]string{"PATH=/bin"}) != nil {
+		t.Fatal("a client without a proxy")
+	}
+	c := proxyClient([]string{"https_proxy=http://127.0.0.1:7890"})
+	tr, ok := c.Transport.(*http.Transport)
+	if !ok {
+		t.Fatalf("transport %T", c.Transport)
+	}
+	u, err := tr.Proxy(&http.Request{URL: &url.URL{Scheme: "https", Host: "example.com"}})
+	if err != nil || u.Host != "127.0.0.1:7890" {
+		t.Fatalf("proxy %v %v", u, err)
 	}
 }

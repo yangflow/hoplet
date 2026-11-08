@@ -223,8 +223,8 @@ func (h *Harness) Launch(spec harness.Spec) (harness.Launch, error) {
 	if spec.Effort != "" {
 		args = append(args, "--effort", string(spec.Effort))
 	}
-	if spec.Persona != "" {
-		args = append(args, "--append-system-prompt", spec.Persona)
+	if prompt := systemPrompt(spec); prompt != "" {
+		args = append(args, "--append-system-prompt", prompt)
 	}
 	if s := launchSettings(spec); s != "" {
 		args = append(args, "--settings", s)
@@ -326,6 +326,16 @@ func (h *Harness) Attach(ctx context.Context, spec harness.Spec, io harness.Stdi
 	}
 	return r, nil
 }
+
+// systemPrompt is what a session adds to its system prompt: the persona,
+// then the memory digest.
+func systemPrompt(spec harness.Spec) string {
+	return strings.Join(slices.DeleteFunc([]string{spec.Persona, spec.Profile}, func(s string) bool { return s == "" }), "\n\n")
+}
+
+// TakesCodeDigest reports that a Code session's digest goes the way a
+// persona does.
+func (h *Harness) TakesCodeDigest() bool { return true }
 
 // KeepsPersona reports that Claude Code keeps the system prompt a session
 // started with: a resumed session ignores a changed --append-system-prompt.

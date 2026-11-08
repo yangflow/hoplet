@@ -1,0 +1,23 @@
+write {"id":"hoplet-x-1","method":"initialize","params":{"capabilities":{"experimentalApi":true},"clientInfo":{"name":"hoplet","title":"Hoplet","version":"1"}}}
+write {"method":"initialized"}
+write {"id":"hoplet-x-2","method":"thread/start","params":{"approvalPolicy":"never","approvalsReviewer":"user","cwd":"/work","sandbox":"danger-full-access"}}
+native 01a1baef-15d5-74f1-90fd-16fbd23db9bb proto.ModelChanged {"model":"gpt-6-luna"}
+write {"id":"hoplet-x-3","method":"turn/start","params":{"input":[{"text":"Run the shell command `sleep 45` and then reply done.","type":"text"}],"threadId":"01a1baef-15d5-74f1-90fd-16fbd23db9bb"}}
+proto.TurnStarted {}
+proto.MessageDelta {"message_id":"msg_0e53d2055766df92016af05dffc0cc87d0941e57371d28476f","text":"我"}
+proto.MessageDelta {"message_id":"msg_0e53d2055766df92016af05dffc0cc87d0941e57371d28476f","text":"会"}
+proto.MessageDelta {"message_id":"msg_0e53d2055766df92016af05dffc0cc87d0941e57371d28476f","text":"先"}
+proto.MessageDelta {"message_id":"msg_0e53d2055766df92016af05dffc0cc87d0941e57371d28476f","text":"执行"}
+proto.MessageDelta {"message_id":"msg_0e53d2055766df92016af05dffc0cc87d0941e57371d28476f","text":"你"}
+proto.MessageDelta {"message_id":"msg_0e53d2055766df92016af05dffc0cc87d0941e57371d28476f","text":"指定"}
+proto.MessageDelta {"message_id":"msg_0e53d2055766df92016af05dffc0cc87d0941e57371d28476f","text":"的"}
+proto.MessageDelta {"message_id":"msg_0e53d2055766df92016af05dffc0cc87d0941e57371d28476f","text":"命"}
+proto.MessageDelta {"message_id":"msg_0e53d2055766df92016af05dffc0cc87d0941e57371d28476f","text":"令"}
+proto.MessageDelta {"message_id":"msg_0e53d2055766df92016af05dffc0cc87d0941e57371d28476f","text":"。"}
+proto.Message {"id":"msg_0e53d2055766df92016af05dffc0cc87d0941e57371d28476f","role":"assistant","text":"我会先执行你指定的命令。"}
+proto.ToolCall {"id":"exec-54fe775a-ec07-4328-8b32-b2194a1f5a34","kind":"exec","name":"Shell","summary":"sleep 45","status":"running"}
+write {"id":"hoplet-x-1","method":"thread/turns/list","params":{"limit":1,"threadId":"01a1baef-15d5-74f1-90fd-16fbd23db9bb"}}
+write {"id":"hoplet-x-2","method":"turn/interrupt","params":{"threadId":"01a1baef-15d5-74f1-90fd-16fbd23db9bb","turnId":"01a1baef-166f-7f93-adeb-1f14840f314f"}}
+proto.ContextUsage {"used":20843,"window":828400}
+proto.Usage {"input_tokens":20781,"output_tokens":62}
+proto.TurnEnded {"reason":"interrupted"}

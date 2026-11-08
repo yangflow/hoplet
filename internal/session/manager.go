@@ -117,6 +117,13 @@ type Config struct {
 	// from it is logged and does not fail Create. Capturing first means
 	// nothing the session does, by any client, can come before the baseline.
 	Baseline func(ctx context.Context, dir string) (save func(ctx context.Context, id proto.SessionID) error)
+	// Memory, when set, gives new sessions their memory digest.
+	Memory Memory
+	// Host is this host's name in memory scopes.
+	Host string
+	// RepoIdentity names the repository holding a directory, for memory
+	// scopes; nil or false means no repository scope.
+	RepoIdentity func(ctx context.Context, dir string) (string, bool)
 }
 
 // Manager runs sessions. Its methods are safe for concurrent use.
@@ -1001,21 +1008,21 @@ func (m *Manager) workDir(ctx context.Context, sess proto.Session) (string, *sto
 
 // startSpec is the spec for starting a harness: the resume ID is dropped when
 // the harness cannot resume.
-func (m *Manager) startSpec(ctx context.Context, h harness.Harness, sess proto.Session) (harness.Spec, harness.Info, error) {
+func (m *Manager) startSpec(ctx context.Context, h harness.Harness, sess proto.Session) (harness.Spec, harness.Info, *store.MemoryInjection, error) {
 	info, err := h.Probe(ctx)
 	if err != nil {
-		return harness.Spec{}, info, fmt.Errorf("session: probe %s: %w", sess.Harness.Kind, err)
+		return harness.Spec{}, info, nil, fmt.Errorf("session: probe %s: %w", sess.Harness.Kind, err)
 	}
 	if !info.Supported {
-		return harness.Spec{}, info, fmt.Errorf("%w: %s %s", ErrUnsupportedVersion, sess.Harness.Kind, info.Version)
+		return harness.Spec{}, info, nil, fmt.Errorf("%w: %s %s", ErrUnsupportedVersion, sess.Harness.Kind, info.Version)
 	}
 	spec, err := m.specFor(ctx, sess, false)
 	if err != nil {
-		return harness.Spec{}, info, err
+		return harness.Spec{}, info, nil, err
 	}
 	if spec.Companion {
 		if spec.Persona, err = m.launchPersona(ctx, sess.ID); err != nil {
-			return harness.Spec{}, info, err
+			return harness.Spec{}, info, nil, err
 		}
 	}
 	// The harness may have changed since the mode was stored (an upgrade,
@@ -1024,7 +1031,8 @@ func (m *Manager) startSpec(ctx context.Context, h harness.Harness, sess proto.S
 	if !info.Capabilities.Resume {
 		spec.Resume = "" // the harness can't resume; start fresh
 	}
-	return spec, info, nil
+	injection := m.addDigest(ctx, h, sess, &spec)
+	return spec, info, injection, nil
 }
 
 // issueTools gives the session a new tool token and returns the MCP
@@ -1090,7 +1098,7 @@ func (m *Manager) spawn(ctx context.Context, sess proto.Session) error {
 	if !ok {
 		return fmt.Errorf("session: harness %q does not run behind a shim", sess.Harness.Kind)
 	}
-	spec, info, err := m.startSpec(ctx, h, sess)
+	spec, info, injection, err := m.startSpec(ctx, h, sess)
 	if err != nil {
 		return err
 	}
@@ -1114,7 +1122,11 @@ func (m *Manager) spawn(ctx context.Context, sess proto.Session) error {
 	if err := writeWorkFiles(spec.WorkDir, l.WorkFiles); err != nil {
 		return err
 	}
-	return m.cfg.Spawner.Spawn(ctx, m.dir(sess.ID), spec.WorkDir, l)
+	if err := m.cfg.Spawner.Spawn(ctx, m.dir(sess.ID), spec.WorkDir, l); err != nil {
+		return err
+	}
+	m.recordInjection(ctx, injection)
+	return nil
 }
 
 // attach connects to the session's harness and starts ingesting; the caller
@@ -1187,7 +1199,7 @@ func (m *Manager) attach(ctx context.Context, sess proto.Session, prior int64, n
 			return nil, errors.Join(err, l.stdio.Close())
 		}
 	case harness.DirectHarness:
-		spec, _, err := m.startSpec(ctx, h, sess)
+		spec, _, injection, err := m.startSpec(ctx, h, sess)
 		if err != nil {
 			return nil, err
 		}
@@ -1196,6 +1208,7 @@ func (m *Manager) attach(ctx context.Context, sess proto.Session, prior int64, n
 		if l.run, err = hh.Start(m.ctx, spec); err != nil {
 			return nil, err
 		}
+		m.recordInjection(ctx, injection)
 	default:
 		return nil, fmt.Errorf("session: harness %q is neither stdio nor direct", sess.Harness.Kind)
 	}

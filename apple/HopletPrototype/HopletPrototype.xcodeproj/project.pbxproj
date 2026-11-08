@@ -18,6 +18,7 @@
 		B1C4E715147EEE18DF1CE739 /* Organize.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDFFCA4CF22A8EF6E9B37254 /* Organize.swift */; };
 		B4A18B219321F71296BF0F47 /* SessionActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E1CCD3B95B89BB7E6477229 /* SessionActivity.swift */; };
 		B5BA72E08EDDCAD049362FA9 /* SessionActivityWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6B397E30BAE48E2AF7BC6B1 /* SessionActivityWidget.swift */; };
+		CFCE1CE66CD57B94C7B1BC6B /* Pairing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31275AF79814A3CE1AEA4E3C /* Pairing.swift */; };
 		D011AA8306035662C6914AB2 /* Changes.swift in Sources */ = {isa = PBXBuildFile; fileRef = D51A204F347CD55FFC173EFB /* Changes.swift */; };
 		E58DFD6B97A62BA1B7B0C98E /* SystemDemo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8ACE007830EC8D75E0874AF1 /* SystemDemo.swift */; };
 		FEA064C887FF31EC17BC94AB /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = D4EAE82830A0237F54240D32 /* Assets.xcassets */; };
@@ -50,6 +51,7 @@
 /* Begin PBXFileReference section */
 		2C7E5E072D8FB304F66D952B /* NewSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewSession.swift; sourceTree = "<group>"; };
 		30AE6A35AD1043AA62CA17DB /* HopletActivity.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = HopletActivity.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		31275AF79814A3CE1AEA4E3C /* Pairing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Pairing.swift; sourceTree = "<group>"; };
 		3E1CCD3B95B89BB7E6477229 /* SessionActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionActivity.swift; sourceTree = "<group>"; };
 		414E15ECDC50C413F199B2F9 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		5BA07741F0A824C2600D48CB /* HopletPrototype.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = HopletPrototype.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -85,6 +87,7 @@
 				CC514E132A7CCA0DAEF78249 /* Model.swift */,
 				2C7E5E072D8FB304F66D952B /* NewSession.swift */,
 				EDFFCA4CF22A8EF6E9B37254 /* Organize.swift */,
+				31275AF79814A3CE1AEA4E3C /* Pairing.swift */,
 				EB8255809E392A1EE25D2D4B /* SessionView.swift */,
 				8ACE007830EC8D75E0874AF1 /* SystemDemo.swift */,
 			);
@@ -219,6 +222,7 @@
 				857BA1EDA22E685314017186 /* Model.swift in Sources */,
 				2DCD681B92EBEF6B5C4F2A24 /* NewSession.swift in Sources */,
 				B1C4E715147EEE18DF1CE739 /* Organize.swift in Sources */,
+				CFCE1CE66CD57B94C7B1BC6B /* Pairing.swift in Sources */,
 				B4A18B219321F71296BF0F47 /* SessionActivity.swift in Sources */,
 				3FB13938E7257689CFF637B5 /* SessionView.swift in Sources */,
 				E58DFD6B97A62BA1B7B0C98E /* SystemDemo.swift in Sources */,

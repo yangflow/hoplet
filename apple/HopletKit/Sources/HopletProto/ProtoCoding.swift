@@ -118,3 +118,5 @@ func parseWireDate(_ text: String) -> Date? {
   guard let base = try? Date(whole, strategy: .iso8601) else { return nil }
   return base.addingTimeInterval(fraction)
 }
+
+extension APIError: Swift.Error {}

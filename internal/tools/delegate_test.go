@@ -28,10 +28,10 @@ func TestDelegationToolsAreVisibleByCaller(t *testing.T) {
 		caller proto.Session
 		want   []string
 	}{
-		{"code", proto.Session{Mode: proto.ModeCode}, []string{"sessions_list", "session_get", "artifact_publish"}},
-		{"handed off", proto.Session{Mode: proto.ModeCode, Parent: "p"}, []string{"sessions_list", "session_get", "report", "artifact_publish"}},
-		{"companion", proto.Session{Mode: proto.ModePersonal}, []string{"sessions_list", "session_get", "session_create", "session_send", "handoff", "artifact_publish"}},
-		{"child", proto.Session{Mode: proto.ModePersonal, Parent: "p"}, []string{"sessions_list", "session_get", "session_create", "session_send", "handoff", "report", "artifact_publish"}},
+		{"code", proto.Session{Mode: proto.ModeCode}, []string{"sessions_list", "session_get", "artifact_publish", "profile_list", "profile_read", "profile_write"}},
+		{"handed off", proto.Session{Mode: proto.ModeCode, Parent: "p"}, []string{"sessions_list", "session_get", "report", "artifact_publish", "profile_list", "profile_read", "profile_write"}},
+		{"companion", proto.Session{Mode: proto.ModePersonal}, []string{"sessions_list", "session_get", "session_create", "session_send", "handoff", "artifact_publish", "profile_list", "profile_read", "profile_write"}},
+		{"child", proto.Session{Mode: proto.ModePersonal, Parent: "p"}, []string{"sessions_list", "session_get", "session_create", "session_send", "handoff", "report", "artifact_publish", "profile_list", "profile_read", "profile_write"}},
 	} {
 		if got := names(set, tc.caller); !slices.Equal(got, tc.want) {
 			t.Errorf("%s: %v, want %v", tc.name, got, tc.want)

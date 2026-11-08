@@ -1,0 +1,59 @@
+write {"id":"hoplet-x-1","method":"initialize","params":{"capabilities":{"experimentalApi":true},"clientInfo":{"name":"hoplet","title":"Hoplet","version":"1"}}}
+write {"method":"initialized"}
+write {"id":"hoplet-x-2","method":"thread/start","params":{"approvalPolicy":"never","approvalsReviewer":"user","cwd":"/work","sandbox":"danger-full-access"}}
+native 01a1bb41-4ef7-7fb2-bf42-6d83400a667e proto.ModelChanged {"model":"gpt-6-luna"}
+write {"id":"hoplet-x-3","method":"turn/start","params":{"input":[{"text":"Reply with the single word one.","type":"text"}],"threadId":"01a1bb41-4ef7-7fb2-bf42-6d83400a667e"}}
+proto.TurnStarted {}
+proto.MessageDelta {"message_id":"msg_0b8ba97edfa56b74016af07314ae6087d0aff08108f5fbcb71","text":"one"}
+proto.Message {"id":"msg_0b8ba97edfa56b74016af07314ae6087d0aff08108f5fbcb71","role":"assistant","text":"one"}
+proto.ContextUsage {"used":20771,"window":828400}
+proto.Usage {"input_tokens":20766,"output_tokens":5}
+proto.TurnEnded {"reason":"completed"}
+write {"id":"hoplet-x-4","method":"thread/settings/update","params":{"collaborationMode":{"mode":"plan","settings":{"developer_instructions":null,"model":"gpt-6-luna","reasoning_effort":"low"}},"threadId":"01a1bb41-4ef7-7fb2-bf42-6d83400a667e"}}
+write {"id":"hoplet-x-5","method":"turn/start","params":{"input":[{"text":"Give a one line plan to print hello. Do not edit anything.","type":"text"}],"threadId":"01a1bb41-4ef7-7fb2-bf42-6d83400a667e"}}
+proto.TurnStarted {}
+proto.MessageDelta {"message_id":"msg_0b8ba97edfa56b74016af073163dc087d0801dca3185420344","text":"计划"}
+proto.MessageDelta {"message_id":"msg_0b8ba97edfa56b74016af073163dc087d0801dca3185420344","text":"："}
+proto.MessageDelta {"message_id":"msg_0b8ba97edfa56b74016af073163dc087d0801dca3185420344","text":"在"}
+proto.MessageDelta {"message_id":"msg_0b8ba97edfa56b74016af073163dc087d0801dca3185420344","text":"终"}
+proto.MessageDelta {"message_id":"msg_0b8ba97edfa56b74016af073163dc087d0801dca3185420344","text":"端"}
+proto.MessageDelta {"message_id":"msg_0b8ba97edfa56b74016af073163dc087d0801dca3185420344","text":"运行"}
+proto.MessageDelta {"message_id":"msg_0b8ba97edfa56b74016af073163dc087d0801dca3185420344","text":" `"}
+proto.MessageDelta {"message_id":"msg_0b8ba97edfa56b74016af073163dc087d0801dca3185420344","text":"printf"}
+proto.MessageDelta {"message_id":"msg_0b8ba97edfa56b74016af073163dc087d0801dca3185420344","text":" '"}
+proto.MessageDelta {"message_id":"msg_0b8ba97edfa56b74016af073163dc087d0801dca3185420344","text":"hello"}
+proto.MessageDelta {"message_id":"msg_0b8ba97edfa56b74016af073163dc087d0801dca3185420344","text":"\\n"}
+proto.MessageDelta {"message_id":"msg_0b8ba97edfa56b74016af073163dc087d0801dca3185420344","text":"'"}
+proto.MessageDelta {"message_id":"msg_0b8ba97edfa56b74016af073163dc087d0801dca3185420344","text":"`"}
+proto.MessageDelta {"message_id":"msg_0b8ba97edfa56b74016af073163dc087d0801dca3185420344","text":" 打"}
+proto.MessageDelta {"message_id":"msg_0b8ba97edfa56b74016af073163dc087d0801dca3185420344","text":"印"}
+proto.MessageDelta {"message_id":"msg_0b8ba97edfa56b74016af073163dc087d0801dca3185420344","text":" hello"}
+proto.MessageDelta {"message_id":"msg_0b8ba97edfa56b74016af073163dc087d0801dca3185420344","text":"，不"}
+proto.MessageDelta {"message_id":"msg_0b8ba97edfa56b74016af073163dc087d0801dca3185420344","text":"修改"}
+proto.MessageDelta {"message_id":"msg_0b8ba97edfa56b74016af073163dc087d0801dca3185420344","text":"任何"}
+proto.MessageDelta {"message_id":"msg_0b8ba97edfa56b74016af073163dc087d0801dca3185420344","text":"文件"}
+proto.MessageDelta {"message_id":"msg_0b8ba97edfa56b74016af073163dc087d0801dca3185420344","text":"。"}
+proto.Message {"id":"msg_0b8ba97edfa56b74016af073163dc087d0801dca3185420344","role":"assistant","text":"计划：在终端运行 `printf 'hello\\n'` 打印 hello，不修改任何文件。"}
+proto.ContextUsage {"used":28090,"window":828400}
+proto.Usage {"input_tokens":28065,"output_tokens":25}
+proto.TurnEnded {"reason":"completed"}
+write {"id":"hoplet-x-6","method":"thread/settings/update","params":{"collaborationMode":{"mode":"default","settings":{"developer_instructions":null,"model":"gpt-6-luna","reasoning_effort":"low"}},"threadId":"01a1bb41-4ef7-7fb2-bf42-6d83400a667e"}}
+write {"id":"hoplet-x-7","method":"thread/settings/update","params":{"model":"gpt-5.6-luna","threadId":"01a1bb41-4ef7-7fb2-bf42-6d83400a667e"}}
+write {"id":"hoplet-x-8","method":"thread/settings/update","params":{"effort":"low","threadId":"01a1bb41-4ef7-7fb2-bf42-6d83400a667e"}}
+write {"id":"hoplet-x-9","method":"thread/settings/update","params":{"approvalPolicy":"on-request","approvalsReviewer":"user","sandboxPolicy":{"type":"workspaceWrite"},"threadId":"01a1bb41-4ef7-7fb2-bf42-6d83400a667e"}}
+write {"id":"hoplet-x-10","method":"turn/start","params":{"input":[{"text":"Reply with the single word two.","type":"text"}],"threadId":"01a1bb41-4ef7-7fb2-bf42-6d83400a667e"}}
+proto.TurnStarted {}
+proto.MessageDelta {"message_id":"msg_0b8ba97edfa56b74016af07318a7b887d0aba4becd01149588","text":"two"}
+proto.Message {"id":"msg_0b8ba97edfa56b74016af07318a7b887d0aba4becd01149588","role":"assistant","text":"two"}
+proto.ContextUsage {"used":40284,"window":828400}
+proto.Usage {"input_tokens":40279,"output_tokens":5}
+proto.TurnEnded {"reason":"completed"}
+write {"id":"hoplet-x-11","method":"thread/settings/update","params":{"approvalPolicy":"never","approvalsReviewer":"user","sandboxPolicy":{"type":"dangerFullAccess"},"threadId":"01a1bb41-4ef7-7fb2-bf42-6d83400a667e"}}
+write {"id":"hoplet-x-12","method":"thread/settings/update","params":{"effort":"low","threadId":"01a1bb41-4ef7-7fb2-bf42-6d83400a667e"}}
+write {"id":"hoplet-x-13","method":"turn/start","params":{"input":[{"text":"Reply with the single word three.","type":"text"}],"threadId":"01a1bb41-4ef7-7fb2-bf42-6d83400a667e"}}
+proto.TurnStarted {}
+proto.MessageDelta {"message_id":"msg_0b8ba97edfa56b74016af0731a38f487d08c191d6007b63732","text":"three"}
+proto.Message {"id":"msg_0b8ba97edfa56b74016af0731a38f487d08c191d6007b63732","role":"assistant","text":"three"}
+proto.ContextUsage {"used":40498,"window":828400}
+proto.Usage {"input_tokens":40493,"output_tokens":5}
+proto.TurnEnded {"reason":"completed"}

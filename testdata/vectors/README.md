@@ -11,7 +11,10 @@ Bytes are lowercase hex. Handshake messages include the leading kind byte on the
 | `channel.json` | A daily handshake followed by frames, pings and pongs, in order |
 | `noise-negative.json` | Handshake responses an initiator must reject, and message sequences a channel must reject |
 | `pairing.json` | Valid and invalid pairing codes, and host ID derivation |
+| `resume.json` | Session and catalog subscriptions resumed from a cursor |
 
 In `steps`, each entry lists the transport messages `from` wrote. A `frame` step of `size` N carries bytes `i % 251` for `i` in `0..<N`.
 
 Negative channel cases continue from the handshake in `channel.json` and read as the initiator. `error` is `decrypt`, `frame`, `too_large` or `handshake`.
+
+In `resume.json`, a client holding `have` subscribes from the cursor and applies `items` in order; `want` is the state it must end with.

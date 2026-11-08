@@ -1,0 +1,23 @@
+write {"id":"hoplet-x-1","method":"initialize","params":{"capabilities":{"experimentalApi":true},"clientInfo":{"name":"hoplet","title":"Hoplet","version":"1"}}}
+write {"method":"initialized"}
+write {"id":"hoplet-x-2","method":"thread/start","params":{"approvalPolicy":"never","approvalsReviewer":"user","cwd":"/work","sandbox":"danger-full-access"}}
+native 01a1baee-5a78-7240-96b9-b00f60c9e723 proto.ModelChanged {"model":"gpt-6-luna"}
+write {"id":"hoplet-x-3","method":"turn/start","params":{"input":[{"text":"Run the shell command `sleep 60` and then reply done.","type":"text"}],"threadId":"01a1baee-5a78-7240-96b9-b00f60c9e723"}}
+proto.TurnStarted {}
+proto.MessageDelta {"message_id":"msg_011a080d86d6f3d1016af05dd16ae887d0af474be8e4e39949","text":"我"}
+proto.MessageDelta {"message_id":"msg_011a080d86d6f3d1016af05dd16ae887d0af474be8e4e39949","text":"会"}
+proto.MessageDelta {"message_id":"msg_011a080d86d6f3d1016af05dd16ae887d0af474be8e4e39949","text":"按"}
+proto.MessageDelta {"message_id":"msg_011a080d86d6f3d1016af05dd16ae887d0af474be8e4e39949","text":"要求"}
+proto.MessageDelta {"message_id":"msg_011a080d86d6f3d1016af05dd16ae887d0af474be8e4e39949","text":"运行"}
+proto.MessageDelta {"message_id":"msg_011a080d86d6f3d1016af05dd16ae887d0af474be8e4e39949","text":" `"}
+proto.MessageDelta {"message_id":"msg_011a080d86d6f3d1016af05dd16ae887d0af474be8e4e39949","text":"sleep"}
+proto.MessageDelta {"message_id":"msg_011a080d86d6f3d1016af05dd16ae887d0af474be8e4e39949","text":" "}
+proto.MessageDelta {"message_id":"msg_011a080d86d6f3d1016af05dd16ae887d0af474be8e4e39949","text":"60"}
+proto.MessageDelta {"message_id":"msg_011a080d86d6f3d1016af05dd16ae887d0af474be8e4e39949","text":"`"}
+proto.MessageDelta {"message_id":"msg_011a080d86d6f3d1016af05dd16ae887d0af474be8e4e39949","text":"。"}
+proto.Message {"id":"msg_011a080d86d6f3d1016af05dd16ae887d0af474be8e4e39949","role":"assistant","text":"我会按要求运行 `sleep 60`。"}
+proto.ToolCall {"id":"exec-bd76e963-b5fd-4f12-85e4-b8f9096ff18f","kind":"exec","name":"Shell","summary":"sleep 60","status":"running"}
+write {"id":"hoplet-x-4","method":"turn/interrupt","params":{"threadId":"01a1baee-5a78-7240-96b9-b00f60c9e723","turnId":"01a1baee-5aa0-77d1-b796-918e43f53bfa"}}
+proto.ContextUsage {"used":20835,"window":828400}
+proto.Usage {"input_tokens":20781,"output_tokens":54}
+proto.TurnEnded {"reason":"interrupted"}

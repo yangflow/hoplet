@@ -23,6 +23,9 @@ struct SessionView: View {
   @FocusState private var composing: Bool
 
   private var session: Session { store.session(id) }
+  private var link: HostLink { store.link(session.host) }
+  private var offline: Bool { link != .online }
+  @State private var pairing = false
 
   private var files: [(String, Int, Int)] {
     session.messages.compactMap {
@@ -89,6 +92,7 @@ struct SessionView: View {
         if !picked.fast { fast = false }
       }
     }
+    .sheet(isPresented: $pairing) { PairView() }
     .sheet(item: $steps) { list in StepsSheet(list: list) }
     .sheet(isPresented: $showChanges) {
       ChangesSheet(session: session) { file, all in
@@ -108,6 +112,10 @@ struct SessionView: View {
         Text(session.title).font(.headline).lineLimit(1)
         HStack(spacing: 4) {
           HarnessMark(harness: session.harness, size: 11)
+          if offline {
+            Image(systemName: "wifi.slash").font(.caption2).foregroundStyle(.secondary)
+              .accessibilityLabel("断线")
+          }
           Text("\(session.host) · \(session.directory)").font(.caption)
             .foregroundStyle(.secondary)
         }
@@ -302,6 +310,7 @@ struct SessionView: View {
     .contentShape(.rect(cornerRadius: 25))
     .onTapGesture { composing = true }
     .glassEffect(.regular, in: .rect(cornerRadius: 25))
+    .overlay { if offline { OfflineOutline() } }
     .animation(.spring(response: 0.42, dampingFraction: 0.86), value: composing)
   }
 
@@ -343,7 +352,23 @@ struct SessionView: View {
   }
 
   @ViewBuilder private var sendButton: some View {
-    if draft.isEmpty && session.status == .running {
+    if link == .reconnecting {
+      ComposerCircle(symbol: "progress.indicator")
+        .symbolEffect(.variableColor.iterative.dimInactiveLayers, options: .repeating)
+        .accessibilityLabel("重连中")
+    } else if link == .offline {
+      Button { store.reconnect(session.host) } label: {
+        ComposerCircle(symbol: "wifi.slash")
+      }
+      .buttonStyle(.plain)
+      .accessibilityLabel("重新连接")
+    } else if link == .revoked {
+      Button { pairing = true } label: {
+        ComposerCircle(symbol: "qrcode.viewfinder")
+      }
+      .buttonStyle(.plain)
+      .accessibilityLabel("重新配对")
+    } else if draft.isEmpty && session.status == .running {
       Button { store.stop(id) } label: {
         ComposerCircle(symbol: "stop.fill")
       }
@@ -381,6 +406,8 @@ struct PendingPanel: View {
   @State private var picked: String?
   @State private var answer = ""
 
+  private var offline: Bool { store.isOffline(session.host) }
+
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
       switch session.pending {
@@ -389,6 +416,7 @@ struct PendingPanel: View {
       case nil: EmptyView()
       }
     }
+    .disabled(offline)
     .padding(16)
     .frame(maxWidth: .infinity, alignment: .leading)
     .overlay(alignment: .topTrailing) {
@@ -408,8 +436,13 @@ struct PendingPanel: View {
 
   private func header(_ title: String) -> some View {
     HStack(spacing: 6) {
-      Circle().fill(Color.needsYou).frame(width: 9, height: 9)
-      Text(title).font(.footnote.weight(.medium)).foregroundStyle(.secondary)
+      if offline {
+        Image(systemName: "wifi.slash").font(.caption).foregroundStyle(.secondary)
+      } else {
+        Circle().fill(Color.needsYou).frame(width: 9, height: 9)
+      }
+      Text(offline ? "连上后才能处理" : title).font(.footnote.weight(.medium))
+        .foregroundStyle(.secondary)
     }
   }
 

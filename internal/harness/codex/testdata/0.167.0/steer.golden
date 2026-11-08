@@ -1,0 +1,20 @@
+write {"id":"hoplet-x-1","method":"initialize","params":{"capabilities":{"experimentalApi":true},"clientInfo":{"name":"hoplet","title":"Hoplet","version":"1"}}}
+write {"method":"initialized"}
+write {"id":"hoplet-x-2","method":"thread/start","params":{"approvalPolicy":"never","approvalsReviewer":"user","cwd":"/work","sandbox":"danger-full-access"}}
+native 01a1bb41-4ef7-7ab1-88f0-648697696cf3 proto.ModelChanged {"model":"gpt-6-luna"}
+write {"id":"hoplet-x-3","method":"turn/start","params":{"input":[{"text":"Run the shell command `sleep 10`, then reply with the word done.","type":"text"}],"threadId":"01a1bb41-4ef7-7ab1-88f0-648697696cf3"}}
+proto.TurnStarted {}
+proto.ToolCall {"id":"exec-7b65a053-2b37-4b41-8408-98e0170a8e69","kind":"exec","name":"Shell","summary":"sleep 10","status":"running"}
+write {"id":"hoplet-x-4","method":"turn/steer","params":{"expectedTurnId":"01a1bb41-4fc1-7f61-9aed-5aad6483f5b3","input":[{"text":"After that also reply with the word steered.","type":"text"}],"threadId":"01a1bb41-4ef7-7ab1-88f0-648697696cf3"}}
+proto.ContextUsage {"used":20872,"window":828400}
+proto.Usage {"input_tokens":20775,"output_tokens":97}
+proto.ToolCall {"id":"exec-7b65a053-2b37-4b41-8408-98e0170a8e69","kind":"exec","name":"Shell","summary":"sleep 10","status":"done"}
+proto.ContextUsage {"used":20945,"window":828400}
+proto.Usage {"input_tokens":20914,"output_tokens":31}
+proto.MessageDelta {"message_id":"msg_075d25e9a19dcc0f016af0731c477c87d0bd3571f4eff53503","text":"done"}
+proto.MessageDelta {"message_id":"msg_075d25e9a19dcc0f016af0731c477c87d0bd3571f4eff53503","text":" ste"}
+proto.MessageDelta {"message_id":"msg_075d25e9a19dcc0f016af0731c477c87d0bd3571f4eff53503","text":"ered"}
+proto.Message {"id":"msg_075d25e9a19dcc0f016af0731c477c87d0bd3571f4eff53503","role":"assistant","text":"done steered"}
+proto.ContextUsage {"used":20975,"window":828400}
+proto.Usage {"input_tokens":20968,"output_tokens":7}
+proto.TurnEnded {"reason":"completed"}

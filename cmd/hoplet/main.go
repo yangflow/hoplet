@@ -18,6 +18,7 @@ import (
 	"github.com/yangflow/hoplet/internal/env"
 	"github.com/yangflow/hoplet/internal/harness"
 	"github.com/yangflow/hoplet/internal/harness/claude"
+	"github.com/yangflow/hoplet/internal/harness/codex"
 	"github.com/yangflow/hoplet/internal/harness/hermes"
 	"github.com/yangflow/hoplet/internal/shim"
 )
@@ -31,6 +32,7 @@ commands:
   session   create, follow and drive sessions (hoplet session help)
   companion create companions and edit their personas (hoplet companion help)
   artifact  publish and list a session's artifacts (hoplet artifact help)
+  profile   review and correct what Hoplet remembers (hoplet profile help)
   pair      print a pairing code another machine joins with
   host      add, list or remove the hosts this machine reaches
   device    list or revoke the devices paired with this machine
@@ -75,6 +77,9 @@ type app struct {
 	// selfCheck checks a claude binary before Hoplet switches to it; nil
 	// also turns the daemon's daily follow-up off (tests).
 	selfCheck func(ctx context.Context, bin string, env []string) error
+	// claudeRelease, when set, replaces the official Claude Code release
+	// host (tests).
+	claudeRelease claude.Source
 	// hermesCheck checks a Hermes version before Hoplet starts turns on
 	// it; nil also turns the daemon's daily check off (tests).
 	hermesCheck hermes.Checker
@@ -103,6 +108,7 @@ func harnesses(home string) map[string]harness.Harness {
 	}
 	return map[string]harness.Harness{
 		claude.Kind: &claude.Harness{Binary: claude.BinaryPath(home)},
+		codex.Kind:  &codex.Harness{Binary: codex.BinaryPath(home)},
 		hermes.Kind: &hermes.Harness{Exe: exe, Dir: hermes.StateDir(home)},
 	}
 }
@@ -128,6 +134,8 @@ func (a app) run(args []string) int {
 		return a.companion(args[1:])
 	case "artifact":
 		return a.artifact(args[1:])
+	case "profile":
+		return a.profile(args[1:])
 	case "pair":
 		return a.pair(args[1:])
 	case "host":

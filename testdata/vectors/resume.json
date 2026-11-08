@@ -1,0 +1,1163 @@
+{
+  "description": "Subscriptions resumed from a cursor, against the real catch-up logic.",
+  "sessions": [
+    {
+      "name": "small_gap",
+      "have": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17
+      ],
+      "after_seq": 17,
+      "items": [
+        {
+          "events": [
+            {
+              "session": "s1",
+              "seq": 18,
+              "ts": "2026-01-02T03:04:05Z",
+              "turn": 4,
+              "type": "message",
+              "v": 1,
+              "payload": {
+                "id": "m4",
+                "role": "assistant",
+                "text": "x"
+              }
+            },
+            {
+              "session": "s1",
+              "seq": 19,
+              "ts": "2026-01-02T03:04:05Z",
+              "turn": 4,
+              "type": "message",
+              "v": 1,
+              "payload": {
+                "id": "m4",
+                "role": "assistant",
+                "text": "x"
+              }
+            },
+            {
+              "session": "s1",
+              "seq": 20,
+              "ts": "2026-01-02T03:04:05Z",
+              "turn": 4,
+              "type": "turn.ended",
+              "v": 1,
+              "payload": {
+                "reason": "completed"
+              }
+            }
+          ],
+          "queue": {
+            "messages": []
+          }
+        },
+        {
+          "events": [
+            {
+              "session": "s1",
+              "seq": 21,
+              "ts": "2026-01-02T03:04:05Z",
+              "turn": 5,
+              "type": "turn.started",
+              "v": 1,
+              "payload": {}
+            },
+            {
+              "session": "s1",
+              "seq": 22,
+              "ts": "2026-01-02T03:04:05Z",
+              "turn": 5,
+              "type": "message",
+              "v": 1,
+              "payload": {
+                "id": "m5",
+                "role": "assistant",
+                "text": "x"
+              }
+            },
+            {
+              "session": "s1",
+              "seq": 23,
+              "ts": "2026-01-02T03:04:05Z",
+              "turn": 5,
+              "type": "message",
+              "v": 1,
+              "payload": {
+                "id": "m5",
+                "role": "assistant",
+                "text": "x"
+              }
+            },
+            {
+              "session": "s1",
+              "seq": 24,
+              "ts": "2026-01-02T03:04:05Z",
+              "turn": 5,
+              "type": "message",
+              "v": 1,
+              "payload": {
+                "id": "m5",
+                "role": "assistant",
+                "text": "x"
+              }
+            },
+            {
+              "session": "s1",
+              "seq": 25,
+              "ts": "2026-01-02T03:04:05Z",
+              "turn": 5,
+              "type": "turn.ended",
+              "v": 1,
+              "payload": {
+                "reason": "completed"
+              }
+            }
+          ]
+        }
+      ],
+      "want": {
+        "snapshot": false,
+        "seqs": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19,
+          20,
+          21,
+          22,
+          23,
+          24,
+          25
+        ],
+        "cursor": 25,
+        "more": false
+      }
+    },
+    {
+      "name": "up_to_date",
+      "have": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20
+      ],
+      "after_seq": 20,
+      "items": [
+        {
+          "queue": {
+            "messages": []
+          }
+        },
+        {
+          "events": [
+            {
+              "session": "s1",
+              "seq": 21,
+              "ts": "2026-01-02T03:04:05Z",
+              "turn": 5,
+              "type": "turn.started",
+              "v": 1,
+              "payload": {}
+            },
+            {
+              "session": "s1",
+              "seq": 22,
+              "ts": "2026-01-02T03:04:05Z",
+              "turn": 5,
+              "type": "message",
+              "v": 1,
+              "payload": {
+                "id": "m5",
+                "role": "assistant",
+                "text": "x"
+              }
+            },
+            {
+              "session": "s1",
+              "seq": 23,
+              "ts": "2026-01-02T03:04:05Z",
+              "turn": 5,
+              "type": "message",
+              "v": 1,
+              "payload": {
+                "id": "m5",
+                "role": "assistant",
+                "text": "x"
+              }
+            },
+            {
+              "session": "s1",
+              "seq": 24,
+              "ts": "2026-01-02T03:04:05Z",
+              "turn": 5,
+              "type": "message",
+              "v": 1,
+              "payload": {
+                "id": "m5",
+                "role": "assistant",
+                "text": "x"
+              }
+            },
+            {
+              "session": "s1",
+              "seq": 25,
+              "ts": "2026-01-02T03:04:05Z",
+              "turn": 5,
+              "type": "turn.ended",
+              "v": 1,
+              "payload": {
+                "reason": "completed"
+              }
+            }
+          ]
+        }
+      ],
+      "want": {
+        "snapshot": false,
+        "seqs": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19,
+          20,
+          21,
+          22,
+          23,
+          24,
+          25
+        ],
+        "cursor": 25,
+        "more": false
+      }
+    },
+    {
+      "name": "large_gap",
+      "have": [
+        1,
+        2,
+        3
+      ],
+      "after_seq": 3,
+      "items": [
+        {
+          "snapshot": {
+            "session": {
+              "id": "s1",
+              "mode": "code",
+              "harness": {
+                "kind": "claude"
+              },
+              "permission": "confirm",
+              "directory": "/work",
+              "isolation": "in_place",
+              "owner": "me",
+              "origin": "me",
+              "status": "idle",
+              "created_at": "2026-01-02T03:04:05Z",
+              "updated_at": "2026-01-02T03:04:05Z",
+              "last_seq": 20,
+              "version": 5,
+              "unread": true,
+              "preview": "x"
+            },
+            "events": [
+              {
+                "session": "s1",
+                "seq": 11,
+                "ts": "2026-01-02T03:04:05Z",
+                "turn": 3,
+                "type": "turn.started",
+                "v": 1,
+                "payload": {}
+              },
+              {
+                "session": "s1",
+                "seq": 12,
+                "ts": "2026-01-02T03:04:05Z",
+                "turn": 3,
+                "type": "message",
+                "v": 1,
+                "payload": {
+                  "id": "m3",
+                  "role": "assistant",
+                  "text": "x"
+                }
+              },
+              {
+                "session": "s1",
+                "seq": 13,
+                "ts": "2026-01-02T03:04:05Z",
+                "turn": 3,
+                "type": "message",
+                "v": 1,
+                "payload": {
+                  "id": "m3",
+                  "role": "assistant",
+                  "text": "x"
+                }
+              },
+              {
+                "session": "s1",
+                "seq": 14,
+                "ts": "2026-01-02T03:04:05Z",
+                "turn": 3,
+                "type": "message",
+                "v": 1,
+                "payload": {
+                  "id": "m3",
+                  "role": "assistant",
+                  "text": "x"
+                }
+              },
+              {
+                "session": "s1",
+                "seq": 15,
+                "ts": "2026-01-02T03:04:05Z",
+                "turn": 3,
+                "type": "turn.ended",
+                "v": 1,
+                "payload": {
+                  "reason": "completed"
+                }
+              },
+              {
+                "session": "s1",
+                "seq": 16,
+                "ts": "2026-01-02T03:04:05Z",
+                "turn": 4,
+                "type": "turn.started",
+                "v": 1,
+                "payload": {}
+              },
+              {
+                "session": "s1",
+                "seq": 17,
+                "ts": "2026-01-02T03:04:05Z",
+                "turn": 4,
+                "type": "message",
+                "v": 1,
+                "payload": {
+                  "id": "m4",
+                  "role": "assistant",
+                  "text": "x"
+                }
+              },
+              {
+                "session": "s1",
+                "seq": 18,
+                "ts": "2026-01-02T03:04:05Z",
+                "turn": 4,
+                "type": "message",
+                "v": 1,
+                "payload": {
+                  "id": "m4",
+                  "role": "assistant",
+                  "text": "x"
+                }
+              },
+              {
+                "session": "s1",
+                "seq": 19,
+                "ts": "2026-01-02T03:04:05Z",
+                "turn": 4,
+                "type": "message",
+                "v": 1,
+                "payload": {
+                  "id": "m4",
+                  "role": "assistant",
+                  "text": "x"
+                }
+              },
+              {
+                "session": "s1",
+                "seq": 20,
+                "ts": "2026-01-02T03:04:05Z",
+                "turn": 4,
+                "type": "turn.ended",
+                "v": 1,
+                "payload": {
+                  "reason": "completed"
+                }
+              }
+            ],
+            "more": true
+          },
+          "queue": {
+            "messages": []
+          }
+        },
+        {
+          "events": [
+            {
+              "session": "s1",
+              "seq": 21,
+              "ts": "2026-01-02T03:04:05Z",
+              "turn": 5,
+              "type": "turn.started",
+              "v": 1,
+              "payload": {}
+            },
+            {
+              "session": "s1",
+              "seq": 22,
+              "ts": "2026-01-02T03:04:05Z",
+              "turn": 5,
+              "type": "message",
+              "v": 1,
+              "payload": {
+                "id": "m5",
+                "role": "assistant",
+                "text": "x"
+              }
+            },
+            {
+              "session": "s1",
+              "seq": 23,
+              "ts": "2026-01-02T03:04:05Z",
+              "turn": 5,
+              "type": "message",
+              "v": 1,
+              "payload": {
+                "id": "m5",
+                "role": "assistant",
+                "text": "x"
+              }
+            },
+            {
+              "session": "s1",
+              "seq": 24,
+              "ts": "2026-01-02T03:04:05Z",
+              "turn": 5,
+              "type": "message",
+              "v": 1,
+              "payload": {
+                "id": "m5",
+                "role": "assistant",
+                "text": "x"
+              }
+            },
+            {
+              "session": "s1",
+              "seq": 25,
+              "ts": "2026-01-02T03:04:05Z",
+              "turn": 5,
+              "type": "turn.ended",
+              "v": 1,
+              "payload": {
+                "reason": "completed"
+              }
+            }
+          ]
+        }
+      ],
+      "want": {
+        "snapshot": true,
+        "seqs": [
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19,
+          20,
+          21,
+          22,
+          23,
+          24,
+          25
+        ],
+        "cursor": 25,
+        "more": true
+      }
+    },
+    {
+      "name": "first_subscribe",
+      "have": [],
+      "after_seq": 0,
+      "items": [
+        {
+          "snapshot": {
+            "session": {
+              "id": "s1",
+              "mode": "code",
+              "harness": {
+                "kind": "claude"
+              },
+              "permission": "confirm",
+              "directory": "/work",
+              "isolation": "in_place",
+              "owner": "me",
+              "origin": "me",
+              "status": "idle",
+              "created_at": "2026-01-02T03:04:05Z",
+              "updated_at": "2026-01-02T03:04:05Z",
+              "last_seq": 20,
+              "version": 5,
+              "unread": true,
+              "preview": "x"
+            },
+            "events": [
+              {
+                "session": "s1",
+                "seq": 11,
+                "ts": "2026-01-02T03:04:05Z",
+                "turn": 3,
+                "type": "turn.started",
+                "v": 1,
+                "payload": {}
+              },
+              {
+                "session": "s1",
+                "seq": 12,
+                "ts": "2026-01-02T03:04:05Z",
+                "turn": 3,
+                "type": "message",
+                "v": 1,
+                "payload": {
+                  "id": "m3",
+                  "role": "assistant",
+                  "text": "x"
+                }
+              },
+              {
+                "session": "s1",
+                "seq": 13,
+                "ts": "2026-01-02T03:04:05Z",
+                "turn": 3,
+                "type": "message",
+                "v": 1,
+                "payload": {
+                  "id": "m3",
+                  "role": "assistant",
+                  "text": "x"
+                }
+              },
+              {
+                "session": "s1",
+                "seq": 14,
+                "ts": "2026-01-02T03:04:05Z",
+                "turn": 3,
+                "type": "message",
+                "v": 1,
+                "payload": {
+                  "id": "m3",
+                  "role": "assistant",
+                  "text": "x"
+                }
+              },
+              {
+                "session": "s1",
+                "seq": 15,
+                "ts": "2026-01-02T03:04:05Z",
+                "turn": 3,
+                "type": "turn.ended",
+                "v": 1,
+                "payload": {
+                  "reason": "completed"
+                }
+              },
+              {
+                "session": "s1",
+                "seq": 16,
+                "ts": "2026-01-02T03:04:05Z",
+                "turn": 4,
+                "type": "turn.started",
+                "v": 1,
+                "payload": {}
+              },
+              {
+                "session": "s1",
+                "seq": 17,
+                "ts": "2026-01-02T03:04:05Z",
+                "turn": 4,
+                "type": "message",
+                "v": 1,
+                "payload": {
+                  "id": "m4",
+                  "role": "assistant",
+                  "text": "x"
+                }
+              },
+              {
+                "session": "s1",
+                "seq": 18,
+                "ts": "2026-01-02T03:04:05Z",
+                "turn": 4,
+                "type": "message",
+                "v": 1,
+                "payload": {
+                  "id": "m4",
+                  "role": "assistant",
+                  "text": "x"
+                }
+              },
+              {
+                "session": "s1",
+                "seq": 19,
+                "ts": "2026-01-02T03:04:05Z",
+                "turn": 4,
+                "type": "message",
+                "v": 1,
+                "payload": {
+                  "id": "m4",
+                  "role": "assistant",
+                  "text": "x"
+                }
+              },
+              {
+                "session": "s1",
+                "seq": 20,
+                "ts": "2026-01-02T03:04:05Z",
+                "turn": 4,
+                "type": "turn.ended",
+                "v": 1,
+                "payload": {
+                  "reason": "completed"
+                }
+              }
+            ],
+            "more": true
+          },
+          "queue": {
+            "messages": []
+          }
+        },
+        {
+          "events": [
+            {
+              "session": "s1",
+              "seq": 21,
+              "ts": "2026-01-02T03:04:05Z",
+              "turn": 5,
+              "type": "turn.started",
+              "v": 1,
+              "payload": {}
+            },
+            {
+              "session": "s1",
+              "seq": 22,
+              "ts": "2026-01-02T03:04:05Z",
+              "turn": 5,
+              "type": "message",
+              "v": 1,
+              "payload": {
+                "id": "m5",
+                "role": "assistant",
+                "text": "x"
+              }
+            },
+            {
+              "session": "s1",
+              "seq": 23,
+              "ts": "2026-01-02T03:04:05Z",
+              "turn": 5,
+              "type": "message",
+              "v": 1,
+              "payload": {
+                "id": "m5",
+                "role": "assistant",
+                "text": "x"
+              }
+            },
+            {
+              "session": "s1",
+              "seq": 24,
+              "ts": "2026-01-02T03:04:05Z",
+              "turn": 5,
+              "type": "message",
+              "v": 1,
+              "payload": {
+                "id": "m5",
+                "role": "assistant",
+                "text": "x"
+              }
+            },
+            {
+              "session": "s1",
+              "seq": 25,
+              "ts": "2026-01-02T03:04:05Z",
+              "turn": 5,
+              "type": "turn.ended",
+              "v": 1,
+              "payload": {
+                "reason": "completed"
+              }
+            }
+          ]
+        }
+      ],
+      "want": {
+        "snapshot": true,
+        "seqs": [
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19,
+          20,
+          21,
+          22,
+          23,
+          24,
+          25
+        ],
+        "cursor": 25,
+        "more": true
+      }
+    },
+    {
+      "name": "cursor_past_end",
+      "have": [
+        98,
+        99
+      ],
+      "after_seq": 99,
+      "items": [
+        {
+          "snapshot": {
+            "session": {
+              "id": "s1",
+              "mode": "code",
+              "harness": {
+                "kind": "claude"
+              },
+              "permission": "confirm",
+              "directory": "/work",
+              "isolation": "in_place",
+              "owner": "me",
+              "origin": "me",
+              "status": "idle",
+              "created_at": "2026-01-02T03:04:05Z",
+              "updated_at": "2026-01-02T03:04:05Z",
+              "last_seq": 20,
+              "version": 5,
+              "unread": true,
+              "preview": "x"
+            },
+            "events": [
+              {
+                "session": "s1",
+                "seq": 11,
+                "ts": "2026-01-02T03:04:05Z",
+                "turn": 3,
+                "type": "turn.started",
+                "v": 1,
+                "payload": {}
+              },
+              {
+                "session": "s1",
+                "seq": 12,
+                "ts": "2026-01-02T03:04:05Z",
+                "turn": 3,
+                "type": "message",
+                "v": 1,
+                "payload": {
+                  "id": "m3",
+                  "role": "assistant",
+                  "text": "x"
+                }
+              },
+              {
+                "session": "s1",
+                "seq": 13,
+                "ts": "2026-01-02T03:04:05Z",
+                "turn": 3,
+                "type": "message",
+                "v": 1,
+                "payload": {
+                  "id": "m3",
+                  "role": "assistant",
+                  "text": "x"
+                }
+              },
+              {
+                "session": "s1",
+                "seq": 14,
+                "ts": "2026-01-02T03:04:05Z",
+                "turn": 3,
+                "type": "message",
+                "v": 1,
+                "payload": {
+                  "id": "m3",
+                  "role": "assistant",
+                  "text": "x"
+                }
+              },
+              {
+                "session": "s1",
+                "seq": 15,
+                "ts": "2026-01-02T03:04:05Z",
+                "turn": 3,
+                "type": "turn.ended",
+                "v": 1,
+                "payload": {
+                  "reason": "completed"
+                }
+              },
+              {
+                "session": "s1",
+                "seq": 16,
+                "ts": "2026-01-02T03:04:05Z",
+                "turn": 4,
+                "type": "turn.started",
+                "v": 1,
+                "payload": {}
+              },
+              {
+                "session": "s1",
+                "seq": 17,
+                "ts": "2026-01-02T03:04:05Z",
+                "turn": 4,
+                "type": "message",
+                "v": 1,
+                "payload": {
+                  "id": "m4",
+                  "role": "assistant",
+                  "text": "x"
+                }
+              },
+              {
+                "session": "s1",
+                "seq": 18,
+                "ts": "2026-01-02T03:04:05Z",
+                "turn": 4,
+                "type": "message",
+                "v": 1,
+                "payload": {
+                  "id": "m4",
+                  "role": "assistant",
+                  "text": "x"
+                }
+              },
+              {
+                "session": "s1",
+                "seq": 19,
+                "ts": "2026-01-02T03:04:05Z",
+                "turn": 4,
+                "type": "message",
+                "v": 1,
+                "payload": {
+                  "id": "m4",
+                  "role": "assistant",
+                  "text": "x"
+                }
+              },
+              {
+                "session": "s1",
+                "seq": 20,
+                "ts": "2026-01-02T03:04:05Z",
+                "turn": 4,
+                "type": "turn.ended",
+                "v": 1,
+                "payload": {
+                  "reason": "completed"
+                }
+              }
+            ],
+            "more": true
+          },
+          "queue": {
+            "messages": []
+          }
+        },
+        {
+          "events": [
+            {
+              "session": "s1",
+              "seq": 21,
+              "ts": "2026-01-02T03:04:05Z",
+              "turn": 5,
+              "type": "turn.started",
+              "v": 1,
+              "payload": {}
+            },
+            {
+              "session": "s1",
+              "seq": 22,
+              "ts": "2026-01-02T03:04:05Z",
+              "turn": 5,
+              "type": "message",
+              "v": 1,
+              "payload": {
+                "id": "m5",
+                "role": "assistant",
+                "text": "x"
+              }
+            },
+            {
+              "session": "s1",
+              "seq": 23,
+              "ts": "2026-01-02T03:04:05Z",
+              "turn": 5,
+              "type": "message",
+              "v": 1,
+              "payload": {
+                "id": "m5",
+                "role": "assistant",
+                "text": "x"
+              }
+            },
+            {
+              "session": "s1",
+              "seq": 24,
+              "ts": "2026-01-02T03:04:05Z",
+              "turn": 5,
+              "type": "message",
+              "v": 1,
+              "payload": {
+                "id": "m5",
+                "role": "assistant",
+                "text": "x"
+              }
+            },
+            {
+              "session": "s1",
+              "seq": 25,
+              "ts": "2026-01-02T03:04:05Z",
+              "turn": 5,
+              "type": "turn.ended",
+              "v": 1,
+              "payload": {
+                "reason": "completed"
+              }
+            }
+          ]
+        }
+      ],
+      "want": {
+        "snapshot": true,
+        "seqs": [
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19,
+          20,
+          21,
+          22,
+          23,
+          24,
+          25
+        ],
+        "cursor": 25,
+        "more": true
+      }
+    }
+  ],
+  "catalog": [
+    {
+      "name": "first_subscribe",
+      "have": [],
+      "after_version": 0,
+      "item": {
+        "sessions": [
+          {
+            "id": "s1",
+            "mode": "code",
+            "harness": {
+              "kind": "claude"
+            },
+            "permission": "confirm",
+            "directory": "/work",
+            "isolation": "in_place",
+            "owner": "me",
+            "origin": "me",
+            "status": "idle",
+            "created_at": "2026-01-02T03:04:05Z",
+            "updated_at": "2026-01-02T03:04:05Z",
+            "last_seq": 25,
+            "version": 6,
+            "unread": true,
+            "preview": "x"
+          },
+          {
+            "id": "s2",
+            "mode": "code",
+            "harness": {
+              "kind": "claude"
+            },
+            "permission": "confirm",
+            "directory": "/work",
+            "isolation": "in_place",
+            "owner": "me",
+            "origin": "me",
+            "status": "idle",
+            "created_at": "2026-01-02T03:04:05Z",
+            "updated_at": "2026-01-02T03:04:05Z",
+            "last_seq": 0,
+            "version": 7
+          }
+        ],
+        "version": 7,
+        "snapshot": true
+      },
+      "want": [
+        "s1",
+        "s2"
+      ],
+      "want_version": 7
+    },
+    {
+      "name": "incremental",
+      "have": [
+        "s1"
+      ],
+      "after_version": 6,
+      "item": {
+        "sessions": [
+          {
+            "id": "s2",
+            "mode": "code",
+            "harness": {
+              "kind": "claude"
+            },
+            "permission": "confirm",
+            "directory": "/work",
+            "isolation": "in_place",
+            "owner": "me",
+            "origin": "me",
+            "status": "idle",
+            "created_at": "2026-01-02T03:04:05Z",
+            "updated_at": "2026-01-02T03:04:05Z",
+            "last_seq": 0,
+            "version": 7
+          }
+        ],
+        "version": 7
+      },
+      "want": [
+        "s1",
+        "s2"
+      ],
+      "want_version": 7
+    },
+    {
+      "name": "version_past_end",
+      "have": [
+        "gone"
+      ],
+      "after_version": 1099511627776,
+      "item": {
+        "sessions": [
+          {
+            "id": "s1",
+            "mode": "code",
+            "harness": {
+              "kind": "claude"
+            },
+            "permission": "confirm",
+            "directory": "/work",
+            "isolation": "in_place",
+            "owner": "me",
+            "origin": "me",
+            "status": "idle",
+            "created_at": "2026-01-02T03:04:05Z",
+            "updated_at": "2026-01-02T03:04:05Z",
+            "last_seq": 25,
+            "version": 6,
+            "unread": true,
+            "preview": "x"
+          },
+          {
+            "id": "s2",
+            "mode": "code",
+            "harness": {
+              "kind": "claude"
+            },
+            "permission": "confirm",
+            "directory": "/work",
+            "isolation": "in_place",
+            "owner": "me",
+            "origin": "me",
+            "status": "idle",
+            "created_at": "2026-01-02T03:04:05Z",
+            "updated_at": "2026-01-02T03:04:05Z",
+            "last_seq": 0,
+            "version": 7
+          }
+        ],
+        "version": 7,
+        "snapshot": true
+      },
+      "want": [
+        "s1",
+        "s2"
+      ],
+      "want_version": 7
+    }
+  ]
+}
