@@ -21,50 +21,103 @@ const MaxQueueKey = 256
 // the call idempotent: a message already queued under key is returned as it
 // is, with queued false. The write is durable.
 func (s *Store) Enqueue(ctx context.Context, id proto.SessionID, key, text string) (msg proto.QueuedMessage, queued bool, err error) {
-	if key == "" {
-		return proto.QueuedMessage{}, false, fmt.Errorf("%w: queued message needs a key", ErrInvalid)
+	if err := checkQueued(key, text); err != nil {
+		return proto.QueuedMessage{}, false, err
 	}
-	if len(key) > MaxQueueKey {
-		return proto.QueuedMessage{}, false, fmt.Errorf("%w: queued message key is too long", ErrInvalid)
-	}
-	if strings.Contains(key, "#") {
-		return proto.QueuedMessage{}, false, fmt.Errorf("%w: queued message keys may not contain #", ErrInvalid)
-	}
-	if text == "" {
-		return proto.QueuedMessage{}, false, fmt.Errorf("%w: queued message needs text", ErrInvalid)
-	}
-	now := time.Now().UTC().Truncate(time.Millisecond)
 	err = s.tx(ctx, true, func(tx *sql.Tx) error {
 		if err := requireSession(ctx, tx, id); err != nil {
 			return err
 		}
-		m, err := queuedMessage(ctx, tx, id, key)
-		if err == nil {
-			msg = m
-			return nil
-		}
-		if !errors.Is(err, ErrNotFound) {
-			return err
-		}
-		var n int
-		if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM queue WHERE session_id = ?`, id).Scan(&n); err != nil {
-			return fmt.Errorf("store: count queue: %w", err)
-		}
-		if n >= MaxQueue {
-			return fmt.Errorf("%w: the queue of %s is full", ErrInvalid, id)
-		}
-		_, err = tx.ExecContext(ctx, `INSERT INTO queue (session_id, key, text, position, created_at) VALUES (?, ?, ?, ?, ?)`,
-			id, key, text, n, now.UnixMilli())
-		if err != nil {
-			return fmt.Errorf("store: enqueue: %w", err)
-		}
-		msg, queued = proto.QueuedMessage{Key: key, Text: text, Position: n, CreatedAt: now}, true
-		return nil
+		msg, queued, err = appendQueued(ctx, tx, id, key, text, "")
+		return err
 	})
 	if err != nil {
 		return proto.QueuedMessage{}, false, err
 	}
 	return msg, queued, nil
+}
+
+// Report queues a report from session from to session parent under key.
+// A key is queued at most once per parent: when parent was already given
+// key, Report does nothing and returns queued false, even if the message
+// has since been sent or deleted. Reports to an archived session fail with
+// ErrInvalid. The write is durable.
+func (s *Store) Report(ctx context.Context, parent, from proto.SessionID, key, text string) (msg proto.QueuedMessage, queued bool, err error) {
+	if err := checkQueued(key, text); err != nil {
+		return proto.QueuedMessage{}, false, err
+	}
+	if from == "" {
+		return proto.QueuedMessage{}, false, fmt.Errorf("%w: a report needs a source", ErrInvalid)
+	}
+	now := time.Now().UTC().Truncate(time.Millisecond)
+	err = s.tx(ctx, true, func(tx *sql.Tx) error {
+		var archived sql.NullInt64
+		err := tx.QueryRowContext(ctx, `SELECT archived_at FROM sessions WHERE id = ?`, parent).Scan(&archived)
+		if errors.Is(err, sql.ErrNoRows) {
+			return fmt.Errorf("%w: session %s", ErrNotFound, parent)
+		}
+		if err != nil {
+			return fmt.Errorf("store: read session %s: %w", parent, err)
+		}
+		if archived.Valid {
+			return fmt.Errorf("%w: session %s is archived", ErrInvalid, parent)
+		}
+		res, err := tx.ExecContext(ctx, `INSERT INTO reports (parent, key, created_at) VALUES (?, ?, ?) ON CONFLICT DO NOTHING`,
+			parent, key, now.UnixMilli())
+		if err != nil {
+			return fmt.Errorf("store: record report: %w", err)
+		}
+		if n, err := res.RowsAffected(); err != nil || n == 0 {
+			return err // reported before
+		}
+		msg, queued, err = appendQueued(ctx, tx, parent, key, text, from)
+		return err
+	})
+	if err != nil {
+		return proto.QueuedMessage{}, false, err
+	}
+	return msg, queued, nil
+}
+
+func checkQueued(key, text string) error {
+	if key == "" {
+		return fmt.Errorf("%w: queued message needs a key", ErrInvalid)
+	}
+	if len(key) > MaxQueueKey {
+		return fmt.Errorf("%w: queued message key is too long", ErrInvalid)
+	}
+	if strings.Contains(key, "#") {
+		return fmt.Errorf("%w: queued message keys may not contain #", ErrInvalid)
+	}
+	if text == "" {
+		return fmt.Errorf("%w: queued message needs text", ErrInvalid)
+	}
+	return nil
+}
+
+// appendQueued appends a message to the queue of a session known to exist.
+func appendQueued(ctx context.Context, tx *sql.Tx, id proto.SessionID, key, text string, from proto.SessionID) (proto.QueuedMessage, bool, error) {
+	m, err := queuedMessage(ctx, tx, id, key)
+	if err == nil {
+		return m, false, nil
+	}
+	if !errors.Is(err, ErrNotFound) {
+		return proto.QueuedMessage{}, false, err
+	}
+	var n int
+	if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM queue WHERE session_id = ?`, id).Scan(&n); err != nil {
+		return proto.QueuedMessage{}, false, fmt.Errorf("store: count queue: %w", err)
+	}
+	if n >= MaxQueue {
+		return proto.QueuedMessage{}, false, fmt.Errorf("%w: the queue of %s is full", ErrInvalid, id)
+	}
+	now := time.Now().UTC().Truncate(time.Millisecond)
+	_, err = tx.ExecContext(ctx, `INSERT INTO queue (session_id, key, text, position, created_at, from_session) VALUES (?, ?, ?, ?, ?, ?)`,
+		id, key, text, n, now.UnixMilli(), from)
+	if err != nil {
+		return proto.QueuedMessage{}, false, fmt.Errorf("store: enqueue: %w", err)
+	}
+	return proto.QueuedMessage{Key: key, Text: text, Position: n, CreatedAt: now, From: from}, true, nil
 }
 
 // Queue returns the session's queued messages, next first.
@@ -82,7 +135,7 @@ func (s *Store) Queue(ctx context.Context, id proto.SessionID) ([]proto.QueuedMe
 }
 
 func queue(ctx context.Context, q queryer, id proto.SessionID) ([]proto.QueuedMessage, error) {
-	rows, err := q.QueryContext(ctx, `SELECT key, text, position, created_at, error FROM queue
+	rows, err := q.QueryContext(ctx, `SELECT key, text, position, created_at, error, from_session FROM queue
 		WHERE session_id = ? ORDER BY position`, id)
 	if err != nil {
 		return nil, fmt.Errorf("store: read queue: %w", err)
@@ -103,7 +156,7 @@ func queue(ctx context.Context, q queryer, id proto.SessionID) ([]proto.QueuedMe
 }
 
 func queuedMessage(ctx context.Context, q queryer, id proto.SessionID, key string) (proto.QueuedMessage, error) {
-	m, err := scanQueued(q.QueryRowContext(ctx, `SELECT key, text, position, created_at, error FROM queue
+	m, err := scanQueued(q.QueryRowContext(ctx, `SELECT key, text, position, created_at, error, from_session FROM queue
 		WHERE session_id = ? AND key = ?`, id, key))
 	if errors.Is(err, sql.ErrNoRows) {
 		return proto.QueuedMessage{}, fmt.Errorf("%w: queued message %s", ErrNotFound, key)
@@ -114,7 +167,7 @@ func queuedMessage(ctx context.Context, q queryer, id proto.SessionID, key strin
 func scanQueued(r scanner) (proto.QueuedMessage, error) {
 	var m proto.QueuedMessage
 	var created int64
-	if err := r.Scan(&m.Key, &m.Text, &m.Position, &created, &m.Error); err != nil {
+	if err := r.Scan(&m.Key, &m.Text, &m.Position, &created, &m.Error, &m.From); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return proto.QueuedMessage{}, err
 		}
@@ -138,8 +191,8 @@ func (s *Store) QueueHead(ctx context.Context, id proto.SessionID) (msg proto.Qu
 		}
 		var created int64
 		var attempt int
-		err := tx.QueryRowContext(ctx, `SELECT key, text, position, created_at, error, attempt FROM queue
-			WHERE session_id = ? ORDER BY position LIMIT 1`, id).Scan(&msg.Key, &msg.Text, &msg.Position, &created, &msg.Error, &attempt)
+		err := tx.QueryRowContext(ctx, `SELECT key, text, position, created_at, error, from_session, attempt FROM queue
+			WHERE session_id = ? ORDER BY position LIMIT 1`, id).Scan(&msg.Key, &msg.Text, &msg.Position, &created, &msg.Error, &msg.From, &attempt)
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil
 		}

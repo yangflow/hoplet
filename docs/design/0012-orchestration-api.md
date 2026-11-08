@@ -8,8 +8,8 @@
 
 | 状态 | 边界 |
 |---|---|
-| ✓ 代码已有 | 本机 API、CLI、订阅和客户端 wait；伙伴与人格；会话工具桥与 `sessions_list`、`session_get` |
-| ○ 目标 | 伙伴 / 产物工具、持久跟进、扇出与跨机 |
+| ✓ 代码已有 | 本机 API、CLI、订阅和客户端 wait；伙伴与人格；会话工具桥与 `sessions_list`、`session_get`、`session_create`、`session_send`、`handoff`、`report` |
+| ○ 目标 | 产物工具、持久跟进、扇出与跨机 |
 
 ## 当前入口
 
@@ -22,7 +22,7 @@ flowchart LR
     Bridge -- "hello / 会话 token" --> Service
 ```
 
-本机 token 是客户端的认证机制；`device_id` 是客户端提供的审计标识，不是已实现的配对公钥身份。harness 经 `hoplet mcp` 以会话 token 连接，只能调工具方法；当前工具不按 Code / Personal 区分调用方。
+本机 token 是客户端的认证机制；`device_id` 是客户端提供的审计标识，不是已实现的配对公钥身份。harness 经 `hoplet mcp` 以会话 token 连接，只能调工具方法；工具按调用方的模式与父会话决定是否可见。
 
 ## 已实现 API
 
@@ -89,13 +89,13 @@ flowchart LR
 | 工具 | 作用 | 调用方与范围 |
 |---|---|---|
 | `sessions_list`、`session_get` | 读会话目录与单个会话状态 | 所有会话；只读 |
-| `session_create` | 建委派子会话 | 仅 Personal；新会话为 Personal、归属托管、关联调用方 |
-| `session_send` | 给会话发消息 | 仅 Personal；目标必须是托管会话 |
-| `handoff` | 转交 Code | 仅 Personal；建归属于我的 Code 会话，带目录、摘要与关联 |
-| `report` | 交回结果 | 有父会话的会话；结果持久记录，按父会话空闲 / 忙投递或排队 |
+| `session_create` | 建委派子会话 | 仅 Personal；参数 `prompt`（必填）、`title`、`harness`、`directory`；新会话为 Personal、归属托管、父会话为调用方；`prompt` 以键 `create:<子会话 ID>` 立即发出；返回子会话 |
+| `session_send` | 给子会话发消息 | 仅 Personal；参数 `id`、`text`；目标须是调用方的直接子会话且归属托管；经消息队列发送或排队，返回 `{seq, turn}` 或 `{queued}` |
+| `handoff` | 转交 Code | 仅 Personal；参数 `directory`（必填）、`summary`（必填）、`title`、`harness`；建归属于我的 Code 会话，父会话为调用方，权限 confirm；`summary` 立即发出；返回 Code 会话 |
+| `report` | 交回结果 | 有父会话的会话；参数 `text`；以随机键交给父会话的消息队列，返回 `{queued}`，投递由队列完成 |
 | `artifact_publish`、`artifact_db_*` | 产物 | 所有会话；只作用于本会话的产物 |
 
-当前已有 `sessions_list`、`session_get`，其余工具为目标。`notify_me` 推迟到推送或交互通道就绪。提炼任务不注入可调用业务工具，只返回候选，由 daemon 提交。工具桥复用现有服务，不以提示词代替服务校验。
+当前已有读会话、委派、转交与回报的工具，产物工具为目标。看不见的工具硬调用得到“没有这个工具”；ID 参数支持至少 4 个字符的唯一前缀；参数错误、范围不符、父会话已归档、队列已满都以工具失败返回给模型。`notify_me` 推迟到推送或交互通道就绪。提炼任务不注入可调用业务工具，只返回候选，由 daemon 提交。工具桥复用现有服务，不以提示词代替服务校验。
 
 ## 记忆服务入口（目标）
 

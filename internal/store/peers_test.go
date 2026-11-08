@@ -134,7 +134,7 @@ func TestPeersAfterUpgrade(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	newSession(t, s, "a")
+	oldSession(t, s, codeSession("a"))
 	if err := s.Close(); err != nil {
 		t.Fatal(err)
 	}

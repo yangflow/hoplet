@@ -16,6 +16,7 @@ func TestEventRoundTrip(t *testing.T) {
 		TurnEnded{Reason: TurnFailed, Message: "crash"},
 		MessageDelta{MessageID: "m1", Text: "hel"},
 		Message{ID: "m1", Role: RoleAssistant, Text: "hello"},
+		Message{ID: "m2", Role: RoleUser, Text: "found it", From: "c1"},
 		Thinking{Text: "plan"},
 		ToolCall{ID: "t1", Kind: ToolExec, Name: "Bash", Summary: "go test ./...", Status: ToolDone, Output: &BlobRef{SHA256: "ab", Size: 3}},
 		FileChange{Path: "api/main.go", Op: FileModified},

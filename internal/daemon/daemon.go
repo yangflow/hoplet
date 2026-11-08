@@ -210,7 +210,7 @@ func Start(ctx context.Context, cfg Config) (d *Daemon, err error) {
 	runCtx, cancel := context.WithCancel(context.Background())
 	q := &queuer{store: st, mgr: mgr, log: log, locks: map[proto.SessionID]*sync.Mutex{}, waiting: map[proto.SessionID]bool{}}
 	srv := &server{
-		ctx: runCtx, store: st, mgr: mgr, ws: ws, queue: q, sys: sys, token: token, tools: tools.New(toolSource{st}),
+		ctx: runCtx, store: st, mgr: mgr, ws: ws, queue: q, sys: sys, token: token, tools: tools.New(toolSource{store: st, mgr: mgr, queue: q}),
 		host: host, version: cfg.Version, log: log, lim: cfg.lim.withDefaults(),
 		identity: identity, routes: pairingRoutes(cfg.Routes, cfg.Relays), now: now, peers: map[string]map[*conn]struct{}{},
 	}
@@ -238,6 +238,8 @@ func Start(ctx context.Context, cfg Config) (d *Daemon, err error) {
 		defer d.wg.Done()
 		q.run(runCtx)
 	}()
+	ho := &handoffs{store: st, log: log, seen: map[proto.SessionID]uint64{}}
+	d.wg.Go(func() { ho.run(runCtx) })
 	// The harnesses' models are asked for now, so the first client to ask
 	// does not wait for a harness started to list them.
 	d.wg.Go(func() { mgr.Harnesses(runCtx) })

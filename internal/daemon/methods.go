@@ -10,6 +10,7 @@ import (
 	"github.com/yangflow/hoplet/internal/noise"
 	"github.com/yangflow/hoplet/internal/session"
 	"github.com/yangflow/hoplet/internal/store"
+	"github.com/yangflow/hoplet/internal/tools"
 	"github.com/yangflow/hoplet/internal/workspace"
 	"github.com/yangflow/hoplet/proto"
 )
@@ -415,8 +416,49 @@ func (c *conn) toolCaller(ctx context.Context) (proto.Session, error) {
 	return sess, nil
 }
 
-// toolSource gives the tools the same reads the client API makes.
-type toolSource struct{ store *store.Store }
+// toolSource gives the tools the same services the client API uses. An
+// error a client would get as anything but an internal error is the
+// model's to read, so it comes back as a tools.Failure.
+type toolSource struct {
+	store *store.Store
+	mgr   *session.Manager
+	queue *queuer
+}
+
+// forModel turns an error the model can act on into a tools.Failure.
+func forModel(err error) error {
+	if err == nil {
+		return nil
+	}
+	if ae := apiError(err); ae.Code != proto.CodeInternal {
+		return &tools.Failure{Message: ae.Message}
+	}
+	return err
+}
+
+func (t toolSource) Create(ctx context.Context, c tools.Create) (proto.Session, error) {
+	sess, err := t.mgr.Create(ctx, session.CreateRequest{
+		Mode: c.Mode, Harness: c.Harness, Directory: c.Directory, Permission: c.Permission, Effort: c.Effort,
+		Title: c.Title, Origin: proto.OriginMe, Model: c.Model, ModelProvider: c.ModelProvider, Parent: c.Parent, Owner: c.Owner,
+	})
+	if err != nil {
+		return proto.Session{}, forModel(err)
+	}
+	if _, err := t.queue.send(ctx, proto.SendParams{Session: sess.ID, Text: c.Prompt, Key: "create:" + string(sess.ID)}); err != nil {
+		return sess, forModel(err)
+	}
+	return t.store.Session(ctx, sess.ID)
+}
+
+func (t toolSource) Send(ctx context.Context, p proto.SendParams) (proto.SendReply, error) {
+	r, err := t.queue.send(ctx, p)
+	return r, forModel(err)
+}
+
+func (t toolSource) Report(ctx context.Context, parent, from proto.SessionID, key, text string) error {
+	_, _, err := t.store.Report(ctx, parent, from, key, text)
+	return forModel(err)
+}
 
 func (t toolSource) Sessions(ctx context.Context) ([]proto.Session, error) {
 	return t.store.Sessions(ctx)

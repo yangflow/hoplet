@@ -34,7 +34,13 @@ func migrationsUpTo(t *testing.T, n int) fstest.MapFS {
 // dumpRows renders every row of table, in rowid order.
 func dumpRows(t *testing.T, s *Store, table string) []string {
 	t.Helper()
-	rows, err := s.db.QueryContext(context.Background(), `SELECT * FROM `+table+` ORDER BY rowid`)
+	return dumpQuery(t, s, `SELECT * FROM `+table+` ORDER BY rowid`)
+}
+
+// dumpQuery is every row query returns, formatted.
+func dumpQuery(t *testing.T, s *Store, query string) []string {
+	t.Helper()
+	rows, err := s.db.QueryContext(context.Background(), query)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,18 +82,16 @@ func TestCompanionsMigration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	newSession(t, s, "code")
+	oldSession(t, s, codeSession("code"))
 	for _, id := range []proto.SessionID{"fresh", "native", "gone"} {
-		if _, err := s.CreateSession(ctx, personal(id)); err != nil {
-			t.Fatal(err)
+		sess := personal(id)
+		switch id {
+		case "native":
+			sess.Harness.NativeID = "n1"
+		case "gone":
+			sess.ArchivedAt = &t0
 		}
-	}
-	nid := "n1"
-	if _, err := s.UpdateSession(ctx, "native", SessionUpdate{NativeID: &nid}); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.ArchiveSession(ctx, "gone", t0); err != nil {
-		t.Fatal(err)
+		oldSession(t, s, sess)
 	}
 	for _, id := range []proto.SessionID{"code", "native"} {
 		appendOK(t, s, AppendRequest{Session: id, Turn: 1, Entries: []Entry{{Payload: proto.TurnStarted{}}, {Payload: proto.TurnEnded{}}}})
@@ -97,7 +101,7 @@ func TestCompanionsMigration(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	s, err = Open(ctx, dir)
+	s, err = open(ctx, dir, migrationsUpTo(t, 12))
 	if err != nil {
 		t.Fatal(err)
 	}

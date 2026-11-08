@@ -100,4 +100,8 @@ type Session struct {
 	// harness reports.
 	Model         string `json:"model,omitempty"`
 	ModelProvider string `json:"model_provider,omitempty"`
+	// Parent is the session that created this one through the tool bridge
+	// (a delegated Personal session or a handed-off Code session); empty for
+	// sessions the user created. It never changes.
+	Parent SessionID `json:"parent,omitempty"`
 }

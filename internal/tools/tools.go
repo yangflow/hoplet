@@ -20,10 +20,19 @@ import (
 // bridge, only in that MCP server's own environment.
 const TokenEnv = "HOPLET_SESSION_TOKEN" //nolint:gosec // a variable name, not a credential
 
-// Source is what the tools read, the same services the client API uses.
+// Source is what the tools read and change, the same services the client
+// API uses.
 type Source interface {
 	Sessions(ctx context.Context) ([]proto.Session, error)
 	State(ctx context.Context, id proto.SessionID) (proto.SessionState, error)
+	// Create stores the session and sends its prompt. When the session was
+	// stored but the prompt could not be sent, it returns the session with
+	// the error.
+	Create(ctx context.Context, c Create) (proto.Session, error)
+	// Send sends a message, queueing it while a turn runs.
+	Send(ctx context.Context, p proto.SendParams) (proto.SendReply, error)
+	// Report queues text for parent as a report from session from.
+	Report(ctx context.Context, parent, from proto.SessionID, key, text string) error
 }
 
 // tool is one tool: what the model sees and what a call does. A call's
@@ -50,7 +59,7 @@ type Set struct {
 // New returns the tool table over src.
 func New(src Source) *Set {
 	everyone := func(proto.Session) bool { return true }
-	return &Set{tools: []tool{
+	return &Set{tools: append([]tool{
 		{
 			info: proto.ToolInfo{
 				Name:        "sessions_list",
@@ -96,7 +105,7 @@ func New(src Source) *Set {
 				return src.State(ctx, id)
 			},
 		},
-	}}
+	}, delegationTools(src)...)}
 }
 
 // List returns the tools caller may call.

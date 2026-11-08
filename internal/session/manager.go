@@ -43,6 +43,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -255,10 +256,16 @@ type CreateRequest struct {
 	// means its default.
 	Model         string
 	ModelProvider string
+	// Parent is the session creating this one through the tool bridge, and
+	// Owner who owns it (default: the user). A personal session with a
+	// parent is a delegated child, not a companion: it works in Directory,
+	// or its session directory when Directory is empty.
+	Parent proto.SessionID
+	Owner  proto.Owner
 }
 
 // Create stores a new session. The harness starts on the first Send. A
-// personal session is a new companion's main session.
+// personal session without a parent is a new companion's main session.
 func (m *Manager) Create(ctx context.Context, req CreateRequest) (proto.Session, error) {
 	sess, _, err := m.create(ctx, req)
 	return sess, err
@@ -310,6 +317,9 @@ func (m *Manager) create(ctx context.Context, req CreateRequest) (proto.Session,
 	if req.Origin == "" {
 		req.Origin = proto.OriginMe
 	}
+	if req.Owner == "" {
+		req.Owner = proto.OwnerMe
+	}
 	id, err := newID()
 	if err != nil {
 		return proto.Session{}, nil, err
@@ -319,9 +329,9 @@ func (m *Manager) create(ctx context.Context, req CreateRequest) (proto.Session,
 		return proto.Session{}, nil, fmt.Errorf("session: create session dir: %w", err)
 	}
 	dirs := []string{m.dir(id)}
-	workDir := req.Directory
+	workDir := cmp.Or(req.Directory, m.dir(id))
 	var cid proto.CompanionID
-	if req.Mode == proto.ModePersonal {
+	if req.Mode == proto.ModePersonal && req.Parent == "" {
 		sid, err := newID()
 		if err != nil {
 			return proto.Session{}, nil, errors.Join(err, os.RemoveAll(m.dir(id)))
@@ -343,7 +353,7 @@ func (m *Manager) create(ctx context.Context, req CreateRequest) (proto.Session,
 		ID: id, Mode: req.Mode, Harness: proto.HarnessRef{Kind: req.Harness, Version: info.Version},
 		Directory: req.Directory, Isolation: req.Isolation, Permission: info.Capabilities.Fallback(req.Permission),
 		Plan: req.Plan, Fast: req.Fast, Ultracode: req.Ultracode, Effort: req.Effort, Model: req.Model, ModelProvider: req.ModelProvider,
-		Owner: proto.OwnerMe, Origin: req.Origin, Title: req.Title,
+		Owner: req.Owner, Origin: req.Origin, Title: req.Title, Parent: req.Parent,
 	}
 	var (
 		sess proto.Session
@@ -426,6 +436,14 @@ type SendResult struct {
 // key returns the original result, and resends the message only if it never
 // reached the harness (its turn has not started and nothing is in flight).
 func (m *Manager) Send(ctx context.Context, id proto.SessionID, text, key string) (SendResult, error) {
+	return m.SendFrom(ctx, id, "", text, key)
+}
+
+// SendFrom is Send for a message from session from, a report to its parent
+// (empty for the user's own message). The log records text as it is, with
+// its source; the harness gets text after a line naming the source, so the
+// model knows the user did not write it.
+func (m *Manager) SendFrom(ctx context.Context, id, from proto.SessionID, text, key string) (SendResult, error) {
 	if key == "" {
 		return SendResult{}, errors.New("session: send needs an idempotency key")
 	}
@@ -451,7 +469,7 @@ func (m *Manager) Send(ctx context.Context, id proto.SessionID, text, key string
 		return SendResult{}, err
 	}
 	if found {
-		return m.resend(ctx, l, text, rcpt, st)
+		return m.resend(ctx, l, m.harnessText(ctx, from, text), rcpt, st)
 	}
 	if !st.synced {
 		return SendResult{}, errCatchingUp
@@ -461,13 +479,27 @@ func (m *Manager) Send(ctx context.Context, id proto.SessionID, text, key string
 	}
 	res, err := m.cfg.Store.Append(ctx, store.AppendRequest{
 		Session: id, Turn: st.last + 1, ReceiptKey: "send:" + key,
-		Entries: []store.Entry{{Payload: proto.Message{ID: key, Role: proto.RoleUser, Text: text}}},
+		Entries: []store.Entry{{Payload: proto.Message{ID: key, Role: proto.RoleUser, Text: text, From: from}}},
 	})
 	if err != nil {
 		return SendResult{}, err
 	}
 	out := SendResult{Seq: res.FirstSeq, Turn: st.last + 1}
-	return out, m.deliver(ctx, l, text, out)
+	return out, m.deliver(ctx, l, m.harnessText(ctx, from, text), out)
+}
+
+// harnessText is the text a harness gets for a message from session from:
+// text itself for the user's own message, and for a report, text after a
+// line naming the session that sent it.
+func (m *Manager) harnessText(ctx context.Context, from proto.SessionID, text string) string {
+	if from == "" {
+		return text
+	}
+	head := "[Report from Hoplet session " + string(from)
+	if src, err := m.cfg.Store.Session(ctx, from); err == nil && src.Title != "" {
+		head += " " + strconv.Quote(src.Title)
+	}
+	return head + "]\n\n" + text
 }
 
 // sendState is what Send knows when it decides.
