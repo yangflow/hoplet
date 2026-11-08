@@ -48,6 +48,7 @@ flowchart TB
 | [0020 Hermes 适配](design/0020-hermes-adapter.md) | gateway、轮次、设置与恢复 |
 | [0021 Claude Code 适配](design/0021-claude-adapter.md) | 控制协议、模型探测与事件映射 |
 | [0023 Harness 托管与验证](design/0023-harness-lifecycle.md) | 安装、版本门控、自检与录制 |
+| [0028 Codex 适配](design/0028-codex-adapter.md) | app-server、托管安装、权限映射、工具与人格 |
 
 ## 工作区与编排
 
@@ -59,6 +60,7 @@ flowchart TB
 | [0012 服务入口与编排](design/0012-orchestration-api.md) | 服务入口、等待、扇出与跨机执行 |
 | [0025 产物](design/0025-artifacts.md) | 版本、发布、查看、页面能力与授权 |
 | [0027 语音通话](design/0027-voice-calls.md) | 语音服务接缝、控制器、生命周期与桌面通话 |
+| [0028 iOS 模拟器](design/0028-ios-simulator.md) | 设备服务、辅助进程、agent 工具、占用与桌面面板 |
 
 ## Personal 与成长
 

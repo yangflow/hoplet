@@ -23,6 +23,7 @@
 | ✓ | 伙伴实体、伙伴目录与人格（`persona.md`，Claude Code 经 `--append-system-prompt`，Hermes 经生成的 `HERMES.md`）、`companions.*` 与 `hoplet companion` | `internal/store/companions.go`、`internal/session/companion.go`、`cmd/hoplet/companion.go` |
 | ✓ | 委派子会话与回报（走父会话的消息队列，按键只入队一次）、转交 Code 与自动回报 | `internal/tools/delegate.go`、`internal/store/queue.go`、`internal/daemon/handoff.go` |
 | ✓ | 产物服务：版本存放与启动清理、工具 `artifact_publish`、`artifacts.*` 与 `hoplet artifact`，配对设备可列出与读取 | `internal/artifact`、`internal/store/artifacts.go`、`internal/tools/artifact.go`、`cmd/hoplet/artifact.go` |
+| ✓ | iOS 模拟器 `simctl` 层：设备占用、工具结果带图片，Code 会话工具 `simulator_list`、`simulator_boot`、`simulator_launch`、`simulator_screenshot`、`simulator_open_url` | `internal/simulator`、`internal/tools/simulator.go` |
 | ✓ | 桌面的产物列表与查看（HTML 按不可信页面加载）、伙伴对话的事件行与回报卡、子会话、伙伴详情与编辑人格 | `desktop/internal/shell`、`desktop/internal/artifactpage` |
 | ✓ | Swift 协议类型生成与 golden 回放 | `tools/swiftgen`、`apple/HopletKit` |
 | ○ | iOS 客户端、记忆、自主、集成与跨机 | 当前没有对应服务；枚举和接口预留不等于实现 |
@@ -63,6 +64,7 @@ flowchart TB
 | M2a 安全网络 | M1 | Linux 服务安装、配对（文本配对码）、Noise、直连地址与中继两条路由、CLI 连远程主机 | 两台自有主机可认证连接并追赶事件 |
 | M2b 移动端 | M2a | Swift 类型 / 向量、配对二维码、局域网 Bonjour、iOS 缓存、推送、Live Activity、产物查看 | 手机跟进、断线恢复与审批 |
 | M3 工作区增强 | M1 | 先只读文件 / 隔离 / PR，再按依赖交付检查点、端口、终端 | 原地数据安全、可审阅、可回滚；各子能力单独验收 |
+| M3s iOS 模拟器 | M4a | 已交付 `simctl` 工具（列表、启动、安装、截图、深链）与设备占用；依次交付 Swift 辅助进程与输入工具 → 桌面实时面板 | agent 能装 App、点击并截图验证；人能在桌面观看和接手；私有接口失效时公开能力不受影响 |
 | M4e 跨机执行 | M4a + M2a | `run_on`、目标授权、离线排队、状态与产物回流 | 离线明确等待，上线先核对再继续 |
 | M5a 新 harness | M1 | Codex / ACP 等原生能力接入 | 每家独立过协议契约，不等待 Personal 全部完成 |
 | M5d 语音通话 | M4a + M5a | Codex 语音接入、语音控制器、桌面通话；iOS 随 M2b | 口头查进度、发话、转交；失败在开始前说清，不回退 |

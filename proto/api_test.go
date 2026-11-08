@@ -52,6 +52,7 @@ func TestFrameWireFormat(t *testing.T) {
 			`{"tools":[{"name":"session_get","description":"d","input_schema":{"type":"object"}}]}`},
 		"tool call":   {ToolsCallParams{Name: "session_get", Arguments: json.RawMessage(`{"id":"abcd"}`)}, `{"name":"session_get","arguments":{"id":"abcd"}}`},
 		"tool result": {ToolsCallResult{Text: "no such session", IsError: true}, `{"text":"no such session","is_error":true}`},
+		"tool image":  {ToolsCallResult{Text: "{}", Images: []ToolImage{{MIME: "image/png", Data: []byte{1, 2}}}}, `{"text":"{}","images":[{"mime":"image/png","data":"AQI="}]}`},
 		"companion": {Companion{ID: "c1", Name: "Ada", Host: "h", Harness: HarnessRef{Kind: "claude"}, Main: "s1", Dir: "/c/c1", CreatedAt: time.Unix(0, 0).UTC(), ArchivedAt: &archived},
 			`{"id":"c1","name":"Ada","host":"h","harness":{"kind":"claude"},"main":"s1","dir":"/c/c1","created_at":"1970-01-01T00:00:00Z","archived_at":"1970-01-01T00:00:01Z"}`},
 		"companion ref":   {CompanionRef{ID: "c1"}, `{"id":"c1"}`},
@@ -138,5 +139,15 @@ func TestFrameRoundTrip(t *testing.T) {
 		if string(again) != string(b) {
 			t.Errorf("%s re-encoded as %s, want %s", name, again, b)
 		}
+	}
+}
+
+func TestToolsCallResultWithoutImages(t *testing.T) {
+	var r ToolsCallResult
+	if err := json.Unmarshal([]byte(`{"text":"[]","is_error":true}`), &r); err != nil {
+		t.Fatal(err)
+	}
+	if r.Text != "[]" || !r.IsError || r.Images != nil {
+		t.Fatalf("old result decoded as %+v", r)
 	}
 }

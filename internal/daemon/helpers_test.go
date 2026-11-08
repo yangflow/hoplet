@@ -68,7 +68,7 @@ func fakeHarnesses(script string) map[string]harness.Harness {
 func testConfig(home, script string) Config {
 	return Config{
 		Home: home, Version: "test", Exe: hopletExe, Harnesses: fakeHarnesses(script),
-		Env: env.Static{"PATH=" + os.Getenv("PATH")},
+		Env: env.Static{"PATH=" + os.Getenv("PATH")}, simulator: fakeSimulator{},
 	}
 }
 

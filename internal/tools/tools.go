@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/yangflow/hoplet/internal/artifact"
@@ -38,6 +39,8 @@ type Source interface {
 	WorkDir(ctx context.Context, id proto.SessionID) (string, error)
 	// Publish publishes a version of an artifact.
 	Publish(ctx context.Context, r artifact.Request) (proto.Artifact, error)
+	// Simulator is the iOS simulator service, nil when this host has none.
+	Simulator() Simulator
 }
 
 // tool is one tool: what the model sees and what a call does. A call's
@@ -55,6 +58,21 @@ type Failure struct{ Message string }
 func (f *Failure) Error() string { return f.Message }
 
 func failf(format string, a ...any) error { return &Failure{fmt.Sprintf(format, a...)} }
+
+// imageResult is what a tool returns to answer with an image as well as
+// its value: Value becomes the result's text, Image its only image. A
+// failure returns no imageResult, so a failed call never carries an image.
+//
+// An image travels base64-encoded in one response frame on a session-token
+// connection, which carries only tools.list and tools.call responses and no
+// event streams. The daemon drops a connection whose unwritten frames pass
+// its outbound limit (8 MiB), so images must stay small: a screenshot is
+// downscaled to device points (about 402x874 RGBA, 1.4 MiB raw, under 2 MiB
+// as base64), which leaves room for at least four unread responses at once.
+type imageResult struct {
+	Value any
+	Image proto.ToolImage
+}
 
 // Set is the tool table.
 type Set struct {
@@ -110,7 +128,7 @@ func New(src Source) *Set {
 				return src.State(ctx, id)
 			},
 		},
-	}, append(delegationTools(src), artifactTools(src)...)...)}
+	}, slices.Concat(delegationTools(src), artifactTools(src), simulatorTools(src))...)}
 }
 
 // List returns the tools caller may call.
@@ -142,11 +160,15 @@ func (s *Set) Call(ctx context.Context, caller proto.Session, name string, args 
 		if err != nil {
 			return proto.ToolsCallResult{}, err
 		}
+		var images []proto.ToolImage
+		if ir, ok := v.(imageResult); ok {
+			v, images = ir.Value, []proto.ToolImage{ir.Image}
+		}
 		b, err := json.Marshal(v)
 		if err != nil {
 			return proto.ToolsCallResult{}, fmt.Errorf("tools: encode %s result: %w", name, err)
 		}
-		return proto.ToolsCallResult{Text: string(b)}, nil
+		return proto.ToolsCallResult{Text: string(b), Images: images}, nil
 	}
 	return proto.ToolsCallResult{Text: "no tool named " + name, IsError: true}, nil
 }

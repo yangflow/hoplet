@@ -35,6 +35,7 @@ flowchart TB
 | CLI | 当前范围 |
 |---|---|
 | `harness install / upgrade claude` | 安装或升级托管副本 |
+| `harness install / upgrade codex` | 从官方发布下载完整独立包，校验后安装或升级托管副本 |
 | `harness verify hermes` | 验证原生安装，不负责升级 |
 
 ## 跟进策略
