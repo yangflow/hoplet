@@ -44,6 +44,9 @@ func Companions(home string) string { return filepath.Join(home, "companions") }
 // Artifacts holds the files of every artifact version.
 func Artifacts(home string) string { return filepath.Join(home, "artifacts") }
 
+// Profile returns the root of the user's memory profile.
+func Profile(home string) string { return filepath.Join(home, "profile") }
+
 // tokenName is the token file's name in the home directory.
 const tokenName = "token"
 
