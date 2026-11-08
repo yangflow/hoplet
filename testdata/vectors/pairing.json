@@ -1,0 +1,95 @@
+{
+  "description": "Pairing codes and host IDs. Expiry is the caller's to compare.",
+  "valid": [
+    {
+      "name": "plain",
+      "code": "hoplet1:eyJpZCI6IndnbWFmd2JmcWpjcm1xd281bXlyYWs1amNpIiwia2V5IjoiUlFhVnNBelBBUlc4a2NJWnFBbnZ5SzFxaVdRZVVTaW9UNmRJbG5GdnBPWSIsIm5hbWUiOiLmtYvor5UgTWFjIiwicm91dGVzIjpbIndzOi8vMTkyLjAuMi4xOjc4OTAiLCJ3c3M6Ly9yZWxheS5leGFtcGxlLmNvbSJdLCJwc2siOiJ3VjhIdkVuWFZ4ODRReHcwY3NUV0h5Wl9GSlVUYnhIMGR2dVkyYTdIUGhRIiwiZXhwIjoxNzkzNDMzNjAwfQ",
+      "id": "wgmafwbfqjcrmqwo5myrak5jci",
+      "key": "450695b00ccf0115bc91c219a809efc8ad6a89641e5128a84fa74896716fa4e6",
+      "host": "测试 Mac",
+      "routes": [
+        "ws://192.0.2.1:7890",
+        "wss://relay.example.com"
+      ],
+      "psk": "c15f07bc49d7571f38431c3472c4d61f267f1495136f11f476fb98d9aec73e14",
+      "expires_unix": 1793433600
+    },
+    {
+      "name": "surrounding_whitespace",
+      "code": "  hoplet1:eyJpZCI6IndnbWFmd2JmcWpjcm1xd281bXlyYWs1amNpIiwia2V5IjoiUlFhVnNBelBBUlc4a2NJWnFBbnZ5SzFxaVdRZVVTaW9UNmRJbG5GdnBPWSIsIm5hbWUiOiLmtYvor5UgTWFjIiwicm91dGVzIjpbIndzOi8vMTkyLjAuMi4xOjc4OTAiLCJ3c3M6Ly9yZWxheS5leGFtcGxlLmNvbSJdLCJwc2siOiJ3VjhIdkVuWFZ4ODRReHcwY3NUV0h5Wl9GSlVUYnhIMGR2dVkyYTdIUGhRIiwiZXhwIjoxNzkzNDMzNjAwfQ\n",
+      "id": "wgmafwbfqjcrmqwo5myrak5jci",
+      "key": "450695b00ccf0115bc91c219a809efc8ad6a89641e5128a84fa74896716fa4e6",
+      "host": "测试 Mac",
+      "routes": [
+        "ws://192.0.2.1:7890",
+        "wss://relay.example.com"
+      ],
+      "psk": "c15f07bc49d7571f38431c3472c4d61f267f1495136f11f476fb98d9aec73e14",
+      "expires_unix": 1793433600
+    }
+  ],
+  "invalid": [
+    {
+      "name": "wrong_prefix",
+      "code": "hoplet2:eyJpZCI6IndnbWFmd2JmcWpjcm1xd281bXlyYWs1amNpIiwia2V5IjoiUlFhVnNBelBBUlc4a2NJWnFBbnZ5SzFxaVdRZVVTaW9UNmRJbG5GdnBPWSIsIm5hbWUiOiLmtYvor5UgTWFjIiwicm91dGVzIjpbIndzOi8vMTkyLjAuMi4xOjc4OTAiLCJ3c3M6Ly9yZWxheS5leGFtcGxlLmNvbSJdLCJwc2siOiJ3VjhIdkVuWFZ4ODRReHcwY3NUV0h5Wl9GSlVUYnhIMGR2dVkyYTdIUGhRIiwiZXhwIjoxNzkzNDMzNjAwfQ"
+    },
+    {
+      "name": "bad_base64",
+      "code": "hoplet1:***"
+    },
+    {
+      "name": "not_json",
+      "code": "hoplet1:bm90IGpzb24"
+    },
+    {
+      "name": "key_not_base64",
+      "code": "hoplet1:eyJpZCI6IndnbWFmd2JmcWpjcm1xd281bXlyYWs1amNpIiwia2V5IjoiKioqIiwibmFtZSI6Ik1hYyIsInJvdXRlcyI6WyJ3czovLzE5Mi4wLjIuMTo3ODkwIl0sInBzayI6IndWOEh2RW5YVng4NFF4dzBjc1RXSHlaX0ZKVVRieEgwZHZ1WTJhN0hQaFEiLCJleHAiOjE3OTM0MzM2MDB9"
+    },
+    {
+      "name": "short_key",
+      "code": "hoplet1:eyJpZCI6IndnbWFmd2JmcWpjcm1xd281bXlyYWs1amNpIiwia2V5IjoiUlFhVnNBelBBUlc4a2NJWnFBbnZ5SzFxaVdRZVVTaW9UNmRJbG5GdnBBIiwibmFtZSI6Ik1hYyIsInJvdXRlcyI6WyJ3czovLzE5Mi4wLjIuMTo3ODkwIl0sInBzayI6IndWOEh2RW5YVng4NFF4dzBjc1RXSHlaX0ZKVVRieEgwZHZ1WTJhN0hQaFEiLCJleHAiOjE3OTM0MzM2MDB9"
+    },
+    {
+      "name": "id_does_not_match_key",
+      "code": "hoplet1:eyJpZCI6ImFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhIiwia2V5IjoiUlFhVnNBelBBUlc4a2NJWnFBbnZ5SzFxaVdRZVVTaW9UNmRJbG5GdnBPWSIsIm5hbWUiOiJNYWMiLCJyb3V0ZXMiOlsid3M6Ly8xOTIuMC4yLjE6Nzg5MCJdLCJwc2siOiJ3VjhIdkVuWFZ4ODRReHcwY3NUV0h5Wl9GSlVUYnhIMGR2dVkyYTdIUGhRIiwiZXhwIjoxNzkzNDMzNjAwfQ"
+    },
+    {
+      "name": "psk_not_base64",
+      "code": "hoplet1:eyJpZCI6IndnbWFmd2JmcWpjcm1xd281bXlyYWs1amNpIiwia2V5IjoiUlFhVnNBelBBUlc4a2NJWnFBbnZ5SzFxaVdRZVVTaW9UNmRJbG5GdnBPWSIsIm5hbWUiOiJNYWMiLCJyb3V0ZXMiOlsid3M6Ly8xOTIuMC4yLjE6Nzg5MCJdLCJwc2siOiIqKioiLCJleHAiOjE3OTM0MzM2MDB9"
+    },
+    {
+      "name": "short_psk",
+      "code": "hoplet1:eyJpZCI6IndnbWFmd2JmcWpjcm1xd281bXlyYWs1amNpIiwia2V5IjoiUlFhVnNBelBBUlc4a2NJWnFBbnZ5SzFxaVdRZVVTaW9UNmRJbG5GdnBPWSIsIm5hbWUiOiJNYWMiLCJyb3V0ZXMiOlsid3M6Ly8xOTIuMC4yLjE6Nzg5MCJdLCJwc2siOiJ3VjhIdkVuWFZ4ODRReHcwY3NUV0h5Wl9GSlVUYnhIMGR2dVkyYTdIUGciLCJleHAiOjE3OTM0MzM2MDB9"
+    },
+    {
+      "name": "empty_name",
+      "code": "hoplet1:eyJpZCI6IndnbWFmd2JmcWpjcm1xd281bXlyYWs1amNpIiwia2V5IjoiUlFhVnNBelBBUlc4a2NJWnFBbnZ5SzFxaVdRZVVTaW9UNmRJbG5GdnBPWSIsIm5hbWUiOiIiLCJyb3V0ZXMiOlsid3M6Ly8xOTIuMC4yLjE6Nzg5MCJdLCJwc2siOiJ3VjhIdkVuWFZ4ODRReHcwY3NUV0h5Wl9GSlVUYnhIMGR2dVkyYTdIUGhRIiwiZXhwIjoxNzkzNDMzNjAwfQ"
+    },
+    {
+      "name": "long_name",
+      "code": "hoplet1:eyJpZCI6IndnbWFmd2JmcWpjcm1xd281bXlyYWs1amNpIiwia2V5IjoiUlFhVnNBelBBUlc4a2NJWnFBbnZ5SzFxaVdRZVVTaW9UNmRJbG5GdnBPWSIsIm5hbWUiOiJhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYSIsInJvdXRlcyI6WyJ3czovLzE5Mi4wLjIuMTo3ODkwIl0sInBzayI6IndWOEh2RW5YVng4NFF4dzBjc1RXSHlaX0ZKVVRieEgwZHZ1WTJhN0hQaFEiLCJleHAiOjE3OTM0MzM2MDB9"
+    },
+    {
+      "name": "no_routes",
+      "code": "hoplet1:eyJpZCI6IndnbWFmd2JmcWpjcm1xd281bXlyYWs1amNpIiwia2V5IjoiUlFhVnNBelBBUlc4a2NJWnFBbnZ5SzFxaVdRZVVTaW9UNmRJbG5GdnBPWSIsIm5hbWUiOiJNYWMiLCJyb3V0ZXMiOm51bGwsInBzayI6IndWOEh2RW5YVng4NFF4dzBjc1RXSHlaX0ZKVVRieEgwZHZ1WTJhN0hQaFEiLCJleHAiOjE3OTM0MzM2MDB9"
+    },
+    {
+      "name": "no_expiry",
+      "code": "hoplet1:eyJpZCI6IndnbWFmd2JmcWpjcm1xd281bXlyYWs1amNpIiwia2V5IjoiUlFhVnNBelBBUlc4a2NJWnFBbnZ5SzFxaVdRZVVTaW9UNmRJbG5GdnBPWSIsIm5hbWUiOiJNYWMiLCJyb3V0ZXMiOlsid3M6Ly8xOTIuMC4yLjE6Nzg5MCJdLCJwc2siOiJ3VjhIdkVuWFZ4ODRReHcwY3NUV0h5Wl9GSlVUYnhIMGR2dVkyYTdIUGhRIiwiZXhwIjowfQ"
+    }
+  ],
+  "host_ids": [
+    {
+      "public": "450695b00ccf0115bc91c219a809efc8ad6a89641e5128a84fa74896716fa4e6",
+      "id": "wgmafwbfqjcrmqwo5myrak5jci"
+    },
+    {
+      "public": "57f4e25849fd435d1d220f68913d79d3b56da37da71d10bdec8dece5bc98ee23",
+      "id": "riay4cypphwcnt7hqrdlncmstq"
+    },
+    {
+      "public": "b580fa135241ee8cba893dfbc5352a669395e13882a5b9aedfda085583f9e757",
+      "id": "pupzlbranmtylvcq65wdkdyypa"
+    }
+  ]
+}
