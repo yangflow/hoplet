@@ -51,6 +51,12 @@ func Encode(e Entry) ([]byte, error) {
 	} else {
 		line("replaced_by: %s", e.ReplacedBy)
 	}
+	if len(e.Links) > 0 {
+		line("links: [%s]", strings.Join(e.Links, ", "))
+	}
+	if len(e.Unlinked) > 0 {
+		line("unlinked: [%s]", strings.Join(e.Unlinked, ", "))
+	}
 	line("updated_at: %s", e.UpdatedAt.Format(time.RFC3339Nano))
 	line(fence)
 	line("%s", e.Body)
@@ -127,7 +133,23 @@ func readTime(field, s string) (time.Time, error) {
 	return t.UTC(), nil
 }
 
-// fields lists every frontmatter key; each must appear exactly once.
+// readIDs parses `[a, b]`. What the IDs must be, Validate decides.
+func readIDs(field, s string) ([]string, error) {
+	inner, ok := strings.CutPrefix(s, "[")
+	if ok {
+		inner, ok = strings.CutSuffix(inner, "]")
+	}
+	if !ok {
+		return nil, invalid("%s %q", field, s)
+	}
+	if inner == "" {
+		return nil, nil
+	}
+	return strings.Split(inner, ", "), nil
+}
+
+// fields lists the required frontmatter keys; each must appear exactly once.
+// links and unlinked are optional and may appear once.
 var fields = []string{"id", "version", "category", "status", "scope", "evidence", "valid_until", "replaced_by", "updated_at"}
 
 // Decode parses and validates an entry file. Anything but the exact fields
@@ -233,6 +255,18 @@ func setField(e *Entry, key, val string) error {
 		if val != null {
 			e.ReplacedBy = val
 		}
+	case "links":
+		ids, err := readIDs(key, val)
+		if err != nil {
+			return err
+		}
+		e.Links = ids
+	case "unlinked":
+		ids, err := readIDs(key, val)
+		if err != nil {
+			return err
+		}
+		e.Unlinked = ids
 	case "updated_at":
 		t, err := readTime(key, val)
 		if err != nil {

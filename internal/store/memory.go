@@ -18,6 +18,13 @@ const (
 	MemoryOpRejected = "rejected"
 )
 
+// The kinds of a memory operation. A links operation changes an entry's
+// links and keeps its content version.
+const (
+	MemoryOpContent = "content"
+	MemoryOpLinks   = "links"
+)
+
 // MemoryOp is one write to a memory entry.
 type MemoryOp struct {
 	ID              string
@@ -29,6 +36,7 @@ type MemoryOp struct {
 	Content         string
 	Hash            string
 	State           string
+	Kind            string // MemoryOpContent when empty on the way in
 	CreatedAt       time.Time
 	FinishedAt      *time.Time
 }
@@ -65,7 +73,7 @@ type MemoryQuery struct {
 	Limit      int
 }
 
-const memoryOpColumns = `id, entry_id, expected_version, new_version, actor, reason, content, hash, state, created_at, finished_at`
+const memoryOpColumns = `id, entry_id, expected_version, new_version, actor, reason, content, hash, state, created_at, finished_at, kind`
 
 func scanMemoryOp(row interface{ Scan(...any) error }) (MemoryOp, error) {
 	var (
@@ -74,7 +82,7 @@ func scanMemoryOp(row interface{ Scan(...any) error }) (MemoryOp, error) {
 		finished sql.NullInt64
 	)
 	if err := row.Scan(&op.ID, &op.EntryID, &op.ExpectedVersion, &op.NewVersion, &op.Actor,
-		&op.Reason, &op.Content, &op.Hash, &op.State, &created, &finished); err != nil {
+		&op.Reason, &op.Content, &op.Hash, &op.State, &created, &finished, &op.Kind); err != nil {
 		return MemoryOp{}, err
 	}
 	op.CreatedAt = time.UnixMilli(created).UTC()
@@ -94,6 +102,9 @@ func (s *Store) BeginMemoryOp(ctx context.Context, op MemoryOp) (MemoryOp, error
 	}
 	now := time.Now().UTC().Truncate(time.Millisecond)
 	op.State, op.CreatedAt, op.FinishedAt = MemoryOpPending, now, nil
+	if op.Kind == "" {
+		op.Kind = MemoryOpContent
+	}
 	var out MemoryOp
 	err := s.tx(ctx, true, func(tx *sql.Tx) error {
 		cur, err := scanMemoryOp(tx.QueryRowContext(ctx, `SELECT `+memoryOpColumns+` FROM memory_ops WHERE id = ?`, op.ID))
@@ -106,9 +117,9 @@ func (s *Store) BeginMemoryOp(ctx context.Context, op MemoryOp) (MemoryOp, error
 		case !errors.Is(err, sql.ErrNoRows):
 			return fmt.Errorf("store: read memory operation %s: %w", op.ID, err)
 		}
-		_, err = tx.ExecContext(ctx, `INSERT INTO memory_ops (id, entry_id, expected_version, new_version, actor, reason, content, hash, state, created_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, op.ID, op.EntryID, op.ExpectedVersion, op.NewVersion,
-			op.Actor, op.Reason, op.Content, op.Hash, op.State, ms(now))
+		_, err = tx.ExecContext(ctx, `INSERT INTO memory_ops (id, entry_id, expected_version, new_version, actor, reason, content, hash, state, created_at, kind)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, op.ID, op.EntryID, op.ExpectedVersion, op.NewVersion,
+			op.Actor, op.Reason, op.Content, op.Hash, op.State, ms(now), op.Kind)
 		if err != nil {
 			return fmt.Errorf("store: record memory operation %s: %w", op.ID, err)
 		}
@@ -223,15 +234,16 @@ func (s *Store) PendingMemoryOps(ctx context.Context) ([]MemoryOp, error) {
 	return s.queryMemoryOps(ctx, `SELECT `+memoryOpColumns+` FROM memory_ops WHERE state = 'pending' ORDER BY created_at, id`)
 }
 
-// MemoryOps returns an entry's committed operations, newest version first.
+// MemoryOps returns an entry's committed operations, newest version first;
+// a links operation shares the version of the content it changes.
 func (s *Store) MemoryOps(ctx context.Context, entryID string) ([]MemoryOp, error) {
 	return s.queryMemoryOps(ctx, `SELECT `+memoryOpColumns+` FROM memory_ops WHERE entry_id = ? AND state = 'committed' ORDER BY new_version DESC`, entryID)
 }
 
-// AllCommittedMemoryOps returns every committed operation, each entry's in
-// version order.
+// AllCommittedMemoryOps returns every committed content operation, each
+// entry's in version order.
 func (s *Store) AllCommittedMemoryOps(ctx context.Context) ([]MemoryOp, error) {
-	return s.queryMemoryOps(ctx, `SELECT `+memoryOpColumns+` FROM memory_ops WHERE state = 'committed' ORDER BY entry_id, new_version`)
+	return s.queryMemoryOps(ctx, `SELECT `+memoryOpColumns+` FROM memory_ops WHERE state = 'committed' AND kind = 'content' ORDER BY entry_id, new_version`)
 }
 
 const memoryRowColumns = `id, version, category, status, scope_kind, scope_value, title, body, hash, updated_at`

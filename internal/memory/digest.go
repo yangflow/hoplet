@@ -93,7 +93,7 @@ func composeDigest(entries []Entry) Digest {
 	slices.SortStableFunc(ordered, func(a, b Entry) int {
 		return cmp.Or(
 			cmp.Compare(categoryRank(a.Category), categoryRank(b.Category)),
-			cmp.Compare(scopeRank(a.Scope.Kind), scopeRank(b.Scope.Kind)),
+			cmp.Compare(ScopeRank(a.Scope.Kind), ScopeRank(b.Scope.Kind)),
 			b.UpdatedAt.Compare(a.UpdatedAt),
 			cmp.Compare(a.ID, b.ID),
 		)
@@ -147,7 +147,8 @@ func categoryRank(c Category) int {
 	return 3
 }
 
-func scopeRank(k ScopeKind) int {
+// ScopeRank orders scopes narrowest first.
+func ScopeRank(k ScopeKind) int {
 	switch k {
 	case ScopeRepo, ScopeCompanion:
 		return 0

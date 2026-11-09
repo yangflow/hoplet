@@ -44,6 +44,7 @@ type Op struct {
 	ExpectedVersion int // 0 creates the entry
 	Actor           Actor
 	Reason          string
+	LinksOnly       bool // changes links alone: the version and time stay
 }
 
 // Version is one committed version of an entry.
@@ -218,8 +219,13 @@ func (s *Service) checkHead(ctx context.Context, op Op) error {
 // write runs the commit protocol; the caller holds s.mu.
 func (s *Service) write(ctx context.Context, op Op) (Entry, store.MemoryRow, error) {
 	e := op.Entry
-	e.Version = op.ExpectedVersion + 1
-	e.UpdatedAt = time.Now().UTC().Truncate(time.Millisecond)
+	kind := store.MemoryOpContent
+	if op.LinksOnly {
+		kind = store.MemoryOpLinks
+	} else {
+		e.Version = op.ExpectedVersion + 1
+		e.UpdatedAt = time.Now().UTC().Truncate(time.Millisecond)
+	}
 	data, err := Encode(e)
 	if err != nil {
 		return Entry{}, store.MemoryRow{}, err
@@ -234,6 +240,7 @@ func (s *Service) write(ctx context.Context, op Op) (Entry, store.MemoryRow, err
 		Reason:          op.Reason,
 		Content:         string(data),
 		Hash:            hash,
+		Kind:            kind,
 	})
 	if err != nil {
 		return Entry{}, store.MemoryRow{}, err
@@ -352,6 +359,9 @@ func (s *Service) History(ctx context.Context, id string) ([]Version, error) {
 	}
 	out := make([]Version, 0, len(ops))
 	for _, op := range ops {
+		if op.Kind != store.MemoryOpContent {
+			continue
+		}
 		v := Version{Version: op.NewVersion, Actor: Actor(op.Actor), Reason: op.Reason, Content: op.Content, Hash: op.Hash, At: op.CreatedAt}
 		out = append(out, v)
 	}

@@ -236,7 +236,7 @@ func (s *Store) CountFailedMemoryExtractions(ctx context.Context, from, to time.
 // MemoryExtractionEnabled reports whether background extraction is on.
 func (s *Store) MemoryExtractionEnabled(ctx context.Context) (bool, error) {
 	var on bool
-	if err := s.rdb.QueryRowContext(ctx, `SELECT enabled FROM memory_extraction_state WHERE id = 1`).Scan(&on); err != nil {
+	if err := s.rdb.QueryRowContext(ctx, `SELECT extraction FROM memory_settings WHERE id = 1`).Scan(&on); err != nil {
 		return false, fmt.Errorf("store: read extraction switch: %w", err)
 	}
 	return on, nil
@@ -245,7 +245,7 @@ func (s *Store) MemoryExtractionEnabled(ctx context.Context) (bool, error) {
 // SetMemoryExtractionEnabled turns background extraction on or off.
 func (s *Store) SetMemoryExtractionEnabled(ctx context.Context, on bool) error {
 	return s.tx(ctx, true, func(tx *sql.Tx) error {
-		if _, err := tx.ExecContext(ctx, `UPDATE memory_extraction_state SET enabled = ? WHERE id = 1`, on); err != nil {
+		if _, err := tx.ExecContext(ctx, `UPDATE memory_settings SET extraction = ? WHERE id = 1`, on); err != nil {
 			return fmt.Errorf("store: set extraction switch: %w", err)
 		}
 		return nil

@@ -51,6 +51,20 @@ func (m *Manager) ProfileScopes(ctx context.Context, sess proto.Session) ([]memo
 	return append(scopes, memory.Scope{Kind: memory.ScopeCompanion, Value: string(c.ID)}), nil
 }
 
+// ProfileUsable reports whether sessions of mode use memory. If the settings
+// cannot be read memory stays on, as the default is.
+func (m *Manager) ProfileUsable(ctx context.Context, mode proto.Mode) bool {
+	set, err := m.cfg.Store.MemorySettings(ctx)
+	if err != nil {
+		m.log.WarnContext(ctx, "read memory settings", "err", err)
+		return true
+	}
+	if mode == proto.ModePersonal {
+		return set.UsePersonal
+	}
+	return set.UseCode
+}
+
 // takesCodeDigest reports whether h has an entry for a Code session's digest.
 func takesCodeDigest(h harness.Harness) bool {
 	d, ok := h.(harness.CodeDigester)
@@ -67,6 +81,9 @@ func (m *Manager) addDigest(ctx context.Context, h harness.Harness, sess proto.S
 	}
 	if sess.Mode == proto.ModePersonal && !spec.Companion {
 		return nil // a delegated child uses the read tools
+	}
+	if !m.ProfileUsable(ctx, sess.Mode) {
+		return nil
 	}
 	record := func(in store.MemoryInjection) *store.MemoryInjection {
 		if spec.Resume != "" {

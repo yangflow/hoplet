@@ -108,6 +108,48 @@ func TestCodeSessionDigest(t *testing.T) {
 	}
 }
 
+func TestMemorySwitchedOff(t *testing.T) {
+	off := func(e *env, change func(*proto.ProfileSettings)) {
+		e.t.Helper()
+		set, err := e.store.MemorySettings(context.Background())
+		if err != nil {
+			e.t.Fatal(err)
+		}
+		change(&set)
+		if err := e.store.SetMemorySettings(context.Background(), set); err != nil {
+			e.t.Fatal(err)
+		}
+	}
+	t.Run("code", func(t *testing.T) {
+		e := newEnv(t, oneTurn)
+		m, h := e.memoryManager(true, &fakeMemory{digest: aDigest})
+		defer m.Close()
+		off(e, func(s *proto.ProfileSettings) { s.UseCode = false })
+		sess := e.create(m)
+		e.firstTurn(m, sess.ID)
+		if got := h.launched()[0].Profile; got != "" {
+			t.Errorf("profile %q", got)
+		}
+		if got := e.injections(sess.ID); len(got) != 0 {
+			t.Errorf("injections %+v", got)
+		}
+	})
+	t.Run("personal", func(t *testing.T) {
+		e := newEnv(t, oneTurn)
+		m, h := e.memoryManager(false, &fakeMemory{digest: aDigest})
+		defer m.Close()
+		off(e, func(s *proto.ProfileSettings) { s.UsePersonal = false })
+		sess, _ := e.createPersonal(m)
+		e.firstTurn(m, sess.ID)
+		if got := h.launched()[0].Profile; got != "" {
+			t.Errorf("profile %q", got)
+		}
+		if got := e.injections(sess.ID); len(got) != 0 {
+			t.Errorf("injections %+v", got)
+		}
+	})
+}
+
 func TestCompanionDigestScopesAndRecord(t *testing.T) {
 	e := newEnv(t, oneTurn)
 	mem := &fakeMemory{digest: aDigest}

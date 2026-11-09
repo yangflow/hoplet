@@ -390,6 +390,26 @@ func (c *conn) call(ctx context.Context, f proto.ClientFrame) (any, error) {
 			return nil, err
 		}
 		return s.extract.Status(ctx)
+	case proto.MethodProfileSettings:
+		return s.store.MemorySettings(ctx)
+	case proto.MethodProfileSettingsSet:
+		var p proto.ProfileSettings
+		if err := decode(f, &p); err != nil {
+			return nil, err
+		}
+		return s.profileSettingsSet(ctx, p)
+	case proto.MethodProfileUnlink:
+		var p proto.ProfileUnlinkParams
+		if err := decode(f, &p); err != nil {
+			return nil, err
+		}
+		return done, s.memory.Unlink(ctx, p.ID, p.Other, p.OpID)
+	case proto.MethodProfileUsage:
+		var p proto.ProfileUsageParams
+		if err := decode(f, &p); err != nil {
+			return nil, err
+		}
+		return s.profileUsage(ctx, p.Session)
 	case proto.MethodProfileAccept:
 		var p proto.ProfileAcceptParams
 		if err := decode(f, &p); err != nil {
@@ -417,7 +437,8 @@ func localOnly(method string) bool {
 	switch method {
 	case proto.MethodProfileList, proto.MethodProfileGet, proto.MethodProfileUpdate, proto.MethodProfileWithdraw,
 		proto.MethodProfileCandidates, proto.MethodProfileAccept, proto.MethodProfileReject,
-		proto.MethodProfileExtraction, proto.MethodProfileExtractionSet:
+		proto.MethodProfileExtraction, proto.MethodProfileExtractionSet,
+		proto.MethodProfileSettings, proto.MethodProfileSettingsSet, proto.MethodProfileUnlink, proto.MethodProfileUsage:
 		return true
 	case proto.MethodPairingStart, proto.MethodHostsAdd, proto.MethodHostsList, proto.MethodHostsRemove, proto.MethodArtifactsPublish:
 		return true
@@ -583,17 +604,28 @@ func (t toolSource) Publish(ctx context.Context, r artifact.Request) (proto.Arti
 
 func (t toolSource) Simulator() tools.Simulator { return t.sim }
 
-func (t toolSource) Profile() tools.ProfileSource { return profileSource{mem: t.mem, mgr: t.mgr} }
+func (t toolSource) Profile() tools.ProfileSource {
+	return profileSource{mem: t.mem, mgr: t.mgr, store: t.store}
+}
 
 // profileSource gives the profile tools the memory service. Get keeps
 // store.ErrNotFound, which the tool answers in its own words.
 type profileSource struct {
-	mem *memory.Service
-	mgr *session.Manager
+	mem   *memory.Service
+	mgr   *session.Manager
+	store *store.Store
+}
+
+func (p profileSource) Read(ctx context.Context, id proto.SessionID, e memory.Entry) error {
+	return p.store.AddMemoryUse(ctx, id, e.ID, e.Version, store.MemoryUseRead)
 }
 
 func (p profileSource) Scopes(ctx context.Context, sess proto.Session) ([]memory.Scope, error) {
 	return p.mgr.ProfileScopes(ctx, sess)
+}
+
+func (p profileSource) Usable(ctx context.Context, mode proto.Mode) bool {
+	return p.mgr.ProfileUsable(ctx, mode)
 }
 
 func (p profileSource) List(ctx context.Context, scopes []memory.Scope, q store.MemoryQuery) ([]memory.Entry, error) {
