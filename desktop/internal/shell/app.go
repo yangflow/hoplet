@@ -13,6 +13,7 @@ import (
 	"github.com/yangflow/hoplet/desktop/internal/catalog"
 	"github.com/yangflow/hoplet/desktop/internal/icons"
 	"github.com/yangflow/hoplet/desktop/internal/theme"
+	"github.com/yangflow/hoplet/desktop/internal/voicemedia"
 	"github.com/yangflow/hoplet/proto"
 )
 
@@ -26,6 +27,17 @@ type Host interface {
 	Archive(id proto.SessionID)
 	// Reveal shows a directory in Finder.
 	Reveal(dir string)
+
+	// VoiceConsented reports whether this device agreed to voice calls.
+	VoiceConsented() bool
+	// ConsentVoice remembers that it did.
+	ConsentVoice()
+	// StartCall starts a call; ev follows on the UI thread.
+	StartCall(ev voicemedia.Events)
+	// MuteCall mutes or unmutes the call.
+	MuteCall(muted bool)
+	// HangUp ends the call, at whatever stage it is.
+	HangUp()
 
 	Create(p proto.CreateParams, done func(proto.Session))
 	// Send sends a message; done follows on the UI thread with nil once
@@ -185,6 +197,8 @@ type App struct {
 	draft    string
 
 	pending ui.Toast // a note for the view to show
+
+	v voiceState // the call and its page
 
 	s sessionView // the conversation, the composer and the new-session page
 
@@ -528,6 +542,7 @@ func (a *App) View(c *ui.Context) {
 	}
 	a.palette(c, k)
 	a.personaDialog(c, k)
+	a.consentDialog(c, k)
 	if st := a.state(); !st.equal(a.last) {
 		a.last = st
 		if a.changed != nil {

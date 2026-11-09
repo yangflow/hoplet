@@ -266,7 +266,7 @@ func (h *host) answer(ctx context.Context, sdp string) error {
 		return err
 	}
 	if _, err := h.expect(ctx, message{Type: "openDevices", Selection: &struct{}{}}, "devicesOpened", localTimeout); err != nil {
-		return err
+		return fmt.Errorf("%w: %w", ErrMicrophone, err)
 	}
 	return h.set(ctx, audio{MicrophoneMuted: true, SpeakerSuppressed: true})
 }

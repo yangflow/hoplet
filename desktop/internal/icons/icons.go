@@ -72,6 +72,9 @@ type Set struct {
 	Fast      *ui.SVG
 	Ultracode *ui.SVG // Ultracode: workflows of agents
 	Close     *ui.SVG
+	Mic       *ui.SVG
+	MicOff    *ui.SVG
+	Phone     *ui.SVG
 	Me        *ui.SVG // my avatar
 	Details   *ui.SVG // open or close the session details column (ⓘ)
 	ID        *ui.SVG // a session's ID
@@ -167,6 +170,9 @@ func Load() (*Set, error) {
 		{&s.Fast, "lucide/zap.svg"},
 		{&s.Ultracode, "lucide/workflow.svg"},
 		{&s.Close, "lucide/x.svg"},
+		{&s.Mic, "lucide/mic.svg"},
+		{&s.MicOff, "lucide/mic-off.svg"},
+		{&s.Phone, "lucide/phone.svg"},
 		{&s.Me, "lucide/user.svg"},
 		{&s.Details, "lucide/info.svg"},
 		{&s.ID, "lucide/id-card.svg"},

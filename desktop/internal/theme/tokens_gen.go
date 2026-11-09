@@ -188,6 +188,10 @@ const (
 	IconRow          = 14
 	IconSmall        = 12
 	IconEmpty        = 32
+	IconCall         = 20
+	CallBar          = 56
+	CallDots         = 168
+	CallDotsSmall    = 14
 	MarkEmpty        = 48
 	Dot              = 8
 	DotSmall         = 6
@@ -233,6 +237,10 @@ var (
 	MotionPulse               = ui.Animation{Duration: 600 * time.Millisecond, Ease: ui.CubicBezier(0.22, 1, 0.36, 1)}
 	MotionLoop                = ui.Animation{Duration: 1200 * time.Millisecond, Ease: ui.Linear}
 	MotionSpin                = ui.Animation{Duration: 800 * time.Millisecond, Ease: ui.Linear}
+	MotionCallBreathe         = 2400 * time.Millisecond
+	MotionCallListen          = 2200 * time.Millisecond
+	MotionCallSpeak           = 1200 * time.Millisecond
+	MotionCallSweep           = 1600 * time.Millisecond
 	MotionFlash               = ui.Animation{Duration: 1500 * time.Millisecond, Ease: ui.Linear}
 	MotionHold                = 4000 * time.Millisecond
 	MotionStagger             = 30 * time.Millisecond

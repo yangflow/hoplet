@@ -35,6 +35,8 @@ type scenario struct {
 	DieOn   string `json:"dieOn,omitempty"`
 	HangOn  string `json:"hangOn,omitempty"`
 	WrongOn string `json:"wrongOn,omitempty"`
+
+	SpeakerPeak int `json:"speakerPeak,omitempty"`
 }
 
 var fakeReplies = map[string]string{
@@ -105,7 +107,7 @@ func fakeComponent() {
 			r["sdp"] = "the-offer"
 		}
 		if m.Type == "inspectAudio" {
-			r["state"] = map[string]int{"microphonePeak": 7, "speakerPeak": 9}
+			r["state"] = map[string]int{"microphonePeak": 7, "speakerPeak": max(9, s.SpeakerPeak)}
 		}
 		out, _ := json.Marshal(r)
 		if writeFrame(os.Stdout, out) != nil {

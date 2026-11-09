@@ -593,6 +593,9 @@ func (a *App) footer(c *ui.Context, k theme.Colors) {
 				ui.Icon(c, a.icons.Offline).FontSize(theme.IconSmall).TextColor(k.Attn).Label("断线").Tooltip("连不上守护进程：" + a.offline)
 			}
 		})
+		if iconButton(c, k, a.icons.Mic, "语音通话", a.v.phase != callIdle).Clicked() {
+			a.OpenCall()
+		}
 		if a.mode == proto.ModeCode && iconButton(c, k, a.icons.Archive, "已归档的会话", a.archived).Clicked() {
 			a.archived, a.selected = !a.archived, ""
 		}
