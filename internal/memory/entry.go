@@ -144,6 +144,8 @@ type Entry struct {
 	Evidence   []Evidence
 	ValidUntil *time.Time
 	ReplacedBy string
+	Links      []string // related entries; undirected, held by the entry that made the link
+	Unlinked   []string // links the user removed, which extraction may not make again
 	UpdatedAt  time.Time
 	Body       string
 }
@@ -202,6 +204,9 @@ func (e Entry) Validate() error {
 	}
 	if e.ReplacedBy != "" && !idPattern.MatchString(e.ReplacedBy) {
 		return invalid("bad replaced_by %q", e.ReplacedBy)
+	}
+	if err := e.checkLinks(); err != nil {
+		return err
 	}
 	if e.UpdatedAt.IsZero() || e.UpdatedAt.Location() != time.UTC {
 		return invalid("updated_at is missing or not UTC")

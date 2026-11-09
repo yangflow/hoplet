@@ -73,6 +73,7 @@ func (s *Service) Accept(ctx context.Context, id, opID string, scope *Scope) (En
 	case ActionUpdate:
 		result, err = s.acceptOnTarget(ctx, c, opID, reason, func(target *Entry, proposal Entry) {
 			target.Status, target.Evidence, target.Body, target.Scope = StatusActive, proposal.Evidence, proposal.Body, proposal.Scope
+			target.addLinks(proposal.Links)
 			if scope != nil {
 				target.Scope = *scope
 			}

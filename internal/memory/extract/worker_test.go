@@ -2,7 +2,9 @@ package extract
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"slices"
 	"strconv"
 	"strings"
@@ -295,6 +297,107 @@ func TestSpecifiedHarness(t *testing.T) {
 	}
 }
 
+// updateOp is a reply updating e, citing event seq.
+func updateOp(e memory.Entry, seq uint64, body string, links ...string) string {
+	ids, _ := json.Marshal(links)
+	return fmt.Sprintf(`{"ops":[{"action":"update","target":%q,"version":%d,"body":%q,"evidence":[{"kind":"user_stated","event":%d}],"reason":"said so","links":%s}]}`,
+		e.ID, e.Version, body, seq, ids)
+}
+
+// turn adds a user message one minute on and extracts with reply, which
+// makeReply writes once the message's number is known.
+func (r *rig) turn(id proto.SessionID, makeReply func(seq uint64) string) {
+	r.t.Helper()
+	r.now = r.now.Add(time.Minute)
+	seq := put(r.t, r.st, id, r.now, "", said("another message"))
+	r.h.replies = []string{makeReply(seq)}
+	r.w.triggers[id] = TriggerArchive
+	r.w.cycle(context.Background())
+}
+
+func (r *rig) entry(body string) memory.Entry {
+	r.t.Helper()
+	es, err := r.mem.Search(context.Background(), store.MemoryQuery{Status: string(memory.StatusActive)})
+	if err != nil {
+		r.t.Fatal(err)
+	}
+	i := slices.IndexFunc(es, func(e memory.Entry) bool { return e.Body == body })
+	if i < 0 {
+		r.t.Fatalf("no entry %q among %+v", body, es)
+	}
+	return es[i]
+}
+
+// linkedPair makes two entries, A and B, through extraction.
+func (r *rig) linkedPair() (a, b memory.Entry) {
+	r.t.Helper()
+	seq := r.session("s", "claude", "m1")
+	r.h.replies = []string{createOp(seq, "global", "A")}
+	r.w.triggers["s"] = TriggerArchive
+	r.w.cycle(context.Background())
+	r.turn("s", func(seq uint64) string { return createOp(seq, "global", "B") })
+	return r.entry("A"), r.entry("B")
+}
+
+func TestExtractionLinks(t *testing.T) {
+	r := newRig(t)
+	ctx := context.Background()
+	a, b := r.linkedPair()
+	made := "mem_00000000000000000000000000000000"
+	r.turn("s", func(seq uint64) string { return updateOp(a, seq, "A2", b.ID, made, a.ID) })
+	a = r.entry("A2")
+	if !slices.Equal(a.Links, []string{b.ID}) {
+		t.Fatalf("links = %q", a.Links)
+	}
+	if err := r.mem.Unlink(ctx, a.ID, b.ID, "u1"); err != nil {
+		t.Fatal(err)
+	}
+	a, b = r.entry("A2"), r.entry("B")
+	r.turn("s", func(seq uint64) string { return updateOp(a, seq, "A3", b.ID) })
+	r.turn("s", func(seq uint64) string { return updateOp(b, seq, "B2", a.ID) })
+	if got := r.entry("A3"); len(got.Links) != 0 {
+		t.Errorf("rebuilt from the holder: %q", got.Links)
+	}
+	if got := r.entry("B2"); len(got.Links) != 0 {
+		t.Errorf("rebuilt from the other side: %q", got.Links)
+	}
+}
+
+func TestAcceptedCandidateAddsLinks(t *testing.T) {
+	r := newRig(t)
+	ctx := context.Background()
+	a, b := r.linkedPair()
+	r.settings(func(s *proto.ProfileSettings) { s.AutoSave = false })
+	r.turn("s", func(seq uint64) string { return updateOp(a, seq, "A2", b.ID) })
+	cs, err := r.mem.Candidates(ctx)
+	if err != nil || len(cs) != 1 {
+		t.Fatalf("%+v, %v", cs, err)
+	}
+	got, err := r.mem.Accept(ctx, cs[0].Entry.ID, "accept", nil)
+	if err != nil || !slices.Equal(got.Links, []string{b.ID}) {
+		t.Fatalf("%+v, %v", got, err)
+	}
+}
+
+func TestParseLinks(t *testing.T) {
+	ev := `"evidence":[{"kind":"observed","event":1}],"reason":"r"`
+	tests := []struct {
+		name, reply string
+		ok          bool
+	}{
+		{"none", `{"ops":[{"action":"update","target":"t","version":1,"body":"b",` + ev + `}]}`, true},
+		{"on update", `{"ops":[{"action":"update","target":"t","version":1,"body":"b",` + ev + `,"links":["x"]}]}`, true},
+		{"on withdraw", `{"ops":[{"action":"withdraw","target":"t","version":1,` + ev + `,"links":["x"]}]}`, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if _, err := Parse(tt.reply); (err == nil) != tt.ok {
+				t.Fatalf("err = %v", err)
+			}
+		})
+	}
+}
+
 func TestCheckHarness(t *testing.T) {
 	r := newRig(t)
 	ctx := context.Background()
@@ -487,7 +590,7 @@ func TestCrashAfterParsing(t *testing.T) {
 		t.Fatal(err)
 	}
 	scopes := []memory.Scope{{Kind: memory.ScopeGlobal}}
-	write, why, err := r.w.writeOf(ctx, run, scopes, 0, ops[0])
+	write, why, err := r.w.writeOf(ctx, run, scopes, 0, ops[0], nil)
 	if err != nil || why != "" {
 		t.Fatal(why, err)
 	}

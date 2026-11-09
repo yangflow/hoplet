@@ -398,6 +398,12 @@ func (c *conn) call(ctx context.Context, f proto.ClientFrame) (any, error) {
 			return nil, err
 		}
 		return s.profileSettingsSet(ctx, p)
+	case proto.MethodProfileUnlink:
+		var p proto.ProfileUnlinkParams
+		if err := decode(f, &p); err != nil {
+			return nil, err
+		}
+		return done, s.memory.Unlink(ctx, p.ID, p.Other, p.OpID)
 	case proto.MethodProfileAccept:
 		var p proto.ProfileAcceptParams
 		if err := decode(f, &p); err != nil {

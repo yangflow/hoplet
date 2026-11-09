@@ -42,6 +42,7 @@ type Write struct {
 	Reason          string
 	Session         proto.SessionID // the writing session of a companion
 	Batch           *Batch          // the material of an extraction
+	Links           []string        // related entries, from extraction
 	Propose         bool            // wait for the user even if the rules would apply it
 }
 
@@ -289,6 +290,7 @@ func (s *Service) applyNow(ctx context.Context, w Write, row *store.MemoryRow, c
 		e.Status = StatusWithdrawn
 	} else {
 		e.Status, e.Scope, e.Evidence, e.Body = StatusActive, scope, w.Evidence, w.Body
+		e.addLinks(w.Links)
 	}
 	e.ReplacedBy = ""
 	saved, err := s.commit(ctx, Op{ID: w.OpID, Entry: e, ExpectedVersion: w.ExpectedVersion, Actor: w.Actor, Reason: w.Reason})
@@ -307,7 +309,7 @@ func (s *Service) propose(ctx context.Context, w Write, row *store.MemoryRow, ca
 	if w.Action == ActionWithdraw {
 		body = w.Reason
 	}
-	e := Entry{ID: id, Category: category, Status: StatusCandidate, Scope: scope, Evidence: w.Evidence, Body: body}
+	e := Entry{ID: id, Category: category, Status: StatusCandidate, Scope: scope, Evidence: w.Evidence, Links: w.Links, Body: body}
 	saved, err := s.commit(ctx, Op{ID: w.OpID, Entry: e, Actor: w.Actor, Reason: w.Reason})
 	if err != nil {
 		return Result{}, err

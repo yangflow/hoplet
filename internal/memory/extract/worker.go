@@ -22,6 +22,7 @@ const (
 	DailyLimit  = 20
 	IdleAfter   = 30 * time.Minute
 	maxAttempts = 3
+	maxLinks    = 5
 	scanEvery   = time.Minute
 	callTimeout = 10 * time.Minute
 
@@ -439,8 +440,16 @@ func (w *Worker) commit(ctx context.Context, r store.MemoryExtraction, scopes []
 	if err != nil {
 		return err
 	}
+	existing, err := w.cfg.Memory.InScope(ctx, scopes, store.MemoryQuery{})
+	if err != nil {
+		return err
+	}
+	offered := make(map[string]memory.Entry, len(existing))
+	for _, e := range shown(existing) {
+		offered[e.ID] = e
+	}
 	for i, op := range ops {
-		write, why, err := w.writeOf(ctx, r, scopes, i, op)
+		write, why, err := w.writeOf(ctx, r, scopes, i, op, offered)
 		if err != nil {
 			return err
 		}
@@ -467,7 +476,7 @@ func (w *Worker) commit(ctx context.Context, r store.MemoryExtraction, scopes []
 // writeOf turns a model's op into a Write, adding what only the daemon may
 // decide: the session behind the evidence and the value of the scope. A
 // non-empty reason says why the op is refused.
-func (w *Worker) writeOf(ctx context.Context, r store.MemoryExtraction, scopes []memory.Scope, i int, op Op) (memory.Write, string, error) {
+func (w *Worker) writeOf(ctx context.Context, r store.MemoryExtraction, scopes []memory.Scope, i int, op Op, offered map[string]memory.Entry) (memory.Write, string, error) {
 	out := memory.Write{
 		OpID: fmt.Sprintf("extract_%d_%d", r.ID, i), Actor: memory.ActorExtraction, Action: op.Action, Target: op.Target,
 		ExpectedVersion: op.Version, Category: op.Category, Body: op.Body, Reason: op.Reason,
@@ -483,8 +492,10 @@ func (w *Worker) writeOf(ctx context.Context, r store.MemoryExtraction, scopes [
 		}
 		out.Scope = scopes[i]
 	}
+	var target memory.Entry
 	if op.Target != "" {
-		_, err := w.cfg.Memory.GetInScope(ctx, scopes, op.Target)
+		var err error
+		target, err = w.cfg.Memory.GetInScope(ctx, scopes, op.Target)
 		if errors.Is(err, store.ErrNotFound) {
 			return memory.Write{}, "entry " + op.Target + " is outside the session's scopes", nil
 		}
@@ -492,7 +503,26 @@ func (w *Worker) writeOf(ctx context.Context, r store.MemoryExtraction, scopes [
 			return memory.Write{}, "", err
 		}
 	}
+	out.Links = w.linksOf(r, i, op, target, offered)
 	return out, "", nil
+}
+
+// linksOf keeps the links of op that name an entry the run was shown and
+// that the user has not removed. A dropped link never fails the op.
+func (w *Worker) linksOf(r store.MemoryExtraction, i int, op Op, target memory.Entry, offered map[string]memory.Entry) []string {
+	var out []string
+	for _, id := range op.Links {
+		peer, ok := offered[id]
+		switch {
+		case !ok, id == op.Target, slices.Contains(out, id), len(out) == maxLinks:
+			w.log.Warn("extraction link dropped", "run", r.ID, "op", i, "link", id)
+		case slices.Contains(target.Unlinked, id), slices.Contains(peer.Unlinked, op.Target) && op.Target != "":
+			w.log.Info("extraction link removed by the user", "run", r.ID, "op", i, "link", id)
+		default:
+			out = append(out, id)
+		}
+	}
+	return out
 }
 
 // Status says how extraction stands today.

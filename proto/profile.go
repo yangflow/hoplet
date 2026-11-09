@@ -27,6 +27,8 @@ type ProfileEntry struct {
 	UpdatedAt  time.Time         `json:"updated_at"`
 	Title      string            `json:"title"`
 	Body       string            `json:"body"`
+	Links      []string          `json:"links,omitempty"` // both directions
+	Uses       int               `json:"uses,omitempty"`  // distinct sessions
 }
 
 // ProfileVersion is one committed version of a memory entry.
@@ -36,6 +38,30 @@ type ProfileVersion struct {
 	Reason  string    `json:"reason"`
 	Content string    `json:"content"`
 	At      time.Time `json:"at"`
+	// Body and Evidence are what this version said.
+	Body     string            `json:"body"`
+	Evidence []ProfileEvidence `json:"evidence"`
+}
+
+// ProfileUnlinkParams removes the link between two memory entries.
+type ProfileUnlinkParams struct {
+	ID    string `json:"id"`
+	Other string `json:"other"`
+	OpID  string `json:"op_id"`
+}
+
+// ProfileUsageParams asks what one session used.
+type ProfileUsageParams struct {
+	Session SessionID `json:"session"`
+}
+
+// ProfileUsage is what one session used. Hidden means no block is shown;
+// Failed means its digest could not be delivered.
+type ProfileUsage struct {
+	Hidden  bool           `json:"hidden,omitempty"`
+	Failed  bool           `json:"failed,omitempty"`
+	Count   int            `json:"count"`
+	Entries []ProfileEntry `json:"entries,omitempty"` // at most 3, narrowest scope first
 }
 
 // ProfileListParams selects memory entries. An empty Status means active;

@@ -16,7 +16,11 @@ func TestMemoryCandidatesMigrationKeepsOps(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	commitOp(t, old, memOp("o1", "e", 1, "h1"), memRow("e", "fact", "active", "t", "b", 1))
+	_, err = old.db.ExecContext(ctx, `INSERT INTO memory_ops (id, entry_id, expected_version, new_version, actor, reason, content, hash, state, created_at, finished_at)
+		VALUES ('o1', 'e', 0, 1, 'user', 'r', 'c', 'h1', 'committed', 1, 2)`)
+	if err != nil {
+		t.Fatal(err)
+	}
 	want := dumpRows(t, old, "memory_ops")
 	if err := old.Close(); err != nil {
 		t.Fatal(err)

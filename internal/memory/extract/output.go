@@ -27,6 +27,7 @@ type Op struct {
 	Body     string           `json:"body"`
 	Evidence []Cite           `json:"evidence"`
 	Reason   string           `json:"reason"`
+	Links    []string         `json:"links"` // optional: related existing entries
 }
 
 // Parse reads a run's reply. Anything out of shape fails the whole reply:
@@ -65,6 +66,9 @@ func (op Op) check() error {
 		if !c.Kind.Valid() || c.Event == 0 {
 			return fmt.Errorf("bad evidence %q at event %d", c.Kind, c.Event)
 		}
+	}
+	if len(op.Links) > 0 && op.Action != memory.ActionCreate && op.Action != memory.ActionUpdate {
+		return errors.New("only create and update can carry links")
 	}
 	body := strings.TrimSpace(op.Body) != ""
 	switch op.Action {
