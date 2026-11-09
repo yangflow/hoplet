@@ -13,12 +13,19 @@ import (
 	"github.com/yangflow/hoplet/desktop/internal/catalog"
 	"github.com/yangflow/hoplet/desktop/internal/icons"
 	"github.com/yangflow/hoplet/desktop/internal/theme"
+	"github.com/yangflow/hoplet/desktop/internal/voicemedia"
 	"github.com/yangflow/hoplet/proto"
 )
 
 // host records what the shell asks for; calls holds the 9b requests as
 // the parameters they were given.
 type host struct {
+	voice          voicemedia.Events
+	voiceConsented bool
+	voiceMuted     bool
+	voiceStarts    int
+	voiceHangups   int
+
 	sendErr     error // what Send answers
 	diffs       map[proto.SessionID]proto.SessionDiff
 	patched     []proto.SessionID            // the sessions DiffPatch was asked for
@@ -195,9 +202,17 @@ func (h *host) ArtifactPage(id proto.ArtifactID, version int, _ func(error)) (ui
 func (h *host) ReloadArtifactPage(id proto.ArtifactID, version int) {
 	h.reloads = append(h.reloads, fmt.Sprintf("%s/v%d", id, version))
 }
-func (h *host) CloseArtifactPages(id proto.ArtifactID)   { h.closedArts = append(h.closedArts, id) }
-func (h *host) Open(path string)                         { h.calls = append(h.calls, "open "+path) }
-func (h *host) CopyPath(path string)                     { h.calls = append(h.calls, "copy "+path) }
+func (h *host) CloseArtifactPages(id proto.ArtifactID) { h.closedArts = append(h.closedArts, id) }
+func (h *host) Open(path string)                       { h.calls = append(h.calls, "open "+path) }
+func (h *host) CopyPath(path string)                   { h.calls = append(h.calls, "copy "+path) }
+func (h *host) VoiceConsented() bool                   { return h.voiceConsented }
+func (h *host) ConsentVoice()                          { h.voiceConsented = true }
+func (h *host) StartCall(ev voicemedia.Events) {
+	h.voice = ev
+	h.voiceStarts++
+}
+func (h *host) MuteCall(m bool)                          { h.voiceMuted = m }
+func (h *host) HangUp()                                  { h.voiceHangups++ }
 func (h *host) Reconnect()                               { h.reconnects++ }
 func (h *host) Harnesses(done func([]proto.HarnessInfo)) { done(h.models) }
 func (h *host) Follow(id proto.SessionID, _ uint64)      { h.followed = append(h.followed, id) }

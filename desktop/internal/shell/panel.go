@@ -150,6 +150,10 @@ func (a *App) ShowChanges() { a.ShowPanel(columnChanges) }
 // and going) along motion-base; at rest it sits in a split its edge drags,
 // the viewer and the column in another.
 func (a *App) main(c *ui.Context, k theme.Colors, room float32) {
+	if a.v.phase != callIdle {
+		a.voicePage(c, k)
+		return
+	}
 	s, ok := a.panelSession()
 	var ps *panelState
 	if ok {

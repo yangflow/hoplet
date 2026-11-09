@@ -17,6 +17,10 @@ const (
 	stopTimeout    = 5 * time.Second
 )
 
+// ErrMicrophone says the audio devices would not open, which on this
+// platform means the microphone permission is missing.
+var ErrMicrophone = errors.New("voicemedia: the audio devices did not open")
+
 // Signal is the host side of a call.
 type Signal interface {
 	Start(ctx context.Context, offer string) (proto.VoiceStartResult, error)
@@ -37,7 +41,8 @@ type Call struct {
 // Dial runs the component at path and connects a call through signal. The
 // microphone opens only after the host has confirmed the call. A missing
 // component is a *proto.APIError with [proto.CodeVoiceNoComponent], the host's
-// own refusals keep their codes, and any other error is a media failure. When
+// own refusals keep their codes, devices that will not open are
+// [ErrMicrophone], and any other error is a media failure. When
 // Dial fails, no process is left and no call stays open on the host.
 func Dial(ctx context.Context, path string, signal Signal) (*Call, error) {
 	if _, err := os.Stat(path); errors.Is(err, fs.ErrNotExist) {
@@ -77,6 +82,11 @@ func (c *Call) connect(ctx context.Context, answer string) error {
 
 // ID names the call at the host.
 func (c *Call) ID() proto.VoiceCallID { return c.id }
+
+// SetMuted mutes or unmutes the microphone.
+func (c *Call) SetMuted(ctx context.Context, muted bool) error {
+	return c.host.set(ctx, audio{MicrophoneMuted: muted})
+}
 
 // Done is closed when the component has exited, whether by Hangup or on its
 // own. The call's owner still calls Hangup after an exit of its own.

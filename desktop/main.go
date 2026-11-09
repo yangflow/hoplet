@@ -19,7 +19,9 @@ import (
 	"github.com/yangflow/hoplet/desktop/internal/link"
 	"github.com/yangflow/hoplet/desktop/internal/shell"
 	"github.com/yangflow/hoplet/desktop/internal/theme"
+	"github.com/yangflow/hoplet/desktop/internal/voicemedia"
 	"github.com/yangflow/hoplet/internal/client"
+	"github.com/yangflow/hoplet/internal/home"
 	"github.com/yangflow/hoplet/proto"
 )
 
@@ -51,7 +53,11 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	d := &desktop{wake: make(chan struct{})}
+	dir, err := home.Dir()
+	if err != nil {
+		return err
+	}
+	d := &desktop{wake: make(chan struct{}), home: dir, consented: readConsent(dir)}
 	d.pages = artifactpage.New(d.readPageFile)
 	if err := d.pages.Register(); err != nil {
 		return err
@@ -64,7 +70,10 @@ func run() error {
 	}))
 	mygo.App.OnSecondInstance(func([]string, string) { d.show() })
 	mygo.App.OnActivate(func(bool) { d.show() })
-	mygo.App.OnBeforeQuit(func(*mygo.QuitEvent) { d.quitting = true })
+	mygo.App.OnBeforeQuit(func(*mygo.QuitEvent) {
+		d.quitting = true
+		d.endCall()
+	})
 	// While the app is in the background, new results stay unread.
 	mygo.App.OnDidResignActive(func() { d.away(true) })
 	mygo.App.OnDidBecomeActive(func() { d.away(false) })
@@ -126,11 +135,16 @@ type desktop struct {
 	tray     *mygo.Tray
 	quitting bool
 
+	home      string // Hoplet's home
+	consented bool   // this device agreed to voice calls
+
 	// wake asks the connection to be tried again now.
 	wake chan struct{}
 
 	mu sync.Mutex
 	c  *client.Client // the current connection, nil while there is none
+	// voice is the latest call, which may be over.
+	voice *voicemedia.Session
 	// unfollow ends following the session followed now.
 	unfollow context.CancelFunc
 
