@@ -186,9 +186,13 @@ func (w *Worker) scan(ctx context.Context, triggers map[proto.SessionID]string) 
 	if err != nil {
 		return err
 	}
-	supported := map[string]bool{}
+	set, err := w.cfg.Store.MemorySettings(ctx)
+	if err != nil {
+		return err
+	}
+	runners := map[string]runner{}
 	for _, s := range sessions {
-		if s.Model == "" || s.LastSeq == 0 || (s.Mode != proto.ModePersonal && s.Mode != proto.ModeCode) {
+		if s.LastSeq == 0 || (s.Mode != proto.ModePersonal && s.Mode != proto.ModeCode) {
 			continue
 		}
 		through, err := w.cfg.Store.MemoryExtractionProgress(ctx, s.ID)
@@ -196,6 +200,13 @@ func (w *Worker) scan(ctx context.Context, triggers map[proto.SessionID]string) 
 			return err
 		}
 		if s.LastSeq <= through {
+			continue
+		}
+		if s.Mode == proto.ModeCode && !set.IncludeCode {
+			// Consent starts when the switch is turned on, not before.
+			if err := w.cfg.Store.AdvanceMemoryExtraction(ctx, s.ID, s.LastSeq); err != nil {
+				return err
+			}
 			continue
 		}
 		// A saved memory is this worker's own echo, not new evidence.
@@ -215,19 +226,68 @@ func (w *Worker) scan(ctx context.Context, triggers map[proto.SessionID]string) 
 				continue
 			}
 		}
-		can, known := supported[s.Harness.Kind]
-		if !known {
-			_, why := w.supportOf(ctx, s.Harness.Kind)
-			can, supported[s.Harness.Kind] = why == "", why == ""
+		kind := s.Harness.Kind
+		if set.ExtractionHarness != "" {
+			kind = set.ExtractionHarness
 		}
-		if !can {
+		rn, known := runners[kind]
+		if !known {
+			rn = w.runnerOf(ctx, kind, set)
+			runners[kind] = rn
+		}
+		if rn.model == "" {
+			rn.model = s.Model
+		}
+		if rn.why != "" || rn.model == "" {
 			continue
 		}
-		if err := w.plan(ctx, s, through, last, trigger); err != nil {
+		if err := w.plan(ctx, s, rn, through, last, trigger); err != nil {
 			w.logErr(ctx, "plan extraction", s.ID, err)
 		}
 	}
 	return nil
+}
+
+// runner is the harness and model that run a session's extraction. why says
+// what stops it; an empty model follows the session.
+type runner struct {
+	kind, model, why string
+}
+
+// runnerOf checks kind against the settings.
+func (w *Worker) runnerOf(ctx context.Context, kind string, set proto.ProfileSettings) runner {
+	r := runner{kind: kind}
+	if _, r.why = w.supportOf(ctx, kind); r.why != "" || kind != set.ExtractionHarness {
+		return r
+	}
+	var err error
+	if r.model, err = w.defaultModel(ctx, kind); err != nil {
+		r.why = err.Error()
+	} else if r.model == "" {
+		r.why = "harness " + kind + " has no default model"
+	}
+	return r
+}
+
+// defaultModel returns the model kind marks as its default, "" when none.
+func (w *Worker) defaultModel(ctx context.Context, kind string) (string, error) {
+	h := w.cfg.Harnesses[kind]
+	var models []proto.ModelInfo
+	var err error
+	if l, ok := h.(harness.ModelLister); ok {
+		models, err = l.Models(ctx)
+	} else {
+		var info harness.Info
+		info, err = h.Probe(ctx)
+		models = info.Models
+	}
+	if err != nil {
+		return "", fmt.Errorf("extract: models of %s: %w", kind, err)
+	}
+	if i := slices.IndexFunc(models, func(m proto.ModelInfo) bool { return m.Default }); i >= 0 {
+		return models[i].ID, nil
+	}
+	return "", nil
 }
 
 // idle returns triggerIdle when the session has been quiet since event seq
@@ -257,7 +317,7 @@ func (w *Worker) idle(ctx context.Context, s proto.Session, seq uint64) (string,
 // plan creates the session's next run over the events after through up to
 // last, unless there is nothing to read or the day's budget is spent, which
 // leaves the material for later.
-func (w *Worker) plan(ctx context.Context, s proto.Session, through, last uint64, trigger string) error {
+func (w *Worker) plan(ctx context.Context, s proto.Session, rn runner, through, last uint64, trigger string) error {
 	m, err := Select(ctx, w.cfg.Store, s.ID, through+1, last)
 	if err != nil {
 		return err
@@ -267,7 +327,7 @@ func (w *Worker) plan(ctx context.Context, s proto.Session, through, last uint64
 	}
 	now := w.now()
 	from, to := day(now)
-	used, err := w.cfg.Store.CountMemoryExtractions(ctx, s.Harness.Kind, from, to)
+	used, err := w.cfg.Store.CountMemoryExtractions(ctx, rn.kind, from, to)
 	if err != nil {
 		return err
 	}
@@ -275,7 +335,7 @@ func (w *Worker) plan(ctx context.Context, s proto.Session, through, last uint64
 		return nil
 	}
 	_, err = w.cfg.Store.CreateMemoryExtraction(ctx, store.MemoryExtraction{
-		Session: s.ID, Harness: s.Harness.Kind, Model: s.Model, From: through + 1, To: m.To, Trigger: trigger,
+		Session: s.ID, Harness: rn.kind, Model: rn.model, From: through + 1, To: m.To, Trigger: trigger,
 	}, now)
 	if errors.Is(err, store.ErrExists) {
 		return nil
@@ -375,6 +435,10 @@ func (w *Worker) commit(ctx context.Context, r store.MemoryExtraction, scopes []
 	if err != nil { // it parsed when it was stored
 		return w.cfg.Store.FailMemoryExtraction(ctx, r.ID, err.Error(), w.now())
 	}
+	set, err := w.cfg.Store.MemorySettings(ctx)
+	if err != nil {
+		return err
+	}
 	for i, op := range ops {
 		write, why, err := w.writeOf(ctx, r, scopes, i, op)
 		if err != nil {
@@ -384,6 +448,7 @@ func (w *Worker) commit(ctx context.Context, r store.MemoryExtraction, scopes []
 			w.log.Warn("extraction op rejected", "run", r.ID, "op", i, "why", why)
 			continue
 		}
+		write.Propose = !set.AutoSave
 		res, err := w.cfg.Memory.Apply(ctx, write)
 		if errors.Is(err, store.ErrInvalid) || errors.Is(err, store.ErrNotFound) {
 			w.log.Warn("extraction op rejected", "run", r.ID, "op", i, "err", err)
@@ -432,17 +497,17 @@ func (w *Worker) writeOf(ctx context.Context, r store.MemoryExtraction, scopes [
 
 // Status says how extraction stands today.
 func (w *Worker) Status(ctx context.Context) (proto.ProfileExtractionStatus, error) {
-	on, err := w.cfg.Store.MemoryExtractionEnabled(ctx)
+	set, err := w.cfg.Store.MemorySettings(ctx)
 	if err != nil {
 		return proto.ProfileExtractionStatus{}, err
 	}
 	from, to := day(w.now())
-	out := proto.ProfileExtractionStatus{Enabled: on, DailyLimit: DailyLimit, Harnesses: []proto.ProfileExtractionHarness{}}
+	out := proto.ProfileExtractionStatus{Enabled: set.Extraction, DailyLimit: DailyLimit, Harnesses: []proto.ProfileExtractionHarness{}}
 	if out.Failed, err = w.cfg.Store.CountFailedMemoryExtractions(ctx, from, to); err != nil {
 		return proto.ProfileExtractionStatus{}, err
 	}
 	for _, kind := range slices.Sorted(maps.Keys(w.cfg.Harnesses)) {
-		_, why := w.supportOf(ctx, kind)
+		why := w.runnerOf(ctx, kind, set).why
 		used, err := w.cfg.Store.CountMemoryExtractions(ctx, kind, from, to)
 		if err != nil {
 			return proto.ProfileExtractionStatus{}, err

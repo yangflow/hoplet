@@ -605,6 +605,10 @@ func (p profileSource) Scopes(ctx context.Context, sess proto.Session) ([]memory
 	return p.mgr.ProfileScopes(ctx, sess)
 }
 
+func (p profileSource) Usable(ctx context.Context, mode proto.Mode) bool {
+	return p.mgr.ProfileUsable(ctx, mode)
+}
+
 func (p profileSource) List(ctx context.Context, scopes []memory.Scope, q store.MemoryQuery) ([]memory.Entry, error) {
 	entries, err := p.mem.InScope(ctx, scopes, q)
 	return entries, forModel(err)

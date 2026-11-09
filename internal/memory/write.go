@@ -42,6 +42,7 @@ type Write struct {
 	Reason          string
 	Session         proto.SessionID // the writing session of a companion
 	Batch           *Batch          // the material of an extraction
+	Propose         bool            // wait for the user even if the rules would apply it
 }
 
 // source is the session whose records may back this write.
@@ -194,7 +195,7 @@ func (s *Service) apply(ctx context.Context, w Write) (Result, error) {
 			scope = o
 		}
 	}
-	if !conflict && takesEffect(w, category, old, scope) {
+	if !conflict && !w.Propose && takesEffect(w, category, old, scope) {
 		return s.applyNow(ctx, w, row, category, scope)
 	}
 	return s.propose(ctx, w, row, category, scope)

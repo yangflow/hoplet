@@ -28,6 +28,8 @@ type ProfileSource interface {
 	// Get returns store.ErrNotFound for anything not active in scopes.
 	Get(ctx context.Context, scopes []memory.Scope, id string) (memory.Entry, error)
 	Apply(ctx context.Context, w memory.Write) (memory.Result, error)
+	// Usable reports whether sessions of mode use memory now.
+	Usable(ctx context.Context, mode proto.Mode) bool
 }
 
 type profileItem struct {
@@ -101,7 +103,9 @@ func profileOpID(session proto.SessionID, p profileWriteArgs) (string, error) {
 }
 
 func profileTools(src Source) []tool {
-	everyone := func(proto.Session) bool { return true }
+	usable := func(caller proto.Session) bool {
+		return src.Profile().Usable(context.Background(), caller.Mode)
+	}
 	const scopeKinds = `"enum":["global","companion","repo","host"]`
 	return []tool{
 		{
@@ -110,7 +114,7 @@ func profileTools(src Source) []tool {
 				Description: "List the active entries of the user's Hoplet profile that apply to this session: ID, version, category, scope and title.",
 				InputSchema: json.RawMessage(`{"type":"object","properties":{"category":{"type":"string","enum":["fact","preference","convention","experience"]},"scope":{"type":"string",` + scopeKinds + `},"text":{"type":"string","description":"Only entries containing this text"},"limit":{"type":"integer","description":"At most this many, 50 by default and 200 at most"}},"additionalProperties":false}`),
 			},
-			visible: everyone,
+			visible: usable,
 			call: func(ctx context.Context, caller proto.Session, args json.RawMessage) (any, error) {
 				var p struct {
 					Category string `json:"category"`
@@ -148,7 +152,7 @@ func profileTools(src Source) []tool {
 				Description: "Read the latest active version of one entry of the user's Hoplet profile.",
 				InputSchema: json.RawMessage(`{"type":"object","properties":{"id":{"type":"string"}},"required":["id"],"additionalProperties":false}`),
 			},
-			visible: everyone,
+			visible: usable,
 			call: func(ctx context.Context, caller proto.Session, args json.RawMessage) (any, error) {
 				var p struct {
 					ID string `json:"id"`
@@ -173,7 +177,7 @@ func profileTools(src Source) []tool {
 				Description: "Create, update or withdraw an entry of the user's Hoplet profile. Only an outcome of applied may be told to the user as saved; candidate is waiting for the user's review and rejected was not saved.",
 				InputSchema: json.RawMessage(`{"type":"object","properties":{"action":{"type":"string","enum":["create","update","withdraw"]},"id":{"type":"string","description":"The entry, for update and withdraw"},"expected_version":{"type":"integer","description":"The version last read, for update and withdraw"},"category":{"type":"string","enum":["fact","preference","convention","experience"]},"scope":{"type":"string",` + scopeKinds + `,"description":"The kind only; its value comes from this session"},"body":{"type":"string"},"evidence":{"type":"array","items":{"type":"object","properties":{"kind":{"type":"string","enum":["user_stated","verified","observed","inferred"]},"ref":{"type":"string"}},"required":["kind"],"additionalProperties":false}},"reason":{"type":"string"}},"required":["action","reason"],"additionalProperties":false}`),
 			},
-			visible: everyone,
+			visible: usable,
 			call: func(ctx context.Context, caller proto.Session, args json.RawMessage) (any, error) {
 				if caller.Mode != proto.ModePersonal {
 					return nil, failf("profile_write is only available in Personal sessions")

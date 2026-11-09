@@ -3,6 +3,7 @@ package extract
 import (
 	"context"
 	"errors"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -23,11 +24,12 @@ type fakeHarness struct {
 	err     error
 	block   chan struct{} // holds Extract when set
 	entered chan struct{}
+	models  []proto.ModelInfo
 }
 
 func (f *fakeHarness) Kind() string { return "claude" }
 func (f *fakeHarness) Probe(context.Context) (harness.Info, error) {
-	return harness.Info{Version: "1", Supported: true}, nil
+	return harness.Info{Version: "1", Supported: true, Models: f.models}, nil
 }
 func (f *fakeHarness) ExtractSupport(harness.Info) string { return "" }
 func (f *fakeHarness) Extract(ctx context.Context, r harness.ExtractRequest) (harness.ExtractResult, error) {
@@ -180,6 +182,127 @@ func TestIdleScan(t *testing.T) {
 	r.w.cycle(context.Background())
 	if r.h.count() != 1 {
 		t.Fatal("ran again with nothing new")
+	}
+}
+
+func (r *rig) settings(change func(*proto.ProfileSettings)) {
+	r.t.Helper()
+	ctx := context.Background()
+	set, err := r.st.MemorySettings(ctx)
+	if err != nil {
+		r.t.Fatal(err)
+	}
+	change(&set)
+	if err := r.st.SetMemorySettings(ctx, set); err != nil {
+		r.t.Fatal(err)
+	}
+}
+
+func (r *rig) lastRun(id proto.SessionID) store.MemoryExtraction {
+	r.t.Helper()
+	run, err := r.st.LastMemoryExtraction(context.Background(), id)
+	if err != nil {
+		r.t.Fatal(err)
+	}
+	return run
+}
+
+func TestAutoSaveOffMakesCandidates(t *testing.T) {
+	r := newRig(t)
+	seq := r.session("s", "claude", "m1")
+	r.settings(func(s *proto.ProfileSettings) { s.AutoSave = false })
+	r.h.replies = []string{createOp(seq, "global", "Likes tea")}
+	r.w.triggers["s"] = TriggerArchive
+	r.w.cycle(context.Background())
+	if got := r.bodies(); len(got) != 0 {
+		t.Fatalf("saved with auto-save off: %q", got)
+	}
+	got, err := r.mem.Search(context.Background(), store.MemoryQuery{Status: string(memory.StatusCandidate)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].Body != "Likes tea" {
+		t.Fatalf("candidates = %+v", got)
+	}
+}
+
+func TestCodeSessionsWaitForConsent(t *testing.T) {
+	r := newRig(t)
+	ctx := context.Background()
+	sess := withDefaults(proto.Session{ID: "c", Harness: proto.HarnessRef{Kind: "claude"}, Model: "m1"})
+	sess.Mode = proto.ModeCode
+	if _, err := r.st.CreateSession(ctx, sess); err != nil {
+		t.Fatal(err)
+	}
+	old := put(t, r.st, "c", start, "", said("I like tea"))
+	r.w.triggers["c"] = TriggerArchive
+	r.w.cycle(ctx)
+	if r.h.count() != 0 || r.progress("c") != old {
+		t.Fatalf("calls = %d, progress = %d", r.h.count(), r.progress("c"))
+	}
+	r.settings(func(s *proto.ProfileSettings) { s.IncludeCode = true })
+	r.w.triggers["c"] = TriggerArchive
+	r.w.cycle(ctx)
+	if r.h.count() != 0 {
+		t.Fatalf("earlier records reached the model: %d calls", r.h.count())
+	}
+	seq := put(t, r.st, "c", start.Add(time.Minute), "", said("I like coffee"))
+	r.h.replies = []string{createOp(seq, "global", "Likes coffee")}
+	r.w.triggers["c"] = TriggerArchive
+	r.w.cycle(ctx)
+	if r.h.count() != 1 || strings.Contains(r.h.calls[0].Input, "I like tea") || !strings.Contains(r.h.calls[0].Input, "I like coffee") {
+		t.Fatalf("calls = %+v", r.h.calls)
+	}
+}
+
+func TestSpecifiedHarness(t *testing.T) {
+	tests := []struct {
+		name    string
+		models  []proto.ModelInfo
+		runs    int
+		problem bool
+	}{
+		{"default model", []proto.ModelInfo{{ID: "m2"}, {ID: "m3", Default: true}}, 1, false},
+		{"no default model", []proto.ModelInfo{{ID: "m2"}}, 0, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := newRig(t)
+			ctx := context.Background()
+			seq := r.session("s", "hermes", "")
+			r.h.models = tt.models
+			r.h.replies = []string{createOp(seq, "global", "Likes tea")}
+			r.settings(func(s *proto.ProfileSettings) { s.ExtractionHarness = "claude" })
+			r.w.triggers["s"] = TriggerArchive
+			r.w.cycle(ctx)
+			if r.runs() != tt.runs {
+				t.Fatalf("runs = %d, want %d", r.runs(), tt.runs)
+			}
+			if tt.runs == 1 {
+				if run := r.lastRun("s"); run.Harness != "claude" || run.Model != "m3" {
+					t.Fatalf("run = %s %s", run.Harness, run.Model)
+				}
+			}
+			st, err := r.w.Status(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			i := slices.IndexFunc(st.Harnesses, func(h proto.ProfileExtractionHarness) bool { return h.Kind == "claude" })
+			if (st.Harnesses[i].Unsupported != "") != tt.problem {
+				t.Fatalf("status = %+v", st.Harnesses[i])
+			}
+		})
+	}
+}
+
+func TestCheckHarness(t *testing.T) {
+	r := newRig(t)
+	ctx := context.Background()
+	for kind, want := range map[string]bool{"": true, "claude": true, "hermes": false, "missing": false} {
+		err := r.w.CheckHarness(ctx, kind)
+		if (err == nil) != want || (err != nil && !errors.Is(err, store.ErrInvalid)) {
+			t.Errorf("CheckHarness(%q) = %v", kind, err)
+		}
 	}
 }
 

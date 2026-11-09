@@ -23,7 +23,12 @@ type fakeSource struct {
 	profile  ProfileSource
 }
 
-func (f fakeSource) Profile() ProfileSource { return f.profile }
+func (f fakeSource) Profile() ProfileSource {
+	if f.profile == nil {
+		return fakeProfile{}
+	}
+	return f.profile
+}
 
 // changes records the calls that change something.
 type changes struct {

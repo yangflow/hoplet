@@ -18,7 +18,10 @@ type fakeProfile struct {
 	result  memory.Result
 	err     error
 	writes  *[]memory.Write
+	off     bool // memory is switched off
 }
+
+func (f fakeProfile) Usable(context.Context, proto.Mode) bool { return !f.off }
 
 var profileScopes = []memory.Scope{{Kind: memory.ScopeGlobal}, {Kind: memory.ScopeCompanion, Value: "c1"}}
 
@@ -81,6 +84,19 @@ func TestProfileRead(t *testing.T) {
 		if err != nil || !r.IsError || r.Text != "no entry "+id {
 			t.Errorf("%s: %+v %v", id, r, err)
 		}
+	}
+}
+
+func TestProfileToolsFollowSettings(t *testing.T) {
+	set, _ := profileSet(fakeProfile{off: true, entries: []memory.Entry{active}})
+	for _, tool := range set.List(companionCaller) {
+		if strings.HasPrefix(tool.Name, "profile_") {
+			t.Errorf("%s is still listed", tool.Name)
+		}
+	}
+	r, err := set.Call(context.Background(), companionCaller, "profile_read", json.RawMessage(`{"id":"in"}`))
+	if err == nil && !r.IsError {
+		t.Fatalf("read with memory off: %+v", r)
 	}
 }
 
