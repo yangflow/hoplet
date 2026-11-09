@@ -404,6 +404,12 @@ func (c *conn) call(ctx context.Context, f proto.ClientFrame) (any, error) {
 			return nil, err
 		}
 		return done, s.memory.Unlink(ctx, p.ID, p.Other, p.OpID)
+	case proto.MethodProfileUsage:
+		var p proto.ProfileUsageParams
+		if err := decode(f, &p); err != nil {
+			return nil, err
+		}
+		return s.profileUsage(ctx, p.Session)
 	case proto.MethodProfileAccept:
 		var p proto.ProfileAcceptParams
 		if err := decode(f, &p); err != nil {
@@ -598,13 +604,20 @@ func (t toolSource) Publish(ctx context.Context, r artifact.Request) (proto.Arti
 
 func (t toolSource) Simulator() tools.Simulator { return t.sim }
 
-func (t toolSource) Profile() tools.ProfileSource { return profileSource{mem: t.mem, mgr: t.mgr} }
+func (t toolSource) Profile() tools.ProfileSource {
+	return profileSource{mem: t.mem, mgr: t.mgr, store: t.store}
+}
 
 // profileSource gives the profile tools the memory service. Get keeps
 // store.ErrNotFound, which the tool answers in its own words.
 type profileSource struct {
-	mem *memory.Service
-	mgr *session.Manager
+	mem   *memory.Service
+	mgr   *session.Manager
+	store *store.Store
+}
+
+func (p profileSource) Read(ctx context.Context, id proto.SessionID, e memory.Entry) error {
+	return p.store.AddMemoryUse(ctx, id, e.ID, e.Version, store.MemoryUseRead)
 }
 
 func (p profileSource) Scopes(ctx context.Context, sess proto.Session) ([]memory.Scope, error) {

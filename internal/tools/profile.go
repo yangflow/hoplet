@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"slices"
 
 	"github.com/yangflow/hoplet/internal/memory"
@@ -30,6 +31,8 @@ type ProfileSource interface {
 	Apply(ctx context.Context, w memory.Write) (memory.Result, error)
 	// Usable reports whether sessions of mode use memory now.
 	Usable(ctx context.Context, mode proto.Mode) bool
+	// Read records that the session read e.
+	Read(ctx context.Context, session proto.SessionID, e memory.Entry) error
 }
 
 type profileItem struct {
@@ -167,6 +170,9 @@ func profileTools(src Source) []tool {
 				e, err := src.Profile().Get(ctx, scopes, p.ID)
 				if err != nil {
 					return nil, noEntry(p.ID, err)
+				}
+				if err := src.Profile().Read(ctx, caller.ID, e); err != nil {
+					slog.WarnContext(ctx, "record memory read", "session", caller.ID, "entry", e.ID, "err", err)
 				}
 				return profileEntry{e.ID, e.Version, string(e.Category), profileScope{string(e.Scope.Kind), e.Scope.Value}, e.Body}, nil
 			},

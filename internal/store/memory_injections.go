@@ -46,10 +46,22 @@ func (s *Store) AddMemoryInjection(ctx context.Context, in MemoryInjection) erro
 		return fmt.Errorf("store: encode memory injection: %w", err)
 	}
 	return s.tx(ctx, false, func(tx *sql.Tx) error {
+		now := ms(time.Now())
 		_, err := tx.ExecContext(ctx, `INSERT INTO memory_injections (session_id, status, entries, detail, created_at)
-			VALUES (?, ?, ?, ?, ?)`, string(in.Session), in.Status, string(entries), in.Detail, ms(time.Now()))
+			VALUES (?, ?, ?, ?, ?)`, string(in.Session), in.Status, string(entries), in.Detail, now)
 		if err != nil {
 			return fmt.Errorf("store: record memory injection: %w", err)
+		}
+		if in.Status != MemoryInjectionDelivered {
+			return nil
+		}
+		for _, e := range in.Entries {
+			if e.Indexed {
+				continue // the title alone is not the entry
+			}
+			if _, err := tx.ExecContext(ctx, insertMemoryUse, string(in.Session), e.ID, e.Version, MemoryUseInjected, now); err != nil {
+				return fmt.Errorf("store: record memory use: %w", err)
+			}
 		}
 		return nil
 	})

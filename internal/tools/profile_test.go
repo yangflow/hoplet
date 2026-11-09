@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -19,6 +20,15 @@ type fakeProfile struct {
 	err     error
 	writes  *[]memory.Write
 	off     bool // memory is switched off
+	readErr error
+	reads   *[]string
+}
+
+func (f fakeProfile) Read(_ context.Context, _ proto.SessionID, e memory.Entry) error {
+	if f.reads != nil {
+		*f.reads = append(*f.reads, e.ID)
+	}
+	return f.readErr
 }
 
 func (f fakeProfile) Usable(context.Context, proto.Mode) bool { return !f.off }
@@ -84,6 +94,35 @@ func TestProfileRead(t *testing.T) {
 		if err != nil || !r.IsError || r.Text != "no entry "+id {
 			t.Errorf("%s: %+v %v", id, r, err)
 		}
+	}
+}
+
+func TestProfileReadRecorded(t *testing.T) {
+	ctx := context.Background()
+	reads := &[]string{}
+	set, _ := profileSet(fakeProfile{entries: []memory.Entry{active}, reads: reads})
+	if _, err := set.Call(ctx, companionCaller, "profile_list", nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := set.Call(ctx, companionCaller, "profile_read", json.RawMessage(`{"id":"nope"}`)); err != nil {
+		t.Fatal(err)
+	}
+	if len(*reads) != 0 {
+		t.Fatalf("recorded without a read: %q", *reads)
+	}
+	if _, err := set.Call(ctx, companionCaller, "profile_read", json.RawMessage(`{"id":"in"}`)); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(*reads, []string{"in"}) {
+		t.Fatalf("reads = %q", *reads)
+	}
+}
+
+func TestProfileReadSurvivesRecordFailure(t *testing.T) {
+	set, _ := profileSet(fakeProfile{entries: []memory.Entry{active}, readErr: errors.New("disk full")})
+	r, err := set.Call(context.Background(), companionCaller, "profile_read", json.RawMessage(`{"id":"in"}`))
+	if err != nil || r.IsError || !strings.Contains(r.Text, "likes tea") {
+		t.Fatalf("%+v %v", r, err)
 	}
 }
 

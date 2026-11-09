@@ -135,12 +135,10 @@ func TestMemorySettingsMigration(t *testing.T) {
 	if _, err := old.db.ExecContext(ctx, `UPDATE memory_extraction_state SET enabled = 0`); err != nil {
 		t.Fatal(err)
 	}
-	if err := old.AddMemoryInjection(ctx, MemoryInjection{Session: "a", Status: MemoryInjectionDelivered, Entries: []MemoryInjectionEntry{
-		{ID: "whole", Version: 2}, {ID: "listed", Version: 1, Indexed: true},
-	}}); err != nil {
-		t.Fatal(err)
-	}
-	if err := old.AddMemoryInjection(ctx, MemoryInjection{Session: "b", Status: MemoryInjectionFailed, Entries: []MemoryInjectionEntry{{ID: "lost", Version: 1}}}); err != nil {
+	_, err = old.db.ExecContext(ctx, `INSERT INTO memory_injections (session_id, status, entries, detail, created_at) VALUES
+		('a', 'delivered', '[{"id":"whole","version":2},{"id":"listed","version":1,"indexed":true}]', '', 1),
+		('b', 'failed', '[{"id":"lost","version":1}]', '', 2)`)
+	if err != nil {
 		t.Fatal(err)
 	}
 	if err := old.Close(); err != nil {
