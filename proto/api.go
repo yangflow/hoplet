@@ -151,6 +151,10 @@ const (
 	MethodProfileReject        = "profile.reject"
 	MethodProfileExtraction    = "profile.extraction"
 	MethodProfileExtractionSet = "profile.extraction.set"
+	MethodProfileSettings      = "profile.settings"
+	MethodProfileSettingsSet   = "profile.settings.set"
+	MethodProfileUnlink        = "profile.unlink"
+	MethodProfileUsage         = "profile.usage"
 )
 
 // HelloParams opens a connection; it must be the first request. A device

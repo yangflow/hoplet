@@ -452,6 +452,18 @@ func (w *Worker) Status(ctx context.Context) (proto.ProfileExtractionStatus, err
 	return out, nil
 }
 
+// CheckHarness returns an error unless kind can run extraction. Empty kind
+// follows each session and is always fine.
+func (w *Worker) CheckHarness(ctx context.Context, kind string) error {
+	if kind == "" {
+		return nil
+	}
+	if _, why := w.supportOf(ctx, kind); why != "" {
+		return fmt.Errorf("%w: %s", store.ErrInvalid, why)
+	}
+	return nil
+}
+
 // SetEnabled turns extraction on or off.
 func (w *Worker) SetEnabled(ctx context.Context, on bool) error {
 	return w.cfg.Store.SetMemoryExtractionEnabled(ctx, on)

@@ -21,7 +21,7 @@ func TestMemoryCandidatesMigrationKeepsOps(t *testing.T) {
 	if err := old.Close(); err != nil {
 		t.Fatal(err)
 	}
-	s, err := Open(ctx, dir)
+	s, err := open(ctx, dir, migrationsUpTo(t, 17))
 	if err != nil {
 		t.Fatal(err)
 	}

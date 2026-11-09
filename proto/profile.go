@@ -126,6 +126,17 @@ type ProfileExtractionSetParams struct {
 	Enabled bool `json:"enabled"`
 }
 
+// ProfileSettings are the memory settings. An empty ExtractionHarness follows
+// each session's own harness.
+type ProfileSettings struct {
+	UsePersonal       bool   `json:"use_personal"`
+	UseCode           bool   `json:"use_code"`
+	Extraction        bool   `json:"extraction"`
+	ExtractionHarness string `json:"extraction_harness,omitempty"`
+	IncludeCode       bool   `json:"include_code"`
+	AutoSave          bool   `json:"auto_save"`
+}
+
 // ProfileCandidates is the result of profile.candidates.
 type ProfileCandidates struct {
 	Candidates []ProfileCandidate `json:"candidates"`

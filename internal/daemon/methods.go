@@ -390,6 +390,14 @@ func (c *conn) call(ctx context.Context, f proto.ClientFrame) (any, error) {
 			return nil, err
 		}
 		return s.extract.Status(ctx)
+	case proto.MethodProfileSettings:
+		return s.store.MemorySettings(ctx)
+	case proto.MethodProfileSettingsSet:
+		var p proto.ProfileSettings
+		if err := decode(f, &p); err != nil {
+			return nil, err
+		}
+		return s.profileSettingsSet(ctx, p)
 	case proto.MethodProfileAccept:
 		var p proto.ProfileAcceptParams
 		if err := decode(f, &p); err != nil {
@@ -417,7 +425,8 @@ func localOnly(method string) bool {
 	switch method {
 	case proto.MethodProfileList, proto.MethodProfileGet, proto.MethodProfileUpdate, proto.MethodProfileWithdraw,
 		proto.MethodProfileCandidates, proto.MethodProfileAccept, proto.MethodProfileReject,
-		proto.MethodProfileExtraction, proto.MethodProfileExtractionSet:
+		proto.MethodProfileExtraction, proto.MethodProfileExtractionSet,
+		proto.MethodProfileSettings, proto.MethodProfileSettingsSet, proto.MethodProfileUnlink, proto.MethodProfileUsage:
 		return true
 	case proto.MethodPairingStart, proto.MethodHostsAdd, proto.MethodHostsList, proto.MethodHostsRemove, proto.MethodArtifactsPublish:
 		return true

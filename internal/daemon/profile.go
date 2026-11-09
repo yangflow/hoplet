@@ -89,6 +89,16 @@ func (s *server) profileWithdraw(ctx context.Context, p proto.ProfileWithdrawPar
 	return profileResult(s.memory.Apply(ctx, memory.Write{OpID: p.OpID, Actor: memory.ActorUser, Action: memory.ActionWithdraw, Target: p.ID, ExpectedVersion: p.ExpectedVersion, Reason: p.Reason}))
 }
 
+func (s *server) profileSettingsSet(ctx context.Context, p proto.ProfileSettings) (proto.ProfileSettings, error) {
+	if err := s.extract.CheckHarness(ctx, p.ExtractionHarness); err != nil {
+		return proto.ProfileSettings{}, err
+	}
+	if err := s.store.SetMemorySettings(ctx, p); err != nil {
+		return proto.ProfileSettings{}, err
+	}
+	return p, nil
+}
+
 func (s *server) profileCandidates(ctx context.Context) (proto.ProfileCandidates, error) {
 	cs, err := s.memory.Candidates(ctx)
 	if err != nil {

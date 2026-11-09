@@ -6143,6 +6143,63 @@ public struct ProfileExtractionSetParams: Codable, Hashable, Sendable, ProtoZero
   public var isProtoZero: Bool { false }
 }
 
+public struct ProfileSettings: Codable, Hashable, Sendable, ProtoZero {
+  public var usePersonal: Bool
+  public var useCode: Bool
+  public var extraction: Bool
+  public var extractionHarness: String
+  public var includeCode: Bool
+  public var autoSave: Bool
+
+  public init(
+    usePersonal: Bool = .protoZero,
+    useCode: Bool = .protoZero,
+    extraction: Bool = .protoZero,
+    extractionHarness: String = .protoZero,
+    includeCode: Bool = .protoZero,
+    autoSave: Bool = .protoZero
+  ) {
+    self.usePersonal = usePersonal
+    self.useCode = useCode
+    self.extraction = extraction
+    self.extractionHarness = extractionHarness
+    self.includeCode = includeCode
+    self.autoSave = autoSave
+  }
+
+  private enum CodingKeys: String, CodingKey {
+    case usePersonal = "use_personal"
+    case useCode = "use_code"
+    case extraction = "extraction"
+    case extractionHarness = "extraction_harness"
+    case includeCode = "include_code"
+    case autoSave = "auto_save"
+  }
+
+  public init(from decoder: any Decoder) throws {
+    let c = try decoder.container(keyedBy: CodingKeys.self)
+    usePersonal = try c.decodeOrZero(Bool.self, forKey: .usePersonal)
+    useCode = try c.decodeOrZero(Bool.self, forKey: .useCode)
+    extraction = try c.decodeOrZero(Bool.self, forKey: .extraction)
+    extractionHarness = try c.decodeOrZero(String.self, forKey: .extractionHarness)
+    includeCode = try c.decodeOrZero(Bool.self, forKey: .includeCode)
+    autoSave = try c.decodeOrZero(Bool.self, forKey: .autoSave)
+  }
+
+  public func encode(to encoder: any Encoder) throws {
+    var c = encoder.container(keyedBy: CodingKeys.self)
+    try c.encode(usePersonal, forKey: .usePersonal)
+    try c.encode(useCode, forKey: .useCode)
+    try c.encode(extraction, forKey: .extraction)
+    try c.encodeUnlessZero(extractionHarness, forKey: .extractionHarness)
+    try c.encode(includeCode, forKey: .includeCode)
+    try c.encode(autoSave, forKey: .autoSave)
+  }
+
+  public static var protoZero: Self { Self() }
+  public var isProtoZero: Bool { false }
+}
+
 public struct ProfileCandidates: Codable, Hashable, Sendable, ProtoZero {
   public var candidates: [ProfileCandidate]
 
