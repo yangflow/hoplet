@@ -163,7 +163,7 @@ func (p *VoiceProvider) run(ctx context.Context, args []string) (*voiceProcess, 
 	if _, err := os.Stat(p.Binary); err != nil {
 		return nil, &proto.APIError{Code: proto.CodeVoiceNoHarness, Message: "no codex"}
 	}
-	host := filepath.Join(filepath.Dir(filepath.Dir(p.Binary)), filepath.FromSlash(voiceHost))
+	host := voiceHostFor(p.Binary)
 	if _, err := os.Stat(host); err != nil {
 		return nil, &proto.APIError{Code: proto.CodeVoiceNoComponent, Message: "no voice component"}
 	}

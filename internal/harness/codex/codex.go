@@ -43,6 +43,13 @@ func BinaryPath(home string) string {
 	return filepath.Join(home, "harness", Kind, currentLink, "bin", "codex")
 }
 
+// VoiceHostPath is the voice component in the managed package.
+func VoiceHostPath(home string) string { return voiceHostFor(BinaryPath(home)) }
+
+func voiceHostFor(bin string) string {
+	return filepath.Join(filepath.Dir(filepath.Dir(bin)), filepath.FromSlash(voiceHost))
+}
+
 // stateDir is where Hoplet keeps what it knows about the managed copy bin.
 func stateDir(bin string) string { return filepath.Dir(filepath.Dir(filepath.Dir(bin))) }
 
