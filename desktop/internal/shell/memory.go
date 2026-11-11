@@ -41,6 +41,8 @@ type memoryView struct {
 	picked map[string]proto.ProfileScope // scopes chosen for candidates, by ID
 	ops    map[string]string             // operation IDs of unfinished writes
 	edit   memoryEdit
+
+	settings memorySettingsView
 }
 
 // Entry statuses and candidate actions, as the daemon writes them.
@@ -161,6 +163,7 @@ func sideEntry(c *ui.Context, k theme.Colors, icon *ui.SVG, name string, selecte
 func (a *App) memoryTitle(c *ui.Context, k theme.Colors) {
 	ui.Icon(c, a.icons.Memory).FontSize(theme.Icon).TextColor(k.Fg3)
 	theme.UIStrong.On(ui.Text(c, "成长记忆")).TextColor(k.Fg)
+	a.memoryBarEnd(c, k)
 }
 
 // memoryPage is the settings page's content: the entries, or one line

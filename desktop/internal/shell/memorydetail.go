@@ -171,15 +171,17 @@ func (a *App) entryDetail(c *ui.Context, k theme.Colors, e proto.ProfileEntry) {
 			a.m.confirm = !a.m.confirm
 		}
 		popoverBelow(c, k, withdraw, &a.m.confirm, true, theme.MenuWidth, theme.Space3, func() {
-			theme.UI.On(ui.Text(c, "新启动的会话不再用这条记忆")).TextColor(k.Fg)
-			ui.Row(c).Gap(theme.Space2).Justify(ui.End).Children(func() {
-				if secondaryButton(c, k, "取消").Clicked() {
-					a.m.confirm = false
-				}
-				if primaryButton(c.Key("confirm"), k, "撤回").Label("确认撤回").Clicked() {
-					a.m.confirm = false
-					a.withdrawEntry(e)
-				}
+			ui.Column(c).FillWidth().Gap(theme.Space2).Children(func() {
+				theme.UI.On(ui.Text(c, "新启动的会话不再用这条记忆")).TextColor(k.Fg)
+				ui.Row(c).Gap(theme.Space2).Justify(ui.End).Children(func() {
+					if secondaryButton(c, k, "取消").Clicked() {
+						a.m.confirm = false
+					}
+					if primaryButton(c.Key("confirm"), k, "撤回").Label("确认撤回").Clicked() {
+						a.m.confirm = false
+						a.withdrawEntry(e)
+					}
+				})
 			})
 		})
 	})
@@ -522,7 +524,7 @@ func popoverBelow(c *ui.Context, k theme.Colors, anchor ui.Element, open *bool, 
 		if end {
 			at, self = ui.AnchorBottomEnd, ui.AnchorTopEnd
 		}
-		panel.AttachTo(anchor, at, self).Margin(theme.Space1, 0, 0, 0).Width(width).Padding(padding).Gap(theme.Space2).
+		panel.AttachTo(anchor, at, self).Margin(theme.Space1, 0, 0, 0).Width(width).Padding(padding).Gap(theme.SpaceHalf).
 			Radius(theme.RadiusCard).Background(k.SurfaceFloat).Border(theme.LineWidth, k.Line2).Transition(popMotion)
 		k.ShadowPopover.On(panel).Children(fn)
 	})
