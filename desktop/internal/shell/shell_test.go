@@ -68,6 +68,7 @@ type host struct {
 	asked       []proto.SessionID                      // the sessions Session was asked for
 	folder      string
 	records     map[string]proto.EventsPage // what Older answers for a subagent's record
+	mem         memFake                     // growth memory
 }
 
 func (h *host) Update(p proto.UpdateParams) { h.updates = append(h.updates, p) }

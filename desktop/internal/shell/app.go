@@ -90,6 +90,19 @@ type Host interface {
 	Companions(done func([]proto.Companion, error))
 	Persona(id proto.CompanionID, done func(string, error))
 	SetPersona(id proto.CompanionID, text string, done func(proto.SetPersonaResult, error))
+	// Memory reads growth memory for the settings page; MemoryEntry reads
+	// an entry with its versions; MemoryUsage what a session used. The
+	// writes are the daemon's profile methods. done follows with the
+	// answer or why there is none.
+	Memory(done func(Memory, error))
+	MemoryEntry(id string, done func(proto.ProfileDetail, error))
+	MemoryUsage(id proto.SessionID, done func(proto.ProfileUsage, error))
+	UpdateMemory(p proto.ProfileUpdateParams, done func(proto.ProfileWriteResult, error))
+	WithdrawMemory(p proto.ProfileWithdrawParams, done func(proto.ProfileWriteResult, error))
+	UnlinkMemory(p proto.ProfileUnlinkParams, done func(error))
+	AcceptMemory(p proto.ProfileAcceptParams, done func(proto.ProfileEntry, error))
+	RejectMemory(p proto.ProfileRejectParams, done func(proto.ProfileEntry, error))
+	SetMemorySettings(s proto.ProfileSettings, done func(proto.ProfileSettings, error))
 	// Open opens a file with its default application; CopyPath puts its
 	// path on the clipboard.
 	Open(path string)
@@ -186,7 +199,8 @@ type App struct {
 	clock, sideAt, panelAt int
 	fit                    fitOut
 
-	inbox bool // the inbox page shows
+	inbox bool       // the inbox page shows
+	m     memoryView // the settings page
 
 	// history is the pages I opened, oldest first; at is the current one,
 	// -1 before the first.
@@ -293,14 +307,16 @@ const (
 	pageSession pageKind = iota
 	pageInbox
 	pageNew
+	pageSettings
 )
 
-// page is a place Back and Forward go to: a session, the inbox, or the
-// new-session page of a mode.
+// page is a place Back and Forward go to: a session, the inbox, the
+// new-session page of a mode, or the settings with an entry opened.
 type page struct {
-	kind pageKind
-	id   proto.SessionID
-	mode proto.Mode
+	kind  pageKind
+	id    proto.SessionID
+	mode  proto.Mode
+	entry string
 }
 
 // visit adds p to the history after the current page, unless it is the
@@ -331,7 +347,7 @@ func (a *App) OpenInbox() {
 }
 
 func (a *App) showInbox() {
-	a.inbox, a.selected, a.s.newPage = true, "", false
+	a.inbox, a.selected, a.s.newPage, a.m.open = true, "", false, false
 	a.s.inboxSel, a.s.inboxFocus = -1, true
 }
 
@@ -343,7 +359,7 @@ func (a *App) open(id proto.SessionID) bool {
 		return false
 	}
 	a.mode, a.archived, a.selected = s.Mode, s.ArchivedAt != nil, string(id)
-	a.s.newPage, a.inbox = false, false
+	a.s.newPage, a.inbox, a.m.open = false, false, false
 	a.markRead()
 	a.follow()
 	return true
@@ -361,7 +377,12 @@ func (a *App) travel(dir int) {
 		return
 	}
 	a.at = i
-	switch p := a.history[i]; p.kind {
+	a.showPage(a.history[i])
+}
+
+// showPage shows a page of the history without recording it.
+func (a *App) showPage(p page) {
+	switch p.kind {
 	case pageSession:
 		a.open(p.id)
 	case pageInbox:
@@ -369,6 +390,8 @@ func (a *App) travel(dir int) {
 	case pageNew:
 		a.mode = p.mode
 		a.showNew("")
+	case pageSettings:
+		a.showMemory(p.entry)
 	}
 }
 

@@ -27,6 +27,10 @@ func (a *App) content(c *ui.Context, k theme.Colors) {
 			if a.hideSide {
 				ui.Row(c).Gap(theme.SpaceHalf).Children(func() { a.windowButtons(c, k) })
 			}
+			if a.m.open {
+				a.memoryTitle(c, k)
+				return
+			}
 			if a.inbox {
 				a.inboxTitle(c, k)
 				return
@@ -75,6 +79,8 @@ func (a *App) content(c *ui.Context, k theme.Colors) {
 		})
 		s, ok := a.current()
 		switch {
+		case a.m.open:
+			a.memoryPage(c, k)
 		case a.inbox:
 			a.inboxPage(c, k)
 		case a.s.newPage:

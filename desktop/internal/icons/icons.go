@@ -87,6 +87,9 @@ type Set struct {
 	Failed    *ui.SVG // a toast saying something did not happen
 	Inbox     *ui.SVG // the inbox
 	Open      *ui.SVG // open a session from elsewhere, as an inbox card
+	Settings  *ui.SVG // the settings
+	Memory    *ui.SVG // growth memory
+	Withdraw  *ui.SVG // withdraw a memory entry
 
 	// The right panel.
 	Panel      *ui.SVG // show or hide the right panel
@@ -185,6 +188,9 @@ func Load() (*Set, error) {
 		{&s.Failed, "lucide/circle-alert.svg"},
 		{&s.Inbox, "lucide/inbox.svg"},
 		{&s.Open, "lucide/external-link.svg"},
+		{&s.Settings, "lucide/settings.svg"},
+		{&s.Memory, "lucide/brain.svg"},
+		{&s.Withdraw, "lucide/undo-2.svg"},
 		{&s.Panel, "lucide/panel-right.svg"},
 		{&s.Tree, "lucide/folder-tree.svg"},
 		{&s.Changes, "lucide/diff.svg"},

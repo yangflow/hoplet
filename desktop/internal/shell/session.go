@@ -181,7 +181,7 @@ func (a *App) newSessionIn(dir string) {
 // showNew shows the new-session page of the current mode, without
 // recording it.
 func (a *App) showNew(dir string) {
-	a.s.newPage, a.selected, a.inbox = true, "", false
+	a.s.newPage, a.selected, a.inbox, a.m.open = true, "", false, false
 	a.s.newPick = newChoice{dir: dir}
 	if a.mode == proto.ModeCode {
 		a.s.newPick.run.perm = proto.ModeAutoReview // the daemon's default for Code

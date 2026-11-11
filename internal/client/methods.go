@@ -374,3 +374,29 @@ func (c *Client) ProfileReject(ctx context.Context, p proto.ProfileRejectParams)
 	err := c.Call(ctx, proto.MethodProfileReject, p, &out)
 	return out, err
 }
+
+// ProfileSettings returns the memory settings.
+func (c *Client) ProfileSettings(ctx context.Context) (proto.ProfileSettings, error) {
+	var out proto.ProfileSettings
+	err := c.Call(ctx, proto.MethodProfileSettings, struct{}{}, &out)
+	return out, err
+}
+
+// SetProfileSettings replaces the memory settings and returns them as saved.
+func (c *Client) SetProfileSettings(ctx context.Context, s proto.ProfileSettings) (proto.ProfileSettings, error) {
+	var out proto.ProfileSettings
+	err := c.Call(ctx, proto.MethodProfileSettingsSet, s, &out)
+	return out, err
+}
+
+// ProfileUnlink removes the link between two memory entries.
+func (c *Client) ProfileUnlink(ctx context.Context, p proto.ProfileUnlinkParams) error {
+	return c.Call(ctx, proto.MethodProfileUnlink, p, nil)
+}
+
+// ProfileUsage says which memory entries a session used.
+func (c *Client) ProfileUsage(ctx context.Context, id proto.SessionID) (proto.ProfileUsage, error) {
+	var out proto.ProfileUsage
+	err := c.Call(ctx, proto.MethodProfileUsage, proto.ProfileUsageParams{Session: id}, &out)
+	return out, err
+}

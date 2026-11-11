@@ -22,8 +22,15 @@ func (a *App) sidebar(c *ui.Context, k theme.Colors) {
 		ui.Row(c).Height(topHeight(bar)).Padding(0, theme.Space2, 0, bar.Left+theme.Space4).Gap(theme.SpaceHalf).AlignItems(ui.Center).DragWindow().Children(func() {
 			a.windowButtons(c, k)
 			ui.Spacer(c)
-			a.modeSwitch(c, k)
+			if !a.m.open {
+				a.modeSwitch(c, k)
+			}
 		})
+		if a.m.open {
+			a.settingsNav(c, k)
+			a.footer(c, k)
+			return
+		}
 		// Search and the inbox join the new-session entry with the
 		// command palette and the inbox page.
 		// Rows stand 2 apart; the entries sit 4 under the top row and 16
@@ -576,8 +583,8 @@ func (a *App) sessionMenu(m *ui.Menu, s proto.Session) {
 }
 
 // footer shows this machine and whether the window reaches its daemon,
-// and switches to the archived sessions. Other machines and paired
-// devices come with several machines; settings come with settings.
+// switches to the archived sessions and opens the settings. Other
+// machines and paired devices come with several machines.
 func (a *App) footer(c *ui.Context, k theme.Colors) {
 	theme.Bar.H(theme.BarCompact).P(0, theme.Space2, 0, theme.Space3).On(ui.Row(c)).Children(func() {
 		ui.Row(c).Height(theme.Row).Padding(0, theme.Space1Half).Gap(theme.Space2).AlignItems(ui.Center).Radius(theme.RadiusControl).Grow(1).Shrink(1).Children(func() {
@@ -597,7 +604,13 @@ func (a *App) footer(c *ui.Context, k theme.Colors) {
 			a.OpenCall()
 		}
 		if a.mode == proto.ModeCode && iconButton(c, k, a.icons.Archive, "已归档的会话", a.archived).Clicked() {
+			if a.m.open {
+				a.LeaveSettings()
+			}
 			a.archived, a.selected = !a.archived, ""
+		}
+		if iconButton(c, k, a.icons.Settings, "设置", a.m.open).Clicked() && !a.m.open {
+			a.OpenMemory("")
 		}
 	})
 }

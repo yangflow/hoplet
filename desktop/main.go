@@ -587,6 +587,101 @@ func (d *desktop) SetPersona(id proto.CompanionID, text string, done func(proto.
 	}()
 }
 
+// ask runs f against the daemon off the UI thread and hands its answer
+// to done on the UI thread; without a connection, done says so at once.
+func ask[T any](d *desktop, done func(T, error), f func(context.Context, *client.Client) (T, error)) {
+	c := d.client()
+	if c == nil {
+		var zero T
+		done(zero, errNoDaemon)
+		return
+	}
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), callTimeout)
+		defer cancel()
+		v, err := f(ctx, c)
+		d.ui(func() { done(v, err) })
+	}()
+}
+
+// Memory implements shell.Host: every entry, the candidates, how
+// extraction stands and the settings, read one after another.
+func (d *desktop) Memory(done func(shell.Memory, error)) {
+	ask(d, done, func(ctx context.Context, c *client.Client) (shell.Memory, error) {
+		var m shell.Memory
+		list, err := c.ProfileList(ctx, proto.ProfileListParams{All: true})
+		if err != nil {
+			return m, err
+		}
+		cands, err := c.ProfileCandidates(ctx)
+		if err != nil {
+			return m, err
+		}
+		if m.Extraction, err = c.ProfileExtraction(ctx); err != nil {
+			return m, err
+		}
+		if m.Settings, err = c.ProfileSettings(ctx); err != nil {
+			return m, err
+		}
+		m.Entries, m.Candidates = list.Entries, cands.Candidates
+		return m, nil
+	})
+}
+
+// MemoryEntry implements shell.Host.
+func (d *desktop) MemoryEntry(id string, done func(proto.ProfileDetail, error)) {
+	ask(d, done, func(ctx context.Context, c *client.Client) (proto.ProfileDetail, error) { return c.ProfileGet(ctx, id) })
+}
+
+// MemoryUsage implements shell.Host.
+func (d *desktop) MemoryUsage(id proto.SessionID, done func(proto.ProfileUsage, error)) {
+	ask(d, done, func(ctx context.Context, c *client.Client) (proto.ProfileUsage, error) {
+		return c.ProfileUsage(ctx, id)
+	})
+}
+
+// UpdateMemory implements shell.Host.
+func (d *desktop) UpdateMemory(p proto.ProfileUpdateParams, done func(proto.ProfileWriteResult, error)) {
+	ask(d, done, func(ctx context.Context, c *client.Client) (proto.ProfileWriteResult, error) {
+		return c.ProfileUpdate(ctx, p)
+	})
+}
+
+// WithdrawMemory implements shell.Host.
+func (d *desktop) WithdrawMemory(p proto.ProfileWithdrawParams, done func(proto.ProfileWriteResult, error)) {
+	ask(d, done, func(ctx context.Context, c *client.Client) (proto.ProfileWriteResult, error) {
+		return c.ProfileWithdraw(ctx, p)
+	})
+}
+
+// UnlinkMemory implements shell.Host.
+func (d *desktop) UnlinkMemory(p proto.ProfileUnlinkParams, done func(error)) {
+	ask(d, func(_ struct{}, err error) { done(err) }, func(ctx context.Context, c *client.Client) (struct{}, error) {
+		return struct{}{}, c.ProfileUnlink(ctx, p)
+	})
+}
+
+// AcceptMemory implements shell.Host.
+func (d *desktop) AcceptMemory(p proto.ProfileAcceptParams, done func(proto.ProfileEntry, error)) {
+	ask(d, done, func(ctx context.Context, c *client.Client) (proto.ProfileEntry, error) {
+		return c.ProfileAccept(ctx, p)
+	})
+}
+
+// RejectMemory implements shell.Host.
+func (d *desktop) RejectMemory(p proto.ProfileRejectParams, done func(proto.ProfileEntry, error)) {
+	ask(d, done, func(ctx context.Context, c *client.Client) (proto.ProfileEntry, error) {
+		return c.ProfileReject(ctx, p)
+	})
+}
+
+// SetMemorySettings implements shell.Host.
+func (d *desktop) SetMemorySettings(s proto.ProfileSettings, done func(proto.ProfileSettings, error)) {
+	ask(d, done, func(ctx context.Context, c *client.Client) (proto.ProfileSettings, error) {
+		return c.SetProfileSettings(ctx, s)
+	})
+}
+
 // Session implements shell.Host.
 func (d *desktop) Session(id proto.SessionID, done func(proto.SessionState)) {
 	d.call(func(ctx context.Context, c *client.Client) error {
