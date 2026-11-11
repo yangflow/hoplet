@@ -3,6 +3,7 @@ package daemon
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -64,6 +65,21 @@ func TestProfileAcrossHarnesses(t *testing.T) {
 	}
 	if err := json.Unmarshal([]byte(r.Text), &saved); r.IsError || err != nil || saved.Outcome != "applied" {
 		t.Fatalf("profile_write %+v %v", r, err)
+	}
+
+	// The entry can move to what its source session applies to, also after
+	// the user's edit has replaced its evidence.
+	edited, err := c.ProfileUpdate(timeout(t), proto.ProfileUpdateParams{ID: saved.ID, ExpectedVersion: saved.Version, Body: "Likes green tea", OpID: "edit"})
+	if err != nil || edited.Outcome != "applied" {
+		t.Fatalf("update %+v %v", edited, err)
+	}
+	saved.Version = edited.Entry.Version
+	detail, err := c.ProfileGet(timeout(t), saved.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.ContainsFunc(detail.Scopes, func(s proto.ProfileScope) bool { return s.Kind == "companion" && s.Value != "" }) {
+		t.Fatalf("scopes %+v", detail.Scopes)
 	}
 
 	second, err := c.Create(timeout(t), proto.CreateParams{Mode: proto.ModePersonal, Harness: "other", Permission: proto.ModeAutoEdit})

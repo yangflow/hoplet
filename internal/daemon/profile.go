@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strconv"
+	"strings"
 
 	"github.com/yangflow/hoplet/internal/memory"
 	"github.com/yangflow/hoplet/internal/store"
@@ -110,17 +112,98 @@ func (s *server) profileGet(ctx context.Context, id string) (proto.ProfileDetail
 		return proto.ProfileDetail{}, err
 	}
 	out := proto.ProfileDetail{Entry: facts.entry(e), History: make([]proto.ProfileVersion, len(versions))}
+	evidence := slices.Clone(e.Evidence)
 	for i, v := range versions {
 		said, err := memory.Decode([]byte(v.Content))
 		if err != nil {
 			return proto.ProfileDetail{}, fmt.Errorf("daemon: version %d of %s: %w", v.Version, id, err)
 		}
+		evidence = append(evidence, said.Evidence...)
 		out.History[i] = proto.ProfileVersion{
 			Version: v.Version, Actor: string(v.Actor), Reason: v.Reason, Content: v.Content, At: v.At,
 			Body: said.Body, Evidence: profileEntry(said).Evidence,
 		}
 	}
+	if out.Scopes, err = s.profileScopes(ctx, e.Scope, evidence); err != nil {
+		return proto.ProfileDetail{}, err
+	}
 	return out, nil
+}
+
+// profileScopes are the scopes an entry can have: everything, where it is
+// now, and what the sessions behind its evidence apply to. Evidence whose
+// session is gone adds nothing.
+func (s *server) profileScopes(ctx context.Context, now memory.Scope, evidence []memory.Evidence) ([]proto.ProfileScope, error) {
+	scopes := []memory.Scope{{Kind: memory.ScopeGlobal}, now}
+	seen := map[proto.SessionID]bool{}
+	for _, ev := range evidence {
+		id, err := s.evidenceSession(ctx, ev.Ref)
+		if errors.Is(err, store.ErrNotFound) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		if id == "" || seen[id] {
+			continue
+		}
+		seen[id] = true
+		sess, err := s.store.Session(ctx, id)
+		if errors.Is(err, store.ErrNotFound) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		from, err := s.mgr.ProfileScopes(ctx, sess)
+		if err != nil {
+			return nil, err
+		}
+		scopes = append(scopes, from...)
+	}
+	slices.SortFunc(scopes, func(a, b memory.Scope) int {
+		return cmp.Or(cmp.Compare(a.Kind, b.Kind), cmp.Compare(a.Value, b.Value))
+	})
+	scopes = slices.Compact(scopes)
+	out := make([]proto.ProfileScope, len(scopes))
+	for i, sc := range scopes {
+		out[i] = proto.ProfileScope{Kind: string(sc.Kind), Value: sc.Value}
+	}
+	return out, nil
+}
+
+// evidenceSession is the session an evidence reference was recorded in, ""
+// for a reference that names none, such as the user's own edit.
+func (s *server) evidenceSession(ctx context.Context, ref string) (proto.SessionID, error) {
+	kind, rest, _ := strings.Cut(ref, ":")
+	owner, number, ok := cutLast(rest, "/")
+	if !ok {
+		return "", nil
+	}
+	switch kind {
+	case "event":
+		return proto.SessionID(owner), nil
+	case "artifact":
+		version, err := strconv.Atoi(number)
+		if err != nil {
+			return "", nil
+		}
+		a, err := s.store.ArtifactVersion(ctx, proto.ArtifactID(owner), version)
+		if err != nil {
+			return "", err
+		}
+		return a.Session, nil
+	}
+	return "", nil
+}
+
+// cutLast cuts s around the last sep.
+func cutLast(s, sep string) (before, after string, found bool) {
+	i := strings.LastIndex(s, sep)
+	if i < 0 {
+		return s, "", false
+	}
+	return s[:i], s[i+len(sep):], true
 }
 
 // profileUsage is what a session's details say about memory.
@@ -198,9 +281,13 @@ func (s *server) profileCandidates(ctx context.Context) (proto.ProfileCandidates
 	}
 	out := proto.ProfileCandidates{Candidates: make([]proto.ProfileCandidate, len(cs))}
 	for i, c := range cs {
+		scopes, err := s.profileScopes(ctx, c.Entry.Scope, c.Entry.Evidence)
+		if err != nil {
+			return proto.ProfileCandidates{}, err
+		}
 		out.Candidates[i] = proto.ProfileCandidate{
 			Entry: profileEntry(c.Entry), Action: string(c.Action), Target: c.Target, ExpectedVersion: c.ExpectedVersion,
-			Actor: string(c.Actor), Reason: c.Reason, CreatedAt: c.CreatedAt,
+			Actor: string(c.Actor), Reason: c.Reason, CreatedAt: c.CreatedAt, Scopes: scopes,
 		}
 	}
 	return out, nil

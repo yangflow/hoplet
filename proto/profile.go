@@ -85,10 +85,12 @@ type ProfileRef struct {
 	ID string `json:"id"`
 }
 
-// ProfileDetail is an entry and its history, newest first.
+// ProfileDetail is an entry and its history, newest first. Scopes are the
+// scopes the entry can be moved to.
 type ProfileDetail struct {
 	Entry   ProfileEntry     `json:"entry"`
 	History []ProfileVersion `json:"history"`
+	Scopes  []ProfileScope   `json:"scopes,omitempty"`
 }
 
 // ProfileUpdateParams replaces an entry's body as the user. A nil Scope
@@ -118,15 +120,17 @@ type ProfileWriteResult struct {
 	Reason  string        `json:"reason,omitempty"`
 }
 
-// ProfileCandidate is a proposed change waiting for the user.
+// ProfileCandidate is a proposed change waiting for the user. Scopes are the
+// scopes it can be accepted into.
 type ProfileCandidate struct {
-	Entry           ProfileEntry `json:"entry"`
-	Action          string       `json:"action"`
-	Target          string       `json:"target,omitempty"`
-	ExpectedVersion int          `json:"expected_version"`
-	Actor           string       `json:"actor"`
-	Reason          string       `json:"reason"`
-	CreatedAt       time.Time    `json:"created_at"`
+	Entry           ProfileEntry   `json:"entry"`
+	Action          string         `json:"action"`
+	Target          string         `json:"target,omitempty"`
+	ExpectedVersion int            `json:"expected_version"`
+	Actor           string         `json:"actor"`
+	Reason          string         `json:"reason"`
+	CreatedAt       time.Time      `json:"created_at"`
+	Scopes          []ProfileScope `json:"scopes,omitempty"`
 }
 
 // ProfileExtractionHarness is one harness in ProfileExtractionStatus. Used is

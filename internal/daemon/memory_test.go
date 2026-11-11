@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/yangflow/hoplet/internal/harness/fake"
@@ -87,6 +88,9 @@ func TestProfileMethods(t *testing.T) {
 	if err != nil || detail.Entry.Version != 1 || len(detail.History) != 1 || detail.History[0].Actor != "user" {
 		t.Fatalf("get %+v, %v", detail, err)
 	}
+	if want := []proto.ProfileScope{{Kind: "global"}}; !slices.Equal(detail.Scopes, want) {
+		t.Fatalf("scopes of the user's own entry %+v", detail.Scopes)
+	}
 	if _, err := c.ProfileGet(timeout(t), "mem_00000000000000000000000000000000"); apiCode(err) != proto.CodeNotFound {
 		t.Fatalf("unknown: %v", err)
 	}
@@ -104,6 +108,9 @@ func TestProfileMethods(t *testing.T) {
 	cs, err := c.ProfileCandidates(timeout(t))
 	if err != nil || len(cs.Candidates) != 1 || cs.Candidates[0].Entry.ID != cand.ID || cs.Candidates[0].Action != "create" {
 		t.Fatalf("candidates %+v, %v", cs, err)
+	}
+	if want := []proto.ProfileScope{{Kind: "global"}, {Kind: "repo", Value: "r"}}; !slices.Equal(cs.Candidates[0].Scopes, want) {
+		t.Fatalf("scopes of a candidate %+v", cs.Candidates[0].Scopes)
 	}
 	accepted, err := c.ProfileAccept(timeout(t), proto.ProfileAcceptParams{ID: cand.ID, Scope: &proto.ProfileScope{Kind: "repo", Value: "s"}, OpID: "a1"})
 	if err != nil || accepted.Status != "active" || accepted.Scope.Value != "s" {

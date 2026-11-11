@@ -5933,30 +5933,36 @@ public struct ProfileRef: Codable, Hashable, Sendable, ProtoZero {
 public struct ProfileDetail: Codable, Hashable, Sendable, ProtoZero {
   public var entry: ProfileEntry
   public var history: [ProfileVersion]
+  public var scopes: [ProfileScope]
 
   public init(
     entry: ProfileEntry = .protoZero,
-    history: [ProfileVersion] = .protoZero
+    history: [ProfileVersion] = .protoZero,
+    scopes: [ProfileScope] = .protoZero
   ) {
     self.entry = entry
     self.history = history
+    self.scopes = scopes
   }
 
   private enum CodingKeys: String, CodingKey {
     case entry = "entry"
     case history = "history"
+    case scopes = "scopes"
   }
 
   public init(from decoder: any Decoder) throws {
     let c = try decoder.container(keyedBy: CodingKeys.self)
     entry = try c.decodeOrZero(ProfileEntry.self, forKey: .entry)
     history = try c.decodeOrZero([ProfileVersion].self, forKey: .history)
+    scopes = try c.decodeOrZero([ProfileScope].self, forKey: .scopes)
   }
 
   public func encode(to encoder: any Encoder) throws {
     var c = encoder.container(keyedBy: CodingKeys.self)
     try c.encode(entry, forKey: .entry)
     try c.encode(history, forKey: .history)
+    try c.encodeUnlessZero(scopes, forKey: .scopes)
   }
 
   public static var protoZero: Self { Self() }
@@ -6112,6 +6118,7 @@ public struct ProfileCandidate: Codable, Hashable, Sendable, ProtoZero {
   public var actor: String
   public var reason: String
   public var createdAt: Date
+  public var scopes: [ProfileScope]
 
   public init(
     entry: ProfileEntry = .protoZero,
@@ -6120,7 +6127,8 @@ public struct ProfileCandidate: Codable, Hashable, Sendable, ProtoZero {
     expectedVersion: Int = .protoZero,
     actor: String = .protoZero,
     reason: String = .protoZero,
-    createdAt: Date = .protoZero
+    createdAt: Date = .protoZero,
+    scopes: [ProfileScope] = .protoZero
   ) {
     self.entry = entry
     self.action = action
@@ -6129,6 +6137,7 @@ public struct ProfileCandidate: Codable, Hashable, Sendable, ProtoZero {
     self.actor = actor
     self.reason = reason
     self.createdAt = createdAt
+    self.scopes = scopes
   }
 
   private enum CodingKeys: String, CodingKey {
@@ -6139,6 +6148,7 @@ public struct ProfileCandidate: Codable, Hashable, Sendable, ProtoZero {
     case actor = "actor"
     case reason = "reason"
     case createdAt = "created_at"
+    case scopes = "scopes"
   }
 
   public init(from decoder: any Decoder) throws {
@@ -6150,6 +6160,7 @@ public struct ProfileCandidate: Codable, Hashable, Sendable, ProtoZero {
     actor = try c.decodeOrZero(String.self, forKey: .actor)
     reason = try c.decodeOrZero(String.self, forKey: .reason)
     createdAt = try c.decodeOrZero(Date.self, forKey: .createdAt)
+    scopes = try c.decodeOrZero([ProfileScope].self, forKey: .scopes)
   }
 
   public func encode(to encoder: any Encoder) throws {
@@ -6161,6 +6172,7 @@ public struct ProfileCandidate: Codable, Hashable, Sendable, ProtoZero {
     try c.encode(actor, forKey: .actor)
     try c.encode(reason, forKey: .reason)
     try c.encode(createdAt, forKey: .createdAt)
+    try c.encodeUnlessZero(scopes, forKey: .scopes)
   }
 
   public static var protoZero: Self { Self() }
