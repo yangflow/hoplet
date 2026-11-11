@@ -188,7 +188,7 @@ func TestMemoryLines(t *testing.T) {
 	}{
 		{"loading", func(m *memFake) { m.held = true }, "正在读取…"},
 		{"failed", func(m *memFake) { m.err = errors.New("boom") }, "读取失败"},
-		{"empty", func(m *memFake) {}, "还没有记忆"},
+		{"empty", func(*memFake) {}, "还没有记忆"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			a, h, tt, _ := newApp(t)
