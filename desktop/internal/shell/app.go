@@ -360,6 +360,7 @@ func (a *App) open(id proto.SessionID) bool {
 	}
 	a.mode, a.archived, a.selected = s.Mode, s.ArchivedAt != nil, string(id)
 	a.s.newPage, a.inbox, a.m.open = false, false, false
+	a.m.usageAsked = nil
 	a.markRead()
 	a.follow()
 	return true

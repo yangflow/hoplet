@@ -322,6 +322,8 @@ func (a *App) item(c *ui.Context, k theme.Colors, s proto.Session, it convo.Item
 		separator(c, k, "已停止 · "+clock(it.Time))
 	case convo.KindChanges:
 		a.changes(c, k, s, it)
+	case convo.KindEvent:
+		a.memoryEventRow(c, k, s, it)
 	}
 }
 

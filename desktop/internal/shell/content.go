@@ -142,7 +142,7 @@ func (a *App) details(c *ui.Context, k theme.Colors, s proto.Session) []detailGr
 		run = nil
 	}
 	run = append(run, detail{icon: a.icons.Thinking, value: model + " · 推理强度 " + effortName(s.Effort)}, detail{icon: a.modeIcon(s.Permission), value: perm})
-	gs := []detailGroup{place, {title: "运行", rows: run}, a.sessionBlock(c, k, s)}
+	gs := []detailGroup{place, {title: "运行", rows: run}, a.sessionBlock(c, k, s), a.memoryBlock(c, k, s)}
 	if agents := a.conv(s.ID).Agents(); len(agents) > 0 {
 		gs = append(gs, detailGroup{title: "子代理", body: func() { a.agentRows(c, k, s, agents) }})
 	}
@@ -271,6 +271,7 @@ func (a *App) detailsDocked() bool {
 // beside the conversation; without room they float under the title bar,
 // only when I ask, and dock once the content area widens.
 func (a *App) ToggleDetails() {
+	a.m.usageAsked = nil
 	switch {
 	case a.detailsDocked():
 		a.s.detailOpen, a.s.detailFloat = !a.s.detailOpen, false
@@ -403,7 +404,7 @@ func (a *App) companionDetails(c *ui.Context, k theme.Colors, s proto.Session) [
 	return append(gs, detailGroup{title: "", rows: place}, detailGroup{title: "运行", rows: []detail{
 		{harness: s.Harness.Kind, value: harnessName(s.Harness.Kind), version: s.Harness.Version},
 		{icon: a.icons.Thinking, value: model + " · 推理强度 " + effortName(s.Effort)},
-	}}, a.sessionBlock(c, k, s))
+	}}, a.sessionBlock(c, k, s), a.memoryBlock(c, k, s))
 }
 
 // titleHeight is the height of the content area's title bar and of the

@@ -74,6 +74,7 @@ func (a *App) memoryAnswered(key string, err error, retry func()) bool {
 	switch {
 	case err == nil:
 		delete(a.m.ops, key)
+		a.refreshSaved()
 		return true
 	case errors.As(err, &api) && api.Code == proto.CodeConflict:
 		delete(a.m.ops, key)

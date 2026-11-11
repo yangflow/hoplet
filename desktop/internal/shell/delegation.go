@@ -56,6 +56,10 @@ func (a *App) companionLink(c *ui.Context, k theme.Colors, main proto.Session) {
 // outline around one line, the whole of it a link.
 func (a *App) eventRow(c *ui.Context, k theme.Colors, s proto.Session, it convo.Item) {
 	e := it.Event
+	if e.Memory != "" {
+		a.memoryEventRow(c, k, s, it)
+		return
+	}
 	icon, verb, title := a.artifactIcon(e.Kind), "发布", e.Title
 	switch e.Delegation {
 	case proto.DelegatedSession:

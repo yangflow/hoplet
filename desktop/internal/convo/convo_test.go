@@ -291,3 +291,20 @@ func TestCodeConversationKeepsItsRows(t *testing.T) {
 		t.Errorf("a publication split the work group: %d entries", n)
 	}
 }
+
+func TestMemorySavedShowsInCode(t *testing.T) {
+	var c Convo
+	c.Apply(proto.SessionItem{Events: log(t, 1, 1,
+		proto.SessionDelegated{Session: "c1", Kind: proto.DelegatedSession, Title: "x"},
+		proto.MemorySaved{Entry: "e1", Version: 2, Action: proto.MemoryUpdated, Actor: proto.MemoryByExtraction},
+	)})
+	var events []*Event
+	for _, it := range c.Grouped() {
+		if it.Kind == KindEvent {
+			events = append(events, it.Event)
+		}
+	}
+	if len(events) != 1 || events[0].Memory != "e1" || events[0].Version != 2 {
+		t.Fatalf("events %+v", events)
+	}
+}

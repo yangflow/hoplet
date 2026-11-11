@@ -40,13 +40,16 @@ func group(items []Item, running bool) []Item {
 	return out
 }
 
-// codeItems leaves out the rows only a companion's chat draws.
+// codeItems leaves out the rows only a companion's chat draws; a memory
+// saved shows in both.
 func codeItems(items []Item) []Item {
 	out := make([]Item, 0, len(items))
 	for _, it := range items {
 		switch it.Kind {
 		case KindEvent:
-			continue
+			if it.Event.Memory == "" {
+				continue
+			}
 		case KindReport:
 			it.Kind = KindMine
 		}

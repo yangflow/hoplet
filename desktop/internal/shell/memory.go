@@ -43,6 +43,11 @@ type memoryView struct {
 	edit   memoryEdit
 
 	settings memorySettingsView
+
+	saved      map[string]proto.ProfileEntry          // entries chats' lines name, by ID
+	savedAsked map[string]bool                        // those read or being read
+	usage      map[proto.SessionID]proto.ProfileUsage // what sessions used
+	usageAsked map[proto.SessionID]bool               // read since their details opened
 }
 
 // Entry statuses and candidate actions, as the daemon writes them.

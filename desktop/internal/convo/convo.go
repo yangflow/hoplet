@@ -26,7 +26,7 @@ const (
 	KindError                // something went wrong
 	KindStopped              // the turn was stopped
 	KindChanges              // the files a turn changed
-	KindEvent                // a delegation, a handoff or a publication
+	KindEvent                // a delegation, a handoff, a publication or a memory saved
 	KindReport               // a report from another session
 )
 
@@ -57,6 +57,7 @@ type Event struct {
 	Delegation proto.DelegationKind
 	Session    proto.SessionID
 	Artifact   proto.ArtifactID
+	Memory     string // the memory entry saved, for a memory line
 	Kind       proto.ArtifactKind
 	Version    int
 	Title      string // as recorded; a session's current title may differ
@@ -486,6 +487,8 @@ func (b *builder) event(ev proto.Event, p proto.Payload) {
 		b.add(Item{Kind: KindEvent, Key: key("event", ev.Seq), Time: ev.Time, Turn: ev.Turn, Event: &Event{Delegation: p.Kind, Session: p.Session, Title: p.Title}})
 	case proto.ArtifactPublished:
 		b.add(Item{Kind: KindEvent, Key: key("event", ev.Seq), Time: ev.Time, Turn: ev.Turn, Event: &Event{Artifact: p.Artifact, Kind: p.Kind, Version: p.Version, Title: p.Name}})
+	case proto.MemorySaved:
+		b.add(Item{Kind: KindEvent, Key: key("event", ev.Seq), Time: ev.Time, Turn: ev.Turn, Event: &Event{Memory: p.Entry, Version: p.Version}})
 	case proto.Message:
 		if p.Role == proto.RoleUser && p.From != "" {
 			status := p.Report
